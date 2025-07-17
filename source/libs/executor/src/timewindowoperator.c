@@ -71,8 +71,7 @@ void doKeepTuple(SWindowRowsSup* pRowSup, int64_t ts, uint64_t groupId) {
   pRowSup->groupId = groupId;
 }
 
-void doKeepNewWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, int32_t rowIndex,
-                                     uint64_t groupId) {
+void doKeepNewWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, int32_t rowIndex, uint64_t groupId) {
   pRowSup->startRowIndex = rowIndex;
   pRowSup->numOfRows = 0;
   pRowSup->win.skey = tsList[rowIndex];
@@ -238,10 +237,12 @@ void doTimeWindowInterpolation(SArray* pPrevValues, SArray* pDataBlock, TSKEY pr
       SGroupKeys* p = taosArrayGet(pPrevValues, index);
       GET_TYPED_DATA(v1, double, pColInfo->info.type, p->pData, typeGetTypeModFromColInfo(&pColInfo->info));
     } else {
-      GET_TYPED_DATA(v1, double, pColInfo->info.type, colDataGetData(pColInfo, prevRowIndex), typeGetTypeModFromColInfo(&pColInfo->info));
+      GET_TYPED_DATA(v1, double, pColInfo->info.type, colDataGetData(pColInfo, prevRowIndex),
+                     typeGetTypeModFromColInfo(&pColInfo->info));
     }
 
-    GET_TYPED_DATA(v2, double, pColInfo->info.type, colDataGetData(pColInfo, curRowIndex), typeGetTypeModFromColInfo(&pColInfo->info));
+    GET_TYPED_DATA(v2, double, pColInfo->info.type, colDataGetData(pColInfo, curRowIndex),
+                   typeGetTypeModFromColInfo(&pColInfo->info));
 
 #if 0
     if (functionId == FUNCTION_INTERP) {
@@ -331,8 +332,8 @@ static bool setTimeWindowInterpolationStartTs(SIntervalAggOperatorInfo* pInfo, i
 }
 
 static int32_t setTimeWindowInterpolationEndTs(SIntervalAggOperatorInfo* pInfo, SExprSupp* pSup, int32_t endRowIndex,
-                                            int32_t nextRowIndex, SArray* pDataBlock, const TSKEY* tsCols,
-                                            TSKEY blockEkey, STimeWindow* win, bool* pRes) {
+                                               int32_t nextRowIndex, SArray* pDataBlock, const TSKEY* tsCols,
+                                               TSKEY blockEkey, STimeWindow* win, bool* pRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t order = pInfo->binfo.inputTsOrder;
@@ -510,8 +511,8 @@ static int32_t doWindowBorderInterpolation(SIntervalAggOperatorInfo* pInfo, SSDa
 
     TSKEY endKey = (pInfo->binfo.inputTsOrder == TSDB_ORDER_ASC) ? pBlock->info.window.ekey : pBlock->info.window.skey;
     bool  interp = false;
-    code = setTimeWindowInterpolationEndTs(pInfo, pSup, endRowIndex, nextRowIndex, pBlock->pDataBlock, tsCols,
-                                           endKey, win, &interp);
+    code = setTimeWindowInterpolationEndTs(pInfo, pSup, endRowIndex, nextRowIndex, pBlock->pDataBlock, tsCols, endKey,
+                                           win, &interp);
     QUERY_CHECK_CODE(code, lino, _end);
     if (interp) {
       setResultRowInterpo(pResult, RESULT_ROW_END_INTERP);
@@ -546,7 +547,11 @@ static void saveDataBlockLastRow(SArray* pPrevKeys, const SSDataBlock* pBlock, S
 
       char* val = colDataGetData(pColInfo, i);
       if (IS_VAR_DATA_TYPE(pkey->type)) {
-        memcpy(pkey->pData, val, varDataTLen(val));
+        if (IS_STR_DATA_BLOB(pkey->type)) {
+          memcpy(pkey->pData, val, blobDataTLen(val));
+        } else {
+          memcpy(pkey->pData, val, varDataTLen(val));
+        }
       } else {
         memcpy(pkey->pData, val, pkey->bytes);
       }
@@ -589,7 +594,7 @@ static void doInterpUnclosedTimeWindow(SOperatorInfo* pOperatorInfo, int32_t num
 
     if (pr->closed) {
       if (!(isResultRowInterpolated(pr, RESULT_ROW_START_INTERP) &&
-             isResultRowInterpolated(pr, RESULT_ROW_END_INTERP)) ) {
+            isResultRowInterpolated(pr, RESULT_ROW_END_INTERP))) {
         pTaskInfo->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         T_LONG_JMP(pTaskInfo->env, terrno);
       }
@@ -605,7 +610,7 @@ static void doInterpUnclosedTimeWindow(SOperatorInfo* pOperatorInfo, int32_t num
       T_LONG_JMP(pTaskInfo->env, ret);
     }
 
-    if(isResultRowInterpolated(pResult, RESULT_ROW_END_INTERP)) {
+    if (isResultRowInterpolated(pResult, RESULT_ROW_END_INTERP)) {
       pTaskInfo->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       T_LONG_JMP(pTaskInfo->env, terrno);
     }
@@ -616,7 +621,7 @@ static void doInterpUnclosedTimeWindow(SOperatorInfo* pOperatorInfo, int32_t num
       T_LONG_JMP(pTaskInfo->env, terrno);
     }
 
-    int64_t     prevTs = *(int64_t*)pTsKey->pData;
+    int64_t prevTs = *(int64_t*)pTsKey->pData;
     if (groupId == pBlock->info.id.groupId) {
       TSKEY curTs = pBlock->info.window.skey;
       if (tsCols != NULL) {
@@ -670,7 +675,8 @@ static bool isCalculatedWin(SIntervalAggOperatorInfo* pInfo, const STimeWindow* 
  *       every tuple in every block.
  *       And the boundedQueue keeps refreshing all records with smaller ts key.
  */
-static bool filterWindowWithLimit(SIntervalAggOperatorInfo* pOperatorInfo, STimeWindow* win, uint64_t groupId, SExecTaskInfo* pTaskInfo) {
+static bool filterWindowWithLimit(SIntervalAggOperatorInfo* pOperatorInfo, STimeWindow* win, uint64_t groupId,
+                                  SExecTaskInfo* pTaskInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (!pOperatorInfo->limited  // if no limit info, no filter will be applied
@@ -781,7 +787,7 @@ static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
   //   win.skey, win.ekey, startPos, forwardRows);
   updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &win, 1);
   ret = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos, forwardRows,
-                                  pBlock->info.rows, numOfOutput);
+                                        pBlock->info.rows, numOfOutput);
   if (ret != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, ret);
   }
@@ -889,8 +895,9 @@ int64_t* extractTsCol(SSDataBlock* pBlock, const SIntervalAggOperatorInfo* pInfo
     }
 
     tsCols = (int64_t*)pColDataInfo->pData;
-    if(tsCols[0] == 0) {
-      qWarn("%s at line %d.block start ts:%" PRId64 ",end ts:%" PRId64, __func__, __LINE__, tsCols[0], tsCols[pBlock->info.rows - 1]);
+    if (tsCols[0] == 0) {
+      qWarn("%s at line %d.block start ts:%" PRId64 ",end ts:%" PRId64, __func__, __LINE__, tsCols[0],
+            tsCols[pBlock->info.rows - 1]);
     }
 
     if (tsCols[0] != 0 && (pBlock->info.window.skey == 0 && pBlock->info.window.ekey == 0)) {
@@ -970,7 +977,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
     pTaskInfo->code = terrno;
     T_LONG_JMP(pTaskInfo->env, terrno);
   }
-  int64_t          gid = pBlock->info.id.groupId;
+  int64_t gid = pBlock->info.id.groupId;
 
   bool    hasResult = false;
   bool    masterScan = true;
@@ -982,7 +989,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
     pTaskInfo->code = terrno;
     T_LONG_JMP(pTaskInfo->env, terrno);
   }
-  TSKEY*           tsList = (TSKEY*)pColInfoData->pData;
+  TSKEY* tsList = (TSKEY*)pColInfoData->pData;
 
   SWindowRowsSup* pRowSup = &pInfo->winSup;
   pRowSup->numOfRows = 0;
@@ -1006,7 +1013,11 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
     if (gid != pRowSup->groupId || !pInfo->hasKey) {
       // todo extract method
       if (IS_VAR_DATA_TYPE(pInfo->stateKey.type)) {
-        varDataCopy(pInfo->stateKey.pData, val);
+        if (IS_STR_DATA_BLOB(pInfo->stateKey.type)) {
+          blobDataCopy(pInfo->stateKey.pData, val);
+        } else {
+          varDataCopy(pInfo->stateKey.pData, val);
+        }
       } else {
         memcpy(pInfo->stateKey.pData, val, bytes);
       }
@@ -1043,7 +1054,11 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
 
       // todo extract method
       if (IS_VAR_DATA_TYPE(pInfo->stateKey.type)) {
-        varDataCopy(pInfo->stateKey.pData, val);
+        if (IS_STR_DATA_BLOB(pInfo->stateKey.type)) {
+          blobDataCopy(pInfo->stateKey.pData, val);
+        } else {
+          varDataCopy(pInfo->stateKey.pData, val);
+        }
       } else {
         memcpy(pInfo->stateKey.pData, val, bytes);
       }
@@ -1311,7 +1326,7 @@ _end:
 }
 
 static int32_t timeWindowinterpNeeded(SqlFunctionCtx* pCtx, int32_t numOfCols, SIntervalAggOperatorInfo* pInfo,
-                                   bool* pRes) {
+                                      bool* pRes) {
   // the primary timestamp column
   bool    needed = false;
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1598,8 +1613,9 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSessionAggOperator
 
         // pInfo->numOfRows data belong to the current session window
         updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &window, 0);
-        ret = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, pRowSup->startRowIndex,
-                                              pRowSup->numOfRows, pBlock->info.rows, numOfOutput);
+        ret =
+            applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData,
+                                            pRowSup->startRowIndex, pRowSup->numOfRows, pBlock->info.rows, numOfOutput);
         if (ret != TSDB_CODE_SUCCESS) {
           T_LONG_JMP(pTaskInfo->env, ret);
         }
@@ -1934,8 +1950,8 @@ int32_t createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWinodwPh
   QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
   initBasicInfo(&pInfo->binfo, pResBlock);
 
-  int32_t      numOfCols = 0;
-  SExprInfo*   pExprInfo = NULL;
+  int32_t    numOfCols = 0;
+  SExprInfo* pExprInfo = NULL;
   code = createExprInfo(pSessionNode->window.pFuncs, NULL, &pExprInfo, &numOfCols);
   QUERY_CHECK_CODE(code, lino, _error);
 
@@ -2077,7 +2093,8 @@ static void doMergeAlignedIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultR
     miaInfo->curTs = tsCols[currPos];
 
     currWin.skey = miaInfo->curTs;
-    currWin.ekey = taosTimeAdd(currWin.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1;
+    currWin.ekey =
+        taosTimeAdd(currWin.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1;
 
     startPos = currPos;
     ret = setSingleOutputTupleBuf(pResultRowInfo, &win, &miaInfo->pResultRow, pSup, &iaInfo->aggSup);
@@ -2245,7 +2262,7 @@ static int32_t resetMergeAlignedIntervalOperState(SOperatorInfo* pOper) {
 }
 
 int32_t createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SMergeAlignedIntervalPhysiNode* pNode,
-                                                      SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+                                               SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t                               code = TSDB_CODE_SUCCESS;
@@ -2424,7 +2441,7 @@ static void doMergeIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultRowInfo*
   TSKEY   ekey = ascScan ? win.ekey : win.skey;
   int32_t forwardRows = getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL,
                                                  iaInfo->binfo.inputTsOrder);
-  if(forwardRows <= 0) {
+  if (forwardRows <= 0) {
     T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
   }
 
@@ -2448,8 +2465,8 @@ static void doMergeIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultRowInfo*
   }
 
   updateTimeWindowInfo(&iaInfo->twAggSup.timeWindowData, &win, 1);
-  ret = applyAggFunctionOnPartialTuples(pTaskInfo, pExprSup->pCtx, &iaInfo->twAggSup.timeWindowData, startPos, forwardRows,
-                                  pBlock->info.rows, numOfOutput);
+  ret = applyAggFunctionOnPartialTuples(pTaskInfo, pExprSup->pCtx, &iaInfo->twAggSup.timeWindowData, startPos,
+                                        forwardRows, pBlock->info.rows, numOfOutput);
   if (ret != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, ret);
   }
@@ -2609,7 +2626,7 @@ static int32_t resetMergeIntervalOperState(SOperatorInfo* pOper) {
 }
 
 int32_t createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SMergeIntervalPhysiNode* pIntervalPhyNode,
-                                               SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+                                        SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t                        code = TSDB_CODE_SUCCESS;

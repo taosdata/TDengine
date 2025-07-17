@@ -60,7 +60,7 @@ void veriry_stmt(TAOS* taos) {
   */
   const char* sql =
       "create table m1 (ts timestamp, b bool, v1 tinyint, v2 smallint, v4 int, v8 bigint, f4 float, f8 double, blob2 "
-      "nchar(10), blob nchar(10))";
+      "nchar(10), blobt nchar(10))";
   result = taos_query(taos, sql);
   code = taos_errno(result);
   if (code != 0) {

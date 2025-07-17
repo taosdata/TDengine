@@ -1832,6 +1832,9 @@ static int32_t doBlockDataPrimaryKeyFilter(SSDataBlock* pBlock, STqOffsetVal* of
     int64_t* ts = (int64_t*)colDataGetData(pColTs, i);
     void*    data = colDataGetData(pColPk, i);
     if (IS_VAR_DATA_TYPE(pColPk->info.type)) {
+      if (IS_STR_DATA_BLOB(pColPk->info.type)) {
+        QUERY_CHECK_CODE(code = TSDB_CODE_BLOB_NOT_SUPPORT_PRIMARY_KEY, lino, _end);
+      }
       void* tmq = taosMemoryMalloc(offset->primaryKey.nData + VARSTR_HEADER_SIZE);
       QUERY_CHECK_NULL(tmq, code, lino, _end, terrno);
       memcpy(varDataVal(tmq), offset->primaryKey.pData, offset->primaryKey.nData);
@@ -2008,6 +2011,9 @@ static int32_t processPrimaryKey(SSDataBlock* pBlock, bool hasPrimaryKey, STqOff
     void* tmp = colDataGetData(pColPk, pBlock->info.rows - 1);
     val.type = pColPk->info.type;
     if (IS_VAR_DATA_TYPE(pColPk->info.type)) {
+      if (IS_STR_DATA_BLOB(pColPk->info.type)) {
+        return TSDB_CODE_BLOB_NOT_SUPPORT_PRIMARY_KEY;
+      }
       val.pData = taosMemoryMalloc(varDataLen(tmp));
       QUERY_CHECK_NULL(val.pData, code, lino, _end, terrno);
       val.nData = varDataLen(tmp);
@@ -2922,6 +2928,9 @@ static int32_t tagScanFillOneCellWithTag(SOperatorInfo* pOperator, const STUidTa
         code = colDataSetVal(pColInfo, rowIndex, p, false);
         QUERY_CHECK_CODE(code, lino, _end);
       } else if (IS_VAR_DATA_TYPE(pColInfo->info.type)) {
+        if (IS_STR_DATA_BLOB(pColInfo->info.type)) {
+          QUERY_CHECK_CODE(code = TSDB_CODE_BLOB_NOT_SUPPORT_TAG, lino, _end);
+        }
         char* tmp = taosMemoryMalloc(tagVal.nData + VARSTR_HEADER_SIZE + 1);
         QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
 

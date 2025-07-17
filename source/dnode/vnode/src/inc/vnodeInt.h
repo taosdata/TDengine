@@ -47,6 +47,7 @@
 #include "ttimer.h"
 #include "wal.h"
 
+#include "bse.h"
 #include "vnode.h"
 
 #include "metrics.h"
@@ -89,6 +90,7 @@ typedef struct SStreamNotifyHandleMap SStreamNotifyHandleMap;
 #define VNODE_META_TMP_DIR    "meta.tmp"
 #define VNODE_META_BACKUP_DIR "meta.backup"
 
+
 #define VNODE_TSDB_NAME_LEN  6
 #define VNODE_META_DIR       "meta"
 #define VNODE_TSDB_DIR       "tsdb"
@@ -102,6 +104,7 @@ typedef struct SStreamNotifyHandleMap SStreamNotifyHandleMap;
 #define VNODE_TQ_STREAM      "stream"
 #define VNODE_CACHE_DIR      "cache.rdb"
 #define VNODE_TSDB_CACHE_DIR VNODE_TSDB_DIR TD_DIRSEP VNODE_CACHE_DIR
+#define VNODE_BSE_DIR   "bse"
 
 #if SUSPEND_RESUME_TEST  // only for test purpose
 #define VNODE_BUFPOOL_SEGMENTS 1
@@ -501,6 +504,7 @@ struct SVnode {
 
   // commit variables
   SVATaskID commitTask;
+  SVATaskID commitTask2;
 
   struct {
     TdThreadRwlock metaRWLock;
@@ -513,6 +517,7 @@ struct SVnode {
   STsdb*        pTsdb;
   SWal*         pWal;
   STQ*          pTq;
+  SBse*         pBse;
   SSink*        pSink;
   int64_t       sync;
   TdThreadMutex lock;
@@ -593,6 +598,7 @@ enum {
   SNAP_DATA_STREAM_STATE_BACKEND = 12,
   SNAP_DATA_TQ_CHECKINFO = 13,
   SNAP_DATA_RAW = 14,
+  SNAP_DATA_BSE = 15,
 };
 
 struct SSnapDataHdr {

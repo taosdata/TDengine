@@ -486,6 +486,9 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
       pVal->node.resType.bytes = output + VARSTR_HEADER_SIZE;
       break;
     }
+    case TSDB_DATA_TYPE_BLOB:
+    case TSDB_DATA_TYPE_MEDIUMBLOB:
+      return TSDB_CODE_INVALID_PARA;
     default: {
       int32_t code = nodesSetValueNodeValue(pVal, pParam->buffer);
       if (code) {
