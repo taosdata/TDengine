@@ -1893,6 +1893,6 @@
 # has migrate to new,,n,develop-test,python3 ./test.py -f 2-query/show_create_db.py
 
 # new test
-,,y,test_new,./pytest.sh python3 ./test.py -f storage/compact/test_compact_meta.py
+# has migrate to new,,y,test_new,./pytest.sh python3 ./test.py -f storage/compact/test_compact_meta.py
 
 
