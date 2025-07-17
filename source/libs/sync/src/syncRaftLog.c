@@ -122,6 +122,9 @@ static int32_t raftLogRestoreFromSnapshot(struct SSyncLogStore* pLogStore, SyncI
 
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
+
+  sInfo("vgId:%d, before restore from snapshot, commitIndex:%" PRId64, pData->pSyncNode->vgId, pWal->vers.commitVer);
+
   int32_t            code = walRestoreFromSnapshot(pWal, snapshotIndex);
   if (code != 0) {
     int32_t     err = code;
@@ -134,6 +137,8 @@ static int32_t raftLogRestoreFromSnapshot(struct SSyncLogStore* pLogStore, SyncI
             err, errStr, sysErr, sysErrStr);
     TAOS_RETURN(err);
   }
+
+  sInfo("vgId:%d, after restore from snapshot, commitIndex:%" PRId64, pData->pSyncNode->vgId, pWal->vers.commitVer);
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }

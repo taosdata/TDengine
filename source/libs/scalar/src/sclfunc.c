@@ -2759,13 +2759,7 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
                    typeGetTypeModFromColInfo(&pInput[2].columnData->info));
   }
 
-  int64_t factor = TSDB_TICK_PER_SECOND(timePrec);
-  int32_t numOfRows = 0;
-  for (int32_t i = 0; i < inputNum; ++i) {
-    if (pInput[i].numOfRows > numOfRows) {
-      numOfRows = pInput[i].numOfRows;
-    }
-  }
+  int32_t numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
 
   char *input[2];
   for (int32_t i = 0; i < numOfRows; ++i) {
@@ -2776,40 +2770,18 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
         break;
       }
 
-      int32_t rowIdx = (pInput[k].numOfRows == 1) ? 0 : i;
+      int32_t rowIdx = (pInput[k].numOfRows == numOfRows) ? i : 0;
       input[k] = colDataGetData(pInput[k].columnData, rowIdx);
 
       int32_t type = GET_PARAM_TYPE(&pInput[k]);
       if (IS_VAR_DATA_TYPE(type)) { /* datetime format strings */
-        int32_t ret = convertStringToTimestamp(type, input[k], TSDB_TIME_PRECISION_NANO, &timeVal[k], pInput->tz, pInput->charsetCxt);
-        if (ret != TSDB_CODE_SUCCESS) {
+        int32_t code = convertStringToTimestamp(type, input[k], timePrec, &timeVal[k], pInput->tz, pInput->charsetCxt);
+        if (code != TSDB_CODE_SUCCESS) {
           hasNull = true;
           break;
         }
-      } else if (type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_TIMESTAMP) { /* unix timestamp or ts column*/
+      } else if (type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_TIMESTAMP) { /* unix timestamp or ts column */
         GET_TYPED_DATA(timeVal[k], int64_t, type, input[k], typeGetTypeModFromColInfo(&pInput[k].columnData->info));
-        if (type == TSDB_DATA_TYPE_TIMESTAMP) {
-          int64_t timeValSec = timeVal[k] / factor;
-          if (timeValSec < 1000000000) {
-            timeVal[k] = timeValSec;
-          }
-        }
-
-        char buf[20] = {0};
-        NUM_TO_STRING(TSDB_DATA_TYPE_BIGINT, &timeVal[k], sizeof(buf), buf);
-        int32_t tsDigits = (int32_t)strlen(buf);
-        if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
-          timeVal[k] = timeVal[k] * 1000000000;
-        } else if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
-          timeVal[k] = timeVal[k] * 1000000;
-        } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
-          timeVal[k] = timeVal[k] * 1000;
-        } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
-          timeVal[k] = timeVal[k] * 1;
-        } else {
-          hasNull = true;
-          break;
-        }
       }
     }
 
@@ -2818,62 +2790,11 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
       continue;
     }
 
+    // now both timeVal[0] and timeVal[1] are valid and have same
+    // precision as timeUnit so we can safely perform operations on them
     int64_t result = timeVal[0] - timeVal[1];
-
-    if (timeUnit < 0) {  // if no time unit given use db precision
-      switch (timePrec) {
-        case TSDB_TIME_PRECISION_MILLI: {
-          result = result / 1000000;
-          break;
-        }
-        case TSDB_TIME_PRECISION_MICRO: {
-          result = result / 1000;
-          break;
-        }
-        case TSDB_TIME_PRECISION_NANO: {
-          result = result / 1;
-          break;
-        }
-      }
-    } else {
-      int64_t unit = timeUnit * 1000 / factor;
-      switch (unit) {
-        case 0: { /* 1u or 1b */
-          if (timePrec == TSDB_TIME_PRECISION_NANO && timeUnit == 1) {
-            result = result / 1;
-          } else {
-            result = result / 1000;
-          }
-          break;
-        }
-        case 1: { /* 1a */
-          result = result / 1000000;
-          break;
-        }
-        case 1000: { /* 1s */
-          result = result / 1000000000;
-          break;
-        }
-        case 60000: { /* 1m */
-          result = result / 1000000000 / 60;
-          break;
-        }
-        case 3600000: { /* 1h */
-          result = result / 1000000000 / 3600;
-          break;
-        }
-        case 86400000: { /* 1d */
-          result = result / 1000000000 / 86400;
-          break;
-        }
-        case 604800000: { /* 1w */
-          result = result / 1000000000 / 604800;
-          break;
-        }
-        default: {
-          break;
-        }
-      }
+    if (timeUnit > 0) {
+      result = result / timeUnit;
     }
 
     SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, (char *)&result, false));

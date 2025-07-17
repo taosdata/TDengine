@@ -21,7 +21,9 @@ This section describes how to create data migration tasks through the Explorer i
 
 ## Feature Overview
 
-MongoDB is a product that lies between relational and non-relational databases, widely used in content management systems, mobile applications, and the Internet of Things, among other fields. Starting from TDengine Enterprise Edition 3.3.3.0, TDengine can efficiently read data from MongoDB and write it into TDengine, achieving historical data migration or real-time data synchronization, and addressing technical pain points faced by businesses.
+MongoDB is a product that lies between relational and non-relational databases, widely used in content management systems, mobile applications, and the Internet of Things, among other fields. Starting from TDengine Enterprise Edition 3.3.3.0 [^1], TDengine can efficiently read data from MongoDB and write it into TDengine, achieving historical data migration or real-time data synchronization, and addressing technical pain points faced by businesses.
+
+[^1]: TDengine Enterprise Edition was renamed to TDengine TSDB-Enterprise starting from version 3.3.7.0
 
 ## Creating a Task
 
