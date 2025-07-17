@@ -233,7 +233,7 @@ class TestStreamRecalcWatermark:
         # Test 5: PERIOD with WATERMARK - should handle out-of-order data within tolerance
         stream = StreamItem(
             id=5,
-            stream="create stream rdb.s_period_watermark period(30s) from tdb.trigger_period_watermark partition by tbname stream_options(watermark(45s)) into rdb.r_period_watermark as select _tlocaltime ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _tlocaltime - 30000000000 and cts <= _tlocaltime;",
+            stream="create stream rdb.s_period_watermark period(30s) from tdb.trigger_period_watermark partition by tbname stream_options(watermark(45s)) into rdb.r_period_watermark as select cast(_tlocaltime/1000000 as timestamp) ts, count(*) cnt, avg(cint) avg_val from qdb.meters;",
             check_func=self.check05,
         )
         self.streams.append(stream)
