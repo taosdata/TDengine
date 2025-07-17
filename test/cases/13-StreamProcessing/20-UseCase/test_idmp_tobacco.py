@@ -2,6 +2,7 @@ from new_test_framework.utils import tdLog, tdSql, tdStream, etool
 import time
 import os
 import json
+import math
 
 
 class TestIdmpTobacco:
@@ -229,12 +230,27 @@ class TestIdmpTobaccoImpl:
                         )
                         return False
                     actual = output[a.row][a.col]
-                    if str(actual) != str(a.data):
+                    if not values_equal(a.data, actual):
                         tdLog.error(
                             f"assert failed: not equal, row: {a.row}, col: {a.col}, expect: {a.data}, actual: {actual}"
                         )
                         return False
                 return True
+
+            def values_equal(expected, actual, rel_tol=1e-6, abs_tol=1e-8):
+                # compare NULL if actual is None
+                if actual is None:
+                    return str(expected) == "NULL"
+                # use math.isclose whene actual is float
+                if isinstance(actual, float):
+                    try:
+                        return math.isclose(
+                            float(expected), actual, rel_tol=rel_tol, abs_tol=abs_tol
+                        )
+                    except Exception:
+                        return False
+                # use string comparison otherwise
+                return str(expected) == str(actual)
 
             retry_count = (
                 self.assert_retry
