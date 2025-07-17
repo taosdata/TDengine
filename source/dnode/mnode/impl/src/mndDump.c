@@ -382,7 +382,7 @@ void dumpConsumer(SSdb *pSdb, SJson *json) {
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "status", i642str(status)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "consumerId", i642str(pObj->consumerId)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "cgroup", pObj->cgroup), pObj, &lino, _OVER);
-    mError("sub consumer ref count at line:%d for consumer %lld", lino, pObj->consumerId);
+    //mError("sub consumer ref count at line:%d for consumer %lld", lino, pObj->consumerId);
     sdbRelease(pSdb, pObj);
   }
 _OVER:

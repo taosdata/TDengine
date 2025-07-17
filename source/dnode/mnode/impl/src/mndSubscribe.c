@@ -1130,13 +1130,13 @@ static int32_t mndCheckConsumerByGroup(SMnode *pMnode, STrans *pTrans, char *cgr
     }
 
     if (strcmp(cgroup, pConsumer->cgroup) != 0) {
-      mError("call sub count consumer at line:%d for consumer %lld", __LINE__, pConsumer->consumerId);
+      //mError("call sub count consumer at line:%d for consumer %lld", __LINE__, pConsumer->consumerId);
       sdbRelease(pMnode->pSdb, pConsumer);
       continue;
     }
 
     if (deleteConsumer) {
-      mError("call delete consumer at line:%d for consumer %lld", __LINE__, pConsumer->consumerId);
+      //mError("call delete consumer at line:%d for consumer %lld", __LINE__, pConsumer->consumerId);
       MND_TMQ_RETURN_CHECK(tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup, -1, NULL, NULL, &pConsumerNew));
       MND_TMQ_RETURN_CHECK(mndSetConsumerDropLogs(pTrans, pConsumerNew));
 
@@ -1152,7 +1152,7 @@ static int32_t mndCheckConsumerByGroup(SMnode *pMnode, STrans *pTrans, char *cgr
       }
     }
 
-    mError("call sub count consumer at line:%d for consumer %lld", __LINE__, pConsumer->consumerId);
+    //mError("call sub count consumer at line:%d for consumer %lld", __LINE__, pConsumer->consumerId);
     sdbRelease(pMnode->pSdb, pConsumer);
   }
 
