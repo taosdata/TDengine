@@ -3269,6 +3269,12 @@ void tDestroySTriggerPullRequest(SSTriggerPullRequestUnion* pReq) {
       taosArrayDestroy(pRequest->cids);
       pRequest->cids = NULL;
     }
+  } else if (pReq->base.type == STRIGGER_PULL_VTABLE_PSEUDO_COL) {
+    SSTriggerVirTablePseudoColRequest *pRequest = (SSTriggerVirTablePseudoColRequest*)pReq;
+    if (pRequest->cids != NULL) {
+      taosArrayDestroy(pRequest->cids);
+      pRequest->cids = NULL;
+    }
   } else if (pReq->base.type == STRIGGER_PULL_OTABLE_INFO) {
     SSTriggerOrigTableInfoRequest* pRequest = (SSTriggerOrigTableInfoRequest*)pReq;
     if (pRequest->cols != NULL) {
@@ -3454,6 +3460,12 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       TAOS_CHECK_EXIT(encodeColsArray(&encoder, pRequest->cids));
       break;
     }
+    case STRIGGER_PULL_VTABLE_PSEUDO_COL: {
+      SSTriggerVirTablePseudoColRequest* pRequest = (SSTriggerVirTablePseudoColRequest*)pReq;
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->uid));
+      TAOS_CHECK_EXIT(encodeColsArray(&encoder, pRequest->cids));
+      break;
+    }
     case STRIGGER_PULL_OTABLE_INFO: {
       SSTriggerOrigTableInfoRequest* pRequest = (SSTriggerOrigTableInfoRequest*)pReq;
       int32_t size = taosArrayGetSize(pRequest->cols);
@@ -3613,6 +3625,12 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
     }
     case STRIGGER_PULL_VTABLE_INFO: {
       SSTriggerVirTableInfoRequest* pRequest = &(pReq->virTableInfoReq);
+      TAOS_CHECK_EXIT(decodeColsArray(&decoder, &pRequest->cids));
+      break;
+    }
+    case STRIGGER_PULL_VTABLE_PSEUDO_COL: {
+      SSTriggerVirTablePseudoColRequest* pRequest = &(pReq->virTablePseudoColReq);
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->uid));
       TAOS_CHECK_EXIT(decodeColsArray(&decoder, &pRequest->cids));
       break;
     }

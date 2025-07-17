@@ -716,6 +716,7 @@ typedef enum ESTriggerPullType {
   STRIGGER_PULL_WAL_DATA,
   STRIGGER_PULL_GROUP_COL_VALUE,
   STRIGGER_PULL_VTABLE_INFO,
+  STRIGGER_PULL_VTABLE_PSEUDO_COL,
   STRIGGER_PULL_OTABLE_INFO,
   STRIGGER_PULL_TYPE_MAX,
 } ESTriggerPullType;
@@ -806,11 +807,11 @@ typedef struct SSTriggerVirTableInfoRequest {
   SArray*              cids;  // SArray<col_id_t>, col ids of the virtual table
 } SSTriggerVirTableInfoRequest;
 
-typedef struct OTableInfoRsp {
-  int64_t  suid;
-  int64_t  uid;
-  col_id_t cid;
-} OTableInfoRsp;
+typedef struct SSTriggerVirTablePseudoColRequest {
+  SSTriggerPullRequest base;
+  int64_t              uid;
+  SArray*              cids;  // SArray<int32_t>, -1 means tbname
+} SSTriggerVirTablePseudoColRequest;
 
 typedef struct OTableInfo {
   char     refTableName[TSDB_TABLE_NAME_LEN];
@@ -821,6 +822,12 @@ typedef struct SSTriggerOrigTableInfoRequest {
   SSTriggerPullRequest base;
   SArray*              cols;  // SArray<OTableInfo>
 } SSTriggerOrigTableInfoRequest;
+
+typedef struct OTableInfoRsp {
+  int64_t  suid;
+  int64_t  uid;
+  col_id_t cid;
+} OTableInfoRsp;
 
 typedef struct SSTriggerOrigTableInfoRsp {
   SArray*              cols;  // SArray<OTableInfoRsp>
@@ -844,6 +851,7 @@ typedef union SSTriggerPullRequestUnion {
   SSTriggerWalDataRequest             walDataReq;
   SSTriggerGroupColValueRequest       groupColValueReq;
   SSTriggerVirTableInfoRequest        virTableInfoReq;
+  SSTriggerVirTablePseudoColRequest   virTablePseudoColReq;
   SSTriggerOrigTableInfoRequest       origTableInfoReq;
 } SSTriggerPullRequestUnion;
 
