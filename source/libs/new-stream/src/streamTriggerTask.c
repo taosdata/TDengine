@@ -160,40 +160,43 @@ static void stTriggerTaskCheckWaitSession(void *param, void *tmrId) {
   tdListInitIter(&readylist, &iter, TD_LIST_FORWARD);
   while ((pNode = tdListNext(&iter)) != NULL) {
     StreamTriggerWaitInfo *pInfo = (StreamTriggerWaitInfo *)pNode->data;
-    SStreamTask           *task = NULL;
-    void                  *taskAddr = NULL;
-    int32_t                code = streamAcquireTask(pInfo->streamId, pInfo->taskId, &task, &taskAddr);
-    if (code != TSDB_CODE_SUCCESS) {
-      stError("failed to acquire stream trigger task %" PRIx64 "-%" PRIx64 "-%" PRIx64 " since %s", pInfo->streamId,
-              pInfo->taskId, pInfo->sessionId, tstrerror(code));
-      TD_DLIST_POP(&readylist, pNode);
-      taosMemoryFreeClear(pNode);
-      continue;
-    }
+    stDebug("resume stream trigger session %" PRIx64 "-%" PRIx64 "-%" PRIx64 " since now:%" PRId64
+            ", resumeTime:%" PRId64,
+            pInfo->streamId, pInfo->taskId, pInfo->sessionId, now, pInfo->resumeTime);
 
-    // resume the session
-    SStreamTriggerTask *pTask = (SStreamTriggerTask *)task;
-    if (pInfo->sessionId == SSTRIGGER_REALTIME_SESSIONID) {
-      SSTriggerRealtimeContext *pContext = pTask->pRealtimeContext;
-      code = stRealtimeContextCheck(pContext);
-    } else if (pInfo->sessionId == SSTRIGGER_HISTORY_SESSIONID) {
-      SSTriggerHistoryContext *pContext = pTask->pHistoryContext;
-      code = stHistoryContextCheck(pContext);
-    }
-    if (code != TSDB_CODE_SUCCESS) {
-      atomic_store_32(&pTask->task.errorCode, code);
-      atomic_store_32((int32_t *)&pTask->task.status, STREAM_STATUS_FAILED);
-      stError("failed to resume stream trigger session %" PRIx64 "-%" PRIx64 "-%" PRIx64 " since %s", pInfo->streamId,
-              pInfo->taskId, pInfo->sessionId, tstrerror(code));
+    SSTriggerCtrlRequest req = {.type = STRIGGER_CTRL_START,
+                                .streamId = pInfo->streamId,
+                                .taskId = pInfo->taskId,
+                                .sessionId = pInfo->sessionId};
+    SRpcMsg              msg = {.msgType = TDMT_STREAM_TRIGGER_CTRL};
+    msg.contLen = tSerializeSTriggerCtrlRequest(NULL, 0, &req);
+    if (msg.contLen > 0) {
+      msg.pCont = rpcMallocCont(msg.contLen);
+      if (msg.pCont != NULL) {
+        int32_t tlen = tSerializeSTriggerCtrlRequest(msg.pCont, msg.contLen, &req);
+        if (tlen == msg.contLen) {
+          TRACE_SET_ROOTID(&msg.info.traceId, pInfo->streamId);
+          TRACE_SET_MSGID(&msg.info.traceId, tGenIdPI64());
+          SMsgCb *pCb = &gStreamMgmt.msgCb;
+          int32_t code = pCb->putToQueueFp(pCb->mgmt, STREAM_TRIGGER_QUEUE, &msg);
+          if (code != TSDB_CODE_SUCCESS) {
+            stError("failed to send trigger start request stream:%" PRIx64 ", task:%" PRIx64 ", session:%" PRIx64,
+                    pInfo->streamId, pInfo->taskId, pInfo->sessionId);
+          }
+        } else {
+          stError("failed to serialize trigger start request stream:%" PRIx64 ", task:%" PRIx64 ", session:%" PRIx64,
+                  pInfo->streamId, pInfo->taskId, pInfo->sessionId);
+        }
+      } else {
+        stError("failed to alloc trigger start request stream:%" PRIx64 ", task:%" PRIx64 ", session:%" PRIx64,
+                pInfo->streamId, pInfo->taskId, pInfo->sessionId);
+      }
     } else {
-      stDebug("resume stream trigger session %" PRIx64 "-%" PRIx64 "-%" PRIx64 " since now:%" PRId64
-              ", resumeTime:%" PRId64,
-              pInfo->streamId, pInfo->taskId, pInfo->sessionId, now, pInfo->resumeTime);
+      stError("failed to get length of trigger start request stream:%" PRIx64 ", task:%" PRIx64 ", session:%" PRIx64,
+              pInfo->streamId, pInfo->taskId, pInfo->sessionId);
     }
-
     TD_DLIST_POP(&readylist, pNode);
     taosMemoryFreeClear(pNode);
-    streamReleaseTask(taskAddr);
   }
 
   streamTmrStart(stTriggerTaskCheckWaitSession, STREAM_TRIGGER_CHECK_INTERVAL_MS, NULL, gStreamMgmt.timer,
@@ -1339,8 +1342,27 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
         code = stRealtimeContextInit(pTask->pRealtimeContext, pTask);
         QUERY_CHECK_CODE(code, lino, _end);
       }
-      code = stRealtimeContextCheck(pTask->pRealtimeContext);
+      SSTriggerCtrlRequest req = {.type = STRIGGER_CTRL_START,
+                                  .streamId = pTask->task.streamId,
+                                  .taskId = pTask->task.taskId,
+                                  .sessionId = pTask->pRealtimeContext->sessionId};
+      SRpcMsg              msg = {.msgType = TDMT_STREAM_TRIGGER_CTRL};
+      msg.contLen = tSerializeSTriggerCtrlRequest(NULL, 0, &req);
+      QUERY_CHECK_CONDITION(msg.contLen > 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      msg.pCont = rpcMallocCont(msg.contLen);
+      QUERY_CHECK_NULL(msg.pCont, code, lino, _end, terrno);
+      int32_t tlen = tSerializeSTriggerCtrlRequest(msg.pCont, msg.contLen, &req);
+      QUERY_CHECK_CONDITION(tlen == msg.contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      TRACE_SET_ROOTID(&msg.info.traceId, pTask->task.streamId);
+      TRACE_SET_MSGID(&msg.info.traceId, tGenIdPI64());
+
+      SMsgCb *pCb = &gStreamMgmt.msgCb;
+      code = pCb->putToQueueFp(pCb->mgmt, STREAM_TRIGGER_QUEUE, &msg);
       QUERY_CHECK_CODE(code, lino, _end);
+
+      ST_TASK_DLOG("send start control request for session: %" PRIx64, req.sessionId);
+      ST_TASK_DLOG("control request 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId, msg.info.traceId.msgId);
+
       pTask->task.status = STREAM_STATUS_RUNNING;
       break;
     }
@@ -1453,10 +1475,9 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
 
   *pErrTaskId = pStreamTask->taskId;
 
-  SMsgSendInfo     *ahandle = pRsp->info.ahandle;
-  SSTriggerAHandle *pAhandle = ahandle->param;
-
   if (pRsp->msgType == TDMT_STREAM_TRIGGER_PULL_RSP) {
+    SMsgSendInfo         *ahandle = pRsp->info.ahandle;
+    SSTriggerAHandle     *pAhandle = ahandle->param;
     SSTriggerPullRequest *pReq = pAhandle->param;
     switch (pRsp->code) {
       case TSDB_CODE_SUCCESS:
@@ -1488,6 +1509,8 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
       }
     }
   } else if (pRsp->msgType == TDMT_STREAM_TRIGGER_CALC_RSP) {
+    SMsgSendInfo         *ahandle = pRsp->info.ahandle;
+    SSTriggerAHandle     *pAhandle = ahandle->param;
     SSTriggerCalcRequest *pReq = pAhandle->param;
     if (pRsp->code == TSDB_CODE_SUCCESS) {
       if (pReq->sessionId == SSTRIGGER_REALTIME_SESSIONID) {
@@ -1501,6 +1524,27 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
       *pErrTaskId = pReq->runnerTaskId;
       code = pRsp->code;
       QUERY_CHECK_CODE(code, lino, _end);
+    }
+  } else if (pRsp->msgType == TDMT_STREAM_TRIGGER_CTRL) {
+    SSTriggerCtrlRequest req = {0};
+    code = tDeserializeSTriggerCtrlRequest(pRsp->pCont, pRsp->contLen, &req);
+    QUERY_CHECK_CODE(code, lino, _end);
+    switch (req.type) {
+      case STRIGGER_CTRL_START: {
+        if (req.sessionId == SSTRIGGER_REALTIME_SESSIONID) {
+          code = stRealtimeContextCheck(pTask->pRealtimeContext);
+          QUERY_CHECK_CODE(code, lino, _end);
+        } else if (req.sessionId == SSTRIGGER_HISTORY_SESSIONID) {
+          code = stHistoryContextCheck(pTask->pHistoryContext);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        break;
+      }
+      default: {
+        ST_TASK_ELOG("invalid stream trigger control request type %d at %s:%d", req.type, __func__, __LINE__);
+        code = TSDB_CODE_INVALID_PARA;
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
     }
   } else if (pRsp->msgType == TDMT_SND_BATCH_META) {
     // todo(kjq): handle progress request
@@ -1858,7 +1902,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
   // serialize and send request
   QUERY_CHECK_CODE(stTriggerTaskAllocAhandle(pTask, pContext->sessionId, pReq, &msg.info.ahandle), lino, _end);
   stDebug("trigger pull req ahandle %p allocated", msg.info.ahandle);
-  
+
   msg.contLen = tSerializeSTriggerPullRequest(NULL, 0, pReq);
   QUERY_CHECK_CONDITION(msg.contLen > 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   msg.contLen += sizeof(SMsgHead);
@@ -2029,7 +2073,8 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
   SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
   pMsgHead->contLen = htonl(msg.contLen);
   pMsgHead->vgId = htonl(SNODE_HANDLE);
-  int32_t tlen = tSerializeSTriggerCalcRequest((char*)msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pCalcReq);
+  int32_t tlen =
+      tSerializeSTriggerCalcRequest((char *)msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pCalcReq);
   QUERY_CHECK_CONDITION(tlen == msg.contLen - sizeof(SMsgHead), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   TRACE_SET_ROOTID(&msg.info.traceId, pTask->task.streamId);
   TRACE_SET_MSGID(&msg.info.traceId, tGenIdPI64());
@@ -2505,7 +2550,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
   SSTriggerAHandle     *pAhandle = ahandle->param;
   SSTriggerPullRequest *pReq = pAhandle->param;
 
-  ST_TASK_DLOG("receive pull response of type %d from task:%"PRIx64, pReq->type, pReq->readerTaskId);
+  ST_TASK_DLOG("receive pull response of type %d from task:%" PRIx64, pReq->type, pReq->readerTaskId);
 
   switch (pReq->type) {
     case STRIGGER_PULL_LAST_TS: {
@@ -2620,7 +2665,6 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         int32_t          ncols = blockDataGetNumOfCols(pDataBlock);
         SColumnInfoData *pVerCol = taosArrayGet(pDataBlock->pDataBlock, ncols - 2);
         pProgress->lastScanVer = *(int64_t *)colDataGetNumData(pVerCol, nrows - 1);
-        pContext->getWalMetaThisRound = true;
       }
       void *px = taosArrayPush(pProgress->pMetadatas, &pDataBlock);
       QUERY_CHECK_NULL(px, code, lino, _end, terrno);
@@ -3558,7 +3602,8 @@ static int32_t stHistoryContextSendCalcReq(SSTriggerHistoryContext *pContext) {
   SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
   pMsgHead->contLen = htonl(msg.contLen);
   pMsgHead->vgId = htonl(SNODE_HANDLE);
-  int32_t tlen = tSerializeSTriggerCalcRequest((char*)msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pCalcReq);
+  int32_t tlen =
+      tSerializeSTriggerCalcRequest((char *)msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pCalcReq);
   QUERY_CHECK_CONDITION(tlen == msg.contLen - sizeof(SMsgHead), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   TRACE_SET_ROOTID(&msg.info.traceId, pTask->task.streamId);
   TRACE_SET_MSGID(&msg.info.traceId, tGenIdPI64());
