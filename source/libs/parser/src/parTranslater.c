@@ -14049,6 +14049,34 @@ static int32_t extractCondFromCountWindow(STranslateContext* pCxt, SCountWindowN
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t extractCondFromStateWindow(STranslateContext* pCxt, SStateWindowNode* pStateWindow, SNode** pCond) {
+  if (!pStateWindow->pExpr) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                   "STATE_WINDOW has invalid col name input");
+  }
+
+  SNodeList* pCondList = NULL;
+  SNode*     pNode = pStateWindow->pExpr;
+  SNode*     pLogicCond = NULL;
+
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    SNode*       pNameCond = NULL;
+    PAR_ERR_RET(createOperatorNode(OP_TYPE_IS_NOT_NULL, pCol->colName, (SNode*)pCol, &pNameCond));
+    PAR_ERR_RET(nodesListMakeAppend(&pCondList, pNameCond));
+  } else {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                   "STATE_WINDOW has invalid col name input");
+  }
+
+  PAR_ERR_RET(nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, &pLogicCond));
+  ((SLogicConditionNode*)pLogicCond)->pParameterList = pCondList;
+  ((SLogicConditionNode*)pLogicCond)->condType = LOGIC_COND_TYPE_AND;
+
+  *pCond = pLogicCond;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t createSimpleSelectStmtFromCols(const char* pDb, const char* pTable, int32_t numOfProjs, const char* const pProjCol[], SSelectStmt** pStmt);
 
 static int32_t createStreamReqBuildTriggerSelect(STranslateContext* pCxt, SRealTableNode* pTriggerTable, SSelectStmt** pTriggerSelect) {
@@ -14112,6 +14140,13 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStrea
 
   if (nodeType(pTriggerWindow) == QUERY_NODE_COUNT_WINDOW) {
     PAR_ERR_JRET(extractCondFromCountWindow(pCxt, (SCountWindowNode*)pTriggerWindow, &pLogicCond));
+    if (pLogicCond) {
+      PAR_ERR_JRET(nodesMergeNode(&pTriggerFilter, &pLogicCond));
+    }
+  }
+
+  if (nodeType(pTriggerWindow) == QUERY_NODE_STATE_WINDOW) {
+    PAR_ERR_JRET(extractCondFromStateWindow(pCxt, (SStateWindowNode*)pTriggerWindow, &pLogicCond));
     if (pLogicCond) {
       PAR_ERR_JRET(nodesMergeNode(&pTriggerFilter, &pLogicCond));
     }
