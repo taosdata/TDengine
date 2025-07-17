@@ -227,7 +227,7 @@ class TestStreamRecalcDeleteRecalc:
         # Test 5: PERIOD with DELETE_RECALC - should recalculate when data is deleted
         stream = StreamItem(
             id=5,
-            stream="create stream rdb.s_period_delete period(30s) from tdb.trigger_period_delete partition by tbname stream_options(delete_recalc) into rdb.r_period_delete as select _tlocaltime ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _tlocaltime - 30000000000 and cts <= _tlocaltime;",
+            stream="create stream rdb.s_period_delete period(30s) from tdb.trigger_period_delete partition by tbname stream_options(delete_recalc) into rdb.r_period_delete as select cast(_tlocaltime/1000000 as timestamp) ts, count(*) cnt, avg(cint) avg_val from qdb.meters",
             check_func=self.check05,
         )
         self.streams.append(stream)
