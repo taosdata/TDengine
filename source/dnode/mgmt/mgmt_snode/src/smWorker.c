@@ -130,6 +130,8 @@ static int32_t smDispatchStreamTriggerRsp(struct SDispatchWorkerPool *pPool, voi
   void    *taskAddr = NULL;  
   SMsgSendInfo* ahandle = NULL;
 
+  dDebug("dispatch snode %s msg", TMSG_INFO(pMsg->msgType));
+
   if (pMsg->msgType == TDMT_SND_BATCH_META) {
     code = tDeserializeSBatchReq(pMsg->pCont, pMsg->contLen, &batchReq);
     if (code != TSDB_CODE_SUCCESS) {
@@ -293,6 +295,6 @@ int32_t smPutMsgToRunnerQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t smPutMsgToTriggerQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  dTrace("msg:%p, put into pool %s", pMsg, pMgmt->triggerWorkerPool.name);
+  dDebug("msg:%p, put into pool %s", pMsg, pMgmt->triggerWorkerPool.name);
   return tAddTaskIntoDispatchWorkerPool(&pMgmt->triggerWorkerPool, pMsg);
 }

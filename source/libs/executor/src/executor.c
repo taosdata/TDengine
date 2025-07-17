@@ -1944,8 +1944,8 @@ int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, const SStreamRuntimeF
       code = TSDB_CODE_INVALID_PARA;
     }
     if(len > TSDB_TABLE_NAME_LEN - 1) {
-      qError("tbname generated with too long characters, max allowed is %d, got %d", TSDB_TABLE_NAME_LEN - 1, len);
-      code = TSDB_CODE_MND_STREAM_TBNAME_TOO_LONG;
+      qError("tbname generated with too long characters, max allowed is %d, got %d, truncated.", TSDB_TABLE_NAME_LEN - 1, len);
+      len = TSDB_TABLE_NAME_LEN;
     }
     if (code == 0) {
       memcpy(tbname, pVal, len);

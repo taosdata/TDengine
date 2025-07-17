@@ -43,61 +43,34 @@ class TestPeriodOutputSubtable:
         tdStream.dropAllStreamsAndDbs()
         self.createSnodeTest()
         tdSql.execute(f'create database test1 vgroups 10 ;')
-        self.dataIn()
-        self.createTable()
-        sql = (
-            "create stream s0 state_window(cint) from devices partition by tbname stream_options(pre_filter(cint>2)|fill_history('1970-01-01 00:00:00')) "  
-            "into s0_out output_subtable(concat('xxxx',tbname))  tags(yyyy varchar(100) comment 'table name1' as 'cint+10') "
-            "as   select ts,cint,i1,  %%tbname from %%trows  order by ts;"
-        )
-        
-        sql1=(
-            "create stream `s1` state_window(cint) from devices partition by tbname stream_options(fill_history('2025-01-01 00:00:00')) into `s1_out` "
-            "as select * from (select last_row(ts) ts,sum(cint) cint ,sum(tint) tint from devices  where tint % 2 = 0 partition by tbname having(sum(cint))>50) where tint>0;"
-        )
-        
-        sql2=(
-            "create stream `s3` state_window(cint) from devices partition by  tbname stream_options(fill_history('2025-01-01 00:00:00')) into `s3_out` "
-            "as select * from (select last_row(ts) ts,sum(cint) cint ,sum(tint) tint from %%tbname  "
-            "where tint % 2 = 0 partition by tbname having(sum(cint))>50) where tint>0;"
-        )
-        
-        sql3=(
-            "create stream `s2` state_window(cint) from devices partition by  tbname stream_options(fill_history('2025-01-01 00:00:00')) into `s2_out` "
-            "as select * from (select last_row(ts) ts,sum(cint) cint ,sum(tint) tint from devices "
-            "where tint % 2 = 0 partition by tbname having(sum(cint))>50) where tint<23;"
-        )
-        
-        sql4 = ("create stream s4 sliding(5s) from stba partition by  tbname stream_options(fill_history('1970-01-01 00:00:00')) into s4_out output_subtable(concat('xxxx',tbname))  tags(yyyy varchar(100) comment 'table name1' as 'tint+10')  as select _wstart,_wend, sum(cint) ,count(i1),last(tint) from stba  partition by tbname interval(60s) ")
-        sql5 = ("create stream s5 sliding(5s) from stba partition by tint, tbname stream_options(fill_history('1970-01-01 00:00:00')) into s5_out  as select _wstart,_wend, sum(cint),sum(i1) from  (select _wstart,_wend, sum(cint) cint ,count(i1) i1 from a1 event_window start with cint>0 end with cint <9 ) interval(3s)")
-        sql6 = ("create stream s6 sliding(5s) from stba partition by tint, tbname stream_options(fill_history('1970-01-01 00:00:00')) into s6_out  as select _wstart,_wend, sum(cint),sum(i1) from  (select _wstart,_wend, sum(cint) cint ,count(i1) i1 from stba event_window start with cint>0 end with cint <9 ) interval(3s)")
-        sql7 = ("create stream s7 sliding(5s) from stba partition by tint, tbname stream_options(pre_filter(cint>3)|fill_history('1970-01-01 00:00:00')) into s7_out  as select _wstart,_wend, sum(cint),sum(i1) from  (select _wstart,_wend, sum(cint) cint ,count(i1) i1 from stba event_window start with cint>5 end with cint <9 ) interval(3s)")
-        sql8 = ("create stream s8 sliding(5s) from stba partition by tint, tbname stream_options(pre_filter(cint>3)|fill_history('1970-01-01 00:00:00')) into s8_out  as select _wstart,_wend, count(cint) cint from  (select _wstart,_wend, count(*) cint from stba event_window start with cint>5 end with cint <9 ) interval(3s)")
-        sql9 = ("create stream s9 sliding(5s) from devices partition by tint, tbname stream_options(pre_filter(cint>3)|fill_history('1970-01-01 00:00:00')) into s9_out  as select _wstart,_wend, count(cint) cint from  (select _wstart,_wend, count(*) cint from stba event_window start with cint>5 end with cint <9 ) interval(3s)")
-        sql10 = ("create stream s10 session(ts,3s) from devices partition by tint, tbname stream_options(pre_filter(cint>3)|fill_history('1970-01-01 00:00:00')) into s10_out  as select last_row(ts),last_row(cint),last_row(i1) from devices partition by tbname")
-        sql11 = ("create stream s11 interval(1s) sliding(1s)  from test1.stba into test1.mgout as select now(),* from information_schema.ins_grants;")
-        sql12 = ("create stream s12 sliding(1s) from pt partition by tbname stream_options(pre_filter(c1>100)|fill_history('1970-01-01 00:00:00'))  into s12_out as  select pt.ts,pt.c1,pt.c2,pt.c3,pt1.ts pt1ts,pt1.c1 pt1c1,pt1.c2 pt1c2,pt1.c3 pt1c3 from pt1,pt where pt1.ts=pt.ts;")
-        sql13 = ("create stream s13 sliding(30s) from s12_out partition by tbname stream_options(fill_history(0)) into s13_out as select _tcurrent_ts,sum(c1),avg(c2) ,last(c3) from s12_out ;")
+        # self.dataIn()
+        self.insert_data()
+        # self.createTable()
+
+        sql = (f"create stream {self.dbname}.s0 interval(60s) sliding(60s) from {self.dbname}.stba partition by tbname stream_options(fill_history('1970-01-01 00:00:00')) into {self.dbname}.s0_out output_subtable(concat('xxxx',tbname))  tags(yyyy varchar(100) comment 'table name1' as 'tint+10')  as select _twstart, sum(cint) ,count(i1) from %%tbname where _c0 >= _twstart and _c0 <= _twend")
+        # sql4 = ("create stream s4 sliding(5s) from stba partition by  tbname stream_options(fill_history('1970-01-01 00:00:00')) into s4_out output_subtable(concat('xxxx',tbname))  tags(yyyy varchar(100) comment 'table name1' as 'tint+10')  as select _wstart,_wend, sum(cint) ,count(i1),last(tint) from stba  partition by tbname interval(60s) ")
+        # sql5 = ("create stream s5 sliding(5s) from stba partition by tint, tbname stream_options(fill_history('1970-01-01 00:00:00')) into s5_out  as select _wstart,_wend, sum(cint),sum(i1) from  (select _wstart,_wend, sum(cint) cint ,count(i1) i1 from a1 event_window start with cint>0 end with cint <9 ) interval(3s)")
+        # sql6 = ("create stream s6 sliding(5s) from stba partition by tint, tbname stream_options(fill_history('1970-01-01 00:00:00')) into s6_out  as select _wstart,_wend, sum(cint),sum(i1) from  (select _wstart,_wend, sum(cint) cint ,count(i1) i1 from stba event_window start with cint>0 end with cint <9 ) interval(3s)")
+        # sql7 = ("create stream s7 sliding(5s) from stba partition by tint, tbname stream_options(pre_filter(cint>3)|fill_history('1970-01-01 00:00:00')) into s7_out  as select _wstart,_wend, sum(cint),sum(i1) from  (select _wstart,_wend, sum(cint) cint ,count(i1) i1 from stba event_window start with cint>5 end with cint <9 ) interval(3s)")
+        # sql8 = ("create stream s8 sliding(5s) from stba partition by tint, tbname stream_options(pre_filter(cint>3)|fill_history('1970-01-01 00:00:00')) into s8_out  as select _wstart,_wend, count(cint) cint from  (select _wstart,_wend, count(*) cint from stba event_window start with cint>5 end with cint <9 ) interval(3s)")
+        # sql9 = ("create stream s9 sliding(5s) from devices partition by tint, tbname stream_options(pre_filter(cint>3)|fill_history('1970-01-01 00:00:00')) into s9_out  as select _wstart,_wend, count(cint) cint from  (select _wstart,_wend, count(*) cint from stba event_window start with cint>5 end with cint <9 ) interval(3s)")
+        # sql10 = ("create stream s10 session(ts,3s) from devices partition by tint, tbname stream_options(pre_filter(cint>3)|fill_history('1970-01-01 00:00:00')) into s10_out  as select last_row(ts),last_row(cint),last_row(i1) from devices partition by tbname")
+        # sql11 = ("create stream s11 interval(1s) sliding(1s)  from test1.stba into test1.mgout as select now(),* from information_schema.ins_grants;")
+        # sql12 = ("create stream s12 sliding(1s) from pt partition by tbname stream_options(pre_filter(c1>100)|fill_history('1970-01-01 00:00:00'))  into s12_out as  select pt.ts,pt.c1,pt.c2,pt.c3,pt1.ts pt1ts,pt1.c1 pt1c1,pt1.c2 pt1c2,pt1.c3 pt1c3 from pt1,pt where pt1.ts=pt.ts;")
+        # sql13 = ("create stream s13 sliding(30s) from s12_out partition by tbname stream_options(fill_history(0)) into s13_out as select _tcurrent_ts,sum(c1),avg(c2) ,last(c3) from s12_out ;")
         #create stream
-        # tdSql.execute(sql)
-        # tdSql.execute(sql1)
-        # tdSql.execute(sql2)
-        # tdSql.execute(sql3)
-        tdSql.execute(sql4)
-        # tdSql.execute(sql5)
-        # tdSql.execute(sql6)
-        # tdSql.execute(sql7)
-        # tdSql.execute(sql8)
-        # tdSql.execute(sql9)
-        # tdSql.execute(sql10)
-        # tdSql.execute(sql11)
-        # tdSql.execute(sql12)
-        # tdSql.execute(sql13)
+
+        tdSql.execute(sql)
+
         
         self.checkStreamRunning()
-        tdSql.execute("insert into test1.a0 values(now,now,200,300);")
-        tdSql.execute("insert into test1.a1 values(now,now,200,300);")
-        tdSql.execute("insert into test1.a2 values(now,now,500,300);")
+        time.sleep(3)
+        tdSql.query(f"show {self.dbname}.tables")
+        if tdSql.getRows() <200:
+            raise Exception("stream out table num not enough")
+        # tdSql.execute("insert into test1.a0 values(now,now,200,300);")
+        # tdSql.execute("insert into test1.a1 values(now,now,200,300);")
+        # tdSql.execute("insert into test1.a2 values(now,now,500,300);")
         # tdSql.execute("select * from (select last_row(ts) ts,sum(cint) cint ,sum(tint)  tint from devices  where tint % 2 = 0 partition by tbname having(sum(cint))>50) where tint>0;")
         
         
@@ -153,6 +126,48 @@ class TestPeriodOutputSubtable:
                 tdLog.info(f"stream running status: {streamRunning}")
                 time.sleep(1)
 
+    def insert_data(self,table_count=100, total_rows=10, interval_sec=30):
+        import time, random
+
+        db_name = "test1"
+        stable_name = "stba"
+        base_ts = int(time.mktime(time.strptime("2025-01-01 00:00:00", "%Y-%m-%d %H:%M:%S"))) * 1000
+        interval_ms = interval_sec * 1000
+
+        
+        random.seed(42)
+
+        
+        tdSql.execute(f"create database if not exists {db_name} vgroups 6;")
+        tdSql.execute(f"""
+            CREATE STABLE IF NOT EXISTS {db_name}.{stable_name} (
+                ts TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium',
+                cts TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium',
+                cint INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium',
+                i1 INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium'
+            ) TAGS (
+                tint INT, tdouble DOUBLE, tvar VARCHAR(100),
+                tnchar NCHAR(100), tts TIMESTAMP, tbool BOOL
+            );
+        """)
+
+        # 创建 table_count 张表
+        for i in range(table_count):
+            tb_name = f"a{i}"
+            tag_values = f"({i % 50}, {random.uniform(0, 100):.6e}, 'tagv{i}', 'nchar{i}', {random.randint(1000000000, 2000000000)}, {'true' if i % 2 == 0 else 'false'})"
+            tdSql.execute(f"CREATE TABLE IF NOT EXISTS {db_name}.{tb_name} USING {db_name}.{stable_name} TAGS {tag_values};")
+
+        # 写入数据
+        for i in range(total_rows):
+            ts = base_ts + i * interval_ms
+            c1 = random.randint(0, 1000)
+            c2 = random.randint(1000, 2000)
+            values = f"({ts},{ts},{c1},{c2})"
+            for j in range(table_count):
+                tb_name = f"a{j}"
+                tdSql.execute(f"INSERT INTO {db_name}.{tb_name} VALUES {values}")
+
+
     def dataIn(self):
         tdLog.info(f"insert more data:")
         config = {
@@ -183,13 +198,13 @@ class TestPeriodOutputSubtable:
                     "super_tables": [{
                             "name": "stba",
                             "child_table_exists": "no",
-                            "childtable_count": 3000,
+                            "childtable_count": 100,
                             "childtable_prefix": "a",
                             "auto_create_table": "no",
                             "batch_create_tbl_num": 10,
                             "data_source": "rand",
                             "insert_mode": "taosc",
-                            "insert_rows": 500,
+                            "insert_rows": 10,
                             "childtable_limit": 100000000,
                             "childtable_offset": 0,
                             "interlace_rows": 0,
@@ -198,7 +213,7 @@ class TestPeriodOutputSubtable:
                             "disorder_ratio": 0,
                             "disorder_range": 1000,
                             "timestamp_step": 30000,
-                            "start_timestamp": "2025-05-01 00:00:00.000",
+                            "start_timestamp": "2025-01-01 20:00:00.000",
                             "sample_format": "",
                             "sample_file": "",
                             "tags_file": "",

@@ -925,6 +925,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     mstsError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
     goto _OVER;
   }
+  code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   auditRecord(pReq, pMnode->clusterId, "createStream", pCreate->streamDB, pCreate->name, pCreate->sql, strlen(pCreate->sql));
 
@@ -938,7 +939,6 @@ _OVER:
     mstsError("failed to create stream %s at line:%d since %s", pCreate ? pCreate->name : "unknown", lino, tstrerror(code));
   } else {
     mstsDebug("create stream %s half completed", pCreate ? pCreate->name : "unknown");
-    code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
 
   mndTransDrop(pTrans);
