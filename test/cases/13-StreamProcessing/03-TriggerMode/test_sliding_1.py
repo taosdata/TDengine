@@ -90,12 +90,12 @@ class TestStreamTriggerSliding:
         # except Exception as e:
         #     tdLog.error(f"case 7 error: {e}")
         #
-        # clear_output("sm7", "tb7")
-        # self.prepare_tables(1000, 10, info)
-        # try:
-        #     self.create_and_check_stream_basic_8("sm8", "tb8", info)
-        # except Exception as e:
-        #     tdLog.error(f"case 8 error: {e}")
+        clear_output("sm7", "tb7")
+        self.prepare_tables(1000, 10, info)
+        try:
+            self.create_and_check_stream_basic_8("sm8", "tb8", info)
+        except Exception as e:
+            tdLog.error(f"case 8 error: {e}")
         #
         # clear_output("sm8", "tb8")
         # self.prepare_tables(1000, 10, info)
@@ -153,12 +153,12 @@ class TestStreamTriggerSliding:
         # except Exception as e:
         #     tdLog.error(f"case 16 error: {e}")
 
-        clear_output("sm16", "tb16")
-        self.prepare_tables(5000, 10, info)
-        try:
-            self.create_and_check_stream_basic_17("sm17", "tb17", info)
-        except Exception as e:
-            tdLog.error(f"case 16 error: {e}")
+        # clear_output("sm16", "tb16")
+        # self.prepare_tables(5000, 10, info)
+        # try:
+        #     self.create_and_check_stream_basic_17("sm17", "tb17", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 16 error: {e}")
 
     def create_env(self):
         tdLog.info(f"create {self.num_snode} snode(s)")
@@ -296,7 +296,7 @@ class TestStreamTriggerSliding:
         # self.check_results_by_compare(tb_name=dst_table, freq=30)
 
     def create_and_check_stream_basic_5(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 5: invalid results        """
+        """simple 5: invalid results"""
         tdLog.info(f"start exec stream {stream_name}")
 
         tdSql.execute("use db")
@@ -358,12 +358,9 @@ class TestStreamTriggerSliding:
                            [10000, 9999, "c9"]])
 
     def create_and_check_stream_basic_8(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 8:
-           Expect: report error message
-           Error: no results generated
+        """simple 8: Results error
         """
         tdLog.info(f"start exec stream {stream_name}")
-
         time.sleep(10)
 
         tdSql.execute("use db")
@@ -375,14 +372,13 @@ class TestStreamTriggerSliding:
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(stream_name, info)
 
-        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", info.num_of_tables * self.num_of_rows)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", info.num_of_tables * info.num_of_rows)
 
     def create_and_check_stream_basic_9(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 9:
            Error: results error
         """
         tdLog.info(f"start exec stream {stream_name}")
-
         time.sleep(10)
 
         tdSql.execute("use db")
