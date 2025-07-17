@@ -20,13 +20,28 @@ class TestCase:
         'slowLogScope' : "others"
     }
 
-    def init(self, conn, logSql, replicaVar=1):
+    def setup_class(cls):
         tdLog.info(f"start to init {__file__}")
-        self.replicaVar = int(replicaVar)
-        tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
     # run
-    def run(self):
+    def test_create_tbl_keywords(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+        """
         tdSql.prepare()
         tdSql.execute("DROP DATABASE IF EXISTS test;")
         autoGen = AutoGen()
@@ -42,10 +57,9 @@ class TestCase:
             tdLog.info("taosBenchmark found in %s" % binPath)
 
         # insert: create one  or multiple tables per sql and insert multiple rows per sql
-        os.system("%s -f ./tools/benchmark/basic/json/create_table_keywords.json -y " % binPath)
+        templateFilePath = f"{os.path.dirname(os.path.realpath(__file__))}/json/create_table_keywords.json"
+        os.system(f"{binPath} -f {templateFilePath} -y ")
         tdSql.query("SELECT COUNT(*) FROM test.meters;")
         tdSql.checkData(0, 0, 9)
 
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
