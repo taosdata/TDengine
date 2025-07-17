@@ -671,7 +671,62 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
 }
 
 int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,
-                                  SStbInterlaceInfo* pBuildInfo, SVCreateTbReq* ctbReq) {
+                                  SStbInterlaceInfo* pBuildInfo) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  uint64_t uid;
+  int32_t  vgId;
+
+  pTbCtx->pData->aRowP = pTbData->aCol;
+
+  code = insGetStmtTableVgUid(pAllVgHash, pBuildInfo, pTbData, &uid, &vgId);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  pTbCtx->pMeta->vgId = vgId;
+  pTbCtx->pMeta->uid = uid;
+  pTbCtx->pData->uid = uid;
+
+  if (!pTbCtx->ordered) {
+    code = tRowSort(pTbCtx->pData->aRowP);
+  }
+  if (code == TSDB_CODE_SUCCESS && (!pTbCtx->ordered || pTbCtx->duplicateTs)) {
+    code = tRowMerge(pTbCtx->pData->aRowP, pTbCtx->pSchema, 0);
+  }
+
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  SVgroupDataCxt* pVgCxt = NULL;
+  void**          pp = taosHashGet(pBuildInfo->pVgroupHash, &vgId, sizeof(vgId));
+  if (NULL == pp) {
+    pp = taosHashGet(pBuildInfo->pVgroupHash, &vgId, sizeof(vgId));
+    if (NULL == pp) {
+      code = createVgroupDataCxt(vgId, pBuildInfo->pVgroupHash, pBuildInfo->pVgroupList, &pVgCxt);
+    } else {
+      pVgCxt = *(SVgroupDataCxt**)pp;
+    }
+  } else {
+    pVgCxt = *(SVgroupDataCxt**)pp;
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = fillVgroupDataCxt(pTbCtx, pVgCxt, false, false);
+  }
+
+  if (taosArrayGetSize(pVgCxt->pData->aSubmitTbData) >= 20000) {
+    code = qBuildStmtFinOutput1((SQuery*)pBuildInfo->pQuery, pAllVgHash, pBuildInfo->pVgroupList);
+    // taosArrayClear(pVgCxt->pData->aSubmitTbData);
+    tDestroySubmitReq(pVgCxt->pData, TSDB_MSG_FLG_ENCODE);
+    // insDestroyVgroupDataCxt(pVgCxt);
+  }
+
+  return code;
+}
+
+int32_t insAppendStmt2TableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,
+                                   SStbInterlaceInfo* pBuildInfo, SVCreateTbReq* ctbReq) {
   int32_t  code = TSDB_CODE_SUCCESS;
   uint64_t uid;
   int32_t  vgId;
