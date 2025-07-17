@@ -42,13 +42,13 @@ fn upx_run
 
   output = exec ${upx} --version
 
-  if contains ${output.stdout} "upx 4.2.4"
+  if contains ${output.stdout} "upx 5"
     echo "Use upx version: ${stdout}"
   else
     echo "${output.stdout}"
-    echo "UPX version not 4, use local upx in ${upx_dir}"
+    echo "UPX version not 5, use local upx in ${upx_dir}"
     if use_local_upx
-      echo "WARN: Local upx is not 4.x, please remove ${upx_dir} and update it"
+      echo "WARN: Local upx is not 5.x, please remove ${upx_dir} and update it"
       #rm ${upx}
     end
     #cm_run_task upx-local
