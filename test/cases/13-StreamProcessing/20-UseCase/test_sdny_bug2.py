@@ -1,7 +1,7 @@
 import time
 import math
 import random
-from new_test_framework.utils import tdLog, tdSql, tdStream, streamUtil,StreamTableType, StreamTable, cluster
+from new_test_framework.utils import tdLog, tdSql, tdStream, streamUtil,StreamTableType, StreamTable, cluster,tdCom
 from random import randint
 import os
 import subprocess
@@ -15,7 +15,11 @@ class TestPeriodOutputSubtable:
     username2 = "lvze2"
     subTblNum = 3
     tblRowNum = 10
+    outTbname = "s99out"
+    streamName = "s99"
     tableList = []
+    resultIdx = "1"
+    caseName = "test_sdny_bug2"
     
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -49,7 +53,7 @@ class TestPeriodOutputSubtable:
         # sql2 = (f"create stream {self.dbname}.sdny2 interval(1m) sliding(1m) from {self.dbname}.sldc_dp partition by tbname stream_options(fill_history('2025-07-17 09:00:00')) into {self.dbname}.sdny2out output_subtable(concat('sdny_',tbname)) as select _wstart as start_time,_wend as point_min,'01072016' as unit_code,'盛鲁电厂' as unit_name,'机组1' as jz_name,last(jz1fdgl) as fh ,-1.0 as glxl /*机组2凝结水泵b电流*/, last((jz1fdgl+jz1ssfdfh)/2) as zzqwd /*机组2凝结水泵a电流**/ from %%tbname tb where ts >= '2025-07-17 08:59:00.000'  and ts <= '2025-07-17 09:30:00.000' interval(1m) fill(prev)")
         # sql3 = (f"create stream {self.dbname}.sdny3 interval(1m) sliding(1m) from {self.dbname}.sldc_dp partition by tbname stream_options(fill_history('2025-07-17 09:00:00')) into {self.dbname}.sdny3out output_subtable(concat('sdny_',tbname)) as select _wstart as start_time,_wend as point_min,'01072016' as unit_code,'盛鲁电厂' as unit_name,'机组1' as jz_name,last(jz1fdgl) as fh ,-1.0 as glxl, last((jz1fdgl+jz1ssfdfh)/2) as zzqwd from test1.sldc_dp tb where ts >= '2025-07-17 08:55:00.000'  and ts <= now() interval(1m) fill(prev);")
         # sql4 = (f"create stream {self.dbname}.sdny4 state_window(cast(jz1fdgl as int)) from {self.dbname}.sldc_dp partition by tbname stream_options(pre_filter(jz1fdgl>403)|fill_history('1970-01-01 00:00:00')) into {self.dbname}.s4_out output_subtable(concat('xxxx',tbname))  tags(yyyy varchar(100) comment 'table name1' as 'tint+10')  as select _wstart as start_time,_wend as point_min,'01072016' as unit_code,'盛鲁电厂' as unit_name,'机组1' as jz_name,last(jz1fdgl) as fh ,-1.0 as glxl, last((jz1fdgl+jz1ssfdfh)/2) as zzqwd from test1.sldc_dp tb where ts >= '2025-07-17 08:55:00.000'  and ts <= '2025-07-17 09:30:00.000' interval(1m) fill(prev);")
-        sql5 = ("create stream s99 sliding(30s) from sldc_dp partition by tbname stream_options(fill_history(0)) into s99out as  select _wstart,_wend,tbname,sum(jz1fdgl),max(cast(data_write_time as bigint))-max(cast(ts as bigint)) delay from sldc_dp where data_write_time>ts partition by tbname interval(3s) having max(cast(data_write_time as bigint))-max(cast(ts as bigint))>1000;")
+        sql5 = (f"create stream {self.streamName} sliding(30s) from sldc_dp partition by tbname stream_options(fill_history(0)) into {self.outTbname} as  select _wstart,_wend,tbname,sum(jz1fdgl),max(cast(data_write_time as bigint))-max(cast(ts as bigint)) delay from sldc_dp where data_write_time>ts partition by tbname interval(3s) having max(cast(data_write_time as bigint))-max(cast(ts as bigint))>1000;")
         # sql4 = ("create stream s4 sliding(5s) from stba partition by  tbname stream_options(fill_history('1970-01-01 00:00:00')) into s4_out output_subtable(concat('xxxx',tbname))  tags(yyyy varchar(100) comment 'table name1' as 'tint+10')  as select _wstart,_wend, sum(cint) ,count(i1),last(tint) from stba  partition by tbname interval(60s) ")
         # sql5 = ("create stream s5 sliding(5s) from stba partition by tint, tbname stream_options(fill_history('1970-01-01 00:00:00')) into s5_out  as select _wstart,_wend, sum(cint),sum(i1) from  (select _wstart,_wend, sum(cint) cint ,count(i1) i1 from a1 event_window start with cint>0 end with cint <9 ) interval(3s)")
         # sql6 = ("create stream s6 sliding(5s) from stba partition by tint, tbname stream_options(fill_history('1970-01-01 00:00:00')) into s6_out  as select _wstart,_wend, sum(cint),sum(i1) from  (select _wstart,_wend, sum(cint) cint ,count(i1) i1 from stba event_window start with cint>0 end with cint <9 ) interval(3s)")
@@ -66,6 +70,7 @@ class TestPeriodOutputSubtable:
 
         
         self.checkStreamRunning()
+        self.checkResultWithResultFile()
         # time.sleep(3)
         # tdSql.query(f"show {self.dbname}.tables")
         # if tdSql.getRows() <200:
@@ -128,6 +133,15 @@ class TestPeriodOutputSubtable:
                 tdLog.info(f"stream running status: {streamRunning}")
                 time.sleep(1)
 
+    def checkResultWithResultFile(self):
+        chkSql = f"select * from {self.dbname}.{self.outTbname} order by tag_tbname;"
+        tdLog.info(f"check result with sql: {chkSql}")
+        if tdSql.getRows() >0:
+            tdCom.generate_query_result_file(self.caseName, self.resultIdx, chkSql)
+            tdCom.compare_query_with_result_file(self.resultIdx, chkSql, f"{self.currentDir}/ans/{self.caseName}.{self.resultIdx}.csv", self.caseName)
+            tdLog.info("check result with result file succeed")
+    
+    
     def insert_data(self,table_count=100, total_rows=10, interval_sec=30):
         import time, random
 
