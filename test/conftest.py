@@ -103,6 +103,7 @@ def before_test_session(request):
     request.session.work_dir = os.getenv('WORK_DIR', None)
     request.session.work_dir = request.session.before_test.get_and_mkdir_workdir(request.session.work_dir)
     if request.session.clean and os.path.exists(request.session.work_dir):
+        tdLog.info(f"rm {request.session.work_dir} before deploy")
         shutil.rmtree(request.session.work_dir)
 
     # 获取yaml文件，缓存到servers变量中，供cls使用

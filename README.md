@@ -85,7 +85,7 @@ For contributing/building/testing TDengine Connectors, please check the followin
 
 At the moment, TDengine server supports running on Linux/MacOS systems. Any application can also choose the RESTful interface provided by taosAdapter to connect the taosd service. TDengine supports X64/ARM64 CPU, and it will support MIPS64, Alpha64, ARM32, RISC-V and other CPU architectures in the future. Right now we don't support build with cross-compiling environment.
 
-Starting from version 3.1.0.0, TDengine supports the Windows system exclusively in its Enterprise edition.
+Starting from version 3.1.0.0, TDengine supports the Windows system exclusively in its TSDB-Enterprise edition.
 
 If you want to compile taosAdapter or taosKeeper, you need to install Go 1.23 or above.
 
@@ -130,7 +130,7 @@ brew install argp-standalone gflags pkgconfig
 
 ## 3.3 Prerequisites on Windows
 
-Not available for community edition.
+Not available for TDengine TSDB-OSS.
 
 ## 3.4 Clone the repo
 
@@ -209,11 +209,11 @@ If you want to compile taosKeeper, you need to add the `-DBUILD_KEEPER=true` opt
 
 ## 4.3 Build on Windows
 
-Not available for community edition.
+Not available for TDengine TSDB-OSS.
 
 # 5. Packaging
 
-The TDengine community installer can NOT be created by this repository only, due to some component dependencies. We are still working on this improvement.
+The TDengine TSDB-OSS installer can NOT be created by this repository only, due to some component dependencies. We are still working on this improvement.
 
 # 6. Installation
 
@@ -249,7 +249,7 @@ sudo make install
 
 ## 6.3 Install on Windows
 
-Not available for community edition.
+Not available for TDengine TSDB-OSS.
 
 # 7. Running
 
@@ -314,7 +314,7 @@ If TDengine CLI connects the server successfully, welcome messages and version i
 
 ## 7.3 Run TDengine on Windows
 
-Not available for community edition.
+Not available for TDengine TSDB-OSS.
 
 # 8. Testing
 
