@@ -54,7 +54,6 @@ typedef struct SSTriggerRealtimeGroup {
 
   int64_t oldThreshold;
   int64_t newThreshold;
-  int64_t prevWindowEnd;
 
   TriggerWindowBuf winBuf;
   STimeWindow      nextWindow;  // for period trigger and sliding window trigger
@@ -100,9 +99,9 @@ typedef struct SSTriggerWalProgress {
   int64_t                   lastScanVer;  // version of the last committed record in previous scan
   int64_t                   latestVer;    // latest version of committed records in the vnode WAL
   SSTriggerPullRequestUnion pullReq;
-  SArray                   *reqCids;  // SArray<col_id_t>
-  SArray                   *reqCols;  // SArray<OTableInfo>
-  SArray                   *pMetadatas; // SArray<SSDataBlock*>
+  SArray                   *reqCids;     // SArray<col_id_t>
+  SArray                   *reqCols;     // SArray<OTableInfo>
+  SArray                   *pMetadatas;  // SArray<SSDataBlock*>
 } SSTriggerWalProgress;
 
 typedef struct SSTriggerRealtimeContext {

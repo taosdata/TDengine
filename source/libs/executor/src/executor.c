@@ -1444,6 +1444,9 @@ void qProcessRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
     return;
   }
 
+  qDebug("rsp msg got, code:%x, len:%d, 0x%" PRIx64 ":0x%" PRIx64, 
+      pMsg->code, pMsg->contLen, TRACE_GET_ROOTID(&pMsg->info.traceId), TRACE_GET_MSGID(&pMsg->info.traceId));
+
   SDataBuf buf = {.len = pMsg->contLen, .pData = NULL};
 
   if (pMsg->contLen > 0) {
@@ -1945,11 +1948,10 @@ int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, const SStreamRuntimeF
     }
     if(len > TSDB_TABLE_NAME_LEN - 1) {
       qError("tbname generated with too long characters, max allowed is %d, got %d, truncated.", TSDB_TABLE_NAME_LEN - 1, len);
-      len = TSDB_TABLE_NAME_LEN;
+      len = TSDB_TABLE_NAME_LEN - 1;
     }
-    if (code == 0) {
-      memcpy(tbname, pVal, len);
-    }
+    memcpy(tbname, pVal, len);
+    tbname[len] = '\0';  // ensure null terminated
   }
   // TODO free dst
   sclFreeParam(&dst);

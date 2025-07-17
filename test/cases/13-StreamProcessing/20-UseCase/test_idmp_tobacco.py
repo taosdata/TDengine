@@ -2,13 +2,30 @@ from new_test_framework.utils import tdLog, tdSql, tdStream, etool
 import time
 import os
 import json
+import math
 
 
 class TestIdmpTobacco:
     def test_tobacco(self):
         """
-        Refer: https://taosdata.feishu.cn/wiki/XaqbweV96iZVRnkgHLJcx2ZCnQf
-        Catalog:
+        Refer: https://taosdata.feishu.cn/wiki/Zkb2wNkHDihARVkGHYEcbNhmnxb#share-I9GwdF26PoWk6uxx2zJcxZYrn1d
+        1. 测试 AI 推荐生成的分析，创建 Stream，验证流的正确性
+        2. 测试手动创建的分析，验证流的正确性
+            2.1. 触发类型：
+                - 定时窗口：指定不同的窗口大小、窗口偏移
+                - 状态窗口：指定状态的字段
+                - 会话窗口：指定会话的时间间隔
+            2.2. 时间窗口聚合：
+                - 窗口开始时间：_tprev_localtime/ _twstart/ _tprev_ts
+                - 窗口结束时间：_tlocaltime/ _twend/ _tcurrent_ts
+            2.3. 输出属性：
+                - AVG：平均值
+                - LAST：最新值
+                - SUM：求和
+                - MAX：最大值
+                - STDDEV：标准差
+                - SPREAD：极差
+                - SPREAD/FIRST：变化率        Catalog:
             - Streams:UseCases
         Since: v3.3.6.14
         Labels: common,ci
@@ -229,12 +246,27 @@ class TestIdmpTobaccoImpl:
                         )
                         return False
                     actual = output[a.row][a.col]
-                    if str(actual) != str(a.data):
+                    if not values_equal(a.data, actual):
                         tdLog.error(
                             f"assert failed: not equal, row: {a.row}, col: {a.col}, expect: {a.data}, actual: {actual}"
                         )
                         return False
                 return True
+
+            def values_equal(expected, actual, rel_tol=1e-6, abs_tol=1e-8):
+                # compare NULL if actual is None
+                if actual is None:
+                    return str(expected) == "NULL"
+                # use math.isclose whene actual is float
+                if isinstance(actual, float):
+                    try:
+                        return math.isclose(
+                            float(expected), actual, rel_tol=rel_tol, abs_tol=abs_tol
+                        )
+                    except Exception:
+                        return False
+                # use string comparison otherwise
+                return str(expected) == str(actual)
 
             retry_count = (
                 self.assert_retry

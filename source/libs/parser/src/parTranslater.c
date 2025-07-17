@@ -1075,9 +1075,6 @@ static uint8_t getPrecisionFromCurrStmt(SNode* pCurrStmt, uint8_t defaultVal) {
   if (isSetOperator(pCurrStmt)) {
     return ((SSetOperator*)pCurrStmt)->precision;
   }
-  if (NULL != pCurrStmt && QUERY_NODE_CREATE_STREAM_STMT == nodeType(pCurrStmt)) {
-    return getPrecisionFromCurrStmt(((SCreateStreamStmt*)pCurrStmt)->pQuery, defaultVal);
-  }
   if (isDeleteStmt(pCurrStmt)) {
     return ((SDeleteStmt*)pCurrStmt)->precision;
   }
@@ -13294,14 +13291,30 @@ _return:
   return code;
 }
 
-static int32_t checkExpiredDelayTime(STranslateContext* pCxt, SValueNode* pTime) {
+static int32_t checkExpiredTime(STranslateContext* pCxt, SValueNode* pTime) {
   int32_t len = (int32_t)strlen(pTime->literal);
   char*   unit = &pTime->literal[len - 1];
   if (*unit != 'a' && *unit != 's' && *unit != 'm' && *unit != 'h' && *unit != 'd') {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TIME_UNIT,
-                                   "Unsupported time unit in EXPIRED_TIME/DELAY_TIME: %s", pTime->literal);
+                                   "Unsupported time unit in EXPIRED_TIME: %s", pTime->literal);
   }
 
+  return TSDB_CODE_SUCCESS;
+}
+
+static const int64_t maxDelayLowerBound = (int64_t)  3 * 1000; // 3s in milliseconds
+
+static int32_t checkDelayTime(STranslateContext* pCxt, SValueNode* pTime) {
+  int32_t len = (int32_t)strlen(pTime->literal);
+  char*   unit = &pTime->literal[len - 1];
+  if (*unit != 's' && *unit != 'm' && *unit != 'h' && *unit != 'd') {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TIME_UNIT,
+                                   "Unsupported time unit in MAX_DELAY_TIME: %s", pTime->literal);
+  }
+  if ((pTime->datum.i / getPrecisionMultiple(getPrecisionFromCurrStmt(pCxt->pCurrStmt, TSDB_TIME_PRECISION_MILLI))) < maxDelayLowerBound) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TIME_UNIT,
+                                   "MAX_DELAY must be greater than or equal to 3 seconds");
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -13332,14 +13345,14 @@ static int32_t createStreamReqBuildTriggerOptions(STranslateContext* pCxt, const
   }
 
   if (pOptions->pExpiredTime) {
-    PAR_ERR_JRET(checkExpiredDelayTime(pCxt, (SValueNode*)pOptions->pExpiredTime));
+    PAR_ERR_JRET(checkExpiredTime(pCxt, (SValueNode*)pOptions->pExpiredTime));
     PAR_ERR_JRET(translateExpr(pCxt, &pOptions->pExpiredTime));
     pReq->expiredTime = ((SValueNode*)pOptions->pExpiredTime)->datum.i;
   }
 
   if (pOptions->pMaxDelay) {
-    PAR_ERR_JRET(checkExpiredDelayTime(pCxt, (SValueNode*)pOptions->pMaxDelay));
     PAR_ERR_JRET(translateExpr(pCxt, &pOptions->pMaxDelay));
+    PAR_ERR_JRET(checkDelayTime(pCxt, (SValueNode*)pOptions->pMaxDelay));
     pReq->maxDelay = ((SValueNode*)pOptions->pMaxDelay)->datum.i;
   }
 
@@ -14036,6 +14049,34 @@ static int32_t extractCondFromCountWindow(STranslateContext* pCxt, SCountWindowN
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t extractCondFromStateWindow(STranslateContext* pCxt, SStateWindowNode* pStateWindow, SNode** pCond) {
+  if (!pStateWindow->pExpr) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                   "STATE_WINDOW has invalid col name input");
+  }
+
+  SNodeList* pCondList = NULL;
+  SNode*     pNode = pStateWindow->pExpr;
+  SNode*     pLogicCond = NULL;
+
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    SNode*       pNameCond = NULL;
+    PAR_ERR_RET(createOperatorNode(OP_TYPE_IS_NOT_NULL, pCol->colName, (SNode*)pCol, &pNameCond));
+    PAR_ERR_RET(nodesListMakeAppend(&pCondList, pNameCond));
+  } else {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                   "STATE_WINDOW has invalid col name input");
+  }
+
+  PAR_ERR_RET(nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, &pLogicCond));
+  ((SLogicConditionNode*)pLogicCond)->pParameterList = pCondList;
+  ((SLogicConditionNode*)pLogicCond)->condType = LOGIC_COND_TYPE_AND;
+
+  *pCond = pLogicCond;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t createSimpleSelectStmtFromCols(const char* pDb, const char* pTable, int32_t numOfProjs, const char* const pProjCol[], SSelectStmt** pStmt);
 
 static int32_t createStreamReqBuildTriggerSelect(STranslateContext* pCxt, SRealTableNode* pTriggerTable, SSelectStmt** pTriggerSelect) {
@@ -14064,6 +14105,7 @@ static int32_t translateStreamTriggerQuery(STranslateContext* pCxt, SStreamTrigg
     PAR_ERR_JRET(nodesCloneNode(*pTriggerFilter, &pTriggerSelect->pWhere));
   }
 
+  pCxt->pCurrStmt = (SNode*)pTriggerSelect;
   pCxt->createStreamTrigger = true;
   PAR_ERR_JRET(translateSelect(pCxt, pTriggerSelect));
   pCxt->createStreamTrigger = false;
@@ -14098,6 +14140,13 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStrea
 
   if (nodeType(pTriggerWindow) == QUERY_NODE_COUNT_WINDOW) {
     PAR_ERR_JRET(extractCondFromCountWindow(pCxt, (SCountWindowNode*)pTriggerWindow, &pLogicCond));
+    if (pLogicCond) {
+      PAR_ERR_JRET(nodesMergeNode(&pTriggerFilter, &pLogicCond));
+    }
+  }
+
+  if (nodeType(pTriggerWindow) == QUERY_NODE_STATE_WINDOW) {
+    PAR_ERR_JRET(extractCondFromStateWindow(pCxt, (SStateWindowNode*)pTriggerWindow, &pLogicCond));
     if (pLogicCond) {
       PAR_ERR_JRET(nodesMergeNode(&pTriggerFilter, &pLogicCond));
     }
@@ -14583,6 +14632,7 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
   SStreamTriggerNode*    pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
   SStreamTriggerOptions* pTriggerOptions = (SStreamTriggerOptions*)pTrigger->pOptions;
   SStreamNotifyOptions*  pNotifyOptions = (SStreamNotifyOptions*)pTrigger->pNotify;
+  STableNode*            pTriggerTable = (STableNode*)pTrigger->pTrigerTable;
   SNode*                 pTriggerWindow = pTrigger->pTriggerWindow;
   SSelectStmt*           pTriggerSelect = NULL;
   SHashObj*              pTriggerSlotHash = NULL;
@@ -14611,9 +14661,10 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
   pReq->flags = CREATE_STREAM_FLAG_NONE;
   pReq->placeHolderBitmap = PLACE_HOLDER_NONE;
 
-  PAR_ERR_JRET(createStreamReqBuildTriggerOptions(pCxt, pStmt->streamDbName, pTriggerOptions, pReq));
+
   PAR_ERR_JRET(createStreamReqBuildStreamNotifyOptions(pCxt, pNotifyOptions, &pNotifyCond, pReq));
   PAR_ERR_JRET(createStreamReqBuildTrigger(pCxt, pStmt, &pTriggerSelect, &pTriggerSlotHash, pReq));
+  PAR_ERR_JRET(createStreamReqBuildTriggerOptions(pCxt, pStmt->streamDbName, pTriggerOptions, pReq));
   PAR_ERR_JRET(createStreamReqBuildCalc(pCxt, pStmt, pTrigger->pPartitionList, pTriggerSelect, pTriggerSlotHash, pTriggerWindow, pNotifyCond, pReq));
   PAR_ERR_JRET(createStreamReqBuildOutTable(pCxt, pStmt, pTriggerSlotHash, pReq));
 
@@ -18812,21 +18863,21 @@ static int32_t checkColRef(STranslateContext* pCxt, char* pRefDbName, char* pRef
 
   // org table cannot has composite primary key
   if (pRefTableMeta->tableInfo.numOfColumns > 1 && pRefTableMeta->schema[1].flags & COL_IS_KEY) {
-    PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN));
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN, "virtual table's column reference can not from table with composite key"));
   }
 
   // org table must be child table or normal table
   if (pRefTableMeta->tableType != TSDB_NORMAL_TABLE && pRefTableMeta->tableType != TSDB_CHILD_TABLE) {
-    PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN));
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN, "virtual table's column reference can only be normal table or child table"));
   }
 
   const SSchema* pRefCol = getNormalColSchema(pRefTableMeta, pRefColName);
   if (NULL == pRefCol) {
-    PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN));
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN, "virtual table's column reference column not exist"));
   }
 
   if (pRefCol->type != type.type || pRefCol->bytes != type.bytes) {
-    PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE));
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE, "virtual table's column type and reference column type not match"));
   }
 
 _return:
