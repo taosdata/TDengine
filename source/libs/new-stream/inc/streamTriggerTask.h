@@ -54,7 +54,6 @@ typedef struct SSTriggerRealtimeGroup {
 
   int64_t oldThreshold;
   int64_t newThreshold;
-  int64_t prevWindowEnd;
 
   TriggerWindowBuf winBuf;
   STimeWindow      nextWindow;  // for period trigger and sliding window trigger
