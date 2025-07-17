@@ -11,12 +11,24 @@
 
 # -*- coding: utf-8 -*-
 
-from new_test_framework.utils import tdLog, tdSql, epath, sc, etool, eutil, eos
-import os
+import sys
 import time
 import random
-import string
+
 import taos
+import frame
+import frame.etool
+import frame.eos
+import frame.eutil
+
+from frame.log import *
+from frame.cases import *
+from frame.sql import *
+from frame.caseBase import *
+from frame.srvCtl import *
+from frame import *
+from frame.eos import *
+
 
 #  
 # 192.168.1.52 MINIO
@@ -48,12 +60,7 @@ ssAccessString For Test:
     SecretAccessKey : vK1VcwxgSOykicx6hk8fL1x15uEtyDSFU3w4hTaZ
 '''
 
-<<<<<<<< HEAD:test/cases/uncatalog/army/storage/s3/test_s3_basic.py
-
-class TestS3Basic:
-========
 class TDTestCase(TBase):
->>>>>>>> 3.0:tests/army/storage/ss/ssBasic.py
     index = eutil.cpuRand(40) + 1
     bucketName = f"ci-bucket{index}"
     updatecfgDict = {
@@ -197,7 +204,7 @@ class TDTestCase(TBase):
         sql = "drop database db1"
         tdSql.execute(sql)
 
-    def check_except(self):
+    def checkExcept(self):
         # errors
         sqls = [
             f"create database db2 ss_keeplocal -1",
@@ -250,7 +257,7 @@ class TDTestCase(TBase):
         '''
         
         # except
-        self.check_except()
+        self.checkExcept()
 
     #
     def preDb(self, vgroups):
@@ -306,24 +313,7 @@ class TDTestCase(TBase):
         
 
     # run
-    def test_s3_basic(self):
-        """summary: xxx
-
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
-
-        History:
-            - xxx
-            - xxx
-        """
+    def run(self):
         tdLog.debug(f"start to excute {__file__}")
         self.sname = "stream1"
         if eos.isArm64Cpu():
@@ -382,3 +372,5 @@ class TDTestCase(TBase):
 
         
 
+tdCases.addLinux(__file__, TDTestCase())
+tdCases.addWindows(__file__, TDTestCase())
