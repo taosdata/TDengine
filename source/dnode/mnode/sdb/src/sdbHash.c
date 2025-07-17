@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "sdb.h"
+#include "mndDef.h"
 
 static void sdbCheckRow(SSdb *pSdb, SSdbRow *pRow);
 
