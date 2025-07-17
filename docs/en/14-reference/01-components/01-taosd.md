@@ -102,7 +102,7 @@ timezone GMT-8
 timezone Asia/Shanghai
 ```
 
-All are valid settings for the GMT+8 time zone. However, note that on Windows, the format `timezone Asia/Shanghai` is not supported, and must be written as `timezone UTC-8`.
+All are valid settings for the GMT+8 time zone. However, note that on Windows, the format `timezone UTC-8` is not supported, and must be written as `timezone Asia/Shanghai`.
 
 The setting of the time zone affects the querying and writing of SQL statements involving non-Unix timestamp content (timestamp strings, interpretation of the keyword now). For example:
 
