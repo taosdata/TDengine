@@ -37,7 +37,7 @@ class TestIdmpTobacco:
         """
         tobac = TestIdmpTobaccoImpl()
         tobac.init()
-        tobac.stream_ids = [1, 2, 4, 5, 6, 7, 8, 9, 12]
+        tobac.stream_ids = [1, 2, 4, 5, 6, 7, 8, 9, 10, 12]
         tobac.run()
 
 
