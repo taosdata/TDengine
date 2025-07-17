@@ -11,25 +11,11 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
-import time
-import random
+from new_test_framework.utils import tdLog, tdSql, etool, eutil
+from new_test_framework.utils.autogen import AutoGen
+import os
 
-import taos
-import frame
-import frame.etool
-import json
-import threading
-
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame import *
-from frame.autogen import *
-from frame.srvCtl import *
-
-class TDTestCase(TBase):
+class TestCase:
     updatecfgDict = {
         'slowLogScope' : "others"
     }
@@ -63,7 +49,3 @@ class TDTestCase(TBase):
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
