@@ -7046,142 +7046,34 @@ taos> select nchar_32_col from test_vtable_select.vtb_virtual_stb where int_tag 
  圣克拉拉 - Santa Clara         |
 
 taos> select u_tinyint_col from test_vtable_select.vtb_virtual_stb where int_tag = 2 and bool_tag = false order by ts, int_tag limit 10;
- u_tinyint_col |
-================
-            29 |
-           158 |
-             1 |
-            49 |
-            74 |
-            11 |
-            77 |
-            63 |
-           229 |
-           195 |
 
 taos> select u_smallint_col from test_vtable_select.vtb_virtual_stb where int_tag = 2 and bool_tag = false order by ts, int_tag limit 10;
- u_smallint_col |
-=================
-          13238 |
-          30154 |
-          51523 |
-           4884 |
-          36105 |
-          28679 |
-           7319 |
-          17602 |
-          32618 |
-          52813 |
 
 taos> select u_int_col from test_vtable_select.vtb_virtual_stb where int_tag = 2 and bool_tag = false order by ts, int_tag limit 10;
-  u_int_col  |
-==============
-   432633471 |
-  1273134528 |
-   675749918 |
-   549641959 |
-   527977879 |
-   638358317 |
-   590847882 |
-   188212190 |
-   846814865 |
-   155054930 |
 
 taos> select u_bigint_col from test_vtable_select.vtb_virtual_stb where int_tag = 2 and bool_tag = true order by ts, int_tag limit 10;
 
 taos> select tinyint_col from test_vtable_select.vtb_virtual_stb where int_tag = 2 and bool_tag = true order by ts, int_tag limit 10;
 
 taos> select smallint_col from test_vtable_select.vtb_virtual_stb where int_tag = 2 and bool_tag = false order by ts, int_tag limit 10;
- smallint_col |
-===============
-        32519 |
-        -2199 |
-        18263 |
-         4776 |
-        19329 |
-        -5544 |
-       -11185 |
-         3783 |
-         -584 |
-       -16988 |
 
 taos> select int_col from test_vtable_select.vtb_virtual_stb where int_tag = 2 and bool_tag = false order by ts, int_tag limit 10;
-   int_col   |
-==============
-  -650873068 |
-   -77824226 |
-   683409189 |
-  -140653792 |
-  -439167365 |
-   296030311 |
-  -944313433 |
-  -578512541 |
-   196097322 |
-  -979420128 |
 
 taos> select bigint_col from test_vtable_select.vtb_virtual_stb where int_tag = 2 and bool_tag = true order by ts, int_tag limit 10;
 
 taos> select float_col from test_vtable_select.vtb_virtual_stb where int_tag = 2 and bool_tag = true order by ts, int_tag limit 10;
 
 taos> select double_col from test_vtable_select.vtb_virtual_stb where int_tag = 2 and bool_tag = false order by ts, int_tag limit 10;
-        double_col         |
-============================
-           73495720.958304 |
-           34582987.167108 |
-            94762575.40613 |
-            4540042.841226 |
-           -16761361.20062 |
-          -29472170.793985 |
-           18127464.490065 |
-           20245731.867668 |
-          -92954066.718521 |
-          -63915768.853326 |
 
 taos> select bool_col from test_vtable_select.vtb_virtual_stb where int_tag = 2 and bool_tag = false order by ts, int_tag limit 10;
- bool_col |
-===========
- true     |
- false    |
- true     |
- true     |
- false    |
- true     |
- true     |
- false    |
- false    |
- true     |
 
 taos> select binary_16_col from test_vtable_select.vtb_virtual_stb where int_tag = 2 and bool_tag = true order by ts, int_tag limit 10;
 
 taos> select binary_32_col from test_vtable_select.vtb_virtual_stb where int_tag = 2 and bool_tag = true order by ts, int_tag limit 10;
 
 taos> select nchar_16_col from test_vtable_select.vtb_virtual_stb where int_tag = 2 and bool_tag = false order by ts, int_tag limit 10;
-          nchar_16_col          |
-=================================
- 一。San Franc                  |
- 三。San Diego                  |
- 六。Campbell                   |
- 八。Sunnyvale                  |
- 七。Mountain                   |
- 十。Cupertino                  |
- 八。Sunnyvale                  |
- 二。Los Angle                  |
- 九。Santa Cla                  |
- 六。Campbell                   |
 
 taos> select nchar_32_col from test_vtable_select.vtb_virtual_stb where int_tag = 2 and bool_tag = false order by ts, int_tag limit 10;
-          nchar_32_col          |
-=================================
- 圣克拉拉 - Santa Clara         |
- 森尼韦尔 - Sunnyvale           |
- 山景城 - Mountain View         |
- 帕洛阿托 - Palo Alto           |
- 坎贝尔 - Campbell              |
- 山景城 - Mountain View         |
- 圣克拉拉 - Santa Clara         |
- 山景城 - Mountain View         |
- 洛杉矶 - Los Angles            |
- 圣克拉拉 - Santa Clara         |
 
 taos> select u_tinyint_col from test_vtable_select.vtb_virtual_stb where tbname = 'vtb_virtual_ctb_mix' order by ts, int_tag limit 10;
  u_tinyint_col |
@@ -7392,4 +7284,3 @@ taos> select nchar_32_col from test_vtable_select.vtb_virtual_stb where tbname =
  山景城 - Mountain View         |
  洛杉矶 - Los Angles            |
  圣克拉拉 - Santa Clara         |
-
