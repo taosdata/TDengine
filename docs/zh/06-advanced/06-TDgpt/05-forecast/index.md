@@ -5,7 +5,6 @@ description: 介绍 TDgpt 内置时序数据预测模型
 
 import covariate from '../pic/fc-covariate.png';
 
-
 时序数据预测分析以持续一个时间段的时序数据作为输入，预测接下一个连续时间区间内时间序列数据趋势，并且用户可以指定（预测）输出的时间序列数据点数量。TDengine 引入新的 SQL 函数 `FORECAST` 提供预测分析功能。基础（用于预测的历史时间序列）数据是该函数的输入，输出即为预测结果。用户可以通过 `FORECAST` 函数调用 TDgpt 提供的预测算法提供的服务。预测分析通常只能针对超级表的子表或者不同表中同一个时间序列。
 
 在后续章节中，使用时序数据表 `foo` 作为示例，介绍预测和异常检测算法的使用方式，`foo` 表模式定义如下：
@@ -148,7 +147,7 @@ select _frowts, forecast(val, past_co_val, future_co_val, "algo=moirai,rows=4, d
 - [ARIMA](./02-arima.md)
 - [HoltWinters](./03-holtwinters.md)
 - [Time Series Foundation Model](./04-tsfm.md)
-- CES (Complex Exponential Smoothing) 
+- CES (Complex Exponential Smoothing)
 - Theta
 - Prophet
 - XGBoost
@@ -163,5 +162,3 @@ select _frowts, forecast(val, past_co_val, future_co_val, "algo=moirai,rows=4, d
 - PatchTST (Patch Time Series Transformer)
 - Temporal Fusion Transformer
 - TimesNet
-
-
