@@ -1926,6 +1926,7 @@ static int getMetaFromInsertJsonFile(tools_cJSON *json) {
             errorPrint("json file %s does not have write permission.\n", g_arguments->output_json_file);
             goto PARSE_OVER;
         }
+        infoPrint("json output file: %s\n", g_arguments->output_json_file);
     }
 
     tools_cJSON *threads = tools_cJSON_GetObjectItem(json, "thread_count");
