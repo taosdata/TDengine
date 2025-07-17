@@ -1229,89 +1229,164 @@ _exit:
   return code;
 }
 
-static int32_t tRowMergeWithBlobImpl(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlob, int32_t iStart, int32_t iEnd,
-                                     int8_t flag) {
+static int32_t tRowRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlob) {
   int32_t code = 0;
+  int32_t   nRow = TARRAY_SIZE(aRowP);
+  int32_t   lino = 0;
+  SBlobSet *pBlobSet = NULL;
 
-  int32_t    nRow = iEnd - iStart;
-  SRowIter **aIter = NULL;
-  SArray    *aColVal = NULL;
-  SRow      *pRow = NULL;
-  uint8_t    hasBlob = 0;
-  aIter = taosMemoryCalloc(nRow, sizeof(SRowIter *));
+  SArray *aColVal = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal));
+  if (aColVal == NULL) {
+    TAOS_CHECK_RETURN(code = terrno);
+  }
+
+  SRowIter **aIter = taosMemoryCalloc(nRow, sizeof(SRowIter *));
   if (aIter == NULL) {
-    code = terrno;
-    goto _exit;
+    TAOS_CHECK_RETURN(code = terrno);
   }
 
   for (int32_t i = 0; i < nRow; i++) {
-    SRow *pRowT = taosArrayGetP(aRowP, iStart + i);
-
+    SRow *pRowT = taosArrayGetP(aRowP, 0 + i);
     code = tRowIterOpen(pRowT, pTSchema, &aIter[i]);
-    if (code) goto _exit;
+    TAOS_CHECK_GOTO(code, &lino, _error);
   }
-
-  // merge
-  aColVal = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal));
-  if (aColVal == NULL) {
-    code = terrno;
-    goto _exit;
-  }
-
-  for (int32_t iCol = 0; iCol < pTSchema->numOfCols; iCol++) {
-    SColVal  *pColVal = NULL;
-    STColumn *pCol = pTSchema->columns + iCol;
-    if (IS_STR_DATA_BLOB(pCol->type)) {
-      hasBlob = 1;
-    }
-
-    for (int32_t iRow = nRow - 1; iRow >= 0; --iRow) {
-      SColVal *pColValT = tRowIterNext(aIter[iRow]);
-      while (pColValT->cid < pTSchema->columns[iCol].colId) {
-        pColValT = tRowIterNext(aIter[iRow]);
-      }
-
-      // todo: take strategy according to the flag
-      if (COL_VAL_IS_VALUE(pColValT)) {
-        pColVal = pColValT;
-        break;
-      } else if (COL_VAL_IS_NULL(pColValT)) {
-        if (pColVal == NULL) {
-          pColVal = pColValT;
+  for (int32_t i = 0; i < nRow; i++) {
+    SColVal *pColVal = tRowIterNext(aIter[i]);
+    do {
+      if (COL_VAL_IS_VALUE(pColVal)) {
+        if (IS_STR_DATA_BLOB(pColVal->value.type)) {
+          if (taosArrayPush(aColVal, pColVal) == NULL) {
+            code = terrno;
+            TAOS_CHECK_GOTO(code, &lino, _error);
+          }
+          break;
         }
+      } else if (COL_VAL_IS_NULL(pColVal)) {
+        continue;  // do nothing
       }
-    }
+    } while ((pColVal = tRowIterNext(aIter[i])) != NULL);
+  }
 
-    if (pColVal) {
-      if (taosArrayPush(aColVal, pColVal) == NULL) {
-        code = terrno;
-        goto _exit;
-      }
+  code = tBlobSetCreate(pBlob->cap, pBlob->type, &pBlob);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
+  for (int32_t i = 0; i < nRow; i++) {
+    SColVal *pVal = taosArrayGet(aColVal, i);
+    if (pVal) {
+      uint64_t  seq = 0;
+      SBlobItem item = {0};
+      code = tBlobSetPush(pBlob, &item, &seq, 1);
+      TAOS_CHECK_GOTO(code, &lino, _error);
     }
   }
 
-  // build
-  SRowBuildScanInfo sinfo = {.hasBlob = 1, .scanType = ROW_BUILD_MERGE};
-  code = tRowBuildWithBlob(aColVal, pTSchema, &pRow, pBlob, &sinfo);
-  if (code) goto _exit;
-
-  taosArrayRemoveBatch(aRowP, iStart, nRow, (FDelete)tRowPDestroy);
-  if (taosArrayInsert(aRowP, iStart, &pRow) == NULL) {
-    code = terrno;
-    goto _exit;
+_error:
+  if (code != 0) {
+    uError("tRowRebuildBlob failed at line %d, code %d", code, lino);
   }
 
-_exit:
   if (aIter) {
     for (int32_t i = 0; i < nRow; i++) {
       tRowIterClose(&aIter[i]);
     }
     taosMemoryFree(aIter);
   }
-  if (aColVal) taosArrayDestroy(aColVal);
-  if (code) tRowDestroy(pRow);
+  if (aColVal) {
+    taosArrayDestroy(aColVal);
+  }
+  tBlobSetDestroy(pBlob);
   return code;
 }
+
+static int32_t tRowMergeAndRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlob) {
+  int32_t code = 0;
+
+  return code;
+}
+// static int32_t tRowMergeWithBlobImpl(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlob, int32_t iStart, int32_t
+// iEnd,
+//                                      int8_t flag) {
+//   int32_t code = 0;
+
+//   int32_t    nRow = iEnd - iStart;
+//   SRowIter **aIter = NULL;
+//   SArray    *aColVal = NULL;
+//   SRow      *pRow = NULL;
+//   uint8_t    hasBlob = 0;
+//   aIter = taosMemoryCalloc(nRow, sizeof(SRowIter *));
+//   if (aIter == NULL) {
+//     code = terrno;
+//     goto _exit;
+//   }
+
+//   for (int32_t i = 0; i < nRow; i++) {
+//     SRow *pRowT = taosArrayGetP(aRowP, iStart + i);
+
+//     code = tRowIterOpen(pRowT, pTSchema, &aIter[i]);
+//     if (code) goto _exit;
+//   }
+
+//   // merge
+//   aColVal = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal));
+//   if (aColVal == NULL) {
+//     code = terrno;
+//     goto _exit;
+//   }
+
+//   for (int32_t iCol = 0; iCol < pTSchema->numOfCols; iCol++) {
+//     SColVal  *pColVal = NULL;
+//     STColumn *pCol = pTSchema->columns + iCol;
+//     if (IS_STR_DATA_BLOB(pCol->type)) {
+//       hasBlob = 1;
+//     }
+
+//     for (int32_t iRow = nRow - 1; iRow >= 0; --iRow) {
+//       SColVal *pColValT = tRowIterNext(aIter[iRow]);
+//       while (pColValT->cid < pTSchema->columns[iCol].colId) {
+//         pColValT = tRowIterNext(aIter[iRow]);
+//       }
+
+//       // todo: take strategy according to the flag
+//       if (COL_VAL_IS_VALUE(pColValT)) {
+//         pColVal = pColValT;
+//         break;
+//       } else if (COL_VAL_IS_NULL(pColValT)) {
+//         if (pColVal == NULL) {
+//           pColVal = pColValT;
+//         }
+//       }
+//     }
+
+//     if (pColVal) {
+//       if (taosArrayPush(aColVal, pColVal) == NULL) {
+//         code = terrno;
+//         goto _exit;
+//       }
+//     }
+//   }
+
+//   // build
+//   SRowBuildScanInfo sinfo = {.hasBlob = 1, .scanType = ROW_BUILD_MERGE};
+//   code = tRowBuildWithBlob(aColVal, pTSchema, &pRow, pBlob, &sinfo);
+//   if (code) goto _exit;
+
+//   taosArrayRemoveBatch(aRowP, iStart, nRow, (FDelete)tRowPDestroy);
+//   if (taosArrayInsert(aRowP, iStart, &pRow) == NULL) {
+//     code = terrno;
+//     goto _exit;
+//   }
+
+// _exit:
+//   if (aIter) {
+//     for (int32_t i = 0; i < nRow; i++) {
+//       tRowIterClose(&aIter[i]);
+//     }
+//     taosMemoryFree(aIter);
+//   }
+//   if (aColVal) taosArrayDestroy(aColVal);
+//   if (code) tRowDestroy(pRow);
+//   return code;
+// }
 
 int32_t tRowSort(SArray *aRowP) {
   if (TARRAY_SIZE(aRowP) <= 1) return 0;
@@ -1362,13 +1437,13 @@ int32_t tRowSortWithBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlobSet) 
     uError("taosArrayMSort failed caused by %d", code);
     return code;
   }
-  
-
   return code;
 }
-int32_t tRowMergeWithBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlobSet, int8_t flag) {
-  int32_t code = 0;
 
+int8_t tRowNeedDoMerge(SArray *aRowP) {
+  if (aRowP == NULL || aRowP->size <= 1) return 0;
+
+  int8_t  doMerge = 0;
   int32_t iStart = 0;
   while (iStart < aRowP->size) {
     SRowKey key1;
@@ -1388,14 +1463,23 @@ int32_t tRowMergeWithBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlobSet,
     }
 
     if (iEnd - iStart > 1) {
-      code = tRowMergeWithBlobImpl(aRowP, pTSchema, pBlobSet, iStart, iEnd, flag);
-      if (code) return code;
+      doMerge = 1;
+      break;
     }
-
-    // the array is also changing, so the iStart just ++ instead of iEnd
     iStart++;
   }
+  return doMerge;
+}
 
+int32_t tRowMergeWithBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlobSet, int8_t flag) {
+  int32_t code = 0;
+
+  int8_t doMerge = tRowNeedDoMerge(aRowP);
+  if (!doMerge) {
+    code = tRowRebuildBlob(aRowP, pTSchema, pBlobSet);
+  } else {
+    code = tRowMergeAndRebuildBlob(aRowP, pTSchema, pBlobSet);
+  }
   return code;
 }
 

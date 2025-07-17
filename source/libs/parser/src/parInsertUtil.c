@@ -692,8 +692,7 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
         code = tRowMerge(*rowP, pTbCtx->pSchema, 0);
         TAOS_CHECK_RETURN(code);
       } else {
-        code = TSDB_CODE_BLOB_NOT_SUPPORT;
-        break;
+        TAOS_CHECK_RETURN(code = TSDB_CODE_BLOB_NOT_SUPPORT);
 
         code = tRowSortWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobSet);
         TAOS_CHECK_RETURN(code);
