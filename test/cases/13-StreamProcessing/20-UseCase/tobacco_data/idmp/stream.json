@@ -114,14 +114,24 @@
                 "data": "0.0"
             },
             {
-                "row": 4,
+                "row": 2,
                 "col": 0,
-                "data": "2025-07-10 08:40:00"
+                "data": "2025-07-10 08:20:00"
             },
             {
-                "row": 4,
+                "row": 2,
                 "col": 1,
-                "data": "10.0"
+                "data": "3.0"
+            },
+            {
+                "row": 5,
+                "col": 0,
+                "data": "2025-07-10 08:50:00"
+            },
+            {
+                "row": 5,
+                "col": 1,
+                "data": "9.0"
             }
         ]
     },
@@ -166,8 +176,8 @@
         "data": [
             "INSERT INTO `f1w1a_vibrating_conveyor_06` VALUES('2025-07-10 08:00:00',0.0,0.0);",
             "INSERT INTO `f1w1a_vibrating_conveyor_06` VALUES('2025-07-10 08:20:00',1.0,1.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_06` VALUES('2025-07-10 08:40:00',2.0,2.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_06` VALUES('2025-07-10 09:00:00',3.0,3.0);"
+            "INSERT INTO `f1w1a_vibrating_conveyor_06` VALUES('2025-07-10 08:40:00',3.0,3.0);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_06` VALUES('2025-07-10 09:00:00',7.0,7.0);"
         ],
         "assert": [
             {
@@ -178,20 +188,51 @@
             {
                 "row": 0,
                 "col": 1,
-                "data": "0"
+                "data": "0.0"
+            },
+            {
+                "row": 1,
+                "col": 0,
+                "data": "2025-07-10 08:20:00"
+            },
+            {
+                "row": 1,
+                "col": 1,
+                "data": "0.5"
+            },
+            {
+                "row": 2,
+                "col": 0,
+                "data": "2025-07-10 08:40:00"
+            },
+            {
+                "row": 2,
+                "col": 1,
+                "data": "1.0"
+            },
+            {
+                "row": 3,
+                "col": 0,
+                "data": "2025-07-10 09:00:00"
+            },
+            {
+                "row": 3,
+                "col": 1,
+                "data": "2.0"
             }
         ]
     },
     {
         "id": 7,
         "name": "ana_振动输送机_f1w1a_vibrating_conveyor_07_电机信号极差",
-        "create": "CREATE STREAM IF NOT EXISTS `idmp`.`%STREAM_NAME` SLIDING(30m) FROM `idmp`.`vt_振动输送机_f1w1a_vibrating_conveyor_07` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `idmp`.`%STREAM_NAME` AS SELECT _tcurrent_ts+0s as output_timestamp, SPREAD(`电机信号`) AS `电机信号极差` FROM `idmp`.`vt_振动输送机_f1w1a_vibrating_conveyor_07` WHERE `设备类型` = '振动输送机' AND ts >=_tprev_ts and ts <=_tcurrent_ts;",
+        "create": "CREATE STREAM IF NOT EXISTS `idmp`.`%STREAM_NAME` SLIDING(30m) FROM `idmp`.`vt_振动输送机_f1w1a_vibrating_conveyor_07` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `idmp`.`%STREAM_NAME` AS SELECT _tcurrent_ts+0s as output_timestamp, SPREAD(`电机信号`) AS `电机信号极差` FROM `idmp`.`vt_振动输送机_f1w1a_vibrating_conveyor_07` WHERE `设备类型` = '振动输送机' AND ts >= _tprev_ts and ts <= _tcurrent_ts;",
         "data": [
-            "INSERT INTO `f1w1a_vibrating_conveyor_07` VALUES('2025-07-10 08:00:00',0.0,0.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_07` VALUES('2025-07-10 08:30:00',1.0,1.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_07` VALUES('2025-07-10 09:00:00',2.0,2.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_07` VALUES('2025-07-10 09:30:00',3.0,3.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_07` VALUES('2025-07-10 10:00:00',4.0,4.0);"
+            "INSERT INTO `f1w1a_vibrating_conveyor_07`(ts, motor_signal) VALUES('2025-07-10 08:00:00',12.0);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_07`(ts, motor_signal) VALUES('2025-07-10 08:05:00',12.0);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_07`(ts, motor_signal) VALUES('2025-07-10 08:10:00',14.0);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_07`(ts, motor_signal) VALUES('2025-07-10 08:15:00',16.0);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_07`(ts, motor_signal) VALUES('2025-07-10 08:20:00',13.0);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_07`(ts, motor_signal) VALUES('2025-07-10 08:30:00',21.0);"
         ],
         "assert": [
             {
@@ -202,20 +243,32 @@
             {
                 "row": 0,
                 "col": 1,
-                "data": "0"
+                "data": "0.0"
+            },
+            {
+                "row": 1,
+                "col": 0,
+                "data": "2025-07-10 08:30:00"
+            },
+            {
+                "row": 1,
+                "col": 1,
+                "data": "9.0"
             }
         ]
     },
     {
         "id": 8,
         "name": "ana_振动输送机_f1w1a_vibrating_conveyor_08_超过15分钟没有上报电机信号数据",
-        "create": "CREATE STREAM IF NOT EXISTS `idmp`.`%STREAM_NAME` SESSION(ts,15m) FROM `idmp`.`vt_振动输送机_f1w1a_vibrating_conveyor_08` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `idmp`.`%STREAM_NAME` AS SELECT _twstart+0s as output_timestamp, LAST(`电机信号`) AS `最后电机信号` FROM `idmp`.`vt_振动输送机_f1w1a_vibrating_conveyor_08` WHERE `设备类型` = '振动输送机' AND ts >= _twstart and ts <=_twend;",
+        "create": "CREATE STREAM IF NOT EXISTS `idmp`.`%STREAM_NAME` SESSION(ts,15m) FROM `idmp`.`vt_振动输送机_f1w1a_vibrating_conveyor_08` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `idmp`.`%STREAM_NAME` AS SELECT _twstart+0s as output_timestamp, LAST(`电机信号`) AS `最后电机信号` FROM `idmp`.`vt_振动输送机_f1w1a_vibrating_conveyor_08` WHERE `设备类型` = '振动输送机' AND ts >= _twstart and ts <= _twend;",
         "data": [
             "INSERT INTO `f1w1a_vibrating_conveyor_08` VALUES('2025-07-10 08:00:00',0.0,0.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_08` VALUES('2025-07-10 08:15:00',1.0,1.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_08` VALUES('2025-07-10 08:30:00',2.0,2.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_08` VALUES('2025-07-10 08:45:00',3.0,3.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_08` VALUES('2025-07-10 09:00:00',4.0,4.0);"
+            "INSERT INTO `f1w1a_vibrating_conveyor_08` VALUES('2025-07-10 08:15:01',1.1,1.1);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_08` VALUES('2025-07-10 08:30:00',2.2,2.2);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_08` VALUES('2025-07-10 08:45:01',3.3,3.3);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_08` VALUES('2025-07-10 08:55:01',4.4,4.4);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_08` VALUES('2025-07-10 08:56:01',5.5,5.5);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_08` VALUES('2025-07-10 09:15:00',6.6,6.6);"
         ],
         "assert": [
             {
@@ -226,7 +279,27 @@
             {
                 "row": 0,
                 "col": 1,
-                "data": "0"
+                "data": "0.0"
+            },
+            {
+                "row": 1,
+                "col": 0,
+                "data": "2025-07-10 08:15:01"
+            },
+            {
+                "row": 1,
+                "col": 1,
+                "data": "2.2"
+            },
+            {
+                "row": 2,
+                "col": 0,
+                "data": "2025-07-10 08:45:01"
+            },
+            {
+                "row": 2,
+                "col": 1,
+                "data": "5.5"
             }
         ]
     },
@@ -245,12 +318,22 @@
             {
                 "row": 0,
                 "col": 0,
-                "data": "2025-07-10 08:00:00"
+                "data": "2025-07-10 07:50:00"
             },
             {
                 "row": 0,
                 "col": 1,
-                "data": "0"
+                "data": "NULL"
+            },
+            {
+                "row": 9,
+                "col": 0,
+                "data": "2025-07-10 08:35:00"
+            },
+            {
+                "row": 9,
+                "col": 1,
+                "data": "0.0"
             }
         ]
     },
