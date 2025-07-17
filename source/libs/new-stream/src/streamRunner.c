@@ -50,7 +50,7 @@ static void stRunnerDestroyRuntimeInfo(SStreamRuntimeInfo* pRuntime) {
 
 static void stRunnerDestroyTaskExecution(void* pExec) {
   SStreamRunnerTaskExecution* pExecution = pExec;
-  pExecution->pPlan = 0;
+  pExecution->pPlan = NULL;
   streamDestroyExecTask(pExecution->pExecutor);  
   dsDestroyDataSinker(pExecution->pSinkHandle);
   stRunnerDestroyRuntimeInfo(&pExecution->runtimeInfo);
