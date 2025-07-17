@@ -2370,15 +2370,11 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
     }
 
     SVCreateTbReq *pCreateTbReq = NULL;
-    if (bindv->tags && bindv->tags[i]) {
-      code = stmtSetTbTags2(stmt, bindv->tags[i], &pCreateTbReq);
-    } else if (pStmt->bInfo.tbNameFlag & IS_FIXED_TAG) {
+    if (pStmt->bInfo.tbNameFlag & IS_FIXED_TAG) {
       code = stmtSetFixedTags(stmt, &pCreateTbReq);
+    } else if (bindv->tags && bindv->tags[i]) {
+      code = stmtSetTbTags2(stmt, bindv->tags[i], &pCreateTbReq);
     } else if (pStmt->sql.autoCreateTbl) {
-      // if (pStmt->sql.autoCreateTbl) {
-      //   pStmt->sql.autoCreateTbl = false;
-      //   STMT2_WLOG_E("sql is autoCreateTbl, but no tags");
-      // }
       code = stmtSetTbTags2(stmt, NULL, &pCreateTbReq);
     }
 

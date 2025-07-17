@@ -1483,16 +1483,21 @@ int stmtSetFixedTags(TAOS_STMT2* stmt, SVCreateTbReq** pCreateTbReq) {
     return TSDB_CODE_SUCCESS;
   }
 
+  // first time to set fixed tags, clone createTbReq
   if (pStmt->sql.fixValueTbReq == NULL) {
     if ((*pDataBlock)->pData->pCreateTbReq == NULL) {
       STMT_ERR_RET(TSDB_CODE_TSC_STMT_CACHE_ERROR);
     }
     STMT2_TLOG_E("tags are fixed, set createTbReq first time");
     pStmt->sql.fixValueTags = true;
-    STMT_ERR_RET(cloneSVreateTbReq((*pDataBlock)->pData->pCreateTbReq, &pStmt->sql.fixValueTbReq));
+    pStmt->sql.fixValueTbReq = (*pDataBlock)->pData->pCreateTbReq;
+    STMT_ERR_RET(cloneSVreateTbReq(pStmt->sql.fixValueTbReq, &(*pDataBlock)->pData->pCreateTbReq));
     //   STMT_ERR_RET(cloneSVreateTbReq(pStmt->sql.fixValueTbReq, pCreateTbReq));
-    pStmt->sql.fixValueTbReq->uid = (*pDataBlock)->pMeta->vgId;
+    // pStmt->sql.fixValueTbReq->uid = (*pDataBlock)->pMeta->vgId;
     pStmt->sql.fixValueTags = true;
+    if (!pStmt->sql.stbInterlaceMode) {
+      return TSDB_CODE_SUCCESS;
+    }
   }
 
   if (pStmt->sql.fixValueTags) {
