@@ -3205,17 +3205,16 @@ int32_t taosPersistGlobalConfig(SArray *array, const char *path, int32_t version
 
   TAOS_CHECK_GOTO(taosMkDir(filepath), &lino, _exit);
 
-  TdFilePtr pConfigFile =
-      taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+  pFile = taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
 
-  if (pConfigFile == NULL) {
+  if (pFile == NULL) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
     uError("failed to open file:%s since %s", filename, tstrerror(code));
     TAOS_RETURN(code);
   }
   TAOS_CHECK_GOTO(globalConfigSerialize(version, array, &serialized), &lino, _exit);
 
-  if (taosWriteFile(pConfigFile, serialized, strlen(serialized)) < 0) {
+  if (taosWriteFile(pFile, serialized, strlen(serialized)) < 0) {
     lino = __LINE__;
     code = TAOS_SYSTEM_ERROR(ERRNO);
     uError("failed to write file:%s since %s", filename, tstrerror(code));
@@ -3226,7 +3225,7 @@ _exit:
   if (code != TSDB_CODE_SUCCESS) {
     uError("failed to persist global config at line:%d, since %s", lino, tstrerror(code));
   }
-  (void)taosCloseFile(&pConfigFile);
+  (void)taosCloseFile(&pFile);
   taosMemoryFree(serialized);
   return code;
 }
