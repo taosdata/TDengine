@@ -14603,8 +14603,6 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
   SHashObj*              pTriggerSlotHash = NULL;
   SNode*                 pNotifyCond = NULL;
   SName                  streamName;
-  int8_t                 triggerDbPrecision = TSDB_TIME_PRECISION_MILLI;
-  SDbCfgInfo*            triggerDbCfg = NULL;
 
   PAR_ERR_JRET(taosGetSystemUUIDU64(&pReq->streamId));
 
