@@ -2611,7 +2611,6 @@ static FORCE_INLINE int32_t tColDataPutValue(SColData *pColData, uint8_t *pData,
       code = tRealloc((uint8_t **)(&pColData->aOffset), ((int64_t)(pColData->nVal + 1)) << 2);
       if (code) goto _exit;
       pColData->aOffset[pColData->nVal] = pColData->nData;
-      //(pColData->nVal > 0) ? pColData->aOffset[pColData->nVal - 1] + BSE_SEQUECE_SIZE : 0;
 
       if (nData) {
         code = tRealloc(&pColData->pData, pColData->nData + BSE_SEQUECE_SIZE);
@@ -2622,7 +2621,6 @@ static FORCE_INLINE int32_t tColDataPutValue(SColData *pColData, uint8_t *pData,
         uint64_t zero = 0;
         (void)memcpy(pColData->pData + pColData->nData, &zero, BSE_SEQUECE_SIZE);
         pColData->nData += BSE_SEQUECE_SIZE;
-        // pColData->aOffset[pColData->nVal] = (pColData->nVal > 0) ? pColData->aOffset[pColData->nVal - 1] : 0;
       }
 
     } else {
