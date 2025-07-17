@@ -8,7 +8,7 @@ import math
 class TestIdmpTobacco:
     def test_tobacco(self):
         """
-        Refer: https://taosdata.feishu.cn/wiki/XaqbweV96iZVRnkgHLJcx2ZCnQf
+        Refer: https://taosdata.feishu.cn/wiki/Zkb2wNkHDihARVkGHYEcbNhmnxb#share-I9GwdF26PoWk6uxx2zJcxZYrn1d
         Catalog:
             - Streams:UseCases
         Since: v3.3.6.14
