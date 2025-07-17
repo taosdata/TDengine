@@ -297,24 +297,31 @@ bool tmq_ctx_topic_exists(struct tmq_ctx* context, const char* topic_name, const
   }
   context->topic_list = topic_list;
 
-  tmq_topic_info* ti = taosMemoryCalloc(1, sizeof(*ti));
-  if (!ti) {
-    bndError("tinfo oom.");
+  tmq_topic_info* tinfo_found;
+  HASH_FIND(hh_id, context->topic_info, topic_name, strlen(topic_name), tinfo_found);
+  if (tinfo_found) {
+    tinfo_found->qos = qos;
+    tinfo_found->proto_id = proto_id;
+  } else {
+    tmq_topic_info* ti = taosMemoryCalloc(1, sizeof(*ti));
+    if (!ti) {
+      bndError("tinfo oom.");
 
-    tmq_list_destroy(context->topic_list);
-    return false;
-  }
-  ti->topic_name = ttq_strdup(topic_name);
-  if (!ti->topic_name) {
-    bndError("tinfo topic name failed to dup.");
-    tmq_list_destroy(context->topic_list);
-    ttq_free(ti);
-    return false;
-  }
-  ti->qos = qos;
-  ti->proto_id = proto_id;
+      tmq_list_destroy(context->topic_list);
+      return false;
+    }
+    ti->topic_name = ttq_strdup(topic_name);
+    if (!ti->topic_name) {
+      bndError("tinfo topic name failed to dup.");
+      tmq_list_destroy(context->topic_list);
+      ttq_free(ti);
+      return false;
+    }
+    ti->qos = qos;
+    ti->proto_id = proto_id;
 
-  HASH_ADD_KEYPTR(hh_id, context->topic_info, ti->topic_name, strlen(ti->topic_name), ti);
+    HASH_ADD_KEYPTR(hh_id, context->topic_info, ti->topic_name, strlen(ti->topic_name), ti);
+  }
 
   return true;
 }
