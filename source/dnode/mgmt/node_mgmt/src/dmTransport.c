@@ -302,6 +302,9 @@ _OVER:
           dError("failed to send response, msg:%p", &rsp);
         }
       }
+    } else {
+      destroyAhandle(pRpc->info.ahandle);
+      dDebug("msg:%s ahandle freed", TMSG_INFO(pRpc->msgType));
     }
 
     if (pMsg != NULL) {
