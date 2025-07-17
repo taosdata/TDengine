@@ -27,7 +27,7 @@ class TestStreamCountTrigger:
         # streams.append(self.Basic10())  # OK
         # streams.append(self.Basic11())  # failed
         # streams.append(self.Basic12())  # failed
-        streams.append(self.Basic13())  # failed
+        streams.append(self.Basic13())  # OK
 
         tdStream.checkAll(streams)
 
@@ -2468,7 +2468,7 @@ class TestStreamCountTrigger:
 
             tdSql.execute(
                 f"create stream s10_0 count_window(4,cint) "
-                f"from ct1 stream_options(EVENT_TYPE(WINDOW_CLOSE)|MAX_DELAY(1s)) "
+                f"from ct1 stream_options(EVENT_TYPE(WINDOW_CLOSE)|max_delay(3s)) "
                 f"into res_ct1 (firstts, lastts, exects, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), cast(_tlocaltime/1000000 as timestamp) exec_ts, count(cint), sum(cint), avg(cint) from %%trows;"
             )
@@ -2753,28 +2753,33 @@ class TestStreamCountTrigger:
 
         def check1(self):
             tdSql.checkResultsByFunc(
-                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and (table_name like "res_vtb_1%")',
-                func=lambda: tdSql.getRows() == 9,
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and '
+                    f'(table_name like "res_vtb_1%" or stable_name like "res_vtb_1")',
+                func=lambda: tdSql.getRows() == 1,
             )
 
             tdSql.checkTableSchema(
                 dbname=self.db,
                 tbname="res_vtb_1",
                 schema=[
+                    ['ts', 'TIMESTAMP', 8, ''],
                     ['firstts', 'TIMESTAMP', 8, ''],
-                    ['lastts', 'TIMESTAMP', 8, ''] ,
-                    ['cnt_col_3', 'BIGINT', 8, ''] ,
-                    ['sum_col_3', 'BIGINT', 8, ''] ,
-                    ['avg_col_3', 'DOUBLE', 8, ''] ,
-                    ['cnt_col_1', 'BIGINT', 8, ''] ,
-                    ['sum_col_1', 'BIGINT', 8, ''] ,
-                    ['avg_col_1', 'DOUBLE', 8, ''] ,
+                    ['lastts', 'TIMESTAMP', 8, ''],
+                    ['twduration', 'BIGINT', 8, ''],
+                    ['cnt_col_3', 'BIGINT', 8, ''],
+                    ['sum_col_3', 'BIGINT', 8, ''],
+                    ['avg_col_3', 'DOUBLE', 8, ''],
+                    ['cnt_col_1', 'BIGINT', 8, ''],
+                    ['sum_col_1', 'BIGINT', 8, ''],
+                    ['avg_col_1', 'DOUBLE', 8, ''],
+                    ['_x_col', 'DOUBLE', 8, ''],
+                    ['name', 'VARCHAR', 270, ''],
                 ],
             )
 
             tdSql.checkResultsByFunc(
                 sql=f"select firstts, lastts, cnt_col_3, sum_col_3, avg_col_3, cnt_col_1, sum_col_1, avg_col_1 "
                     f"from {self.db}.res_vtb_1",
-                func=lambda: tdSql.getRows() == 3,
+                func=lambda: tdSql.getRows() == 9,
             )
 

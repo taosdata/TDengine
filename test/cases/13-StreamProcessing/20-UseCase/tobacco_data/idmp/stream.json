@@ -399,7 +399,7 @@
     },
     {
         "id": 12,
-        "name": "ana_计量管_f1w1a_metering_pipe_07",
+        "name": "ana_计量管_f1w1a_metering_pipe_07_状态窗口_last值",
         "create": "create stream if not exists `idmp`.`%STREAM_NAME` state_window(`设备状态`) from `idmp`.`vt_计量管_f1w1a_metering_pipe_07` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) into `idmp`.`%STREAM_NAME` AS SELECT _twstart+0s as output_timestamp, last(`测量值`) as `测量值` FROM idmp.`vt_计量管_f1w1a_metering_pipe_07` where ts >= _twstart and ts <=_twend",
         "data": [
             "INSERT INTO `f1w1a_metering_pipe_07`(ts,equipment_status,measured_value) VALUES('2025-07-10 08:00:00',false,1.1);",

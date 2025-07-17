@@ -426,7 +426,7 @@ class TestStreamRecalcWatermark:
             )
 
         tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:30:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
-        tdSql.execute("insert into tdb.we1 values ('2025-01-01 02:31:02', 10, 8);")
+        tdSql.execute("insert into tdb.we1 values ('2025-01-01 02:30:01', 10, 8);")
 
         tdSql.checkResultsByFunc(
                 sql=f"select ts, cnt, avg_val from rdb.r_event_watermark",
@@ -438,7 +438,7 @@ class TestStreamRecalcWatermark:
                 )
             )
         # TODO(beryl): blocked 
-        # tdSql.execute("insert into tdb.we1 values ('2025-01-01 02:33:30', 10, 15);")
+        # tdSql.execute("insert into tdb.we1 values ('2025-01-01 02:35:00', 10, 1);")
         # tdSql.checkResultsByFunc(
         #         sql=f"select ts, cnt, avg_val from rdb.r_event_watermark",
         #         func=lambda: (
@@ -446,6 +446,9 @@ class TestStreamRecalcWatermark:
         #             and tdSql.compareData(0, 0, "2025-01-01 02:30:00.000")
         #             and tdSql.compareData(0, 1, 201)
         #             and tdSql.compareData(0, 2, 299.054726368159)
+        #             and tdSql.compareData(1, 0, "2025-01-01 02:31:30.000")
+        #             and tdSql.compareData(1, 1, 200)
+        #             and tdSql.compareData(1, 2, 303.5)
         #         )
         #     )
 
