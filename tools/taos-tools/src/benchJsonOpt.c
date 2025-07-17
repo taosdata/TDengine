@@ -1916,7 +1916,12 @@ static int getMetaFromInsertJsonFile(tools_cJSON *json) {
     tools_cJSON *resultJsonFile = tools_cJSON_GetObjectItem(json, "result_json_file");
     if (resultJsonFile && resultJsonFile->type == tools_cJSON_String
             && resultJsonFile->valuestring != NULL) {
-        g_arguments->output_json_file = resultJsonFile->valuestring;
+        if(g_arguments->output_json_file == NULL) {        
+            g_arguments->output_json_file = resultJsonFile->valuestring;
+        }
+    }
+
+    if(g_arguments->output_json_file != NULL) { 
         if (check_write_permission(g_arguments->output_json_file)) {
             errorPrint("json file %s does not have write permission.\n", g_arguments->output_json_file);
             goto PARSE_OVER;
