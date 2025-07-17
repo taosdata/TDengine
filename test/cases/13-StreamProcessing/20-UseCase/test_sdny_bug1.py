@@ -264,8 +264,8 @@ class TestPeriodOutputSubtable:
         tdSql.execute(stbsql)
         tdSql.execute(tb1sql)
         tdSql.execute(tb2sql)
-        tdSql.execute(f"insert into {self.dbname}.e010720169990001 file e010720169990001.csv;")
-        tdSql.execute(f"insert into {self.dbname}.e010720169990002 file e010720169990001.csv;")
+        tdSql.execute(f"insert into {self.dbname}.e010720169990001 file 'cases/13-StreamProcessing/20-UseCase/e010720169990001.csv';")
+        tdSql.execute(f"insert into {self.dbname}.e010720169990002 file 'cases/13-StreamProcessing/20-UseCase/e010720169990001.csv';")
         tdLog.info("load csv file success.")
         
     
