@@ -157,7 +157,7 @@ jobs:
         run: |
           export TD_CONFIG=Release
           ./build.sh gen
-          ./build.sh bld --target build_externals -v
+          ./build.sh bld --target build_externals 
 
       - if: ${{ steps.cache-ext.outputs.cache-hit != 'true' && runner.os == 'Windows' }}
         name: Build externals on Windows
@@ -168,14 +168,14 @@ jobs:
           set CL=/MP8
           set TD_CONFIG=Release
           call .\build.bat gen -G "NMake Makefiles JOM"
-          call .\build.bat bld --target build_externals -v
+          call .\build.bat bld --target build_externals 
 
       - name: Build TDengine on Linux and macOS
         if: runner.os != 'Windows'
         run: |
           export TD_CONFIG=Release
           ./build.sh gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON
-          ./build.sh bld -v
+          ./build.sh bld 
           ./build.sh install
           which taosd
           which taosadapter
@@ -192,7 +192,7 @@ jobs:
           set CL=/MP8
           set TD_CONFIG=Release
           call .\build.bat gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON -G "NMake Makefiles JOM"
-          call .\build.bat bld -v
+          call .\build.bat bld 
           call .\build.bat install
           echo %PATH%
           dir C:\TDengine
