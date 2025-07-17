@@ -139,6 +139,7 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMs
     pTask->task.status = STREAM_STATUS_FAILED;
     return code;
   }
+  ST_TASK_DLOG("subTblNameExpr: %s", (char*)pMsg->subTblNameExpr);
   code = nodesStringToNode(pMsg->subTblNameExpr, (SNode**)&pTask->pSubTableExpr);
   if (code != 0) {
     ST_TASK_ELOG("failed to deserialize sub table expr: %s", tstrerror(code));
