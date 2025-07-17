@@ -21,14 +21,14 @@
 //
 #ifndef TD_PRODUCT_NAME
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA)
-#define TD_PRODUCT_NAME "TDengine Enterprise Edition"
+#define TD_PRODUCT_NAME "TDengine TSDB-Enterprise"
 #else
-#define TD_PRODUCT_NAME "TDengine Community Edition"
+#define TD_PRODUCT_NAME "TDengine TSDB-OSS"
 #endif
 #endif
 
 #ifndef CUS_NAME
-#define CUS_NAME    "TDengine"
+#define CUS_NAME "TDengine"
 #endif
 
 #ifndef CUS_PROMPT
@@ -36,7 +36,7 @@
 #endif
 
 #ifndef CUS_EMAIL
-#define CUS_EMAIL   "<support@taosdata.com>"
+#define CUS_EMAIL "<support@taosdata.com>"
 #endif
 
 #endif  // _CUS_NAME_H_

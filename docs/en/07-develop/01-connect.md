@@ -745,9 +745,9 @@ Using `sql.Open` creates a connection that has already implemented a connection 
 
 <TabItem label="Rust" value="rust">
 
-In complex applications, it is recommended to enable connection pooling. The connection pool for [taos] by default (in asynchronous mode) is implemented using [deadpool].
+In complex applications, it is recommended to enable connection pooling. The connection pool of `taos` is implemented using `deadpool` in asynchronous mode.
 
-Below, you can create a connection pool with default parameters.
+Create a connection pool with default parameters:
 
 ```rust
 let pool: Pool<TaosBuilder> = TaosBuilder::from_dsn("taos:///")
@@ -756,19 +756,19 @@ let pool: Pool<TaosBuilder> = TaosBuilder::from_dsn("taos:///")
     .unwrap();
 ```
 
-You can also use the connection pool builder to set the connection pool parameters:
+Use the connection pool constructor to customize the parameters:
 
 ```rust
-let pool: Pool<TaosBuilder> = Pool::builder(Manager::from_dsn(self.dsn.clone()).unwrap().0)
-    .max_size(88)  // Maximum number of connections
+let pool: Pool<TaosBuilder> = Pool::builder(Manager::from_dsn("taos:///").unwrap().0)
+    .max_size(88) // Maximum number of connections
     .build()
     .unwrap();
 ```
 
-In your application code, use `pool.get()?` to obtain a connection object [Taos].
+Get a connection object from the connection pool:
 
 ```rust
-let taos = pool.get()?;
+let taos = pool.get().await?;
 ```
 
 </TabItem>
