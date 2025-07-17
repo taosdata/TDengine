@@ -23,9 +23,9 @@ class TestStreamStateTrigger:
         # streams.append(self.Basic6())
         # streams.append(self.Basic7())
         # streams.append(self.Basic8())
-        streams.append(self.Basic9())   # OK
+        # streams.append(self.Basic9())   # OK
         # streams.append(self.Basic10())    # failed
-        # streams.append(self.Basic11())
+        streams.append(self.Basic11())
 
         tdStream.checkAll(streams)
 
@@ -2194,13 +2194,9 @@ class TestStreamStateTrigger:
 
         def check1(self):
             tdSql.checkResultsByFunc(
-                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name="res_vtb_3"',
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name="res_vtb_1_0"',
                 func=lambda: tdSql.getRows() == 1,
             )
-            # tdSql.checkResultsByFunc(
-            #     sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_ct%"',
-            #     func=lambda: tdSql.getRows() == 4,
-            # )
 
             tdSql.checkTableSchema(
                 dbname=self.db,

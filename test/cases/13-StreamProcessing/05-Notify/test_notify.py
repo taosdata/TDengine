@@ -32,11 +32,11 @@ class TestStreamNotifyTrigger:
 
         streams = []
 
-        # streams.append(self.Basic1())  # OK
-        # streams.append(self.Basic2())  # failed
+        # streams.append(self.Basic1())    # OK
+        streams.append(self.Basic2())      # OK
         # streams.append(self.Basic3())    # failed
-        # streams.append(self.Basic4())    # failed
-        streams.append(self.Basic5())    # failed
+        # streams.append(self.Basic4())    # OK
+        # streams.append(self.Basic5())    # OK
 
         tdStream.checkAll(streams)
 
@@ -706,7 +706,7 @@ class TestStreamNotifyTrigger:
                 f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
                 f"into "
                 f"res_ct0 (twstart, twend, sum_cdecimal, count_val, min_float, max_double, last_bytes) as "
-                f"select _twstart wstart, _twend, sum(cdecimal), count(*), min(cfloat), last(cbytes) from ct0 "
+                f"select _twstart wstart, _twend, sum(cdecimal), count(*), min(cfloat), max(cdouble), last(cbytes) from ct0 "
                 f"where _twstart <= _c0 and _c0 <= _twend "
             )
 
