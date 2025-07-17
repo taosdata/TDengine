@@ -1,0 +1,34 @@
+[package]
+name = "source-sparkplugb"
+edition = "2024"
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+arrow.workspace = true
+arrow-schema.workspace = true
+faststr.workspace = true
+futures.workspace = true
+taos.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+snafu.workspace = true
+flume.workspace = true
+tokio-stream.workspace = true
+rayon.workspace = true
+parking_lot.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+prost.workspace = true
+serde_with.workspace = true
+chrono.workspace = true
+
+taosx-core.workspace = true
+taosx-ipc.workspace = true
+source-mqtt = { path = "../source-mqtt" }
+
+[lints]
+workspace = true

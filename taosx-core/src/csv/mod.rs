@@ -11,7 +11,7 @@ use arrow::record_batch::RecordBatch;
 use arrow_schema::ArrowError;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use csv_lib::{ByteRecord, Reader, ReaderBuilder, StringRecord};
+use csv::{ByteRecord, Reader, ReaderBuilder, StringRecord};
 use faststr::FastStr;
 use futures_util::stream::FuturesUnordered;
 use futures_util::{Stream, StreamExt, TryStreamExt};
@@ -2041,7 +2041,7 @@ mod tests {
         if path.extension().is_some_and(|ext| ext == "gz") {
             let file = std::fs::File::create(path)?;
             let gz = flate2::write::GzEncoder::new(file, flate2::Compression::default());
-            let mut csv = csv_lib::Writer::from_writer(gz);
+            let mut csv = csv::Writer::from_writer(gz);
 
             csv.write_record(["ts", "payload"])?;
             csv.write_record(["2001-01-01T00:00:00Z", "   location,1,2,3"])?;

@@ -151,6 +151,7 @@ pub(super) async fn get_tasks_count(
 
 #[derive(Debug, Deserialize, ToSchema, IntoParams)]
 pub struct ExportTasksParams {
+    /// task ids to export, split by ','
     ids: Option<String>,
 }
 
@@ -167,17 +168,26 @@ pub struct ExportTasksResult {
     pub tasks: Vec<ExportTaskDetail>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, IntoParams)]
 pub struct ExportTaskDetail {
+    /// task id
     pub id: i64,
+    /// task name
     pub name: Option<String>,
+    /// task data source configuration
     pub from: serde_json::Value,
+    /// task target cluster dsn
     pub to: String,
+    /// task parse configuration
     pub parser: Option<serde_json::Value>,
+    /// task agent id
     pub via: Option<i64>,
+    /// task parallel num
     pub jobs: u16,
+    /// cluster compression level
     pub compression_level: Option<u8>,
     pub oneshot_topic: Option<String>,
+    /// task create datetime
     pub created_at: DateTime<Utc>,
 }
 
@@ -228,6 +238,7 @@ pub struct ImportTasksParams {
     pub export_time: Option<String>,
     #[allow(dead_code)]
     pub tasks_num: Option<usize>,
+    /// task details
     pub tasks: Vec<ExportTaskDetail>,
     pub labels: Option<Vec<String>>,
 }
@@ -376,6 +387,7 @@ pub enum TaskBatchOperation {
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct TaskBatchReq {
+    /// task ids
     ids: Vec<i64>,
 }
 
@@ -904,7 +916,7 @@ pub(super) async fn get_task_metrics(
                     let status: &Status = task.status();
                     get_task_metrics_string(status, metrics)
                 }
-                None => "".to_string(),
+                None => "{}".to_string(),
             }
         }
         Ok(None) => "{}".to_string(),
@@ -998,7 +1010,7 @@ pub(super) async fn get_tmq_task_table_progress(
         Ok(Some(task)) => {
             let from = &task.task.from;
             let to = &task.task.to;
-            let table_progress = taosx_core::get_table_progress(from, to, table, start, end).await;
+            let table_progress = tmq_to_td::get_table_progress(from, to, table, start, end).await;
             match table_progress {
                 Ok(progress) => Ok(serde_json::to_string(&progress).unwrap()),
                 Err(err) => {

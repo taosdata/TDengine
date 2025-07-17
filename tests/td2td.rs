@@ -1,9 +1,10 @@
 use assert_cmd::{Command, prelude::*};
 use chrono::Utc;
 use itertools::Itertools;
+use legacy_to_taos::legacy_to_taos;
 use std::time::Duration;
 use taos::{AsyncQueryable, AsyncTBuilder, IntoDsn, TaosBuilder};
-use taosx_core::{core_metrics::clear_metrics, get_data_dir, legacy_to_taos};
+use taosx_core::{core_metrics::clear_metrics, get_data_dir};
 use tokio_util::sync::CancellationToken;
 
 /// # description
@@ -106,7 +107,7 @@ async fn test_ts6499_with_taos() -> anyhow::Result<()> {
         .output()?;
     let err = String::from_utf8_lossy(&output.stderr);
     assert!(err.is_empty(), "{}", err);
-    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+    tokio::time::sleep(Duration::from_secs(5)).await;
 
     // 5. create a schema only synchronization task
     println!("====== start schema only synchronization task again =====");
@@ -985,8 +986,8 @@ async fn test_sync_all_with_taos() -> anyhow::Result<()> {
     taos.exec_many(vec![
         format!("drop database if exists `{DB_SRC}`;"),
         format!("drop database if exists `{DB_DST}`;"),
-        format!("create database `{DB_SRC}`;"),
-        format!("create database `{DB_DST}`;"),
+        format!("create database if not exists `{DB_SRC}`;"),
+        format!("create database if not exists `{DB_DST}`;"),
         format!("create table `{DB_SRC}`.`Stb`(ts timestamp, val float) tags(id int);"),
     ])
     .await?;

@@ -1,25 +1,39 @@
 use std::future::Future;
 
-use futures::future::Either;
 use tokio_util::sync::CancellationToken;
-
-pub async fn select_two<F1, F2, L, R>(fut1: F1, fut2: F2) -> Either<L, R>
-where
-    F1: Future<Output = L>,
-    F2: Future<Output = R>,
-{
-    tokio::select! {
-        res = fut1 => Either::Left(res),
-        res = fut2 => Either::Right(res),
-    }
-}
 
 pub async fn select_cancel<F, T>(fut: F, cancel: &CancellationToken) -> Option<T>
 where
     F: Future<Output = T>,
 {
-    match select_two(fut, cancel.cancelled()).await {
-        Either::Left(res) => Some(res),
-        Either::Right(_) => None,
+    if cancel.is_cancelled() {
+        return None;
     }
+    cancel.run_until_cancelled(fut).await
 }
+
+macro_rules! select_n {
+    ($n:expr, $( $num: expr),+) => {
+        paste::paste! {
+            pub enum [<Select$n>]<$([<T$num>]),*> {
+                $([<T$num>]([<T$num>])),+
+            }
+
+            pub async fn [<select$n>]<$([<F$num>], [<T$num>]),+>(
+                $([<fut$num>]: [<F$num>]),+
+            ) -> [<Select$n>]<$([<T$num>]),+>
+            where
+                $([<F$num>]: std::future::Future<Output = [<T$num>]>),+
+            {
+                tokio::select! {
+                    $(
+                        res = [<fut$num>] => [<Select$n>]::[<T$num>](res)
+                    ),+
+                }
+            }
+        }
+    };
+}
+
+select_n!(2, 1, 2);
+select_n!(3, 1, 2, 3);

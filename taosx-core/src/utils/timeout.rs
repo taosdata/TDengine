@@ -1,8 +1,3 @@
-use crate::runners::historian::AVEVA_HISTORIAN_ID;
-use crate::runners::mssql::MSSQL_ID;
-use crate::runners::mysql::MYSQL_ID;
-use crate::runners::oracle::ORACLE_ID;
-use crate::runners::postgres::POSTGRES_ID;
 use lazy_static::lazy_static;
 use std::collections::HashMap;
 use std::sync::RwLock;
@@ -64,11 +59,11 @@ impl Timeout {
 
     fn default() -> Timeout {
         let mut get_sample = HashMap::new();
-        get_sample.insert(AVEVA_HISTORIAN_ID.to_string(), 120);
-        get_sample.insert(MYSQL_ID.to_string(), 120);
-        get_sample.insert(POSTGRES_ID.to_string(), 120);
-        get_sample.insert(ORACLE_ID.to_string(), 120);
-        get_sample.insert(MSSQL_ID.to_string(), 120);
+        get_sample.insert("avevaHistorian".to_string(), 120);
+        get_sample.insert("mysql".to_string(), 120);
+        get_sample.insert("postgres".to_string(), 120);
+        get_sample.insert("oracle".to_string(), 120);
+        get_sample.insert("mssql".to_string(), 120);
 
         let timeout = Timeout {
             validate_ds: HashMap::new(), // no specific timeout for validate_ds

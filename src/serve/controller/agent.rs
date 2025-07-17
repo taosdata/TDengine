@@ -361,7 +361,9 @@ pub enum LevelFilter {
 #[derive(Deserialize, Serialize, Debug, Clone, Copy, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ActivityOrder {
+    /// asc order
     Asc,
+    /// desc order
     Desc,
 }
 impl Display for ActivityOrder {
@@ -374,9 +376,13 @@ impl Display for ActivityOrder {
 }
 #[derive(Debug, Deserialize, Serialize, IntoParams, ToSchema, Default)]
 pub struct AgentActivityFilter {
+    /// activities created time
     pub since: Option<DateTime<Utc>>,
+    /// activities level
     pub level: Option<LevelFilter>,
+    /// records limit number
     pub limit: Option<usize>,
+    /// record order by config
     pub order: Option<ActivityOrder>,
 }
 

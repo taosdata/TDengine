@@ -567,16 +567,17 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                 "opentsdb" => "opentsdb",
                 "pi" => "pi",
                 "pibackfill" => "pi",
-                crate::runners::kafka::KAFKA_ID => "kafka",
-                crate::runners::historian::AVEVA_HISTORIAN_ID => "avevahistorian",
+                "kafka" => "kafka",
+                "avevaHistorian" => "avevahistorian",
                 "mqtt" => "mqtt",
                 "tmq" => "td3.0",
                 "taos" => "td2.6",
-                crate::runners::mysql::MYSQL_ID => "mysql",
-                crate::runners::postgres::POSTGRES_ID => "postgres",
-                crate::runners::oracle::ORACLE_ID => "oracle",
-                crate::runners::mssql::MSSQL_ID => "mssql",
-                crate::runners::mongodb::MONGODB_ID => "mongodb",
+                "sparkplugb" => "sparkplugb",
+                "mysql" => "mysql",
+                "postgres" => "postgres",
+                "oracle" => "oracle",
+                "mssql" => "mssql",
+                "mongodb" => "mongodb",
                 "csv" => "csv",
                 connector => {
                     bail!("The current connector {connector} is not supported by license.");
@@ -815,6 +816,7 @@ mod tests {
             ("postgres", "postgres", "PostgreSQL"),
             ("oracle", "oracle", "Oracle"),
             ("mqtt", "mqtt", "MQTT"),
+            ("sparkplugb", "sparkplugb", "SparkplugB"),
         ];
 
         for (id, grant, display) in connectors {

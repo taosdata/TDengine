@@ -22,4 +22,14 @@ fn main() {
     dotenv::dotenv().ok();
     labeling();
     shadow_rs::ShadowBuilder::builder().build().unwrap();
+
+    // prost_build::Config::new()
+    //     // .bytes(["Payload.body"])
+    //     // .type_attribute(".", "#[derive(Default)]")
+    //     .enum_attribute("DataType", "#[repr(u32)]")
+    //     .compile_protos(
+    //         &["src/plugins/runners/sparkplugb/proto/sparkplug_b.proto"],
+    //         &["src/plugins/runners/sparkplugb/proto"],
+    //     )
+    //     .unwrap();
 }

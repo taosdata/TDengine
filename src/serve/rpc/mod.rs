@@ -420,7 +420,7 @@ impl FlightServiceImpl {
                                 action,
                             )
                             .await
-                            .map_err(|err| FlightError::Tonic(Status::internal(err.to_string())))
+                            .map_err(|err| Status::internal(err.to_string()).into())
                             .transpose()
                             {
                                 if let Err(err) = tx.send_async(batch).await {
@@ -728,7 +728,7 @@ impl FlightService for FlightServiceImpl {
             let span = tracing::trace_span!("agent_rpc", agent = agent_id);
             let _enter = span.enter();
 
-            let encoder = FlightDataDecoder::new(req.map_err(FlightError::Tonic));
+            let encoder = FlightDataDecoder::new(req.map_err(FlightError::from));
             let last_heart_ms = AtomicU64::new(0);
             let result = encoder
                 .try_for_each_concurrent(20, |data| async {
@@ -1580,7 +1580,7 @@ mod tests {
             let req = Data { data }.into_streaming_request();
 
             let response = client.do_exchange(req).await.unwrap();
-            let stream = FlightDataDecoder::new(response.into_inner().map_err(FlightError::Tonic));
+            let stream = FlightDataDecoder::new(response.into_inner().map_err(FlightError::from));
             // .into_inner();
 
             stream

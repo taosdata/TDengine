@@ -51,7 +51,7 @@ pub fn dsn_to_json(dsn: &Dsn) -> serde_json::Value {
     }
     // custom parameters for different drivers
     match dsn.driver.to_lowercase().as_str() {
-        "mqtt" | "kafka" => {
+        "mqtt" | "kafka" | "sparkplugb" => {
             // 192.168.1.45:1883,192.168.1.46:1883,...
             let endpoint = dsn
                 .addresses
@@ -198,7 +198,7 @@ pub fn json_to_dsn(json: &serde_json::Value) -> anyhow::Result<Dsn> {
     dsn.subject = params_map.remove("subject").map(|s| s.to_string());
     // custom parameters for different drivers
     match dsn.driver.to_lowercase().as_str() {
-        "mqtt" | "kafka" => {
+        "mqtt" | "kafka" | "sparkplugb" => {
             // 192.168.1.45:1883,192.168.1.46:1883,...
             let endpoint = params_map.remove("endpoint").map(|s| s.to_string());
             if let Some(endpoint) = endpoint {
@@ -301,6 +301,36 @@ fn flatten_json(key: &String, value: &serde_json::Value, map: &mut HashMap<Strin
             });
         }
     }
+}
+
+pub fn option_param<'a>(dsn: &'a Dsn, key: &'a str) -> Option<&'a str> {
+    dsn.get(key).map(|v| v.trim()).filter(|v| !v.is_empty())
+}
+
+pub fn parse_option_param<T>(dsn: &Dsn, key: &str) -> std::result::Result<Option<T>, T::Err>
+where
+    T: std::str::FromStr,
+{
+    dsn.get(key)
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty())
+        .map(|value| value.parse::<T>())
+        .transpose()
+}
+
+pub fn parse_simple_params<T>(dsn: &Dsn, key: &str) -> anyhow::Result<Option<T>>
+where
+    T: std::str::FromStr,
+    T::Err: std::error::Error + Send + Sync + 'static,
+{
+    dsn.get(key)
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty())
+        .map(|v| {
+            v.parse::<T>()
+                .with_context(|| format!("invalid {key}: `{v}`"))
+        })
+        .transpose()
 }
 
 #[cfg(test)]

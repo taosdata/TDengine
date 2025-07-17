@@ -5,11 +5,11 @@ use actix_web::{HttpResponse, Responder, post};
 use anyhow::Context;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
+use source_kafka::TopicOffsetInfo;
 use std::fs::File;
 use std::io::Write;
 use taos::IntoDsn;
 use taosx_core::get_data_dir;
-use taosx_core::runners::kafka::TopicOffsetInfo;
 
 #[utoipa::path(
     tag = "kafka",
@@ -51,7 +51,7 @@ async fn seek_to_end_impl(
 
     let mut from = task.from.as_str().into_dsn().context("invalid from")?;
     // 从 Kafka 获取当前任务相关的 Offset
-    let offsets = taosx_core::plugins::runners::kafka::get_topics_offset(Some(task_id), &from)
+    let offsets = source_kafka::get_topics_offset(Some(task_id), &from)
         .await
         .context("failed to get topics offset")?;
 

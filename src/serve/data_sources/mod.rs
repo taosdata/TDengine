@@ -10,6 +10,7 @@ use actix_web::{
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::{Code, IntoDsn};
+use taosx_task::validate::validate_dsn;
 use tokio::time::timeout;
 use tracing::{Instrument, Span, instrument};
 use utoipa::*;
@@ -17,15 +18,14 @@ use utoipa::*;
 use crate::serve::{controller::TaskControllerRef, task::Failed};
 pub use definition::*;
 pub use point_loader::*;
-use taosx_core::plugins::runners::opc::csv::CsvParser;
-use taosx_core::plugins::runners::opc::model::ModelType;
+use taosx_core::plugins::transform::sample::DsSamples;
+use taosx_core::runners::opc::{csv::CsvParser, model::ModelType};
 use taosx_core::utils::dsn::json_to_dsn;
 use taosx_core::utils::timeout::{Timeout, TimeoutType};
-use taosx_core::{DataSetsReq, get_data_dir, list_datasets_from, plugins, validate_dsn};
+use taosx_core::{DataSetsReq, get_data_dir, list_datasets_from};
 use taosx_core::{QueryDataSourceReq, dsv::DataSourceValidation, utils::license};
 use taosx_core::{
     plugins::transform::parse::plugin::ParserPlugin,
-    plugins::transform::sample::DsSampleIn,
     runners::pi::{
         parse_query_datasource_params,
         transform::{PIElementModelConfig, PIPointModelConfig},
@@ -225,27 +225,40 @@ pub struct TzQuery {
 )]
 #[post("/transform/sample/flat")]
 pub(super) async fn data_source_sample(
-    data: Json<DsSampleIn>,
+    data: Json<DsSamples>,
     tz: Query<TzQuery>,
 ) -> impl Responder {
-    let sample_in = data.into_inner();
-
-    match sample_in.transform(tz.tz.as_deref()) {
-        Ok(output) => Ok(HttpResponse::Ok()
-            .content_type(ContentType::json())
-            .json(output)),
-        Err(err) => Err(Failed::from_error(err)),
+    match data.into_inner() {
+        DsSamples::Simple(sample_in) => match sample_in.transform(tz.tz.as_deref()) {
+            Ok(output) => Ok(HttpResponse::Ok()
+                .content_type(ContentType::json())
+                .json(output)),
+            Err(err) => Err(Failed::from_error(err)),
+        },
+        DsSamples::MultiSchema(samples) => match samples.transform(tz.tz.as_deref()) {
+            Ok(output) => Ok(HttpResponse::Ok()
+                .content_type(ContentType::json())
+                .json(output)),
+            Err(e) => Err(Failed::from_error(e)),
+        },
     }
 }
 
 #[post("/transform/sample/flat/s_model/preview")]
-pub(super) async fn stable_preview(data: Json<DsSampleIn>) -> impl Responder {
-    let sample_in = data.into_inner();
-    match sample_in.stable_preview() {
-        Ok(output) => Ok(HttpResponse::Ok()
-            .content_type(ContentType::json())
-            .json(output)),
-        Err(e) => Err(Failed::from_error(e)),
+pub(super) async fn stable_preview(data: Json<DsSamples>) -> impl Responder {
+    match data.into_inner() {
+        DsSamples::Simple(sample_in) => match sample_in.stable_preview() {
+            Ok(output) => Ok(HttpResponse::Ok()
+                .content_type(ContentType::json())
+                .json(output)),
+            Err(e) => Err(Failed::from_error(e)),
+        },
+        DsSamples::MultiSchema(sample_in) => match sample_in.stable_preview() {
+            Ok(output) => Ok(HttpResponse::Ok()
+                .content_type(ContentType::json())
+                .json(output)),
+            Err(e) => Err(Failed::from_error(e)),
+        },
     }
 }
 
@@ -269,7 +282,7 @@ fn test_sample_flat() {
     let json = r#"
 {"parser":{"parse":{"current":{"regex":"(?P<current>\\d+\\.\\d+)"}}},"input":[{"current":"10.3","groupid":"2","id":"1001","location":"California.SanFrancisco","phase":"0.31","timestamp":"1538548685000","voltage":"219"},{"current":"10.2","groupid":"3","id":"1002","location":"California.SanFrancisco","phase":"0.23","timestamp":"1538548684000","voltage":"220"},{"current":"11.5","groupid":"3","id":"1003","location":"California.LosAngeles","phase":"0.35","timestamp":"1538548686500","voltage":"221"}]}
     "#;
-    let sample_in: DsSampleIn = serde_json::from_str(json).unwrap();
+    let sample_in: taosx_core::task_set::prelude::DsSampleIn = serde_json::from_str(json).unwrap();
     let output = sample_in.transform(Some("Asia/Shanghai")).unwrap();
     dbg!(serde_json::to_string(&output).unwrap());
 }
@@ -622,12 +635,12 @@ pub(super) async fn get_sample(
 async fn get_sample_impl(
     controller: Data<TaskControllerRef>,
     query: DsnAgentQuery,
-) -> anyhow::Result<DsSampleIn> {
+) -> anyhow::Result<DsSamples> {
     let via = query.via;
     let dsn = json_to_dsn(&query.dsn)?;
 
     match via {
-        None => plugins::get_sample(&dsn).await,
+        None => taosx_task::sample::get_sample(&dsn).await,
         Some(agent) => {
             controller
                 .get_sample_via_agent(agent, dsn.to_string())

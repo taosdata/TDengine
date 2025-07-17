@@ -1,7 +1,10 @@
 use std::{
     future::pending,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
     time::{Duration, Instant},
 };
 
@@ -10,12 +13,11 @@ use clap::Parser;
 use crossterm::event::EventStream;
 use faststr::FastStr;
 use futures::{future::Either, StreamExt};
-use rand::distributions::{Alphanumeric, DistString};
 use rumqttc::{
     v5::{
         mqttbytes::{
             qos,
-            v5::{ConnectReturnCode, PubAckReason, PubRecReason},
+            v5::{ConnAck, ConnectReturnCode, PubAckReason, PubRecReason},
         },
         Event, Incoming, MqttOptions,
     },
@@ -28,10 +30,9 @@ use tokio_util::sync::CancellationToken;
 
 use taosx_tools::{
     codec::{Compression, Encoding, Processor},
-    csv_reader, select3,
+    csv_reader, generate_random_string,
     topic::TopicFaker,
     topic_fuzzy::TopicFuzzer,
-    Select3,
 };
 
 #[derive(Debug, PartialEq, serde::Deserialize)]
@@ -55,7 +56,7 @@ pub struct Schema {
     pub payload: taosx_tools::fake_json::DataFakeSchema,
 }
 
-#[derive(Debug, clap::Parser)]
+#[derive(Debug, Clone, clap::Parser)]
 struct Args {
     #[command(flatten)]
     connect: ConnectArgs,
@@ -82,7 +83,7 @@ struct Args {
     report_interval: Duration,
 }
 
-#[derive(Debug, clap::Args)]
+#[derive(Debug, Clone, clap::Args)]
 struct ConnectArgs {
     #[arg(long = "host", default_value = "localhost")]
     broker_host: String,
@@ -94,12 +95,9 @@ struct ConnectArgs {
     password: Option<String>,
     #[arg(long = "keep_alive", short = 'k', default_value = "5s", value_parser = fundu::parse_duration)]
     keep_alive: Duration,
-    /// [default: `mqtt_pub_tool_` + random string]
-    #[arg(long = "client_id", short = 'c')]
-    client_id: Option<String>,
 }
 
-#[derive(Debug, clap::Args)]
+#[derive(Debug, Clone, clap::Args)]
 #[group(required = true)]
 struct DataSourceArgs {
     #[arg(long = "schema")]
@@ -108,7 +106,7 @@ struct DataSourceArgs {
     csv_file: Option<PathBuf>,
 }
 
-#[derive(Debug, clap::Args)]
+#[derive(Debug, Clone, clap::Args)]
 struct PayloadArgs {
     /// payload compression, support: gzip, lz4, snappy, zstd
     #[arg(long = "compress")]
@@ -118,7 +116,7 @@ struct PayloadArgs {
     encoding: Option<Encoding>,
 }
 
-#[derive(Debug, clap::Args)]
+#[derive(Debug, Clone, clap::Args)]
 #[group(required = false, multiple = false)]
 struct FrequencyArgs {
     /// The interval time for sending data, supporting units such as s/ms/Ms/ns
@@ -137,26 +135,6 @@ async fn main() -> anyhow::Result<()> {
         anyhow::bail!("report interval should > 1s");
     }
 
-    let client_id = args
-        .connect
-        .client_id
-        .unwrap_or_else(|| format!("mqtt_pub_tool_{}", generate_random_string(10)));
-    println!("client_id: {}", client_id);
-
-    enum WatchEvent {
-        ConnAck,
-    }
-
-    let mut opts = MqttOptions::new(
-        client_id,
-        args.connect.broker_host,
-        args.connect.broker_port,
-    );
-    if let (Some(username), Some(password)) = (args.connect.username, args.connect.password) {
-        opts.set_credentials(username, password);
-    }
-    opts.set_keep_alive(args.connect.keep_alive);
-
     let parallel = args
         .parallel
         .unwrap_or_else(|| std::thread::available_parallelism().unwrap().get());
@@ -165,7 +143,7 @@ async fn main() -> anyhow::Result<()> {
     let cancel = CancellationToken::new();
 
     let (data_tx, data_rx) = flume::bounded(parallel);
-    match (args.source.schema, args.source.csv_file) {
+    match (&args.source.schema, args.source.csv_file.clone()) {
         (schema, Some(csv)) => {
             let has_schema = schema.is_some();
             #[derive(serde::Serialize, serde::Deserialize)]
@@ -191,7 +169,7 @@ async fn main() -> anyhow::Result<()> {
                     None => (None, None),
                 };
 
-            let headers = args.csv_headers;
+            let headers = args.csv_headers.clone();
 
             #[derive(Debug, serde::Deserialize)]
             struct CsvData {
@@ -314,135 +292,57 @@ async fn main() -> anyhow::Result<()> {
         (None, None) => anyhow::bail!("schema or csv file is required"),
     }
 
-    let (client, mut event_loop) = rumqttc::v5::AsyncClient::new(opts, 1000);
+    let published = Arc::new(AtomicU64::default());
+    for _ in 0..parallel {
+        start_publisher(
+            args.clone(),
+            &mut tasks,
+            data_rx.clone(),
+            published.clone(),
+            cancel.child_token(),
+        )
+        .await?;
+    }
+    drop(data_rx);
 
-    let (tx, rx) = flume::bounded(parallel);
-    let total_notifier = Arc::new(tokio::sync::Notify::new());
     tasks.spawn({
-        let token = cancel.clone();
-        let total_notifier = total_notifier.clone();
+        let mut ticker = tokio::time::interval(args.report_interval);
+        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        let cancel = cancel.clone();
         async move {
-            let mut ticker = tokio::time::interval(args.report_interval);
-            ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-            let mut published = 0u64;
-            let mut pre_published = published;
+            let mut pre_published = published.load(Ordering::SeqCst);
             let start = Instant::now();
             let mut pre_inst = Instant::now();
             loop {
-                match select3(event_loop.poll(), ticker.tick(), token.cancelled()).await {
-                    Select3::T1(res) => match res {
-                        Ok(Event::Incoming(Incoming::ConnAck(ack))) => {
-                            if matches!(ack.code, ConnectReturnCode::Success) {
-                                println!("client connect sucessfully");
-                                tx.try_send(WatchEvent::ConnAck).ok();
-                            } else {
-                                println!("connect error: {:?}", ack.code);
-                                break;
-                            }
-                        }
-                        Ok(Event::Incoming(Incoming::PubAck(ack))) => {
-                            if matches!(ack.reason, PubAckReason::Success) {
-                                published += 1;
-                            } else {
-                                println!("publish error: {:?}", ack.reason);
-                            }
-                        }
-                        Ok(Event::Incoming(Incoming::PubRec(ack))) => {
-                            if matches!(ack.reason, PubRecReason::Success) {
-                                published += 1;
-                            } else {
-                                println!("publish error: {:?}", ack.reason);
-                            }
-                        }
-                        Ok(Event::Outgoing(Outgoing::Publish(0))) => {
-                            published += 1;
-                        }
-                        Ok(_) => {}
-                        Err(e) => {
-                            println!("polling error: {e}");
-                            tokio::time::sleep(Duration::from_millis(100)).await;
-                        }
-                    },
-                    Select3::T2(_) => {
-                        let duration = start.elapsed().as_millis();
-                        if duration == 0 {
-                            continue;
-                        }
-                        let published_delta = published - pre_published;
-                        let mut duration_delta = pre_inst.elapsed().as_millis();
-                        if duration_delta == 0 {
-                            duration_delta = duration;
-                        }
-                        pre_published = published;
-                        pre_inst = Instant::now();
-                        println!(
-                            "published {published}, speed: {:.0}/s, avg speed: {:.0}/s",
-                            (published_delta as f64 / duration_delta as f64) * 1000.0,
-                            (published as f64 / duration as f64) * 1000.0
-                        );
-                    }
-                    Select3::T3(_) => break,
+                if cancel.run_until_cancelled(ticker.tick()).await.is_none() {
+                    break;
+                };
+                let duration = start.elapsed().as_millis();
+                if duration == 0 {
+                    continue;
                 }
-
+                let published = published.load(Ordering::SeqCst);
+                let published_delta = published - pre_published;
+                let mut duration_delta = pre_inst.elapsed().as_millis();
+                if duration_delta == 0 {
+                    duration_delta = duration;
+                }
+                pre_published = published;
+                pre_inst = Instant::now();
+                println!(
+                    "published {published}, speed: {:.0}/s, avg speed: {:.0}/s",
+                    (published_delta as f64 / duration_delta as f64) * 1000.0,
+                    (published as f64 / duration as f64) * 1000.0
+                );
                 if args
                     .total_count
                     .is_some_and(|total| published as usize >= total)
                 {
-                    total_notifier.notify_waiters();
+                    cancel.cancel();
                     break;
                 }
             }
-            println!("total published: {published}");
-            Ok(())
-        }
-    });
-
-    let Ok(WatchEvent::ConnAck) = rx.recv_async().await else {
-        anyhow::bail!("client connect error, exit")
-    };
-
-    tasks.spawn({
-        let token = cancel.clone();
-        let client = client.clone();
-        let total_notifier = total_notifier.clone();
-        async move {
-            let _guard = token.clone().drop_guard();
-            let mut stream = {
-                if args.frequency.stdin {
-                    EventStream::new().map(|_| ()).boxed()
-                } else if !args.frequency.interval.is_zero() {
-                    let mut interval = tokio::time::interval(args.frequency.interval);
-                    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-                    IntervalStream::new(interval).map(|_| ()).boxed()
-                } else {
-                    futures::stream::repeat(()).boxed()
-                }
-            };
-            let mut total = 0;
-            while token.run_until_cancelled(stream.next()).await.is_some() {
-                let Some(Ok(data)) = token.run_until_cancelled(data_rx.recv_async()).await else {
-                    break;
-                };
-
-                let qos = qos(data.qos).unwrap();
-                match token
-                    .run_until_cancelled(client.publish(&data.topic, qos, false, data.payload))
-                    .await
-                {
-                    Some(Ok(_)) => {}
-                    Some(Err(e)) => {
-                        println!("publish message error: {e:#}")
-                    }
-                    _ => break,
-                }
-
-                total += 1;
-                if args.total_count.is_some_and(|c| total >= c) {
-                    total_notifier.notified().await;
-                    break;
-                }
-            }
-
+            println!("total published: {}", published.load(Ordering::SeqCst));
             Ok(())
         }
     });
@@ -474,10 +374,6 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    match tokio::time::timeout(Duration::from_secs(5), client.disconnect()).await {
-        Ok(_) => println!("mqtt client disconnected"),
-        Err(_) => println!("mqtt client disconnected timeout"),
-    }
     cancel.cancel();
     tasks.abort_all();
     while tasks.join_next().await.is_some() {}
@@ -485,8 +381,124 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn generate_random_string(length: usize) -> String {
-    Alphanumeric.sample_string(&mut rand::thread_rng(), length)
+async fn start_publisher(
+    args: Args,
+    tasks: &mut JoinSet<anyhow::Result<()>>,
+    data_rx: flume::Receiver<Data<Vec<u8>>>,
+    published: Arc<AtomicU64>,
+    cancel: CancellationToken,
+) -> anyhow::Result<()> {
+    let client_id = format!("mqtt_pub_tool_{}", generate_random_string(10));
+    println!("client_id: {}", client_id);
+
+    let mut opts = MqttOptions::new(
+        client_id,
+        &args.connect.broker_host,
+        args.connect.broker_port,
+    );
+    if let (Some(username), Some(password)) = (&args.connect.username, &args.connect.password) {
+        opts.set_credentials(username, password);
+    }
+    opts.set_keep_alive(args.connect.keep_alive);
+    let (client, mut event_loop) = rumqttc::v5::AsyncClient::new(opts, 1024);
+    match event_loop
+        .poll()
+        .await
+        .context("poll connect event error")?
+    {
+        Event::Incoming(Incoming::ConnAck(ConnAck {
+            code: ConnectReturnCode::Success,
+            ..
+        })) => {}
+        Event::Incoming(Incoming::ConnAck(ConnAck { code, .. })) => {
+            anyhow::bail!("connect error, code: {code:?}");
+        }
+        _ => anyhow::bail!("expected connect packet"),
+    }
+    tasks.spawn({
+        let token = cancel.clone();
+        async move {
+            loop {
+                let Some(res) = token.run_until_cancelled(event_loop.poll()).await else {
+                    break;
+                };
+                match res {
+                    Ok(Event::Incoming(Incoming::ConnAck(ack))) => {
+                        if matches!(ack.code, ConnectReturnCode::Success) {
+                            println!("client connect sucessfully");
+                        } else {
+                            println!("connect error: {:?}", ack.code);
+                            break;
+                        }
+                    }
+                    Ok(Event::Incoming(Incoming::PubAck(ack))) => {
+                        if matches!(ack.reason, PubAckReason::Success) {
+                            published.fetch_add(1, Ordering::SeqCst);
+                        } else {
+                            println!("publish error: {:?}", ack.reason);
+                        }
+                    }
+                    Ok(Event::Incoming(Incoming::PubRec(ack))) => {
+                        if matches!(ack.reason, PubRecReason::Success) {
+                            published.fetch_add(1, Ordering::SeqCst);
+                        } else {
+                            println!("publish error: {:?}", ack.reason);
+                        }
+                    }
+                    Ok(Event::Outgoing(Outgoing::Publish(0))) => {
+                        published.fetch_add(1, Ordering::SeqCst);
+                    }
+                    Ok(_) => {}
+                    Err(e) => {
+                        println!("polling error: {e}");
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                    }
+                }
+            }
+
+            Ok(())
+        }
+    });
+
+    tasks.spawn({
+        let token = cancel.clone();
+        let client = client.clone();
+        async move {
+            let _guard = token.clone().drop_guard();
+            let mut stream = {
+                if args.frequency.stdin {
+                    EventStream::new().map(|_| ()).boxed()
+                } else if !args.frequency.interval.is_zero() {
+                    let mut interval = tokio::time::interval(args.frequency.interval);
+                    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+                    IntervalStream::new(interval).map(|_| ()).boxed()
+                } else {
+                    futures::stream::repeat(()).boxed()
+                }
+            };
+            while token.run_until_cancelled(stream.next()).await.is_some() {
+                let Some(Ok(data)) = token.run_until_cancelled(data_rx.recv_async()).await else {
+                    break;
+                };
+
+                let qos = qos(data.qos).unwrap();
+                match token
+                    .run_until_cancelled(client.publish(&data.topic, qos, false, data.payload))
+                    .await
+                {
+                    Some(Ok(_)) => {}
+                    Some(Err(e)) => {
+                        println!("publish message error: {e:#}")
+                    }
+                    _ => break,
+                }
+            }
+
+            Ok(())
+        }
+    });
+
+    Ok(())
 }
 
 fn timeout_or_never(
@@ -588,7 +600,7 @@ type = "object"
 
 [schema.payload.properties]
 ts = { type = "timestamp", start_time = 2025-10-01T00:00:00.888888888, interval = "1ns" }
-value = { type = "option", value = { type = "string", length = { range = { min = 10, max = 1000 } } } }
+value = { type = "option", value = { type = "string", random = { length = { range = { min = 10, max = 1000 } } } } }
         "#,
         )?;
         assert_eq!(schema.schema.len(), 1);
@@ -617,7 +629,7 @@ type = "option"
 
 [properties.value.value]
 type = "string"
-length = { range = { min = 10, max = 1000 } }
+random = { length = { range = { min = 10, max = 1000 } } }
         "#
             )?
         );

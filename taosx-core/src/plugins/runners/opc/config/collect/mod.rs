@@ -223,6 +223,15 @@ mod tests {
         assert_eq!(node_ids[0], "ns=3;i=1001");
         assert_eq!(node_ids[1], "ns=3;i=1003");
 
+        let points = r#"ns=3;s="数据块_1"."Tag1"::t_3_"数据块_1"_"Tag1""#;
+        let mut dsn = Dsn::from_str("opcua://").unwrap();
+        dsn.set("ua.nodes", points);
+        // when
+        let nods = parse_opc_node_ids(&dsn, "ua.nodes").await.unwrap();
+        // then
+        assert_eq!(nods.len(), 1);
+        assert_eq!(nods[0], r#"ns=3;s="数据块_1"."Tag1""#);
+
         // given
         let dsn = "opcda://?da.tags=tag3::tb3,tag4::tb4".into_dsn().unwrap();
         // when

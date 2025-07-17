@@ -1,0 +1,44 @@
+[package]
+name = "taosx-task"
+edition = "2024"
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+flume.workspace = true
+taos.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+
+source-historian.path = "../source-historian"
+source-influxdb.path = "../source-influxdb"
+source-kafka.path = "../source-kafka"
+source-mongodb.path = "../source-mongodb"
+source-mqtt.path = "../source-mqtt"
+source-mssql.path = "../source-mssql"
+source-mysql.path = "../source-mysql"
+source-opc.path = "../source-opc"
+source-opentsdb.path = "../source-opentsdb"
+source-oracle.path = "../source-oracle"
+source-pi.path = "../source-pi"
+source-postgres.path = "../source-postgres"
+source-sparkplugb.path = "../source-sparkplugb"
+
+sink-csv.path = "../sink-csv"
+sink-kafka.path = "../sink-kafka"
+sink-mqtt.path = "../sink-mqtt"
+sink-parquet.path = "../sink-parquet"
+
+tmq-to-td.path = "../tmq-to-td"
+tmq-to-local.path = "../tmq-to-local"
+local-to-taos.path = "../local-to-taos"
+legacy-to-taos.path = "../legacy-to-taos"
+
+taosx-core.workspace = true
+taoslog.path = "../taoslog"
+
+[lints]
+workspace = true

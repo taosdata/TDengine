@@ -1,0 +1,30 @@
+[package]
+name = "source-postgres"
+edition = "2024"
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+linked-hash-map.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+sqlx-postgres.workspace = true
+taos.workspace = true
+tokio-util.workspace = true
+chrono.workspace = true
+arrow.workspace = true
+arrow-schema.workspace = true
+tokio.workspace = true
+flume.workspace = true
+futures.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+bigdecimal.workspace = true
+bit-vec.workspace = true
+itertools.workspace = true
+
+taosx-core.workspace = true
+taosx-ipc.workspace = true
+
+[lints]
+workspace = true

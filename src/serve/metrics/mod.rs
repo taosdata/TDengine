@@ -8,7 +8,6 @@ use taosx_core::{
         split_to_total_and_current, try_get_metrics,
     },
     legacy_metric::LegacyToTaosMetrics,
-    runners,
     sink::ipc_metric::IpcMetrics,
     tmq::tmq_metric::TmqMetrics,
     utils::dsn::json_to_dsn,
@@ -76,22 +75,9 @@ pub async fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<C
     match dsn.driver.as_str() {
         "taos" => try_get_metrics::<LegacyToTaosMetrics>(task_id, &dsn).await,
         "tmq" | "sync" => try_get_metrics::<TmqMetrics>(task_id, &dsn).await,
-        "opc"
-        | "opcua"
-        | "opcda"
-        | "pi"
-        | "pibackfill"
-        | "mqtt"
-        | "influxdb"
-        | "opentsdb"
-        | runners::kafka::KAFKA_ID
-        | runners::historian::AVEVA_HISTORIAN_ID
-        | "csv"
-        | runners::mysql::MYSQL_ID
-        | runners::postgres::POSTGRES_ID
-        | runners::oracle::ORACLE_ID
-        | runners::mssql::MSSQL_ID
-        | runners::mongodb::MONGODB_ID => try_get_metrics::<IpcMetrics>(task_id, &dsn).await,
+        "opc" | "opcua" | "opcda" | "pi" | "pibackfill" | "mqtt" | "influxdb" | "opentsdb"
+        | "kafka" | "avevaHistorian" | "csv" | "mysql" | "postgres" | "oracle" | "mssql"
+        | "mongodb" | "sparkplugb" => try_get_metrics::<IpcMetrics>(task_id, &dsn).await,
         _ => None,
     }
 }

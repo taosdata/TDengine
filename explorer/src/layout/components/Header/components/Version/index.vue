@@ -105,15 +105,15 @@ async function getLicense() {
       let versionName = '';
       switch (grants.value[0].version) {
         case 'trial':
-        case `${OEM_NAME} Enterprise Edition trial`:
         case `TDengine Enterprise Edition trial`:
+        case `${OEM_NAME} Enterprise Edition trial`:
         case `${OEM_NAME} TSDB Enterprise Edition trial`:
         case `${OEM_NAME}-Enterprise trial`:
           versionName = license.value[0].valid ? 'Trial Expired' : 'Trial';
           break;
         case 'official':
-        case `${OEM_NAME} Enterprise Edition official`:
         case `TDengine Enterprise Edition official`:
+        case `${OEM_NAME} Enterprise Edition official`:
         case `${OEM_NAME} TSDB Enterprise Edition official`:
         case `${OEM_NAME}-Enterprise official`:
           versionName = license.value[0].valid ? 'Enterprise License Expired' : 'Enterprise';

@@ -5,7 +5,7 @@ use thiserror::Error;
 
 use super::TransformExt;
 
-pub(crate) mod expr;
+pub mod expr;
 mod r#match;
 
 /// TODO(@Yuanpai Zhang): implement map transform.

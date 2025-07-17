@@ -17,7 +17,7 @@ use super::{constants::META_FIELD_TYPE, TransformExt};
 
 mod cast;
 mod constant;
-pub(crate) mod expr;
+pub mod expr;
 mod format;
 mod generator;
 mod join;

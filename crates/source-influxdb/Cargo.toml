@@ -1,0 +1,25 @@
+[package]
+name = "source-influxdb"
+edition = "2024"
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+itertools.workspace = true
+taos.workspace = true
+tokio.workspace = true
+tokio-process-terminate.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+reqwest.workspace = true
+ringbuf.workspace = true
+toml.workspace = true
+tempfile.workspace = true
+serde.workspace = true
+
+taosx-core.workspace = true
+
+[lints]
+workspace = true

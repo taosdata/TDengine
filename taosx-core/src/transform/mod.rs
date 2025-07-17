@@ -211,11 +211,11 @@ impl RenameOpts {
         }
         if map.starts_with('@') {
             let map = map.trim_start_matches('@');
-            let mut reader = csv_lib::ReaderBuilder::new()
+            let mut reader = csv::ReaderBuilder::new()
                 .has_headers(false)
                 .flexible(true)
                 .from_path(map)?;
-            reader.set_headers(csv_lib::StringRecord::from(vec!["old", "new"]));
+            reader.set_headers(csv::StringRecord::from(vec!["old", "new"]));
             let records = reader.records();
             let map = records
                 .map(|r| {
@@ -232,12 +232,12 @@ impl RenameOpts {
                 map: Arc::new(map?),
             })
         } else {
-            let mut reader = csv_lib::ReaderBuilder::new()
+            let mut reader = csv::ReaderBuilder::new()
                 .has_headers(false)
                 .flexible(true)
-                .terminator(csv_lib::Terminator::Any(b'|'))
+                .terminator(csv::Terminator::Any(b'|'))
                 .from_reader(map.as_bytes());
-            reader.set_headers(csv_lib::StringRecord::from(vec!["old", "new"]));
+            reader.set_headers(csv::StringRecord::from(vec!["old", "new"]));
             let records = reader.records();
             let map = records
                 .map(|r| {
@@ -308,7 +308,7 @@ pub enum RenameParseError {
     #[error("Invalid file input: {0:#}")]
     IoError(#[from] std::io::Error),
     #[error("Invalid csv input: {0:#}")]
-    CsvError(#[from] csv_lib::Error),
+    CsvError(#[from] csv::Error),
     #[error("Invalid csv content, expect `old,new` pair, but got `{0}`")]
     CsvContentError(String),
     #[error("Invalid rename variant: {0} while parsing `{1}`")]

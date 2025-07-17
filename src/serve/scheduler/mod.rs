@@ -12,10 +12,10 @@ use taoslog::{
     utils::{QidMetadataSetter, Span},
 };
 use taosx_core::DataSet;
-use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::sink::lush::TableTagCache;
 use taosx_core::utils::{breakpoints::BreakpointDb, trace::Qid};
+use taosx_core::{dsv::DataSourceValidation, plugins::transform::sample::DsSamples};
 use thiserror::Error;
 use tokio::sync::{Mutex, Notify, RwLock};
 use tokio_cron_scheduler::{Job, JobBuilder, JobScheduler};
@@ -615,11 +615,7 @@ impl TaskScheduler {
             .await
     }
 
-    pub async fn get_sample_via_agent(
-        &self,
-        agent: i64,
-        dsn: String,
-    ) -> anyhow::Result<DsSampleIn> {
+    pub async fn get_sample_via_agent(&self, agent: i64, dsn: String) -> anyhow::Result<DsSamples> {
         self.global_state.agent_runtime.get_sample(agent, dsn).await
     }
 
