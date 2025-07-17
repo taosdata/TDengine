@@ -49,6 +49,10 @@ class TestKillRestoreDnode:
 
         self.execute()
 
+    # stop
+        self.basic.stop()
+        tdLog.success("%s successfully executed" % __file__)
+
     def execute(self):
         newTdSql=tdCom.newTdSql()
         t0 = threading.Thread(target=self.restoreDnodeThread, args=('', newTdSql))
@@ -100,7 +104,4 @@ class TestKillRestoreDnode:
         newTdSql.error(sql, expectErrInfo="Wrong transaction execution context")
         tdLog.info(f"{sql} finished")
 
-    # stop
-        self.basic.stop()
-        tdLog.success("%s successfully executed" % __file__)
 

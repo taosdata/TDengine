@@ -49,7 +49,7 @@
                     "sample_format": "csv",
                     "sample_file": "./sample.csv",
                     "use_sample_ts": "no",
-                    "tags_file": "./tools/benchmark/basic/csv/table.csv",
+                    "tags_file": "./cases/uncatalog/army/tools/benchmark/basic/csv/table.csv",
                     "use_tag_table_name": "yes",
                     "primary_key_name":"time",
                     "columns": [
