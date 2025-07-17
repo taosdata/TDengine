@@ -666,25 +666,29 @@ static int32_t inline vnodeSubmitSubRowBlobData(SVnode *pVnode, SSubmitTbData *p
   for (int32_t i = 0; i < sz; i++) {
     int64_t     seq = 0;
     SBlobValue *p = taosArrayGet(pBlobSet->pSeqTable, i);
+    if (p->type == TSDB_DATA_BLOB_EMPTY_VALUE || p->type == TSDB_DATA_BLOB_NULL_VALUE) {
+      // skip empty or null blob
+      continue;
+    }
+
     code = bseBatchPut(pBatch, &seq, pBlobSet->data + p->offset, p->len);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    if (p->nextRow == 1) {
-      rowIdx++;
-    }
-    if (p->len == 0) {
-      uWarn("received invalid row");
-      continue;
-    }
-    SRow *row = taosArrayGetP(pSubmitTbData->aRowP, rowIdx);
+    // if (p->nextRow == 1) {
+    //   rowIdx++;
+    // }
+    // if (p->len == 0) {
+    //   uWarn("received invalid row");
+    //   continue;
+    // }
+    SRow *row = taosArrayGetP(pSubmitTbData->aRowP, i);
     if (row == NULL) {
       int32_t tlen = taosArrayGetSize(pBlobSet->pSeqTable);
       uTrace("blob invalid row index:%d, sz:%d, pBlobSet size:%d", rowIdx, sz, tlen);
       break;
     }
-    // tPutU64(row->data+p->pdataO, uint64_t v)
+
     tPutU64(row->data + p->dataOffset, seq);
-    // memcpy(row->data + p->dataOffset, (void *)&seq, sizeof(uint64_t));
   }
 
   code = bseCommitBatch(pVnode->pBse, pBatch);
@@ -735,6 +739,10 @@ static int32_t inline vnodeSubmitSubColBlobData(SVnode *pVnode, SSubmitTbData *p
   for (int32_t i = 0; i < sz; i++) {
     int64_t     seq = 0;
     SBlobValue *p = taosArrayGet(pBlobSet->pSeqTable, i);
+    if (p->type == TSDB_DATA_BLOB_EMPTY_VALUE || p->type == TSDB_DATA_BLOB_NULL_VALUE) {
+      // skip empty or null blob
+      continue;
+    }
     code = bseBatchPut(pBatch, &seq, pBlobSet->data + p->offset, p->len);
     TSDB_CHECK_CODE(code, lino, _exit);
 

@@ -653,7 +653,7 @@ static int32_t doSetBlobVal(SColumnInfoData* pColumnInfoData, int32_t idx, SColV
     if (pColVal->value.pData != NULL) {
       tGetU64(pColVal->value.pData, &seq);
       SBlobItem item = {0};
-      code = tBlobRowGet(pBlobRow2, seq, &item);
+      code = tBlobSetGet(pBlobRow2, seq, &item);
       if (code != 0) {
         taosMemoryFree(val);
         terrno = code;
@@ -661,9 +661,9 @@ static int32_t doSetBlobVal(SColumnInfoData* pColumnInfoData, int32_t idx, SColV
         return code;
       }
 
-      val = taosMemRealloc(val, item.dataLen + sizeof(BlobDataLenT));
-      (void)memcpy(blobDataVal(val), item.data, item.dataLen);
-      len = item.dataLen;
+      val = taosMemRealloc(val, item.len + sizeof(BlobDataLenT));
+      (void)memcpy(blobDataVal(val), item.data, item.len);
+      len = item.len;
     }
 
     blobDataSetLen(val, len);

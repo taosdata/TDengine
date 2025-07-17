@@ -5429,33 +5429,6 @@ _end:
   }
   return code;
 }
-// static int32_t doBuildBlobCol(SColData* pColData, int32_t rowIndex, SColVal* pCv, void* arg) {
-//   int32_t  code = 0;
-//   uint64_t seq = 0;
-//   uint32_t offset = 0;
-//   uint8_t* value = NULL;
-//   int32_t  len = 0;
-
-//   if (rowIndex + 1 < pColData->nVal) {
-//     offset = pColData->aOffset[rowIndex + 1] - pColData->aOffset[rowIndex];
-//   } else {
-//     offset = pColData->nData - pColData->aOffset[rowIndex];
-//   }
-//   uint8_t* colData = pColData->pData + pColData->aOffset[rowIndex];
-//   memcpy(&seq, colData, sizeof(uint64_t));
-
-//   code = bseGet((SBse*)arg, seq, &value, &len);
-//   if (code != 0) {
-//     tsdbError("failed to get blob data from bse, code:%d", code);
-//     return code;
-//   }
-
-//   pCv->value.pData = value;
-//   pCv->value.nData = len;
-//   pCv->value.type = pColData->type;
-//   pCv->cid = pColData->cid;
-//   return code;
-// }
 int32_t doAppendRowFromFileBlock(SSDataBlock* pResBlock, STsdbReader* pReader, SBlockData* pBlockData,
                                  int32_t rowIndex) {
   int32_t             code = TSDB_CODE_SUCCESS;

@@ -108,6 +108,9 @@ const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b001111
 #define COL_VAL_IS_VALUE(CV) ((CV)->flag == CV_FLAG_VALUE)
 
 #define BSE_SEQUECE_SIZE sizeof(uint64_t)
+
+enum { TSDB_DATA_BLOB_VALUE = 0x1, TSDB_DATA_BLOB_EMPTY_VALUE = 0x2, TSDB_DATA_BLOB_NULL_VALUE = 0x4 };
+
 #define tRowGetKey(_pRow, _pKey)                       \
   do {                                                 \
     (_pKey)->ts = taosGetInt64Aligned(&((_pRow)->ts)); \
@@ -152,23 +155,25 @@ typedef struct {
   uint32_t len;
   uint32_t dataOffset;
   int8_t   nextRow;
+  int8_t   type;
 } SBlobValue;
 
 typedef struct {
   uint64_t seq;
   uint32_t seqOffsetInRow;
-  int32_t  rowIndex;
   void    *data;
-  int32_t  dataLen;
+  int32_t  len;
+  int8_t   type;
 } SBlobItem;
 int32_t tBlobSetCreate(int64_t cap, int8_t type, SBlobSet **ppBlobSet);
 int32_t tBlobSetPush(SBlobSet *pBlobSet, SBlobItem *pBlobItem, uint64_t *seq, int8_t nextRow);
 int32_t tBlobSetUpdate(SBlobSet *pBlobSet, uint64_t seq, SBlobItem *pBlobItem);
-int32_t tBlobRowGet(SBlobSet *pBlobSet, uint64_t seq, SBlobItem *pItem);
+int32_t tBlobSetGet(SBlobSet *pBlobSet, uint64_t seq, SBlobItem *pItem);
 int32_t tBlobSetDestroy(SBlobSet *pBlowRow);
 int32_t tBlobSetSize(SBlobSet *pBlobSet);
-int32_t tBlobRowEnd(SBlobSet *pBlobSet);
-int32_t tBlobSetRebuild(SBlobSet *pBlobSet, int32_t srow, int32_t nrow, SBlobSet **pNew);
+void    tBlobSetSwap(SBlobSet *p1, SBlobSet *p2);
+// int32_t tBlobRowEnd(SBlobSet *pBlobSet);
+//  int32_t tBlobSetRebuild(SBlobSet *pBlobSet, int32_t srow, int32_t nrow, SBlobSet **pNew);
 
 int32_t tRowGetBlobSeq(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal, uint64_t *seq);
 void    tRowDestroy(SRow *pRow);
@@ -250,8 +255,8 @@ int32_t tDecodeColData(uint8_t version, SDecoder *pDecoder, SColData *pColData);
 int32_t tEncodeRow(SEncoder *pEncoder, SRow *pRow);
 int32_t tDecodeRow(SDecoder *pDecoder, SRow **ppRow);
 
-int32_t tEncodeBlobRow2(SEncoder *pEncoder, SBlobSet *pRow);
-int32_t tDecodeBlobRow2(SDecoder *pDecoder, SBlobSet **pBlobSet);
+int32_t tEncodeBlobSet(SEncoder *pEncoder, SBlobSet *pRow);
+int32_t tDecodeBlobSet(SDecoder *pDecoder, SBlobSet **pBlobSet);
 
 // STRUCT ================================
 struct STColumn {

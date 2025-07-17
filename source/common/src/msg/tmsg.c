@@ -13210,7 +13210,7 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
   TAOS_CHECK_EXIT(tEncodeI64(pCoder, pSubmitTbData->ctimeMs));
 
   if (hasBlog) {
-    tEncodeBlobRow2(pCoder, pSubmitTbData->pBlobSet);
+    tEncodeBlobSet(pCoder, pSubmitTbData->pBlobSet);
   }
 
   tEndEncode(pCoder);
@@ -13296,7 +13296,7 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
   }
 
   if (!tDecodeIsEnd(pCoder) && hasBlob) {
-    TAOS_CHECK_EXIT(tDecodeBlobRow2(pCoder, &pSubmitTbData->pBlobSet));
+    TAOS_CHECK_EXIT(tDecodeBlobSet(pCoder, &pSubmitTbData->pBlobSet));
   }
 
   if (rawData != NULL) {
