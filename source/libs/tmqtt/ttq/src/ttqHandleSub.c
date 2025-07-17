@@ -255,7 +255,7 @@ int ttqHandleSub(struct tmqtt *context) {
           return TTQ_ERR_INVAL;
         }
 
-        if (!tmq_ctx_topic_exists(&context->tmq_context, topics[1], context->id, sharename, earliest, proto_id)) {
+        if (!tmq_ctx_topic_exists(&context->tmq_context, topics[1], context->id, sharename, earliest, proto_id, qos)) {
           qos = MQTT_RC_TOPIC_NAME_INVALID;
           qos = MQTT_RC_TOPIC_FILTER_INVALID;
           allowed = false;

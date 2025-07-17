@@ -25,6 +25,7 @@
 #include "thash.h"
 #include "tmisce.h"
 #include "tmqtt.h"
+#include "tthash.h"
 // clang-format on
 
 #ifdef __cplusplus
@@ -40,12 +41,21 @@ typedef enum tmq_proto_t {
   TMQ_PROTO_ID_MAX
 } tmq_proto_t;
 
+typedef struct tmq_topic_info {
+  char       *topic_name;
+  tmq_proto_t proto_id;
+  uint8_t     qos;
+
+  UT_hash_handle hh_id;
+} tmq_topic_info;
+
 struct tmq_ctx {
-  TAOS         *conn;
-  tmq_t        *tmq;
-  char         *cid;
-  tmq_list_t   *topic_list;
-  tmq_proto_t   proto_id;
+  TAOS           *conn;
+  tmq_t          *tmq;
+  char           *cid;
+  tmq_list_t     *topic_list;
+  tmq_topic_info *topic_info;
+
   struct tmqtt *context;
 };
 
@@ -71,7 +81,7 @@ extern SMqttdContext global;
 
 bool tmq_ctx_auth(struct tmq_ctx *context, const char *username, const char *password);
 bool tmq_ctx_topic_exists(struct tmq_ctx *context, const char *topic, const char *cid, const char *sn, bool earliest,
-                          tmq_proto_t proto_id);
+                          tmq_proto_t proto_id, uint8_t qos);
 void tmq_ctx_poll_msgs(void);
 bool tmq_ctx_unsub_topic(struct tmq_ctx *context, const char *topic_name, const char *cid, const char *sn);
 void tmq_ctx_cleanup(struct tmq_ctx *context);

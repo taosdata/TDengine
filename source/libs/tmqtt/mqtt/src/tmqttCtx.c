@@ -239,7 +239,7 @@ static tmq_list_t* tmq_ctx_remove_topic(struct tmq_ctx* context, const char* top
 }
 
 bool tmq_ctx_topic_exists(struct tmq_ctx* context, const char* topic_name, const char* cid, const char* sn,
-                          bool earliest, tmq_proto_t proto_id) {
+                          bool earliest, tmq_proto_t proto_id, uint8_t qos) {
   int32_t     code = 0;
   char        group_id[256] = {0};
   char        consumer_client_id[64] = {0};
@@ -264,8 +264,6 @@ bool tmq_ctx_topic_exists(struct tmq_ctx* context, const char* topic_name, const
   if (!context->tmq && !tmq_ctx_init_consumer(context, cid, &config)) {
     return false;
   }
-
-  context->proto_id = proto_id;
 
   // topic exists? and subscribe this topic
   topic_list = tmq_ctx_append_topic(context, topic_name, &config);
@@ -299,15 +297,35 @@ bool tmq_ctx_topic_exists(struct tmq_ctx* context, const char* topic_name, const
   }
   context->topic_list = topic_list;
 
+  tmq_topic_info* ti = taosMemoryCalloc(1, sizeof(*ti));
+  if (!ti) {
+    bndError("tinfo oom.");
+
+    tmq_list_destroy(context->topic_list);
+    return false;
+  }
+  ti->topic_name = ttq_strdup(topic_name);
+  if (!ti->topic_name) {
+    bndError("tinfo topic name failed to dup.");
+    tmq_list_destroy(context->topic_list);
+    ttq_free(ti);
+    return false;
+  }
+  ti->qos = qos;
+  ti->proto_id = proto_id;
+
+  HASH_ADD_KEYPTR(hh_id, context->topic_info, ti->topic_name, strlen(ti->topic_name), ti);
+
   return true;
 }
 
 bool tmq_ctx_unsub_topic(struct tmq_ctx* context, const char* topic_name, const char* cid, const char* sn) {
-  int32_t     code = 0;
-  char        group_id[256] = {0};
-  char        consumer_client_id[64] = {0};
-  char        port_str[16] = {0};
-  tmq_list_t* topic_list = NULL;
+  int32_t         code = 0;
+  char            group_id[256] = {0};
+  char            consumer_client_id[64] = {0};
+  char            port_str[16] = {0};
+  tmq_list_t*     topic_list = NULL;
+  tmq_topic_info* tinfo_found;
 
   snprintf(consumer_client_id, sizeof(consumer_client_id), "_cid-%s-%d", cid, global.dnode_id);
   // snprintf(group_id, sizeof(group_id), "_xnd-gid-%d", global.dnode_id);
@@ -375,6 +393,11 @@ bool tmq_ctx_unsub_topic(struct tmq_ctx* context, const char* topic_name, const 
     context->tmq = NULL;
   }
 
+  HASH_FIND(hh_id, context->topic_info, topic_name, strlen(topic_name), tinfo_found);
+  if (tinfo_found) {
+    HASH_DELETE(hh_id, context->topic_info, tinfo_found);
+  }
+
   return true;
 }
 
@@ -386,6 +409,16 @@ void tmq_ctx_cleanup(struct tmq_ctx* context) {
     context->conn = NULL;
   }
 
+  if (context->topic_info) {
+    tmq_topic_info *tinfo, *tinfo_tmp;
+
+    HASH_ITER(hh_id, context->topic_info, tinfo, tinfo_tmp) {
+      ttq_free(tinfo->topic_name);
+      ttq_free(tinfo);
+    }
+
+    context->topic_info = NULL;
+  }
   if (context->topic_list) {
     tmq_list_destroy(context->topic_list);
     context->topic_list = NULL;
@@ -751,11 +784,17 @@ static void tmq_ctx_do_msg(struct tmqtt* ctxt, TAOS_RES* msg) {
     return;
   }
 
-  const bool retain = false;
-  const int  qos = 1;
-  int        data_len = strlen(data);
+  const bool      retain = false;
+  int             qos = 1;
+  int             data_len = strlen(data);
+  tmq_topic_info* tinfo_found;
 
-#if 0
+  HASH_FIND(hh_id, context->topic_info, topic_name, strlen(topic_name), tinfo_found);
+  if (tinfo_found) {
+    qos = tinfo_found->qos;
+  }
+
+#if 1
   rc = ttq_broker_publish(context->cid, topic_name, data_len, data, qos, retain, props);
 #else
   rc = ttq_broker_publish(NULL, topic_name, data_len, data, qos, retain, props);
@@ -786,9 +825,15 @@ static void tmq_ctx_do_msg_meta(struct tmqtt* ctxt, TAOS_RES* msg) {
     return;
   }
 
-  const bool retain = false;
-  const int  qos = 1;
-  int        data_len = strlen(data);
+  const bool      retain = false;
+  int             qos = 1;
+  int             data_len = strlen(data);
+  tmq_topic_info* tinfo_found;
+
+  HASH_FIND(hh_id, context->topic_info, topic_name, strlen(topic_name), tinfo_found);
+  if (tinfo_found) {
+    qos = tinfo_found->qos;
+  }
 
   rc = ttq_broker_publish(context->cid, topic_name, data_len, data, qos, retain, props);
   if (rc != TTQ_ERR_SUCCESS) {
@@ -895,8 +940,14 @@ static void tmq_ctx_rawb_pub(struct tmqtt* ctxt, TAOS_RES* msg) {
     return;
   }
 
-  const bool retain = false;
-  const int  qos = 1;
+  const bool      retain = false;
+  int             qos = 1;
+  tmq_topic_info* tinfo_found;
+
+  HASH_FIND(hh_id, context->topic_info, topic_name, strlen(topic_name), tinfo_found);
+  if (tinfo_found) {
+    qos = tinfo_found->qos;
+  }
 
   rc = ttq_broker_publish(context->cid, topic_name, datalen, data, qos, retain, props);
   if (rc != TTQ_ERR_SUCCESS) {
@@ -924,7 +975,17 @@ static void tmq_ctx_poll_single(struct tmqtt* ctxt) {
   TAOS_RES* tmqmsg = tmq_consumer_poll(context->tmq, timeout);
   if (tmqmsg) {
     struct tmq_ctx* context = &ctxt->tmq_context;
-    tmq_proto_t     proto_id = context->proto_id;
+    tmq_proto_t     proto_id = TMQ_PROTO_ID_JSON;
+    const char*     topic_name = NULL;
+    tmq_topic_info* tinfo_found = NULL;
+
+    topic_name = tmq_get_topic_name(tmqmsg);
+    if (topic_name) {
+      HASH_FIND(hh_id, context->topic_info, topic_name, strlen(topic_name), tinfo_found);
+    }
+    if (tinfo_found) {
+      proto_id = tinfo_found->proto_id;
+    }
 
     // xform the msg
     if (TMQ_PROTO_ID_JSON == proto_id) {
