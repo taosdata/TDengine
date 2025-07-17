@@ -796,7 +796,7 @@ int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock) {
         } else {
           code = TSDB_CODE_STREAM_INTERNAL_ERROR;
           stError("getNextStreamDataCache failed, groupId: %" PRId64 " start:%" PRId64 " end:%" PRId64
-                  " dataPos: %d, winIndex: %d, tmpBlocksInMem size: %" PRId64,
+                  " dataPos: %d, winIndex: %d, tmpBlocksInMem size: %" PRIzu,
                   pResult->groupId, pResult->reqStartTime, pResult->reqEndTime, pResult->dataPos, pResult->winIndex,
                   pResult->tmpBlocksInMem->size);
           QUERY_CHECK_CODE(code, lino, _end);
