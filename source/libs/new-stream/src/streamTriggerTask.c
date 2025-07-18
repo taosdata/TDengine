@@ -1370,6 +1370,19 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
       ST_TASK_DLOG("control request 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId, msg.info.traceId.msgId);
 
       pTask->task.status = STREAM_STATUS_RUNNING;
+
+      int32_t leaderSid = pTask->leaderSnodeId;
+      SEpSet* epSet = gStreamMgmt.getSynEpset(leaderSid);
+      if (epSet != NULL){
+        ST_TASK_DLOG("[checkpoint] trigger task deploy, sync checkpoint leaderSnodeId:%d", leaderSid);
+        atomic_store_8(&pTask->isCheckpointReady, 0);
+        code = streamSyncWriteCheckpoint(pTask->task.streamId, epSet, NULL, 0);
+        if (code != 0) {
+          atomic_store_8(&pTask->isCheckpointReady, 1);
+        }
+      } else {
+        atomic_store_8(&pTask->isCheckpointReady, 1);
+      }
       break;
     }
     case STREAM_MSG_ORIGTBL_READER_INFO: {
@@ -2112,7 +2125,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
 
   if (!pContext->haveReadCheckpoint) {
     stDebug("[checkpoint] read checkpoint for stream %" PRIx64, pTask->task.streamId);
-    if (pTask->isCheckpointReady) {
+    if (atomic_load_8(&pTask->isCheckpointReady) == 1) {
       void   *buf = NULL;
       int64_t len = 0;
       code = streamReadCheckPoint(pTask->task.streamId, &buf, &len);
