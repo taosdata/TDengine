@@ -6926,7 +6926,6 @@ static bool filterHasPlaceHolderRangeEnd(SOperatorNode *pOperator, bool equal) {
           return true;
         }
       }
-      return true;
     }
     return false;
   } else if (nodeType(pRight) == QUERY_NODE_COLUMN) {
@@ -6948,7 +6947,6 @@ static bool filterHasPlaceHolderRangeEnd(SOperatorNode *pOperator, bool equal) {
           return true;
         }
       }
-      return true;
     }
     return false;
   }
