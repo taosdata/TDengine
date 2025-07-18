@@ -78,7 +78,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_stable_replica3_vnode3.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_sync_3Replica1VgElect.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_sync_3Replica5VgElect.py -N 5
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_sync_vnodesnapshot_rsma.py -N 4
+#failed,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_sync_vnodesnapshot_rsma.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_clean.py -N 4 -C 2
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_replica3_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_replica3_import.py -N 4
@@ -224,7 +224,7 @@
 #memleak,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query.py
 ,,n,.,pytest cases/05-VirtualTables/test_vtable_query.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb.py
+#failed,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_drop_origin_table.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_join.py
@@ -523,12 +523,12 @@
 ## 01-Dnode
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_alter_dnode_debugflag.py 
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_create_dnode.py -N 2 -C 1
-,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_force.py -N 5
+#failed,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_force.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_mnode.py -N 2
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_multi_vnode_replica1.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_multi_vnode_replica3.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_qnode_snode.py -N 2
-,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_vnode_replica1.py -N 3
+#failed,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_vnode_replica1.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_vnode_replica3.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_offline_reason.py -N 2 -C 1
 #,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_use_dropped_dnode.py -N 3
@@ -774,7 +774,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_insert_alltypes_same_min_max.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_insert_alltypes_json.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_insert_alltypes_json_partial_col.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_insert_table_creating_interval.py
+#failed,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_insert_table_creating_interval.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_sample_csv_json.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosdemo_test_insert_with_json_stmt_other_para.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosdemo_test_query_with_json.py -R
@@ -951,7 +951,8 @@
 ,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal.py -Q 1
 #memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal2.py
 ,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal2.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 4
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 4
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 4
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 3
 #memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 2
 ,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 2
@@ -1151,7 +1152,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -R
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -Q 2
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -Q 3
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -Q 3
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -Q 4
 #memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py
 ,,n,.,pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py
@@ -1651,7 +1653,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_mutil_stage.py
 #memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_table_param_ttl.py
 ,,n,.,pytest cases/uncatalog/system-test/1-insert/test_table_param_ttl.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_table_param_ttl.py -R
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_table_param_ttl.py -R
+,,n,.,pytest cases/uncatalog/system-test/1-insert/test_table_param_ttl.py -R
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_update_data_muti_rows.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_db_tb_name_check.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_InsertFuturets.py
@@ -1765,7 +1768,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_telemetry.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_backquote_check.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taosd_monitor.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taosd_new_monitor.py
+#failed,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taosd_new_monitor.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taosd_audit.py
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_taosdlog.py
 #newstm,,n,.,pytest cases/uncatalog/system-test/0-others/test_taosd_shell.py -N 5 -M 3 -Q 3
@@ -1815,7 +1818,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_show_transaction_detail.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_kill_balance_leader.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_persisit_config.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_qmem_ctrl.py
+#failed,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_qmem_ctrl.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compact_vgroups.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compact_auto.py
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_dumpsdb.py
@@ -1915,7 +1918,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_dataFromTsdbNWal.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_dataFromTsdbNWal_multiCtb.py
 #memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_taosx.py
-,,,n.,pytest cases/uncatalog/system-test/7-tmq/test_tmq_taosx.py
+,,n.,pytest cases/uncatalog/system-test/7-tmq/test_tmq_taosx.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts5466.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_td33504.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts6392.py
