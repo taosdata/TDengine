@@ -1400,7 +1400,7 @@ fn build_schema() -> Schema {
         Field::new("partition", ArrowDataType::Int32, false),
         Field::new("offset", ArrowDataType::Int64, false),
         Field::new("key", ArrowDataType::Binary, true),
-        Field::new("value", ArrowDataType::Binary, false),
+        Field::new("value", ArrowDataType::Binary, true),
     ];
 
     Schema::new(flat_columns).with_metadata(metadata)
