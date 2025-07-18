@@ -27,7 +27,8 @@ class TestStreamCountTrigger:
         # streams.append(self.Basic10())  # OK
         # streams.append(self.Basic11())  # failed
         # streams.append(self.Basic12())  # failed
-        streams.append(self.Basic13())  # OK
+        # streams.append(self.Basic13())  # OK
+        streams.append(self.Basic14())  # OK
 
         tdStream.checkAll(streams)
 
@@ -2783,3 +2784,151 @@ class TestStreamCountTrigger:
                 func=lambda: tdSql.getRows() == 9,
             )
 
+    class Basic14(StreamCheckItem):
+        def __init__(self):
+            self.db  = "sdb14"
+            self.stbName = "stb"
+
+        def create(self):
+            tdSql.execute(f"create database {self.db} vgroups 7 buffer 3")
+            tdSql.execute(f"use {self.db}")
+            tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int, cfloat float, cdouble double, cdecimal decimal(11,3), "
+                          f"cvar varchar(12)) tags (tint int)")
+            tdSql.query(f"show stables")
+
+            tdSql.execute(f"create table ct1 using stb tags(1)")
+            tdSql.execute(f"create table ct2 using stb tags(2)")
+            tdSql.execute(f"create table ct3 using stb tags(3)")
+            tdSql.execute(f"create table ct4 using stb tags(4)")
+            tdSql.execute(f"create table ct5 using stb tags(5)")
+            tdSql.execute(f"create table ct6 using stb tags(6)")
+            tdSql.execute(f"create table ct7 using stb tags(7)")
+
+            tdSql.query(f"show tables")
+            tdSql.checkRows(7)
+
+            tdSql.execute("create stable vstb_1 ( ts timestamp, col_1 int, col_2 float, col_3 double, col_4 varchar(12)) tags( tag_a int, tag_b double) virtual 1")
+            
+            tdSql.execute("create vtable vtb_1(sdb14.ct1.cint, sdb14.ct2.cfloat, sdb14.ct3.cdouble, sdb14.ct5.cvar) using vstb_1 tags( 0, 1) ")
+            tdSql.execute("create vtable vtb_2(sdb14.ct2.cint, sdb14.ct3.cfloat, sdb14.ct4.cdouble, sdb14.ct6.cvar) using vstb_1 tags( 2, 3) ")
+            tdSql.execute("create vtable vtb_3(sdb14.ct3.cint, sdb14.ct4.cfloat, sdb14.ct5.cdouble, sdb14.ct7.cvar) using vstb_1 tags( 4, 5) ")
+            tdSql.execute("create vtable vtb_4(sdb14.ct4.cint, sdb14.ct5.cfloat, sdb14.ct6.cdouble, sdb14.ct1.cvar) using vstb_1 tags( 6, 7) ")
+            tdSql.execute("create vtable vtb_5(sdb14.ct5.cint, sdb14.ct6.cfloat, sdb14.ct7.cdouble, sdb14.ct2.cvar) using vstb_1 tags( 8, 9) ")
+            
+            # create vtable and continue
+            tdSql.execute(
+                f"create stream s14_0 count_window(1) from vstb_1 partition by tbname into "
+                f"res_vstb (ts, firstts, lastts, twduration, cnt_col_1, sum_col_1, avg_col_1, avg_col_2, cnt_col_3, last_col_4, rand_val) as "
+                f"select _twstart ts, first(_c0), last_row(_c0), _twduration, count(col_1), sum(col_1), avg(col_1), avg(col_2), count(col_3), "
+                f"  last(col_4), rand() "
+                f"from vstb_1 "
+                f"where _c0 >= _twstart and _c0 <= _twend "
+            )
+
+        def insert1(self):
+            sqls = [
+                "insert into ct1 values ('2025-01-01 00:00:00', 1, 1.1, 3.14159, 1.0954327, 'abcdefg' );",
+                "insert into ct1 values ('2025-01-01 00:00:03', 2, 2.2, 6.28318, 1.1912644, 'hijklmn' );",
+                "insert into ct1 values ('2025-01-01 00:00:06', 3, 3.3, 9.42478, 1.2871093, 'opqrstu' );",
+                "insert into ct1 values ('2025-01-01 00:00:09', 4, 4.4, 12.56637, 1.3826434, 'vwxyz' );",
+                "insert into ct1 values ('2025-01-01 00:00:12', 5, 5.5, 15.70796, 1.4782644, '123456' );",
+                "insert into ct1 values ('2025-01-01 00:00:15', 6, 6.6, 18.84956, 1.5740740, '789012' );",
+                "insert into ct1 values ('2025-01-01 00:00:18', 7, 7.7, 22.07104, 1.6696434, '345678' );",
+                "insert into ct1 values ('2025-01-01 00:00:21', 8, 8.8, 25.13274, 1.7653566, '901234' );",
+                "insert into ct1 values ('2025-01-01 00:00:24', 9, 9.9, 28.29444, 1.8619690, '567890' );",
+
+                "insert into ct2 values ('2025-01-01 00:00:00', 21, 21.1, 9.1, 1.123456, 'aaaaaa');",
+                "insert into ct2 values ('2025-01-01 00:00:03', 22, 22.2, 9.2, 1.234567, 'bbbbbb');",
+                "insert into ct2 values ('2025-01-01 00:00:06', 23, 23.3, 9.3, 1.345678, 'cccccc');",
+                "insert into ct2 values ('2025-01-01 00:00:09', 24, 24.4, 9.4, 1.456789, 'dddddd');",
+                "insert into ct2 values ('2025-01-01 00:00:12', 25, 25.5, 9.5, 1.567890, 'eeeeee');",
+                "insert into ct2 values ('2025-01-01 00:00:15', 26, 26.6, 9.6, 1.678901, 'ffffff');",
+                "insert into ct2 values ('2025-01-01 00:00:18', 27, 27.7, 9.7, 1.789012, 'gggggg');",
+                "insert into ct2 values ('2025-01-01 00:00:21', 28, 28.8, 9.8, 1.890123, 'hhhhhh');",
+                "insert into ct2 values ('2025-01-01 00:00:24', 29, 29.9, 9.9, 1.901234, 'iiiiii');",
+
+                "insert into ct3 values ('2025-01-01 00:00:00', 31, 12.123, 31.111, 1.274, '-------');",
+                "insert into ct3 values ('2025-01-01 00:00:03', 32, 12.222, 32.222, 1.274, '-------');",
+                "insert into ct3 values ('2025-01-01 00:00:06', 33, 12.333, 33.333, 1.274, '+++++++');",
+                "insert into ct3 values ('2025-01-01 00:00:09', 34, 12.333, 33.333, 1.274, '///////');",
+                "insert into ct3 values ('2025-01-01 00:00:12', 35, 12.333, 33.333, 1.274, '///////');",
+                "insert into ct3 values ('2025-01-01 00:00:15', 36, 12.333, 33.333, 1.274, '///////');",
+                "insert into ct3 values ('2025-01-01 00:00:18', 37, 12.333, 33.333, 1.274, '///////');",
+                "insert into ct3 values ('2025-01-01 00:00:21', 38, 12.333, 33.333, 1.274, '///////');",
+                "insert into ct3 values ('2025-01-01 00:00:24', 39, 12.333, 33.333, 1.274, '///////');",
+
+                "insert into ct4 values ('2025-01-01 00:00:00', 41, 22.98765, 12.31, 3.253, '++++++f');",
+                "insert into ct4 values ('2025-01-01 00:00:03', 42, 23.98765, 12.31, 3.253, '++++++f');",
+                "insert into ct4 values ('2025-01-01 00:00:06', 43, 24.98765, 13.31, 3.253, '++++++f');",
+                "insert into ct4 values ('2025-01-01 00:00:09', 44, 25.98765, 13.31, 3.253, '++++++f');",
+                "insert into ct4 values ('2025-01-01 00:00:12', 45, 26.98765, 14.31, 3.253, '++++++f');",
+                "insert into ct4 values ('2025-01-01 00:00:15', 46, 27.98765, 14.31, 3.253, '++++++f');",
+                "insert into ct4 values ('2025-01-01 00:00:18', 47, 28.98765, 15.31, 3.253, '++++++f');",
+                "insert into ct4 values ('2025-01-01 00:00:21', 48, 29.98765, 15.31, 3.253, '++++++f');",
+                "insert into ct4 values ('2025-01-01 00:00:24', 49, 30.98765, 15.31, 3.253, '++++++f');",
+
+                "insert into ct5 values ('2025-01-01 00:00:00', 51, 15.234567, 1.11809, 21.7, 'a1s2d3f4');",
+                "insert into ct5 values ('2025-01-01 00:00:03', 52, 15.234567, 1.11809, 21.7, 'a1s2d3f4');",
+                "insert into ct5 values ('2025-01-01 00:00:06', 53, 15.234567, 1.11809, 21.7, 'a1s2d3f4');",
+                "insert into ct5 values ('2025-01-01 00:00:09', 54, 15.234567, 1.11809, 21.7, 'a1s2d3f4');",
+                "insert into ct5 values ('2025-01-01 00:00:12', 55, 15.234567, 1.11809, 21.7, 'a1s2d3f4');",
+                "insert into ct5 values ('2025-01-01 00:00:15', 56, 15.234567, 1.11809, 21.7, 'a1s2d3f4');",
+                "insert into ct5 values ('2025-01-01 00:00:18', 57, 15.234567, 1.11809, 21.7, 'a1s2d3f4');",
+                "insert into ct5 values ('2025-01-01 00:00:21', 58, 15.234567, 1.11809, 21.7, 'a1s2d3f4');",
+                "insert into ct5 values ('2025-01-01 00:00:24', 59, 15.234567, 1.11809, 21.7, 'a1s2d3f4');",
+
+                "insert into ct6 values ('2025-01-01 00:00:00', 61, 911.119, 110.011, 187.91234, '!!!!!!!!');",
+                "insert into ct6 values ('2025-01-01 00:00:03', 62, 911.119, 110.011, 187.91234, '!!!!!!!!');",
+                "insert into ct6 values ('2025-01-01 00:00:06', 63, 911.119, 110.011, 187.91234, '!!!!!!!!');",
+                "insert into ct6 values ('2025-01-01 00:00:09', 64, 911.119, 110.011, 187.91234, '!!!!!!!!');",
+                "insert into ct6 values ('2025-01-01 00:00:12', 65, 911.119, 110.011, 187.91234, '!!!!!!!!');",
+                "insert into ct6 values ('2025-01-01 00:00:15', 66, 911.119, 110.011, 187.91234, '!!!!!!!!');",
+                "insert into ct6 values ('2025-01-01 00:00:18', 67, 911.119, 110.011, 187.91234, '!!!!!!!!');",
+                "insert into ct6 values ('2025-01-01 00:00:21', 68, 911.119, 110.011, 187.91234, '!!!!!!!!');",
+                "insert into ct6 values ('2025-01-01 00:00:24', 69, 911.119, 110.011, 187.91234, '!!!!!!!!');",
+
+                "insert into ct7 values ('2025-01-01 00:00:00', 71, 123.4567, 98.7653, 1.1, '========');",
+                "insert into ct7 values ('2025-01-01 00:00:03', 72, 123.4567, 98.7653, 1.1, '========');",
+                "insert into ct7 values ('2025-01-01 00:00:06', 73, 123.4567, 98.7653, 1.1, '========');",
+                "insert into ct7 values ('2025-01-01 00:00:09', 74, 123.4567, 98.7653, 1.1, '========');",
+                "insert into ct7 values ('2025-01-01 00:00:12', 75, 123.4567, 98.7653, 1.1, '========');",
+                "insert into ct7 values ('2025-01-01 00:00:15', 76, 123.4567, 98.7653, 1.1, '========');",
+                "insert into ct7 values ('2025-01-01 00:00:18', 77, 123.4567, 98.7653, 1.1, '========');",
+                "insert into ct7 values ('2025-01-01 00:00:21', 78, 123.4567, 98.7653, 1.1, '========');",
+                "insert into ct7 values ('2025-01-01 00:00:24', 79, 123.4567, 98.7653, 1.1, '========');",
+            ]
+
+            tdSql.executes(sqls)
+
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and '
+                    f'(table_name like "res_vstb_1%" or stable_name like "res_vstb_1")',
+                func=lambda: tdSql.getRows() == 1,
+            )
+
+            tdSql.checkTableSchema(
+                dbname=self.db,
+                tbname="res_vtb_1",
+                schema=[
+                    ['ts', 'TIMESTAMP', 8, ''],
+                    ['firstts', 'TIMESTAMP', 8, ''],
+                    ['lastts', 'TIMESTAMP', 8, ''],
+                    ['twduration', 'BIGINT', 8, ''],
+                    ['cnt_col_3', 'BIGINT', 8, ''],
+                    ['sum_col_3', 'BIGINT', 8, ''],
+                    ['avg_col_3', 'DOUBLE', 8, ''],
+                    ['cnt_col_1', 'BIGINT', 8, ''],
+                    ['sum_col_1', 'BIGINT', 8, ''],
+                    ['avg_col_1', 'DOUBLE', 8, ''],
+                    ['_x_col', 'DOUBLE', 8, ''],
+                    ['name', 'VARCHAR', 270, ''],
+                ],
+            )
+
+            tdSql.checkResultsByFunc(
+                sql=f"select firstts, lastts, cnt_col_3, sum_col_3, avg_col_3, cnt_col_1, sum_col_1, avg_col_1 "
+                    f"from {self.db}.res_vtb_1",
+                func=lambda: tdSql.getRows() == 9,
+            )
