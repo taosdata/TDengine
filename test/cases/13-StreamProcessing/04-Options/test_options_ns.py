@@ -23,8 +23,8 @@ class TestStreamOptionsTrigger:
         # # # TD-36305 [流计算开发阶段] 流计算state窗口+超级表%%rows+delete_output_table没有删除结果表
         # # # streams.append(self.Basic4())  # DELETE_OUTPUT_TABLE  [fail]
         
-        # streams.append(self.Basic5())  # FILL_HISTORY        [ok]
-        # streams.append(self.Basic6())  # FILL_HISTORY_FIRST  [ok]
+        streams.append(self.Basic5())  # FILL_HISTORY        [ok]
+        streams.append(self.Basic6())  # FILL_HISTORY_FIRST  [ok]
         # streams.append(self.Basic7())  # CALC_NOTIFY_ONLY [ok]
         # # # # streams.append(self.Basic8())  # LOW_LATENCY_CALC  temp no test [x]
         # streams.append(self.Basic9())  # PRE_FILTER     [ok]
@@ -1128,18 +1128,18 @@ class TestStreamOptionsTrigger:
             tdSql.checkResultsByFunc(
                 sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_ct1",
                 func=lambda: tdSql.getRows() == 7
-                and tdSql.compareData(0, 0, "2024-01-02 00:00:00")
-                and tdSql.compareData(0, 1, "2024-01-02 00:00:01")
+                and tdSql.compareData(0, 0, "2024-01-02 00:00:00.000000000")
+                and tdSql.compareData(0, 1, "2024-01-02 00:00:01.000000000")
                 and tdSql.compareData(0, 2, 2)
                 and tdSql.compareData(0, 3, 0)
                 and tdSql.compareData(0, 4, 0)                
-                and tdSql.compareData(4, 0, "2025-01-01 00:00:00")
-                and tdSql.compareData(4, 1, "2025-01-01 00:00:01")
+                and tdSql.compareData(4, 0, "2025-01-01 00:00:00.000000000")
+                and tdSql.compareData(4, 1, "2025-01-01 00:00:01.000000000")
                 and tdSql.compareData(4, 2, 2)
                 and tdSql.compareData(4, 3, 0)
                 and tdSql.compareData(4, 4, 0)
-                and tdSql.compareData(6, 0, "2025-01-01 00:00:05")
-                and tdSql.compareData(6, 1, "2025-01-01 00:00:08")
+                and tdSql.compareData(6, 0, "2025-01-01 00:00:05.000000000")
+                and tdSql.compareData(6, 1, "2025-01-01 00:00:08.000000000")
                 and tdSql.compareData(6, 2, 4)
                 and tdSql.compareData(6, 3, 8)
                 and tdSql.compareData(6, 4, 2),
@@ -1148,18 +1148,18 @@ class TestStreamOptionsTrigger:
             tdSql.checkResultsByFunc(
                 sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_ct4",
                 func=lambda: tdSql.getRows() == 7
-                and tdSql.compareData(0, 0, "2024-01-02 00:00:00")
-                and tdSql.compareData(0, 1, "2024-01-02 00:00:01")
+                and tdSql.compareData(0, 0, "2024-01-02 00:00:00.000000000")
+                and tdSql.compareData(0, 1, "2024-01-02 00:00:01.000000000")
                 and tdSql.compareData(0, 2, 2)
                 and tdSql.compareData(0, 3, 0)
                 and tdSql.compareData(0, 4, 0)                
-                and tdSql.compareData(4, 0, "2025-01-01 00:00:00")
-                and tdSql.compareData(4, 1, "2025-01-01 00:00:01")
+                and tdSql.compareData(4, 0, "2025-01-01 00:00:00.000000000")
+                and tdSql.compareData(4, 1, "2025-01-01 00:00:01.000000000")
                 and tdSql.compareData(4, 2, 2)
                 and tdSql.compareData(4, 3, 0)
                 and tdSql.compareData(4, 4, 0)
-                and tdSql.compareData(6, 0, "2025-01-01 00:00:05")
-                and tdSql.compareData(6, 1, "2025-01-01 00:00:08")
+                and tdSql.compareData(6, 0, "2025-01-01 00:00:05.000000000")
+                and tdSql.compareData(6, 1, "2025-01-01 00:00:08.000000000")
                 and tdSql.compareData(6, 2, 4)
                 and tdSql.compareData(6, 3, 8)
                 and tdSql.compareData(6, 4, 2),
@@ -1355,18 +1355,18 @@ class TestStreamOptionsTrigger:
             tdSql.checkResultsByFunc(
                 sql=f"select firstts, lastts, cnt_v, sum_v, avg_v, localts from {self.db}.res_ct1",
                 func=lambda: tdSql.getRows() == 7
-                and tdSql.compareData(0, 0, "2024-01-02 00:00:00")
-                and tdSql.compareData(0, 1, "2024-01-02 00:00:01")
+                and tdSql.compareData(0, 0, "2024-01-02 00:00:00.000000000")
+                and tdSql.compareData(0, 1, "2024-01-02 00:00:01.000000000")
                 and tdSql.compareData(0, 2, 2)
                 and tdSql.compareData(0, 3, 0)
                 and tdSql.compareData(0, 4, 0)                
-                and tdSql.compareData(4, 0, "2025-01-01 00:00:00")
-                and tdSql.compareData(4, 1, "2025-01-01 00:00:01")
+                and tdSql.compareData(4, 0, "2025-01-01 00:00:00.000000000")
+                and tdSql.compareData(4, 1, "2025-01-01 00:00:01.000000000")
                 and tdSql.compareData(4, 2, 2)
                 and tdSql.compareData(4, 3, 0)
                 and tdSql.compareData(4, 4, 0)
-                and tdSql.compareData(6, 0, "2025-01-01 00:00:05")
-                and tdSql.compareData(6, 1, "2025-01-01 00:00:08")
+                and tdSql.compareData(6, 0, "2025-01-01 00:00:05.000000000")
+                and tdSql.compareData(6, 1, "2025-01-01 00:00:08.000000000")
                 and tdSql.compareData(6, 2, 4)
                 and tdSql.compareData(6, 3, 8)
                 and tdSql.compareData(6, 4, 2),
@@ -1375,18 +1375,18 @@ class TestStreamOptionsTrigger:
             tdSql.checkResultsByFunc(
                 sql=f"select firstts, lastts, cnt_v, sum_v, avg_v, localts from {self.db}.res_stb_ct4",
                 func=lambda: tdSql.getRows() == 7
-                and tdSql.compareData(0, 0, "2024-01-02 00:00:00")
-                and tdSql.compareData(0, 1, "2024-01-02 00:00:01")
+                and tdSql.compareData(0, 0, "2024-01-02 00:00:00.000000000")
+                and tdSql.compareData(0, 1, "2024-01-02 00:00:01.000000000")
                 and tdSql.compareData(0, 2, 2)
                 and tdSql.compareData(0, 3, 0)
                 and tdSql.compareData(0, 4, 0)                
-                and tdSql.compareData(4, 0, "2025-01-01 00:00:00")
-                and tdSql.compareData(4, 1, "2025-01-01 00:00:01")
+                and tdSql.compareData(4, 0, "2025-01-01 00:00:00.000000000")
+                and tdSql.compareData(4, 1, "2025-01-01 00:00:01.000000000")
                 and tdSql.compareData(4, 2, 2)
                 and tdSql.compareData(4, 3, 0)
                 and tdSql.compareData(4, 4, 0)
-                and tdSql.compareData(6, 0, "2025-01-01 00:00:05")
-                and tdSql.compareData(6, 1, "2025-01-01 00:00:08")
+                and tdSql.compareData(6, 0, "2025-01-01 00:00:05.000000000")
+                and tdSql.compareData(6, 1, "2025-01-01 00:00:08.000000000")
                 and tdSql.compareData(6, 2, 4)
                 and tdSql.compareData(6, 3, 8)
                 and tdSql.compareData(6, 4, 2),

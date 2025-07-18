@@ -27,11 +27,11 @@ class TestStreamMetaTrigger:
         # TD-36750 [流计算开发阶段] 虚拟表+删除pre_filter(cbigint >=1)中cbigint列后，应该没有符合条件的数据了，不会触发计算窗口
         # streams.append(self.Basic3())  # [fail]
         
-        # streams.append(self.Basic4())  # [ok]
-        # streams.append(self.Basic5())  # [ok] 
+        streams.append(self.Basic4())  # [ok]
+        streams.append(self.Basic5())  # [ok] 
         
         # TD-36525 [流计算开发阶段] 删除流结果表后继续触发了也没有重建，不符合预期
-        streams.append(self.Basic6())  #  [fail]
+        # streams.append(self.Basic6())  #  [fail]
         
         # TD-36788 [流计算开发阶段] 虚拟超级表没有触发生成分组结果表
         # streams.append(self.Basic7())  # [fail] 
