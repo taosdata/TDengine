@@ -35,15 +35,40 @@ class TestIdmpTobacco:
         History:
             - 2025-7-11 zyyang90 Created
         """
-        tobac = TestIdmpTobaccoImpl()
-        tobac.init()
-        tobac.stream_ids = [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        tobac = TestIdmpScene()
+        tobac.init(
+            "tobacco",
+            "idmp_sample_tobacco",
+            "idmp",
+            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp_sample_tobacco",
+            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/vstb.sql",
+            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/vtb.sql",
+            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/stream.json",
+        )
+        # 这里可以指定需要创建的 stream_ids
+        tobac.stream_ids = [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
         tobac.run()
 
 
-class TestIdmpTobaccoImpl:
-    def init(self):
+class TestIdmpScene:
+    def init(self, scene, db, vdb, db_dump_dir, vstb_sql, vtb_sql, stream_json):
+        # scene name
+        self.scene = scene
+        # sample database
+        self.db = db
+        # analysis database
+        self.vdb = vdb
+        # sample database dump file
+        self.db_dump_dir = db_dump_dir
+        # virtual stables
+        self.vstb_sql = vstb_sql
+        # virtual tables
+        self.vtb_sql = vtb_sql
+        # stream json
+        self.stream_json = stream_json
+        # stream id filters
         self.stream_ids = []
+        # golbal stream.assert.retry
         self.assert_retry = -1
 
     def run(self):
@@ -63,17 +88,13 @@ class TestIdmpTobaccoImpl:
         # verify results
         self.verifyResults()
 
-        tdLog.info("test IDMP tobacco scene done")
+        tdLog.info(f"test IDMP {self.scene} scene done")
 
     def prepare(self):
         # create snode if not exists
         snodes = tdSql.getResult("SHOW SNODES;")
         if snodes is None or len(snodes) == 0:
             tdStream.createSnode()
-
-        # name
-        self.db = "idmp_sample_tobacco"
-        self.vdb = "idmp"
 
         # drop database if exists
         tdSql.executes(
@@ -83,9 +104,7 @@ class TestIdmpTobaccoImpl:
             ]
         )
         # import tobacco scene data
-        etool.taosdump(
-            "-i cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp_sample_tobacco/"
-        )
+        etool.taosdump(f"-i {self.db_dump_dir}")
 
         # delete existed data
         res = tdSql.getResult(f"show `{self.db}`.stables")
@@ -110,24 +129,25 @@ class TestIdmpTobaccoImpl:
         )
 
         # create virtual stables
-        with open(
-            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/vstb.sql",
-            "r",
-            encoding="utf-8",
-        ) as f:
+        vstb_count = 0
+        with open(f"{self.vstb_sql}", "r", encoding="utf-8") as f:
             for line in f:
                 sql = line.strip()
                 if sql:
                     tdLog.debug(f"virtual stable SQL: {sql}")
                     tdSql.execute(sql, queryTimes=1)
+                    vstb_count += 1
+
+        # check virtual stables
+        tdSql.checkResultsByFunc(
+            sql=f"show `{self.vdb}`.STABLES",
+            func=lambda: tdSql.getRows() == vstb_count,
+        )
+        tdLog.info(f"create {vstb_count} virtual stables in {self.vdb}")
 
         # create virtable tables
         vtb_count = 0
-        with open(
-            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/vtb.sql",
-            "r",
-            encoding="utf-8",
-        ) as f:
+        with open(f"{self.vtb_sql}", "r", encoding="utf-8") as f:
             for line in f:
                 sql = line.strip()
                 if sql:
@@ -140,14 +160,10 @@ class TestIdmpTobaccoImpl:
             sql=f"show `{self.vdb}`.VTABLES",
             func=lambda: tdSql.getRows() == vtb_count,
         )
-        tdLog.info(f"create {vtb_count} vtables in db: {self.vdb}")
+        tdLog.info(f"create {vtb_count} vtables in {self.vdb}")
 
     def createStreams(self):
-        with open(
-            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/stream.json",
-            "r",
-            encoding="utf-8",
-        ) as f:
+        with open(f"{self.stream_json}", "r", encoding="utf-8") as f:
             arr = json.load(f)
             self.stream_objs = [StreamObj.from_dict(obj) for obj in arr]
 
