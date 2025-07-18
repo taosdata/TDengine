@@ -19,6 +19,7 @@ import requests
 import time
 import json
 import taos
+from . import rawblock as rb
 
 from .log import *
 from .sql import *
@@ -143,7 +144,12 @@ class MqttUtil:
         client.on_connect = self.on_connect
         client.on_subscribe = self.on_subscribe
         client.on_unsubscribe = self.on_unsubscribe
-        client.on_message = self.on_message
+
+        res = [x[1] for x in conf['sub_prop'].UserProperty if x[0] == 'proto']
+        if len(res) > 0 and res[0] == 'rawblock':
+            client.on_message = self.on_message_rawblock
+        else:
+            client.on_message = self.on_message
 
         client.username_pw_set(self.mqttConf['user'], self.mqttConf['passwd'])
         client.connect(self.mqttConf['host'], self.mqttConf['port'], properties=conf['conn_prop'], keepalive=60)
@@ -198,7 +204,38 @@ class MqttUtil:
             tdLog.sleep(self.mqttConf['loop_time'] * 20)
 
             self.loop_stop = True
-        
+
+    def on_message_rawblock(self, client, userdata, msg):
+        # print(msg.topic + " " + str(msg.qos) + " " + str(msg.payload))
+
+        bl = rb.load(msg.payload)
+
+        bnum = 0
+        msgRows = 0
+        version = 0
+        for block in bl:
+            msgRows += block["rows"]
+            bnum += 1
+            version = block["version"]
+
+        self.subMsg = {
+            'topic': msg.topic,
+            'qos': msg.qos,
+            'payload': msg.payload,
+            }
+
+        # jsonMsg = json.loads(str(self.subMsg['payload'], encoding='utf-8'))
+        # msgRows = len(jsonMsg['rows'])
+        self.subRows += msgRows
+        print(f"recieved {msgRows} rows")
+
+        self.qos = msg.qos
+
+        if self.subRows >= self.mqttConf['rows']:
+            client.unsubscribe(self.mqttConf['topic'])
+            tdLog.sleep(self.mqttConf['loop_time'] * 20)
+
+            self.loop_stop = True
 
     def on_disconnect(client, userdata,rc=0):
         tdLog.debug("DisConnected result code: "+str(rc))
