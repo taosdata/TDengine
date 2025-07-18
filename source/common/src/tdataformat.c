@@ -28,6 +28,14 @@ enum {
 static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData);
 static int32_t (*tColDataUpdateValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData, bool forward);
 
+static int32_t tRowMergeWithBlobImpl(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlob, SBlobSet *pDstBlobSet,
+                                     int32_t iStart, int32_t iEnd, int8_t flag);
+
+static int32_t tRowBuildTupleWithBlob2(SArray *aColVal, const SRowBuildScanInfo *sinfo, const STSchema *schema,
+                                       SRow **ppRow, SBlobSet *pSrcBlobSet, SBlobSet *pDstBlobSet);
+
+static int32_t tRowBuildKVRowWithBlob2(SArray *aColVal, const SRowBuildScanInfo *sinfo, const STSchema *schema,
+                                       SRow **ppRow, SBlobSet *pSrcBlob, SBlobSet *pDstBlobSet);
 // ================================
 static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson);
 
@@ -388,10 +396,6 @@ static int32_t tRowBuildTupleWithBlob(SArray *aColVal, const SRowBuildScanInfo *
             if (IS_STR_DATA_BLOB(schema->columns[i].type)) {
               hasBlob = 1;
             }
-            if (sinfo->scanType == ROW_BUILD_MERGE && hasBlob) {
-              uInfo("merge block");
-            }
-
             *(int32_t *)(fixed + schema->columns[i].offset) = varlen - fixed - sinfo->tupleFixedSize;
             varlen += tPutU32v(varlen, colValArray[colValIndex].value.nData);
             if (colValArray[colValIndex].value.nData) {
@@ -449,6 +453,113 @@ static int32_t tRowBuildTupleWithBlob(SArray *aColVal, const SRowBuildScanInfo *
   return 0;
 }
 
+static int32_t tRowBuildTupleWithBlob2(SArray *aColVal, const SRowBuildScanInfo *sinfo, const STSchema *schema,
+                                       SRow **ppRow, SBlobSet *pSrcBlobSet, SBlobSet *pDstBlobSet) {
+  int32_t  code = 0;
+  SColVal *colValArray = (SColVal *)TARRAY_DATA(aColVal);
+  *ppRow = (SRow *)taosMemoryCalloc(1, sinfo->tupleRowSize);
+  if (*ppRow == NULL) {
+    return terrno;
+  }
+  (*ppRow)->flag = sinfo->tupleFlag;
+  (*ppRow)->numOfPKs = sinfo->numOfPKs;
+  (*ppRow)->sver = schema->version;
+  (*ppRow)->len = sinfo->tupleRowSize;
+  (*ppRow)->ts = colValArray[0].value.val;
+
+  if (((*ppRow)->flag) == 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (sinfo->tupleFlag == HAS_NONE || sinfo->tupleFlag == HAS_NULL) {
+    code = addEmptyItemToBlobSet(pDstBlobSet, TSDB_DATA_BLOB_NULL_VALUE, NULL);
+    return code;
+  }
+
+  uint8_t *primaryKeys = (*ppRow)->data;
+  uint8_t *bitmap = primaryKeys + sinfo->tuplePKSize;
+  uint8_t *fixed = bitmap + sinfo->tupleBitmapSize;
+  uint8_t *varlen = fixed + sinfo->tupleFixedSize;
+  uint8_t *start = varlen;
+
+  // primary keys
+  for (int32_t i = 0; i < sinfo->numOfPKs; i++) {
+    primaryKeys += tPutPrimaryKeyIndex(primaryKeys, sinfo->tupleIndices + i);
+  }
+
+  // bitmap + fixed + varlen
+  int32_t numOfColVals = TARRAY_SIZE(aColVal);
+  int32_t colValIndex = 1;
+  for (int32_t i = 1; i < schema->numOfCols; i++) {
+    for (;;) {
+      if (colValIndex >= numOfColVals) {  // NONE
+        ROW_SET_BITMAP(bitmap, sinfo->tupleFlag, i - 1, BIT_FLG_NONE);
+        break;
+      }
+
+      int8_t hasBlob = 0;
+      if (colValArray[colValIndex].cid == schema->columns[i].colId) {
+        if (COL_VAL_IS_VALUE(&colValArray[colValIndex])) {  // value
+          ROW_SET_BITMAP(bitmap, sinfo->tupleFlag, i - 1, BIT_FLG_VALUE);
+
+          if (IS_VAR_DATA_TYPE(schema->columns[i].type)) {
+            if (IS_STR_DATA_BLOB(schema->columns[i].type)) {
+              hasBlob = 1;
+            }
+            *(int32_t *)(fixed + schema->columns[i].offset) = varlen - fixed - sinfo->tupleFixedSize;
+            varlen += tPutU32v(varlen, colValArray[colValIndex].value.nData);
+            if (colValArray[colValIndex].value.nData) {
+              if (hasBlob == 0) {
+                (void)memcpy(varlen, colValArray[colValIndex].value.pData, colValArray[colValIndex].value.nData);
+                varlen += colValArray[colValIndex].value.nData;
+              } else {
+                uint64_t seq = 0;
+                tGetU64(colValArray[colValIndex].value.pData, &seq);
+                SBlobItem item = {0};
+
+                code = tBlobSetGet(pSrcBlobSet, seq, &item);
+                TAOS_CHECK_RETURN(code);
+
+                code = tBlobSetPush(pDstBlobSet, &item, &seq, 0);
+                TAOS_CHECK_RETURN(code);
+                varlen += tPutU64(varlen, seq);
+              }
+            } else {
+              if (hasBlob) TAOS_CHECK_RETURN(addEmptyItemToBlobSet(pDstBlobSet, TSDB_DATA_BLOB_EMPTY_VALUE, NULL));
+            }
+          } else {
+            (void)memcpy(fixed + schema->columns[i].offset,
+                         VALUE_GET_DATUM(&colValArray[colValIndex].value, schema->columns[i].type),
+                         tDataTypes[schema->columns[i].type].bytes);
+          }
+        } else if (COL_VAL_IS_NULL(&colValArray[colValIndex])) {  // NULL
+          ROW_SET_BITMAP(bitmap, sinfo->tupleFlag, i - 1, BIT_FLG_NULL);
+          if (IS_STR_DATA_BLOB(schema->columns[i].type)) {
+            TAOS_CHECK_RETURN(addEmptyItemToBlobSet(pDstBlobSet, TSDB_DATA_BLOB_NULL_VALUE, NULL));
+          }
+        } else if (COL_VAL_IS_NONE(&colValArray[colValIndex])) {  // NONE
+          if (IS_STR_DATA_BLOB(schema->columns[i].type)) {
+            TAOS_CHECK_RETURN(addEmptyItemToBlobSet(pDstBlobSet, TSDB_DATA_BLOB_NULL_VALUE, NULL));
+          }
+          ROW_SET_BITMAP(bitmap, sinfo->tupleFlag, i - 1, BIT_FLG_NONE);
+        }
+
+        colValIndex++;
+        break;
+      } else if (colValArray[colValIndex].cid > schema->columns[i].colId) {  // NONE
+        ROW_SET_BITMAP(bitmap, sinfo->tupleFlag, i - 1, BIT_FLG_NONE);
+        break;
+      } else {
+        colValIndex++;
+      }
+    }
+  }
+
+  if (((*ppRow)->flag) == 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return 0;
+}
 static FORCE_INLINE void tRowBuildKVRowSetIndex(uint8_t flag, SKVIdx *indices, uint32_t offset) {
   if (flag & KV_FLG_LIT) {
     ((uint8_t *)indices->idx)[indices->nCol] = (uint8_t)offset;
@@ -579,9 +690,6 @@ static int32_t tRowBuildKVRowWithBlob(SArray *aColVal, const SRowBuildScanInfo *
             if (IS_STR_DATA_BLOB(schema->columns[i].type)) {
               hasBlob = 1;
             }
-            if (sinfo->scanType == ROW_BUILD_MERGE && hasBlob) {
-              uTrace("blob merge block");
-            }
             payloadSize += tPutI16v(payload + payloadSize, colValArray[colValIndex].cid);
             payloadSize += tPutU32v(payload + payloadSize, colValArray[colValIndex].value.nData);
             if (colValArray[colValIndex].value.nData > 0) {
@@ -590,25 +698,15 @@ static int32_t tRowBuildKVRowWithBlob(SArray *aColVal, const SRowBuildScanInfo *
                              colValArray[colValIndex].value.nData);
                 payloadSize += colValArray[colValIndex].value.nData;
               } else {
-                if (sinfo->scanType == ROW_BUILD_MERGE) {
-                  uint64_t seq = 0;
-                  tGetU64(colValArray[colValIndex].value.pData, &seq);
-                  int32_t code = tBlobSetUpdate(ppBlobSet, seq, NULL);  // tBlobRow
-                  if (code != 0) return code;
-                } else {
-                  uint64_t  seq = 0;
-                  uint32_t  seqOffset = payloadSize + payload - (*ppRow)->data;
-                  SBlobItem item = {.seqOffsetInRow = seqOffset,
-                                    .data = colValArray[colValIndex].value.pData,
-                                    .len = colValArray[colValIndex].value.nData,
-                                    .type = TSDB_DATA_BLOB_VALUE};
-                  int32_t   code = tBlobSetPush(ppBlobSet, &item, &seq, firstBlobCol);
-                  if (code != 0) return code;
-                  if (firstBlobCol == 1) {
-                    firstBlobCol = 0;
-                  }
-                  payloadSize += tPutU64(payload + payloadSize, seq);
-                }
+                uint64_t  seq = 0;
+                uint32_t  seqOffset = payloadSize + payload - (*ppRow)->data;
+                SBlobItem item = {.seqOffsetInRow = seqOffset,
+                                  .data = colValArray[colValIndex].value.pData,
+                                  .len = colValArray[colValIndex].value.nData,
+                                  .type = TSDB_DATA_BLOB_VALUE};
+                int32_t   code = tBlobSetPush(ppBlobSet, &item, &seq, 0);
+                if (code != 0) return code;
+                payloadSize += tPutU64(payload + payloadSize, seq);
               }
             } else {
               if (hasBlob) {
@@ -643,19 +741,107 @@ static int32_t tRowBuildKVRowWithBlob(SArray *aColVal, const SRowBuildScanInfo *
   }
   return 0;
 }
-int32_t tRowBuildWithMerge(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
-  int32_t           code;
-  SRowBuildScanInfo sinfo = {.scanType = ROW_BUILD_MERGE};
 
-  code = tRowBuildScan(aColVal, pTSchema, &sinfo);
-  if (code) return code;
+static int32_t tRowBuildKVRowWithBlob2(SArray *aColVal, const SRowBuildScanInfo *sinfo, const STSchema *schema,
+                                       SRow **ppRow, SBlobSet *pSrcBlobSet, SBlobSet *pDstBlobSet) {
+  SColVal *colValArray = (SColVal *)TARRAY_DATA(aColVal);
 
-  if (sinfo.tupleRowSize <= sinfo.kvRowSize) {
-    code = tRowBuildTupleRow(aColVal, &sinfo, pTSchema, ppRow);
-  } else {
-    code = tRowBuildKVRow(aColVal, &sinfo, pTSchema, ppRow);
+  *ppRow = (SRow *)taosMemoryCalloc(1, sinfo->kvRowSize);
+  if (*ppRow == NULL) {
+    return terrno;
   }
-  return code;
+  (*ppRow)->flag = sinfo->kvFlag;
+  (*ppRow)->numOfPKs = sinfo->numOfPKs;
+  (*ppRow)->sver = schema->version;
+  (*ppRow)->len = sinfo->kvRowSize;
+  (*ppRow)->ts = colValArray[0].value.val;
+
+  if (!(sinfo->flag != HAS_NONE && sinfo->flag != HAS_NULL)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (((*ppRow)->flag) == 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  uint8_t *primaryKeys = (*ppRow)->data;
+  SKVIdx  *indices = (SKVIdx *)(primaryKeys + sinfo->kvPKSize);
+  uint8_t *payload = primaryKeys + sinfo->kvPKSize + sinfo->kvIndexSize;
+  uint32_t payloadSize = 0;
+
+  // primary keys
+  for (int32_t i = 0; i < sinfo->numOfPKs; i++) {
+    primaryKeys += tPutPrimaryKeyIndex(primaryKeys, sinfo->kvIndices + i);
+  }
+
+  int32_t numOfColVals = TARRAY_SIZE(aColVal);
+  int32_t colValIndex = 1;
+  for (int32_t i = 1; i < schema->numOfCols; i++) {
+    for (;;) {
+      if (colValIndex >= numOfColVals) {  // NONE
+        break;
+      }
+      uint8_t hasBlob = 0;
+
+      if (colValArray[colValIndex].cid == schema->columns[i].colId) {
+        if (COL_VAL_IS_VALUE(&colValArray[colValIndex])) {  // value
+          tRowBuildKVRowSetIndex(sinfo->kvFlag, indices, payloadSize);
+          if (IS_VAR_DATA_TYPE(schema->columns[i].type)) {
+            if (IS_STR_DATA_BLOB(schema->columns[i].type)) {
+              hasBlob = 1;
+            }
+            payloadSize += tPutI16v(payload + payloadSize, colValArray[colValIndex].cid);
+            payloadSize += tPutU32v(payload + payloadSize, colValArray[colValIndex].value.nData);
+            if (colValArray[colValIndex].value.nData > 0) {
+              if (hasBlob == 0) {
+                (void)memcpy(payload + payloadSize, colValArray[colValIndex].value.pData,
+                             colValArray[colValIndex].value.nData);
+                payloadSize += colValArray[colValIndex].value.nData;
+              } else {
+                uint64_t seq = 0;
+                tGetU64(colValArray[colValIndex].value.pData, &seq);
+                SBlobItem item = {0};
+
+                int32_t code = tBlobSetGet(pSrcBlobSet, seq, &item);
+                TAOS_CHECK_RETURN(code);
+
+                code = tBlobSetPush(pDstBlobSet, &item, &seq, 0);
+                TAOS_CHECK_RETURN(code);
+
+                payloadSize += tPutU64(payload + payloadSize, seq);
+              }
+            } else {
+              if (hasBlob) {
+                TAOS_CHECK_RETURN(addEmptyItemToBlobSet(pDstBlobSet, TSDB_DATA_BLOB_EMPTY_VALUE, NULL));
+              }
+            }
+          } else {
+            payloadSize += tPutI16v(payload + payloadSize, colValArray[colValIndex].cid);
+            (void)memcpy(payload + payloadSize, &colValArray[colValIndex].value.val,
+                         tDataTypes[schema->columns[i].type].bytes);
+            payloadSize += tDataTypes[schema->columns[i].type].bytes;
+          }
+        } else if (COL_VAL_IS_NULL(&colValArray[colValIndex])) {  // NULL
+          tRowBuildKVRowSetIndex(sinfo->kvFlag, indices, payloadSize);
+          payloadSize += tPutI16v(payload + payloadSize, -schema->columns[i].colId);
+          if (IS_STR_DATA_BLOB(schema->columns[i].type)) {
+            TAOS_CHECK_RETURN(addEmptyItemToBlobSet(pDstBlobSet, TSDB_DATA_BLOB_NULL_VALUE, NULL));
+          }
+        }
+        colValIndex++;
+        break;
+      } else if (colValArray[colValIndex].cid > schema->columns[i].colId) {  // NONE
+        break;
+      } else {
+        colValIndex++;
+      }
+    }
+  }
+
+  if (((*ppRow)->flag) == 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  return 0;
 }
 int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SRowBuildScanInfo *sinfo) {
   int32_t code;
@@ -683,6 +869,22 @@ int32_t tRowBuildWithBlob(SArray *aColVal, const STSchema *pTSchema, SRow **ppRo
   } else {
     code = tRowBuildKVRowWithBlob(aColVal, sinfo, pTSchema, ppRow, pBlobSet);
     pBlobSet->rowType = BLOB_ROW_KV;
+  }
+
+  return code;
+}
+
+int32_t tRowBuildWithBlob2(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SBlobSet *pSrcBlobSet,
+                           SBlobSet *pDstBlobSet, SRowBuildScanInfo *sinfo) {
+  int32_t code;
+
+  code = tRowBuildScan(aColVal, pTSchema, sinfo);
+  if (code) return code;
+
+  if (sinfo->tupleRowSize <= sinfo->kvRowSize) {
+    code = tRowBuildTupleWithBlob2(aColVal, sinfo, pTSchema, ppRow, pSrcBlobSet, pDstBlobSet);
+  } else {
+    code = tRowBuildKVRowWithBlob2(aColVal, sinfo, pTSchema, ppRow, pSrcBlobSet, pDstBlobSet);
   }
 
   return code;
@@ -1288,6 +1490,13 @@ _error:
 static int32_t tRowMergeAndRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlob) {
   int32_t code = 0;
 
+  SBlobSet *pTempBlobSet = NULL;
+  int32_t   size = taosArrayGetSize(aRowP);
+  if (size <= 1) {
+    return code;
+  }
+
+  code = tBlobSetCreate(pBlob->cap, pBlob->type, &pTempBlobSet);
   int32_t iStart = 0;
   while (iStart < aRowP->size) {
     SRowKey key1;
@@ -1307,59 +1516,55 @@ static int32_t tRowMergeAndRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobS
     }
 
     if (iEnd - iStart > 1) {
-      code = tRowMergeImpl(aRowP, pTSchema, iStart, iEnd, 0);
+      code = tRowMergeWithBlobImpl(aRowP, pTSchema, pBlob, pTempBlobSet, iStart, iEnd, 0);
       if (code) return code;
     }
 
     // the array is also changing, so the iStart just ++ instead of iEnd
     iStart++;
   }
-
+  tBlobSetSwap(pBlob, pTempBlobSet);
   return code;
 }
 
-static int32_t tRowMergeWithBlobImpl(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlob, int32_t iStart, int32_t iEnd,
-                                     int8_t flag) {
+static int32_t tRowMergeWithBlobImpl(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlob, SBlobSet *pDstBlob,
+                                     int32_t iStart, int32_t iEnd, int8_t flag) {
   int32_t code = 0;
-
+  int32_t    lino = 0;
+  SBlobSet  *pTempBlobSet = NULL;
   int32_t    nRow = iEnd - iStart;
   SRowIter **aIter = NULL;
   SArray    *aColVal = NULL;
   SRow      *pRow = NULL;
-  uint8_t    hasBlob = 0;
-  aIter = taosMemoryCalloc(nRow, sizeof(SRowIter *));
-  if (aIter == NULL) {
-    code = terrno;
-    goto _exit;
-  }
 
-  for (int32_t i = 0; i < nRow; i++) {
-    SRow *pRowT = taosArrayGetP(aRowP, iStart + i);
-
-    code = tRowIterOpen(pRowT, pTSchema, &aIter[i]);
-    if (code) goto _exit;
-  }
-
-  // merge
   aColVal = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal));
   if (aColVal == NULL) {
     code = terrno;
-    goto _exit;
+    TAOS_CHECK_GOTO(code, &lino, _exit);
   }
+
+  aIter = taosMemoryCalloc(nRow, sizeof(SRowIter *));
+  if (aIter == NULL) {
+    code = terrno;
+    TAOS_CHECK_GOTO(code, &lino, _exit);
+  }
+
+  for (int32_t i = 0; i < nRow; i++) {
+    SRow *pRowT = taosArrayGetP(aRowP, i);
+    code = tRowIterOpen(pRowT, pTSchema, &aIter[i]);
+    TAOS_CHECK_GOTO(code, &lino, _exit);
+  }
+  // merge
 
   for (int32_t iCol = 0; iCol < pTSchema->numOfCols; iCol++) {
     SColVal  *pColVal = NULL;
     STColumn *pCol = pTSchema->columns + iCol;
-    if (IS_STR_DATA_BLOB(pCol->type)) {
-      hasBlob = 1;
-    }
 
     for (int32_t iRow = nRow - 1; iRow >= 0; --iRow) {
       SColVal *pColValT = tRowIterNext(aIter[iRow]);
       while (pColValT->cid < pTSchema->columns[iCol].colId) {
         pColValT = tRowIterNext(aIter[iRow]);
       }
-
       // todo: take strategy according to the flag
       if (COL_VAL_IS_VALUE(pColValT)) {
         pColVal = pColValT;
@@ -1374,20 +1579,21 @@ static int32_t tRowMergeWithBlobImpl(SArray *aRowP, STSchema *pTSchema, SBlobSet
     if (pColVal) {
       if (taosArrayPush(aColVal, pColVal) == NULL) {
         code = terrno;
-        goto _exit;
+        TAOS_CHECK_GOTO(code, &lino, _exit);
       }
     }
   }
 
   // build
-  SRowBuildScanInfo sinfo = {.hasBlob = 1, .scanType = ROW_BUILD_MERGE};
-  code = tRowBuildWithBlob(aColVal, pTSchema, &pRow, pBlob, &sinfo);
-  if (code) goto _exit;
+
+  SRowBuildScanInfo sinfo = {.hasBlob = 1};
+  code = tRowBuildWithBlob2(aColVal, pTSchema, &pRow, pBlob, pDstBlob, &sinfo);
+  TAOS_CHECK_GOTO(code, &lino, _exit);
 
   taosArrayRemoveBatch(aRowP, iStart, nRow, (FDelete)tRowPDestroy);
   if (taosArrayInsert(aRowP, iStart, &pRow) == NULL) {
     code = terrno;
-    goto _exit;
+    TAOS_CHECK_GOTO(code, &lino, _exit);
   }
 
 _exit:
@@ -1399,6 +1605,7 @@ _exit:
   }
   if (aColVal) taosArrayDestroy(aColVal);
   if (code) tRowDestroy(pRow);
+
   return code;
 }
 
@@ -1492,9 +1699,10 @@ int32_t tRowMergeWithBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlobSet,
   if (!doMerge) {
     code = tRowRebuildBlob(aRowP, pTSchema, pBlobSet);
   } else {
-    code = TSDB_CODE_BLOB_NOT_SUPPORT;
-    return code;
-    // code = tRowMergeAndRebuildBlob(aRowP, pTSchema, pBlobSet);
+    code = tRowRebuildBlob(aRowP, pTSchema, pBlobSet);
+    TAOS_CHECK_RETURN(code);
+
+    code = tRowMergeAndRebuildBlob(aRowP, pTSchema, pBlobSet);
   }
   return code;
 }
@@ -2620,9 +2828,9 @@ static FORCE_INLINE int32_t tColDataPutValue(SColData *pColData, uint8_t *pData,
         (void)memcpy(pColData->pData + pColData->nData, pData, BSE_SEQUECE_SIZE);
         pColData->nData += BSE_SEQUECE_SIZE;
       } else {
-        uint64_t zero = 0;
-        (void)memcpy(pColData->pData + pColData->nData, &zero, BSE_SEQUECE_SIZE);
-        pColData->nData += BSE_SEQUECE_SIZE;
+        // uint64_t zero = 0;
+        // (void)memcpy(pColData->pData + pColData->nData, &zero, BSE_SEQUECE_SIZE);
+        // pColData->nData += BSE_SEQUECE_SIZE;
       }
 
     } else {

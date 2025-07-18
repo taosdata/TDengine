@@ -674,13 +674,6 @@ static int32_t inline vnodeSubmitSubRowBlobData(SVnode *pVnode, SSubmitTbData *p
     code = bseBatchPut(pBatch, &seq, pBlobSet->data + p->offset, p->len);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    // if (p->nextRow == 1) {
-    //   rowIdx++;
-    // }
-    // if (p->len == 0) {
-    //   uWarn("received invalid row");
-    //   continue;
-    // }
     SRow *row = taosArrayGetP(pSubmitTbData->aRowP, i);
     if (row == NULL) {
       int32_t tlen = taosArrayGetSize(pBlobSet->pSeqTable);

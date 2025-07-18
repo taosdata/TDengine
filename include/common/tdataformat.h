@@ -147,7 +147,6 @@ int32_t tValueCompare(const SValue *tv1, const SValue *tv2);
 int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SRowBuildScanInfo *pScanInfo);
 int32_t tRowBuildWithBlob(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SBlobSet *pBlobSet,
                           SRowBuildScanInfo *sinfo);
-int32_t tRowBuildWithMerge(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow);
 int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 
 typedef struct {
