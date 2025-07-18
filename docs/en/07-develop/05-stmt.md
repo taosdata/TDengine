@@ -96,7 +96,7 @@ The example code for stmt to bind parameters is as follows:
 </TabItem>
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c-ws/stmt_insert_demo.c}}
+{{#include docs/examples/c-ws-new/stmt2_insert_demo.c}}
 ```
 </TabItem>
 <TabItem label="REST API" value="rest">

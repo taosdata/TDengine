@@ -217,11 +217,11 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 </TabItem>
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:create_consumer_1}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:create_consumer_1}}
 ```
 
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:create_consumer_2}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:create_consumer_2}}
 ```
 
 调用 `build_consumer` 函数尝试获取消费者实例 `tmq`。成功则打印成功日志，失败则打印失败日志。
@@ -355,19 +355,19 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 </TabItem>
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:build_topic_list}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:build_topic_list}}
 ```
 
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:basic_consume_loop}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:basic_consume_loop}}
 ```
 
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:msg_process}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:msg_process}}
 ```
 
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:subscribe_3}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:subscribe_3}}
 ```
 
 订阅消费数据步骤：
@@ -521,7 +521,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 </TabItem>
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:consume_repeatly}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:consume_repeatly}}
 ```
 
 1. 通过 `ws_tmq_get_topic_assignment` 函数获取特定主题的分配信息，包括分配的数量和具体分配详情。
@@ -658,7 +658,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 </TabItem>
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:manual_commit}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:manual_commit}}
 ```    
 
 可以通过 `ws_tmq_commit_sync` 函数来手工提交消费进度。
@@ -771,7 +771,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 </TabItem>
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:unsubscribe_and_close}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:unsubscribe_and_close}}
 ```        
 </TabItem>
 <TabItem label="REST API" value="rest">
@@ -890,8 +890,8 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 <details>
 <summary>完整代码示例</summary> 
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c}}
-```            
+{{#include docs/examples/c-ws-new/tmq_demo.c}}
+```
 </details>
 
 </TabItem>

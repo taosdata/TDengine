@@ -557,7 +557,7 @@ Below are code examples for establishing WebSocket connections in various langua
 <TabItem label="C" value="c">
 
 ```c
-{{#include docs/examples/c-ws/connect_example.c}}
+{{#include docs/examples/c-ws-new/connect_example.c}}
 ```
 
 </TabItem>
