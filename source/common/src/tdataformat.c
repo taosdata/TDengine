@@ -519,10 +519,6 @@ static int32_t tRowBuildTupleWithBlob2(SArray *aColVal, const SRowBuildScanInfo 
                 code = tBlobSetGet(pSrcBlobSet, seq, &item);
                 TAOS_CHECK_RETURN(code);
 
-                char buf[128] = {0};
-                memcpy(buf, item.data, item.len);
-                uInfo("blob data seq %" PRId64 ", data:%s, lion:%d", seq, buf, __LINE__);
-
                 code = tBlobSetPush(pDstBlobSet, &item, &seq, 0);
                 TAOS_CHECK_RETURN(code);
                 varlen += tPutU64(varlen, seq);
@@ -808,10 +804,6 @@ static int32_t tRowBuildKVRowWithBlob2(SArray *aColVal, const SRowBuildScanInfo 
 
                 int32_t code = tBlobSetGet(pSrcBlobSet, seq, &item);
                 TAOS_CHECK_RETURN(code);
-
-                char buf[128] = {0};
-                memcpy(buf, item.data, item.len);
-                uInfo("blob data seq %" PRId64 ", data:%s, line %d", seq, buf, __LINE__);
 
                 code = tBlobSetPush(pDstBlobSet, &item, &seq, 0);
                 TAOS_CHECK_RETURN(code);
@@ -1413,6 +1405,29 @@ _exit:
   if (code) tRowDestroy(pRow);
   return code;
 }
+static int32_t tBlobSetTransferTo(SBlobSet *pSrc, SBlobSet *pDst, SColVal *pVal) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  if (COL_VAL_IS_NULL(pVal) || pVal->value.pData == NULL) {
+    int8_t type = COL_VAL_IS_NULL(pVal) ? TSDB_DATA_BLOB_NULL_VALUE : TSDB_DATA_BLOB_EMPTY_VALUE;
+    code = addEmptyItemToBlobSet(pDst, type, NULL);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  } else {
+    uint64_t seq = 0;
+    tGetU64(pVal->value.pData, &seq);
+
+    SBlobItem item = {0};
+    code = tBlobSetGet(pSrc, seq, &item);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+
+    code = tBlobSetPush(pDst, &item, &seq, 1);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+    tPutU64(pVal->value.pData, seq);
+  }
+
+_error:
+  return code;
+}
 
 static int32_t tRowRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlob) {
   int32_t code = 0;
@@ -1453,31 +1468,11 @@ static int32_t tRowRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlo
   code = tBlobSetCreate(pBlob->cap, pBlob->type, &pTempBlob);
   TAOS_CHECK_GOTO(code, &lino, _error);
 
-  for (int32_t i = 0; i < nRow; i++) {
+  for (int32_t i = 0; i < taosArrayGetSize(aColVal); i++) {
     uint64_t seq = 0;
     SColVal *pVal = taosArrayGet(aColVal, i);
-    if (COL_VAL_IS_NULL(pVal) || pVal->value.pData == NULL) {
-      int8_t type = COL_VAL_IS_NULL(pVal) ? TSDB_DATA_BLOB_NULL_VALUE : TSDB_DATA_BLOB_EMPTY_VALUE;
-      code = addEmptyItemToBlobSet(pTempBlob, type, NULL);
-      TAOS_CHECK_GOTO(code, &lino, _error);
-      continue;
-    } else {
-      uint64_t seq = 0;
-      tGetU64(pVal->value.pData, &seq);
-
-      SBlobItem item = {0};
-      code = tBlobSetGet(pBlob, seq, &item);
-      TAOS_CHECK_GOTO(code, &lino, _error);
-
-      char buf[128] = {0};
-      memcpy(buf, item.data, item.len);
-      uInfo("blob data seq %" PRId64 ", data:%s, lion:%d", seq, buf, __LINE__);
-
-      code = tBlobSetPush(pTempBlob, &item, &seq, 1);
-      TAOS_CHECK_GOTO(code, &lino, _error);
-
-      tPutU64(pVal->value.pData, seq);
-    }
+    code = tBlobSetTransferTo(pBlob, pTempBlob, pVal);
+    TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
   tBlobSetSwap(pBlob, pTempBlob);
@@ -1542,26 +1537,11 @@ static int32_t tRowMergeAndRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobS
     } else {
       SColVal colVal = {0};
       code = tRowGet(row1, pTSchema, colBlobIdx, &colVal);
-      if (code) return code;
-      if (COL_VAL_IS_NULL(&colVal) || colVal.value.pData == NULL) {
-        int8_t type = COL_VAL_IS_NULL(&colVal) ? TSDB_DATA_BLOB_NULL_VALUE : TSDB_DATA_BLOB_EMPTY_VALUE;
-        code = addEmptyItemToBlobSet(pTempBlobSet, type, NULL);
-        TAOS_CHECK_GOTO(code, &lino, _error);
-      } else {
-        uint64_t seq = 0;
-        tGetU64(colVal.value.pData, &seq);
+      TAOS_CHECK_GOTO(code, &lino, _error);
 
-        SBlobItem item = {0};
-        code = tBlobSetGet(pBlob, seq, &item);
-        TAOS_CHECK_GOTO(code, &lino, _error);
-
-        code = tBlobSetPush(pTempBlobSet, &item, &seq, 1);
-        TAOS_CHECK_GOTO(code, &lino, _error);
-
-        tPutU64(colVal.value.pData, seq);
-      }
+      code = tBlobSetTransferTo(pBlob, pTempBlobSet, &colVal);
+      TAOS_CHECK_GOTO(code, &lino, _error);
     }
-
     // the array is also changing, so the iStart just ++ instead of iEnd
     iStart++;
   }
