@@ -153,7 +153,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 | JSON              | java.lang.String     |仅在 tag 中支持|
 | VARBINARY         | byte[]               ||
 | GEOMETRY          | byte[]               ||
-| BLOB              | byte[]               |仅在 tag 中支持|
+| BLOB              | byte[]               |仅在列中支持|
 | DECIMAL           | java.math.BigDecimal |仅在 WebSocket 连接方式支持|
 
 **注意**：由于历史原因，TDengine 中的 BINARY 底层不是真正的二进制数据，已不建议使用，请用 VARBINARY 类型代替。  
@@ -340,8 +340,6 @@ properties 中的配置参数如下：
 - TSDBDriver.PROPERTY_KEY_COPY_DATA：高效写入模式下，是否拷贝应用通过 addBatch 传入的二进制类型数据。仅在使用 WebSocket 连接时生效。默认值为 false。
 - TSDBDriver.PROPERTY_KEY_STRICT_CHECK：高效写入模式下，是否校验表名长度和变长数据类型长度。仅在使用 WebSocket 连接时生效。默认值为 false。
 - TSDBDriver.PROPERTY_KEY_RETRY_TIMES：高效写入模式下，写入失败重试次数。仅在使用 WebSocket 连接时生效。默认值为 3。
-
-此外对 JDBC 原生连接，通过指定 URL 和 Properties 还可以指定其他参数，比如日志级别、SQL 长度等。
 
 **配置参数的优先级**  
 

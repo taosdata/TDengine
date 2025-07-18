@@ -212,6 +212,7 @@ typedef unsigned __int32 uint32_t;
 #define BENCH_PASS                \
     "The password to use when connecting to the server, default is taosdata."
 #define BENCH_OUTPUT  "The path of result output file, default is ./output.txt."
+#define BENCH_OUTPUT_JSON  "The path of result output json file, optional."
 #define BENCH_THREAD  "The number of thread when insert data, default is 8."
 #define BENCH_INTERVAL            \
     "Insert interval for interlace mode in milliseconds, default is 0."

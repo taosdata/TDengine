@@ -19,19 +19,7 @@
         "dbinfo": {
             "name": "dbtest123",
             "drop": "yes",
-            "replica": 1,
-            "days": 10,
-            "cache": 50,
-            "blocks": 8,
-            "precision": "ms",
-            "keep": 36500,
-            "minRows": 100,
-            "maxRows": 4096,
-            "comp":2,
-            "cachelast":0,
-            "quorum":1,
-            "fsync":3000,
-            "update": 0
+            "precision": "ms"
         },
         "super_tables": [{
             "name": "stb0",

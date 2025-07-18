@@ -153,7 +153,7 @@ TDengine currently supports timestamp, numeric, character, boolean types, and th
 | JSON              | java.lang.String     | only supported in tags                                                                                     |
 | VARBINARY         | byte[]               |                                                                                                            |
 | GEOMETRY          | byte[]               |                                                                                                            |
-| BLOB              | byte[]               | only supported in tags                                                                                     |
+| BLOB              | byte[]               | only supported in columns                                                                                     |
 | DECIMAL           | java.math.BigDecimal | only supported in WebSocket connections                                                                    |
 
 **Note**: Due to historical reasons, the BINARY type in TDengine is not truly binary data and is no longer recommended. Please use VARBINARY type instead.  
@@ -344,15 +344,13 @@ The configuration parameters in properties are as follows:
 - TSDBDriver.PROPERTY_KEY_STRICT_CHECK: In Efficient Writing mode, this determines whether to validate the length of table names and variable-length data types. Effective only when using WebSocket connections. Default value is false.
 - TSDBDriver.PROPERTY_KEY_RETRY_TIMES: In Efficient Writing mode, this is the number of retry attempts for failed write operations. Effective only when using WebSocket connections. Default value is 3.  
 
-Additionally, for native JDBC connections, other parameters such as log level and SQL length can be specified by specifying the URL and Properties.
-
 Priority of Configuration Parameters:
 
 When obtaining connections through the three methods mentioned earlier, if configuration parameters are duplicated in the URL, Properties, and client configuration file, the `priority from high to low` is as follows:
 
 1. JDBC URL parameters, as mentioned, can be specified in the parameters of the JDBC URL.
-1. Properties connProps
-1. When using a native connection, the configuration file taos.cfg of the TDengine client driver
+2. Properties connProps
+3. When using a native connection, the configuration file taos.cfg of the TDengine client driver
 
 For example: if the password is specified as taosdata in the URL and as taosdemo in the Properties, then JDBC will use the password from the URL to establish the connection.
 

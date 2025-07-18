@@ -322,6 +322,12 @@ class TDTestCase(TBase):
         tdSql.query("describe test.meters")
         tdSql.checkData(4, 1, "JSON")
 
+        cmd = "%s -f ./tools/benchmark/basic/json/insert-sample.json -j ./insert_json_res.json" % binPath
+        tdLog.info("%s" % cmd)
+        ret = os.system("%s" % cmd)
+        if not os.path.exists("./insert_json_res.json"):
+            tdLog.info(f"expect failed, JSON file does not exist, cmd={cmd} ret={ret}")
+
         cmd = "%s -n 1 -t 1 -y -b int,x" % binPath
         ret = os.system("%s" % cmd)
         if ret == 0:
