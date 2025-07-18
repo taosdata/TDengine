@@ -1,0 +1,37 @@
+[
+    {
+        "id": 1,
+        "name": "ana_weather_sensor_01_5分钟计算一次1小时内最大辐照",
+        "create": "create stream if not exists `idmp`.`%STREAM_NAME` interval(1h) sliding(5m) FROM `idmp`.`vt_气象传感器01_338330` stream_options(ignore_disorder) into `idmp`.`%STREAM_NAME` as select _twstart+0s as output_timestamp, max(`辐照`) as `最大辐照`  from idmp.`vt_气象传感器01_338330` where ts >=_twstart and ts <=_twend;",
+        "data": [
+            "INSERT INTO weather_sensor_01(ts,irradiation) VALUES('2025-07-18 08:00:00', 2.69507);",
+            "INSERT INTO weather_sensor_01(ts,irradiation) VALUES('2025-07-18 08:10:00', 7.37836);",
+            "INSERT INTO weather_sensor_01(ts,irradiation) VALUES('2025-07-18 08:20:00', 9.61643);",
+            "INSERT INTO weather_sensor_01(ts,irradiation) VALUES('2025-07-18 08:30:00', 3.38889);",
+            "INSERT INTO weather_sensor_01(ts,irradiation) VALUES('2025-07-18 08:40:00', 0.37526);",
+            "INSERT INTO weather_sensor_01(ts,irradiation) VALUES('2025-07-18 08:50:00', 7.78088);"
+        ],
+        "assert": [
+            {
+                "row": 0,
+                "col": 0,
+                "data": "2025-07-18 07:05:00"
+            },
+            {
+                "row": 0,
+                "col": 1,
+                "data": "2.69507"
+            },
+            {
+                "row": 9,
+                "col": 0,
+                "data": "2025-07-18 07:50:00"
+            },
+            {
+                "row": 9,
+                "col": 1,
+                "data": "9.61643"
+            }
+        ]
+    }
+]
