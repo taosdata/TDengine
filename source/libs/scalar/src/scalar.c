@@ -1087,8 +1087,12 @@ static int32_t calcStreamTimeRangeForPseudoCols(SScalarCtx *ctx, SStreamTSRangeP
              nodeType(node->pLeft), nodeType(node->pRight));
   }
 
-  streamTsRange->timeValue = timeValue;
   streamTsRange->opType = node->opType;
+  if (streamTsRange->opType == OP_TYPE_GREATER_EQUAL || streamTsRange->opType == OP_TYPE_GREATER_THAN) {
+    streamTsRange->timeValue = (streamTsRange->timeValue > timeValue) ? streamTsRange->timeValue : timeValue;
+  } else {
+    streamTsRange->timeValue = (streamTsRange->timeValue < timeValue) ? streamTsRange->timeValue : timeValue;
+  }
   if (code != TSDB_CODE_SUCCESS) {
     sclError("get ts value for stream timerange failed, code:%d", code);
   }

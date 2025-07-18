@@ -488,6 +488,13 @@ class TestStreamRecalcExpiredTime:
         # Test period with EXPIRED_TIME - should not process expired data
         tdLog.info("Check 5: PERIOD with EXPIRED_TIME ignores expired data")
         tdSql.checkTableType(dbname="rdb", stbname="r_period_expired", columns=3, tags=1)
+        
+        tdSql.checkResultsByFunc(
+            sql=f"select cnt, avg_val from rdb.r_period_expired",
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, 40001)
+            and tdSql.compareData(0, 1, 199.495262618435)
+        )
 
         # Check initial results from period trigger
         tdSql.query("select count(*) from rdb.r_period_expired;")

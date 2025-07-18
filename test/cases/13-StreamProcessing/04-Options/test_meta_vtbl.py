@@ -28,8 +28,12 @@ class TestStreamMetaTrigger:
         # streams.append(self.Basic3())  # [fail]
         
         streams.append(self.Basic4())  # [ok]
-        # streams.append(self.Basic5())  # [fail] 
+        streams.append(self.Basic5())  # [ok] 
+        
+        # TD-36525 [流计算开发阶段] 删除流结果表后继续触发了也没有重建，不符合预期
         # streams.append(self.Basic6())  #  [fail]
+        
+        # TD-36788 [流计算开发阶段] 虚拟超级表没有触发生成分组结果表
         # streams.append(self.Basic7())  # [fail] 
         
         tdStream.checkAll(streams)
@@ -1668,8 +1672,8 @@ class TestStreamMetaTrigger:
             tdSql.execute(f"create table {self.db}.ct1 using {self.db}.{self.stbName} tags(1)")
             tdSql.execute(f"create table {self.db}.ct2 using {self.db}.{self.stbName} tags(2)")
 
-            tdSql.execute(f"create vtable vct1 (cint from {self.db}.ct1.cint) using {self.db}.{self.vstbName} tags(1)")
-            tdSql.execute(f"create vtable vct2 (cint from {self.db}.ct2.cint) using {self.db}.{self.vstbName} tags(2)")
+            tdSql.execute(f"create vtable vct1 (cint from {self.db}.ct1.cint,cbigint from {self.db}.ct1.cbigint,cfloat from {self.db}.ct1.cfloat) using {self.db}.{self.vstbName} tags(1)")
+            tdSql.execute(f"create vtable vct2 (cint from {self.db}.ct2.cint,cbigint from {self.db}.ct2.cbigint,cfloat from {self.db}.ct2.cfloat) using {self.db}.{self.vstbName} tags(2)")
             
             tdSql.execute(
                 f"create stream s6_g state_window(cint) from {self.vstbName} partition by tbname, tint into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cbigint), avg(cint) from %%trows;"
@@ -1985,14 +1989,14 @@ class TestStreamMetaTrigger:
             tdSql.execute(f"create database {self.db5} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
             
             # db1
-            tdSql.execute(f"create table if not exists  {self.db1}.{self.stbName} (cts timestamp, cint int, cbigint bigint, cfloat float) tags (tint int, tbigint bigint, tfloat float)")
+            tdSql.execute(f"create table if not exists  {self.db1}.{self.stbName}  (cts timestamp, cint int, cbigint bigint, cfloat float) tags (tint int, tbigint bigint, tfloat float)")
             tdSql.execute(f"create table if not exists  {self.db1}.{self.vstbName} (cts timestamp, cint int, cbigint bigint, cfloat float) tags (tint int, tbigint bigint, tfloat float) virtual 1")
             
             tdSql.execute(f"create table {self.db1}.ct1 using {self.db1}.{self.stbName} (tint, tbigint, tfloat)tags(1,1,1)")
             tdSql.execute(f"create table {self.db1}.ct2 using {self.db1}.{self.stbName} (tint, tbigint, tfloat)tags(2,2,2)")
 
-            tdSql.execute(f"create vtable {self.db1}.vct1 (cint from {self.db1}.ct1.cint) using {self.db1}.{self.vstbName} tags(1,1,1)")
-            tdSql.execute(f"create vtable {self.db1}.vct2 (cint from {self.db1}.ct2.cint) using {self.db1}.{self.vstbName} tags(2,2,2)")
+            tdSql.execute(f"create vtable {self.db1}.vct1 (cint from {self.db1}.ct1.cint, cbigint from {self.db1}.ct1.cbigint, cfloat from {self.db1}.ct1.cfloat) using {self.db1}.{self.vstbName} tags(1,1,1)")
+            tdSql.execute(f"create vtable {self.db1}.vct2 (cint from {self.db1}.ct2.cint, cbigint from {self.db1}.ct2.cbigint, cfloat from {self.db1}.ct2.cfloat) using {self.db1}.{self.vstbName} tags(2,2,2)")
             
             # 流、流的触发表、流的数据源表 都在 db1            
             tdSql.execute(
@@ -2005,8 +2009,8 @@ class TestStreamMetaTrigger:
             tdSql.execute(f"create table {self.db3}.ct1 using {self.db3}.{self.stbName} (tint, tbigint, tfloat)tags(1,1,1)")
             tdSql.execute(f"create table {self.db3}.ct2 using {self.db3}.{self.stbName} (tint, tbigint, tfloat)tags(2,2,2)")
 
-            tdSql.execute(f"create vtable {self.db3}.vct1 (cint from {self.db3}.ct1.cint) using {self.db3}.{self.vstbName} tags(1,1,1)")
-            tdSql.execute(f"create vtable {self.db3}.vct2 (cint from {self.db3}.ct2.cint) using {self.db3}.{self.vstbName} tags(2,2,2)")
+            tdSql.execute(f"create vtable {self.db3}.vct1 (cint from {self.db3}.ct1.cint, cbigint from {self.db3}.ct1.cbigint, cfloat from {self.db3}.ct1.cfloat) using {self.db3}.{self.vstbName} tags(1,1,1)")
+            tdSql.execute(f"create vtable {self.db3}.vct2 (cint from {self.db3}.ct2.cint, cbigint from {self.db3}.ct2.cbigint, cfloat from {self.db3}.ct2.cfloat) using {self.db3}.{self.vstbName} tags(2,2,2)")
             
             # db4
             tdSql.execute(f"create table if not exists  {self.db4}.{self.stbName} (cts timestamp, cint int, cbigint bigint, cfloat float) tags (tint int, tbigint bigint, tfloat float)")
@@ -2014,8 +2018,8 @@ class TestStreamMetaTrigger:
             tdSql.execute(f"create table {self.db4}.ct1 using {self.db4}.{self.stbName} (tint, tbigint, tfloat)tags(1,1,1)")
             tdSql.execute(f"create table {self.db4}.ct2 using {self.db4}.{self.stbName} (tint, tbigint, tfloat)tags(2,2,2)")
 
-            tdSql.execute(f"create vtable {self.db4}.vct1 (cint from {self.db4}.ct1.cint) using {self.db4}.{self.vstbName} tags(1,1,1)")
-            tdSql.execute(f"create vtable {self.db4}.vct2 (cint from {self.db4}.ct2.cint) using {self.db4}.{self.vstbName} tags(2,2,2)")
+            tdSql.execute(f"create vtable {self.db4}.vct1 (cint from {self.db4}.ct1.cint, cbigint from {self.db4}.ct1.cbigint, cfloat from {self.db4}.ct1.cfloat) using {self.db4}.{self.vstbName} tags(1,1,1)")
+            tdSql.execute(f"create vtable {self.db4}.vct2 (cint from {self.db4}.ct2.cint, cbigint from {self.db4}.ct2.cbigint, cfloat from {self.db4}.ct2.cfloat) using {self.db4}.{self.vstbName} tags(2,2,2)")
             
             # 流 在db2、流的触发表 在 db3、流的数据源表 在 db4、流结果表在 db5         
             tdSql.execute(
