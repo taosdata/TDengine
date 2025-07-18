@@ -5539,7 +5539,9 @@ int32_t tColDataSortMergeWithBlob(SArray **arr, SBlobSet *pBlob) {
       doMerge = 1;
     }
   }
-
+  if (doMerge || doSort) {
+    return TSDB_CODE_BLOB_NOT_SUPPORT;
+  }
   // sort -------
   if (doSort) {
     TAOS_CHECK_RETURN(tColDataSort(aColData, nColData));
