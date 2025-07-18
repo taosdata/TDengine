@@ -946,6 +946,7 @@ int32_t mndAcquireConsumer(SMnode *pMnode, int64_t consumerId, SMqConsumerObj** 
   SSdb           *pSdb = pMnode->pSdb;
   *pConsumer = sdbAcquire(pSdb, SDB_CONSUMER, &consumerId);
   if (*pConsumer == NULL) {
+    mndDumpSdb();
     return TSDB_CODE_MND_CONSUMER_NOT_EXIST;
   }
   return 0;

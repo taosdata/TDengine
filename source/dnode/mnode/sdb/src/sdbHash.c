@@ -380,6 +380,10 @@ void sdbReleaseLock(SSdb *pSdb, void *pObj, bool lock) {
   int32_t ref = atomic_sub_fetch_32(&pRow->refCount, 1);
   sdbPrintOper(pSdb, pRow, "release");
   if (ref <= 0 && pRow->status == SDB_STATUS_DROPPED) {
+    if(pRow->type == SDB_CONSUMER) {
+      //SMqConsumerObj* consume = (SMqConsumerObj*)pObj;
+      mError("delete consumer type:%s, row:%p, consumer:%p",sdbTableName(pRow->type), pRow,pObj);
+    }
     sdbFreeRow(pSdb, pRow, true);
   }
   if (ref < 0) {
