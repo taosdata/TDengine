@@ -2582,3 +2582,336 @@ ST_Touches(GEOMETRY geomA, GEOMETRY geomB)
 **适用表类型**：标准表和超表。
 
 **使用说明**：A 和 B 至少有一个公共点，并且这些公共点位于至少一个边界中。对于点/点输入，关系始终为 FALSE，因为点没有边界。
+
+### Geometric Property Functions
+#### ST_X
+
+```sql
+ST_X(GEOMETRY point [, DOUBLE new_x])
+```
+
+**功能说明**: ST_X 以双精度数形式返回有效 GEOMETRY 对象“点”的 X 坐标值。使用可选的第二个参数，ST_X 将返回一个具有相同 Y 坐标但 X 坐标设置为第二个参数值的 GEOMETRY 对象。
+
+**返回值类型**: GEOMETRY | DOUBLE
+
+**适用数据类型**: GEOMETRY [, DOUBLE]
+
+**适用表类型**：标准表和超表。
+
+**使用说明**:
+
+- 如果几何为 NULL，则返回 NULL；
+- 如果第一个参数不是点，则退出并返回 TSDB_CODE_UNEXPECTED_GEOMETRY_TYPE 状态码；
+- 如果第二个参数不是有限的，则退出并返回 TSDB_CODE_GEOMETRY_DATA_OUT_OF_RANGE 状态码；
+- 如果应用于一个参数，则返回一个双精度值，表示输入点的第一个坐标；
+- 如果应用于两个参数（一个点和一个双精度数），则返回一个以双精度参数为第一个坐标的点。
+
+**举例**：
+
+taos> select st_x(NULL);
+        st_x(null)         |
+============================
+ NULL                      |
+
+taos> select st_x(ST_GeomFromText('POINT(45 900)'));
+ st_x(st_geomfromtext('POINT(45 900)')) |
+=========================================
+                                     45 |
+
+taos> select st_x(ST_GeomFromText('POINT(45 900)'), 10.0);
+ st_x(st_geomfromtext('POINT(45 900)'), 10.0) |
+===============================================
+ POINT (10.000000 900.000000)                 |
+
+taos> select st_x(ST_GeomFromText('POINT(45 900)'), 1000000003445);
+ st_x(st_geomfromtext('POINT(45 900)'), 1000000003445) |
+========================================================
+ POINT (1000000003445.000000 900.000000)               |
+
+#### ST_Y
+
+```sql
+ST_Y(GEOMETRY point [, DOUBLE new_y])
+```
+
+**功能说明**: ST_Y 以双精度数形式返回有效 GEOMETRY 对象“点”的 Y 坐标值。使用可选的第二个参数，ST_Y 将返回一个具有相同 X 坐标但 Y 坐标设置为第二个参数值的 GEOMETRY 对象。
+
+**返回值类型**: GEOMETRY | DOUBLE
+
+**适用数据类型**: GEOMETRY [, DOUBLE]
+
+**适用表类型**：标准表和超表。
+
+**使用说明**:
+
+- 如果几何为 NULL，则返回 NULL；
+- 如果第一个参数不是点，则退出并返回 TSDB_CODE_UNEXPECTED_GEOMETRY_TYPE 状态码；
+- 如果第二个参数不是有限的，则退出并返回 TSDB_CODE_GEOMETRY_DATA_OUT_OF_RANGE 状态码；
+- 如果应用于一个参数，则返回一个双精度值，表示输入点的第二个坐标；
+- 如果应用于两个参数（一个点和一个双精度数），则返回一个以双精度参数作为第二个坐标的点。
+
+**举例**：
+
+taos> select st_y(NULL);
+        st_y(null)         |
+============================
+ NULL                      |
+
+taos> select st_y(ST_GeomFromText('POINT(45 900)'));
+ st_y(st_geomfromtext('POINT(45 900)')) |
+=========================================
+                                    900 |
+
+taos> select st_y(ST_GeomFromText('POINT(45 900)'), 10.0);
+ st_y(st_geomfromtext('POINT(45 900)'), 10.0) |
+===============================================
+ POINT (45.000000 10.000000)                  |
+
+taos> select st_y(ST_GeomFromText('POINT(45 900)'), 1000000003445);
+ st_y(st_geomfromtext('POINT(45 900)'), 1000000003445) |
+========================================================
+ POINT (45.000000 1000000003445.000000)                |
+
+#### ST_NUMPOINTS
+
+```sql
+ST_NUMPOINTS(GEOMETRY linestring)
+```
+
+**功能说明**：返回线串输入参数中的点数。
+
+**返回值类型**：INT UNSIGNED.
+
+**适用数据类型**：GEOMETRY.
+
+**适用表类型**：标准表和超表。
+
+**使用说明**:
+
+- 如果线串为 NULL，则返回 NULL。
+
+**举例**：
+
+taos> select st_numpoints(NULL);
+ st_numpoints(null) |
+=====================
+ NULL               |
+
+taos> select st_numpoints(ST_GeomFromText('LINESTRING (30 10, 10 30, 40 40)'));
+ st_numpoints(st_geomfromtext('LINESTRING (30 10, 10 30, 40 40)') |
+===================================================================
+                                                                3 |
+
+#### ST_NUMINTERIORRINGS
+
+```sql
+ST_NUMINTERIORRINGS(GEOMETRY polygon)
+```
+
+**功能说明**: 返回多边形内环的数量。
+
+**返回值类型**: INT UNSIGNED. 
+
+**适用数据类型**: GEOMETRY.
+
+**适用表类型**：标准表和超表。
+
+**使用说明**:
+
+- 如果多边形为 NULL，则返回 NULL。
+
+**举例**：
+
+```sql
+taos> select st_numinteriorrings(NULL);
+ st_numinteriorrings(null) |
+============================
+ NULL                      |
+
+taos> select st_numinteriorrings(ST_GeomFromText('POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0),(3 3, 7 3, 7 7, 3 7, 3 3))'));
+ st_numinteriorrings(st_geomfromtext('POLYGON ((0 0, 10 0, 10 10, |
+===================================================================
+                                                                1 |
+
+taos> select st_numinteriorrings(ST_GeomFromText('POLYGON ((0 0, 8 0, 8 4, 4 4, 4 8, 0 8, 0 0),(1 1, 3 1, 3 3, 1 3, 1 1))'));
+ st_numinteriorrings(st_geomfromtext('POLYGON ((0 0, 8 0, 8 4, 4  |
+===================================================================
+                                                                1 |
+```
+
+#### ST_NUMGEOMETRIES
+
+```sql
+ST_NUMGEOMETRIES(GEOMETRY geometryCollection)
+```
+
+**功能说明**: 返回几何集合中几何对象的数量。
+
+**返回值类型**: INT UNSIGNED. 
+
+**适用数据类型**: GEOMETRY.
+
+**适用表类型**：标准表和超表。
+
+**使用说明**:
+
+- 如果集合为 NULL，则返回 NULL；
+- 如果集合不是复合几何体，则返回 NULL；
+- 如果集合为空，则返回 0；
+- 否则返回集合中几何体的数量。
+
+**举例**：
+
+```sql
+taos> select st_numgeometries(NULL);
+ st_numgeometries(null) |
+=========================
+ NULL                   |
+
+taos> SELECT ST_NumGeometries(ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))'));
+ st_numgeometries(st_geomfromtext('POLYGON((0 0, 1 0, 1 1, 0 1, 0 |
+===================================================================
+ NULL                                                             |
+
+taos> select st_numgeometries(ST_GeomFromText('GEOMETRYCOLLECTION(POINT(1 1), LINESTRING(0 0, 2 2))'));
+ st_numgeometries(st_geomfromtext('GEOMETRYCOLLECTION(POINT(1 1), |
+===================================================================
+                                                                2 |
+
+taos> select st_numgeometries(ST_GeomFromText('GEOMETRYCOLLECTION(POINT(1 1), LINESTRING(0 0, 2 2), POINT(5 5))'));
+ st_numgeometries(st_geomfromtext('GEOMETRYCOLLECTION(POINT(1 1), |
+===================================================================
+                                                                3 |
+```
+
+#### ST_ISSIMPLE
+
+```sql
+ST_ISSIMPLE(GEOMETRY geometry)
+```
+
+**功能说明**: 检查几何对象是否简单。
+
+**返回值类型**: BOOL. 
+
+**适用数据类型**: GEOMETRY.
+
+**适用表类型**：标准表和超表。
+
+**使用说明**:
+
+- 如果几何为 NULL，则返回 NULL。
+
+**举例**：
+
+```sql
+taos> select st_issimple(NULL);
+ st_issimple(null) |
+====================
+ NULL              |
+
+taos> select st_issimple(ST_GeomFromText('LINESTRING(0 0, 1 0, 1 1, 0 1, 0 0)'));
+ st_issimple(st_geomfromtext('LINESTRING(0 0, 1 0, 1 1, 0 1, 0 0) |
+===================================================================
+ true                                                             |
+
+taos> select st_issimple(ST_GeomFromText('LINESTRING(0 0, 1 1, 1 0, 0 1, 0 0)'));
+ st_issimple(st_geomfromtext('LINESTRING(0 0, 1 1, 1 0, 0 1, 0 0) |
+===================================================================
+ false                                                            |
+```
+
+#### ST_ISEMPTY
+
+```sql
+ST_ISEMPTY(GEOMETRY geometry)
+```
+
+**功能说明**: 检查几何对象是否为空。
+
+**返回值类型**: BOOL. 
+
+**适用数据类型**: GEOMETRY.
+
+**适用表类型**：标准表和超表。
+
+**使用说明**:
+
+- 如果几何为 NULL，则返回 NULL。
+
+**举例**：
+
+```sql
+taos> select st_isempty(NULL);
+ st_isempty(null) |
+===================
+ NULL             |
+
+taos> select st_isempty(ST_GeomFromText('LINESTRING(0 0, 1 1)'));
+ st_isempty(st_geomfromtext('LINESTRING(0 0, 1 1)')) |
+======================================================
+ false                                               |
+
+taos> select st_isempty(ST_GeomFromText('LINESTRING EMPTY'));
+ st_isempty(st_geomfromtext('LINESTRING EMPTY')) |
+==================================================
+ true                                            |
+```
+
+#### ST_DIMENSION
+
+```sql
+ST_DIMENSION(GEOMETRY geometry)
+```
+
+**功能说明**: 返回几何对象的维度。
+
+**返回值类型**: TINY INT. 
+
+**适用数据类型**: GEOMETRY.
+
+**适用表类型**：标准表和超表。
+
+**使用说明**:
+
+- 如果几何为 NULL，则返回 NULL。
+- 对于简单几何体，ST_DIMENSION 返回：
+    * 如果几何体为空，则返回 -1；
+    * 如果几何体的长度和面积等于 0（例如点），则返回 0；
+    * 如果几何体的长度不为零，且面积为零（例如线），则返回 1；
+    * 如果几何体的面积大于 0（例如多边形），则返回 2。
+- 对于集合，它返回其组件的最大维度
+
+**举例**：
+
+```sql
+taos> select st_dimension(NULL);
+ st_dimension(null) |
+=====================
+ NULL               |
+
+taos> SELECT ST_Dimension(ST_GeomFromText('LINESTRING EMPTY'));
+ st_dimension(st_geomfromtext('LINESTRING EMPTY')) |
+====================================================
+                                                -1 |
+
+taos> select st_dimension(ST_GeomFromText('POINT(1 2)'));
+ st_dimension(st_geomfromtext('POINT(1 2)')) |
+==============================================
+                                           0 |
+
+taos> SELECT ST_Dimension(ST_GeomFromText('LINESTRING(0 0, 1 1)'));
+ st_dimension(st_geomfromtext('LINESTRING(0 0, 1 1)')) |
+========================================================
+                                                     1 |
+
+taos> SELECT ST_Dimension(ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))'));
+ st_dimension(st_geomfromtext('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0)) |
+===================================================================
+                                                                2 |
+
+taos> SELECT ST_Dimension(ST_GeomFromText('GEOMETRYCOLLECTION(POINT(1 1), LINESTRING(0 0, 1 1))'));
+ st_dimension(st_geomfromtext('GEOMETRYCOLLECTION(POINT(1 1), LIN |
+===================================================================
+                                                                1 |
+```

@@ -1,0 +1,7 @@
+select st_y(NULL)
+select st_y(ST_GeomFromText('POINT(45 900)'))
+select st_y(ST_GeomFromText('POINT(45 900)'), NULL)
+select st_y(ST_GeomFromText('POINT(45 900)'), 0)
+select st_y(ST_GeomFromText('POINT(45 900)'), -0.00004)
+select st_y(ST_GeomFromText('POINT(45 900)'), 10.0)
+select st_y(ST_GeomFromText('POINT(45 900)'), 1000000003445)

@@ -1,0 +1,46 @@
+
+taos> select st_numgeometries(NULL)
+ st_numgeometries(null) |
+=========================
+ NULL                   |
+
+taos> SELECT ST_NumGeometries(ST_GeomFromText('GEOMETRYCOLLECTION(POINT(1 1), LINESTRING(0 0, 2 2))'))
+ st_numgeometries(st_geomfromtext('GEOMETRYCOLLECTION(POINT(1 1), |
+===================================================================
+                                                                2 |
+
+taos> SELECT ST_NumGeometries(ST_GeomFromText('MULTIPOINT((0 0), (1 1), (2 2))'))
+ st_numgeometries(st_geomfromtext('MULTIPOINT((0 0), (1 1), (2 2) |
+===================================================================
+                                                                3 |
+
+taos> SELECT ST_NumGeometries(ST_GeomFromText('MULTIPOINT EMPTY'))
+ st_numgeometries(st_geomfromtext('MULTIPOINT EMPTY')) |
+========================================================
+                                                     0 |
+
+taos> SELECT ST_NumGeometries(ST_GeomFromText('MULTILINESTRING((0 0, 1 1), (2 2, 3 3))'))
+ st_numgeometries(st_geomfromtext('MULTILINESTRING((0 0, 1 1), (2 |
+===================================================================
+                                                                2 |
+
+taos> SELECT ST_NumGeometries(ST_GeomFromText('MULTIPOLYGON(((0 0, 1 0, 1 1, 0 1, 0 0)),((2 2, 3 2, 3 3, 2 3, 2 2)))'))
+ st_numgeometries(st_geomfromtext('MULTIPOLYGON(((0 0, 1 0, 1 1,  |
+===================================================================
+                                                                2 |
+
+taos> SELECT ST_NumGeometries(ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))'))
+ st_numgeometries(st_geomfromtext('POLYGON((0 0, 1 0, 1 1, 0 1, 0 |
+===================================================================
+ NULL                                                             |
+
+taos> SELECT ST_NumGeometries(ST_GeomFromText('LINESTRING(0 0, 1 1)'))
+ st_numgeometries(st_geomfromtext('LINESTRING(0 0, 1 1)')) |
+============================================================
+ NULL                                                      |
+
+taos> SELECT ST_NumGeometries(ST_GeomFromText('POINT(0 0)'))
+ st_numgeometries(st_geomfromtext('POINT(0 0)')) |
+==================================================
+ NULL                                            |
+

@@ -34,6 +34,14 @@ int32_t touchesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
 int32_t coversFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t containsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t containsProperlyFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t geomGetX(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t geomGetY(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t numPointsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t numInteriorRingsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t numGeometriesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t isSimpleFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t isEmptyFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t dimensionFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 #endif
 
 #ifdef __cplusplus

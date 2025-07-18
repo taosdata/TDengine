@@ -1,0 +1,5 @@
+select st_numinteriorrings(NULL)
+select st_numinteriorrings(ST_GeomFromText('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'))
+select st_numinteriorrings(ST_GeomFromText('POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0),(3 3, 7 3, 7 7, 3 7, 3 3))'))
+select st_numinteriorrings(ST_GeomFromText('POLYGON((0 0, 12 0, 12 12, 0 12, 0 0),(2 2, 4 2, 4 4, 2 4, 2 2),(6 6, 10 6, 10 10, 6 10, 6 6))'))
+select st_numinteriorrings(ST_GeomFromText('POLYGON((0 0, 15 0, 15 15, 0 15, 0 0),(2 2, 5 2, 5 5, 2 5, 2 2),(6 6, 9 6, 9 9, 6 9, 6 6),(10 10, 13 10, 13 13, 10 13, 10 10))'));

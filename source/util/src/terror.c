@@ -925,6 +925,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_DATA_TYPE,   "Virtual table not s
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_STMT,        "Virtual table not support in STMT query and STMT insert")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_TOPIC,       "Virtual table not support in topic")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_CROSS_DB,    "Virtual super table query not support origin table from different databases")
+
+// GEOMETRY
+TAOS_DEFINE_ERROR(TSDB_CODE_UNEXPECTED_GEOMETRY_TYPE,       "Unexpected geometry type")
+TAOS_DEFINE_ERROR(TSDB_CODE_GEOMETRY_DATA_OUT_OF_RANGE,     "Geometry value out of range")
 #ifdef TAOS_ERROR_C
 };
 #endif

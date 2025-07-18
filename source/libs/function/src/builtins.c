@@ -1616,6 +1616,19 @@ static int32_t translateOutGeom(SFunctionNode* pFunc, char* pErrBuf, int32_t len
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateOutGeomOrDouble(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+
+  if (pFunc->pParameterList->length == 1) {
+    pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  } else {
+    SDataType dt = *getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
+    pFunc->node.resType = (SDataType){.bytes = dt.bytes, .type = TSDB_DATA_TYPE_GEOMETRY};
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateInGeomOutStr(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
   SDataType dt = *getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
@@ -1627,6 +1640,20 @@ static int32_t translateInGeomOutStr(SFunctionNode* pFunc, char* pErrBuf, int32_
 static int32_t translateIn2GeomOutBool(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes, .type = TSDB_DATA_TYPE_BOOL};
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateInGeomOutUint(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_UINT].bytes, .type = TSDB_DATA_TYPE_UINT};
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateInGeomOutTinyInt(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_TINYINT].bytes, .type = TSDB_DATA_TYPE_TINYINT};
 
   return TSDB_CODE_SUCCESS;
 }
@@ -4677,6 +4704,188 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = containsProperlyFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_x",
+    .type = FUNCTION_TYPE_PONT_X,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 2,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = false,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_GEOMETRY_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][1] = {.isLastParam = true,
+                                           .startParam = 2,
+                                           .endParam = 2,
+                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE | FUNC_PARAM_SUPPORT_GEOMETRY_TYPE}},
+    .translateFunc = translateOutGeomOrDouble,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = geomGetX,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_y",
+    .type = FUNCTION_TYPE_PONT_Y,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 2,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = false,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_GEOMETRY_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][1] = {.isLastParam = true,
+                                           .startParam = 2,
+                                           .endParam = 2,
+                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE | FUNC_PARAM_SUPPORT_GEOMETRY_TYPE}},
+    .translateFunc = translateOutGeomOrDouble,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = geomGetY,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_numpoints",
+    .type = FUNCTION_TYPE_NUM_POINTS,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_GEOMETRY_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_UINT_TYPE}},
+    .translateFunc = translateInGeomOutUint,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = numPointsFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_numinteriorrings",
+    .type = FUNCTION_TYPE_NUM_INTERIOR_RINGS,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_GEOMETRY_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_UINT_TYPE}},
+    .translateFunc = translateInGeomOutUint,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = numInteriorRingsFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_numgeometries",
+    .type = FUNCTION_TYPE_NUM_GEOMETRIES,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_GEOMETRY_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_UINT_TYPE}},
+    .translateFunc = translateInGeomOutUint,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = numGeometriesFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_issimple",
+    .type = FUNCTION_TYPE_GEOM_IS_SIMPLE,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_GEOMETRY_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BOOL_TYPE}},
+    .translateFunc = translateIn2GeomOutBool,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = isSimpleFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_isempty",
+    .type = FUNCTION_TYPE_GEOM_IS_EMPTY,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_GEOMETRY_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BOOL_TYPE}},
+    .translateFunc = translateIn2GeomOutBool,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = isEmptyFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_dimension",
+    .type = FUNCTION_TYPE_GEOM_DIMENSION,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_GEOMETRY_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_INT_TYPE}},
+    .translateFunc = translateInGeomOutTinyInt,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = dimensionFunction,
     .finalizeFunc = NULL
   },
 #endif

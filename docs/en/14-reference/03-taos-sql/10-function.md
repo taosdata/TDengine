@@ -2663,3 +2663,337 @@ ST_ContainsProperly(GEOMETRY geomA, GEOMETRY geomB)
 **Applicable Table Types**: Basic tables and supertables
 
 **Usage Instructions**: No points of B are on the boundary or outside of A.
+
+### Geometric Property Functions
+#### ST_X
+
+```sql
+ST_X(GEOMETRY point [, DOUBLE new_x])
+```
+
+**Function Description**: ST_X returns the X-coordinate value of a valid GEOMETRY object `point` as a double-precision number. With the optional second argument, ST_X returns a GEOMETRY object with the same Y coordinate, but the X coordinate set to the value of the second argument.
+
+**Return Type**: GEOMETRY [, DOUBLE]
+
+**Applicable Data Types**: GEOMETRY [, DOUBLE]
+
+**Applicable to**: Basic tables and supertables
+
+**Usage Notes**:
+
+- If geometry is NULL, return NULL;
+- If the first parameter is not a point, exit with TSDB_CODE_UNEXPECTED_GEOMETRY_TYPE status code;
+- If the second parameter is not finite, exit with TSDB_CODE_GEOMETRY_DATA_OUT_OF_RANGE status code;
+- If it's applied to one parameter, it returns a double value that represents the first coordinate of the input point;
+- If it's applied to two parameter, a point and a double number, it returns a point with the double parameter as first coordinate.
+
+**Examples**:
+
+```sql
+taos> select st_x(NULL);
+        st_x(null)         |
+============================
+ NULL                      |
+
+taos> select st_x(ST_GeomFromText('POINT(45 900)'));
+ st_x(st_geomfromtext('POINT(45 900)')) |
+=========================================
+                                     45 |
+
+taos> select st_x(ST_GeomFromText('POINT(45 900)'), 10.0);
+ st_x(st_geomfromtext('POINT(45 900)'), 10.0) |
+===============================================
+ POINT (10.000000 900.000000)                 |
+
+taos> select st_x(ST_GeomFromText('POINT(45 900)'), 1000000003445);
+ st_x(st_geomfromtext('POINT(45 900)'), 1000000003445) |
+========================================================
+ POINT (1000000003445.000000 900.000000)               |
+```
+
+#### ST_Y
+
+```sql
+ST_Y(GEOMETRY point [, DOUBLE new_y])
+```
+
+**Function Description**: ST_Y returns the Y-coordinate value of a valid GEOMETRY object `point` as a double-precision number. With the optional second argument, ST_Y returns a GEOMETRY object with the same X coordinate, but the Y coordinate set to the value of the second argument.
+
+**Return Type**: GEOMETRY [, DOUBLE]
+
+**Applicable Data Types**: GEOMETRY [, DOUBLE]
+
+**Applicable to**: Basic tables and supertables
+
+**Usage Notes**:
+
+- If geometry is NULL, return NULL;
+- If the first parameter is not a point, exit with TSDB_CODE_UNEXPECTED_GEOMETRY_TYPE status code;
+- If the second parameter is not finite, exit with TSDB_CODE_GEOMETRY_DATA_OUT_OF_RANGE status code;
+- If it's applied to one parameter, it returns a double value that represents the second coordinate of the input point;
+- If it's applied to two parameter, a point and a double number, it returns a point with the double parameter as second coordinate.
+
+**Examples**:
+
+```sql
+taos> select st_y(NULL);
+        st_y(null)         |
+============================
+ NULL                      |
+
+taos> select st_y(ST_GeomFromText('POINT(45 900)'));
+ st_y(st_geomfromtext('POINT(45 900)')) |
+=========================================
+                                    900 |
+
+taos> select st_y(ST_GeomFromText('POINT(45 900)'), 10.0);
+ st_y(st_geomfromtext('POINT(45 900)'), 10.0) |
+===============================================
+ POINT (45.000000 10.000000)                  |
+
+taos> select st_y(ST_GeomFromText('POINT(45 900)'), 1000000003445);
+ st_y(st_geomfromtext('POINT(45 900)'), 1000000003445) |
+========================================================
+ POINT (45.000000 1000000003445.000000)                |
+```
+
+#### ST_NUMPOINTS
+
+```sql
+ST_NUMPOINTS(GEOMETRY linestring)
+```
+
+**Function Description**: Returns the number of points in the linestring input parameter. 
+
+**Return Type**: INT UNSIGNED.
+
+**Applicable Data Types**: GEOMETRY.
+
+**Applicable to**: Basic tables and supertables.
+
+**Usage Notes**:
+
+- if linestring is NULL, return NULL.
+
+**Examples**:
+
+```sql
+taos> select st_numpoints(NULL);
+ st_numpoints(null) |
+=====================
+ NULL               |
+
+taos> select st_numpoints(ST_GeomFromText('LINESTRING (30 10, 10 30, 40 40)'));
+ st_numpoints(st_geomfromtext('LINESTRING (30 10, 10 30, 40 40)') |
+===================================================================
+                                                                3 |
+```
+
+#### ST_NUMINTERIORRINGS
+
+```sql
+ST_NUMINTERIORRINGS(GEOMETRY polygon)
+```
+
+**Function Description**: Returns the number of inner rings of a polygon.
+
+**Return Type**: INT UNSIGNED. 
+
+**Applicable Data Types**: GEOMETRY.
+
+**Applicable to**: Basic tables and supertables.
+
+**Usage Notes**:
+
+- if polygon is NULL, return NULL.
+
+**Examples**:
+
+```sql
+taos> select st_numinteriorrings(NULL);
+ st_numinteriorrings(null) |
+============================
+ NULL                      |
+
+taos> select st_numinteriorrings(ST_GeomFromText('POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0),(3 3, 7 3, 7 7, 3 7, 3 3))'));
+ st_numinteriorrings(st_geomfromtext('POLYGON ((0 0, 10 0, 10 10, |
+===================================================================
+                                                                1 |
+
+taos> select st_numinteriorrings(ST_GeomFromText('POLYGON ((0 0, 8 0, 8 4, 4 4, 4 8, 0 8, 0 0),(1 1, 3 1, 3 3, 1 3, 1 1))'));
+ st_numinteriorrings(st_geomfromtext('POLYGON ((0 0, 8 0, 8 4, 4  |
+===================================================================
+                                                                1 |
+```
+
+#### ST_NUMGEOMETRIES
+
+```sql
+ST_NUMGEOMETRIES(GEOMETRY geometryCollection)
+```
+
+**Function Description**: Returns the number of geometry objects in a geometry collection.
+
+**Return Type**: INT UNSIGNED. 
+
+**Applicable Data Types**: GEOMETRY.
+
+**Applicable to**: Basic tables and supertables.
+
+**Usage Notes**:
+
+- if the collection is NULL, return NULL;
+- If the collection is not composite, return NULL;
+- If the collection is empty, return 0;
+- Otherwise return the number of geometries in the collection.
+
+**Examples**:
+
+```sql
+taos> select st_numgeometries(NULL);
+ st_numgeometries(null) |
+=========================
+ NULL                   |
+
+taos> select st_numgeometries(ST_GeomFromText('GEOMETRYCOLLECTION(POINT(1 1), LINESTRING(0 0, 2 2))'));
+ st_numgeometries(st_geomfromtext('GEOMETRYCOLLECTION(POINT(1 1), |
+===================================================================
+                                                                2 |
+
+taos> select st_numgeometries(ST_GeomFromText('GEOMETRYCOLLECTION(POINT(1 1), LINESTRING(0 0, 2 2), POINT(5 5))'));
+ st_numgeometries(st_geomfromtext('GEOMETRYCOLLECTION(POINT(1 1), |
+===================================================================
+                                                                3 |
+```
+
+#### ST_ISSIMPLE
+
+```sql
+ST_ISSIMPLE(GEOMETRY geometry)
+```
+
+**Function Description**: Checks if a geometry object is simple.
+
+**Return Type**: BOOL. 
+
+**Applicable Data Types**: GEOMETRY.
+
+**Applicable to**: Basic tables and supertables.
+
+**Usage Notes**:
+
+- if geometry is NULL, return NULL.
+
+**Examples**:
+
+```sql
+taos> select st_issimple(NULL);
+ st_issimple(null) |
+====================
+ NULL              |
+
+taos> select st_issimple(ST_GeomFromText('LINESTRING(0 0, 1 0, 1 1, 0 1, 0 0)'));
+ st_issimple(st_geomfromtext('LINESTRING(0 0, 1 0, 1 1, 0 1, 0 0) |
+===================================================================
+ true                                                             |
+
+taos> select st_issimple(ST_GeomFromText('LINESTRING(0 0, 1 1, 1 0, 0 1, 0 0)'));
+ st_issimple(st_geomfromtext('LINESTRING(0 0, 1 1, 1 0, 0 1, 0 0) |
+===================================================================
+ false                                                            |
+```
+
+#### ST_ISEMPTY
+
+```sql
+ST_ISEMPTY(GEOMETRY geometry)
+```
+
+**Function Description**: Checks if a geometry object is empty.
+
+**Return Type**: BOOL. 
+
+**Applicable Data Types**: GEOMETRY.
+
+**Applicable to**: Basic tables and supertables.
+
+**Usage Notes**:
+
+- if geometry is NULL, return NULL.
+
+**Examples**:
+
+```sql
+taos> select st_isempty(NULL);
+ st_isempty(null) |
+===================
+ NULL             |
+
+taos> select st_isempty(ST_GeomFromText('LINESTRING(0 0, 1 1)'));
+ st_isempty(st_geomfromtext('LINESTRING(0 0, 1 1)')) |
+======================================================
+ false                                               |
+
+taos> select st_isempty(ST_GeomFromText('LINESTRING EMPTY'));
+ st_isempty(st_geomfromtext('LINESTRING EMPTY')) |
+==================================================
+ true                                            |
+```
+
+#### ST_DIMENSION
+
+```sql
+ST_DIMENSION(GEOMETRY geometry)
+```
+
+**Function Description**: Returns the dimension of a geometry object.
+
+**Return Type**: TINY INT. 
+
+**Applicable Data Types**: GEOMETRY.
+
+**Applicable to**: Basic tables and supertables.
+
+**Usage Notes**:
+
+- if geometry is NULL, return NULL.
+- For simple geometries, ST_DIMENSION returns:
+    * -1 if geometry is empty;
+    * 0 if geometry has length and area equal to 0 (e.g. a point);
+    * 1 if geometry has nonzero length and zero area (e.g. a line);
+    * 2 if geometry has area greater than 0 (e.g. a polygon).
+- For collections, it return the maximum dimension of their components.
+
+**Examples**:
+
+```sql
+taos> select st_dimension(NULL);
+ st_dimension(null) |
+=====================
+ NULL               |
+
+taos> select st_dimension(ST_GeomFromText('LINESTRING EMPTY'));
+ st_dimension(st_geomfromtext('LINESTRING EMPTY')) |
+====================================================
+                                                -1 |
+
+taos> select st_dimension(ST_GeomFromText('POINT(1 2)'));
+ st_dimension(st_geomfromtext('POINT(1 2)')) |
+==============================================
+                                           0 |
+
+taos> select st_dimension(ST_GeomFromText('LINESTRING(0 0, 1 1)'));
+ st_dimension(st_geomfromtext('LINESTRING(0 0, 1 1)')) |
+========================================================
+                                                     1 |
+
+taos> select st_dimension(ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))'));
+ st_dimension(st_geomfromtext('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0)) |
+===================================================================
+                                                                2 |
+
+taos> select st_dimension(ST_GeomFromText('GEOMETRYCOLLECTION(POINT(1 1), LINESTRING(0 0, 1 1))'));
+ st_dimension(st_geomfromtext('GEOMETRYCOLLECTION(POINT(1 1), LIN |
+===================================================================
+                                                                1 |
+```
