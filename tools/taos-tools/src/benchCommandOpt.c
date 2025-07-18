@@ -562,7 +562,7 @@ void queryAggrFunc() {
 
     // REST
     if (REST_IFACE != g_arguments->iface) {
-        pThreadInfo->conn = initBenchConn(pThreadInfo->dbInfo->dbName);
+        pThreadInfo->conn = initBenchConn(database->dbName);
         if (pThreadInfo->conn == NULL) {
             errorPrint("%s() failed to init connection\n", __func__);
             free(pThreadInfo);
