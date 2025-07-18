@@ -431,7 +431,7 @@ class Test_IDMP_Meters:
 
         # trigger first windows close with 11 steps
         count = 1
-        ts += 10 * step
+        ts += 30 * step
         vals = "40,500,300"
         ts = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
@@ -441,8 +441,7 @@ class Test_IDMP_Meters:
         count = 2
         disTs = spanTs + 5 * step
         orderVals = [36, 406, 206]
-        # ***** bug6 *****
-        #disTs = tdSql.insertOrderVal(table, disTs, step, count, cols, orderVals)
+        disTs = tdSql.insertOrderVal(table, disTs, step, count, cols, orderVals)
 
 
     #
@@ -833,8 +832,8 @@ class Test_IDMP_Meters:
             sql  = result_sql, 
             func = lambda: tdSql.getRows() == 1
             and tdSql.compareData(0, 0, self.start2) # ts
-            and tdSql.compareData(0, 1, 3 + 4 + 1)   # cnt
-            and tdSql.compareData(0, 2, 31)          # last current
+            and tdSql.compareData(0, 1, 3 + 4 + 1 + 2)   # cnt
+            and tdSql.compareData(0, 2, 37)          # last current
         )
 
         tdLog.info(f"verify stream5 sub1 ............................ successfully.")
