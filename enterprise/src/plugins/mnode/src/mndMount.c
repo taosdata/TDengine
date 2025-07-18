@@ -421,6 +421,9 @@ static int32_t mndMountSetStbInfo(SMnode *pMnode, SDnodeObj *pDnode, SMountInfo 
     pCol->bytes = pColInfo->bytes;
     pCol->flags = pColInfo->flags;
     (void)snprintf(pCol->name, sizeof(pCol->name), "%s", pColInfo->name);
+    pCmpr->id = pCol->colId;
+    pCmpr->alg = pColInfo->compress;
+    pExt->typeMod = pColInfo->typeMod;
   }
   for (int32_t t = 0; t < pReq->numOfTags; ++t) {
     SField  *pTagInfo = TARRAY_GET_ELEM(pReq->pTags, t);
@@ -807,11 +810,15 @@ int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, SUserOb
 
   // dbCfg
   // mntObj.dbCfg = pCreate->dbCfg;
-  TSDB_CHECK_CONDITION(((nDbs = taosArrayGetSize(pInfo->pDbs)) > 0), code, lino, _exit,
-                       TSDB_CODE_MND_INVALID_MOUNT_INFO);
+  if ((nDbs = taosArrayGetSize(pInfo->pDbs)) <= 0) {
+    mError("mount:%s, failed to create mount since No db exist", pInfo->mountName);
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_MOUNT_INFO);
+  }
 
   TSDB_CHECK_NULL((pDnode = mndAcquireDnode(pMnode, pInfo->dnodeId)), code, lino, _exit, terrno);
 
+  pDnode->numOfVnodes = mndGetVnodesNum(pMnode, pDnode->id);
+  pDnode->memUsed = mndGetVnodesMemory(pMnode, pDnode->id);
   // check before create db
   for (int32_t i = 0; i < nDbs; ++i) {
     SMountDbInfo *pDb = taosArrayGet(pInfo->pDbs, i);
@@ -886,6 +893,7 @@ int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, SUserOb
   mInfo("trans:%d, used to create mount:%s", pTrans->id, pInfo->mountName);
 
   mndTransSetDbName(pTrans, mntObj.name, NULL);
+  mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
   TAOS_CHECK_EXIT(mndTransCheckConflict(pMnode, pTrans));
 
   mndTransSetOper(pTrans, MND_OPER_CREATE_MOUNT);
