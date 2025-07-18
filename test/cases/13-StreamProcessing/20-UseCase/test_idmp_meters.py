@@ -474,12 +474,10 @@ class Test_IDMP_Meters:
         tdSql.flushDb(self.vdb)
 
         # write disorder window 3
-        ''' ***** bug7 *****
         ts = disTs
         count = 5
         orderVals = [400]
         ts = tdSql.insertOrderVal(table, ts, step, count, cols, orderVals)
-        '''
 
         # write window5 1 rows to tigger 
 
@@ -823,15 +821,14 @@ class Test_IDMP_Meters:
         )
 
         # sub
-        # ***** bug6 *****
-        #self.verify_stream5_sub1()
+        self.verify_stream5_sub1()
 
         tdLog.info(f"verify stream5 ................................. successfully.")
 
 
     def verify_stream5_sub1(self):    
         # result_stream5_sub1
-        result_sql_sub1 = f"select * from {self.vdb}.`result_stream5_sub1` "
+        result_sql = f"select * from {self.vdb}.`result_stream5_sub1` "
         tdSql.checkResultsByFunc (
             sql  = result_sql, 
             func = lambda: tdSql.getRows() == 1

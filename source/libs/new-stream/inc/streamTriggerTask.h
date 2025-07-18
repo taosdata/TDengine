@@ -242,6 +242,7 @@ typedef struct SStreamTriggerTask {
   bool    igNoDataTrigger;
   bool    hasPartitionBy;
   bool    isVirtualTable;
+  bool    ignoreNoDataTrigger;
   int64_t placeHolderBitmap;
   SNode  *triggerFilter;
   // notify options

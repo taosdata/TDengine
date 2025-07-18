@@ -9,23 +9,24 @@ class TestIdmpTobacco:
     def test_tobacco(self):
         """
         Refer: https://taosdata.feishu.cn/wiki/Zkb2wNkHDihARVkGHYEcbNhmnxb#share-I9GwdF26PoWk6uxx2zJcxZYrn1d
-        1. 测试 AI 推荐生成的分析，创建 Stream，验证流的正确性
+        1. 测试 AI 推荐生成的分析，创建 Stream,验证流的正确性
         2. 测试手动创建的分析，验证流的正确性
             2.1. 触发类型：
                 - 定时窗口：指定不同的窗口大小、窗口偏移
                 - 状态窗口：指定状态的字段
                 - 会话窗口：指定会话的时间间隔
             2.2. 时间窗口聚合：
-                - 窗口开始时间：_tprev_localtime/ _twstart/ _tprev_ts
-                - 窗口结束时间：_tlocaltime/ _twend/ _tcurrent_ts
+                - 窗口开始时间: _tprev_localtime/ _twstart/ _tprev_ts
+                - 窗口结束时间: _tlocaltime/ _twend/ _tcurrent_ts
             2.3. 输出属性：
-                - AVG：平均值
-                - LAST：最新值
-                - SUM：求和
-                - MAX：最大值
-                - STDDEV：标准差
-                - SPREAD：极差
-                - SPREAD/FIRST：变化率        Catalog:
+                - AVG: 平均值
+                - LAST:最新值
+                - SUM: 求和
+                - MAX: 最大值
+                - STDDEV: 标准差
+                - SPREAD: 极差
+                - SPREAD/FIRST: 变化率
+        Catalog:
             - Streams:UseCases
         Since: v3.3.6.14
         Labels: common,ci
@@ -34,7 +35,10 @@ class TestIdmpTobacco:
         History:
             - 2025-7-11 zyyang90 Created
         """
-        TestIdmpTobaccoImpl().run()
+        tobac = TestIdmpTobaccoImpl()
+        tobac.init()
+        tobac.stream_ids = [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        tobac.run()
 
 
 class TestIdmpTobaccoImpl:

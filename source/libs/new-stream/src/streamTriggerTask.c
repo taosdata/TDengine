@@ -1058,6 +1058,12 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   pTask->igNoDataTrigger = pMsg->igNoDataTrigger;
   pTask->hasPartitionBy = pMsg->hasPartitionBy;
   pTask->isVirtualTable = pMsg->isTriggerTblVirt;
+  pTask->ignoreNoDataTrigger = pMsg->igNoDataTrigger;
+  if (pTask->ignoreNoDataTrigger) {
+    QUERY_CHECK_CONDITION(
+        (pTask->triggerType == STREAM_TRIGGER_PERIOD) || (pTask->triggerType == STREAM_TRIGGER_SLIDING), code, lino,
+        _end, TSDB_CODE_INVALID_PARA);
+  }
   pTask->placeHolderBitmap = pMsg->placeHolderBitmap;
   pTask->streamName = taosStrdup(pMsg->streamName);
   code = nodesStringToNode(pMsg->triggerPrevFilter, &pTask->triggerFilter);
@@ -2781,6 +2787,21 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           code = stRealtimeGroupAddMetaDatas(pGroup, pAllMetadatas, pVgIds);
           QUERY_CHECK_CODE(code, lino, _end);
           if (pGroup->newThreshold > pGroup->oldThreshold) {
+            TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+          }
+          px = tSimpleHashIterate(pContext->pGroups, px, &iter);
+        }
+      }
+
+      if ((pTask->triggerType == STREAM_TRIGGER_PERIOD) && !pTask->igNoDataTrigger) {
+        int32_t iter = 0;
+        void *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
+        while (px != NULL) {
+          SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
+          if (TD_DLIST_NODE_NEXT(pGroup) == NULL && TD_DLIST_TAIL(&pContext->groupsToCheck) != pGroup) {
+            // add the group to check list
+            pGroup->oldThreshold = INT64_MIN;
+            pGroup->newThreshold = INT64_MAX;
             TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
           }
           px = tSimpleHashIterate(pContext->pGroups, px, &iter);
@@ -4801,10 +4822,11 @@ static int32_t stRealtimeGroupMergeSavedWindows(SSTriggerRealtimeGroup *pGroup, 
                                   .wend = pWin->range.ekey,
                                   .wduration = pWin->range.ekey - pWin->range.skey,
                                   .wrownum = pWin->wrownum};
-      if (calcOpen) {
+      bool ignore = pTask->ignoreNoDataTrigger && (param.wrownum == 0);
+      if (calcOpen && !ignore) {
         void *px = taosArrayPush(pGroup->pPendingCalcParams, &param);
         QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-      } else if (notifyOpen) {
+      } else if (notifyOpen && !ignore) {
         void *px = taosArrayPush(pContext->pNotifyParams, &param);
         QUERY_CHECK_NULL(px, code, lino, _end, terrno);
       }
@@ -4825,6 +4847,7 @@ static int32_t stRealtimeGroupMergeSavedWindows(SSTriggerRealtimeGroup *pGroup, 
                                   .wend = pWin->range.ekey,
                                   .wduration = pWin->range.ekey - pWin->range.skey,
                                   .wrownum = pWin->wrownum};
+      bool ignore = pTask->ignoreNoDataTrigger && (param.wrownum == 0);
       if (notifyClose) {
         if ((pTask->triggerType == STREAM_TRIGGER_PERIOD) ||
             (pTask->triggerType == STREAM_TRIGGER_SLIDING && pTask->interval.interval == 0)) {
@@ -4833,10 +4856,10 @@ static int32_t stRealtimeGroupMergeSavedWindows(SSTriggerRealtimeGroup *pGroup, 
           param.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
         }
       }
-      if (calcClose) {
+      if (calcClose && !ignore) {
         void *px = taosArrayPush(pGroup->pPendingCalcParams, &param);
         QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-      } else if (notifyClose) {
+      } else if (notifyClose && !ignore) {
         void *px = taosArrayPush(pContext->pNotifyParams, &param);
         QUERY_CHECK_NULL(px, code, lino, _end, terrno);
       }
@@ -5051,6 +5074,8 @@ static int32_t stRealtimeGroupDoSlidingCheck(SSTriggerRealtimeGroup *pGroup) {
 
   if (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM) {
     readAllData = true;
+  } else if (pTask->igNoDataTrigger) {
+    readAllData = true;
   }
 
   if (readAllData) {
@@ -5078,12 +5103,12 @@ static int32_t stRealtimeGroupDoSlidingCheck(SSTriggerRealtimeGroup *pGroup) {
         if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
           TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += nrows;
         }
-        if (ts == nextStart) {
+        bool meetBound = (r < endIdx) || (r > 0 && pTsData[r - 1] == ts);
+        if (ts == nextStart && meetBound) {
           code = stRealtimeGroupOpenWindow(pGroup, ts, NULL, true, r > 0 && pTsData[r - 1] == nextStart);
           QUERY_CHECK_CODE(code, lino, _end);
         }
-        QUERY_CHECK_CONDITION(IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-        if (TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey == ts) {
+        if ((TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey == ts) && meetBound) {
           code = stRealtimeGroupCloseWindow(pGroup, NULL, true);
           QUERY_CHECK_CODE(code, lino, _end);
         }
@@ -5109,7 +5134,6 @@ static int32_t stRealtimeGroupDoSlidingCheck(SSTriggerRealtimeGroup *pGroup) {
       if (ts == nextStart) {
         code = stRealtimeGroupOpenWindow(pGroup, ts, NULL, false, false);
         QUERY_CHECK_CODE(code, lino, _end);
-        TRINGBUF_HEAD(&pGroup->winBuf)->wrownum = 0;
       }
       if (ts == curEnd) {
         code = stRealtimeGroupCloseWindow(pGroup, NULL, false);
