@@ -1047,7 +1047,7 @@ int32_t tBlobRowRebuild(SBlobSet *p, int32_t sRow, int32_t nrow, SBlobSet **pDst
 int32_t tBlobRowDestroy(SBlobSet *pBlobRow) {
   if (pBlobRow == NULL) return 0;
   int32_t code = 0;
-  uInfo("destroy blob row, seqTable size %p", pBlobRow);
+  uTrace("destroy blob row, seqTable size %p", pBlobRow);
   taosMemoryFree(pBlobRow->data);
   taosArrayDestroy(pBlobRow->pSeqTable);
   taosHashCleanup(pBlobRow->pSeqToffset);
@@ -1058,7 +1058,7 @@ int32_t tBlobRowDestroy(SBlobSet *pBlobRow) {
 int32_t tBlobRowClear(SBlobSet *pBlobRow) {
   if (pBlobRow == NULL) return 0;
   int32_t code = 0;
-  uInfo("clear blob row, seqTable size %p", pBlobRow);
+  uTrace("clear blob row, seqTable size %p", pBlobRow);
   taosArrayClear(pBlobRow->pSeqTable);
   taosHashClear(pBlobRow->pSeqToffset);
   pBlobRow->len = 0;
@@ -1263,7 +1263,7 @@ int32_t tBlobSetSize(SBlobSet *pBlobSet) {
 int32_t tBlobSetDestroy(SBlobSet *pBlobSet) {
   if (pBlobSet == NULL) return 0;
   int32_t code = 0;
-  uInfo("destroy blob row, seqTable size %p", pBlobSet);
+  uTrace("destroy blob row, seqTable size %p", pBlobSet);
   taosMemoryFree(pBlobSet->data);
   taosArrayDestroy(pBlobSet->pSeqTable);
   taosHashCleanup(pBlobSet->pSeqToffset);
@@ -1274,7 +1274,7 @@ int32_t tBlobSetDestroy(SBlobSet *pBlobSet) {
 int32_t tBlobSetClear(SBlobSet *pBlobSet) {
   if (pBlobSet == NULL) return 0;
   int32_t code = 0;
-  uInfo("clear blob row, seqTable size %p", pBlobSet);
+  uTrace("clear blob row, seqTable size %p", pBlobSet);
   taosArrayClear(pBlobSet->pSeqTable);
   taosHashClear(pBlobSet->pSeqToffset);
   pBlobSet->len = 0;
@@ -5131,6 +5131,11 @@ int32_t tRowBuildFromBind2WithBlob(SBindInfo2 *infos, int32_t numOfInfos, bool i
       if ((code = tRowBuildWithBlob(colValArray, pTSchema, &row, pBlobSet, &sinfo))) {
         goto _exit;
       }
+    }
+
+    if ((taosArrayPush(rowArray, &row)) == NULL) {
+      code = terrno;
+      goto _exit;
     }
 
     if (pOrdered && pDupTs) {
