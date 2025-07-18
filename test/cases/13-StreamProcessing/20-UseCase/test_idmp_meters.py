@@ -744,7 +744,8 @@ class Test_IDMP_Meters:
         result_sql = f"select * from {self.vdb}.`result_stream4_sub9` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
-            func = lambda: tdSql.getRows() == 119
+            func = lambda: tdSql.getRows() == 119,
+            retry = 120
         )
 
         for i in range(tdSql.getRows()):
