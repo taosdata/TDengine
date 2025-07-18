@@ -2289,8 +2289,8 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
             }
           }
           if (TARRAY_SIZE(pContext->pCalcReq->params) > 0) {
-            SSTriggerCalcParam *pParam= taosArrayGetLast(pContext->pCalcReq->params);
-            QUERY_CHECK_NULL(pParam, code, lino,_end, terrno);
+            SSTriggerCalcParam *pParam = taosArrayGetLast(pContext->pCalcReq->params);
+            QUERY_CHECK_NULL(pParam, code, lino, _end, terrno);
             prevWindowEnd = pParam->wend;
             code = stRealtimeContextSendCalcReq(pContext);
             QUERY_CHECK_CODE(code, lino, _end);
@@ -2795,7 +2795,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
 
       if ((pTask->triggerType == STREAM_TRIGGER_PERIOD) && !pTask->igNoDataTrigger) {
         int32_t iter = 0;
-        void *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
+        void   *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
         while (px != NULL) {
           SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
           if (TD_DLIST_NODE_NEXT(pGroup) == NULL && TD_DLIST_TAIL(&pContext->groupsToCheck) != pGroup) {
@@ -4822,6 +4822,15 @@ static int32_t stRealtimeGroupMergeSavedWindows(SSTriggerRealtimeGroup *pGroup, 
                                   .wend = pWin->range.ekey,
                                   .wduration = pWin->range.ekey - pWin->range.skey,
                                   .wrownum = pWin->wrownum};
+      if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
+        STimeWindow prevWindow = pWin->range;
+        stTriggerTaskPrevIntervalWindow(pTask, &prevWindow);
+        STimeWindow nextWindow = pWin->range;
+        stTriggerTaskNextIntervalWindow(pTask, &nextWindow);
+        param.prevTs = prevWindow.skey;
+        param.currentTs = pWin->range.skey;
+        param.nextTs = nextWindow.skey;
+      }
       bool ignore = pTask->ignoreNoDataTrigger && (param.wrownum == 0);
       if (calcOpen && !ignore) {
         void *px = taosArrayPush(pGroup->pPendingCalcParams, &param);
@@ -4847,6 +4856,23 @@ static int32_t stRealtimeGroupMergeSavedWindows(SSTriggerRealtimeGroup *pGroup, 
                                   .wend = pWin->range.ekey,
                                   .wduration = pWin->range.ekey - pWin->range.skey,
                                   .wrownum = pWin->wrownum};
+      if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
+        if (pTask->interval.interval == 0) {
+          param.prevTs = pWin->range.skey - 1;
+          param.currentTs = pWin->range.ekey;
+          STimeWindow nextWindow = pWin->range;
+          stTriggerTaskNextPeriodWindow(pTask, &nextWindow);
+          param.nextTs = nextWindow.ekey;
+        } else {
+          STimeWindow prevWindow = pWin->range;
+          stTriggerTaskPrevIntervalWindow(pTask, &prevWindow);
+          STimeWindow nextWindow = pWin->range;
+          stTriggerTaskNextIntervalWindow(pTask, &nextWindow);
+          param.prevTs = prevWindow.ekey + 1;
+          param.currentTs = pWin->range.ekey + 1;
+          param.nextTs = nextWindow.ekey + 1;
+        }
+      }
       bool ignore = pTask->ignoreNoDataTrigger && (param.wrownum == 0);
       if (notifyClose) {
         if ((pTask->triggerType == STREAM_TRIGGER_PERIOD) ||
