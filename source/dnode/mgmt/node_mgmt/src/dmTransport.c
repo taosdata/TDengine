@@ -302,7 +302,7 @@ _OVER:
           dError("failed to send response, msg:%p", &rsp);
         }
       }
-    } else {
+    } else if (NULL == pMsg) {
       destroyAhandle(pRpc->info.ahandle);
       dDebug("msg:%s ahandle freed", TMSG_INFO(pRpc->msgType));
     }

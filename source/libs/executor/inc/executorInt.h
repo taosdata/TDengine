@@ -187,6 +187,7 @@ typedef struct SExchangeSrcIndex {
 } SExchangeSrcIndex;
 
 typedef struct SExchangeInfo {
+  int64_t    seqId;
   SArray*    pSources;
   SSHashObj* pHashSources;
   SArray*    pSourceDataInfo;
