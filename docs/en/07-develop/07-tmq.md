@@ -160,11 +160,11 @@ Introduces how connectors in various languages use WebSocket connection method t
 </TabItem>
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:create_consumer_1}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:create_consumer_1}}
 ```
 
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:create_consumer_2}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:create_consumer_2}}
 ```
 
 Call the `build_consumer` function to attempt to obtain the consumer instance `tmq`. Print a success log if successful, and a failure log if not.
@@ -301,19 +301,19 @@ After subscribing to a topic, consumers can start receiving and processing messa
 </TabItem>
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:build_topic_list}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:build_topic_list}}
 ```
 
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:basic_consume_loop}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:basic_consume_loop}}
 ```
 
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:msg_process}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:msg_process}}
 ```
 
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:subscribe_3}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:subscribe_3}}
 ```
 
 Steps for subscribing and consuming data:
@@ -476,7 +476,7 @@ Record this information.
 </TabItem>
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:consume_repeatly}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:consume_repeatly}}
 ```
 
 1. Use the `ws_tmq_get_topic_assignment` function to obtain the assignment information for a specific topic, including the number of assignments and the details of each assignment.
@@ -617,7 +617,7 @@ You can manually submit the consumption progress using the `consumer.commit` met
 </TabItem>
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:manual_commit}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:manual_commit}}
 ```
 
 You can manually submit the consumption progress using the `ws_tmq_commit_sync` function.
@@ -737,7 +737,7 @@ Consumers can unsubscribe from topics and stop receiving messages. When a consum
 </TabItem>
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:unsubscribe_and_close}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:unsubscribe_and_close}}
 ```
 </TabItem>
 <TabItem label="REST API" value="rest">
@@ -862,7 +862,7 @@ Not supported
 <details>
 <summary>Complete code example</summary>
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c}}
+{{#include docs/examples/c-ws-new/tmq_demo.c}}
 ```
 </details>
 

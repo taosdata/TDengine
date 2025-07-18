@@ -71,7 +71,7 @@ Next, create a supertable (STABLE) named `meters`, whose table structure include
 <TabItem label="C" value="c">
 
 ```c  title="WebSocket Connection"
-{{#include docs/examples/c-ws/create_db_demo.c:create_db_and_table}}
+{{#include docs/examples/c-ws-new/create_db_demo.c:create_db_and_table}}
 ```
 
 ```c  title="Native Connection"
@@ -153,7 +153,7 @@ NOW is an internal system function, defaulting to the current time of the client
 <TabItem label="C" value="c">
 
 ```c title="WebSocket Connection"
-{{#include docs/examples/c-ws/insert_data_demo.c:insert_data}}
+{{#include docs/examples/c-ws-new/insert_data_demo.c:insert_data}}
 ```
 
 ```c title="Native Connection"
@@ -235,7 +235,7 @@ Rust connector also supports using **serde** for deserializing to get structured
 <TabItem label="C" value="c">
 
 ```c  title="WebSocket Connection"
-{{#include docs/examples/c-ws/query_data_demo.c:query_data}}
+{{#include docs/examples/c-ws-new/query_data_demo.c:query_data}}
 ```
 
 ```c  title="Native Connection"
@@ -317,7 +317,7 @@ Below are code examples of setting reqId to execute SQL in various language conn
 <TabItem label="C" value="c">
 
 ```c "WebSocket Connection"
-{{#include docs/examples/c-ws/with_reqid_demo.c:with_reqid}}
+{{#include docs/examples/c-ws-new/with_reqid_demo.c:with_reqid}}
 ```
 
 ```c "Native Connection"

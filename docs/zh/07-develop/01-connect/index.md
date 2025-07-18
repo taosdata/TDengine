@@ -458,7 +458,7 @@ C/C++ 语言连接器原生连接方式使用 `taos_connect()` 函数用于建�
     </TabItem>
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c-ws/connect_example.c}}
+{{#include docs/examples/c-ws-new/connect_example.c}}
 ```
 
 </TabItem>    

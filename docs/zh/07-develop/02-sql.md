@@ -70,7 +70,7 @@ REST API：直接调用 `taosadapter` 提供的 REST API 接口，进行数据�
 <TabItem label="C" value="c">
 
 ```c  title="WebSocket 连接"
-{{#include docs/examples/c-ws/create_db_demo.c:create_db_and_table}}
+{{#include docs/examples/c-ws-new/create_db_demo.c:create_db_and_table}}
 ```
 
 ```c  title="原生连接"
@@ -152,7 +152,7 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。NOW 
 <TabItem label="C" value="c">
 
 ```c title="WebSocket 连接"
-{{#include docs/examples/c-ws/insert_data_demo.c:insert_data}}
+{{#include docs/examples/c-ws-new/insert_data_demo.c:insert_data}}
 ```
 
 ```c title="原生连接"
@@ -231,7 +231,7 @@ rust 连接器还支持使用 **serde** 进行反序列化行为结构体的结�
 <TabItem label="C" value="c">
 
 ```c  title="WebSocket 连接"
-{{#include docs/examples/c-ws/query_data_demo.c:query_data}}
+{{#include docs/examples/c-ws-new/query_data_demo.c:query_data}}
 ```
 
 ```c  title="原生连接"
@@ -311,7 +311,7 @@ reqId 可用于请求链路追踪，reqId 就像分布式系统中的 traceId �
 <TabItem label="C" value="c">
 
 ```c "WebSocket 连接"
-{{#include docs/examples/c-ws/with_reqid_demo.c:with_reqid}}
+{{#include docs/examples/c-ws-new/with_reqid_demo.c:with_reqid}}
 ```
 
 ```c "原生连接"
