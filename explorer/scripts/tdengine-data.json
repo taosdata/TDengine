@@ -1,13 +1,12 @@
 {
     "logo": "https://cloud.tdengine.com/static/img/site-logo.3ec8602a.webp",
     "officialWebsite": "https://tdengine.com",
-    "supportWebsite":"https://tdengine.com",
-    "documentWebsite":"https://docs.tdengine.com",
-    "landingLogo":"",
-    "externalLinks": [
-    ],
+    "supportWebsite": "https://tdengine.com",
+    "documentWebsite": "https://docs.tdengine.com",
+    "landingLogo": "",
+    "externalLinks": [],
     "welcome": {
-        "title": "TDengine Explorer",
+        "title": "TDengine TSDB Explorer",
         "subTitle": "Serverless, fully managed  service for TDengine",
         "mainContent": [
             {
@@ -24,8 +23,6 @@
     },
     "footer": {
         "profile": "TDengine™ is an open-source, cloud-native time-series database optimized for Internet of Things (IoT), Connected Cars, and Industrial IoT. With its built-in caching, stream processing, and data subscription capabilities, TDengine offers a simplified solution for time-series data processing.",
-       
         "copyRight": "© 2023 TDengine"
-        
     }
 }

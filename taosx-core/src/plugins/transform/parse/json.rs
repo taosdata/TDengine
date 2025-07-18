@@ -1,5 +1,6 @@
 use std::{
     borrow::Cow,
+    collections::HashSet,
     str::FromStr,
     sync::{Arc, LazyLock},
 };
@@ -25,6 +26,8 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use thiserror::Error;
+
+use crate::plugins::transform::parse::duplicate_rows;
 
 use super::{super::Select, Parse};
 
@@ -113,10 +116,13 @@ impl Parse for Json {
         }
         let mut flatten = false;
 
-        let array = arrow::compute::cast(array, &DataType::Utf8)?;
-        let field = field.clone().with_data_type(DataType::Utf8);
+        let utf8_array = arrow::compute::cast(array, &DataType::Utf8)?;
+        let field = field
+            .clone()
+            .with_data_type(DataType::Utf8)
+            .with_nullable(true);
 
-        let string = array.as_any().downcast_ref::<StringArray>().unwrap();
+        let string = utf8_array.as_any().downcast_ref::<StringArray>().unwrap();
         let num_rows = string.len();
 
         let mut json_data = Vec::with_capacity(num_rows);
@@ -214,15 +220,17 @@ impl Parse for Json {
             }
             _ => unreachable!(),
         };
+        let mut drain_idx = (0..num_rows).collect::<HashSet<_>>();
         let json_values: Vec<_> = (0..num_rows)
             .enumerate()
             .flat_map(|(n, i)| {
                 if string.is_null(i) {
-                    return vec![(n, None)];
+                    return vec![];
                 }
 
                 let str = string.value(i);
 
+                drain_idx.remove(&n);
                 let value = serde_json::from_str::<JsonValue>(str);
                 match value {
                     Ok(value) => json_value_to_vec(value, n),
@@ -910,19 +918,29 @@ impl Parse for Json {
             }
         }
 
-        if self.keep {
-            r_arrays.push(array.clone());
-            r_fields.push(field);
-        }
-
-        schema.fields = Fields::from(r_fields);
-        let records = RecordBatch::try_new(Arc::new(schema), r_arrays)?;
-        // let records = records.with_schema(Arc::new(schema)).unwrap();
-        let indices = if flatten {
+        let indices = if flatten || !drain_idx.is_empty() {
             Some(json_values.iter().map(|(i, _)| *i).collect_vec())
         } else {
             None
         };
+
+        if self.keep {
+            if drain_idx.is_empty() {
+                r_arrays.push(utf8_array.clone());
+                r_fields.push(field);
+            } else if indices.is_some() {
+                let new_array = duplicate_rows(&utf8_array, indices.as_ref().unwrap());
+                r_arrays.push(new_array);
+                r_fields.push(field);
+            }
+
+            if !drain_idx.is_empty() {
+                log_illegal_array(array, drain_idx.into_iter().map(|x| x as u64).collect())?;
+            }
+        }
+
+        schema.fields = Fields::from(r_fields);
+        let records = RecordBatch::try_new(Arc::new(schema), r_arrays)?;
         Ok((records, indices))
     }
 }
@@ -982,9 +1000,26 @@ fn fix_json_control_chars(json_str: &str) -> String {
     result.into_owned()
 }
 
+fn log_illegal_array(array: &ArrayRef, remove_idxs: Vec<u64>) -> anyhow::Result<()> {
+    let idx_array = UInt64Array::from(remove_idxs);
+    let removed_array = arrow::compute::take(array.as_ref(), &idx_array, None)?;
+    let binary_array = arrow::compute::cast(removed_array.as_ref(), &DataType::Binary)?;
+    let binary_array = binary_array.as_any().downcast_ref::<BinaryArray>().unwrap();
+    for i in 0..binary_array.len() {
+        if binary_array.is_null(i) {
+            continue;
+        }
+        let illegal_row = String::from_utf8_lossy(binary_array.value(i));
+        tracing::warn!("Json parse drop illegal data: {:?}", illegal_row);
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
+    use arrow::array::TimestampNanosecondBuilder;
     use arrow_schema::Field;
+    use chrono::Local;
 
     use super::*;
 
@@ -1402,5 +1437,127 @@ mod tests {
 
         let s = fix_json_control_chars("{\"a\": \"b\tc\"}");
         assert!(serde_json::from_str::<serde_json::Value>(&s).is_ok());
+    }
+
+    #[test]
+    fn parse_json_array_test() -> anyhow::Result<()> {
+        tracing_subscriber::fmt::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .init();
+
+        let json = r#"{
+        "json": [
+            "$[\"dataType\"]=dataType",
+            "$[\"dataTime\"]=dataTime",
+            "$[\"saveTime\"]=saveTime",
+            "$[\"vin\"]=vin",
+            "$[\"payload\"][\"speed\"]=speed",
+            "$[\"payload\"][\"atmoPres\"]=atmoPres",
+            "$[\"payload\"][\"outPutWrest\"]=outPutWrest",
+            "$[\"payload\"][\"rubWrest\"]=rubWrest",
+            "$[\"payload\"][\"rev\"]=rev",
+            "$[\"payload\"][\"fuelVelocityFlow\"]=fuelVelocityFlow",
+            "$[\"payload\"][\"upperSCRNOxOutPut\"]=upperSCRNOxOutPut",
+            "$[\"payload\"][\"downSCRNOxOutPut\"]=downSCRNOxOutPut",
+            "$[\"payload\"][\"percentReactant\"]=percentReactant",
+            "$[\"payload\"][\"airInput\"]=airInput",
+            "$[\"payload\"][\"temperSCRInput\"]=temperSCRInput",
+            "$[\"payload\"][\"temperSCROutput\"]=temperSCROutput",
+            "$[\"payload\"][\"DPFDifferentPress\"]=DPFDifferentPress",
+            "$[\"payload\"][\"temperCoolant\"]=temperCoolant",
+            "$[\"payload\"][\"percentOil\"]=percentOil",
+            "$[\"payload\"][\"fixState\"]=fixState",
+            "$[\"payload\"][\"longitude\"]=longitude",
+            "$[\"payload\"][\"latitude\"]=latitude",
+            "$[\"payload\"][\"mileage\"]=mileage"
+        ],
+        "depth": 2,
+        "keep": true
+        }"#;
+        let json_parser: Json = serde_json::from_str(json).unwrap();
+        // dbg!(&json_parser);
+
+        let flat_columns = vec![
+            Field::new(
+                "ts",
+                DataType::Timestamp(arrow::datatypes::TimeUnit::Nanosecond, None),
+                false,
+            ),
+            Field::new("key", DataType::Binary, true),
+            Field::new("value", DataType::Binary, false),
+        ];
+        let schema = Arc::new(Schema::new(flat_columns));
+
+        let mut timestamp = TimestampNanosecondBuilder::new();
+        let mut key = BinaryBuilder::new();
+        let mut value = BinaryBuilder::new();
+
+        let gbk_bytes: &[u8] = &[
+            0xD4, 0xDA, 0xB1, 0xB1, 0xBE, 0xA9, 0xD1, 0xA7, 0xCF, 0xB0, 0x72, 0x75, 0x73, 0x74,
+            0xB1, 0xE0, 0xB3, 0xCC,
+        ];
+
+        timestamp.append_value(Local::now().timestamp_nanos_opt().unwrap());
+        key.append_value(b"key");
+        value.append_value(br#"{"dataType":"DATA_CVI_OBD","dataTime":"2025-06-27 10:49:48","saveTime":"2025-06-27 10:55:34","vin":"YS2G6X237M5622467","payload":{"detectProtocol":2,"milState":2,"detectState":2,"detectReadyState":2,"identifyCode":"LBZWANGXUD0NG0826","idVersion":"200000000000000002","calibrateVerify":"300000000000000003","IUPR":"000000000000000000000000000000000000","errorCodeCount":3,"errorCodes":["0118002A","0118002A","0118002A"]}}"#);
+
+        timestamp.append_value(Local::now().timestamp_nanos_opt().unwrap());
+        key.append_value(b"key");
+        value.append_value(gbk_bytes);
+        // value.append_value(b"");
+
+        let batch = RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                Arc::new(timestamp.finish()),
+                Arc::new(key.finish()),
+                Arc::new(value.finish()),
+            ],
+        )?;
+
+        let (_, field) = schema.fields().find("value").unwrap();
+        let array = batch.column_by_name("value").unwrap();
+
+        let (batch, _) = json_parser
+            .parse_array(field, array)
+            .map_err(|error| {
+                panic!("json parser parse_array error: {:?}", error);
+            })
+            .unwrap();
+
+        dbg!(&batch);
+        // println!(
+        //     "\nfinal batch: {:?}",
+        //     arrow::util::pretty::pretty_format_batches(&[batch])?.to_string()
+        // );
+        assert_eq!(batch.num_rows(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn log_illegal_array_test() -> anyhow::Result<()> {
+        tracing_subscriber::fmt::fmt()
+            .with_max_level(tracing::Level::WARN)
+            .init();
+
+        let batch = arrow::array::record_batch!(
+            ("a", Int32, [1, 2, 3]),
+            ("b", Utf8, ["123", "456", "789"]),
+            ("c", Binary, [b"111", b"222", b"333"])
+        )
+        .unwrap();
+        let remove_idxs = (0..batch.num_rows() as u64)
+            .filter(|x| x % 2 == 0)
+            .collect::<Vec<_>>();
+
+        let array = batch.column_by_name("a").unwrap();
+        log_illegal_array(array, remove_idxs.clone())?;
+
+        let array = batch.column_by_name("b").unwrap();
+        log_illegal_array(array, remove_idxs.clone())?;
+
+        let array = batch.column_by_name("c").unwrap();
+        log_illegal_array(array, remove_idxs)?;
+        Ok(())
     }
 }

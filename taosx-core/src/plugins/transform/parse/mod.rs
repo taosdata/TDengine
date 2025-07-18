@@ -166,7 +166,7 @@ impl std::ops::Deref for ParserImpl {
     }
 }
 
-fn duplicate_rows(data_array: &Arc<dyn Array>, indices: &[usize]) -> Arc<dyn Array> {
+pub fn duplicate_rows(data_array: &Arc<dyn Array>, indices: &[usize]) -> Arc<dyn Array> {
     let mut duplicated_data_array: Vec<Arc<dyn Array>> = Vec::with_capacity(indices.len());
     for i in indices {
         // 获取 data_array 中第i个数据
@@ -274,7 +274,9 @@ impl TransformExt for ParserImpl {
             .unzip();
 
         let rschema = Schema::new_with_metadata(rfields, metadata);
-
+        if rschema.fields().is_empty() && rcolumns.is_empty() {
+            return Ok(RecordBatch::new_empty(Arc::new(rschema)));
+        }
         let batch = RecordBatch::try_new(Arc::new(rschema), rcolumns)?;
 
         Ok(batch)
@@ -610,4 +612,41 @@ fn test_join() {
     let join: FieldParser = serde_json::from_str(join).unwrap();
     dbg!(&join);
     assert!(matches!(join, FieldParser::Join(_)));
+}
+
+#[test]
+fn test_json() {
+    let json = r#"
+    {
+    "json": [
+        "$[\"dataType\"]=dataType",
+        "$[\"dataTime\"]=dataTime",
+        "$[\"saveTime\"]=saveTime",
+        "$[\"vin\"]=vin",
+        "$[\"payload\"][\"speed\"]=speed",
+        "$[\"payload\"][\"atmoPres\"]=atmoPres",
+        "$[\"payload\"][\"outPutWrest\"]=outPutWrest",
+        "$[\"payload\"][\"rubWrest\"]=rubWrest",
+        "$[\"payload\"][\"rev\"]=rev",
+        "$[\"payload\"][\"fuelVelocityFlow\"]=fuelVelocityFlow",
+        "$[\"payload\"][\"upperSCRNOxOutPut\"]=upperSCRNOxOutPut",
+        "$[\"payload\"][\"downSCRNOxOutPut\"]=downSCRNOxOutPut",
+        "$[\"payload\"][\"percentReactant\"]=percentReactant",
+        "$[\"payload\"][\"airInput\"]=airInput",
+        "$[\"payload\"][\"temperSCRInput\"]=temperSCRInput",
+        "$[\"payload\"][\"temperSCROutput\"]=temperSCROutput",
+        "$[\"payload\"][\"DPFDifferentPress\"]=DPFDifferentPress",
+        "$[\"payload\"][\"temperCoolant\"]=temperCoolant",
+        "$[\"payload\"][\"percentOil\"]=percentOil",
+        "$[\"payload\"][\"fixState\"]=fixState",
+        "$[\"payload\"][\"longitude\"]=longitude",
+        "$[\"payload\"][\"latitude\"]=latitude",
+        "$[\"payload\"][\"mileage\"]=mileage"
+    ],
+    "depth": 2,
+    "keep": true
+    }"#;
+    let json: FieldParser = serde_json::from_str(json).unwrap();
+    dbg!(&json);
+    assert!(matches!(json, FieldParser::Json(_)));
 }

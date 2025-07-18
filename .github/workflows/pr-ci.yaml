@@ -183,7 +183,7 @@ jobs:
       - name: Copy OPC Files
         run: |
           cd plugins/opc
-          if [-f "opc_unit_report.txt"]; then
+          if [ -f "opc_unit_report.txt" ]; then
             echo "Copy OPC Unit Test Coverage Data"
             ssh root@$RELEASE_HOST "ls $ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/opc_cover_data/ || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/opc_cover_data/"
             scp opc_unit_report.txt root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/opc_cover_data/
