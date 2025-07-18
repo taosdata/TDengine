@@ -552,7 +552,7 @@ int csvGenCreateStbSql(SDataBase* db, SSuperTable* stb, char* buf, int size) {
     pos += snprintf(buf + pos, size - pos, ";\n");
     if (pos <= 0 || pos >= size) return -1;
 
-    // infoPrint("create stable: <%s>.\n", buf);
+    debugPrint("create stable: <%s>.\n", buf);
     return (pos > 0 && pos < size) ? pos : -1;
 }
 

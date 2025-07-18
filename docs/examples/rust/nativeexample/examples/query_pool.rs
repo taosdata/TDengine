@@ -1,21 +1,11 @@
-use std::time::Duration;
-
 use chrono::{DateTime, Local};
 use taos::*;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let dsn = "taos://";
-
-    let opts = PoolBuilder::new()
-        .max_size(5000) // max connections
-        .max_lifetime(Some(Duration::from_secs(60 * 60))) // lifetime of each connection
-        .min_idle(Some(1000)) // minimal idle connections
-        .connection_timeout(Duration::from_secs(2));
-
-    let pool = TaosBuilder::from_dsn(dsn)?.with_pool_builder(opts)?;
-
-    let taos = pool.get()?;
+    let dsn = "taos://localhost:6030";
+    let pool = TaosBuilder::from_dsn(dsn)?.pool()?;
+    let taos = pool.get().await?;
 
     let db = "query";
 
@@ -43,6 +33,7 @@ async fn main() -> anyhow::Result<()> {
     ]).await?;
 
     assert_eq!(inserted, 6);
+
     loop {
         let count: usize = taos
             .query_one("select count(*) from `meters`")
@@ -102,5 +93,6 @@ async fn main() -> anyhow::Result<()> {
     dbg!(result.summary());
     assert_eq!(records.len(), 6);
     dbg!(records);
+
     Ok(())
 }

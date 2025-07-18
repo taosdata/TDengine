@@ -76,7 +76,7 @@ else
 fi
 
 if [ $ent -ne 0 ]; then
-    # enterprise edition
+    # TSDB-Enterprise edition
     extra_param="$extra_param -e"
     INTERNAL_REPDIR=$WORKDIR/TDinternal
     REPDIR=$INTERNAL_REPDIR/community
@@ -87,7 +87,7 @@ if [ $ent -ne 0 ]; then
     REP_MOUNT_DEBUG="${REPDIR_DEBUG}:/home/TDinternal/debug/"
     REP_MOUNT_LIB="${REPDIR_DEBUG}/build/lib:/home/TDinternal/debug/build/lib:ro"
 else
-    # community edition
+    # TSDB-OSS edition
     REPDIR=$WORKDIR/TDengine
     REPDIR_DEBUG=$WORKDIR/$DEBUGPATH/
     CONTAINER_TESTDIR=/home/TDengine

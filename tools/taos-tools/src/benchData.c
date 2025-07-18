@@ -277,7 +277,7 @@ char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char
         } else {
             // websocket
             bool ntb = stbInfo->tags == NULL || stbInfo->tags->size == 0; // normal table
-            colNames = genColNames(stbInfo->cols, !ntb);
+            colNames = genColNames(stbInfo->cols, !ntb, stbInfo->primaryKeyName);
             n = snprintf(prepare + len, TSDB_MAX_ALLOWED_SQL_LEN - len,
                 "INSERT INTO `%s`.`%s`(%s) VALUES(%s,%s)", db, stbInfo->stbName, colNames,
                 ntb ? "?" : "?,?", colQ);
@@ -2086,8 +2086,8 @@ int prepareSampleData(SDataBase* database, SSuperTable* stbInfo) {
             int pos = 0;
             int n;
             n = snprintf(stbInfo->partialColNameBuf + pos,
-                            TSDB_MAX_ALLOWED_SQL_LEN - pos,
-                            TS_COL_NAME);
+                            TSDB_MAX_ALLOWED_SQL_LEN - pos, "%s",
+                            stbInfo->primaryKeyName);
             if (n < 0 || n > TSDB_MAX_ALLOWED_SQL_LEN - pos) {
                 errorPrint("%s() LN%d snprintf overflow\n",
                            __func__, __LINE__);
