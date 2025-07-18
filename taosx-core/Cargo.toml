@@ -120,6 +120,7 @@ hex.workspace = true
 persist-queue = { path = "../crates/persist-queue" }
 archive = { workspace = true }
 serde_regex = "1"
+dateparser = "0.2.1"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }
