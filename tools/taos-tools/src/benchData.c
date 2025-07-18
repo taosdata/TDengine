@@ -1396,7 +1396,7 @@ static int generateRandDataStmt(
     int64_t bufLen,
     int lenOfOneRow, BArray *fields,
     int64_t loop, bool tag, int64_t loopBegin) {
-    // generateRandDataStmt()
+    
     for (int i = 0; i < fields->size; ++i) {
         Field *field = benchArrayGet(fields, i);
         if (field->stmtData.data == NULL) {
