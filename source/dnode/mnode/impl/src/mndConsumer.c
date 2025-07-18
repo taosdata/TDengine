@@ -437,6 +437,8 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
   if (strncmp(req.cgroup, pConsumer->cgroup, tListLen(pConsumer->cgroup)) != 0) {
     mError("consumer:0x%" PRIx64 " group:%s not consistent with data in sdb, saved cgroup:%s", consumerId, req.cgroup,
            pConsumer->cgroup);
+    mError("consumer:0x%" PRIx64 " lost in process ask ep req", consumerId);
+    mndDumpSdb();
     code = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
     goto END;
   }
@@ -946,6 +948,7 @@ int32_t mndAcquireConsumer(SMnode *pMnode, int64_t consumerId, SMqConsumerObj** 
   SSdb           *pSdb = pMnode->pSdb;
   *pConsumer = sdbAcquire(pSdb, SDB_CONSUMER, &consumerId);
   if (*pConsumer == NULL) {
+    mError("consumer:0x%" PRIx64 " lost in acquire consumer", consumerId);
     mndDumpSdb();
     return TSDB_CODE_MND_CONSUMER_NOT_EXIST;
   }

@@ -2295,6 +2295,7 @@ static int32_t tmqPollImpl(tmq_t* tmq) {
   taosWLockLatch(&tmq->lock);
 
   if (atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__LOST){
+    tqDebugC("consumer:0x%" PRIx64 " lost in tmq poll", tmq->consumerId);
     code = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
     goto end;
   }
