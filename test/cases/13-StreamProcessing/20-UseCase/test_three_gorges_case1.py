@@ -50,7 +50,10 @@ class TestSnodeMgmt:
         self.sxny_data1()
         self.createSnodeTest()
         self.createStream()
-        self.checkStreamRunning()        
+        self.checkStreamRunning()
+        tdSql.query(f"select * from {self.dbname}.str_station_alarmmsg_systemalarm_test")
+        if tdSql.getRows() == 0:
+            raise Exception("ERROR:no result!")
 
 
     
