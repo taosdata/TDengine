@@ -495,7 +495,7 @@ TDengine 推荐数据库应用的每个线程都建立一个独立的连接，�
   - **返回值**：非 `NULL`：成功，返回一个指向 ws_tmq_t 结构体的指针，该结构体代表一个 TMQ 消费者对象。。`NULL`：失败，错误信息存储在参数 errstr 中。
 
 - `int32_t ws_tmq_subscribe(ws_tmq_t *tmq, const ws_tmq_list_t *topic_list)`
-  - **接口说明**：用于订阅 topic 列表，消费完数据后，需调用 ws_tmq_subscribe 取消订阅。
+  - **接口说明**：用于订阅 topic 列表，消费完数据后，需调用 ws_tmq_unsubscribe 取消订阅。
     - tmq：[入参] 指向一个有效的 ws_tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
     - topic_list：[入参] 指向一个有效的 ws_tmq_list_t 结构体指针，该结构体包含一个或多个主题名称，目前仅支持一个主题名称。
   - **返回值**：`0`：成功。非 `0`：失败，可调用函数 `ws_tmq_errstr(tmq)` 获取更详细的错误信息。
