@@ -142,7 +142,7 @@ class TDSql:
         """
         self.cursor.close()
 
-    def connect(self, username, passwd="taosdata"):
+    def connect(self, username="root", passwd="taosdata", **kwargs):
         """
         Reconnect
 
@@ -159,8 +159,9 @@ class TDSql:
         """
 
         self.cursor.close()
+        tdLog.debug(f"connect to {username}:{passwd} with kwargs: {kwargs}")
 
-        testconn = taos.connect(user=username, password=passwd)
+        testconn = taos.connect(user=username, password=passwd, **kwargs)
         self.cursor = testconn.cursor()
 
     def prepare(self, dbname="db", drop=True, **kwargs):
