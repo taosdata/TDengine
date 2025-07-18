@@ -30,7 +30,7 @@ pub fn truncate(s: ImmutableString, n: rhai::INT) -> ImmutableString {
 
 #[allow(dead_code)]
 pub fn between_time_range(s: ImmutableString, l_sec: i64, r_sec: i64) -> bool {
-    let (now, t) = match chrono::DateTime::parse_from_rfc3339(&s) {
+    let (now, t) = match dateparser::parse(&s) {
         Ok(dt) => (
             chrono::Utc::now().with_timezone(&dt.timezone()).timestamp(),
             dt.timestamp(),
@@ -73,5 +73,42 @@ pub fn add_or_set(lhs: Dynamic, rhs: Dynamic) -> Dynamic {
             }
             _ => Dynamic::UNIT,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::expr::functions::between_time_range;
+
+    #[test]
+    pub fn test_between_time_range() -> anyhow::Result<()> {
+        let str_to_parse = vec![
+            "2025-07-18 10:20:30",
+            "2025-07-18 10:20:30+08:00",
+            "2025-07-18T10:20:30+08:00",
+            "July 27, 2024 5:24:30 PM",
+            "2025/07/17 17:24:30.123",
+            "2025-07-17T17:24:30Z",
+        ];
+        let data = str_to_parse
+            .into_iter()
+            .map(|s| {
+                let dt = dateparser::parse(s).unwrap();
+                let now = chrono::Utc::now().with_timezone(&dt.timezone()).timestamp();
+                let l_sec = now - dt.timestamp() + 60;
+                let r_sec = 10;
+                (s, -l_sec, r_sec)
+            })
+            .collect::<Vec<_>>();
+
+        data.into_iter().for_each(|(s, l_sec, r_sec)| {
+            println!("{} {} {}", s, l_sec, r_sec);
+            assert!(between_time_range(s.into(), l_sec, r_sec));
+        });
+        let s = "2077-04-01 02:18:10";
+        assert!(!between_time_range(s.into(), -60, 0));
+        let s = "2077-04-01 02:bb:aa";
+        assert!(!between_time_range(s.into(), -60, 0));
+        Ok(())
     }
 }
