@@ -890,7 +890,7 @@ typedef struct SQueryThreadInfo_S {
     BArray*   query_delay_list;
     int32_t   sockfd;
     double   total_delay;
-
+    char*    dbName;
     char      filePath[MAX_PATH_LEN];
     uint64_t  start_table_from;
     uint64_t  end_table_to;
@@ -955,7 +955,7 @@ int     postProcessSql(char *sqlstr, char* dbName, int precision, int iface,
 int     queryDbExecCall(SBenchConn *conn, char *command);
 int     queryDbExecRest(char *command, char* dbName, int precision,
                     int iface, int protocol, bool tcp, int sockfd);
-SBenchConn* initBenchConn();
+SBenchConn* initBenchConn(char *dbName);
 void    closeBenchConn(SBenchConn* conn);
 int     convertHostToServAddr(char *host, uint16_t port,
                               struct sockaddr_in *serv_addr);
