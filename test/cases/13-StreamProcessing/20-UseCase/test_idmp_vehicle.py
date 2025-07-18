@@ -86,7 +86,7 @@ class Test_IDMP_Vehicle:
         self.db    = "idmp_sample_vehicle"
         self.vdb   = "idmp"
         self.stb   = "vehicles"
-        self.start = 1752574200000
+        self.start = 1752900000000
         self.start_current = 10
         self.start_voltage = 260
 
@@ -94,7 +94,7 @@ class Test_IDMP_Vehicle:
         # import data
         etool.taosdump(f"-i cases/13-StreamProcessing/20-UseCase/vehicle_data/")
 
-        tdLog.info(f"import data to db={self.db} successfully.")
+        tdLog.info(f"import data to db={self.db}. successfully.")
 
 
     # 
@@ -104,6 +104,8 @@ class Test_IDMP_Vehicle:
         sqls = [
             f"create database {self.vdb};",
             f"use {self.vdb};",
+            "CREATE STABLE `vst_车辆_652220` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `经度` FLOAT ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `纬度` FLOAT ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `高程` SMALLINT ENCODE 'simple8b' COMPRESS 'zlib' LEVEL 'medium', `速度` SMALLINT ENCODE 'simple8b' COMPRESS 'zlib' LEVEL 'medium', `方向` SMALLINT ENCODE 'simple8b' COMPRESS 'zlib' LEVEL 'medium', `报警标志` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', `里程` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium') TAGS (`_ignore_path` VARCHAR(20), `车辆资产模型` VARCHAR(128), `车辆ID` VARCHAR(32), `车牌号` VARCHAR(17), `车牌颜色` TINYINT, `终端制造商` VARCHAR(11), `终端ID` VARCHAR(15), `path2` VARCHAR(512)) SMA(`ts`,`经度`) VIRTUAL 1",
+            "CREATE VTABLE `vt_京Z1NW34_624364` (`经度` FROM `idmp_sample_vehicle`.`vehicle_110100_001`.`longitude`, `纬度` FROM `idmp_sample_vehicle`.`vehicle_110100_001`.`latitude`, `高程` FROM `idmp_sample_vehicle`.`vehicle_110100_001`.`elevation`, `速度` FROM `idmp_sample_vehicle`.`vehicle_110100_001`.`speed`, `方向` FROM `idmp_sample_vehicle`.`vehicle_110100_001`.`direction`, `报警标志` FROM `idmp_sample_vehicle`.`vehicle_110100_001`.`alarm`, `里程` FROM `idmp_sample_vehicle`.`vehicle_110100_001`.`mileage`) USING `vst_车辆_652220` (`_ignore_path`, `车辆资产模型`, `车辆ID`, `车牌号`, `车牌颜色`, `终端制造商`, `终端ID`, `path2`) TAGS (NULL, 'XX物流公司.华北分公司.北京车队', '110100_001', '京Z1NW34', 2, 'zd', '2551765954', '车辆场景.XX物流公司.华北分公司.北京车队')",
         ]
 
         tdSql.executes(sqls)
@@ -116,32 +118,7 @@ class Test_IDMP_Vehicle:
     def createStreams(self):
 
         sqls = [
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream1`       event_window( start with `电压` > 250 end with `电压` <= 250 ) TRUE_FOR(10m) FROM `tdasset`.`vt_em-1`  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream1` AS SELECT _twstart+0s AS output_timestamp, avg(`电压`) AS `平均电压`  FROM tdasset.`vt_em-1`  WHERE ts >= _twstart AND ts <=_twend;",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream1_sub1`  event_window( start with `电压` > 250 end with `电压` <= 250 ) TRUE_FOR(10m) FROM `tdasset`.`vt_em-1`  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN)              INTO `tdasset`.`result_stream1_sub1` AS SELECT _twstart+0s AS output_timestamp, avg(`电压`) AS `平均电压`  FROM tdasset.`vt_em-1`  WHERE ts >= _twstart AND ts <=_twend;",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream1_sub2`  event_window( start with `电压` > 250 end with `电压` <= 250 ) TRUE_FOR(10m) FROM `tdasset`.`vt_em-1`  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_CLOSE)             INTO `tdasset`.`result_stream1_sub2` AS SELECT _twstart+0s AS output_timestamp, avg(`电压`) AS `平均电压`  FROM tdasset.`vt_em-1`  WHERE ts >= _twstart AND ts <=_twend;",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream2`  interval(1h)  sliding(5m) FROM `tdasset`.`vt_em-2`  notify('ws://idmp:6042/eventReceive') ON(window_open|window_close) INTO `tdasset`.`result_stream2` AS SELECT _twstart+0s AS output_timestamp, max(`电流`) AS `最大电流` FROM tdasset.`vt_em-2`  WHERE ts >=_twstart AND ts <=_twend;",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream3`  event_window( start with `电流` > 100 end with `电流` <= 100 ) TRUE_FOR(5m) FROM `tdasset`.`vt_em-3` NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream3` AS SELECT _twstart+0s AS output_timestamp, AVG(`电流`) AS `平均电流` FROM tdasset.`vt_em-3`  WHERE ts >= _twstart AND ts <=_twend",
-            # stream4
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4`      INTERVAL(10m)  SLIDING(10m) FROM `tdasset`.`vt_em-4`                                                  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream4` AS SELECT _twstart+0s as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend ",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4_sub1` INTERVAL(10m)  SLIDING(10m) FROM `tdasset`.`vt_em-4` STREAM_OPTIONS(IGNORE_DISORDER)                  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream4_sub1` AS SELECT _twstart+0s as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4_sub2` INTERVAL(10m)  SLIDING(10m) FROM `tdasset`.`vt_em-4` STREAM_OPTIONS(IGNORE_DISORDER|LOW_LATENCY_CALC) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN)              INTO `tdasset`.`result_stream4_sub2` AS SELECT _twstart + 10a as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4_sub3` INTERVAL(10m)  SLIDING(10m) FROM `tdasset`.`vt_em-4` STREAM_OPTIONS(IGNORE_DISORDER|LOW_LATENCY_CALC) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN)              INTO `tdasset`.`result_stream4_sub3` AS SELECT _twstart + 10s as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4_sub4` INTERVAL(10m)  SLIDING(10m) FROM `tdasset`.`vt_em-4` STREAM_OPTIONS(IGNORE_DISORDER|LOW_LATENCY_CALC) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN)              INTO `tdasset`.`result_stream4_sub4` AS SELECT _twstart + 10m as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4_sub5` INTERVAL(10m)  SLIDING(10m) FROM `tdasset`.`vt_em-4` STREAM_OPTIONS(IGNORE_DISORDER|LOW_LATENCY_CALC) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN)              INTO `tdasset`.`result_stream4_sub5` AS SELECT _twstart + 10h as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4_sub6` INTERVAL(10m)  SLIDING(10m) FROM `tdasset`.`vt_em-4` STREAM_OPTIONS(IGNORE_DISORDER|LOW_LATENCY_CALC) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN)              INTO `tdasset`.`result_stream4_sub6` AS SELECT _twstart + 10d as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4_sub7` INTERVAL(600s) SLIDING(1h)  FROM `tdasset`.`vt_em-4` STREAM_OPTIONS(IGNORE_DISORDER|LOW_LATENCY_CALC) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream4_sub7` AS SELECT _twstart as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend AND ts >= 1752574200000",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4_sub8` INTERVAL(1a)   SLIDING(1a)  FROM `tdasset`.`vt_em-4` STREAM_OPTIONS(IGNORE_DISORDER|LOW_LATENCY_CALC) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream4_sub8` AS SELECT _twstart as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend AND ts >= 1752574200000",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4_sub9` INTERVAL(1d)   SLIDING(60s) FROM `tdasset`.`vt_em-4` STREAM_OPTIONS(IGNORE_DISORDER|LOW_LATENCY_CALC) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream4_sub9` AS SELECT _twstart as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts < _twend AND ts >= 1752574200000",
-            # stream5
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream5`      SESSION(ts, 10m) FROM `tdasset`.`vt_em-5` STREAM_OPTIONS(IGNORE_DISORDER)  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5`      AS SELECT _twstart+0s AS output_timestamp, COUNT(ts) AS cnt, LAST(`电流`) AS `最后电流` FROM tdasset.`vt_em-5` WHERE ts >= _twstart AND ts <=_twend",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream5_sub1` SESSION(ts, 10m) FROM `tdasset`.`vt_em-5`                                  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_sub1` AS SELECT _twstart+0s AS output_timestamp, COUNT(ts) AS cnt, LAST(`电流`) AS `最后电流` FROM tdasset.`vt_em-5` WHERE ts >= _twstart AND ts <=_twend",
-            # stream6
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream6`      COUNT_WINDOW(5) FROM `tdasset`.`vt_em-6` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream6` AS SELECT _twstart+0s AS output_timestamp, COUNT(ts) AS cnt, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压` FROM tdasset.`vt_em-6` WHERE ts >= _twstart AND ts <=_twend",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream6_sub1` COUNT_WINDOW(5) FROM `tdasset`.`vt_em-6`                                 NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream6_sub1` AS SELECT _twstart+0s AS output_timestamp, COUNT(ts) AS cnt, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压` FROM tdasset.`vt_em-6` WHERE ts >= _twstart AND ts <=_twend",
-            # stream7
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream7` STATE_WINDOW(`电压`) TRUE_FOR(30s) FROM `tdasset`.`vt_em-7` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream7` AS SELECT _twstart+0s AS output_timestamp, COUNT(ts) AS cnt, AVG(`电流`) AS `平均电流`, SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-7` WHERE ts >= _twstart AND ts <=_twend",
-            # stream8
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream8` PERIOD(1s, 0s)                    FROM `tdasset`.`vt_em-8` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream8` AS SELECT now()+0s    AS output_timestamp, COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-8` WHERE ts >=_tprev_localtime and ts <=now()",
+            "create stream if not exists `idmp`.`ana_stream1` event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_京Z1NW34_624364` stream_options(ignore_disorder)  notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from idmp.`vt_京Z1NW34_624364` where ts >= _twstart and ts <_twend",
         ]
 
         tdSql.executes(sqls)
@@ -159,8 +136,10 @@ class Test_IDMP_Vehicle:
     # 4. write trigger data
     #
     def writeTriggerData(self):
-        # strem1
+        # stream1
         self.trigger_stream1()
+
+        '''
         # stream2
         self.trigger_stream2()
         # stream3
@@ -175,6 +154,7 @@ class Test_IDMP_Vehicle:
         self.trigger_stream7()
         # stream8
         self.trigger_stream8()
+        '''
 
 
     # 
@@ -182,6 +162,7 @@ class Test_IDMP_Vehicle:
     #
     def verifyResults(self):
         self.verify_stream1()
+        '''
         self.verify_stream2()
         self.verify_stream3()
         self.verify_stream4()
@@ -190,26 +171,33 @@ class Test_IDMP_Vehicle:
         self.verify_stream7()
         # ***** bug9 *****
         #self.verify_stream8()
+        '''
 
 
     # 
     # 6. write trigger data again
     #
     def writeTriggerDataAgain(self):
+        pass
+        '''
         # stream4
         self.trigger_stream4_again()
         # stream6
         self.trigger_stream6_again()
+        '''
 
 
     # 
     # 7. verify results again
     #
     def verifyResultsAgain(self):
+        pass
+        '''
         # stream4
         self.verify_stream4_again()
         # stream6
         self.verify_stream6_again()
+        '''
 
     #
     # 8. restart dnode
@@ -245,301 +233,79 @@ class Test_IDMP_Vehicle:
     #  stream1 trigger 
     #
     def trigger_stream1(self):
-
-        # 1~20 minutes no trigger
         ts = self.start
-        # voltage = 100
-        sql = f"insert into asset01.`em-1`(ts,voltage) values({ts}, 100);"
-        tdSql.execute(sql, show=True)
+        table = f"{self.db}.`vehicle_110100_001`"
+        step  = 1 * 60 * 1000 # 1 minute
+        cols  = "ts,speed"
 
-        # voltage = 300
-        for i in range(20):
-            ts += 1*60*1000
-            sql = f"insert into asset01.`em-1`(ts,voltage) values({ts}, 300);"
-            tdSql.execute(sql, show=True)
+        # speed 120
+        vals  = "120"
+        count = 5
+        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
-        sql = f"insert into asset01.`em-1`(ts,voltage) values({ts}, 100);"
-        tdSql.execute(sql, show=True)
-
-        # voltage = 100
-        ts += 1*60*1000
-        sql = f"insert into asset01.`em-1`(ts,voltage) values({ts}, 100);"
-        tdSql.execute(sql, show=True)
-
-
-        # voltage = 400
-        for i in range(11):
-            ts += 1*60*1000
-            sql = f"insert into asset01.`em-1`(ts,voltage) values({ts}, 400);"
-            tdSql.execute(sql, show=True)
-
-        # voltage = 100
-        ts += 1*60*1000
-        sql = f"insert into asset01.`em-1`(ts,voltage) values({ts}, 100);"
-        tdSql.execute(sql, show=True)
-
-        # high-lower not trigger
-        for i in range(30):
-            ts += 1*60*1000
-            if i % 2 == 0:
-                voltage = 250 - i
-            else:
-                voltage = 250 + i
-            sql = f"insert into asset01.`em-1`(ts,voltage) values({ts}, {voltage});"
-            tdSql.execute(sql, show=True)
+        # speed 80
+        vals  = "80"
+        count = 1
+        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
     #
     #  stream2 trigger 
     #
     def trigger_stream2(self):
-        ts = self.start
-        current = self.start_current
-        voltage = self.start_voltage
-        power   = 200
-        phase   = 0
-
-        cnt     = 11 # 
-        for i in range(cnt):
-            ts += 1 * 60 * 1000
-            current += 1
-            voltage += 1
-            power   += 1
-            phase   += 1
-            sql = f"insert into asset01.`em-2` values({ts}, {current}, {voltage}, {power}, {phase});"
-            tdSql.execute(sql, show=True)
+        pass
 
     #
     #  stream3 trigger 
     #
     def trigger_stream3(self):
-        ts = self.start
-        current = 100
-        voltage = 220
-        power   = 200
-        phase   = 0
-
-        # enter condiction
-        cnt     = 10
-        for i in range(cnt):
-            ts += 1 * 60 * 1000
-            current += 1
-            voltage += 1
-            power   += 1
-            phase   += 1
-            sql = f"insert into asset01.`em-3` values({ts}, {current}, {voltage}, {power}, {phase});"
-            tdSql.execute(sql, show=True)
-
-        # leave condiction
-        cnt     = 10 #
-        current = 100
-        for i in range(cnt):
-            ts += 1 * 60 * 1000
-            current -= 1
-            voltage += 1
-            power   += 1
-            phase   += 1
-            sql = f"insert into asset01.`em-3` values({ts}, {current}, {voltage}, {power}, {phase});"
-            tdSql.execute(sql, show=True)
-
-        cnt     = 20
-        current = 200
-        for i in range(cnt):
-            ts += 1 * 60 * 1000
-            current += 1
-            voltage += 1
-            power   += 1
-            phase   += 1
-            sql = f"insert into asset01.`em-3` values({ts}, {current}, {voltage}, {power}, {phase});"
-            tdSql.execute(sql, show=True)
-
-        # lower
-        ts += 1*60*1000
-        sql = f"insert into asset01.`em-3`(ts, current) values({ts}, 50);"
-        tdSql.execute(sql, show=True)
+        pass
+ 
 
 
     #
     #  stream4 trigger 
     #
     def trigger_stream4(self):
-        ts = self.start2
-        table = "asset01.`em-4`"
-        step  = 1 * 60 * 1000 # 1 minute
-        count = 120
-        cols = "ts,voltage,power"
-        vals = "400,200"
-        tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+        pass
 
 
     #
     #  stream4 trigger again
     #
     def trigger_stream4_again(self):
-        ts = self.start2 + 30 * 1000  # offset 30 seconds
-        table = "asset01.`em-4`"
-        step  = 1 * 60 * 1000 # 1 minute
-        count = 119
-        cols = "ts,voltage,power"
-        vals = "200,100"
-        tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+        pass
 
 
     #
     #  stream5 trigger 
     #
     def trigger_stream5(self):
-        ts = self.start2
-        table = "asset01.`em-5`"
-        step  = 1 * 60 * 1000 # 1 minute
-        
-        # first window have 3 + 5 = 10 rows
-        count = 3
-        cols = "ts,current,voltage,power"
-        vals = "30,400,200"
-        ts = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
-
-        # boundary of first window
-        count = 4
-        ts += 9 * step
-        ts = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
-        # last
-        count = 1
-        vals = "31,401,201"
-        ts = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
-
-        # save span ts
-        spanTs = ts
-
-        # trigger first windows close with 11 steps
-        count = 1
-        ts += 10 * step
-        vals = "40,500,300"
-        ts = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
-
-        # disorder data
-
-        # from span write 2 rows
-        count = 2
-        disTs = spanTs + 5 * step
-        orderVals = [36, 406, 206]
-        # ***** bug6 *****
-        #disTs = tdSql.insertOrderVal(table, disTs, step, count, cols, orderVals)
+        pass
 
 
     #
     #  stream6 trigger 
     #
     def trigger_stream6(self):
-        ts = self.start2
-        table = "asset01.`em-6`"
-        step  = 1 * 60 * 1000 # 1 minute
-        
-
-        # write to windows 1 ~ 2
-        count = 10
-        cols = "ts,voltage"
-        orderVals = [200]
-        ts = tdSql.insertOrderVal(table, ts, step, count, cols, orderVals)
-
-        # save disTs
-        disTs = ts
-
-        # write end window 5
-        count = 2
-        ts += 10 * step
-        win5Vals = [600]
-        win5Ts   = tdSql.insertOrderVal(table, ts, step, count, cols, win5Vals)
-
-        # flush db to write disorder data
-        tdSql.flushDb("asset01")
-        tdSql.flushDb(self.vdb)
-
-        # write disorder window 3
-        ts = disTs
-        count = 5
-        orderVals = [400]
-        ts = tdSql.insertOrderVal(table, ts, step, count, cols, orderVals)
-
-        # write window5 1 rows to tigger 
+        pass
 
     #
     #  again stream6 trigger
     #
     def trigger_stream6_again(self):
-        ts = self.start2
-        table = "asset01.`em-6`"
-        step  = 1 * 60 * 1000 # 1 minute
-        
-
-        # write to windows 1 ~ 2
-        count = 10
-        cols = "ts,voltage"
-        orderVals = [2000]
-        ts = tdSql.insertOrderVal(table, ts, step, count, cols, orderVals)
-
-        # save disTs
-        disTs = ts
-
-        # write end window 5
-        count = 2
-        ts += 10 * step
-        win5Vals = [6000]
-        win5Ts   = tdSql.insertOrderVal(table, ts, step, count, cols, win5Vals)
-
-        # write disorder window 3
-        ts = disTs
-        count = 5
-        orderVals = [4000]
-        ts = tdSql.insertOrderVal(table, ts, step, count, cols, orderVals)
+        pass
 
     #
     #  stream7 trigger
     #
     def trigger_stream7(self):
-        ts    = self.start2
-        table = "asset01.`em-7`"
-        step  = 1 * 60 * 1000 # 1 minute
-        cols  = "ts,current,voltage,power"
-
-        # write to windows 1
-        count = 2
-        fixedVals = "100, 200, 300"
-        ts = tdSql.insertFixedVal(table, ts, step, count, cols, fixedVals)
-
-        count = 2
-        fixedVals = "200, 300, 400"
-        ts = tdSql.insertFixedVal(table, ts, step, count, cols, fixedVals)
-
-        ''' ****** bug8 *****
-        count = 2
-        fixedVals = "300, NULL, 500"
-        ts = tdSql.insertFixedVal(table, ts, step, count, cols, fixedVals)
-        '''
-        ts += 2 * step # bug8
-
-        count = 2
-        fixedVals = "400, 500, 600"
-        ts = tdSql.insertFixedVal(table, ts, step, count, cols, fixedVals)
-
-        # end trigger
-        count = 1
-        fixedVals = "401, 501, 601"
-        ts = tdSql.insertFixedVal(table, ts, step, count, cols, fixedVals)
+        pass
 
     #
     #  stream8 trigger
     #
     def trigger_stream8(self):
-        ts    = self.start2
-        table = "asset01.`em-8`"
-        cols  = "ts,current,voltage,power"
-        sleepS = 0.2  # 0.2 seconds
-
-        # write to windows 1
-        count = 20
-        fixedVals = "100, 200, 300"
-        tdSql.insertNow(table, sleepS, count, cols, fixedVals)
-
+        pass
 
     #
     # ---------------------   verify    ----------------------
@@ -549,33 +315,16 @@ class Test_IDMP_Vehicle:
     # verify stream1
     #
     def verify_stream1(self):
-        # result_stream1
+        # check
         result_sql = f"select * from {self.vdb}.`result_stream1` "
-        result_sql_sub1 = f"select * from {self.vdb}.`result_stream1_sub1` "
-        result_sql_sub2 = f"select * from {self.vdb}.`result_stream1_sub2` "
-
-        ''' bug1
         tdSql.checkResultsByFunc (
             sql = result_sql, 
-            func = lambda: tdSql.getRows() == 2
-            and tdSql.compareData(0, 0, "2025-07-15 15:04:20")
-            and tdSql.compareData(1, 0, "2025-07-15 15:25:20")
-            and tdSql.compareData(0, 1, 300)
-            and tdSql.compareData(1, 1, 400)
-        )
-        '''
-
-        # result_stream1_sub1
-        tdSql.checkResultsBySql(
-            sql=result_sql,
-            exp_sql=result_sql_sub1
+            func = lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, self.start) # ts
+            and tdSql.compareData(0, 1, 5)          # cnt
+            and tdSql.compareData(0, 2, 120)        # avg(speed)
         )
 
-        # result_stream1_sub2
-        tdSql.checkResultsBySql(
-            sql=result_sql,
-            exp_sql=result_sql_sub1
-        )
 
         tdLog.info("verify stream1 .................................. successfully.")
 
@@ -583,7 +332,6 @@ class Test_IDMP_Vehicle:
     # verify stream2
     #
     def verify_stream2(self):
-        # result_stream2
         result_sql = f"select * from {self.vdb}.`result_stream2` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
@@ -715,7 +463,7 @@ class Test_IDMP_Vehicle:
         # result_stream4_sub8
         tdSql.checkResultsBySql(
             sql     = f"select * from {self.vdb}.`result_stream4_sub8` ", 
-            exp_sql = f"select ts,1,voltage,power from asset01.`em-4` where ts >= 1752574200000 limit 119;"
+            exp_sql = f"select ts,1,voltage,power from {self.db}.`em-4` where ts >= 1752574200000 limit 119;"
         )
         tdLog.info("verify stream4_sub8 ............................. successfully.")
 
@@ -770,9 +518,9 @@ class Test_IDMP_Vehicle:
         for i in range(10):
             # write 
             sqls = [
-                "INSERT INTO asset01.`em-4`(ts,voltage,power) VALUES(1752574230000,2000,1000);",
-                "INSERT INTO asset01.`em-4`(ts,voltage,power) VALUES(1752574230000,2001,10000);",
-                "INSERT INTO asset01.`em-4`(ts,voltage,power) VALUES(1752581310000,2002,1001);"
+                "INSERT INTO {self.db}.`em-4`(ts,voltage,power) VALUES(1752574230000,2000,1000);",
+                "INSERT INTO {self.db}.`em-4`(ts,voltage,power) VALUES(1752574230000,2001,10000);",
+                "INSERT INTO {self.db}.`em-4`(ts,voltage,power) VALUES(1752581310000,2002,1001);"
             ]
             tdSql.executes(sqls)
 

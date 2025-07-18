@@ -28,6 +28,10 @@ class Test_IDMP_Meters:
         History:
             - 2025-7-10 Alex Duan Created
 
+
+        stream1: 车辆:黑 Z0D10W 的实时速度超过 100km/h 持续超过 5 分钟时，常规告警，计算平均速度
+
+
         """
 
         #
