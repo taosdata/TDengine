@@ -221,7 +221,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_create.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_select.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_alter_drop.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query.py
+#memleak,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query.py
+,,n,.,pytest cases/05-VirtualTables/test_vtable_query.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter.py
@@ -938,21 +939,34 @@
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma2.py -Q 2
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma2.py -Q 3
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma2.py -Q 4
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal.py -Q 4
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal.py -Q 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal.py -Q 2
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal.py -Q 1
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal2.py
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal.py
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal.py
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal.py -Q 4
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal.py -Q 4
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal.py -Q 3
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal.py -Q 3
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal.py -Q 2
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal.py -Q 2
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal.py -Q 1
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal.py -Q 1
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal2.py
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal2.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 4
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 2
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 1
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal3.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal3.py -Q 4
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal3.py -Q 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal3.py -Q 2
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal3.py -Q 1
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 2
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 2
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 1
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 1
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal3.py
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal3.py
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal3.py -Q 4
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal3.py -Q 4
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal3.py -Q 3
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal3.py -Q 3
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal3.py -Q 2
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal3.py -Q 2
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal3.py -Q 1
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal3.py -Q 1
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbnameIn.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbnameIn.py -R
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbnameIn.py -Q 2
@@ -1139,10 +1153,12 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -Q 2
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -Q 4
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py -R
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py -Q 2
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py -Q 3
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py -Q 3
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py -Q 4
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_3.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_3.py -R
@@ -1584,7 +1600,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp.py -Q 4
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill.py -Q 4
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_case_when.py -Q 4
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_insert_select.py
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_insert_select.py
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_insert_select.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_insert_select.py -R
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_insert_select.py -Q 2
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_insert_select.py -Q 3
@@ -1632,7 +1649,8 @@
 #,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_block_wise.py
 #,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_create_retentions.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_mutil_stage.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_table_param_ttl.py
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_table_param_ttl.py
+,,n,.,pytest cases/uncatalog/system-test/1-insert/test_table_param_ttl.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_table_param_ttl.py -R
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_update_data_muti_rows.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_db_tb_name_check.py
@@ -1693,7 +1711,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/3-enterprise/restore/test_restore_vnode.py -N 5 -M 3 -I False
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/3-enterprise/restore/test_restore_mnode.py -N 5 -M 3 -I False
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/3-enterprise/restore/test_restore_qnode.py -N 5 -M 3 -I False
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/3-enterprise/restore/test_kill_restore_dnode.py -N 5
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/3-enterprise/restore/test_kill_restore_dnode.py -N 5
+,,n,.,pytest cases/uncatalog/system-test/3-enterprise/restore/test_kill_restore_dnode.py -N 5
 
 ### 6-cluster
 ,,n,.,pytest cases/uncatalog/system-test/6-cluster/manually-test/test_6dnode3mnode_insert_less_data_alter_rep3to1to3.py -N 6 -M 3
@@ -1750,11 +1769,13 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taosd_audit.py
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_taosdlog.py
 #newstm,,n,.,pytest cases/uncatalog/system-test/0-others/test_taosd_shell.py -N 5 -M 3 -Q 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_udf_test.py
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_udf_test.py
+,,n,.,pytest cases/uncatalog/system-test/0-others/test_udf_test.py
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_udf_create.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_udf_restart_taosd.py
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_udf_cfg1.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_udf_cfg2.py
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_udf_cfg2.py
+,,n,.,pytest cases/uncatalog/system-test/0-others/test_udf_cfg2.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_cachemodel.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_sysinfo.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_user_control.py
@@ -1768,7 +1789,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_retention2.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_multilevel_createdb.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_ttl.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_ttl_change_on_write.py
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_ttl_change_on_write.py
+,,n,.,pytest cases/uncatalog/system-test/0-others/test_ttl_change_on_write.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compress_tsz1.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compress_tsz2.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_show_table_distributed.py
@@ -1785,7 +1807,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_split_vgroup.py -N 3 --replica 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_split_vgroup_wal.py -N 3 --replica 3
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_time_range_wise.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_delete_check.py
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_delete_check.py
+,,n,.,pytest cases/uncatalog/system-test/0-others/test_delete_check.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_hot_refresh_configurations.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_subscribe_stream_privilege.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_empty_identifier.py
@@ -1884,12 +1907,15 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDropNtb_snapshot0.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDropNtb_snapshot1.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot0.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot1.py
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot0.py
+,,n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot0.py
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot1.py
+,,n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot1.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_stbTagFilter_1ctb.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_dataFromTsdbNWal.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_dataFromTsdbNWal_multiCtb.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_taosx.py
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_taosx.py
+,,,n.,pytest cases/uncatalog/system-test/7-tmq/test_tmq_taosx.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts5466.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_td33504.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts6392.py
