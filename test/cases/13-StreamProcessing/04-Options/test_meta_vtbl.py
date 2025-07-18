@@ -27,9 +27,13 @@ class TestStreamMetaTrigger:
         # TD-36750 [流计算开发阶段] 虚拟表+删除pre_filter(cbigint >=1)中cbigint列后，应该没有符合条件的数据了，不会触发计算窗口
         # streams.append(self.Basic3())  # [fail]
         
-        streams.append(self.Basic4())  # [ok]
+        # streams.append(self.Basic4())  # [ok]
         # streams.append(self.Basic5())  # [ok] 
-        # streams.append(self.Basic6())  #  [fail]
+        
+        # TD-36525 [流计算开发阶段] 删除流结果表后继续触发了也没有重建，不符合预期
+        streams.append(self.Basic6())  #  [fail]
+        
+        # TD-36788 [流计算开发阶段] 虚拟超级表没有触发生成分组结果表
         # streams.append(self.Basic7())  # [fail] 
         
         tdStream.checkAll(streams)
@@ -1668,8 +1672,8 @@ class TestStreamMetaTrigger:
             tdSql.execute(f"create table {self.db}.ct1 using {self.db}.{self.stbName} tags(1)")
             tdSql.execute(f"create table {self.db}.ct2 using {self.db}.{self.stbName} tags(2)")
 
-            tdSql.execute(f"create vtable vct1 (cint from {self.db}.ct1.cint) using {self.db}.{self.vstbName} tags(1)")
-            tdSql.execute(f"create vtable vct2 (cint from {self.db}.ct2.cint) using {self.db}.{self.vstbName} tags(2)")
+            tdSql.execute(f"create vtable vct1 (cint from {self.db}.ct1.cint,cbigint from {self.db}.ct1.cbigint,cfloat from {self.db}.ct1.cfloat) using {self.db}.{self.vstbName} tags(1)")
+            tdSql.execute(f"create vtable vct2 (cint from {self.db}.ct2.cint,cbigint from {self.db}.ct2.cbigint,cfloat from {self.db}.ct2.cfloat) using {self.db}.{self.vstbName} tags(2)")
             
             tdSql.execute(
                 f"create stream s6_g state_window(cint) from {self.vstbName} partition by tbname, tint into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cbigint), avg(cint) from %%trows;"
