@@ -53,6 +53,7 @@ typedef enum SOperatorParamType { OP_GET_PARAM = 1, OP_NOTIFY_PARAM } SOperatorP
 #define IS_INVALID_SESSION_WIN_KEY(winKey)   ((winKey).win.skey <= 0)
 #define SET_SESSION_WIN_KEY_INVALID(pWinKey) ((pWinKey)->win.skey = INT64_MIN)
 
+#define IS_STREAM_MODE(_task) ((_task)->execModel == OPTR_EXEC_MODEL_STREAM)
 
 /**
  * If the number of generated results is greater than this value,
@@ -187,6 +188,7 @@ typedef struct SExchangeSrcIndex {
 } SExchangeSrcIndex;
 
 typedef struct SExchangeInfo {
+  int64_t    seqId;
   SArray*    pSources;
   SSHashObj* pHashSources;
   SArray*    pSourceDataInfo;
