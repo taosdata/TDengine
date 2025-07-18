@@ -1248,9 +1248,7 @@ TO_BASE64(expr)
 
 **Return Type**: VARCHAR.
 
-**Applicable Data Types**:
-
-- `expr`: VARCHAR, NCHAR.
+**Applicable Data Types**: Suitable for any type.
 
 **Nested Subquery Support**: Applicable to both inner and outer queries.
 
@@ -1259,14 +1257,32 @@ TO_BASE64(expr)
 **Usage Notes**:
 
 - If `expr` is NULL, returns NULL.
+- if `expr` is the empty string, it returns the empty string.
+- if `expr` is a non string, it is interpreted as a string.
+- This function is multibyte safe.
 
 **Example**:
 
 ```sql
+taos> select to_base64(NULL);
+ to_base64(null) |
+==================
+ NULL            |
+
 taos> select to_base64("");
  to_base64("") |
 ================
                |
+
+taos> select to_base64(14324);
+ to_base64(14324) |
+=====================
+ MTQzMjQ=           |
+
+taos> select to_base64("14324");
+ to_base64("14324") |
+=====================
+ MTQzMjQ=           |
 
 taos> select to_base64("Hello, world!");
  to_base64("Hello, world!") |

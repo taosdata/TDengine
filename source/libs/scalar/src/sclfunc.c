@@ -1864,7 +1864,13 @@ static char base64Table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                             "abcdefghijklmnopqrstuvwxyz"
                             "0123456789+/";
 
-static void base64Impl(uint8_t *base64Out, const uint8_t *inputBytes, size_t inputLen, VarDataLenT outputLen) {
+uint32_t base64BufSize(size_t inputLenBytes) {
+  return 4 * ((inputLenBytes + 2) / 3);
+}
+
+static VarDataLenT base64Impl(uint8_t *base64Out, const uint8_t *inputBytes, size_t inputLen) {
+  VarDataLenT outputLen = base64BufSize(inputLen);
+
   for (size_t i = 0, j = 0; i < inputLen;) {
     unsigned int octet_a = i < inputLen ? inputBytes[i++] : 0;
     unsigned int octet_b = i < inputLen ? inputBytes[i++] : 0;
@@ -1883,39 +1889,82 @@ static void base64Impl(uint8_t *base64Out, const uint8_t *inputBytes, size_t inp
   }
 
   base64Out[outputLen] = 0;
+
+  return outputLen;
 }
 
-uint32_t base64BufSize(size_t inputLenBytes) {
-  return 4 * ((inputLenBytes + 2) / 3);
-}
+#define BASE64_TRUE  "MQ=="
+#define BASE64_FALSE "MA=="
 
 int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput) {
   int32_t code = TSDB_CODE_SUCCESS;
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
-  char *outputBuf = taosMemoryMalloc(TSDB_MAX_FIELD_LEN + VARSTR_HEADER_SIZE);
-  if (outputBuf == NULL) {
+  int16_t inputType = GET_PARAM_TYPE(&pInput[0]);
+  int64_t outputLen = GET_PARAM_BYTES(&pOutput[0]);
+  char *stringBuf = taosMemoryMalloc(TSDB_MAX_FIELD_LEN + VARSTR_HEADER_SIZE);
+  char *output = taosMemoryMalloc(TSDB_MAX_FIELD_LEN + VARSTR_HEADER_SIZE);
+
+  if (!stringBuf || output) {
     SCL_ERR_RET(terrno);
   }
-  
+
+  /* Preparing the output buffer with VARSTR_HEADER_SIZE
+     non-zero char at the beginning */
+  for (size_t i = 0; i < VARSTR_HEADER_SIZE; i++) {
+    output[i] = 1;
+  }
+  char *out = output + VARSTR_HEADER_SIZE;
+
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
       colDataSetNULL(pOutputData, i);
       continue;
     }
 
-    char *input = colDataGetData(pInputData, i);
-    size_t inputLen = varDataLen(colDataGetData(pInputData, i));
-    char *out = outputBuf + VARSTR_HEADER_SIZE;
-    VarDataLenT outputLength = base64BufSize(inputLen);
-    base64Impl(out, varDataVal(input), inputLen, outputLength);
-    varDataSetLen(outputBuf, outputLength);
-    SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
+    char *input = colDataGetData(pInput[0].columnData, i);
+    size_t inputLen = varDataLen(input);
+    size_t outputSize = TSDB_MAX_FIELD_LEN;
+
+    if (inputType == TSDB_DATA_TYPE_BOOL) {
+      memcpy(out, *(int8_t *)input ? BASE64_TRUE : BASE64_FALSE, 4);
+      SCL_ERR_JRET(colDataSetVal(pOutputData, i, output, false));
+      continue;
+    }
+
+    if (IS_NUMERIC_TYPE(inputType)) {
+      if (IS_DECIMAL_TYPE(inputType)) {
+		outputSize = (outputLen - VARSTR_HEADER_SIZE) < TSDB_MAX_FIELD_LEN
+                        ? (outputLen - VARSTR_HEADER_SIZE + 1)
+                        : TSDB_MAX_FIELD_LEN;
+        uint8_t inputPrec = GET_PARAM_PRECISON(&pInput[0]), inputScale = GET_PARAM_SCALE(&pInput[0]);
+        SCL_ERR_JRET(decimalToStr(input, inputType, inputPrec, inputScale, stringBuf, outputSize));
+      } else {
+        NUM_TO_STRING(inputType, input, outputSize, stringBuf);
+      }
+      outputSize = strlen(stringBuf);
+    } else if (inputType == TSDB_DATA_TYPE_TIMESTAMP) {
+      /* The format used by MySQL in the conversion from timestamp to string */
+      char *format = "yyyy-mm-dd hh24:mi:ss";
+      SArray *formats = NULL;
+      SCL_ERR_JRET(taosTs2Char(format, &formats, *(int64_t *)input, 0, stringBuf, outputSize, pInput->tz));
+      outputSize = strlen(stringBuf);
+      taosArrayDestroy(formats);
+    } else {
+      outputSize = inputLen;
+      memcpy(stringBuf, varDataVal(input), outputSize);
+    }
+
+    VarDataLenT outputLength = base64Impl(out, stringBuf, outputSize);
+    varDataSetLen(output, outputLength);
+    SCL_ERR_JRET(colDataSetVal(pOutputData, i, output, false));
   }
 
   pOutput->numOfRows = pInput->numOfRows;
+
 _return:
-  taosMemoryFree(outputBuf);
+  taosMemoryFree(output);
+  taosMemoryFree(stringBuf);
   return code;
 }
 

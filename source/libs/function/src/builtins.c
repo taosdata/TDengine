@@ -5542,7 +5542,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .inputParaInfo[0][0] = {.isLastParam = true,
                                            .startParam = 1,
                                            .endParam = 1,
-                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
