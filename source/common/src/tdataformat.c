@@ -519,6 +519,10 @@ static int32_t tRowBuildTupleWithBlob2(SArray *aColVal, const SRowBuildScanInfo 
                 code = tBlobSetGet(pSrcBlobSet, seq, &item);
                 TAOS_CHECK_RETURN(code);
 
+                char buf[128] = {0};
+                memcpy(buf, item.data, item.len);
+                uInfo("blob data seq %" PRId64 ", data:%s, lion:%d", seq, buf, __LINE__);
+
                 code = tBlobSetPush(pDstBlobSet, &item, &seq, 0);
                 TAOS_CHECK_RETURN(code);
                 varlen += tPutU64(varlen, seq);
@@ -805,6 +809,10 @@ static int32_t tRowBuildKVRowWithBlob2(SArray *aColVal, const SRowBuildScanInfo 
                 int32_t code = tBlobSetGet(pSrcBlobSet, seq, &item);
                 TAOS_CHECK_RETURN(code);
 
+                char buf[128] = {0};
+                memcpy(buf, item.data, item.len);
+                uInfo("blob data seq %" PRId64 ", data:%s, line %d", seq, buf, __LINE__);
+
                 code = tBlobSetPush(pDstBlobSet, &item, &seq, 0);
                 TAOS_CHECK_RETURN(code);
 
@@ -997,6 +1005,7 @@ void tBlobSetSwap(SBlobSet *p1, SBlobSet *p2) {
   memcpy(p1, p2, sizeof(SBlobSet));
   memcpy(p2, &t, sizeof(SBlobSet));
 }
+
 int32_t tBlobSetUpdate(SBlobSet *pBlobSet, uint64_t seq, SBlobItem *pItem) {
   int32_t code = 0;
   return code;
@@ -1460,6 +1469,10 @@ static int32_t tRowRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlo
       code = tBlobSetGet(pBlob, seq, &item);
       TAOS_CHECK_GOTO(code, &lino, _error);
 
+      char buf[128] = {0};
+      memcpy(buf, item.data, item.len);
+      uInfo("blob data seq %" PRId64 ", data:%s, lion:%d", seq, buf, __LINE__);
+
       code = tBlobSetPush(pTempBlob, &item, &seq, 1);
       TAOS_CHECK_GOTO(code, &lino, _error);
 
@@ -1490,10 +1503,18 @@ _error:
 static int32_t tRowMergeAndRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlob) {
   int32_t code = 0;
 
+  int32_t   lino = 0;
   SBlobSet *pTempBlobSet = NULL;
   int32_t   size = taosArrayGetSize(aRowP);
   if (size <= 1) {
     return code;
+  }
+  int32_t colBlobIdx = 0;
+  for (int32_t i = 0; i < pTSchema->numOfCols; i++) {
+    if (IS_STR_DATA_BLOB(pTSchema->columns[i].type)) {
+      colBlobIdx = i;
+      break;
+    }
   }
 
   code = tBlobSetCreate(pBlob->cap, pBlob->type, &pTempBlobSet);
@@ -1517,13 +1538,36 @@ static int32_t tRowMergeAndRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobS
 
     if (iEnd - iStart > 1) {
       code = tRowMergeWithBlobImpl(aRowP, pTSchema, pBlob, pTempBlobSet, iStart, iEnd, 0);
+      TAOS_CHECK_GOTO(code, &lino, _error);
+    } else {
+      SColVal colVal = {0};
+      code = tRowGet(row1, pTSchema, colBlobIdx, &colVal);
       if (code) return code;
+      if (COL_VAL_IS_NULL(&colVal) || colVal.value.pData == NULL) {
+        int8_t type = COL_VAL_IS_NULL(&colVal) ? TSDB_DATA_BLOB_NULL_VALUE : TSDB_DATA_BLOB_EMPTY_VALUE;
+        code = addEmptyItemToBlobSet(pTempBlobSet, type, NULL);
+        TAOS_CHECK_GOTO(code, &lino, _error);
+      } else {
+        uint64_t seq = 0;
+        tGetU64(colVal.value.pData, &seq);
+
+        SBlobItem item = {0};
+        code = tBlobSetGet(pBlob, seq, &item);
+        TAOS_CHECK_GOTO(code, &lino, _error);
+
+        code = tBlobSetPush(pTempBlobSet, &item, &seq, 1);
+        TAOS_CHECK_GOTO(code, &lino, _error);
+
+        tPutU64(colVal.value.pData, seq);
+      }
     }
 
     // the array is also changing, so the iStart just ++ instead of iEnd
     iStart++;
   }
+_error:
   tBlobSetSwap(pBlob, pTempBlobSet);
+  tBlobSetDestroy(pTempBlobSet);
   return code;
 }
 
@@ -1531,7 +1575,6 @@ static int32_t tRowMergeWithBlobImpl(SArray *aRowP, STSchema *pTSchema, SBlobSet
                                      int32_t iStart, int32_t iEnd, int8_t flag) {
   int32_t code = 0;
   int32_t    lino = 0;
-  SBlobSet  *pTempBlobSet = NULL;
   int32_t    nRow = iEnd - iStart;
   SRowIter **aIter = NULL;
   SArray    *aColVal = NULL;
@@ -1550,7 +1593,7 @@ static int32_t tRowMergeWithBlobImpl(SArray *aRowP, STSchema *pTSchema, SBlobSet
   }
 
   for (int32_t i = 0; i < nRow; i++) {
-    SRow *pRowT = taosArrayGetP(aRowP, i);
+    SRow *pRowT = taosArrayGetP(aRowP, iStart + i);
     code = tRowIterOpen(pRowT, pTSchema, &aIter[i]);
     TAOS_CHECK_GOTO(code, &lino, _exit);
   }
