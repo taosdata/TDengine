@@ -4,6 +4,10 @@ title: PHP Client Library
 slug: /tdengine-reference/client-libraries/php
 ---
 
+import CommunityLibrary from '../../assets/resources/_community-library.mdx';
+
+<CommunityLibrary/>
+
 `php-tdengine` is a PHP connector extension contributed by the community, which also specifically supports Swoole coroutine.
 
 The PHP connector depends on the TDengine client driver.
