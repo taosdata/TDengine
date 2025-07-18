@@ -13163,6 +13163,7 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
   int32_t lino;
   int8_t  hasBlog = 0;
 
+  int32_t count = 0;
   TAOS_CHECK_EXIT(tPreCheckSubmitTbData(pSubmitTbData, &hasBlog));
 
   TAOS_CHECK_EXIT(tStartEncode(pCoder));
@@ -13198,6 +13199,8 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
     for (uint64_t i = 0; i < nColData; i++) {
       TAOS_CHECK_EXIT(tEncodeColData(SUBMIT_REQUEST_VERSION, pCoder, &aColData[i]));
     }
+    count = nColData;
+
   } else {
     uTrace("encode %d row data", (int32_t)(TARRAY_SIZE(pSubmitTbData->aRowP)));
     TAOS_CHECK_EXIT(tEncodeU64v(pCoder, TARRAY_SIZE(pSubmitTbData->aRowP)));
@@ -13206,11 +13209,16 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
     for (int32_t iRow = 0; iRow < TARRAY_SIZE(pSubmitTbData->aRowP); ++iRow) {
       TAOS_CHECK_EXIT(tEncodeRow(pCoder, rows[iRow]));
     }
+    count = TARRAY_SIZE(pSubmitTbData->aRowP);
   }
   TAOS_CHECK_EXIT(tEncodeI64(pCoder, pSubmitTbData->ctimeMs));
 
   if (hasBlog) {
     tEncodeBlobSet(pCoder, pSubmitTbData->pBlobSet);
+    if (tBlobSetSize(pSubmitTbData->pBlobSet) != count) {
+      uError("blob set size %d not match row size %d", tBlobSetSize(pSubmitTbData->pBlobSet), count);
+      return TSDB_CODE_INVALID_MSG;
+    }
   }
 
   tEndEncode(pCoder);

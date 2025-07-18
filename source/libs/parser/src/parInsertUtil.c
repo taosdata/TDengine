@@ -1026,7 +1026,6 @@ int32_t insResetBlob(SSubmitReq2* p) {
       }
       uTrace("blob blob %p row size %d, pData size %d", pBlob, nblob, nrow);
       pSubmitTbData->pBlobSet = pBlob;
-
       *ppBlob = NULL;  // reset blob row to NULL, so that it will not be freed in destroy
     }
   } else {
