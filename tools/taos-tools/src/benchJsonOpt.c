@@ -1061,6 +1061,7 @@ static int getStableInfo(tools_cJSON *dbinfos, int index) {
         superTable->timestamp_step = 1;
         superTable->angle_step = 1;
         superTable->useSampleTs = false;
+        superTable->useTagTableName = false;
         superTable->non_stop = false;
         superTable->insertRows = 0;
         superTable->interlaceRows = 0;
@@ -1402,6 +1403,23 @@ static int getStableInfo(tools_cJSON *dbinfos, int index) {
                      MAX_FILE_NAME_LEN);
         } else {
             memset(superTable->tagsFile, 0, MAX_FILE_NAME_LEN);
+        }
+
+        tools_cJSON *primaryKeyName =
+            tools_cJSON_GetObjectItem(stbInfo, "primary_key_name");
+        if (tools_cJSON_IsString(primaryKeyName) 
+            && primaryKeyName->valuestring != NULL 
+            && strlen(primaryKeyName->valuestring) > 0) {
+            TOOLS_STRNCPY(superTable->primaryKeyName, primaryKeyName->valuestring, TSDB_COL_NAME_LEN);
+        } else {
+            TOOLS_STRNCPY(superTable->primaryKeyName, "ts", TSDB_COL_NAME_LEN);
+        }
+
+        tools_cJSON *useTagTableName =
+            tools_cJSON_GetObjectItem(stbInfo, "use_tag_table_name");
+        if (tools_cJSON_IsString(useTagTableName) &&
+            (0 == strcasecmp(useTagTableName->valuestring, "yes"))) {
+            superTable->useTagTableName = true;
         }
 
         tools_cJSON *insertRows =
@@ -1898,11 +1916,17 @@ static int getMetaFromInsertJsonFile(tools_cJSON *json) {
     tools_cJSON *resultJsonFile = tools_cJSON_GetObjectItem(json, "result_json_file");
     if (resultJsonFile && resultJsonFile->type == tools_cJSON_String
             && resultJsonFile->valuestring != NULL) {
-        g_arguments->output_json_file = resultJsonFile->valuestring;
+        if(g_arguments->output_json_file == NULL) {        
+            g_arguments->output_json_file = resultJsonFile->valuestring;
+        }
+    }
+
+    if(g_arguments->output_json_file != NULL) { 
         if (check_write_permission(g_arguments->output_json_file)) {
             errorPrint("json file %s does not have write permission.\n", g_arguments->output_json_file);
             goto PARSE_OVER;
         }
+        infoPrint("json output file: %s\n", g_arguments->output_json_file);
     }
 
     tools_cJSON *threads = tools_cJSON_GetObjectItem(json, "thread_count");
@@ -2195,36 +2219,6 @@ int32_t readSpecQueryJson(tools_cJSON * specifiedQuery) {
                         int strLen = strlen(sqlStr->valuestring) + 1;
                         sql->command = benchCalloc(1, strLen, true);
                         TOOLS_STRNCPY(sql->command, sqlStr->valuestring, strLen);
-                        // default value is -1, which mean infinite loop
-                        g_queryInfo.specifiedQueryInfo.endAfterConsume[j] = -1;
-                        tools_cJSON *endAfterConsume =
-                            tools_cJSON_GetObjectItem(specifiedQuery,
-                                                      "endAfterConsume");
-                        if (tools_cJSON_IsNumber(endAfterConsume)) {
-                            g_queryInfo.specifiedQueryInfo.endAfterConsume[j] =
-                                (int)endAfterConsume->valueint;
-                        }
-                        if (g_queryInfo.specifiedQueryInfo
-                                .endAfterConsume[j] < -1) {
-                            g_queryInfo.specifiedQueryInfo
-                                .endAfterConsume[j] = -1;
-                        }
-
-                        g_queryInfo.specifiedQueryInfo
-                                .resubAfterConsume[j] = -1;
-                        tools_cJSON *resubAfterConsume =
-                            tools_cJSON_GetObjectItem(
-                                    specifiedQuery, "resubAfterConsume");
-                        if (tools_cJSON_IsNumber(resubAfterConsume)) {
-                            g_queryInfo.specifiedQueryInfo.resubAfterConsume[j]
-                                = (int)resubAfterConsume->valueint;
-                        }
-
-                        if (g_queryInfo.specifiedQueryInfo
-                                .resubAfterConsume[j] < -1)
-                            g_queryInfo.specifiedQueryInfo
-                                    .resubAfterConsume[j] = -1;
-
                         tools_cJSON *result =
                             tools_cJSON_GetObjectItem(sqlObj, "result");
                         if (tools_cJSON_IsString(result)) {

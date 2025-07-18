@@ -294,8 +294,9 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
             vgId, pMsg, isWeak, vnodeIsMsgBlock(pMsg->msgType), msg, numOfMsgs, pMsg->info.handle);
 
     if (!pVnode->restored) {
-      vGWarn(&pMsg->info.traceId, "vgId:%d, msg:%p, failed to process since restore not finished, type:%s", vgId, pMsg,
-             TMSG_INFO(pMsg->msgType));
+      vGWarn(&pMsg->info.traceId,
+             "vgId:%d, msg:%p, failed to process since restore not finished, type:%s, seqNum:%" PRId64, vgId, pMsg,
+             TMSG_INFO(pMsg->msgType), pMsg->info.seqNum);
       vnodeHandleProposeError(pVnode, pMsg, TSDB_CODE_SYN_RESTORING);
       rpcFreeCont(pMsg->pCont);
       taosFreeQitem(pMsg);
