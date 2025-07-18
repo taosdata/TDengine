@@ -171,13 +171,13 @@ class TestIdmpScene:
         # if not specified, all streams in the stream.sql will be created
         if hasattr(self, "stream_ids") and len(self.stream_ids) > 0:
             tdLog.info(f"USE specified stream ids: {self.stream_ids}")
-        elif "IDMP_TOBACCO_STREAM_IDS" in os.environ:
-            ids = os.environ.get("IDMP_TOBACCO_STREAM_IDS")
+        elif "IDMP_STREAM_IDS" in os.environ:
+            ids = os.environ.get("IDMP_STREAM_IDS")
             if ids:
                 self.stream_ids = [
                     int(x) for x in ids.split(",") if x.strip().isdigit()
                 ]
-                tdLog.info(f"use IDMP_TOBACCO_STREAM_IDS from env: {self.stream_ids}")
+                tdLog.info(f"use IDMP_STREAM_IDS from env: {self.stream_ids}")
         else:
             self.stream_ids = [obj.id for obj in self.stream_objs]
             tdLog.info(f"use all stream ids: {self.stream_ids}")

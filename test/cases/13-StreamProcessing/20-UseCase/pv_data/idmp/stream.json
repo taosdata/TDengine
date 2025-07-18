@@ -33,5 +33,79 @@
                 "data": "9.61643"
             }
         ]
+    },
+    {
+        "id": 2,
+        "name": "ana_weather_sensor_02_环境温度超过80度持续超过10分钟时计算平均温度",
+        "create": "create stream if not exists `idmp`.`%STREAM_NAME` event_window( start with `环境温度` > 80 end with `环境温度` <= 80 ) true_for(10m) FROM `idmp`.`vt_气象传感器02_471544` stream_options(ignore_disorder) into `idmp`.`%STREAM_NAME` as select _twstart+0s as output_timestamp, avg(`环境温度`) as `平均环境温度` FROM idmp.`vt_气象传感器02_471544` where ts >= _twstart and ts <=_twend;",
+        "data": [
+            "INSERT INTO weather_sensor_02(ts,ambient_temperature) VALUES('2025-07-18 08:00:00', 5.85325);",
+            "INSERT INTO weather_sensor_02(ts,ambient_temperature) VALUES('2025-07-18 08:10:00', 4.62972);",
+            "INSERT INTO weather_sensor_02(ts,ambient_temperature) VALUES('2025-07-18 08:20:00', 4.42686);",
+            "INSERT INTO weather_sensor_02(ts,ambient_temperature) VALUES('2025-07-18 08:30:00', 98.1111);",
+            "INSERT INTO weather_sensor_02(ts,ambient_temperature) VALUES('2025-07-18 08:40:00', 0.11110);",
+            "INSERT INTO weather_sensor_02(ts,ambient_temperature) VALUES('2025-07-18 08:50:00', 7.78088);"
+        ],
+        "assert": [
+            {
+                "row": 0,
+                "col": 0,
+                "data": "2025-07-18 08:30:00"
+            },
+            {
+                "row": 0,
+                "col": 1,
+                "data": "49.1111"
+            }
+        ]
+    },
+    {
+        "id": 3,
+        "name": "ana_weather_sensor_03_超过10分钟没有上报数据取出最后一条的环境温度",
+        "create": "create stream if not exists `idmp`.`%STREAM_NAME` session(ts,10m) FROM `idmp`.`vt_气象传感器03_548089` stream_options(ignore_disorder) INTO `idmp`.`%STREAM_NAME` as select _twstart+0s as output_timestamp, last(`环境温度`) as `最后环境温度` FROM idmp.`vt_气象传感器03_548089` where ts >= _twstart and ts <=_twend;",
+        "data": [
+            "INSERT INTO weather_sensor_03(ts,ambient_temperature) VALUES('2025-07-18 08:00:01', 1.1);",
+            "INSERT INTO weather_sensor_03(ts,ambient_temperature) VALUES('2025-07-18 08:10:02', 2.2);",
+            "INSERT INTO weather_sensor_03(ts,ambient_temperature) VALUES('2025-07-18 08:19:03', 3.3);",
+            "INSERT INTO weather_sensor_03(ts,ambient_temperature) VALUES('2025-07-18 08:31:04', 4.4);",
+            "INSERT INTO weather_sensor_03(ts,ambient_temperature) VALUES('2025-07-18 08:40:05', 5.5);"
+        ],
+        "assert": [
+            {
+                "row": 0,
+                "col": 0,
+                "data": "2025-07-18 08:00:01"
+            },
+            {
+                "row": 0,
+                "col": 1,
+                "data": "1.1"
+            }
+        ]
+    },
+    {
+        "id": 4,
+        "name": "ana_weather_sensor_04_辐照值突然下降50%持续5分钟取最后一条辐照值",
+        "create": "create stream if not exists `idmp`.`%STREAM_NAME` event_window( start with `辐照` < (last(`辐照`) * 0.5) end with `辐照` >= (last(`辐照`) * 0.5) ) true_for(5m) from `idmp`.`vt_气象传感器04_791674` stream_options(ignore_disorder) into `idmp`.`%STREAM_NAME` as select _twstart+0s as output_timestamp, last(`辐照`) as `最后辐照值` from idmp.`vt_气象传感器04_791674` where ts >= _twstart and ts <=_twend;",
+        "data": [
+            "INSERT INTO weather_sensor_04(ts,irradiation) VALUES('2025-07-18 08:00:00', 99.9999);",
+            "INSERT INTO weather_sensor_04(ts,irradiation) VALUES('2025-07-18 08:05:00', 88.8888);",
+            "INSERT INTO weather_sensor_04(ts,irradiation) VALUES('2025-07-18 08:09:00', 5.55555);",
+            "INSERT INTO weather_sensor_04(ts,irradiation) VALUES('2025-07-18 08:10:00', 4.42686);",
+            "INSERT INTO weather_sensor_04(ts,irradiation) VALUES('2025-07-18 08:15:00', 98.1111);",
+            "INSERT INTO weather_sensor_04(ts,irradiation) VALUES('2025-07-18 08:20:00', 89.1111);"
+        ],
+        "assert": [
+            {
+                "row": 0,
+                "col": 0,
+                "data": "2025-07-18 08:00:00"
+            },
+            {
+                "row": 0,
+                "col": 1,
+                "data": "88.8888"
+            }
+        ]
     }
 ]
