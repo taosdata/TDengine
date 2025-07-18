@@ -2,12 +2,13 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Context;
 use arrow::array::{RecordBatch, StringArray};
-use arrow_schema::{DataType, Schema};
+use arrow_schema::{DataType, Field, Schema};
 
 use super::{Parse, ParseError};
 
 #[derive(Debug, serde::Deserialize, serde::Serialize, Clone, PartialEq)]
 pub struct Convert {
+    new_field_name: Option<String>,
     convert: HashMap<String, String>,
 }
 
@@ -33,14 +34,26 @@ impl Parse for Convert {
                     .map_or(default.unwrap_or(k), |v| v.as_str())
             })
         }));
-
-        Ok((
-            RecordBatch::try_new(
-                Arc::new(Schema::new(vec![field.clone()])),
-                vec![Arc::new(column)],
+        let new_field = self
+            .new_field_name
+            .as_ref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|v| Field::new(v, DataType::Utf8, true));
+        let batch = match new_field {
+            Some(new_field) => RecordBatch::try_new(
+                Arc::new(Schema::new(vec![field.clone(), new_field])),
+                vec![
+                    Arc::new(array.clone()) as arrow::array::ArrayRef,
+                    Arc::new(column) as arrow::array::ArrayRef,
+                ],
             )?,
-            None,
-        ))
+            None => RecordBatch::try_new(
+                Arc::new(Schema::new(vec![field.clone()])),
+                vec![Arc::new(column) as arrow::array::ArrayRef],
+            )?,
+        };
+        Ok((batch, None))
     }
 }
 
@@ -54,6 +67,7 @@ mod tests {
     #[test]
     fn parse_array_test() -> anyhow::Result<()> {
         let map = Convert {
+            new_field_name: None,
             convert: HashMap::from_iter([("abc".to_string(), "def".to_string())]),
         };
         let input: ArrayRef = Arc::new(StringArray::from(vec!["abc", "123"]));
@@ -76,6 +90,7 @@ mod tests {
     #[test]
     fn parse_array_default_test() -> anyhow::Result<()> {
         let map = Convert {
+            new_field_name: None,
             convert: HashMap::from_iter([
                 ("abc".to_string(), "def".to_string()),
                 ("__taosx_default".to_string(), "lmn".to_string()),

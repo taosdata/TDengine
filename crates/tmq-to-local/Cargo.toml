@@ -1,0 +1,25 @@
+[package]
+name = "tmq-to-local"
+edition = "2024"
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+dashmap.workspace = true
+scc.workspace = true
+serde.workspace = true
+taos.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+async-backtrace.workspace = true
+async-compression.workspace = true
+futures-util.workspace = true
+semver.workspace = true
+
+taosx-core.workspace = true
+
+[lints]
+workspace = true

@@ -7,6 +7,7 @@ use taos::*;
 use taosx_core::core_metrics::init_task_metrics;
 use taosx_core::task_set::prelude::EventLevel;
 use taosx_core::utils::license::validate_enterprise_license;
+use taosx_task::TaskOpts;
 use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
 use twelf::config;
@@ -150,7 +151,7 @@ impl Cli {
         }
         // let _ = span.clone().entered();
         // let _ = span.enter();
-        let task_opt = taosx_core::TaskOpts {
+        let task_opt = TaskOpts {
             from: args.from,
             transform: args.transform,
             to: args.to,

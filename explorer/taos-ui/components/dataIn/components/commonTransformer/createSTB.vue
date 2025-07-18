@@ -217,9 +217,10 @@ import { VariableTableColumnType, TDengineDataType, TwoVariableTableColumnType }
 import { instance } from 'config';
 import { compareVersion } from 'utils/tdengine';
 import { t } from 'locales';
-import { transformerState } from './util';
+import { supportTransform, transformerState } from './util';
 import { createStableReq } from 'components/api';
 import { getDataInProps } from 'components/dataIn/model/useDataIn';
+import { SpbTopParseType, TopParseType } from './type';
 
 const dataInProps = getDataInProps();
 const props = defineProps<{
@@ -496,15 +497,32 @@ async function createTemplateStable() {
         columns: newColumns,
         tags: newTags
       };
-      const parserData = {
+      let parserData;
+      if (supportTransform.is_sparkplugb) {
+        const topparse = transformerState?.topParse as SpbTopParseType | null;
+        const samples = topparse?.samples;
+        parserData = {
         parser: {
-          parse: transformerState?.topParse?.parser?.parse,
-          s_model: s_model,
-          mutate: transformerState.transformExtractParseData ? [transformerState.transformExtractParseData] : []
-        },
+            parse: transformerState?.topParse?.parser?.parse,
+            s_model: s_model,
+            mutate: transformerState.transformExtractParseData ? [transformerState.transformExtractParseData] : []
+          },
 
-        input: transformerState?.topParse?.input
-      };
+          samples: samples
+        };
+      } else {
+        const topparse = transformerState?.topParse as TopParseType | null;
+        const input = topparse?.input;
+        parserData = {
+        parser: {
+            parse: transformerState?.topParse?.parser?.parse,
+            s_model: s_model,
+            mutate: transformerState.transformExtractParseData ? [transformerState.transformExtractParseData] : []
+          },
+
+          input: input
+        };
+      }
 
       const result = await dataInProps.transform.api.getStabelParser(parserData);
       if (result && Object.hasOwnProperty.call(result, 'code')) {

@@ -1,0 +1,26 @@
+[package]
+name = "sink-mqtt"
+edition = "2024"
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+snafu.workspace = true
+anyhow.workspace = true
+taos.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+flume.workspace = true
+tracing.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+faststr.workspace = true
+parking_lot.workspace = true
+serde.workspace = true
+rumqttc.workspace = true
+
+source-mqtt = { path = "../source-mqtt" }
+taosx-core.workspace = true
+
+[lints]
+workspace = true

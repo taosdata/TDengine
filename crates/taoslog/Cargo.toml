@@ -7,26 +7,23 @@ edition = "2021"
 actix-web.workspace = true
 tracing-actix-web = { version = "*" }
 tracing = { workspace = true }
-tracing-subscriber = { version = "*", default-features = false, features = [
-    "fmt",
-    "std",
-] }
+tracing-subscriber = { workspace = true, features = ["fmt", "std"] }
 chrono = { version = "0.4.38", default-features = false, features = ["clock"] }
 parking_lot.workspace = true
 snafu.workspace = true
-flate2 = "1.0"
+flate2.workspace = true
 thread-id = "4.2.2"
 regex = "1"
 sysinfo = { version = "0.31.4", default-features = false, features = ["disk"] }
 flume.workspace = true
 arrow-schema.workspace = true
-http = "0.2.12"
+http.workspace = true
 nu-ansi-term = { version = "0.50.1", optional = true }
-rayon = "1"
+rayon.workspace = true
 
 [dev-dependencies]
-crossbeam = "0.8.4"
-log = "0.4.22"
+crossbeam.workspace = true
+log.workspace = true
 rand.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true, features = ["log"] }

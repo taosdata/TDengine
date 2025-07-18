@@ -1,3 +1,5 @@
+use std::sync::LazyLock;
+
 use anyhow::Context;
 use archive::{Archive, Cache};
 use regex::Regex;
@@ -243,14 +245,15 @@ impl HandlingTableNameVariableMistake {
         data: &serde_json::Value,
         err: String,
     ) -> anyhow::Result<(HandlingResult, String)> {
+        let template_table_name = table_name_org.replace("${", "{");
         // get all variables in table name
-        let re = Regex::new(r"\{(\w+)\}").unwrap();
-        let variables = re
+        static RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\{(\w+)\}").unwrap());
+        let variables = RE
             .captures_iter(table_name_org)
             .map(|c| c.get(1).unwrap().as_str())
             .collect::<Vec<_>>();
         // clone data
-        let mut data = data
+        let mut map_data = data
             .as_object()
             .context("table name mistake handle needs map type data")?
             .clone();
@@ -262,16 +265,16 @@ impl HandlingTableNameVariableMistake {
             HandlingTableNameVariableMistake::LeaveBlank => {
                 // fill map with empty string
                 variables.iter().for_each(|&variable| {
-                    if !data.contains_key(variable) {
-                        data.insert(
+                    if !map_data.contains_key(variable) {
+                        map_data.insert(
                             variable.to_string(),
                             serde_json::Value::String(String::default()),
                         );
                     }
                 });
                 let mut template = TinyTemplate::new();
-                template.add_template("name", table_name_org)?;
-                match template.render_value("name", &serde_json::Value::from(data)) {
+                template.add_template("name", &template_table_name)?;
+                match template.render_value("name", &serde_json::Value::from(map_data.clone())) {
                     Ok(name) => Ok((HandlingResult::Modify(vec![name]), err)),
                     Err(e) => {
                         tracing::error!(
@@ -284,13 +287,14 @@ impl HandlingTableNameVariableMistake {
             HandlingTableNameVariableMistake::ReplaceTo(str) => {
                 // fill map with specified string
                 variables.iter().for_each(|&variable| {
-                    if !data.contains_key(variable) {
-                        data.insert(variable.to_string(), serde_json::Value::String(str.clone()));
+                    if !map_data.contains_key(variable) {
+                        map_data
+                            .insert(variable.to_string(), serde_json::Value::String(str.clone()));
                     }
                 });
                 let mut template = TinyTemplate::new();
-                template.add_template("name", table_name_org)?;
-                match template.render_value("name", &serde_json::Value::from(data)) {
+                template.add_template("name", &template_table_name)?;
+                match template.render_value("name", &serde_json::Value::from(map_data.clone())) {
                     Ok(name) => Ok((HandlingResult::Modify(vec![name]), err)),
                     Err(e) => {
                         tracing::error!(

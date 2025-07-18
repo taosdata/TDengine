@@ -106,3 +106,9 @@ messages_bytes: 本次运行此任务通过 TMQ 接收的消息总字节数
 commits: 本次运行此任务提交的消息数
 total_commits: 累计提交的消息数
 task_name: 任务名称
+spb_received_messages: 本次运行任务消息拉取总数量
+spb_received_metrics: 本次运行任务指标拉取总数量
+spb_fetched_acks: 本次运行任务接收到的 ACK 总数
+spb_sent_batches: 本次运行任务已发送的批次数量
+tmq2mqtt_received_messages: 本次运行任务从 TMQ 接收到的消息数量
+tmq2mqtt_published_messages: 本次运行任务发送到 MQTT 的消息数量

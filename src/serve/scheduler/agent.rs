@@ -6,7 +6,7 @@ use std::{collections::HashMap, fmt::Debug};
 use anyhow::bail;
 use multi_index_map::MultiIndexMap;
 use taosx_core::dsv::DataSourceValidation;
-use taosx_core::plugins::transform::sample::DsSampleIn;
+use taosx_core::plugins::transform::sample::{DsSampleIn, DsSamples};
 use taosx_core::{DataSet, PutFileReq};
 use tokio::{
     runtime::Handle,
@@ -463,11 +463,7 @@ impl AgentWorker {
         Ok(res)
     }
 
-    pub(crate) async fn get_sample(
-        &self,
-        agent_id: i64,
-        dsn: String,
-    ) -> anyhow::Result<DsSampleIn> {
+    pub(crate) async fn get_sample(&self, agent_id: i64, dsn: String) -> anyhow::Result<DsSamples> {
         check_agent_exists!(self, agent_id);
         let (sender, receiver) = flume::bounded(1);
         if let Err(err) = self

@@ -21,10 +21,10 @@ tokio = { workspace = true, features = ["time", "rt", "sync"] }
 croner = "2.0.5"
 chrono = { version = "0.4", default-features = false }
 english-to-cron = { version = "0.1", optional = true }
-uuid = { version = "1", features = ["v4"] }
+uuid = { workspace = true, features = ["v4"] }
 prost = { version = "0.13", optional = true }
 tracing.workspace = true
-tracing-subscriber = { version = "0.3", optional = true }
+tracing-subscriber = { workspace = true, optional = true }
 
 num-traits = "0.2"
 num-derive = "0.4"
@@ -50,7 +50,7 @@ features = ["with-uuid-1"]
 [dev-dependencies]
 anyhow.workspace = true
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-chrono-tz = { version = "0.8.5" }
+chrono-tz.workspace = true
 
 [build-dependencies]
 prost-build = { version = "0.13", optional = true }

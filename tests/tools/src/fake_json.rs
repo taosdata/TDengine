@@ -11,11 +11,12 @@ use std::{
 use chrono::{FixedOffset, Local};
 use rand::{
     distributions::{Alphanumeric, DistString, Slice},
+    seq::SliceRandom,
     Rng,
 };
 use serde_json as json;
 use serde_with::serde_as;
-use snafu::ResultExt;
+use snafu::{OptionExt, ResultExt};
 
 #[derive(Debug, snafu::Snafu)]
 pub enum Error {
@@ -35,6 +36,8 @@ pub enum Error {
     InvalidTimestampInterval { source: std::num::ParseIntError },
     #[snafu(display("Expected length field"))]
     ExpectedLength,
+    #[snafu(display("String samples empty"))]
+    EmptyStringSample,
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -63,7 +66,7 @@ pub struct ArraySchema {
 
 impl ArraySchema {
     pub fn rand_array(&self) -> Result<json::Value> {
-        let len = self.length.rand_number_value()? as usize;
+        let len = self.length.rand_value()? as usize;
 
         Ok(json::json!((0..len)
             .map(|_| self.elements.rand_json_value())
@@ -72,36 +75,43 @@ impl ArraySchema {
 }
 
 #[derive(Debug, PartialEq, Eq, serde::Deserialize)]
-pub struct StringSchema {
-    pub(crate) fixed: Option<String>,
-    pub(crate) charset: Option<String>,
-    pub(crate) length: Option<NumberSchema<u64>>,
+#[serde(rename_all = "lowercase")]
+pub enum StringSchema {
+    Fixed(String),
+    Random {
+        charset: Option<String>,
+        length: NumberSchema<u64>,
+    },
+    Samples(Vec<String>),
 }
 
 impl StringSchema {
-    pub fn rand_string_value(&self) -> Result<String> {
-        if let Some(fixed) = &self.fixed {
-            return Ok(fixed.clone());
-        }
-
-        let Some(length) = self.length.as_ref() else {
-            return ExpectedLengthSnafu.fail();
-        };
-        let len = length.rand_number_value()? as usize;
+    pub fn rand_value(&self) -> Result<String> {
         let mut rng = rand::thread_rng();
-        let value = match &self.charset {
-            Some(charset) => rng
-                .sample_iter(Slice::new(charset.as_bytes()).unwrap())
-                .take(len)
-                .map(|c| *c as char)
-                .collect(),
-            None => Alphanumeric.sample_string(&mut rng, len),
+        let value = match self {
+            StringSchema::Fixed(fixed) => fixed.clone(),
+            StringSchema::Random { charset, length } => {
+                let len = length.rand_value()? as usize;
+                match charset {
+                    Some(charset) => rng
+                        .sample_iter(Slice::new(charset.as_bytes()).unwrap())
+                        .take(len)
+                        .map(|c| *c as char)
+                        .collect(),
+                    None => Alphanumeric.sample_string(&mut rng, len),
+                }
+            }
+            StringSchema::Samples(samples) => samples
+                .choose(&mut rng)
+                .context(EmptyStringSampleSnafu)?
+                .clone(),
         };
+
         Ok(value)
     }
 
     fn rand_string(&self) -> Result<json::Value> {
-        Ok(json::json!(self.rand_string_value()?))
+        Ok(json::json!(self.rand_value()?))
     }
 }
 
@@ -111,12 +121,12 @@ pub struct BoolSchema {
 }
 
 impl BoolSchema {
-    pub fn rand_bool_value(&self) -> Result<bool> {
+    pub fn rand_value(&self) -> Result<bool> {
         Ok(self.fixed.unwrap_or_else(rand::random))
     }
 
     fn rand_bool(&self) -> Result<json::Value> {
-        Ok(json::json!(self.rand_bool_value()?))
+        Ok(json::json!(self.rand_value()?))
     }
 }
 
@@ -142,7 +152,7 @@ struct Timestamp {
 }
 
 #[serde_as]
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Default, serde::Deserialize)]
 pub struct TimestampSchema {
     #[serde(skip_deserializing)]
     ts: OnceLock<Timestamp>,
@@ -158,16 +168,19 @@ impl PartialEq for TimestampSchema {
 }
 
 impl TimestampSchema {
-    pub fn get_timestamp_value(&self) -> Result<i64> {
-        let ts = match (&self.start_time, &self.interval) {
-            (Some(TimestampValue::Integer(value)), TimestampInterval::Integer(interval)) => {
+    pub fn next_value(&self) -> Result<i64> {
+        let start_time = self
+            .start_time
+            .unwrap_or_else(|| TimestampValue::Integer(Local::now().timestamp_millis()));
+        let ts = match (start_time, &self.interval) {
+            (TimestampValue::Integer(value), TimestampInterval::Integer(interval)) => {
                 self.ts.get_or_init(|| Timestamp {
-                    ts: AtomicI64::new(*value),
+                    ts: AtomicI64::new(value),
                     interval: *interval,
                 })
             }
             // TODO: use `get_or_try_init` when stable
-            (Some(TimestampValue::DateTime(value)), interval) => self.ts.get_or_init(|| {
+            (TimestampValue::DateTime(value), interval) => self.ts.get_or_init(|| {
                 let date = value.date.expect("invalid timestamp");
                 let time = value.time.expect("invalid timestamp");
                 let offset = value.offset;
@@ -221,12 +234,12 @@ impl TimestampSchema {
         Ok(ts.ts.fetch_add(ts.interval, atomic::Ordering::SeqCst))
     }
 
-    pub fn get_timestamp(&self) -> Result<json::Value> {
-        Ok(json::json!(self.get_timestamp_value()?))
+    pub fn next_timestamp(&self) -> Result<json::Value> {
+        Ok(json::json!(self.next_value()?))
     }
 }
 
-#[derive(Debug, PartialEq, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize)]
 #[serde(untagged)]
 pub enum TimestampValue {
     Integer(i64),
@@ -240,6 +253,12 @@ pub enum TimestampInterval {
     Millisecond(i64),
     Microsecond(i64),
     Nanosecond(i64),
+}
+
+impl Default for TimestampInterval {
+    fn default() -> Self {
+        TimestampInterval::Millisecond(1)
+    }
 }
 
 impl FromStr for TimestampInterval {
@@ -294,7 +313,7 @@ pub enum NumberSchema<T> {
 macro_rules! impl_rand_number {
     ($t: ty) => {
         impl NumberSchema<$t> {
-            pub fn rand_number_value(&self) -> Result<$t> {
+            pub fn rand_value(&self) -> Result<$t> {
                 match self {
                     NumberSchema::Fixed(fixed) => Ok(*fixed),
                     NumberSchema::Range(NumberRangeSchema { min, max }) => {
@@ -305,7 +324,7 @@ macro_rules! impl_rand_number {
             }
 
             pub fn rand_number(&self) -> Result<json::Value> {
-                Ok(json::json!(self.rand_number_value()?))
+                Ok(json::json!(self.rand_value()?))
             }
         }
     };
@@ -356,7 +375,7 @@ impl DataFakeSchema {
             DataFakeSchema::Float(schema) => schema.rand_number(),
             DataFakeSchema::Bool(schema) => schema.rand_bool(),
             DataFakeSchema::Option(schema) => schema.rand_option(),
-            DataFakeSchema::Timestamp(schema) => schema.get_timestamp(),
+            DataFakeSchema::Timestamp(schema) => schema.next_timestamp(),
         }
     }
 
@@ -437,9 +456,7 @@ mod tests {
             let schema = toml::from_str::<DataFakeSchema>(
                 r#"
                 type = "string"
-                fixed = "abc"
-                length = { range = { max = 999 } }
-                charset = "abcdefg"
+                random = { length = { range = { max = 999 } } , charset = "abcdefg" }
             "#,
             );
             assert!(schema.is_ok());
@@ -448,13 +465,12 @@ mod tests {
             assert!(schema.is_some());
             assert_eq!(
                 schema.unwrap(),
-                &StringSchema {
-                    fixed: Some("abc".to_string()),
+                &StringSchema::Random {
                     charset: Some("abcdefg".to_string()),
-                    length: Some(NumberSchema::Range(NumberRangeSchema {
+                    length: NumberSchema::Range(NumberRangeSchema {
                         min: None,
                         max: Some(999)
-                    }))
+                    })
                 }
             )
         }

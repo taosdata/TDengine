@@ -769,7 +769,6 @@ args = [
   "--workspace",
   "--tests",
   "--examples",
-  "--all",
   "--",
   "--no-deps",
   "-Dwarnings",

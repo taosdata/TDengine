@@ -13,13 +13,14 @@ use metrics::atomics::AtomicU64;
 use multi_index_map::MultiIndexMap;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taoslog::{QidManager, utils::QidMetadataGetter};
+use taosx_task::TaskOpts;
 use tokio::sync::{Mutex, RwLock, oneshot};
 use tokio_cron_scheduler::JobScheduler;
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, error, info, instrument, warn};
 use uuid::Uuid;
 
-use taosx_core::{ConnectorLicense, DataSet, TaskOpts, get_data_dir, utils::port_pool::PortPool};
+use taosx_core::{ConnectorLicense, DataSet, get_data_dir, utils::port_pool::PortPool};
 use taosx_core::{
     TaskNotify, TaskNotifyReceiver,
     core_metrics::{
@@ -27,7 +28,7 @@ use taosx_core::{
         init_task_metrics, save_task_metrics_finally,
     },
     dsv::DataSourceValidation,
-    plugins,
+    plugins::{self, transform::sample::DsSamples},
     sink::ipc_metric::IpcMetrics,
     task_set::prelude::EventLevel,
     utils::{
@@ -305,7 +306,7 @@ impl AgentRuntimeRef {
         }
     }
 
-    pub async fn get_sample(&self, agent_id: i64, dsn: String) -> anyhow::Result<DsSampleIn> {
+    pub async fn get_sample(&self, agent_id: i64, dsn: String) -> anyhow::Result<DsSamples> {
         match self {
             Self::Server(rt) => rt.get_sample(agent_id, dsn).await,
             Self::Client(_) => {

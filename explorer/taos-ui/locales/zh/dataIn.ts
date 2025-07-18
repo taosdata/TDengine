@@ -351,6 +351,8 @@ export default {
     sp: '请选则目标超级表',
     septip: '请输入分隔符',
     sepntip: '请输入分隔符个数',
+    convtip: '请输入转换规则',
+    convnametip: '请输入新列名',
     csvtip: '自定义列数必须等于csv列数',
     identified: '1. 识别的列',
     preview: '查看点位列表',

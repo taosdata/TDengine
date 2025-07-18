@@ -8,7 +8,6 @@
 
 use crate::legacy::legacy_metric::LegacyToTaosMetrics;
 use crate::plugins::sink::ipc_metric::IpcMetrics;
-use crate::runners;
 use crate::tmq::tmq_metric::TmqMetrics;
 use crate::utils::metrics_db::MetricsStore;
 use lazy_static::lazy_static;
@@ -487,25 +486,12 @@ pub async fn init_task_metrics(
             }
         }
         (
-            "opc"
-            | "opcua"
-            | "opcda"
-            | "pi"
-            | "pibackfill"
-            | "mqtt"
-            | "influxdb"
-            | "opentsdb"
-            | runners::kafka::KAFKA_ID
-            | runners::historian::AVEVA_HISTORIAN_ID
-            | "csv"
-            | runners::mysql::MYSQL_ID
-            | runners::postgres::POSTGRES_ID
-            | runners::oracle::ORACLE_ID
-            | runners::mssql::MSSQL_ID
-            | runners::mongodb::MONGODB_ID
-            | "local",
+            "opc" | "opcua" | "opcda" | "pi" | "pibackfill" | "mqtt" | "sparkplugb" | "influxdb"
+            | "opentsdb" | "kafka" | "avevaHistorian" | "csv" | "mysql" | "postgres" | "oracle"
+            | "mssql" | "mongodb" | "local",
             "taos" | "tmq",
-        ) => {
+        )
+        | ("tmq", "mqtt") => {
             let metrics = try_get_metrics::<IpcMetrics>(task_id, from).await;
             if let Some(metrics) = metrics {
                 tracing::info!("reset metrics for task {}", task_id);

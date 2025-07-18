@@ -1,0 +1,39 @@
+[package]
+name = "source-mqtt"
+edition = "2024"
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+rumqttc.workspace = true
+snafu.workspace = true
+arrow.workspace = true
+arrow-schema.workspace = true
+flume.workspace = true
+futures.workspace = true
+serde_json.workspace = true
+taos.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+chrono.workspace = true
+bytes.workspace = true
+uuid.workspace = true
+itertools.workspace = true
+rustls-native-certs.workspace = true
+rustls-pemfile.workspace = true
+tempfile.workspace = true
+parking_lot.workspace = true
+regex.workspace = true
+faststr.workspace = true
+scc.workspace = true
+csv.workspace = true
+tokio-stream.workspace = true
+
+taosx-core.workspace = true
+taosx-ipc.workspace = true
+
+
+[lints]
+workspace = true

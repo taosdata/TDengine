@@ -25,14 +25,16 @@ use serde::{Deserialize, Serialize};
 use taosx_core::task_set::prelude::HealthOpts;
 use taosx_core::utils::dsn::json_to_dsn;
 use taosx_core::utils::files::decompress_and_write_file;
+use taosx_task::sample::get_sample;
+use taosx_task::validate::validate_dsn;
 use tokio::net::{TcpSocket, TcpStream};
 use tonic::transport::{Certificate, Channel, ClientTlsConfig, Endpoint};
 use tower::{BoxError, Service};
 use tracing::{info, instrument};
 
 use taosx_core::{
-    get_data_dir, list_datasets_from, plugins, validate_dsn, Activity, CheckResponse, DataSetsReq,
-    Fail, HeartbeatResponse, ListResponse, PutFileReq, PutFileResp, QueryDataSourceReq,
+    get_data_dir, list_datasets_from, plugins, Activity, CheckResponse, DataSetsReq, Fail,
+    HeartbeatResponse, ListResponse, PutFileReq, PutFileResp, QueryDataSourceReq,
     QueryDataSourceResp, RespAction, Response, SampleResponse,
 };
 
@@ -221,22 +223,24 @@ impl Client {
     ) -> Result<Self> {
         let endpoint = endpoint.to_string();
         let token = token.to_string();
-        const MAX_RETRIES: usize = 5;
+        const MAX_RETRIES: usize = 10;
+        const MAX_SLEEP_DURATION: Duration = Duration::from_secs(5);
         let mut retries = 0;
+        let mut sleep_duration = Duration::from_millis(500);
         let channel = loop {
             match new_channel(endpoint.clone(), ports.clone(), ca.clone()).await {
                 Ok(channel) => break Ok(channel),
                 Err(err) => {
                     retries += 1;
-                    info!(
-                        "Unable to connect to server, retry {}/{}",
-                        retries, MAX_RETRIES
-                    );
-                    if retries > MAX_RETRIES {
+                    if retries >= MAX_RETRIES {
                         break Err(err);
-                    } else {
-                        continue;
                     }
+                    tracing::warn!(
+                        "Unable to connect to server, sleep {:?} and retry...",
+                        sleep_duration
+                    );
+                    tokio::time::sleep(sleep_duration).await;
+                    sleep_duration = (sleep_duration * 2).min(MAX_SLEEP_DURATION);
                 }
             }
         }?;
@@ -677,7 +681,7 @@ impl Client {
                         let dsn = json_to_dsn(&serde_json::Value::String(dsn_str.clone()))?;
                         let resp_tx = resp_tx.clone();
                         tokio::spawn(async move {
-                            let sample = plugins::get_sample(&dsn).await;
+                            let sample = get_sample(&dsn).await;
                             let res = match sample {
                                 Ok(sample) => match serde_json::to_string(&sample) {
                                     Ok(s) => Response::Ok(s),

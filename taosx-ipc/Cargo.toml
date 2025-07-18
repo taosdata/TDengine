@@ -11,18 +11,17 @@ chrono = { workspace = true }
 flume.workspace = true
 futures.workspace = true
 serde = { workspace = true, features = ["derive"] }
-serde_json = { version = "1" }
-thiserror = "1.0.38"
+serde_json.workspace = true
+thiserror.workspace = true
 tracing.workspace = true
-zstd = "0.13.0"
+zstd.workspace = true
 
 anyhow.workspace = true
 arrow = { workspace = true }
 faststr = { workspace = true }
 taos = { workspace = true }
-shadow-rs = { workspace = true }
-taosx-metrics = { path = "../taosx-metrics" }
-metrics = "0.21.0"
+taosx-metrics.workspace = true
+metrics.workspace = true
 arrow-compute-ext = { workspace = true }
 bigdecimal.workspace = true
 
@@ -40,4 +39,4 @@ tokio = { workspace = true, features = [
   "signal",
   "fs",
 ] }
-tracing-subscriber = { version = "0.3", features = ["registry", "env-filter"] }
+tracing-subscriber = { workspace = true, features = ["registry", "env-filter"] }

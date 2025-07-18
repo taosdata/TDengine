@@ -109,3 +109,9 @@ messages_bytes: Number of bytes received via TMQ in this task run
 commits: Number of messages committed in this task run
 total_commits: Total number of messages committed since task started
 task_name: Task name
+spb_received_messages: Total number of messages fetched in this task run
+spb_received_metrics: Total number of metrics fetched in this task run
+spb_fetched_acks: Total number of ACKs received in this task run
+spb_sent_batches: Number of batches sent in this task run
+tmq2mqtt_received_messages: Number of messages received from TMQ in this task run
+tmq2mqtt_published_messages: Number of messages published to MQTT in this task run

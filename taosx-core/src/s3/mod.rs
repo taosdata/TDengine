@@ -63,8 +63,7 @@ impl S3Config {
             .bucket(&self.bucket)
             .endpoint(&self.endpoint)
             .access_key_id(&self.access_key_id)
-            .secret_access_key(&self.secret_access_key)
-            .http_client(http_client);
+            .secret_access_key(&self.secret_access_key);
 
         if let Some(region) = &self.region {
             builder = builder.region(region.as_str());
@@ -72,6 +71,7 @@ impl S3Config {
 
         // Init an operator
         let op = Operator::new(builder)?.finish();
+        op.update_http_client(|_| http_client);
         // check
         op.check().await?;
         // read the meta of the prefix

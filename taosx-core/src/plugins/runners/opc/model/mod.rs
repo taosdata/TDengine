@@ -1331,6 +1331,29 @@ impl ModelType {
 mod tests {
     use super::*;
 
+    #[test]
+    fn test_point_mapping_generate() {
+        let json = r#"[{"id":"ns=3;s=\"数据块_1\".\"Tag1\"","name":"\"数据块_1\".\"Tag1\""}]"#;
+        let res: Vec<DataSet> = serde_json::from_slice(json.as_bytes()).unwrap();
+
+        let rule = OpcPointMappingRule {
+            opc_type: OpcType::OPCUA,
+            stable_expression: "opc_{type}".to_string(),
+            tbname_expression: "t_{ns}_{id}".to_string(),
+            primary_key: "original_ts".to_string(),
+            primary_key_alias: "ts".to_string(),
+        };
+
+        let (p, _t) = rule.generate(res).unwrap();
+
+        let points = p
+            .iter()
+            .map(|(point_id, point_config)| format!("{}::{}", point_id, point_config.code.clone()))
+            .join(",");
+
+        assert_eq!(points, r#"ns=3;s="数据块_1"."Tag1"::t_3_"数据块_1"_"Tag1""#);
+    }
+
     /// 这个测试用例和 opcua_sanity_1.csv 的配置相同
     #[test]
     fn test_table_config_from_csv() {

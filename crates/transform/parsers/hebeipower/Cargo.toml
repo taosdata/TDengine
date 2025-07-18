@@ -10,7 +10,7 @@ crate-type = ["cdylib"]
 serde_json = "1.0"
 regex = "1.4"
 tracing = "0.1"
-mimalloc = { version = "*", optional = true }
+mimalloc = { workspace = true, optional = true }
 chrono = { version = "0.4.37" }
 
 [features]

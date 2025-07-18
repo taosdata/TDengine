@@ -14,8 +14,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use taosx_core::{
     task_set::prelude::EventLevel, utils::dsn::json_to_dsn, Activity, LevelFilter, RespAction,
-    TaskNotify, TaskOpts,
+    TaskNotify,
 };
+use taosx_task::TaskOpts;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::Instrument;

@@ -18,11 +18,11 @@ const route = useRoute();
 const showHeaderLeft = ref<boolean>(true);
 const clickCount = ref(0);
 const clickNum = ref(0);
-const license = ref([]);
+const license = ref<any>([]);
 const local_version = localStorage.getItem('td_version') || '';
 const version = ref(local_version || '0.0.0');
 console.log('version', local_version, version.value);
-const grants = ref([]);
+const grants = ref<any>([]);
 const industry = ref('version');
 
 watch(
@@ -105,12 +105,14 @@ async function getLicense() {
       let versionName = '';
       switch (grants.value[0].version) {
         case 'trial':
+        case `TDengine Enterprise Edition trial`:
         case `${OEM_NAME} Enterprise Edition trial`:
         case `${OEM_NAME} TSDB Enterprise Edition trial`:
         case `${OEM_NAME}-Enterprise trial`:
           versionName = license.value[0].valid ? 'Trial Expired' : 'Trial';
           break;
         case 'official':
+        case `TDengine Enterprise Edition official`:
         case `${OEM_NAME} Enterprise Edition official`:
         case `${OEM_NAME} TSDB Enterprise Edition official`:
         case `${OEM_NAME}-Enterprise official`:

@@ -1,7 +1,8 @@
 #[cfg(test)]
 mod test_tmq_to_local {
-    use anyhow::{Context, bail};
+    use anyhow::Context;
     use assert_cmd::Command;
+    use local_to_taos::local_to_taos;
     use opendal::Entry;
     use std::env;
     use std::path::Path;
@@ -10,14 +11,29 @@ mod test_tmq_to_local {
         TryStreamExt,
     };
     use taosx_core::s3::{S3Config, S3Loader};
-    use taosx_core::tmq_to_local::conf::BackupConfigBuilder;
+    use taosx_core::utils::sql::connect_taos;
+    use tmq_to_local::conf::BackupConfigBuilder;
+    use tmq_to_local::tmq_to_local;
+    use tokio_util::sync::CancellationToken;
 
     /// # description_cn
     /// 测试备份数据到本地
     /// # example
     /// 1. 备份到临时目录，默认先创建一个 test_backup 数据库，用 taosBenchmark 写入 1 亿行（ 1 万子表，1 万行/表），备份到本地
     /// ```shell
-    /// BACKUP_DSN=tmq+ws://192.168.2.139:6041/log cargo nextest run test_backup_with_taos --nocapture --retries 0
+    /// BACKUP_DSN=tmq+ws://192.168.2.139:6041 cargo nextest run test_backup_with_taos --nocapture --retries 0
+    /// ```
+    /// 2. 备份指定的数据库，到临时目录
+    /// ```shell
+    /// BACKUP_DSN=tmq://192.168.2.139/log cargo nextest run test_backup_with_taos --nocapture --retries 0
+    /// ```
+    /// 3. 备份指定的数据库，到指定的目录
+    /// ```shell
+    /// BACKUP_DSN=tmq://192.168.2.139/log LOCAL_DIR=/opt cargo nextest run test_backup_with_taos --nocapture --retries 0
+    /// ```
+    /// 4. 用指定路径下的 taosx 命令备份
+    /// ```shell
+    /// TAOSX_CMD=./target/debug/taosx cargo nextest run test_backup_with_taos --nocapture --retries 0
     /// ```
     #[tokio::test]
     pub async fn test_backup_with_taos() -> anyhow::Result<()> {
@@ -25,10 +41,17 @@ mod test_tmq_to_local {
             .unwrap_or("tmq://".to_string())
             .into_dsn()?;
         let taosx_cmd = env::var("TAOSX_CMD").unwrap_or("taosx".to_string());
-        let backup_dir = env::var("LOCAL_DIR")
-            .ok()
-            .map(|p| Path::new(&p).to_path_buf())
-            .unwrap_or_else(|| tempfile::TempDir::new().unwrap().keep());
+        let dir = tempfile::tempdir()?;
+        let backup_dir = match env::var("LOCAL_DIR").ok() {
+            Some(p) => {
+                let p = Path::new(&p);
+                if !p.exists() {
+                    std::fs::create_dir_all(p)?;
+                }
+                p.to_path_buf()
+            }
+            None => dir.path().to_path_buf(),
+        };
 
         let taos = TaosBuilder::from_dsn(&backup_dsn)?
             .build()
@@ -96,8 +119,15 @@ mod test_tmq_to_local {
     }
 
     /// # Case
-    /// 创建一个数据库，写入数据，用 taosx 备份到本地，然后恢复到新的数据库
+    /// 创建一个数据库，写入数据，用 taosx 备份到本地，然后恢复到新的数据库。
+    /// 测试流程：
+    /// 1. 创建数据库 backup_few_rows_src 和 backup_few_rows_dst，vgroups = 10，在 backup_few_rows_src 中写入10行
+    /// 2. 备份 backup_few_rows_src 到本地
+    /// 3. 恢复 backup_few_rows_src 到 backup_few_rows_dst
+    /// 4. 检查 backup_few_rows_dst 中的数据是否和 backup_few_rows_src 一致
+    /// 5. 检查备份目录下的文件应该为 10 个，且文件名以 .z 结尾
     /// # Example
+    /// 指定 TDengine 的地址，执行备份 + 恢复
     /// ```shell
     /// TAOS_ADDR='tmq+ws://192.168.0.201:6041' cargo nextest run test_backup_and_restore_with_taos --nocapture --retries 0
     /// ```
@@ -106,6 +136,10 @@ mod test_tmq_to_local {
         // 初始化环境变量
         let taos_addr = env::var("TAOS_ADDR").unwrap_or("tmq://".to_string());
         let taosx_cmd = env::var("TAOSX_CMD").unwrap_or("taosx".to_string());
+        let backup_dir = env::var("BACKUP_DIR")
+            .ok()
+            .map(|p| Path::new(&p).to_path_buf())
+            .unwrap_or_else(|| tempfile::TempDir::new().unwrap().keep());
         const SRC_DB: &str = "backup_few_rows_src";
         const DST_DB: &str = "backup_few_rows_dst";
         const VGROUPS: usize = 10;
@@ -119,11 +153,6 @@ mod test_tmq_to_local {
         drop_database_and_related_topics(&taos, SRC_DB).await?;
         drop_database_and_related_topics(&taos, DST_DB).await?;
         write_few_rows(&taos, SRC_DB, VGROUPS, ROWS).await?;
-
-        let backup_dir = env::var("BACKUP_DIR")
-            .ok()
-            .map(|p| Path::new(&p).to_path_buf())
-            .unwrap_or_else(|| tempfile::TempDir::new().unwrap().keep());
 
         // 备份数据
         let from = format!("{taos_addr}/{SRC_DB}");
@@ -350,6 +379,142 @@ mod test_tmq_to_local {
         Ok(())
     }
 
+    /// # description_cn
+    /// 测试通过备份和恢复来实现数据的复制
+    /// 1. 创建数据库 tmq_replica_src 和 tmq_replica_dst
+    /// 2. 创建一个线程，执行备份任务，备份 tmq_replica_src 到本地文件
+    /// 3. 创建另一个线程，执行恢复任务，将本地文件恢复到 tmq_replica_dst
+    /// 4. 写入数据到 tmq_replica_src
+    /// 5. 检查 tmq_replica_src 中的数据是否和 tmq_replica_dst 一致
+    /// 6. 输出性能指标：同步
+    /// # example
+    /// ```shell
+    /// cargo nextest run test_replica_by_backup_and_restore_with_taos --nocapture --retries 0
+    /// ```
+    #[ignore]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    pub async fn test_replica_by_backup_and_restore_with_taos() -> anyhow::Result<()> {
+        tracing_subscriber::fmt::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .init();
+
+        let host = env::var("HOST").unwrap_or("127.0.0.1".to_string());
+        let ws_enable = env::var("WS_ENABLE")
+            .map(|s| s.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+        // backup file directory
+        let temp_dir = tempfile::TempDir::new()?;
+        let work_dir = match env::var("WORK_DIR").ok() {
+            Some(p) => {
+                let p = Path::new(&p);
+                if !p.exists() {
+                    std::fs::create_dir_all(p)?;
+                }
+                p.to_path_buf()
+            }
+            None => temp_dir.path().to_path_buf(),
+        };
+        let backup_dir = work_dir.join("backup");
+        tokio::fs::create_dir_all(&backup_dir).await?;
+        let restore_dir = work_dir.join("restore");
+        tokio::fs::create_dir_all(&restore_dir).await?;
+        const DB_SRC: &str = "tmq_replica_src";
+        const DB_DST: &str = "tmq_replica_dst";
+        const ROWS: u64 = 1000;
+
+        let taos = connect_taos(&host, ws_enable).await?;
+
+        // clean database and related topics
+        drop_database_and_related_topics(&taos, DB_SRC).await?;
+        drop_database_and_related_topics(&taos, DB_DST).await?;
+
+        // create database and stable
+        taos.exec_many(vec![
+            format!("CREATE DATABASE IF NOT EXISTS `{DB_SRC}`"),
+            format!("CREATE DATABASE IF NOT EXISTS `{DB_DST}`"),
+            format!("CREATE TABLE `{DB_SRC}`.meters (ts timestamp, val float) TAGS (id int)"),
+        ])
+        .await?;
+
+        // create backup task
+        let (from, to) = if ws_enable {
+            let from =
+                format!("tmq+ws://{host}:6041/{DB_SRC}?interval=1s&self.repeat=true").into_dsn()?;
+            let to = format!(
+                "local:{}?move.to={}",
+                backup_dir.as_path().display(),
+                restore_dir.as_path().display()
+            )
+            .into_dsn()?;
+            (from, to)
+        } else {
+            let from = format!("tmq://{host}/{DB_SRC}?interval=1s&self.repeat=true").into_dsn()?;
+            let to = format!(
+                "local:{}?move.to={}",
+                backup_dir.as_path().display(),
+                restore_dir.as_path().display()
+            )
+            .into_dsn()?;
+            (from, to)
+        };
+        let b_cancel = CancellationToken::new();
+        let cancel = b_cancel.clone();
+        let backup_handler =
+            tokio::spawn(async move { tmq_to_local(None, from, to, cancel).await });
+
+        // create restore task
+        let (from, to) = if ws_enable {
+            let from = format!("local:{}?to=now", restore_dir.as_path().display()).into_dsn()?;
+            let to = format!("tmq+ws://{host}:6041/{DB_DST}").into_dsn()?;
+            (from, to)
+        } else {
+            let from = format!("local:{}?to=now", restore_dir.as_path().display()).into_dsn()?;
+            let to = format!("tmq://{host}/{DB_DST}").into_dsn()?;
+            (from, to)
+        };
+        let r_cancel = CancellationToken::new();
+        let cancel = r_cancel.clone();
+        let restore_handler =
+            tokio::spawn(async move { local_to_taos(None, from, to, cancel).await });
+
+        // write data to source database
+        println!("write data to source database `{DB_SRC}` start");
+        for i in 1..=ROWS {
+            taos.exec(format!(
+                "INSERT INTO `{DB_SRC}`.t{i} USING `{DB_SRC}`.meters TAGS({i}) VALUES(now, {i}.{i})"
+            ))
+            .await?;
+        }
+        println!("write data to source database `{DB_SRC}` stop");
+        // wait for replica
+        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+
+        // stop tasks
+        r_cancel.cancel();
+        b_cancel.cancel();
+        backup_handler.await??;
+        restore_handler.await??;
+
+        // 检查数据
+        let count_src: u64 = taos
+            .query_one(format!("select count(*) from `{DB_SRC}`.meters"))
+            .await?
+            .unwrap_or(0);
+        let count_dst: u64 = taos
+            .query_one(format!("select count(*) from `{DB_DST}`.meters"))
+            .await?
+            .unwrap_or(0);
+        assert_eq!(count_src, ROWS);
+        assert_eq!(count_dst, ROWS);
+
+        // 清理
+        temp_dir.close()?;
+        // drop_database_and_related_topics(&taos, DB_SRC).await?;
+        // drop_database_and_related_topics(&taos, DB_DST).await?;
+
+        Ok(())
+    }
+
     async fn drop_database_related_topics(taos: &Taos, db_name: &str) -> anyhow::Result<()> {
         let topics: Vec<String> = taos
             .query(format!(
@@ -359,20 +524,11 @@ mod test_tmq_to_local {
             .deserialize()
             .try_collect()
             .await?;
+
         // drop topics
         for t in topics {
-            let mut count = 0;
-            loop {
-                count += 1;
-                if let Err(err) = taos.exec(format!("DROP TOPIC IF EXISTS FORCE `{t}`")).await {
-                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                    if count < 30 {
-                        continue;
-                    }
-                    bail!("failed to drop topic: {:#}", err);
-                }
-                break;
-            }
+            taos.exec(format!("DROP TOPIC IF EXISTS force `{t}`"))
+                .await?;
         }
         Ok(())
     }

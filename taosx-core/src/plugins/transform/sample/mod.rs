@@ -1,3 +1,5 @@
+pub mod multi_schema;
+
 use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -6,12 +8,20 @@ use anyhow::Context;
 use arrow_schema::{DataType, Field};
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
+use multi_schema::MultiSchemaSamples;
 use serde::{Deserialize, Serialize};
 
 use crate::plugins::transform::parse::{FieldParser, ParserImpl};
 use utoipa::ToSchema;
 
 use super::to_json_valid_batches;
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[serde(untagged)]
+pub enum DsSamples {
+    Simple(DsSampleIn),
+    MultiSchema(MultiSchemaSamples),
+}
 
 /// Sample data input with transform pipeline.
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]

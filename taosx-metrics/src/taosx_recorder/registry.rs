@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use metrics::{atomics::AtomicU64, HistogramFn};
-use metrics_util::{registry::GenerationalStorage, AtomicBucket};
+use metrics_util::{registry::GenerationalStorage, storage::AtomicBucket};
 use quanta::Instant;
 
 pub type GenerationalAtomicStorage = GenerationalStorage<AtomicStorage>;

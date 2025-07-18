@@ -1,7 +1,7 @@
 use core::fmt;
 use core::pin::Pin;
-use futures_core::stream::{FusedStream, Stream, TryStream};
-use futures_core::task::{Context, Poll};
+use futures::stream::{FusedStream, Stream, TryStream};
+use futures::task::{Context, Poll};
 use pin_project_lite::pin_project;
 
 pin_project! {

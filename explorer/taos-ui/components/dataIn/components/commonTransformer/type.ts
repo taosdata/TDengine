@@ -15,17 +15,18 @@ export interface TransformerState {
   csvTransformerParser: CsvTransformerParserType | null;
   transformerFilterParseData: TransformerFilterParseDataType | null;
   transformerMapCloumns: TransformerMapCloumnsType[];
-  transformerParserData: TransformerfullparamsType | null;
+  transformerParserData: TransformerfullparamsType | TransformerSpbfullparamsType | null;
   transformColumnIdentify: [];
   csvTransformerlocalCols: string[]; //csv无头部时候的自定义列
   splitExpresList: SplitExpresListType | null; //transformer的split;
+  convertExpresList: ConvertExpresListType | null;
   mappingjoin: ''; //mapping时候映射值是join时候的
   definitions: [];
-  topParse: TopParseType | null;
+  topParse: TopParseType | SpbTopParseType | null;
   transformResultTable: any[];
   createStWithoutDB: number;
   transformTableHeight: number;
-  transformerfullparams: TransformerfullparamsType | null;
+  transformerfullparams: TransformerfullparamsType | TransformerSpbfullparamsType | null;
   transResultName: string;
   historianechodata: null;
   s_model: Recordable;
@@ -76,6 +77,14 @@ export interface TopParseType {
   };
 }
 
+export interface SpbTopParseType {
+  samples: Recordable[];
+  parser: {
+    mutate?: Recordable[];
+    parse?: ParseType;
+  };
+}
+
 export interface CsvTransformerParserType {
   inputList: Recordable[];
   msgBody: string;
@@ -86,6 +95,12 @@ export interface SplitExpresListType {
   n: number | string;
   sep: string;
   names: string[] | string;
+  [key: string]: any;
+}
+
+export interface ConvertExpresListType {
+  rule: string,
+  name: string,
   [key: string]: any;
 }
 
@@ -102,6 +117,22 @@ export interface TransformerfullparamsType {
     s_model?: Recordable;
   };
   input: Recordable[];
+  format: {
+    pageCount: number;
+    pageSize: number;
+    currentPage: number;
+  };
+}
+
+export interface TransformerSpbfullparamsType {
+  parser: {
+    global?: Recordable;
+    parse: ParseType;
+    model: Recordable;
+    mutate: Recordable[];
+    s_model?: Recordable;
+  };
+  samples: Recordable[];
   format: {
     pageCount: number;
     pageSize: number;
