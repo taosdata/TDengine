@@ -879,6 +879,13 @@ int32_t stVtableMergerInit(SSTriggerVtableMerger *pMerger, struct SStreamTrigger
   pMerger->pReaders = taosArrayInit(0, sizeof(SSTriggerTimestampSorter *));
   QUERY_CHECK_NULL(pMerger->pReaders, code, lino, _end, terrno);
 
+  if (pMerger->pFilter != NULL) {
+    SFilterColumnParam param = {.numOfCols = taosArrayGetSize(pMerger->pDataBlock->pDataBlock),
+                                .pDataBlock = pMerger->pDataBlock->pDataBlock};
+    code = filterSetDataFromSlotId(pMerger->pFilter, &param);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
 _end:
   if (TSDB_CODE_SUCCESS != code) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -1120,6 +1127,7 @@ int32_t stVtableMergerNextDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock 
   SStreamTriggerTask      *pTask = pMerger->pTask;
   SSDataBlock             *pDataBlock = pMerger->pDataBlock;
   SVtableMergerReaderInfo *pReaderInfo = NULL;
+  SColumnInfoData         *p = NULL;
 
   *ppDataBlock = NULL;
 
@@ -1217,6 +1225,13 @@ int32_t stVtableMergerNextDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock 
 
   int32_t nrows = blockDataGetNumOfRows(pDataBlock);
   if (!needFetchDataBlock && nrows > 0) {
+    if (pMerger->pFilter != NULL) {
+      int32_t status = 0;
+      code = filterExecute(pMerger->pFilter, pMerger->pDataBlock, &p, NULL, blockDataGetNumOfCols(pDataBlock), &status);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code = trimDataBlock(pMerger->pDataBlock, nrows, (bool *)p->pData);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
     *ppDataBlock = pMerger->pDataBlock;
     SColumnInfoData *pVirTsCol = taosArrayGet(pDataBlock->pDataBlock, 0);
     QUERY_CHECK_NULL(pVirTsCol, code, lino, _end, terrno);
@@ -1225,6 +1240,9 @@ int32_t stVtableMergerNextDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock 
   }
 
 _end:
+  if (p != NULL) {
+    colDataDestroy(p);
+  }
   if (TSDB_CODE_SUCCESS != code) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
