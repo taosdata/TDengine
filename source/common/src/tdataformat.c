@@ -4982,9 +4982,6 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
         goto _exit;
       }
     } else {
-      code = TSDB_CODE_BLOB_NOT_SUPPORT;
-      goto _exit;
-
       SRowBuildScanInfo sinfo = {.hasBlob = 1, .scanType = ROW_BUILD_UPDATE};
       if ((code = tRowBuildWithBlob(colValArray, pTSchema, &row, NULL, &sinfo))) {
         goto _exit;

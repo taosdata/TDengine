@@ -692,8 +692,6 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
         code = tRowMerge(*rowP, pTbCtx->pSchema, 0);
         TAOS_CHECK_RETURN(code);
       } else {
-        // TAOS_CHECK_RETURN(code = TSDB_CODE_BLOB_NOT_SUPPORT);
-
         code = tRowSortWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobSet);
         TAOS_CHECK_RETURN(code);
 
@@ -940,7 +938,6 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
         code = tRowMerge(pTableCxt->pData->aRowP, pTableCxt->pSchema, 0);
         }
       } else {
-        // return TSDB_CODE_BLOB_NOT_SUPPORT;
         if (!pTableCxt->ordered) {
         code = tRowSortWithBlob(pTableCxt->pData->aRowP, pTableCxt->pSchema, pTableCxt->pData->pBlobSet);
         }
