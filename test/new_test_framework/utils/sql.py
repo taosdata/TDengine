@@ -2681,5 +2681,26 @@ class TDSql:
     def flushDb(self, dbName):
         self.execute(f"flush database {dbName}", show=True)
 
+    # delete rows
+    def deleteRows(self, table, where=None):
+        """
+        Deletes rows from the specified table based on the given condition.
+
+        Args:
+            table (str): The name of the table from which rows are to be deleted.
+            where (str, optional): The condition for deleting rows. Defaults to None.
+
+        Returns:
+            None
+
+        Raises:
+            SystemExit: If the delete operation fails.
+        """
+        sql = f"DELETE FROM {table}"
+        if where:
+            sql += f" WHERE {where}"
+        self.execute(sql, show=True) 
+
+
 # global
 tdSql = TDSql()

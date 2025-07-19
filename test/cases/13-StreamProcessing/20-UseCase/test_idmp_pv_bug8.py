@@ -1,7 +1,7 @@
 from test_idmp_tobacco import TestIdmpScene
 
 
-class TestIdmpTobaccoBug3:
+class TestIdmpTobaccoBug8:
     """
     JIRA: https://jira.taosdata.com:18080/browse/TD-36699
     """
@@ -17,5 +17,5 @@ class TestIdmpTobaccoBug3:
             "cases/13-StreamProcessing/20-UseCase/pv_data/idmp/vtb.sql",
             "cases/13-StreamProcessing/20-UseCase/pv_data/idmp/stream.json",
         )
-        pv.stream_ids = [10]
+        pv.stream_ids = [8]
         pv.run()
