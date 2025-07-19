@@ -14999,7 +14999,7 @@ void tFreeMountInfo(SMountInfo *pInfo, bool stbExtracted) {
     }
     if (pInfo->pFile) {
       (void)taosUnLockFile(pInfo->pFile);
-      taosCloseFile(&pInfo->pFile);
+      (void)taosCloseFile(&pInfo->pFile);
     }
   }
 }

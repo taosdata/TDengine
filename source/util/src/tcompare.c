@@ -1372,7 +1372,7 @@ void DestroyRegexCache() {
   return;
 #endif
   int32_t code = 0;
-  uInfo("[regex cache] destory regex cache");
+  uInfo("[regex cache] destroy regex cache");
   bool ret = taosTmrStopA(&sRegexCache.timer);
   if (!ret) {
     uInfo("stop regex cache timer may be failed");
