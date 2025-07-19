@@ -875,6 +875,13 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
         break;
       case EEXT_MODE_AGG:
         hashExternalWindowAgg(pOperator, pBlock);
+
+        qDebug("ext window before dump final rows num:%d", tSimpleHashGetSize(pExtW->aggSup.pResultRowHashTable));
+
+        code = initGroupedResultInfo(&pExtW->groupResInfo, pExtW->aggSup.pResultRowHashTable, pExtW->binfo.inputTsOrder);
+        QUERY_CHECK_CODE(code, lino, _exit);
+
+        qDebug("ext window after dump final rows num:%d", tSimpleHashGetSize(pExtW->aggSup.pResultRowHashTable));
         break;
       case EEXT_MODE_INDEFR_FUNC:
         TAOS_CHECK_EXIT(hashExternalWindowIndefRows(pOperator, pBlock));
@@ -885,13 +892,6 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
 
     OPTR_SET_OPENED(pOperator);
   }
-
-  qDebug("ext window before dump final rows num:%d", tSimpleHashGetSize(pExtW->aggSup.pResultRowHashTable));
-
-  code = initGroupedResultInfo(&pExtW->groupResInfo, pExtW->aggSup.pResultRowHashTable, pExtW->binfo.inputTsOrder);
-  QUERY_CHECK_CODE(code, lino, _exit);
-
-  qDebug("ext window after dump final rows num:%d", tSimpleHashGetSize(pExtW->aggSup.pResultRowHashTable));
 
 _exit:
 
@@ -921,7 +921,7 @@ static int32_t externalWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
   QUERY_CHECK_CODE(code, lino, _end);
 
   while (1) {
-    if (pExtW->mode == EEXT_MODE_SCALAR) {
+    if (pExtW->mode == EEXT_MODE_SCALAR || pExtW->mode == EEXT_MODE_INDEFR_FUNC) {
       if (pExtW->outputWinId >= taosArrayGetSize(pExtW->pOutputBlocks)) {
         pBlock->info.rows = 0;
         break;
