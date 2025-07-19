@@ -948,8 +948,8 @@ static int32_t checkConsumer(SMnode *pMnode, SMqSubscribeObj *pSub) {
     SMqConsumerEp  *pConsumerEp = (SMqConsumerEp *)pIter;
     SMqConsumerObj *pConsumer = NULL;
     code = mndAcquireConsumer(pMnode, pConsumerEp->consumerId, &pConsumer);
-    mError("acquire consumer:0x%" PRIx64 " in checkConsumer",pConsumer->consumerId);
     if (code == 0) {
+      mError("acquire consumer:0x%" PRIx64 " in checkConsumer",pConsumer->consumerId);
       mndReleaseConsumer(pMnode, pConsumer);
       if(pConsumer == NULL) {
         mError("release null consumer in checkConsumer");
@@ -1607,8 +1607,10 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
       char          *fqdn = NULL;
       SMqConsumerObj *pConsumer = sdbAcquire(pSdb, SDB_CONSUMER, &pConsumerEp->consumerId);
       if (pConsumer != NULL) {
+        mError("acquire consumer:0x%" PRIx64 " in mndRetrieveSubscribe",pConsumer->consumerId);
         user = pConsumer->user;
         fqdn = pConsumer->fqdn;
+        mError("release consumer:0x%" PRIx64 " in mndRetrieveSubscribe",pConsumer->consumerId);
         sdbRelease(pSdb, pConsumer);
       }
       MND_TMQ_RETURN_CHECK(buildResult(pBlock, &numOfRows, pConsumerEp->consumerId, user, fqdn, topic, cgroup, pConsumerEp->vgs,

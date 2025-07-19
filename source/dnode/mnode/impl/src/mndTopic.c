@@ -651,7 +651,7 @@ bool checkTopic(SArray *topics, char *topicName){
   return false;
 }
 
-static int32_t mndCheckConsumerByTopic(SMnode *pMnode, STrans *pTrans, char *topicName, bool deleteConsumer){
+static int32_t mndCheckConsumerByTopic(SMnode *pMnode, STrans *pTrans, char *topicName, bool deleteConsumer){ //TODO::liuhongzhen
   if (pMnode == NULL || pTrans == NULL || topicName == NULL) {
     return TSDB_CODE_INVALID_MSG;
   }
@@ -662,10 +662,16 @@ static int32_t mndCheckConsumerByTopic(SMnode *pMnode, STrans *pTrans, char *top
   SMqConsumerObj *pConsumerNew = NULL;
 
   while (1) {
+    // add ref
     pIter = sdbFetch(pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
     if (pIter == NULL) {
       break;
     }
+
+    mError("acquire consumer:0x%" PRIx64 " in mndCheckConsumerByTopic",pConsumer->consumerId);
+    SSdbRow **ppRow = (SSdbRow **)pIter;
+    SSdbRow *pRow = *ppRow;
+    mError("get consumer:0x%" PRIx64 " count:%d in mndCheckConsumerByTopic",pConsumer->consumerId, pRow->refCount);
 
     if (deleteConsumer) {
       MND_TMQ_RETURN_CHECK(tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup, -1, NULL, NULL, &pConsumerNew));
@@ -678,16 +684,32 @@ static int32_t mndCheckConsumerByTopic(SMnode *pMnode, STrans *pTrans, char *top
         mError("topic:%s, failed to drop since subscribed by consumer:0x%" PRIx64 ", in consumer group %s",
               topicName, pConsumer->consumerId, pConsumer->cgroup);
         code = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
+        if(pConsumer != NULL) {
+          mError("release consumer:0x%" PRIx64 " in mndCheckConsumerByTopic 1",pConsumer->consumerId);
+        } else {
+          mError("release null consumer in mndCheckConsumerByTopic 1");
+        }
+        sdbRelease(pSdb, pConsumer);
         goto END;
       }
     }
 
-    sdbRelease(pSdb, pConsumer);
+    if(pConsumer != NULL) {
+      mError("release consumer:0x%" PRIx64 " in mndCheckConsumerByTopic 2",pConsumer->consumerId);
+    } else {
+      mError("release null consumer in mndCheckConsumerByTopic 2");
+    }
+    sdbRelease(pSdb, pConsumer); // TODO::liuhongzhen delete this
   }
 
 END:
   tDeleteSMqConsumerObj(pConsumerNew);
-  sdbRelease(pSdb, pConsumer);
+/*  if(pConsumer != NULL) {
+    mError("release consumer:0x%" PRIx64 " in mndCheckConsumerByTopic 2",pConsumer->consumerId);
+  } else {
+    mError("release null consumer in mndCheckConsumerByTopic 2");
+  }*/
+  //sdbRelease(pSdb, pConsumer);
   sdbCancelFetch(pSdb, pIter);
   return code;
 }

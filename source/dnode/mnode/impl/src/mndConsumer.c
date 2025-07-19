@@ -1023,13 +1023,20 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
   char           *status = NULL;
 
   while (numOfRows < rowsCapacity) {
-    pShow->pIter = sdbFetch(pSdb, SDB_CONSUMER, pShow->pIter, (void **)&pConsumer);
+    pShow->pIter = sdbFetch(pSdb, SDB_CONSUMER, pShow->pIter, (void **)&pConsumer); // TODO::liuhongzhen
     if (pShow->pIter == NULL) {
       break;
     }
 
+    mError("acquire consumer:0x%" PRIx64 " in mndRetrieveConsumer",pConsumer->consumerId);
+    SSdbRow **ppRow = (SSdbRow **)pShow->pIter;
+    SSdbRow *pRow = *ppRow;
+    mError("get consumer:0x%" PRIx64 " count:%d in mndRetrieveConsumer",pConsumer->consumerId, pRow->refCount);
+
     if (taosArrayGetSize(pConsumer->assignedTopics) == 0) {
       mInfo("showing consumer:0x%" PRIx64 " no assigned topic, skip", pConsumer->consumerId);
+
+      mError("release consumer:0x%" PRIx64 " in mndRetrieveConsumer 1",pConsumer->consumerId);
       sdbRelease(pSdb, pConsumer);
       continue;
     }
@@ -1154,6 +1161,7 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
     }
 
     taosRUnLockLatch(&pConsumer->lock);
+    mError("release consumer:0x%" PRIx64 " in mndRetrieveConsumer 2",pConsumer->consumerId);
     sdbRelease(pSdb, pConsumer);
 
     pBlock->info.rows = numOfRows;
