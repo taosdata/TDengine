@@ -888,6 +888,7 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
         break;
       case EEXT_MODE_AGG:
         hashExternalWindowAgg(pOperator, pBlock);
+
         break;
       case EEXT_MODE_INDEFR_FUNC:
         TAOS_CHECK_EXIT(hashExternalWindowIndefRows(pOperator, pBlock));
