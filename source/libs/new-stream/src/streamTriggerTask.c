@@ -1623,14 +1623,21 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
         break;
       }
       case TSDB_CODE_STREAM_TASK_NOT_EXIST: {
+        bool addWait = false;
         if (pReq->sessionId == SSTRIGGER_REALTIME_SESSIONID) {
-          pTask->pRealtimeContext->pRetryReq = pReq;
+          addWait = (listNEles(&pTask->pRealtimeContext->retryPullReqs) == 0);
+          code = tdListAppend(&pTask->pRealtimeContext->retryPullReqs, &pReq);
+          QUERY_CHECK_CODE(code, lino, _end);
         } else if (pReq->sessionId == SSTRIGGER_HISTORY_SESSIONID) {
-          pTask->pHistoryContext->pRetryReq = pReq;
+          addWait = (listNEles(&pTask->pHistoryContext->retryPullReqs) == 0);
+          code = tdListAppend(&pTask->pHistoryContext->retryPullReqs, &pReq);
+          QUERY_CHECK_CODE(code, lino, _end);
         }
-        int64_t resumeTime = taosGetTimestampNs() + STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC;
-        code = stTriggerTaskAddWaitSession(pTask, pReq->sessionId, resumeTime);
-        QUERY_CHECK_CODE(code, lino, _end);
+        if (addWait) {
+          int64_t resumeTime = taosGetTimestampNs() + STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC;
+          code = stTriggerTaskAddWaitSession(pTask, pReq->sessionId, resumeTime);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
         break;
       }
       default: {
@@ -1643,18 +1650,24 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
     SMsgSendInfo         *ahandle = pRsp->info.ahandle;
     SSTriggerAHandle     *pAhandle = ahandle->param;
     SSTriggerCalcRequest *pReq = pAhandle->param;
-    if (pRsp->code == TSDB_CODE_SUCCESS) {
-      if (pReq->sessionId == SSTRIGGER_REALTIME_SESSIONID) {
-        code = stRealtimeContextProcCalcRsp(pTask->pRealtimeContext, pRsp);
-        QUERY_CHECK_CODE(code, lino, _end);
-      } else if (pReq->sessionId == SSTRIGGER_HISTORY_SESSIONID) {
-        code = stHistoryContextProcCalcRsp(pTask->pHistoryContext, pRsp);
+    switch (pRsp->code) {
+      case TSDB_CODE_SUCCESS:
+      case TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER:
+      case TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND: {
+        if (pReq->sessionId == SSTRIGGER_REALTIME_SESSIONID) {
+          code = stRealtimeContextProcCalcRsp(pTask->pRealtimeContext, pRsp);
+          QUERY_CHECK_CODE(code, lino, _end);
+        } else if (pReq->sessionId == SSTRIGGER_HISTORY_SESSIONID) {
+          code = stHistoryContextProcCalcRsp(pTask->pHistoryContext, pRsp);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        break;
+      }
+      default: {
+        *pErrTaskId = pReq->runnerTaskId;
+        code = pRsp->code;
         QUERY_CHECK_CODE(code, lino, _end);
       }
-    } else {
-      *pErrTaskId = pReq->runnerTaskId;
-      code = pRsp->code;
-      QUERY_CHECK_CODE(code, lino, _end);
     }
   } else if (pRsp->msgType == TDMT_STREAM_TRIGGER_CTRL) {
     SSTriggerCtrlRequest req = {0};
@@ -1794,6 +1807,9 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
   pContext->periodWindow = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MIN};
   pContext->lastCheckpointTime = taosGetTimestampNs();
 
+  tdListInit(&pContext->retryPullReqs, POINTER_BYTES);
+  tdListInit(&pContext->retryCalcReqs, POINTER_BYTES);
+
 _end:
   return code;
 }
@@ -1852,6 +1868,9 @@ static void stRealtimeContextDestroy(void *ptr) {
     taosHashCleanup(pContext->pCalcDataCacheIters);
     pContext->pCalcDataCacheIters = NULL;
   }
+
+  tdListEmpty(&pContext->retryPullReqs);
+  tdListEmpty(&pContext->retryCalcReqs);
 
   taosMemFreeClear(*ppContext);
 }
@@ -2096,7 +2115,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
   QUERY_CHECK_NULL(pCalcReq, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
   int32_t nRunners = taosArrayGetSize(pTask->runnerList);
-  for (int32_t i = 0; i < taosArrayGetSize(pTask->runnerList); i++) {
+  for (int32_t i = 0; i < nRunners; i++) {
     pCalcRunner = TARRAY_GET_ELEM(pTask->runnerList, i);
     if (pCalcRunner->addr.taskId == pCalcReq->runnerTaskId) {
       break;
@@ -2255,6 +2274,131 @@ _end:
   return code;
 }
 
+static int32_t stRealtimeContextRetryPullRequest(SSTriggerRealtimeContext *pContext, SListNode *pNode,
+                                                 SSTriggerPullRequest *pReq) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SStreamTriggerTask *pTask = pContext->pTask;
+  SStreamTaskAddr    *pReader = NULL;
+  SRpcMsg             msg = {.msgType = TDMT_STREAM_TRIGGER_PULL};
+
+  QUERY_CHECK_NULL(pNode, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pReq, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_CONDITION(*(SSTriggerPullRequest **)pNode->data == pReq, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  for (int32_t i = 0; i < TARRAY_SIZE(pTask->readerList); i++) {
+    SStreamTaskAddr *pTempReader = TARRAY_GET_ELEM(pTask->readerList, i);
+    if (pTempReader->taskId == pReq->readerTaskId) {
+      pReader = pTempReader;
+      break;
+    }
+  }
+  QUERY_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+
+  // serialize and send request
+  QUERY_CHECK_CODE(stTriggerTaskAllocAhandle(pTask, pContext->sessionId, pReq, &msg.info.ahandle), lino, _end);
+  stDebug("trigger pull req ahandle %p allocated", msg.info.ahandle);
+
+  msg.contLen = tSerializeSTriggerPullRequest(NULL, 0, pReq);
+  QUERY_CHECK_CONDITION(msg.contLen > 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+  msg.contLen += sizeof(SMsgHead);
+  msg.pCont = rpcMallocCont(msg.contLen);
+  QUERY_CHECK_NULL(msg.pCont, code, lino, _end, terrno);
+  SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
+  pMsgHead->contLen = htonl(msg.contLen);
+  pMsgHead->vgId = htonl(pReader->nodeId);
+  int32_t tlen =
+      tSerializeSTriggerPullRequest((char *)msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pReq);
+  QUERY_CHECK_CONDITION(tlen == msg.contLen - sizeof(SMsgHead), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+  TRACE_SET_ROOTID(&msg.info.traceId, pTask->task.streamId);
+  TRACE_SET_MSGID(&msg.info.traceId, tGenIdPI64());
+
+  code = tmsgSendReq(&pReader->epset, &msg);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  ST_TASK_DLOG("send pull request of type %d to node:%d task:%" PRIx64, pReq->type, pReader->nodeId, pReader->taskId);
+  ST_TASK_DLOG("trigger pull req 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId, msg.info.traceId.msgId);
+
+  pNode = tdListPopNode(&pContext->retryPullReqs, pNode);
+  taosMemoryFreeClear(pNode);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t stRealtimeContextRetryCalcRequest(SSTriggerRealtimeContext *pContext, SListNode *pNode,
+                                                 SSTriggerCalcRequest *pReq) {
+  int32_t              code = TSDB_CODE_SUCCESS;
+  int32_t              lino = 0;
+  SStreamTriggerTask  *pTask = pContext->pTask;
+  SStreamRunnerTarget *pRunner = NULL;
+  bool                 needTagValue = false;
+  SRpcMsg              msg = {.msgType = TDMT_STREAM_TRIGGER_CALC};
+
+  QUERY_CHECK_NULL(pNode, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pReq, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_CONDITION(*(SSTriggerCalcRequest **)pNode->data == pReq, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  int32_t nRunners = taosArrayGetSize(pTask->runnerList);
+  for (int32_t i = 0; i < nRunners; i++) {
+    SStreamRunnerTarget *pTempRunner = TARRAY_GET_ELEM(pTask->runnerList, i);
+    if (pTempRunner->addr.taskId == pReq->runnerTaskId) {
+      pRunner = pTempRunner;
+      break;
+    }
+  }
+  QUERY_CHECK_NULL(pRunner, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+
+  pReq->createTable = true;
+
+  if (pReq->createTable && pTask->hasPartitionBy || (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_IDX) ||
+      (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_TBNAME)) {
+    needTagValue = true;
+  }
+
+  if (needTagValue && taosArrayGetSize(pReq->groupColVals) == 0) {
+    code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_GROUP_COL_VALUE);
+    QUERY_CHECK_CODE(code, lino, _end);
+    goto _end;
+  }
+
+  // serialize and send request
+  QUERY_CHECK_CODE(stTriggerTaskAllocAhandle(pTask, pContext->sessionId, pReq, &msg.info.ahandle), lino, _end);
+  stDebug("trigger calc req ahandle %p allocated", msg.info.ahandle);
+
+  msg.contLen = tSerializeSTriggerCalcRequest(NULL, 0, pReq);
+  QUERY_CHECK_CONDITION(msg.contLen > 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+  msg.contLen += sizeof(SMsgHead);
+  msg.pCont = rpcMallocCont(msg.contLen);
+  QUERY_CHECK_NULL(msg.pCont, code, lino, _end, terrno);
+  SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
+  pMsgHead->contLen = htonl(msg.contLen);
+  pMsgHead->vgId = htonl(SNODE_HANDLE);
+  int32_t tlen =
+      tSerializeSTriggerCalcRequest((char *)msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pReq);
+  QUERY_CHECK_CONDITION(tlen == msg.contLen - sizeof(SMsgHead), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+  TRACE_SET_ROOTID(&msg.info.traceId, pTask->task.streamId);
+  TRACE_SET_MSGID(&msg.info.traceId, tGenIdPI64());
+
+  code = tmsgSendReq(&pRunner->addr.epset, &msg);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  ST_TASK_DLOG("send calc request to node:%d task:%" PRIx64, pRunner->addr.nodeId, pRunner->addr.taskId);
+  ST_TASK_DLOG("trigger calc req 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId, msg.info.traceId.msgId);
+
+  pNode = tdListPopNode(&pContext->retryCalcReqs, pNode);
+  taosMemoryFreeClear(pNode);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
@@ -2279,10 +2423,13 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
     }
   }
 
-  if (pContext->pRetryReq != NULL) {
-    code = stRealtimeContextSendPullReq(pContext, pContext->pRetryReq->type);
-    QUERY_CHECK_CODE(code, lino, _end);
-    pContext->pRetryReq = NULL;
+  if (listNEles(&pContext->retryPullReqs) > 0) {
+    while (listNEles(&pContext->retryPullReqs) > 0) {
+      SListNode            *pNode = TD_DLIST_HEAD(&pContext->retryPullReqs);
+      SSTriggerPullRequest *pReq = *(SSTriggerPullRequest **)pNode->data;
+      code = stRealtimeContextRetryPullRequest(pContext, pNode, pReq);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
     goto _end;
   }
 
@@ -2835,7 +2982,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       pDataBlock = NULL;
 
       if (--pContext->curReaderIdx > 0) {
-        // wait for responses from other readers
+        ST_TASK_DLOG("wait for response from other %d readers", pContext->curReaderIdx);
         goto _end;
       }
 
@@ -2858,6 +3005,8 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       }
 
       if (continueToFetch) {
+        ST_TASK_DLOG("continue to fetch wal metas since some readers are not exhausted: %" PRIu64,
+                     TARRAY_SIZE(pTask->readerList));
         for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
              pContext->curReaderIdx++) {
           code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_WAL_META);
@@ -3043,11 +3192,29 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
     case STRIGGER_PULL_GROUP_COL_VALUE: {
       QUERY_CHECK_CONDITION(pContext->status == STRIGGER_CONTEXT_SEND_CALC_REQ, code, lino, _end,
                             TSDB_CODE_INTERNAL_ERROR);
-      SStreamGroupInfo groupInfo = {.gInfo = pContext->pCalcReq->groupColVals};
-      code = tDeserializeSStreamGroupInfo(pRsp->pCont, pRsp->contLen, &groupInfo);
-      QUERY_CHECK_CODE(code, lino, _end);
-      code = stRealtimeContextCheck(pContext);
-      QUERY_CHECK_CODE(code, lino, _end);
+      SSTriggerGroupColValueRequest *pRequest = (SSTriggerGroupColValueRequest *)pReq;
+      if (pContext->pCalcReq != NULL && pContext->pCalcReq->gid == pRequest->gid) {
+        SStreamGroupInfo groupInfo = {.gInfo = pContext->pCalcReq->groupColVals};
+        code = tDeserializeSStreamGroupInfo(pRsp->pCont, pRsp->contLen, &groupInfo);
+        QUERY_CHECK_CODE(code, lino, _end);
+        code = stRealtimeContextCheck(pContext);
+        QUERY_CHECK_CODE(code, lino, _end);
+      } else {
+        SListIter  iter = {0};
+        SListNode *pNode = NULL;
+        tdListInitIter(&pContext->retryCalcReqs, &iter, TD_LIST_FORWARD);
+        while ((pNode = tdListNext(&iter)) != NULL) {
+          SSTriggerCalcRequest *pCalcReq = *(SSTriggerCalcRequest **)pNode->data;
+          if (pCalcReq->gid == pRequest->gid) {
+            SStreamGroupInfo groupInfo = {.gInfo = pCalcReq->groupColVals};
+            code = tDeserializeSStreamGroupInfo(pRsp->pCont, pRsp->contLen, &groupInfo);
+            QUERY_CHECK_CODE(code, lino, _end);
+            code = stRealtimeContextRetryCalcRequest(pContext, pNode, pCalcReq);
+            QUERY_CHECK_CODE(code, lino, _end);
+            break;
+          }
+        }
+      }
       break;
     }
 
@@ -3312,22 +3479,27 @@ static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, 
   int32_t               lino = 0;
   SStreamTriggerTask   *pTask = pContext->pTask;
   SSTriggerCalcRequest *pReq = NULL;
-  SStreamRunnerTarget  *pRunner = NULL;
-
-  QUERY_CHECK_CONDITION(pRsp->code == TSDB_CODE_SUCCESS, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
   SMsgSendInfo     *ahandle = pRsp->info.ahandle;
   SSTriggerAHandle *pAhandle = ahandle->param;
   pReq = pAhandle->param;
 
-  ST_TASK_DLOG("receive calc response from task:%" PRIx64, pReq->runnerTaskId);
+  ST_TASK_DLOG("receive calc response from task:%" PRIx64 ", code:%d", pReq->runnerTaskId, pRsp->code);
 
-  code = stTriggerTaskReleaseRequest(pTask, &pReq);
-  QUERY_CHECK_CODE(code, lino, _end);
+  if (pRsp->code == TSDB_CODE_SUCCESS) {
+    code = stTriggerTaskReleaseRequest(pTask, &pReq);
+    QUERY_CHECK_CODE(code, lino, _end);
 
-  if (pContext->status == STRIGGER_CONTEXT_ACQUIRE_REQUEST) {
-    // continue check if the context is waiting for any available request
-    code = stRealtimeContextCheck(pContext);
+    if (pContext->status == STRIGGER_CONTEXT_ACQUIRE_REQUEST) {
+      // continue check if the context is waiting for any available request
+      code = stRealtimeContextCheck(pContext);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+  } else {
+    code = tdListAppend(&pContext->retryCalcReqs, &pReq);
+    QUERY_CHECK_CODE(code, lino, _end);
+    SListNode *pNode = TD_DLIST_TAIL(&pContext->retryCalcReqs);
+    code = stRealtimeContextRetryCalcRequest(pContext, pNode, pReq);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 

@@ -142,9 +142,10 @@ typedef struct SSTriggerRealtimeContext {
 #if !TRIGGER_USE_HISTORY_META
   bool haveToRecalc;
 #endif
-  bool                  haveReadCheckpoint;
-  int64_t               lastCheckpointTime;
-  SSTriggerPullRequest *pRetryReq;
+  bool    haveReadCheckpoint;
+  int64_t lastCheckpointTime;
+  SList   retryPullReqs;  // SList<SSTriggerPullRequest*>
+  SList   retryCalcReqs;  // SList<SSTriggerCalcRequest*>
 } SSTriggerRealtimeContext;
 
 typedef struct SSTriggerHistoryContext {
@@ -185,7 +186,8 @@ typedef struct SSTriggerHistoryContext {
   void     *pCalcDataCache;
   SHashObj *pCalcDataCacheIters;
 
-  SSTriggerPullRequest *pRetryReq;
+  SList retryPullReqs;  // SList<SSTriggerPullRequest*>
+  SList retryCalcReqs;  // SList<SSTriggerCalcRequest*>
 } SSTriggerHistoryContext;
 
 typedef enum ESTriggerEventType {
