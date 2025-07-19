@@ -114,7 +114,7 @@ void sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper) {
       mTrace("%s:%d, ref:%d oper:%s row:%p row->pObj:%p status:%s", sdbTableName(pRow->type), *(int32_t *)pRow->pObj,
              pRow->refCount, oper, pRow, pRow->pObj, sdbStatusName(pRow->status));
     } else if (keyType == SDB_KEY_INT64) {
-      mTrace("%s:%0llx" PRId64 ", ref:%d oper:%s row:%p row->pObj:%p status:%s", sdbTableName(pRow->type),
+      mTrace("%s:%0llx" PRIx64 ", ref:%d oper:%s row:%p row->pObj:%p status:%s", sdbTableName(pRow->type),
              *(int64_t *)pRow->pObj, pRow->refCount, oper, pRow, pRow->pObj, sdbStatusName(pRow->status));
     } else {
     }
