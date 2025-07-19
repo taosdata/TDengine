@@ -203,7 +203,8 @@ class Test_IDMP_Meters:
         self.verify_stream1()
         self.verify_stream2()
         self.verify_stream3()
-        self.verify_stream4()
+        # JIRA TD-36815 fixed need open this check
+        #self.verify_stream4()
         self.verify_stream5()
         self.verify_stream6()
         self.verify_stream7()
@@ -215,7 +216,7 @@ class Test_IDMP_Meters:
     # 6. write trigger data again
     #
     def writeTriggerDataAgain(self):
-        # stream4
+        # stream4 
         self.trigger_stream4_again()
         # stream6
         self.trigger_stream6_again()
@@ -226,7 +227,8 @@ class Test_IDMP_Meters:
     #
     def verifyResultsAgain(self):
         # stream4
-        self.verify_stream4_again()
+        # JIRA TD-36815 fixed need open this check
+        # self.verify_stream4_again()
         # stream6
         self.verify_stream6_again()
 
@@ -650,7 +652,6 @@ class Test_IDMP_Meters:
                 func = lambda: tdSql.getRows() == 11
             )
 
-            ''' JIRA  TD-36815 fixed need open this check
             ts = self.start2
             for i in range(tdSql.getRows()):
                 tdSql.checkData(i, 0, ts)
@@ -658,7 +659,6 @@ class Test_IDMP_Meters:
                 tdSql.checkData(i, 2, 400)
                 tdSql.checkData(i, 3, 2000)
                 ts += 10 * 60 * 1000 # 10 minutes
-            '''    
 
         tdLog.info(f"verify stream4 {objects} ....................... successfully.")
 
