@@ -2696,7 +2696,7 @@ _end:
 }
 
 // for debug
-int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf, const char* taskIdStr) {
+int32_t dumpBlockData(const SSDataBlock* pDataBlock, const char* flag, char** pDataBuf, const char* taskIdStr) {
   int32_t lino = 0;
   int32_t size = 2048 * 1024;
   int32_t code = 0;
