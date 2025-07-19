@@ -3602,13 +3602,13 @@ int32_t mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
     if (update) {
       SSdbRaw *pCommitRaw = mndUserActionEncode(&newUser);
       if (pCommitRaw == NULL || (code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
-        break;
+        goto _OVER;
       }
       TAOS_CHECK_GOTO(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY), &lino, _OVER);
     }
     mndUserFreeObj(&newUser);
     sdbRelease(pSdb, pUser);
-    }
+  }
 
 _OVER:
   if (pUser != NULL) sdbRelease(pSdb, pUser);

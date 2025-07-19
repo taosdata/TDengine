@@ -23,6 +23,7 @@ class TestUserPrivilegeDb:
 
         History:
             - 2025-4-30 Simon Guan Migrated from tsim/user/privilege_db.sim
+            - 2025-7-19 Kaili Xu   Add check: privileges of db/stb/view/topic are cleaned after drop db
 
         """
 
