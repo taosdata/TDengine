@@ -11913,6 +11913,36 @@ static SSchema* getTagSchema(const STableMeta* pTableMeta, const char* pTagName)
   return NULL;
 }
 
+static int32_t checkAlterTableByColumnType(STranslateContext* pCxt, SAlterTableStmt* pStmt,
+                                           const STableMeta* pTableMeta) {
+  int32_t code = 0;
+  if (!IS_STR_DATA_BLOB(pStmt->dataType.type)) {
+    return code;
+  }
+
+  if (pTableMeta->virtualStb) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_VTABLE_NOT_SUPPORT_DATA_TYPE);
+  }
+  if (pStmt->alterType != TSDB_ALTER_TABLE_DROP_COLUMN && pStmt->alterType != TSDB_ALTER_TABLE_ADD_COLUMN) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_BLOB_NOT_SUPPORT);
+  }
+  int8_t blobColCnt = 0;
+  if (pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN) {
+    int32_t numOfFields = getNumOfColumns(pTableMeta);
+    for (int32_t i = 0; i < numOfFields; ++i) {
+      const SSchema* pSchema = pTableMeta->schema + i;
+      if (IS_STR_DATA_BLOB(pSchema->type)) {
+        blobColCnt++;
+      }
+      if (blobColCnt > 0) {
+        code = TSDB_CODE_BLOB_ONLY_ONE_COLUMN_ALLOWED;
+        break;
+      }
+    }
+  }
+
+  return code;
+}
 static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTableStmt* pStmt,
                                             const STableMeta* pTableMeta) {
   if (pTableMeta->virtualStb && IS_DECIMAL_TYPE(pStmt->dataType.type)) {
@@ -12072,6 +12102,10 @@ static int32_t checkAlterSuperTable(STranslateContext* pCxt, SAlterTableStmt* pS
   if (TSDB_CODE_SUCCESS == code) {
     code = checkAlterSuperTableBySchema(pCxt, pStmt, pTableMeta);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkAlterTableByColumnType(pCxt, pStmt, pTableMeta);
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = checkTableKeepOption(pCxt, pStmt->pOptions, true, dbCfg.daysToKeep2);
   }
@@ -18974,7 +19008,7 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
     pReq->flags |= COL_HAS_TYPE_MOD;
   }
 
-  return TSDB_CODE_SUCCESS;
+  return checkAlterTableByColumnType(pCxt, pStmt, pTableMeta);
 }
 
 static int32_t buildDropColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, const STableMeta* pTableMeta,
