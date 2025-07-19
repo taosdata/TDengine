@@ -13827,7 +13827,6 @@ static int32_t createStreamReqSetDefaultTag(STranslateContext* pCxt, SCreateStre
 
   FOREACH(pNode, pTriggerPartition) {
     PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_STREAM_TAG_DEF, (SNode**)&pTagDef));
-    pTagDef->pComment = NULL;
     switch (nodeType(pNode)) {
       case QUERY_NODE_FUNCTION: {
         SFunctionNode *pFunc = (SFunctionNode*)pNode;

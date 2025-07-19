@@ -4457,7 +4457,7 @@ _err:
   return NULL;
 }
 
-SNode* createStreamTagDefNode(SAstCreateContext* pCxt, SToken* pTagName, SDataType dataType, SNode* pComment, SNode* tagExpression) {
+SNode* createStreamTagDefNode(SAstCreateContext* pCxt, SToken* pTagName, SDataType dataType, SNode* tagExpression) {
   SStreamTagDefNode* pTagDef = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM_TAG_DEF, (SNode**)&pTagDef);
@@ -4465,7 +4465,6 @@ SNode* createStreamTagDefNode(SAstCreateContext* pCxt, SToken* pTagName, SDataTy
   COPY_STRING_FORM_ID_TOKEN(pTagDef->tagName, pTagName);
   pTagDef->dataType = dataType;
   pTagDef->pTagExpr = tagExpression;
-  pTagDef->pComment = pComment;
   return (SNode*)pTagDef;
 _err:
   nodesDestroyNode(tagExpression);
