@@ -25,6 +25,10 @@
 #include "tcompare.h"
 #include "tname.h"
 
+#include "tjson.h"
+#include "cJSON.h"
+#include "taoserror.h"
+
 #define MND_CONSUMER_VER_NUMBER   3
 #define MND_CONSUMER_RESERVE_SIZE 64
 
@@ -948,8 +952,12 @@ int32_t mndAcquireConsumer(SMnode *pMnode, int64_t consumerId, SMqConsumerObj** 
   SSdb           *pSdb = pMnode->pSdb;
   *pConsumer = sdbAcquire(pSdb, SDB_CONSUMER, &consumerId);
   if (*pConsumer == NULL) {
-    mError("consumer:0x%" PRIx64 " lost in acquire consumer", consumerId);
-    mndDumpSdb();
+    mError("consumer:0x%" PRIx64 " lost in acquire consumer, error:%s", consumerId, terrstr());
+    SJson *json = tjsonCreateObject();
+    dumpTopic(pSdb, json);
+    dumpConsumer(pSdb, json);
+    dumpSubscribe(pSdb, json);
+    mError("consumer:0x%" PRIx64 " lost print sdb:%s", consumerId, tjsonToString(json));
     return TSDB_CODE_MND_CONSUMER_NOT_EXIST;
   }
   return 0;

@@ -1149,7 +1149,6 @@ static int32_t mndCheckConsumerByGroup(SMnode *pMnode, STrans *pTrans, char *cgr
       }
     }
 
-
     sdbRelease(pMnode->pSdb, pConsumer);
   }
 

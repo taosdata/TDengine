@@ -17,7 +17,9 @@
 #define _TD_MND_H_
 
 #include "monitor.h"
+#include "sdb.h"
 #include "sync.h"
+#include "tjson.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
 #include "trpc.h"
@@ -120,6 +122,11 @@ void    mndPostProcessQueryMsg(SRpcMsg *pMsg);
 void mndGenerateMachineCode();
 
 int32_t mndDumpSdb();
+
+void dumpTopic(SSdb *pSdb, SJson *json);
+void dumpConsumer(SSdb *pSdb, SJson *json);
+void dumpSubscribe(SSdb *pSdb, SJson *json);
+
 
 int32_t mndDeleteTrans();
 
