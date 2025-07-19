@@ -10596,6 +10596,44 @@ static int32_t checkColumnOptions(SNodeList* pList) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t checkColumnType(SNodeList* pList, int8_t virtualTable) {
+  int32_t code = 0;
+  SNode*  pNode;
+  int32_t blobColNum = 0;
+  FOREACH(pNode, pList) {
+    SColumnDefNode* pCol = (SColumnDefNode*)pNode;
+    if (virtualTable && IS_DECIMAL_TYPE(pCol->dataType.type)) {
+      code = TSDB_CODE_VTABLE_NOT_SUPPORT_DATA_TYPE;
+      break;
+    }
+
+    if (pCol->pOptions && ((SColumnOptions*)pCol->pOptions)->bPrimaryKey && IS_STR_DATA_BLOB(pCol->dataType.type)) {
+      code = TSDB_CODE_BLOB_NOT_SUPPORT_PRIMARY_KEY;
+      break;
+    }
+    SFieldWithOptions field = {0};
+    if (pCol->pOptions && ((SColumnOptions*)pCol->pOptions)->bPrimaryKey) {
+      field.flags |= COL_IS_KEY;
+    }
+
+    if (IS_STR_DATA_BLOB(pCol->dataType.type)) {
+      if (virtualTable) {
+        code = TSDB_CODE_VTABLE_NOT_SUPPORT_DATA_TYPE;
+      }
+      if ((field.flags & COL_IS_KEY) != 0) {
+        code = TSDB_CODE_BLOB_NOT_SUPPORT_PRIMARY_KEY;
+      }
+      blobColNum++;
+
+      if (blobColNum > 1) {
+        code = TSDB_CODE_BLOB_ONLY_ONE_COLUMN_ALLOWED;
+        break;
+      }
+    }
+  }
+  return code;
+}
+
 static int32_t checkTableKeepOption(STranslateContext* pCxt, STableOptions* pOptions, bool createStable,
                                     int32_t daysToKeep2) {
   if (pOptions == NULL || (pOptions->keep == -1 && pOptions->pKeepNode == NULL)) {
@@ -11203,6 +11241,11 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
   if (TSDB_CODE_SUCCESS == code) {
     code = checkColumnOptions(pStmt->pCols);
   }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkColumnType(pStmt->pCols, 0);
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = checkTableKeepOption(pCxt, pStmt->pOptions, createStable, dbCfg.daysToKeep2);
   }
@@ -19363,6 +19406,8 @@ static int32_t checkCreateVirtualTable(STranslateContext* pCxt, SCreateVTableStm
   PAR_ERR_RET(checkVTableSchema(pCxt, pStmt));
 
   PAR_ERR_RET(checkColumnOptions(pStmt->pCols));
+
+  PAR_ERR_RET(checkColumnType(pStmt->pCols, 1));
 
   if (pCxt->pParseCxt->biMode != 0) {
     PAR_ERR_RET(biCheckCreateTableTbnameCol(pCxt, NULL, pStmt->pCols));
