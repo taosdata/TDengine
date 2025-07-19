@@ -25,6 +25,7 @@
 #include "tglobal.h"
 #include "tgrant.h"
 #include "thttp.h"
+#include "tjson.h"
 #include "tqueue.h"
 #include "ttime.h"
 #include "version.h"
@@ -155,6 +156,10 @@ void mndSetStop(SMnode *pMnode);
 bool mndGetStop(SMnode *pMnode);
 
 SArray *mndGetAllDnodeFqdns(SMnode *pMnode);
+
+void dumpTopic(SSdb *pSdb, SJson *json);
+void dumpConsumer(SSdb *pSdb, SJson *json);
+void dumpSubscribe(SSdb *pSdb, SJson *json);
 
 #ifdef __cplusplus
 }
