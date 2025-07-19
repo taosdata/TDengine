@@ -630,7 +630,6 @@ static int32_t buildSubConsumer(SMnode *pMnode, SCMSubscribeReq *subscribe, SMqC
   SMqConsumerObj *pConsumerNew     = NULL;
   SMqConsumerObj *pExistedConsumer = NULL;
   int32_t code = mndAcquireConsumer(pMnode, consumerId, &pExistedConsumer);
-  mError("acquire consumer:0x%" PRIx64 " in buildSubConsumer",pExistedConsumer->consumerId);
   if (code != 0) {
     mInfo("receive tmq subscribe request from new consumer:0x%" PRIx64
               ",cgroup:%s, numOfTopics:%d", consumerId,
@@ -638,6 +637,7 @@ static int32_t buildSubConsumer(SMnode *pMnode, SCMSubscribeReq *subscribe, SMqC
 
     MND_TMQ_RETURN_CHECK(tNewSMqConsumerObj(consumerId, cgroup, CONSUMER_INSERT_SUB, NULL, subscribe, &pConsumerNew));
   } else {
+    mError("acquire consumer:0x%" PRIx64 " in buildSubConsumer",pExistedConsumer->consumerId);
     int32_t status = atomic_load_32(&pExistedConsumer->status);
 
     mInfo("receive tmq subscribe request from existed consumer:0x%" PRIx64
