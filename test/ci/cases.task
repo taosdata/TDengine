@@ -953,7 +953,8 @@
 ,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal2.py
 #memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 4
 ,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 4
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 3
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 3
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 3
 #memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 2
 ,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 2
 #memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 1
@@ -1151,7 +1152,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last+last_row.py -Q 4
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -R
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -Q 2
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -Q 2
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -Q 2
 #memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -Q 3
 ,,n,.,pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -Q 4
@@ -1602,8 +1604,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp.py -Q 4
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill.py -Q 4
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_case_when.py -Q 4
-#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_insert_select.py
-,,n,.,pytest cases/uncatalog/system-test/2-query/test_insert_select.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_insert_select.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_insert_select.py -R
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_insert_select.py -Q 2
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_insert_select.py -Q 3
