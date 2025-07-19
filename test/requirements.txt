@@ -71,3 +71,5 @@ xmltodict==0.14.2
 zipp==3.21.0
 decorator==5.2.1
 paho-mqtt==2.1.0
+pexpect==4.8.0
+hyperloglog==0.0.14
