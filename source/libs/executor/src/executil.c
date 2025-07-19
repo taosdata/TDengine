@@ -3287,7 +3287,7 @@ char* getStreamOpName(uint16_t opType) {
   return "error name";
 }
 
-void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr) {
+void printDataBlock(const SSDataBlock* pBlock, const char* flag, const char* taskIdStr) {
   if (!pBlock) {
     qDebug("%s===stream===%s: Block is Null", taskIdStr, flag);
     return;

@@ -98,6 +98,13 @@ const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b001111
 #define COL_VAL_IS_NULL(CV)  ((CV)->flag == CV_FLAG_NULL)
 #define COL_VAL_IS_VALUE(CV) ((CV)->flag == CV_FLAG_VALUE)
 
+// Strategies of merging rows with
+// same pk in single insert batch.
+typedef enum {
+  PREFER_NON_NULL = 0,  // choose latest non-null value for each column
+  KEEP_CONSISTENCY = 1  // choose latest row
+} RowMergeStrategy;
+
 #define tRowGetKey(_pRow, _pKey)                       \
   do {                                                 \
     (_pKey)->ts = taosGetInt64Aligned(&((_pRow)->ts)); \
@@ -135,7 +142,7 @@ int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow);
 int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 void    tRowDestroy(SRow *pRow);
 int32_t tRowSort(SArray *aRowP);
-int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag);
+int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, RowMergeStrategy strategy);
 int32_t tRowUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData, int32_t flag);
 void    tRowGetPrimaryKey(SRow *pRow, SRowKey *key);
 int32_t tRowKeyCompare(const SRowKey *key1, const SRowKey *key2);
