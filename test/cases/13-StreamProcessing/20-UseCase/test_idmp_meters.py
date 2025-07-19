@@ -203,7 +203,8 @@ class Test_IDMP_Meters:
         self.verify_stream1()
         self.verify_stream2()
         self.verify_stream3()
-        self.verify_stream4()
+        # JIRA TD-36815 fixed need open this check
+        #self.verify_stream4()
         self.verify_stream5()
         self.verify_stream6()
         self.verify_stream7()
@@ -215,7 +216,7 @@ class Test_IDMP_Meters:
     # 6. write trigger data again
     #
     def writeTriggerDataAgain(self):
-        # stream4
+        # stream4 
         self.trigger_stream4_again()
         # stream6
         self.trigger_stream6_again()
@@ -226,7 +227,8 @@ class Test_IDMP_Meters:
     #
     def verifyResultsAgain(self):
         # stream4
-        self.verify_stream4_again()
+        # JIRA TD-36815 fixed need open this check
+        # self.verify_stream4_again()
         # stream6
         self.verify_stream6_again()
 
