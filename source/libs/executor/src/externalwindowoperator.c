@@ -511,14 +511,22 @@ static const STimeWindow* getExtNextWindow(SExternalWindowOperator* pExtW, SExec
   return taosArrayGet(pExtW->pWins, curIdx + 1);
 }
 
-static int32_t getNextStartPos(STimeWindow win, const SDataBlockInfo* pBlockInfo, int32_t lastEndPos, int32_t order, int32_t* nextPos) {
+static int32_t getNextStartPos(STimeWindow win, const SDataBlockInfo* pBlockInfo, int32_t lastEndPos, int32_t order, int32_t* nextPos, int64_t* tsCol) {
   bool ascQuery = order == TSDB_ORDER_ASC;
 
-  if (win.ekey < pBlockInfo->window.skey && ascQuery) return -2;
-  if (win.skey > pBlockInfo->window.ekey && !ascQuery) return -2;
+  if (win.ekey <= pBlockInfo->window.skey && ascQuery) {
+    return -2;
+  }
+//if (win.skey > pBlockInfo->window.ekey && !ascQuery) return -2;
 
   if (win.skey > pBlockInfo->window.ekey && ascQuery) return -1;
-  if (win.ekey < pBlockInfo->window.skey && !ascQuery) return -1;
+//if (win.ekey < pBlockInfo->window.skey && !ascQuery) return -1;
+
+  while (true) {
+    if (win.ekey <= tsCol[lastEndPos + 1] && ascQuery) return -2;
+    if (win.skey <= tsCol[lastEndPos + 1] && ascQuery) break;
+    lastEndPos++;
+  }
 
   *nextPos = lastEndPos + 1;
   return 0;
@@ -785,6 +793,10 @@ static void hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
   int32_t nextPosGot = 0;
   while (1) {
     int32_t prevEndPos = forwardRows + startPos - 1;
+    if (prevEndPos >= pInputBlock->info.rows) {
+      break;
+    }
+    
     pWin = getExtNextWindow(pExtW, pTaskInfo);
     if (!pWin)
       break;
@@ -794,13 +806,14 @@ static void hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
     qDebug("%s ext window2 start:%" PRId64 ", end:%" PRId64 ", ts:%" PRId64 ", ascScan:%d",
            GET_TASKID(pOperator->pTaskInfo), win.skey, win.ekey, ts, ascScan);
            
-    nextPosGot = getNextStartPos(win, &pInputBlock->info, prevEndPos, pExtW->binfo.inputTsOrder, &startPos);
+    nextPosGot = getNextStartPos(win, &pInputBlock->info, prevEndPos, pExtW->binfo.inputTsOrder, &startPos, tsCols);
     if (-1 == nextPosGot) {
       qDebug("%s ignore current block", GET_TASKID(pOperator->pTaskInfo));
       break;
     }
     if (-2 == nextPosGot) {
       qDebug("%s skip current window", GET_TASKID(pOperator->pTaskInfo));
+      incExtWinCurIdx(pOperator);
       continue;
     }
     
@@ -875,13 +888,6 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
         break;
       case EEXT_MODE_AGG:
         hashExternalWindowAgg(pOperator, pBlock);
-
-        qDebug("ext window before dump final rows num:%d", tSimpleHashGetSize(pExtW->aggSup.pResultRowHashTable));
-
-        code = initGroupedResultInfo(&pExtW->groupResInfo, pExtW->aggSup.pResultRowHashTable, pExtW->binfo.inputTsOrder);
-        QUERY_CHECK_CODE(code, lino, _exit);
-
-        qDebug("ext window after dump final rows num:%d", tSimpleHashGetSize(pExtW->aggSup.pResultRowHashTable));
         break;
       case EEXT_MODE_INDEFR_FUNC:
         TAOS_CHECK_EXIT(hashExternalWindowIndefRows(pOperator, pBlock));
@@ -891,6 +897,15 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
     }
 
     OPTR_SET_OPENED(pOperator);
+  }
+
+  if (pExtW->mode == EEXT_MODE_AGG) {
+    qDebug("ext window before dump final rows num:%d", tSimpleHashGetSize(pExtW->aggSup.pResultRowHashTable));
+
+    code = initGroupedResultInfo(&pExtW->groupResInfo, pExtW->aggSup.pResultRowHashTable, pExtW->binfo.inputTsOrder);
+    QUERY_CHECK_CODE(code, lino, _exit);
+
+    qDebug("ext window after dump final rows num:%d", tSimpleHashGetSize(pExtW->aggSup.pResultRowHashTable));
   }
 
 _exit:
