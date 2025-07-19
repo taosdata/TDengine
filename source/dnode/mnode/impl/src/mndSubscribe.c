@@ -840,6 +840,11 @@ static int32_t mndCheckConsumer(SRpcMsg *pMsg, SHashObj *rebSubHash) {
       break;
     }
 
+    mError("acquire consumer:0x%" PRIx64 " in mndCheckConsumer",pConsumer->consumerId);
+    SSdbRow **ppRow = (SSdbRow **)pIter;
+    SSdbRow *pRow = *ppRow;
+    mError("get consumer:0x%" PRIx64 " count:%d in mndCheckConsumer",pConsumer->consumerId, pRow->refCount);
+
     int32_t hbStatus = atomic_add_fetch_32(&pConsumer->hbStatus, 1);
     int32_t pollStatus = atomic_add_fetch_32(&pConsumer->pollStatus, 1);
     int32_t status = atomic_load_32(&pConsumer->status);
@@ -869,6 +874,7 @@ static int32_t mndCheckConsumer(SRpcMsg *pMsg, SHashObj *rebSubHash) {
       MND_TMQ_RETURN_CHECK(mndSendConsumerMsg(pMnode, pConsumer->consumerId, TDMT_MND_TMQ_LOST_CONSUMER_CLEAR, &pMsg->info));
     }
 
+    mError("release consumer:0x%" PRIx64 " in mndCheckConsumer",pConsumer->consumerId);
     mndReleaseConsumer(pMnode, pConsumer);
   }
 END:
@@ -938,8 +944,10 @@ static int32_t checkConsumer(SMnode *pMnode, SMqSubscribeObj *pSub) {
     SMqConsumerEp  *pConsumerEp = (SMqConsumerEp *)pIter;
     SMqConsumerObj *pConsumer = NULL;
     code = mndAcquireConsumer(pMnode, pConsumerEp->consumerId, &pConsumer);
+    mError("acquire consumer:0x%" PRIx64 " in checkConsumer",pConsumer->consumerId);
     if (code == 0) {
       mndReleaseConsumer(pMnode, pConsumer);
+      mError("release consumer:0x%" PRIx64 " in checkConsumer",pConsumer->consumerId);
       continue;
     }
     mError("consumer:0x%" PRIx64 " not exists in sdb for exception", pConsumerEp->consumerId);
