@@ -6715,7 +6715,7 @@ static EDealRes conditionOnlyPhAndConstImpl(SNode* pNode, void* pContext) {
     pCxt->hasPhOrConst = true;
   } else if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
     SFunctionNode *pFunc = (SFunctionNode*)pNode;
-    if (fmIsPlaceHolderFunc(pFunc->funcId)) {
+    if (fmIsPlaceHolderFunc(pFunc->funcId) || pFunc->funcType == FUNCTION_TYPE_NOW || pFunc->funcType == FUNCTION_TYPE_TODAY) {
       pCxt->onlyPhAndConst &= true;
       pCxt->hasPhOrConst = true;
     } else {
