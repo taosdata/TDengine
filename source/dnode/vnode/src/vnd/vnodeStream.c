@@ -1908,6 +1908,7 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
     SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN, -1);
     STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(pBlock, &idata));
     STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pBlock, 1));
+    pBlock->info.rows = 1;
     SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, 0);
     STREAM_CHECK_NULL_GOTO(pDst, terrno);
     STREAM_CHECK_RET_GOTO(varColSetVarData(pDst, 0, metaReader.me.name, strlen(metaReader.me.name), false));
@@ -1941,6 +1942,7 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
       }
     }
     STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pBlock, 1));
+    pBlock->info.rows = 1;
     
     for (size_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++){
       SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
