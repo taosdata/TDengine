@@ -13309,7 +13309,7 @@ static int32_t checkDelayTime(STranslateContext* pCxt, SValueNode* pTime) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TIME_UNIT,
                                    "Unsupported time unit in MAX_DELAY_TIME: %s", pTime->literal);
   }
-  if ((pTime->datum.i / getPrecisionMultiple(getPrecisionFromCurrStmt(pCxt->pCurrStmt, TSDB_TIME_PRECISION_MILLI))) < maxDelayLowerBound) {
+  if (pTime->datum.i < maxDelayLowerBound) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TIME_UNIT,
                                    "MAX_DELAY must be greater than or equal to 3 seconds");
   }
@@ -13349,7 +13349,12 @@ static int32_t createStreamReqBuildTriggerOptions(STranslateContext* pCxt, const
   }
 
   if (pOptions->pMaxDelay) {
+    SNode* tmpStmt = pCxt->pCurrStmt;
+    pCxt->pCurrStmt = NULL;
+    // since max delay do not need to translate with trigger table's precision, set currStmt to NULL, so we can use
+    // default precision 'ms'
     PAR_ERR_JRET(translateExpr(pCxt, &pOptions->pMaxDelay));
+    pCxt->pCurrStmt = tmpStmt;
     PAR_ERR_JRET(checkDelayTime(pCxt, (SValueNode*)pOptions->pMaxDelay));
     pReq->maxDelay = ((SValueNode*)pOptions->pMaxDelay)->datum.i;
   }
