@@ -15801,6 +15801,7 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       code = translateDropSuperTable(pCxt, (SDropSuperTableStmt*)pNode);
       break;
     case QUERY_NODE_ALTER_TABLE_STMT:
+    case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT:
     case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
       code = translateAlterSuperTable(pCxt, (SAlterTableStmt*)pNode);
       break;
@@ -19301,14 +19302,33 @@ static void destoryAlterTbReq(SVAlterTbReq* pReq) {
 }
 
 static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
-                                     SQuery* pQuery) {
+                                     SQuery* pQuery, bool virtual) {
 
   if (TSDB_SUPER_TABLE == pTableMeta->tableType) {
-    return TSDB_CODE_SUCCESS;
+    if (virtual == isVirtualSTable(pTableMeta)) {
+      return TSDB_CODE_SUCCESS;
+    } else {
+      if (virtual) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "can not alter non-virtual stable using ALTER VTABLE");
+      } else {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "can not alter virtual stable using ALTER TABLE");
+      }
+    }
   } else if (TSDB_CHILD_TABLE != pTableMeta->tableType && TSDB_NORMAL_TABLE != pTableMeta->tableType &&
              !isVirtualTable(pTableMeta)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+  } else {
+    if (virtual == isVirtualTable(pTableMeta)) {
+      // do nothing
+    } else {
+      if (virtual) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "can not alter non-virtual table using ALTER VTABLE");
+      } else {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "can not alter virtual table using ALTER TABLE");
+      }
+    }
   }
+
   if (pStmt->pOptions && (pStmt->pOptions->keep >= 0 || pStmt->pOptions->pKeepNode != NULL)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_OPTION,
                                    "only super table can alter keep duration");
@@ -19336,7 +19356,7 @@ static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* p
   return code;
 }
 
-static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery) {
+static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery, bool virtual) {
   int32_t          code = TSDB_CODE_SUCCESS;
   SAlterTableStmt* pStmt = (SAlterTableStmt*)pQuery->pRoot;
 
@@ -19351,7 +19371,7 @@ static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery) {
 
   STableMeta* pTableMeta = NULL;
   PAR_ERR_JRET(getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pTableMeta));
-  PAR_ERR_JRET(rewriteAlterTableImpl(pCxt, pStmt, pTableMeta, pQuery));
+  PAR_ERR_JRET(rewriteAlterTableImpl(pCxt, pStmt, pTableMeta, pQuery, virtual));
 
 _return:
   taosMemoryFree(pTableMeta);
@@ -19359,7 +19379,7 @@ _return:
 }
 
 static int32_t rewriteAlterVirtualTable(STranslateContext* pCxt, SQuery* pQuery) {
-  return rewriteAlterTable(pCxt, pQuery);
+  return rewriteAlterTable(pCxt, pQuery, true);
 }
 
 static int32_t buildCreateVTableDataBlock(const SCreateVTableStmt* pStmt, const SVgroupInfo* pInfo, SArray* pBufArray) {
@@ -20224,7 +20244,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
       code = rewriteDropVirtualTable(pCxt, pQuery);
       break;
     case QUERY_NODE_ALTER_TABLE_STMT:
-      code = rewriteAlterTable(pCxt, pQuery);
+      code = rewriteAlterTable(pCxt, pQuery, false);
       break;
     case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT:
       code = rewriteAlterVirtualTable(pCxt, pQuery);
