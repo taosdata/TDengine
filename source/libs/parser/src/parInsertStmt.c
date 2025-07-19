@@ -772,6 +772,7 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCol
   int             ncharColNums = 0;
   int32_t         bindIdx = 0;
   int8_t          hasBlob = 0;
+  int32_t         lino = 0;
   if (NULL == pTSchema || NULL == *pTSchema) {
     *pTSchema = tBuildTSchema(pSchema, pDataBlock->pMeta->tableInfo.numOfColumns, pDataBlock->pMeta->sversion);
   }
@@ -867,12 +868,11 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCol
                               &pDataBlock->ordered, &pDataBlock->duplicateTs);
   } else {
     code = tBlobSetCreate(1024, 1, ppBlob);
-    if (code != 0) {
-      qError("tBlobSetCreate failed:%s", tstrerror(code));
-      goto _return;
-    }
+    TAOS_CHECK_GOTO(code, &lino, _return);
+
     code = tRowBuildFromBind2WithBlob(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols,
                                       &pDataBlock->ordered, &pDataBlock->duplicateTs, *ppBlob);
+    TAOS_CHECK_GOTO(code, &lino, _return);
   }
 
   parserDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
@@ -885,6 +885,9 @@ _return:
       taosMemoryFree(ncBind[i].length);
     }
     taosArrayDestroy(ncharBinds);
+  }
+  if (code != 0) {
+    parserDebug("stmt2 failed to bind at lino %d since %s", lino, tstrerror(code));
   }
 
   return code;
@@ -952,6 +955,7 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, 
   TAOS_STMT2_BIND  ncharBind = {0};
   TAOS_STMT2_BIND* pBind = NULL;
   int32_t          code = 0;
+  int32_t          lino = 0;
   int32_t          bindIdx = 0;
 
   for (int c = 0; c < boundInfo->numOfBound; ++c) {
@@ -1014,10 +1018,7 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, 
     } else {
       if (pDataBlock->pData->pBlobSet == NULL) {
         code = tBlobSetCreate(1024, 1, &pDataBlock->pData->pBlobSet);
-        if (code != 0) {
-          qError("tBlobSetCreate failed:%s", tstrerror(code));
-          goto _return;
-        }
+        TAOS_CHECK_GOTO(code, &lino, _return);
       }
       code = tColDataAddValueByBind2WithBlob(pCol, pBind, bytes, pDataBlock->pData->pBlobSet);
     }
@@ -1034,6 +1035,9 @@ _return:
 
   taosMemoryFree(ncharBind.buffer);
   taosMemoryFree(ncharBind.length);
+  if (code != 0) {
+    parserDebug("stmt2 failed to bind col at lino %d since %s", lino, tstrerror(code));
+  }
 
   return code;
 }
@@ -1049,6 +1053,7 @@ int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* b
   TAOS_STMT2_BIND  ncharBind = {0};
   TAOS_STMT2_BIND* pBind = NULL;
   int32_t          code = 0;
+  int32_t          lino = 0;
 
   if (bind->num != rowNum) {
     return buildInvalidOperationMsg(&pBuf, "row number in each bind param should be the same");
@@ -1089,10 +1094,7 @@ int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* b
   if (hasBlob) {
     if (pDataBlock->pData->pBlobSet == NULL) {
       code = tBlobSetCreate(1024, 1, &pDataBlock->pData->pBlobSet);
-      if (code != 0) {
-        qError("tBlobSetCreate failed:%s", tstrerror(code));
-        goto _return;
-      }
+      TAOS_CHECK_GOTO(code, &lino, _return);
     }
     code = tColDataAddValueByBind2WithBlob(pCol, pBind, bytes, pDataBlock->pData->pBlobSet);
   } else {
@@ -1105,6 +1107,9 @@ _return:
 
   taosMemoryFree(ncharBind.buffer);
   taosMemoryFree(ncharBind.length);
+  if (code != 0) {
+    parserDebug("stmt failed to parse at lino %d since %s", lino, tstrerror(code));
+  }
 
   return code;
 }
