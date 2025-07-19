@@ -164,6 +164,17 @@ static void stTriggerTaskCheckWaitSession(void *param, void *tmrId) {
             ", resumeTime:%" PRId64,
             pInfo->streamId, pInfo->taskId, pInfo->sessionId, now, pInfo->resumeTime);
 
+    SStreamTask *pTask = NULL;
+    void        *pTaskAddr = NULL;
+    int32_t      code = streamAcquireTask(pInfo->streamId, pInfo->taskId, &pTask, &pTaskAddr);
+    if (code != TSDB_CODE_SUCCESS) {
+      stError("failed to acquire stream trigger session %" PRIx64 "-%" PRIx64 "-%" PRIx64 " since %s", pInfo->streamId,
+              pInfo->taskId, pInfo->sessionId, tstrerror(code));
+      TD_DLIST_POP(&readylist, pNode);
+      taosMemoryFreeClear(pNode);
+      continue;
+    }
+
     SSTriggerCtrlRequest req = {.type = STRIGGER_CTRL_START,
                                 .streamId = pInfo->streamId,
                                 .taskId = pInfo->taskId,
@@ -197,6 +208,7 @@ static void stTriggerTaskCheckWaitSession(void *param, void *tmrId) {
     }
     TD_DLIST_POP(&readylist, pNode);
     taosMemoryFreeClear(pNode);
+    streamReleaseTask(pTaskAddr);
   }
 
   streamTmrStart(stTriggerTaskCheckWaitSession, STREAM_TRIGGER_CHECK_INTERVAL_MS, NULL, gStreamMgmt.timer,
@@ -875,7 +887,7 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
   QUERY_CHECK_NULL(pTrigSlotids, code, lino, _end, terrno);
   for (int32_t i = 0; i < nTrigCols; i++) {
     col_id_t id = *(col_id_t *)TARRAY_GET_ELEM(pTrigColids, i);
-    int32_t slotid = -1;
+    int32_t  slotid = -1;
     for (int32_t j = 0; j < nTotalCols; j++) {
       if (id == *(col_id_t *)TARRAY_GET_ELEM(pVirColIds, j)) {
         slotid = j;
@@ -899,7 +911,7 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
   QUERY_CHECK_NULL(pCalcSlotids, code, lino, _end, terrno);
   for (int32_t i = 0; i < nCalcCols; i++) {
     col_id_t id = *(col_id_t *)TARRAY_GET_ELEM(pCalcColids, i);
-    int32_t slotid = -1;
+    int32_t  slotid = -1;
     for (int32_t j = 0; j < nTotalCols; j++) {
       if (id == *(col_id_t *)TARRAY_GET_ELEM(pVirColIds, j)) {
         slotid = j;
@@ -1472,8 +1484,8 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
       pTask->task.status = STREAM_STATUS_RUNNING;
 
       int32_t leaderSid = pTask->leaderSnodeId;
-      SEpSet* epSet = gStreamMgmt.getSynEpset(leaderSid);
-      if (epSet != NULL){
+      SEpSet *epSet = gStreamMgmt.getSynEpset(leaderSid);
+      if (epSet != NULL) {
         ST_TASK_DLOG("[checkpoint] trigger task deploy, sync checkpoint leaderSnodeId:%d", leaderSid);
         atomic_store_8(&pTask->isCheckpointReady, 0);
         code = streamSyncWriteCheckpoint(pTask->task.streamId, epSet, NULL, 0);
