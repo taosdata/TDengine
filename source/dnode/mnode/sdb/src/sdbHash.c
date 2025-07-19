@@ -106,16 +106,18 @@ void sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper) {
 #if 1
   EKeyType keyType = pSdb->keyTypes[pRow->type];
 
-  if (keyType == SDB_KEY_BINARY) {
-    mTrace("%s:%s, ref:%d oper:%s row:%p row->pObj:%p status:%s", sdbTableName(pRow->type), (char *)pRow->pObj,
-           pRow->refCount, oper, pRow, pRow->pObj, sdbStatusName(pRow->status));
-  } else if (keyType == SDB_KEY_INT32) {
-    mTrace("%s:%d, ref:%d oper:%s row:%p row->pObj:%p status:%s", sdbTableName(pRow->type), *(int32_t *)pRow->pObj,
-           pRow->refCount, oper, pRow, pRow->pObj, sdbStatusName(pRow->status));
-  } else if (keyType == SDB_KEY_INT64) {
-    mTrace("%s:%" PRId64 ", ref:%d oper:%s row:%p row->pObj:%p status:%s", sdbTableName(pRow->type),
-           *(int64_t *)pRow->pObj, pRow->refCount, oper, pRow, pRow->pObj, sdbStatusName(pRow->status));
-  } else {
+  if(pRow->type == SDB_CONSUMER) {
+    if (keyType == SDB_KEY_BINARY) {
+      mTrace("%s:%s, ref:%d oper:%s row:%p row->pObj:%p status:%s", sdbTableName(pRow->type), (char *)pRow->pObj,
+             pRow->refCount, oper, pRow, pRow->pObj, sdbStatusName(pRow->status));
+    } else if (keyType == SDB_KEY_INT32) {
+      mTrace("%s:%d, ref:%d oper:%s row:%p row->pObj:%p status:%s", sdbTableName(pRow->type), *(int32_t *)pRow->pObj,
+             pRow->refCount, oper, pRow, pRow->pObj, sdbStatusName(pRow->status));
+    } else if (keyType == SDB_KEY_INT64) {
+      mTrace("%s:%" PRId64 ", ref:%d oper:%s row:%p row->pObj:%p status:%s", sdbTableName(pRow->type),
+             *(int64_t *)pRow->pObj, pRow->refCount, oper, pRow, pRow->pObj, sdbStatusName(pRow->status));
+    } else {
+    }
   }
 #endif
 }
