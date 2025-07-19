@@ -14109,6 +14109,7 @@ static int32_t translateStreamTriggerQuery(STranslateContext* pCxt, SStreamTrigg
   pCxt->createStreamTrigger = false;
 
   if (extractFilter) {
+    pCxt->currClause = SQL_CLAUSE_WHERE;
     PAR_ERR_JRET(translateExpr(pCxt, pTriggerFilter));
   } else {
     *pTriggerFilter = NULL;
@@ -14168,13 +14169,16 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStrea
                                            "Invalid trigger table type %d", pTriggerTableMeta->tableType));
   }
 
+  pCxt->currClause = SQL_CLAUSE_SELECT;
   PAR_ERR_JRET(createStreamReqBuildTriggerTable(pCxt, pTriggerTable, pTriggerTableMeta, pReq));
   PAR_ERR_JRET(createStreamReqBuildTriggerSelect(pCxt, pTriggerTable, pTriggerSelect));
   PAR_ERR_JRET(translateStreamTriggerQuery(pCxt, pTrigger, pTriggerTableMeta, *pTriggerSelect, &pTriggerFilter));
 
+  pCxt->currClause = SQL_CLAUSE_WINDOW;
   PAR_ERR_JRET(translateExpr(pCxt, &pTriggerWindow));
+  pCxt->currClause = SQL_CLAUSE_PARTITION_BY;
   PAR_ERR_JRET(translateExprList(pCxt, pTriggerPartition));
-
+  pCxt->currClause = SQL_CLAUSE_SELECT;
   SNode *pNode = NULL;
   FOREACH(pNode, pTriggerPartition) {
     switch (nodeType(pNode)) {
