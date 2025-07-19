@@ -166,7 +166,12 @@ static int32_t mndProcessConsumerClearMsg(SRpcMsg *pMsg) {
   code = mndTransPrepare(pMnode, pTrans);
 
 END:
-  mError("release consumer:0x%" PRIx64 " in mndProcessConsumerClearMsg",pConsumer->consumerId);
+  if(pConsumer != NULL) {
+    mError("release consumer:0x%" PRIx64 " in mndProcessConsumerClearMsg",pConsumer->consumerId);
+  } else {
+    mError("release null consumer in mndProcessConsumerClearMsg");
+  }
+
   mndReleaseConsumer(pMnode, pConsumer);
   tDeleteSMqConsumerObj(pConsumerNew);
   mndTransDrop(pTrans);
@@ -284,7 +289,12 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
 
 END:
   tDestroySMqHbRsp(&rsp);
-  mError("release consumer:0x%" PRIx64 " in mndProcessMqHbReq",pConsumer->consumerId);
+  if(pConsumer != NULL) {
+    mError("release consumer:0x%" PRIx64 " in mndProcessMqHbReq",pConsumer->consumerId);
+  } else {
+    mError("release null consumer  in mndProcessMqHbReq");
+  }
+
   mndReleaseConsumer(pMnode, pConsumer);
   tDestroySMqHbReq(&req);
   PRINT_LOG_END(code)
@@ -475,7 +485,11 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
 
 END:
   tDeleteSMqAskEpRsp(&rsp);
-  mError("release consumer:0x%" PRIx64 " in mndProcessAskEpReq",pConsumer->consumerId);
+  if(pConsumer != NULL) {
+    mError("release consumer:0x%" PRIx64 " in mndProcessAskEpReq",pConsumer->consumerId);
+  } else {
+    mError("release null consumer in mndProcessAskEpReq");
+  }
   mndReleaseConsumer(pMnode, pConsumer);
   PRINT_LOG_END(code);
   return code;
@@ -639,7 +653,11 @@ static int32_t buildSubConsumer(SMnode *pMnode, SCMSubscribeReq *subscribe, SMqC
     MND_TMQ_RETURN_CHECK(getTopicAddDelete(pExistedConsumer, pConsumerNew));
   }
   mndReleaseConsumer(pMnode, pExistedConsumer);
-  mError("release consumer:0x%" PRIx64 " in buildSubConsumer 1",pExistedConsumer->consumerId);
+  if(pExistedConsumer != NULL) {
+      mError("release consumer:0x%" PRIx64 " in buildSubConsumer 1",pExistedConsumer->consumerId);
+  } else {
+      mError("release null consumer in buildSubConsumer 1");
+  }
   if (ppConsumer){
     *ppConsumer = pConsumerNew;
   }
@@ -647,7 +665,11 @@ static int32_t buildSubConsumer(SMnode *pMnode, SCMSubscribeReq *subscribe, SMqC
 
 END:
   mndReleaseConsumer(pMnode, pExistedConsumer);
-  mError("release consumer:0x%" PRIx64 " in buildSubConsumer 2",pExistedConsumer->consumerId);
+  if(pExistedConsumer != NULL) {
+    mError("release consumer:0x%" PRIx64 " in buildSubConsumer 2",pExistedConsumer->consumerId);
+  } else {
+    mError("release null consumer in buildSubConsumer 2");
+  }
   tDeleteSMqConsumerObj(pConsumerNew);
   return code;
 }
@@ -672,11 +694,19 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     mError("acquire consumer:0x%" PRIx64 " in mndProcessSubscribeReq",pConsumerTmp->consumerId);
     if (taosArrayGetSize(pConsumerTmp->assignedTopics) == 0){
       mndReleaseConsumer(pMnode, pConsumerTmp);
-      mError("release consumer:0x%" PRIx64 " in mndProcessSubscribeReq 1",pConsumerTmp->consumerId);
+      if(pConsumerTmp != NULL) {
+        mError("release consumer:0x%" PRIx64 " in mndProcessSubscribeReq 1",pConsumerTmp->consumerId);
+      } else {
+        mError("release null consumer in mndProcessSubscribeReq 1");
+      }
       goto END;
     }
     mndReleaseConsumer(pMnode, pConsumerTmp);
-    mError("release consumer:0x%" PRIx64 " in mndProcessSubscribeReq 2",pConsumerTmp->consumerId);
+    if(pConsumerTmp != NULL) {
+        mError("release consumer:0x%" PRIx64 " in mndProcessSubscribeReq 2",pConsumerTmp->consumerId);
+    } else {
+        mError("release null consumer in mndProcessSubscribeReq 2");
+    }
   }
   MND_TMQ_RETURN_CHECK(checkAndSortTopic(pMnode, subscribe.topicNames));
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY,
