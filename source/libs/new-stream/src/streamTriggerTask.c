@@ -3089,7 +3089,11 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         code = stTriggerTaskGenVirColRefs(pTask, pInfo, pTask->pVirCalcSlots, &pNewInfo->pCalcColRefs);
         QUERY_CHECK_CODE(code, lino, _end);
 
-        void *px = tSimpleHashGet(pContext->pGroups, &pInfo->gId, sizeof(int64_t));
+      }
+
+      for (int32_t i = 0; i < nVirTables; i++) {
+        VTableInfo *pInfo = TARRAY_GET_ELEM(pTask->pVirTableInfoRsp, i);
+        void       *px = tSimpleHashGet(pContext->pGroups, &pInfo->gId, sizeof(int64_t));
         if (px == NULL) {
           SSTriggerRealtimeGroup *pGroup = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeGroup));
           QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
@@ -3102,6 +3106,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           QUERY_CHECK_CODE(code, lino, _end);
         }
       }
+
 
       pTask->virTableInfoReady = true;
       pContext->status = STRIGGER_CONTEXT_IDLE;
