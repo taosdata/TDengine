@@ -1619,12 +1619,7 @@
 ,,y,script,./test.sh -f tsim/table/table.sim
 ,,y,script,./test.sh -f tsim/table/tinyint.sim
 ,,y,script,./test.sh -f tsim/table/vgroup.sim
-#newstm,,y,script,./test.sh -f tsim/stream/basic0.sim
-#newstm,,y,script,./test.sh -f tsim/stream/basic1.sim
-#newstm,,y,script,./test.sh -f tsim/stream/basic2.sim
 #newstm,,y,script,./test.sh -f tsim/stream/basic3.sim
-#newstm,,y,script,./test.sh -f tsim/stream/basic4.sim
-#newstm,,y,script,./test.sh -f tsim/stream/basic5.sim
 #newstm,,y,script,./test.sh -f tsim/stream/tag.sim
 #newstm,,y,script,./test.sh -f tsim/stream/snodeCheck.sim
 #newstm,,y,script,./test.sh -f tsim/stream/concurrentcheckpt.sim
