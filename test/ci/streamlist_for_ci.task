@@ -43,9 +43,11 @@
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options_vtbl.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options_abnormal.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options_abnormal_vtbl.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_meta.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_meta_vtbl.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_disorderUpdateDelete.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_disorderUpdateDelete_vtbl.py
 
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options_us.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options_ns.py
@@ -76,6 +78,7 @@
 
 ## 20-UseCase
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_idmp_meters.py
+,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_idmp_vehicle.py
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_idmp_tobacco.py
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_nevados.py 
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_phase1.py 
