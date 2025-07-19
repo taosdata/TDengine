@@ -79,8 +79,7 @@ class TestStreamOptionsTrigger:
             tdSql.execute(f"create table if not exists  {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")            
             tdSql.error(f"create table if not exists err_ct2 (cint from {self.db}.ct1.cint) using {self.db}.{self.vstbName} tags(1)")
             
-            # TODO: TD-36709 [流计算开发阶段] create table不能创建虚拟表，要禁止掉
-            # tdSql.error(f"create table if not exists err_ntb2 (cts timestamp, cint int from {self.db}.{self.ntbName}.cint)")      
+            tdSql.error(f"create table if not exists err_ntb2 (cts timestamp, cint int from {self.db}.{self.ntbName}.cint)")      
 
             # tdSql.query(f"show tables")
             # tdSql.checkRows(2)
