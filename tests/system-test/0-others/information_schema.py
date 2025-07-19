@@ -308,8 +308,8 @@ class TDTestCase:
             'idmp_cpu_core':'TDengine IDMP CPU Cores',
             'idmp_user':'TDengine IDMP Users',
             'idmp_version_ctrl':'TDengine IDMP Version Control',
-            'idmp_data_forecast':'TDengine IDMP Data Forecast',
-            'idmp_data_detect':'TDengine IDMP Data Detect',
+            'idmp_data_forecast':'TDengine IDMP Forecasting',
+            'idmp_data_detect':'TDengine IDMP Anomaly Detection',
             'idmp_data_quality':'TDengine IDMP Data Quality',
             'idmp_ai_chat_gen':'TDengine IDMP AI Chat/Generate',
         }
