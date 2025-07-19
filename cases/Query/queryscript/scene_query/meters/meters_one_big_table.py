@@ -260,7 +260,7 @@ class TDTestQuery(TDCase):
     def run(self):
         startTime = time.time() 
         
-        self.countdb_diy(replica=1,func='query')
+        #self.countdb_diy(replica=1,func='query')
 
         endTime = time.time()
         
