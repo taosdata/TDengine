@@ -119,7 +119,7 @@ class Test_IDMP_Vehicle:
     #
     def writeTriggerData(self):
         # stream1
-        self.trigger_stream1()
+        self.trigger_stream2()
 
 
 
@@ -127,7 +127,7 @@ class Test_IDMP_Vehicle:
     # 5. verify results
     #
     def verifyResults(self):
-        self.verify_stream1()
+        self.verify_stream2()
 
 
     # ---------------------   stream trigger    ----------------------
