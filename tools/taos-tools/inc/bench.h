@@ -212,6 +212,7 @@ typedef unsigned __int32 uint32_t;
 #define BENCH_PASS                \
     "The password to use when connecting to the server, default is taosdata."
 #define BENCH_OUTPUT  "The path of result output file, default is ./output.txt."
+#define BENCH_OUTPUT_JSON  "The path of result output json file, optional."
 #define BENCH_THREAD  "The number of thread when insert data, default is 8."
 #define BENCH_INTERVAL            \
     "Insert interval for interlace mode in milliseconds, default is 0."
@@ -889,7 +890,7 @@ typedef struct SQueryThreadInfo_S {
     BArray*   query_delay_list;
     int32_t   sockfd;
     double   total_delay;
-
+    char*    dbName;
     char      filePath[MAX_PATH_LEN];
     uint64_t  start_table_from;
     uint64_t  end_table_to;
@@ -954,7 +955,7 @@ int     postProcessSql(char *sqlstr, char* dbName, int precision, int iface,
 int     queryDbExecCall(SBenchConn *conn, char *command);
 int     queryDbExecRest(char *command, char* dbName, int precision,
                     int iface, int protocol, bool tcp, int sockfd);
-SBenchConn* initBenchConn();
+SBenchConn* initBenchConn(char *dbName);
 void    closeBenchConn(SBenchConn* conn);
 int     convertHostToServAddr(char *host, uint16_t port,
                               struct sockaddr_in *serv_addr);

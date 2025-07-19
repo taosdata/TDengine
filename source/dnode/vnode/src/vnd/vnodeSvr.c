@@ -2867,8 +2867,14 @@ static int32_t vnodeProcessArbCheckSyncReq(SVnode *pVnode, void *pReq, int32_t l
 
   code = tDeserializeSVArbCheckSyncReq(pReq, len, &syncReq);
   if (code) {
-    return terrno = code;
+    return code;
   }
+
+  vInfo("vgId:%d, start to process vnode-arb-check-sync req QID:0x%" PRIx64 ":0x%" PRIx64 ", seqNum:%" PRIx64
+        ", arbToken:%s, member0Token:%s, member1Token:%s, "
+        "arbTerm:%" PRId64,
+        TD_VID(pVnode), pRsp->info.traceId.rootId, pRsp->info.traceId.msgId, pRsp->info.seqNum, syncReq.arbToken,
+        syncReq.member0Token, syncReq.member1Token, syncReq.arbTerm);
 
   pRsp->msgType = TDMT_VND_ARB_CHECK_SYNC_RSP;
   pRsp->code = TSDB_CODE_SUCCESS;
@@ -2881,14 +2887,12 @@ static int32_t vnodeProcessArbCheckSyncReq(SVnode *pVnode, void *pReq, int32_t l
   syncRsp.member1Token = syncReq.member1Token;
   syncRsp.vgId = TD_VID(pVnode);
 
-  if (vnodeCheckSyncd(pVnode, syncReq.member0Token, syncReq.member1Token) != 0) {
-    vError("vgId:%d, failed to check assigned log syncd", TD_VID(pVnode));
+  if ((syncRsp.errCode = vnodeCheckSyncd(pVnode, syncReq.member0Token, syncReq.member1Token)) != 0) {
+    vError("vgId:%d, failed to check assigned log syncd since %s", TD_VID(pVnode), tstrerror(syncRsp.errCode));
   }
-  syncRsp.errCode = terrno;
 
-  if (vnodeUpdateArbTerm(pVnode, syncReq.arbTerm) != 0) {
-    vError("vgId:%d, failed to update arb term", TD_VID(pVnode));
-    code = -1;
+  if ((code = vnodeUpdateArbTerm(pVnode, syncReq.arbTerm)) != 0) {
+    vError("vgId:%d, failed to update arb term since %s", TD_VID(pVnode), tstrerror(code));
     goto _OVER;
   }
 
@@ -2915,9 +2919,17 @@ static int32_t vnodeProcessArbCheckSyncReq(SVnode *pVnode, void *pReq, int32_t l
   pRsp->pCont = pHead;
   pRsp->contLen = contLen;
 
-  terrno = TSDB_CODE_SUCCESS;
+  vInfo(
+      "vgId:%d, suceed to process vnode-arb-check-sync req rsp.code:%s, arbToken:%s, member0Token:%s, member1Token:%s",
+      TD_VID(pVnode), tstrerror(syncRsp.errCode), syncRsp.arbToken, syncRsp.member0Token, syncRsp.member1Token);
+
+  code = TSDB_CODE_SUCCESS;
 
 _OVER:
+  if (code != 0) {
+    vError("vgId:%d, failed to process arb check req rsp.code:%s since %s", TD_VID(pVnode), tstrerror(syncRsp.errCode),
+           tstrerror(code));
+  }
   tFreeSVArbCheckSyncReq(&syncReq);
   return code;
 }
