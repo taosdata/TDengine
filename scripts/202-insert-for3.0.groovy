@@ -183,6 +183,7 @@ def run_cases(case_list_file, host_config_file, replicas, query_policy, extra_fl
                 echo "run taostest ..."
                 mkdir -p ${WORK_DIR}/testnglog/''' + date_tag + '''
                 cp -rf ${INTERNAL_ROOT}/community/release ${WORK_DIR}/testnglog/''' + date_tag + '''
+                cp -rf ${INTERNAL_ROOT}/community/release /var/data/jenkins/workspace/TDinternal/community/
                 cd $TESTNG_ROOT/scripts
                 source /tmp/${JOB_NAME}.env
                 time ./run.sh -m ''' + host_config_file + ''' -t ''' + case_list_file + ''' -l ${WORK_DIR}/testnglog/''' + date_tag + ''' ''' + extra_flag + ''' -v ${NEW_VERSION} -w ${FILE_WEB_SERVER}'''  + date_tag +  ''' 
