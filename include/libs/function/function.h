@@ -24,6 +24,7 @@ extern "C" {
 #include "tcommon.h"
 #include "tsimplehash.h"
 #include "tvariant.h"
+#include "nodes.h"
 
 struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
@@ -36,6 +37,21 @@ typedef struct SStreamState SStreamState;
 typedef struct SFuncExecEnv {
   int32_t calcMemSize;
 } SFuncExecEnv;
+
+
+
+typedef struct SExprBasicInfo {
+  SResSchema   resSchema;
+  int16_t      numOfParams;  // argument value of each function
+  SFunctParam* pParam;
+  SNodeList*   pParamList;   // no need to free
+} SExprBasicInfo;
+
+typedef struct SExprInfo {
+  struct SExprBasicInfo base;
+  struct tExprNode*     pExpr;
+} SExprInfo;
+
 
 typedef bool (*FExecGetEnv)(struct SFunctionNode *pFunc, SFuncExecEnv *pEnv);
 typedef void (*FExecCleanUp)(struct SqlFunctionCtx *pCtx);

@@ -208,7 +208,7 @@ int32_t mndCompactActionInsert(SSdb *pSdb, SCompactObj *pCompact) {
 }
 
 int32_t mndCompactActionDelete(SSdb *pSdb, SCompactObj *pCompact) {
-  mTrace("compact:%" PRId32 ", perform insert action", pCompact->compactId);
+  mTrace("compact:%" PRId32 ", perform delete action", pCompact->compactId);
   tFreeCompactObj(pCompact);
   return 0;
 }
@@ -941,6 +941,11 @@ static int32_t mndCompactDispatch(SRpcMsg *pReq) {
   while ((pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb))) {
     if (pDb->cfg.compactInterval <= 0) {
       mDebug("db:%p,%s, compact interval is %dm, skip", pDb, pDb->name, pDb->cfg.compactInterval);
+      sdbRelease(pSdb, pDb);
+      continue;
+    }
+
+    if (pDb->cfg.isMount) {
       sdbRelease(pSdb, pDb);
       continue;
     }

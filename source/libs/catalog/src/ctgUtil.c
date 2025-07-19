@@ -202,10 +202,7 @@ void ctgFreeSMetaData(SMetaData* pData) {
   taosArrayDestroy(pData->pTsmas);
   pData->pTsmas = NULL;
 
-  taosArrayDestroyEx(pData->pVSubTables, tDestroySVSubTablesRsp);
-  pData->pVSubTables = NULL;
-
-  taosArrayDestroyEx(pData->pVStbRefDbs, tDestroySVStbRefDbsRsp);
+  taosArrayDestroy(pData->pVStbRefDbs);
   pData->pVStbRefDbs = NULL;
 
   taosMemoryFreeClear(pData->pSvrVer);
@@ -657,14 +654,10 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
       }
       break;
     }
-    case TDMT_VND_GET_STREAM_PROGRESS: {
+    case TDMT_MND_GET_STREAM_PROGRESS: {
       if (pCtx->out) {
         taosMemoryFreeClear(pCtx->out);
       }
-      break;
-    }
-    case TDMT_VND_VSUBTABLES_META: {
-      taosMemoryFreeClear(pCtx->target);
       break;
     }
     case TDMT_VND_VSTB_REF_DBS: {
@@ -873,8 +866,9 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
       *pRes = NULL;  // no need to free it
       break;
     }
-    case CTG_TASK_GET_V_SUBTABLES:
     case CTG_TASK_GET_V_STBREFDBS: {
+      SArray* pArray = (SArray*)*pRes;
+      taosArrayDestroyEx(pArray, tDestroySVStbRefDbsRsp);
       break;
     }
     default:
@@ -944,9 +938,8 @@ void ctgFreeSubTaskRes(CTG_TASK_TYPE type, void** pRes) {
       *pRes = NULL;
       break;
     }
-    case CTG_TASK_GET_V_SUBTABLES:
     case CTG_TASK_GET_V_STBREFDBS: {
-
+      break;
     }
     default:
       qError("invalid task type %d", type);
@@ -1073,23 +1066,6 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
       taosMemoryFreeClear(pTask->taskCtx);
       break;
     }
-    case CTG_TASK_GET_V_SUBTABLES: {
-      SCtgVSubTablesCtx* taskCtx = (SCtgVSubTablesCtx*)pTask->taskCtx;
-      if (taskCtx->clonedVgroups) {
-        taosArrayDestroy(taskCtx->pVgroups);
-        taskCtx->pVgroups = NULL;
-      }
-      if (taskCtx->pResList) {
-        for (int32_t i = 0; i < taskCtx->vgNum; ++i) {
-          SVSubTablesRsp* pVg = taskCtx->pResList + i;
-          tDestroySVSubTablesRsp(pVg);
-        }
-        taosMemoryFreeClear(taskCtx->pResList);
-      }
-      taosMemoryFreeClear(taskCtx->pMeta);
-      taosMemoryFreeClear(pTask->taskCtx);
-      break;
-    }
     case CTG_TASK_GET_V_STBREFDBS: {
       SCtgVStbRefDbsCtx* taskCtx = (SCtgVStbRefDbsCtx*)pTask->taskCtx;
       if (taskCtx->clonedVgroups) {
@@ -1097,11 +1073,7 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
         taskCtx->pVgroups = NULL;
       }
       if (taskCtx->pResList) {
-        for (int32_t i = 0; i < taskCtx->vgNum; ++i) {
-          SVStbRefDbsRsp* pVg = taskCtx->pResList + i;
-          tDestroySVSubTablesRsp(pVg);
-        }
-        taosMemoryFreeClear(taskCtx->pResList);
+        taosArrayDestroyEx(taskCtx->pResList, tDestroySVStbRefDbsRsp);
       }
       taosMemoryFreeClear(taskCtx->pMeta);
       taosMemoryFreeClear(pTask->taskCtx);
@@ -1323,7 +1295,7 @@ int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SEpSet* pMgmtEps, SDBVgInfo* d
              pTableName->dbname, pTableName->tname);
     CTG_ERR_RET(code);
   }
-
+  if (dbInfo->isMount) tTrimMountPrefix(tbFullName);
   uint32_t hashValue = taosGetTbHashVal(tbFullName, (uint32_t)strlen(tbFullName), dbInfo->hashMethod,
                                         dbInfo->hashPrefix, dbInfo->hashSuffix);
 
@@ -1464,6 +1436,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SEpSet* pMgmgEpSet, SCtgTaskR
 
   char tbFullName[TSDB_TABLE_FNAME_LEN];
   (void)snprintf(tbFullName, sizeof(tbFullName), "%s.", dbFName);
+  if (dbInfo->isMount) tTrimMountPrefix(tbFullName);
   int32_t offset = strlen(tbFullName);
   SName*  pName = NULL;
   int32_t tbNameLen = 0;
@@ -1477,7 +1450,6 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SEpSet* pMgmgEpSet, SCtgTaskR
 
     tbNameLen = offset + strlen(pName->tname);
     TAOS_STRCPY(tbFullName + offset, pName->tname);
-
     uint32_t hashValue = taosGetTbHashVal(tbFullName, (uint32_t)strlen(tbFullName), dbInfo->hashMethod,
                                           dbInfo->hashPrefix, dbInfo->hashSuffix);
 
@@ -1832,14 +1804,15 @@ int32_t ctgCloneTableIndex(SArray* pIndex, SArray** pRes) {
 
 int32_t ctgUpdateSendTargetInfo(SMsgSendInfo* pMsgSendInfo, int32_t msgType, char* dbFName, int32_t vgId) {
   if (msgType == TDMT_VND_TABLE_META || msgType == TDMT_VND_TABLE_CFG || msgType == TDMT_VND_BATCH_META ||
-      msgType == TDMT_VND_TABLE_NAME || msgType == TDMT_VND_VSUBTABLES_META ||
-      msgType == TDMT_VND_GET_STREAM_PROGRESS || msgType == TDMT_VND_VSTB_REF_DBS) {
+      msgType == TDMT_VND_TABLE_NAME || msgType == TDMT_VND_VSTB_REF_DBS) {
     pMsgSendInfo->target.type = TARGET_TYPE_VNODE;
     pMsgSendInfo->target.vgId = vgId;
     pMsgSendInfo->target.dbFName = taosStrdup(dbFName);
     if (NULL == pMsgSendInfo->target.dbFName) {
       CTG_ERR_RET(terrno);
     }
+  } else if (msgType == TDMT_SND_BATCH_META) {
+    pMsgSendInfo->target.type = TARGET_TYPE_OTHER;
   } else {
     pMsgSendInfo->target.type = TARGET_TYPE_MNODE;
   }
@@ -2127,6 +2100,12 @@ void ctgFreeTbTSMAInfo(void* p) {
   tFreeTableTSMAInfoRsp(((SMetaRes*)p)->pRes);
   taosMemoryFree(((SMetaRes*)p)->pRes);
 }
+
+void ctgFreeVStbRefDbs(void* p) {
+  taosArrayDestroyEx((SArray*)((SMetaRes*)p)->pRes, tDestroySVStbRefDbsRsp);
+  taosMemoryFree(((SMetaRes*)p)->pRes);
+}
+
 
 int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   int32_t          code = 0;
@@ -2473,6 +2452,7 @@ void ctgDestroySMetaData(SMetaData* pData) {
   taosArrayDestroyEx(pData->pView, ctgFreeViewMeta);
   taosArrayDestroyEx(pData->pTableTsmas, ctgFreeTbTSMAInfo);
   taosArrayDestroyEx(pData->pTsmas, ctgFreeTbTSMAInfo);
+  taosArrayDestroyEx(pData->pVStbRefDbs, ctgFreeVStbRefDbs);
   taosMemoryFreeClear(pData->pSvrVer);
 }
 
@@ -2869,70 +2849,4 @@ int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t*
 
   return TSDB_CODE_SUCCESS;
 }
-
-int32_t ctgBuildNormalChildVtbList(SCtgVSubTablesCtx* pCtx) {
-  int32_t code = TSDB_CODE_SUCCESS, line = 0;
-  char tbFName[TSDB_TABLE_FNAME_LEN];
-  pCtx->pResList = taosMemoryCalloc(1, sizeof(*pCtx->pResList));
-  QUERY_CHECK_NULL(pCtx->pResList, code, line, _return, terrno);
-
-  pCtx->pResList->vgId = pCtx->pMeta->vgId;
-
-  pCtx->pResList->pTables = taosArrayInit(1, POINTER_BYTES);
-  QUERY_CHECK_NULL(pCtx->pResList->pTables, code, line, _return, terrno);
-
-  SSHashObj* pSrcTbls = tSimpleHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
-  QUERY_CHECK_NULL(pSrcTbls, code, line, _return, terrno);
-
-  int32_t refColsNum = 0;
-  for (int32_t i = 0; i < pCtx->pMeta->numOfColRefs; ++i) {
-    if (!pCtx->pMeta->colRef[i].hasRef) {
-      continue;
-    }
-    
-    refColsNum++;
-  }
-  
-  SVCTableRefCols* pTb = (SVCTableRefCols*)taosMemoryCalloc(1, refColsNum * sizeof(SRefColInfo) + sizeof(SVCTableRefCols));
-  QUERY_CHECK_NULL(pTb, code, line, _return, terrno);
-  pTb->uid = pCtx->pMeta->uid;
-  pTb->numOfColRefs = refColsNum;
-  pTb->refCols = (SRefColInfo*)(pTb + 1);
-  
-  refColsNum = 0;
-  for (int32_t j = 0; j < pCtx->pMeta->numOfColRefs; j++) {
-    if (!pCtx->pMeta->colRef[j].hasRef) {
-      continue;
-    }
-
-    pTb->refCols[refColsNum].colId = pCtx->pMeta->colRef[j].id;
-    tstrncpy(pTb->refCols[refColsNum].refColName, pCtx->pMeta->colRef[j].refColName, TSDB_COL_NAME_LEN);
-    tstrncpy(pTb->refCols[refColsNum].refTableName, pCtx->pMeta->colRef[j].refTableName, TSDB_TABLE_NAME_LEN);
-    tstrncpy(pTb->refCols[refColsNum].refDbName,pCtx->pMeta->colRef[j].refDbName, TSDB_DB_NAME_LEN);
-
-    snprintf(tbFName, sizeof(tbFName), "%s.%s", pTb->refCols[refColsNum].refDbName, pTb->refCols[refColsNum].refTableName);
-
-    if (NULL == tSimpleHashGet(pSrcTbls, tbFName, strlen(tbFName))) {
-      QUERY_CHECK_CODE(tSimpleHashPut(pSrcTbls, tbFName, strlen(tbFName), &code, sizeof(code)), line, _return);
-    }
-    
-    refColsNum++;
-  }
-
-  pTb->numOfSrcTbls = tSimpleHashGetSize(pSrcTbls);
-  QUERY_CHECK_NULL(taosArrayPush(pCtx->pResList->pTables, &pTb), code, line, _return, terrno);
-  pTb = NULL;
-
-_return:
-
-  tSimpleHashCleanup(pSrcTbls);
-  taosMemoryFree(pTb);
-  
-  if (code) {
-    qError("%s failed since %s", __func__, tstrerror(code));
-  }
-
-  return code;
-}
-
 

@@ -262,9 +262,8 @@ int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
   pInfo->config.walCfg.committed = pInfo->state.committed;
 _exit:
   if (code) {
-    if (pFile) {
-      vError("vgId:%d %s failed at %s:%d since %s", pInfo->config.vgId, __func__, __FILE__, lino, tstrerror(code));
-    }
+    vError("vgId:%d %s failed at %s:%d since %s, file:%s", pInfo->config.vgId, __func__, __FILE__, lino,
+           tstrerror(code), fname);
   }
   taosMemoryFree(pData);
   if (taosCloseFile(&pFile) != 0) {
@@ -295,7 +294,7 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   pInfo->txn = metaGetTxn(pVnode->pMeta);
 
   // save info
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, dir, TSDB_FILENAME_LEN);
 
   vDebug("vgId:%d, save config while prepare commit", TD_VID(pVnode));
   code = vnodeSaveInfo(dir, &pInfo->info);
@@ -359,15 +358,30 @@ static int32_t vnodeCommit(void *arg) {
   SVnode      *pVnode = pInfo->pVnode;
 
   // commit
-  if ((code = vnodeCommitImpl(pInfo))) {
-    vFatal("vgId:%d, failed to commit vnode since %s", TD_VID(pVnode), terrstr());
-    taosMsleep(100);
-    exit(EXIT_FAILURE);
-    goto _exit;
-  }
+  METRICS_TIMING_BLOCK(pVnode->writeMetrics.commit_time, METRIC_LEVEL_HIGH, {
+    if ((code = vnodeCommitImpl(pInfo))) {
+      vFatal("vgId:%d, failed to commit vnode since %s", TD_VID(pVnode), terrstr());
+      taosMsleep(100);
+      exit(EXIT_FAILURE);
+      goto _exit;
+    }
+  });
+
+  METRICS_UPDATE(pVnode->writeMetrics.commit_count, METRIC_LEVEL_HIGH, 1);
 
   vnodeReturnBufPool(pVnode);
 
+_exit:
+  taosMemoryFree(arg);
+  return code;
+}
+
+static int32_t vnodeBseCommit(void *arg) {
+  int32_t      code = 0;
+  SCommitInfo *pInfo = (SCommitInfo *)arg;
+  SVnode      *pVnode = pInfo->pVnode;
+
+  code = bseCommit(pVnode->pBse);
 _exit:
   taosMemoryFree(arg);
   return code;
@@ -383,6 +397,11 @@ int vnodeAsyncCommit(SVnode *pVnode) {
   if (NULL == pInfo) {
     TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
+  // SCommitInfo *pBseCommitInfo = (SCommitInfo *)taosMemoryCalloc(1, sizeof(*pInfo));
+  // if (NULL == pInfo) {
+  //   TSDB_CHECK_CODE(code = terrno, lino, _exit);
+  // }
+  // pBseCommitInfo->pVnode = pVnode;
 
   // prepare to commit
   code = vnodePrepareCommit(pVnode, pInfo);
@@ -395,6 +414,7 @@ int vnodeAsyncCommit(SVnode *pVnode) {
 _exit:
   if (code) {
     taosMemoryFree(pInfo);
+    // taosMemoryFree(pBseCommitInfo);
     vError("vgId:%d %s failed at line %d since %s" PRId64, TD_VID(pVnode), __func__, lino, tstrerror(code));
   } else {
     vInfo("vgId:%d, vnode async commit done, commitId:%" PRId64 " term:%" PRId64 " applied:%" PRId64, TD_VID(pVnode),
@@ -435,7 +455,7 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     return code;
   }
 
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, dir, TSDB_FILENAME_LEN);
 
   code = syncBeginSnapshot(pVnode->sync, pInfo->info.state.committed);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -444,7 +464,9 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (!TSDB_CACHE_NO(pVnode->config)) {
-    code = tsdbCacheCommit(pVnode->pTsdb);
+    METRICS_TIMING_BLOCK(pVnode->writeMetrics.last_cache_commit_time, METRIC_LEVEL_HIGH,
+                         { code = tsdbCacheCommit(pVnode->pTsdb); });
+    METRICS_UPDATE(pVnode->writeMetrics.last_cache_commit_count, METRIC_LEVEL_HIGH, 1);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -452,7 +474,8 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     code = smaCommit(pVnode->pSma, pInfo);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-
+  // blob storage engine commit
+  code = bseCommit(pVnode->pBse);
   // commit info
   code = vnodeCommitInfo(dir);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -494,7 +517,7 @@ bool vnodeShouldRollback(SVnode *pVnode) {
   char    tFName[TSDB_FILENAME_LEN] = {0};
   int32_t offset = 0;
 
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, tFName, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, tFName, TSDB_FILENAME_LEN);
   offset = strlen(tFName);
   snprintf(tFName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME_TMP);
 
@@ -505,7 +528,7 @@ void vnodeRollback(SVnode *pVnode) {
   char    tFName[TSDB_FILENAME_LEN] = {0};
   int32_t offset = 0;
 
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, tFName, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, tFName, TSDB_FILENAME_LEN);
   offset = strlen(tFName);
   snprintf(tFName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME_TMP);
 

@@ -753,7 +753,6 @@ function install_TDengine() {
   echo -e "${GREEN}Start to install ${productName}...${NC}"
 
   install_main_path
-
   install_data
   install_log
   install_header

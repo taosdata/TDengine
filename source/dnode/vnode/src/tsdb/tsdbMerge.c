@@ -506,7 +506,8 @@ int32_t tsdbMerge(void *arg) {
 
   // do merge
   tsdbInfo("vgId:%d merge begin, fid:%d", TD_VID(tsdb->pVnode), merger->fid);
-  code = tsdbDoMerge(merger);
+  METRICS_TIMING_BLOCK(tsdb->pVnode->writeMetrics.merge_time, METRIC_LEVEL_HIGH, { code = tsdbDoMerge(merger); });
+  METRICS_UPDATE(tsdb->pVnode->writeMetrics.merge_count, METRIC_LEVEL_HIGH, 1);
   tsdbInfo("vgId:%d merge done, fid:%d", TD_VID(tsdb->pVnode), mergeArg->fid);
   TSDB_CHECK_CODE(code, lino, _exit);
 

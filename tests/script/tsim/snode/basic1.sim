@@ -113,7 +113,7 @@ sql_error drop snode on dnode 2
 
 print =============== create drop snodes
 sql create snode on dnode 1
-sql_error create snode on dnode 2
+sql create snode on dnode 2
 
 print =============== restart
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -123,7 +123,7 @@ system sh/exec.sh -n dnode2 -s start
 
 sleep 2000
 sql show snodes
-if $rows != 1 then
+if $rows != 2 then
   return -1
 endi
 

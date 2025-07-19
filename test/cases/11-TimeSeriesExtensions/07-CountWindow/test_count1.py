@@ -88,7 +88,7 @@ class TestCount:
             f"select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(1);"
         )
         tdSql.error(
-            f"select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(2147483648);"
+            f"select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(2147483647);"
         )
         tdSql.error(
             f"select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(10, 0);"
@@ -104,7 +104,7 @@ class TestCount:
             f"select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(2);"
         )
         tdSql.query(
-            f"select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(2147483647);"
+            f"select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(2147483646);"
         )
 
         tdLog.info(f"step3")

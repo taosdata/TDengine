@@ -26,6 +26,7 @@ extern "C" {
 #include "tsimplehash.h"
 #include "tvariant.h"
 #include "ttypes.h"
+#include "streamMsg.h"
 
 #define TABLE_TOTAL_COL_NUM(pMeta) ((pMeta)->tableInfo.numOfColumns + (pMeta)->tableInfo.numOfTags)
 #define TABLE_META_SIZE(pMeta) \
@@ -72,6 +73,7 @@ typedef enum EColumnType {
   COLUMN_TYPE_WINDOW_DURATION,
   COLUMN_TYPE_GROUP_KEY,
   COLUMN_TYPE_IS_WINDOW_FILLED,
+  COLUMN_TYPE_PLACE_HOLDER,
 } EColumnType;
 
 typedef struct SColumnNode {
@@ -123,13 +125,13 @@ typedef struct STargetNode {
 #define IS_TIME_OFFSET_VAL(_flag) ((_flag)&VALUE_FLAG_IS_TIME_OFFSET)
 
 typedef struct SValueNode {
-  SExprNode node;  // QUERY_NODE_VALUE
-  char*     literal;
-  int32_t   flag;
-  bool      translate;
-  bool      notReserved;
-  bool      isNull;
-  int16_t   placeholderNo;
+  SExprNode  node;  // QUERY_NODE_VALUE
+  char*      literal;
+  int32_t    flag;
+  bool       translate;
+  bool       notReserved;
+  bool       isNull;
+  int16_t    placeholderNo;
   union {
     bool     b;
     int64_t  i;
@@ -140,7 +142,7 @@ typedef struct SValueNode {
   int64_t    typeData;
   int8_t     unit;
   timezone_t tz;
-  void      *charsetCxt;
+  void*      charsetCxt;
 } SValueNode;
 
 typedef struct SLeftValueNode {
@@ -219,6 +221,12 @@ typedef struct STableNode {
   bool      inJoin;
 } STableNode;
 
+typedef struct SStreamNode {
+  SExprNode node;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      streamName[TSDB_STREAM_NAME_LEN];
+} SStreamNode;
+
 struct STableMeta;
 
 typedef struct STsmaTargetCTbInfo {
@@ -238,12 +246,21 @@ typedef struct SRealTableNode {
   SArray*            pTsmas;
   SArray*            tsmaTargetTbVgInfo;  // SArray<SVgroupsInfo*>, used for child table or normal table only
   SArray*            tsmaTargetTbInfo;    // SArray<STsmaTargetTbInfo>, used for child table or normal table only
+  EStreamPlaceholder placeholderType;
+  bool               asSingleTable; // only used in stream calc query
 } SRealTableNode;
 
 typedef struct STempTableNode {
   STableNode table;  // QUERY_NODE_TEMP_TABLE
   SNode*     pSubquery;
 } STempTableNode;
+
+typedef struct SPlaceHolderTableNode {
+  STableNode         table;  // QUERY_NODE_PLACE_HOLDER_TABLE
+  struct STableMeta* pMeta;
+  SVgroupsInfo*      pVgroupList;
+  EStreamPlaceholder placeholderType;
+} SPlaceHolderTableNode;
 
 typedef struct SVirtualTableNode {
   STableNode         table;  // QUERY_NODE_VIRTUAL_TABLE
@@ -360,6 +377,7 @@ typedef struct SIntervalWindowNode {
   SNode*      pInterval;  // SValueNode
   SNode*      pOffset;    // SValueNode
   SNode*      pSliding;   // SValueNode
+  SNode*      pSOffset;   // SValueNode
   SNode*      pFill;
   STimeWindow timeRange;
   void*       timezone;
@@ -373,11 +391,19 @@ typedef struct SEventWindowNode {
   SNode*    pTrueForLimit;
 } SEventWindowNode;
 
+typedef struct {
+  ENodeType  type;  // QUERY_NODE_COUNT_WINDOW_PARAM
+  int64_t    count;
+  int64_t    sliding;
+  SNodeList* pColList;
+} SCountWindowArgs;
+
 typedef struct SCountWindowNode {
-  ENodeType type;  // QUERY_NODE_EVENT_WINDOW
-  SNode*    pCol;  // timestamp primary key
-  int64_t   windowCount;
-  int64_t   windowSliding;
+  ENodeType  type;  // QUERY_NODE_COUNT_WINDOW
+  SNode*     pCol;  // timestamp primary key
+  int64_t    windowCount;
+  int64_t    windowSliding;
+  SNodeList* pColList;  // SColumnNodeList
 } SCountWindowNode;
 
 typedef struct SAnomalyWindowNode {
@@ -386,6 +412,58 @@ typedef struct SAnomalyWindowNode {
   SNode*    pExpr;
   char      anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
 } SAnomalyWindowNode;
+
+typedef struct SSlidingWindowNode {
+  ENodeType type;
+  SNode*    pSlidingVal;
+  SNode*    pOffset;
+} SSlidingWindowNode;
+
+typedef struct SExternalWindowNode {
+  ENodeType   type;       // QUERY_NODE_EXTERNAL_WINDOW
+  SNodeList*  pProjectionList;
+  SNodeList*  pAggFuncList;
+  STimeWindow timeRange;
+  void*       timezone;
+} SExternalWindowNode;
+
+typedef struct SStreamTriggerNode {
+  ENodeType   type;
+  SNode*      pTriggerWindow; // S.*WindowNode
+  SNode*      pTrigerTable;
+  SNode*      pOptions; // SStreamTriggerOptions
+  SNode*      pNotify; // SStreamNotifyOptions
+  SNodeList*  pPartitionList;
+} SStreamTriggerNode;
+
+typedef struct SStreamOutTableNode {
+  ENodeType             type;
+  SNode*                pOutTable; // STableNode
+  SNode*                pSubtable;
+  SNodeList*            pTags; // SStreamTagDefNode
+  SNodeList*            pCols; // SColumnDefNode
+} SStreamOutTableNode;
+
+typedef struct SStreamCalcRangeNode {
+  ENodeType             type;
+  bool                  calcAll;
+  SNode*                pStart;
+  SNode*                pEnd;
+} SStreamCalcRangeNode;
+
+typedef struct SStreamTagDefNode {
+  ENodeType type;
+  char      tagName[TSDB_COL_NAME_LEN];
+  SDataType dataType;
+  SNode*    pTagExpr;
+  SNode*    pComment;
+} SStreamTagDefNode;
+
+typedef struct SPeriodWindowNode {
+  ENodeType type;  // QUERY_NODE_PERIOD_WINDOW
+  SNode*    pPeroid;
+  SNode*    pOffset;
+} SPeriodWindowNode;
 
 typedef enum EFillMode {
   FILL_MODE_NONE = 1,
@@ -421,6 +499,7 @@ typedef struct SFillNode {
   SNode*      pValues;    // SNodeListNode
   SNode*      pWStartTs;  // _wstart pseudo column
   STimeWindow timeRange;
+  SNode*      pTimeRange; // STimeRangeNode for create stream
 } SFillNode;
 
 typedef struct SWhenThenNode {
@@ -450,63 +529,68 @@ typedef struct SRangeAroundNode {
   SNode*    pInterval;
 } SRangeAroundNode;
 
+typedef struct STimeRangeNode {
+  ENodeType type; // QUERY_NODE_TIME_RANGE
+  SNode*    pStart;
+  SNode*    pEnd;
+} STimeRangeNode;
+
 typedef struct SSelectStmt {
-  ENodeType     type;  // QUERY_NODE_SELECT_STMT
-  bool          isDistinct;
-  STimeWindow   timeRange;
-  SNodeList*    pProjectionList;
-  SNodeList*    pProjectionBindList;
-  SNode*        pFromTable;
-  SNode*        pWhere;
-  SNodeList*    pPartitionByList;
-  SNodeList*    pTags;      // for create stream
-  SNode*        pSubtable;  // for create stream
-  SNode*        pWindow;
-  SNodeList*    pGroupByList;  // SGroupingSetNode
-  SNode*        pHaving;
-  SNode*        pRange;
-  SNode*        pRangeAround;
-  SNode*        pEvery;
-  SNode*        pFill;
-  SNodeList*    pOrderByList;  // SOrderByExprNode
-  SLimitNode*   pLimit;
-  SLimitNode*   pSlimit;
-  SNodeList*    pHint;
-  char          stmtName[TSDB_TABLE_NAME_LEN];
-  uint8_t       precision;
-  int32_t       selectFuncNum;
-  int32_t       returnRows;  // EFuncReturnRows
-  ETimeLineMode timeLineCurMode;
-  ETimeLineMode timeLineResMode;
-  int32_t       lastProcessByRowFuncId;
-  bool          timeLineFromOrderBy;
-  bool          isEmptyResult;
-  bool          isSubquery;
-  bool          hasAggFuncs;
-  bool          hasRepeatScanFuncs;
-  bool          hasIndefiniteRowsFunc;
-  bool          hasMultiRowsFunc;
-  bool          hasSelectFunc;
-  bool          hasSelectValFunc;
-  bool          hasOtherVectorFunc;
-  bool          hasUniqueFunc;
-  bool          hasTailFunc;
-  bool          hasInterpFunc;
-  bool          hasInterpPseudoColFunc;
-  bool          hasForecastFunc;
-  bool          hasForecastPseudoColFunc;
-  bool          hasLastRowFunc;
-  bool          hasLastFunc;
-  bool          hasTimeLineFunc;
-  bool          hasCountFunc;
-  bool          hasUdaf;
-  bool          hasStateKey;
-  bool          hasTwaOrElapsedFunc;
-  bool          onlyHasKeepOrderFunc;
-  bool          groupSort;
-  bool          tagScan;
-  bool          joinContains;
-  bool          mixSysTableAndActualTable;
+  ENodeType       type;  // QUERY_NODE_SELECT_STMT
+  bool            isDistinct;
+  STimeWindow     timeRange;
+  SNode*          pTimeRange; // STimeRangeNode for create stream
+  SNodeList*      pProjectionList;
+  SNodeList*      pProjectionBindList;
+  SNode*          pFromTable;
+  SNode*          pWhere;
+  SNodeList*      pPartitionByList;
+  SNode*          pWindow;
+  SNodeList*      pGroupByList;  // SGroupingSetNode
+  SNode*          pHaving;
+  SNode*          pRange;
+  SNode*          pRangeAround;
+  SNode*          pEvery;
+  SNode*          pFill;
+  SNodeList*      pOrderByList;  // SOrderByExprNode
+  SLimitNode*     pLimit;
+  SLimitNode*     pSlimit;
+  SNodeList*      pHint;
+  char            stmtName[TSDB_TABLE_NAME_LEN];
+  uint8_t         precision;
+  int32_t         selectFuncNum;
+  int32_t         returnRows;  // EFuncReturnRows
+  ETimeLineMode   timeLineCurMode;
+  ETimeLineMode   timeLineResMode;
+  int32_t         lastProcessByRowFuncId;
+  bool            timeLineFromOrderBy;
+  bool            isEmptyResult;
+  bool            isSubquery;
+  bool            hasAggFuncs;
+  bool            hasRepeatScanFuncs;
+  bool            hasIndefiniteRowsFunc;
+  bool            hasMultiRowsFunc;
+  bool            hasSelectFunc;
+  bool            hasSelectValFunc;
+  bool            hasOtherVectorFunc;
+  bool            hasUniqueFunc;
+  bool            hasTailFunc;
+  bool            hasInterpFunc;
+  bool            hasInterpPseudoColFunc;
+  bool            hasForecastFunc;
+  bool            hasForecastPseudoColFunc;
+  bool            hasLastRowFunc;
+  bool            hasLastFunc;
+  bool            hasTimeLineFunc;
+  bool            hasCountFunc;
+  bool            hasUdaf;
+  bool            hasStateKey;
+  bool            hasTwaOrElapsedFunc;
+  bool            onlyHasKeepOrderFunc;
+  bool            groupSort;
+  bool            tagScan;
+  bool            joinContains;
+  bool            mixSysTableAndActualTable;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
@@ -711,11 +795,13 @@ int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value);
 char*   nodesGetStrValueFromNode(SValueNode* pNode);
 int32_t nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
 int32_t nodesMakeValueNodeFromString(char* literal, SValueNode** ppValNode);
+int32_t nodesMakeDurationValueNodeFromString(char* literal, SValueNode** ppValNode);
 int32_t nodesMakeValueNodeFromBool(bool b, SValueNode** ppValNode);
 int32_t nodesMakeValueNodeFromInt32(int32_t value, SNode** ppNode);
 int32_t nodesMakeValueNodeFromInt64(int64_t value, SNode** ppNode);
+int32_t nodesMakeValueNodeFromTimestamp(int64_t value, SNode** ppNode);
 
-char*   nodesGetFillModeString(EFillMode mode);
+    char*   nodesGetFillModeString(EFillMode mode);
 int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc);
 
 const char* operatorTypeStr(EOperatorType type);

@@ -302,7 +302,6 @@ typedef struct SRequestObj {
   SMetaData            parseMeta;
   char*                effectiveUser;
   int8_t               source;
-  bool                 streamRunHistory;
 } SRequestObj;
 
 typedef struct SSyncQueryParam {

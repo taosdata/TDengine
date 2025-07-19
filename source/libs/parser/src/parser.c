@@ -315,18 +315,6 @@ int32_t qContinueParseSql(SParseContext* pCxt, struct SCatalogReq* pCatalogReq, 
 int32_t qContinueParsePostQuery(SParseContext* pCxt, SQuery* pQuery, SSDataBlock* pBlock) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pQuery->pRoot)) {
-    case QUERY_NODE_CREATE_STREAM_STMT: {
-      code = translatePostCreateStream(pCxt, pQuery, pBlock);
-      break;
-    }
-    case QUERY_NODE_CREATE_INDEX_STMT: {
-      code = translatePostCreateSmaIndex(pCxt, pQuery, pBlock);
-      break;
-    }
-    case QUERY_NODE_CREATE_TSMA_STMT: {
-      code = translatePostCreateTSMA(pCxt, pQuery, pBlock);
-      break;
-    }
     default:
       break;
   }
@@ -371,7 +359,6 @@ void destoryCatalogReq(SCatalogReq* pCatalogReq) {
   taosArrayDestroy(pCatalogReq->pTableIndex);
   taosArrayDestroy(pCatalogReq->pTableCfg);
   taosArrayDestroy(pCatalogReq->pTableTag);
-  taosArrayDestroy(pCatalogReq->pVSubTable);
   taosArrayDestroy(pCatalogReq->pVStbRefDbs);
 }
 
@@ -499,6 +486,9 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
       pVal->node.resType.bytes = output + VARSTR_HEADER_SIZE;
       break;
     }
+    case TSDB_DATA_TYPE_BLOB:
+    case TSDB_DATA_TYPE_MEDIUMBLOB:
+      return TSDB_CODE_INVALID_PARA;
     default: {
       int32_t code = nodesSetValueNodeValue(pVal, pParam->buffer);
       if (code) {

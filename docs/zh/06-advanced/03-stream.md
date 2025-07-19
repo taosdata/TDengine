@@ -6,284 +6,183 @@ toc_max_heading_level: 4
 
 在时序数据的处理中，经常要对原始数据进行清洗、预处理，再使用时序数据库进行长久的储存，而且经常还需要使用原始的时序数据通过计算生成新的时序数据。在传统的时序数据解决方案中，常常需要部署 Kafka、Flink 等流处理系统，而流处理系统的复杂性，带来了高昂的开发与运维成本。
 
-TDengine 的流计算引擎提供了实时处理写入的数据流的能力，使用 SQL 定义实时流变换，当数据被写入流的源表后，数据会被以定义的方式自动处理，并根据定义的触发模式向目的表推送结果。它提供了替代复杂流处理系统的轻量级解决方案，并能够在高吞吐的数据写入的情况下，提供毫秒级的计算结果延迟。
+TDengine 的流计算引擎提供了实时处理写入的数据流的能力，使用 SQL 定义实时流变换，当数据被写入流的源表后，数据会被以定义的方式自动处理，并根据定义的触发模式向目的表推送结果。它提供了替代复杂流处理系统的轻量级解决方案，并能够在高吞吐的数据写入的情况下，提供毫秒级的计算结果延迟。与传统的流计算相比，TDengine 的流计算采用的是触发与计算分离的策略，处理的依然是持续的无界的数据流，但是进行了以下几个方面的扩展：
 
-流计算可以包含数据过滤，标量函数计算（含 UDF），以及窗口聚合（支持滑动窗口、会话窗口与状态窗口），能够以超级表、子表、普通表为源表，写入到目的超级表。在创建流时，目的超级表将被自动创建，随后新插入的数据会被流定义的方式处理并写入其中，通过 partition by 子句，可以以表名或标签划分 partition，不同的 partition 将写入到目的超级表的不同子表。
+- **处理对象的扩展**：传统流计算的事件驱动对象与计算对象往往是统一的，根据同一份数据产生事件和计算。TDengine 的流计算支持触发（事件驱动）与计算的分离，也就意味着触发对象可以与计算对象进行分离。触发表与计算的数据源表可以不相同，甚至可以不需要触发表，处理的数据集合无论是列、时间范围都可以不相同。
+- **触发方式的扩展**：除了数据写入触发方式外，TDengine 的流计算支持更多触发方式的扩展。通过支持窗口触发，用户可以灵活的定义和使用各种方式的窗口来产生触发事件，可以选择在开窗、关窗以及开关窗同时进行触发。除了与触发表关联的事件时间驱动外，还支持与事件时间无关的驱动，即定时触发。在事件触发之前，还支持对触发数据进行预先过滤处理，只有符合条件的数据才会进入触发判断。
+- **计算的扩展**：既可以对触发表进行计算，也可以对其他库、表进行计算。计算类型不受限制，支持任何查询语句。计算结果的应用可根据需要进行选择，支持发送通知、写入输出表，也可以两者同时使用。
 
-TDengine 的流计算能够支持分布在多个节点中的超级表聚合，能够处理乱序数据的写入。它提供 watermark 机制以度量容忍数据乱序的程度，并提供了 ignore expired 配置项以决定乱序数据的处理策略 —— 丢弃或者重新计算。
+TDengine 的流计算引擎还提供了其他使用上的便利。针对结果延迟的不同需求，支持用户在结果时效性与资源负载之间进行平衡。针对非正常顺序写入场景的不同需求，支持用户灵活选择适合的处理方式与策略。它提供了替代复杂流处理系统的轻量级解决方案，并能够在高吞吐的数据写入的情况下，提供毫秒级的计算结果延迟。
 
-注意：windows 平台不支持流计算。
+流计算的使用方法如下，详细内容参见 [SQL 手册](../../reference/taos-sql/stream)。
 
-下面详细介绍流计算使用的具体方法。
-
-## 创建流计算
-
-语法如下：
+## 流式计算的创建
 
 ```sql
-CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name
-[(field1_name, ...)] [TAGS (column_definition [, column_definition] ...)] 
-SUBTABLE(expression) AS subquery
+CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name options [INTO [db_name.]table_name] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
 
-stream_options: {
- TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time | FORCE_WINDOW_CLOSE | CONTINUOUS_WINDOW_CLOSE [recalculate rec_time_val] ]
- WATERMARK      time
- IGNORE EXPIRED [0|1]
- DELETE_MARK    time
- FILL_HISTORY   [0|1] [ASYNC]
- IGNORE UPDATE  [0|1]
+options: {
+    trigger_type [FROM [db_name.]table_name] [PARTITION BY col1 [, ...]] [STREAM_OPTIONS(stream_option [|...])] [notification_definition]
 }
-
-column_definition:
-    col_name col_type [COMMENT 'string_value']
-```
-
-其中 subquery 是 select 普通查询语法的子集。
-
-```sql
-subquery: SELECT select_list
-    from_clause
-    [WHERE condition]
-    [PARTITION BY tag_list]
-    [window_clause]
     
-window_cluse: {
-    SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col)
-  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)]
-  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
-  | COUNT_WINDOW(count_val[, sliding_val])
+trigger_type: {
+    PERIOD(period_time[, offset_time])
+  | [INTERVAL(interval_val[, interval_offset])] SLIDING(sliding_val[, offset_time]) 
+  | SESSION(ts_col, session_val)
+  | STATE_WINDOW(col) [TRUE_FOR(duration_time)] 
+  | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(duration_time)]
+  | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
 }
+
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types)}
+
+notification_definition:
+    NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
+
+notify_option: [NOTIFY_HISTORY | ON_FAILURE_PAUSE]
+    
+event_types:
+    event_type [|event_type]    
+    
+event_type: {WINDOW_OPEN | WINDOW_CLOSE}    
+
+tag_definition:
+    tag_name type_name [COMMENT 'string_value'] AS expr
 ```
 
-subquery 支持会话窗口、状态窗口、时间窗口、事件窗口与计数窗口。其中，状态窗口、事件窗口与计数窗口搭配超级表时必须与 partition by tbname 一起使用。
+### 触发方式
 
-1. 其中，SESSION 是会话窗口，tol_val 是时间间隔的最大范围。在 tol_val 时间间隔范围内的数据都属于同一个窗口，如果连续的两条数据的时间间隔超过 tol_val，则自动开启下一个窗口。
+- **定时触发**：通过系统时间的固定间隔来驱动，以建流当天系统时间的零点作为基准时间点，然后根据间隔来确定下次触发的时间点，可以通过指定时间偏移来改变基准时间点。
+- **滑动触发**：对触发表的写入数据按照事件时间的固定间隔来驱动的触发。可以有 INTERVAL 窗口，也可以没有。
+- **会话窗口触发**：对触发表的写入数据按照会话窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行触发。
+- **状态窗口触发**：对触发表的写入数据按照状态窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行触发。
+- **事件窗口触发**：对触发表的写入数据按照事件窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行的触发。
+- **计数窗口触发**：对触发表的写入数据按照计数窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行的触发。支持列的触发，当指定的列有数据写入时才触发。
 
-2. STATE_WINDOW 是状态窗口，col 用来标识状态量，相同的状态量数值则归属于同一个状态窗口，col 数值改变后则当前窗口结束，自动开启下一个窗口。
+### 触发动作
 
-3. INTERVAL 是时间窗口，又可分为滑动时间窗口和翻转时间窗口。INTERVAL 子句用于指定窗口相等时间周期，SLIDING 字句用于指定窗口向前滑动的时间。当 interval_val 与 sliding_val 相等的时候，时间窗口即为翻转时间窗口，否则为滑动时间窗口，注意：sliding_val 必须小于等于 interval_val。
+触发后可以根据需要执行不同的动作，比如发送[事件通知](../../reference/taos-sql/stream/#流式计算的通知机制)、[执行计算](../../reference/taos-sql/stream/#流式计算的计算任务)，或者两者同时进行。
 
-4. EVENT_WINDOW 是事件窗口，根据开始条件和结束条件来划定窗口。当 start_trigger_condition 满足时则窗口开始，直到 end_trigger_condition 满足时窗口关闭。start_trigger_condition 和 end_trigger_condition 可以是任意 TDengine 支持的条件表达式，且可以包含不同的列。
+- 只通知不计算：通过 `WebSocket` 方式向外部应用发送事件通知。
+- 只计算不通知：执行任意一个查询并保存结果到流计算的输出表中。
+- 既通知又计算：执行任意一个查询，同时发送计算结果或事件通知给外部应用。
 
-5. COUNT_WINDOW 是计数窗口，按固定的数据行数来划分窗口。count_val 是常量，是正整数，必须大于等于 2，小于 2147483648。count_val 表示每个 COUNT_WINDOW 包含的最大数据行数，总数据行数不能整除 count_val 时，最后一个窗口的行数会小于 count_val。sliding_val 是常量，表示窗口滑动的数量，类似于 INTERVAL 的 SLIDING。
+### 触发表与分组
 
-窗口的定义与时序数据窗口查询中的定义完全相同，具体可参考 TDengine 窗口函数部分。
+通常意义来说，一个流计算只对应一个计算，比如根据一个子表触发和产生一个计算，结果保存到一张表中。根据 TDengine **一个设备一张表**的设计理念，如果需要对所有设备分别计算，那就需要为每个子表创建一个流计算，这会造成使用的不便和处理效率的降低。为了解决这个问题，TDengine 的流计算支持触发分组，分组是流计算的最小执行单元，从逻辑上可以认为每个分组对应一个单独的流计算，每个分组对应一个输出表和单独的事件通知。
 
-如下 SQL 将创建一个流计算，执行后 TDengine 会自动创建名为 avg_vol 的超级表，此流计算以 1min 为时间窗口、30s 为前向增量统计这些智能电表的平均电压，并将来自 meters 的数据的计算结果写入 avg_vol，不同分区的数据会分别创建子表并写入不同子表。
+**总结来说，一个流计算输出表（子表或普通表）的个数与触发表的分组个数相同，未指定分组时只产生一个输出表（普通表）。**
+
+### 计算任务
+
+计算任务是流在事件触发后执行的计算动作，可以是**任意类型的查询语句**，既可以对触发表进行计算，也可以对其他库表进行计算。计算时如需使用触发时的关联信息，可在 SQL 语句中使用占位符，占位符在每次计算时会被作为常量替换到 SQL 语句中。包括：
+
+- `_tprev_ts`：上一次触发的事件时间
+- `_tcurrent_ts`：本次触发的事件时间
+- `_tnext_ts`：下一次触发的事件时间
+- `_twstart`：本次触发窗口的起始时间戳
+- `_twend`：本次触发窗口的结束时间戳
+- `_twduration`：本次触发窗口的持续时间
+- `_twrownum`：本次触发窗口的记录条数
+- `_tprev_localtime`：上一次触发时刻的系统时间
+- `_tnext_localtime`：下一次触发时刻的系统时间
+- `_tgrpid`：触发分组的 ID 值
+- `_tlocaltime`：本次触发时刻的系统时间
+- `%%n`：触发分组列的引用，n 为分组列的下标
+- `%%tbname`：触发表每个分组表名的引用，可作为查询表名使用（`FROM %%tbname`）
+- `%%trows`：触发表每个分组的触发数据集（满足本次触发的数据集）的引用
+
+### 通知机制
+
+事件通知是流在事件触发后可选的执行动作，支持通过 `WebSocket` 协议发送事件通知到应用。用户可以指定需要通知的事件，以及用于接收通知消息的目标地址。通知内容可以包含计算结果，也可以在没有计算结果时只通知事件相关信息。
+
+## 流式计算的示例
+
+### 计数窗口触发
+
+- 表 tb1 每写入 1 行数据时，计算表 tb2 在同一时刻前 5 分钟内 col1 的平均值，计算结果写入表 tb3。
+
+```SQL
+CREATE stream sm1 count_window(1) FROM tb1 
+  INTO tb3 AS
+    SELECT _twstart, avg(col1) FROM tb2 
+    WHERE _c0 >= _twend - 5m AND _c0 <= _twend;
+```
+
+- 表 tb1 每写入 10 行大于 0 的 col1 列数据时，计算这 10 条数据 col1 列的平均值，计算结果不需要保存，需要通知到 `ws://localhost:8080/notify`。
+
+```SQL
+CREATE stream sm2 count_window(10, 1, col1) FROM tb1 
+  STREAM_OPTIONS(CALC_ONTIFY_ONLY | PRE_FILTER(col1 > 0)) 
+  NOTIFY("ws://localhost:8080/notify") ON (WINDOW_CLOSE) 
+  AS 
+    SELECT avg(col1) FROM %%trows;
+```
+
+### 滑动触发
+
+- 超级表 stb1 的每个子表在每 5 分钟的时间窗口结束后，计算这 5 分钟的 col1 的平均值，每个子表的计算结果分别写入超级表 stb2 的不同子表中。
+
+```SQL
+CREATE stream sm1 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname 
+  INTO stb2 AS 
+    SELECT _twstart, avg(col1) FROM %%tbname 
+    WHERE _c0 >= _twstart AND _c0 <= _twend;
+```
+
+> 上面 SQL 中的 `from %%tbname where _c0 >= _twstart and _c0 <= _twend` 与 `from %%trows` 的含义是不完全相同的。前者表示计算使用触发分组对应的表中在触发窗口时间段内的数据，窗口内的数据在计算时与 `%%trows` 相比较是有可能有变化的，后者则表示只使用触发时读取到的窗口数据。
+
+- 超级表 stb1 的每个子表从最早的数据开始，在每 5 分钟的时间窗口结束后或从窗口启动 1 分钟后窗口仍然未关闭时，计算窗口内的 col1 的平均值，每个子表的计算结果分别写入超级表 stb2 的不同子表中。
+
+```SQL
+CREATE stream sm2 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname 
+  STREAM_OPTIONS(MAX_DELAY(1m) | FILL_HISTORY_FIRST) 
+  INTO stb2 AS 
+    SELECT _twstart, avg(col1) FROM %%tbname WHERE _c0 >= _twstart AND _c0 <= _twend;
+```
+
+- 计算电表电流的每分钟平均值，并在窗口打开、关闭时向两个通知地址发送通知，计算历史数据时不发送通知，不允许在通知发送失败时丢弃通知。
 
 ```sql
-CREATE STREAM avg_vol_s INTO avg_vol AS
-SELECT _wstart, count(*), avg(voltage) FROM power.meters PARTITION BY tbname INTERVAL(1m) SLIDING(30s);
+CREATE STREAM avg_stream INTERVAL(1m) SLIDING(1m) FROM meters 
+  NOTIFY ('ws://localhost:8080/notify', 'wss://192.168.1.1:8080/notify?key=foo') ON ('WINDOW_OPEN', 'WINDOW_CLOSE') NOTIFY_OPTIONS(NOTIFY_HISTORY | ON_FAILURE_PAUSE)
+  INTO avg_stb
+    AS SELECT _twstart, _twend, AVG(current) FROM %%trows;
 ```
 
-本节涉及的相关参数的说明如下。
+### 定时触发
 
-- stb_name 是保存计算结果的超级表的表名，如果该超级表不存在，则会自动创建；如果已存在，则检查列的 schema 信息。
-- tags 子句定义了流计算中创建标签的规则。通过 tags 字段可以为每个分区对应的子表生成自定义的标签值。
+- 每过 1 小时计算表 tb1 中总的数据量，计算结果写入表 tb2 (毫秒库)。
 
-## 流式计算的规则和策略
-
-### 流计算的分区
-
-在 TDengine 中，我们可以利用 partition by 子句结合 tbname、标签列、普通列或表达式，对一个流进行多分区的计算。每个分区都拥有独立的时间线和时间窗口，它们会分别进行数据聚合，并将结果写入目的表的不同子表中。如果不使用 partition by 子句，所有数据将默认写入同一张子表中。
-
-特别地，partition by + tbname 是一种非常实用的操作，它表示对每张子表进行流计算。这样做的好处是可以针对每张子表的特点进行定制化处理，以提高计算效率。
-
-在创建流时，如果不使用 substable 子句，流计算所创建的超级表将包含一个唯一的标签列 groupId。每个分区将被分配一个唯一的 groupId，并通过 MD5 算法计算相应的子表名称。TDengine 将自动创建这些子表，以便存储各个分区的计算结果。这种机制使得数据管理更加灵活和高效，同时也方便后续的数据查询和分析。
-
-若创建流的语句中包含 substable 子句，用户可以为每个分区对应的子表生成自定义的表名。示例如下。
-
-```sql
-CREATE STREAM avg_vol_s INTO avg_vol SUBTABLE(CONCAT('new-', tname)) AS SELECT _wstart, count(*), avg(voltage) FROM meters PARTITION BY tbname tname INTERVAL(1m);
+```SQL
+CREATE stream sm1 PERIOD(1h) 
+  INTO tb2 AS
+    SELECT cast(_tlocaltime/1000000 AS TIMESTAMP), count(*) FROM tb1;
 ```
 
-PARTITION 子句中，为 tbname 定义了一个别名 tname，在 PARTITION 子句中的别名可以用于 SUBTABLE 子句中的表达式计算，在上述示例中，流新创建的子表规则为 `new- + 子表名 + _超级表名 + _groupId`。
+- 每过 1 小时通知 `ws://localhost:8080/notify` 当前系统时间。
 
-**注意**：子表名的长度若超过 TDengine 的限制，将被截断。若要生成的子表名已经存在于另一超级表，由于 TDengine 的子表名是唯一的，因此对应新子表的创建以及数据的写入将会失败。
-
-### 流计算处理历史数据
-
-在正常情况下，流计算任务不会处理那些在流创建之前已经写入源表的数据。这是因为流计算的触发是基于新写入的数据，而非已有数据。然而，如果我们需要处理这些已有的历史数据，可以在创建流时设置 fill_history 选项为 1。
-
-通过启用 fill_history 选项，创建的流计算任务将具备处理创建前、创建过程中以及创建后写入的数据的能力。这意味着，无论数据是在流创建之前还是之后写入的，都将纳入流计算的范围，从而确保数据的完整性和一致性。这一设置为用户提供了更大的灵活性，使其能够根据实际需求灵活处理历史数据和新数据。
-
-注意：
-
-- 开启 fill_history 时，创建流需要找到历史数据的分界点，如果历史数据很多，可能会导致创建流任务耗时较长，此时可以通过 fill_history 1 async（v3.3.6.0 开始支持）语法将创建流的任务放在后台处理，创建流的语句可立即返回，不阻塞后面的操作。async 只对 fill_history 1 起效，fill_history 0 时建流很快，不需要异步处理。
-
-- 通过 show streams 可查看后台建流的进度（ready 状态表示成功，init 状态表示正在建流，failed 状态表示建流失败，失败时 message 列可以查看原因。对于建流失败的情况可以删除流重新建立）。
-
-- 另外，不要同时异步创建多个流，可能由于事务冲突导致后面创建的流失败。
-比如，创建一个流，统计所有智能电表每 10s 产生的数据条数，并且计算历史数据。SQL 如下：
-
-```sql
-
-create stream if not exists count_history_s fill_history 1 into count_history as select count(*) from power.meters interval(10s)
-
+```SQL
+CREATE stream sm1 PERIOD(1h) 
+  NOTIFY("ws://localhost:8080/notify");
 ```
 
-如果该流任务已经彻底过期，并且不再想让它检测或处理数据，您可以手动删除它，被计算出的数据仍会被保留。
+## 流式计算的其他特性
 
-### 流计算的触发模式
+### 高可用
 
-在创建流时，可以通过 TRIGGER 指令指定流计算的触发模式。对于非窗口计算，流计算的触发是实时的，对于窗口计算，目前提供 4 种触发模式，默认为 WINDOW_CLOSE。
+流式计算从架构上支持流的存算分离，在部署时要求系统中必须部署 snode，除数据读取外，所有流计算功能都只在 snode 上运行。
 
-1. AT_ONCE：写入立即触发。
-2. WINDOW_CLOSE：窗口关闭时触发（窗口关闭由事件时间决定，可配合 watermark 使用）。
-3. MAX_DELAY time：若窗口关闭，则触发计算。若窗口未关闭，且未关闭时长超过 max delay 指定的时间，则触发计算。
-4. FORCE_WINDOW_CLOSE：以操作系统当前时间为准，只计算当前关闭窗口的结果，并推送出去。窗口只会在被关闭的时刻计算一次，后续不会再重复计算。该模式当前只支持 INTERVAL 窗口（支持滑动）；该模式时，FILL_HISTORY 自动设置为 0，IGNORE EXPIRED 自动设置为 1，IGNORE UPDATE 自动设置为 1；FILL 只支持 PREV、NULL、NONE、VALUE。
-   - 该模式可用于实现连续查询，比如，创建一个流，每隔 1s 查询一次过去 10s 窗口内的数据条数。SQL 如下：
+- snode 是负责运行流计算计算任务的节点，在一个集群中可以部署 1 或多个 snode。
+- snode 部署在单独的 dnode 上时，可以保证资源隔离，不会对写入、查询等业务造成太大干扰。
+- 为了保证流计算的高可用，可在一个集群的多个物理节点中同时部署多个 snode：
+  - 流计算在多个 snode 间进行负载均衡。
+  - 每两个 snode 间互为副本，负责存储流的状态和进度等信息。
 
-   ```sql
-   create stream if not exists continuous_query_s trigger force_window_close into continuous_query as select count(*) from power.meters interval(10s) sliding(1s)
-   ```
+### 重新计算
 
-5. CONTINUOUS_WINDOW_CLOSE：窗口关闭时输出结果。修改、删除数据，并不会立即触发重算，每等待 rec_time_val 时长，会进行周期性重算。如果不指定 rec_time_val，那么重算周期是 60 分钟。如果重算的时间长度超过 rec_time_val，在本次重算后，自动开启下一次重算。该模式当前只支持 INTERVAL 窗口。如果使用 FILL，需要配置 adapter 的相关信息：adapterFqdn、adapterPort、adapterToken。adapterToken 为 `{username}:{password}` 经过 Base64 编码之后的字符串，例如 `root:taosdata` 编码后为 `cm9vdDp0YW9zZGF0YQ==`。
+支持使用 `WATERMARK` 来解决一定程度的乱序、更新、删除场景带来的问题。`WATERMARK` 是用户可以指定的基于事件时间的时长，它代表的是事件时间在流计算中的进展，体现了用户对于乱序数据的容忍程度。`当前处理的最新事件时间 - WATERMARK 指定的固定间隔` 即为当前水位线，只有写入数据的事件时间早于当前水位线才会进入触发判断，只有窗口或其他触发的时间条件早于当前水位线才会启动触发。
 
-窗口关闭是由事件时间决定的，如事件流中断、或持续延迟，此时事件时间无法更新，可能导致无法得到最新的计算结果。
+对于超出 `WATERMARK` 的乱序、更新、删除场景，使用重新计算的方式来保证最终结果的正确性，重新计算意味着对于乱序、更新和删除的数据覆盖区间重新进行触发和运算。为了保证这种方式的有效性，用户需要确保其计算语句和数据源表是与处理时间无关的，也就是说同一个触发即使执行多次其结果依然是有效的。
 
-因此，流计算提供了以事件时间结合处理时间计算的 MAX_DELAY 触发模式：MAX_DELAY 模式在窗口关闭时会立即触发计算，它的单位可以自行指定，具体单位：a（毫秒）、s（秒）、m（分）、h（小时）、d（天）、w（周）。此外，当数据写入后，计算触发的时间超过 MAX_DELAY 指定的时间，则立即触发计算。
-
-### 流计算的窗口关闭
-
-流计算的核心在于以事件时间（即写入记录中的时间戳主键）为基准来计算窗口的关闭时间，而不是依赖于 TDengine 服务器的时间。采用事件时间作为基准可以有效地规避客户端与服务器时间不一致所带来的问题，并且能够妥善解决数据乱序写入等挑战。
-
-为了进一步控制数据乱序的容忍程度，流计算引入了 watermark 机制。在创建流时，用户可以通过 stream_option 参数指定 watermark 的值，该值定义了数据乱序的容忍上界，默认情况下为 0。
-
-假设 T= 最新事件时间－ watermark，那么每次写入新数据时，系统都会根据这个公式更新窗口的关闭时间。具体而言，系统会将窗口结束时间小于 T 的所有打开的窗口关闭。如果触发模式设置为 window_close 或 max_delay，则会推送窗口聚合的结果。下图展示了流计算的窗口关闭流程。
-
-![流计算窗口关闭图解](./stream-window-close.png)
-
-在上图中，纵轴表示时刻，横轴上的圆点表示已经收到的数据。相关流程说明如下。
-
-1. T1 时刻，第 7 个数据点到达，根据 T =  Latest event - watermark，算出的时间在第二个窗口内，所以第二个窗口没有关闭。
-2. T2 时刻，第 6 和第 8 个数据点延迟到达 TDengine，由于此时的 Latest event 没变，T 也没变，乱序数据进入的第二个窗口还未被关闭，因此可以被正确处理。
-3. T3 时刻，第 10 个数据点到达，T 向后推移超过了第二个窗口关闭的时间，该窗口被关闭，乱序数据被正确处理。
-
-在 window_close 或 max_delay 模式下，窗口关闭直接影响推送结果。在 at_once 模式下，窗口关闭只与内存占用有关。
-
-### 过期数据处理策略
-
-对于已关闭的窗口，再次落入该窗口中的数据被标记为过期数据。TDengine 对于过期数据提供两种处理方式，由 IGNORE EXPIRED 选项指定。
-
-1. 重新计算，即 IGNORE EXPIRED 0：从 TSDB 中重新查找对应窗口的所有数据并重新计算得到最新结果
-2. 直接丢弃，即 IGNORE EXPIRED 1：默认配置，忽略过期数据
-
-无论在哪种模式下，watermark 都应该被妥善设置，来得到正确结果（直接丢弃模式）或避免频繁触发重算带来的性能开销（重新计算模式）
-
-### 数据更新的处理策略
-
-TDengine 对于修改数据提供两种处理方式，由 IGNORE UPDATE 选项指定。
-
-1. 检查数据是否被修改，即 IGNORE UPDATE 0：默认配置，如果被修改，则重新计算对应窗口。
-2. 不检查数据是否被修改，全部按增量数据计算，即 IGNORE UPDATE 1。
-
-## 流计算的其它策略
-
-### 写入已存在的超级表
-
-当流计算结果需要写入已存在的超级表时，应确保 stb_name 列与 subquery 输出结果之间的对应关系正确。如果 stb_name 列与 subquery 输出结果的位置、数量完全匹配，那么不需要显式指定对应关系；如果数据类型不匹配，系统会自动将 subquery 输出结果的类型转换为对应的 stb_name 列的类型。创建流计算时不能指定 stb_name 的列和 TAG 的数据类型，否则会报错。
-
-对于已经存在的超级表，系统会检查列的 schema 信息，确保它们与 subquery 输出结果相匹配。以下是一些关键点。
-
-1. 检查列的 schema 信息是否匹配，对于不匹配的，则自动进行类型转换，当前只有数据长度大于 4096 bytes 时才报错，其余场景都能进行类型转换。
-2. 检查列的个数是否相同，如果不同，需要显示的指定超级表与 subquery 的列的对应关系，否则报错。如果相同，可以指定对应关系，也可以不指定，不指定则按位置顺序对应。
-
-**注意** 虽然流计算可以将结果写入已经存在的超级表，但不能让两个已经存在的流计算向同一张（超级）表中写入结果数据。这是为了避免数据冲突和不一致，确保数据的完整性和准确性。在实际应用中，应根据实际需求和数据结构合理设置列的对应关系，以实现高效、准确的数据处理。
-
-### 自定义目标表的标签
-
-用户可以为每个 partition 对应的子表生成自定义的 TAG 值，如下创建流的语句，
-
-```sql
-CREATE STREAM output_tag trigger at_once INTO output_tag_s TAGS(alias_tag varchar(100)) as select _wstart, count(*) from power.meters partition by concat("tag-", tbname) as alias_tag interval(10s);
-```
-
-在 PARTITION 子句中，为 concat（"tag-"，tbname）定义了一个别名 alias_tag，对应超级表 output_tag_s 的自定义 TAG 的名字。在上述示例中，流新创建的子表的 TAG 将以前缀 'tag-' 连接原表名作为 TAG 的值。会对 TAG 信息进行如下检查。
-
-1. 检查 tag 的 schema 信息是否匹配，对于不匹配的，则自动进行数据类型转换，当前只有数据长度大于 4096 bytes 时才报错，其余场景都能进行类型转换。
-2. 检查 tag 的 个数是否相同，如果不同，需要显示的指定超级表与 subquery 的 tag 的对应关系，否则报错。如果相同，可以指定对应关系，也可以不指定，不指定则按位置顺序对应。
-
-### 清理流计算的中间状态
-
-```sql
-DELETE_MARK time
-```
-
-DELETE_MARK 用于删除缓存的窗口状态，也就是删除流计算的中间结果。缓存的窗口状态主要用于过期数据导致的窗口结果更新操作。如果不设置，默认值是 10 年。
-
-## 流计算的具体操作
-
-### 删除流计算
-
-仅删除流计算任务，由流计算写入的数据不会被删除，SQL 如下：
-
-```sql
-DROP STREAM [IF EXISTS] stream_name;
-```
-
-### 展示流计算
-
-查看流计算任务的 SQL 如下：
-
-```sql
-SHOW STREAMS;
-```
-
-若要展示更详细的信息，可以使用
-
-```sql
-SELECT * from information_schema.`ins_streams`;
-```
-
-### 暂停流计算任务
-
-暂停流计算任务的 SQL 如下：
-
-```sql
-PAUSE STREAM [IF EXISTS] stream_name; 
-```
-
-没有指定 IF EXISTS，如果该 stream 不存在，则报错。如果存在，则暂停流计算。指定了 IF EXISTS，如果该 stream 不存在，则返回成功。如果存在，则暂停流计算。
-
-### 恢复流计算任务
-
-恢复流计算任务的 SQL 如下。如果指定了 ignore expired，则恢复流计算任务时，忽略流计算任务暂停期间写入的数据。
-
-```sql
-RESUME STREAM [IF EXISTS] [IGNORE UNTREATED] stream_name; 
-```
-
-没有指定 IF EXISTS，如果该 stream 不存在，则报错。如果存在，则恢复流计算。指定了 IF EXISTS，如果 stream 不存在，则返回成功。如果存在，则恢复流计算。如果指定 IGNORE UNTREATED，则恢复流计算时，忽略流计算暂停期间写入的数据。
-
-### 流计算升级故障恢复
-
-升级 TDengine 后，如果流计算不兼容，需要删除流计算，然后重新创建流计算。步骤如下：
-
-1.修改 taos.cfg，添加 disableStream 1
-
-2.重启 taosd。如果启动失败，修改 stream 目录的名称，避免 taosd 启动的时候尝试加载 stream 目录下的流计算数据信息。不使用删除操作避免误操作导致的风险。需要修改的文件夹：$dataDir/vnode/vnode*/tq/stream，$dataDir 指 TDengine 存储数据的目录，在 $dataDir/vnode/ 目录下会有多个类似 vnode1、vnode2...vnode* 的目录，全部需要修改里面的 tq/stream 目录的名字，改为 tq/stream.bk
-
-3.启动 taos
-
-```sql
-drop stream xxxx;                ---- xxx 指 stream name
-flush database stream_source_db; ---- 流计算读取数据的超级表所在的 database
-flush database stream_dest_db;   ---- 流计算写入数据的超级表所在的 database
-```
-
-举例：
-
-```sql
-create stream streams1 into test1.streamst as select  _wstart, count(a) c1  from test.st interval(1s) ;
-drop stream streams1;
-flush database test;
-flush database test1;
-```
-
-4.关闭 taosd
-
-5.修改 taos.cfg，去掉 disableStream 1，或将 disableStream 改为 0
-
-6.启动 taosd
+重新计算可以分为自动重新计算与手动重新计算，如果用户不需要自动重新计算，可以通过选项关闭。

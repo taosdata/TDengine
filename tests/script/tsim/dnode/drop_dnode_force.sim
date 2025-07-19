@@ -208,6 +208,11 @@ if $data(5)[4] != ready then
 endi
 
 print =============== step5a: drop dnode 3
+sql show d2.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
+sleep 3000
 sql_error drop dnode 3
 sql_error drop dnode 3 force
 sql drop dnode 3 unsafe

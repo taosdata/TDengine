@@ -52,21 +52,20 @@
 
 #define TMQ_META_VERSION "1.0"
 
-static bool  tmqAddJsonObjectItem(cJSON *object, const char *string, cJSON *item){
+static bool tmqAddJsonObjectItem(cJSON* object, const char* string, cJSON* item) {
   bool ret = cJSON_AddItemToObject(object, string, item);
-  if (!ret){
+  if (!ret) {
     cJSON_Delete(item);
   }
   return ret;
 }
-static bool  tmqAddJsonArrayItem(cJSON *array, cJSON *item){
+static bool tmqAddJsonArrayItem(cJSON* array, cJSON* item) {
   bool ret = cJSON_AddItemToArray(array, item);
-  if (!ret){
+  if (!ret) {
     cJSON_Delete(item);
   }
   return ret;
 }
-
 
 static int32_t  tmqWriteBatchMetaDataImpl(TAOS* taos, void* meta, uint32_t metaLen);
 static tb_uid_t processSuid(tb_uid_t suid, char* db) {
@@ -440,7 +439,7 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
   SArray* pTagVals = NULL;
   char*   pJson = NULL;
 
-  cJSON*  tableName = cJSON_CreateString(name);
+  cJSON* tableName = cJSON_CreateString(name);
   RAW_NULL_CHECK(tableName);
   RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tableName", tableName));
   cJSON* using = cJSON_CreateString(sname);
@@ -498,6 +497,9 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
 
     cJSON* tvalue = NULL;
     if (IS_VAR_DATA_TYPE(pTagVal->type)) {
+      if (IS_STR_DATA_BLOB(pTagVal->type)) {
+        goto end;
+      }
       int64_t bufSize = 0;
       if (pTagVal->type == TSDB_DATA_TYPE_VARBINARY) {
         bufSize = pTagVal->nData * 2 + 2 + 3;
@@ -516,7 +518,8 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
       RAW_NULL_CHECK(tvalue);
     } else {
       double val = 0;
-      GET_TYPED_DATA(val, double, pTagVal->type, &pTagVal->i64, 0); // currently tag type can't be decimal, so pass 0 as typeMod
+      GET_TYPED_DATA(val, double, pTagVal->type, &pTagVal->i64,
+                     0);  // currently tag type can't be decimal, so pass 0 as typeMod
       tvalue = cJSON_CreateNumber(val);
       RAW_NULL_CHECK(tvalue);
     }
@@ -1949,7 +1952,7 @@ static int32_t initRawCacheHash() {
 }
 
 static bool needRefreshMeta(void* rawData, STableMeta* pTableMeta, SSchemaWrapper* pSW) {
-  if (rawData == NULL || pSW == NULL){
+  if (rawData == NULL || pSW == NULL) {
     return false;
   }
   if (pTableMeta == NULL) {
@@ -1974,12 +1977,12 @@ static bool needRefreshMeta(void* rawData, STableMeta* pTableMeta, SSchemaWrappe
   for (int i = 0; i < pSW->nCols; i++) {
     int j = 0;
     for (; j < pTableMeta->tableInfo.numOfColumns; j++) {
-      SSchema* pColSchema = &pTableMeta->schema[j];
+      SSchema*    pColSchema = &pTableMeta->schema[j];
       SSchemaExt* pColExtSchema = &pTableMeta->schemaExt[j];
-      char*    fieldName = pSW->pSchema[i].name;
+      char*       fieldName = pSW->pSchema[i].name;
 
       if (strcmp(pColSchema->name, fieldName) == 0) {
-        if (checkSchema(pColSchema, pColExtSchema, fields, NULL, 0) != 0){
+        if (checkSchema(pColSchema, pColExtSchema, fields, NULL, 0) != 0) {
           return true;
         }
         break;
@@ -2102,6 +2105,8 @@ static int32_t processCacheMeta(SHashObj* pVgHash, SHashObj* pNameHash, SHashObj
       taosMemoryFree(pTableMeta);
       goto end;
     }
+    uDebug("put table meta to hash1, suid:%" PRId64 ", metaHashSIze:%d, nameHashSize:%d, vgHashSize:%d", info.suid, taosHashGetSize(pMetaHash),
+           taosHashGetSize(pNameHash), taosHashGetSize(pVgHash));
     if (pCreateReqDst) {
       pTableMeta->vgId = info.vgInfo.vgId;
       pTableMeta->uid = pCreateReqDst->uid;
@@ -2123,7 +2128,8 @@ static int32_t processCacheMeta(SHashObj* pVgHash, SHashObj* pNameHash, SHashObj
         taosMemoryFree(pTableMeta);
         goto end;
       }
-
+      uDebug("put table meta to hash2, suid:%" PRId64 ", metaHashSIze:%d, nameHashSize:%d, vgHashSize:%d", tmpInfo->suid, taosHashGetSize(pMetaHash),
+      taosHashGetSize(pNameHash), taosHashGetSize(pVgHash));
     } else {
       pTableMeta = *pTableMetaTmp;
       pTableMeta->uid = tmpInfo->uid;
@@ -2352,9 +2358,9 @@ static int32_t tmqWriteRawRawDataImpl(TAOS* taos, void* data, uint32_t dataLen) 
       tstrncpy(pName.tname, tbName, TSDB_TABLE_NAME_LEN);
 
       // find schema data info
-      STableMeta*    pTableMeta = NULL;
-      RAW_RETURN_CHECK(processCacheMeta(pVgHash, pNameHash, pMetaHash, NULL, pCatalog, &conn, &pName,
-                                        &pTableMeta, NULL, NULL, retry));
+      STableMeta* pTableMeta = NULL;
+      RAW_RETURN_CHECK(processCacheMeta(pVgHash, pNameHash, pMetaHash, NULL, pCatalog, &conn, &pName, &pTableMeta, NULL,
+                                        NULL, retry));
       char err[ERR_MSG_LEN] = {0};
       code = rawBlockBindRawData(pVgroupHash, pStmt->pVgDataBlocks, pTableMeta, rawData);
       if (code != TSDB_CODE_SUCCESS) {
@@ -2379,7 +2385,7 @@ static int32_t tmqWriteRawRawDataImpl(TAOS* taos, void* data, uint32_t dataLen) 
     break;
   }
 
-  end:
+end:
   uDebug(LOG_ID_TAG " write raw rawdata return, msg:%s", LOG_ID_VALUE, tstrerror(code));
   tDeleteMqDataRsp(&rspObj.dataRsp);
   tDecoderClear(&decoder);
@@ -2604,11 +2610,10 @@ int32_t tmq_get_raw(TAOS_RES* res, tmq_raw_data* raw) {
 
 void tmq_free_raw(tmq_raw_data raw) {
   uDebug("tmq free raw data type:%d", raw.raw_type);
-  if (raw.raw_type == RES_TYPE__TMQ ||
-      raw.raw_type == RES_TYPE__TMQ_METADATA) {
+  if (raw.raw_type == RES_TYPE__TMQ || raw.raw_type == RES_TYPE__TMQ_METADATA) {
     taosMemoryFree(raw.raw);
-  } else if(raw.raw_type == RES_TYPE__TMQ_RAWDATA && raw.raw != NULL){
-    taosMemoryFree(POINTER_SHIFT(raw.raw, - sizeof(SMqRspHead)));
+  } else if (raw.raw_type == RES_TYPE__TMQ_RAWDATA && raw.raw != NULL) {
+    taosMemoryFree(POINTER_SHIFT(raw.raw, -sizeof(SMqRspHead)));
   }
   (void)memset(terrMsg, 0, ERR_MSG_LEN);
 }
@@ -2673,7 +2678,7 @@ int32_t tmq_write_raw(TAOS* taos, tmq_raw_data raw) {
     SET_ERROR_MSG("taos:%p or data:%p is NULL or raw_len <= 0", taos, raw.raw);
     return TSDB_CODE_INVALID_PARA;
   }
-  taosClearErrMsg(); // clear global error message
+  taosClearErrMsg();  // clear global error message
 
   return writeRawImpl(taos, raw.raw, raw.raw_len, raw.raw_type);
 }

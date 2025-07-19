@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "functionMgt.h"
-#include "tcs.h"
+#include "tss.h"
 #include "tsdb.h"
 #include "tsdbDataFileRW.h"
 #include "tsdbIter.h"
@@ -28,12 +28,14 @@ void tsdbLRUCacheRelease(SLRUCache *cache, LRUHandle *handle, bool eraseIfLastRe
   }
 }
 
+#ifdef USE_SHARED_STORAGE
+
 static int32_t tsdbOpenBCache(STsdb *pTsdb) {
   int32_t code = 0, lino = 0;
-#ifdef USE_S3
   int32_t    szPage = pTsdb->pVnode->config.tsdbPageSize;
-  int64_t    szBlock = tsS3BlockSize <= 1024 ? 1024 : tsS3BlockSize;
-  SLRUCache *pCache = taosLRUCacheInit((int64_t)tsS3BlockCacheSize * szBlock * szPage, 0, .5);
+  int64_t    szBlock = tsSsBlockSize <= 1024 ? 1024 : tsSsBlockSize;
+
+  SLRUCache *pCache = taosLRUCacheInit((int64_t)tsSsBlockCacheSize * szBlock * szPage, 0, .5);
   if (pCache == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err);
   }
@@ -49,12 +51,11 @@ _err:
     tsdbError("tsdb/bcache: vgId:%d, %s failed at line %d since %s.", TD_VID(pTsdb->pVnode), __func__, lino,
               tstrerror(code));
   }
-#endif
+  
   TAOS_RETURN(code);
 }
 
 static void tsdbCloseBCache(STsdb *pTsdb) {
-#ifdef USE_S3
   SLRUCache *pCache = pTsdb->bCache;
   if (pCache) {
     int32_t elems = taosLRUCacheGetElems(pCache);
@@ -67,15 +68,13 @@ static void tsdbCloseBCache(STsdb *pTsdb) {
 
     (void)taosThreadMutexDestroy(&pTsdb->bMutex);
   }
-#endif
 }
 
 static int32_t tsdbOpenPgCache(STsdb *pTsdb) {
   int32_t code = 0, lino = 0;
-#ifdef USE_S3
   int32_t szPage = pTsdb->pVnode->config.tsdbPageSize;
 
-  SLRUCache *pCache = taosLRUCacheInit((int64_t)tsS3PageCacheSize * szPage, 0, .5);
+  SLRUCache *pCache = taosLRUCacheInit((int64_t)tsSsPageCacheSize * szPage, 0, .5);
   if (pCache == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err);
   }
@@ -90,12 +89,11 @@ _err:
   if (code) {
     tsdbError("tsdb/pgcache: vgId:%d, open failed at line %d since %s.", TD_VID(pTsdb->pVnode), lino, tstrerror(code));
   }
-#endif
+  
   TAOS_RETURN(code);
 }
 
 static void tsdbClosePgCache(STsdb *pTsdb) {
-#ifdef USE_S3
   SLRUCache *pCache = pTsdb->pgCache;
   if (pCache) {
     int32_t elems = taosLRUCacheGetElems(pCache);
@@ -108,8 +106,9 @@ static void tsdbClosePgCache(STsdb *pTsdb) {
 
     (void)taosThreadMutexDestroy(&pTsdb->bMutex);
   }
-#endif
 }
+
+#endif // USE_SHARED_STORAGE
 
 #define ROCKS_KEY_LEN (sizeof(tb_uid_t) + sizeof(int16_t) + sizeof(int8_t))
 
@@ -129,10 +128,10 @@ typedef struct {
 
 static void tsdbGetRocksPath(STsdb *pTsdb, char *path) {
   SVnode *pVnode = pTsdb->pVnode;
-  vnodeGetPrimaryDir(pTsdb->path, pVnode->diskPrimary, pVnode->pTfs, path, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, path, TSDB_FILENAME_LEN);
 
   int32_t offset = strlen(path);
-  snprintf(path + offset, TSDB_FILENAME_LEN - offset - 1, "%scache.rdb", TD_DIRSEP);
+  snprintf(path + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%scache.rdb", TD_DIRSEP, pTsdb->name, TD_DIRSEP);
 }
 
 static const char *myCmpName(void *state) {
@@ -619,20 +618,20 @@ static int32_t tsdbUpdateSkm(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int32_t 
 static int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray *updCtxArray);
 
 int32_t tsdbLoadFromImem(SMemTable *imem, int64_t suid, int64_t uid) {
-  int32_t     code = 0;
-  int32_t     lino = 0;
-  STsdb      *pTsdb = imem->pTsdb;
-  SArray     *pMemDelData = NULL;
-  SArray     *pSkyline = NULL;
-  int64_t     iSkyline = 0;
-  STbDataIter tbIter = {0};
-  TSDBROW    *pMemRow = NULL;
-  STSchema   *pTSchema = NULL;
-  SSHashObj  *iColHash = NULL;
-  int32_t     sver;
-  int32_t     nCol;
-  SArray     *ctxArray = pTsdb->rCache.ctxArray;
-  STsdbRowKey tsdbRowKey = {0};
+  int32_t      code = 0;
+  int32_t      lino = 0;
+  STsdb       *pTsdb = imem->pTsdb;
+  SArray      *pMemDelData = NULL;
+  SArray      *pSkyline = NULL;
+  int64_t      iSkyline = 0;
+  STbDataIter  tbIter = {0};
+  TSDBROW     *pMemRow = NULL;
+  STSchema    *pTSchema = NULL;
+  SSHashObj   *iColHash = NULL;
+  int32_t      sver;
+  int32_t      nCol;
+  SArray      *ctxArray = pTsdb->rCache.ctxArray;
+  STsdbRowKey  tsdbRowKey = {0};
   STSDBRowIter iter = {0};
 
   STbData *pIMem = tsdbGetTbDataFromMemTable(imem, suid, uid);
@@ -2826,9 +2825,12 @@ int32_t tsdbOpenCache(STsdb *pTsdb) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err);
   }
 
-  TAOS_CHECK_GOTO(tsdbOpenBCache(pTsdb), &lino, _err);
-
-  TAOS_CHECK_GOTO(tsdbOpenPgCache(pTsdb), &lino, _err);
+#ifdef USE_SHARED_STORAGE
+  if (tsSsEnabled) {
+    TAOS_CHECK_GOTO(tsdbOpenBCache(pTsdb), &lino, _err);
+    TAOS_CHECK_GOTO(tsdbOpenPgCache(pTsdb), &lino, _err);
+  }
+#endif
 
   TAOS_CHECK_GOTO(tsdbOpenRocksCache(pTsdb), &lino, _err);
 
@@ -2856,8 +2858,13 @@ void tsdbCloseCache(STsdb *pTsdb) {
     (void)taosThreadMutexDestroy(&pTsdb->lruMutex);
   }
 
-  tsdbCloseBCache(pTsdb);
-  tsdbClosePgCache(pTsdb);
+#ifdef USE_SHARED_STORAGE
+  if (tsSsEnabled) {
+    tsdbCloseBCache(pTsdb);
+    tsdbClosePgCache(pTsdb);
+  }
+#endif
+
   tsdbCloseRocksCache(pTsdb);
 }
 
@@ -4135,7 +4142,7 @@ int32_t tsdbCacheGetElems(SVnode *pVnode) {
   return elems;
 }
 
-#ifdef USE_S3
+#ifdef USE_SHARED_STORAGE
 // block cache
 static void getBCacheKey(int32_t fid, int64_t commitID, int64_t blkno, char *key, int *len) {
   struct {
@@ -4152,14 +4159,25 @@ static void getBCacheKey(int32_t fid, int64_t commitID, int64_t blkno, char *key
   memcpy(key, &bKey, *len);
 }
 
-static int32_t tsdbCacheLoadBlockS3(STsdbFD *pFD, uint8_t **ppBlock) {
+static int32_t tsdbCacheLoadBlockSs(STsdbFD *pFD, uint8_t **ppBlock) {
   int32_t code = 0;
 
-  int64_t block_offset = (pFD->blkno - 1) * tsS3BlockSize * pFD->szPage;
+  int64_t block_size = tsSsBlockSize * pFD->szPage;
+  int64_t block_offset = (pFD->blkno - 1) * block_size;
+  
+  char* buf = taosMemoryMalloc(block_size);
+  if (buf == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
 
-  TAOS_CHECK_RETURN(tcsGetObjectBlock(pFD->objName, block_offset, tsS3BlockSize * pFD->szPage, 0, ppBlock));
-
-  tsdbTrace("block:%p load from s3", *ppBlock);
+  // TODO: pFD->objName is not initialized, but this function is never called.
+  code = tssReadFileFromDefault(pFD->objName, block_offset, buf, &block_size);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(buf);
+    goto _exit;
+  }
+  *ppBlock = buf;
 
 _exit:
   return code;
@@ -4172,7 +4190,7 @@ static void deleteBCache(const void *key, size_t keyLen, void *value, void *ud) 
   taosMemoryFree(pBlock);
 }
 
-int32_t tsdbCacheGetBlockS3(SLRUCache *pCache, STsdbFD *pFD, LRUHandle **handle) {
+int32_t tsdbCacheGetBlockSs(SLRUCache *pCache, STsdbFD *pFD, LRUHandle **handle) {
   int32_t code = 0;
   char    key[128] = {0};
   int     keyLen = 0;
@@ -4186,7 +4204,7 @@ int32_t tsdbCacheGetBlockS3(SLRUCache *pCache, STsdbFD *pFD, LRUHandle **handle)
     h = taosLRUCacheLookup(pCache, key, keyLen);
     if (!h) {
       uint8_t *pBlock = NULL;
-      code = tsdbCacheLoadBlockS3(pFD, &pBlock);
+      code = tsdbCacheLoadBlockSs(pFD, &pBlock);
       //  if table's empty or error, return code of -1
       if (code != TSDB_CODE_SUCCESS || pBlock == NULL) {
         (void)taosThreadMutexUnlock(&pTsdb->bMutex);
@@ -4199,7 +4217,7 @@ int32_t tsdbCacheGetBlockS3(SLRUCache *pCache, STsdbFD *pFD, LRUHandle **handle)
         TAOS_RETURN(code);
       }
 
-      size_t              charge = tsS3BlockSize * pFD->szPage;
+      size_t              charge = tsSsBlockSize * pFD->szPage;
       _taos_lru_deleter_t deleter = deleteBCache;
       LRUStatus           status =
           taosLRUCacheInsert(pCache, key, keyLen, pBlock, charge, deleter, NULL, &h, TAOS_LRU_PRIORITY_LOW, NULL);
@@ -4216,7 +4234,11 @@ int32_t tsdbCacheGetBlockS3(SLRUCache *pCache, STsdbFD *pFD, LRUHandle **handle)
   TAOS_RETURN(code);
 }
 
-int32_t tsdbCacheGetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, LRUHandle **handle) {
+int32_t tsdbCacheGetPageSs(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, LRUHandle **handle) {
+  if (!tsSsEnabled) {
+    return TSDB_CODE_OPS_NOT_SUPPORT;
+  }
+
   int32_t code = 0;
   char    key[128] = {0};
   int     keyLen = 0;
@@ -4227,7 +4249,11 @@ int32_t tsdbCacheGetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, LRUHan
   return code;
 }
 
-void tsdbCacheSetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, uint8_t *pPage) {
+void tsdbCacheSetPageSs(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, uint8_t *pPage) {
+  if (!tsSsEnabled) {
+    return;
+  }
+
   char       key[128] = {0};
   int        keyLen = 0;
   LRUHandle *handle = NULL;
@@ -4242,7 +4268,7 @@ void tsdbCacheSetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, uint8_t *
     if (!pPg) {
       (void)taosThreadMutexUnlock(&pFD->pTsdb->pgMutex);
 
-      return;  // ignore error with s3 cache and leave error untouched
+      return;  // ignore error with ss cache and leave error untouched
     }
     memcpy(pPg, pPage, charge);
 

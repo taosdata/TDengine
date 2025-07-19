@@ -16,18 +16,58 @@
 #include "vnd.h"
 
 extern int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now);
-extern int32_t tsdbAsyncS3Migrate(STsdb *tsdb, int64_t now);
+extern int32_t tsdbAsyncSsMigrate(STsdb *tsdb, SSsMigrateVgroupReq *pReq);
+extern int32_t tsdbQuerySsMigrateProgress(STsdb *tsdb, int32_t ssMigrateId, int32_t *rspSize, void** ppRsp);
+extern int32_t tsdbUpdateSsMigrateState(STsdb* tsdb, SVnodeSsMigrateState* pState);
+
 
 int32_t vnodeAsyncRetention(SVnode *pVnode, int64_t now) {
   // async retention
   return tsdbAsyncRetention(pVnode->pTsdb, now);
 }
 
-int32_t vnodeAsyncS3Migrate(SVnode *pVnode, int64_t now) {
+int32_t vnodeAsyncSsMigrate(SVnode *pVnode, SSsMigrateVgroupReq *pReq) {
   // async migration
-#ifdef USE_S3
-  return tsdbAsyncS3Migrate(pVnode->pTsdb, now);
-#else
-  return TSDB_CODE_INTERNAL_ERROR;
+#ifdef USE_SHARED_STORAGE
+  if (tsSsEnabled) {
+    return tsdbAsyncSsMigrate(pVnode->pTsdb, pReq);
+  }
 #endif
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+
+int32_t vnodeQuerySsMigrateProgress(SVnode *pVnode, SRpcMsg *pMsg) {
+  int32_t code = 0;
+
+  SQuerySsMigrateProgressReq req = {0};
+
+  int32_t                  rspSize = 0;
+  SRpcMsg                  rspMsg = {0};
+  void                    *pRsp = NULL;
+  SQuerySsMigrateProgressRsp rsp = {0};
+
+  // deserialize request
+  char* buf = (char*)pMsg->pCont + sizeof(SMsgHead);
+  code = tDeserializeSQuerySsMigrateProgressReq(buf, pMsg->contLen - sizeof(SMsgHead), &req);
+  if (code) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  vDebug("vgId:%d, ssMigrateId:%d, processing query ss migrate progress request", req.vgId, req.ssMigrateId);
+  code = tsdbQuerySsMigrateProgress(pVnode->pTsdb, req.ssMigrateId, &rspSize, &pRsp);
+
+_exit:
+  rspMsg.info = pMsg->info;
+  rspMsg.pCont = pRsp;
+  rspMsg.contLen = rspSize;
+  rspMsg.code = code;
+  rspMsg.msgType = TDMT_VND_QUERY_SSMIGRATE_PROGRESS_RSP;
+
+  tmsgSendRsp(&rspMsg);
+  return 0;
+}
+
+int32_t vnodeFollowerSsMigrate(SVnode *pVnode, SVnodeSsMigrateState *pState) {
+  return tsdbUpdateSsMigrateState(pVnode->pTsdb, pState);
 }

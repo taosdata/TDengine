@@ -489,14 +489,14 @@ class ClusterComCheck:
             elif self.db_replica == 3:
                 vgroup_status_first = [
                     tdSql.queryResult[0][4],
-                    tdSql.queryResult[0][6],
-                    tdSql.queryResult[0][8],
+                    tdSql.queryResult[0][7],
+                    tdSql.queryResult[0][10],
                 ]
 
                 vgroup_status_last = [
                     tdSql.queryResult[last_number][4],
-                    tdSql.queryResult[last_number][6],
-                    tdSql.queryResult[last_number][8],
+                    tdSql.queryResult[last_number][7],
+                    tdSql.queryResult[last_number][10],
                 ]
                 if (
                     vgroup_status_first.count("leader") == 1

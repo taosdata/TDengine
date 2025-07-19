@@ -482,6 +482,7 @@ static int32_t metaFilterTableByHash(SMeta *pMeta, SArray *uidList) {
       char tbFName[TSDB_TABLE_FNAME_LEN + 1];
       snprintf(tbFName, sizeof(tbFName), "%s.%s", pMeta->pVnode->config.dbname, me.name);
       tbFName[TSDB_TABLE_FNAME_LEN] = '\0';
+      if (pMeta->pVnode->mounted) tTrimMountPrefix(tbFName);
       ret = vnodeValidateTableHash(pMeta->pVnode, tbFName);
       if (ret < 0 && terrno == TSDB_CODE_VND_HASH_MISMATCH) {
         if (taosArrayPush(uidList, &me.uid) == NULL) {

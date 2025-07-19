@@ -11,6 +11,7 @@ target_link_libraries(
     PUBLIC transport
     PUBLIC util
     PUBLIC wal
+    PUBLIC metrics
 )
 
 target_include_directories(

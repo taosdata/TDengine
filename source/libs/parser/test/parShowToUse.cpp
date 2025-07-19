@@ -153,11 +153,11 @@ TEST_F(ParserShowToUseTest, showStables) {
   run("SHOW test.stables like 'c%'");
 }
 
-TEST_F(ParserShowToUseTest, showStreams) {
-  useDb("root", "test");
-
-  run("SHOW streams");
-}
+//TEST_F(ParserShowToUseTest, showStreams) {
+//  useDb("root", "test");
+//
+//  run("SHOW streams");
+//}
 
 TEST_F(ParserShowToUseTest, showSubscriptions) {
   useDb("root", "test");

@@ -440,6 +440,11 @@ int32_t taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, 
       pVar->nLen = (int32_t)len;
       break;
     }
+    case TSDB_DATA_TYPE_BLOB:
+    case TSDB_DATA_TYPE_MEDIUMBLOB: {
+      uError("SVariant: BLOB and MEDIUMBLOB are not supported, type:%d", type);
+      return TSDB_CODE_INVALID_DATA_FMT;
+    }
 
     default:
       pVar->i = GET_INT32_VAL(pz);

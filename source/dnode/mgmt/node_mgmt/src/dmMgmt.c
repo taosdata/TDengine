@@ -19,13 +19,15 @@
 #include "index.h"
 #include "qworker.h"
 #include "tcompression.h"
+#include "tconv.h"
 #include "tglobal.h"
 #include "tgrant.h"
-#include "tstream.h"
 #include "tconv.h"
+#include "stream.h"
 
 static bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
+  input.dnodeId = pDnode->data.dnodeId;
 
   bool    required = false;
   int32_t code = (*pWrapper->func.requiredFp)(&input, &required);
@@ -55,6 +57,7 @@ int32_t dmInitDnode(SDnode *pDnode) {
   pDnode->wrappers[VNODE].func = vmGetMgmtFunc();
   pDnode->wrappers[QNODE].func = qmGetMgmtFunc();
   pDnode->wrappers[SNODE].func = smGetMgmtFunc();
+  pDnode->wrappers[BNODE].func = bmGetMgmtFunc();
 
   for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
@@ -83,7 +86,6 @@ int32_t dmInitDnode(SDnode *pDnode) {
   }
 
   indexInit(tsNumOfCommitThreads);
-  streamMetaInit();
 
   if ((code = dmInitStatusClient(pDnode)) != 0) {
     goto _OVER;
@@ -118,7 +120,7 @@ void dmCleanupDnode(SDnode *pDnode) {
 
   dmClearVars(pDnode);
   rpcCleanup();
-  streamMetaCleanup();
+  streamCleanup();
   indexCleanup();
   taosConvDestroy();
 
@@ -320,6 +322,9 @@ int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
         break;
       case SNODE:
         code = TSDB_CODE_SNODE_NOT_FOUND;
+        break;
+      case BNODE:
+        code = TSDB_CODE_BNODE_NOT_FOUND;
         break;
       case VNODE:
         code = TSDB_CODE_VND_STOPPED;

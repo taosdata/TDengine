@@ -156,10 +156,17 @@ typedef struct SViewMeta {
 } SViewMeta;
 
 typedef struct SDBVgInfo {
-  int32_t   vgVersion;
-  int16_t   hashPrefix;
-  int16_t   hashSuffix;
-  int8_t    hashMethod;
+  int32_t vgVersion;
+  int16_t hashPrefix;
+  int16_t hashSuffix;
+  int8_t  hashMethod;
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t isMount : 1;  // TS-5868
+      uint8_t padding : 7;
+    };
+  };
   int32_t   numOfTable;  // DB's table num, unit is TSDB_TABLE_NUM_UNIT
   int64_t   stateTs;
   SHashObj* vgHash;   // key:vgId, value:SVgroupInfo
@@ -242,17 +249,26 @@ typedef struct STargetInfo {
   int32_t     vgId;
 } STargetInfo;
 
+typedef struct STagsInfo {
+  SArray*  STagNames;  // STagVal
+  SArray*  pTagVals;
+  uint8_t* pTagIndex;
+  int32_t  numOfTags;
+} STagsInfo;
+
 typedef struct SBoundColInfo {
   int16_t* pColIndex;  // bound index => schema index
   int32_t  numOfCols;
   int32_t  numOfBound;
   bool     hasBoundCols;
   bool     mixTagsCols;
+  STagsInfo* parseredTags;  // used for partial fixed value stmt
 } SBoundColInfo;
 
 typedef struct STableColsData {
   char    tbName[TSDB_TABLE_NAME_LEN];
   SArray* aCol;
+  SBlobRow2 *pBlobRow;
   bool    getFromHash;
   bool    isOrdered;
   bool    isDuplicateTs;
@@ -276,11 +292,12 @@ typedef struct STableDataCxt {
   STableMeta*    pMeta;
   STSchema*      pSchema;
   SBoundColInfo  boundColsInfo;
-  SArray*        pValues;
+  SArray*        pValues;  // SColVal
   SSubmitTbData* pData;
   SRowKey        lastKey;
   bool           ordered;
   bool           duplicateTs;
+  int8_t         hasBlob;  // if the table has blob column
 } STableDataCxt;
 
 typedef struct SStbInterlaceInfo {

@@ -275,7 +275,17 @@ class TDDnode:
                         isFirstDir = 0
                     else:
                         self.cfg(value, key)
+                elif key == 'dataDir':
+                    # print(f"value is dataDir:{value}")
+                    if isinstance(value, list):
+                        self.cfgDict.pop('dataDir', None)
+                        for v in value:
+                            self.cfg('dataDir', v)
+                    else:
+                        self.cfgDict.pop('dataDir', None)
+                        self.cfg('dataDir', value)
                 else:
+                    # print(f"key:{key}, value:{value}")
                     self.addExtraCfg(key, value)
         if (self.remoteIP == ""):
             for key, value in self.cfgDict.items():

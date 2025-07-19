@@ -439,33 +439,10 @@ class PlannerTestBaseImpl {
       nodesDestroyNode(pQuery->pRoot);
       pQuery->pRoot = pCxt->pAstRoot;
       pCxt->topicQuery = true;
-    } else if (QUERY_NODE_CREATE_INDEX_STMT == nodeType(pQuery->pRoot)) {
-      SMCreateSmaReq req = {0};
-      SCreateIndexStmt* pStmt = (SCreateIndexStmt*)pQuery->pRoot;
-      SCmdMsgInfo* pCmdMsg = (SCmdMsgInfo*)taosMemoryMalloc(sizeof(SCmdMsgInfo));
-      if (NULL == pCmdMsg) FAIL();
-      pCmdMsg->msgType = TDMT_MND_CREATE_SMA;
-      pCmdMsg->msgLen = tSerializeSMCreateSmaReq(NULL, 0, pStmt->pReq);
-      pCmdMsg->pMsg = taosMemoryMalloc(pCmdMsg->msgLen);
-      if (!pCmdMsg->pMsg) FAIL();
-      ASSERT_TRUE(0 < tSerializeSMCreateSmaReq(pCmdMsg->pMsg, pCmdMsg->msgLen, pStmt->pReq));
-      ((SQuery*)pQuery)->pCmdMsg = pCmdMsg;
-
-      ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSMCreateSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
-      g_mockCatalogService->createSmaIndex(&req);
-      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(req.ast, &pCxt->pAstRoot));
-      pCxt->deleteMark = req.deleteMark;
-      tFreeSMCreateSmaReq(&req);
-      nodesDestroyNode(pQuery->pRoot);
-      pQuery->pRoot = pCxt->pAstRoot;
-      pCxt->streamQuery = true;
     } else if (QUERY_NODE_CREATE_STREAM_STMT == nodeType(pQuery->pRoot)) {
       SCreateStreamStmt* pStmt = (SCreateStreamStmt*)pQuery->pRoot;
       pCxt->pAstRoot = pStmt->pQuery;
       pStmt->pQuery = nullptr;
-      pCxt->streamQuery = true;
-      pCxt->triggerType = pStmt->pOptions->triggerType;
-      pCxt->watermark = (NULL != pStmt->pOptions->pWatermark ? ((SValueNode*)pStmt->pOptions->pWatermark)->datum.i : 0);
       nodesDestroyNode(pQuery->pRoot);
       pQuery->pRoot = pCxt->pAstRoot;
     } else {

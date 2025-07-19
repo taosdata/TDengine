@@ -59,6 +59,7 @@ int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t u
   }
 
   // decode the entry
+  tDecoderClear(&pReader->coder);
   tDecoderInit(&pReader->coder, pReader->pBuf, pReader->szBuf);
 
   code = metaDecodeEntry(&pReader->coder, &pReader->me);

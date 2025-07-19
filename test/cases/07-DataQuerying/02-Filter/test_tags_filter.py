@@ -109,7 +109,7 @@ class TestTagsFilter:
         tdSql.execute(f"CREATE DATABASE IF NOT EXISTS testselectwheretags;")
         tdSql.execute(f"USE testselectwheretags;")
         tdSql.execute(
-            f"CREATE TABLE IF NOT EXISTS st1 (ts TIMESTAMP, v1 INT, v2 FLOAT, v3 BOOL) TAGS (farm NCHAR(2), period NCHAR(2), line NCHAR(2), unit INT);"
+            f"CREATE TABLE IF NOT EXISTS st1 (ts TIMESTAMP, v1 INT, v2 FLOAT, v3 BOOL) TAGS (farm NCHAR(2), period1 NCHAR(2), line NCHAR(2), unit INT);"
         )
         tdSql.execute(
             f"CREATE TABLE IF NOT EXISTS a01 USING st1 TAGS ('2', 'c', '2', 2);"
@@ -128,7 +128,7 @@ class TestTagsFilter:
         tdSql.checkRows(1)
 
         tdSql.execute(
-            f"CREATE TABLE IF NOT EXISTS st2 (ts TIMESTAMP, v1 INT, v2 FLOAT) TAGS (farm BINARY(2), period BINARY(2), line BINARY(2));"
+            f"CREATE TABLE IF NOT EXISTS st2 (ts TIMESTAMP, v1 INT, v2 FLOAT) TAGS (farm BINARY(2), period1 BINARY(2), line BINARY(2));"
         )
 
         tdSql.execute(
@@ -154,10 +154,10 @@ class TestTagsFilter:
         tdSql.execute(f"INSERT INTO b01 VALUES (1576043305972, 1, 1.000000);")
         tdSql.execute(f"INSERT INTO b01 VALUES (1576043308513, 1, 1.000000);")
 
-        tdSql.query(f"select * from st2 where period='02';")
+        tdSql.query(f"select * from st2 where period1='02';")
         tdSql.checkRows(2)
 
-        tdSql.query(f"select sum(v2) from st2 group by farm,period,line;")
+        tdSql.query(f"select sum(v2) from st2 group by farm,period1,line;")
         tdSql.checkRows(2)
 
         tdLog.info(f"==================>td-2424")

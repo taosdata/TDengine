@@ -129,6 +129,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
   if (!reqTbUid) {
     (void)tsnprintf(tableFName, TSDB_TABLE_FNAME_LEN, "%s.%s", infoReq.dbFName, infoReq.tbName);
+    if (pVnode->mounted) tTrimMountPrefix(tableFName);
     code = vnodeValidateTableHash(pVnode, tableFName);
     if (code) {
       goto _exit4;
@@ -316,6 +317,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   (void)memcpy(cfgRsp.dbFName, cfgReq.dbFName, sizeof(cfgRsp.dbFName));
 
   (void)tsnprintf(tableFName, TSDB_TABLE_FNAME_LEN, "%s.%s", cfgReq.dbFName, cfgReq.tbName);
+  if (pVnode->mounted) tTrimMountPrefix(tableFName);
   code = vnodeValidateTableHash(pVnode, tableFName);
   if (code) {
     goto _exit;
@@ -536,12 +538,6 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
       case TDMT_VND_TABLE_CFG:
         // error code has been set into reqMsg, no need to handle it here.
         if (TSDB_CODE_SUCCESS != vnodeGetTableCfg(pVnode, &reqMsg, false)) {
-          qWarn("vnodeGetBatchMeta failed, msgType:%d", req->msgType);
-        }
-        break;
-      case TDMT_VND_GET_STREAM_PROGRESS:
-        // error code has been set into reqMsg, no need to handle it here.
-        if (TSDB_CODE_SUCCESS != vnodeGetStreamProgress(pVnode, &reqMsg, false)) {
           qWarn("vnodeGetBatchMeta failed, msgType:%d", req->msgType);
         }
         break;
@@ -807,7 +803,8 @@ int32_t vnodeGetVSubtablesMeta(SVnode *pVnode, SRpcMsg *pMsg) {
     goto _return;
   }
 
-  SReadHandle handle = {.vnode = pVnode};
+  SReadHandle handle = {0};
+  handle.vnode = pVnode;
   initStorageAPI(&handle.api);
 
   QUERY_CHECK_CODE(vnodeReadVSubtables(&handle, req.suid, &rsp.pTables), line, _return);
@@ -868,7 +865,8 @@ int32_t vnodeGetVStbRefDbs(SVnode *pVnode, SRpcMsg *pMsg) {
     goto _return;
   }
 
-  SReadHandle handle = {.vnode = pVnode};
+  SReadHandle handle = {0};
+  handle.vnode = pVnode;
   initStorageAPI(&handle.api);
 
   code = vnodeReadVStbRefDbs(&handle, req.suid, &rsp.pDbs);
@@ -923,7 +921,7 @@ static int32_t vnodeGetCompStorage(SVnode *pVnode, int64_t *output) {
     SDbSizeStatisInfo info = {0};
     if (0 == (code = vnodeGetDBSize(pVnode, &info))) {
       int64_t compSize =
-          info.l1Size + info.l2Size + info.l3Size + info.cacheSize + info.walSize + info.metaSize + +info.s3Size;
+          info.l1Size + info.l2Size + info.l3Size + info.cacheSize + info.walSize + info.metaSize + +info.ssSize;
       if (compSize >= 0) {
         pVnode->config.vndStats.compStorage = compSize;
       } else {
@@ -1363,7 +1361,7 @@ static FORCE_INLINE int32_t vnodeGetDBPrimaryInfo(SVnode *pVnode, SDbSizeStatisI
   char   *dirName[] = {VNODE_TSDB_DIR, VNODE_WAL_DIR, VNODE_META_DIR, VNODE_TSDB_CACHE_DIR};
   int64_t dirSize[4];
 
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, path, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, path, TSDB_FILENAME_LEN);
   int32_t offset = strlen(path);
 
   for (int i = 0; i < sizeof(dirName) / sizeof(dirName[0]); i++) {
@@ -1398,60 +1396,81 @@ _exit:
   return code;
 }
 
-int32_t vnodeGetStreamProgress(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
-  int32_t            code = 0;
-  SStreamProgressReq req;
-  SStreamProgressRsp rsp = {0};
-  SRpcMsg            rpcMsg = {.info = pMsg->info, .code = 0};
-  char              *buf = NULL;
-  int32_t            rspLen = 0;
-  code = tDeserializeStreamProgressReq(pMsg->pCont, pMsg->contLen, &req);
-
-  if (code == TSDB_CODE_SUCCESS) {
-    rsp.fetchIdx = req.fetchIdx;
-    rsp.subFetchIdx = req.subFetchIdx;
-    rsp.vgId = req.vgId;
-    rsp.streamId = req.streamId;
-    rspLen = tSerializeStreamProgressRsp(0, 0, &rsp);
-    if (rspLen < 0) {
-      code = terrno;
-      goto _OVER;
-    }
-    if (direct) {
-      buf = rpcMallocCont(rspLen);
-    } else {
-      buf = taosMemoryCalloc(1, rspLen);
-    }
-    if (!buf) {
-      code = terrno;
-      goto _OVER;
-    }
+/*
+ * Get raw write metrics for a vnode
+ */
+int32_t vnodeGetRawWriteMetrics(void *pVnode, SRawWriteMetrics *pRawMetrics) {
+  if (pVnode == NULL || pRawMetrics == NULL) {
+    return TSDB_CODE_INVALID_PARA;
   }
 
-  if (code == TSDB_CODE_SUCCESS) {
-    code = tqGetStreamExecInfo(pVnode, req.streamId, &rsp.progressDelay, &rsp.fillHisFinished);
-  }
-  if (code == TSDB_CODE_SUCCESS) {
-    rspLen = tSerializeStreamProgressRsp(buf, rspLen, &rsp);
-    if (rspLen < 0) {
-      code = terrno;
-      goto _OVER;
-    }
-    rpcMsg.pCont = buf;
-    buf = NULL;
-    rpcMsg.contLen = rspLen;
-    rpcMsg.code = code;
-    rpcMsg.msgType = pMsg->msgType;
-    if (direct) {
-      tmsgSendRsp(&rpcMsg);
-    } else {
-      *pMsg = rpcMsg;
-    }
+  SVnode      *pVnode1 = (SVnode *)pVnode;
+  SSyncMetrics syncMetrics = syncGetMetrics(pVnode1->sync);
+
+  // Copy values following SRawWriteMetrics structure order
+  pRawMetrics->total_requests = atomic_load_64(&pVnode1->writeMetrics.total_requests);
+  pRawMetrics->total_rows = atomic_load_64(&pVnode1->writeMetrics.total_rows);
+  pRawMetrics->total_bytes = atomic_load_64(&pVnode1->writeMetrics.total_bytes);
+  pRawMetrics->fetch_batch_meta_time = atomic_load_64(&pVnode1->writeMetrics.fetch_batch_meta_time);
+  pRawMetrics->fetch_batch_meta_count = atomic_load_64(&pVnode1->writeMetrics.fetch_batch_meta_count);
+  pRawMetrics->preprocess_time = atomic_load_64(&pVnode1->writeMetrics.preprocess_time);
+  pRawMetrics->wal_write_bytes = atomic_load_64(&syncMetrics.wal_write_bytes);
+  pRawMetrics->wal_write_time = atomic_load_64(&syncMetrics.wal_write_time);
+  pRawMetrics->apply_bytes = atomic_load_64(&pVnode1->writeMetrics.apply_bytes);
+  pRawMetrics->apply_time = atomic_load_64(&pVnode1->writeMetrics.apply_time);
+  pRawMetrics->commit_count = atomic_load_64(&pVnode1->writeMetrics.commit_count);
+  pRawMetrics->commit_time = atomic_load_64(&pVnode1->writeMetrics.commit_time);
+  pRawMetrics->memtable_wait_time = atomic_load_64(&pVnode1->writeMetrics.memtable_wait_time);
+  pRawMetrics->blocked_commit_count = atomic_load_64(&pVnode1->writeMetrics.blocked_commit_count);
+  pRawMetrics->blocked_commit_time = atomic_load_64(&pVnode1->writeMetrics.block_commit_time);
+  pRawMetrics->merge_count = atomic_load_64(&pVnode1->writeMetrics.merge_count);
+  pRawMetrics->merge_time = atomic_load_64(&pVnode1->writeMetrics.merge_time);
+  pRawMetrics->last_cache_commit_time = atomic_load_64(&pVnode1->writeMetrics.last_cache_commit_time);
+  pRawMetrics->last_cache_commit_count = atomic_load_64(&pVnode1->writeMetrics.last_cache_commit_count);
+
+  return 0;
+}
+
+/*
+ * Reset raw write metrics for a vnode by subtracting old values
+ */
+int32_t vnodeResetRawWriteMetrics(void *pVnode, const SRawWriteMetrics *pOldMetrics) {
+  if (pVnode == NULL || pOldMetrics == NULL) {
+    return TSDB_CODE_INVALID_PARA;
   }
 
-_OVER:
-  if (buf) {
-    taosMemoryFree(buf);
-  }
-  return code;
+  SVnode *pVnode1 = (SVnode *)pVnode;
+
+  // Reset vnode write metrics using atomic operations to subtract old values
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.total_requests, pOldMetrics->total_requests);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.total_rows, pOldMetrics->total_rows);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.total_bytes, pOldMetrics->total_bytes);
+
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.fetch_batch_meta_time, pOldMetrics->fetch_batch_meta_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.fetch_batch_meta_count, pOldMetrics->fetch_batch_meta_count);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.preprocess_time, pOldMetrics->preprocess_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.apply_bytes, pOldMetrics->apply_bytes);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.apply_time, pOldMetrics->apply_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.commit_count, pOldMetrics->commit_count);
+
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.commit_time, pOldMetrics->commit_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.merge_time, pOldMetrics->merge_time);
+
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.memtable_wait_time, pOldMetrics->memtable_wait_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.blocked_commit_count, pOldMetrics->blocked_commit_count);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.block_commit_time, pOldMetrics->blocked_commit_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.merge_count, pOldMetrics->merge_count);
+
+  // Reset new cache metrics
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.last_cache_commit_time, pOldMetrics->last_cache_commit_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.last_cache_commit_count, pOldMetrics->last_cache_commit_count);
+
+  // Reset sync metrics
+  SSyncMetrics syncMetrics = {
+      .wal_write_bytes = pOldMetrics->wal_write_bytes,
+      .wal_write_time = pOldMetrics->wal_write_time,
+  };
+  syncResetMetrics(pVnode1->sync, &syncMetrics);
+
+  return 0;
 }
