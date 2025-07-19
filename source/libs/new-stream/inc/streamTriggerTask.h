@@ -142,9 +142,10 @@ typedef struct SSTriggerRealtimeContext {
 #if !TRIGGER_USE_HISTORY_META
   bool haveToRecalc;
 #endif
-  bool                  haveReadCheckpoint;
-  int64_t               lastCheckpointTime;
-  SSTriggerPullRequest *pRetryReq;
+  bool    haveReadCheckpoint;
+  int64_t lastCheckpointTime;
+  SList   retryPullReqs;  // SList<SSTriggerPullRequest*>
+  SList   retryCalcReqs;  // SList<SSTriggerCalcRequest*>
 } SSTriggerRealtimeContext;
 
 typedef struct SSTriggerHistoryContext {
@@ -185,7 +186,8 @@ typedef struct SSTriggerHistoryContext {
   void     *pCalcDataCache;
   SHashObj *pCalcDataCacheIters;
 
-  SSTriggerPullRequest *pRetryReq;
+  SList retryPullReqs;  // SList<SSTriggerPullRequest*>
+  SList retryCalcReqs;  // SList<SSTriggerCalcRequest*>
 } SSTriggerHistoryContext;
 
 typedef enum ESTriggerEventType {
@@ -260,6 +262,7 @@ typedef struct SStreamTriggerTask {
 
   // virtual table info
   SSDataBlock *pVirDataBlock;
+  int32_t      nVirDataCols;      // number of non-pseudo data columns in pVirDataBlock
   SArray      *pVirTrigSlots;     // SArray<int32_t>
   SArray      *pVirCalcSlots;     // SArray<int32_t>
   SArray      *pVirTableInfoRsp;  // SArray<VTableInfo>
