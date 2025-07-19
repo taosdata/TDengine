@@ -70,7 +70,7 @@ static int getSuperTableFromServerTaosc(
         SDataBase *database, SSuperTable *stbInfo, char *command) {
     TAOS_RES *res;
     TAOS_ROW row = NULL;
-    SBenchConn *conn = initBenchConn();
+    SBenchConn *conn = initBenchConn(database->dbName);
     if (NULL == conn) {
         return TSDB_CODE_FAILED;
     }
@@ -210,7 +210,7 @@ static int queryDbExec(SDataBase *database,
             destroySockFd(sockfd);
         }
     } else {
-        SBenchConn* conn = initBenchConn();
+        SBenchConn* conn = initBenchConn(database->dbName);
         if (NULL == conn) {
             ret = -1;
         } else {
@@ -685,7 +685,7 @@ int32_t getRemainVnodes(SBenchConn *conn) {
 int createDatabaseTaosc(SDataBase* database) {
     char command[SHORT_1K_SQL_BUFF_LEN] = "\0";
     // conn
-    SBenchConn* conn = initBenchConn();
+    SBenchConn* conn = initBenchConn(NULL);
     if (NULL == conn) {
         return -1;
     }
@@ -1094,7 +1094,7 @@ static int startMultiThreadCreateChildTable(SDataBase* database, SSuperTable* st
             }
             pThreadInfo->sockfd = sockfd;
         } else {
-            pThreadInfo->conn = initBenchConn();
+            pThreadInfo->conn = initBenchConn(pThreadInfo->dbInfo->dbName);
             if (NULL == pThreadInfo->conn) {
                 goto over;
             }
@@ -1668,7 +1668,7 @@ int32_t reCreateConn(threadInfo * pThreadInfo) {
     //
 
     // conn
-    pThreadInfo->conn = initBenchConn();
+    pThreadInfo->conn = initBenchConn(pThreadInfo->dbInfo->dbName);
     if (pThreadInfo->conn == NULL) {
         errorPrint("%s", "reCreateConn initBenchConn failed.");
         return -1;
@@ -3423,7 +3423,7 @@ static int64_t fillChildTblNameByFromTo(SDataBase *database,
 
 static int64_t fillChildTblNameByLimitOffset(SDataBase *database,
         SSuperTable* stbInfo) {
-    SBenchConn* conn = initBenchConn();
+    SBenchConn* conn = initBenchConn(database->dbName);
     if (NULL == conn) {
         return -1;
     }
@@ -3638,7 +3638,7 @@ static int64_t fillChildTblName(SDataBase *database, SSuperTable *stbInfo) {
 
 // last ts fill to filllBackTime
 static bool fillSTableLastTs(SDataBase *database, SSuperTable *stbInfo) {
-    SBenchConn* conn = initBenchConn();
+    SBenchConn* conn = initBenchConn(database->dbName);
     if (NULL == conn) {
         return false;
     }
@@ -3676,7 +3676,7 @@ static bool fillSTableLastTs(SDataBase *database, SSuperTable *stbInfo) {
 
 // calcNow expression fill to timestamp_start
 static bool calcExprFromServer(SDataBase *database, SSuperTable *stbInfo) {
-    SBenchConn* conn = initBenchConn();
+    SBenchConn* conn = initBenchConn(database->dbName);
     if (NULL == conn) {
         return false;
     }
@@ -3840,7 +3840,7 @@ void *genInsertTheadInfo(void* arg) {
         // stmt & stmt2 init
         case STMT_IFACE: 
         case STMT2_IFACE: {
-            pThreadInfo->conn = initBenchConn();
+            pThreadInfo->conn = initBenchConn(pThreadInfo->dbInfo->dbName);
             if (NULL == pThreadInfo->conn) {
                 goto END;
             }
@@ -3906,7 +3906,7 @@ void *genInsertTheadInfo(void* arg) {
         // sml
         case SML_IFACE: {
             if (stbInfo->iface == SML_IFACE) {
-                pThreadInfo->conn = initBenchConn();
+                pThreadInfo->conn = initBenchConn(pThreadInfo->dbInfo->dbName);
                 if (pThreadInfo->conn == NULL) {
                     errorPrint("%s() init connection failed\n", __func__);
                     g_fail = true;
@@ -3977,7 +3977,7 @@ void *genInsertTheadInfo(void* arg) {
         }
         // taos
         case TAOSC_IFACE: {
-            pThreadInfo->conn = initBenchConn();
+            pThreadInfo->conn = initBenchConn(pThreadInfo->dbInfo->dbName);
             if (pThreadInfo->conn == NULL) {
                 errorPrint("%s() failed to connect\n", __func__);
                 g_fail = true;
@@ -4476,7 +4476,7 @@ static void create_tsma(TSMA* tsma, SBenchConn* conn, char* stbName) {
 static void* create_tsmas(void* args) {
     tsmaThreadInfo* pThreadInfo = (tsmaThreadInfo*) args;
     int inserted_rows = 0;
-    SBenchConn* conn = initBenchConn();
+    SBenchConn* conn = initBenchConn(pThreadInfo->dbName);
     if (NULL == conn) {
         return NULL;
     }
@@ -4560,7 +4560,7 @@ int insertTestProcess() {
             succPrint("created database (%s)\n", database->dbName);
         } else if(g_arguments->bind_vgroup) {
             // database already exist, get vgroups from server
-            SBenchConn* conn = initBenchConn();
+            SBenchConn* conn = initBenchConn(NULL);
             if (conn) {
                 int32_t vgroups = getVgroupsNative(conn, database);
                 if (vgroups <=0) {
