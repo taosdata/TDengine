@@ -169,6 +169,10 @@ class Test_IDMP_Vehicle:
         # delete win1 3 rows
         tdSql.deleteRows(table, f"ts >= {self.start } and ts <= {self.start + 2 * step}") 
 
+        vals  = "66"
+        count = 1
+        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+
 
 
     #
