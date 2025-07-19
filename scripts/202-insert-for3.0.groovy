@@ -317,12 +317,12 @@ pipeline {
             }
             steps {
                 script {
-                    // sh '''
+                    sh '''
                     //     cd ${INTERNAL_ROOT}/community/tests/parallel_test
                     //     export DEFAULT_RETRY_TIME=3
                     //     date
                     //     time ./run.sh -e -m /home/m.json -t longtimeruning_cases.task -b ${TDINTERNAL_BRANCH_NAME}_${BUILD_NUMBER} -l ${WORK_DIR}/testnglog/ -o 2400
-                    // '''
+                    '''
                 }
             }
         }
@@ -332,12 +332,12 @@ pipeline {
             }
             steps {
                 script {
-                    // sh '''
+                    sh '''
                     //     cd ${INTERNAL_ROOT}/community/tests/parallel_test
                     //     export DEFAULT_RETRY_TIME=3
                     //     date
                     //     time ./run.sh -e -m /home/m_ci.json -t cases.task -b ${TDINTERNAL_BRANCH_NAME}_${BUILD_NUMBER} -l ${WORK_DIR}/testnglog/ -o 1800
-                    // '''
+                    '''
                 }
             }
         }
