@@ -388,7 +388,7 @@ static int32_t streamPrepareNotification(SStreamRunnerTask* pTask, SStreamRunner
     ST_TASK_DLOG("start to send notify:%s", pContent);
     SSTriggerCalcParam* pTriggerCalcParams = taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, curWinIdx);
     if (pTriggerCalcParams == NULL) {
-      ST_TASK_ELOG("failed to get trigger calc params for win index:%d, size:%d", curWinIdx,
+      ST_TASK_ELOG("%s failed to get trigger calc params for win index:%d, size:%d", __FUNCTION__, curWinIdx,
                    (int32_t)pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals->size);
       taosMemoryFreeClear(pContent);
       return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
@@ -423,7 +423,7 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
   for (int i = startWinIdx; i <= endWinIdx; ++i) {
     SSTriggerCalcParam* pTriggerCalcParams = taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, i);
     if (pTriggerCalcParams == NULL) {
-      ST_TASK_ELOG("failed to get trigger calc params for index:%d, size:%d", i,
+      ST_TASK_ELOG("%s failed to get trigger calc params for index:%d, size:%d", __FUNCTION__, i,
                    (int32_t)pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals->size);
       TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
     }
@@ -462,7 +462,7 @@ static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunner
     SSTriggerCalcParam* pTriggerCalcParams =
         taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, pExec->runtimeInfo.funcInfo.curOutIdx);
     if (pTriggerCalcParams == NULL) {
-      ST_TASK_ELOG("failed to get trigger calc params for index:%d, size:%d", index,
+      ST_TASK_ELOG("%s failed to get trigger calc params for index:%d, size:%d", __FUNCTION__, index,
                    (int32_t)pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals->size);
       taosMemoryFreeClear(pContent);
       return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
