@@ -3460,6 +3460,9 @@ static FORCE_INLINE int32_t tColDataPutValueBlob(void *pArg, SColData *pColData,
       if (code != 0) return code;
       memcpy(pColData->pData + pColData->nData, buf, offset);
       pColData->nData += offset;
+    } else {
+      int8_t type = pData ? TSDB_DATA_BLOB_EMPTY_VALUE : TSDB_DATA_BLOB_NULL_VALUE;
+      code = addEmptyItemToBlobSet(pArg, type, NULL);
     }
   }
   pColData->nVal++;
@@ -3477,13 +3480,13 @@ static FORCE_INLINE int32_t tColDataAppendValueBlob01(void *pArg, SColData *pCol
   pColData->flag = HAS_NONE;
   pColData->numOfNone++;
   pColData->nVal++;
-  return 0;
+  return addEmptyItemToBlobSet(pArg, TSDB_DATA_BLOB_NULL_VALUE, NULL);
 }
 static FORCE_INLINE int32_t tColDataAppendValueBlob02(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
   pColData->flag = HAS_NULL;
   pColData->numOfNull++;
   pColData->nVal++;
-  return 0;
+  return addEmptyItemToBlobSet(pArg, TSDB_DATA_BLOB_NULL_VALUE, NULL);
 }
 static FORCE_INLINE int32_t tColDataAppendValueBlob10(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
@@ -3517,7 +3520,7 @@ static FORCE_INLINE int32_t tColDataAppendValueBlob10(void *pArg, SColData *pCol
 static FORCE_INLINE int32_t tColDataAppendValueBlob11(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
   pColData->nVal++;
   pColData->numOfNone++;
-  return 0;
+  return addEmptyItemToBlobSet(pArg, TSDB_DATA_BLOB_NULL_VALUE, NULL);
 }
 static FORCE_INLINE int32_t tColDataAppendValueBlob12(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
@@ -3532,8 +3535,7 @@ static FORCE_INLINE int32_t tColDataAppendValueBlob12(void *pArg, SColData *pCol
   pColData->flag |= HAS_NULL;
   pColData->numOfNull++;
   pColData->nVal++;
-
-  return code;
+  return addEmptyItemToBlobSet(pArg, TSDB_DATA_BLOB_NULL_VALUE, NULL);
 }
 static FORCE_INLINE int32_t tColDataAppendValueBlob20(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
@@ -3574,13 +3576,12 @@ static FORCE_INLINE int32_t tColDataAppendValueBlob21(void *pArg, SColData *pCol
   pColData->flag |= HAS_NONE;
   pColData->numOfNone++;
   pColData->nVal++;
-
-  return code;
+  return addEmptyItemToBlobSet(pArg, TSDB_DATA_BLOB_NULL_VALUE, NULL);
 }
 static FORCE_INLINE int32_t tColDataAppendValueBlob22(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
   pColData->nVal++;
   pColData->numOfNull++;
-  return 0;
+  return addEmptyItemToBlobSet(pArg, TSDB_DATA_BLOB_NULL_VALUE, NULL);
 }
 static FORCE_INLINE int32_t tColDataAppendValueBlob30(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
@@ -3623,7 +3624,7 @@ static FORCE_INLINE int32_t tColDataAppendValueBlob31(void *pArg, SColData *pCol
   pColData->numOfNone++;
   pColData->nVal++;
 
-  return code;
+  return addEmptyItemToBlobSet(pArg, TSDB_DATA_BLOB_NULL_VALUE, NULL);
 }
 static FORCE_INLINE int32_t tColDataAppendValueBlob32(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
@@ -3634,8 +3635,7 @@ static FORCE_INLINE int32_t tColDataAppendValueBlob32(void *pArg, SColData *pCol
   SET_BIT1_EX(pColData->pBitMap, pColData->nVal, 1);
   pColData->numOfNull++;
   pColData->nVal++;
-
-  return code;
+  return addEmptyItemToBlobSet(pArg, TSDB_DATA_BLOB_NULL_VALUE, NULL);
 }
 static FORCE_INLINE int32_t tColDataAppendValueBlob40(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
   pColData->numOfValue++;
