@@ -1,19 +1,12 @@
 from test_idmp_tobacco import TestIdmpScene
 
 
-class TestIdmpPhotovoltaic:
-    def test_pv(self):
-        """
-        Refer:
-        Catalog:
-            - Streams:UseCases
-        Since: v3.3.6.14
-        Labels: common,ci
-        Jira:
-            - https://jira.taosdata.com:18080/browse/TD-36783
-        History:
-            - 2025-7-18 zyyang90 Created
-        """
+class TestIdmpTobaccoBug8:
+    """
+    JIRA: https://jira.taosdata.com:18080/browse/TD-36699
+    """
+
+    def test_idmp_tobacco(self):
         pv = TestIdmpScene()
         pv.init(
             "photovoltaic",
@@ -24,5 +17,5 @@ class TestIdmpPhotovoltaic:
             "cases/13-StreamProcessing/20-UseCase/pv_data/idmp/vtb.sql",
             "cases/13-StreamProcessing/20-UseCase/pv_data/idmp/stream.json",
         )
-        pv.stream_ids = [1, 2, 3, 4, 5, 6, 7]
+        pv.stream_ids = [8]
         pv.run()
