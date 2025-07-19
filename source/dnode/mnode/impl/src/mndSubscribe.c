@@ -1147,8 +1147,18 @@ static int32_t mndCheckConsumerByGroup(SMnode *pMnode, STrans *pTrans, char *cgr
       break;
     }
 
+    mError("acquire consumer:0x%" PRIx64 " in mndCheckConsumerByGroup",pConsumer->consumerId);
+    SSdbRow **ppRow = (SSdbRow **)pIter;
+    SSdbRow *pRow = *ppRow;
+    mError("get consumer:0x%" PRIx64 " count:%d in mndCheckConsumerByGroup",pConsumer->consumerId, pRow->refCount);
+
     if (strcmp(cgroup, pConsumer->cgroup) != 0) {
-      sdbRelease(pMnode->pSdb, pConsumer);
+      if(pConsumer != NULL) {
+        mError("release consumer:0x%" PRIx64 " in mndCheckConsumerByGroup 1",pConsumer->consumerId);
+      } else {
+        mError("release null consumer in mndCheckConsumerByGroup 1");
+      }
+      sdbRelease(pMnode->pSdb, pConsumer); //TODO::liuhongzhen
       continue;
     }
 
@@ -1163,16 +1173,27 @@ static int32_t mndCheckConsumerByGroup(SMnode *pMnode, STrans *pTrans, char *cgr
         mError("topic:%s, failed to drop since subscribed by consumer:0x%" PRIx64 ", in consumer group %s",
                topic, pConsumer->consumerId, pConsumer->cgroup);
         code = TSDB_CODE_MND_CGROUP_USED;
+        if(pConsumer != NULL) {
+          mError("release consumer:0x%" PRIx64 " in mndCheckConsumerByGroup 2",pConsumer->consumerId);
+        } else {
+          mError("release null consumer in mndCheckConsumerByGroup 2");
+        }
+        sdbRelease(pMnode->pSdb, pConsumer);
         goto END;
       }
     }
 
-    sdbRelease(pMnode->pSdb, pConsumer);
+    if(pConsumer != NULL) {
+      mError("release consumer:0x%" PRIx64 " in mndCheckConsumerByGroup 3",pConsumer->consumerId);
+    } else {
+      mError("release null consumer in mndCheckConsumerByGroup 3");
+    }
+    sdbRelease(pMnode->pSdb, pConsumer); //TODO::liuhongzhen
   }
 
 END:
   tDeleteSMqConsumerObj(pConsumerNew);
-  sdbRelease(pMnode->pSdb, pConsumer);
+  //sdbRelease(pMnode->pSdb, pConsumer);//TODO::liuhongzhen
   sdbCancelFetch(pMnode->pSdb, pIter);
   return code;
 }
