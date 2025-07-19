@@ -107,7 +107,11 @@ int32_t sclExtendResRowsRange(SScalarParam *pDst, int32_t rowStartIdx, int32_t r
   pLeft->numOfRows = pb->info.rows;
 
   if (pDst->numOfRows < pb->info.rows) {
-    SCL_ERR_JRET(colInfoDataEnsureCapacity(pDst->columnData, pb->info.rows, true));
+    
+    // When rowStartIdx equals -1, the stream computation performs a forceout operation on the window, and the capacity has been completed 
+    if (rowStartIdx == -1) {
+      SCL_ERR_JRET(colInfoDataEnsureCapacity(pDst->columnData, pb->info.rows, true));
+    }
   }
 
   if (rowStartIdx < 0 || rowEndIdx < 0) {
