@@ -41,6 +41,7 @@ int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
   SSubmitTbData* pNew = *pData;
 
   *pNew = *pDataBlock->pData;
+  pNew->pBlobSet = NULL;
 
   int32_t code = cloneSVreateTbReq(pDataBlock->pData->pCreateTbReq, &pNew->pCreateTbReq);
   if (TSDB_CODE_SUCCESS != code) {
@@ -67,10 +68,6 @@ int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
         return code;
       }
     }
-  }
-
-  if (pDataBlock->hasBlob) {
-    code = tBlobSetCreate(1024, flag, &pNew->pBlobSet);
   }
 
   return code;
@@ -1015,6 +1012,13 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, 
     if (isBlob == 0) {
       code = tColDataAddValueByBind2(pCol, pBind, bytes, initCtxAsText, checkWKB);
     } else {
+      if (pDataBlock->pData->pBlobSet == NULL) {
+        code = tBlobSetCreate(1024, 1, &pDataBlock->pData->pBlobSet);
+        if (code != 0) {
+          qError("tBlobSetCreate failed:%s", tstrerror(code));
+          goto _return;
+        }
+      }
       code = tColDataAddValueByBind2WithBlob(pCol, pBind, bytes, pDataBlock->pData->pBlobSet);
     }
 
@@ -1083,6 +1087,13 @@ int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* b
   }
 
   if (hasBlob) {
+    if (pDataBlock->pData->pBlobSet == NULL) {
+      code = tBlobSetCreate(1024, 1, &pDataBlock->pData->pBlobSet);
+      if (code != 0) {
+        qError("tBlobSetCreate failed:%s", tstrerror(code));
+        goto _return;
+      }
+    }
     code = tColDataAddValueByBind2WithBlob(pCol, pBind, bytes, pDataBlock->pData->pBlobSet);
   } else {
     code = tColDataAddValueByBind2(pCol, pBind, bytes, initCtxAsText, checkWKB);
@@ -1449,10 +1460,7 @@ int32_t qResetStmtDataBlock(STableDataCxt* block, bool deepClear) {
   }
 
   tBlobSetDestroy(pBlock->pData->pBlobSet);
-  if (block->hasBlob) {
-    code = tBlobSetCreate(1024, flag, &pBlock->pData->pBlobSet);
-  }
-
+  pBlock->pData->pBlobSet = NULL;
   return code;
 }
 
@@ -1513,10 +1521,6 @@ int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool rese
     if (NULL == pNewTb->aCol) {
       insDestroyTableDataCxt(*pDst);
       return terrno;
-    }
-
-    if (pNewCxt->hasBlob) {
-      tBlobSetCreate(1024, flag, &pNewTb->pBlobSet);
     }
 
     pNewCxt->pData = pNewTb;

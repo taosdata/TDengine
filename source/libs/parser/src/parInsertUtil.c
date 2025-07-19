@@ -301,10 +301,6 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
           code = terrno;
         }
       }
-
-      if (code == TSDB_CODE_SUCCESS && pTableCxt->hasBlob) {
-        code = tBlobSetCreate(1024, flag, &pTableCxt->pData->pBlobSet);
-      }
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -343,20 +339,13 @@ static int32_t rebuildTableData(SSubmitTbData* pSrc, SSubmitTbData** pDst, int8_
           code = terrno;
           taosMemoryFree(pTmp);
         }
-        code = tBlobSetCreate(1024, 1, &pTmp->pBlobSet);
-        if (code != 0) {
-          taosArrayDestroy(pTmp->aCol);
-          taosMemoryFree(pTmp);
-        }
       } else {
         pTmp->aRowP = taosArrayInit(128, POINTER_BYTES);
         if (NULL == pTmp->aRowP) {
           code = terrno;
           taosMemoryFree(pTmp);
         }
-        if (hasBlob) {
-          code = tBlobSetCreate(1024, 0, &pTmp->pBlobSet);
-        }
+
         if (code != 0) {
           taosArrayDestroy(pTmp->aRowP);
           taosMemoryFree(pTmp);
@@ -519,12 +508,7 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
     code = rebuildTableData(pTableCxt->pData, &pTableCxt->pData, pTableCxt->hasBlob);
   } else if (clear) {
     taosMemoryFreeClear(pTableCxt->pData);
-  } else {
-    if (pTableCxt->hasBlob) {
-      code = tBlobSetCreate(1024, 1, &pTableCxt->pData->pBlobSet);
-    }
   }
-
   parserDebug("uid:%" PRId64 ", add table data context to vgId:%d", pTableCxt->pMeta->uid, pVgCxt->vgId);
 
   return code;
@@ -1024,7 +1008,7 @@ int32_t insResetBlob(SSubmitReq2* p) {
       if (nrow > 0) {
         nblob = taosArrayGetSize(pBlob->pSeqTable);
       }
-      uTrace("blob blob %p row size %d, pData size %d", pBlob, nblob, nrow);
+      uTrace("blob %p row size %d, pData size %d", pBlob, nblob, nrow);
       pSubmitTbData->pBlobSet = pBlob;
       *ppBlob = NULL;  // reset blob row to NULL, so that it will not be freed in destroy
     }
