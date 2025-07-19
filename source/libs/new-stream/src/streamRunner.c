@@ -588,11 +588,11 @@ static int32_t stRunnerTopTaskHandleOutputBlockAgg(SStreamRunnerTask* pTask, SSt
     pOutputBlock = *ppForceOutBlock;
   } else {
     // prepare notification for current block when no force output cols
-    stRunnerPrepareMulWinNotification(pTask, pExec, pBlock, pNextOutIdx);
+    stRunnerPrepareMulWinNotification(pTask, pExec, *ppForceOutBlock, pNextOutIdx);
   }
   if (code == 0) {
     if (pOutputBlock && pOutputBlock->info.rows > 0) {
-      code = stRunnerOutputBlock(pTask, pExec, pBlock, pCreateTable);
+      code = stRunnerOutputBlock(pTask, pExec, *ppForceOutBlock, pCreateTable);
       if (code != TSDB_CODE_SUCCESS) {
         ST_TASK_ELOG("failed  to output block, code:%s", tstrerror(code));
       }
