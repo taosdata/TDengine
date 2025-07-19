@@ -17,5 +17,5 @@ class TestIdmpTobaccoBug3:
             "cases/13-StreamProcessing/20-UseCase/pv_data/idmp/vtb.sql",
             "cases/13-StreamProcessing/20-UseCase/pv_data/idmp/stream.json",
         )
-        pv.stream_ids = [4]
+        pv.stream_ids = [10]
         pv.run()
