@@ -15,7 +15,7 @@ class TestStreamOldCaseBasic1:
     def test_stream_oldcase_basic1(self):
         """Stream basic test 1
 
-        1. -
+        Basic test cases for streaming
 
         Catalog:
             - Streams:OldTsimCases
