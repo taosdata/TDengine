@@ -458,7 +458,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
     mError("consumer:0x%" PRIx64 " group:%s not consistent with data in sdb, saved cgroup:%s", consumerId, req.cgroup,
            pConsumer->cgroup);
     mError("consumer:0x%" PRIx64 " lost in process ask ep req", consumerId);
-    mndDumpSdb(dumpCount++);
+    //mndDumpSdb(dumpCount++);
     code = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
     goto END;
   }
@@ -652,24 +652,27 @@ static int32_t buildSubConsumer(SMnode *pMnode, SCMSubscribeReq *subscribe, SMqC
     MND_TMQ_RETURN_CHECK(tNewSMqConsumerObj(consumerId, cgroup, CONSUMER_UPDATE_SUB, NULL, subscribe, &pConsumerNew));
     MND_TMQ_RETURN_CHECK(getTopicAddDelete(pExistedConsumer, pConsumerNew));
   }
-  mndReleaseConsumer(pMnode, pExistedConsumer);
+
   if(pExistedConsumer != NULL) {
-      mError("release consumer:0x%" PRIx64 " in buildSubConsumer 1",pExistedConsumer->consumerId);
+    mError("release consumer:0x%" PRIx64 " in buildSubConsumer 1",pExistedConsumer->consumerId);
   } else {
-      mError("release null consumer in buildSubConsumer 1");
+    mError("release null consumer in buildSubConsumer 1");
   }
+  mndReleaseConsumer(pMnode, pExistedConsumer);
+
   if (ppConsumer){
     *ppConsumer = pConsumerNew;
   }
   return code;
 
 END:
-  mndReleaseConsumer(pMnode, pExistedConsumer);
   if(pExistedConsumer != NULL) {
     mError("release consumer:0x%" PRIx64 " in buildSubConsumer 2",pExistedConsumer->consumerId);
   } else {
     mError("release null consumer in buildSubConsumer 2");
   }
+  mndReleaseConsumer(pMnode, pExistedConsumer);
+
   tDeleteSMqConsumerObj(pConsumerNew);
   return code;
 }
@@ -693,20 +696,22 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     MND_TMQ_RETURN_CHECK(mndAcquireConsumer(pMnode, subscribe.consumerId, &pConsumerTmp));
     mError("acquire consumer:0x%" PRIx64 " in mndProcessSubscribeReq",pConsumerTmp->consumerId);
     if (taosArrayGetSize(pConsumerTmp->assignedTopics) == 0){
-      mndReleaseConsumer(pMnode, pConsumerTmp);
       if(pConsumerTmp != NULL) {
         mError("release consumer:0x%" PRIx64 " in mndProcessSubscribeReq 1",pConsumerTmp->consumerId);
       } else {
         mError("release null consumer in mndProcessSubscribeReq 1");
       }
+      mndReleaseConsumer(pMnode, pConsumerTmp);
+
       goto END;
     }
-    mndReleaseConsumer(pMnode, pConsumerTmp);
     if(pConsumerTmp != NULL) {
-        mError("release consumer:0x%" PRIx64 " in mndProcessSubscribeReq 2",pConsumerTmp->consumerId);
+      mError("release consumer:0x%" PRIx64 " in mndProcessSubscribeReq 2",pConsumerTmp->consumerId);
     } else {
-        mError("release null consumer in mndProcessSubscribeReq 2");
+      mError("release null consumer in mndProcessSubscribeReq 2");
     }
+    mndReleaseConsumer(pMnode, pConsumerTmp);
+
   }
   MND_TMQ_RETURN_CHECK(checkAndSortTopic(pMnode, subscribe.topicNames));
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY,
@@ -996,7 +1001,7 @@ int32_t mndAcquireConsumer(SMnode *pMnode, int64_t consumerId, SMqConsumerObj** 
   *pConsumer = sdbAcquire(pSdb, SDB_CONSUMER, &consumerId);
   if (*pConsumer == NULL) {
     mError("consumer:0x%" PRIx64 " lost in acquire consumer, error:%s", consumerId, terrstr());
-    mndDumpSdb(dumpCount);
+    //mndDumpSdb(dumpCount);
     return TSDB_CODE_MND_CONSUMER_NOT_EXIST;
   }
   return 0;

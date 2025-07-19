@@ -874,12 +874,13 @@ static int32_t mndCheckConsumer(SRpcMsg *pMsg, SHashObj *rebSubHash) {
       MND_TMQ_RETURN_CHECK(mndSendConsumerMsg(pMnode, pConsumer->consumerId, TDMT_MND_TMQ_LOST_CONSUMER_CLEAR, &pMsg->info));
     }
 
-    mndReleaseConsumer(pMnode, pConsumer);
     if(pConsumer != NULL) {
       mError("release consumer:0x%" PRIx64 " in mndCheckConsumer",pConsumer->consumerId);
     } else {
       mError("release null consumer in mndCheckConsumer");
     }
+    mndReleaseConsumer(pMnode, pConsumer);
+
   }
 END:
   return code;
@@ -950,12 +951,13 @@ static int32_t checkConsumer(SMnode *pMnode, SMqSubscribeObj *pSub) {
     code = mndAcquireConsumer(pMnode, pConsumerEp->consumerId, &pConsumer);
     if (code == 0) {
       mError("acquire consumer:0x%" PRIx64 " in checkConsumer",pConsumer->consumerId);
-      mndReleaseConsumer(pMnode, pConsumer);
       if(pConsumer == NULL) {
         mError("release null consumer in checkConsumer");
       } else {
         mError("release consumer:0x%" PRIx64 " in checkConsumer",pConsumer->consumerId);
       }
+      mndReleaseConsumer(pMnode, pConsumer);
+
       continue;
     }
     mError("consumer:0x%" PRIx64 " not exists in sdb for exception", pConsumerEp->consumerId);
