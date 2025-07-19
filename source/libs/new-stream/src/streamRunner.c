@@ -17,14 +17,18 @@ static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask, const SStreamRu
   SStreamRunnerTaskExecMgr*  pMgr = &pTask->execMgr;
   SStreamRunnerTaskExecution exec = {.pExecutor = NULL, .pPlan = pTask->pPlan};
   // decode plan into queryPlan
-  int32_t code = 0;
+  int32_t code = 0, lino = 0;
   code = taosThreadMutexInit(&pMgr->lock, 0);
   if (code != 0) {
     ST_TASK_ELOG("failed to init stream runner task mgr mutex, code:%s", tstrerror(code));
     return code;
   }
+
+  pMgr->lockInited = true;
+  
+  taosThreadMutexLock(&pMgr->lock);
   pMgr->pFreeExecs = tdListNew(sizeof(SStreamRunnerTaskExecution));
-  if (!pMgr->pFreeExecs) return terrno;
+  TSDB_CHECK_NULL(pMgr->pFreeExecs, code, lino, _exit, terrno);
 
   for (int32_t i = 0; i < pTask->parallelExecutionNun && code == 0; ++i) {
     exec.runtimeInfo.execId = i + pTask->task.deployId * pTask->parallelExecutionNun;
@@ -35,13 +39,18 @@ static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask, const SStreamRu
     code = tdListAppend(pMgr->pFreeExecs, &exec);
     if (code != 0) {
       ST_TASK_ELOG("failed to append task exec mgr:%s", tstrerror(code));
+      TAOS_CHECK_EXIT(code);
     }
   }
-  if (code != 0) return code;
 
   pMgr->pRunningExecs = tdListNew(sizeof(SStreamRunnerTaskExecution));
   if (!pMgr->pRunningExecs) return terrno;
-  return 0;
+
+_exit:
+
+  taosThreadMutexUnlock(&pMgr->lock);
+  
+  return code;
 }
 
 static void stRunnerDestroyRuntimeInfo(SStreamRuntimeInfo* pRuntime) {
@@ -112,8 +121,11 @@ static void stSetRunnerOutputInfo(SStreamRunnerTask* pTask, SStreamRunnerDeployM
 }
 
 int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMsg) {
+  int32_t code = 0;
+  
   ST_TASK_DLOGL("deploy runner task for %s.%s, runner plan:%s", pMsg->outDBFName, pMsg->outTblName,
                 (char*)(pMsg->pPlan));
+
   TSWAP(pTask->pPlan, pMsg->pPlan);
   TSWAP(pTask->notification.pNotifyAddrUrls, pMsg->pNotifyAddrUrls);
   TSWAP(pTask->forceOutCols, pMsg->forceOutCols);
@@ -124,7 +136,15 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMs
   pTask->notification.notifyErrorHandle = pMsg->notifyErrorHandle;
   pTask->streamName = taosStrdup(pMsg->streamName);
 
-  int32_t code = nodesStringToList(pMsg->tagValueExpr, &pTask->output.pTagValExprs);
+  code = stRunnerInitTaskExecMgr(pTask, pMsg);
+  if (code != 0) {
+    ST_TASK_ELOG("failed to init task exec mgr code:%s", tstrerror(code));
+    pTask->task.status = STREAM_STATUS_FAILED;
+    return code;
+  }
+
+
+  code = nodesStringToList(pMsg->tagValueExpr, &pTask->output.pTagValExprs);
   ST_TASK_DLOG("pTagValExprs: %s", (char*)pMsg->tagValueExpr);
   if (code != 0) {
     ST_TASK_ELOG("failed to convert tag value expr to node err: %s expr: %s", strerror(code),
@@ -133,12 +153,6 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMs
     return code;
   }
   stSetRunnerOutputInfo(pTask, pMsg);
-  code = stRunnerInitTaskExecMgr(pTask, pMsg);
-  if (code != 0) {
-    ST_TASK_ELOG("failed to init task exec mgr code:%s", tstrerror(code));
-    pTask->task.status = STREAM_STATUS_FAILED;
-    return code;
-  }
   ST_TASK_DLOG("subTblNameExpr: %s", (char*)pMsg->subTblNameExpr);
   code = nodesStringToNode(pMsg->subTblNameExpr, (SNode**)&pTask->pSubTableExpr);
   if (code != 0) {
@@ -171,14 +185,41 @@ int32_t stRunnerTaskUndeployImpl(SStreamRunnerTask** ppTask, const SStreamUndepl
   return 0;
 }
 
+void stRunnerKillAllExecs(SStreamRunnerTask *pTask) {
+  SStreamRunnerTaskExecMgr* pMgr = &pTask->execMgr;
+  int32_t                   code = 0;
+
+  if (!pMgr->lockInited) {
+    return;
+  }
+
+  taosThreadMutexLock(&pMgr->lock);
+  if (NULL == pMgr->pRunningExecs) {
+    taosThreadMutexUnlock(&pMgr->lock);
+    return;
+  }
+  ST_TASK_DLOG("start to kill running execs, num:%d", listNEles(pMgr->pRunningExecs));
+  SListNode* pNode = tdListGetHead(pMgr->pRunningExecs);
+  while (pNode) {
+    SStreamRunnerTaskExecution* pExec = (SStreamRunnerTaskExecution*)pNode->data;
+    qAsyncKillTask(pExec->pExecutor, TSDB_CODE_STREAM_EXEC_CANCELLED);
+    pNode = pNode->dl_next_;
+  }
+  ST_TASK_DLOG("all runner execs killed, num: %d", listNEles(pMgr->pRunningExecs));
+  taosThreadMutexUnlock(&pMgr->lock);
+}
+
 int32_t stRunnerTaskUndeploy(SStreamRunnerTask** ppTask, bool force) {
   int32_t             code = TSDB_CODE_SUCCESS;
   SStreamRunnerTask *pTask = *ppTask;
   
   if (!force && taosWTryForceLockLatch(&pTask->task.entryLock)) {
+    stRunnerKillAllExecs(pTask);
     ST_TASK_DLOG("ignore undeploy runner task since working, entryLock:%x", pTask->task.entryLock);
     return code;
   }
+
+  ST_TASK_DLOG("runner task start undeploy impl, entryLock:%x", pTask->task.entryLock);
 
   return stRunnerTaskUndeployImpl(ppTask, &pTask->task.undeployMsg, pTask->task.undeployCb);
 }

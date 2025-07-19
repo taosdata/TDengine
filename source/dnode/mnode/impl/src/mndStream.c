@@ -77,7 +77,7 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
   code = sdbGetRawSoftVer(pRaw, &sver);
   TSDB_CHECK_CODE(code, lino, _over);
 
-  if (sver < 1 || sver > MND_STREAM_VER_NUMBER) {
+  if (sver != MND_STREAM_VER_NUMBER) {
     mError("stream read invalid ver, data ver: %d, curr ver: %d", sver, MND_STREAM_VER_NUMBER);
     goto _over;
   }

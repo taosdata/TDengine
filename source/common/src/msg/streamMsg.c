@@ -1893,12 +1893,20 @@ void tFreeSStreamReaderDeployMsg(SStreamReaderDeployMsg* pReader) {
   }
 }
 
+void tFreeStreamNotifyUrl(void* param) {
+  if (NULL == param) {
+    return;
+  }
+
+  taosMemoryFree(*(void**)param);
+}
+
 void tFreeSStreamTriggerDeployMsg(SStreamTriggerDeployMsg* pTrigger) {
   if (NULL == pTrigger) {
     return;
   }
   
-  taosArrayDestroyEx(pTrigger->pNotifyAddrUrls, taosAutoMemoryFree);
+  taosArrayDestroyEx(pTrigger->pNotifyAddrUrls, tFreeStreamNotifyUrl);
   switch (pTrigger->triggerType) {
     case WINDOW_TYPE_EVENT:
       taosMemoryFree(pTrigger->trigger.event.startCond);
