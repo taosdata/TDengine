@@ -40,7 +40,7 @@ class TestStreamOptionsTrigger:
             
             tdSql.execute(f"create table if not exists  {self.vstbName}  (cts timestamp, cint int) tags (tint int) virtual 1")
             tdSql.execute(f"create table if not exists  {self.vstbName2} (cts timestamp, cint int, cdouble double, cvarchar varchar(16)) tags (tint int) virtual 1")
-            tdSql.execute(f"create table if not exists  {self.vntbName}  (cts timestamp, cint int from {self.ntbName}.cint, cdouble double from {self.ntbName}.cdouble, cvarchar varchar(16) from {self.ntbName}.cvarchar)")
+            tdSql.execute(f"create vtable if not exists  {self.vntbName}  (cts timestamp, cint int from {self.ntbName}.cint, cdouble double from {self.ntbName}.cdouble, cvarchar varchar(16) from {self.ntbName}.cvarchar)")
 
             tdSql.execute(f"create table ct1 using {self.stbName} tags(1)")
             tdSql.execute(f"create table ct2 using {self.stbName} tags(2)")

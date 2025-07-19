@@ -10560,7 +10560,7 @@ static int32_t translateTrimDatabase(STranslateContext* pCxt, STrimDatabaseStmt*
   return buildCmdMsg(pCxt, TDMT_MND_TRIM_DB, (FSerializeFunc)tSerializeSTrimDbReq, &req);
 }
 
-static int32_t checkColumnOptions(SNodeList* pList) {
+static int32_t checkColumnOptions(SNodeList* pList, bool virtual) {
   SNode* pNode;
   FOREACH(pNode, pList) {
     SColumnDefNode* pCol = (SColumnDefNode*)pNode;
@@ -10571,6 +10571,8 @@ static int32_t checkColumnOptions(SNodeList* pList) {
       return TSDB_CODE_TSC_COMPRESS_PARAM_ERROR;
     if (!checkColumnLevelOrSetDefault(pCol->dataType.type, ((SColumnOptions*)pCol->pOptions)->compressLevel))
       return TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR;
+    if (!virtual && ((SColumnOptions*)pCol->pOptions)->hasRef)
+      return TSDB_CODE_PAR_INVALID_COLUMN_REF;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -11166,7 +11168,7 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
     code = checkTableSchema(pCxt, pStmt);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkColumnOptions(pStmt->pCols);
+    code = checkColumnOptions(pStmt->pCols, false);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkTableKeepOption(pCxt, pStmt->pOptions, createStable, dbCfg.daysToKeep2);
@@ -19398,7 +19400,7 @@ static int32_t checkCreateVirtualTable(STranslateContext* pCxt, SCreateVTableStm
 
   PAR_ERR_RET(checkVTableSchema(pCxt, pStmt));
 
-  PAR_ERR_RET(checkColumnOptions(pStmt->pCols));
+  PAR_ERR_RET(checkColumnOptions(pStmt->pCols, true));
 
   if (pCxt->pParseCxt->biMode != 0) {
     PAR_ERR_RET(biCheckCreateTableTbnameCol(pCxt, NULL, pStmt->pCols));
