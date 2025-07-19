@@ -1900,51 +1900,86 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
   api.metaReaderFn.initReader(&metaReader, pVnode, META_READER_LOCK, &api.metaFn);
   STREAM_CHECK_RET_GOTO(api.metaReaderFn.getTableEntryByUid(&metaReader, req->virTablePseudoColReq.uid));
 
-  STREAM_CHECK_CONDITION_GOTO(metaReader.me.type != TD_VIRTUAL_CHILD_TABLE, TSDB_CODE_INVALID_PARA);
+  STREAM_CHECK_CONDITION_GOTO(metaReader.me.type != TD_VIRTUAL_CHILD_TABLE && metaReader.me.type != TD_VIRTUAL_NORMAL_TABLE, TSDB_CODE_INVALID_PARA);
 
-  int64_t suid = metaReader.me.ctbEntry.suid;
-  api.metaReaderFn.readerReleaseLock(&metaReader);
-  api.metaReaderFn.initReader(&metaReaderStable, pVnode, META_READER_LOCK, &api.metaFn);
+  STREAM_CHECK_RET_GOTO(createDataBlock(&pBlock));
+  if (metaReader.me.type == TD_VIRTUAL_NORMAL_TABLE) {
+    STREAM_CHECK_CONDITION_GOTO (taosArrayGetSize(cols) < 1 && *(col_id_t*)taosArrayGet(cols, 0) != -1, TSDB_CODE_INVALID_PARA);
+    SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN, -1);
+    STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(pBlock, &idata));
+    STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pBlock, 1));
+    SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, 0);
+    STREAM_CHECK_NULL_GOTO(pDst, terrno);
+    STREAM_CHECK_RET_GOTO(varColSetVarData(pDst, 0, metaReader.me.name, strlen(metaReader.me.name), false));
+  } else if (metaReader.me.type == TD_VIRTUAL_CHILD_TABLE){
+    int64_t suid = metaReader.me.ctbEntry.suid;
+    api.metaReaderFn.readerReleaseLock(&metaReader);
+    api.metaReaderFn.initReader(&metaReaderStable, pVnode, META_READER_LOCK, &api.metaFn);
 
-  STREAM_CHECK_RET_GOTO(api.metaReaderFn.getTableEntryByUid(&metaReaderStable, suid));
-  SSchemaWrapper*  sSchemaWrapper = &metaReaderStable.me.stbEntry.schemaRow;
-  for (size_t i = 0; i < taosArrayGetSize(cols); i++){
-    col_id_t* id = taosArrayGet(cols, i);
-    STREAM_CHECK_NULL_GOTO(id, terrno);
-    for (size_t j = 0; j < sSchemaWrapper->nCols; j++) {
-      SSchema* s = sSchemaWrapper->pSchema + j;
-      if (s->colId == *id) {
-        SColumnInfoData idata = createColumnInfoData(s->type, s->bytes, s->colId);
+    STREAM_CHECK_RET_GOTO(api.metaReaderFn.getTableEntryByUid(&metaReaderStable, suid));
+    SSchemaWrapper*  sSchemaWrapper = &metaReaderStable.me.stbEntry.schemaTag;
+    for (size_t i = 0; i < taosArrayGetSize(cols); i++){
+      col_id_t* id = taosArrayGet(cols, i);
+      STREAM_CHECK_NULL_GOTO(id, terrno);
+      if (*id == -1) {
+        SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN, -1);
         STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(pBlock, &idata));
-        break;
+        continue;
+      }
+      size_t j = 0;
+      for (; j < sSchemaWrapper->nCols; j++) {
+        SSchema* s = sSchemaWrapper->pSchema + j;
+        if (s->colId == *id) {
+          SColumnInfoData idata = createColumnInfoData(s->type, s->bytes, s->colId);
+          STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(pBlock, &idata));
+          break;
+        }
+      }
+      if (j == sSchemaWrapper->nCols) {
+        SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_NULL, CHAR_BYTES, *id);
+        STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(pBlock, &idata));
       }
     }
+    STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pBlock, 1));
+    
+    for (size_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++){
+      SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
+      STREAM_CHECK_NULL_GOTO(pDst, terrno);
+
+      if (pDst->info.colId == -1) {
+        STREAM_CHECK_RET_GOTO(varColSetVarData(pDst, 0, metaReader.me.name, strlen(metaReader.me.name), false));
+        continue;
+      }
+      if (pDst->info.type == TSDB_DATA_TYPE_NULL) {
+        STREAM_CHECK_RET_GOTO(colDataSetVal(pDst, 0, NULL, true));
+        continue;
+      }
+
+      STagVal val = {0};
+      val.cid = pDst->info.colId;
+      const char* p = api.metaFn.extractTagVal(metaReader.me.ctbEntry.pTags, pDst->info.type, &val);
+
+      char* data = NULL;
+      if (pDst->info.type != TSDB_DATA_TYPE_JSON && p != NULL) {
+        data = tTagValToData((const STagVal*)p, false);
+      } else {
+        data = (char*)p;
+      }
+
+      STREAM_CHECK_RET_GOTO(colDataSetVal(pDst, 0, data,
+                            (data == NULL) || (pDst->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data))));
+
+      if ((pDst->info.type != TSDB_DATA_TYPE_JSON) && (p != NULL) && IS_VAR_DATA_TYPE(((const STagVal*)p)->type) &&
+          (data != NULL)) {
+        taosMemoryFree(data);
+      }
+    }
+  } else {
+    stError("vgId:%d %s, invalid table type:%d", TD_VID(pVnode), __func__, metaReader.me.type);
+    code = TSDB_CODE_INVALID_PARA;
+    goto end;
   }
-  STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pBlock, 1));
   
-  for (size_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++){
-    SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
-    STREAM_CHECK_NULL_GOTO(pDst, terrno);
-
-    STagVal val = {0};
-    val.cid = pDst->info.colId;
-    const char* p = api.metaFn.extractTagVal(metaReader.me.ctbEntry.pTags, pDst->info.type, &val);
-
-    char* data = NULL;
-    if (pDst->info.type != TSDB_DATA_TYPE_JSON && p != NULL) {
-      data = tTagValToData((const STagVal*)p, false);
-    } else {
-      data = (char*)p;
-    }
-
-    STREAM_CHECK_RET_GOTO(colDataSetVal(pDst, 0, data,
-                          (data == NULL) || (pDst->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data))));
-
-    if ((pDst->info.type != TSDB_DATA_TYPE_JSON) && (p != NULL) && IS_VAR_DATA_TYPE(((const STagVal*)p)->type) &&
-        (data != NULL)) {
-      taosMemoryFree(data);
-    }
-  }
   stsDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock->info.rows);
   printDataBlock(pBlock, __func__, "");
   STREAM_CHECK_RET_GOTO(buildRsp(pBlock, &buf, &size));
