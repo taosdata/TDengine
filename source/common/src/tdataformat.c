@@ -682,7 +682,7 @@ static int32_t tRowPCmprFn(const void *p1, const void *p2) {
   return tRowKeyCompare(&key1, &key2);
 }
 static void    tRowPDestroy(SRow **ppRow) { tRowDestroy(*ppRow); }
-static int32_t tRowMergeImpl(SArray *aRowP, STSchema *pTSchema, int32_t iStart, int32_t iEnd, int8_t flag) {
+static int32_t tRowMergeImpl(SArray *aRowP, STSchema *pTSchema, int32_t iStart, int32_t iEnd, RowMergeStrategy strategy) {
   int32_t code = 0;
 
   int32_t    nRow = iEnd - iStart;
@@ -712,21 +712,31 @@ static int32_t tRowMergeImpl(SArray *aRowP, STSchema *pTSchema, int32_t iStart, 
 
   for (int32_t iCol = 0; iCol < pTSchema->numOfCols; iCol++) {
     SColVal *pColVal = NULL;
-    for (int32_t iRow = nRow - 1; iRow >= 0; --iRow) {
-      SColVal *pColValT = tRowIterNext(aIter[iRow]);
-      while (pColValT->cid < pTSchema->columns[iCol].colId) {
-        pColValT = tRowIterNext(aIter[iRow]);
-      }
 
-      // todo: take strategy according to the flag
-      if (COL_VAL_IS_VALUE(pColValT)) {
-        pColVal = pColValT;
-        break;
-      } else if (COL_VAL_IS_NULL(pColValT)) {
-        if (pColVal == NULL) {
-          pColVal = pColValT;
+    switch (strategy) {
+      case KEEP_CONSISTENCY:
+        pColVal = tRowIterNext(aIter[nRow - 1]);
+        while (pColVal->cid < pTSchema->columns[iCol].colId) {
+          pColVal = tRowIterNext(aIter[nRow - 1]);
         }
-      }
+        break;
+
+      default:  // default using PREFER_NON_NULL strategy
+      case PREFER_NON_NULL:
+        for (int32_t iRow = nRow - 1; iRow >= 0; --iRow) {
+          SColVal *pColValT = tRowIterNext(aIter[iRow]);
+          while (pColValT->cid < pTSchema->columns[iCol].colId) {
+            pColValT = tRowIterNext(aIter[iRow]);
+          }
+
+          if (COL_VAL_IS_VALUE(pColValT)) {
+            pColVal = pColValT;
+            break;
+          } else if (COL_VAL_IS_NULL(pColValT)) {
+            pColVal = pColVal == NULL ? pColValT : pColVal;
+          }
+        }
+        break;
     }
 
     if (pColVal) {
@@ -768,7 +778,7 @@ int32_t tRowSort(SArray *aRowP) {
   return code;
 }
 
-int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag) {
+int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, RowMergeStrategy strategy) {
   int32_t code = 0;
 
   int32_t iStart = 0;
@@ -790,7 +800,7 @@ int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag) {
     }
 
     if (iEnd - iStart > 1) {
-      code = tRowMergeImpl(aRowP, pTSchema, iStart, iEnd, flag);
+      code = tRowMergeImpl(aRowP, pTSchema, iStart, iEnd, strategy);
       if (code) return code;
     }
 
