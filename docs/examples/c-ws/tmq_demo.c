@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-// to compile: gcc -o tmq_demo tmq_demo.c -ltaos -lpthread
+// to compile: gcc -o tmq_demo tmq_demo.c -ltaosws -lpthread
 
 #include <assert.h>
 #include <pthread.h>
@@ -77,7 +77,10 @@ void* prepare_data(void* arg) {
     if (code != 0) {
       fprintf(stderr, "Failed to insert data to power.meters, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(pRes));
     }
-    ws_free_result(pRes);
+    code = ws_free_result(pRes);
+    if (code != 0) {
+      fprintf(stderr, "Failed to free result, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    }
     sleep(1);
   }
   fprintf(stdout, "Prepare data thread exit\n");
@@ -122,7 +125,11 @@ WS_TAOS* init_env() {
     fprintf(stderr, "Failed to drop topic_meters, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(pRes));
     goto END;
   }
-  ws_free_result(pRes);
+  code = ws_free_result(pRes);
+  if (code != 0) {
+    fprintf(stderr, "Failed to free result, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    goto END;
+  }
 
   pRes = ws_query(pConn, "DROP DATABASE IF EXISTS power");
   code = ws_errno(pRes);
@@ -130,7 +137,11 @@ WS_TAOS* init_env() {
     fprintf(stderr, "Failed to drop database power, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(pRes));
     goto END;
   }
-  ws_free_result(pRes);
+  code = ws_free_result(pRes);
+  if (code != 0) {
+    fprintf(stderr, "Failed to free result, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    goto END;
+  }
 
   // create database
   pRes = ws_query(pConn, "CREATE DATABASE power PRECISION 'ms' WAL_RETENTION_PERIOD 3600");
@@ -139,7 +150,11 @@ WS_TAOS* init_env() {
     fprintf(stderr, "Failed to create power, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(pRes));
     goto END;
   }
-  ws_free_result(pRes);
+  code = ws_free_result(pRes);
+  if (code != 0) {
+    fprintf(stderr, "Failed to free result, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    goto END;
+  }
 
   // create super table
   pRes =
@@ -151,13 +166,23 @@ WS_TAOS* init_env() {
     fprintf(stderr, "Failed to create super table meters, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(pRes));
     goto END;
   }
-  ws_free_result(pRes);
+  code = ws_free_result(pRes);
+  if (code != 0) {
+    fprintf(stderr, "Failed to free result, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    goto END;
+  }
 
   return pConn;
 
 END:
-  ws_free_result(pRes);
-  ws_close(pConn);
+  code = ws_free_result(pRes);
+  if (code != 0) {
+    fprintf(stderr, "Failed to free result, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+  }
+  code = ws_close(pConn);
+  if (code != 0) {
+    fprintf(stderr, "Failed to close connection, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+  }
   return NULL;
 }
 
@@ -180,7 +205,11 @@ int32_t create_topic(WS_TAOS* pConn) {
     fprintf(stderr, "Failed to use power, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(pRes));
     return -1;
   }
-  ws_free_result(pRes);
+  code = ws_free_result(pRes);
+  if (code != 0) {
+    fprintf(stderr, "Failed to free result, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    return -1;
+  }
 
   pRes = ws_query(
       pConn,
@@ -190,7 +219,12 @@ int32_t create_topic(WS_TAOS* pConn) {
     fprintf(stderr, "Failed to create topic topic_meters, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(pRes));
     return -1;
   }
-  ws_free_result(pRes);
+  code = ws_free_result(pRes);
+  if (code != 0) {
+    fprintf(stderr, "Failed to free result, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    return -1;
+  }
+
   return 0;
 }
 
@@ -209,7 +243,11 @@ int32_t drop_topic(WS_TAOS* pConn) {
     fprintf(stderr, "Failed to use power, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(pRes));
     return -1;
   }
-  ws_free_result(pRes);
+  code = ws_free_result(pRes);
+  if (code != 0) {
+    fprintf(stderr, "Failed to free result, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    return -1;
+  }
 
   pRes = ws_query(pConn, "DROP TOPIC IF EXISTS topic_meters");
   code = ws_errno(pRes);
@@ -217,7 +255,11 @@ int32_t drop_topic(WS_TAOS* pConn) {
     fprintf(stderr, "Failed to drop topic topic_meters, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(pRes));
     return -1;
   }
-  ws_free_result(pRes);
+  code = ws_free_result(pRes);
+  if (code != 0) {
+    fprintf(stderr, "Failed to free result, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    return -1;
+  }
   return 0;
 }
 
@@ -230,6 +272,7 @@ void tmq_commit_cb_print(ws_tmq_t* tmq, int32_t code, void* param) {
 ws_tmq_t* build_consumer(const ConsumerConfig* config) {
   ws_tmq_conf_res_t code;
   ws_tmq_t*         tmq = NULL;
+  int32_t           errno = 0;
 
   // create a configuration object
   ws_tmq_conf_t* conf = ws_tmq_conf_new();
@@ -237,28 +280,43 @@ ws_tmq_t* build_consumer(const ConsumerConfig* config) {
   // set the configuration parameters
   code = ws_tmq_conf_set(conf, "enable.auto.commit", config->enable_auto_commit);
   if (WS_TMQ_CONF_OK != code) {
-    ws_tmq_conf_destroy(conf);
+    errno = ws_tmq_conf_destroy(conf);
+    if (errno != 0) {
+      fprintf(stderr, "Failed to destroy tmq conf, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_tmq_errstr(NULL));
+    }
     return NULL;
   }
   code = ws_tmq_conf_set(conf, "auto.commit.interval.ms", config->auto_commit_interval_ms);
   if (WS_TMQ_CONF_OK != code) {
-    ws_tmq_conf_destroy(conf);
+    errno = ws_tmq_conf_destroy(conf);
+    if (errno != 0) {
+      fprintf(stderr, "Failed to destroy tmq conf, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_tmq_errstr(NULL));
+    }
     return NULL;
   }
   code = ws_tmq_conf_set(conf, "group.id", config->group_id);
   if (WS_TMQ_CONF_OK != code) {
-    ws_tmq_conf_destroy(conf);
+    errno = ws_tmq_conf_destroy(conf);
+    if (errno != 0) {
+      fprintf(stderr, "Failed to destroy tmq conf, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_tmq_errstr(NULL));
+    }
     return NULL;
   }
   code = ws_tmq_conf_set(conf, "client.id", config->client_id);
   if (WS_TMQ_CONF_OK != code) {
-    ws_tmq_conf_destroy(conf);
+    errno = ws_tmq_conf_destroy(conf);
+    if (errno != 0) {
+      fprintf(stderr, "Failed to destroy tmq conf, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_tmq_errstr(NULL));
+    }
     return NULL;
   }
 
   code = ws_tmq_conf_set(conf, "auto.offset.reset", config->auto_offset_reset);
   if (WS_TMQ_CONF_OK != code) {
-    ws_tmq_conf_destroy(conf);
+    errno = ws_tmq_conf_destroy(conf);
+    if (errno != 0) {
+      fprintf(stderr, "Failed to destroy tmq conf, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_tmq_errstr(NULL));
+    }
     return NULL;
   }
 
@@ -267,7 +325,10 @@ ws_tmq_t* build_consumer(const ConsumerConfig* config) {
 
 _end:
   // destroy the configuration object
-  ws_tmq_conf_destroy(conf);
+  errno = ws_tmq_conf_destroy(conf);
+  if (errno != 0) {
+    fprintf(stderr, "Failed to destroy tmq conf, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_tmq_errstr(NULL));
+  }
   return tmq;
 }
 // ANCHOR_END: create_consumer_1
@@ -281,11 +342,14 @@ ws_tmq_list_t* build_topic_list() {
   // append topic name to the list
   int32_t code = ws_tmq_list_append(topicList, topic_name);
   if (code) {
-    // if failed, destroy the list and return NULL
-    ws_tmq_list_destroy(topicList);
     fprintf(stderr,
             "Failed to create topic_list, topic: %s, groupId: %s, clientId: %s, ErrCode: 0x%x, ErrMessage: %s.\n",
             topic_name, config.group_id, config.client_id, code, ws_tmq_errstr(NULL));
+    // if failed, destroy the list and return NULL
+    code = ws_tmq_list_destroy(topicList);
+    if (code != 0) {
+      fprintf(stderr, "Failed to destroy tmq list, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_tmq_errstr(NULL));
+    }
     return NULL;
   }
   // if success, return the list
@@ -309,7 +373,11 @@ void basic_consume_loop(ws_tmq_t* tmq) {
       totalRows += msg_process(tmqmsg);
 
       // free the message
-      ws_free_result(tmqmsg);
+      int32_t code = ws_free_result(tmqmsg);
+      if (code != 0) {
+        fprintf(stderr, "Failed to free result, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+        break;
+      }
     }
     if (msgCnt > 50) {
       // consume 50 messages and break
@@ -350,7 +418,11 @@ void consume_repeatly(ws_tmq_t* tmq) {
   if (code == 0) fprintf(stdout, "Assignment seek to beginning successfully.\n");
 
   // free the assignment array
-  ws_tmq_free_assignment(pAssign, numOfAssignment);
+  code = ws_tmq_free_assignment(pAssign, numOfAssignment);
+  if (code != 0) {
+    fprintf(stderr, "Failed to free assignment, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_tmq_errstr(tmq));
+    return;
+  }
 
   // let's consume the messages again
   basic_consume_loop(tmq);
@@ -362,6 +434,7 @@ void manual_commit(ws_tmq_t* tmq) {
   int32_t totalRows = 0;   // total rows consumed
   int32_t msgCnt = 0;      // total messages consumed
   int32_t timeout = 5000;  // poll timeout
+  int32_t code = 0;
 
   while (running) {
     // poll message from TDengine
@@ -371,19 +444,26 @@ void manual_commit(ws_tmq_t* tmq) {
       // process the message
       totalRows += msg_process(tmqmsg);
       // commit the message
-      int32_t code = ws_tmq_commit_sync(tmq, tmqmsg);
-      if (code) {
+      code = ws_tmq_commit_sync(tmq, tmqmsg);
+      if (code != 0) {
         fprintf(stderr,
                 "Failed to commit offset, topic: %s, groupId: %s, clientId: %s, ErrCode: 0x%x, ErrMessage: %s.\n",
                 topic_name, config.group_id, config.client_id, code, ws_tmq_errstr(tmq));
         // free the message
-        ws_free_result(tmqmsg);
+        code = ws_free_result(tmqmsg);
+        if (code != 0) {
+          fprintf(stderr, "Failed to free result, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+        }
         break;
       } else {
         fprintf(stdout, "Commit offset manually successfully.\n");
       }
       // free the message
-      ws_free_result(tmqmsg);
+      code = ws_free_result(tmqmsg);
+      if (code != 0) {
+        fprintf(stderr, "Failed to free result, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+        break;
+      }
     }
     if (msgCnt > 50) {
       // consume 50 messages and break
@@ -445,7 +525,10 @@ int main(int argc, char* argv[]) {
     fprintf(stdout, "Subscribe topics successfully.\n");
   }
 
-  ws_tmq_list_destroy(topic_list);
+  code = ws_tmq_list_destroy(topic_list);
+  if (code != 0) {
+    fprintf(stderr, "Failed to destroy tmq list, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_tmq_errstr(NULL));
+  }
 
   basic_consume_loop(tmq);
   // ANCHOR_END: subscribe_3
@@ -476,7 +559,11 @@ int main(int argc, char* argv[]) {
   // ANCHOR_END: unsubscribe_and_close
 
   thread_stop = 1;
-  pthread_join(thread_id, NULL);
+  code = pthread_join(thread_id, NULL);
+  if (code != 0) {
+    fprintf(stderr, "Failed to join thread, ErrCode: %d.\n", code);
+    return -1;
+  }
 
   if (drop_topic(pConn) < 0) {
     fprintf(stderr, "Failed to drop topic.\n");
