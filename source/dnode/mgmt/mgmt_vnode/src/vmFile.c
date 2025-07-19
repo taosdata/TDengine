@@ -563,12 +563,12 @@ int32_t vmGetMountDisks(SVnodeMgmt *pMgmt, const char *mountPath, SArray **ppDis
   if (pConfigs == NULL) {
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
   }
-  SJson *pDataDir = tjsonGetObjectItem(pConfigs, "dataDir");
-  if (pDataDir == NULL) {
-    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
+  int32_t nDataDir = 0;
+  SJson  *pDataDir = tjsonGetObjectItem(pConfigs, "dataDir");
+  if (pDataDir) {
+    nDataDir = tjsonGetArraySize(pDataDir);
   }
-  int32_t nDataDir = tjsonGetArraySize(pDataDir);
-  if (!(pDisks = taosArrayInit_s(sizeof(SDiskCfg), nDataDir))) {
+  if (!(pDisks = taosArrayInit_s(sizeof(SDiskCfg), nDataDir > 0 ? nDataDir : 1))) {
     TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
   for (int32_t i = 0; i < nDataDir; ++i) {
@@ -612,6 +612,13 @@ int32_t vmGetMountDisks(SVnodeMgmt *pMgmt, const char *mountPath, SArray **ppDis
     } else {
       (void)snprintf(pDisk->dir, sizeof(pDisk->dir), "%s", dir);
     }
+  }
+  if (nDataDir <= 0) {
+    SDiskCfg *pDisk = taosArrayGet(pDisks, 0);
+    pDisk->level = 0;
+    pDisk->primary = 1;
+    pDisk->disable = 0;
+    (void)snprintf(pDisk->dir, sizeof(pDisk->dir), "%s", mountPath);
   }
 _exit:
   if (content != NULL) taosMemoryFreeClear(content);

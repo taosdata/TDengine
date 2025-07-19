@@ -944,10 +944,12 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
 
   walApplyVer(pVnode->pWal, ver);
 
-  code = tqPushMsg(pVnode->pTq, pMsg->msgType);
-  if (code) {
-    vError("vgId:%d, failed to push msg to TQ since %s", TD_VID(pVnode), tstrerror(terrno));
-    return code;
+  if (pVnode->pTq) {
+    code = tqPushMsg(pVnode->pTq, pMsg->msgType);
+    if (code) {
+      vError("vgId:%d, failed to push msg to TQ since %s", TD_VID(pVnode), tstrerror(terrno));
+      return code;
+    }
   }
 
   // commit if need

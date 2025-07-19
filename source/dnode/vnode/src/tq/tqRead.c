@@ -1234,7 +1234,10 @@ void tqReaderRemoveTbUidList(STqReader* pReader, const SArray* tbUidList) {
 }
 
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
-  if (pTq == NULL || tbUidList == NULL) {
+  if (pTq == NULL) {
+    return 0;  // mounted vnode may have no tq
+  }
+  if (tbUidList == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
   void*   pIter = NULL;

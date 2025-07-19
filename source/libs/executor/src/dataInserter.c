@@ -664,7 +664,7 @@ int32_t inserterGetDbVgInfo(SDataInserterHandle* pInserter, const char* dbFName,
 
 _return:
   qError("%s failed at line %d since %s", __func__, line, tstrerror(code));
-  freeUseDbOutput_tmp(&output);
+  freeUseDbOutput_tmp(output);
   return code;
 }
 
