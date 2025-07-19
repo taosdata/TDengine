@@ -143,7 +143,7 @@ class TDSql:
         """
         self.cursor.close()
 
-    def connect(self, username, passwd="taosdata"):
+    def connect(self, username="root", passwd="taosdata", **kwargs):
         """
         Reconnect
 
@@ -160,8 +160,19 @@ class TDSql:
         """
 
         self.cursor.close()
+        if not kwargs:
+            kwargs = {
+                'user': username,
+                'password': passwd,
+            }
+        else:
+            if 'user' not in kwargs:
+                kwargs['user'] = username
+            if 'password' not in kwargs:
+                kwargs['password'] = passwd
+        tdLog.debug(f"connect to {username}:{passwd} with kwargs: {kwargs}")
 
-        testconn = taos.connect(user=username, password=passwd)
+        testconn = taos.connect(**kwargs)
         self.cursor = testconn.cursor()
 
     def prepare(self, dbname="db", drop=True, **kwargs):
