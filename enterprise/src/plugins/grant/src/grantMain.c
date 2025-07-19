@@ -257,8 +257,9 @@ static const char gGrantIdmpName[GRANT_OPT_IDMP_DYN_MAX][GRANT_ITEM_NAME_LEN] = 
     "idmp_data_detect", "idmp_data_quality", "idmp_ai_chat_gen"};
 
 static const char gGrantIdmpDisplay[GRANT_OPT_IDMP_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
-    "TDengine IDMP Basic",       "TDengine IDMP Version Control", "TDengine IDMP Data Forecast",
-    "TDengine IDMP Data Detect", "TDengine IDMP Data Quality",    "TDengine IDMP AI Chat/Generate"};
+    "TDengine IDMP Basic",        "TDengine IDMP Version Control",
+    "TDengine IDMP Forecasting",  "TDengine IDMP Anomaly Detection",
+    "TDengine IDMP Data Quality", "TDengine IDMP AI Chat/Generate"};
 
 static const char *gGrantState[GRANT_STATE_MAX] = {"ungranted", "ungranted", "granted", "expired",
                                                    "revoked"};  // keep 0/1 ungranted
