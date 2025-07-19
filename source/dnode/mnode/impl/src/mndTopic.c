@@ -678,6 +678,7 @@ static int32_t mndCheckConsumerByTopic(SMnode *pMnode, STrans *pTrans, char *top
         mError("topic:%s, failed to drop since subscribed by consumer:0x%" PRIx64 ", in consumer group %s",
                topicName, pConsumer->consumerId, pConsumer->cgroup);
         code = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
+        sdbRelease(pSdb, pConsumer);
         goto END;
       }
     }
@@ -687,7 +688,6 @@ static int32_t mndCheckConsumerByTopic(SMnode *pMnode, STrans *pTrans, char *top
 
 END:
   tDeleteSMqConsumerObj(pConsumerNew);
-  sdbRelease(pSdb, pConsumer);
   sdbCancelFetch(pSdb, pIter);
   return code;
 }
