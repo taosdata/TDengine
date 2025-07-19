@@ -6926,7 +6926,6 @@ static bool filterHasPlaceHolderRangeEnd(SOperatorNode *pOperator, bool equal) {
           return true;
         }
       }
-      return true;
     }
     return false;
   } else if (nodeType(pRight) == QUERY_NODE_COLUMN) {
@@ -6948,7 +6947,6 @@ static bool filterHasPlaceHolderRangeEnd(SOperatorNode *pOperator, bool equal) {
           return true;
         }
       }
-      return true;
     }
     return false;
   }
@@ -13311,7 +13309,7 @@ static int32_t checkDelayTime(STranslateContext* pCxt, SValueNode* pTime) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TIME_UNIT,
                                    "Unsupported time unit in MAX_DELAY_TIME: %s", pTime->literal);
   }
-  if ((pTime->datum.i / getPrecisionMultiple(getPrecisionFromCurrStmt(pCxt->pCurrStmt, TSDB_TIME_PRECISION_MILLI))) < maxDelayLowerBound) {
+  if (pTime->datum.i < maxDelayLowerBound) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TIME_UNIT,
                                    "MAX_DELAY must be greater than or equal to 3 seconds");
   }
@@ -13351,7 +13349,12 @@ static int32_t createStreamReqBuildTriggerOptions(STranslateContext* pCxt, const
   }
 
   if (pOptions->pMaxDelay) {
+    SNode* tmpStmt = pCxt->pCurrStmt;
+    pCxt->pCurrStmt = NULL;
+    // since max delay do not need to translate with trigger table's precision, set currStmt to NULL, so we can use
+    // default precision 'ms'
     PAR_ERR_JRET(translateExpr(pCxt, &pOptions->pMaxDelay));
+    pCxt->pCurrStmt = tmpStmt;
     PAR_ERR_JRET(checkDelayTime(pCxt, (SValueNode*)pOptions->pMaxDelay));
     pReq->maxDelay = ((SValueNode*)pOptions->pMaxDelay)->datum.i;
   }
@@ -14111,6 +14114,7 @@ static int32_t translateStreamTriggerQuery(STranslateContext* pCxt, SStreamTrigg
   pCxt->createStreamTrigger = false;
 
   if (extractFilter) {
+    pCxt->currClause = SQL_CLAUSE_WHERE;
     PAR_ERR_JRET(translateExpr(pCxt, pTriggerFilter));
   } else {
     *pTriggerFilter = NULL;
@@ -14170,13 +14174,16 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStrea
                                            "Invalid trigger table type %d", pTriggerTableMeta->tableType));
   }
 
+  pCxt->currClause = SQL_CLAUSE_SELECT;
   PAR_ERR_JRET(createStreamReqBuildTriggerTable(pCxt, pTriggerTable, pTriggerTableMeta, pReq));
   PAR_ERR_JRET(createStreamReqBuildTriggerSelect(pCxt, pTriggerTable, pTriggerSelect));
   PAR_ERR_JRET(translateStreamTriggerQuery(pCxt, pTrigger, pTriggerTableMeta, *pTriggerSelect, &pTriggerFilter));
 
+  pCxt->currClause = SQL_CLAUSE_WINDOW;
   PAR_ERR_JRET(translateExpr(pCxt, &pTriggerWindow));
+  pCxt->currClause = SQL_CLAUSE_PARTITION_BY;
   PAR_ERR_JRET(translateExprList(pCxt, pTriggerPartition));
-
+  pCxt->currClause = SQL_CLAUSE_SELECT;
   SNode *pNode = NULL;
   FOREACH(pNode, pTriggerPartition) {
     switch (nodeType(pNode)) {

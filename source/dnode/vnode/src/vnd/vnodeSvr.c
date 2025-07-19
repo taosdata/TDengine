@@ -1946,7 +1946,7 @@ static int32_t buildExistSubTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbDat
 _exit:
   metaFetchEntryFree(&pEntry);
   if (code != TSDB_CODE_SUCCESS) {
-    vError("vgId:%d, failed to build exist sub table response, code:%d, line:%d", TD_VID(pVnode), code, lino);
+    vError("vgId:%d, failed to build exist sub table response, code:0x%0x, line:%d", TD_VID(pVnode), code, lino);
   }
   return code;
 }

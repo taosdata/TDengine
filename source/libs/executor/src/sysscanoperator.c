@@ -17,6 +17,7 @@
 #include "filter.h"
 #include "functionMgt.h"
 #include "geosWrapper.h"
+#include "nodes.h"
 #include "querynodes.h"
 #include "systable.h"
 #include "tname.h"
@@ -3807,7 +3808,7 @@ static int32_t optSysTabFilte(void* arg, SNode* cond, SArray* result) {
       if (cell == NULL) break;
       SOperatorNode* pOper = (SOperatorNode*)cell->pNode;
       SColumnNode*   pCol = (SColumnNode*)pOper->pLeft;
-      if (0 == strcmp(pCol->colName, "create_time")) {
+      if (nodeType(pOper->pLeft) == QUERY_NODE_COLUMN && 0 == strcmp(pCol->colName, "create_time")) {
         return 0;
       }
       cell = cell->pNext;
