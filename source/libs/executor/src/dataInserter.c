@@ -279,7 +279,7 @@ static int32_t checkAndSaveCreateGrpTableInfo(SDataInserterHandle*     pInsertha
   SSchema*              pExistRow = pCreateTbRsp->pMeta->pSchemas;
   SStreamInserterParam* pInserterParam = pInserthandle->pParam->streamInserterParam;
 
-  if (tbType == TSDB_CHILD_TABLE) {
+  if (tbType == TSDB_CHILD_TABLE || tbType == TSDB_SUPER_TABLE) {
     if (!isSupportedSTableSchema(pCreateTbRsp->pMeta, pInserterParam)) {
       stError("create table failed, schema is not supported");
       return TSDB_CODE_STREAM_INSERT_SCHEMA_NOT_MATCH;

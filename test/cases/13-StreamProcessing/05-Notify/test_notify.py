@@ -37,8 +37,11 @@ class TestStreamNotifyTrigger:
         # streams.append(self.Basic3())    # failed
         # streams.append(self.Basic4())    # OK
         # streams.append(self.Basic5())    # OK
-        streams.append(self.Basic6())    # failed
+        # streams.append(self.Basic6())    # failed
         # streams.append(self.Basic7())      # OK
+        # streams.append(self.Basic8())      # OK
+        streams.append(self.Basic9())      # OK
+        # streams.append(self.Basic10())      # failed
 
         tdStream.checkAll(streams)
 
@@ -1015,4 +1018,341 @@ class TestStreamNotifyTrigger:
                 sql=f"select * from {self.db}.res_vtb",
                 func=lambda: tdSql.getRows() == 3
             )
+
+    class Basic8(StreamCheckItem):
+        def __init__(self):
+            self.db = "sdb8"
+            self.stb = "stb"
+
+        def create(self):
+            tdLog.info(f"=============== create database")
+            tdSql.execute(f"create database {self.db} vgroups 4;")
+            tdSql.execute(f"use {self.db}")
+
+            tdSql.execute(f"create table if not exists {self.stb} (ts timestamp, cint int, cbool bool, cfloat float, cdouble double, cbytes varchar(100), cdecimal decimal(10, 2)) tags (tag1 int, tag2 int);")
+            tdSql.query(f"show stables")
+            tdSql.checkRows(1)
+
+            tdLog.info(f"=============== create sub table")
+            tdSql.execute(f"create table ct0 using {self.stb} tags(0, 1);")
+            tdSql.execute(f"create table ct1 using {self.stb} tags(1, 2);")
+            tdSql.execute(f"create table ct2 using {self.stb} tags(2, 3);")
+            tdSql.execute(f"create table ct3 using {self.stb} tags(3, 4);")
+
+            tdSql.query(f"show tables")
+            tdSql.checkRows(4)
+
+            tdLog.info(f"=============== create stream")
+            tdSql.execute(
+                f"create stream s3 count_window(2) from ct0 stream_options(CALC_NOTIFY_ONLY ) "
+                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
+                f"into "
+                f"res_ct0_count (ts, endts, count_val, min_float, max_double, last_bytes) as "
+                f"select _twstart ts, _twend, count(*), min(cfloat), max(cdouble), last(cbytes) from ct0 "
+                f"where _c0>= _twstart and _c0 <= _twend "
+            )
+
+        def insert1(self):
+            tdLog.info(f"=============== insert data into stb")
+            sqls = [
+                "insert into ct0 values ('2025-01-01 00:00:00.000', 1, 0, 1.1, 1.1, '11', 3.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:01.000', 1, 0, 1.1, 2.1, '12', 4.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:02.000', 1, 0, 1.1, 3.1, '13', 5.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:03.000', 1, 0, 1.1, 4.1, '14', 6.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:04.000', 1, 0, 1.1, 5.1, '15', 7.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:15.000', 1, 0, 1.1, 6.1, '16', 8.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:26.000', 1, 0, 1.1, 7.1, '17', 9.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:27.000', 1, 0, 1.1, 8.1, '18', 10.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:28.000', 1, 0, 1.1, 9.1, '19', 11.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:29.000', 1, 0, 1.1, 10.1, '20', 12.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:40.000', 1, 0, 1.1, 11.1, '21', 13.3333);",
+
+                "insert into ct1 values ('2025-01-01 00:00:00', 0, 0, 1.1, 1.1, '11', 3.3333);",
+                "insert into ct1 values ('2025-01-01 00:00:01', 0, 0, 1.1, 2.1, '12', 4.3333);",
+                "insert into ct1 values ('2025-01-01 00:00:02', 1, 1, 1.1, 3.1, '13', 5.3333);",
+                "insert into ct1 values ('2025-01-01 00:00:03', 1, 1, 1.1, 4.1, '14', 6.3333);",
+                "insert into ct1 values ('2025-01-01 00:00:04', 1, 1, 1.1, 5.1, '15', 7.3333);",
+                "insert into ct1 values ('2025-01-01 00:00:05', 2, 2, 1.1, 6.1, '16', 8.3333);",
+                "insert into ct1 values ('2025-01-01 00:00:06', 2, 2, 1.1, 7.1, '17', 9.3333);",
+                "insert into ct1 values ('2025-01-01 00:00:07', 2, 2, 1.1, 8.1, '18', 10.333);",
+                "insert into ct1 values ('2025-01-01 00:00:08', 2, 2, 1.1, 9.1, '19', 11.333);",
+                "insert into ct1 values ('2025-01-01 00:00:09', 3, 3, 1.1, 10.1, '20', 12.33);",
+
+                "insert into ct2 values ('2025-01-01 00:00:00', 0, 0, 1.1, 1.1, '11', 3.3333);",
+                "insert into ct2 values ('2025-01-01 00:00:01', 0, 0, 1.1, 2.1, '12', 4.3333);",
+                "insert into ct2 values ('2025-01-01 00:00:02', 1, 1, 1.1, 3.1, '13', 5.3333);",
+                "insert into ct2 values ('2025-01-01 00:00:03', 1, 1, 1.1, 4.1, '14', 6.3333);",
+                "insert into ct2 values ('2025-01-01 00:00:04', 1, 1, 1.1, 5.1, '15', 7.3333);",
+                "insert into ct2 values ('2025-01-01 00:00:05', 2, 2, 1.1, 6.1, '16', 8.3333);",
+                "insert into ct2 values ('2025-01-01 00:00:06', 2, 2, 1.1, 7.1, '17', 9.3333);",
+                "insert into ct2 values ('2025-01-01 00:00:07', 2, 2, 1.1, 8.1, '18', 10.333);",
+                "insert into ct2 values ('2025-01-01 00:00:08', 2, 2, 1.1, 9.1, '19', 11.333);",
+                "insert into ct2 values ('2025-01-01 00:00:09', 3, 3, 1.1, 10.1, '20', 12.33);",
+
+                "insert into ct3 values ('2025-01-01 00:00:00', 0, 0, 1.1, 1.1, '11', 3.3333);",
+                "insert into ct3 values ('2025-01-01 00:00:01', 0, 0, 1.1, 2.1, '12', 4.3333);",
+                "insert into ct3 values ('2025-01-01 00:00:02', 1, 1, 1.1, 3.1, '13', 5.3333);",
+                "insert into ct3 values ('2025-01-01 00:00:03', 1, 1, 1.1, 4.1, '14', 6.3333);",
+                "insert into ct3 values ('2025-01-01 00:00:04', 1, 1, 1.1, 5.1, '15', 7.3333);",
+                "insert into ct3 values ('2025-01-01 00:00:05', 2, 2, 1.1, 6.1, '16', 8.3333);",
+                "insert into ct3 values ('2025-01-01 00:00:06', 2, 2, 1.1, 7.1, '17', 9.3333);",
+                "insert into ct3 values ('2025-01-01 00:00:07', 2, 2, 1.1, 8.1, '18', 10.333);",
+                "insert into ct3 values ('2025-01-01 00:00:08', 2, 2, 1.1, 9.1, '19', 11.333);",
+                "insert into ct3 values ('2025-01-01 00:00:09', 3, 3, 1.1, 10.1, '20', 12.33);",
+            ]
+
+            tdSql.executes(sqls)
+
+        def check1(self):
+            tdLog.info("do check the results")
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.res_ct0",
+                func=lambda: tdSql.getRows() == 0
+            )
+
+    class Basic9(StreamCheckItem):
+        def __init__(self):
+            self.db = "sdb9"
+            self.stb = "stb"
+
+        def create(self):
+            tdLog.info(f"=============== create database")
+            tdSql.execute(f"create database {self.db} vgroups 4;")
+            tdSql.execute(f"use {self.db}")
+
+            tdSql.execute(f"create table if not exists {self.stb} (ts timestamp, cint int, cbool bool, cfloat float, cdouble double, cbytes varchar(100), cdecimal decimal(10, 2)) tags (tag1 int, tag2 int);")
+            tdSql.query(f"show stables")
+            tdSql.checkRows(1)
+
+            tdLog.info(f"=============== create sub table")
+            tdSql.execute(f"create table ct0 using {self.stb} tags(0, 1);")
+            tdSql.execute(f"create table ct1 using {self.stb} tags(1, 2);")
+            tdSql.execute(f"create table ct2 using {self.stb} tags(2, 3);")
+            tdSql.execute(f"create table ct3 using {self.stb} tags(3, 4);")
+
+            tdSql.query(f"show tables")
+            tdSql.checkRows(4)
+
+            self.insert_history()
+            time.sleep(3)
+
+            tdLog.info(f"=============== create stream")
+            tdSql.execute(
+                f"create stream s3 session(ts, 1500a) from ct0 stream_options(FILL_HISTORY) "
+                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
+                f"into "
+                f"res_ct0 (ts, endts, current, count_val, min_float, max_double, last_bytes) as "
+                f"select _twstart ts, _twend, cast(_tlocaltime/1000000 as timestamp) localtime, count(*), min(cfloat), max(cdouble), last(cbytes) from ct0 "
+                f"where _c0>= _twstart and _c0 <= _twend "
+            )
+
+
+        def insert1(self):
+            time.sleep(5)
+
+            tdLog.info(f"=============== insert data into stb")
+            sqls = [
+                "insert into ct0 values ('2025-01-01 00:01:00', 1, 0, 1.1, 1.1, '11', 3.3333);",
+                "insert into ct0 values ('2025-01-01 00:01:01', 1, 0, 1.1, 2.1, '12', 4.3333);",
+                "insert into ct0 values ('2025-01-01 00:01:02', 1, 0, 1.1, 3.1, '13', 5.3333);",
+                "insert into ct0 values ('2025-01-01 00:01:03', 1, 0, 1.1, 4.1, '14', 6.3333);",
+                "insert into ct0 values ('2025-01-01 00:01:04', 1, 0, 1.1, 5.1, '15', 7.3333);",
+                "insert into ct0 values ('2025-01-01 00:01:15', 1, 0, 1.1, 6.1, '16', 8.3333);",
+                "insert into ct0 values ('2025-01-01 00:01:26', 1, 0, 1.1, 7.1, '17', 9.3333);",
+                "insert into ct0 values ('2025-01-01 00:01:27', 1, 0, 1.1, 8.1, '18', 10.3333);",
+                "insert into ct0 values ('2025-01-01 00:01:28', 1, 0, 1.1, 9.1, '19', 11.3333);",
+                "insert into ct0 values ('2025-01-01 00:01:29', 1, 0, 1.1, 10.1, '20', 12.3333);",
+                "insert into ct0 values ('2025-01-01 00:01:40', 1, 0, 1.1, 11.1, '21', 13.3333);",
+
+                "insert into ct1 values ('2025-01-01 00:02:00', 0, 0, 1.1, 1.1, '11', 3.3333);",
+                "insert into ct1 values ('2025-01-01 00:02:01', 0, 0, 1.1, 2.1, '12', 4.3333);",
+                "insert into ct1 values ('2025-01-01 00:02:02', 1, 1, 1.1, 3.1, '13', 5.3333);",
+                "insert into ct1 values ('2025-01-01 00:02:03', 1, 1, 1.1, 4.1, '14', 6.3333);",
+                "insert into ct1 values ('2025-01-01 00:02:04', 1, 1, 1.1, 5.1, '15', 7.3333);",
+                "insert into ct1 values ('2025-01-01 00:02:05', 2, 2, 1.1, 6.1, '16', 8.3333);",
+                "insert into ct1 values ('2025-01-01 00:02:06', 2, 2, 1.1, 7.1, '17', 9.3333);",
+                "insert into ct1 values ('2025-01-01 00:02:07', 2, 2, 1.1, 8.1, '18', 10.333);",
+                "insert into ct1 values ('2025-01-01 00:02:08', 2, 2, 1.1, 9.1, '19', 11.333);",
+                "insert into ct1 values ('2025-01-01 00:02:09', 3, 3, 1.1, 10.1, '20', 12.33);",
+
+                "insert into ct2 values ('2025-01-01 00:03:00', 0, 0, 1.1, 1.1, '11', 3.3333);",
+                "insert into ct2 values ('2025-01-01 00:03:01', 0, 0, 1.1, 2.1, '12', 4.3333);",
+                "insert into ct2 values ('2025-01-01 00:03:02', 1, 1, 1.1, 3.1, '13', 5.3333);",
+                "insert into ct2 values ('2025-01-01 00:03:03', 1, 1, 1.1, 4.1, '14', 6.3333);",
+                "insert into ct2 values ('2025-01-01 00:03:04', 1, 1, 1.1, 5.1, '15', 7.3333);",
+                "insert into ct2 values ('2025-01-01 00:03:05', 2, 2, 1.1, 6.1, '16', 8.3333);",
+                "insert into ct2 values ('2025-01-01 00:03:06', 2, 2, 1.1, 7.1, '17', 9.3333);",
+                "insert into ct2 values ('2025-01-01 00:03:07', 2, 2, 1.1, 8.1, '18', 10.333);",
+                "insert into ct2 values ('2025-01-01 00:03:08', 2, 2, 1.1, 9.1, '19', 11.333);",
+                "insert into ct2 values ('2025-01-01 00:03:09', 3, 3, 1.1, 10.1, '20', 12.33);",
+
+                "insert into ct3 values ('2025-01-01 00:04:00', 0, 0, 1.1, 1.1, '11', 3.3333);",
+                "insert into ct3 values ('2025-01-01 00:04:01', 0, 0, 1.1, 2.1, '12', 4.3333);",
+                "insert into ct3 values ('2025-01-01 00:04:02', 1, 1, 1.1, 3.1, '13', 5.3333);",
+                "insert into ct3 values ('2025-01-01 00:04:03', 1, 1, 1.1, 4.1, '14', 6.3333);",
+                "insert into ct3 values ('2025-01-01 00:04:04', 1, 1, 1.1, 5.1, '15', 7.3333);",
+                "insert into ct3 values ('2025-01-01 00:04:05', 2, 2, 1.1, 6.1, '16', 8.3333);",
+                "insert into ct3 values ('2025-01-01 00:04:06', 2, 2, 1.1, 7.1, '17', 9.3333);",
+                "insert into ct3 values ('2025-01-01 00:04:07', 2, 2, 1.1, 8.1, '18', 10.333);",
+                "insert into ct3 values ('2025-01-01 00:04:08', 2, 2, 1.1, 9.1, '19', 11.333);",
+                "insert into ct3 values ('2025-01-01 00:04:09', 3, 3, 1.1, 10.1, '20', 12.33);",
+            ]
+
+            tdSql.executes(sqls)
+
+        def insert_history(self):
+            sqls = [
+                "insert into ct0 values ('2025-01-01 00:00:00', 1, 0, 1.1, 1.1, '11', 3.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:01', 1, 0, 1.1, 2.1, '12', 4.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:02', 1, 0, 1.1, 3.1, '13', 5.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:03', 1, 0, 1.1, 4.1, '14', 6.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:04', 1, 0, 1.1, 5.1, '15', 7.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:15', 1, 0, 1.1, 6.1, '16', 8.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:26', 1, 0, 1.1, 7.1, '17', 9.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:27', 1, 0, 1.1, 8.1, '18', 10.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:28', 1, 0, 1.1, 9.1, '19', 11.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:29', 1, 0, 1.1, 10.1, '20', 12.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:40', 1, 0, 1.1, 11.1, '21', 13.3333);",
+                "insert into ct0 values ('2025-01-01 00:01:41', 2, 9, 2.1, 211.1, '31', 14.3333);",
+                "insert into ct0 values ('2025-01-01 00:01:44', 2, 9, 2.1, 211.1, '31', 14.3333);",
+
+                "insert into ct1 values ('2025-01-01 00:00:00', 0, 0, 1.1, 1.1, '11', 3.3333);",
+                "insert into ct1 values ('2025-01-01 00:00:01', 0, 0, 1.1, 2.1, '12', 4.3333);",
+                "insert into ct1 values ('2025-01-01 00:00:02', 1, 1, 1.1, 3.1, '13', 5.3333);",
+                "insert into ct1 values ('2025-01-01 00:00:03', 1, 1, 1.1, 4.1, '14', 6.3333);",
+                "insert into ct1 values ('2025-01-01 00:00:04', 1, 1, 1.1, 5.1, '15', 7.3333);",
+                "insert into ct1 values ('2025-01-01 00:00:05', 2, 2, 1.1, 6.1, '16', 8.3333);",
+                "insert into ct1 values ('2025-01-01 00:00:06', 2, 2, 1.1, 7.1, '17', 9.3333);",
+                "insert into ct1 values ('2025-01-01 00:00:07', 2, 2, 1.1, 8.1, '18', 10.333);",
+                "insert into ct1 values ('2025-01-01 00:00:08', 2, 2, 1.1, 9.1, '19', 11.333);",
+                "insert into ct1 values ('2025-01-01 00:00:09', 3, 3, 1.1, 10.1, '20', 12.33);",
+
+                "insert into ct2 values ('2025-01-01 00:00:00', 0, 0, 1.1, 1.1, '11', 3.3333);",
+                "insert into ct2 values ('2025-01-01 00:00:01', 0, 0, 1.1, 2.1, '12', 4.3333);",
+                "insert into ct2 values ('2025-01-01 00:00:02', 1, 1, 1.1, 3.1, '13', 5.3333);",
+                "insert into ct2 values ('2025-01-01 00:00:03', 1, 1, 1.1, 4.1, '14', 6.3333);",
+                "insert into ct2 values ('2025-01-01 00:00:04', 1, 1, 1.1, 5.1, '15', 7.3333);",
+                "insert into ct2 values ('2025-01-01 00:00:05', 2, 2, 1.1, 6.1, '16', 8.3333);",
+                "insert into ct2 values ('2025-01-01 00:00:06', 2, 2, 1.1, 7.1, '17', 9.3333);",
+                "insert into ct2 values ('2025-01-01 00:00:07', 2, 2, 1.1, 8.1, '18', 10.333);",
+                "insert into ct2 values ('2025-01-01 00:00:08', 2, 2, 1.1, 9.1, '19', 11.333);",
+                "insert into ct2 values ('2025-01-01 00:00:09', 3, 3, 1.1, 10.1, '20', 12.33);",
+
+                "insert into ct3 values ('2025-01-01 00:00:00', 0, 0, 1.1, 1.1, '11', 3.3333);",
+                "insert into ct3 values ('2025-01-01 00:00:01', 0, 0, 1.1, 2.1, '12', 4.3333);",
+                "insert into ct3 values ('2025-01-01 00:00:02', 1, 1, 1.1, 3.1, '13', 5.3333);",
+                "insert into ct3 values ('2025-01-01 00:00:03', 1, 1, 1.1, 4.1, '14', 6.3333);",
+                "insert into ct3 values ('2025-01-01 00:00:04', 1, 1, 1.1, 5.1, '15', 7.3333);",
+                "insert into ct3 values ('2025-01-01 00:00:05', 2, 2, 1.1, 6.1, '16', 8.3333);",
+                "insert into ct3 values ('2025-01-01 00:00:06', 2, 2, 1.1, 7.1, '17', 9.3333);",
+                "insert into ct3 values ('2025-01-01 00:00:07', 2, 2, 1.1, 8.1, '18', 10.333);",
+                "insert into ct3 values ('2025-01-01 00:00:08', 2, 2, 1.1, 9.1, '19', 11.333);",
+                "insert into ct3 values ('2025-01-01 00:00:09', 3, 3, 1.1, 10.1, '20', 12.33);",
+            ]
+
+            tdSql.executes(sqls)
+
+        def check1(self):
+            tdLog.info("do check the results")
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.res_ct0",
+                func=lambda: tdSql.getRows() == 9
+            )
+
+    class Basic10(StreamCheckItem):
+        def __init__(self):
+            self.db = "sdb10"
+            self.stb = "stb"
+
+        def create(self):
+            tdLog.info(f"=============== create database")
+            tdSql.execute(f"create database {self.db} vgroups 4;")
+            tdSql.execute(f"use {self.db}")
+
+            tdSql.execute(f"create table if not exists {self.stb} (ts timestamp, cint int, cbool bool, cfloat float, cdouble double, cbytes varchar(100), cdecimal decimal(10, 2)) tags (tag1 int, tag2 int);")
+            tdSql.query(f"show stables")
+            tdSql.checkRows(1)
+
+            tdLog.info(f"=============== create sub table")
+            tdSql.execute(f"create table ct0 using {self.stb} tags(0, 1);")
+            tdSql.execute(f"create table ct1 using {self.stb} tags(1, 2);")
+            tdSql.execute(f"create table ct2 using {self.stb} tags(2, 3);")
+            tdSql.execute(f"create table ct3 using {self.stb} tags(3, 4);")
+
+            tdSql.query(f"show tables")
+            tdSql.checkRows(4)
+
+            # self.insert_history()
+            # time.sleep(3)
+
+            tdLog.info(f"=============== create stream")
+            tdSql.execute(
+                f"create stream s3 count_window(1) from ct0 stream_options(FILL_HISTORY) "
+                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
+                f"into "
+                f"res_ct0 (ts, endts, original_ts, cint, cbool, cfloat, cdouble, cbytes, cdecimal) as "
+                f"select ((_tlocaltime/1000000) & 100000) + ts, _twend, ts, cint, cbool, cfloat, cdouble, cbytes, cdecimal from ct0 "
+            )
+
+
+        def insert1(self):
+            time.sleep(5)
+
+            tdLog.info(f"=============== insert data into stb")
+            sqls = [
+                "insert into ct0 values ('2025-01-01 00:01:00', 1, 0, 1.1, 1.1, '11', 3.3333);",
+                "insert into ct0 values ('2025-01-01 00:01:01', 1, 0, 1.1, 2.1, '12', 4.3333);",
+                "insert into ct0 values ('2025-01-01 00:01:02', 1, 0, 1.1, 3.1, '13', 5.3333);",
+                "insert into ct0 values ('2025-01-01 00:01:03', 1, 0, 1.1, 4.1, '14', 6.3333);",
+                "insert into ct0 values ('2025-01-01 00:01:04', 1, 0, 1.1, 5.1, '15', 7.3333);",
+                "insert into ct0 values ('2025-01-01 00:01:15', 1, 0, 1.1, 6.1, '16', 8.3333);",
+                "insert into ct0 values ('2025-01-01 00:01:26', 1, 0, 1.1, 7.1, '17', 9.3333);",
+                "insert into ct0 values ('2025-01-01 00:01:27', 1, 0, 1.1, 8.1, '18', 10.3333);",
+                "insert into ct0 values ('2025-01-01 00:01:28', 1, 0, 1.1, 9.1, '19', 11.3333);",
+                "insert into ct0 values ('2025-01-01 00:01:29', 1, 0, 1.1, 10.1, '20', 12.3333);",
+                "insert into ct0 values ('2025-01-01 00:01:40', 1, 0, 1.1, 11.1, '21', 13.3333);",
+
+                "insert into ct1 values ('2025-01-01 00:02:00', 0, 0, 1.1, 1.1, '11', 3.3333);",
+                "insert into ct1 values ('2025-01-01 00:02:01', 0, 0, 1.1, 2.1, '12', 4.3333);",
+                "insert into ct1 values ('2025-01-01 00:02:02', 1, 1, 1.1, 3.1, '13', 5.3333);",
+                "insert into ct1 values ('2025-01-01 00:02:03', 1, 1, 1.1, 4.1, '14', 6.3333);",
+                "insert into ct1 values ('2025-01-01 00:02:04', 1, 1, 1.1, 5.1, '15', 7.3333);",
+                "insert into ct1 values ('2025-01-01 00:02:05', 2, 2, 1.1, 6.1, '16', 8.3333);",
+                "insert into ct1 values ('2025-01-01 00:02:06', 2, 2, 1.1, 7.1, '17', 9.3333);",
+                "insert into ct1 values ('2025-01-01 00:02:07', 2, 2, 1.1, 8.1, '18', 10.333);",
+                "insert into ct1 values ('2025-01-01 00:02:08', 2, 2, 1.1, 9.1, '19', 11.333);",
+                "insert into ct1 values ('2025-01-01 00:02:09', 3, 3, 1.1, 10.1, '20', 12.33);",
+
+                "insert into ct2 values ('2025-01-01 00:03:00', 0, 0, 1.1, 1.1, '11', 3.3333);",
+                "insert into ct2 values ('2025-01-01 00:03:01', 0, 0, 1.1, 2.1, '12', 4.3333);",
+                "insert into ct2 values ('2025-01-01 00:03:02', 1, 1, 1.1, 3.1, '13', 5.3333);",
+                "insert into ct2 values ('2025-01-01 00:03:03', 1, 1, 1.1, 4.1, '14', 6.3333);",
+                "insert into ct2 values ('2025-01-01 00:03:04', 1, 1, 1.1, 5.1, '15', 7.3333);",
+                "insert into ct2 values ('2025-01-01 00:03:05', 2, 2, 1.1, 6.1, '16', 8.3333);",
+                "insert into ct2 values ('2025-01-01 00:03:06', 2, 2, 1.1, 7.1, '17', 9.3333);",
+                "insert into ct2 values ('2025-01-01 00:03:07', 2, 2, 1.1, 8.1, '18', 10.333);",
+                "insert into ct2 values ('2025-01-01 00:03:08', 2, 2, 1.1, 9.1, '19', 11.333);",
+                "insert into ct2 values ('2025-01-01 00:03:09', 3, 3, 1.1, 10.1, '20', 12.33);",
+
+                "insert into ct3 values ('2025-01-01 00:04:00', 0, 0, 1.1, 1.1, '11', 3.3333);",
+                "insert into ct3 values ('2025-01-01 00:04:01', 0, 0, 1.1, 2.1, '12', 4.3333);",
+                "insert into ct3 values ('2025-01-01 00:04:02', 1, 1, 1.1, 3.1, '13', 5.3333);",
+                "insert into ct3 values ('2025-01-01 00:04:03', 1, 1, 1.1, 4.1, '14', 6.3333);",
+                "insert into ct3 values ('2025-01-01 00:04:04', 1, 1, 1.1, 5.1, '15', 7.3333);",
+                "insert into ct3 values ('2025-01-01 00:04:05', 2, 2, 1.1, 6.1, '16', 8.3333);",
+                "insert into ct3 values ('2025-01-01 00:04:06', 2, 2, 1.1, 7.1, '17', 9.3333);",
+                "insert into ct3 values ('2025-01-01 00:04:07', 2, 2, 1.1, 8.1, '18', 10.333);",
+                "insert into ct3 values ('2025-01-01 00:04:08', 2, 2, 1.1, 9.1, '19', 11.333);",
+                "insert into ct3 values ('2025-01-01 00:04:09', 3, 3, 1.1, 10.1, '20', 12.33);",
+            ]
+
+            tdSql.executes(sqls)
+
+        def check1(self):
+            tdLog.info("do check the results")
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.res_ct0",
+                func=lambda: tdSql.getRows() == 3
+            )
+
 

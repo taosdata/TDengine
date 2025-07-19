@@ -36,7 +36,7 @@ class TestStreamOptionsTrigger:
         streams.append(self.Basic11_1()) # MAX_DELAY [ok]       
         # streams.append(self.Basic12()) # EVENT_TYPE [ok]
         
-        # # # streams.append(self.Basic13()) # IGNORE_NODATA_TRIGGER [fail]   
+        streams.append(self.Basic13()) # IGNORE_NODATA_TRIGGER [fail]   
         
         # streams.append(self.Basic14()) # watermark + expired_time + ignore_disorder  [fail]  对超期的数据仍然进行了计算
         

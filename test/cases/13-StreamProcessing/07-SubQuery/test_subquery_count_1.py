@@ -1079,12 +1079,11 @@ class TestStreamSubqueryCount:
 
         stream = StreamItem(
             id=114,
-            # stream="create stream rdb.s114 count_window(1, c1) from tdb.vtriggers partition by tbname into rdb.r114 as select _twstart, count(ta.c1), count(ta.c2), sum(ta.c2), count(tb.c1), count(tb.c2), sum(tb.c2) from tdb.t2 ta join tdb.v2 tb on ta.ts = tb.ts where ta.ts >= _twstart and ta.ts < _twend + 5m group by ta.c2 having sum(tb.c2) > 130;",
             stream="create stream rdb.s114 count_window(1, c1) from tdb.vtriggers partition by tbname into rdb.r114 as select _twstart, count(ta.c1), count(ta.c2), sum(ta.c2), count(tb.c1), count(tb.c2), sum(tb.c2) from tdb.t2 ta join %%tbname tb on ta.ts = tb.ts where ta.ts >= _twstart and ta.ts < _twend + 5m group by ta.c2 having sum(tb.c2) > 130;",
             res_query="select * from rdb.r114 where tag_tbname='v2'",
             exp_query="select cast('2025-01-01 00:15:00.000' as timestamp) ts, count(ta.c1), count(ta.c2), sum(ta.c2), count(tb.c1), count(tb.c2), sum(tb.c2), 'v2' from tdb.t2 ta join tdb.v2 tb on ta.ts = tb.ts where ta.ts >= '2025-01-01 00:00:00.000' and ta.ts < '2025-01-01 00:35:00.000' group by ta.c2 having sum(tb.c2) > 130;",
         )
-        # self.streams.append(stream) TD-36623
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=115,

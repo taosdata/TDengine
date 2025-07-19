@@ -427,7 +427,7 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
                    (int32_t)pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals->size);
       TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
     }
-    params[i] = pTriggerCalcParams;
+    params[i - startWinIdx] = pTriggerCalcParams;
   }
 
   code = streamSendNotifyContent(&pTask->task, pTask->streamName, pExec->runtimeInfo.funcInfo.triggerType,
