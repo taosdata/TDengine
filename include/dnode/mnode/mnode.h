@@ -121,7 +121,7 @@ void    mndPostProcessQueryMsg(SRpcMsg *pMsg);
  */
 void mndGenerateMachineCode();
 
-int32_t mndDumpSdb();
+int32_t mndDumpSdb(int32_t count);
 
 int32_t mndDeleteTrans();
 

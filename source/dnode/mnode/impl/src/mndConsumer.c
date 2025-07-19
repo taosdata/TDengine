@@ -34,6 +34,7 @@
 
 #define MND_MAX_GROUP_PER_TOPIC 100
 
+static int32_t dumpCount = 1;
 static int32_t mndConsumerActionInsert(SSdb *pSdb, SMqConsumerObj *pConsumer);
 static int32_t mndConsumerActionDelete(SSdb *pSdb, SMqConsumerObj *pConsumer);
 static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer, SMqConsumerObj *pNewConsumer);
@@ -442,7 +443,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
     mError("consumer:0x%" PRIx64 " group:%s not consistent with data in sdb, saved cgroup:%s", consumerId, req.cgroup,
            pConsumer->cgroup);
     mError("consumer:0x%" PRIx64 " lost in process ask ep req", consumerId);
-    mndDumpSdb();
+    mndDumpSdb(dumpCount++);
     code = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
     goto END;
   }
@@ -953,11 +954,7 @@ int32_t mndAcquireConsumer(SMnode *pMnode, int64_t consumerId, SMqConsumerObj** 
   *pConsumer = sdbAcquire(pSdb, SDB_CONSUMER, &consumerId);
   if (*pConsumer == NULL) {
     mError("consumer:0x%" PRIx64 " lost in acquire consumer, error:%s", consumerId, terrstr());
-    SJson *json = tjsonCreateObject();
-    dumpTopic(pSdb, json);
-    dumpConsumer(pSdb, json);
-    dumpSubscribe(pSdb, json);
-    mError("consumer:0x%" PRIx64 " lost print sdb:%s", consumerId, tjsonToString(json));
+    mndDumpSdb(dumpCount);
     return TSDB_CODE_MND_CONSUMER_NOT_EXIST;
   }
   return 0;

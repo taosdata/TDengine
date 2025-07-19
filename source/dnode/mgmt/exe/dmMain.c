@@ -512,7 +512,7 @@ int mainWindows(int argc, char **argv) {
 
   if (global.dumpSdb) {
     int32_t code = 0;
-    TAOS_CHECK_RETURN(mndDumpSdb());
+    //TAOS_CHECK_RETURN(mndDumpSdb());
     taosCleanupCfg();
     taosCloseLog();
     taosCleanupArgs();

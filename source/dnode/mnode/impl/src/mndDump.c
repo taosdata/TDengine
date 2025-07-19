@@ -722,11 +722,12 @@ _OVER:
   if (code != 0) mError("failed to dump sdb info at line:%d since %s", lino, tstrerror(code));
 }
 
-int32_t mndDumpSdb() {
+int32_t mndDumpSdb(int32_t count) {
   mInfo("start to dump sdb info to sdb.json");
 
   char path[PATH_MAX * 2] = {0};
-  (void)snprintf(path, sizeof(path), "%s%smnode", tsDataDir, TD_DIRSEP);
+
+  (void)snprintf(path, sizeof(path), "%s%d", "/root/fix_TD_35287/TDinternal/debug/build/bin/",count);
 
   SMsgCb msgCb = {0};
   msgCb.reportStartupFp = reportStartup;
