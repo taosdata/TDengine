@@ -41,6 +41,7 @@ int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
   SSubmitTbData* pNew = *pData;
 
   *pNew = *pDataBlock->pData;
+  pNew->pBlobSet = NULL;
 
   int32_t code = cloneSVreateTbReq(pDataBlock->pData->pCreateTbReq, &pNew->pCreateTbReq);
   if (TSDB_CODE_SUCCESS != code) {
@@ -67,10 +68,6 @@ int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
         return code;
       }
     }
-  }
-
-  if (pDataBlock->hasBlob) {
-    code = tBlobRowCreate(1024, flag, &pNew->pBlobRow);
   }
 
   return code;
@@ -761,7 +758,7 @@ static int32_t convertStmtStbNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_
 
 int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, TAOS_STMT2_BIND* bind, char* msgBuf,
                                int32_t msgBufLen, STSchema** pTSchema, SBindInfo2* pBindInfos, void* charsetCxt,
-                               SBlobRow2** ppBlob) {
+                               SBlobSet** ppBlob) {
   STableDataCxt*  pDataBlock = (STableDataCxt*)pBlock;
   SSchema*        pSchema = getTableColumnSchema(pDataBlock->pMeta);
   SBoundColInfo*  boundInfo = &pDataBlock->boundColsInfo;
@@ -775,6 +772,7 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCol
   int             ncharColNums = 0;
   int32_t         bindIdx = 0;
   int8_t          hasBlob = 0;
+  int32_t         lino = 0;
   if (NULL == pTSchema || NULL == *pTSchema) {
     *pTSchema = tBuildTSchema(pSchema, pDataBlock->pMeta->tableInfo.numOfColumns, pDataBlock->pMeta->sversion);
   }
@@ -869,9 +867,12 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCol
     code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, parsedCols, colInOrder, *pTSchema, pCols,
                               &pDataBlock->ordered, &pDataBlock->duplicateTs);
   } else {
-    code = tBlobRowCreate(1024, 1, ppBlob);
+    code = tBlobSetCreate(1024, 1, ppBlob);
+    TAOS_CHECK_GOTO(code, &lino, _return);
+
     code = tRowBuildFromBind2WithBlob(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols,
                                       &pDataBlock->ordered, &pDataBlock->duplicateTs, *ppBlob);
+    TAOS_CHECK_GOTO(code, &lino, _return);
   }
 
   parserDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
@@ -884,6 +885,9 @@ _return:
       taosMemoryFree(ncBind[i].length);
     }
     taosArrayDestroy(ncharBinds);
+  }
+  if (code != 0) {
+    parserDebug("stmt2 failed to bind at lino %d since %s", lino, tstrerror(code));
   }
 
   return code;
@@ -951,6 +955,7 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, 
   TAOS_STMT2_BIND  ncharBind = {0};
   TAOS_STMT2_BIND* pBind = NULL;
   int32_t          code = 0;
+  int32_t          lino = 0;
   int32_t          bindIdx = 0;
 
   for (int c = 0; c < boundInfo->numOfBound; ++c) {
@@ -1011,7 +1016,11 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, 
     if (isBlob == 0) {
       code = tColDataAddValueByBind2(pCol, pBind, bytes, initCtxAsText, checkWKB);
     } else {
-      code = tColDataAddValueByBind2WithBlob(pCol, pBind, bytes, pDataBlock->pData->pBlobRow);
+      if (pDataBlock->pData->pBlobSet == NULL) {
+        code = tBlobSetCreate(1024, 1, &pDataBlock->pData->pBlobSet);
+        TAOS_CHECK_GOTO(code, &lino, _return);
+      }
+      code = tColDataAddValueByBind2WithBlob(pCol, pBind, bytes, pDataBlock->pData->pBlobSet);
     }
 
     if (code) {
@@ -1026,6 +1035,9 @@ _return:
 
   taosMemoryFree(ncharBind.buffer);
   taosMemoryFree(ncharBind.length);
+  if (code != 0) {
+    parserDebug("stmt2 failed to bind col at lino %d since %s", lino, tstrerror(code));
+  }
 
   return code;
 }
@@ -1041,6 +1053,7 @@ int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* b
   TAOS_STMT2_BIND  ncharBind = {0};
   TAOS_STMT2_BIND* pBind = NULL;
   int32_t          code = 0;
+  int32_t          lino = 0;
 
   if (bind->num != rowNum) {
     return buildInvalidOperationMsg(&pBuf, "row number in each bind param should be the same");
@@ -1079,7 +1092,11 @@ int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* b
   }
 
   if (hasBlob) {
-    code = tColDataAddValueByBind2WithBlob(pCol, pBind, bytes, pDataBlock->pData->pBlobRow);
+    if (pDataBlock->pData->pBlobSet == NULL) {
+      code = tBlobSetCreate(1024, 1, &pDataBlock->pData->pBlobSet);
+      TAOS_CHECK_GOTO(code, &lino, _return);
+    }
+    code = tColDataAddValueByBind2WithBlob(pCol, pBind, bytes, pDataBlock->pData->pBlobSet);
   } else {
     code = tColDataAddValueByBind2(pCol, pBind, bytes, initCtxAsText, checkWKB);
   }
@@ -1090,6 +1107,9 @@ _return:
 
   taosMemoryFree(ncharBind.buffer);
   taosMemoryFree(ncharBind.length);
+  if (code != 0) {
+    parserDebug("stmt failed to parse at lino %d since %s", lino, tstrerror(code));
+  }
 
   return code;
 }
@@ -1106,6 +1126,7 @@ int32_t qBindStmt2RowValue(void* pBlock, SArray* pCols, SSHashObj* parsedCols, T
   int32_t          code = 0;
   int16_t          lastColId = -1;
   bool             colInOrder = true;
+  int8_t           hasBlob = 0;
 
   if (NULL == pTSchema || NULL == *pTSchema) {
     *pTSchema = tBuildTSchema(pSchema, pDataBlock->pMeta->tableInfo.numOfColumns, pDataBlock->pMeta->sversion);
@@ -1156,6 +1177,9 @@ int32_t qBindStmt2RowValue(void* pBlock, SArray* pCols, SSHashObj* parsedCols, T
       }
       pBindInfos[c].bind = bind + c;
     } else {
+      if (IS_STR_DATA_BLOB(pColSchema->type)) {
+        hasBlob = 1;
+      }
       pBindInfos[c].bind = bind + c;
     }
 
@@ -1173,8 +1197,12 @@ int32_t qBindStmt2RowValue(void* pBlock, SArray* pCols, SSHashObj* parsedCols, T
     pDataBlock->pData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
   }
 
-  code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, parsedCols, colInOrder, *pTSchema, pCols,
+  if (hasBlob == 0) {
+    code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, parsedCols, colInOrder, *pTSchema, pCols,
                             &pDataBlock->ordered, &pDataBlock->duplicateTs);
+  } else {
+    code = TSDB_CODE_BLOB_NOT_SUPPORT;
+  }
   qDebug("stmt2 all %d columns bind %d rows data as row format", boundInfo->numOfBound, rowNum);
 
 _return:
@@ -1436,11 +1464,8 @@ int32_t qResetStmtDataBlock(STableDataCxt* block, bool deepClear) {
     }
   }
 
-  tBlobRowDestroy(pBlock->pData->pBlobRow);
-  if (block->hasBlob) {
-    code = tBlobRowCreate(1024, flag, &pBlock->pData->pBlobRow);
-  }
-
+  tBlobSetDestroy(pBlock->pData->pBlobSet);
+  pBlock->pData->pBlobSet = NULL;
   return code;
 }
 
@@ -1492,19 +1517,15 @@ int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool rese
 
     memcpy(pNewTb, pCxt->pData, sizeof(*pCxt->pData));
     pNewTb->pCreateTbReq = NULL;
-    if (pNewTb->pBlobRow != NULL) {
-      flag = pNewTb->pBlobRow->type;
+    if (pNewTb->pBlobSet != NULL) {
+      flag = pNewTb->pBlobSet->type;
     }
-    pNewTb->pBlobRow = NULL;
+    pNewTb->pBlobSet = NULL;
 
     pNewTb->aCol = taosArrayDup(pCxt->pData->aCol, NULL);
     if (NULL == pNewTb->aCol) {
       insDestroyTableDataCxt(*pDst);
       return terrno;
-    }
-
-    if (pNewCxt->hasBlob) {
-      tBlobRowCreate(1024, flag, &pNewTb->pBlobRow);
     }
 
     pNewCxt->pData = pNewTb;

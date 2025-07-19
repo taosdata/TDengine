@@ -3252,6 +3252,27 @@ static int initStmtDataValue(SSuperTable *stbInfo, SChildTable *childTbl, uint64
                         errorPrint("Not implemented data type in func initStmtDataValue: %s\n",
                                 convertDatatypeToString(dataType));
                         exit(EXIT_FAILURE);
+                    case TSDB_DATA_TYPE_BLOB: {
+                        size_t tmpLen = strlen(tmpStr);
+                        debugPrint(
+                            "%s() LN%d, index: %d, "
+                            "tmpStr len: %" PRIu64 ", col->length: %d\n",
+                            __func__, __LINE__, i, (uint64_t)tmpLen, col->length);
+                        if (tmpLen - 2 > col->length) {
+                                errorPrint("data length %" PRIu64
+                                           " "
+                                           "is larger than column length %d\n",
+                                           (uint64_t)tmpLen, col->length);
+                        }
+                        if (tmpLen > 2) {
+                                strncpy((char *)stmtData->data + i * col->length, tmpStr + 1,
+                                        min(col->length, tmpLen - 2));
+                        } else {
+                                strncpy((char *)stmtData->data + i * col->length, "", 1);
+                        }
+                        break;
+                    }
+
                     default:
                         break;
                 }
@@ -3342,7 +3363,15 @@ static void initStmtData(char dataType, void **data, uint32_t length) {
                        convertDatatypeToString(dataType));
             exit(EXIT_FAILURE);
 
+        case TSDB_DATA_TYPE_BLOB: {
+            tmpP = calloc(1, g_arguments->prepared_rand * length);
+            assert(tmpP);
+            tmfree(*data);
+            *data = (void *)tmpP;
+            break;
+        }
         default:
+
             errorPrint("Unknown data type on initStmtData: %s\n",
                        convertDatatypeToString(dataType));
             exit(EXIT_FAILURE);

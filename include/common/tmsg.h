@@ -4979,7 +4979,7 @@ typedef struct {
     SArray* aCol;
   };
   int64_t    ctimeMs;
-  SBlobRow2* pBlobRow;
+  SBlobSet*  pBlobSet;
 } SSubmitTbData;
 
 typedef struct {

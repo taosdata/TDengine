@@ -13152,10 +13152,10 @@ _exit:
 static int32_t tPreCheckSubmitTbData(const SSubmitTbData *pSubmitData, int8_t *hasBlog) {
   int32_t code = 0;
   int32_t line = 0;
-  if (tBlobRowSize(pSubmitData->pBlobRow) > 0) {
+  if (tBlobSetSize(pSubmitData->pBlobSet) > 0) {
     *hasBlog = 1;
     return code;
-    }
+  }
     return 0;
 }
 static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubmitTbData) {
@@ -13163,6 +13163,7 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
   int32_t lino;
   int8_t  hasBlog = 0;
 
+  int32_t count = 0;
   TAOS_CHECK_EXIT(tPreCheckSubmitTbData(pSubmitTbData, &hasBlog));
 
   TAOS_CHECK_EXIT(tStartEncode(pCoder));
@@ -13196,8 +13197,12 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
     TAOS_CHECK_EXIT(tEncodeU64v(pCoder, nColData));
 
     for (uint64_t i = 0; i < nColData; i++) {
+      if (IS_STR_DATA_BLOB(aColData[i].type)) {
+        count = aColData[i].numOfNull + aColData[i].numOfValue + aColData[i].numOfNone; 
+      }  
       TAOS_CHECK_EXIT(tEncodeColData(SUBMIT_REQUEST_VERSION, pCoder, &aColData[i]));
     }
+
   } else {
     uTrace("encode %d row data", (int32_t)(TARRAY_SIZE(pSubmitTbData->aRowP)));
     TAOS_CHECK_EXIT(tEncodeU64v(pCoder, TARRAY_SIZE(pSubmitTbData->aRowP)));
@@ -13206,11 +13211,16 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
     for (int32_t iRow = 0; iRow < TARRAY_SIZE(pSubmitTbData->aRowP); ++iRow) {
       TAOS_CHECK_EXIT(tEncodeRow(pCoder, rows[iRow]));
     }
+    count = TARRAY_SIZE(pSubmitTbData->aRowP);
   }
   TAOS_CHECK_EXIT(tEncodeI64(pCoder, pSubmitTbData->ctimeMs));
 
   if (hasBlog) {
-    tEncodeBlobRow2(pCoder, pSubmitTbData->pBlobRow);
+    tEncodeBlobSet(pCoder, pSubmitTbData->pBlobSet);
+    if (tBlobSetSize(pSubmitTbData->pBlobSet) != count) {
+      uError("blob set size %d not match row size %d", tBlobSetSize(pSubmitTbData->pBlobSet), count);
+      return TSDB_CODE_INVALID_MSG;
+    }
   }
 
   tEndEncode(pCoder);
@@ -13296,7 +13306,7 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
   }
 
   if (!tDecodeIsEnd(pCoder) && hasBlob) {
-    TAOS_CHECK_EXIT(tDecodeBlobRow2(pCoder, &pSubmitTbData->pBlobRow));
+    TAOS_CHECK_EXIT(tDecodeBlobSet(pCoder, &pSubmitTbData->pBlobSet));
   }
 
   if (rawData != NULL) {
@@ -13428,9 +13438,9 @@ void tDestroySubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
     }
   }
 
-  if (pTbData->pBlobRow) {
-    tBlobRowDestroy(pTbData->pBlobRow);
-    pTbData->pBlobRow = NULL;
+  if (pTbData->pBlobSet) {
+    tBlobSetDestroy(pTbData->pBlobSet);
+    pTbData->pBlobSet = NULL;
   }
   pTbData->aRowP = NULL;
 }
@@ -13453,9 +13463,9 @@ void tDestroySubmitReq(SSubmitReq2 *pReq, int32_t flag) {
   if (pReq->aSubmitBlobData != NULL) {
     int32_t nSubmitBlobData = TARRAY_SIZE(pReq->aSubmitBlobData);
     for (int32_t i = 0; i < nSubmitBlobData; i++) {
-      SBlobRow2 *pBlobData = taosArrayGetP(pReq->aSubmitBlobData, i);
+      SBlobSet *pBlobData = taosArrayGetP(pReq->aSubmitBlobData, i);
       if (pBlobData) {
-        tBlobRowDestroy(pBlobData);
+        tBlobSetDestroy(pBlobData);
       }
     }
     taosArrayDestroy(pReq->aSubmitBlobData);

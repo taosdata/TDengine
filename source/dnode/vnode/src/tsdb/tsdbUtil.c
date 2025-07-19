@@ -905,7 +905,6 @@ void tsdbRowMergerCleanup(SRowMerger *pMerger) {
 int32_t tsdbRowMergerGetRow(SRowMerger *pMerger, SRow **ppRow) {
   SRowBuildScanInfo scanInfo = {.hasBlob = 0};
   return tRowBuild(pMerger->pArray, pMerger->pTSchema, ppRow, &scanInfo);
-  // tRowBuildWithMerge(pMerger->pArray, pMerger->pTSchema, ppRow);
 }
 
 // delete skyline ======================================================

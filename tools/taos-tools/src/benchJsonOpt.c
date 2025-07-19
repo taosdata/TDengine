@@ -708,11 +708,8 @@ static int getColumnAndTagTypeFromInsertJsonFile(
         if (tools_cJSON_IsNumber(dataLen)) {
             length = (int32_t)dataLen->valueint;
         } else {
-            if (type == TSDB_DATA_TYPE_BINARY
-                || type == TSDB_DATA_TYPE_JSON
-                || type == TSDB_DATA_TYPE_VARBINARY
-                || type == TSDB_DATA_TYPE_GEOMETRY
-                || type == TSDB_DATA_TYPE_NCHAR) {
+            if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_JSON || type == TSDB_DATA_TYPE_VARBINARY ||
+                type == TSDB_DATA_TYPE_GEOMETRY || type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BLOB) {
                 length = g_arguments->binwidth;
             } else {
                 length = convertTypeToLength(type);

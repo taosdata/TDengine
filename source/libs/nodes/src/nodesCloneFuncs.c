@@ -213,7 +213,14 @@ static int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
       memcpy(pDst->datum.p, pSrc->datum.p, pSrc->node.resType.bytes);
       break;
     case TSDB_DATA_TYPE_BLOB:
-    case TSDB_DATA_TYPE_MEDIUMBLOB:
+    case TSDB_DATA_TYPE_MEDIUMBLOB: {
+      int32_t len = blobDataTLen(pSrc->datum.p);
+      pDst->datum.p = taosMemoryCalloc(1, len + 1);
+      if (NULL == pDst->datum.p) {
+        return terrno;
+      }
+      memcpy(pDst->datum.p, pSrc->datum.p, len);
+    }
     default:
       break;
   }
