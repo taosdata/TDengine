@@ -133,11 +133,11 @@ Once the subscription is successful, any new data written to the `topic_meters` 
 
 With the example in the previous section, the following information shall be outputted:
 
-> CONNACK received with code Success.
->
-> Subscribed: 1 [ReasonCode(Suback, 'Granted QoS 1')]
->
-> topic_meters 1 b'{"topic":"topic_meters","db":"db","vid":2,"rows":[{"ts":1753086482326,"tbname":"tb","f1":1,"t1":1}]}'
+```shell
+CONNACK received with code Success.
+Subscribed: 1 [ReasonCode(Suback, 'Granted QoS 1')]
+topic_meters 1 b'{"topic":"topic_meters","db":"db","vid":2,"rows":[{"ts":1753086482326,"tbname":"tb","f1":1,"t1":1}]}'
+```
 
 In the third line, `topic_meters`, is the topic we subscribed to. 1 is the QoS value for this message, followed by a JSON message encoded in UTF-8, where `rows` is an array of data rows.
 

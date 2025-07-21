@@ -116,11 +116,11 @@ client.loop_forever()
 
 上一节的示例中，会输出下面的信息：
 
-> CONNACK received with code Success.
->
-> Subscribed: 1 [ReasonCode(Suback, 'Granted QoS 1')]
->
-> topic_meters 1 b'{"topic":"topic_meters","db":"db","vid":2,"rows":[{"ts":1753086482326,"tbname":"tb","f1":1,"t1":1}]}'
+```shell
+CONNACK received with code Success.
+Subscribed: 1 [ReasonCode(Suback, 'Granted QoS 1')]
+topic_meters 1 b'{"topic":"topic_meters","db":"db","vid":2,"rows":[{"ts":1753086482326,"tbname":"tb","f1":1,"t1":1}]}'
+```
 
 其中第三行 `topic_meters` 是我们订阅的主题，1 是这一条消息的 QoS 值，后面是一个 utf-8 编码的 JSON 消息，其中 `rows` 是数据行的数组。
 
