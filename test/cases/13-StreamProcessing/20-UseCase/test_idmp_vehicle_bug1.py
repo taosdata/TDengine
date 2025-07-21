@@ -100,7 +100,7 @@ class Test_IDMP_Vehicle:
     def createStreams(self):
 
         sqls = [
-            "create stream if not exists `idmp`.`ana_stream1`      event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_京Z1NW34_624364` stream_options(ignore_disorder)  notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream1`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from idmp.`vt_京Z1NW34_624364` where ts >= _twstart and ts <_twend",
+            "create stream if not exists `idmp`.`ana_stream1`      event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_京Z1NW34_624364` stream_options(ignore_disorder)  notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream1`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
         ]
 
         tdSql.executes(sqls)

@@ -86,9 +86,10 @@ class Test_IDMP_Vehicle:
         self.db    = "idmp_sample_vehicle"
         self.vdb   = "idmp"
         self.stb   = "vehicles"
+        self.step  = 1 * 60 * 1000 # 1 minute
         self.start = 1752900000000
         self.start_current = 10
-        self.start_voltage = 260
+        self.start_voltage = 260        
 
 
         # import data
@@ -256,14 +257,6 @@ class Test_IDMP_Vehicle:
         ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
 
-        # ***** bug2 ***** 
-        '''
-        vals  = "130"
-        count = 3
-        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
-        '''
-
-
         # win3 50 ~ 51 end-windows
         ts += 50 * step
         vals  = "10"
@@ -295,6 +288,22 @@ class Test_IDMP_Vehicle:
 
         # delete win1 2 rows
         tdSql.deleteRows(table, f"ts >= {self.start + 1 * step} and ts <= {self.start + 2 * step}")
+
+        # disorder
+        ts    = self.start + (5 + 2 + 1) * step
+        vals  = "130"
+        count = 3
+        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+        # null 
+        count = 3
+        vals  = "null"
+        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+
+        # trigger disorder event
+        ts   += 50 * step
+        vals  = "9"
+        count = 1
+        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
 
     #
@@ -402,7 +411,28 @@ class Test_IDMP_Vehicle:
             and tdSql.compareData(0, 2, 120)        # avg(speed)
         )
 
+        # sub
+        self.verify_stream1_sub1()
         tdLog.info("verify stream1 .................................. successfully.")
+
+    # stream1 sub1
+    def verify_stream1(self):
+        # check
+        result_sql = f"select * from {self.vdb}.`result_stream1_sub1` "
+        tdSql.checkResultsByFunc (
+            sql = result_sql, 
+            func = lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, self.start) # ts
+            and tdSql.compareData(0, 1, 5)        # cnt ***** bug4 *****
+            and tdSql.compareData(0, 2, 120)        # avg(speed)
+
+            and tdSql.compareData(1, 0, self.start + (5 + 2 + 1) * self.step) # ts
+            and tdSql.compareData(1, 1, 6)          # cnt
+            and tdSql.compareData(1, 2, 130)        # avg(speed)
+        )
+
+        tdLog.info("verify stream1 sub1 ............................. successfully.")
+
 
     #
     # verify stream2
