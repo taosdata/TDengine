@@ -46,7 +46,8 @@ class TestIdmpTobacco:
             "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/stream.json",
         )
         # 这里可以指定需要创建的 stream_ids
-        tobac.stream_ids = [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+        tobac.stream_ids = [1, 2, 4, 5, 6, 7, 8, 9, 10, 12, 13]
+        # tobac.stream_ids = [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13] need to modify case 11
         tobac.run()
 
 
