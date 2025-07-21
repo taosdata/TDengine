@@ -6964,7 +6964,6 @@ int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_
 
   *suid = 0;
 
-  // only child table and ordinary table is allowed, super table is not allowed.
   if (mr.me.type == TSDB_CHILD_TABLE) {
     tDecoderClear(&mr.coder);
     *suid = mr.me.ctbEntry.suid;
@@ -6976,6 +6975,7 @@ int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_
     }
   } else if (mr.me.type == TSDB_NORMAL_TABLE) {  // do nothing
   } else if (mr.me.type == TSDB_SUPER_TABLE) {
+    tDecoderClear(&mr.coder);
     *suid = uid;
     code = metaReaderGetTableEntryByUidCache(&mr, *suid);
     if (code != TSDB_CODE_SUCCESS) {
