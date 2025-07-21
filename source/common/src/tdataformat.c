@@ -682,7 +682,16 @@ static int32_t tRowPCmprFn(const void *p1, const void *p2) {
   return tRowKeyCompare(&key1, &key2);
 }
 static void    tRowPDestroy(SRow **ppRow) { tRowDestroy(*ppRow); }
-static int32_t tRowMergeImpl(SArray *aRowP, STSchema *pTSchema, int32_t iStart, int32_t iEnd, int8_t flag) {
+
+static SColVal* tRowFindColumnValue(SRowIter *iter, int32_t targetCid) {
+  SColVal* pColVal = tRowIterNext(iter);
+  while (pColVal != NULL && pColVal->cid < targetCid) {
+    pColVal = tRowIterNext(iter);
+  }
+  return pColVal;
+}
+
+static int32_t tRowMergeImpl(SArray *aRowP, STSchema *pTSchema, int32_t iStart, int32_t iEnd, RowMergeStrategy strategy) {
   int32_t code = 0;
 
   int32_t    nRow = iEnd - iStart;
@@ -711,22 +720,28 @@ static int32_t tRowMergeImpl(SArray *aRowP, STSchema *pTSchema, int32_t iStart, 
   }
 
   for (int32_t iCol = 0; iCol < pTSchema->numOfCols; iCol++) {
+    int32_t targetCid = pTSchema->columns[iCol].colId;
     SColVal *pColVal = NULL;
-    for (int32_t iRow = nRow - 1; iRow >= 0; --iRow) {
-      SColVal *pColValT = tRowIterNext(aIter[iRow]);
-      while (pColValT->cid < pTSchema->columns[iCol].colId) {
-        pColValT = tRowIterNext(aIter[iRow]);
-      }
 
-      // todo: take strategy according to the flag
-      if (COL_VAL_IS_VALUE(pColValT)) {
-        pColVal = pColValT;
+    switch (strategy) {
+      case KEEP_CONSISTENCY:
+        if (nRow > 0)
+          pColVal = tRowFindColumnValue(aIter[nRow - 1], targetCid);
         break;
-      } else if (COL_VAL_IS_NULL(pColValT)) {
-        if (pColVal == NULL) {
-          pColVal = pColValT;
+
+      default:  // default using PREFER_NON_NULL strategy
+      case PREFER_NON_NULL:
+        for (int32_t iRow = nRow - 1; iRow >= 0; --iRow) {
+          SColVal *pColValT = tRowFindColumnValue(aIter[iRow], targetCid);
+
+          if (COL_VAL_IS_VALUE(pColValT)) {
+            pColVal = pColValT;
+            break;
+          } else if (pColVal == NULL) {
+            pColVal = pColValT;
+          }
         }
-      }
+        break;
     }
 
     if (pColVal) {
@@ -768,7 +783,7 @@ int32_t tRowSort(SArray *aRowP) {
   return code;
 }
 
-int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag) {
+int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, RowMergeStrategy strategy) {
   int32_t code = 0;
 
   int32_t iStart = 0;
@@ -790,7 +805,7 @@ int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag) {
     }
 
     if (iEnd - iStart > 1) {
-      code = tRowMergeImpl(aRowP, pTSchema, iStart, iEnd, flag);
+      code = tRowMergeImpl(aRowP, pTSchema, iStart, iEnd, strategy);
       if (code) return code;
     }
 
