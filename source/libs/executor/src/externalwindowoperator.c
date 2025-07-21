@@ -854,6 +854,7 @@ static int32_t extWindowProcessEmptyWins(SOperatorInfo* pOperator, SSDataBlock* 
   SExternalWindowOperator* pExtW = (SExternalWindowOperator*)pOperator->info;
   bool ascScan = pExtW->binfo.inputTsOrder == TSDB_ORDER_ASC;
   int32_t currIdx = getExtWinCurIdx(pOperator->pTaskInfo);
+  SExprSupp* pSup = &pOperator->exprSupp;
 
   if (NULL == pExtW->pEmptyInputBlock) {
     goto _exit;
@@ -863,7 +864,6 @@ static int32_t extWindowProcessEmptyWins(SOperatorInfo* pOperator, SSDataBlock* 
   SResultRowInfo* pResultRowInfo = &pExtW->binfo.resultRowInfo;
   SResultRow* pResult = NULL;
   SSDataBlock* pInput = pExtW->pEmptyInputBlock;
-  SExprSupp* pSup = &pOperator->exprSupp;
 
   if ((pExtW->lastWinId + 1) <= endIdx) {
     TAOS_CHECK_EXIT(setInputDataBlock(pSup, pExtW->pEmptyInputBlock, pExtW->binfo.inputTsOrder, MAIN_SCAN, true));
