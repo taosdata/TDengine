@@ -11,7 +11,7 @@ sidebar_label: "数据挂载"
 ### 创建挂载
 
 ```sql
-CREATE MOUNT mountName ON DNODE dnodeId FROM TDenginePath
+CREATE MOUNT mountName ON DNODE dnodeId FROM TDenginePath;
 ```
 
 说明
@@ -39,7 +39,7 @@ CREATE MOUNT mountName ON DNODE dnodeId FROM TDenginePath
 - 执行以下命令，可在宿主集群的 dnode 1 节点上，将源集群的 /var/lib/taos_1 数据目录以 mount1 为名称挂载到本地，挂载后宿主集群可通过 mount1_`<dbname`> 访问源集群的数据库：​
 
 ```sql
-CREATE MOUNT mount1 ON DNODE 1 FROM "/var/lib/taos_1"
+CREATE MOUNT mount1 ON DNODE 1 FROM "/var/lib/taos_1";
 ```
 
 ### 查看挂载
