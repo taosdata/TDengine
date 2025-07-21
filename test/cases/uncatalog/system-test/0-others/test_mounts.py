@@ -108,6 +108,9 @@ class TestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0,4,'ready')
         tdSql.execute("create database if not exists d0 replica 1")
+        tdSql.execute(f"create user u1 PASS 'taosdata'")
+        tdSql.query(f"select * from information_schema.ins_users")
+        tdSql.checkRows(2)
 
     def replace_string_in_file(self, filename, origin, dest):
         with open(filename, 'r', encoding='utf-8') as file:
@@ -280,9 +283,23 @@ class TestCase:
         tdLog.info("check mount query")
         self.check_mount_query()
         tdLog.info("reboot and query from mount db")
+        tdSql.execute(f"GRANT read ON mnt1_db0.* to u1;")
+        tdSql.execute(f"GRANT write ON mnt1_db0.* to u1;")
+        tdSql.execute(f"GRANT all ON mnt1_db1.* to u1;")
+        tdSql.execute(f"GRANT read ON mnt1_db0.stb0 to u1")
+        tdSql.execute(f"GRANT write ON mnt1_db0.stb0 to u1")
+        tdSql.execute(f"GRANT write ON mnt1_db0.stb1 to u1")
+        tdSql.execute(f"GRANT alter ON mnt1_db0.stb0 to u1")
+        tdSql.execute(f"GRANT alter ON mnt1_db0.stb1 to u1")
+        tdSql.execute(f"GRANT all ON mnt1_db1.stb0 to u1;")
+        tdSql.execute(f"GRANT all ON mnt1_db1.stb1 to u1;")
+        tdSql.query(f"select * from information_schema.ins_user_privileges where user_name = 'u1'")
+        tdSql.checkRows(15)
         tdDnodes.stop(1)
         tdDnodes.start(1)
         self.check_mount_query()
+        tdSql.query(f"select * from information_schema.ins_user_privileges where user_name = 'u1'")
+        tdSql.checkRows(15)
         # check conflicts
         tdSql.error("insert into mnt1_db0.ctb0 values(now, 100, 100, 100, 100.0, 100.0)", expectErrInfo="Operation not supported", fullMatched=False)
         tdSql.error("create table mnt1_db0.ntb100 (ts timestamp, c0 int)", expectErrInfo="Operation not supported", fullMatched=False)
@@ -297,6 +314,8 @@ class TestCase:
         # drop mount
         tdSql.execute("drop mount mnt1")
         tdSql.query("show mounts")
+        tdSql.checkRows(0)
+        tdSql.query(f"select * from information_schema.ins_user_privileges where user_name = 'u1'")
         tdSql.checkRows(0)
 
     def s4_recheck_mount_path(self):
