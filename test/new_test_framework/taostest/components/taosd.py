@@ -112,10 +112,16 @@ class TaosD:
             start_cmd = f"screen -L -d -m {valgrind_cmdline} {taosd_path} -c {dnode['config_dir']}  "
         else:
             if error_output:
-                start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']} 2>{error_output}"
+                cmds = [
+                    'export LD_PRELOAD="$(realpath $(gcc -print-file-name=libasan.so)) '
+                    '$(realpath $(gcc -print-file-name=libstdc++.so))"',
+                    'export ASAN_OPTIONS=detect_odr_violation=0',
+                    f'{taosd_path} -c {dnode["config_dir"]} 2>{error_output}',
+                ]
+                run_cmd = " && ".join(cmds)
+                start_cmd = f"screen -d -m bash -c '{run_cmd}'"
             else:
                 start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']}  "
-
         self._remote.cmd(cfg["fqdn"], ["ulimit -n 1048576", start_cmd])
         
         if self.taosd_valgrind == 0:
@@ -233,13 +239,15 @@ class TaosD:
                     cfg: dict = dnode["config"] if 'config' in dnode else {}
                     # cat /proc/sys/kernel/core_pattern
                     # scp coredump files to logDir/data/{fqdn}/coredump
-                    coreDir = "{}/data/{}/coredump".format(logDir, host)
-                    os.system("mkdir -p {}".format(coreDir))
-                    corePattern = self._remote.cmd(host, ["cat /proc/sys/kernel/core_pattern"])
-                    if not corePattern is None:
-                        dirName = os.path.dirname(corePattern)
-                        if dirName.startswith("/"):
-                            self._remote.get(host, dirName, coreDir)
+                    system_platform = dnode["system"] if "system" in dnode.keys() else "linux"
+                    if system_platform.lower() == "linux":
+                        coreDir = "{}/data/{}/coredump".format(logDir, host)
+                        os.system("mkdir -p {}".format(coreDir))
+                        corePattern = self._remote.cmd(host, ["cat /proc/sys/kernel/core_pattern"])
+                        if not corePattern is None:
+                            dirName = os.path.dirname(corePattern)
+                            if dirName.startswith("/"):
+                                self._remote.get(host, dirName, coreDir)
                     # default data dir & log dir
                     remoteDataDir = "/var/lib/taos"
                     remoteLogDir = "/var/log/taos"
@@ -347,6 +355,27 @@ class TaosD:
                             killCmd = [
                                 f"ps -ef | grep -wi {nodeDict['name']} | grep {i['config_dir']} | grep -v grep | awk '{{print $2}}' | xargs kill -9 > /dev/null 2>&1"]
                             self._remote.cmd(fqdn, killCmd)
+
+                    # if "system" in i.keys() and i["system"].lower() == "darwin":
+                    #     stop_service_cmd = "launchctl unload /Library/LaunchDaemons/com.taosdata.taosd.plist"
+                    # else:
+                    #     stop_service_cmd = "systemctl is-active taosd && systemctl stop taosd || true"
+                    # self.logger.debug(f"Executing stop command on {fqdn}: {stop_service_cmd}")
+                    # self._remote.cmd(fqdn, [stop_service_cmd])
+
+                    # get_and_kill_cmd = (
+                    #     "ps -efww | grep '[t]aosd' | grep -v grep | awk '{print $2}' | "
+                    #     "while read pid; do "
+                    #     "if kill -0 $pid 2>/dev/null; then "
+                    #     "echo Killing taosd process with PID: $pid; "
+                    #     "kill -9 $pid; "
+                    #     "fi; "
+                    #     "done"
+                    # )
+                    # self.logger.debug(f"Executing get and kill command on {fqdn}: {get_and_kill_cmd}")
+                    # output=self._remote.cmd(fqdn, [get_and_kill_cmd])
+                    # self.logger.info(f"Kill log on {fqdn}:{output}")
+                    
                     if self.taosd_valgrind and not self.taosc_valgrind:
                         killCmd = [
                             "ps -ef|grep -wi valgrind.bin | grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1"]

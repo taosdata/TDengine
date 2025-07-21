@@ -3,7 +3,7 @@ title: Users
 slug: /tdengine-reference/sql-manual/manage-users
 ---
 
-User and permission management is a feature of TDengine Enterprise Edition. This section only discusses the basic user management part. To learn about and obtain comprehensive permission management features, please contact the TDengine sales team.
+User and permission management is a feature of TDengine TSDB-Enterprise. This section only discusses the basic user management part. To learn about and obtain comprehensive permission management features, please contact the TDengine sales team.
 
 ## Create User
 
@@ -14,6 +14,7 @@ CREATE USER user_name PASS 'password' [SYSINFO {1|0}] [CREATEDB {1|0}];
 The username can be up to 23 bytes long.
 
 The password must be between 8 and 255 characters long and include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters. Special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? | ~ , .`, and this requirement is able to be closed by adding enableStrongPassword 0 in taos.cfg, or by the following SQL:
+
 ```sql
 alter all dnodes 'EnableStrongPassword' '0'
 ```
@@ -92,4 +93,4 @@ Query OK, 0 of 0 rows affected (0.001160s)
 
 ## Authorization Management
 
-Authorization management is only available in the TDengine Enterprise Edition, please contact the TDengine sales team.
+Authorization management is only available in the TDengine TSDB-Enterprise, please contact the TDengine sales team.

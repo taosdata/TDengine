@@ -128,6 +128,7 @@ int32_t qDebugFlag = 131;
 int32_t stDebugFlag = 131;
 int32_t wDebugFlag = 131;
 int32_t azDebugFlag = 131;
+int32_t tssDebugFlag = 131;
 int32_t sDebugFlag = 131;
 int32_t tsdbDebugFlag = 131;
 int32_t tdbDebugFlag = 131;
@@ -138,7 +139,9 @@ int32_t udfDebugFlag = 131;
 int32_t smaDebugFlag = 131;
 int32_t idxDebugFlag = 131;
 int32_t sndDebugFlag = 131;
+int32_t bndDebugFlag = 131;
 int32_t simDebugFlag = 131;
+int32_t bseDebugFlag = 131;
 
 int32_t tqClientDebugFlag = 131;
 
@@ -960,8 +963,7 @@ static int32_t taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t msg
   remainSize = (start > end) ? (start - end - 1) : (start + LOG_BUF_SIZE(pLogBuf) - end - 1);
 
   if (lostLine > 0) {
-    snprintf(tmpBuf, tListLen(tmpBuf), "...Lost %" PRId64 " lines here...\n", lostLine);
-    tmpBufLen = (int32_t)strlen(tmpBuf);
+    tmpBufLen = snprintf(tmpBuf, tListLen(tmpBuf), "...Lost %" PRId64 " lines here...\n", lostLine);
   }
 
   if (remainSize <= msgLen || ((lostLine > 0) && (remainSize <= (msgLen + tmpBufLen)))) {
@@ -1006,8 +1008,10 @@ static void taosWriteSlowLog(SLogBuff *pLogBuf) {
   atomic_store_32(&pLogBuf->lock, 0);
 }
 static void taosWriteLog(SLogBuff *pLogBuf) {
+  (void)taosThreadMutexLock(&LOG_BUF_MUTEX(pLogBuf));
   int32_t start = LOG_BUF_START(pLogBuf);
   int32_t end = LOG_BUF_END(pLogBuf);
+  (void)taosThreadMutexUnlock(&LOG_BUF_MUTEX(pLogBuf));
 
   if (start == end) {
     dbgEmptyW++;
@@ -1051,10 +1055,12 @@ static void taosWriteLog(SLogBuff *pLogBuf) {
     }
   }
 
+  (void)taosThreadMutexLock(&LOG_BUF_MUTEX(pLogBuf));
   LOG_BUF_START(pLogBuf) = (LOG_BUF_START(pLogBuf) + pollSize) % LOG_BUF_SIZE(pLogBuf);
 
   start = LOG_BUF_START(pLogBuf);
   end = LOG_BUF_END(pLogBuf);
+  (void)taosThreadMutexUnlock(&LOG_BUF_MUTEX(pLogBuf));
 
   pollSize = taosGetLogRemainSize(pLogBuf, start, end);
   if (pollSize < pLogBuf->minBuffSize) {
@@ -1072,10 +1078,30 @@ static void taosWriteLog(SLogBuff *pLogBuf) {
 #define LOG_INACTIVE_TIME 5
 #define LOG_ROTATE_BOOT   (LOG_INACTIVE_TIME + 1)
 #endif
-
-static void *taosLogRotateFunc(void *param) {
+static int8_t tsLogRotateRunning = 0;
+static void  *taosLogRotateFunc(void *param) {
   setThreadName("logRotate");
   int32_t code = 0;
+  if (0 != atomic_val_compare_exchange_8(&tsLogRotateRunning, 0, 1)) {
+    uInfo("log rotation is already in progress");
+    return NULL;
+  }
+  // get prefix of logfile name
+  char *filePrefix = NULL;
+  char *filePos = strrchr(tsLogObj.logName, TD_DIRSEP_CHAR);
+  if (!filePos || !(++filePos)) {
+    atomic_store_8(&tsLogRotateRunning, 0);
+    return NULL;
+  }
+  int32_t filePrefixLen = strlen(filePos);
+  if (!(filePrefix = taosMemoryMalloc(filePrefixLen + 1))) {
+    atomic_store_8(&tsLogRotateRunning, 0);
+    return NULL;
+  }
+  tstrncpy(filePrefix, filePos, filePrefixLen + 1);
+  int32_t i = filePrefixLen - 1;
+  while (i > 0 && isdigit(filePrefix[i])) filePrefix[i--] = '\0';
+
   taosWLockLatch(&tsLogRotateLatch);
   // compress or remove the old log files
   TdDirPtr pDir = taosOpenDir(tsLogDir);
@@ -1089,6 +1115,8 @@ static void *taosLogRotateFunc(void *param) {
     if (!fname) {
       continue;
     }
+
+    if (!strstr(fname, filePrefix)) continue;
 
     char *pSec = strrchr(fname, '.');
     if (!pSec) {
@@ -1147,6 +1175,8 @@ static void *taosLogRotateFunc(void *param) {
   }
 _exit:
   taosWUnLockLatch(&tsLogRotateLatch);
+  atomic_store_8(&tsLogRotateRunning, 0);
+  taosMemFreeClear(filePrefix);
   return NULL;
 }
 
@@ -1188,7 +1218,7 @@ static void *taosAsyncOutputLog(void *param) {
     // process the log rotation every LOG_ROTATE_INTERVAL
     int64_t curSec = taosGetTimestampMs() / 1000;
     if (curSec >= lastCheckSec) {
-      if ((curSec - lastCheckSec) >= LOG_ROTATE_INTERVAL) {
+      if ((curSec - lastCheckSec) >= (LOG_ROTATE_INTERVAL + (taosRand() % LOG_ROTATE_BOOT))) {
         TdThread     thread;
         TdThreadAttr attr;
         (void)taosThreadAttrInit(&attr);

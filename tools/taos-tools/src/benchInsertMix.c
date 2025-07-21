@@ -163,7 +163,7 @@ void randomFillCols(uint16_t* cols, uint16_t max, uint16_t cnt) {
 char* genBatColsNames(threadInfo* info, SSuperTable* stb) {
   int32_t size = info->nBatCols * (TSDB_COL_NAME_LEN + 2);
   char* buf = calloc(1, size);
-  strcpy(buf, TS_COL_NAME);
+  strcpy(buf, stb->primaryKeyName);
 
   for (uint16_t i = 0; i < info->nBatCols; i++) {
     uint16_t idx = info->batCols[i];
@@ -798,6 +798,7 @@ bool insertDataMix(threadInfo* info, SDataBase* db, SSuperTable* stb) {
   stb->durMinute = db->durMinute;
 
   // loop insert child tables
+  int16_t index = info->start_table_from;
   for (uint64_t tbIdx = info->start_table_from; tbIdx <= info->end_table_to && !g_fail; ++tbIdx) {
     // get child table
     SChildTable *childTbl;
@@ -826,7 +827,7 @@ bool insertDataMix(threadInfo* info, SDataBase* db, SSuperTable* stb) {
       if(acreate) {
           // generator
           if (w == 0) {
-              if(!generateTagData(stb, tagData, TAG_BATCH_COUNT, csvFile, NULL)) {
+              if(!generateTagData(stb, tagData, TAG_BATCH_COUNT, csvFile, NULL, index)) {
                  FAILED_BREAK()                
               }
           }
@@ -840,6 +841,7 @@ bool insertDataMix(threadInfo* info, SDataBase* db, SSuperTable* stb) {
           if (++w >= TAG_BATCH_COUNT) {
               // reset for gen again
               w = 0;
+              index += TAG_BATCH_COUNT;
           } 
       }
 

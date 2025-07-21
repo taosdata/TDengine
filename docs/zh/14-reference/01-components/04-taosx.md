@@ -16,6 +16,7 @@ taosx -f <from-DSN> -t <to-DSN> <其它参数>
 ```
 
 taosX 的命令行参数分为三个主要部分：
+
 - `-f` 指定数据源，即 Source DSN
 - `-t` 指定写入目标，即 Sink DSN
 - 其它参数
@@ -35,6 +36,7 @@ taosX 命令行模式使用 DSN 来表示一个数据源（来源或目的源）
 // url 示例
 tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 ```
+
 [] 中的数据都为可选参数。
 
 1. 不同的驱动 (driver) 拥有不同的参数。driver 包含如下选项：
@@ -50,6 +52,7 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 - csv：从 CSV 文件解析数据
 
 2. +protocol 包含如下选项：
+
 - +ws：当 driver 取值为 taos 或 tmq 时使用，表示使用 rest 获取数据。不使用 +ws 则表示使用原生连接获取数据，此时需要 taosx 所在的服务器安装 taosc。
 - +ua：当 driver 取值为 opc 时使用，表示采集的数据的 opc-server 为 opc-ua
 - +da：当 driver 取值为 opc 时使用，表示采集的数据的 opc-server 为 opc-da
@@ -62,7 +65,7 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 ### 其它参数
 
 1. --jobs `<number>` 指定任务并发数，仅支持 tmq 任务
-2. -v 用于指定 taosx 的日志级别，-v 表示启用 info 级别日志，-vv 对应 debug，-vvv 对应 trace 
+2. -v 用于指定 taosx 的日志级别，-v 表示启用 info 级别日志，-vv 对应 debug，-vvv 对应 trace
 
 ### 使用举例
 
@@ -147,7 +150,7 @@ taosx run -f 'taos:///db1?mode=all' -t 'taos:///db2' -v
 ```
 
 5. 通过 --transform 或 -T 配置数据同步（仅支持 2.6 到 3.0 以及 3.0 之间同步）过程中对于表名及表字段的一些操作。暂无法通过 Explorer 进行设置。配置说明如下：
-  
+
   ```shell
   1.AddTag，为表添加 TAG。设置示例：-T add-tag:<tag1>=<value1>。
   2.表重命名：
@@ -174,7 +177,7 @@ taosx run -f 'taos:///db1?mode=all' -t 'taos:///db2' -v
       3. 使用 CSV 映射文件进行表重命名：以下示例使用 map.csv 文件进行表重命名
 
       `-T rename-child-table:map:@./map.csv`
-      
+
       CSV 文件 `./map.csv` 格式如下：
 
       name1,newname1
@@ -229,9 +232,54 @@ d4,2017-07-14T10:40:00.006+08:00,-2.740636,10,-0.893545,7,California.LosAngles
 
 它将从 `./meters/meters.csv.gz`（一个 gzip 压缩的 CSV 文件）导入数据到超级表 `meters`，每一行都插入到指定的表名 - `${tbname}` 使用 CSV 内容中的 `tbname` 列作为表名（即在 JSON 解析器中的 `.model.name`）。
 
+#### TMQ 订阅数据发布到 MQTT
+
+基本用法
+
+```bash
+taosx run -f "tmq+ws://username:password@ip:port/topic?param=value..." -t "mqtt://ip:port?param=value..."
+```
+
+其中 `-f` 指定 TMQ 订阅的 DSN，`-t` 指定 MQTT broker 的 DSN。
+
+TMQ DSN 参数：
+
+- `username`: 数据库用户名。
+- `password`: 数据库密码。
+- `ip` 和 `port`: 数据库连接使用的 IP 和端口。
+- `topic`: TMQ 订阅的 topic 名称。
+- `concurrency`: 任务运行时启动的消费者个数，默认为当前系统 CPU 核数。
+- `with_meta`: 是否同步元数据，如创建表，删除表，修改表，删除数据等操作，默认不同步。
+- `group_id`: TMQ 订阅参数，必填项，订阅的组 ID。
+- `client_id`: TMQ 订阅参数，选填项，订阅的客户端 ID。当指定了此 ID 且 `concurrency` 选项大于 1 时，会自动添加后缀用于区分不同的客户端。
+- `auto.offset.reset`: TMQ 订阅参数，订阅的起始位置。
+- `experimental.snapshot.enable`: TMQ 订阅参数，如启用，可以同步已经落盘到 TSDB 时序数据存储文件中（即不在 WAL 中）的数据。如关闭，则只同步尚未落盘（即保存在 WAL 中）的数据。
+
+更多 TMQ 订阅时的所有参数，详见 [数据订阅](../..//07-develop/07-tmq.md)
+
+MQTT DSN 参数：
+
+- `ip`: MQTT  broker 的 IP 地址。
+- `port`: MQTT broker 的 端口。
+- `version`: MQTT 协议版本，必填项，可选值 3.1/3.1.1/5.0。
+- `qos`: MQTT QoS 服务质量，默认值 0。
+- `client_id`: MQTT 客户端 ID，必填项，不同客户端的客户端 ID 必须不同。
+- `topic`: 数据发布的 MQTT 目标 Topic，必填项。
+- `meta_topic`: 元数据发布的目标 Topic，如果不指定，默认使用数据发布的 Topic。
+
+在 MQTT 的 `topic` 和 `meta_topic` 中支持使用如下变量：
+
+- `database`: 消息来源的数据库名，元数据和数据均包含。
+- `tmq_topic`: 消息来源的 TMQ 主题名，元数据和数据均包含。
+- `vgroup_id`: 消息来源 vgroup ID，元数据和数据均包含。
+- `stable`: 消息来源的超级表名称，仅创建超级表，创建子表，删除超级表的元数据消息包含。
+- `table`: 消息来源的表名/子表名，仅创建子表/普通表，修改表，删除子表/普通表以及数据类型的消息包含。
+
+**注意**: 如果 topic 中包含了消息中不存在的变量，则当前消息不会被处理，即不会被发布到 MQTT broker。
+
 ## 服务模式
 
-本节讲述如何以服务模式部署 `taosX`。以服务模式运行的 taosX，其各项功能需要通过 taosExplorer 上的图形界面来使用。 
+本节讲述如何以服务模式部署 `taosX`。以服务模式运行的 taosX，其各项功能需要通过 taosExplorer 上的图形界面来使用。
 
 ### 配置
 
@@ -244,9 +292,13 @@ d4,2017-07-14T10:40:00.006+08:00,-2.740636,10,-0.893545,7,California.LosAngles
 - `log_level`：日志等级，可选级别包括 `error`、`warn`、`info`、`debug`、`trace`，默认值为 `info`。已弃用，请使用 `log.level` 代替。
 - `log_keep_days`：日志的最大存储天数，`taosX` 日志将按天划分为不同的文件。已弃用，请使用 `log.keepDays` 代替。
 - `jobs`：每个运行时的最大线程数。在服务模式下，线程总数为 `jobs*2`，默认线程数为`当前服务器内核*2`。
-- `serve.listen`：是 `taosX` REST API 监听地址，默认值为 `0.0.0.0:6050`。
+- `serve.listen`：是 `taosX` REST API 监听地址，默认值为 `0.0.0.0:6050`。支持 IPv6 协议的地址，同时支持多地址，多地址需保证端口一致，且使用英文逗号，作为分割。
+- `serve.ssl_cert`：是 SSL/TLS 证书。
+- `serve.ssl_key`：是 SSL/TLS 秘钥。
+- `serve.ssl_ca`：是 SSL/TLS 根证书。
 - `serve.database_url`：`taosX` 数据库的地址，格式为 `sqlite:<path>`。
 - `serve.request_timeout`：全局接口 API 超时时间。
+- `serve.grpc`：是 `taosX` gRPC 服务监听地址，默认值为 `0.0.0.0:6055`。支持 IPv6 协议的地址，同时支持多地址，多地址需保证端口一致，且使用英文逗号，作为分割。
 - `monitor.fqdn`：`taosKeeper` 服务的 FQDN，没有默认值，置空则关闭监控功能。
 - `monitor.port`：`taosKeeper` 服务的端口，默认`6043`。
 - `monitor.interval`：向 `taosKeeper` 发送指标的频率，默认为每 10 秒一次，只有 1 到 10 之间的值才有效。
@@ -282,8 +334,30 @@ d4,2017-07-14T10:40:00.006+08:00,-2.740636,10,-0.893545,7,California.LosAngles
 # listen to ip:port address
 #listen = "0.0.0.0:6050"
 
+# TLS/SSL certificate
+#ssl_cert = "/path/to/tls/server.pem"
+# TLS/SSL certificate key
+#ssl_key = "/path/to/tls/server.key"
+# TLS/SSL CA certificate
+#ssl_ca = "/path/to/tls/ca.pem"
+
+# database url
+#database_url = "sqlite:taosx.db"
+
 # default global request timeout which unit is second. This parameter takes effect for certain interfaces that require a timeout setting
 #request_timeout = 30
+
+# GRPC listen address，use ip:port like `0.0.0.0:6055`.
+#
+# When use this in explorer, please set explorer grpc configuration to **Public** IP or
+# FQDN with correct port, which might be changed exposing to Public network.
+#
+# - Example 1: "http://192.168.111.111:6055"
+# - Example 2: "http://node1.company.domain:6055"
+#
+# Please also make sure the above address is not blocked if firewall is enabled.
+#
+#grpc = "0.0.0.0:6055"
 
 [monitor]
 # FQDN of taosKeeper service, no default value
@@ -363,6 +437,7 @@ sc.exe start taosx
 1. 修改 `taosX` 日志级别
 
 `taosX` 的默认日志级别为 `info`，要指定不同的级别，请修改配置文件，或使用以下命令行参数：
+
 - `error`：`taosx serve -qq`
 - `debug`：`taosx serve -q`
 - `info`：`taosx serve -v`
@@ -393,7 +468,7 @@ mv /var/lib/taos/taosx/taosx.db* /path/to/data/
 
 ## taosX 监控指标
 
-taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeeper 写入监控数据库，默认是 `log` 库，可以在 taoskeeper 配置文件中修改。以下是这些监控指标的详细介绍。  
+taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeeper 写入监控数据库，默认是 `log` 库，可以在 taoskeeper 配置文件中修改。以下是这些监控指标的详细介绍。
 
 ### taosX 服务
 
@@ -412,7 +487,6 @@ taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | process_memory_percent     | taosX 进程占用内存百分比，单位 %                                             |
 | process_disk_read_bytes    | taosX 进程在一个监控周期（比如 10s）内从硬盘读取的字节数的平均值，单位 bytes/s |
 | process_disk_written_bytes | taosX 进程在一个监控周期（比如 10s）内写到硬盘的字节数的平均值，单位 bytres/s  |
-
 
 ### Agent
 
@@ -488,7 +562,7 @@ taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 
 ### taosX 其他数据源 任务
 
-这些数据源包括：InfluxDB，OpenTSDB，OPC UA，OPC DA，PI，CSV，MQTT，AVEVA Historian 和 Kafka。  
+这些数据源包括：InfluxDB，OpenTSDB，OPC UA，OPC DA，PI，CSV，MQTT，AVEVA Historian 和 Kafka。
 
 | 字段                    | 描述                                                        |
 | ----------------------- | ----------------------------------------------------------- |
@@ -594,7 +668,7 @@ const char* parser_mutate(
   void* parser,
   const uint8_t* in_ptr, uint32_t in_len,
   const void* uint8_t* out_ptr, uint32_t* out_len
-); 
+);
 ```
 
 `void* parser`：parser_new 生成的对象指针;

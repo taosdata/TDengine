@@ -14,6 +14,7 @@ taosBenchmark is the default installation component in the TDengine server and c
 ## Startup
 
 taosbenchmark supports three operating modes:
+
 - No Parameter Mode
 - Command Line Mode
 - JSON Configuration File Mode
@@ -26,19 +27,18 @@ Ensure that the TDengine cluster is running correctly before running taosBenchma
 
 ### No Parameter Mode
 
-
 Execute the following command to quickly experience taosBenchmark performing a write performance test on TDengine based on the default configuration.
 
 ```shell
 taosBenchmark
 ```
 
-When running without parameters, taosBenchmark defaults to connecting to the TDengine cluster specified in `/etc/taos/taos.cfg `.
+When running without parameters, taosBenchmark defaults to connecting to the TDengine cluster specified in `/etc/taos/taos.cfg`.
 After successful connection, a smart meter example database test, super meters, and 10000 sub meters will be created, with 10000 records per sub meter. If the test database already exists, it will be deleted before creating a new one.
 
 ### Command Line Mode
 
-The parameters supported by the command line are those frequently used in the write function. The query and subscription function does not support the command line mode.   
+The parameters supported by the command line are those frequently used in the write function. The query and subscription function does not support the command line mode.
 For example:
 
 ```bash
@@ -54,7 +54,6 @@ Running in configuration file mode provides all functions, so parameters can be 
 ```shell
 taosBenchmark -f <json file>
 ```
-
 
 ## Command Line Parameters
 
@@ -100,7 +99,7 @@ taosBenchmark -f <json file>
 - **-t/--tables \<tableNum>** :
   Specifies the number of subtables, default is 10000.
 
--**-s/ --start-timestamp \<NUMBER>**: 
+-**-s/ --start-timestamp \<NUMBER>**:
   Specify start timestamp to insert data for each child table
 
 - **-S/--timestampstep \<stepLength>** :
@@ -175,6 +174,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **-z/--trying-interval \<NUMBER>**: Retry interval in milliseconds, effective only when retries are specified with -k. Requires version v3.0.9 or above.
 
+- **-Z/--connect-mode \<NUMBER>**: The connection method, with 0 indicating the use of native connection method, 1 indicating the use of WebSocket connection method, and default to native connection method.
 - **-v/--vgroups \<NUMBER>**:
   Specifies the number of vgroups when creating the database, only valid for TDengine v3.0+.
 
@@ -183,7 +183,6 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **-?/--help**:
   Displays help information and exits. Cannot be used with other parameters.
-
 
 ## Configuration File Parameters
 
@@ -216,9 +215,9 @@ In insertion scenarios, `filetype` must be set to `insert`. For this parameter a
 
 - **continue_if_fail**: Allows users to define behavior after failure
 
-  “continue_if_fail”:  “no”, taosBenchmark exits automatically upon failure, default behavior
-  “continue_if_fail”: “yes”, taosBenchmark warns the user and continues writing
-  “continue_if_fail”: “smart”, if the child table does not exist upon failure, taosBenchmark will create the child table and continue writing
+  "continue_if_fail":  "no", taosBenchmark exits automatically upon failure, default behavior
+  "continue_if_fail": "yes", taosBenchmark warns the user and continues writing
+  "continue_if_fail": "smart", if the child table does not exist upon failure, taosBenchmark will create the child table and continue writing
 
 #### Database Parameters
 
@@ -332,7 +331,7 @@ Specify the configuration parameters for tag and data columns in `super_tables` 
 
 - **dec_max**: String type, specifies the maximum value for a column of the DECIMAL data type. This field is used when max cannot express sufficient precision. The generated values will be less than the maximum value.
 
-- **precision**: The total number of digits (including digits before and after the DECIMAL point), applicable only to the DECIMAL type, with a valid range of 0 to 38. 
+- **precision**: The total number of digits (including digits before and after the DECIMAL point), applicable only to the DECIMAL type, with a valid range of 0 to 38.
 
 - **scale**: The number of digits to the right of the decimal point. For the FLOAT type, the scale's valid range is 0 to 6; for the DOUBLE type, the range is 0 to 15; and for the DECIMAL type, the scale's valid range is 0 to its precision value.
 
@@ -362,6 +361,8 @@ Specify the configuration parameters for tag and data columns in `super_tables` 
 
 - **result_file** : The path to the result output file, default is ./output.txt.
 
+- **result_json_file**：The path to the result output JSON file. If not configured, the file will not be output.
+
 - **confirm_parameter_prompt** : A toggle parameter that requires user confirmation after a prompt to continue. The value can be "yes" or "no", by default "no".
 
 - **interlace_rows** : Enables interleaved insertion mode and specifies the number of rows to insert into each subtable at a time. Interleaved insertion mode refers to inserting the specified number of rows into each subtable in sequence and repeating this process until all subtable data has been inserted. The default is 0, meaning data is inserted into one subtable completely before moving to the next.
@@ -376,38 +377,40 @@ Specify the configuration parameters for tag and data columns in `super_tables` 
 
 - **prepare_rand** : The number of unique values in the generated random data. If it is 1, it means all data are the same. The default is 10000.
 
-- **pre_load_tb_meta** : Whether to pre-load the meta data of subtables, values are “yes” or "no". When there are a large number of subtables, turning on this option can improve the writing speed.
+- **pre_load_tb_meta** : Whether to pre-load the meta data of subtables, values are "yes" or "no". When there are a large number of subtables, turning on this option can improve the writing speed.
 
 ### Query Parameters
 
 `filetype` must be set to `query`.
 
-`query_mode` connect method:    
-- "taosc": Native.    
-- "rest" : RESTful.   
+`query_mode` connect method:
+
+- "taosc": Native.
+- "rest" : RESTful.
 
 `query_times` specifies the number of times to run the query, numeric type.
 
-**Note: from version 3.3.5.6 and beyond, simultaneous configuration for `specified_table_query` and `super_table_query` in a JSON file is no longer supported **
+**Note: from version 3.3.5.6 and beyond, simultaneous configuration for `specified_table_query` and `super_table_query` in a JSON file is no longer supported**
 
 For other common parameters, see [General Configuration Parameters](#general-configuration-parameters)
 
 #### Specified Query
 
 Configuration parameters for querying specified tables (can specify supertables, subtables, or regular tables) are set in `specified_table_query`.  
-- **mixed_query** : Query Mode . "yes" is `Mixed Query`, "no" is `General Query`, default is "no".   
-  `General Query`:   
-  Each SQL in `sqls` starts `threads` threads to query this SQL, Each thread exits after executing the `query_times` queries, and only after all threads executing this SQL have completed can the next SQL be executed.   
-  The total number of queries(`General Query`) = the number of `sqls` * `query_times` * `threads`  
-  `Mixed Query`:   
-  All SQL statements in `sqls` are divided into `threads` groups, with each thread executing one group. Each SQL statement needs to execute `query_times` queries.   
-  The total number of queries(`Mixed Query`) = the number of `sqls` * `query_times`. 
 
-- **batch_query** : Batch query power switch.    
-"yes": indicates that it is enabled.   
-"no":  indicates that it is not enabled, and other values report errors.    
-Batch query refers to dividing all SQL statements in SQL into `threads` groups, with each thread executing one group.   
-Each SQL statement is queried only once before exiting, and the main thread waits for all threads to complete before determining if the `query_interval` parameter is set. If sleep is required for a specified time, each thread group is restarted and the previous process is repeated until the number of queries is exhausted.   
+- **mixed_query** : Query Mode . "yes" is `Mixed Query`, "no" is `General Query`, default is "no".
+  `General Query`:
+  Each SQL in `sqls` starts `threads` threads to query this SQL, Each thread exits after executing the `query_times` queries, and only after all threads executing this SQL have completed can the next SQL be executed.
+  The total number of queries(`General Query`) = the number of `sqls` *`query_times`* `threads`  
+  `Mixed Query`:
+  All SQL statements in `sqls` are divided into `threads` groups, with each thread executing one group. Each SQL statement needs to execute `query_times` queries.
+  The total number of queries(`Mixed Query`) = the number of `sqls` * `query_times`.
+
+- **batch_query** : Batch query power switch.
+"yes": indicates that it is enabled.
+"no":  indicates that it is not enabled, and other values report errors.
+Batch query refers to dividing all SQL statements in SQL into `threads` groups, with each thread executing one group.
+Each SQL statement is queried only once before exiting, and the main thread waits for all threads to complete before determining if the `query_interval` parameter is set. If sleep is required for a specified time, each thread group is restarted and the previous process is repeated until the number of queries is exhausted.
 Functional limitations:  
 - Only supports scenarios where `mixed_query` is set to 'yes'.
 - Restful queries are not supported, meaning `query_made` cannot be 'rest'.
@@ -444,28 +447,28 @@ The subscription configuration parameters are set under `tmq_info`. The paramete
   Which can be sequential: create in sequence. parallel: It is created at the same time. It is required and has no default value.
 - **group_mode**: generate the consumer groupId mode.
   Which can take the value share: all consumers can only generate one groupId independent: Each consumer generates an independent groupId. If `group.id` is not set, this item is mandatory and has no default value.
--**poll_delay**: The polling timeout time passed in by calling tmq_consumer_poll. 
+  -**poll_delay**: The polling timeout time passed in by calling tmq_consumer_poll.
   The unit is milliseconds. A negative number means the default timeout is 1 second.
--**enable.manual.commit**: whether manual submission is allowed. 
+  -**enable.manual.commit**: whether manual submission is allowed.
   The value can be true: manual submission is allowed, after consuming messages, manually call tmq_commit_sync to complete the submission. false: Do not submit, default value: false.
--**rows_file**: a file that stores consumption data. 
+  -**rows_file**: a file that stores consumption data.
   It can be a full path or a relative path with a file name.The actual saved file will be followed by the consumer serial number. For example, rows_file is result, and the actual file name is result_1 (consumer 1) result_2 (consumer 2).
--**expect_rows**: the number of rows and data types expected to be consumed by each consumer. 
+  -**expect_rows**: the number of rows and data types expected to be consumed by each consumer.
   When the consumption reaches this number, the consumption will exit, and the consumption will continue without setting.
--**topic_list**: specifies the topic list and array type of consumption.
- Example of topic list format: `{"name": "topic1", "sql": "select * from test.meters;"}`.
- name: Specify the topic name.
- sql:  Specify the sql statement for creating topic, Ensure that the sql is correct, and the framework will automatically create topic.
+  -**topic_list**: specifies the topic list and array type of consumption.
+   Example of topic list format: `{"name": "topic1", "sql": "select * from test.meters;"}`.
+   name: Specify the topic name.
+   sql:  Specify the sql statement for creating topic, Ensure that the sql is correct, and the framework will automatically create topic.
 
 For the following parameters, see the description of [Subscription](../../../advanced-features/data-subscription/):
+
 - **client.id**
-- **auto.offset.reset** 
-- **enable.auto.commit** 
+- **auto.offset.reset**
+- **enable.auto.commit**
 - **enable.auto.commit**
 - **msg.with.table.name**
 - **auto.commit.interval.ms**
 - **group.id**: If this value is not specified, the groupId will be generated by the rule specified by `group_mode`. If this value is specified, the `group_mode` parameter is ignore.
-
 
 ### Data Type Comparison Table
 
@@ -495,9 +498,9 @@ Note: Data types in the taosBenchmark configuration file must be in lowercase to
 
 ## Example Of Configuration Files
 
-**Below are a few examples of configuration files:**
+Below are a few examples of configuration files:
 
-#### Insertion Example
+### Insertion Example
 
 <details>
 <summary>insert.json</summary>
@@ -508,7 +511,7 @@ Note: Data types in the taosBenchmark configuration file must be in lowercase to
 
 </details>
 
-#### Query Example
+### Query Example
 
 <details>
 <summary>query.json</summary>
@@ -528,7 +531,7 @@ Note: Data types in the taosBenchmark configuration file must be in lowercase to
 
 </details>
 
-#### Subscription Example
+### Subscription Example
 
 <details>
 <summary>tmq.json</summary>
@@ -550,18 +553,21 @@ Note: Data types in the taosBenchmark configuration file must be in lowercase to
 
 </details>
 
-Other json examples see [here](https://github.com/taosdata/TDengine/tree/main/tools/taos-tools/example)
+[Other json examples](https://github.com/taosdata/TDengine/tree/main/tools/taos-tools/example)
 
 ## Output Performance Indicators
 
-#### Write Indicators
+### Write Indicators
 
 After writing is completed, a summary performance metric will be output in the last two lines in the following format:
+
 ``` bash
 SUCC: Spent 8.527298 (real 8.117379) seconds to insert rows: 10000000 with 8 thread(s) into test 1172704.41 (real 1231924.74) records/second
 SUCC: insert delay, min: 19.6780ms, avg: 64.9390ms, p90: 94.6900ms, p95: 105.1870ms, p99: 130.6660ms, max: 157.0830ms
 ```
+
 First line write speed statistics:
+
 - Spent: Total write time, in seconds, counting from the start of writing the first data to the end of the last data. This indicates that a total of 8.527298 seconds were spent.
 - Real: Total write time (calling the engine), excluding the time spent preparing data for the testing framework. Purely counting the time spent on engine calls, The time spent is 8.117379 seconds. If 8.527298-8.117379=0.409919 seconds, it is the time spent preparing data for the testing framework.
 - Rows: Write the total number of rows, which is 10 million pieces of data.
@@ -569,6 +575,7 @@ First line write speed statistics:
 - Records/second write speed = `total write time` / `total number of rows written`, real in parentheses is the same as before, indicating pure engine write speed.
 
 Second line single write delay statistics:  
+
 - min: Write minimum delay.
 - avg: Write normal delay.
 - p90: Write delay p90 percentile delay number.
@@ -577,11 +584,12 @@ Second line single write delay statistics:
 - max: maximum write delay.
 Through this series of indicators, the distribution of write request latency can be observed.
 
-#### Query indicators
+### Query indicators
+
 The query performance test mainly outputs the QPS indicator of query request speed, and the output format is as follows:
 
 ``` bash
-complete query with 3 threads and 10000 query delay avg: 	0.002686s min: 	0.001182s max: 	0.012189s p90: 	0.002977s p95: 	0.003493s p99: 	0.004645s SQL command: select ...
+complete query with 3 threads and 10000 query delay avg:  0.002686s min:  0.001182s max:  0.012189s p90:  0.002977s p95:  0.003493s p99:  0.004645s SQL command: select ...
 INFO: Spend 26.9530 second completed total queries: 30000, the QPS of all threads: 1113.049
 ```
 
@@ -591,9 +599,10 @@ INFO: Spend 26.9530 second completed total queries: 30000, the QPS of all thread
 - QPS        = number of successful requests / time spent (in seconds)
 - Error rate = number of failed requests / (number of successful requests + number of failed requests)
 
-#### Subscription indicators
+### Subscription indicators
 
 The subscription performance test mainly outputs consumer consumption speed indicators, with the following output format:
+
 ``` bash
 INFO: consumer id 0 has poll total msgs: 376, period rate: 37.592 msgs/s, total rows: 3760000, period rate: 375924.815 rows/s
 INFO: consumer id 1 has poll total msgs: 362, period rate: 36.131 msgs/s, total rows: 3620000, period rate: 361313.504 rows/s
@@ -603,6 +612,7 @@ INFO: consumerId: 1, consume msgs: 1000, consume rows: 10000000
 INFO: consumerId: 2, consume msgs: 1000, consume rows: 10000000
 INFO: Consumed total msgs: 3000, total rows: 30000000
 ```
+
 - Lines 1 to 3 real-time output of the current consumption speed of each consumer, msgs/s represents the number of consumption messages, each message contains multiple rows of data, and rows/s represents the consumption speed calculated by rows.
 - Lines 4 to 6 show the overall statistics of each consumer after the test is completed, including the total number of messages consumed and the total number of lines.
 - The overall statistics of all consumers in line 7, `msgs` represents how many messages were consumed in total, `rows` represents how many rows of data were consumed in total.

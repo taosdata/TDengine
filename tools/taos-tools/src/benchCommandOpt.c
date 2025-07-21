@@ -10,8 +10,8 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
 
- #include "cus_name.h"  // include/util/
- #include <bench.h>
+#include "cus_name.h"  // include/util/
+#include <bench.h>
 #include "benchLog.h"
 #include <toolsdef.h>
 
@@ -225,7 +225,7 @@ static void initStable() {
 
     TOOLS_STRNCPY(t1->name, "groupid", TSDB_COL_NAME_LEN + 1);
     TOOLS_STRNCPY(t2->name, "location", TSDB_COL_NAME_LEN + 1);
-
+    TOOLS_STRNCPY(stbInfo->primaryKeyName, "ts", TSDB_COL_NAME_LEN + 1);
     t1->min = 1;
     t1->max = 100000;
 
@@ -562,7 +562,7 @@ void queryAggrFunc() {
 
     // REST
     if (REST_IFACE != g_arguments->iface) {
-        pThreadInfo->conn = initBenchConn();
+        pThreadInfo->conn = initBenchConn(database->dbName);
         if (pThreadInfo->conn == NULL) {
             errorPrint("%s() failed to init connection\n", __func__);
             free(pThreadInfo);

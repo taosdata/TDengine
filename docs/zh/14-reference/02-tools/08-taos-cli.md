@@ -59,6 +59,8 @@ taos> quit
     taos -c /root/cfg/
     ```
 
+- -Z：指定连接方式，0 表示采用原生连接方式，1 表示采用 WebSocket 连接方式，默认采用原生连接方式。
+
 ### 高级参数
 
 - -a AUTHSTR：连接服务端的授权信息。
@@ -88,7 +90,7 @@ taos> quit
 
 ### 数据导入
 
-- 可以使用 insert into table_name file '输入文件名'，把上一步中导出的数据文件再导入到指定表中。如 `insert into d0 file '/root/d0.csv';` 表示把上面导出的数据全部再导致至 d0 表中。
+- 可以使用 insert into table_name file '输入文件名'，把上一步中导出的数据文件再导入到指定表中。如 `insert into d0 file '/root/d0.csv';` 表示把上面导出的数据全部再导入至 d0 表中。
 
 ## 执行 SQL 脚本
 

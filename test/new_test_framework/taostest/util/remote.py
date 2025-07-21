@@ -12,7 +12,6 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Union, List
 import subprocess
 
-import patchwork.transfers
 from fabric2 import Connection, Result
 
 
@@ -205,6 +204,12 @@ class Remote:
         with Connection(host, user="root", connect_kwargs={"password": password}) as c:
             return c.run(cmd_line, warn=True)
 
+    def rsync_dir(local_path, remote_host, remote_path, exclude=".git", user="root"):
+        exclude_opt = f"--exclude={exclude}" if exclude else ""
+        cmd = f'rsync -az {exclude_opt} -e "ssh -o StrictHostKeyChecking=no" {local_path} {user}@{remote_host}:{remote_path}'
+        result = subprocess.run(cmd, shell=True)
+        return result.returncode == 0
+
     def put(self, host, file, path, password="") -> bool:
         self._logger.debug("put %s to %s:%s", file, host, path)
         if host == platform.node() or host == "localhost":
@@ -217,7 +222,7 @@ class Remote:
                 self._logger.debug("run: %s", cmd)
                 c.run(cmd, warn=True)
                 if os.path.isdir(file):
-                    patchwork.transfers.rsync(c, file, path, exclude=".git")
+                    self.rsync_dir(file, host, path, exclude=".git")
                 else:
                     c.put(file, path)
                 return True

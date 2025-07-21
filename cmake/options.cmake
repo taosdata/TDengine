@@ -11,6 +11,61 @@ option(
 # TODO: tackle 'undefined pthread_atfork referenced by libuv.a' issue found on CentOS7.9/ubuntu 18
 option(TD_PTHREAD_TWEAK "tweaking pthread experimentally, especially for CentOS7.9 or ubuntu 18" OFF)
 
+# NOTE: these are not boolean options, but are very much useful
+# TAOSADAPTER_BUILD_OPTIONS
+if(NOT DEFINED TAOSADAPTER_BUILD_OPTIONS)
+  set(TAOSADAPTER_BUILD_OPTIONS "" CACHE STRING "go build options to be used by taosadapter, separated by ':'" FORCE)
+endif()
+
+# TAOSADAPTER_GIT_TAG
+# <tag/branch/commit-sha1>:[TRUE|FALSE]
+# eg.: main
+# stands for:
+#      GIT_TAG main
+#      GIT_SHALLOW TRUE
+# eg.: ver-3.3.6.0
+# stands for:
+#      GIT_TAG ver-3.3.6.0
+#      GIT_SHALLOW TRUE
+# eg.: ba3e38da6cba08a555bd67369b1829cde3dd0348:FALSE
+# stands for:
+#      GIT_TAG ba3e38da6cba08a555bd67369b1829cde3dd0348
+#      GIT_SHALLOW FALSE
+# NOTE: if you specify branch other than main, please change this to FALSE
+#       otherwise you might encounter the error like:
+#       error: pathspec 'xxx' did not match any file(s) known to git
+if(NOT DEFINED TAOSADAPTER_GIT_TAG)
+  set(TAOSADAPTER_GIT_TAG "main" CACHE STRING "which tag/branch/commit-sha1 to checkout for taosadapter.git" FORCE)
+endif()
+
+# preprocess TAOSADAPTER_GIT_TAG
+string(REPLACE ":" ";" _kv "${TAOSADAPTER_GIT_TAG}:TRUE") # NOTE: set GIT_SHALLOW to TRUE by default
+list(GET _kv 0 _k)
+list(GET _kv 1 _v)
+set(TAOSADAPTER_GIT_TAG_NAME    "${_k}" CACHE STRING "" FORCE)
+if(${_v})
+  set(TAOSADAPTER_GIT_TAG_SHALLOW TRUE CACHE BOOL "" FORCE)
+else()
+  set(TAOSADAPTER_GIT_TAG_SHALLOW FALSE CACHE BOOL "" FORCE)
+endif()
+
+# TAOSWS_GIT_TAG
+# eg.: main
+if(NOT DEFINED TAOSWS_GIT_TAG)
+    set(TAOSWS_GIT_TAG "main" CACHE STRING "which tag/branch/commit-sha1 to checkout for taosws(rust connector)" FORCE)
+endif()
+
+# preprocess TAOSWS_GIT_TAG
+string(REPLACE ":" ";" _kv "${TAOSWS_GIT_TAG}:TRUE") # NOTE: set GIT_SHALLOW to TRUE by default
+list(GET _kv 0 _k)
+list(GET _kv 1 _v)
+set(TAOSWS_GIT_TAG_NAME    "${_k}" CACHE STRING "" FORCE)
+if(${_v})
+    set(TAOSWS_GIT_TAG_SHALLOW TRUE CACHE BOOL "" FORCE)
+else()
+    set(TAOSWS_GIT_TAG_SHALLOW FALSE CACHE BOOL "" FORCE)
+endif()
+
 IF(${TD_WINDOWS})
     IF(NOT TD_ASTRA)
         MESSAGE("build pthread Win32")
@@ -174,8 +229,8 @@ ENDIF()
 IF(${TD_LINUX})
 
 option(
-    BUILD_S3
-    "If build with s3"
+    BUILD_SHARED_STORAGE
+    "If build with shared storage"
     ON
 )
 
@@ -208,8 +263,8 @@ option(
 
 # NOTE: set option variable in this ways is not a good practice
 IF(NOT TD_ENTERPRISE)
-  MESSAGE("switch s3 off with community version")
-  set(BUILD_S3 OFF)
+  MESSAGE("switch shared storage off with community version")
+  set(BUILD_SHARED_STORAGE OFF)
   set(BUILD_WITH_S3 OFF)
   set(BUILD_WITH_COS OFF)
   set(BUILD_WITH_ANALYSIS OFF)
@@ -218,7 +273,7 @@ ENDIF ()
 # NOTE: set option variable in this ways is not a good practice
 IF(${BUILD_WITH_ANALYSIS})
     message("build with analysis")
-    set(BUILD_S3 ON)
+    set(BUILD_SHARED_STORAGE ON)
     set(BUILD_WITH_S3 ON)
 ENDIF()
 
@@ -227,21 +282,18 @@ IF(${TD_LINUX})
     set(BUILD_WITH_ANALYSIS ON)
 ENDIF()
 
-IF(${BUILD_S3})
+IF(${BUILD_SHARED_STORAGE})
+  add_definitions(-DUSE_SHARED_STORAGE)
 
   IF(${BUILD_WITH_S3})
-
     add_definitions(-DUSE_S3)
     # NOTE: BUILD_WITH_S3 does NOT coexist with BUILD_WITH_COS?
     option(BUILD_WITH_COS "If build with cos" OFF)
-
   ELSE ()
-
-    # NOTE: BUILD_WITH_S3 does NOT coexist with BUILD_WITH_COS?
-    option(BUILD_WITH_COS "If build with cos" ON)
-
+    # NOTE1: BUILD_WITH_S3 does NOT coexist with BUILD_WITH_COS?
+    # option(BUILD_WITH_COS "If build with cos" ON)
+    MESSAGE("shared storage does not support COS at present, please use s3 instead")
   ENDIF ()
-
 ELSE ()
 
   option(BUILD_WITH_S3 "If build with s3" OFF)
@@ -331,7 +383,7 @@ option(
    OFF
 )
 
-message(STATUS "BUILD_S3:${BUILD_S3}")
+message(STATUS "BUILD_SHARED_STORAGE:${BUILD_SHARED_STORAGE}")
 message(STATUS "BUILD_WITH_S3:${BUILD_WITH_S3}")
 message(STATUS "BUILD_WITH_COS:${BUILD_WITH_COS}")
 

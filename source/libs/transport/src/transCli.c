@@ -83,12 +83,10 @@ typedef struct SCliConn {
   HeapNode node;  // for heap
   int8_t   inHeap;
   int32_t  reqRefCnt;
-  uint32_t clientIp;
-  uint32_t serverIp;
 
   char* dstAddr;
-  char  src[32];
-  char  dst[32];
+  char  src[IP_RESERVE_CAP];
+  char  dst[IP_RESERVE_CAP];
 
   char*   ipStr;
   int32_t port;
@@ -244,7 +242,7 @@ static FORCE_INLINE int32_t cliMayCvtFqdnToIp(SReqEpSet* pEpSet, const SCvtAddr*
 
 static FORCE_INLINE int32_t cliBuildExceptResp(SCliThrd* thrd, SCliReq* pReq, STransMsg* resp);
 
-static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, uint32_t* ipaddr);
+static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, SIpAddr* ipaddr, int8_t ipv6);
 static FORCE_INLINE int32_t cliUpdateFqdnCache(SHashObj* cache, char* fqdn);
 
 static FORCE_INLINE void cliMayUpdateFqdnCache(SHashObj* cache, char* dst);
@@ -747,7 +745,6 @@ void cliHandleResp(SCliConn* conn) {
   if (cliMayRecycleConn(conn)) {
     return;
   }
-  // cliConnCheckTimoutMsg(conn);
 
   cliConnMayUpdateTimer(conn, pInst->readTimeout * 1000);
 }
@@ -1604,24 +1601,44 @@ static void cliDestroyBatch(SCliBatch* pBatch) {
   taosMemoryFree(pBatch);
 }
 
+int32_t cliBuildSockByIpType(SIpAddr* ipAddr, struct sockaddr* addr) {
+  if (ipAddr->type == 0) {
+    struct sockaddr_in* addr4 = (struct sockaddr_in*)addr;
+    addr4->sin_family = AF_INET;
+    addr4->sin_port = htons(ipAddr->port);
+    addr4->sin_addr.s_addr = inet_addr(ipAddr->ipv4);
+  } else {
+    struct sockaddr_in6* addr6 = (struct sockaddr_in6*)addr;
+    addr6->sin6_family = AF_INET6;
+    addr6->sin6_port = htons(ipAddr->port);
+    int32_t ret = inet_pton(AF_INET6, ipAddr->ipv6, &addr6->sin6_addr);
+    if (ret <= 0) {
+      tError("failed to convert ipv6 %s to binary since %s", ipAddr->ipv6, strerror(errno));
+      return TSDB_CODE_INVALID_PARA;
+    }
+  }
+  return 0;
+}
 static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
   int32_t lino = 0;
   STrans* pInst = pThrd->pInst;
+  int8_t  type = 0;
 
-  uint32_t ipaddr;
-  int32_t  code = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, conn->ipStr, &ipaddr);
-  if (code != 0) {
-    TAOS_CHECK_GOTO(code, &lino, _exception1);
-  }
+  struct sockaddr_storage addr;
+  SIpAddr                 ipaddr;
 
-  struct sockaddr_in addr;
-  addr.sin_family = AF_INET;
-  addr.sin_addr.s_addr = ipaddr;
-  addr.sin_port = (uint16_t)htons(conn->port);
+  int32_t code = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, conn->ipStr, &ipaddr, pInst->ipv6);
+  TAOS_CHECK_GOTO(code, &lino, _exception1);
+
+  ipaddr.port = conn->port;
+  type = ipaddr.type;
+
+  code = cliBuildSockByIpType(&ipaddr, (struct sockaddr*)&addr);
+  TAOS_CHECK_GOTO(code, &lino, _exception1);
 
   tTrace("%s conn:%p, try to connect to %s", pInst->label, conn, conn->dstAddr);
 
-  int32_t fd = taosCreateSocketWithTimeout(TRANS_CONN_TIMEOUT * 10);
+  int32_t fd = taosCreateSocketWithTimeout(TRANS_CONN_TIMEOUT * 10, type);
   if (fd < 0) {
     TAOS_CHECK_GOTO(terrno, &lino, _exception1);
   }
@@ -1675,49 +1692,27 @@ _exception2:
 }
 
 int32_t cliConnSetSockInfo(SCliConn* pConn) {
-  struct sockaddr peername, sockname;
-  int             addrlen = sizeof(peername);
+  struct sockaddr_storage peername, sockname;
+  int                     addrlen = sizeof(peername);
 
-  int32_t code = uv_tcp_getpeername((uv_tcp_t*)pConn->stream, &peername, &addrlen);
+  int32_t code = uv_tcp_getpeername((uv_tcp_t*)pConn->stream, (struct sockaddr*)&peername, &addrlen);
   if (code != 0) {
     tWarn("failed to get perrname since %s", uv_err_name(code));
     code = TSDB_CODE_THIRDPARTY_ERROR;
     return code;
   }
-  transSockInfo2Str(&peername, pConn->dst);
+  transSockInfo2Str((struct sockaddr*)&peername, pConn->dst);
 
   addrlen = sizeof(sockname);
-  code = uv_tcp_getsockname((uv_tcp_t*)pConn->stream, &sockname, &addrlen);
+  code = uv_tcp_getsockname((uv_tcp_t*)pConn->stream, (struct sockaddr*)&sockname, &addrlen);
   if (code != 0) {
     tWarn("failed to get sock name since %s", uv_err_name(code));
     code = TSDB_CODE_THIRDPARTY_ERROR;
     return code;
   }
-  transSockInfo2Str(&sockname, pConn->src);
-
-  struct sockaddr_in addr = *(struct sockaddr_in*)&sockname;
-  struct sockaddr_in saddr = *(struct sockaddr_in*)&peername;
-
-  pConn->clientIp = addr.sin_addr.s_addr;
-  pConn->serverIp = saddr.sin_addr.s_addr;
-
+  transSockInfo2Str((struct sockaddr*)&sockname, pConn->src);
   return 0;
 };
-
-// static int32_t cliBuildExeceptMsg(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
-//   SCliThrd* pThrd = pConn->hostThrd;
-//   STrans*   pInst = pThrd->pInst;
-//   memset(pResp, 0, sizeof(STransMsg));
-//   STransMsg resp = {0};
-//   resp.contLen = 0;
-//   resp.pCont = NULL;
-//   resp.msgType = pReq->msg.msgType + 1;
-//   resp.info.ahandle = pReq->ctx->ahandle;
-//   resp.info.traceId = pReq->msg.info.traceId;
-//   resp.info.hasEpSet = false;
-//   resp.info.cliVer = pInst->compatibilityVer;
-//   return 0;
-// }
 
 bool filteGetAll(void* q, void* arg) { return true; }
 void cliConnCb(uv_connect_t* req, int status) {
@@ -1862,23 +1857,29 @@ FORCE_INLINE int32_t cliBuildExceptResp(SCliThrd* pThrd, SCliReq* pReq, STransMs
   return 0;
 }
 
-static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, uint32_t* ip) {
-  int32_t   code = 0;
-  uint32_t  addr = 0;
-  size_t    len = strlen(fqdn);
-  uint32_t* v = taosHashGet(cache, fqdn, len);
+static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, SIpAddr* ip, int8_t enableIpv6) {
+  int32_t code = 0;
+  // uint32_t  addr = 0;
+  size_t  len = strlen(fqdn);
+  SIpAddr ipAddr = {0};
+
+  SIpAddr* v = taosHashGet(cache, fqdn, len);
   if (v == NULL) {
-    code = taosGetIpv4FromFqdn(fqdn, &addr);
+    code = taosGetIpFromFqdn(tsEnableIpv6, fqdn, &ipAddr);
     if (code != 0) {
       code = TSDB_CODE_RPC_FQDN_ERROR;
-      tError("failed to get ip from fqdn:%s since %s", fqdn, tstrerror(code));
+      tError("ipv6Enable(%d), failed to get ip from fqdn:%s since %s", enableIpv6, fqdn, tstrerror(code));
+      return code;
+    } else {
+      if (enableIpv6 && ipAddr.type != 1) {
+        tWarn("get ipv4 addr from fqdn:%s, but ipv6 is enabled", fqdn);
+        return TSDB_CODE_RPC_FQDN_ERROR;
+      }
+    }
+    if ((code = taosHashPut(cache, fqdn, len, &ipAddr, sizeof(ipAddr)) != 0)) {
       return code;
     }
-
-    if ((code = taosHashPut(cache, fqdn, len, &addr, sizeof(addr)) != 0)) {
-      return code;
-    }
-    *ip = addr;
+    *ip = ipAddr;
   } else {
     *ip = *v;
   }
@@ -1886,17 +1887,14 @@ static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, u
 }
 static FORCE_INLINE int32_t cliUpdateFqdnCache(SHashObj* cache, char* fqdn) {
   // impl later
-  uint32_t addr = 0;
-  int32_t  code = taosGetIpv4FromFqdn(fqdn, &addr);
+  SIpAddr addr = {0};
+  int32_t code = taosGetIpFromFqdn(tsEnableIpv6, fqdn, &addr);
   if (code == 0) {
-    size_t    len = strlen(fqdn);
-    uint32_t* v = taosHashGet(cache, fqdn, len);
+    size_t   len = strlen(fqdn);
+    SIpAddr* v = taosHashGet(cache, fqdn, len);
     if (v != NULL) {
-      if (addr != *v) {
-        char old[TSDB_FQDN_LEN] = {0}, new[TSDB_FQDN_LEN] = {0};
-        taosInetNtoa(old, *v);
-        taosInetNtoa(new, addr);
-        tWarn("update ip of fqdn:%s, old:%s, new:%s", fqdn, old, new);
+      if (!taosIpAddrIsEqual(v, &addr)) {
+        tWarn("update ip of fqdn:%s, old:%s, new:%s", fqdn, IP_ADDR_STR(v), IP_ADDR_STR(&addr));
         code = taosHashPut(cache, fqdn, len, &addr, sizeof(addr));
       }
     } else {
@@ -1917,7 +1915,7 @@ static void cliMayUpdateFqdnCache(SHashObj* cache, char* dst) {
     if (dst[i] == ':') break;
   }
   if (i > 0) {
-    char fqdn[TSDB_FQDN_LEN] = {0};
+    char fqdn[TSDB_FQDN_LEN + 1] = {0};
     memcpy(fqdn, dst, i);
     TAOS_UNUSED(cliUpdateFqdnCache(cache, fqdn));
   }
@@ -2131,6 +2129,8 @@ static void cliAsyncCb(uv_async_t* handle) {
 
   // batch process to avoid to lock/unlock frequently
   queue wq;
+  QUEUE_INIT(&wq);
+
   if (taosThreadMutexLock(&item->mtx) != 0) {
     tError("failed to lock mutex since %s", tstrerror(terrno));
   }
@@ -2208,7 +2208,7 @@ static void* cliWorkThread(void* arg) {
   return NULL;
 }
 
-void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInstRef) {
+void* transInitClient(SIpAddr* pAddr, char* label, int numOfThreads, void* fp, void* pInstRef) {
   int32_t  code = 0;
   SCliObj* cli = taosMemoryCalloc(1, sizeof(SCliObj));
   if (cli == NULL) {
@@ -2543,7 +2543,7 @@ static FORCE_INLINE void cliPerfLog_schedMsg(SCliReq* pReq, char* label) {
     return;
   }
 
-  tGDebug("%s retry on next node,use:%s, step:%d,timeout:%" PRId64, label, tbuf, pCtx->retryStep,
+  tGTrace("%s retry on next node,use:%s, step:%d,timeout:%" PRId64, label, tbuf, pCtx->retryStep,
           pCtx->retryNextInterval);
   return;
 }
@@ -2714,7 +2714,11 @@ void cliRetryMayInitCtx(STrans* pInst, SCliReq* pReq) {
 
 int32_t cliRetryIsTimeout(STrans* pInst, SCliReq* pReq) {
   SReqCtx* pCtx = pReq->ctx;
-  if (pCtx->retryMaxTimeout != -1 && taosGetTimestampMs() - pCtx->retryInitTimestamp >= pCtx->retryMaxTimeout) {
+  int64_t  now = taosGetTimestampMs();
+  tDebug("cliRetryIsTimeout, retryInit:%d, retryMaxTimeout:%" PRId64 ", retryInitTimestamp:%" PRId64, pCtx->retryInit,
+         pCtx->retryMaxTimeout, pCtx->retryInitTimestamp);
+  if (pCtx->retryMaxTimeout != -1 && ((now - pCtx->retryInitTimestamp) >= pCtx->retryMaxTimeout)) {
+    tDebug("msg already timeout, not retry");
     return 1;
   }
   return 0;
@@ -2732,7 +2736,7 @@ void cliRetryUpdateRule(SReqCtx* pCtx, int8_t noDelay) {
 
     int64_t factor = pow(pCtx->retryStepFactor, pCtx->retryStep - 1);
     pCtx->retryNextInterval = factor * pCtx->retryMinInterval;
-    if (pCtx->retryNextInterval >= pCtx->retryMaxInterval) {
+    if (pCtx->retryNextInterval < 0 || pCtx->retryNextInterval >= pCtx->retryMaxInterval) {
       pCtx->retryNextInterval = pCtx->retryMaxInterval;
     }
   } else {
@@ -2792,11 +2796,16 @@ bool cliMayRetry(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
     tTrace("code str %s, contlen:%d 0", tstrerror(code), pResp->contLen);
     noDelay = cliResetEpset(pCtx, pResp, true);
     transFreeMsg(pResp->pCont);
+  } else if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY || code == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE) {
+    noDelay = 0;
+    tTrace("do retry on next node since %s", tstrerror(code));
+    transFreeMsg(pResp->pCont);
   } else {
     tTrace("code str %s, contlen:%d 0", tstrerror(code), pResp->contLen);
     noDelay = cliResetEpset(pCtx, pResp, false);
     transFreeMsg(pResp->pCont);
   }
+
   pResp->pCont = NULL;
   pResp->info.hasEpSet = 0;
   if (code != TSDB_CODE_RPC_BROKEN_LINK && code != TSDB_CODE_RPC_NETWORK_UNAVAIL && code != TSDB_CODE_SUCCESS) {

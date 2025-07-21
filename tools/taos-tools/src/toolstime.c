@@ -32,7 +32,6 @@
 #include <stdbool.h>
 #include <time.h>
 
-
 #include "bench.h"
 #include "toolsdef.h"
 
@@ -92,11 +91,11 @@ static const char *am_pm[2] = {"AM", "PM"};
 #endif
 
 static int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec, char delim);
-static int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec, char delim);
+// static int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec, char delim);
 
 static int32_t (*parseLocaltimeFp[]) (char* timestr, int64_t* time, int32_t timePrec, char delim) = {
     parseLocaltime,
-    parseLocaltimeWithDst
+    // parseLocaltimeWithDst
 };
 
 char *tools_strnchr(char *haystack, char needle, int32_t len, bool skipquote) {
@@ -693,41 +692,41 @@ int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec, char deli
     return 0;
 }
 
-int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec, char delim) {
-    *time = 0;
-    struct tm tm = {0};
-    tm.tm_isdst = -1;
+// int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec, char delim) {
+//     *time = 0;
+//     struct tm tm = {0};
+//     tm.tm_isdst = -1;
 
-    char* str;
-if (delim == 'T') {
-        str = toolsStrpTime(timestr, "%Y-%m-%dT%H:%M:%S", &tm);
-    } else if (delim == 0) {
-        str = toolsStrpTime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
-    } else {
-        str = NULL;
-}
+//     char* str;
+// if (delim == 'T') {
+//         str = toolsStrpTime(timestr, "%Y-%m-%dT%H:%M:%S", &tm);
+//     } else if (delim == 0) {
+//         str = toolsStrpTime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
+//     } else {
+//         str = NULL;
+// }
 
-    if (str == NULL) {
-        return -1;
-    }
+//     if (str == NULL) {
+//         return -1;
+//     }
 
-    /* mktime will be affected by TZ, set by using taos_options */
-int64_t seconds = mktime(&tm);
+//     /* mktime will be affected by TZ, set by using taos_options */
+// int64_t seconds = mktime(&tm);
 
-int64_t fraction = 0;
+// int64_t fraction = 0;
 
-    if (*str == '.') {
-        /* parse the second fraction part */
-        if ((fraction = parseFraction(str + 1, &str, timePrec)) < 0) {
-return -1;
-}
-}
+//     if (*str == '.') {
+//         /* parse the second fraction part */
+//         if ((fraction = parseFraction(str + 1, &str, timePrec)) < 0) {
+// return -1;
+// }
+// }
 
-    int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
-        (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
-*time = factor * seconds + fraction;
-    return 0;
-}
+//     int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
+//         (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
+// *time = factor * seconds + fraction;
+//     return 0;
+// }
 
 int32_t toolsParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t day_light) {
     /* parse datatime string in with tz */

@@ -70,7 +70,6 @@ Query OK, 1 rows in database (0.010654s)
 
 :::
 
-
 Use the following command to establish a connection on a specified hostname using the TAOS_FQDN environment variable or the fqdn configuration item in taos.cfg. This method provides greater flexibility for deploying TDengine.
 
 ```shell

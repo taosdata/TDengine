@@ -8,7 +8,7 @@ toc_max_heading_level: 4
 
 ## 安装步骤
 
-访问 TDengine 的官方版本发布页面：https://docs.taosdata.com/releases/tdengine/ ，下载 TDengine 安装包：TDengine-server-3.3.0.0-Linux-x64.tar.gz。其他类型安装包的安装方法请参考相关文档，TDengine 遵循各种安装包的标准。
+访问 TDengine 的官方版本发布页面：[https://docs.taosdata.com/releases/tdengine/](https://docs.taosdata.com/releases/tdengine/) ，下载 TDengine 安装包：TDengine-server-3.3.0.0-Linux-x64.tar.gz。其他类型安装包的安装方法请参考相关文档，TDengine 遵循各种安装包的标准。
 
 1. 进入到安装包所在目录，使用 tar 解压安装包
 ```shell

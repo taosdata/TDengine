@@ -49,9 +49,9 @@ pip3 install taos-ws-py
 
 Python Connector 历史版本（建议使用最新版本的 `taospy`）：
 
-
 | Python Connector 版本 | 主要变化                                                                                                                                                         |   TDengine 版本    |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+|         2.8.2         | 连接参数设置支持跨平台                                                                                                                                    | - |
 |         2.8.1         | 增加 connect 属性设置函数                                                                                                                                    | - |
 |         2.8.0         | 移除 Apache Superset 连接驱动                                                                                                                                    | - |
 |        2.7.23         | 支持 DECIMAL 数据类型                                                                                                                                            | - |
@@ -72,6 +72,8 @@ WebSocket Connector 历史版本：
 
 | WebSocket Connector 版本 | 主要变化                                                                              |   TDengine 版本    |
 | ----------------------- | ------------------------------------------------------------------------------------ | ----------------- |
+|          0.5.3           | 支持 ipv6 地址格式                                                                       | - |
+|          0.5.2           | 升级 rust 连接器版本，修复了云服务连接的 token 问题                                       | - |
 |          0.5.1           | 支持 stmt2 参数绑定写入和查询                                                          | - |
 |          0.4.0           | 支持订阅新增参数动态扩展                                                                | - |
 |          0.3.9           | 修复 fetchmany 自定义行数时获取不完全的问题                                              | - |
@@ -170,14 +172,15 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Python 对
 #### URL 规范
 
 ```text
-[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
-|------------|---|-----------|-----------|------|------|------------|-----------------------|
-|   protocol |   | username  | password  | host | port |  database  |  params               |
+[+<protocol>]://[<username>:<password>@][<host1>:<port1>[,...<hostN>:<portN>]][/<database>][?<key1>=<value1>[&...<keyN>=<valueN>]]
+|-----------|---|----------|-----------|-------------------------------------|------------|--------------------------------------|
+|  protocol |   | username | password  |  addresses                          |   database |   params                             |
 ```
 
-- **protocol**：使用 websocket 协议建立连接。例如`ws://localhost:6041`
+- **protocol**：使用 WebSocket 协议建立连接。例如 `ws://localhost:6041`。
 - **username/password**：数据库的用户名和密码。
-- **host/port**：主机地址和端口号。例如`localhost:6041`
+- **addresses**：指定创建连接的服务器地址，多个地址间用英文逗号分隔。对于 IPv6 地址，必须使用中括号括起来（如 `[::1]` 或 `[2001:db8:1234:5678::1]`），以避免端口号解析冲突。
+  - 示例：`ws://host1:6041,host2:6041` 或 `ws://`（等同于 `ws://localhost:6041`）。
 - **database**：数据库名称。
 - **params**：其他参数。例如 token。
 
@@ -189,10 +192,10 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Python 对
         - `dsn`：类型 `Option<&str>` 可选，数据源名称（DSN），用于指定要连接的数据库的位置和认证信息。 
         - `args`：类型 `Option<&PyDict>` 可选，以 Python 字典的形式提供，可用于设置
             - `user`：数据库的用户名
-            - `password`：数据库的密码。
+            - `password`：数据库的密码
             - `host`：主机地址
             - `port`：端口号
-            - `database`：数据库名称   
+            - `database`：数据库名称
     - **返回值**：连接对象。
     - **异常**：操作失败抛出 `ConnectionError` 异常。
 - `fn cursor(&self) -> PyResult<Cursor>`

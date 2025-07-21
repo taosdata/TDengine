@@ -106,7 +106,7 @@ class TaosAdapter:
                         self._remote.cmd(i, killCmd)
                 else:
                     killCmd = [
-                        "ps -ef|grep -wi %s| grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1" % nodeDict[
+                        "ps -ef|grep -wi %s| grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1 || true" % nodeDict[
                             "name"]]
                     self._remote.cmd(i, killCmd)
                 #cmdList = []

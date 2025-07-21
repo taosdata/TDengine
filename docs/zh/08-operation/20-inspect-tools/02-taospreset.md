@@ -13,25 +13,33 @@ TDengine 的安装部署对环境系统有一定的依赖和要求，安装部�
 工具支持通过 help 参数查看支持的语法
 
 ```help
-Usage: taospreset [OPTIONS]
+usage: taospreset [-h] [--model {local,ssh}] [--config CONFIG] [--backend] [--disable-kysec] [--result RESULT] [--version] [--log-level {debug,info}]
 
-  Pre-set for Database installation
+Pre-set for Database installation
 
-Options:
-  -m, --model [local|ssh]      connection model, default: local
-  -f, --config TEXT            Full path of test config file  [required]
-  -b, --backend BOOLEAN        Run process in backend. default: False
-  -d, --disable-kysec BOOLEAN  Disable kysec, default: False
-  -v, --version                Show version
-  --help                       Show this message and exit.
+optional arguments:
+  -h, --help            show this help message and exit
+  --model {local,ssh}, -m {local,ssh}
+                        connection model, default: local
+  --config CONFIG, -f CONFIG
+                        Full path of test config file
+  --backend, -b         Run process in backend. default: False
+  --disable-kysec, -d   Disable kysec, default: False
+  --result RESULT, -r RESULT
+                        Result directory. default: ./
+  --version, -v         Show version
+  --log-level {debug,info}, -l {debug,info}
+                        Set log level, default: info (options: debug, info)
 ```
 
 ### 参数详细说明
 
 - `model`：预配置工具运行模式，分为 local 和 ssh。安装环境的多节点间支持 SSH 通信，可选择 ssh 模式，在任意节点上运行预配置工具，会依次对所有节点环境完成预配置操作。反之，节点间不支持 SSH 通信时，可选择 local 模式，仅对工具运行所在机器完成预配置操作，默认为 local 模式。
 - `config`：预配置工具加载的配置文件，其具体配置方式详见 **配置文件使用说明** 章节。不配置 config 参数时配置文件默认路径为工具运行当前目录。
-- `backend`：后台运行预配置工具，选择 True 后预配置工具在自动在后台运行，默认为 False。
-- `disable-kysec`：是否关闭 Kylin Security 服务，KySec 是麒麟系统的安全模块框架，类似于 SELinux、AppArmor、Trusted Computing 的集合体，主要用于增强系统安全性。默认为 False
+- `backend`：后台运行预配置工具，默认为前台运行。
+- `disable-kysec`：是否关闭 Kylin Security 服务，KySec 是麒麟系统的安全模块框架，类似于 SELinux、AppArmor、Trusted Computing 的集合体，主要用于增强系统安全性。默认为 False。
+- `result`: 安装前配置结果文档的输出路径。不配置 result 参数时默认路径为工具运行当前目录。
+- `log-level`: 输出日志级别，目前支持 debug 和 info，模式为 info。
 - `version`：打印预配置工具版本信息。
 
 ### 配置文件使用说明
@@ -92,7 +100,7 @@ root hard stack=65536
 | **关闭 SElinux 服务**   | 关闭系统 SElinux 服务 |
 | **配置系统参数**   | 配置用户预设定的系统参数 |   
 | **配置 coredump**   | 配置 coredump 生成目录并开启服务 | 
-| **修改机器 Hostname**   | 当机器 Hostanme 为默认的 localhost 时更新为配置文件中预设定的 FQDN | 
+| **修改机器 Hostname**   | 当机器 Hostname 为默认的 localhost 时更新为配置文件中预设定的 FQDN | 
 | **配置域名解析**   | 将配置文件中安装节点的 FQDN 和 IP 配置到 /etd/hosts 文件 | 
 
 ## 结果文件
@@ -114,5 +122,9 @@ root hard stack=65536
 ```
 以 SSH 模式在所有节点执行安装前预配置并关闭 Kylin Security 服务
 ```
-./taospreset -m ssh -d true
+./taospreset -m ssh -d
+```
+以 SSH 模式在所有节点执行安装前预配置，开启日志 debug 级别
+```
+./taospreset -m ssh -l debug
 ```

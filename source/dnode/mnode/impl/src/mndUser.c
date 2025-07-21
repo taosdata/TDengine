@@ -18,6 +18,7 @@
 #ifndef TD_ASTRA
 #include <uv.h>
 #endif
+#include "crypt.h"
 #include "mndUser.h"
 #include "audit.h"
 #include "mndDb.h"
@@ -30,8 +31,10 @@
 
 // clang-format on
 
-#define USER_VER_NUMBER   6
-#define USER_RESERVE_SIZE 64
+#define USER_VER_NUMBER                      7
+#define USER_VER_SUPPORT_WHITELIST           5
+#define USER_VER_SUPPORT_WHITELIT_DUAL_STACK 7
+#define USER_RESERVE_SIZE                    63
 
 #define BIT_FLAG_MASK(n)              (1 << n)
 #define BIT_FLAG_SET_MASK(val, mask)  ((val) |= (mask))
@@ -97,11 +100,11 @@
 #define ALTER_USER_DEL_SUBSCRIBE_TOPIC_PRIV(_type, _priv) \
   (ALTER_USER_DEL_PRIVS(_type) && ALTER_USER_SUBSCRIBE_PRIV(_priv))
 
-static int32_t createDefaultIpWhiteList(SIpWhiteList **ppWhiteList);
-static int32_t createIpWhiteList(void *buf, int32_t len, SIpWhiteList **ppWhiteList);
-static bool    updateIpWhiteList(SIpWhiteList *pOld, SIpWhiteList *pNew);
-static bool    isIpWhiteListEqual(SIpWhiteList *a, SIpWhiteList *b);
-static bool    isIpRangeEqual(SIpV4Range *a, SIpV4Range *b);
+static int32_t createDefaultIpWhiteList(SIpWhiteListDual **ppWhiteList);
+static int32_t createIpWhiteList(void *buf, int32_t len, SIpWhiteListDual **ppWhiteList);
+
+static bool isIpWhiteListEqual(SIpWhiteListDual *a, SIpWhiteListDual *b);
+static bool isIpRangeEqual(SIpRange *a, SIpRange *b);
 
 void destroyIpWhiteTab(SHashObj *pIpWhiteTab);
 
@@ -128,6 +131,10 @@ static int32_t  mndProcesSRetrieveIpWhiteReq(SRpcMsg *pReq);
 static int32_t  mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8_t type, bool *pUpdate);
 
 static int32_t ipWhiteMgtUpdateAll(SMnode *pMnode);
+static int32_t ipWhiteMgtRemove(char *user);
+
+static int32_t createIpWhiteListFromOldVer(void *buf, int32_t len, SIpWhiteList **ppList);
+static int32_t tDerializeIpWhileListFromOldVer(void *buf, int32_t len, SIpWhiteList *pList);
 typedef struct {
   SHashObj      *pIpWhiteTab;
   int64_t        ver;
@@ -152,16 +159,16 @@ void ipWhiteMgtCleanup() {
   (void)taosThreadRwlockDestroy(&ipWhiteMgt.rw);
 }
 
-int32_t ipWhiteMgtUpdate(SMnode *pMnode, char *user, SIpWhiteList *pNew) {
+int32_t ipWhiteMgtUpdate(SMnode *pMnode, char *user, SIpWhiteListDual *pNew) {
   int32_t code = 0;
   int32_t lino = 0;
   bool    update = true;
   SArray *fqdns = NULL;
   (void)taosThreadRwlockWrlock(&ipWhiteMgt.rw);
-  SIpWhiteList **ppList = taosHashGet(ipWhiteMgt.pIpWhiteTab, user, strlen(user));
+  SIpWhiteListDual **ppList = taosHashGet(ipWhiteMgt.pIpWhiteTab, user, strlen(user));
 
   if (ppList == NULL || *ppList == NULL) {
-    SIpWhiteList *p = cloneIpWhiteList(pNew);
+    SIpWhiteListDual *p = cloneIpWhiteList(pNew);
     if (p == NULL) {
       update = false;
       TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
@@ -172,12 +179,12 @@ int32_t ipWhiteMgtUpdate(SMnode *pMnode, char *user, SIpWhiteList *pNew) {
       TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
   } else {
-    SIpWhiteList *pOld = *ppList;
+    SIpWhiteListDual *pOld = *ppList;
     if (isIpWhiteListEqual(pOld, pNew)) {
       update = false;
     } else {
       taosMemoryFree(pOld);
-      SIpWhiteList *p = cloneIpWhiteList(pNew);
+      SIpWhiteListDual *p = cloneIpWhiteList(pNew);
       if (p == NULL) {
         update = false;
         TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
@@ -206,11 +213,6 @@ int32_t ipWhiteMgtUpdate(SMnode *pMnode, char *user, SIpWhiteList *pNew) {
     update |= upd;
   }
 
-  // for (int i = 0; i < taosArrayGetSize(pUserNames); i++) {
-  //   taosMemoryFree(taosArrayGetP(pUserNames, i));
-  // }
-  // taosArrayDestroy(pUserNames);
-
   if (update) ipWhiteMgt.ver++;
 
 _OVER:
@@ -225,7 +227,7 @@ int32_t ipWhiteMgtRemove(char *user) {
   bool    update = true;
   int32_t code = 0;
   (void)taosThreadRwlockWrlock(&ipWhiteMgt.rw);
-  SIpWhiteList **ppList = taosHashGet(ipWhiteMgt.pIpWhiteTab, user, strlen(user));
+  SIpWhiteListDual **ppList = taosHashGet(ipWhiteMgt.pIpWhiteTab, user, strlen(user));
   if (ppList == NULL || *ppList == NULL) {
     update = false;
   } else {
@@ -241,60 +243,14 @@ int32_t ipWhiteMgtRemove(char *user) {
   return 0;
 }
 
-bool isRangeInWhiteList(SIpWhiteList *pList, SIpV4Range *range) {
+bool isRangeInWhiteList(SIpWhiteListDual *pList, SIpRange *range) {
   for (int i = 0; i < pList->num; i++) {
-    if (isIpRangeEqual(&pList->pIpRange[i], range)) {
+    if (isIpRangeEqual(&pList->pIpRanges[i], range)) {
       return true;
     }
   }
   return false;
 }
-#if 0
-int32_t ipWhiteUpdateForAllUser(SIpWhiteList *pList) {
-  (void)taosThreadRwlockWrlock(&ipWhiteMgt.rw);
-
-  SHashObj *pIpWhiteTab = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), 1, HASH_ENTRY_LOCK);
-  void     *pIter = taosHashIterate(ipWhiteMgt.pIpWhiteTab, NULL);
-
-  while (pIter) {
-    SIpWhiteList *p = *(SIpWhiteList **)pIter;
-    SIpWhiteList *clone = cloneIpWhiteList(pList);
-    int32_t       idx = 0;
-    for (int i = 0; i < pList->num; i++) {
-      SIpV4Range *e = &pList->pIpRange[i];
-      if (!isRangeInWhiteList(p, e)) {
-        clone->pIpRange[idx] = *e;
-        idx++;
-      }
-    }
-    clone->num = idx;
-
-    SIpWhiteList *val = NULL;
-    if (clone->num != 0) {
-      int32_t sz = clone->num + p->num;
-      val = taosMemoryCalloc(1, sizeof(SIpWhiteList) + sz * sizeof(SIpV4Range));
-      (void)memcpy(val->pIpRange, p->pIpRange, sizeof(SIpV4Range) * p->num);
-      (void)memcpy(((char *)val->pIpRange) + sizeof(SIpV4Range) * p->num, (char *)clone->pIpRange,
-             sizeof(SIpV4Range) * clone->num);
-
-    } else {
-      val = cloneIpWhiteList(p);
-    }
-    taosMemoryFree(clone);
-
-    size_t klen;
-    void  *key = taosHashGetKey(pIter, &klen);
-    taosHashPut(pIpWhiteTab, key, klen, val, sizeof(void *));
-  }
-
-  destroyIpWhiteTab(ipWhiteMgt.pIpWhiteTab);
-
-  ipWhiteMgt.pIpWhiteTab = pIpWhiteTab;
-  ipWhiteMgt.ver++;
-  (void)taosThreadRwlockUnlock(&ipWhiteMgt.rw);
-  return 0;
-}
-#endif
 
 static int32_t ipWhiteMgtUpdateAll(SMnode *pMnode) {
   SHashObj *pNew = NULL;
@@ -308,16 +264,6 @@ static int32_t ipWhiteMgtUpdateAll(SMnode *pMnode) {
   destroyIpWhiteTab(pOld);
   TAOS_RETURN(0);
 }
-
-#if 0
-void ipWhiteMgtUpdate2(SMnode *pMnode) {
-  (void)taosThreadRwlockWrlock(&ipWhiteMgt.rw);
-
-  ipWhiteMgtUpdateAll(pMnode);
-
-  (void)taosThreadRwlockUnlock(&ipWhiteMgt.rw);
-}
-#endif
 
 int64_t mndGetIpWhiteVer(SMnode *pMnode) {
   int64_t ver = 0;
@@ -343,28 +289,38 @@ int64_t mndGetIpWhiteVer(SMnode *pMnode) {
 }
 
 int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8_t type, bool *pUpdate) {
-  int32_t    lino = 0;
-  bool       update = false;
-  SIpV4Range range = {.ip = 0, .mask = 32};
-  int32_t    code = taosGetIpv4FromFqdn(fqdn, &range.ip);
+  int32_t lino = 0;
+  bool    update = false;
+
+  SIpRange range = {0};
+  SIpAddr  addr = {0};
+  int32_t  code = taosGetIpFromFqdn(tsEnableIpv6, fqdn, &addr);
   if (code) {
     mError("failed to get ip from fqdn: %s at line %d since %s", fqdn, lino, tstrerror(code));
     TAOS_RETURN(TSDB_CODE_TSC_INVALID_FQDN);
   }
+
+  code = tIpStrToUint(&addr, &range);
+  if (code) {
+    TAOS_RETURN(code);
+  }
+
+  tIpRangeSetMask(&range, 32);
+
   mDebug("ip-white-list may update for user: %s, fqdn: %s", user, fqdn);
-  SIpWhiteList **ppList = taosHashGet(pIpWhiteTab, user, strlen(user));
-  SIpWhiteList  *pList = NULL;
+  SIpWhiteListDual **ppList = taosHashGet(pIpWhiteTab, user, strlen(user));
+  SIpWhiteListDual  *pList = NULL;
   if (ppList != NULL && *ppList != NULL) {
     pList = *ppList;
   }
 
   if (type == IP_WHITE_ADD) {
     if (pList == NULL) {
-      SIpWhiteList *pNewList = taosMemoryCalloc(1, sizeof(SIpWhiteList) + sizeof(SIpV4Range));
+      SIpWhiteListDual *pNewList = taosMemoryCalloc(1, sizeof(SIpWhiteListDual) + sizeof(SIpRange));
       if (pNewList == NULL) {
         TAOS_CHECK_GOTO(terrno, &lino, _OVER);
       }
-      (void)memcpy(pNewList->pIpRange, &range, sizeof(SIpV4Range));
+      (void)memcpy(pNewList->pIpRanges, &range, sizeof(SIpRange));
       pNewList->num = 1;
 
       if ((code = taosHashPut(pIpWhiteTab, user, strlen(user), &pNewList, sizeof(void *))) != 0) {
@@ -374,14 +330,13 @@ int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8
       update = true;
     } else {
       if (!isRangeInWhiteList(pList, &range)) {
-        int32_t       sz = sizeof(SIpWhiteList) + sizeof(SIpV4Range) * (pList->num + 1);
-        SIpWhiteList *pNewList = taosMemoryCalloc(1, sz);
+        int32_t           sz = sizeof(SIpWhiteListDual) + sizeof(SIpRange) * (pList->num + 1);
+        SIpWhiteListDual *pNewList = taosMemoryCalloc(1, sz);
         if (pNewList == NULL) {
           TAOS_CHECK_GOTO(terrno, &lino, _OVER);
         }
-        (void)memcpy(pNewList->pIpRange, pList->pIpRange, sizeof(SIpV4Range) * (pList->num));
-        pNewList->pIpRange[pList->num].ip = range.ip;
-        pNewList->pIpRange[pList->num].mask = range.mask;
+        (void)memcpy(pNewList->pIpRanges, pList->pIpRanges, sizeof(SIpRange) * (pList->num));
+        memcpy(&pNewList->pIpRanges[pList->num], &range, sizeof(SIpRange));
 
         pNewList->num = pList->num + 1;
 
@@ -402,17 +357,16 @@ int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8
           }
           taosMemoryFree(pList);
         } else {
-          int32_t       idx = 0;
-          int32_t       sz = sizeof(SIpWhiteList) + sizeof(SIpV4Range) * (pList->num - 1);
-          SIpWhiteList *pNewList = taosMemoryCalloc(1, sz);
+          int32_t           idx = 0;
+          int32_t           sz = sizeof(SIpWhiteListDual) + sizeof(SIpRange) * (pList->num - 1);
+          SIpWhiteListDual *pNewList = taosMemoryCalloc(1, sz);
           if (pNewList == NULL) {
             TAOS_CHECK_GOTO(terrno, &lino, _OVER);
           }
           for (int i = 0; i < pList->num; i++) {
-            SIpV4Range *e = &pList->pIpRange[i];
+            SIpRange *e = &pList->pIpRanges[i];
             if (!isIpRangeEqual(e, &range)) {
-              pNewList->pIpRange[idx].ip = e->ip;
-              pNewList->pIpRange[idx].mask = e->mask;
+              memcpy(&pNewList->pIpRanges[idx], e, sizeof(SIpRange));
               idx++;
             }
           }
@@ -519,7 +473,7 @@ static int64_t ipWhiteMgtFillMsg(SUpdateIpWhite *pUpdate) {
   int32_t i = 0;
   while (pIter) {
     SUpdateUserIpWhite *pUser = &pUpdate->pUserIpWhite[i];
-    SIpWhiteList       *list = *(SIpWhiteList **)pIter;
+    SIpWhiteListDual   *list = *(SIpWhiteListDual **)pIter;
 
     size_t klen;
     char  *key = taosHashGetKey(pIter, &klen);
@@ -527,12 +481,12 @@ static int64_t ipWhiteMgtFillMsg(SUpdateIpWhite *pUpdate) {
       pUser->ver = ver;
       (void)memcpy(pUser->user, key, klen);
       pUser->numOfRange = list->num;
-      pUser->pIpRanges = taosMemoryCalloc(1, list->num * sizeof(SIpV4Range));
+      pUser->pIpRanges = taosMemoryCalloc(1, list->num * sizeof(SIpRange));
       if (pUser->pIpRanges == NULL) {
         (void)taosThreadRwlockUnlock(&ipWhiteMgt.rw);
         TAOS_RETURN(terrno);
       }
-      (void)memcpy(pUser->pIpRanges, list->pIpRange, list->num * sizeof(SIpV4Range));
+      (void)memcpy(pUser->pIpRanges, list->pIpRanges, list->num * sizeof(SIpRange));
       i++;
     }
     pIter = taosHashIterate(ipWhiteMgt.pIpWhiteTab, pIter);
@@ -549,7 +503,7 @@ void destroyIpWhiteTab(SHashObj *pIpWhiteTab) {
 
   void *pIter = taosHashIterate(pIpWhiteTab, NULL);
   while (pIter) {
-    SIpWhiteList *list = *(SIpWhiteList **)pIter;
+    SIpWhiteListDual *list = *(SIpWhiteListDual **)pIter;
     taosMemoryFree(list);
     pIter = taosHashIterate(pIpWhiteTab, pIter);
   }
@@ -579,7 +533,7 @@ int32_t mndFetchAllIpWhite(SMnode *pMnode, SHashObj **ppIpWhiteTab) {
     pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser);
     if (pIter == NULL) break;
 
-    SIpWhiteList *pWhiteList = cloneIpWhiteList(pUser->pIpWhiteList);
+    SIpWhiteListDual *pWhiteList = cloneIpWhiteList(pUser->pIpWhiteListDual);
     if (pWhiteList == NULL) {
       sdbRelease(pSdb, pUser);
       sdbCancelFetch(pSdb, pIter);
@@ -673,8 +627,10 @@ int32_t mndInitUser(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_USER, mndProcessDropUserReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_USER_AUTH, mndProcessGetUserAuthReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_USER_WHITELIST, mndProcessGetUserWhiteListReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_GET_USER_WHITELIST_DUAL, mndProcessGetUserWhiteListReq);
 
   mndSetMsgHandle(pMnode, TDMT_MND_RETRIEVE_IP_WHITE, mndProcesSRetrieveIpWhiteReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_RETRIEVE_IP_WHITE_DUAL, mndProcesSRetrieveIpWhiteReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_USER, mndRetrieveUsers);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_USER, mndCancelGetNextUser);
@@ -687,74 +643,100 @@ int32_t mndInitUser(SMnode *pMnode) {
 
 void mndCleanupUser(SMnode *pMnode) { ipWhiteMgtCleanup(); }
 
-static void ipRangeToStr(SIpV4Range *range, char *buf) {
-  struct in_addr addr;
-  addr.s_addr = range->ip;
-#ifndef TD_ASTRA
-  (void)uv_inet_ntop(AF_INET, &addr, buf, 32);
-  if (range->mask != 32) {
-    (void)tsnprintf(buf + strlen(buf), 36 - strlen(buf), "/%d", range->mask);
+static bool isDefaultRange(SIpRange *pRange) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  SIpRange range4 = {0};
+  SIpRange range6 = {0};
+
+  code = createDefaultIp4Range(&range4);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = createDefaultIp6Range(&range6);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  if (isIpRangeEqual(pRange, &range4) || (isIpRangeEqual(pRange, &range6))) {
+    return true;
   }
-#endif
-  return;
-}
-static bool isDefaultRange(SIpV4Range *pRange) {
-  static SIpV4Range val = {.ip = 16777343, .mask = 32};
-  return pRange->ip == val.ip && pRange->mask == val.mask;
-}
-static int32_t ipRangeListToStr(SIpV4Range *range, int32_t num, char *buf, int64_t bufLen) {
+_error:
+  return false;
+};
+
+static int32_t ipRangeListToStr(SIpRange *range, int32_t num, char *buf, int64_t bufLen) {
   int32_t len = 0;
   for (int i = 0; i < num; i++) {
-    char        tbuf[36] = {0};
-    SIpV4Range *pRange = &range[i];
+    SIpRange *pRange = &range[i];
+    SIpAddr   addr = {0};
+    tIpUintToStr(pRange, &addr);
 
-    ipRangeToStr(&range[i], tbuf);
-    len += tsnprintf(buf + len, bufLen - len, "%s,", tbuf);
+    len += tsnprintf(buf + len, bufLen - len, "%s/%d,", IP_ADDR_STR(&addr), addr.mask);
   }
   if (len > 0) buf[len - 1] = 0;
   return len;
 }
 
-static bool isIpRangeEqual(SIpV4Range *a, SIpV4Range *b) {
+static bool isIpRangeEqual(SIpRange *a, SIpRange *b) {
   // equal or not
-  return a->ip == b->ip && a->mask == b->mask;
+  if (a->type != b->type) {
+    return false;
+  }
+  if (a->type == 0) {
+    SIpV4Range *aP4 = &a->ipV4;
+    SIpV4Range *bP4 = &b->ipV4;
+    if (aP4->ip != bP4->ip || aP4->mask != bP4->mask) {
+      return false;
+    } else {
+      return true;
+    }
+  } else {
+    SIpV6Range *aP6 = &a->ipV6;
+    SIpV6Range *bP6 = &b->ipV6;
+    if (aP6->addr[0] != bP6->addr[0] || aP6->addr[1] != bP6->addr[1] || aP6->mask != bP6->mask) {
+      return false;
+    } else {
+      return true;
+    }
+  }
+
+  return true;
 }
-static bool isRangeInIpWhiteList(SIpWhiteList *pList, SIpV4Range *tgt) {
+static bool isRangeInIpWhiteList(SIpWhiteListDual *pList, SIpRange *tgt) {
   for (int i = 0; i < pList->num; i++) {
-    if (isIpRangeEqual(&pList->pIpRange[i], tgt)) return true;
+    if (isIpRangeEqual(&pList->pIpRanges[i], tgt)) return true;
   }
   return false;
 }
-static bool isIpWhiteListEqual(SIpWhiteList *a, SIpWhiteList *b) {
+static bool isIpWhiteListEqual(SIpWhiteListDual *a, SIpWhiteListDual *b) {
   if (a->num != b->num) {
     return false;
   }
   for (int i = 0; i < a->num; i++) {
-    if (!isIpRangeEqual(&a->pIpRange[i], &b->pIpRange[i])) {
+    if (!isIpRangeEqual(&a->pIpRanges[i], &b->pIpRanges[i])) {
       return false;
     }
   }
   return true;
 }
-int32_t convertIpWhiteListToStr(SIpWhiteList *pList, char **buf) {
+int32_t convertIpWhiteListToStr(SIpWhiteListDual *pList, char **buf) {
   if (pList->num == 0) {
     *buf = NULL;
     return 0;
   }
-  int64_t bufLen = pList->num * 36;
+  int64_t bufLen = pList->num * 256;
   *buf = taosMemoryCalloc(1, bufLen);
   if (*buf == NULL) {
     return 0;
   }
 
-  int32_t len = ipRangeListToStr(pList->pIpRange, pList->num, *buf, bufLen);
+  int32_t len = ipRangeListToStr(pList->pIpRanges, pList->num, *buf, bufLen);
   if (len == 0) {
     taosMemoryFreeClear(*buf);
     return 0;
   }
   return strlen(*buf);
 }
-int32_t tSerializeIpWhiteList(void *buf, int32_t len, SIpWhiteList *pList, uint32_t *pLen) {
+int32_t tSerializeIpWhiteList(void *buf, int32_t len, SIpWhiteListDual *pList, uint32_t *pLen) {
   int32_t  code = 0;
   int32_t  lino = 0;
   int32_t  tlen = 0;
@@ -765,9 +747,8 @@ int32_t tSerializeIpWhiteList(void *buf, int32_t len, SIpWhiteList *pList, uint3
   TAOS_CHECK_GOTO(tEncodeI32(&encoder, pList->num), &lino, _OVER);
 
   for (int i = 0; i < pList->num; i++) {
-    SIpV4Range *pRange = &(pList->pIpRange[i]);
-    TAOS_CHECK_GOTO(tEncodeU32(&encoder, pRange->ip), &lino, _OVER);
-    TAOS_CHECK_GOTO(tEncodeU32(&encoder, pRange->mask), &lino, _OVER);
+    SIpRange *pRange = &(pList->pIpRanges[i]);
+    TAOS_CHECK_GOTO(tSerializeIpRange(&encoder, pRange), &lino, _OVER);
   }
 
   tEndEncode(&encoder);
@@ -782,7 +763,7 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-int32_t tDerializeIpWhileList(void *buf, int32_t len, SIpWhiteList *pList) {
+int32_t tDerializeIpWhileList(void *buf, int32_t len, SIpWhiteListDual *pList) {
   int32_t  code = 0;
   int32_t  lino = 0;
   SDecoder decoder = {0};
@@ -792,9 +773,8 @@ int32_t tDerializeIpWhileList(void *buf, int32_t len, SIpWhiteList *pList) {
   TAOS_CHECK_GOTO(tDecodeI32(&decoder, &pList->num), &lino, _OVER);
 
   for (int i = 0; i < pList->num; i++) {
-    SIpV4Range *pRange = &(pList->pIpRange[i]);
-    TAOS_CHECK_GOTO(tDecodeU32(&decoder, &pRange->ip), &lino, _OVER);
-    TAOS_CHECK_GOTO(tDecodeU32(&decoder, &pRange->mask), &lino, _OVER);
+    SIpRange *pRange = &(pList->pIpRanges[i]);
+    TAOS_CHECK_GOTO(tDeserializeIpRange(&decoder, pRange), &lino, _OVER);
   }
 
 _OVER:
@@ -803,22 +783,45 @@ _OVER:
   if (code < 0) {
     mError("failed to deserialize ip white list at line %d since %s", lino, tstrerror(code));
   }
-
   TAOS_RETURN(code);
 }
 
-static int32_t createIpWhiteList(void *buf, int32_t len, SIpWhiteList **ppList) {
-  int32_t       code = 0;
-  int32_t       lino = 0;
-  int32_t       num = 0;
-  SIpWhiteList *p = NULL;
-  SDecoder      decoder = {0};
+int32_t tDerializeIpWhileListFromOldVer(void *buf, int32_t len, SIpWhiteList *pList) {
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, len);
+
+  TAOS_CHECK_GOTO(tStartDecode(&decoder), &lino, _OVER);
+  TAOS_CHECK_GOTO(tDecodeI32(&decoder, &pList->num), &lino, _OVER);
+
+  for (int i = 0; i < pList->num; i++) {
+    SIpV4Range *pIp4 = &(pList->pIpRange[i]);
+    TAOS_CHECK_GOTO(tDecodeU32(&decoder, &pIp4->ip), &lino, _OVER);
+    TAOS_CHECK_GOTO(tDecodeU32(&decoder, &pIp4->mask), &lino, _OVER);
+  }
+
+_OVER:
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  if (code < 0) {
+    mError("failed to deserialize ip white list at line %d since %s", lino, tstrerror(code));
+  }
+  TAOS_RETURN(code);
+}
+
+static int32_t createIpWhiteList(void *buf, int32_t len, SIpWhiteListDual **ppList) {
+  int32_t           code = 0;
+  int32_t           lino = 0;
+  int32_t           num = 0;
+  SIpWhiteListDual *p = NULL;
+  SDecoder          decoder = {0};
   tDecoderInit(&decoder, buf, len);
 
   TAOS_CHECK_GOTO(tStartDecode(&decoder), &lino, _OVER);
   TAOS_CHECK_GOTO(tDecodeI32(&decoder, &num), &lino, _OVER);
 
-  p = taosMemoryCalloc(1, sizeof(SIpWhiteList) + num * sizeof(SIpV4Range));
+  p = taosMemoryCalloc(1, sizeof(SIpWhiteListDual) + num * sizeof(SIpRange));
   if (p == NULL) {
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
@@ -835,20 +838,64 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t createDefaultIpWhiteList(SIpWhiteList **ppWhiteList) {
-  *ppWhiteList = taosMemoryCalloc(1, sizeof(SIpWhiteList) + sizeof(SIpV4Range) * 1);
+static int32_t createIpWhiteListFromOldVer(void *buf, int32_t len, SIpWhiteList **ppList) {
+  int32_t       code = 0;
+  int32_t       lino = 0;
+  int32_t       num = 0;
+  SIpWhiteList *p = NULL;
+  SDecoder      decoder = {0};
+  tDecoderInit(&decoder, buf, len);
+
+  TAOS_CHECK_GOTO(tStartDecode(&decoder), &lino, _OVER);
+  TAOS_CHECK_GOTO(tDecodeI32(&decoder, &num), &lino, _OVER);
+
+  p = taosMemoryCalloc(1, sizeof(SIpWhiteList) + num * sizeof(SIpV4Range));
+  if (p == NULL) {
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+  }
+  TAOS_CHECK_GOTO(tDerializeIpWhileListFromOldVer(buf, len, p), &lino, _OVER);
+
+_OVER:
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  if (code < 0) {
+    taosMemoryFreeClear(p);
+    mError("failed to create ip white list at line %d since %s", lino, tstrerror(code));
+  }
+  *ppList = p;
+  TAOS_RETURN(code);
+}
+
+static int32_t createDefaultIpWhiteList(SIpWhiteListDual **ppWhiteList) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  *ppWhiteList = taosMemoryCalloc(1, sizeof(SIpWhiteListDual) + sizeof(SIpRange) * 2);
   if (*ppWhiteList == NULL) {
     TAOS_RETURN(terrno);
   }
-  (*ppWhiteList)->num = 1;
-  SIpV4Range *range = &((*ppWhiteList)->pIpRange[0]);
+  (*ppWhiteList)->num = 2;
+
+  SIpRange v4 = {0};
+  SIpRange v6 = {0};
+
 #ifndef TD_ASTRA
-  struct in_addr addr;
-  if (uv_inet_pton(AF_INET, "127.0.0.1", &addr) == 0) {
-    range->ip = addr.s_addr;
-    range->mask = 32;
-  }
+  code = createDefaultIp4Range(&v4);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = createDefaultIp6Range(&v6);
+  TSDB_CHECK_CODE(code, lino, _error);
+
 #endif
+
+_error:
+  if (code != 0) {
+    taosMemoryFree(*ppWhiteList);
+    *ppWhiteList = NULL;
+    mError("failed to create default ip white list at line %d since %s", __LINE__, tstrerror(code));
+  } else {
+    memcpy(&(*ppWhiteList)->pIpRanges[0], &v4, sizeof(SIpRange));
+    memcpy(&(*ppWhiteList)->pIpRanges[1], &v6, sizeof(SIpRange));
+  }
   return 0;
 }
 
@@ -864,7 +911,7 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   userObj.sysInfo = 1;
   userObj.enable = 1;
   userObj.ipWhiteListVer = taosGetTimestampMs();
-  TAOS_CHECK_RETURN(createDefaultIpWhiteList(&userObj.pIpWhiteList));
+  TAOS_CHECK_RETURN(createDefaultIpWhiteList(&userObj.pIpWhiteListDual));
   if (strcmp(user, TSDB_DEFAULT_USER) == 0) {
     userObj.superUser = 1;
     userObj.createdb = 1;
@@ -898,10 +945,10 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   }
 
   mndTransDrop(pTrans);
-  taosMemoryFree(userObj.pIpWhiteList);
+  taosMemoryFree(userObj.pIpWhiteListDual);
   return 0;
 _ERROR:
-  taosMemoryFree(userObj.pIpWhiteList);
+  taosMemoryFree(userObj.pIpWhiteListDual);
   TAOS_RETURN(terrno ? terrno : TSDB_CODE_APP_ERROR);
 }
 
@@ -913,7 +960,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   int32_t code = 0;
   int32_t lino = 0;
   int32_t ipWhiteReserve =
-      pUser->pIpWhiteList ? (sizeof(SIpV4Range) * pUser->pIpWhiteList->num + sizeof(SIpWhiteList) + 4) : 16;
+      pUser->pIpWhiteListDual ? (sizeof(SIpRange) * pUser->pIpWhiteListDual->num + sizeof(SIpWhiteListDual) + 4) : 16;
   int32_t numOfReadDbs = taosHashGetSize(pUser->readDbs);
   int32_t numOfWriteDbs = taosHashGetSize(pUser->writeDbs);
   int32_t numOfReadTbs = taosHashGetSize(pUser->readTbs);
@@ -1166,18 +1213,19 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   }
 
   // save white list
-  int32_t num = pUser->pIpWhiteList->num;
-  int32_t tlen = sizeof(SIpWhiteList) + num * sizeof(SIpV4Range) + 4;
+  int32_t num = pUser->pIpWhiteListDual->num;
+  int32_t tlen = sizeof(SIpWhiteListDual) + num * sizeof(SIpRange) + 4;
   if ((buf = taosMemoryCalloc(1, tlen)) == NULL) {
     TAOS_CHECK_GOTO(terrno, NULL, _OVER);
   }
   int32_t len = 0;
-  TAOS_CHECK_GOTO(tSerializeIpWhiteList(buf, tlen, pUser->pIpWhiteList, &len), &lino, _OVER);
+  TAOS_CHECK_GOTO(tSerializeIpWhiteList(buf, tlen, pUser->pIpWhiteListDual, &len), &lino, _OVER);
 
   SDB_SET_INT32(pRaw, dataPos, len, _OVER);
   SDB_SET_BINARY(pRaw, dataPos, buf, len, _OVER);
 
   SDB_SET_INT64(pRaw, dataPos, pUser->ipWhiteListVer, _OVER);
+  SDB_SET_INT8(pRaw, dataPos, pUser->passEncryptAlgorithm, _OVER);
 
   SDB_SET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
@@ -1478,25 +1526,51 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     }
   }
   // decoder white list
-  if (sver >= 5) {
-    int32_t len = 0;
-    SDB_GET_INT32(pRaw, dataPos, &len, _OVER);
+  if (sver >= USER_VER_SUPPORT_WHITELIST) {
+    if (sver < USER_VER_SUPPORT_WHITELIT_DUAL_STACK) {
+      int32_t len = 0;
+      SDB_GET_INT32(pRaw, dataPos, &len, _OVER);
 
-    TAOS_MEMORY_REALLOC(key, len);
-    if (key == NULL) {
-      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+      TAOS_MEMORY_REALLOC(key, len);
+      if (key == NULL) {
+        TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+      }
+      SDB_GET_BINARY(pRaw, dataPos, key, len, _OVER);
+
+      SIpWhiteList *pIpWhiteList = NULL;
+      TAOS_CHECK_GOTO(createIpWhiteListFromOldVer(key, len, &pIpWhiteList), &lino, _OVER);
+
+      SDB_GET_INT64(pRaw, dataPos, &pUser->ipWhiteListVer, _OVER);
+
+      code = cvtIpWhiteListToDual(pIpWhiteList, &pUser->pIpWhiteListDual);
+      if (code != 0) {
+        taosMemoryFreeClear(pIpWhiteList);
+      }
+      TAOS_CHECK_GOTO(code, &lino, _OVER);
+
+      taosMemoryFreeClear(pIpWhiteList);
+
+    } else if (sver >= USER_VER_SUPPORT_WHITELIT_DUAL_STACK) {
+      int32_t len = 0;
+      SDB_GET_INT32(pRaw, dataPos, &len, _OVER);
+
+      TAOS_MEMORY_REALLOC(key, len);
+      if (key == NULL) {
+        TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+      }
+      SDB_GET_BINARY(pRaw, dataPos, key, len, _OVER);
+
+      TAOS_CHECK_GOTO(createIpWhiteList(key, len, &pUser->pIpWhiteListDual), &lino, _OVER);
+      SDB_GET_INT64(pRaw, dataPos, &pUser->ipWhiteListVer, _OVER);
     }
-    SDB_GET_BINARY(pRaw, dataPos, key, len, _OVER);
-
-    TAOS_CHECK_GOTO(createIpWhiteList(key, len, &pUser->pIpWhiteList), &lino, _OVER);
-
-    SDB_GET_INT64(pRaw, dataPos, &pUser->ipWhiteListVer, _OVER);
   }
 
-  if (pUser->pIpWhiteList == NULL) {
-    TAOS_CHECK_GOTO(createDefaultIpWhiteList(&pUser->pIpWhiteList), &lino, _OVER);
+  if (pUser->pIpWhiteListDual == NULL) {
+    TAOS_CHECK_GOTO(createDefaultIpWhiteList(&pUser->pIpWhiteListDual), &lino, _OVER);
     pUser->ipWhiteListVer = taosGetTimestampMs();
   }
+
+  SDB_GET_INT8(pRaw, dataPos, &pUser->passEncryptAlgorithm, _OVER);
 
   SDB_GET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
   taosInitRWLatch(&pUser->lock);
@@ -1519,7 +1593,7 @@ _OVER:
       taosHashCleanup(pUser->writeViews);
       taosHashCleanup(pUser->alterViews);
       taosHashCleanup(pUser->useDbs);
-      taosMemoryFreeClear(pUser->pIpWhiteList);
+      taosMemoryFreeClear(pUser->pIpWhiteListDual);
     }
     taosMemoryFreeClear(pRow);
     return NULL;
@@ -1610,8 +1684,8 @@ int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
   TAOS_CHECK_GOTO(mndDupTableHash(pUser->alterViews, &pNew->alterViews), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDupTopicHash(pUser->topics, &pNew->topics), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDupUseDbHash(pUser->useDbs, &pNew->useDbs), NULL, _OVER);
-  pNew->pIpWhiteList = cloneIpWhiteList(pUser->pIpWhiteList);
-  if (pNew->pIpWhiteList == NULL) {
+  pNew->pIpWhiteListDual = cloneIpWhiteList(pUser->pIpWhiteListDual);
+  if (pNew->pIpWhiteListDual == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -1631,7 +1705,7 @@ void mndUserFreeObj(SUserObj *pUser) {
   taosHashCleanup(pUser->writeViews);
   taosHashCleanup(pUser->alterViews);
   taosHashCleanup(pUser->useDbs);
-  taosMemoryFreeClear(pUser->pIpWhiteList);
+  taosMemoryFreeClear(pUser->pIpWhiteListDual);
   pUser->readDbs = NULL;
   pUser->writeDbs = NULL;
   pUser->topics = NULL;
@@ -1671,13 +1745,13 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   TSWAP(pOld->alterViews, pNew->alterViews);
   TSWAP(pOld->useDbs, pNew->useDbs);
 
-  int32_t sz = sizeof(SIpWhiteList) + pNew->pIpWhiteList->num * sizeof(SIpV4Range);
-  TAOS_MEMORY_REALLOC(pOld->pIpWhiteList, sz);
-  if (pOld->pIpWhiteList == NULL) {
+  int32_t sz = sizeof(SIpWhiteListDual) + pNew->pIpWhiteListDual->num * sizeof(SIpRange);
+  TAOS_MEMORY_REALLOC(pOld->pIpWhiteListDual, sz);
+  if (pOld->pIpWhiteListDual == NULL) {
     taosWUnLockLatch(&pOld->lock);
     return terrno;
   }
-  (void)memcpy(pOld->pIpWhiteList, pNew->pIpWhiteList, sz);
+  (void)memcpy(pOld->pIpWhiteListDual, pNew->pIpWhiteListDual, sz);
   pOld->ipWhiteListVer = pNew->ipWhiteListVer;
 
   taosWUnLockLatch(&pOld->lock);
@@ -1705,18 +1779,73 @@ void mndReleaseUser(SMnode *pMnode, SUserObj *pUser) {
   sdbRelease(pSdb, pUser);
 }
 
+int32_t mndEncryptPass(char *pass, int8_t *algo) {
+  int32_t code = 0;
+  if (tsiEncryptPassAlgorithm == DND_CA_SM4) {
+    if (strlen(tsEncryptKey) == 0) {
+      code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+      goto _OVER;
+    }
+    unsigned char packetData[TSDB_PASSWORD_LEN] = {0};
+    int           newLen = 0;
+
+    SCryptOpts opts = {0};
+    opts.len = TSDB_PASSWORD_LEN;
+    opts.source = pass;
+    opts.result = packetData;
+    opts.unitLen = TSDB_PASSWORD_LEN;
+    tstrncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+
+    newLen = CBC_Encrypt(&opts);
+
+    memcpy(pass, packetData, newLen);
+
+    if (algo != NULL) *algo = DND_CA_SM4;
+  }
+_OVER:
+  return code;
+}
+
+static int32_t addDefaultIpToTable(int8_t enableIpv6, SHashObj *pUniqueTab) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  int32_t dummpy = 0;
+
+  SIpRange ipv4 = {0}, ipv6 = {0};
+  code = createDefaultIp4Range(&ipv4);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = taosHashPut(pUniqueTab, &ipv4, sizeof(ipv4), &dummpy, sizeof(dummpy));
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  if (enableIpv6) {
+    code = createDefaultIp6Range(&ipv6);
+    TSDB_CHECK_CODE(code, lino, _error);
+
+    code = taosHashPut(pUniqueTab, &ipv6, sizeof(ipv6), &dummpy, sizeof(dummpy));
+    TSDB_CHECK_CODE(code, lino, _error);
+  }
+_error:
+  if (code != 0) {
+    mError("failed to add default ip range to table since %s", tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate, SRpcMsg *pReq) {
   int32_t  code = 0;
   int32_t  lino = 0;
   SUserObj userObj = {0};
 
   if (pCreate->passIsMd5 == 1) {
-    memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
+    memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN - 1);
+    TAOS_CHECK_RETURN(mndEncryptPass(userObj.pass, &userObj.passEncryptAlgorithm));
   } else {
     if (pCreate->isImport != 1) {
       taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.pass);
+      userObj.pass[TSDB_PASSWORD_LEN - 1] = 0;
+      TAOS_CHECK_RETURN(mndEncryptPass(userObj.pass, &userObj.passEncryptAlgorithm));
     } else {
-      // mInfo("pCreate->pass:%s", pCreate->eass)
       memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
     }
   }
@@ -1731,7 +1860,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   userObj.createdb = pCreate->createDb;
 
   if (pCreate->numIpRanges == 0) {
-    TAOS_CHECK_RETURN(createDefaultIpWhiteList(&userObj.pIpWhiteList));
+    TAOS_CHECK_RETURN(createDefaultIpWhiteList(&userObj.pIpWhiteListDual));
   } else {
     SHashObj *pUniqueTab = taosHashInit(64, MurmurHash3_32, true, HASH_NO_LOCK);
     if (pUniqueTab == NULL) {
@@ -1739,13 +1868,21 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     }
     int32_t dummpy = 0;
     for (int i = 0; i < pCreate->numIpRanges; i++) {
-      SIpV4Range range = {.ip = pCreate->pIpRanges[i].ip, .mask = pCreate->pIpRanges[i].mask};
+      SIpRange range = {0};
+      if (pCreate->pIpDualRanges == NULL) {
+        range.type = 0;
+        memcpy(&range.ipV4, &(pCreate->pIpRanges[i]), sizeof(SIpV4Range));
+      } else {
+        memcpy(&range, pCreate->pIpDualRanges + i, sizeof(SIpRange));
+      }
+
       if ((code = taosHashPut(pUniqueTab, &range, sizeof(range), &dummpy, sizeof(dummpy))) != 0) {
         taosHashCleanup(pUniqueTab);
         TAOS_RETURN(code);
       }
     }
-    if ((code = taosHashPut(pUniqueTab, &defaultIpRange, sizeof(defaultIpRange), &dummpy, sizeof(dummpy))) != 0) {
+    code = addDefaultIpToTable(tsEnableIpv6, pUniqueTab);
+    if (code != 0) {
       taosHashCleanup(pUniqueTab);
       TAOS_RETURN(code);
     }
@@ -1755,8 +1892,8 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
       TAOS_RETURN(TSDB_CODE_MND_TOO_MANY_USER_HOST);
     }
 
-    int32_t       numOfRanges = taosHashGetSize(pUniqueTab);
-    SIpWhiteList *p = taosMemoryCalloc(1, sizeof(SIpWhiteList) + numOfRanges * sizeof(SIpV4Range));
+    int32_t           numOfRanges = taosHashGetSize(pUniqueTab);
+    SIpWhiteListDual *p = taosMemoryCalloc(1, sizeof(SIpWhiteListDual) + numOfRanges * sizeof(SIpRange));
     if (p == NULL) {
       taosHashCleanup(pUniqueTab);
       TAOS_RETURN(terrno);
@@ -1764,18 +1901,16 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     void   *pIter = taosHashIterate(pUniqueTab, NULL);
     int32_t i = 0;
     while (pIter) {
-      size_t      len = 0;
-      SIpV4Range *key = taosHashGetKey(pIter, &len);
-      p->pIpRange[i].ip = key->ip;
-      p->pIpRange[i].mask = key->mask;
+      size_t    len = 0;
+      SIpRange *key = taosHashGetKey(pIter, &len);
+      memcpy(p->pIpRanges + i, key, sizeof(SIpRange));
       pIter = taosHashIterate(pUniqueTab, pIter);
-
       i++;
     }
 
     taosHashCleanup(pUniqueTab);
     p->num = numOfRanges;
-    userObj.pIpWhiteList = p;
+    userObj.pIpWhiteListDual = p;
   }
 
   userObj.ipWhiteListVer = taosGetTimestampMs();
@@ -1783,7 +1918,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-user");
   if (pTrans == NULL) {
     mError("user:%s, failed to create since %s", pCreate->user, terrstr());
-    taosMemoryFree(userObj.pIpWhiteList);
+    taosMemoryFree(userObj.pIpWhiteListDual);
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
   mInfo("trans:%d, used to create user:%s", pTrans->id, pCreate->user);
@@ -1801,16 +1936,16 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     mndTransDrop(pTrans);
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
-  if ((code = ipWhiteMgtUpdate(pMnode, userObj.user, userObj.pIpWhiteList)) != 0) {
+  if ((code = ipWhiteMgtUpdate(pMnode, userObj.user, userObj.pIpWhiteListDual)) != 0) {
     mndTransDrop(pTrans);
     TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
 
-  taosMemoryFree(userObj.pIpWhiteList);
+  taosMemoryFree(userObj.pIpWhiteListDual);
   mndTransDrop(pTrans);
   return 0;
 _OVER:
-  taosMemoryFree(userObj.pIpWhiteList);
+  taosMemoryFree(userObj.pIpWhiteListDual);
 
   TAOS_RETURN(code);
 }
@@ -1894,7 +2029,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_USER_FORMAT, &lino, _OVER);
   }
 
-  if(createReq.passIsMd5 == 0){
+  if (createReq.passIsMd5 == 0) {
     int32_t len = strlen(createReq.pass);
     if (createReq.isImport != 1) {
       if (mndCheckPasswordMinLen(createReq.pass, len) != 0) {
@@ -1926,7 +2061,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
 
   char detail[1000] = {0};
   (void)tsnprintf(detail, sizeof(detail), "enable:%d, superUser:%d, sysInfo:%d, password:xxx", createReq.enable,
-            createReq.superUser, createReq.sysInfo);
+                  createReq.superUser, createReq.sysInfo);
   char operation[15] = {0};
   if (createReq.isImport == 1) {
     tstrncpy(operation, "importUser", sizeof(operation));
@@ -1958,6 +2093,16 @@ int32_t mndProcessGetUserWhiteListReq(SRpcMsg *pReq) {
   SGetUserWhiteListReq wlReq = {0};
   SGetUserWhiteListRsp wlRsp = {0};
 
+  int32_t (*serialFn)(void *, int32_t, SGetUserWhiteListRsp *) = NULL;
+  int32_t (*setRspFn)(SMnode * pMnode, SUserObj * pUser, SGetUserWhiteListRsp * pRsp) = NULL;
+
+  if (pReq->msgType == TDMT_MND_GET_USER_WHITELIST_DUAL) {
+    serialFn = tSerializeSGetUserWhiteListDualRsp;
+    setRspFn = mndSetUserWhiteListDualRsp;
+  } else {
+    serialFn = tSerializeSGetUserWhiteListRsp;
+    setRspFn = mndSetUserWhiteListRsp;
+  }
   if (tDeserializeSGetUserWhiteListReq(pReq->pCont, pReq->contLen, &wlReq) != 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_INVALID_MSG, &lino, _OVER);
   }
@@ -1968,9 +2113,8 @@ int32_t mndProcessGetUserWhiteListReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_NOT_EXIST, &lino, _OVER);
   }
 
-  TAOS_CHECK_GOTO(mndSetUserWhiteListRsp(pMnode, pUser, &wlRsp), &lino, _OVER);
-
-  contLen = tSerializeSGetUserWhiteListRsp(NULL, 0, &wlRsp);
+  TAOS_CHECK_GOTO(setRspFn(pMnode, pUser, &wlRsp), &lino, _OVER);
+  contLen = serialFn(NULL, 0, &wlRsp);
   if (contLen < 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
   }
@@ -1979,14 +2123,14 @@ int32_t mndProcessGetUserWhiteListReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
 
-  contLen = tSerializeSGetUserWhiteListRsp(pRsp, contLen, &wlRsp);
+  contLen = serialFn(pRsp, contLen, &wlRsp);
   if (contLen < 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
   }
 
 _OVER:
   mndReleaseUser(pMnode, pUser);
-  tFreeSGetUserWhiteListRsp(&wlRsp);
+  tFreeSGetUserWhiteListDualRsp(&wlRsp);
   if (code < 0) {
     mError("user:%s, failed to get whitelist at line %d since %s", wlReq.user, lino, tstrerror(code));
     rpcFreeCont(pRsp);
@@ -2014,9 +2158,16 @@ int32_t mndProcesSRetrieveIpWhiteReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
 
+  int32_t (*fn)(void *, int32_t, SUpdateIpWhite *) = NULL;
+  if (pReq->msgType == TDMT_MND_RETRIEVE_IP_WHITE) {
+    fn = tSerializeSUpdateIpWhite;
+  } else if (pReq->msgType == TDMT_MND_RETRIEVE_IP_WHITE_DUAL) {
+    fn = tSerializeSUpdateIpWhiteDual;
+  }
+
   TAOS_CHECK_GOTO(ipWhiteMgtFillMsg(&ipWhite), &lino, _OVER);
 
-  len = tSerializeSUpdateIpWhite(NULL, 0, &ipWhite);
+  len = fn(NULL, 0, &ipWhite);
   if (len < 0) {
     TAOS_CHECK_GOTO(len, &lino, _OVER);
   }
@@ -2025,7 +2176,7 @@ int32_t mndProcesSRetrieveIpWhiteReq(SRpcMsg *pReq) {
   if (!pRsp) {
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
-  len = tSerializeSUpdateIpWhite(pRsp, len, &ipWhite);
+  len = fn(pRsp, len, &ipWhite);
   if (len < 0) {
     TAOS_CHECK_GOTO(len, &lino, _OVER);
   }
@@ -2071,7 +2222,7 @@ static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpc
     mndTransDrop(pTrans);
     TAOS_RETURN(terrno);
   }
-  if ((code = ipWhiteMgtUpdate(pMnode, pNew->user, pNew->pIpWhiteList)) != 0) {
+  if ((code = ipWhiteMgtUpdate(pMnode, pNew->user, pNew->pIpWhiteListDual)) != 0) {
     mndTransDrop(pTrans);
     TAOS_RETURN(code);
   }
@@ -2388,7 +2539,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   if (alterReq.user[0] == 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_USER_FORMAT, &lino, _OVER);
   }
-  if(alterReq.passIsMd5 == 0){
+  if (alterReq.passIsMd5 == 0) {
     if (TSDB_ALTER_USER_PASSWD == alterReq.alterType) {
       int32_t len = strlen(alterReq.pass);
       if (mndCheckPasswordMinLen(alterReq.pass, len) != 0) {
@@ -2421,6 +2572,8 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
       taosEncryptPass_c((uint8_t *)alterReq.pass, strlen(alterReq.pass), newUser.pass);
     }
 
+    TAOS_CHECK_GOTO(mndEncryptPass(newUser.pass, &newUser.passEncryptAlgorithm), &lino, _OVER);
+
     if (0 != strncmp(pUser->pass, newUser.pass, TSDB_PASSWORD_LEN)) {
       ++newUser.passVersion;
     }
@@ -2447,23 +2600,30 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   }
 
   if (alterReq.alterType == TSDB_ALTER_USER_ADD_WHITE_LIST) {
-    taosMemoryFreeClear(newUser.pIpWhiteList);
+    taosMemoryFreeClear(newUser.pIpWhiteListDual);
 
-    int32_t       num = pUser->pIpWhiteList->num + alterReq.numIpRanges;
-    int32_t       idx = pUser->pIpWhiteList->num;
-    SIpWhiteList *pNew = taosMemoryCalloc(1, sizeof(SIpWhiteList) + sizeof(SIpV4Range) * num);
+    int32_t           num = pUser->pIpWhiteListDual->num + alterReq.numIpRanges;
+    int32_t           idx = pUser->pIpWhiteListDual->num;
+    SIpWhiteListDual *pNew = taosMemoryCalloc(1, sizeof(SIpWhiteListDual) + sizeof(SIpRange) * num);
 
     if (pNew == NULL) {
       TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
 
     bool exist = false;
-    (void)memcpy(pNew->pIpRange, pUser->pIpWhiteList->pIpRange, sizeof(SIpV4Range) * idx);
+    (void)memcpy(pNew->pIpRanges, pUser->pIpWhiteListDual->pIpRanges, sizeof(SIpRange) * idx);
     for (int i = 0; i < alterReq.numIpRanges; i++) {
-      SIpV4Range *range = &(alterReq.pIpRanges[i]);
-      if (!isRangeInIpWhiteList(pUser->pIpWhiteList, range)) {
+      SIpRange range = {0};
+      if (alterReq.pIpDualRanges == NULL) {
+        range.type = 0;
+        memcpy(&range.ipV4, &alterReq.pIpRanges[i], sizeof(SIpV4Range));
+      } else {
+        memcpy(&range, &alterReq.pIpDualRanges[i], sizeof(SIpRange));
+        range = alterReq.pIpDualRanges[i];
+      }
+      if (!isRangeInIpWhiteList(pUser->pIpWhiteListDual, &range)) {
         // already exist, just ignore;
-        (void)memcpy(&pNew->pIpRange[idx], range, sizeof(SIpV4Range));
+        (void)memcpy(&pNew->pIpRanges[idx], &range, sizeof(SIpRange));
         idx++;
         continue;
       } else {
@@ -2475,7 +2635,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
       TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_HOST_EXIST, &lino, _OVER);
     }
     pNew->num = idx;
-    newUser.pIpWhiteList = pNew;
+    newUser.pIpWhiteListDual = pNew;
     newUser.ipWhiteListVer = pUser->ipWhiteListVer + 1;
 
     if (pNew->num > MND_MAX_USE_HOST) {
@@ -2483,29 +2643,37 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     }
   }
   if (alterReq.alterType == TSDB_ALTER_USER_DROP_WHITE_LIST) {
-    taosMemoryFreeClear(newUser.pIpWhiteList);
+    taosMemoryFreeClear(newUser.pIpWhiteListDual);
 
-    int32_t       num = pUser->pIpWhiteList->num;
-    bool          noexist = true;
-    bool          localHost = false;
-    SIpWhiteList *pNew = taosMemoryCalloc(1, sizeof(SIpWhiteList) + sizeof(SIpV4Range) * num);
+    int32_t           num = pUser->pIpWhiteListDual->num;
+    bool              noexist = true;
+    bool              localHost = false;
+    SIpWhiteListDual *pNew = taosMemoryCalloc(1, sizeof(SIpWhiteListDual) + sizeof(SIpRange) * num);
 
     if (pNew == NULL) {
       TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
 
-    if (pUser->pIpWhiteList->num > 0) {
+    if (pUser->pIpWhiteListDual->num > 0) {
       int idx = 0;
-      for (int i = 0; i < pUser->pIpWhiteList->num; i++) {
-        SIpV4Range *oldRange = &pUser->pIpWhiteList->pIpRange[i];
-        bool        found = false;
+      for (int i = 0; i < pUser->pIpWhiteListDual->num; i++) {
+        SIpRange *oldRange = &pUser->pIpWhiteListDual->pIpRanges[i];
+
+        bool found = false;
         for (int j = 0; j < alterReq.numIpRanges; j++) {
-          SIpV4Range *range = &alterReq.pIpRanges[j];
-          if (isDefaultRange(range)) {
+          SIpRange range = {0};
+          if (alterReq.pIpDualRanges == NULL) {
+            SIpV4Range *trange = &alterReq.pIpRanges[j];
+            memcpy(&range.ipV4, trange, sizeof(SIpV4Range));
+          } else {
+            memcpy(&range, &alterReq.pIpDualRanges[j], sizeof(SIpRange));
+          }
+
+          if (isDefaultRange(&range)) {
             localHost = true;
             break;
           }
-          if (isIpRangeEqual(oldRange, range)) {
+          if (isIpRangeEqual(oldRange, &range)) {
             found = true;
             break;
           }
@@ -2513,19 +2681,19 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
         if (localHost) break;
 
         if (found == false) {
-          (void)memcpy(&pNew->pIpRange[idx], oldRange, sizeof(SIpV4Range));
+          (void)memcpy(&pNew->pIpRanges[idx], oldRange, sizeof(SIpRange));
           idx++;
         } else {
           noexist = false;
         }
       }
       pNew->num = idx;
-      newUser.pIpWhiteList = pNew;
+      newUser.pIpWhiteListDual = pNew;
       newUser.ipWhiteListVer = pUser->ipWhiteListVer + 1;
 
     } else {
       pNew->num = 0;
-      newUser.pIpWhiteList = pNew;
+      newUser.pIpWhiteListDual = pNew;
       newUser.ipWhiteListVer = pUser->ipWhiteListVer + 1;
     }
 
@@ -2543,9 +2711,9 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   if (alterReq.alterType == TSDB_ALTER_USER_PASSWD) {
     char detail[1000] = {0};
     (void)tsnprintf(detail, sizeof(detail),
-              "alterType:%s, enable:%d, superUser:%d, sysInfo:%d, createdb:%d, tabName:%s, password:xxx",
-              mndUserAuditTypeStr(alterReq.alterType), alterReq.enable, alterReq.superUser, alterReq.sysInfo,
-              alterReq.createdb ? 1 : 0, alterReq.tabName);
+                    "alterType:%s, enable:%d, superUser:%d, sysInfo:%d, createdb:%d, tabName:%s, password:xxx",
+                    mndUserAuditTypeStr(alterReq.alterType), alterReq.enable, alterReq.superUser, alterReq.sysInfo,
+                    alterReq.createdb ? 1 : 0, alterReq.tabName);
     auditRecord(pReq, pMnode->clusterId, "alterUser", "", alterReq.user, detail, strlen(detail));
   } else if (alterReq.alterType == TSDB_ALTER_USER_SUPERUSER || alterReq.alterType == TSDB_ALTER_USER_ENABLE ||
              alterReq.alterType == TSDB_ALTER_USER_SYSINFO || alterReq.alterType == TSDB_ALTER_USER_CREATEDB) {
@@ -2725,49 +2893,49 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     char             name[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(name, pUser->user, pShow->pMeta->pSchemas[cols].bytes);
-    COL_DATA_SET_VAL_GOTO((const char *)name, false, pUser, _exit);
+    COL_DATA_SET_VAL_GOTO((const char *)name, false, pUser, pShow->pIter, _exit);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    COL_DATA_SET_VAL_GOTO((const char *)&pUser->superUser, false, pUser, _exit);
+    COL_DATA_SET_VAL_GOTO((const char *)&pUser->superUser, false, pUser, pShow->pIter, _exit);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    COL_DATA_SET_VAL_GOTO((const char *)&pUser->enable, false, pUser, _exit);
+    COL_DATA_SET_VAL_GOTO((const char *)&pUser->enable, false, pUser, pShow->pIter, _exit);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    COL_DATA_SET_VAL_GOTO((const char *)&pUser->sysInfo, false, pUser, _exit);
+    COL_DATA_SET_VAL_GOTO((const char *)&pUser->sysInfo, false, pUser, pShow->pIter, _exit);
 
     cols++;
     flag = pUser->createdb ? 1 : 0;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    COL_DATA_SET_VAL_GOTO((const char *)&flag, false, pUser, _exit);
+    COL_DATA_SET_VAL_GOTO((const char *)&flag, false, pUser, pShow->pIter, _exit);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    COL_DATA_SET_VAL_GOTO((const char *)&pUser->createdTime, false, pUser, _exit);
+    COL_DATA_SET_VAL_GOTO((const char *)&pUser->createdTime, false, pUser, pShow->pIter, _exit);
 
     cols++;
 
-    int32_t tlen = convertIpWhiteListToStr(pUser->pIpWhiteList, &buf);
-    // int32_t tlen = mndFetchIpWhiteList(pUser->pIpWhiteList, &buf);
+    int32_t tlen = convertIpWhiteListToStr(pUser->pIpWhiteListDual, &buf);
     if (tlen != 0) {
       TAOS_MEMORY_REALLOC(varstr, VARSTR_HEADER_SIZE + tlen);
       if (varstr == NULL) {
         sdbRelease(pSdb, pUser);
+        sdbCancelFetch(pSdb, pShow->pIter);
         TAOS_CHECK_GOTO(terrno, &lino, _exit);
       }
       varDataSetLen(varstr, tlen);
       (void)memcpy(varDataVal(varstr), buf, tlen);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-      COL_DATA_SET_VAL_GOTO((const char *)varstr, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)varstr, false, pUser, pShow->pIter, _exit);
 
       taosMemoryFreeClear(buf);
     } else {
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-      COL_DATA_SET_VAL_GOTO((const char *)NULL, true, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)NULL, true, pUser, pShow->pIter, _exit);
     }
 
     numOfRows++;
@@ -2807,52 +2975,52 @@ static int32_t mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     char             name[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(name, pUser->user, pShow->pMeta->pSchemas[cols].bytes);
-    COL_DATA_SET_VAL_GOTO((const char *)name, false, pUser, _exit);
+    COL_DATA_SET_VAL_GOTO((const char *)name, false, pUser, pShow->pIter, _exit);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    COL_DATA_SET_VAL_GOTO((const char *)&pUser->superUser, false, pUser, _exit);
+    COL_DATA_SET_VAL_GOTO((const char *)&pUser->superUser, false, pUser, pShow->pIter, _exit);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    COL_DATA_SET_VAL_GOTO((const char *)&pUser->enable, false, pUser, _exit);
+    COL_DATA_SET_VAL_GOTO((const char *)&pUser->enable, false, pUser, pShow->pIter, _exit);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    COL_DATA_SET_VAL_GOTO((const char *)&pUser->sysInfo, false, pUser, _exit);
+    COL_DATA_SET_VAL_GOTO((const char *)&pUser->sysInfo, false, pUser, pShow->pIter, _exit);
 
     cols++;
     flag = pUser->createdb ? 1 : 0;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    COL_DATA_SET_VAL_GOTO((const char *)&flag, false, pUser, _exit);
+    COL_DATA_SET_VAL_GOTO((const char *)&flag, false, pUser, pShow->pIter, _exit);
 
     // mInfo("pUser->pass:%s", pUser->pass);
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     char pass[TSDB_PASSWORD_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(pass, pUser->pass, pShow->pMeta->pSchemas[cols].bytes);
-    COL_DATA_SET_VAL_GOTO((const char *)pass, false, pUser, _exit);
+    COL_DATA_SET_VAL_GOTO((const char *)pass, false, pUser, pShow->pIter, _exit);
 
     cols++;
 
-    int32_t tlen = convertIpWhiteListToStr(pUser->pIpWhiteList, &buf);
-    // int32_t tlen = mndFetchIpWhiteList(pUser->pIpWhiteList, &buf);
+    int32_t tlen = convertIpWhiteListToStr(pUser->pIpWhiteListDual, &buf);
     if (tlen != 0) {
       TAOS_MEMORY_REALLOC(varstr, VARSTR_HEADER_SIZE + tlen);
       if (varstr == NULL) {
         sdbRelease(pSdb, pUser);
+        sdbCancelFetch(pSdb, pShow->pIter);
         TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
       }
       varDataSetLen(varstr, tlen);
       (void)memcpy(varDataVal(varstr), buf, tlen);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-      COL_DATA_SET_VAL_GOTO((const char *)varstr, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)varstr, false, pUser, pShow->pIter, _exit);
 
       taosMemoryFreeClear(buf);
     } else {
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-      COL_DATA_SET_VAL_GOTO((const char *)NULL, true, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)NULL, true, pUser, pShow->pIter, _exit);
     }
 
     numOfRows++;
@@ -2890,12 +3058,12 @@ static int32_t mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, i
     char userName[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(userName, user, pShow->pMeta->pSchemas[cols].bytes);
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_GOTO((const char *)userName, false, NULL, _exit);
+    COL_DATA_SET_VAL_GOTO((const char *)userName, false, NULL, NULL, _exit);
 
     char privilege[20] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(privilege, priType, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_GOTO((const char *)privilege, false, NULL, _exit);
+    COL_DATA_SET_VAL_GOTO((const char *)privilege, false, NULL, NULL, _exit);
 
     size_t keyLen = 0;
     void  *key = taosHashGetKey(value, &keyLen);
@@ -2905,14 +3073,14 @@ static int32_t mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, i
     char dbNameContent[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(dbNameContent, dbName, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_GOTO((const char *)dbNameContent, false, NULL, _exit);
+    COL_DATA_SET_VAL_GOTO((const char *)dbNameContent, false, NULL, NULL, _exit);
 
     char tableName[TSDB_TABLE_NAME_LEN] = {0};
     mndExtractTbNameFromStbFullName(key, tableName, TSDB_TABLE_NAME_LEN);
     char tableNameContent[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(tableNameContent, tableName, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_GOTO((const char *)tableNameContent, false, NULL, _exit);
+    COL_DATA_SET_VAL_GOTO((const char *)tableNameContent, false, NULL, NULL, _exit);
 
     if (strcmp("t", value) != 0 && strcmp("v", value) != 0) {
       SNode  *pAst = NULL;
@@ -2944,12 +3112,12 @@ static int32_t mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, i
       STR_WITH_MAXSIZE_TO_VARSTR((*condition), (*sql), pShow->pMeta->pSchemas[cols].bytes);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)(*condition), false, NULL, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)(*condition), false, NULL, NULL, _exit);
 
       char notes[2] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(notes, "", sizeof(notes));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)notes, false, NULL, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)notes, false, NULL, NULL, _exit);
     } else {
       TAOS_MEMORY_REALLOC(*condition, TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
       if ((*condition) == NULL) {
@@ -2958,12 +3126,12 @@ static int32_t mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, i
       }
       STR_WITH_MAXSIZE_TO_VARSTR((*condition), "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)(*condition), false, NULL, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)(*condition), false, NULL, NULL, _exit);
 
       char notes[64 + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(notes, value[0] == 'v' ? "view" : "", sizeof(notes));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)notes, false, NULL, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)notes, false, NULL, NULL, _exit);
     }
 
     numOfRows++;
@@ -2974,6 +3142,7 @@ _exit:
   if (code < 0) {
     uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     sdbRelease(pSdb, pUser);
+    sdbCancelFetch(pSdb, pShow->pIter);
   }
   TAOS_RETURN(code);
 }
@@ -3033,22 +3202,22 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       char userName[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(userName, pUser->user, pShow->pMeta->pSchemas[cols].bytes);
       SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)userName, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)userName, false, pUser, pShow->pIter, _exit);
 
       char privilege[20] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(privilege, "all", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)privilege, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)privilege, false, pUser, pShow->pIter, _exit);
 
       char objName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(objName, "all", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)objName, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)objName, false, pUser, pShow->pIter, _exit);
 
       char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(tableName, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)tableName, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)tableName, false, pUser, pShow->pIter, _exit);
 
       TAOS_MEMORY_REALLOC(condition, TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
       if (condition == NULL) {
@@ -3057,12 +3226,12 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       }
       STR_WITH_MAXSIZE_TO_VARSTR(condition, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)condition, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)condition, false, pUser, pShow->pIter, _exit);
 
       char notes[2] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(notes, "", sizeof(notes));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)notes, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)notes, false, pUser, pShow->pIter, _exit);
 
       numOfRows++;
     }
@@ -3073,43 +3242,45 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       char userName[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(userName, pUser->user, pShow->pMeta->pSchemas[cols].bytes);
       SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)userName, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)userName, false, pUser, pShow->pIter, _exit);
 
       char privilege[20] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(privilege, "read", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)privilege, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)privilege, false, pUser, pShow->pIter, _exit);
 
       SName name = {0};
       char  objName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
       code = tNameFromString(&name, db, T_NAME_ACCT | T_NAME_DB);
       if (code < 0) {
         sdbRelease(pSdb, pUser);
+        sdbCancelFetch(pSdb, pShow->pIter);
         TAOS_CHECK_GOTO(code, &lino, _exit);
       }
       (void)tNameGetDbName(&name, varDataVal(objName));
       varDataSetLen(objName, strlen(varDataVal(objName)));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)objName, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)objName, false, pUser, pShow->pIter, _exit);
 
       char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(tableName, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)tableName, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)tableName, false, pUser, pShow->pIter, _exit);
 
       TAOS_MEMORY_REALLOC(condition, TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
       if (condition == NULL) {
         sdbRelease(pSdb, pUser);
+        sdbCancelFetch(pSdb, pShow->pIter);
         TAOS_CHECK_GOTO(terrno, &lino, _exit);
       }
       STR_WITH_MAXSIZE_TO_VARSTR(condition, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)condition, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)condition, false, pUser, pShow->pIter, _exit);
 
       char notes[2] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(notes, "", sizeof(notes));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)notes, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)notes, false, pUser, pShow->pIter, _exit);
 
       numOfRows++;
       db = taosHashIterate(pUser->readDbs, db);
@@ -3121,43 +3292,45 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       char userName[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(userName, pUser->user, pShow->pMeta->pSchemas[cols].bytes);
       SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)userName, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)userName, false, pUser, pShow->pIter, _exit);
 
       char privilege[20] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(privilege, "write", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)privilege, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)privilege, false, pUser, pShow->pIter, _exit);
 
       SName name = {0};
       char  objName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
       code = tNameFromString(&name, db, T_NAME_ACCT | T_NAME_DB);
       if (code < 0) {
         sdbRelease(pSdb, pUser);
+        sdbCancelFetch(pSdb, pShow->pIter);
         TAOS_CHECK_GOTO(code, &lino, _exit);
       }
       (void)tNameGetDbName(&name, varDataVal(objName));
       varDataSetLen(objName, strlen(varDataVal(objName)));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)objName, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)objName, false, pUser, pShow->pIter, _exit);
 
       char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(tableName, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)tableName, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)tableName, false, pUser, pShow->pIter, _exit);
 
       TAOS_MEMORY_REALLOC(condition, TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
       if (condition == NULL) {
         sdbRelease(pSdb, pUser);
+        sdbCancelFetch(pSdb, pShow->pIter);
         TAOS_CHECK_GOTO(terrno, &lino, _exit);
       }
       STR_WITH_MAXSIZE_TO_VARSTR(condition, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)condition, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)condition, false, pUser, pShow->pIter, _exit);
 
       char notes[2] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(notes, "", sizeof(notes));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)notes, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)notes, false, pUser, pShow->pIter, _exit);
 
       numOfRows++;
       db = taosHashIterate(pUser->writeDbs, db);
@@ -3181,23 +3354,23 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       char userName[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(userName, pUser->user, pShow->pMeta->pSchemas[cols].bytes);
       SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)userName, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)userName, false, pUser, pShow->pIter, _exit);
 
       char privilege[20] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(privilege, "subscribe", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)privilege, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)privilege, false, pUser, pShow->pIter, _exit);
 
       char topicName[TSDB_TOPIC_NAME_LEN + VARSTR_HEADER_SIZE + 5] = {0};
       tstrncpy(varDataVal(topicName), mndGetDbStr(topic), TSDB_TOPIC_NAME_LEN - 2);
       varDataSetLen(topicName, strlen(varDataVal(topicName)));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)topicName, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)topicName, false, pUser, pShow->pIter, _exit);
 
       char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(tableName, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)tableName, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)tableName, false, pUser, pShow->pIter, _exit);
 
       TAOS_MEMORY_REALLOC(condition, TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
       if (condition == NULL) {
@@ -3206,12 +3379,12 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       }
       STR_WITH_MAXSIZE_TO_VARSTR(condition, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)condition, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)condition, false, pUser, pShow->pIter, _exit);
 
       char notes[2] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(notes, "", sizeof(notes));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)notes, false, pUser, _exit);
+      COL_DATA_SET_VAL_GOTO((const char *)notes, false, pUser, pShow->pIter, _exit);
 
       numOfRows++;
       topic = taosHashIterate(pUser->topics, topic);

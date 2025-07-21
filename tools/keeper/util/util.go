@@ -3,14 +3,12 @@ package util
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"net"
 	"os"
 	"strconv"
 	"strings"
 	"sync/atomic"
-	"time"
 	"unicode"
-
-	"github.com/taosdata/taoskeeper/infrastructure/config"
 )
 
 // https://github.com/containerd/cgroups/blob/main/utils.go
@@ -59,36 +57,6 @@ func EscapeInfluxProtocol(s string) string {
 	return s
 }
 
-func GetCfg() *config.Config {
-	return &config.Config{
-		InstanceID: 64,
-		Port:       6043,
-		LogLevel:   "trace",
-		TDengine: config.TDengineRestful{
-			Host:     "127.0.0.1",
-			Port:     6041,
-			Username: "root",
-			Password: "taosdata",
-			Usessl:   false,
-		},
-		Metrics: config.MetricsConfig{
-			Database: config.Database{
-				Name:    "keeper_test_log",
-				Options: map[string]interface{}{},
-			},
-		},
-		Log: config.Log{
-			Level:            "trace",
-			Path:             "/var/log/taos",
-			RotationCount:    10,
-			RotationTime:     24 * time.Hour,
-			RotationSize:     1073741824,
-			Compress:         true,
-			ReservedDiskSize: 1073741824,
-		},
-	}
-}
-
 func SafeSubstring(s string, n int) string {
 	if len(s) > n {
 		return s[:n]
@@ -116,13 +84,13 @@ func GetQid(qidStr string) uint64 {
 	return qid
 }
 
-func GetQidOwn() uint64 {
+func GetQidOwn(instanceId uint8) uint64 {
 	id := atomic.AddUint64(&globalCounter64, 1)
 	if id > 0x00ffffffffffffff {
 		atomic.StoreUint64(&globalCounter64, 1)
 		id = 1
 	}
-	return uint64(config.Conf.InstanceID)<<56 | id
+	return uint64(instanceId)<<56 | id
 }
 
 func GetMd5HexStr(str string) string {
@@ -144,4 +112,26 @@ func ToValidTableName(input string) string {
 		}
 	}
 	return builder.String()
+}
+
+func HandleIp(host string) string {
+	if host == "" {
+		return host
+	}
+
+	ipPart := host
+	if idx := strings.Index(host, "%"); idx != -1 {
+		ipPart = host[:idx]
+	}
+
+	ip := net.ParseIP(ipPart)
+	if ip == nil {
+		return host
+	}
+
+	if ip.To4() == nil {
+		return "[" + host + "]"
+	}
+
+	return host
 }

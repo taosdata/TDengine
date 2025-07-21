@@ -1,3 +1,5 @@
+#caseID,rerunTimes,Run with Sanitizer,casePath,caseCommand
+#NA,NA,y or n,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
 # 01-DataTypes
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bool.py
@@ -18,6 +20,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null_column.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_ts6333.py
+,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_composite_key_load.py
 
 # 02-Databases
 ## 01-Create
@@ -75,7 +78,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_stable_replica3_vnode3.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_sync_3Replica1VgElect.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_sync_3Replica5VgElect.py -N 5
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_sync_vnodesnapshot_rsma.py -N 4
+#failed,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_sync_vnodesnapshot_rsma.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_clean.py -N 4 -C 2
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_replica3_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_replica3_import.py -N 4
@@ -115,7 +118,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_delete_reuse1.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_delete_reuse2.py
 ,,n,.,pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_delete_writing.py
-,,n,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_drop.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_drop.py
 ### 03-Alter
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normal_table_alter_1.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normal_table_alter_2.py
@@ -124,6 +127,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normal_table_alter_5.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normal_table_basic04.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normal_table_query.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_column_num_limit.py
 ### 04-Query
 ## 02-SubTables
 ### 01-Create
@@ -217,12 +221,15 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_create.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_select.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_alter_drop.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query.py
+#memleak,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query.py
+,,n,.,pytest cases/05-VirtualTables/test_vtable_query.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb.py
+#failed,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_drop_origin_table.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_join.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_insert.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_show_tag.py
 
 # 06-DataIngestion
 ## 01-Insert
@@ -267,7 +274,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_commit.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_insert_backquote.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_insert_null.py
-,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_insert_select.py
+#memleak,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_insert_select.py
+,,n,.,pytest cases/06-DataIngestion/05-Others/test_insert_select.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_wal_kill.py
 
 # 07-DataQuerying
@@ -297,6 +305,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_table_filter_no.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_table_filter_timestamp.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_tags_filter.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_sma_filter.py
 ## 03-GroupBy
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby_complex.py
@@ -307,6 +316,7 @@
 ## 04-OrderBy
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/04-OrderBy/test_multi_orderby.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/04-OrderBy/test_sort_pre_cols.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/04-OrderBy/test_sort_double_col.py
 ## 05-Aliase
 ## 06-Limit
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/06-Limit/test_limit_complex.py
@@ -436,14 +446,14 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/02-Fill/test_fill_us.py
 ,,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/02-Fill/test_fill.py
 ## 03-TimeWindow
-,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_bug.py
-,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_empty_range_scl.py
-,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_empty_range.py
-,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_function.py
-,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_offset.py
-,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval.py
-,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval2.py
-,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_sliding.py
+,,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_bug.py
+,,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_empty_range_scl.py
+,,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_empty_range.py
+,,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_function.py
+,,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_offset.py
+,,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval.py
+,,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval2.py
+,,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_sliding.py
 ## 04-StateWindow
 ## 05-EventWindow
 ,,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/05-EventWindow/test_event.py
@@ -455,24 +465,49 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/07-CountWindow/test_count1.py
 
 # 12-DataSubscription
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_drop_lost_comsumers.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_basic1.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_basic2.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_basic3.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_basic4.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_cons_overlap.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_cons1.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_cons2.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_cons3.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_cons4.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_snapshot1.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_snapshot2.py
-,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_topic.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_params.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_params.py -R
+## 01-Mgmt
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/01-Mgmt/test_drop_lost_comsumers.py
+## 02-Native
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_basic1.py
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_basic2.py
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_basic3.py
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_basic4.py
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_cons_overlap.py
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_cons1.py
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_cons2.py
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_cons3.py
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_cons4.py
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_snapshot1.py
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_snapshot2.py
+,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_topic.py
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_params.py
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_params.py -R
+## 03-WebSocket
+## 04-MQTT
+,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_smoking.py
+,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 2
+,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 6
+,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 11
+,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_qos.py
+,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_special.py
+,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_rb.py
+## 05-OPC
 
 # 13-StreamProcessing
-,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/test_max_delay_interval.py
+## 01-Snode
+## 02-Stream
+## 03-Trigger
+## 04-Option
+## 05-Notify
+## 06-Output
+## 07-SubQuery
+## 08-ReCalculate
+## 20-UseCase
+## 21-Stability 
+## 22-Performance
+## 23-Compatibility 
+## 24-OldCases
+## 99-Others
 
 # 14-Operators
 
@@ -490,12 +525,12 @@
 ## 01-Dnode
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_alter_dnode_debugflag.py 
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_create_dnode.py -N 2 -C 1
-,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_force.py -N 5
+#failed,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_force.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_mnode.py -N 2
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_multi_vnode_replica1.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_multi_vnode_replica3.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_qnode_snode.py -N 2
-,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_vnode_replica1.py -N 3
+#failed,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_vnode_replica1.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_vnode_replica3.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_offline_reason.py -N 2 -C 1
 #,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_use_dropped_dnode.py -N 3
@@ -533,7 +568,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_table_distributed.py 
 
 # 23-Users
-,,y,.,./ci/pytest.sh pytest cases/23-Users/test_user_basic.py 
+,,y,.,./ci/pytest.sh pytest cases/23-Users/test_user_basic.py
+,,y,.,./ci/pytest.sh pytest cases/23-Users/test_user_crypted_pass.py 
 ,,y,.,./ci/pytest.sh pytest cases/23-Users/test_user_password.py 
 ,,y,.,./ci/pytest.sh pytest cases/23-Users/test_user_privilege_create_db.py 
 ,,y,.,./ci/pytest.sh pytest cases/23-Users/test_user_privilege_db.py 
@@ -566,6 +602,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join_order.py
 ,,y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join.py
 ,,y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join2.py
+,,y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join_ns_db.py
+
 # 30-DataCompression
 ,,y,.,./ci/pytest.sh pytest cases/30-DataCompression/test_compress_alter_option.py
 ,,y,.,./ci/pytest.sh pytest cases/30-DataCompression/test_compress_disable.py
@@ -594,4 +632,1348 @@
 ,,y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_checkerror7.py
 ,,y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_checkerror8.py
 #,,y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_udf.py
+
+# uncatalog
+# army
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/alter/test_alter_config.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/alter/test_alter_config_refresh.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/alter/test_alter_config_refresh.py -N 3 -M 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/alter/test_alter_db_option.py -N 3
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/authorith/test_auth_basic.py -N 3
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_arbitrator.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_arbitrator_restart.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_snapshot.py -N 3 -L 3 -D 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_drop_table_by_uid.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_inc_snapshot.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_tsdb_snapshot.py -N 3 -M 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_strong_password.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_split_vgroup_by_learner.py -N 3
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/cmdline/test_taos_cli.py -B
+,,n,.,pytest cases/uncatalog/army/cmdline/test_fullopt.py
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_create_stb_keep.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_create_stb_keep.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_stb_keep_compact.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_stb_keep_compact.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_stb_keep_compact.py -N 3 -M 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_create_ctb_using_csv_file.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_create_ctb_using_csv_file.py -N 3
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/db-encrypt/test_basic.py -N 3 -M 3
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/grant/test_grant_bugs.py -N 3
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_column_tag_boundary.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_insert_basic.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_auto_create_insert.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_insert_csv_file_with_row_split.py 
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/inspect-tools/test_taosinspect.py
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/accuracy/test_query_accuracy.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/accuracy/test_ts5400.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/accuracy/test_having.py
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/decimal/test_TS6333.py
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/fill/test_fill_desc.py -N 3 -L 3 -D 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/fill/test_fill_null.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/fill/test_fill_compare_asc_desc.py
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_func_elapsed.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_function.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_selection_function_with_json.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_func_paramnum.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_percentile.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_resinfo.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_interp.py
+#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_interval.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_interval_diff_tz.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_concat.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_cast.py
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/subquery/test_subquery_bugs.py -N 3
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/last/test_last.py
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/window/test_window_base.py
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/sys/test_tb_perf_queries_exist.py -N 3
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_join.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_join_const.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_compare.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_case_when.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_query_basic.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_show.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_query_bugs.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_having.py
+
+#newstm,,n,.,pytest cases/uncatalog/army/storage/ss/test_ss_basic.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/storage/test_one_stage_comp.py -N 3 -L 3 -D 1
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/storage/test_compress_basic.py -N 3
+
+#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/stream/test_stream_vtable.py
+
+,,n,.,pytest cases/uncatalog/army/tmq/test_drop_lost_comsumers.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tmq/test_tmq_bugs.py -N 3
+
+# army/tools
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline_partial_col_numpy.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline_single_table.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline_sml_rest.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline_supplement_insert.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline_vgroups.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_conn_mode.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_custom_col_tag.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_default_json.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_demo.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_csv_export.py
+,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_decimal.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_from_to.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_from_to_continue.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_create_table_keywords.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_json_tag.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_sml.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_sql.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_stmt.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_stmt2.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_json_csv.py
+,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_basic.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_bind_vgroup.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_mix.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_precision.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_invalid_commandline.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_query_json.py -B
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_query_json_with_error_sqlfile.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_query_json_with_sqlfile.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_query_main.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_rest_insert_alltypes_json.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_reuse_exist_stb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_auto_create_table_json.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_json_alltypes.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_json_insert_alltypes_same_min_max.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_taosjson_alltypes.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_telnet_alltypes.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_telnet_insert_alltypes_same_min_max.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stmt_auto_create_table_json.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stmt_insert_alltypes_json.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stmt_insert_alltypes_same_min_max.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stmt_offset_json.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stmt_sample_csv_json_doesnt_use_ts.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stmt_sample_csv_json_subtable.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stmt_sample_csv_json.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stmt2_insert.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stream.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stream_function_test.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stt.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_auto_create_table_json.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_sample_csv_json_subtable.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_insert_alltypes_same_min_max.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_insert_alltypes_json.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_insert_alltypes_json_partial_col.py
+#failed,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_insert_table_creating_interval.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_sample_csv_json.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosdemo_test_insert_with_json_stmt_other_para.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosdemo_test_query_with_json.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_telnet_tcp.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_tmq_basic.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_tmq_case.py
+#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_website_case.py
+,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_bugs.py -B
+,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline_retry.py
+,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline_sml.py
+,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_json_alltypes_interlace.py
+,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_insert_alltypes_json.py
+,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_interlace.py
+,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_taosjson_insert_alltypes_same_min_max.py
+,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_taosadapter_json.py -B
+,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_insert_mix.py
+,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_insert_retry_json_global.py
+,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_insert_retry_json_stb.py
+,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_taosdemo_test_query_with_json_mixed_query.py -R
+,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_create_table_from_csv.py
+,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_cancle.py
+,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_error_exit.py
+,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_tmq_cancle.py
+,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_taos_config_json.py
+,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_data.py
+,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_auto_create_table_json.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/cloud/test_cloud.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/ws/test_websocket.py -R
+
+
+# taosdump cases
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_schema_change.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_compa.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_db_stb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_double.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_unsigned_big_int.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_many_cols.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_start_end_time.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_type_varbinary.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_type_geometry.py
+,,n,.,pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_db_with_non_root.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_escaped_db.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_json.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_basic.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_unsigned_small_int.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_db_ntb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_unsigned_tiny_int.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_unsigned_int.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_small_int.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_int.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_nano_support.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_big_int.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_binary.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_float.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_start_end_time_long.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_loose_mode.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_bool.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_inspect.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_in_diff_type.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test2.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_tiny_int.py
+,,n,.,pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_commandline.py -B
+,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_double.py -B
+,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_unsigned_big_int.py -B
+,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_escaped_db.py -B
+,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_primary_key.py -B
+,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_json.py -B
+,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_unsigned_small_int.py -B
+,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_unsigned_tiny_int.py -B
+,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_unsigned_int.py -B
+,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_small_int.py -B
+,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_int.py -B
+,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_big_int.py -B
+,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_binary.py -B
+,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_float.py -B
+,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_bool.py -B
+,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_retry.py -B
+,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_tiny_int.py -B
+
+,,n,.,pytest cases/uncatalog/army/user/test_passwd.py
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/whole/test_check_error_code.py
+
+## system_test
+### 2-query
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pk_error.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pk_func.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pk_varchar.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pk_func_group.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_expr.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_project_group.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbname_vgroup.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count_interval.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_compact_col.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tms_memleak.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stbJoin.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stbJoin.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stbJoin.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stbJoin.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hint.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hint.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hint.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hint.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_para_tms.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_para_tms2.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_str.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_math.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_time.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_26.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_str.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_math.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_time.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_26.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_columnLenUpdated.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_columnLenUpdated.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_columnLenUpdated.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_columnLenUpdated.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_str.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_math.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_time.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_26.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_limit_opt.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_unit.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_unit.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_unit.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_unit.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_by_col.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_by_col.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_by_col.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_by_col.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_by_col_agg.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_by_col_agg.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_by_col_agg.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_by_col_agg.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_limit_opt_2.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_limit_opt_2.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_limit_opt_2.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_limit_opt_2.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_func_to_char_timestamp.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_func_to_char_timestamp.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_func_to_char_timestamp.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_func_to_char_timestamp.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_cache_scan.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_cache_scan.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_cache_scan.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_cache_scan.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbname.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbname.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbname.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbname.py -Q 4
+#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma.py
+#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma.py -R
+#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma.py -Q 2
+#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma.py -Q 3
+#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma.py -Q 4
+#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma2.py
+#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma2.py -R
+#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma2.py -Q 2
+#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma2.py -Q 3
+#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma2.py -Q 4
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal.py
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal.py
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal.py -Q 4
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal.py -Q 4
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal.py -Q 3
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal.py -Q 3
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal.py -Q 2
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal.py -Q 2
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal.py -Q 1
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal.py -Q 1
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal2.py
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal2.py
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 4
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 4
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 3
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 3
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 2
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 2
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 1
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 1
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal3.py
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal3.py
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal3.py -Q 4
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal3.py -Q 4
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal3.py -Q 3
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal3.py -Q 3
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal3.py -Q 2
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal3.py -Q 2
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal3.py -Q 1
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_decimal3.py -Q 1
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbnameIn.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbnameIn.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbnameIn.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbnameIn.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbnameIn.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery2.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp_extension.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp_extension.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp_extension.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp_extension.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp_extension.py -Q 4
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_out_of_order.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_out_of_order.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_agg_null.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_insert_null_none.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_insert_null_none.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_insert_null_none.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_insert_null_none.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_insert_null_none.py -Q 4
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_out_of_order.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_out_of_order.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_str.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_math.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_time.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_26.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_select_null.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_select_null.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_select_null.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_select_null.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_select_null.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_slimit.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_slimit.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_slimit.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_slimit.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_slimit.py -Q 4
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_ts_5761.py
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_ts_5761_scalemode.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_5712.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_4233.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_4233.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_4233.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_4233.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_like.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_like.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_like.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_like.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_match.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_match.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_match.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_match.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_td_28068.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_td_28068.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_td_28068.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_td_28068.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_agg_group_AlwaysReturnValue.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_agg_group_AlwaysReturnValue.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_agg_group_AlwaysReturnValue.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_agg_group_AlwaysReturnValue.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_agg_group_NotReturnValue.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_agg_group_NotReturnValue.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_agg_group_NotReturnValue.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_agg_group_NotReturnValue.py -Q 4
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_td_32548.py
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_large_data.py
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stddev_test.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stddev_test.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stddev_test.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stddev_test.py -Q 4
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_abs.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_abs.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_and_or_for_byte.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_and_or_for_byte.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_apercentile.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_apercentile.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arccos.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arccos.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arcsin.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arcsin.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arctan.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arctan.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_avg.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_avg.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_between.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_between.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_bottom.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_bottom.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cast.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cast.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ceil.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ceil.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_char_length.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_char_length.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_check_tsdb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_check_tsdb.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat_ws.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat_ws.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat_ws2.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat_ws2.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cos.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cos.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_group_partition.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_group_partition.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_group_partition.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_group_partition.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_group_partition.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count_partition.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count_partition.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_countAlwaysReturnValue.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_countAlwaysReturnValue.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_db.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_db.py -N 3 --replica 3 -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_diff.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_diff.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distinct.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distinct.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_apercentile.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_apercentile.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_avg.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_avg.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_count.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_count.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_max.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_max.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_min.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_min.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_spread.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_spread.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_stddev.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_stddev.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_sum.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_sum.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_explain.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_explain.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_first.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_first.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_floor.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_floor.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_null.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_null.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_stateduration.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_stateduration.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_histogram.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_histogram.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hyperloglog.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hyperloglog.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill2.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill2.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill2.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill2.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill2.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_irate.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_irate.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_row.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_row.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_and_last_row.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_and_last_row.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_and_last_row.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_and_last_row.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_and_last_row.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last+last_row.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last+last_row.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last+last_row.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last+last_row.py -Q 4
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -R
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -Q 2
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -Q 2
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -Q 3
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -Q 3
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -Q 4
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -Q 4
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py -Q 2
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py -Q 3
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py -Q 3
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py -Q 4
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_3.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_3.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_3.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_3.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_3.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_4.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_4.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_4.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_4.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_4.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_5.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_5.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_5.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_5.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_5.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_leastsquares.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_leastsquares.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_length.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_length.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_limit.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_log.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_log.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_logical_operators.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_logical_operators.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_lower.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_lower.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ltrim.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ltrim.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_mavg.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_mavg.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_partition.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_partition.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_limit_interval.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_limit_interval.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_min_last_interval.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_row_interval.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_min.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_min.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_normal.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_normal.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_not.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_not.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_mode.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_mode.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Now.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Now.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_orderBy.py -N 5
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_percentile.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_percentile.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pow.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pow.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_query_cols_tags_and_or.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_query_cols_tags_and_or.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_round.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_round.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_rtrim.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_rtrim.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sample.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sample.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sin.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sin.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_smaBasic.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_smaTest.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_smaTest.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sml_TS-3724.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sml-TD19291.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_varbinary.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sml.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sml.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_spread.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_spread.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sqrt.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sqrt.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_statecount.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_statecount.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stateduration.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stateduration.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_substr.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_substr.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sum.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sum.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tail.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tail.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tan.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tan.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Timediff.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Timediff.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_timetruncate.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_timetruncate.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_timezone.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_timezone.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_To_iso8601.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_To_iso8601.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_To_unixtimestamp.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_To_unixtimestamp.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Today.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Today.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_top.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_top.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsbsQuery.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsbsQuery.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ttl_comment.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ttl_comment.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_twa.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_twa.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_unique.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_unique.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_upper.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_upper.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_varchar.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_varchar.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_case_when.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_case_when.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_blockSMA.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_blockSMA.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_projectionDesc.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_projectionDesc.py -R
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join2.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union1.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat2.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_json_tag.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQueryInterval.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_systable_func.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_ts4382.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_ts4403.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_td28163.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stablity.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stablity_1.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_elapsed.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_csum.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_diff.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tagFilter.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_projectionDesc.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_3405_3398_3423.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_4348_td_27939.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_backslash_g.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_ts4467.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_geometry.py
+
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_queryQnode.py
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_between.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distinct.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_varchar.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ltrim.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_rtrim.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_length.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_char_length.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_upper.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_lower.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join2.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cast.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_substr.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union1.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat2.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat_ws.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat_ws2.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_check_tsdb.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_spread.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hyperloglog.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_explain.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_leastsquares.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_timezone.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Now.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Today.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_min.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_normal.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_not.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_mode.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_countAlwaysReturnValue.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_first.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_To_iso8601.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_To_unixtimestamp.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_timetruncate.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_diff.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Timediff.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_json_tag.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_top.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_bottom.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_percentile.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_apercentile.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_abs.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ceil.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_floor.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_round.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_log.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pow.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sqrt.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sin.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cos.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tan.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arcsin.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arccos.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arctan.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_query_cols_tags_and_or.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQueryInterval.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stablity.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stablity_1.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_avg.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_elapsed.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_csum.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_mavg.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sample.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_diff.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_unique.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stateduration.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_stateduration.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_statecount.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tail.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ttl_comment.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_count.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_max.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_min.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_sum.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_spread.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_apercentile.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_avg.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_stddev.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_twa.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_irate.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_null.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count_partition.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_partition.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_limit_interval.py  -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_min_last_interval.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_row_interval.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_row.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsbsQuery.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sml.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_case_when.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_blockSMA.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_projectionDesc.py -Q 2
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_between.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distinct.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_varchar.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ltrim.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_rtrim.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_length.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_char_length.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_upper.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_lower.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join2.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cast.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_substr.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union1.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat2.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat_ws.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat_ws2.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_check_tsdb.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_spread.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hyperloglog.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_explain.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_leastsquares.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_timezone.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Now.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Today.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_min.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_normal.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_not.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_mode.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_countAlwaysReturnValue.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_first.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_To_iso8601.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_To_unixtimestamp.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_timetruncate.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_diff.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Timediff.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_json_tag.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_top.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_bottom.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_percentile.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_apercentile.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_abs.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ceil.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_floor.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_round.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_log.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pow.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sqrt.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sin.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cos.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tan.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arcsin.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arccos.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arctan.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_query_cols_tags_and_or.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQueryInterval.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stablity.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stablity_1.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_avg.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_elapsed.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_csum.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_mavg.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sample.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_diff.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_unique.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stateduration.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_stateduration.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_statecount.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tail.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ttl_comment.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_count.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_max.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_min.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_sum.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_spread.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_apercentile.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_avg.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_stddev.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_twa.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_irate.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_null.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count_partition.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_partition.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_limit_interval.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_min_last_interval.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_row_interval.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_row.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsbsQuery.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sml.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_case_when.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_blockSMA.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_projectionDesc.py -Q 3
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_between.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distinct.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_varchar.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ltrim.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_rtrim.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_length.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_char_length.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_upper.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_lower.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join2.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_substr.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union1.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat2.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat_ws.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat_ws2.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_check_tsdb.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_spread.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hyperloglog.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_explain.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_leastsquares.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_timezone.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Now.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Today.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_min.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_normal.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_not.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_mode.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_countAlwaysReturnValue.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_first.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_To_iso8601.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_To_unixtimestamp.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_timetruncate.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_diff.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Timediff.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_json_tag.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_top.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_bottom.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_percentile.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_apercentile.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_abs.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ceil.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_floor.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_round.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_log.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pow.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sqrt.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sin.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cos.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tan.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arcsin.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arccos.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arctan.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_query_cols_tags_and_or.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQueryInterval.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stablity.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stablity_1.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_avg.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_elapsed.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_csum.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_mavg.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sample.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cast.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_diff.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_unique.py -Q 4
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tail.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ttl_comment.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_count.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_max.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_min.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_sum.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_spread.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_apercentile.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_avg.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_stddev.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_twa.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_irate.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_null.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count_partition.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_partition.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_limit_interval.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_min_last_interval.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_row_interval.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_row.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsbsQuery.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sml.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_case_when.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_system_insert_select.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_system_insert_select.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_system_insert_select.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_system_insert_select.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_system_insert_select.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_out_of_order.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_blockSMA.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_projectionDesc.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_odbc.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill_with_group.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_state_window.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cols_function.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cols_function.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cols_function.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cols_function.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_operator.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_operator.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_operator.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_operator.py -Q 4
+#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_window_true_for.py
+
+
+### 1-insert
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_insert_stb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_delete_stable.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_stt_blocks_check.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_database_pre_suf.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_multi_insert.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_composite_primary_key_create.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_composite_primary_key_insert.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_composite_primary_key_delete.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_insert_double.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_alter_database.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_alter_replica.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_influxdb_line_taosc_insert.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_opentsdb_telnet_line_taosc_insert.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_opentsdb_json_taosc_insert.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_stmt_muti_insert_query.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_stmt_set_tbname_tag.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_alter_stable.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_alter_table.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_boundary.py
+,,n,.,pytest cases/uncatalog/system-test/1-insert/test_insertWithMoreVgroup.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_table_comment.py
+#,,n,.,pytest cases/uncatalog/system-test/1-insert/test_time_range_wise.py
+#,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_block_wise.py
+#,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_create_retentions.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_mutil_stage.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_table_param_ttl.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_table_param_ttl.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_update_data_muti_rows.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_db_tb_name_check.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_InsertFuturets.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_insert_wide_column.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_insert_column_value.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_insert_from_csv.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_benchmark.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_1.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_1.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_1.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_1.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_1.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_2.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_2.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_2.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_2.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_2.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_3.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_3.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_3.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_3.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_3.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_4.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_4.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_4.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_4.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_4.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_precisionUS.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_precisionNS.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_ts4219.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_ts_4272.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_ts4295.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_td27388.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_ts4479.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_td29793.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_insert_timestamp.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_td29157.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_ddl_in_sysdb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_update_data.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_tb_100w_data_order.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_delete_childtable.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_delete_normaltable.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_keep_expired.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_stmt_error.py
+#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_drop.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_drop.py -N 3 -M 3 -I False --replica 3
+
+
+
+### 3-enterprise
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/3-enterprise/restore/test_restore_dnode.py -N 5 -M 3 -I False
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/3-enterprise/restore/test_restore_vnode.py -N 5 -M 3 -I False
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/3-enterprise/restore/test_restore_mnode.py -N 5 -M 3 -I False
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/3-enterprise/restore/test_restore_qnode.py -N 5 -M 3 -I False
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/3-enterprise/restore/test_kill_restore_dnode.py -N 5
+,,n,.,pytest cases/uncatalog/system-test/3-enterprise/restore/test_kill_restore_dnode.py -N 5
+
+### 6-cluster
+,,n,.,pytest cases/uncatalog/system-test/6-cluster/manually-test/test_6dnode3mnode_insert_less_data_alter_rep3to1to3.py -N 6 -M 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/vnode/test_4dnode1mnode_basic_create_db_replica1.py -N 4 -M 1
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/vnode/test_4dnode1mnode_basic_replica1_insertdatas.py -N 4 -M 1
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/vnode/test_4dnode1mnode_basic_replica1_insertdatas_querys.py -N 4 -M 1
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/vnode/test_4dnode1mnode_basic_replica3_insertdatas.py -N 4 -M 1
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/vnode/test_4dnode1mnode_basic_replica3_insertdatas_querys.py -N 4 -M 1
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/vnode/test_4dnode1mnode_basic_replica3_vgroups.py -N 4 -M 1
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode1mnode.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode2mnode.py -N 5
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_stop.py -N 5 -M 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_stop.py -N 5 -M 3 -I False
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_stop_2follower.py -N 5 -M 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_stop_2follower.py -N 5 -M 3 -I False
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_stop_loop.py -N 5 -M 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_dnode_create_db.py -N 6 -M 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_dnode_create_db.py -N 6 -M 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_mnode_create_db.py -N 6 -M 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_mnode_create_db.py -N 6 -M 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_vnode_create_db.py -N 6 -M 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_vnode_create_db.py -N 6 -M 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_dnode_modify_meta.py  -N 6 -M 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_mnode_modify_meta.py  -N 6 -M 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_dnode_create_stb.py -N 6 -M 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_dnode_create_stb.py -N 6 -M 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_mnode_create_stb.py -N 6 -M 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_mnode_create_stb.py -N 6 -M 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_vnode_create_stb.py -N 6 -M 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_vnode_create_stb.py -N 6 -M 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_restart_dnode_insert_data.py -N 6 -M 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_restart_dnode_insert_data.py -N 6 -M 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_restart_dnode_insert_data_async.py -N 6 -M 3
+#origin commented out,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_restart_dnode_insert_data_async.py -N 6 -M 3 --replica 3
+#origin commented out,,n,.,pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_roll.py -N 3 -C 1
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_add_1dnode.py -N 7 -M 3 -C 6
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_add_1dnode.py -N 7 -M 3 -C 6 --replica 3
+#origin commented out,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_drop.py -N 5
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_recreate_mnode.py -N 6 -M 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_stop_follower_leader.py -N 5 -M 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_compact_db_conflict.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_mnode_encrypt.py -N 3
+
+### 0-others
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_mounts.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_balance_vgroups_r1.py -N 6
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taos_shell.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taos_shell_error.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taos_shell_net_chk.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_telemetry.py
+#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_backquote_check.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taosd_monitor.py
+#failed,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taosd_new_monitor.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taosd_audit.py
+,,n,.,pytest cases/uncatalog/system-test/0-others/test_taosdlog.py
+#newstm,,n,.,pytest cases/uncatalog/system-test/0-others/test_taosd_shell.py -N 5 -M 3 -Q 3
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_udf_test.py
+,,n,.,pytest cases/uncatalog/system-test/0-others/test_udf_test.py
+,,n,.,pytest cases/uncatalog/system-test/0-others/test_udf_create.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_udf_restart_taosd.py
+,,n,.,pytest cases/uncatalog/system-test/0-others/test_udf_cfg1.py
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_udf_cfg2.py
+,,n,.,pytest cases/uncatalog/system-test/0-others/test_udf_cfg2.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_cachemodel.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_sysinfo.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_user_control.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_user_manage.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_user_privilege.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_user_privilege_show.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_user_privilege_all.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_fsync.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_multilevel.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_retention.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_retention2.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_multilevel_createdb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_ttl.py
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_ttl_change_on_write.py
+,,n,.,pytest cases/uncatalog/system-test/0-others/test_ttl_change_on_write.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compress_tsz1.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compress_tsz2.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_show_table_distributed.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_show_disk_usage.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_show_disk_usage_multilevel.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_dismatch_config.py
+,,n,.,pytest cases/uncatalog/system-test/0-others/test_sml_restart.py
+,,n,.,pytest cases/uncatalog/system-test/0-others/test_tag_index_basic.py
+,,n,.,pytest cases/uncatalog/system-test/0-others/test_udfpy_main.py
+,,n,.,pytest cases/uncatalog/system-test/0-others/test_wal_retention.py -N 3
+,,n,.,pytest cases/uncatalog/system-test/0-others/test_wal_level_skip.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_split_vgroup.py -N 3 --replica 1
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_split_vgroup_wal.py -N 3 --replica 1
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_split_vgroup.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_split_vgroup_wal.py -N 3 --replica 3
+,,n,.,pytest cases/uncatalog/system-test/0-others/test_time_range_wise.py -N 3
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_delete_check.py
+,,n,.,pytest cases/uncatalog/system-test/0-others/test_delete_check.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_hot_refresh_configurations.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_subscribe_stream_privilege.py
+#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_empty_identifier.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_show_transaction_detail.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_kill_balance_leader.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_persisit_config.py
+#failed,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_qmem_ctrl.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compact_vgroups.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compact_auto.py
+,,n,.,pytest cases/uncatalog/system-test/0-others/test_dumpsdb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compact.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_show.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_show_tag_index.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_information_schema.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_ins_filesets.py
+#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_grant.py
+#newstm,,n,.,pytest cases/uncatalog/system-test/0-others/test_compatibility_rolling_upgrade_all.py -N 3
+#newstm,,n,.,pytest cases/uncatalog/system-test/0-others/test_compatibility.py
+#newstm,,n,.,pytest cases/uncatalog/system-test/0-others/test_compatibility_rolling_upgrade.py -N 3
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/view/non_marterial_view/test_view.py
+
+
+,,n,.,pytest cases/uncatalog/system-test/eco-system/meta/database/test_keep_time_offset.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/eco-system/manager/test_schema_change.py -N 3 -M 3
+
+#develop test
+,,n,.,pytest cases/uncatalog/develop-test/2-query/test_table_count_scan.py
+,,n,.,pytest cases/uncatalog/develop-test/2-query/test_pseudo_column.py
+,,n,.,pytest cases/uncatalog/develop-test/2-query/test_ts_range.py
+,,n,.,pytest cases/uncatalog/develop-test/2-query/test_tag_scan.py
+,,n,.,pytest cases/uncatalog/develop-test/2-query/test_show_create_db.py
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/test_new/storage/compact/test_compact_meta.py
+### 7-tmq
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqShow.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDropStb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeStb0.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeStb1.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeStb2.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeStb3.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeDb0.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_ins_topics_test.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqMaxTopic.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqParamsTest.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqParamsTest.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqMaxGroupIds.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsumeDiscontinuousData.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqOffset.py
+#,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_primary_key.py
+,,n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmqDropConsumer.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_create_wrong_topic.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_dropDbR3ConflictTransaction.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_basic5.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeDb.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_ts_4674.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_td_30270.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeDb1.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeDb2.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeDb3.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeDb4.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeStb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeStb4.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_db.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqError.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_schema.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_stbFilterWhere.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_stbFilter.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqCheckData.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqCheckData1.py
+#,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsumerGroup.py
+,,n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmqConsumerGroup.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqAlterSchema.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb_mutilVg.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1_mutilVg.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb_1ctb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1_1ctb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb_1ctb_funcNFilter.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb_mutilVg_mutilCtb_funcNFilter.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb_mutilVg_mutilCtb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1_1ctb_funcNFilter.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1_mutilVg_mutilCtb_funcNFilter.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1_mutilVg_mutilCtb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqAutoCreateTbl.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDnodeRestart.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDnodeRestart1.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUpdate_1ctb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUpdateWithConsume.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUpdate_multiCtb_snapshot0.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUpdate_multiCtb_snapshot1.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDelete_1ctb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDelete_multiCtb.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDropStbCtb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDropNtb_snapshot0.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDropNtb_snapshot1.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf.py
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot0.py
+,,n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot0.py
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot1.py
+,,n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot1.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_stbTagFilter_1ctb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_dataFromTsdbNWal.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_dataFromTsdbNWal_multiCtb.py
+#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_taosx.py
+,,n.,pytest cases/uncatalog/system-test/7-tmq/test_tmq_taosx.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts5466.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_td33504.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts6392.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts5906.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_td_32187.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_td_33225.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts4563.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_td32526.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_td32471.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts6115.py
+,,n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmq_tx484.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_replay.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqSeekAndCommit.py
+,,n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmq_offset.py
+,,n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmqDataPrecisionUnit.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_raw_block_interface_test.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_stbTagFilter_multiCtb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqSubscribeStb_r3.py -N 5
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq3mnodeSwitch.py -N 6 -M 3 -I True
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq3mnodeSwitch.py -N 6 -M 3 --replica 3 -I True
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeTransform_db_removewal.py -N 2 --replica 1
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeTransform_stb_removewal.py -N 6 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeTransform_stb.py -N 2 --replica 1
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeTransform_stb.py -N 6 --replica 3
+#,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeTransform_db.py -N 6 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_select.py -N 2 --replica 1
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_select_duplicatedata.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_select_duplicatedata_false.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_select.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_ntb_select.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_select_false.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_false.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_column.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_column_false.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_db.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_db_false.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_walRemoveLog.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeReplicate.py -M 3 -N 3 --replica 3
+
+### 99-TDcase
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_19201.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_21561.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_3404.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_3581.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_3311.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_3821.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_5130.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_5580.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_21561.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_21561.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_21561.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_20582.py
 

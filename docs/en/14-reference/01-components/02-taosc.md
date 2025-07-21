@@ -108,7 +108,6 @@ The TDengine client driver provides all the APIs needed for application programm
 | AVX512Enable     | After 3.3.4.3     |Not supported                     | Internal parameter, used for testing AVX512 acceleration |
 | bypassFlag       |After 3.3.4.5      |Supported, effective immediately  | Internal parameter, used for  short-circuit testing|
 
-
 ### SHELL Related
 
 |Parameter Name|Supported Version|Dynamic Modification|Description|

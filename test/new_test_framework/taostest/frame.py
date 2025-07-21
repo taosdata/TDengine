@@ -1,5 +1,4 @@
 import importlib
-import multiprocessing
 import os
 import queue
 import random
@@ -79,10 +78,10 @@ class TaosTestFrame:
         else:
             self._env_mgr = EnvManager(self._logger, self._run_log_dir)
         self._res_mgr = ResourceManager(self._logger, self._env_dir)
-        self._worker_threads: List[multiprocessing.Process] = []  # 工作线程
-        self._task_queue = multiprocessing.Queue()  # 任务队列
-        self._result_queue = multiprocessing.Queue()  # 结果队列
-        self._done_workers = multiprocessing.Queue()  # 记录已经完成任务的线程
+        self._worker_threads: List[threading.Thread] = []  # 工作线程
+        self._task_queue = queue.Queue()
+        self._result_queue = queue.Queue()
+        self._done_workers = queue.Queue()
         self._ret = 0  # 返回值
         self._local_host = platform.node() # get local host name
 
@@ -129,7 +128,7 @@ class TaosTestFrame:
         create logger
         """
         os.makedirs(self._run_log_dir)
-        log_queue = multiprocessing.Queue()
+        log_queue = queue.Queue()
         thread_logger = ThreadLogger(os.path.join(self._run_log_dir, TDCom.taostest_log_file_name), log_queue, self._opts.log_level)
         self._logger = Logger(log_queue)
         thread_logger.start()
@@ -504,20 +503,20 @@ class TaosTestFrame:
         #     stdout = cmd_stdout.read().strip()
         #     self._logger.debug(stdout)
         #     lines = stdout.split("\n")
-        if needSetup:
+        #if needSetup:
             # create mnode on dnode
-            for i in range(2, self._opts.mnode_count + 1):
-                self._logger.debug(f"taos -h {host} -P {port} -s \"create mnode on dnode {i}\"")
-                ret = os.system(f"taos -h {host} -P {port} -s \"create mnode on dnode {i}\"")
-                if ret != 0:
-                    self._logger.error(f"create mnode on dnode {i} failed")
-                    return False
-            # show mnode
-            self._logger.debug(f"taos -h {host} -P {port} -s \"show mnodes\"")
-            cmd_stdout = os.popen(f"taos -h {host} -P {port} -s \"show mnodes\"")
-            stdout = cmd_stdout.read().strip()
-            self._logger.debug(stdout)
-            lines = stdout.split("\n")
+            # for i in range(2, self._opts.mnode_count + 1):
+            #     self._logger.debug(f"taos -h {host} -P {port} -s \"create mnode on dnode {i}\"")
+            #     ret = os.system(f"taos -h {host} -P {port} -s \"create mnode on dnode {i}\"")
+            #     if ret != 0:
+            #         self._logger.error(f"create mnode on dnode {i} failed")
+            #         return False
+            # # show mnode
+            # self._logger.debug(f"taos -h {host} -P {port} -s \"show mnodes\"")
+            # cmd_stdout = os.popen(f"taos -h {host} -P {port} -s \"show mnodes\"")
+            # stdout = cmd_stdout.read().strip()
+            # self._logger.debug(stdout)
+            # lines = stdout.split("\n")
             ## taos -s "show mnodes"
             # Welcome to the TDengine shell from Linux, Client Version:3.0.0.100
             # Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.
@@ -529,13 +528,13 @@ class TaosTestFrame:
             #           2 | dnode_2:6030                   | follower     | ready     | 2022-07-19 14:15:21.898 |
             #           3 | dnode_3:6030                   | follower     | ready     | 2022-07-19 14:15:27.931 |
             # Query OK, 3 rows affected (0.008276s)
-            ret = 1
-            for line in lines:
-                if line.find("Query OK") >= 0:
-                    ret = 0
-            if ret != 0:
-                self._logger.error("show mnodes failed")
-                return False
+            # ret = 1
+            # for line in lines:
+            #     if line.find("Query OK") >= 0:
+            #         ret = 0
+            # if ret != 0:
+            #     self._logger.error("show mnodes failed")
+            #     return False
         return True
 
     def _setup(self):
@@ -575,6 +574,9 @@ class TaosTestFrame:
         #                             self._env_mgr._remote.cmd(host, ["mkdir -p {} ".format(dirName)])
         #                 else:
         #                     pass
+        if platform.system() != "Linux":
+            self._logger.info("Skip core_pattern setup: not Linux")
+            return
         
         host = platform.node()
         if host == self._local_host or host == "localhost":
@@ -608,6 +610,10 @@ class TaosTestFrame:
         self._init_taostest()
 
     def _collect_taostest(self):
+        if platform.system() != "Linux":
+            self._logger.info("Skip core_pattern setup: not Linux")
+            return
+        
         host = platform.node()
         self._logger.debug("collect coredump files {}, etc.".format(host))
         logDir = self._run_log_dir
@@ -868,13 +874,17 @@ class TaosTestFrame:
         cmds = f"docker exec  {containers_name} sh -c ' {cmds} '"
         print("it will execute in containers , taos-test-framework is at {} and test_root path {}".format(containers_name, self._test_root))
         return self.run_cmd(cmds)
-
+            
     def _execute_cases(self):
         self._logger.debug("execute cases")
         self._add_case_root_to_sys_path()
-        early_stop_flag = multiprocessing.Value("b", False)
+        early_stop_flag = threading.Event()
         parent_env = dict(os.environ)
-        self._worker_threads.append(multiprocessing.Process(target=self._do_work, name="worker-0", args=(early_stop_flag, parent_env)))
+        self._worker_threads = []
+        self._done_workers = queue.Queue()
+        self._result_queue = queue.Queue()
+        self._task_queue = queue.Queue()
+        self._worker_threads.append(threading.Thread(target=self._do_work, name="worker-0", args=(early_stop_flag, parent_env)))
         for case_py in self._opts.cases:
             if case_py.endswith(".py"):
                 module_path = self._case_path_to_module_path(case_py)
@@ -887,10 +897,14 @@ class TaosTestFrame:
     def _execute_groups(self):
         self._logger.debug(f"execute groups with concurrency {self._opts.concurrency}")
         self._add_case_root_to_sys_path()
-        early_stop_flag = multiprocessing.Value("b", False)
+        early_stop_flag = threading.Event()
         parent_env = dict(os.environ)
+        self._worker_threads = []
+        self._done_workers = queue.Queue()
+        self._result_queue = queue.Queue()
+        self._task_queue = queue.Queue()
         for worker_id in range(self._opts.concurrency):
-            self._worker_threads.append(multiprocessing.Process(target=self._do_work, name="worker-" + str(worker_id), args=(early_stop_flag, parent_env)))
+            self._worker_threads.append(threading.Thread(target=self._do_work, name="worker-" + str(worker_id), args=(early_stop_flag, parent_env)))
         self._group_root = os.path.join(self._test_root, "groups")
         if self._opts.group_files:
             self._add_task_from_group_files()
@@ -929,11 +943,11 @@ class TaosTestFrame:
         self._logger.debug(f"SUCCESS {success_count} FAILED {fail_count}")
 
     def _do_work(self, early_stop_flag, env: dict):
-        worker_name = multiprocessing.current_process().name
+        worker_name = threading.current_thread().name
         if env is not None:
             os.environ.update(env)
         while True:
-            if self._opts.early_stop and early_stop_flag.value:
+            if self._opts.early_stop and early_stop_flag.is_set():
                 self._logger.debug("early stop")
                 self._done_workers.put(worker_name)
                 break
@@ -941,16 +955,15 @@ class TaosTestFrame:
                 case_module, group_name = self._task_queue.get(block=True, timeout=1)
                 ret = self._run_case(case_module, group_name)
                 if not ret:
-                    early_stop_flag.value = True
+                    early_stop_flag.set()
             except queue.Empty:
-                # 没有更多任务则退出
                 self._done_workers.put(worker_name)
                 self._logger.debug(worker_name + " exited")
                 break
             except Exception as e:
                 traceback.print_exc()
                 self._logger.error(str(e))
-                early_stop_flag.value = True
+                early_stop_flag.set()
 
     def _init_case(self, case_module_path: str):
         self._logger.debug("loading case " + case_module_path)
@@ -980,26 +993,31 @@ class TaosTestFrame:
 
     def _run_case(self, case_module_path: str, group: str = ""):
         """
-        启动一个进程执行 case， 如果进程退出状态不等于 0， 则输出失败日志
-        @param case_module_path: For example: path1.path2.test
-        @return 如果 case 进程退出状态不为 0， 返回 False； 如果进程退出状态为 0， 则返回 case 的执行结果： True or False
+        直接在当前线程执行 case
         """
-
         case: TDCase = self._init_case(case_module_path)
         if case is None:
             return False
-        ret = multiprocessing.Value("b", False)
         start_time = datetime.now()
-        p = multiprocessing.Process(target=self._run_case_process, args=(case_module_path, group, start_time, ret, os.environ))
-        p.start()
-        p.join()
-        if p.exitcode != 0:
-            # case 自身无法捕获的失败，比如进程异常退出
-            self._logger.error(f"{case.name} {Fore.RED} FAILED: {Fore.RESET} {case.error_msg} exitcode {p.exitcode}")
-            self._run_case_final(case, group, start_time, False)
-            return False
-        else:
-            return ret.value
+        try:
+            case.tdSql = TDSql(logger=self._logger, run_log_dir=self._run_log_dir, set_error_msg=case.set_error_msg)
+            case.init()
+            suc = case.run()
+            if suc or suc is None:
+                suc = True
+                self._logger.info(f"{case.name}{Fore.GREEN} SUCCESS {Fore.RESET}")
+            else:
+                if not case.error_msg:
+                    self._logger.error(f"{case.name} {Fore.RED} FAILED {Fore.RESET} : no error message")
+                else:
+                    self._logger.error(f"{case.name} {Fore.RED} FAILED: {Fore.RESET} {case.error_msg}")
+        except BaseException as e:
+            self._logger.error(f"{case.name} {Fore.RED} FAILED {Fore.RESET}: {e}")
+            traceback.print_exc()
+            suc = False
+            case.error_msg = str(e)
+        self._run_case_final(case, group, start_time, suc)
+        return suc
 
     def _run_case_process(self, case_module_path: str, group: str, start_time: datetime, ret, env):
         if env is not None:

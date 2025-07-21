@@ -10,16 +10,17 @@ import imgThread from '../assets/ingesting-data-efficiently-01.png';
 
 To help users easily build data ingestion pipelines with million-level throughput, the TDengine connector provides a high-performance write feature. When this feature is enabled, the TDengine connector automatically creates write threads and dedicated queues, caches data sharded by sub-tables, and sends data in batches when the data volume threshold is reached or a timeout condition occurs. This approach reduces network requests and increases throughput, allowing users to achieve high-performance writes without needing to master multithreaded programming knowledge or data sharding techniques.
 
-
 ## Usage of Efficient Writing {#usage}
+
 The following introduces the usage methods of the efficient writing feature for each connector:
 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem label="Java" value="java">
 
-**1. Introduction to the JDBC Efficient Writing Feature**
+### Introduction to the JDBC Efficient Writing Feature
 
 Starting from version `3.6.0`, the JDBC driver provides an efficient writing feature over WebSocket connections. The JDBC driver's efficient writing feature has the following characteristics:
+
 - It supports the JDBC standard parameter binding interface.
 - Under the condition of sufficient resources, the writing capacity is linearly related to the configuration of the number of writing threads.
 - It supports the configuration of the writing timeout, the number of retries, and the retry interval after a connection is disconnected and re - established.
@@ -27,17 +28,18 @@ Starting from version `3.6.0`, the JDBC driver provides an efficient writing fea
 
 The following details its usage method. This section assumes that the user is already familiar with the JDBC standard parameter binding interface (refer to [Parameter Binding](https://docs.oracle.com/javase/8/docs/api/java/sql/PreparedStatement.html) for reference).
 
-**2. How to Enable the Efficient Writing Feature**
+### How to Enable the Efficient Writing Feature
 
 For the JDBC connector, there are two ways to enable the efficient writing feature:
+
 - Setting `PROPERTY_KEY_ASYNC_WRITE` to `stmt` in the connection properties or adding `asyncWrite = stmt` to the JDBC URL can enable efficient writing on this connection. After enabling the efficient writing feature on the connection, all subsequent `PreparedStatement` objects created will use the efficient writing mode.
 - When using parameter binding to create a `PreparedStatement`, using `ASYNC_INSERT INTO` instead of `INSERT INTO` in the SQL statement can enable efficient writing for this parameter - bound object.
 
-**3. How to Check if the Writing is Successful**
+### How to Check if the Writing is Successful
 
 The client application uses the `addBatch` method of the JDBC standard interface to add a record and `executeBatch` to submit all added records. In the efficient writing mode, the **executeUpdate** method can be used to synchronously obtain the number of successfully written records. If there is a data writing failure, calling `executeUpdate` will catch an exception at this time.
 
-**4. Important Configuration Parameters for Efficient Writing**
+### Important Configuration Parameters for Efficient Writing
 
 - `TSDBDriver.PROPERTY_KEY_BACKEND_WRITE_THREAD_NUM`: The number of background writing threads in the efficient writing mode. It only takes effect when using a WebSocket connection. The default value is 10.
 - `TSDBDriver.PROPERTY_KEY_BATCH_SIZE_BY_ROW`: The batch size of the written data in the efficient writing mode, with the unit of rows. It only takes effect when using a WebSocket connection. The default value is 1000.
@@ -49,7 +51,7 @@ The client application uses the `addBatch` method of the JDBC standard interface
 
 For other configuration parameters, please refer to [Efficient Writing Configuration](../../tdengine-reference/client-libraries/java/#properties).
 
-**5. Instructions for Using JDBC Efficient Writing**
+### Instructions for Using JDBC Efficient Writing
 
 The following is a simple example of using JDBC efficient writing, which illustrates the relevant configurations and interfaces for efficient writing.
 
@@ -63,12 +65,12 @@ The following is a simple example of using JDBC efficient writing, which illustr
 </TabItem>
 </Tabs>
 
-
 ## Efficient Writing Example {#sample-code}
 
 ### Scenario Design {#scenario}
 
 The following sample program demonstrates how to efficiently write data, with the scenario designed as follows:  
+
 - The TDengine client program continuously reads data from other data sources. In the sample program, simulated data generation is used to mimic data source reading, while also providing an example of pulling data from Kafka and writing it to TDengine.
 - To improve the data reading speed of the TDengine client program, multi-threading is used for reading. To avoid out-of-order issues, the sets of tables read by multiple reading threads should be non-overlapping.
 - To match the data reading speed of each data reading thread, a set of write threads is launched in the background. Each write thread has an exclusive fixed-size message queue.
@@ -82,7 +84,7 @@ This sample code assumes that the source data belongs to different subtables of 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem label="Java" value="java">
 
-**Program Listing**
+Program Listing:
 
 | Class Name         | Functional Description                                                                                                                                       |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -96,13 +98,12 @@ This sample code assumes that the source data belongs to different subtables of 
 | ConsumerTask       | A consumer that receives messages from Kafka, writes data to TDengine using the JDBC efficient writing interface, and commits offsets according to progress. |
 | Util               | Provides basic functionalities, including creating connections, creating Kafka topics, and counting write operations.                                        |
 
-
 Below are the complete codes and more detailed function descriptions for each class.
 
 <details>
 <summary>FastWriteExample</summary>
 
-**Introduction to Main Program Command-Line Arguments:**  
+Introduction to Main Program Command-Line Arguments:
 
 ```shell
    -b,--batchSizeByRow <arg>             Specifies the `batchSizeByRow` parameter for Efficient Writing, default is 1000  
@@ -114,42 +115,44 @@ Below are the complete codes and more detailed function descriptions for each cl
    -R,--rowsPerSubTable <arg>            Specifies the number of rows to write per child table, default is 100  
    -s,--subTableNum <arg>                Specifies the total number of child tables, default is 1000000  
    -w,--writeThreadPerReadThread <arg>   Specifies the number of write threads per worker thread, default is 5  
-```  
+```
 
-**JDBC URL and Kafka Cluster Address Configuration:**  
+JDBC URL and Kafka Cluster Address Configuration:
 
 1. The JDBC URL is configured via an environment variable, for example:  
+
    ```shell
    export TDENGINE_JDBC_URL="jdbc:TAOS-WS://localhost:6041?user=root&password=taosdata"
-   ```  
+   ```
+
 2. The Kafka cluster address is configured via an environment variable, for example:  
+
    ```shell
    export KAFKA_BOOTSTRAP_SERVERS=localhost:9092
-   ```  
+   ```
 
-**Usage:**  
+Usage:
+
 ```shell
 1. Simulated data writing mode:  
    java -jar highVolume.jar -r 5 -w 5 -b 10000 -c 100000 -s 1000000 -R 1000  
 2. Kafka subscription writing mode:  
    java -jar highVolume.jar -r 5 -w 5 -b 10000 -c 100000 -s 1000000 -R 100 -K  
-```  
+```
 
-**Responsibilities of the Main Program:**  
+Responsibilities of the Main Program:
+
 1. Parses command-line arguments.  
 2. Creates child tables.  
 3. Creates worker threads or Kafka producers and consumers.  
 4. Tracks write speed.  
 5. Waits for writing to complete and releases resources.
 
-
 ```java
 {{#include docs/examples/JDBC/highvolume/src/main/java/com/taos/example/highvolume/FastWriteExample.java}}
 ```
 
 </details>
-
-
 
 <details>
 <summary>WorkTask</summary>
@@ -240,12 +243,12 @@ A utility class that provides functions such as creating connections, creating d
 
 </details>
 
-**Execution Steps**
+Execution Steps:
 
 <details>
 <summary>Execute the Java Example Program</summary>
 
-**Execute the example program in a local integrated development environment**
+Execute the example program in a local integrated development environment:
 
 1. Clone the TDengine repository
 
@@ -259,7 +262,7 @@ A utility class that provides functions such as creating connections, creating d
 5. Specify command-line arguments, such as `-r 3 -w 3 -b 100 -c 1000 -s 1000 -R 100`.
 6. Run the class `com.taos.example.highvolume.FastWriteExample`.
 
-**Execute the example program on a remote server**
+Execute the example program on a remote server:
 
 To execute the example program on a server, follow these steps:
 
@@ -323,11 +326,12 @@ Below is a sample log output from an actual run on a machine with a 40-core CPU,
 
 </Tabs>
 
-
 ## Key Factors for Write Performance {#key-factors}  
 
 ### From the Client Application Perspective {#application-view}  
+
 From the client application's perspective, the following factors should be considered for efficient data writing:  
+
 1. **Batch Writing**: Generally, larger batch sizes improve efficiency (but the advantage diminishes beyond a certain threshold). When using SQL to write to TDengine, include as much data as possible in a single SQL statement. The maximum allowed SQL length in TDengine is **1MB** (1,048,576 characters).  
 2. **Multithreaded Writing**: Before system resource bottlenecks are reached, increasing the number of write threads can improve throughput (performance may decline due to server-side processing limitations beyond the threshold). It is recommended to assign independent connections to each write thread to reduce connection resource contention.  
 3. **Write Locality**: The distribution of data across different tables (or sub-tables), i.e., the locality of data to be written. Writing to a single table (or sub-table) in each batch is more efficient than writing to multiple tables (or sub-tables).  
@@ -342,6 +346,7 @@ From the client application's perspective, the following factors should be consi
 Client applications should fully and appropriately utilize these factors. For example, choosing parameter binding, pre-creating sub-tables, writing to a single table (or sub-table) in each batch, and configuring batch size and concurrent thread count through testing to achieve the optimal write speed for the current system.  
 
 ### From the Data Source Perspective {#datasource-view}  
+
 Client applications usually need to read data from a data source before writing it to TDengine. From the data source's perspective, the following situations require adding a queue between the reading and writing threads:
 
 1. There are multiple data sources, and the data generation speed of a single data source is much lower than the writing speed of a single thread, but the overall data volume is relatively large. In this case, the role of the queue is to aggregate data from multiple sources to increase the amount of data written at once.
@@ -356,7 +361,9 @@ If the data source for the writing application is Kafka, and the writing applica
 4. Increase the maximum amount of data fetched each time to increase the maximum amount of data written at once.
 
 ### From the Server Configuration Perspective {#setting-view}  
+
 First, consider several important performance-related parameters in the database creation options:  
+
 1. **vgroups**: When creating a database on the server, reasonably set the number of vgroups based on the number of disks, disk I/O capability, and processor capacity to fully unleash system performance. Too few vgroups will underutilize performance, while too many will cause unnecessary resource contention. It is recommended to keep the number of tables per vgroup within 1 million, and within 10,000 under sufficient hardware resources for better results.  
 2. **buffer**: Refers to the write memory size allocated for a vnode, with a default of 256 MB. When the actual written data in a vnode reaches about 1/3 of the buffer size, a data flush to disk is triggered. Increasing this parameter appropriately can cache more data for batch flushing, improving write efficiency. However, an excessively large value will prolong recovery time in case of a system crash.  
 3. **cachemodel**: Controls whether to cache the latest data of sub-tables in memory. Enabling this feature affects write performance as it updates each table's `last_row` and each column's `last` value during writing. Reducing the impact by changing the option from `both` to `last_row` or `last_value`.  
@@ -365,6 +372,7 @@ First, consider several important performance-related parameters in the database
 For other parameters, refer to [Database Management](../../tdengine-reference/sql-manual/manage-databases/).  
 
 Next, consider performance-related parameters in the `taosd` configuration:  
+
 1. **compressMsgSize**: Enabling RPC message compression improves performance when bandwidth is a bottleneck.  
 2. **numOfCommitThreads**: Number of background flush threads on the server, default 4. More threads do not always mean better performance, as they can cause disk write contention. Servers with multiple disks can consider increasing this parameter to utilize concurrent I/O capabilities.  
 3. **Log Level**: Parameters like `debugFlag` control log output levels. Higher log levels increase output pressure and impact write performance, so the default configuration is recommended.  
@@ -372,6 +380,7 @@ Next, consider performance-related parameters in the `taosd` configuration:
 For other parameters, refer to [Server Configuration](../../tdengine-reference/components/taosd/).  
 
 ## Implementation Principle of Efficient Writing {#implement-principle}  
+
 From the factors affecting write performance discussed above, developing high-performance data writing programs requires knowledge of multithreaded programming and data sharding, posing a technical threshold. To reduce user development costs, the TDengine connector provides the **efficient writing feature**, allowing users to leverage TDengine's powerful writing capabilities without dealing with underlying thread management and data sharding logic.  
 
 Below is a schematic diagram of the connector's efficient writing feature implementation:  
@@ -380,18 +389,19 @@ Below is a schematic diagram of the connector's efficient writing feature implem
 <figcaption>Figure 1. Thread model for efficient writing example</figcaption>
 </figure>
 
-
 ### Design Principles  
+
 - **Automatic Thread and Queue Creation**:  
   The connector dynamically creates independent write threads and corresponding write queues based on configuration parameters. Each queue is bound to a sub-table, forming a processing chain of "sub-table data - dedicated queue - independent thread".  
 - **Data Sharding and Batch Triggering**:  
   When the application writes data, the connector automatically shards the data by sub-table and caches it in the corresponding queue. Batch sending is triggered when either of the following conditions is met:  
   1. The queue data volume reaches the preset threshold.  
-  2. The preset waiting timeout is reached (to avoid excessive latency).   
-    
+  2. The preset waiting timeout is reached (to avoid excessive latency).
+
   This mechanism significantly improves write throughput by reducing the number of network requests.  
 
 ### Functional Advantages  
+
 - **Single-Thread High-Performance Writing**:  
   The application layer only needs to call the write interface via a single thread. The connector's underlying layer automatically handles multithreaded concurrency, achieving performance close to traditional client multithreaded writing while hiding all underlying thread management complexity.  
 - **Reliability Enhancement Mechanisms**:  

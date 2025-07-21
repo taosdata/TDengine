@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/taosdata/go-utils/web"
+	"github.com/taosdata/taoskeeper/util"
 	"github.com/taosdata/taoskeeper/util/pool"
 	"github.com/taosdata/taoskeeper/version"
 )
@@ -22,6 +23,7 @@ const ModelKey = "model"
 type Config struct {
 	InstanceID       uint8
 	Cors             web.CorsConfig  `toml:"cors"`
+	Host             string          `toml:"host"`
 	Port             int             `toml:"port"`
 	LogLevel         string          `toml:"loglevel"`
 	GoPoolSize       int             `toml:"gopoolsize"`
@@ -79,9 +81,9 @@ func InitConfig() *Config {
 
 	if *v {
 		if version.IsEnterprise == "true" {
-			fmt.Printf("%s Enterprise Edition\n", version.CUS_NAME)
+			fmt.Printf("%s TSDB-Enterprise\n", version.CUS_NAME)
 		} else {
-			fmt.Printf("%s Community Edition\n", version.CUS_NAME)
+			fmt.Printf("%s TSDB-OSS\n", version.CUS_NAME)
 		}
 		fmt.Printf("%s version: %s\n", Name, version.Version)
 		fmt.Printf("git: %s\n", version.Gitinfo)
@@ -153,6 +155,8 @@ ReadConfig:
 		viper.Set("logLevel", "")
 	}
 
+	conf.Host = util.HandleIp(conf.Host)
+
 	Conf = &conf
 	return &conf
 }
@@ -165,6 +169,10 @@ func init() {
 	viper.SetDefault("port", 6043)
 	_ = viper.BindEnv("port", "TAOS_KEEPER_PORT")
 	pflag.IntP("port", "P", 6043, `http port. Env "TAOS_KEEPER_PORT"`)
+
+	viper.SetDefault("host", "")
+	_ = viper.BindEnv("host", "TAOS_KEEPER_HOST")
+	pflag.StringP("host", "H", "", `http host. Env "TAOS_KEEPER_HOST"`)
 
 	_ = viper.BindEnv("logLevel", "TAOS_KEEPER_LOG_LEVEL")
 	pflag.String("logLevel", "info", `log level (trace debug info warning error). Env "TAOS_KEEPER_LOG_LEVEL"`)
@@ -296,4 +304,34 @@ func initAudit() {
 	viper.SetDefault("audit.database.options.cachemodel", "both")
 	_ = viper.BindEnv("audit.database.options.cachemodel", "TAOS_KEEPER_AUDIT_CACHEMODEL")
 	pflag.String("audit.database.options.cachemodel", "both", `database option cachemodel for audit database. Env "TAOS_KEEPER_AUDIT_CACHEMODEL"`)
+}
+
+func GetCfg() *Config {
+	return &Config{
+		InstanceID: 64,
+		Port:       6043,
+		LogLevel:   "trace",
+		TDengine: TDengineRestful{
+			Host:     "127.0.0.1",
+			Port:     6041,
+			Username: "root",
+			Password: "taosdata",
+			Usessl:   false,
+		},
+		Metrics: MetricsConfig{
+			Database: Database{
+				Name:    "keeper_test_log",
+				Options: map[string]interface{}{},
+			},
+		},
+		Log: Log{
+			Level:            "trace",
+			Path:             "/var/log/taos",
+			RotationCount:    10,
+			RotationTime:     24 * time.Hour,
+			RotationSize:     1073741824,
+			Compress:         true,
+			ReservedDiskSize: 1073741824,
+		},
+	}
 }

@@ -247,34 +247,6 @@ TEST_F(CfgTest, cfgDumpItemCategory) {
   EXPECT_EQ(cfgDumpItemCategory(pItem, NULL, 0, 0), TSDB_CODE_INVALID_CFG);
 }
 
-TEST_F(CfgTest, cfgDumpCfgS3) {
-  SConfig *pConfig = NULL;
-  int32_t  code = cfgInit(&pConfig);
-
-  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-  ASSERT_NE(pConfig, nullptr);
-
-  cfgAddInt32(pConfig, "s3MigrateIntervalSec", 60 * 60, 600, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,
-              CFG_CATEGORY_GLOBAL);
-  cfgAddBool(pConfig, "s3MigrateEnabled", 60 * 60, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER, CFG_CATEGORY_GLOBAL);
-  cfgAddString(pConfig, "s3Accesskey", "", CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY, CFG_CATEGORY_GLOBAL);
-  cfgAddString(pConfig, "s3Endpoint", "", CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY, CFG_CATEGORY_GLOBAL);
-  cfgAddString(pConfig, "s3BucketName", "", CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY, CFG_CATEGORY_GLOBAL);
-  cfgAddInt32(pConfig, "s3PageCacheSize", 10, 4, 1024 * 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,
-              CFG_CATEGORY_GLOBAL);
-  cfgAddInt32(pConfig, "s3UploadDelaySec", 10, 1, 60 * 60 * 24 * 30, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,
-              CFG_CATEGORY_GLOBAL);
-  cfgAddDir(pConfig, "scriptDir", configDir, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL);
-
-  cfgDumpCfgS3(pConfig, false, false);
-
-  cfgDumpCfgS3(pConfig, true, true);
-
-  cfgDumpCfgS3(pConfig, false, true);
-
-  cfgDumpCfgS3(pConfig, true, false);
-}
-
 #ifndef WINDOWS
 TEST_F(CfgTest, cfgLoadFromEnvVar) {
   SConfig *pConfig = NULL;
@@ -383,3 +355,184 @@ TEST_F(CfgTest, cfgLoadFromApollUrl) {
 }
 
 #endif
+
+TEST_F(CfgTest, configSyncAddDelete) {
+  SConfig *pGlobalConfig = NULL;
+  SConfig *pSdbConfig = NULL;
+  int32_t  code = cfgInit(&pGlobalConfig);
+  
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_NE(pGlobalConfig, nullptr);
+  
+  code = cfgInit(&pSdbConfig);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_NE(pSdbConfig, nullptr);
+
+  // Setup global config with some items
+  EXPECT_EQ(cfgAddBool(pGlobalConfig, "globalBool", true, 0, 0, 0), 0);
+  EXPECT_EQ(cfgAddInt32(pGlobalConfig, "globalInt32", 100, 0, 1000, 0, 0, 0), 0);
+  EXPECT_EQ(cfgAddString(pGlobalConfig, "globalString", "test", 0, 0, 0), 0);
+  EXPECT_EQ(cfgAddString(pGlobalConfig, "sharedConfig", "shared", 0, 0, 0), 0);
+
+  // Setup SDB config with some different items
+  EXPECT_EQ(cfgAddBool(pSdbConfig, "sdbBool", false, 0, 0, 0), 0);
+  EXPECT_EQ(cfgAddInt64(pSdbConfig, "sdbInt64", 200, 0, 2000, 0, 0, 0), 0);
+  EXPECT_EQ(cfgAddString(pSdbConfig, "sdbString", "sdb", 0, 0, 0), 0);
+  EXPECT_EQ(cfgAddString(pSdbConfig, "sharedConfig", "shared", 0, 0, 0), 0);
+
+  // Simulate the sync logic: find items to add (in global but not in SDB)
+  SArray *itemsToAdd = taosArrayInit(4, sizeof(char*));
+  SArray *itemsToDelete = taosArrayInit(4, sizeof(char*));
+  
+  int32_t globalSize = cfgGetSize(pGlobalConfig);
+  int32_t sdbSize = cfgGetSize(pSdbConfig);
+  
+  // Find items in global config not in SDB config (to add)
+  SConfigIter *pGlobalIter = NULL;
+  code = cfgCreateIter(pGlobalConfig, &pGlobalIter);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  
+  SConfigItem *pItem = NULL;
+  while ((pItem = cfgNextIter(pGlobalIter)) != NULL) {
+    SConfigItem *pSdbItem = cfgGetItem(pSdbConfig, pItem->name);
+    if (pSdbItem == NULL) {
+      char *itemName = taosStrdup(pItem->name);
+      taosArrayPush(itemsToAdd, &itemName);
+    }
+  }
+  cfgDestroyIter(pGlobalIter);
+  
+  // Find items in SDB config not in global config (to delete)
+  SConfigIter *pSdbIter = NULL;
+  code = cfgCreateIter(pSdbConfig, &pSdbIter);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  
+  while ((pItem = cfgNextIter(pSdbIter)) != NULL) {
+    SConfigItem *pGlobalItem = cfgGetItem(pGlobalConfig, pItem->name);
+    if (pGlobalItem == NULL) {
+      char *itemName = taosStrdup(pItem->name);
+      taosArrayPush(itemsToDelete, &itemName);
+    }
+  }
+  cfgDestroyIter(pSdbIter);
+  
+  // Verify the results
+  EXPECT_EQ(taosArrayGetSize(itemsToAdd), 3);     // globalBool, globalInt32, globalString
+  EXPECT_EQ(taosArrayGetSize(itemsToDelete), 3);  // sdbBool, sdbInt64, sdbString
+  
+  // Check specific items to add
+  char **pItemName = (char**)taosArrayGet(itemsToAdd, 0);
+  EXPECT_TRUE(strcmp(*pItemName, "globalBool") == 0 || 
+              strcmp(*pItemName, "globalInt32") == 0 || 
+              strcmp(*pItemName, "globalString") == 0);
+  
+  // Check specific items to delete
+  pItemName = (char**)taosArrayGet(itemsToDelete, 0);
+  EXPECT_TRUE(strcmp(*pItemName, "sdbBool") == 0 || 
+              strcmp(*pItemName, "sdbInt64") == 0 || 
+              strcmp(*pItemName, "sdbString") == 0);
+  
+  // Cleanup
+  for (int i = 0; i < taosArrayGetSize(itemsToAdd); ++i) {
+    char **pName = (char**)taosArrayGet(itemsToAdd, i);
+    taosMemoryFree(*pName);
+  }
+  for (int i = 0; i < taosArrayGetSize(itemsToDelete); ++i) {
+    char **pName = (char**)taosArrayGet(itemsToDelete, i);
+    taosMemoryFree(*pName);
+  }
+  taosArrayDestroy(itemsToAdd);
+  taosArrayDestroy(itemsToDelete);
+  cfgCleanup(pGlobalConfig);
+  cfgCleanup(pSdbConfig);
+}
+
+TEST_F(CfgTest, configSyncEmpty) {
+  SConfig *pGlobalConfig = NULL;
+  SConfig *pSdbConfig = NULL;
+  int32_t  code = cfgInit(&pGlobalConfig);
+  
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_NE(pGlobalConfig, nullptr);
+  
+  code = cfgInit(&pSdbConfig);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_NE(pSdbConfig, nullptr);
+
+  // Test with empty configs
+  SArray *itemsToAdd = taosArrayInit(4, sizeof(char*));
+  SArray *itemsToDelete = taosArrayInit(4, sizeof(char*));
+  
+  // Since both configs are empty, no items should be found
+  EXPECT_EQ(taosArrayGetSize(itemsToAdd), 0);
+  EXPECT_EQ(taosArrayGetSize(itemsToDelete), 0);
+  
+  taosArrayDestroy(itemsToAdd);
+  taosArrayDestroy(itemsToDelete);
+  cfgCleanup(pGlobalConfig);
+  cfgCleanup(pSdbConfig);
+}
+
+TEST_F(CfgTest, configSyncSameContent) {
+  SConfig *pGlobalConfig = NULL;
+  SConfig *pSdbConfig = NULL;
+  int32_t  code = cfgInit(&pGlobalConfig);
+  
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_NE(pGlobalConfig, nullptr);
+  
+  code = cfgInit(&pSdbConfig);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_NE(pSdbConfig, nullptr);
+
+  // Setup identical configs
+  EXPECT_EQ(cfgAddBool(pGlobalConfig, "testBool", true, 0, 0, 0), 0);
+  EXPECT_EQ(cfgAddInt32(pGlobalConfig, "testInt32", 100, 0, 1000, 0, 0, 0), 0);
+  EXPECT_EQ(cfgAddString(pGlobalConfig, "testString", "test", 0, 0, 0), 0);
+  
+  EXPECT_EQ(cfgAddBool(pSdbConfig, "testBool", true, 0, 0, 0), 0);
+  EXPECT_EQ(cfgAddInt32(pSdbConfig, "testInt32", 100, 0, 1000, 0, 0, 0), 0);
+  EXPECT_EQ(cfgAddString(pSdbConfig, "testString", "test", 0, 0, 0), 0);
+
+  // Simulate the sync logic
+  SArray *itemsToAdd = taosArrayInit(4, sizeof(char*));
+  SArray *itemsToDelete = taosArrayInit(4, sizeof(char*));
+  
+  // Find items in global config not in SDB config (to add)
+  SConfigIter *pGlobalIter = NULL;
+  code = cfgCreateIter(pGlobalConfig, &pGlobalIter);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  
+  SConfigItem *pItem = NULL;
+  while ((pItem = cfgNextIter(pGlobalIter)) != NULL) {
+    SConfigItem *pSdbItem = cfgGetItem(pSdbConfig, pItem->name);
+    if (pSdbItem == NULL) {
+      char *itemName = taosStrdup(pItem->name);
+      taosArrayPush(itemsToAdd, &itemName);
+    }
+  }
+  cfgDestroyIter(pGlobalIter);
+  
+  // Find items in SDB config not in global config (to delete)
+  SConfigIter *pSdbIter = NULL;
+  code = cfgCreateIter(pSdbConfig, &pSdbIter);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  
+  while ((pItem = cfgNextIter(pSdbIter)) != NULL) {
+    SConfigItem *pGlobalItem = cfgGetItem(pGlobalConfig, pItem->name);
+    if (pGlobalItem == NULL) {
+      char *itemName = taosStrdup(pItem->name);
+      taosArrayPush(itemsToDelete, &itemName);
+    }
+  }
+  cfgDestroyIter(pSdbIter);
+  
+  // Since configs are identical, no items should need to be added or deleted
+  EXPECT_EQ(taosArrayGetSize(itemsToAdd), 0);
+  EXPECT_EQ(taosArrayGetSize(itemsToDelete), 0);
+  
+  taosArrayDestroy(itemsToAdd);
+  taosArrayDestroy(itemsToDelete);
+  cfgCleanup(pGlobalConfig);
+  cfgCleanup(pSdbConfig);
+}

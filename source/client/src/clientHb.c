@@ -174,6 +174,7 @@ static int32_t hbGenerateVgInfoFromRsp(SDBVgInfo **pInfo, SUseDbRsp *rsp) {
 
   vgInfo->vgVersion = rsp->vgVersion;
   vgInfo->stateTs = rsp->stateTs;
+  vgInfo->flags = rsp->flags;
   vgInfo->hashMethod = rsp->hashMethod;
   vgInfo->hashPrefix = rsp->hashPrefix;
   vgInfo->hashSuffix = rsp->hashSuffix;
@@ -498,15 +499,18 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
     if (NULL == pTscObj) {
       tscDebug("tscObj rid %" PRIx64 " not exist", pRsp->connKey.tscRid);
     } else {
-      if (pRsp->query->totalDnodes > 1 && !isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &pRsp->query->epSet)) {
-        SEpSet *pOrig = &pTscObj->pAppInfo->mgmtEp.epSet;
-        SEp    *pOrigEp = &pOrig->eps[pOrig->inUse];
-        SEp    *pNewEp = &pRsp->query->epSet.eps[pRsp->query->epSet.inUse];
-        tscDebug("mnode epset updated from %d/%d=>%s:%d to %d/%d=>%s:%d in hb", pOrig->inUse, pOrig->numOfEps,
-                 pOrigEp->fqdn, pOrigEp->port, pRsp->query->epSet.inUse, pRsp->query->epSet.numOfEps, pNewEp->fqdn,
-                 pNewEp->port);
+      if (pRsp->query->totalDnodes > 1) {
+        SEpSet  originEpset = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+        if (!isEpsetEqual(&originEpset, &pRsp->query->epSet)) {
+          SEpSet *pOrig = &originEpset;
+          SEp    *pOrigEp = &pOrig->eps[pOrig->inUse];
+          SEp    *pNewEp = &pRsp->query->epSet.eps[pRsp->query->epSet.inUse];
+          tscDebug("mnode epset updated from %d/%d=>%s:%d to %d/%d=>%s:%d in hb", pOrig->inUse, pOrig->numOfEps,
+                   pOrigEp->fqdn, pOrigEp->port, pRsp->query->epSet.inUse, pRsp->query->epSet.numOfEps, pNewEp->fqdn,
+                   pNewEp->port);
 
-        updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, &pRsp->query->epSet);
+          updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, &pRsp->query->epSet);
+        }
       }
 
       pTscObj->pAppInfo->totalDnodes = pRsp->query->totalDnodes;
@@ -1199,7 +1203,7 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
 
     tstrncpy(pOneReq->userApp, pTscObj->optionInfo.userApp, sizeof(pOneReq->userApp));
     pOneReq->userIp = pTscObj->optionInfo.userIp;
-
+    pOneReq->userDualIp = pTscObj->optionInfo.userDualIp;
     pOneReq = taosArrayPush((*pBatchReq)->reqs, pOneReq);
     if (NULL == pOneReq) {
       releaseTscObj(connKey->tscRid);
@@ -1231,7 +1235,7 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
     maxIpWhiteVer = TMAX(maxIpWhiteVer, ver);
     releaseTscObj(connKey->tscRid);
   }
-  (*pBatchReq)->ipWhiteList = maxIpWhiteVer;
+  (*pBatchReq)->ipWhiteListVer = maxIpWhiteVer;
 
   return TSDB_CODE_SUCCESS;
 }

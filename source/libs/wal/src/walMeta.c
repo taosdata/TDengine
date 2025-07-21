@@ -208,12 +208,18 @@ FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* 
 
   // truncate file
   if (lastEntryEndOffset != fileSize) {
-    wWarn("vgId:%d, repair meta truncate file %s to %" PRId64 ", orig size %" PRId64, pWal->cfg.vgId, fnameStr,
-          lastEntryEndOffset, fileSize);
-
-    if (taosFtruncateFile(pFile, lastEntryEndOffset) < 0) {
-      wError("vgId:%d, failed to truncate file %s since %s", pWal->cfg.vgId, fnameStr, strerror(terrno));
-      TAOS_CHECK_GOTO(terrno, &lino, _err);
+    if(fileIdx < sz - 1){
+      wWarn("vgId:%d, repair meta truncate file %s to %" PRId64 ", orig size %" PRId64, pWal->cfg.vgId, fnameStr,
+            lastEntryEndOffset, fileSize);
+            
+      if (taosFtruncateFile(pFile, lastEntryEndOffset) < 0) {
+        wError("vgId:%d, failed to truncate file %s since %s", pWal->cfg.vgId, fnameStr, strerror(terrno));
+        TAOS_CHECK_GOTO(terrno, &lino, _err);
+      } 
+    }
+    else{
+      wWarn("vgId:%d, skip to truncate file in repair meta %s to %" PRId64 ", orig size %" PRId64 " but fileIdx:%d is invalid",
+            pWal->cfg.vgId, fnameStr, lastEntryEndOffset, fileSize, fileIdx);
     }
 
     if (pWal->cfg.level != TAOS_WAL_SKIP && taosFsyncFile(pFile) < 0) {
@@ -479,28 +485,38 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
     SWalFileInfo* pFileInfo = taosArrayGet(pWal->fileInfoSet, fileIdx);
 
     walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
+    wInfo("vgId:%d, check file %s", pWal->cfg.vgId, fnameStr);
     TAOS_CHECK_EXIT(taosStatFile(fnameStr, &fileSize, NULL, NULL));
 
-    if (pFileInfo->lastVer >= pFileInfo->firstVer && fileSize == pFileInfo->fileSize) {
+    if (pFileInfo->lastVer >= pFileInfo->firstVer && fileSize == pFileInfo->fileSize &&
+        !(fileIdx == sz - 1 && tsWalForceRepair)) {
+      wInfo("vgId:%d, file %s is valid, fileSize:%" PRId64 ", fileSize in meta:%" PRId64, pWal->cfg.vgId, fnameStr,
+            fileSize, pFileInfo->fileSize);
       totSize += pFileInfo->fileSize;
       continue;
     }
+    wWarn("vgId:%d, going to repair file %s, fileSize:%" PRId64 ", fileSize in meta:%" PRId64 ", LastVer:%" PRId64
+          ", firstVer:%" PRId64 ", forceRepair:%d",
+          pWal->cfg.vgId, fnameStr, fileSize, pFileInfo->fileSize, pFileInfo->lastVer, pFileInfo->firstVer,
+          tsWalForceRepair);
     updateMeta = true;
 
-    TAOS_CHECK_RETURN(walTrimIdxFile(pWal, fileIdx));
+    TAOS_CHECK_EXIT(walTrimIdxFile(pWal, fileIdx));
 
     int64_t lastVer = -1;
     code = walScanLogGetLastVer(pWal, fileIdx, &lastVer);
     if (lastVer < 0) {
       if (code != TSDB_CODE_WAL_LOG_NOT_EXIST) {
         wError("vgId:%d, failed to scan wal last index since %s", pWal->cfg.vgId, terrstr());
-        TAOS_RETURN(code);
+        goto _exit;;
       }
       // empty log file
       lastVer = pFileInfo->firstVer - 1;
 
       code = TSDB_CODE_SUCCESS;
     }
+    wInfo("vgId:%d, repaired file %s, last index:%" PRId64 ", fileSize:%" PRId64 ", fileSize in meta:%" PRId64,
+          pWal->cfg.vgId, fnameStr, lastVer, fileSize, pFileInfo->fileSize);
 
     // update lastVer
     pFileInfo->lastVer = lastVer;
@@ -519,17 +535,17 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
   walAlignVersions(pWal);
 
   // repair ts of files
-  TAOS_CHECK_RETURN(walRepairLogFileTs(pWal, &updateMeta));
+  TAOS_CHECK_EXIT(walRepairLogFileTs(pWal, &updateMeta));
 
   wInfo("vgId:%d, log file after repair, wal path:%s, num:%d", pWal->cfg.vgId, pWal->path,
         (int32_t)taosArrayGetSize(pWal->fileInfoSet));
   printFileSet(pWal->cfg.vgId, pWal->fileInfoSet, "file after repair");
   // update meta file
   if (updateMeta) {
-    TAOS_CHECK_RETURN(walSaveMeta(pWal));
+    TAOS_CHECK_EXIT(walSaveMeta(pWal));
   }
 
-  TAOS_CHECK_RETURN(walLogEntriesComplete(pWal));
+  TAOS_CHECK_EXIT(walLogEntriesComplete(pWal));
 
   wInfo("vgId:%d, success to repair meta, wal path:%s, first index:%" PRId64 ", last index:%" PRId64
         ", snapshot index:%" PRId64,
@@ -665,7 +681,7 @@ static int32_t walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
     code = walReadLogHead(pLogFile, idxEntry.offset, &ckHead);
     if (code) {
       wError("vgId:%d, failed to read wal log head since %s, index:%" PRId64 ", offset:%" PRId64 ", file:%s",
-             pWal->cfg.vgId, terrstr(), idxEntry.ver, idxEntry.offset, fLogNameStr);
+             pWal->cfg.vgId, tstrerror(code), idxEntry.ver, idxEntry.offset, fLogNameStr);
       TAOS_CHECK_GOTO(code, &lino, _err);
     }
     if (pWal->cfg.level != TAOS_WAL_SKIP && taosWriteFile(pIdxFile, &idxEntry, sizeof(SWalIdxEntry)) < 0) {
@@ -1035,7 +1051,6 @@ _err:
   taosMemoryFree(serialized);
   return code;
 }
-
 int32_t walLoadMeta(SWal* pWal) {
   int32_t   code = 0;
   int       n = 0;

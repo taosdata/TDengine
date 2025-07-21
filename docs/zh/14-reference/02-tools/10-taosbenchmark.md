@@ -87,6 +87,7 @@ taosBenchmark -f <json file>
 | -v/--vgroups \<NUMBER>           | 创建数据库时指定 vgroups 数，仅对 TDengine v3.0+ 有效|
 | -V/--version                     | 显示版本信息并退出。不能与其它参数混用|
 | -?/--help                        | 显示帮助信息并退出。不能与其它参数混用|
+| -Z/--connect-mode \<NUMBER>      | 指定连接方式，0 表示采用原生连接方式，1 表示采用 WebSocket 连接方式，默认采用原生连接方式。|
 
 ## 配置文件参数
 
@@ -238,7 +239,7 @@ taosBenchmark -f <json file>
 
 - **dec_max**：字符串类型，指定 DECIMAL 数据类型的列的最大值。当 max 无法表达足够的精度时，使用此字段。生成的值将小于最大值。
 
-- **precision**：数字的总位数（包括小数点前后的所有数字），仅适用于 DECIMAL 类型，其有效值范围为 0 至 38。。
+- **precision**：数字的总位数（包括小数点前后的所有数字），仅适用于 DECIMAL 类型，其有效值范围为 0 至 38。
 
 - **scale**：小数点右边的数字位数。对于 FLOAT 类型，scale 的有效范围是 0 至 6；对于 DOUBLE 类型，该范围是 0 至 15；而对于 DECIMAL 类型，scale 的有效范围是 0 至其 precision 值。
 
@@ -267,6 +268,8 @@ taosBenchmark -f <json file>
 - **create_table_thread_count**：建表的线程数量，默认为 8。
 
 - **result_file**：结果输出文件的路径，默认值为 ./output.txt。
+
+- **result_json_file**：结果输出的 JSON 文件路径，若未配置则不输出该文件。
 
 - **confirm_parameter_prompt**：开关参数，要求用户在提示后确认才能继续，可取值 "yes" or "no"。默认值为 "no" 。
 

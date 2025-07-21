@@ -62,6 +62,7 @@ In TDengine, the following data types can be used in the data model of basic tab
 - VARBINARY is a data type for storing binary data, with a maximum length of 65,517 bytes for data columns and 16,382 bytes for label columns. Binary data can be written via SQL or schemaless methods (needs to be converted to a string starting with \x), or through stmt methods (can use binary directly). Displayed as hexadecimal starting with \x.
 
 :::
+
 ### DECIMAL Data Type
 
 The `DECIMAL` data type is used for high-precision numeric storage and is supported starting from version 3.3.6. The definition syntax is: `DECIMAL(18, 2)`, `DECIMAL(38, 10)`, where two parameters must be specified: `precision` and `scale`. `Precision` refers to the maximum number of significant digits supported, and `scale` refers to the maximum number of decimal places. For example, `DECIMAL(8, 4)` represents a range of `[-9999.9999, 9999.9999]`. When defining the `DECIMAL` data type, the range of `precision` is `[1, 38]`, and the range of `scale` is `[0, precision]`. If `scale` is 0, it represents integers only. You can also omit `scale`, in which case it defaults to 0. For example, `DECIMAL(18)` is equivalent to `DECIMAL(18, 0)`.
@@ -73,7 +74,6 @@ The `DECIMAL` type only supports regular columns and does not currently support 
 When performing operations between integer types and the `DECIMAL` type, the integer type is converted to the `DECIMAL` type before the calculation. When the `DECIMAL` type is involved in calculations with `DOUBLE`, `FLOAT`, `VARCHAR`, or `NCHAR` types, it is converted to `DOUBLE` type for computation.
 
 When querying `DECIMAL` type expressions, if the intermediate result of the calculation exceeds the maximum value that the current type can represent, a `DECIMAL_OVERFLOW` error is reported.
-
 
 ## Constants
 

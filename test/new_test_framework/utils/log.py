@@ -51,7 +51,7 @@ class TDLog:
         # 创建logger，禁用传播以避免重复日志
         self.logger = logging.getLogger(__name__)
         self.logger.propagate = False  # 禁止传播到根logger
-        self.logger.setLevel(logging.INFO)
+        #self.logger.setLevel(logging.INFO)
 
         # 创建控制台handler并设置自定义格式
         ch = logging.StreamHandler()

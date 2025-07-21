@@ -21,7 +21,7 @@ class TDFindPath:
     """This class is for finding path within TDengine
     """
     def __init__(self):
-        self.file = ""
+        self.file = os.path.realpath(__file__)
 
 
     def init(self, file):
@@ -63,8 +63,8 @@ class TDFindPath:
         Returns:
             str: the root path of TDengine
         """
-        selfPath = os.path.dirname(os.path.realpath(self.file))
-
+        selfPath = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(self.file)))))
+        return selfPath
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
         else:

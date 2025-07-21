@@ -6223,7 +6223,7 @@ static int64_t writeResultDebugNative(
 
         totalRows++;
         count++;
-        fprintf(fp, "%s", tmpBuffer);
+        if(fp) fprintf(fp, "%s", tmpBuffer);
 
         if (totalRows >= lastRowsPrint) {
             infoPrint(" %"PRId64 " rows already be dump-out from %s.%s\n",
@@ -6235,14 +6235,14 @@ static int64_t writeResultDebugNative(
 
         if ((count >= g_args.data_batch)
                 || (sql_buf_len - total_sqlstr_len < TSDB_MAX_BYTES_PER_ROW)) {
-            fprintf(fp, ";\n");
+            if (fp) fprintf(fp, ";\n");
             count = 0;
         }
     }
 
     debugPrint("total_sqlstr_len: %d\n", total_sqlstr_len);
 
-    fprintf(fp, "\n");
+    if(fp) fprintf(fp, "\n");
     free(tmpBuffer);
 
     return totalRows;

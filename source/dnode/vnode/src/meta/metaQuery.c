@@ -59,6 +59,7 @@ int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t u
   }
 
   // decode the entry
+  tDecoderClear(&pReader->coder);
   tDecoderInit(&pReader->coder, pReader->pBuf, pReader->szBuf);
 
   code = metaDecodeEntry(&pReader->coder, &pReader->me);
@@ -1342,14 +1343,18 @@ int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
   }
 
   code = TSDB_CODE_INVALID_PARA;
+
   for (int i = 0; i < oStbEntry.stbEntry.schemaTag.nCols; i++) {
     SSchema *schema = oStbEntry.stbEntry.schemaTag.pSchema + i;
-    if (schema->colId == param->cid && param->type == schema->type && (IS_IDX_ON(schema))) {
-      code = 0;
-    } else {
-      TAOS_CHECK_GOTO(code, NULL, END);
+    if (IS_IDX_ON(schema)) {
+      if (schema->colId == param->cid && param->type == schema->type) {
+        code = 0;
+        break;
+      }
     }
   }
+
+  TAOS_CHECK_GOTO(code, NULL, END);
 
   code = tdbTbcOpen(pMeta->pTagIdx, &pCursor->pCur, NULL);
   if (code != 0) {
@@ -1410,7 +1415,7 @@ int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
 
     valid = tdbTbcGet(pCursor->pCur, (const void **)&entryKey, &nEntryKey, (const void **)&entryVal, &nEntryVal);
     if (valid < 0) {
-      code = valid;
+      break;
     }
     if (count > TRY_ERROR_LIMIT) {
       break;

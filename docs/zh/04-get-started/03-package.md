@@ -43,7 +43,7 @@ TDengine 完整的软件包包括服务端（taosd）、应用驱动（taosc）�
 > 请将 `<version>` 替换为下载的安装包版本
 
 ```bash
-sudo dpkg -i TDengine-server-<version>-Linux-x64.deb
+sudo dpkg -i tdengine-tsdb-oss-<version>-linux-x64.deb
 ```
 
 </TabItem>
@@ -58,7 +58,7 @@ sudo dpkg -i TDengine-server-<version>-Linux-x64.deb
 > 请将 `<version>` 替换为下载的安装包版本
 
 ```bash
-sudo rpm -ivh TDengine-server-<version>-Linux-x64.rpm
+sudo rpm -ivh tdengine-tsdb-oss-<version>-linux-x64.rpm
 ```
 
 </TabItem>
@@ -73,7 +73,7 @@ sudo rpm -ivh TDengine-server-<version>-Linux-x64.rpm
 > 请将 `<version>` 替换为下载的安装包版本
 
 ```bash
-tar -zxvf TDengine-server-<version>-Linux-x64.tar.gz
+tar -zxvf tdengine-tsdb-oss-<version>-linux-x64.tar.gz
 ```
 
 解压文件后，进入相应子目录，执行其中的 `install.sh` 安装脚本：
@@ -110,8 +110,8 @@ echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-beta beta main" | sudo
 
 ```bash
 sudo apt-get update
-apt-cache policy tdengine
-sudo apt-get install tdengine
+apt-cache policy tdengine-tsdb
+sudo apt-get install tdengine-tsdb
 ```
 
 :::tip
@@ -199,7 +199,6 @@ systemctl status taosd
 <TabItem label="macOS 系统" value="macos">
 
 安装后，在应用程序目录下，双击 TDengine 图标来启动程序，也可以运行 `sudo launchctl start ` 来启动 TDengine 服务进程。
-
 
 ```bash
 sudo launchctl start com.tdengine.taosd

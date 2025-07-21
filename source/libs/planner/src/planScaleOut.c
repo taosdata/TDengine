@@ -40,17 +40,21 @@ static SLogicSubplan* singleCloneSubLogicPlan(SScaleOutContext* pCxt, SLogicSubp
   pDst->id.groupId = pSrc->id.groupId;
   pDst->id.subplanId = pCxt->subplanId++;
   pDst->processOneBlock = pSrc->processOneBlock;
+  pDst->dynTbname = pSrc->dynTbname;
   return pDst;
 }
 
 static int32_t doSetScanVgroup(SLogicNode* pNode, const SVgroupInfo* pVgroup, bool* pFound) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
     SScanLogicNode* pScan = (SScanLogicNode*)pNode;
-    pScan->pVgroupList = taosMemoryCalloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo));
-    if (NULL == pScan->pVgroupList) {
-      return terrno;
+    if (!pScan->pVgroupList) {
+      pScan->pVgroupList = taosMemoryCalloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo));
+      if (NULL == pScan->pVgroupList) {
+        return terrno;
+      }
     }
     memcpy(pScan->pVgroupList->vgroups, pVgroup, sizeof(SVgroupInfo));
+    pScan->pVgroupList->numOfVgroups = 1;
     *pFound = true;
     return TSDB_CODE_SUCCESS;
   } else if (QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL == nodeType(pNode)) {
@@ -61,6 +65,7 @@ static int32_t doSetScanVgroup(SLogicNode* pNode, const SVgroupInfo* pVgroup, bo
         return terrno;
       }
       memcpy(pCtrl->vtbScan.pVgroupList->vgroups, pVgroup, sizeof(SVgroupInfo));
+      pCtrl->vtbScan.pVgroupList->numOfVgroups = 1;
       *pFound = true;
       return TSDB_CODE_SUCCESS;
     }
@@ -142,7 +147,7 @@ static int32_t scaleOutForModify(SScaleOutContext* pCxt, SLogicSubplan* pSubplan
 }
 
 static int32_t scaleOutForScan(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level, SNodeList* pGroup) {
-  if (pSubplan->pVgroupList && !pCxt->pPlanCxt->streamQuery) {
+  if (pSubplan->pVgroupList) {
     return scaleOutByVgroups(pCxt, pSubplan, level, pGroup);
   } else {
     return scaleOutForMerge(pCxt, pSubplan, level, pGroup);

@@ -148,14 +148,15 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 | BIGINT UNSIGNED   | java.math.BigInteger |仅在 WebSocket 连接方式支持|
 | FLOAT             | java.lang.Float      ||
 | DOUBLE            | java.lang.Double     ||
-| BINARY            | byte array           ||
+| VARCHAR/BINARY    | byte[]           |在 WebSocket 连接上设置 `varcharAsString` 参数为 `true` 可以映射为 String 类型|
 | NCHAR             | java.lang.String     ||
 | JSON              | java.lang.String     |仅在 tag 中支持|
 | VARBINARY         | byte[]               ||
 | GEOMETRY          | byte[]               ||
+| BLOB              | byte[]               |仅在列中支持|
 | DECIMAL           | java.math.BigDecimal |仅在 WebSocket 连接方式支持|
 
-**注意**：由于历史原因，TDengine 中的 BINARY 底层不是真正的二进制数据，已不建议使用。请用 VARBINARY 类型代替。  
+**注意**：由于历史原因，TDengine 中的 BINARY 底层不是真正的二进制数据，已不建议使用，请用 VARBINARY 类型代替。  
 GEOMETRY 类型是 little endian 字节序的二进制数据，符合 WKB 规范。详细信息请参考 [数据类型](../../taos-sql/data-type/#数据类型)  
 WKB 规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)  
 对于 java 连接器，可以使用 jts 库来方便的创建 GEOMETRY 类型对象，序列化后写入 TDengine，这里有一个样例[Geometry 示例](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/GeometryDemo.java)  
@@ -219,6 +220,9 @@ taos-jdbcdriver 实现了 JDBC 标准的 Driver 接口，提供了 3 个实现�
 TDengine 的 JDBC URL 规范格式为：
 `jdbc:[TAOS|TAOS-WS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&batchfetch={batchfetch}]`
 
+`host_name` 参数支持合法的域名或 IP 地址。taos-jdbcdriver 同时支持 IPv4 和 IPv6 格式。对于 IPv6 地址，必须使用中括号括起来（例如 `[::1]` 或 `[2001:db8:1234:5678::1]`），以避免端口号解析冲突。
+
+
 **原生连接**  
 `jdbc:TAOS://taosdemo.com:6030/power?user=root&password=taosdata`，使用了 JDBC 原生连接的 TSDBDriver，建立了到 hostname 为 taosdemo.com，端口为 6030（TDengine 的默认端口），数据库名为 power 的连接。这个 URL
 中指定用户名（user）为 root，密码（password）为 taosdata。
@@ -247,7 +251,7 @@ TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可�
 > **注意**：这里的配置文件指的是调用 JDBC Connector 的应用程序所在机器上的配置文件，Linux OS 上默认值 /etc/taos/taos.cfg，Windows OS 上默认值 C://TDengine/cfg/taos.cfg。
 
 **WebSocket 连接**  
-使用 JDBC WebSocket 连接，不需要依赖客户端驱动。与 JDBC 原生连接相比，仅需要：
+使用 JDBC WebSocket 连接，不需要依赖客户端驱动。这是一个示例： `jdbc:TAOS-WS://taosdemo.com:6030/power?user=root&password=taosdata&varcharAsString=true`。与 JDBC 原生连接相比，仅需要：
 
 1. driverClass 指定为“com.taosdata.jdbc.ws.WebSocketDriver”；
 2. jdbcUrl 以“jdbc:TAOS-WS://”开头；
@@ -261,10 +265,16 @@ TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可�
 - messageWaitTimeout：消息超时时间，单位 ms，默认值为 60000。 
 - useSSL：连接中是否使用 SSL。
 - timezone：客户端使用的时区，连接上生效，默认值为系统时区。推荐不设置，使用系统时区性能更好。
+- varcharAsString：将 VARCHAR/BINARY 类型映射为 String，仅在使用 WebSocket 连接时生效。默认值为 false。
 
-**注意**：部分配置项（比如：locale、charset）在 WebSocket 连接中不生效。
+**注意**：部分配置项（比如：locale、charset）在 WebSocket 连接中不生效。WebSocket 连接仅支持 UTF-8 字符集。
 
 **REST 连接**  
+
+:::warning
+目前已不建议使用此连接，请用 WebSocket 连接代替。
+:::
+
 使用 JDBC REST 连接，不需要依赖客户端驱动。与 JDBC 原生连接相比，仅需要：
 
 1. driverClass 指定为“com.taosdata.jdbc.rs.RestfulDriver”；
@@ -319,6 +329,7 @@ properties 中的配置参数如下：
 - TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT：自动重连重试次数，默认值 3，仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
 - TSDBDriver.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION：关闭 SSL 证书验证。仅在使用 WebSocket 连接时生效。true：启用，false：不启用。默认为 false。
 
+- TSDBDriver.PROPERTY_KEY_VARCHAR_AS_STRING：将 VARCHAR/BINARY 类型映射为 String，仅在使用 WebSocket 连接时生效。默认值为 false。
 - TSDBDriver.PROPERTY_KEY_APP_NAME：App 名称，可用于 `show connections` 查询结果显示。仅在使用 WebSocket 连接时生效。默认值为 java。
 - TSDBDriver.PROPERTY_KEY_APP_IP：App IP，可用于 `show connections` 查询结果显示。仅在使用 WebSocket 连接时生效。默认值为空。  
 
@@ -329,8 +340,6 @@ properties 中的配置参数如下：
 - TSDBDriver.PROPERTY_KEY_COPY_DATA：高效写入模式下，是否拷贝应用通过 addBatch 传入的二进制类型数据。仅在使用 WebSocket 连接时生效。默认值为 false。
 - TSDBDriver.PROPERTY_KEY_STRICT_CHECK：高效写入模式下，是否校验表名长度和变长数据类型长度。仅在使用 WebSocket 连接时生效。默认值为 false。
 - TSDBDriver.PROPERTY_KEY_RETRY_TIMES：高效写入模式下，写入失败重试次数。仅在使用 WebSocket 连接时生效。默认值为 3。
-
-此外对 JDBC 原生连接，通过指定 URL 和 Properties 还可以指定其他参数，比如日志级别、SQL 长度等。
 
 **配置参数的优先级**  
 
