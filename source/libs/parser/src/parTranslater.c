@@ -11926,15 +11926,15 @@ static int32_t checkAlterTableByColumnType(STranslateContext* pCxt, SAlterTableS
   if (pStmt->alterType != TSDB_ALTER_TABLE_DROP_COLUMN && pStmt->alterType != TSDB_ALTER_TABLE_ADD_COLUMN) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_BLOB_NOT_SUPPORT);
   }
-  int8_t blobColCnt = 0;
+  int8_t blobCnt = 0;
   if (pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN) {
     int32_t numOfFields = getNumOfColumns(pTableMeta);
     for (int32_t i = 0; i < numOfFields; ++i) {
       const SSchema* pSchema = pTableMeta->schema + i;
       if (IS_STR_DATA_BLOB(pSchema->type)) {
-        blobColCnt++;
+        blobCnt++;
       }
-      if (blobColCnt > 0) {
+      if (blobCnt > 0) {
         code = TSDB_CODE_BLOB_ONLY_ONE_COLUMN_ALLOWED;
         break;
       }
