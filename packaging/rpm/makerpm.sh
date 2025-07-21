@@ -86,18 +86,18 @@ cp_rpm_package ${pkg_dir}/RPMS
 
 
 if [ "$verMode" == "cluster" ]; then
-  rpmname=${product_name}-"oss"-${tdengine_ver}-${osType}-${cpuType}
+  rpmname="${product_name}-oss-${tdengine_ver}-${osType}-${cpuType}"
 elif [ "$verMode" == "edge" ]; then
-  rpmname=${product_name}-"oss"-${tdengine_ver}-${osType}-${cpuType}
+  rpmname="${product_name}-oss-${tdengine_ver}-${osType}-${cpuType}"
 else
   echo "unknow verMode, nor cluster or edge"
   exit 1
 fi
 
 if [ "$verType" == "beta" ]; then
-  rpmname=${product_name}-"oss"-${tdengine_ver}-${verType}-${osType}-${cpuType}".rpm"
+  rpmname="${product_name}-oss-${tdengine_ver}-${verType}-${osType}-${cpuType}.rpm"
 elif [ "$verType" == "stable" ]; then
-  rpmname=${rpmname}".rpm"
+  rpmname="${rpmname}.rpm"
 else
   echo "unknow verType, nor stabel or beta"
   exit 1

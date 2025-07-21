@@ -117,7 +117,7 @@ chmod a+x ${install_dir}/install.sh
 # exit 1
 cd ${release_dir}
 
-platform=`uname | tr '[:upper:]' '[:lower:]'`
+platform=$(uname | tr '[:upper:]' '[:lower:]')
 if uname -m | grep -q "x86_64"; then
     arch=x64
 elif uname -m | grep -q "arm64\|aarch64"; then
