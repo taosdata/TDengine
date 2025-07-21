@@ -369,6 +369,7 @@ int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle
     nodesDestroyNode((SNode *)pPlan);
     return code;
   }
+  qDebug("qStringToSubplan %p", pPlan);
   // todo: add stream inserter param
   code = qCreateStreamExecTask(readers, vgId, taskId, pPlan, pTaskInfo,
                                pInserterParams ? &pInserterParams->pSinkHandle : NULL, 0, NULL, OPTR_EXEC_MODEL_STREAM,
@@ -1767,6 +1768,7 @@ bool qStreamUidInTableList(void* pTableListInfo, uint64_t uid) {
 }
 
 void streamDestroyExecTask(qTaskInfo_t tInfo) {
+  qInfo("streamDestroyExecTask called, task:%p", tInfo);
   qDestroyTask(tInfo);
 }
 

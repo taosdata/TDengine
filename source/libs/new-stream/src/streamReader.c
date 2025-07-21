@@ -498,13 +498,20 @@ end:
 }
 
 
-int32_t streamBuildFetchRsp(SSDataBlock* pBlock, void** data, size_t* size, int8_t precision) {
+int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t* size, int8_t precision) {
   int32_t code = 0;
   int32_t lino = 0;
   void*   buf = NULL;
 
-  int32_t blockSize = pBlock == NULL ? 0 : blockGetEncodeSize(pBlock);
-  size_t  dataEncodeBufSize = sizeof(SRetrieveTableRsp) + INT_BYTES * 2 + blockSize;
+  int32_t blockNum = 0;
+  size_t  dataEncodeBufSize = sizeof(SRetrieveTableRsp);
+  for(size_t i = 0; i < taosArrayGetSize(pResList); i++){
+    SSDataBlock* pBlock = taosArrayGetP(pResList, i);
+    if (pBlock == NULL) continue;
+    int32_t blockSize = blockGetEncodeSize(pBlock);
+    dataEncodeBufSize += (INT_BYTES * 2 + blockSize);
+    blockNum++;
+  }
   buf = rpcMallocCont(dataEncodeBufSize);
   STREAM_CHECK_NULL_GOTO(buf, terrno);
 
@@ -512,20 +519,27 @@ int32_t streamBuildFetchRsp(SSDataBlock* pBlock, void** data, size_t* size, int8
   pRetrieve->version = 0;
   pRetrieve->precision = precision;
   pRetrieve->compressed = 0;
-  *((int32_t*)(pRetrieve->data)) = blockSize;
-  *((int32_t*)(pRetrieve->data + INT_BYTES)) = blockSize;
-  if (pBlock == NULL || pBlock->info.rows == 0) {
-    pRetrieve->numOfRows = 0;
-    pRetrieve->numOfBlocks = 0;
-    pRetrieve->completed = 1;
-  } else {
-    pRetrieve->numOfRows = htobe64((int64_t)pBlock->info.rows);
-    pRetrieve->numOfBlocks = htonl(1);
-    int32_t actualLen =
-        blockEncode(pBlock, pRetrieve->data + INT_BYTES * 2, blockSize, taosArrayGetSize(pBlock->pDataBlock));
-    STREAM_CHECK_CONDITION_GOTO(actualLen < 0, terrno);
-  }
+  pRetrieve->completed = hasNext ? 0 : 1;
+  pRetrieve->numOfRows = 0;
+  pRetrieve->numOfBlocks = htonl(blockNum);
 
+  void* dataBuf = pRetrieve->data;
+  for(size_t i = 0; i < taosArrayGetSize(pResList); i++){
+    SSDataBlock* pBlock = taosArrayGetP(pResList, i);
+    if (pBlock == NULL) continue;
+    int32_t blockSize = blockGetEncodeSize(pBlock);
+    *((int32_t*)(dataBuf)) = blockSize;
+    *((int32_t*)(dataBuf + INT_BYTES)) = blockSize;
+    pRetrieve->numOfRows += pBlock->info.rows;
+    int32_t actualLen =
+        blockEncode(pBlock, dataBuf + INT_BYTES * 2, blockSize, taosArrayGetSize(pBlock->pDataBlock));
+    STREAM_CHECK_CONDITION_GOTO(actualLen < 0, terrno);
+    dataBuf += (INT_BYTES * 2 + actualLen);
+  }
+  stDebug("stream fetch get result blockNum:%d, rows:%" PRId64, blockNum, pRetrieve->numOfRows);
+
+  pRetrieve->numOfRows = htobe64(pRetrieve->numOfRows);
+  
   *data = buf;
   *size = dataEncodeBufSize;
   buf = NULL;
