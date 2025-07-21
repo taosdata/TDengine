@@ -1650,6 +1650,10 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
     SMsgSendInfo         *ahandle = pRsp->info.ahandle;
     SSTriggerAHandle     *pAhandle = ahandle->param;
     SSTriggerCalcRequest *pReq = pAhandle->param;
+    if (pRsp->code == TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE) {
+      taosArrayClearEx(pReq->params, tDestroySSTriggerCalcParam);
+      pRsp->code = TSDB_CODE_SUCCESS;
+    }
     switch (pRsp->code) {
       case TSDB_CODE_SUCCESS:
       case TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER:
