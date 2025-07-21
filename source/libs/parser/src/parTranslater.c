@@ -427,6 +427,7 @@ static int32_t  setQuery(STranslateContext* pCxt, SQuery* pQuery);
 static int32_t  setRefreshMeta(STranslateContext* pCxt, SQuery* pQuery);
 
 static int32_t createOperatorNode(EOperatorType opType, const char* pColName, const SNode* pRight, SNode** pOp);
+static int32_t createIsOperatorNodeByNode(EOperatorType opType, SNode* pNode, SNode** pOp);
 static int32_t insertCondIntoSelectStmt(SSelectStmt* pSelect, SNode** pCond);
 static int32_t extractCondFromCountWindow(STranslateContext* pCxt, SCountWindowNode* pCountWindow, SNode** pCond);
 
@@ -14060,18 +14061,12 @@ static int32_t extractCondFromStateWindow(STranslateContext* pCxt, SStateWindowN
   }
 
   SNodeList* pCondList = NULL;
-  SNode*     pNode = pStateWindow->pExpr;
   SNode*     pLogicCond = NULL;
 
-  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
-    SColumnNode* pCol = (SColumnNode*)pNode;
-    SNode*       pNameCond = NULL;
-    PAR_ERR_RET(createOperatorNode(OP_TYPE_IS_NOT_NULL, pCol->colName, (SNode*)pCol, &pNameCond));
-    PAR_ERR_RET(nodesListMakeAppend(&pCondList, pNameCond));
-  } else {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
-                                   "STATE_WINDOW has invalid col name input");
-  }
+  SExprNode* pExpr = (SExprNode*)pStateWindow->pExpr;
+  SNode*     pExprCond = NULL;
+  PAR_ERR_RET(createIsOperatorNodeByNode(OP_TYPE_IS_NOT_NULL, (SNode*)pExpr, &pExprCond));
+  PAR_ERR_RET(nodesListMakeAppend(&pCondList, pExprCond));
 
   PAR_ERR_RET(nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, &pLogicCond));
   ((SLogicConditionNode*)pLogicCond)->pParameterList = pCondList;
@@ -16452,6 +16447,25 @@ static int32_t createIsOperatorNode(EOperatorType opType, const char* pColName, 
   pOper->pRight = NULL;
 
   snprintf(((SColumnNode*)pOper->pLeft)->colName, sizeof(((SColumnNode*)pOper->pLeft)->colName), "%s", pColName);
+
+  *pOp = (SNode*)pOper;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createIsOperatorNodeByNode(EOperatorType opType, SNode* pNode, SNode** pOp) {
+  SOperatorNode* pOper = NULL;
+  int32_t        code = nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pOper);
+  if (NULL == pOper) {
+    return code;
+  }
+
+  pOper->opType = opType;
+  code = nodesCloneNode(pNode, (SNode**)&pOper->pLeft);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pOper);
+    return code;
+  }
+  pOper->pRight = NULL;
 
   *pOp = (SNode*)pOper;
   return TSDB_CODE_SUCCESS;
