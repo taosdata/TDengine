@@ -502,6 +502,9 @@ uint32_t accumulateRowLen(BArray *fields, int iface) {
             case TSDB_DATA_TYPE_JSON:
                 len += field->length * fields->size;
                 return len;
+            case TSDB_DATA_TYPE_BLOB:
+                len += field->length;
+                break;
         }
         len += 1;
         if (iface == SML_REST_IFACE || iface == SML_IFACE) {
@@ -1081,6 +1084,17 @@ static int generateRandDataSQL(SSuperTable *stbInfo, char *sampleDataBuf,
                     tmfree(tmp);
                     break;
                 }
+                case TSDB_DATA_TYPE_BLOB: {
+                    // field->length = 1024;
+                    char *tmp = benchCalloc(1, field->length + 1, false);
+                    if (0 != tmpStr(tmp, stbInfo->iface, field, index)) {
+                        free(tmp);
+                        return -1;
+                    }
+                    n = snprintf(sampleDataBuf + pos, bufLen - pos, "'%s',", tmp);
+                    tmfree(tmp);
+                    break;
+                }
                 case TSDB_DATA_TYPE_GEOMETRY: {
                     int   bufferSize = field->length + 1;
                     char *tmp = benchCalloc(1, bufferSize, false);
@@ -1296,6 +1310,22 @@ static int fillStmt(
                     }
                     n = snprintf(sampleDataBuf + pos, bufLen - pos,
                                         "'%s',", tmp);
+                    tmfree(tmp);
+                    break;
+                }
+                case TSDB_DATA_TYPE_BLOB: {
+                    // field->length = 1024;
+                    char *tmp = benchCalloc(1, field->length + 1, false);
+                    if (0 != tmpStr(tmp, stbInfo->iface, field, k)) {
+                        free(tmp);
+                        return -1;
+                    }
+                    if (childCol) {
+                        snprintf((char *)childCol->stmtData.data + k * field->length, field->length, "%s", tmp);
+                    } else {
+                        snprintf((char *)field->stmtData.data + k * field->length, field->length, "%s", tmp);
+                    }
+                    n = snprintf(sampleDataBuf + pos, bufLen - pos, "'%s',", tmp);
                     tmfree(tmp);
                     break;
                 }

@@ -924,6 +924,8 @@ static int32_t datumToMsg(const void* pObj, STlvEncoder* pEncoder) {
       code = tlvEncodeI64(pEncoder, VALUE_CODE_DATUM, pNode->datum.i);
       break;
     case TSDB_DATA_TYPE_BLOB:
+      code = tlvEncodeBinary(pEncoder, VALUE_CODE_DATUM, pNode->datum.p, blobDataTLen(pNode->datum.p));
+      break;
       // todo
     default:
       break;
@@ -1053,6 +1055,20 @@ static int32_t msgToDatum(STlv* pTlv, void* pObj) {
       *(int64_t*)&pNode->typeData = pNode->datum.i;
       break;
     case TSDB_DATA_TYPE_BLOB:
+      if (pTlv->len > pNode->node.resType.bytes + BLOBSTR_HEADER_SIZE) {
+        code = TSDB_CODE_FAILED;
+        break;
+      }
+      pNode->datum.p = taosMemoryCalloc(1, pNode->node.resType.bytes + 1);
+      if (NULL == pNode->datum.p) {
+        code = terrno;
+        break;
+      }
+      code = tlvDecodeBinary(pTlv, pNode->datum.p);
+      if (TSDB_CODE_SUCCESS == code) {
+        blobDataSetLen(pNode->datum.p, pTlv->len - BLOBSTR_HEADER_SIZE);
+      }
+      break;
       // todo
     default:
       break;

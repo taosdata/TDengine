@@ -116,6 +116,10 @@ typedef unsigned __int32 uint32_t;
 #define TSDB_DATA_TYPE_DECIMAL 17
 #endif
 
+#ifndef TSDB_DATA_TYPE_BLOB
+#define TSDB_DATA_TYPE_BLOB 18
+#endif
+
 #ifndef TSDB_DATA_TYPE_MEDIUMBLOB
 #define TSDB_DATA_TYPE_MEDIUMBLOB 19
 #endif

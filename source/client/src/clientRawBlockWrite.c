@@ -125,6 +125,11 @@ static void buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* sche
       cJSON*  cbytes = cJSON_CreateNumber(length);
       RAW_NULL_CHECK(cbytes);
       RAW_FALSE_CHECK(tmqAddJsonObjectItem(column, "length", cbytes));
+    } else if (IS_STR_DATA_BLOB(s->type)) {
+      int32_t length = s->bytes - BLOBSTR_HEADER_SIZE;
+      cJSON*  cbytes = cJSON_CreateNumber(length);
+      RAW_NULL_CHECK(cbytes);
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(column, "length", cbytes));
     }
     cJSON* isPk = cJSON_CreateBool(s->flags & COL_IS_KEY);
     RAW_NULL_CHECK(isPk);
@@ -183,6 +188,11 @@ static void buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* sche
       RAW_FALSE_CHECK(tmqAddJsonObjectItem(tag, "length", cbytes));
     } else if (s->type == TSDB_DATA_TYPE_NCHAR) {
       int32_t length = (s->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
+      cJSON*  cbytes = cJSON_CreateNumber(length);
+      RAW_NULL_CHECK(cbytes);
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(tag, "length", cbytes));
+    } else if (IS_STR_DATA_BLOB(s->type)) {
+      int32_t length = s->bytes - BLOBSTR_HEADER_SIZE;
       cJSON*  cbytes = cJSON_CreateNumber(length);
       RAW_NULL_CHECK(cbytes);
       RAW_FALSE_CHECK(tmqAddJsonObjectItem(tag, "length", cbytes));
@@ -283,6 +293,11 @@ static void buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON** 
         cJSON*  cbytes = cJSON_CreateNumber(length);
         RAW_NULL_CHECK(cbytes);
         RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colLength", cbytes));
+      } else if (IS_STR_DATA_BLOB(field->type)) {
+        int32_t length = field->bytes - BLOBSTR_HEADER_SIZE;
+        cJSON*  cbytes = cJSON_CreateNumber(length);
+        RAW_NULL_CHECK(cbytes);
+        RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colLength", cbytes));
       }
       break;
     }
@@ -307,7 +322,13 @@ static void buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON** 
         cJSON*  cbytes = cJSON_CreateNumber(length);
         RAW_NULL_CHECK(cbytes);
         RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colLength", cbytes));
+      } else if (IS_STR_DATA_BLOB(field->type)) {
+        int32_t length = field->bytes - BLOBSTR_HEADER_SIZE;
+        cJSON*  cbytes = cJSON_CreateNumber(length);
+        RAW_NULL_CHECK(cbytes);
+        RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colLength", cbytes));
       }
+
       RAW_RETURN_CHECK(setCompressOption(json, field->compress));
       break;
     }

@@ -377,7 +377,6 @@ _error:
   }
   return code;
 }
-
 int32_t compareFunc(const void *pLeft, const void *pRight) {
   SBlkHandle *p1 = (SBlkHandle *)pLeft;
   SBlkHandle *p2 = (SBlkHandle *)pRight;
