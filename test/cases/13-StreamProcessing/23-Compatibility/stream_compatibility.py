@@ -16,8 +16,26 @@ import platform
 import time
 import sys
 import subprocess
+import importlib.util
 from pathlib import Path
 from new_test_framework.utils import tdLog, tdSql, tdStream, cluster
+
+# Import enterprise package downloader
+current_dir = os.path.dirname(os.path.realpath(__file__))
+enterprise_downloader_path = os.path.abspath(os.path.join(current_dir, "../../../../../enterprise/utils/download_enterprise_package.py"))
+
+# Check if enterprise downloader exists
+if not os.path.exists(enterprise_downloader_path):
+    raise FileNotFoundError(f"Enterprise package downloader not found at: {enterprise_downloader_path}")
+
+# Load the module
+spec = importlib.util.spec_from_file_location("download_enterprise_package", enterprise_downloader_path)
+if spec is None or spec.loader is None:
+    raise ImportError(f"Could not load enterprise package downloader from: {enterprise_downloader_path}")
+
+download_enterprise_package = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(download_enterprise_package)
+EnterprisePackageDownloader = download_enterprise_package.EnterprisePackageDownloader
 
 # Define the list of base versions to test for stream compatibility
 BASE_VERSIONS = ["3.2.0.0", "3.3.3.0", "3.3.4.3", "3.3.5.0", "3.3.6.0"]
@@ -71,48 +89,48 @@ class TestStreamCompatibility:
         self.installTaosd(bPath, cPath, base_version)
         self.createStreamOnOldVersion(base_version)
 
-        # # Step 2: Try to start with new version (should fail)
-        # failed_as_expected = not self.tryStartWithNewVersion(bPath)
-        # if failed_as_expected:
-        #     tdLog.info("New version failed to start as expected - compatibility test proceeding")
-        # else:
-        #     tdLog.info("New version started unexpectedly - might indicate forward compatibility")
+        # Step 2: Try to start with new version (should fail)
+        failed_as_expected = not self.tryStartWithNewVersion(bPath)
+        if failed_as_expected:
+            tdLog.info("New version failed to start as expected - compatibility test proceeding")
+        else:
+            tdLog.info("New version started unexpectedly - might indicate forward compatibility")
 
-        # # Step 3: Cleanup streams on old version
-        # self.cleanupStreamsOnOldVersion(bPath, cPath, base_version)
+        # Step 3: Cleanup streams on old version
+        self.cleanupStreamsOnOldVersion(bPath, cPath, base_version)
 
-        # # Step 4: Create new streams on new version
-        # success = self.createNewStreamsOnNewVersion(bPath)
+        # Step 4: Create new streams on new version
+        success = self.createNewStreamsOnNewVersion(bPath)
         
-        # if success:
-        #     tdLog.printNoPrefix(f"Stream compatibility test with base version {base_version} completed successfully")
-        # else:
-        #     tdLog.error(f"Stream compatibility test with base version {base_version} failed")
+        if success:
+            tdLog.printNoPrefix(f"Stream compatibility test with base version {base_version} completed successfully")
+        else:
+            tdLog.error(f"Stream compatibility test with base version {base_version} failed")
             
-        # # Cleanup
-        # self.killAllDnodes()
+        # Cleanup
+        self.killAllDnodes()
         
-        # # Clean up snode directories after test completion
-        # cPath = self.getCfgPath()
-        # dataPath = cPath + "/../data/"
+        # Clean up snode directories after test completion
+        cPath = self.getCfgPath()
+        dataPath = cPath + "/../data/"
         
-        # # Remove all snode and stream related directories
-        # cleanup_dirs = [
-        #     f"{dataPath}/snode",
-        #     f"{dataPath}/dnode*/snode", 
-        #     f"{dataPath}/stream"
-        # ]
+        # Remove all snode and stream related directories
+        cleanup_dirs = [
+            f"{dataPath}/snode",
+            f"{dataPath}/dnode*/snode", 
+            f"{dataPath}/stream"
+        ]
         
-        # for cleanup_dir in cleanup_dirs:
-        #     cleanup_cmd = f"rm -rf {cleanup_dir}"
-        #     tdLog.info(f"Final cleanup - removing directory: {cleanup_cmd}")
-        #     os.system(cleanup_cmd)
+        for cleanup_dir in cleanup_dirs:
+            cleanup_cmd = f"rm -rf {cleanup_dir}"
+            tdLog.info(f"Final cleanup - removing directory: {cleanup_cmd}")
+            os.system(cleanup_cmd)
         
-        # # Remove any remaining snode/stream directories
-        # os.system(f"find {dataPath} -name '*snode*' -type d -exec rm -rf {{}} + 2>/dev/null || true")
-        # os.system(f"find {dataPath} -name '*stream*' -type d -exec rm -rf {{}} + 2>/dev/null || true")
+        # Remove any remaining snode/stream directories
+        os.system(f"find {dataPath} -name '*snode*' -type d -exec rm -rf {{}} + 2>/dev/null || true")
+        os.system(f"find {dataPath} -name '*stream*' -type d -exec rm -rf {{}} + 2>/dev/null || true")
         
-        # tdLog.info("Final snode directory cleanup completed")
+        tdLog.info("Final snode directory cleanup completed")
 
     def checkProcessPid(self, processName):
         """Check if process is stopped"""
@@ -130,36 +148,20 @@ class TestStreamCompatibility:
             tdLog.info(f'this processName is not stopped in 60s')
 
     def installTaosd(self, bPath, cPath, base_version):
-        """Install specific version of TDengine"""
-        packagePath = "/usr/local/src/"
-        dataPath = cPath + "/../data/"
-        packageType = "server"
-
-        if platform.system() == "Linux" and platform.machine() == "aarch64":
-            packageName = "TDengine-" + packageType + "-" + base_version + "-Linux-arm64.tar.gz"
-        else:
-            packageName = "TDengine-" + packageType + "-" + base_version + "-Linux-x64.tar.gz"
-            
-        # Determine download URL
-        download_url = f"https://www.taosdata.com/assets-download/3.0/{packageName}"
-        tdLog.info(f"wget {download_url}")
+        """Install specific version of TDengine using enterprise package"""
+        dataPath = cPath + "../data/"
         
-        packageTPath = packageName.split("-Linux-")[0]
-        my_file = Path(f"{packagePath}/{packageName}")
-        if not my_file.exists():
-            print(f"{packageName} is not exists")
-            tdLog.info(f"cd {packagePath} && wget {download_url}")
-            os.system(f"cd {packagePath} && wget {download_url}")
-        else: 
-            print(f"{packageName} has been exists")
-            
-        os.system(f" cd {packagePath} && tar xf {packageName} > /dev/null 2>&1 && cd {packageTPath} && ./install.sh -e no > /dev/null 2>&1")
+        # Use enterprise package downloader
+        downloader = EnterprisePackageDownloader()
+        tdLog.info(f"Downloading and installing enterprise version {base_version}")
+        package_path = downloader.download_and_install(base_version, "enterprise", "-e no")
+        tdLog.info(f"Successfully installed enterprise package from {package_path}")
         
         os.system(f"pkill -9 taosd")
         self.checkProcessPid("taosd")
 
-        print(f"start taosd: rm -rf {dataPath}/* && nohup /usr/bin/taosd -c {cPath} &")
-        os.system(f"rm -rf {dataPath}/* && nohup /usr/bin/taosd -c {cPath} &")
+        print(f"rm -rf {dataPath}* && nohup /usr/bin/taosd -c {cPath} &")
+        os.system(f"rm -rf {dataPath}* && nohup /usr/bin/taosd -c {cPath} &")
         time.sleep(5)
 
     def killAllDnodes(self):
@@ -199,9 +201,9 @@ class TestStreamCompatibility:
         
         # Create streams (old format)
         stream_sqls = [
-            "create stream stream_test.avg_stream into stream_test.avg_output as select _wstart, avg(voltage) as avg_voltage from stream_test.meters interval(5s);",
-            "create stream stream_test.max_stream trigger at_once into stream_test.max_output as select ts, max(current) as max_current from stream_test.meters partition by tbname;",
-            "create stream stream_test.count_stream into stream_test.count_output as select _wstart, count(*) as total_count from stream_test.meters where voltage > 10 interval(10s);"
+            "create stream avg_stream into stream_test.avg_output as select _wstart, avg(voltage) as avg_voltage from stream_test.meters interval(5s);",
+            "create stream max_stream trigger at_once into stream_test.max_output as select ts, max(current) as max_current from stream_test.meters partition by tbname;",
+            "create stream count_stream into stream_test.count_output as select _wstart, count(*) as total_count from stream_test.meters where voltage > 10 interval(10s);"
         ]
         
         for sql in stream_sqls:
@@ -225,12 +227,10 @@ class TestStreamCompatibility:
         self.killAllDnodes()
         time.sleep(2)
         
-        # Try to start with new version binary
-        dataPath = bPath + "/../sim/dnode1/data/"
         cPath = bPath + "/../sim/dnode1/cfg/"
         
-        tdLog.info(f"Trying to start new taosd: {bPath}/build/bin/taosd -c {cPath}")
-        result = os.system(f"timeout 10s {bPath}/build/bin/taosd -c {cPath}")
+        tdLog.info(f"Trying to start new taosd: {bPath}/bin/taosd -c {cPath}")
+        result = os.system(f"timeout 10s {bPath}/bin/taosd -c {cPath}")
         
         if result == 0:
             tdLog.info("New version started successfully - this might indicate compatibility")
@@ -247,16 +247,19 @@ class TestStreamCompatibility:
             tdLog.info("New version failed to start as expected due to incompatible streams")
             return False
 
+    def restartTaosd(self, cPath):
+        """Restart taosd"""
+        self.killAllDnodes()
+        time.sleep(2)
+        os.system(f"nohup /usr/bin/taosd -c {cPath} &")
+        time.sleep(5)
+
     def cleanupStreamsOnOldVersion(self, bPath, cPath, base_version):
         """Start old version and cleanup streams"""
         tdLog.printNoPrefix(f"==========Cleaning up streams on old version {base_version}==========")
         
-        # Kill any running processes
-        self.killAllDnodes()
-        time.sleep(2)
-        
         # Restart old version
-        self.installTaosd(bPath, cPath, base_version)
+        self.restartTaosd(cPath)
         time.sleep(5)
         
         # Drop streams
@@ -309,65 +312,166 @@ class TestStreamCompatibility:
         time.sleep(2)
         
         # Start new version
-        dataPath = bPath + "/../sim/dnode1/data/"
-        cPath = bPath + "/../sim/dnode1/cfg/"
+        dataPath = bPath + "/../../sim/dnode1/data/"
+        cPath = bPath + "/../../sim/dnode1/cfg/"
         
         # Clean data directory to ensure fresh start
         os.system(f"rm -rf {dataPath}/*")
         
         # Start new taosd
-        os.system(f"nohup {bPath}/build/bin/taosd -c {cPath} > /dev/null 2>&1 &")
+        os.system(f"nohup {bPath}/bin/taosd -c {cPath} > /dev/null 2>&1 &")
         time.sleep(8)
         
-        # Create database and tables for new stream testing
-        new_stream_sqls = [
-            "drop database if exists new_stream_test;",
-            "create database new_stream_test;",
-            "use new_stream_test;",
-            "create table meters (ts timestamp, voltage int, current float, phase float) tags (location binary(64), groupid int);",
-            "create table d1001 using meters tags ('Beijing.Chaoyang', 1);",
-            "create table d1002 using meters tags ('Beijing.Haidian', 1);",
-            "create snode on dnode 1;",
+        # Create separated databases for testing new stream syntax
+        # Following the pattern: trigger_db, source_db, result_db
+        database_sqls = [
+            "drop database if exists trigger_db",
+            "drop database if exists source_db", 
+            "drop database if exists result_db",
+            "create database trigger_db",
+            "create database source_db",
+            "create database result_db",
+            "create snode on dnode 1",
         ]
         
-        for sql in new_stream_sqls:
-            result = os.system(f"taos -s '{sql}'")
-            if result != 0:
-                tdLog.info(f"SQL execution failed: {sql}")
-            else:
-                tdLog.info(f"SQL executed successfully: {sql}")
+        for sql in database_sqls:
+            tdSql.execute(sql)
+            tdLog.info(f"Database setup: {sql}")
         
-        # Insert test data
-        insert_sql = """insert into d1001 values ('2024-01-01 10:00:00', 220, 1.2, 0.8) ('2024-01-01 10:01:00', 221, 1.3, 0.9);"""
-        os.system(f"taos -s \"use new_stream_test; {insert_sql}\"")
+        # Create trigger tables in trigger_db
+        trigger_table_sqls = [
+            "create table trigger_db.trigger_meters (ts timestamp, voltage int, current float, phase float) tags (location binary(64), groupid int)",
+            "create table trigger_db.t1 using trigger_db.trigger_meters tags ('Trigger.Device1', 1)",
+            "create table trigger_db.t2 using trigger_db.trigger_meters tags ('Trigger.Device2', 2)",
+        ]
         
-        # Create new format streams
+        for sql in trigger_table_sqls:
+            tdSql.execute(sql)
+            tdLog.info(f"Trigger table created: {sql}")
+        
+        # Create source data tables in source_db (for computation)
+        source_table_sqls = [
+            "create table source_db.source_meters (ts timestamp, voltage int, current float, phase float, temperature double) tags (device_id int, area varchar(32))",
+            "create table source_db.s1 using source_db.source_meters tags (1, 'Area.North')",
+            "create table source_db.s2 using source_db.source_meters tags (2, 'Area.South')",
+            "create table source_db.s3 using source_db.source_meters tags (3, 'Area.West')",
+        ]
+        
+        for sql in source_table_sqls:
+            tdSql.execute(sql)
+            tdLog.info(f"Source table created: {sql}")
+        
+        # Insert trigger data
+        trigger_data_sqls = [
+            "insert into trigger_db.t1 values ('2024-01-01 10:00:00', 220, 1.2, 0.8)",
+            "insert into trigger_db.t1 values ('2024-01-01 10:01:00', 221, 1.3, 0.9)", 
+            "insert into trigger_db.t1 values ('2024-01-01 10:02:00', 222, 1.4, 0.7)",
+            "insert into trigger_db.t2 values ('2024-01-01 10:00:30', 225, 1.1, 0.85)",
+            "insert into trigger_db.t2 values ('2024-01-01 10:01:30', 226, 1.2, 0.95)",
+        ]
+        
+        for sql in trigger_data_sqls:
+            tdSql.execute(sql)
+            tdLog.info(f"Trigger data inserted: {sql}")
+        
+        # Insert source data (for computation)
+        source_data_sqls = [
+            "insert into source_db.s1 values ('2024-01-01 10:00:00', 220, 1.2, 0.8, 25.5)",
+            "insert into source_db.s1 values ('2024-01-01 10:01:00', 221, 1.3, 0.9, 26.0)",
+            "insert into source_db.s1 values ('2024-01-01 10:02:00', 222, 1.4, 0.7, 26.5)",
+            "insert into source_db.s2 values ('2024-01-01 10:00:30', 225, 1.1, 0.85, 24.8)",
+            "insert into source_db.s2 values ('2024-01-01 10:01:30', 226, 1.2, 0.95, 25.2)",
+            "insert into source_db.s3 values ('2024-01-01 10:00:15', 218, 1.0, 0.75, 23.5)",
+            "insert into source_db.s3 values ('2024-01-01 10:01:15', 219, 1.1, 0.85, 24.0)",
+        ]
+        
+        for sql in source_data_sqls:
+            tdSql.execute(sql)
+            tdLog.info(f"Source data inserted: {sql}")
+        
+        # Create new format streams using new syntax with separated tables
         new_format_streams = [
-            "create stream simple_avg_stream interval(5s) from meters into simple_avg_output as select _wstart, avg(voltage) as avg_voltage from meters;",
-            "create stream count_window_stream count_window(10) from meters partition by tbname into count_output as select count(*) as cnt from %%trows;",
-            "create stream period_stream period(30s) into period_output as select now() as trigger_time, count(*) as total_count from meters;"
+            # Sliding window trigger - trigger from trigger_db, compute source_db data, save to result_db
+            "create stream result_db.s_interval INTERVAL(5s) SLIDING(5s) from trigger_db.trigger_meters partition by tbname into result_db.r_interval as select _twstart, avg(voltage) as avg_voltage, count(*) as cnt from source_db.source_meters where ts >= _twstart and ts <= _twend",
+            
+            # Count window trigger - trigger every 5 records, partitioned by table name
+            "create stream result_db.s_count COUNT_WINDOW(5) from trigger_db.trigger_meters partition by tbname into result_db.r_count as select _twstart, count(*) as cnt, avg(voltage) as avg_voltage from %%trows",
+            
+            # Period trigger - trigger every 30 seconds, compute total data from source_db
+            "create stream result_db.s_period PERIOD(30s) from trigger_db.trigger_meters partition by tbname into result_db.r_period as select cast(_tlocaltime/1000000 as timestamp) as ts, count(*) as total_count, avg(temperature) as avg_temp from source_db.source_meters",
+            
+            # Session window trigger - based on 5 second session interval
+            "create stream result_db.s_session SESSION(ts, 5s) from trigger_db.trigger_meters partition by tbname into result_db.r_session as select _twstart, _twend, max(voltage) as max_voltage, count(*) as cnt from %%trows",
+            
         ]
         
         for sql in new_format_streams:
-            result = os.system(f"taos -s 'use new_stream_test; {sql}'")
-            if result == 0:
-                tdLog.info(f"New stream created successfully: {sql[:50]}...")
-            else:
-                tdLog.info(f"Failed to create new stream: {sql[:50]}...")
+            tdSql.execute(sql)
+            tdLog.info(f"New stream created successfully: {sql[:50]}...")
         
-        # Verify streams
-        os.system("taos -s 'use new_stream_test; show streams;'")
-        os.system("taos -s 'show snodes;'")
+        # Verify streams creation
+        tdSql.query("show result_db.streams")
+        stream_result = tdSql.queryResult
+        tdLog.info(f"Created streams: {len(stream_result) if stream_result else 0}")
         
-        # Insert more data to trigger streams
-        more_data = """insert into d1001 values ('2024-01-01 10:02:00', 222, 1.4, 0.7) ('2024-01-01 10:03:00', 223, 1.5, 0.6);"""
-        os.system(f"taos -s \"use new_stream_test; {more_data}\"")
+        tdSql.query("show snodes")  
+        snode_result = tdSql.queryResult
+        tdLog.info(f"Available snodes: {len(snode_result) if snode_result else 0}")
         
-        time.sleep(5)
+        # Insert more trigger data to activate streams
+        additional_trigger_data = [
+            "insert into trigger_db.t1 values ('2024-01-01 10:03:00', 223, 1.5, 0.6)",
+            "insert into trigger_db.t1 values ('2024-01-01 10:04:00', 224, 1.6, 0.5)",
+            "insert into trigger_db.t2 values ('2024-01-01 10:02:30', 227, 1.25, 0.9)",
+            "insert into trigger_db.t2 values ('2024-01-01 10:03:30', 228, 1.35, 1.0)",
+        ]
         
-        # Check stream outputs
-        os.system("taos -s 'use new_stream_test; show tables;'")
-        os.system("taos -s 'use new_stream_test; select * from simple_avg_output;'")
+        for sql in additional_trigger_data:
+            tdSql.execute(sql)
+            tdLog.info(f"Additional trigger data: {sql}")
+        
+        # Insert more source data for computation
+        additional_source_data = [
+            "insert into source_db.s1 values ('2024-01-01 10:03:00', 223, 1.5, 0.6, 27.0)",
+            "insert into source_db.s1 values ('2024-01-01 10:04:00', 224, 1.6, 0.5, 27.5)",
+            "insert into source_db.s2 values ('2024-01-01 10:02:30', 227, 1.25, 0.9, 25.8)",
+            "insert into source_db.s2 values ('2024-01-01 10:03:30', 228, 1.35, 1.0, 26.2)",
+            "insert into source_db.s3 values ('2024-01-01 10:02:15', 220, 1.15, 0.8, 24.5)",
+            "insert into source_db.s3 values ('2024-01-01 10:03:15', 221, 1.25, 0.9, 25.0)",
+        ]
+        
+        for sql in additional_source_data:
+            tdSql.execute(sql)
+            tdLog.info(f"Additional source data: {sql}")
+        
+        time.sleep(10)  # Wait longer for streams to process
+        
+        # Check stream outputs from result_db
+        tdSql.query("use result_db")
+        tdSql.execute("use result_db")
+        
+        tdSql.query("show tables")
+        tables_result = tdSql.queryResult
+        tdLog.info(f"Result tables found: {len(tables_result) if tables_result else 0}")
+        
+        # Check outputs from different stream types
+        output_tables = ["r_interval", "r_count", "r_period", "r_session"]
+        for table in output_tables:
+            tdSql.query(f"select * from result_db.{table}")
+            output_result = tdSql.queryResult
+            tdLog.info(f"Stream output from {table}: {len(output_result) if output_result else 0} rows")
+            if output_result and len(output_result) > 0:
+                tdLog.info(f"Sample data from {table}: {output_result[:3] if len(output_result) >= 3 else output_result}")
+        
+        # Check streams status
+        tdSql.query("show result_db.streams")
+        streams_result = tdSql.queryResult
+        tdLog.info(f"Active streams: {len(streams_result) if streams_result else 0}")
+        
+        # Check snodes status
+        tdSql.query("show snodes")  
+        snode_result = tdSql.queryResult
+        tdLog.info(f"Active snodes: {len(snode_result) if snode_result else 0}")
         
         tdLog.info("New stream creation and verification completed")
         return True
@@ -375,18 +479,29 @@ class TestStreamCompatibility:
     def getBuildPath(self):
         """Get build path"""
         selfPath = os.path.dirname(os.path.realpath(__file__))
+
+        print(f"selfPath:{selfPath}")
         
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
         else:
             projPath = selfPath[:selfPath.find("tests")]
 
+        # Prioritize debug build path for enterprise version
+        debug_build_path = os.path.join(projPath, "debug/build")
+        if os.path.exists(os.path.join(debug_build_path, "bin/taosd")):
+            print(f"buildPath:{debug_build_path}")
+            return debug_build_path
+        
+        # Fallback to searching for any taosd binary
         for root, dirs, files in os.walk(projPath):
             if ("taosd" in files or "taosd.exe" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root)-len("/build/bin")]
                     break
+
+        print(f"buildPath:{buildPath}")
         return buildPath
 
     def getCfgPath(self):
@@ -395,8 +510,8 @@ class TestStreamCompatibility:
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
-            cfgPath = buildPath + "/../sim/dnode1/cfg/"
+            cfgPath = buildPath + "/../../sim/dnode1/cfg/"
         else:
-            cfgPath = buildPath + "/../sim/dnode1/cfg/"
+            cfgPath = buildPath + "/../../sim/dnode1/cfg/"
 
         return cfgPath
