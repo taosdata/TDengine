@@ -13,6 +13,7 @@ cpuType=$4
 osType=$5
 verMode=$6
 verType=$7
+product_name=$8
 
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -f ${script_dir}/../..)"
@@ -77,7 +78,7 @@ cd ${pkg_dir}
 
 ${csudo}mkdir -p BUILD BUILDROOT RPMS SOURCES SPECS SRPMS
 
-${csudo}rpmbuild --define="_version ${tdengine_ver}" --define="_topdir ${pkg_dir}" --define="_compiledir ${compile_dir}" --define="_taosxdir ${taosx_dir}"   -bb ${spec_file}
+${csudo}rpmbuild --define="_version ${tdengine_ver}" --define="_topdir ${pkg_dir}" --define="_compiledir ${compile_dir}" --define="_taosxdir ${taosx_dir}"  --define="product_name ${product_name}"  -bb ${spec_file}
 
 # copy rpm package to output_dir, and modify package name, then clean temp dir
 #${csudo}cp -rf RPMS/* ${output_dir}
@@ -85,16 +86,16 @@ cp_rpm_package ${pkg_dir}/RPMS
 
 
 if [ "$verMode" == "cluster" ]; then
-  rpmname="tdengine-tsdb-oss-"${tdengine_ver}-${osType}-${cpuType}
+  rpmname=${product_name}-"oss"-${tdengine_ver}-${osType}-${cpuType}
 elif [ "$verMode" == "edge" ]; then
-  rpmname="tdengine-tsdb-oss"-${tdengine_ver}-${osType}-${cpuType}
+  rpmname=${product_name}-"oss"-${tdengine_ver}-${osType}-${cpuType}
 else
   echo "unknow verMode, nor cluster or edge"
   exit 1
 fi
 
 if [ "$verType" == "beta" ]; then
-  rpmname="tdengine-tsdb-oss-"${tdengine_ver}-${verType}-${osType}-${cpuType}".rpm"
+  rpmname=${product_name}-"oss"-${tdengine_ver}-${verType}-${osType}-${cpuType}".rpm"
 elif [ "$verType" == "stable" ]; then
   rpmname=${rpmname}".rpm"
 else
