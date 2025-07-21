@@ -22,6 +22,7 @@
                   range-separator="-"
                   :start-placeholder="$t('start')"
                   :end-placeholder="$t('end')"
+                  value-format="YYYY-MM-DDTHH:mm:ssZ"
                   align="left"
                   style="width: 320px"
                 >
@@ -151,7 +152,7 @@
                       range-separator="-"
                       :start-placeholder="$t('start')"
                       :end-placeholder="$t('end')"
-                      value-format="timestamp"
+                      value-format="YYYY-MM-DDTHH:mm:ssZ"
                       align="left"
                       style="width: 320px"
                     >
@@ -284,7 +285,7 @@ const filterParams = reactive({
   de_duplication: false
 });
 
-const date = ref([new Date().getTime() - 3600 * 1000 * 24 * 1, new Date().getTime()]);
+const date = ref([new Date(new Date().getTime() - 3600 * 1000 * 24 * 1).toISOString(), new Date().toISOString()]);
 const date_two = ref([]);
 const query_time_sort = ref('');
 const orderSql = ref('');
@@ -339,7 +340,7 @@ const shortcuts = [
 const conditions = computed(() => {
   let conditions = '';
   if (date.value?.length > 0) {
-    conditions = ` start_ts > ${date.value[0]} AND start_ts <= ${date.value[1]} AND`;
+    conditions = ` start_ts > '${date.value[0]}' AND start_ts <= '${date.value[1]}' AND`;
   }
   const { query_time_1, query_time_2 } = filterParams;
   if (query_time_1) {
@@ -354,7 +355,7 @@ const conditions = computed(() => {
 const conditions_two = computed(() => {
   let conditions = '';
   if (date_two.value?.length > 0) {
-    conditions = ` start_ts > ${date_two.value[0]} AND start_ts <= ${date_two.value[1]} AND`;
+    conditions = ` start_ts > '${date_two.value[0]}' AND start_ts <= '${date_two.value[1]}' AND`;
   }
   conditions = conditions.replace(/ AND$/g, '');
   return conditions;

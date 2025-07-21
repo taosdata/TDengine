@@ -196,7 +196,7 @@ const conditions = computed(() => {
   if (date.value?.length > 0) {
     const start = date.value[0];
     const end = date.value[1];
-    conditions = ` ts > to_unixtimestamp('${start}') AND ts <= to_unixtimestamp('${end}') AND`;
+    conditions = ` ts > '${start}' AND ts <= '${end}' AND`;
   }
   const currentFilterParams: Record<string, any> = { ...filterParams };
   for (const key in currentFilterParams) {
