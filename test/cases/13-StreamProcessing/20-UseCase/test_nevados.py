@@ -31,9 +31,17 @@ class Test_Nevados:
 
         tdStream.createSnode()
         self.prepare()
-        self.windspeeds_hourly()
-        self.windspeeds_daily()
-        # self.kpi_db_test()
+        
+        self.windspeeds_hourly()                    # 1
+        self.windspeeds_daily()                     # 3
+        # self.kpi_db_test()                          # 2
+        # self.kpi_trackers_test()                    # 4
+        # self.off_target_trackers()                  # 5
+        # self.snowdepths_daily()                     # 6
+        # self.kpi_zones_test()                       # 7
+        # self.kpi_sites_test()                       # 8
+        # self.trackers_motor_current_state_window()  # 9
+        # self.snowdepths_hourly()                    # 10
 
     def prepare(self):
         db = "dev"
@@ -109,7 +117,7 @@ class Test_Nevados:
                     sql += f"({ts}, {speed}, {direction}) "
                 tdSql.execute(sql)
 
-    def windspeeds_hourly(self):
+    def windspeeds_hourly(self): 
         tdLog.info("windspeeds_hourly")
         # create stream windspeeds_hourly fill_history 1 into windspeeds_hourly as select _wend as window_hourly, site, id, max(speed) as windspeed_hourly_maximum from windspeeds where _ts >= '2025-05-07' partition by site, id interval(1h);
         tdSql.execute(
@@ -118,7 +126,7 @@ class Test_Nevados:
             "  from windspeeds"
             "  partition by site, id"
             "  stream_options(fill_history('2025-06-01 00:00:00') | pre_filter(_ts >= '2025-05-07'))"
-            "  into `windspeeds_hourly`"
+            "  into `windspeeds_hourly` OUTPUT_SUBTABLE(CONCAT('windspeeds_hourly_', cast(site as varchar), cast(id as varchar)))" 
             "  as select _twstart window_start, _twend as window_hourly, max(speed) as windspeed_hourly_maximum from %%trows"
         )
         tdStream.checkStreamStatus()
@@ -148,7 +156,7 @@ class Test_Nevados:
         exp_sql = "select count(*) from (select _wstart, _wend, site, id, max(speed) from windspeeds partition by tbname interval(1h));"
         tdSql.checkResultsBySql(sql=sql, exp_sql=exp_sql)
 
-    def windspeeds_daily(self):
+    def windspeeds_daily(self): 
         tdLog.info("windspeeds_daily")
         # create stream windspeeds_daily fill_history 1 into windspeeds_daily as select _wend as window_daily, site, id, max(windspeed_hourly_maximum) as windspeed_daily_maximum from windspeeds_hourly partition by site, id interval(1d, 5h);
         tdSql.execute(
@@ -157,7 +165,7 @@ class Test_Nevados:
             "  from windspeeds_hourly"
             "  partition by site, id"
             "  stream_options(fill_history('2025-06-01 00:00:00'))"
-            "  into `windspeeds_daily`"
+            "  into `windspeeds_daily` OUTPUT_SUBTABLE(CONCAT('windspeeds_daily_', cast(site as varchar), cast(id as varchar)))" 
             "  tags("
             "    group_id bigint as _tgrpid"
             "  )"
@@ -174,11 +182,9 @@ class Test_Nevados:
                 ["windspeed_daily_maximum", "DOUBLE", 8, ""],
                 ["site", "NCHAR", 16, ""],
                 ["id", "NCHAR", 16, ""],
-                ["group_id", "BIGINT", 8, "TAG"],
+                ["group_id", "BIGINT", 8, "TAG"],=
             ],
         )
-
-        return
 
         tdSql.checkResultsByFunc(
             "select count(*) from information_schema.ins_tables where db_name='dev' and stable_name='windspeeds_daily';",
@@ -186,10 +192,8 @@ class Test_Nevados:
         )
 
         sql = "select window_start, window_hourly, windspeed_daily_maximum from dev.windspeeds_daily where id='id_1';"
-        exp_sql = "select _wstart, _wend, count(windspeed_hourly_maximum) from windspeeds_hourly where id='id_1' interval(1d, 5h);"
+        exp_sql = "select _wstart, _wend, max(windspeed_hourly_maximum) from windspeeds_hourly where id='id_1' interval(1d, 5h);"
         tdSql.checkResultsBySql(sql=sql, exp_sql=exp_sql)
-
-        # exp_sql = "select site, id, _wstart, count(*) from windspeeds_hourly partition by site, id interval(1d, 5h);"
 
     def kpi_db_test(self):
         # create stream if not exists kpi_db_test trigger window_close watermark 10m fill_history 1 ignore update 1 into kpi_db_test as select _wend as window_end, case when last(_ts) is not null then 1 else 0 end as db_online from trackers where _ts >= '2024-10-04T00:00:00.000Z' interval(1h) sliding(1h);
