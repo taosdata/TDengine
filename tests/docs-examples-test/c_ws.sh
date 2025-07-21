@@ -13,7 +13,7 @@ echo "setting TEST_PATH: $TEST_PATH"
 cd "${TEST_PATH}" || { echo -e "${RED}Failed to change directory to ${TEST_PATH}${NC}"; exit 1; }
 
 LOG_FILE="docs-c-ws-test-out.log"
-> $LOG_FILE
+> "$LOG_FILE"
 
 make > "$LOG_FILE" 2>&1
 
