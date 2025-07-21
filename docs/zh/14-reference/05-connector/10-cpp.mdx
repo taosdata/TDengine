@@ -651,7 +651,9 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号是一一�
 
 - 异步查询示例：[异步查询](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/asyncdemo.c)
 
-- 参数绑定示例：[参数绑定](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/prepare.c)
+— 参数绑定示例：[参数绑定](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/stmt2_insert_demo.c)
+
+- 参数绑定（旧）示例：[参数绑定（旧）](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/prepare.c)
 
 - 无模式写入示例：[无模式写入](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/schemaless.c)
 
@@ -888,6 +890,86 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 
 除了直接调用 `taos_query()` 进行查询，TDengine 也提供了支持参数绑定的 Prepare API，风格与 MySQL 类似，目前也仅支持用问号 `?` 来代表待绑定的参数。
 
+从 3.3.5.0 版本开始，TDengine 大幅简化了旧版参数绑定的使用接口。这样在通过参数绑定接口写入数据时，可以避免了 SQL 语法解析的资源消耗，通过批量绑定的方式，在绝大多数情况下显著提升写入性能。此时的典型操作步骤如下：
+
+1. 调用 `taos_stmt2_init()` 创建参数绑定对象；
+2. 调用 `taos_stmt2_prepare()` 解析 INSERT 或者 SELECT 语句；
+3. 调用 `taos_stmt2_bind_param()` 可以向单个超级表绑定多个子表，每个子表可以绑定多行数据；
+4. 调用 `taos_stmt2_exec()` 执行已经准备好的批处理指令；、
+5. 可以重复第 3 ～ 4 步，为写入更多的数据行，而无需再次解析 SQL；
+6. 执行完毕，调用 `taos_stmt2_close()` 释放所有资源。
+
+- `char *taos_stmt2_error(TAOS_STMT2 *stmt)`
+说明：如果 `taos_stmt2_exec()` 执行成功，假如不需要改变 SQL 语句的话，那么是可以复用 `taos_stmt2_prepare()` 的解析结果，直接进行第 3 ～ 4 步绑定新数据的。但如果执行出错，那么并不建议继续在当前的环境上下文下继续工作，而是建议释放资源，然后从 `taos_stmt2_init()` 步骤重新开始，可以通过 `taos_stmt2_error` 查看具体错误原因。
+
+接口相关的具体函数如下（也可以参考 [stmt2_insert_demo.c](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/stmt2_insert_demo.c) 文件中使用对应函数的方式）：
+
+- `TAOS_STMT2 *taos_stmt2_init(TAOS *taos, TAOS_STMT2_OPTION *option)`
+  - **接口说明**：初始化一个预编译的 SQL 语句对象。
+  - **参数说明**：
+    - `taos`：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
+    - `option`：[入参] 创建配置，当选择高效写入模式需要将 `singleStbInsert` 和 `singleTableBindOnce` 设置为 `true`；当选择异步执行是，需要设置回调函数 `asyncExecFn` 和参数 `userdata`。
+  - **返回值**：非 `NULL`：成功，返回 TAOS_STMT2 的一个结构体的指针，该结构体表示预编译的 SQL 语句对象。`NULL`：失败，详情请调用 taos_stmt_errstr() 函数来获取错误提示。
+
+- `int taos_stmt2_prepare(TAOS_STMT2 *stmt, const char *sql, unsigned long length)`
+  - **接口说明**：解析一条预编译的 SQL 语句，将解析结果和参数信息绑定到 stmt 上。
+  - **参数说明**：
+    - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
+    - sql：[入参] 需要解析的 SQL 语句。
+    - length：[入参] 参数 sql 的长度。如果参数 length 大于 0，将使用此参数作为 SQL 语句的长度，如等于 0，将自动判断 SQL 语句的长度。
+  - **返回值**：`0`：成功。非 `0`：失败，详情请参考错误码页面。
+
+- `int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx)`
+  - **接口说明**：绑定一批参数到一个预编译的 SQL 语句。
+  - **参数说明**：
+    - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
+    - bindv：[入参] 指向一个有效的 TAOS_STMT2_BINDV 结构体指针，该结构体中包含要绑定的表名、标签、数据，`count`表示要绑定的表数量，一个`tbnames`可以对应一组`tags`以及多组`bind_cols`；如果是 `SELECT` 的语句，则只需要绑定 `bind_cols`。
+    - col_idx：[入参] 表示要绑定的指定列的位置， `-1`表示全列绑定。
+  - **返回值**：`0`：成功。非 `0`：失败，详情请参考错误码页面。
+
+- `int taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows)`
+  - **接口说明**：执行绑定完成数据的 SQL，可同步或异步，由 option 决定。
+  - **参数说明**：
+    - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
+    - affected_rows：[出参] 若为同步执行，表示本次执行影响到的的行数。
+  - **返回值**：`0`：成功。非 `0`：失败，详情请参考错误码页面。
+
+- `int taos_stmt2_close(TAOS_STMT2 *stmt)`
+  - **接口说明**：执行完毕，释放所有资源。
+  - **参数说明**：
+    - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
+  - **返回值**：`0`：成功。非 `0`：失败，详情请参考错误码页面。
+
+- `int taos_stmt2_get_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields)`
+  - **接口说明**：获取 `?` 顺序对应的列数据的属性（列的名称、列的数据类型、列的长度、列的 schema 类型）的数组。
+  - **参数说明**：
+    - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
+    - count：[出参] 返回绑定 SQL 中 `?` 的数量。
+    - fields：[出参] 返回 `?` 顺序对应的列数据的属性，如果是 `SELECT` 的语句，该结构体返回 `NULL`。
+  - **返回值**：`0`：成功。非 `0`：失败，详情请参考错误码页面。
+
+- `void taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_ALL *fields)`
+  - **接口说明**：释放 TAOS_FIELD_ALL 返回值的内存，一般用于 taos_stmt2_get_fields 之后。
+  - **参数说明**：
+    - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
+    - fields：[入参] 要释放资源的指针。
+  - **返回值**：无。
+
+- `TAOS_RES *taos_stmt2_result(TAOS_STMT2 *stmt)`
+  - **接口说明**：获取执行 SQL 后返回的结果。
+  - **参数说明**：
+    - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
+  - **返回值**：返回一个指向 TAOS_RES 结构体的指针，该结构体包含了插入操作的结果。返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。
+
+- `char *taos_stmt2_error(TAOS_STMT2 *stmt)`
+  - **接口说明**：用于在其他 STMT2 API 返回错误（返回错误码或空指针）时获取错误信息。
+  - **参数说明**：
+    - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
+  - **返回值**：返回一个指向包含错误信息的字符串的指针。
+
+<details>
+<summary>参数绑定（旧）</summary>
+
 从 2.1.1.0 和 2.1.2.0 版本开始，TDengine 大幅改进了参数绑定接口对数据写入（INSERT）场景的支持。这样在通过参数绑定接口写入数据时，就避免了 SQL 语法解析的资源消耗，从而在绝大多数情况下显著提升写入性能。此时的典型操作步骤如下：
 
 1. 调用 `taos_stmt_init()` 创建参数绑定对象；
@@ -981,6 +1063,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   - **接口说明**：（2.1.3.0 版本新增）用于在其他 STMT API 返回错误（返回错误码或空指针）时获取错误信息。
     - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
   - **返回值**：返回一个指向包含错误信息的字符串的指针。
+</details>
 
 #### 无模式写入
 

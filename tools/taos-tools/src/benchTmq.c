@@ -25,7 +25,6 @@ typedef struct {
 
 static int running = 1;
 
-
 void printfTmqConfigIntoFile() {
   if (NULL == g_arguments->fpOfInsertResult) {
       return;
@@ -309,7 +308,6 @@ static void* tmqConsume(void* arg) {
 
     return NULL;
 }
-
 
 int subscribeTestProcess() {
     printfTmqConfigIntoFile();

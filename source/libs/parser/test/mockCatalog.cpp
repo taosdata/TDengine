@@ -182,6 +182,21 @@ void generateTestTables(MockCatalogService* mcs, const std::string& db) {
  *          c2         |       column       |      VARCHAR       |    20    |
  *         jtag        |        tag         |        json        |    --    |
  * Child Table: st2s1, st2s2
+ *
+ * Normal Table: t1
+ *        Field        |        Type        |      DataType      |  Bytes   |
+ * ==========================================================================
+ *          ts         |       column       |     TIMESTAMP      |    8     |
+ *          c1         |       column       |        INT         |    4     |
+ *          c2         |       column       |      VARCHAR       |    20    |
+ *
+ * Normal Table: t2
+ *        Field        |        Type        |      DataType      |  Bytes   |
+ * ==========================================================================
+ *          ts         |       column       |     TIMESTAMP      |    8     |
+ *          c1         |       column       |        INT         |    4     |
+ *          c2         |       column       |      VARCHAR       |    20    |
+ *          c3         |       column       |      TIMESTAMP     |    8     |
  */
 void generateTestStables(MockCatalogService* mcs, const std::string& db) {
   {
@@ -209,6 +224,23 @@ void generateTestStables(MockCatalogService* mcs, const std::string& db) {
     mcs->createSubTable(db, "st2", "st2s1", 2);
     mcs->createSubTable(db, "st2", "st2s2", 3);
   }
+  {
+    ITableBuilder& builder = mcs->createTableBuilder(db, "t1", TSDB_NORMAL_TABLE, 3, 0)
+                                 .setPrecision(TSDB_TIME_PRECISION_MILLI)
+                                 .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+                                 .addColumn("c1", TSDB_DATA_TYPE_INT)
+                                 .addColumn("c2", TSDB_DATA_TYPE_BINARY, 20);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder = mcs->createTableBuilder(db, "t2", TSDB_NORMAL_TABLE, 4, 0)
+                                 .setPrecision(TSDB_TIME_PRECISION_MILLI)
+                                 .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+                                 .addColumn("c1", TSDB_DATA_TYPE_INT)
+                                 .addColumn("c2", TSDB_DATA_TYPE_BINARY, 20)
+                                 .addColumn("c3", TSDB_DATA_TYPE_TIMESTAMP);
+    builder.done();
+  }
 }
 
 void generateFunctions(MockCatalogService* mcs) {
@@ -234,6 +266,26 @@ void generateDatabases(MockCatalogService* mcs) {
   generateTestStables(g_mockCatalogService.get(), "cache_db");
   mcs->createDatabase("rollup_db", true);
   mcs->createDatabase("testus", false, 0, TSDB_TIME_PRECISION_NANO);
+
+  mcs->createDatabase("stream_streamdb");
+  mcs->createDatabase("stream_streamdb_2");
+  mcs->createDatabase("stream_querydb");
+  mcs->createDatabase("stream_querydb_2");
+  mcs->createDatabase("stream_triggerdb");
+  mcs->createDatabase("stream_triggerdb_2");
+  mcs->createDatabase("stream_outdb");
+  mcs->createDatabase("stream_outdb_2");
+
+  generateTestTables(g_mockCatalogService.get(), "stream_querydb");
+  generateTestStables(g_mockCatalogService.get(), "stream_querydb");
+  generateTestTables(g_mockCatalogService.get(), "stream_querydb_2");
+  generateTestStables(g_mockCatalogService.get(), "stream_querydb_2");
+  generateTestTables(g_mockCatalogService.get(), "stream_triggerdb");
+  generateTestStables(g_mockCatalogService.get(), "stream_triggerdb");
+  generateTestTables(g_mockCatalogService.get(), "stream_triggerdb_2");
+  generateTestStables(g_mockCatalogService.get(), "stream_triggerdb_2");
+  generateTestTables(g_mockCatalogService.get(), "stream_outdb");
+  generateTestStables(g_mockCatalogService.get(), "stream_outdb");
 }
 
 }  // namespace
