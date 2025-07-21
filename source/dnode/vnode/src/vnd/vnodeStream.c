@@ -1738,6 +1738,7 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   SStreamMsgVTableInfo vTableInfo = {0};
   SMetaReader          metaReader = {0};
   SNodeList*           groupNew = NULL;
+  void*                pTableList = NULL;
 
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
   void* pTask = sStreamReaderInfo->pTask;
@@ -1745,7 +1746,6 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
 
   SStorageAPI api = {0};
   initStorageAPI(&api);
-  void* pTableList = NULL;
   STREAM_CHECK_RET_GOTO(nodesCloneList(sStreamReaderInfo->partitionCols, &groupNew));
   STREAM_CHECK_RET_GOTO(qStreamCreateTableListForReader(
       pVnode, sStreamReaderInfo->suid, sStreamReaderInfo->uid, sStreamReaderInfo->tableType,
@@ -2073,7 +2073,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
     SSDataBlock* pBlock = taosArrayGetP(pResList, i);
     if (pBlock == NULL) continue;
     printDataBlock(pBlock, __func__, "fetch");
-    if (sStreamReaderCalcInfo->rtInfo.funcInfo.withExternalWindow && pBlock != NULL) {
+    if (sStreamReaderCalcInfo->rtInfo.funcInfo.withExternalWindow) {
       STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock, sStreamReaderCalcInfo->pFilterInfo));
       printDataBlock(pBlock, __func__, "fetch filter");
     }

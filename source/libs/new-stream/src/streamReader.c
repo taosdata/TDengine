@@ -507,7 +507,7 @@ int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t*
   size_t  dataEncodeBufSize = sizeof(SRetrieveTableRsp);
   for(size_t i = 0; i < taosArrayGetSize(pResList); i++){
     SSDataBlock* pBlock = taosArrayGetP(pResList, i);
-    if (pBlock == NULL) continue;
+    if (pBlock == NULL || pBlock->info.rows == 0) continue;
     int32_t blockSize = blockGetEncodeSize(pBlock);
     dataEncodeBufSize += (INT_BYTES * 2 + blockSize);
     blockNum++;
@@ -526,7 +526,7 @@ int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t*
   void* dataBuf = pRetrieve->data;
   for(size_t i = 0; i < taosArrayGetSize(pResList); i++){
     SSDataBlock* pBlock = taosArrayGetP(pResList, i);
-    if (pBlock == NULL) continue;
+    if (pBlock == NULL || pBlock->info.rows == 0) continue;
     int32_t blockSize = blockGetEncodeSize(pBlock);
     *((int32_t*)(dataBuf)) = blockSize;
     *((int32_t*)(dataBuf + INT_BYTES)) = blockSize;
