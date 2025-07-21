@@ -35,5 +35,5 @@ class TestIdmpPhotovoltaic:
             "cases/13-StreamProcessing/20-UseCase/pv_data/idmp/vtb.sql",
             "cases/13-StreamProcessing/20-UseCase/pv_data/idmp/stream.json",
         )
-        pv.stream_ids = [1, 2, 3, 4, 5, 6, 7]
+        # pv.stream_ids = [1, 2, 3, 4, 5, 6, 7]
         pv.run()

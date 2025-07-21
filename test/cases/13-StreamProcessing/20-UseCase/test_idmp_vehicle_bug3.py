@@ -88,6 +88,7 @@ class Test_IDMP_Vehicle:
             f"use {self.vdb};",
             "CREATE STABLE `vst_车辆_652220` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `经度` FLOAT ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `纬度` FLOAT ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `高程` SMALLINT ENCODE 'simple8b' COMPRESS 'zlib' LEVEL 'medium', `速度` SMALLINT ENCODE 'simple8b' COMPRESS 'zlib' LEVEL 'medium', `方向` SMALLINT ENCODE 'simple8b' COMPRESS 'zlib' LEVEL 'medium', `报警标志` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', `里程` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium') TAGS (`_ignore_path` VARCHAR(20), `车辆资产模型` VARCHAR(128), `车辆ID` VARCHAR(32), `车牌号` VARCHAR(17), `车牌颜色` TINYINT, `终端制造商` VARCHAR(11), `终端ID` VARCHAR(15), `path2` VARCHAR(512)) SMA(`ts`,`经度`) VIRTUAL 1",
             "CREATE VTABLE `vt_京Z1NW34_624364` (`经度` FROM `idmp_sample_vehicle`.`vehicle_110100_001`.`longitude`, `纬度` FROM `idmp_sample_vehicle`.`vehicle_110100_001`.`latitude`, `高程` FROM `idmp_sample_vehicle`.`vehicle_110100_001`.`elevation`, `速度` FROM `idmp_sample_vehicle`.`vehicle_110100_001`.`speed`, `方向` FROM `idmp_sample_vehicle`.`vehicle_110100_001`.`direction`, `报警标志` FROM `idmp_sample_vehicle`.`vehicle_110100_001`.`alarm`, `里程` FROM `idmp_sample_vehicle`.`vehicle_110100_001`.`mileage`) USING `vst_车辆_652220` (`_ignore_path`, `车辆资产模型`, `车辆ID`, `车牌号`, `车牌颜色`, `终端制造商`, `终端ID`, `path2`) TAGS (NULL, 'XX物流公司.华北分公司.北京车队', '110100_001', '京Z1NW34', 2, 'zd', '2551765954', '车辆场景.XX物流公司.华北分公司.北京车队')",
+            "CREATE VTABLE `vt_京Z1NW84_916965` (`经度` FROM `idmp_sample_vehicle`.`vehicle_110100_002`.`longitude`, `纬度` FROM `idmp_sample_vehicle`.`vehicle_110100_002`.`latitude`, `高程` FROM `idmp_sample_vehicle`.`vehicle_110100_002`.`elevation`, `速度` FROM `idmp_sample_vehicle`.`vehicle_110100_002`.`speed`, `方向` FROM `idmp_sample_vehicle`.`vehicle_110100_002`.`direction`, `报警标志` FROM `idmp_sample_vehicle`.`vehicle_110100_002`.`alarm`, `里程` FROM `idmp_sample_vehicle`.`vehicle_110100_002`.`mileage`) USING `vst_车辆_652220` (`_ignore_path`, `车辆资产模型`, `车辆ID`, `车牌号`, `车牌颜色`, `终端制造商`, `终端ID`, `path2`) TAGS (NULL, 'XX物流公司.华北分公司.北京车队', '110100_002', '京Z1NW84', 2, 'zd', '1819625826', '车辆场景.XX物流公司.华北分公司.北京车队')",
         ]
 
         tdSql.executes(sqls)
@@ -100,7 +101,8 @@ class Test_IDMP_Vehicle:
     def createStreams(self):
 
         sqls = [
-            "create stream if not exists `idmp`.`ana_stream1`      event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_京Z1NW34_624364` stream_options(ignore_disorder)  notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream1`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
+            "create stream if not exists `idmp`.`ana_stream2`      event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_京Z1NW84_916965` stream_options(ignore_disorder)  notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream2`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
+            "create stream if not exists `idmp`.`ana_stream2_sub1` event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_京Z1NW84_916965`                                  notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream2_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
         ]
 
         tdSql.executes(sqls)
@@ -119,7 +121,7 @@ class Test_IDMP_Vehicle:
     #
     def writeTriggerData(self):
         # stream1
-        self.trigger_stream1()
+        self.trigger_stream2()
 
 
 
@@ -127,17 +129,17 @@ class Test_IDMP_Vehicle:
     # 5. verify results
     #
     def verifyResults(self):
-        self.verify_stream1()
+        self.verify_stream2()
 
 
     # ---------------------   stream trigger    ----------------------
 
     #
-    #  stream1 trigger 
+    #  stream2 trigger 
     #
-    def trigger_stream1(self):
+    def trigger_stream2(self):
         ts    = self.start
-        table = f"{self.db}.`vehicle_110100_001`"
+        table = f"{self.db}.`vehicle_110100_002`"
         step  = 1 * 60 * 1000 # 1 minute
         cols  = "ts,speed"
 
@@ -145,19 +147,32 @@ class Test_IDMP_Vehicle:
         vals  = "120"
         count = 5
         ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+        vals  = "60"
+        count = 1
+        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
-        # win3 30 ~ 31 end-windows
-        ts += 30 * step
-        vals  = "80"
+
+        # win2 10~5
+        ts += 10 * step
+        vals  = "130"
+        count = 5
+        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+
+
+        # win3 50 ~ 51 end-windows
+        ts += 50 * step
+        vals  = "65"
         count = 2
         ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
 
-        # disorder win2 10~15
-        win2  = self.start + 10 * step
-        vals  = "60"
-        count = 2
-        ts    = tdSql.insertFixedVal(table, win2, step, count, cols, vals)
+        # delete win1 3 rows
+        tdSql.deleteRows(table, f"ts >= {self.start } and ts <= {self.start + 2 * step}") 
+
+        vals  = "66"
+        count = 1
+        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+
 
 
     #
@@ -165,20 +180,32 @@ class Test_IDMP_Vehicle:
     #
 
     #
-    # verify stream1
+    # verify stream2
     #
-    def verify_stream1(self):
+    def verify_stream2(self):
         # check
-        result_sql = f"select * from {self.vdb}.`result_stream1` "
+        result_sql = f"select * from {self.vdb}.`result_stream2` "
+        tdSql.checkResultsByFunc (
+            sql = result_sql, 
+            func = lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, self.start) # ts
+            and tdSql.compareData(0, 1, 6)          # cnt
+        )
+
+        # sub
+        self.verify_stream2_sub1()
+
+        tdLog.info("verify stream2 .................................. successfully.")
+
+
+    # verify stream2 sub1
+    def verify_stream2_sub1(self):
+        # check
+        result_sql = f"select * from {self.vdb}.`result_stream2_sub1` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
             func = lambda: tdSql.getRows() == 1
-            and tdSql.compareData(0, 0, self.start) # ts
-            and tdSql.compareData(0, 1, 5)          # cnt
-            and tdSql.compareData(0, 2, 120)        # avg(speed)
-        )
-
-
-        tdLog.info("verify stream1 .................................. successfully.")
-
-  
+            and tdSql.compareData(0, 0, self.start + 10 * step) # ts
+            and tdSql.compareData(0, 1, 6)                     # cnt
+        )        
+        tdLog.info("verify stream2 sub1 ............................. successfully.")

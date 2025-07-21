@@ -706,10 +706,12 @@ static int32_t stRunnerTopTaskHandleOutputBlockProj(SStreamRunnerTask* pTask, SS
       }
     }
   }
+
   if (code == 0 && (*ppForceOutBlock) && (*ppForceOutBlock)->info.rows > 0) {
-    stRunnerOutputBlock(pTask, pExec, pBlock, createTable);
+    stRunnerOutputBlock(pTask, pExec, *ppForceOutBlock, createTable);
   }
-  if (code == 0) {
+
+  if (code == 0 && pBlock ) {  // && *pNextOutIdx < taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals)
     streamPrepareNotification(pTask, pExec, pBlock, pExec->runtimeInfo.funcInfo.curOutIdx, 0,
                               pBlock ? pBlock->info.rows - 1 : 0);
     code = stRunnerOutputBlock(pTask, pExec, pBlock, createTable);
@@ -833,6 +835,10 @@ end:
     pTask->task.status = STREAM_STATUS_FAILED;
   } else {
     ST_TASK_DLOG("[runner calc]success, gid:%" PRId64 ",, status:%d", pReq->gid, pTask->task.status);
+  }
+  if (createTable) {
+    ST_TASK_ILOG("[runner calc]success, gid:%" PRId64 ", but has no data, skip create table.", pReq->gid);
+    return TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE;
   }
   return code;
 }
