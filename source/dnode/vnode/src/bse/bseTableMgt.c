@@ -436,7 +436,7 @@ int32_t tableBuilderMgtPutBatch(STableBuilderMgt *pMgt, SBseBatch *pBatch) {
     TSDB_CHECK_CODE(code, lino, _error);
   }
 
-  code = tableBuilderPutBatch(p, pBatch);
+  code = tableBuilderPut(p, pBatch);
   TSDB_CHECK_CODE(code, lino, _error);
 _error:
   if (code != 0) {

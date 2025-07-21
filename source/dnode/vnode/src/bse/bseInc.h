@@ -21,12 +21,17 @@
 extern "C" {
 #endif
 
-#define BSE_DEFAULT_BLOCK_SIZE (4 * 1024 * 1024)
+#define BSE_DEFAULT_BLOCK_SIZE (128 << 20)
 
 struct SSeqRange {
   int64_t sseq;
   int64_t eseq;
 };
+
+int8_t seqRangeContains(struct SSeqRange *p, int64_t seq);
+void   seqRangeReset(struct SSeqRange *p);
+void   seqRangeUpdate(struct SSeqRange *dst, struct SSeqRange *src);
+int8_t seqRangeIsGreater(struct SSeqRange *p, int64_t seq);
 
 struct SBlockItemInfo {
   int32_t size;
@@ -77,8 +82,43 @@ struct SBseBatch {
   bsequeue node;
 };
 
-int32_t bseGetAliveFileList(SBse *pBse, SArray **pFileList);
+typedef struct {
+  void   *data;
+  int32_t cap;
+  int8_t  type;
+  int64_t size;
+  int8_t  compressType;
 
+  void *pCachItem;
+} SBlockWrapper;
+
+int32_t blockWrapperInit(SBlockWrapper *p, int32_t cap);
+void    blockWrapperCleanup(SBlockWrapper *p);
+int32_t blockWrapperResize(SBlockWrapper *p, int32_t cap);
+void    blockWrapperClear(SBlockWrapper *p);
+void    blockWrapperTransfer(SBlockWrapper *dst, SBlockWrapper *src);
+void    blockWrapperSetType(SBlockWrapper *p, int8_t type);
+
+typedef struct {
+  int32_t          ref;
+  struct SSeqRange range;
+  SArray          *pMetaHandle;
+  SBlockWrapper    pBlockWrapper;
+  void            *pBse;
+  void            *pTableBuilder;
+} STableMemTable;
+
+int32_t bseMemTableCreate(STableMemTable **ppMemTable, int32_t cap);
+void    bseMemTableDestroy(STableMemTable *pMemTable);
+
+int32_t bseMemTableRef(STableMemTable *pMemTable);
+void    bseMemTableUnRef(STableMemTable *pMemTable);
+
+int32_t bseMemTablePush(STableMemTable *pMemTable, void *pHandle);
+
+int32_t bseMemTablGetMetaBlock(STableMemTable *pMetaTable, SArray **pMetaBlock);
+
+int32_t bseGetAliveFileList(SBse *pBse, SArray **pFileList);
 #ifdef __cplusplus
 }
 #endif
