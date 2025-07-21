@@ -80,7 +80,7 @@
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_idmp_meters.py
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_idmp_meters_td36808.py
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_idmp_tobacco.py
-#,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_nevados.py 
+,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_nevados.py 
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_phase1.py 
 
 ## 21-Stability 
