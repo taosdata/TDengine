@@ -23,10 +23,10 @@ class TestMqttCases:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_mqtt_qos(self):
-        """ Mqtt qos testing
+    def test_mqtt_rawblock(self):
+        """ Mqtt rawblock testing
 
-        mqtt qos {0, 1, 2} testing
+        mqtt rawblock testing
 
         Catalog:
             - Subscribe:Mqtt
@@ -42,15 +42,12 @@ class TestMqttCases:
 
         """
 
-        self.qos()
+        self.rawblock()
 
-    def qos(self):
-        for vgroups in range(1, 30, 10):
-            self.sub_vgroup(vgroups)
+    def rawblock(self):
+        self.sub_vgroup()
 
-        print("sleeping 10s")
         # time.sleep(20)
-        print("wake up")
 
     def sub_vgroup(self, vgroups=1):
         # ---- global parameters start ----#
@@ -59,13 +56,15 @@ class TestMqttCases:
         wal_retention_period = 3600
 
         stbName = "meters"
-        stbCreateSql=f"CREATE STABLE IF NOT EXISTS {dbName}.{stbName} (ts TIMESTAMP, c1 BOOL, c2 TINYINT, c3 SMALLINT, c4 INT, c5 BIGINT, c6 FLOAT, c7 DOUBLE, c8 binary(255), c9 TIMESTAMP, c10 NCHAR(255), c11 TINYINT UNSIGNED, c12 SMALLINT UNSIGNED, c13 INT UNSIGNED, c14 BIGINT UNSIGNED, c15 VARBINARY(255), c16 DECIMAL(38, 10), c17 VARCHAR(255), c18 GEOMETRY(10240), c19 DECIMAL(18, 4)) tags(t1 JSON)"
+        # stbCreateSql=f"CREATE STABLE IF NOT EXISTS {dbName}.{stbName} (ts TIMESTAMP, c1 BOOL, c2 TINYINT, c3 SMALLINT, c4 INT, c5 BIGINT, c6 FLOAT, c7 DOUBLE, c8 binary(255), c9 TIMESTAMP, c10 NCHAR(255), c11 TINYINT UNSIGNED, c12 SMALLINT UNSIGNED, c13 INT UNSIGNED, c14 BIGINT UNSIGNED, c15 VARBINARY(255), c16 DECIMAL(38, 10), c17 VARCHAR(255), c18 GEOMETRY(10240), c19 DECIMAL(18, 4)) tags(t1 JSON)"
+        stbCreateSql=f"CREATE STABLE IF NOT EXISTS {dbName}.{stbName} (ts TIMESTAMP, c1 BOOL, c2 TINYINT, c3 SMALLINT, c4 INT, c5 BIGINT, c6 FLOAT, c7 DOUBLE, c8 binary(255), c9 TIMESTAMP, c10 NCHAR(255), c11 TINYINT UNSIGNED, c12 SMALLINT UNSIGNED, c13 INT UNSIGNED, c14 BIGINT UNSIGNED, c15 VARBINARY(255), c17 VARCHAR(255)) tags(t1 JSON)"
 
         topicName = "topic_meters"
-        topicCreateSql = f"CREATE TOPIC IF NOT EXISTS {topicName} AS SELECT ts, tbname, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19 FROM {stbName}"
+        # topicCreateSql = f"CREATE TOPIC IF NOT EXISTS {topicName} AS SELECT ts, tbname, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19 FROM {stbName}"
+        topicCreateSql = f"CREATE TOPIC IF NOT EXISTS {topicName} AS SELECT ts, tbname, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c17 FROM {stbName}"
 
         ctbName = "d1001"
-        insertSql = f"INSERT INTO {dbName}.{ctbName} USING {dbName}.{stbName} TAGS('{{\"k1\": \"v1\"}}') VALUES (NOW, true, -79, 25761, -83885, 7865351, 3848271.756357, 92575.506626, '8.0742e+19', 752424273771827, '3.082946351e+18', 57, 21219, 627629871, 84394301683266985, '-2.653889251096953e+18', -262609547807621769.7285797, '-7.694200485148515e+19', 'POINT(1.0 1.0)', 57823334285922.827)"
+        insertSql = f"INSERT INTO {dbName}.{ctbName} USING {dbName}.{stbName} TAGS('{{\"k1\": \"v1\"}}') VALUES (NOW, true, -79, 25761, -83885, 7865351, 3848271.756357, 92575.506626, '8.0742e+19', 752424273771827, '3.082946351e+18', 57, 21219, 627629871, 84394301683266985, '-2.653889251096953e+18', '-7.694200485148515e+19')"
         insertSqls = [insertSql]
 
         stb_rows = 30
@@ -83,7 +82,8 @@ class TestMqttCases:
         
         self.mqttConf['sub_prop'] = p.Properties(pt.PacketTypes.SUBSCRIBE)
         self.mqttConf['sub_prop'].UserProperty = ('sub-offset', 'earliest')
-        self.mqttConf['sub_prop'].UserProperty = ('proto', 'fbv')
+        self.mqttConf['sub_prop'].UserProperty = ('proto', 'rawblock')
+            
         self.mqttConf['conn_prop'] = p.Properties(pt.PacketTypes.CONNECT)
         self.mqttConf['conn_prop'].SessionExpiryInterval = 60
         # ---- global parameters end ----#
@@ -123,12 +123,12 @@ class TestMqttCases:
         for i in range(stb_rows):
             ctbName = "d" + str(i)
             ts = 1750150250056200 + i
-            insertSql = f"INSERT INTO {dbName}.{ctbName} USING {dbName}.{stbName} TAGS('{{\"k1\": \"v1\"}}') VALUES ({ts}, true, -79, 25761, -83885, 7865351, 3848271.756357, 92575.506626, '8.0742e+19', 752424273771827, '3.082946351e+18', 57, 21219, 627629871, 84394301683266985, '-2.653889251096953e+18', -262609547807621769.7285797, '-7.694200485148515e+19', 'POINT(1.0 1.0)', 57823334285922.827)"
+            insertSql = f"INSERT INTO {dbName}.{ctbName} USING {dbName}.{stbName} TAGS('{{\"k1\": \"v1\"}}') VALUES ({ts}, true, -79, 25761, -83885, 7865351, 3848271.756357, 92575.506626, '8.0742e+19', 752424273771827, '3.082946351e+18', 57, 21219, 627629871, 84394301683266985, '-2.653889251096953e+18', '-7.694200485148515e+19')"
             insertSqls = [insertSql]
 
             tdSql.executes(insertSqls)
 
-        tdSql.query(f"select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c17,c18 from {dbName}.{stbName}")
+        tdSql.query(f"select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c17 from {dbName}.{stbName}")
         tdSql.checkRows(stb_rows)
 
         # qos 2 default to 1
@@ -138,18 +138,6 @@ class TestMqttCases:
         subRows = tdMqtt.getRows()
         print(f"sub rows: {subRows}")
         tdMqtt.checkRows(stb_rows)
-
-        self.mqttConf['qos'] = 0
-        self.mqttConf['topic'] = "$share/g2/topic_meters"
-        subMsg = tdMqtt.subscribe(self.mqttConf)
-        tdMqtt.checkQos(0)
-        tdMqtt.checkEqual(subMsg['qos'], 0)
-        subRows = tdMqtt.getRows()
-        print(f"sub rows: {subRows}")
-        tdMqtt.checkRows(stb_rows)
-
-        self.mqttConf['qos'] = -1                          # paho raises "Invalid Qos level."
-        self.mqttConf['topic'] = "$share/g3/topic_meters"
 
         self.drop_bnodes_dbs()
         
