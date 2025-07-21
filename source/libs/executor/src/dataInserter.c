@@ -736,6 +736,7 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
                                    const STSchema* pTSchema, int64_t uid, int32_t vgId, tb_uid_t suid) {
   SArray* pVals = NULL;
   SArray* pTagVals = NULL;
+  SArray* TagNames = NULL;
   int32_t numOfBlks = 0;
 
   terrno = TSDB_CODE_SUCCESS;
@@ -844,7 +845,7 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
       tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
       goto _end;
     }
-    SArray* TagNames = taosArrayInit(8, TSDB_COL_NAME_LEN);
+    TagNames = taosArrayInit(8, TSDB_COL_NAME_LEN);
     if (!TagNames) {
       terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
@@ -1056,6 +1057,7 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
 _end:
   taosArrayDestroy(pTagVals);
   taosArrayDestroy(pVals);
+  taosArrayDestroy(TagNames);
 
   return terrno;
 }
@@ -1440,7 +1442,7 @@ _end:
       SSubmitReq2* pReq = (SSubmitReq2*)iterator;
       if (pReq) {
         tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
-        // taosMemoryFree(pReq);
+        taosMemoryFree(pReq);
       }
     }
     taosHashCleanup(pHash);
