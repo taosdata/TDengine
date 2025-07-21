@@ -420,4 +420,3 @@ class TestCase:
         self.s4_recheck_mount_path() # recheck
 
         tdLog.success("%s successfully executed" % __file__)
-
