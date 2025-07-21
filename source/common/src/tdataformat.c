@@ -691,7 +691,7 @@ static SColVal* tRowFindColumnValue(SRowIter *iter, int32_t targetCid) {
   return pColVal;
 }
 
-static int32_t tRowMergeImpl(SArray *aRowP, STSchema *pTSchema, int32_t iStart, int32_t iEnd, RowMergeStrategy strategy) {
+static int32_t tRowMergeImpl(SArray *aRowP, STSchema *pTSchema, int32_t iStart, int32_t iEnd, ERowMergeStrategy strategy) {
   int32_t code = 0;
 
   int32_t    nRow = iEnd - iStart;
@@ -783,7 +783,7 @@ int32_t tRowSort(SArray *aRowP) {
   return code;
 }
 
-int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, RowMergeStrategy strategy) {
+int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, ERowMergeStrategy strategy) {
   int32_t code = 0;
 
   int32_t iStart = 0;
