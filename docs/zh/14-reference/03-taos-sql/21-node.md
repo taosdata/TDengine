@@ -120,7 +120,7 @@ DROP QNODE ON DNODE dnode_id;
 CREATE BNODE ON DNODE dnode_id [PROTOCOL protocol];
 ```
 
-系统启动默认没有 BNODE，用户可以创建 BNODE 来启动订阅服务。一个 dnode 上只能创建一个 BNODE。protocol 为可选配置项，不提供时，默认为 “mqtt”，后续会扩展其它协议。bnode 创建成功后，dnode 会启动子进程 taosmqtt，对外提供订阅服务。
+系统启动默认没有 BNODE，用户可以创建 BNODE 来启动订阅服务。一个 dnode 上只能创建一个 BNODE。protocol 为可选配置项，不提供时，默认为“mqtt”，后续会扩展其它协议。bnode 创建成功后，dnode 会启动子进程 taosmqtt，对外提供订阅服务。
 
 ## 查看订阅节点
 
