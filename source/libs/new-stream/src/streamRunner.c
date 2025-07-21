@@ -674,10 +674,12 @@ static int32_t stRunnerTopTaskHandleOutputBlockProj(SStreamRunnerTask* pTask, SS
       }
     }
   }
+
   if (code == 0 && (*ppForceOutBlock) && (*ppForceOutBlock)->info.rows > 0) {
-    stRunnerOutputBlock(pTask, pExec, pBlock, createTable);
+    stRunnerOutputBlock(pTask, pExec, *ppForceOutBlock, createTable);
   }
-  if (code == 0) {
+
+  if (code == 0 && pBlock ) {  // && *pNextOutIdx < taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals)
     streamPrepareNotification(pTask, pExec, pBlock, pExec->runtimeInfo.funcInfo.curOutIdx, 0,
                               pBlock ? pBlock->info.rows - 1 : 0);
     code = stRunnerOutputBlock(pTask, pExec, pBlock, createTable);
