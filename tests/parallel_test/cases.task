@@ -16,3 +16,33 @@
 ,,n,docs-examples-test,bash go.sh
 ,,n,docs-examples-test,bash test_R.sh
 
+#
+# system test
+#
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/ts-5617.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/stream_multi_agg.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/stream_basic.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/scalar_function.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/at_once_interval.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/at_once_session.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/at_once_state_window.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/window_close_interval.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/window_close_session.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/window_close_state_window.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/max_delay_interval.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/max_delay_session.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/at_once_interval_ext.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/max_delay_interval_ext.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/window_close_session_ext.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/partition_interval.py
+#ci ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/pause_resume_test.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/state_window_case.py
+#,,n,system-test,python3 ./test.py -f 8-stream/vnode_restart.py -N 4
+#,,n,system-test,python3 ./test.py -f 8-stream/snode_restart.py -N 4
+#newstm,,n,system-test,python3 ./test.py -f 8-stream/snode_restart_with_checkpoint.py -N 4
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/force_window_close_interp.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/force_window_close_interval.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/checkpoint_info.py -N 4
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/checkpoint_info2.py -N 4
+
+
