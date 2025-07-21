@@ -657,31 +657,32 @@ static int32_t stRunnerTopTaskHandleOutputBlockProj(SStreamRunnerTask* pTask, SS
   int32_t code = 0;
   int32_t startWinIdx = *pNextOutIdx;
   int32_t endWinIdx = 0;
-  if (*ppForceOutBlock) blockDataCleanup(*ppForceOutBlock);
-  if (*pNextOutIdx < taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals)) {
-    if (*pNextOutIdx == pExec->runtimeInfo.funcInfo.curOutIdx && !pBlock) {
-      // got no data from current window
-      code = streamForceOutput(pExec->pExecutor, ppForceOutBlock, *pNextOutIdx);
-      streamPrepareNotification(pTask, pExec, *ppForceOutBlock, *pNextOutIdx, 0, 0);
-      (*pNextOutIdx)++;
-    } else if (*pNextOutIdx < pExec->runtimeInfo.funcInfo.curOutIdx && code == 0) {
-      // got data from later windows, force output cur window
-      while (*pNextOutIdx < pExec->runtimeInfo.funcInfo.curOutIdx && code == 0) {
-        code = streamForceOutput(pExec->pExecutor, ppForceOutBlock, *pNextOutIdx);
-        streamPrepareNotification(pTask, pExec, *ppForceOutBlock, *pNextOutIdx, 0, 0);
-        // won't overflow, total rows should smaller than 4096
-        (*pNextOutIdx)++;
-      }
-    }
-  }
-  if (code == 0 && (*ppForceOutBlock) && (*ppForceOutBlock)->info.rows > 0) {
-    stRunnerOutputBlock(pTask, pExec, pBlock, createTable);
-  }
-  if (code == 0) {
-    streamPrepareNotification(pTask, pExec, pBlock, pExec->runtimeInfo.funcInfo.curOutIdx, 0,
+  // if (*ppForceOutBlock) blockDataCleanup(*ppForceOutBlock);
+  // if (*pNextOutIdx < taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals)) {
+  //   if (*pNextOutIdx == pExec->runtimeInfo.funcInfo.curOutIdx && !pBlock) {
+  //     // got no data from current window
+  //     code = streamForceOutput(pExec->pExecutor, ppForceOutBlock, *pNextOutIdx);
+  //     streamPrepareNotification(pTask, pExec, *ppForceOutBlock, *pNextOutIdx, 0, 0);
+  //     (*pNextOutIdx)++;
+  //   } else if (*pNextOutIdx < pExec->runtimeInfo.funcInfo.curOutIdx && code == 0) {
+  //     // got data from later windows, force output cur window
+  //     while (*pNextOutIdx < pExec->runtimeInfo.funcInfo.curOutIdx && code == 0) {
+  //       code = streamForceOutput(pExec->pExecutor, ppForceOutBlock, *pNextOutIdx);
+  //       streamPrepareNotification(pTask, pExec, *ppForceOutBlock, *pNextOutIdx, 0, 0);
+  //       // won't overflow, total rows should smaller than 4096
+  //       (*pNextOutIdx)++;
+  //     }
+  //   }
+  // }
+
+  // if (code == 0 && (*ppForceOutBlock) && (*ppForceOutBlock)->info.rows > 0) {
+  //   stRunnerOutputBlock(pTask, pExec, *ppForceOutBlock, createTable);
+  // }
+
+  if (code == 0 && pBlock ) {  // && *pNextOutIdx < taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals)
+    streamPrepareNotification(pTask, pExec, pBlock, pExec->runtimeInfo.funcInfo.curOutIdx - 1, 0,
                               pBlock ? pBlock->info.rows - 1 : 0);
     code = stRunnerOutputBlock(pTask, pExec, pBlock, createTable);
-    *pNextOutIdx = pExec->runtimeInfo.funcInfo.curOutIdx + 1;
   }
   if (code == 0) {
     endWinIdx = *pNextOutIdx - 1;
