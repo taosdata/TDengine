@@ -114,30 +114,6 @@ DROP QNODE ON DNODE dnode_id;
 
 Delete the QNODE on the DNODE with ID dnode_id, but this does not affect the status of that dnode.
 
-## Create Subscription Node
-
-```sql
-CREATE BNODE ON DNODE dnode_id PROTOCOL protocol;
-```
-
-By default, there are no BNODEs when the system starts. Users can create BNODEs to start subscription services. Only one BNODE can be created on a DNODE. The `PROTOCOL` is optional, and the default is “mqtt”, if not provided; Other protocols will be added later. After bnode is created successfully, dnode will start the subprocess `taosmqtt` to provide subscription services.
-
-## View Subscription Nodes
-
-```sql
-SHOW BNODES;
-```
-
-List all subscription nodes in the cluster, including their ID and the DNODE they are on.
-
-## Delete Subscription Node
-
-```sql
-DROP BNODE ON DNODE dnode_id;
-```
-
-Delete the BNODE on the DNODE with ID dnode_id,  and the `taosmqtt` subprocess on this dnode will exit to stop the subscription service.
-
 ## Query Cluster Status
 
 ```sql
