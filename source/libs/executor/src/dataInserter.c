@@ -889,7 +889,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
 
   if (needSortMerge) {
     if ((tRowSort(tbData.aRowP) != TSDB_CODE_SUCCESS) ||
-        (terrno = tRowMerge(tbData.aRowP, (STSchema*)pTSchema, 0)) != 0) {
+        (terrno = tRowMerge(tbData.aRowP, (STSchema*)pTSchema, PREFER_NON_NULL)) != 0) {
       goto _end;
     }
   }
