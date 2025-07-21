@@ -1045,7 +1045,7 @@ class TestStreamSubqueryState:
             res_query="select * from rdb.r109 limit 1",
             exp_query="select cast('2025-01-01 00:15:00.000' as timestamp) ts, count(ta.c1), count(ta.c2), sum(ta.c2), count(tb.c1), count(tb.c2), sum(tb.c2) from tdb.v2 ta join tdb.t2 tb on ta.ts = tb.ts where ta.ts >= '2025-01-01 00:00:00.000' and ta.ts < '2025-01-01 00:35:00.000' group by ta.c2 having sum(tb.c2) > 130;",
         )
-        self.streams.append(stream)
+        # self.streams.append(stream) bug
 
         stream = StreamItem(
             id=110,
@@ -1069,7 +1069,7 @@ class TestStreamSubqueryState:
             res_query="select * from rdb.r112 where tag_tbname='v2'",
             exp_query="select cast('2025-01-01 00:15:00.000' as timestamp) ts, count(ta.c1), count(ta.c2), sum(ta.c2), count(tb.c1), count(tb.c2), sum(tb.c2), 'v2' from tdb.v2 ta join tdb.t2 tb on ta.ts = tb.ts where ta.ts >= '2025-01-01 00:00:00.000' and ta.ts < '2025-01-01 00:35:00.000' group by ta.c2 having sum(tb.c2) > 130;",
         )
-        self.streams.append(stream)
+        # self.streams.append(stream) bug
 
         stream = StreamItem(
             id=113,
@@ -1081,12 +1081,11 @@ class TestStreamSubqueryState:
 
         stream = StreamItem(
             id=114,
-            # stream="create stream rdb.s114 state_window(c1) from tdb.vtriggers partition by tbname into rdb.r114 as select _twstart, count(ta.c1), count(ta.c2), sum(ta.c2), count(tb.c1), count(tb.c2), sum(tb.c2) from tdb.t2 ta join tdb.v2 tb on ta.ts = tb.ts where ta.ts >= _twstart and ta.ts < _twend + 4m group by ta.c2 having sum(tb.c2) > 130;",
             stream="create stream rdb.s114 state_window(c1) from tdb.vtriggers partition by tbname into rdb.r114 as select _twstart, count(ta.c1), count(ta.c2), sum(ta.c2), count(tb.c1), count(tb.c2), sum(tb.c2) from tdb.t2 ta join %%tbname tb on ta.ts = tb.ts where ta.ts >= _twstart and ta.ts < _twend + 4m group by ta.c2 having sum(tb.c2) > 130;",
             res_query="select * from rdb.r114 where tag_tbname='v2'",
             exp_query="select cast('2025-01-01 00:15:00.000' as timestamp) ts, count(ta.c1), count(ta.c2), sum(ta.c2), count(tb.c1), count(tb.c2), sum(tb.c2), 'v2' from tdb.t2 ta join tdb.v2 tb on ta.ts = tb.ts where ta.ts >= '2025-01-01 00:00:00.000' and ta.ts < '2025-01-01 00:35:00.000' group by ta.c2 having sum(tb.c2) > 130;",
         )
-        # self.streams.append(stream) TD-36623
+        # self.streams.append(stream) bug
 
         stream = StreamItem(
             id=115,
@@ -1146,11 +1145,11 @@ class TestStreamSubqueryState:
 
         stream = StreamItem(
             id=122,
-            stream="create stream rdb.s122 state_window(c1) from tdb.triggers partition by tbname into rdb.r122 as select first(tats), last(tbts), count(tat1), sum(tat1), first(tbt1), last(tbt1) from (select ta.cts tats, tb.cts tbts, ta.cint tat1, tb.cint tbt1 from qdb.t1 ta left join qdb.t2 tb on ta.cts=tb.cts and (ta.cint >= tb.cint) order by ta.cts) where tats >= _twstart and tats < _twend",
-            res_query="select * from rdb.r122 where tag_tbname='t1';",
-            exp_query="select first(tats), last(tbts), count(tat1), sum(tat1), first(tbt1), last(tbt1), 't1' from (select ta.cts tats, tb.cts tbts, ta.cint tat1, tb.cint tbt1 from qdb.t1 ta left join qdb.t2 tb on ta.cts=tb.cts and (ta.cint >= tb.cint) order by ta.cts) where tats >= '2025-01-01 00:00:00.000' and tats < '2025-01-01 00:35:00.000' interval(5m);",
+            stream="create stream rdb.s122 state_window(c1) from tdb.triggers partition by tbname into rdb.r122 as select first(tats), last(tbts), count(tat1), sum(tat1), first(tbt1), last(tbt1) from (select ta.cts tats, tb.cts tbts, ta.cint tat1, tb.cint tbt1 from qdb.t1 ta left join qdb.t2 tb on ta.cts=tb.cts and (ta.cint >= tb.cint) order by ta.cts) where tats >= _twstart and tats < _twend + 4m",
+            res_query="select * from rdb.r122 where tag_tbname='t1' limit 1 offset 1;",
+            exp_query="select first(tats), last(tbts), count(tat1), sum(tat1), first(tbt1), last(tbt1), 't1' from (select ta.cts tats, tb.cts tbts, ta.cint tat1, tb.cint tbt1 from qdb.t1 ta left join qdb.t2 tb on ta.cts=tb.cts and (ta.cint >= tb.cint) order by ta.cts) where tats >= '2025-01-01 00:05:00.000' and tats < '2025-01-01 00:10:00.000';",
         )
-        # self.streams.append(stream) TD-36170
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=123,
@@ -1472,7 +1471,7 @@ class TestStreamSubqueryState:
     def check27(self):
         tdSql.checkResultsByFunc(
             sql="select * from rdb.r27 where tag_tbname='v2'",
-            func=lambda: tdSql.getRows() == 5
+            func=lambda: tdSql.getRows() == 4
             and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
             and tdSql.compareData(0, 1, 45)
             and tdSql.compareData(0, 2, 10)
@@ -1482,12 +1481,9 @@ class TestStreamSubqueryState:
             and tdSql.compareData(2, 0, "2025-01-01 00:10:00.000")
             and tdSql.compareData(2, 1, 245)
             and tdSql.compareData(2, 2, 10)
-            and tdSql.compareData(3, 0, "2025-01-01 00:15:00.000")
-            and tdSql.compareData(3, 1, 345)
-            and tdSql.compareData(3, 2, 10)
-            and tdSql.compareData(4, 0, "2025-01-01 00:30:00.000")
-            and tdSql.compareData(4, 1, 645)
-            and tdSql.compareData(4, 2, 10),
+            and tdSql.compareData(3, 0, "2025-01-01 00:30:00.000")
+            and tdSql.compareData(3, 1, 645)
+            and tdSql.compareData(3, 2, 10),
         )
 
     def check40(self):

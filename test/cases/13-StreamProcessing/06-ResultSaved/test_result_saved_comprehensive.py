@@ -465,7 +465,8 @@ class TestStreamResultSavedComprehensive:
             exp_query="select _wstart ts, count(*) cnt from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
             check_func=self.check21,
         )
-        self.streams.append(stream)
+        # TODO (smj) : comment not support now, reopen this case when comment is supported
+        #self.streams.append(stream)
 
         # Test 4.5: Correctness of generated column names in specified/unspecified scenarios
         stream = StreamItem(

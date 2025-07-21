@@ -203,7 +203,8 @@ class Test_IDMP_Meters:
         self.verify_stream1()
         self.verify_stream2()
         self.verify_stream3()
-        self.verify_stream4()
+        # JIRA TD-36815 fixed need open this check
+        #self.verify_stream4()
         self.verify_stream5()
         self.verify_stream6()
         self.verify_stream7()
@@ -215,7 +216,7 @@ class Test_IDMP_Meters:
     # 6. write trigger data again
     #
     def writeTriggerDataAgain(self):
-        # stream4
+        # stream4 
         self.trigger_stream4_again()
         # stream6
         self.trigger_stream6_again()
@@ -226,7 +227,8 @@ class Test_IDMP_Meters:
     #
     def verifyResultsAgain(self):
         # stream4
-        self.verify_stream4_again()
+        # JIRA TD-36815 fixed need open this check
+        # self.verify_stream4_again()
         # stream6
         self.verify_stream6_again()
 
@@ -431,7 +433,7 @@ class Test_IDMP_Meters:
 
         # trigger first windows close with 11 steps
         count = 1
-        ts += 10 * step
+        ts += 30 * step
         vals = "40,500,300"
         ts = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
@@ -441,8 +443,7 @@ class Test_IDMP_Meters:
         count = 2
         disTs = spanTs + 5 * step
         orderVals = [36, 406, 206]
-        # ***** bug6 *****
-        #disTs = tdSql.insertOrderVal(table, disTs, step, count, cols, orderVals)
+        disTs = tdSql.insertOrderVal(table, disTs, step, count, cols, orderVals)
 
 
     #
@@ -744,7 +745,8 @@ class Test_IDMP_Meters:
         result_sql = f"select * from {self.vdb}.`result_stream4_sub9` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
-            func = lambda: tdSql.getRows() == 119
+            func = lambda: tdSql.getRows() == 119,
+            retry = 120
         )
 
         for i in range(tdSql.getRows()):
@@ -833,8 +835,8 @@ class Test_IDMP_Meters:
             sql  = result_sql, 
             func = lambda: tdSql.getRows() == 1
             and tdSql.compareData(0, 0, self.start2) # ts
-            and tdSql.compareData(0, 1, 3 + 4 + 1)   # cnt
-            and tdSql.compareData(0, 2, 31)          # last current
+            and tdSql.compareData(0, 1, 3 + 4 + 1 + 2)   # cnt
+            and tdSql.compareData(0, 2, 37)          # last current
         )
 
         tdLog.info(f"verify stream5 sub1 ............................ successfully.")

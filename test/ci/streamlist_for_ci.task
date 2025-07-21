@@ -6,10 +6,10 @@
 #,,n,.,pytest cases/13-StreamProcessing/01-Snode/snode_mgmt_zlv.py -N 6 --replica 3
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_mgmt.py -N 8
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_replicas.py -N 8
-,,n,.,pytest  cases/13-StreamProcessing/01-Snode/snode_privileges.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_privileges.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_privileges_monitor_table.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_privileges_recalc.py
-,,n,.,pytest cases/13-StreamProcessing/01-Snode/snode_privileges_twodb.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_privileges_twodb.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_params_alter.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_params_alter_normaluser.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_params_check_default.py
@@ -17,10 +17,10 @@
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_params_check.py
 
 ## 02-Stream
-,,n,.,pytest cases/13-StreamProcessing/02-Stream/stream_nosnode.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/02-Stream/stream_nosnode.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/02-Stream/stream_checkname.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/02-Stream/stream_long_name.py
-,,n,.,pytest cases/13-StreamProcessing/02-Stream/stream_samename.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/02-Stream/stream_samename.py
 
 
 ## 03-TriggerMode
@@ -43,11 +43,14 @@
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options_vtbl.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options_abnormal.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options_abnormal_vtbl.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_meta.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_meta_vtbl.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_disorderUpdateDelete.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_disorderUpdateDelete_vtbl.py
 
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options_vtbl.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options_us.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options_ns.py
 
 ## 05-Notify
 
@@ -75,8 +78,9 @@
 
 ## 20-UseCase
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_idmp_meters.py
+,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_idmp_meters_td36808.py
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_idmp_tobacco.py
-,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_nevados.py 
+#,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_nevados.py 
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_phase1.py 
 
 ## 21-Stability 

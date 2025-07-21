@@ -1499,18 +1499,22 @@ int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
       }
       SColumnInfoData *pTableNameCol = taosArrayGet(pChildInfo->pDataBlock, 0);
       SColumnInfoData *pStbNameCol = taosArrayGet(pChildInfo->pDataBlock, 1);
-      SColumnInfoData *pColNameCol = taosArrayGet(pChildInfo->pDataBlock, 2);
-      SColumnInfoData *pUidCol = taosArrayGet(pChildInfo->pDataBlock, 3);
-      SColumnInfoData *pColIdCol = taosArrayGet(pChildInfo->pDataBlock, 4);
-      SColumnInfoData *pRefCol = taosArrayGet(pChildInfo->pDataBlock, 5);
-      SColumnInfoData *pVgIdCol = taosArrayGet(pChildInfo->pDataBlock, 6);
+      SColumnInfoData *pDbNameCol = taosArrayGet(pChildInfo->pDataBlock, 2);
+      SColumnInfoData *pColNameCol = taosArrayGet(pChildInfo->pDataBlock, 3);
+      SColumnInfoData *pUidCol = taosArrayGet(pChildInfo->pDataBlock, 4);
+      SColumnInfoData *pColIdCol = taosArrayGet(pChildInfo->pDataBlock, 5);
+      SColumnInfoData *pRefCol = taosArrayGet(pChildInfo->pDataBlock, 6);
+      SColumnInfoData *pVgIdCol = taosArrayGet(pChildInfo->pDataBlock, 7);
 
       for (int32_t i = 0; i < pChildInfo->info.rows; i++) {
         if (!colDataIsNull_s(pStbNameCol, i)) {
-          char* rawname = colDataGetData(pStbNameCol, i);
-          char *stbname = varDataVal(rawname);
-          if (strncmp(varDataVal(rawname), pInfo->vtbScan.stbName, varDataLen(rawname)) == 0 && strlen(pInfo->vtbScan.stbName) == varDataLen(rawname)) {
+          char* stbrawname = colDataGetData(pStbNameCol, i);
+          char* dbrawname = colDataGetData(pDbNameCol, i);
 
+          if (strncmp(varDataVal(stbrawname), pInfo->vtbScan.stbName, varDataLen(stbrawname)) == 0 &&
+              strlen(pInfo->vtbScan.stbName) == varDataLen(stbrawname) &&
+              strncmp(varDataVal(dbrawname), pInfo->vtbScan.dbName, varDataLen(dbrawname)) == 0 &&
+              strlen(pInfo->vtbScan.dbName) == varDataLen(dbrawname)) {
             char *ctbName = colDataGetData(pTableNameCol, i);
             SColRefKV kv = {0};
             if (colDataIsNull_s(pRefCol, i)) {
