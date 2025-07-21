@@ -169,7 +169,7 @@ WS_TAOS* init_env() {
   code = ws_free_result(pRes);
   if (code != 0) {
     fprintf(stderr, "Failed to free result, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
-    goto END;
+    return NULL;
   }
 
   return pConn;
@@ -282,7 +282,7 @@ ws_tmq_t* build_consumer(const ConsumerConfig* config) {
   if (WS_TMQ_CONF_OK != code) {
     errno = ws_tmq_conf_destroy(conf);
     if (errno != 0) {
-      fprintf(stderr, "Failed to destroy tmq conf, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_tmq_errstr(NULL));
+      fprintf(stderr, "Failed to destroy tmq conf, ErrCode: 0x%x, ErrMessage: %s.\n", errno, ws_tmq_errstr(NULL));
     }
     return NULL;
   }
@@ -290,7 +290,7 @@ ws_tmq_t* build_consumer(const ConsumerConfig* config) {
   if (WS_TMQ_CONF_OK != code) {
     errno = ws_tmq_conf_destroy(conf);
     if (errno != 0) {
-      fprintf(stderr, "Failed to destroy tmq conf, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_tmq_errstr(NULL));
+      fprintf(stderr, "Failed to destroy tmq conf, ErrCode: 0x%x, ErrMessage: %s.\n", errno, ws_tmq_errstr(NULL));
     }
     return NULL;
   }
@@ -298,7 +298,7 @@ ws_tmq_t* build_consumer(const ConsumerConfig* config) {
   if (WS_TMQ_CONF_OK != code) {
     errno = ws_tmq_conf_destroy(conf);
     if (errno != 0) {
-      fprintf(stderr, "Failed to destroy tmq conf, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_tmq_errstr(NULL));
+      fprintf(stderr, "Failed to destroy tmq conf, ErrCode: 0x%x, ErrMessage: %s.\n", errno, ws_tmq_errstr(NULL));
     }
     return NULL;
   }
@@ -306,7 +306,7 @@ ws_tmq_t* build_consumer(const ConsumerConfig* config) {
   if (WS_TMQ_CONF_OK != code) {
     errno = ws_tmq_conf_destroy(conf);
     if (errno != 0) {
-      fprintf(stderr, "Failed to destroy tmq conf, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_tmq_errstr(NULL));
+      fprintf(stderr, "Failed to destroy tmq conf, ErrCode: 0x%x, ErrMessage: %s.\n", errno, ws_tmq_errstr(NULL));
     }
     return NULL;
   }
@@ -315,7 +315,7 @@ ws_tmq_t* build_consumer(const ConsumerConfig* config) {
   if (WS_TMQ_CONF_OK != code) {
     errno = ws_tmq_conf_destroy(conf);
     if (errno != 0) {
-      fprintf(stderr, "Failed to destroy tmq conf, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_tmq_errstr(NULL));
+      fprintf(stderr, "Failed to destroy tmq conf, ErrCode: 0x%x, ErrMessage: %s.\n", errno, ws_tmq_errstr(NULL));
     }
     return NULL;
   }
@@ -327,7 +327,7 @@ _end:
   // destroy the configuration object
   errno = ws_tmq_conf_destroy(conf);
   if (errno != 0) {
-    fprintf(stderr, "Failed to destroy tmq conf, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_tmq_errstr(NULL));
+    fprintf(stderr, "Failed to destroy tmq conf, ErrCode: 0x%x, ErrMessage: %s.\n", errno, ws_tmq_errstr(NULL));
   }
   return tmq;
 }

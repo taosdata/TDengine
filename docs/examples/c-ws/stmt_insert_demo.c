@@ -152,8 +152,11 @@ void insertData(WS_TAOS *taos) {
 
     for (int j = 0; j < num_of_row; j++) {
       struct timeval tv;
-      code = gettimeofday(&tv, NULL);
-      checkErrorCode(stmt, code, "Failed to get current time");
+      if (gettimeofday(&tv, NULL) != 0) {
+        fprintf(stderr, "Failed to get current time\n");
+        exit(EXIT_FAILURE);
+      }
+
       long long milliseconds = tv.tv_sec * 1000LL + tv.tv_usec / 1000;  // current timestamp in milliseconds
       int64_t   ts = milliseconds + j;
       float     current = (float)rand() / RAND_MAX * 30;
@@ -180,7 +183,10 @@ void insertData(WS_TAOS *taos) {
   }
   fprintf(stdout, "Successfully inserted %d rows to power.meters.\n", total_affected);
   code = ws_stmt_close(stmt);
-  checkErrorCode(stmt, code, "Failed to close stmt");
+  if (code != 0) {
+    fprintf(stderr, "Failed to close stmt, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_stmt_errstr(stmt));
+    exit(EXIT_FAILURE);
+  }
 }
 
 int main() {

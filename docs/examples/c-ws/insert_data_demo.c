@@ -55,6 +55,11 @@ static int DemoInsertData() {
     }
     return -1;
   }
+
+  // you can check affectedRows here
+  int rows = ws_affected_rows(result);
+  fprintf(stdout, "Successfully inserted %d rows into power.meters.\n", rows);
+
   code = ws_free_result(result);
   if (code != 0) {
     fprintf(stderr, "Failed to free result, ErrCode: 0x%x, ErrMessage: %s\n.", code, ws_errstr(result));
@@ -64,10 +69,6 @@ static int DemoInsertData() {
     }
     return -1;
   }
-
-  // you can check affectedRows here
-  int rows = ws_affected_rows(result);
-  fprintf(stdout, "Successfully inserted %d rows into power.meters.\n", rows);
 
   // close & clean
   code = ws_close(taos);
