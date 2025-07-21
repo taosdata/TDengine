@@ -580,6 +580,11 @@ static int32_t stRunnerForceOutputHelp(SStreamRunnerTask* pTask, SStreamRunnerTa
         // no more windows to process
         break;
       }
+      if (rowsInput != 0 && rowIdx >= rowsInput) {
+        // no more rows in this block to process
+        // if current window is an empty window, we still need to force output all the windows. or break to wait next block.
+        break;
+      }
 
       pTriggerCalcParam = taosArrayGet(pTriggerCalcParams, curWinIdx);
       curWin.skey = pTriggerCalcParam->wstart;
