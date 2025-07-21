@@ -1438,12 +1438,12 @@ int32_t dataBlocksToSubmitReqArray(SDataInserterHandle* pInserter, SArray* pMsgs
 
 _end:
   if (pHash != NULL) {
-    while ((iterator = taosHashIterate(pHash, iterator))) {
-      SSubmitReq2* pReq = (SSubmitReq2*)iterator;
-      if (pReq) {
-        tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
-        taosMemoryFree(pReq);
-      }
+    void* pIter = taosHashIterate(pHash, NULL);
+    while (pIter) {
+      SSubmitReq2* pReq = pIter;
+      tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
+      // taosMemoryFree(pReq);
+      pIter = taosHashIterate(pHash, pIter);
     }
     taosHashCleanup(pHash);
   }
@@ -2221,6 +2221,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   taosMemoryFree(pInserter->pManager);
 
   if (pInserter->dbVgInfoMap) {
+    taosHashSetFreeFp(pInserter->dbVgInfoMap, freeUseDbOutput_tmp);
     taosHashCleanup(pInserter->dbVgInfoMap);
   }
 
