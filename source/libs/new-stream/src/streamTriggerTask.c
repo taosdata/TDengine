@@ -3010,7 +3010,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       }
 
       if (continueToFetch) {
-        ST_TASK_DLOG("continue to fetch wal metas since some readers are not exhausted: %" PRIu64,
+        ST_TASK_DLOG("continue to fetch wal metas since some readers are not exhausted: %" PRIzu,
                      TARRAY_SIZE(pTask->readerList));
         for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
              pContext->curReaderIdx++) {

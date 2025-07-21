@@ -941,7 +941,6 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
     // the pDataBlock are always the same one, no need to call this again
     code = setInputDataBlock(pSup, pBlock, pInfo->binfo.inputTsOrder, scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _end);
-    qInfo("scan in openIntervalAgg, %p", pOperator);
     if (hashIntervalAgg(pOperator, &pInfo->binfo.resultRowInfo, pBlock, scanFlag)) break;
   }
 
