@@ -23,7 +23,7 @@ clientName="${PREFIX}"
 serverName="${PREFIX}d"
 udfdName="${PREFIX}udf"
 configFile="${PREFIX}.cfg"
-productName="TDengine"
+productName="TDengine TSDB"
 emailName="taosdata.com"
 uninstallScript="rm${PREFIX}"
 historyFile="${PREFIX}_history"
@@ -298,6 +298,7 @@ function install_lib() {
   #link lib/link_dir
   ${csudo}ln -sf ${driver_path}/libtaos.* ${lib_link_dir}/libtaos.so.1
   ${csudo}ln -sf ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
+  ${csudo}ln -sf ${driver_path}/libtaosnative.* ${lib_link_dir}/libtaosnative.so.1
   ${csudo}ln -sf ${lib_link_dir}/libtaosnative.so.1 ${lib_link_dir}/libtaosnative.so
 
   ${csudo}ln -sf ${driver_path}/libtaosws.so.* ${lib_link_dir}/libtaosws.so || :
@@ -1010,7 +1011,7 @@ function updateProduct() {
     echo
 
     echo -e "\033[44;32;1mTo start all the components                 : sudo start-all.sh${NC}"
-    echo -e "\033[44;32;1mTo access ${productName} Commnd Line Interface    : ${clientName} -h $serverFqdn${NC}"
+    echo -e "\033[44;32;1mTo access ${productName} Command Line Interface    : ${clientName} -h $serverFqdn${NC}"
     echo -e "\033[44;32;1mTo access ${productName} Graphic User Interface   : http://$serverFqdn:6060${NC}"
     if [ "$verMode" == "cluster" ]; then
       echo -e "\033[44;32;1mTo read the user manual           : http://$serverFqdn:6060/docs${NC}"
