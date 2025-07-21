@@ -129,8 +129,8 @@ class Test_IDMP_Meters:
 
         sqls = [
             # stream6
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream6`      count_window(1,`电压`,`电流`) FROM `tdasset`.`vt_em-6` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream6`      AS select _twstart as output_timestamp, `电压`*`电流` as `电压乘以电流`  from tdasset.`vt_em-6` where ts >= _twstart and ts <=_twend",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream6_sub1` count_window(1,`电压`,`电流`) FROM `tdasset`.`vt_em-6`                                 NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream6_sub1` AS select _twstart as output_timestamp, `电压`*`电流` as `电压乘以电流`  from tdasset.`vt_em-6` where ts >= _twstart and ts <=_twend",
+            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream6`      count_window(1,`电压`,`电流`) FROM `tdasset`.`vt_em-6` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream6`      AS select _twstart+3s as output_timestamp, `电压`*`电流` as `电压乘以电流`  from tdasset.`vt_em-6` where ts >= _twstart+1s and ts <=_twend+2s",
+            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream6_sub1` count_window(1,`电压`,`电流`) FROM `tdasset`.`vt_em-6`                                 NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream6_sub1` AS select _twstart+3s as output_timestamp, `电压`*`电流` as `电压乘以电流`  from tdasset.`vt_em-6` where ts >= _twstart+1s and ts <=_twend+2s",
         ]
 
         tdSql.executes(sqls)
