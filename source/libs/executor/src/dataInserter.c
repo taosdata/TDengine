@@ -2224,6 +2224,9 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
     taosHashSetFreeFp(pInserter->dbVgInfoMap, freeUseDbOutput_tmp);
     taosHashCleanup(pInserter->dbVgInfoMap);
   }
+  if (pInserter->pTagSchema) {
+    tDeleteSchemaWrapper(pInserter->pTagSchema);
+  }
 
   return TSDB_CODE_SUCCESS;
 }
