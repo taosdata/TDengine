@@ -5,7 +5,6 @@ description: 介绍 TDgpt 内置时序数据预测模型
 
 import covariate from '../pic/fc-covariate.png';
 
-
 时序数据预测分析以持续一个时间段的时序数据作为输入，预测接下一个连续时间区间内时间序列数据趋势，并且用户可以指定（预测）输出的时间序列数据点数量。TDengine 引入新的 SQL 函数 `FORECAST` 提供预测分析功能。基础（用于预测的历史时间序列）数据是该函数的输入，输出即为预测结果。用户可以通过 `FORECAST` 函数调用 TDgpt 提供的预测算法提供的服务。预测分析通常只能针对超级表的子表或者不同表中同一个时间序列。
 
 在后续章节中，使用时序数据表 `foo` 作为示例，介绍预测和异常检测算法的使用方式，`foo` 表模式定义如下：
@@ -106,21 +105,21 @@ taos> select _flow, _fhigh, _frowts, forecast(val) from foo;
 TDgpt 支持单变量分析预测 (single-variable forecasting) 。3.3.6.4 版本开始支持历史协变量分析预测 (co-variate forecasting) ，
 暂不支持**静态协变量**。
 
-需要注意的是协变量分析预测只能搭配 moirai 时序基础模型，为此需要部署 moirai 时序数据基础模型。此时，参数 `algo` 只能是 `moiria`。
+使用协变量分析预测时，需要部署 moirai 时序数据基础模型。此时，参数 `algo` 只能是 `moiria`。
 在后续的版本中，我们将提供其他时序基础模型（如 timesfm）的协变量预测分析能力。
 
 <figure style={{textAlign:"center"}}>
 <img src={covariate} alt="协变量预测" />
 </figure>
 
-上图中包含两个协变量，一个目标变量（又称为主变量）。其中 `Target` 是预测分析的目标，`Predication value` 是预测结果。 `Past dynamic real features`  是历史协变量，`Dynamic real feature` 是未来协变量。历史协变量和未来协变量数据在时间段上与目标变量相同时间区间上的数据是从时序数据库中获取，未来协变量中与目标时间段对应的数据需要在 SQL 语句中输入。具体使用方式见下面的详细介绍。
+上图中包含两个协变量，一个目标变量（又称为主变量）。其中 `Target` 是预测分析的目标，`Predication value` 是预测结果。 `Past dynamic real features` 是历史协变量，`Dynamic real feature` 是未来协变量。历史协变量和未来协变量数据与目标变量相同时间区间上的数据是从时序数据库中获取的，未来协变量中与目标时间段对应的数据需要在 SQL 语句中输入。具体使用方式见下面的详细介绍。
 
 ### 历史协变量预测
 
 使用历史协变量预测非常简单，使用如下语句即可调用协变量预测分析服务 (以下语句只能在 3.3.6.4 及以后的版本运行)。
 
-当 `forecast` 函数的输入单列的时候，即默认的单变量分析预测模式。多列输入的时候，第一列为**主变量**，之后的输入数据列是协变量。
-所有的输入列均只能是数值类型。每次预测查询允许的输入的历史协变量数据（列）限制为 10 列，如下 SQL 语句展示了使用协变量的预测分析功能。
+当 `forecast` 函数输入单列时，为默认的单变量分析预测模式。输入多列时，第一列为**主变量**，之后的输入数据列是协变量。
+所有输入列均只能是数值类型。每次预测查询允许输入的历史协变量数据（列）限制为 10 列，如下 SQL 语句展示了使用协变量的预测分析功能。
 
 ```sql
 ---- 第一列（val）为主变量，之后的列（past_co_val）为历史协变量，调用 moirai 基础时序模型
@@ -130,27 +129,25 @@ select _frowts, forecast(val, past_co_val, 'algo=moirai') from foo;
 
 ### 未来协变量预测
 
-未来协变量预测的时候，需要设置未来的输入值以及该输入值对应的写变量列。
-协变量列的输入需要在 SQL 语句中补充，采用中括号内数组方式，不同的数值之间采用空格分割。数量应该等于预测分析的数量，如果两个数量不等会导致报错。
-未来协变量采用 `dynamic_real_` 做为名称的前缀。例如有多个未来写变量，可以分别命名为 `dynamic_real_1` 、`dynamic_real_2`、`dynamic_real_3`...，以此类推。
-对于每个未来写变量数据，需要设置其关联的未来协变量列。`dynamic_real_1` 关联的列通过参数 `dynamic_real_1_col` 设置，`dynamic_real_2` 关联的列通过参数 `dynamic_real_2_col` 设置。
+未来协变量预测的时候，需要设置未来的输入值以及该输入值对应的协变量列。
+协变量列的输入需要在 SQL 语句中补充，采用中括号内数组方式，不同的数值之间采用空格分隔。数量应该等于预测分析的数量，如果不等会报错。
+未来协变量采用 `dynamic_real_` 做为名称的前缀。有多个未来协变量时，可以分别命名为 `dynamic_real_1` 、`dynamic_real_2`、`dynamic_real_3`...，以此类推。
+对于每个未来协变量数据，需要设置其关联的未来协变量列。`dynamic_real_1` 关联的列通过参数 `dynamic_real_1_col` 设置，`dynamic_real_2` 关联的列通过参数 `dynamic_real_2_col` 设置。
 
 如下所示，预测分析针对 `val` 列进行，同时提供一个历史协变量列 `past_co_val`，一个未来协变量列 `future_co_val`，未来协变量列数值通过 `dynamic_real_1` 设置，数组中有 4 个未来值，通过 `dynamic_real_1_col=future_co_val` 设置关联的未来协变列是 `future_co_val`。
 
 ```sql
 
-select _frowts, forecast(val, past_co_val, future_co_val, "algo=moirai,rows=4,dynamic_real_1=[1 1 1 1], dynamic_real_1_col=future_co_val") from foo;
+select _frowts, forecast(val, past_co_val, future_co_val, "algo=moirai,rows=4, dynamic_real_1=[1 1 1 1], dynamic_real_1_col=future_co_val") from foo;
 
 ```
-
-
 
 ## 内置预测算法
 
 - [ARIMA](./02-arima.md)
 - [HoltWinters](./03-holtwinters.md)
 - [Time Series Foundation Model](./04-tsfm.md)
-- CES (Complex Exponential Smoothing) 
+- CES (Complex Exponential Smoothing)
 - Theta
 - Prophet
 - XGBoost
@@ -165,5 +162,3 @@ select _frowts, forecast(val, past_co_val, future_co_val, "algo=moirai,rows=4,dy
 - PatchTST (Patch Time Series Transformer)
 - Temporal Fusion Transformer
 - TimesNet
-
-

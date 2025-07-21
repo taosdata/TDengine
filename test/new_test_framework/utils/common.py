@@ -514,7 +514,7 @@ class TDCom:
         elif "TDengine" in selfPath:
             projPath = selfPath[:selfPath.find("TDengine")]
         else:
-            projPath = selfPath[:selfPath.find("tests")]
+            projPath = selfPath[:selfPath.find("test")]
 
         for root, dirs, files in os.walk(projPath):
             if ("taosd" in files or "taosd.exe" in files):
@@ -528,7 +528,7 @@ class TDCom:
 
         return buildPath
     def getTaosdPath(self, dnodeID="dnode1"):
-        return os.path.join(self.taos_bin_path, "taosd")
+        return os.path.join(self.work_dir, dnodeID)
 
     def getClientCfgPath(self):
         return os.path.join(self.work_dir, "psim", "cfg")
@@ -1678,16 +1678,16 @@ class TDCom:
             int: second
         """
         if "d" in str(runtime).lower():
-            d_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            d_num = re.findall(r"\d+\.?\d*", runtime.replace(" ", ""))[0]
             s_num = float(d_num) * 24 * 60 * 60
         elif "h" in str(runtime).lower():
-            h_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            h_num = re.findall(r"\d+\.?\d*", runtime.replace(" ", ""))[0]
             s_num = float(h_num) * 60 * 60
         elif "m" in str(runtime).lower():
-            m_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            m_num = re.findall(r"\d+\.?\d*", runtime.replace(" ", ""))[0]
             s_num = float(m_num) * 60
         elif "s" in str(runtime).lower():
-            s_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            s_num = re.findall(r"\d+\.?\d*", runtime.replace(" ", ""))[0]
         else:
             s_num = 60
         return int(s_num)
@@ -2017,18 +2017,24 @@ class TDCom:
             #print(file1, file2)
             if platform.system().lower() != 'windows':
                 cmd='diff'
+                tdLog.info(f"cmd: {cmd} -u --color {file1} {file2}")
                 result = subprocess.run([cmd, "-u", "--color", file1, file2], text=True, capture_output=True)
+                tdLog.info(f"result: {result}")
             else:
                 cmd='fc'
                 result = subprocess.run([cmd, file1, file2], text=True, capture_output=True)
             # if result is not empty, print the differences and files name. Otherwise, the files are identical.
-            if result.stderr:
-                tdLog.debug(f"Error comparing files {file1} and {file2}: {result.stderr}")
+            if result.returncode != 0:
+                tdLog.info(f"{cmd} result.returncode: {result.returncode}")
+                tdLog.info(f"{cmd} result.stdout: {result.stdout}")
+                tdLog.info(f"{cmd} result.stderr: {result.stderr}")
                 return False
-            
             if result.stdout:
                 tdLog.debug(f"Differences between {file1} and {file2}")
                 tdLog.notice(f"\r\n{result.stdout}")
+                return False
+            elif result.stderr:
+                tdLog.info(f"{cmd} result.stderr: {result.stderr}")
                 return False
             else:
                 return True
@@ -2173,6 +2179,14 @@ def dict2toml(in_dict: dict, file:str):
     with open(file, 'w') as f:
         toml.dump(in_dict, f)
 
-
+def is_json(msg):
+    if isinstance(msg, str):
+        try:
+            json.loads(msg)
+            return True
+        except:
+            return False
+    else:
+        return False
 
 tdCom = TDCom()

@@ -53,7 +53,7 @@ void printfTmqConfigIntoFile() {
 
 
 static int create_topic() {
-    SBenchConn* conn = initBenchConn();
+    SBenchConn* conn = initBenchConn(NULL);
     if (conn == NULL) {
         return -1;
     }

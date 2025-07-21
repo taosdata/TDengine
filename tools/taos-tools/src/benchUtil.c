@@ -272,7 +272,7 @@ int64_t toolsGetTimestamp(int32_t precision) {
     }
 }
 
-SBenchConn* initBenchConnImpl() {
+SBenchConn* initBenchConnImpl(char *dbName) {
     SBenchConn* conn = benchCalloc(1, sizeof(SBenchConn), true);
     char     show[256] = "\0";
     char *   host = NULL;
@@ -327,11 +327,11 @@ SBenchConn* initBenchConnImpl() {
             port = defaultPort(g_arguments->connMode, g_arguments->dsn);
         }
 
-        sprintf(show, "host:%s port:%d ", host, port);
+        sprintf(show, "host:%s port:%d dbname:%s", host, port, dbName);
     }
 
     // connect main
-    conn->taos = taos_connect(host, user, pwd, NULL, port);
+    conn->taos = taos_connect(host, user, pwd, dbName, port);
     if (conn->taos == NULL) {
         errorPrint("failed to connect %s:%d, "
                     "code: 0x%08x, reason: %s\n",
@@ -354,12 +354,12 @@ SBenchConn* initBenchConnImpl() {
     return conn;
 }
 
-SBenchConn* initBenchConn() {
+SBenchConn* initBenchConn(char *dbName) {
 
     SBenchConn* conn = NULL;
     int32_t keep_trying = 0;
     while(1) {
-        conn = initBenchConnImpl();
+        conn = initBenchConnImpl(dbName);
         if(conn || ++keep_trying > g_arguments->keep_trying  || g_arguments->terminate) {
             break;
         }
@@ -1227,7 +1227,7 @@ int32_t initQueryConn(qThreadInfo * pThreadInfo, int iface) {
         }
         pThreadInfo->sockfd = sockfd;
     } else {
-        pThreadInfo->conn = initBenchConn();
+        pThreadInfo->conn = initBenchConn(pThreadInfo->dbName);
         if (pThreadInfo->conn == NULL) {
             return -1;
         }
@@ -1349,7 +1349,7 @@ int killSlowQuery() {
 
 // fetch super table child name from server
 int fetchChildTableName(char *dbName, char *stbName) {
-    SBenchConn* conn = initBenchConn();
+    SBenchConn* conn = initBenchConn(dbName);
     if (conn == NULL) {
         return -1;
     }
