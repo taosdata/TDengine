@@ -136,7 +136,7 @@ SHOW BNODES;
 DROP BNODE ON DNODE dnode_id;
 ```
 
-删除 ID 为 dnode_id 的 dnode 上的 bnode，此 dnode 上的 taosmqtt子进程会退出，停止订阅服务。
+删除 ID 为 dnode_id 的 dnode 上的 bnode，此 dnode 上的 taosmqtt 子进程会退出，停止订阅服务。
 
 ## 查询集群状态
 
