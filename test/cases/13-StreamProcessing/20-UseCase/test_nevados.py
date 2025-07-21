@@ -182,7 +182,7 @@ class Test_Nevados:
                 ["windspeed_daily_maximum", "DOUBLE", 8, ""],
                 ["site", "NCHAR", 16, ""],
                 ["id", "NCHAR", 16, ""],
-                ["group_id", "BIGINT", 8, "TAG"],=
+                ["group_id", "BIGINT", 8, "TAG"],
             ],
         )
 
