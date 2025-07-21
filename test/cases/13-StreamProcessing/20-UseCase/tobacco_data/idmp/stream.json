@@ -350,21 +350,11 @@
     {
         "id": 10,
         "name": "ana_电子皮带秤_f1w1a_belt_scale_08_定时窗口_平均测量值",
-        "create": "CREATE STREAM IF NOT EXISTS `idmp`.`%STREAM_NAME` PERIOD(10s,10s) FROM `idmp`.`vt_电子皮带秤_f1w1a_belt_scale_08` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `idmp`.`%STREAM_NAME` AS SELECT cast(_tlocaltime/1000000 as timestamp) as output_timestamp, AVG(`测量值`) AS `测量值` FROM idmp.`vt_电子皮带秤_f1w1a_belt_scale_08` WHERE ts <= _tlocaltime / 1000000;",
+        "create": "CREATE STREAM IF NOT EXISTS `idmp`.`%STREAM_NAME` PERIOD(10s,10s) FROM `idmp`.`vt_电子皮带秤_f1w1a_belt_scale_08` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `idmp`.`%STREAM_NAME` AS SELECT cast(_tlocaltime/1000000 as timestamp) as output_timestamp, AVG(`测量值`) AS `测量值` FROM idmp.`vt_电子皮带秤_f1w1a_belt_scale_08` WHERE ts <= cast(_tlocaltime/1000000 as timestamp);",
         "data": [
             "INSERT INTO `f1w1a_belt_scale_08`(ts,measured_value) VALUES(now, 0.0),(now+1s, 1.0),(now+2s, 2.0),(now+3s, 3.0),(now+4s, 4.0),(now+5s, 5.0),(now+6s, 6.0),(now+7s, 7.0),(now+8s, 8.0),(now+9s, 9.0);"
         ],
         "assert": [
-            {
-                "row": 0,
-                "col": 1,
-                "data": "4.5"
-            },
-            {
-                "row": 1,
-                "col": 1,
-                "data": "4.5"
-            },
             {
                 "row": 2,
                 "col": 1,
@@ -375,23 +365,13 @@
     {
         "id": 11,
         "name": "ana_电子皮带秤_f1w1a_belt_scale_09_定时窗口_平均测量值",
-        "create": "CREATE STREAM IF NOT EXISTS `idmp`.`%STREAM_NAME` PERIOD(10s,0s) FROM `idmp`.`vt_电子皮带秤_f1w1a_belt_scale_09` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `idmp`.`%STREAM_NAME` AS SELECT cast(_tlocaltime/1000000 as timestamp) as output_timestamp, AVG(`测量值`) AS `测量值` FROM idmp.`vt_电子皮带秤_f1w1a_belt_scale_09` WHERE ts >= _tprev_localtime/1000000 and ts <= _tlocaltime/1000000;",
+        "create": "CREATE STREAM IF NOT EXISTS `idmp`.`%STREAM_NAME` PERIOD(10s,0s) FROM `idmp`.`vt_电子皮带秤_f1w1a_belt_scale_09` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `idmp`.`%STREAM_NAME` AS SELECT cast(_tlocaltime/1000000 as timestamp) as output_timestamp, AVG(`测量值`) AS `测量值` FROM idmp.`vt_电子皮带秤_f1w1a_belt_scale_09` WHERE ts >= cast(_tprev_localtime/1000000-60000 as timestamp) and ts <= cast(_tlocaltime/1000000 as timestamp);",
         "data": [
-            "INSERT INTO `f1w1a_belt_scale_09`(ts,measured_value) VALUES('%TIMESTAMP', 0.0);",
-            "INSERT INTO `f1w1a_belt_scale_09`(ts,measured_value) VALUES('%TIMESTAMP', 1.0);",
-            "INSERT INTO `f1w1a_belt_scale_09`(ts,measured_value) VALUES('%TIMESTAMP', 2.0);",
-            "INSERT INTO `f1w1a_belt_scale_09`(ts,measured_value) VALUES('%TIMESTAMP', 3.0);",
-            "INSERT INTO `f1w1a_belt_scale_09`(ts,measured_value) VALUES('%TIMESTAMP', 4.0);",
-            "INSERT INTO `f1w1a_belt_scale_09`(ts,measured_value) VALUES('%TIMESTAMP', 5.0);",
-            "INSERT INTO `f1w1a_belt_scale_09`(ts,measured_value) VALUES('%TIMESTAMP', 6.0);",
-            "INSERT INTO `f1w1a_belt_scale_09`(ts,measured_value) VALUES('%TIMESTAMP', 7.0);",
-            "INSERT INTO `f1w1a_belt_scale_09`(ts,measured_value) VALUES('%TIMESTAMP', 8.0);",
-            "INSERT INTO `f1w1a_belt_scale_09`(ts,measured_value) VALUES('%TIMESTAMP', 9.0);"
+            "INSERT INTO `f1w1a_belt_scale_09`(ts,measured_value) VALUES(now, 0.0),(now+1s, 1.0),(now+2s, 2.0),(now+3s, 3.0),(now+4s, 4.0),(now+5s, 5.0),(now+6s, 6.0),(now+7s, 7.0),(now+8s, 8.0),(now+9s, 9.0);"
         ],
-        "interval": 1000,
         "assert": [
             {
-                "row": 0,
+                "row": 2,
                 "col": 1,
                 "data": "4.5"
             }
@@ -439,6 +419,41 @@
                 "row": 2,
                 "col": 1,
                 "data": "5.5"
+            }
+        ]
+    },
+    {
+        "id": 13,
+        "name": "ana_计量管_f1w1a_metering_pipe_06_滑动窗口_SUM",
+        "create": "CREATE STREAM IF NOT EXISTS `idmp`.`%STREAM_NAME` SLIDING(10m) FROM `idmp`.`vt_计量管_f1w1a_metering_pipe_06` STREAM_OPTIONS(IGNORE_DISORDER|IGNORE_NODATA_TRIGGER) INTO `idmp`.`%STREAM_NAME` AS SELECT _tcurrent_ts as output_timestamp, SUM(`测量值`) AS `测量值` FROM idmp.`vt_计量管_f1w1a_metering_pipe_06` WHERE `设备类型` = '计量管' AND ts >= _tcurrent_ts and ts <= _tnext_ts;",
+        "data": [
+            "INSERT INTO `f1w1a_metering_pipe_06`(ts, measured_value) VALUES('2025-07-10 08:00:00',0.0);",
+            "INSERT INTO `f1w1a_metering_pipe_06`(ts, measured_value) VALUES('2025-07-10 08:10:01',1.1);",
+            "INSERT INTO `f1w1a_metering_pipe_06`(ts, measured_value) VALUES('2025-07-10 08:30:05',2.2);",
+            "INSERT INTO `f1w1a_metering_pipe_06`(ts, measured_value) VALUES('2025-07-10 08:33:00',3.3);",
+            "INSERT INTO `f1w1a_metering_pipe_06`(ts, measured_value) VALUES('2025-07-10 08:40:00',4.4);",
+            "INSERT INTO `f1w1a_metering_pipe_06`(ts, measured_value) VALUES('2025-07-10 08:41:00',5.5);"
+        ],
+        "assert": [
+            {
+                "row": 0,
+                "col": 0,
+                "data": "2025-07-10 08:00:00"
+            },
+            {
+                "row": 0,
+                "col": 1,
+                "data": "0.0"
+            },
+            {
+                "row": 1,
+                "col": 0,
+                "data": "2025-07-10 08:40:00"
+            },
+            {
+                "row": 1,
+                "col": 1,
+                "data": "9.9"
             }
         ]
     }

@@ -16,7 +16,10 @@ class TestStreamOptionsTrigger:
 
         streams = []
         streams.append(self.Basic0())  # WATERMARK [ok]
+        
+        # TD-36739 [流计算开发阶段] 流计算state窗口+expired_time(10s)对过期的乱序数据也进行了重算
         # streams.append(self.Basic1())  # EXPIRED_TIME   [fail] 
+        
         streams.append(self.Basic2())  # IGNORE_DISORDER  [ok]
         streams.append(self.Basic3())  # DELETE_RECALC  [ok]
         
@@ -30,9 +33,10 @@ class TestStreamOptionsTrigger:
         # streams.append(self.Basic9())  # PRE_FILTER     [ok]
         # streams.append(self.Basic10()) # FORCE_OUTPUT   [ok] 
         # streams.append(self.Basic11()) # MAX_DELAY  [ok]      
-        streams.append(self.Basic11_1()) # MAX_DELAY [fail]       
+        streams.append(self.Basic11_1()) # MAX_DELAY [ok]       
         # streams.append(self.Basic12()) # EVENT_TYPE [ok]
-        # # # streams.append(self.Basic13()) # IGNORE_NODATA_TRIGGER [fail]   
+        
+        streams.append(self.Basic13()) # IGNORE_NODATA_TRIGGER [ok]   
         
         # streams.append(self.Basic14()) # watermark + expired_time + ignore_disorder  [fail]  对超期的数据仍然进行了计算
         

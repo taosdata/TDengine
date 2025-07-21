@@ -19,6 +19,8 @@
 #include "tanalytics.h"
 #include "tversion.h"
 
+#define IS_STREAM_TRIGGER_RSP_MSG(_msg) (TDMT_STREAM_TRIGGER_CALC_RSP == (_msg) || TDMT_STREAM_TRIGGER_PULL_RSP == (_msg))
+
 static inline void dmSendRsp(SRpcMsg *pMsg) {
   if (rpcSendResponse(pMsg) != 0) {
     dError("failed to send response, msg:%p", pMsg);
@@ -302,7 +304,7 @@ _OVER:
           dError("failed to send response, msg:%p", &rsp);
         }
       }
-    } else {
+    } else if (NULL == pMsg && IS_STREAM_TRIGGER_RSP_MSG(pRpc->msgType)) {
       destroyAhandle(pRpc->info.ahandle);
       dDebug("msg:%s ahandle freed", TMSG_INFO(pRpc->msgType));
     }

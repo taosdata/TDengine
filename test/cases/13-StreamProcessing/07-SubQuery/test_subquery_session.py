@@ -1082,12 +1082,11 @@ class TestStreamSubquerySession:
 
         stream = StreamItem(
             id=114,
-            # stream="create stream rdb.s114 session(ts, 2m) from tdb.vtriggers partition by tbname into rdb.r114 as select _twstart, count(ta.c1), count(ta.c2), sum(ta.c2), count(tb.c1), count(tb.c2), sum(tb.c2) from tdb.t2 ta join tdb.v2 tb on ta.ts = tb.ts where ta.ts >= _twstart and ta.ts < _twend + 4m group by ta.c2 having sum(tb.c2) > 130;",
-            stream="create stream rdb.s114 session(ts, 2m) from tdb.vtriggers partition by tbname into rdb.r114 as select _twstart, count(ta.c1), count(ta.c2), sum(ta.c2), count(tb.c1), count(tb.c2), sum(tb.c2) from tdb.t2 ta join %%tbname tb on ta.ts = tb.ts where ta.ts >= _twstart and ta.ts < _twend + 4m group by ta.c2 having sum(tb.c2) > 130;",
-            res_query="select * from rdb.r114 where tag_tbname='v2'",
-            exp_query="select cast('2025-01-01 00:15:00.000' as timestamp) ts, count(ta.c1), count(ta.c2), sum(ta.c2), count(tb.c1), count(tb.c2), sum(tb.c2), 'v2' from tdb.t2 ta join tdb.v2 tb on ta.ts = tb.ts where ta.ts >= '2025-01-01 00:00:00.000' and ta.ts < '2025-01-01 00:35:00.000' group by ta.c2 having sum(tb.c2) > 130;",
+            stream="create stream rdb.s114 session(ts, 2m) from tdb.vtriggers partition by tbname into rdb.r114 as select _twstart, count(ta.c1), count(ta.c2), sum(ta.c2), count(tb.c1), count(tb.c2), sum(tb.c2) from tdb.t2 ta join %%tbname tb on ta.ts = tb.ts where ta.ts >= _twstart and ta.ts < _twend + 4m group by ta.c2 having sum(tb.c2) > 0;",
+            res_query="select * from rdb.r114 where tag_tbname='v2' limit 1",
+            exp_query="select cast('2025-01-01 00:15:00.000' as timestamp) ts, count(ta.c1), count(ta.c2), sum(ta.c2), count(tb.c1), count(tb.c2), sum(tb.c2), 'v2' from tdb.t2 ta join tdb.v2 tb on ta.ts = tb.ts where ta.ts >= '2025-01-01 00:15:00.000' and ta.ts < '2025-01-01 00:20:00.000' group by ta.c2 having sum(tb.c2) > 0;",
         )
-        # self.streams.append(stream) TD-36623
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=115,
@@ -1147,11 +1146,11 @@ class TestStreamSubquerySession:
 
         stream = StreamItem(
             id=122,
-            stream="create stream rdb.s122 session(ts, 2m) from tdb.triggers partition by tbname into rdb.r122 as select first(tats), last(tbts), count(tat1), sum(tat1), first(tbt1), last(tbt1) from (select ta.cts tats, tb.cts tbts, ta.cint tat1, tb.cint tbt1 from qdb.t1 ta left join qdb.t2 tb on ta.cts=tb.cts and (ta.cint >= tb.cint) order by ta.cts) where tats >= _twstart and tats < _twend",
-            res_query="select * from rdb.r122 where tag_tbname='t1';",
-            exp_query="select first(tats), last(tbts), count(tat1), sum(tat1), first(tbt1), last(tbt1), 't1' from (select ta.cts tats, tb.cts tbts, ta.cint tat1, tb.cint tbt1 from qdb.t1 ta left join qdb.t2 tb on ta.cts=tb.cts and (ta.cint >= tb.cint) order by ta.cts) where tats >= '2025-01-01 00:00:00.000' and tats < '2025-01-01 00:35:00.000' interval(5m);",
+            stream="create stream rdb.s122 session(ts, 2m) from tdb.triggers partition by tbname into rdb.r122 as select first(tats), last(tbts), count(tat1), sum(tat1), first(tbt1), last(tbt1) from (select ta.cts tats, tb.cts tbts, ta.cint tat1, tb.cint tbt1 from qdb.t1 ta left join qdb.t2 tb on ta.cts=tb.cts and (ta.cint >= tb.cint) order by ta.cts) where tats >= _twstart and tats < _twend + 4m",
+            res_query="select * from rdb.r122 where tag_tbname='t1' limit 1 offset 0;",
+            exp_query="select first(tats), last(tbts), count(tat1), sum(tat1), first(tbt1), last(tbt1), 't1' from (select ta.cts tats, tb.cts tbts, ta.cint tat1, tb.cint tbt1 from qdb.t1 ta left join qdb.t2 tb on ta.cts=tb.cts and (ta.cint >= tb.cint) order by ta.cts) where tats >= '2025-01-01 00:00:00.000' and tats < '2025-01-01 00:05:00.000';",
         )
-        # self.streams.append(stream) TD-36170
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=123,

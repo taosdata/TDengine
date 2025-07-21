@@ -265,10 +265,14 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
     .code = 0
   };
   TRACE_SET_ROOTID(&rpcMsg.info.traceId, pInfo->requestId);
+  TRACE_SET_MSGID(&rpcMsg.info.traceId, tGenIdPI64());
+  int32_t msgType = pInfo->msgType;
 
   int code = rpcSendRequestWithCtx(pTransporter, epSet, &rpcMsg, pTransporterId, rpcCtx);
   if (code) {
     destroySendMsgInfo(pInfo);
+  } else {
+    qDebug("msg %s sent, 0x%" PRIx64 ":0x%" PRIx64, TMSG_INFO(msgType), TRACE_GET_ROOTID(&rpcMsg.info.traceId), TRACE_GET_MSGID(&rpcMsg.info.traceId));
   }
   return code;
 }

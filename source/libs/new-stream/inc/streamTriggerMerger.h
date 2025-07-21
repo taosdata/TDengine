@@ -238,10 +238,12 @@ typedef struct SSTriggerVtableMerger {
   int64_t                    flags;  // bitmask of ETriggerVtableMergerMask
   SSDataBlock               *pDataBlock;
   SFilterInfo               *pFilter;
+  int32_t                    nVirDataCols;  // number of non-pseudo data columns in pDataBlock
 
   STimeWindow readRange;
   SArray     *pReaderInfos;  // SArray<SVtableMergerReaderInfo>
   SArray     *pReaders;      // SArray<SSTriggerTimestampSorter *>
+  SSDataBlock *pPseudoCols;   // pseudo columns , could be NULL if no pseudo columns
 
   SMultiwayMergeTreeInfo *pDataMerger;
 } SSTriggerVtableMerger;
@@ -259,7 +261,7 @@ typedef struct SSTriggerVtableMerger {
  * @return int32_t Status code indicating success or error
  */
 int32_t stVtableMergerInit(SSTriggerVtableMerger *pMerger, struct SStreamTriggerTask *pTask, SSDataBlock **ppDataBlock,
-                           SFilterInfo **ppFilter);
+                           SFilterInfo **ppFilter, int32_t nVirDataCols);
 
 /**
  * @brief Destroys a vtable merger, releasing all allocated resources.
@@ -285,6 +287,8 @@ void stVtableMergerReset(SSTriggerVtableMerger *pMerger);
  * @return int32_t Status code indicating success or error
  */
 int32_t stVtableMergerSetMergeInfo(SSTriggerVtableMerger *pMerger, STimeWindow *pRange, SArray *pTableColRefs);
+
+int32_t stVtableMergerSetPseudoCols(SSTriggerVtableMerger *pMerger, SSDataBlock **ppDataBlock);
 
 /**
  * @brief Sets metadata for data blocks in the vtable merger.

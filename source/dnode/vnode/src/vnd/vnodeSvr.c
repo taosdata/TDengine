@@ -1930,14 +1930,14 @@ static int32_t buildExistSubTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbDat
   memcpy((*ppRsp)->pSchemas + pEntry->stbEntry.schemaRow.nCols, pEntry->stbEntry.schemaTag.pSchema,
          pEntry->stbEntry.schemaTag.nCols * sizeof(SSchema));
   if (pEntry->pExtSchemas != NULL) {
-    (*ppRsp)->pSchemaExt = taosMemoryCalloc(pEntry->stbEntry.schemaRow.nCols, sizeof(SSchemaExt));
+    (*ppRsp)->pSchemaExt = taosMemoryCalloc(pEntry->colCmpr.nCols, sizeof(SExtSchema));
     if (NULL == (*ppRsp)->pSchemaExt) {
       taosMemoryFree((*ppRsp)->pSchemas);
       taosMemoryFree(*ppRsp);
       *ppRsp = NULL;
       TSDB_CHECK_CODE(code = terrno, lino, _exit);
     }
-    memcpy((*ppRsp)->pSchemaExt, pEntry->pExtSchemas, pEntry->stbEntry.schemaRow.nCols * sizeof(SSchemaExt));
+    memcpy((*ppRsp)->pSchemaExt, pEntry->pExtSchemas, pEntry->colCmpr.nCols * sizeof(SExtSchema));
   }
 
   if (pEntry->stbEntry.schemaRow.version != pSubmitTbData->sver) {
@@ -1946,7 +1946,7 @@ static int32_t buildExistSubTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbDat
 _exit:
   metaFetchEntryFree(&pEntry);
   if (code != TSDB_CODE_SUCCESS) {
-    vError("vgId:%d, failed to build exist sub table response, code:%d, line:%d", TD_VID(pVnode), code, lino);
+    vError("vgId:%d, failed to build exist sub table response, code:0x%0x, line:%d", TD_VID(pVnode), code, lino);
   }
   return code;
 }

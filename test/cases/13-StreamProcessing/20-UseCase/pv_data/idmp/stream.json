@@ -1,0 +1,285 @@
+[
+    {
+        "id": 1,
+        "name": "ana_weather_sensor_01_5分钟计算一次1小时内最大辐照",
+        "create": "CREATE STREAM IF NOT EXISTS `idmp`.`%STREAM_NAME` interval(1h) sliding(5m) FROM `idmp`.`vt_气象传感器01_338330` stream_options(ignore_disorder) into `idmp`.`%STREAM_NAME` as select _twstart+0s as output_timestamp, max(`辐照`) as `最大辐照` FROM idmp.`vt_气象传感器01_338330` where ts >= _twstart and ts <= _twend;",
+        "data": [
+            "INSERT INTO weather_sensor_01(ts,irradiation) VALUES('2025-07-18 08:00:00', 2.69507);",
+            "INSERT INTO weather_sensor_01(ts,irradiation) VALUES('2025-07-18 08:10:00', 7.37836);",
+            "INSERT INTO weather_sensor_01(ts,irradiation) VALUES('2025-07-18 08:20:00', 9.61643);",
+            "INSERT INTO weather_sensor_01(ts,irradiation) VALUES('2025-07-18 08:30:00', 3.38889);",
+            "INSERT INTO weather_sensor_01(ts,irradiation) VALUES('2025-07-18 08:40:00', 0.37526);",
+            "INSERT INTO weather_sensor_01(ts,irradiation) VALUES('2025-07-18 08:50:00', 7.78088);"
+        ],
+        "assert": [
+            {
+                "row": 0,
+                "col": 0,
+                "data": "2025-07-18 07:05:00"
+            },
+            {
+                "row": 0,
+                "col": 1,
+                "data": "2.69507"
+            },
+            {
+                "row": 9,
+                "col": 0,
+                "data": "2025-07-18 07:50:00"
+            },
+            {
+                "row": 9,
+                "col": 1,
+                "data": "9.61643"
+            }
+        ]
+    },
+    {
+        "id": 2,
+        "name": "ana_weather_sensor_02_环境温度超过80度持续超过10分钟时计算平均温度",
+        "create": "CREATE STREAM IF NOT EXISTS `idmp`.`%STREAM_NAME` event_window( start with `环境温度` > 80 end with `环境温度` <= 80 ) true_for(10m) FROM `idmp`.`vt_气象传感器02_471544` stream_options(ignore_disorder) into `idmp`.`%STREAM_NAME` as select _twstart+0s as output_timestamp, avg(`环境温度`) as `平均环境温度` FROM idmp.`vt_气象传感器02_471544` where ts >= _twstart and ts <= _twend;",
+        "data": [
+            "INSERT INTO weather_sensor_02(ts,ambient_temperature) VALUES('2025-07-18 08:00:00', 5.85325);",
+            "INSERT INTO weather_sensor_02(ts,ambient_temperature) VALUES('2025-07-18 08:10:00', 4.62972);",
+            "INSERT INTO weather_sensor_02(ts,ambient_temperature) VALUES('2025-07-18 08:20:00', 4.42686);",
+            "INSERT INTO weather_sensor_02(ts,ambient_temperature) VALUES('2025-07-18 08:30:00', 98.1111);",
+            "INSERT INTO weather_sensor_02(ts,ambient_temperature) VALUES('2025-07-18 08:40:00', 0.11110);",
+            "INSERT INTO weather_sensor_02(ts,ambient_temperature) VALUES('2025-07-18 08:50:00', 7.78088);"
+        ],
+        "assert": [
+            {
+                "row": 0,
+                "col": 0,
+                "data": "2025-07-18 08:30:00"
+            },
+            {
+                "row": 0,
+                "col": 1,
+                "data": "49.1111"
+            }
+        ]
+    },
+    {
+        "id": 3,
+        "name": "ana_weather_sensor_03_超过10分钟没有上报数据取出最后一条的环境温度",
+        "create": "CREATE STREAM IF NOT EXISTS `idmp`.`%STREAM_NAME` session(ts,10m) FROM `idmp`.`vt_气象传感器03_548089` stream_options(ignore_disorder) INTO `idmp`.`%STREAM_NAME` as select _twstart+0s as output_timestamp, last(`环境温度`) as `最后环境温度` FROM idmp.`vt_气象传感器03_548089` where ts >= _twstart and ts <= _twend;",
+        "data": [
+            "INSERT INTO weather_sensor_03(ts,ambient_temperature) VALUES('2025-07-18 08:00:01', 1.1);",
+            "INSERT INTO weather_sensor_03(ts,ambient_temperature) VALUES('2025-07-18 08:10:02', 2.2);",
+            "INSERT INTO weather_sensor_03(ts,ambient_temperature) VALUES('2025-07-18 08:19:03', 3.3);",
+            "INSERT INTO weather_sensor_03(ts,ambient_temperature) VALUES('2025-07-18 08:31:04', 4.4);",
+            "INSERT INTO weather_sensor_03(ts,ambient_temperature) VALUES('2025-07-18 08:40:05', 5.5);"
+        ],
+        "assert": [
+            {
+                "row": 0,
+                "col": 0,
+                "data": "2025-07-18 08:00:01"
+            },
+            {
+                "row": 0,
+                "col": 1,
+                "data": "1.1"
+            }
+        ]
+    },
+    {
+        "id": 4,
+        "name": "ana_weather_sensor_04_接收数据3次输出平均辐照",
+        "create": "CREATE STREAM IF NOT EXISTS `idmp`.`%STREAM_NAME` count_window(3,`辐照`) FROM `idmp`.`vt_气象传感器04_791674` stream_options(ignore_disorder) INTO `idmp`.`%STREAM_NAME` AS SELECT _twstart+0s AS output_timestamp, avg(`辐照`) AS `平均辐照` FROM `idmp`.`vt_气象传感器04_791674` WHERE ts >= _twstart AND ts <= _twend;",
+        "data": [
+            "INSERT INTO weather_sensor_04(ts,irradiation) VALUES('2025-07-18 08:00:00', 0.0);",
+            "INSERT INTO weather_sensor_04(ts,irradiation) VALUES('2025-07-18 08:00:01', 1.1);",
+            "INSERT INTO weather_sensor_04(ts,irradiation) VALUES('2025-07-18 08:00:02', 2.2);",
+            "INSERT INTO weather_sensor_04(ts,irradiation) VALUES('2025-07-18 08:00:03', 3.3);",
+            "INSERT INTO weather_sensor_04(ts,irradiation) VALUES('2025-07-18 08:00:04', 4.4);",
+            "INSERT INTO weather_sensor_04(ts,irradiation) VALUES('2025-07-18 08:00:05', 5.5);"
+        ],
+        "assert": [
+            {
+                "row": 0,
+                "col": 0,
+                "data": "2025-07-18 08:00:00"
+            },
+            {
+                "row": 0,
+                "col": 1,
+                "data": "1.1"
+            },
+            {
+                "row": 1,
+                "col": 0,
+                "data": "2025-07-18 08:00:03"
+            },
+            {
+                "row": 1,
+                "col": 1,
+                "data": "4.4"
+            }
+        ]
+    },
+    {
+        "id": 5,
+        "name": "ana_inverter_0101_直流电量超过500kW持续超过10分钟时计算平均直流电量",
+        "create": "CREATE STREAM IF NOT EXISTS `idmp`.`%STREAM_NAME` event_window(start with `直流电量` > 500 end with `直流电量` <= 500) true_for(10m) FROM `idmp`.`vt_逆变器0101_235436` stream_options(ignore_disorder) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`%STREAM_NAME` as select _twstart+0s as output_timestamp, avg(`直流电量`) as `平均直流电量` FROM idmp.`vt_逆变器0101_235436` where ts >= _twstart and ts <=_twend;",
+        "data": [
+            "INSERT INTO inverter_0101(ts,dc_power) VALUES('2025-07-18 08:00:00', 100.0);",
+            "INSERT INTO inverter_0101(ts,dc_power) VALUES('2025-07-18 08:10:01', 501.1);",
+            "INSERT INTO inverter_0101(ts,dc_power) VALUES('2025-07-18 08:15:02', 502.2);",
+            "INSERT INTO inverter_0101(ts,dc_power) VALUES('2025-07-18 08:20:03', 500.0);",
+            "INSERT INTO inverter_0101(ts,dc_power) VALUES('2025-07-18 08:25:04', 104.4);",
+            "INSERT INTO inverter_0101(ts,dc_power) VALUES('2025-07-18 08:30:05', 105.5);"
+        ],
+        "assert": [
+            {
+                "row": 0,
+                "col": 0,
+                "data": "2025-07-18 08:10:01"
+            },
+            {
+                "row": 0,
+                "col": 1,
+                "data": "501.1"
+            }
+        ]
+    },
+    {
+        "id": 6,
+        "name": "ana_inverter_0102_累计发电量达到1MWh到2MWh时记录当前日发电量",
+        "create": "create stream if not exists `idmp`.`%STREAM_NAME` event_window(start with `累计发电量` >= 1 end with `累计发电量` < 2) FROM `idmp`.`vt_逆变器0102_293808` stream_options(ignore_disorder) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`%STREAM_NAME` as select _twstart+0s as output_timestamp, `日发电量` as `当前日发电量` FROM idmp.`vt_逆变器0102_293808` where ts >= _twstart and ts <=_twend;",
+        "data": [
+            "INSERT INTO inverter_0102(ts,daily_yield,total_yield) VALUES('2025-07-18 08:00:00', 0.111,0.111 );",
+            "INSERT INTO inverter_0102(ts,daily_yield,total_yield) VALUES('2025-07-19 08:00:00', 0.222,0.333);",
+            "INSERT INTO inverter_0102(ts,daily_yield,total_yield) VALUES('2025-07-20 08:00:00', 0.333,0.666);",
+            "INSERT INTO inverter_0102(ts,daily_yield,total_yield) VALUES('2025-07-21 08:00:00', 0.444,1.111);",
+            "INSERT INTO inverter_0102(ts,daily_yield,total_yield) VALUES('2025-07-22 08:00:00', 0.999,2.000);"
+        ],
+        "assert": [
+            {
+                "row": 0,
+                "col": 0,
+                "data": "2025-07-21 08:00:00"
+            },
+            {
+                "row": 0,
+                "col": 1,
+                "data": "0.444"
+            }
+        ]
+    },
+    {
+        "id": 7,
+        "name": "ana_inverter_0103_直流电量连续3次采集输出当前值",
+        "create": "create stream if not exists `idmp`.`%STREAM_NAME` count_window(3,`直流电量`) from `idmp`.`vt_逆变器0103_647430` stream_options(ignore_disorder) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`%STREAM_NAME` as select _twstart+0s as output_timestamp, last(`直流电量`) as `当前直流电量` from idmp.`vt_逆变器0103_647430` where ts >= _twstart and ts <=_twend;",
+        "data": [
+            "INSERT INTO inverter_0103(ts,dc_power) VALUES('2025-07-18 08:00:00', 0.111);",
+            "INSERT INTO inverter_0103(ts,dc_power) VALUES('2025-07-19 08:00:00', 0.222);",
+            "INSERT INTO inverter_0103(ts,dc_power) VALUES('2025-07-20 08:00:00', 0.333);",
+            "INSERT INTO inverter_0103(ts,dc_power) VALUES('2025-07-21 08:00:00', 0.444);"
+        ],
+        "assert": [
+            {
+                "row": 0,
+                "col": 0,
+                "data": "2025-07-18 08:00:00"
+            },
+            {
+                "row": 0,
+                "col": 1,
+                "data": "0.333"
+            }
+        ]
+    },
+    {
+        "id": 8,
+        "name": "ana_inverters_每5分钟计算一次过去半小时的直流电量总和",
+        "create": "create stream if not exists `idmp`.`%STREAM_NAME` interval(30m) sliding(5m) FROM `idmp`.`vst_光伏逆变器_833471` stream_options(ignore_disorder) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`%STREAM_NAME` as select _twstart+0s as output_timestamp, sum(`直流电量`) as `直流电量总和` FROM `idmp`.`vst_光伏逆变器_833471` where path1 like '光伏场景.Solar_Power_Group.Plant_4136001.逆变器%' and ts >=_twstart and ts <=_twend;",
+        "data": [
+            "INSERT INTO inverter_0201(ts,dc_power) VALUES('2025-07-18 08:00:00', 0.111);",
+            "INSERT INTO inverter_0202(ts,dc_power) VALUES('2025-07-18 08:00:00', 0.111);",
+            "INSERT INTO inverter_0203(ts,dc_power) VALUES('2025-07-18 08:00:00', 0.111);",
+            "INSERT INTO inverter_0201(ts,dc_power) VALUES('2025-07-18 08:10:00', 0.222);",
+            "INSERT INTO inverter_0202(ts,dc_power) VALUES('2025-07-18 08:10:00', 0.222);",
+            "INSERT INTO inverter_0203(ts,dc_power) VALUES('2025-07-18 08:10:00', 0.222);",
+            "INSERT INTO inverter_0201(ts,dc_power) VALUES('2025-07-18 08:20:00', 0.333);",
+            "INSERT INTO inverter_0202(ts,dc_power) VALUES('2025-07-18 08:20:00', 0.333);",
+            "INSERT INTO inverter_0203(ts,dc_power) VALUES('2025-07-18 08:20:00', 0.333);",
+            "INSERT INTO inverter_0201(ts,dc_power) VALUES('2025-07-18 08:30:00', 0.444);",
+            "INSERT INTO inverter_0202(ts,dc_power) VALUES('2025-07-18 08:30:00', 0.444);",
+            "INSERT INTO inverter_0203(ts,dc_power) VALUES('2025-07-18 08:30:00', 0.444);"
+        ],
+        "assert": [
+            {
+                "row": 0,
+                "col": 0,
+                "data": "2025-07-18 07:35:00"
+            },
+            {
+                "row": 0,
+                "col": 1,
+                "data": "0.333"
+            },
+            {
+                "row": 1,
+                "col": 0,
+                "data": "2025-07-18 07:40:00"
+            },
+            {
+                "row": 1,
+                "col": 1,
+                "data": "0.999"
+            },
+            {
+                "row": 3,
+                "col": 0,
+                "data": "2025-07-18 07:50:00"
+            },
+            {
+                "row": 3,
+                "col": 1,
+                "data": "1.998"
+            },
+            {
+                "row": 5,
+                "col": 0,
+                "data": "2025-07-18 08:00:00"
+            },
+            {
+                "row": 5,
+                "col": 1,
+                "data": "3.33"
+            }
+        ]
+    },
+    {
+        "id": 9,
+        "name": "ana_inverters_超过20分钟没有上报数据取出最后一条的交流电量",
+        "create": "create stream if not exists `idmp`.`%STREAM_NAME` session(ts,20m) FROM `idmp`.`vst_光伏逆变器_833471` stream_options(ignore_disorder) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`%STREAM_NAME` as select _twstart+0s as output_timestamp, last(`交流电量`) as `最后交流电量` FROM idmp.`vst_光伏逆变器_833471` where path1 like '光伏场景.Solar_Power_Group.Plant_4137001.逆变器%' and ts >= _twstart and ts <=_twend",
+        "data": [
+            "INSERT INTO inverter_0301(ts,ac_power) VALUES('2025-07-18 08:00:00', 0.111);",
+            "INSERT INTO inverter_0302(ts,ac_power) VALUES('2025-07-18 08:00:00', 0.111);",
+            "INSERT INTO inverter_0303(ts,ac_power) VALUES('2025-07-18 08:00:00', 0.111);",
+            "INSERT INTO inverter_0301(ts,ac_power) VALUES('2025-07-18 08:20:01', 0.222);",
+            "INSERT INTO inverter_0302(ts,ac_power) VALUES('2025-07-18 08:20:01', 0.222);",
+            "INSERT INTO inverter_0303(ts,ac_power) VALUES('2025-07-18 08:20:01', 0.222);",
+            "INSERT INTO inverter_0301(ts,ac_power) VALUES('2025-07-18 08:30:00', 0.333);",
+            "INSERT INTO inverter_0302(ts,ac_power) VALUES('2025-07-18 08:30:00', 0.333);",
+            "INSERT INTO inverter_0303(ts,ac_power) VALUES('2025-07-18 08:30:00', 0.333);",
+            "INSERT INTO inverter_0301(ts,ac_power) VALUES('2025-07-18 08:40:00', 0.444);",
+            "INSERT INTO inverter_0302(ts,ac_power) VALUES('2025-07-18 08:40:00', 0.444);",
+            "INSERT INTO inverter_0303(ts,ac_power) VALUES('2025-07-18 08:40:00', 0.444);"
+        ],
+        "assert": [
+            {
+                "row": 0,
+                "col": 0,
+                "data": "2025-07-18 08:00:00"
+            },
+            {
+                "row": 0,
+                "col": 1,
+                "data": "0.111"
+            }
+        ]
+    }
+]
