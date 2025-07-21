@@ -181,7 +181,7 @@ chmod 755 ${pkg_dir}/DEBIAN/*
 debver="Version: ${tdengine_ver}"
 package="Package: ${product_name}"
 sed -i "2c$debver" "${pkg_dir}/DEBIAN/control"
-sed -i "2c$package" "${pkg_dir}/DEBIAN/control"
+sed -i "1c$package" "${pkg_dir}/DEBIAN/control"
 
 #get taos version, then set deb name
 if [ "$verMode" == "cluster" ]; then
