@@ -1770,6 +1770,14 @@ static int32_t buildInsertData(SStreamInserterParam* pInsertParam, const SSDataB
       int16_t colIdx = k + 1;
 
       SFieldWithOptions* pCol = taosArrayGet(pInsertParam->pFields, k);
+      if (PRIMARYKEY_TIMESTAMP_COL_ID != colIdx && TSDB_DATA_TYPE_NULL == pCol->type) {
+        SColVal cv = COL_VAL_NULL(colIdx, pCol->type);
+        if (NULL == taosArrayPush(pVals, &cv)) {
+          code = terrno;
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        continue;
+      }
 
       SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
       if (NULL == pColInfoData) {
