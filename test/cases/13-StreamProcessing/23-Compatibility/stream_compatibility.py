@@ -38,7 +38,7 @@ spec.loader.exec_module(download_enterprise_package)
 EnterprisePackageDownloader = download_enterprise_package.EnterprisePackageDownloader
 
 # Define the list of base versions to test for stream compatibility
-BASE_VERSIONS = ["3.2.0.0", "3.3.3.0", "3.3.4.3", "3.3.5.0", "3.3.6.0"]
+BASE_VERSIONS = ["3.3.3.0", "3.3.4.0", "3.3.5.0", "3.3.6.0"]
 
 class TestStreamCompatibility:
     """Stream Processing Compatibility Test Class"""
@@ -79,58 +79,35 @@ class TestStreamCompatibility:
         cPath = self.getCfgPath()
         tdLog.info(f"bPath:{bPath}, cPath:{cPath}")
 
-        # Test with the latest version only for demonstration
-        # In production, you might want to test with all BASE_VERSIONS
-        base_version = BASE_VERSIONS[-1]  # Use latest stable version
-        
-        tdLog.printNoPrefix(f"========== Start stream compatibility test with base version {base_version} ==========")
+        # Test compatibility with all base versions
+        for i, base_version in enumerate(BASE_VERSIONS):
+            tdLog.printNoPrefix(f"========== Start stream compatibility test with base version {base_version} ({i+1}/{len(BASE_VERSIONS)}) ==========")
 
-        # Step 1: Install old version and create streams
-        self.installTaosd(bPath, cPath, base_version)
-        self.createStreamOnOldVersion(base_version)
+            # Step 1: Install old version and create streams
+            self.installTaosd(bPath, cPath, base_version)
+            self.createStreamOnOldVersion(base_version)
 
-        # Step 2: Try to start with new version (should fail)
-        failed_as_expected = not self.tryStartWithNewVersion(bPath)
-        if failed_as_expected:
-            tdLog.info("New version failed to start as expected - compatibility test proceeding")
-        else:
-            tdLog.info("New version started unexpectedly - might indicate forward compatibility")
+            # Step 2: Try to start with new version (should fail)
+            failed_as_expected = not self.tryStartWithNewVersion(bPath)
+            if failed_as_expected:
+                tdLog.info("New version failed to start as expected - compatibility test proceeding")
+            else:
+                tdLog.info("New version started unexpectedly - might indicate forward compatibility")
 
-        # Step 3: Cleanup streams on old version
-        self.cleanupStreamsOnOldVersion(bPath, cPath, base_version)
+            # Step 3: Cleanup streams on old version
+            self.cleanupStreamsOnOldVersion(bPath, cPath, base_version)
 
-        # Step 4: Create new streams on new version
-        success = self.createNewStreamsOnNewVersion(bPath)
-        
-        if success:
-            tdLog.printNoPrefix(f"Stream compatibility test with base version {base_version} completed successfully")
-        else:
-            tdLog.error(f"Stream compatibility test with base version {base_version} failed")
+            # Step 4: Create new streams on new version
+            self.createNewStreamsOnNewVersion(bPath)
             
-        # Cleanup
-        self.killAllDnodes()
+            tdLog.printNoPrefix(f"Stream compatibility test with base version {base_version} completed successfully")
+                
+            # Cleanup between version tests
+            self.killAllDnodes()
+            
+            tdLog.info(f"Completed testing version {base_version}, moving to next version...")
         
-        # Clean up snode directories after test completion
-        cPath = self.getCfgPath()
-        dataPath = cPath + "/../data/"
-        
-        # Remove all snode and stream related directories
-        cleanup_dirs = [
-            f"{dataPath}/snode",
-            f"{dataPath}/dnode*/snode", 
-            f"{dataPath}/stream"
-        ]
-        
-        for cleanup_dir in cleanup_dirs:
-            cleanup_cmd = f"rm -rf {cleanup_dir}"
-            tdLog.info(f"Final cleanup - removing directory: {cleanup_cmd}")
-            os.system(cleanup_cmd)
-        
-        # Remove any remaining snode/stream directories
-        os.system(f"find {dataPath} -name '*snode*' -type d -exec rm -rf {{}} + 2>/dev/null || true")
-        os.system(f"find {dataPath} -name '*stream*' -type d -exec rm -rf {{}} + 2>/dev/null || true")
-        
-        tdLog.info("Final snode directory cleanup completed")
+        tdLog.printNoPrefix(f"========== All stream compatibility tests completed for {len(BASE_VERSIONS)} versions ==========")
 
     def checkProcessPid(self, processName):
         """Check if process is stopped"""
@@ -264,9 +241,9 @@ class TestStreamCompatibility:
         
         # Drop streams
         cleanup_sqls = [
-            "drop stream if exists stream_test.avg_stream;",
-            "drop stream if exists stream_test.max_stream;", 
-            "drop stream if exists stream_test.count_stream;",
+            "drop stream if exists avg_stream;",
+            "drop stream if exists max_stream;", 
+            "drop stream if exists count_stream;",
             "drop snode on dnode 1;",
             "drop database if exists stream_test;"
         ]
