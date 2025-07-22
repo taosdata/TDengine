@@ -42,17 +42,8 @@ typedef struct {
 
 void freeCacheItem(SCacheItem *pItem);
 
-FORCE_INLINE void bseCacheRefItem(SCacheItem *pItem) {
-  if (pItem == NULL) return;
-  T_REF_INC(pItem);
-}
-FORCE_INLINE void bseCacheUnrefItem(SCacheItem *pItem) {
-  if (pItem == NULL) return;
-  T_REF_DEC(pItem);
-  if (T_REF_VAL_GET(pItem) == 0) {
-    freeCacheItem(pItem);
-  }
-}
+void bseCacheRefItem(SCacheItem *pItem);
+void bseCacheUnrefItem(SCacheItem *pItem);
 
 typedef void (*CacheFreeFn)(void *p);
 int32_t tableCacheOpen(int32_t cap, CacheFreeFn fn, STableCache **p);
