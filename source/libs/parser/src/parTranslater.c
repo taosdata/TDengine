@@ -6992,7 +6992,14 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode** pWhere, STimeW
     }
   }
 
-  if (pCxt->createStreamCalc && nodeType(pFromTable) != QUERY_NODE_TEMP_TABLE) {
+  bool extractJoinCond = true;
+  if (nodeType(pFromTable) == QUERY_NODE_JOIN_TABLE) {
+    SJoinTableNode *pJoinTable = (SJoinTableNode *)pFromTable;
+    if (pJoinTable->subType == JOIN_STYPE_ASOF) {
+      extractJoinCond = false;
+    }
+  }
+  if (pCxt->createStreamCalc && nodeType(pFromTable) != QUERY_NODE_TEMP_TABLE && extractJoinCond) {
     PAR_ERR_JRET(filterExtractTsCond(&pCond, pTimeRangeExpr));
     // some node may be replaced
     TSWAP(*pWhere, pCond);
