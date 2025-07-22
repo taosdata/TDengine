@@ -73,6 +73,7 @@ class TestOthersOldCaseTaosdshell:
             process_info_list = []
             process = os.popen('ps -A | grep %s'% processname)
             process_info = process.read()
+            tdLog.info(f"process: {process}")
             for i in process_info.split(' '):
                 if i != "":
                     process_info_list.append(i)
