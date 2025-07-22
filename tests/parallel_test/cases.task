@@ -275,7 +275,6 @@
 #newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/window_close_session_ext.py
 #newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/partition_interval.py
 #ci ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/pause_resume_test.py
-#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/state_window_case.py
 #,,n,system-test,python3 ./test.py -f 8-stream/vnode_restart.py -N 4
 #,,n,system-test,python3 ./test.py -f 8-stream/snode_restart.py -N 4
 #newstm,,n,system-test,python3 ./test.py -f 8-stream/snode_restart_with_checkpoint.py -N 4
@@ -1346,7 +1345,6 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f eco-system/manager/schema_change.py -N 3 -M 3
-#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_window_true_for.py
 #newstm,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 
 #tsim test
@@ -1619,12 +1617,9 @@
 ,,y,script,./test.sh -f tsim/table/table.sim
 ,,y,script,./test.sh -f tsim/table/tinyint.sim
 ,,y,script,./test.sh -f tsim/table/vgroup.sim
-#newstm,,y,script,./test.sh -f tsim/stream/tag.sim
 #newstm,,y,script,./test.sh -f tsim/stream/snodeCheck.sim
 #newstm,,y,script,./test.sh -f tsim/stream/concurrentcheckpt.sim
 #newstm,,y,script,./test.sh -f tsim/stream/checkpointInterval0.sim
-#newstm,,y,script,./test.sh -f tsim/stream/checkStreamSTable1.sim
-#newstm,,y,script,./test.sh -f tsim/stream/checkStreamSTable.sim
 #newstm,,y,script,./test.sh -f tsim/stream/count0.sim
 #newstm,,y,script,./test.sh -f tsim/stream/count1.sim
 #newstm,,y,script,./test.sh -f tsim/stream/count2.sim
@@ -1665,11 +1660,9 @@
 #newstm,,y,script,./test.sh -f tsim/stream/partitionbyColumnSession.sim
 #newstm,,y,script,./test.sh -f tsim/stream/partitionbyColumnState.sim
 #newstm,,y,script,./test.sh -f tsim/stream/partitionby.sim
-#newstm,,y,script,./test.sh -f tsim/stream/pauseAndResume.sim
 #newstm,,y,script,./test.sh -f tsim/stream/schedSnode.sim
 #newstm,,y,script,./test.sh -f tsim/stream/session0.sim
 #newstm,,y,script,./test.sh -f tsim/stream/session1.sim
-#newstm,,y,script,./test.sh -f tsim/stream/sliding.sim
 #newstm,,y,script,./test.sh -f tsim/stream/state0.sim
 #newstm,,y,script,./test.sh -f tsim/stream/state1.sim
 #newstm,,y,script,./test.sh -f tsim/stream/streamInterpDelete0.sim
@@ -1708,13 +1701,11 @@
 #newstm,,y,script,./test.sh -f tsim/stream/streamTwaFwcFillPrimaryKey.sim
 #newstm,,y,script,./test.sh -f tsim/stream/streamTwaFwcIntervalPrimaryKey.sim
 #newstm,,y,script,./test.sh -f tsim/stream/streamTwaInterpFwc.sim
-#newstm,,y,script,./test.sh -f tsim/stream/triggerInterval0.sim
 #newstm,,y,script,./test.sh -f tsim/stream/triggerSession0.sim
 #newstm,,y,script,./test.sh -f tsim/stream/udTableAndCol0.sim
 #newstm,,y,script,./test.sh -f tsim/stream/udTableAndTag0.sim
 #newstm,,y,script,./test.sh -f tsim/stream/udTableAndTag1.sim
 #newstm,,y,script,./test.sh -f tsim/stream/udTableAndTag2.sim
-#newstm,,y,script,./test.sh -f tsim/stream/windowClose.sim
 ,,y,script,./test.sh -f tsim/trans/lossdata1.sim
 ,,y,script,./test.sh -f tsim/tmq/basic1.sim
 ,,y,script,./test.sh -f tsim/tmq/basic2.sim

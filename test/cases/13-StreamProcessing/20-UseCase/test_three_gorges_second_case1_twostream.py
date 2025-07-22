@@ -65,28 +65,31 @@ class TestSnodeMgmt:
         base_ts = int(time.mktime(datetime.datetime.combine(yesterday, datetime.time.min).timetuple())) * 1000
         tdLog.info(f"insert into {self.dbname}.a0 values({base_ts + 86400000*2},100);")
         tdSql.execute(f"insert into {self.dbname}.a0 values({base_ts + 86400000*2},100);")
-        tdLog.info(f"insert into {self.dbname}.a0 values({base_ts + 86400000*4},101);")
-        tdSql.execute(f"insert into {self.dbname}.a0 values({base_ts + 86400000*4},101);")
-        tdLog.info(f"insert into {self.dbname}.a0 values({base_ts + 86400001*4},102);")
-        tdSql.execute(f"insert into {self.dbname}.a0 values({base_ts + 86400001*4},102);")
+        tdLog.info(f"insert into {self.dbname}.a0 values({base_ts + 86400000*3},101);")
+        tdSql.execute(f"insert into {self.dbname}.a0 values({base_ts + 86400000*3},101);")
+        tdLog.info(f"insert into {self.dbname}.a0 values({base_ts + 86400001*3},102);")
+        tdSql.execute(f"insert into {self.dbname}.a0 values({base_ts + 86400001*3},102);")
         tdLog.info(f"insert into {self.dbname}.a0 values({base_ts + 86400000*6},1000);")
         tdSql.execute(f"insert into {self.dbname}.a0 values({base_ts + 86400000*6},1000);")
         time.sleep(3)
-        tdLog.info(f"insert into {self.dbname}.a0 values({base_ts + 86770001*4},1000);")
-        tdSql.execute(f"insert into {self.dbname}.a0 values({base_ts + 86770001*4},1000);")
+        tdLog.info(f"insert into {self.dbname}.a0 values({base_ts + 86770001*2},1000);")
+        tdSql.execute(f"insert into {self.dbname}.a0 values({base_ts + 86770001*2},1000);")
         time.sleep(3)
         tdSql.query(f"select * from {self.dbname}.stb_sxny_cn_drzcfd_test01")
         if tdSql.getRows() == 0:
             raise Exception("ERROR:no result!")
         
         # self.checkResultWithResultFile()
+        
+        self.createStream2()
+        self.checkStreamRunning()
 
     def createStream(self):
         tdLog.info(f"create stream :")
         stream = (
                     f"""create stream {self.dbname}.str_sxny_cn_drzcfd_test01 interval(1d) sliding(1d) from {self.dbname}.stb_sxny_cn 
                     partition by tbname,ps_code,point,index_code,point_name 
-                    stream_options(expired_time(3d)|pre_filter(index_code in ('index_a0') and dt >= today() - 1d)| event_type(window_close)|fill_history )
+                    stream_options(expired_time(3d)|pre_filter(index_code in ('index_a0') and dt >= today() - 1d)| event_type(window_close) )
                     into {self.dbname}.stb_sxny_cn_drzcfd_test01 output_subtable(concat_ws('_','sxny_cn_drzcfd_test01',point)) 
                     tags(tablename varchar(255) as tbname,
                     point varchar(255) as point,
@@ -97,6 +100,25 @@ class TestSnodeMgmt:
                         _twstart dt,
                         first(val) fir_val,
                         last(val) sec_val
+                    from
+                        %%trows t1 ;
+                    """
+        )
+        tdSql.execute(stream,queryTimes=2)
+        tdLog.info(f"create stream success!")
+        
+    def createStream2(self):
+        tdLog.info(f"create stream :")
+        stream = (
+                    f"""create stream test1.str_sxny_cn_drzcfd_test02 interval(1d) sliding(1d) from test1.stb_sxny_cn_drzcfd_test01 partition by tbname,ps_code,index_code
+                    stream_options(expired_time(3d)|fill_history| event_type(window_close) )
+                    into test1.stb_sxny_cn_drzcfd_test02 output_subtable(concat_ws('_','sxny_cn_drzcfd_test02',ps_code)) 
+                    tags(tablename varchar(255) as tbname,
+                    index_code varchar(255) as index_code,
+                    ps_code varchar(255) as ps_code)
+                    as select
+                        _twstart dt,
+                        sum(sec_val - fir_val) val
                     from
                         %%trows t1 ;
                     """

@@ -638,7 +638,7 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
-      code = tRowMerge(*rowP, pTbCtx->pSchema, 0);
+      code = tRowMerge(*rowP, pTbCtx->pSchema, PREFER_NON_NULL);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
@@ -709,7 +709,7 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
     code = tRowSort(pTbCtx->pData->aRowP);
   }
   if (code == TSDB_CODE_SUCCESS && (!pTbData->isOrdered || pTbData->isDuplicateTs)) {
-    code = tRowMerge(pTbCtx->pData->aRowP, pTbCtx->pSchema, 0);
+    code = tRowMerge(pTbCtx->pData->aRowP, pTbCtx->pSchema, PREFER_NON_NULL);
   }
 
   if (TSDB_CODE_SUCCESS != code) {
@@ -847,7 +847,7 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
         code = tRowSort(pTableCxt->pData->aRowP);
       }
       if (code == TSDB_CODE_SUCCESS && (!pTableCxt->ordered || pTableCxt->duplicateTs)) {
-        code = tRowMerge(pTableCxt->pData->aRowP, pTableCxt->pSchema, 0);
+        code = tRowMerge(pTableCxt->pData->aRowP, pTableCxt->pSchema, PREFER_NON_NULL);
       }
     }
 

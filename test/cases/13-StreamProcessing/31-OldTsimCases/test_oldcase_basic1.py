@@ -54,7 +54,7 @@ class TestStreamOldCaseBasic1:
         streams.append(self.Basic50())
         streams.append(self.Basic51())
         streams.append(self.Basic52())
-        # streams.append(self.Basic53()) TD-36831
+        streams.append(self.Basic53())
 
         tdStream.checkAll(streams)
 
@@ -1160,10 +1160,10 @@ class TestStreamOldCaseBasic1:
                 f"create stream streams9 state_window(a) from st partition by tbname stream_options(max_delay(3s)) into streamt9 as select ts, b, c, last_row(c), ta, tb from st where ts >= _twstart and ts <= _twend and tbname=%%1;"
             )
             tdSql.execute(
-                f"create stream streams10 event_window start with d = 0 end with d = 9 from st partition by tbname stream_options(max_delay(3s)) into streamt10 as select ts, b, c, last(c), ta, tb from st where ts >= _twstart and ts <= _twend and tbname=%%1;"
+                f"create stream streams10 event_window(start with d = 0 end with d = 9) from st partition by tbname stream_options(max_delay(3s)) into streamt10 as select ts, b, c, last(c), ta, tb from st where ts >= _twstart and ts <= _twend and tbname=%%1;"
             )
             tdSql.execute(
-                f"create stream streams11 count_window(2) from st partition by tbname stream_options(max_delay(3s) | expired_time(0s) | watermark(100s)) into streamt11 as select ts, b, c, last(c), ta, tb from st where ts >= _twstart and ts <= _twend and tbname=%%1;"
+                f"create stream streams11 count_window(2) from st partition by tbname stream_options(max_delay(3s) | expired_time(200s) | watermark(100s)) into streamt11 as select ts, b, c, last(c), ta, tb from st where ts >= _twstart and ts <= _twend and tbname=%%1;"
             )
 
         def insert1(self):

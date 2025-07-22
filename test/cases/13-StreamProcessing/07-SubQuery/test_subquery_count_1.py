@@ -534,10 +534,10 @@ class TestStreamSubqueryCount:
         stream = StreamItem(
             id=46,
             stream="create stream rdb.s46 count_window(1, c1) from tdb.v1 into rdb.r46 as select _twstart ts, count(c1) ccnt, sum(c2) csum, first(id) cfirst from %%trows",
-            res_query="select ts, ccnt, csum, cfirst from rdb.r46 limit 4",
-            exp_query="select _wstart, count(*), sum(c2), first(id) from tdb.v1 count_window(1, c1) limit 4",
+            res_query="select ts, csum from rdb.r46 limit 4",
+            exp_query="select ts, c2 from tdb.v1;",
         )
-        # self.streams.append(stream) TD-36439
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=47,
@@ -749,11 +749,11 @@ class TestStreamSubqueryCount:
 
         stream = StreamItem(
             id=73,
-            stream="create stream rdb.s73 count_window(1, c1) from tdb.triggers into rdb.r73 as select _rowts, _twstart ts, CSUM(cint) + CSUM(cuint) from qdb.v1 where cts >= _twstart and cts < _twstart + 5m;",
-            res_query="select * from rdb.r73 limit 1 offset 3",
+            stream="create stream rdb.s73 count_window(1, c1) from tdb.triggers partition by tbname into rdb.r73 as select _rowts ts, _twstart tws, _twend twe, CSUM(cint) + CSUM(cuint) val from qdb.v1 where cts >= _twstart and cts < _twstart + 5m;",
+            res_query="select ts, val from rdb.r73 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:05:00.000'",
             exp_query="select _rowts, CSUM(cint) + CSUM(cuint) from qdb.v1 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000'",
         )
-        # self.streams.append(stream) TD-36175
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=74,
@@ -1079,11 +1079,11 @@ class TestStreamSubqueryCount:
 
         stream = StreamItem(
             id=114,
-            stream="create stream rdb.s114 count_window(1, c1) from tdb.vtriggers partition by tbname into rdb.r114 as select _twstart, count(ta.c1), count(ta.c2), sum(ta.c2), count(tb.c1), count(tb.c2), sum(tb.c2) from tdb.t2 ta join %%tbname tb on ta.ts = tb.ts where ta.ts >= _twstart and ta.ts < _twend + 5m group by ta.c2 having sum(tb.c2) > 130;",
+            stream="create stream rdb.s114 count_window(1, c1) from tdb.vtriggers partition by tbname into rdb.r114 as select _twstart, count(ta.c1), count(ta.c2), sum(ta.c2), count(tb.c1), count(tb.c2), sum(tb.c2) from tdb.t2 ta join %%tbname tb on ta.ts = tb.ts where ta.ts >= _twstart and ta.ts < _twend + 10m group by ta.c2 having sum(tb.c2) > 130;",
             res_query="select * from rdb.r114 where tag_tbname='v2'",
-            exp_query="select cast('2025-01-01 00:15:00.000' as timestamp) ts, count(ta.c1), count(ta.c2), sum(ta.c2), count(tb.c1), count(tb.c2), sum(tb.c2), 'v2' from tdb.t2 ta join tdb.v2 tb on ta.ts = tb.ts where ta.ts >= '2025-01-01 00:00:00.000' and ta.ts < '2025-01-01 00:35:00.000' group by ta.c2 having sum(tb.c2) > 130;",
+            exp_query="select cast('2025-01-01 00:10:00.000' as timestamp) ts, count(ta.c1), count(ta.c2), sum(ta.c2), count(tb.c1), count(tb.c2), sum(tb.c2), 'v2' from tdb.t2 ta join tdb.v2 tb on ta.ts = tb.ts where ta.ts >= '2025-01-01 00:10:00.000' and ta.ts < '2025-01-01 00:20:00.000' group by ta.c2 having sum(tb.c2) > 130;",
         )
-        # self.streams.append(stream) bug
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=115,
@@ -1169,10 +1169,10 @@ class TestStreamSubqueryCount:
         stream = StreamItem(
             id=125,
             stream="create stream rdb.s125 count_window(1, c1) from tdb.v1 into rdb.r125 as select _rowts, _twstart ts, DERIVATIVE(cbigint, 5, 0) from qdb.v1 where cts >= _twstart and cts < _twstart + 5m;",
-            res_query="select * from rdb.r125 limit 1 offset 3",
-            exp_query="select _rowts, CSUM(cint) + CSUM(cuint) from qdb.v1 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000'",
+            res_query="select `_rowts`, `derivative(cbigint, 5, 0)` from rdb.r125 limit 9",
+            exp_query="select _rowts, DERIVATIVE(cbigint, 5, 0) from qdb.v1 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000'",
         )
-        # self.streams.append(stream) TD-36175
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=126,

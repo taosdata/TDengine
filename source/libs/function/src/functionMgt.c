@@ -809,7 +809,7 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
   }
 
   int32_t t = funcMgtBuiltins[funcId].type;
-  uInfo("set stream pseudo func param val, functype: %d, pStreamRuntimeInfo: %p", t, pStreamRuntimeInfo);
+  uDebug("set stream pseudo func param val, functype: %d, pStreamRuntimeInfo: %p", t, pStreamRuntimeInfo);
   if (FUNCTION_TYPE_TGRPID == t) {
     SValue v = {0};
     v.type = TSDB_DATA_TYPE_BIGINT;

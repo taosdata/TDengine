@@ -2914,7 +2914,7 @@ int32_t tsortNextTuple(SSortHandle* pHandle, STupleHandle** pTupleHandle) {
 
 bool tsortIsNullVal(STupleHandle* pVHandle, int32_t colIndex) {
   SColumnInfoData* pColInfoSrc = taosArrayGet(pVHandle->pBlock->pDataBlock, colIndex);
-  if (pColInfoSrc == NULL) {
+  if (pColInfoSrc == NULL || pColInfoSrc->pData == NULL) {
     return true;
   }
 

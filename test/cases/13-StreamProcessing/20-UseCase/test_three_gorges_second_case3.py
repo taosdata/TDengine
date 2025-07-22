@@ -11,7 +11,7 @@ import time
 import datetime
 
 class TestSnodeMgmt:
-    caseName = "test_three_gorges_second_case1_bug1"
+    caseName = "test_three_gorges_second_case3"
     currentDir = os.path.dirname(os.path.abspath(__file__))
     runAll = False
     dbname = "test1"
@@ -22,11 +22,11 @@ class TestSnodeMgmt:
     subTblNum = 3
     tblRowNum = 10
     tableList = []
-    outTbname = "stb_sxny_cn_drzcfd_test01"
-    streamName = "str_sxny_cn_drzcfd_test01"
+    outTbname = "stb_sxny_cn_test_v003"
+    streamName = "test_str_sxny_cn_test_v003"
     tableList = []
     resultIdx = "1"
-    caseName = "test_three_gorges_second_case1_bug1"
+    caseName = "test_three_gorges_second_case3"
     
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -65,17 +65,17 @@ class TestSnodeMgmt:
         base_ts = int(time.mktime(datetime.datetime.combine(yesterday, datetime.time.min).timetuple())) * 1000
         tdLog.info(f"insert into {self.dbname}.a0 values({base_ts + 86400000*2},100);")
         tdSql.execute(f"insert into {self.dbname}.a0 values({base_ts + 86400000*2},100);")
-        tdLog.info(f"insert into {self.dbname}.a0 values({base_ts + 86400000*4},101);")
-        tdSql.execute(f"insert into {self.dbname}.a0 values({base_ts + 86400000*4},101);")
-        tdLog.info(f"insert into {self.dbname}.a0 values({base_ts + 86400001*4},102);")
-        tdSql.execute(f"insert into {self.dbname}.a0 values({base_ts + 86400001*4},102);")
+        tdLog.info(f"insert into {self.dbname}.a0 values({base_ts + 86400000*3},101);")
+        tdSql.execute(f"insert into {self.dbname}.a0 values({base_ts + 86400000*3},101);")
+        tdLog.info(f"insert into {self.dbname}.a0 values({base_ts + 86400001*3},102);")
+        tdSql.execute(f"insert into {self.dbname}.a0 values({base_ts + 86400001*3},102);")
         tdLog.info(f"insert into {self.dbname}.a0 values({base_ts + 86400000*6},1000);")
         tdSql.execute(f"insert into {self.dbname}.a0 values({base_ts + 86400000*6},1000);")
         time.sleep(3)
-        tdLog.info(f"insert into {self.dbname}.a0 values({base_ts + 86770001*4},1000);")
-        tdSql.execute(f"insert into {self.dbname}.a0 values({base_ts + 86770001*4},1000);")
+        tdLog.info(f"insert into {self.dbname}.a0 values({base_ts + 86770001*2},1000);")
+        tdSql.execute(f"insert into {self.dbname}.a0 values({base_ts + 86770001*2},1000);")
         time.sleep(3)
-        tdSql.query(f"select * from {self.dbname}.stb_sxny_cn_drzcfd_test01")
+        tdSql.query(f"select * from {self.dbname}.{self.outTbname}")
         if tdSql.getRows() == 0:
             raise Exception("ERROR:no result!")
         
@@ -84,19 +84,16 @@ class TestSnodeMgmt:
     def createStream(self):
         tdLog.info(f"create stream :")
         stream = (
-                    f"""create stream {self.dbname}.str_sxny_cn_drzcfd_test01 interval(1d) sliding(1d) from {self.dbname}.stb_sxny_cn 
-                    partition by tbname,ps_code,point,index_code,point_name 
-                    stream_options(expired_time(3d)|pre_filter(index_code in ('index_a0') and dt >= today() - 1d)| event_type(window_close)|fill_history )
-                    into {self.dbname}.stb_sxny_cn_drzcfd_test01 output_subtable(concat_ws('_','sxny_cn_drzcfd_test01',point)) 
-                    tags(tablename varchar(255) as tbname,
-                    point varchar(255) as point,
-                    index_code varchar(255) as index_code,
-                    ps_code varchar(255) as ps_code,
-                    point_name varchar(255) as point_name)
+                    f"""create stream test1.test_str_sxny_cn_test_v003 interval(1d) sliding(1d) from test1.stb_sxny_cn 
+                    partition by index_code,ps_code
+                    stream_options(expired_time(3d)|pre_filter(index_code in ('index_a0') and dt >= today() - 1d) |event_type(window_close))
+                    into test1.stb_sxny_cn_test_v003 output_subtable(concat_ws('_','sxny_cn_test_v002',ps_code)) 
+                    tags(
+                    index_code varchar(50) as index_code,
+                    ps_code varchar(50) as ps_code)
                     as select
                         _twstart dt,
-                        first(val) fir_val,
-                        last(val) sec_val
+                        avg(val) val
                     from
                         %%trows t1 ;
                     """
