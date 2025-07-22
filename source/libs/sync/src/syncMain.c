@@ -1876,6 +1876,8 @@ int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pNode, SRpcMsg
     }
   }
 
+  ASSERT(epSet != NULL);
+
   int32_t code = -1;
   if (pNode->syncSendMSg != NULL && epSet != NULL) {
     syncUtilMsgHtoN(pMsg->pCont);
