@@ -39,8 +39,7 @@
 static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerRealtimeContext *pContext, int64_t gid);
 static void    stRealtimeGroupDestroy(void *ptr);
 // Add metadatas to the group, which are used to check trigger conditions later.
-static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SArray *pMetadatas, SArray *pVgIds,
-                                           int64_t *pRecalcSkey);
+static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SArray *pMetadatas, SArray *pVgIds);
 // Use metadatas to check trigger conditions, and generate notification and calculation requests.
 static int32_t stRealtimeGroupCheck(SSTriggerRealtimeGroup *pGroup);
 // Get the next data block from the group, which comes from the metadatas in the group.
@@ -3268,16 +3267,10 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
               pGroup = *(SSTriggerRealtimeGroup **)px;
             }
             if (TD_DLIST_NODE_NEXT(pGroup) == NULL && TD_DLIST_TAIL(&pContext->groupsToCheck) != pGroup) {
-              int64_t recalcSkey = INT64_MAX;
-              code = stRealtimeGroupAddMetaDatas(pGroup, pAllMetadatas, pVgIds, &recalcSkey);
+              code = stRealtimeGroupAddMetaDatas(pGroup, pAllMetadatas, pVgIds);
               QUERY_CHECK_CODE(code, lino, _end);
               if (pGroup->newThreshold > pGroup->oldThreshold) {
                 TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
-              }
-              if (recalcSkey != INT64_MAX) {
-                STimeWindow range = {.skey = recalcSkey, .ekey = pGroup->oldThreshold};
-                code = stTriggerTaskAddRecalcRequest(pTask, pGroup->gid, range, pContext->pReaderWalProgress, false);
-                QUERY_CHECK_CODE(code, lino, _end);
               }
             }
           }
@@ -3287,16 +3280,10 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         void   *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
         while (px != NULL) {
           SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
-          int64_t                 recalcSkey = INT64_MAX;
-          code = stRealtimeGroupAddMetaDatas(pGroup, pAllMetadatas, pVgIds, &recalcSkey);
+          code = stRealtimeGroupAddMetaDatas(pGroup, pAllMetadatas, pVgIds);
           QUERY_CHECK_CODE(code, lino, _end);
           if (pGroup->newThreshold > pGroup->oldThreshold) {
             TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
-          }
-          if (recalcSkey != INT64_MAX) {
-            STimeWindow range = {.skey = recalcSkey, .ekey = pGroup->oldThreshold};
-            code = stTriggerTaskAddRecalcRequest(pTask, pGroup->gid, range, pContext->pReaderWalProgress, false);
-            QUERY_CHECK_CODE(code, lino, _end);
           }
           px = tSimpleHashIterate(pContext->pGroups, px, &iter);
         }
@@ -4970,7 +4957,7 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
       }
 
       if (continueToFetch) {
-        ST_TASK_DLOG("continue to fetch wal metas since some readers are not exhausted: %" PRIu64,
+        ST_TASK_DLOG("continue to fetch wal metas since some readers are not exhausted: %" PRIzu,
                      TARRAY_SIZE(pTask->readerList));
         for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
              pContext->curReaderIdx++) {
