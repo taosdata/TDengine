@@ -46,7 +46,7 @@ xName="${PREFIX}x"
 explorerName="${PREFIX}-explorer"
 inspect_name="${PREFIX}inspect"
 tarbitratorName="tarbitratord"
-productName="TDengine"
+productName="TDengine TSDB"
 
 #install main path
 install_main_dir=${installDir}

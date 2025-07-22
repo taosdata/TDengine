@@ -618,20 +618,20 @@ static int32_t tsdbUpdateSkm(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int32_t 
 static int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray *updCtxArray);
 
 int32_t tsdbLoadFromImem(SMemTable *imem, int64_t suid, int64_t uid) {
-  int32_t     code = 0;
-  int32_t     lino = 0;
-  STsdb      *pTsdb = imem->pTsdb;
-  SArray     *pMemDelData = NULL;
-  SArray     *pSkyline = NULL;
-  int64_t     iSkyline = 0;
-  STbDataIter tbIter = {0};
-  TSDBROW    *pMemRow = NULL;
-  STSchema   *pTSchema = NULL;
-  SSHashObj  *iColHash = NULL;
-  int32_t     sver;
-  int32_t     nCol;
-  SArray     *ctxArray = pTsdb->rCache.ctxArray;
-  STsdbRowKey tsdbRowKey = {0};
+  int32_t      code = 0;
+  int32_t      lino = 0;
+  STsdb       *pTsdb = imem->pTsdb;
+  SArray      *pMemDelData = NULL;
+  SArray      *pSkyline = NULL;
+  int64_t      iSkyline = 0;
+  STbDataIter  tbIter = {0};
+  TSDBROW     *pMemRow = NULL;
+  STSchema    *pTSchema = NULL;
+  SSHashObj   *iColHash = NULL;
+  int32_t      sver;
+  int32_t      nCol;
+  SArray      *ctxArray = pTsdb->rCache.ctxArray;
+  STsdbRowKey  tsdbRowKey = {0};
   STSDBRowIter iter = {0};
 
   STbData *pIMem = tsdbGetTbDataFromMemTable(imem, suid, uid);

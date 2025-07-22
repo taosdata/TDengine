@@ -71,6 +71,12 @@ int32_t tqOpen(const char* path, SVnode* pVnode) {
   if (path == NULL || pVnode == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
+
+  bool ignoreTq = pVnode->mounted && !taosCheckExistFile(path);
+  if (ignoreTq) {
+    return 0;
+  }
+
   STQ* pTq = taosMemoryCalloc(1, sizeof(STQ));
   if (pTq == NULL) {
     return terrno;
@@ -657,8 +663,10 @@ int32_t tqProcessAddCheckInfoReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
     tDeleteSTqCheckInfo(&info);
     return code;
   }
-
-  return tqMetaSaveInfo(pTq, pTq->pCheckStore, info.topic, strlen(info.topic), msg, msgLen >= 0 ? msgLen : 0);
+  taosWLockLatch(&pTq->lock);
+  code  = tqMetaSaveInfo(pTq, pTq->pCheckStore, info.topic, strlen(info.topic), msg, msgLen >= 0 ? msgLen : 0);
+  taosWUnLockLatch(&pTq->lock);
+  return code;
 }
 
 int32_t tqProcessDelCheckInfoReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
@@ -668,7 +676,10 @@ int32_t tqProcessDelCheckInfoReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
   if (taosHashRemove(pTq->pCheckInfo, msg, strlen(msg)) < 0) {
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
-  return tqMetaDeleteInfo(pTq, pTq->pCheckStore, msg, strlen(msg));
+  taosWLockLatch(&pTq->lock);
+  int32_t code = tqMetaDeleteInfo(pTq, pTq->pCheckStore, msg, strlen(msg));
+  taosWUnLockLatch(&pTq->lock);
+  return code;
 }
 
 int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {

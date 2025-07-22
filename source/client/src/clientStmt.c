@@ -1294,12 +1294,6 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
     TSWAP(pStmt->exec.pRequest->tableList, pStmt->sql.pQuery->pTableList);
     TSWAP(pStmt->exec.pRequest->targetTableList, pStmt->sql.pQuery->pTargetTableList);
 
-    // if (STMT_TYPE_QUERY == pStmt->sql.queryRes) {
-    //   STMT_ERR_RET(stmtRestoreQueryFields(pStmt));
-    // }
-
-    // STMT_ERR_RET(stmtBackupQueryFields(pStmt));
-
     return TSDB_CODE_SUCCESS;
   }
 
