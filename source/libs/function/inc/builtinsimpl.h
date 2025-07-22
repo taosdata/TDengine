@@ -252,6 +252,7 @@ int32_t blockDBUsageSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo
 int32_t blockDBUsageFunction(SqlFunctionCtx* pCtx);
 int32_t blockDBUsageFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
+
 #ifdef __cplusplus
 }
 #endif

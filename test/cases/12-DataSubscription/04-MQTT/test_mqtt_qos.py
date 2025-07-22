@@ -142,8 +142,8 @@ class TestMqttCases:
         self.mqttConf['qos'] = 0
         self.mqttConf['topic'] = "$share/g2/topic_meters"
         subMsg = tdMqtt.subscribe(self.mqttConf)
-        tdMqtt.checkQos(1)
-        tdMqtt.checkEqual(subMsg['qos'], 1)
+        tdMqtt.checkQos(0)
+        tdMqtt.checkEqual(subMsg['qos'], 0)
         subRows = tdMqtt.getRows()
         print(f"sub rows: {subRows}")
         tdMqtt.checkRows(stb_rows)

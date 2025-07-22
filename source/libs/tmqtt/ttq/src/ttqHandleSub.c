@@ -18,10 +18,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "tmqttProto.h"
 #include "ttqMemory.h"
 #include "ttqPacket.h"
 #include "ttqProperty.h"
-#include "tmqttProto.h"
 
 static int ttq_send_suback(struct tmqtt *context, uint16_t mid, uint32_t payloadlen, const void *payload) {
   struct tmqtt__packet *packet = NULL;
@@ -73,7 +73,8 @@ int ttqHandleSub(struct tmqtt *context) {
   char           *sub_mount;
   tmqtt_property *properties = NULL;
   bool            allowed;
-  bool            earliest;
+  bool            earliest = false;
+  int             proto_id = TMQ_PROTO_ID_JSON;
 
   if (!context) return TTQ_ERR_INVAL;
 
@@ -120,6 +121,8 @@ int ttqHandleSub(struct tmqtt *context) {
     while (prop) {
       if (!strcmp(strname, "sub-offset") && !strcmp(strvalue, "earliest")) {
         earliest = true;
+      } else if (!strcmp(strname, "proto") && !strcmp(strvalue, "rawblock")) {
+        proto_id = TMQ_PROTO_ID_RAWB;
       }
 
       free(strname);
@@ -252,7 +255,7 @@ int ttqHandleSub(struct tmqtt *context) {
           return TTQ_ERR_INVAL;
         }
 
-        if (!tmq_ctx_topic_exists(&context->tmq_context, topics[1], context->id, sharename, earliest)) {
+        if (!tmq_ctx_topic_exists(&context->tmq_context, topics[1], context->id, sharename, earliest, proto_id, qos)) {
           qos = MQTT_RC_TOPIC_NAME_INVALID;
           qos = MQTT_RC_TOPIC_FILTER_INVALID;
           allowed = false;
