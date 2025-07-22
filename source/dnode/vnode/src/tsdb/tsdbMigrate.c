@@ -696,16 +696,6 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
     return false; // still active writing, postpone migration
   }
 
-  if (tsdbFidLevel(pLocalFset->fid, &rtner->tsdb->keepCfg, rtner->now) < 0) {
-    tsdbInfo("vgId:%d, fid:%d, migration skipped, file set is expired", vid, pLocalFset->fid);
-    return false; // file set expired
-  }
-
-  if (tsdbSsFidLevel(pLocalFset->fid, &rtner->tsdb->keepCfg, pCfg->ssKeepLocal, rtner->now) < 1) {
-    tsdbInfo("vgId:%d, fid:%d, migration skipped, keep local file set", vid, pLocalFset->fid);
-    return false; // keep on local storage
-  }
-
   // download manifest from shared storage
   STFileSet *pRemoteFset = NULL;
   *pCode = downloadManifest(rtner->tsdb->pVnode, pLocalFset->fid, &pRemoteFset);
@@ -1014,3 +1004,89 @@ int32_t tsdbDoSsMigrate(SRTNer *rtner) {
   }
   return tsdbFollowerDoSsMigrate(rtner);
 }
+
+
+#ifdef USE_SHARED_STORAGE
+
+static int32_t tsdbAsyncMigrateImpl(STsdb *tsdb,  const SSsMigrateVgroupReq *pReq) {
+  // check if background task is disabled
+  if (tsdb->bgTaskDisabled) {
+    tsdbInfo("vgId:%d, background task is disabled, skip ss migration", TD_VID(tsdb->pVnode));
+    return 0;
+  }
+
+  if (!tsdbResetSsMigrateMonitor(tsdb, pReq->ssMigrateId)) {
+    (void)taosThreadMutexUnlock(&tsdb->mutex);
+    tsdbInfo("vgId:%d, skip ss migration as there's an in progress one", TD_VID(tsdb->pVnode));
+    return 0;
+  }
+
+  int32_t code = 0, lino = 0;
+  int32_t vid = TD_VID(tsdb->pVnode);
+
+
+  STFileSet *fset;
+  TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
+    if (tsdbFidLevel(fset->fid, &tsdb->keepCfg, pReq->timestamp) < 0) {
+      tsdbInfo("vgId:%d, fid:%d, migration skipped, file set is expired", vid, fset->fid);
+      continue; // file set expired
+    }
+
+    if (tsdbSsFidLevel(fset->fid, &tsdb->keepCfg, tsdb->pVnode->config.ssKeepLocal, pReq->timestamp) < 1) {
+      tsdbInfo("vgId:%d, fid:%d, migration skipped, keep local file set", vid, fset->fid);
+      continue; // keep on local storage
+    }
+    
+    if (fset->lastMigrate/1000 >= pReq->timestamp) {
+      tsdbInfo("vgId:%d, fid:%d, skip migration as start time < last migration time", TD_VID(tsdb->pVnode), fset->fid);
+      continue;
+    }
+
+    SRtnArg *arg = taosMemoryMalloc(sizeof(*arg));
+    if (arg == NULL) {
+      TAOS_CHECK_GOTO(terrno, &lino, _exit);
+    }
+
+    arg->tsdb = tsdb;
+    arg->now = pReq->timestamp;
+    arg->fid = fset->fid;
+    arg->nodeId = pReq->nodeId;
+    arg->ssMigrate = true;
+    arg->lastCommit = fset->lastCommit;
+
+    code = tsdbSsMigrateMonitorAddFileSet(tsdb, fset->fid);
+    if (code) {
+      taosMemoryFree(arg);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    code = vnodeAsync(RETENTION_TASK_ASYNC, EVA_PRIORITY_LOW, tsdbRetention, tsdbRetentionCancel, arg,
+                      &fset->retentionTask);
+    if (code) {
+      taosMemoryFree(arg);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+  }
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+
+
+int32_t tsdbAsyncSsMigrate(STsdb *tsdb, SSsMigrateVgroupReq *pReq) {
+  int32_t code = 0;
+
+  (void)taosThreadMutexLock(&tsdb->mutex);
+  code = tsdbAsyncMigrateImpl(tsdb, pReq);
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
+
+  if (code) {
+    tsdbError("vgId:%d, %s failed, reason:%s", TD_VID(tsdb->pVnode), __func__, tstrerror(code));
+  }
+  return code;
+}
+
+#endif
