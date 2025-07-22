@@ -27,7 +27,10 @@
   (((a) != NULL && (b) != NULL)                                                                                 \
        ? (varDataLen((a)) == varDataLen((b)) && memcmp(varDataVal((a)), varDataVal((b)), varDataLen((a))) == 0) \
        : (a) == (b))
-
+#define COMPARE_BLOBDATA(a, b)                                                                                       \
+  (((a) != NULL && (b) != NULL)                                                                                      \
+       ? (blobDataLen((a)) == blobDataLen((b)) && memcmp(blobDataVal((a)), blobDataVal((b)), blobDataLen((a))) == 0) \
+       : (a) == (b))
 #define COMPARE_STRING_FIELD(fldname)                          \
   do {                                                         \
     if (!COMPARE_STRING(a->fldname, b->fldname)) return false; \
@@ -36,6 +39,11 @@
 #define COMPARE_VARDATA_FIELD(fldname)                          \
   do {                                                          \
     if (!COMPARE_VARDATA(a->fldname, b->fldname)) return false; \
+  } while (0)
+
+#define COMPARE_BLOBDATA_FIELD(fldname)                          \
+  do {                                                           \
+    if (!COMPARE_BLOBDATA(a->fldname, b->fldname)) return false; \
   } while (0)
 
 #define COMPARE_OBJECT_FIELD(fldname, equalFunc)          \
@@ -112,9 +120,11 @@ static bool valueNodeEqual(const SValueNode* a, const SValueNode* b) {
       COMPARE_VARDATA_FIELD(datum.p);
       break;
     case TSDB_DATA_TYPE_JSON:
-    case TSDB_DATA_TYPE_DECIMAL:
-    case TSDB_DATA_TYPE_BLOB:
       return false;
+    case TSDB_DATA_TYPE_DECIMAL:
+      return false;
+    case TSDB_DATA_TYPE_BLOB:
+      COMPARE_BLOBDATA_FIELD(datum.p);
     default:
       break;
   }

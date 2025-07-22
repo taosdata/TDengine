@@ -75,9 +75,24 @@ set(
     "src/tq/tqPush.c"
     "src/tq/tqSink.c"
     "src/tq/tqSnapshot.c"
+
+    #bse
+    "src/bse/bseMgt.c"
+    "src/bse/bseTable.c"
+    "src/bse/bseCache.c"
+    "src/bse/bseTableMgt.c"
+    "src/bse/bseUtil.c"
+    "src/bse/bseSnapshot.c"
 )
 
 aux_source_directory("src/tsdb/" TSDB_SOURCE_FILES)
+list(
+    APPEND
+    VNODE_SOURCE_FILES
+    ${TSDB_SOURCE_FILES}
+)
+
+aux_source_directory("src/bse/" TSDB_SOURCE_FILES)
 list(
     APPEND
     VNODE_SOURCE_FILES

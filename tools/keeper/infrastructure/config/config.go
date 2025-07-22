@@ -81,9 +81,9 @@ func InitConfig() *Config {
 
 	if *v {
 		if version.IsEnterprise == "true" {
-			fmt.Printf("%s Enterprise Edition\n", version.CUS_NAME)
+			fmt.Printf("%s TSDB-Enterprise\n", version.CUS_NAME)
 		} else {
-			fmt.Printf("%s Community Edition\n", version.CUS_NAME)
+			fmt.Printf("%s TSDB-OSS\n", version.CUS_NAME)
 		}
 		fmt.Printf("%s version: %s\n", Name, version.Version)
 		fmt.Printf("git: %s\n", version.Gitinfo)

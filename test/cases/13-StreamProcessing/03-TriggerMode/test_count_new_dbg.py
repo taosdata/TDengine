@@ -8,7 +8,26 @@ class TestStreamCountTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_count_trigger(self):
-        """Stream basic test 1
+        """basic test
+
+        Verification testing during the development process.
+
+        Catalog:
+            - Streams: 03-TriggerMode
+        Description:
+            - create 14 streams, each stream has 1 source tables
+            - write data to source tables
+            - check stream results
+
+        Since: v3.3.3.7
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-07-22
+
         """
 
         tdStream.createSnode()
@@ -22,13 +41,13 @@ class TestStreamCountTrigger:
         # streams.append(self.Basic5())
         # streams.append(self.Basic6())
         # streams.append(self.Basic7())
-        # streams.append(self.Basic8())
+        streams.append(self.Basic8())
         # streams.append(self.Basic9())  # OK
         # streams.append(self.Basic10())  # OK
         # streams.append(self.Basic11())  # failed
         # streams.append(self.Basic12())  # failed
         # streams.append(self.Basic13())  # OK
-        streams.append(self.Basic14())  # failed
+        # streams.append(self.Basic14())  # OK
 
         tdStream.checkAll(streams)
 
@@ -2904,31 +2923,29 @@ class TestStreamCountTrigger:
         def check1(self):
             tdSql.checkResultsByFunc(
                 sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and '
-                    f'(table_name like "res_vstb_1%" or stable_name like "res_vstb_1")',
-                func=lambda: tdSql.getRows() == 1,
+                    f'(table_name like "res_vstb%" or stable_name like "res_vstb%")',
+                func=lambda: tdSql.getRows() == 5,
             )
 
             tdSql.checkTableSchema(
                 dbname=self.db,
-                tbname="res_vtb_1",
+                tbname="res_vstb",
                 schema=[
                     ['ts', 'TIMESTAMP', 8, ''],
                     ['firstts', 'TIMESTAMP', 8, ''],
                     ['lastts', 'TIMESTAMP', 8, ''],
                     ['twduration', 'BIGINT', 8, ''],
-                    ['cnt_col_3', 'BIGINT', 8, ''],
-                    ['sum_col_3', 'BIGINT', 8, ''],
-                    ['avg_col_3', 'DOUBLE', 8, ''],
                     ['cnt_col_1', 'BIGINT', 8, ''],
                     ['sum_col_1', 'BIGINT', 8, ''],
                     ['avg_col_1', 'DOUBLE', 8, ''],
-                    ['_x_col', 'DOUBLE', 8, ''],
-                    ['name', 'VARCHAR', 270, ''],
+                    ['avg_col_2', 'DOUBLE', 8, ''],
+                    ['cnt_col_3', 'BIGINT', 8, ''],
+                    ['last_col_4', 'VARCHAR', 12, ''],
+                    ['rand_val', 'DOUBLE', 8, ''],
                 ],
             )
 
             tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_col_3, sum_col_3, avg_col_3, cnt_col_1, sum_col_1, avg_col_1 "
-                    f"from {self.db}.res_vtb_1",
-                func=lambda: tdSql.getRows() == 9,
+                sql=f"select * from {self.db}.res_vstb",
+                func=lambda: tdSql.getRows() == 45,
             )

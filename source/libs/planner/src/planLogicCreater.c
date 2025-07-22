@@ -624,10 +624,11 @@ static int32_t createRefScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
   pScan->node.groupAction = GROUP_ACTION_NONE;
   pScan->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
 
+  PLAN_ERR_RET(addDefaultScanCol(pRealTable, &pScan->pScanCols));
+
   pScan->scanType = getScanType(pCxt, pScan->pScanPseudoCols, pScan->pScanCols, pScan->tableType, pSelect->tagScan);
 
   PLAN_ERR_RET(nodesCloneNode(pSelect->pTimeRange, (SNode**)&pScan->pTimeRange));
-  PLAN_ERR_RET(addDefaultScanCol(pRealTable, &pScan->pScanCols));
 
   SNode *pTsCol = nodesListGetNode(pScan->pScanCols, 0);
   ((SColumnNode*)pTsCol)->hasDep = true;

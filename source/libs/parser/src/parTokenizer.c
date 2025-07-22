@@ -386,6 +386,8 @@ static SKeyword keywordTable[] = {
     {"IS_IMPORT",            TK_IS_IMPORT},
     {"DISK_INFO",            TK_DISK_INFO},
     {"AUTO",                 TK_AUTO},
+    {"MEDIUMBLOB",           TK_MEDIUMBLOB},
+    {"BLOB",                 TK_BLOB},
     {"COLS",                 TK_COLS},
     {"NOTIFY",               TK_NOTIFY},
     {"NOTIFY_HISTORY",       TK_NOTIFY_HISTORY},

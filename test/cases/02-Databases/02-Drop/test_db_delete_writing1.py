@@ -50,9 +50,11 @@ class TestDatabaseDeleteWriting1:
     def threadLoop(self):
         tdLog.info(f"thread is running ")
         x = 1
+        new_sql = tdCom.newTdSql()
         while self.running:
-            result = tdSql.is_err_sql(f"insert into db.tb values(now, {x}) ")
+            result = new_sql.is_err_sql(f"insert into db.tb values(now, {x}) ")
             tdLog.info(f"execute result:{result}, times:{x}")
             x = x + 1
             time.sleep(0.1)
         tdLog.info(f"thread is stopped ")
+        new_sql.close()

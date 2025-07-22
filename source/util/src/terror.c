@@ -159,7 +159,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_JSON_TYPE,        "Invalid JSON data typ
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_VALUE_OUT_OF_RANGE,       "Value out of range")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_INPUT,            "Invalid tsc input")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_STMT_API_ERROR,           "Stmt API usage error")
-TAOS_DEFINE_ERROR(TSDB_CODE_TSC_STMT_TBNAME_ERROR,        "Stmt table name not set")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_STMT_TBNAME_ERROR,        "Stmt table name not set correctly")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_STMT_CLAUSE_ERROR,        "not supported stmt clause")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_QUERY_KILLED,             "Query killed")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_NO_EXEC_NODE,             "No available execution node in current query policy configuration")
@@ -973,6 +973,13 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_STMT,        "Virtual table not s
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_TOPIC,       "Virtual table not support in topic")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_CROSS_DB,    "Virtual super table query not support origin table from different databases")
 
+TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_SEQ_NOT_FOUND, "Blob seq not found")
+TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_NOT_SUPPORT_TAG, "Blob type not support on tag")
+TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_NOT_SUPPORT_PRIMARY_KEY, "Blob type not support on primary key")
+TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_VALUE_TOO_LONG, "Blob value too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_EXHAUST_TOO_MANY_MEMORY, "Blob data exhaust too many memory")
+TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_NOT_SUPPORT, "Blob data not support")
+TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_ONLY_ONE_COLUMN_ALLOWED, "only one blob column allowed")
 // NEW-STREAM
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_INTERNAL_ERROR,      "Mnode stream internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_WAL_VER_NOT_DATA,        "Wal version is not data in stream reader task")

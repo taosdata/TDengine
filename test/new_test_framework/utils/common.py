@@ -514,7 +514,7 @@ class TDCom:
         elif "TDengine" in selfPath:
             projPath = selfPath[:selfPath.find("TDengine")]
         else:
-            projPath = selfPath[:selfPath.find("tests")]
+            projPath = selfPath[:selfPath.find("test")]
 
         for root, dirs, files in os.walk(projPath):
             if ("taosd" in files or "taosd.exe" in files):
@@ -528,7 +528,7 @@ class TDCom:
 
         return buildPath
     def getTaosdPath(self, dnodeID="dnode1"):
-        return os.path.join(self.taos_bin_path, "taosd")
+        return os.path.join(self.work_dir, dnodeID)
 
     def getClientCfgPath(self):
         return os.path.join(self.work_dir, "psim", "cfg")
@@ -858,8 +858,8 @@ class TDCom:
         """
         return ','.join(map(lambda i: f'{gen_type}{i} {data_type}', range(count)))
 
-    # stream
-    def create_stream(self, stream_name, des_table, source_sql, trigger_mode=None, watermark=None, max_delay=None, ignore_expired=None, ignore_update=None, subtable_value=None, fill_value=None, fill_history_value=None, stb_field_name_value=None, tag_value=None, use_exist_stb=False, use_except=False):
+    # old_stream
+    def create_old_stream(self, stream_name, des_table, source_sql, trigger_mode=None, watermark=None, max_delay=None, ignore_expired=None, ignore_update=None, subtable_value=None, fill_value=None, fill_history_value=None, stb_field_name_value=None, tag_value=None, use_exist_stb=False, use_except=False):
         """create_stream
 
         Args:
@@ -957,6 +957,110 @@ class TDCom:
             else:
                 return f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table}{stb_field_name} {tags} {subtable} as {source_sql} {fill};'
 
+    def create_stream(self, stream_name, des_table=None, source_sql=None, trigger_table=None, trigger_type=None, 
+                    from_table=None, partition_by=None, stream_options=None, notification_definition=None,
+                    output_subtable=None, columns=None, tags=None, if_not_exists=True, 
+                    db_name=None, use_except=False):
+        """create_stream with new syntax
+
+        Args:
+            stream_name (str): stream_name
+            des_table (str, optional): target table. Defaults to None.
+            source_sql (str, optional): subquery. Defaults to None.
+            trigger_table (str, optional): trigger table name. Defaults to None.
+            trigger_type (str, optional): SESSION/STATE_WINDOW/INTERVAL/EVENT_WINDOW/COUNT_WINDOW/PERIOD. Defaults to None.
+            from_table (str, optional): source table name. Defaults to None.
+            partition_by (str, optional): partition columns. Defaults to None.
+            stream_options (str, optional): stream options. Defaults to None.
+            notification_definition (str, optional): notification settings. Defaults to None.
+            output_subtable (str, optional): subtable expression. Defaults to None.
+            columns (str, optional): column definitions. Defaults to None.
+            tags (str, optional): tag definitions. Defaults to None.
+            if_not_exists (bool, optional): if not exists flag. Defaults to True.
+            db_name (str, optional): database name. Defaults to None.
+            use_except (bool, optional): Exception tag. Defaults to False.
+
+        Returns:
+            str: stream SQL if use_except=True, None otherwise
+        """
+        
+        # Build stream name with database prefix if provided
+        full_stream_name = f"{db_name}.{stream_name}" if db_name else stream_name
+        
+        # Build IF NOT EXISTS clause
+        if_not_exists_clause = "IF NOT EXISTS" if if_not_exists else ""
+        
+        # Build INTO clause
+        into_clause = f"INTO {des_table}" if des_table else ""
+        
+        # Build OUTPUT_SUBTABLE clause
+        output_subtable_clause = f"OUTPUT_SUBTABLE({output_subtable})" if output_subtable else ""
+        
+        # Build columns clause
+        columns_clause = f"({columns})" if columns else ""
+        
+        # Build tags clause
+        tags_clause = f"TAGS ({tags})" if tags else ""
+        
+        # Add trigger_table
+        trigger_table = f" from {trigger_table} " if trigger_table else ""
+            
+            
+        # Add trigger_type
+        trigger_type = f" {trigger_type} " if trigger_type else ""
+        
+        # Build options section
+        options_parts = []
+        
+        # Add FROM clause
+        if from_table:
+            options_parts.append(f"FROM {from_table}")
+        
+        # Add PARTITION BY clause
+        if partition_by:
+            options_parts.append(f"PARTITION BY {partition_by}")
+        
+        # Add STREAM_OPTIONS clause
+        if stream_options:
+            options_parts.append(f"STREAM_OPTIONS({stream_options})")
+        
+        # Add notification_definition
+        if notification_definition:
+            options_parts.append(notification_definition)
+        
+        options_clause = " ".join(options_parts) if options_parts else ""
+        
+        # Build AS subquery clause
+        as_clause = f"AS {source_sql}" if source_sql else ""
+        
+        # Construct the complete CREATE STREAM SQL
+        sql_parts = [
+            "CREATE STREAM",
+            if_not_exists_clause,
+            full_stream_name,
+            trigger_type,
+            trigger_table,
+            options_clause,
+            into_clause,
+            output_subtable_clause,
+            columns_clause,
+            tags_clause,
+            as_clause
+        ]
+        
+        # Filter out empty parts and join
+        create_stream_sql = " ".join(filter(None, sql_parts)) + ";"
+        
+        if use_except:
+            print(f"create stream sql: {create_stream_sql}")
+            return create_stream_sql
+        else:           
+            print(f"create stream sql: {create_stream_sql}")
+            tdSql.execute(create_stream_sql, queryTimes=3)
+            time.sleep(self.create_stream_sleep)
+            return None
+        
+        
     def pause_stream(self, stream_name, if_exist=True, if_not_exist=False):
         """pause_stream
 
@@ -982,14 +1086,45 @@ class TDCom:
         if_not_exist_value = "if not exists" if if_not_exist else ""
         ignore_untreated_value = "ignore untreated" if ignore_untreated else ""
         tdSql.execute(f'resume stream {if_exist_value} {if_not_exist_value} {ignore_untreated_value} {stream_name}')
-
+    
     def drop_all_streams(self):
-        """drop all streams
+        """drop all streams from all user databases
         """
-        tdSql.query("show streams")
-        stream_name_list = list(map(lambda x: x[0], tdSql.queryResult))
-        for stream_name in stream_name_list:
-            tdSql.execute(f'drop stream if exists {stream_name};')
+        # First get all databases
+        tdSql.query("show databases")
+        db_list = list(map(lambda x: x[0], tdSql.queryResult))
+        
+        # Filter out system databases
+        user_db_list = []
+        for db_name in db_list:
+            if db_name not in ['information_schema', 'performance_schema']:
+                user_db_list.append(db_name)
+        
+        # Drop streams from each user database
+        for db_name in user_db_list:
+            try:
+                # Show streams for this specific database
+                tdSql.query(f"show {db_name}.streams")
+                stream_name_list = list(map(lambda x: x[0], tdSql.queryResult))
+                
+                # Drop each stream in this database
+                for stream_name in stream_name_list:
+                    # Check if stream name already includes database prefix
+                    if '.' in stream_name:
+                        # Stream name already has database prefix
+                        tdSql.execute(f'drop stream if exists {stream_name};')
+                    else:
+                        # Add database prefix to stream name
+                        tdSql.execute(f'drop stream if exists {db_name}.{stream_name};')
+                        
+                    tdLog.debug(f"Dropped stream: {stream_name} from database: {db_name}")
+                    
+            except Exception as e:
+                # If database doesn't exist or has no streams, continue with next database
+                tdLog.debug(f"No streams found in database {db_name} or database doesn't exist: {e}")
+                continue
+        
+        tdLog.info("All user database streams have been dropped")
 
     def check_stream_wal_info(self, wal_info):
         # This method is defined for the 'info' column of the 'information_schema.ins_stream_tasks'.
@@ -1030,9 +1165,8 @@ class TDCom:
         timeout = self.stream_timeout if stream_timeout is None else stream_timeout
 
         #check stream task rows
-        sql_task_all = f"select `task_id`,node_id,stream_name,status,info,history_task_id from information_schema.ins_stream_tasks where stream_name='{stream_name}' and `level`='source';" 
-        sql_task_status = f"select distinct(status) from information_schema.ins_stream_tasks where stream_name='{stream_name}' and `level`='source';"
-        sql_task_history = f"select distinct(history_task_id) from information_schema.ins_stream_tasks where stream_name='{stream_name}' and `level`='source';"
+        sql_task_all = f"select `task_id`,node_id,stream_name,status from information_schema.ins_stream_tasks where stream_name='{stream_name}';"
+        sql_task_status = f"select distinct(status) from information_schema.ins_stream_tasks where stream_name='{stream_name}'"
         tdSql.query(sql_task_all)
         tdSql.checkRows(vgroups)
                 
@@ -1043,27 +1177,24 @@ class TDCom:
         while checktimes <= timeout:
             tdLog.notice(f"checktimes:{checktimes}")
             try:
-                result_task_alll = tdSql.query(sql_task_all,row_tag=True)
-                result_task_alll_rows = tdSql.query(sql_task_all)
+                result_task_all = tdSql.query(sql_task_all,row_tag=True)
+                result_task_all_rows = tdSql.query(sql_task_all)
                 result_task_status = tdSql.query(sql_task_status,row_tag=True)
                 result_task_status_rows = tdSql.query(sql_task_status)
-                result_task_history = tdSql.query(sql_task_history,row_tag=True)
-                result_task_history_rows = tdSql.query(sql_task_history)
                 
                 tdLog.notice(f"Try to check stream status, check times: {checktimes} and stream task list[{check_stream_success}]")
-                print(f"result_task_status:{result_task_status},result_task_history:{result_task_history},result_task_alll:{result_task_alll}")
-                if result_task_status_rows == 1 and result_task_status ==[('ready',)] :
-                    if result_task_history_rows == 1 and  result_task_history == [(None,)] :
-                        if check_wal_info:
-                            for vgroup_num in range(vgroups):
-                                if self.check_stream_wal_info(result_task_alll[vgroup_num][4]) :
-                                    check_stream_success += 1
-                                    tdLog.info(f"check stream task list[{check_stream_success}] sucessfully :")
-                                else:
-                                    check_stream_success = 0
-                                    break
-                        else:
-                            check_stream_success = vgroups
+                print(f"result_task_status:{result_task_status},result_task_all:{result_task_all}")
+                if result_task_status_rows == 1 and result_task_status ==[('Running',)] :
+                    if check_wal_info:
+                        for vgroup_num in range(vgroups):
+                            if self.check_stream_wal_info(result_task_all[vgroup_num][4]) :
+                                check_stream_success += 1
+                                tdLog.info(f"check stream task list[{check_stream_success}] sucessfully :")
+                            else:
+                                check_stream_success = 0
+                                break
+                    else:
+                        check_stream_success = vgroups
                             
                 if check_stream_success == vgroups:
                     break
@@ -1073,12 +1204,12 @@ class TDCom:
             except Exception as e:
                 tdLog.notice(f"Try to check stream status again, check times: {checktimes}")
                 checktimes += 1 
-                tdSql.print_error_frame_info(result_task_alll[vgroup_num],"status is ready,info is finished and history_task_id is NULL",sql_task_all)
+                tdSql.print_error_frame_info(result_task_all[vgroup_num],"status is ready,info is finished and history_task_id is NULL",sql_task_all)
         else:
             checktimes_end = checktimes - 1
             tdLog.notice(f"it has spend {checktimes_end} for checking stream task status but it failed")
             if checktimes_end == timeout:
-                tdSql.print_error_frame_info(result_task_alll[vgroup_num],"status is ready,info is finished and history_task_id is NULL",sql_task_all)
+                tdSql.print_error_frame_info(result_task_all[vgroup_num],"status is ready,info is finished and history_task_id is NULL",sql_task_all)
 
     def drop_db(self, dbname="test"):
         """drop a db
@@ -1678,16 +1809,16 @@ class TDCom:
             int: second
         """
         if "d" in str(runtime).lower():
-            d_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            d_num = re.findall(r"\d+\.?\d*", runtime.replace(" ", ""))[0]
             s_num = float(d_num) * 24 * 60 * 60
         elif "h" in str(runtime).lower():
-            h_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            h_num = re.findall(r"\d+\.?\d*", runtime.replace(" ", ""))[0]
             s_num = float(h_num) * 60 * 60
         elif "m" in str(runtime).lower():
-            m_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            m_num = re.findall(r"\d+\.?\d*", runtime.replace(" ", ""))[0]
             s_num = float(m_num) * 60
         elif "s" in str(runtime).lower():
-            s_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            s_num = re.findall(r"\d+\.?\d*", runtime.replace(" ", ""))[0]
         else:
             s_num = 60
         return int(s_num)
@@ -1924,6 +2055,112 @@ class TDCom:
         thirty_days_later = now + timedelta(days=n)
         timestamp_thirty_days_later = thirty_days_later.timestamp()
         return int(timestamp_thirty_days_later*1000)
+    
+    def create_snode_if_not_exists(self, dnode_id=1):
+        """Create snode if not exists
+        
+        Args:
+            dnode_id (int, optional): The dnode ID to create snode on. Defaults to 1.
+        
+        Returns:
+            bool: True if snode exists or created successfully, False if creation failed
+        """
+        try:
+            # Check if snode already exists
+            tdSql.query("show snodes")
+            snode_count = tdSql.queryRows
+            
+            if snode_count > 0:
+                tdLog.info(f"Snode already exists, found {snode_count} snode(s)")
+                return True
+            
+            # No snode exists, create one
+            tdLog.info(f"No snode found, creating snode on dnode {dnode_id}")
+            tdSql.execute(f"create snode on dnode {dnode_id}")
+            
+            # Verify snode creation
+            tdSql.query("show snodes")
+            if tdSql.queryRows > 0:
+                tdLog.info(f"Snode created successfully on dnode {dnode_id}")
+                return True
+            else:
+                tdLog.error(f"Failed to create snode on dnode {dnode_id}")
+                return False
+                
+        except Exception as e:
+            tdLog.error(f"Error creating snode: {e}")
+            return False
+
+    def ensure_snode_ready(self, dnode_id=1, timeout=30):
+        """Ensure snode is created and ready
+        
+        Args:
+            dnode_id (int, optional): The dnode ID to create snode on. Defaults to 1.
+            timeout (int, optional): Maximum wait time in seconds. Defaults to 30.
+        
+        Returns:
+            bool: True if snode is ready, False if timeout or creation failed
+        """
+        try:
+            # First try to create snode if not exists
+            if not self.create_snode_if_not_exists(dnode_id):
+                return False
+            
+            # Wait for snode to be ready
+            wait_time = 0
+            while wait_time < timeout:
+                tdSql.query("show snodes")
+                if tdSql.queryRows > 0:
+                    # Check if snode status is ready (if status column exists)
+                    snode_info = tdSql.queryResult
+                    # tdLog.info(f"Snode info: {snode_info}")
+                    
+                    # Assuming snode is ready if it appears in show snodes
+                    # You might need to adjust this based on actual snode status checking
+                    tdLog.info(f"Snode is ready after {wait_time} seconds")
+                    return True
+                
+                time.sleep(1)
+                wait_time += 1
+            
+            tdLog.error(f"Snode not ready after {timeout} seconds")
+            return False
+            
+        except Exception as e:
+            tdLog.error(f"Error ensuring snode ready: {e}")
+            return False
+
+    def drop_snode(self, snode_id=None):
+        """Drop snode
+        
+        Args:
+            snode_id (int, optional): Specific snode ID to drop. If None, drops all snodes.
+        
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            tdSql.query("show snodes")
+            if tdSql.queryRows == 0:
+                tdLog.info("No snode exists to drop")
+                return True
+            
+            if snode_id is not None:
+                # Drop specific snode
+                tdSql.execute(f"drop snode {snode_id}")
+                tdLog.info(f"Dropped snode {snode_id}")
+            else:
+                # Drop all snodes
+                snode_list = list(map(lambda x: x[0], tdSql.queryResult))
+                for snode in snode_list:
+                    tdSql.execute(f"drop snode {snode}")
+                    tdLog.info(f"Dropped snode {snode}")
+            
+            return True
+            
+        except Exception as e:
+            tdLog.error(f"Error dropping snode: {e}")
+            return False
 
     def prepare_data(self, interval=None, watermark=None, session=None, state_window=None, state_window_max=127, interation=3, range_count=None, precision="ms", fill_history_value=0, ext_stb=None, custom_col_index=None, col_value_type="random"):
         """prepare stream data
@@ -2017,18 +2254,24 @@ class TDCom:
             #print(file1, file2)
             if platform.system().lower() != 'windows':
                 cmd='diff'
+                tdLog.info(f"cmd: {cmd} -u --color {file1} {file2}")
                 result = subprocess.run([cmd, "-u", "--color", file1, file2], text=True, capture_output=True)
+                tdLog.info(f"result: {result}")
             else:
                 cmd='fc'
                 result = subprocess.run([cmd, file1, file2], text=True, capture_output=True)
             # if result is not empty, print the differences and files name. Otherwise, the files are identical.
-            if result.stderr:
-                tdLog.debug(f"Error comparing files {file1} and {file2}: {result.stderr}")
+            if result.returncode != 0:
+                tdLog.info(f"{cmd} result.returncode: {result.returncode}")
+                tdLog.info(f"{cmd} result.stdout: {result.stdout}")
+                tdLog.info(f"{cmd} result.stderr: {result.stderr}")
                 return False
-            
             if result.stdout:
                 tdLog.debug(f"Differences between {file1} and {file2}")
                 tdLog.notice(f"\r\n{result.stdout}")
+                return False
+            elif result.stderr:
+                tdLog.info(f"{cmd} result.stderr: {result.stderr}")
                 return False
             else:
                 return True
@@ -2173,6 +2416,14 @@ def dict2toml(in_dict: dict, file:str):
     with open(file, 'w') as f:
         toml.dump(in_dict, f)
 
-
+def is_json(msg):
+    if isinstance(msg, str):
+        try:
+            json.loads(msg)
+            return True
+        except:
+            return False
+    else:
+        return False
 
 tdCom = TDCom()

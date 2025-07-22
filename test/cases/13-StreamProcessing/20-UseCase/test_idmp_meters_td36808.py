@@ -6,11 +6,25 @@ from datetime import datetime
 from datetime import date
 
 
-class Test_IDMP_Meters:
+class Test_IDMP_Meters_TD36808:
 
     def test_td36808(self):
-        """
+        """公共事业场景测试
+
+        尝试复现 IDMP 会产生 core 的场景，建 2 个流, STOP STREAM, START STREAM, DROP STREAM
+
+        Catalog:
+            - Streams:UseCases
+
+        Since: v3.3.7.0
+
+        Labels: common,ci
+
         Jira: https://jira.taosdata.com:18080/browse/TD-36808
+
+        History:
+            - 2025-7-19 zyyang90 Created
+
         """
         # create snode if not exists
         snodes = tdSql.getResult("SHOW SNODES;")
