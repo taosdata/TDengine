@@ -71,7 +71,7 @@ end:
 }
 
 int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order, void* schemas, bool isSchema,
-                                      STimeWindow twindows, uint64_t suid) {
+                                      STimeWindow twindows, uint64_t suid, int64_t ver) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -89,7 +89,7 @@ int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order,
   pCond->suid = suid;
   pCond->type = TIMEWINDOW_RANGE_CONTAINED;
   pCond->startVersion = -1;
-  pCond->endVersion = -1;
+  pCond->endVersion = ver;
   //  pCond->skipRollup = readHandle->skipRollup;
 
   pCond->notLoadData = false;
@@ -178,7 +178,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
 
     cleanupQueryTableDataCond(&pTask->cond);
     STREAM_CHECK_RET_GOTO(qStreamInitQueryTableDataCond(&pTask->cond, options->order, pTask->options.schemas, options->isSchema,
-                                                        options->twindows, options->suid));
+                                                        options->twindows, options->suid, options->ver));
     STREAM_CHECK_RET_GOTO(pTask->api.tsdReader.tsdReaderOpen(pVnode, &pTask->cond, pList, pNum, pTask->pResBlock,
                                                            (void**)&pTask->pReader, pTask->idStr, NULL));
   }
