@@ -498,12 +498,12 @@ class Test_Nevados:
         
         self.trackers_real_data(db, precision, real_start_time)
         
-        # time.sleep(20)
+        time.sleep(20)
         tdStream.checkStreamStatus()
     
         tdSql.checkResultsByFunc(
             sql=f'select * from information_schema.ins_tables where db_name="{db}" and table_name="kpi_trackers_test_{sub_prefix}0"',
-            func=lambda: tdSql.getRows() >= 1
+            func=lambda: tdSql.getRows() == 1
         )
 
         sql = f"select * from dev.kpi_trackers_test_{sub_prefix}0;"
