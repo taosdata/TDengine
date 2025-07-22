@@ -268,6 +268,7 @@ typedef struct SBoundColInfo {
 typedef struct STableColsData {
   char    tbName[TSDB_TABLE_NAME_LEN];
   SArray* aCol;
+  SBlobSet* pBlobSet;
   bool    getFromHash;
   bool    isOrdered;
   bool    isDuplicateTs;
@@ -296,6 +297,7 @@ typedef struct STableDataCxt {
   SRowKey        lastKey;
   bool           ordered;
   bool           duplicateTs;
+  int8_t         hasBlob;  // if the table has blob column
 } STableDataCxt;
 
 typedef struct SStbInterlaceInfo {

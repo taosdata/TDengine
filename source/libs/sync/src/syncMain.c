@@ -747,13 +747,17 @@ int32_t syncCheckSynced(int64_t rid) {
   }
 
   if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
-    code = TSDB_CODE_VND_ARB_NOT_SYNCED;
+    code = TSDB_CODE_SYN_NOT_LEADER;
     syncNodeRelease(pSyncNode);
     TAOS_RETURN(code);
   }
 
   bool isSync = pSyncNode->commitIndex >= pSyncNode->assignedCommitIndex;
   code = (isSync ? TSDB_CODE_SUCCESS : TSDB_CODE_VND_ARB_NOT_SYNCED);
+  if (!isSync) {
+    sInfo("vgId:%d, not synced, assignedCommitIndex:%" PRId64 ", commitIndex:%" PRId64, pSyncNode->vgId,
+          pSyncNode->assignedCommitIndex, pSyncNode->commitIndex);
+  }
 
   syncNodeRelease(pSyncNode);
   TAOS_RETURN(code);
@@ -1118,6 +1122,8 @@ int32_t syncNodeLogStoreRestoreOnNeed(SSyncNode* pNode) {
   SyncIndex firstVer = pNode->pLogStore->syncLogBeginIndex(pNode->pLogStore);
   SyncIndex lastVer = pNode->pLogStore->syncLogLastIndex(pNode->pLogStore);
   if ((lastVer < commitIndex || firstVer > commitIndex + 1) || pNode->fsmState == SYNC_FSM_STATE_INCOMPLETE) {
+    sInfo("vgId:%d, restore log store from snapshot, firstVer:%" PRId64 ", lastVer:%" PRId64 ", commitIndex:%" PRId64,
+          pNode->vgId, firstVer, lastVer, commitIndex);
     if ((code = pNode->pLogStore->syncLogRestoreFromSnapshot(pNode->pLogStore, commitIndex)) != 0) {
       sError("vgId:%d, failed to restore log store from snapshot since %s. lastVer:%" PRId64 ", snapshotVer:%" PRId64,
              pNode->vgId, terrstr(), lastVer, commitIndex);
@@ -2867,9 +2873,7 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
         // send msg
         TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
         TRACE_SET_ROOTID(&(rpcMsg.info.traceId), tGenIdPI64());
-        sGTrace(&rpcMsg.info.traceId, "vgId:%d, send sync-heartbeat to dnode:%d", pSyncNode->vgId,
-                DID(&(pSyncMsg->destId)));
-        syncLogSendHeartbeat(pSyncNode, pSyncMsg, false, timerElapsed, pData->execTime);
+        syncLogSendHeartbeat(pSyncNode, pSyncMsg, false, timerElapsed, pData->execTime, &(rpcMsg.info.traceId));
         int ret = syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
         if (ret != 0) {
           sError("vgId:%d, failed to send heartbeat since %s", pSyncNode->vgId, tstrerror(ret));
@@ -3652,7 +3656,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   int64_t netElapsed = tsMs - pMsg->timeStamp;
   int64_t timeDiff = tsMs - lastRecvTime;
-  syncLogRecvHeartbeat(ths, pMsg, netElapsed, &pRpcMsg->info.traceId, timeDiff);
+  syncLogRecvHeartbeat(ths, pMsg, netElapsed, &pRpcMsg->info.traceId, timeDiff, pRpcMsg);
 
   if (!syncNodeInRaftGroup(ths, &pMsg->srcId)) {
     sWarn(
@@ -3706,12 +3710,14 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       if (ths->syncEqMsg != NULL && ths->msgcb != NULL) {
         int32_t code = ths->syncEqMsg(ths->msgcb, &rpcMsgLocalCmd);
         if (code != 0) {
-          sError("vgId:%d, failed to enqueue commit msg from heartbeat since %s, code:%d", ths->vgId, terrstr(), code);
+          sError("vgId:%d, failed to enqueue sync-local-cmd msg(cmd=commit) from heartbeat since %s",
+                 ths->vgId, tstrerror(code));
           rpcFreeCont(rpcMsgLocalCmd.pCont);
         } else {
           sGTrace(&pRpcMsg->info.traceId,
-                  "vgId:%d, enqueue commit msg from heartbeat, commit-index:%" PRId64 ", term:%" PRId64, ths->vgId,
-                  pMsg->commitIndex, pMsg->term);
+                  "vgId:%d, enqueue sync-local-cmd msg(cmd=commit) from heartbeat, commit-index:%" PRId64
+                  ", term:%" PRId64,
+                  ths->vgId, pMsg->commitIndex, pMsg->term);
         }
       }
     }
@@ -3731,10 +3737,10 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     if (ths->syncEqMsg != NULL && ths->msgcb != NULL) {
       int32_t code = ths->syncEqMsg(ths->msgcb, &rpcMsgLocalCmd);
       if (code != 0) {
-        sError("vgId:%d, sync enqueue step-down msg error, code:%d", ths->vgId, code);
+        sError("vgId:%d, sync enqueue sync-local-cmd msg(cmd=step-down) error, code:%d", ths->vgId, code);
         rpcFreeCont(rpcMsgLocalCmd.pCont);
       } else {
-        sTrace("vgId:%d, sync enqueue step-down msg, new-term:%" PRId64, ths->vgId, pMsg->term);
+        sTrace("vgId:%d, sync enqueue sync-local-cmd msg(cmd=step-down), new-term:%" PRId64, ths->vgId, pMsg->term);
       }
     }
   }
@@ -3798,7 +3804,7 @@ int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   syncLogRecvHeartbeatReply(ths, pMsg, tsMs - pMsg->timeStamp, &pRpcMsg->info.traceId, tsMs - lastRecvTime);
 
   syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, tsMs);
-  syncIndexMgrIncRecvCount(ths->pNextIndex, &(pMsg->srcId));
+  syncIndexMgrIncRecvCount(ths->pMatchIndex, &(pMsg->srcId));
 
   return syncLogReplProcessHeartbeatReply(pMgr, ths, pMsg);
 }

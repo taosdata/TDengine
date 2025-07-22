@@ -1101,8 +1101,8 @@ void cleanupBasicInfo(SOptrBasicInfo* pInfo) {
 }
 
 bool groupbyTbname(SNodeList* pGroupList) {
-  bool bytbname = false;
-  SNode*pNode = NULL;
+  bool   bytbname = false;
+  SNode* pNode = NULL;
   FOREACH(pNode, pGroupList) {
     if (pNode->type == QUERY_NODE_FUNCTION) {
       bytbname = (strcmp(((struct SFunctionNode*)pNode)->functionName, "tbname") == 0);
@@ -1164,7 +1164,7 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* 
           taosMemoryFree(pDeleterParam);
           return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         }
-        void*          tmp = taosArrayPush(pDeleterParam->pUidList, &pTable->uid);
+        void* tmp = taosArrayPush(pDeleterParam->pUidList, &pTable->uid);
         if (!tmp) {
           taosArrayDestroy(pDeleterParam->pUidList);
           taosMemoryFree(pDeleterParam);
@@ -1366,10 +1366,18 @@ FORCE_INLINE int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOpera
 
 bool compareVal(const char* v, const SStateKeys* pKey) {
   if (IS_VAR_DATA_TYPE(pKey->type)) {
-    if (varDataLen(v) != varDataLen(pKey->pData)) {
-      return false;
+    if (IS_STR_DATA_BLOB(pKey->type)) {
+      if (blobDataLen(v) != blobDataLen(pKey->pData)) {
+        return false;
+      } else {
+        return memcmp(blobDataVal(v), blobDataVal(pKey->pData), blobDataLen(v)) == 0;
+      }
     } else {
-      return memcmp(varDataVal(v), varDataVal(pKey->pData), varDataLen(v)) == 0;
+      if (varDataLen(v) != varDataLen(pKey->pData)) {
+        return false;
+      } else {
+        return memcmp(varDataVal(v), varDataVal(pKey->pData), varDataLen(v)) == 0;
+      }
     }
   } else {
     return memcmp(pKey->pData, v, pKey->bytes) == 0;

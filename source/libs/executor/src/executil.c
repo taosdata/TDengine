@@ -507,12 +507,22 @@ EDealRes doTranslateTagExpr(SNode** pNode, void* pContext) {
       }
       memcpy(res->datum.p, p, len);
     } else if (IS_VAR_DATA_TYPE(pSColumnNode->node.resType.type)) {
+      if (IS_STR_DATA_BLOB(pSColumnNode->node.resType.type)) {
+        return TSDB_CODE_BLOB_NOT_SUPPORT_TAG;
+      }
+
       res->datum.p = taosMemoryCalloc(tagVal.nData + VARSTR_HEADER_SIZE + 1, 1);
       if (NULL == res->datum.p) {
         return DEAL_RES_ERROR;
       }
-      memcpy(varDataVal(res->datum.p), tagVal.pData, tagVal.nData);
-      varDataSetLen(res->datum.p, tagVal.nData);
+
+      if (IS_STR_DATA_BLOB(pSColumnNode->node.resType.type)) {
+        memcpy(blobDataVal(res->datum.p), tagVal.pData, tagVal.nData);
+        blobDataSetLen(res->datum.p, tagVal.nData);
+      } else {
+        memcpy(varDataVal(res->datum.p), tagVal.pData, tagVal.nData);
+        varDataSetLen(res->datum.p, tagVal.nData);
+      }
     } else {
       int32_t code = nodesSetValueNodeValue(res, &(tagVal.i64));
       if (code != TSDB_CODE_SUCCESS) {
@@ -1184,12 +1194,21 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
           memcpy(pStart, data, len);
           pStart += len;
         } else if (IS_VAR_DATA_TYPE(pValue->info.type)) {
-          if (varDataTLen(data) > pValue->info.bytes) {
-            code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
-            goto end;
+          if (IS_STR_DATA_BLOB(pValue->info.type)) {
+            if (blobDataTLen(data) > TSDB_MAX_BLOB_LEN) {
+              code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+              goto end;
+            }
+            memcpy(pStart, data, blobDataTLen(data));
+            pStart += blobDataTLen(data);
+          } else {
+            if (varDataTLen(data) > pValue->info.bytes) {
+              code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+              goto end;
+            }
+            memcpy(pStart, data, varDataTLen(data));
+            pStart += varDataTLen(data);
           }
-          memcpy(pStart, data, varDataTLen(data));
-          pStart += varDataTLen(data);
         } else {
           memcpy(pStart, data, pValue->info.bytes);
           pStart += pValue->info.bytes;
@@ -1537,6 +1556,9 @@ SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, S
             code = colDataSetVal(pColInfo, i, p, false);
             QUERY_CHECK_CODE(code, lino, _end);
           } else if (IS_VAR_DATA_TYPE(pColInfo->info.type)) {
+            if (IS_STR_DATA_BLOB(pColInfo->info.type)) {
+              QUERY_CHECK_CODE(code = TSDB_CODE_BLOB_NOT_SUPPORT_TAG, lino, _end);
+            }
             char* tmp = taosMemoryMalloc(tagVal.nData + VARSTR_HEADER_SIZE + 1);
             QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
             varDataSetLen(tmp, tagVal.nData);
@@ -1966,6 +1988,9 @@ int32_t getGroupIdFromTagsVal(void* pVnode, uint64_t uid, SNodeList* pGroupNode,
         memcpy(pStart, data, len);
         pStart += len;
       } else if (IS_VAR_DATA_TYPE(pValue->node.resType.type)) {
+        if (IS_STR_DATA_BLOB(pValue->node.resType.type)) {
+          return TSDB_CODE_BLOB_NOT_SUPPORT_TAG;
+        }
         memcpy(pStart, data, varDataTLen(data));
         pStart += varDataTLen(data);
       } else {
@@ -2409,20 +2434,20 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
         pValCtx[num++] = &pCtx[i];
       } else {
         int32_t bindFuncIndex = pCtx[i].pExpr->pExpr->relatedTo;  // start from index 1;
-        if (bindFuncIndex > 0) {  // 0 is default index related to the select function
+        if (bindFuncIndex > 0) {                                  // 0 is default index related to the select function
           bindFuncIndex -= 1;
         }
         SSubsidiaryResInfo** pSubsidiary = taosArrayGet(pValCtxArray, bindFuncIndex);
-        if(pSubsidiary == NULL) {
+        if (pSubsidiary == NULL) {
           QUERY_CHECK_CODE(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR, lino, _end);
         }
         (*pSubsidiary)->pCtx[(*pSubsidiary)->num] = &pCtx[i];
         (*pSubsidiary)->num++;
       }
     } else if (fmIsSelectFunc(pCtx[i].functionId)) {
-       if (pValCtxArray == NULL) {
+      if (pValCtxArray == NULL) {
         p = &pCtx[i];
-       }
+      }
     }
   }
 
@@ -3361,8 +3386,13 @@ int32_t compKeys(const SArray* pSortGroupCols, const char* oldkeyBuf, int32_t ol
         if (memcmp(p, val, len) != 0) return 1;
         p += len;
       } else if (IS_VAR_DATA_TYPE(pCol->type)) {
-        if (memcmp(p, val, varDataTLen(val)) != 0) return 1;
-        p += varDataTLen(val);
+        if (IS_STR_DATA_BLOB(pCol->type)) {
+          if (memcmp(p, val, blobDataTLen(val)) != 0) return 1;
+          p += blobDataTLen(val);
+        } else {
+          if (memcmp(p, val, varDataTLen(val)) != 0) return 1;
+          p += varDataTLen(val);
+        }
       } else {
         if (0 != memcmp(p, val, pCol->bytes)) return 1;
         p += pCol->bytes;
@@ -3396,8 +3426,13 @@ int32_t buildKeys(char* keyBuf, const SArray* pSortGroupCols, const SSDataBlock*
         memcpy(p, val, len);
         p += len;
       } else if (IS_VAR_DATA_TYPE(pCol->type)) {
-        varDataCopy(p, val);
-        p += varDataTLen(val);
+        if (IS_STR_DATA_BLOB(pCol->type)) {
+          blobDataCopy(p, val);
+          p += blobDataTLen(val);
+        } else {
+          varDataCopy(p, val);
+          p += varDataTLen(val);
+        }
       } else {
         memcpy(p, val, pCol->bytes);
         p += pCol->bytes;

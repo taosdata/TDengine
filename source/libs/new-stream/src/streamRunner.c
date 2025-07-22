@@ -731,17 +731,13 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   int32_t                     lino = 0;
   SSDataBlock*                pForceOutBlock = NULL;
   SStreamRunnerTaskExecution* pExec = NULL;
-  
-  ST_TASK_DLOG("[runner calc]start, gid:%" PRId64 ", topTask: %d, req execId:%d", pReq->gid, pTask->topTask, pReq->execId);
+  ST_TASK_DLOG("[runner calc]start, gid:%" PRId64 ", topTask: %d", pReq->gid, pTask->topTask);
 
   code = stRunnerTaskExecMgrAcquireExec(pTask, pReq->execId, &pExec);
   if (code != 0) {
     ST_TASK_ELOG("failed to get task exec for stream code:%s", tstrerror(code));
     return code;
   }
-
-  ST_TASK_DLOG("execId %d start to run", pExec->runtimeInfo.execId);
-  
   pTask->task.status = STREAM_STATUS_RUNNING;
   pTask->task.sessionId = pReq->sessionId;
   TSWAP(pExec->runtimeInfo.funcInfo.pStreamPartColVals, pReq->groupColVals);

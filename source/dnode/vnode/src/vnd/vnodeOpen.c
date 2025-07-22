@@ -461,6 +461,8 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   (void)taosThreadMutexInit(&pVnode->mutex, NULL);
   (void)taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
 
+  vInfo("vgId:%d, finished vnode load info %s, vnode committed:%" PRId64, info.config.vgId, dir, pVnode->state.committed);
+
   int8_t rollback = vnodeShouldRollback(pVnode);
 
   // open buffer pool
@@ -528,6 +530,17 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
     vError("vgId:%d, failed to open vnode sma since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
+  // open blob store engine
+  vInfo("vgId:%d, start to open blob store engine", TD_VID(pVnode));
+  (void)tsnprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_BSE_DIR);
+
+  SBseCfg cfg = {.vgId = pVnode->config.vgId, .keepDays = 365 * 24 * 3600};
+  ret = bseOpen(tdir, &cfg, &pVnode->pBse);
+  if (ret != 0) {
+    vError("vgId:%d, failed to open blob store engine since %s", TD_VID(pVnode), tstrerror(ret));
+    terrno = ret;
+    goto _err;
+  }
 
   // vnode begin
   vInfo("vgId:%d, start to begin vnode", TD_VID(pVnode));
@@ -578,6 +591,8 @@ void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
 
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
+    vInfo("start to close vnode");
+    vnodeAWait(&pVnode->commitTask2);
     vnodeAWait(&pVnode->commitTask);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
@@ -587,6 +602,10 @@ void vnodeClose(SVnode *pVnode) {
     smaClose(pVnode->pSma);
     if (pVnode->pMeta) metaClose(&pVnode->pMeta);
     vnodeCloseBufPool(pVnode);
+
+    if (pVnode->pBse) {
+      bseClose(pVnode->pBse);
+    }
 
     // destroy handle
     if (tsem_destroy(&pVnode->syncSem) != 0) {
