@@ -1717,39 +1717,38 @@
 #newstm,,y,script,./test.sh -f tsim/stream/udTableAndTag0.sim
 #newstm,,y,script,./test.sh -f tsim/stream/udTableAndTag1.sim
 #newstm,,y,script,./test.sh -f tsim/stream/udTableAndTag2.sim
-#newstm,,y,script,./test.sh -f tsim/stream/windowClose.sim
-#tsim test,,y,script,./test.sh -f tsim/trans/lossdata1.sim
-#tsim test,,y,script,./test.sh -f tsim/tmq/basic1.sim
-#tsim test,,y,script,./test.sh -f tsim/tmq/basic2.sim
-#tsim test,,y,script,./test.sh -f tsim/tmq/basic3.sim
-#tsim test,,y,script,./test.sh -f tsim/tmq/basic4.sim
-#tsim test,,y,script,./test.sh -f tsim/tmq/basic1Of2Cons.sim
-#tsim test,,y,script,./test.sh -f tsim/tmq/basic2Of2Cons.sim
-#tsim test,,y,script,./test.sh -f tsim/tmq/basic3Of2Cons.sim
-#tsim test,,y,script,./test.sh -f tsim/tmq/basic4Of2Cons.sim
-#tsim test,,y,script,./test.sh -f tsim/tmq/topic.sim
-#tsim test,,y,script,./test.sh -f tsim/tmq/snapshot.sim
-#tsim test,,y,script,./test.sh -f tsim/tmq/snapshot1.sim
-#tsim test,,y,script,./test.sh -f tsim/stable/alter_comment.sim
-#tsim test,,y,script,./test.sh -f tsim/stable/alter_count.sim
-#tsim test,,y,script,./test.sh -f tsim/stable/alter_import.sim
-#tsim test,,y,script,./test.sh -f tsim/stable/alter_insert1.sim
-#tsim test,,y,script,./test.sh -f tsim/stable/alter_insert2.sim
-#tsim test,,y,script,./test.sh -f tsim/stable/alter_metrics.sim
-#tsim test,,y,script,./test.sh -f tsim/stable/column_add.sim
-#tsim test,,y,script,./test.sh -f tsim/stable/column_drop.sim
-#tsim test,,y,script,./test.sh -f tsim/stable/column_modify.sim
-#tsim test,,y,script,./test.sh -f tsim/stable/disk.sim
-#tsim test,,y,script,./test.sh -f tsim/stable/dnode3.sim
-#tsim test,,y,script,./test.sh -f tsim/stable/metrics.sim
-#tsim test,,y,script,./test.sh -f tsim/stable/refcount.sim
-#tsim test,,y,script,./test.sh -f tsim/stable/tag_add.sim
-#tsim test,,y,script,./test.sh -f tsim/stable/tag_drop.sim
-#tsim test,,y,script,./test.sh -f tsim/stable/tag_filter.sim
-#tsim test,,y,script,./test.sh -f tsim/stable/tag_modify.sim
-#tsim test,,y,script,./test.sh -f tsim/stable/tag_rename.sim
-#tsim test,,y,script,./test.sh -f tsim/stable/values.sim
-#tsim test,,y,script,./test.sh -f tsim/stable/vnode3.sim
+,,y,script,./test.sh -f tsim/trans/lossdata1.sim
+,,y,script,./test.sh -f tsim/tmq/basic1.sim
+,,y,script,./test.sh -f tsim/tmq/basic2.sim
+,,y,script,./test.sh -f tsim/tmq/basic3.sim
+,,y,script,./test.sh -f tsim/tmq/basic4.sim
+,,y,script,./test.sh -f tsim/tmq/basic1Of2Cons.sim
+,,y,script,./test.sh -f tsim/tmq/basic2Of2Cons.sim
+,,y,script,./test.sh -f tsim/tmq/basic3Of2Cons.sim
+,,y,script,./test.sh -f tsim/tmq/basic4Of2Cons.sim
+,,y,script,./test.sh -f tsim/tmq/topic.sim
+,,y,script,./test.sh -f tsim/tmq/snapshot.sim
+,,y,script,./test.sh -f tsim/tmq/snapshot1.sim
+,,y,script,./test.sh -f tsim/stable/alter_comment.sim
+,,y,script,./test.sh -f tsim/stable/alter_count.sim
+,,y,script,./test.sh -f tsim/stable/alter_import.sim
+,,y,script,./test.sh -f tsim/stable/alter_insert1.sim
+,,y,script,./test.sh -f tsim/stable/alter_insert2.sim
+,,y,script,./test.sh -f tsim/stable/alter_metrics.sim
+,,y,script,./test.sh -f tsim/stable/column_add.sim
+,,y,script,./test.sh -f tsim/stable/column_drop.sim
+,,y,script,./test.sh -f tsim/stable/column_modify.sim
+,,y,script,./test.sh -f tsim/stable/disk.sim
+,,y,script,./test.sh -f tsim/stable/dnode3.sim
+,,y,script,./test.sh -f tsim/stable/metrics.sim
+,,y,script,./test.sh -f tsim/stable/refcount.sim
+,,y,script,./test.sh -f tsim/stable/tag_add.sim
+,,y,script,./test.sh -f tsim/stable/tag_drop.sim
+,,y,script,./test.sh -f tsim/stable/tag_filter.sim
+,,y,script,./test.sh -f tsim/stable/tag_modify.sim
+,,y,script,./test.sh -f tsim/stable/tag_rename.sim
+,,y,script,./test.sh -f tsim/stable/values.sim
+,,y,script,./test.sh -f tsim/stable/vnode3.sim
 #newstm,,y,script,./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
 #newstm,,y,script,./test.sh -f tsim/sma/rsmaCreateInsertQueryDelete.sim
 
