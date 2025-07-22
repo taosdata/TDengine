@@ -1,5 +1,4 @@
 # vnode
-add_subdirectory(src/tqCommon)
 add_library(vnode STATIC "")
 if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})
   DEP_ext_rocksdb(vnode)
@@ -21,9 +20,10 @@ set(
     "src/vnd/vnodeSync.c"
     "src/vnd/vnodeSnapshot.c"
     "src/vnd/vnodeRetention.c"
-    "src/vnd/vnodeInitApi.c"
     "src/vnd/vnodeAsync.c"
+    "src/vnd/vnodeApi.c"
     "src/vnd/vnodeHash.c"
+    "src/vnd/vnodeStream.c"
 
     # meta
     "src/meta/metaOpen.c"
@@ -74,14 +74,25 @@ set(
     "src/tq/tqOffset.c"
     "src/tq/tqPush.c"
     "src/tq/tqSink.c"
-    "src/tq/tqStreamTask.c"
     "src/tq/tqSnapshot.c"
-    "src/tq/tqStreamStateSnap.c"
-    "src/tq/tqStreamTaskSnap.c"
-    "src/tq/tqStreamNotify.c"
+
+    #bse
+    "src/bse/bseMgt.c"
+    "src/bse/bseTable.c"
+    "src/bse/bseCache.c"
+    "src/bse/bseTableMgt.c"
+    "src/bse/bseUtil.c"
+    "src/bse/bseSnapshot.c"
 )
 
 aux_source_directory("src/tsdb/" TSDB_SOURCE_FILES)
+list(
+    APPEND
+    VNODE_SOURCE_FILES
+    ${TSDB_SOURCE_FILES}
+)
+
+aux_source_directory("src/bse/" TSDB_SOURCE_FILES)
 list(
     APPEND
     VNODE_SOURCE_FILES
@@ -163,9 +174,8 @@ target_link_libraries(
     # PUBLIC scalar
     # PUBLIC zstd
     PUBLIC transport
-    PUBLIC stream
     PUBLIC index
-    PUBLIC tqCommon
+    PUBLIC new-stream
 )
 
 if(TD_GRANT)

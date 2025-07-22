@@ -46,7 +46,7 @@ if [ -z "$cmd" ]; then
 fi
 
 if [ $ent -eq 0 ]; then
-    echo "community edition init env"
+    echo "TSDB-OSS edition init env"
     export PATH=$PATH:/home/TDengine/debug/build/bin
     export LD_LIBRARY_PATH=/home/TDengine/debug/build/lib
     ln -s /home/TDengine/debug/build/lib/libtaos.so /usr/lib/libtaos.so 2>/dev/null
@@ -59,7 +59,7 @@ if [ $ent -eq 0 ]; then
     ln -s /home/TDengine/include/libs/function/taosudf.h /usr/include/taosudf.h 2>/dev/null
     CONTAINER_TESTDIR=/home/TDengine
 else
-    echo "enterprise edition init env"
+    echo "TSDB-Enterprise edition init env"
     export PATH=$PATH:/home/TDinternal/debug/build/bin
     export LD_LIBRARY_PATH=/home/TDinternal/debug/build/lib
     ln -s /home/TDinternal/debug/build/lib/libtaos.so /usr/lib/libtaos.so 2>/dev/null

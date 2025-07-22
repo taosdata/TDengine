@@ -1212,6 +1212,11 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
   TAOS_CHECK_GOTO(sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED), &lino, _OVER);
   pRaw = NULL;
 
+  if (pSObj != NULL) {
+    mInfo("trans:%d, snode on dnode:%d will be dropped", pTrans->id, pDnode->id);
+    TAOS_CHECK_GOTO(mndDropSnodeImpl(pMnode, pReq, pSObj, pTrans, force), &lino, _OVER);
+  }
+
   if (pMObj != NULL) {
     mInfo("trans:%d, mnode on dnode:%d will be dropped", pTrans->id, pDnode->id);
     TAOS_CHECK_GOTO(mndSetDropMnodeInfoToTrans(pMnode, pTrans, pMObj, force), &lino, _OVER);
@@ -1222,11 +1227,6 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
     TAOS_CHECK_GOTO(mndSetDropQnodeInfoToTrans(pMnode, pTrans, pQObj, force), &lino, _OVER);
   }
 
-  if (pSObj != NULL) {
-    mInfo("trans:%d, snode on dnode:%d will be dropped", pTrans->id, pDnode->id);
-    TAOS_CHECK_GOTO(mndSetDropSnodeInfoToTrans(pMnode, pTrans, pSObj, force), &lino, _OVER);
-  }
-
   if (pBObj != NULL) {
     mInfo("trans:%d, bnode on dnode:%d will be dropped", pTrans->id, pDnode->id);
     TAOS_CHECK_GOTO(mndSetDropBnodeInfoToTrans(pMnode, pTrans, pBObj, force), &lino, _OVER);
@@ -1234,7 +1234,7 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
 
   if (numOfVnodes > 0) {
     mInfo("trans:%d, %d vnodes on dnode:%d will be dropped", pTrans->id, numOfVnodes, pDnode->id);
-    TAOS_CHECK_GOTO(mndSetMoveVgroupsInfoToTrans(pMnode, pTrans, pDnode->id, force, unsafe), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndSetMoveVgroupsInfoToTrans(pMnode, pTrans, pDnode->id, force, unsafe), &lino, _OVER);
   }
 
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), &lino, _OVER);
@@ -1340,6 +1340,8 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  mError("vnode num:%d", numOfVnodes);
+
   bool    vnodeOffline = false;
   void   *pIter = NULL;
   int32_t vgId = -1;
@@ -1349,6 +1351,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     if (pIter == NULL) break;
 
     for (int32_t i = 0; i < pVgroup->replica; ++i) {
+      mError("vnode dnodeId:%d state:%d", pVgroup->vnodeGid[i].dnodeId, pVgroup->vnodeGid[i].syncState);
       if (pVgroup->vnodeGid[i].dnodeId == pDnode->id) {
         if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_OFFLINE) {
           vgId = pVgroup->vgId;

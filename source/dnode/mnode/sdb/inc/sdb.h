@@ -462,6 +462,7 @@ const char *sdbTableName(ESdbType type);
 const char *sdbStatusName(ESdbStatus status);
 void        sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper);
 int32_t     sdbGetIdFromRaw(SSdb *pSdb, SSdbRaw *pRaw);
+bool        sdbCheckExists(SSdb *pSdb, ESdbType type, const void *pKey);
 
 void sdbWriteLock(SSdb *pSdb, int32_t type);
 void sdbReadLock(SSdb *pSdb, int32_t type);

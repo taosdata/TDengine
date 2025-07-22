@@ -1,6 +1,6 @@
 # Contributing to TDengine
 
-TDengine Community Edition is free, open-source software. Its development is led by the TDengine Team, but we welcome contributions from all community members and open-source developers. This document describes how you can contribute, no matter whether you're a user or a developer yourself.
+TDengine TSDB-OSS is free, open-source software. Its development is led by the TDengine Team, but we welcome contributions from all community members and open-source developers. This document describes how you can contribute, no matter whether you're a user or a developer yourself.
 
 ## Bug reports
 
