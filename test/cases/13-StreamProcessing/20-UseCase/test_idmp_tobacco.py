@@ -6,7 +6,8 @@ import math
 
 
 class TestIdmpTobacco:
-    def test_tobacco(self):
+
+    def test_idmp_tobacco(self):
         """IDMP 烟草场景测试
 
         Refer: https://taosdata.feishu.cn/wiki/Zkb2wNkHDihARVkGHYEcbNhmnxb#share-I9GwdF26PoWk6uxx2zJcxZYrn1d
