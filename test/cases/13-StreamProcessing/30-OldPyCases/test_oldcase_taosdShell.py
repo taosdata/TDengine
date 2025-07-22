@@ -25,15 +25,21 @@ class TestOthersOldCaseTaosdshell:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_others_oldcase_taosdShell(self):
-        """Stream basic test 1
-        Basic test cases for streaming, part 1
+        """taosd shell
+
+        test taosd shell command
+
         Catalog:
-            - Streams:OldCases
-        Since: v3.0.0.0
-        Labels: common, ci
+            - Streams:UseCases
+
+        Since: v3.3.3.7
+
+        Labels: common,ci
+
         Jira: None
+
         History:
-            - 2025-5-15 Migrated from t0-others/taosdShell.py -N 5 -M 3 -Q 3
+            - 2025-6-16 lihui from old cases
 
         """
 

@@ -24,16 +24,22 @@ class TestOthersOldCaseBackquoteCheck:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_others_oldcase_bachkquote_check(self):        
-        """Stream old case
-        old case 
+    def test_others_oldcase_backquote_check(self):   
+        """back quote
+
+        test back quote check
+
         Catalog:
-            - Streams:OldCases
-        Since: v3.0.0.0
-        Labels: common, ci
+            - Streams:UseCases
+
+        Since: v3.3.3.7
+
+        Labels: common,ci
+
         Jira: None
+
         History:
-            - 2025-5-15 Migrated from t0-others/taosdShell.py -N 5 -M 3 -Q 3
+            - 2025-6-16 lihui from old cases
 
         """
         
@@ -46,19 +52,7 @@ class TestOthersOldCaseBackquoteCheck:
         self.ntbname1 = 'ntb1'
         self.ntbname2 = 'ntb2'
         self.streamname = 'stm'
-        self.streamtb = 'stm_stb'
-        
-        """Stream basic test 1
-        Basic test cases for streaming, part 1
-        Catalog:
-            - Streams:OldCases
-        Since: v3.0.0.0
-        Labels: common, ci
-        Jira: None
-        History:
-            - 2025-5-15 Migrated from t0-others/backquote_check.py
-
-        """
+        self.streamtb = 'stm_stb'         
 
         tdStream.createSnode()
         # self.init()
