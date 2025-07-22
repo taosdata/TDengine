@@ -235,7 +235,7 @@ TEST(TcsTest, InterfaceTest) {
 // TEST(TcsTest, DISABLED_InterfaceNonBlobTest) {
 TEST(TcsTest, InterfaceNonBlobTest) {
 #ifndef TD_ENTERPRISE
-  // NOTE: this test case will coredump for community edition of taos
+  // NOTE: this test case will coredump for TSDB-OSS edition of taos
   //       thus we bypass this test case for the moment
   // code = tcsGetObjectBlock(object_name, 0, size, check, &pBlock);
   // tcsGetObjectBlock succeeded but pBlock is nullptr

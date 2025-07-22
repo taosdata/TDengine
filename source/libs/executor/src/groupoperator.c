@@ -40,7 +40,7 @@ typedef struct SGroupbyOperatorInfo {
   int32_t        groupKeyLen;    // total group by column width
   SGroupResInfo  groupResInfo;
   SExprSupp      scalarSup;
-  SOperatorInfo  *pOperator;
+  SOperatorInfo* pOperator;
 } SGroupbyOperatorInfo;
 
 // The sort in partition may be needed later.
@@ -172,11 +172,20 @@ static bool groupKeyCompare(SArray* pGroupCols, SArray* pGroupColVals, SSDataBlo
         return false;
       }
     } else if (IS_VAR_DATA_TYPE(pkey->type)) {
-      int32_t len = varDataLen(val);
-      if (len == varDataLen(pkey->pData) && memcmp(varDataVal(pkey->pData), varDataVal(val), len) == 0) {
-        continue;
+      if (IS_STR_DATA_BLOB(pkey->type)) {
+        int32_t len = blobDataLen(val);
+        if (len == blobDataLen(pkey->pData) && memcmp(blobDataVal(pkey->pData), blobDataVal(val), len) == 0) {
+          continue;
+        } else {
+          return false;
+        }
       } else {
-        return false;
+        int32_t len = varDataLen(val);
+        if (len == varDataLen(pkey->pData) && memcmp(varDataVal(pkey->pData), varDataVal(val), len) == 0) {
+          continue;
+        } else {
+          return false;
+        }
       }
     } else {
       if (memcmp(pkey->pData, val, pkey->bytes) != 0) {
@@ -220,7 +229,11 @@ static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSData
         int32_t dataLen = getJsonValueLen(val);
         memcpy(pkey->pData, val, dataLen);
       } else if (IS_VAR_DATA_TYPE(pkey->type)) {
-        memcpy(pkey->pData, val, varDataTLen(val));
+        if (IS_STR_DATA_BLOB(pkey->type)) {
+          memcpy(pkey->pData, val, blobDataTLen(val));
+        } else {
+          memcpy(pkey->pData, val, varDataTLen(val));
+        }
       } else {
         memcpy(pkey->pData, val, pkey->bytes);
       }
@@ -246,8 +259,13 @@ static int32_t buildGroupKeys(void* pKey, const SArray* pGroupColVals) {
       memcpy(pStart, (pkey->pData), dataLen);
       pStart += dataLen;
     } else if (IS_VAR_DATA_TYPE(pkey->type)) {
-      varDataCopy(pStart, pkey->pData);
-      pStart += varDataTLen(pkey->pData);
+      if (IS_STR_DATA_BLOB(pkey->type)) {
+        blobDataCopy(pStart, pkey->pData);
+        pStart += blobDataTLen(pkey->pData);
+      } else {
+        varDataCopy(pStart, pkey->pData);
+        pStart += varDataTLen(pkey->pData);
+      }
     } else {
       memcpy(pStart, pkey->pData, pkey->bytes);
       pStart += pkey->bytes;
@@ -273,7 +291,11 @@ static void doAssignGroupKeys(SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t
           int32_t dataLen = getJsonValueLen(data);
           memcpy(dest, data, dataLen);
         } else if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-          varDataCopy(dest, data);
+          if (IS_STR_DATA_BLOB(pColInfoData->info.type)) {
+            blobDataCopy(dest, data);
+          } else {
+            varDataCopy(dest, data);
+          }
         } else {
           memcpy(dest, data, pColInfoData->info.bytes);
         }
@@ -338,7 +360,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
 
     int32_t rowIndex = j - num;
     ret = applyAggFunctionOnPartialTuples(pTaskInfo, pCtx, NULL, rowIndex, num, pBlock->info.rows,
-                                                   pOperator->exprSupp.numOfExprs);
+                                          pOperator->exprSupp.numOfExprs);
     if (ret != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, ret);
     }
@@ -741,13 +763,23 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
 
             contentLen = dataLen;
           } else {
-            offset[*rows] = (*columnLen);
-            char* src = colDataGetData(pColInfoData, j);
-            memcpy(data + (*columnLen), src, varDataTLen(src));
-            int32_t v = (data + (*columnLen) + varDataTLen(src) - (char*)pPage);
-            QUERY_CHECK_CONDITION((v > 0), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+            if (IS_STR_DATA_BLOB(pColInfoData->info.type)) {
+              offset[*rows] = (*columnLen);
+              char* src = colDataGetData(pColInfoData, j);
+              memcpy(data + (*columnLen), src, blobDataTLen(src));
+              int32_t v = (data + (*columnLen) + blobDataTLen(src) - (char*)pPage);
+              QUERY_CHECK_CONDITION((v > 0), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
 
-            contentLen = varDataTLen(src);
+              contentLen = blobDataTLen(src);
+            } else {
+              offset[*rows] = (*columnLen);
+              char* src = colDataGetData(pColInfoData, j);
+              memcpy(data + (*columnLen), src, varDataTLen(src));
+              int32_t v = (data + (*columnLen) + varDataTLen(src) - (char*)pPage);
+              QUERY_CHECK_CONDITION((v > 0), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+
+              contentLen = varDataTLen(src);
+            }
           }
         } else {
           char* bitmap = (char*)pPage + startOffset;
@@ -970,7 +1002,7 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
       qError("failed to get buffer, code:%s, %s", tstrerror(terrno), GET_TASKID(pTaskInfo));
       T_LONG_JMP(pTaskInfo->env, terrno);
     }
-    void*    page = getBufPage(pInfo->pBuf, *pageId);
+    void* page = getBufPage(pInfo->pBuf, *pageId);
     if (page == NULL) {
       qError("failed to get buffer, code:%s, %s", tstrerror(terrno), GET_TASKID(pTaskInfo));
       T_LONG_JMP(pTaskInfo->env, terrno);
@@ -1040,7 +1072,7 @@ static int32_t hashPartitionNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
   SSDataBlock*            pRes = pInfo->binfo.pRes;
 
   if (pOperator->status == OP_RES_TO_RETURN) {
-    (*ppRes) =  buildPartitionResult(pOperator);
+    (*ppRes) = buildPartitionResult(pOperator);
     return code;
   }
 
@@ -1229,7 +1261,7 @@ int32_t createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNo
   }
 
   uint32_t defaultPgsz = 0;
-  int64_t defaultBufsz = 0;
+  int64_t  defaultBufsz = 0;
 
   pInfo->binfo.pRes = createDataBlockFromDescNode(pPartNode->node.pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pInfo->binfo.pRes, code, lino, _error, terrno);
@@ -1256,7 +1288,7 @@ int32_t createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNo
     code = terrno;
     goto _error;
   }
-  
+
   pInfo->columnOffset = setupColumnOffset(pInfo->binfo.pRes, pInfo->rowCapacity);
   QUERY_CHECK_NULL(pInfo->columnOffset, code, lino, _error, terrno);
 

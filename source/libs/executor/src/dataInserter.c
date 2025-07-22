@@ -1038,7 +1038,8 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
     }
 
     SRow* pRow = NULL;
-    if ((terrno = tRowBuild(pVals, pTSchema, &pRow)) < 0) {
+    SRowBuildScanInfo sinfo = {0};
+    if ((terrno = tRowBuild(pVals, pTSchema, &pRow, &sinfo)) < 0) {
       tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
       goto _end;
     }
@@ -1297,8 +1298,8 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
           break;
         }
         case TSDB_DATA_TYPE_BLOB:
-        case TSDB_DATA_TYPE_JSON:
         case TSDB_DATA_TYPE_MEDIUMBLOB:
+        case TSDB_DATA_TYPE_JSON:
           qError("the column type %" PRIi16 " is defined but not implemented yet", pColInfoData->info.type);
           terrno = TSDB_CODE_APP_ERROR;
           goto _end;
@@ -1341,8 +1342,9 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
       }
     }
 
-    SRow* pRow = NULL;
-    if ((terrno = tRowBuild(pVals, pTSchema, &pRow)) < 0) {
+    SRow*             pRow = NULL;
+    SRowBuildScanInfo sinfo = {0};
+    if ((terrno = tRowBuild(pVals, pTSchema, &pRow, &sinfo)) < 0) {
       tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
       goto _end;
     }
