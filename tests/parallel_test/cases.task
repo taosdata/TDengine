@@ -1631,7 +1631,6 @@
 #newstm,,y,script,./test.sh -f tsim/stream/tag.sim
 #newstm,,y,script,./test.sh -f tsim/stream/snodeCheck.sim
 #newstm,,y,script,./test.sh -f tsim/stream/concurrentcheckpt.sim
-#newstm,,y,script,./test.sh -f tsim/stream/checkpointInterval0.sim
 #newstm,,y,script,./test.sh -f tsim/stream/count0.sim
 #newstm,,y,script,./test.sh -f tsim/stream/count1.sim
 #newstm,,y,script,./test.sh -f tsim/stream/count2.sim
