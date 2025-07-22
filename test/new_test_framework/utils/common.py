@@ -1165,9 +1165,8 @@ class TDCom:
         timeout = self.stream_timeout if stream_timeout is None else stream_timeout
 
         #check stream task rows
-        sql_task_all = f"select `task_id`,node_id,stream_name,status,info,history_task_id from information_schema.ins_stream_tasks where stream_name='{stream_name}' and `level`='source';" 
-        sql_task_status = f"select distinct(status) from information_schema.ins_stream_tasks where stream_name='{stream_name}' and `level`='source';"
-        sql_task_history = f"select distinct(history_task_id) from information_schema.ins_stream_tasks where stream_name='{stream_name}' and `level`='source';"
+        sql_task_all = f"select `task_id`,node_id,stream_name,status from information_schema.ins_stream_tasks where stream_name='{stream_name}';"
+        sql_task_status = f"select distinct(status) from information_schema.ins_stream_tasks where stream_name='{stream_name}'"
         tdSql.query(sql_task_all)
         tdSql.checkRows(vgroups)
                 
@@ -1178,27 +1177,24 @@ class TDCom:
         while checktimes <= timeout:
             tdLog.notice(f"checktimes:{checktimes}")
             try:
-                result_task_alll = tdSql.query(sql_task_all,row_tag=True)
-                result_task_alll_rows = tdSql.query(sql_task_all)
+                result_task_all = tdSql.query(sql_task_all,row_tag=True)
+                result_task_all_rows = tdSql.query(sql_task_all)
                 result_task_status = tdSql.query(sql_task_status,row_tag=True)
                 result_task_status_rows = tdSql.query(sql_task_status)
-                result_task_history = tdSql.query(sql_task_history,row_tag=True)
-                result_task_history_rows = tdSql.query(sql_task_history)
                 
                 tdLog.notice(f"Try to check stream status, check times: {checktimes} and stream task list[{check_stream_success}]")
-                print(f"result_task_status:{result_task_status},result_task_history:{result_task_history},result_task_alll:{result_task_alll}")
-                if result_task_status_rows == 1 and result_task_status ==[('ready',)] :
-                    if result_task_history_rows == 1 and  result_task_history == [(None,)] :
-                        if check_wal_info:
-                            for vgroup_num in range(vgroups):
-                                if self.check_stream_wal_info(result_task_alll[vgroup_num][4]) :
-                                    check_stream_success += 1
-                                    tdLog.info(f"check stream task list[{check_stream_success}] sucessfully :")
-                                else:
-                                    check_stream_success = 0
-                                    break
-                        else:
-                            check_stream_success = vgroups
+                print(f"result_task_status:{result_task_status},result_task_all:{result_task_all}")
+                if result_task_status_rows == 1 and result_task_status ==[('Running',)] :
+                    if check_wal_info:
+                        for vgroup_num in range(vgroups):
+                            if self.check_stream_wal_info(result_task_all[vgroup_num][4]) :
+                                check_stream_success += 1
+                                tdLog.info(f"check stream task list[{check_stream_success}] sucessfully :")
+                            else:
+                                check_stream_success = 0
+                                break
+                    else:
+                        check_stream_success = vgroups
                             
                 if check_stream_success == vgroups:
                     break
@@ -1208,12 +1204,12 @@ class TDCom:
             except Exception as e:
                 tdLog.notice(f"Try to check stream status again, check times: {checktimes}")
                 checktimes += 1 
-                tdSql.print_error_frame_info(result_task_alll[vgroup_num],"status is ready,info is finished and history_task_id is NULL",sql_task_all)
+                tdSql.print_error_frame_info(result_task_all[vgroup_num],"status is ready,info is finished and history_task_id is NULL",sql_task_all)
         else:
             checktimes_end = checktimes - 1
             tdLog.notice(f"it has spend {checktimes_end} for checking stream task status but it failed")
             if checktimes_end == timeout:
-                tdSql.print_error_frame_info(result_task_alll[vgroup_num],"status is ready,info is finished and history_task_id is NULL",sql_task_all)
+                tdSql.print_error_frame_info(result_task_all[vgroup_num],"status is ready,info is finished and history_task_id is NULL",sql_task_all)
 
     def drop_db(self, dbname="test"):
         """drop a db
