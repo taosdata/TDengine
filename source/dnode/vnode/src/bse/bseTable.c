@@ -345,7 +345,7 @@ int32_t tableBuilderPut(STableBuilder *p, SBseBatch *pBatch) {
   if (offset < pBatch->len) {
     int32_t size = pBatch->len - offset;
     if (size > 0) {
-      code = blockWrapperResize(pBlockWrapper, size + pBlockWrapper->size);
+      code = blockWrapperResize(pBlockWrapper, size + BLOCK_TOTAL_SIZE((SBlock *)(pBlockWrapper->data)));
       TSDB_CHECK_CODE(code, lino, _error);
     }
 
@@ -409,12 +409,12 @@ int32_t findInMemtable(STableMemTable *p, int64_t seq, uint8_t **value, int32_t 
         return TSDB_CODE_NOT_FOUND;
       }
       pHandle = taosArrayGet(p->pMetaHandle, idx);
-      return tableBuilderSeek(p->pTableBuilder, pHandle, seq, value, len);
+      code = tableBuilderSeek(p->pTableBuilder, pHandle, seq, value, len);
     }
   } else {
-    return blockSeek(p->pBlockWrapper.data, seq, value, len);
+    code = blockSeek(p->pBlockWrapper.data, seq, value, len);
   }
-
+_error:
   bseMemTableUnRef(p);
   return code;
 }
@@ -485,6 +485,8 @@ int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo) {
     bseDebug("no meta block to commit for table %s", p->name);
     return code;
   }
+
+  tableBuilderClearImmuMemTable(p);
 
   code = tableMetaCommit(p->pTableMeta, pMetaBlock);
   TSDB_CHECK_CODE(code, lino, _error);
@@ -2152,6 +2154,7 @@ static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, 
 
     seqRangeReset(&p->range);
     p->ref = 1;
+    bseInfo("create mem table %p", p);
 
   _error:
     if (code != 0) {
@@ -2167,6 +2170,7 @@ static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, 
     if (pMemTable == NULL) {
       return TSDB_CODE_INVALID_CFG;
     }
+    bseInfo("ref mem table %p", pMemTable);
     int32_t nRef = atomic_fetch_add_32(&pMemTable->ref, 1);
     if (nRef <= 0) {
       bseError("vgId:%d, memtable ref count is invalid, ref:%d", ((SBse *)pMemTable->pBse)->cfg.vgId, nRef);
@@ -2178,11 +2182,13 @@ static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, 
   void bseMemTableUnRef(STableMemTable *pMemTable) {
     int32_t code = 0;
 
+    bseInfo("unref mem table %p", pMemTable);
     if (pMemTable == NULL) {
       return;
     }
     if (atomic_sub_fetch_32(&pMemTable->ref, 1) == 0) {
       bseMemTableDestroy(pMemTable);
+      bseInfo("destroy mem table %p", pMemTable);
     }
   }
   void bseMemTableDestroy(STableMemTable *pMemTable) {

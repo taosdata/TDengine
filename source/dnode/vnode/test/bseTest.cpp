@@ -236,25 +236,26 @@ int32_t funcTestSmallData() {
   SBseCfg              cfg = {.vgId = 2};
   std::vector<int64_t> data;
   int32_t              code = bseOpen("/tmp/bse", &cfg, &bse);
-  putData(bse, 10, 10, &data);
+  putData(bse, 1000, 100000, &data);
   getData(bse, &data);
 
   bseCommit(bse);
 
   getData(bse, &data);
 
-  putData(bse, 10, 10, &data);
+  putData(bse, 1000, 100000, &data);
 
   bseCommit(bse);
+
+  putData(bse, 1000, 100000, &data);
+  getData(bse, &data);
+
+  bseCommit(bse);
+
   getData(bse, &data);
 
   bseClose(bse);
 
-  // {
-  //   code = bseOpen("/tmp/bse", &cfg, &bse);
-  //   getData(bse, &data);
-  //   bseClose(bse);
-  // }
 
   return 0;
 }
@@ -357,10 +358,10 @@ void emptySnapTest() {
 TEST(bseCase, snapTest) {
 #ifdef LINUX
   initLog();
-  //emptySnapTest();
-  //benchTest();
-  //funcTest();
+  // emptySnapTest();
+  // benchTest();
+  // funcTest();
   funcTestSmallData();
-  //snapTest();
+  // snapTest();
 #endif
 }
