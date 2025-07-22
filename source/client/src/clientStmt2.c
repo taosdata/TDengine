@@ -271,6 +271,10 @@ static int32_t stmtUpdateBindInfo(TAOS_STMT2* stmt, STableMeta* pTableMeta, void
   pStmt->bInfo.tbNameFlag = tbNameFlag;
   tstrncpy(pStmt->bInfo.stbFName, sTableName, sizeof(pStmt->bInfo.stbFName));
 
+  if (pTableMeta->tableType != TSDB_CHILD_TABLE && pTableMeta->tableType != TSDB_SUPER_TABLE) {
+    pStmt->sql.stbInterlaceMode = false;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1942,14 +1946,13 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
   pStmt->stat.bindDataUs2 += startUs3 - startUs2;
 
   SArray* pCols = pStmt->sql.stbInterlaceMode ? param->tblData.aCol : (*pDataBlock)->pData->aCol;
-
+  SBlobSet* pBlob = NULL;
   if (colIdx < 0) {
     if (pStmt->sql.stbInterlaceMode) {
-      // (*pDataBlock)->pData->flags = 0;
       (*pDataBlock)->pData->flags &= ~SUBMIT_REQ_COLUMN_DATA_FORMAT;
       code = qBindStmtStbColsValue2(*pDataBlock, pCols, pStmt->bInfo.boundCols, bind, pStmt->exec.pRequest->msgBuf,
                                     pStmt->exec.pRequest->msgBufLen, &pStmt->sql.siInfo.pTSchema, pStmt->sql.pBindInfo,
-                                    pStmt->taos->optionInfo.charsetCxt);
+                                    pStmt->taos->optionInfo.charsetCxt, &pBlob);
       param->tblData.isOrdered = (*pDataBlock)->ordered;
       param->tblData.isDuplicateTs = (*pDataBlock)->duplicateTs;
     } else {
@@ -2006,6 +2009,10 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
   int64_t startUs4 = taosGetTimestampUs();
   pStmt->stat.bindDataUs3 += startUs4 - startUs3;
 
+  if (pStmt->stbInterlaceMode) {
+    if (param) param->tblData.pBlobSet = pBlob;
+  }
+
   if (pStmt->sql.stbInterlaceMode) {
     STMT_ERR_RET(stmtAppendTablePostHandle(pStmt, param));
   } else {
@@ -2013,9 +2020,9 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
   }
 
   pStmt->stat.bindDataUs4 += taosGetTimestampUs() - startUs4;
-
   return TSDB_CODE_SUCCESS;
 }
+
 /*
 int stmtUpdateTableUid(STscStmt2* pStmt, SSubmitRsp* pRsp) {
   tscDebug("stmt start to update tbUid, blockNum:%d", pRsp->nBlocks);

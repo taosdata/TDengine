@@ -879,6 +879,7 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
               .req.tagVer = mr.me.stbEntry.schemaTag.version,
               .req.numOfColumns = mr.me.stbEntry.schemaRow.nCols,
               .req.numOfTags = mr.me.stbEntry.schemaTag.nCols,
+              .req.virtualStb = TABLE_IS_VIRTUAL(mr.me.flags) ? 1 : 0,
           };
           snprintf(stbInfo.req.name, sizeof(stbInfo.req.name), "%s", mr.me.name);
           if (!pCols && !(pCols = taosArrayInit(stbInfo.req.numOfColumns, sizeof(SFieldWithOptions)))) {
@@ -980,21 +981,21 @@ int32_t vmMountCheckRunning(const char *mountName, const char *mountPath, TdFile
   int32_t retryTimes = 0;
   char    filepath[PATH_MAX] = {0};
   (void)snprintf(filepath, sizeof(filepath), "%s%s.running", mountPath, TD_DIRSEP);
-  TSDB_CHECK_NULL((*pFile = taosOpenFile(filepath, TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_CLOEXEC)), code, lino, _exit,
-                  terrno);
+  TSDB_CHECK_NULL((*pFile = taosOpenFile(
+                       filepath, TD_FILE_CREATE | TD_FILE_READ | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_CLOEXEC)),
+                  code, lino, _exit, terrno);
   int32_t ret = 0;
   do {
     ret = taosLockFile(*pFile);
     if (ret == 0) break;
     taosMsleep(1000);
     ++retryTimes;
-    dError("mount:%s, failed to lock file:%s since %s, retryTimes:%d", mountName, filepath, tstrerror(ret),
-           retryTimes);
+    dError("mount:%s, failed to lock file:%s since %s, retryTimes:%d", mountName, filepath, tstrerror(ret), retryTimes);
   } while (retryTimes < retryLimit);
   TAOS_CHECK_EXIT(ret);
 _exit:
   if (code != 0) {
-    taosCloseFile(pFile);
+    (void)taosCloseFile(pFile);
     *pFile = NULL;
     dError("mount:%s, failed to check running at line %d since %s, path:%s", mountName, lino, tstrerror(code),
            filepath);

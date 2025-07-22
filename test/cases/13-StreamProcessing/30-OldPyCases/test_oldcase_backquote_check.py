@@ -25,6 +25,18 @@ class TestOthersOldCaseBackquoteCheck:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_others_oldcase_bachkquote_check(self):
+        
+        self.replicaVar = 1
+        tdLog.debug("start to execute %s" % __file__)
+        # tdSql.init(conn.cursor(), True)
+        self.dbname = 'db'
+        # self.setsql = TDSetSql()
+        self.stbname = 'stb'
+        self.ntbname1 = 'ntb1'
+        self.ntbname2 = 'ntb2'
+        self.streamname = 'stm'
+        self.streamtb = 'stm_stb'
+        
         """Stream basic test 1
         Basic test cases for streaming, part 1
         Catalog:
@@ -38,21 +50,21 @@ class TestOthersOldCaseBackquoteCheck:
         """
 
         tdStream.createSnode()
-        self.init()
+        # self.init()
         self.runCase()
         
-    # def init(self, conn, logSql, replicaVar=1):
-    def init(self, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        # tdSql.init(conn.cursor(), True)
-        self.dbname = 'db'
-        # self.setsql = TDSetSql()
-        self.stbname = 'stb'
-        self.ntbname1 = 'ntb1'
-        self.ntbname2 = 'ntb2'
-        self.streamname = 'stm'
-        self.streamtb = 'stm_stb'
+    # # def init(self, conn, logSql, replicaVar=1):
+    # def init(self, replicaVar=1):
+    #     self.replicaVar = int(replicaVar)
+    #     tdLog.debug("start to execute %s" % __file__)
+    #     # tdSql.init(conn.cursor(), True)
+    #     self.dbname = 'db'
+    #     # self.setsql = TDSetSql()
+    #     self.stbname = 'stb'
+    #     self.ntbname1 = 'ntb1'
+    #     self.ntbname2 = 'ntb2'
+    #     self.streamname = 'stm'
+    #     self.streamtb = 'stm_stb'
         
     def topic_name_check(self):
         tdSql.execute(f'create database if not exists {self.dbname} wal_retention_period 3600')
@@ -155,13 +167,23 @@ class TestOthersOldCaseBackquoteCheck:
         tdSql.checkRows(1)
 
     def runCase(self):
-        self.topic_name_check()
+        tdLog.info(f"start run topic_name_check() ......")
+        self.topic_name_check()        
+        
+        tdLog.info(f"start run db_name_check() ......")
         self.db_name_check()
-        if platform.system().lower() != 'windows':
-            self.stream_name_check()
+        if platform.system().lower() != 'windows':        
+            tdLog.info(f"start run stream_name_check() ......")
+            self.stream_name_check() 
+        
+        tdLog.info(f"start run table_name_check() ......")    
         self.table_name_check()
         # self.view_name_check()
+        
+        tdLog.info(f"start run query_check() ......")  
         self.query_check()
+        
+        tdLog.info(f"all check run query_check() ......")  
 
     def stop(self):
         tdSql.execute(f'drop database {self.dbname}')

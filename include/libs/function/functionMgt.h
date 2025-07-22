@@ -378,6 +378,7 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
 
 const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo);
 
+void fmGetStreamPesudoFuncValTbname(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo, void** data, int32_t* dataLen);
 #ifdef __cplusplus
 }
 #endif

@@ -87,7 +87,13 @@ static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen
         qError("The %d col/tag geometry data len error, len:%d", i, pSchema[i].bytes);
         return false;
       }
-    } else {
+    } else if (IS_STR_DATA_BLOB(pSchema[i].type)) {
+      if (pSchema[i].bytes >= TSDB_MAX_BLOB_LEN) {
+        qError("The %d col/tag blob data len error, len:%d", i, pSchema[i].bytes);
+        return false;
+      } 
+
+    }else {
       if (pSchema[i].bytes != tDataTypes[pSchema[i].type].bytes) {
         qError("The %d col/tag data len error, type:%d, len:%d", i, pSchema[i].type, pSchema[i].bytes);
         return false;
@@ -467,7 +473,7 @@ int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_
   return TSDB_CODE_SUCCESS;
 }
 
-void parseTagDatatoJson(void* p, char** jsonStr, void *charsetCxt) {
+void parseTagDatatoJson(void* p, char** jsonStr, void* charsetCxt) {
   if (!p || !jsonStr) {
     qError("parseTagDatatoJson invalid input, line:%d", __LINE__);
     return;
@@ -515,8 +521,7 @@ void parseTagDatatoJson(void* p, char** jsonStr, void *charsetCxt) {
         int32_t length = taosUcs4ToMbs((TdUcs4*)pTagVal->pData, pTagVal->nData, tagJsonValue, charsetCxt);
         if (length < 0) {
           qError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC,
-                 charsetCxt != NULL ? ((SConvInfo *)(charsetCxt))->charset : tsCharset,
-                 pTagVal->pData);
+                 charsetCxt != NULL ? ((SConvInfo*)(charsetCxt))->charset : tsCharset, pTagVal->pData);
           taosMemoryFree(tagJsonValue);
           goto end;
         }
@@ -565,7 +570,7 @@ end:
   taosArrayDestroy(pTagVals);
   if (string == NULL) {
     string = taosStrdup(TSDB_DATA_NULL_STR_L);
-    if(string == NULL) {
+    if (string == NULL) {
       qError("failed to strdup null string");
     }
   }
@@ -626,7 +631,7 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
 }
 
 void getColumnTypeFromMeta(STableMeta* pMeta, char* pName, ETableColumnType* pType) {
-  if(!pMeta || !pName || !pType) return;
+  if (!pMeta || !pName || !pType) return;
   int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
   for (int32_t i = 0; i < nums; ++i) {
     if (0 == strcmp(pName, pMeta->schema[i].name)) {
@@ -732,7 +737,7 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
     STag* pTag = (STag*)pSrc->ctb.pTag;
     if (pTag) {
       (*pDst)->ctb.pTag = taosMemoryMalloc(pTag->len);
-      if(NULL == (*pDst)->ctb.pTag) goto _exit;
+      if (NULL == (*pDst)->ctb.pTag) goto _exit;
       memcpy((*pDst)->ctb.pTag, pTag, pTag->len);
     }
   } else {
@@ -761,13 +766,8 @@ void freeDbCfgInfo(SDbCfgInfo* pInfo) {
   taosMemoryFree(pInfo);
 }
 
-void* getTaskPoolWorkerCb() {
-  return taskQueue.wrokrerPool.pCb;
-}
-
+void* getTaskPoolWorkerCb() { return taskQueue.wrokrerPool.pCb; }
 
 void tFreeStreamVtbOtbInfo(void* param);
 void tFreeStreamVtbVtbInfo(void* param);
 void tFreeStreamVtbDbVgInfo(void* param);
-
-

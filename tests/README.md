@@ -111,7 +111,7 @@ Use the add_test command to add new compiled test cases into CI test collection,
 
 ## 3.2 System Test
 
-System tests are end-to-end test cases written in Python from a system point of view. Some of them are designed to test features only in enterprise ediiton, so when running on community edition, they may fail. We'll fix this issue by separating the cases into different groups in the future.
+System tests are end-to-end test cases written in Python from a system point of view. Some of them are designed to test features only in enterprise ediiton, so when running on TSDB-OSS edition, they may fail. We'll fix this issue by separating the cases into different groups in the future.
 
 ### 3.2.1 How to run a single test case?
 

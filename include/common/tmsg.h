@@ -4964,6 +4964,7 @@ int32_t tDeserializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
 #define TD_REQ_FROM_TAOX              0x8
 #define TD_REQ_FROM_SML               0x10
 #define SUBMIT_REQUEST_VERSION        (1)
+#define SUBMIT_REQ_WITH_BLOB          0x10
 
 #define TD_REQ_FROM_TAOX_OLD 0x1  // for compatibility
 
@@ -4977,11 +4978,13 @@ typedef struct {
     SArray* aRowP;
     SArray* aCol;
   };
-  int64_t ctimeMs;
+  int64_t    ctimeMs;
+  SBlobSet*  pBlobSet;
 } SSubmitTbData;
 
 typedef struct {
   SArray* aSubmitTbData;  // SArray<SSubmitTbData>
+  SArray* aSubmitBlobData;
   bool    raw;
 } SSubmitReq2;
 
