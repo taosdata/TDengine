@@ -68,6 +68,7 @@ class Test_IDMP_Vehicle:
         self.db    = "idmp_sample_vehicle"
         self.vdb   = "idmp"
         self.stb   = "vehicles"
+        self.step  = 1 * 60 * 1000 # 1 minute
         self.start = 1752900000000
         self.start_current = 10
         self.start_voltage = 260
@@ -217,7 +218,7 @@ class Test_IDMP_Vehicle:
 
     def verify_stream4_sub1(self, tables=None):
         # check
-        result_sql = f"select * from {self.vdb}.`result_stream4` "
+        result_sql = f"select * from {self.vdb}.`result_stream4_sub1` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
             func = lambda: tdSql.getRows() == 2
