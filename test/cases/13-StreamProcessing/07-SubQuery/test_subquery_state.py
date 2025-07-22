@@ -1117,7 +1117,7 @@ class TestStreamSubqueryState:
             res_query="select * from rdb.r118 where id = 1 limit 1",
             exp_query="select cast('2025-01-01 00:00:00.000' as timestamp) ts, count(tac1), sum(tbcint), 1, 'v1' from (select ta.ts tats, tb.cts tbts, ta.c1 tac1, tb.cint tbcint from qdb.t1 tb right asof join tdb.t1 ta on ta.ts < tb.cts jlimit 10 where ta.ts >= '2025-01-01 00:00:00.000' and ta.ts < '2025-01-01 00:05:00.000' and cos(tb.cint) >= 0 and cos(ta.c1) > 0);",
         )
-        # self.streams.append(stream) TD-36624
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=119,
