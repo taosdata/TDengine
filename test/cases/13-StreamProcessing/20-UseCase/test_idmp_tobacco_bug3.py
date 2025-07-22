@@ -1,25 +1,27 @@
-from test_idmp_tobacco import TestIdmpScene
+from test_idmp_tobacco import IdmpScene
 
 
 class TestIdmpTobaccoBug3:
-    """IDMP 光伏场景测试
 
-    Catalog:
-        - Streams:UseCases
+    def test_idmp_tobacco_bug3(self):
+        """IDMP 光伏场景测试
 
-    Since: v3.3.7.0
+        bug3
 
-    Labels: common,ci
+        Catalog:
+            - Streams:UseCases
 
-    Jira:
-        - https://jira.taosdata.com:18080/browse/TD-36699
+        Since: v3.3.7.0
 
-    History:
-        - 2025-7-18 zyyang90 Created
-    """
+        Labels: common,ci
 
-    def test_idmp_tobacco(self):
-        tobac = TestIdmpScene()
+        Jira:
+            - https://jira.taosdata.com:18080/browse/TD-36699
+
+        History:
+            - 2025-7-18 zyyang90 Created
+        """
+        tobac = IdmpScene()
         tobac.init(
             "tobacco",
             "idmp_sample_tobacco",

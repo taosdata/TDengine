@@ -2500,10 +2500,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
       pCtx->isNotNullFunc = fmIsNotNullOutputFunc(pCtx->functionId);
 
       bool isUdaf = fmIsUserDefinedFunc(pCtx->functionId);
-      if (fmIsPlaceHolderFunc(pCtx->functionId)) {
-        code = fmGetStreamPesudoFuncEnv(pCtx->functionId, pExpr->base.pParamList, &env);
-        QUERY_CHECK_CODE(code, lino, _end);
-      } else if (fmIsAggFunc(pCtx->functionId) || fmIsIndefiniteRowsFunc(pCtx->functionId)) {
+      if (fmIsAggFunc(pCtx->functionId) || fmIsIndefiniteRowsFunc(pCtx->functionId)) {
         if (!isUdaf) {
           code = fmGetFuncExecFuncs(pCtx->functionId, &pCtx->fpSet);
           QUERY_CHECK_CODE(code, lino, _end);
@@ -2521,6 +2518,11 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
           QUERY_CHECK_CODE(code, lino, _end);
         }
       } else {
+        if (fmIsPlaceHolderFunc(pCtx->functionId)) {
+          code = fmGetStreamPesudoFuncEnv(pCtx->functionId, pExpr->base.pParamList, &env);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }      
+        
         code = fmGetScalarFuncExecFuncs(pCtx->functionId, &pCtx->sfp);
         if (code != TSDB_CODE_SUCCESS && isUdaf) {
           code = TSDB_CODE_SUCCESS;
@@ -3354,7 +3356,7 @@ void printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr
 
 TSKEY getStartTsKey(STimeWindow* win, const TSKEY* tsCols) { return tsCols == NULL ? win->skey : tsCols[0]; }
 
-void updateTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pWin, int64_t delta) {
+void updateTimeWindowInfo(SColumnInfoData* pColData, const STimeWindow* pWin, int64_t delta) {
   int64_t* ts = (int64_t*)pColData->pData;
 
   int64_t duration = pWin->ekey - pWin->skey + delta;

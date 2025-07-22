@@ -662,7 +662,7 @@ class TestStreamOldCaseBasic1:
 
         def check1(self):
             tdSql.checkResultsByFunc(
-                f"select * from streamt;", lambda: tdSql.getRows() == 16
+                f"select * from streamt;", lambda: tdSql.getRows() == 18
             )
 
         def insert2(self):
@@ -672,7 +672,7 @@ class TestStreamOldCaseBasic1:
 
         def check2(self):
             tdSql.checkResultsByFunc(
-                f"select * from streamt;", lambda: tdSql.getRows() == 29
+                f"select * from streamt;", lambda: tdSql.getRows() == 33
             )
 
     class Basic41(StreamCheckItem):
