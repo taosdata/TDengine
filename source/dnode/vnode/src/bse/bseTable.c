@@ -177,7 +177,9 @@ int32_t tableBuilderOpen(int64_t ts, STableBuilder **pBuilder, SBse *pBse) {
 
   p->pBse = pBse;
   code = tableOpenFile(path, 0, &p->pDataFile, &p->offset);
+
   *pBuilder = p;
+  p->pMemTable->pTableBuilder = p;
 
 _error:
   if (code != 0) {
@@ -188,21 +190,22 @@ _error:
 }
 
 int32_t tableBuilderGetMetaBlock(STableBuilder *p, SArray **pMetaBlock) {
-  return bseMemTablGetMetaBlock(p->pMemTable, pMetaBlock);
+  return bseMemTablGetMetaBlock(p->pImmuMemTable, pMetaBlock);
 }
 
-int32_t tableBuilderAddMeta(STableBuilder *p, SBlkHandle *pHandle) {
+int32_t tableBuilderAddMeta(STableBuilder *p, SBlkHandle *pHandle, int8_t immu) {
   int32_t code = 0;
   int32_t lino = 0;
-  code = bseMemTableRef(p->pMemTable);
+  STableMemTable *pMemTable = immu ? p->pImmuMemTable : p->pMemTable;
+  code = bseMemTableRef(pMemTable);
   TAOS_CHECK_GOTO(code, &lino, _error);
 
-  code = bseMemTablePush(p->pMemTable, pHandle);
+  code = bseMemTablePush(pMemTable, pHandle);
   TAOS_CHECK_GOTO(code, &lino, _error);
 
-  seqRangeReset(&p->blockRange);
+  seqRangeReset(&pMemTable->range);
 _error:
-  bseMemTableUnRef(p->pMemTable);
+  bseMemTableUnRef(pMemTable);
   return code;
 }
 int32_t tableBuilderFlush(STableBuilder *p, int8_t type, int8_t immutable) {
@@ -217,8 +220,11 @@ int32_t tableBuilderFlush(STableBuilder *p, int8_t type, int8_t immutable) {
 
   SBlock *pBlk = pMemTable->pBlockWrapper.data;
   if (pBlk->len == 0) {
+    bseDebug("no data to flush for table %s", p->name);
+    bseMemTableUnRef(pMemTable);
     return 0;
   }
+
   int8_t compressType = BSE_GET_COMPRESS_TYPE(p->pBse);
 
   SBlockWrapper wrapper = {0};
@@ -255,7 +261,7 @@ int32_t tableBuilderFlush(STableBuilder *p, int8_t type, int8_t immutable) {
   code = taosCalcChecksumAppend(0, (uint8_t *)pWrite, len);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  SBlkHandle handle = {.size = len, .offset = p->offset, .range = p->blockRange};
+  SBlkHandle handle = {.size = len, .offset = p->offset, .range = pMemTable->range};
 
   bseDebug("bse flush at offset %" PRId64 " len: %d, block range sseq:%" PRId64 ", eseq:%" PRId64 "", p->offset, len,
            handle.range.sseq, handle.range.eseq);
@@ -272,7 +278,7 @@ int32_t tableBuilderFlush(STableBuilder *p, int8_t type, int8_t immutable) {
   }
   p->offset += len;
 
-  code = tableBuilderAddMeta(p, &handle);
+  code = tableBuilderAddMeta(p, &handle, immutable);
 
 _error:
   if (code != 0) {
@@ -294,6 +300,10 @@ void tableBuilderUpdateBlockRange(STableBuilder *p, SBlockItemInfo *pInfo) {
   SSeqRange range = {.sseq = pInfo->seq, .eseq = pInfo->seq};
   seqRangeUpdate(&p->blockRange, &range);
 }
+void memtableUpdateBlockRange(STableMemTable *p, SBlockItemInfo *pInfo) {
+  SSeqRange range = {.sseq = pInfo->seq, .eseq = pInfo->seq};
+  seqRangeUpdate(&p->range, &range);
+}
 
 /*|seq len value|seq len value| seq len value| seq len value|*/
 int32_t tableBuilderPut(STableBuilder *p, SBseBatch *pBatch) {
@@ -312,12 +322,15 @@ int32_t tableBuilderPut(STableBuilder *p, SBseBatch *pBatch) {
     SBlockItemInfo *pInfo = taosArrayGet(pBatch->pSeq, i);
     if (i == 0 || i == taosArrayGetSize(pBatch->pSeq) - 1) {
       tableBuildUpdateTableRange(p, pInfo);
+      memtableUpdateBlockRange(p->pMemTable, pInfo);
     }
 
-    if (blockEsimateSize(pBlockWrapper->data, len + pInfo->size) < tableBuilderGetBlockSize(p)) {
+    if (atomic_load_8(&p->hasImmuMemTable) ||
+        (blockEsimateSize(pBlockWrapper->data, len + pInfo->size) < tableBuilderGetBlockSize(p))) {
       i++;
       len += pInfo->size;
       tableBuilderUpdateBlockRange(p, pInfo);
+      memtableUpdateBlockRange(p->pMemTable, pInfo);
       continue;
     } else {
       if (len > 0) {
@@ -328,8 +341,15 @@ int32_t tableBuilderPut(STableBuilder *p, SBseBatch *pBatch) {
       len = 0;
     }
   }
+
   if (offset < pBatch->len) {
-    blockAppendBatch(pBlockWrapper->data, pBatch->buf + offset, pBatch->len - offset);
+    int32_t size = pBatch->len - offset;
+    if (size > 0) {
+      code = blockWrapperResize(pBlockWrapper, size + pBlockWrapper->size);
+      TSDB_CHECK_CODE(code, lino, _error);
+    }
+
+    blockAppendBatch(pBlockWrapper->data, pBatch->buf + offset, size);
   }
 _error:
   if (code != 0) {
@@ -377,6 +397,7 @@ int32_t findInMemtable(STableMemTable *p, int64_t seq, uint8_t **value, int32_t 
   if (p == NULL) {
     return TSDB_CODE_NOT_FOUND;
   }
+
   SBlkHandle *pHandle = NULL;
   code = bseMemTableRef(p);
 
@@ -420,70 +441,95 @@ static void updateTableRange(SBTableMeta *pTableMeta, SArray *pMetaBlock) {
     seqRangeUpdate(&pTableMeta->range, &pMeta->range);
   }
 }
+static int32_t tableBuilderClearImmuMemTable(STableBuilder *p) {
+  int32_t code = 0;
+  taosThreadRwlockWrlock(&p->pBse->rwlock);
+  atomic_store_8(&p->hasImmuMemTable, 0);
+  bseMemTableUnRef(p->pImmuMemTable);
+  p->pImmuMemTable = NULL;
 
-  int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo) {
-    int32_t code = 0;
-    int32_t lino = 0;
+  taosThreadRwlockUnlock(&p->pBse->rwlock);
+  return code;
+}
+static int32_t tableBuildeSwapMemTable(STableBuilder *p) {
+  int32_t code = 0;
+  taosThreadRwlockWrlock(&p->pBse->rwlock);
+  p->pImmuMemTable = p->pMemTable;
+  p->pMemTable = NULL;
 
-    STableCommitInfo commitInfo = {0};
-    SArray          *pMetaBlock = NULL;
-    if (p == NULL) {
-      return TSDB_CODE_INVALID_PARA;
-    }
+  atomic_store_8(&p->hasImmuMemTable, 1);
 
-    code = tableBuilderFlush(p, BSE_TABLE_DATA_TYPE, 1);
-    TSDB_CHECK_CODE(code, lino, _error);
+  taosThreadRwlockUnlock(&p->pBse->rwlock);
+  return code;
+}
 
-    code = taosFsyncFile(p->pDataFile);
-    TSDB_CHECK_CODE(code, lino, _error);
+int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo) {
+  int32_t code = 0;
+  int32_t lino = 0;
 
-    code = tableBuilderGetMetaBlock(p, &pMetaBlock);
-    TSDB_CHECK_CODE(code, lino, _error);
+  STableCommitInfo commitInfo = {0};
+  SArray          *pMetaBlock = NULL;
+  if (p == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  code = tableBuilderFlush(p, BSE_TABLE_DATA_TYPE, 1);
+  TSDB_CHECK_CODE(code, lino, _error);
 
-    code = tableMetaCommit(p->pTableMeta, pMetaBlock);
-    TSDB_CHECK_CODE(code, lino, _error);
+  code = taosFsyncFile(p->pDataFile);
+  TSDB_CHECK_CODE(code, lino, _error);
 
-    updateTableRange(p->pTableMeta, pMetaBlock);
+  code = tableBuilderGetMetaBlock(p, &pMetaBlock);
+  TSDB_CHECK_CODE(code, lino, _error);
 
-    pInfo->level = 0;
-    pInfo->range = p->pTableMeta->range;
-    pInfo->retentionTs = p->retentionTs;
-    pInfo->size = p->offset;
-
-  _error:
-    if (code != 0) {
-      bseError("failed to commit table builder at line %d since %s ", lino, tstrerror(code));
-    } else {
-      bseInfo("succ to commit table %s", p->name);
-    }
-    taosArrayDestroy(pMetaBlock);
+  if (taosArrayGetSize(pMetaBlock) == 0) {
+    bseDebug("no meta block to commit for table %s", p->name);
     return code;
   }
 
-  int32_t tableBuilderGetBlockSize(STableBuilder *p) { return p->blockCap; }
+  code = tableMetaCommit(p->pTableMeta, pMetaBlock);
+  TSDB_CHECK_CODE(code, lino, _error);
 
-  void tableBuilderClose(STableBuilder *p, int8_t commited) {
-    if (p == NULL) {
-      return;
-    }
-    int32_t code = 0;
+  updateTableRange(p->pTableMeta, pMetaBlock);
 
-    bseMemTableUnRef(p->pMemTable);
-    bseMemTableUnRef(p->pImmuMemTable);
+  pInfo->level = 0;
+  pInfo->range = p->pTableMeta->range;
+  pInfo->retentionTs = p->retentionTs;
+  pInfo->size = p->offset;
 
-    taosCloseFile(&p->pDataFile);
-    taosMemoryFree(p);
+_error:
+  if (code != 0) {
+    bseError("failed to commit table builder at line %d since %s ", lino, tstrerror(code));
+  } else {
+    bseInfo("succ to commit table %s", p->name);
   }
+  taosArrayDestroy(pMetaBlock);
+  return code;
+}
 
-  static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, int8_t fileType, int8_t blockType,
-                                     int32_t keepDays) {
-    SBseSnapMeta *pSnapMeta = pBlkWrapper->data;
-    pSnapMeta->range = range;
-    pSnapMeta->fileType = fileType;
-    pSnapMeta->blockType = blockType;
-    pSnapMeta->keepDays = keepDays;
+int32_t tableBuilderGetBlockSize(STableBuilder *p) { return p->blockCap; }
+
+void tableBuilderClose(STableBuilder *p, int8_t commited) {
+  if (p == NULL) {
     return;
   }
+  int32_t code = 0;
+
+  bseMemTableUnRef(p->pMemTable);
+  bseMemTableUnRef(p->pImmuMemTable);
+
+  taosCloseFile(&p->pDataFile);
+  taosMemoryFree(p);
+}
+
+static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, int8_t fileType, int8_t blockType,
+                                   int32_t keepDays) {
+  SBseSnapMeta *pSnapMeta = pBlkWrapper->data;
+  pSnapMeta->range = range;
+  pSnapMeta->fileType = fileType;
+  pSnapMeta->blockType = blockType;
+  pSnapMeta->keepDays = keepDays;
+  return;
+}
   static void updateSnapshotMeta(SBlockWrapper *pBlkWrapper, SSeqRange range, int8_t fileType, int8_t blockType,
                                  int32_t keepDays) {
     SBseSnapMeta *pSnapMeta = (SBseSnapMeta *)pBlkWrapper->data;
@@ -1140,6 +1186,7 @@ static void updateTableRange(SBTableMeta *pTableMeta, SArray *pMetaBlock) {
 
   void blockWrapperClear(SBlockWrapper *p) {
     SBlock *block = (SBlock *)p->data;
+    p->size = 0 ;
     blockClear(block);
   }
 
@@ -2103,6 +2150,7 @@ static void updateTableRange(SBTableMeta *pTableMeta, SArray *pMetaBlock) {
     code = blockWrapperInit(&p->pBlockWrapper, cap);
     TAOS_CHECK_GOTO(code, &lino, _error);
 
+    seqRangeReset(&p->range);
     p->ref = 1;
 
   _error:
@@ -2174,5 +2222,6 @@ static void updateTableRange(SBTableMeta *pTableMeta, SArray *pMetaBlock) {
         return terrno;
       }
     }
+    *pMetaBlock = pBlock;
     return code;
   }

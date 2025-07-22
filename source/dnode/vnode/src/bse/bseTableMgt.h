@@ -28,9 +28,7 @@ extern "C" {
 typedef struct SSubTableMgt SSubTableMgt;
 
 typedef struct {
-  STableBuilder *p[2];
-  int8_t         inUse;
-
+  STableBuilder *p;
   int8_t inited;
 
   TdThreadMutex mutex;

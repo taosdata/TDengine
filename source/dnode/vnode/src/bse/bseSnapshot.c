@@ -232,7 +232,7 @@ _error:
   return code;
 }
 
-int32_t bseSnapReaderRead(SBseSnapReader *p, uint8_t **data) {
+static int32_t bseSnapReaderReadImpl(SBseSnapReader *p, uint8_t **data, int32_t *len) {
   int32_t code = 0;
   int32_t line = 0;
   int32_t size = 0;
@@ -249,8 +249,9 @@ int32_t bseSnapReaderRead(SBseSnapReader *p, uint8_t **data) {
   TSDB_CHECK_CODE(code, line, _error);
 
   if (bufLen == 0) {
-    return 0; 
-  } 
+    *data = NULL;
+    return 0;
+  }
 
   *data = taosMemoryCalloc(1, sizeof(SSnapDataHdr) + bufLen);
   if (*data == NULL) {
@@ -262,6 +263,10 @@ int32_t bseSnapReaderRead(SBseSnapReader *p, uint8_t **data) {
   pHdr->size = bufLen;
   uint8_t *tdata = pHdr->data;
   memcpy(tdata, pBuf, bufLen);
+
+  if (len != NULL) {
+    *len = sizeof(SSnapDataHdr) + bufLen;
+  }
 
 _error:
   if (code) {
@@ -274,46 +279,13 @@ _error:
   }
   return code;
 }
+int32_t bseSnapReaderRead(SBseSnapReader *p, uint8_t **data) {
+  int32_t len = 0;
+  return bseSnapReaderReadImpl(p, data, NULL);
+}
 // test func
 int32_t bseSnapReaderRead2(SBseSnapReader *p, uint8_t **data, int32_t *len) {
-  int32_t code = 0;
-  int32_t line = 0;
-  int32_t size = 0;
-
-  uint8_t *pBuf = NULL;
-  int32_t  bufLen = 0;
-
-  if (bseIterIsOver(p->pIter)) {
-    *data = NULL;
-    return code;
-  }
-
-  code = bseIterNext(p->pIter, &pBuf, &bufLen);
-  TSDB_CHECK_CODE(code, line, _error);
-
-  *data = taosMemoryCalloc(1, sizeof(SSnapDataHdr) + bufLen);
-  if (*data == NULL) {
-    TSDB_CHECK_CODE(code = terrno, line, _error);
-  }
-
-  SSnapDataHdr *pHdr = (SSnapDataHdr *)(*data);
-  pHdr->type = SNAP_DATA_BSE;
-  pHdr->size = bufLen;
-  uint8_t *tdata = pHdr->data;
-  memcpy(tdata, pBuf, bufLen);
-
-  *len = sizeof(SSnapDataHdr) + bufLen;
-
-_error:
-  if (code) {
-    if (*data != NULL) {
-      taosMemoryFree(*data);
-      *data = NULL;
-    }
-    bseError("vgId:%d failed to read snapshot data at line %d since %s", BSE_GET_VGID((SBse *)p->pBse), line,
-             tstrerror(code));
-  }
-  return code;
+  return bseSnapReaderReadImpl(p, data, len);
 }
 
 int32_t bseSnapReaderClose(SBseSnapReader **p) {

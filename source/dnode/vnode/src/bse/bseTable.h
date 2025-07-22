@@ -138,6 +138,7 @@ typedef struct {
 
   STableMemTable *pMemTable;
   STableMemTable *pImmuMemTable;
+  int8_t          hasImmuMemTable;
 
   int32_t nRef;
 
