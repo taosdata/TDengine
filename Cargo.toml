@@ -306,7 +306,7 @@ sysinfo = { workspace = true }
 async-backtrace.workspace = true
 dotenv = "0.15.0"
 
-flume.workspace = true
+flume = { workspace = true, features = ["spin"] }
 futures-util.workspace = true
 serde_with.workspace = true
 tokio-cron-scheduler = { path = "crates/tokio-cron-scheduler" }
