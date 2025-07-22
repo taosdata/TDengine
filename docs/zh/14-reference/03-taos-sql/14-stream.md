@@ -783,7 +783,7 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
 - 删除所有的流计算任务
 - 删除所有的 TSMA
 - 删除所有的 snode
-- 删除 snode 存储目录
+- 删除 snode 存储目录（原配置项 `checkpointBackupDir` 指定的路径，默认值为 `/var/lib/taos/backup/checkpoint/`)
 - 删除所有的结果表
   
 **注意**：如果未进行以上操作，taosd 会启动失败。
