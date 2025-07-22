@@ -254,7 +254,7 @@
     {
         "id": 9,
         "name": "ana_inverters_超过20分钟没有上报数据取出最后一条的交流电量",
-        "create": "create stream if not exists `idmp`.`%STREAM_NAME` session(ts,20m) FROM `idmp`.`vst_光伏逆变器_833471` stream_options(ignore_disorder) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`%STREAM_NAME` as select _twstart+0s as output_timestamp, last(`交流电量`) as `最后交流电量` FROM idmp.`vst_光伏逆变器_833471` where path1 like '光伏场景.Solar_Power_Group.Plant_4137001.逆变器%' and ts >= _twstart and ts <=_twend",
+        "create": "create stream if not exists `idmp`.`%STREAM_NAME` session(ts,20m) FROM `idmp`.`vst_光伏逆变器_833471` PARTITION BY tbname stream_options(ignore_disorder) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`%STREAM_NAME` as select _twstart+0s as output_timestamp, last(`交流电量`) as `最后交流电量` FROM idmp.`vst_光伏逆变器_833471` WHERE path1 LIKE '光伏场景.Solar_Power_Group.Plant_4137001.逆变器%' AND ts >= _twstart AND ts <=_twend",
         "data": [
             "INSERT INTO inverter_0301(ts,ac_power) VALUES('2025-07-18 08:00:00', 0.111);",
             "INSERT INTO inverter_0302(ts,ac_power) VALUES('2025-07-18 08:00:00', 0.111);",
@@ -277,6 +277,26 @@
             },
             {
                 "row": 0,
+                "col": 1,
+                "data": "0.111"
+            },
+            {
+                "row": 1,
+                "col": 0,
+                "data": "2025-07-18 08:00:00"
+            },
+            {
+                "row": 1,
+                "col": 1,
+                "data": "0.111"
+            },
+            {
+                "row": 2,
+                "col": 0,
+                "data": "2025-07-18 08:00:00"
+            },
+            {
+                "row": 2,
                 "col": 1,
                 "data": "0.111"
             }
