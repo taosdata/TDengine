@@ -229,16 +229,30 @@ function clean_service_on_launchctl() {
 
 function remove_data_and_config() {
   data_dir=$(grep dataDir /etc/${PREFIX}/${PREFIX}.cfg | grep -v '#' | tail -n 1 | awk {'print $2'})
-  if [ X"$data_dir" == X"" ]; then
+  if [ -z "$data_dir" ]; then
     data_dir="/var/lib/${PREFIX}"
   fi
+
   log_dir=$(grep logDir /etc/${PREFIX}/${PREFIX}.cfg | grep -v '#' | tail -n 1 | awk {'print $2'})
-  if [ X"$log_dir" == X"" ]; then
+  if [ -z "$log_dir" ]; then
     log_dir="/var/log/${PREFIX}"
   fi
-  [ -d "${config_dir}" ] && ${csudo}rm -rf ${config_dir}
-  [ -d "${data_dir}" ] && ${csudo}rm -rf ${data_dir}
-  [ -d "${log_dir}" ] && ${csudo}rm -rf ${log_dir}
+  
+  
+  if [ -d "${config_dir}" ]; then
+    ${csudo}rm -rf ${config_dir}
+  fi
+
+  if [ -d "${data_dir}" ]; then
+    # keep dataDir for tdengine-idmp
+    ${csudo}find "${data_dir}" -mindepth 1 -maxdepth 1 ! -name "idmp" -exec ${csudo}rm -rf {} +
+  fi
+  
+  if [ -d "${log_dir}" ]; then
+    # keep logfile for tdengine-idmp
+    find "${log_dir}" -maxdepth 1 -type f ! -name "ai-*.log" ! -name "tda-*.log" -exec ${csudo}rm -f {} \;
+    find "${log_dir}" -type d -empty -delete
+  fi
 }
 
 function usage() {
