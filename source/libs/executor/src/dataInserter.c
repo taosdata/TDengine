@@ -2049,6 +2049,7 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
         SSubmitTbDataMsg* pMsg = taosArrayGetP(pMsgs, i);
         code = sendSubmitRequest(pInserter, NULL, pMsg->pData, pMsg->len,
                                  pInserter->pParam->readHandle->pMsgCb->clientRpc, &pInserter->pNode->epSet);
+        taosMemoryFree(pMsg);
         if (code) {
           for (int j = i + 1; j < taosArrayGetSize(pMsgs); ++j) {
             SSubmitTbDataMsg* pMsg2 = taosArrayGetP(pMsgs, j);
@@ -2234,6 +2235,11 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   if (pInserter->dbVgInfoMap) {
     taosHashSetFreeFp(pInserter->dbVgInfoMap, freeUseDbOutput_tmp);
     taosHashCleanup(pInserter->dbVgInfoMap);
+  }
+
+  if (pInserter->pTagSchema) {
+    taosMemoryFreeClear(pInserter->pTagSchema->pSchema);
+    taosMemoryFree(pInserter->pTagSchema);
   }
 
   return TSDB_CODE_SUCCESS;
