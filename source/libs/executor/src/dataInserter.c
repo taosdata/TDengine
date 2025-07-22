@@ -1353,7 +1353,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
 
   if (needSortMerge) {
     if ((tRowSort(tbData.aRowP) != TSDB_CODE_SUCCESS) ||
-        (terrno = tRowMerge(tbData.aRowP, (STSchema*)pTSchema, 0)) != 0) {
+        (terrno = tRowMerge(tbData.aRowP, (STSchema*)pTSchema, PREFER_NON_NULL)) != 0) {
       goto _end;
     }
   }
@@ -1770,6 +1770,14 @@ static int32_t buildInsertData(SStreamInserterParam* pInsertParam, const SSDataB
       int16_t colIdx = k + 1;
 
       SFieldWithOptions* pCol = taosArrayGet(pInsertParam->pFields, k);
+      if (PRIMARYKEY_TIMESTAMP_COL_ID != colIdx && TSDB_DATA_TYPE_NULL == pCol->type) {
+        SColVal cv = COL_VAL_NULL(colIdx, pCol->type);
+        if (NULL == taosArrayPush(pVals, &cv)) {
+          code = terrno;
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        continue;
+      }
 
       SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
       if (NULL == pColInfoData) {
@@ -1875,7 +1883,7 @@ static int32_t buildInsertData(SStreamInserterParam* pInsertParam, const SSDataB
   }
   if (needSortMerge) {
     if ((tRowSort(tbData->aRowP) != TSDB_CODE_SUCCESS) ||
-        (code = tRowMerge(tbData->aRowP, (STSchema*)pTSchema, 0)) != 0) {
+        (code = tRowMerge(tbData->aRowP, (STSchema*)pTSchema, KEEP_CONSISTENCY)) != 0) {
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }

@@ -1767,6 +1767,7 @@ bool qStreamUidInTableList(void* pTableListInfo, uint64_t uid) {
 }
 
 void streamDestroyExecTask(qTaskInfo_t tInfo) {
+  qInfo("streamDestroyExecTask called, task:%p", tInfo);
   qDestroyTask(tInfo);
 }
 

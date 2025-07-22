@@ -1650,11 +1650,20 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
     SMsgSendInfo         *ahandle = pRsp->info.ahandle;
     SSTriggerAHandle     *pAhandle = ahandle->param;
     SSTriggerCalcRequest *pReq = pAhandle->param;
+    if (pRsp->code == TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE) {
+      taosArrayClearEx(pReq->params, tDestroySSTriggerCalcParam);
+      pRsp->code = TSDB_CODE_SUCCESS;
+    }
     switch (pRsp->code) {
       case TSDB_CODE_SUCCESS:
       case TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER:
       case TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND: {
-        if (pReq->sessionId == SSTRIGGER_REALTIME_SESSIONID) {
+        // todo(kjq): retry calc request when trigger could clear data cache manually
+        if (pRsp->code != TSDB_CODE_SUCCESS && (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS)) {
+          *pErrTaskId = pReq->runnerTaskId;
+          code = pRsp->code;
+          QUERY_CHECK_CODE(code, lino, _end);
+        } else if (pReq->sessionId == SSTRIGGER_REALTIME_SESSIONID) {
           code = stRealtimeContextProcCalcRsp(pTask->pRealtimeContext, pRsp);
           QUERY_CHECK_CODE(code, lino, _end);
         } else if (pReq->sessionId == SSTRIGGER_HISTORY_SESSIONID) {
@@ -3005,7 +3014,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       }
 
       if (continueToFetch) {
-        ST_TASK_DLOG("continue to fetch wal metas since some readers are not exhausted: %" PRIu64,
+        ST_TASK_DLOG("continue to fetch wal metas since some readers are not exhausted: %" PRIzu,
                      TARRAY_SIZE(pTask->readerList));
         for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
              pContext->curReaderIdx++) {
@@ -3416,7 +3425,6 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         QUERY_CHECK_CODE(code, lino, _end);
         code = stTriggerTaskGenVirColRefs(pTask, pInfo, pTask->pVirCalcSlots, &pNewInfo->pCalcColRefs);
         QUERY_CHECK_CODE(code, lino, _end);
-
       }
 
       for (int32_t i = 0; i < nVirTables; i++) {
@@ -3434,7 +3442,6 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           QUERY_CHECK_CODE(code, lino, _end);
         }
       }
-
 
       pTask->virTableInfoReady = true;
       pContext->status = STRIGGER_CONTEXT_IDLE;
@@ -5438,6 +5445,9 @@ static int32_t stRealtimeGroupDoSlidingCheck(SSTriggerRealtimeGroup *pGroup) {
       pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, pTableMeta, &iter);
     }
     QUERY_CHECK_CONDITION(ts != INT64_MAX, code, lino, _end, TSDB_CODE_INVALID_PARA);
+    if (ts > pGroup->newThreshold) {
+      goto _end;
+    }
     code = stRealtimeGroupOpenWindow(pGroup, ts, NULL, false, false);
     QUERY_CHECK_CODE(code, lino, _end);
     pGroup->oldThreshold = ts - 1;
