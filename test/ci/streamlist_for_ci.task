@@ -104,6 +104,10 @@
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
 
 
+
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_backquote_check.py
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_taosdShell.py
+
 ## 99-Others
 
 
