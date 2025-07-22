@@ -486,6 +486,9 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
       pVal->node.resType.bytes = output + VARSTR_HEADER_SIZE;
       break;
     }
+    case TSDB_DATA_TYPE_BLOB:
+    case TSDB_DATA_TYPE_MEDIUMBLOB:
+      return TSDB_CODE_BLOB_NOT_SUPPORT;  // BLOB data type is not supported in stmt2
     default: {
       int32_t code = nodesSetValueNodeValue(pVal, pParam->buffer);
       if (code) {

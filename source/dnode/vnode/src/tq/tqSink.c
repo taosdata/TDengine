@@ -296,7 +296,7 @@ int32_t buildAutoCreateTableReq(const char* stbFullName, int64_t suid, int32_t n
   }
 
   STagVal tagVal = {.cid = numOfCols, .type = TSDB_DATA_TYPE_UBIGINT, .i64 = pDataBlock->info.id.groupId};
-  void* p = taosArrayPush(pTagArray, &tagVal);
+  void*   p = taosArrayPush(pTagArray, &tagVal);
   if (p == NULL) {
     return terrno;
   }
@@ -338,19 +338,23 @@ int32_t tsAscendingSortFn(const void* p1, const void* p2) {
 int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDataBlock* pDataBlock, int64_t earlyTs,
                       const char* id) {
   int32_t numOfRows = pDataBlock->info.rows;
+  int8_t  hasBlob = schemaHasBlob(pTSchema);
   int32_t code = TSDB_CODE_SUCCESS;
 
   SArray* pVals = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal));
   pTableData->aRowP = taosArrayInit(numOfRows, sizeof(SRow*));
 
-  if (pTableData->aRowP == NULL || pVals == NULL) {
-    taosArrayDestroy(pTableData->aRowP);
-    pTableData->aRowP = NULL;
+  if (pVals == NULL || pTableData->aRowP == NULL) {
+    tBlobSetDestroy(pTableData->pBlobSet);
     taosArrayDestroy(pVals);
     code = terrno;
     tqError("s-task:%s failed to prepare write stream res blocks, code:%s", id, tstrerror(code));
     return code;
   }
+  if (hasBlob) {
+    code = tBlobSetCreate(1024, 0, &pTableData->pBlobSet);
+  }
+
 
   for (int32_t j = 0; j < numOfRows; j++) {
     taosArrayClear(pVals);
@@ -388,7 +392,7 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
           break;
         }
         SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);
-        void* p = taosArrayPush(pVals, &cv);
+        void*   p = taosArrayPush(pVals, &cv);
         if (p == NULL) {
           return terrno;
         }
@@ -400,13 +404,13 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
 
         if (colDataIsNull_s(pColData, j)) {
           if (pCol->flags & COL_IS_KEY) {
-            qError("ts:%" PRId64 " primary key column should not be null, colId:%" PRIi16 ", colType:%" PRIi8,
-                   ts, pCol->colId, pCol->type);
+            qError("ts:%" PRId64 " primary key column should not be null, colId:%" PRIi16 ", colType:%" PRIi8, ts,
+                   pCol->colId, pCol->type);
             break;
           }
 
           SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);
-          void* p = taosArrayPush(pVals, &cv);
+          void*   p = taosArrayPush(pVals, &cv);
           if (p == NULL) {
             return terrno;
           }
@@ -415,18 +419,28 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
         } else {
           void* colData = colDataGetData(pColData, j);
           if (IS_VAR_DATA_TYPE(pCol->type)) {  // address copy, no value
-            SValue sv =
-                (SValue){.type = pCol->type, .nData = varDataLen(colData), .pData = (uint8_t*)varDataVal(colData)};
-            SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
-            void* p = taosArrayPush(pVals, &cv);
-            if (p == NULL) {
-              return terrno;
+            if (IS_STR_DATA_BLOB(pCol->type)) {
+              SValue sv =
+                  (SValue){.type = pCol->type, .nData = blobDataLen(colData), .pData = (uint8_t*)blobDataVal(colData)};
+              SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
+              void*   p = taosArrayPush(pVals, &cv);
+              if (p == NULL) {
+                return terrno;
+              }
+            } else {
+              SValue sv =
+                  (SValue){.type = pCol->type, .nData = varDataLen(colData), .pData = (uint8_t*)varDataVal(colData)};
+              SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
+              void*   p = taosArrayPush(pVals, &cv);
+              if (p == NULL) {
+                return terrno;
+              }
             }
           } else {
             SValue sv = {.type = pCol->type};
             valueSetDatum(&sv, pCol->type, colData, tDataTypes[pCol->type].bytes);
             SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
-            void* p = taosArrayPush(pVals, &cv);
+            void*   p = taosArrayPush(pVals, &cv);
             if (p == NULL) {
               return terrno;
             }
@@ -436,12 +450,13 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
       }
     }
 
-    SRow* pRow = NULL;
-    code = tRowBuild(pVals, (STSchema*)pTSchema, &pRow);
+    SRow*             pRow = NULL;
+    SRowBuildScanInfo sinfo = {0};
+    code = tRowBuild(pVals, (STSchema*)pTSchema, &pRow, &sinfo);
     if (code != TSDB_CODE_SUCCESS) {
       tDestroySubmitTbData(pTableData, TSDB_MSG_FLG_ENCODE);
       taosArrayDestroy(pVals);
-      tqError("s-task:%s build rows for submit failed, ts:%"PRId64, id, ts);
+      tqError("s-task:%s build rows for submit failed, ts:%" PRId64, id, ts);
       return code;
     }
 

@@ -42,14 +42,14 @@ typedef struct SBlockOrderInfo {
 #define BMCharPos(bm_, r_)       ((bm_)[(r_) >> NBIT])
 #define colDataIsNull_f(bm_, r_) ((BMCharPos(bm_, r_) & (1u << (7u - BitPos(r_)))) == (1u << (7u - BitPos(r_))))
 
-#define QRY_PARAM_CHECK(_o)           \
+#define QRY_PARAM_CHECK(_o)          \
   do {                               \
     if ((_o) == NULL) {              \
       return TSDB_CODE_INVALID_PARA; \
     } else {                         \
       *(_o) = NULL;                  \
     }                                \
-  } while(0)
+  } while (0)
 
 #define colDataSetNull_f(bm_, r_)                    \
   do {                                               \
@@ -177,7 +177,7 @@ static FORCE_INLINE void colDataSetInt32(SColumnInfoData* pColumnInfoData, uint3
 
 static FORCE_INLINE void colDataSetInt64(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, int64_t* v) {
   int32_t type = pColumnInfoData->info.type;
-  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
+  char*   p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
   taosSetPInt64Aligned((int64_t*)p, v);
 }
 
@@ -270,7 +270,8 @@ void    blockDataDestroy(SSDataBlock* pBlock);
 void    blockDataFreeRes(SSDataBlock* pBlock);
 int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataBlock** pResBlock);
 int32_t createOneDataBlockWithColArray(const SSDataBlock* pDataBlock, SArray* pColArray, SSDataBlock** pResBlock);
-int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pDataBlock, const SSDataBlock* pOrgBlock, SSDataBlock** pResBlock);
+int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pDataBlock, const SSDataBlock* pOrgBlock,
+                                       SSDataBlock** pResBlock);
 int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock);
 
 int32_t blockCopyOneRow(const SSDataBlock* pDataBlock, int32_t rowIdx, SSDataBlock** pResBlock);
@@ -301,6 +302,7 @@ int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolL
 
 int32_t copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc);
 
+int32_t calcStrBytesByType(int8_t type, char* data);
 int32_t blockGetEncodeSizeOfRows(const SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex);
 int32_t blockEncodeAsRows(const SSDataBlock* pBlock, char* data, size_t dataLen, int32_t numOfCols, int32_t startIndex,
                           int32_t endIndex, int32_t* pLen);

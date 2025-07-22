@@ -812,6 +812,11 @@ typedef struct SSTriggerVirTablePseudoColRequest {
   int64_t              uid;
   SArray*              cids;  // SArray<col_id_t>, -1 means tbname
 } SSTriggerVirTablePseudoColRequest;
+typedef struct OTableInfoRsp {
+  int64_t  suid;
+  int64_t  uid;
+  col_id_t cid;
+} OTableInfoRsp;
 
 typedef struct OTableInfo {
   char     refTableName[TSDB_TABLE_NAME_LEN];
@@ -822,12 +827,6 @@ typedef struct SSTriggerOrigTableInfoRequest {
   SSTriggerPullRequest base;
   SArray*              cols;  // SArray<OTableInfo>
 } SSTriggerOrigTableInfoRequest;
-
-typedef struct OTableInfoRsp {
-  int64_t  suid;
-  int64_t  uid;
-  col_id_t cid;
-} OTableInfoRsp;
 
 typedef struct SSTriggerOrigTableInfoRsp {
   SArray*              cols;  // SArray<OTableInfoRsp>
