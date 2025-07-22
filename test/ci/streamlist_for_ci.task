@@ -96,7 +96,7 @@
 ## 31-OldCases
 ,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic1.py 
 ,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic2.py 
-#,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_check.py
+,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_check.py
 #,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_checkpoint.py
 #,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_concat.py
 ,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_state.py 
