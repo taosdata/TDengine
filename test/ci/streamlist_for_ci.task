@@ -90,8 +90,8 @@
 ## 23-Compatibility 
 
 ## 30-OldPyCases
-,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_state_window.py
-,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_window_true_for.py
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_state_window.py
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_window_true_for.py
 
 ## 31-OldCases
 ,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic1.py 

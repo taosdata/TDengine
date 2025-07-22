@@ -195,7 +195,7 @@ class TestStreamOldCaseBasic2:
         def check8(self):
             tdSql.checkResultsByFunc(
                 f"select * from streamt2;",
-                lambda: tdSql.getRows() == 2
+                lambda: tdSql.getRows() == 3
                 and tdSql.getData(0, 0) == "2022-04-01 13:33:40.000"
                 and tdSql.getData(0, 1) == 1
                 and tdSql.getData(1, 0) == "2022-04-01 13:34:00.000"
