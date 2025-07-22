@@ -168,7 +168,8 @@ int32_t benchTest() {
   SBse                *bse = NULL;
   std::vector<int64_t> data;
   SBseCfg              cfg = {.vgId = 2};
-
+  taosRemoveDir("/tmp/bse");
+  
   {
     int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
     {
@@ -199,20 +200,14 @@ int32_t benchTest() {
     data.clear();
   }
 
-  {
-    for (int32_t i = 0; i < 100000; i++) {
-      data.push_back(i + 1);
-    }
-    getData(bse, &data);
-
-    bseClose(bse);
-  }
+  bseClose(bse);
   return 0;
 }
 int32_t funcTest() {
   SBse                *bse = NULL;
   SBseCfg              cfg = {.vgId = 2};
   std::vector<int64_t> data;
+  taosRemoveDir("/tmp/bse");
   int32_t              code = bseOpen("/tmp/bse", &cfg, &bse);
   putData(bse, 10000, 1000, &data);
   getData(bse, &data);
@@ -234,6 +229,8 @@ int32_t funcTest() {
 int32_t funcTestSmallData() {
   SBse                *bse = NULL;
   SBseCfg              cfg = {.vgId = 2};
+  taosRemoveDir("/tmp/bse");
+
   std::vector<int64_t> data;
   int32_t              code = bseOpen("/tmp/bse", &cfg, &bse);
   putData(bse, 1000, 100000, &data);
@@ -358,10 +355,10 @@ void emptySnapTest() {
 TEST(bseCase, snapTest) {
 #ifdef LINUX
   initLog();
-  // emptySnapTest();
-  // benchTest();
-  // funcTest();
+  emptySnapTest();
+  benchTest();
+  funcTest();
   funcTestSmallData();
-  // snapTest();
+  snapTest();
 #endif
 }
