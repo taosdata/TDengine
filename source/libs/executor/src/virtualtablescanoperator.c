@@ -384,7 +384,18 @@ static int32_t doGetVtableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo, 
     for (int32_t i = 0; i < (pInfo->virtualScanInfo.scanAllCols ? 1 : tsortGetColNum(pTupleHandle)); i++) {
       bool isNull = tsortIsNullVal(pTupleHandle, i);
       if (isNull) {
-        colDataSetNULL(taosArrayGet(p->pDataBlock, i), rowNums);
+        int32_t slotKey = blockId << 16 | i;
+        void*   slotId = taosHashGet(pInfo->virtualScanInfo.dataSlotMap, &slotKey, sizeof(slotKey));
+        if (slotId == NULL) {
+          if (i == 0) {
+            colDataSetNULL(taosArrayGet(p->pDataBlock, pInfo->virtualScanInfo.tsSlotId), rowNums);
+          } else {
+            qError("failed to get slotId from dataSlotMap, blockId:%d, slotId:%d", blockId, i);
+            VTS_ERR_RET(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR);
+          }
+        } else {
+          colDataSetNULL(taosArrayGet(p->pDataBlock, *(int32_t *)slotId), rowNums);
+        }
       } else {
         char* pData = NULL;
         tsortGetValue(pTupleHandle, i, (void**)&pData);

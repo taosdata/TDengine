@@ -195,75 +195,75 @@ class TestStreamCheckpoint:
         self.create_env()
         info = WriteDataInfo(1000, 10)
 
-        # self.prepare_source_table(1000, 1, info)
-        # try:
-        #     self.create_and_check_stream_basic_1("sm1", "tb1", info)
-        # except Exception as e:
-        #     tdLog.error(f"case 1 error: {e}")
-        #
-        # clear_output("sm1", "tb1")
-        # self.prepare_source_table(1000, 1, info)
-        # try:
-        #     self.create_and_check_stream_basic_2("sm2", "tb2", info)
-        # except Exception as e:
-        #     tdLog.error(f"case 2 error: {e}")
-        #
-        # clear_output("sm2", "tb2")
-        # self.prepare_source_table(1000, 1, info)
-        #
-        # try:
-        #     self.create_and_check_stream_basic_3("sm3", "tb3", info)
-        # except Exception as e:
-        #     tdLog.error(f"case 3 error: {e}")
-        #
-        # clear_output("sm3", "tb3")
-        # self.prepare_source_table(1000, 1, info)
-        # try:
-        #     self.create_and_check_stream_basic_4("sm4", "tb4", info)
-        # except Exception as e:
-        #     tdLog.error(f"case 4 error: {e}")
-        #
-        # clear_output("sm4", "tb4")
-        # self.prepare_source_table(1000, 1, info)
-        # try:
-        #     self.create_and_check_stream_basic_5("sm5", "tb5", info)
-        # except Exception as e:
-        #     tdLog.error(f"case 5 error: {e}")
-        #
-        # clear_output("sm5", "tb5")
-        # self.prepare_source_table(1000, 1, info)
-        # try:
-        #     self.create_and_check_stream_basic_6("sm6", "tb6", info)
-        # except Exception as e:
-        #     tdLog.error(f"case 6 error: {e}")
-        #
-        # clear_output("sm6", "tb6")
-        # self.prepare_source_table(1000, 10, info)
-        # try:
-        #     self.create_and_check_stream_basic_7("sm7", "tb7", info)
-        # except Exception as e:
-        #     tdLog.error(f"case 7 error: {e}")
-        #
-        # clear_output("sm7", "tb7")
-        # self.prepare_source_table(1000, 10, info)
-        # try:
-        #     self.create_and_check_stream_basic_8("sm8", "tb8", info)
-        # except Exception as e:
-        #     tdLog.error(f"case 8 error: {e}")
-        #
-        # clear_output("sm8", "tb8")
-        # self.prepare_source_table(1000, 10, info)
-        # try:
-        #     self.create_and_check_stream_basic_9("sm9", "tb9", info)
-        # except Exception as e:
-        #     tdLog.error(f"case 9 error: {e}")
-        #
-        # clear_output("sm9", "tb9")
-        # self.prepare_source_table(1000, 10, info)
-        # try:
-        #     self.create_and_check_stream_basic_10("sm10", "tb10", info)
-        # except Exception as e:
-        #     tdLog.error(f"case 10 error: {e}")
+        self.prepare_source_table(1000, 1, info)
+        try:
+            self.create_and_check_stream_basic_1("sm1", "tb1", info)
+        except Exception as e:
+            tdLog.error(f"case 1 error: {e}")
+
+        clear_output("sm1", "tb1")
+        self.prepare_source_table(1000, 1, info)
+        try:
+            self.create_and_check_stream_basic_2("sm2", "tb2", info)
+        except Exception as e:
+            tdLog.error(f"case 2 error: {e}")
+
+        clear_output("sm2", "tb2")
+        self.prepare_source_table(1000, 1, info)
+
+        try:
+            self.create_and_check_stream_basic_3("sm3", "tb3", info)
+        except Exception as e:
+            tdLog.error(f"case 3 error: {e}")
+
+        clear_output("sm3", "tb3")
+        self.prepare_source_table(1000, 1, info)
+        try:
+            self.create_and_check_stream_basic_4("sm4", "tb4", info)
+        except Exception as e:
+            tdLog.error(f"case 4 error: {e}")
+
+        clear_output("sm4", "tb4")
+        self.prepare_source_table(1000, 1, info)
+        try:
+            self.create_and_check_stream_basic_5("sm5", "tb5", info)
+        except Exception as e:
+            tdLog.error(f"case 5 error: {e}")
+
+        clear_output("sm5", "tb5")
+        self.prepare_source_table(1000, 1, info)
+        try:
+            self.create_and_check_stream_basic_6("sm6", "tb6", info)
+        except Exception as e:
+            tdLog.error(f"case 6 error: {e}")
+
+        clear_output("sm6", "tb6")
+        self.prepare_source_table(1000, 10, info)
+        try:
+            self.create_and_check_stream_basic_7("sm7", "tb7", info)
+        except Exception as e:
+            tdLog.error(f"case 7 error: {e}")
+
+        clear_output("sm7", "tb7")
+        self.prepare_source_table(1000, 10, info)
+        try:
+            self.create_and_check_stream_basic_8("sm8", "tb8", info)
+        except Exception as e:
+            tdLog.error(f"case 8 error: {e}")
+
+        clear_output("sm8", "tb8")
+        self.prepare_source_table(1000, 10, info)
+        try:
+            self.create_and_check_stream_basic_9("sm9", "tb9", info)
+        except Exception as e:
+            tdLog.error(f"case 9 error: {e}")
+
+        clear_output("sm9", "tb9")
+        self.prepare_source_table(1000, 10, info)
+        try:
+            self.create_and_check_stream_basic_10("sm10", "tb10", info)
+        except Exception as e:
+            tdLog.error(f"case 10 error: {e}")
 
         clear_output("sm10", "tb10")
         self.prepare_source_table(1000, 10, info)
@@ -421,7 +421,6 @@ class TestStreamCheckpoint:
         do_write_data(stream_name, info)
         
         wait_for_stream_done(dst_table, f"select count(c) from {dst_table}", info.num_of_rows * info.num_of_tables)
-        # check_all_results(f"select count(*) from {dst_table}", [[info.num_of_tables * info.num_of_rows]])
 
     def create_and_check_stream_basic_8(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 8: Pass """
@@ -475,7 +474,6 @@ class TestStreamCheckpoint:
     def create_and_check_stream_basic_11(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 10: Pass """
         tdLog.info(f"start exec stream {stream_name}")
-
         tdSql.execute("create vtable vtb_1 (ts timestamp, col_1 int from c0.k, col_2 varchar(12) from c1.c1, "
                       "col_3 double from c2.c2)")
 
@@ -490,5 +488,4 @@ class TestStreamCheckpoint:
         )
 
         do_write_data(stream_name, info)
-
         wait_for_stream_done(dst_table, f"select max(avg_col_3) from {dst_table}", 499.5)

@@ -103,6 +103,7 @@ typedef struct SStreamRunnerTaskExecMgr {
   SList*        pFreeExecs;
   SList*        pRunningExecs;
   TdThreadMutex lock;
+  bool          lockInited;
 } SStreamRunnerTaskExecMgr;
 
 typedef struct SStreamTagInfo {

@@ -145,7 +145,7 @@ def runBinFile(fname, command, show = True, checkRun = False, retFail = False ):
     cmd = f"{bin_file} {command}"
     if show:
         tdLog.info(cmd)
-    return runRetList(cmd, checkRun=checkRun, retFail=retFail)
+    return runRetList(cmd, checkRun=checkRun, retFail=retFail, show=show)
 
 # exe build/bin file
 def exeBinFile(fname, command, wait=True, show=True):

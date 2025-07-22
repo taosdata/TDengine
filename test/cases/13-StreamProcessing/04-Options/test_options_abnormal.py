@@ -45,6 +45,7 @@ class TestStreamOptionsTrigger:
             self.db  = "sdb0"
             self.stbName = "stb"
             self.stbName2 = "stb2"
+            self.vstbName = "vstb"
             
             self.ntbName = "ntb"
 
@@ -62,6 +63,23 @@ class TestStreamOptionsTrigger:
 
             tdSql.execute(f"create table ct101 using {self.stbName2} tags(1)")
             tdSql.execute(f"create table ct102 using {self.stbName2} tags(2)")
+            
+            # must not create stb/ctb/ntb using create vtable
+            tdSql.error(f"create vtable if not exists err_stb1  (cts timestamp, cint int) tags (tint int)")
+            tdSql.error(f"create vtable if not exists err_ct1 using {self.stbName2} tags(100)")
+            
+            tdSql.execute(f"create vtable if not exists null_vntb1 (cts timestamp, cint int)")
+            tdSql.error(f"alter table null_vntb1 alter column cint set {self.ntbName}.cint")
+            tdSql.execute(f"alter vtable null_vntb1 alter column cint set {self.ntbName}.cint")
+            tdSql.error(f"alter vtable null_vntb1 alter column cint set {self.ntbName}.cdouble")            
+            tdSql.error(f"drop table null_vntb1")
+            tdSql.error(f"drop vtable ct1")
+            
+            # must not create vctb/vntb using create table
+            tdSql.execute(f"create table if not exists  {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")            
+            tdSql.error(f"create table if not exists err_ct2 (cint from {self.db}.ct1.cint) using {self.db}.{self.vstbName} tags(1)")
+            
+            tdSql.error(f"create table if not exists err_ntb2 (cts timestamp, cint int from {self.db}.{self.ntbName}.cint)")      
 
             # tdSql.query(f"show tables")
             # tdSql.checkRows(2)
@@ -115,9 +133,9 @@ class TestStreamOptionsTrigger:
             )
             
             # %%trows must not use with WINDOW_OPEN in event_type
-            # tdSql.error(
-            #     f"create stream sn10 state_window(cint) from ct1 stream_options(event_type(WINDOW_OPEN|WINDOW_CLOSE)) into res_ct1 (lastts, firstts, cnt_v, sum_v, avg_v) as select last_row(_c0), first(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
-            # )
+            tdSql.error(
+                f"create stream sn10 state_window(cint) from ct1 stream_options(event_type(WINDOW_OPEN|WINDOW_CLOSE)) into res_ct1 (lastts, firstts, cnt_v, sum_v, avg_v) as select last_row(_c0), first(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+            )
             
             tdSql.execute(
                 f"create stream sn11_g state_window(cint) from {self.stbName} partition by tbname, tint stream_options(watermark(10s) | expired_time(500s)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"

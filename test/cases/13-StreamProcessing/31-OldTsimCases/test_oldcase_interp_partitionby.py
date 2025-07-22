@@ -52,7 +52,7 @@ class TestStreamOldCaseInterpPartitionBy:
         tdSql.execute(f"create table t3 using st tags(2, 2, 2);")
 
         tdSql.execute(
-            f"create stream streams1 interval(1s) sliding(1s) from st partition by tbname, b, c stream_options(max_delay(1s)) into streamt as select _irowts, interp(a), _isfilled, tbname, b, c from st where tbname=%%tbname and b=%%2 and c=%%3 range(_twstart) fill(prev);"
+            f"create stream streams1 interval(1s) sliding(1s) from st partition by tbname, b, c stream_options(max_delay(3s)) into streamt as select _irowts, interp(a), _isfilled, tbname, b, c from st where tbname=%%tbname and b=%%2 and c=%%3 range(_twstart) fill(prev);"
         )
 
         tdSql.pause()

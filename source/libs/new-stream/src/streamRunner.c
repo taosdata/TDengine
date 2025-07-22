@@ -17,30 +17,40 @@ static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask, const SStreamRu
   SStreamRunnerTaskExecMgr*  pMgr = &pTask->execMgr;
   SStreamRunnerTaskExecution exec = {.pExecutor = NULL, .pPlan = pTask->pPlan};
   // decode plan into queryPlan
-  int32_t code = 0;
+  int32_t code = 0, lino = 0;
   code = taosThreadMutexInit(&pMgr->lock, 0);
   if (code != 0) {
     ST_TASK_ELOG("failed to init stream runner task mgr mutex, code:%s", tstrerror(code));
     return code;
   }
+
+  pMgr->lockInited = true;
+  
+  taosThreadMutexLock(&pMgr->lock);
   pMgr->pFreeExecs = tdListNew(sizeof(SStreamRunnerTaskExecution));
-  if (!pMgr->pFreeExecs) return terrno;
+  TSDB_CHECK_NULL(pMgr->pFreeExecs, code, lino, _exit, terrno);
 
   for (int32_t i = 0; i < pTask->parallelExecutionNun && code == 0; ++i) {
     exec.runtimeInfo.execId = i + pTask->task.deployId * pTask->parallelExecutionNun;
     if (pMsg->outTblType == TSDB_NORMAL_TABLE) {
       strncpy(exec.tbname, pMsg->outTblName, TSDB_TABLE_NAME_LEN);
     }
+    ST_TASK_DLOG("init task exec mgr with execId:%d, topTask:%d", exec.runtimeInfo.execId, pTask->topTask);
     code = tdListAppend(pMgr->pFreeExecs, &exec);
     if (code != 0) {
       ST_TASK_ELOG("failed to append task exec mgr:%s", tstrerror(code));
+      TAOS_CHECK_EXIT(code);
     }
   }
-  if (code != 0) return code;
 
   pMgr->pRunningExecs = tdListNew(sizeof(SStreamRunnerTaskExecution));
   if (!pMgr->pRunningExecs) return terrno;
-  return 0;
+
+_exit:
+
+  taosThreadMutexUnlock(&pMgr->lock);
+  
+  return code;
 }
 
 static void stRunnerDestroyRuntimeInfo(SStreamRuntimeInfo* pRuntime) {
@@ -49,7 +59,7 @@ static void stRunnerDestroyRuntimeInfo(SStreamRuntimeInfo* pRuntime) {
 
 static void stRunnerDestroyTaskExecution(void* pExec) {
   SStreamRunnerTaskExecution* pExecution = pExec;
-  pExecution->pPlan = 0;
+  pExecution->pPlan = NULL;
   streamDestroyExecTask(pExecution->pExecutor);  
   dsDestroyDataSinker(pExecution->pSinkHandle);
   stRunnerDestroyRuntimeInfo(&pExecution->runtimeInfo);
@@ -60,6 +70,7 @@ static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, int32_t 
   SStreamRunnerTaskExecMgr* pMgr = &pTask->execMgr;
   int32_t                   code = 0;
   taosThreadMutexLock(&pMgr->lock);
+  ST_TASK_DLOG("get task exec with execId:%d", execId);
   if (execId == -1) {
     if (pMgr->pFreeExecs->dl_neles_ > 0) {
       SListNode* pNode = tdListPopHead(pMgr->pFreeExecs);
@@ -87,7 +98,7 @@ static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, int32_t 
     }
   }
   taosThreadMutexUnlock(&pMgr->lock);
-  if (*ppExec) ST_TASK_DLOG("get exec task with nodeId: %d", (*ppExec)->runtimeInfo.execId);
+  if (*ppExec) ST_TASK_DLOG("get exec task with execId: %d", (*ppExec)->runtimeInfo.execId);
   return code;
 }
 
@@ -110,8 +121,11 @@ static void stSetRunnerOutputInfo(SStreamRunnerTask* pTask, SStreamRunnerDeployM
 }
 
 int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMsg) {
+  int32_t code = 0;
+  
   ST_TASK_DLOGL("deploy runner task for %s.%s, runner plan:%s", pMsg->outDBFName, pMsg->outTblName,
                 (char*)(pMsg->pPlan));
+
   TSWAP(pTask->pPlan, pMsg->pPlan);
   TSWAP(pTask->notification.pNotifyAddrUrls, pMsg->pNotifyAddrUrls);
   TSWAP(pTask->forceOutCols, pMsg->forceOutCols);
@@ -122,7 +136,15 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMs
   pTask->notification.notifyErrorHandle = pMsg->notifyErrorHandle;
   pTask->streamName = taosStrdup(pMsg->streamName);
 
-  int32_t code = nodesStringToList(pMsg->tagValueExpr, &pTask->output.pTagValExprs);
+  code = stRunnerInitTaskExecMgr(pTask, pMsg);
+  if (code != 0) {
+    ST_TASK_ELOG("failed to init task exec mgr code:%s", tstrerror(code));
+    pTask->task.status = STREAM_STATUS_FAILED;
+    return code;
+  }
+
+
+  code = nodesStringToList(pMsg->tagValueExpr, &pTask->output.pTagValExprs);
   ST_TASK_DLOG("pTagValExprs: %s", (char*)pMsg->tagValueExpr);
   if (code != 0) {
     ST_TASK_ELOG("failed to convert tag value expr to node err: %s expr: %s", strerror(code),
@@ -131,12 +153,7 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMs
     return code;
   }
   stSetRunnerOutputInfo(pTask, pMsg);
-  code = stRunnerInitTaskExecMgr(pTask, pMsg);
-  if (code != 0) {
-    ST_TASK_ELOG("failed to init task exec mgr code:%s", tstrerror(code));
-    pTask->task.status = STREAM_STATUS_FAILED;
-    return code;
-  }
+  ST_TASK_DLOG("subTblNameExpr: %s", (char*)pMsg->subTblNameExpr);
   code = nodesStringToNode(pMsg->subTblNameExpr, (SNode**)&pTask->pSubTableExpr);
   if (code != 0) {
     ST_TASK_ELOG("failed to deserialize sub table expr: %s", tstrerror(code));
@@ -168,24 +185,51 @@ int32_t stRunnerTaskUndeployImpl(SStreamRunnerTask** ppTask, const SStreamUndepl
   return 0;
 }
 
+void stRunnerKillAllExecs(SStreamRunnerTask *pTask) {
+  SStreamRunnerTaskExecMgr* pMgr = &pTask->execMgr;
+  int32_t                   code = 0;
+
+  if (!pMgr->lockInited) {
+    return;
+  }
+
+  taosThreadMutexLock(&pMgr->lock);
+  if (NULL == pMgr->pRunningExecs) {
+    taosThreadMutexUnlock(&pMgr->lock);
+    return;
+  }
+  ST_TASK_DLOG("start to kill running execs, num:%d", listNEles(pMgr->pRunningExecs));
+  SListNode* pNode = tdListGetHead(pMgr->pRunningExecs);
+  while (pNode) {
+    SStreamRunnerTaskExecution* pExec = (SStreamRunnerTaskExecution*)pNode->data;
+    qAsyncKillTask(pExec->pExecutor, TSDB_CODE_STREAM_EXEC_CANCELLED);
+    pNode = pNode->dl_next_;
+  }
+  ST_TASK_DLOG("all runner execs killed, num: %d", listNEles(pMgr->pRunningExecs));
+  taosThreadMutexUnlock(&pMgr->lock);
+}
+
 int32_t stRunnerTaskUndeploy(SStreamRunnerTask** ppTask, bool force) {
   int32_t             code = TSDB_CODE_SUCCESS;
   SStreamRunnerTask *pTask = *ppTask;
   
   if (!force && taosWTryForceLockLatch(&pTask->task.entryLock)) {
+    stRunnerKillAllExecs(pTask);
     ST_TASK_DLOG("ignore undeploy runner task since working, entryLock:%x", pTask->task.entryLock);
     return code;
   }
+
+  ST_TASK_DLOG("runner task start undeploy impl, entryLock:%x", pTask->task.entryLock);
 
   return stRunnerTaskUndeployImpl(ppTask, &pTask->task.undeployMsg, pTask->task.undeployCb);
 }
 
 bool stRunnerTaskWaitQuit(SStreamRunnerTask* pTask) { return taosHasRWWFlag(&pTask->task.entryLock); }
 
-static int32_t streamResetTaskExec(SStreamRunnerTaskExecution* pExec, bool ignoreTbName) {
+static int32_t streamResetTaskExec(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec, bool ignoreTbName) {
   int32_t code = 0;
   if (!ignoreTbName) pExec->tbname[0] = '\0';
-  stDebug("streamResetTaskExec:%p, ignoreTbName:%d tbname: %s", pExec, ignoreTbName, pExec->tbname);
+  ST_TASK_DLOG("streamResetTaskExec:%p, execId:%d exec finished, ignoreTbName:%d tbname: %s", pExec, pExec->runtimeInfo.execId, ignoreTbName, pExec->tbname);
   code = streamClearStatesForOperators(pExec->pExecutor);
   return code;
 }
@@ -344,7 +388,7 @@ static int32_t streamPrepareNotification(SStreamRunnerTask* pTask, SStreamRunner
     ST_TASK_DLOG("start to send notify:%s", pContent);
     SSTriggerCalcParam* pTriggerCalcParams = taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, curWinIdx);
     if (pTriggerCalcParams == NULL) {
-      ST_TASK_ELOG("failed to get trigger calc params for win index:%d, size:%d", curWinIdx,
+      ST_TASK_ELOG("%s failed to get trigger calc params for win index:%d, size:%d", __FUNCTION__, curWinIdx,
                    (int32_t)pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals->size);
       taosMemoryFreeClear(pContent);
       return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
@@ -379,11 +423,11 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
   for (int i = startWinIdx; i <= endWinIdx; ++i) {
     SSTriggerCalcParam* pTriggerCalcParams = taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, i);
     if (pTriggerCalcParams == NULL) {
-      ST_TASK_ELOG("failed to get trigger calc params for index:%d, size:%d", i,
+      ST_TASK_ELOG("%s failed to get trigger calc params for index:%d, size:%d", __FUNCTION__, i,
                    (int32_t)pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals->size);
       TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
     }
-    params[i] = pTriggerCalcParams;
+    params[i - startWinIdx] = pTriggerCalcParams;
   }
 
   code = streamSendNotifyContent(&pTask->task, pTask->streamName, pExec->runtimeInfo.funcInfo.triggerType,
@@ -418,7 +462,7 @@ static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunner
     SSTriggerCalcParam* pTriggerCalcParams =
         taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, pExec->runtimeInfo.funcInfo.curOutIdx);
     if (pTriggerCalcParams == NULL) {
-      ST_TASK_ELOG("failed to get trigger calc params for index:%d, size:%d", index,
+      ST_TASK_ELOG("%s failed to get trigger calc params for index:%d, size:%d", __FUNCTION__, index,
                    (int32_t)pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals->size);
       taosMemoryFreeClear(pContent);
       return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
@@ -510,7 +554,7 @@ static int32_t stRunnerForceOutputHelp(SStreamRunnerTask* pTask, SStreamRunnerTa
       rowsToCopy++;
       continue;
     } else {
-      if (ts == curWin.ekey) {
+      if (pExec->runtimeInfo.funcInfo.triggerType != STREAM_TRIGGER_SLIDING && ts == curWin.ekey) {
         rowIdx++;
         rowsToCopy++;
       }
@@ -585,11 +629,11 @@ static int32_t stRunnerTopTaskHandleOutputBlockAgg(SStreamRunnerTask* pTask, SSt
     pOutputBlock = *ppForceOutBlock;
   } else {
     // prepare notification for current block when no force output cols
-    stRunnerPrepareMulWinNotification(pTask, pExec, pBlock, pNextOutIdx);
+    stRunnerPrepareMulWinNotification(pTask, pExec, pOutputBlock, pNextOutIdx);
   }
   if (code == 0) {
     if (pOutputBlock && pOutputBlock->info.rows > 0) {
-      code = stRunnerOutputBlock(pTask, pExec, pBlock, pCreateTable);
+      code = stRunnerOutputBlock(pTask, pExec, pOutputBlock, pCreateTable);
       if (code != TSDB_CODE_SUCCESS) {
         ST_TASK_ELOG("failed  to output block, code:%s", tstrerror(code));
       }
@@ -630,10 +674,12 @@ static int32_t stRunnerTopTaskHandleOutputBlockProj(SStreamRunnerTask* pTask, SS
       }
     }
   }
+
   if (code == 0 && (*ppForceOutBlock) && (*ppForceOutBlock)->info.rows > 0) {
-    stRunnerOutputBlock(pTask, pExec, pBlock, createTable);
+    stRunnerOutputBlock(pTask, pExec, *ppForceOutBlock, createTable);
   }
-  if (code == 0) {
+
+  if (code == 0 && pBlock ) {  // && *pNextOutIdx < taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals)
     streamPrepareNotification(pTask, pExec, pBlock, pExec->runtimeInfo.funcInfo.curOutIdx, 0,
                               pBlock ? pBlock->info.rows - 1 : 0);
     code = stRunnerOutputBlock(pTask, pExec, pBlock, createTable);
@@ -675,7 +721,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   if (!pExec->pExecutor) {
     STREAM_CHECK_RET_GOTO(streamBuildTask(pTask, pExec));
   } else if (pReq->brandNew) {
-    STREAM_CHECK_RET_GOTO(streamResetTaskExec(pExec, pTask->output.outTblType == TSDB_NORMAL_TABLE));
+    STREAM_CHECK_RET_GOTO(streamResetTaskExec(pTask, pExec, pTask->output.outTblType == TSDB_NORMAL_TABLE));
   }
 
   pExec->runtimeInfo.funcInfo.curIdx = pReq->curWinIdx;
@@ -684,7 +730,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   int32_t nextOutIdx = pExec->runtimeInfo.funcInfo.curOutIdx;
   while (pExec->runtimeInfo.funcInfo.curOutIdx < winNum && code == 0) {
     if (stRunnerTaskWaitQuit(pTask)) {
-      ST_TASK_ILOG("[runner calc]quit, skip calc. gid:%" PRId64 ",, status:%d", pReq->gid, pTask->task.status);
+      ST_TASK_ILOG("[runner calc]quit, skip calc. gid:%" PRId64 ", status:%d", pReq->gid, pTask->task.status);
       break;
     }
     bool         finished = false;
@@ -737,12 +783,15 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
       break;
     }
     if (finished) {
-      streamResetTaskExec(pExec, true);
+      streamResetTaskExec(pTask, pExec, true);
       if (pExec->runtimeInfo.funcInfo.withExternalWindow) break;
     }
   }
 
 end:
+  
+  ST_TASK_DLOG("execId %d stop to run", pExec->runtimeInfo.execId);
+  
   stRunnerTaskExecMgrReleaseExec(pTask, pExec);
   if (pForceOutBlock != NULL) blockDataDestroy(pForceOutBlock);
   if (code) {
@@ -750,6 +799,10 @@ end:
     pTask->task.status = STREAM_STATUS_FAILED;
   } else {
     ST_TASK_DLOG("[runner calc]success, gid:%" PRId64 ",, status:%d", pReq->gid, pTask->task.status);
+  }
+  if (createTable) {
+    ST_TASK_ILOG("[runner calc]success, gid:%" PRId64 ", but has no data, skip create table.", pReq->gid);
+    return TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE;
   }
   return code;
 }

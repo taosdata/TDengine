@@ -372,6 +372,9 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&(pFill->pWStartTs), order, rewriter, pContext);
       }
+      if (DEAL_RES_ERROR!= res && DEAL_RES_END!= res) {
+        res = rewriteExpr(&(pFill->pTimeRange), order, rewriter, pContext);
+      }
       break;
     }
     case QUERY_NODE_RAW_EXPR:

@@ -2,12 +2,30 @@ from new_test_framework.utils import tdLog, tdSql, tdStream, etool
 import time
 import os
 import json
+import math
 
 
 class TestIdmpTobacco:
     def test_tobacco(self):
         """
-        Refer: https://taosdata.feishu.cn/wiki/XaqbweV96iZVRnkgHLJcx2ZCnQf
+        Refer: https://taosdata.feishu.cn/wiki/Zkb2wNkHDihARVkGHYEcbNhmnxb#share-I9GwdF26PoWk6uxx2zJcxZYrn1d
+        1. 测试 AI 推荐生成的分析，创建 Stream,验证流的正确性
+        2. 测试手动创建的分析，验证流的正确性
+            2.1. 触发类型：
+                - 定时窗口：指定不同的窗口大小、窗口偏移
+                - 状态窗口：指定状态的字段
+                - 会话窗口：指定会话的时间间隔
+            2.2. 时间窗口聚合：
+                - 窗口开始时间: _tprev_localtime/ _twstart/ _tprev_ts
+                - 窗口结束时间: _tlocaltime/ _twend/ _tcurrent_ts
+            2.3. 输出属性：
+                - AVG: 平均值
+                - LAST:最新值
+                - SUM: 求和
+                - MAX: 最大值
+                - STDDEV: 标准差
+                - SPREAD: 极差
+                - SPREAD/FIRST: 变化率
         Catalog:
             - Streams:UseCases
         Since: v3.3.6.14
@@ -17,12 +35,41 @@ class TestIdmpTobacco:
         History:
             - 2025-7-11 zyyang90 Created
         """
-        TestIdmpTobaccoImpl().run()
+        tobac = TestIdmpScene()
+        tobac.init(
+            "tobacco",
+            "idmp_sample_tobacco",
+            "idmp",
+            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp_sample_tobacco",
+            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/vstb.sql",
+            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/vtb.sql",
+            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/stream.json",
+        )
+        # 这里可以指定需要创建的 stream_ids
+        tobac.stream_ids = [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+        tobac.run()
 
 
-class TestIdmpTobaccoImpl:
-    def __init__(self):
+class TestIdmpScene:
+    def init(self, scene, db, vdb, db_dump_dir, vstb_sql, vtb_sql, stream_json):
+        # scene name
+        self.scene = scene
+        # sample database
+        self.db = db
+        # analysis database
+        self.vdb = vdb
+        # sample database dump file
+        self.db_dump_dir = db_dump_dir
+        # virtual stables
+        self.vstb_sql = vstb_sql
+        # virtual tables
+        self.vtb_sql = vtb_sql
+        # stream json
+        self.stream_json = stream_json
+        # stream id filters
         self.stream_ids = []
+        # golbal stream.assert.retry
+        self.assert_retry = -1
 
     def run(self):
 
@@ -38,23 +85,16 @@ class TestIdmpTobaccoImpl:
         # insert trigger data
         self.insertTriggerData()
 
-        # # wait stream processing
-        time.sleep(5)
-
-        # # verify results
+        # verify results
         self.verifyResults()
 
-        tdLog.info("test IDMP tobacco scene done")
+        tdLog.info(f"test IDMP {self.scene} scene done")
 
     def prepare(self):
         # create snode if not exists
         snodes = tdSql.getResult("SHOW SNODES;")
         if snodes is None or len(snodes) == 0:
             tdStream.createSnode()
-
-        # name
-        self.db = "idmp_sample_tobacco"
-        self.vdb = "idmp"
 
         # drop database if exists
         tdSql.executes(
@@ -64,9 +104,7 @@ class TestIdmpTobaccoImpl:
             ]
         )
         # import tobacco scene data
-        etool.taosdump(
-            "-i cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp_sample_tobacco/"
-        )
+        etool.taosdump(f"-i {self.db_dump_dir}")
 
         # delete existed data
         res = tdSql.getResult(f"show `{self.db}`.stables")
@@ -91,24 +129,25 @@ class TestIdmpTobaccoImpl:
         )
 
         # create virtual stables
-        with open(
-            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/vstb.sql",
-            "r",
-            encoding="utf-8",
-        ) as f:
+        vstb_count = 0
+        with open(f"{self.vstb_sql}", "r", encoding="utf-8") as f:
             for line in f:
                 sql = line.strip()
                 if sql:
                     tdLog.debug(f"virtual stable SQL: {sql}")
                     tdSql.execute(sql, queryTimes=1)
+                    vstb_count += 1
+
+        # check virtual stables
+        tdSql.checkResultsByFunc(
+            sql=f"show `{self.vdb}`.STABLES",
+            func=lambda: tdSql.getRows() == vstb_count,
+        )
+        tdLog.info(f"create {vstb_count} virtual stables in {self.vdb}")
 
         # create virtable tables
         vtb_count = 0
-        with open(
-            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/vtb.sql",
-            "r",
-            encoding="utf-8",
-        ) as f:
+        with open(f"{self.vtb_sql}", "r", encoding="utf-8") as f:
             for line in f:
                 sql = line.strip()
                 if sql:
@@ -121,14 +160,10 @@ class TestIdmpTobaccoImpl:
             sql=f"show `{self.vdb}`.VTABLES",
             func=lambda: tdSql.getRows() == vtb_count,
         )
-        tdLog.info(f"create {vtb_count} vtables in db: {self.vdb}")
+        tdLog.info(f"create {vtb_count} vtables in {self.vdb}")
 
     def createStreams(self):
-        with open(
-            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/stream.json",
-            "r",
-            encoding="utf-8",
-        ) as f:
+        with open(f"{self.stream_json}", "r", encoding="utf-8") as f:
             arr = json.load(f)
             self.stream_objs = [StreamObj.from_dict(obj) for obj in arr]
 
@@ -136,13 +171,13 @@ class TestIdmpTobaccoImpl:
         # if not specified, all streams in the stream.sql will be created
         if hasattr(self, "stream_ids") and len(self.stream_ids) > 0:
             tdLog.info(f"USE specified stream ids: {self.stream_ids}")
-        elif "IDMP_TOBACCO_STREAM_IDS" in os.environ:
-            ids = os.environ.get("IDMP_TOBACCO_STREAM_IDS")
+        elif "IDMP_STREAM_IDS" in os.environ:
+            ids = os.environ.get("IDMP_STREAM_IDS")
             if ids:
                 self.stream_ids = [
                     int(x) for x in ids.split(",") if x.strip().isdigit()
                 ]
-                tdLog.info(f"use IDMP_TOBACCO_STREAM_IDS from env: {self.stream_ids}")
+                tdLog.info(f"use IDMP_STREAM_IDS from env: {self.stream_ids}")
         else:
             self.stream_ids = [obj.id for obj in self.stream_objs]
             tdLog.info(f"use all stream ids: {self.stream_ids}")
@@ -195,43 +230,93 @@ class TestIdmpTobaccoImpl:
 
     def verifyResults(self):
         for id in self.stream_ids:
-            # 从 self.stream_objs 中找到 id 相同的 stream 的 name
+            # 从 self.stream_objs 中找到 id 相同的 stream_obj
             obj = next((o for o in self.stream_objs if o.id == id), None)
+            # skip if obj.assert_list is None or empty
+            if obj.assert_list is None or len(obj.assert_list) == 0:
+                tdLog.info(f"no assert for stream id: {id}, skip verify")
+                continue
+
             name = obj.name if obj and obj.name else f"stream_{id}"
-            if not obj:
-                raise RuntimeError(f"未找到 id={id} 对应的 streamObj")
 
             # check the output table
-            res = tdSql.getResult(f"SHOW `{self.vdb}`.stables like '{name}';")
-            if res is None or len(res) == 0:
-                raise RuntimeError(
-                    f"查询结果为空: SHOW `{self.vdb}`.stables like '{name}';"
-                )
+            sql = f"select stable_name as name from information_schema.ins_stables where stable_name = '{name}' UNION select table_name as name from information_schema.ins_tables where table_name = '{name}';"
+            tdLog.info(f"check output table SQL: {sql}")
+            tdSql.checkResultsByFunc(
+                sql,
+                func=lambda: tdSql.getRows() > 0,
+            )
 
             # check the output
-            output = tdSql.getResult(f"SELECT * FROM `{self.vdb}`.`{name}`;")
-            for a in obj.assert_list:
-                if a.row >= len(output) or a.col >= len(output[a.row]):
-                    raise AssertionError(
-                        f"assert failed: out of boundary, row: {a.row}, col: {a.col}"
-                    )
-                actual = output[a.row][a.col]
-                if str(actual) != str(a.data):
-                    raise AssertionError(
-                        f"assert failed: not equal, row: {a.row}, col: {a.col}, expect: {a.data}, actual: {actual}"
-                    )
+            sql = f"SELECT * FROM `{self.vdb}`.`{name}`;"
+            tdLog.info(f"check output SQL: {sql}")
+
+            def assert_func():
+                output = tdSql.getResult(sql)
+                tdLog.info(f"output: {output}")
+                for a in obj.assert_list:
+                    if a.row >= len(output):
+                        tdLog.error(
+                            f"assert failed: out of boundary, row: {a.row}, col: {a.col}, output rows: {len(output)}"
+                        )
+                        return False
+                    if a.col >= len(output[a.row]):
+                        tdLog.error(
+                            f"assert failed: out of boundary, row: {a.row}, col: {a.col}, output cols: {len(output[a.row])}"
+                        )
+                        return False
+                    actual = output[a.row][a.col]
+                    if not values_equal(a.data, actual):
+                        tdLog.error(
+                            f"assert failed: not equal, row: {a.row}, col: {a.col}, expect: {a.data}, actual: {actual}"
+                        )
+                        return False
+                return True
+
+            def values_equal(expected, actual, rel_tol=1e-6, abs_tol=1e-8):
+                # compare NULL if actual is None
+                if actual is None:
+                    return str(expected) == "NULL"
+                # use math.isclose whene actual is float
+                if isinstance(actual, float):
+                    try:
+                        return math.isclose(
+                            float(expected), actual, rel_tol=rel_tol, abs_tol=abs_tol
+                        )
+                    except Exception:
+                        return False
+                # use string comparison otherwise
+                return str(expected) == str(actual)
+
+            retry_count = (
+                self.assert_retry
+                if hasattr(self, "assert_retry") and self.assert_retry > 0
+                else obj.retry
+            )
+            tdLog.info(f"retry count: {retry_count}")
+            tdSql.checkResultsByFunc(sql, func=assert_func, retry=retry_count)
 
         tdLog.info("verify results done")
 
 
 class StreamObj:
-    def __init__(self, id, name, create, data=None, interval=None, assert_list=None):
+    def __init__(
+        self,
+        id,
+        name,
+        create,
+        data=None,
+        interval=None,
+        assert_list=None,
+        assert_retry=60,
+    ):
         self.id = id
         self.name = name
         self.create = create
         self.data = data
         self.interval = interval
         self.assert_list = assert_list if assert_list else []
+        self.retry = assert_retry
 
     @staticmethod
     def from_dict(d):
@@ -243,6 +328,7 @@ class StreamObj:
             data=d.get("data"),
             interval=d.get("interval"),
             assert_list=assert_list,
+            assert_retry=d.get("assert_retry", 60),
         )
 
 
