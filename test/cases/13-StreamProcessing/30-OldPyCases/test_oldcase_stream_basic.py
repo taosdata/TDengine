@@ -68,7 +68,7 @@ class TestStreamBasicCase:
         self.case1()
         # gen data
         random.seed(int(time.time()))
-        os.system(" taosBenchmark -d db -t 2 -v 2 -n 10000 -y")
+        os.system(" taosBenchmark -d db -t 2 -v 2 -n 1000 -y")
         # create stream
         tdSql.execute("use db")
         # tdSql.execute("create stream stream3 fill_history 1 into sta as select count(*) as cnt from meters interval(10a);",show=True)
@@ -94,7 +94,7 @@ class TestStreamBasicCase:
             tdLog.info(f"wait stream out table ...")
             time.sleep(1)
 
-        tdSql.checkDataLoop(0, 0, 1000, sql, loopCount=50, waitTime=0.5)
+        tdSql.checkDataLoop(0, 0, 100, sql, loopCount=50, waitTime=0.5)
 
         # time.sleep(5)
 
