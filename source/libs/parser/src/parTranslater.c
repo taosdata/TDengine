@@ -13579,19 +13579,6 @@ static int32_t createStreamCheckOutTags(STranslateContext* pCxt, SNodeList* pTag
     tagIndex++;
   }
 
-  PAR_ERR_JRET(translateQuery(pCxt, pStreamCalcQuery));
-  pCxt->createStreamCalc = false;
-  pCxt->createStreamTriggerTbl = NULL;
-  pCxt->createStreamTriggerPartitionList = NULL;
-  *withExtWindow &= pCxt->createStreamCalcWithExtWindow;
-
-  pCxt->currClause = currClause;
-  pCxt->pCurrStmt = pCurrStmt;
-  pCxt->currLevel = currLevel;
-
-  return code;
-_return:
-  parserError("translateStreamCalcQuery failed, code:%d", code);
   return code;
 }
 
