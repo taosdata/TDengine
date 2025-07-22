@@ -14,7 +14,7 @@ export function getUrls() {
 export function fetchApiByCluster(token: string, data: Recordable) {
     return request({
         baseURL: import.meta.env.VITE_APP_BASE_URL,
-        url: `/rest/sql`,
+        url: `/api/-/rest/sql`,
         method: "post",
         headers: {
             Authorization: token,

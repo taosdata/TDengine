@@ -37,7 +37,6 @@ use actix_web::{
     error::{self, JsonPayloadError, PayloadError},
     http::header::{ContentType, AUTHORIZATION, X_FORWARDED_FOR},
     middleware::Compress,
-    post,
     web::{self, Query},
     App, HttpRequest, HttpResponse, HttpServer, Responder, ResponseError,
 };
@@ -327,7 +326,7 @@ async fn main() -> anyhow::Result<()> {
             .app_data(app_args.clone())
             .app_data(web::Data::new(favorites.clone()))
             // .route("/", web::get().to(index))
-            .route("/rest/{path:.*}", web::to(rest_proxy))
+            .route("/api/-/rest/{path:.*}", web::to(rest_proxy))
             .route("/api/x/{api:.*}", web::to(x_api))
             .route("/grafana/{grafana_path:.*}", web::to(grafana_api))
             .route("/api/-/import", web::to(import))
@@ -858,25 +857,6 @@ async fn report_taosd_info(
     HttpResponse::Ok().json(R::success(""))
 }
 
-#[post("/rest/sql")]
-async fn rest_sql_builtin(
-    args: web::Data<Args>,
-    req: HttpRequest,
-    sql: String,
-    query: Query<HashMap<String, String>>,
-) -> impl Responder {
-    let header = req
-        .headers()
-        .get(AUTHORIZATION)
-        .and_then(|header| header.to_str().ok())
-        .unwrap_or_default();
-    let tz = query.get("tz");
-    match args.query(header, &sql, tz).await {
-        Ok(ok) => HttpResponse::Ok().json(ok),
-        Err(err) => HttpResponse::InternalServerError().json(err),
-    }
-}
-
 #[derive(Debug, Deserialize)]
 struct RenewLicense {
     active_code: Option<String>,
@@ -1065,21 +1045,10 @@ async fn modify_password(
 #[instrument(skip_all)]
 async fn rest_proxy(
     args: web::Data<Args>,
-    _client: web::Data<reqwest::Client>,
-    _path: web::Path<String>,
     req: HttpRequest,
     payload: web::Payload,
     query: Query<HashMap<String, String>>,
 ) -> impl Responder {
-    // let x = args.profile.cluster.as_deref().unwrap();
-    // let query = req.query_string();
-    // let url = if query.is_empty() {
-    //     format!("{x}/rest/{path}")
-    // } else {
-    //     format!("{x}/rest/{path}?{query}")
-    // };
-    // proxy(req, payload, client, &url).await.map_err(RestErrResponse::new)
-
     let header = req
         .headers()
         .get(AUTHORIZATION)
