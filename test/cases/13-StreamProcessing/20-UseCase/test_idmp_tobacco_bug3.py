@@ -2,8 +2,20 @@ from test_idmp_tobacco import TestIdmpScene
 
 
 class TestIdmpTobaccoBug3:
-    """
-    JIRA: https://jira.taosdata.com:18080/browse/TD-36699
+    """IDMP 光伏场景测试
+
+    Catalog:
+        - Streams:UseCases
+
+    Since: v3.3.7.0
+
+    Labels: common,ci
+
+    Jira:
+        - https://jira.taosdata.com:18080/browse/TD-36699
+
+    History:
+        - 2025-7-18 zyyang90 Created
     """
 
     def test_idmp_tobacco(self):

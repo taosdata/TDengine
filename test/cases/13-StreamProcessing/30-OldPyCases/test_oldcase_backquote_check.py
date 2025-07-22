@@ -24,7 +24,24 @@ class TestOthersOldCaseBackquoteCheck:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_others_oldcase_bachkquote_check(self):
+    def test_others_oldcase_backquote_check(self):   
+        """back quote
+
+        test back quote check
+
+        Catalog:
+            - Streams:UseCases
+
+        Since: v3.3.3.7
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-6-16 lihui from old cases
+
+        """
         
         self.replicaVar = 1
         tdLog.debug("start to execute %s" % __file__)
@@ -35,19 +52,7 @@ class TestOthersOldCaseBackquoteCheck:
         self.ntbname1 = 'ntb1'
         self.ntbname2 = 'ntb2'
         self.streamname = 'stm'
-        self.streamtb = 'stm_stb'
-        
-        """Stream basic test 1
-        Basic test cases for streaming, part 1
-        Catalog:
-            - Streams:OldCases
-        Since: v3.0.0.0
-        Labels: common, ci
-        Jira: None
-        History:
-            - 2025-5-15 Migrated from t0-others/backquote_check.py
-
-        """
+        self.streamtb = 'stm_stb'         
 
         tdStream.createSnode()
         # self.init()
@@ -183,7 +188,7 @@ class TestOthersOldCaseBackquoteCheck:
         tdLog.info(f"start run query_check() ......")  
         self.query_check()
         
-        tdLog.info(f"all check run query_check() ......")  
+        tdLog.info(f"all check end ......")  
 
     def stop(self):
         tdSql.execute(f'drop database {self.dbname}')

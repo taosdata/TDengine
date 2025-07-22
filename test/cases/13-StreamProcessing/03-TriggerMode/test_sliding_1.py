@@ -90,12 +90,12 @@ class TestStreamTriggerSliding:
         # except Exception as e:
         #     tdLog.error(f"case 7 error: {e}")
         #
-        clear_output("sm7", "tb7")
-        self.prepare_tables(1000, 10, info)
-        try:
-            self.create_and_check_stream_basic_8("sm8", "tb8", info)
-        except Exception as e:
-            tdLog.error(f"case 8 error: {e}")
+        # clear_output("sm7", "tb7")
+        # self.prepare_tables(1000, 10, info)
+        # try:
+        #     self.create_and_check_stream_basic_8("sm8", "tb8", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 8 error: {e}")
         #
         # clear_output("sm8", "tb8")
         # self.prepare_tables(1000, 10, info)
@@ -118,12 +118,12 @@ class TestStreamTriggerSliding:
         # except Exception as e:
         #     tdLog.error(f"case 11 error: {e}")
         #
-        # clear_output("sm11", "tb11")
-        # self.prepare_tables(1000, 10, info)
-        # try:
-        #     self.create_and_check_stream_basic_12("sm12", "tb12", info)
-        # except Exception as e:
-        #     tdLog.error(f"case 12 error: {e}")
+        clear_output("sm11", "tb11")
+        self.prepare_tables(1000, 10, info)
+        try:
+            self.create_and_check_stream_basic_12("sm12", "tb12", info)
+        except Exception as e:
+            tdLog.error(f"case 12 error: {e}")
         #
         # clear_output("sm12", "tb12")
         # self.prepare_tables(1000, 10, info)

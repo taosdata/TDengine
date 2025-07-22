@@ -6,10 +6,17 @@ import time
 class TestWindowTrueFor:
 
     def test_window_true_for(self):
-        """迁移自老用例: tests/system-test/2-query/test_window_true_for.py
-        Since: v3.3.6.0
+        """迁移自老用例
+
+        tests/system-test/2-query/test_window_true_for.py
+
+        Since: v3.3.7.0
+
         Labels: common,ci
-        Jira: https://jira.taosdata.com:18080/browse/TD-36887
+
+        Jira:
+            - https://jira.taosdata.com:18080/browse/TD-36887
+
         History:
             - 2025-07-21: Created by zyyang
         """
