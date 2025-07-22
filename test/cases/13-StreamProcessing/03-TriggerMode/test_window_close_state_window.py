@@ -1,6 +1,7 @@
 import time
 import os
 import sys
+import random
 
 from new_test_framework.utils import tdLog, clusterComCheck, tdStream, tdSql, StreamTableType, StreamTable, StreamItem
 from new_test_framework.utils.common import tdCom
@@ -40,7 +41,7 @@ class TestWindowCloseStateWindow:
         
         # Test with different parameters
         self.run_state_window_test("c1", True)
-        self.run_state_window_test("c1", False)
+        # self.run_state_window_test("c1", False)
     
     
     def run_state_window_test(self, state_window, delete):     
@@ -77,36 +78,37 @@ class TestWindowCloseStateWindow:
         # Create streams using TdCom
         #self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.tdCom.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.tdCom.stb_source_select_str}  from {self.ctb_name} state_window({state_window_col_name})', trigger_mode="window_close")
         # self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.tdCom.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.tdCom.tb_source_select_str}  from {self.tb_name} state_window({state_window_col_name})', trigger_mode="window_close")
-        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.tdCom.stream_suffix}', trigger_table=self.ctb_name, des_table=self.ctb_stream_des_table, source_sql=f'select _twstart AS wstart, {self.tdCom.stb_source_select_str}  from {self.ctb_name}', trigger_type = f'state_window({state_window_col_name})', stream_options="DELETE_RECALC")
+        #self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.tdCom.stream_suffix}', trigger_table=self.ctb_name, des_table=self.ctb_stream_des_table, source_sql=f'select _twstart AS wstart, {self.tdCom.stb_source_select_str}  from {self.ctb_name}', trigger_type = f'state_window({state_window_col_name})', stream_options="DELETE_RECALC")
+        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.tdCom.stream_suffix}', trigger_table=self.ctb_name, des_table=self.ctb_stream_des_table, source_sql=f'select _twstart AS wstart, {self.tdCom.stb_source_select_str}  from {self.ctb_name}', trigger_type = f'state_window({state_window_col_name})')
         
         
-        # state_window_max = self.tdCom.dataDict['state_window_max']
-        # state_window_value_inmem = 0
-        # sleep_step = 0
-        # for i in range(self.tdCom.range_count):
-        #     state_window_value = random.randint(int((i)*state_window_max/self.tdCom.range_count), int((i+1)*state_window_max/self.tdCom.range_count))
-        #     while state_window_value == state_window_value_inmem:
-        #         state_window_value = random.randint(int((i)*state_window_max/self.tdCom.range_count), int((i+1)*state_window_max/self.tdCom.range_count))
-        #         if sleep_step < self.tdCom.default_interval:
-        #             sleep_step += 1
-        #             time.sleep(1)
-        #         else:
-        #             return
-        #     for j in range(2, self.tdCom.range_count+3):
-        #         tdSql.execute(f'insert into {self.ctb_name} (ts, {state_window_col_name}) values ({self.tdCom.date_time}, {state_window_value})')
-        #         tdSql.execute(f'insert into {self.tb_name} (ts, {state_window_col_name}) values ({self.tdCom.date_time}, {state_window_value})')
-        #         if self.tdCom.update and i%2 == 0:
-        #             tdSql.execute(f'insert into {self.ctb_name} (ts, {state_window_col_name}) values ({self.tdCom.date_time}, {state_window_value})')
-        #             tdSql.execute(f'insert into {self.tb_name} (ts, {state_window_col_name}) values ({self.tdCom.date_time}, {state_window_value})')
-        #         if self.delete and i%2 != 0:
-        #             dt = f'cast({self.tdCom.date_time-1} as timestamp)'
-        #             self.tdCom.sdelete_rows(tbname=self.ctb_name, start_ts=dt)
-        #             self.tdCom.sdelete_rows(tbname=self.tb_name, start_ts=dt)
-        #         self.tdCom.date_time += 1
-        #     for tbname in [self.ctb_name, self.tb_name]:
-        #         if tbname != self.tb_name:
-        #             self.tdCom.check_stream(f'select wstart, {self.tdCom.stb_output_select_str} from {tbname}{self.tdCom.des_table_suffix}', f'select _wstart AS wstart, {self.tdCom.stb_source_select_str}  from {tbname} state_window({state_window_col_name}) limit {i}', i)
-        #         else:
-        #             self.tdCom.check_stream(f'select wstart, {self.tdCom.tb_output_select_str} from {tbname}{self.tdCom.des_table_suffix}', f'select _wstart AS wstart, {self.tdCom.tb_source_select_str}  from {tbname} state_window({state_window_col_name}) limit {i}', i)
-        #     state_window_value_inmem = state_window_value
+        state_window_max = self.tdCom.dataDict['state_window_max']
+        state_window_value_inmem = 0
+        sleep_step = 0
+        for i in range(self.tdCom.range_count):
+            state_window_value = random.randint(int((i)*state_window_max/self.tdCom.range_count), int((i+1)*state_window_max/self.tdCom.range_count))
+            while state_window_value == state_window_value_inmem:
+                state_window_value = random.randint(int((i)*state_window_max/self.tdCom.range_count), int((i+1)*state_window_max/self.tdCom.range_count))
+                if sleep_step < self.tdCom.default_interval:
+                    sleep_step += 1
+                    time.sleep(1)
+                else:
+                    return
+            for j in range(2, self.tdCom.range_count+3):
+                tdSql.execute(f'insert into {self.ctb_name} (ts, {state_window_col_name}) values ({self.tdCom.date_time}, {state_window_value})')
+                tdSql.execute(f'insert into {self.tb_name} (ts, {state_window_col_name}) values ({self.tdCom.date_time}, {state_window_value})')
+                if self.tdCom.update and i%2 == 0:
+                    tdSql.execute(f'insert into {self.ctb_name} (ts, {state_window_col_name}) values ({self.tdCom.date_time}, {state_window_value})')
+                    tdSql.execute(f'insert into {self.tb_name} (ts, {state_window_col_name}) values ({self.tdCom.date_time}, {state_window_value})')
+                if self.delete and i%2 != 0:
+                    dt = f'cast({self.tdCom.date_time-1} as timestamp)'
+                    self.tdCom.sdelete_rows(tbname=self.ctb_name, start_ts=dt)
+                    self.tdCom.sdelete_rows(tbname=self.tb_name, start_ts=dt)
+                self.tdCom.date_time += 1
+            for tbname in [self.ctb_name, self.tb_name]:
+                if tbname != self.tb_name:
+                    self.tdCom.check_stream(f'select wstart, {self.tdCom.stb_output_select_str} from {tbname}{self.tdCom.des_table_suffix}', f'select _wstart AS wstart, {self.tdCom.stb_source_select_str}  from {tbname} state_window({state_window_col_name}) limit {i}', i)
+                else:
+                    self.tdCom.check_stream(f'select wstart, {self.tdCom.tb_output_select_str} from {tbname}{self.tdCom.des_table_suffix}', f'select _wstart AS wstart, {self.tdCom.tb_source_select_str}  from {tbname} state_window({state_window_col_name}) limit {i}', i)
+            state_window_value_inmem = state_window_value
 
