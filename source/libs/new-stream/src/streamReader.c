@@ -534,7 +534,7 @@ int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t*
     int32_t actualLen =
         blockEncode(pBlock, (char*)dataBuf + INT_BYTES * 2, blockSize, taosArrayGetSize(pBlock->pDataBlock));
     STREAM_CHECK_CONDITION_GOTO(actualLen < 0, terrno);
-    (char*)dataBuf += (INT_BYTES * 2 + actualLen);
+    dataBuf = (char*)dataBuf + (INT_BYTES * 2 + actualLen);
   }
   stDebug("stream fetch get result blockNum:%d, rows:%" PRId64, blockNum, pRetrieve->numOfRows);
 
