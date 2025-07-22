@@ -1939,6 +1939,7 @@ static int32_t createWindowLogicNodeByExternal(SLogicPlanContext* pCxt, SExterna
   FOREACH(pNode, pCxt->pCurrRoot->pTargets) {
     if (QUERY_NODE_COLUMN == nodeType(pNode)) {
       SColumnNode* pCol = (SColumnNode*)pNode;
+      
       if (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         PLAN_ERR_RET(nodesCloneNode(pNode, &pWindow->pTspk));
         break;
@@ -2300,7 +2301,8 @@ static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
   TSWAP(pProject->node.pLimit, pSelect->pLimit);
   TSWAP(pProject->node.pSlimit, pSelect->pSlimit);
   pProject->ignoreGroupId = pSelect->isSubquery ? true : (NULL == pSelect->pPartitionByList);
-  pProject->node.groupAction = GROUP_ACTION_CLEAR;
+  pProject->node.groupAction =
+      (pCxt->pPlanCxt->streamCalcQuery && pCxt->pPlanCxt->withExtWindow) ? GROUP_ACTION_KEEP : GROUP_ACTION_CLEAR;
   pProject->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
   pProject->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
 

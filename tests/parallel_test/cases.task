@@ -275,7 +275,6 @@
 #newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/window_close_session_ext.py
 #newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/partition_interval.py
 #ci ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/pause_resume_test.py
-#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/state_window_case.py
 #,,n,system-test,python3 ./test.py -f 8-stream/vnode_restart.py -N 4
 #,,n,system-test,python3 ./test.py -f 8-stream/snode_restart.py -N 4
 #newstm,,n,system-test,python3 ./test.py -f 8-stream/snode_restart_with_checkpoint.py -N 4
@@ -1346,7 +1345,6 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f eco-system/manager/schema_change.py -N 3 -M 3
-#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_window_true_for.py
 #newstm,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 
 #tsim test

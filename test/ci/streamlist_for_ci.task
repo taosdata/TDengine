@@ -98,8 +98,9 @@
 ,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_state.py 
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
 
-,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_backquote_check.py
-,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_taosdShell.py -N 5
+## 30-OldPyCases
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_state_window.py
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_window_true_for.py
 
 ## 99-Others
 

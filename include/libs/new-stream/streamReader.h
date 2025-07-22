@@ -102,7 +102,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
                          SSDataBlock* pResBlock, SHashObj* groupIdMap, SStorageAPI*  api);
 void*   qStreamGetReaderInfo(int64_t streamId, int64_t taskId, void** taskAddr);
 void    qStreamSetTaskRunning(int64_t streamId, int64_t taskId);
-int32_t streamBuildFetchRsp(SSDataBlock* pBlock, void** data, size_t* size, int8_t precision);
+int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t* size, int8_t precision);
 
 #ifdef __cplusplus
 }
