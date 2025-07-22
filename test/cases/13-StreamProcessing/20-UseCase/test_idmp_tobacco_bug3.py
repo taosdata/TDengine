@@ -1,4 +1,4 @@
-from test_idmp_tobacco import TestIdmpScene
+from test_idmp_tobacco import IdmpScene
 
 
 class TestIdmpTobaccoBug3:
@@ -21,7 +21,7 @@ class TestIdmpTobaccoBug3:
         History:
             - 2025-7-18 zyyang90 Created
         """
-        tobac = TestIdmpScene()
+        tobac = IdmpScene()
         tobac.init(
             "tobacco",
             "idmp_sample_tobacco",

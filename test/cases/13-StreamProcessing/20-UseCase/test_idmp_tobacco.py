@@ -42,7 +42,7 @@ class TestIdmpTobacco:
         History:
             - 2025-7-11 zyyang90 Created
         """
-        tobac = TestIdmpScene()
+        tobac = IdmpScene()
         tobac.init(
             "tobacco",
             "idmp_sample_tobacco",
@@ -57,7 +57,7 @@ class TestIdmpTobacco:
         tobac.run()
 
 
-class TestIdmpScene:
+class IdmpScene:
     def init(self, scene, db, vdb, db_dump_dir, vstb_sql, vtb_sql, stream_json):
         # scene name
         self.scene = scene
