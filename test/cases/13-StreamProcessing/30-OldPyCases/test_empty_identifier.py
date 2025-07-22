@@ -1,330 +1,189 @@
+import taos
+import sys
 import time
+import socket
+import os
+import threading
+import math
+from datetime import datetime
+
 from new_test_framework.utils import (
     tdLog,
     tdSql,
-    clusterComCheck,
-    tdStream,
-    StreamItem,
+    tdCom,
+    tdDnodes,
 )
 
 
-class TestStreamEmptyIdentifier:
+COMPARE_DATA = 0
+COMPARE_LEN = 1
 
-    def setup_class(cls):
-        tdLog.debug(f"start to execute {__file__}")
+class TestEmptyIdentifier:
 
-    def test_stream_empty_identifier(self):
-        """Stream Empty Identifier Test with New Syntax
+    def setup_class(self):
+        tdLog.debug(f"start to excute {__file__}")
 
-        Test empty identifier handling in stream processing using new syntax:
-        1. Empty identifiers in stream creation with new trigger types
-        2. Empty identifiers in table names used by streams  
-        3. Empty identifiers in new stream options and parameters
-        4. Error handling for invalid empty identifiers in new syntax
-        5. Test various trigger types: INTERVAL+SLIDING, COUNT_WINDOW, PERIOD, SESSION, STATE_WINDOW, EVENT_WINDOW
+    def test_empty_identifier(self):
+        """Empty Identifier Validation Test
+
+        Test empty identifier handling in various SQL statements:
+        1. Table operations with empty identifiers
+        2. Column and tag operations with empty identifiers  
+        3. Stream, view, topic operations with empty identifiers
+        4. Verify all operations correctly return error code -2147473897
 
         Catalog:
-            - Streams:OldPyCases
+            - SQL:Syntax Validation
 
         Since: v3.0.0.0
 
-        Labels: common, ci
+        Labels: common,ci
 
         Jira: None
 
         History:
-            - 2025-12-19 Migrated from system-test/0-others/empty_identifier.py
-            - 2025-01-01 Updated to use new stream computation syntax
-            - Note: Focused on stream-related empty identifier tests with new syntax
+            - 2025-07-22 Beryl Migrated to new test framework
 
         """
-
-        self.createSnode()
-        self.createDatabase()
+        
         self.prepareTestEnv()
-        self.testStreamEmptyIdentifier()
-        self.testValidStreamOperations()
+        self.excute_empty_identifier()
 
-    def createSnode(self):
-        tdLog.info("create snode")
-        tdStream.createSnode(1)
+    def create_database(self,tdSql, dbName,dropFlag=1,vgroups=2,replica=1, duration:str='1d'):
+        if dropFlag == 1:
+            tdSql.execute("drop database if exists %s"%(dbName))
 
-    def createDatabase(self):
-        tdLog.info("create database")
-        tdSql.prepare(dbname="emptytest", vgroups=4)
-        clusterComCheck.checkDbReady("emptytest")
+        tdSql.execute("create database if not exists %s vgroups %d replica %d duration %s"%(dbName, vgroups, replica, duration))
+        tdLog.debug("complete to create database %s"%(dbName))
+        return
+
+    def create_stable(self,tdSql, paraDict):
+        colString = tdCom.gen_column_type_str(colname_prefix=paraDict["colPrefix"], column_elm_list=paraDict["colSchema"])
+        tagString = tdCom.gen_tag_type_str(tagname_prefix=paraDict["tagPrefix"], tag_elm_list=paraDict["tagSchema"])
+        sqlString = f"create table if not exists %s.%s (%s) tags (%s)"%(paraDict["dbName"], paraDict["stbName"], colString, tagString)
+        tdLog.debug("%s"%(sqlString))
+        tdSql.execute(sqlString)
+        return
+
+    def create_ctable(self,tdSql=None, dbName='dbx',stbName='stb',ctbPrefix='ctb',ctbNum=1,ctbStartIdx=0):
+        for i in range(ctbNum):
+            sqlString = "create table %s.%s%d using %s.%s tags(%d, 'tb%d', 'tb%d', %d, %d, %d)" % \
+                    (dbName,ctbPrefix,i+ctbStartIdx,dbName,stbName,(i+ctbStartIdx) % 5,i+ctbStartIdx,i+ctbStartIdx,i+ctbStartIdx,i+ctbStartIdx,i+ctbStartIdx)
+            tdSql.execute(sqlString)
+
+        tdLog.debug("complete to create %d child tables by %s.%s" %(ctbNum, dbName, stbName))
+        return
+
+    def insert_data(self,tdSql,dbName,ctbPrefix,ctbNum,rowsPerTbl,batchNum,startTs,tsStep):
+        tdLog.debug("start to insert data ............")
+        tdSql.execute("use %s" %dbName)
+        pre_insert = "insert into "
+        sql = pre_insert
+
+        for i in range(ctbNum):
+            rowsBatched = 0
+            sql += " %s%d values "%(ctbPrefix,i)
+            for j in range(rowsPerTbl):
+                if (i < ctbNum/2):
+                    sql += "(%d, %d, %d, %d,%d,%d,%d,true,'binary%d', 'nchar%d') "%(startTs + j*tsStep, j%10, j%10, j%10, j%10, j%10, j%10, j%10, j%10)
+                else:
+                    sql += "(%d, %d, NULL, %d,NULL,%d,%d,true,'binary%d', 'nchar%d') "%(startTs + j*tsStep, j%10, j%10, j%10, j%10, j%10, j%10)
+                rowsBatched += 1
+                if ((rowsBatched == batchNum) or (j == rowsPerTbl - 1)):
+                    tdSql.execute(sql)
+                    rowsBatched = 0
+                    if j < rowsPerTbl - 1:
+                        sql = "insert into %s%d values " %(ctbPrefix,i)
+                    else:
+                        sql = "insert into "
+        if sql != pre_insert:
+            tdSql.execute(sql)
+        tdLog.debug("insert data ............ [OK]")
+        return
 
     def prepareTestEnv(self):
-        """Prepare test environment with tables and data"""
-        tdLog.info("prepare test environment")
-        
-        # Create super table
-        tdSql.execute("""
-            CREATE TABLE emptytest.meters (
-                ts TIMESTAMP,
-                c1 INT,
-                c2 BIGINT,
-                c3 FLOAT,
-                c4 DOUBLE,
-                c5 SMALLINT,
-                c6 TINYINT,
-                c7 BOOL,
-                c8 BINARY(10),
-                c9 NCHAR(10)
-            ) TAGS (
-                t1 INT,
-                t2 NCHAR(20),
-                t3 BINARY(20),
-                t4 BIGINT,
-                t5 SMALLINT,
-                t6 DOUBLE
-            );
-        """)
-        
-        # Create child tables
-        for i in range(10):
-            table_name = f"t{i}"
-            tdSql.execute(f"""
-                CREATE TABLE emptytest.{table_name} USING emptytest.meters 
-                TAGS ({i % 5}, 'tb{i}', 'tb{i}', {i}, {i}, {i});
-            """)
-            
-            # Insert test data
-            base_ts = 1537146000000
-            for j in range(100):
-                ts = base_ts + j * 600000
-                if i < 5:
-                    tdSql.execute(f"""
-                        INSERT INTO emptytest.{table_name} VALUES 
-                        ({ts}, {j%10}, {j%10}, {j%10}, {j%10}, {j%10}, {j%10}, 
-                         {j%2}, 'binary{j%10}', 'nchar{j%10}');
-                    """)
-                else:
-                    tdSql.execute(f"""
-                        INSERT INTO emptytest.{table_name} VALUES 
-                        ({ts}, {j%10}, NULL, {j%10}, NULL, {j%10}, {j%10}, 
-                         {j%2}, 'binary{j%10}', 'nchar{j%10}');
-                    """)
+        tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
+        paraDict = {'dbName':     'test',
+                    'dropFlag':   1,
+                    'vgroups':    2,
+                    'stbName':    'meters',
+                    'colPrefix':  'c',
+                    'tagPrefix':  't',
+                    'colSchema':   [{'type': 'INT', 'count':1},
+                                    {'type': 'BIGINT', 'count':1},
+                                    {'type': 'FLOAT', 'count':1},
+                                    {'type': 'DOUBLE', 'count':1},
+                                    {'type': 'smallint', 'count':1},
+                                    {'type': 'tinyint', 'count':1},
+                                    {'type': 'bool', 'count':1},
+                                    {'type': 'binary', 'len':10, 'count':1},
+                                    {'type': 'nchar', 'len':10, 'count':1}],
+                    'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'nchar', 'len':20, 'count':1},{'type': 'binary', 'len':20, 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'smallint', 'count':1},{'type': 'DOUBLE', 'count':1}],
+                    'ctbPrefix':  't',
+                    'ctbStartIdx': 0,
+                    'ctbNum':     100,
+                    'rowsPerTbl': 10000,
+                    'batchNum':   3000,
+                    'startTs':    1537146000000,
+                    'tsStep':     600000}
 
-    def testStreamEmptyIdentifier(self):
-        """Test empty identifier handling in stream operations using new syntax"""
-        tdLog.info("test empty identifier in stream operations")
-        
-        # Test cases with empty identifiers that should fail - using new stream syntax
-        error_sqls = [
-            # Empty table names in sliding window trigger
-            "CREATE STREAM emptytest.test_stream INTERVAL(10s) SLIDING(10s) FROM `` INTO emptytest.result AS SELECT _twstart, COUNT(*) FROM `` WHERE ts >= _twstart AND ts <= _twend;",
-            
-            # Empty stream names with count window
-            "CREATE STREAM `` COUNT_WINDOW(5) FROM emptytest.meters INTO emptytest.result AS SELECT _twstart, COUNT(*) FROM %%trows;",
-            
-            # Empty result table names with period trigger
-            "CREATE STREAM emptytest.test_stream PERIOD(30s) FROM emptytest.meters INTO `` AS SELECT cast(_tlocaltime/1000000 as timestamp) ts, COUNT(*) FROM emptytest.meters;",
-            
-            # Empty column names in session window
-            "CREATE STREAM emptytest.test_stream SESSION(ts, 5s) FROM emptytest.meters INTO emptytest.result AS SELECT _twstart, COUNT(*) `` FROM %%trows;",
-            
-            # Empty identifiers in partition by
-            "CREATE STREAM emptytest.test_stream INTERVAL(10s) SLIDING(10s) FROM emptytest.meters PARTITION BY `` INTO emptytest.result AS SELECT _twstart, COUNT(*) FROM emptytest.meters WHERE ts >= _twstart AND ts <= _twend;",
-            
-            # Empty database names
-            "CREATE STREAM ``.test_stream INTERVAL(10s) SLIDING(10s) FROM emptytest.meters INTO emptytest.result AS SELECT _twstart, COUNT(*) FROM emptytest.meters WHERE ts >= _twstart AND ts <= _twend;",
-            
-            # Empty identifiers in DROP operations
-            "DROP STREAM ``;",
-            
-            # Empty identifiers in manual recalculation
-            "RECALCULATE STREAM `` FROM '2025-01-01 00:00:00';",
-            
-            # Empty identifiers in state window
-            "CREATE STREAM emptytest.test_stream STATE_WINDOW(``) FROM emptytest.meters PARTITION BY tbname INTO emptytest.result AS SELECT _twstart, _twend, COUNT(*) FROM %%trows;",
-            
-            # Empty identifiers in stream options
-            "CREATE STREAM emptytest.test_stream INTERVAL(10s) SLIDING(10s) FROM emptytest.meters STREAM_OPTIONS(WATERMARK(``)) INTO emptytest.result AS SELECT _twstart, COUNT(*) FROM emptytest.meters WHERE ts >= _twstart AND ts <= _twend;",
-        ]
-        
-        # Test each SQL that should fail
-        for sql in error_sqls:
-            try:
-                tdLog.info(f"Testing SQL: {sql}")
-                tdSql.error(sql)
-            except Exception as e:
-                tdLog.info(f"Expected error for empty identifier: {e}")
+        paraDict['vgroups'] = 4
+        paraDict['ctbNum'] = 10
+        paraDict['rowsPerTbl'] = 10000
 
-        # Test some additional stream-specific empty identifier cases with new syntax
-        stream_specific_sqls = [
-            # Empty identifier in trigger conditions with pre-filter
-            "CREATE STREAM emptytest.test_stream INTERVAL(10s) SLIDING(10s) FROM emptytest.meters STREAM_OPTIONS(PRE_FILTER(`` > 0)) INTO emptytest.result AS SELECT _twstart, COUNT(*) FROM emptytest.meters WHERE ts >= _twstart AND ts <= _twend;",
-            
-            # Empty identifier in aggregation functions
-            "CREATE STREAM emptytest.test_stream COUNT_WINDOW(10) FROM emptytest.meters INTO emptytest.result AS SELECT _twstart, ``(*) FROM %%trows;",
-            
-            # Empty identifier in window placeholder usage
-            "CREATE STREAM emptytest.test_stream INTERVAL(10s) SLIDING(10s) FROM emptytest.meters INTO emptytest.result AS SELECT _twstart, COUNT(*) FROM emptytest.meters WHERE `` >= _twstart;",
-            
-            # Empty identifier in event window conditions
-            "CREATE STREAM emptytest.test_stream EVENT_WINDOW(START WITH `` > 5 END WITH c1 < 2) FROM emptytest.meters PARTITION BY tbname INTO emptytest.result AS SELECT _twstart, _twend, COUNT(*) FROM %%trows;",
-            
-            # Empty identifier in session window timestamp column
-            "CREATE STREAM emptytest.test_stream SESSION(``, 5s) FROM emptytest.meters PARTITION BY tbname INTO emptytest.result AS SELECT _twstart, _twend, COUNT(*) FROM %%trows;",
-            
-            # Empty identifier in output subtable expression
-            "CREATE STREAM emptytest.test_stream INTERVAL(10s) SLIDING(10s) FROM emptytest.meters PARTITION BY tbname INTO emptytest.result OUTPUT_SUBTABLE(``) AS SELECT _twstart, COUNT(*) FROM emptytest.meters WHERE ts >= _twstart AND ts <= _twend;",
-        ]
-        
-        for sql in stream_specific_sqls:
-            try:
-                tdLog.info(f"Testing stream-specific SQL: {sql}")
-                self.executeAndExpectError(sql, -2147473897)
-            except Exception as e:
-                tdLog.info(f"Expected error for stream empty identifier: {e}")
+        tdLog.info("create database")
+        self.create_database(tdSql=tdSql, dbName=paraDict["dbName"], dropFlag=paraDict["dropFlag"], vgroups=paraDict["vgroups"], replica=1, duration='1h')
 
-    def executeAndExpectError(self, sql: str, expected_error: int):
-        """Execute SQL and expect specific error"""
-        try:
-            tdSql.error(sql)
-            tdLog.info(f"✓ SQL correctly failed with expected error: {sql}")
-        except Exception as e:
-            # If the error function itself fails, that means the SQL didn't fail as expected
-            tdLog.info(f"✗ SQL didn't fail as expected: {sql} - {e}")
-            
-            # Try direct execution to see what happens
-            try:
-                tdSql.execute(sql)
-                tdLog.info(f"✗ SQL executed successfully when it should have failed: {sql}")
-            except Exception as exec_e:
-                tdLog.info(f"✓ SQL failed during execution (alternative path): {sql} - {exec_e}")
+        tdLog.info("create stb")
+        self.create_stable(tdSql=tdSql, paraDict=paraDict)
 
-    def testValidStreamOperations(self):
-        """Test some valid stream operations to ensure system is working with new syntax"""
-        tdLog.info("test valid stream operations for comparison using new syntax")
-        
-        try:
-            # Create valid streams using different trigger types from new syntax
-            valid_streams = [
-                # Sliding window trigger
-                """
-                CREATE STREAM emptytest.valid_interval_stream 
-                INTERVAL(10s) SLIDING(10s)
-                FROM emptytest.meters 
-                PARTITION BY tbname 
-                INTO emptytest.valid_interval_result 
-                AS SELECT _twstart ts, COUNT(*) cnt, AVG(c1) avg_c1
-                FROM emptytest.meters 
-                WHERE ts >= _twstart AND ts <= _twend;
-                """,
-                
-                # Count window trigger
-                """
-                CREATE STREAM emptytest.valid_count_stream 
-                COUNT_WINDOW(5) 
-                FROM emptytest.meters 
-                PARTITION BY tbname 
-                INTO emptytest.valid_count_result 
-                AS SELECT _twstart ts, COUNT(*) cnt, MAX(c2) max_c2
-                FROM %%trows;
-                """,
-                
-                # Period trigger
-                """
-                CREATE STREAM emptytest.valid_period_stream 
-                PERIOD(30s) 
-                FROM emptytest.meters 
-                PARTITION BY tbname 
-                STREAM_OPTIONS(IGNORE_NODATA_TRIGGER)
-                INTO emptytest.valid_period_result 
-                AS SELECT cast(_tlocaltime/1000000 as timestamp) ts, COUNT(*) total_cnt, MIN(c3) min_c3
-                FROM emptytest.meters;
-                """,
-                
-                # Session window trigger
-                """
-                CREATE STREAM emptytest.valid_session_stream 
-                SESSION(ts, 5s) 
-                FROM emptytest.meters 
-                PARTITION BY tbname 
-                INTO emptytest.valid_session_result 
-                AS SELECT _twstart ts, _twend te, COUNT(*) cnt, SUM(c1) sum_c1
-                FROM %%trows;
-                """,
-            ]
-            
-            created_streams = []
-            for i, stream_sql in enumerate(valid_streams):
-                try:
-                    tdSql.execute(stream_sql)
-                    stream_name = f"valid_{['interval', 'count', 'period', 'session'][i]}_stream"
-                    created_streams.append(stream_name)
-                    tdLog.info(f"✓ Valid stream {stream_name} created successfully")
-                except Exception as e:
-                    tdLog.info(f"✗ Failed to create stream {i}: {e}")
-            
-            # Wait a moment for streams to initialize
-            time.sleep(3)
-            
-            # Check stream statuses
-            for stream_name in created_streams:
-                try:
-                    tdSql.query(f"SELECT * FROM information_schema.ins_streams WHERE stream_name = '{stream_name}';")
-                    if tdSql.getRows() > 0:
-                        tdLog.info(f"✓ Valid stream {stream_name} found in system tables")
-                    else:
-                        tdLog.info(f"✗ Stream {stream_name} not found in system tables")
-                except Exception as e:
-                    tdLog.info(f"✗ Failed to check stream {stream_name} status: {e}")
-            
-            # Clean up created streams
-            cleanup_streams = [
-                "emptytest.valid_interval_stream",
-                "emptytest.valid_count_stream", 
-                "emptytest.valid_period_stream",
-                "emptytest.valid_session_stream"
-            ]
-            
-            cleanup_tables = [
-                "emptytest.valid_interval_result",
-                "emptytest.valid_count_result",
-                "emptytest.valid_period_result", 
-                "emptytest.valid_session_result"
-            ]
-            
-            for stream in cleanup_streams:
-                try:
-                    tdSql.execute(f"DROP STREAM IF EXISTS {stream};")
-                except:
-                    pass
-                    
-            for table in cleanup_tables:
-                try:
-                    tdSql.execute(f"DROP TABLE IF EXISTS {table};")
-                except:
-                    pass
-            
-        except Exception as e:
-            tdLog.info(f"Valid stream test failed: {e}")
-            # This might indicate syntax differences in new framework
+        tdLog.info("create child tables")
+        self.create_ctable(tdSql=tdSql, dbName=paraDict["dbName"], \
+                stbName=paraDict["stbName"],ctbPrefix=paraDict["ctbPrefix"],\
+                ctbNum=paraDict["ctbNum"],ctbStartIdx=paraDict["ctbStartIdx"])
+        self.insert_data(tdSql=tdSql, dbName=paraDict["dbName"],\
+                ctbPrefix=paraDict["ctbPrefix"],ctbNum=paraDict["ctbNum"],\
+                rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],\
+                startTs=paraDict["startTs"],tsStep=paraDict["tsStep"])
+        return
 
-    def cleanup(self):
-        """Clean up test database"""
-        tdLog.info("cleaning up test database")
-        try:
-            # Drop any remaining streams
-            tdSql.query("SELECT stream_name FROM information_schema.ins_streams WHERE db_name = 'emptytest';")
-            for i in range(tdSql.getRows()):
-                stream_name = tdSql.getData(i, 0)
-                try:
-                    tdSql.execute(f"DROP STREAM IF EXISTS emptytest.{stream_name};")
-                except:
-                    pass
-            
-            # Drop database
-            tdSql.execute("DROP DATABASE IF EXISTS emptytest;")
-        except Exception as e:
-            tdLog.info(f"Cleanup completed: {e}")
+    def execute_sql_and_expect_err(self, sql: str, err: int):
+        tdSql.error(sql, err)
 
-    def __del__(self):
-        """Destructor to ensure cleanup"""
-        try:
-            self.cleanup()
-        except:
-            pass 
+    def excute_empty_identifier(self):
+        ## invalid identifier
+        sqls = [
+                'show create table ``',
+                'show create table test.``',
+                'create table `` (ts timestamp, c1 int)',
+                'drop table ``',
+                'alter table `` add column c2 int',
+                'select * from ``',
+                'alter table meters add column `` int',
+                'alter table meters drop column ``',
+                'alter stable meters add tag `` int',
+                'alter stable meters rename tag cc ``',
+                'alter stable meters drop tag ``',
+                'insert into `` select * from t0',
+                'insert into t100 using `` tags('', '') values(1,1,1)',
+                'create view `` as select count(*) from meters interval(10s)',
+                'create view ``.view1 as select count(*) from meters'
+                'create tsma `` on meters function(count(c1)) interval(1m)',
+                'create tsma tsma1 on `` function(count(c1)) interval(1m)',
+                'create stream `` interval(10s) sliding(10s) from meters into st1 as select count(*) from meters',
+                'create stream stream1 interval(10s) sliding(10s) from meters into `` as select count(*) from meters',
+                'create stream stream1 interval(10s) sliding(10s) from meters into st1 as select count(*) from ``',
+                'create stream stream1 interval(10s) sliding(10s) from meters stream_options(max_delay(100s)) into st1 as select count(*) from ``',
+                'create stream stream1 interval(10s) sliding(10s) from `` stream_options(max_delay(100s)) into st1 as select count(*) from meters',
+                'drop view ``',
+                'drop view ``.st1',
+                'create topic `` as select count(*) from meters interval(10s)',
+                'drop topic ``',
+                'insert into `` values(1,1,1)',
+                ]
+
+        for sql in sqls:
+            self.execute_sql_and_expect_err(sql, -2147473897)
+
+    def test_empty_identifier_end(self):
+        tdLog.success(f"{__file__} successfully executed")
