@@ -1075,10 +1075,8 @@ int32_t tRowBuildWithBlob(SArray *aColVal, const STSchema *pTSchema, SRow **ppRo
 
   if (sinfo->tupleRowSize <= sinfo->kvRowSize) {
     code = tRowBuildTupleWithBlob(aColVal, sinfo, pTSchema, ppRow, pBlobSet);
-    pBlobSet->rowType = BLOB_ROW_TUPLE;
   } else {
     code = tRowBuildKVRowWithBlob(aColVal, sinfo, pTSchema, ppRow, pBlobSet);
-    pBlobSet->rowType = BLOB_ROW_KV;
   }
 
   return code;

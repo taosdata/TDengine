@@ -2626,6 +2626,10 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
     SRow** pRow = taosArrayReserve(pTableCxt->pData->aRowP, 1);
     if (pTableCxt->hasBlob) {
       SRowBuildScanInfo sinfo = {.hasBlob = 1, .scanType = ROW_BUILD_UPDATE};
+      if (pTableCxt->pData->pBlobSet == NULL) {
+        code = tBlobSetCreate(1024, 0, &pTableCxt->pData->pBlobSet);
+        TAOS_CHECK_RETURN(code);
+      }
       code = tRowBuildWithBlob(pTableCxt->pValues, pTableCxt->pSchema, pRow, pTableCxt->pData->pBlobSet, &sinfo);
     } else {
       SRowBuildScanInfo sinfo = {0};
