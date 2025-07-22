@@ -9,34 +9,28 @@ class TestStreamOptionsTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_options_trigger(self):
-        """Stream basic test 1
+        """stream options
+
+        test abnormal cases to stream
+
+        Catalog:
+            - Streams:UseCases
+
+        Since: v3.3.3.7
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-6-16 Lihui Created
+
         """
 
         tdStream.createSnode()
 
         streams = []
-        streams.append(self.Basic0())  # WATERMARK [ok]
-        # streams.append(self.Basic1())  # EXPIRED_TIME   fail 
-        # streams.append(self.Basic2())  # IGNORE_DISORDER  [ok]
-        
-        # TD-36343 [流计算开发阶段] 流计算state窗口+delete_recalc删除数据后重算结果错误
-        # streams.append(self.Basic3())  # DELETE_RECALC
-        
-        # TD-36305 [流计算开发阶段] 流计算state窗口+超级表%%rows+delete_output_table没有删除结果表
-        # streams.append(self.Basic4())  # DELETE_OUTPUT_TABLE
-        
-        # streams.append(self.Basic5())  # FILL_HISTORY        [ok]
-        # streams.append(self.Basic6())  # FILL_HISTORY_FIRST  [ok]
-        # streams.append(self.Basic7())  # CALC_NOTIFY_ONLY
-        # # streams.append(self.Basic8())  # LOW_LATENCY_CALC  temp no test
-        # streams.append(self.Basic9())  # PRE_FILTER     [ok]
-        # streams.append(self.Basic10()) # FORCE_OUTPUT   [ok] 
-        # streams.append(self.Basic11()) # MAX_DELAY        
-        # streams.append(self.Basic11_1()) # MAX_DELAY        
-        # streams.append(self.Basic12()) # EVENT_TYPE [ok]
-        # streams.append(self.Basic13()) # IGNORE_NODATA_TRIGGER
-        
-        # streams.append(self.Basic14()) # watermark + expired_time + ignore_disorder  fail  对超期的数据仍然进行了计算
+        streams.append(self.Basic0())  
         
         tdStream.checkAll(streams)
 

@@ -24,7 +24,18 @@ class TestOthersOldCaseBackquoteCheck:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_others_oldcase_bachkquote_check(self):
+    def test_others_oldcase_bachkquote_check(self):        
+        """Stream old case
+        old case 
+        Catalog:
+            - Streams:OldCases
+        Since: v3.0.0.0
+        Labels: common, ci
+        Jira: None
+        History:
+            - 2025-5-15 Migrated from t0-others/taosdShell.py -N 5 -M 3 -Q 3
+
+        """
         
         self.replicaVar = 1
         tdLog.debug("start to execute %s" % __file__)
