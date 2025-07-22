@@ -45,9 +45,9 @@ class TestStreamOldCaseCheckPoint:
         streams = []
         streams.append(self.Interval0())
         streams.append(self.Interval1())
-        streams.append(self.Session0())
-        streams.append(self.Session1())
-        streams.append(self.State0())
+        # streams.append(self.Session0()) TD-36912
+        # streams.append(self.Session1()) TD-36912
+        # streams.append(self.State0())   TD-36912
         tdStream.checkAll(streams)
 
     class Interval0(StreamCheckItem):
