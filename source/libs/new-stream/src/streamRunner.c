@@ -580,6 +580,11 @@ static int32_t stRunnerForceOutputHelp(SStreamRunnerTask* pTask, SStreamRunnerTa
         // no more windows to process
         break;
       }
+      if (rowsInput != 0 && rowIdx >= rowsInput) {
+        // no more rows in this block to process
+        // if current window is an empty window, we still need to force output all the windows. or break to wait next block.
+        break;
+      }
 
       pTriggerCalcParam = taosArrayGet(pTriggerCalcParams, curWinIdx);
       curWin.skey = pTriggerCalcParam->wstart;
@@ -612,6 +617,30 @@ static int32_t stRunnerPrepareMulWinNotification(SStreamRunnerTask* pTask, SStre
   return stRunnerForceOutputHelp(pTask, pExec, pBlock, NULL, pWinIdx, true);
 }
 
+void stRunnerUpdateNextOutIdx(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec, SSDataBlock* pBlock, int32_t* nextIdx) {
+  SArray* pTriggerCalcParams = pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals;
+  int32_t winNum = taosArrayGetSize(pTriggerCalcParams);
+  if (NULL == pBlock || pBlock->info.rows <= 0) {
+    *nextIdx = winNum;
+    return;
+  }
+  
+  SSTriggerCalcParam* pTriggerCalcParam = NULL;
+  SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, 0);
+  int64_t lastTs = *(int64_t*)colDataGetNumData(pTsCol, pBlock->info.rows - 1);
+  for (int32_t i = *nextIdx + pBlock->info.rows - 1; i < winNum; ++i) {
+    pTriggerCalcParam = taosArrayGet(pTriggerCalcParams, i);
+    if (lastTs == pTriggerCalcParam->wstart) {
+      *nextIdx = i;
+      return;
+    }
+  }
+
+  ST_TASK_ELOG("%s failed to get output ts %" PRId64 " window, start:%d, total:%d", __FUNCTION__, lastTs, *nextIdx, winNum);
+  
+  *nextIdx = winNum;
+}
+
 static int32_t stRunnerTopTaskHandleOutputBlockAgg(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec,
                                                    SSDataBlock* pBlock, SSDataBlock** ppForceOutBlock,
                                                    int32_t* pNextOutIdx, bool* pCreateTable) {
@@ -627,10 +656,13 @@ static int32_t stRunnerTopTaskHandleOutputBlockAgg(SStreamRunnerTask* pTask, SSt
     }
     code = stRunnerForceOutput(pTask, pExec, pBlock, ppForceOutBlock, pNextOutIdx);
     pOutputBlock = *ppForceOutBlock;
-  } else {
+  } else if (taosArrayGetSize(pTask->notification.pNotifyAddrUrls) > 0) {
     // prepare notification for current block when no force output cols
     stRunnerPrepareMulWinNotification(pTask, pExec, pOutputBlock, pNextOutIdx);
+  } else {
+    stRunnerUpdateNextOutIdx(pTask, pExec, pBlock, pNextOutIdx);
   }
+  
   if (code == 0) {
     if (pOutputBlock && pOutputBlock->info.rows > 0) {
       code = stRunnerOutputBlock(pTask, pExec, pOutputBlock, pCreateTable);
@@ -639,7 +671,7 @@ static int32_t stRunnerTopTaskHandleOutputBlockAgg(SStreamRunnerTask* pTask, SSt
       }
     }
   }
-  if (code == 0) {
+  if (code == 0 && taosArrayGetSize(pTask->notification.pNotifyAddrUrls) > 0) {
     endWinIdx = *pNextOutIdx - 1;
     if (endWinIdx >= startWinIdx) {
       code = streamDoNotification(pTask, pExec, startWinIdx, endWinIdx);

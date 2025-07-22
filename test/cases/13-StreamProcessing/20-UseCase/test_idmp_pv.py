@@ -1,4 +1,4 @@
-from test_idmp_tobacco import TestIdmpScene
+from test_idmp_tobacco import IdmpScene
 
 
 class TestIdmpPhotovoltaic:
@@ -31,7 +31,7 @@ class TestIdmpPhotovoltaic:
         History:
             - 2025-7-18 zyyang90 Created
         """
-        pv = TestIdmpScene()
+        pv = IdmpScene()
         pv.init(
             "photovoltaic",
             "idmp_sample_pv",
