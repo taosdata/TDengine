@@ -3457,7 +3457,7 @@ static int32_t mndRemoveDbPrivileges(SHashObj *pHash, const char *dbFName, int32
     if (pKey == NULL || keyLen <= dbFNameLen) continue;
     if ((*(pKey + dbFNameLen) == '.') && strncmp(pKey, dbFName, dbFNameLen) == 0) {
       TAOS_CHECK_RETURN(taosHashRemove(pHash, pKey, keyLen));
-      if (nRemoved) ++nRemoved;
+      if (nRemoved) ++(*nRemoved);
     }
   }
   TAOS_RETURN(0);
