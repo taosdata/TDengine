@@ -90,18 +90,19 @@
 
 ## 23-Compatibility 
 
-## 24-OldCases
+## 30-OldPyCases
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_state_window.py
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_window_true_for.py
+
+## 31-OldCases
 ,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic1.py 
-#,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic2.py 
-#,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_check.py
+,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic2.py 
+,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_check.py
 #,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_checkpoint.py
 #,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_concat.py
 ,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_state.py 
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
 
-## 30-OldPyCases
-,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_state_window.py
-,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_window_true_for.py
 
 ## 99-Others
 
