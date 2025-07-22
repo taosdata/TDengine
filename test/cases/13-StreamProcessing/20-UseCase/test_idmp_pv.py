@@ -1,9 +1,10 @@
-from test_idmp_tobacco import TestIdmpScene
+from test_idmp_tobacco import IdmpScene
 
 
 class TestIdmpPhotovoltaic:
     def test_pv(self):
-        """
+        """IDMP 光伏场景测试
+
         Refer: https://taosdata.feishu.cn/wiki/Zkb2wNkHDihARVkGHYEcbNhmnxb#share-Ygqld907hoMESmx04GBcRlaVnZz
         1. 测试 AI 推荐生成的分析, 创建 Stream, 验证流的正确性
         2. 测试不同的触发类型
@@ -16,16 +17,21 @@ class TestIdmpPhotovoltaic:
         2. LAST: 最新值
         3. SUM: 求和
         4. MAX: 最大值
+
         Catalog:
             - Streams:UseCases
-        Since: v3.3.6.14
+
+        Since: v3.3.7.0
+
         Labels: common,ci
+
         Jira:
             - https://jira.taosdata.com:18080/browse/TD-36783
+
         History:
             - 2025-7-18 zyyang90 Created
         """
-        pv = TestIdmpScene()
+        pv = IdmpScene()
         pv.init(
             "photovoltaic",
             "idmp_sample_pv",

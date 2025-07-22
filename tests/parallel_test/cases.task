@@ -1713,10 +1713,6 @@
 #newstm,,y,script,./test.sh -f tsim/stream/streamTwaFwcIntervalPrimaryKey.sim
 #newstm,,y,script,./test.sh -f tsim/stream/streamTwaInterpFwc.sim
 #newstm,,y,script,./test.sh -f tsim/stream/triggerSession0.sim
-#newstm,,y,script,./test.sh -f tsim/stream/udTableAndCol0.sim
-#newstm,,y,script,./test.sh -f tsim/stream/udTableAndTag0.sim
-#newstm,,y,script,./test.sh -f tsim/stream/udTableAndTag1.sim
-#newstm,,y,script,./test.sh -f tsim/stream/udTableAndTag2.sim
 ,,y,script,./test.sh -f tsim/trans/lossdata1.sim
 ,,y,script,./test.sh -f tsim/tmq/basic1.sim
 ,,y,script,./test.sh -f tsim/tmq/basic2.sim

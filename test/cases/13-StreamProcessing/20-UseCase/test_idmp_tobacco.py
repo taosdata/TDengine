@@ -6,8 +6,10 @@ import math
 
 
 class TestIdmpTobacco:
-    def test_tobacco(self):
-        """
+
+    def test_idmp_tobacco(self):
+        """IDMP 烟草场景测试
+
         Refer: https://taosdata.feishu.cn/wiki/Zkb2wNkHDihARVkGHYEcbNhmnxb#share-I9GwdF26PoWk6uxx2zJcxZYrn1d
         1. 测试 AI 推荐生成的分析，创建 Stream,验证流的正确性
         2. 测试手动创建的分析，验证流的正确性
@@ -26,16 +28,21 @@ class TestIdmpTobacco:
                 - STDDEV: 标准差
                 - SPREAD: 极差
                 - SPREAD/FIRST: 变化率
+
         Catalog:
             - Streams:UseCases
+
         Since: v3.3.6.14
+
         Labels: common,ci
+
         Jira:
             - https://jira.taosdata.com:18080/browse/TD-36514
+
         History:
             - 2025-7-11 zyyang90 Created
         """
-        tobac = TestIdmpScene()
+        tobac = IdmpScene()
         tobac.init(
             "tobacco",
             "idmp_sample_tobacco",
@@ -50,7 +57,7 @@ class TestIdmpTobacco:
         tobac.run()
 
 
-class TestIdmpScene:
+class IdmpScene:
     def init(self, scene, db, vdb, db_dump_dir, vstb_sql, vtb_sql, stream_json):
         # scene name
         self.scene = scene
