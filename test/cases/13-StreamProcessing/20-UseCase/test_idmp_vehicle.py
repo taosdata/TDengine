@@ -132,8 +132,8 @@ class Test_IDMP_Vehicle:
             "create stream if not exists `idmp`.`ana_stream1_sub1` event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_京Z1NW34_624364`                                  notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream1_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from idmp.`vt_京Z1NW34_624364` where ts >= _twstart and ts <_twend",
             "create stream if not exists `idmp`.`ana_stream2`      event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_京Z1NW84_916965` stream_options(ignore_disorder)  notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream2`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
             "create stream if not exists `idmp`.`ana_stream2_sub1` event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_京Z1NW84_916965`                                  notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream2_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
-            "create stream if not exists `idmp`.`ana_stream3`      event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_京Z2NW48_176514`                                  notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream3`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
-            "create stream if not exists `idmp`.`ana_stream3_sub1` event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_京Z2NW48_176514` stream_options(DELETE_RECALC)    notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream3_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
+            "create stream if not exists `idmp`.`ana_stream3`      event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_京Z2NW48_176514` stream_options(ignore_disorder)  notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream3`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
+            "create stream if not exists `idmp`.`ana_stream3_sub1` event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_京Z2NW48_176514`                                  notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream3_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
             "create stream if not exists `idmp`.`ana_stream4`      event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_京Z7A0Q7_520761`                                  notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream4`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
             "create stream if not exists `idmp`.`ana_stream4_sub1` event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_京Z7A0Q7_520761` stream_options(DELETE_RECALC)    notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream4_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
 
@@ -180,7 +180,10 @@ class Test_IDMP_Vehicle:
     def verifyResults(self):
         self.verify_stream1()
         self.verify_stream2()
-        self.verify_stream3()
+        # *** bug6 ***
+        #self.verify_stream3()
+        #self.verify_stream3_sub1()
+
         self.verify_stream4()
         '''
         self.verify_stream5()
@@ -194,13 +197,8 @@ class Test_IDMP_Vehicle:
     # 6. write trigger data again
     #
     def writeTriggerDataAgain(self):
-        pass
-        '''
-        # stream4
-        self.trigger_stream4_again()
-        # stream6
-        self.trigger_stream6_again()
-        '''
+        # stream3
+        self.trigger_stream3_again()
 
 
     # 
@@ -208,12 +206,10 @@ class Test_IDMP_Vehicle:
     #
     def verifyResultsAgain(self):
         pass
-        '''
-        # stream4
-        self.verify_stream4_again()
-        # stream6
-        self.verify_stream6_again()
-        '''
+        # stream3
+        # **** bug6 ***
+        #self.verify_stream3_again()
+        #self.verify_stream3_sub1_again()
 
     #
     # 8. restart dnode
@@ -251,88 +247,87 @@ class Test_IDMP_Vehicle:
     def trigger_stream1(self):
         ts    = self.start
         table = f"{self.db}.`vehicle_110100_001`"
-        step  = 1 * 60 * 1000 # 1 minute
         cols  = "ts,speed"
 
         # win1 1~5
         vals  = "120"
         count = 5
-        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
         # null 
         count = 2
         vals  = "null"
-        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
         # end
         vals  = "60"
         count = 1
-        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
 
         # win3 50 ~ 51 end-windows
-        ts += 50 * step
+        ts += 50 * self.step
         vals  = "10"
         count = 2
-        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
 
         ''' ***** bug1 *****
         # disorder win2 10~15
-        win2  = self.start + 10 * step
+        win2  = self.start + 10 * self.step
         vals  = "60"
         count = 2
         ts    = tdSql.insertFixedVal(table, win2, step, count, cols, vals)
         '''
 
         '''
-        win2  = self.start + 10 * step
+        win2  = self.start + 10 * self.step
         vals  = "60"
         count = 1
         ts    = tdSql.insertFixedVal(table, win2, step, count, cols, vals)
 
 
         # disorder win2 20~26
-        win2  = self.start + 20 * step
+        win2  = self.start + 20 * self.step
         vals  = "150"
         count = 6
         ts    = tdSql.insertFixedVal(table, win2, step, count, cols, vals)        
         '''
 
         # delete win1 2 rows
-        tdSql.deleteRows(table, f"ts >= {self.start + 1 * step} and ts <= {self.start + 2 * step}")
+        tdSql.deleteRows(table, f"ts >= {self.start + 1 * self.step} and ts <= {self.start + 2 * self.step}")
 
         # disorder
-        ts    = self.start + (5 + 2 + 1) * step
+        ts    = self.start + (5 + 2 + 1) * self.step
         vals  = "130"
         count = 3
-        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
         # null 
         count = 10
         vals  = "null"
-        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
         # null changed 65
-        ts    = self.start + (5 + 2 + 1 + 3) * step
+        ts    = self.start + (5 + 2 + 1 + 3) * self.step
         count = 1
         vals  = "65"
-        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)        
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)        
         # null changed 140
         count = 5
         vals  = "140"
-        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
         # 130 change to null
         ts    = self.start
         vals  = "null"
         count = 1
-        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
         # trigger disorder event
-        ts   += 50 * step
+        ts   += 50 * self.step
         vals  = "9"
         count = 1
-        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
 
     #
@@ -341,40 +336,117 @@ class Test_IDMP_Vehicle:
     def trigger_stream2(self):
         ts    = self.start
         table = f"{self.db}.`vehicle_110100_002`"
-        step  = 1 * 60 * 1000 # 1 minute
         cols  = "ts,speed"
 
         # win1 1~5
         vals  = "120"
         count = 5
-        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
         vals  = "60"
         count = 1
-        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
 
         # win2 10~5
-        ts += 10 * step
+        ts += 10 * self.step
         vals  = "130"
         count = 5
-        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
 
         # win3 50 ~ 51 end-windows
-        ts += 50 * step
+        ts += 50 * self.step
         vals  = "65"
         count = 2
-        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
 
         # delete win1 3 rows
-        tdSql.deleteRows(table, f"ts >= {self.start } and ts <= {self.start + 2 * step}") 
+        tdSql.deleteRows(table, f"ts >= {self.start } and ts <= {self.start + 2 * self.step}") 
 
     #
     #  stream3 trigger 
     #
     def trigger_stream3(self):
-        pass
+
+        table = f"{self.db}.`vehicle_110100_003`"
+        cols  = "ts,speed"
+
+        # write order data
+
+        # win1 order 1 ~   no -> no
+        ts    = self.start
+        vals  = "120"
+        count = 3
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+        ts   += 1 * self.step
+        vals  = "60"
+        count = 1
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+
+
+        # win2 order 10 ~   no -> trigger 
+        ts = self.start + 10 * self.step
+        vals  = "130"
+        count = 4
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+        ts   += 1 * self.step
+        vals  = "65"
+        count = 1
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+
+        # win3 order 20 ~  trigger -> no
+        ts = self.start + 20 * self.step
+        vals  = "140"
+        count = 6
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+        vals  = "70"
+        count = 1
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+
+        # win4 order 30 ~  trigger -> trigger
+        ts = self.start + 30 * self.step
+        vals  = "150"
+        count = 8
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+        vals  = "75"
+        count = 1
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+
+
+    #
+    #  stream3 trigger 
+    #
+    def trigger_stream3_again(self):
+
+        table = f"{self.db}.`vehicle_110100_003`"
+        cols  = "ts,speed"
+
+        # write update data
+
+        # win1
+        ts    = self.start + 3 * self.step
+        vals  = "121"
+        count = 1
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+
+        # win2
+        ts    = self.start + (10 + 4) * self.step
+        vals  = "131"
+        count = 1
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+
+        # win3
+        ts    = self.start + 20 * self.step
+        vals  = "71"
+        count = 2
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+
+        # win4
+        ts    = self.start + 30 * self.step
+        vals  = "76"
+        count = 3
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
 
     #
@@ -384,41 +456,40 @@ class Test_IDMP_Vehicle:
         ts    = self.start
         table = f"{self.db}.`vehicle_110100_004`"
         cols  = "ts,speed"
-        step  = self.step
 
         # win1 1~6
         vals  = "120"
         count = 5
-        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
         vals  = "60"
         count = 1
-        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
 
         # win2 7~13
         vals  = "130"
         count = 5
-        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
         vals  = "65"
         count = 1
-        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
 
         # 20
-        ts    = self.start + 20 * step
+        ts    = self.start + 20 * self.step
         vals  = "140"
         count = 10
-        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)        
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)        
         vals  = "70"
         count = 1
-        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
 
         # delete 1~3
-        tdSql.deleteRows(table, f"ts >= {self.start } and ts <= {self.start + 3 * step}") 
+        tdSql.deleteRows(table, f"ts >= {self.start } and ts <= {self.start + 3 * self.step}") 
         
         # delete 20 ~ 23
-        tdSql.deleteRows(table, f"ts >= {self.start + 20 * step } and ts <= {self.start + 23 * step}") 
+        tdSql.deleteRows(table, f"ts >= {self.start + 20 * self.step } and ts <= {self.start + 23 * self.step}") 
 
 
     #
@@ -524,7 +595,7 @@ class Test_IDMP_Vehicle:
         tdSql.checkResultsByFunc (
             sql = result_sql, 
             func = lambda: tdSql.getRows() == 1
-            and tdSql.compareData(0, 0, self.start + 10 * step) # ts
+            and tdSql.compareData(0, 0, self.start + 10 * self.step) # ts
             and tdSql.compareData(0, 1, 6)                     # cnt
         )        
         tdLog.info("verify stream2 sub1 ............................. successfully.")
@@ -534,8 +605,63 @@ class Test_IDMP_Vehicle:
     # verify stream3
     #
     def verify_stream3(self):
+        # check
+        result_sql = f"select * from {self.vdb}.`result_stream3` "
+        tdSql.checkResultsByFunc (
+            sql = result_sql, 
+            func = lambda: tdSql.getRows() == 2
+            # row1
+            and tdSql.compareData(0, 0, self.start + 20 * self.step) # ts
+            and tdSql.compareData(0, 1, 6 + 1)          # cnt
+            # row2
+            and tdSql.compareData(1, 0, self.start + 30 * self.step) # ts
+            and tdSql.compareData(1, 1, 8 + 1)          # cnt
+        )
+
         tdLog.info("verify stream3 .................................. successfully.")
-        pass
+        
+    def verify_stream3_sub1(self, tables=None):
+        # check
+        result_sql = f"select * from {self.vdb}.`result_stream3_sub1` "
+        # same with stream3
+        tdSql.checkResultsByFunc (
+            sql = result_sql, 
+            func = lambda: tdSql.getRows() == 2
+            # row1
+            and tdSql.compareData(0, 0, self.start + 20 * self.step) # ts
+            and tdSql.compareData(0, 1, 6 + 1)          # cnt
+            # row2
+            and tdSql.compareData(1, 0, self.start + 30 * self.step) # ts
+            and tdSql.compareData(1, 1, 8 + 1)          # cnt
+        )
+
+        tdLog.info(f"verify stream3 sub1 ............................. successfully.")
+
+
+    #
+    # verify stream3 again
+    #
+    def verify_stream3_again(self):
+        # check
+        self.verify_stream3()
+        tdLog.info("verify stream3 again ............................ successfully.")
+
+
+    def verify_stream3_sub1_again(self, tables=None):
+        # check
+        result_sql = f"select * from {self.vdb}.`result_stream3_sub1` "
+        tdSql.checkResultsByFunc (
+            sql = result_sql, 
+            func = lambda: tdSql.getRows() == 2
+            # row1
+            and tdSql.compareData(0, 0, self.start + 10 * self.step) # ts
+            and tdSql.compareData(0, 1, 5 + 1)          # cnt
+            # row2
+            and tdSql.compareData(1, 0, self.start + (30 + 3) * self.step) # ts
+            and tdSql.compareData(1, 1, 5 + 1)          # cnt
+        )
+
+        tdLog.info(f"verify stream3 sub1 again ...................... successfully.")
 
 
     #
@@ -591,7 +717,7 @@ class Test_IDMP_Vehicle:
         i = 0
 
         while len(wins) < cnt:
-            win = (x + i) * step
+            win = (x + i) * self.step
             if win >= start:
                 wins.append(win)
             # move next    
