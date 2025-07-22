@@ -125,12 +125,20 @@ args = ["build", "--profile", "${BUILD_PROFILE}", "-p", "taosx-agent"]
 dependencies = ["taosx-influxdb", "taosx-opentsdb", "taosx-opc"]
 
 [tasks.taos-explorer]
+dependencies = ["explorer-ui-prod"]
+script_runner = "bash"
 script = """
 remote_path=/root/enterprise_build_zip_work/enterprise-docs
-rsync -u root@192.168.0.30:${remote_path}/docs-zh.zip .
-rsync -u root@192.168.0.30:${remote_path}/docs-en.zip .
-rm -rf public/docs && unzip docs-zh.zip -d explorer/public/docs
-rm -rf public/docs-en && unzip docs-en.zip -d explorer/public/docs-en
+if [ "${COMMUNITY}" == "community" ]; then
+  echo "Skip docs for community edition"
+  rm -rf explorer/public/docs
+  rm -rf explorer/public/docs-en
+else
+  rsync -u root@192.168.0.30:${remote_path}/docs-zh.zip .
+  rsync -u root@192.168.0.30:${remote_path}/docs-en.zip .
+  rm -rf explorer/public/docs && unzip docs-zh.zip -d explorer/public/docs
+  rm -rf explorer/public/docs-en && unzip docs-en.zip -d explorer/public/docs-en
+fi
 cargo build --release -p taos-explorer
 """
 
