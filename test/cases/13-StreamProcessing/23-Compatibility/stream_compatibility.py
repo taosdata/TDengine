@@ -47,19 +47,27 @@ class TestStreamCompatibility:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_compatibility(self):
-        """Main stream compatibility test
+        """Stream Processing Compatibility Test
+
+        Test stream processing compatibility across different TDengine versions:
+        1. Download and setup multiple base versions (3.3.3.0, 3.3.4.0, 3.3.5.0, 3.3.6.0)
+        2. Start TDengine service with each base version
+        3. Create databases, tables and streams with base version
+        4. Upgrade to current version and verify stream functionality
+        5. Test stream data processing and consumption compatibility
+        6. Verify stream metadata and status consistency after upgrade
 
         Catalog:
             - Streams:Compatibility
 
-        Since: v3.3.3.7
+        Since: v3.3.7.0
 
         Labels: compatibility,ci
 
         Jira: TS-6100
 
         History:
-            - 2025-01-01 Assistant Created
+            - 2025-07-22 Beryl Migrated to new test framework
 
         """
         try:

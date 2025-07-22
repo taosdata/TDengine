@@ -10,60 +10,18 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-
-from urllib.parse import uses_relative
 import taos
 import taosws
 import sys
 import os
 import time
 import platform
-from taos.tmq import Consumer
-from taos.tmq import *
 
 from pathlib import Path
-
-# Try to import both old and new utils
-try:
-    # Try new framework utils first
-    from new_test_framework.utils import tdLog, tdSql, tdCom
-    # Map old names to new names
-    tdSql = tdSql
-    tdLog = tdLog 
-    tdCom = tdCom
-except ImportError:
-    # Fall back to old utils if new framework is not available
-    try:
-        from util.log import *
-        from util.sql import *
-        from util.cases import *
-        from util.dnodes import *
-        from util.dnodes import TDDnodes
-        from util.dnodes import TDDnode
-        from util.cluster import *
-    except ImportError:
-        # If neither works, create minimal stubs
-        class tdLog:
-            @staticmethod
-            def info(msg): print(f"INFO: {msg}")
-            @staticmethod
-            def error(msg): print(f"ERROR: {msg}")
-            @staticmethod
-            def debug(msg): print(f"DEBUG: {msg}")
-            @staticmethod
-            def notice(msg): print(f"NOTICE: {msg}")
-            @staticmethod
-            def printNoPrefix(msg): print(msg)
-            @staticmethod
-            def exit(msg): 
-                print(f"EXIT: {msg}")
-                raise Exception(msg)
-                
-        class tdCom:
-            @staticmethod
-            def newTdSql(): return None
-
-import subprocess
+from .log import *
+from .sql import *
+from .server.dnodes import *
+from .common import *
 
 deletedDataSql = '''drop database if exists deldata;create database deldata duration 100 stt_trigger 1; ;use deldata;
                             create table deldata.stb1 (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp) tags (t1 int);
@@ -366,16 +324,8 @@ class CompatibilityBase:
         elif upgrade == 2:
             tdLog.info("no upgrade mode")
             self.buildTaosd(bPath)
-            try:
-                # Try to use new framework's cluster management
-                from new_test_framework.utils import cluster
-                cluster.start_cluster()
-            except ImportError:
-                # Fall back to old dnodes if available
-                try:
-                    tdDnodes.start(1)
-                except:
-                    tdLog.info("Could not start dnodes - may need manual cluster management")
+            tdLog.info(f"nohup {bPath}/build/bin/taosd -c {cPaths[0]} > /dev/null 2>&1 &")
+            os.system(f"nohup {bPath}/build/bin/taosd -c {cPaths[0]} > /dev/null 2>&1 &")
 
     def checkTagSizeAndAlterStb(self,tdsql):
         tdsql.query("select * from information_schema.ins_tags where db_name = 'db_all_insert_mode'")
@@ -645,4 +595,4 @@ class CompatibilityBase:
 
 
 # Create instance for compatibility
-cb = CompatibilityBase() 
+tdCb = CompatibilityBase() 

@@ -25,7 +25,7 @@ class TestCompatibilityRollingUpgradeAll:
         Catalog:
             - Streams:OldPyCases
 
-        Since: v3.0.0.0
+        Since: v3.3.7.0
 
         Labels: common, ci
 
@@ -43,49 +43,44 @@ class TestCompatibilityRollingUpgradeAll:
         hostname = socket.gethostname()
         tdLog.info(f"hostname: {hostname}")
         
-        try:
-            # Get last big version
-            tdSql.query(f"SELECT SERVER_VERSION();")
-            nowServerVersion=tdSql.queryResult[0][0]
-            tdLog.info(f"Now server version is {nowServerVersion}")
-            # get the last big version
-            lastBigVersion = nowServerVersion.split(".")[0]+"."+nowServerVersion.split(".")[1]+"."+nowServerVersion.split(".")[2]+"."+"0"
-            tdLog.info(f"Last big version is {lastBigVersion}")
+        # Get last big version
+        tdSql.query(f"SELECT SERVER_VERSION();")
+        nowServerVersion=tdSql.queryResult[0][0]
+        tdLog.info(f"Now server version is {nowServerVersion}")
+        # get the last big version
+        lastBigVersion = nowServerVersion.split(".")[0]+"."+nowServerVersion.split(".")[1]+"."+nowServerVersion.split(".")[2]+"."+"0"
+        tdLog.info(f"Last big version is {lastBigVersion}")
 
-            bPath = self.getBuildPath()
-            cPaths = self.getDnodePaths()
-            
-            # Stop all dnodes
-            cb.killAllDnodes()
-            
-            # Install old version for rolling upgrade
-            cb.installTaosdForRollingUpgrade(cPaths, lastBigVersion)
-            
-            # Create dnodes
-            tdSql.execute(f"CREATE DNODE '{hostname}:6130'")
-            tdSql.execute(f"CREATE DNODE '{hostname}:6230'")
+        bPath = self.getBuildPath()
+        cPaths = self.getDnodePaths()
+        
+        # Stop all dnodes
+        cb.killAllDnodes()
+        
+        # Install old version for rolling upgrade
+        cb.installTaosdForRollingUpgrade(cPaths, lastBigVersion)
+        
+        # Create dnodes
+        tdSql.execute(f"CREATE DNODE '{hostname}:6130'")
+        tdSql.execute(f"CREATE DNODE '{hostname}:6230'")
 
-            time.sleep(10)
+        time.sleep(10)
 
-            # Prepare data on old version
-            cb.prepareDataOnOldVersion(lastBigVersion, bPath, corss_major_version=False)
+        # Prepare data on old version
+        cb.prepareDataOnOldVersion(lastBigVersion, bPath, corss_major_version=False)
 
-            # Update to new version - rolling upgrade all dnodes mode 1
-            cb.updateNewVersion(bPath, cPaths, 1)
+        # Update to new version - rolling upgrade all dnodes mode 1
+        cb.updateNewVersion(bPath, cPaths, 1)
 
-            time.sleep(10)
+        time.sleep(10)
 
-            # Verify data after upgrade
-            cb.verifyData(corss_major_version=False)
+        # Verify data after upgrade
+        cb.verifyData(corss_major_version=False)
 
-            # Verify backticks in SQL
-            cb.verifyBackticksInTaosSql(bPath)
-            
-            tdLog.printNoPrefix("========== Rolling Upgrade All Dnodes Compatibility Test Completed Successfully ==========")
-            
-        except Exception as e:
-            tdLog.info(f"Rolling upgrade all test failed: {e}")
-            # Note: Some failures might be expected due to framework differences
+        # Verify backticks in SQL
+        cb.verifyBackticksInTaosSql(bPath)
+        
+        tdLog.printNoPrefix("========== Rolling Upgrade All Dnodes Compatibility Test Completed Successfully ==========")
 
     def getBuildPath(self):
         """Get build path - copied from original"""
