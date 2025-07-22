@@ -120,6 +120,7 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
   int32_t lino = 0;
   int64_t streamId = pDeploy->streamId;
   int32_t readerNum = 0, triggerNum = 0, runnerNum = 0;
+  void*   taskAddr = NULL;
 
   taosRLockLatch(&pStream->lock);
 
@@ -144,10 +145,17 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
         continue;
       }
 
+      code = streamAcquireTask(pReader->task.streamId, pReader->task.taskId, &pTask, &taskAddr);
+      if (code) {
+        ST_TASK_ELOG("reader task no longer exists, error:%s", tstrerror(code));
+        continue;
+      }
+
       code = smAddTaskToVgroupMap(pTask);
       if (code) {
         ST_TASK_ELOG("reader task fail to add to vgroup map, error:%s", tstrerror(code));
         taosHashRemove(gStreamMgmt.taskMap, &pTask->task.streamId, sizeof(pTask->task.streamId) + sizeof(pTask->task.taskId));
+        streamReleaseTask(taskAddr);
         taosMemoryFree(tdListPopTail(pStream->readerList));
         continue;
       }
@@ -157,6 +165,7 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
         ST_TASK_ELOG("reader task deploy failed, error:%s", tstrerror(code));
         smRemoveReaderFromVgMap((SStreamTask*)pTask);
         taosHashRemove(gStreamMgmt.taskMap, &pTask->task.streamId, sizeof(pTask->task.streamId) + sizeof(pTask->task.taskId));
+        streamReleaseTask(taskAddr);
         taosMemoryFree(tdListPopTail(pStream->readerList));
         continue;
       }
@@ -164,6 +173,7 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
       ST_TASK_DLOG("%sReader task deploy succeed, tidx:%d", STREAM_IS_TRIGGER_READER(pTask->task.flags) ? "trig" : "calc", pTask->task.taskIdx);      
 
       atomic_add_fetch_32(&pStream->taskNum, 1);
+      streamReleaseTask(taskAddr);
     }
   }
 
@@ -181,23 +191,29 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
       if (code) {
         ST_TASK_ELOG("trigger task fail to add to taskMap, error:%s", tstrerror(code));
         taosMemoryFreeClear(pStream->triggerTask);
+        TAOS_CHECK_EXIT(code);
       }
 
-      if (code == 0){
-        code = stTriggerTaskDeploy(pStream->triggerTask, &pDeploy->triggerTask->msg.trigger);
+      code = streamAcquireTask(pTask->streamId, pTask->taskId, &pTask, &taskAddr);
+      if (code) {
+        ST_TASK_ELOG("trigger task no longer exists, error:%s", tstrerror(code));
+        TAOS_CHECK_EXIT(code);
       }
+
+      code = stTriggerTaskDeploy(pStream->triggerTask, &pDeploy->triggerTask->msg.trigger);
       if (code) {
         ST_TASK_ELOG("trigger task fail to deploy, error:%s", tstrerror(code));
         taosHashRemove(gStreamMgmt.taskMap, &pTask->streamId, sizeof(pTask->streamId) + sizeof(pTask->taskId));
+        streamReleaseTask(taskAddr);
         taosMemoryFreeClear(pStream->triggerTask);
+        TAOS_CHECK_EXIT(code);
       }
 
-      if (TSDB_CODE_SUCCESS == code) {
-        ST_TASK_DLOG("trigger task deploy succeed, tidx:%d", pTask->taskIdx);      
-        atomic_add_fetch_32(&pStream->taskNum, 1);
-      }
+      ST_TASK_DLOG("trigger task deploy succeed, tidx:%d", pTask->taskIdx);      
+      atomic_add_fetch_32(&pStream->taskNum, 1);
+      streamReleaseTask(taskAddr);
     } else {
-      ST_TASK_ELOG("trigger task already exists, taskId:%" PRId64 ", tidx:%d", pTask->taskId, pTask->taskIdx);      
+      ST_TASK_ELOG("trigger task already exists, ignore deploy, taskId:%" PRId64 ", tidx:%d", pTask->taskId, pTask->taskIdx);      
     }    
   }
 
@@ -221,17 +237,25 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
         taosMemoryFree(tdListPopTail(pStream->runnerList));
         continue;
       }
+
+      code = streamAcquireTask(pTask->task.streamId, pTask->task.taskId, &pTask, &taskAddr);
+      if (code) {
+        ST_TASK_ELOG("runner task no longer exists, error:%s", tstrerror(code));
+        continue;
+      }
       
       code = stRunnerTaskDeploy(pTask, &pRunner->msg.runner);
       if (code) {
         ST_TASK_ELOG("runner task fail to deploy, error:%s", tstrerror(code));
         taosHashRemove(gStreamMgmt.taskMap, &pTask->task.streamId, sizeof(pTask->task.streamId) + sizeof(pTask->task.taskId));
+        streamReleaseTask(taskAddr);
         taosMemoryFree(tdListPopTail(pStream->runnerList));
         continue;
       }
       
       ST_TASK_DLOG("runner task deploy succeed, tidx:%d", pTask->task.taskIdx);      
       atomic_add_fetch_32(&pStream->taskNum, 1);
+      streamReleaseTask(taskAddr);
     }
   }  
 

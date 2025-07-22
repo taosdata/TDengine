@@ -739,16 +739,12 @@ int32_t msmBuildReaderDeployInfo(SStmTaskDeploy* pDeploy, SStreamObj* pStream, v
   pMsg->triggerReader = triggerReader;
   
   if (triggerReader) {
-    if (NULL == pStream) {
-      return TSDB_CODE_SUCCESS;
-    }
-    
     SStreamReaderDeployFromTrigger* pTrigger = &pMsg->msg.trigger;
     pTrigger->triggerTblName = pInfo->pCreate->triggerTblName;
-    pTrigger->triggerTblUid = pStream->pCreate->triggerTblUid;
-    pTrigger->triggerTblType = pStream->pCreate->triggerTblType;
-    pTrigger->deleteReCalc = pStream->pCreate->deleteReCalc;
-    pTrigger->deleteOutTbl = pStream->pCreate->deleteOutTbl;
+    pTrigger->triggerTblUid = pInfo->pCreate->triggerTblUid;
+    pTrigger->triggerTblType = pInfo->pCreate->triggerTblType;
+    pTrigger->deleteReCalc = pInfo->pCreate->deleteReCalc;
+    pTrigger->deleteOutTbl = pInfo->pCreate->deleteOutTbl;
     pTrigger->partitionCols = pInfo->pCreate->partitionCols;
     pTrigger->triggerCols = pInfo->pCreate->triggerCols;
     //pTrigger->triggerPrevFilter = pStream->pCreate->triggerPrevFilter;
@@ -1213,7 +1209,7 @@ static int32_t msmTDAddSingleTrigReader(SStmGrpCtx* pCtx, SStmTaskStatus* pState
   info.task.seriousId = pState->id.seriousId;
   info.task.nodeId = pState->id.nodeId;
   info.task.taskIdx = pState->id.taskIdx;
-  TAOS_CHECK_EXIT(msmBuildReaderDeployInfo(&info, pStream, NULL, pInfo, true));
+  TAOS_CHECK_EXIT(msmBuildReaderDeployInfo(&info, NULL, pInfo, true));
   TAOS_CHECK_EXIT(msmTDAddToVgroupMap(mStreamMgmt.toDeployVgMap, &info, streamId));
 
 _exit:
@@ -1426,7 +1422,7 @@ static int32_t msmTDAddCalcReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
       info.task.seriousId = pState->id.seriousId;
       info.task.nodeId = pState->id.nodeId;
       info.task.taskIdx = pState->id.taskIdx;
-      TAOS_CHECK_EXIT(msmBuildReaderDeployInfo(&info, pStream, pScan->scanPlan, pInfo, false));
+      TAOS_CHECK_EXIT(msmBuildReaderDeployInfo(&info, pScan->scanPlan, pInfo, false));
       TAOS_CHECK_EXIT(msmUPAddScanTask(pCtx, pStream, pScan->scanPlan, pState->id.nodeId, pState->id.taskId));
       TAOS_CHECK_EXIT(msmTDAddToVgroupMap(mStreamMgmt.toDeployVgMap, &info, streamId));
     }
@@ -2288,7 +2284,7 @@ static int32_t msmReLaunchReaderTask(SStreamObj* pStream, SStmTaskAction* pActio
     }
   }
   
-  TAOS_CHECK_EXIT(msmBuildReaderDeployInfo(&info, pStream, scanPlan ? scanPlan->scanPlan : NULL, pStatus, isTriggerReader));
+  TAOS_CHECK_EXIT(msmBuildReaderDeployInfo(&info, scanPlan ? scanPlan->scanPlan : NULL, pStatus, isTriggerReader));
   TAOS_CHECK_EXIT(msmTDAddToVgroupMap(mStreamMgmt.toDeployVgMap, &info, pAction->streamId));
 
 _exit:
