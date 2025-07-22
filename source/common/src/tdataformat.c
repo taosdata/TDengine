@@ -1586,10 +1586,7 @@ static int32_t tRowMergeImpl(SArray *aRowP, STSchema *pTSchema, int32_t iStart, 
       default:  // default using PREFER_NON_NULL strategy
       case PREFER_NON_NULL:
         for (int32_t iRow = nRow - 1; iRow >= 0; --iRow) {
-          SColVal *pColValT = tRowIterNext(aIter[iRow]);
-          while (pColValT->cid < pTSchema->columns[iCol].colId) {
-            pColValT = tRowIterNext(aIter[iRow]);
-          }
+          SColVal *pColValT = tRowFindColumnValue(aIter[iRow], targetCid);
 
           if (COL_VAL_IS_VALUE(pColValT)) {
             pColVal = pColValT;
