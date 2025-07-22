@@ -13440,31 +13440,18 @@ static int32_t checkDelayTime(STranslateContext* pCxt, SValueNode* pTime) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void createStreamReqBuildDefaultTriggerOptions(SCMCreateStreamReq* pReq) {
-    pReq->expiredTime = 0;
-    pReq->maxDelay = 0;
-    pReq->watermark = 0;
-    pReq->fillHistoryStartTime = 0;
-    pReq->eventTypes = EVENT_WINDOW_CLOSE;
-    pReq->igDisorder = 0;
-    pReq->deleteReCalc = 0;
-    pReq->deleteOutTbl = 0;
-    pReq->fillHistory = 0;
-    pReq->fillHistoryFirst = 0;
-    pReq->calcNotifyOnly = 0;
-    pReq->lowLatencyCalc = 0;
-    pReq->igNoDataTrigger = 0;
-}
-
-static int32_t createStreamReqBuildTriggerOptions(STranslateContext* pCxt, const char* streamDb,
+static int32_t createStreamReqBuildTriggerOptions(STranslateContext* pCxt, SCreateStreamStmt* pStmt,
                                                   SStreamTriggerOptions* pOptions, SCMCreateStreamReq* pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  createStreamReqBuildDefaultTriggerOptions(pReq);
+  parserDebug("translate create stream req start build trigger options");
 
   if (!pOptions) {
+    parserDebug("no trigger options in create stream req");
     return code;
   }
+
+  pReq->igExists = (int8_t)pStmt->ignoreExists;
 
   if (pOptions->pExpiredTime) {
     PAR_ERR_JRET(checkExpiredTime(pCxt, (SValueNode*)pOptions->pExpiredTime));
@@ -13497,7 +13484,7 @@ static int32_t createStreamReqBuildTriggerOptions(STranslateContext* pCxt, const
 
   if (pOptions->pFillHisStartTime) {
     STimeWindow range = {.skey = 0, .ekey = 0};
-    PAR_ERR_JRET(translateTimeRange(pCxt, streamDb, pOptions->pFillHisStartTime, NULL, &range));
+    PAR_ERR_JRET(translateTimeRange(pCxt, pStmt->streamDbName, pOptions->pFillHisStartTime, NULL, &range));
     pReq->fillHistoryStartTime = range.skey;
   }
 
@@ -13521,17 +13508,21 @@ _return:
   return code;
 }
 
-static int32_t createStreamReqBuildStreamNotifyOptions(STranslateContext* pCxt, SStreamNotifyOptions* pNotifyOptions,
+static int32_t createStreamReqBuildNotifyOptions(STranslateContext* pCxt, SStreamNotifyOptions* pNotifyOptions,
                                                        SNode** pNotifyCond, SCMCreateStreamReq* pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode = NULL;
 
-  if (pNotifyOptions == NULL) {
+  parserDebug("translate create stream req start build notify options");
+
+  if (!pNotifyOptions) {
+    parserDebug("no notify options in create stream req");
     return code;
   }
 
   if (LIST_LENGTH(pNotifyOptions->pAddrUrls) < 1) {
-    PAR_ERR_JRET(TSDB_CODE_STREAM_INVALID_NOTIFY);
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_NOTIFY,
+                                         "NOTIFY URL must be specified"));
   }
 
   pReq->pNotifyAddrUrls = taosArrayInit(pNotifyOptions->pAddrUrls->length, POINTER_BYTES);
@@ -13556,7 +13547,7 @@ static int32_t createStreamReqBuildStreamNotifyOptions(STranslateContext* pCxt, 
 
 _return:
   // pAddrUrls will be free when pReq is destroyed
-  parserError("createStreamReqBuildStreamNotifyOptions failed, code:%d", code);
+  parserError("createStreamReqBuildNotifyOptions failed, code:%d", code);
   return code;
 }
 
@@ -13642,7 +13633,10 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
   int32_t         code = TSDB_CODE_SUCCESS;
   STableMeta*     pMeta = NULL;
 
+  parserDebug("translate create stream req start build out table info");
+
   if (strlen(pStmt->targetDbName) == 0 && strlen(pStmt->targetTabName) == 0) {
+    parserDebug("no out table in create stream req");
     return code;
   }
 
@@ -13730,8 +13724,24 @@ _return:
   return code;
 }
 
-static int32_t createStreamReqBuildTriggerTable(STranslateContext* pCxt, SRealTableNode* pTriggerTable, STableMeta* pMeta, SCMCreateStreamReq* pReq) {
+static int32_t createStreamReqBuildTriggerTableInfo(STranslateContext* pCxt, SRealTableNode* pTriggerTable, STableMeta* pMeta, SCMCreateStreamReq* pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
+
+  switch (pMeta->tableType) {
+    case TSDB_SUPER_TABLE:
+      if (isVirtualSTable(pMeta)) {
+        BIT_FLAG_SET_MASK(pReq->flags, CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB);
+      }
+      break;
+    case TSDB_CHILD_TABLE:
+    case TSDB_NORMAL_TABLE:
+    case TSDB_VIRTUAL_CHILD_TABLE:
+    case TSDB_VIRTUAL_NORMAL_TABLE:
+      break;
+    default:
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                           "Invalid trigger table type %d", pMeta->tableType));
+  }
 
   PAR_ERR_JRET(getTableVgId(pCxt, pTriggerTable->table.dbName, pTriggerTable->table.tableName, &pReq->triggerTblVgId));
 
@@ -13762,7 +13772,7 @@ static int8_t createStreamReqWindowGetUnit(SNode* pVal) {
   return pVal ? ((SValueNode*)pVal)->unit : 0;
 }
 
-static int32_t createStreamReqBuildTriggerSessionWindow(STranslateContext* pCxt, SSessionWindowNode* pTriggerWindow, SCMCreateStreamReq* pReq, STableMeta *pMeta) {
+static int32_t createStreamReqBuildTriggerSessionWindow(STranslateContext* pCxt, SSessionWindowNode* pTriggerWindow, SCMCreateStreamReq* pReq) {
   pReq->triggerType = WINDOW_TYPE_SESSION;
   PAR_ERR_RET(checkSessionWindow(pCxt, pTriggerWindow));
   pReq->trigger.session.slotId = pTriggerWindow->pCol->slotId;
@@ -13822,11 +13832,11 @@ static int32_t createStreamReqBuildTriggerStateWindow(STranslateContext* pCxt, S
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t createStreamReqBuildTriggerWindow(STranslateContext* pCxt, SNode* pTriggerWindow, STableMeta* pMeta, SCMCreateStreamReq* pReq) {
+static int32_t createStreamReqBuildTriggerWindowInfo(STranslateContext* pCxt, SNode* pTriggerWindow, SCMCreateStreamReq* pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch(nodeType(pTriggerWindow)) {
     case QUERY_NODE_SESSION_WINDOW:
-      PAR_ERR_JRET(createStreamReqBuildTriggerSessionWindow(pCxt, (SSessionWindowNode*)pTriggerWindow, pReq, pMeta));
+      PAR_ERR_JRET(createStreamReqBuildTriggerSessionWindow(pCxt, (SSessionWindowNode*)pTriggerWindow, pReq));
       break;
     case QUERY_NODE_INTERVAL_WINDOW:
       PAR_ERR_JRET(createStreamReqBuildTriggerIntervalWindow(pCxt, (SIntervalWindowNode*)pTriggerWindow, pReq));
@@ -13848,7 +13858,7 @@ static int32_t createStreamReqBuildTriggerWindow(STranslateContext* pCxt, SNode*
   }
   return code;
 _return:
-  parserError("createStreamReqBuildTriggerWindow failed, code:%d, windowType:%d", code, nodeType(pTriggerWindow));
+  parserError("createStreamReqBuildTriggerWindowInfo failed, code:%d, windowType:%d", code, nodeType(pTriggerWindow));
   return code;
 }
 
@@ -14214,9 +14224,9 @@ _return:
   return code;
 }
 
-static int32_t translateStreamTriggerQuery(STranslateContext* pCxt, SStreamTriggerNode* pTrigger,
-                                           STableMeta* pTriggerTableMeta, SSelectStmt* pTriggerSelect,
-                                           SNode** pTriggerFilter) {
+static int32_t createStreamReqBuildTriggerTranslateSelect(STranslateContext* pCxt, SStreamTriggerNode* pTrigger,
+                                                          STableMeta* pTriggerTableMeta, SSelectStmt* pTriggerSelect,
+                                                          SNode** pTriggerFilter) {
   int32_t code = TSDB_CODE_SUCCESS;
   bool    extractFilter = (isVirtualTable(pTriggerTableMeta) || isVirtualSTable(pTriggerTableMeta));
 
@@ -14239,69 +14249,45 @@ static int32_t translateStreamTriggerQuery(STranslateContext* pCxt, SStreamTrigg
 
   return code;
 _return:
-  parserError("translateStreamTriggerQuery failed, code:%d", code);
+  parserError("createStreamReqBuildTriggerTranslateSelect failed, code:%d", code);
   return code;
 }
 
-static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SSelectStmt** pTriggerSelect,
-                                           SHashObj **pTriggerSlotHash, SCMCreateStreamReq* pReq) {
-  int32_t              code = TSDB_CODE_SUCCESS;
-  SStreamTriggerNode*  pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
-  SNode*               pTriggerWindow = pTrigger->pTriggerWindow;
-  SNodeList*           pTriggerPartition = pTrigger->pPartitionList;
-  STableMeta*          pTriggerTableMeta = NULL;
-  SRealTableNode*      pTriggerTable = (SRealTableNode*)pTrigger->pTrigerTable;
-  SNode*               pTriggerFilter = ((SStreamTriggerOptions*)pTrigger->pOptions) ? ((SStreamTriggerOptions*)pTrigger->pOptions)->pPreFilter : NULL;
-  SNode*               pLogicCond = NULL;
+static int32_t createStreamReqBulidTriggerExtractCondFromWindow(STranslateContext* pCxt, SNode* pTriggerWindow, SNode** pTriggerFilter) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pLogicCond = NULL;
 
-  if (!pTriggerTable) {
-    PAR_ERR_JRET(translateExpr(pCxt, &pTriggerWindow));
-    PAR_RET(createStreamReqBuildTriggerWindow(pCxt, pTriggerWindow, NULL, pReq));
-  }
-
-  if (nodeType(pTriggerWindow) == QUERY_NODE_COUNT_WINDOW) {
-    PAR_ERR_JRET(extractCondFromCountWindow(pCxt, (SCountWindowNode*)pTriggerWindow, &pLogicCond));
-    if (pLogicCond) {
-      PAR_ERR_JRET(nodesMergeNode(&pTriggerFilter, &pLogicCond));
-    }
-  }
-
-  if (nodeType(pTriggerWindow) == QUERY_NODE_STATE_WINDOW) {
-    PAR_ERR_JRET(extractCondFromStateWindow(pCxt, (SStateWindowNode*)pTriggerWindow, &pLogicCond));
-    if (pLogicCond) {
-      PAR_ERR_JRET(nodesMergeNode(&pTriggerFilter, &pLogicCond));
-    }
-  }
-
-  PAR_ERR_JRET(getTableMeta(pCxt, pTriggerTable->table.dbName, pTriggerTable->table.tableName, &pTriggerTableMeta));
-
-  switch (pTriggerTableMeta->tableType) {
-    case TSDB_SUPER_TABLE:
-      if (isVirtualSTable(pTriggerTableMeta)) {
-        BIT_FLAG_SET_MASK(pReq->flags, CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB);
+  switch (nodeType(pTriggerWindow)) {
+    case QUERY_NODE_COUNT_WINDOW: {
+      PAR_ERR_JRET(extractCondFromCountWindow(pCxt, (SCountWindowNode*)pTriggerWindow, &pLogicCond));
+      if (pLogicCond) {
+        PAR_ERR_JRET(nodesMergeNode(pTriggerFilter, &pLogicCond));
       }
       break;
-    case TSDB_CHILD_TABLE:
-    case TSDB_NORMAL_TABLE:
-    case TSDB_VIRTUAL_CHILD_TABLE:
-    case TSDB_VIRTUAL_NORMAL_TABLE:
+    }
+    case QUERY_NODE_STATE_WINDOW: {
+      PAR_ERR_JRET(extractCondFromStateWindow(pCxt, (SStateWindowNode*)pTriggerWindow, &pLogicCond));
+      if (pLogicCond) {
+        PAR_ERR_JRET(nodesMergeNode(pTriggerFilter, &pLogicCond));
+      }
       break;
+    }
     default:
-      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
-                                           "Invalid trigger table type %d", pTriggerTableMeta->tableType));
+      break;
   }
 
-  pCxt->currClause = SQL_CLAUSE_SELECT;
-  PAR_ERR_JRET(createStreamReqBuildTriggerTable(pCxt, pTriggerTable, pTriggerTableMeta, pReq));
-  PAR_ERR_JRET(createStreamReqBuildTriggerSelect(pCxt, pTriggerTable, pTriggerSelect));
-  PAR_ERR_JRET(translateStreamTriggerQuery(pCxt, pTrigger, pTriggerTableMeta, *pTriggerSelect, &pTriggerFilter));
+_return:
+  if (code) {
+    parserError("createStreamReqBulidTriggerExtractCondFromWindow failed, code:%d", code);
+  }
+  nodesDestroyNode((SNode*)pLogicCond);
+  return code;
+}
 
-  pCxt->currClause = SQL_CLAUSE_WINDOW;
-  PAR_ERR_JRET(translateExpr(pCxt, &pTriggerWindow));
-  pCxt->currClause = SQL_CLAUSE_PARTITION_BY;
-  PAR_ERR_JRET(translateExprList(pCxt, pTriggerPartition));
-  pCxt->currClause = SQL_CLAUSE_SELECT;
-  SNode *pNode = NULL;
+static int32_t createStreamReqBuildTriggerCheckPartition(STranslateContext* pCxt, SNodeList* pTriggerPartition, STableMeta* pTriggerTableMeta, SNode* pTriggerWindow) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pNode = NULL;
+
   FOREACH(pNode, pTriggerPartition) {
     switch (nodeType(pNode)) {
       case QUERY_NODE_COLUMN: {
@@ -14332,15 +14318,58 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStrea
                                          "Partition by tbname is required for super table trigger when trigger window is not interval and session"));
   }
 
+  return code;
+_return:
+  parserError("createStreamReqBuildTriggerCheckPartition failed, code:%d", code);
+  return code;
+}
+static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SSelectStmt** pTriggerSelect,
+                                           SHashObj **pTriggerSlotHash, SCMCreateStreamReq* pReq) {
+  int32_t              code = TSDB_CODE_SUCCESS;
+  SStreamTriggerNode*  pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
+  SNode*               pTriggerWindow = pTrigger->pTriggerWindow;
+  SNodeList*           pTriggerPartition = pTrigger->pPartitionList;
+  STableMeta*          pTriggerTableMeta = NULL;
+  SRealTableNode*      pTriggerTable = (SRealTableNode*)pTrigger->pTrigerTable;
+  SNode*               pTriggerFilter = ((SStreamTriggerOptions*)pTrigger->pOptions) ? ((SStreamTriggerOptions*)pTrigger->pOptions)->pPreFilter : NULL;
+
+  parserDebug("translate create stream req start build trigger info");
+
+  if (!pTriggerTable) {
+    // no trigger table, only translate trigger window
+    parserDebug("no trigger table in create stream req");
+    pCxt->currClause = SQL_CLAUSE_WINDOW;
+    PAR_ERR_JRET(translateExpr(pCxt, &pTriggerWindow));
+    pCxt->currClause = SQL_CLAUSE_SELECT;
+    PAR_RET(createStreamReqBuildTriggerWindowInfo(pCxt, pTriggerWindow, pReq));
+  }
+
+  PAR_ERR_JRET(createStreamReqBulidTriggerExtractCondFromWindow(pCxt, pTriggerWindow, &pTriggerFilter));
+
+  PAR_ERR_JRET(getTableMeta(pCxt, pTriggerTable->table.dbName, pTriggerTable->table.tableName, &pTriggerTableMeta));
+
+  PAR_ERR_JRET(createStreamReqBuildTriggerTableInfo(pCxt, pTriggerTable, pTriggerTableMeta, pReq));
+  PAR_ERR_JRET(createStreamReqBuildTriggerSelect(pCxt, pTriggerTable, pTriggerSelect));
+
+  pCxt->currClause = SQL_CLAUSE_SELECT;
+  PAR_ERR_JRET(createStreamReqBuildTriggerTranslateSelect(pCxt, pTrigger, pTriggerTableMeta, *pTriggerSelect, &pTriggerFilter));
+
+  pCxt->currClause = SQL_CLAUSE_WINDOW;
+  PAR_ERR_JRET(translateExpr(pCxt, &pTriggerWindow));
+
+  pCxt->currClause = SQL_CLAUSE_PARTITION_BY;
+  PAR_ERR_JRET(translateExprList(pCxt, pTriggerPartition));
+  pCxt->currClause = SQL_CLAUSE_SELECT;
+
+  PAR_ERR_JRET(createStreamReqBuildTriggerCheckPartition(pCxt, pTriggerPartition, pTriggerTableMeta, pTriggerWindow));
   PAR_ERR_JRET(createStreamReqBuildTriggerPlan(pCxt, *pTriggerSelect, pReq, pTriggerSlotHash, pTriggerWindow, pTriggerPartition, pTriggerFilter));
-  PAR_ERR_JRET(createStreamReqBuildTriggerWindow(pCxt, pTriggerWindow, pTriggerTableMeta, pReq));
+  PAR_ERR_JRET(createStreamReqBuildTriggerWindowInfo(pCxt, pTriggerWindow, pReq));
   PAR_ERR_JRET(createStreamReqSetDefaultTag(pCxt, pStmt, pTriggerPartition, pReq));
 
 _return:
   if (code) {
     parserError("createStreamReqBuildTrigger failed, code:%d", code);
   }
-  nodesDestroyNode((SNode*)pLogicCond);
   taosMemoryFreeClear(pTriggerTableMeta);
   return code;
 }
@@ -14699,8 +14728,11 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
   SHashObj*    pDbs = NULL;
   bool         withExtWindow = false;
   SNodeList*   pProjectionList = NULL;
-  
+
+  parserDebug("translate create stream req start build calculate part");
+
   if (!pStmt->pQuery) {
+    parserDebug("no query in create stream req");
     return code;
   }
 
@@ -14752,26 +14784,40 @@ _return:
   return code;
 }
 
-static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SCMCreateStreamReq* pReq) {
-  int32_t                code = TSDB_CODE_SUCCESS;
-  SStreamTriggerNode*    pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
-  SStreamTriggerOptions* pTriggerOptions = (SStreamTriggerOptions*)pTrigger->pOptions;
-  SStreamNotifyOptions*  pNotifyOptions = (SStreamNotifyOptions*)pTrigger->pNotify;
-  STableNode*            pTriggerTable = (STableNode*)pTrigger->pTrigerTable;
-  SNode*                 pTriggerWindow = pTrigger->pTriggerWindow;
-  SSelectStmt*           pTriggerSelect = NULL;
-  SHashObj*              pTriggerSlotHash = NULL;
-  SNode*                 pNotifyCond = NULL;
-  SName                  streamName;
+static int32_t createStreamReqBuildDefaultReq(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SCMCreateStreamReq* pReq) {
+  int32_t code = TSDB_CODE_SUCCESS;
 
+  pReq->expiredTime = 0;
+  pReq->maxDelay = 0;
+  pReq->watermark = 0;
+  pReq->fillHistoryStartTime = 0;
+  pReq->eventTypes = EVENT_WINDOW_CLOSE;
+  pReq->igDisorder = 0;
+  pReq->deleteReCalc = 0;
+  pReq->deleteOutTbl = 0;
+  pReq->fillHistory = 0;
+  pReq->fillHistoryFirst = 0;
+  pReq->calcNotifyOnly = 0;
+  pReq->lowLatencyCalc = 0;
+  pReq->igNoDataTrigger = 0;
+  pReq->flags = CREATE_STREAM_FLAG_NONE;
+  pReq->placeHolderBitmap = PLACE_HOLDER_NONE;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createStreamReqBuildNameAndId(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SCMCreateStreamReq* pReq) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SName   streamName;
+
+  parserDebug("translate create stream req start build stream name and id");
   PAR_ERR_JRET(taosGetSystemUUIDU64(&pReq->streamId));
 
-  // name
+  // name and sql
   pReq->streamDB = taosMemoryMalloc(TSDB_DB_FNAME_LEN);
   pReq->name = taosMemoryCalloc(1, TSDB_STREAM_FNAME_LEN);
-
-  // sql
   pReq->sql = taosStrdup(pCxt->pParseCxt->pSql);
+
   if (NULL == pReq->sql || NULL == pReq->streamDB || NULL == pReq->name) {
     parserError("buildCreateStreamReq failed to allocate memory, streamDb:%p, streamName:%p sql:%p",
                 pReq->streamDB, pReq->name, pReq->sql);
@@ -14780,16 +14826,29 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
 
   toName(pCxt->pParseCxt->acctId, pStmt->streamDbName, pStmt->streamName, &streamName);
   PAR_ERR_JRET(tNameExtractFullName(&streamName, pReq->name));
-  (void)snprintf(pReq->streamDB, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->pParseCxt->acctId, pStmt->streamDbName);
+  PAR_ERR_JRET(tNameGetFullDbName(&streamName, pReq->streamDB));
 
-  pReq->igExists = (int8_t)pStmt->ignoreExists;
-  pReq->flags = CREATE_STREAM_FLAG_NONE;
-  pReq->placeHolderBitmap = PLACE_HOLDER_NONE;
+  return code;
+_return:
+  parserError("buildCreateStreamReq failed, code:%d", code);
+  return code;
+}
 
+static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SCMCreateStreamReq* pReq) {
+  int32_t                code = TSDB_CODE_SUCCESS;
+  SStreamTriggerNode*    pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
+  SStreamTriggerOptions* pTriggerOptions = (SStreamTriggerOptions*)pTrigger->pOptions;
+  SStreamNotifyOptions*  pNotifyOptions = (SStreamNotifyOptions*)pTrigger->pNotify;
+  SNode*                 pTriggerWindow = pTrigger->pTriggerWindow;
+  SSelectStmt*           pTriggerSelect = NULL;
+  SHashObj*              pTriggerSlotHash = NULL;
+  SNode*                 pNotifyCond = NULL;
 
-  PAR_ERR_JRET(createStreamReqBuildStreamNotifyOptions(pCxt, pNotifyOptions, &pNotifyCond, pReq));
+  PAR_ERR_JRET(createStreamReqBuildDefaultReq(pCxt, pStmt, pReq));
+  PAR_ERR_JRET(createStreamReqBuildNameAndId(pCxt, pStmt, pReq));
+  PAR_ERR_JRET(createStreamReqBuildNotifyOptions(pCxt, pNotifyOptions, &pNotifyCond, pReq));
   PAR_ERR_JRET(createStreamReqBuildTrigger(pCxt, pStmt, &pTriggerSelect, &pTriggerSlotHash, pReq));
-  PAR_ERR_JRET(createStreamReqBuildTriggerOptions(pCxt, pStmt->streamDbName, pTriggerOptions, pReq));
+  PAR_ERR_JRET(createStreamReqBuildTriggerOptions(pCxt, pStmt, pTriggerOptions, pReq));
   PAR_ERR_JRET(createStreamReqBuildCalc(pCxt, pStmt, pTrigger->pPartitionList, pTriggerSelect, pTriggerSlotHash, pTriggerWindow, pNotifyCond, pReq));
   PAR_ERR_JRET(createStreamReqBuildOutTable(pCxt, pStmt, pTriggerSlotHash, pReq));
 
