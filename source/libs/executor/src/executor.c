@@ -1767,6 +1767,7 @@ bool qStreamUidInTableList(void* pTableListInfo, uint64_t uid) {
 }
 
 void streamDestroyExecTask(qTaskInfo_t tInfo) {
+  qInfo("streamDestroyExecTask called, task:%p", tInfo);
   qDestroyTask(tInfo);
 }
 
@@ -1952,8 +1953,13 @@ int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, const SStreamRuntimeF
       qError("tbname generated with too long characters, max allowed is %d, got %d, truncated.", TSDB_TABLE_NAME_LEN - 1, len);
       len = TSDB_TABLE_NAME_LEN - 1;
     }
+
     memcpy(tbname, pVal, len);
     tbname[len] = '\0';  // ensure null terminated
+    if (NULL != strchr(tbname, '.')) {
+      code = TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME;
+      qError("tbname generated with invalid characters, '.' is not allowed");
+    }
   }
   // TODO free dst
   sclFreeParam(&dst);

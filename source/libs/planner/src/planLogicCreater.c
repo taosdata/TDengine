@@ -624,10 +624,11 @@ static int32_t createRefScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
   pScan->node.groupAction = GROUP_ACTION_NONE;
   pScan->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
 
+  PLAN_ERR_RET(addDefaultScanCol(pRealTable, &pScan->pScanCols));
+
   pScan->scanType = getScanType(pCxt, pScan->pScanPseudoCols, pScan->pScanCols, pScan->tableType, pSelect->tagScan);
 
   PLAN_ERR_RET(nodesCloneNode(pSelect->pTimeRange, (SNode**)&pScan->pTimeRange));
-  PLAN_ERR_RET(addDefaultScanCol(pRealTable, &pScan->pScanCols));
 
   SNode *pTsCol = nodesListGetNode(pScan->pScanCols, 0);
   ((SColumnNode*)pTsCol)->hasDep = true;
@@ -1939,6 +1940,7 @@ static int32_t createWindowLogicNodeByExternal(SLogicPlanContext* pCxt, SExterna
   FOREACH(pNode, pCxt->pCurrRoot->pTargets) {
     if (QUERY_NODE_COLUMN == nodeType(pNode)) {
       SColumnNode* pCol = (SColumnNode*)pNode;
+      
       if (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         PLAN_ERR_RET(nodesCloneNode(pNode, &pWindow->pTspk));
         break;
@@ -2300,7 +2302,8 @@ static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
   TSWAP(pProject->node.pLimit, pSelect->pLimit);
   TSWAP(pProject->node.pSlimit, pSelect->pSlimit);
   pProject->ignoreGroupId = pSelect->isSubquery ? true : (NULL == pSelect->pPartitionByList);
-  pProject->node.groupAction = GROUP_ACTION_CLEAR;
+  pProject->node.groupAction =
+      (pCxt->pPlanCxt->streamCalcQuery && pCxt->pPlanCxt->withExtWindow) ? GROUP_ACTION_KEEP : GROUP_ACTION_CLEAR;
   pProject->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
   pProject->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
 

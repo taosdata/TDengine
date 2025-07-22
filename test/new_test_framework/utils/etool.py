@@ -138,14 +138,14 @@ def runBinFile(fname, command, show = True, checkRun = False, retFail = False ):
     Returns:
         list: The output of the command as a list of strings.
     """
-    pathFile = binFile(fname)
+    bin_file = binFile(fname)
     if isWin():
-        pathFile += ".exe"
+        bin_file += ".exe"
 
-    cmd = f"{pathFile} {command}"
+    cmd = f"{bin_file} {command}"
     if show:
         tdLog.info(cmd)
-    return runRetList(cmd, show, checkRun, retFail)
+    return runRetList(cmd, checkRun=checkRun, retFail=retFail, show=show)
 
 # exe build/bin file
 def exeBinFile(fname, command, wait=True, show=True):
@@ -168,15 +168,15 @@ def exeBinFile(fname, command, wait=True, show=True):
              while a non-zero value indicates failure.
              - If `wait` is False, the return value is the exit status of the `nohup` or `mintty` command.
     """
-    binFile = binFile(fname)
+    bin_file = binFile(fname)
     if isWin():
-        binFile += ".exe"
+        bin_file += ".exe"
 
-    cmd = f"{binFile} {command}"
+    cmd = f"{bin_file} {command}"
     if wait:
         if show:
             tdLog.info("wait exe:" + cmd)
-        return exe(f"{binFile} {command}")
+        return exe(f"{bin_file} {command}")
     else:
         if show:
             tdLog.info("no wait exe:" + cmd)

@@ -1982,8 +1982,13 @@ void doSetOneRowPtr(SReqResultInfo* pResultInfo) {
       if (!IS_VAR_NULL_TYPE(type, schemaBytes) && pCol->offset[pResultInfo->current] != -1) {
         char* pStart = pResultInfo->pCol[i].offset[pResultInfo->current] + pResultInfo->pCol[i].pData;
 
-        pResultInfo->length[i] = varDataLen(pStart);
-        pResultInfo->row[i] = varDataVal(pStart);
+        if (IS_STR_DATA_BLOB(type)) {
+          pResultInfo->length[i] = blobDataLen(pStart);
+          pResultInfo->row[i] = blobDataVal(pStart);
+        } else {
+          pResultInfo->length[i] = varDataLen(pStart);
+          pResultInfo->row[i] = varDataVal(pStart);
+        }
       } else {
         pResultInfo->row[i] = NULL;
         pResultInfo->length[i] = 0;
@@ -2250,6 +2255,8 @@ static int32_t estimateJsonLen(SReqResultInfo* pResultInfo) {
           estimateColLen += (VARSTR_HEADER_SIZE + 32);
         } else if (jsonInnerType == TSDB_DATA_TYPE_BOOL) {
           estimateColLen += (VARSTR_HEADER_SIZE + 5);
+        } else if (IS_STR_DATA_BLOB(jsonInnerType)) {
+          estimateColLen += (BLOBSTR_HEADER_SIZE + 32);
         } else {
           tscError("estimateJsonLen error: invalid type:%d", jsonInnerType);
           return -1;

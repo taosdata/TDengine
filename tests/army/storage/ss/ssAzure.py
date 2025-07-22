@@ -11,25 +11,9 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
-import time
-import random
+from new_test_framework.utils import tdLog, tdSql, epath, sc
 
-import taos
-import frame
-import frame.etool
-import frame.eos
-import frame.eutil
-import requests
 
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame.srvCtl import *
-from frame import *
-from frame.eos import *
-from azure import Azure
 
 #
 # 192.168.1.52 MINIO S3
@@ -47,7 +31,7 @@ for test:
 '''
 
 
-class TDTestCase(TBase):
+class TestS3azure:
     def __init__(self):
         self.fileName = ""  # track the upload of S3 file
 
@@ -327,7 +311,24 @@ class TDTestCase(TBase):
         tdSql.checkAgg(sql, self.insert_rows * self.childtable_count)
 
     # run
-    def run(self):
+    def test_s3azure(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+        """
         tdLog.debug(f"start to excute {__file__}")
         self.sname = "stream1"
         if eos.isArm64Cpu():
@@ -371,6 +372,10 @@ class TDTestCase(TBase):
 
             tdLog.success(f"{__file__} successfully executed")
 
+<<<<<<<< HEAD:test/cases/uncatalog/army/storage/s3/test_s3azure.py
+
+========
 # we don't support Azure API for now
 # tdCases.addLinux(__file__, TDTestCase())
 # tdCases.addWindows(__file__, TDTestCase())
+>>>>>>>> 3.0:tests/army/storage/ss/ssAzure.py

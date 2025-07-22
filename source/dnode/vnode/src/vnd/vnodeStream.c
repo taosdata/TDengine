@@ -458,11 +458,11 @@ static int32_t scanWal(SVnode* pVnode, void* pTableList, bool isVTable, SSDataBl
 
   SWalReader* pWalReader = walOpenReader(pVnode->pWal, 0);
   STREAM_CHECK_NULL_GOTO(pWalReader, terrno);
-  *retVer = walGetLastVer(pWalReader->pWal);
+  *retVer = walGetAppliedVer(pWalReader->pWal);
   STREAM_CHECK_CONDITION_GOTO(walReaderSeekVer(pWalReader, lastVer + 1) != 0, TSDB_CODE_SUCCESS);
 
   while (1) {
-    *retVer = walGetLastVer(pWalReader->pWal);
+    *retVer = walGetAppliedVer(pWalReader->pWal);
     STREAM_CHECK_CONDITION_GOTO(walNextValidMsg(pWalReader, true) < 0, TSDB_CODE_SUCCESS);
 
     SWalCont* wCont = &pWalReader->pHead->head;
@@ -1738,6 +1738,7 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   SStreamMsgVTableInfo vTableInfo = {0};
   SMetaReader          metaReader = {0};
   SNodeList*           groupNew = NULL;
+  void*                pTableList = NULL;
 
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
   void* pTask = sStreamReaderInfo->pTask;
@@ -1745,7 +1746,6 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
 
   SStorageAPI api = {0};
   initStorageAPI(&api);
-  void* pTableList = NULL;
   STREAM_CHECK_RET_GOTO(nodesCloneList(sStreamReaderInfo->partitionCols, &groupNew));
   STREAM_CHECK_RET_GOTO(qStreamCreateTableListForReader(
       pVnode, sStreamReaderInfo->suid, sStreamReaderInfo->uid, sStreamReaderInfo->tableType,
@@ -2002,9 +2002,8 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   int32_t            lino = 0;
   void*              buf = NULL;
   size_t             size = 0;
-  SSDataBlock*       pBlock = NULL;
   void*              taskAddr = NULL;
-  
+  SArray*            pResList = NULL;
 
   SResFetchReq req = {0};
   STREAM_CHECK_CONDITION_GOTO(tDeserializeSResFetchReq(pMsg->pCont, pMsg->contLen, &req) < 0,
@@ -2060,30 +2059,31 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
     STREAM_CHECK_RET_GOTO(qSetTaskId(sStreamReaderCalcInfo->pTaskInfo, req.taskId, req.queryId));
   }
 
-  while (1) {
-    uint64_t ts = 0;
-    if (req.pOpParam != NULL) {
-      qUpdateOperatorParam(sStreamReaderCalcInfo->pTaskInfo, req.pOpParam);
-    }
-    STREAM_CHECK_RET_GOTO(qExecTask(sStreamReaderCalcInfo->pTaskInfo, &pBlock, &ts));
-    printDataBlock(pBlock, __func__, "fetch");
+  if (req.pOpParam != NULL) {
+    qUpdateOperatorParam(sStreamReaderCalcInfo->pTaskInfo, req.pOpParam);
+  }
+  
+  pResList = taosArrayInit(4, POINTER_BYTES);
+  STREAM_CHECK_NULL_GOTO(pResList, terrno);
+  uint64_t ts = 0;
+  bool     hasNext = false;
+  STREAM_CHECK_RET_GOTO(qExecTaskOpt(sStreamReaderCalcInfo->pTaskInfo, pResList, &ts, &hasNext, NULL, req.pOpParam != NULL));
 
-    if (sStreamReaderCalcInfo->rtInfo.funcInfo.withExternalWindow && pBlock != NULL) {
+  for(size_t i = 0; i < taosArrayGetSize(pResList); i++){
+    SSDataBlock* pBlock = taosArrayGetP(pResList, i);
+    if (pBlock == NULL) continue;
+    printDataBlock(pBlock, __func__, "fetch");
+    if (sStreamReaderCalcInfo->rtInfo.funcInfo.withExternalWindow) {
       STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock, sStreamReaderCalcInfo->pFilterInfo));
       printDataBlock(pBlock, __func__, "fetch filter");
-
-      if (pBlock->info.rows == 0 && !qTaskIsDone(sStreamReaderCalcInfo->pTaskInfo)) {
-        continue;
-      }
     }
-    break;
   }
 
-  ST_TASK_DLOG("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock != NULL ? pBlock->info.rows : -1);
-  STREAM_CHECK_RET_GOTO(streamBuildFetchRsp(pBlock, &buf, &size, pVnode->config.tsdbCfg.precision));
+  STREAM_CHECK_RET_GOTO(streamBuildFetchRsp(pResList, hasNext, &buf, &size, pVnode->config.tsdbCfg.precision));
+  ST_TASK_DLOG("vgId:%d %s end:", TD_VID(pVnode), __func__);
 
 end:
-
+  taosArrayDestroy(pResList);
   streamReleaseTask(taskAddr);
 
   STREAM_PRINT_LOG_END(code, lino);

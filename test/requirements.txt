@@ -54,7 +54,7 @@ pytz==2025.1
 pywinrm==0.5.0
 PyYAML==6.0.2
 regex==2024.11.6
-requests==2.27.1
+requests==2.32.4
 requests_ntlm==1.3.0
 six==1.17.0
 taos-ws-py==0.5.3
@@ -65,9 +65,11 @@ tomli==2.2.1
 typing_extensions==4.12.2
 tzdata==2025.1
 tzlocal==5.3.1
-urllib3==1.26.20
+urllib3==2.5.0
 wcwidth==0.2.13
 xmltodict==0.14.2
 zipp==3.21.0
 decorator==5.2.1
 paho-mqtt==2.1.0
+pexpect==4.8.0
+hyperloglog==0.0.14

@@ -5,8 +5,10 @@
 %global __python /usr/bin/python3
 %global _build_id_links none
 
-Name:		tdengine
+Name:		%{product_name}
 Version:	%{_version}
+Provides:   tdengine = %{_version}
+Obsoletes:  tdengine < 3.3.7.0
 Release:	3%{?dist}
 Summary:	tdengine from taosdata
 Group:	  Application/Database
