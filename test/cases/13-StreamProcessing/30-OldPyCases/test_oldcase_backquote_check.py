@@ -183,7 +183,7 @@ class TestOthersOldCaseBackquoteCheck:
         tdLog.info(f"start run query_check() ......")  
         self.query_check()
         
-        tdLog.info(f"all check run query_check() ......")  
+        tdLog.info(f"all check end ......")  
 
     def stop(self):
         tdSql.execute(f'drop database {self.dbname}')
