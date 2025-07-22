@@ -293,13 +293,13 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
   SInserterParam* pInserterParam = NULL;
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
   (void)taosThreadOnce(&initPoolOnce, initRefPool);
-  qDebug("start to create task, TID:0x%" PRIx64 " QID:0x%" PRIx64 ", vgId:%d", taskId, pSubplan->id.queryId, vgId);
 
   code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model);
   if (code != TSDB_CODE_SUCCESS || NULL == *pTask) {
     qError("failed to createExecTaskInfo, code:%s", tstrerror(code));
     goto _error;
   }
+  qDebug("start to create task, TID:0x%" PRIx64 " QID:0x%" PRIx64 ", vgId:%d, task:%p, pSubplan:%p", taskId, pSubplan->id.queryId, vgId, *pTask, pSubplan);
 
   if (streamInserterParam) {
     SDataSinkMgtCfg cfg = {.maxDataBlockNum = 500, .maxDataBlockNumPerQuery = 50, .compress = compressResult};

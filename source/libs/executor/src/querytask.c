@@ -286,6 +286,7 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   cleanupStreamInfo(&pTaskInfo->streamInfo);
 
   if (!pTaskInfo->localFetch.localExec) {
+    qDebug("%s execTask is not localExec, so destroy the pSubplan:%p", GET_TASKID(pTaskInfo), pTaskInfo->pSubplan);
     nodesDestroyNode((SNode*)pTaskInfo->pSubplan);
     pTaskInfo->pSubplan = NULL;
   }
