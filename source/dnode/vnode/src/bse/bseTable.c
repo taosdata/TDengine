@@ -2154,7 +2154,7 @@ static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, 
 
     seqRangeReset(&p->range);
     p->ref = 1;
-    bseInfo("create mem table %p", p);
+    bseTrace("create mem table %p", p);
 
   _error:
     if (code != 0) {
@@ -2170,7 +2170,7 @@ static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, 
     if (pMemTable == NULL) {
       return TSDB_CODE_INVALID_CFG;
     }
-    bseInfo("ref mem table %p", pMemTable);
+    bseTrace("ref mem table %p", pMemTable);
     int32_t nRef = atomic_fetch_add_32(&pMemTable->ref, 1);
     if (nRef <= 0) {
       bseError("vgId:%d, memtable ref count is invalid, ref:%d", ((SBse *)pMemTable->pBse)->cfg.vgId, nRef);
@@ -2182,13 +2182,13 @@ static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, 
   void bseMemTableUnRef(STableMemTable *pMemTable) {
     int32_t code = 0;
 
-    bseInfo("unref mem table %p", pMemTable);
+    bseTrace("unref mem table %p", pMemTable);
     if (pMemTable == NULL) {
       return;
     }
     if (atomic_sub_fetch_32(&pMemTable->ref, 1) == 0) {
       bseMemTableDestroy(pMemTable);
-      bseInfo("destroy mem table %p", pMemTable);
+      bseTrace("destroy mem table %p", pMemTable);
     }
   }
   void bseMemTableDestroy(STableMemTable *pMemTable) {

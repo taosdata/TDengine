@@ -104,8 +104,8 @@ static int32_t getData(SBse *pBse, std::vector<int64_t> *data) {
       printf("failed to get key %d error code: %d\n", i, code);
       ASSERT(0);
     } else {
-      std::string str((char *)value, len);
-      printf("get result %d: %s\n", i, str.c_str());
+      // std::string str((char *)value, len);
+      // printf("get result %d: %s\n", i, str.c_str());
     }
     taosMemoryFree(value);
   }
@@ -138,7 +138,7 @@ int32_t getDataAndValid(SBse *pBse, std::string &inStr, std::vector<int64_t> *se
       if (strncmp((const char *)value, inStr.c_str(), len) != 0) {
         ASSERT(0);
       } else {
-        printf("succ to get key %d\n", (int32_t)seq);
+        //printf("succ to get key %d\n", (int32_t)seq);
       }
     }
     taosMemoryFree(value);
@@ -273,6 +273,7 @@ int32_t snapTest() {
     uint8_t *value = NULL;
     int32_t  len = 0;
     bseGet(bse, seq, &value, &len);
+    taosMemoryFree(value);
     // getData(bse, &data);
   }
   {
@@ -298,6 +299,8 @@ int32_t snapTest() {
       }
       taosMemFreeClear(data);
     }
+    taosMemoryFree(data);
+   
     bseSnapReaderClose(&pReader);
     bseSnapWriterClose(&pWriter, 0);
 
@@ -312,9 +315,12 @@ int32_t snapTest() {
         printf("failed to get key %d error code: %d\n", i, code);
         ASSERT(0);
       } else {
+        taosMemoryFree(value);
       }
     }
   }
+  bseClose(bse);
+  bseClose(bseDst);
   return code;
 }
 
@@ -350,15 +356,49 @@ void emptySnapTest() {
 
     code = bseReload(bseDst);
   }
+  bseClose(bse);
+  bseClose(bseDst);
 }
 #endif
-TEST(bseCase, snapTest) {
+TEST(bseCase, emptysnapTest) {
 #ifdef LINUX
   initLog();
   emptySnapTest();
-  benchTest();
-  funcTest();
-  funcTestSmallData();
+  // benchTest();
+  // funcTest();
+  //funcTestSmallData();
+#endif
+}
+TEST(bseCase, snapTest) {
+#ifdef LINUX
+  initLog();
   snapTest();
+  // //snapTest();
+  // emptySnapTest();
+  // // benchTest();
+  // // funcTest();
+  // //funcTestSmallData();
+#endif
+}
+TEST(bseCase, benchTest) {
+#ifdef LINUX
+  initLog();
+  benchTest();
+  // // funcTest();
+  // //funcTestSmallData();
+#endif
+}
+TEST(bseCase, funcTest) {
+#ifdef LINUX
+  initLog();
+  // // benchTest();
+  funcTest();
+  // //funcTestSmallData();
+#endif
+}
+TEST(bseCase, smallDataTest) {
+#ifdef LINUX
+  initLog();
+  funcTestSmallData();
 #endif
 }

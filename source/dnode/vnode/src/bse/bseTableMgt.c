@@ -277,7 +277,7 @@ _error:
   if (code != 0) {
     bseError("failed to commit table at line %d since %s", lino, tstrerror(code));
   } else {
-    bseInfo("succ to commit table");
+    bseInfo("succ to commit bse table");
   }
   return code;
 }
