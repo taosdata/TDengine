@@ -6032,6 +6032,7 @@ static int32_t translatePlaceHolderTable(STranslateContext* pCxt, SNode** pTable
       BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_TBNAME);
       if (newPlaceHolderTable->pMeta->tableType == TSDB_SUPER_TABLE) {
         newPlaceHolderTable->asSingleTable = true;
+        newPlaceHolderTable->table.singleTable = true;
       }
       break;
     }
@@ -6040,6 +6041,7 @@ static int32_t translatePlaceHolderTable(STranslateContext* pCxt, SNode** pTable
       if (hasTbnameFunction(pCxt->createStreamTriggerPartitionList) &&
           newPlaceHolderTable->pMeta->tableType == TSDB_SUPER_TABLE) {
         newPlaceHolderTable->asSingleTable = true;
+        newPlaceHolderTable->table.singleTable = true;
       }
       if (inJoin) {
         PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,

@@ -1745,7 +1745,7 @@ static int32_t initVtbScanInfo(SOperatorInfo* pOperator, SDynQueryCtrlOperatorIn
     for (int32_t i = 0; i < taosArrayGetSize(vals); ++i) {
       SStreamGroupValue* pValue = taosArrayGet(vals, i);
       if (pValue != NULL && pValue->isTbname) {
-        pInfo->vtbScan.dynTbUid = pValue->vgId;
+        pInfo->vtbScan.dynTbUid = pValue->uid;
         break;
       }
     }

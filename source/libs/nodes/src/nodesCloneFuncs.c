@@ -565,6 +565,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(noPseudoRefAfterGrp);
   COPY_SCALAR_FIELD(virtualStableScan);
   COPY_SCALAR_FIELD(placeholderType);
+  COPY_SCALAR_FIELD(phTbnameScan);
   return TSDB_CODE_SUCCESS;
 }
 
