@@ -430,7 +430,7 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
     params[i - startWinIdx] = pTriggerCalcParams;
   }
 
-  code = streamSendNotifyContent(&pTask->task, pTask->streamName, pExec->runtimeInfo.funcInfo.triggerType,
+  code = streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, pExec->runtimeInfo.funcInfo.triggerType,
                                  pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
                                  pTask->notification.notifyErrorHandle, *params, nParam);
 
@@ -469,7 +469,7 @@ static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunner
     }
     pTriggerCalcParams->resultNotifyContent = pContent;
 
-    code = streamSendNotifyContent(&pTask->task, pTask->streamName, pExec->runtimeInfo.funcInfo.triggerType,
+    code = streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, pExec->runtimeInfo.funcInfo.triggerType,
                                    pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
                                    pTask->notification.notifyErrorHandle, pTriggerCalcParams, 1);
     taosMemoryFreeClear(pTriggerCalcParams->resultNotifyContent);
