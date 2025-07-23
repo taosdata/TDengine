@@ -1202,6 +1202,7 @@ static int32_t vnodeProcessStreamLastTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTrig
 
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
   void* pTask = sStreamReaderInfo->pTask;
+  lastTsRsp.ver = pVnode->state.applied;
 
   ST_TASK_DLOG("vgId:%d %s start", TD_VID(pVnode), __func__);
 
@@ -1212,16 +1213,17 @@ static int32_t vnodeProcessStreamLastTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTrig
   STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTaskInner, NULL, NULL, &api));
   STREAM_CHECK_NULL_GOTO(pTaskInner, 0);
 
-  lastTsRsp.ver = pVnode->state.applied;
   if (sStreamReaderInfo->uidList != NULL) {
     STREAM_CHECK_RET_GOTO(processTsVTable(pVnode, &lastTsRsp, sStreamReaderInfo, pTaskInner));
   } else {
     STREAM_CHECK_RET_GOTO(processTsNonVTable(pVnode, &lastTsRsp, sStreamReaderInfo, pTaskInner));
   }
   ST_TASK_DLOG("vgId:%d %s get result", TD_VID(pVnode), __func__);
-  STREAM_CHECK_RET_GOTO(buildTsRsp(&lastTsRsp, &buf, &size))
 
 end:
+  if (code == 0){
+    STREAM_CHECK_RET_GOTO(buildTsRsp(&lastTsRsp, &buf, &size))
+  }
   STREAM_PRINT_LOG_END_WITHID(code, lino);
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
@@ -1242,7 +1244,7 @@ static int32_t vnodeProcessStreamFirstTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
   void* pTask = sStreamReaderInfo->pTask;
   ST_TASK_DLOG("vgId:%d %s start", TD_VID(pVnode), __func__);
-
+  firstTsRsp.ver = pVnode->state.applied;
   SStreamTriggerReaderTaskInnerOptions options = {0};
   STREAM_CHECK_RET_GOTO(createOptionsForFirstTs(&options, sStreamReaderInfo, req->firstTsReq.startTime));
   SStorageAPI api = {0};
@@ -1250,7 +1252,6 @@ static int32_t vnodeProcessStreamFirstTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTaskInner, NULL, NULL, &api));
   STREAM_CHECK_NULL_GOTO(pTaskInner, 0);
 
-  firstTsRsp.ver = pVnode->state.applied;
   if (sStreamReaderInfo->uidList != NULL) {
     STREAM_CHECK_RET_GOTO(processTsVTable(pVnode, &firstTsRsp, sStreamReaderInfo, pTaskInner));
   } else {
@@ -1258,9 +1259,11 @@ static int32_t vnodeProcessStreamFirstTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   }
 
   ST_TASK_DLOG("vgId:%d %s get result", TD_VID(pVnode), __func__);
-  STREAM_CHECK_RET_GOTO(buildTsRsp(&firstTsRsp, &buf, &size));
 
 end:
+  if (code == 0){
+    STREAM_CHECK_RET_GOTO(buildTsRsp(&firstTsRsp, &buf, &size))
+  }
   STREAM_PRINT_LOG_END_WITHID(code, lino);
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
