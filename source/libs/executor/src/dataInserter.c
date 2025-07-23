@@ -2123,7 +2123,7 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
 
 static int32_t resetInserterTbVersion(SDataInserterHandle* pInserter, const SInputData* pInput) {
   SInsertTableInfo pTbInfo = {0};
-  int32_t         code = getStreamTableId(pInput->pStreamDataInserterInfo, &pTbInfo);
+  int32_t          code = getStreamTableId(pInput->pStreamDataInserterInfo, &pTbInfo);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -2131,7 +2131,6 @@ static int32_t resetInserterTbVersion(SDataInserterHandle* pInserter, const SInp
   stDebug("resetInserterTbVersion, streamId:0x%" PRIx64 " groupId:%" PRId64 " tbName:%s, uid:%" PRId64 ", version:%d",
           pInput->pStreamDataInserterInfo->streamId, pInput->pStreamDataInserterInfo->groupId,
           pInput->pStreamDataInserterInfo->tbName, pTbInfo.uid, pTbInfo.version);
-  pInserter->pParam->streamInserterParam->pSchema->version = pTbInfo.version;
   if (pInserter->pParam->streamInserterParam->tbType != TSDB_NORMAL_TABLE) {
     pInserter->pParam->streamInserterParam->sver = pTbInfo.version;
   }
