@@ -1590,7 +1590,18 @@ int32_t msmUpdateRunnerPlan(SStmGrpCtx* pCtx, SArray* pRunners, int32_t beginIdx
   int64_t streamId = pStream->pCreate->streamId;
 
   TAOS_CHECK_EXIT(msmUpdateLowestPlanSourceAddr(pPlan, pDeploy, streamId));
-  
+
+  SNode* pTmp = NULL;
+  WHERE_EACH(pTmp, pPlan->pChildren) {
+    if (QUERY_NODE_VALUE == nodeType(pTmp)) {
+      ERASE_NODE(pPlan->pChildren);
+      continue;
+    }
+    WHERE_NEXT;
+  }
+  nodesClearList(pPlan->pChildren);
+  pPlan->pChildren = NULL;
+
   if (NULL == pPlan->pParents) {
     goto _exit;
   }
