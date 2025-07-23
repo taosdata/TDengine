@@ -274,9 +274,18 @@ class TestStreamOldCaseCheck:
                 f"select * from streamt1;",
                 lambda: tdSql.getRows() == 2,
             )
+            tdSql.checkResultsByFunc(
+                f"select * from information_schema.ins_streams where db_name='stable10' and stream_name='streams1';",
+                lambda: tdSql.getRows() == 1,
+            )
 
         def insert2(self):
             tdSql.execute(f"drop stream streams1;")
+            tdSql.checkResultsByFunc(
+                f"select * from information_schema.ins_streams where db_name='stable10' and stream_name='streams1';",
+                lambda: tdSql.getRows() == 0,
+            )
+                        
             tdLog.info(f"alter table streamt1 add column c3 double")
             tdSql.execute(f"alter table streamt1 add column c3 double;")
 
