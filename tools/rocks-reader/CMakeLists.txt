@@ -22,3 +22,8 @@ else()
 	)
   endif()
 endif()
+
+target_include_directories(
+    rocks-reader
+    PRIVATE "${CMAKE_BINARY_DIR}/build/include"
+)
