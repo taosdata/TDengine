@@ -157,6 +157,8 @@ typedef struct {
   SBtableMetaReader *pMetaReader;
   SBlockWrapper      blockWrapper;
   SSeqRange range;
+
+  int64_t startTimestamp;
 } STableReader;
 
 typedef struct {

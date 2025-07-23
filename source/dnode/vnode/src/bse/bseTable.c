@@ -524,18 +524,18 @@ void tableBuilderClose(STableBuilder *p, int8_t commited) {
 }
 
 static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, int8_t fileType, int8_t blockType,
-                                   int64_t keepDays) {
+                                   int64_t startTimestamp) {
   SBseSnapMeta *pSnapMeta = pBlkWrapper->data;
   pSnapMeta->range = range;
   pSnapMeta->fileType = fileType;
   pSnapMeta->blockType = blockType;
-  pSnapMeta->keepDays = keepDays;
+  pSnapMeta->startTimestamp = startTimestamp;
   return;
 }
 static void updateSnapshotMeta(SBlockWrapper *pBlkWrapper, SSeqRange range, int8_t fileType, int8_t blockType,
-                               int64_t keepDays) {
+                               int64_t startTimestamp) {
   SBseSnapMeta *pSnapMeta = (SBseSnapMeta *)pBlkWrapper->data;
-  pSnapMeta->keepDays = keepDays;
+  pSnapMeta->startTimestamp = startTimestamp;
   return;
 }
 
@@ -549,7 +549,7 @@ static void updateSnapshotMeta(SBlockWrapper *pBlkWrapper, SSeqRange range, int8
     code = tableLoadRawBlock(p->pDataFile, pHandle, blkWrapper, 1);
     TSDB_CHECK_CODE(code, lino, _error);
 
-    addSnapshotMetaToBlock(blkWrapper, p->range, BSE_TABLE_SNAP, BSE_TABLE_DATA_TYPE, 365);
+    addSnapshotMetaToBlock(blkWrapper, p->range, BSE_TABLE_SNAP, BSE_TABLE_DATA_TYPE, p->startTimestamp);
 
   _error:
     if (code != 0) {
@@ -570,7 +570,7 @@ static void updateSnapshotMeta(SBlockWrapper *pBlkWrapper, SSeqRange range, int8
     code = tableLoadRawBlock(pReader->pFile, pHandle, blkWrapper, 1);
     TSDB_CHECK_CODE(code, lino, _error);
 
-    addSnapshotMetaToBlock(blkWrapper, p->range, BSE_TABLE_META_SNAP, BSE_TABLE_META_TYPE, 365);
+    addSnapshotMetaToBlock(blkWrapper, p->range, BSE_TABLE_META_SNAP, BSE_TABLE_META_TYPE, p->startTimestamp);
   _error:
     if (code != 0) {
       bseError("failed to load raw meta from table pReaderMgt at line %d lino since %s", lino, tstrerror(code));
@@ -590,7 +590,7 @@ static void updateSnapshotMeta(SBlockWrapper *pBlkWrapper, SSeqRange range, int8
     code = tableLoadRawBlock(pReader->pFile, pHandle, blkWrapper, 1);
     TSDB_CHECK_CODE(code, lino, _error);
 
-    addSnapshotMetaToBlock(blkWrapper, p->range, BSE_TABLE_META_SNAP, BSE_TABLE_META_INDEX_TYPE, 365);
+    addSnapshotMetaToBlock(blkWrapper, p->range, BSE_TABLE_META_SNAP, BSE_TABLE_META_INDEX_TYPE, p->startTimestamp);
   _error:
     if (code != 0) {
       bseError("failed to load raw meta from table pReaderMgt at line %d lino since %s", lino, tstrerror(code));
@@ -623,7 +623,7 @@ static void updateSnapshotMeta(SBlockWrapper *pBlkWrapper, SSeqRange range, int8
     memcpy((uint8_t *)blkWrapper->data + sizeof(SBseSnapMeta), buf, sizeof(buf));
     blkWrapper->size = len + sizeof(SBseSnapMeta);
 
-    addSnapshotMetaToBlock(blkWrapper, p->range, BSE_TABLE_META_SNAP, BSE_TABLE_FOOTER_TYPE, 365);
+    addSnapshotMetaToBlock(blkWrapper, p->range, BSE_TABLE_META_SNAP, BSE_TABLE_FOOTER_TYPE, p->startTimestamp);
   _error:
     if (code != 0) {
       bseError("failed to load raw footer from table pReaderMgt at lino %d since %s", lino, tstrerror(code));
@@ -652,7 +652,7 @@ static void updateSnapshotMeta(SBlockWrapper *pBlkWrapper, SSeqRange range, int8
     if (p == NULL) {
       TSDB_CHECK_CODE(terrno, lino, _error);
     }
-
+    p->startTimestamp = startTimestamp;
     p->blockCap = 1024;
     p->pReaderMgt = pReaderMgt;
     bseBuildDataName(startTimestamp, data);
@@ -1250,7 +1250,7 @@ static void updateSnapshotMeta(SBlockWrapper *pBlkWrapper, SSeqRange range, int8
     SBseSnapMeta snapMeta = {0};
     snapMeta.range.sseq = -1;
     snapMeta.range.eseq = -1;
-    snapMeta.keepDays = pIter->startTimestamp;
+    snapMeta.startTimestamp = pIter->startTimestamp;
     snapMeta.fileType = pIter->fileType;
     snapMeta.blockType = pIter->blockType;
 
@@ -1315,7 +1315,7 @@ static void updateSnapshotMeta(SBlockWrapper *pBlkWrapper, SSeqRange range, int8
     }
     SSeqRange range = {0};
     if (pIter->blockWrapper.data != NULL) {
-      updateSnapshotMeta(&pIter->blockWrapper, range, pIter->fileType, pIter->blockType, snapMeta.keepDays);
+      updateSnapshotMeta(&pIter->blockWrapper, range, pIter->fileType, pIter->blockType, snapMeta.startTimestamp);
       *pValue = pIter->blockWrapper.data;
       *len = pIter->blockWrapper.size;
     }

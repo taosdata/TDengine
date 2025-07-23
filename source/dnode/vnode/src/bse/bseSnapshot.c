@@ -40,10 +40,10 @@ static int32_t bseRawFileWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBse
 
   SSeqRange *range = &pMeta->range;
   if (pMeta->fileType == BSE_TABLE_SNAP) {
-    bseBuildDataName(pMeta->keepDays, name);
+    bseBuildDataName(pMeta->startTimestamp, name);
     bseBuildFullName(pBse, name, path);
   } else if (pMeta->fileType == BSE_TABLE_META_TYPE) {
-    bseBuildMetaName(pMeta->keepDays, name);
+    bseBuildMetaName(pMeta->startTimestamp, name);
     bseBuildFullName(pBse, name, path);
   } else if (pMeta->fileType == BSE_CURRENT_SNAP) {
     bseBuildCurrentName(pBse, path);

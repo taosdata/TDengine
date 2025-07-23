@@ -70,7 +70,7 @@ typedef struct {
   struct SSeqRange range;
   int8_t           fileType;   // fileType
   int8_t           blockType;  // blockType
-  int64_t          keepDays;   // keepDays
+  int64_t          startTimestamp;  // keepDays
 } SBseSnapMeta;
 
 int32_t bseOpenIter(SBse *pBse, SBseIter **ppIter);

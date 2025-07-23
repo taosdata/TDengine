@@ -226,7 +226,8 @@ int32_t bseTableMgtCleanup(void *pMgt) {
   return 0;
 }
 
-static int32_t bseCalcStartTimeSize(int64_t nowSec, int8_t precision, int64_t *dst) {
+static int32_t bseCalcNowTimestamp(int8_t precision, int64_t *dst) {
+  int64_t nowSec = taosGetTimestampSec();
   int32_t code = 0;
   if (precision == TSDB_TIME_PRECISION_MILLI) {
     nowSec = nowSec * 1000;
@@ -263,11 +264,10 @@ static int32_t bseTableMgtGetTable(STableMgt *pMgt, SSubTableMgt **ppSubGgt) {
   int32_t lino = 0;
 
   int64_t       startTs = 0;
-  int64_t       now = taosGetTimestampSec();
   SBse         *pBse = pMgt->pBse;
   SSubTableMgt *pSubMgt = pMgt->pCurrTableMgt;
 
-  code = bseCalcStartTimeSize(now, pBse->cfg.precision, &startTs);
+  code = bseCalcNowTimestamp(pBse->cfg.precision, &startTs);
   TSDB_CHECK_CODE(code, lino, _error);
 
   if (pSubMgt == NULL) {
@@ -283,6 +283,9 @@ static int32_t bseTableMgtGetTable(STableMgt *pMgt, SSubTableMgt **ppSubGgt) {
     if (bseShouldSwitchToTable(startTs, pSubMgt->pBuilderMgt->startTimestamp, pBse->cfg.precision, pBse->keepDays)) {
       code = bseCommit(pBse);
       TSDB_CHECK_CODE(code, lino, _error);
+
+      destroySubTableMgt(pSubMgt);
+
       code = createSubTableMgt(startTs, 0, pMgt, &pMgt->pCurrTableMgt);
       TSDB_CHECK_CODE(code, lino, _error);
     }
