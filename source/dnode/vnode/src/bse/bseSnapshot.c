@@ -417,6 +417,8 @@ int32_t bseIterNext(SBseIter *pIter, uint8_t **pValue, int32_t *len) {
     // do read current
     pIter->fileType = BSE_MAX_SNAP;
     pIter->isOver = 1;
+
+    pIter->pCurrentBuf = *pValue;
   } else if (pIter->fileType == BSE_MAX_SNAP) {
     pIter->isOver = 1;
   }
@@ -438,6 +440,9 @@ void bseIterDestroy(SBseIter *pIter) {
   }
 
   taosArrayDestroy(pIter->pFileSet);
+  if (pIter->pCurrentBuf != NULL) {
+    taosMemoryFreeClear(pIter->pCurrentBuf);
+  }
   taosMemFree(pIter);
   return;
 }

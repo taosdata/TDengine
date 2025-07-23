@@ -62,6 +62,7 @@ typedef struct {
   int8_t           isOver;
 
   void *pTableIter;
+  uint8_t *pCurrentBuf;
 
 } SBseIter;
 

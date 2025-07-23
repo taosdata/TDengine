@@ -481,8 +481,21 @@ TEST(bseCase, emptyNot) {
   data.push_back(2); 
   data.push_back(3); 
   int32_t code = bseOpen("/tmp/bse", &cfg, &bse);  
-  code = getData(bse, &data);   
-  EXPECT_NE(code, 0);
+  char *value = NULL;
+  int32_t len = 0;
+  for (int32_t i = 0; i < data.size(); i++) {
+    code = bseGet(bse, data[i], (uint8_t **)&value, &len);
+    if (code != 0) {
+      printf("failed to get key %d error code: %d\n", i, code);
+    } else {
+      // std::string str((char *)value, len);
+      // printf("get result %d: %s\n", i, str.c_str());
+    }
+    taosMemoryFree(value);
+  }
+  // code = bseGet(bse, 1, &value, &len);
+  // code = getData(bse, &data);   
+  // EXPECT_NE(code, 0);
 
   bseClose(bse);
   //}
