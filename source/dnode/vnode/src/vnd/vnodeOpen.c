@@ -441,7 +441,8 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   (void)taosThreadMutexInit(&pVnode->mutex, NULL);
   (void)taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
 
-  vInfo("vgId:%d, finished vnode load info %s, vnode committed:%" PRId64, info.config.vgId, dir, pVnode->state.committed);
+  vInfo("vgId:%d, finished vnode load info %s, vnode committed:%" PRId64, info.config.vgId, dir,
+        pVnode->state.committed);
 
   int8_t rollback = vnodeShouldRollback(pVnode);
 
@@ -467,9 +468,20 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
 
   // open tsdb
   vInfo("vgId:%d, start to open vnode tsdb", TD_VID(pVnode));
-  if (!VND_IS_RSMA(pVnode) && (terrno = tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, NULL, rollback, force)) < 0) {
+  if (!VND_IS_RSMA(pVnode) &&
+      (terrno = tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, NULL, rollback, force)) < 0) {
     vError("vgId:%d, failed to open vnode tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
+  }
+
+  if (TSDB_CACHE_RESET(pVnode->config)) {
+    // flag vnode tsdb cache
+    vInfo("vgId:%d, start to flag vnode tsdb cache", TD_VID(pVnode));
+
+    if (metaFlagCache(pVnode) < 0) {
+      vError("vgId:%d, failed to flag tsdb cache since %s", TD_VID(pVnode), tstrerror(terrno));
+      goto _err;
+    }
   }
 
   // open wal
