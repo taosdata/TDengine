@@ -71,6 +71,18 @@ static int32_t smAddTaskToVgroupMap(SStreamReaderTask* pTask) {
     }
 
     taosWLockLatch(&pVg->lock);
+    if (pVg->inactive) {
+      ST_TASK_WLOG("vnode not leader or closed, ignore deploy, taskIdx:%d", pTask->task.taskIdx);
+      taosWUnLockLatch(&pVg->lock);
+      taosHashRelease(gStreamMgmt.vgroupMap, pVg);
+      TAOS_CHECK_EXIT(TSDB_CODE_STREAM_NOT_LEADER);
+    }
+    
+    if (NULL == pVg->taskList) {
+      pVg->taskList = taosArrayInit(20, POINTER_BYTES);
+      TSDB_CHECK_NULL(pVg->taskList, code, lino, _return, terrno);
+    }
+    
     if (NULL == taosArrayPush(pVg->taskList, &pTask)) {
       taosWUnLockLatch(&pVg->lock);
       taosHashRelease(gStreamMgmt.vgroupMap, pVg);
@@ -483,7 +495,7 @@ _exit:
 }
 
 
-void smUndeployVgTasks(int32_t vgId) {
+void smUndeployVgTasks(int32_t vgId, bool cleanup) {
   stInfo("start to undeploy vgroup tasks, vgId:%d", vgId);
 
   SStreamVgReaderTasks* pVg = taosHashAcquire(gStreamMgmt.vgroupMap, &vgId, sizeof(vgId));
@@ -495,6 +507,12 @@ void smUndeployVgTasks(int32_t vgId) {
   SStreamTaskUndeploy undeploy = {0};
   undeploy.undeployMsg.doCheckpoint = true;
   undeploy.undeployMsg.doCleanup = false;
+
+  if (cleanup) {
+    taosHashRemove(gStreamMgmt.vgroupMap, &vgId, sizeof(vgId));
+  } else {
+    atomic_store_8(&pVg->inactive, 1);
+  }
   
   taosWLockLatch(&pVg->lock);
   int32_t taskNum = taosArrayGetSize(pVg->taskList);
@@ -507,8 +525,6 @@ void smUndeployVgTasks(int32_t vgId) {
   taosArrayDestroy(pVg->taskList);
   pVg->taskList = NULL;
   taosWUnLockLatch(&pVg->lock);
-
-  taosHashRemove(gStreamMgmt.vgroupMap, &vgId, sizeof(vgId));
 
   taosHashRelease(gStreamMgmt.vgroupMap, pVg);
 }
@@ -634,7 +650,7 @@ void smUndeployAllVgTasks() {
       break;
     }
 
-    smUndeployVgTasks(*(int32_t*)taosHashGetKey(pIter, NULL));
+    smUndeployVgTasks(*(int32_t*)taosHashGetKey(pIter, NULL), true);
   }
 }
 
@@ -853,5 +869,19 @@ _exit:
   return code;
 }
 
+
+void smEnableVgDeploy(int32_t vgId) {
+  stInfo("start to enable vgroup deploy, vgId:%d", vgId);
+
+  SStreamVgReaderTasks* pVg = taosHashAcquire(gStreamMgmt.vgroupMap, &vgId, sizeof(vgId));
+  if (NULL == pVg) {
+    stDebug("vg %d still not in vgroupMap, ignore enable", vgId);
+    return;
+  }
+
+  atomic_store_8(&pVg->inactive, 0);
+
+  taosHashRelease(gStreamMgmt.vgroupMap, pVg);
+}
 
 

@@ -57,6 +57,7 @@ typedef struct SStreamInfo {
 
 typedef struct SStreamVgReaderTasks {
   SRWLatch lock;
+  int8_t   inactive;
   int64_t  streamVer;
   SArray*  taskList;       // SArray<SStreamTask*>
 } SStreamVgReaderTasks;
@@ -111,7 +112,7 @@ int32_t stReaderTaskUndeploy(SStreamReaderTask** ppTask, bool force);
 int32_t stReaderTaskExecute(SStreamReaderTask* pTask, SStreamMsg* pMsg);
 
 void smHandleRemovedTask(SStreamInfo* pStream, int64_t streamId, int32_t gid, bool isReader);
-void smUndeployVgTasks(int32_t vgId);
+void smUndeployVgTasks(int32_t vgId, bool cleanup);
 int32_t smDeployStreams(SStreamDeployActions* actions);
 void stmDestroySStreamInfo(void* param);
 void stmDestroySStreamMgmtReq(SStreamMgmtReq* pReq);
@@ -129,6 +130,7 @@ int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
 void streamTimerCleanUp();
 void smRemoveTaskPostCheck(int64_t streamId, SStreamInfo* pStream, bool* isLastTask);
 void streamTmrStop(tmr_h tmrId);
+void smEnableVgDeploy(int32_t vgId);
 
 #ifdef __cplusplus
 }

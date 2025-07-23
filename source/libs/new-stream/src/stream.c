@@ -125,7 +125,7 @@ void streamRemoveVnodeLeader(int32_t vgId) {
     stWarn("remove vgroup %d from vgroupLeaders failed since not exists", vgId);
   }
 
-  smUndeployVgTasks(vgId);
+  smUndeployVgTasks(vgId, false);
 }
 
 void streamAddVnodeLeader(int32_t vgId) {
@@ -138,6 +138,8 @@ void streamAddVnodeLeader(int32_t vgId) {
     code = terrno;
   }
   taosWUnLockLatch(&gStreamMgmt.vgLeadersLock);
+
+  smEnableVgDeploy(vgId);
   
   if (p) {
     stInfo("add vgroup %d to vgroupLeaders succeed", vgId);
