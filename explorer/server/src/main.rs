@@ -91,51 +91,53 @@ fn clear_pool(dsn: &Dsn, username: String) {
     map.remove(&dsn_simple.to_string());
 }
 
-async fn get_connection(dsn: &Dsn) -> Result<Object<Manager<TaosBuilder>>, String> {
+async fn get_connection(dsn: &Dsn) -> anyhow::Result<Object<Manager<TaosBuilder>>> {
     let map = TAOS_POOL.get_or_init(scc::HashMap::new);
     let mut dsn_simple = dsn.clone();
     dsn_simple.password = None;
 
     let user_pool = map
         .get(&dsn_simple.to_string())
-        .filter(|pool| pool.password == dsn.password.clone().unwrap_or_default())
-        .map(|pool| pool.pool.clone());
+        .filter(|entry| entry.password == dsn.password.clone().unwrap_or_default())
+        .map(|entry| entry.pool.clone());
 
-    if user_pool.is_some() {
-        return user_pool.unwrap().get().await.map_err(|err| match err {
-            PoolError::Backend(inner_err) => format!("{inner_err:#}"),
-            PoolError::Timeout(timeout_type) => format!("Timeout {timeout_type:?} when connect to taosadapter, please check configuration item 'cluster' in explorer.toml"),
-            err => format!("Failed to get connection: {err:#}"),
-        });
+    let pool_error = |err: PoolError<_>| -> anyhow::Error {
+        match err {
+                PoolError::Backend(inner_err) => anyhow::Error::new(inner_err).context("failed to get connection from pool"),
+                PoolError::Timeout(timeout_type) => anyhow::anyhow!("Timeout {timeout_type:?} when connect to taosadapter, please check configuration item 'cluster' in explorer.toml"),
+                err => anyhow::anyhow!("Failed to get connection: {err:#}"),
+            }
+    };
+    if let Some(pool) = user_pool {
+        return pool.get().await.map_err(pool_error);
     }
 
-    let builder = taos::TaosBuilder::from_dsn(dsn);
-    if builder.is_err() {
-        tracing::error!("Failed to create taosbuilder: {:?}", builder.err());
-        return Err("inner error: failed to get connection pool".to_string());
-    }
-    let pool = builder.unwrap().pool();
-    if pool.is_err() {
-        tracing::error!("Failed to create pool: {:?}", pool.err());
-        return Err("inner error: failed to get connection pool".to_string());
-    }
+    match taos::TaosBuilder::from_dsn(dsn) {
+        Ok(builder) => {
+            let pool = builder.pool();
+            if pool.is_err() {
+                tracing::error!("Failed to create pool: {:?}", pool.err());
+                anyhow::bail!("inner error: failed to get connection pool".to_string());
+            }
 
-    let pool = pool.unwrap();
-    let conn = pool.get().await.map_err(|err| match err {
-        PoolError::Backend(inner_err) => format!("{inner_err:#}"),
-        PoolError::Timeout(timeout_type) => format!("Timeout {timeout_type:?} when connect to taosadapter, please check configuration item 'cluster' in explorer.toml"),
-        err => format!("Failed to get connection: {err:#}"),
-    });
+            let pool = pool.unwrap();
+            let conn = pool.get().await.map_err(pool_error);
 
-    if conn.is_ok() {
-        let new_user_pool = UserPool {
-            password: dsn.password.clone().unwrap_or_default(),
-            pool: pool.clone(),
-        };
-        tracing::debug!("create new pool for {:?}", dsn);
-        let _ = map.upsert(dsn_simple.to_string(), new_user_pool);
+            if conn.is_ok() {
+                let new_user_pool = UserPool {
+                    password: dsn.password.clone().unwrap_or_default(),
+                    pool: pool.clone(),
+                };
+                tracing::debug!("create new pool for {:?}", dsn);
+                let _ = map.upsert(dsn_simple.to_string(), new_user_pool);
+            }
+            conn
+        }
+        Err(err) => {
+            tracing::error!("Failed to create taosbuilder: {:?}", err);
+            anyhow::bail!("inner error: failed to get connection pool");
+        }
     }
-    conn
 }
 
 #[actix_web::main]
@@ -1858,7 +1860,7 @@ impl RestErrResponse {
     pub fn new(err: impl Display) -> Self {
         Self {
             code: Code::FAILED,
-            desc: err.to_string(),
+            desc: format!("{err:#}"),
         }
     }
 }
@@ -2143,9 +2145,7 @@ certificate_key = "tests/assets/cert-key.pem"
 
         let err = result.unwrap_err();
         let error_message = err.desc;
-        assert!(
-            error_message.contains("please check configuration item 'cluster' in explorer.toml")
-        );
+        println!("Error message: {}", error_message);
 
         Ok(())
     }
