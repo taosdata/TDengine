@@ -1714,10 +1714,6 @@ int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t ui
     qError("failed to createScanTableListInfo, code:%s", tstrerror(code));
     return code;
   }
-  if (taosArrayGetSize(pList->pTableList) == 0){
-    tableListDestroy(pList);
-    pList = NULL;
-  }
   *pTableListInfo = pList;
   return 0;
 }

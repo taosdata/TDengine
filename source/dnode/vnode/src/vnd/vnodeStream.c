@@ -1255,7 +1255,7 @@ static int32_t vnodeProcessStreamFirstTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   }
 
   ST_TASK_DLOG("vgId:%d %s get result", TD_VID(pVnode), __func__);
-  STREAM_CHECK_RET_GOTO(buildTsRsp(&firstTsRsp, &buf, &size))
+  STREAM_CHECK_RET_GOTO(buildTsRsp(&firstTsRsp, &buf, &size));
 
 end:
   STREAM_PRINT_LOG_END_WITHID(code, lino);
