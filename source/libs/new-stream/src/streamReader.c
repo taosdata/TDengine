@@ -529,12 +529,12 @@ int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t*
     if (pBlock == NULL || pBlock->info.rows == 0) continue;
     int32_t blockSize = blockGetEncodeSize(pBlock);
     *((int32_t*)(dataBuf)) = blockSize;
-    *((int32_t*)(dataBuf + INT_BYTES)) = blockSize;
+    *((int32_t*)((char*)dataBuf + INT_BYTES)) = blockSize;
     pRetrieve->numOfRows += pBlock->info.rows;
     int32_t actualLen =
-        blockEncode(pBlock, dataBuf + INT_BYTES * 2, blockSize, taosArrayGetSize(pBlock->pDataBlock));
+        blockEncode(pBlock, (char*)dataBuf + INT_BYTES * 2, blockSize, taosArrayGetSize(pBlock->pDataBlock));
     STREAM_CHECK_CONDITION_GOTO(actualLen < 0, terrno);
-    dataBuf += (INT_BYTES * 2 + actualLen);
+    dataBuf = (char*)dataBuf + (INT_BYTES * 2 + actualLen);
   }
   stDebug("stream fetch get result blockNum:%d, rows:%" PRId64, blockNum, pRetrieve->numOfRows);
 

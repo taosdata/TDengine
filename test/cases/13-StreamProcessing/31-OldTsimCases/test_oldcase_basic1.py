@@ -50,7 +50,7 @@ class TestStreamOldCaseBasic1:
         streams.append(self.Basic40())
         streams.append(self.Basic41())
         streams.append(self.Basic42())
-        # streams.append(self.Basic43()) TD-36822
+        streams.append(self.Basic43())
         streams.append(self.Basic50())
         streams.append(self.Basic51())
         streams.append(self.Basic52())
@@ -862,10 +862,10 @@ class TestStreamOldCaseBasic1:
             tdSql.execute(f"create table t6 using st tags(2, 2, 2);")
 
             tdSql.execute(
-                f"create stream streams4 interval(1s) sliding(1s) from st partition by tbname stream_options(event_type(window_close)) into streamt as select _twstart, count(*), now from %%tbname where ts >= _twstart and ts < _twend;"
+                f"create stream streams4 interval(1s) sliding(1s) from st partition by tbname stream_options(event_type(window_close)) into streamt  as select _twstart, count(*), now from  %%tbname where      ts >= _twstart and ts < _twend;"
             )
             tdSql.execute(
-                f"create stream streams5 interval(1s) sliding(1s) from st partition by tb stream_options(event_type(window_close)) into streamt1 as select _twstart, count(*), now from st where tb=%%1 and ts >= _twstart and ts < _twend;"
+                f"create stream streams5 interval(1s) sliding(1s) from st partition by tb     stream_options(event_type(window_close)) into streamt1 as select _twstart, count(*), now from  st where tb=%%1 and ts >= _twstart and ts < _twend;"
             )
 
         def insert1(self):
@@ -878,19 +878,10 @@ class TestStreamOldCaseBasic1:
 
         def check1(self):
             tdSql.checkResultsByFunc(
-                f"select * from streamt;",
-                lambda: tdSql.getRows() == 6
-                and tdSql.getData(0, 1) == 1
-                and tdSql.getData(1, 1) == 1
-                and tdSql.getData(2, 1) == 1,
+                f"select * from streamt;", lambda: tdSql.getRows() == 600
             )
-
             tdSql.checkResultsByFunc(
-                f"select * from streamt1;",
-                lambda: tdSql.getRows() == 6
-                and tdSql.getData(0, 1) == 1
-                and tdSql.getData(1, 1) == 1
-                and tdSql.getData(2, 1) == 1,
+                f"select * from streamt1;", lambda: tdSql.getRows() == 200
             )
 
         def insert2(self):
@@ -903,12 +894,10 @@ class TestStreamOldCaseBasic1:
 
         def check2(self):
             tdSql.checkResultsByFunc(
-                f"select * from streamt order by 1 desc;",
-                lambda: tdSql.getRows() > 0 and tdSql.getData(0, 1) == 1,
+                f"select * from streamt;", lambda: tdSql.getRows() == 600
             )
             tdSql.checkResultsByFunc(
-                f"select * from streamt1 order by 1 desc;",
-                lambda: tdSql.getRows() > 0 and tdSql.getData(0, 1) == 1,
+                f"select * from streamt1;", lambda: tdSql.getRows() == 200
             )
 
         def insert3(self):
@@ -921,18 +910,23 @@ class TestStreamOldCaseBasic1:
 
         def check3(self):
             tdSql.checkResultsByFunc(
-                f"select * from streamt order by 1 desc;",
-                lambda: tdSql.getRows() > 2
-                and tdSql.getData(0, 1) == 2
-                and tdSql.getData(1, 1) == 2
-                and tdSql.getData(2, 1) == 2,
+                f"select * from streamt;", lambda: tdSql.getRows() == 600
             )
             tdSql.checkResultsByFunc(
-                f"select * from streamt1 order by 1 desc;",
-                lambda: tdSql.getRows() > 2
-                and tdSql.getData(0, 1) == 2
-                and tdSql.getData(1, 1) == 2
-                and tdSql.getData(2, 1) == 2,
+                f"select * from streamt1;", lambda: tdSql.getRows() == 200
+            )
+
+            tdSql.checkResultsByFunc(
+                f"select * from streamt where tag_tbname='t1'",
+                lambda: tdSql.getRows() == 100 and tdSql.compareData(0, 1, 2),
+            )
+            tdSql.checkResultsByFunc(
+                f"select * from streamt1 where tb='1'",
+                lambda: tdSql.getRows() == 100 and tdSql.compareData(0, 1, 2),
+            )
+            tdSql.checkResultsByFunc(
+                f"select * from streamt1 where tb='2'",
+                lambda: tdSql.getRows() == 100 and tdSql.compareData(0, 1, 10),
             )
 
     class Basic50(StreamCheckItem):
