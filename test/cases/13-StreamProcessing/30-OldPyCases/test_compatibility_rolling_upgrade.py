@@ -19,11 +19,106 @@ class TestCompatibilityRollingUpgrade:
     def test_compatibility_rolling_upgrade(self):
         """TDengine Rolling Upgrade Compatibility Test
 
-        Test rolling upgrade of TDengine nodes.
-        Maintains original logic using cb module but adapted for pytest framework.
+        Test incremental rolling upgrade scenarios with stream processing validation:
+
+        1. Test [Sequential Node Upgrade] Strategy
+            1.1 Test upgrade sequence planning
+                1.1.1 Node priority determination for upgrade order
+                1.1.2 Leader/follower upgrade coordination
+                1.1.3 Quorum maintenance during rolling upgrade
+                1.1.4 Service dependency management
+            1.2 Test individual node upgrade process
+                1.2.1 Node graceful shutdown procedures
+                1.2.2 Version upgrade and restart process
+                1.2.3 Node rejoin cluster validation
+                1.2.4 Replication resynchronization
+
+        2. Test [Stream Processing Preservation] During Rolling Upgrade
+            2.1 Test stream computation continuity
+                2.1.1 Active stream processing during node upgrades
+                2.1.2 Window computation preservation across node changes
+                2.1.3 State transfer between old and new nodes
+                2.1.4 Trigger evaluation consistency
+            2.2 Test stream data flow integrity
+                2.2.1 Source data ingestion continuity
+                2.2.2 Intermediate processing consistency
+                2.2.3 Target table output reliability
+                2.2.4 Data ordering preservation
+
+        3. Test [High Availability Maintenance]
+            3.1 Test service availability during upgrade
+                3.1.1 Read operation availability maintenance
+                3.1.2 Write operation availability maintenance
+                3.1.3 Stream query responsiveness
+                3.1.4 Client connection management
+            3.2 Test failover mechanisms
+                3.2.1 Automatic leader election during upgrade
+                3.2.2 Replica promotion and demotion
+                3.2.3 Network partition handling
+                3.2.4 Split-brain prevention
+
+        4. Test [Version Compatibility Validation]
+            4.1 Test cross-version protocol compatibility
+                4.1.1 Network protocol version negotiation
+                4.1.2 Data format compatibility validation
+                4.1.3 Metadata schema compatibility
+                4.1.4 Configuration parameter compatibility
+            4.2 Test mixed-version cluster operation
+                4.2.1 Temporary mixed-version cluster stability
+                4.2.2 Feature availability during transition
+                4.2.3 Performance consistency across versions
+                4.2.4 Resource utilization patterns
+
+        5. Test [Data Consistency and Integrity]
+            5.1 Test replication consistency
+                5.1.1 Data consistency across replicas during upgrade
+                5.1.2 Transaction consistency maintenance
+                5.1.3 Write acknowledgment reliability
+                5.1.4 Read consistency guarantees
+            5.2 Test stream result consistency
+                5.2.1 Aggregation result accuracy preservation
+                5.2.2 Window boundary consistency
+                5.2.3 State transition correctness
+                5.2.4 Output data completeness
+
+        6. Test [Performance and Resource Management]
+            6.1 Test performance impact assessment
+                6.1.1 Throughput degradation measurement
+                6.1.2 Latency impact analysis
+                6.1.3 Resource utilization monitoring
+                6.1.4 Recovery time measurement
+            6.2 Test resource rebalancing
+                6.2.1 Load redistribution during upgrade
+                6.2.2 Memory usage optimization
+                6.2.3 CPU utilization balancing
+                6.2.4 Storage space management
+
+        7. Test [Error Handling and Recovery]
+            7.1 Test upgrade failure scenarios
+                7.1.1 Individual node upgrade failure handling
+                7.1.2 Network connectivity issues during upgrade
+                7.1.3 Resource exhaustion scenarios
+                7.1.4 Timeout and deadlock resolution
+            7.2 Test recovery mechanisms
+                7.2.1 Failed node recovery procedures
+                7.2.2 Cluster state restoration
+                7.2.3 Data integrity verification
+                7.2.4 Service health validation
+
+        8. Test [Post-Upgrade Validation]
+            8.1 Test functional correctness
+                8.1.1 Stream processing functionality validation
+                8.1.2 Data query correctness verification
+                8.1.3 Administrative operation validation
+                8.1.4 Monitoring and alerting functionality
+            8.2 Test system stability
+                8.2.1 Long-term cluster stability
+                8.2.2 Memory leak detection
+                8.2.3 Performance regression analysis
+                8.2.4 Configuration consistency verification
 
         Catalog:
-            - Streams:OldPyCases
+            - Streams:Compatibility:RollingUpgrade
 
         Since: v3.3.7.0
 
@@ -32,7 +127,7 @@ class TestCompatibilityRollingUpgrade:
         Jira: None
 
         History:
-            - 2025-12-19 Migrated from system-test/0-others/compatibility_rolling_upgrade.py
+            - 2025-07-23 Beryl migrated from system-test/0-others/compatibility_rolling_upgrade.py
             - Note: Maintains original cb.* calls but adapted for pytest framework
 
         """

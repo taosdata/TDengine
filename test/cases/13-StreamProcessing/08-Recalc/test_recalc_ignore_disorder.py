@@ -11,22 +11,112 @@ class TestStreamRecalcIgnoreDisorder:
     def test_stream_recalc_ignore_disorder(self):
         """Stream Recalculation IGNORE_DISORDER Option Test
 
-        Test IGNORE_DISORDER option with out-of-order data:
-        1. Write out-of-order data - streams with IGNORE_DISORDER should not trigger recalculation
-        2. Write updated data - streams with IGNORE_DISORDER should ignore updates
-        3. Different trigger types behavior with out-of-order data
+        Test IGNORE_DISORDER option behavior with out-of-order and duplicate data scenarios:
+
+        1. Test [IGNORE_DISORDER] Option Specification
+            1.1 Test option syntax validation
+                1.1.1 IGNORE_DISORDER true - verify out-of-order data ignored
+                1.1.2 IGNORE_DISORDER false - verify out-of-order data processed
+                1.1.3 IGNORE_DISORDER not specified - verify default behavior
+                1.1.4 Invalid IGNORE_DISORDER syntax - verify error handling
+            1.2 Test option value validation
+                1.2.1 Boolean value validation (true/false)
+                1.2.2 Case sensitivity handling
+                1.2.3 Invalid value types - verify error handling
+
+        2. Test [Out-of-Order Data Handling] Across Window Types
+            2.1 Test INTERVAL windows with IGNORE_DISORDER
+                2.1.1 IGNORE_DISORDER=true: out-of-order data ignored, no recalculation
+                2.1.2 IGNORE_DISORDER=false: out-of-order data triggers recalculation
+                2.1.3 Out-of-order data in different window boundaries
+                2.1.4 Sliding window behavior with ignored out-of-order data
+            2.2 Test SESSION windows with IGNORE_DISORDER
+                2.2.1 IGNORE_DISORDER=true: session boundaries maintained
+                2.2.2 IGNORE_DISORDER=false: session recalculation triggered
+                2.2.3 Out-of-order data affecting session gaps
+                2.2.4 Session timeout interaction with ignored data
+            2.3 Test STATE_WINDOW with IGNORE_DISORDER
+                2.3.1 IGNORE_DISORDER=true: state transitions ignored for out-of-order
+                2.3.2 IGNORE_DISORDER=false: state recalculation triggered
+                2.3.3 Out-of-order state changes affecting window boundaries
+                2.3.4 State persistence with ignored disorder
+            2.4 Test EVENT_WINDOW with IGNORE_DISORDER
+                2.4.1 IGNORE_DISORDER=true: event sequence maintained
+                2.4.2 IGNORE_DISORDER=false: event window recalculation triggered
+                2.4.3 Out-of-order events affecting window start/end conditions
+                2.4.4 Event ordering preservation with ignored disorder
+
+        3. Test [Data Update Scenarios] with IGNORE_DISORDER
+            3.1 Test timestamp-based updates
+                3.1.1 Update existing timestamp with IGNORE_DISORDER=true
+                3.1.2 Update existing timestamp with IGNORE_DISORDER=false
+                3.1.3 Batch updates with mixed timestamps
+                3.1.4 Partial update scenarios
+            3.2 Test duplicate data handling
+                3.2.1 Exact duplicate records with IGNORE_DISORDER
+                3.2.2 Same timestamp, different values
+                3.2.3 Duplicate detection and handling logic
+                3.2.4 Performance impact of duplicate processing
+
+        4. Test [Data Insertion Order Scenarios]
+            4.1 Test severely out-of-order data
+                4.1.1 Data hours behind current time
+                4.1.2 Data days behind current time
+                4.1.3 Random order data insertion
+                4.1.4 Worst-case scenario data ordering
+            4.2 Test mixed order patterns
+                4.2.1 Alternating future and past timestamps
+                4.2.2 Batch insertion with mixed ordering
+                4.2.3 Incremental disorder scenarios
+                4.2.4 Controlled disorder patterns
+
+        5. Test [Performance and Resource Impact]
+            5.1 Test processing efficiency with IGNORE_DISORDER
+                5.1.1 CPU usage comparison (true vs false)
+                5.1.2 Memory usage with ignored data
+                5.1.3 Throughput impact analysis
+                5.1.4 Latency measurements
+            5.2 Test data volume impact
+                5.2.1 High-volume out-of-order data streams
+                5.2.2 Resource scaling with disorder levels
+                5.2.3 System stability under disorder stress
+                5.2.4 Recovery behavior after disorder bursts
+
+        6. Test [Interaction with Other Options]
+            6.1 Test IGNORE_DISORDER with WATERMARK
+                6.1.1 Conflict resolution between options
+                6.1.2 Precedence rules and behavior
+                6.1.3 Combined option effectiveness
+                6.1.4 Error handling for conflicting configurations
+            6.2 Test IGNORE_DISORDER with EXPIRED_TIME
+                6.2.1 Expired out-of-order data handling
+                6.2.2 Option interaction priority
+                6.2.3 Resource optimization with both options
+                6.2.4 Edge case behavior analysis
+
+        7. Test [Data Consistency and Correctness]
+            7.1 Test result accuracy with IGNORE_DISORDER
+                7.1.1 Window computation correctness verification
+                7.1.2 Aggregation result validation
+                7.1.3 State consistency maintenance
+                7.1.4 Event sequence integrity
+            7.2 Test recovery and consistency
+                7.2.1 System restart with pending out-of-order data
+                7.2.2 Network interruption during disorder processing
+                7.2.3 Data corruption scenarios
+                7.2.4 Consistency verification after recovery
 
         Catalog:
-            - Streams:Recalculation
+            - Streams:Recalculation:IgnoreDisorder
 
-        Since: v3.0.0.0
+        Since: v3.3.7.0
 
         Labels: common,ci
 
         Jira: None
 
         History:
-            - 2025-12-19 Generated from recalculation mechanism design
+            - 2025-07-23 Beryl Created
 
         """
 
