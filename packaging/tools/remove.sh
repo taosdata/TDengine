@@ -251,7 +251,7 @@ function remove_data_and_config() {
     ${csudo}rm -rf "${data_dir}/.udf" || :
     ${csudo}rm -rf "${data_dir}/.running"*  || :
     ${csudo}rm -rf "${data_dir}/.taosudf"* || :
-    find "${data_dir}" -type d -empty -delete
+    ${csudo}find "${data_dir}" -type d -empty -delete
     if [ -z "$(ls -A "${data_dir}")" ]; then
       ${csudo}rm -rf "${data_dir}" || :
     fi
@@ -266,7 +266,7 @@ function remove_data_and_config() {
     ${csudo}rm -rf "${log_dir}/set_taos_malloc.log" || :
     ${csudo}rm -rf "${log_dir}/.startRecord" || :
     ${csudo}rm -rf "${log_dir}/.startSeq" || :
-    find "${log_dir}" -type d -empty -delete
+    ${csudo}find "${log_dir}" -type d -empty -delete
     if [ -z "$(ls -A "${log_dir}")" ]; then
       ${csudo}rm -rf "${log_dir}"  || :
     fi
