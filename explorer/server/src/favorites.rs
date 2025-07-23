@@ -63,10 +63,9 @@ impl FavoritesSql {
             .context("connect to database error")?;
 
         // run migrate
-        MIGRATOR
-            .run(&pool)
-            .await
-            .context("migrate favorites_sql error")?;
+        if let Err(err) = MIGRATOR.run(&pool).await {
+            warn!("Try to run migrations error, check if the schema is up to date: {err:#}");
+        }
 
         Ok(Self { pool })
     }
