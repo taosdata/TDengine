@@ -26,108 +26,54 @@ class TestEmptyIdentifier:
     def test_empty_identifier(self):
         """Empty Identifier Validation Test
 
-        Test comprehensive empty identifier handling across all SQL constructs with focus on stream processing:
+        Test empty identifier `` handling in 28 specific SQL statements and verify error code -2147473897:
 
-        1. Test [Basic SQL Object] Empty Identifier Validation
-            1.1 Test database operations with empty identifiers
-                1.1.1 CREATE DATABASE with empty name - verify error -2147473897
-                1.1.2 DROP DATABASE with empty name - verify error -2147473897
-                1.1.3 USE DATABASE with empty name - verify error -2147473897
-                1.1.4 ALTER DATABASE with empty name - verify error -2147473897
-            1.2 Test table operations with empty identifiers
-                1.2.1 CREATE TABLE with empty name - verify error -2147473897
-                1.2.2 DROP TABLE with empty name - verify error -2147473897
-                1.2.3 ALTER TABLE with empty name - verify error -2147473897
-                1.2.4 DESCRIBE TABLE with empty name - verify error -2147473897
-            1.3 Test column and tag operations with empty identifiers
-                1.3.1 Column creation with empty name - verify error -2147473897
-                1.3.2 Tag creation with empty name - verify error -2147473897
-                1.3.3 Column reference with empty name - verify error -2147473897
-                1.3.4 Tag reference with empty name - verify error -2147473897
+        1. Test [Table Operations] with Empty Identifiers
+            1.1 show create table `` - verify error -2147473897
+            1.2 show create table test.`` - verify error -2147473897
+            1.3 create table `` (ts timestamp, c1 int) - verify error -2147473897
+            1.4 drop table `` - verify error -2147473897
+            1.5 alter table `` add column c2 int - verify error -2147473897
+            1.6 select * from `` - verify error -2147473897
 
-        2. Test [Stream Processing Objects] Empty Identifier Validation
-            2.1 Test stream operations with empty identifiers
-                2.1.1 CREATE STREAM with empty name - verify error -2147473897
-                2.1.2 DROP STREAM with empty name - verify error -2147473897
-                2.1.3 PAUSE STREAM with empty name - verify error -2147473897
-                2.1.4 RESUME STREAM with empty name - verify error -2147473897
-            2.2 Test stream target table with empty identifiers
-                2.2.1 INTO clause with empty table name - verify error -2147473897
-                2.2.2 OUTPUT_SUBTABLE with empty expression - verify error -2147473897
-                2.2.3 Target column specification with empty name - verify error -2147473897
-                2.2.4 Tag specification with empty name - verify error -2147473897
+        2. Test [Column and Tag Operations] with Empty Identifiers
+            2.1 alter table meters add column `` int - verify error -2147473897
+            2.2 alter table meters drop column `` - verify error -2147473897
+            2.3 alter stable meters add tag `` int - verify error -2147473897
+            2.4 alter stable meters rename tag cc `` - verify error -2147473897
+            2.5 alter stable meters drop tag `` - verify error -2147473897
 
-        3. Test [Advanced SQL Objects] Empty Identifier Validation
-            3.1 Test view operations with empty identifiers
-                3.1.1 CREATE VIEW with empty name - verify error -2147473897
-                3.1.2 DROP VIEW with empty name - verify error -2147473897
-                3.1.3 View reference with empty name - verify error -2147473897
-                3.1.4 View column alias with empty name - verify error -2147473897
-            3.2 Test topic operations with empty identifiers
-                3.2.1 CREATE TOPIC with empty name - verify error -2147473897
-                3.2.2 DROP TOPIC with empty name - verify error -2147473897
-                3.2.3 Topic subscription with empty name - verify error -2147473897
-                3.2.4 Topic reference with empty name - verify error -2147473897
+        3. Test [Data Manipulation] with Empty Identifiers
+            3.1 insert into `` select * from t0 - verify error -2147473897
+            3.2 insert into t100 using `` tags('', '') values(1,1,1) - verify error -2147473897
+            3.3 insert into `` values(1,1,1) - verify error -2147473897
 
-        4. Test [Function and Expression] Empty Identifier Validation
-            4.1 Test function calls with empty identifiers
-                4.1.1 User-defined function with empty name - verify error -2147473897
-                4.1.2 Function parameter with empty name - verify error -2147473897
-                4.1.3 Aggregate function alias with empty name - verify error -2147473897
-                4.1.4 Window function alias with empty name - verify error -2147473897
-            4.2 Test expression components with empty identifiers
-                4.2.1 Variable reference with empty name - verify error -2147473897
-                4.2.2 Alias specification with empty name - verify error -2147473897
-                4.2.3 Label specification with empty name - verify error -2147473897
-                4.2.4 Parameter binding with empty name - verify error -2147473897
+        4. Test [View Operations] with Empty Identifiers
+            4.1 create view `` as select count(*) from meters interval(10s) - verify error -2147473897
+            4.2 create view ``.view1 as select count(*) from meters - verify error -2147473897
+            4.3 drop view `` - verify error -2147473897
+            4.4 drop view ``.st1 - verify error -2147473897
 
-        5. Test [Complex SQL Constructs] Empty Identifier Validation
-            5.1 Test JOIN operations with empty identifiers
-                5.1.1 Table alias in JOIN with empty name - verify error -2147473897
-                5.1.2 Column alias in JOIN with empty name - verify error -2147473897
-                5.1.3 JOIN condition with empty column name - verify error -2147473897
-                5.1.4 Subquery alias with empty name - verify error -2147473897
-            5.2 Test window operations with empty identifiers
-                5.2.1 PARTITION BY with empty column name - verify error -2147473897
-                5.2.2 ORDER BY with empty column name - verify error -2147473897
-                5.2.3 Window alias with empty name - verify error -2147473897
-                5.2.4 Window frame specification with empty reference - verify error -2147473897
+        5. Test [TSMA Operations] with Empty Identifiers
+            5.1 create tsma `` on meters function(count(c1)) interval(1m) - verify error -2147473897
+            5.2 create tsma tsma1 on `` function(count(c1)) interval(1m) - verify error -2147473897
 
-        6. Test [Data Manipulation] Empty Identifier Validation
-            6.1 Test INSERT operations with empty identifiers
-                6.1.1 INSERT INTO with empty table name - verify error -2147473897
-                6.1.2 Column list with empty column name - verify error -2147473897
-                6.1.3 Value alias with empty name - verify error -2147473897
-                6.1.4 Source table with empty name - verify error -2147473897
-            6.2 Test UPDATE/DELETE operations with empty identifiers
-                6.2.1 UPDATE with empty table name - verify error -2147473897
-                6.2.2 DELETE FROM with empty table name - verify error -2147473897
-                6.2.3 SET clause with empty column name - verify error -2147473897
-                6.2.4 WHERE clause with empty column name - verify error -2147473897
+        6. Test [Stream Operations] with Empty Identifiers
+            6.1 create stream `` interval(10s) sliding(10s) from meters into st1 as select count(*) from meters - verify error -2147473897
+            6.2 create stream stream1 interval(10s) sliding(10s) from meters into `` as select count(*) from meters - verify error -2147473897
+            6.3 create stream stream1 interval(10s) sliding(10s) from meters into st1 as select count(*) from `` - verify error -2147473897
+            6.4 create stream stream1 interval(10s) sliding(10s) from meters stream_options(max_delay(100s)) into st1 as select count(*) from `` - verify error -2147473897
+            6.5 create stream stream1 interval(10s) sliding(10s) from `` stream_options(max_delay(100s)) into st1 as select count(*) from meters - verify error -2147473897
 
-        7. Test [Index and Constraint] Empty Identifier Validation
-            7.1 Test index operations with empty identifiers
-                7.1.1 CREATE INDEX with empty name - verify error -2147473897
-                7.1.2 DROP INDEX with empty name - verify error -2147473897
-                7.1.3 Index column with empty name - verify error -2147473897
-                7.1.4 Index reference with empty name - verify error -2147473897
-            7.2 Test constraint operations with empty identifiers
-                7.2.1 Primary key constraint with empty name - verify error -2147473897
-                7.2.2 Foreign key constraint with empty name - verify error -2147473897
-                7.2.3 Check constraint with empty name - verify error -2147473897
-                7.2.4 Unique constraint with empty name - verify error -2147473897
+        7. Test [Topic Operations] with Empty Identifiers
+            7.1 create topic `` as select count(*) from meters interval(10s) - verify error -2147473897
+            7.2 drop topic `` - verify error -2147473897
 
-        8. Test [Error Consistency and Recovery]
-            8.1 Test error code consistency
-                8.1.1 All empty identifier scenarios return -2147473897
-                8.1.2 Error message format consistency
-                8.1.3 Error context information accuracy
-                8.1.4 Error recovery mechanisms
-            8.2 Test parsing and validation behavior
-                8.2.1 Early error detection in parsing phase
-                8.2.2 Graceful error handling without crashes
-                8.2.3 Connection stability after errors
-                8.2.4 Transaction rollback behavior on errors
+        8. Test [Error Code Verification] for All Cases
+            8.1 Execute all 28 SQL statements with empty identifiers
+            8.2 Verify each returns exact error code -2147473897
+            8.3 Confirm error message consistency
+            8.4 Validate connection stability after errors
 
         Catalog:
             - SQL:SyntaxValidation:EmptyIdentifier

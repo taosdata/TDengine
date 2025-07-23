@@ -49,123 +49,63 @@ class TestStreamCompatibility:
     def test_stream_compatibility(self):
         """Stream Processing Cross-Version Compatibility Test
 
-        Test stream processing compatibility across different TDengine versions and scenarios:
+        Test stream processing compatibility across 4 base versions with actual stream creation and verification:
 
-        1. Test [Cross-Version Data Format] Compatibility
-            1.1 Test stream metadata compatibility
-                1.1.1 Stream definition persistence across versions
-                1.1.2 Stream state migration between versions
-                1.1.3 Stream configuration compatibility validation
-                1.1.4 Metadata schema evolution handling
-            1.2 Test data format compatibility
-                1.2.1 Source table schema compatibility
-                1.2.2 Target table schema compatibility
-                1.2.3 Timestamp precision compatibility
-                1.2.4 Data type mapping across versions
+        1. Test [v3.3.3.0 Version Compatibility]
+            1.1 Install v3.3.3.0 enterprise package and create old format streams
+                1.1.1 Create avg_stream: INTERVAL(5s) aggregation on meters table
+                1.1.2 Create max_stream: trigger at_once with MAX aggregation by tbname
+                1.1.3 Create count_stream: INTERVAL(10s) with WHERE voltage > 10 filter
+            1.2 Verify new version startup behavior with old streams
+                1.2.1 Attempt to start new version (should fail due to incompatible streams)
+                1.2.2 Verify stream incompatibility detection
+            1.3 Clean up old streams and create new format streams
+                1.3.1 Create s_interval: INTERVAL(5s) SLIDING(5s) with trigger/source separation
+                1.3.2 Create s_count: COUNT_WINDOW(5) with %%trows reference
+                1.3.3 Create s_period: PERIOD(30s) with cross-database computation
+                1.3.4 Create s_session: SESSION(ts, 5s) with window boundary functions
 
-        2. Test [Stream Processing Engine] Compatibility
-            2.1 Test window function compatibility
-                2.1.1 INTERVAL window behavior consistency
-                2.1.2 SESSION window behavior consistency
-                2.1.3 STATE_WINDOW behavior consistency
-                2.1.4 EVENT_WINDOW behavior consistency
-            2.2 Test aggregation function compatibility
-                2.2.1 Built-in aggregation functions consistency
-                2.2.2 Window-specific aggregation behavior
-                2.2.3 Custom aggregation function compatibility
-                2.2.4 Aggregation result precision compatibility
-            2.3 Test trigger mechanism compatibility
-                2.3.1 Time-based trigger compatibility
-                2.3.2 Count-based trigger compatibility
-                2.3.3 Event-based trigger compatibility
-                2.3.4 Mixed trigger condition compatibility
+        2. Test [v3.3.4.0 Version Compatibility]
+            2.1 Install v3.3.4.0 enterprise package and create old format streams
+                2.1.1 Create avg_stream: INTERVAL(5s) aggregation on meters table
+                2.1.2 Create max_stream: trigger at_once with MAX aggregation by tbname
+                2.1.3 Create count_stream: INTERVAL(10s) with WHERE voltage > 10 filter
+            2.2 Verify new version startup behavior with old streams
+                2.2.1 Attempt to start new version (should fail due to incompatible streams)
+                2.2.2 Verify stream incompatibility detection
+            2.3 Clean up old streams and create new format streams
+                2.3.1 Create s_interval: INTERVAL(5s) SLIDING(5s) with trigger/source separation
+                2.3.2 Create s_count: COUNT_WINDOW(5) with %%trows reference
+                2.3.3 Create s_period: PERIOD(30s) with cross-database computation
+                2.3.4 Create s_session: SESSION(ts, 5s) with window boundary functions
 
-        3. Test [Stream Options and Features] Compatibility
-            3.1 Test stream creation options compatibility
-                3.1.1 WATERMARK option across versions
-                3.1.2 EXPIRED_TIME option across versions
-                3.1.3 IGNORE_DISORDER option across versions
-                3.1.4 DELETE_RECALC option across versions
-            3.2 Test stream output options compatibility
-                3.2.1 OUTPUT_SUBTABLE option compatibility
-                3.2.2 PRIMARY KEY specification compatibility
-                3.2.3 TAGS definition compatibility
-                3.2.4 Target table creation compatibility
-            3.3 Test advanced features compatibility
-                3.3.1 Manual recalculation compatibility
-                3.3.2 Stream pause/resume compatibility
-                3.3.3 Stream monitoring compatibility
-                3.3.4 Error handling compatibility
+        3. Test [v3.3.5.0 Version Compatibility]
+            3.1 Install v3.3.5.0 enterprise package and create old format streams
+                3.1.1 Create avg_stream: INTERVAL(5s) aggregation on meters table
+                3.1.2 Create max_stream: trigger at_once with MAX aggregation by tbname
+                3.1.3 Create count_stream: INTERVAL(10s) with WHERE voltage > 10 filter
+            3.2 Verify new version startup behavior with old streams
+                3.2.1 Attempt to start new version (should fail due to incompatible streams)
+                3.2.2 Verify stream incompatibility detection
+            3.3 Clean up old streams and create new format streams
+                3.3.1 Create s_interval: INTERVAL(5s) SLIDING(5s) with trigger/source separation
+                3.3.2 Create s_count: COUNT_WINDOW(5) with %%trows reference
+                3.3.3 Create s_period: PERIOD(30s) with cross-database computation
+                3.3.4 Create s_session: SESSION(ts, 5s) with window boundary functions
 
-        4. Test [Upgrade and Migration] Scenarios
-            4.1 Test in-place upgrade compatibility
-                4.1.1 Stream continuity during upgrade
-                4.1.2 Data consistency after upgrade
-                4.1.3 Performance consistency after upgrade
-                4.1.4 Configuration migration validation
-            4.2 Test rolling upgrade compatibility
-                4.2.1 Stream operation during rolling upgrade
-                4.2.2 Cross-version coordination during upgrade
-                4.2.3 Failover behavior during upgrade
-                4.2.4 Recovery after upgrade completion
-            4.3 Test migration scenarios
-                4.3.1 Stream definition export/import
-                4.3.2 Historical data migration
-                4.3.3 Stream state transfer
-                4.3.4 Configuration compatibility validation
-
-        5. Test [Client Library] Compatibility
-            5.1 Test REST API compatibility
-                5.1.1 Stream creation API consistency
-                5.1.2 Stream management API consistency
-                5.1.3 Stream monitoring API consistency
-                5.1.4 Error response format consistency
-            5.2 Test native client compatibility
-                5.2.1 C client library compatibility
-                5.2.2 Python client library compatibility
-                5.2.3 Java client library compatibility
-                5.2.4 Go client library compatibility
-            5.3 Test SQL interface compatibility
-                5.3.1 SQL syntax compatibility
-                5.3.2 Function signature compatibility
-                5.3.3 Result set format compatibility
-                5.3.4 Error message consistency
-
-        6. Test [Performance and Scalability] Compatibility
-            6.1 Test performance regression detection
-                6.1.1 Throughput consistency across versions
-                6.1.2 Latency consistency across versions
-                6.1.3 Memory usage consistency
-                6.1.4 CPU utilization consistency
-            6.2 Test scalability compatibility
-                6.2.1 Horizontal scaling behavior
-                6.2.2 Vertical scaling behavior
-                6.2.3 Resource limit handling
-                6.2.4 Concurrent stream processing
-
-        7. Test [Error Handling and Recovery] Compatibility
-            7.1 Test error handling consistency
-                7.1.1 SQL error handling compatibility
-                7.1.2 Runtime error handling compatibility
-                7.1.3 System error handling compatibility
-                7.1.4 Network error handling compatibility
-            7.2 Test recovery mechanism compatibility
-                7.2.1 Stream recovery after failure
-                7.2.2 Data consistency after recovery
-                7.2.3 State restoration compatibility
-                7.2.4 Checkpoint/restart compatibility
-
-        8. Test [Specific Version Combinations]
-            8.1 Test baseline version compatibility
-                8.1.1 v3.3.3.0 compatibility validation
-                8.1.2 v3.3.4.0 compatibility validation
-                8.1.3 v3.3.5.0 compatibility validation
-                8.1.4 v3.3.6.0 compatibility validation
-            8.2 Test upgrade path validation
-                8.2.1 Sequential version upgrades
-                8.2.2 Skip version upgrades
-                8.2.3 Rollback compatibility
-                8.2.4 Emergency recovery procedures
+        4. Test [v3.3.6.0 Version Compatibility]
+            4.1 Install v3.3.6.0 enterprise package and create old format streams
+                4.1.1 Create avg_stream: INTERVAL(5s) aggregation on meters table
+                4.1.2 Create max_stream: trigger at_once with MAX aggregation by tbname
+                4.1.3 Create count_stream: INTERVAL(10s) with WHERE voltage > 10 filter
+            4.2 Verify new version startup behavior with old streams
+                4.2.1 Attempt to start new version (should fail due to incompatible streams)
+                4.2.2 Verify stream incompatibility detection
+            4.3 Clean up old streams and create new format streams
+                4.3.1 Create s_interval: INTERVAL(5s) SLIDING(5s) with trigger/source separation
+                4.3.2 Create s_count: COUNT_WINDOW(5) with %%trows reference
+                4.3.3 Create s_period: PERIOD(30s) with cross-database computation
+                4.3.4 Create s_session: SESSION(ts, 5s) with window boundary functions
 
         Catalog:
             - Streams:Compatibility:CrossVersion

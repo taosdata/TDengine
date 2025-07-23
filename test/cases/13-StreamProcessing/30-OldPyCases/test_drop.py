@@ -15,108 +15,53 @@ class TestStreamDrop:
     def test_stream_drop(self):
         """Stream Processing Drop Operations Test
 
-        Test comprehensive drop operations and their impact on stream processing ecosystem:
+        Test drop operations on tables with special characters and batch drop operations:
 
-        1. Test [Source Table Drop] Impact on Streams
-            1.1 Test normal table drop with active streams
-                1.1.1 Drop source table with running stream - verify stream behavior
-                1.1.2 Drop source table with paused stream - verify stream state
-                1.1.3 Drop source table with multiple dependent streams
-                1.1.4 Drop source table with cross-database stream references
-            1.2 Test super table drop with active streams
-                1.2.1 Drop super table with child table streams - verify cascade behavior
-                1.2.2 Drop super table with direct super table streams
-                1.2.3 Drop super table with mixed stream dependencies
-                1.2.4 Drop super table with partition-based streams
-            1.3 Test child table drop with active streams
-                1.3.1 Drop individual child table used in stream
-                1.3.2 Drop multiple child tables simultaneously
-                1.3.3 Drop child table affecting window computations
-                1.3.4 Drop child table with tag-based stream filtering
+        1. Test [Normal Table Drop] Operations
+            1.1 Create and drop normal table with timestamp column
+                1.1.1 Create table with 20 child tables using super table
+                1.1.2 Insert 10 rows per child table
+                1.1.3 Query and verify data by timestamp column
+                1.1.4 Drop each child table individually
+            1.2 Test drop with flush database operations
+                1.2.1 Recreate child tables after drop
+                1.2.2 Insert data again and query
+                1.2.3 Verify data consistency after flush
+                1.2.4 Drop super table and recreate
 
-        2. Test [Target Table Drop] Impact on Streams
-            2.1 Test stream output table drop scenarios
-                2.1.1 Drop stream target table - verify stream error handling
-                2.1.2 Drop target table with ongoing stream computation
-                2.1.3 Drop target table with buffered stream results
-                2.1.4 Drop target table and verify recreation behavior
-            2.2 Test output subtable drop scenarios
-                2.2.1 Drop individual output subtable
-                2.2.2 Drop multiple output subtables
-                2.2.3 Drop output subtable with active partitioning
-                2.2.4 Drop output subtable affecting aggregation results
+        2. Test [Special Character Table Names] Drop Operations
+            2.1 Create databases and tables with special names
+                2.1.1 Create databases: dbtest_0, dbtest_1 with vgroups 4
+                2.1.2 Create super table with Unicode name: aa\u00bf\u200bstb0
+                2.1.3 Create child tables with special names: aa\u00bf\u200bctb0, aa\u00bf\u200bctb1
+                2.1.4 Create normal tables with special names: aa\u00bf\u200bntb0, aa\u00bf\u200bntb1
+            2.2 Test drop operations with special character handling
+                2.2.1 Insert data into tables with special names
+                2.2.2 Query data using backticks for table names
+                2.2.3 Drop tables with special character names
+                2.2.4 Clean up databases after testing
 
-        3. Test [Stream Object Drop] Operations
-            3.1 Test direct stream drop operations
-                3.1.1 Drop active stream - verify graceful shutdown
-                3.1.2 Drop paused stream - verify cleanup
-                3.1.3 Drop stream with pending computations
-                3.1.4 Drop stream with error state
-            3.2 Test cascading stream drop scenarios
-                3.2.1 Drop database containing streams
-                3.2.2 Drop all streams simultaneously
-                3.2.3 Drop streams with interdependencies
-                3.2.4 Drop stream affecting downstream consumers
+        3. Test [Batch Drop Operations] with Super Tables
+            3.1 Query information_schema.ins_stables for batch operations
+                3.1.1 Find stable information across test databases
+                3.1.2 Verify stable count equals 2 (one per database)
+                3.1.3 Extract database and stable names for batch operations
+            3.2 Test batch drop with error scenarios
+                3.2.1 Test "drop table with" invalid table names (should error)
+                3.2.2 Test "drop stable with" non-existent tables (should error)
+                3.2.3 Test "drop stable with" space-containing names (should error)
+                3.2.4 Verify error message: "Cannot drop super table in batch"
 
-        4. Test [Database Drop] Impact on Stream Ecosystem
-            4.1 Test source database drop scenarios
-                4.1.1 Drop database containing stream source tables
-                4.1.2 Drop database with cross-database stream references
-                4.1.3 Drop database with shared source tables
-                4.1.4 Drop database affecting multiple stream computations
-            4.2 Test target database drop scenarios
-                4.2.1 Drop database containing stream target tables
-                4.2.2 Drop database with stream output tables
-                4.2.3 Drop database affecting stream result storage
-                4.2.4 Drop database with mixed stream dependencies
-
-        5. Test [Drop Operations with Special Characters] and Edge Cases
-            5.1 Test drop operations with special table names
-                5.1.1 Drop tables with Unicode characters in names
-                5.1.2 Drop tables with special symbols in names
-                5.1.3 Drop tables with reserved keywords as names
-                5.1.4 Drop tables with escaped identifier names
-            5.2 Test drop operations with complex naming scenarios
-                5.2.1 Drop tables with very long names
-                5.2.2 Drop tables with case-sensitive names
-                5.2.3 Drop tables with numeric prefixes
-                5.2.4 Drop tables with mixed character sets
-
-        6. Test [Concurrent Drop Operations] and Race Conditions
-            6.1 Test concurrent table drop scenarios
-                6.1.1 Multiple clients dropping same table simultaneously
-                6.1.2 Concurrent drop operations on related tables
-                6.1.3 Drop operation during active stream computation
-                6.1.4 Drop operation during stream window evaluation
-            6.2 Test transaction isolation for drop operations
-                6.2.1 Drop operation within transaction scope
-                6.2.2 Rollback behavior for failed drop operations
-                6.2.3 Concurrent transaction drop operations
-                6.2.4 Deadlock detection and resolution
-
-        7. Test [Error Handling and Recovery] for Drop Operations
-            7.1 Test drop operation error scenarios
-                7.1.1 Drop non-existent table - verify error handling
-                7.1.2 Drop table with insufficient permissions
-                7.1.3 Drop table with active locks
-                7.1.4 Drop table during system maintenance
-            7.2 Test recovery after failed drop operations
-                7.2.1 Stream state recovery after failed table drop
-                7.2.2 Data consistency verification after drop failures
-                7.2.3 Metadata cleanup after partial drop operations
-                7.2.4 Connection stability after drop errors
-
-        8. Test [Performance and Resource] Impact of Drop Operations
-            8.1 Test performance impact of drop operations
-                8.1.1 Large table drop performance measurement
-                8.1.2 Multiple table drop performance analysis
-                8.1.3 Stream-dependent drop operation latency
-                8.1.4 Resource utilization during drop operations
-            8.2 Test cleanup and resource reclamation
-                8.2.1 Memory cleanup after table drop
-                8.2.2 Disk space reclamation verification
-                8.2.3 Stream state cleanup after drop operations
-                8.2.4 Cache invalidation after drop operations
+        4. Test [Error Handling] for Drop Operations
+            4.1 Test error messages for invalid drop operations
+                4.1.1 "Table does not exist" for invalid table drop
+                4.1.2 "STable not exist" for invalid stable drop
+                4.1.3 "Cannot drop super table in batch" for batch stable drop
+            4.2 Repeat error tests multiple times
+                4.2.1 Execute each error scenario 5 times
+                4.2.2 Verify consistent error handling
+                4.2.3 Check error message consistency
+                4.2.4 Validate connection stability after errors
 
         Catalog:
             - Streams:Operations:Drop

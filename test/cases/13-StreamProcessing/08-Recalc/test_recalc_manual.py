@@ -11,116 +11,27 @@ class TestStreamRecalcManual:
     def test_stream_recalc_manual(self):
         """Stream Manual Recalculation Test
 
-        Test manual recalculation functionality across different scenarios and window types:
+        Test manual recalculation functionality for four different window types, verifying the recalculate stream command in various window scenarios:
 
-        1. Test [Manual Recalculation Command] Syntax and Validation
-            1.1 Test command syntax validation
-                1.1.1 Valid RECALC command with start and end time
-                1.1.2 Valid RECALC command with start time only
-                1.1.3 Invalid command syntax - verify error handling
-                1.1.4 Missing stream name - verify error handling
-            1.2 Test timestamp parameter validation
-                1.2.1 Valid timestamp formats (ISO, Unix, etc.)
-                1.2.2 Invalid timestamp formats - verify error handling
-                1.2.3 Future timestamps - verify behavior
-                1.2.4 Boundary timestamp values
+        1. INTERVAL Window Stream Manual Recalculation Test
+            1.1 Create interval(2m) sliding(2m) stream (s_interval_manual)
+            1.2 Insert test data and execute recalculation from specified time point
+            1.3 Verify data correctness in result table after recalculation
 
-        2. Test [Time Range Specification] Scenarios
-            2.1 Test explicit time range recalculation
-                2.1.1 Recalc with specific start and end time
-                2.1.2 Recalc with start time and duration
-                2.1.3 Multiple non-overlapping time ranges
-                2.1.4 Overlapping time range handling
-            2.2 Test open-ended time range recalculation
-                2.2.1 Recalc from start time to current time
-                2.2.2 Recalc from start time to latest data
-                2.2.3 Continuous recalculation scenarios
-                2.2.4 Real-time data interaction during recalc
-            2.3 Test time range edge cases
-                2.3.1 Zero-duration time range
-                2.3.2 Very large time range spanning years
-                2.3.3 Time range with no existing data
-                2.3.4 Time range partially overlapping with data
+        2. SESSION Window Stream Manual Recalculation Test
+            2.1 Create session(ts,45s) stream (s_session_manual)
+            2.2 Insert test data and execute recalculation from specified time point
+            2.3 Verify session window data correctness after recalculation
 
-        3. Test [Window Type Behavior] with Manual Recalculation
-            3.1 Test INTERVAL windows manual recalculation
-                3.1.1 Recalc specific interval windows
-                3.1.2 Recalc overlapping sliding windows
-                3.1.3 Partial window recalculation
-                3.1.4 Window boundary handling during recalc
-            3.2 Test SESSION windows manual recalculation
-                3.2.1 Recalc complete sessions within time range
-                3.2.2 Recalc partial sessions at range boundaries
-                3.2.3 Session gap recalculation
-                3.2.4 Session timeout interaction with recalc
-            3.3 Test STATE_WINDOW manual recalculation
-                3.3.1 Recalc state windows within time range
-                3.3.2 State transition recalculation
-                3.3.3 State boundary adjustment during recalc
-                3.3.4 State consistency after recalculation
-            3.4 Test EVENT_WINDOW manual recalculation
-                3.4.1 Recalc event windows within time range
-                3.4.2 Event sequence recalculation
-                3.4.3 Incomplete event window handling
-                3.4.4 Event condition re-evaluation
+        3. STATE_WINDOW Stream Manual Recalculation Test
+            3.1 Create state_window(status) stream (s_state_manual)
+            3.2 Insert test data and execute recalculation for specified time range
+            3.3 Verify state window data correctness after recalculation
 
-        4. Test [Data Modification Impact] on Manual Recalculation
-            4.1 Test recalculation after data insertion
-                4.1.1 Insert new data before manual recalc
-                4.1.2 Insert data during manual recalc process
-                4.1.3 Insert data in recalculated time range
-                4.1.4 Concurrent insertion and recalculation
-            4.2 Test recalculation after data update
-                4.2.1 Update existing data before recalc
-                4.2.2 Update data during recalc process
-                4.2.3 Update affecting recalculated windows
-                4.2.4 Batch update impact on recalculation
-            4.3 Test recalculation after data deletion
-                4.3.1 Delete data before manual recalc
-                4.3.2 Delete data during recalc process
-                4.3.3 Delete affecting recalculated results
-                4.3.4 Cascading deletion impact
-
-        5. Test [Performance and Resource Management]
-            5.1 Test large-scale manual recalculation
-                5.1.1 Recalc large time ranges with massive data
-                5.1.2 Resource usage monitoring during recalc
-                5.1.3 Memory management for large recalculations
-                5.1.4 CPU utilization optimization
-            5.2 Test concurrent recalculation scenarios
-                5.2.1 Multiple manual recalc commands
-                5.2.2 Manual recalc with automatic recalc
-                5.2.3 Parallel recalc on different streams
-                5.2.4 Resource contention handling
-            5.3 Test recalculation interruption and recovery
-                5.3.1 Manual interruption of recalc process
-                5.3.2 System restart during recalculation
-                5.3.3 Network failure during recalc
-                5.3.4 Recovery and consistency verification
-
-        6. Test [Result Verification and Consistency]
-            6.1 Test recalculation result accuracy
-                6.1.1 Compare recalc results with original computation
-                6.1.2 Verify aggregation correctness after recalc
-                6.1.3 Check window boundary accuracy
-                6.1.4 Validate timestamp precision in results
-            6.2 Test output table consistency
-                6.2.1 Target table state before and after recalc
-                6.2.2 Duplicate result handling
-                6.2.3 Result ordering after recalculation
-                6.2.4 Metadata consistency verification
-
-        7. Test [Error Handling and Edge Cases]
-            7.1 Test invalid recalculation scenarios
-                7.1.1 Recalc on non-existent stream
-                7.1.2 Recalc with insufficient permissions
-                7.1.3 Recalc on stopped or failed stream
-                7.1.4 Recalc with corrupted stream metadata
-            7.2 Test resource limitation scenarios
-                7.2.1 Recalc with insufficient disk space
-                7.2.2 Recalc with memory constraints
-                7.2.3 Recalc with CPU limitations
-                7.2.4 Graceful degradation handling
+        4. EVENT_WINDOW Stream Manual Recalculation Test
+            4.1 Create event_window(start with event_val >= 5 end with event_val > 10) stream (s_event_manual)
+            4.2 Verify initial computation results for event window
+            4.3 Test event window manual recalculation functionality (currently blocked by TD-36691)
 
         Catalog:
             - Streams:Recalculation:Manual

@@ -11,103 +11,27 @@ class TestStreamRecalcWithOptions:
     def test_stream_recalc_with_options(self):
         """Stream Manual Recalculation with Options Test
 
-        Test manual recalculation functionality combined with various stream options and their interactions:
+        Test manual recalculation functionality combined with four different stream options:
 
-        1. Test [Manual Recalculation with WATERMARK] Option Integration
-            1.1 Test WATERMARK tolerance during manual recalculation
-                1.1.1 Manual recalc within watermark tolerance - verify enhanced processing
-                1.1.2 Manual recalc beyond watermark tolerance - verify forced processing
-                1.1.3 WATERMARK option ignored during manual recalc - verify bypass
-                1.1.4 Watermark reset after manual recalculation completion
-            1.2 Test time range interaction with WATERMARK
-                1.2.1 Recalc time range overlapping with watermark window
-                1.2.2 Recalc time range completely within watermark tolerance
-                1.2.3 Recalc time range extending beyond watermark boundaries
-                1.2.4 Multiple recalc ranges with different watermark interactions
+        1. Manual Recalculation with WATERMARK Option Test
+            1.1 Create interval(2m) sliding(2m) stream with watermark(30s) (s_watermark_interval)
+            1.2 Test manual recalculation behavior within watermark tolerance
+            1.3 Verify watermark option interaction with manual recalc commands
 
-        2. Test [Manual Recalculation with EXPIRED_TIME] Option Integration
-            2.1 Test expired data handling during manual recalculation
-                2.1.1 Manual recalc forcing processing of expired data
-                2.1.2 EXPIRED_TIME option overridden by manual recalc
-                2.1.3 Expired data boundary cases during manual recalc
-                2.1.4 Performance impact of processing expired data manually
-            2.2 Test expiration policy interaction
-                2.2.1 Recalc reviving expired windows through manual trigger
-                2.2.2 Expired data inclusion/exclusion control in manual recalc
-                2.2.3 Timestamp validation for expired data in manual recalc
-                2.2.4 Resource usage optimization with expired data processing
+        2. Manual Recalculation with EXPIRED_TIME Option Test
+            2.1 Create interval(2m) sliding(2m) stream with expired_time(5m) (s_expired_interval)
+            2.2 Test manual recalculation for expired data processing
+            2.3 Verify expired_time option behavior during manual recalc
 
-        3. Test [Manual Recalculation with IGNORE_DISORDER] Option Integration
-            3.1 Test disorder handling during manual recalculation
-                3.1.1 Manual recalc processing previously ignored out-of-order data
-                3.1.2 IGNORE_DISORDER option bypassed during manual recalc
-                3.1.3 Order restoration through manual recalculation
-                3.1.4 Disorder correction verification after manual recalc
-            3.2 Test data consistency restoration
-                3.2.1 Manual recalc correcting disorder-induced inconsistencies
-                3.2.2 Window boundary corrections through manual recalc
-                3.2.3 State transition corrections with manual recalc
-                3.2.4 Aggregate result accuracy improvement
+        3. Manual Recalculation with IGNORE_DISORDER Option Test
+            3.1 Create interval(2m) sliding(2m) stream with ignore_disorder (s_disorder_interval)
+            3.2 Test manual recalculation for previously ignored out-of-order data
+            3.3 Verify disorder handling during manual recalc operations
 
-        4. Test [Manual Recalculation without DELETE_RECALC] Option
-            4.1 Test deletion impact on manual recalculation
-                4.1.1 Manual recalc after data deletion without DELETE_RECALC
-                4.1.2 Deleted data impact detection through manual recalc
-                4.1.3 Window recalculation accounting for deleted data
-                4.1.4 Consistency verification after manual recalc with deletions
-            4.2 Test deletion recovery scenarios
-                4.2.1 Manual recalc compensating for missing DELETE_RECALC
-                4.2.2 Data integrity restoration through manual recalc
-                4.2.3 Window state correction after unhandled deletions
-                4.2.4 Performance comparison with and without DELETE_RECALC
-
-        5. Test [Combined Options] with Manual Recalculation
-            5.1 Test multiple option interactions during manual recalc
-                5.1.1 WATERMARK + EXPIRED_TIME + manual recalc interaction
-                5.1.2 IGNORE_DISORDER + WATERMARK + manual recalc combination
-                5.1.3 All options combined with manual recalc - comprehensive test
-                5.1.4 Option precedence verification during manual recalc
-            5.2 Test complex scenario handling
-                5.2.1 Manual recalc with conflicting option requirements
-                5.2.2 Option override mechanisms during manual recalc
-                5.2.3 Fallback behavior when options conflict with manual recalc
-                5.2.4 Error handling for incompatible option combinations
-
-        6. Test [Performance Optimization] with Options and Manual Recalc
-            6.1 Test resource utilization optimization
-                6.1.1 Memory usage optimization during option-enhanced manual recalc
-                6.1.2 CPU utilization patterns with different option combinations
-                6.1.3 I/O optimization strategies for manual recalc with options
-                6.1.4 Parallel processing capabilities with option interactions
-            6.2 Test scalability with options
-                6.2.1 Large-scale manual recalc performance with options
-                6.2.2 Option impact on manual recalc throughput
-                6.2.3 Resource scaling requirements for option combinations
-                6.2.4 Performance degradation thresholds with options
-
-        7. Test [Result Verification and Consistency] with Options
-            7.1 Test result accuracy with option-enhanced manual recalc
-                7.1.1 Aggregation correctness verification with all options
-                7.1.2 Window boundary accuracy with option interactions
-                7.1.3 Timestamp precision maintenance across option processing
-                7.1.4 State consistency verification after option-enhanced recalc
-            7.2 Test output consistency across scenarios
-                7.2.1 Result comparison: automatic vs manual recalc with options
-                7.2.2 Deterministic result verification across multiple runs
-                7.2.3 Option-specific result validation patterns
-                7.2.4 Consistency guarantees with option combinations
-
-        8. Test [Error Handling and Recovery] with Options
-            8.1 Test error scenarios with option combinations
-                8.1.1 Invalid option combinations during manual recalc
-                8.1.2 Resource exhaustion scenarios with option processing
-                8.1.3 Timeout handling for long-running option-enhanced recalc
-                8.1.4 Partial failure recovery with option interactions
-            8.2 Test system recovery and consistency
-                8.2.1 Recovery from failed manual recalc with options
-                8.2.2 State restoration after option-related failures
-                8.2.3 Consistency verification after error recovery
-                8.2.4 Graceful degradation with option failures
+        4. Manual Recalculation without DELETE_RECALC Option Test
+            4.1 Create interval(2m) sliding(2m) stream without DELETE_RECALC (s_delete_interval)
+            4.2 Test manual recalculation behavior after data deletion
+            4.3 Verify recalculation consistency without automatic deletion handling
 
         Catalog:
             - Streams:Recalculation:ManualWithOptions

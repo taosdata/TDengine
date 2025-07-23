@@ -11,113 +11,37 @@ class TestStreamRecalcWatermark:
     def test_stream_recalc_watermark(self):
         """Stream Recalculation WATERMARK Option Test
 
-        Test WATERMARK option behavior with out-of-order data and tolerance mechanisms:
+        Test WATERMARK option behavior with six different window types and out-of-order data handling:
 
-        1. Test [WATERMARK] Option Specification and Validation
-            1.1 Test option syntax validation
-                1.1.1 Valid WATERMARK values with time units (ms, s, m, h)
-                1.1.2 Invalid WATERMARK syntax - verify error handling
-                1.1.3 Zero WATERMARK value - verify immediate processing
-                1.1.4 Negative WATERMARK value - verify error handling
-            1.2 Test option value boundaries
-                1.2.1 Minimum valid WATERMARK value
-                1.2.2 Maximum valid WATERMARK value
-                1.2.3 Very large WATERMARK values - verify memory impact
-                1.2.4 WATERMARK precision validation
+        1. INTERVAL Window with WATERMARK Test
+            1.1 Create interval(2m) sliding(2m) stream with watermark(45s) (s_interval_watermark)
+            1.2 Test out-of-order data handling within watermark tolerance
+            1.3 Verify recalculation triggered by data within watermark window
 
-        2. Test [Out-of-Order Data Processing] Within WATERMARK Tolerance
-            2.1 Test INTERVAL windows with WATERMARK
-                2.1.1 Data within watermark tolerance - should trigger recalculation
-                2.1.2 Data exactly at watermark boundary - verify boundary behavior
-                2.1.3 Multiple out-of-order records within tolerance
-                2.1.4 Sliding window recalculation with watermark
-            2.2 Test SESSION windows with WATERMARK
-                2.2.1 Session data within watermark - should extend/modify sessions
-                2.2.2 Out-of-order data creating new sessions within tolerance
-                2.2.3 Session gap bridging with watermark tolerance
-                2.2.4 Session timeout vs watermark interaction
-            2.3 Test STATE_WINDOW with WATERMARK
-                2.3.1 State changes within watermark - should trigger recalculation
-                2.3.2 Out-of-order state transitions within tolerance
-                2.3.3 State window boundary adjustments
-                2.3.4 State persistence with watermark tolerance
-            2.4 Test EVENT_WINDOW with WATERMARK
-                2.4.1 Event data within watermark - should trigger recalculation
-                2.4.2 Out-of-order events affecting window conditions
-                2.4.3 Event sequence reordering within tolerance
-                2.4.4 Event window completion with delayed events
+        2. SESSION Window with WATERMARK Test
+            2.1 Create session(ts,45s) stream with watermark(1m) (s_session_watermark)
+            2.2 Test session modification with out-of-order data within tolerance
+            2.3 Verify session window recalculation behavior
 
-        3. Test [Out-of-Order Data Beyond] WATERMARK Tolerance
-            3.1 Test late data handling behavior
-                3.1.1 Data beyond watermark tolerance - verify processing behavior
-                3.1.2 Severely late data handling - verify system response
-                3.1.3 Mixed timing data (within and beyond tolerance)
-                3.1.4 Late data impact on closed windows
-            3.2 Test late data processing strategies
-                3.2.1 Late data ignored - verify no recalculation
-                3.2.2 Late data processed with warnings
-                3.2.3 Late data triggering manual recalculation
-                3.2.4 Late data affecting stream health monitoring
+        3. STATE_WINDOW with WATERMARK Test
+            3.1 Create state_window(status) stream with watermark(45s) (s_state_watermark)
+            3.2 Test state window recalculation with delayed state changes
+            3.3 Verify state transition handling within watermark tolerance
 
-        4. Test [WATERMARK Timing Mechanisms]
-            4.1 Test watermark advancement strategies
-                4.1.1 Time-based watermark advancement
-                4.1.2 Data-driven watermark advancement
-                4.1.3 Hybrid watermark advancement approaches
-                4.1.4 Watermark advancement with sparse data
-            4.2 Test watermark calculation accuracy
-                4.2.1 Timestamp precision in watermark calculation
-                4.2.2 Timezone handling in watermark computation
-                4.2.3 Clock skew impact on watermark accuracy
-                4.2.4 Distributed system time synchronization
+        4. EVENT_WINDOW with WATERMARK Test
+            4.1 Create event_window(start with event_val >= 5 end with event_val > 10) stream with watermark(1m) (s_event_watermark)
+            4.2 Test event sequence processing with out-of-order events
+            4.3 Verify event window completion with delayed events
 
-        5. Test [Window Closure and Triggering] with WATERMARK
-            5.1 Test window closure timing
-                5.1.1 Window closure based on watermark advancement
-                5.1.2 Delayed window closure with late data
-                5.1.3 Premature window closure scenarios
-                5.1.4 Window reopening with very late data
-            5.2 Test trigger condition evaluation
-                5.2.1 Trigger conditions with watermark delays
-                5.2.2 Multiple trigger evaluations within watermark window
-                5.2.3 Trigger condition changes with late data
-                5.2.4 Conditional triggers with watermark tolerance
+        5. PERIOD Window with WATERMARK Test
+            5.1 Create period(30s) stream with watermark(45s) (s_period_watermark)
+            5.2 Test periodic window recalculation with out-of-order data
+            5.3 Verify period-based time window behavior
 
-        6. Test [Performance and Resource Impact] of WATERMARK
-            6.1 Test processing efficiency with different watermark values
-                6.1.1 Small watermark impact on throughput
-                6.1.2 Large watermark impact on memory usage
-                6.1.3 Optimal watermark value determination
-                6.1.4 Resource scaling with watermark size
-            6.2 Test system behavior under watermark stress
-                6.2.1 High-frequency out-of-order data
-                6.2.2 Large volumes of late data
-                6.2.3 Memory pressure with large watermarks
-                6.2.4 CPU utilization with complex recalculations
-
-        7. Test [Data Consistency and Accuracy] with WATERMARK
-            7.1 Test result correctness with watermark processing
-                7.1.1 Aggregation accuracy with reordered data
-                7.1.2 Window computation correctness verification
-                7.1.3 State consistency after out-of-order processing
-                7.1.4 Event sequence integrity with watermarks
-            7.2 Test consistency across restarts and failures
-                7.2.1 Watermark state recovery after system restart
-                7.2.2 Pending recalculation recovery
-                7.2.3 Data consistency verification after recovery
-                7.2.4 Watermark synchronization in distributed systems
-
-        8. Test [Integration with Other Stream Options]
-            8.1 Test WATERMARK with EXPIRED_TIME
-                8.1.1 Option interaction and precedence
-                8.1.2 Combined tolerance mechanisms
-                8.1.3 Conflict resolution between options
-                8.1.4 Performance impact of combined options
-            8.2 Test WATERMARK with DELETE_RECALC
-                8.2.1 Deletion within watermark tolerance window
-                8.2.2 Watermark impact on deletion recalculation
-                8.2.3 Combined option effectiveness
-                8.2.4 Resource optimization with both options
+        6. COUNT_WINDOW with WATERMARK Test
+            6.1 Create count_window(3) stream with watermark(1m) (s_count_watermark)
+            6.2 Test count-based window recalculation with delayed records
+            6.3 Verify count window completion with out-of-order data
 
         Catalog:
             - Streams:Recalculation:Watermark

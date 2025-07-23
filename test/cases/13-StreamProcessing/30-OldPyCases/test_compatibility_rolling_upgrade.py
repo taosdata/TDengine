@@ -19,103 +19,71 @@ class TestCompatibilityRollingUpgrade:
     def test_compatibility_rolling_upgrade(self):
         """TDengine Rolling Upgrade Compatibility Test
 
-        Test incremental rolling upgrade scenarios with stream processing validation:
+        Test incremental rolling upgrade of individual nodes with stream processing validation:
 
-        1. Test [Sequential Node Upgrade] Strategy
-            1.1 Test upgrade sequence planning
-                1.1.1 Node priority determination for upgrade order
-                1.1.2 Leader/follower upgrade coordination
-                1.1.3 Quorum maintenance during rolling upgrade
-                1.1.4 Service dependency management
-            1.2 Test individual node upgrade process
-                1.2.1 Node graceful shutdown procedures
-                1.2.2 Version upgrade and restart process
-                1.2.3 Node rejoin cluster validation
-                1.2.4 Replication resynchronization
+        1. Test [Version Detection and Upgrade Mode Selection]
+            1.1 Get current server version and calculate last big version
+                1.1.1 Query SELECT SERVER_VERSION() to get current version
+                1.1.2 Calculate lastBigVersion as major.minor.patch.0 format
+                1.1.3 Verify version format and compatibility
+            1.2 Setup upgrade environment
+                1.2.1 Stop all dnodes with tdDnodes.stopAll()
+                1.2.2 Get dnode paths for 3 nodes (dnode1, dnode2, dnode3)
+                1.2.3 Verify base version package availability
 
-        2. Test [Stream Processing Preservation] During Rolling Upgrade
-            2.1 Test stream computation continuity
-                2.1.1 Active stream processing during node upgrades
-                2.1.2 Window computation preservation across node changes
-                2.1.3 State transfer between old and new nodes
-                2.1.4 Trigger evaluation consistency
-            2.2 Test stream data flow integrity
-                2.2.1 Source data ingestion continuity
-                2.2.2 Intermediate processing consistency
-                2.2.3 Target table output reliability
-                2.2.4 Data ordering preservation
+        2. Test [Base Version Installation and Cluster Setup]
+            2.1 Install old version for rolling upgrade
+                2.1.1 Install TDengine using tdCb.installTaosdForRollingUpgrade()
+                2.1.2 Verify successful installation of base version
+                2.1.3 Start old version services
+            2.2 Create multi-node cluster
+                2.2.1 Create dnode with hostname:6130 port
+                2.2.2 Create dnode with hostname:6230 port
+                2.2.3 Wait 10 seconds for cluster stabilization
+                2.2.4 Verify cluster formation and node status
 
-        3. Test [High Availability Maintenance]
-            3.1 Test service availability during upgrade
-                3.1.1 Read operation availability maintenance
-                3.1.2 Write operation availability maintenance
-                3.1.3 Stream query responsiveness
-                3.1.4 Client connection management
-            3.2 Test failover mechanisms
-                3.2.1 Automatic leader election during upgrade
-                3.2.2 Replica promotion and demotion
-                3.2.3 Network partition handling
-                3.2.4 Split-brain prevention
+        3. Test [Data Preparation on Old Version]
+            3.1 Create test data using tdCb.prepareDataOnOldVersion()
+                3.1.1 Create test databases and tables with taosBenchmark
+                3.1.2 Insert sample data across multiple tables
+                3.1.3 Create stream processing objects
+                3.1.4 Verify data consistency before upgrade
+            3.2 Setup stream processing infrastructure
+                3.2.1 Create streams with various window types
+                3.2.2 Setup TMQ topics and consumers
+                3.2.3 Verify stream functionality on old version
+                3.2.4 Flush databases to ensure data persistence
 
-        4. Test [Version Compatibility Validation]
-            4.1 Test cross-version protocol compatibility
-                4.1.1 Network protocol version negotiation
-                4.1.2 Data format compatibility validation
-                4.1.3 Metadata schema compatibility
-                4.1.4 Configuration parameter compatibility
-            4.2 Test mixed-version cluster operation
-                4.2.1 Temporary mixed-version cluster stability
-                4.2.2 Feature availability during transition
-                4.2.3 Performance consistency across versions
-                4.2.4 Resource utilization patterns
+        4. Test [Rolling Upgrade Execution - Mode 0 (Single Node)]
+            4.1 Execute upgrade using tdCb.updateNewVersion() with mode 0
+                4.1.1 Upgrade single dnode incrementally (mode=0)
+                4.1.2 Monitor upgrade process for individual node
+                4.1.3 Verify mixed-version cluster operation
+                4.1.4 Wait 10 seconds for upgrade completion
+            4.2 Verify cluster stability during incremental upgrade
+                4.2.1 Check upgraded node is running new version
+                4.2.2 Verify remaining nodes still on old version
+                4.2.3 Confirm cluster connectivity maintained
+                4.2.4 Validate data accessibility during upgrade
 
-        5. Test [Data Consistency and Integrity]
-            5.1 Test replication consistency
-                5.1.1 Data consistency across replicas during upgrade
-                5.1.2 Transaction consistency maintenance
-                5.1.3 Write acknowledgment reliability
-                5.1.4 Read consistency guarantees
-            5.2 Test stream result consistency
-                5.2.1 Aggregation result accuracy preservation
-                5.2.2 Window boundary consistency
-                5.2.3 State transition correctness
-                5.2.4 Output data completeness
+        5. Test [Post-Upgrade Data Verification]
+            5.1 Verify data integrity using tdCb.verifyData()
+                5.1.1 Check table counts and row counts consistency
+                5.1.2 Verify stream processing functionality
+                5.1.3 Test TMQ consumer operations
+                5.1.4 Validate aggregation results accuracy
+            5.2 Verify new features and compatibility
+                5.2.1 Test stream recalculation features
+                5.2.2 Verify tag size modifications
+                5.2.3 Check configuration parameter compatibility
+                5.2.4 Validate error handling improvements
 
-        6. Test [Performance and Resource Management]
-            6.1 Test performance impact assessment
-                6.1.1 Throughput degradation measurement
-                6.1.2 Latency impact analysis
-                6.1.3 Resource utilization monitoring
-                6.1.4 Recovery time measurement
-            6.2 Test resource rebalancing
-                6.2.1 Load redistribution during upgrade
-                6.2.2 Memory usage optimization
-                6.2.3 CPU utilization balancing
-                6.2.4 Storage space management
-
-        7. Test [Error Handling and Recovery]
-            7.1 Test upgrade failure scenarios
-                7.1.1 Individual node upgrade failure handling
-                7.1.2 Network connectivity issues during upgrade
-                7.1.3 Resource exhaustion scenarios
-                7.1.4 Timeout and deadlock resolution
-            7.2 Test recovery mechanisms
-                7.2.1 Failed node recovery procedures
-                7.2.2 Cluster state restoration
-                7.2.3 Data integrity verification
-                7.2.4 Service health validation
-
-        8. Test [Post-Upgrade Validation]
-            8.1 Test functional correctness
-                8.1.1 Stream processing functionality validation
-                8.1.2 Data query correctness verification
-                8.1.3 Administrative operation validation
-                8.1.4 Monitoring and alerting functionality
-            8.2 Test system stability
-                8.2.1 Long-term cluster stability
-                8.2.2 Memory leak detection
-                8.2.3 Performance regression analysis
-                8.2.4 Configuration consistency verification
+        6. Test [SQL Syntax Compatibility Verification]
+            6.1 Test backticks in SQL using tdCb.verifyBackticksInTaosSql()
+                6.1.1 Test database operations with backticks
+                6.1.2 Test table operations with backticks
+                6.1.3 Test stream operations with backticks
+                6.1.4 Verify error handling for invalid backtick usage
 
         Catalog:
             - Streams:Compatibility:RollingUpgrade

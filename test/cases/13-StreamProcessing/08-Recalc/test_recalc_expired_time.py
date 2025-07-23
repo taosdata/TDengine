@@ -11,88 +11,52 @@ class TestStreamRecalcExpiredTime:
     def test_stream_recalc_expired_time(self):
         """Stream Recalculation EXPIRED_TIME Option Test
 
-        Test EXPIRED_TIME option behavior with expired data across different window types:
+        Test EXPIRED_TIME(1h) option with 6 different window types and verify expired data handling:
 
-        1. Test [EXPIRED_TIME] Option Specification
-            1.1 Test option syntax validation
-                1.1.1 Valid EXPIRED_TIME values - verify acceptance
-                1.1.2 Invalid EXPIRED_TIME syntax - verify error handling
-                1.1.3 EXPIRED_TIME with different time units (s, m, h, d)
-            1.2 Test option value boundaries
-                1.2.1 Minimum valid EXPIRED_TIME value
-                1.2.2 Maximum valid EXPIRED_TIME value
-                1.2.3 Zero EXPIRED_TIME value - verify immediate expiration
-                1.2.4 Negative EXPIRED_TIME value - verify error handling
+        1. Test [INTERVAL+SLIDING Window] with EXPIRED_TIME(1h)
+            1.1 Create s_interval_expired: interval(2m) sliding(2m) with expired_time(1h)
+                1.1.1 Process data from '2025-01-01 02:00:00' onwards (within 1h)
+                1.1.2 Insert expired data from '2025-01-01 01:00:00' (beyond 1h)
+                1.1.3 Verify expired data does not increase result count
+                1.1.4 Check result table structure: ts, cnt, avg_val
 
-        2. Test [Data Expiration Logic] for Time-Based Windows
-            2.1 Test INTERVAL windows with EXPIRED_TIME
-                2.1.1 Data within expiration time - should trigger computation
-                2.1.2 Data beyond expiration time - should be ignored
-                2.1.3 Data exactly at expiration boundary - verify boundary behavior
-                2.1.4 Sliding window interaction with expired data
-            2.2 Test SESSION windows with EXPIRED_TIME
-                2.2.1 Session data within expiration - should maintain session
-                2.2.2 Session data beyond expiration - should ignore expired sessions
-                2.2.3 Partial session expiration - verify session boundary handling
-                2.2.4 Session timeout vs EXPIRED_TIME interaction
-            2.3 Test STATE_WINDOW with EXPIRED_TIME
-                2.3.1 State data within expiration - should trigger state computation
-                2.3.2 State data beyond expiration - should ignore expired states
-                2.3.3 State transition with expired data - verify transition logic
-                2.3.4 State window closure with expired data
-            2.4 Test EVENT_WINDOW with EXPIRED_TIME
-                2.4.1 Event data within expiration - should trigger event computation
-                2.4.2 Event data beyond expiration - should ignore expired events
-                2.4.3 Event window start/end with expired data
-                2.4.4 Incomplete event windows with expired data
+        2. Test [SESSION Window] with EXPIRED_TIME(1h)
+            2.1 Create s_session_expired: session(ts,45s) with expired_time(1h)
+                2.1.1 Insert normal trigger data at '2025-01-01 02:00:00' series
+                2.1.2 Insert non-expired data at '2025-01-01 01:30:00' (within 1h)
+                2.1.3 Insert expired data at '2025-01-01 01:00:00' (beyond 1h)
+                2.1.4 Verify session results: 3 sessions created, expired data ignored
 
-        3. Test [Count-Based Window Compatibility]
-            3.1 Test COUNT_WINDOW with EXPIRED_TIME
-                3.1.1 EXPIRED_TIME specified - verify option is ignored
-                3.1.2 Count-based computation with expired data
-                3.1.3 Window completion regardless of data expiration
-                3.1.4 Performance impact of EXPIRED_TIME on count windows
+        3. Test [STATE_WINDOW] with EXPIRED_TIME(1h)
+            3.1 Create s_state_expired: state_window(status) with expired_time(1h)
+                3.1.1 Insert state changes: normal->warning->error at '2025-01-01 02:00:00'
+                3.1.2 Insert non-expired state data at '2025-01-01 01:30:00'
+                3.1.3 Insert expired state data at '2025-01-01 01:00:00'
+                3.1.4 Verify 4 state windows created, expired data ignored
 
-        4. Test [Data Insertion Timing Scenarios]
-            4.1 Test real-time data processing
-                4.1.1 Current timestamp data - should always process
-                4.1.2 Recent historical data - should process if within expiration
-                4.1.3 Old historical data - should ignore if beyond expiration
-            4.2 Test batch data insertion
-                4.2.1 Mixed timestamp batch - process valid, ignore expired
-                4.2.2 All expired batch - verify no computation triggered
-                4.2.3 All valid batch - verify normal computation
-            4.3 Test out-of-order data with expiration
-                4.3.1 Out-of-order valid data - should trigger recalculation
-                4.3.2 Out-of-order expired data - should be ignored
-                4.3.3 Mixed out-of-order batch - selective processing
+        4. Test [EVENT_WINDOW] with EXPIRED_TIME(1h)
+            4.1 Create s_event_expired: event_window(start with event_val >= 5 end with event_val > 10)
+                4.1.1 Insert event trigger data with event_val pattern: 6,7,12 at '2025-01-01 02:00:00'
+                4.1.2 Insert non-expired events at '2025-01-01 01:30:00'
+                4.1.3 Insert expired events at '2025-01-01 01:00:00'
+                4.1.4 Verify 3 event windows, expired data ignored in final result
 
-        5. Test [Expiration Time Calculation]
-            5.1 Test timestamp reference points
-                5.1.1 Current system time as reference
-                5.1.2 Latest window time as reference
-                5.1.3 Data insertion time as reference
-            5.2 Test timezone handling
-                5.2.1 Local timezone expiration calculation
-                5.2.2 UTC timezone expiration calculation
-                5.2.3 Mixed timezone data handling
-            5.3 Test time precision
-                5.3.1 Millisecond precision expiration
-                5.3.2 Second precision expiration
-                5.3.3 Minute precision expiration
+        5. Test [PERIOD Window] with EXPIRED_TIME(1h)
+            5.1 Create s_period_expired: period(30s) with expired_time(1h)|ignore_nodata_trigger
+                5.1.1 Insert period trigger data every 30s from '2025-01-01 02:00:00'
+                5.1.2 Test periodic triggering with current timestamp data
+                5.1.3 Verify period computation ignores expired data
+                5.1.4 Check ignore_nodata_trigger option interaction
 
-        6. Test [Performance and Resource Optimization]
-            6.1 Test expired data filtering efficiency
-                6.1.1 Early filtering of expired data
-                6.1.2 Resource usage with large expired datasets
-                6.1.3 Memory optimization for expired data handling
-            6.2 Test monitoring and metrics
-                6.2.1 Expired data count tracking
-                6.2.2 Performance metrics with EXPIRED_TIME
-                6.2.3 Resource usage monitoring
+        6. Test [COUNT_WINDOW] with EXPIRED_TIME(1h) - Option Ignored
+            6.1 Create s_count_expired: count_window(3) with expired_time(1h)
+                6.1.1 Insert count trigger data in batches of 3
+                6.1.2 Insert both current and expired data
+                6.1.3 Verify COUNT_WINDOW ignores EXPIRED_TIME option
+                6.1.4 Confirm all data processed regardless of timestamp
 
         Catalog:
-            - Streams:Recalculation:ExpiredTime
+            - Streams:Recalc:ExpiredTime
 
         Since: v3.3.7.0
 
@@ -101,7 +65,7 @@ class TestStreamRecalcExpiredTime:
         Jira: None
 
         History:
-            - 2025-07-23 Beryl Created
+            - 2025-07-22 Beryl Created
 
         """
 

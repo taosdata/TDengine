@@ -19,123 +19,94 @@ class TestStreamCompatibility:
     def test_stream_compatibility(self):
         """Stream Processing Backward and Forward Compatibility Test
 
-        Test comprehensive compatibility scenarios for stream processing across different versions:
+        Test compatibility across 5 baseline versions with stream processing validation:
 
-        1. Test [Backward Compatibility] with Legacy Versions
-            1.1 Test legacy stream syntax compatibility
-                1.1.1 v3.2.0.0 stream creation syntax support
-                1.1.2 v3.3.3.0 stream options compatibility
-                1.1.3 v3.3.4.3 aggregation function compatibility
-                1.1.4 v3.3.5.0 window function compatibility
-            1.2 Test legacy configuration compatibility
-                1.2.1 Stream configuration parameter mapping
-                1.2.2 Legacy option value interpretation
-                1.2.3 Deprecated feature handling
-                1.2.4 Configuration migration automation
-            1.3 Test legacy data format compatibility
-                1.3.1 Historical stream metadata format support
-                1.3.2 Legacy timestamp precision handling
-                1.3.3 Data type compatibility across versions
-                1.3.4 Encoding format consistency
+        1. Test [v3.2.0.0 Base Version Compatibility]
+            1.1 Install v3.2.0.0 and prepare data using tdCb.prepareDataOnOldVersion()
+                1.1.1 Create test databases and tables with taosBenchmark
+                1.1.2 Insert sample data and create streams
+                1.1.3 Setup TMQ topics and consumers
+                1.1.4 Verify stream functionality on v3.2.0.0
+            1.2 Upgrade to new version with mode 2 (no upgrade mode)
+                1.2.1 Kill all dnodes and update to new version
+                1.2.2 Start new version with existing data
+                1.2.3 Verify cross-major version compatibility (corss_major_version=True)
+            1.3 Verify data and functionality using tdCb.verifyData()
+                1.3.1 Check table counts and row counts consistency
+                1.3.2 Verify stream processing functionality
+                1.3.3 Test TMQ consumer operations
+                1.3.4 Validate aggregation results accuracy
 
-        2. Test [Forward Compatibility] with Future Features
-            2.1 Test new feature graceful degradation
-                2.1.1 Unknown stream options handling
-                2.1.2 Unsupported function graceful failure
-                2.1.3 Advanced feature detection and fallback
-                2.1.4 Version-specific feature activation
-            2.2 Test feature flag compatibility
-                2.2.1 Conditional feature enablement
-                2.2.2 Experimental feature stability
-                2.2.3 Beta feature migration paths
-                2.2.4 Feature deprecation handling
+        2. Test [v3.3.3.0 Base Version Compatibility]
+            2.1 Install v3.3.3.0 and prepare data using tdCb.prepareDataOnOldVersion()
+                2.1.1 Create test databases and tables with taosBenchmark
+                2.1.2 Insert sample data and create streams
+                2.1.3 Setup TMQ topics and consumers
+                2.1.4 Verify stream functionality on v3.3.3.0
+            2.2 Upgrade to new version with mode 2 (no upgrade mode)
+                2.2.1 Kill all dnodes and update to new version
+                2.2.2 Start new version with existing data
+                2.2.3 Verify compatibility (corss_major_version=True)
+            2.3 Verify data and functionality using tdCb.verifyData()
+                2.3.1 Check table counts and row counts consistency
+                2.3.2 Verify stream processing functionality
+                2.3.3 Test TMQ consumer operations
+                2.3.4 Validate aggregation results accuracy
 
-        3. Test [Cross-Version Migration] Scenarios
-            3.1 Test stream definition migration
-                3.1.1 Automatic stream syntax translation
-                3.1.2 Manual migration procedure validation
-                3.1.3 Migration rollback mechanisms
-                3.1.4 Migration verification procedures
-            3.2 Test data migration compatibility
-                3.2.1 Historical data preservation
-                3.2.2 Stream state migration
-                3.2.3 Result data format migration
-                3.2.4 Metadata consistency verification
-            3.3 Test configuration migration
-                3.3.1 Stream parameter mapping
-                3.3.2 Option value transformation
-                3.3.3 Default value handling
-                3.3.4 Custom configuration preservation
+        3. Test [v3.3.4.3 Base Version Compatibility]
+            3.1 Install v3.3.4.3 and prepare data using tdCb.prepareDataOnOldVersion()
+                3.1.1 Create test databases and tables with taosBenchmark
+                3.1.2 Insert sample data and create streams
+                3.1.3 Setup TMQ topics and consumers
+                3.1.4 Verify stream functionality on v3.3.4.3
+            3.2 Upgrade to new version with mode 2 (no upgrade mode)
+                3.2.1 Kill all dnodes and update to new version
+                3.2.2 Start new version with existing data
+                3.2.3 Verify compatibility (corss_major_version=True)
+            3.3 Verify data and functionality using tdCb.verifyData()
+                3.3.1 Check table counts and row counts consistency
+                3.3.2 Verify stream processing functionality
+                3.3.3 Test TMQ consumer operations
+                3.3.4 Validate aggregation results accuracy
 
-        4. Test [API and Protocol Compatibility]
-            4.1 Test REST API compatibility
-                4.1.1 API endpoint backward compatibility
-                4.1.2 Request/response format consistency
-                4.1.3 Error code and message compatibility
-                4.1.4 Authentication mechanism compatibility
-            4.2 Test native protocol compatibility
-                4.2.1 Binary protocol version negotiation
-                4.2.2 Message format compatibility
-                4.2.3 Connection handshake compatibility
-                4.2.4 Compression algorithm compatibility
-            4.3 Test client library compatibility
-                4.3.1 Driver API compatibility
-                4.3.2 Connection string format compatibility
-                4.3.3 Result set format consistency
-                4.3.4 Error handling compatibility
+        4. Test [v3.3.5.0 Base Version Compatibility]
+            4.1 Install v3.3.5.0 and prepare data using tdCb.prepareDataOnOldVersion()
+                4.1.1 Create test databases and tables with taosBenchmark
+                4.1.2 Insert sample data and create streams
+                4.1.3 Setup TMQ topics and consumers
+                4.1.4 Verify stream functionality on v3.3.5.0
+            4.2 Upgrade to new version with mode 2 (no upgrade mode)
+                4.2.1 Kill all dnodes and update to new version
+                4.2.2 Start new version with existing data
+                4.2.3 Verify compatibility (corss_major_version=True)
+            4.3 Verify data and functionality using tdCb.verifyData()
+                4.3.1 Check table counts and row counts consistency
+                4.3.2 Verify stream processing functionality
+                4.3.3 Test TMQ consumer operations
+                4.3.4 Validate aggregation results accuracy
 
-        5. Test [SQL Syntax Compatibility]
-            5.1 Test stream creation syntax evolution
-                5.1.1 Basic CREATE STREAM syntax compatibility
-                5.1.2 Window clause syntax evolution
-                5.1.3 Option specification syntax changes
-                5.1.4 Output specification syntax compatibility
-            5.2 Test function compatibility
-                5.2.1 Aggregation function signature compatibility
-                5.2.2 Window function parameter compatibility
-                5.2.3 Built-in function behavior consistency
-                5.2.4 User-defined function compatibility
-            5.3 Test data type compatibility
-                5.3.1 Column data type mapping
-                5.3.2 Tag data type compatibility
-                5.3.3 Timestamp precision handling
-                5.3.4 NULL value handling consistency
+        5. Test [v3.3.6.0 Base Version Compatibility - Final]
+            5.1 Install v3.3.6.0 and prepare data using tdCb.prepareDataOnOldVersion()
+                5.1.1 Create test databases and tables with taosBenchmark
+                5.1.2 Insert sample data and create streams
+                5.1.3 Setup TMQ topics and consumers
+                5.1.4 Verify stream functionality on v3.3.6.0
+            5.2 Upgrade to new version with mode 2 (no upgrade mode)
+                5.2.1 Kill all dnodes and update to new version
+                5.2.2 Start new version with existing data
+                5.2.3 Verify compatibility (corss_major_version=False as final version)
+            5.3 Verify data and functionality using tdCb.verifyData()
+                5.3.1 Check table counts and row counts consistency
+                5.3.2 Verify stream processing functionality
+                5.3.3 Test TMQ consumer operations
+                5.3.4 Validate aggregation results accuracy
 
-        6. Test [Performance Compatibility]
-            6.1 Test performance regression prevention
-                6.1.1 Throughput baseline maintenance
-                6.1.2 Latency regression detection
-                6.1.3 Memory usage consistency
-                6.1.4 CPU utilization patterns
-            6.2 Test scalability compatibility
-                6.2.1 Horizontal scaling behavior
-                6.2.2 Vertical scaling compatibility
-                6.2.3 Resource limit handling
-                6.2.4 Concurrent processing capability
-
-        7. Test [Error Handling Compatibility]
-            7.1 Test error code consistency
-                7.1.1 SQL error code mapping
-                7.1.2 Runtime error code compatibility
-                7.1.3 System error code preservation
-                7.1.4 Custom error code handling
-            7.2 Test error message compatibility
-                7.2.1 Error message format consistency
-                7.2.2 Localization compatibility
-                7.2.3 Error context preservation
-                7.2.4 Debug information compatibility
-
-        8. Test [Specific Version Regression]
-            8.1 Test baseline version functionality
-                8.1.1 v3.2.0.0 core feature validation
-                8.1.2 v3.3.3.0 enhancement verification
-                8.1.3 v3.3.4.3 bug fix validation
-                8.1.4 v3.3.5.0 performance improvement verification
-            8.2 Test upgrade path validation
-                8.2.1 Sequential version upgrade testing
-                8.2.2 Skip-version upgrade testing
-                8.2.3 Rollback compatibility testing
-                8.2.4 Emergency recovery testing
+        6. Test [SQL Syntax Compatibility Verification]
+            6.1 Test backticks in SQL using tdCb.verifyBackticksInTaosSql()
+                6.1.1 Test database operations with backticks
+                6.1.2 Test table operations with backticks
+                6.1.3 Test stream operations with backticks
+                6.1.4 Verify error handling for invalid backtick usage
 
         Catalog:
             - Streams:Compatibility:BackwardForward
