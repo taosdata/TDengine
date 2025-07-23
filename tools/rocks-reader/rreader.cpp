@@ -7,7 +7,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <taos.h>
+#include "../../include/client/taos.h"
 
 #define TSKEY int64_t
 #define IS_VAR_DATA_TYPE(t)                                                                                 \
