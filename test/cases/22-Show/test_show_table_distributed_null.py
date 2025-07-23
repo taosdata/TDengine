@@ -39,13 +39,9 @@ class TestShowTableDistributed:
         tdSql.execute(f"create table sub_t2 using super_t tags('t3', 'value3', 3)")
 
         # insert data into sub table
-        delta = 1000
-        start = 1648791211000
-        for i in range(10):
-            t = start + i * delta
-            tdSql.execute(f"insert into sub_t0 values (now, '0{i}', '0{i}', 'up', '90', null, 2, 2, '')")
-            tdSql.execute(f"insert into sub_t1 values (now, '1{i}', '1{i}', 'up', '90', null, 2, 2, '')")
-            tdSql.execute(f"insert into sub_t2 values (now, '2{i}', '2{i}', 'up', '90', null, 2, 2, '')")
+        tdSql.execute(f"insert into sub_t0 values (now, '01', '00', 'up', '90', null, 2, 2, '')")
+        tdSql.execute(f"insert into sub_t1 values (now, '11', '10', 'up', '90', null, 2, 2, '')")
+        tdSql.execute(f"insert into sub_t2 values (now, '22', '20', 'up', '90', null, 2, 2, '')")
 
         # run show table distributed command, it should return internal error
         tdSql.query(f"show table distributed super_t")
