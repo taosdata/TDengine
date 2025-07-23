@@ -279,7 +279,8 @@ typedef struct SStreamTriggerTask {
   SSHashObj *pGroupRunning;  // SSHashObj<gid, bool[]>
 
   // runtime status
-  int8_t                    isCheckpointReady;
+  volatile int8_t           isCheckpointReady;
+  volatile int32_t          checkpointVersion;
   volatile int64_t          mgmtReqId;
   char                     *streamName;
   SSTriggerRealtimeContext *pRealtimeContext;

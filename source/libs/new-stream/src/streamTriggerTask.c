@@ -356,41 +356,53 @@ static void stTriggerTaskNextPeriodWindow(SStreamTriggerTask *pTask, STimeWindow
   }
 }
 
+#define STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION 1
+
 static int32_t stTriggerTaskGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, int64_t *pLen) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
   SSTriggerRealtimeContext *pContext = pTask->pRealtimeContext;
   SEncoder                  encoder = {0};
   int32_t                   iter = 0;
+  int32_t                   ver = atomic_add_fetch_32(&pTask->checkpointVersion, 1);
+
   tEncoderInit(&encoder, buf, *pLen);
-  static int32_t ver = 0;
+  code = tStartEncode(&encoder);
+  QUERY_CHECK_CODE(code, lino, _end);
+
   code = tEncodeI32(&encoder, ver);  // version
+  QUERY_CHECK_CODE(code, lino, _end);
+  code = tEncodeI32(&encoder, STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION);
   QUERY_CHECK_CODE(code, lino, _end);
   code = tEncodeI64(&encoder, pTask->task.streamId);
   QUERY_CHECK_CODE(code, lino, _end);
-  code = tEncodeI32(&encoder, tSimpleHashGetSize(pContext->pReaderWalProgress));
+
+  code = tEncodeI32(&encoder, tSimpleHashGetSize(pTask->pRealtimeStartVer));
   QUERY_CHECK_CODE(code, lino, _end);
   iter = 0;
-  SSTriggerWalProgress *pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, NULL, &iter);
-  while (pProgress != NULL) {
-    code = tEncodeI32(&encoder, pProgress->pTaskAddr->nodeId);
+  void *px = tSimpleHashIterate(pTask->pRealtimeStartVer, NULL, &iter);
+  while (px != NULL) {
+    int32_t vgId = *(int32_t *)tSimpleHashGetKey(px, NULL);
+    int64_t startVer = *(int64_t *)px;
+    code = tEncodeI32(&encoder, vgId);
     QUERY_CHECK_CODE(code, lino, _end);
-    code = tEncodeI64(&encoder, pProgress->latestVer);
+    code = tEncodeI64(&encoder, startVer);
     QUERY_CHECK_CODE(code, lino, _end);
-    code = tEncodeI64(&encoder, pProgress->lastScanVer);
-    QUERY_CHECK_CODE(code, lino, _end);
-    pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, pProgress, &iter);
+    px = tSimpleHashIterate(pTask->pRealtimeStartVer, px, &iter);
   }
 
-  code = tEncodeI32(&encoder, tSimpleHashGetSize(pContext->pGroups));
+  code = tEncodeI32(&encoder, tSimpleHashGetSize(pTask->pHistoryCutoffTime));
   QUERY_CHECK_CODE(code, lino, _end);
   iter = 0;
-  void *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
+  px = tSimpleHashIterate(pTask->pHistoryCutoffTime, NULL, &iter);
   while (px != NULL) {
-    SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
-    code = tEncodeI64(&encoder, pGroup->gid);
+    int64_t gid = *(int64_t *)tSimpleHashGetKey(px, NULL);
+    int64_t cutoffTime = *(int64_t *)px;
+    code = tEncodeI64(&encoder, gid);
     QUERY_CHECK_CODE(code, lino, _end);
-    px = tSimpleHashIterate(pContext->pGroups, px, &iter);
+    code = tEncodeI64(&encoder, cutoffTime);
+    QUERY_CHECK_CODE(code, lino, _end);
+    px = tSimpleHashIterate(pTask->pHistoryCutoffTime, px, &iter);
   }
 
   tEndEncode(&encoder);
@@ -400,6 +412,78 @@ static int32_t stTriggerTaskGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *bu
 
 _end:
   tEncoderClear(&encoder);
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t stTriggerTaskParseCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, int64_t len) {
+  SDecoder decoder = {0};
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  int32_t  ver = 0;
+  int32_t  formatVer = 0;
+  int64_t  streamId = 0;
+
+  if (buf == NULL || len == 0) {
+    goto _end;
+  }
+
+  tDecoderInit(&decoder, buf, len);
+  code = tStartDecode(&decoder);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  code = tDecodeI32(&decoder, &ver);
+  QUERY_CHECK_CODE(code, lino, _end);
+  code = tDecodeI32(&decoder, &formatVer);
+  QUERY_CHECK_CODE(code, lino, _end);
+  QUERY_CHECK_CONDITION(formatVer == STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION, code, lino, _end,
+                        TSDB_CODE_INVALID_PARA);
+  code = tDecodeI64(&decoder, &streamId);
+  QUERY_CHECK_CODE(code, lino, _end);
+  QUERY_CHECK_CONDITION(streamId == pTask->task.streamId, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  int32_t nVgroups = 0;
+  code = tDecodeI32(&decoder, &nVgroups);
+  QUERY_CHECK_CODE(code, lino, _end);
+  for (int32_t i = 0; i < nVgroups; i++) {
+    int32_t vgId = 0;
+    int64_t startVer = 0;
+    code = tDecodeI32(&decoder, &vgId);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = tDecodeI64(&decoder, &startVer);
+    QUERY_CHECK_CODE(code, lino, _end);
+    void *px = tSimpleHashGet(pTask->pRealtimeStartVer, &vgId, sizeof(int32_t));
+    QUERY_CHECK_CONDITION(px == NULL, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    code = tSimpleHashPut(pTask->pRealtimeStartVer, &vgId, sizeof(int32_t), &startVer, sizeof(int64_t));
+    QUERY_CHECK_CODE(code, lino, _end);
+    ST_TASK_DLOG("parse checkpoint, vgId: %d, startVer: %" PRId64, vgId, startVer);
+  }
+
+  int32_t nGroups = 0;
+  code = tDecodeI32(&decoder, &nGroups);
+  QUERY_CHECK_CODE(code, lino, _end);
+  for (int32_t i = 0; i < nGroups; i++) {
+    int64_t gid = 0;
+    int64_t cutoffTime = 0;
+    code = tDecodeI64(&decoder, &gid);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = tDecodeI64(&decoder, &cutoffTime);
+    QUERY_CHECK_CODE(code, lino, _end);
+    void *px = tSimpleHashGet(pTask->pHistoryCutoffTime, &gid, sizeof(int64_t));
+    QUERY_CHECK_CONDITION(px == NULL, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    code = tSimpleHashPut(pTask->pHistoryCutoffTime, &gid, sizeof(int64_t), &cutoffTime, sizeof(int64_t));
+    QUERY_CHECK_CODE(code, lino, _end);
+    ST_TASK_DLOG("parse checkpoint, gid: %" PRId64 ", cutoffTime: %" PRId64, gid, cutoffTime);
+  }
+
+  tEndDecode(&decoder);
+  QUERY_CHECK_CONDITION(decoder.pos == len, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+  atomic_store_32(&pTask->checkpointVersion, ver);
+
+_end:
+  tDecoderClear(&decoder);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -2419,9 +2503,16 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
       void   *buf = NULL;
       int64_t len = 0;
       code = streamReadCheckPoint(pTask->task.streamId, &buf, &len);
-      // todo(kjq): parse the checkpoint data and restore status
+      if (code != TSDB_CODE_SUCCESS) {
+        taosMemoryFree(buf);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      code = stTriggerTaskParseCheckpoint(pTask, buf, len);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosMemoryFree(buf);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
       taosMemoryFree(buf);
-      QUERY_CHECK_CODE(code, lino, _end);
       pContext->haveReadCheckpoint = true;
     } else {
       // wait 1 second and retry
