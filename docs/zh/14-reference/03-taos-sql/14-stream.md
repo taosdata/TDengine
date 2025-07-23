@@ -13,6 +13,8 @@ toc_max_heading_level: 4
 
 TDengine 的流计算引擎还提供了其他使用上的便利。针对结果延迟的不同需求，支持用户在结果时效性与资源负载之间进行平衡。针对非正常顺序写入场景的不同需求，支持用户灵活选择适合的处理方式与策略。
 
+**说明**：全新流计算从 `v3.3.7.0` 开始支持。
+
 ## 创建流式计算
 
 ```sql
@@ -776,6 +778,7 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
 - 暂不支持按普通数据列分组的场景。
 - 暂不支持 `Geometry` 数据类型。
 - 暂不支持 `interp` 和 `percentile` 函数。
+- 暂不支持 `DELETE_OUTPUT_TABLE` 选项。
 - 暂不支持 windows 平台。
 
 ### 兼容性说明
