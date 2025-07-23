@@ -21,7 +21,6 @@
 #include "scalar.h"
 #include "tanalytics.h"
 #include "taoserror.h"
-#include "ttime.h"
 #include "functionMgt.h"
 #include "ttypes.h"
 #include "tglobal.h"
@@ -1359,7 +1358,7 @@ static int32_t translateForecast(SFunctionNode* pFunc, char* pErrBuf, int32_t le
 }
 
 static int32_t translateForecastConf(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_FLOAT].bytes, .type = TSDB_DATA_TYPE_FLOAT};
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
   return TSDB_CODE_SUCCESS;
 }
 
