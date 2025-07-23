@@ -281,28 +281,6 @@ class Test_IDMP_Vehicle:
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
 
-        ''' ***** bug1 *****
-        # disorder win2 10~15
-        win2  = self.start + 10 * self.step
-        vals  = "60"
-        count = 2
-        ts    = tdSql.insertFixedVal(table, win2, step, count, cols, vals)
-        '''
-
-        '''
-        win2  = self.start + 10 * self.step
-        vals  = "60"
-        count = 1
-        ts    = tdSql.insertFixedVal(table, win2, step, count, cols, vals)
-
-
-        # disorder win2 20~26
-        win2  = self.start + 20 * self.step
-        vals  = "150"
-        count = 6
-        ts    = tdSql.insertFixedVal(table, win2, step, count, cols, vals)        
-        '''
-
         # delete win1 2 rows
         tdSql.deleteRows(table, f"ts >= {self.start + 1 * self.step} and ts <= {self.start + 2 * self.step}")
 
@@ -664,7 +642,6 @@ class Test_IDMP_Vehicle:
         )
 
         # sub
-        # ***** bug4 *****
         #self.verify_stream1_sub1()
         tdLog.info("verify stream1 .................................. successfully.")
 
@@ -674,7 +651,7 @@ class Test_IDMP_Vehicle:
         result_sql = f"select * from {self.vdb}.`result_stream1_sub1` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
-            func = lambda: tdSql.getRows() == 1
+            func = lambda: tdSql.getRows() == 3
             and tdSql.compareData(1, 0, self.start + (5 + 2 + 1) * self.step) # ts
             and tdSql.compareData(1, 1, 9)          # cnt
             and tdSql.compareData(1, 2, 140)        # avg(speed)
@@ -814,26 +791,22 @@ class Test_IDMP_Vehicle:
         )
 
         # sub
-        # ***** bug5 *****
-        #self.verify_stream4_sub1()
+        self.verify_stream4_sub1()
 
         tdLog.info(f"verify stream4 ................................. successfully.")
 
     def verify_stream4_sub1(self, tables=None):
         # check
-        result_sql = f"select * from {self.vdb}.`result_stream4` "
+        result_sql = f"select * from {self.vdb}.`result_stream4_sub1` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
-            func = lambda: tdSql.getRows() == 3
+            func = lambda: tdSql.getRows() == 2
             # row1
-            and tdSql.compareData(0, 0, self.start) # ts
-            and tdSql.compareData(0, 1, 6)          # cnt
+            and tdSql.compareData(0, 0, self.start + 6 * self.step) # ts
+            and tdSql.compareData(0, 1, 6)                          # cnt
             # row2
-            and tdSql.compareData(1, 0, self.start + 6 * self.step) # ts
-            and tdSql.compareData(1, 1, 6)          # cnt
-            # row3
-            and tdSql.compareData(2, 0, self.start + 20 * self.step) # ts
-            and tdSql.compareData(2, 1, 11)          # cnt
+            and tdSql.compareData(1, 0, self.start + 24 * self.step) # ts
+            and tdSql.compareData(1, 1, 11 - 4)                      # cnt
         )
 
         tdLog.info(f"verify stream4 sub1 ............................. successfully.")
