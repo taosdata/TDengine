@@ -74,8 +74,8 @@ static int32_t tsdbDataFileReadHeadFooter(SDataFileReader *reader) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, lino,
-              tstrerror(code));
+    tsdbError("vgId:%d %s failed at %s:%d since %s, fname:%s", TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__,
+              lino, tstrerror(code), reader->fd[ftype]->path);
   }
   return code;
 }
@@ -288,8 +288,8 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, lino,
-              tstrerror(code));
+    tsdbError("vgId:%d %s failed at %s:%d since %s, fname:%s", TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__,
+              lino, tstrerror(code), reader->fd[TSDB_FTYPE_HEAD]->path);
   }
   return code;
 }
@@ -321,8 +321,8 @@ int32_t tsdbDataFileReadBlockData(SDataFileReader *reader, const SBrinRecord *re
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, lino,
-              tstrerror(code));
+    tsdbError("vgId:%d %s failed at %s:%d since %s, fname:%s", TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__,
+              lino, tstrerror(code), reader->fd[TSDB_FTYPE_DATA]->path);
   }
   return code;
 }
@@ -505,8 +505,8 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, lino,
-              tstrerror(code));
+    tsdbError("vgId:%d %s failed at %s:%d since %s, fname:%s", TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__,
+              lino, tstrerror(code), reader->fd[TSDB_FTYPE_DATA]->path);
   }
   return code;
 }
@@ -541,8 +541,8 @@ int32_t tsdbDataFileReadBlockSma(SDataFileReader *reader, const SBrinRecord *rec
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, lino,
-              tstrerror(code));
+    tsdbError("vgId:%d %s failed at %s:%d since %s, fname:%s", TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__,
+              lino, tstrerror(code), reader->fd[TSDB_FTYPE_SMA]->path);
   }
   return code;
 }

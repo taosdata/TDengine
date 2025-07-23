@@ -403,7 +403,8 @@ static int32_t tsdbReadFileBlock(STsdbFD *pFD, int64_t offset, int64_t size, boo
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(pFD->pTsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s, fname:%s, offset:%" PRId64 ", size:%" PRId64,
+              TD_VID(pFD->pTsdb->pVnode), __func__, __FILE__, lino, tstrerror(code), pFD->path, offset, size);
     taosMemoryFree(buf);
   } else {
     *ppBlock = (uint8_t *)buf;
