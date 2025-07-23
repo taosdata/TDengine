@@ -101,14 +101,12 @@ int32_t tsNumOfMnodeQueryThreads = 16;
 int32_t tsNumOfMnodeFetchThreads = 1;
 int32_t tsNumOfMnodeReadThreads = 1;
 int32_t tsNumOfVnodeQueryThreads = 16;
-float   tsRatioOfVnodeStreamThreads = 0.5F;
 int32_t tsNumOfVnodeFetchThreads = 4;
 int32_t tsNumOfVnodeRsmaThreads = 2;
 int32_t tsNumOfQnodeQueryThreads = 16;
 int32_t tsNumOfQnodeFetchThreads = 1;
 int32_t tsNumOfSnodeStreamThreads = 4;
 int32_t tsNumOfSnodeWriteThreads = 1;
-int32_t tsMaxStreamBackendCache = 128;  // M
 int32_t tsPQSortMemThreshold = 16;      // M
 int32_t tsRetentionSpeedLimitMB = 0;    // unlimited
 int32_t tsNumOfMnodeStreamMgmtThreads = 2;
@@ -358,7 +356,6 @@ bool    tsDisableStream = false;
 int32_t tsStreamBufferSize = 0; //MB
 int64_t tsStreamBufferSizeBytes = 0; // bytes
 bool    tsFilterScalarMode = false;
-bool    tsStreamCoverage = false;
 
 bool tsUpdateCacheBatch = true;
 
@@ -380,10 +377,6 @@ void   *pTimezoneNameMap = NULL;
 
 int32_t tsStreamNotifyMessageSize = 8 * 1024;  // KB, default 8MB
 int32_t tsStreamNotifyFrameSize = 256;         // KB, default 256KB
-
-int32_t tsStreamVirtualMergeMaxDelayMs = 10 * 1000;  // 10s
-int32_t tsStreamVirtualMergeMaxMemKb = 16 * 1024;    // 16MB
-int32_t tsStreamVirtualMergeWaitMode = 0;            // 0 wait forever, 1 wait for max delay, 2 wait for max mem
 
 int32_t taosCheckCfgStrValueLen(const char *name, const char *value, int32_t len);
 
@@ -684,9 +677,6 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "tsmaDataDeleteMark", tsmaDataDeleteMark, 60 * 60 * 1000, INT64_MAX,
                                 CFG_SCOPE_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
 
-  TAOS_CHECK_RETURN(
-      cfgAddBool(pCfg, "streamCoverage", tsStreamCoverage, CFG_DYN_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
-
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "compareAsStrInGreatest", tsCompareAsStrInGreatest, CFG_SCOPE_CLIENT,
                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
@@ -816,7 +806,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfMnodeReadThreads", tsNumOfMnodeReadThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfVnodeQueryThreads", tsNumOfVnodeQueryThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_LOCAL));
-  TAOS_CHECK_RETURN(cfgAddFloat(pCfg, "ratioOfVnodeStreamThreads", tsRatioOfVnodeStreamThreads, 0.01, 4, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfVnodeFetchThreads", tsNumOfVnodeFetchThreads, 4, 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_LOCAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfVnodeRsmaThreads", tsNumOfVnodeRsmaThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_LOCAL));
@@ -1018,12 +1007,6 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
     tsNumOfVnodeQueryThreads = numOfCores * 2;
     tsNumOfVnodeQueryThreads = TMAX(tsNumOfVnodeQueryThreads, 16);
     pItem->i32 = tsNumOfVnodeQueryThreads;
-    pItem->stype = stype;
-  }
-
-  pItem = cfgGetItem(pCfg, "ratioOfVnodeStreamThreads");
-  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    pItem->fval = tsRatioOfVnodeStreamThreads;
     pItem->stype = stype;
   }
 
@@ -1432,9 +1415,6 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "bypassFlag");
   tsBypassFlag = pItem->i32;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamCoverage");
-  tsStreamCoverage = pItem->bval;
-
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "compareAsStrInGreatest");
   tsCompareAsStrInGreatest = pItem->bval;
 
@@ -1543,9 +1523,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "numOfVnodeQueryThreads");
   tsNumOfVnodeQueryThreads = pItem->i32;
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ratioOfVnodeStreamThreads");
-  tsRatioOfVnodeStreamThreads = pItem->fval;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "numOfVnodeFetchThreads");
   tsNumOfVnodeFetchThreads = pItem->i32;
@@ -2895,7 +2872,6 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"numOfRpcSessions", &tsNumOfRpcSessions},
                                          {"bypassFlag", &tsBypassFlag},
                                          {"safetyCheckLevel", &tsSafetyCheckLevel},
-                                         {"streamCoverage", &tsStreamCoverage},
                                          {"compareAsStrInGreatest", &tsCompareAsStrInGreatest}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
