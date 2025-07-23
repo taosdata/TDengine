@@ -1,5 +1,6 @@
 migrations.lock
 /target
+**/target
 USER_MANUAL.md TODO.md
 TDengine
 .vscode

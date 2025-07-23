@@ -168,6 +168,13 @@ go build -o taosx-opc \
   -ldflags "-X collector/version.CommitID=${commit} -X 'collector/version.BuildAt=$built'"
 """
 
+[tasks.taosx-plugin-hebeipower]
+cwd = "crates/transform/parsers/hebeipower"
+script = """
+cargo clean
+cargo build --release
+"""
+
 [tasks.package]
 # script = { file = "./scripts/package.sh" }
 # dependencies = ["build-all"]

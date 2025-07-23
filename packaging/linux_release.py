@@ -11,6 +11,7 @@ release_dir = os.path.abspath(os.path.join(top_dir, "release"))
 opc_dir = os.path.abspath(os.path.join(top_dir, "plugins","opc"))
 influxdb_dir = os.path.abspath(os.path.join(top_dir, "plugins","influxdb"))
 opentsdb_dir = os.path.abspath(os.path.join(top_dir, "plugins","opentsdb"))
+hebeipower_dir = os.path.abspath(os.path.join(top_dir, "crates", "transform", "parsers", "hebeipower"))
 explore_dir = os.path.abspath(os.path.join(top_dir, "explorer"))
 systemd_path = ""
 target = "taosx"
@@ -30,6 +31,8 @@ def release(release_info,build_info):
             build_and_install_influxdb_on_linux(info.VersionMode)
         if info.Name =='opentsdb':
             build_and_install_opentsdb_on_linux(info.VersionMode)
+        if info.Name == 'hebeipower':
+            build_and_install_hebeipower_on_linux(info.VersionMode)
         if info.Name =='taosx' and release_info.UploadAgent == False and release_info.BuildAgent == False:
             build_and_install_taosx_on_linux(release_info, info.VersionMode)
         if info.Name =='taosx-agent':
@@ -129,6 +132,24 @@ def build_and_install_opentsdb_on_linux(mode='release'):
 
     shutil.copyfile(binary_file,os.path.join(release_dir,"plugins","opentsdb","taosx-opentsdb.jar"))
     logging.info("taosx-opentsdb copied to {release_dir}".format(release_dir=dst_dir))
+
+def build_and_install_hebeipower_on_linux(mode='release'):
+    logging.info("build_and_install hebeipower plugin on linux")
+    platform = "linux"
+    arch = "amd64"
+    #  /usr/local/taos/plugins/parsers/libhebeipower.so
+    dst_dir = os.path.join(release_dir, "plugins", "parsers")
+    lib_file = os.path.join(hebeipower_dir, "target", "release", "libhebeipower.so")
+    check_directory(dst_dir)
+
+    os.chdir(top_dir)
+    build_command = "cargo make taosx-plugin-hebeipower"
+    logging.info(f"build_command: {build_command}")
+    os.system(build_command)
+    logging.info("taosx hebeipower plugin built successfully")
+
+    shutil.copyfile(lib_file, os.path.join(release_dir, "plugins", "parsers", "libhebeipower.so"))
+    logging.info("taosx hebeipower plugin copied to {release_dir}".format(release_dir=dst_dir))
 
 
 def build_and_install_taosx_on_linux(release_info, mode='release'):
