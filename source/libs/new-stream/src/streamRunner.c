@@ -409,7 +409,7 @@ static void clearNotifyContent(SStreamRunnerTaskExecution* pExec) {
 }
 
 static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec, int32_t startWinIdx,
-                                    int32_t endWinIdx) {
+                                    int32_t endWinIdx, const char* tbname) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -430,7 +430,7 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
     params[i - startWinIdx] = pTriggerCalcParams;
   }
 
-  code = streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, pExec->runtimeInfo.funcInfo.triggerType,
+  code = streamSendNotifyContent(&pTask->task, pTask->streamName, tbname, pExec->runtimeInfo.funcInfo.triggerType,
                                  pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
                                  pTask->notification.notifyErrorHandle, *params, nParam);
 
@@ -446,7 +446,7 @@ _exit:
 }
 
 static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec,
-                                    const SSDataBlock* pBlock) {
+                                         const SSDataBlock* pBlock, const char* tbname) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -469,7 +469,7 @@ static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunner
     }
     pTriggerCalcParams->resultNotifyContent = pContent;
 
-    code = streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, pExec->runtimeInfo.funcInfo.triggerType,
+    code = streamSendNotifyContent(&pTask->task, pTask->streamName, tbname, pExec->runtimeInfo.funcInfo.triggerType,
                                    pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
                                    pTask->notification.notifyErrorHandle, pTriggerCalcParams, 1);
     taosMemoryFreeClear(pTriggerCalcParams->resultNotifyContent);
@@ -481,7 +481,7 @@ static int32_t stRunnerHandleSingleWinResultBlock(SStreamRunnerTask* pTask, SStr
                                                   SSDataBlock* pBlock, bool* pCreateTb) {
   int32_t code = stRunnerOutputBlock(pTask, pExec, pBlock, pCreateTb);
   if (code == 0) {
-    code = streamDoNotification1For1(pTask, pExec, pBlock);
+    code = streamDoNotification1For1(pTask, pExec, pBlock, pExec->tbname);
     if (code != TSDB_CODE_SUCCESS) {
       ST_TASK_ELOG("failed to send notification for block, code:%s", tstrerror(code));
     }
@@ -674,7 +674,7 @@ static int32_t stRunnerTopTaskHandleOutputBlockAgg(SStreamRunnerTask* pTask, SSt
   if (code == 0 && taosArrayGetSize(pTask->notification.pNotifyAddrUrls) > 0) {
     endWinIdx = *pNextOutIdx - 1;
     if (endWinIdx >= startWinIdx) {
-      code = streamDoNotification(pTask, pExec, startWinIdx, endWinIdx);
+      code = streamDoNotification(pTask, pExec, startWinIdx, endWinIdx, pExec->tbname);
       if (code != TSDB_CODE_SUCCESS) {
         ST_TASK_ELOG("failed to send notification for block, code:%s", tstrerror(code));
       }
@@ -720,7 +720,7 @@ static int32_t stRunnerTopTaskHandleOutputBlockProj(SStreamRunnerTask* pTask, SS
   if (code == 0) {
     endWinIdx = *pNextOutIdx - 1;
     if (endWinIdx >= startWinIdx) {
-      streamDoNotification(pTask, pExec, startWinIdx, endWinIdx);
+      streamDoNotification(pTask, pExec, startWinIdx, endWinIdx, pExec->tbname);
     }
   }
   return code;
