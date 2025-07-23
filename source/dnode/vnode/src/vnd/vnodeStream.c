@@ -1652,7 +1652,7 @@ static int32_t vnodeProcessStreamWalMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   printDataBlock(pBlock, __func__, "");
 
 end:
-  if (pBlock != NULL && pBlock->info.rows == 0) {
+  if ((pBlock != NULL && pBlock->info.rows == 0) || pTableList == NULL) {
     code = TSDB_CODE_STREAM_NO_DATA;
     buf = rpcMallocCont(sizeof(int64_t));
     *(int64_t *)buf = lastVer;
