@@ -11,7 +11,7 @@ import time
 import datetime
 
 class Test_ThreeGorges:
-    caseName = "test_str_sxny_cn_test_v015"
+    caseName = "str_tb_station_power_info"
     currentDir = os.path.dirname(os.path.abspath(__file__))
     runAll = False
     dbname = "test1"
@@ -22,15 +22,15 @@ class Test_ThreeGorges:
     subTblNum = 3
     tblRowNum = 10
     tableList = []
-    outTbname = "stb_sxny_cn_test_v015"
-    streamName = "test_str_sxny_cn_test_v015"
+    outTbname = "stb_station_power_info"
+    streamName = "str_tb_station_power_info"
     tableList = []
     resultIdx = "1"
     
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_three_gorges_second_case12(self):
+    def test_three_gorges_second_case17(self):
         """test_three_gorges_case
         
         1. create snode
@@ -38,7 +38,7 @@ class Test_ThreeGorges:
 
 
         Catalog:
-            - Streams:test_str_sxny_cn_test_v015
+            - Streams:str_tb_station_power_info
 
         Since: v3.3.3.7
 
@@ -58,87 +58,38 @@ class Test_ThreeGorges:
         self.createSnodeTest()
         self.createStream()
         self.checkStreamRunning()
-        
-        tdSql.query("select val from test1.stb_sxny_cn_test_v015;")
-        if tdSql.getData(0,0) != 654:
-            raise Exception("error: result is not right!")
-        
-        tdSql.query("select val from test1.stb_sxny_cn_test_v015_1;")
-        if tdSql.getData(0,0) != 654:
-            raise Exception("error: result is not right!")
-        
-        tdSql.query("select val from test1.stb_sxny_cn_test_v015_2;")
-        if tdSql.getData(0,0) != 654:
-            raise Exception("error: result is not right!")
-        # self.checkResultWithResultFile()
+
 
     def createStream(self):
         tdLog.info(f"create stream :")
         stream1 = (
-                    f"""create stream test1.test_str_sxny_cn_test_v015 state_window(cast(val as integer)) from test1.stb_sxny_cn 
-                    partition by tbname,point,index_code,ps_code,point_name
-                    stream_options(fill_history|pre_filter(index_code in ('index_a0')  and dt >= today() - 1d)|event_type(window_close) )
-                    into test1.stb_sxny_cn_test_v015 output_subtable(concat_ws('_','_sxny_cn_test_v015',point)) 
+                    f"""create stream test1.str_tb_station_power_info period(1s) from test1.tb_station_power_info 
+                    partition by tbname,company,ps_name,country_code,ps_code,rated_energy,rated_power_unit,data_unit,remark
+                    stream_options(low_latency_calc)
+                    into test1.stb_station_power_info output_subtable(concat_ws('_','station_power_info',ps_code)) 
                     tags(
                     tablename varchar(50) as tbname,
-                    point varchar(50) as point,
-                    index_code varchar(50) as index_code,
-                    ps_code varchar(50) as ps_code,
-                    point_name varchar(50) as point_name)
+                    company varchar(255) as company,
+                    ps_name varchar(255) as ps_name,
+                    country_code varchar(255) as country_code,
+                    ps_code varchar(255) as ps_code,
+                    rated_energy varchar(255) as rated_energy,
+                    rated_power_unit varchar(255) as rated_power_unit,
+                    data_unit varchar(255) as data_unit,
+                    remark varchar(255) as remark
+                    )
                     as select
-                        _twstart dtime,
-                        first(dt) fir_dt,
-                        last(dt) sec_dt,
-                        sum(cast(val as integer)) val
+                        today() ts,
+                        rated_power,
+                        minimum_power,
+                        data_rate
                     from
-                        %%tbname where dt between _twstart and _twend;
+                        %%trows;
                     """
         )
         
-        stream2 = (
-                    f"""create stream test1.test_str_sxny_cn_test_v015_1 state_window(cast(val as integer)) from test1.stb_sxny_cn 
-                    partition by tbname,point,index_code,ps_code,point_name
-                    stream_options(fill_history|pre_filter(index_code in ('index_a0')  and dt >= today() - 1d)|event_type(window_close) )
-                    into test1.stb_sxny_cn_test_v015_1 output_subtable(concat_ws('_','_sxny_cn_test_v015_1',point)) 
-                    tags(
-                    tablename varchar(50) as tbname,
-                    point varchar(50) as point,
-                    index_code varchar(50) as index_code,
-                    ps_code varchar(50) as ps_code,
-                    point_name varchar(50) as point_name)
-                    as select
-                        _twstart dtime,
-                        first(dt) fir_dt,
-                        last(dt) sec_dt,
-                        last(cast(val as integer)) val
-                    from
-                        %%tbname where dt between _twstart and _twend;
-                    """
-        )
         
-        stream3 = (
-                    f"""create stream test1.test_str_sxny_cn_test_v015_2 state_window(cast(val as integer)) from test1.stb_sxny_cn 
-                    partition by tbname,point,index_code,ps_code,point_name
-                    stream_options(fill_history|pre_filter(index_code in ('index_a0')  and dt >= today() - 1d)|event_type(window_close) )
-                    into test1.stb_sxny_cn_test_v015_2 output_subtable(concat_ws('_','_sxny_cn_test_v015_2',point)) 
-                    tags(
-                    tablename varchar(50) as tbname,
-                    point varchar(50) as point,
-                    index_code varchar(50) as index_code,
-                    ps_code varchar(50) as ps_code,
-                    point_name varchar(50) as point_name)
-                    as select
-                        _twstart dtime,
-                        first(dt) fir_dt,
-                        last(dt) sec_dt,
-                        avg(cast(val as integer)) val
-                    from
-                        %%tbname where dt between _twstart and _twend;
-                    """
-        )
         tdSql.execute(stream1,queryTimes=2)
-        tdSql.execute(stream2,queryTimes=2)
-        tdSql.execute(stream3,queryTimes=2)
         tdLog.info(f"create stream success!")
     
     def checkResultWithResultFile(self):
@@ -156,19 +107,14 @@ class Test_ThreeGorges:
 
         random.seed(42)
         tdSql.execute("create database test1 vgroups 6;")
-        tdSql.execute("""CREATE STABLE test1.`stb_sxny_cn` (
-            `dt` TIMESTAMP , `val` DOUBLE
-        ) TAGS (
-            `point` VARCHAR(50), `point_name` VARCHAR(64), `point_path` VARCHAR(2000),
-            `index_name` VARCHAR(64), `country_equipment_code` VARCHAR(64),
-            `index_code` VARCHAR(64), `ps_code` VARCHAR(50), `cnstationno` VARCHAR(255),
-            `index_level` VARCHAR(10), `cz_flag` VARCHAR(255), `blq_flag` VARCHAR(255),
-            `dcc_flag` VARCHAR(255)
-        )""")
+        tdSql.execute("""CREATE STABLE test1.tb_station_power_info (ts TIMESTAMP , rated_power DOUBLE , minimum_power DOUBLE , data_rate DOUBLE ) 
+                    TAGS (company VARCHAR(255), ps_name VARCHAR(255), country_code VARCHAR(255), ps_code VARCHAR(255), 
+                    rated_energy VARCHAR(255), rated_power_unit VARCHAR(255), data_unit VARCHAR(255), remark VARCHAR(255))
+        """)
 
-        tdSql.execute("CREATE TABLE test1.`a0` USING test1.`stb_sxny_cn` TAGS ('a0','name_a0','/taosdata/a0','a0_0','a0_ch1','index_a0','pscode_a0','cnstationno_a0','level_a0','cz_z0','blq_a0','dcc_a0')")
-        tdSql.execute("CREATE TABLE test1.`a1` USING test1.`stb_sxny_cn` TAGS ('a1','name_a1','/taosdata/a1','a0_1','a1_ch1','index_a1','pscode_a1','cnstationno_a1','level_a1','cz_z1','blq_a1','dcc_a1')")
-        tdSql.execute("CREATE TABLE test1.`a2` USING test1.`stb_sxny_cn` TAGS ('a2','name_a2','/taosdata/a2','a0_2','a2_ch2','index_a2','pscode_a2','cnstationno_a2','level_a2','cz_z2','blq_a2','dcc_a2')")
+        tdSql.execute("CREATE TABLE test1.`a0` USING test1.`tb_station_power_info` TAGS ('com_a0','psname_a0','conutry_a0','pscode_a0','rate_a0','p_a0','Km','remarka0')")
+        tdSql.execute("CREATE TABLE test1.`a1` USING test1.`tb_station_power_info` TAGS ('com_a1','psname_a1','conutry_a1','pscode_a1','rate_a1','p_a1','K','remarka1')")
+        tdSql.execute("CREATE TABLE test1.`a2` USING test1.`tb_station_power_info` TAGS ('com_a2','psname_a2','conutry_a2','pscode_a2','rate_a2','p_a2','mi','remarka2')")
 
         tables = ['a0', 'a1', 'a2']
 
@@ -183,8 +129,10 @@ class Test_ThreeGorges:
         for i in range(total_rows):
             ts = base_ts + i * interval_ms
             c1 = random.randint(0, 1000)
+            c2 = random.randint(0, 1000)
+            c3 = random.randint(0, 1000)
             for tb in tables:
-                sql = "INSERT INTO test1.%s VALUES (%d,%d)" % (tb, ts, c1)
+                sql = "INSERT INTO test1.%s VALUES (%d,%d,%d,%d)" % (tb, ts, c1,c2,c3)
                 tdSql.execute(sql)
 
                 

@@ -14320,6 +14320,7 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStrea
   if (pTriggerTableMeta->tableType == TSDB_SUPER_TABLE &&
       nodeType(pTriggerWindow) != QUERY_NODE_INTERVAL_WINDOW &&
       nodeType(pTriggerWindow) != QUERY_NODE_SESSION_WINDOW &&
+      nodeType(pTriggerWindow) != QUERY_NODE_PERIOD_WINDOW &&
       (LIST_LENGTH(pTriggerPartition) == 0 || !hasTbnameFunction(pTriggerPartition))) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
                                          "Partition by tbname is required for super table trigger when trigger window is not interval and session"));
@@ -15297,12 +15298,11 @@ static int32_t translateShowCreateTable(STranslateContext* pCxt, SShowCreateTabl
   PAR_ERR_RET(getTableCfg(pCxt, &name, (STableCfg**)&pStmt->pTableCfg));
 
   bool isVtb = (((STableCfg*)pStmt->pTableCfg)->tableType == TSDB_VIRTUAL_CHILD_TABLE ||
-                ((STableCfg*)pStmt->pTableCfg)->tableType == TSDB_VIRTUAL_NORMAL_TABLE);
-  if (isVtb ^ (showVtable)) {
+                ((STableCfg*)pStmt->pTableCfg)->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
+                ((STableCfg*)pStmt->pTableCfg)->virtualStb);
+  if (!isVtb && showVtable) {
     PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_TYPE,
-                                       "table type is %s, but show create %s",
-                                       isVtb? "virtual table" : "normal table",
-                                       showVtable? "virtual table" : "normal table"));
+                                       "table type is normal table, but use show create virtual table"));
 
   }
 
@@ -18436,7 +18436,7 @@ static int32_t buildDropVirtualTableVgroupHashmap(STranslateContext* pCxt, SDrop
   }
   PAR_ERR_JRET(code);
 
-  if (!isVirtualTable(pTableMeta)) {
+  if (!isVirtualTable(pTableMeta) && !isVirtualSTable(pTableMeta)) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DROP_VTABLE, "Cannot drop non-virtual table using DROP VTABLE"););
   }
 
@@ -18595,11 +18595,6 @@ static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
       taosHashCleanup(pVgroupHashmap);
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DROP_STABLE);
     }
-    if (tableType == TSDB_VIRTUAL_CHILD_TABLE || tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
-      taosHashCleanup(pVgroupHashmap);
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DROP_VTABLE,
-                                     "Cannot drop virtual table using DROP TABLE");
-    }
     if (pCxt->withOpt) continue;
     if (pCxt->pMetaCache) code = getTableTsmasFromCache(pCxt->pMetaCache, &name, &pTsmas);
     if (TSDB_CODE_SUCCESS != code) {
@@ -18684,14 +18679,10 @@ static int32_t rewriteDropVirtualTableWithOpt(STranslateContext* pCxt, SQuery* p
 
   SName name = {0};
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
-  code = getTargetName(pCxt, &name, pTableName);
-  if (TSDB_CODE_SUCCESS != code) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "%s: db:`%s`, tbuid:`%s`", tstrerror(code), pStmt->dbName,
-                                   pStmt->tableName);
-  }
+  PAR_ERR_RET(getTargetName(pCxt, &name, pTableName));
   tstrncpy(pStmt->tableName, pTableName, TSDB_TABLE_NAME_LEN);  // rewrite table uid to table name
 
-  TAOS_RETURN(rewriteDropTableWithMetaCache(pCxt));
+  PAR_RET(rewriteDropTableWithMetaCache(pCxt));
 }
 
 static int32_t rewriteDropVirtualTable(STranslateContext* pCxt, SQuery* pQuery) {
@@ -19438,7 +19429,14 @@ static void destoryAlterTbReq(SVAlterTbReq* pReq) {
 }
 
 static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
-                                     SQuery* pQuery) {
+                                     SQuery* pQuery, bool isVirtual) {
+  if (isVirtual) {
+    if (!isVirtualTable(pTableMeta) && !isVirtualSTable(pTableMeta)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
+                                     "can not alter non-virtual table using ALTER VTABLE");
+    }
+  }
+  
   if (TSDB_SUPER_TABLE == pTableMeta->tableType) {
     return TSDB_CODE_SUCCESS;
   } else if (TSDB_CHILD_TABLE != pTableMeta->tableType && TSDB_NORMAL_TABLE != pTableMeta->tableType &&
@@ -19471,7 +19469,7 @@ static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* p
   return code;
 }
 
-static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery) {
+static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery, bool isVirtual) {
   int32_t          code = TSDB_CODE_SUCCESS;
   SAlterTableStmt* pStmt = (SAlterTableStmt*)pQuery->pRoot;
 
@@ -19486,7 +19484,7 @@ static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery) {
 
   STableMeta* pTableMeta = NULL;
   PAR_ERR_JRET(getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pTableMeta));
-  PAR_ERR_JRET(rewriteAlterTableImpl(pCxt, pStmt, pTableMeta, pQuery));
+  PAR_ERR_JRET(rewriteAlterTableImpl(pCxt, pStmt, pTableMeta, pQuery, isVirtual));
 
 _return:
   taosMemoryFree(pTableMeta);
@@ -19494,7 +19492,7 @@ _return:
 }
 
 static int32_t rewriteAlterVirtualTable(STranslateContext* pCxt, SQuery* pQuery) {
-  return rewriteAlterTable(pCxt, pQuery);
+  return rewriteAlterTable(pCxt, pQuery, true);
 }
 
 static int32_t buildCreateVTableDataBlock(const SCreateVTableStmt* pStmt, const SVgroupInfo* pInfo, SArray* pBufArray) {
@@ -20365,7 +20363,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
       code = rewriteDropVirtualTable(pCxt, pQuery);
       break;
     case QUERY_NODE_ALTER_TABLE_STMT:
-      code = rewriteAlterTable(pCxt, pQuery);
+      code = rewriteAlterTable(pCxt, pQuery, false);
       break;
     case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT:
       code = rewriteAlterVirtualTable(pCxt, pQuery);

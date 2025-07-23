@@ -10,7 +10,7 @@ import random
 import time
 import datetime
 
-class TestSnodeMgmt:
+class Test_ThreeGorges:
     caseName = "test_three_gorges_second_case6"
     currentDir = os.path.dirname(os.path.abspath(__file__))
     runAll = False
@@ -30,7 +30,7 @@ class TestSnodeMgmt:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_snode_mgmt(self):
+    def test_three_gorges_second_case6(self):
         """test_three_gorges_case
         
         1. create snode

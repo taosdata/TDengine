@@ -1,14 +1,14 @@
-import os
-import platform
-import socket
-import time
+import pytest,os,platform,time
+
 from new_test_framework.utils import (
     tdLog,
     tdSql,
+    tdDnodes,
     clusterComCheck,
+    tdStream,
+    StreamItem,
+    tdCb
 )
-# Import the compatibility basic module from new location
-from .compatibility_basic import cb
 
 
 class TestCompatibilityRollingUpgradeAll:
@@ -40,7 +40,7 @@ class TestCompatibilityRollingUpgradeAll:
         # Maintain original rolling upgrade logic using cb module
         tdLog.printNoPrefix("========== Rolling Upgrade All Dnodes Compatibility Test ==========")
 
-        hostname = socket.gethostname()
+        hostname = self.host
         tdLog.info(f"hostname: {hostname}")
         
         # Get last big version
@@ -55,35 +55,44 @@ class TestCompatibilityRollingUpgradeAll:
         cPaths = self.getDnodePaths()
         
         # Stop all dnodes
-        cb.killAllDnodes()
+        tdCb.killAllDnodes()
         
         # Install old version for rolling upgrade
-        cb.installTaosdForRollingUpgrade(cPaths, lastBigVersion)
-        
-        # Create dnodes
-        tdSql.execute(f"CREATE DNODE '{hostname}:6130'")
-        tdSql.execute(f"CREATE DNODE '{hostname}:6230'")
+        baseVersionExist = tdCb.installTaosdForRollingUpgrade(cPaths, lastBigVersion)
+        if not baseVersionExist:
+            tdLog.info(f"Base version {lastBigVersion} does not exist")
+            
+        if baseVersionExist:
+            # Create dnodes
+            tdSql.execute(f"CREATE DNODE '{hostname}:6130'")
+            tdSql.execute(f"CREATE DNODE '{hostname}:6230'")
 
-        time.sleep(10)
+            time.sleep(10)
 
-        # Prepare data on old version
-        cb.prepareDataOnOldVersion(lastBigVersion, bPath, corss_major_version=False)
+            # Prepare data on old version
+            tdCb.prepareDataOnOldVersion(lastBigVersion, bPath, corss_major_version=False)
 
-        # Update to new version - rolling upgrade all dnodes mode 1
-        cb.updateNewVersion(bPath, cPaths, 1)
+            # Update to new version - rolling upgrade all dnodes mode 1
+            tdCb.updateNewVersion(bPath, cPaths, 1)
 
-        time.sleep(10)
+            time.sleep(10)
 
-        # Verify data after upgrade
-        cb.verifyData(corss_major_version=False)
+            # Verify data after upgrade
+            tdCb.verifyData(corss_major_version=False)
 
-        # Verify backticks in SQL
-        cb.verifyBackticksInTaosSql(bPath)
+            # Verify backticks in SQL
+            tdCb.verifyBackticksInTaosSql(bPath)
         
         tdLog.printNoPrefix("========== Rolling Upgrade All Dnodes Compatibility Test Completed Successfully ==========")
 
+
+    def getDnodePaths(self):
+        """Get dnode paths - copied from original"""
+        buildPath = self.getBuildPath()
+        dnodePaths = [buildPath + "/../sim/dnode1/", buildPath + "/../sim/dnode2/", buildPath + "/../sim/dnode3/"]
+        return dnodePaths 
+
     def getBuildPath(self):
-        """Get build path - copied from original"""
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -91,16 +100,13 @@ class TestCompatibilityRollingUpgradeAll:
         else:
             projPath = selfPath[:selfPath.find("tests")]
 
+        print(f"projPath:{projPath}")
         for root, dirs, files in os.walk(projPath):
             if ("taosd" in files or "taosd.exe" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
+                print(f"rootRealPath:{rootRealPath}")
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root)-len("/build/bin")]
                     break
+        print(f"buildPath:{buildPath}")
         return buildPath
-
-    def getDnodePaths(self):
-        """Get dnode paths - copied from original"""
-        buildPath = self.getBuildPath()
-        dnodePaths = [buildPath + "/../sim/dnode1/", buildPath + "/../sim/dnode2/", buildPath + "/../sim/dnode3/"]
-        return dnodePaths 

@@ -294,6 +294,7 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
     sStreamReaderInfo->uid = pMsg->msg.trigger.triggerTblUid;
   }
 
+  ST_TASK_DLOG("pMsg->msg.trigger.deleteReCalc: %d", pMsg->msg.trigger.deleteReCalc);
   sStreamReaderInfo->deleteReCalc = pMsg->msg.trigger.deleteReCalc;
   sStreamReaderInfo->deleteOutTbl = pMsg->msg.trigger.deleteOutTbl;
   // process triggerScanPlan
