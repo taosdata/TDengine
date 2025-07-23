@@ -213,8 +213,7 @@ class Test_IDMP_Vehicle:
         pass
         # stream3
         self.verify_stream3_again()
-        # ***** bug7 *****
-        #self.verify_stream3_sub1_again()
+        self.verify_stream3_sub1_again()
 
     #
     # 8. restart dnode
@@ -695,11 +694,25 @@ class Test_IDMP_Vehicle:
         result_sql = f"select * from {self.vdb}.`result_stream3_sub1` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
-            func = lambda: tdSql.getRows() == 2
+            func = lambda: tdSql.getRows() == 4
+            #
+            # old reserved
+            #
+            # row2
+            and tdSql.compareData(0, 0, self.start + 20 * self.step) # ts
+            and tdSql.compareData(0, 1, 6 + 1)          # cnt
+            # row3
+            and tdSql.compareData(1, 0, self.start + 30 * self.step) # ts
+            and tdSql.compareData(1, 1, 8 + 1)   
+
+            #
+            # new generate append
+            #
+
             # row1
             and tdSql.compareData(0, 0, 1752900600000) # ts
             and tdSql.compareData(0, 1, 5 + 1)          # cnt
-            # row2
+            # row4
             and tdSql.compareData(1, 0, 1752901980000) # ts
             and tdSql.compareData(1, 1, 5 + 1)          # cnt
         )
