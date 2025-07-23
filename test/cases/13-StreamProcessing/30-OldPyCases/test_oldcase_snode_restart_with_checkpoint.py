@@ -73,7 +73,7 @@ class Test_snode_restart_with_checkpoint:
         tdLog.info("========snode restart ok========")
 
         time.sleep(10)
-        os.system("kill -9 `pgrep taosBenchmark`")
+        os.system("unset LD_PRELOAD;kill -9 `pgrep taosBenchmark`")
         tdLog.info("========stop insert ok========")
         time.sleep(2)
 
