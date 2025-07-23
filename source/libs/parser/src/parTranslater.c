@@ -3458,8 +3458,12 @@ static int32_t replacePsedudoColumnFuncWithColumn(STranslateContext* pCxt, SNode
   pCol->node.resType = pOldExpr->resType;
   tstrncpy(pCol->node.aliasName, pOldExpr->aliasName, TSDB_COL_NAME_LEN);
   tstrncpy(pCol->node.userAlias, pOldExpr->userAlias, TSDB_COL_NAME_LEN);
-  tstrncpy(pCol->colName, pOldExpr->aliasName, TSDB_COL_NAME_LEN);
-
+  if (nodeType(*ppNode) == QUERY_NODE_FUNCTION) {
+    tstrncpy(pCol->colName, ((SFunctionNode*)(*ppNode))->functionName, TSDB_COL_NAME_LEN);
+  } else {
+    tstrncpy(pCol->colName, pOldExpr->aliasName, TSDB_COL_NAME_LEN);
+  }
+  
   nodesDestroyNode(*ppNode);
   *ppNode = (SNode*)pCol;
 
