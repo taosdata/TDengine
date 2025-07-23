@@ -862,7 +862,7 @@ static int32_t stVtableMergerReaderInfoCompare(const void *pLeft, const void *pR
 }
 
 int32_t stVtableMergerInit(SSTriggerVtableMerger *pMerger, struct SStreamTriggerTask *pTask, SSDataBlock **ppDataBlock,
-                           SFilterInfo **ppFilter) {
+                           SFilterInfo **ppFilter, int32_t nVirDataCols) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
@@ -871,6 +871,7 @@ int32_t stVtableMergerInit(SSTriggerVtableMerger *pMerger, struct SStreamTrigger
   *ppDataBlock = NULL;
   pMerger->pFilter = *ppFilter;
   *ppFilter = NULL;
+  pMerger->nVirDataCols = nVirDataCols;
   pMerger->readRange = (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN};
 
   pMerger->pReaderInfos = taosArrayInit(0, sizeof(SVtableMergerReaderInfo));
@@ -878,6 +879,13 @@ int32_t stVtableMergerInit(SSTriggerVtableMerger *pMerger, struct SStreamTrigger
 
   pMerger->pReaders = taosArrayInit(0, sizeof(SSTriggerTimestampSorter *));
   QUERY_CHECK_NULL(pMerger->pReaders, code, lino, _end, terrno);
+
+  if (pMerger->pFilter != NULL) {
+    SFilterColumnParam param = {.numOfCols = taosArrayGetSize(pMerger->pDataBlock->pDataBlock),
+                                .pDataBlock = pMerger->pDataBlock->pDataBlock};
+    code = filterSetDataFromSlotId(pMerger->pFilter, &param);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
 
 _end:
   if (TSDB_CODE_SUCCESS != code) {
@@ -930,6 +938,10 @@ void stVtableMergerReset(SSTriggerVtableMerger *pMerger) {
 
   if (pMerger->pReaderInfos != NULL) {
     taosArrayClear(pMerger->pReaderInfos);
+  }
+  if (pMerger->pPseudoCols != NULL) {
+    blockDataDestroy(pMerger->pPseudoCols);
+    pMerger->pPseudoCols = NULL;
   }
 }
 
@@ -999,6 +1011,24 @@ _end:
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   } else {
     BIT_FLAG_SET_MASK(pMerger->flags, TRIGGER_VTABLE_MERGER_MASK_MERGE_INFO_SET);
+  }
+  return code;
+}
+
+int32_t stVtableMergerSetPseudoCols(SSTriggerVtableMerger *pMerger, SSDataBlock **ppDataBlock) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SStreamTriggerTask *pTask = pMerger->pTask;
+  SArray             *pReaders = pMerger->pReaders;
+
+  QUERY_CHECK_CONDITION(pMerger->pPseudoCols == NULL, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  pMerger->pPseudoCols = *ppDataBlock;
+  *ppDataBlock = NULL;
+
+_end:
+  if (TSDB_CODE_SUCCESS != code) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -1120,6 +1150,7 @@ int32_t stVtableMergerNextDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock 
   SStreamTriggerTask      *pTask = pMerger->pTask;
   SSDataBlock             *pDataBlock = pMerger->pDataBlock;
   SVtableMergerReaderInfo *pReaderInfo = NULL;
+  SColumnInfoData         *p = NULL;
 
   *ppDataBlock = NULL;
 
@@ -1149,13 +1180,20 @@ int32_t stVtableMergerNextDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock 
     }
   }
 
-  bool needFetchDataBlock = false;
+  bool    needFetchDataBlock = false;
+  int32_t nCols = taosArrayGetSize(pDataBlock->pDataBlock);
   while (!IS_TRIGGER_VTABLE_MERGER_EMPTY(pMerger)) {
     int32_t idx = tMergeTreeGetChosenIndex(pMerger->pDataMerger);
     pReaderInfo = TARRAY_GET_ELEM(pMerger->pReaderInfos, idx);
     if (pReaderInfo->nextTs > pMerger->readRange.ekey) {
       SET_TRIGGER_VTABLE_MERGER_EMPTY(pMerger);
       continue;
+    }
+
+    if (pMerger->nVirDataCols < nCols && pMerger->pPseudoCols == NULL) {
+      // need to fetch pseudo columns
+      needFetchDataBlock = true;
+      break;
     }
 
     if (pReaderInfo->pDataBlock == NULL) {
@@ -1217,6 +1255,30 @@ int32_t stVtableMergerNextDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock 
 
   int32_t nrows = blockDataGetNumOfRows(pDataBlock);
   if (!needFetchDataBlock && nrows > 0) {
+    if (pMerger->nVirDataCols < nCols) {
+      QUERY_CHECK_NULL(pMerger->pPseudoCols, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      int32_t nPseudoCols = blockDataGetNumOfCols(pMerger->pPseudoCols);
+      QUERY_CHECK_CONDITION(pMerger->nVirDataCols + nPseudoCols == nCols, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      for (int32_t i = 0; i < nPseudoCols; i++) {
+        SColumnInfoData *pSrc = TARRAY_GET_ELEM(pMerger->pPseudoCols->pDataBlock, i);
+        SColumnInfoData *pDst = TARRAY_GET_ELEM(pMerger->pDataBlock->pDataBlock, pMerger->nVirDataCols + i);
+        if (!colDataIsNull_s(pSrc, 0)) {
+          if (!IS_VAR_DATA_TYPE(pDst->info.type) && pDst->nullbitmap != NULL) {
+            int32_t bmLen = BitmapLen(nrows);
+            memset(pDst->nullbitmap, 0, bmLen);
+          }
+          code = colDataCopyNItems(pDst, 0, colDataGetData(pSrc, 0), nrows, false);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+      }
+    }
+    if (pMerger->pFilter != NULL) {
+      int32_t status = 0;
+      code = filterExecute(pMerger->pFilter, pMerger->pDataBlock, &p, NULL, blockDataGetNumOfCols(pDataBlock), &status);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code = trimDataBlock(pMerger->pDataBlock, nrows, (bool *)p->pData);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
     *ppDataBlock = pMerger->pDataBlock;
     SColumnInfoData *pVirTsCol = taosArrayGet(pDataBlock->pDataBlock, 0);
     QUERY_CHECK_NULL(pVirTsCol, code, lino, _end, terrno);
@@ -1225,6 +1287,10 @@ int32_t stVtableMergerNextDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock 
   }
 
 _end:
+  if (p != NULL) {
+    colDataDestroy(p);
+    taosMemoryFreeClear(p);
+  }
   if (TSDB_CODE_SUCCESS != code) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -1249,7 +1315,9 @@ int32_t stVtableMergerGetMetaToFetch(SSTriggerVtableMerger *pMerger, SSTriggerMe
   int32_t                   idx = tMergeTreeGetChosenIndex(pMerger->pDataMerger);
   SVtableMergerReaderInfo  *pReaderInfo = TARRAY_GET_ELEM(pMerger->pReaderInfos, idx);
   SSTriggerTimestampSorter *pReader = *(SSTriggerTimestampSorter **)TARRAY_GET_ELEM(pMerger->pReaders, idx);
-  if (pReaderInfo->pDataBlock == NULL) {
+  if (pMerger->nVirDataCols < blockDataGetNumOfCols(pMerger->pDataBlock) && pMerger->pPseudoCols == NULL) {
+    *ppColRef = pReaderInfo->pColRef;
+  } else if (pReaderInfo->pDataBlock == NULL) {
     code = stTimestampSorterGetMetaToFetch(pReader, ppMeta);
     QUERY_CHECK_CODE(code, lino, _end);
     if (*ppMeta != NULL) {

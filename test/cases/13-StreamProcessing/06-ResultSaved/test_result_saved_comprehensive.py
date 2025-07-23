@@ -329,15 +329,15 @@ class TestStreamResultSavedComprehensive:
         )
         self.streams.append(stream)
 
-        # # Test 2.4: Output length exceeds table maximum length (truncation)
-        # stream = StreamItem(
-        #     id=11,
-        #     stream="create stream rdb.s11 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r11 output_subtable(concat('xxxxxxxxvery_long_prefix_that_exceeds_maximum_table_name_length_xxxxxxxxvery_long_prefix_that_exceeds_maximum_table_name_length_xxxxxxxxvery_long_prefix_that_exceeds_maximum_table_name_length_xxxxxxxxvery_long_prefix_that_exceeds_maximum_table_name_length_xxxxxxxxvery_long_prefix_that_exceeds_maximum_table_name_length_', tbname, '_suffix')) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
-        #     res_query="select ts, cnt from rdb.r11 where tag_tbname='t1';",
-        #     exp_query="select _wstart ts, count(*) cnt from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
-        #     check_func=self.check11,
-        # )
-        # self.streams.append(stream)
+        # Test 2.4: Output length exceeds table maximum length (truncation)
+        stream = StreamItem(
+            id=11,
+            stream="create stream rdb.s11 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r11 output_subtable(concat('xxxxxxxxvery_long_prefix_that_exceeds_maximum_table_name_length_xxxxxxxxvery_long_prefix_that_exceeds_maximum_table_name_length_xxxxxxxxvery_long_prefix_that_exceeds_maximum_table_name_length_xxxxxxxxvery_long_prefix_that_exceeds_maximum_table_name_length_xxxxxxxxvery_long_prefix_that_exceeds_maximum_table_name_length_', tbname, '_suffix')) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
+            res_query="select ts, cnt from rdb.r11;",
+            exp_query="select _wstart ts, count(*) cnt from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
+            check_func=self.check11,
+        )
+        self.streams.append(stream)
 
         # Test 3.1.1.1.1: Output table already exists with same custom column names
         stream = StreamItem(
@@ -465,7 +465,8 @@ class TestStreamResultSavedComprehensive:
             exp_query="select _wstart ts, count(*) cnt from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
             check_func=self.check21,
         )
-        self.streams.append(stream)
+        # TODO (smj) : comment not support now, reopen this case when comment is supported
+        #self.streams.append(stream)
 
         # Test 4.5: Correctness of generated column names in specified/unspecified scenarios
         stream = StreamItem(
@@ -630,14 +631,14 @@ class TestStreamResultSavedComprehensive:
             func=lambda: tdSql.getRows() >= 1,
         )
 
-    # def check11(self):
-    #     # Test 2.4: Long table name truncation
-    #     tdSql.checkTableType(dbname="rdb", stbname="r11", columns=2, tags=1)
-    #     # Verify truncation occurred
-    #     tdSql.checkResultsByFunc(
-    #         sql="select table_name from information_schema.ins_tables where db_name='rdb' and stable_name='r11';",
-    #         func=lambda: tdSql.queryResult is not None and all(len(row[0]) <= 192 for row in tdSql.queryResult),  # TSDB_TABLE_NAME_LEN
-    #     )
+    def check11(self):
+        # Test 2.4: Long table name truncation
+        tdSql.checkTableType(dbname="rdb", stbname="r11", columns=2, tags=1)
+        # Verify truncation occurred
+        tdSql.checkResultsByFunc(
+            sql="select table_name from information_schema.ins_tables where db_name='rdb' and stable_name='r11';",
+            func=lambda: tdSql.queryResult is not None and all(len(row[0]) <= 192 for row in tdSql.queryResult),  # TSDB_TABLE_NAME_LEN
+        )
 
     def check12(self):
         # Test 3.1.1.1.3: Custom column names

@@ -279,7 +279,7 @@ static int32_t checkAndSaveCreateGrpTableInfo(SDataInserterHandle*     pInsertha
   SSchema*              pExistRow = pCreateTbRsp->pMeta->pSchemas;
   SStreamInserterParam* pInserterParam = pInserthandle->pParam->streamInserterParam;
 
-  if (tbType == TSDB_CHILD_TABLE) {
+  if (tbType == TSDB_CHILD_TABLE || tbType == TSDB_SUPER_TABLE) {
     if (!isSupportedSTableSchema(pCreateTbRsp->pMeta, pInserterParam)) {
       stError("create table failed, schema is not supported");
       return TSDB_CODE_STREAM_INSERT_SCHEMA_NOT_MATCH;
@@ -568,6 +568,7 @@ int32_t inserterBuildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag*
   }
   pTbReq->ctb.tagName = tagName;
   if (!pTbReq->ctb.tagName) return terrno;
+
   pTbReq->ttl = ttl;
   pTbReq->commentLen = -1;
 
@@ -608,7 +609,7 @@ int32_t inserterGetVgInfo(SDBVgInfo* dbInfo, char* tbName, SVgroupInfo* pVgInfo)
   }
   
   *pVgInfo = *vgInfo;
-  qInfo("insert get vgInfo, tbName:%s vgId:%d epset(%s:%d)", tbName, pVgInfo->vgId, pVgInfo->epSet.eps[0].fqdn,
+  qDebug("insert get vgInfo, tbName:%s vgId:%d epset(%s:%d)", tbName, pVgInfo->vgId, pVgInfo->epSet.eps[0].fqdn,
         pVgInfo->epSet.eps[0].port);
         
   return TSDB_CODE_SUCCESS;
@@ -664,7 +665,7 @@ int32_t inserterGetDbVgInfo(SDataInserterHandle* pInserter, const char* dbFName,
 
 _return:
   qError("%s failed at line %d since %s", __func__, line, tstrerror(code));
-  freeUseDbOutput_tmp(output);
+  freeUseDbOutput_tmp(&output);
   return code;
 }
 
@@ -1366,7 +1367,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
 
   if (needSortMerge) {
     if ((tRowSort(tbData.aRowP) != TSDB_CODE_SUCCESS) ||
-        (terrno = tRowMerge(tbData.aRowP, (STSchema*)pTSchema, 0)) != 0) {
+        (terrno = tRowMerge(tbData.aRowP, (STSchema*)pTSchema, KEEP_CONSISTENCY)) != 0) {
       goto _end;
     }
   }
@@ -1748,10 +1749,11 @@ _end:
       taosMemoryFree(tbData->pCreateTbReq->name);
       taosMemoryFree(tbData->pCreateTbReq);
     }
+    if (TagNames) {
+      taosArrayDestroy(TagNames);
+    }
   }
-  if (TagNames) {
-    taosArrayDestroy(TagNames);
-  }
+
   if (pTagVals) {
     taosArrayDestroy(pTagVals);
   }
@@ -1785,6 +1787,14 @@ static int32_t buildInsertData(SStreamInserterParam* pInsertParam, const SSDataB
       int16_t colIdx = k + 1;
 
       SFieldWithOptions* pCol = taosArrayGet(pInsertParam->pFields, k);
+      if (PRIMARYKEY_TIMESTAMP_COL_ID != colIdx && TSDB_DATA_TYPE_NULL == pCol->type) {
+        SColVal cv = COL_VAL_NULL(colIdx, pCol->type);
+        if (NULL == taosArrayPush(pVals, &cv)) {
+          code = terrno;
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        continue;
+      }
 
       SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
       if (NULL == pColInfoData) {
@@ -1875,7 +1885,6 @@ static int32_t buildInsertData(SStreamInserterParam* pInsertParam, const SSDataB
     }
     if(tsIsNull) continue;  // skip this row if primary key is null
     SRow* pRow = NULL;
-    
     SRowBuildScanInfo sinfo = {0};
     if ((code = tRowBuild(pVals, pTSchema, &pRow, &sinfo)) != TSDB_CODE_SUCCESS) {
       QUERY_CHECK_CODE(code, lino, _end);
@@ -1892,7 +1901,7 @@ static int32_t buildInsertData(SStreamInserterParam* pInsertParam, const SSDataB
   }
   if (needSortMerge) {
     if ((tRowSort(tbData->aRowP) != TSDB_CODE_SUCCESS) ||
-        (code = tRowMerge(tbData->aRowP, (STSchema*)pTSchema, 0)) != 0) {
+        (code = tRowMerge(tbData->aRowP, (STSchema*)pTSchema, KEEP_CONSISTENCY)) != 0) {
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }

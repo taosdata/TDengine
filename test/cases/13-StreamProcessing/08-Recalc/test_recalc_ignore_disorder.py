@@ -232,7 +232,7 @@ class TestStreamRecalcIgnoreDisorder:
         # Test 1.5: PERIOD with IGNORE_DISORDER - should not trigger recalculation for out-of-order data
         stream = StreamItem(
             id=5,
-            stream="create stream rdb.s_period_disorder period(30s) from tdb.trigger_period_disorder partition by tbname stream_options(ignore_disorder) into rdb.r_period_disorder as select _tlocaltime ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _tlocaltime - 30000000000 and cts <= _tlocaltime;",
+            stream="create stream rdb.s_period_disorder period(30s) from tdb.trigger_period_disorder partition by tbname stream_options(ignore_disorder) into rdb.r_period_disorder as select cast(_tlocaltime/1000000 as timestamp) ts, count(*) cnt, avg(cint) avg_val from qdb.meters;",
             check_func=self.check05,
         )
         self.streams.append(stream)

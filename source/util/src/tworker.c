@@ -908,14 +908,14 @@ void tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool) {
       break;
     }
     SListNode *pNode = tdListPopHead(pPool->workers);
-    uError("0free worker node:%p, prev:%p, next:%p", pNode, TD_DLIST_NODE_PREV(pNode), TD_DLIST_NODE_NEXT(pNode));
+    uDebug("0free worker node:%p, prev:%p, next:%p", pNode, TD_DLIST_NODE_PREV(pNode), TD_DLIST_NODE_NEXT(pNode));
     worker = (SQueryAutoQWorker *)pNode->data;
     (void)taosThreadMutexUnlock(&pPool->poolLock);
     if (worker && taosCheckPthreadValid(worker->thread)) {
       (void)taosThreadJoin(worker->thread, NULL);
       taosThreadClear(&worker->thread);
     }
-    uError("free worker node:%p, prev:%p, next:%p", pNode, TD_DLIST_NODE_PREV(pNode), TD_DLIST_NODE_NEXT(pNode));
+    uDebug("free worker node:%p, prev:%p, next:%p", pNode, TD_DLIST_NODE_PREV(pNode), TD_DLIST_NODE_NEXT(pNode));
 
     taosMemoryFree(pNode);
   }
@@ -926,7 +926,7 @@ void tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool) {
       (void)taosThreadMutexUnlock(&pPool->poolLock);
       break;
     }
-    uError("backupworker head:%p, prev:%p, next:%p", TD_DLIST_HEAD(pPool->backupWorkers), TD_DLIST_NODE_PREV(TD_DLIST_HEAD(pPool->backupWorkers)), TD_DLIST_NODE_NEXT(TD_DLIST_HEAD(pPool->backupWorkers)));
+    uDebug("backupworker head:%p, prev:%p, next:%p", TD_DLIST_HEAD(pPool->backupWorkers), TD_DLIST_NODE_PREV(TD_DLIST_HEAD(pPool->backupWorkers)), TD_DLIST_NODE_NEXT(TD_DLIST_HEAD(pPool->backupWorkers)));
     SListNode *pNode = tdListPopHead(pPool->backupWorkers);
     worker = (SQueryAutoQWorker *)pNode->data;
     (void)taosThreadMutexUnlock(&pPool->poolLock);
