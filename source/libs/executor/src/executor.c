@@ -1722,6 +1722,11 @@ int32_t qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STable
   if (pTableListInfo == NULL || pKeyInfo == NULL || size == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
+  if (taosArrayGetSize(((STableListInfo*)pTableListInfo)->pTableList) == 0) {
+    *size = 0;
+    *pKeyInfo = NULL;
+    return 0;
+  }
   if (currentGroupId == -1) {
     *size = taosArrayGetSize(((STableListInfo*)pTableListInfo)->pTableList);
     *pKeyInfo = taosArrayGet(((STableListInfo*)pTableListInfo)->pTableList, 0);
