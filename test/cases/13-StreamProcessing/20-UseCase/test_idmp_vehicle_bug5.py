@@ -152,7 +152,7 @@ class Test_IDMP_Vehicle:
         cols  = "ts,speed"
         step  = self.step
 
-        # win1 1~6
+        # win1 0~5
         vals  = "120"
         count = 5
         ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
@@ -161,7 +161,7 @@ class Test_IDMP_Vehicle:
         ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
 
-        # win2 7~13
+        # win2 6~11
         vals  = "130"
         count = 5
         ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
@@ -180,7 +180,7 @@ class Test_IDMP_Vehicle:
         ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
 
-        # delete 1~3
+        # delete 0~3
         tdSql.deleteRows(table, f"ts >= {self.start } and ts <= {self.start + 3 * step}") 
         
         # delete 20 ~ 23
