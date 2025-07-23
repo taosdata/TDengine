@@ -3563,6 +3563,14 @@ static int32_t doBlockInfoScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
 
   SSDataBlock* pBlock = pBlockScanInfo->pResBlock;
 
+  int32_t cloSize = taosArrayGetSize(pBlock->pDataBlock);
+  for(int32_t i = 0; i < cloSize; ++i) {
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
+    if (pCol != NULL && pCol->pData == NULL) {
+      colDataSetNULL(pCol,0);
+    }
+  }
+
   int32_t          slotId = pOperator->exprSupp.pExprInfo->base.resSchema.slotId;
   SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, slotId);
   QUERY_CHECK_NULL(pColInfo, code, lino, _end, terrno);
