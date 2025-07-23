@@ -302,18 +302,13 @@ class TestStreamRecalcWatermark:
                 )
             )
         
-        # push water mark to a high value
-        # tdSql.execute("insert into tdb.wm1 values ('2026-01-01 02:01:02', 10, 100, 1.5, 'normal');")
-        # tdSql.execute("insert into tdb.wm1 values ('2025-01-01 02:06:02', 10, 100, 1.5, 'normal');")
-        # tdSql.checkResultsByFunc(
-        #         sql=f"select ts, cnt, avg_val from rdb.r_interval_watermark",
-        #         func=lambda: (
-        #             tdSql.getRows() == 3
-        #             and tdSql.compareData(0, 0, "2025-01-01 02:00:00")
-        #             and tdSql.compareData(0, 1, 401)
-        #             and tdSql.compareData(0, 2, 240.922693266833)
-        #         )
-        #     )
+        tdSql.execute("insert into tdb.wm1 values ('2026-01-01 02:01:02', 10, 100, 1.5, 'normal');")
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_interval_watermark",
+                func=lambda: (
+                    tdSql.getRows() > 10000
+                )
+            )
         
 
 
