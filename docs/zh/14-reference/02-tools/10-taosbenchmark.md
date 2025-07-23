@@ -63,7 +63,7 @@ taosBenchmark -f <json file>
 | -i/--insert-interval \<timeInterval> | 指定交错插入模式的插入间隔，单位为 ms，默认值为 0。只有当 `-B/--interlace-rows` 大于 0 时才起作用 |意味着数据插入线程在为每个子表插入隔行扫描记录后，会等待该值指定的时间间隔后再进行下一轮写入 |
 | -r/--rec-per-req \<rowNum>           | 每次向 TDengine 请求写入的数据行数，默认值为 30000  |
 | -t/--tables \<tableNum>              | 指定子表的数量，默认为 10000  |
-| -s/ --start-timestamp \<NUMBER>      | 每个子表数据开始时间，默认值为 1500000000000 |
+| -s/--start-timestamp \<NUMBER>      | 每个子表数据开始时间，默认值为 1500000000000 |
 | -S/--timestampstep \<stepLength>     | 每个子表中插入数据的时间戳步长，单位是 ms，默认值是 1 |
 | -n/--records \<recordNum>            | 每个子表插入的记录数，默认值为 10000  |
 | -d/--database \<dbName>              | 所使用的数据库的名称，默认值为 test  |

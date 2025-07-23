@@ -102,7 +102,7 @@ taosBenchmark -f <json file>
 - **-t/--tables \<tableNum>** :
   Specifies the number of subtables, default is 10000.
 
-- **-s/ --start-timestamp \<NUMBER>**:
+- **-s/--start-timestamp \<NUMBER>**:
   Specify start timestamp to insert data for each child table
 
 - **-S/--timestampstep \<stepLength>** :
