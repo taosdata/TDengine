@@ -355,6 +355,7 @@ static int32_t buildDeleteData(void* pTableList, bool isVTable, SSDataBlock* pBl
   int32_t    code = 0;
   int32_t    lino = 0;
   uint64_t   gid = 0;
+  stDebug("stream reader scan delete start data:uid %" PRIu64 ", skey %" PRIu64 ", ekey %" PRIu64, uid, req->skey, req->ekey);
   if (isVTable) {
     STREAM_CHECK_CONDITION_GOTO(taosHashGet(pTableList, &uid, sizeof(uid)) == NULL, TDB_CODE_SUCCESS)
   } else {
@@ -365,7 +366,7 @@ static int32_t buildDeleteData(void* pTableList, bool isVTable, SSDataBlock* pBl
       buildWalMetaBlock(pBlock, WAL_DELETE_DATA, gid, isVTable, uid, req->skey, req->ekey, ver, 1));
   pBlock->info.rows++;
 
-  stDebug("stream reader scan delete data:uid %" PRIu64 ", skey %" PRIu64 ", ekey %" PRIu64, uid, req->skey, req->ekey);
+  stDebug("stream reader scan delete end data:uid %" PRIu64 ", skey %" PRIu64 ", ekey %" PRIu64, uid, req->skey, req->ekey);
 end:
   return code;
 }
@@ -471,6 +472,8 @@ static int32_t scanWal(SVnode* pVnode, void* pTableList, bool isVTable, SSDataBl
     int32_t len = wCont->bodyLen - sizeof(SMsgHead);
     int64_t ver = wCont->version;
 
+    stDebug("vgId:%d stream reader scan wal ver:%" PRId64 ", type:%d, deleteData:%d, deleteTb:%d",
+      TD_VID(pVnode), ver, wCont->msgType, deleteData, deleteTb);
     if (wCont->msgType == TDMT_VND_DELETE && deleteData != 0) {
       STREAM_CHECK_RET_GOTO(scanDeleteData(pTableList, isVTable, pBlock, data, len, ver));
     } else if (wCont->msgType == TDMT_VND_DROP_TABLE && deleteTb != 0) {
@@ -1175,6 +1178,7 @@ static int32_t vnodeProcessStreamSetTableReq(SVnode* pVnode, SRpcMsg* pMsg, SSTr
       STREAM_CHECK_NULL_GOTO(taosArrayPush(sStreamReaderInfo->uidListIndex, &i), terrno);
     }
     suid = *data;
+    stDebug("vgId:%d %s suid:%" PRId64 ",uid:%" PRId64 ", index:%d", TD_VID(pVnode), __func__, suid, data[1], i);
     STREAM_CHECK_RET_GOTO(taosHashPut(sStreamReaderInfo->uidHash, data + 1, LONG_BYTES, &i, sizeof(int32_t)));
   }
   STREAM_CHECK_NULL_GOTO(taosArrayPush(sStreamReaderInfo->uidListIndex, &cnt), terrno);

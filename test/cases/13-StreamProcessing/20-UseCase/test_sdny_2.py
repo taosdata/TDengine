@@ -19,12 +19,12 @@ class TestSdnyStream:
     streamName = "s99"
     tableList = []
     resultIdx = "1"
-    caseName = "test_sdny_bug3"
+    caseName = "test_sdny_bug2"
     
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_sdny_case3(self):
+    def test_sdny_case2(self):
         """Stream sdny test
         
         1. test sdny stream 
@@ -49,18 +49,13 @@ class TestSdnyStream:
         tdSql.execute(f'create database test1 vgroups 10 ;')
         self.sdnydata()
 
-        # sql = (f"create stream {self.dbname}.sdny1 interval(1m) sliding(1m) from {self.dbname}.sldc_dp partition by tbname stream_options(fill_history('2025-07-17 09:00:00')) into {self.dbname}.sdny1out output_subtable(concat('sdny_',tbname)) as select _wstart as start_time,_wend as point_min,'01072016' as unit_code,'盛鲁电厂' as unit_name,'机组1' as jz_name,last(jz1fdgl) as fh ,-1.0 as glxl, last((jz1fdgl+jz1ssfdfh)/2) as zzqwd from {self.dbname}.sldc_dp tb where ts >= '2025-07-11 14:45:00.000'  and ts <= '2025-07-17 09:30:00.000' interval(1m) fill(prev)")
-        # sql2 = (f"create stream {self.dbname}.sdny2 interval(1m) sliding(1m) from {self.dbname}.sldc_dp partition by tbname stream_options(fill_history('2025-07-17 09:00:00')) into {self.dbname}.sdny2out output_subtable(concat('sdny_',tbname)) as select _wstart as start_time,_wend as point_min,'01072016' as unit_code,'盛鲁电厂' as unit_name,'机组1' as jz_name,last(jz1fdgl) as fh ,-1.0 as glxl /*机组2凝结水泵b电流*/, last((jz1fdgl+jz1ssfdfh)/2) as zzqwd /*机组2凝结水泵a电流**/ from %%tbname tb where ts >= '2025-07-17 08:59:00.000'  and ts <= '2025-07-17 09:30:00.000' interval(1m) fill(prev)")
-        sql3 = (f"create stream {self.dbname}.sdny3 interval(1m) sliding(1m) from {self.dbname}.sldc_dp partition by tbname stream_options(fill_history('2025-07-17 09:00:00')) into {self.dbname}.sdny3out output_subtable(concat('sdny_',tbname)) as select _wstart as start_time,_wend as point_min,'01072016' as unit_code,'盛鲁电厂' as unit_name,'机组1' as jz_name,last(jz1fdgl) as fh ,-1.0 as glxl, last((jz1fdgl+jz1ssfdfh)/2) as zzqwd from test1.sldc_dp tb where ts >= '2025-07-17 08:55:00.000'  and ts <= now() interval(1m) fill(prev);")
-        # sql4 = (f"create stream {self.dbname}.sdny4 state_window(cast(jz1fdgl as int)) from {self.dbname}.sldc_dp partition by tbname stream_options(pre_filter(jz1fdgl>403)|fill_history('1970-01-01 00:00:00')) into {self.dbname}.s4_out output_subtable(concat('xxxx',tbname))  tags(yyyy varchar(100) comment 'table name1' as 'tint+10')  as select _wstart as start_time,_wend as point_min,'01072016' as unit_code,'盛鲁电厂' as unit_name,'机组1' as jz_name,last(jz1fdgl) as fh ,-1.0 as glxl, last((jz1fdgl+jz1ssfdfh)/2) as zzqwd from test1.sldc_dp tb where ts >= '2025-07-17 08:55:00.000'  and ts <= '2025-07-17 09:30:00.000' interval(1m) fill(prev);")
-        # sql5 = (f"create stream {self.streamName} sliding(30s) from sldc_dp partition by tbname stream_options(fill_history(0)) into {self.outTbname} as  select _wstart,_wend,tbname,sum(jz1fdgl),max(cast(data_write_time as bigint))-max(cast(ts as bigint)) delay from sldc_dp where data_write_time>ts partition by tbname interval(3s) having max(cast(data_write_time as bigint))-max(cast(ts as bigint))>1000;")
-        ##sql6 = (f"create stream {self.dbname}.sdny5 state_window(cast(jz1fdgl as int)) from {self.dbname}.sldc_dp partition by tbname stream_options(pre_filter(jz1fdgl>403)|fill_history('1970-01-01 00:00:00')) into {self.dbname}.{self.outTbname} output_subtable(concat('xxxx',tbname))  tags(yyyy varchar(100) comment 'table name1' as concat(tbname,'10'))  as select last(ts),'01072016' as unit_code,'盛鲁电厂' as unit_name,'机组1' as jz_name,sum(jz1fdgl) as fh ,-1.0 as glxl, sum(jz1fdgl+jz1ssfdfh) as zzqwd from  %%trows ")
+        sql5 = (f"create stream {self.streamName} interval(30s) sliding(30s) from sldc_dp partition by tbname stream_options(fill_history(0)) into {self.outTbname} as  select _wstart,_wend,tbname,sum(jz1fdgl),max(cast(data_write_time as bigint))-max(cast(ts as bigint)) delay from sldc_dp where ts >= _twstart and ts<=_twend and data_write_time>ts partition by tbname interval(3s) having max(cast(data_write_time as bigint))-max(cast(ts as bigint))>1000;")
+       
 
-        tdSql.execute(sql3,queryTimes=2)
+        tdSql.execute(sql5,queryTimes=2)
 
         
         self.checkStreamRunning()
-        # self.checkResultWithResultFile()
         
             
 
@@ -115,7 +110,7 @@ class TestSdnyStream:
                 time.sleep(1)
 
     def checkResultWithResultFile(self):
-        chkSql = f"select * from {self.dbname}.{self.outTbname} order by yyyy;"
+        chkSql = f"select * from {self.dbname}.{self.outTbname} order by tag_tbname;"
         tdLog.info(f"check result with sql: {chkSql}")
         if tdSql.getRows() >0:
             tdCom.generate_query_result_file(self.caseName, self.resultIdx, chkSql)

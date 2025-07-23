@@ -107,7 +107,7 @@ class TestStreamDrop:
 
         self.setsql = SetSql()
 
-        self.test_table_name_with_star()
+        self.table_name_with_star()
         self.drop_ntb_check()
         self.drop_stb_ctb_check()
         self.drop_stable_with_check()
@@ -324,7 +324,7 @@ class TestStreamDrop:
 
         tdSql.execute(f'create stream {self.dbname}.{stream_name} interval(10s) sliding(10s) from {self.dbname}.{stbname} partition by tbname into stb as select * from {self.dbname}.{stbname} ')
 
-    def test_table_name_with_star(self):
+    def table_name_with_star(self):
         dbname = "test_tbname_with_star"
         tbname = 's_*cszl01_207602da'
         tdSql.execute(f'create database {dbname} replica 1 wal_retention_period 3600')
