@@ -141,6 +141,10 @@ pub async fn local_to_taos(
             })?;
         }
 
+        if let Some(false) = config.watch {
+            stop_flag.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+
         // 检查是否需要停止
         if stop_flag.load(std::sync::atomic::Ordering::Relaxed) {
             tracing::debug!("local_to_taos stop reading files");
@@ -837,6 +841,91 @@ mod tests {
             (from, to)
         } else {
             let from = format!("local:{}?to=now", temp_dir.path().display()).into_dsn()?;
+            let to = format!("taos://{host}/{DB_DST}").into_dsn()?;
+            (from, to)
+        };
+        local_to_taos(None, from, to, CancellationToken::new()).await?;
+
+        // check data
+        let count_dst: i64 = taos
+            .query_one(format!("select count(*) from `{DB_DST}`.stb"))
+            .await?
+            .unwrap_or(0);
+        assert_eq!(
+            count_dst, ROWS,
+            "count of rows in destination database should match source"
+        );
+
+        // check files
+        let mut files = vec![];
+        let mut entries = tokio::fs::read_dir(temp_dir.path()).await?;
+        while let Some(entry) = entries.next_entry().await? {
+            if entry.file_type().await?.is_file() {
+                files.push(entry.file_name().to_string_lossy().to_string());
+            }
+        }
+        assert!(!files.is_empty(), "backup files should not be empty");
+
+        // clean
+        temp_dir.close()?;
+        taos.exec_many(vec![
+            format!("DROP TOPIC IF EXISTS force {TOPIC}"),
+            format!("DROP DATABASE IF EXISTS {DB_SRC}"),
+            format!("DROP DATABASE IF EXISTS {DB_DST}"),
+        ])
+        .await?;
+
+        Ok(())
+    }
+
+    /// # description_cn
+    /// 本地恢复
+    /// 1. 创建数据库：DB_SRC 和 DB_DST，向 DB_SRC 中创建超级表，并插入 5 行数据
+    /// 2. 启动 tmq_to_local 任务，将 DB_SRC 中的数据备份到本地
+    /// 3. 启动 local_to_taos 任务，设置 watch 为 false，只执行一次，将备份的数据恢复到 DB_DST 中
+    /// 4. 检查 DB_SRC 和 DB_DST 中的数据，一致则用例通过，否则失败。
+    /// 5. 检查本地备份目录下的文件，应该不为空，否则失败。
+    /// # example
+    /// ```shell
+    /// cargo nextest run -p taosx-core test_local_to_taos_with_taos --no-capture --retries 0
+    /// ```
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_watch_local_to_taos_with_taos() -> anyhow::Result<()> {
+        tracing_subscriber::fmt::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .init();
+        let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
+        let ws_enable = std::env::var("WS_ENABLE")
+            .map(|v| v.parse::<bool>().unwrap_or(false))
+            .unwrap_or(false);
+        const DB_SRC: &str = "test_watch_ts_6896_src";
+        const DB_DST: &str = "test_watch_ts_6896_dst";
+        const TOPIC: &str = "test_watch_ts_6896";
+        const ROWS: i64 = 5;
+
+        let taos = connect_taos(&host, ws_enable).await?;
+        let temp_dir = tempfile::tempdir()?;
+
+        // create database and stable, insert 5 rows
+        init_database(&taos, TOPIC, DB_SRC, DB_DST, ROWS).await?;
+
+        // start a tmq_to_local task to generate backup files
+        run_tmq_to_local(
+            ws_enable,
+            &host,
+            DB_SRC,
+            TOPIC,
+            temp_dir.path().display().to_string().as_str(),
+        )
+        .await?;
+
+        // start a local_to_taos task to restore data
+        let (from, to) = if ws_enable {
+            let from = format!("local:{}?watch=false", temp_dir.path().display()).into_dsn()?;
+            let to = format!("taos+ws://{host}:6041/{DB_DST}").into_dsn()?;
+            (from, to)
+        } else {
+            let from = format!("local:{}?watch=false", temp_dir.path().display()).into_dsn()?;
             let to = format!("taos://{host}/{DB_DST}").into_dsn()?;
             (from, to)
         };
