@@ -267,21 +267,6 @@ class TestStreamRecalcExpiredTime:
             and tdSql.compareData(0, 2, 241.5)
         )
 
-        #TODO(beryl) blocked by jira TS-36471 
-        # insertMeters = "insert into qdb.t0 values ('2025-01-01 02:00:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');"
-        # tdSql.execute(insertMeters)
-
-        # insertTriggers = "insert into tdb.et1 values ('2025-01-01 02:00:01', 10, 100, 1.5, 'normal');"
-        # tdSql.execute(insertTriggers)
-
-        # tdSql.checkResultsByFunc(
-        #     sql=f"select ts, cnt, avg_val from rdb.r_interval_expired",
-        #     func=lambda: tdSql.getRows() == 1
-        #     and tdSql.compareData(0, 0, "2025-01-01 02:00:00.000")
-        #     and tdSql.compareData(0, 1, 100)
-        #     and tdSql.compareData(0, 2, 240)
-        # )
-
         tdSql.query("select count(*) from rdb.r_interval_expired;")
         result_count_before = tdSql.getData(0, 0)
         tdLog.info(f"INTERVAL+SLIDING result count: {result_count_before}")
@@ -319,14 +304,19 @@ class TestStreamRecalcExpiredTime:
         ]
         tdSql.executes(trigger_sqls)
         
-        # TODO(beryl) blocked by jira TS-36568
-        # tdSql.checkResultsByFunc(
-        #     sql=f"select ts, cnt, avg_val from rdb.r_session_expired",
-        #     func=lambda: tdSql.getRows() == 1
-        #     and tdSql.compareData(0, 0, "2025-01-01 01:30:00.000")
-        #     and tdSql.compareData(0, 1, 100)
-        #     and tdSql.compareData(0, 2, 240)
-        # )
+        tdSql.checkResultsByFunc(
+            sql=f"select ts, cnt, avg_val from rdb.r_session_expired",
+            func=lambda: tdSql.getRows() == 3
+            and tdSql.compareData(0, 0, "2025-01-01 01:30:00")
+            and tdSql.compareData(0, 1, 100)
+            and tdSql.compareData(0, 2, 180.0)
+            and tdSql.compareData(1, 0, "2025-01-01 01:32:00")
+            and tdSql.compareData(1, 1, 0)
+            and tdSql.compareData(1, 2, None)
+            and tdSql.compareData(2, 0, "2025-01-01 02:00:00")
+            and tdSql.compareData(2, 1, 200)
+            and tdSql.compareData(2, 2, 240.5)
+        )
 
 
         time.sleep(5)
@@ -360,9 +350,6 @@ class TestStreamRecalcExpiredTime:
         tdSql.checkResultsByFunc(
                 sql=f"select ts, cnt, avg_val from rdb.r_state_expired",
                 func=lambda: (
-                    print(f"=== STATE_WINDOW Results (rows={tdSql.getRows()}) ===") or
-                    [print(f"Row {i}: {list(tdSql.getData(i, j) for j in range(3))}") for i in range(tdSql.getRows())] and
-                    print("Expected: [['2025-01-01 02:00:00', 101, 240], ['2025-01-01 02:01:00', 100, 242]]") or
                     tdSql.getRows() == 2
                     and tdSql.compareData(0, 0, "2025-01-01 02:00:00")
                     and tdSql.compareData(0, 1, 100)
@@ -373,50 +360,55 @@ class TestStreamRecalcExpiredTime:
                 )
             )
 
-        #TODO(beryl) blocked by jira TS-36568
-        # trigger_sqls = [
-        #     "insert into tdb.sw1 values ('2025-01-01 01:30:00', 10, 'info');",
-        #     "insert into tdb.sw1 values ('2025-01-01 01:30:30', 20, 'info');",
-        #     "insert into tdb.sw1 values ('2025-01-01 01:31:00', 30, 'error');",
-        # ]
-        # tdSql.executes(trigger_sqls)
+        trigger_sqls = [
+            "insert into tdb.sw1 values ('2025-01-01 01:30:00', 10, 'info');",
+            "insert into tdb.sw1 values ('2025-01-01 01:30:30', 20, 'info');",
+            "insert into tdb.sw1 values ('2025-01-01 01:31:00', 30, 'error');",
+        ]
+        tdSql.executes(trigger_sqls)
 
-        # tdSql.checkResultsByFunc(
-        #         sql=f"select ts, cnt, avg_val from rdb.r_state_expired",
-        #         func=lambda: tdSql.getRows() == 3
-        #         and tdSql.compareData(0, 0, "2025-01-01 01:30:00")
-        #         and tdSql.compareData(0, 1, 100)
-        #         and tdSql.compareData(0, 2, 240)
-        #         and tdSql.compareData(1, 0, "2025-01-01 02:00:00")
-        #         and tdSql.compareData(1, 1, 100)
-        #         and tdSql.compareData(1, 2, 242)
-        #         and tdSql.compareData(2, 0, "2025-01-01 02:01:00")
-        #         and tdSql.compareData(2, 1, 100)
-        #         and tdSql.compareData(2, 2, 242)
-        #     )
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_state_expired",
+                func=lambda: tdSql.getRows() == 4
+                and tdSql.compareData(0, 0, "2025-01-01 01:30:00")
+                and tdSql.compareData(0, 1, 100)
+                and tdSql.compareData(0, 2, 180)
+                and tdSql.compareData(1, 0, "2025-01-01 01:31:00")
+                and tdSql.compareData(1, 1, 0)
+                and tdSql.compareData(1, 2, None)
+                and tdSql.compareData(2, 0, "2025-01-01 02:00:00")
+                and tdSql.compareData(2, 1, 100)
+                and tdSql.compareData(2, 2, 240)
+                and tdSql.compareData(3, 0, "2025-01-01 02:01:00")
+                and tdSql.compareData(3, 1, 100)
+                and tdSql.compareData(3, 2, 242)
+            )
 
-        # trigger_sqls = [
-        #     "insert into tdb.sw1 values ('2025-01-01 01:00:00', 10, 'info');",
-        #     "insert into tdb.sw1 values ('2025-01-01 01:00:30', 20, 'info');",
-        #     "insert into tdb.sw1 values ('2025-01-01 01:01:00', 30, 'error');",
-        # ]
-        # tdSql.executes(trigger_sqls)
+        trigger_sqls = [
+            "insert into tdb.sw1 values ('2025-01-01 01:00:00', 10, 'info');",
+            "insert into tdb.sw1 values ('2025-01-01 01:00:30', 20, 'info');",
+            "insert into tdb.sw1 values ('2025-01-01 01:01:00', 30, 'error');",
+        ]
+        tdSql.executes(trigger_sqls)
 
-        # time.sleep(5)
+        time.sleep(5)
 
-        # tdSql.checkResultsByFunc(
-        #         sql=f"select ts, cnt, avg_val from rdb.r_state_expired",
-        #         func=lambda: tdSql.getRows() == 3
-        #         and tdSql.compareData(0, 0, "2025-01-01 01:30:00")
-        #         and tdSql.compareData(0, 1, 100)
-        #         and tdSql.compareData(0, 2, 240)
-        #         and tdSql.compareData(1, 0, "2025-01-01 02:00:00")
-        #         and tdSql.compareData(1, 1, 100)
-        #         and tdSql.compareData(1, 2, 242)
-        #         and tdSql.compareData(2, 0, "2025-01-01 02:01:00")
-        #         and tdSql.compareData(2, 1, 100)
-        #         and tdSql.compareData(2, 2, 242)
-        #     )
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_state_expired",
+                func=lambda: tdSql.getRows() == 4
+                and tdSql.compareData(0, 0, "2025-01-01 01:30:00")
+                and tdSql.compareData(0, 1, 100)
+                and tdSql.compareData(0, 2, 180)
+                and tdSql.compareData(1, 0, "2025-01-01 01:31:00")
+                and tdSql.compareData(1, 1, 0)
+                and tdSql.compareData(1, 2, None)
+                and tdSql.compareData(2, 0, "2025-01-01 02:00:00")
+                and tdSql.compareData(2, 1, 100)
+                and tdSql.compareData(2, 2, 240)
+                and tdSql.compareData(3, 0, "2025-01-01 02:01:00")
+                and tdSql.compareData(3, 1, 100)
+                and tdSql.compareData(3, 2, 242)
+            )
 
         
 
@@ -445,43 +437,43 @@ class TestStreamRecalcExpiredTime:
 
         tdSql.executes(trigger_sqls)
 
-        # tdSql.checkResultsByFunc(
-        #         sql=f"select ts, cnt, avg_val from rdb.r_event_expired",
-        #         func=lambda: tdSql.getRows() == 3
-        #         and tdSql.compareData(0, 0, "2025-01-01 01:30:00.000")
-        #         and tdSql.compareData(0, 1, 200)
-        #         and tdSql.compareData(0, 2, 180.5)
-        #         and tdSql.compareData(1, 0, "2025-01-01 02:00:00.000")
-        #         and tdSql.compareData(1, 1, 200)
-        #         and tdSql.compareData(1, 2, 240.5)
-        #         and tdSql.compareData(2, 0, "2025-01-01 02:01:30.000")
-        #         and tdSql.compareData(2, 1, 200)
-        #         and tdSql.compareData(2, 2, 243.5)
-        #     )
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_event_expired",
+                func=lambda: tdSql.getRows() == 3
+                and tdSql.compareData(0, 0, "2025-01-01 01:30:00.000")
+                and tdSql.compareData(0, 1, 200)
+                and tdSql.compareData(0, 2, 180.5)
+                and tdSql.compareData(1, 0, "2025-01-01 02:00:00.000")
+                and tdSql.compareData(1, 1, 200)
+                and tdSql.compareData(1, 2, 240.5)
+                and tdSql.compareData(2, 0, "2025-01-01 02:01:30.000")
+                and tdSql.compareData(2, 1, 200)
+                and tdSql.compareData(2, 2, 243.5)
+            )
 
-        # trigger_sqls = [
-        #     "insert into tdb.ew1 values ('2025-01-01 01:00:00', 10, 6);",
-        #     "insert into tdb.ew1 values ('2025-01-01 01:00:30', 20, 7);",
-        #     "insert into tdb.ew1 values ('2025-01-01 01:01:00', 30, 12);",
-        # ]
-        # tdSql.executes(trigger_sqls)
+        trigger_sqls = [
+            "insert into tdb.ew1 values ('2025-01-01 01:00:00', 10, 6);",
+            "insert into tdb.ew1 values ('2025-01-01 01:00:30', 20, 7);",
+            "insert into tdb.ew1 values ('2025-01-01 01:01:00', 30, 12);",
+        ]
+        tdSql.executes(trigger_sqls)
 
-        # tdLog.info("wait for stream to be stable")
-        # time.sleep(5)
+        tdLog.info("wait for stream to be stable")
+        time.sleep(5)
 
-        # tdSql.checkResultsByFunc(
-        #         sql=f"select ts, cnt, avg_val from rdb.r_event_expired",
-        #         func=lambda: tdSql.getRows() == 3
-        #         and tdSql.compareData(0, 0, "2025-01-01 01:30:00.000")
-        #         and tdSql.compareData(0, 1, 200)
-        #         and tdSql.compareData(0, 2, 180.5)
-        #         and tdSql.compareData(1, 0, "2025-01-01 02:00:00.000")
-        #         and tdSql.compareData(1, 1, 200)
-        #         and tdSql.compareData(1, 2, 240.5)
-        #         and tdSql.compareData(2, 0, "2025-01-01 02:01:30.000")
-        #         and tdSql.compareData(2, 1, 200)
-        #         and tdSql.compareData(2, 2, 243.5)
-        #     )
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_event_expired",
+                func=lambda: tdSql.getRows() == 3
+                and tdSql.compareData(0, 0, "2025-01-01 01:30:00.000")
+                and tdSql.compareData(0, 1, 200)
+                and tdSql.compareData(0, 2, 180.5)
+                and tdSql.compareData(1, 0, "2025-01-01 02:00:00.000")
+                and tdSql.compareData(1, 1, 200)
+                and tdSql.compareData(1, 2, 240.5)
+                and tdSql.compareData(2, 0, "2025-01-01 02:01:30.000")
+                and tdSql.compareData(2, 1, 200)
+                and tdSql.compareData(2, 2, 243.5)
+            )
 
 
     def check05(self):
