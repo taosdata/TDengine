@@ -566,8 +566,7 @@ int32_t inserterBuildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag*
       return terrno;
     }
   }
-  pTbReq->ctb.tagName = taosArrayDup(tagName, NULL);
-  if (!pTbReq->ctb.tagName) return terrno;
+  pTbReq->ctb.tagName = tagName;
   pTbReq->ttl = ttl;
   pTbReq->commentLen = -1;
 
@@ -1735,10 +1734,11 @@ _end:
       taosMemoryFree(tbData->pCreateTbReq->name);
       taosMemoryFree(tbData->pCreateTbReq);
     }
+    if (TagNames) {
+      taosArrayDestroy(TagNames);
+    }
   }
-  if (TagNames) {
-    taosArrayDestroy(TagNames);
-  }
+
   if (pTagVals) {
     taosArrayDestroy(pTagVals);
   }
