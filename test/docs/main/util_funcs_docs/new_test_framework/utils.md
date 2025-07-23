@@ -25,3 +25,4 @@
 ::: autogen
 ::: rawblock
 ::: mqttUtil
+::: compatibilityUtil
