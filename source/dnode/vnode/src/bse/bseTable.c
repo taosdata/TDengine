@@ -163,7 +163,7 @@ int32_t tableBuilderOpen(int64_t ts, STableBuilder **pBuilder, SBse *pBse) {
   if (p == NULL) {
     TSDB_CHECK_CODE(terrno, lino, _error);
   }
-  p->retentionTs = ts;
+  p->startTimestamp = ts;
   memcpy(p->name, name, strlen(name));
 
   code = bseMemTableCreate(&p->pMemTable, BSE_GET_BLOCK_SIZE(pBse));
@@ -495,7 +495,7 @@ int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo) {
 
   pInfo->level = 0;
   pInfo->range = p->pTableMeta->range;
-  pInfo->retentionTs = p->retentionTs;
+  pInfo->startTimestamp = p->startTimestamp;
   pInfo->size = p->offset;
 
 _error:
@@ -524,7 +524,7 @@ void tableBuilderClose(STableBuilder *p, int8_t commited) {
 }
 
 static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, int8_t fileType, int8_t blockType,
-                                   int32_t keepDays) {
+                                   int64_t keepDays) {
   SBseSnapMeta *pSnapMeta = pBlkWrapper->data;
   pSnapMeta->range = range;
   pSnapMeta->fileType = fileType;
@@ -532,12 +532,12 @@ static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, 
   pSnapMeta->keepDays = keepDays;
   return;
 }
-  static void updateSnapshotMeta(SBlockWrapper *pBlkWrapper, SSeqRange range, int8_t fileType, int8_t blockType,
-                                 int32_t keepDays) {
-    SBseSnapMeta *pSnapMeta = (SBseSnapMeta *)pBlkWrapper->data;
-    pSnapMeta->keepDays = keepDays;
-    return;
-  }
+static void updateSnapshotMeta(SBlockWrapper *pBlkWrapper, SSeqRange range, int8_t fileType, int8_t blockType,
+                               int64_t keepDays) {
+  SBseSnapMeta *pSnapMeta = (SBseSnapMeta *)pBlkWrapper->data;
+  pSnapMeta->keepDays = keepDays;
+  return;
+}
 
   int32_t tableReaderLoadRawBlock(STableReader *p, SBlkHandle *pHandle, SBlockWrapper *blkWrapper) {
     int32_t code = 0;
@@ -631,7 +631,7 @@ static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, 
     return code;
   }
 
-  int32_t tableReaderOpen(int64_t retentionTs, STableReader **pReader, void *pReaderMgt) {
+  int32_t tableReaderOpen(int64_t startTimestamp, STableReader **pReader, void *pReaderMgt) {
     char data[TSDB_FILENAME_LEN] = {0};
     char meta[TSDB_FILENAME_LEN] = {0};
 
@@ -643,7 +643,9 @@ static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, 
 
     STableReaderMgt *pMgt = (STableReaderMgt *)pReaderMgt;
     if (pMgt == NULL) {
+      return TSDB_CODE_INVALID_CFG;
     }
+
     SSubTableMgt *pMeta = pMgt->pMgt;
 
     STableReader *p = taosMemCalloc(1, sizeof(STableReader));
@@ -653,7 +655,7 @@ static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, 
 
     p->blockCap = 1024;
     p->pReaderMgt = pReaderMgt;
-    bseBuildDataName(retentionTs, data);
+    bseBuildDataName(startTimestamp, data);
     memcpy(p->name, data, strlen(data));
 
     bseBuildFullName(pMgt->pBse, data, dataPath);
@@ -663,7 +665,7 @@ static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, 
     code = blockWrapperInit(&p->blockWrapper, 1024);
     TSDB_CHECK_CODE(code, lino, _error);
 
-    bseBuildMetaName(retentionTs, meta);
+    bseBuildMetaName(startTimestamp, meta);
     code = tableMetaReaderInit(pMeta->pTableMetaMgt->pTableMeta, meta, &p->pMetaReader);
     TSDB_CHECK_CODE(code, lino, _error);
 
@@ -770,10 +772,7 @@ static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, 
     return code;
   }
 
-  int32_t blockEsimateSize(SBlock *p, int32_t extra) {
-    // block len + TSCHSUM + len + type;
-    return BLOCK_TOTAL_SIZE(p) + extra;
-  }
+  int32_t blockEsimateSize(SBlock *p, int32_t extra) { return BLOCK_TOTAL_SIZE(p) + extra; }
 
   int32_t blockAppendBatch(SBlock *p, uint8_t *value, int32_t len) {
     int32_t  code = 0;
@@ -818,7 +817,6 @@ static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, 
       found = 1;
       break;
       }
-
       p2 += v;
     }
     if (found == 0) {
@@ -1197,7 +1195,7 @@ static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, 
     block->type = type;
   }
 
-  int32_t tableReaderIterInit(int64_t retention, int8_t type, STableReaderIter **ppIter, SBse *pBse) {
+  int32_t tableReaderIterInit(int64_t startTimestamp, int8_t type, STableReaderIter **ppIter, SBse *pBse) {
     int32_t    code = 0;
     int32_t    lino = 0;
     STableMgt *pTableMgt = pBse->pTableMgt;
@@ -1207,15 +1205,15 @@ static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, 
       return terrno;
     }
 
-    p->retentionTs = retention;
+    p->startTimestamp = startTimestamp;
     SSubTableMgt *retentionMgt = NULL;
 
-    code = createSubTableMgt(retention, 1, pBse->pTableMgt, &retentionMgt);
+    code = createSubTableMgt(startTimestamp, 1, pBse->pTableMgt, &retentionMgt);
     TSDB_CHECK_CODE(code, lino, _error);
 
     p->pSubMgt = retentionMgt;
 
-    code = tableReaderOpen(retention, &p->pTableReader, retentionMgt->pReaderMgt);
+    code = tableReaderOpen(startTimestamp, &p->pTableReader, retentionMgt->pReaderMgt);
     TSDB_CHECK_CODE(code, lino, _error);
 
     tableReaderShouldPutToCache(p->pTableReader, 0);
@@ -1252,7 +1250,7 @@ static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, 
     SBseSnapMeta snapMeta = {0};
     snapMeta.range.sseq = -1;
     snapMeta.range.eseq = -1;
-    snapMeta.keepDays = pIter->retentionTs;
+    snapMeta.keepDays = pIter->startTimestamp;
     snapMeta.fileType = pIter->fileType;
     snapMeta.blockType = pIter->blockType;
 
@@ -1308,20 +1306,18 @@ static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, 
       pIter->blockType = BSE_TABLE_END_TYPE;
     } else if (pIter->blockType == BSE_TABLE_END_TYPE) {
       pIter->isOver = 1;
-      return code;
-    }
-
-    SSeqRange range = {0};
-    if (pIter->blockWrapper.data != NULL) {
-      updateSnapshotMeta(&pIter->blockWrapper, range, pIter->fileType, pIter->blockType, snapMeta.keepDays);
-      *pValue = pIter->blockWrapper.data;
-      *len = pIter->blockWrapper.size;
     }
 
   _error:
     if (code != 0) {
       bseError("failed to load block since %s", tstrerror(code));
       pIter->isOver = 1;
+    }
+    SSeqRange range = {0};
+    if (pIter->blockWrapper.data != NULL) {
+      updateSnapshotMeta(&pIter->blockWrapper, range, pIter->fileType, pIter->blockType, snapMeta.keepDays);
+      *pValue = pIter->blockWrapper.data;
+      *len = pIter->blockWrapper.size;
     }
     return code;
   }
@@ -1512,8 +1508,8 @@ static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, 
     char tempMetaPath[TSDB_FILENAME_LEN] = {0};
     char metaPath[TSDB_FILENAME_LEN] = {0};
 
-    bseBuildTempMetaName(pMeta->retentionTs, tempMetaName);
-    bseBuildMetaName(pMeta->retentionTs, metaName);
+    bseBuildTempMetaName(pMeta->startTimestamp, tempMetaName);
+    bseBuildMetaName(pMeta->startTimestamp, metaName);
 
     code = tableMetaWriterInit(pMeta, tempMetaName, &pWriter);
     TSDB_CHECK_CODE(code, lino, _error);

@@ -40,8 +40,9 @@ typedef struct {
   int32_t blockSize;
   int8_t  clearUncommittedFile;
   int64_t keepDays;
-  int64_t retention;
-
+  int32_t    keeps;
+  SRetention retention;  // retention in seconds, 0 means no retention
+  int8_t  precision;  // precision in seconds, 0 means no precision
   int32_t tableCacheSize;
   int32_t blockCacheSize;
 } SBseCfg;

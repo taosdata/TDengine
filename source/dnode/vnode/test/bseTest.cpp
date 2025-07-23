@@ -402,3 +402,92 @@ TEST(bseCase, smallDataTest) {
   funcTestSmallData();
 #endif
 }
+
+TEST(bseCase, multiThreadReadWriteTest) {
+  // Implement multi-threaded read/write test
+#ifdef LINUX
+  initLog();
+  SBse *bse = NULL;
+  SBseCfg cfg = {.vgId = 2};
+  taosRemoveDir("/tmp/bse");
+
+  int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
+  ASSERT_EQ(code, 0);
+
+  std::vector<int64_t> data;
+  putData(bse, 10000, 1000, &data);
+  bseCommit(bse);
+  
+  getData(bse, &data);
+  
+  bseClose(bse);
+#endif
+}
+
+TEST(bseCase, recover) {
+  // Implement multi-threaded read/write test
+#ifdef LINUX
+  initLog();
+  SBse *bse = NULL;
+  SBseCfg cfg = {.vgId = 2};
+  taosRemoveDir("/tmp/bse");
+
+  int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
+  ASSERT_EQ(code, 0);
+
+  std::vector<int64_t> data;
+  putData(bse, 10000, 1000, &data);
+  bseCommit(bse);
+  
+  getData(bse, &data);
+  putData(bse, 10000, 1000, &data);
+
+  bseCommit(bse);
+  bseClose(bse);
+  {
+    code = bseOpen("/tmp/bse", &cfg, &bse);  
+    ASSERT_EQ(code, 0);
+
+    getData(bse, &data); 
+
+    bseClose(bse);
+  }
+  
+#endif
+}
+TEST(bseCase, emptyNot) {
+  // Implement multi-threaded read/write test
+#ifdef LINUX
+  initLog();
+  SBse *bse = NULL;
+  SBseCfg cfg = {.vgId = 2};
+  taosRemoveDir("/tmp/bse");
+
+  // int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
+  // ASSERT_EQ(code, 0);
+
+  // std::vector<int64_t> data;
+  // putData(bse, 10000, 1000, &data);
+  // bseCommit(bse);
+  
+  // getData(bse, &data);
+  // putData(bse, 10000, 1000, &data);
+
+  // bseCommit(bse);
+  // bseClose(bse);
+  // {
+  std::vector<int64_t> data;
+  data.push_back(1); 
+  data.push_back(2); 
+  data.push_back(3); 
+  int32_t code = bseOpen("/tmp/bse", &cfg, &bse);  
+  getData(bse, &data);   
+  EXPECT_NE(code, 0);
+
+  bseClose(bse);
+  //}
+  
+#endif
+}
+
+  

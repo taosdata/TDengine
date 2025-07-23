@@ -17,16 +17,17 @@
 #include "bse.h"
 #include "bseTable.h"
 #include "bseUtil.h"
+#include "tglobal.h"
 #include "thash.h"
 
-static int32_t tableReaderMgtInit(STableReaderMgt *pReader, SBse *pBse, int64_t retention);
-static void    tableReaderMgtSetRetion(STableReaderMgt *pReader, int64_t retention);
+static int32_t tableReaderMgtInit(STableReaderMgt *pReader, SBse *pBse, int64_t startTimestamp);
+static void    tableReaderMgtSetRetion(STableReaderMgt *pReader, int64_t startTimestamp);
 static int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **pValue, int32_t *len);
 static int32_t tableReaderMgtClear(STableReaderMgt *pReader);
 static void    tableReaderMgtDestroy(STableReaderMgt *pReader);
 
-static int32_t tableBuilderMgtInit(STableBuilderMgt *pMgt, SBse *pBse, int64_t retention);
-static void    tableBuilderMgtSetRetion(STableBuilderMgt *pMgt, int64_t retention);
+static int32_t tableBuilderMgtInit(STableBuilderMgt *pMgt, SBse *pBse, int64_t startTimestamp);
+static void    tableBuilderMgtSetRetion(STableBuilderMgt *pMgt, int64_t startTimestamp);
 static int32_t tableBuilderMgtOpenBuilder(STableBuilderMgt *pMgt, int64_t seq, STableBuilder **p);
 static int32_t tableBuilderMgtCommit(STableBuilderMgt *pMgt, SBseLiveFileInfo *pInfo);
 static int32_t tableBuilderMgtSeek(STableBuilderMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *len);
@@ -34,9 +35,9 @@ static int32_t tableBuilderMgtPutBatch(STableBuilderMgt *pMgt, SBseBatch *pBatch
 static int32_t tableBuilderMgtClear(STableBuilderMgt *pMgt);
 static void    tableBuilderMgtDestroy(STableBuilderMgt *pMgt);
 
-static int32_t tableBuilderMgtRecoverTable(STableBuilderMgt *pMgt, int64_t seq, STableBuilder **pBuilder, int64_t size);
+static int32_t tableBuilderMgtRecover(STableBuilderMgt *pMgt, int64_t seq, STableBuilder **pBuilder, int64_t size);
 
-static int32_t tableMetaMgtInit(STableMetaMgt *pMgt, SBse *pBse, int64_t retention);
+static int32_t tableMetaMgtInit(STableMetaMgt *pMgt, SBse *pBse, int64_t startTimestamp);
 static void    tableMetaMgtDestroy(STableMetaMgt *pMgt);
 
 static void tableReaderFree(void *pReader);
@@ -68,10 +69,10 @@ _error:
   return code;
 }
 
-int32_t bseTableMgtSetLastRetentionTs(STableMgt *pMgt, int64_t retention) {
+int32_t bseTableMgtSetLastTableId(STableMgt *pMgt, int64_t startTimestamp) {
   if (pMgt == NULL) return 0;
 
-  pMgt->retionTs = retention;
+  pMgt->startTimestamp = startTimestamp;
   return 0;
 }
 
@@ -91,7 +92,7 @@ _error:
   return code;
 }
 
-int32_t createSubTableMgt(int64_t retenTs, int32_t readOnly, STableMgt *pMgt, SSubTableMgt **pSubMgt) {
+int32_t createSubTableMgt(int64_t startTimestamp, int32_t readOnly, STableMgt *pMgt, SSubTableMgt **pSubMgt) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -102,18 +103,18 @@ int32_t createSubTableMgt(int64_t retenTs, int32_t readOnly, STableMgt *pMgt, SS
   }
 
   if (!readOnly) {
-    code = tableBuilderMgtInit(p->pBuilderMgt, pMgt->pBse, retenTs);
+    code = tableBuilderMgtInit(p->pBuilderMgt, pMgt->pBse, startTimestamp);
     TSDB_CHECK_CODE(code, lino, _error);
 
     p->pBuilderMgt->pMgt = p;
   }
 
-  code = tableReaderMgtInit(p->pReaderMgt, pMgt->pBse, retenTs);
+  code = tableReaderMgtInit(p->pReaderMgt, pMgt->pBse, startTimestamp);
   TSDB_CHECK_CODE(code, lino, _error);
 
   p->pReaderMgt->pMgt = p;
 
-  code = tableMetaMgtInit(p->pTableMetaMgt, pMgt->pBse, retenTs);
+  code = tableMetaMgtInit(p->pTableMetaMgt, pMgt->pBse, startTimestamp);
   TSDB_CHECK_CODE(code, lino, _error);
 
   p->pTableMetaMgt->pMgt = p;
@@ -144,17 +145,17 @@ int32_t bseTableMgtGet(STableMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *
 
   SBse *pBse = pMgt->pBse;
 
-  int64_t retenTs = 0;
-  code = bseGetRetentionTsBySeq(pMgt->pBse, seq, &retenTs);
+  int64_t startTimestamp = 0;
+  code = bseGetTableIdBySeq(pMgt->pBse, seq, &startTimestamp);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  if (retenTs > 0) {
-    SSubTableMgt **ppSubMgt = taosHashGet(pMgt->pHashObj, &retenTs, sizeof(retenTs));
+  if (startTimestamp > 0) {
+    SSubTableMgt **ppSubMgt = taosHashGet(pMgt->pHashObj, &startTimestamp, sizeof(startTimestamp));
     if (ppSubMgt == NULL || *ppSubMgt == NULL) {
-      code = createSubTableMgt(retenTs, 0, pMgt, &pSubMgt);
+      code = createSubTableMgt(startTimestamp, 0, pMgt, &pSubMgt);
       TSDB_CHECK_CODE(code, lino, _error);
 
-      code = taosHashPut(pMgt->pHashObj, &retenTs, sizeof(retenTs), &pSubMgt, sizeof(SSubTableMgt *));
+      code = taosHashPut(pMgt->pHashObj, &startTimestamp, sizeof(startTimestamp), &pSubMgt, sizeof(SSubTableMgt *));
       TSDB_CHECK_CODE(code, lino, _error);
 
     } else {
@@ -163,7 +164,7 @@ int32_t bseTableMgtGet(STableMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *
   } else {
     pSubMgt = pMgt->pCurrTableMgt;
     if (pSubMgt == NULL) {
-      return code;
+      return TSDB_CODE_BLOB_SEQ_NOT_FOUND;
     }
     readOnly = 0;
   }
@@ -192,10 +193,10 @@ int32_t bseTableMgtRecoverTable(STableMgt *pMgt, SBseLiveFileInfo *pInfo) {
 
   SSubTableMgt *pSubMgt = NULL;
 
-  code = createSubTableMgt(pInfo->retentionTs, 0, pMgt, &pSubMgt);
+  code = createSubTableMgt(pInfo->startTimestamp, 0, pMgt, &pSubMgt);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  code = tableBuilderMgtRecoverTable(pSubMgt->pBuilderMgt, 0, NULL, pInfo->size);
+  code = tableBuilderMgtRecover(pSubMgt->pBuilderMgt, 0, NULL, pInfo->size);
   TSDB_CHECK_CODE(code, lino, _error);
 
 _error:
@@ -225,25 +226,87 @@ int32_t bseTableMgtCleanup(void *pMgt) {
   return 0;
 }
 
-int32_t bseTableMgtAppend(STableMgt *pMgt, SBseBatch *pBatch) {
+static int32_t bseCalcStartTimeSize(int64_t nowSec, int8_t precision, int64_t *dst) {
+  int32_t code = 0;
+  if (precision == TSDB_TIME_PRECISION_MILLI) {
+    nowSec = nowSec * 1000;
+  } else if (precision == TSDB_TIME_PRECISION_MICRO) {
+    nowSec = nowSec * 1000000l;
+  } else if (precision == TSDB_TIME_PRECISION_NANO) {
+    nowSec = nowSec * 1000000000l;
+  } else {
+    bseError("bse invalid time precision:%d", precision);
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *dst = nowSec;
+  return code;
+}
+
+static int32_t bseShouldSwitchToTable(int64_t nowTimestamp, int64_t startTimestamp, int8_t precision,
+                                      int32_t keepDays) {
+  if (startTimestamp == 0) return 1;
+  if (keepDays <= 0) return 0;
+
+  int64_t threshold = keepDays * 24 * tsTickPerHour[precision];
+  int64_t diff = nowTimestamp - startTimestamp;
+
+  if (diff < threshold) {
+    return 0;
+  } else {
+    return 1;
+  }
+
+  return 0;
+}
+static int32_t bseTableMgtGetTable(STableMgt *pMgt, SSubTableMgt **ppSubGgt) {
   int32_t code = 0;
   int32_t lino = 0;
-  int32_t retionTs = 0;
 
+  int64_t       startTs = 0;
+  int64_t       now = taosGetTimestampSec();
   SBse         *pBse = pMgt->pBse;
   SSubTableMgt *pSubMgt = pMgt->pCurrTableMgt;
 
-  if (pSubMgt == NULL) {
-    if (pMgt->retionTs != 0) {
-      retionTs = pMgt->retionTs;
-    } else {
-      retionTs = taosGetTimestampSec();
-    }
+  code = bseCalcStartTimeSize(now, pBse->cfg.precision, &startTs);
+  TSDB_CHECK_CODE(code, lino, _error);
 
-    code = createSubTableMgt(retionTs, 0, pMgt, &pMgt->pCurrTableMgt);
+  if (pSubMgt == NULL) {
+    if (pMgt->startTimestamp != 0) {
+      if (!bseShouldSwitchToTable(startTs, pMgt->startTimestamp, pBse->cfg.precision, pBse->keepDays)) {
+        startTs = pMgt->startTimestamp;
+      }
+    }
+    code = createSubTableMgt(startTs, 0, pMgt, &pMgt->pCurrTableMgt);
     TSDB_CHECK_CODE(code, lino, _error);
     pSubMgt = pMgt->pCurrTableMgt;
+  } else {
+    if (bseShouldSwitchToTable(startTs, pSubMgt->pBuilderMgt->startTimestamp, pBse->cfg.precision, pBse->keepDays)) {
+      code = bseCommit(pBse);
+      TSDB_CHECK_CODE(code, lino, _error);
+      code = createSubTableMgt(startTs, 0, pMgt, &pMgt->pCurrTableMgt);
+      TSDB_CHECK_CODE(code, lino, _error);
+    }
+
+    pSubMgt = pMgt->pCurrTableMgt;
   }
+
+_error:
+  if (code != 0) {
+    bseError("failed to get sub table at line %d since %s", lino, tstrerror(code));
+  } else {
+    *ppSubGgt = pSubMgt;
+  }
+
+  return 0;
+}
+int32_t bseTableMgtAppend(STableMgt *pMgt, SBseBatch *pBatch) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  SBse         *pBse = pMgt->pBse;
+  SSubTableMgt *pSubMgt = NULL;
+  code = bseTableMgtGetTable(pMgt, &pSubMgt);
+  TSDB_CHECK_CODE(code, lino, _error);
 
   code = tableBuilderMgtPutBatch(pSubMgt->pBuilderMgt, pBatch);
   TSDB_CHECK_CODE(code, lino, _error);
@@ -329,7 +392,7 @@ void tableReaderFree(void *pReader) {
 }
 void blockFree(void *pBlock) { taosMemoryFree(pBlock); }
 
-int32_t tableReaderMgtInit(STableReaderMgt *pReader, SBse *pBse, int64_t retention) {
+int32_t tableReaderMgtInit(STableReaderMgt *pReader, SBse *pBse, int64_t startTimestamp) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -342,7 +405,7 @@ int32_t tableReaderMgtInit(STableReaderMgt *pReader, SBse *pBse, int64_t retenti
   TSDB_CHECK_CODE(code, lino, _error);
 
   pReader->pBse = pBse;
-  pReader->retenTs = retention;
+  pReader->startTimestamp = startTimestamp;
 
 _error:
   if (code != 0) {
@@ -350,7 +413,9 @@ _error:
   }
   return code;
 }
-void tableReaderMgtSetRetion(STableReaderMgt *pReader, int64_t retention) { pReader->retenTs = retention; }
+void tableReaderMgtSetRetion(STableReaderMgt *pReader, int64_t startTimestamp) {
+  pReader->startTimestamp = startTimestamp;
+}
 
 int32_t tableReaderMgtClear(STableReaderMgt *pReader) {
   int32_t code = 0;
@@ -377,7 +442,7 @@ int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **p
 
   STableReader    *pReader = NULL;
 
-  code = tableReaderOpen(pReaderMgt->retenTs, &pReader, pReaderMgt);
+  code = tableReaderOpen(pReaderMgt->startTimestamp, &pReader, pReaderMgt);
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = tableReaderGet(pReader, seq, pValue, len);
@@ -392,13 +457,13 @@ _error:
   return code;
 }
 
-int32_t tableBuilderMgtInit(STableBuilderMgt *pMgt, SBse *pBse, int64_t retention) {
+int32_t tableBuilderMgtInit(STableBuilderMgt *pMgt, SBse *pBse, int64_t startTimestamp) {
   int32_t code = 0;
   int32_t lino = 0;
 
   taosThreadMutexInit(&pMgt->mutex, NULL);
   pMgt->pBse = pBse;
-  pMgt->retenTs = retention;
+  pMgt->startTimestamp = startTimestamp;
   return code;
 }
 
@@ -467,7 +532,7 @@ int32_t tableBuilderMgtOpenBuilder(STableBuilderMgt *pMgt, int64_t seq, STableBu
 
   STableBuilder *p = NULL;
 
-  code = tableBuilderOpen(pMgt->retenTs, &p, pBse);
+  code = tableBuilderOpen(pMgt->startTimestamp, &p, pBse);
   TSDB_CHECK_CODE(code, lino, _error);
 
   p->pTableMeta = pMgt->pMgt->pTableMetaMgt->pTableMeta;
@@ -485,7 +550,7 @@ _error:
   return code;
 }
 
-int32_t tableBuilderMgtRecoverTable(STableBuilderMgt *pMgt, int64_t seq, STableBuilder **pBuilder, int64_t size) {
+int32_t tableBuilderMgtRecover(STableBuilderMgt *pMgt, int64_t seq, STableBuilder **pBuilder, int64_t size) {
   int32_t        code = 0;
   int32_t        lino = 0;
   STableBuilder *pTable = NULL;
@@ -514,8 +579,8 @@ int32_t tableBuilderMgtCommit(STableBuilderMgt *pMgt, SBseLiveFileInfo *pInfo) {
   pBuilder = pMgt->p;
   pBuilder->pImmuMemTable = pBuilder->pMemTable;
   pBuilder->pMemTable = NULL;
-
   taosThreadMutexUnlock(&pMgt->mutex);
+
   if (pBuilder != NULL) {
     code = tableBuilderCommit(pBuilder, pInfo);
     TSDB_CHECK_CODE(code, lino, _error);
@@ -532,7 +597,7 @@ void tableBuilderMgtDestroy(STableBuilderMgt *pMgt) {
   taosThreadMutexDestroy(&pMgt->mutex);
 }
 
-int32_t tableMetaMgtInit(STableMetaMgt *pMgt, SBse *pBse, int64_t retention) {
+int32_t tableMetaMgtInit(STableMetaMgt *pMgt, SBse *pBse, int64_t startTimestamp) {
   int32_t code = 0;
   int32_t lino = 0;
   pMgt->pBse = pBse;
@@ -540,8 +605,8 @@ int32_t tableMetaMgtInit(STableMetaMgt *pMgt, SBse *pBse, int64_t retention) {
   code = tableMetaOpen(NULL, &pMgt->pTableMeta, pMgt);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  pMgt->retenTs = retention;
-  pMgt->pTableMeta->retentionTs = retention;
+  pMgt->startTimestamp = startTimestamp;
+  pMgt->pTableMeta->startTimestamp = startTimestamp;
   pMgt->pTableMeta->pBse = pBse;
 
 _error:

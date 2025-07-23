@@ -76,7 +76,7 @@ static int32_t bseSerailCommitInfo(SBse *pBse, SArray *fileSet, char **pBuf, int
     cJSON_AddNumberToObject(pField, "endSeq", pInfo->range.eseq);
     cJSON_AddNumberToObject(pField, "size", pInfo->size);
     cJSON_AddNumberToObject(pField, "level", pInfo->level);
-    cJSON_AddNumberToObject(pField, "retention", pInfo->retentionTs);
+    cJSON_AddNumberToObject(pField, "retention", pInfo->startTimestamp);
     cJSON_AddItemToArray(pFileSet, pField);
   }
 
@@ -156,7 +156,7 @@ int32_t bseDeserialCommitInfo(SBse *pBse, char *pCurrent, SBseCommitInfo *pInfo)
     info.range.eseq = pEndSeq->valuedouble;
     info.size = pFileSize->valuedouble;
     info.level = pLevel->valuedouble;
-    info.retentionTs = pRetentionTs->valuedouble;
+    info.startTimestamp = pRetentionTs->valuedouble;
 
     if (taosArrayPush(pInfo->pFileList, &info) == NULL) {
       code = terrno;
@@ -335,7 +335,7 @@ int32_t bseRecover(SBse *pBse, int8_t rmUnCommited) {
       code = bseTableMgtRecoverTable(pBse->pTableMgt, pLast);
       TSDB_CHECK_CODE(code, lino, _error);
 
-      code = bseTableMgtSetLastRetentionTs(pBse->pTableMgt, pLast->retentionTs);
+      code = bseTableMgtSetLastTableId(pBse->pTableMgt, pLast->startTimestamp);
     }
   }
 
@@ -400,9 +400,18 @@ void bseCfgSetDefault(SBseCfg *pCfg) {
   }
 
   if (pCfg->keepDays == 0) {
-    pCfg->keepDays = 365;
+    pCfg->keepDays = 10;
+  }
+
+  if (pCfg->keeps == 0) {
+    pCfg->keeps = 365;
+  }
+
+  if (pCfg->precision == 0) {
+    pCfg->precision = TSDB_TIME_PRECISION_MILLI;  // default precision is 1 second
   }
 }
+
 int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
   int32_t lino = 0;
   int32_t code = 0;
@@ -412,15 +421,14 @@ int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
     TSDB_CHECK_CODE(code = terrno, lino, _err);
   }
 
-  p->retention = pCfg->retention;
-  if (p->retention <= 0) {
-    p->retention = 10 * 24 * 3600;  // default to 1 year
-  }
-
-  p->keepDays = pCfg->keepDays;
-
   p->cfg = *pCfg;
   bseCfgSetDefault(&p->cfg);
+
+  p->retention = p->cfg.retention;
+  p->keepDays = p->cfg.keepDays;
+  p->precision = p->cfg.precision;
+
+  p->keeps = pCfg->keeps;
 
   tstrncpy(p->path, path, sizeof(p->path));
 
@@ -916,7 +924,7 @@ int32_t bseUpdateCommitInfo(SBse *pBse, SBseLiveFileInfo *pInfo) {
     }
   } else {
     SBseLiveFileInfo *pLast = taosArrayGetLast(pCommit->pFileList);
-    if (pLast->retentionTs == pInfo->retentionTs) {
+    if (pLast->startTimestamp == pInfo->startTimestamp) {
       memcpy(pLast, pInfo, sizeof(SBseLiveFileInfo));
     }
   }

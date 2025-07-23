@@ -364,7 +364,7 @@ int32_t bseIterNext(SBseIter *pIter, uint8_t **pValue, int32_t *len) {
       }
 
       SBseLiveFileInfo *pInfo = taosArrayGet(pIter->pFileSet, pIter->index);
-      code = tableReaderIterInit(pInfo->retentionTs, BSE_TABLE_DATA_TYPE, &pTableIter, pIter->pBse);
+      code = tableReaderIterInit(pInfo->startTimestamp, BSE_TABLE_DATA_TYPE, &pTableIter, pIter->pBse);
       TSDB_CHECK_CODE(code, lino, _error);
 
       pTableIter->fileType = BSE_TABLE_SNAP;
@@ -400,7 +400,7 @@ int32_t bseIterNext(SBseIter *pIter, uint8_t **pValue, int32_t *len) {
       }
 
       SBseLiveFileInfo *pInfo = taosArrayGet(pIter->pFileSet, pIter->index);
-      code = tableReaderIterInit(pInfo->retentionTs, BSE_TABLE_META_TYPE, &pTableIter, pIter->pBse);
+      code = tableReaderIterInit(pInfo->startTimestamp, BSE_TABLE_META_TYPE, &pTableIter, pIter->pBse);
       TSDB_CHECK_CODE(code, lino, _error);
 
       code = tableReaderIterNext(pTableIter, pValue, len);

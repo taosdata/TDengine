@@ -63,10 +63,11 @@ struct SBse {
   SBatchMgt      batchMgt[1];
   void          *pTableMgt;
   SBseCommitInfo commitInfo;
-
+  SRetention     retention;
   int64_t latestSt;
-  int64_t retention;
-  int64_t keepDays;
+  int32_t        keepDays;
+  int32_t        keeps;
+  int8_t         precision;
 };
 
 struct SBseBatch {

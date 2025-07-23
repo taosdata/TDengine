@@ -32,7 +32,7 @@ typedef struct {
   int8_t inited;
 
   TdThreadMutex mutex;
-  int64_t       retenTs;
+  int64_t       startTimestamp;
   SSubTableMgt *pMgt;
 
   SBse *pBse;
@@ -45,7 +45,7 @@ typedef struct {
   SBse          *pBse;
 
   SSubTableMgt *pMgt;
-  int64_t       retenTs;
+  int64_t       startTimestamp;
 } STableReaderMgt;
 
 typedef struct {
@@ -53,7 +53,7 @@ typedef struct {
   SBse     *pBse;
 
   SBTableMeta *pTableMeta;
-  int64_t      retenTs;
+  int64_t      startTimestamp;
 
   SSubTableMgt *pMgt;
 } STableMetaMgt;
@@ -76,13 +76,13 @@ typedef struct {
 struct STableMgt {
   void         *pBse;
   SSubTableMgt *pCurrTableMgt;
-  int64_t       retionTs;
+  int64_t       startTimestamp;
   SHashObj     *pHashObj;
   SCacheMgt    *pCacheMgt;
 };
 
 int32_t bseTableMgtCreate(SBse *pBse, void **pMgt);
-int32_t bseTableMgtSetLastRetentionTs(STableMgt *pMgt, int64_t retention);
+int32_t bseTableMgtSetLastTableId(STableMgt *pMgt, int64_t retention);
 
 int32_t bseTableMgtCreateCache(STableMgt *pMgt);
 
@@ -112,7 +112,7 @@ int32_t blockWithMetaSeek(SBlockWithMeta *p, int64_t seq, uint8_t **pValue, int3
 
 int32_t bseTableMgtRecoverTable(STableMgt *pMgt, SBseLiveFileInfo *pInfo);
 
-int32_t createSubTableMgt(int64_t retenTs, int32_t readOnly, STableMgt *pMgt, SSubTableMgt **pSubMgt);
+int32_t createSubTableMgt(int64_t startTimestamp, int32_t readOnly, STableMgt *pMgt, SSubTableMgt **pSubMgt);
 void    destroySubTableMgt(SSubTableMgt *p);
 #ifdef __cplusplus
 }

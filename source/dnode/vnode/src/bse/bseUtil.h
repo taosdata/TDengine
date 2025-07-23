@@ -64,7 +64,7 @@ void bseBuildTempMetaName(int64_t ts, char *name);
 int32_t bseCompressData(int8_t type, void *src, int32_t srcSize, void *dst, int32_t *dstSize) ;
 int32_t bseDecompressData(int8_t type, void *src, int32_t srcSize, void *dst, int32_t *dstSize);
 
-int32_t bseGetRetentionTsBySeq(SBse *pBse, int64_t seq, int64_t *retentionTs);
+int32_t bseGetTableIdBySeq(SBse *pBse, int64_t seq, int64_t *startTimestamp);
 
 typedef void* bsequeue[2];
 #define BSE_QUEUE_NEXT(q) (*(bsequeue**)&((*(q))[0]))
