@@ -119,9 +119,8 @@ int32_t tsdbSttFileReadStatisBlk(SSttFileReader *reader, const TStatisBlkArray *
   if (!reader->ctx->statisBlkLoaded) {
     if (reader->footer->statisBlkPtr->size > 0) {
       if (reader->footer->statisBlkPtr->size % sizeof(SStatisBlk) != 0) {
-        tsdbError("vgId:%d %s failed at %s:%d since stt file statis block size is not a multiple of %zu, fname:%s",
-                  TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, sizeof(SStatisBlk),
-                  reader->fd->path);
+        tsdbError("vgId:%d %s failed at %s:%d since stt file statis block size is not valid, fname:%s",
+                  TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, reader->fd->path);
         return TSDB_CODE_FILE_CORRUPTED;
       }
 
@@ -156,9 +155,8 @@ int32_t tsdbSttFileReadTombBlk(SSttFileReader *reader, const TTombBlkArray **tom
   if (!reader->ctx->tombBlkLoaded) {
     if (reader->footer->tombBlkPtr->size > 0) {
       if (reader->footer->tombBlkPtr->size % sizeof(STombBlk) != 0) {
-        tsdbError("vgId:%d %s failed at %s:%d since stt file tomb block size is not a multiple of %zu, fname:%s",
-                  TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, sizeof(STombBlk),
-                  reader->fd->path);
+        tsdbError("vgId:%d %s failed at %s:%d since stt file tomb block size is not valid, fname:%s",
+                  TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, reader->fd->path);
         return TSDB_CODE_FILE_CORRUPTED;
       }
 
@@ -193,9 +191,8 @@ int32_t tsdbSttFileReadSttBlk(SSttFileReader *reader, const TSttBlkArray **sttBl
   if (!reader->ctx->sttBlkLoaded) {
     if (reader->footer->sttBlkPtr->size > 0) {
       if (reader->footer->sttBlkPtr->size % sizeof(SSttBlk) != 0) {
-        tsdbError("vgId:%d %s failed at %s:%d since stt file stt block size is not a multiple of %zu, fname:%s",
-                  TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, sizeof(SSttBlk),
-                  reader->fd->path);
+        tsdbError("vgId:%d %s failed at %s:%d since stt file stt block size is not valid, fname:%s",
+                  TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, reader->fd->path);
         return TSDB_CODE_FILE_CORRUPTED;
       }
 
@@ -289,7 +286,7 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
   // key part
   TAOS_CHECK_GOTO(tBlockDataDecompressKeyPart(&hdr, &br, bData, assist), &lino, _exit);
   if (br.offset != buffer0->size) {
-    tsdbError("vgId:%d %s failed at %s:%d since key part size mismatch, expected: %zu, actual: %zu, fname:%s",
+    tsdbError("vgId:%d %s failed at %s:%d since key part size mismatch, expected:%u, actual:%u, fname:%s",
               TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, buffer0->size, br.offset,
               reader->fd->path);
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
@@ -404,7 +401,7 @@ int32_t tsdbSttFileReadTombBlock(SSttFileReader *reader, const STombBlk *tombBlk
   }
 
   if (br.offset != tombBlk->dp->size) {
-    tsdbError("vgId:%d %s failed at %s:%d since tomb block size mismatch, expected: %zu, actual: %zu, fname:%s",
+    tsdbError("vgId:%d %s failed at %s:%d since tomb block size mismatch, expected: %u, actual: %u, fname:%s",
               TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, tombBlk->dp->size, br.offset,
               reader->fd->path);
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
@@ -478,7 +475,7 @@ int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *sta
   }
 
   if (br.offset != buffer0->size) {
-    tsdbError("vgId:%d %s failed at %s:%d since statis block size mismatch, expected: %zu, actual: %zu, fname:%s",
+    tsdbError("vgId:%d %s failed at %s:%d since statis block size mismatch, expected: %u, actual: %u, fname:%s",
               TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, buffer0->size, br.offset,
               reader->fd->path);
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);

@@ -283,7 +283,7 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
   }
 
   if (br.offset != br.buffer->size) {
-    tsdbError("vgId:%d %s failed at %s:%d since brin block size mismatch, expected: %zu, actual: %zu, fname:%s",
+    tsdbError("vgId:%d %s failed at %s:%d since brin block size mismatch, expected: %u, actual: %u, fname:%s",
               TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, lino, br.buffer->size, br.offset,
               reader->fd[TSDB_FTYPE_HEAD]->path);
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
@@ -320,7 +320,7 @@ int32_t tsdbDataFileReadBlockData(SDataFileReader *reader, const SBrinRecord *re
   TAOS_CHECK_GOTO(tBlockDataDecompress(&br, bData, assist), &lino, _exit);
 
   if (br.offset != buffer->size) {
-    tsdbError("vgId:%d %s failed at %s:%d since block data size mismatch, expected: %zu, actual: %zu, fname:%s",
+    tsdbError("vgId:%d %s failed at %s:%d since block data size mismatch, expected: %u, actual: %u, fname:%s",
               TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, buffer->size, br.offset,
               reader->fd[TSDB_FTYPE_DATA]->path);
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
@@ -371,7 +371,7 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
   // Key part
   TAOS_CHECK_GOTO(tBlockDataDecompressKeyPart(&hdr, &br, bData, assist), &lino, _exit);
   if (br.offset != buffer0->size) {
-    tsdbError("vgId:%d %s failed at %s:%d since key part size mismatch, expected: %zu, actual: %zu, fname:%s",
+    tsdbError("vgId:%d %s failed at %s:%d since key part size mismatch, expected: %u, actual: %u, fname:%s",
               TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, buffer0->size, br.offset,
               reader->fd[TSDB_FTYPE_DATA]->path);
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
@@ -548,7 +548,7 @@ int32_t tsdbDataFileReadBlockSma(SDataFileReader *reader, const SBrinRecord *rec
       TAOS_CHECK_GOTO(TARRAY2_APPEND_PTR(columnDataAggArray, sma), &lino, _exit);
     }
     if (br.offset != record->smaSize) {
-      tsdbError("vgId:%d %s failed at %s:%d since sma data size mismatch, expected: %zu, actual: %zu, fname:%s",
+      tsdbError("vgId:%d %s failed at %s:%d since sma data size mismatch, expected: %u, actual: %u, fname:%s",
                 TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, record->smaSize, br.offset,
                 reader->fd[TSDB_FTYPE_SMA]->path);
       TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
