@@ -3563,8 +3563,8 @@ static int32_t doBlockInfoScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
 
   SSDataBlock* pBlock = pBlockScanInfo->pResBlock;
 
-  int32_t cloSize = taosArrayGetSize(pBlock->pDataBlock);
-  for(int32_t i = 0; i < cloSize; ++i) {
+  int32_t colSize = taosArrayGetSize(pBlock->pDataBlock);
+  for(int32_t i = 0; i < colSize; ++i) {
     SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
     if (pCol != NULL && pCol->pData == NULL) {
       colDataSetNULL(pCol,0);
