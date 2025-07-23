@@ -66,7 +66,7 @@ typedef struct SBlockOrderInfo {
     BMCharPos(bm_, r_) &= ((char)(~(1u << (7u - BitPos(r_))))); \
   } while (0)
 
-#define colDataIsNull_var(pColumnInfoData, row)  (pColumnInfoData->varmeta.offset[row] == -1)
+#define colDataIsNull_var(pColumnInfoData, row)  (pColumnInfoData->varmeta.offset[row] == -1 || pColumnInfoData->pData == NULL)
 #define colDataSetNull_var(pColumnInfoData, row) (pColumnInfoData->varmeta.offset[row] = -1)
 
 #define BitmapLen(_n) (((_n) + ((1 << NBIT) - 1)) >> NBIT)
