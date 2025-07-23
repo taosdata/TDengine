@@ -43,7 +43,8 @@ class TestStreamStateTrigger:
         # streams.append(self.Basic7()) # fail
         # streams.append(self.Basic8()) # fail
         # streams.append(self.Basic9()) # fail
-        streams.append(self.Basic10()) # fail
+        # streams.append(self.Basic10()) # fail
+        streams.append(self.Basic11()) #
 
         tdStream.checkAll(streams)
 
@@ -1891,6 +1892,7 @@ class TestStreamStateTrigger:
                 f"where _twstart - 10s <= _c0 and _c0 <= _twend "
             )
 
+
         def insert1(self):
             tdLog.info(f"=============== insert data into stb")
             sqls = [
@@ -1919,3 +1921,68 @@ class TestStreamStateTrigger:
                     f"{self.db}.res_ct0",
                 func=lambda: tdSql.getRows() == 3
             )
+
+    class Basic11(StreamCheckItem):
+        def __init__(self):
+            self.db = "sdb11"
+            self.stb = "stb"
+
+        def create(self):
+            tdLog.info(f"=============== create database")
+            tdSql.execute(f"create database {self.db} vgroups 4;")
+            tdSql.execute(f"use {self.db}")
+
+            tdSql.execute(
+                f"create table if not exists {self.stb} (ts timestamp, cint int, cbool bool, cfloat float, cdouble double, cbytes varchar(100), cdecimal decimal(10, 2)) tags (tag1 int, tag2 int);")
+            tdSql.query(f"show stables")
+            tdSql.checkRows(1)
+
+            tdLog.info(f"=============== create sub table")
+            tdSql.execute(f"create table ct0 using {self.stb} tags(0, 1);")
+            tdSql.execute(f"create table ct1 using {self.stb} tags(1, 2);")
+            tdSql.execute(f"create table ct2 using {self.stb} tags(2, 3);")
+            tdSql.execute(f"create table ct3 using {self.stb} tags(3, 4);")
+
+            tdSql.query(f"show tables")
+            tdSql.checkRows(4)
+
+            tdLog.info(f"================ correct stream test")
+            tdSql.execute(
+                f"create stream s0_succ state_window(cint) true_for(100) from ct0 into res_ct0 as "
+                f"select first(_c0), last_row(_c0), count(cint) from ct0 "
+                f"where _twstart - 10s <= _c0 and _c0 <= _twend "
+            )
+
+            tdSql.execute("drop stream s0_succ")
+
+            tdLog.info(f"================ error stream test")
+            tdSql.error(
+                f"create stream s0_error state_window(tag1) from ct0 into res_ct0 as "
+                f"select first(_c0), last_row(_c0), count(cint) from ct0 "
+                f"where _twstart - 10s <= _c0 and _c0 <= _twend "
+            )
+
+            tdSql.error(
+                f"create stream s0_error state_window(cfloat) from ct0 into res_ct0 as "
+                f"select first(_c0), last_row(_c0), count(cint) from ct0 "
+                f"where _twstart - 10s <= _c0 and _c0 <= _twend "
+            )
+
+            tdSql.error(
+                f"create stream s0_error state_window(cint) true_for(-1s) from ct0 into res_ct0 as "
+                f"select first(_c0), last_row(_c0), count(cint) from ct0 "
+                f"where _twstart - 10s <= _c0 and _c0 <= _twend "
+            )
+
+            tdSql.error(
+                f"create stream s0_error state_window(cint) true_for(1n) from ct0 into res_ct0 as "
+                f"select first(_c0), last_row(_c0), count(cint) from ct0 "
+                f"where _twstart - 10s <= _c0 and _c0 <= _twend "
+            )
+
+            tdSql.error(
+                f"create stream s0_error state_window(cint) true_for(1s) from ct0 partition by cdouble into res_ct0 as "
+                f"select first(_c0), last_row(_c0), count(cint) from ct0 "
+                f"where _twstart - 10s <= _c0 and _c0 <= _twend "
+            )
+

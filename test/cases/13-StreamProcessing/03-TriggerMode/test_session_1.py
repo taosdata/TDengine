@@ -227,12 +227,12 @@ class TestStreamTriggerSession:
         # except Exception as e:
         #     tdLog.error(f"case 11 error: {e}")
 
-        clear_output("sm11", "tb11")
-        self.prepare_source_table(1000, 10, info)
-        try:
-            self.create_and_check_stream_basic_12("sm12", "tb12", info)
-        except Exception as e:
-            tdLog.error(f"case 12 error: {e}")
+        # clear_output("sm11", "tb11")
+        # self.prepare_source_table(1000, 10, info)
+        # try:
+        #     self.create_and_check_stream_basic_12("sm12", "tb12", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 12 error: {e}")
 
         # clear_output("sm12", "tb12")
         # self.prepare_source_table(1000, 10, info)
@@ -246,7 +246,14 @@ class TestStreamTriggerSession:
         # try:
         #     self.create_and_check_stream_basic_14("sm14", "tb14", info)
         # except Exception as e:
-        #     tdLog.error(f"case 13 error: {e}")
+        #     tdLog.error(f"case 14 error: {e}")
+
+        clear_output("sm14", "tb14")
+        self.prepare_source_table(5000, 10, info)
+        try:
+            self.create_and_check_stream_basic_15("sm15", "tb15", info)
+        except Exception as e:
+            tdLog.error(f"case 15 error: {e}")
 
     def create_env(self):
         tdLog.info(f"create {self.num_snode} snode(s)")
@@ -534,3 +541,40 @@ class TestStreamTriggerSession:
         #                   [['2025-01-01 10:10:10.500', '', 9, 5, 19]])
 
         # todo random: session interval insert 10w records.
+
+    def create_and_check_stream_basic_15(self, stream_name, dst_table, info: WriteDataInfo) -> None:
+        """simple 13: invalid results """
+        tdSql.execute("use db")
+        time.sleep(3)
+
+        tdSql.error(f"create stream {stream_name} session(col_1, 1s) from source_table partition by tbname into {dst_table} as"
+                    f"select _twstart st, _twend et, count(*),  max(vtb_1.col_1) c, sum(vtb_2.col_3), first(c6.c1), spread(vtb_1.col_3)  "
+                    f"from vtb_1, vtb_2, c6 "
+                    f"where _c0 >= _twstart and _c0 <= _twend and vtb_1.ts=vtb_2.ts and vtb_1.ts = c6.ts ")
+
+        tdSql.error(f"create stream {stream_name} session(col_1, 1s) from source_table partition by tbname into {dst_table} as"
+                    f"select _twstart st, _twend et, count(*),  max(k) c "
+                    f"from c6 "
+                    f"where _c0 >= _twstart and _c0 <= _twend ")
+
+        tdSql.error(f"create stream {stream_name} session(ts, -1s) from source_table partition by tbname into {dst_table} as"
+                    f"select _twstart st, _twend et, count(*),  max(k) c "
+                    f"from c6 "
+                    f"where _c0 >= _twstart and _c0 <= _twend ")
+
+        tdSql.error(f"create stream {stream_name} session(ts, 1s) from source_table partition by k into {dst_table} as"
+                    f"select _twstart st, _twend et, count(*),  max(k) c "
+                    f"from c6 ")
+
+        tdSql.error(f"create stream {stream_name} session(ts, 1y) from source_table into {dst_table} as"
+                    f"select _twstart st, _twend et, count(*),  max(k) c "
+                    f"from c6 ")
+
+        tdSql.error(f"create stream {stream_name} session(ts, 0a) from source_table into {dst_table} as"
+                    f"select _twstart st, _twend et, count(*),  max(k) c "
+                    f"from c6 ")
+
+        tdSql.error(f"create stream {stream_name} session(ts) from source_table into {dst_table} as "
+                    f"select _twstart st, _twend et, count(*),  max(k) c "
+                    f"from c6 ")
+
