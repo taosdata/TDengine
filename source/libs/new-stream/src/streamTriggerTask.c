@@ -2572,7 +2572,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
         }
 
         if (taosArrayGetSize(pContext->pNotifyParams) > 0) {
-          code = streamSendNotifyContent(&pTask->task, pTask->streamName, pTask->triggerType, pGroup->gid,
+          code = streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, pTask->triggerType, pGroup->gid,
                                          pTask->pNotifyAddrUrls, pTask->notifyErrorHandle,
                                          TARRAY_DATA(pContext->pNotifyParams), TARRAY_SIZE(pContext->pNotifyParams));
           QUERY_CHECK_CODE(code, lino, _end);
@@ -2698,7 +2698,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
         } while (p != TRINGBUF_TAIL(&pGroup->winBuf));
 
         if (taosArrayGetSize(pContext->pNotifyParams) > 0) {
-          code = streamSendNotifyContent(&pTask->task, pTask->streamName, pTask->triggerType, pGroup->gid,
+          code = streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, pTask->triggerType, pGroup->gid,
                                          pTask->pNotifyAddrUrls, pTask->notifyErrorHandle,
                                          TARRAY_DATA(pContext->pNotifyParams), TARRAY_SIZE(pContext->pNotifyParams));
           QUERY_CHECK_CODE(code, lino, _end);
@@ -4071,7 +4071,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
         }
 
         if (taosArrayGetSize(pContext->pNotifyParams) > 0) {
-          code = streamSendNotifyContent(&pTask->task, pTask->streamName, pTask->triggerType, pGroup->gid,
+          code = streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, pTask->triggerType, pGroup->gid,
                                          pTask->pNotifyAddrUrls, pTask->notifyErrorHandle,
                                          TARRAY_DATA(pContext->pNotifyParams), TARRAY_SIZE(pContext->pNotifyParams));
           QUERY_CHECK_CODE(code, lino, _end);

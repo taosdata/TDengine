@@ -1949,7 +1949,7 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
     SInsertTableRes tbInfo = {0};
     code = getStreamTableId(pInserterInfo, &tbInfo);
     QUERY_CHECK_CODE(code, lino, _end);
-    pInserterInfo->tbName = tbInfo.tbname; // pInserterInfo->tbName wouldn't be delete
+    tstrncpy(pInserterInfo->tbName, tbInfo.tbname, TSDB_TABLE_NAME_LEN);
 
     tbData.uid = tbInfo.uid;
     tbData.sver = tbInfo.version;
