@@ -3215,6 +3215,9 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
     } else {
       pTableListInfo->numOfOuputGroups = 1;
     }
+    if (groupSort || pScanNode->groupOrderScan) {
+      code = sortTableGroup(pTableListInfo);
+    }
   } else {
     bool initRemainGroups = false;
     if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pScanNode)) {
@@ -3290,8 +3293,7 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
     return TSDB_CODE_SUCCESS;
   }
 
-  code = buildGroupIdMapForAllTables(pTableListInfo, pHandle, pScanNode, pGroupTags, groupSort, digest,
-                                     &pTaskInfo->storageAPI, groupIdMap);
+  code = buildGroupIdMapForAllTables(pTableListInfo, pHandle, pScanNode, pGroupTags, groupSort, digest, &pTaskInfo->storageAPI, groupIdMap);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }

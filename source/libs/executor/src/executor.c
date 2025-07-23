@@ -1708,12 +1708,15 @@ int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t ui
   SReadHandle    pHandle = {.vnode = pVnode};
   SExecTaskInfo  pTaskInfo = {.id.str = "", .storageAPI = *storageAPI};
 
-  int32_t code = createScanTableListInfo(&pScanNode, pGroupTags, groupSort, &pHandle, pList, pTagCond, pTagIndexCond,
-                                         &pTaskInfo, groupIdMap);
+  int32_t code = createScanTableListInfo(&pScanNode, pGroupTags, groupSort, &pHandle, pList, pTagCond, pTagIndexCond, &pTaskInfo, groupIdMap);
   if (code != 0) {
     tableListDestroy(pList);
     qError("failed to createScanTableListInfo, code:%s", tstrerror(code));
     return code;
+  }
+  if (taosArrayGetSize(pList->pTableList) == 0){
+    tableListDestroy(pList);
+    pList = NULL;
   }
   *pTableListInfo = pList;
   return 0;

@@ -161,6 +161,8 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
       STREAM_CHECK_RET_GOTO(qStreamCreateTableListForReader(
           pVnode, options->suid, options->uid, options->tableType, options->partitionCols, options->groupSort,
           options->pTagCond, options->pTagIndexCond, api, &pTask->pTableList, groupIdMap));
+      STREAM_CHECK_NULL_GOTO(pTask->pTableList, 0);
+
       if (options->gid != 0) {
         int32_t index = qStreamGetGroupIndex(pTask->pTableList, options->gid);
         STREAM_CHECK_CONDITION_GOTO(index < 0, TSDB_CODE_INVALID_PARA);
@@ -530,12 +532,12 @@ int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t*
     if (pBlock == NULL || pBlock->info.rows == 0) continue;
     int32_t blockSize = blockGetEncodeSize(pBlock);
     *((int32_t*)(dataBuf)) = blockSize;
-    *((int32_t*)((char*)dataBuf + INT_BYTES)) = blockSize;
+    *((int32_t*)(dataBuf + INT_BYTES)) = blockSize;
     pRetrieve->numOfRows += pBlock->info.rows;
     int32_t actualLen =
-        blockEncode(pBlock, (char*)dataBuf + INT_BYTES * 2, blockSize, taosArrayGetSize(pBlock->pDataBlock));
+        blockEncode(pBlock, dataBuf + INT_BYTES * 2, blockSize, taosArrayGetSize(pBlock->pDataBlock));
     STREAM_CHECK_CONDITION_GOTO(actualLen < 0, terrno);
-    dataBuf = (char*)dataBuf + (INT_BYTES * 2 + actualLen);
+    dataBuf += (INT_BYTES * 2 + actualLen);
   }
   stDebug("stream fetch get result blockNum:%d, rows:%" PRId64, blockNum, pRetrieve->numOfRows);
 
