@@ -60,6 +60,7 @@ regex.workspace = true
 mimalloc = { workspace = true, optional = true }
 futures.workspace = true
 pin-project-lite.workspace = true
+faststr.workspace = true
 
 [dependencies.taos]
 workspace = true

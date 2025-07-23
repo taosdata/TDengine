@@ -4,9 +4,10 @@ use anyhow::Context;
 use chrono::{SecondsFormat, TimeZone};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use deadpool::managed::{Object, PoolError};
+use faststr::FastStr;
 use favorites::FavoritesSql;
 use geos::{Geom, Geometry};
-use http::{HeaderMap, HeaderValue};
+use http::{HeaderMap, HeaderValue, StatusCode};
 use http_auth_basic::Credentials;
 use log::LevelFilter;
 use reqwest::RequestBuilder;
@@ -38,7 +39,7 @@ use actix_web::{
     http::header::{ContentType, AUTHORIZATION, X_FORWARDED_FOR},
     middleware::Compress,
     web::{self, Query},
-    App, HttpRequest, HttpResponse, HttpServer, Responder, ResponseError,
+    App, HttpRequest, HttpResponse, HttpResponseBuilder, HttpServer, Responder, ResponseError,
 };
 use anyhow::bail;
 use clap::Parser;
@@ -329,6 +330,7 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/-/rest/{path:.*}", web::to(rest_proxy))
             .route("/api/x/{api:.*}", web::to(x_api))
             .route("/grafana/{grafana_path:.*}", web::to(grafana_api))
+            .route("/api/-/login", web::to(login))
             .route("/api/-/import", web::to(import))
             .route("/api/-/license", web::to(renew_license))
             .route("/api/-/profile", web::to(profile))
@@ -713,6 +715,7 @@ async fn send_verification_code(
 
 #[instrument(skip_all)]
 async fn check_verification_code(
+    db: web::Data<FavoritesSql>,
     args: web::Data<Args>,
     body: web::Json<VerificationReqBody>,
 ) -> impl Responder {
@@ -733,7 +736,16 @@ async fn check_verification_code(
         let binding_record_file =
             PathBuf::from(args.cfg_path.as_ref().unwrap()).join("explorer-register.cfg");
         let server = args.profile.cluster.as_deref().unwrap();
-        verification::record_binding_phone_email(server, str_phone_email, &binding_record_file);
+        if let Err(err) =
+            verification::record_binding_phone_email(server, str_phone_email, &binding_record_file)
+        {
+            tracing::error!(
+                "Failed to record binding phone/email {} in file {}: {}",
+                str_phone_email,
+                binding_record_file.display(),
+                err
+            );
+        }
 
         let lang_code = match body.lang.as_deref() {
             Some("zh") => "zh_CN",
@@ -774,6 +786,17 @@ async fn check_verification_code(
                 // 尝试用 root 用户获取 taosd 版本信息，上报
                 let taosd_info = query_taosd_info_guess(&args).await;
                 if let Some((cluster_id, taosd_version)) = taosd_info {
+                    info!(cluster_id, taosd_version, "Guessed taosd info");
+                    if let Err(err) = db
+                        .get_ref()
+                        .upsert_registration(str_phone_email, &cluster_id, &taosd_version)
+                        .await
+                    {
+                        error!(
+                            "Failed to upsert registration for {}: {:?}",
+                            str_phone_email, err
+                        );
+                    }
                     let r = verification::report_taosd_info_to_cloud(
                         args.cloud_open_api.as_deref(),
                         str_phone_email,
@@ -1043,7 +1066,44 @@ async fn modify_password(
 }
 
 #[instrument(skip_all)]
+async fn login(
+    db: web::Data<FavoritesSql>,
+    args: web::Data<Args>,
+    req: HttpRequest,
+    query: Query<HashMap<String, String>>,
+) -> impl Responder {
+    let header = req
+        .headers()
+        .get(AUTHORIZATION)
+        .and_then(|header| header.to_str().ok())
+        .unwrap_or_default();
+
+    let tz = query.get("tz");
+    let sql = "select server_version()";
+    match args.query(header, sql, tz).await {
+        Ok(mut ok) => {
+            let mut resp = HttpResponseBuilder::new(StatusCode::OK);
+            if db.is_registered().await {
+                if let Some(subject) = favorites::TAOSX_VERIFICATION_SUBJECT.get() {
+                    tracing::trace!(
+                        subject = subject.as_str(),
+                        "Append x-registered-user header"
+                    );
+                    ok.registered_user.replace(subject.clone());
+                } else {
+                    tracing::error!("Expect verification subject exist");
+                }
+            }
+            resp.append_header(("X-Explorer-Version", build::PKG_VERSION));
+            resp.json(ok)
+        }
+        Err(err) => HttpResponse::InternalServerError().json(err),
+    }
+}
+
+#[instrument(skip_all)]
 async fn rest_proxy(
+    db: web::Data<FavoritesSql>,
     args: web::Data<Args>,
     req: HttpRequest,
     payload: web::Payload,
@@ -1058,7 +1118,20 @@ async fn rest_proxy(
     let sql = get_body_from_payload(payload).await.unwrap();
     let tz = query.get("tz");
     match args.query(header, &sql, tz).await {
-        Ok(ok) => HttpResponse::Ok().json(ok),
+        Ok(ok) => {
+            let mut resp = HttpResponseBuilder::new(StatusCode::OK);
+            if db.is_registered().await {
+                if let Some(subject) = favorites::TAOSX_VERIFICATION_SUBJECT.get() {
+                    let subject = subject.as_str();
+                    tracing::trace!(subject, "Append x-registered-user header");
+                    resp.append_header(("X-Registered-User", subject));
+                } else {
+                    tracing::error!("Expect verification subject exist");
+                }
+            }
+            resp.append_header(("X-Explorer-Version", build::PKG_VERSION));
+            resp.json(ok)
+        }
         Err(err) => HttpResponse::InternalServerError().json(err),
     }
 }
@@ -1596,6 +1669,7 @@ impl Args {
                 column_meta: vec![("affected_rows".to_string(), "int".to_string(), 4)],
                 rows: 1,
                 data: vec![vec![serde_json::Value::Number(affect_rows.into())]],
+                ..Default::default()
             });
         }
         let precision = set.precision();
@@ -1645,6 +1719,7 @@ impl Args {
             column_meta,
             rows: data.len() as _,
             data,
+            ..Default::default()
         })
     }
 
@@ -1750,9 +1825,8 @@ impl Args {
         }
         Ok(RestOkResponse {
             code: Code::SUCCESS,
-            column_meta: Default::default(),
             rows: 0,
-            data: Default::default(),
+            ..Default::default()
         })
     }
 }
@@ -1766,12 +1840,14 @@ fn parse_geometry_from_bytes(geo: &[u8]) -> String {
     }
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, Default)]
 struct RestOkResponse {
     code: Code,
     column_meta: Vec<(String, String, u32)>,
     data: Vec<Vec<serde_json::Value>>,
     rows: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    registered_user: Option<FastStr>,
 }
 #[derive(Debug, serde::Serialize)]
 struct RestErrResponse {

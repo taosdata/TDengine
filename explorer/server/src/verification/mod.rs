@@ -27,17 +27,15 @@ fn verify_string(input: &str, expected: &str) -> bool {
     dbg!(sign_string(input)) == dbg!(expected)
 }
 
-pub fn record_binding_phone_email(server: &str, phone_email: &str, file: &Path) {
+pub fn record_binding_phone_email(server: &str, phone_email: &str, file: &Path) -> io::Result<()> {
     let sign = sign_string(phone_email);
     let binding_record = format!("{}|{}|{}\n", server, phone_email, sign);
     // 打开文件，追加写入，如果文件不存在，则创建
-    let mut file = OpenOptions::new()
-        .append(true)
-        .create(true)
-        .open(file)
-        .unwrap();
-    file.write_all(binding_record.as_bytes()).unwrap();
-    file.flush().unwrap();
+    let mut file = OpenOptions::new().append(true).create(true).open(file)?;
+    file.write_all(binding_record.as_bytes())?;
+    file.flush()?;
+    tracing::debug!(server, phone_email, sign, "record_binding_phone_email",);
+    Ok(())
 }
 
 pub fn check_phone_email_verified(filename: &Path, current_server: &str) -> io::Result<()> {
@@ -437,7 +435,7 @@ mod tests {
 
         let server = "localhost:8080";
         let phone_email = "15801381212";
-        record_binding_phone_email(server, phone_email, &filename);
+        record_binding_phone_email(server, phone_email, &filename).unwrap();
 
         let result = check_phone_email_verified(&filename, server);
         assert!(result.is_ok());
@@ -448,7 +446,7 @@ mod tests {
         let filename = assert_fs::NamedTempFile::new("empty_phone_email_verified.txt").unwrap();
         let server = "localhost:8080";
         let phone_email = "15801381212";
-        record_binding_phone_email(server, phone_email, &filename);
+        record_binding_phone_email(server, phone_email, &filename).unwrap();
 
         let result = check_phone_email_verified(&filename, server);
         assert!(result.is_ok());

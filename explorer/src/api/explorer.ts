@@ -11,7 +11,8 @@ export function sendSQLReq(sqlStr: string, composeData = false) {
       'Content-Type': 'text/plain'
     },
     transformResponse: [
-      function (data) {
+      function (data, headers) {
+        console.log(headers);
         try {
           console.log('Got response', data);
           return JSONbig.parse(data);

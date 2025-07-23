@@ -99,7 +99,7 @@ async function getAllQnodes() {
 function handlePageChange() {}
 
 function del(data: { endpoint: string; id: number | string }) {
-  ElMessageBox.confirm(t('isDel', [data.endpoint]), t('wraning'), {
+  ElMessageBox.confirm(t('isDel', [data.endpoint]), t('warning'), {
     confirmButtonText: t('confirm'),
     cancelButtonText: t('cancel'),
     type: 'warning'
