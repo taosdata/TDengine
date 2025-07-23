@@ -9,7 +9,22 @@ class TestStreamMetaTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_meta_trigger(self):
-        """Stream basic test 1
+        """stream options
+
+        test meta change (add/drop/modify) cases to stream for virtual table
+
+        Catalog:
+            - Streams:UseCases
+
+        Since: v3.3.3.7
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-6-16 Lihui Created
+
         """
 
         tdStream.createSnode()

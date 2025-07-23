@@ -8,7 +8,26 @@ class TestStreamCountTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_count_trigger(self):
-        """Stream basic test 1
+        """basic test
+
+        Verification testing during the development process.
+
+        Catalog:
+            - Streams: 03-TriggerMode
+        Description:
+            - create 14 streams, each stream has 1 source tables
+            - write data to source tables
+            - check stream results
+
+        Since: v3.3.3.7
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-07-22
+
         """
 
         tdStream.createSnode()

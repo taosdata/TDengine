@@ -30,13 +30,13 @@ typedef int32_t (*FCreateMergeFuncParameters)(SNodeList* pRawParameters, SNode* 
 typedef EFuncDataRequired (*FFuncDynDataRequired)(void* pRes, SDataBlockInfo* pBlocInfo);
 typedef EFuncReturnRows (*FEstimateReturnRows)(SFunctionNode* pFunc);
 
-#define MAX_FUNC_PARA_NUM 16
+#define MAX_FUNC_PARA_NUM             16
 #define MAX_FUNC_PARA_FIXED_VALUE_NUM 16
 
 
 typedef struct SParamRange {
-  int64_t  iMinVal;
-  int64_t  iMaxVal;
+  int64_t iMinVal;
+  int64_t iMaxVal;
 } SParamRange;
 
 typedef struct SParamInfo {
@@ -46,10 +46,10 @@ typedef struct SParamInfo {
   uint64_t    validDataType;
   uint64_t    validNodeType;
   uint64_t    paramAttribute;
-  uint8_t     valueRangeFlag; // 0 for no range and no fixed value, 1 for value has range, 2 for fixed value
+  uint8_t     valueRangeFlag;  // 0 for no range and no fixed value, 1 for value has range, 2 for fixed value
   uint8_t     fixedValueSize;
-  char*       fixedStrValue[MAX_FUNC_PARA_FIXED_VALUE_NUM]; // used for input parameter
-  int64_t     fixedNumValue[MAX_FUNC_PARA_FIXED_VALUE_NUM]; // used for input parameter
+  char*       fixedStrValue[MAX_FUNC_PARA_FIXED_VALUE_NUM];  // used for input parameter
+  int64_t     fixedNumValue[MAX_FUNC_PARA_FIXED_VALUE_NUM];  // used for input parameter
   SParamRange range;
 } SParamInfo;
 
@@ -62,21 +62,21 @@ typedef struct SFunctionParaInfo {
 } SFunctionParaInfo;
 
 typedef struct SBuiltinFuncDefinition {
-  const char*                name;
-  EFunctionType              type;
-  uint64_t                   classification;
-  SFunctionParaInfo          parameters;
-  FTranslateFunc             translateFunc;
-  FFuncDataRequired          dataRequiredFunc;
-  FFuncDynDataRequired       dynDataRequiredFunc;
-  FExecGetEnv                getEnvFunc;
-  FExecInit                  initFunc;
-  FExecProcess               processFunc;
-  FScalarExecProcess         sprocessFunc;
-  FExecFinalize              finalizeFunc;
-  FExecCleanUp               cleanupFunc;
+  const char*          name;
+  EFunctionType        type;
+  uint64_t             classification;
+  SFunctionParaInfo    parameters;
+  FTranslateFunc       translateFunc;
+  FFuncDataRequired    dataRequiredFunc;
+  FFuncDynDataRequired dynDataRequiredFunc;
+  FExecGetEnv          getEnvFunc;
+  FExecInit            initFunc;
+  FExecProcess         processFunc;
+  FScalarExecProcess   sprocessFunc;
+  FExecFinalize        finalizeFunc;
+  FExecCleanUp         cleanupFunc;
 #ifdef BUILD_NO_CALL
-  FExecProcess               invertFunc;
+  FExecProcess invertFunc;
 #endif
   FExecCombine               combineFunc;
   const char*                pPartialFunc;

@@ -72,7 +72,7 @@ class TestSnodeBasic1:
 
         tdLog.info(f"=============== create drop snodes")
         tdSql.execute(f"create snode on dnode 1")
-        tdSql.error(f"create snode on dnode 2")
+        tdSql.execute(f"create snode on dnode 2")
 
         tdLog.info(f"=============== restart")
         sc.dnodeStop(1)
@@ -81,4 +81,4 @@ class TestSnodeBasic1:
         sc.dnodeStart(2)
 
         tdSql.query(f"show snodes")
-        tdSql.checkRows(1)
+        tdSql.checkRows(2)

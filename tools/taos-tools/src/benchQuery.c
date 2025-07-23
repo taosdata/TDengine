@@ -503,6 +503,7 @@ static int stbQuery(uint16_t iface, char* dbName) {
     int threadCnt = 0;
     for (int i = 0; i < nConcurrent; i++) {
         qThreadInfo *pThreadInfo = threadInfos + i;
+        pThreadInfo->dbName = dbName;
         pThreadInfo->threadID = i;
         pThreadInfo->start_table_from = tableFrom;
         pThreadInfo->ntables = i < b ? a + 1 : a;
@@ -626,6 +627,7 @@ static int specQuery(uint16_t iface, char* dbName) {
            qThreadInfo *pThreadInfo = infos + j;
            pThreadInfo->threadID = i * nConcurrent + j;
            pThreadInfo->querySeq = i;
+           pThreadInfo->dbName = dbName;
 
            // create conn
            if (initQueryConn(pThreadInfo, iface)) {
@@ -825,6 +827,7 @@ static int specQueryMix(uint16_t iface, char* dbName) {
         pThreadInfo->end_sql     = i < b ? start_sql + a : start_sql + a - 1;
         start_sql = pThreadInfo->end_sql + 1;
         pThreadInfo->total_delay = 0;
+        pThreadInfo->dbName = dbName;
 
         // create conn
         if (initQueryConn(pThreadInfo, iface)){
@@ -967,6 +970,7 @@ static int specQueryBatch(uint16_t iface, char* dbName) {
     int connCnt = 0;
     for (int i = 0; i < nConcurrent; ++i) {
         qThreadInfo *pThreadInfo = infos + i;
+        pThreadInfo->dbName = dbName;
         // create conn
         if (initQueryConn(pThreadInfo, iface)){
             ret = -1;

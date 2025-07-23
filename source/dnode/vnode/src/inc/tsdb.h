@@ -445,6 +445,7 @@ struct TSDBROW {
       int32_t     iRow;
     };
   };
+  void *arg;
 };
 
 struct SMemSkipListNode {
@@ -652,6 +653,7 @@ struct SRowMerger {
   STSchema *pTSchema;
   int64_t   version;
   SArray   *pArray;  // SArray<SColVal>
+  void     *arg;
 };
 
 typedef struct {

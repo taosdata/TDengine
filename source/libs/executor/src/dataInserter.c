@@ -1038,7 +1038,8 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
     }
 
     SRow* pRow = NULL;
-    if ((terrno = tRowBuild(pVals, pTSchema, &pRow)) < 0) {
+    SRowBuildScanInfo sinfo = {0};
+    if ((terrno = tRowBuild(pVals, pTSchema, &pRow, &sinfo)) < 0) {
       tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
       goto _end;
     }
@@ -1297,8 +1298,8 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
           break;
         }
         case TSDB_DATA_TYPE_BLOB:
-        case TSDB_DATA_TYPE_JSON:
         case TSDB_DATA_TYPE_MEDIUMBLOB:
+        case TSDB_DATA_TYPE_JSON:
           qError("the column type %" PRIi16 " is defined but not implemented yet", pColInfoData->info.type);
           terrno = TSDB_CODE_APP_ERROR;
           goto _end;
@@ -1341,8 +1342,9 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
       }
     }
 
-    SRow* pRow = NULL;
-    if ((terrno = tRowBuild(pVals, pTSchema, &pRow)) < 0) {
+    SRow*             pRow = NULL;
+    SRowBuildScanInfo sinfo = {0};
+    if ((terrno = tRowBuild(pVals, pTSchema, &pRow, &sinfo)) < 0) {
       tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
       goto _end;
     }
@@ -1353,7 +1355,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
 
   if (needSortMerge) {
     if ((tRowSort(tbData.aRowP) != TSDB_CODE_SUCCESS) ||
-        (terrno = tRowMerge(tbData.aRowP, (STSchema*)pTSchema, PREFER_NON_NULL)) != 0) {
+        (terrno = tRowMerge(tbData.aRowP, (STSchema*)pTSchema, KEEP_CONSISTENCY)) != 0) {
       goto _end;
     }
   }
@@ -1868,7 +1870,8 @@ static int32_t buildInsertData(SStreamInserterParam* pInsertParam, const SSDataB
     }
     if(tsIsNull) continue;  // skip this row if primary key is null
     SRow* pRow = NULL;
-    if ((code = tRowBuild(pVals, pTSchema, &pRow)) != TSDB_CODE_SUCCESS) {
+    SRowBuildScanInfo sinfo = {0};
+    if ((code = tRowBuild(pVals, pTSchema, &pRow, &sinfo)) != TSDB_CODE_SUCCESS) {
       QUERY_CHECK_CODE(code, lino, _end);
     }
     if (NULL == taosArrayPush(tbData->aRowP, &pRow)) {

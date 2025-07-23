@@ -708,9 +708,9 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
   JSON_CHECK_ADD_ITEM(obj, "eventType", cJSON_CreateStringReference(eventType));
   JSON_CHECK_ADD_ITEM(obj, "eventTime", cJSON_CreateNumber(taosGetTimestampMs()));
   JSON_CHECK_ADD_ITEM(obj, "windowId", cJSON_CreateString(windowId));
+  JSON_CHECK_ADD_ITEM(obj, "windowType", cJSON_CreateStringReference(windowType));
 
-  if (STREAM_TRIGGER_PERIOD != triggerType && STREAM_TRIGGER_SLIDING != triggerType) {
-    JSON_CHECK_ADD_ITEM(obj, "windowType", cJSON_CreateStringReference(windowType));
+  if (pParam->notifyType != STRIGGER_EVENT_ON_TIME) {
     JSON_CHECK_ADD_ITEM(obj, "windowStart", cJSON_CreateNumber(pParam->wstart));
     if (pParam->notifyType == STRIGGER_EVENT_WINDOW_CLOSE) {
       int64_t wend = pParam->wend;
