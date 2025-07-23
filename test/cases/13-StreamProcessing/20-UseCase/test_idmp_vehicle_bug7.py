@@ -128,21 +128,9 @@ class Test_IDMP_Vehicle:
     def createStreams(self):
 
         sqls = [
-            # stream1            
-            "create stream if not exists `idmp`.`ana_stream1`      event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_1` stream_options(ignore_disorder)       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream1`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from idmp.`vt_1` where ts >= _twstart and ts <_twend",
-            "create stream if not exists `idmp`.`ana_stream1_sub1` event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_1`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream1_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from idmp.`vt_1` where ts >= _twstart and ts <_twend",
-            # stream2
-            "create stream if not exists `idmp`.`ana_stream2`      event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_2` stream_options(ignore_disorder)       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream2`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
-            "create stream if not exists `idmp`.`ana_stream2_sub1` event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_2`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream2_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
             # stream3
             "create stream if not exists `idmp`.`ana_stream3`      event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_3` stream_options(ignore_disorder)       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream3`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
             "create stream if not exists `idmp`.`ana_stream3_sub1` event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_3`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream3_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
-            # stream4
-            "create stream if not exists `idmp`.`ana_stream4`      event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_4`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream4`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
-            "create stream if not exists `idmp`.`ana_stream4_sub1` event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_4` stream_options(DELETE_RECALC)         notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream4_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
-            # stream5
-            "create stream if not exists `idmp`.`ana_stream5`      interval(5m) sliding(5m) from `idmp`.`vt_5`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream5`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
-            "create stream if not exists `idmp`.`ana_stream5_sub1` interval(5m) sliding(5m) from `idmp`.`vt_5` stream_options(IGNORE_NODATA_TRIGGER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream5_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
         ]
 
         tdSql.executes(sqls)
@@ -160,42 +148,16 @@ class Test_IDMP_Vehicle:
     # 4. write trigger data
     #
     def writeTriggerData(self):
-        # stream1
-        self.trigger_stream1()
-        # stream2
-        self.trigger_stream2()
         # stream3
         self.trigger_stream3()  
-        # stream4
-        self.trigger_stream4()
-        # stream5
-        self.trigger_stream5()
-        '''
-        # stream6
-        self.trigger_stream6()
-        # stream7
-        self.trigger_stream7()
-        # stream8
-        self.trigger_stream8()
-        '''
 
 
     # 
     # 5. verify results
     #
     def verifyResults(self):
-        self.verify_stream1()
-        self.verify_stream2()
         self.verify_stream3()
         self.verify_stream3_sub1()
-
-        self.verify_stream4()
-        self.verify_stream5()
-        '''
-        self.verify_stream6()
-        self.verify_stream7()
-        #self.verify_stream8()
-        '''
 
 
     # 
@@ -213,8 +175,7 @@ class Test_IDMP_Vehicle:
         pass
         # stream3
         self.verify_stream3_again()
-        # ***** bug7 *****
-        #self.verify_stream3_sub1_again()
+        self.verify_stream3_sub1_again()
 
     #
     # 8. restart dnode
@@ -246,129 +207,7 @@ class Test_IDMP_Vehicle:
 
     # ---------------------   stream trigger    ----------------------
 
-    #
-    #  stream1 trigger 
-    #
-    def trigger_stream1(self):
-        ts    = self.start
-        table = f"{self.db}.`vehicle_110100_001`"
-        cols  = "ts,speed"
-
-        # win1 1~5
-        vals  = "120"
-        count = 5
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-
-        # null 
-        count = 2
-        vals  = "null"
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-
-        # end
-        vals  = "60"
-        count = 1
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-
-
-        # win3 50 ~ 51 end-windows
-        ts += 50 * self.step
-        vals  = "10"
-        count = 2
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-
-
-        ''' ***** bug1 *****
-        # disorder win2 10~15
-        win2  = self.start + 10 * self.step
-        vals  = "60"
-        count = 2
-        ts    = tdSql.insertFixedVal(table, win2, step, count, cols, vals)
-        '''
-
-        '''
-        win2  = self.start + 10 * self.step
-        vals  = "60"
-        count = 1
-        ts    = tdSql.insertFixedVal(table, win2, step, count, cols, vals)
-
-
-        # disorder win2 20~26
-        win2  = self.start + 20 * self.step
-        vals  = "150"
-        count = 6
-        ts    = tdSql.insertFixedVal(table, win2, step, count, cols, vals)        
-        '''
-
-        # delete win1 2 rows
-        tdSql.deleteRows(table, f"ts >= {self.start + 1 * self.step} and ts <= {self.start + 2 * self.step}")
-
-        # disorder
-        ts    = self.start + (5 + 2 + 1) * self.step
-        vals  = "130"
-        count = 3
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-        # null 
-        count = 10
-        vals  = "null"
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-
-        # null changed 65
-        ts    = self.start + (5 + 2 + 1 + 3) * self.step
-        count = 1
-        vals  = "65"
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)        
-        # null changed 140
-        count = 5
-        vals  = "140"
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-
-        # 130 change to null
-        ts    = self.start
-        vals  = "null"
-        count = 1
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-
-        # trigger disorder event
-        ts   += 50 * self.step
-        vals  = "9"
-        count = 1
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-
-
-    #
-    #  stream2 trigger 
-    #
-    def trigger_stream2(self):
-        ts    = self.start
-        table = f"{self.db}.`vehicle_110100_002`"
-        cols  = "ts,speed"
-
-        # win1 1~5
-        vals  = "120"
-        count = 5
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-        vals  = "60"
-        count = 1
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-
-
-        # win2 10~5
-        ts += 10 * self.step
-        vals  = "130"
-        count = 5
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-
-
-        # win3 50 ~ 51 end-windows
-        ts += 50 * self.step
-        vals  = "65"
-        count = 2
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-
-
-        # delete win1 3 rows
-        tdSql.deleteRows(table, f"ts >= {self.start } and ts <= {self.start + 2 * self.step}") 
-
+    
     #
     #  stream3 trigger 
     #
@@ -452,198 +291,11 @@ class Test_IDMP_Vehicle:
         count = 3
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
-
-    #
-    #  stream4 trigger 
-    #
-    def trigger_stream4(self):
-        ts    = self.start
-        table = f"{self.db}.`vehicle_110100_004`"
-        cols  = "ts,speed"
-
-        # win1 1~6
-        vals  = "120"
-        count = 5
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-        vals  = "60"
-        count = 1
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-
-
-        # win2 7~13
-        vals  = "130"
-        count = 5
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-        vals  = "65"
-        count = 1
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-
-
-        # 20
-        ts    = self.start + 20 * self.step
-        vals  = "140"
-        count = 10
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)        
-        vals  = "70"
-        count = 1
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-
-
-        # delete 1~3
-        tdSql.deleteRows(table, f"ts >= {self.start } and ts <= {self.start + 3 * self.step}") 
-        
-        # delete 20 ~ 23
-        tdSql.deleteRows(table, f"ts >= {self.start + 20 * self.step } and ts <= {self.start + 23 * self.step}") 
-
-
-    #
-    #  stream4 trigger again
-    #
-    def trigger_stream4_again(self):
-        pass
-
-
-    #
-    #  stream5 trigger 
-    #
-    def trigger_stream5(self):
-        table = f"{self.db}.`vehicle_110100_005`"
-        cols  = "ts,speed"
-
-        # order write
-
-        # data1
-        ts    = self.start
-        vals  = "120"
-        count = 5
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-
-        # blank 20
-
-        # data2
-        ts   += 20 * self.step
-        vals  = "130"
-        count = 5
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-
-        # close prev windows
-        endTs = self.start + 60 * self.step
-        vals  = "10"
-        count = 1
-        endTs = tdSql.insertFixedVal(table, endTs, self.step, count, cols, vals)
-
-        # disorder
-
-        # continue write disorder
-        ts   += 10 * self.step
-        vals  = "140"
-        count = 5
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-
-        # blank 20
-
-        # data2
-        ts   += 20 * self.step
-        vals  = "150"
-        count = 5
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)        
-
-
-    #
-    #  stream6 trigger 
-    #
-    def trigger_stream6(self):
-        pass
-
-    #
-    #  again stream6 trigger
-    #
-    def trigger_stream6_again(self):
-        pass
-
-    #
-    #  stream7 trigger
-    #
-    def trigger_stream7(self):
-        pass
-
-    #
-    #  stream8 trigger
-    #
-    def trigger_stream8(self):
-        pass
-
     #
     # ---------------------   verify    ----------------------
     #
 
-    #
-    # verify stream1
-    #
-    def verify_stream1(self):
-        # check
-        result_sql = f"select * from {self.vdb}.`result_stream1` "
-        tdSql.checkResultsByFunc (
-            sql = result_sql, 
-            func = lambda: tdSql.getRows() == 1
-            and tdSql.compareData(0, 0, self.start) # ts
-            and tdSql.compareData(0, 1, 5)          # cnt
-            and tdSql.compareData(0, 2, 120)        # avg(speed)
-        )
-
-        # sub
-        # ***** bug4 *****
-        #self.verify_stream1_sub1()
-        tdLog.info("verify stream1 .................................. successfully.")
-
-    # stream1 sub1
-    def verify_stream1_sub1(self):
-        # check
-        result_sql = f"select * from {self.vdb}.`result_stream1_sub1` "
-        tdSql.checkResultsByFunc (
-            sql = result_sql, 
-            func = lambda: tdSql.getRows() == 1
-            and tdSql.compareData(1, 0, self.start + (5 + 2 + 1) * self.step) # ts
-            and tdSql.compareData(1, 1, 9)          # cnt
-            and tdSql.compareData(1, 2, 140)        # avg(speed)
-        )
-
-        tdLog.info("verify stream1 sub1 ............................. successfully.")
-
-
-    #
-    # verify stream2
-    #
-    def verify_stream2(self):
-        # check
-        result_sql = f"select * from {self.vdb}.`result_stream2` "
-        tdSql.checkResultsByFunc (
-            sql = result_sql, 
-            func = lambda: tdSql.getRows() == 2
-            and tdSql.compareData(0, 0, self.start) # ts
-            and tdSql.compareData(0, 1, 6)          # cnt
-        )
-
-        # sub
-        # ***** bug3 *****
-        # self.verify_stream2_sub1()
-
-        tdLog.info("verify stream2 .................................. successfully.")
-
-
-    # verify stream2 sub1
-    def verify_stream2_sub1(self):
-        # check
-        result_sql = f"select * from {self.vdb}.`result_stream2_sub1` "
-        tdSql.checkResultsByFunc (
-            sql = result_sql, 
-            func = lambda: tdSql.getRows() == 1
-            and tdSql.compareData(0, 0, self.start + 10 * self.step) # ts
-            and tdSql.compareData(0, 1, 6)                     # cnt
-        )        
-        tdLog.info("verify stream2 sub1 ............................. successfully.")
-
-
+ 
     #
     # verify stream3
     #
@@ -705,140 +357,3 @@ class Test_IDMP_Vehicle:
         )
 
         tdLog.info(f"verify stream3 sub1 again ...................... successfully.")
-
-
-    #
-    # verify stream4
-    #
-    def verify_stream4(self, tables=None):
-        # check
-        result_sql = f"select * from {self.vdb}.`result_stream4` "
-        tdSql.checkResultsByFunc (
-            sql = result_sql, 
-            func = lambda: tdSql.getRows() == 3
-            # row1
-            and tdSql.compareData(0, 0, self.start) # ts
-            and tdSql.compareData(0, 1, 6)          # cnt
-            # row2
-            and tdSql.compareData(1, 0, self.start + 6 * self.step) # ts
-            and tdSql.compareData(1, 1, 6)          # cnt
-            # row3
-            and tdSql.compareData(2, 0, self.start + 20 * self.step) # ts
-            and tdSql.compareData(2, 1, 11)          # cnt
-        )
-
-        # sub
-        # ***** bug5 *****
-        #self.verify_stream4_sub1()
-
-        tdLog.info(f"verify stream4 ................................. successfully.")
-
-    def verify_stream4_sub1(self, tables=None):
-        # check
-        result_sql = f"select * from {self.vdb}.`result_stream4` "
-        tdSql.checkResultsByFunc (
-            sql = result_sql, 
-            func = lambda: tdSql.getRows() == 3
-            # row1
-            and tdSql.compareData(0, 0, self.start) # ts
-            and tdSql.compareData(0, 1, 6)          # cnt
-            # row2
-            and tdSql.compareData(1, 0, self.start + 6 * self.step) # ts
-            and tdSql.compareData(1, 1, 6)          # cnt
-            # row3
-            and tdSql.compareData(2, 0, self.start + 20 * self.step) # ts
-            and tdSql.compareData(2, 1, 11)          # cnt
-        )
-
-        tdLog.info(f"verify stream4 sub1 ............................. successfully.")
-
-
-
-    def getSlidingWindow(self, start, step, cnt):
-        wins = []
-        x = int(start/step)
-        i = 0
-
-        while len(wins) < cnt:
-            win = (x + i) * self.step
-            if win >= start:
-                wins.append(win)
-            # move next    
-            i += 1        
-
-        return wins
-
-
-    #
-    # verify stream4 again
-    #
-    def verify_stream4_again(self):
-        tdLog.info("verify stream4 again ............................ successfully.")
-
-    
-    #
-    # verify stream5
-    #
-
-    def verify_stream5(self):
-        # check data
-        result_sql = f"select * from {self.vdb}.`result_stream5` "
-        tdSql.checkResultsByFunc (
-            sql = result_sql, 
-            func = lambda: tdSql.getRows() == 13
-            # row1
-            and tdSql.compareData(0, 0, self.start) # ts
-            and tdSql.compareData(0, 1, 5)          # cnt
-            and tdSql.compareData(0, 2, 120)          # avg
-            # row6
-            and tdSql.compareData(5, 0, 1752901500000) # ts
-            and tdSql.compareData(5, 1, 5)             # cnt
-            and tdSql.compareData(5, 2, 130)           # avg
-            # row9
-            and tdSql.compareData(8, 0, 1752902400000) # ts
-            and tdSql.compareData(8, 1, 5)             # cnt
-            and tdSql.compareData(8, 2, 140)           # avg
-        )
-
-        # ts diff is 30000
-        tdSql.checkResultsByFunc (
-            sql = f"select * from (select diff(_c0) as dif from {self.vdb}.`result_stream5`) where dif = 300000", 
-            func = lambda: tdSql.getRows() == 12
-        )
-        # cnt is zero
-        tdSql.checkResultsByFunc (
-            sql = f"select * from {self.vdb}.`result_stream5` where cnt = 0", 
-            func = lambda: tdSql.getRows() == 13 - 4
-        )
-
-        # sub1
-        tdSql.checkResultsBySql (
-            sql     = f"select * from {self.vdb}.`result_stream5_sub1` ",
-            exp_sql = f"select * from {self.vdb}.`result_stream5`      where cnt > 0",
-        )
-        
-        tdLog.info(f"verify stream5 ................................. successfully.")
-
-    #
-    # verify stream6
-    #
-
-    def verify_stream6(self):
-        tdLog.info(f"verify stream6 ................................. successfully.")
-
-    def verify_stream6_again(self):
-        tdLog.info(f"verify stream6 ................................. successfully.")
-        
-
-    #
-    # verify stream7
-    #
-    def verify_stream7(self):
-        tdLog.info(f"verify stream7 ................................. successfully.")
-
-
-    #
-    # verify stream8
-    #
-    def verify_stream8(self):
-        tdLog.info(f"verify stream8 ................................. successfully.")
