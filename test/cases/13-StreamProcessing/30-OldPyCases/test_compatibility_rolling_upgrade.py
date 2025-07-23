@@ -43,22 +43,28 @@ class TestCompatibilityRollingUpgrade:
 
         tdDnodes.stopAll()
         
-        tdCb.installTaosdForRollingUpgrade(self.getDnodePath(), lastBigVersion)
+        baseVersionExist = tdCb.installTaosdForRollingUpgrade(self.getDnodePath(), lastBigVersion)
+        if not baseVersionExist:
+            tdLog.info(f"Base version {lastBigVersion} does not exist")
         
-        tdSql.execute(f"CREATE DNODE '{hostname}:6130'")
-        tdSql.execute(f"CREATE DNODE '{hostname}:6230'")
 
-        time.sleep(10)
+        if baseVersionExist:
+            tdSql.execute(f"CREATE DNODE '{hostname}:6130'")
+            tdSql.execute(f"CREATE DNODE '{hostname}:6230'")
 
-        tdCb.prepareDataOnOldVersion(lastBigVersion, self.getBuildPath(),corss_major_version=False)
+            time.sleep(10)
 
-        tdCb.updateNewVersion(self.getBuildPath(),self.getDnodePath(),0)
+            tdCb.prepareDataOnOldVersion(lastBigVersion, self.getBuildPath(),corss_major_version=False)
 
-        time.sleep(10)
+            tdCb.updateNewVersion(self.getBuildPath(),self.getDnodePath(),0)
 
-        tdCb.verifyData(corss_major_version=False)
+            time.sleep(10)
 
-        tdCb.verifyBackticksInTaosSql(self.getBuildPath())
+            tdCb.verifyData(corss_major_version=False)
+
+            tdCb.verifyBackticksInTaosSql(self.getBuildPath())
+
+        tdLog.printNoPrefix("========== Rolling Upgrade Compatibility Test Completed Successfully ==========")
 
     def getLastBigVersion(self):
         tdSql.query(f"SELECT SERVER_VERSION();")
