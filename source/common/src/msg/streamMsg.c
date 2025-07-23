@@ -2909,6 +2909,11 @@ int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStre
       TSDB_CHECK_NULL(taosArrayPush(pDst->forceOutCols, &dcol), code, lino, _exit, terrno);
     }
   }
+
+  pDst->triggerTblUid = pSrc->triggerTblUid;
+  pDst->triggerTblType = pSrc->triggerTblType;
+  pDst->deleteReCalc = pSrc->deleteReCalc;
+  pDst->deleteOutTbl = pSrc->deleteOutTbl;
   
 _exit:
 
