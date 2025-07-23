@@ -200,7 +200,7 @@ archive = { path = "./crates/archive" }
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
-rev = "399d3ec9"
+rev = "c39402a1"
 git = "https://github.com/taosdata/taos-connector-rust.git"
 default-features = false
 features = ["ws", "optin", "deadpool"]
@@ -306,7 +306,7 @@ sysinfo = { workspace = true }
 async-backtrace.workspace = true
 dotenv = "0.15.0"
 
-flume = { workspace = true, features = ["spin"] }
+flume.workspace = true
 futures-util.workspace = true
 serde_with.workspace = true
 tokio-cron-scheduler = { path = "crates/tokio-cron-scheduler" }
