@@ -145,7 +145,7 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
         continue;
       }
 
-      code = streamAcquireTask(pReader->task.streamId, pReader->task.taskId, &pTask, &taskAddr);
+      code = streamAcquireTask(pReader->task.streamId, pReader->task.taskId, (SStreamTask**)&pTask, &taskAddr);
       if (code) {
         ST_TASK_ELOG("reader task no longer exists, error:%s", tstrerror(code));
         continue;
@@ -238,7 +238,7 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
         continue;
       }
 
-      code = streamAcquireTask(pTask->task.streamId, pTask->task.taskId, &pTask, &taskAddr);
+      code = streamAcquireTask(pTask->task.streamId, pTask->task.taskId, (SStreamTask**)&pTask, &taskAddr);
       if (code) {
         ST_TASK_ELOG("runner task no longer exists, error:%s", tstrerror(code));
         continue;

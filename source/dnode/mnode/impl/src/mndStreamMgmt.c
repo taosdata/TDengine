@@ -734,7 +734,7 @@ void* msmSearchCalcCacheScanPlan(SArray* pList) {
   return NULL;
 }
 
-int32_t msmBuildReaderDeployInfo(SStmTaskDeploy* pDeploy, SStreamObj* pStream, void* calcScanPlan, SStmStatus* pInfo, bool triggerReader) {
+int32_t msmBuildReaderDeployInfo(SStmTaskDeploy* pDeploy, void* calcScanPlan, SStmStatus* pInfo, bool triggerReader) {
   SStreamReaderDeployMsg* pMsg = &pDeploy->msg.reader;
   pMsg->triggerReader = triggerReader;
   
