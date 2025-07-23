@@ -559,7 +559,7 @@ async function getUserAuthority() {
             path: '/explorer'
           });
         } else {
-          const phone_email = registerKey.value || sessionStorage.getItem('registerKey') || '';
+          const phone_email = registerKey.value || '';
           if (!phone_email) {
             await router.push({
               path: '/register'
