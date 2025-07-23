@@ -526,7 +526,7 @@ int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t*
   pRetrieve->numOfRows = 0;
   pRetrieve->numOfBlocks = htonl(blockNum);
 
-  void* dataBuf = pRetrieve->data;
+  char* dataBuf = (char*)(pRetrieve->data);
   for(size_t i = 0; i < taosArrayGetSize(pResList); i++){
     SSDataBlock* pBlock = taosArrayGetP(pResList, i);
     if (pBlock == NULL || pBlock->info.rows == 0) continue;
