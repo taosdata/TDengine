@@ -770,6 +770,7 @@ int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock) {
   if (pResult == NULL) {
     return TSDB_CODE_SUCCESS;
   }
+  int64_t groupId = pResult->groupId;
   stDebug("[get data cache] start groupID:%" PRId64 ", start:%" PRId64 " end:%" PRId64 " dataPos: %d, winIndex: %d",
           pResult->groupId, pResult->reqStartTime, pResult->reqEndTime, pResult->dataPos, pResult->winIndex);
   code = checkAndMoveMemCache(true);
@@ -818,11 +819,13 @@ int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock) {
   }
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    stError("[get data cache] end, failed to get next data from cache, err: %s, lineno:%d", terrMsg, lino);
+    stError("[get data cache] end, failed to get next data from cache, groupId: %" PRId64 " err: %s, lineno:%d",
+            groupId, terrMsg, lino);
   } else if (ppBlock != NULL && *ppBlock != NULL) {
-    stDebug("[get data cache] end, block rows: %" PRId64 " next:%p", (*ppBlock)->info.rows, *pIter);
+    stDebug("[get data cache] end, groupId: %" PRId64 " block rows: %" PRId64 " next:%p", groupId,
+            (*ppBlock)->info.rows, *pIter);
   } else {
-    stDebug("[get data cache] end, not found data, next:%p", *pIter);
+    stDebug("[get data cache] end, not found data, groupId: %" PRId64 " next:%p", groupId, *pIter);
   }
   return code;
 }
