@@ -859,6 +859,10 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   uint64_t    streamId = 0;
   SCMCreateStreamReq* pCreate = NULL;
 
+  if ((code = grantCheck(TSDB_GRANT_STREAMS)) < 0) {
+    goto _OVER;
+  }
+  
 #ifdef WINDOWS
   code = TSDB_CODE_MND_INVALID_PLATFORM;
   goto _OVER;
@@ -891,10 +895,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     mndReleaseStream(pMnode, pStream);
     goto _OVER;
   } else if (code != TSDB_CODE_MND_STREAM_NOT_EXIST) {
-    goto _OVER;
-  }
-
-  if ((code = grantCheck(TSDB_GRANT_STREAMS)) < 0) {
     goto _OVER;
   }
 
@@ -964,6 +964,10 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
   int32_t     code = 0;
+
+  if ((code = grantCheck(TSDB_GRANT_STREAMS)) < 0) {
+    TAOS_RETURN(code);
+  }
 
   SMRecalcStreamReq recalcReq = {0};
   if (tDeserializeSMRecalcStreamReq(pReq->pCont, pReq->contLen, &recalcReq) < 0) {
@@ -1071,17 +1075,7 @@ int32_t mndInitStream(SMnode *pMnode) {
       .updateFp = (SdbUpdateFp)mndStreamActionUpdate,
       .deleteFp = (SdbDeleteFp)mndStreamActionDelete,
   };
-/*
-  SSdbTable tableSeq = {
-      .sdbType = SDB_STREAM_SEQ,
-      .keyType = SDB_KEY_BINARY,
-      .encodeFp = (SdbEncodeFp)mndStreamSeqActionEncode,
-      .decodeFp = (SdbDecodeFp)mndStreamSeqActionDecode,
-      .insertFp = (SdbInsertFp)mndStreamSeqActionInsert,
-      .updateFp = (SdbUpdateFp)mndStreamSeqActionUpdate,
-      .deleteFp = (SdbDeleteFp)mndStreamSeqActionDelete,
-  };
-*/
+
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_STREAM, mndProcessCreateStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM, mndProcessDropStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_START_STREAM, mndProcessStartStreamReq);
