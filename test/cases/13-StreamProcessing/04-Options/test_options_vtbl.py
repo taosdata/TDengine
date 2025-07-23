@@ -42,7 +42,7 @@ class TestStreamOptionsTrigger:
         streams.append(self.Basic6())  # FILL_HISTORY_FIRST  [ok]
         # streams.append(self.Basic7())  # CALC_NOTIFY_ONLY [ok]
         # # # streams.append(self.Basic8())  # LOW_LATENCY_CALC  temp no test
-        # streams.append(self.Basic9())  # PRE_FILTER     [fail]
+        streams.append(self.Basic9())  # PRE_FILTER     [ok]
         # streams.append(self.Basic10()) # FORCE_OUTPUT   [fail] 
         # streams.append(self.Basic11()) # MAX_DELAY [ok]        
         # streams.append(self.Basic11_1()) # MAX_DELAY [ok]        
@@ -1586,10 +1586,10 @@ class TestStreamOptionsTrigger:
             tdSql.execute(f"create table ct3 using stb tags(2)")
             tdSql.execute(f"create table ct4 using stb tags(2)")
 
-            tdSql.execute(f"create vtable vct1 (cint from {self.db}.ct1.cint) using {self.db}.{self.vstbName} tags(1)")
-            tdSql.execute(f"create vtable vct2 (cint from {self.db}.ct2.cint) using {self.db}.{self.vstbName} tags(1)")
-            tdSql.execute(f"create vtable vct3 (cint from {self.db}.ct3.cint) using {self.db}.{self.vstbName} tags(1)")
-            tdSql.execute(f"create vtable vct4 (cint from {self.db}.ct4.cint) using {self.db}.{self.vstbName} tags(1)")   
+            tdSql.execute(f"create vtable vct1 (cint from {self.db}.ct1.cint) using {self.db}.{self.vstbName} tags(2)")
+            tdSql.execute(f"create vtable vct2 (cint from {self.db}.ct2.cint) using {self.db}.{self.vstbName} tags(2)")
+            tdSql.execute(f"create vtable vct3 (cint from {self.db}.ct3.cint) using {self.db}.{self.vstbName} tags(2)")
+            tdSql.execute(f"create vtable vct4 (cint from {self.db}.ct4.cint) using {self.db}.{self.vstbName} tags(2)")   
 
             tdSql.query(f"show tables")
             tdSql.checkRows(4)
@@ -1658,7 +1658,7 @@ class TestStreamOptionsTrigger:
             
             tdSql.checkResultsByFunc(
                 sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_vct%"',
-                func=lambda: tdSql.getRows() == 3,
+                func=lambda: tdSql.getRows() == 4,
             )
             
             tdSql.checkTableSchema(
