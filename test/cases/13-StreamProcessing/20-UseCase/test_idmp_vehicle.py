@@ -699,11 +699,11 @@ class Test_IDMP_Vehicle:
             # old reserved
             #
             # row2
-            and tdSql.compareData(0, 0, self.start + 20 * self.step) # ts
-            and tdSql.compareData(0, 1, 6 + 1)          # cnt
+            and tdSql.compareData(1, 0, self.start + 20 * self.step) # ts
+            and tdSql.compareData(1, 1, 6 + 1)                       # cnt
             # row3
-            and tdSql.compareData(1, 0, self.start + 30 * self.step) # ts
-            and tdSql.compareData(1, 1, 8 + 1)   
+            and tdSql.compareData(2, 0, self.start + 30 * self.step) # ts
+            and tdSql.compareData(2, 1, 8 + 1)                       # cnt
 
             #
             # new generate append
@@ -711,10 +711,10 @@ class Test_IDMP_Vehicle:
 
             # row1
             and tdSql.compareData(0, 0, 1752900600000) # ts
-            and tdSql.compareData(0, 1, 5 + 1)          # cnt
+            and tdSql.compareData(0, 1, 5 + 1)         # cnt
             # row4
-            and tdSql.compareData(1, 0, 1752901980000) # ts
-            and tdSql.compareData(1, 1, 5 + 1)          # cnt
+            and tdSql.compareData(3, 0, 1752901980000) # ts
+            and tdSql.compareData(3, 1, 5 + 1)         # cnt
         )
 
         tdLog.info(f"verify stream3 sub1 again ...................... successfully.")
