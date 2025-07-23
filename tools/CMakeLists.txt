@@ -3,7 +3,10 @@ IF(TD_TAOS_TOOLS)
 ENDIF()
 
 add_subdirectory(shell)
+
+IF(${TD_LINUX})
 add_subdirectory(rocks-reader)
+ENDIF()
 
 IF(TD_BUILD_HTTP)
     MESSAGE("")
