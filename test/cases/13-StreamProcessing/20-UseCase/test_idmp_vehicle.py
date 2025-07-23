@@ -186,9 +186,8 @@ class Test_IDMP_Vehicle:
     def verifyResults(self):
         self.verify_stream1()
         self.verify_stream2()
-        # *** bug6 ***
-        #self.verify_stream3()
-        #self.verify_stream3_sub1()
+        self.verify_stream3()
+        self.verify_stream3_sub1()
 
         self.verify_stream4()
         self.verify_stream5()
@@ -213,9 +212,8 @@ class Test_IDMP_Vehicle:
     def verifyResultsAgain(self):
         pass
         # stream3
-        # **** bug6 ***
-        #self.verify_stream3_again()
-        #self.verify_stream3_sub1_again()
+        self.verify_stream3_again()
+        self.verify_stream3_sub1_again()
 
     #
     # 8. restart dnode
@@ -392,10 +390,10 @@ class Test_IDMP_Vehicle:
 
         # win2 order 10 ~   no -> trigger 
         ts = self.start + 10 * self.step
+        ts   += 1 * self.step
         vals  = "130"
         count = 4
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-        ts   += 1 * self.step
         vals  = "65"
         count = 1
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
@@ -511,24 +509,43 @@ class Test_IDMP_Vehicle:
         table = f"{self.db}.`vehicle_110100_005`"
         cols  = "ts,speed"
 
+        # order write
+
         # data1
         ts    = self.start
         vals  = "120"
         count = 5
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
-        # blank 60
+        # blank 20
 
         # data2
-        ts   += 60 * self.step
+        ts   += 20 * self.step
         vals  = "130"
         count = 5
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
         # close prev windows
-        vals  = "65"
+        endTs = self.start + 60 * self.step
+        vals  = "10"
         count = 1
+        endTs = tdSql.insertFixedVal(table, endTs, self.step, count, cols, vals)
+
+        # disorder
+
+        # continue write disorder
+        ts   += 10 * self.step
+        vals  = "140"
+        count = 5
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+
+        # blank 20
+
+        # data2
+        ts   += 20 * self.step
+        vals  = "150"
+        count = 5
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)        
 
 
     #
