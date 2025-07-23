@@ -136,6 +136,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
   int32_t                 code = 0;
   int32_t                 lino = 0;
   SStreamReaderTaskInner* pTask = taosMemoryCalloc(1, sizeof(SStreamReaderTaskInner));
+  SNodeList*              groupNew = NULL;
   STREAM_CHECK_NULL_GOTO(pTask, terrno);
   pTask->api = *api;
   pTask->options = *options;
@@ -158,13 +159,14 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
       STREAM_CHECK_RET_GOTO(qStreamGetTableList(pTask->pTableList, -1, &pList, &pNum))
     } else {
       STREAM_CHECK_RET_GOTO(filterInitFromNode(options->pConditions, &pTask->pFilterInfo, 0, NULL));
+      STREAM_CHECK_RET_GOTO(nodesCloneList(options->partitionCols, &groupNew));
       STREAM_CHECK_RET_GOTO(qStreamCreateTableListForReader(
-          pVnode, options->suid, options->uid, options->tableType, options->partitionCols, options->groupSort,
+          pVnode, options->suid, options->uid, options->tableType, groupNew, options->groupSort,
           options->pTagCond, options->pTagIndexCond, api, &pTask->pTableList, groupIdMap));
 
       if (options->gid != 0) {
         int32_t index = qStreamGetGroupIndex(pTask->pTableList, options->gid);
-        STREAM_CHECK_CONDITION_GOTO(index < 0, TSDB_CODE_INVALID_PARA);
+        STREAM_CHECK_CONDITION_GOTO(index < 0, TSDB_CODE_STREAM_NO_DATA);
         pTask->currentGroupIndex = index;
       }
       if (options->scanMode == STREAM_SCAN_GROUP_ONE_BY_ONE) {
@@ -185,6 +187,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
   pTask = NULL;
 
 end:
+  nodesDestroyList(groupNew);
   STREAM_PRINT_LOG_END(code, lino);
   releaseStreamTask(&pTask);
   destroyOptions(options);
