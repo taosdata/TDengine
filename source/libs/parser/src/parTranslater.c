@@ -14320,6 +14320,7 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStrea
   if (pTriggerTableMeta->tableType == TSDB_SUPER_TABLE &&
       nodeType(pTriggerWindow) != QUERY_NODE_INTERVAL_WINDOW &&
       nodeType(pTriggerWindow) != QUERY_NODE_SESSION_WINDOW &&
+      nodeType(pTriggerWindow) != QUERY_NODE_PERIOD_WINDOW &&
       (LIST_LENGTH(pTriggerPartition) == 0 || !hasTbnameFunction(pTriggerPartition))) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
                                          "Partition by tbname is required for super table trigger when trigger window is not interval and session"));
