@@ -244,14 +244,32 @@ function remove_data_and_config() {
   fi
 
   if [ -d "${data_dir}" ]; then
-    # keep dataDir for tdengine-idmp
-    ${csudo}find "${data_dir}" -mindepth 1 -maxdepth 1 ! -name "idmp" -exec ${csudo}rm -rf {} +
+    # delete dnode, mnode, vnode, udf, running and taosudf directories
+    ${csudo}rm -rf "${data_dir}/dnode" || :
+    ${csudo}rm -rf "${data_dir}/mnode" || :
+    ${csudo}rm -rf "${data_dir}/vnode" || :
+    ${csudo}rm -rf "${data_dir}/.udf" || :
+    ${csudo}rm -rf "${data_dir}/.running"*  || :
+    ${csudo}rm -rf "${data_dir}/.taosudf"* || :
+    find "${data_dir}" -type d -empty -delete
+    if [ -z "$(ls -A "${data_dir}")" ]; then
+      ${csudo}rm -rf "${data_dir}" || :
+    fi
   fi
   
   if [ -d "${log_dir}" ]; then
-    # keep logfile for tdengine-idmp
-    find "${log_dir}" -maxdepth 1 -type f ! -name "ai-*.log" ! -name "tda-*.log" -exec ${csudo}rm -f {} \;
+    # delete taos, ufd, and other log files
+    ${csudo}rm -rf "${log_dir}/taos"* || :
+    ${csudo}rm -rf "${log_dir}/udf"* || :
+    ${csudo}rm -rf "${log_dir}/jemalloc" || :
+    ${csudo}rm -rf "${log_dir}/tcmalloc"  || :
+    ${csudo}rm -rf "${log_dir}/set_taos_malloc.log" || :
+    ${csudo}rm -rf "${log_dir}/.startRecord" || :
+    ${csudo}rm -rf "${log_dir}/.startSeq" || :
     find "${log_dir}" -type d -empty -delete
+    if [ -z "$(ls -A "${log_dir}")" ]; then
+      ${csudo}rm -rf "${log_dir}"  || :
+    fi
   fi
 }
 
