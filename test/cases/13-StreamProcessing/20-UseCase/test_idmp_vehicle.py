@@ -143,6 +143,11 @@ class Test_IDMP_Vehicle:
             # stream5
             "create stream if not exists `idmp`.`ana_stream5`      interval(5m) sliding(5m) from `idmp`.`vt_5`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream5`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
             "create stream if not exists `idmp`.`ana_stream5_sub1` interval(5m) sliding(5m) from `idmp`.`vt_5` stream_options(IGNORE_NODATA_TRIGGER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream5_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
+            # stream6
+            "create stream if not exists `idmp`.`ana_stream6`      interval(10m) sliding(5m) from `idmp`.`vt_6`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream6`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
+            "create stream if not exists `idmp`.`ana_stream6_sub1` interval(10m) sliding(5m) from `idmp`.`vt_6` stream_options(IGNORE_NODATA_TRIGGER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream6_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
+            "create stream if not exists `idmp`.`ana_stream7`      interval(5m) sliding(10m) from `idmp`.`vt_7`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream7`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
+            "create stream if not exists `idmp`.`ana_stream7_sub1` interval(5m) sliding(10m) from `idmp`.`vt_7` stream_options(IGNORE_NODATA_TRIGGER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream7_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
         ]
 
         tdSql.executes(sqls)
@@ -170,11 +175,11 @@ class Test_IDMP_Vehicle:
         self.trigger_stream4()
         # stream5
         self.trigger_stream5()
-        '''
         # stream6
         self.trigger_stream6()
         # stream7
         self.trigger_stream7()
+        '''
         # stream8
         self.trigger_stream8()
         '''
@@ -191,9 +196,9 @@ class Test_IDMP_Vehicle:
 
         self.verify_stream4()
         self.verify_stream5()
-        '''
         self.verify_stream6()
         self.verify_stream7()
+        '''
         #self.verify_stream8()
         '''
 
@@ -545,14 +550,48 @@ class Test_IDMP_Vehicle:
         ts   += 20 * self.step
         vals  = "150"
         count = 5
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)        
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)      
 
 
     #
     #  stream6 trigger 
     #
     def trigger_stream6(self):
-        pass
+        table = f"{self.db}.`vehicle_110100_006`"
+        cols  = "ts,speed"
+
+        # order write
+
+        # data1
+        ts    = self.start
+        vals  = "100"
+        count = 10
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+
+        # blank 20
+
+        # data2
+        ts   += 20 * self.step
+        vals  = "110"
+        count = 10
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+
+        # close prev windows
+        endTs = self.start + 100 * self.step
+        vals  = "10"
+        count = 1
+        endTs = tdSql.insertFixedVal(table, endTs, self.step, count, cols, vals)        
+
+        # data2
+        vals  = "120"
+        count = 10
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+
+        endTs = self.start + 100 * self.step
+        vals  = "11"
+        count = 1
+        endTs = tdSql.insertFixedVal(table, endTs, self.step, count, cols, vals)        
+
 
     #
     #  again stream6 trigger
@@ -564,7 +603,41 @@ class Test_IDMP_Vehicle:
     #  stream7 trigger
     #
     def trigger_stream7(self):
-        pass
+        table = f"{self.db}.`vehicle_110100_007`"
+        cols  = "ts,speed"
+
+        # order write
+
+        # data1
+        ts    = self.start
+        vals  = "100"
+        count = 10
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+
+        # blank 20
+
+        # data2
+        ts   += 20 * self.step
+        vals  = "110"
+        count = 10
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+
+        # close prev windows
+        endTs = self.start + 100 * self.step
+        vals  = "10"
+        count = 1
+        endTs = tdSql.insertFixedVal(table, endTs, self.step, count, cols, vals)        
+
+        # data2
+        vals  = "120"
+        count = 10
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+
+        endTs = self.start + 100 * self.step
+        vals  = "11"
+        count = 1
+        endTs = tdSql.insertFixedVal(table, endTs, self.step, count, cols, vals)        
+        
 
     #
     #  stream8 trigger
@@ -837,6 +910,28 @@ class Test_IDMP_Vehicle:
     #
 
     def verify_stream6(self):
+        # check data
+        sql = f"select * from {self.vdb}.`result_stream6_sub1` "
+        data = [
+            [1752899700000,   5,100],
+            [1752900000000,  10,100],
+            [1752900300000,   5,100],
+            [1752901500000,   5,110],
+            [1752901800000,  10,110],
+            [1752902100000,  10,115],
+            [1752902400000,  10,120],
+            [1752902700000,   5,120],
+        ]
+
+        # mem
+        tdSql.checkDataMem(sql, data)
+
+        # not no data
+        tdSql.checkResultsBySql (
+            sql     = sql,
+            exp_sql = f"select * from {self.vdb}.`result_stream6` where cnt > 0"
+        )
+
         tdLog.info(f"verify stream6 ................................. successfully.")
 
     def verify_stream6_again(self):
@@ -847,6 +942,22 @@ class Test_IDMP_Vehicle:
     # verify stream7
     #
     def verify_stream7(self):
+        # check data
+        sql = f"select * from {self.vdb}.`result_stream7_sub1` "
+        data = [
+            [1752900000000,   5,100],
+            [1752901800000,   5,110],
+            [1752902400000,   5,120]
+        ]
+
+        # mem
+        tdSql.checkDataMem(sql, data)
+
+        # not no data
+        tdSql.checkResultsBySql (
+            sql     = sql,
+            exp_sql = f"select * from {self.vdb}.`result_stream7` where cnt > 0"
+        )        
         tdLog.info(f"verify stream7 ................................. successfully.")
 
 
