@@ -9,7 +9,22 @@ class TestStreamOptionsTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_options_trigger(self):
-        """Stream basic test 1
+        """stream options
+
+        test abnormal cases to stream for virtual table 
+
+        Catalog:
+            - Streams:UseCases
+
+        Since: v3.3.3.7
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-6-16 Lihui Created
+
         """
 
         tdStream.createSnode()
@@ -40,7 +55,7 @@ class TestStreamOptionsTrigger:
             
             tdSql.execute(f"create table if not exists  {self.vstbName}  (cts timestamp, cint int) tags (tint int) virtual 1")
             tdSql.execute(f"create table if not exists  {self.vstbName2} (cts timestamp, cint int, cdouble double, cvarchar varchar(16)) tags (tint int) virtual 1")
-            tdSql.execute(f"create table if not exists  {self.vntbName}  (cts timestamp, cint int from {self.ntbName}.cint, cdouble double from {self.ntbName}.cdouble, cvarchar varchar(16) from {self.ntbName}.cvarchar)")
+            tdSql.execute(f"create vtable if not exists  {self.vntbName}  (cts timestamp, cint int from {self.ntbName}.cint, cdouble double from {self.ntbName}.cdouble, cvarchar varchar(16) from {self.ntbName}.cvarchar)")
 
             tdSql.execute(f"create table ct1 using {self.stbName} tags(1)")
             tdSql.execute(f"create table ct2 using {self.stbName} tags(2)")
@@ -101,9 +116,9 @@ class TestStreamOptionsTrigger:
             )
             
             # %%trows must not use with WINDOW_OPEN in event_type
-            # tdSql.error(
-            #     f"create stream sn10 state_window(cint) from vct1 stream_options(event_type(WINDOW_OPEN|WINDOW_CLOSE)) into res_ct1 (lastts, firstts, cnt_v, sum_v, avg_v) as select last_row(_c0), first(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
-            # ) 
+            tdSql.error(
+                f"create stream sn10 state_window(cint) from vct1 stream_options(event_type(WINDOW_OPEN|WINDOW_CLOSE)) into res_ct1 (lastts, firstts, cnt_v, sum_v, avg_v) as select last_row(_c0), first(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+            ) 
             
             tdSql.execute(
                 f"create stream sn11_g state_window(cint) from {self.vstbName} partition by tbname, tint stream_options(watermark(10s) | expired_time(500s)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"

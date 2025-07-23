@@ -25,6 +25,8 @@ import RequestId from "./_request_id.mdx";
 
 | driver-go 版本 | 主要变化                                       | TDengine 版本   |
 |--------------|--------------------------------------------|---------------|
+| v3.7.2       | 支持 BLOB 类型                                 | -             |
+| v3.7.1       | 支持 ipv6 连接                                 | -             |
 | v3.7.0       | 支持 decimal 类型                              | 3.3.6.0 及更高版本 |
 | v3.6.0       | stmt2 原生接口，DSN 支持密码包含特殊字符（url.QueryEscape） | 3.3.5.0 及更高版本 |
 | v3.5.8       | 修复空指针异常                                    | -             |
@@ -85,6 +87,7 @@ TDengine 其他功能模块的报错，请参考 [错误码](../../../reference/
 | GEOMETRY          | []byte    |
 | VARBINARY         | []byte    |
 | DECIMAL           | string    |
+| BLOB              | []byte    |
 
 **注意**：JSON 类型仅在 tag 中支持。
 GEOMETRY 类型是 little endian 字节序的二进制数据，符合 WKB 规范。详细信息请参考 [数据类型](../../taos-sql/data-type/#数据类型)
@@ -145,6 +148,12 @@ username:password@protocol(address)/dbname?param=value
 ```
 
 当密码中包含特殊字符时，需要使用 `url.QueryEscape` 进行转义。
+
+当使用 IPv6 地址时（v3.7.1 及以上版本支持），地址需要用方括号括起来，例如：
+
+```text
+root:taosdata@ws([::1]:6041)/testdb
+```
 
 ##### 原生连接
 

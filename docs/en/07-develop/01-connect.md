@@ -365,6 +365,12 @@ Complete DSN format:
 username:password@protocol(address)/dbname?param=value
 ```
 
+When using an IPv6 address (supported in v3.7.1 and above), the address needs to be enclosed in square brackets, for example:
+
+```text
+root:taosdata@ws([::1]:6041)/testdb
+```
+
 Supported DSN parameters are as follows:
 
 Native connection:

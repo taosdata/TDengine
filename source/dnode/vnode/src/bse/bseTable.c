@@ -15,6 +15,7 @@
 
 #include "bseTable.h"
 #include "bse.h"
+#include "bseCache.h"
 #include "bseSnapshot.h"
 #include "bseTableMgt.h"
 #include "osMemPool.h"

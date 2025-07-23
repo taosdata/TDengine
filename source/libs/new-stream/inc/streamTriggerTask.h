@@ -54,7 +54,6 @@ typedef struct SSTriggerRealtimeGroup {
 
   int64_t oldThreshold;
   int64_t newThreshold;
-  int64_t prevWindowEnd;
 
   TriggerWindowBuf winBuf;
   STimeWindow      nextWindow;  // for period trigger and sliding window trigger
@@ -100,9 +99,9 @@ typedef struct SSTriggerWalProgress {
   int64_t                   lastScanVer;  // version of the last committed record in previous scan
   int64_t                   latestVer;    // latest version of committed records in the vnode WAL
   SSTriggerPullRequestUnion pullReq;
-  SArray                   *reqCids;  // SArray<col_id_t>
-  SArray                   *reqCols;  // SArray<OTableInfo>
-  SArray                   *pMetadatas; // SArray<SSDataBlock*>
+  SArray                   *reqCids;     // SArray<col_id_t>
+  SArray                   *reqCols;     // SArray<OTableInfo>
+  SArray                   *pMetadatas;  // SArray<SSDataBlock*>
 } SSTriggerWalProgress;
 
 typedef struct SSTriggerRealtimeContext {
@@ -143,9 +142,10 @@ typedef struct SSTriggerRealtimeContext {
 #if !TRIGGER_USE_HISTORY_META
   bool haveToRecalc;
 #endif
-  bool                  haveReadCheckpoint;
-  int64_t               lastCheckpointTime;
-  SSTriggerPullRequest *pRetryReq;
+  bool    haveReadCheckpoint;
+  int64_t lastCheckpointTime;
+  SList   retryPullReqs;  // SList<SSTriggerPullRequest*>
+  SList   retryCalcReqs;  // SList<SSTriggerCalcRequest*>
 } SSTriggerRealtimeContext;
 
 typedef struct SSTriggerHistoryContext {
@@ -186,7 +186,8 @@ typedef struct SSTriggerHistoryContext {
   void     *pCalcDataCache;
   SHashObj *pCalcDataCacheIters;
 
-  SSTriggerPullRequest *pRetryReq;
+  SList retryPullReqs;  // SList<SSTriggerPullRequest*>
+  SList retryCalcReqs;  // SList<SSTriggerCalcRequest*>
 } SSTriggerHistoryContext;
 
 typedef enum ESTriggerEventType {
@@ -243,6 +244,7 @@ typedef struct SStreamTriggerTask {
   bool    igNoDataTrigger;
   bool    hasPartitionBy;
   bool    isVirtualTable;
+  bool    ignoreNoDataTrigger;
   int64_t placeHolderBitmap;
   SNode  *triggerFilter;
   // notify options
@@ -260,6 +262,7 @@ typedef struct SStreamTriggerTask {
 
   // virtual table info
   SSDataBlock *pVirDataBlock;
+  int32_t      nVirDataCols;      // number of non-pseudo data columns in pVirDataBlock
   SArray      *pVirTrigSlots;     // SArray<int32_t>
   SArray      *pVirCalcSlots;     // SArray<int32_t>
   SArray      *pVirTableInfoRsp;  // SArray<VTableInfo>
@@ -275,7 +278,7 @@ typedef struct SStreamTriggerTask {
   SSHashObj *pGroupRunning;  // SSHashObj<gid, bool[]>
 
   // runtime status
-  bool                      isCheckpointReady;
+  int8_t                    isCheckpointReady;
   volatile int64_t          mgmtReqId;
   char                     *streamName;
   SSTriggerRealtimeContext *pRealtimeContext;

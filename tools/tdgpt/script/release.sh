@@ -18,11 +18,11 @@ if [ -z "$edition" ] || [ -z "$version" ]; then
     exit 1
 fi
 if [ "$edition" == "enterprise" ]; then
-    productName="TDengine-enterprise-TDgpt"
+    productName="tdengine-tdgpt-enterprise"
 fi
 
 if [ "$edition" == "community" ]; then
-    productName="TDengine-TDgpt"
+    productName="tdengine-tdgpt-oss"
 fi
 
 echo start to build release package, edition: ${edition}, version: ${version}
@@ -117,7 +117,7 @@ chmod a+x ${install_dir}/install.sh
 # exit 1
 cd ${release_dir}
 
-platform=`uname`
+platform=$(uname | tr '[:upper:]' '[:lower:]')
 if uname -m | grep -q "x86_64"; then
     arch=x64
 elif uname -m | grep -q "arm64\|aarch64"; then
