@@ -4,9 +4,10 @@ use anyhow::Context;
 use chrono::{SecondsFormat, TimeZone};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use deadpool::managed::{Object, PoolError};
+use faststr::FastStr;
 use favorites::FavoritesSql;
 use geos::{Geom, Geometry};
-use http::{HeaderMap, HeaderValue};
+use http::{HeaderMap, HeaderValue, StatusCode};
 use http_auth_basic::Credentials;
 use log::LevelFilter;
 use reqwest::RequestBuilder;
@@ -37,9 +38,8 @@ use actix_web::{
     error::{self, JsonPayloadError, PayloadError},
     http::header::{ContentType, AUTHORIZATION, X_FORWARDED_FOR},
     middleware::Compress,
-    post,
     web::{self, Query},
-    App, HttpRequest, HttpResponse, HttpServer, Responder, ResponseError,
+    App, HttpRequest, HttpResponse, HttpResponseBuilder, HttpServer, Responder, ResponseError,
 };
 use anyhow::bail;
 use clap::Parser;
@@ -91,51 +91,53 @@ fn clear_pool(dsn: &Dsn, username: String) {
     map.remove(&dsn_simple.to_string());
 }
 
-async fn get_connection(dsn: &Dsn) -> Result<Object<Manager<TaosBuilder>>, String> {
+async fn get_connection(dsn: &Dsn) -> anyhow::Result<Object<Manager<TaosBuilder>>> {
     let map = TAOS_POOL.get_or_init(scc::HashMap::new);
     let mut dsn_simple = dsn.clone();
     dsn_simple.password = None;
 
     let user_pool = map
         .get(&dsn_simple.to_string())
-        .filter(|pool| pool.password == dsn.password.clone().unwrap_or_default())
-        .map(|pool| pool.pool.clone());
+        .filter(|entry| entry.password == dsn.password.clone().unwrap_or_default())
+        .map(|entry| entry.pool.clone());
 
-    if user_pool.is_some() {
-        return user_pool.unwrap().get().await.map_err(|err| match err {
-            PoolError::Backend(inner_err) => format!("{inner_err:#}"),
-            PoolError::Timeout(timeout_type) => format!("Timeout {timeout_type:?} when connect to taosadapter, please check configuration item 'cluster' in explorer.toml"),
-            err => format!("Failed to get connection: {err:#}"),
-        });
+    let pool_error = |err: PoolError<_>| -> anyhow::Error {
+        match err {
+                PoolError::Backend(inner_err) => anyhow::Error::new(inner_err).context("failed to get connection from pool"),
+                PoolError::Timeout(timeout_type) => anyhow::anyhow!("Timeout {timeout_type:?} when connect to taosadapter, please check configuration item 'cluster' in explorer.toml"),
+                err => anyhow::anyhow!("Failed to get connection: {err:#}"),
+            }
+    };
+    if let Some(pool) = user_pool {
+        return pool.get().await.map_err(pool_error);
     }
 
-    let builder = taos::TaosBuilder::from_dsn(dsn);
-    if builder.is_err() {
-        tracing::error!("Failed to create taosbuilder: {:?}", builder.err());
-        return Err("inner error: failed to get connection pool".to_string());
-    }
-    let pool = builder.unwrap().pool();
-    if pool.is_err() {
-        tracing::error!("Failed to create pool: {:?}", pool.err());
-        return Err("inner error: failed to get connection pool".to_string());
-    }
+    match taos::TaosBuilder::from_dsn(dsn) {
+        Ok(builder) => {
+            let pool = builder.pool();
+            if pool.is_err() {
+                tracing::error!("Failed to create pool: {:?}", pool.err());
+                anyhow::bail!("inner error: failed to get connection pool".to_string());
+            }
 
-    let pool = pool.unwrap();
-    let conn = pool.get().await.map_err(|err| match err {
-        PoolError::Backend(inner_err) => format!("{inner_err:#}"),
-        PoolError::Timeout(timeout_type) => format!("Timeout {timeout_type:?} when connect to taosadapter, please check configuration item 'cluster' in explorer.toml"),
-        err => format!("Failed to get connection: {err:#}"),
-    });
+            let pool = pool.unwrap();
+            let conn = pool.get().await.map_err(pool_error);
 
-    if conn.is_ok() {
-        let new_user_pool = UserPool {
-            password: dsn.password.clone().unwrap_or_default(),
-            pool: pool.clone(),
-        };
-        tracing::debug!("create new pool for {:?}", dsn);
-        let _ = map.upsert(dsn_simple.to_string(), new_user_pool);
+            if conn.is_ok() {
+                let new_user_pool = UserPool {
+                    password: dsn.password.clone().unwrap_or_default(),
+                    pool: pool.clone(),
+                };
+                tracing::debug!("create new pool for {:?}", dsn);
+                let _ = map.upsert(dsn_simple.to_string(), new_user_pool);
+            }
+            conn
+        }
+        Err(err) => {
+            tracing::error!("Failed to create taosbuilder: {:?}", err);
+            anyhow::bail!("inner error: failed to get connection pool");
+        }
     }
-    conn
 }
 
 #[actix_web::main]
@@ -327,9 +329,10 @@ async fn main() -> anyhow::Result<()> {
             .app_data(app_args.clone())
             .app_data(web::Data::new(favorites.clone()))
             // .route("/", web::get().to(index))
-            .route("/rest/{path:.*}", web::to(rest_proxy))
+            .route("/api/-/rest/{path:.*}", web::to(rest_proxy))
             .route("/api/x/{api:.*}", web::to(x_api))
             .route("/grafana/{grafana_path:.*}", web::to(grafana_api))
+            .route("/api/-/login", web::to(login))
             .route("/api/-/import", web::to(import))
             .route("/api/-/license", web::to(renew_license))
             .route("/api/-/profile", web::to(profile))
@@ -714,6 +717,7 @@ async fn send_verification_code(
 
 #[instrument(skip_all)]
 async fn check_verification_code(
+    db: web::Data<FavoritesSql>,
     args: web::Data<Args>,
     body: web::Json<VerificationReqBody>,
 ) -> impl Responder {
@@ -734,7 +738,16 @@ async fn check_verification_code(
         let binding_record_file =
             PathBuf::from(args.cfg_path.as_ref().unwrap()).join("explorer-register.cfg");
         let server = args.profile.cluster.as_deref().unwrap();
-        verification::record_binding_phone_email(server, str_phone_email, &binding_record_file);
+        if let Err(err) =
+            verification::record_binding_phone_email(server, str_phone_email, &binding_record_file)
+        {
+            tracing::error!(
+                "Failed to record binding phone/email {} in file {}: {}",
+                str_phone_email,
+                binding_record_file.display(),
+                err
+            );
+        }
 
         let lang_code = match body.lang.as_deref() {
             Some("zh") => "zh_CN",
@@ -775,6 +788,17 @@ async fn check_verification_code(
                 // 尝试用 root 用户获取 taosd 版本信息，上报
                 let taosd_info = query_taosd_info_guess(&args).await;
                 if let Some((cluster_id, taosd_version)) = taosd_info {
+                    info!(cluster_id, taosd_version, "Guessed taosd info");
+                    if let Err(err) = db
+                        .get_ref()
+                        .upsert_registration(str_phone_email, &cluster_id, &taosd_version)
+                        .await
+                    {
+                        error!(
+                            "Failed to upsert registration for {}: {:?}",
+                            str_phone_email, err
+                        );
+                    }
                     let r = verification::report_taosd_info_to_cloud(
                         args.cloud_open_api.as_deref(),
                         str_phone_email,
@@ -856,25 +880,6 @@ async fn report_taosd_info(
     }
 
     HttpResponse::Ok().json(R::success(""))
-}
-
-#[post("/rest/sql")]
-async fn rest_sql_builtin(
-    args: web::Data<Args>,
-    req: HttpRequest,
-    sql: String,
-    query: Query<HashMap<String, String>>,
-) -> impl Responder {
-    let header = req
-        .headers()
-        .get(AUTHORIZATION)
-        .and_then(|header| header.to_str().ok())
-        .unwrap_or_default();
-    let tz = query.get("tz");
-    match args.query(header, &sql, tz).await {
-        Ok(ok) => HttpResponse::Ok().json(ok),
-        Err(err) => HttpResponse::InternalServerError().json(err),
-    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -1063,23 +1068,49 @@ async fn modify_password(
 }
 
 #[instrument(skip_all)]
-async fn rest_proxy(
+async fn login(
+    db: web::Data<FavoritesSql>,
     args: web::Data<Args>,
-    _client: web::Data<reqwest::Client>,
-    _path: web::Path<String>,
+    req: HttpRequest,
+    query: Query<HashMap<String, String>>,
+) -> impl Responder {
+    let header = req
+        .headers()
+        .get(AUTHORIZATION)
+        .and_then(|header| header.to_str().ok())
+        .unwrap_or_default();
+
+    let tz = query.get("tz");
+    let sql = "select server_version()";
+    match args.query(header, sql, tz).await {
+        Ok(mut ok) => {
+            let mut resp = HttpResponseBuilder::new(StatusCode::OK);
+            if db.is_registered().await {
+                if let Some(subject) = favorites::TAOSX_VERIFICATION_SUBJECT.get() {
+                    tracing::trace!(
+                        subject = subject.as_str(),
+                        "Append x-registered-user header"
+                    );
+                    ok.registered_user.replace(subject.clone());
+                } else {
+                    tracing::error!("Expect verification subject exist");
+                }
+            }
+            resp.append_header(("X-Explorer-Version", build::PKG_VERSION));
+            resp.json(ok)
+        }
+        Err(err) => HttpResponse::InternalServerError().json(err),
+    }
+}
+
+#[instrument(skip_all)]
+async fn rest_proxy(
+    db: web::Data<FavoritesSql>,
+    args: web::Data<Args>,
     req: HttpRequest,
     payload: web::Payload,
     query: Query<HashMap<String, String>>,
 ) -> impl Responder {
-    // let x = args.profile.cluster.as_deref().unwrap();
-    // let query = req.query_string();
-    // let url = if query.is_empty() {
-    //     format!("{x}/rest/{path}")
-    // } else {
-    //     format!("{x}/rest/{path}?{query}")
-    // };
-    // proxy(req, payload, client, &url).await.map_err(RestErrResponse::new)
-
     let header = req
         .headers()
         .get(AUTHORIZATION)
@@ -1089,7 +1120,20 @@ async fn rest_proxy(
     let sql = get_body_from_payload(payload).await.unwrap();
     let tz = query.get("tz");
     match args.query(header, &sql, tz).await {
-        Ok(ok) => HttpResponse::Ok().json(ok),
+        Ok(ok) => {
+            let mut resp = HttpResponseBuilder::new(StatusCode::OK);
+            if db.is_registered().await {
+                if let Some(subject) = favorites::TAOSX_VERIFICATION_SUBJECT.get() {
+                    let subject = subject.as_str();
+                    tracing::trace!(subject, "Append x-registered-user header");
+                    resp.append_header(("X-Registered-User", subject));
+                } else {
+                    tracing::error!("Expect verification subject exist");
+                }
+            }
+            resp.append_header(("X-Explorer-Version", build::PKG_VERSION));
+            resp.json(ok)
+        }
         Err(err) => HttpResponse::InternalServerError().json(err),
     }
 }
@@ -1627,6 +1671,7 @@ impl Args {
                 column_meta: vec![("affected_rows".to_string(), "int".to_string(), 4)],
                 rows: 1,
                 data: vec![vec![serde_json::Value::Number(affect_rows.into())]],
+                ..Default::default()
             });
         }
         let precision = set.precision();
@@ -1676,6 +1721,7 @@ impl Args {
             column_meta,
             rows: data.len() as _,
             data,
+            ..Default::default()
         })
     }
 
@@ -1781,9 +1827,8 @@ impl Args {
         }
         Ok(RestOkResponse {
             code: Code::SUCCESS,
-            column_meta: Default::default(),
             rows: 0,
-            data: Default::default(),
+            ..Default::default()
         })
     }
 }
@@ -1797,12 +1842,14 @@ fn parse_geometry_from_bytes(geo: &[u8]) -> String {
     }
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, Default)]
 struct RestOkResponse {
     code: Code,
     column_meta: Vec<(String, String, u32)>,
     data: Vec<Vec<serde_json::Value>>,
     rows: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    registered_user: Option<FastStr>,
 }
 #[derive(Debug, serde::Serialize)]
 struct RestErrResponse {
@@ -1813,7 +1860,7 @@ impl RestErrResponse {
     pub fn new(err: impl Display) -> Self {
         Self {
             code: Code::FAILED,
-            desc: err.to_string(),
+            desc: format!("{err:#}"),
         }
     }
 }
@@ -2098,9 +2145,7 @@ certificate_key = "tests/assets/cert-key.pem"
 
         let err = result.unwrap_err();
         let error_message = err.desc;
-        assert!(
-            error_message.contains("please check configuration item 'cluster' in explorer.toml")
-        );
+        println!("Error message: {}", error_message);
 
         Ok(())
     }

@@ -24,7 +24,8 @@ pi_connector = "pi"
 opc_connector = "opc"
 influxdb_connector = "influxdb"
 opentsdb_connector = "opentsdb"
-all_connectors = [pi_connector, opc_connector, influxdb_connector, opentsdb_connector]
+hebeipower_plugin = "hebeipower"
+all_connectors = [pi_connector, opc_connector, influxdb_connector, opentsdb_connector, hebeipower_plugin]
 
 class SubmoduleBuildInfo:
     def __init__(self, name, build_mode):
@@ -504,6 +505,23 @@ def build_and_install_opentsdb(mode):
         print("Build opentsdb failed: ", e.strerror)
         sys.exit()
 
+def build_and_install_hebeipower(mode):
+    print("build_and_install_hebeipower on windows start...")
+    hebeipower_build_path = os.path.join(taosx_dir,  "crates", "transform", "parsers", "hebeipower") 
+    os.chdir(taosx_dir)
+    build = "cargo make taosx-plugin-hebeipower"
+    print(build)
+    os.system(build)
+    hebeipower_install_path = os.path.join(release_info.InstallPath, "plugins", "parsers")
+    init_directory(hebeipower_install_path)
+    hebeipower_path = os.path.join(hebeipower_build_path, "target", "release", "hebeipower.dll")
+    print(f"copy from {hebeipower_path} to {hebeipower_install_path}")
+    try:
+        shutil.copy2(hebeipower_path, hebeipower_install_path)
+    except FileNotFoundError as e:
+        print("Build hebeipower failed: ", e.strerror)
+        sys.exit()
+
 def build_taos_explorer(explorer_path, mode):
     if release_info.build_without_docs == False:
         update_docs_zip_file(explorer_path)
@@ -762,6 +780,9 @@ if __name__ == '__main__':
             elif opentsdb_connector == task.Name:
                 print("build opentsdb_connector")
                 build_and_install_opentsdb(task.VersionMode)
+            elif hebeipower_plugin == task.Name:
+                print("build hebeipower plugin not supported on windows for now")
+                # build_and_install_hebeipower(task.VersionMode)
             elif taos_explorer_name == task.Name and release_info.UploadAgent == False and release_info.BuildAgent == False:
                 print("build taos_explorer")
                 build_and_install_taos_explorer(task.VersionMode)

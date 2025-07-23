@@ -1,6 +1,6 @@
 <template>
   <div v-loading="pageLoading" class="login">
-    <section :class="['content', { 'content-registered': !registered }]">
+    <section :class="['content', { 'content-registered': false }]">
       <div class="article">
         <h1 style="font-size: 40px">{{ dataJson.welcome.title }}</h1>
         <h3 style="font-size: 18px">{{ dataJson.welcome.subTitle }}</h3>
@@ -17,54 +17,7 @@
         </article>
       </div>
 
-      <div v-if="registered" class="login-content">
-        <div class="login-title">
-          <span v-if="$INDUSTRY" class="dynamic-title">{{ $t('header.power') }}</span>
-          <span v-else class="dynamic-title">{{ $t('login.systemTitle') }}</span>
-        </div>
-        <el-form
-          ref="dynamicValidateFormRef"
-          :model="dynamicValidateForm"
-          :rules="formRules"
-          label-width="0px"
-          class="demo-dynamic"
-          size="large"
-        >
-          <div style="margin-bottom: 20px">
-            <p class="label-form">
-              <span>{{ $t('login.username') }}</span>
-            </p>
-            <el-form-item prop="username">
-              <el-input
-                ref="usernameRef"
-                v-model="dynamicValidateForm.username"
-                :placeholder="$t('login.usernamePlaceholder')"
-              ></el-input>
-            </el-form-item>
-          </div>
-          <div>
-            <p class="label-form">
-              <span>{{ $t('login.password') }}</span>
-            </p>
-            <el-form-item prop="password">
-              <el-input
-                v-model="dynamicValidateForm.password"
-                type="password"
-                show-password
-                @keyup.enter="submitForm(dynamicValidateFormRef)"
-              ></el-input>
-            </el-form-item>
-          </div>
-
-          <el-form-item style="margin-bottom: 30px">
-            <el-button v-loading="loading" type="primary" class="signin" @click="submitForm(dynamicValidateFormRef)">{{
-              $t('login.signin')
-            }}</el-button>
-          </el-form-item>
-        </el-form>
-        <div class="language" @click="switchLanguage">{{ locallanguage }}</div>
-      </div>
-      <div v-else class="login-content register-box">
+      <div class="login-content register-box">
         <div class="login-title">
           <span class="dynamic-title">{{ $t('register.title') }}</span>
           <span class="activate-tip">{{ $t('register.titleTip') }}</span>
@@ -109,7 +62,7 @@
             <p class="label-form">
               <span>{{ isLocaleLanguageEn ? $t('register.email') : $t('register.phone') }}</span>
             </p>
-            <el-form-item prop="phoneEmailRef" label>
+            <el-form-item prop="phoneEmailRef">
               <el-input
                 ref="phone_email"
                 v-model="registerValidateForm.phone_email"
@@ -121,7 +74,7 @@
             <p class="label-form">
               <span>{{ $t('register.verificationCode') }}</span>
             </p>
-            <el-form-item label prop="verification_code">
+            <el-form-item prop="verification_code">
               <el-input
                 v-model="registerValidateForm.verification_code"
                 @keyup.enter="submitRegisterForm(registerValidateFormRef)"
@@ -206,8 +159,7 @@ import {
   fetchVerificationCode,
   getVerificationResult,
   fetchCaptcha,
-  reportTaosdInfo,
-  firstLoginWith
+  reportTaosdInfo
 } from '@/api/login';
 import { encrypt } from '@/utils/index';
 import useLicense from '@/hooks/useLicense';
@@ -219,9 +171,7 @@ const { t } = useI18n();
 const store = useStore();
 const router = useRouter();
 const { getGrantsFull } = useLicense();
-const { $IS_COMMUNITY, $IS_TSDBLITE, $IS_OEM, $INDUSTRY, $error } = inject(
-  'globalCustomProperties'
-) as GlobalCustomProperties;
+const { $IS_COMMUNITY, $IS_TSDBLITE, $IS_OEM, $error } = inject('globalCustomProperties') as GlobalCustomProperties;
 const usernameRef = ref<HTMLElement | null>();
 const phoneEmailRef = ref<HTMLElement | null>();
 const captchaRef = ref<HTMLElement | null>();
@@ -307,8 +257,7 @@ const registerValidateForm = reactive({
 const captchaForm = reactive({
   captchaCode: ''
 });
-const registered = ref<boolean>(true); // for test
-const registerKey = ref<string>('');
+const registered = ref<boolean>(false); // for test
 const visible = ref<boolean>(false);
 const imageUrl = ref<string>('');
 const disableGetVerificationCode = ref(false);
@@ -393,20 +342,6 @@ onMounted(() => {
   });
 });
 
-function submitForm(formEl: FormInstance | undefined) {
-  if (!formEl) return;
-  formEl.validate(valid => {
-    if (valid) {
-      loading.value = true;
-      encryptedPwd.value = encrypt(dynamicValidateForm.password);
-      setTimeout(() => {
-        login();
-      }, 1000);
-    } else {
-      return false;
-    }
-  });
-}
 async function getTaosdInfo() {
   try {
     const res = await sendSQLReq(
@@ -445,17 +380,11 @@ async function login() {
   });
   try {
     const sql = 'select server_version()';
-    const res = await firstLoginWith(token, sql);
+    const res = await fetchApiByCluster(token, sql);
 
     if (res && res.code == 0 && !res.desc) {
       localStorage.setItem('TDengine-Token', token);
       const server_version = res.data[0][0];
-      const registered_user = res.registered_user || '';
-      if (registered_user) {
-        registerKey.value = registered_user;
-        sessionStorage.setItem('registerKey', registered_user);
-        registered.value = true;
-      }
       await getGrantsFull();
       await getUserAuthority();
 
@@ -468,7 +397,7 @@ async function login() {
         taosd_version = server_version;
         localStorage.setItem('td_version', taosd_version);
       }
-      const phone_email = registered_user;
+      const phone_email = sessionStorage.getItem('registerKey');
       const lang = localStorage.getItem('local_language') || '';
       if (phone_email) {
         reportTaosdInfo({
@@ -476,6 +405,8 @@ async function login() {
           lang,
           cluster_id,
           taosd_version
+        }).finally(() => {
+          sessionStorage.removeItem('registerKey');
         });
       }
     } else {
@@ -553,23 +484,23 @@ async function getUserAuthority() {
       });
       store.state.app.sysinfo = true;
       if (result.length > 0) {
-        console.log(result[0].version);
         if (result[0].version === 'official') {
           await router.push({
             path: '/explorer'
           });
         } else {
-          const phone_email = registerKey.value || '';
+          const phone_email = sessionStorage.getItem('registerKey');
           if (!phone_email) {
             await router.push({
-              path: '/register'
-            });
-          } else {
-            await router.push({
-              path: '/explorer'
+              path: '/'
             });
           }
         }
+      }
+      if (result.length > 0 && ['official', 'trial', 'community'].includes(result[0].version)) {
+        await router.push({
+          path: '/explorer'
+        });
       } else {
         $error(t('login.versiontip'));
       }
@@ -683,7 +614,7 @@ async function handlerVerificationCode(formEl: FormInstance | undefined) {
 }
 function submitRegisterForm(formEl: FormInstance | undefined) {
   if (!formEl) return;
-  formEl.validate(async valid => {
+  formEl.validate(async (valid: bool) => {
     if (valid) {
       pageLoading.value = true;
 
@@ -705,14 +636,14 @@ function submitRegisterForm(formEl: FormInstance | undefined) {
       if (result && result.code == 0) {
         switch (result.data) {
           case 'pass':
-            // 如果校验通过，则注册成功 切换到登陆框
-            registered.value = true;
+            // 如果校验通过，则注册成功，跳转到 Explorer 页面
             sessionStorage.setItem('registerKey', formData.phone_email);
-
             setTimeout(() => {
               pageLoading.value = false;
               ElMessage.success(t('register.success.registerSuccess'));
             }, 1000);
+
+            await router.push({ path: '/explorer' });
 
             break;
           case 'none':

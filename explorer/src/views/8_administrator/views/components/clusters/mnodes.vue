@@ -107,7 +107,7 @@ async function getAllMnodes() {
 
 function handlePageChange() {}
 function del(data: { endpoint: string; id: string | number }) {
-  ElMessageBox.confirm(t('isDel', [data.endpoint]), t('wraning'), {
+  ElMessageBox.confirm(t('isDel', [data.endpoint]), t('warning'), {
     confirmButtonText: t('confirm'),
     cancelButtonText: t('cancel'),
     type: 'warning'

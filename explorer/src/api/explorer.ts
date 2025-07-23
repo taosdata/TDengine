@@ -5,13 +5,14 @@ import { stringify } from 'qs';
 export function sendSQLReq(sqlStr: string, composeData = false) {
   return request({
     baseURL: import.meta.env.VITE_APP_BASE_URL,
-    url: `/rest/sql?tz=${getLocalTimezone()}`,
+    url: `/api/-/rest/sql?tz=${getLocalTimezone()}`,
     method: 'post',
     headers: {
       'Content-Type': 'text/plain'
     },
     transformResponse: [
-      function (data) {
+      function (data, headers) {
+        console.log(headers);
         try {
           console.log('Got response', data);
           return JSONbig.parse(data);
@@ -34,7 +35,7 @@ export function sendSQLReq(sqlStr: string, composeData = false) {
 export function executeDBOperations(sql: string) {
   return request({
     baseURL: import.meta.env.VITE_APP_BASE_URL,
-    url: `/rest/sql?tz=${getLocalTimezone()}`,
+    url: `/api/-/rest/sql?tz=${getLocalTimezone()}`,
     method: 'post',
     headers: {
       'Content-Type': 'text/plain'
@@ -87,7 +88,7 @@ export async function getPaginationData(
 export function executeSQLByToken(sql: string, token: string) {
   return request({
     baseURL: import.meta.env.VITE_APP_BASE_URL,
-    url: `/rest/sql/token/${token}`,
+    url: `/api/-/rest/sql/token/${token}`,
     method: 'post',
     headers: {
       'Content-Type': 'text/plain'

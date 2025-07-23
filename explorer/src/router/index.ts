@@ -182,6 +182,11 @@ const costantRoutes = [
     path: '/login',
     name: 'Login',
     component: () => import('@/views/0_login/index.vue')
+  },
+  {
+    path: '/register',
+    name: 'Register',
+    component: () => import('@/views/0_login/register.vue')
   }
 ];
 

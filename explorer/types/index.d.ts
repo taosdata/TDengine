@@ -57,13 +57,17 @@ declare enum ComponentLevelEnum {
   STABLE
 }
 
+declare type GrafanaProfile = {
+  dashboards: Recordable<string>;
+}
 declare type ProfileResult = {
   cluster: string;
   cluster_native: string;
   dashboard: string;
-  grpc: string
-  version: string
-  x_api: string
+  grpc: string;
+  version: string;
+  x_api: string;
+  grafana: GrafanaProfile | null;
 }
 
 declare type GlobalCustomProperties = {

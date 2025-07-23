@@ -9094,6 +9094,7 @@ dependencies = [
  "clap-verbosity-flag",
  "const_format",
  "deadpool",
+ "faststr",
  "futures",
  "geos",
  "hex",

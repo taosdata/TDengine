@@ -1,7 +1,8 @@
-use std::{str::FromStr, time::Duration};
+use std::{str::FromStr, sync::OnceLock, time::Duration};
 
 use actix_web::{web, HttpRequest};
 use anyhow::Context;
+use faststr::FastStr;
 use http_auth_basic::Credentials;
 use reqwest::header::AUTHORIZATION;
 use sqlx::{
@@ -11,12 +12,13 @@ use sqlx::{
     types::chrono::{self, Utc},
     ConnectOptions, QueryBuilder, SqlitePool,
 };
-use taos::tokio;
-use tracing::instrument;
+use tracing::{instrument, warn};
 
 use crate::R;
 
 static MIGRATOR: Migrator = sqlx::migrate!(); // defaults to "./migrations"
+
+pub(super) static TAOSX_VERIFICATION_SUBJECT: OnceLock<FastStr> = OnceLock::new();
 
 const TABLE_NAME: &str = "sql_favorites";
 
@@ -61,12 +63,55 @@ impl FavoritesSql {
             .context("connect to database error")?;
 
         // run migrate
-        MIGRATOR
-            .run(&pool)
-            .await
-            .context("migrate favorites_sql error")?;
+        if let Err(err) = MIGRATOR.run(&pool).await {
+            warn!("Try to run migrations error, check if the schema is up to date: {err:#}");
+        }
 
         Ok(Self { pool })
+    }
+
+    pub async fn upsert_registration(
+        &self,
+        subject: &str,
+        cid: &str,
+        version: &str,
+    ) -> anyhow::Result<()> {
+        let masked_subject = FastStr::from_string(mask_string(subject));
+        if let Err(err) = TAOSX_VERIFICATION_SUBJECT.set(masked_subject) {
+            warn!("Failed to set TAOSX_VERIFICATION_SUBJECT: {:?}", err);
+        }
+        let _ =
+            sqlx::query("insert into registration (`subject`, `cid`, `version`) values (?, ?, ?)")
+                .bind(subject)
+                .bind(cid)
+                .bind(version)
+                .execute(&self.pool)
+                .await?;
+        Ok(())
+    }
+
+    /// Check if anyone registered with this explorer.
+    pub async fn is_registered(&self) -> bool {
+        if TAOSX_VERIFICATION_SUBJECT.get().is_some() {
+            return true;
+        }
+
+        if let Ok(Some(subject)) =
+            sqlx::query_scalar::<_, String>("select `subject` from registration limit 1")
+                .fetch_optional(&self.pool)
+                .await
+                .inspect_err(|err| {
+                    tracing::error!("Persist registration error: {err:?}");
+                })
+        {
+            let subject = FastStr::from_string(mask_string(&subject));
+            tracing::trace!(%subject, "select subject from registration");
+            if let Err(err) = TAOSX_VERIFICATION_SUBJECT.set(subject) {
+                tracing::warn!("Setting verification subject error: {err}");
+            }
+            return true;
+        }
+        TAOSX_VERIFICATION_SUBJECT.get().is_some()
     }
 }
 
@@ -352,4 +397,45 @@ pub fn get_username_from_header(req: &HttpRequest) -> Result<String> {
         .unwrap_or_default();
     let credentials = Credentials::from_header(header.to_string()).map_err(R::internal)?;
     Ok(credentials.user_id)
+}
+pub fn mask_string(s: &str) -> String {
+    if s.len() < 3 {
+        // If string is too short, return all stars
+        return "*".repeat(s.len());
+    }
+    let mask_len = (s.len() - 1) / 3 + 1;
+
+    let lr = s.len() - mask_len;
+    let r = (lr / 2).min(4);
+    let l = (lr - r).min(4);
+    format!(
+        "{}{}{}",
+        &s[..l],
+        "*".repeat(mask_len.min(4)),
+        &s[s.len() - r..]
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mask_string() {
+        assert_eq!(mask_string(""), "");
+        assert_eq!(mask_string("a"), "*");
+        assert_eq!(mask_string("ab"), "**");
+        assert_eq!(mask_string("abc"), "a*c");
+        assert_eq!(mask_string("abcd"), "a**d");
+        assert_eq!(mask_string("abcde"), "ab**e");
+        assert_eq!(mask_string("abcdef"), "ab**ef");
+        assert_eq!(mask_string("abcdefg"), "ab***fg");
+        assert_eq!(mask_string("abcdefgh"), "abc***gh");
+        assert_eq!(mask_string("abcdefghi"), "abc***ghi");
+        assert_eq!(mask_string("abcdefghij"), "abc****hij");
+        assert_eq!(mask_string("abcdefghijk"), "abcd****ijk");
+        assert_eq!(mask_string("abcdefghijkl"), "abcd****ijkl");
+        assert_eq!(mask_string("abcdefghijklm"), "abcd****jklm");
+        assert_eq!(mask_string("abcdefghijklmn"), "abcd****klmn");
+    }
 }
