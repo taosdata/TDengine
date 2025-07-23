@@ -481,7 +481,7 @@ TEST(bseCase, emptyNot) {
   data.push_back(2); 
   data.push_back(3); 
   int32_t code = bseOpen("/tmp/bse", &cfg, &bse);  
-  getData(bse, &data);   
+  code = getData(bse, &data);   
   EXPECT_NE(code, 0);
 
   bseClose(bse);
