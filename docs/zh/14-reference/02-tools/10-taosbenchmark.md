@@ -57,6 +57,7 @@ taosBenchmark -f <json file>
 | -U/--supplement-insert       | 写入数据而不提前建数据库和表，默认关闭 |
 | -p/--password \<passwd>      | 用于连接 TDengine 服务端的密码，默认值为 taosdata |
 | -o/--output \<file>          | 结果输出文件的路径，默认值为 ./output.txt |
+| -j/--output-json-file \<file>| 结果输出的 JSON 文件的路径 |
 | -T/--thread \<threadNum>     | 插入数据的线程数量，默认为 8  |
 | -B/--interlace-rows \<rowNum>        |启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0，即向一张子表完成数据插入后才会向下一张子表进行数据插入 |
 | -i/--insert-interval \<timeInterval> | 指定交错插入模式的插入间隔，单位为 ms，默认值为 0。只有当 `-B/--interlace-rows` 大于 0 时才起作用 |意味着数据插入线程在为每个子表插入隔行扫描记录后，会等待该值指定的时间间隔后再进行下一轮写入 |
@@ -82,8 +83,8 @@ taosBenchmark -f <json file>
 | -R/--disorder-range \<timeRange> | 指定乱序数据的时间戳回退范围。所生成的乱序时间戳为非乱序情况下应该使用的时间戳减去这个范围内的一个随机值。仅在 `-O/--disorder` 指定的乱序数据百分比大于 0 时有效|
 | -F/--prepare_rand \<Num>         | 生成的随机数据中唯一值的数量。若为 1 则表示所有数据都相同。默认值为 10000 |
 | -a/--replica \<replicaNum>       | 创建数据库时指定其副本数，默认值为 1 |
-|  -k/--keep-trying \<NUMBER>      | 失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本|
-|  -z/--trying-interval \<NUMBER>  | 失败重试间隔时间，单位为毫秒，仅在 -k 指定重试后有效。需使用 v3.0.9 以上版本 |
+| -k/--keep-trying \<NUMBER>      | 失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本|
+| -z/--trying-interval \<NUMBER>  | 失败重试间隔时间，单位为毫秒，仅在 -k 指定重试后有效。需使用 v3.0.9 以上版本 |
 | -v/--vgroups \<NUMBER>           | 创建数据库时指定 vgroups 数，仅对 TDengine v3.0+ 有效|
 | -V/--version                     | 显示版本信息并退出。不能与其它参数混用|
 | -?/--help                        | 显示帮助信息并退出。不能与其它参数混用|
@@ -109,6 +110,8 @@ taosBenchmark -f <json file>
 
 - **password**：用于连接 TDengine 服务端的密码，默认值为 taosdata。
 
+- **result_json_file**：指定结果输出的 JSON 文件路径，若未配置则不输出该文件。
+
 ### 写入配置参数
 
 写入场景下 `filetype` 必须设置为 `insert`，该参数及其它通用参数详见 [通用配置参数](#通用配置参数)
@@ -116,7 +119,7 @@ taosBenchmark -f <json file>
 - **keep_trying**：失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本。
 
 - **trying_interval**：失败重试间隔时间，单位为毫秒，仅在 keep_trying 指定重试后有效。需使用 v3.0.9 以上版本。
-- **childtable_from 和 childtable_to**：指定写入子表范围，开闭区间为 [childtable_from, childtable_to) 。
+- **childtable_from 和 childtable_to**：指定写入子表范围，开闭区间为 [childtable_from, childtable_to] 。
  
 - **continue_if_fail**：允许用户定义失败后行为。
 
@@ -188,7 +191,11 @@ taosBenchmark -f <json file>
 
 - **tags_file**：仅当 insert_mode 为 taosc，rest 的模式下生效。最终的 tag 的数值与 childtable_count 有关，如果 csv 文件内的 tag 数据行小于给定的子表数量，那么会循环读取 csv 文件数据直到生成 childtable_count 指定的子表数量；否则则只会读取 childtable_count 行 tag 数据。也即最终生成的子表数量为二者取小。
 
+- **use_tag_table_name**：当设置为 yes 时，csv 文件内的 tag 数据中的第一列为需要创建的子表名称，反之有系统自动生成子表名称进行创建。
+
 - **primary_key**：指定超级表是否有复合主键，取值 1 和 0，复合主键列只能是超级表的第二列，指定生成复合主键后要确保第二列符合复合主键的数据类型，否则会报错。
+
+- **primary_key_name**：指定超级表主键的名称，如果不指定默认为 `ts`。
 
 - **repeat_ts_min**：数值类型，复合主键开启情况下指定生成相同时间戳记录的最小个数，生成相同时间戳记录的个数是在范围[repeat_ts_min, repeat_ts_max] 内的随机值，最小值等于最大值时为固定个数。
 
@@ -268,8 +275,6 @@ taosBenchmark -f <json file>
 - **create_table_thread_count**：建表的线程数量，默认为 8。
 
 - **result_file**：结果输出文件的路径，默认值为 ./output.txt。
-
-- **result_json_file**：结果输出的 JSON 文件路径，若未配置则不输出该文件。
 
 - **confirm_parameter_prompt**：开关参数，要求用户在提示后确认才能继续，可取值 "yes" or "no"。默认值为 "no" 。
 
