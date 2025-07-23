@@ -1202,7 +1202,6 @@ static int32_t vnodeProcessStreamLastTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTrig
 
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
   void* pTask = sStreamReaderInfo->pTask;
-  lastTsRsp.ver = pVnode->state.applied;
 
   ST_TASK_DLOG("vgId:%d %s start", TD_VID(pVnode), __func__);
 
@@ -1211,19 +1210,17 @@ static int32_t vnodeProcessStreamLastTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTrig
   SStorageAPI api = {0};
   initStorageAPI(&api);
   STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTaskInner, NULL, NULL, &api));
-  STREAM_CHECK_NULL_GOTO(pTaskInner, 0);
 
+  lastTsRsp.ver = pVnode->state.applied;
   if (sStreamReaderInfo->uidList != NULL) {
     STREAM_CHECK_RET_GOTO(processTsVTable(pVnode, &lastTsRsp, sStreamReaderInfo, pTaskInner));
   } else {
     STREAM_CHECK_RET_GOTO(processTsNonVTable(pVnode, &lastTsRsp, sStreamReaderInfo, pTaskInner));
   }
   ST_TASK_DLOG("vgId:%d %s get result", TD_VID(pVnode), __func__);
+  STREAM_CHECK_RET_GOTO(buildTsRsp(&lastTsRsp, &buf, &size))
 
 end:
-  if (code == 0){
-    STREAM_CHECK_RET_GOTO(buildTsRsp(&lastTsRsp, &buf, &size))
-  }
   STREAM_PRINT_LOG_END_WITHID(code, lino);
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
@@ -1244,14 +1241,13 @@ static int32_t vnodeProcessStreamFirstTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
   void* pTask = sStreamReaderInfo->pTask;
   ST_TASK_DLOG("vgId:%d %s start", TD_VID(pVnode), __func__);
-  firstTsRsp.ver = pVnode->state.applied;
   SStreamTriggerReaderTaskInnerOptions options = {0};
   STREAM_CHECK_RET_GOTO(createOptionsForFirstTs(&options, sStreamReaderInfo, req->firstTsReq.startTime));
   SStorageAPI api = {0};
   initStorageAPI(&api);
   STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTaskInner, NULL, NULL, &api));
-  STREAM_CHECK_NULL_GOTO(pTaskInner, 0);
-
+  
+  firstTsRsp.ver = pVnode->state.applied;
   if (sStreamReaderInfo->uidList != NULL) {
     STREAM_CHECK_RET_GOTO(processTsVTable(pVnode, &firstTsRsp, sStreamReaderInfo, pTaskInner));
   } else {
@@ -1259,11 +1255,9 @@ static int32_t vnodeProcessStreamFirstTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   }
 
   ST_TASK_DLOG("vgId:%d %s get result", TD_VID(pVnode), __func__);
+  STREAM_CHECK_RET_GOTO(buildTsRsp(&firstTsRsp, &buf, &size))
 
 end:
-  if (code == 0){
-    STREAM_CHECK_RET_GOTO(buildTsRsp(&firstTsRsp, &buf, &size))
-  }
   STREAM_PRINT_LOG_END_WITHID(code, lino);
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
@@ -1293,7 +1287,6 @@ static int32_t vnodeProcessStreamTsdbMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTr
     SStorageAPI api = {0};
     initStorageAPI(&api);
     STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTaskInner, NULL, sStreamReaderInfo->groupIdMap, &api));
-    STREAM_CHECK_NULL_GOTO(pTaskInner, 0);
 
     STREAM_CHECK_RET_GOTO(createOneDataBlock(pTaskInner->pResBlock, false, &pTaskInner->pResBlockDst));
 
@@ -1365,7 +1358,6 @@ static int32_t vnodeProcessStreamTsdbTsDataReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   SStorageAPI api = {0};
   initStorageAPI(&api);
   STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTaskInner, sStreamReaderInfo->triggerResBlock, NULL, &api));
-  STREAM_CHECK_NULL_GOTO(pTaskInner, 0);
 
   STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->triggerResBlock, false, &pTaskInner->pResBlockDst));
 
@@ -1422,7 +1414,6 @@ static int32_t vnodeProcessStreamTsdbTriggerDataReq(SVnode* pVnode, SRpcMsg* pMs
     initStorageAPI(&api);
     STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTaskInner, sStreamReaderInfo->triggerResBlock,
                                            sStreamReaderInfo->groupIdMap, &api));
-    STREAM_CHECK_NULL_GOTO(pTaskInner, 0);
 
     STREAM_CHECK_RET_GOTO(taosHashPut(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES, &pTaskInner, sizeof(pTaskInner)));
 
@@ -1496,7 +1487,6 @@ static int32_t vnodeProcessStreamTsdbCalcDataReq(SVnode* pVnode, SRpcMsg* pMsg, 
     SStorageAPI api = {0};
     initStorageAPI(&api);
     STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTaskInner, sStreamReaderInfo->triggerResBlock, NULL, &api));
-    STREAM_CHECK_NULL_GOTO(pTaskInner, 0);
 
     STREAM_CHECK_RET_GOTO(taosHashPut(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES, &pTaskInner, sizeof(pTaskInner)));
 
@@ -1566,7 +1556,6 @@ static int32_t vnodeProcessStreamTsdbVirtalDataReq(SVnode* pVnode, SRpcMsg* pMsg
     SStorageAPI api = {0};
     initStorageAPI(&api);
     STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTaskInner, NULL, NULL, &api));
-    STREAM_CHECK_NULL_GOTO(pTaskInner, 0);
 
     STableKeyInfo       keyInfo = {.uid = req->tsdbDataReq.uid};
     cleanupQueryTableDataCond(&pTaskInner->cond);
@@ -1640,7 +1629,6 @@ static int32_t vnodeProcessStreamWalMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
         groupNew, false, sStreamReaderInfo->pTagCond, sStreamReaderInfo->pTagIndexCond, &api,
         &pTableList, sStreamReaderInfo->groupIdMap));
   }
-  STREAM_CHECK_NULL_GOTO(pTableList, 0);
 
   STREAM_CHECK_RET_GOTO(createBlockForWalMeta(&pBlock, isVTable));
   STREAM_CHECK_RET_GOTO(scanWal(pVnode, isVTable ? sStreamReaderInfo->uidHash : pTableList, isVTable, pBlock,
@@ -1652,7 +1640,7 @@ static int32_t vnodeProcessStreamWalMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   printDataBlock(pBlock, __func__, "");
 
 end:
-  if ((pBlock != NULL && pBlock->info.rows == 0) || pTableList == NULL) {
+  if (pBlock != NULL && pBlock->info.rows == 0) {
     code = TSDB_CODE_STREAM_NO_DATA;
     buf = rpcMallocCont(sizeof(int64_t));
     *(int64_t *)buf = lastVer;
@@ -1769,8 +1757,6 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
       pVnode, sStreamReaderInfo->suid, sStreamReaderInfo->uid, sStreamReaderInfo->tableType,
       groupNew, true, sStreamReaderInfo->pTagCond, sStreamReaderInfo->pTagIndexCond, &api,
       &pTableList, sStreamReaderInfo->groupIdMap));
-
-  STREAM_CHECK_NULL_GOTO(pTableList, 0);
 
   SArray* cids = req->virTableInfoReq.cids;
   STREAM_CHECK_NULL_GOTO(cids, terrno);

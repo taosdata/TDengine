@@ -161,7 +161,6 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
       STREAM_CHECK_RET_GOTO(qStreamCreateTableListForReader(
           pVnode, options->suid, options->uid, options->tableType, options->partitionCols, options->groupSort,
           options->pTagCond, options->pTagIndexCond, api, &pTask->pTableList, groupIdMap));
-      STREAM_CHECK_NULL_GOTO(pTask->pTableList, 0);
 
       if (options->gid != 0) {
         int32_t index = qStreamGetGroupIndex(pTask->pTableList, options->gid);

@@ -1745,6 +1745,9 @@ int32_t  qStreamSetTableList(void** pTableListInfo, STableKeyInfo* data){
 }
 
 int32_t qStreamGetGroupIndex(void* pTableListInfo, int64_t gid) {
+  if (((STableListInfo*)pTableListInfo)->groupOffset == NULL){
+    return 0;
+  }
   for (int32_t i = 0; i < ((STableListInfo*)pTableListInfo)->numOfOuputGroups; ++i) {
     int32_t offset = ((STableListInfo*)pTableListInfo)->groupOffset[i];
 
