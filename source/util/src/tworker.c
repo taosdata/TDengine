@@ -19,6 +19,7 @@
 #include "tcompare.h"
 #include "tgeosctx.h"
 #include "tlog.h"
+#include "ttrace.h"
 
 #define QUEUE_THRESHOLD (1000 * 1000)
 
@@ -1131,7 +1132,7 @@ static void *tDispatchWorkerThreadFp(SDispatchWorker *pWorker) {
 
   setThreadName(pPool->name);
   pWorker->pid = taosGetSelfPthreadId();
-  uDebug("worker:%s:%d is running, thread:%d", pPool->name, pWorker->id, pWorker->pid);
+  uInfo("worker:%s:%d is running, thread:%d", pPool->name, pWorker->id, pWorker->pid);
 
   while (1) {
     if (taosReadQitemFromQset(pWorker->qset, (void **)&msg, &qinfo) == 0) {
@@ -1185,7 +1186,7 @@ int32_t tDispatchWorkerAllocQueue(SDispatchWorkerPool *pPool, void *ahandle, FIt
       break;
     }
     (void)taosThreadAttrDestroy(&thAttr);
-    uInfo("worker:%s:%d is launched, total:%d", pPool->name, pWorker->id, pPool->num);
+    uInfo("worker:%s:%d is launched, threadId:%" PRId64 ", total:%d", pPool->name, pWorker->id, (int64_t)pWorker->thread, pPool->num);
   }
 
   taosThreadMutexUnlock(&pPool->poolLock);
@@ -1240,10 +1241,11 @@ void tDispatchWorkerCleanup(SDispatchWorkerPool *pPool) {
 int32_t tAddTaskIntoDispatchWorkerPool(SDispatchWorkerPool *pPool, void *pMsg) {
   int32_t code = 0;
   int32_t idx = 0;
+  SDispatchWorker *pWorker = NULL;
   (void)taosThreadMutexLock(&pPool->poolLock);
   code = pPool->dispatchFp(pPool, pMsg, &idx);
   if (code == 0) {
-    SDispatchWorker *pWorker = pPool->pWorkers + idx;
+    pWorker = pPool->pWorkers + idx;
     if (pWorker->queue) {
       code = taosWriteQitem(pWorker->queue, pMsg);
     } else {
@@ -1253,6 +1255,8 @@ int32_t tAddTaskIntoDispatchWorkerPool(SDispatchWorkerPool *pPool, void *pMsg) {
   (void)taosThreadMutexUnlock(&pPool->poolLock);
   if (code != 0) {
     uError("worker:%s, failed to add task into dispatch worker pool, code:%d", pPool->name, code);
+  } else {
+    uDebug("msg %p dispatch to the %dth worker, threadId:%" PRId64, pMsg, idx, (int64_t)pWorker->thread);
   }
   return code;
 }

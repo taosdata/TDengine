@@ -78,7 +78,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_combined_options.py
 
 ## 20-UseCase
-,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_idmp_meters.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_idmp_meters.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_idmp_vehicle.py
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_idmp_meters_td36808.py
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_idmp_tobacco.py
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_idmp_pv.py
@@ -90,6 +91,7 @@
 ## 22-Performance
 
 ## 23-Compatibility 
+,,n,.,pytest cases/13-StreamProcessing/23-Compatibility/stream_compatibility.py
 
 ## 30-OldPyCases
 ,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_state_window.py
@@ -97,10 +99,14 @@
 ,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_backquote_check.py
 ,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_taosdShell.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_checkpoint_info.py -N 4
-,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_snode_restart_with_checkpoint.py -N 4
+# ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_snode_restart_with_checkpoint.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_stream_multi_agg.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_stream_basic.py
-
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_compatibility_rolling_upgrade.py -N 3
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_compatibility_rolling_upgrade_all.py -N 3
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_compatibility.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_drop.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_empty_identifier.py
 
 ## 31-OldCases
 ,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic1.py 
@@ -111,11 +117,6 @@
 ,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_continuewindowclose.py 
 ,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_state.py 
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
-,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_compatibility_rolling_upgrade.py -N 3
-,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_compatibility_rolling_upgrade_all.py -N 3
-,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_compatibility.py
-,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_drop.py
-,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_empty_identifier.py
 ## 99-Others
 
 

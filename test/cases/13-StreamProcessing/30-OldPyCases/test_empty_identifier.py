@@ -26,14 +26,57 @@ class TestEmptyIdentifier:
     def test_empty_identifier(self):
         """Empty Identifier Validation Test
 
-        Test empty identifier handling in various SQL statements:
-        1. Table operations with empty identifiers
-        2. Column and tag operations with empty identifiers  
-        3. Stream, view, topic operations with empty identifiers
-        4. Verify all operations correctly return error code -2147473897
+        Test empty identifier `` handling in 28 specific SQL statements and verify error code -2147473897:
+
+        1. Test [Table Operations] with Empty Identifiers
+            1.1 show create table `` - verify error -2147473897
+            1.2 show create table test.`` - verify error -2147473897
+            1.3 create table `` (ts timestamp, c1 int) - verify error -2147473897
+            1.4 drop table `` - verify error -2147473897
+            1.5 alter table `` add column c2 int - verify error -2147473897
+            1.6 select * from `` - verify error -2147473897
+
+        2. Test [Column and Tag Operations] with Empty Identifiers
+            2.1 alter table meters add column `` int - verify error -2147473897
+            2.2 alter table meters drop column `` - verify error -2147473897
+            2.3 alter stable meters add tag `` int - verify error -2147473897
+            2.4 alter stable meters rename tag cc `` - verify error -2147473897
+            2.5 alter stable meters drop tag `` - verify error -2147473897
+
+        3. Test [Data Manipulation] with Empty Identifiers
+            3.1 insert into `` select * from t0 - verify error -2147473897
+            3.2 insert into t100 using `` tags('', '') values(1,1,1) - verify error -2147473897
+            3.3 insert into `` values(1,1,1) - verify error -2147473897
+
+        4. Test [View Operations] with Empty Identifiers
+            4.1 create view `` as select count(*) from meters interval(10s) - verify error -2147473897
+            4.2 create view ``.view1 as select count(*) from meters - verify error -2147473897
+            4.3 drop view `` - verify error -2147473897
+            4.4 drop view ``.st1 - verify error -2147473897
+
+        5. Test [TSMA Operations] with Empty Identifiers
+            5.1 create tsma `` on meters function(count(c1)) interval(1m) - verify error -2147473897
+            5.2 create tsma tsma1 on `` function(count(c1)) interval(1m) - verify error -2147473897
+
+        6. Test [Stream Operations] with Empty Identifiers
+            6.1 create stream `` interval(10s) sliding(10s) from meters into st1 as select count(*) from meters - verify error -2147473897
+            6.2 create stream stream1 interval(10s) sliding(10s) from meters into `` as select count(*) from meters - verify error -2147473897
+            6.3 create stream stream1 interval(10s) sliding(10s) from meters into st1 as select count(*) from `` - verify error -2147473897
+            6.4 create stream stream1 interval(10s) sliding(10s) from meters stream_options(max_delay(100s)) into st1 as select count(*) from `` - verify error -2147473897
+            6.5 create stream stream1 interval(10s) sliding(10s) from `` stream_options(max_delay(100s)) into st1 as select count(*) from meters - verify error -2147473897
+
+        7. Test [Topic Operations] with Empty Identifiers
+            7.1 create topic `` as select count(*) from meters interval(10s) - verify error -2147473897
+            7.2 drop topic `` - verify error -2147473897
+
+        8. Test [Error Code Verification] for All Cases
+            8.1 Execute all 28 SQL statements with empty identifiers
+            8.2 Verify each returns exact error code -2147473897
+            8.3 Confirm error message consistency
+            8.4 Validate connection stability after errors
 
         Catalog:
-            - SQL:Syntax Validation
+            - SQL:SyntaxValidation:EmptyIdentifier
 
         Since: v3.3.7.0
 
