@@ -11,23 +11,39 @@ class TestStreamRecalcWithOptions:
     def test_stream_recalc_with_options(self):
         """Stream Manual Recalculation with Options Test
 
-        Test manual recalculation functionality combined with various stream options:
-        1. WATERMARK - manual recalculation for windows within tolerance range
-        2. EXPIRED_TIME - manual recalculation for expired data
-        3. IGNORE_DISORDER - manual recalculation for ignored disordered data
-        4. DELETE_RECALC - manual recalculation when DELETE_RECALC not specified
+        Test manual recalculation functionality combined with four different stream options:
+
+        1. Manual Recalculation with WATERMARK Option Test
+            1.1 Create interval(2m) sliding(2m) stream with watermark(30s) (s_watermark_interval)
+            1.2 Test manual recalculation behavior within watermark tolerance
+            1.3 Verify watermark option interaction with manual recalc commands
+
+        2. Manual Recalculation with EXPIRED_TIME Option Test
+            2.1 Create interval(2m) sliding(2m) stream with expired_time(5m) (s_expired_interval)
+            2.2 Test manual recalculation for expired data processing
+            2.3 Verify expired_time option behavior during manual recalc
+
+        3. Manual Recalculation with IGNORE_DISORDER Option Test
+            3.1 Create interval(2m) sliding(2m) stream with ignore_disorder (s_disorder_interval)
+            3.2 Test manual recalculation for previously ignored out-of-order data
+            3.3 Verify disorder handling during manual recalc operations
+
+        4. Manual Recalculation without DELETE_RECALC Option Test
+            4.1 Create interval(2m) sliding(2m) stream without DELETE_RECALC (s_delete_interval)
+            4.2 Test manual recalculation behavior after data deletion
+            4.3 Verify recalculation consistency without automatic deletion handling
 
         Catalog:
-            - Streams:Recalculation:Options
+            - Streams:Recalculation:ManualWithOptions
 
-        Since: v3.0.0.0
+        Since: v3.3.7.0
 
         Labels: common,ci
 
         Jira: None
 
         History:
-            - 2025-12-19 Generated from recalculation with options design
+            - 2025-07-23 Beryl Created
 
         """
 

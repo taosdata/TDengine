@@ -36,7 +36,6 @@ class TestStreamMetaTrigger:
         # TD-36984 [流计算开发阶段] 虚拟表触发多出一个没有的窗口
         # streams.append(self.Basic1())  # drop data source table [fail]
         
-        # TD-36595 [流计算开发阶段] 虚拟表+pre_filter(tag列)创建流失败
         # streams.append(self.Basic2())  # tag过滤时，修改tag的值，从满足流条件，到不满足流条件; 从不满足流条件，到满足流条件 [fail]       
         
         # TD-36750 [流计算开发阶段] 虚拟表+删除pre_filter(cbigint >=1)中cbigint列后，应该没有符合条件的数据了，不会触发计算窗口
@@ -48,8 +47,7 @@ class TestStreamMetaTrigger:
         # TD-36525 [流计算开发阶段] 删除流结果表后继续触发了也没有重建，不符合预期
         # streams.append(self.Basic6())  #  [fail]
         
-        # TD-36809 [流计算开发阶段] 删除数据库用例单跑可以通过，与其他不同数据库用例同跑就报错
-        # streams.append(self.Basic7())  # [ok] 
+        streams.append(self.Basic7())  # [ok] 
         
         tdStream.checkAll(streams)
 
@@ -2219,13 +2217,13 @@ class TestStreamMetaTrigger:
             tdSql.error(f"drop database {self.db3}") # 规则1
             tdSql.error(f"drop database {self.db4}") # 规则1
             tdSql.execute(f"drop database {self.db5} force") 
-            tdSql.execute(f"drop database {self.db2}")
-            tdSql.execute(f"drop database {self.db3}")
-            tdSql.execute(f"drop database {self.db4}")         
+            tdSql.error(f"drop database {self.db2}") # 当其他库存在虚拟表流时不能删除任何库
+            tdSql.error(f"drop database {self.db3}") # 当其他库存在虚拟表流时不能删除任何库
+            tdSql.error(f"drop database {self.db4}") # 当其他库存在虚拟表流时不能删除任何库
             
         def check2(self):
             tdSql.query(f'select * from information_schema.ins_databases where name like "sdb7_%"')
-            tdSql.checkRows(0)
+            tdSql.checkRows(3)
             # tdSql.checkResultsByFunc(
             #     sql=f'select * from information_schema.ins_databases where name like "sdb7_%"',
             #     func=lambda: tdSql.getRows() == 0
