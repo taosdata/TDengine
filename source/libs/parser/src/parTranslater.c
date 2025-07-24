@@ -7574,6 +7574,22 @@ static int32_t checkCountWindow(STranslateContext* pCxt, SCountWindowNode* pCoun
     PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                         "Size of Count window must less than 2147483647(INT32_MAX)."));
   }
+
+  if (streamTrigger) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, pCountWin->pColList) {
+      if (nodeType(pNode) != QUERY_NODE_COLUMN) {
+        PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                            "COUNT_WINDOW only support on column."));
+      } else {
+        SColumnNode* pCol = (SColumnNode*)pNode;
+        if (COLUMN_TYPE_TAG == pCol->colType) {
+          PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                              "COUNT_WINDOW not support on tag column."));
+        }
+      }
+    }
+  }
   return TSDB_CODE_SUCCESS;
 }
 
