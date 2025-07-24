@@ -274,8 +274,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_commit.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_insert_backquote.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_insert_null.py
-#memleak,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_insert_select.py
-,,n,.,pytest cases/06-DataIngestion/05-Others/test_insert_select.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_insert_select.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_wal_kill.py
 
 # 07-DataQuerying
