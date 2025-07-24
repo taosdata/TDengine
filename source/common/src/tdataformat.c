@@ -5822,7 +5822,7 @@ int32_t tDecodeBlobSet(SDecoder *pDecoder, SBlobSet **pBlobSet) {
   TAOS_CHECK_EXIT(tDecodeFixed(pDecoder, pBlob->data, pBlob->len));
   *pBlobSet = pBlob;
 
-  uInfo("decode blob len:%d", (int32_t)(pBlob->len));
+  uTrace("decode blob len:%d", (int32_t)(pBlob->len));
 
 _exit:
   if (code != 0) {
