@@ -91,6 +91,7 @@
 ## 22-Performance
 
 ## 23-Compatibility 
+,,n,.,pytest cases/13-StreamProcessing/23-Compatibility/stream_compatibility.py
 
 ## 30-OldPyCases
 ,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_state_window.py
