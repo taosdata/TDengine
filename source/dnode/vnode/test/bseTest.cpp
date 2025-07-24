@@ -103,6 +103,34 @@ static int32_t putData(SBse *bse, int nItem, int32_t vlen, std::vector<int64_t> 
   code = bseCommitBatch(bse, pBatch);
   return code;
 }
+static int32_t putNoRandomData(SBse *bse, int nItem, int32_t vlen, std::vector<int64_t> *data) {
+  SBseBatch *pBatch = NULL;
+  bseBatchInit(bse, &pBatch, nItem);
+  char *str = (char *)taosMemoryCalloc(1, vlen + 1);
+  memset(str, 'a', vlen);
+  int32_t code = 0;
+  for (int32_t i = 0; i < nItem; i++) {
+    // std::string value;
+    // value.reserve(vlen);
+    int64_t     seq = 0;
+    code = bseBatchPut(pBatch, &seq, (uint8_t *)str, vlen);
+    
+    if (bseBatchExccedLimit(pBatch)) {
+      code = bseCommitBatch(bse, pBatch);
+      if (code != 0) {
+        printf("failed to commit batch error code: %d\n", code);
+        ASSERT(0);
+      }
+      code = bseBatchInit(bse, &pBatch, nItem);
+    }
+      
+    data->push_back(seq);
+  }
+  taosMemoryFree(str);
+  printf("put result ");
+  code = bseCommitBatch(bse, pBatch);
+  return code;
+}
 static int32_t getData(SBse *pBse, std::vector<int64_t> *data) {
   int32_t code = 0;
   for (int32_t i = 0; i < data->size(); i++) {
@@ -275,15 +303,15 @@ int32_t funcTestWriteSmallData() {
 
   std::vector<int64_t> data;
   int32_t              code = bseOpen("/tmp/bse", &cfg, &bse);
-  putData(bse, 10000, 100000, &data);
+  putNoRandomData(bse, 10000, 100000, &data);
 
   bseCommit(bse);
 
-  putData(bse, 100000, 100000, &data);
+  putNoRandomData(bse, 100000, 100000, &data);
 
   bseCommit(bse);
 
-  putData(bse, 100000, 100000, &data);
+  putNoRandomData(bse, 100000, 100000, &data);
 
   bseCommit(bse);
 

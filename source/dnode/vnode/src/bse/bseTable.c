@@ -353,7 +353,9 @@ int32_t tableBuilderPut(STableBuilder *p, SBseBatch *pBatch) {
       TSDB_CHECK_CODE(code, lino, _error);
     }
 
-    blockAppendBatch(pBlockWrapper->data, pBatch->buf + offset, size);
+    if (blockAppendBatch(pBlockWrapper->data, pBatch->buf + offset, size) != size) {
+      code = TSDB_CODE_INVALID_PARA;
+    }
   }
 _error:
   if (code != 0) {
@@ -2210,7 +2212,8 @@ static void updateSnapshotMeta(SBlockWrapper *pBlkWrapper, SSeqRange range, int8
       return code;
     }
     if (taosArrayPush(pMemTable->pMetaHandle, pHandle) == NULL) {
-      bseError("Failed to push handle to memtable since %s", tstrerror(terrno));
+      code = terrno;
+      bseError("Failed to push handle to memtable since %s", tstrerror(code));
       return code;
     }
     return code;

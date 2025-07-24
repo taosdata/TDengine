@@ -29,12 +29,11 @@ typedef struct SSubTableMgt SSubTableMgt;
 
 typedef struct {
   STableBuilder *p;
-  int8_t inited;
 
-  TdThreadMutex mutex;
-  int64_t       timestamp;
+  TdThreadRwlock mutex;
   SSubTableMgt *pMgt;
 
+  int64_t timestamp;
   SBse *pBse;
 } STableBuilderMgt;
 
