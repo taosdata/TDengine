@@ -300,6 +300,12 @@ dotnet add package TDengine.Connector
     username:password@protocol(address)/dbname?param=value
     ```
 
+    当使用 IPv6 地址时（v3.7.1 及以上版本支持），地址需要用方括号括起来，例如：
+
+    ```text
+    root:taosdata@ws([::1]:6041)/testdb
+    ```
+
     支持的 DSN 参数如下
 
     原生连接：

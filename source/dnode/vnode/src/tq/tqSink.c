@@ -345,14 +345,14 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
   pTableData->aRowP = taosArrayInit(numOfRows, sizeof(SRow*));
 
   if (pVals == NULL || pTableData->aRowP == NULL) {
-    tBlobRowDestroy(pTableData->pBlobRow);
+    tBlobSetDestroy(pTableData->pBlobSet);
     taosArrayDestroy(pVals);
     code = terrno;
     tqError("s-task:%s failed to prepare write stream res blocks, code:%s", id, tstrerror(code));
     return code;
   }
   if (hasBlob) {
-    code = tBlobRowCreate(1024, 0, &pTableData->pBlobRow);
+    code = tBlobSetCreate(1024, 0, &pTableData->pBlobSet);
   }
 
 

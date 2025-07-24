@@ -1893,12 +1893,20 @@ void tFreeSStreamReaderDeployMsg(SStreamReaderDeployMsg* pReader) {
   }
 }
 
+void tFreeStreamNotifyUrl(void* param) {
+  if (NULL == param) {
+    return;
+  }
+
+  taosMemoryFree(*(void**)param);
+}
+
 void tFreeSStreamTriggerDeployMsg(SStreamTriggerDeployMsg* pTrigger) {
   if (NULL == pTrigger) {
     return;
   }
   
-  taosArrayDestroyEx(pTrigger->pNotifyAddrUrls, taosAutoMemoryFree);
+  taosArrayDestroyEx(pTrigger->pNotifyAddrUrls, tFreeStreamNotifyUrl);
   switch (pTrigger->triggerType) {
     case WINDOW_TYPE_EVENT:
       taosMemoryFree(pTrigger->trigger.event.startCond);
@@ -2901,6 +2909,11 @@ int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStre
       TSDB_CHECK_NULL(taosArrayPush(pDst->forceOutCols, &dcol), code, lino, _exit, terrno);
     }
   }
+
+  pDst->triggerTblUid = pSrc->triggerTblUid;
+  pDst->triggerTblType = pSrc->triggerTblType;
+  pDst->deleteReCalc = pSrc->deleteReCalc;
+  pDst->deleteOutTbl = pSrc->deleteOutTbl;
   
 _exit:
 
@@ -3269,6 +3282,12 @@ void tDestroySTriggerPullRequest(SSTriggerPullRequestUnion* pReq) {
       taosArrayDestroy(pRequest->cids);
       pRequest->cids = NULL;
     }
+  } else if (pReq->base.type == STRIGGER_PULL_VTABLE_PSEUDO_COL) {
+    SSTriggerVirTablePseudoColRequest *pRequest = (SSTriggerVirTablePseudoColRequest*)pReq;
+    if (pRequest->cids != NULL) {
+      taosArrayDestroy(pRequest->cids);
+      pRequest->cids = NULL;
+    }
   } else if (pReq->base.type == STRIGGER_PULL_OTABLE_INFO) {
     SSTriggerOrigTableInfoRequest* pRequest = (SSTriggerOrigTableInfoRequest*)pReq;
     if (pRequest->cols != NULL) {
@@ -3454,6 +3473,12 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       TAOS_CHECK_EXIT(encodeColsArray(&encoder, pRequest->cids));
       break;
     }
+    case STRIGGER_PULL_VTABLE_PSEUDO_COL: {
+      SSTriggerVirTablePseudoColRequest* pRequest = (SSTriggerVirTablePseudoColRequest*)pReq;
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->uid));
+      TAOS_CHECK_EXIT(encodeColsArray(&encoder, pRequest->cids));
+      break;
+    }
     case STRIGGER_PULL_OTABLE_INFO: {
       SSTriggerOrigTableInfoRequest* pRequest = (SSTriggerOrigTableInfoRequest*)pReq;
       int32_t size = taosArrayGetSize(pRequest->cols);
@@ -3616,6 +3641,12 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
       TAOS_CHECK_EXIT(decodeColsArray(&decoder, &pRequest->cids));
       break;
     }
+    case STRIGGER_PULL_VTABLE_PSEUDO_COL: {
+      SSTriggerVirTablePseudoColRequest* pRequest = &(pReq->virTablePseudoColReq);
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->uid));
+      TAOS_CHECK_EXIT(decodeColsArray(&decoder, &pRequest->cids));
+      break;
+    }
     case STRIGGER_PULL_OTABLE_INFO: {
       SSTriggerOrigTableInfoRequest* pRequest = &(pReq->origTableInfoReq);
       int32_t size = 0;
@@ -3678,7 +3709,7 @@ static int32_t tSerializeSTriggerCalcParam(SEncoder* pEncoder, SArray* pParams, 
     TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->triggerTime));
     if (!ignoreNotificationInfo) {
       TAOS_CHECK_EXIT(tEncodeI32(pEncoder, param->notifyType));
-      uint32_t len = (param->extraNotifyContent != NULL) ? strlen(param->extraNotifyContent) : 0;
+      uint64_t len = (param->extraNotifyContent != NULL) ? strlen(param->extraNotifyContent) + 1 : 0;
       TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, (uint8_t*)param->extraNotifyContent, len));
     }
   }
@@ -3926,6 +3957,54 @@ void tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq) {
     }
     blockDataDestroy(pReq->pOutBlock);
   }
+}
+
+int32_t tSerializeSTriggerCtrlRequest(void* buf, int32_t bufLen, const SSTriggerCtrlRequest* pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  int32_t  tlen = 0;
+
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->type));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->streamId));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->taskId));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->sessionId));
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSTriggerCtrlRequest(void* buf, int32_t bufLen, SSTriggerCtrlRequest* pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+
+  int32_t type = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &type));
+  pReq->type = type;
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->streamId));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->taskId));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->sessionId));
+
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
 }
 
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo) {

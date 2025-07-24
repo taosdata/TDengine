@@ -41,7 +41,7 @@ typedef struct SRowIter   SRowIter;
 typedef struct STagVal    STagVal;
 typedef struct STag       STag;
 typedef struct SColData   SColData;
-typedef struct SBlobRow2  SBlobRow2;
+typedef struct SBlobSet   SBlobSet;
 
 typedef struct SRowKey           SRowKey;
 typedef struct SValueColumn      SValueColumn;
@@ -107,7 +107,16 @@ const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b001111
 #define COL_VAL_IS_NULL(CV)  ((CV)->flag == CV_FLAG_NULL)
 #define COL_VAL_IS_VALUE(CV) ((CV)->flag == CV_FLAG_VALUE)
 
+// Strategies of merging rows with
+// same pk in single insert batch.
+typedef enum {
+  PREFER_NON_NULL = 0,  // choose latest non-null value for each column
+  KEEP_CONSISTENCY = 1  // choose latest row
+} ERowMergeStrategy;
 #define BSE_SEQUECE_SIZE sizeof(uint64_t)
+
+enum { TSDB_DATA_BLOB_VALUE = 0x1, TSDB_DATA_BLOB_EMPTY_VALUE = 0x2, TSDB_DATA_BLOB_NULL_VALUE = 0x4 };
+
 #define tRowGetKey(_pRow, _pKey)                       \
   do {                                                 \
     (_pKey)->ts = taosGetInt64Aligned(&((_pRow)->ts)); \
@@ -142,9 +151,8 @@ int32_t tValueCompare(const SValue *tv1, const SValue *tv2);
 
 // SRow ================================
 int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SRowBuildScanInfo *pScanInfo);
-int32_t tRowBuildWithBlob(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SBlobRow2 *pBlobRow,
+int32_t tRowBuildWithBlob(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SBlobSet *pBlobSet,
                           SRowBuildScanInfo *sinfo);
-int32_t tRowBuildWithMerge(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow);
 int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 
 typedef struct {
@@ -152,34 +160,36 @@ typedef struct {
   uint32_t len;
   uint32_t dataOffset;
   int8_t   nextRow;
+  int8_t   type;
 } SBlobValue;
 
 typedef struct {
   uint64_t seq;
   uint32_t seqOffsetInRow;
-  int32_t  rowIndex;
   void    *data;
-  int32_t  dataLen;
+  int32_t  len;
+  int8_t   type;
 } SBlobItem;
-int32_t tBlobRowCreate(int64_t cap, int8_t type, SBlobRow2 **ppBlobRow);
-int32_t tBlobRowPush(SBlobRow2 *pBlobRow, SBlobItem *pBlobItem, uint64_t *seq, int8_t nextRow);
-int32_t tBlobRowUpdate(SBlobRow2 *pBlobRow, uint64_t seq, SBlobItem *pBlobItem);
-int32_t tBlobRowGet(SBlobRow2 *pBlobRow, uint64_t seq, SBlobItem *pItem); 
-int32_t tBlobRowDestroy(SBlobRow2 *pBlowRow);
-int32_t tBlobRowSize(SBlobRow2 *pBlobRow);
-int32_t tBlobRowEnd(SBlobRow2 *pBlobRow);
-int32_t tBlobRowRebuild(SBlobRow2 *pBlobRow, int32_t srow, int32_t nrow, SBlobRow2 **pNew);
+int32_t tBlobSetCreate(int64_t cap, int8_t type, SBlobSet **ppBlobSet);
+int32_t tBlobSetPush(SBlobSet *pBlobSet, SBlobItem *pBlobItem, uint64_t *seq, int8_t nextRow);
+int32_t tBlobSetUpdate(SBlobSet *pBlobSet, uint64_t seq, SBlobItem *pBlobItem);
+int32_t tBlobSetGet(SBlobSet *pBlobSet, uint64_t seq, SBlobItem *pItem);
+int32_t tBlobSetDestroy(SBlobSet *pBlowRow);
+int32_t tBlobSetSize(SBlobSet *pBlobSet);
+void    tBlobSetSwap(SBlobSet *p1, SBlobSet *p2);
+// int32_t tBlobRowEnd(SBlobSet *pBlobSet);
+//  int32_t tBlobSetRebuild(SBlobSet *pBlobSet, int32_t srow, int32_t nrow, SBlobSet **pNew);
 
 int32_t tRowGetBlobSeq(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal, uint64_t *seq);
 void    tRowDestroy(SRow *pRow);
 int32_t tRowSort(SArray *aRowP);
-int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag);
+int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, ERowMergeStrategy strategy);
 int32_t tRowUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData, int32_t flag);
 void    tRowGetPrimaryKey(SRow *pRow, SRowKey *key);
 int32_t tRowKeyCompare(const SRowKey *key1, const SRowKey *key2);
 void    tRowKeyAssign(SRowKey *pDst, SRowKey *pSrc);
-int32_t tRowSortWithBlob(SArray *aRowP, STSchema *pTSchema, SBlobRow2 *pBlobRow);
-int32_t tRowMergeWithBlob(SArray *pRow, STSchema *pTSchema, SBlobRow2 *pBlobRow, int8_t flag);
+int32_t tRowSortWithBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlobSet);
+int32_t tRowMergeWithBlob(SArray *pRow, STSchema *pTSchema, SBlobSet *pBlobSet, int8_t flag);
 
 // SRowIter ================================
 int32_t  tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter);
@@ -239,7 +249,7 @@ int32_t tColDataDecompress(void *input, SColDataCompressInfo *info, SColData *co
 int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen, initGeosFn igeos,
                                checkWKBGeometryFn cgeos);
 int32_t tColDataSortMerge(SArray **arr);
-int32_t tColDataSortMergeWithBlob(SArray **arr, SBlobRow2 *pBlob);
+int32_t tColDataSortMergeWithBlob(SArray **arr, SBlobSet *pBlob);
 
 // for raw block
 int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows, char *lengthOrbitmap,
@@ -250,8 +260,8 @@ int32_t tDecodeColData(uint8_t version, SDecoder *pDecoder, SColData *pColData);
 int32_t tEncodeRow(SEncoder *pEncoder, SRow *pRow);
 int32_t tDecodeRow(SDecoder *pDecoder, SRow **ppRow);
 
-int32_t tEncodeBlobRow2(SEncoder *pEncoder, SBlobRow2 *pRow);
-int32_t tDecodeBlobRow2(SDecoder *pDecoder, SBlobRow2 **pBlobRow);
+int32_t tEncodeBlobSet(SEncoder *pEncoder, SBlobSet *pRow);
+int32_t tDecodeBlobSet(SDecoder *pDecoder, SBlobSet **pBlobSet);
 
 // STRUCT ================================
 struct STColumn {
@@ -286,8 +296,9 @@ struct SRow {
   uint8_t  data[];
 };
 
-struct SBlobRow2 {
+struct SBlobSet {
   int8_t    type;
+  int8_t    rowType;
   SHashObj *pSeqToffset;
   int64_t  seq;
   int64_t  len;
@@ -464,7 +475,7 @@ int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int3
                                 checkWKBGeometryFn cgeos);
 
 int32_t tColDataAddValueByBind2WithBlob(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen,
-                                        SBlobRow2 *pBlobRow);
+                                        SBlobSet *pBlobSet);
 
 typedef struct {
   int32_t          columnId;
@@ -478,7 +489,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
                            const STSchema *pTSchema, SArray *rowArray, bool *pOrdered, bool *pDupTs);
 
 int32_t tRowBuildFromBind2WithBlob(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
-                                   SArray *rowArray, bool *pOrdered, bool *pDupTs, SBlobRow2 *pBlobRow);
+                                   SArray *rowArray, bool *pOrdered, bool *pDupTs, SBlobSet *pBlobSet);
 
 struct SRowBuildScanInfo {
   int32_t numOfNone;

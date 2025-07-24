@@ -433,3 +433,16 @@ void freeCacheItem(SCacheItem *pItem) {
   }
   taosMemoryFree(pItem);
 }
+
+void bseCacheRefItem(SCacheItem *pItem) {
+  if (pItem == NULL) return;
+  T_REF_INC(pItem);
+}
+
+void bseCacheUnrefItem(SCacheItem *pItem) {
+  if (pItem == NULL) return;
+  T_REF_DEC(pItem);
+  if (T_REF_VAL_GET(pItem) == 0) {
+    freeCacheItem(pItem);
+  }
+}

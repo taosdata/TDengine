@@ -2687,8 +2687,32 @@ class TDSql:
         tdLog.exit(f"{caller.filename}(caller.lineno)  check result failed")
 
     def checkResultsBySql(self, sql, exp_sql, delay=0.0, retry=60, show=False):
-        self.clearResult()
-        exp_result = self.getResult(exp_sql)
+        # sleep
+        if delay != 0:
+            time.sleep(delay)
+
+        # show sql
+        tdLog.info(sql)
+
+        if retry <= 0:
+            retry = 1
+
+        # loop retry
+        for loop in range(retry):
+            # clear
+            self.clearResult()
+            # query
+            exp_result = self.getResult(exp_sql, exit=False)
+            # check result
+            if exp_result != [] and exp_result != None:
+                # success
+                break
+            # sleep and retry
+            if loop != retry - 1:
+                if show:
+                    self.printResult(f"check continue {loop} after sleep 1s ...")
+                time.sleep(1)
+
         self.checkResultsByArray(sql, exp_result, exp_sql, delay, retry, show)
 
     def checkTableType(
@@ -2813,6 +2837,17 @@ class TDSql:
 
         return ts
 
+    
+    # insert now
+    def insertNow(self, table, sleepS, count, cols, fixedVals):
+        # loop count
+        for i in range(count):
+            sql = f"INSERT INTO {table}({cols}) VALUES(now,{fixedVals})"
+            self.execute(sql, show=True)
+            # next
+            time.sleep(sleepS)
+
+
     # insert table with order values, only support number cols, return next write ts
     def insertOrderVal(self, table, startTs, step, count, cols, orderVals, colStep = 1):
         # init
@@ -2834,6 +2869,27 @@ class TDSql:
     # flush db
     def flushDb(self, dbName):
         self.execute(f"flush database {dbName}", show=True)
+
+    # delete rows
+    def deleteRows(self, table, where=None):
+        """
+        Deletes rows from the specified table based on the given condition.
+
+        Args:
+            table (str): The name of the table from which rows are to be deleted.
+            where (str, optional): The condition for deleting rows. Defaults to None.
+
+        Returns:
+            None
+
+        Raises:
+            SystemExit: If the delete operation fails.
+        """
+        sql = f"DELETE FROM {table}"
+        if where:
+            sql += f" WHERE {where}"
+        self.execute(sql, show=True) 
+
 
 # global
 tdSql = TDSql()

@@ -372,8 +372,7 @@ SNode* createCreateFunctionStmt(SAstCreateContext* pCxt, bool ignoreExists, bool
                                 const SToken* pLibPath, SDataType dataType, int32_t bufSize, const SToken* pLanguage,
                                 bool orReplace);
 SNode* createDropFunctionStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pFuncName);
-SNode* createStreamTagDefNode(SAstCreateContext* pCxt, SToken* pTagName, SDataType dataType, SNode* pComment,
-                              SNode* tagExpression);
+SNode* createStreamTagDefNode(SAstCreateContext* pCxt, SToken* pTagName, SDataType dataType, SNode* tagExpression);
 SNode* createStreamTriggerOptions(SAstCreateContext* pCxt);
 SNode* setStreamTriggerOptions(SAstCreateContext* pCxt, SNode* pOptions, SStreamTriggerOption* pStreamOptionUnit);
 SNode* createStreamNotifyOptions(SAstCreateContext* pCxt, SNodeList* pAddrUrls, int64_t eventType, SNode* pWhere,

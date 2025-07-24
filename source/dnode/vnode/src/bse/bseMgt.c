@@ -829,17 +829,16 @@ static int32_t seqComparFunc(const void *p1, const void *p2) {
 int32_t bseMultiGet(SBse *pBse, SArray *pKey, SArray *ppValue) {
   int32_t code = 0;
   taosSort(pKey->pData, taosArrayGetSize(pKey), sizeof(int64_t), seqComparFunc);
-
   taosThreadMutexLock(&pBse->mutex);
   taosThreadMutexUnlock(&pBse->mutex);
   return code;
 }
-int32_t bseIterate(SBse *pBse, uint64_t start, uint64_t end, SArray *pValue) {
-  int32_t code = 0;
-  taosThreadMutexLock(&pBse->mutex);
-  taosThreadMutexUnlock(&pBse->mutex);
-  return code;
-}
+// int32_t bseIterate(SBse *pBse, uint64_t start, uint64_t end, SArray *pValue) {
+//   int32_t code = 0;
+//   taosThreadMutexLock(&pBse->mutex);
+//   taosThreadMutexUnlock(&pBse->mutex);
+//   return code;
+// }
 
 int32_t bseGenCommitInfo(SBse *pBse, SArray *pFileSet) {
   int32_t   code = 0;

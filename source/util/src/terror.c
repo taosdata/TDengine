@@ -171,6 +171,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_COMPRESS_PARAM_ERROR,     "Invalid compress para
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR,     "Invalid compress level param")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_FAIL_GENERATE_JSON,       "failed to generate JSON")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR,   "bind number out of range or not match")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COLUMN_REF,       "Invalid column reference")
 TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS,    "Operation not supported in windows")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INTERNAL_ERROR,           "Internal error")
@@ -977,6 +978,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_NOT_SUPPORT_TAG, "Blob type not support on tag"
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_NOT_SUPPORT_PRIMARY_KEY, "Blob type not support on primary key")
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_VALUE_TOO_LONG, "Blob value too long")
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_EXHAUST_TOO_MANY_MEMORY, "Blob data exhaust too many memory")
+TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_NOT_SUPPORT, "Blob data not support")
+TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_ONLY_ONE_COLUMN_ALLOWED, "only one blob column allowed")
 // NEW-STREAM
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_INTERNAL_ERROR,      "Mnode stream internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_WAL_VER_NOT_DATA,        "Wal version is not data in stream reader task")
