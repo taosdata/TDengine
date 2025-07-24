@@ -437,6 +437,7 @@ TEST(bseCase, recover) {
 
   std::vector<int64_t> data;
   putData(bse, 10000, 1000, &data);
+  getData(bse, &data);
   bseCommit(bse);
   
   getData(bse, &data);
