@@ -321,23 +321,31 @@ The log can be configured with the following parameters:
 
   Disk space reserved for log directory (Supports KB/MB/GB units, Default: `"1GB"`).
 
+- **`log.enableSqlToCsvLogging`**
+
+  Whether to record SQL to CSV files(Default: `false`).For details, see [Recording SQL to CSV Files](#recording-sql-to-csv-files).
+
 - **`log.enableRecordHttpSql`**
 
+  **It is not recommended to continue using this parameter. We suggest using [Recording SQL to CSV Files](#recording-sql-to-csv-files) as the alternative solution.**
   Whether to record HTTP SQL requests (Default: `false`).
 
 - **`log.sqlRotationCount`**
 
+  **It is not recommended to continue using this parameter. We suggest using [Recording SQL to CSV Files](#recording-sql-to-csv-files) as the alternative solution.**
   Number of SQL log files to rotate (Default: `2`).
 
 - **`log.sqlRotationSize`**
 
+  **It is not recommended to continue using this parameter. We suggest using [Recording SQL to CSV Files](#recording-sql-to-csv-files) as the alternative solution.**
   Maximum size of a single SQL log file (Supports KB/MB/GB units, Default: `"1GB"`).
 
 - **`log.sqlRotationTime`**
 
+  **It is not recommended to continue using this parameter. We suggest using [Recording SQL to CSV Files](#recording-sql-to-csv-files) as the alternative solution.**
   SQL log rotation interval (Default: `24h`).
 
-1. You can set the taosAdapter log output detail level by setting the --log.level parameter or the environment variable TAOS_ADAPTER_LOG_LEVEL. Valid values ​​include: panic, fatal, error, warn, warning, info, debug, and trace.
+1. You can set the taosAdapter log output detail level by setting the --log.level parameter or the environment variable TAOS_ADAPTER_LOG_LEVEL. Valid values include: panic, fatal, error, warn, warning, info, debug, and trace.
 2. Starting from **3.3.5.0 version**, taosAdapter supports dynamic modification of log level through HTTP interface. Users can dynamically adjust the log level by sending HTTP PUT request to /config interface. The authentication method of this interface is the same as /rest/sql interface, and the configuration item key-value pair in JSON format must be passed in the request body.
 
 The following is an example of setting the log level to debug through the curl command:
@@ -622,6 +630,7 @@ Configuration Parameters and their corresponding environment variables:
 | `instanceId`                          | `TAOS_ADAPTER_INSTANCE_ID`                            |
 | `log.compress`                        | `TAOS_ADAPTER_LOG_COMPRESS`                           |
 | `log.enableRecordHttpSql`             | `TAOS_ADAPTER_LOG_ENABLE_RECORD_HTTP_SQL`             |
+| `log.enableSqlToCsvLogging`           | `TAOS_ADAPTER_LOG_ENABLE_SQL_TO_CSV_LOGGING`          |
 | `log.keepDays`                        | `TAOS_ADAPTER_LOG_KEEP_DAYS`                          |
 | `log.level`                           | `TAOS_ADAPTER_LOG_LEVEL`                              |
 | `log.path`                            | `TAOS_ADAPTER_LOG_PATH`                               |
@@ -719,8 +728,170 @@ Use the command rmtaos to remove the TDengine server software, including taosAda
 
 ## IPv6 Support
 
-Starting from **version 3.3.7.0**, taosAdapter supports IPv6. No additional configuration is required.
+Starting from **version 3.3.6.13**, taosAdapter supports IPv6. No additional configuration is required.
 taosAdapter automatically detects the system's IPv6 support: when available, it enables IPv6 and simultaneously listens on both IPv4 and IPv6 addresses.
+
+## Recording SQL to CSV Files
+
+taosAdapter supports recording SQL requests to CSV files. Users can enable this feature through the configuration parameter `log.enableSqlToCsvLogging` or dynamically enable/disable it via HTTP requests.
+
+### Configuration Parameters
+
+1. New configuration item `log.enableSqlToCsvLogging` (boolean, default: false) determines whether SQL logging is enabled. 
+When set to true, SQL records will be saved to CSV files. 
+The recording start time is the service startup time, and the end time is `2300-01-01 00:00:00`.
+
+2. File naming follows the same rules as logs: `taosadapterSql_{instanceId}_{yyyyMMdd}.csv[.index]`
+   - `instanceId`: taosAdapter instance ID, configurable via the instanceId parameter.
+   - `yyyyMMdd`: Date in year-month-day format.
+   - `index`: If multiple files exist, a numeric suffix will be appended to the filename.
+
+3. Existing log parameters are used for space retention, file splitting, and storage path:
+   - `log.path`: Storage path
+   - `log.keepDays`: Retention period in days
+   - `log.rotationCount`: Maximum number of retained files
+   - `log.rotationSize`: Maximum size per file
+   - `log.compress`: Whether compression is enabled
+   - `log.reservedDiskSize`: Reserved disk space size
+
+### Dynamic Enablement
+
+Send an HTTP POST request to the `/record_sql` endpoint to dynamically enable recording. Authentication is the same as for `/rest/sql`. Example:
+
+```bash
+curl --location --request POST 'http://127.0.0.1:6041/record_sql' \
+-u root:taosdata \
+--data '{"start_time":"2025-07-15 17:00:00","end_time":"2025-07-15 18:00:00","location":"Asia/Shanghai"}'
+```
+
+Supported parameters:
+- `start_time`: [Optional] Start time for recording, formatted as `yyyy-MM-dd HH:mm:ss`. Defaults to the current time if not specified.
+- `end_time`: [Optional] End time for recording, formatted as `yyyy-MM-dd HH:mm:ss`. Defaults to 2300-01-01 00:00:00 if not specified.
+- `location`: [Optional] Timezone for parsing start and end times, using IANA format (e.g., `Asia/Shanghai`). Defaults to the server's timezone.
+
+If all parameters use default values, the data field can be omitted. Example:
+
+```bash
+curl --location --request POST 'http://127.0.0.1:6041/record_sql' \
+-u root:taosdata
+```
+
+Successful response: HTTP code 200 with the following structure:
+
+```json
+{"code":0,"desc":""}
+```
+
+Failed response: Non-200 HTTP code with the following JSON structure (non-zero code and error description in desc):
+
+```json
+{"code":65535,"desc":"unmarshal json error"}
+```
+
+### Dynamic Disablement
+
+Send an HTTP DELETE request to the `/record_sql` endpoint to disable recording. Authentication is the same as for `/rest/sql`. Example:
+
+```bash
+curl --location --request DELETE 'http://127.0.0.1:6041/record_sql' \
+-u root:taosdata
+```
+
+Successful response: HTTP code 200.
+
+1. If a task exists, the response is:
+
+```json
+{
+        "code": 0,
+        "message": "",
+        "start_time": "2025-07-23 17:00:00",
+        "end_time": "2025-07-23 18:00:00"
+}
+```
+
+- `start_time`: Configured start time of the canceled task (timezone: server's timezone).
+- `end_time`: Configured end time of the canceled task (timezone: server's timezone).
+
+2. If no task exists, the response is:
+
+```json
+{
+        "code": 0,
+        "message": ""
+}
+```
+
+### Query Status
+
+Send an HTTP GET request to the `/record_sql` endpoint to query the task status. Authentication is the same as for `/rest/sql`. Example:
+
+```bash
+curl --location 'http://127.0.0.1:6041/record_sql' \
+-u root:taosdata
+```
+
+Successful response: HTTP code 200 with the following structure:
+
+```json
+{
+        "code": 0,
+        "desc": "",
+        "exists": true,
+        "running": true,
+        "start_time": "2025-07-16 17:00:00",
+        "end_time": "2025-07-16 18:00:00",
+        "current_concurrent": 100
+}
+```
+
+- `code`: Error code (0 for success).
+- `desc`: Error message (empty string for success).
+- `exists`: Whether the task exists.
+- `running`: Whether the task is active.
+- `start_time`: Start time (timezone: server's timezone).
+- `end_time`: End time (timezone: server's timezone).
+- `current_concurrent`: Current SQL recording concurrency.
+
+### Recording Format
+
+Records are written before `taos_free_result` is executed or when the task ends (reaching the end time or being manually stopped). 
+Records are stored in CSV format without headers. Each line includes the following fields:
+
+1. `TS`: Log timestamp (format: yyyy-MM-dd HH:mm:ss.SSSSSS, timezone: server's timezone).
+2. `SQL`: Executed SQL statement. Line breaks in SQL are preserved per CSV standards. Special characters (\n, \r, ") are wrapped in double quotes. 
+SQL containing special characters cannot be directly copied for use. Example:
+
+Original SQL:
+
+ ```sql
+   select * from t1
+   where c1 = "ab"
+   ```
+
+CSV record:
+
+   ```csv
+   "select * from t1
+   where c1 = ""ab"""
+   ```
+
+3. `IP`: Client IP.
+4. `User`: Username executing the SQL.
+5. `ConnType`: Connection type (HTTP, WS).
+6. `QID`: Request ID (saved as hexadecimal).
+7. `ReceiveTime`: Time when the SQL was received (format: `yyyy-MM-dd HH:mm:ss.SSSSSS`, timezone: server's timezone).
+8. `FreeTime`: Time when the SQL was released (format: `yyyy-MM-dd HH:mm:ss.SSSSSS`, timezone: server's timezone).
+9. `QueryDuration(us)`: Time consumed from taos_query_a to callback completion (microseconds).
+10. `FetchDuration(us)`: Cumulative time consumed by multiple taos_fetch_raw_block_a executions until callback completion (microseconds).
+11. `GetConnDuration(us)`: Time consumed to obtain a connection from the HTTP connection pool (microseconds).
+12. `TotalDuration(us)`: Total SQL request completion time (microseconds). For completed SQL: FreeTime - ReceiveTime. For incomplete SQL when the task ends: CurrentTime - ReceiveTime.
+
+Example:
+
+```csv
+2025-07-23 17:10:08.724775,show databases,127.0.0.1,root,http,0x2000000000000008,2025-07-23 17:10:08.707741,2025-07-23 17:10:08.724775,14191,965,1706,17034
+```
 
 ## Monitoring Metrics
 
