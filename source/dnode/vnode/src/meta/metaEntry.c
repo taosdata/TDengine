@@ -214,7 +214,7 @@ static FORCE_INLINE int32_t metatInitDefaultSColCmprWrapper(SDecoder *pDecoder, 
   pCmpr->nCols = pSchema->nCols;
 
   if (pDecoder == NULL) {
-    pCmpr->pColCmpr = taosMemCalloc(1, pCmpr->nCols * sizeof(SColCmpr));
+    pCmpr->pColCmpr = taosMemoryCalloc(1, pCmpr->nCols * sizeof(SColCmpr));
   } else {
     pCmpr->pColCmpr = (SColCmpr *)tDecoderMalloc(pDecoder, pCmpr->nCols * sizeof(SColCmpr));
   }
