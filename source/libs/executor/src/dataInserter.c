@@ -133,8 +133,8 @@ static int32_t checkResAndGetTableId(const SSubmitRes* pSubmitRes, int8_t tbType
     stError("create table response is NULL");
     return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
   }
-  if (pSubmitRes->pRsp->aCreateTbRsp->size != 1) {
-    stError("create table response size is not 1");
+  if (pSubmitRes->pRsp->aCreateTbRsp->size < 1) {
+    stError("create table response size is less than 1");
     return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
   }
   SVCreateTbRsp* pCreateTbRsp = taosArrayGet(pSubmitRes->pRsp->aCreateTbRsp, 0);
