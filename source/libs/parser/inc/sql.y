@@ -962,7 +962,6 @@ notify_options_list(A) ::= notify_options_list(B) NK_BITOR notify_option(C).    
 %type notify_option                                                               { int64_t }
 %destructor notify_option                                                         { }
 notify_option(A) ::= NOTIFY_HISTORY.                                              { A = NOTIFY_HISTORY; }
-notify_option(A) ::= ON_FAILURE_PAUSE.                                            { A = NOTIFY_ON_FAILURE_PAUSE; }
 
 /***** common part *****/
 
