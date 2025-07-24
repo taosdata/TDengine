@@ -6987,12 +6987,14 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode** pWhere, STimeW
   PAR_ERR_JRET(nodesCloneNode(*pWhere, &pCond));
 
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(pCond) &&
-      LOGIC_COND_TYPE_AND == ((SLogicConditionNode *)pCond)->condType && pCxt->createStreamCalc) {
+      LOGIC_COND_TYPE_AND == ((SLogicConditionNode *)pCond)->condType &&
+      LIST_LENGTH(((SLogicConditionNode *)pCond)->pParameterList) == 2 &&
+      pCxt->createStreamCalc) {
     SLogicConditionNode *pLogicCond = (SLogicConditionNode *)pCond;
     SNode *pLeft = nodesListGetNode(pLogicCond->pParameterList, 0);
     SNode *pRight = nodesListGetNode(pLogicCond->pParameterList, 1);
-    bool hasStart = filterHasPlaceHolderRangeStart((SOperatorNode *)pLeft, pCxt->extLeftEq) || filterHasPlaceHolderRangeStart((SOperatorNode *)pRight, pCxt->extLeftEq);
-    bool hasEnd = filterHasPlaceHolderRangeEnd((SOperatorNode *)pLeft, pCxt->extRightEq) || filterHasPlaceHolderRangeEnd((SOperatorNode *)pRight, pCxt->extRightEq);
+    bool hasStart = pLeft && (filterHasPlaceHolderRangeStart((SOperatorNode *)pLeft, pCxt->extLeftEq) || filterHasPlaceHolderRangeStart((SOperatorNode *)pRight, pCxt->extLeftEq));
+    bool hasEnd = pRight && (filterHasPlaceHolderRangeEnd((SOperatorNode *)pLeft, pCxt->extRightEq) || filterHasPlaceHolderRangeEnd((SOperatorNode *)pRight, pCxt->extRightEq));
     if (hasStart && hasEnd) {
       pCxt->createStreamCalcWithExtWindow = true;
     }
