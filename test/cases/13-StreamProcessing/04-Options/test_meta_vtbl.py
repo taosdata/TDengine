@@ -33,8 +33,8 @@ class TestStreamMetaTrigger:
         # TD-36727 [流计算开发阶段] 创建流之后增加新的虚拟子表，没有预期触发生成结果表
         # streams.append(self.Basic0())  # add ctb and drop ctb from stb [fail]
         
-        # TD-36358 [流计算开发阶段] 多条流同时运行时force_output下多个分组的结果有的正确有的错误
-        # # streams.append(self.Basic1())  # drop data source table [fail]
+        # TD-36984 [流计算开发阶段] 虚拟表触发多出一个没有的窗口
+        # streams.append(self.Basic1())  # drop data source table [fail]
         
         # TD-36595 [流计算开发阶段] 虚拟表+pre_filter(tag列)创建流失败
         # streams.append(self.Basic2())  # tag过滤时，修改tag的值，从满足流条件，到不满足流条件; 从不满足流条件，到满足流条件 [fail]       
@@ -427,7 +427,7 @@ class TestStreamMetaTrigger:
                 and tdSql.compareData(1, 0, "2025-01-01 00:00:13")
                 and tdSql.compareData(1, 1, 'None')
                 and tdSql.compareData(1, 2, 'None')
-                and tdSql.compareData(1, 3, 'None')
+                and tdSql.compareData(1, 3, 0)
                 and tdSql.compareData(1, 4, 'None')
                 and tdSql.compareData(1, 5, 'None')
                 and tdSql.compareData(1, 6, 3)
@@ -453,7 +453,7 @@ class TestStreamMetaTrigger:
                 and tdSql.compareData(0, 0, "2025-01-01 00:00:13")
                 and tdSql.compareData(0, 1, 'None')
                 and tdSql.compareData(0, 2, 'None')
-                and tdSql.compareData(0, 3, 'None')
+                and tdSql.compareData(0, 3, 0)
                 and tdSql.compareData(0, 4, 'None')
                 and tdSql.compareData(0, 5, 'None')
                 and tdSql.compareData(0, 6, 3)
@@ -541,7 +541,7 @@ class TestStreamMetaTrigger:
                 and tdSql.compareData(1, 0, "2025-01-01 00:00:13")
                 and tdSql.compareData(1, 1, 'None')
                 and tdSql.compareData(1, 2, 'None')
-                and tdSql.compareData(1, 3, 'None')
+                and tdSql.compareData(1, 3, 0)
                 and tdSql.compareData(1, 4, 'None')
                 and tdSql.compareData(1, 5, 'None')
                 and tdSql.compareData(1, 6, 3)
@@ -556,7 +556,7 @@ class TestStreamMetaTrigger:
 
             tdSql.checkResultsByFunc(
                 sql=f"select startts, firstts, lastts, cnt_v, sum_v, avg_v, rownum_s from {self.db}.res_stb_vct5",
-                func=lambda: tdSql.getRows() == 3
+                func=lambda: tdSql.getRows() == 2
                 # and tdSql.compareData(0, 0, "2025-01-01 00:00:10")
                 # and tdSql.compareData(0, 1, "2025-01-01 00:00:10")
                 # and tdSql.compareData(0, 2, "2025-01-01 00:00:12")
@@ -567,7 +567,7 @@ class TestStreamMetaTrigger:
                 and tdSql.compareData(0, 0, "2025-01-01 00:00:13")
                 and tdSql.compareData(0, 1, 'None')
                 and tdSql.compareData(0, 2, 'None')
-                and tdSql.compareData(0, 3, 'None')
+                and tdSql.compareData(0, 3, 0)
                 and tdSql.compareData(0, 4, 'None')
                 and tdSql.compareData(0, 5, 'None')
                 and tdSql.compareData(0, 6, 3)
