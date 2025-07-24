@@ -75,19 +75,34 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
 
   int32_t code = nodesAcquireAllocator(pCxt->allocatorId);
   if (TSDB_CODE_SUCCESS == code) {
+    if (pCxt->streamCalcQuery) {
+      qInfo("translate create stream req start create logic plan");
+    }
     code = createLogicPlan(pCxt, &pLogicSubplan);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    if (pCxt->streamCalcQuery) {
+      qInfo("translate create stream req start optimize logic plan");
+    }
     code = optimizeLogicPlan(pCxt, pLogicSubplan);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    if (pCxt->streamCalcQuery) {
+      qInfo("translate create stream req start split logic plan");
+    }
     code = splitLogicPlan(pCxt, pLogicSubplan);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    if (pCxt->streamCalcQuery) {
+      qInfo("translate create stream req start scale out logic plan");
+    }
     code = scaleOutLogicPlan(pCxt, pLogicSubplan, &pLogicPlan);
   }
   //dumpLogicPlan((SLogicSubplan*)pLogicPlan->pTopSubplans->pHead->pNode, 0);
   if (TSDB_CODE_SUCCESS == code) {
+    if (pCxt->streamCalcQuery) {
+      qInfo("translate create stream req start create physi plan");
+    }
     code = createPhysiPlan(pCxt, pLogicPlan, pPlan, pExecNodeList);
   }
   if (TSDB_CODE_SUCCESS == code) {

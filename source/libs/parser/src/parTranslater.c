@@ -14775,6 +14775,7 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
                           .pStreamCalcDbs = pDbs,
                           .withExtWindow = withExtWindow};
 
+  parserDebug("translate create stream req start build calc plan");
   PAR_ERR_JRET(qCreateQueryPlan(&calcCxt, &calcPlan, NULL));
   pReq->vtableCalc = (int8_t)calcCxt.streamVtableCalc;
 

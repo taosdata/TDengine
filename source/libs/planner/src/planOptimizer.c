@@ -8284,9 +8284,9 @@ static int32_t dumpLogicSubplan(const char* pRuleName, SLogicSubplan* pSubplan) 
   code = nodesNodeToString((SNode*)pSubplan, false, &pStr, NULL);
   if (TSDB_CODE_SUCCESS == code) {
     if (NULL == pRuleName) {
-      qDebugL("before optimize, JsonPlan: %s", pStr);
+      qInfo("before optimize, JsonPlan: %s", pStr);
     } else {
-      qDebugL("apply optimize %s rule, JsonPlan: %s", pRuleName, pStr);
+      qInfo("apply optimize %s rule, JsonPlan: %s", pRuleName, pStr);
     }
     taosMemoryFree(pStr);
   }
