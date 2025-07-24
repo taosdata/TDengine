@@ -588,10 +588,7 @@ int32_t tableBuilderMgtCommit(STableBuilderMgt *pMgt, SBseLiveFileInfo *pInfo) {
   pBuilder->pMemTable = NULL;
   taosThreadRwlockUnlock(&pMgt->mutex);
 
-  if (pBuilder != NULL) {
-    code = tableBuilderCommit(pBuilder, pInfo);
-    TSDB_CHECK_CODE(code, lino, _error);
-  }
+  code = tableBuilderCommit(pBuilder, pInfo);
 _error:
   if (code != 0) {
     bseError("failed to commit table builder at line %d since %s", lino, tstrerror(code));
