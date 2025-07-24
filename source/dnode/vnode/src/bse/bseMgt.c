@@ -992,7 +992,9 @@ int32_t bseCommit(SBse *pBse) {
 
 _error:
   cost = taosGetTimestampMs() - st;
-  bseWarn("vgId:%d bse commit cost %" PRId64 " ms", BSE_VGID(pBse), cost);
+  if (cost >= 1000) {
+    bseWarn("vgId:%d bse commit cost %" PRId64 " ms", BSE_VGID(pBse), cost);
+  }
   if (code != 0) {
     bseError("vgId:%d failed to commit at line %d since %s", BSE_VGID(pBse), line, tstrerror(code));
   }

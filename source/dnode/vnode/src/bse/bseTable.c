@@ -478,7 +478,7 @@ int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo) {
   if (p == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  bseInfo("succ to commit table %s", p->name);
+
   code = tableBuilderFlush(p, BSE_TABLE_DATA_TYPE, 1);
   TSDB_CHECK_CODE(code, lino, _error);
 

@@ -21,7 +21,7 @@
 extern "C" {
 #endif
 
-#define BSE_DEFAULT_BLOCK_SIZE (64 << 20)
+#define BSE_DEFAULT_BLOCK_SIZE (128 << 20)
 
 struct SSeqRange {
   int64_t sseq;
