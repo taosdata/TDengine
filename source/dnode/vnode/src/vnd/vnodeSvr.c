@@ -2362,7 +2362,7 @@ static int32_t vnodeScanColumnData(SVnode *pVnode, SSubmitTbData *pTbData, TSKEY
   for (int32_t i = 0; i < aColData[0].nVal; ++i) {
     SRowKey key = {0};
 
-    tColDataArrGetRowKey(aColData, numCols, 0, &key);
+    tColDataArrGetRowKey(aColData, numCols, i, &key);
 
     if (key.ts < minKey || key.ts > maxKey) {
       code = TSDB_CODE_INVALID_MSG;
