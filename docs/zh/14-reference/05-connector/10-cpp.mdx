@@ -32,13 +32,17 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号严格对�
 
 WebSocket 连接方式除了包含所有原生连接的错误码外，还有以下特有的错误码：
 
-| 错误码 | 错误描述 | 可能的出错场景或者可能的原因 | 建议用户采取的措施                      |
-| ------ | -------- | ---------------------------- | --------------------------------------- |
-| 0xE000 | DSN 错误 | DSN 不符合规范               | 检查 DSN 字符串是否符合规范             |
-| 0xE001 | 内部错误 | 不确定                       | 保留现场和日志，在 GitHub 上报告 issue  |
-| 0xE002 | 连接关闭 | 网络断开                     | 请检查网络状况，查看 `taosadapter` 日志 |
-| 0xE003 | 发送超时 | 网络断开                     | 请检查网络状况                          |
-| 0xE004 | 接收超时 | 慢查询或网络断开             | 排查 `taosadapter` 日志                 |
+| 错误码 | 错误描述   | 可能的出错场景或者可能的原因 | 建议用户采取的措施                      |
+| ------ | ---------- | ---------------------------- | --------------------------------------- |
+| 0xE000 | DSN 错误   | DSN 不符合规范               | 检查 DSN 字符串是否符合规范             |
+| 0xE001 | 内部错误   | 不确定                       | 保留现场和日志，在 GitHub 上报告 issue  |
+| 0xE002 | 连接关闭   | 网络断开                     | 请检查网络状况，查看 `taosadapter` 日志 |
+| 0xE003 | 发送超时   | 网络断开                     | 请检查网络状况                          |
+| 0xE004 | 接收超时   | 慢查询或网络断开             | 排查 `taosadapter` 日志                 |
+| 0xE005 | I/O 错误   | 网络 I/O 异常或磁盘错误      | 检查网络连接和磁盘状态                  |
+| 0xE006 | 认证失败   | 用户名密码错误或权限不足     | 检查用户名密码，确认用户权限            |
+| 0xE007 | 编解码错误 | 数据编解码异常               | 检查数据格式，排查 `taosadapter` 日志   |
+| 0xE008 | 连接断开   | WebSocket 连接断开           | 检查网络状况，重新建立连接              |
 
 ### 通用错误码
 
@@ -52,6 +56,8 @@ WebSocket 连接方式除了包含所有原生连接的错误码外，还有以�
 ### WebSocket 连接
 
 - 同步查询示例：[同步查询](https://github.com/taosdata/TDengine/tree/main/docs/examples/c-ws-new/query_data_demo.c)
+
+- 异步查询示例：[异步查询](https://github.com/taosdata/TDengine/tree/main/docs/examples/c-ws-new/asyncdemo.c)
 
 - 参数绑定示例：[参数绑定](https://github.com/taosdata/TDengine/tree/main/docs/examples/c-ws-new/stmt2_insert_demo.c)
 
@@ -83,10 +89,18 @@ WebSocket 连接方式除了包含所有原生连接的错误码外，还有以�
 
 以下分别介绍 TDengine 客户端驱动的基础 API、同步查询 API、异步查询 API、参数绑定 API、无模式写入 API 和数据订阅 API。
 
-:::info 连接方式兼容性说明 TDengine 客户端驱动同时支持 WebSocket 连接和原生连接两种方式。大部分 API 在两种连接方式下功能完全一致。但有少数 API 存在功能差异：
+:::info **连接方式兼容性说明**
+TDengine 客户端驱动同时支持 WebSocket 连接和原生连接两种方式。大部分 API 在两种连接方式下功能完全一致。但有少数 API 存在功能差异：
 
-原生连接：所有 API 都提供完整功能支持。
-WebSocket 连接：大部分 API 功能完整，少数 API 暂时只返回成功状态但不执行实际操作。
+**原生连接**：所有 API 都提供完整功能支持。
+
+**WebSocket 连接**：大部分 API 功能完整，少数 API 暂时只返回成功状态但不执行实际操作。
+
+**使用方式**：
+
+- **原生连接**：直接调用 `taos_connect()` 即可，这是默认的连接方式。
+- **WebSocket 连接**：需要先调用 `taos_options(TSDB_OPTION_DRIVER, "websocket")` 设置驱动类型，然后再调用 `taos_connect()`，其余操作同原生连接。
+
 对于存在差异的 API，我们会在具体的 API 说明中特别标注。未来版本将逐步完善 WebSocket 连接的功能支持。
 :::
 
@@ -683,7 +697,7 @@ stmt 升级到 stmt2 的改动：
   - 带 \_ttl 的接口可以传递 ttl 参数来控制建表的 ttl 到期时间。
   - 带 \_reqid 的接口可以通过传递 reqid 参数来追踪整个的调用链。
 
-#### 数据订阅
+### 数据订阅
 
 - `const char *tmq_err2str(int32_t code)`
 
