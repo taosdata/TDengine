@@ -71,13 +71,6 @@ int32_t bseSetBlockCacheSize(SBse *pBse, int32_t blockCacheSize);
 int32_t bseSetTableCacheSize(SBse *pBse, int32_t blockCacheSize);
 int32_t bseSetKeepDays(SBse *pBse, int32_t keepDays);
 
-#define BSE_GET_BLOCK_SIZE(p)       ((p)->cfg.blockSize)
-#define BSE_GET_COMPRESS_TYPE(p)    ((p)->cfg.compressType)
-#define BSE_GET_KEEPS_DAYS(p)       ((p)->cfg.keepDays)
-#define BSE_GET_TABLE_CACHE_SIZE(p) ((p)->cfg.tableCacheSize)
-#define BSE_GET_BLOCK_CACHE_SIZE(p) ((p)->cfg.blockCacheSize)
-#define BSE_GET_VGID(p)             ((p)->cfg.vgId)
-
 int32_t bseSnapWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapWriter **writer);
 int32_t bseSnapWriterWrite(SBseSnapWriter *writer, uint8_t *data, int32_t len);
 int32_t bseSnapWriterClose(SBseSnapWriter **writer, int8_t rollback);

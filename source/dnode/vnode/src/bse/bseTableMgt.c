@@ -20,14 +20,14 @@
 #include "tglobal.h"
 #include "thash.h"
 
-static int32_t tableReaderMgtInit(STableReaderMgt *pReader, SBse *pBse, int64_t startTimestamp);
-static void    tableReaderMgtSetRetion(STableReaderMgt *pReader, int64_t startTimestamp);
+static int32_t tableReaderMgtInit(STableReaderMgt *pReader, SBse *pBse, int64_t timestamp);
+static void    tableReaderMgtSetRetion(STableReaderMgt *pReader, int64_t timestamp);
 static int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **pValue, int32_t *len);
 static int32_t tableReaderMgtClear(STableReaderMgt *pReader);
 static void    tableReaderMgtDestroy(STableReaderMgt *pReader);
 
-static int32_t tableBuilderMgtInit(STableBuilderMgt *pMgt, SBse *pBse, int64_t startTimestamp);
-static void    tableBuilderMgtSetRetion(STableBuilderMgt *pMgt, int64_t startTimestamp);
+static int32_t tableBuilderMgtInit(STableBuilderMgt *pMgt, SBse *pBse, int64_t timestamp);
+static void    tableBuilderMgtSetRetion(STableBuilderMgt *pMgt, int64_t timestamp);
 static int32_t tableBuilderMgtOpenBuilder(STableBuilderMgt *pMgt, int64_t seq, STableBuilder **p);
 static int32_t tableBuilderMgtCommit(STableBuilderMgt *pMgt, SBseLiveFileInfo *pInfo);
 static int32_t tableBuilderMgtSeek(STableBuilderMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *len);
@@ -37,7 +37,7 @@ static void    tableBuilderMgtDestroy(STableBuilderMgt *pMgt);
 
 static int32_t tableBuilderMgtRecover(STableBuilderMgt *pMgt, int64_t seq, STableBuilder **pBuilder, int64_t size);
 
-static int32_t tableMetaMgtInit(STableMetaMgt *pMgt, SBse *pBse, int64_t startTimestamp);
+static int32_t tableMetaMgtInit(STableMetaMgt *pMgt, SBse *pBse, int64_t timestamp);
 static void    tableMetaMgtDestroy(STableMetaMgt *pMgt);
 
 static void tableReaderFree(void *pReader);
@@ -62,17 +62,17 @@ int32_t bseTableMgtCreate(SBse *pBse, void **pMgt) {
 _error:
   if (code != 0) {
     if (p != NULL)
-      bseError("vgId:%d failed to open table pBuilderMgt at line %d since %s", BSE_GET_VGID((SBse *)p->pBse), lino,
+      bseError("vgId:%d failed to open table pBuilderMgt at line %d since %s", BSE_VGID((SBse *)p->pBse), lino,
                tstrerror(code));
     bseTableMgtCleanup(p);
   }
   return code;
 }
 
-int32_t bseTableMgtSetLastTableId(STableMgt *pMgt, int64_t startTimestamp) {
+int32_t bseTableMgtSetLastTableId(STableMgt *pMgt, int64_t timestamp) {
   if (pMgt == NULL) return 0;
 
-  pMgt->startTimestamp = startTimestamp;
+  pMgt->timestamp = timestamp;
   return 0;
 }
 
@@ -92,7 +92,7 @@ _error:
   return code;
 }
 
-int32_t createSubTableMgt(int64_t startTimestamp, int32_t readOnly, STableMgt *pMgt, SSubTableMgt **pSubMgt) {
+int32_t createSubTableMgt(int64_t timestamp, int32_t readOnly, STableMgt *pMgt, SSubTableMgt **pSubMgt) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -103,18 +103,18 @@ int32_t createSubTableMgt(int64_t startTimestamp, int32_t readOnly, STableMgt *p
   }
 
   if (!readOnly) {
-    code = tableBuilderMgtInit(p->pBuilderMgt, pMgt->pBse, startTimestamp);
+    code = tableBuilderMgtInit(p->pBuilderMgt, pMgt->pBse, timestamp);
     TSDB_CHECK_CODE(code, lino, _error);
 
     p->pBuilderMgt->pMgt = p;
   }
 
-  code = tableReaderMgtInit(p->pReaderMgt, pMgt->pBse, startTimestamp);
+  code = tableReaderMgtInit(p->pReaderMgt, pMgt->pBse, timestamp);
   TSDB_CHECK_CODE(code, lino, _error);
 
   p->pReaderMgt->pMgt = p;
 
-  code = tableMetaMgtInit(p->pTableMetaMgt, pMgt->pBse, startTimestamp);
+  code = tableMetaMgtInit(p->pTableMetaMgt, pMgt->pBse, timestamp);
   TSDB_CHECK_CODE(code, lino, _error);
 
   p->pTableMetaMgt->pMgt = p;
@@ -145,17 +145,17 @@ int32_t bseTableMgtGet(STableMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *
 
   SBse *pBse = pMgt->pBse;
 
-  int64_t startTimestamp = 0;
-  code = bseGetTableIdBySeq(pMgt->pBse, seq, &startTimestamp);
+  int64_t timestamp = 0;
+  code = bseGetTableIdBySeq(pMgt->pBse, seq, &timestamp);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  if (startTimestamp > 0) {
-    SSubTableMgt **ppSubMgt = taosHashGet(pMgt->pHashObj, &startTimestamp, sizeof(startTimestamp));
+  if (timestamp > 0) {
+    SSubTableMgt **ppSubMgt = taosHashGet(pMgt->pHashObj, &timestamp, sizeof(timestamp));
     if (ppSubMgt == NULL || *ppSubMgt == NULL) {
-      code = createSubTableMgt(startTimestamp, 0, pMgt, &pSubMgt);
+      code = createSubTableMgt(timestamp, 0, pMgt, &pSubMgt);
       TSDB_CHECK_CODE(code, lino, _error);
 
-      code = taosHashPut(pMgt->pHashObj, &startTimestamp, sizeof(startTimestamp), &pSubMgt, sizeof(SSubTableMgt *));
+      code = taosHashPut(pMgt->pHashObj, &timestamp, sizeof(timestamp), &pSubMgt, sizeof(SSubTableMgt *));
       TSDB_CHECK_CODE(code, lino, _error);
 
     } else {
@@ -193,7 +193,7 @@ int32_t bseTableMgtRecoverTable(STableMgt *pMgt, SBseLiveFileInfo *pInfo) {
 
   SSubTableMgt *pSubMgt = NULL;
 
-  code = createSubTableMgt(pInfo->startTimestamp, 0, pMgt, &pSubMgt);
+  code = createSubTableMgt(pInfo->timestamp, 0, pMgt, &pSubMgt);
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = tableBuilderMgtRecover(pSubMgt->pBuilderMgt, 0, NULL, pInfo->size);
@@ -243,13 +243,12 @@ static int32_t bseCalcNowTimestamp(int8_t precision, int64_t *dst) {
   return code;
 }
 
-static int32_t bseShouldSwitchToTable(int64_t nowTimestamp, int64_t startTimestamp, int8_t precision,
-                                      int32_t keepDays) {
-  if (startTimestamp == 0) return 1;
+static int32_t bseShouldSwitchToTable(int64_t nowTimestamp, int64_t timestamp, int8_t precision, int32_t keepDays) {
+  if (timestamp == 0) return 1;
   if (keepDays <= 0) return 0;
 
   int64_t threshold = keepDays * 24 * tsTickPerHour[precision];
-  int64_t diff = nowTimestamp - startTimestamp;
+  int64_t diff = nowTimestamp - timestamp;
 
   if (diff < threshold) {
     return 0;
@@ -267,20 +266,21 @@ static int32_t bseTableMgtGetTable(STableMgt *pMgt, SSubTableMgt **ppSubGgt) {
   SBse         *pBse = pMgt->pBse;
   SSubTableMgt *pSubMgt = pMgt->pCurrTableMgt;
 
-  code = bseCalcNowTimestamp(pBse->cfg.precision, &startTs);
+  code = bseCalcNowTimestamp(BSE_TIME_PRECISION(pBse), &startTs);
   TSDB_CHECK_CODE(code, lino, _error);
 
   if (pSubMgt == NULL) {
-    if (pMgt->startTimestamp != 0) {
-      if (!bseShouldSwitchToTable(startTs, pMgt->startTimestamp, pBse->cfg.precision, pBse->keepDays)) {
-        startTs = pMgt->startTimestamp;
+    if (pMgt->timestamp != 0) {
+      if (!bseShouldSwitchToTable(startTs, pMgt->timestamp, BSE_TIME_PRECISION(pBse), BSE_KEEY_DAYS(pBse))) {
+        startTs = pMgt->timestamp;
       }
     }
     code = createSubTableMgt(startTs, 0, pMgt, &pMgt->pCurrTableMgt);
     TSDB_CHECK_CODE(code, lino, _error);
     pSubMgt = pMgt->pCurrTableMgt;
   } else {
-    if (bseShouldSwitchToTable(startTs, pSubMgt->pBuilderMgt->startTimestamp, pBse->cfg.precision, pBse->keepDays)) {
+    if (bseShouldSwitchToTable(startTs, pSubMgt->pBuilderMgt->timestamp, BSE_TIME_PRECISION(pBse),
+                               BSE_KEEY_DAYS(pBse))) {
       code = bseCommit(pBse);
       TSDB_CHECK_CODE(code, lino, _error);
 
@@ -395,7 +395,7 @@ void tableReaderFree(void *pReader) {
 }
 void blockFree(void *pBlock) { taosMemoryFree(pBlock); }
 
-int32_t tableReaderMgtInit(STableReaderMgt *pReader, SBse *pBse, int64_t startTimestamp) {
+int32_t tableReaderMgtInit(STableReaderMgt *pReader, SBse *pBse, int64_t timestamp) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -408,7 +408,7 @@ int32_t tableReaderMgtInit(STableReaderMgt *pReader, SBse *pBse, int64_t startTi
   TSDB_CHECK_CODE(code, lino, _error);
 
   pReader->pBse = pBse;
-  pReader->startTimestamp = startTimestamp;
+  pReader->timestamp = timestamp;
 
 _error:
   if (code != 0) {
@@ -416,9 +416,7 @@ _error:
   }
   return code;
 }
-void tableReaderMgtSetRetion(STableReaderMgt *pReader, int64_t startTimestamp) {
-  pReader->startTimestamp = startTimestamp;
-}
+void tableReaderMgtSetRetion(STableReaderMgt *pReader, int64_t timestamp) { pReader->timestamp = timestamp; }
 
 int32_t tableReaderMgtClear(STableReaderMgt *pReader) {
   int32_t code = 0;
@@ -445,7 +443,7 @@ int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **p
 
   STableReader    *pReader = NULL;
 
-  code = tableReaderOpen(pReaderMgt->startTimestamp, &pReader, pReaderMgt);
+  code = tableReaderOpen(pReaderMgt->timestamp, &pReader, pReaderMgt);
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = tableReaderGet(pReader, seq, pValue, len);
@@ -460,13 +458,13 @@ _error:
   return code;
 }
 
-int32_t tableBuilderMgtInit(STableBuilderMgt *pMgt, SBse *pBse, int64_t startTimestamp) {
+int32_t tableBuilderMgtInit(STableBuilderMgt *pMgt, SBse *pBse, int64_t timestamp) {
   int32_t code = 0;
   int32_t lino = 0;
 
   taosThreadMutexInit(&pMgt->mutex, NULL);
   pMgt->pBse = pBse;
-  pMgt->startTimestamp = startTimestamp;
+  pMgt->timestamp = timestamp;
   return code;
 }
 
@@ -495,7 +493,7 @@ int32_t tableBuilderMgtPutBatch(STableBuilderMgt *pMgt, SBseBatch *pBatch) {
   }
 
   if (p->pMemTable == NULL) {
-    code = bseMemTableCreate(&p->pMemTable, BSE_GET_BLOCK_SIZE(pMgt->pBse));
+    code = bseMemTableCreate(&p->pMemTable, BSE_BLOCK_SIZE(pMgt->pBse));
     TSDB_CHECK_CODE(code, lino, _error);
 
     p->pMemTable->pTableBuilder = p;
@@ -535,7 +533,7 @@ int32_t tableBuilderMgtOpenBuilder(STableBuilderMgt *pMgt, int64_t seq, STableBu
 
   STableBuilder *p = NULL;
 
-  code = tableBuilderOpen(pMgt->startTimestamp, &p, pBse);
+  code = tableBuilderOpen(pMgt->timestamp, &p, pBse);
   TSDB_CHECK_CODE(code, lino, _error);
 
   p->pTableMeta = pMgt->pMgt->pTableMetaMgt->pTableMeta;
@@ -600,7 +598,7 @@ void tableBuilderMgtDestroy(STableBuilderMgt *pMgt) {
   taosThreadMutexDestroy(&pMgt->mutex);
 }
 
-int32_t tableMetaMgtInit(STableMetaMgt *pMgt, SBse *pBse, int64_t startTimestamp) {
+int32_t tableMetaMgtInit(STableMetaMgt *pMgt, SBse *pBse, int64_t timestamp) {
   int32_t code = 0;
   int32_t lino = 0;
   pMgt->pBse = pBse;
@@ -608,8 +606,8 @@ int32_t tableMetaMgtInit(STableMetaMgt *pMgt, SBse *pBse, int64_t startTimestamp
   code = tableMetaOpen(NULL, &pMgt->pTableMeta, pMgt);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  pMgt->startTimestamp = startTimestamp;
-  pMgt->pTableMeta->startTimestamp = startTimestamp;
+  pMgt->timestamp = timestamp;
+  pMgt->pTableMeta->timestamp = timestamp;
   pMgt->pTableMeta->pBse = pBse;
 
 _error:

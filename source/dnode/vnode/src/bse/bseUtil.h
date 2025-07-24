@@ -64,7 +64,7 @@ void bseBuildTempMetaName(int64_t ts, char *name);
 int32_t bseCompressData(int8_t type, void *src, int32_t srcSize, void *dst, int32_t *dstSize) ;
 int32_t bseDecompressData(int8_t type, void *src, int32_t srcSize, void *dst, int32_t *dstSize);
 
-int32_t bseGetTableIdBySeq(SBse *pBse, int64_t seq, int64_t *startTimestamp);
+int32_t bseGetTableIdBySeq(SBse *pBse, int64_t seq, int64_t *timestamp );
 
 typedef void* bsequeue[2];
 #define BSE_QUEUE_NEXT(q) (*(bsequeue**)&((*(q))[0]))
@@ -126,6 +126,15 @@ typedef void* bsequeue[2];
 
 #define BSE_DATA_VER 0x1
 #define BSE_FMT_VER 0x1
+
+#define BSE_VGID(pBse) ((pBse)->cfg.vgId)
+#define BSE_KEEY_DAYS(pBse) ((pBse)->cfg.keepDays)
+#define BSE_RETENTION(pBse) ((pBse)->cfg.retention)
+#define BSE_TIME_PRECISION(pBse) ((pBse)->cfg.precision)
+#define BSE_BLOCK_SIZE(pBse) ((pBse)->cfg.blockSize)
+#define BSE_COMPRESS_TYPE(pBse) ((pBse)->cfg.compressType)
+#define BSE_TABLE_CACHE_SIZE(p) ((p)->cfg.tableCacheSize)
+#define BSE_BLOCK_CACHE_SIZE(p) ((p)->cfg.blockCacheSize)
 
 // clang-format on
 #ifdef __cplusplus

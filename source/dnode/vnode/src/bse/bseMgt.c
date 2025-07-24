@@ -64,7 +64,7 @@ static int32_t bseSerailCommitInfo(SBse *pBse, SArray *fileSet, char **pBuf, int
   }
 
   cJSON_AddNumberToObject(pRoot, "fmtVer", pBse->commitInfo.fmtVer);
-  cJSON_AddNumberToObject(pRoot, "vgId", pBse->cfg.vgId);
+  cJSON_AddNumberToObject(pRoot, "vgId", BSE_VGID(pBse));
   cJSON_AddNumberToObject(pRoot, "commitVer", pBse->commitInfo.commitVer);
   cJSON_AddNumberToObject(pRoot, "commitSeq", pBse->commitInfo.lastSeq);
   cJSON_AddItemToObject(pRoot, "fileSet", pFileSet);
@@ -76,7 +76,7 @@ static int32_t bseSerailCommitInfo(SBse *pBse, SArray *fileSet, char **pBuf, int
     cJSON_AddNumberToObject(pField, "endSeq", pInfo->range.eseq);
     cJSON_AddNumberToObject(pField, "size", pInfo->size);
     cJSON_AddNumberToObject(pField, "level", pInfo->level);
-    cJSON_AddNumberToObject(pField, "retention", pInfo->startTimestamp);
+    cJSON_AddNumberToObject(pField, "retention", pInfo->timestamp);
     cJSON_AddItemToArray(pFileSet, pField);
   }
 
@@ -88,7 +88,7 @@ static int32_t bseSerailCommitInfo(SBse *pBse, SArray *fileSet, char **pBuf, int
 
 _err:
   if (code != 0) {
-    bseError("vgId:%d failed at line %d since %s", pBse->cfg.vgId, line, tstrerror(code));
+    bseError("vgId:%d failed at line %d since %s", BSE_VGID(pBse), line, tstrerror(code));
     cJSON_Delete(pFileSet);
   }
   cJSON_Delete(pRoot);
@@ -100,14 +100,14 @@ int32_t bseDeserialCommitInfo(SBse *pBse, char *pCurrent, SBseCommitInfo *pInfo)
   int32_t lino = 0;
   cJSON  *pRoot = cJSON_Parse(pCurrent);
   if (pRoot == NULL) {
-    bseError("vgId:%d, failed to parse current meta", pBse->cfg.vgId);
+    bseError("vgId:%d, failed to parse current meta", BSE_VGID(pBse));
     code = TSDB_CODE_FILE_CORRUPTED;
     TSDB_CHECK_CODE(code, lino, _error);
   }
 
   cJSON *item = cJSON_GetObjectItem(pRoot, "fmtVer");
   if (item == NULL) {
-    bseError("vgId:%d, failed to get fmtVer from current meta", pBse->cfg.vgId);
+    bseError("vgId:%d, failed to get fmtVer from current meta", BSE_VGID(pBse));
     code = TSDB_CODE_FILE_CORRUPTED;
     goto _error;
   }
@@ -115,7 +115,7 @@ int32_t bseDeserialCommitInfo(SBse *pBse, char *pCurrent, SBseCommitInfo *pInfo)
 
   item = cJSON_GetObjectItem(pRoot, "vgId");
   if (item == NULL) {
-    bseError("vgId:%d, failed to get vgId from current meta", pBse->cfg.vgId);
+    bseError("vgId:%d, failed to get vgId from current meta", BSE_VGID(pBse));
     code = TSDB_CODE_FILE_CORRUPTED;
     goto _error;
   }
@@ -123,7 +123,7 @@ int32_t bseDeserialCommitInfo(SBse *pBse, char *pCurrent, SBseCommitInfo *pInfo)
 
   item = cJSON_GetObjectItem(pRoot, "commitVer");
   if (item == NULL) {
-    bseError("vgId:%d, failed to get commitVer from current meta", pBse->cfg.vgId);
+    bseError("vgId:%d, failed to get commitVer from current meta", BSE_VGID(pBse));
     code = TSDB_CODE_FILE_CORRUPTED;
     goto _error;
   }
@@ -131,7 +131,7 @@ int32_t bseDeserialCommitInfo(SBse *pBse, char *pCurrent, SBseCommitInfo *pInfo)
 
   item = cJSON_GetObjectItem(pRoot, "commitSeq");
   if (item == NULL) {
-    bseError("vgId:%d, failed to get lastSeq from current meta", pBse->cfg.vgId);
+    bseError("vgId:%d, failed to get lastSeq from current meta", BSE_VGID(pBse));
     code = TSDB_CODE_FILE_CORRUPTED;
     goto _error;
   }
@@ -146,7 +146,7 @@ int32_t bseDeserialCommitInfo(SBse *pBse, char *pCurrent, SBseCommitInfo *pInfo)
     cJSON *pLevel = cJSON_GetObjectItem(pField, "level");
     cJSON *pRetentionTs = cJSON_GetObjectItem(pField, "retention");
     if (pStartSeq == NULL || pEndSeq == NULL || pFileSize == NULL || pLevel == NULL || pRetentionTs == NULL) {
-      bseError("vgId:%d, failed to get field from files", pBse->cfg.vgId);
+      bseError("vgId:%d, failed to get field from files", BSE_VGID(pBse));
       code = TSDB_CODE_FILE_CORRUPTED;
       goto _error;
     }
@@ -156,7 +156,7 @@ int32_t bseDeserialCommitInfo(SBse *pBse, char *pCurrent, SBseCommitInfo *pInfo)
     info.range.eseq = pEndSeq->valuedouble;
     info.size = pFileSize->valuedouble;
     info.level = pLevel->valuedouble;
-    info.startTimestamp = pRetentionTs->valuedouble;
+    info.timestamp = pRetentionTs->valuedouble;
 
     if (taosArrayPush(pInfo->pFileList, &info) == NULL) {
       code = terrno;
@@ -165,7 +165,7 @@ int32_t bseDeserialCommitInfo(SBse *pBse, char *pCurrent, SBseCommitInfo *pInfo)
   }
 _error:
   if (code != 0) {
-    bseError("vgId:%d failed to get commit info from current meta since %s", BSE_GET_VGID(pBse), tstrerror(code));
+    bseError("vgId:%d failed to get commit info from current meta since %s", BSE_VGID(pBse), tstrerror(code));
   }
   cJSON_Delete(pRoot);
   return code;
@@ -182,7 +182,7 @@ int32_t bseReadCurrentFile(SBse *pBse, char **p, int64_t *len) {
 
   bseBuildCurrentName(pBse, name);
   if (taosCheckExistFile(name) == 0) {
-    bseInfo("vgId:%d, no current meta file found, skip recover", pBse->cfg.vgId);
+    bseInfo("vgId:%d, no current meta file found, skip recover", BSE_VGID(pBse));
     return 0;
   }
   code = taosStatFile(name, &sz, NULL, NULL);
@@ -208,7 +208,7 @@ int32_t bseReadCurrentFile(SBse *pBse, char **p, int64_t *len) {
 
 _error:
   if (code != 0) {
-    bseError("vgId:%d, failed to read current at line %d since %s", pBse->cfg.vgId, lino, tstrerror(code));
+    bseError("vgId:%d, failed to read current at line %d since %s", BSE_VGID(pBse), lino, tstrerror(code));
     taosCloseFile(&fd);
     taosMemoryFree(pCurrent);
   }
@@ -269,9 +269,9 @@ int32_t removeUnCommitFile(SBse *p, SArray *pCommitedFiles, SArray *pAllFiles) {
 
       code = taosRemoveFile(buf);
       if (code != 0) {
-        bseError("vgId:%d failed to remove file %s since %s", p->cfg.vgId, pInfo->name, tstrerror(code));
+        bseError("vgId:%d failed to remove file %s since %s", BSE_VGID(p), pInfo->name, tstrerror(code));
       } else {
-        bseInfo("vgId:%d remove file %s", p->cfg.vgId, pInfo->name);
+        bseInfo("vgId:%d remove file %s", BSE_VGID(p), pInfo->name);
       }
     }
   }
@@ -318,14 +318,14 @@ int32_t bseRecover(SBse *pBse, int8_t rmUnCommited) {
   TSDB_CHECK_CODE(code, lino, _error);
 
   if (len == 0) {
-    bseInfo("vgId:%d, no current meta file found, no need to recover", BSE_GET_VGID(pBse));
+    bseInfo("vgId:%d, no current meta file found, no need to recover", BSE_VGID(pBse));
   } else {
     code = bseDeserialCommitInfo(pBse, pCurrent, &pBse->commitInfo);
     TSDB_CHECK_CODE(code, lino, _error);
 
     if (pBse->commitInfo.fmtVer != BSE_FMT_VER) {
-      bseError("vgId:%d, current meta file version %d not match with %d", pBse->cfg.vgId,
-               pBse->commitInfo.fmtVer, BSE_FMT_VER);
+      bseError("vgId:%d, current meta file version %d not match with %d", BSE_VGID(pBse), pBse->commitInfo.fmtVer,
+               BSE_FMT_VER);
       code = TSDB_CODE_FILE_CORRUPTED;
       goto _error;
     }
@@ -335,7 +335,7 @@ int32_t bseRecover(SBse *pBse, int8_t rmUnCommited) {
       code = bseTableMgtRecoverTable(pBse->pTableMgt, pLast);
       TSDB_CHECK_CODE(code, lino, _error);
 
-      code = bseTableMgtSetLastTableId(pBse->pTableMgt, pLast->startTimestamp);
+      code = bseTableMgtSetLastTableId(pBse->pTableMgt, pLast->timestamp);
     }
   }
 
@@ -344,7 +344,7 @@ int32_t bseRecover(SBse *pBse, int8_t rmUnCommited) {
 
 _error:
   if (code != 0) {
-    bseError("vgId:%d, failed to recover since %s", pBse->cfg.vgId, tstrerror(code));
+    bseError("vgId:%d, failed to recover since %s", BSE_VGID(pBse), tstrerror(code));
   }
   taosMemoryFree(pCurrent);
   return code;
@@ -424,12 +424,6 @@ int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
   p->cfg = *pCfg;
   bseCfgSetDefault(&p->cfg);
 
-  p->retention = p->cfg.retention;
-  p->keepDays = p->cfg.keepDays;
-  p->precision = p->cfg.precision;
-
-  p->keeps = pCfg->keeps;
-
   tstrncpy(p->path, path, sizeof(p->path));
 
   code = bseInitEnv(p);
@@ -451,7 +445,7 @@ int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
 _err:
   if (code != 0) {
     bseClose(p);
-    bseError("vgId:%d failed to open bse at line %d since %s", BSE_GET_VGID(p), lino, tstrerror(code));
+    bseError("vgId:%d failed to open bse at line %d since %s", BSE_VGID(p), lino, tstrerror(code));
   }
   return code;
 }
@@ -465,7 +459,7 @@ static int32_t bseClear(SBse *pBse) {
 
 _error:
   if (code != 0) {
-    bseError("vgId:%d failed to clear bse at line %d since %s", BSE_GET_VGID(pBse), lino, tstrerror(code));
+    bseError("vgId:%d failed to clear bse at line %d since %s", BSE_VGID(pBse), lino, tstrerror(code));
   }
   return code;
 }
@@ -494,10 +488,10 @@ int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len) {
   taosThreadRwlockUnlock(&pBse->rwlock);
 
   if (code != 0) {
-    bseError("vgId:%d failed to get value from seq %" PRId64 " at line %d since %s", BSE_GET_VGID(pBse), seq, line,
+    bseError("vgId:%d failed to get value from seq %" PRId64 " at line %d since %s", BSE_VGID(pBse), seq, line,
              tstrerror(code));
   } else {
-    bseDebug("vgId:%d get value from seq %" PRId64 " at line %d", BSE_GET_VGID(pBse), seq, line);
+    bseDebug("vgId:%d get value from seq %" PRId64 " at line %d", BSE_VGID(pBse), seq, line);
   }
   return code;
 }
@@ -526,7 +520,7 @@ int32_t bseCommitBatch(SBse *pBse, SBseBatch *pBatch) {
   }
 _error:
   if (code != 0) {
-    bseError("vgId:%d failed to append batch at line %d since %s", BSE_GET_VGID(pBse), lino, tstrerror(code));
+    bseError("vgId:%d failed to append batch at line %d since %s", BSE_VGID(pBse), lino, tstrerror(code));
   }
   taosThreadMutexUnlock(&pBse->mutex);
   return code;
@@ -545,7 +539,7 @@ int32_t bseReload(SBse *pBse) {
 
 _error:
   if (code != 0) {
-    bseError("vgId:%d failed to reload bse at line %d since %s", BSE_GET_VGID(pBse), lino, tstrerror(code));
+    bseError("vgId:%d failed to reload bse at line %d since %s", BSE_VGID(pBse), lino, tstrerror(code));
   }
   taosThreadMutexUnlock(&pBse->mutex);
   return code;
@@ -595,7 +589,7 @@ _error:
       }
       taosArrayDestroy(pBatchMgt->pBatchList);
     }
-    bseError("vgId:%d failed to init batch mgt at line %d since %s", BSE_GET_VGID(pBse), lino, tstrerror(code));
+    bseError("vgId:%d failed to init batch mgt at line %d since %s", BSE_VGID(pBse), lino, tstrerror(code));
   }
   return code;
 }
@@ -622,7 +616,7 @@ static int32_t bseBatchMgtRecycle(SBatchMgt *pBatchMgt, SBseBatch *pBatch) {
     code = terrno;
   }
   if (code != 0) {
-    bseError("vgId:%d failed to recycle batch since %s", BSE_GET_VGID((SBse *)pBatchMgt->pBse), tstrerror(code));
+    bseError("vgId:%d failed to recycle batch since %s", BSE_VGID((SBse *)pBatchMgt->pBse), tstrerror(code));
   }
   return code;
 }
@@ -651,7 +645,7 @@ static int32_t bseBatchMgtGet(SBatchMgt *pBatchMgt, SBseBatch **pBatch) {
 
 _error:
   if (code != 0) {
-    bseInfo("vgId:%d failed to get bse batch at line %d since %s", BSE_GET_VGID((SBse *)pBatchMgt->pBse), lino,
+    bseInfo("vgId:%d failed to get bse batch at line %d since %s", BSE_VGID((SBse *)pBatchMgt->pBse), lino,
             tstrerror(code));
   }
   return code;
@@ -712,7 +706,7 @@ int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKeys) {
   code = bseBatchMgtGet(pBse->batchMgt, &p);
   taosThreadMutexUnlock(&pBse->mutex);
 
-  bseDebug("vgId:%d bse seq start from: %" PRId64 " to %" PRId64 "", BSE_GET_VGID(pBse), sseq, sseq + nKeys - 1);
+  bseDebug("vgId:%d bse seq start from: %" PRId64 " to %" PRId64 "", BSE_VGID(pBse), sseq, sseq + nKeys - 1);
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = bseBatchSetParam(p, sseq, nKeys);
@@ -723,7 +717,7 @@ int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKeys) {
   *pBatch = p;
 _error:
   if (code != 0) {
-    bseError("vgId:%d failed to build batch since %s", BSE_GET_VGID((SBse *)p->pBse), tstrerror(code));
+    bseError("vgId:%d failed to build batch since %s", BSE_VGID((SBse *)p->pBse), tstrerror(code));
     bseBatchDestroy(p);
   }
   return code;
@@ -758,8 +752,8 @@ int32_t bseBatchPut(SBseBatch *pBatch, int64_t *seq, uint8_t *value, int32_t len
 
 _error:
   if (code != 0) {
-    bseError("vgId:%d failed to put value by seq %" PRId64 " at line %d since %s", BSE_GET_VGID((SBse *)pBatch->pBse),
-             lseq, lino, tstrerror(code));
+    bseError("vgId:%d failed to put value by seq %" PRId64 " at line %d since %s", BSE_VGID((SBse *)pBatch->pBse), lseq,
+             lino, tstrerror(code));
   }
   return code;
 }
@@ -876,7 +870,7 @@ int32_t bseGenCommitInfo(SBse *pBse, SArray *pFileSet) {
 
 _error:
   if (code != 0) {
-    bseError("vgId:%d failed to gen commit info since %s", BSE_GET_VGID(pBse), tstrerror(code));
+    bseError("vgId:%d failed to gen commit info since %s", BSE_VGID(pBse), tstrerror(code));
   }
   taosMemoryFree(pBuf);
 
@@ -907,7 +901,7 @@ int32_t bseCommitDo(SBse *pBse, SArray *pFileSet) {
   TSDB_CHECK_CODE(code, lino, _error);
 _error:
   if (code != 0) {
-    bseError("vgId:%d failed to commit at line %d since %s", BSE_GET_VGID(pBse), lino, tstrerror(code));
+    bseError("vgId:%d failed to commit at line %d since %s", BSE_VGID(pBse), lino, tstrerror(code));
   }
   return code;
 }
@@ -924,13 +918,13 @@ int32_t bseUpdateCommitInfo(SBse *pBse, SBseLiveFileInfo *pInfo) {
     }
   } else {
     SBseLiveFileInfo *pLast = taosArrayGetLast(pCommit->pFileList);
-    if (pLast->startTimestamp == pInfo->startTimestamp) {
+    if (pLast->timestamp == pInfo->timestamp) {
       memcpy(pLast, pInfo, sizeof(SBseLiveFileInfo));
     }
   }
 _error:
   if (code != 0) {
-    bseError("vgId:%d failed to update commit info since %s", BSE_GET_VGID(pBse), tstrerror(code));
+    bseError("vgId:%d failed to update commit info since %s", BSE_VGID(pBse), tstrerror(code));
   }
 
   taosThreadMutexUnlock(&pBse->mutex);
@@ -949,7 +943,7 @@ int32_t bseGetAliveFileList(SBse *pBse, SArray **pFileList) {
   *pFileList = p;
 _error:
   if (code != 0) {
-    bseError("vgId:%d failed to get alive file list since %s", BSE_GET_VGID(pBse), tstrerror(code));
+    bseError("vgId:%d failed to get alive file list since %s", BSE_VGID(pBse), tstrerror(code));
   }
   taosThreadMutexUnlock(&pBse->mutex);
   return code;
@@ -967,7 +961,7 @@ int32_t bseCommit(SBse *pBse) {
   TSDB_CHECK_CODE(code, line, _error);
 
   if (info.size == 0) {
-    bseInfo("vgId:%d no data to commit", BSE_GET_VGID(pBse));
+    bseInfo("vgId:%d no data to commit", BSE_VGID(pBse));
     return 0;
   }
 
@@ -978,7 +972,7 @@ int32_t bseCommit(SBse *pBse) {
   TSDB_CHECK_CODE(code, line, _error);
 
   if (taosArrayGetSize(pLiveFile) == 0) {
-    bseInfo("vgId:%d no alive file to commit", BSE_GET_VGID(pBse));
+    bseInfo("vgId:%d no alive file to commit", BSE_VGID(pBse));
     taosArrayDestroy(pLiveFile);
     return 0;
   }
@@ -988,9 +982,9 @@ int32_t bseCommit(SBse *pBse) {
 
 _error:
   cost = taosGetTimestampMs() - st;
-  bseWarn("vgId:%d bse commit cost %" PRId64 " ms", BSE_GET_VGID(pBse), cost);
+  bseWarn("vgId:%d bse commit cost %" PRId64 " ms", BSE_VGID(pBse), cost);
   if (code != 0) {
-    bseError("vgId:%d failed to commit at line %d since %s", BSE_GET_VGID(pBse), line, tstrerror(code));
+    bseError("vgId:%d failed to commit at line %d since %s", BSE_VGID(pBse), line, tstrerror(code));
   }
   taosArrayDestroy(pLiveFile);
 
@@ -1131,6 +1125,5 @@ int32_t bseSetKeepDays(SBse *pBse, int32_t keepDays) {
   taosThreadMutexLock(&pBse->mutex);
   pBse->cfg.keepDays = keepDays;
   taosThreadMutexUnlock(&pBse->mutex);
-
   return code;
 }

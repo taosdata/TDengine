@@ -117,7 +117,7 @@ typedef struct {
   SBtableMetaReader *pReader;
 
   SSeqRange range;
-  int64_t   startTimestamp;
+  int64_t   timestamp;
   SBse     *pBse;
 } SBTableMeta;
 
@@ -138,7 +138,7 @@ typedef struct {
   int32_t nRef;
 
   SBTableMeta *pTableMeta;
-  int64_t      startTimestamp;
+  int64_t      timestamp;
 
   SBse *pBse;
 } STableBuilder;
@@ -158,14 +158,14 @@ typedef struct {
   SBlockWrapper      blockWrapper;
   SSeqRange range;
 
-  int64_t startTimestamp;
+  int64_t timestamp;
 } STableReader;
 
 typedef struct {
   SSeqRange range;
   int64_t size;
   int32_t level;
-  int64_t   startTimestamp;
+  int64_t   timestamp;
   char    name[TSDB_FILENAME_LEN];
 } SBseLiveFileInfo;
 
@@ -205,12 +205,12 @@ typedef struct {
   SBlockWrapper blockWrapper;
   int8_t        blockType;  // BSE_TABLE_DATA_TYPE, BSE_TABLE_META_TYPE, BSE_TABLE_FOOTER_TYPE
   int8_t        fileType;
-  int64_t       startTimestamp;
+  int64_t       timestamp;
 
   void *pSubMgt;
 } STableReaderIter;
 
-int32_t tableReaderIterInit(int64_t startTimestamp, int8_t type, STableReaderIter **ppIter, SBse *pBse);
+int32_t tableReaderIterInit(int64_t timestamp, int8_t type, STableReaderIter **ppIter, SBse *pBse);
 
 int32_t tableReaderIterNext(STableReaderIter *pIter, uint8_t **pValue, int32_t *len);
 
