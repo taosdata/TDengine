@@ -85,6 +85,19 @@
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_idmp_pv.py
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_nevados.py 
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_phase1.py 
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_case4.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_case4_bug1.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_case5.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case1_bug1.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case1_twostream.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case3.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case4.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case6.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case17.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case18.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case19.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case19_bug1.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case22.py
 
 ## 21-Stability 
 
