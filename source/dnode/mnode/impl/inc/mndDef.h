@@ -19,16 +19,17 @@
 #include "os.h"
 
 #include "cJSON.h"
+#include "mnode.h"
 #include "scheduler.h"
 #include "sync.h"
+#include "tarray.h"
+#include "tconfig.h"
 #include "thash.h"
 #include "tlist.h"
 #include "tlog.h"
 #include "tmsg.h"
 #include "trpc.h"
 #include "ttimer.h"
-#include "tconfig.h"
-#include "mnode.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -84,6 +85,9 @@ typedef enum {
   MND_OPER_DROP_BNODE,
   MND_OPER_CREATE_MOUNT,
   MND_OPER_DROP_MOUNT,
+  MND_OPER_CREATE_XNODE,
+  MND_OPER_UPDATE_XNODE,
+  MND_OPER_DROP_XNODE
 } EOperType;
 
 typedef enum {
@@ -267,6 +271,54 @@ typedef struct {
   SArray** algos;
 } SAnodeObj;
 
+/**
+ * @brief Stucture for XNode object.
+ *
+ * This structure represents an XNode in the system, which contains
+ * information about the node's ID, creation and update times, version,
+ * URL length, status, and a lock for synchronization.
+ */
+typedef struct {
+  int32_t  id;
+  int64_t  createdTime;
+  int64_t  updateTime;
+  int32_t  version;
+  int32_t  urlLen;
+  int32_t  numOfAlgos;
+  int32_t  status;
+  SRWLatch lock;
+  char*    url;
+} SXnodeObj;
+
+typedef struct {
+  int32_t  id;
+  int64_t  createdTime;
+  int64_t  updateTime;
+  int32_t  version;
+  int32_t  nameLen;
+  int32_t  status;
+  SRWLatch lock;
+  char*    name;
+  char*    sourceType;
+  char*    sourceDsn;
+  char*    sinkType;
+  char*    sinkDsn;
+  char*    parser;
+  SArray** labels;
+  int32_t  numOfLabels;
+} SXnodeTaskObj;
+
+typedef struct {
+  int32_t  id;
+  int32_t  version;
+  int64_t  tid;
+  int64_t  createdTime;
+  int64_t  updateTime;
+  int32_t  configLen;
+  int32_t  status;
+  SRWLatch lock;
+  char*    config;
+} SXnodeTaskJobObj;
 typedef struct {
   int32_t    id;
   int64_t    createdTime;
@@ -287,7 +339,6 @@ typedef struct {
   SDnodeObj* pDnode;
   SQnodeLoad load;
 } SQnodeObj;
-
 
 typedef struct {
   int32_t    id;
@@ -419,10 +470,10 @@ typedef struct {
       uint8_t reserve : 7;
     };
   };
-  int32_t       acctId;
-  int32_t       authVersion;
-  int32_t       passVersion;
-  int64_t       ipWhiteListVer;
+  int32_t           acctId;
+  int32_t           authVersion;
+  int32_t           passVersion;
+  int64_t           ipWhiteListVer;
   SIpWhiteListDual* pIpWhiteListDual;
 
   SHashObj* readDbs;
@@ -503,7 +554,7 @@ typedef struct {
   SRWLatch lock;
   int64_t  stateTs;
   int64_t  compactStartTime;
-  int64_t  ssMigrateStartTime; // TODO: add this field to mndDbActionEncode/Decode
+  int64_t  ssMigrateStartTime;  // TODO: add this field to mndDbActionEncode/Decode
   int32_t  tsmaVersion;
 } SDbObj;
 
@@ -578,8 +629,6 @@ typedef struct {
   int32_t   syncConfChangeVer;
   int32_t   mountVgId;  // TS-5868
 } SVgObj;
-
-
 
 typedef struct {
   char           name[TSDB_TABLE_FNAME_LEN];
@@ -853,7 +902,7 @@ typedef struct {
   SCMCreateStreamReq* pCreate;
 
   SRWLatch lock;
-  
+
   // dynamic info
   int32_t mainSnodeId;
   int8_t  userDropped;  // no need to serialize
@@ -1008,19 +1057,18 @@ typedef struct {
   SArray* compactDetail;
 } SCompactObj;
 
-
 typedef struct {
   int32_t vgId;
-  int32_t nodeId; // dnode id of the leader vnode
-  bool done;
+  int32_t nodeId;  // dnode id of the leader vnode
+  bool    done;
 } SVgroupSsMigrateDetail;
 
 typedef struct {
   int32_t id;
   int64_t dbUid;
   char    dbname[TSDB_TABLE_FNAME_LEN];
-  int64_t startTime; // migration start time in seconds
-  SArray* vgroups;   // SArray<SVgroupSsMigrateDetail>
+  int64_t startTime;  // migration start time in seconds
+  SArray* vgroups;    // SArray<SVgroupSsMigrateDetail>
 } SSsMigrateObj;
 
 // SGrantLogObj
