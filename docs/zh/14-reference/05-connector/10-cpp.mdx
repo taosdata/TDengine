@@ -9,7 +9,6 @@ TDengine 的客户端驱动提供了 taosws 和 taos 两个动态库，分别支
 
 下面我们分开介绍两种连接方式的使用方法。
 
-
 ## WebSocket 连接方式
 
 WebSocket 连接方式需要使用 taosws.h 头文件和 taosws 动态库。
@@ -36,24 +35,22 @@ TDengine 客户端驱动的动态库位于：
 
 ### 版本历史
 
-| TDengine 客户端版本 |     主要变化           |   TDengine 版本    |
-| ------------------ | --------------------------- | ---------------- |
-|        3.3.3.0        | 首次发布，提供了 SQL 执行，参数绑定，无模式写入和数据订阅等全面功能支持。    | 3.3.2.0 及更高版本    |
-
+| TDengine 客户端版本 | 主要变化                                                                  | TDengine 版本      |
+| ------------------- | ------------------------------------------------------------------------- | ------------------ |
+| 3.3.3.0             | 首次发布，提供了 SQL 执行，参数绑定，无模式写入和数据订阅等全面功能支持。 | 3.3.2.0 及更高版本 |
 
 ### 错误码
 
 在 C 接口的设计中，错误码采用整数类型表示，每个错误码都对应一个特定的错误状态。如未特别说明，当 API 的返回值是整数时，_0_ 代表成功，其它是代表失败原因的错误码，当返回值是指针时，_NULL_ 表示失败。  
 WebSocket 连接方式单独的错误码在 `taosws.h` 中，
 
-
-| 错误码  | 错误描述 | 可能的出错场景或者可能的原因 | 建议用户采取的措施 |
-| ------- | -------- | ---------------------------- | ------------------ |
-| 0xE000  | DSN 错误 | DSN 不符合规范             | 检查 dsn 字符串是否符合规范 |
-| 0xE001  | 内部错误 | 不确定                        | 保留现场和日志，github 上报 issue |
-| 0xE002  | 连接关闭 | 网络断开                      | 请检查网络状况，查看 `taosadapter` 日志。 |
-| 0xE003  | 发送超时 | 网络断开                      | 请检查网络状况 |
-| 0xE004  | 接收超时 | 慢查询，或者网络断开          | 排查 `taosadapter` 日志 |
+| 错误码 | 错误描述 | 可能的出错场景或者可能的原因 | 建议用户采取的措施                        |
+| ------ | -------- | ---------------------------- | ----------------------------------------- |
+| 0xE000 | DSN 错误 | DSN 不符合规范               | 检查 dsn 字符串是否符合规范               |
+| 0xE001 | 内部错误 | 不确定                       | 保留现场和日志，github 上报 issue         |
+| 0xE002 | 连接关闭 | 网络断开                     | 请检查网络状况，查看 `taosadapter` 日志。 |
+| 0xE003 | 发送超时 | 网络断开                     | 请检查网络状况                            |
+| 0xE004 | 接收超时 | 慢查询，或者网络断开         | 排查 `taosadapter` 日志                   |
 
 其余错误码请参考同目录下 `taoserror.h` 文件，详细的原生连接错误码说明参考：[错误码](../../../reference/error-code)。
 :::info
@@ -112,25 +109,29 @@ DSN 描述字符串基本结构如下：
 基础 API 用于完成创建数据库连接等工作，为其它 API 的执行提供运行时环境。
 
 - `char *ws_get_client_info()`
+
   - **接口说明**：获取客户端版本信息。
   - **返回值**：返回客户端版本信息。
 
 - `WS_TAOS *ws_connect(const char *dsn)`
+
   - **接口说明**：创建数据库连接，初始化连接上下文。
   - **参数说明**：
     - dsn：[入参] 连接信息，见上文 DSN 章节。
   - **返回值**：返回数据库连接，返回值为空表示失败。应用程序需要保存返回的参数，以便后续使用。
-  :::info
-  同一进程可以根据不同的 dsn 连接多个 TDengine 集群
-  :::
+    :::info
+    同一进程可以根据不同的 dsn 连接多个 TDengine 集群
+    :::
 
 - `const char *ws_get_server_info(WS_TAOS *taos)`
+
   - **接口说明**：获取服务端版本信息。
   - **参数说明**：
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `ws_connect()` 函数建立。
   - **返回值**：返回获取服务端版本信息。
 
 - `int32_t ws_select_db(WS_TAOS *taos, const char *db)`
+
   - **接口说明**：将当前的缺省数据库设置为 `db`。
   - **参数说明**：
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `ws_connect()` 函数建立。
@@ -138,6 +139,7 @@ DSN 描述字符串基本结构如下：
   - **返回值**：`0`：成功，非 `0`：失败，详情请参考错误码页面。
 
 - `int32_t ws_get_current_db(WS_TAOS *taos, char *database, int len, int *required)`
+
   - **接口说明**：获取当前数据库名称。
   - **参数说明**：
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `ws_connect()` 函数建立。
@@ -160,6 +162,7 @@ DSN 描述字符串基本结构如下：
 本小节介绍 API 均属于同步接口。应用调用后，会阻塞等待响应，直到获得返回结果或错误信息。
 
 - `WS_RES *ws_query(WS_TAOS *taos, const char *sql)`
+
   - **接口说明**：执行 SQL 语句，可以是 DQL、DML 或 DDL 语句。
   - **参数说明**：
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `ws_connect()` 函数建立。
@@ -168,18 +171,21 @@ DSN 描述字符串基本结构如下：
     - ws_errno 返回值：`0`：成功，`-1`：失败，详情请调用 ws_errstr 函数来获取错误提示。
 
 - `int32_t ws_result_precision(const WS_RES *rs)`
+
   - **接口说明**：返回结果集时间戳字段的精度类别。
   - **参数说明**：
     - res：[入参] 结果集。
   - **返回值**：`0`：毫秒，`1`：微秒，`2`：纳秒。
 
 - `WS_ROW ws_fetch_row(WS_RES *rs)`
+
   - **接口说明**：按行获取查询结果集中的数据。
   - **参数说明**：
     - res：[入参] 结果集。
   - **返回值**：非 `NULL`：成功，`NULL`：失败，可调用函数 ws_errstr(NULL) 获取更详细的错误信息。
 
 - `int32_t ws_fetch_raw_block(WS_RES *rs, const void **pData, int32_t *numOfRows)`
+
   - **接口说明**：批量获取查询结果集中的数据。
   - **参数说明**：
     - res：[入参] 结果集。
@@ -188,42 +194,49 @@ DSN 描述字符串基本结构如下：
   - **返回值**：`0`：成功。非 `0`：失败，详情请参考错误码页面。
 
 - `int32_t ws_num_fields(const WS_RES *rs)` 和 `int32_t ws_field_count(const WS_RES *rs)`
+
   - **接口说明**：这两个 API 等价，用于获取查询结果集中的列数。
   - **参数说明**：
     - res：[入参] 结果集。
   - **返回值**：返回值为结果集中列的数量。
 
 - `int32_t ws_affected_rows(const WS_RES *rs)`
+
   - **接口说明**：获取被所执行的 SQL 语句影响的行数。
   - **参数说明**：
     - res：[入参] 结果集。
   - **返回值**：返回值表示受影响的行数。
 
 - `int64_t ws_affected_rows64(const WS_RES *rs)`
+
   - **接口说明**：获取被所执行的 SQL 语句影响的行数。
   - **参数说明**：
     - res：[入参] 结果集。
   - **返回值**：返回值表示受影响的行数。
 
 - `const struct WS_FIELD *ws_fetch_fields(WS_RES *rs)`
+
   - **接口说明**：获取查询结果集每列数据的属性（列的名称、列的数据类型、列的长度），与 `ws_num_fields()` 配合使用，可用来解析 `ws_fetch_row()` 返回的一个元组 (一行) 的数据。
   - **参数说明**：
     - res：[入参] 结果集。
-  - **返回值**：非 `NULL`：成功，返回一个指向 WS_FIELD 结构体的指针，每个元素代表一列的元数据。`NULL`：失败。    
+  - **返回值**：非 `NULL`：成功，返回一个指向 WS_FIELD 结构体的指针，每个元素代表一列的元数据。`NULL`：失败。
 
 - `int32_t ws_stop_query(WS_RES *rs)`
+
   - **接口说明**：停止当前查询的执行。
   - **参数说明**：
     - res：[入参] 结果集。
-  - **返回值**：`0`：成功。非 `0`：失败，详情请参考错误码页面。    
+  - **返回值**：`0`：成功。非 `0`：失败，详情请参考错误码页面。
 
 - `int32_t ws_free_result(WS_RES *rs)`
+
   - **接口说明**：释放查询结果集以及相关的资源。查询完成后，务必调用该 API 释放资源，否则可能导致应用内存泄露。但也需注意，释放资源后，如果再调用 `ws_fetch_fields()` 等获取查询结果的函数，将导致应用崩溃。
   - **参数说明**：
     - res：[入参] 结果集。
-  - **返回值**：`0`：成功。非 `0`：失败，详情请参考错误码页面。    
+  - **返回值**：`0`：成功。非 `0`：失败，详情请参考错误码页面。
 
 - `const char *ws_errstr(WS_RES *rs)`
+
   - **接口说明**：获取最近一次 API 调用失败的原因，返回值为字符串标识的错误提示信息。
   - **参数说明**：
     - res：[入参] 结果集。
@@ -262,12 +275,14 @@ TDengine 推荐数据库应用的每个线程都建立一个独立的连接，�
 接口相关的具体函数如下（也可以参考 [stmt_insert_demo.c](https://github.com/taosdata/TDengine/blob/develop/docs/examples/c-ws/stmt_insert_demo.c) 文件中使用对应函数的方式）：
 
 - `WS_STMT *ws_stmt_init(const WS_TAOS *taos)`
+
   - **接口说明**：初始化一个预编译的 SQL 语句对象。
   - **参数说明**：
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `ws_connect()` 函数建立。
   - **返回值**：非 `NULL`：成功，返回一个指向 WS_STMT 结构体的指针，该结构体表示预编译的 SQL 语句对象。`NULL`：失败，详情请调用 ws_stmt_errstr() 函数来获取错误提示。
 
 - `int ws_stmt_prepare(WS_STMT *stmt, const char *sql, unsigned long len)`
+
   - **接口说明**：解析一条预编译的 SQL 语句，将解析结果和参数信息绑定到 stmt 上。
   - **参数说明**：
     - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
@@ -276,6 +291,7 @@ TDengine 推荐数据库应用的每个线程都建立一个独立的连接，�
   - **返回值**：`0`：成功。非 `0`：失败，详情请参考错误码页面。
 
 - `int ws_stmt_bind_param_batch(WS_STMT *stmt, const WS_MULTI_BIND *bind, uint32_t len)`
+
   - **接口说明**：以多列的方式传递待绑定的数据，需要保证这里传递的数据列的顺序、列的数量与 SQL 语句中的 VALUES 参数完全一致。
   - **参数说明**：
     - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
@@ -284,6 +300,7 @@ TDengine 推荐数据库应用的每个线程都建立一个独立的连接，�
   - **返回值**：`0`：成功。非 `0`：失败，详情请参考错误码页面。
 
 - `int ws_stmt_set_tbname(WS_STMT *stmt, const char *name)`
+
   - **接口说明**：（仅支持用于替换 INSERT 语句中的参数值）当 SQL 语句中的表名使用了 `?` 占位时，可以使用此函数绑定一个具体的表名。
   - **参数说明**：
     - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
@@ -291,9 +308,10 @@ TDengine 推荐数据库应用的每个线程都建立一个独立的连接，�
   - **返回值**：`0`：成功。非 `0`：失败，详情请参考错误码页面。
 
 - `int ws_stmt_set_tbname_tags(WS_STMT *stmt,
-                            const char *name,
-                            const WS_MULTI_BIND *bind,
-                            uint32_t len);`
+            const char *name,
+            const WS_MULTI_BIND *bind,
+            uint32_t len);`
+
   - **接口说明**：（仅支持用于替换 INSERT 语句中的参数值）当 SQL 语句中的表名和 TAGS 都使用了 `?` 占位时，可以使用此函数绑定具体的表名和具体的 TAGS 取值。最典型的使用场景是使用了自动建表功能的 INSERT 语句（目前版本不支持指定具体的 TAGS 列）。TAGS 参数中的列数量需要与 SQL 语句中要求的 TAGS 数量完全一致。
   - **参数说明**：
     - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
@@ -303,27 +321,32 @@ TDengine 推荐数据库应用的每个线程都建立一个独立的连接，�
   - **返回值**：`0`：成功。非 `0`：失败，详情请参考错误码页面。
 
 - `int ws_stmt_add_batch(WS_STMT *stmt)`
+
   - **接口说明**：将当前绑定的参数加入批处理中，调用此函数后，可以再次调用 `ws_stmt_bind_param_batch()` 绑定新的参数。需要注意，此函数仅支持 INSERT/IMPORT 语句，如果是 SELECT 等其他 SQL 语句，将返回错误。
     - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
   - **返回值**：`0`：成功。非 `0`：失败，详情请参考错误码页面。
 
 - `int ws_stmt_execute(WS_STMT *stmt, int32_t *affected_rows)`
+
   - **接口说明**：执行准备好的语句。目前，一条语句只能执行一次。
     - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
     - affected_rows：[出参] 成功写入的行数。
   - **返回值**：`0`：成功。非 `0`：失败，详情请参考错误码页面。
 
 - `int ws_stmt_affected_rows(WS_STMT *stmt)`
+
   - **接口说明**：获取执行预编译 SQL 语句后受影响的行数。
     - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
   - **返回值**：返回受影响的行数。
 
 - `int ws_stmt_affected_rows_once(WS_STMT *stmt)`
+
   - **接口说明**：获取执行一次绑定语句影响的行数。
     - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
   - **返回值**：返回受影响的行数。
 
 - `int32_t ws_stmt_close(WS_STMT *stmt)`
+
   - **接口说明**：执行完毕，释放所有资源。
     - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
   - **返回值**：`0`：成功。非 `0`：失败，详情请参考错误码页面。
@@ -336,12 +359,14 @@ TDengine 推荐数据库应用的每个线程都建立一个独立的连接，�
 #### 无模式写入
 
 除了使用 SQL 方式或者使用参数绑定 API 写入数据外，还可以使用 Schemaless 的方式完成写入。Schemaless 可以免于预先创建超级表/数据子表的数据结构，而是可以直接写入数据，TDengine 系统会根据写入的数据内容自动创建和维护所需要的表结构。Schemaless 的使用方式详见 [Schemaless 写入](../../../develop/schemaless/) 章节，这里介绍与之配套使用的 C/C++ API。
+
 - `WS_RES *ws_schemaless_insert_raw(WS_TAOS *taos,
-                                 const char *lines,
-                                 int len,
-                                 int32_t *totalRows,
-                                 int protocol,
-                                 int precision)`
+                 const char *lines,
+                 int len,
+                 int32_t *totalRows,
+                 int protocol,
+                 int precision)`
+
   - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine 中。通过传递的参数 lines 指针和长度 len 来表示数据，为了解决原始接口数据包含'\0'而被截断的问题。
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `ws_connect()` 函数建立。
     - lines：[入参] 文本数据。满足解析格式要求的无模式文本字符串。
@@ -350,7 +375,7 @@ TDengine 推荐数据库应用的每个线程都建立一个独立的连接，�
     - protocol：[入参] 行协议类型，用于标识文本数据格式。
     - precision：[入参] 文本数据中的时间戳精度字符串。
   - **返回值**：返回一个指向 WS_RES 结构体的指针，该结构体包含了插入操作的结果。应用可以通过使用 `ws_errstr()` 获得错误信息，也可以使用 `ws_errno()` 获得错误码。在某些情况下，返回的 WS_RES 为 `NULL`，此时仍然可以调用 `ws_errno()` 来安全地获得错误码信息。
-  返回的 WS_RES 需要调用方来负责释放，否则会出现内存泄漏。
+    返回的 WS_RES 需要调用方来负责释放，否则会出现内存泄漏。
 
   **说明**
   协议类型是枚举类型，包含以下三种格式：
@@ -375,12 +400,13 @@ TDengine 推荐数据库应用的每个线程都建立一个独立的连接，�
   **schemaless 其他相关的接口**
 
 - `WS_RES *ws_schemaless_insert_raw_with_reqid(WS_TAOS *taos,
-                                            const char *lines,
-                                            int len,
-                                            int32_t *totalRows,
-                                            int protocol,
-                                            int precision,
-                                            uint64_t reqid)`
+                            const char *lines,
+                            int len,
+                            int32_t *totalRows,
+                            int protocol,
+                            int precision,
+                            uint64_t reqid)`
+
   - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine 中。通过传递的参数 lines 指针和长度 len 来表示数据，为了解决原始接口数据包含'\0'而被截断的问题。通过传递参数 reqid 来跟踪整个的函数调用链情况。
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `ws_connect()` 函数建立。
     - lines：[入参] 文本数据。满足解析格式要求的无模式文本字符串。
@@ -390,15 +416,16 @@ TDengine 推荐数据库应用的每个线程都建立一个独立的连接，�
     - precision：[入参] 文本数据中的时间戳精度字符串。
     - reqid：[入参] 指定的请求 ID，用于跟踪调用请求。请求 ID (reqid) 可以用于在客户端和服务器端之间建立请求和响应之间的关联，对于分布式系统中的跟踪和调试非常有用。
   - **返回值**：返回一个指向 WS_RES 结构体的指针，该结构体包含了插入操作的结果。应用可以通过使用 `ws_errstr()` 获得错误信息，也可以使用 `ws_errno()` 获得错误码。在某些情况下，返回的 WS_RES 为 `NULL`，此时仍然可以调用 `ws_errno()` 来安全地获得错误码信息。
-  返回的 WS_RES 需要调用方来负责释放，否则会出现内存泄漏。
+    返回的 WS_RES 需要调用方来负责释放，否则会出现内存泄漏。
 
 - `WS_RES *ws_schemaless_insert_raw_ttl(WS_TAOS *taos,
-                                     const char *lines,
-                                     int len,
-                                     int32_t *totalRows,
-                                     int protocol,
-                                     int precision,
-                                     int ttl)`
+                     const char *lines,
+                     int len,
+                     int32_t *totalRows,
+                     int protocol,
+                     int precision,
+                     int ttl)`
+
   - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine 中。通过传递的参数 lines 指针和长度 len 来表示数据，为了解决原始接口数据包含'\0'而被截断的问题。通过传递 ttl 参数来控制建表的 ttl 到期时间。
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `ws_connect()` 函数建立。
     - lines：[入参] 文本数据。满足解析格式要求的无模式文本字符串。
@@ -408,16 +435,17 @@ TDengine 推荐数据库应用的每个线程都建立一个独立的连接，�
     - precision：[入参] 文本数据中的时间戳精度字符串。
     - ttl：[入参] 指定的生存时间（TTL），单位为天。记录在超过这个生存时间后会被自动删除。
   - **返回值**：返回一个指向 WS_RES 结构体的指针，该结构体包含了插入操作的结果。应用可以通过使用 `ws_errstr()` 获得错误信息，也可以使用 `ws_errno()` 获得错误码。在某些情况下，返回的 WS_RES 为 `NULL`，此时仍然可以调用 `ws_errno()` 来安全地获得错误码信息。
-  返回的 WS_RES 需要调用方来负责释放，否则会出现内存泄漏。
+    返回的 WS_RES 需要调用方来负责释放，否则会出现内存泄漏。
 
 - `WS_RES *ws_schemaless_insert_raw_ttl_with_reqid(WS_TAOS *taos,
-                                                const char *lines,
-                                                int len,
-                                                int32_t *totalRows,
-                                                int protocol,
-                                                int precision,
-                                                int ttl,
-                                                uint64_t reqid)`
+                                const char *lines,
+                                int len,
+                                int32_t *totalRows,
+                                int protocol,
+                                int precision,
+                                int ttl,
+                                uint64_t reqid)`
+
   - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine 中。通过传递的参数 lines 指针和长度 len 来表示数据，为了解决原始接口数据包含'\0'而被截断的问题。通过传递 ttl 参数来控制建表的 ttl 到期时间。通过传递参数 reqid 来跟踪整个的函数调用链情况。
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `ws_connect()` 函数建立。
     - lines：[入参] 文本数据。满足解析格式要求的无模式文本字符串。
@@ -428,24 +456,29 @@ TDengine 推荐数据库应用的每个线程都建立一个独立的连接，�
     - ttl：[入参] 指定的生存时间（TTL），单位为天。记录在超过这个生存时间后会被自动删除。
     - reqid：[入参] 指定的请求 ID，用于跟踪调用请求。请求 ID (reqid) 可以用于在客户端和服务器端之间建立请求和响应之间的关联，对于分布式系统中的跟踪和调试非常有用。
   - **返回值**：返回一个指向 WS_RES 结构体的指针，该结构体包含了插入操作的结果。应用可以通过使用 `ws_errstr()` 获得错误信息，也可以使用 `ws_errno()` 获得错误码。在某些情况下，返回的 WS_RES 为 `NULL`，此时仍然可以调用 `ws_errno()` 来安全地获得错误码信息。
-  返回的 WS_RES 需要调用方来负责释放，否则会出现内存泄漏。
+    返回的 WS_RES 需要调用方来负责释放，否则会出现内存泄漏。
 
   **说明**
+
   - 上面这 3 个接口是扩展接口，主要用于在 schemaless 写入时传递 ttl、reqid 参数，可以根据需要使用。
   - 带 ttl 的接口可以传递 ttl 参数来控制建表的 ttl 到期时间。
   - 带 reqid 的接口可以通过传递 reqid 参数来追踪整个的调用链。
 
 #### 数据订阅
+
 - `const char *ws_tmq_errstr(ws_tmq_t *tmq)`
+
   - **接口说明**：用于获取数据订阅的错误信息。
     - tmq：[入参] 指向一个有效的 ws_tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
   - **返回值**：返回一个指向包含错误信息字符串的指针，返回值非 NULL，但是错误信息可能为空字符串。
 
 - `ws_tmq_conf_t *ws_tmq_conf_new(void);`
+
   - **接口说明**：创建一个新的 TMQ 配置对象。
   - **返回值**：非 `NULL`：成功，返回一个指向 ws_tmq_conf_t 结构体的指针，该结构体用于配置 TMQ 的行为和特性。`NULL`：失败，可调用函数 ws_errstr(NULL) 获取更详细的错误信息。
 
 - `enum ws_tmq_conf_res_t ws_tmq_conf_set(ws_tmq_conf_t *conf, const char *key, const char *value)`
+
   - **接口说明**：设置 TMQ 配置对象中的配置项，用于配置消费参数。
     - conf：[入参] 指向一个有效的 ws_tmq_conf_t 结构体指针，该结构体代表一个 TMQ 配置对象。
     - key：[入参] 数配置项的键名。
@@ -456,37 +489,44 @@ TDengine 推荐数据库应用的每个线程都建立一个独立的连接，�
     - WS_TMQ_CONF_UNKNOWN：键名无效。
 
 - `int32_t ws_tmq_conf_destroy(ws_tmq_conf_t *conf)`
+
   - **接口说明**：销毁一个 TMQ 配置对象并释放相关资源。
     - conf：[入参] 指向一个有效的 ws_tmq_conf_t 结构体指针，该结构体代表一个 TMQ 配置对象。
-  - **返回值**：`0`：成功。非 `0`：失败，可调用函数 `ws_tmq_errstr(NULL)` 获取更详细的错误信息。    
+  - **返回值**：`0`：成功。非 `0`：失败，可调用函数 `ws_tmq_errstr(NULL)` 获取更详细的错误信息。
 
 - `ws_tmq_list_t *ws_tmq_list_new(void)`
+
   - **接口说明**：用于创建一个 ws_tmq_list_t 结构体，用于存储订阅的 topic。
   - **返回值**：非 `NULL`：成功，返回一个指向 ws_tmq_list_t 结构体的指针。`NULL`：失败，可调用函数 `ws_tmq_errstr(NULL)` 获取更详细的错误信息。
 
 - `int32_t ws_tmq_list_append(ws_tmq_list_t *list, const char *topic)`
+
   - **接口说明**：用于向 ws_tmq_list_t 结构体中添加一个 topic。
     - list：[入参] 指向一个有效的 ws_tmq_list_t 结构体指针，该结构体代表一个 TMQ 列表对象。
     - topic：[入参] topic 名称。
   - **返回值**：`0`：成功。非 `0`：失败，可调用函数 `ws_tmq_errstr(NULL)` 获取更详细的错误信息。
 
 - `int32_t ws_tmq_list_destroy(ws_tmq_list_t *list);`
+
   - **接口说明**：用于销毁 ws_tmq_list_t 结构体，ws_tmq_list_new 的结果需要通过该接口销毁。
     - list：[入参] 指向一个有效的 ws_tmq_list_t 结构体指针，该结构体代表一个 TMQ 列表对象。
   - **返回值**：`0`：成功。非 `0`：失败，可调用函数 `ws_tmq_errstr(NULL)` 获取更详细的错误信息。
 
 - `int32_t ws_tmq_list_get_size(ws_tmq_list_t *list);`
+
   - **接口说明**：用于获取 ws_tmq_list_t 结构体中 topic 的个数。
     - list：[入参] 指向一个有效的 ws_tmq_list_t 结构体指针，该结构体代表一个 TMQ 列表对象。
   - **返回值**：`>=0`：成功，返回 ws_tmq_list_t 结构体中 topic 的个数。`-1`：失败，表示输入参数 list 为 NULL。
 
 - `char **ws_tmq_list_to_c_array(const ws_tmq_list_t *list, uint32_t *topic_num);`
+
   - **接口说明**：用于将 ws_tmq_list_t 结构体转换为 C 数组，数组每个元素为字符串指针。
     - list：[入参] 指向一个有效的 ws_tmq_list_t 结构体指针，该结构体代表一个 TMQ 列表对象。
     - topic_num：[入参] list 的元素个数。
   - **返回值**：非 `NULL`：成功，返回 c 数组，每个元素是字符串指针，代表一个 topic 名称。`NULL`：失败，表示输入参数 list 为 NULL。
 
 - `ws_tmq_t *ws_tmq_consumer_new(ws_tmq_conf_t *conf, const char *dsn, char *errstr, int errstr_len)`
+
   - **接口说明**：用于创建一个 ws_tmq_t 结构体，用于消费数据，消费完数据后需调用 tmq_consumer_close 关闭消费者。
     - conf：[入参] 指向一个有效的 ws_tmq_conf_t 结构体指针，该结构体代表一个 TMQ 配置对象。
     - dsn：[入参] dsn 信息字符串，具体可参考上面 DSN 章节。一个常见的合法 dsn 为 "tmq+ws://root:taosdata@localhost:6041"。
@@ -499,27 +539,30 @@ TDengine 推荐数据库应用的每个线程都建立一个独立的连接，�
     - tmq：[入参] 指向一个有效的 ws_tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
     - topic_list：[入参] 指向一个有效的 ws_tmq_list_t 结构体指针，该结构体包含一个或多个主题名称，目前仅支持一个主题名称。
   - **返回值**：`0`：成功。非 `0`：失败，可调用函数 `ws_tmq_errstr(tmq)` 获取更详细的错误信息。
-  
 - `int32_t ws_tmq_unsubscribe(ws_tmq_t *tmq)`
+
   - **接口说明**：用于取消订阅的 topic 列表。需与 ws_tmq_subscribe 配合使用。
     - tmq：[入参] 指向一个有效的 ws_tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
   - **返回值**：`0`：成功。非 `0`：失败，可调用函数 `ws_tmq_errstr(tmq)` 获取更详细的错误信息。
 
 - `WS_RES *ws_tmq_consumer_poll(ws_tmq_t *tmq, int64_t timeout)`
+
   - **接口说明**：用于轮询消费数据，每一个消费者，只能单线程调用该接口。
     - tmq：[入参] 指向一个有效的 ws_tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
     - timeout：[入参] 轮询的超时时间，单位为毫秒，负数表示默认超时 1 秒。
   - **返回值**：非 `NULL`：成功，返回一个指向 WS_RES 结构体的指针，该结构体包含了接收到的消息。`NULL`：表示没有数据，可通过 ws_errno(NULL) 获取错误码，具体错误码参见参考手册。WS_RES 结果和 taos_query 返回结果一致，可通过查询的各种接口获取 WS_RES 里的信息，比如 schema 等。
 
 - `int32_t ws_tmq_consumer_close(ws_tmq_t *tmq)`
+
   - **接口说明**：用于关闭 ws_tmq_t 结构体。需与 ws_tmq_consumer_new 配合使用。
     - tmq：[入参] 指向一个有效的 ws_tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
   - **返回值**：`0`：成功。非 `0`：失败，可调用函数 `ws_tmq_errstr(tmq)` 获取更详细的错误信息。
 
 - `int32_t ws_tmq_get_topic_assignment(ws_tmq_t *tmq,
-                                    const char *pTopicName,
-                                    struct ws_tmq_topic_assignment **assignment,
-                                    int32_t *numOfAssignment)`
+                    const char *pTopicName,
+                    struct ws_tmq_topic_assignment **assignment,
+                    int32_t *numOfAssignment)`
+
   - **接口说明**：返回当前 consumer 分配的 vgroup 的信息，每个 vgroup 的信息包括 vgId，wal 的最大最小 offset，以及当前消费到的 offset。
     - tmq：[入参] 指向一个有效的 ws_tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
     - pTopicName：[入参] 要查询分配信息的主题名称。
@@ -528,12 +571,14 @@ TDengine 推荐数据库应用的每个线程都建立一个独立的连接，�
   - **返回值**：`0`：成功。非 `0`：失败，可调用函数 `ws_tmq_errstr(tmq)` 获取更详细的错误信息。
 
 - `int32_t ws_tmq_free_assignment(struct ws_tmq_topic_assignment *pAssignment, int32_t numOfAssignment)`
+
   - **接口说明**：返回当前 consumer 分配的 vgroup 的信息，每个 vgroup 的信息包括 vgId，wal 的最大最小 offset，以及当前消费到的 offset。
     - pAssignment：[入参] 指向一个有效的 ws_tmq_topic_assignment 结构体数组的指针，该数组包含了 vgroup 分配信息。
     - numOfAssignment：[入参] pAssignment 指向的数组元素个数。
   - **返回值**：`0`：成功。非 `0`：失败，可调用函数 `ws_tmq_errstr(tmq)` 获取更详细的错误信息。
 
 - `int64_t ws_tmq_committed(ws_tmq_t *tmq, const char *pTopicName, int32_t vgId)`
+
   - **接口说明**：获取 TMQ 消费者对象对特定 topic 和 vgroup 的已提交偏移量。
     - tmq：[入参] 指向一个有效的 ws_tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
     - pTopicName：[入参] 要查询已提交偏移量的主题名称。
@@ -541,15 +586,17 @@ TDengine 推荐数据库应用的每个线程都建立一个独立的连接，�
   - **返回值**：`>=0`：成功，返回一个 int64_t 类型的值，表示已提交的偏移量。`<0`：失败，返回值就是错误码，可调用函数 `ws_tmq_errstr(tmq)` 获取更详细的错误信息。
 
 - `int32_t ws_tmq_commit_sync(ws_tmq_t *tmq, const WS_RES *rs)`
+
   - **接口说明**：同步提交 TMQ 消费者对象处理的消息偏移量。
     - tmq：[入参] 指向一个有效的 ws_tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
     - rs：[入参] 指向一个有效的 WS_RES 结构体指针，该结构体包含了已处理的消息。如果为 NULL，提交当前 consumer 所有消费的 vgroup 的当前进度。
   - **返回值**：`0`：成功，已经成功提交偏移量。非 `0`：失败，可调用函数 `ws_tmq_errstr(tmq)` 获取更详细的错误信息。
 
 - `int32_t ws_tmq_commit_offset_sync(ws_tmq_t *tmq,
-                                  const char *pTopicName,
-                                  int32_t vgId,
-                                  int64_t offset)`
+                  const char *pTopicName,
+                  int32_t vgId,
+                  int64_t offset)`
+
   - **接口说明**：同步提交 TMQ 消费者对象的特定主题和 vgroup 的偏移量。
     - tmq：[入参] 指向一个有效的 ws_tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
     - pTopicName：[入参] 要提交偏移量的主题名称。
@@ -558,6 +605,7 @@ TDengine 推荐数据库应用的每个线程都建立一个独立的连接，�
   - **返回值**：`0`：成功，已经成功提交偏移量。非 `0`：失败，可调用函数 `ws_tmq_errstr(tmq)` 获取更详细的错误信息。
 
 - `int64_t ws_tmq_position(ws_tmq_t *tmq, const char *pTopicName, int32_t vgId)`
+
   - **接口说明**：获取当前消费位置，即已消费到的数据位置的下一个位置。
     - tmq：[入参] 指向一个有效的 ws_tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
     - pTopicName：[入参] 要查询当前位置的主题名称。
@@ -573,25 +621,30 @@ TDengine 推荐数据库应用的每个线程都建立一个独立的连接，�
   - **返回值**：`0`：成功，非 `0`：失败，可调用函数 `ws_tmq_errstr(tmq)` 获取更详细的错误信息。
 
 - `int64_t ws_tmq_get_vgroup_offset(const WS_RES *rs)`
+
   - **接口说明**：从 TMQ 消费者获取的消息结果中提取虚拟组（vgroup）的当前消费数据位置的偏移量。
     - res：[入参] 指向一个有效的 WS_RES 结构体指针，该结构体包含了从 TMQ 消费者轮询得到的消息。
   - **返回值**：`>=0`：成功，返回一个 int64_t 类型的值，表示当前消费位置的偏移量。`<0`：失败，返回值就是错误码，可调用函数 `ws_tmq_errstr(tmq)` 获取更详细的错误信息。
 
 - `int32_t ws_tmq_get_vgroup_id(const WS_RES *rs)`
+
   - **接口说明**：从 TMQ 消费者获取的消息结果中提取所属虚拟组（vgroup）的 ID。
     - res：[入参] 指向一个有效的 WS_RES 结构体指针，该结构体包含了从 TMQ 消费者轮询得到的消息。
   - **返回值**：`>=0`：成功，返回一个 int32_t 类型的值，表示虚拟组（vgroup）的 ID。`<0`：失败，返回值就是错误码，可调用函数 `ws_tmq_errstr(tmq)` 获取更详细的错误信息。
 
 - `const char *ws_tmq_get_table_name(const WS_RES *rs)`
+
   - **接口说明**：从 TMQ 消费者获取的消息结果中获取所属的表名。
     - res：[入参] 指向一个有效的 WS_RES 结构体指针，该结构体包含了从 TMQ 消费者轮询得到的消息。
-  - **返回值**：非 `NULL`：成功，返回一个 const char * 类型的指针，指向表名字符串。`NULL`：失败，非法的输入参数。
+  - **返回值**：非 `NULL`：成功，返回一个 const char \* 类型的指针，指向表名字符串。`NULL`：失败，非法的输入参数。
 
 - `enum ws_tmq_res_t ws_tmq_get_res_type(const WS_RES *rs)`
+
   - **接口说明**：从 TMQ 消费者获取的消息结果中获取消息类型。
     - res：[入参] 指向一个有效的 WS_RES 结构体指针，该结构体包含了从 TMQ 消费者轮询得到的消息。
   - **返回值**：返回一个 ws_tmq_res_t 类型的枚举值，表示消息类型。
     - ws_tmq_res_t 表示消费到的数据类型，定义如下：
+
   ```
   typedef enum ws_tmq_res_t {
     WS_TMQ_RES_INVALID = -1,   // 无效
@@ -602,17 +655,20 @@ TDengine 推荐数据库应用的每个线程都建立一个独立的连接，�
   ```
 
 - `const char *ws_tmq_get_topic_name(const WS_RES *rs)`
+
   - **接口说明**：从 TMQ 消费者获取的消息结果中获取所属的 topic 名称。
     - res：[入参] 指向一个有效的 WS_RES 结构体指针，该结构体包含了从 TMQ 消费者轮询得到的消息。
-  - **返回值**：非 `NULL`：成功，返回一个 const char * 类型的指针，指向 topic 名称字符串。`NULL`：失败，非法的输入参数。
+  - **返回值**：非 `NULL`：成功，返回一个 const char \* 类型的指针，指向 topic 名称字符串。`NULL`：失败，非法的输入参数。
 
 - `const char *ws_tmq_get_db_name(const WS_RES *rs)`
   - **接口说明**：从 TMQ 消费者获取的消息结果中获取所属的数据库名称。
     - res：[入参] 指向一个有效的 WS_RES 结构体指针，该结构体包含了从 TMQ 消费者轮询得到的消息。
-  - **返回值**：非 `NULL`：成功，返回一个 const char * 类型的指针，指向数据库名称字符串。`NULL`：失败，非法的输入参数。
+  - **返回值**：非 `NULL`：成功，返回一个 const char \* 类型的指针，指向数据库名称字符串。`NULL`：失败，非法的输入参数。
 
 ## 原生连接方式
+
 原生连接方式需要使用 taos.h 头文件和 taos 动态库。
+
 ```c
 #include <taos.h>
 ```
@@ -640,8 +696,8 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号是一一�
 ### 错误码
 
 在 C 接口的设计中，错误码采用整数类型表示，每个错误码都对应一个特定的错误状态。如未特别说明，当 API 的返回值是整数时，_0_ 代表成功，其它是代表失败原因的错误码，当返回值是指针时，_NULL_ 表示失败。  
-所有的错误码以及对应的原因描述在 `taoserror.h` 文件中。   
-详细的错误码说明参考：[错误码](../../../reference/error-code)  
+所有的错误码以及对应的原因描述在 `taoserror.h` 文件中。  
+详细的错误码说明参考：[错误码](../../../reference/error-code)
 
 ### 示例程序
 
@@ -673,13 +729,16 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号是一一�
 基础 API 用于完成创建数据库连接等工作，为其它 API 的执行提供运行时环境。
 
 - `int taos_init()`
+
   - **接口说明**：初始化运行环境。如果没有主动调用该 API，那么调用 `taos_connect()` 时驱动将自动调用该 API，故程序一般无需手动调用。
   - **返回值**：`0`：成功，非 `0`：失败，可调用函数 taos_errstr(NULL) 获取更详细的错误信息。
 
 - `void taos_cleanup()`
+
   - **接口说明**：清理运行环境，应用退出前应调用。
 
 - `int taos_options(TSDB_OPTION option, const void * arg, ...)`
+
   - **接口说明**：设置客户端选项，支持区域设置（`TSDB_OPTION_LOCALE`）、字符集设置（`TSDB_OPTION_CHARSET`）、时区设置（`TSDB_OPTION_TIMEZONE`）、配置文件路径设置（`TSDB_OPTION_CONFIGDIR`）、驱动类型设置（`TSDB_OPTION_DRIVER`）。区域设置、字符集、时区默认为操作系统当前设置。驱动类型可选内部原生接口（`native`）和 WebSocket 接口（`websocket`），默认为 `websocket`。
   - **参数说明**：
     - `option`：[入参] 设置项类型。
@@ -687,6 +746,7 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号是一一�
   - **返回值**：`0`：成功，`-1`：失败。
 
 - `int taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...)`
+
   - **接口说明**：设置客户端连接选项，目前支持字符集设置（`TSDB_OPTION_CONNECTION_CHARSET`）、时区设置（`TSDB_OPTION_CONNECTION_TIMEZONE`）、用户 IP 设置（`TSDB_OPTION_CONNECTION_USER_IP`）、用户 APP 设置（`TSDB_OPTION_CONNECTION_USER_APP`）。
   - **参数说明**：
     - `taos`：[入参] taos_connect 返回的连接句柄。
@@ -706,10 +766,12 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号是一一�
     - 时区文件使用操作系统时区文件，可以自行更新操作系统时区文件。如果设置时区报错，请检查是否有时区文件或路径（mac:/var/db/timezone/zoneinfo, linux:/usr/share/zoneinfo）是否正确。
 
 - `char *taos_get_client_info()`
+
   - **接口说明**：获取客户端版本信息。
   - **返回值**：返回客户端版本信息。
 
 - `TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);`
+
   - **接口说明**：创建数据库连接，初始化连接上下文。
   - **参数说明**：
     - ip：[入参] TDengine 集群中任一节点的 FQDN。
@@ -718,11 +780,12 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号是一一�
     - db：[入参] 数据库名字，如果用户没有提供，也可以正常连接，用户可以通过该连接创建新的数据库，如果用户提供了数据库名字，则说明该数据库用户已经创建好，缺省使用该数据库。
     - port：[入参] taosd 程序监听的端口。
   - **返回值**：返回数据库连接，返回值为空表示失败。应用程序需要保存返回的参数，以便后续使用。
-  :::info
-  同一进程可以根据不同的 host/port 连接多个 TDengine 集群
-  :::
+    :::info
+    同一进程可以根据不同的 host/port 连接多个 TDengine 集群
+    :::
 
-- `TAOS *taos_connect_auth(const char *host, const char *user, const char *auth, const char *db, uint16_t port)`  
+- `TAOS *taos_connect_auth(const char *host, const char *user, const char *auth, const char *db, uint16_t port)`
+
   - **接口说明**：功能同 taos_connect。除 pass 参数替换为 auth 外，其他参数同 taos_connect。
   - **参数说明**：
     - ip：[入参] TDengine 集群中任一节点的 FQDN。
@@ -733,12 +796,14 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号是一一�
   - **返回值**：返回数据库连接，返回值为空表示失败。应用程序需要保存返回的参数，以便后续使用。
 
 - `char *taos_get_server_info(TAOS *taos)`
+
   - **接口说明**：获取服务端版本信息。
   - **参数说明**：
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
   - **返回值**：返回获取服务端版本信息。
 
 - `int taos_select_db(TAOS *taos, const char *db)`
+
   - **接口说明**：将当前的缺省数据库设置为 `db`。
   - **参数说明**：
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
@@ -746,6 +811,7 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号是一一�
   - **返回值**：`0`：成功，非 `0`：失败，详情请参考错误码页面。
 
 - `int taos_get_current_db(TAOS *taos, char *database, int len, int *required)`
+
   - **接口说明**：获取当前数据库名称。
   - **参数说明**：
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
@@ -758,10 +824,11 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号是一一�
     - 如果，len 大于等于 存储数据库名称所需的空间（包含最后的'\0'），返回成功，database 里赋值以'\0‘结尾数据库名称。
 
 - `int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type)`
+
   - **接口说明**：设置事件回调函数。
   - **参数说明**：
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
-    - fp：[入参] 事件回调函数指针。函数声明：typedef void (*__taos_notify_fn_t)(void *param, void *ext, int type)；其中，param 为用户自定义参数，ext 为扩展参数 (依赖事件类型，针对 TAOS_NOTIFY_PASSVER 返回用户密码版本)，type 为事件类型。
+    - fp：[入参] 事件回调函数指针。函数声明：typedef void (*\_\_taos_notify_fn_t)(void *param, void \*ext, int type)；其中，param 为用户自定义参数，ext 为扩展参数 (依赖事件类型，针对 TAOS_NOTIFY_PASSVER 返回用户密码版本)，type 为事件类型。
     - param：[入参] 用户自定义参数。
     - type：[入参] 事件类型。取值范围：1）TAOS_NOTIFY_PASSVER：用户密码改变。
   - **返回值**：`0`：成功，`-1`：失败，可调用函数 taos_errstr(NULL) 获取更详细的错误信息。
@@ -776,6 +843,7 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号是一一�
 本小节介绍 API 均属于同步接口。应用调用后，会阻塞等待响应，直到获得返回结果或错误信息。
 
 - `TAOS_RES* taos_query(TAOS *taos, const char *sql)`
+
   - **接口说明**：执行 SQL 语句，可以是 DQL、DML 或 DDL 语句。
   - **参数说明**：
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
@@ -784,18 +852,21 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号是一一�
     - taos_errno 返回值：`0`：成功，`-1`：失败，详情请调用 taos_errstr 函数来获取错误提示。
 
 - `int taos_result_precision(TAOS_RES *res)`
+
   - **接口说明**：返回结果集时间戳字段的精度类别。
   - **参数说明**：
     - res：[入参] 结果集。
   - **返回值**：`0`：毫秒，`1`：微秒，`2`：纳秒。
 
 - `TAOS_ROW taos_fetch_row(TAOS_RES *res)`
+
   - **接口说明**：按行获取查询结果集中的数据。
   - **参数说明**：
     - res：[入参] 结果集。
   - **返回值**：非 `NULL`：成功，`NULL`：失败，可调用函数 taos_errstr(NULL) 获取更详细的错误信息。
 
 - `int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows)`
+
   - **接口说明**：批量获取查询结果集中的数据。
   - **参数说明**：
     - res：[入参] 结果集。
@@ -803,46 +874,54 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号是一一�
   - **返回值**：返回值为获取到的数据的行数，如果没有更多的行则返回 0。
 
 - `int taos_num_fields(TAOS_RES *res)` 和 `int taos_field_count(TAOS_RES *res)`
+
   - **接口说明**：这两个 API 等价，用于获取查询结果集中的列数。
   - **参数说明**：
     - res：[入参] 结果集。
   - **返回值**：返回值为结果集中列的数量。
 
 - `int* taos_fetch_lengths(TAOS_RES *res)`
+
   - **接口说明**：获取结果集中每个字段的长度。
   - **参数说明**：
     - res：[入参] 结果集。
   - **返回值**：返回值是一个数组，其长度为结果集的列数。
 
 - `int taos_affected_rows(TAOS_RES *res)`
+
   - **接口说明**：获取被所执行的 SQL 语句影响的行数。
   - **参数说明**：
     - res：[入参] 结果集。
   - **返回值**：返回值表示受影响的行数。
 
 - `TAOS_FIELD *taos_fetch_fields(TAOS_RES *res)`
+
   - **接口说明**：获取查询结果集每列数据的属性（列的名称、列的数据类型、列的长度），与 `taos_num_fields()` 配合使用，可用来解析 `taos_fetch_row()` 返回的一个元组 (一行) 的数据。
   - **参数说明**：
     - res：[入参] 结果集。
-  - **返回值**：非 `NULL`：成功，返回一个指向 TAOS_FIELD 结构体的指针，每个元素代表一列的元数据。`NULL`：失败。    
+  - **返回值**：非 `NULL`：成功，返回一个指向 TAOS_FIELD 结构体的指针，每个元素代表一列的元数据。`NULL`：失败。
 
 - `TAOS_FIELD_E *taos_fetch_fields_e(TAOS_RES *res)`
+
   - **接口说明**：获取查询结果集每列数据的属性（列的名称、列的数据类型、列的长度），与 `taos_num_fields()` 配合使用，可用来解析 `taos_fetch_row()` 返回的一个元组 (一行) 的数据。TAOS_FIELD_E 中 除了 TAOS_FIELD 的基本信息外，还包括了类型的 `precision` 和 `scale` 信息。
   - **参数说明**：
     - res：[入参] 结果集。
-  - **返回值**：非 `NULL`：成功，返回一个指向 TAOS_FIELD_E 结构体的指针，每个元素代表一列的元数据。`NULL`：失败。    
+  - **返回值**：非 `NULL`：成功，返回一个指向 TAOS_FIELD_E 结构体的指针，每个元素代表一列的元数据。`NULL`：失败。
 
 - `void taos_stop_query(TAOS_RES *res)`
+
   - **接口说明**：停止当前查询的执行。
   - **参数说明**：
     - res：[入参] 结果集。
 
 - `void taos_free_result(TAOS_RES *res)`
+
   - **接口说明**：释放查询结果集以及相关的资源。查询完成后，务必调用该 API 释放资源，否则可能导致应用内存泄露。但也需注意，释放资源后，如果再调用 `taos_consume()` 等获取查询结果的函数，将导致应用崩溃。
   - **参数说明**：
     - res：[入参] 结果集。
 
 - `char *taos_errstr(TAOS_RES *res)`
+
   - **接口说明**：获取最近一次 API 调用失败的原因，返回值为字符串标识的错误提示信息。
   - **参数说明**：
     - res：[入参] 结果集。
@@ -869,6 +948,7 @@ TDengine 还提供性能更高的异步 API 处理数据插入、查询操作。
 异步 API 对于使用者的要求相对较高，用户可根据具体应用场景选择性使用。下面是两个重要的异步 API：
 
 - `void taos_query_a(TAOS *taos, const char *sql, void (*fp)(void *param, TAOS_RES *, int code), void *param);`
+
   - **接口说明**：异步执行 SQL 语句。
   - **参数说明**：
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
@@ -905,12 +985,14 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 接口相关的具体函数如下（也可以参考 [prepare.c](https://github.com/taosdata/TDengine/blob/develop/docs/examples/c/prepare.c) 文件中使用对应函数的方式）：
 
 - `TAOS_STMT* taos_stmt_init(TAOS *taos)`
+
   - **接口说明**：初始化一个预编译的 SQL 语句对象。
   - **参数说明**：
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
   - **返回值**：非 `NULL`：成功，返回一个指向 TAOS_STMT 结构体的指针，该结构体表示预编译的 SQL 语句对象。`NULL`：失败，详情请调用 taos_stmt_errstr() 函数来获取错误提示。
 
 - `int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length)`
+
   - **接口说明**：解析一条预编译的 SQL 语句，将解析结果和参数信息绑定到 stmt 上。
   - **参数说明**：
     - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
@@ -919,6 +1001,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   - **返回值**：`0`：成功。非 `0`：失败，详情请参考错误码页面。
 
 - `int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind)`
+
   - **接口说明**：绑定参数到一个预编译的 SQL 语句。不如 `taos_stmt_bind_param_batch()` 效率高，但可以支持非 INSERT 类型的 SQL 语句。
   - **参数说明**：
     - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
@@ -926,6 +1009,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   - **返回值**：`0`：成功。非 `0`：失败，详情请参考错误码页面。
 
 - `int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name)`
+
   - **接口说明**：（2.1.1.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）当 SQL 语句中的表名使用了 `?` 占位时，可以使用此函数绑定一个具体的表名。
   - **参数说明**：
     - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
@@ -933,6 +1017,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   - **返回值**：`0`：成功。非 `0`：失败，详情请参考错误码页面。
 
 - `int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_MULTI_BIND* tags)`
+
   - **接口说明**：（2.1.2.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）当 SQL 语句中的表名和 TAGS 都使用了 `?` 占位时，可以使用此函数绑定具体的表名和具体的 TAGS 取值。最典型的使用场景是使用了自动建表功能的 INSERT 语句（目前版本不支持指定具体的 TAGS 列）。TAGS 参数中的列数量需要与 SQL 语句中要求的 TAGS 数量完全一致。
   - **参数说明**：
     - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
@@ -941,6 +1026,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   - **返回值**：`0`：成功。非 `0`：失败，详情请参考错误码页面。
 
 - `int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind)`
+
   - **接口说明**：（2.1.1.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）以多列的方式传递待绑定的数据，需要保证这里传递的数据列的顺序、列的数量与 SQL 语句中的 VALUES 参数完全一致。
   - **参数说明**：
     - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
@@ -948,31 +1034,37 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   - **返回值**：`0`：成功。非 `0`：失败，详情请参考错误码页面。
 
 - `int taos_stmt_add_batch(TAOS_STMT *stmt)`
+
   - **接口说明**：将当前绑定的参数加入批处理中，调用此函数后，可以再次调用 `taos_stmt_bind_param()` 或 `taos_stmt_bind_param_batch()` 绑定新的参数。需要注意，此函数仅支持 INSERT/IMPORT 语句，如果是 SELECT 等其他 SQL 语句，将返回错误。
     - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
   - **返回值**：`0`：成功。非 `0`：失败，详情请参考错误码页面。
 
 - `int taos_stmt_execute(TAOS_STMT *stmt)`
+
   - **接口说明**：执行准备好的语句。目前，一条语句只能执行一次。
     - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
   - **返回值**：`0`：成功。非 `0`：失败，详情请参考错误码页面。
 
 - `int taos_stmt_affected_rows(TAOS_STMT *stmt)`
+
   - **接口说明**：获取执行预编译 SQL 语句后受影响的行数。
     - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
   - **返回值**：返回受影响的行数。
 
 - `int taos_stmt_affected_rows_once(TAOS_STMT *stmt)`
+
   - **接口说明**：获取执行一次绑定语句影响的行数。
     - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
   - **返回值**：返回受影响的行数。
 
 - `TAOS_RES* taos_stmt_use_result(TAOS_STMT *stmt)`
+
   - **接口说明**：获取语句的结果集。结果集的使用方式与非参数化调用时一致，使用完成后，应对此结果集调用 `taos_free_result()` 以释放资源。
     - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
   - **返回值**：非 `NULL`：成功，返回一个指向查询结果集的指针。`NULL`：失败，详情请调用 taos_stmt_errstr() 函数来获取错误提示。
 
 - `int taos_stmt_close(TAOS_STMT *stmt)`
+
   - **接口说明**：执行完毕，释放所有资源。
     - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
   - **返回值**：`0`：成功。非 `0`：失败，详情请参考错误码页面。
@@ -987,6 +1079,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 除了使用 SQL 方式或者使用参数绑定 API 写入数据外，还可以使用 Schemaless 的方式完成写入。Schemaless 可以免于预先创建超级表/数据子表的数据结构，而是可以直接写入数据，TDengine 系统会根据写入的数据内容自动创建和维护所需要的表结构。Schemaless 的使用方式详见 [Schemaless 写入](../../../develop/schemaless/) 章节，这里介绍与之配套使用的 C/C++ API。
 
 - `TAOS_RES* taos_schemaless_insert(TAOS* taos, const char* lines[], int numLines, int protocol, int precision)`
+
   - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine 中。
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
     - lines：[入参] 文本数据。满足解析格式要求的无模式文本字符串。
@@ -994,10 +1087,10 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
     - protocol：[入参] 行协议类型，用于标识文本数据格式。
     - precision：[入参] 文本数据中的时间戳精度字符串。
   - **返回值**：返回一个指向 TAOS_RES 结构体的指针，该结构体包含了插入操作的结果。应用可以通过使用 `taos_errstr()` 获得错误信息，也可以使用 `taos_errno()` 获得错误码。在某些情况下，返回的 TAOS_RES 为 `NULL`，此时仍然可以调用 `taos_errno()` 来安全地获得错误码信息。
-  返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。
+    返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。
 
   **说明**
-  
+
   协议类型是枚举类型，包含以下三种格式：
 
   - TSDB_SML_LINE_PROTOCOL：InfluxDB 行协议（Line Protocol)
@@ -1018,7 +1111,9 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   对于 OpenTSDB 的文本协议，时间戳的解析遵循其官方解析规则 — 按照时间戳包含的字符的数量来确认时间精度。
 
   **schemaless 其他相关的接口**
+
 - `TAOS_RES *taos_schemaless_insert_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int64_t reqid)`
+
   - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine 中。通过传递参数 reqid 来跟踪整个的函数调用链情况。
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
     - lines：[入参] 文本数据。满足解析格式要求的无模式文本字符串。
@@ -1027,9 +1122,10 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
     - precision：[入参] 文本数据中的时间戳精度字符串。
     - reqid：[入参] 指定的请求 ID，用于跟踪调用请求。请求 ID (reqid) 可以用于在客户端和服务器端之间建立请求和响应之间的关联，对于分布式系统中的跟踪和调试非常有用。
   - **返回值**：返回一个指向 TAOS_RES 结构体的指针，该结构体包含了插入操作的结果。应用可以通过使用 `taos_errstr()` 获得错误信息，也可以使用 `taos_errno()` 获得错误码。在某些情况下，返回的 TAOS_RES 为 `NULL`，此时仍然可以调用 `taos_errno()` 来安全地获得错误码信息。
-  返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。
+    返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。
 
 - `TAOS_RES *taos_schemaless_insert_raw(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision)`
+
   - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine 中。通过传递的参数 lines 指针和长度 len 来表示数据，为了解决原始接口数据包含'\0'而被截断的问题。
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
     - lines：[入参] 文本数据。满足解析格式要求的无模式文本字符串。
@@ -1038,9 +1134,10 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
     - protocol：[入参] 行协议类型，用于标识文本数据格式。
     - precision：[入参] 文本数据中的时间戳精度字符串。
   - **返回值**：返回一个指向 TAOS_RES 结构体的指针，该结构体包含了插入操作的结果。应用可以通过使用 `taos_errstr()` 获得错误信息，也可以使用 `taos_errno()` 获得错误码。在某些情况下，返回的 TAOS_RES 为 `NULL`，此时仍然可以调用 `taos_errno()` 来安全地获得错误码信息。
-  返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。
+    返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。
 
 - `TAOS_RES *taos_schemaless_insert_raw_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision, int64_t reqid)`
+
   - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine 中。通过传递的参数 lines 指针和长度 len 来表示数据，为了解决原始接口数据包含'\0'而被截断的问题。通过传递参数 reqid 来跟踪整个的函数调用链情况。
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
     - lines：[入参] 文本数据。满足解析格式要求的无模式文本字符串。
@@ -1050,9 +1147,10 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
     - precision：[入参] 文本数据中的时间戳精度字符串。
     - reqid：[入参] 指定的请求 ID，用于跟踪调用请求。请求 ID (reqid) 可以用于在客户端和服务器端之间建立请求和响应之间的关联，对于分布式系统中的跟踪和调试非常有用。
   - **返回值**：返回一个指向 TAOS_RES 结构体的指针，该结构体包含了插入操作的结果。应用可以通过使用 `taos_errstr()` 获得错误信息，也可以使用 `taos_errno()` 获得错误码。在某些情况下，返回的 TAOS_RES 为 `NULL`，此时仍然可以调用 `taos_errno()` 来安全地获得错误码信息。
-  返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。
+    返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。
 
 - `TAOS_RES *taos_schemaless_insert_ttl(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int32_t ttl)`
+
   - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine 中。通过传递 ttl 参数来控制建表的 ttl 到期时间。
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
     - lines：[入参] 文本数据。满足解析格式要求的无模式文本字符串。
@@ -1061,9 +1159,10 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
     - precision：[入参] 文本数据中的时间戳精度字符串。
     - ttl：[入参] 指定的生存时间（TTL），单位为天。记录在超过这个生存时间后会被自动删除。
   - **返回值**：返回一个指向 TAOS_RES 结构体的指针，该结构体包含了插入操作的结果。应用可以通过使用 `taos_errstr()` 获得错误信息，也可以使用 `taos_errno()` 获得错误码。在某些情况下，返回的 TAOS_RES 为 `NULL`，此时仍然可以调用 `taos_errno()` 来安全地获得错误码信息。
-  返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。
+    返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。
 
 - `TAOS_RES *taos_schemaless_insert_ttl_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int32_t ttl, int64_t reqid)`
+
   - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine 中。通过传递 ttl 参数来控制建表的 ttl 到期时间。通过传递参数 reqid 来跟踪整个的函数调用链情况。
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
     - lines：[入参] 文本数据。满足解析格式要求的无模式文本字符串。
@@ -1073,9 +1172,10 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
     - ttl：[入参] 指定的生存时间（TTL），单位为天。记录在超过这个生存时间后会被自动删除。
     - reqid：[入参] 指定的请求 ID，用于跟踪调用请求。请求 ID (reqid) 可以用于在客户端和服务器端之间建立请求和响应之间的关联，对于分布式系统中的跟踪和调试非常有用。
   - **返回值**：返回一个指向 TAOS_RES 结构体的指针，该结构体包含了插入操作的结果。应用可以通过使用 `taos_errstr()` 获得错误信息，也可以使用 `taos_errno()` 获得错误码。在某些情况下，返回的 TAOS_RES 为 `NULL`，此时仍然可以调用 `taos_errno()` 来安全地获得错误码信息。
-  返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。
+    返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。
 
 - `TAOS_RES *taos_schemaless_insert_raw_ttl(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision, int32_t ttl)`
+
   - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine 中。通过传递的参数 lines 指针和长度 len 来表示数据，为了解决原始接口数据包含'\0'而被截断的问题。通过传递 ttl 参数来控制建表的 ttl 到期时间。
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
     - lines：[入参] 文本数据。满足解析格式要求的无模式文本字符串。
@@ -1085,9 +1185,10 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
     - precision：[入参] 文本数据中的时间戳精度字符串。
     - ttl：[入参] 指定的生存时间（TTL），单位为天。记录在超过这个生存时间后会被自动删除。
   - **返回值**：返回一个指向 TAOS_RES 结构体的指针，该结构体包含了插入操作的结果。应用可以通过使用 `taos_errstr()` 获得错误信息，也可以使用 `taos_errno()` 获得错误码。在某些情况下，返回的 TAOS_RES 为 `NULL`，此时仍然可以调用 `taos_errno()` 来安全地获得错误码信息。
-  返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。
+    返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。
 
 - `TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision, int32_t ttl, int64_t reqid)`
+
   - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine 中。通过传递的参数 lines 指针和长度 len 来表示数据，为了解决原始接口数据包含'\0'而被截断的问题。通过传递 ttl 参数来控制建表的 ttl 到期时间。通过传递参数 reqid 来跟踪整个的函数调用链情况。
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
     - lines：[入参] 文本数据。满足解析格式要求的无模式文本字符串。
@@ -1098,25 +1199,30 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
     - ttl：[入参] 指定的生存时间（TTL），单位为天。记录在超过这个生存时间后会被自动删除。
     - reqid：[入参] 指定的请求 ID，用于跟踪调用请求。请求 ID (reqid) 可以用于在客户端和服务器端之间建立请求和响应之间的关联，对于分布式系统中的跟踪和调试非常有用。
   - **返回值**：返回一个指向 TAOS_RES 结构体的指针，该结构体包含了插入操作的结果。应用可以通过使用 `taos_errstr()` 获得错误信息，也可以使用 `taos_errno()` 获得错误码。在某些情况下，返回的 TAOS_RES 为 `NULL`，此时仍然可以调用 `taos_errno()` 来安全地获得错误码信息。
-  返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。
+    返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。
 
   **说明**
+
   - 上面这 7 个接口是扩展接口，主要用于在 schemaless 写入时传递 ttl、reqid 参数，可以根据需要使用。
-  - 带_raw 的接口通过传递的参数 lines 指针和长度 len 来表示数据，为了解决原始接口数据包含'\0'而被截断的问题。totalRows 指针返回解析出来的数据行数。
-  - 带_ttl 的接口可以传递 ttl 参数来控制建表的 ttl 到期时间。
-  - 带_reqid 的接口可以通过传递 reqid 参数来追踪整个的调用链。
+  - 带\_raw 的接口通过传递的参数 lines 指针和长度 len 来表示数据，为了解决原始接口数据包含'\0'而被截断的问题。totalRows 指针返回解析出来的数据行数。
+  - 带\_ttl 的接口可以传递 ttl 参数来控制建表的 ttl 到期时间。
+  - 带\_reqid 的接口可以通过传递 reqid 参数来追踪整个的调用链。
 
 #### 数据订阅
+
 - `const char *tmq_err2str(int32_t code)`
+
   - **接口说明**：用于将数据订阅的错误码转换为错误信息。
     - code：[入参] 数据订阅的错误码。
   - **返回值**：返回一个指向包含错误信息字符串的指针，返回值非 NULL，但是错误信息可能为空字符串。
 
 - `tmq_conf_t *tmq_conf_new()`
+
   - **接口说明**：创建一个新的 TMQ 配置对象。
   - **返回值**：非 `NULL`：成功，返回一个指向 tmq_conf_t 结构体的指针，该结构体用于配置 TMQ 的行为和特性。`NULL`：失败，可调用函数 taos_errstr(NULL) 获取更详细的错误信息。
 
 - `tmq_conf_res_t tmq_conf_set(tmq_conf_t *conf, const char *key, const char *value)`
+
   - **接口说明**：设置 TMQ 配置对象中的配置项，用于配置消费参数。
     - conf：[入参] 指向一个有效的 tmq_conf_t 结构体指针，该结构体代表一个 TMQ 配置对象。
     - key：[入参] 数配置项的键名。
@@ -1131,42 +1237,50 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
     ```
 
 - `void tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *param)`
+
   - **接口说明**：设置 TMQ 配置对象中的自动提交回调函数。
     - conf：[入参] 指向一个有效的 tmq_conf_t 结构体指针，该结构体代表一个 TMQ 配置对象。
     - cb：[入参] 指向一个有效的 tmq_commit_cb 回调函数指针，该函数将在消息被消费后调用以确认消息处理状态。
     - param：[入参] 传递给回调函数的用户自定义参数。
   - 设置自动提交回调函数的定义如下：
-   `typedef void(tmq_commit_cb(tmq_t *tmq, int32_t code, void *param))`
+    `typedef void(tmq_commit_cb(tmq_t *tmq, int32_t code, void *param))`
 
 - `void tmq_conf_destroy(tmq_conf_t *conf)`
+
   - **接口说明**：销毁一个 TMQ 配置对象并释放相关资源。
     - conf：[入参] 指向一个有效的 tmq_conf_t 结构体指针，该结构体代表一个 TMQ 配置对象。
 
 - `tmq_list_t *tmq_list_new()`
+
   - **接口说明**：用于创建一个 tmq_list_t 结构体，用于存储订阅的 topic。
   - **返回值**：非 `NULL`：成功，返回一个指向 tmq_list_t 结构体的指针。`NULL`：失败，可调用函数 taos_errstr(NULL) 获取更详细的错误信息。
 
 - `int32_t tmq_list_append(tmq_list_t *list, const char* topic)`
+
   - **接口说明**：用于向 tmq_list_t 结构体中添加一个 topic。
     - list：[入参] 指向一个有效的 tmq_list_t 结构体指针，该结构体代表一个 TMQ 列表对象。
     - topic：[入参] topic 名称。
   - **返回值**：`0`：成功。非 `0`：失败，可调用函数 `char *tmq_err2str(int32_t code)` 获取更详细的错误信息。
 
 - `void tmq_list_destroy(tmq_list_t *list)`
+
   - **接口说明**：用于销毁 tmq_list_t 结构体，tmq_list_new 的结果需要通过该接口销毁。
     - list：[入参] 指向一个有效的 tmq_list_t 结构体指针，该结构体代表一个 TMQ 列表对象。
 
 - `int32_t tmq_list_get_size(const tmq_list_t *list)`
+
   - **接口说明**：用于获取 tmq_list_t 结构体中 topic 的个数。
     - list：[入参] 指向一个有效的 tmq_list_t 结构体指针，该结构体代表一个 TMQ 列表对象。
   - **返回值**：`>=0`：成功，返回 tmq_list_t 结构体中 topic 的个数。`-1`：失败，表示输入参数 list 为 NULL。
 
 - `char **tmq_list_to_c_array(const tmq_list_t *list)`
+
   - **接口说明**：用于将 tmq_list_t 结构体转换为 C 数组，数组每个元素为字符串指针。
     - list：[入参] 指向一个有效的 tmq_list_t 结构体指针，该结构体代表一个 TMQ 列表对象。
   - **返回值**：非 `NULL`：成功，返回 c 数组，每个元素是字符串指针，代表一个 topic 名称。`NULL`：失败，表示输入参数 list 为 NULL。
 
 - `tmq_t *tmq_consumer_new(tmq_conf_t *conf, char *errstr, int32_t errstrLen)`
+
   - **接口说明**：用于创建一个 tmq_t 结构体，用于消费数据，消费完数据后需调用 tmq_consumer_close 关闭消费者。
     - conf：[入参] 指向一个有效的 tmq_conf_t 结构体指针，该结构体代表一个 TMQ 配置对象。
     - errstr：[出参] 指向一个有效的字符缓冲区指针，用于接收创建过程中可能产生的错误信息。内存的申请/释放由调用者负责。
@@ -1178,30 +1292,34 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
     - tmq：[入参] 指向一个有效的 tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
     - topic_list：[入参] 指向一个有效的 tmq_list_t 结构体指针，该结构体包含一个或多个主题名称。
   - **返回值**：`0`：成功。非 `0`：失败，可调用函数 `char *tmq_err2str(int32_t code)` 获取更详细的错误信息。
-  
 - `int32_t tmq_unsubscribe(tmq_t *tmq)`
+
   - **接口说明**：用于取消订阅的 topic 列表。需与 tmq_subscribe 配合使用。
     - tmq：[入参] 指向一个有效的 tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
   - **返回值**：`0`：成功。非 `0`：失败，可调用函数 `char *tmq_err2str(int32_t code)` 获取更详细的错误信息。
 
 - `int32_t tmq_subscription(tmq_t *tmq, tmq_list_t **topic_list)`
+
   - **接口说明**：用于获取订阅的 topic 列表。
     - tmq：[入参] 指向一个有效的 tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
     - topic_list：[出参] 指向一个 tmq_list_t 结构体指针的指针，用于接收当前订阅的主题列表。
   - **返回值**：`0`：成功。非 `0`：失败，可调用函数 `char *tmq_err2str(int32_t code)` 获取更详细的错误信息。
 
 - `TAOS_RES *tmq_consumer_poll(tmq_t *tmq, int64_t timeout)`
+
   - **接口说明**：用于轮询消费数据，每一个消费者，只能单线程调用该接口。
     - tmq：[入参] 指向一个有效的 tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
     - timeout：[入参] 轮询的超时时间，单位为毫秒，负数表示默认超时 1 秒。
   - **返回值**：非 `NULL`：成功，返回一个指向 TAOS_RES 结构体的指针，该结构体包含了接收到的消息。。`NULL`：表示没有数据，可通过 taos_errno(NULL) 获取错误码，具体错误码参见参考手册。TAOS_RES 结果和 taos_query 返回结果一致，可通过查询的各种接口获取 TAOS_RES 里的信息，比如 schema 等。
 
 - `int32_t tmq_consumer_close(tmq_t *tmq)`
+
   - **接口说明**：用于关闭 tmq_t 结构体。需与 tmq_consumer_new 配合使用。
     - tmq：[入参] 指向一个有效的 tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
   - **返回值**：非 `NULL`：成功，返回一个指向 TAOS_RES 结构体的指针，该结构体包含了接收到的消息。。`NULL`：表示没有数据，可通过 taos_errno(NULL) 获取错误码，具体错误码参见参考手册。TAOS_RES 结果和 taos_query 返回结果一致，可通过查询的各种接口获取 TAOS_RES 里的信息，比如 schema 等。
 
 - `int32_t tmq_get_topic_assignment(tmq_t *tmq, const char *pTopicName, tmq_topic_assignment **assignment, int32_t *numOfAssignment)`
+
   - **接口说明**：返回当前 consumer 分配的 vgroup 的信息，每个 vgroup 的信息包括 vgId，wal 的最大最小 offset，以及当前消费到的 offset。
     - tmq：[入参] 指向一个有效的 tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
     - pTopicName：[入参] 要查询分配信息的主题名称。
@@ -1210,10 +1328,12 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   - **返回值**：`0`：成功。非 `0`：失败，可调用函数 `char *tmq_err2str(int32_t code)` 获取更详细的错误信息。
 
 - `void tmq_free_assignment(tmq_topic_assignment* pAssignment)`
+
   - **接口说明**：返回当前 consumer 分配的 vgroup 的信息，每个 vgroup 的信息包括 vgId，wal 的最大最小 offset，以及当前消费到的 offset。
     - pAssignment：[入参] 指向一个有效的 tmq_topic_assignment 结构体数组的指针，该数组包含了 vgroup 分配信息。
 
 - `int64_t tmq_committed(tmq_t *tmq, const char *pTopicName, int32_t vgId)`
+
   - **接口说明**：获取 TMQ 消费者对象对特定 topic 和 vgroup 的已提交偏移量。
     - tmq：[入参] 指向一个有效的 tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
     - pTopicName：[入参] 要查询已提交偏移量的主题名称。
@@ -1221,12 +1341,14 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   - **返回值**：`>=0`：成功，返回一个 int64_t 类型的值，表示已提交的偏移量。`<0`：失败，返回值就是错误码，可调用函数 `char *tmq_err2str(int32_t code)` 获取更详细的错误信息。
 
 - `int32_t tmq_commit_sync(tmq_t *tmq, const TAOS_RES *msg)`
+
   - **接口说明**：同步提交 TMQ 消费者对象处理的消息偏移量。
     - tmq：[入参] 指向一个有效的 tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
     - msg：[入参] 指向一个有效的 TAOS_RES 结构体指针，该结构体包含了已处理的消息。如果为 NULL，提交当前 consumer 所有消费的 vgroup 的当前进度。
   - **返回值**：`0`：成功，已经成功提交偏移量。非 `0`：失败，可调用函数 `char *tmq_err2str(int32_t code)` 获取更详细的错误信息。
 
 - `void tmq_commit_async(tmq_t *tmq, const TAOS_RES *msg, tmq_commit_cb *cb, void *param)`
+
   - **接口说明**：异步提交 TMQ 消费者对象处理的消息偏移量。
     - tmq：[入参] 指向一个有效的 tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
     - msg：[入参] 指向一个有效的 TAOS_RES 结构体指针，该结构体包含了已处理的消息。如果为 NULL，提交当前 consumer 所有消费的 vgroup 的当前进度。
@@ -1234,14 +1356,16 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
     - param：[入参] 一个用户自定义的参数，将在回调函数中传递给 cb。
 
 - `int32_t tmq_commit_offset_sync(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset)`
+
   - **接口说明**：同步提交 TMQ 消费者对象的特定主题和 vgroup 的偏移量。
     - tmq：[入参] 指向一个有效的 tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
     - pTopicName：[入参] 要提交偏移量的主题名称。
     - vgId：[入参] 虚拟组 vgroup 的 ID。
-    - offset：[入参] 要提交的偏移量。    
+    - offset：[入参] 要提交的偏移量。
   - **返回值**：`0`：成功，已经成功提交偏移量。非 `0`：失败，可调用函数 `char *tmq_err2str(int32_t code)` 获取更详细的错误信息。
 
 - `void tmq_commit_offset_async(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset, tmq_commit_cb *cb, void *param)`
+
   - **接口说明**：异步提交 TMQ 消费者对象的特定主题和 vgroup 的偏移量。
     - tmq：[入参] 指向一个有效的 tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
     - pTopicName：[入参] 要提交偏移量的主题名称。
@@ -1251,6 +1375,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
     - param：[入参] 一个用户自定义的参数，将在回调函数中传递给 cb。
 
 - `int64_t tmq_position(tmq_t *tmq, const char *pTopicName, int32_t vgId)`
+
   - **接口说明**：获取当前消费位置，即已消费到的数据位置的下一个位置。
     - tmq：[入参] 指向一个有效的 tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
     - pTopicName：[入参] 要查询当前位置的主题名称。
@@ -1258,6 +1383,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   - **返回值**：`>=0`：成功，返回一个 int64_t 类型的值，表示当前位置的偏移量。`<0`：失败，返回值就是错误码，可调用函数 `char *tmq_err2str(int32_t code)` 获取更详细的错误信息。
 
 - `int32_t tmq_offset_seek(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset)`
+
   - **接口说明**：将 TMQ 消费者对象在某个特定 topic 和 vgroup 的偏移量设置到指定的位置。
     - tmq：[入参] 指向一个有效的 tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
     - pTopicName：[入参] 要查询当前位置的主题名称。
@@ -1266,26 +1392,31 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   - **返回值**：`0`：成功，非 `0`：失败，可调用函数 `char *tmq_err2str(int32_t code)` 获取更详细的错误信息。
 
 - `int64_t tmq_get_vgroup_offset(TAOS_RES* res)`
+
   - **接口说明**：从 TMQ 消费者获取的消息结果中提取虚拟组（vgroup）的当前消费数据位置的偏移量。
     - res：[入参] 指向一个有效的 TAOS_RES 结构体指针，该结构体包含了从 TMQ 消费者轮询得到的消息。
   - **返回值**：`>=0`：成功，返回一个 int64_t 类型的值，表示当前消费位置的偏移量。`<0`：失败，返回值就是错误码，可调用函数 `char *tmq_err2str(int32_t code)` 获取更详细的错误信息。
 
 - `int32_t tmq_get_vgroup_id(TAOS_RES *res)`
+
   - **接口说明**：从 TMQ 消费者获取的消息结果中提取所属虚拟组（vgroup）的 ID。
     - res：[入参] 指向一个有效的 TAOS_RES 结构体指针，该结构体包含了从 TMQ 消费者轮询得到的消息。
   - **返回值**：`>=0`：成功，返回一个 int32_t 类型的值，表示虚拟组（vgroup）的 ID。`<0`：失败，返回值就是错误码，可调用函数 `char *tmq_err2str(int32_t code)` 获取更详细的错误信息。
 
 - `TAOS *tmq_get_connect(tmq_t *tmq)`
+
   - **接口说明**：从 TMQ 消费者对象中获取与 TDengine 数据库的连接句柄。
     - tmq：[入参] 指向一个有效的 tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
-  - **返回值**：非 `NULL`：成功，返回一个 TAOS * 类型的指针，指向与 TDengine 数据库的连接句柄。`NULL`：失败，非法的输入参数。
+  - **返回值**：非 `NULL`：成功，返回一个 TAOS \* 类型的指针，指向与 TDengine 数据库的连接句柄。`NULL`：失败，非法的输入参数。
 
 - `const char *tmq_get_table_name(TAOS_RES *res)`
+
   - **接口说明**：从 TMQ 消费者获取的消息结果中获取所属的表名。
     - res：[入参] 指向一个有效的 TAOS_RES 结构体指针，该结构体包含了从 TMQ 消费者轮询得到的消息。
-  - **返回值**：非 `NULL`：成功，返回一个 const char * 类型的指针，指向表名字符串。`NULL`：失败，非法的输入参数。
+  - **返回值**：非 `NULL`：成功，返回一个 const char \* 类型的指针，指向表名字符串。`NULL`：失败，非法的输入参数。
 
 - `tmq_res_t tmq_get_res_type(TAOS_RES *res)`
+
   - **接口说明**：从 TMQ 消费者获取的消息结果中获取消息类型。
     - res：[入参] 指向一个有效的 TAOS_RES 结构体指针，该结构体包含了从 TMQ 消费者轮询得到的消息。
   - **返回值**：返回一个 tmq_res_t 类型的枚举值，表示消息类型。
@@ -1300,11 +1431,12 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
       ```
 
 - `const char *tmq_get_topic_name(TAOS_RES *res)`
+
   - **接口说明**：从 TMQ 消费者获取的消息结果中获取所属的 topic 名称。
     - res：[入参] 指向一个有效的 TAOS_RES 结构体指针，该结构体包含了从 TMQ 消费者轮询得到的消息。
-  - **返回值**：非 `NULL`：成功，返回一个 const char * 类型的指针，指向 topic 名称字符串。`NULL`：失败，非法的输入参数。
+  - **返回值**：非 `NULL`：成功，返回一个 const char \* 类型的指针，指向 topic 名称字符串。`NULL`：失败，非法的输入参数。
 
 - `const char *tmq_get_db_name(TAOS_RES *res)`
   - **接口说明**：从 TMQ 消费者获取的消息结果中获取所属的数据库名称。
     - res：[入参] 指向一个有效的 TAOS_RES 结构体指针，该结构体包含了从 TMQ 消费者轮询得到的消息。
-  - **返回值**：非 `NULL`：成功，返回一个 const char * 类型的指针，指向数据库名称字符串。`NULL`：失败，非法的输入参数。
+  - **返回值**：非 `NULL`：成功，返回一个 const char \* 类型的指针，指向数据库名称字符串。`NULL`：失败，非法的输入参数。
