@@ -2298,6 +2298,7 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
       if (code) {
         vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " uid:%" PRId64, TD_VID(pVnode), __func__,
                __FILE__, __LINE__, tstrerror(code), version, pTbData->uid);
+        return code;
       }
     }
 
@@ -2361,7 +2362,7 @@ static int32_t vnodeScanColumnData(SVnode *pVnode, SSubmitTbData *pTbData, TSKEY
   for (int32_t i = 0; i < aColData[0].nVal; ++i) {
     SRowKey key = {0};
 
-    tColDataArrGetRowKey(aColData, numCols, 0, &lastKey);
+    tColDataArrGetRowKey(aColData, numCols, 0, &key);
 
     if (key.ts < minKey || key.ts > maxKey) {
       code = TSDB_CODE_INVALID_MSG;
