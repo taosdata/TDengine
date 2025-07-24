@@ -28,30 +28,30 @@ class TestStreamOptionsTrigger:
         """
 
         tdStream.createSnode()
+        tdSql.execute(f"alter all dnodes 'debugflag 131';")
+        tdSql.execute(f"alter all dnodes 'stdebugflag 131';")
 
         streams = []
-        streams.append(self.Basic0())  # WATERMARK [ok]
+        streams.append(self.Basic0())    # [ok] WATERMARK [ok]
         
         # TD-36739 [流计算开发阶段] 流计算state窗口+expired_time(10s)对过期的乱序数据也进行了重算
-        # streams.append(self.Basic1())  # EXPIRED_TIME   [fail] 
+        # streams.append(self.Basic1())   # [fail] EXPIRED_TIME   [fail] 
         
-        streams.append(self.Basic2())  # IGNORE_DISORDER  [ok]
-        streams.append(self.Basic3())  # DELETE_RECALC  [ok]
+        streams.append(self.Basic2())    # [ok] IGNORE_DISORDER  [ok]
+        streams.append(self.Basic3())    # [ok] DELETE_RECALC  [ok]
         
         # # # TD-36305 [流计算开发阶段] 流计算state窗口+超级表%%rows+delete_output_table没有删除结果表
-        # # # streams.append(self.Basic4())  # DELETE_OUTPUT_TABLE  [fail]
-        
-        streams.append(self.Basic5())  # FILL_HISTORY        [ok]
-        streams.append(self.Basic6())  # FILL_HISTORY_FIRST  [ok]
-        streams.append(self.Basic7())  # CALC_NOTIFY_ONLY [ok]
-        # # # # streams.append(self.Basic8())  # LOW_LATENCY_CALC  temp no test [x]
-        streams.append(self.Basic9())  # PRE_FILTER     [ok]
-        streams.append(self.Basic10()) # FORCE_OUTPUT   [ok] 
-        streams.append(self.Basic11()) # MAX_DELAY  [ok]      
-        streams.append(self.Basic11_1()) # MAX_DELAY [ok]       
-        streams.append(self.Basic12()) # EVENT_TYPE [ok]
-        
-        streams.append(self.Basic13()) # IGNORE_NODATA_TRIGGER [ok]   
+        # streams.append(self.Basic4())   # [fail] DELETE_OUTPUT_TABLE         
+        streams.append(self.Basic5())    # [ok] FILL_HISTORY        [ok]
+        streams.append(self.Basic6())    # [ok] FILL_HISTORY_FIRST  [ok]
+        streams.append(self.Basic7())    # [ok] CALC_NOTIFY_ONLY [ok]
+        # streams.append(self.Basic8())  # [x] LOW_LATENCY_CALC  temp no test [x]
+        streams.append(self.Basic9())    # [ok] PRE_FILTER     [ok]
+        streams.append(self.Basic10())   # [ok] FORCE_OUTPUT   [ok] 
+        streams.append(self.Basic11())   # [ok] MAX_DELAY  [ok]      
+        streams.append(self.Basic11_1()) # [ok] MAX_DELAY [ok]       
+        streams.append(self.Basic12())   # [ok] EVENT_TYPE [ok]        
+        streams.append(self.Basic13())   # [ok] IGNORE_NODATA_TRIGGER [ok]   
         
         # streams.append(self.Basic14()) # watermark + expired_time + ignore_disorder  [fail]  对超期的数据仍然进行了计算
         
@@ -1879,7 +1879,61 @@ class TestStreamOptionsTrigger:
                 "insert into ct4 values ('2025-01-01 00:00:05', 8,  1);", # output by max delay        
             ]
             tdSql.executes(sqls)
-            time.sleep(5)               #  should modify to insert2 and check2
+            time.sleep(3) 
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name="res_ct1"',
+                func=lambda: tdSql.getRows() == 1,
+            )
+            tdSql.checkResultsByFunc(
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_ct%"',
+                func=lambda: tdSql.getRows() == 4,
+            )
+            
+            tdSql.checkTableSchema(
+                dbname=self.db,
+                tbname="res_ct1",
+                schema=[
+                    ["lastts", "TIMESTAMP", 8, ""],
+                    ["firstts", "TIMESTAMP", 8, ""],
+                    ["cnt_v", "BIGINT", 8, ""],
+                    ["sum_v", "BIGINT", 8, ""],
+                    ["avg_v", "DOUBLE", 8, ""],
+                ],
+            )
+
+            tdSql.checkResultsByFunc(
+                sql=f"select lastts, firstts, cnt_v, sum_v, avg_v from {self.db}.res_ct1",
+                func=lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:02")
+                and tdSql.compareData(0, 1, "2025-01-01 00:00:02")
+                and tdSql.compareData(0, 2, 1)
+                and tdSql.compareData(0, 3, 6)
+                and tdSql.compareData(0, 4, 6)
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:05")
+                and tdSql.compareData(1, 1, "2025-01-01 00:00:03")
+                and tdSql.compareData(1, 2, 3)
+                and tdSql.compareData(1, 3, 26)
+                # and tdSql.compareData(1, 4, 8.667)
+            )
+
+            tdSql.checkResultsByFunc(
+                sql=f"select lastts, firstts, cnt_v, sum_v, avg_v from {self.db}.res_stb_ct1",
+                func=lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:02")
+                and tdSql.compareData(0, 1, "2025-01-01 00:00:02")
+                and tdSql.compareData(0, 2, 1)
+                and tdSql.compareData(0, 3, 6)
+                and tdSql.compareData(0, 4, 6)
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:05")
+                and tdSql.compareData(1, 1, "2025-01-01 00:00:03")
+                and tdSql.compareData(1, 2, 3)
+                and tdSql.compareData(1, 3, 26)
+                # and tdSql.compareData(1, 4, 8.667)
+            )    
+
+        def insert2(self):
             sqls = [
                 "insert into ct1 values ('2025-01-01 00:00:06', 1,  8);", # output by w-close
                 "insert into ct1 values ('2025-01-01 00:00:01', 1,  1);",                 
@@ -1895,7 +1949,7 @@ class TestStreamOptionsTrigger:
             ]
             tdSql.executes(sqls)
 
-        def check1(self):
+        def check2(self):
             tdSql.checkResultsByFunc(
                 sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name="res_ct1"',
                 func=lambda: tdSql.getRows() == 1,
