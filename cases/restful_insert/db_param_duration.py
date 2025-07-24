@@ -65,7 +65,7 @@ class TestDuration(TDCase):
             if int_part < 1440:
                 new_keep_value = str(1440) + str_part
             kv_dict["keep"] = new_keep_value
-            kv_dict["s3_keeplocal"] = new_keep_value
+            kv_dict["ss_keeplocal"] = new_keep_value
             self.tdCom.createDb(dbname, **kv_dict)
             self.tdRest.request('select * from information_schema.ins_databases')
             #TODO
