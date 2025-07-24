@@ -184,6 +184,3 @@ class TestEmptyIdentifier:
 
         for sql in sqls:
             self.execute_sql_and_expect_err(sql, -2147473897)
-
-    def test_empty_identifier_end(self):
-        tdLog.success(f"{__file__} successfully executed")

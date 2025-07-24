@@ -16,12 +16,15 @@ import sys
 import os
 import time
 import platform
+import subprocess
 
 from pathlib import Path
 from .log import *
 from .sql import *
 from .server.dnodes import *
 from .common import *
+from taos.tmq import Consumer
+
 
 deletedDataSql = '''drop database if exists deldata;create database deldata duration 100 stt_trigger 1; ;use deldata;
                             create table deldata.stb1 (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp) tags (t1 int);
@@ -82,11 +85,20 @@ class CompatibilityBase:
         if not my_file.exists():
             print(f"{packageName} is not exists")
             tdLog.info(f"cd {packagePath} && wget {download_url}")
-            os.system(f"cd {packagePath} && wget {download_url}")
+            ret_code = os.system(f"cd {packagePath} && wget {download_url}")
+            if ret_code != 0:
+                return False
+            
+            # Check if file was actually downloaded
+            my_file = Path(f"{packagePath}/{packageName}")
+            if not my_file.exists():
+                return False
         else: 
             print(f"{packageName} has been exists")
             
-        os.system(f" cd {packagePath} && tar xvf {packageName} && cd {packageTPath} && ./install.sh -e no")
+        install_ret = os.system(f" cd {packagePath} && tar xvf {packageName} && cd {packageTPath} && ./install.sh -e no")
+        if install_ret != 0:
+            return False
         
         for dnodePath in dnodePaths:
             tdLog.info(f"start taosd: rm -rf {dnodePath}data/* && nohup /usr/bin/taosd -c {dnodePath}cfg/ &")
@@ -103,6 +115,8 @@ class CompatibilityBase:
             print(f"LD_LIBRARY_PATH=/usr/lib -c {taosadapter_cfg} 2>&1 &")
             os.system(f"LD_LIBRARY_PATH=/usr/lib /usr/bin/taosadapter -c {taosadapter_cfg} 2>&1 &")
             time.sleep(5)
+        
+        return True
 
     # Modified installTaosd to accept version parameter
     def installTaosd(self, bPath, cPath, base_version):
@@ -202,7 +216,7 @@ class CompatibilityBase:
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database test '")
 
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s \"insert into test.d1 values (now+11s, 11, 190, 0.21), (now+12s, 11, 190, 0.21), (now+13s, 11, 190, 0.21), (now+14s, 11, 190, 0.21), (now+15s, 11, 190, 0.21) test.d3  values  (now+16s, 11, 190, 0.21), (now+17s, 11, 190, 0.21), (now+18s, 11, 190, 0.21), (now+19s, 119, 191, 0.25) test.d3  (ts) values (now+20s);\"")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/com_alltypedata.json -y")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/13-StreamProcessing/30-OldPyCases/json/com_alltypedata.json -y")
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database curdb '")
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'alter database curdb  cachemodel \"both\" '")
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'select count(*) from curdb.meters '")
@@ -253,12 +267,12 @@ class CompatibilityBase:
 
         consumer.close()
         
-        tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y  ")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/all_insertmode_alltypes.json -y")
+        tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/13-StreamProcessing/30-OldPyCases/json/compa4096.json -y  ")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/13-StreamProcessing/30-OldPyCases/json/compa4096.json -y")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/13-StreamProcessing/30-OldPyCases/json/all_insertmode_alltypes.json -y")
 
         # os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database db4096 '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -f 0-others/TS-3131.tsql")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taos -f cases/13-StreamProcessing/30-OldPyCases/json/TS-3131.tsql")
 
         # add deleted  data
         os.system(f'LD_LIBRARY_PATH=/usr/lib taos -s "{deletedDataSql}" ')

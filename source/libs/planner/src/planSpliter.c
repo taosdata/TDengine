@@ -169,7 +169,11 @@ static int32_t splCreateExchangeNodeForSubplan(SSplitContext* pCxt, SLogicSubpla
   SExchangeLogicNode* pExchange = NULL;
   int32_t             code = splCreateExchangeNode(pCxt, pSplitNode, &pExchange);
   if (TSDB_CODE_SUCCESS == code) {
-    pExchange->dynTbname = pCxt->pPlanCxt->phTbnameQuery;
+    if (nodeType(pSplitNode) == QUERY_NODE_LOGIC_PLAN_SCAN) {
+      pExchange->dynTbname = ((SScanLogicNode*)pSplitNode)->phTbnameScan;
+    } else {
+      pExchange->dynTbname = false;
+    }
     pExchange->seqRecvData = seqScan;
     code = replaceLogicNode(pSubplan, pSplitNode, (SLogicNode*)pExchange);
   }
@@ -273,7 +277,8 @@ static bool stbSplHasGatherExecFunc(const SNodeList* pFuncs) {
 static bool stbSplIsMultiTbScan(SScanLogicNode* pScan) {
   return ((NULL != pScan->pVgroupList && pScan->pVgroupList->numOfVgroups > 1) || pScan->needSplit) &&
          pScan->placeholderType != SP_PARTITION_TBNAME &&
-         pScan->placeholderType != SP_PARTITION_ROWS;
+         pScan->placeholderType != SP_PARTITION_ROWS &&
+         !pScan->phTbnameScan && !pScan->virtualStableScan;
 }
 
 static bool stbSplHasMultiTbScan(SLogicNode* pNode) {
@@ -357,9 +362,6 @@ static bool stbSplIsTableCountQuery(SLogicNode* pNode) {
 }
 
 static bool stbSplNeedSplit(SFindSplitNodeCtx* pCtx, SLogicNode* pNode) {
-  if (pCtx->pSplitCtx->pPlanCxt->virtualStableQuery || pCtx->pSplitCtx->pPlanCxt->phTbnameQuery) {
-    return false;
-  }
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return stbSplIsMultiTbScan((SScanLogicNode*)pNode);
@@ -375,6 +377,7 @@ static bool stbSplNeedSplit(SFindSplitNodeCtx* pCtx, SLogicNode* pNode) {
       return stbSplNeedSplitWindow(pNode);
     case QUERY_NODE_LOGIC_PLAN_SORT:
       return stbSplHasMultiTbScan(pNode);
+
     default:
       break;
   }
@@ -2108,7 +2111,7 @@ static int32_t streamScanSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
       if (!pScanSubplan->pVgroupList) {
         PLAN_ERR_RET(cloneVgroups(&pScanSubplan->pVgroupList, info.pSubplan->pVgroupList));
       }
-      pScanSubplan->dynTbname = pCxt->pPlanCxt->phTbnameQuery;
+      pScanSubplan->dynTbname = ((SScanLogicNode*)info.pSplitNode)->phTbnameScan;
       PLAN_ERR_RET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)pScanSubplan));
     } else {
       PLAN_ERR_RET(terrno);

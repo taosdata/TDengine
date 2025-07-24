@@ -446,6 +446,18 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     code = initExprSupp(&pExtW->scalarSupp, pScalarExprInfo, numOfScalarExpr, &pTaskInfo->storageAPI.functionStore);
     QUERY_CHECK_CODE(code, lino, _error);
   } else if (pExtW->mode == EEXT_MODE_AGG) {
+    if (pPhynode->window.pExprs != NULL) {
+      int32_t    num = 0;
+      SExprInfo* pSExpr = NULL;
+      code = createExprInfo(pPhynode->window.pExprs, NULL, &pSExpr, &num);
+      QUERY_CHECK_CODE(code, lino, _error);
+    
+      code = initExprSupp(&pExtW->scalarSupp, pSExpr, num, &pTaskInfo->storageAPI.functionStore);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _error;
+      }
+    }
+    
     size_t keyBufSize = sizeof(int64_t) * 2 + POINTER_BYTES;
     initResultSizeInfo(&pOperator->resultInfo, 512);
     code = blockDataEnsureCapacity(pExtW->binfo.pRes, pOperator->resultInfo.capacity);
@@ -751,7 +763,6 @@ static int32_t extWindowDoIndefRows(SOperatorInfo* pOperator, SSDataBlock* pRes,
   int32_t scanFlag = pBlock->info.scanFlag;
   int32_t code = TSDB_CODE_SUCCESS, lino = 0;
 
-  // there is an scalar expression that needs to be calculated before apply the group aggregation.
   SExprSupp* pScalarSup = &pExtW->scalarSupp;
   if (pScalarSup->pExprInfo != NULL) {
     TAOS_CHECK_EXIT(projectApplyFunctions(pScalarSup->pExprInfo, pBlock, pBlock, pScalarSup->pCtx, pScalarSup->numOfExprs,
@@ -929,6 +940,15 @@ static void hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
   
   qDebug("%s ext window1 start:%" PRId64 ", end:%" PRId64 ", ts:%" PRId64 ", ascScan:%d",
          GET_TASKID(pOperator->pTaskInfo), pWin->skey, pWin->ekey, ts, ascScan);        
+
+  SExprSupp* pScalarSup = &pExtW->scalarSupp;
+  if (pScalarSup->pExprInfo != NULL) {
+    ret = projectApplyFunctions(pScalarSup->pExprInfo, pInputBlock, pInputBlock, pScalarSup->pCtx, pScalarSup->numOfExprs,
+                                 pExtW->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo));
+    if (ret != 0) {
+      T_LONG_JMP(pTaskInfo->env, ret);
+    }
+  }
 
   STimeWindow win = *pWin;
   ret = setExtWindowOutputBuf(pResultRowInfo, &win, &pResult, pInputBlock->info.id.groupId, pSup->pCtx, numOfOutput,
