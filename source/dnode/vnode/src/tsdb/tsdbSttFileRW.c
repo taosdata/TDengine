@@ -63,7 +63,7 @@ int32_t tsdbSttFileReaderOpen(const char *fname, const SSttFileReaderConfig *con
   int64_t offset = config->file->size - sizeof(SSttFooter);
   if (offset < TSDB_FHDR_SIZE) {
     tsdbError("vgId:%d %s failed at %s:%d since %s, fname:%s, offset:%" PRId64 ", size:%" PRId64,
-              TD_VID(config->tsdb->pVnode), __func__, __FILE__, lino, "File size is too small", config->file->path,
+              TD_VID(config->tsdb->pVnode), __func__, __FILE__, lino, "File size is too small", reader[0]->fd->path,
               offset, config->file->size);
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
   }
