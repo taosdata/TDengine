@@ -654,12 +654,12 @@ end:
 static int32_t buildScheamFromMeta(SVnode* pVnode, int64_t uid, SArray** schemas) {
   int32_t code = 0;
   int32_t lino = 0;
-  *schemas = taosArrayInit(8, sizeof(SSchema));
-  STREAM_CHECK_NULL_GOTO(*schemas, terrno);
-
   SMetaReader metaReader = {0};
   SStorageAPI api = {0};
   initStorageAPI(&api);
+  *schemas = taosArrayInit(8, sizeof(SSchema));
+  STREAM_CHECK_NULL_GOTO(*schemas, terrno);
+  
   api.metaReaderFn.initReader(&metaReader, pVnode, META_READER_LOCK, &api.metaFn);
   STREAM_CHECK_RET_GOTO(api.metaReaderFn.getTableEntryByUid(&metaReader, uid));
 
@@ -1745,13 +1745,13 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   SMetaReader          metaReader = {0};
   SNodeList*           groupNew = NULL;
   void*                pTableList = NULL;
+  SStorageAPI api = {0};
+  initStorageAPI(&api);
 
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
   void* pTask = sStreamReaderInfo->pTask;
   ST_TASK_DLOG("vgId:%d %s start", TD_VID(pVnode), __func__);
 
-  SStorageAPI api = {0};
-  initStorageAPI(&api);
   STREAM_CHECK_RET_GOTO(nodesCloneList(sStreamReaderInfo->partitionCols, &groupNew));
   STREAM_CHECK_RET_GOTO(qStreamCreateTableListForReader(
       pVnode, sStreamReaderInfo->suid, sStreamReaderInfo->uid, sStreamReaderInfo->tableType,
