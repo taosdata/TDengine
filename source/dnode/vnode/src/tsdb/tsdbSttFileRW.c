@@ -401,9 +401,8 @@ int32_t tsdbSttFileReadTombBlock(SSttFileReader *reader, const STombBlk *tombBlk
   }
 
   if (br.offset != tombBlk->dp->size) {
-    tsdbError("vgId:%d %s failed at %s:%d since tomb block size mismatch, expected: %u, actual: %u, fname:%s",
-              TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, tombBlk->dp->size, br.offset,
-              reader->fd->path);
+    tsdbError("vgId:%d %s failed at %s:%d since tomb block size mismatch, fname:%s",
+              TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, reader->fd->path);
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
   }
 
