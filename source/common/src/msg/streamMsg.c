@@ -1947,7 +1947,7 @@ void tFreeSStreamRunnerDeployMsg(SStreamRunnerDeployMsg* pRunner) {
   taosMemoryFree(pRunner->outDBFName);
   taosMemoryFree(pRunner->outTblName);
 
-  taosArrayDestroyEx(pRunner->pNotifyAddrUrls, taosAutoMemoryFree);
+  taosArrayDestroyEx(pRunner->pNotifyAddrUrls, tFreeStreamNotifyUrl);
   taosArrayDestroy(pRunner->outCols);
   taosArrayDestroy(pRunner->outTags);
 

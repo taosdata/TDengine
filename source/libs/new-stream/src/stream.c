@@ -24,12 +24,20 @@
 SStreamMgmtInfo gStreamMgmt = {0};
 
 void streamSetSnodeEnabled(  SMsgCb* msgCb) {
+  if (tsDisableStream) {
+    return;
+  }
+  
   gStreamMgmt.snodeEnabled = true;
   gStreamMgmt.msgCb = *msgCb;
   stInfo("snode %d enabled", (*gStreamMgmt.getDnode)(gStreamMgmt.dnode));
 }
 
 void streamSetSnodeDisabled(bool cleanup) {
+  if (tsDisableStream) {
+    return;
+  }
+  
   stInfo("snode disabled");
   gStreamMgmt.snodeEnabled = false;
   smUndeploySnodeTasks(cleanup);
@@ -46,6 +54,10 @@ void streamMgmtCleanup() {
 }
 
 void streamCleanup(void) {
+  if (tsDisableStream) {
+    return;
+  }
+  
   stInfo("stream cleanup start");
   stTriggerTaskEnvCleanup();
   streamTimerCleanUp();
@@ -57,6 +69,11 @@ void streamCleanup(void) {
 }
 
 int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode, getSynEpset_f getSynEpset) {
+  if (tsDisableStream) {
+    stInfo("stream disabled");
+    return TSDB_CODE_SUCCESS;
+  }
+  
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
@@ -112,6 +129,10 @@ int32_t streamVgIdSort(void const *lp, void const *rp) {
 
 
 void streamRemoveVnodeLeader(int32_t vgId) {
+  if (tsDisableStream) {
+    return;
+  }
+  
   taosWLockLatch(&gStreamMgmt.vgLeadersLock);
   int32_t idx = taosArraySearchIdx(gStreamMgmt.vgLeaders, &vgId, streamVgIdSort, TD_EQ);
   if (idx >= 0) {
@@ -129,6 +150,10 @@ void streamRemoveVnodeLeader(int32_t vgId) {
 }
 
 void streamAddVnodeLeader(int32_t vgId) {
+  if (tsDisableStream) {
+    return;
+  }
+  
   int32_t code = TSDB_CODE_SUCCESS;
   taosWLockLatch(&gStreamMgmt.vgLeadersLock);
   void* p = taosArrayPush(gStreamMgmt.vgLeaders, &vgId);
