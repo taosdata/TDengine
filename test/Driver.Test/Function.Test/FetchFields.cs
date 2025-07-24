@@ -1,11 +1,11 @@
 using System;
-using Test.Utils;
-using TDengine.Driver;
 using System.Collections.Generic;
-using Xunit;
-using Test.Utils.ResultSet;
-using Test.Fixture;
+using TDengine.Driver;
 using Test.Case.Attributes;
+using Test.Fixture;
+using Test.Utils;
+using Test.Utils.ResultSet;
+using Xunit;
 using Xunit.Abstractions;
 
 namespace Function.Test.Taosc
@@ -21,21 +21,23 @@ namespace Function.Test.Taosc
         {
             this._database = fixture;
             this._output = output;
-
         }
+
         /// <author>xiaolei</author>
         /// <Name>FetchFieldsCases.TestFetchFieldsJsonTag</Name>
         /// <describe>test taos_fetch_fields(), check the meta data</describe>
         /// <filename>FetchFields.cs</filename>
         /// <result>pass or failed </result>  
-        [Fact(DisplayName = "FetchFieldsCases.TestFetchFieldJsonTag()"), TestExeOrder(1), Trait("Category", "FetchFieldJsonTag")]
+        [Fact(DisplayName = "FetchFieldsCases.TestFetchFieldJsonTag()"), TestExeOrder(1),
+         Trait("Category", "FetchFieldJsonTag")]
         public void TestFetchFieldJsonTag()
         {
             IntPtr conn = _database.Conn;
             Assert.NotEqual(conn, IntPtr.Zero);
             IntPtr _res = IntPtr.Zero;
             string tableName = "fetch_fields";
-            var expectResMeta = new List<TDengineMeta> {
+            var expectResMeta = new List<TDengineMeta>
+            {
                 Tools.ConstructTDengineMeta("ts", "timestamp"),
                 Tools.ConstructTDengineMeta("b", "bool"),
                 Tools.ConstructTDengineMeta("v1", "tinyint"),
@@ -49,29 +51,33 @@ namespace Function.Test.Taosc
                 Tools.ConstructTDengineMeta("u4", "int unsigned"),
                 Tools.ConstructTDengineMeta("u8", "bigint unsigned"),
                 Tools.ConstructTDengineMeta("bin", "binary(200)"),
-                Tools.ConstructTDengineMeta("blob", "nchar(200)"),
+                Tools.ConstructTDengineMeta("c_nchar", "nchar(200)"),
                 Tools.ConstructTDengineMeta("jsontag", "json"),
             };
-            var expectResData = new List<String> { "1637064040000", "true", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "XI", "XII", "{\"k1\": \"v1\"}" };
+            var expectResData = new List<String>
+            {
+                "1637064040000", "true", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "XI", "XII",
+                "{\"k1\": \"v1\"}"
+            };
             String dropTb = "drop table if exists " + tableName;
             string createTb = $"create stable {tableName}" +
-                                "(ts timestamp" +
-                                ",b bool" +
-                                ",v1 tinyint" +
-                                ",v2 smallint" +
-                                ",v4 int" +
-                                ",v8 bigint" +
-                                ",f4 float" +
-                                ",f8 double" +
-                                ",u1 tinyint unsigned" +
-                                ",u2 smallint unsigned" +
-                                ",u4 int unsigned" +
-                                ",u8 bigint unsigned" +
-                                ",bin binary(200)" +
-                                ",blob nchar(200)" +
-                                ")" +
-                                "tags" +
-                                "(jsontag json);";
+                              "(ts timestamp" +
+                              ",b bool" +
+                              ",v1 tinyint" +
+                              ",v2 smallint" +
+                              ",v4 int" +
+                              ",v8 bigint" +
+                              ",f4 float" +
+                              ",f8 double" +
+                              ",u1 tinyint unsigned" +
+                              ",u2 smallint unsigned" +
+                              ",u4 int unsigned" +
+                              ",u8 bigint unsigned" +
+                              ",bin binary(200)" +
+                              ",c_nchar nchar(200)" +
+                              ")" +
+                              "tags" +
+                              "(jsontag json);";
 
             String insertSql = $"insert into {tableName}_t1 using {tableName} " +
                                " tags('{\"k1\": \"v1\"}') " +
@@ -93,6 +99,7 @@ namespace Function.Test.Taosc
                 Assert.Equal(expectResMeta[i].type, actualMeta[i].type);
                 Assert.Equal(expectResMeta[i].size, actualMeta[i].size);
             }
+
             _output.WriteLine("FetchFieldsCases.TestFetchFieldJsonTag() pass");
         }
     }

@@ -1,12 +1,12 @@
 using System;
-using Test.Utils;
-using TDengine.Driver;
-using Xunit;
 using System.Collections.Generic;
 using System.Text;
-using Test.Utils.ResultSet;
+using TDengine.Driver;
 using Test.Case.Attributes;
 using Test.Fixture;
+using Test.Utils;
+using Test.Utils.ResultSet;
+using Xunit;
 using Xunit.Abstractions;
 
 namespace Function.Test.Taosc
@@ -183,7 +183,7 @@ namespace Function.Test.Taosc
 
             String dropTb = "drop table if exists " + tableName;
             String createTb =
-                $"create table if not exists {tableName} (ts timestamp,v4 int,blob nchar(200),location nchar(200),city binary(100),coutry binary(200));";
+                $"create table if not exists {tableName} (ts timestamp,v4 int,c_nchar nchar(200),location nchar(200),city binary(100),coutry binary(200));";
             String insertSql = Tools.ConstructInsertSql(tableName, "", colData, null, 9);
             String selectSql = "select * from " + tableName;
             String dropSql = "drop table " + tableName;
@@ -258,7 +258,7 @@ namespace Function.Test.Taosc
             String dropTb = "drop table if exists " + tableName;
             String createTb = $"create table if not exists {tableName} (ts timestamp," +
                               $"v4 int," +
-                              $"blob nchar(200)," +
+                              $"c_nchar nchar(200)," +
                               $"locate nchar(200)," +
                               $"country nchar(200)," +
                               $"city nchar(50)" +
