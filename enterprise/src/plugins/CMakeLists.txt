@@ -239,6 +239,19 @@ IF(TD_BUILD_KEEPER_INTERNAL)
   MESSAGE("${Green} taoskeeper will use ${taos_version} and commit ${taoskeeper_commit_sha1} as version ${ColourReset}")
   MESSAGE(" current source dir is ${CMAKE_CURRENT_SOURCE_DIR}")
 
+  set(_ldflags_list
+    "-X 'github.com/taosdata/taoskeeper/version.IsEnterprise=true'"
+    "-X 'github.com/taosdata/taoskeeper/version.Version=${taos_version}'"
+    "-X 'github.com/taosdata/taoskeeper/version.Gitinfo=${taoskeeper_commit_sha1}'"
+    "-X 'github.com/taosdata/taoskeeper/version.CommitID=${taoskeeper_commit_sha1}'"
+    "-X 'github.com/taosdata/taoskeeper/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+    "-X 'github.com/taosdata/taoskeeper/version.CUS_NAME=${TAOSA_CUS_NAME}'"
+    "-X 'github.com/taosdata/taoskeeper/version.CUS_PROMPT=${TAOSA_CUS_PROMPT}'"
+    "-X 'github.com/taosdata/taoskeeper/version.CUS_PROMPT=${TAOSA_CUS_PROMPT}'"
+    "-X 'github.com/taosdata/taoskeeper/version.TD_PRODUCT_NAME=${TD_PRODUCT_NAME}'"
+  )
+  string(JOIN " " _ldflags ${_ldflags_list})
+
   IF(TD_WINDOWS)
     MESSAGE("Building taoskeeper on Windows")
     INCLUDE(ExternalProject)
@@ -247,11 +260,11 @@ IF(TD_BUILD_KEEPER_INTERNAL)
       SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/keeper
       BUILD_ALWAYS off
       BUILD_IN_SOURCE 1
-      CONFIGURE_COMMAND cmake -E echo "taoskeeper no need cmake to config"
+      CONFIGURE_COMMAND cmake -E echo "taoskeeper doesn't need cmake for configuration."
       PATCH_COMMAND
       COMMAND git clean -f -d
       BUILD_COMMAND
-      COMMAND go build -a -ldflags "-X 'github.com/taosdata/taoskeeper/version.IsEnterprise=true' -X 'github.com/taosdata/taoskeeper/version.Version=${taos_version}' -X 'github.com/taosdata/taoskeeper/version.Gitinfo=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.CommitID=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}' -X 'github.com/taosdata/taoskeeper/version.CUS_NAME=${TAOSA_CUS_NAME}' -X 'github.com/taosdata/taoskeeper/version.CUS_PROMPT=${TAOSA_CUS_PROMPT}'"
+      COMMAND go build -a -ldflags "${_ldflags}"
       INSTALL_COMMAND
       COMMAND cmake -E echo "Copy taoskeeper.exe"
       COMMAND cmake -E copy taoskeeper.exe ${CMAKE_BINARY_DIR}/build/bin
@@ -278,7 +291,7 @@ IF(TD_BUILD_KEEPER_INTERNAL)
       PATCH_COMMAND
       COMMAND git clean -f -d
       BUILD_COMMAND
-      COMMAND go build -a -ldflags "-X 'github.com/taosdata/taoskeeper/version.IsEnterprise=true' -X 'github.com/taosdata/taoskeeper/version.Version=${taos_version}' -X 'github.com/taosdata/taoskeeper/version.Gitinfo=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.CommitID=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}' -X 'github.com/taosdata/taoskeeper/version.CUS_NAME=${TAOSA_CUS_NAME}' -X 'github.com/taosdata/taoskeeper/version.CUS_PROMPT=${TAOSA_CUS_PROMPT}'"
+      COMMAND go build -a -ldflags "${_ldflags}"
       INSTALL_COMMAND
       COMMAND cmake -E echo "Copy taoskeeper"
       COMMAND cmake -E copy taoskeeper ${CMAKE_BINARY_DIR}/build/bin/
