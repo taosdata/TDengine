@@ -14,6 +14,10 @@
  */
 
 #include "meta.h"
+#include "osMemPool.h"
+#include "osMemory.h"
+#include "tencode.h"
+#include "tmsg.h"
 
 static bool schemasHasTypeMod(const SSchema *pSchema, int32_t nCols) {
   for (int32_t i = 0; i < nCols; i++) {
@@ -167,8 +171,8 @@ static int32_t metaCloneColRef(const SColRefWrapper*pSrc, SColRefWrapper *pDst) 
   return 0;
 }
 
-int meteEncodeColCmprEntry(SEncoder *pCoder, const SMetaEntry *pME) {
-  const SColCmprWrapper *pw = &pME->colCmpr;
+static int32_t metaEncodeComprEntryImpl(SEncoder *pCoder, SColCmprWrapper *pw) {
+  int32_t code = 0;
   TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pw->nCols));
   TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pw->version));
   uTrace("encode cols:%d", pw->nCols);
@@ -178,7 +182,11 @@ int meteEncodeColCmprEntry(SEncoder *pCoder, const SMetaEntry *pME) {
     TAOS_CHECK_RETURN(tEncodeI16v(pCoder, p->id));
     TAOS_CHECK_RETURN(tEncodeU32(pCoder, p->alg));
   }
-  return 0;
+  return code;
+}
+int meteEncodeColCmprEntry(SEncoder *pCoder, const SMetaEntry *pME) {
+  const SColCmprWrapper *pw = &pME->colCmpr;
+  return metaEncodeComprEntryImpl(pCoder, (SColCmprWrapper *)pw);
 }
 int meteDecodeColCmprEntry(SDecoder *pDecoder, SMetaEntry *pME) {
   SColCmprWrapper *pWrapper = &pME->colCmpr;
@@ -204,7 +212,14 @@ int meteDecodeColCmprEntry(SDecoder *pDecoder, SMetaEntry *pME) {
 static FORCE_INLINE int32_t metatInitDefaultSColCmprWrapper(SDecoder *pDecoder, SColCmprWrapper *pCmpr,
                                                             SSchemaWrapper *pSchema) {
   pCmpr->nCols = pSchema->nCols;
-  if ((pCmpr->pColCmpr = (SColCmpr *)tDecoderMalloc(pDecoder, pCmpr->nCols * sizeof(SColCmpr))) == NULL) {
+
+  if (pDecoder == NULL) {
+    pCmpr->pColCmpr = taosMemCalloc(1, pCmpr->nCols * sizeof(SColCmpr));
+  } else {
+    pCmpr->pColCmpr = (SColCmpr *)tDecoderMalloc(pDecoder, pCmpr->nCols * sizeof(SColCmpr));
+  }
+
+  if (pCmpr->pColCmpr == NULL) {
     return terrno;
   }
 
@@ -289,7 +304,24 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
     if (pME->type == TSDB_VIRTUAL_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
       TAOS_CHECK_RETURN(meteEncodeColRefEntry(pCoder, pME));
     } else {
-      TAOS_CHECK_RETURN(meteEncodeColCmprEntry(pCoder, pME));
+      if (pME->type == TSDB_SUPER_TABLE && TABLE_IS_COL_COMPRESSED(pME->flags)) {
+        TAOS_CHECK_RETURN(meteEncodeColCmprEntry(pCoder, pME));
+      } else if (pME->type == TSDB_NORMAL_TABLE) {
+        if (pME->colCmpr.nCols != 0) {
+          TAOS_CHECK_RETURN(meteEncodeColCmprEntry(pCoder, pME));
+        } else {
+          metaWarn("meta/entry: failed to get compress cols, type:%d", pME->type);
+          SColCmprWrapper colCmprs = {0};
+          int32_t code = metatInitDefaultSColCmprWrapper(NULL, &colCmprs, (SSchemaWrapper *)&pME->ntbEntry.schemaRow);
+          if (code != 0) {
+            taosMemoryFree(colCmprs.pColCmpr);
+            TAOS_CHECK_RETURN(code);
+          }
+          code = metaEncodeComprEntryImpl(pCoder, &colCmprs);
+          taosMemoryFree(colCmprs.pColCmpr);
+          TAOS_CHECK_RETURN(code);
+        }
+      }
     }
     TAOS_CHECK_RETURN(metaEncodeExtSchema(pCoder, pME));
   }
