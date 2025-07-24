@@ -66,9 +66,15 @@ int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
 }
 
 int32_t qAppendStmtTableOutput(SQuery* pQuery, SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,
-                               SStbInterlaceInfo* pBuildInfo, SVCreateTbReq* ctbReq) {
+                               SStbInterlaceInfo* pBuildInfo) {
   // merge according to vgId
-  return insAppendStmtTableDataCxt(pAllVgHash, pTbData, pTbCtx, pBuildInfo, ctbReq);
+  return insAppendStmtTableDataCxt(pAllVgHash, pTbData, pTbCtx, pBuildInfo);
+}
+
+int32_t qAppendStmt2TableOutput(SQuery* pQuery, SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,
+                                SStbInterlaceInfo* pBuildInfo, SVCreateTbReq* ctbReq) {
+  // merge according to vgId
+  return insAppendStmt2TableDataCxt(pAllVgHash, pTbData, pTbCtx, pBuildInfo, ctbReq);
 }
 
 int32_t qBuildStmtFinOutput(SQuery* pQuery, SHashObj* pAllVgHash, SArray* pVgDataBlocks) {

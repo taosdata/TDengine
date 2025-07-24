@@ -31,7 +31,7 @@ typedef struct SInsertParseContext {
   bool           forceUpdate;
   bool           needTableTagVal;
   bool           needRequest;  // whether or not request server
-  bool           isStmtBind;   // whether is stmt bind
+  // bool           isStmtBind;   // whether is stmt bind
   uint8_t        stmtTbNameFlag;
 } SInsertParseContext;
 
@@ -1358,7 +1358,7 @@ static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStmt
       }
     }
   }
-  if (pCxt->isStmtBind) {
+  if (pCxt->pComCxt->stmtBindVersion > 0) {
     goto _no_ctb_cache;
   }
 
@@ -1991,13 +1991,12 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
     }
 
     if (TK_NK_QUESTION == pToken->type) {
-      if (!pCxt->pComCxt->isStmtBind && i != 0) {
+      if (pCxt->pComCxt->stmtBindVersion == 0 && i != 0) {
         return buildInvalidOperationMsg(&pCxt->msg, "not support mixed bind and non-bind values");
       }
       if (pCxt->pComCxt->pStmtCb == NULL) {
         return buildInvalidOperationMsg(&pCxt->msg, "symbol ? only support in stmt mode");
       }
-      pCxt->isStmtBind = true;
       if (pCols->pColIndex[i] == tbnameIdx) {
         *bFoundTbName = true;
         char* tbName = NULL;
@@ -2041,7 +2040,7 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
         return buildInvalidOperationMsg(&pCxt->msg, "not expected numOfBound");
       }
     } else {
-      if (pCxt->pComCxt->isStmtBind) {
+      if (pCxt->pComCxt->stmtBindVersion == 2) {
         return buildInvalidOperationMsg(&pCxt->msg, "not support mixed bind and non-bind values");
       }
       if (pCols->pColIndex[i] < numOfCols) {
@@ -2245,7 +2244,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   SBoundColInfo ctbCols = {0};
   int32_t code = getStbRowValues(pCxt, pStmt, ppSql, pStbRowsCxt, pGotRow, pToken, &bFirstTable, &setCtbName, &ctbCols);
 
-  if (!setCtbName && pCxt->isStmtBind) {
+  if (!setCtbName && pCxt->pComCxt->stmtBindVersion == 2) {
     taosMemoryFreeClear(ctbCols.pColIndex);
     return parseStbBoundInfo(pStmt, pStbRowsCxt, ppTableDataCxt);
   }
@@ -2258,7 +2257,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
     code = processCtbAutoCreationAndCtbMeta(pCxt, pStmt, pStbRowsCxt);
   }
   if (code == TSDB_CODE_SUCCESS) {
-    if (pCxt->isStmtBind) {
+    if (pCxt->pComCxt->stmtBindVersion == 2) {
       char ctbFName[TSDB_TABLE_FNAME_LEN];
       code = tNameExtractFullName(&pStbRowsCxt->ctbName, ctbFName);
       if (code != TSDB_CODE_SUCCESS) {
@@ -2273,14 +2272,14 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
     }
   }
   if (code == TSDB_CODE_SUCCESS) {
-    if (pCxt->isStmtBind) {
+    if (pCxt->pComCxt->stmtBindVersion == 2) {
       int32_t tbnameIdx = getTbnameSchemaIndex(pStbRowsCxt->pStbMeta);
       code = initTableColSubmitDataWithBoundInfo(*ppTableDataCxt, ctbCols);
     } else {
       code = initTableColSubmitData(*ppTableDataCxt);
     }
   }
-  if (code == TSDB_CODE_SUCCESS && !pCxt->isStmtBind) {
+  if (code == TSDB_CODE_SUCCESS && pCxt->pComCxt->stmtBindVersion == 0) {
     SRow** pRow = taosArrayReserve((*ppTableDataCxt)->pData->aRowP, 1);
     code = tRowBuild(pStbRowsCxt->aColVals, (*ppTableDataCxt)->pSchema, pRow);
     if (TSDB_CODE_SUCCESS == code) {
@@ -2321,8 +2320,7 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
     SColVal*          pVal = taosArrayGet(pTableCxt->pValues, pCols->pColIndex[i]);
 
     if (pToken->type == TK_NK_QUESTION) {
-      pCxt->isStmtBind = true;
-      if (NULL == pCxt->pComCxt->pStmtCb) {
+      if (pCxt->pComCxt->stmtBindVersion == 0) {
         code = buildSyntaxErrMsg(&pCxt->msg, "? only used in stmt", pToken->z);
         break;
       }
@@ -2332,7 +2330,7 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
         break;
       }
 
-      if (pCxt->isStmtBind) {
+      if (pCxt->pComCxt->stmtBindVersion > 0) {
         code = buildInvalidOperationMsg(&pCxt->msg, "stmt bind param does not support normal value in sql");
         break;
       }
@@ -2350,7 +2348,7 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
     }
   }
 
-  if (TSDB_CODE_SUCCESS == code && !pCxt->isStmtBind) {
+  if (TSDB_CODE_SUCCESS == code && pCxt->pComCxt->stmtBindVersion == 0) {
     SRow** pRow = taosArrayReserve(pTableCxt->pData->aRowP, 1);
     code = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow);
     if (TSDB_CODE_SUCCESS == code) {
@@ -2360,7 +2358,7 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
     }
   }
 
-  if (TSDB_CODE_SUCCESS == code && !pCxt->isStmtBind) {
+  if (TSDB_CODE_SUCCESS == code && pCxt->pComCxt->stmtBindVersion == 0) {
     *pGotRow = true;
   }
 
@@ -2771,8 +2769,7 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
 
   if (TK_NK_QUESTION == pTbName->type) {
     pCxt->stmtTbNameFlag &= ~IS_FIXED_VALUE;
-    pCxt->isStmtBind = true;
-    if (NULL == pCxt->pComCxt->pStmtCb) {
+    if (pCxt->pComCxt->stmtBindVersion == 0) {
       return buildSyntaxErrMsg(&pCxt->msg, "? only used in stmt", pTbName->z);
     }
 
@@ -3401,8 +3398,7 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
                                  .missCache = false,
                                  .usingDuplicateTable = false,
                                  .needRequest = true,
-                                 .forceUpdate = (NULL != pCatalogReq ? pCatalogReq->forceUpdate : false),
-                                 .isStmtBind = pCxt->isStmtBind};
+                                 .forceUpdate = (NULL != pCatalogReq ? pCatalogReq->forceUpdate : false)};
 
   int32_t code = initInsertQuery(&context, pCatalogReq, pMetaData, pQuery);
   if (TSDB_CODE_SUCCESS == code) {

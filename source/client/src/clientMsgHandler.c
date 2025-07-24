@@ -682,7 +682,7 @@ int32_t processShowVariablesRsp(void* param, SDataBuf* pMsg, int32_t code) {
       code = buildShowVariablesRsp(rsp.variables, &pRes);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false, pRequest->isStmtBind);
+      code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false, pRequest->stmtBindVersion > 0);
     }
 
     if (code != 0) {
@@ -837,7 +837,7 @@ int32_t processCompactDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
       code = buildRetriveTableRspForCompactDb(&rsp, &pRes);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false, pRequest->isStmtBind);
+      code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false, pRequest->stmtBindVersion > 0);
     }
 
     if (code != 0) {

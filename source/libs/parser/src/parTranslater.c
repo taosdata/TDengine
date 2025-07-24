@@ -5180,6 +5180,9 @@ static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SN
   SVirtualTableNode* pVTable = NULL;
   SRealTableNode*    pRTNode = NULL;
 
+  if (pCxt->pParseCxt->stmtBindVersion > 0) {
+    PAR_ERR_JRET(TSDB_CODE_VTABLE_NOT_SUPPORT_STMT);
+  }
   PAR_ERR_RET(nodesMakeNode(QUERY_NODE_VIRTUAL_TABLE, (SNode**)&pVTable));
   tstrncpy(pVTable->table.dbName, pRealTable->table.dbName, sizeof(pVTable->table.dbName));
   tstrncpy(pVTable->table.tableName, pRealTable->table.tableName, sizeof(pVTable->table.tableName));
@@ -5542,7 +5545,7 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
               break;
             }
 
-            if (pCxt->pParseCxt->isStmtBind) {
+            if (pCxt->pParseCxt->stmtBindVersion > 0) {
               code = TSDB_CODE_VTABLE_NOT_SUPPORT_STMT;
               break;
             }
