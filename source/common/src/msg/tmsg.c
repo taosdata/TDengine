@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+
 #include "tmsg.h"
 #include "tglobal.h"
 
@@ -52,31 +53,31 @@
 #include <Winsock2.h>
 #endif
 
-#define DECODESQL()                                                               \
-  do {                                                                            \
-    if (!tDecodeIsEnd(&decoder)) {                                                \
-      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->sqlLen));                       \
-      if (pReq->sqlLen > 0) {                                                     \
-        TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->sql, NULL)); \
-      }                                                                           \
-    }                                                                             \
-  } while (0)
+// #define DECODESQL()                                                               \
+//   do {                                                                            \
+//     if (!tDecodeIsEnd(&decoder)) {                                                \
+//       TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->sqlLen));                       \
+//       if (pReq->sqlLen > 0) {                                                     \
+//         TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->sql, NULL)); \
+//       }                                                                           \
+//     }                                                                             \
+//   } while (0)
 
-#define ENCODESQL()                                                                       \
-  do {                                                                                    \
-    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->sqlLen));                                  \
-    if (pReq->sqlLen > 0) {                                                               \
-      TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->sql, pReq->sqlLen)); \
-    }                                                                                     \
-  } while (0)
+// #define ENCODESQL()                                                                       \
+//   do {                                                                                    \
+//     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->sqlLen));                                  \
+//     if (pReq->sqlLen > 0) {                                                               \
+//       TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->sql, pReq->sqlLen)); \
+//     }                                                                                     \
+//   } while (0)
 
-#define FREESQL()                \
-  do {                           \
-    if (pReq->sql != NULL) {     \
-      taosMemoryFree(pReq->sql); \
-    }                            \
-    pReq->sql = NULL;            \
-  } while (0)
+// #define FREESQL()                \
+//   do {                           \
+//     if (pReq->sql != NULL) {     \
+//       taosMemoryFree(pReq->sql); \
+//     }                            \
+//     pReq->sql = NULL;            \
+//   } while (0)
 
 static int32_t tSerializeSMonitorParas(SEncoder *encoder, const SMonitorParas *pMonitorParas) {
   TAOS_CHECK_RETURN(tEncodeI8(encoder, pMonitorParas->tsEnableMonitor));

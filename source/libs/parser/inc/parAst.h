@@ -25,6 +25,7 @@ extern "C" {
 #include "parUtil.h"
 #include "parser.h"
 #include "querynodes.h"
+#include "tmsg.h"
 
 typedef struct SAstCreateContext {
   SParseContext* pQueryCxt;
@@ -144,6 +145,13 @@ typedef struct SShowTablesOption {
   EShowKind kind;
   SToken    dbName;
 } SShowTablesOption;
+
+typedef enum EXnodeResourceType {
+  XNODE_UNKNOWN = 0,
+  XNODE_TASK = 1,
+  XNODE_AGENT = 2,
+  XNODE_JOB = 3,
+} EXnodeResourceType;
 
 extern SToken nil_token;
 
@@ -312,6 +320,7 @@ SNode* createShowStmtWithFull(SAstCreateContext* pCxt, ENodeType type);
 SNode* createShowStmtWithLike(SAstCreateContext* pCxt, ENodeType type, SNode* pLikePattern);
 SNode* createShowStmtWithCond(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, SNode* pTbName,
                               EOperatorType tableCondType);
+SNode* createShowXNodeResourcesStmt(SAstCreateContext* pCxt, EXnodeResourceType resourceType);
 SNode* createShowTablesStmt(SAstCreateContext* pCxt, SShowTablesOption option, SNode* pTbName,
                             EOperatorType tableCondType);
 SNode* createShowVTablesStmt(SAstCreateContext* pCxt, SShowTablesOption option, SNode* pTbName,
@@ -342,6 +351,33 @@ SNode* createCreateBnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeId, SN
 SNode* createDropBnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeID);
 SNode* createDefaultBnodeOptions(SAstCreateContext* pCxt);
 SNode* setBnodeOption(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pOption, void* pVal);
+
+/** @section xnode XNode Statements */
+EXnodeResourceType setXnodeResourceType(SAstCreateContext* pCxt, const SToken* pResourceId);
+
+SNode* createXnodeSourceAsDsn(SAstCreateContext* pCxt, const SToken* pToken);
+SNode* createXnodeSourceAsDatabase(SAstCreateContext* pCxt, const SToken* pToken);
+SNode* createXnodeSourceAsTopic(SAstCreateContext* pCxt, const SToken* pToken);
+SNode* createXnodeSinkAsDsn(SAstCreateContext* pCxt, const SToken* pToken);
+SNode* createXnodeSinkAsDatabase(SAstCreateContext* pCxt, const SToken* pToken);
+SNode* createCreateXnodeWithUserPassStmt(SAstCreateContext* pCxt, const SToken* pUrl, SToken* pUser,
+                                         const SToken* pPass);
+SNode* createCreateXnodeStmt(SAstCreateContext* pCxt, const SToken* pUrl);
+SNode* createUpdateXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode, bool updateAll);
+SNode* createDropXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode, bool force);
+
+SNode* createXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pResourceName,
+                                  SNode* pB, SNode* pC, SNode* pNode);
+SNode* createDefaultXnodeTaskOptions(SAstCreateContext* pCxt);
+SToken* createTriggerToken();
+SNode*  setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pOptions, SToken* pKey, SToken* pVal);
+SNode*  dropXnodeResource(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SToken* pResourceName);
+SNode*  dropXnodeResourceOn(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SToken* pResource, SNode* pWhere);
+SNode*  dropXnodeResourceWhere(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SNode* pWhere);
+SNode*  createXnodeTaskJobWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pTidToken,
+                                      SNode* pNodeOptions);
+/** end @section xnode */
+
 SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue);
 SNode* createRealTableNodeForIndexName(SAstCreateContext* pCxt, SToken* pDbName, SToken* pIndexName);
 SNode* createCreateIndexStmt(SAstCreateContext* pCxt, EIndexType type, bool ignoreExists, SNode* pIndexName,
