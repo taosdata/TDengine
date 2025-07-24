@@ -216,6 +216,7 @@ int32_t tableBuilderFlush(STableBuilder *p, int8_t type, int8_t immutable) {
   STableMemTable *pMemTable = immutable ? p->pImmuMemTable : p->pMemTable;
   if (p == NULL) return code;
 
+  SBlockWrapper wrapper = {0};
   code = bseMemTableRef(pMemTable);
   TSDB_CHECK_CODE(code, lino, _error);
 
@@ -227,8 +228,6 @@ int32_t tableBuilderFlush(STableBuilder *p, int8_t type, int8_t immutable) {
   }
 
   int8_t compressType = BSE_COMPRESS_TYPE(p->pBse);
-
-  SBlockWrapper wrapper = {0};
 
   uint8_t *pWrite = (uint8_t *)pBlk;
   int32_t  len = BLOCK_TOTAL_SIZE(pBlk);
@@ -286,8 +285,10 @@ _error:
     bseError("failed to flush table builder at line %d since %s", lino, tstrerror(code));
   }
 
-  blockWrapperClear(&pMemTable->pBlockWrapper);
-  bseMemTableUnRef(pMemTable);
+  if (pMemTable != NULL) {
+    blockWrapperClear(&pMemTable->pBlockWrapper);
+    bseMemTableUnRef(pMemTable);
+  }
   blockWrapperCleanup(&wrapper);
   return code;
 }
