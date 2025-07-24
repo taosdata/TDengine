@@ -564,6 +564,44 @@ void mstLogSStreamObj(char* tips, SStreamObj* p) {
       q->eventTypes, q->flags, q->tsmaId, q->placeHolderBitmap, q->calcTsSlotId, q->triTsSlotId,
       q->triggerTblVgId, q->outTblVgId, calcScanNum, forceOutColNum);
 
+  switch (q->triggerType) {
+    case WINDOW_TYPE_INTERVAL: {
+      SSlidingTrigger* t = &q->trigger.sliding;
+      mstsDebug("sliding trigger options, intervalUnit:%d, slidingUnit:%d, offsetUnit:%d, soffsetUnit:%d, precision:%d, interval:%" PRId64 ", offset:%" PRId64 ", sliding:%" PRId64 ", soffset:%" PRId64, 
+          t->intervalUnit, t->slidingUnit, t->offsetUnit, t->soffsetUnit, t->precision, t->interval, t->offset, t->sliding, t->soffset);
+      break;
+    }  
+    case WINDOW_TYPE_SESSION: {
+      SSessionTrigger* t = &q->trigger.session;
+      mstsDebug("session trigger options, slotId:%d, sessionVal:%" PRId64, t->slotId, t->sessionVal);
+      break;
+    }
+    case WINDOW_TYPE_STATE: {
+      SStateWinTrigger* t = &q->trigger.stateWin;
+      mstsDebug("state trigger options, slotId:%d, trueForDuration:%" PRId64, t->slotId, t->trueForDuration);
+      break;
+    }
+    case WINDOW_TYPE_EVENT:{
+      SEventTrigger* t = &q->trigger.event;
+      mstsDebug("event trigger options, startCond:%s, endCond:%s, trueForDuration:%" PRId64, (char*)t->startCond, (char*)t->endCond, t->trueForDuration);
+      break;
+    }
+    case WINDOW_TYPE_COUNT: {
+      SCountTrigger* t = &q->trigger.count;
+      mstsDebug("count trigger options, countVal:%" PRId64 ", sliding:%" PRId64 ", condCols:%s", t->countVal, t->sliding, (char*)t->condCols);
+      break;
+    }
+    case WINDOW_TYPE_PERIOD: {
+      SPeriodTrigger* t = &q->trigger.period;
+      mstsDebug("period trigger options, periodUnit:%d, offsetUnit:%d, precision:%d, period:%" PRId64 ", offset:%" PRId64, 
+          t->periodUnit, t->offsetUnit, t->precision, t->period, t->offset);
+      break;
+    }
+    default:
+      mstsDebug("unknown triggerType:%d", q->triggerType);
+      break;
+  }
+
   mstsDebugL("create_info: triggerCols:[%s]", (char*)q->triggerCols);
 
   mstsDebugL("create_info: partitionCols:[%s]", (char*)q->partitionCols);
