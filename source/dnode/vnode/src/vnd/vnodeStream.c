@@ -1779,15 +1779,16 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
     vTable->gId = pKeyInfo->groupId;
 
     code = api.metaReaderFn.getTableEntryByUid(&metaReader, pKeyInfo->uid);
-    vTable->ver = metaReader.me.version;
     if (taosArrayGetSize(cids) == 1 && *(col_id_t*)taosArrayGet(cids, 0) == PRIMARYKEY_TIMESTAMP_COL_ID){
       vTable->cols.nCols = metaReader.me.colRef.nCols;
+      vTable->cols.version = metaReader.me.colRef.version;
       vTable->cols.pColRef = taosMemoryCalloc(metaReader.me.colRef.nCols, sizeof(SColRef));
       for (size_t j = 0; j < metaReader.me.colRef.nCols; j++) {
         memcpy(vTable->cols.pColRef + j, &metaReader.me.colRef.pColRef[j], sizeof(SColRef));
       }
     } else {
       vTable->cols.nCols = taosArrayGetSize(cids);
+      vTable->cols.version = metaReader.me.colRef.version;
       vTable->cols.pColRef = taosMemoryCalloc(taosArrayGetSize(cids), sizeof(SColRef));
       for (size_t i = 0; i < taosArrayGetSize(cids); i++) {
         for (size_t j = 0; j < metaReader.me.colRef.nCols; j++) {
