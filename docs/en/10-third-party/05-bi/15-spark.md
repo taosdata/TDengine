@@ -151,7 +151,7 @@ Data reading is achieved through table mapping and is completed in four steps:
     Dataset<Row> df = reader.option("dbtable", dbtable).load();
     // show
     df.show(Integer.MAX_VALUE, 40, false);
-    df.close()
+    df.close();
     ```
 
 4. Close the Interaction.

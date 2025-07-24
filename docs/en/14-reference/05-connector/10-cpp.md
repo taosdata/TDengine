@@ -905,6 +905,20 @@ Starting from version 3.3.5.0, TDengine has significantly simplified the usage i
 
 Note: If `taos_stmt2_exec()` executes successfully and there is no need to change the SQL statement, then it is possible to reuse the parsing result of `taos_stmt2_prepare()` and directly proceed to steps 3 to 4 to bind new data. However, if there is an error in execution, it is not recommended to continue working in the current context. Instead, it is advisable to release resources and start over from the `taos_stmt2_init()` step. You can check the specific error reason through `taos_stmt2_error`.
 
+The difference between stmt2 and stmt is:
+- stmt2 supports batch binding of data in multiple tables, while stmt only supports binding data in a single table.
+- stmt2 supports asynchronous execution, while stmt only supports synchronous execution.
+- stmt2 supports efficient write mode and automatic table creation, while stmt does not support it.
+- stmt2 supports `insert into stb(...tbname,...)values(?,?,?)` syntax, while stmt does not support it.
+- stmt2 supports some labels/columns as fixed values, while stmt requires all columns to be `?`.
+
+stmt upgrade stmt2 changes:
+1. Change `taos_stmt_init()` to `taos_stmt2_init()`, add `TAOS_STMT2_OPTION`.
+2. Change `taos_stmt_prepare()` to `taos_stmt2_prepare()`.
+3. Change `taos_stmt_set_tbname_tags`, `taos_stmt_bind_param()` and `taos_stmt_add_batch` to `taos_stmt2_bind_param()`, change `TAOS_MULTI_BIND` to `TAOS_STMT2_BINDV`.
+4. Change `taos_stmt_execute()` to `taos_stmt2_exec()`, add `affected_rows` parameter.
+5. Change `taos_stmt_close()` to `taos_stmt2_close()`.
+
 The specific functions related to the interface are as follows (you can also refer to the [stmt2_insert_demo.c](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/stmt2_insert_demo.c) file for how to use the corresponding functions):
 
 - `TAOS_STMT2 *taos_stmt2_init(TAOS *taos, TAOS_STMT2_OPTION *option)`

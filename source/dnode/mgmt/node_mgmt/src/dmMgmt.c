@@ -22,10 +22,12 @@
 #include "tconv.h"
 #include "tglobal.h"
 #include "tgrant.h"
-#include "tstream.h"
+#include "tconv.h"
+#include "stream.h"
 
 static bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
+  input.dnodeId = pDnode->data.dnodeId;
 
   bool    required = false;
   int32_t code = (*pWrapper->func.requiredFp)(&input, &required);
@@ -84,7 +86,6 @@ int32_t dmInitDnode(SDnode *pDnode) {
   }
 
   indexInit(tsNumOfCommitThreads);
-  streamMetaInit();
 
   if ((code = dmInitStatusClient(pDnode)) != 0) {
     goto _OVER;
@@ -119,7 +120,7 @@ void dmCleanupDnode(SDnode *pDnode) {
 
   dmClearVars(pDnode);
   rpcCleanup();
-  streamMetaCleanup();
+  streamCleanup();
   indexCleanup();
   taosConvDestroy();
 

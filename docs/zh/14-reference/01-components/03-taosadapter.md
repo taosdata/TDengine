@@ -60,6 +60,7 @@ taosAdapter 提供了以下功能：
 - `u` TDengine 用户名
 - `p` TDengine 密码
 - `ttl` 自动创建的子表生命周期，以子表的第一条数据的 TTL 参数为准，不可更新。更多信息请参考 [创建表文档](../../taos-sql/table/#创建表)的 TTL 参数。
+- `table_name_key` 自定义子表名使用的标签名，如果设置了该参数，则子表名将使用该标签对应的值。
 
 注意：目前不支持 InfluxDB 的 token 验证方式，仅支持 Basic 验证和查询参数验证。
 示例：

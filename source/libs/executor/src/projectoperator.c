@@ -18,7 +18,6 @@
 #include "functionMgt.h"
 #include "operator.h"
 #include "querytask.h"
-#include "streaminterval.h"
 #include "taoserror.h"
 #include "tdatablock.h"
 
@@ -45,9 +44,6 @@ typedef struct SIndefOperatorInfo {
 static int32_t      doGenerateSourceData(SOperatorInfo* pOperator);
 static int32_t      doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
 static int32_t      doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
-static int32_t      setRowTsColumnOutputInfo(SqlFunctionCtx* pCtx, int32_t numOfCols, SArray** pResList);
-static int32_t      setFunctionResultOutput(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, SAggSupporter* pSup,
-                                            int32_t stage, int32_t numOfExprs);
 
 static void destroyProjectOperatorInfo(void* param) {
   if (NULL == param) {
@@ -91,6 +87,28 @@ void streamOperatorReloadState(SOperatorInfo* pOperator) {
   }
 }
 
+static int32_t resetProjectOperState(SOperatorInfo* pOper) {
+  SProjectOperatorInfo* pProject = pOper->info;
+  SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
+  pOper->status = OP_NOT_OPENED;
+
+  resetBasicOperatorState(&pProject->binfo);
+  SProjectPhysiNode* pPhynode = (SProjectPhysiNode*)pOper->pPhyNode;
+
+  pProject->limitInfo = (SLimitInfo){0};
+  initLimitInfo(pPhynode->node.pLimit, pPhynode->node.pSlimit, &pProject->limitInfo);
+
+  blockDataCleanup(pProject->pFinalRes);
+
+  int32_t code = resetAggSup(&pOper->exprSupp, &pProject->aggSup, pTaskInfo, pPhynode->pProjections, NULL,
+    sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
+    &pTaskInfo->storageAPI.functionStore);
+  if (code == 0){
+    code = setFunctionResultOutput(pOper, &pProject->binfo, &pProject->aggSup, MAIN_SCAN, pOper->exprSupp.numOfExprs);
+  }
+  return 0;
+}
+
 int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* pProjPhyNode, SExecTaskInfo* pTaskInfo,
                                   SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
@@ -103,6 +121,7 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
     goto _error;
   }
 
+  pOperator->pPhyNode = pProjPhyNode;
   pOperator->exprSupp.hasWindowOrGroup = false;
   pOperator->pTaskInfo = pTaskInfo;
 
@@ -124,7 +143,7 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
   pInfo->inputIgnoreGroup = pProjPhyNode->inputIgnoreGroup;
   pInfo->outputIgnoreGroup = pProjPhyNode->ignoreGroupId;
 
-  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM || pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
+  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
     pInfo->mergeDataBlocks = false;
   } else {
     if (!pProjPhyNode->ignoreGroupId) {
@@ -157,13 +176,11 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
   code = setFunctionResultOutput(pOperator, &pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, numOfCols);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  code = filterInitFromNode((SNode*)pProjPhyNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  code = filterInitFromNode((SNode*)pProjPhyNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
+                            pTaskInfo->pStreamRuntimeInfo);
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = setRowTsColumnOutputInfo(pOperator->exprSupp.pCtx, numOfCols, &pInfo->pPseudoColInfo);
-  TSDB_CHECK_CODE(code, lino, _error);
-
-  code = initStreamFillOperatorColumnMapInfo(&pOperator->exprSupp, downstream);
   TSDB_CHECK_CODE(code, lino, _error);
 
   setOperatorInfo(pOperator, "ProjectOperator", QUERY_NODE_PHYSICAL_PLAN_PROJECT, false, OP_NOT_OPENED, pInfo,
@@ -171,6 +188,7 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doProjectOperation, NULL, destroyProjectOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamOperatorReleaseState, streamOperatorReloadState);
+  setOperatorResetStateFn(pOperator, resetProjectOperState);
 
   if (NULL != downstream) {
     code = appendDownstream(pOperator, &downstream, 1);
@@ -356,7 +374,7 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       QUERY_CHECK_CODE(code, lino, _end);
 
       code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs,
-                                   pProjectInfo->pPseudoColInfo);
+                                   pProjectInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo));
       QUERY_CHECK_CODE(code, lino, _end);
 
       status = doIngroupLimitOffset(pLimitInfo, pBlock->info.id.groupId, pInfo->pRes, pOperator);
@@ -433,6 +451,30 @@ _end:
   return code;
 }
 
+static int32_t resetIndefinitOutputOperState(SOperatorInfo* pOper) {
+  SIndefOperatorInfo* pInfo = pOper->info;
+  SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
+  SIndefRowsFuncPhysiNode* pPhynode = (SIndefRowsFuncPhysiNode*)pOper->pPhyNode;
+  pOper->status = OP_NOT_OPENED;
+
+  resetBasicOperatorState(&pInfo->binfo);
+
+  pInfo->groupId = 0;
+  pInfo->pNextGroupRes = NULL;
+  int32_t code = resetAggSup(&pOper->exprSupp, &pInfo->aggSup, pTaskInfo, pPhynode->pFuncs, NULL,
+    sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
+    &pTaskInfo->storageAPI.functionStore);
+  if (code == 0){
+    code = setFunctionResultOutput(pOper, &pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, pOper->exprSupp.numOfExprs);
+  }
+
+  if (code == 0) {
+    code = resetExprSupp(&pInfo->scalarSup, pTaskInfo, pPhynode->pExprs, NULL,
+                         &pTaskInfo->storageAPI.functionStore);
+  }
+  return 0;
+}
+
 int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pNode,
                                                  SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
@@ -448,6 +490,7 @@ int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
     goto _error;
   }
 
+  pOperator->pPhyNode = pNode;
   pOperator->pTaskInfo = pTaskInfo;
 
   SExprSupp* pSup = &pOperator->exprSupp;
@@ -493,7 +536,8 @@ int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   code = setFunctionResultOutput(pOperator, &pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, numOfExpr);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  code = filterInitFromNode((SNode*)pPhyNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  code = filterInitFromNode((SNode*)pPhyNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
+                            pTaskInfo->pStreamRuntimeInfo);
   TSDB_CHECK_CODE(code, lino, _error);
 
   pInfo->binfo.pRes = pResBlock;
@@ -506,7 +550,8 @@ int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
                   pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doApplyIndefinitFunction, NULL, destroyIndefinitOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
-
+                                         
+  setOperatorResetStateFn(pOperator, resetIndefinitOutputOperState);
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -536,7 +581,7 @@ static void doHandleDataBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, SOp
   SExprSupp* pScalarSup = &pIndefInfo->scalarSup;
   if (pScalarSup->pExprInfo != NULL) {
     code = projectApplyFunctions(pScalarSup->pExprInfo, pBlock, pBlock, pScalarSup->pCtx, pScalarSup->numOfExprs,
-                                 pIndefInfo->pPseudoColInfo);
+                                 pIndefInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo));
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, code);
     }
@@ -553,7 +598,7 @@ static void doHandleDataBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, SOp
   }
 
   code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs,
-                               pIndefInfo->pPseudoColInfo);
+                               pIndefInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo));
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, code);
   }
@@ -680,7 +725,7 @@ int32_t initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size) {
  *           offset[0]                                  offset[1]                                   offset[2]
  */
 // TODO refactor: some function move away
-int32_t setFunctionResultOutput(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t stage,
+int32_t setFunctionResultOutput(struct SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t stage,
                              int32_t numOfExprs) {
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SqlFunctionCtx* pCtx = pOperator->exprSupp.pCtx;
@@ -716,7 +761,7 @@ int32_t setRowTsColumnOutputInfo(SqlFunctionCtx* pCtx, int32_t numOfCols, SArray
   }
 
   for (int32_t i = 0; i < numOfCols; ++i) {
-    if (fmIsPseudoColumnFunc(pCtx[i].functionId)) {
+    if (fmIsPseudoColumnFunc(pCtx[i].functionId) && !fmIsPlaceHolderFunc(pCtx[i].functionId)) {
       void* px = taosArrayPush(pList, &i);
       if (px == NULL) {
         return terrno;
@@ -784,7 +829,7 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
         SColumnInfoData  idata = {.info = pResColData->info, .hasNull = true};
 
         SScalarParam dest = {.columnData = &idata};
-        code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest);
+        code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest, GET_STM_RTINFO(pOperator->pTaskInfo), NULL);
         if (code != TSDB_CODE_SUCCESS) {
           taosArrayDestroy(pBlockList);
           return code;
@@ -839,8 +884,9 @@ static void setPseudoOutputColInfo(SSDataBlock* pResult, SqlFunctionCtx* pCtx, S
   }
 }
 
-int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
-                              int32_t numOfOutput, SArray* pPseudoList) {
+int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock,
+                                        SqlFunctionCtx* pCtx, int32_t numOfOutput, SArray* pPseudoList,
+                                        const void* pExtraParams, bool doSelectFunc) {
   int32_t lino = 0;
   int32_t code = TSDB_CODE_SUCCESS;
   setPseudoOutputColInfo(pResult, pCtx, pPseudoList);
@@ -878,7 +924,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
   if (pResult != pSrcBlock) {
     pResult->info.id.groupId = pSrcBlock->info.id.groupId;
     memcpy(pResult->info.parTbName, pSrcBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
-    qTrace("%s, parName:%s,groupId:%"PRIu64, __FUNCTION__, pSrcBlock->info.parTbName, pResult->info.id.groupId);
+    qTrace("%s, parName:%s,groupId:%" PRIu64, __FUNCTION__, pSrcBlock->info.parTbName, pResult->info.id.groupId);
   }
 
   // if the source equals to the destination, it is to create a new column as the result of scalar
@@ -990,10 +1036,10 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         TSDB_CHECK_CODE(code, lino, _exit);
       }
 
-      SColumnInfoData  idata = {.info = pResColData->info, .hasNull = true};
+      SColumnInfoData idata = {.info = pResColData->info, .hasNull = true};
 
       SScalarParam dest = {.columnData = &idata};
-      code = scalarCalculate(pExpr[k].pExpr->_optrRoot.pRootNode, pBlockList, &dest);
+      code = scalarCalculate(pExpr[k].pExpr->_optrRoot.pRootNode, pBlockList, &dest, pExtraParams, NULL);
       if (code != TSDB_CODE_SUCCESS) {
         taosArrayDestroy(pBlockList);
         TSDB_CHECK_CODE(code, lino, _exit);
@@ -1006,7 +1052,8 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         TSDB_CHECK_CODE(code, lino, _exit);
       }
 
-      int32_t ret = colDataMergeCol(pResColData, startOffset, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
+      int32_t ret =
+          colDataMergeCol(pResColData, startOffset, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
       if (ret < 0) {
         code = ret;
       }
@@ -1018,7 +1065,8 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
       taosArrayDestroy(pBlockList);
     } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_FUNCTION) {
       // _rowts/_c0, not tbname column
-      if (fmIsPseudoColumnFunc(pfCtx->functionId) && (!fmIsScanPseudoColumnFunc(pfCtx->functionId))) {
+      if (fmIsPseudoColumnFunc(pfCtx->functionId) && (!fmIsScanPseudoColumnFunc(pfCtx->functionId)) &&
+          !fmIsPlaceHolderFunc(pfCtx->functionId)) {
         if (fmIsGroupIdFunc(pfCtx->functionId)) {
           SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
           TSDB_CHECK_NULL(pColInfoData, code, lino, _exit, terrno);
@@ -1079,7 +1127,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         }
       } else if (fmIsAggFunc(pfCtx->functionId)) {
         // selective value output should be set during corresponding function execution
-        if (fmIsSelectValueFunc(pfCtx->functionId)) {
+        if (!doSelectFunc && fmIsSelectValueFunc(pfCtx->functionId)) {
           continue;
         }
         // _group_key function for "partition by tbname" + csum(col_name) query
@@ -1089,7 +1137,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
           TSDB_CHECK_CODE(code, lino, _exit);
         }
 
-        int32_t          slotId = pfCtx->param[0].pCol->slotId;
+        int32_t slotId = pfCtx->param[0].pCol->slotId;
 
         // todo handle the json tag
         SColumnInfoData* pInput = taosArrayGet(pSrcBlock->pDataBlock, slotId);
@@ -1129,10 +1177,10 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
           TSDB_CHECK_CODE(code, lino, _exit);
         }
 
-        SColumnInfoData  idata = {.info = pResColData->info, .hasNull = true};
+        SColumnInfoData idata = {.info = pResColData->info, .hasNull = true};
 
         SScalarParam dest = {.columnData = &idata};
-        code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest);
+        code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest, pExtraParams, NULL);
         if (code != TSDB_CODE_SUCCESS) {
           taosArrayDestroy(pBlockList);
           TSDB_CHECK_CODE(code, lino, _exit);
@@ -1144,7 +1192,8 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
           code = TSDB_CODE_INVALID_PARA;
           TSDB_CHECK_CODE(code, lino, _exit);
         }
-        int32_t ret = colDataMergeCol(pResColData, startOffset, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
+        int32_t ret =
+            colDataMergeCol(pResColData, startOffset, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
         if (ret < 0) {
           code = ret;
         }
@@ -1160,7 +1209,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
     }
   }
 
-  if (processByRowFunctionCtx && taosArrayGetSize(processByRowFunctionCtx) > 0){
+  if (processByRowFunctionCtx && taosArrayGetSize(processByRowFunctionCtx) > 0) {
     SqlFunctionCtx** pfCtx = taosArrayGet(processByRowFunctionCtx, 0);
     if (pfCtx == NULL) {
       code = terrno;
@@ -1177,11 +1226,16 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
   }
 
 _exit:
-  if(processByRowFunctionCtx) {
+  if (processByRowFunctionCtx) {
     taosArrayDestroy(processByRowFunctionCtx);
   }
-  if(code) {
+  if (code) {
     qError("project apply functions failed at: %s:%d", __func__, lino);
   }
   return code;
+}
+
+int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
+                              int32_t numOfOutput, SArray* pPseudoList, const void* pExtraParams) {
+  return projectApplyFunctionsWithSelect(pExpr, pResult, pSrcBlock, pCtx, numOfOutput, pPseudoList, pExtraParams, false);
 }

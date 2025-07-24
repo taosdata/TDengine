@@ -134,15 +134,6 @@ typedef struct {
   SWal   *pWal;
 } SWalRef;
 
-typedef struct {
-  int8_t scanUncommited;
-  int8_t scanNotApplied;
-  int8_t scanMeta;
-  int8_t deleteMsg;
-  int8_t enableRef;
-  int8_t scanDropCtb;
-} SWalFilterCond;
-
 // todo hide this struct
 typedef struct SWalReader {
   SWal     *pWal;
@@ -155,7 +146,6 @@ typedef struct SWalReader {
                           // data
   int64_t        capacity;
   TdThreadMutex  mutex;
-  SWalFilterCond cond;
   SWalCkHead    *pHead;
 } SWalReader;
 
@@ -185,12 +175,12 @@ int32_t walRestoreFromSnapshot(SWal *, int64_t ver);
 void    walApplyVer(SWal *, int64_t ver);
 
 // wal reader
-SWalReader *walOpenReader(SWal *, SWalFilterCond *pCond, int64_t id);
+SWalReader *walOpenReader(SWal *, int64_t id);
 void        walCloseReader(SWalReader *pRead);
 void        walReadReset(SWalReader *pReader);
 int32_t     walReadVer(SWalReader *pRead, int64_t ver);
 int32_t     walReaderSeekVer(SWalReader *pRead, int64_t ver);
-int32_t     walNextValidMsg(SWalReader *pRead);
+int32_t     walNextValidMsg(SWalReader *pRead, bool scanMeta);
 int64_t     walReaderGetCurrentVer(const SWalReader *pReader);
 int64_t     walReaderGetValidFirstVer(const SWalReader *pReader);
 int64_t     walReaderGetSkipToVersion(SWalReader *pReader);

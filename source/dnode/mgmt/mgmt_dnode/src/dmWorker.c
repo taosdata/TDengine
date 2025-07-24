@@ -17,6 +17,7 @@
 #include "dmInt.h"
 #include "tgrant.h"
 #include "thttp.h"
+#include "streamMsg.h"
 
 static void *dmStatusThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
@@ -602,6 +603,9 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_DND_CREATE_SNODE:
       code = (*pMgmt->processCreateNodeFp)(SNODE, pMsg);
       break;
+    case TDMT_DND_ALTER_SNODE:
+      code = (*pMgmt->processAlterNodeFp)(SNODE, pMsg);
+      break;
     case TDMT_DND_DROP_SNODE:
       code = (*pMgmt->processDropNodeFp)(SNODE, pMsg);
       break;
@@ -655,6 +659,55 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
+int32_t dmDispatchStreamHbMsg(struct SDispatchWorkerPool* pPool, void* pParam, int32_t *pWorkerIdx) {
+  SRpcMsg* pMsg = (SRpcMsg*)pParam;
+  if (pMsg->code) {
+    *pWorkerIdx = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+  SStreamMsgGrpHeader* pHeader = (SStreamMsgGrpHeader*)pMsg->pCont;
+  *pWorkerIdx = pHeader->streamGid % tsNumOfStreamMgmtThreads;
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static void dmProcessStreamMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
+  SDnodeMgmt *pMgmt = pInfo->ahandle;
+  int32_t     code = -1;
+  STraceId   *trace = &pMsg->info.traceId;
+  dGTrace("msg:%p, will be processed in dnode stream mgmt queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+
+  switch (pMsg->msgType) {
+    case TDMT_MND_STREAM_HEARTBEAT_RSP:
+      code = dmProcessStreamHbRsp(pMgmt, pMsg);
+      break;
+    default:
+      code = TSDB_CODE_MSG_NOT_PROCESSED;
+      dGError("msg:%p, not processed in mgmt queue, reason:%s", pMsg, tstrerror(code));
+      break;
+  }
+
+  if (IsReq(pMsg)) {
+    if (code != 0 && terrno != 0) code = terrno;
+    SRpcMsg rsp = {
+        .code = code,
+        .pCont = pMsg->info.rsp,
+        .contLen = pMsg->info.rspLen,
+        .info = pMsg->info,
+    };
+
+    code = rpcSendResponse(&rsp);
+    if (code != 0) {
+      dError("failed to send response since %s", tstrerror(code));
+    }
+  }
+
+  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
+  rpcFreeCont(pMsg->pCont);
+  taosFreeQitem(pMsg);
+}
+
+
 int32_t dmStartWorker(SDnodeMgmt *pMgmt) {
   int32_t          code = 0;
   SSingleWorkerCfg cfg = {
@@ -669,12 +722,27 @@ int32_t dmStartWorker(SDnodeMgmt *pMgmt) {
     return code;
   }
 
+  SDispatchWorkerPool* pStMgmtpool = &pMgmt->streamMgmtWorker;
+  pStMgmtpool->max = tsNumOfStreamMgmtThreads;
+  pStMgmtpool->name = "dnode-stream-mgmt";
+  code = tDispatchWorkerInit(pStMgmtpool);
+  if (code != 0) {
+    dError("failed to start dnode-stream-mgmt worker since %s", tstrerror(code));
+    return code;
+  }
+  code = tDispatchWorkerAllocQueue(pStMgmtpool, pMgmt, (FItem)dmProcessStreamMgmtQueue, dmDispatchStreamHbMsg);
+  if (code != 0) {
+    dError("failed to allocate dnode-stream-mgmt worker queue since %s", tstrerror(code));
+    return code;
+  }
+
   dDebug("dnode workers are initialized");
   return 0;
 }
 
 void dmStopWorker(SDnodeMgmt *pMgmt) {
   tSingleWorkerCleanup(&pMgmt->mgmtWorker);
+  tDispatchWorkerCleanup(&pMgmt->streamMgmtWorker);
   dDebug("dnode workers are closed");
 }
 
@@ -682,4 +750,8 @@ int32_t dmPutNodeMsgToMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SSingleWorker *pWorker = &pMgmt->mgmtWorker;
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   return taosWriteQitem(pWorker->queue, pMsg);
+}
+
+int32_t dmPutMsgToStreamMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  return tAddTaskIntoDispatchWorkerPool(&pMgmt->streamMgmtWorker, pMsg);
 }
