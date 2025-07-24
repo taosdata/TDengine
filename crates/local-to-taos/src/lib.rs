@@ -166,7 +166,7 @@ impl RestoreWorker {
     /// 从 channel 中获取备份文件的路径，然后恢复到 taos
     async fn run(&self) -> anyhow::Result<()> {
         tracing::info!("RestoreWorker started");
-        while let Ok(files) = self.rx.recv() {
+        while let Ok(files) = self.rx.recv_async().await {
             let file_count = files.len();
 
             // 按照 ts 分组，按照 ts 的先后顺序执行
