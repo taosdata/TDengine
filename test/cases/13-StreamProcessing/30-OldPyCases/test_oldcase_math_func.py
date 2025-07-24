@@ -107,4 +107,4 @@ class TestMathFunctionInStream:
             ),
         )
 
-        tdLog.info("test scalar function done.")
+        tdLog.info("test math function done.")
