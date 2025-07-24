@@ -14004,6 +14004,7 @@ static int32_t createStreamReqSetDefaultOutCols(STranslateContext* pCxt, SCreate
   bool    pColExists = false;
   int32_t bound = LIST_LENGTH(pCalcProjection);
 
+  parserDebug("translate create stream req start set default output table's cols");
   if (pStmt->pTrigger) {
     SStreamTriggerNode*   pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
     SStreamNotifyOptions* pNotify = (SStreamNotifyOptions*)pTrigger->pNotify;
@@ -14484,6 +14485,8 @@ static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNodeList* pTri
   SNode*     pCurrStmt = pCxt->pCurrStmt;
   int32_t    currLevel = pCxt->currLevel;
 
+  parserDebug("translate create stream req start translate calculate query");
+
   PAR_ERR_JRET(getExtWindowBorder(pCxt, pTriggerWindow, withExtWindow, &pCxt->extLeftEq, &pCxt->extRightEq));
 
   pCxt->currLevel = ++(pCxt->levelNo);
@@ -14625,6 +14628,8 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SQueryPlan*
   SStreamCalcScan* pCalcScan = NULL;
   bool             cutoff = false;
 
+  parserDebug("translate create stream req start build calculate plan");
+
   pReq->calcScanPlanList = taosArrayInit(1, sizeof(SStreamCalcScan));
   pPlanMap = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (NULL == pReq->calcScanPlanList || NULL == pPlanMap) {
@@ -14759,6 +14764,7 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
   PAR_ERR_JRET(createStreamReqBuildForceOutput(pCxt, pStmt, pReq));
 
   SQuery pQuery = {.pRoot = pStmt->pQuery};
+  parserDebug("translate create stream req start calculate constant");
   PAR_ERR_JRET(calculateConstant(pCxt->pParseCxt, &pQuery));
 
   SPlanContext calcCxt = {.acctId = pCxt->pParseCxt->acctId,
