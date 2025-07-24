@@ -261,8 +261,9 @@ static const char gGrantIdmpName[GRANT_OPT_IDMP_DYN_MAX][GRANT_ITEM_NAME_LEN] = 
     "idmp_data_detect", "idmp_data_quality", "idmp_ai_chat_gen"};
 
 static const char gGrantIdmpDisplay[GRANT_OPT_IDMP_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
-    "TDengine IDMP Basic",       "TDengine IDMP Version Control", "TDengine IDMP Data Forecast",
-    "TDengine IDMP Data Detect", "TDengine IDMP Data Quality",    "TDengine IDMP AI Chat/Generate"};
+    "TDengine IDMP Basic",        "TDengine IDMP Version Control",
+    "TDengine IDMP Forecasting",  "TDengine IDMP Anomaly Detection",
+    "TDengine IDMP Data Quality", "TDengine IDMP AI Chat/Generate"};
 
 static const char *gGrantState[GRANT_STATE_MAX] = {"ungranted", "ungranted", "granted", "expired",
                                                    "revoked"};  // keep 0/1 ungranted
@@ -2488,13 +2489,23 @@ static int32_t grantCheckGrantItems(SMnode *pMnode, SGrantUniqObj *pObj) {
   int32_t nVariantGrantItems = taosArrayGetSize(pObj->pItemI64);
   for (int32_t i = 0; i < nVariantGrantItems; ++i) {
     SGrantItemI64 *pItemI64 = TARRAY_GET_ELEM(pObj->pItemI64, i);
-    if (pItemI64->index == GRANT_OPT_TD_GPT) {
-      if ((pItemI64->number > GRANT_UNIQ_UNLIMITED) &&
-          ((gStatus.curAnodes = grantGetClusterCurAnodes(pMnode)) > pItemI64->number)) {
-        GRANT_CHECK_ERROR_LOG("anodes", gStatus.curAnodes, pItemI64->number);
-        return TSDB_CODE_GRANT_ANODE_LIMITED;
-      }
-      break;
+    switch (pItemI64->index) {
+      case GRANT_OPT_TD_GPT:
+        if ((pItemI64->number > GRANT_UNIQ_UNLIMITED) &&
+            ((gStatus.curAnodes = grantGetClusterCurAnodes(pMnode)) > pItemI64->number)) {
+          GRANT_CHECK_ERROR_LOG("anodes", gStatus.curAnodes, pItemI64->number);
+          return TSDB_CODE_GRANT_ANODE_LIMITED;
+        }
+        break;
+      case GRANT_OPT_TD_MOUNT:
+        if ((pItemI64->number > GRANT_UNIQ_UNLIMITED) &&
+            ((gStatus.curMounts = grantGetClusterCurMountTimes(pMnode)) > pItemI64->number)) {
+          GRANT_CHECK_ERROR_LOG("mounts", gStatus.curMounts, pItemI64->number);
+          return TSDB_CODE_GRANT_MOUNTS_LIMITED;
+        }
+        break;
+      default:
+        break;
     }
   }
 
