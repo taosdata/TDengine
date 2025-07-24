@@ -1844,6 +1844,7 @@ static int32_t vnodeProcessStreamOTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
     STREAM_CHECK_NULL_GOTO(vTableInfo, terrno);
     STREAM_CHECK_RET_GOTO(api.metaReaderFn.getTableEntryByName(&metaReader, oInfo->refTableName));
     vTableInfo->uid = metaReader.me.uid;
+    stsDebug("vgId:%d %s uid:%"PRId64, TD_VID(pVnode), __func__, vTableInfo->uid);
 
     SSchemaWrapper* sSchemaWrapper = NULL;
     if (metaReader.me.type == TD_CHILD_TABLE) {
