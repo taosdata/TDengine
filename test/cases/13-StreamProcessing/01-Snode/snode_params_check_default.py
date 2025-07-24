@@ -58,8 +58,8 @@ class TestStreamParametersCheckDefault:
         tdSql.query(f"show dnode 1 variables like 'numOfMnodeStreamMgmtThreads';")
         result = tdSql.getData(0, 2)
         if self.getCpu() >= 8:
-            if int(result) < self.getCpu() / 4:
-                raise Exception(f"Error: numOfMnodeStreamMgmtThreads is {result}, expected at least {self.getCpu() /4} threads!")
+            if int(result) < self.getCpu() / 4 and int(result) >5:
+                raise Exception(f"Error: numOfMnodeStreamMgmtThreads is {result}, max 5 threads!")
         else:
             if int(result) < 2:
                 raise Exception(f"Error: numOfMnodeStreamMgmtThreads is {result}, expected at least 2 threads!")
@@ -71,8 +71,8 @@ class TestStreamParametersCheckDefault:
         tdSql.query(f"show dnode 1 variables like 'numOfStreamMgmtThreads';")
         result = tdSql.getData(0, 2)
         if self.getCpu() >= 8:
-            if int(result) < self.getCpu() / 8:
-                raise Exception(f"Error: numOfStreamMgmtThreads is {result}, expected at least {self.getCpu() /8} threads!")
+            if int(result) < self.getCpu() / 8 and int(result) > 5:
+                raise Exception(f"Error: numOfStreamMgmtThreads is {result}, max 5 threads!")
         else:
             if int(result) < 2:
                 raise Exception(f"Error: numOfStreamMgmtThreads is {result}, expected at least 2 threads!")

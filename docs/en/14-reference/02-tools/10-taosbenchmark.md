@@ -84,6 +84,9 @@ taosBenchmark -f <json file>
 - **-o/--output \<file>** :
   Path of the output file for results, default value is ./output.txt.
 
+- **-j/--output-json-file \<file>** :
+  Path of the output JSON file for results.
+
 - **-T/--thread \<threadNum>** :
   Number of threads for inserting data, default is 8.
 
@@ -99,7 +102,7 @@ taosBenchmark -f <json file>
 - **-t/--tables \<tableNum>** :
   Specifies the number of subtables, default is 10000.
 
--**-s/ --start-timestamp \<NUMBER>**:
+- **-s/--start-timestamp \<NUMBER>**:
   Specify start timestamp to insert data for each child table
 
 - **-S/--timestampstep \<stepLength>** :
@@ -204,6 +207,8 @@ The parameters listed in this section apply to all functional modes.
 
 - **password** : Password for connecting to the TDengine server, default value is taosdata.
 
+- **result_json_file**：The path to the result output JSON file. If not configured, the file will not be output.
+
 ### Insertion Configuration Parameters
 
 In insertion scenarios, `filetype` must be set to `insert`. For this parameter and other common parameters, see Common Configuration Parameters.
@@ -211,7 +216,7 @@ In insertion scenarios, `filetype` must be set to `insert`. For this parameter a
 - **keep_trying**: Number of retries after failure, default is no retry. Requires version v3.0.9 or above.
 
 - **trying_interval**: Interval between retries in milliseconds, effective only when retries are specified in keep_trying. Requires version v3.0.9 or above.
-- **childtable_from and childtable_to**: Specifies the range of child tables to write to, the interval is [childtable_from, childtable_to).
+- **childtable_from and childtable_to**: Specifies the range of child tables to write to, the interval is [childtable_from, childtable_to].
 
 - **continue_if_fail**: Allows users to define behavior after failure
 
@@ -282,6 +287,10 @@ Parameters related to supertable creation are configured in the `super_tables` s
 - **use_sample_ts** : Effective only when data_source is sample, indicates whether the csv file specified by sample_file contains the first column timestamp, default is no. If set to yes, then use the first column of the csv file as the timestamp, since the same subtable timestamp cannot be repeated, the amount of data generated depends on the same number of data rows in the csv file, at this time insert_rows is ineffective.
 
 - **tags_file** : Effective only when insert_mode is taosc, rest. The final value of the tag is related to childtable_count, if the tag data rows in the csv file are less than the given number of subtables, then the csv file data will be read in a loop until the childtable_count specified subtable number is generated; otherwise, only childtable_count rows of tag data will be read. Thus, the final number of subtables generated is the smaller of the two.
+
+- **use_tag_table_name**：When set to yes, the first column in the tag data within the CSV file will be the name of the subtable to be created; otherwise, the system will automatically generate subtable names for creation.
+
+- **primary_key_name**：Specify the name of the primary key for the supertable. If not specified, the default is ts.
 
 - **primary_key** : Specifies whether the supertable has a composite primary key, values are 1 and 0, composite primary key columns can only be the second column of the supertable, after specifying the generation of composite primary keys, ensure that the second column meets the data type of composite primary keys, otherwise an error will occur
 - **repeat_ts_min** : Numeric type, when composite primary key is enabled, specifies the minimum number of records with the same timestamp to be generated, the number of records with the same timestamp is a random value within the range [repeat_ts_min, repeat_ts_max], when the minimum value equals the maximum value, it is a fixed number
@@ -360,8 +369,6 @@ Specify the configuration parameters for tag and data columns in `super_tables` 
 - **create_table_thread_count** : The number of threads for creating tables, default is 8.
 
 - **result_file** : The path to the result output file, default is ./output.txt.
-
-- **result_json_file**：The path to the result output JSON file. If not configured, the file will not be output.
 
 - **confirm_parameter_prompt** : A toggle parameter that requires user confirmation after a prompt to continue. The value can be "yes" or "no", by default "no".
 

@@ -65,6 +65,7 @@ Supported InfluxDB parameters are as follows:
 - `u` TDengine username
 - `p` TDengine password
 - `ttl` the lifespan of automatically created subtables, determined by the TTL parameter of the first data entry in the subtable, which cannot be updated. For more information, please refer to the TTL parameter in the [table creation document](../../sql-manual/manage-tables/).
+- `table_name_key` the custom tag key for subtable names. If set, the subtable name will use the value of this tag key
 
 Note: Currently, InfluxDB's token authentication method is not supported, only Basic authentication and query parameter verification are supported.
 Example: `curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root:taosdata" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577836800000000000"`

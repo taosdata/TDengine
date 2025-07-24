@@ -965,6 +965,8 @@ void qStopTaskOperators(SExecTaskInfo* pTaskInfo) {
       int32_t code = tsem_post(&pExchangeInfo->ready);
       if (code != TSDB_CODE_SUCCESS) {
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      } else {
+        qDebug("post to exchange %" PRId64 " to stop", pStop->refId);
       }
       code = taosReleaseRef(exchangeObjRefPool, pStop->refId);
       if (code != TSDB_CODE_SUCCESS) {
@@ -1444,6 +1446,9 @@ void qProcessRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
     return;
   }
 
+  qDebug("rsp msg got, code:%x, len:%d, 0x%" PRIx64 ":0x%" PRIx64, 
+      pMsg->code, pMsg->contLen, TRACE_GET_ROOTID(&pMsg->info.traceId), TRACE_GET_MSGID(&pMsg->info.traceId));
+
   SDataBuf buf = {.len = pMsg->contLen, .pData = NULL};
 
   if (pMsg->contLen > 0) {
@@ -1762,6 +1767,7 @@ bool qStreamUidInTableList(void* pTableListInfo, uint64_t uid) {
 }
 
 void streamDestroyExecTask(qTaskInfo_t tInfo) {
+  qInfo("streamDestroyExecTask called, task:%p", tInfo);
   qDestroyTask(tInfo);
 }
 
@@ -1944,10 +1950,16 @@ int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, const SStreamRuntimeF
       code = TSDB_CODE_INVALID_PARA;
     }
     if(len > TSDB_TABLE_NAME_LEN - 1) {
-      qError("tbname generated with too long characters, max allowed is %d, got %d", TSDB_TABLE_NAME_LEN - 1, len);
-      code = TSDB_CODE_MND_STREAM_TBNAME_TOO_LONG;
+      qError("tbname generated with too long characters, max allowed is %d, got %d, truncated.", TSDB_TABLE_NAME_LEN - 1, len);
+      len = TSDB_TABLE_NAME_LEN - 1;
     }
+
     memcpy(tbname, pVal, len);
+    tbname[len] = '\0';  // ensure null terminated
+    if (NULL != strchr(tbname, '.')) {
+      code = TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME;
+      qError("tbname generated with invalid characters, '.' is not allowed");
+    }
   }
   // TODO free dst
   sclFreeParam(&dst);

@@ -1499,18 +1499,22 @@ int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
       }
       SColumnInfoData *pTableNameCol = taosArrayGet(pChildInfo->pDataBlock, 0);
       SColumnInfoData *pStbNameCol = taosArrayGet(pChildInfo->pDataBlock, 1);
-      SColumnInfoData *pColNameCol = taosArrayGet(pChildInfo->pDataBlock, 2);
-      SColumnInfoData *pUidCol = taosArrayGet(pChildInfo->pDataBlock, 3);
-      SColumnInfoData *pColIdCol = taosArrayGet(pChildInfo->pDataBlock, 4);
-      SColumnInfoData *pRefCol = taosArrayGet(pChildInfo->pDataBlock, 5);
-      SColumnInfoData *pVgIdCol = taosArrayGet(pChildInfo->pDataBlock, 6);
+      SColumnInfoData *pDbNameCol = taosArrayGet(pChildInfo->pDataBlock, 2);
+      SColumnInfoData *pColNameCol = taosArrayGet(pChildInfo->pDataBlock, 3);
+      SColumnInfoData *pUidCol = taosArrayGet(pChildInfo->pDataBlock, 4);
+      SColumnInfoData *pColIdCol = taosArrayGet(pChildInfo->pDataBlock, 5);
+      SColumnInfoData *pRefCol = taosArrayGet(pChildInfo->pDataBlock, 6);
+      SColumnInfoData *pVgIdCol = taosArrayGet(pChildInfo->pDataBlock, 7);
 
       for (int32_t i = 0; i < pChildInfo->info.rows; i++) {
         if (!colDataIsNull_s(pStbNameCol, i)) {
-          char* rawname = colDataGetData(pStbNameCol, i);
-          char *stbname = varDataVal(rawname);
-          if (strncmp(varDataVal(rawname), pInfo->vtbScan.stbName, varDataLen(rawname)) == 0 && strlen(pInfo->vtbScan.stbName) == varDataLen(rawname)) {
+          char* stbrawname = colDataGetData(pStbNameCol, i);
+          char* dbrawname = colDataGetData(pDbNameCol, i);
 
+          if (strncmp(varDataVal(stbrawname), pInfo->vtbScan.stbName, varDataLen(stbrawname)) == 0 &&
+              strlen(pInfo->vtbScan.stbName) == varDataLen(stbrawname) &&
+              strncmp(varDataVal(dbrawname), pInfo->vtbScan.dbName, varDataLen(dbrawname)) == 0 &&
+              strlen(pInfo->vtbScan.dbName) == varDataLen(dbrawname)) {
             char *ctbName = colDataGetData(pTableNameCol, i);
             SColRefKV kv = {0};
             if (colDataIsNull_s(pRefCol, i)) {
@@ -1534,6 +1538,9 @@ int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
             }
             if (!colDataIsNull_s(pVgIdCol, i)) {
               GET_TYPED_DATA(kv.vgId, int32_t, TSDB_DATA_TYPE_INT, colDataGetNumData(pVgIdCol, i), 0);
+            }
+            if (pInfo->vtbScan.dynTbUid != 0 && kv.uid != pInfo->vtbScan.dynTbUid) {
+              continue;
             }
             if (taosHashGet(pVtbScan->childTableMap, varDataVal(ctbName), varDataLen(ctbName)) == NULL) {
               pColRefArray = taosArrayInit(1, sizeof(SColRefKV));
@@ -1727,10 +1734,22 @@ static int32_t initVtbScanInfo(SOperatorInfo* pOperator, SDynQueryCtrlOperatorIn
   pInfo->vtbScan.pMsgCb = pMsgCb;
   pInfo->vtbScan.curTableIdx = 0;
   pInfo->vtbScan.lastTableIdx = -1;
+  pInfo->vtbScan.dynTbUid = 0;
   pInfo->vtbScan.dbName = taosStrdup(pPhyciNode->vtbScan.dbName);
   pInfo->vtbScan.stbName = taosStrdup(pPhyciNode->vtbScan.stbName);
   QUERY_CHECK_NULL(pInfo->vtbScan.dbName, code, line, _return, terrno);
   QUERY_CHECK_NULL(pInfo->vtbScan.stbName, code, line, _return, terrno);
+
+  if (pPhyciNode->dynTbname) {
+    SArray* vals = pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPartColVals;
+    for (int32_t i = 0; i < taosArrayGetSize(vals); ++i) {
+      SStreamGroupValue* pValue = taosArrayGet(vals, i);
+      if (pValue != NULL && pValue->isTbname) {
+        pInfo->vtbScan.dynTbUid = pValue->vgId;
+        break;
+      }
+    }
+  }
 
   pInfo->vtbScan.readColList = taosArrayInit(LIST_LENGTH(pPhyciNode->vtbScan.pScanCols), sizeof(col_id_t));
   QUERY_CHECK_NULL(pInfo->vtbScan.readColList, code, line, _return, terrno);

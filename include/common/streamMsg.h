@@ -716,6 +716,7 @@ typedef enum ESTriggerPullType {
   STRIGGER_PULL_WAL_DATA,
   STRIGGER_PULL_GROUP_COL_VALUE,
   STRIGGER_PULL_VTABLE_INFO,
+  STRIGGER_PULL_VTABLE_PSEUDO_COL,
   STRIGGER_PULL_OTABLE_INFO,
   STRIGGER_PULL_TYPE_MAX,
 } ESTriggerPullType;
@@ -806,6 +807,11 @@ typedef struct SSTriggerVirTableInfoRequest {
   SArray*              cids;  // SArray<col_id_t>, col ids of the virtual table
 } SSTriggerVirTableInfoRequest;
 
+typedef struct SSTriggerVirTablePseudoColRequest {
+  SSTriggerPullRequest base;
+  int64_t              uid;
+  SArray*              cids;  // SArray<col_id_t>, -1 means tbname
+} SSTriggerVirTablePseudoColRequest;
 typedef struct OTableInfoRsp {
   int64_t  suid;
   int64_t  uid;
@@ -844,6 +850,7 @@ typedef union SSTriggerPullRequestUnion {
   SSTriggerWalDataRequest             walDataReq;
   SSTriggerGroupColValueRequest       groupColValueReq;
   SSTriggerVirTableInfoRequest        virTableInfoReq;
+  SSTriggerVirTablePseudoColRequest   virTablePseudoColReq;
   SSTriggerOrigTableInfoRequest       origTableInfoReq;
 } SSTriggerPullRequestUnion;
 
@@ -899,6 +906,21 @@ int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTrigger
 int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalcRequest* pReq);
 void    tDestroySSTriggerCalcParam(void* ptr);
 void    tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq);
+
+typedef enum ESTriggerCtrlType {
+  STRIGGER_CTRL_START = 0,
+  STRIGGER_CTRL_STOP = 1,
+} ESTriggerCtrlType;
+
+typedef struct SSTriggerCtrlRequest {
+  ESTriggerCtrlType type;
+  int64_t           streamId;
+  int64_t           taskId;
+  int64_t           sessionId;
+} SSTriggerCtrlRequest;
+
+int32_t tSerializeSTriggerCtrlRequest(void* buf, int32_t bufLen, const SSTriggerCtrlRequest* pReq);
+int32_t tDeserializeSTriggerCtrlRequest(void* buf, int32_t bufLen, SSTriggerCtrlRequest* pReq);
 
 typedef struct SStreamRuntimeFuncInfo {
   SArray* pStreamPesudoFuncVals;

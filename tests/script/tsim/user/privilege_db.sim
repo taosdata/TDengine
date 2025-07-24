@@ -7,7 +7,12 @@ print =============== create db
 sql create database d1 vgroups 1 wal_retention_period 3600;
 sql use d1
 sql create table d1_stb (ts timestamp, i int) tags (j int)
+sql create table d1_stb1 (ts timestamp, i int) tags (j int)
+sql create table d1_stb2 (ts timestamp, i int) tags (j int)
 sql create topic d1_topic_1 as select ts, i from d1_stb
+sql create view d1_view1 as select * from d1_stb
+sql create view d1_view2 as select * from d1_stb
+sql create view d1_view3 as select * from d1_stb
 
 sql create database d2 vgroups 1 wal_retention_period 3600;
 sql create database d3 vgroups 1 wal_retention_period 3600;
@@ -81,6 +86,24 @@ endi
 
 sql GRANT read ON d1.* to u1;
 sql GRANT write ON d2.* to u1;
+sql GRANT read ON d1.d1_stb to u1
+sql GRANT write ON d1.d1_stb to u1
+sql GRANT write ON d1.d1_stb1 to u1
+sql GRANT alter ON d1.d1_stb to u1
+sql GRANT alter ON d1.d1_stb1 to u1
+sql GRANT alter ON d1.d1_stb2 to u1
+sql GRANT subscribe ON d1_topic_1 to u1
+sql GRANT read ON d1.d1_view1 to u1
+sql GRANT read ON d1.d1_view2 to u1
+sql GRANT read ON d1.d1_view3 to u1
+sql GRANT write ON d1.d1_view1 to u1
+sql GRANT write ON d1.d1_view2 to u1
+sql GRANT alter ON d1.d1_view3 to u1
+sql GRANT all ON d1.d1_view3 to u1
+sql select * from information_schema.ins_user_privileges where user_name = 'u1'
+if $rows != 16 then
+  return -1
+endi
 
 print =============== re connect
 print user u1 login
@@ -103,5 +126,15 @@ sql_error drop topic d1_topic_1
 sql create topic d1_topic_2 as select ts, i from d1_stb
 
 sql drop topic d1_topic_2
+
+print =============== drop db and check privileges
+sql close
+sql connect root
+sql drop topic d1_topic_1
+sql drop database d1
+sql select * from information_schema.ins_user_privileges where user_name = 'u1'
+if $rows != 1 then
+  return -1
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -15,9 +15,11 @@
 
 #include "cJSON.h"
 #include "dataSink.h"
+#include "osMemPool.h"
 #include "streamInt.h"
 #include "tdatablock.h"
 #include "tstrbuild.h"
+#include "decimal.h"
 
 #ifndef WINDOWS
 #include "curl/curl.h"
@@ -306,7 +308,8 @@ void stmDestroySStreamMgmtReq(SStreamMgmtReq* pReq) {
 #define JSON_CHECK_ADD_ITEM(obj, str, item) \
   QUERY_CHECK_CONDITION(cJSON_AddItemToObjectCS(obj, str, item), code, lino, _end, TSDB_CODE_OUT_OF_MEMORY)
 
-static int32_t jsonAddColumnField(const char* colName, int16_t type, bool isNull, const char* pData, cJSON* obj) {
+static int32_t jsonAddColumnField(const char* colName, const SColumnInfo* colInfo, bool isNull, const char* pData, cJSON* obj) {
+  int8_t  type = colInfo->type;
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   char*   temp = NULL;
@@ -408,6 +411,27 @@ static int32_t jsonAddColumnField(const char* colName, int16_t type, bool isNull
       break;
     }
 
+    case TSDB_DATA_TYPE_DECIMAL64:
+    case TSDB_DATA_TYPE_DECIMAL: {
+      Decimal128* pIn = (Decimal128*)pData;
+      uint8_t     inputPrec = colInfo->precision;
+      uint8_t     inputScale = colInfo->scale;
+
+      const int32_t len = 64;
+      temp = cJSON_malloc(len + 1);
+      QUERY_CHECK_NULL(temp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_CODE(decimalToStr(pData, colInfo->type, inputPrec, inputScale, temp, len), lino, _end);
+      temp[len] = '\0';
+
+      cJSON* item = cJSON_CreateStringReference(temp);
+      JSON_CHECK_ADD_ITEM(obj, colName, item);
+
+      // let the cjson object to free memory later
+      item->type &= ~cJSON_IsReference;
+      temp = NULL;
+      break;
+    }
+
     default: {
       JSON_CHECK_ADD_ITEM(obj, colName, cJSON_CreateStringReference("<Unable to display this data type>"));
       break;
@@ -424,7 +448,7 @@ _end:
   return code;
 }
 
-int32_t streamBuildStateNotifyContent(ESTriggerEventType eventType, int16_t dataType, const char* pFromState,
+int32_t streamBuildStateNotifyContent(ESTriggerEventType eventType, SColumnInfo* colInfo, const char* pFromState,
                                       const char* pToState, char** ppContent) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -435,14 +459,14 @@ int32_t streamBuildStateNotifyContent(ESTriggerEventType eventType, int16_t data
   obj = cJSON_CreateObject();
   QUERY_CHECK_NULL(obj, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
   if (eventType == STRIGGER_EVENT_WINDOW_OPEN) {
-    code = jsonAddColumnField("prevState", dataType, pFromState == NULL, pFromState, obj);
+    code = jsonAddColumnField("prevState", colInfo, pFromState == NULL, pFromState, obj);
     QUERY_CHECK_CODE(code, lino, _end);
-    code = jsonAddColumnField("curState", dataType, false, pToState, obj);
+    code = jsonAddColumnField("curState", colInfo, false, pToState, obj);
     QUERY_CHECK_CODE(code, lino, _end);
   } else if (eventType == STRIGGER_EVENT_WINDOW_CLOSE) {
-    code = jsonAddColumnField("curState", dataType, false, pFromState, obj);
+    code = jsonAddColumnField("curState", colInfo, false, pFromState, obj);
     QUERY_CHECK_CODE(code, lino, _end);
-    code = jsonAddColumnField("nextState", dataType, false, pToState, obj);
+    code = jsonAddColumnField("nextState", colInfo, false, pToState, obj);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -475,7 +499,7 @@ int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNod
   FOREACH(pNode, pCondCols) {
     const SColumnNode*     pColDef = (const SColumnNode*)pNode;
     const SColumnInfoData* pColData = taosArrayGet(pInputBlock->pDataBlock, pColDef->slotId);
-    code = jsonAddColumnField(pColDef->colName, pColData->info.type, colDataIsNull_s(pColData, rowIdx),
+    code = jsonAddColumnField(pColDef->colName, &pColData->info, colDataIsNull_s(pColData, rowIdx),
                               colDataGetData(pColData, rowIdx), fields);
     QUERY_CHECK_CODE(code, lino, _end);
   }
@@ -523,7 +547,7 @@ int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** pp
   cJSON* pArr = cJSON_AddArrayToObject(pResult, "data");
   QUERY_CHECK_NULL(pArr, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
-  cJSON* size = cJSON_CreateNumber(pBlock->info.rows);
+  cJSON* size = cJSON_CreateNumber(endRow - startRow + 1);
   QUERY_CHECK_NULL(size, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
   if (!cJSON_AddItemToObjectCS(pResult, "curSize", size)) {
     cJSON_Delete(size);
@@ -557,7 +581,7 @@ int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** pp
       }
       colName = pField->name;
       bool isNull = colDataIsNull_s(pCol, rowIdx);
-      code = jsonAddColumnField(colName, pCol->info.type, isNull, isNull ? NULL : colDataGetData(pCol, rowIdx), pRow);
+      code = jsonAddColumnField(colName, &pCol->info, isNull, isNull ? NULL : colDataGetData(pCol, rowIdx), pRow);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -684,9 +708,9 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
   JSON_CHECK_ADD_ITEM(obj, "eventType", cJSON_CreateStringReference(eventType));
   JSON_CHECK_ADD_ITEM(obj, "eventTime", cJSON_CreateNumber(taosGetTimestampMs()));
   JSON_CHECK_ADD_ITEM(obj, "windowId", cJSON_CreateString(windowId));
+  JSON_CHECK_ADD_ITEM(obj, "windowType", cJSON_CreateStringReference(windowType));
 
-  if (STREAM_TRIGGER_PERIOD != triggerType && STREAM_TRIGGER_SLIDING != triggerType) {
-    JSON_CHECK_ADD_ITEM(obj, "windowType", cJSON_CreateStringReference(windowType));
+  if (pParam->notifyType != STRIGGER_EVENT_ON_TIME) {
     JSON_CHECK_ADD_ITEM(obj, "windowStart", cJSON_CreateNumber(pParam->wstart));
     if (pParam->notifyType == STRIGGER_EVENT_WINDOW_CLOSE) {
       int64_t wend = pParam->wend;

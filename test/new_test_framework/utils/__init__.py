@@ -16,6 +16,7 @@ from .clusterCommonCheck import *
 from typing import List
 from .streamUtil import *
 from .mqttUtil import *
+from .compatibilityUtil import *
 from .pathFinding import *
 from .tserror import *
 import random

@@ -365,6 +365,10 @@ static int32_t msmTDAddToVgroupMap(SHashObj* pVgMap, SStmTaskDeploy* pDeploy, in
     }
 
     taosWLockLatch(&pVg->lock);
+    if (NULL == pVg->taskList) {
+      pVg->taskList = taosArrayInit(20, sizeof(SStmTaskToDeployExt));
+      TSDB_CHECK_NULL(pVg->taskList, code, lino, _return, terrno);
+    }
     if (NULL == taosArrayPush(pVg->taskList, &ext)) {
       taosWUnLockLatch(&pVg->lock);
       TSDB_CHECK_NULL(NULL, code, lino, _return, terrno);
@@ -730,21 +734,17 @@ void* msmSearchCalcCacheScanPlan(SArray* pList) {
   return NULL;
 }
 
-int32_t msmBuildReaderDeployInfo(SStmTaskDeploy* pDeploy, SStreamObj* pStream, void* calcScanPlan, SStmStatus* pInfo, bool triggerReader) {
+int32_t msmBuildReaderDeployInfo(SStmTaskDeploy* pDeploy, void* calcScanPlan, SStmStatus* pInfo, bool triggerReader) {
   SStreamReaderDeployMsg* pMsg = &pDeploy->msg.reader;
   pMsg->triggerReader = triggerReader;
   
   if (triggerReader) {
-    if (NULL == pStream) {
-      return TSDB_CODE_SUCCESS;
-    }
-    
     SStreamReaderDeployFromTrigger* pTrigger = &pMsg->msg.trigger;
     pTrigger->triggerTblName = pInfo->pCreate->triggerTblName;
-    pTrigger->triggerTblUid = pStream->pCreate->triggerTblUid;
-    pTrigger->triggerTblType = pStream->pCreate->triggerTblType;
-    pTrigger->deleteReCalc = pStream->pCreate->deleteReCalc;
-    pTrigger->deleteOutTbl = pStream->pCreate->deleteOutTbl;
+    pTrigger->triggerTblUid = pInfo->pCreate->triggerTblUid;
+    pTrigger->triggerTblType = pInfo->pCreate->triggerTblType;
+    pTrigger->deleteReCalc = pInfo->pCreate->deleteReCalc;
+    pTrigger->deleteOutTbl = pInfo->pCreate->deleteOutTbl;
     pTrigger->partitionCols = pInfo->pCreate->partitionCols;
     pTrigger->triggerCols = pInfo->pCreate->triggerCols;
     //pTrigger->triggerPrevFilter = pStream->pCreate->triggerPrevFilter;
@@ -1209,7 +1209,7 @@ static int32_t msmTDAddSingleTrigReader(SStmGrpCtx* pCtx, SStmTaskStatus* pState
   info.task.seriousId = pState->id.seriousId;
   info.task.nodeId = pState->id.nodeId;
   info.task.taskIdx = pState->id.taskIdx;
-  TAOS_CHECK_EXIT(msmBuildReaderDeployInfo(&info, pStream, NULL, pInfo, true));
+  TAOS_CHECK_EXIT(msmBuildReaderDeployInfo(&info, NULL, pInfo, true));
   TAOS_CHECK_EXIT(msmTDAddToVgroupMap(mStreamMgmt.toDeployVgMap, &info, streamId));
 
 _exit:
@@ -1228,6 +1228,7 @@ static int32_t msmTDAddTrigReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
   SSdb   *pSdb = pCtx->pMnode->pSdb;
   SStmTaskStatus* pState = NULL;
   SVgObj *pVgroup = NULL;
+  SDbObj* pDb = NULL;
   
   switch (pStream->pCreate->triggerTblType) {
     case TSDB_NORMAL_TABLE:
@@ -1242,7 +1243,7 @@ static int32_t msmTDAddTrigReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
       break;
     }
     case TSDB_SUPER_TABLE: {
-      SDbObj* pDb = mndAcquireDb(pCtx->pMnode, pStream->pCreate->triggerDB);
+      pDb = mndAcquireDb(pCtx->pMnode, pStream->pCreate->triggerDB);
       if (NULL == pDb) {
         code = terrno;
         mstsError("failed to acquire db %s, error:%s", pStream->pCreate->triggerDB, terrstr());
@@ -1282,6 +1283,8 @@ static int32_t msmTDAddTrigReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
   }
 
 _exit:
+
+  mndReleaseDb(pCtx->pMnode, pDb);
 
   if (code) {
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
@@ -1419,7 +1422,7 @@ static int32_t msmTDAddCalcReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
       info.task.seriousId = pState->id.seriousId;
       info.task.nodeId = pState->id.nodeId;
       info.task.taskIdx = pState->id.taskIdx;
-      TAOS_CHECK_EXIT(msmBuildReaderDeployInfo(&info, pStream, pScan->scanPlan, pInfo, false));
+      TAOS_CHECK_EXIT(msmBuildReaderDeployInfo(&info, pScan->scanPlan, pInfo, false));
       TAOS_CHECK_EXIT(msmUPAddScanTask(pCtx, pStream, pScan->scanPlan, pState->id.nodeId, pState->id.taskId));
       TAOS_CHECK_EXIT(msmTDAddToVgroupMap(mStreamMgmt.toDeployVgMap, &info, streamId));
     }
@@ -1583,7 +1586,18 @@ int32_t msmUpdateRunnerPlan(SStmGrpCtx* pCtx, SArray* pRunners, int32_t beginIdx
   int64_t streamId = pStream->pCreate->streamId;
 
   TAOS_CHECK_EXIT(msmUpdateLowestPlanSourceAddr(pPlan, pDeploy, streamId));
-  
+
+  SNode* pTmp = NULL;
+  WHERE_EACH(pTmp, pPlan->pChildren) {
+    if (QUERY_NODE_VALUE == nodeType(pTmp)) {
+      ERASE_NODE(pPlan->pChildren);
+      continue;
+    }
+    WHERE_NEXT;
+  }
+  nodesClearList(pPlan->pChildren);
+  pPlan->pChildren = NULL;
+
   if (NULL == pPlan->pParents) {
     goto _exit;
   }
@@ -1963,6 +1977,7 @@ static int32_t msmInitTrigReaderList(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStrea
   int64_t streamId = pStream->pCreate->streamId;
   SSdb   *pSdb = pCtx->pMnode->pSdb;
   SStmTaskStatus* pState = NULL;
+  SDbObj* pDb = NULL;
   
   switch (pStream->pCreate->triggerTblType) {
     case TSDB_NORMAL_TABLE:
@@ -1975,7 +1990,7 @@ static int32_t msmInitTrigReaderList(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStrea
       break;
     }
     case TSDB_SUPER_TABLE: {
-      SDbObj* pDb = mndAcquireDb(pCtx->pMnode, pStream->pCreate->triggerDB);
+      pDb = mndAcquireDb(pCtx->pMnode, pStream->pCreate->triggerDB);
       if (NULL == pDb) {
         code = terrno;
         mstsError("failed to acquire db %s, error:%s", pStream->pCreate->triggerDB, terrstr());
@@ -1985,6 +2000,8 @@ static int32_t msmInitTrigReaderList(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStrea
       pInfo->trigReaders = taosArrayInit(pDb->cfg.numOfVgroups, sizeof(SStmTaskStatus));
       TSDB_CHECK_NULL(pInfo->trigReaders, code, lino, _exit, terrno);
       pInfo->trigReaderNum = pDb->cfg.numOfVgroups;
+      mndReleaseDb(pCtx->pMnode, pDb);
+      pDb = NULL;
       break;
     }
     default:
@@ -1996,6 +2013,7 @@ static int32_t msmInitTrigReaderList(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStrea
 _exit:
 
   if (code) {
+    mndReleaseDb(pCtx->pMnode, pDb);
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
 
@@ -2277,7 +2295,7 @@ static int32_t msmReLaunchReaderTask(SStreamObj* pStream, SStmTaskAction* pActio
     }
   }
   
-  TAOS_CHECK_EXIT(msmBuildReaderDeployInfo(&info, pStream, scanPlan ? scanPlan->scanPlan : NULL, pStatus, isTriggerReader));
+  TAOS_CHECK_EXIT(msmBuildReaderDeployInfo(&info, scanPlan ? scanPlan->scanPlan : NULL, pStatus, isTriggerReader));
   TAOS_CHECK_EXIT(msmTDAddToVgroupMap(mStreamMgmt.toDeployVgMap, &info, pAction->streamId));
 
 _exit:
