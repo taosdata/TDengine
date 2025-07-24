@@ -1,0 +1,1 @@
+{"version":1,"name":"water_meters_01","cols": [{"name":"ts", "type":9},{"name":"rate", "type":6},{"name":"pressure", "type":4}],"tags": [{"name":"location", "type":8}]}

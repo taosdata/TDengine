@@ -14,52 +14,16 @@
  */
 
 #include "executor.h"
-#include "rsync.h"
 #include "sndInt.h"
-#include "tqCommon.h"
+#include "tdatablock.h"
 #include "tuuid.h"
+#include "stream.h"
+#include "streamRunner.h"
 
 // clang-format off
 #define sndError(...) do {  if (sndDebugFlag & DEBUG_ERROR) { taosPrintLog("SND ERROR ", DEBUG_ERROR, sndDebugFlag, __VA_ARGS__);}} while (0)
 #define sndInfo(...)  do {  if (sndDebugFlag & DEBUG_INFO)  { taosPrintLog("SND INFO  ", DEBUG_INFO,  sndDebugFlag, __VA_ARGS__);}} while (0)
 #define sndDebug(...) do {  if (sndDebugFlag & DEBUG_DEBUG) { taosPrintLog("SND DEBUG ", DEBUG_DEBUG, sndDebugFlag, __VA_ARGS__);}} while (0)
-// clang-format on
-
-int32_t sndBuildStreamTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProcessVer) {
-  if (!(pTask->info.taskLevel == TASK_LEVEL__AGG && taosArrayGetSize(pTask->upstreamInfo.pList) != 0)) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-  int32_t code = streamTaskInit(pTask, pSnode->pMeta, &pSnode->msgCb, nextProcessVer);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
-  pTask->pBackend = NULL;
-  streamTaskOpenAllUpstreamInput(pTask);
-
-  streamTaskResetUpstreamStageInfo(pTask);
-
-  SCheckpointInfo *pChkInfo = &pTask->chkInfo;
-  tqSetRestoreVersionInfo(pTask);
-
-  char *p = streamTaskGetStatus(pTask).name;
-  if (pTask->info.fillHistory == STREAM_HISTORY_TASK) {
-    sndInfo("vgId:%d build stream task, s-task:%s, %p checkpointId:%" PRId64 " checkpointVer:%" PRId64
-            " nextProcessVer:%" PRId64
-            " child id:%d, level:%d, status:%s taskType:%d, related stream task:0x%x trigger:%" PRId64 " ms",
-            SNODE_HANDLE, pTask->id.idStr, pTask, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
-            pTask->info.selfChildId, pTask->info.taskLevel, p, pTask->info.fillHistory,
-            (int32_t)pTask->streamTaskId.taskId, pTask->info.delaySchedParam);
-  } else {
-    sndInfo("vgId:%d build stream task, s-task:%s, %p checkpointId:%" PRId64 " checkpointVer:%" PRId64
-            " nextProcessVer:%" PRId64
-            " child id:%d, level:%d, status:%s taskType:%d, related helper-task:0x%x trigger:%" PRId64 " ms",
-            SNODE_HANDLE, pTask->id.idStr, pTask, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
-            pTask->info.selfChildId, pTask->info.taskLevel, p, pTask->info.fillHistory,
-            (int32_t)pTask->hTaskInfo.id.taskId, pTask->info.delaySchedParam);
-  }
-  return 0;
-}
 
 SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
   int32_t code = 0;
@@ -68,116 +32,299 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
     return NULL;
   }
 
-  stopRsync();
-  code = startRsync();
-  if (code != 0) {
-    terrno = code;
-    goto _ERR;
-  }
-
   pSnode->msgCb = pOption->msgCb;
-  code = streamMetaOpen(path, pSnode, (FTaskBuild *)sndBuildStreamTask, tqExpandStreamTask, SNODE_HANDLE,
-                        taosGetTimestampMs(), tqStartTaskCompleteCallback, &pSnode->pMeta);
-  if (code != TSDB_CODE_SUCCESS) {
-    terrno = code;
-    goto _ERR;
-  }
 
-  streamMetaLoadAllTasks(pSnode->pMeta);
   return pSnode;
-
-_ERR:
-  taosMemoryFree(pSnode);
-  return NULL;
 }
 
 int32_t sndInit(SSnode *pSnode) {
-  if (streamTaskSchedTask(&pSnode->msgCb, pSnode->pMeta->vgId, 0, 0, STREAM_EXEC_T_START_ALL_TASKS, false) != 0) {
-    sndError("failed to start all tasks");
-  }
+  streamSetSnodeEnabled(&pSnode->msgCb);
   return 0;
 }
 
 void sndClose(SSnode *pSnode) {
-  stopRsync();
-
-  streamMetaNotifyClose(pSnode->pMeta);
-  if (streamMetaCommit(pSnode->pMeta) != 0) {
-    sndError("failed to commit stream meta");
-  }
-  streamMetaClose(pSnode->pMeta);
+  streamSetSnodeDisabled(false);
   taosMemoryFree(pSnode);
 }
 
-int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
-  switch (pMsg->msgType) {
-    case TDMT_STREAM_TASK_RUN:
-      return tqStreamTaskProcessRunReq(pSnode->pMeta, pMsg, true);
-    case TDMT_STREAM_TASK_DISPATCH:
-      return tqStreamTaskProcessDispatchReq(pSnode->pMeta, pMsg, &pSnode->msgCb);
-    case TDMT_STREAM_TASK_DISPATCH_RSP:
-      return tqStreamTaskProcessDispatchRsp(pSnode->pMeta, pMsg);
-    case TDMT_STREAM_RETRIEVE:
-      return tqStreamTaskProcessRetrieveReq(pSnode->pMeta, pMsg);
-    case TDMT_STREAM_RETRIEVE_RSP:  // 1036
-      break;
-    case TDMT_VND_STREAM_TASK_CHECK:
-      return tqStreamTaskProcessCheckReq(pSnode->pMeta, pMsg);
-    case TDMT_VND_STREAM_TASK_CHECK_RSP:
-      return tqStreamTaskProcessCheckRsp(pSnode->pMeta, pMsg, true);
-    case TDMT_STREAM_TASK_CHECKPOINT_READY:
-      return tqStreamTaskProcessCheckpointReadyMsg(pSnode->pMeta, pMsg);
-    case TDMT_MND_STREAM_HEARTBEAT_RSP:
-      return tqStreamProcessStreamHbRsp(pSnode->pMeta, pMsg);
-    case TDMT_MND_STREAM_REQ_CHKPT_RSP:
-      return tqStreamProcessReqCheckpointRsp(pSnode->pMeta, pMsg);
-    case TDMT_STREAM_TASK_CHECKPOINT_READY_RSP:
-      return tqStreamProcessCheckpointReadyRsp(pSnode->pMeta, pMsg);
-    case TDMT_MND_STREAM_CHKPT_REPORT_RSP:
-      return tqStreamProcessChkptReportRsp(pSnode->pMeta, pMsg);
-    case TDMT_STREAM_RETRIEVE_TRIGGER:
-      return tqStreamTaskProcessRetrieveTriggerReq(pSnode->pMeta, pMsg);
-    case TDMT_STREAM_RETRIEVE_TRIGGER_RSP:
-      return tqStreamTaskProcessRetrieveTriggerRsp(pSnode->pMeta, pMsg);
-    case TDMT_STREAM_CHKPT_EXEC:
-      return tqStreamTaskProcessRunReq(pSnode->pMeta, pMsg, true);
-    default:
-      sndError("invalid snode msg:%d", pMsg->msgType);
-      return TSDB_CODE_INVALID_MSG;
+static int32_t handleTriggerCalcReq(SSnode* pSnode, void* pWorkerCb, SRpcMsg* pRpcMsg) {
+  SSTriggerCalcRequest req = {0};
+  SStreamRunnerTask* pTask = NULL;
+  void* taskAddr = NULL;
+  int32_t code = 0, lino = 0;
+  TAOS_CHECK_EXIT(tDeserializeSTriggerCalcRequest(POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead)), pRpcMsg->contLen - sizeof(SMsgHead), &req));
+  TAOS_CHECK_EXIT(streamAcquireTask(req.streamId, req.runnerTaskId, (SStreamTask**)&pTask, &taskAddr));
+
+  req.brandNew = true;
+  req.execId = -1;
+  pTask->pMsgCb = &pSnode->msgCb;
+  pTask->pWorkerCb = pWorkerCb;
+  req.curWinIdx = 0;
+  TAOS_CHECK_EXIT(stRunnerTaskExecute(pTask, &req));
+
+_exit:
+
+  tDestroySTriggerCalcRequest(&req);
+  SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_TRIGGER_CALC_RSP, .contLen = 0, .pCont = NULL, .info = pRpcMsg->info};
+  rpcSendResponse(&rsp);
+
+  streamReleaseTask(taskAddr);
+
+  if (code) {
+    sndError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
+  
+  return code;
+}
+
+static int32_t handleSyncDeleteCheckPointReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
+  int64_t streamId = *(int64_t*)POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead));
+  streamDeleteCheckPoint(streamId);
   return 0;
 }
 
-int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
-  switch (pMsg->msgType) {
-    case TDMT_STREAM_TASK_DEPLOY: {
-      void   *pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
-      int32_t len = pMsg->contLen - sizeof(SMsgHead);
-      return tqStreamTaskProcessDeployReq(pSnode->pMeta, &pSnode->msgCb, pMsg->info.conn.applyIndex, pReq, len, true,
-                                          true);
-    }
+static int32_t handleSyncWriteCheckPointReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
+  int32_t ver = *(int32_t*)POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead));
+  int64_t streamId = *(int64_t*)POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead) + INT_BYTES);
+  SRpcMsg rsp = {.code = 0, .msgType = TDMT_STREAM_SYNC_CHECKPOINT_RSP, .info = pRpcMsg->info};
 
-    case TDMT_STREAM_TASK_DROP:
-      return tqStreamTaskProcessDropReq(pSnode->pMeta, pMsg->pCont, pMsg->contLen);
-    case TDMT_VND_STREAM_TASK_UPDATE:
-      return tqStreamTaskProcessUpdateReq(pSnode->pMeta, &pSnode->msgCb, pMsg, true, true);
-    case TDMT_VND_STREAM_TASK_RESET:
-      return tqStreamTaskProcessTaskResetReq(pSnode->pMeta, pMsg->pCont);
-    case TDMT_VND_STREAM_ALL_STOP:
-      return tqStreamTaskProcessAllTaskStopReq(pSnode->pMeta, &pSnode->msgCb, pMsg);
-    case TDMT_STREAM_TASK_PAUSE:
-      return tqStreamTaskProcessTaskPauseReq(pSnode->pMeta, pMsg->pCont);
-    case TDMT_STREAM_TASK_RESUME:
-      return tqStreamTaskProcessTaskResumeReq(pSnode->pMeta, pMsg->info.conn.applyIndex, pMsg->pCont, false);
-    case TDMT_STREAM_TASK_STOP:
-      return tqStreamTaskProcessTaskPauseReq(pSnode->pMeta, pMsg->pCont);
-    case TDMT_STREAM_TASK_START:
-      return tqStreamTaskProcessTaskPauseReq(pSnode->pMeta, pMsg->pCont);
-    case TDMT_STREAM_TASK_UPDATE_CHKPT:
-      return tqStreamTaskProcessUpdateCheckpointReq(pSnode->pMeta, true, pMsg->pCont);
-    case TDMT_STREAM_CONSEN_CHKPT:
-      return tqStreamTaskProcessConsenChkptIdReq(pSnode->pMeta, pMsg);
-    default:
-      return TSDB_CODE_INVALID_MSG;
+  stDebug("[checkpoint] handleSyncWriteCheckPointReq streamId:%" PRIx64 ",ver:%d", streamId, ver);
+  void*   data = NULL;
+  int64_t dataLen = 0;
+  int32_t code = streamReadCheckPoint(streamId, &data, &dataLen);
+  if (code != 0 || (terrno == TAOS_SYSTEM_ERROR(ENOENT) && ver == -1)){
+    goto end;
   }
+  if (terrno == TAOS_SYSTEM_ERROR(ENOENT) || ver > *(int32_t*)data) {
+    int32_t ret = streamWriteCheckPoint(streamId, POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead)), pRpcMsg->contLen - sizeof(SMsgHead));
+    stDebug("[checkpoint] streamId:%" PRIx64 ", checkpoint local updated, ver:%d, dataLen:%" PRId64 ", ret:%d", streamId, ver, dataLen, ret);
+  }
+  if (terrno == TAOS_SYSTEM_ERROR(ENOENT) || ver >= *(int32_t*)data) {
+    stDebug("[checkpoint] streamId:%" PRIx64 ", checkpoint no need send back, ver:%d, dataLen:%" PRId64, streamId, ver, dataLen);
+    dataLen = 0;
+    taosMemoryFreeClear(data);
+  }
+  
+end:
+  if (data == NULL) {
+    rsp.contLen = INT_BYTES + LONG_BYTES;
+    rsp.pCont = rpcMallocCont(rsp.contLen);
+    if (rsp.pCont == NULL) {
+      rsp.code = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      *(int32_t*)rsp.pCont = -1;  // no checkpoint
+      *(int64_t*)(POINTER_SHIFT(rsp.pCont, INT_BYTES)) = streamId;
+    }
+  } else {
+    rsp.pCont = rpcMallocCont(dataLen);
+    if (rsp.pCont == NULL) {
+      rsp.code = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      memcpy(rsp.pCont, data, dataLen);
+      rsp.contLen = dataLen;
+      taosMemoryFreeClear(data); 
+    } 
+  }
+  
+  rpcSendResponse(&rsp);
+  return 0;
+}
+
+static int32_t handleSyncWriteCheckPointRsp(SSnode* pSnode, SRpcMsg* pRpcMsg) {
+  if (pRpcMsg->code != 0) {
+    stError("[checkpoint] handleSyncWriteCheckPointRsp, code:%d, msgType:%d", pRpcMsg->code, pRpcMsg->msgType);
+    return pRpcMsg->code;
+  } 
+  void* data = pRpcMsg->pCont;
+  int32_t dataLen = pRpcMsg->contLen;
+  stDebug("[checkpoint] handleSyncWriteCheckPointRsp, dataLen:%d", dataLen);
+  
+  int32_t ver = *(int32_t*)data;
+  int64_t streamId = *(int64_t*)(POINTER_SHIFT(data, INT_BYTES));
+  if (ver != -1){
+    (void)streamWriteCheckPoint(streamId, data, dataLen);
+  }
+  return streamCheckpointSetReady(streamId);
+}
+
+static int32_t buildFetchRsp(SSDataBlock* pBlock, void** data, size_t* size, int8_t precision, bool finished) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  void*   buf =  NULL;
+
+  int32_t blockSize = pBlock == NULL ? 0 : blockGetEncodeSize(pBlock);
+  size_t dataEncodeBufSize = sizeof(SRetrieveTableRsp) + INT_BYTES * 2 + blockSize;
+  buf = rpcMallocCont(dataEncodeBufSize);
+  if (!buf) {
+    code = terrno;
+    goto end;
+  }
+
+  SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)buf;
+  pRetrieve->version = 0;
+  pRetrieve->precision = precision;
+  pRetrieve->compressed = 0;
+  *((int32_t*)(pRetrieve->data)) = blockSize;
+  *((int32_t*)(pRetrieve->data + INT_BYTES)) = blockSize;
+  if (pBlock == NULL || pBlock->info.rows == 0) {
+    pRetrieve->numOfRows = 0;
+    pRetrieve->numOfBlocks = 0;
+    pRetrieve->completed = 1;
+  } else {
+    pRetrieve->numOfRows = htobe64((int64_t)pBlock->info.rows);
+    pRetrieve->numOfBlocks = htonl(1);
+    int32_t actualLen = blockEncode(pBlock, pRetrieve->data + INT_BYTES * 2, blockSize, taosArrayGetSize(pBlock->pDataBlock));
+    if (actualLen < 0) {
+      code = terrno;
+      goto end;
+    }
+  }
+  if (finished) {
+    pRetrieve->completed = 1;
+  }
+
+  *data = buf;
+  *size = dataEncodeBufSize;
+  buf = NULL;
+
+end:
+  rpcFreeCont(buf);
+  return code;
+}
+
+static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* pRpcMsg) {
+  int32_t code = 0, lino = 0;
+  void* taskAddr = NULL;
+  SResFetchReq req = {0};
+  SSTriggerCalcRequest calcReq = {0};
+  SStreamRunnerTask* pTask = NULL;
+  void* buf = NULL;
+  size_t size = 0;
+
+  stDebug("handleStreamFetchData, msgType:%s, contLen:%d 0x%" PRIx64 ":0x%" PRIx64, 
+      TMSG_INFO(pRpcMsg->msgType), pRpcMsg->contLen, TRACE_GET_ROOTID(&pRpcMsg->info.traceId), TRACE_GET_MSGID(&pRpcMsg->info.traceId));
+  
+  TAOS_CHECK_EXIT(tDeserializeSResFetchReq(pRpcMsg->pCont,pRpcMsg->contLen, &req));
+
+  calcReq.streamId = req.queryId;
+  calcReq.runnerTaskId = req.taskId;
+  calcReq.brandNew = req.reset;
+  calcReq.execId = req.execId;
+  calcReq.sessionId = req.pStRtFuncInfo->sessionId;
+  calcReq.triggerType = req.pStRtFuncInfo->triggerType;
+  TSWAP(calcReq.groupColVals, req.pStRtFuncInfo->pStreamPartColVals);
+  TSWAP(calcReq.params, req.pStRtFuncInfo->pStreamPesudoFuncVals);
+  calcReq.gid = req.pStRtFuncInfo->groupId;
+  calcReq.curWinIdx = req.pStRtFuncInfo->curIdx;
+  calcReq.pOutBlock = NULL;
+
+  TAOS_CHECK_EXIT(streamAcquireTask(calcReq.streamId, calcReq.runnerTaskId, (SStreamTask**)&pTask, &taskAddr));
+
+  pTask->pMsgCb = &pSnode->msgCb;
+  pTask->pWorkerCb = pWorkerCb;
+  
+  TAOS_CHECK_EXIT(stRunnerTaskExecute(pTask, &calcReq));
+
+  TAOS_CHECK_EXIT(buildFetchRsp(calcReq.pOutBlock, &buf, &size, 0, false));
+
+_exit:
+
+  tDestroySTriggerCalcRequest(&calcReq);
+  tDestroySResFetchReq(&req);
+  SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_FETCH_FROM_RUNNER_RSP, .contLen = size, .pCont = buf, .info = pRpcMsg->info};
+  tmsgSendRsp(&rsp);
+  
+  streamReleaseTask(taskAddr);
+
+  if (code) {
+    sndError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+  
+  return code;
+}
+
+static int32_t handleStreamFetchFromCache(SSnode* pSnode, SRpcMsg* pRpcMsg) {
+  int32_t code = 0, lino = 0;
+  SResFetchReq req = {0};
+  SStreamCacheReadInfo readInfo = {0};
+  void* buf = NULL;
+  int64_t streamId = 0;
+  size_t size = 0;
+  TAOS_CHECK_EXIT(tDeserializeSResFetchReq(pRpcMsg->pCont, pRpcMsg->contLen, &req));
+
+  streamId = req.queryId;
+  readInfo.taskInfo.streamId = req.queryId;
+  readInfo.taskInfo.taskId = req.taskId;
+  readInfo.taskInfo.sessionId = req.pStRtFuncInfo->sessionId;
+  readInfo.gid = req.pStRtFuncInfo->groupId;
+  SSTriggerCalcParam* pParam = taosArrayGet(req.pStRtFuncInfo->pStreamPesudoFuncVals, req.pStRtFuncInfo->curIdx);
+  readInfo.start = pParam->wstart;
+  readInfo.end = pParam->wend;
+  bool finished;
+  TAOS_CHECK_EXIT(stRunnerFetchDataFromCache(&readInfo,&finished));
+
+  TAOS_CHECK_EXIT(buildFetchRsp(readInfo.pBlock, &buf, &size, 0, finished));
+
+_exit:
+
+  stsDebug("task %" PRIx64 " TDMT_STREAM_FETCH_FROM_CACHE_RSP with code:%d rows:%" PRId64 ", size:%d", req.taskId, code, readInfo.pBlock ? readInfo.pBlock->info.rows : 0, (int32_t)size);  
+  SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_FETCH_FROM_CACHE_RSP, .contLen = size, .pCont = buf, .info = pRpcMsg->info};
+  tmsgSendRsp(&rsp);
+
+  if (code) {
+    sndError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+
+  blockDataDestroy(readInfo.pBlock);
+  tDestroySResFetchReq(&req);
+  
+  return code;
+}
+
+static void sndSendErrorRrsp(SRpcMsg *pMsg, int32_t errCode) {
+  SRpcMsg             rspMsg = {0};
+
+  rspMsg.info = pMsg->info;
+  rspMsg.pCont = NULL;
+  rspMsg.contLen = 0;
+  rspMsg.code = errCode;
+  rspMsg.msgType = pMsg->msgType;
+
+  tmsgSendRsp(&rspMsg);
+}
+
+
+int32_t sndProcessStreamMsg(SSnode *pSnode, void *pWorkerCb, SRpcMsg *pMsg) {
+  int32_t code = 0, lino = 0;
+  switch (pMsg->msgType) {
+    case TDMT_STREAM_TRIGGER_CALC:
+      TAOS_CHECK_EXIT(handleTriggerCalcReq(pSnode, pWorkerCb, pMsg));
+      break;
+    case TDMT_STREAM_DELETE_CHECKPOINT:
+      TAOS_CHECK_EXIT(handleSyncDeleteCheckPointReq(pSnode, pMsg));
+      break;
+    case TDMT_STREAM_SYNC_CHECKPOINT:
+      TAOS_CHECK_EXIT(handleSyncWriteCheckPointReq(pSnode, pMsg));
+      break;
+    case TDMT_STREAM_SYNC_CHECKPOINT_RSP:
+      TAOS_CHECK_EXIT(handleSyncWriteCheckPointRsp(pSnode, pMsg));
+      break;
+    case TDMT_STREAM_FETCH_FROM_RUNNER:
+      TAOS_CHECK_EXIT(handleStreamFetchData(pSnode, pWorkerCb, pMsg));
+      break;
+    case TDMT_STREAM_FETCH_FROM_CACHE:
+      TAOS_CHECK_EXIT(handleStreamFetchFromCache(pSnode, pMsg));
+      break;
+    default:
+      sndError("invalid snode msg:%d", pMsg->msgType);
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+
+_exit:
+
+  if (code) {
+    sndError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+  
+  return code;
 }

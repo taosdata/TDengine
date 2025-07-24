@@ -309,6 +309,9 @@ void taosArrayRemove(SArray* pArray, size_t index) {
 }
 
 void taosArrayRemoveBatch(SArray* pArray, size_t index, size_t num, FDelete fp) {
+  if(num == 0) {
+    return;
+  }
   if (index + num <= pArray->size) {
     if (fp) {
       for (int32_t i = 0; i < num; i++) {

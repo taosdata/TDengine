@@ -5,7 +5,7 @@
 %global __python /usr/bin/python3
 %global _build_id_links none
 
-Name:		tdengine-tsdb
+Name:		%{product_name}
 Version:	%{_version}
 Provides:   tdengine = %{_version}
 Obsoletes:  tdengine < 3.3.7.0

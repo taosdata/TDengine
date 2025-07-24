@@ -566,8 +566,8 @@ TEST(clientCase, create_table_Test) {
 
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create table if not exists tm0(ts timestamp, k blob)");
-  ASSERT_NE(taos_errno(pRes), 0);
+  pRes = taos_query(pConn, "create table if not exists tm1(ts timestamp, k blob)");
+  ASSERT_EQ(taos_errno(pRes), 0);
 
   taos_free_result(pRes);
   taos_close(pConn);

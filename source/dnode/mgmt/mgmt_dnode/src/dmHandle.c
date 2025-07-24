@@ -21,6 +21,7 @@
 #include "tanalytics.h"
 #include "tchecksum.h"
 #include "tutil.h"
+#include "stream.h"
 
 extern SConfig *tsCfg;
 
@@ -762,6 +763,34 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t dmProcessStreamHbRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  SMStreamHbRspMsg rsp = {0};
+  int32_t          code = 0;
+  SDecoder         decoder;
+  char*            msg = POINTER_SHIFT(pMsg->pCont, sizeof(SStreamMsgGrpHeader));
+  int32_t          len = pMsg->contLen - sizeof(SStreamMsgGrpHeader);
+  int64_t          currTs = taosGetTimestampMs();
+
+  if (pMsg->code) {
+    return streamHbHandleRspErr(pMsg->code, currTs);
+  }
+
+  tDecoderInit(&decoder, (uint8_t*)msg, len);
+  code = tDecodeStreamHbRsp(&decoder, &rsp);
+  if (code < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    tDeepFreeSMStreamHbRspMsg(&rsp);
+    tDecoderClear(&decoder);
+    dError("fail to decode stream hb rsp msg, error:%s", tstrerror(code));
+    return streamHbHandleRspErr(code, currTs);
+  }
+
+  tDecoderClear(&decoder);
+
+  return streamHbProcessRspMsg(&rsp);
+}
+
+
 SArray *dmGetMsgHandles() {
   int32_t code = -1;
   SArray *pArray = taosArrayInit(16, sizeof(SMgmtHandle));
@@ -775,12 +804,16 @@ SArray *dmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_QNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_DROP_QNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_SNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_SNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_DROP_SNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_BNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_DROP_BNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CONFIG_DNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_SERVER_STATUS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_SYSTABLE_RETRIEVE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_MNODE_TYPE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_ENCRYPT_KEY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_MND_STREAM_HEARTBEAT_RSP, dmPutMsgToStreamMgmtQueue, 0) == NULL) goto _OVER;
 
   // Requests handled by MNODE
   if (dmSetMgmtHandle(pArray, TDMT_MND_GRANT, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
