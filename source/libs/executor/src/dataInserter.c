@@ -133,8 +133,8 @@ static int32_t checkResAndGetTableId(const SSubmitRes* pSubmitRes, int8_t tbType
     stError("create table response is NULL");
     return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
   }
-  if (pSubmitRes->pRsp->aCreateTbRsp->size != 1) {
-    stError("create table response size is not 1");
+  if (pSubmitRes->pRsp->aCreateTbRsp->size < 1) {
+    stError("create table response size is less than 1");
     return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
   }
   SVCreateTbRsp* pCreateTbRsp = taosArrayGet(pSubmitRes->pRsp->aCreateTbRsp, 0);
@@ -1559,6 +1559,16 @@ int32_t buildNormalTableCreateReq(SDataInserterHandle* pInserter, SStreamInserte
       tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].flags |= COL_IS_KEY;
     }
     snprintf(tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].name, TSDB_COL_NAME_LEN, "%s", pField->name);
+    if (IS_DECIMAL_TYPE(pField->type)) {
+      if (!tbData->pCreateTbReq->pExtSchemas) {
+        tbData->pCreateTbReq->pExtSchemas = taosMemoryCalloc(numOfCols, sizeof(SExtSchema));
+        if (NULL == tbData->pCreateTbReq->pExtSchemas) {
+          tdDestroySVCreateTbReq(tbData->pCreateTbReq);
+          return terrno;
+        }
+      }
+      tbData->pCreateTbReq->pExtSchemas[i].typeMod = pField->typeMod;
+    }
   }
   return TSDB_CODE_SUCCESS;
 _end:
@@ -2173,6 +2183,15 @@ static int32_t putStreamDataBlock(SDataSinkHandle* pHandle, const SInputData* pI
 
       code = tsem_wait(&pInserter->ready);
       QUERY_CHECK_CODE(code, lino, _return);
+    }
+
+    if (pInput->pStreamDataInserterInfo->isAutoCreateTable &&
+        pInserter->submitRes.code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
+      rmDbVgInfoFromCache(pInserter->pParam->streamInserterParam->dbFName);
+      stInfo("putStreamDataBlock, stream inserter table info not found, groupId:%" PRId64
+             ", tbName:%s. so reset dbVgInfo and try again",
+             pInput->pStreamDataInserterInfo->groupId, pInput->pStreamDataInserterInfo->tbName);
+      return putStreamDataBlock(pHandle, pInput, pContinue);
     }
 
     if ((pInserter->submitRes.code == TSDB_CODE_TDB_TABLE_NOT_EXIST &&
