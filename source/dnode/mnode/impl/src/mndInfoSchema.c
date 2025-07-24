@@ -98,6 +98,14 @@ int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *
     code = TSDB_CODE_PAR_PERMISSION_DENIED;
     TAOS_RETURN(code);
   }
+  bool isShowXnodes = (strcmp(tbName, TSDB_INS_TABLE_XNODES) == 0 || strcmp(tbName, TSDB_INS_TABLE_XNODES_FULL) == 0);
+
+  if (!isShowXnodes && !sysinfo && pMeta->sysInfo) {
+    mError("no permission to get schema of table name:%s", tbName);
+    code = TSDB_CODE_PAR_PERMISSION_DENIED;
+    TAOS_RETURN(code);
+  }
+
 
   *pRsp = *pMeta;
 
