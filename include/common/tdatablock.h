@@ -39,7 +39,7 @@ typedef struct SBlockOrderInfo {
 #define BitPos(_n)               ((_n) & ((1 << NBIT) - 1))
 #define CharPos(r_)              ((r_) >> NBIT)
 #define BMCharPos(bm_, r_)       ((bm_)[(r_) >> NBIT])
-#define colDataIsNull_f(bm_, r_) ((BMCharPos(bm_, r_) & (1u << (7u - BitPos(r_)))) == (1u << (7u - BitPos(r_))))
+#define colDataIsNull_f(bm_, r_) ((BMCharPos(bm_, r_) & (1u << (7u - BitPos(r_)))) == (1u << (7u - BitPos(r_))) || pColumnInfoData->pData == NULL)
 
 #define QRY_PARAM_CHECK(_o)           \
   do {                               \
