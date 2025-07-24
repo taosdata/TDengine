@@ -2348,7 +2348,7 @@ static int32_t vnodeScanColumnData(SVnode *pVnode, SSubmitTbData *pTbData, TSKEY
   for (int32_t i = 1; i < numCols; ++i) {
     if (aColData[i].nVal != aColData[0].nVal) {
       code = TSDB_CODE_INVALID_MSG;
-      vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " uid:%" PRId64
+      vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64
              " column cid:%d type:%d nVal:%d is not equal to primary key timestamp nVal:%d",
              TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid,
              aColData[i].cid, aColData[i].type, aColData[i].nVal, aColData[0].nVal);
