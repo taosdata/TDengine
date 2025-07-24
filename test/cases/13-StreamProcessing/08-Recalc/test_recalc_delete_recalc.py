@@ -11,22 +11,81 @@ class TestStreamRecalcDeleteRecalc:
     def test_stream_recalc_delete_recalc(self):
         """Stream Recalculation DELETE_RECALC Option Test
 
-        Test DELETE_RECALC option with data deletion:
-        1. Delete data from trigger table - streams with DELETE_RECALC should trigger recalculation
-        2. Delete child table - streams with DELETE_RECALC should trigger recalculation
-        3. Different trigger types behavior with data deletion
+        Test DELETE_RECALC option behavior with various data deletion scenarios:
+
+        1. Test [DELETE_RECALC] Option Specification
+            1.1 Test option existence verification
+                1.1.1 DELETE_RECALC specified - verify recalculation on deletion
+                1.1.2 DELETE_RECALC not specified - verify no recalculation on deletion
+                1.1.3 DELETE_RECALC with invalid syntax - verify error handling
+            1.2 Test option value validation
+                1.2.1 Valid DELETE_RECALC specification
+                1.2.2 Invalid DELETE_RECALC syntax
+                1.2.3 DELETE_RECALC with other conflicting options
+
+        2. Test [Data Record Deletion] Scenarios
+            2.1 Test single record deletion
+                2.1.1 Delete recent data - should trigger recalculation
+                2.1.2 Delete historical data - should trigger recalculation
+                2.1.3 Delete data from closed window - verify window reopening
+            2.2 Test batch record deletion
+                2.2.1 Delete multiple records from same window
+                2.2.2 Delete records across multiple windows
+                2.2.3 Delete all records from a window
+            2.3 Test conditional deletion
+                2.3.1 DELETE with WHERE clause affecting single window
+                2.3.2 DELETE with WHERE clause affecting multiple windows
+                2.3.3 DELETE with complex WHERE conditions
+
+        3. Test [Child Table Deletion] Scenarios
+            3.1 Test entire child table deletion
+                3.1.1 DROP child table - verify impact on stream calculation
+                3.1.2 Delete all records from child table - verify empty table handling
+                3.1.3 Recreate child table after deletion - verify stream recovery
+            3.2 Test multiple child table operations
+                3.2.1 Delete multiple child tables simultaneously
+                3.2.2 Mix of record deletion and table deletion
+                3.2.3 Partial child table set deletion
+
+        4. Test [Window Type Behavior] with DELETE_RECALC
+            4.1 Test INTERVAL windows
+                4.1.1 Delete data from current window - verify immediate recalculation
+                4.1.2 Delete data from sliding windows - verify overlapping window updates
+                4.1.3 Delete data causing empty windows - verify window state handling
+            4.2 Test SESSION windows
+                4.2.1 Delete data from active session - verify session recalculation
+                4.2.2 Delete data causing session split - verify session boundary changes
+                4.2.3 Delete data causing session merge - verify session consolidation
+            4.3 Test STATE_WINDOW
+                4.3.1 Delete data causing state change - verify state window recalculation
+                4.3.2 Delete data from state boundary - verify window boundary updates
+                4.3.3 Delete all data from state window - verify window closure
+            4.4 Test EVENT_WINDOW
+                4.4.1 Delete start event data - verify window start recalculation
+                4.4.2 Delete end event data - verify window end recalculation
+                4.4.3 Delete intermediate data - verify window content recalculation
+
+        5. Test [Performance and Resource Impact]
+            5.1 Test large-scale deletion impact
+                5.1.1 Delete large volume of data - verify performance
+                5.1.2 Concurrent deletion operations - verify system stability
+                5.1.3 Resource usage during deletion recalculation
+            5.2 Test recovery scenarios
+                5.2.1 System restart after deletion - verify state recovery
+                5.2.2 Network interruption during deletion - verify consistency
+                5.2.3 Storage failure scenarios - verify data integrity
 
         Catalog:
-            - Streams:Recalculation
+            - Streams:Recalculation:DeleteRecalc
 
-        Since: v3.0.0.0
+        Since: v3.3.7.0
 
         Labels: common,ci
 
         Jira: None
 
         History:
-            - 2025-12-19 Generated from recalculation mechanism design
+            - 2025-07-23 Beryl Created
 
         """
 

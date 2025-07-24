@@ -148,4 +148,3 @@ class TestUserPrivilegeDb:
         tdSql.execute(f"drop database d1")
         tdSql.query(f"select * from information_schema.ins_user_privileges where user_name = 'u1'")
         tdSql.checkRows(1)
-
