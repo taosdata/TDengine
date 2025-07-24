@@ -248,7 +248,6 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
   int16_t       tmpI16 = 0;
   int32_t       tmpI32 = 0;
   int64_t       tmpI64 = 0;
-  float         tmpFloat = 0;
   double        tmpDouble = 0;
   int32_t       code = 0;
 
@@ -319,8 +318,7 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
     for (int32_t i = 0; i < lowSize; ++i) {
       SJson* lowJson = tjsonGetArrayItem(lowJsonArray, i);
       tjsonGetObjectValueDouble(lowJson, &tmpDouble);
-      tmpFloat = (float)tmpDouble;
-      colDataSetFloat(pResLowCol, resCurRow, &tmpFloat);
+      colDataSetDouble(pResLowCol, resCurRow, &tmpDouble);
       resCurRow++;
     }
   }
@@ -334,8 +332,7 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
     for (int32_t i = 0; i < highSize; ++i) {
       SJson* highJson = tjsonGetArrayItem(highJsonArray, i);
       tjsonGetObjectValueDouble(highJson, &tmpDouble);
-      tmpFloat = (float)tmpDouble;
-      colDataSetFloat(pResHighCol, resCurRow, &tmpFloat);
+      colDataSetDouble(pResHighCol, resCurRow, &tmpDouble);
       resCurRow++;
     }
   }
