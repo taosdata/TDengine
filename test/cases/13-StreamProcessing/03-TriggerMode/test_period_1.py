@@ -666,3 +666,42 @@ class TestStreamCheckpoint:
             f"select cast(_tlocaltime/1000000 as timestamp) local_ts, count(*)  "
             f"from source_table partition by tbname "
         )
+
+        tdSql.error(
+            f"create stream {stream_name} from source_table partition by tbname into {dst_table} as "
+            f"select cast(_tlocaltime/1000000 as timestamp) local_ts, count(*)  "
+            f"from source_table partition by tbname "
+        )
+
+        tdSql.error(
+            f"create stream {stream_name} period(10s) from information_schema.ins_tables into {dst_table} as "
+            f"select cast(_tlocaltime/1000000 as timestamp) local_ts, count(*)  "
+            f"from source_table partition by tbname "
+        )
+
+        tdSql.error(
+            f"create stream {stream_name} period(10s) into information_schema.abc as "
+            f"select cast(_tlocaltime/1000000 as timestamp) local_ts, count(*)  "
+            f"from source_table partition by tbname "
+        )
+
+        tdSql.error(
+            f"create stream {stream_name} period(10s) from db.abc into {dst_table} as "
+            f"select cast(_tlocaltime/1000000 as timestamp) local_ts, count(*)  "
+            f"from source_table partition by tbname "
+        )
+
+        tdSql.error(
+            f"create stream {stream_name} period(10s) from db.ct20 into {dst_table} as "
+            f"select cast(_tlocaltime/1000000 as timestamp) local_ts, count(*)  "
+            f"from source_table partition by tbname "
+        )
+
+        for i in range(40):
+            tdSql.execute(
+                f"create stream {stream_name} period(10s) from db.c1 partition by a into {dst_table} as "
+                f"select cast(_tlocaltime/1000000 as timestamp) local_ts, count(*)  "
+                f"from source_table partition by tbname "
+            )
+
+            tdSql.execute(f"drop stream {stream_name}")
