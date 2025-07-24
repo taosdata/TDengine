@@ -2247,8 +2247,8 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
     code = metaGetInfo(pVnode->pMeta, pTbData->uid, &info, NULL);
     if (code) {
       code = TSDB_CODE_TDB_TABLE_NOT_EXIST;
-      vWarn("vgId:%d, error occurred at %s:%d since %s, version:%" PRId64 " uid:%" PRId64, TD_VID(pVnode), __func__,
-            __FILE__, __LINE__, tstrerror(code), version, pTbData->uid);
+      vWarn("vgId:%d, error occurred at %s:%d since %s, version:%" PRId64 " uid:%" PRId64, TD_VID(pVnode), __FILE__,
+            __LINE__, tstrerror(code), version, pTbData->uid);
       return code;
     }
 
@@ -2273,8 +2273,9 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
 
     if (pTbData->sver != info.skmVer) {
       code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
-      vDebug("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " uid:%" PRId64 " sver:%" PRId64
-             " info.skmVer:%" PRId64,
+      vDebug("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " uid:%" PRId64
+             " sver:%d"
+             " info.skmVer:%d",
              TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), version, pTbData->uid, pTbData->sver,
              info.skmVer);
       return code;
@@ -2329,15 +2330,15 @@ static int32_t vnodeScanColumnData(SVnode *pVnode, SSubmitTbData *pTbData, TSKEY
 
   if (numCols <= 0) {
     code = TSDB_CODE_INVALID_MSG;
-    vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " uid:%" PRId64 " numCols:%d", TD_VID(pVnode),
-           __func__, __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid, numCols);
+    vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64 " numCols:%d", TD_VID(pVnode), __func__,
+           __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid, numCols);
     return code;
   }
 
   if (aColData[0].cid != PRIMARYKEY_TIMESTAMP_COL_ID || aColData[0].type != TSDB_DATA_TYPE_TIMESTAMP ||
       aColData[0].nVal <= 0) {
     code = TSDB_CODE_INVALID_MSG;
-    vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " uid:%" PRId64
+    vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64
            " first column is not primary key timestamp, cid:%d type:%d nVal:%d",
            TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid, aColData[0].cid,
            aColData[0].type, aColData[0].nVal);
@@ -2364,7 +2365,7 @@ static int32_t vnodeScanColumnData(SVnode *pVnode, SSubmitTbData *pTbData, TSKEY
 
     if (key.ts < minKey || key.ts > maxKey) {
       code = TSDB_CODE_INVALID_MSG;
-      vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " uid:%" PRId64 " row[%d] key:%" PRId64
+      vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64 " row[%d] key:%" PRId64
              " is out of range [%" PRId64 ", %" PRId64 "]",
              TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid, i, key.ts,
              minKey, maxKey);
@@ -2373,7 +2374,7 @@ static int32_t vnodeScanColumnData(SVnode *pVnode, SSubmitTbData *pTbData, TSKEY
 
     if (pLastKey && tRowKeyCompare(pLastKey, &key) >= 0) {
       code = TSDB_CODE_INVALID_MSG;
-      vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " uid:%" PRId64 " row[%d] key:%" PRId64
+      vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64 " row[%d] key:%" PRId64
              " is not in order, lastKey:%" PRId64,
              TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid, i, key.ts,
              pLastKey->ts);
@@ -2396,8 +2397,8 @@ static int32_t vnodeScanSubmitRowData(SVnode *pVnode, SSubmitTbData *pTbData, TS
 
   if (numRows <= 0) {
     code = TSDB_CODE_INVALID_MSG;
-    vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " uid:%" PRId64 " numRows:%d", TD_VID(pVnode),
-           __func__, __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid, numRows);
+    vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64 " numRows:%d", TD_VID(pVnode), __func__,
+           __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid, numRows);
     return code;
   }
 
@@ -2407,8 +2408,7 @@ static int32_t vnodeScanSubmitRowData(SVnode *pVnode, SSubmitTbData *pTbData, TS
     SRow *pRow = aRow[i];
     if (pRow->sver != pTbData->sver) {
       code = TSDB_CODE_INVALID_MSG;
-      vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " uid:%" PRId64 " row[%d] sver:%" PRId64
-             " pTbData->sver:%" PRId64,
+      vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64 " row[%d] sver:%d pTbData->sver:%d",
              TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid, i, pRow->sver,
              pTbData->sver);
       return code;
@@ -2418,7 +2418,7 @@ static int32_t vnodeScanSubmitRowData(SVnode *pVnode, SSubmitTbData *pTbData, TS
     tRowGetKey(pRow, &key);
     if (key.ts < minKey || key.ts > maxKey) {
       code = TSDB_CODE_INVALID_MSG;
-      vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " uid:%" PRId64 " row[%d] key:%" PRId64
+      vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64 " row[%d] key:%" PRId64
              " is out of range [%" PRId64 ", %" PRId64 "]",
              TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid, i, key.ts,
              minKey, maxKey);
@@ -2427,7 +2427,7 @@ static int32_t vnodeScanSubmitRowData(SVnode *pVnode, SSubmitTbData *pTbData, TS
 
     if (pLastKey && tRowKeyCompare(pLastKey, &key) >= 0) {
       code = TSDB_CODE_INVALID_MSG;
-      vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " uid:%" PRId64 " row[%d] key:%" PRId64
+      vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64 " row[%d] key:%" PRId64
              " is not in order, lastKey:%" PRId64,
              TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid, i, key.ts,
              pLastKey->ts);
