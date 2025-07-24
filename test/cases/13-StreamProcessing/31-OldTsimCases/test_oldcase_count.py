@@ -15,7 +15,7 @@ class TestStreamOldCaseCount:
     def test_stream_oldcase_count(self):
         """Stream count
 
-        Basic use cases of counting windows, including handling multiple expirations, out-of-order data, and data deletion
+        Basic use cases of count window, include expired-data, out-of-order data, and data-deletion
 
         Catalog:
             - Streams:OldTsimCases
