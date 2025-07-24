@@ -651,7 +651,7 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号是一一�
 
 - 异步查询示例：[异步查询](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/asyncdemo.c)
 
-— 参数绑定示例：[参数绑定](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/stmt2_insert_demo.c)
+- 参数绑定示例：[参数绑定](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/stmt2_insert_demo.c)
 
 - 参数绑定（旧）示例：[参数绑定（旧）](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/prepare.c)
 
@@ -901,6 +901,20 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 
 - `char *taos_stmt2_error(TAOS_STMT2 *stmt)`
 说明：如果 `taos_stmt2_exec()` 执行成功，假如不需要改变 SQL 语句的话，那么是可以复用 `taos_stmt2_prepare()` 的解析结果，直接进行第 3 ～ 4 步绑定新数据的。但如果执行出错，那么并不建议继续在当前的环境上下文下继续工作，而是建议释放资源，然后从 `taos_stmt2_init()` 步骤重新开始，可以通过 `taos_stmt2_error` 查看具体错误原因。
+
+stmt2 和 stmt 的区别在于：
+- stmt2 支持多表批量绑定数据，stmt 只支持单表绑定数据。
+- stmt2 支持异步执行，stmt 只支持同步执行。
+- stmt2 支持高效写入模式以及自动建表，stmt 不支持。
+- stmt2 支持 `insert into stb(...tbname,...)values(?,?,?)` 语法，stmt 不支持。
+- stmt2 支持部分标签/列为固定值，stmt 必须所有列为 `?` 。
+
+stmt 升级到 stmt2 的改动：
+1. 将 `taos_stmt_init()` 改为 `taos_stmt2_init()`，并增加了 `TAOS_STMT2_OPTION` 结构体参数。
+2. 将 `taos_stmt_prepare()` 改为 `taos_stmt2_prepare()` 。
+3. 将 `taos_stmt_set_tbname_tags` ， `taos_stmt_bind_param()` 和 `taos_stmt_add_batch` 合并改为 `taos_stmt2_bind_param()`，将 `TAOS_MULTI_BIND` 改为 `TAOS_STMT2_BINDV` 结构体作为参数。
+4. 将 `taos_stmt_execute()` 改为 `taos_stmt2_exec()`，增加了 `affected_rows` 参数。
+5. 将 `taos_stmt_close()` 改为 `taos_stmt2_close()` 。
 
 接口相关的具体函数如下（也可以参考 [stmt2_insert_demo.c](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/stmt2_insert_demo.c) 文件中使用对应函数的方式）：
 

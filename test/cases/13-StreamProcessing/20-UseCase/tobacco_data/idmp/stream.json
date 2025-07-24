@@ -17,7 +17,17 @@
             {
                 "row": 0,
                 "col": 1,
-                "data": "0"
+                "data": "0.5"
+            },
+            {
+                "row": 1,
+                "col": 0,
+                "data": "2025-07-10 07:40:00"
+            },
+            {
+                "row": 1,
+                "col": 1,
+                "data": "1.0"
             }
         ]
     },
@@ -27,7 +37,10 @@
         "create": "CREATE STREAM IF NOT EXISTS `idmp`.`%STREAM_NAME` SESSION(ts,10m) FROM `idmp`.`vt_振动输送机_f1w1a_vibrating_conveyor_02` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `idmp`.`%STREAM_NAME` AS SELECT _twstart+0s as output_timestamp, LAST(`振动幅度`) AS `最后振动幅度` FROM `idmp`.`vt_振动输送机_f1w1a_vibrating_conveyor_02` WHERE `设备类型` = '振动输送机' AND ts >= _twstart and ts <=_twend;",
         "data": [
             "INSERT INTO `f1w1a_vibrating_conveyor_02` VALUES('2025-07-10 08:00:00',0.0,0.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_02` VALUES('2025-07-10 08:10:00',0.0,0.0);"
+            "INSERT INTO `f1w1a_vibrating_conveyor_02` VALUES('2025-07-10 08:10:01',1.0,1.0);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_02` VALUES('2025-07-10 08:20:02',2.0,2.0);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_02` VALUES('2025-07-10 08:30:03',3.0,3.0);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_02` VALUES('2025-07-10 08:40:04',4.0,4.0);"
         ],
         "assert": [
             {
@@ -38,7 +51,17 @@
             {
                 "row": 0,
                 "col": 1,
-                "data": "0"
+                "data": "0.0"
+            },
+            {
+                "row": 3,
+                "col": 0,
+                "data": "2025-07-10 08:30:03"
+            },
+            {
+                "row": 3,
+                "col": 1,
+                "data": "3.0"
             }
         ]
     },
@@ -53,6 +76,7 @@
             "INSERT INTO `f1w1a_vibrating_conveyor_03` VALUES('2025-07-10 11:00:00',1.0,1.0);",
             "INSERT INTO `f1w1a_vibrating_conveyor_03` VALUES('2025-07-10 12:00:00',0.0,0.0);"
         ],
+        "assert_retry": 120,
         "assert": [
             {
                 "row": 0,
@@ -62,20 +86,31 @@
             {
                 "row": 0,
                 "col": 1,
-                "data": "0"
+                "data": "0.0"
+            },
+            {
+                "row": 15,
+                "col": 0,
+                "data": "2025-07-10 11:00:00"
+            },
+            {
+                "row": 15,
+                "col": 1,
+                "data": "1.0"
             }
         ]
     },
     {
         "id": 4,
         "name": "ana_振动输送机_f1w1a_vibrating_conveyor_04_振动幅度总和",
-        "create": "CREATE STREAM IF NOT EXISTS `idmp`.`%STREAM_NAME` SLIDING(10m) FROM `idmp`.`vt_振动输送机_f1w1a_vibrating_conveyor_04` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `idmp`.`%STREAM_NAME` AS SELECT _tcurrent_ts+0s as output_timestamp, SUM(`振动幅度`) AS `振动幅度总和` FROM `idmp`.`vt_振动输送机_f1w1a_vibrating_conveyor_04` WHERE `设备类型` = '振动输送机' AND ts >=_tprev_ts and ts <=_tcurrent_ts;",
+        "create": "CREATE STREAM IF NOT EXISTS `idmp`.`%STREAM_NAME` SLIDING(10m) FROM `idmp`.`vt_振动输送机_f1w1a_vibrating_conveyor_04` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `idmp`.`%STREAM_NAME` AS SELECT _tcurrent_ts+0s as output_timestamp, SUM(`振动幅度`) AS `振动幅度总和` FROM `idmp`.`vt_振动输送机_f1w1a_vibrating_conveyor_04` WHERE `设备类型` = '振动输送机' AND ts >= _tprev_ts and ts <= _tcurrent_ts;",
         "data": [
             "INSERT INTO `f1w1a_vibrating_conveyor_04` VALUES('2025-07-10 08:00:00',0.0,0.0);",
             "INSERT INTO `f1w1a_vibrating_conveyor_04` VALUES('2025-07-10 08:10:00',1.0,1.0);",
             "INSERT INTO `f1w1a_vibrating_conveyor_04` VALUES('2025-07-10 08:20:00',2.0,2.0);",
             "INSERT INTO `f1w1a_vibrating_conveyor_04` VALUES('2025-07-10 08:30:00',3.0,3.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_04` VALUES('2025-07-10 08:40:00',4.0,4.0);"
+            "INSERT INTO `f1w1a_vibrating_conveyor_04` VALUES('2025-07-10 08:40:00',4.0,4.0);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_04` VALUES('2025-07-10 08:50:00',5.0,5.0);"
         ],
         "assert": [
             {
@@ -86,7 +121,27 @@
             {
                 "row": 0,
                 "col": 1,
-                "data": "0"
+                "data": "0.0"
+            },
+            {
+                "row": 2,
+                "col": 0,
+                "data": "2025-07-10 08:20:00"
+            },
+            {
+                "row": 2,
+                "col": 1,
+                "data": "3.0"
+            },
+            {
+                "row": 5,
+                "col": 0,
+                "data": "2025-07-10 08:50:00"
+            },
+            {
+                "row": 5,
+                "col": 1,
+                "data": "9.0"
             }
         ]
     },
@@ -96,10 +151,10 @@
         "create": "CREATE STREAM IF NOT EXISTS `idmp`.`%STREAM_NAME` SESSION(ts,5m) FROM `idmp`.`vt_振动输送机_f1w1a_vibrating_conveyor_05` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `idmp`.`%STREAM_NAME` AS SELECT _twstart+0s as output_timestamp, LAST(`电机信号`) AS `最后电机信号` FROM `idmp`.`vt_振动输送机_f1w1a_vibrating_conveyor_05` WHERE `设备类型` = '振动输送机' AND ts >= _twstart and ts <=_twend;",
         "data": [
             "INSERT INTO `f1w1a_vibrating_conveyor_05` VALUES('2025-07-10 08:00:00',0.0,0.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_05` VALUES('2025-07-10 08:05:00',1.0,1.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_05` VALUES('2025-07-10 08:10:00',2.0,2.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_05` VALUES('2025-07-10 08:15:00',3.0,3.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_05` VALUES('2025-07-10 08:20:00',4.0,4.0);"
+            "INSERT INTO `f1w1a_vibrating_conveyor_05` VALUES('2025-07-10 08:05:01',1.0,1.0);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_05` VALUES('2025-07-10 08:10:02',2.0,2.0);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_05` VALUES('2025-07-10 08:15:03',3.0,3.0);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_05` VALUES('2025-07-10 08:20:04',4.0,4.0);"
         ],
         "assert": [
             {
@@ -110,7 +165,17 @@
             {
                 "row": 0,
                 "col": 1,
-                "data": "0"
+                "data": "0.0"
+            },
+            {
+                "row": 3,
+                "col": 0,
+                "data": "2025-07-10 08:15:03"
+            },
+            {
+                "row": 3,
+                "col": 1,
+                "data": "3.0"
             }
         ]
     },
@@ -121,8 +186,8 @@
         "data": [
             "INSERT INTO `f1w1a_vibrating_conveyor_06` VALUES('2025-07-10 08:00:00',0.0,0.0);",
             "INSERT INTO `f1w1a_vibrating_conveyor_06` VALUES('2025-07-10 08:20:00',1.0,1.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_06` VALUES('2025-07-10 08:40:00',2.0,2.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_06` VALUES('2025-07-10 09:00:00',3.0,3.0);"
+            "INSERT INTO `f1w1a_vibrating_conveyor_06` VALUES('2025-07-10 08:40:00',3.0,3.0);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_06` VALUES('2025-07-10 09:00:00',7.0,7.0);"
         ],
         "assert": [
             {
@@ -133,20 +198,51 @@
             {
                 "row": 0,
                 "col": 1,
-                "data": "0"
+                "data": "0.0"
+            },
+            {
+                "row": 1,
+                "col": 0,
+                "data": "2025-07-10 08:20:00"
+            },
+            {
+                "row": 1,
+                "col": 1,
+                "data": "0.5"
+            },
+            {
+                "row": 2,
+                "col": 0,
+                "data": "2025-07-10 08:40:00"
+            },
+            {
+                "row": 2,
+                "col": 1,
+                "data": "1.0"
+            },
+            {
+                "row": 3,
+                "col": 0,
+                "data": "2025-07-10 09:00:00"
+            },
+            {
+                "row": 3,
+                "col": 1,
+                "data": "2.0"
             }
         ]
     },
     {
         "id": 7,
         "name": "ana_振动输送机_f1w1a_vibrating_conveyor_07_电机信号极差",
-        "create": "CREATE STREAM IF NOT EXISTS `idmp`.`%STREAM_NAME` SLIDING(30m) FROM `idmp`.`vt_振动输送机_f1w1a_vibrating_conveyor_07` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `idmp`.`%STREAM_NAME` AS SELECT _tcurrent_ts+0s as output_timestamp, SPREAD(`电机信号`) AS `电机信号极差` FROM `idmp`.`vt_振动输送机_f1w1a_vibrating_conveyor_07` WHERE `设备类型` = '振动输送机' AND ts >=_tprev_ts and ts <=_tcurrent_ts;",
+        "create": "CREATE STREAM IF NOT EXISTS `idmp`.`%STREAM_NAME` SLIDING(30m) FROM `idmp`.`vt_振动输送机_f1w1a_vibrating_conveyor_07` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `idmp`.`%STREAM_NAME` AS SELECT _tcurrent_ts+0s as output_timestamp, SPREAD(`电机信号`) AS `电机信号极差` FROM `idmp`.`vt_振动输送机_f1w1a_vibrating_conveyor_07` WHERE `设备类型` = '振动输送机' AND ts >= _tprev_ts and ts <= _tcurrent_ts;",
         "data": [
-            "INSERT INTO `f1w1a_vibrating_conveyor_07` VALUES('2025-07-10 08:00:00',0.0,0.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_07` VALUES('2025-07-10 08:30:00',1.0,1.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_07` VALUES('2025-07-10 09:00:00',2.0,2.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_07` VALUES('2025-07-10 09:30:00',3.0,3.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_07` VALUES('2025-07-10 10:00:00',4.0,4.0);"
+            "INSERT INTO `f1w1a_vibrating_conveyor_07`(ts, motor_signal) VALUES('2025-07-10 08:00:00',12.0);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_07`(ts, motor_signal) VALUES('2025-07-10 08:05:00',12.0);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_07`(ts, motor_signal) VALUES('2025-07-10 08:10:00',14.0);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_07`(ts, motor_signal) VALUES('2025-07-10 08:15:00',16.0);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_07`(ts, motor_signal) VALUES('2025-07-10 08:20:00',13.0);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_07`(ts, motor_signal) VALUES('2025-07-10 08:30:00',21.0);"
         ],
         "assert": [
             {
@@ -157,20 +253,32 @@
             {
                 "row": 0,
                 "col": 1,
-                "data": "0"
+                "data": "0.0"
+            },
+            {
+                "row": 1,
+                "col": 0,
+                "data": "2025-07-10 08:30:00"
+            },
+            {
+                "row": 1,
+                "col": 1,
+                "data": "9.0"
             }
         ]
     },
     {
         "id": 8,
         "name": "ana_振动输送机_f1w1a_vibrating_conveyor_08_超过15分钟没有上报电机信号数据",
-        "create": "CREATE STREAM IF NOT EXISTS `idmp`.`%STREAM_NAME` SESSION(ts,15m) FROM `idmp`.`vt_振动输送机_f1w1a_vibrating_conveyor_08` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `idmp`.`%STREAM_NAME` AS SELECT _twstart+0s as output_timestamp, LAST(`电机信号`) AS `最后电机信号` FROM `idmp`.`vt_振动输送机_f1w1a_vibrating_conveyor_08` WHERE `设备类型` = '振动输送机' AND ts >= _twstart and ts <=_twend;",
+        "create": "CREATE STREAM IF NOT EXISTS `idmp`.`%STREAM_NAME` SESSION(ts,15m) FROM `idmp`.`vt_振动输送机_f1w1a_vibrating_conveyor_08` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `idmp`.`%STREAM_NAME` AS SELECT _twstart+0s as output_timestamp, LAST(`电机信号`) AS `最后电机信号` FROM `idmp`.`vt_振动输送机_f1w1a_vibrating_conveyor_08` WHERE `设备类型` = '振动输送机' AND ts >= _twstart and ts <= _twend;",
         "data": [
             "INSERT INTO `f1w1a_vibrating_conveyor_08` VALUES('2025-07-10 08:00:00',0.0,0.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_08` VALUES('2025-07-10 08:15:00',1.0,1.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_08` VALUES('2025-07-10 08:30:00',2.0,2.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_08` VALUES('2025-07-10 08:45:00',3.0,3.0);",
-            "INSERT INTO `f1w1a_vibrating_conveyor_08` VALUES('2025-07-10 09:00:00',4.0,4.0);"
+            "INSERT INTO `f1w1a_vibrating_conveyor_08` VALUES('2025-07-10 08:15:01',1.1,1.1);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_08` VALUES('2025-07-10 08:30:00',2.2,2.2);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_08` VALUES('2025-07-10 08:45:01',3.3,3.3);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_08` VALUES('2025-07-10 08:55:01',4.4,4.4);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_08` VALUES('2025-07-10 08:56:01',5.5,5.5);",
+            "INSERT INTO `f1w1a_vibrating_conveyor_08` VALUES('2025-07-10 09:15:00',6.6,6.6);"
         ],
         "assert": [
             {
@@ -181,7 +289,27 @@
             {
                 "row": 0,
                 "col": 1,
-                "data": "0"
+                "data": "0.0"
+            },
+            {
+                "row": 1,
+                "col": 0,
+                "data": "2025-07-10 08:15:01"
+            },
+            {
+                "row": 1,
+                "col": 1,
+                "data": "2.2"
+            },
+            {
+                "row": 2,
+                "col": 0,
+                "data": "2025-07-10 08:45:01"
+            },
+            {
+                "row": 2,
+                "col": 1,
+                "data": "5.5"
             }
         ]
     },
@@ -200,12 +328,132 @@
             {
                 "row": 0,
                 "col": 0,
+                "data": "2025-07-10 07:50:00"
+            },
+            {
+                "row": 0,
+                "col": 1,
+                "data": "NULL"
+            },
+            {
+                "row": 9,
+                "col": 0,
+                "data": "2025-07-10 08:35:00"
+            },
+            {
+                "row": 9,
+                "col": 1,
+                "data": "0.0"
+            }
+        ]
+    },
+    {
+        "id": 10,
+        "name": "ana_电子皮带秤_f1w1a_belt_scale_08_定时窗口_平均测量值",
+        "create": "CREATE STREAM IF NOT EXISTS `idmp`.`%STREAM_NAME` PERIOD(10s,10s) FROM `idmp`.`vt_电子皮带秤_f1w1a_belt_scale_08` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `idmp`.`%STREAM_NAME` AS SELECT cast(_tlocaltime/1000000 as timestamp) as output_timestamp, AVG(`测量值`) AS `测量值` FROM idmp.`vt_电子皮带秤_f1w1a_belt_scale_08` WHERE ts <= cast(_tlocaltime/1000000 as timestamp);",
+        "data": [
+            "INSERT INTO `f1w1a_belt_scale_08`(ts,measured_value) VALUES(now, 0.0),(now+1s, 1.0),(now+2s, 2.0),(now+3s, 3.0),(now+4s, 4.0),(now+5s, 5.0),(now+6s, 6.0),(now+7s, 7.0),(now+8s, 8.0),(now+9s, 9.0);"
+        ],
+        "assert": [
+            {
+                "row": 2,
+                "col": 1,
+                "data": "4.5"
+            }
+        ]
+    },
+    {
+        "id": 11,
+        "name": "ana_电子皮带秤_f1w1a_belt_scale_09_定时窗口_平均测量值",
+        "create": "CREATE STREAM IF NOT EXISTS `idmp`.`%STREAM_NAME` PERIOD(10s,0s) FROM `idmp`.`vt_电子皮带秤_f1w1a_belt_scale_09` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `idmp`.`%STREAM_NAME` AS SELECT cast(_tlocaltime/1000000 as timestamp) as output_timestamp, AVG(`测量值`) AS `测量值` FROM idmp.`vt_电子皮带秤_f1w1a_belt_scale_09` WHERE ts >= cast(_tprev_localtime/1000000-60000 as timestamp) and ts <= cast(_tlocaltime/1000000 as timestamp);",
+        "data": [
+            "INSERT INTO `f1w1a_belt_scale_09`(ts,measured_value) VALUES(now, 0.0),(now+1s, 1.0),(now+2s, 2.0),(now+3s, 3.0),(now+4s, 4.0),(now+5s, 5.0),(now+6s, 6.0),(now+7s, 7.0),(now+8s, 8.0),(now+9s, 9.0);"
+        ],
+        "assert": [
+            {
+                "row": 2,
+                "col": 1,
+                "data": "4.5"
+            }
+        ]
+    },
+    {
+        "id": 12,
+        "name": "ana_计量管_f1w1a_metering_pipe_07_状态窗口_last值",
+        "create": "create stream if not exists `idmp`.`%STREAM_NAME` state_window(`设备状态`) from `idmp`.`vt_计量管_f1w1a_metering_pipe_07` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) into `idmp`.`%STREAM_NAME` AS SELECT _twstart+0s as output_timestamp, last(`测量值`) as `测量值` FROM idmp.`vt_计量管_f1w1a_metering_pipe_07` where ts >= _twstart and ts <=_twend",
+        "data": [
+            "INSERT INTO `f1w1a_metering_pipe_07`(ts,equipment_status,measured_value) VALUES('2025-07-10 08:00:00',false,1.1);",
+            "INSERT INTO `f1w1a_metering_pipe_07`(ts,equipment_status,measured_value) VALUES('2025-07-10 08:01:00',true,2.2);",
+            "INSERT INTO `f1w1a_metering_pipe_07`(ts,equipment_status,measured_value) VALUES('2025-07-10 08:02:00',false,3.3);",
+            "INSERT INTO `f1w1a_metering_pipe_07`(ts,equipment_status,measured_value) VALUES('2025-07-10 08:03:00',false,4.4);",
+            "INSERT INTO `f1w1a_metering_pipe_07`(ts,equipment_status,measured_value) VALUES('2025-07-10 08:04:00',false,5.5);",
+            "INSERT INTO `f1w1a_metering_pipe_07`(ts,equipment_status,measured_value) VALUES('2025-07-10 08:05:00',true,6.6);"
+        ],
+        "assert": [
+            {
+                "row": 0,
+                "col": 0,
                 "data": "2025-07-10 08:00:00"
             },
             {
                 "row": 0,
                 "col": 1,
-                "data": "0"
+                "data": "1.1"
+            },
+            {
+                "row": 1,
+                "col": 0,
+                "data": "2025-07-10 08:01:00"
+            },
+            {
+                "row": 1,
+                "col": 1,
+                "data": "2.2"
+            },
+            {
+                "row": 2,
+                "col": 0,
+                "data": "2025-07-10 08:02:00"
+            },
+            {
+                "row": 2,
+                "col": 1,
+                "data": "5.5"
+            }
+        ]
+    },
+    {
+        "id": 13,
+        "name": "ana_计量管_f1w1a_metering_pipe_06_滑动窗口_SUM",
+        "create": "CREATE STREAM IF NOT EXISTS `idmp`.`%STREAM_NAME` SLIDING(10m) FROM `idmp`.`vt_计量管_f1w1a_metering_pipe_06` STREAM_OPTIONS(IGNORE_DISORDER|IGNORE_NODATA_TRIGGER) INTO `idmp`.`%STREAM_NAME` AS SELECT _tcurrent_ts as output_timestamp, SUM(`测量值`) AS `测量值` FROM idmp.`vt_计量管_f1w1a_metering_pipe_06` WHERE `设备类型` = '计量管' AND ts >= _tcurrent_ts and ts <= _tnext_ts;",
+        "data": [
+            "INSERT INTO `f1w1a_metering_pipe_06`(ts, measured_value) VALUES('2025-07-10 08:00:00',0.0);",
+            "INSERT INTO `f1w1a_metering_pipe_06`(ts, measured_value) VALUES('2025-07-10 08:10:01',1.1);",
+            "INSERT INTO `f1w1a_metering_pipe_06`(ts, measured_value) VALUES('2025-07-10 08:30:05',2.2);",
+            "INSERT INTO `f1w1a_metering_pipe_06`(ts, measured_value) VALUES('2025-07-10 08:33:00',3.3);",
+            "INSERT INTO `f1w1a_metering_pipe_06`(ts, measured_value) VALUES('2025-07-10 08:40:00',4.4);",
+            "INSERT INTO `f1w1a_metering_pipe_06`(ts, measured_value) VALUES('2025-07-10 08:41:00',5.5);"
+        ],
+        "assert": [
+            {
+                "row": 0,
+                "col": 0,
+                "data": "2025-07-10 08:00:00"
+            },
+            {
+                "row": 0,
+                "col": 1,
+                "data": "0.0"
+            },
+            {
+                "row": 1,
+                "col": 0,
+                "data": "2025-07-10 08:40:00"
+            },
+            {
+                "row": 1,
+                "col": 1,
+                "data": "9.9"
             }
         ]
     }

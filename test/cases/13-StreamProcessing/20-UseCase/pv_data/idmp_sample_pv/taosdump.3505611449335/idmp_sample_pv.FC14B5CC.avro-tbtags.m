@@ -1,0 +1,1 @@
+{"version":1,"name":"inverters","cols": [{"name":"ts", "type":9},{"name":"dc_power", "type":7},{"name":"ac_power", "type":7},{"name":"daily_yield", "type":7},{"name":"total_yield", "type":7}],"tags": [{"name":"pv_asset", "type":10},{"name":"plant_id", "type":8},{"name":"inverter_id", "type":8}]}

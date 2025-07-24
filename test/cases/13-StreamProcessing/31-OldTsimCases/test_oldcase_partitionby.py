@@ -55,7 +55,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"create table ts3 using st tags(3, 2, 2);")
         tdSql.execute(f"create table ts4 using st tags(4, 2, 2);")
         tdSql.execute(
-            f"create stream stream_t1 interval(10s) sliding(10s) from st partition by ta, tb, tc stream_options(max_delay(1s)) into test0.streamtST1 as select _twstart, count(*) c1, count(d) c2, sum(a) c3, max(b) c4, min(c) c5 from st where ta=%%1 tb=%%2 tb=%%3 and ts >= _twstart and ts < _twend;"
+            f"create stream stream_t1 interval(10s) sliding(10s) from st partition by ta, tb, tc stream_options(max_delay(3s)) into test0.streamtST1 as select _twstart, count(*) c1, count(d) c2, sum(a) c3, max(b) c4, min(c) c5 from st where ta=%%1 tb=%%2 tb=%%3 and ts >= _twstart and ts < _twend;"
         )
         tdSql.pause()
         tdStream.checkStreamStatus()

@@ -268,7 +268,7 @@ typedef struct SBoundColInfo {
 typedef struct STableColsData {
   char    tbName[TSDB_TABLE_NAME_LEN];
   SArray* aCol;
-  SBlobRow2 *pBlobRow;
+  SBlobSet* pBlobSet;
   bool    getFromHash;
   bool    isOrdered;
   bool    isDuplicateTs;
@@ -345,6 +345,7 @@ typedef struct SMsgSendInfo {
   STargetInfo          target;  // for update epset
   __freeFunc           paramFreeFp;
   void*                param;
+  int8_t               streamAHandle;
   uint64_t             requestId;
   uint64_t             requestObjRefId;
   int32_t              msgType;

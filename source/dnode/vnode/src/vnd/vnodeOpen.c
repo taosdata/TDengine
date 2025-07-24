@@ -582,6 +582,7 @@ _err:
 }
 
 void vnodePreClose(SVnode *pVnode) {
+  streamRemoveVnodeLeader(pVnode->config.vgId);
   vnodeSyncPreClose(pVnode);
   vnodeQueryPreClose(pVnode);
 }
@@ -595,7 +596,6 @@ void vnodeClose(SVnode *pVnode) {
     vnodeAWait(&pVnode->commitTask);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
-    streamRemoveVnodeLeader(pVnode->config.vgId);
     tqClose(pVnode->pTq);
     walClose(pVnode->pWal);
     if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);

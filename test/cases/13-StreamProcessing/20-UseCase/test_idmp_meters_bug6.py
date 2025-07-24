@@ -167,7 +167,7 @@ class Test_IDMP_Meters:
         table = "asset01.`em-5`"
         step  = 1 * 60 * 1000 # 1 minute
         
-        # first window have 3 + 5 = 10 rows
+        # first window have 3 + 4 + 1 = 10 rows
         count = 3
         cols = "ts,current,voltage,power"
         vals = "30,400,200"
@@ -185,9 +185,9 @@ class Test_IDMP_Meters:
         # save span ts
         spanTs = ts
 
-        # trigger first windows close with 11 steps
+        # trigger first windows close
         count = 1
-        ts += 10 * step
+        ts += 30 * step
         vals = "40,500,300"
         ts = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
@@ -219,17 +219,17 @@ class Test_IDMP_Meters:
         )
 
         # sub
-        #self.verify_stream5_sub1()
+        self.verify_stream5_sub1()
 
 
     def verify_stream5_sub1(self):    
         # result_stream5_sub1
-        result_sql_sub1 = f"select * from {self.vdb}.`result_stream5_sub1` "
+        result_sql = f"select * from {self.vdb}.`result_stream5_sub1` "
         tdSql.checkResultsByFunc (
             sql  = result_sql, 
             func = lambda: tdSql.getRows() == 1
             and tdSql.compareData(0, 0, self.start2) # ts
-            and tdSql.compareData(0, 1, 3 + 4 + 1)   # cnt
-            and tdSql.compareData(0, 2, 31)          # last current
+            and tdSql.compareData(0, 1, 3 + 4 + 1 + 2)   # cnt
+            and tdSql.compareData(0, 2, 37)          # last current
         )     
     

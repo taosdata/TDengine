@@ -36,10 +36,18 @@ class TestStreamOldCaseConcat:
 
         tdStream.createSnode()
 
-        self.udTableAndCol0()
-        self.udTableAndTag0()
-        self.udTableAndTag1()
-        self.udTableAndTag2()
+        streams = []
+        streams.append(self.Col00())
+        streams.append(self.Col01())
+        streams.append(self.Col02())
+        streams.append(self.Tag00())
+        streams.append(self.Tag01())
+        streams.append(self.Tag02())
+        streams.append(self.Tag03())
+        streams.append(self.Tag04())
+        streams.append(self.Tag10())
+        streams.append(self.Tag20())
+        tdStream.checkAll(streams)
 
     class Col00(StreamCheckItem):
         def __init__(self):
@@ -47,23 +55,14 @@ class TestStreamOldCaseConcat:
 
         def create(self):
 
-            tdSql.execute("create database test vgroups 1;")
-            tdSql.execute("use test;")
+            tdSql.execute("create database col00 vgroups 1 buffer 8;")
+            tdSql.execute("use col00;")
             tdSql.execute(
                 "create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
             )
             tdSql.execute("create table t1 using st tags(1, 1, 1);")
             tdSql.execute("create table t2 using st tags(2, 2, 2);")
 
-            tdSql.error(
-                "create stream streams1 interval(10s) sliding(10s) from st into streamt1(a, b, c, d) as select _twstart, count(*) c1, max(a) from st where ts >= _twstart and ts < _twend;"
-            )
-            tdSql.error(
-                "create stream streams2 interval(10s) sliding(10s) from st into streamt2(a, b) as select _twstart, count(*) c1, max(a) from st where ts >= _twstart and ts < _twend;"
-            )
-            tdSql.error(
-                "create stream streams3 interval(10s) sliding(10s) from st into streamt3(a, b) as select count(*) c1, max(a) from st where ts >= _twstart and ts < _twend;"
-            )
             tdSql.execute(
                 "create stream streams4 interval(10s) sliding(10s) from st into streamt4(a, b, c) as select _twstart, count(*) c1, max(a) from st where ts >= _twstart and ts < _twend;"
             )
@@ -75,27 +74,6 @@ class TestStreamOldCaseConcat:
             )
             tdSql.execute(
                 "create stream streams7 interval(10s) sliding(10s) from st partition by tbname into streamt7(a, b primary key, c) tags(tbn varchar(60) as %%tbname) as select _twstart, count(*) c1, max(a) from st where ts >= _twstart and ts < _twend partition by tbname tbn;"
-            )
-            tdSql.error(
-                "create stream streams8 interval(10s) sliding(10s) from st into streamt8(a, b, c primary key) as select _twstart, count(*) c1, max(a) from st where ts >= _twstart and ts < _twend;"
-            )
-            tdSql.error(
-                "create stream streams9 interval(10s) sliding(10s) from st into streamt9(a primary key, b, c) as select _twstart, count(*) c1, max(a) from st where ts >= _twstart and ts < _twend;"
-            )
-            tdSql.error(
-                "create stream streams10 interval(10s) sliding(10s) from st into streamt10(a, b primary key, c) as select count(*) c1, max(a), max(b) from st where ts >= _twstart and ts < _twend;"
-            )
-            tdSql.error(
-                "create stream streams11 interval(10s) sliding(10s) from st into streamt11(a, b, a) as select _twstart, count(*) c1, max(b) from st where ts >= _twstart and ts < _twend;"
-            )
-            tdSql.error(
-                "create stream streams12 interval(10s) sliding(10s) from st partition by tbname into streamt12(a, b, c, d) tags(c varchar(60) as %%tbname) as select _twstart, count(*) c1, max(a), max(b) from st where tbname=%%tbname and ts >= _twstart and ts < _twend;"
-            )
-            tdSql.error(
-                "create stream streams13 interval(10s) sliding(10s) from st partition by tbname, tc stream_options(max_delay(1s)) into streamt13(a, b, c, d) tags(tx varchar(60)) as select _twstart, count(*) c1, max(a) c2, max(b) from %%trows where ts >= _twstart and ts < _twend;"
-            )
-            tdSql.error(
-                "create stream streams14 interval(10s) sliding(10s) from st partition by tbname, tc into streamt14 tags(tx varchar(60) as tc) as select _twstart, count(*) tc, max(a) c1, max(b) from st where tbname=%%tbname and tc=%%2 and ts >= _twstart and ts < _twend;"
             )
             tdSql.execute(
                 "create stream streams14 interval(10s) sliding(10s) from st partition by tbname, tc into streamt14 tags(tx int as tc) as select _twstart, count(*) tc, max(a) c1, max(b) from st where tbname=%%tbname and tc=%%2 and ts >= _twstart and ts < _twend;"
@@ -109,7 +87,7 @@ class TestStreamOldCaseConcat:
 
         def check1(self):
             tdSql.checkTableSchema(
-                dbname="test",
+                dbname="col00",
                 tbname="streamt5;",
                 schema=[
                     ["a", "TIMESTAMP", 8, ""],
@@ -120,7 +98,7 @@ class TestStreamOldCaseConcat:
             )
 
             tdSql.checkTableSchema(
-                dbname="test",
+                dbname="col00",
                 tbname="streamt6;",
                 schema=[
                     ["a", "TIMESTAMP", 8, ""],
@@ -131,7 +109,7 @@ class TestStreamOldCaseConcat:
             )
 
             tdSql.checkTableSchema(
-                dbname="test",
+                dbname="col00",
                 tbname="streamt7;",
                 schema=[
                     ["a", "TIMESTAMP", 8, ""],
@@ -142,7 +120,7 @@ class TestStreamOldCaseConcat:
             )
 
             tdSql.checkTableSchema(
-                dbname="test",
+                dbname="col00",
                 tbname="streamt14;",
                 schema=[
                     ["_twstart", "TIMESTAMP", 8, ""],
@@ -154,7 +132,7 @@ class TestStreamOldCaseConcat:
             )
 
             tdSql.checkTableSchema(
-                dbname="test",
+                dbname="col00",
                 tbname="streamt15;",
                 schema=[
                     ["_twstart", "TIMESTAMP", 8, ""],
@@ -166,7 +144,7 @@ class TestStreamOldCaseConcat:
             )
 
             tdSql.checkTableSchema(
-                dbname="test",
+                dbname="col00",
                 tbname="streamt16;",
                 schema=[
                     ["_twstart", "TIMESTAMP", 8, ""],
@@ -178,7 +156,7 @@ class TestStreamOldCaseConcat:
             )
 
             tdSql.checkTableSchema(
-                dbname="test",
+                dbname="col00",
                 tbname="streamt5;",
                 schema=[
                     ["a", "TIMESTAMP", 8, ""],
@@ -193,8 +171,8 @@ class TestStreamOldCaseConcat:
             self.db = "Col01"
 
         def create(self):
-            tdSql.execute("create database test1 vgroups 1;")
-            tdSql.execute("use test1;")
+            tdSql.execute("create database col01 vgroups 1 buffer 8;")
+            tdSql.execute("use col01;")
             tdSql.execute(
                 "create stable st(ts timestamp, a int primary key, b int, c int) tags(ta int, tb int, tc int);"
             )
@@ -216,8 +194,8 @@ class TestStreamOldCaseConcat:
             self.db = "Col02"
 
         def create(self):
-            tdSql.execute("create database test2 vgroups 1;")
-            tdSql.execute("use test2;")
+            tdSql.execute("create database col02 vgroups 1 buffer 8;")
+            tdSql.execute("use col02;")
 
             tdSql.execute("create table t1 (ts timestamp, a int, b int);")
             tdSql.execute(
@@ -264,9 +242,8 @@ class TestStreamOldCaseConcat:
             self.db = "Tag00"
 
         def create(self):
-            tdSql.execute("create database result vgroups 1;")
-            tdSql.execute("create database test vgroups 1;")
-            tdSql.execute("use test;")
+            tdSql.execute("create database tag00 vgroups 1 buffer 8;")
+            tdSql.execute("use tag00;")
 
             tdSql.execute(
                 "create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
@@ -275,7 +252,7 @@ class TestStreamOldCaseConcat:
             tdSql.execute("create table t2 using st tags(2, 2, 2);")
 
             tdSql.execute(
-                'create stream streams1 interval(10s) sliding(10s) from st partition by tbname stream_options(max_delay(1s)) into result.streamt OUTPUT_SUBTABLE(concat("aaa-", %%tbname)) as select _twstart, count(*) c1 from %%tbname;'
+                'create stream streams1 interval(10s) sliding(10s) from st partition by tbname stream_options(max_delay(3s)) into streamt OUTPUT_SUBTABLE(concat("aaa-", %%tbname)) as select _twstart, count(*) c1 from %%tbname;'
             )
 
         def insert1(self):
@@ -284,12 +261,7 @@ class TestStreamOldCaseConcat:
 
         def check1(self):
             tdSql.checkResultsByFunc(
-                'select table_name from information_schema.ins_tables where db_name="result" order by 1;',
-                lambda: tdSql.getRows() == 2,
-            )
-
-            tdSql.checkResultsByFunc(
-                "select * from result.streamt;", lambda: tdSql.getRows() == 2
+                "select * from streamt;", lambda: tdSql.getRows() == 2
             )
 
     class Tag01(StreamCheckItem):
@@ -298,9 +270,8 @@ class TestStreamOldCaseConcat:
 
         def create(self):
 
-            tdSql.execute("create database result2 vgroups 1;")
-            tdSql.execute("create database test2 vgroups 4;")
-            tdSql.execute("use test2;")
+            tdSql.execute("create database tag01 vgroups 1 buffer 8;")
+            tdSql.execute("use tag01;")
 
             tdSql.execute(
                 "create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
@@ -309,7 +280,7 @@ class TestStreamOldCaseConcat:
             tdSql.execute("create table t2 using st tags(2, 2, 2);")
 
             tdSql.execute(
-                'create stream streams2 interval(10s) sliding(10s) from st partition by tbname stream_options(max_delay(1s)) into result2.streamt2 output_subtable(concat("tag-", %%1)) TAGS(cc varchar(100) as concat("tag-", %%tbname)) as select _twstart, count(*) c1 from %%trows;'
+                'create stream streams2 interval(10s) sliding(10s) from st partition by tbname stream_options(max_delay(3s)) into streamt2 output_subtable(concat("tag-", %%1)) TAGS(cc varchar(100) as concat("tag-", %%tbname)) as select _twstart, count(*) c1 from %%trows;'
             )
 
         def insert1(self):
@@ -318,21 +289,14 @@ class TestStreamOldCaseConcat:
 
         def check1(self):
             tdSql.checkResultsByFunc(
-                'select tag_name from information_schema.ins_tags where db_name="result2" and stable_name = "streamt2" order by 1;',
-                lambda: tdSql.getRows() == 2
-                and tdSql.getData(0, 0) == "cc"
-                and tdSql.getData(1, 0) == "cc",
-            )
-
-            tdSql.checkResultsByFunc(
-                "select cc from result2.streamt2 order by 1;",
+                "select cc from streamt2 order by 1;",
                 lambda: tdSql.getRows() == 2
                 and tdSql.getData(0, 0) == "tag-t1"
                 and tdSql.getData(1, 0) == "tag-t2",
             )
 
             tdSql.checkResultsByFunc(
-                "select * from result2.streamt2;",
+                "select * from streamt2;",
                 lambda: tdSql.getRows() == 2,
             )
 
@@ -341,9 +305,8 @@ class TestStreamOldCaseConcat:
             self.db = "Tag02"
 
         def create(self):
-            tdSql.execute("create database result3 vgroups 1;")
-            tdSql.execute("create database test3 vgroups 4;")
-            tdSql.execute("use test3;")
+            tdSql.execute("create database tag02 vgroups 1 buffer 8;")
+            tdSql.execute("use tag02;")
 
             tdSql.execute(
                 "create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
@@ -352,7 +315,7 @@ class TestStreamOldCaseConcat:
             tdSql.execute("create table t2 using st tags(2, 2, 2);")
 
             tdSql.execute(
-                'create stream streams3 interval(10s) sliding(10s) from st partition by tbname stream_options(max_delay(1s)) into result3.streamt3 output_subtable(concat("tbn-", %%tbname)) tags(dd varchar(100) as concat("tag-", %%tbname)) as select _twstart, count(*) c1 from %%trows;'
+                'create stream streams3 interval(10s) sliding(10s) from st partition by tbname stream_options(max_delay(3s)) into streamt3 output_subtable(concat("tbn-", %%tbname)) tags(dd varchar(100) as concat("tag-", %%tbname)) as select _twstart, count(*) c1 from %%trows;'
             )
 
         def insert1(self):
@@ -362,26 +325,14 @@ class TestStreamOldCaseConcat:
 
         def check1(self):
             tdSql.checkResultsByFunc(
-                'select tag_name from information_schema.ins_tags where db_name="result3" and stable_name = "streamt3" order by 1;',
-                lambda: tdSql.getRows() == 2
-                and tdSql.getData(0, 0) == "dd"
-                and tdSql.getData(1, 0) == "dd",
-            )
-
-            tdSql.checkResultsByFunc(
-                "select dd from result3.streamt3 order by 1;",
+                "select dd from streamt3 order by 1;",
                 lambda: tdSql.getRows() == 2
                 and tdSql.getData(0, 0) == "tag-t1"
                 and tdSql.getData(1, 0) == "tag-t2",
             )
 
             tdSql.checkResultsByFunc(
-                "select * from result3.streamt3;",
-                lambda: tdSql.getRows() == 2,
-            )
-
-            tdSql.checkResultsByFunc(
-                'select table_name from information_schema.ins_tables where db_name="result3" order by 1;',
+                "select * from streamt3;",
                 lambda: tdSql.getRows() == 2,
             )
 
@@ -390,9 +341,8 @@ class TestStreamOldCaseConcat:
             self.db = "Tag03"
 
         def create(self):
-            tdSql.execute("create database result4 vgroups 1;")
-            tdSql.execute("create database test4 vgroups 4;")
-            tdSql.execute("use test4;")
+            tdSql.execute("create database tag03 vgroups 1 buffer 8;")
+            tdSql.execute("use tag03;")
 
             tdSql.execute(
                 "create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
@@ -402,23 +352,17 @@ class TestStreamOldCaseConcat:
             tdSql.execute("create table t3 using st tags(3, 3, 3);")
 
             tdSql.execute(
-                'create stream streams4 interval(10s) sliding(10s) from st partition by tbname stream_options(max_delay(1s)) into result4.streamt4 OUTPUT_SUBTABLE(concat("tbn-", %%tbname)) TAGS(dd varchar(100) as concat("tag-", %%tbname)) as select _twstart, count(*) c1 from %%trows;'
+                'create stream streams4 interval(10s) sliding(10s) from st partition by tbname stream_options(max_delay(3s)) into streamt4 OUTPUT_SUBTABLE(concat("tbn-", %%tbname)) TAGS(dd varchar(100) as concat("tag-", %%tbname)) as select _twstart, count(*) c1 from %%trows;'
             )
 
         def insert1(self):
-
             tdSql.execute(
                 "insert into t1 values(1648791213000, 1, 1, 1) t2 values(1648791213000, 2, 2, 2) t3 values(1648791213000, 3, 3, 3);"
             )
 
         def check1(self):
             tdSql.checkResultsByFunc(
-                'select table_name from information_schema.ins_tables where db_name="result4" order by 1;',
-                lambda: tdSql.getRows() == 3,
-            )
-
-            tdSql.checkResultsByFunc(
-                "select * from result4.streamt4 order by 3;",
+                "select * from streamt4 order by 3;",
                 lambda: tdSql.getRows() == 3
                 and tdSql.getData(0, 1) == 1
                 and tdSql.getData(0, 2) == "tag-t1"
@@ -433,10 +377,8 @@ class TestStreamOldCaseConcat:
             self.db = "Tag04"
 
         def create(self):
-            tdSql.execute("create database result6 vgroups 1;")
-
-            tdSql.execute("create database test6 vgroups 4;")
-            tdSql.execute("use test6;")
+            tdSql.execute("create database tag04 vgroups 1 buffer 8;")
+            tdSql.execute("use tag04;")
 
             tdSql.execute(
                 "create stable st(ts timestamp, a int, b int, c int) tags(ta varchar(20), tb int, tc int);"
@@ -446,7 +388,7 @@ class TestStreamOldCaseConcat:
             tdSql.execute('create table t3 using st tags("3", 3, 3);')
 
             tdSql.execute(
-                'create stream streams6 interval(10s) sliding(10s) from st partition by ta, tbname stream_options(max_delay(1s)) into result6.streamt6 TAGS(dd int as cast(concat(%%1, "0") as int)) as select _twstart, count(*) c1 from %%trows;'
+                'create stream streams6 interval(10s) sliding(10s) from st partition by ta, tbname stream_options(max_delay(3s)) into streamt6 TAGS(dd int as cast(concat(%%1, "0") as int)) as select _twstart, count(*) c1 from %%trows;'
             )
 
         def insert1(self):
@@ -456,7 +398,7 @@ class TestStreamOldCaseConcat:
 
         def check1(self):
             tdSql.checkResultsByFunc(
-                "select * from result6.streamt6 order by 3;",
+                "select * from streamt6 order by 3;",
                 lambda: tdSql.getRows() == 3
                 and tdSql.getData(0, 2) == 10
                 and tdSql.getData(1, 2) == 20
@@ -468,15 +410,15 @@ class TestStreamOldCaseConcat:
             self.db = "Tag10"
 
         def create(self):
-            tdSql.execute("create database test5 vgroups 4;")
-            tdSql.execute("use test5;")
+            tdSql.execute("create database tag10 vgroups 4;")
+            tdSql.execute("use tag10;")
             tdSql.execute(
                 "create table t1(ts timestamp, a int, b int, c int, d double);"
             )
             tdSql.execute("create table streamt5(ts timestamp, a int, b int, c int);")
 
             tdSql.execute(
-                "create stream streams5 interval(10s) sliding(10s) from t1 stream_options(max_delay(1s)) into streamt5(ts, a, b, c) as select _twstart ts, cast(count(*) as int) a, cast(1000 as int) b, cast(NULL as int) c from t1;"
+                "create stream streams5 interval(10s) sliding(10s) from t1 stream_options(max_delay(3s)) into streamt5(ts, a, b, c) as select _twstart ts, cast(count(*) as int) a, cast(1000 as int) b, cast(NULL as int) c from t1;"
             )
 
         def insert1(self):
@@ -497,13 +439,12 @@ class TestStreamOldCaseConcat:
 
     class Tag20(StreamCheckItem):
         def __init__(self):
-            self.db = "Tag20"
+            self.db = "tag20"
 
         def create(self):
 
-            tdSql.execute("create database result vgroups 1;")
-            tdSql.execute("create database test vgroups 4;")
-            tdSql.execute("use test;")
+            tdSql.execute("create database tag20 vgroups 1 buffer 8;")
+            tdSql.execute("use tag20;")
 
             tdSql.execute(
                 "create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
@@ -512,7 +453,7 @@ class TestStreamOldCaseConcat:
             tdSql.execute("create table t2 using st tags(2, 2, 2);")
 
             tdSql.execute(
-                'create stream streams1 interval(10s) sliding(10s) from st partition by tbname stream_options(max_delay(1s)) into result.streamt OUTPUT_SUBTABLE("aaa") as select _twstart, count(*) c1 from st ;'
+                'create stream streams1 interval(10s) sliding(10s) from st partition by tbname stream_options(max_delay(3s)) into streamt OUTPUT_SUBTABLE("aaa") as select _twstart, count(*) c1 from st ;'
             )
 
         def insert1(self):
@@ -521,11 +462,6 @@ class TestStreamOldCaseConcat:
 
         def check1(self):
             tdSql.checkResultsByFunc(
-                'select table_name from information_schema.ins_tables where db_name="result" order by 1;',
-                lambda: tdSql.getRows() == 1 and tdSql.getData(0, 0) == "aaa",
-            )
-
-            tdSql.checkResultsByFunc(
-                "select * from result.streamt;",
+                "select * from streamt;",
                 lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 2,
             )

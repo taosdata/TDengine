@@ -15,6 +15,7 @@
 
 #include "bseTable.h"
 #include "bse.h"
+#include "bseCache.h"
 #include "bseSnapshot.h"
 #include "bseTableMgt.h"
 #include "osMemPool.h"
@@ -377,7 +378,6 @@ _error:
   }
   return code;
 }
-
 int32_t compareFunc(const void *pLeft, const void *pRight) {
   SBlkHandle *p1 = (SBlkHandle *)pLeft;
   SBlkHandle *p2 = (SBlkHandle *)pRight;
