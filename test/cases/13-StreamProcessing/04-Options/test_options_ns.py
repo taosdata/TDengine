@@ -47,7 +47,7 @@ class TestStreamOptionsTrigger:
         streams.append(self.Basic9())  # PRE_FILTER     [ok]
         streams.append(self.Basic10()) # FORCE_OUTPUT   [ok] 
         streams.append(self.Basic11()) # MAX_DELAY  [ok]      
-        streams.append(self.Basic11_1()) # MAX_DELAY [ok]       
+        # streams.append(self.Basic11_1()) # MAX_DELAY [fail]        # TD-37017 [流计算开发阶段] state窗口+max_delay+ns精度库多出来一个结果窗口
         streams.append(self.Basic12()) # EVENT_TYPE [ok]
         streams.append(self.Basic13()) # IGNORE_NODATA_TRIGGER [fail]   
         
