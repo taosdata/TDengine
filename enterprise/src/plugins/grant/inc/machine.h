@@ -162,12 +162,13 @@ extern "C" {
 #define GRANT_UNIQ_DFT_DATAIN_EXPIRE       GRANT_EXPIRE_DAY
 #define GRANT_UNIQ_DFT_DATAIN_SPEED        GRANT_UNIQ_UNLIMITED
 #define GRANT_UNIQ_DFT_DATAIN_NUM          10
+#define GRANT_UNIQ_DFT_MOUNTS              10
 #define GRANT_UNIQ_DFT_IDMP_TS_ATTRIBURES  1000
 #define GRANT_UNIQ_DFT_IDMP_NTS_ATTRIBURES 1000
 #define GRANT_UNIQ_DFT_IDMP_ELEMENTS       1000
 #define GRANT_UNIQ_DFT_IDMP_SERVERS        1
 #define GRANT_UNIQ_DFT_IDMP_CPU_CORES      256
-#define GRANT_UNIQ_DFT_IDMP_USERS          1
+#define GRANT_UNIQ_DFT_IDMP_USERS          5
 #else
 #define GRANT_UNIQ_DFT_BASIC_EXPIRE        GRANT_UNIQ_UNLIMITED
 #define GRANT_UNIQ_DFT_BASIC_TIMESERIES    GRANT_UNIQ_UNLIMITED
@@ -192,6 +193,7 @@ extern "C" {
 #define GRANT_UNIQ_DFT_DATAIN_EXPIRE       GRANT_UNIQ_UNLIMITED
 #define GRANT_UNIQ_DFT_DATAIN_SPEED        GRANT_UNIQ_UNLIMITED
 #define GRANT_UNIQ_DFT_DATAIN_NUM          GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_MOUNTS              GRANT_UNIQ_UNLIMITED
 #define GRANT_UNIQ_DFT_IDMP_TS_ATTRIBURES  GRANT_UNIQ_UNLIMITED
 #define GRANT_UNIQ_DFT_IDMP_NTS_ATTRIBURES GRANT_UNIQ_UNLIMITED
 #define GRANT_UNIQ_DFT_IDMP_ELEMENTS       GRANT_UNIQ_UNLIMITED
@@ -299,13 +301,14 @@ typedef enum {
   GRANT_OPT_DATA_BAK_RST = 8,
   GRANT_OPT_MAX = 9,
   // add future grant items here
-  GRANT_OPT_OBJECT_STORAGE = 9,
+  GRANT_OPT_SHARED_STORAGE = 9,
   GRANT_OPT_ACTIVE_ACTIVE = 10,
   GRANT_OPT_DUAL_REPLICA_HA = 11,
   GRANT_OPT_DB_ENCRYPTION = 12,
   GRANT_OPT_DATA_SYNC = 13,
   GRANT_OPT_TD_GPT = 14,  // since 3.3.6.0
-  GRANT_OPT_DYN_MAX = 15,
+  GRANT_OPT_TD_MOUNT = 15,  // since 3.3.7.x
+  GRANT_OPT_DYN_MAX = 16,
 } SGrantOpt;
 
 typedef enum {
@@ -457,7 +460,7 @@ typedef struct {
     struct {
       int64_t  multiTierExpireSec : 40;
       int64_t  curDnodes : 16;
-      uint64_t objectStorageExpired : 1;
+      uint64_t sharedStorageExpired : 1;
       uint64_t dualReplicaHAExpired : 1;
       uint64_t dbEncryptionExpired : 1;
       uint64_t tdGptExpired : 1;  // since 3.3.6.0
@@ -471,7 +474,8 @@ typedef struct {
     struct {
       int64_t auditExpireSec : 40;
       int64_t curStreams : 16;
-      int64_t reserve3 : 8;
+      uint64_t mountExpired : 1;
+      uint64_t reserve3 : 7;
     };
   };
   union {
@@ -510,7 +514,7 @@ typedef struct {
   union {
     int64_t p10;  // since 3.3.0.0
     struct {
-      int64_t objectStorageExpireSec : 40;
+      int64_t sharedStorageExpireSec : 40;
       int64_t reserve7 : 24;
     };
   };
@@ -551,6 +555,13 @@ typedef struct {
       int64_t reserve12 : 8;
     };
   };
+  union {
+    int64_t p16; // since 3.3.7.x
+    struct {
+      int64_t mountExpireSec : 40;
+      int64_t reserve13 : 24;
+    };
+  };
   int64_t limitTimeSeries;
   int64_t curTimeSeries;
   int32_t limitCpuCores;
@@ -560,6 +571,8 @@ typedef struct {
   int32_t limitVnodes;
   int32_t curVnodes;
   int64_t revokedExpireSec;
+  int64_t limitMounts;
+  int64_t curMounts;
   int64_t limitStorageSize;  // storage limits in GB
   int64_t curStorageSize;    // current storage size in MB
   // TDengine IDMP grant items

@@ -1,0 +1,99 @@
+FROM ubuntu:22.04
+
+WORKDIR /root
+
+ARG cpuType
+
+# Set env
+ENV TINI_VERSION=v0.19.0
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies and tini, this layer can be cached
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${cpuType} /tini
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    locales tzdata netcat curl gdb vim tmux less \
+    net-tools valgrind openjdk-11-jdk rsync jq \
+    sqlite3 ca-certificates && \
+    locale-gen en_US.UTF-8 && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* && \
+    chmod +x /tini
+
+# Base package configuration - change here to update base version
+ARG basePkgFile=TDengine-enterprise-3.3.6.14.0711-Linux-x64.tar.gz
+ARG baseDirName=TDengine-enterprise-3.3.6.14.0711
+
+# Process base package - this layer won't change unless base version changes
+COPY ${basePkgFile} ./
+RUN tar -zxf $(basename ${basePkgFile}) && \
+    cd ${baseDirName}/ && \
+    /bin/bash install.sh -e no && \
+    cd .. && \
+    rm $(basename ${basePkgFile}) && \
+    rm -rf ${baseDirName}
+
+# Set runtime env
+ENV LD_LIBRARY_PATH=/usr/lib \
+    LC_CTYPE=en_US.UTF-8 \
+    LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8
+
+# Copy target version directory and install
+ARG pkgFile
+ARG dirName
+COPY ${dirName}/ ${dirName}/
+
+RUN PREFIX="taos" && \
+    lib_link_dir="/usr/lib" && \
+    lib64_link_dir="/usr/lib64" && \
+    installDir="/usr/local/${PREFIX}" && \
+    install_main_dir=${installDir} && \
+    cp -rf ${dirName}/bin/* ${install_main_dir}/bin/ && \
+    rm -rf ${install_main_dir}/driver/libtaos.so.* ${install_main_dir}/driver/libtaosnative.so.* ${install_main_dir}/driver/libtaosws.so.* && \
+    cp -rf ${dirName}/driver/* ${install_main_dir}/driver/ && \
+    chmod 777 ${install_main_dir}/driver/* && \
+    rm -f ${lib_link_dir}/libtaos.* ${lib64_link_dir}/libtaos.* && \
+    rm -f ${lib_link_dir}/libtaosnative.* ${lib64_link_dir}/libtaosnative.* && \
+    rm -f ${lib_link_dir}/libtaosws.* ${lib64_link_dir}/libtaosws.* && \
+    for lib_name in libtaos libtaosnative; do \
+        if ls ${install_main_dir}/driver/${lib_name}.* >/dev/null 2>&1; then \
+            for lib_file in ${install_main_dir}/driver/${lib_name}.*; do \
+                ln -sf "$lib_file" ${lib_link_dir}/${lib_name}.so.1; \
+                break; \
+            done; \
+        fi && \
+        if [ -f ${lib_link_dir}/${lib_name}.so.1 ]; then \
+            ln -sf ${lib_link_dir}/${lib_name}.so.1 ${lib_link_dir}/${lib_name}.so; \
+        fi; \
+    done && \
+    if ls ${install_main_dir}/driver/libtaosws.so.* >/dev/null 2>&1; then \
+        for lib_file in ${install_main_dir}/driver/libtaosws.so.*; do \
+            ln -sf "$lib_file" ${lib_link_dir}/libtaosws.so; \
+            break; \
+        done; \
+    fi && \
+    if [ -d ${lib64_link_dir} ] && [ ! -e ${lib64_link_dir}/libtaos.so ]; then \
+        for lib_name in libtaos libtaosnative; do \
+            if ls ${install_main_dir}/driver/${lib_name}.* >/dev/null 2>&1; then \
+                for lib_file in ${install_main_dir}/driver/${lib_name}.*; do \
+                    ln -sf "$lib_file" ${lib64_link_dir}/${lib_name}.so.1 || :; \
+                    break; \
+                done; \
+            fi && \
+            if [ -f ${lib64_link_dir}/${lib_name}.so.1 ]; then \
+                ln -sf ${lib64_link_dir}/${lib_name}.so.1 ${lib64_link_dir}/${lib_name}.so || :; \
+            fi; \
+        done && \
+        if ls ${install_main_dir}/driver/libtaosws.so.* >/dev/null 2>&1; then \
+            for lib_file in ${install_main_dir}/driver/libtaosws.so.*; do \
+                ln -sf "$lib_file" ${lib64_link_dir}/libtaosws.so || :; \
+                break; \
+            done; \
+        fi; \
+    fi && \
+    ldconfig
+
+COPY ./bin/* /usr/bin/
+
+ENTRYPOINT ["/tini", "--", "/usr/bin/entrypoint.sh"]
+
+VOLUME [ "/var/lib/taos", "/var/log/taos", "/etc/taos", "/corefile" ]
