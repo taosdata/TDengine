@@ -172,7 +172,10 @@ typedef enum {
   SDB_MOUNT = 30,
   SDB_MOUNT_LOG = 31,
   SDB_SSMIGRATE = 32,
-  SDB_MAX = 33
+  SDB_XNODE = 33,
+  SDB_XNODE_TASK = 34,
+  SDB_XNODE_AGENT = 35,
+  SDB_MAX = 36,
 } ESdbType;
 
 typedef struct SSdbRaw {

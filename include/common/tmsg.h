@@ -197,6 +197,10 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_BNODE,
   TSDB_MGMT_TABLE_MOUNT,
   TSDB_MGMT_TABLE_SSMIGRATE,
+  TSDB_MGMT_TABLE_XNODES,
+  TSDB_MGMT_TABLE_XNODE_TASKS,
+  TSDB_MGMT_TABLE_XNODE_AGENTS,
+  TSDB_MGMT_TABLE_XNODE_FULL,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -425,6 +429,17 @@ typedef enum ENodeType {
   QUERY_NODE_RECALCULATE_STREAM_STMT,
   QUERY_NODE_CREATE_BNODE_STMT,
   QUERY_NODE_DROP_BNODE_STMT,
+  QUERY_NODE_CREATE_XNODE_STMT,  // XNode
+  QUERY_NODE_DROP_XNODE_STMT,    // XNode
+  QUERY_NODE_UPDATE_XNODE_STMT,  // XNode for taosx
+  QUERY_NODE_XNODE_TASK_OPTIONS,  // XNode task options
+  QUERY_NODE_XNODE_TASK_SOURCE_OPT,  // XNode task source
+  QUERY_NODE_XNODE_TASK_SINK_OPT,    // XNode task sink
+  QUERY_NODE_CREATE_XNODE_AGENT_STMT,  // XNode agent
+  QUERY_NODE_CREATE_XNODE_TASK_STMT,  // XNode task
+  QUERY_NODE_DROP_XNODE_TASK_STMT,    // XNode task
+  QUERY_NODE_DROP_XNODE_AGENT_STMT,   // XNode agent
+  QUERY_NODE_ALTER_XNODE_TASK_STMT,  // XNode task
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'
@@ -474,6 +489,11 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_VTABLES_STMT,
   QUERY_NODE_SHOW_BNODES_STMT,
   QUERY_NODE_SHOW_MOUNTS_STMT,
+  QUERY_NODE_SHOW_XNODES_STMT,
+  QUERY_NODE_SHOW_XNODE_TASKS_STMT,
+  QUERY_NODE_SHOW_XNODE_AGENTS_STMT,
+  QUERY_NODE_SHOW_XNODE_MISC_STMT,
+  // the order of QUERY_NODE_SHOW_* must be aligned with the order of `sysTableShowAdapter` defines.
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -2975,6 +2995,35 @@ typedef struct {
 int32_t tSerializeSMDropBnodeReq(void* buf, int32_t bufLen, SMDropBnodeReq* pReq);
 int32_t tDeserializeSMDropBnodeReq(void* buf, int32_t bufLen, SMDropBnodeReq* pReq);
 void    tFreeSMDropBnodeReq(SMDropBnodeReq* pReq);
+
+typedef struct {
+  int32_t sqlLen;
+  int32_t urlLen;
+  int32_t userLen;
+  int32_t passLen;
+  int32_t passIsMd5;
+  char*   sql;
+  char*   url;
+  char*   user;
+  char*   pass;
+} SMCreateXnodeReq;
+
+int32_t tSerializeSMCreateXnodeReq(void* buf, int32_t bufLen, SMCreateXnodeReq* pReq);
+int32_t tDeserializeSMCreateXnodeReq(void* buf, int32_t bufLen, SMCreateXnodeReq* pReq);
+void    tFreeSMCreateXnodeReq(SMCreateXnodeReq* pReq);
+
+typedef struct {
+  int32_t xnodeId;
+  int32_t sqlLen;
+  char*   sql;
+} SMDropXnodeReq, SMUpdateXnodeReq;
+
+int32_t tSerializeSMDropXnodeReq(void* buf, int32_t bufLen, SMDropXnodeReq* pReq);
+int32_t tDeserializeSMDropXnodeReq(void* buf, int32_t bufLen, SMDropXnodeReq* pReq);
+void    tFreeSMDropXnodeReq(SMDropXnodeReq* pReq);
+int32_t tSerializeSMUpdateXnodeReq(void* buf, int32_t bufLen, SMUpdateXnodeReq* pReq);
+int32_t tDeserializeSMUpdateXnodeReq(void* buf, int32_t bufLen, SMUpdateXnodeReq* pReq);
+void    tFreeSMUpdateXnodeReq(SMUpdateXnodeReq* pReq);
 
 typedef struct {
   int32_t vgId;
