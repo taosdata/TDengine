@@ -41,13 +41,15 @@ class TestStreamCountTrigger:
         # streams.append(self.Basic5())
         # streams.append(self.Basic6())
         # streams.append(self.Basic7())
-        streams.append(self.Basic8())
+        # streams.append(self.Basic8())  # OK
         # streams.append(self.Basic9())  # OK
         # streams.append(self.Basic10())  # OK
         # streams.append(self.Basic11())  # failed
         # streams.append(self.Basic12())  # failed
         # streams.append(self.Basic13())  # OK
         # streams.append(self.Basic14())  # OK
+        # streams.append(self.Basic15())  # OK
+        streams.append(self.Basic16())  #
 
         tdStream.checkAll(streams)
 
@@ -2948,4 +2950,175 @@ class TestStreamCountTrigger:
             tdSql.checkResultsByFunc(
                 sql=f"select * from {self.db}.res_vstb",
                 func=lambda: tdSql.getRows() == 45,
+            )
+
+
+    class Basic15(StreamCheckItem):
+        def __init__(self):
+            self.db = "sdb15"
+            self.stbName = "stb"
+
+        def create(self):
+            tdSql.execute(f"create database {self.db} vgroups 7 buffer 3")
+            tdSql.execute(f"use {self.db}")
+            tdSql.execute(
+                f"create table if not exists  {self.stbName} (cts timestamp, cint int, cfloat float, cdouble double, cdecimal decimal(11,3), "
+                f"cvar varchar(12)) tags (tint int)")
+            tdSql.query(f"show stables")
+
+            tdSql.execute(f"create table ct1 using stb tags(1)")
+            tdSql.execute(f"create table ct2 using stb tags(2)")
+            tdSql.execute(f"create table ct3 using stb tags(3)")
+
+            tdSql.query(f"show tables")
+            tdSql.checkRows(3)
+
+            # create vtable and continue
+            tdSql.error(
+                f"create stream s14_0 count_window(0) from stb partition by tbname into res_vstb as "
+                f"select _twstart ts, first(_c0), last_row(_c0), _twduration, count(cint), sum(cint) "
+                f"from stb where _c0 >= _twstart and _c0 <= _twend "
+            )
+
+            tdSql.error(
+                f"create stream s14_0 count_window(-100000000000000000) from stb partition by tbname into res_vstb as "
+                f"select _twstart ts, first(_c0), last_row(_c0), _twduration, count(cint), sum(cint) "
+                f"from stb where _c0 >= _twstart and _c0 <= _twend "
+            )
+
+            tdSql.error(
+                f"create stream s14_0 count_window('abc') from stb partition by tbname into res_vstb as "
+                f"select _twstart ts, first(_c0), last_row(_c0), _twduration, count(cint), sum(cint) "
+                f"from stb where _c0 >= _twstart and _c0 <= _twend "
+            )
+
+            tdSql.error(
+                f"create stream s14_0 count_window(_c0) from stb partition by tbname into res_vstb as "
+                f"select _twstart ts, first(_c0), last_row(_c0), _twduration, count(cint), sum(cint) "
+                f"from stb where _c0 >= _twstart and _c0 <= _twend "
+            )
+
+            tdSql.error(
+                f"create stream s14_0 count_window(103.9) from stb partition by tbname into res_vstb as "
+                f"select _twstart ts, first(_c0), last_row(_c0), _twduration, count(cint), sum(cint) "
+                f"from stb where _c0 >= _twstart and _c0 <= _twend "
+            )
+
+            tdSql.error(
+                f"create stream s14_0 count_window(100, -12) from stb partition by tbname into res_vstb as "
+                f"select _twstart ts, first(_c0), last_row(_c0), _twduration, count(cint), sum(cint) "
+                f"from stb where _c0 >= _twstart and _c0 <= _twend "
+            )
+
+
+            tdSql.error(
+                f"create stream s14_0 count_window(100, '12') from stb partition by tbname into res_vstb as "
+                f"select _twstart ts, first(_c0), last_row(_c0), _twduration, count(cint), sum(cint) "
+                f"from stb where _c0 >= _twstart and _c0 <= _twend "
+            )
+
+            tdSql.error(
+                f"create stream s14_0 count_window(100, 12, tint) from stb partition by tbname into res_vstb as "
+                f"select _twstart ts, first(_c0), last_row(_c0), _twduration, count(cint), sum(cint) "
+                f"from stb where _c0 >= _twstart and _c0 <= _twend "
+            )
+
+
+            # tdSql.execute(
+            #     f"create stream s14_0 count_window(20, 11111111111111111111) from stb partition by tbname into res_vstb as "
+            #     f"select _twstart ts, first(_c0), last_row(_c0), _twduration, count(cint), sum(cint) "
+            #     f"from stb where _c0 >= _twstart and _c0 <= _twend "
+            # )
+
+    class Basic16(StreamCheckItem):
+        def __init__(self):
+            self.db = "sdb16"
+            self.stbName = "stb"
+
+        def create(self):
+            tdSql.execute(f"create database {self.db} vgroups 7 buffer 3")
+            tdSql.execute(f"use {self.db}")
+            tdSql.execute(
+                f"create table if not exists  {self.stbName} (cts timestamp, cint int, cfloat float, cdouble double, cdecimal decimal(11,3), "
+                f"cvar varchar(12)) tags (tint int)")
+            tdSql.query(f"show stables")
+
+            tdSql.execute(f"create table ct1 using stb tags(null)")
+            tdSql.execute(f"create table ct2 using stb tags(2)")
+            tdSql.execute(f"create table ct3 using stb tags(3)")
+
+            tdSql.query(f"show tables")
+            tdSql.checkRows(3)
+
+            # create vtable and continue
+            tdSql.execute(
+                f"create stream s14_1 count_window(2, 1, tint) from ct1 partition by tbname into res_ct1 as "
+                f"select _twstart ts, first(_c0), last_row(_c0), _twduration, count(cint), sum(cint) "
+                f"from ct1 where _c0 >= _twstart and _c0 <= _twend "
+            )
+
+            tdSql.execute(
+                f"create stream s14_2 count_window(2, 1, tint) from ct2 partition by tbname into res_ct2 as "
+                f"select _twstart ts, first(_c0), last_row(_c0), _twduration, count(cint), sum(cint) "
+                f"from ct2 where _c0 >= _twstart and _c0 <= _twend "
+            )
+
+        def insert1(self):
+            sqls = [
+                "insert into ct1 values ('2025-01-01 00:00:00', 1, 1.1, 3.14159, 1.0954327, 'abcdefg' );",
+                "insert into ct1 values ('2025-01-01 00:00:03', 2, 2.2, 6.28318, 1.1912644, 'hijklmn' );",
+                "insert into ct1 values ('2025-01-01 00:00:06', 3, 3.3, 9.42478, 1.2871093, 'opqrstu' );",
+                "insert into ct1 values ('2025-01-01 00:00:09', 4, 4.4, 12.56637, 1.3826434, 'vwxyz' );",
+                "insert into ct1 values ('2025-01-01 00:00:12', 5, 5.5, 15.70796, 1.4782644, '123456' );",
+                "insert into ct1 values ('2025-01-01 00:00:15', 6, 6.6, 18.84956, 1.5740740, '789012' );",
+                "insert into ct1 values ('2025-01-01 00:00:18', 7, 7.7, 22.07104, 1.6696434, '345678' );",
+                "insert into ct1 values ('2025-01-01 00:00:21', 8, 8.8, 25.13274, 1.7653566, '901234' );",
+                "insert into ct1 values ('2025-01-01 00:00:24', 9, 9.9, 28.29444, 1.8619690, '567890' );",
+
+                "insert into ct2 values ('2025-01-01 00:00:00', 21, 21.1, 9.1, 1.123456, 'aaaaaa');",
+                "insert into ct2 values ('2025-01-01 00:00:03', 22, 22.2, 9.2, 1.234567, 'bbbbbb');",
+                "insert into ct2 values ('2025-01-01 00:00:06', 23, 23.3, 9.3, 1.345678, 'cccccc');",
+                "insert into ct2 values ('2025-01-01 00:00:09', 24, 24.4, 9.4, 1.456789, 'dddddd');",
+                "insert into ct2 values ('2025-01-01 00:00:12', 25, 25.5, 9.5, 1.567890, 'eeeeee');",
+                "insert into ct2 values ('2025-01-01 00:00:15', 26, 26.6, 9.6, 1.678901, 'ffffff');",
+                "insert into ct2 values ('2025-01-01 00:00:18', 27, 27.7, 9.7, 1.789012, 'gggggg');",
+                "insert into ct2 values ('2025-01-01 00:00:21', 28, 28.8, 9.8, 1.890123, 'hhhhhh');",
+                "insert into ct2 values ('2025-01-01 00:00:24', 29, 29.9, 9.9, 1.901234, 'iiiiii');",
+
+                "insert into ct3 values ('2025-01-01 00:00:00', 31, 12.123, 31.111, 1.274, '-------');",
+                "insert into ct3 values ('2025-01-01 00:00:03', 32, 12.222, 32.222, 1.274, '-------');",
+                "insert into ct3 values ('2025-01-01 00:00:06', 33, 12.333, 33.333, 1.274, '+++++++');",
+                "insert into ct3 values ('2025-01-01 00:00:09', 34, 12.333, 33.333, 1.274, '///////');",
+                "insert into ct3 values ('2025-01-01 00:00:12', 35, 12.333, 33.333, 1.274, '///////');",
+                "insert into ct3 values ('2025-01-01 00:00:15', 36, 12.333, 33.333, 1.274, '///////');",
+                "insert into ct3 values ('2025-01-01 00:00:18', 37, 12.333, 33.333, 1.274, '///////');",
+                "insert into ct3 values ('2025-01-01 00:00:21', 38, 12.333, 33.333, 1.274, '///////');",
+                "insert into ct3 values ('2025-01-01 00:00:24', 39, 12.333, 33.333, 1.274, '///////');",
+            ]
+
+            tdSql.executes(sqls)
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and '
+                    f'(table_name like "res_ct2%" or stable_name like "res_ct2%")',
+                func=lambda: tdSql.getRows() == 1,
+            )
+
+            tdSql.checkTableSchema(
+                dbname=self.db,
+                tbname="res_ct2",
+                schema=[
+                    ['ts', 'TIMESTAMP', 8, ''],
+                    ['firstts', 'TIMESTAMP', 8, ''],
+                    ['lastts', 'TIMESTAMP', 8, ''],
+                    ['twduration', 'BIGINT', 8, ''],
+                    ['cnt_col_1', 'BIGINT', 8, ''],
+                    ['sum_col_1', 'BIGINT', 8, ''],
+                ],
+            )
+
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.res_ct2",
+                func=lambda: tdSql.getRows() == 8,
             )

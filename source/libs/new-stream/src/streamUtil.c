@@ -658,7 +658,7 @@ _end:
 }
 
 static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, const SSTriggerCalcParam* pParam,
-                                         SStringBuilder* pBuilder) {
+                                         SStringBuilder* pBuilder, const char* tableName) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   cJSON*  obj = NULL;
@@ -707,8 +707,12 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
   QUERY_CHECK_NULL(obj, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
   JSON_CHECK_ADD_ITEM(obj, "eventType", cJSON_CreateStringReference(eventType));
   JSON_CHECK_ADD_ITEM(obj, "eventTime", cJSON_CreateNumber(taosGetTimestampMs()));
-  JSON_CHECK_ADD_ITEM(obj, "windowId", cJSON_CreateString(windowId));
+  JSON_CHECK_ADD_ITEM(obj, "windowId", cJSON_CreateStringReference(windowId));
   JSON_CHECK_ADD_ITEM(obj, "windowType", cJSON_CreateStringReference(windowType));
+
+  if (tableName != NULL) {
+    JSON_CHECK_ADD_ITEM(obj, "tableName", cJSON_CreateStringReference(tableName));
+  }
 
   if (pParam->notifyType != STRIGGER_EVENT_ON_TIME) {
     JSON_CHECK_ADD_ITEM(obj, "windowStart", cJSON_CreateNumber(pParam->wstart));
@@ -801,9 +805,9 @@ static void streamNotifyClose(CURL** pConn, const char* url) {
 
 #define STREAM_EVENT_NOTIFY_RETRY_MS 50  // 50 ms
 
-int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, int32_t triggerType, int64_t groupId,
-                                const SArray* pNotifyAddrUrls, int32_t errorHandle, const SSTriggerCalcParam* pParams,
-                                int32_t nParam) {
+int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName, int32_t triggerType,
+                                int64_t groupId, const SArray* pNotifyAddrUrls, int32_t errorHandle,
+                                const SSTriggerCalcParam* pParams, int32_t nParam) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SStringBuilder sb = {0};
@@ -841,7 +845,7 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, int3
     if (pParams[i].notifyType == STRIGGER_EVENT_WINDOW_NONE) {
       continue;
     }
-    code = streamAppendNotifyContent(triggerType, groupId, &pParams[i], &sb);
+    code = streamAppendNotifyContent(triggerType, groupId, &pParams[i], &sb, tableName);
     QUERY_CHECK_CODE(code, lino, _end);
     taosStringBuilderAppendChar(&sb, ',');
   }
@@ -912,9 +916,9 @@ _end:
   return code;
 }
 #else
-int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, int32_t triggerType, int64_t groupId,
-                                const SArray* pNotifyAddrUrls, int32_t errorHandle, const SSTriggerCalcParam* pParams,
-                                int32_t nParam) {
+int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName, int32_t triggerType,
+                                int64_t groupId, const SArray* pNotifyAddrUrls, int32_t errorHandle,
+                                const SSTriggerCalcParam* pParams, int32_t nParam) {
   ST_TASK_ELOG("stream notify events is not supported on windows, streamName:%s", streamName);
   return TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS;
 }

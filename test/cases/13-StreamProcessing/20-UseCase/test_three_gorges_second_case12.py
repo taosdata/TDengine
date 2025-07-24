@@ -10,7 +10,7 @@ import random
 import time
 import datetime
 
-class TestSnodeMgmt:
+class Test_ThreeGorges:
     caseName = "test_str_sxny_cn_test_v015"
     currentDir = os.path.dirname(os.path.abspath(__file__))
     runAll = False
@@ -30,7 +30,7 @@ class TestSnodeMgmt:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_snode_mgmt(self):
+    def test_three_gorges_second_case12(self):
         """test_three_gorges_case
         
         1. create snode
@@ -38,7 +38,7 @@ class TestSnodeMgmt:
 
 
         Catalog:
-            - Streams:str_sxny_cn_drzcfd_test01
+            - Streams:test_str_sxny_cn_test_v015
 
         Since: v3.3.3.7
 
@@ -77,7 +77,7 @@ class TestSnodeMgmt:
         stream1 = (
                     f"""create stream test1.test_str_sxny_cn_test_v015 state_window(cast(val as integer)) from test1.stb_sxny_cn 
                     partition by tbname,point,index_code,ps_code,point_name
-                    stream_options(fill_history|pre_filter(index_code in ('index_a0')  and dt >= to_char(now() - 1d, 'yyyy-mm-dd'))|event_type(window_close) )
+                    stream_options(fill_history|pre_filter(index_code in ('index_a0')  and dt >= today() - 1d)|event_type(window_close) )
                     into test1.stb_sxny_cn_test_v015 output_subtable(concat_ws('_','_sxny_cn_test_v015',point)) 
                     tags(
                     tablename varchar(50) as tbname,
@@ -98,7 +98,7 @@ class TestSnodeMgmt:
         stream2 = (
                     f"""create stream test1.test_str_sxny_cn_test_v015_1 state_window(cast(val as integer)) from test1.stb_sxny_cn 
                     partition by tbname,point,index_code,ps_code,point_name
-                    stream_options(fill_history|pre_filter(index_code in ('index_a0')  and dt >= to_char(now() - 1d, 'yyyy-mm-dd'))|event_type(window_close) )
+                    stream_options(fill_history|pre_filter(index_code in ('index_a0')  and dt >= today() - 1d)|event_type(window_close) )
                     into test1.stb_sxny_cn_test_v015_1 output_subtable(concat_ws('_','_sxny_cn_test_v015_1',point)) 
                     tags(
                     tablename varchar(50) as tbname,
@@ -119,7 +119,7 @@ class TestSnodeMgmt:
         stream3 = (
                     f"""create stream test1.test_str_sxny_cn_test_v015_2 state_window(cast(val as integer)) from test1.stb_sxny_cn 
                     partition by tbname,point,index_code,ps_code,point_name
-                    stream_options(fill_history|pre_filter(index_code in ('index_a0')  and dt >= to_char(now() - 1d, 'yyyy-mm-dd'))|event_type(window_close) )
+                    stream_options(fill_history|pre_filter(index_code in ('index_a0')  and dt >= today() - 1d)|event_type(window_close) )
                     into test1.stb_sxny_cn_test_v015_2 output_subtable(concat_ws('_','_sxny_cn_test_v015_2',point)) 
                     tags(
                     tablename varchar(50) as tbname,
