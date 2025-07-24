@@ -25,6 +25,7 @@ export function sendSQLReq(sqlStr: string, composeData = false) {
   })
     .then(cData => {
       if (cData.code == 0) return composeData ? compHeadAndData(cData.column_meta, cData.data) : cData;
+      ElMessage.error(cData.desc);
       return Promise.reject(cData?.desc || 'Service Unavailable, please try again later!');
     })
     .catch(err => {
