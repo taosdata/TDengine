@@ -56,6 +56,7 @@ static void initLog() {
   tsdbDebugFlag = 0;
   tsLogEmbedded = 1;
   tsAsyncLog = 0;
+  //bseDebugFlag = 143;
 
   const char *path = TD_TMP_DIR_PATH "td";
   // taosRemoveDir(path);
@@ -86,6 +87,16 @@ static int32_t putData(SBse *bse, int nItem, int32_t vlen, std::vector<int64_t> 
     std::string value = genRandomString(vlen);
     int64_t     seq = 0;
     code = bseBatchPut(pBatch, &seq, (uint8_t *)value.c_str(), value.size());
+    
+    if (bseBatchExccedLimit(pBatch)) {
+      code = bseCommitBatch(bse, pBatch);
+      if (code != 0) {
+        printf("failed to commit batch error code: %d\n", code);
+        ASSERT(0);
+      }
+      code = bseBatchInit(bse, &pBatch, nItem);
+    }
+      
     data->push_back(seq);
   }
   printf("put result ");
@@ -257,6 +268,30 @@ int32_t funcTestSmallData() {
   return 0;
 }
 
+int32_t funcTestWriteSmallData() {
+  SBse                *bse = NULL;
+  SBseCfg              cfg = {.vgId = 2};
+  taosRemoveDir("/tmp/bse");
+
+  std::vector<int64_t> data;
+  int32_t              code = bseOpen("/tmp/bse", &cfg, &bse);
+  putData(bse, 10000, 100000, &data);
+
+  bseCommit(bse);
+
+  putData(bse, 100000, 100000, &data);
+
+  bseCommit(bse);
+
+  putData(bse, 100000, 100000, &data);
+
+  bseCommit(bse);
+
+  bseClose(bse);
+
+
+  return 0;
+}
 int32_t snapTest() {
   int32_t              code = 0;
   SBse                *bse = NULL, *bseDst = NULL;
@@ -401,6 +436,11 @@ TEST(bseCase, smallDataTest) {
   initLog();
   funcTestSmallData();
 #endif
+}TEST(bseCase, smallDataWriteTest) {
+#ifdef LINUX
+  initLog();
+  funcTestWriteSmallData();
+#endif
 }
 
 TEST(bseCase, multiThreadReadWriteTest) {
@@ -464,19 +504,6 @@ TEST(bseCase, emptyNot) {
   SBseCfg cfg = {.vgId = 2};
   taosRemoveDir("/tmp/bse");
 
-  // int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
-  // ASSERT_EQ(code, 0);
-
-  // std::vector<int64_t> data;
-  // putData(bse, 10000, 1000, &data);
-  // bseCommit(bse);
-  
-  // getData(bse, &data);
-  // putData(bse, 10000, 1000, &data);
-
-  // bseCommit(bse);
-  // bseClose(bse);
-  // {
   std::vector<int64_t> data;
   data.push_back(1); 
   data.push_back(2); 

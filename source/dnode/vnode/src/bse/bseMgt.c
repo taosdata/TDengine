@@ -722,6 +722,7 @@ _error:
   }
   return code;
 }
+
 int32_t bseBatchPut(SBseBatch *pBatch, int64_t *seq, uint8_t *value, int32_t len) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -765,6 +766,15 @@ int32_t bseBatchGetSize(SBseBatch *pBatch, int32_t *sz) {
   *sz = pBatch->len;
 
   return code;
+}
+
+int32_t bseBatchExccedLimit(SBseBatch *pBatch) {
+  if (pBatch == NULL) return 0;
+  SBse *pBse = pBatch->pBse;
+  if ((pBatch->len + 128) >= BSE_BLOCK_SIZE(pBse)) {
+    return 1;
+  }
+  return 0;
 }
 
 int32_t bseBatchGet(SBseBatch *pBatch, uint64_t seq, uint8_t **pValue, int32_t *len) {

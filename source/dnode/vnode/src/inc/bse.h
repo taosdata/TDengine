@@ -60,6 +60,7 @@ typedef struct SBlockItemInfo    SBlockItemInfo;
 int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKey);
 int32_t bseBatchPut(SBseBatch *pBatch, int64_t *seq, uint8_t *value, int32_t len);
 int32_t bseBatchGetSize(SBseBatch *pBatch, int32_t *size);
+int32_t bseBatchExccedLimit(SBseBatch *pBatch);
 int32_t bseBatchDestroy(SBseBatch *pBatch);
 int32_t bseCommitBatch(SBse *pBse, SBseBatch *pBatch);
 

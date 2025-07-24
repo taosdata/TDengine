@@ -286,7 +286,7 @@ _error:
     bseError("failed to flush table builder at line %d since %s", lino, tstrerror(code));
   }
 
-  blockWrapperCleanup(&pMemTable->pBlockWrapper);
+  blockWrapperClear(&pMemTable->pBlockWrapper);
   bseMemTableUnRef(pMemTable);
   blockWrapperCleanup(&wrapper);
   return code;
@@ -332,11 +332,14 @@ int32_t tableBuilderPut(STableBuilder *p, SBseBatch *pBatch) {
       len += pInfo->size;
       tableBuilderUpdateBlockRange(p, pInfo);
       memtableUpdateBlockRange(p->pMemTable, pInfo);
+
+      bseTrace("start to insert  bse table builder mem %p, idx %d", p->pMemTable, i);
       continue;
     } else {
       if (len > 0) {
         offset += blockAppendBatch(pBlockWrapper->data, pBatch->buf + offset, len);
       }
+      bseTrace("start to flush bse table builder mem %p", p->pMemTable);
       code = tableBuilderFlush(p, BSE_TABLE_DATA_TYPE, 0);
       TSDB_CHECK_CODE(code, lino, _error);
       len = 0;
@@ -473,6 +476,7 @@ int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo) {
   if (p == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
+  bseInfo("succ to commit table %s", p->name);
   code = tableBuilderFlush(p, BSE_TABLE_DATA_TYPE, 1);
   TSDB_CHECK_CODE(code, lino, _error);
 
@@ -1186,7 +1190,11 @@ static void updateSnapshotMeta(SBlockWrapper *pBlkWrapper, SSeqRange range, int8
   }
 
   void blockWrapperClear(SBlockWrapper *p) {
+    if (p->data == NULL) {
+      return;
+    }
     SBlock *block = (SBlock *)p->data;
+
     p->size = 0 ;
     blockClear(block);
   }
