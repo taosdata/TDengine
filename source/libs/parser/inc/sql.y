@@ -231,7 +231,7 @@ cmd ::= CREATE BNODE ON DNODE NK_INTEGER(A) bnode_options(B).                   
 cmd ::= DROP BNODE ON DNODE NK_INTEGER(A).                                        { pCxt->pRootNode = createDropBnodeStmt(pCxt, &A); }
 
 bnode_options(A) ::= .                                                            { A = createDefaultBnodeOptions(pCxt); }
-bnode_options(A) ::= bnode_options(B) PROTOCOL NK_STRING(C).                      { A = setBnodeOption(pCxt, B, BNODE_OPTION_PROTOCOL, &C); }
+bnode_options(A) ::= bnode_options(B) NK_ID(C) NK_STRING(D).                      { A = setBnodeOption(pCxt, B, &C, &D); }
 
 /************************************************ create/drop/restore mnode ***************************************************/
 cmd ::= CREATE MNODE ON DNODE NK_INTEGER(A).                                      { pCxt->pRootNode = createCreateComponentNodeStmt(pCxt, QUERY_NODE_CREATE_MNODE_STMT, &A); }

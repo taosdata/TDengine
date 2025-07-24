@@ -5536,7 +5536,7 @@ static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SN
     // virtual table only support select operation
     PAR_ERR_JRET(TSDB_CODE_TSC_INVALID_OPERATION);
   }
-  if (pCxt->pParseCxt->isStmtBind) {
+  if (pCxt->pParseCxt->stmtBindVersion > 0) {
     PAR_ERR_JRET(TSDB_CODE_VTABLE_NOT_SUPPORT_STMT);
   }
   if (pCxt->pParseCxt->topicQuery) {
