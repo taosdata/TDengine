@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#include "tmsg.h"
 #include "cmdnodes.h"
 #include "parToken.h"
 #include "parUtil.h"
@@ -342,6 +343,34 @@ SNode* createCreateBnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeId, SN
 SNode* createDropBnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeID);
 SNode* createDefaultBnodeOptions(SAstCreateContext* pCxt);
 SNode* setBnodeOption(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pOption, void* pVal);
+
+/** @section xnode XNode Statements */
+typedef enum EXnodeResourceType {
+  XNODE_TASK = 1,
+  XNODE_AGENT = 2,
+} EXnodeResourceType;
+
+EXnodeResourceType setXnodeResourceType(SAstCreateContext* pCxt, const SToken* pResourceId);
+
+SNode* createXnodeSourceAsDsn(SAstCreateContext* pCxt, const SToken* pToken);
+SNode* createXnodeSourceAsDatabase(SAstCreateContext* pCxt, const SToken* pToken);
+SNode* createXnodeSourceAsTopic(SAstCreateContext* pCxt, const SToken* pToken);
+SNode* createXnodeSinkAsDsn(SAstCreateContext* pCxt, const SToken* pToken);
+SNode* createXnodeSinkAsDatabase(SAstCreateContext* pCxt, const SToken* pToken);
+SNode* createCreateXnodeWithUserPassStmt(SAstCreateContext* pCxt, const SToken* pUrl, SToken* pUser,
+                                         const SToken* pPass);
+SNode* createCreateXnodeStmt(SAstCreateContext* pCxt, const SToken* pUrl);
+SNode* createUpdateXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode, bool updateAll);
+SNode* createDropXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode, bool force);
+
+SNode* createXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pResourceName,
+                                  SNode* pB, SNode* pC, SNode* pNode);
+SNode* createDefaultXnodeTaskOptions(SAstCreateContext* pCxt);
+SToken* createTriggerToken();
+SNode* setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pOptions, SToken* pKey, SToken* pVal);
+SNode* dropXnodeResource(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SToken* pResourceName);
+/** end @section xnode */
+
 SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue);
 SNode* createRealTableNodeForIndexName(SAstCreateContext* pCxt, SToken* pDbName, SToken* pIndexName);
 SNode* createCreateIndexStmt(SAstCreateContext* pCxt, EIndexType type, bool ignoreExists, SNode* pIndexName,

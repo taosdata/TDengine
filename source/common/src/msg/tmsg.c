@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+
 #include "tmsg.h"
 #include "tglobal.h"
 
@@ -4126,6 +4127,132 @@ _exit:
 }
 
 void tFreeSMDropBnodeReq(SMDropBnodeReq *pReq) { FREESQL(); }
+
+
+int32_t tSerializeSMCreateXnodeReq(void *buf, int32_t bufLen, SMCreateXnodeReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  ENCODESQL();
+ 
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->urlLen));
+  if (pReq->urlLen > 0) {
+    TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->url, pReq->urlLen));
+  }
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->userLen));
+  if (pReq->userLen > 0) {
+    TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->user,pReq->userLen));
+  }
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->passLen));
+  if (pReq->passLen > 0) {
+    TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->pass, pReq->passLen));
+  }
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->passIsMd5));
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMCreateXnodeReq(void *buf, int32_t bufLen, SMCreateXnodeReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  DECODESQL();
+
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->urlLen));
+  if (pReq->urlLen > 0) {
+    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->url, NULL));
+  }
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->userLen));
+  if (pReq->userLen > 0) {
+    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->user, NULL));
+  }
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->passLen));
+  if (pReq->passLen > 0) {
+    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->pass, NULL));
+  }
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->passIsMd5));
+
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSMCreateXnodeReq(SMCreateXnodeReq *pReq) {
+  taosMemoryFreeClear(pReq->url);
+  taosMemoryFreeClear(pReq->user);
+  taosMemoryFreeClear(pReq->pass);
+  FREESQL();
+}
+
+int32_t tSerializeSMDropXnodeReq(void *buf, int32_t bufLen, SMDropXnodeReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->xnodeId));
+  ENCODESQL();
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMDropXnodeReq(void *buf, int32_t bufLen, SMDropXnodeReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->xnodeId));
+  DECODESQL();
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSMDropXnodeReq(SMDropXnodeReq *pReq) { FREESQL(); }
+
+int32_t tSerializeSMUpdateXnodeReq(void *buf, int32_t bufLen, SMUpdateXnodeReq *pReq) {
+  return tSerializeSMDropXnodeReq(buf, bufLen, pReq);
+}
+
+int32_t tDeserializeSMUpdateXnodeReq(void *buf, int32_t bufLen, SMUpdateXnodeReq *pReq) {
+  return tDeserializeSMDropXnodeReq(buf, bufLen, pReq);
+}
+
+void tFreeSMUpdateXnodeReq(SMUpdateXnodeReq *pReq) { tFreeSMDropXnodeReq(pReq); }
 
 int32_t tSerializeSCreateDnodeReq(void *buf, int32_t bufLen, SCreateDnodeReq *pReq) {
   SEncoder encoder = {0};
