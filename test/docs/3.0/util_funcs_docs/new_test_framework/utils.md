@@ -26,3 +26,4 @@
 ::: mqttUtil
 ::: csv
 ::: rawblock
+::: compatibilityUtil
