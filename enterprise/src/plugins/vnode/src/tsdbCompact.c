@@ -537,13 +537,6 @@ _exit:
   return code;
 }
 
-void tsdbSetFsetlcn(STFileSet *fset) {
-  STFileObj *fobj = fset->farr[TSDB_FTYPE_DATA];
-  if (fobj && fobj->f->lcn < 0) {
-    fobj->f->lcn = 0;
-  }
-}
-
 bool tsdbShouldCompact(STFileSet *fset, int32_t vgId) {
   STFileObj *fobj = fset->farr[TSDB_FTYPE_DATA];
   if (fobj) {
@@ -562,7 +555,6 @@ bool tsdbShouldCompact(STFileSet *fset, int32_t vgId) {
   }
 
   if (fset->lastCompact > fset->lastCommit) {
-    tsdbSetFsetlcn(fset);
     return false;
   }
 

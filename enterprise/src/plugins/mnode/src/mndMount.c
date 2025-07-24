@@ -421,6 +421,9 @@ static int32_t mndMountSetStbInfo(SMnode *pMnode, SDnodeObj *pDnode, SMountInfo 
     pCol->bytes = pColInfo->bytes;
     pCol->flags = pColInfo->flags;
     (void)snprintf(pCol->name, sizeof(pCol->name), "%s", pColInfo->name);
+    pCmpr->id = pCol->colId;
+    pCmpr->alg = pColInfo->compress;
+    pExt->typeMod = pColInfo->typeMod;
   }
   for (int32_t t = 0; t < pReq->numOfTags; ++t) {
     SField  *pTagInfo = TARRAY_GET_ELEM(pReq->pTags, t);
@@ -807,11 +810,15 @@ int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, SUserOb
 
   // dbCfg
   // mntObj.dbCfg = pCreate->dbCfg;
-  TSDB_CHECK_CONDITION(((nDbs = taosArrayGetSize(pInfo->pDbs)) > 0), code, lino, _exit,
-                       TSDB_CODE_MND_INVALID_MOUNT_INFO);
+  if ((nDbs = taosArrayGetSize(pInfo->pDbs)) <= 0) {
+    mError("mount:%s, failed to create mount since No db exist", pInfo->mountName);
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_MOUNT_INFO);
+  }
 
   TSDB_CHECK_NULL((pDnode = mndAcquireDnode(pMnode, pInfo->dnodeId)), code, lino, _exit, terrno);
 
+  pDnode->numOfVnodes = mndGetVnodesNum(pMnode, pDnode->id);
+  pDnode->memUsed = mndGetVnodesMemory(pMnode, pDnode->id);
   // check before create db
   for (int32_t i = 0; i < nDbs; ++i) {
     SMountDbInfo *pDb = taosArrayGet(pInfo->pDbs, i);
@@ -886,6 +893,7 @@ int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, SUserOb
   mInfo("trans:%d, used to create mount:%s", pTrans->id, pInfo->mountName);
 
   mndTransSetDbName(pTrans, mntObj.name, NULL);
+  mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
   TAOS_CHECK_EXIT(mndTransCheckConflict(pMnode, pTrans));
 
   mndTransSetOper(pTrans, MND_OPER_CREATE_MOUNT);
@@ -948,9 +956,12 @@ static int32_t mndSetDropMountCommitLogs(SMnode *pMnode, STrans *pTrans, SMountO
 }
 
 static int32_t mndSetDropMountDbLogs(SMnode *pMnode, STrans *pTrans, SMountObj *pObj) {
-  int32_t code = 0, lino = 0;
-  SSdb   *pSdb = pMnode->pSdb;
-  void   *pIter = NULL;
+  int32_t    code = 0, lino = 0;
+  SSdb      *pSdb = pMnode->pSdb;
+  SSHashObj *pUsers = NULL;
+  void      *pIter = NULL;
+  SUserObj  *pUser = NULL;
+  int32_t    iter = 0;
 
   while (1) {
     SDbObj *pDb = NULL;
@@ -964,8 +975,7 @@ static int32_t mndSetDropMountDbLogs(SMnode *pMnode, STrans *pTrans, SMountObj *
         if ((code = mndSetDropDbPrepareLogs(pMnode, pTrans, pDb)) != 0 ||
             (code = mndSetDropDbCommitLogs(pMnode, pTrans, pDb)) != 0 ||
             (code = mndDropIdxsByDb(pMnode, pTrans, pDb)) != 0 ||
-            (code = mndUserRemoveDb(pMnode, pTrans, pDb->name)) != 0 ||
-            (code = mndRemoveAllStbUser(pMnode, pTrans, pDb)) != 0) {
+            (code = mndUserRemoveDb(pMnode, pTrans, pDb, &pUsers)) != 0) {
           sdbCancelFetch(pSdb, pIter);
           sdbRelease(pSdb, pDb);
           TAOS_CHECK_EXIT(code);
@@ -974,7 +984,31 @@ static int32_t mndSetDropMountDbLogs(SMnode *pMnode, STrans *pTrans, SMountObj *
     }
     sdbRelease(pSdb, pDb);
   }
+  if (pUsers) {
+    while ((pUser = (SUserObj *)tSimpleHashIterate(pUsers, (void *)pUser, &iter))) {
+      SSdbRaw *pCommitRaw = mndUserActionEncode(pUser);
+      if (pCommitRaw == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      TAOS_CHECK_EXIT(mndTransAppendCommitlog(pTrans, pCommitRaw));
+      TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
+      mndUserFreeObj(pUser);
+    }
+    tSimpleHashCleanup(pUsers);
+    pUsers = NULL;
+  }
 _exit:
+  if (code != 0) {
+    mError("mount:%s, failed to drop mount dbs at line %d since %s", pObj->name, lino, tstrerror(code));
+  }
+  if (pUsers) {
+    pUser = NULL;
+    iter = 0;
+    while ((pUser = (SUserObj *)tSimpleHashIterate(pUsers, (void *)pUser, &iter))) {
+      mndUserFreeObj(pUser);
+    }
+    tSimpleHashCleanup(pUsers);
+  }
   TAOS_RETURN(code);
 }
 
@@ -990,33 +1024,6 @@ static int32_t mndBuildDropVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *
 }
 #endif
 static int32_t mndSetDropMountRedoActions(SMnode *pMnode, STrans *pTrans, SMountObj *pObj) {
-  int32_t code = 0, lino = 0;
-  SSdb   *pSdb = pMnode->pSdb;
-  void   *pIter = NULL;
-
-  while (1) {
-    SDbObj *pDb = NULL;
-    pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb);
-    if (pIter == NULL) break;
-    if (pDb->cfg.isMount) {
-      const char *pDbName = strstr(pDb->name, ".");
-      const char *pMountPrefix = pDbName ? strstr(pDbName + 1, pObj->name) : NULL;
-      if (pMountPrefix && (pMountPrefix == (pDbName + 1)) && (pMountPrefix[strlen(pObj->name)] == '_')) {
-        mInfo("db:%s, is mount db, start to drop", pDb->name);
-        if ((code = mndSetDropDbRedoActions(pMnode, pTrans, pDb)) != 0) {
-          sdbCancelFetch(pSdb, pIter);
-          sdbRelease(pSdb, pDb);
-          TAOS_CHECK_EXIT(code);
-        }
-      }
-    }
-    sdbRelease(pSdb, pDb);
-  }
-_exit:
-  TAOS_RETURN(code);
-}
-
-static int32_t mndUserRemoveMount(SMnode *pMnode, STrans *pTrans, SMountObj *pObj) {
   int32_t code = 0, lino = 0;
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
