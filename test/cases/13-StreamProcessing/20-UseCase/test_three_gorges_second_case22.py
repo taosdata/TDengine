@@ -11,7 +11,7 @@ import time
 import datetime
 
 class Test_ThreeGorges:
-    caseName = "test_three_gorges_second_case19"
+    caseName = "test_three_gorges_second_case22"
     currentDir = os.path.dirname(os.path.abspath(__file__))
     runAll = False
     dbname = "test1"
@@ -22,15 +22,15 @@ class Test_ThreeGorges:
     subTblNum = 3
     tblRowNum = 10
     tableList = []
-    outTbname = "stb_hbny_sx_mint_jzzt2"
-    streamName = "str_hbny_sx_mint_jzzt2"
+    outTbname = "stb_dwi_cjdl_rtems_power"
+    streamName = "stm_dwi_cjdl_rtems_power"
     tableList = []
     resultIdx = "1"
     
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_three_gorges_second_case19(self):
+    def test_three_gorges_second_case22(self):
         """test_three_gorges_case
         
         1. create snode
@@ -38,7 +38,7 @@ class Test_ThreeGorges:
 
 
         Catalog:
-            - Streams:str_hbny_sx_mint_jzzt2
+            - Streams:stm_dwi_cjdl_rtems_power
 
         Since: v3.3.3.7
 
@@ -59,30 +59,30 @@ class Test_ThreeGorges:
         self.createStream()
         self.checkStreamRunning()
         self.sxny_data2()
-        tdSql.checkRowsLoop(2,f"select v,tablename,senid, sen_name, index_code, jz_location,jz_no,ps_name,ps_code from {self.dbname}.{self.outTbname} order by tablename;",100,0.3)
+        tdSql.checkRowsLoop(4,f"select val,tablename,ps_code,ps_name,province_name,area_name,company_name,ps_type,index_seq from {self.dbname}.{self.outTbname} order by tablename;",100,0.3)
         self.checkResultWithResultFile()
 
 
     def createStream(self):
         tdLog.info(f"create stream :")
         stream1 = (
-                    f"""create stream test1.str_hbny_sx_mint_jzzt2 interval(10m) sliding(10m) from test1.stb_hbny_sx_mint 
-                    partition by tbname,senid, sen_name, index_code, jz_location,jz_no,ps_name,ps_code
-                    stream_options(force_output|watermark(5m)|event_type(window_close)|pre_filter(ps_code in ('a0','a2') and index_code='a0'))
-                    into test1.stb_hbny_sx_mint_jzzt2 output_subtable(concat_ws('_','cjdl_rtdb_jzzt',senid)) 
+                    f"""create stream test1.stm_dwi_cjdl_rtems_power interval(5m) sliding(5m) from test1.stb_cjdl_rtems 
+                    partition by tbname,ps_code,ps_name,province_name,area_name,company_name,ps_type,index_seq
+                    stream_options(max_delay(4m)|pre_filter(index_code in ('a0','a2') and  dt >= today() - 1d ))
+                    into test1.stb_dwi_cjdl_rtems_power output_subtable(concat_ws('_','stb_dwi_cjdl_rtems_power',ps_code)) 
                     tags(
                     tablename varchar(50) as tbname,
-                    senid varchar(255) as senid,
-                    sen_name varchar(255) as sen_name,
-                    index_code varchar(255) as index_code,
-                    jz_location varchar(255) as jz_location,
-                    jz_no varchar(255) as jz_no,
-                    ps_name varchar(255) as ps_name,
-                    ps_code varchar(255) as ps_code
+                    ps_code varchar(50) as ps_code,
+                    ps_name varchar(50) as ps_name,
+                    province_name varchar(50) as province_name,
+                    area_name varchar(50) as area_name,
+                    company_name varchar(50) as company_name,
+                    ps_type varchar(50) as ps_type,
+                    index_seq varchar(50) as index_seq
                     )
                     as select
                         _twstart ts,
-                        last(v) v
+                        avg(factv) val
                     from
                         %%trows;
                     """
@@ -93,7 +93,7 @@ class Test_ThreeGorges:
         tdLog.info(f"create stream success!")
     
     def checkResultWithResultFile(self):
-        chkSql = f"select v,tablename,senid, sen_name, index_code, jz_location,jz_no,ps_name,ps_code from {self.dbname}.{self.outTbname} order by tablename;"
+        chkSql = f"select val,tablename,ps_code,ps_name,province_name,area_name,company_name,ps_type,index_seq from {self.dbname}.{self.outTbname} order by tablename;"
         tdLog.info(f"check result with sql: {chkSql}")
         if tdSql.getRows() >0:
             tdCom.generate_query_result_file(self.caseName, self.resultIdx, chkSql)
@@ -107,19 +107,16 @@ class Test_ThreeGorges:
 
         random.seed(42)
         tdSql.execute("create database test1 vgroups 6;")
-        tdSql.execute("""CREATE STABLE test1.stb_hbny_sx_mint (ts TIMESTAMP , v DOUBLE ) 
-                    TAGS (senid VARCHAR(20), index_code VARCHAR(255), index_name VARCHAR(255), ps_code VARCHAR(255), ps_name VARCHAR(255), 
-                    ps_type VARCHAR(255), unit_name VARCHAR(255), province_name VARCHAR(255), area_name VARCHAR(255), company_name VARCHAR(255), 
-                    sen_name VARCHAR(255), index_seq VARCHAR(255), jz_seq VARCHAR(255), jz_no VARCHAR(255), jz_location VARCHAR(255), 
-                    unit_conversion DOUBLE
+        tdSql.execute("""CREATE STABLE test1.stb_cjdl_rtems (dt TIMESTAMP , ifch DOUBLE , factv DOUBLE , cycle DOUBLE , `state` DOUBLE , ts DOUBLE , dq DOUBLE ) 
+                    TAGS (senid VARCHAR(20), index_code VARCHAR(255), index_name VARCHAR(255), ps_code VARCHAR(255), ps_type VARCHAR(255), 
+                    ps_name VARCHAR(255), sen_name VARCHAR(255), province_name VARCHAR(255), area_name VARCHAR(255), company_name VARCHAR(255), 
+                    index_seq VARCHAR(255), jz_seq VARCHAR(255), jz_no VARCHAR(255), jz_location VARCHAR(255)
         )""")
 
-        tdSql.execute("CREATE TABLE test1.`a0` USING test1.`stb_hbny_sx_mint` TAGS ('a0','a0','a0','a0','a0','a0','a0','a0','a0','a0','a0','a0','a0','a0','a0',9.9)")
-        tdSql.execute("CREATE TABLE test1.`a1` USING test1.`stb_hbny_sx_mint` TAGS ('a1','a1','a1','a1','a1','a1','a1','a1','a1','a1','a1','a1','a1','a1','a1',8.8)")
-        tdSql.execute("CREATE TABLE test1.`a2` USING test1.`stb_hbny_sx_mint` TAGS ('a2','a2','a2','a2','a2','a2','a2','a2','a2','a2','a2','a2','a2','a2','a2',7.7)")
-        # tdSql.execute("CREATE TABLE test1.`a1` USING test1.`stb_hbny_sx_mint` TAGS ('a1','name_a1','/taosdata/a1','a0_1','a1_ch1','index_a1','pscode_a1','cnstationno_a1','level_a1','cz_z1','blq_a1','dcc_a1')")
-        # tdSql.execute("CREATE TABLE test1.`a2` USING test1.`stb_hbny_sx_mint` TAGS ('a2','name_a2','/taosdata/a2','a0_2','a2_ch2','index_a2','pscode_a2','cnstationno_a2','level_a2','cz_z2','blq_a2','dcc_a2')")
-
+        tdSql.execute("CREATE TABLE test1.`a0` USING test1.`stb_cjdl_rtems` TAGS ('a0','a0','a0','a0','a0','a0','a0','a0','a0','a0','a0','a0','a0','a0')")
+        tdSql.execute("CREATE TABLE test1.`a1` USING test1.`stb_cjdl_rtems` TAGS ('a1','a1','a1','a1','a1','a1','a1','a1','a1','a1','a1','a1','a1','a1')")
+        tdSql.execute("CREATE TABLE test1.`a2` USING test1.`stb_cjdl_rtems` TAGS ('a2','a2','a2','a2','a2','a2','a2','a2','a2','a2','a2','a2','a2','a2')")
+        
         tables = ['a0', 'a1', 'a2']
 
         
@@ -135,8 +132,11 @@ class Test_ThreeGorges:
             c1 = random.randint(0, 1000)
             c2 = random.randint(0, 1000)
             c3 = random.randint(0, 1000)
+            c4 = random.randint(0, 1000)
+            c5 = random.randint(0, 1000)
+            c6 = random.randint(0, 1000)
             for tb in tables:
-                sql = "INSERT INTO test1.%s VALUES (%d,%d)" % (tb, ts, c1)
+                sql = "INSERT INTO test1.%s VALUES (%d,%d,%d,%d,%d,%d,%d)" % (tb, ts, c1,c2,c3,c4,c5,c6)
                 tdSql.execute(sql)
 
     def sxny_data2(self):
@@ -159,15 +159,22 @@ class Test_ThreeGorges:
         for i in range(total_rows):
             ts = base_ts + i * interval_ms
             c1 = random.randint(0, 1000)
+            c2 = random.randint(0, 1000)
+            c3 = random.randint(0, 1000)
+            c4 = random.randint(0, 1000)
+            c5 = random.randint(0, 1000)
+            c6 = random.randint(0, 1000)
             for tb in tables:
-                sql1 = "INSERT INTO test1.%s VALUES (now,%d)" % (tb, c1)
-                sql2 = "INSERT INTO test1.%s VALUES (now+1s,%d)" % (tb, c1+1)
-                sql3 = "INSERT INTO test1.%s VALUES (now+30m,%d)" % (tb, c1)
+                sql1 = "INSERT INTO test1.%s VALUES (now,%d,%d,%d,%d,%d,%d)" % (tb, c1,c2,c3,c4,c5,c6)
+                sql2 = "INSERT INTO test1.%s VALUES (now+5m,%d,%d,%d,%d,%d,%d)" % (tb, c1,c2+2,c3,c4,c5,c6)
+                sql3 = "INSERT INTO test1.%s VALUES (now+350s,%d,%d,%d,%d,%d,%d)" % (tb, c1+1,c2+1,c3,c4,c5,c6)
+                sql4 = "INSERT INTO test1.%s VALUES (now+10m,%d,%d,%d,%d,%d,%d)" % (tb, c1+10,c2+10,c3,c4,c5,c6)
                 
                 tdSql.execute(sql1)          
                 tdSql.execute(sql2)          
                 tdSql.execute(sql3)          
-      
+                tdSql.execute(sql4)          
+
         
     def dataIn(self):
         tdLog.info(f"insert more data:")

@@ -1,7 +1,8 @@
 
-taos> select * from test1.stb_sxny_cn_drzcfd_test01 order by _c0;
-           dt            |          fir_val          |          sec_val          |           tablename            |             point              |           index_code           |            ps_code             |           point_name           |
-=======================================================================================================================================================================================================================================================
- 2025-07-20 00:00:00.000 |                       100 |                      1000 | a0                             | a0                             | index_a0                       | pscode_a0                      | name_a0                        |
- 2025-07-21 00:00:00.000 |                       101 |                       102 | a0                             | a0                             | index_a0                       | pscode_a0                      | name_a0                        |
+taos> select fir_val,sec_val,tablename,point,index_code,ps_code from test1.stb_sxny_cn_drzcfd_test01 order by _c0,tablename;
+          fir_val          |          sec_val          |           tablename            |             point              |           index_code           |            ps_code             |
+============================================================================================================================================================================================
+                       654 |                       104 | a0                             | a0                             | index_a0                       | pscode_a0                      |
+                       100 |                       100 | a0                             | a0                             | index_a0                       | pscode_a0                      |
+                       101 |                      1000 | a0                             | a0                             | index_a0                       | pscode_a0                      |
 

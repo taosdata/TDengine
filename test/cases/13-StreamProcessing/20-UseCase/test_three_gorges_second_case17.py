@@ -11,7 +11,7 @@ import time
 import datetime
 
 class Test_ThreeGorges:
-    caseName = "str_tb_station_power_info"
+    caseName = "test_three_gorges_second_case17"
     currentDir = os.path.dirname(os.path.abspath(__file__))
     runAll = False
     dbname = "test1"
@@ -53,11 +53,24 @@ class Test_ThreeGorges:
 
 
         tdStream.dropAllStreamsAndDbs()
-            
-        self.sxny_data1()
+        
+        tdSql.execute("create database test1 vgroups 6;")
+        tdSql.execute("""CREATE STABLE test1.tb_station_power_info (ts TIMESTAMP , rated_power DOUBLE , minimum_power DOUBLE , data_rate DOUBLE ) 
+                    TAGS (company VARCHAR(255), ps_name VARCHAR(255), country_code VARCHAR(255), ps_code VARCHAR(255), 
+                    rated_energy VARCHAR(255), rated_power_unit VARCHAR(255), data_unit VARCHAR(255), remark VARCHAR(255))
+        """)
+
+        tdSql.execute("CREATE TABLE test1.`a0` USING test1.`tb_station_power_info` TAGS ('com_a0','psname_a0','conutry_a0','pscode_a0','rate_a0','p_a0','Km','remarka0')")
+        tdSql.execute("CREATE TABLE test1.`a1` USING test1.`tb_station_power_info` TAGS ('com_a1','psname_a1','conutry_a1','pscode_a1','rate_a1','p_a1','K','remarka1')")
+        tdSql.execute("CREATE TABLE test1.`a2` USING test1.`tb_station_power_info` TAGS ('com_a2','psname_a2','conutry_a2','pscode_a2','rate_a2','p_a2','mi','remarka2')")
+
+        
         self.createSnodeTest()
         self.createStream()
         self.checkStreamRunning()
+        self.sxny_data1()
+        tdSql.checkRowsLoop(3,f"select rated_power,minimum_power,data_rate,tablename,company,ps_name,country_code,ps_code,rated_energy,rated_power_unit,data_unit,remark from {self.dbname}.{self.outTbname} order by tablename;",100,0.3)
+        self.checkResultWithResultFile()
 
 
     def createStream(self):
@@ -93,7 +106,7 @@ class Test_ThreeGorges:
         tdLog.info(f"create stream success!")
     
     def checkResultWithResultFile(self):
-        chkSql = f"select * from {self.dbname}.{self.outTbname} order by _c0;"
+        chkSql = f"select rated_power,minimum_power,data_rate,tablename,company,ps_name,country_code,ps_code,rated_energy,rated_power_unit,data_unit,remark from {self.dbname}.{self.outTbname} order by tablename;"
         tdLog.info(f"check result with sql: {chkSql}")
         if tdSql.getRows() >0:
             tdCom.generate_query_result_file(self.caseName, self.resultIdx, chkSql)
@@ -106,16 +119,7 @@ class Test_ThreeGorges:
         import datetime
 
         random.seed(42)
-        tdSql.execute("create database test1 vgroups 6;")
-        tdSql.execute("""CREATE STABLE test1.tb_station_power_info (ts TIMESTAMP , rated_power DOUBLE , minimum_power DOUBLE , data_rate DOUBLE ) 
-                    TAGS (company VARCHAR(255), ps_name VARCHAR(255), country_code VARCHAR(255), ps_code VARCHAR(255), 
-                    rated_energy VARCHAR(255), rated_power_unit VARCHAR(255), data_unit VARCHAR(255), remark VARCHAR(255))
-        """)
-
-        tdSql.execute("CREATE TABLE test1.`a0` USING test1.`tb_station_power_info` TAGS ('com_a0','psname_a0','conutry_a0','pscode_a0','rate_a0','p_a0','Km','remarka0')")
-        tdSql.execute("CREATE TABLE test1.`a1` USING test1.`tb_station_power_info` TAGS ('com_a1','psname_a1','conutry_a1','pscode_a1','rate_a1','p_a1','K','remarka1')")
-        tdSql.execute("CREATE TABLE test1.`a2` USING test1.`tb_station_power_info` TAGS ('com_a2','psname_a2','conutry_a2','pscode_a2','rate_a2','p_a2','mi','remarka2')")
-
+        
         tables = ['a0', 'a1', 'a2']
 
         
