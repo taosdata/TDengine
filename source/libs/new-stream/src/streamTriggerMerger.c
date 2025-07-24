@@ -915,6 +915,10 @@ void stVtableMergerDestroy(void *ptr) {
     taosArrayDestroy(pMerger->pReaderInfos);
     pMerger->pReaderInfos = NULL;
   }
+  if (pMerger->pPseudoCols != NULL) {
+    blockDataDestroy(pMerger->pPseudoCols);
+    pMerger->pPseudoCols = NULL;
+  }
 
   if (pMerger->pReaders != NULL) {
     taosArrayDestroyEx(pMerger->pReaders, stTimestampSorterDestroy);
