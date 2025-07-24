@@ -810,12 +810,12 @@ function install_service_on_systemd() {
   if [ -f ${cfg_source_dir}/$1.service ]; then
     ${csudo}cp ${cfg_source_dir}/$1.service ${service_config_dir}/ || :
   fi
-  
+
   # # set default malloc config for cluster(enterprise) and edge(community)
   # if [ "$verMode" == "cluster" ] && [ "$ostype" == "Linux" ]; then
   #   if [ "$1" = "taosd" ] || [ "$1" = "taosadapter" ]; then
   #     echo "set $1 malloc config"
-  #     ${install_main_dir}/bin/${set_malloc_bin} -m 0 -q
+  #     ${csudo} ${install_main_dir}/bin/${set_malloc_bin} -m 0 -q
   #   fi
   # fi
 
