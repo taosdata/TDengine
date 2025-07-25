@@ -729,7 +729,9 @@ int32_t tableReaderGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *
   SCacheItem *pItem = NULL;
   code = blockCacheGet(pMgt->pBlockCache, &blkhandle.range, (void **)&pItem);
   if (code != 0) {
-    blockWrapperInit(&wrapper, block.size + 16);
+    code = blockWrapperInit(&wrapper, block.size + 16);
+    TSDB_CHECK_CODE(code, lino, _error);
+
     bseDebug("block size:%" PRId64 ", offset:%" PRId64 ", [sseq:%" PRId64 ", eseq:%" PRId64 "]", block.size,
              block.offset, block.range.sseq, block.range.eseq);
 
@@ -1995,7 +1997,9 @@ int32_t tableMetaWriterInit(SBTableMeta *pMeta, char *name, SBtableMetaWriter **
     TSDB_CHECK_CODE(code, lino, _error);
   }
 
-  blockWrapperInit(&p->blockWrapper, 1024);
+  code = blockWrapperInit(&p->blockWrapper, 1024);
+  TSDB_CHECK_CODE(code, lino, _error);
+
   code = tableMetaOpenFile(p, 0, path);
   TSDB_CHECK_CODE(code, lino, _error);
 
