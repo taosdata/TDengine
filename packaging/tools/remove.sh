@@ -251,7 +251,7 @@ function remove_data_and_config() {
     ${csudo}rm -rf "${data_dir}/.udf" || :
     ${csudo}rm -rf "${data_dir}/.running"*  || :
     ${csudo}rm -rf "${data_dir}/.taosudf"* || :
-    ${csudo}find "${data_dir}" -type d -empty -delete
+    ${csudo}find "${data_dir}" -type d -empty -delete || :
     if [ -z "$(ls -A "${data_dir}")" ]; then
       ${csudo}rm -rf "${data_dir}" || :
     fi
@@ -262,13 +262,13 @@ function remove_data_and_config() {
     ${csudo}rm -rf "${log_dir}/taos"* || :
     ${csudo}rm -rf "${log_dir}/udf"* || :
     ${csudo}rm -rf "${log_dir}/jemalloc" || :
-    ${csudo}rm -rf "${log_dir}/tcmalloc"  || :
+    ${csudo}rm -rf "${log_dir}/tcmalloc" || :
     ${csudo}rm -rf "${log_dir}/set_taos_malloc.log" || :
     ${csudo}rm -rf "${log_dir}/.startRecord" || :
     ${csudo}rm -rf "${log_dir}/.startSeq" || :
-    ${csudo}find "${log_dir}" -type d -empty -delete
+    ${csudo}find "${log_dir}" -type d -empty -delete || :
     if [ -z "$(ls -A "${log_dir}")" ]; then
-      ${csudo}rm -rf "${log_dir}"  || :
+      ${csudo}rm -rf "${log_dir}" || :
     fi
   fi
 }
