@@ -310,11 +310,11 @@ reqId 可用于请求链路追踪，reqId 就像分布式系统中的 traceId �
 </TabItem>
 <TabItem label="C" value="c">
 
-```c "WebSocket 连接"
+```c title="WebSocket 连接"
 {{#include docs/examples/c-ws-new/with_reqid_demo.c:with_reqid}}
 ```
 
-```c "原生连接"
+```c title="原生连接"
 {{#include docs/examples/c/with_reqid_demo.c:with_reqid}}
 ```
 

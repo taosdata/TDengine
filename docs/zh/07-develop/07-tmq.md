@@ -371,9 +371,9 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 ```
 
 订阅消费数据步骤：
-  1. 调用 `ws_build_topic_list` 函数创建一个主题列表 `topic_list`。
+  1. 调用 `build_topic_list` 函数创建一个主题列表 `topic_list`。
   2. 如果 `topic_list` 为 `NULL`，表示创建失败，函数返回 `-1`。
-  3. 使用 `ws_tmq_subscribe` 函数订阅 `tmq` 指定的主题列表。如果订阅失败，打印错误信息。
+  3. 使用 `tmq_subscribe` 函数订阅 `tmq` 指定的主题列表。如果订阅失败，打印错误信息。
   4. 销毁主题列表 `topic_list` 以释放资源。
   5. 调用 `basic_consume_loop` 函数开始基本的消费循环，处理订阅的消息。
    
@@ -524,13 +524,13 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 {{#include docs/examples/c-ws-new/tmq_demo.c:consume_repeatly}}
 ```
 
-1. 通过 `ws_tmq_get_topic_assignment` 函数获取特定主题的分配信息，包括分配的数量和具体分配详情。
+1. 通过 `tmq_get_topic_assignment` 函数获取特定主题的分配信息，包括分配的数量和具体分配详情。
 2. 如果获取分配信息失败，则打印错误信息并返回。
-3. 对于每个分配，使用 `ws_tmq_offset_seek` 函数将消费者的偏移量设置到最早的偏移量。
+3. 对于每个分配，使用 `tmq_offset_seek` 函数将消费者的偏移量设置到最早的偏移量。
 4. 如果设置偏移量失败，则打印错误信息。
 5. 释放分配信息数组以释放资源。
 6. 调用 `basic_consume_loop` 函数开始新的消费循环，处理消息。
-    
+
 </TabItem>
 <TabItem label="REST API" value="rest">
 不支持
@@ -661,7 +661,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 {{#include docs/examples/c-ws-new/tmq_demo.c:manual_commit}}
 ```    
 
-可以通过 `ws_tmq_commit_sync` 函数来手工提交消费进度。
+可以通过 `tmq_commit_sync` 函数来手工提交消费进度。
 
 </TabItem>
 <TabItem label="REST API" value="rest">
