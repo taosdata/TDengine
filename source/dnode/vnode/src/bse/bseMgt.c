@@ -47,7 +47,7 @@ static int32_t bseBatchMgtRecycle(SBatchMgt *pBatchMgt, SBseBatch *pBatch);
 static void    bseBatchMgtCleanup(SBatchMgt *pBatchMgt);
 
 static int32_t bseBatchCreate(SBseBatch **pBatch, int32_t nKeys);
-static int32_t bseBatchClear(SBseBatch *pBatch);
+void           bseBatchClear(SBseBatch *pBatch);
 static int32_t bseRecycleBatchImpl(SBatchMgt *pMgt, SBseBatch *pBatch);
 static int32_t bseBatchMayResize(SBseBatch *pBatch, int32_t alen);
 
@@ -63,24 +63,51 @@ static int32_t bseSerailCommitInfo(SBse *pBse, SArray *fileSet, char **pBuf, int
     TSDB_CHECK_CODE(code, line, _err);
   }
 
-  cJSON_AddNumberToObject(pRoot, "fmtVer", pBse->commitInfo.fmtVer);
-  cJSON_AddNumberToObject(pRoot, "vgId", BSE_VGID(pBse));
-  cJSON_AddNumberToObject(pRoot, "commitVer", pBse->commitInfo.commitVer);
-  cJSON_AddNumberToObject(pRoot, "commitSeq", pBse->commitInfo.lastSeq);
-  cJSON_AddItemToObject(pRoot, "fileSet", pFileSet);
+  if (cJSON_AddNumberToObject(pRoot, "fmtVer", pBse->commitInfo.fmtVer) == NULL) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_CFG, line, _err);
+  }
+  if (cJSON_AddNumberToObject(pRoot, "vgId", BSE_VGID(pBse)) == NULL) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_CFG, line, _err);
+  }
+  if (cJSON_AddNumberToObject(pRoot, "commitVer", pBse->commitInfo.commitVer) == NULL) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_CFG, line, _err);
+  }
+  if (cJSON_AddNumberToObject(pRoot, "commitSeq", pBse->commitInfo.lastSeq) == NULL) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_CFG, line, _err);
+  }
+
+  if (!cJSON_AddItemToObject(pRoot, "fileSet", pFileSet)) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_CFG, line, _err);
+  }
 
   for (int32_t i = 0; i < taosArrayGetSize(fileSet); i++) {
     SBseLiveFileInfo *pInfo = taosArrayGet(fileSet, i);
     cJSON            *pField = cJSON_CreateObject();
-    cJSON_AddNumberToObject(pField, "startSeq", pInfo->range.sseq);
-    cJSON_AddNumberToObject(pField, "endSeq", pInfo->range.eseq);
-    cJSON_AddNumberToObject(pField, "size", pInfo->size);
-    cJSON_AddNumberToObject(pField, "level", pInfo->level);
-    cJSON_AddNumberToObject(pField, "retention", pInfo->timestamp);
-    cJSON_AddItemToArray(pFileSet, pField);
+    if (cJSON_AddNumberToObject(pField, "startSeq", pInfo->range.sseq) == NULL) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_CFG, line, _err);
+    }
+    if (cJSON_AddNumberToObject(pField, "endSeq", pInfo->range.eseq) == NULL) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_CFG, line, _err);
+    }
+    if (cJSON_AddNumberToObject(pField, "size", pInfo->size) == NULL) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_CFG, line, _err);
+    }
+
+    if (cJSON_AddNumberToObject(pField, "level", pInfo->level) == NULL) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_CFG, line, _err);
+    }
+    if (cJSON_AddNumberToObject(pField, "retention", pInfo->timestamp) == NULL) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_CFG, line, _err);
+    }
+    if (!cJSON_AddItemToArray(pFileSet, pField)) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_CFG, line, _err);
+    }
   }
 
   char   *pSerialized = cJSON_PrintUnformatted(pRoot);
+  if (pSerialized == NULL) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_CFG, line, _err);
+  }
   int32_t sz = strlen(pSerialized);
 
   *pBuf = pSerialized;
@@ -201,7 +228,10 @@ int32_t bseReadCurrentFile(SBse *pBse, char **p, int64_t *len) {
   if (nread != sz) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
-  taosCloseFile(&fd);
+  if (taosCloseFile(&fd) != 0) {
+    bseError("vgId:%d failed to close file %s since %s", BSE_VGID(pBse), name, tstrerror(terrno));
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
 
   *p = pCurrent;
   *len = sz;
@@ -209,7 +239,9 @@ int32_t bseReadCurrentFile(SBse *pBse, char **p, int64_t *len) {
 _error:
   if (code != 0) {
     bseError("vgId:%d, failed to read current at line %d since %s", BSE_VGID(pBse), lino, tstrerror(code));
-    taosCloseFile(&fd);
+    if (taosCloseFile(&fd) != 0) {
+      bseError("vgId:%d failed to close file %s since %s", BSE_VGID(pBse), name, tstrerror(terrno));
+    }
     taosMemoryFree(pCurrent);
   }
   return code;
@@ -247,7 +279,9 @@ _error:
   if (code != 0) {
     bseError("failed to list files at line %d since %s", lino, tstrerror(code));
   }
-  taosCloseDir(&pDir);
+  if ((code = taosCloseDir(&pDir)) != 0) {
+    bseError("failed to close dir %s since %s", path, tstrerror(code));
+  }
   return code;
 }
 
@@ -356,7 +390,7 @@ int32_t bseInitLock(SBse *pBse) {
   (void)taosThreadRwlockInit(&pBse->rwlock, &attr);
   (void)taosThreadRwlockAttrDestroy(&attr);
 
-  taosThreadMutexInit(&pBse->mutex, NULL);
+  (void)taosThreadMutexInit(&pBse->mutex, NULL);
   return 0;
 }
 
@@ -472,8 +506,8 @@ void bseClose(SBse *pBse) {
   bseBatchMgtCleanup(pBse->batchMgt);
 
   taosArrayDestroy(pBse->commitInfo.pFileList);
-  taosThreadMutexDestroy(&pBse->mutex);
-  taosThreadRwlockDestroy(&pBse->rwlock);
+  (void)taosThreadMutexDestroy(&pBse->mutex);
+  (void)taosThreadRwlockDestroy(&pBse->rwlock);
 
   taosMemoryFree(pBse);
   return;
@@ -483,9 +517,9 @@ int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len) {
   int32_t line = 0;
   int32_t code = 0;
 
-  taosThreadRwlockRdlock(&pBse->rwlock);
+  (void)taosThreadRwlockRdlock(&pBse->rwlock);
   code = bseTableMgtGet(pBse->pTableMgt, seq, pValue, len);
-  taosThreadRwlockUnlock(&pBse->rwlock);
+  (void)taosThreadRwlockUnlock(&pBse->rwlock);
 
   if (code != 0) {
     bseError("vgId:%d failed to get value from seq %" PRId64 " at line %d since %s", BSE_VGID(pBse), seq, line,
@@ -499,7 +533,7 @@ int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len) {
 int32_t bseCommitBatch(SBse *pBse, SBseBatch *pBatch) {
   int32_t code = 0;
   int32_t lino = 0;
-  taosThreadMutexLock(&pBse->mutex);
+  (void)taosThreadMutexLock(&pBse->mutex);
   pBatch->commited = 1;
 
   while (!BSE_QUEUE_IS_EMPTY(&pBse->batchMgt->queue)) {
@@ -522,7 +556,7 @@ _error:
   if (code != 0) {
     bseError("vgId:%d failed to append batch at line %d since %s", BSE_VGID(pBse), lino, tstrerror(code));
   }
-  taosThreadMutexUnlock(&pBse->mutex);
+  (void)taosThreadMutexUnlock(&pBse->mutex);
   return code;
 }
 
@@ -530,7 +564,7 @@ int32_t bseReload(SBse *pBse) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  taosThreadMutexLock(&pBse->mutex);
+  (void)taosThreadMutexLock(&pBse->mutex);
   code = bseClear(pBse);
   TSDB_CHECK_CODE(code, lino, _error);
 
@@ -541,7 +575,7 @@ _error:
   if (code != 0) {
     bseError("vgId:%d failed to reload bse at line %d since %s", BSE_VGID(pBse), lino, tstrerror(code));
   }
-  taosThreadMutexUnlock(&pBse->mutex);
+  (void)taosThreadMutexUnlock(&pBse->mutex);
   return code;
 }
 int32_t bseTrim(SBse *pBse) {
@@ -553,9 +587,9 @@ int32_t bseRecycleBatch(SBse *pBse, SBseBatch *pBatch) {
   int32_t code = 0;
   if (pBatch == NULL) return code;
 
-  taosThreadMutexLock(&pBse->mutex);
+  (void)taosThreadMutexLock(&pBse->mutex);
   code = bseRecycleBatchImpl(pBse->batchMgt, pBatch);
-  taosThreadMutexUnlock(&pBse->mutex);
+  (void)taosThreadMutexUnlock(&pBse->mutex);
   return code;
 }
 
@@ -699,12 +733,12 @@ int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKeys) {
   uint64_t   sseq = 0;
 
   // atomic later
-  taosThreadMutexLock(&pBse->mutex);
+  (void)taosThreadMutexLock(&pBse->mutex);
   sseq = pBse->seq;
   pBse->seq += nKeys;
 
   code = bseBatchMgtGet(pBse->batchMgt, &p);
-  taosThreadMutexUnlock(&pBse->mutex);
+  (void)taosThreadMutexUnlock(&pBse->mutex);
 
   bseDebug("vgId:%d bse seq start from: %" PRId64 " to %" PRId64 "", BSE_VGID(pBse), sseq, sseq + nKeys - 1);
   TSDB_CHECK_CODE(code, lino, _error);
@@ -781,18 +815,16 @@ int32_t bseBatchGet(SBseBatch *pBatch, uint64_t seq, uint8_t **pValue, int32_t *
   int32_t code = 0;
   return 0;
 }
-int32_t bseBatchClear(SBseBatch *pBatch) {
+void bseBatchClear(SBseBatch *pBatch) {
   pBatch->len = 0;
   pBatch->num = 0;
   pBatch->seq = 0;
   pBatch->commited = 0;
   BSE_QUEUE_REMOVE(&pBatch->node);
   taosArrayClear(pBatch->pSeq);
-  return 0;
 }
-
-int32_t bseBatchDestroy(SBseBatch *pBatch) {
-  if (pBatch == NULL) return 0;
+void bseBatchDestroy(SBseBatch *pBatch) {
+  if (pBatch == NULL) return;
 
   int32_t code = 0;
   taosMemoryFree(pBatch->buf);
@@ -800,7 +832,6 @@ int32_t bseBatchDestroy(SBseBatch *pBatch) {
   BSE_QUEUE_REMOVE(&pBatch->node);
 
   taosMemoryFree(pBatch);
-  return code;
 }
 
 int32_t bseBatchMayResize(SBseBatch *pBatch, int32_t alen) {
@@ -841,8 +872,8 @@ static int32_t seqComparFunc(const void *p1, const void *p2) {
 int32_t bseMultiGet(SBse *pBse, SArray *pKey, SArray *ppValue) {
   int32_t code = 0;
   taosSort(pKey->pData, taosArrayGetSize(pKey), sizeof(int64_t), seqComparFunc);
-  taosThreadMutexLock(&pBse->mutex);
-  taosThreadMutexUnlock(&pBse->mutex);
+  (void)taosThreadMutexLock(&pBse->mutex);
+  (void)taosThreadMutexUnlock(&pBse->mutex);
   return code;
 }
 // int32_t bseIterate(SBse *pBse, uint64_t start, uint64_t end, SArray *pValue) {
@@ -920,7 +951,7 @@ int32_t bseUpdateCommitInfo(SBse *pBse, SBseLiveFileInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  taosThreadMutexLock(&pBse->mutex);
+  (void)taosThreadMutexLock(&pBse->mutex);
   SBseCommitInfo *pCommit = &pBse->commitInfo;
   if (taosArrayGetSize(pCommit->pFileList) == 0) {
     if (taosArrayPush(pCommit->pFileList, pInfo) == NULL) {
@@ -937,7 +968,7 @@ _error:
     bseError("vgId:%d failed to update commit info since %s", BSE_VGID(pBse), tstrerror(code));
   }
 
-  taosThreadMutexUnlock(&pBse->mutex);
+  (void)taosThreadMutexUnlock(&pBse->mutex);
   return code;
 }
 
@@ -945,7 +976,7 @@ int32_t bseGetAliveFileList(SBse *pBse, SArray **pFileList) {
   int32_t code = 0;
   int32_t lino = 0;
   SArray *p = taosArrayInit(4, sizeof(SBseLiveFileInfo));
-  taosThreadMutexLock(&pBse->mutex);
+  (void)taosThreadMutexLock(&pBse->mutex);
   if (taosArrayAddAll(p, pBse->commitInfo.pFileList) == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
@@ -955,7 +986,7 @@ _error:
   if (code != 0) {
     bseError("vgId:%d failed to get alive file list since %s", BSE_VGID(pBse), tstrerror(code));
   }
-  taosThreadMutexUnlock(&pBse->mutex);
+  (void)taosThreadMutexUnlock(&pBse->mutex);
   return code;
 }
 int32_t bseCommit(SBse *pBse) {
@@ -1031,7 +1062,7 @@ int32_t bseUpdateCfg(SBse *pBse, SBseCfg *pCfg) {
     return TSDB_CODE_INVALID_MSG;
   }
 
-  taosThreadMutexLock(&pBse->mutex);
+  (void)taosThreadMutexLock(&pBse->mutex);
   if (pCfg->blockSize > 0) {
     pBse->cfg.blockSize = pCfg->blockSize;
   }
@@ -1051,7 +1082,7 @@ int32_t bseUpdateCfg(SBse *pBse, SBseCfg *pCfg) {
   if (pCfg->blockCacheSize >= 0) {
     pBse->cfg.blockCacheSize = pCfg->blockCacheSize;
   }
-  taosThreadMutexUnlock(&pBse->mutex);
+  (void)taosThreadMutexUnlock(&pBse->mutex);
   return code;
 }
 
@@ -1086,9 +1117,9 @@ int32_t bseSetCompressType(SBse *pBse, int8_t compressType) {
   if (compressType < kNoCompres || compressType > kZxCompress) {
     return TSDB_CODE_INVALID_MSG;
   }
-  taosThreadMutexLock(&pBse->mutex);
+  (void)taosThreadMutexLock(&pBse->mutex);
   pBse->cfg.compressType = compressType;
-  taosThreadMutexUnlock(&pBse->mutex);
+  (void)taosThreadMutexUnlock(&pBse->mutex);
 
   return code;
 }
@@ -1097,9 +1128,9 @@ int32_t bseSetBlockSize(SBse *pBse, int32_t blockSize) {
   if (blockSize <= 0) {
     return TSDB_CODE_INVALID_MSG;
   }
-  taosThreadMutexLock(&pBse->mutex);
+  (void)taosThreadMutexLock(&pBse->mutex);
   pBse->cfg.blockSize = blockSize;
-  taosThreadMutexUnlock(&pBse->mutex);
+  (void)taosThreadMutexUnlock(&pBse->mutex);
 
   return code;
 }
@@ -1108,11 +1139,11 @@ int32_t bseSetBlockCacheSize(SBse *pBse, int32_t blockCacheSize) {
   if (blockCacheSize <= 0) {
     return TSDB_CODE_INVALID_MSG;
   }
-  taosThreadMutexLock(&pBse->mutex);
+  (void)taosThreadMutexLock(&pBse->mutex);
   pBse->cfg.blockCacheSize = blockCacheSize;
 
   code = bseTableMgtSetBlockCacheSize(pBse->pTableMgt, blockCacheSize);
-  taosThreadMutexUnlock(&pBse->mutex);
+  (void)taosThreadMutexUnlock(&pBse->mutex);
 
   return code;
 }
@@ -1121,11 +1152,11 @@ int32_t bseSetTableCacheSize(SBse *pBse, int32_t tableCacheSize) {
   if (tableCacheSize <= 0) {
     return TSDB_CODE_INVALID_MSG;
   }
-  taosThreadMutexLock(&pBse->mutex);
+  (void)taosThreadMutexLock(&pBse->mutex);
 
   pBse->cfg.tableCacheSize = tableCacheSize;
   code = bseTableMgtSetTableCacheSize(pBse->pTableMgt, tableCacheSize);
-  taosThreadMutexUnlock(&pBse->mutex);
+  (void)taosThreadMutexUnlock(&pBse->mutex);
 
   return code;
 }
@@ -1134,8 +1165,8 @@ int32_t bseSetKeepDays(SBse *pBse, int32_t keepDays) {
   if (keepDays <= 0) {
     return TSDB_CODE_INVALID_MSG;
   }
-  taosThreadMutexLock(&pBse->mutex);
+  (void)taosThreadMutexLock(&pBse->mutex);
   pBse->cfg.keepDays = keepDays;
-  taosThreadMutexUnlock(&pBse->mutex);
+  (void)taosThreadMutexUnlock(&pBse->mutex);
   return code;
 }

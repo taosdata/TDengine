@@ -87,7 +87,7 @@ int32_t bseTableMgtCreateCache(STableMgt *pMgt);
 
 int32_t bseTableMgtGet(STableMgt *p, int64_t seq, uint8_t **pValue, int32_t *len);
 
-int32_t bseTableMgtCleanup(void *p);
+void bseTableMgtCleanup(void *p);
 
 int32_t bseTableMgtCommit(STableMgt *pMgt, SBseLiveFileInfo *pInfo);
 

@@ -89,9 +89,8 @@ static void bseRawFileWriterClose(SBseRawFileWriter *p, int8_t rollback) {
   if (p == NULL) return;
 
   int32_t code = 0;
-  taosCloseFile(&p->pFile);
-  if (rollback) {
-    bseError("vgId:%d failed to close table pWriter since %s", BSE_VGID((SBse *)p->pBse), tstrerror(code));
+  if (taosCloseFile(&p->pFile) != 0) {
+    bseError("vgId:%d failed to close table pWriter since %s", BSE_VGID((SBse *)p->pBse), tstrerror(terrno));
   }
   taosMemoryFree(p);
 
@@ -191,19 +190,17 @@ _error:
   }
   return code;
 }
-int32_t bseSnapWriterClose(SBseSnapWriter **pp, int8_t rollback) {
+void bseSnapWriterClose(SBseSnapWriter **pp, int8_t rollback) {
   int32_t code = 0;
 
   SBseSnapWriter *p = *pp;
   if (p == NULL) {
-    return code;
+    return;
   }
 
   taosArrayDestroy(p->pFileSet);
   bseRawFileWriterClose(p->pWriter, 0);
   taosMemoryFree(p);
-
-  return code;
 }
 
 int32_t bseSnapReaderOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapReader **ppReader) {
@@ -288,10 +285,10 @@ int32_t bseSnapReaderRead2(SBseSnapReader *p, uint8_t **data, int32_t *len) {
   return bseSnapReaderReadImpl(p, data, len);
 }
 
-int32_t bseSnapReaderClose(SBseSnapReader **p) {
+void bseSnapReaderClose(SBseSnapReader **p) {
   int32_t code = 0;
   if (p == NULL || *p == NULL) {
-    return code;
+    return;
   }
 
   SBseSnapReader *pReader = *p;
@@ -299,7 +296,6 @@ int32_t bseSnapReaderClose(SBseSnapReader **p) {
   taosMemoryFree(pReader);
 
   *p = NULL;
-  return code;
 }
 
 int32_t bseOpenIter(SBse *pBse, SBseIter **ppIter) {

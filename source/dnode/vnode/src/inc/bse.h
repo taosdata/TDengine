@@ -61,7 +61,7 @@ int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKey);
 int32_t bseBatchPut(SBseBatch *pBatch, int64_t *seq, uint8_t *value, int32_t len);
 int32_t bseBatchGetSize(SBseBatch *pBatch, int32_t *size);
 int32_t bseBatchExccedLimit(SBseBatch *pBatch);
-int32_t bseBatchDestroy(SBseBatch *pBatch);
+void    bseBatchDestroy(SBseBatch *pBatch);
 int32_t bseCommitBatch(SBse *pBse, SBseBatch *pBatch);
 
 int32_t bseUpdateCfg(SBse *pBse, SBseCfg *pCfg);
@@ -74,12 +74,12 @@ int32_t bseSetKeepDays(SBse *pBse, int32_t keepDays);
 
 int32_t bseSnapWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapWriter **writer);
 int32_t bseSnapWriterWrite(SBseSnapWriter *writer, uint8_t *data, int32_t len);
-int32_t bseSnapWriterClose(SBseSnapWriter **writer, int8_t rollback);
+void    bseSnapWriterClose(SBseSnapWriter **writer, int8_t rollback);
 
 int32_t bseSnapReaderOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapReader **reader);
 int32_t bseSnapReaderRead(SBseSnapReader *reader, uint8_t **data);
 int32_t bseSnapReaderRead2(SBseSnapReader *reader, uint8_t **data, int32_t *len);
-int32_t bseSnapReaderClose(SBseSnapReader **reader);
+void    bseSnapReaderClose(SBseSnapReader **reader);
 
 int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse);
 void    bseClose(SBse *pBse);

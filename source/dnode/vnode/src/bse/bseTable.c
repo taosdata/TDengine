@@ -453,23 +453,23 @@ static void updateTableRange(SBTableMeta *pTableMeta, SArray *pMetaBlock) {
 }
 static int32_t tableBuilderClearImmuMemTable(STableBuilder *p) {
   int32_t code = 0;
-  taosThreadRwlockWrlock(&p->pBse->rwlock);
+  (void)taosThreadRwlockWrlock(&p->pBse->rwlock);
   atomic_store_8(&p->hasImmuMemTable, 0);
   bseMemTableUnRef(p->pImmuMemTable);
   p->pImmuMemTable = NULL;
 
-  taosThreadRwlockUnlock(&p->pBse->rwlock);
+  (void)taosThreadRwlockUnlock(&p->pBse->rwlock);
   return code;
 }
 static int32_t tableBuildeSwapMemTable(STableBuilder *p) {
   int32_t code = 0;
-  taosThreadRwlockWrlock(&p->pBse->rwlock);
+  (void)taosThreadRwlockWrlock(&p->pBse->rwlock);
   p->pImmuMemTable = p->pMemTable;
   p->pMemTable = NULL;
 
   atomic_store_8(&p->hasImmuMemTable, 1);
 
-  taosThreadRwlockUnlock(&p->pBse->rwlock);
+  (void)taosThreadRwlockUnlock(&p->pBse->rwlock);
   return code;
 }
 
@@ -529,7 +529,9 @@ void tableBuilderClose(STableBuilder *p, int8_t commited) {
   bseMemTableUnRef(p->pMemTable);
   bseMemTableUnRef(p->pImmuMemTable);
 
-  taosCloseFile(&p->pDataFile);
+  if (taosCloseFile(&p->pDataFile) != 0) {
+    bseError("failed to close table builder file %s since %s", p->name, tstrerror(terrno));
+  }
   taosMemoryFree(p);
 }
 
@@ -768,7 +770,9 @@ void tableReaderClose(STableReader *p) {
 
   taosArrayDestroy(p->pMetaHandle);
 
-  taosCloseFile(&p->pDataFile);
+  if (taosCloseFile(&p->pDataFile) != 0) {
+    bseError("failed to close table reader data file %s", p->name);
+  }
   tableMetaReaderClose(p->pMetaReader);
   blockWrapperCleanup(&p->blockWrapper);
 
@@ -1377,7 +1381,9 @@ int32_t bseReadCurrentSnap(SBse *pBse, uint8_t **pValue, int32_t *len) {
   if (nread != sz) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
-  taosCloseFile(&fd);
+  if (taosCloseFile(&fd) != 0) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
 
   SBseSnapMeta *pMeta = (SBseSnapMeta *)(pCurrent);
   pMeta->fileType = BSE_CURRENT_SNAP;
@@ -1388,7 +1394,9 @@ int32_t bseReadCurrentSnap(SBse *pBse, uint8_t **pValue, int32_t *len) {
 _error:
   if (code != 0) {
     bseError("vgId:%d, failed to read current at line %d since %s", BSE_VGID(pBse), lino, tstrerror(code));
-    taosCloseFile(&fd);
+    if (taosCloseFile(&fd) != 0) {
+      bseError("failed to close file %s since %s", name, tstrerror(terrno));
+    }
     taosMemoryFree(pCurrent);
   }
   return code;
