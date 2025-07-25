@@ -1095,6 +1095,7 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   ((SScanLogicNode *)pRealTableScan)->virtualStableScan = true;
   if (pTagScan) {
     ((SScanLogicNode*)pTagScan)->node.dynamicOp = true;
+    ((SScanLogicNode*)pTagScan)->virtualStableScan = true;
     ((SLogicNode *)pTagScan)->pParent = (SLogicNode *)pVtableScan;
     PLAN_ERR_JRET(nodesListStrictAppend(pVtableScan->node.pChildren, pTagScan));
   }

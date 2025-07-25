@@ -27,14 +27,15 @@ class TestStreamOldCaseCount:
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/count0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/count1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/count2.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/count3.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/countSliding0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/countSliding1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/countSliding2.sim
-
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/count0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/count1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/count2.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/count3.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/countSliding0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/countSliding1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/countSliding2.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/scalar.sim
+            
         """
 
         tdStream.createSnode()

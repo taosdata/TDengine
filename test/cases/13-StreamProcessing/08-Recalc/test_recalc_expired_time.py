@@ -11,22 +11,61 @@ class TestStreamRecalcExpiredTime:
     def test_stream_recalc_expired_time(self):
         """Stream Recalculation EXPIRED_TIME Option Test
 
-        Test EXPIRED_TIME option with expired data:
-        1. Write expired data - all windows should not trigger recalculation
-        2. Combine with WATERMARK - test boundary value behavior
-        3. Different trigger types behavior with expired data
+        Test EXPIRED_TIME(1h) option with 6 different window types and verify expired data handling:
+
+        1. Test [INTERVAL+SLIDING Window] with EXPIRED_TIME(1h)
+            1.1 Create s_interval_expired: interval(2m) sliding(2m) with expired_time(1h)
+                1.1.1 Process data from '2025-01-01 02:00:00' onwards (within 1h)
+                1.1.2 Insert expired data from '2025-01-01 01:00:00' (beyond 1h)
+                1.1.3 Verify expired data does not increase result count
+                1.1.4 Check result table structure: ts, cnt, avg_val
+
+        2. Test [SESSION Window] with EXPIRED_TIME(1h)
+            2.1 Create s_session_expired: session(ts,45s) with expired_time(1h)
+                2.1.1 Insert normal trigger data at '2025-01-01 02:00:00' series
+                2.1.2 Insert non-expired data at '2025-01-01 01:30:00' (within 1h)
+                2.1.3 Insert expired data at '2025-01-01 01:00:00' (beyond 1h)
+                2.1.4 Verify session results: 3 sessions created, expired data ignored
+
+        3. Test [STATE_WINDOW] with EXPIRED_TIME(1h)
+            3.1 Create s_state_expired: state_window(status) with expired_time(1h)
+                3.1.1 Insert state changes: normal->warning->error at '2025-01-01 02:00:00'
+                3.1.2 Insert non-expired state data at '2025-01-01 01:30:00'
+                3.1.3 Insert expired state data at '2025-01-01 01:00:00'
+                3.1.4 Verify 4 state windows created, expired data ignored
+
+        4. Test [EVENT_WINDOW] with EXPIRED_TIME(1h)
+            4.1 Create s_event_expired: event_window(start with event_val >= 5 end with event_val > 10)
+                4.1.1 Insert event trigger data with event_val pattern: 6,7,12 at '2025-01-01 02:00:00'
+                4.1.2 Insert non-expired events at '2025-01-01 01:30:00'
+                4.1.3 Insert expired events at '2025-01-01 01:00:00'
+                4.1.4 Verify 3 event windows, expired data ignored in final result
+
+        5. Test [PERIOD Window] with EXPIRED_TIME(1h)
+            5.1 Create s_period_expired: period(30s) with expired_time(1h)|ignore_nodata_trigger
+                5.1.1 Insert period trigger data every 30s from '2025-01-01 02:00:00'
+                5.1.2 Test periodic triggering with current timestamp data
+                5.1.3 Verify period computation ignores expired data
+                5.1.4 Check ignore_nodata_trigger option interaction
+
+        6. Test [COUNT_WINDOW] with EXPIRED_TIME(1h) - Option Ignored
+            6.1 Create s_count_expired: count_window(3) with expired_time(1h)
+                6.1.1 Insert count trigger data in batches of 3
+                6.1.2 Insert both current and expired data
+                6.1.3 Verify COUNT_WINDOW ignores EXPIRED_TIME option
+                6.1.4 Confirm all data processed regardless of timestamp
 
         Catalog:
-            - Streams:Recalculation
+            - Streams:Recalc:ExpiredTime
 
-        Since: v3.0.0.0
+        Since: v3.3.7.0
 
         Labels: common,ci
 
         Jira: None
 
         History:
-            - 2025-12-19 Generated from recalculation mechanism design
+            - 2025-07-22 Beryl Created
 
         """
 

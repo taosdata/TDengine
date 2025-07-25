@@ -13,16 +13,58 @@ class TestStreamDrop:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_drop(self):
-        """Stream Drop Operations Test
+        """Stream Processing Drop Operations Test
 
-        Test drop operations related to stream processing:
-        1. Drop normal tables used in streams
-        2. Drop super tables used in streams
-        3. Drop streams themselves
-        4. Drop operations with special characters and edge cases
+        Test drop operations on tables with special characters and batch drop operations:
+
+        1. Test [Normal Table Drop] Operations
+            1.1 Create and drop normal table with timestamp column
+                1.1.1 Create table with 20 child tables using super table
+                1.1.2 Insert 10 rows per child table
+                1.1.3 Query and verify data by timestamp column
+                1.1.4 Drop each child table individually
+            1.2 Test drop with flush database operations
+                1.2.1 Recreate child tables after drop
+                1.2.2 Insert data again and query
+                1.2.3 Verify data consistency after flush
+                1.2.4 Drop super table and recreate
+
+        2. Test [Special Character Table Names] Drop Operations
+            2.1 Create databases and tables with special names
+                2.1.1 Create databases: dbtest_0, dbtest_1 with vgroups 4
+                2.1.2 Create super table with Unicode name: aa\u00bf\u200bstb0
+                2.1.3 Create child tables with special names: aa\u00bf\u200bctb0, aa\u00bf\u200bctb1
+                2.1.4 Create normal tables with special names: aa\u00bf\u200bntb0, aa\u00bf\u200bntb1
+            2.2 Test drop operations with special character handling
+                2.2.1 Insert data into tables with special names
+                2.2.2 Query data using backticks for table names
+                2.2.3 Drop tables with special character names
+                2.2.4 Clean up databases after testing
+
+        3. Test [Batch Drop Operations] with Super Tables
+            3.1 Query information_schema.ins_stables for batch operations
+                3.1.1 Find stable information across test databases
+                3.1.2 Verify stable count equals 2 (one per database)
+                3.1.3 Extract database and stable names for batch operations
+            3.2 Test batch drop with error scenarios
+                3.2.1 Test "drop table with" invalid table names (should error)
+                3.2.2 Test "drop stable with" non-existent tables (should error)
+                3.2.3 Test "drop stable with" space-containing names (should error)
+                3.2.4 Verify error message: "Cannot drop super table in batch"
+
+        4. Test [Error Handling] for Drop Operations
+            4.1 Test error messages for invalid drop operations
+                4.1.1 "Table does not exist" for invalid table drop
+                4.1.2 "STable not exist" for invalid stable drop
+                4.1.3 "Cannot drop super table in batch" for batch stable drop
+            4.2 Repeat error tests multiple times
+                4.2.1 Execute each error scenario 5 times
+                4.2.2 Verify consistent error handling
+                4.2.3 Check error message consistency
+                4.2.4 Validate connection stability after errors
 
         Catalog:
-            - Streams:OldPyCases
+            - Streams:Operations:Drop
 
         Since: v3.3.7.0
 

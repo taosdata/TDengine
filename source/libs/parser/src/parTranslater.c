@@ -5536,7 +5536,7 @@ static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SN
     // virtual table only support select operation
     PAR_ERR_JRET(TSDB_CODE_TSC_INVALID_OPERATION);
   }
-  if (pCxt->pParseCxt->isStmtBind) {
+  if (pCxt->pParseCxt->stmtBindVersion > 0) {
     PAR_ERR_JRET(TSDB_CODE_VTABLE_NOT_SUPPORT_STMT);
   }
   if (pCxt->pParseCxt->topicQuery) {
@@ -6987,12 +6987,14 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode** pWhere, STimeW
   PAR_ERR_JRET(nodesCloneNode(*pWhere, &pCond));
 
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(pCond) &&
-      LOGIC_COND_TYPE_AND == ((SLogicConditionNode *)pCond)->condType && pCxt->createStreamCalc) {
+      LOGIC_COND_TYPE_AND == ((SLogicConditionNode *)pCond)->condType &&
+      LIST_LENGTH(((SLogicConditionNode *)pCond)->pParameterList) == 2 &&
+      pCxt->createStreamCalc) {
     SLogicConditionNode *pLogicCond = (SLogicConditionNode *)pCond;
     SNode *pLeft = nodesListGetNode(pLogicCond->pParameterList, 0);
     SNode *pRight = nodesListGetNode(pLogicCond->pParameterList, 1);
-    bool hasStart = filterHasPlaceHolderRangeStart((SOperatorNode *)pLeft, pCxt->extLeftEq) || filterHasPlaceHolderRangeStart((SOperatorNode *)pRight, pCxt->extLeftEq);
-    bool hasEnd = filterHasPlaceHolderRangeEnd((SOperatorNode *)pLeft, pCxt->extRightEq) || filterHasPlaceHolderRangeEnd((SOperatorNode *)pRight, pCxt->extRightEq);
+    bool hasStart = pLeft && (filterHasPlaceHolderRangeStart((SOperatorNode *)pLeft, pCxt->extLeftEq) || filterHasPlaceHolderRangeStart((SOperatorNode *)pRight, pCxt->extLeftEq));
+    bool hasEnd = pRight && (filterHasPlaceHolderRangeEnd((SOperatorNode *)pLeft, pCxt->extRightEq) || filterHasPlaceHolderRangeEnd((SOperatorNode *)pRight, pCxt->extRightEq));
     if (hasStart && hasEnd) {
       pCxt->createStreamCalcWithExtWindow = true;
     }
@@ -7571,6 +7573,22 @@ static int32_t checkCountWindow(STranslateContext* pCxt, SCountWindowNode* pCoun
   if (pCountWin->windowCount >= INT32_MAX) {
     PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                         "Size of Count window must less than 2147483647(INT32_MAX)."));
+  }
+
+  if (streamTrigger) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, pCountWin->pColList) {
+      if (nodeType(pNode) != QUERY_NODE_COLUMN) {
+        PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                            "COUNT_WINDOW only support on column."));
+      } else {
+        SColumnNode* pCol = (SColumnNode*)pNode;
+        if (COLUMN_TYPE_TAG == pCol->colType) {
+          PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                              "COUNT_WINDOW not support on tag column."));
+        }
+      }
+    }
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -14002,6 +14020,7 @@ static int32_t createStreamReqSetDefaultOutCols(STranslateContext* pCxt, SCreate
   bool    pColExists = false;
   int32_t bound = LIST_LENGTH(pCalcProjection);
 
+  parserDebug("translate create stream req start set default output table's cols");
   if (pStmt->pTrigger) {
     SStreamTriggerNode*   pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
     SStreamNotifyOptions* pNotify = (SStreamNotifyOptions*)pTrigger->pNotify;
@@ -14482,6 +14501,8 @@ static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNodeList* pTri
   SNode*     pCurrStmt = pCxt->pCurrStmt;
   int32_t    currLevel = pCxt->currLevel;
 
+  parserDebug("translate create stream req start translate calculate query");
+
   PAR_ERR_JRET(getExtWindowBorder(pCxt, pTriggerWindow, withExtWindow, &pCxt->extLeftEq, &pCxt->extRightEq));
 
   pCxt->currLevel = ++(pCxt->levelNo);
@@ -14623,6 +14644,8 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SQueryPlan*
   SStreamCalcScan* pCalcScan = NULL;
   bool             cutoff = false;
 
+  parserDebug("translate create stream req start build calculate plan");
+
   pReq->calcScanPlanList = taosArrayInit(1, sizeof(SStreamCalcScan));
   pPlanMap = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (NULL == pReq->calcScanPlanList || NULL == pPlanMap) {
@@ -14757,6 +14780,7 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
   PAR_ERR_JRET(createStreamReqBuildForceOutput(pCxt, pStmt, pReq));
 
   SQuery pQuery = {.pRoot = pStmt->pQuery};
+  parserDebug("translate create stream req start calculate constant");
   PAR_ERR_JRET(calculateConstant(pCxt->pParseCxt, &pQuery));
 
   SPlanContext calcCxt = {.acctId = pCxt->pParseCxt->acctId,

@@ -144,6 +144,7 @@ typedef struct SSTriggerRealtimeContext {
 #endif
   bool    haveReadCheckpoint;
   int64_t lastCheckpointTime;
+  int64_t lastVirtTableInfoTime;
   SList   retryPullReqs;  // SList<SSTriggerPullRequest*>
   SList   retryCalcReqs;  // SList<SSTriggerCalcRequest*>
 } SSTriggerRealtimeContext;
@@ -278,7 +279,8 @@ typedef struct SStreamTriggerTask {
   SSHashObj *pGroupRunning;  // SSHashObj<gid, bool[]>
 
   // runtime status
-  int8_t                    isCheckpointReady;
+  volatile int8_t           isCheckpointReady;
+  volatile int32_t          checkpointVersion;
   volatile int64_t          mgmtReqId;
   char                     *streamName;
   SSTriggerRealtimeContext *pRealtimeContext;

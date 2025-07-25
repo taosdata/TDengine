@@ -208,8 +208,7 @@ class Test_IDMP_Meters:
         self.verify_stream5()
         self.verify_stream6()
         self.verify_stream7()
-        # ***** bug9 *****
-        #self.verify_stream8()
+        self.verify_stream8()
 
 
     # 

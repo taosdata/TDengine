@@ -4286,6 +4286,10 @@ int32_t msmHandleStreamHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, 
 }
 
 void msmHandleBecomeLeader(SMnode *pMnode) {
+  if (tsDisableStream) {
+    return;
+  }
+  
   streamAddVnodeLeader(MNODE_HANDLE);
   
   taosWLockLatch(&mStreamMgmt.runtimeLock);
@@ -4295,6 +4299,10 @@ void msmHandleBecomeLeader(SMnode *pMnode) {
 }
 
 void msmHandleBecomeNotLeader(SMnode *pMnode) {  
+  if (tsDisableStream) {
+    return;
+  }
+
   streamRemoveVnodeLeader(MNODE_HANDLE);
 
   if (atomic_val_compare_exchange_8(&mStreamMgmt.active, 1, 0)) {

@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, tdStream, tdCom
+from new_test_framework.utils import tdLog, tdSql, tdStream
 import pytest
 import random
 import time
@@ -23,13 +23,11 @@ class TestSlindingPartition:
 
         Labels: common,ci
 
-        Jira: https://jira.taosdata.com:18080/browse/TD-36887
+        Jira: https://jira.taosdata.com:18080/browse/TD-36995
 
         History:
             - 2025-07-22: Created by zyyang90
         """
-        self.tdCom = tdCom
-
         # create snode if not exists
         snodes = tdSql.getResult("SHOW SNODES;")
         if snodes is None or len(snodes) == 0:
