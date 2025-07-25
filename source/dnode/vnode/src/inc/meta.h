@@ -74,6 +74,7 @@ int32_t metaStatsCacheGet(SMeta* pMeta, int64_t uid, SMetaStbStats* pInfo);
 int64_t metaGetStbKeep(SMeta* pMeta, int64_t uid);
 void    metaUpdateStbStats(SMeta* pMeta, int64_t uid, int64_t deltaCtb, int32_t deltaCol, int64_t deltaKeep);
 int32_t metaUidFilterCacheGet(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, LRUHandle** pHandle);
+int32_t metaGetChildUidsOfSuperTable(SMeta* pMeta, tb_uid_t suid, SArray** childList);
 
 struct SMeta {
   TdThreadRwlock lock;
@@ -165,7 +166,7 @@ int32_t metaFilterTableName(void* pVnode, SMetaFltParam* param, SArray* pUids);
 int32_t metaFilterTtl(void* pVnode, SMetaFltParam* param, SArray* pUids);
 
 int32_t metaGetColCmpr(SMeta* pMeta, tb_uid_t uid, SHashObj** colCmprObj);
-int32_t updataTableColRef(SColRefWrapper *pWp, const SSchema *pSchema, int8_t add, SColRef *pColRef);
+int32_t updataTableColRef(SColRefWrapper* pWp, const SSchema* pSchema, int8_t add, SColRef* pColRef);
 #if !defined(META_REFACT) && !defined(TD_ASTRA)
 // SMetaDB
 int  metaOpenDB(SMeta* pMeta);
