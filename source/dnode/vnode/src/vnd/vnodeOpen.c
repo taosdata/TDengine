@@ -364,7 +364,7 @@ void vnodeDestroy(int32_t vgId, const char *path, STfs *pTfs, int32_t nodeId) {
     snprintf(prefix, TSDB_FILENAME_LEN, "vnode%d/", vgId);
     int32_t code = tssDeleteFileByPrefixFromDefault(prefix);
     if (code < 0) {
-      vError("vgId:%d, failed to remove vnode files from shared storage since %s", vgId, tstrerror(terrno));
+      vError("vgId:%d, failed to remove vnode files from shared storage since %s", vgId, tstrerror(code));
     } else {
       vInfo("vgId:%d, removed vnode files from shared storage", vgId);
     }
