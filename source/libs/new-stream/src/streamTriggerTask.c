@@ -372,9 +372,10 @@ static int32_t stTriggerTaskGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *bu
 
   code = tEncodeI32(&encoder, ver);  // version
   QUERY_CHECK_CODE(code, lino, _end);
-  code = tEncodeI32(&encoder, STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION);
-  QUERY_CHECK_CODE(code, lino, _end);
   code = tEncodeI64(&encoder, pTask->task.streamId);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  code = tEncodeI32(&encoder, STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION);
   QUERY_CHECK_CODE(code, lino, _end);
 
   code = tEncodeI32(&encoder, tSimpleHashGetSize(pTask->pRealtimeStartVer));
@@ -436,14 +437,14 @@ static int32_t stTriggerTaskParseCheckpoint(SStreamTriggerTask *pTask, uint8_t *
 
   code = tDecodeI32(&decoder, &ver);
   QUERY_CHECK_CODE(code, lino, _end);
-  code = tDecodeI32(&decoder, &formatVer);
-  QUERY_CHECK_CODE(code, lino, _end);
-  QUERY_CHECK_CONDITION(formatVer == STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION, code, lino, _end,
-                        TSDB_CODE_INVALID_PARA);
   code = tDecodeI64(&decoder, &streamId);
   QUERY_CHECK_CODE(code, lino, _end);
   QUERY_CHECK_CONDITION(streamId == pTask->task.streamId, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
+  code = tDecodeI32(&decoder, &formatVer);
+  QUERY_CHECK_CODE(code, lino, _end);
+  QUERY_CHECK_CONDITION(formatVer == STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION, code, lino, _end,
+                        TSDB_CODE_INVALID_PARA);
   int32_t nVgroups = 0;
   code = tDecodeI32(&decoder, &nVgroups);
   QUERY_CHECK_CODE(code, lino, _end);
