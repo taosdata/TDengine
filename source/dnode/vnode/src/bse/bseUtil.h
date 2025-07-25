@@ -126,6 +126,7 @@ typedef void* bsequeue[2];
 
 #define BSE_DATA_VER 0x1
 #define BSE_FMT_VER 0x1
+#define BSE_META_VER 0x1
 
 #define BSE_VGID(pBse) ((pBse)->cfg.vgId)
 #define BSE_KEEY_DAYS(pBse) ((pBse)->cfg.keepDays)

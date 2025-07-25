@@ -272,18 +272,18 @@ int32_t funcTestSmallData() {
 
   std::vector<int64_t> data;
   int32_t              code = bseOpen("/tmp/bse", &cfg, &bse);
-  putData(bse, 1000, 100000, &data);
+  putData(bse, 10000, 10000, &data);
   getData(bse, &data);
 
   bseCommit(bse);
 
   getData(bse, &data);
 
-  putData(bse, 1000, 100000, &data);
+  putData(bse, 10000, 10000, &data);
 
   bseCommit(bse);
 
-  putData(bse, 1000, 100000, &data);
+  putData(bse, 10000, 10000, &data);
   getData(bse, &data);
 
   bseCommit(bse);

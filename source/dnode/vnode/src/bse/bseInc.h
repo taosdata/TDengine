@@ -90,19 +90,23 @@ typedef struct {
   int64_t size;
   int8_t  compressType;
 
-  void *pCachItem;
+  void    *pCachItem;
   uint8_t *kvBuffer;  // meta handle, used for table reader
   int32_t  kvSize;
   int32_t  kvCap;
 } SBlockWrapper;
 
 int32_t blockWrapperInit(SBlockWrapper *p, int32_t cap);
-int32_t blockWrapperPush(SBlockWrapper *p, int64_t seq, uint8_t *value, int32_t len);
+int32_t blockWrapperPushMeta(SBlockWrapper *p, int64_t seq, uint8_t *value, int32_t len);
+void    blockWrapperClearMeta(SBlockWrapper *p);
 void    blockWrapperCleanup(SBlockWrapper *p);
 int32_t blockWrapperResize(SBlockWrapper *p, int32_t cap);
 void    blockWrapperClear(SBlockWrapper *p);
 void    blockWrapperTransfer(SBlockWrapper *dst, SBlockWrapper *src);
 void    blockWrapperSetType(SBlockWrapper *p, int8_t type);
+
+int32_t blockWrapperSize(SBlockWrapper *p, int32_t extra);
+int32_t blockWrapperSeek(SBlockWrapper *p, int64_t tgt, uint8_t **pValue, int32_t *len);
 
 typedef struct {
   int32_t          ref;
