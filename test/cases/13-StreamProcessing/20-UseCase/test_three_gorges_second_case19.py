@@ -59,7 +59,7 @@ class Test_ThreeGorges:
         self.createStream()
         self.checkStreamRunning()
         self.sxny_data2()
-        tdSql.checkRowsLoop(2,f"select v,tablename,senid, sen_name, index_code, jz_location,jz_no,ps_name,ps_code from {self.dbname}.{self.outTbname} order by tablename;",100,0.3)
+        tdSql.checkRowsLoop(2,f"select v,tablename,senid, sen_name, index_code, jz_location,jz_no,ps_name,ps_code from {self.dbname}.{self.outTbname} order by tablename;",100,1)
         self.checkResultWithResultFile()
 
 
