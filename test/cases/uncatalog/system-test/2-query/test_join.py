@@ -2,11 +2,8 @@ import datetime
 
 from dataclasses import dataclass, field
 from typing import List, Any, Tuple
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.tserror import *
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.tserror import TSDB_CODE_PAR_SYNTAX_ERROR
 
 PRIMARY_COL = "ts"
 
@@ -61,13 +58,13 @@ class DataSet:
     binary_data : List[str]     = field(default_factory=list)
     nchar_data  : List[str]     = field(default_factory=list)
 
+class TestJoin:
 
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def __query_condition(self,tbname):
         query_condition = []
@@ -256,7 +253,6 @@ class TDTestCase:
         tdSql.error( f"select ct2.c1, ct4.c2 from {dbname}.ct2 as ct2, {dbname}.ct4 as ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL} and c1 is not null " )
         tdSql.error( f"select ct2.c1, ct4.c2 from {dbname}.ct2 as ct2, {dbname}.ct4 as ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL} and ct1.c1 is not null " )
 
-
         tbname = [f"{dbname}.ct1", f"{dbname}.ct2", f"{dbname}.ct4", f"{dbname}.nt1"]
 
         # for tb in tbname:
@@ -264,11 +260,9 @@ class TDTestCase:
         #         tdSql.error(sql=errsql)
         #     tdLog.printNoPrefix(f"==========err sql condition check in {tb} over==========")
 
-
     def all_test(self):
         self.__join_check()
         self.__test_error()
-
 
     def __create_tb(self, stb="stb1", ctb_num=20, ntbnum=1, dbname=DBNAME):
         create_stb_sql = f'''create table {dbname}.{stb}(
@@ -391,8 +385,7 @@ class TDTestCase:
         tdSql.query("select ct1.c_int from db.ct1 as ct1 full join db1.ct1 as cy1 on ct1.ts=cy1.ts")
         tdSql.checkRows(self.rows)
         tdSql.checkRows(self.rows)
-        
-        
+
         tdSql.query("select ct1.c_int from db.ct1 as ct1 full join db1.ct1 as cy1 on ct1.ts=cy1.ts join db1.ct1 as cy2 on ct1.ts=cy2.ts")
         tdSql.checkRows(self.rows)
         tdSql.error("select ct1.c_int from db.ct1 as ct1 full semi join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_PAR_SYNTAX_ERROR)
@@ -513,7 +506,26 @@ class TDTestCase:
         tdSql.checkData(2, 3, 3)
         tdSql.checkData(2, 4, 3)     
         
-    def run(self):
+    def test_join(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table")
@@ -574,9 +586,5 @@ class TDTestCase:
         tdSql.checkData(0, 0, self.rows)
         self.ts5863(dbname=dbname1)
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

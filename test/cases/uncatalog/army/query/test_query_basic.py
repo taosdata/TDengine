@@ -10,24 +10,11 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-
-import sys
-import time
-import random
-
-import taos
-import frame
-import frame.etool
+from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 
 
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame import *
+class TestQueryBasic:
 
-
-class TDTestCase(TBase):
     updatecfgDict = {
         "keepColumnName"   : "1",
         "ttlChangeOnWrite" : "1",
@@ -426,7 +413,25 @@ class TDTestCase(TBase):
         tdSql.checkFirstValue(sql, 10.1)
 
     # run
-    def run(self):
+    def test_query_basic(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         tdLog.debug(f"start to excute {__file__}")
 
         # insert data
@@ -445,8 +450,3 @@ class TDTestCase(TBase):
         self.checkNull()
 
         tdLog.success(f"{__file__} successfully executed")
-
-        
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

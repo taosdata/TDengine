@@ -64,7 +64,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/clusterBasic.py -N 5
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/tsdbSnapshot.py -N 3 -M 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/strongPassword.py
-,,y,army,./pytest.sh python3 ./test.py -f query/query_basic.py -N 3
+# migrate to new test,,y,army,./pytest.sh python3 ./test.py -f query/query_basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_query_accuracy.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_ts5400.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_having.py
@@ -480,7 +480,7 @@
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/create_wrong_topic.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dropDbR3ConflictTransaction.py -N 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/basic5.py
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/basic5.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeDb.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/ts-4674.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/td-30270.py
@@ -669,7 +669,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/db_tb_name_check.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/InsertFuturets.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_wide_column.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_column_value.py
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_column_value.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_from_csv.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_benchmark.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py
@@ -796,7 +796,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hyperloglog.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill.py
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill2.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill2.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill2.py -Q 3
@@ -804,8 +804,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill2.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/irate.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/irate.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join.py -R
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join.py
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last.py
@@ -839,11 +839,11 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_4.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_4.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_4.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_5.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_5.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_5.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_5.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_5.py -Q 4
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_5.py
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_5.py -R
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_5.py -Q 2
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_5.py -Q 3
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_5.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/leastsquares.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/leastsquares.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/length.py
@@ -861,8 +861,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mavg.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_limit_interval.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_limit_interval.py -R
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_limit_interval.py
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_limit_interval.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_last_interval.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row_interval.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py
@@ -944,8 +944,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/upper.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -R
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py
@@ -985,8 +985,8 @@
 ,,n,system-test,python3 ./test.py -f 2-query/queryQnode.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode1mnode.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode2mnode.py -N 5
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3 -i False
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3 -i False
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py -N 5 -M 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py -N 5 -M 3 -i False
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStopLoop.py -N 5 -M 3
@@ -1034,7 +1034,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/char_length.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/upper.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/lower.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join.py -Q 2
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join2.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cast.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/substr.py -Q 2
@@ -1086,7 +1086,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arctan.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill.py -Q 2
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQueryInterval.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity_1.py -Q 2
@@ -1115,13 +1115,13 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_null.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_limit_interval.py  -Q 2
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_limit_interval.py  -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_last_interval.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row_interval.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 2
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 2
@@ -1135,7 +1135,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/char_length.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/upper.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/lower.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join.py -Q 3
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join2.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cast.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/substr.py -Q 3
@@ -1213,15 +1213,15 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_null.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_limit_interval.py -Q 3
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_limit_interval.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_last_interval.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row_interval.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 3
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill.py -Q 3
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 3
@@ -1234,7 +1234,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/char_length.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/upper.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/lower.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join.py -Q 4
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join2.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/substr.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/union.py -Q 4
@@ -1313,15 +1313,15 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_null.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_limit_interval.py -Q 4
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_limit_interval.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_last_interval.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row_interval.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 4
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill.py -Q 4
+# migrate to new test,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -Q 2

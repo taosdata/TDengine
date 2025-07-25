@@ -11,6 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
+from new_test_framework.utils import tdLog, tdSql
 from collections import defaultdict
 import random
 import string
@@ -20,11 +21,6 @@ import time
 # import socketfrom
 
 import taos
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
 
 # class actionType(Enum):
 #     CREATE_DATABASE = 0

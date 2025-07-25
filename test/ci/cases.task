@@ -653,3 +653,40 @@
 ,,y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_checkerror8.py
 #,,y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_udf.py
 
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_query_basic.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_insert_column_value.py
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join.py -R
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join.py -Q 4
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_5.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_5.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_5.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_5.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_5.py -Q 4
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_case_when.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_case_when.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_case_when.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_case_when.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_case_when.py -Q 4
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_limit_interval.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_limit_interval.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_limit_interval.py  -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_limit_interval.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_limit_interval.py -Q 4
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill.py -Q 4
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_basic5.py
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_stop.py -N 5 -M 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_stop.py -N 5 -M 3 -I False

@@ -17,24 +17,21 @@ import time
 import taos
 import subprocess
 from faker import Faker
-from util.log import tdLog
-from util.cases import tdCases
-from util.sql import tdSql
-from util.dnodes import tdDnodes
-from util.dnodes import *
+from new_test_framework.utils import tdLog, tdSql
 
-class TDTestCase:
+
+class TestCaseWhen:
     updatecfgDict = {'maxSQLLength':1048576,'debugFlag': 143 ,"querySmaOptimize":1}
     
-    def init(self, conn, logSql, replicaVar):
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+        # tdSql.init(conn.cursor())
 
-        self.testcasePath = os.path.split(__file__)[0]
-        self.testcaseFilename = os.path.split(__file__)[-1]
-        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
+        cls.testcasePath = os.path.split(__file__)[0]
+        cls.testcaseFilename = os.path.split(__file__)[-1]
+        os.system("rm -rf %s/%s.sql" % (cls.testcasePath,cls.testcaseFilename))
         
-        self.db = "case_when"
+        cls.db = "case_when"
 
     def dropandcreateDB_random(self,database,n):
         ts = 1630000000000
@@ -343,7 +340,26 @@ class TDTestCase:
         else :
             tdLog.exit(f"checkEqual error, base_value=={base_value},check_value={check_value}") 
                             
-    def run(self):      
+    def test_case_when(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+      
         fake = Faker('zh_CN')
         fake_data =  fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1)
         fake_float = fake.pyfloat()
@@ -372,13 +388,6 @@ class TDTestCase:
 
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
-    
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

@@ -1,33 +1,26 @@
-import taos
-import sys
+from new_test_framework.utils import tdLog, tdSql
+import random
+
 import time
 import socket
 import os
 import threading
-import random
 
 from datetime import timezone, datetime
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
 
-class TDTestCase:
+class TestPrimaryTsBase:
     hostname = socket.gethostname()
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        #tdSql.init(conn.cursor())
+        #tdSql.init(conn.cursor(), logSql)
+    def case_init(self):
         self.database = 'primary_db'
-        tdSql.init(conn.cursor(), logSql)  # output sql.txt file
-        
         self.testcasePath = os.path.split(__file__)[0]
         self.testcaseFilename = os.path.split(__file__)[-1]
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
-
-
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
@@ -44,7 +37,6 @@ class TDTestCase:
                     break
         return buildPath
 
-        
     def dropandcreateDB_primary_key(self,database,once_insert_num,updata_num=1,dropdb='yes',insertdata='yes',deletedata='yes'): #fixed
         tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         self.ts = 1630000000000
@@ -109,12 +101,10 @@ class TDTestCase:
                 tdSql.execute(f'''create table {database}.stable_4_{tag_i} using {database}.stable_4 tags('stable_4_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 1 , 'binary4.{tag_i}' , 'nchar4.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ;''' )
                 tdSql.execute(f'''create table {database}.stable_5_{tag_i} using {database}.stable_5 tags('stable_5_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 0 , 'binary5.{tag_i}' , 'nchar5.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ;''' )
                 tdSql.execute(f'''create table {database}.stable_6_{tag_i} using {database}.stable_6 tags('stable_6_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 1 , 'binary6.{tag_i}' , 'nchar6.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ;''' )
-            
 
         else:
             tdSql.execute('''use %s;'''%database)
-            
-        
+
         if insertdata == 'yes':            
             for tag_i in range(1,11):
                 for column_i in range(41,51):    
@@ -191,8 +181,7 @@ class TDTestCase:
            
         else:
             tdSql.execute('''use %s;'''%database)
-            
-                    
+
         if deletedata != 'yes':     
             i = random.randint(0,4)
             if i ==0:
@@ -253,8 +242,7 @@ class TDTestCase:
             for i in table_list:
                 tdSql.query("select count(*) from {}.{};".format(database, i))
                 tdSql.checkData(0,0,60*once_insert_num)
-        
-        
+
         #delete data
         if deletedata == 'yes':            
             for tag_i in range(1,11):
@@ -428,7 +416,6 @@ class TDTestCase:
             tdLog.info(f"checkEqual success, base_value={base_value},check_value={check_value}") 
         else :
             tdLog.exit(f"checkEqual error, base_value={base_value},check_value={check_value}") 
-  
 
     def explain_sql_pass(self,sql):
         sql = "explain verbose true " + sql 
@@ -453,11 +440,8 @@ class TDTestCase:
             sql = "alter database %s cachemodel 'both' cachesize %d;"  %(database,cachesize)
             tdSql.query(sql,queryTimes=1)
 
-
-        
     def query_pk(self,database,num=1):
-        
-        
+
         self.fun_pk_interp(self.database,'interp','') 
         self.multiple_agg_groupby(self.database,1) 
         self.fun_pk_diff(self.database,'diff','') 
@@ -477,7 +461,6 @@ class TDTestCase:
         self.touying_pk_where(self.database,'distinct') 
         self.count_pk(self.database,1) 
 
-        
     def count_pk(self,db,num=1):
         stable_list = ['stable_1','stable_2','stable_3','stable_4','stable_5','stable_6']
         for i in stable_list:
@@ -596,8 +579,7 @@ class TDTestCase:
             self.explain_sql_pass(sql)
             sql = "select _wstart,count(ts) from {}.{} count_window(10)".format(db, i)
             self.explain_sql_pass(sql)
-            
-            
+
         table_list = ['regular_table_1','regular_table_2','regular_table_3','regular_table_4','regular_table_5','regular_table_6']
         for i in table_list:
             tdSql.query("select count(*) from {}.{} ".format(db, i))
@@ -685,8 +667,7 @@ class TDTestCase:
             self.explain_sql_pass(sql)
             sql = "select _wstart,count(ts) from {}.{} count_window(10)".format(db, i)
             self.explain_sql_pass(sql)
-            
-        
+
         stable_list = ['stable_1','stable_2','stable_3','stable_4','stable_5','stable_6']
         for i in stable_list:
             tdSql.query("select count(*) from {}.{} group by tbname ".format(db, i))
@@ -809,7 +790,6 @@ class TDTestCase:
             self.explain_sql_pass(sql)
             sql = "select _wstart,count(ts) from {}.{} partition by tbname count_window(10) order by _wstart ".format(db, i)
             self.explain_sql_pass(sql)
-            
 
         table_list = ['regular_table_1','regular_table_2','regular_table_3','regular_table_4','regular_table_5','regular_table_6']
         for i in table_list:
@@ -899,8 +879,7 @@ class TDTestCase:
             self.explain_sql_pass(sql)
             sql = "select _wstart,count(ts) from {}.{} partition by tbname count_window(10)".format(db, i)
             self.explain_sql_pass(sql)
- 
-            
+
     def touying_pk_1(self,db,num=1):
         stable_list = ['stable_1','stable_2','stable_3','stable_4','stable_5','stable_6']
         for i in stable_list:
@@ -990,8 +969,7 @@ class TDTestCase:
             tdSql.checkRows(10*60*num)
             tdSql.query("select (t_ts) from {}.{} ".format(db, i))
             tdSql.checkRows(10*60*num)
-            
-            
+
         table_list = ['regular_table_1','regular_table_2','regular_table_3','regular_table_4','regular_table_5','regular_table_6']
         for i in table_list:
             tdSql.query("select * from {}.{} ".format(db, i))
@@ -1050,8 +1028,7 @@ class TDTestCase:
             tdSql.checkRows(60*num)
             tdSql.query("select (tbname) from {}.{} ".format(db, i))
             tdSql.checkRows(60*num)
-    
-        
+
         stable_list = ['stable_1','stable_2','stable_3','stable_4','stable_5','stable_6']
         for i in stable_list:
             tdSql.query("select * from {}.{} partition by tbname ".format(db, i))
@@ -1141,8 +1118,7 @@ class TDTestCase:
             tdSql.checkRows(10*60*num)
             tdSql.query("select (t_ts) from {}.{} partition by tbname ".format(db, i))
             tdSql.checkRows(10*60*num)
- 
-             
+
     def touying_pk_where(self,db,replace_fun,num=1):
         stable_list = ['stable_1','stable_2','stable_3','stable_4','stable_5','stable_6']
         for i in stable_list:
@@ -1302,7 +1278,6 @@ class TDTestCase:
             tdSql.query(sql)
             tdSql.checkRows(0)
 
-
     def multiple_agg_groupby(self,db,num=1):
         #TD-29093
         stable_list = ['stable_1','stable_2','stable_3','stable_4','stable_5','stable_6']
@@ -1427,7 +1402,6 @@ class TDTestCase:
             self.explain_sql_pass(sql)
             sql = "select _wstart,count(ts),tbname,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by tbname count_window(10) order by _wstart ".format(db, i)
             self.explain_sql_pass(sql)
-            
 
         table_list = ['regular_table_1','regular_table_2','regular_table_3','regular_table_4','regular_table_5','regular_table_6']
         for i in table_list:
@@ -1641,7 +1615,6 @@ class TDTestCase:
             self.explain_sql_pass(sql)
             sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname count_window(10) order by _wstart ".format(db, i)
             self.explain_sql_pass(sql)
-            
 
         table_list = ['stable_1_1','stable_2_2','stable_3_3','stable_4_4','stable_5_5','stable_6_6']
         for i in table_list:
@@ -1855,7 +1828,6 @@ class TDTestCase:
             self.explain_sql_pass(sql)
             sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname count_window(10) order by _wstart,tbname,t_bool,t_int,t_nchar,t_float,t_ts   ".format(db, i)
             self.explain_sql_pass(sql)
-            
 
         table_list = ['stable_1_1','stable_2_2','stable_3_3','stable_4_4','stable_5_5','stable_6_6']
         for i in table_list:
@@ -2069,7 +2041,6 @@ class TDTestCase:
             self.explain_sql_pass(sql)
             sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,cast(t_bool as smallint),t_bigint+1,cast(t_binary as bigint),t_double-1,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname count_window(10) order by _wstart,tbname,t_bool,t_int,t_nchar,t_float,t_ts   ".format(db, i)
             self.explain_sql_pass(sql)
-            
 
         table_list = ['stable_1_1','stable_2_2','stable_3_3','stable_4_4','stable_5_5','stable_6_6']
         for i in table_list:
@@ -2203,8 +2174,7 @@ class TDTestCase:
             self.explain_sql_pass(sql)
             sql = "select ts_pk,{}(ts{}) from {}.{} order by ts_pk desc".format(replace_fun,replace_num,db, i)
             self.explain_sql_pass(sql)
-        
-            
+
         table_list = ['stable_1','stable_2','stable_3','stable_4','regular_table_1','regular_table_2','regular_table_3','regular_table_4']#,'stable_5','stable_6','regular_table_5','regular_table_6']
         for i in table_list:
             
@@ -2245,8 +2215,7 @@ class TDTestCase:
             sql = "select {}(ts_pk{}) from {}.{} order by ts_pk desc".format(replace_fun,replace_num,db, i)
             tdSql.query(sql)
             self.explain_sql_pass(sql)
-        
-            
+
         table_list = ['stable_1','stable_2','stable_3','stable_4','regular_table_1','regular_table_2','regular_table_3','regular_table_4']#,'stable_5','stable_6','regular_table_5','regular_table_6']
         for i in table_list:           
             sql = "select ts,{}(ts_pk{}) from {}.{} order by ts".format(replace_fun,replace_num,db, i)
@@ -2262,7 +2231,6 @@ class TDTestCase:
             sql = "select ts,{}(ts_pk{}) from {}.{} order by ts_pk desc".format(replace_fun,replace_num,db, i)
             tdSql.query(sql)
             self.explain_sql_pass(sql)
-
 
     def fun_pk_interp(self,db,replace_fun,replace_num):
         num_table_list1 = ['stable_1','stable_3','regular_table_1','regular_table_3','stable_2','stable_4','regular_table_2','regular_table_4','stable_5','regular_table_5','stable_6','regular_table_6']
@@ -2307,8 +2275,7 @@ class TDTestCase:
             self.explain_sql_pass(sql)
             sql = "select {}(cast(ts_pk{} as int)) ts_pk,_irowts,_isfilled from {}.{} range('2021-08-28 00:00:00','2032-08-28 00:00:00') every(1d) fill(LINEAR)  order by ts_pk desc".format(replace_fun,replace_num,db, i)
             self.explain_sql_pass(sql)
-        
-            
+
         table_list = ['stable_1','stable_2','stable_3','stable_4','stable_5','stable_6','regular_table_1','regular_table_2','regular_table_3','regular_table_4','regular_table_5','regular_table_6']
         for i in table_list:
             
@@ -2332,7 +2299,6 @@ class TDTestCase:
             tdSql.query(sql)
             self.explain_sql_pass(sql)
 
-        
     def fun_pk_unique(self,db,replace_fun,replace_num):
         num_table_list1 = ['stable_1','stable_3','regular_table_1','regular_table_3','stable_2','stable_4','regular_table_2','regular_table_4','stable_5','regular_table_5','stable_6','regular_table_6']
         for i in num_table_list1:
@@ -2376,8 +2342,7 @@ class TDTestCase:
             self.explain_sql_pass(sql)
             sql = "select ts_pk,{}(ts{}) from {}.{} order by ts_pk desc".format(replace_fun,replace_num,db, i)
             self.explain_sql_pass(sql)
-        
-            
+
         table_list = ['stable_1','stable_2','stable_3','stable_4','stable_5','stable_6','regular_table_1','regular_table_2','regular_table_3','regular_table_4','regular_table_5','regular_table_6']
         for i in table_list:
             
@@ -2404,7 +2369,6 @@ class TDTestCase:
             tdSql.checkData(0,0,'2021-08-28 05:33:20')
             self.explain_sql_pass(sql)
 
-        
     def fun_pk_first(self,db,replace_fun,replace_num):
         num_table_list1 = ['stable_1','stable_3','regular_table_1','regular_table_3']
         for i in num_table_list1:
@@ -2673,8 +2637,7 @@ class TDTestCase:
             tdSql.query(sql)
             tdSql.checkData(0,0,'2021-08-28 05:33:20.000')
             self.explain_sql_pass(sql)
-            
-            
+
             sql = "select _wstart,{}(ts{}) from {}.stable_0 interval(1s)".format(replace_fun,replace_num,db)
             self.explain_sql_pass(sql)
             sql = "select _wstart,{}(ts{}) from {}.stable_0 interval(1a)".format(replace_fun,replace_num,db)
@@ -2775,8 +2738,7 @@ class TDTestCase:
             tdSql.query(sql)
             tdSql.checkData(0,0,'2022-02-16 16:26:40.013')
             self.explain_sql_pass(sql)
-         
-        
+
         table_list = ['stable_4','regular_table_4']
         for i in table_list:
             sql = "select ts,{}(ts_pk{}) from {}.{} ".format(replace_fun,replace_num,db, i)
@@ -2976,8 +2938,7 @@ class TDTestCase:
             sql = "select _wstart,ts,{}(ts_pk{}) from {}.{} interval(1a)".format(replace_fun,replace_num,db, i)
             tdSql.query(sql)
             self.explain_sql_pass(sql)
-            
-            
+
             sql = "select _wstart,{}(ts{}) from {}.stable_0 interval(1s)".format(replace_fun,replace_num,db)
             self.explain_sql_pass(sql)
             sql = "select _wstart,{}(ts{}) from {}.stable_0 interval(1a)".format(replace_fun,replace_num,db)
@@ -3075,8 +3036,7 @@ class TDTestCase:
             tdSql.query(sql)
             tdSql.checkData(0,0,'2022-02-09 17:46:40.013')
             self.explain_sql_pass(sql)
-         
-        
+
         table_list = ['stable_4','regular_table_4']
         for i in table_list:
             sql = "select ts,{}(ts_pk{}) from {}.{} ".format(replace_fun,replace_num,db, i)
@@ -3166,9 +3126,7 @@ class TDTestCase:
             tdSql.query(sql)
             tdSql.checkData(0,0,'2022-07-26 09:46:40.016')
             self.explain_sql_pass(sql) 
-        
 
-                            
     def fun_pk_num_agg(self,db,replace_fun,replace_num):
         num_table_list = ['stable_1','stable_2','stable_3','stable_4','regular_table_1','regular_table_2','regular_table_3','regular_table_4']
         for i in num_table_list:
@@ -3201,9 +3159,7 @@ class TDTestCase:
             sql = "select {}(ts_pk{}) from {}.{} order by ts,ts_pk desc".format(replace_fun,replace_num,db, i)
             tdSql.query(sql)
             self.explain_sql_pass(sql)
-                
-            
-       
+
     def query_pk_fun(self,database,num=1):
         self.fun_pk_num_1(self.database,'','') 
         self.fun_pk_num_agg(self.database,'count','') 
@@ -3247,11 +3203,29 @@ class TDTestCase:
         self.fun_pk_str_1(self.database,'rtrim','') 
         self.fun_pk_str_1(self.database,'substr',',1') 
         self.fun_pk_str_1(self.database,'upper','') 
-                         
-         
-    def run(self):
-        
+
+    def test_primary_ts_base(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         startTime = time.time() 
+        self.case_init()
         self.dropandcreateDB_primary_key(self.database, 1 , 1 ,'yes','yes','no')
 
         self.query_pk(self.database,1) 
@@ -3259,9 +3233,5 @@ class TDTestCase:
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

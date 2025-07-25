@@ -1,50 +1,22 @@
+from new_test_framework.utils import tdLog, tdSql, cluster
 from ssl import ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE
 import taos
 import sys
 import time
 import os
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.dnodes import TDDnodes
-from util.dnodes import TDDnode
-from util.cluster import *
-from test import tdDnodes
-sys.path.append("./6-cluster")
-
-from clusterCommonCreate import *
-from clusterCommonCheck import *
-import time
-import socket
-import subprocess
-from multiprocessing import Process
+sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+from cluster_common_create import *
+from cluster_common_check import *
 
 
-class TDTestCase:
 
-    def init(self, conn, logSql, replicaVar=1):
+class Test5dnode3mnodeStop:
+
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        self.host = socket.gethostname()
+        #cls.host = socket.gethostname()
 
-
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files or "taosd.exe" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
-                    break
-        return buildPath
 
     def fiveDnodeThreeMnode(self,dnodenumbers,mnodeNums,restartNumber):
         tdLog.printNoPrefix("======== test case 1: ")
@@ -112,13 +84,25 @@ class TDTestCase:
         clusterComCheck.checkMnodeStatus(3)
 
 
-    def run(self):
+    def test_5dnode3mnode_stop(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+        """
         # print(self.master_dnode.cfgDict)
         self.fiveDnodeThreeMnode(dnodenumbers=5,mnodeNums=3,restartNumber=1)
 
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())
