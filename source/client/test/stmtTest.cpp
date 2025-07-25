@@ -606,5 +606,66 @@ TEST(stmtCase, errcode) {
   sql = "nsert into ? (ts, name) values (?, ?)";
   code = taos_stmt_prepare(stmt, sql, 0);
   checkError(stmt, code);
+
+  taos_stmt_close(stmt);
+  do_query(taos, "DROP DATABASE IF EXISTS stmt_testdb_4");
+  taos_close(taos);
 }
+
+// TS-6870
+TEST(stmtCase, update) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  do_query(taos, "DROP DATABASE IF EXISTS stmt_testdb_6");
+  do_query(taos, "CREATE DATABASE IF NOT EXISTS stmt_testdb_6");
+  do_query(taos, "USE stmt_testdb_6");
+  do_query(taos, "create table stmt_testdb_6.t1(ts timestamp,c1 int,c2 binary(10));");
+  do_query(taos, "insert into stmt_testdb_6.t1 values(1591060628000,1,'abc');");
+
+  TAOS_STMT *stmt = taos_stmt_init(taos);
+  ASSERT_NE(stmt, nullptr);
+  char *sql = "update stmt_testdb_6t1 set c1 = ?,c2 = ? where ts = ?";
+  int   code = taos_stmt_prepare(stmt, sql, 0);
+  checkError(stmt, code);
+
+  int32_t c1 = 10;
+  char   *c2 = "def";
+  int64_t ts = 1591060628000;
+
+  int32_t         c1_len = sizeof(c1);
+  int32_t         c2_len = 3;
+  int32_t         ts_len = sizeof(int64_t);
+  TAOS_MULTI_BIND params[3];
+  params[0].buffer_type = TSDB_DATA_TYPE_INT;
+  params[0].buffer = &c1;
+  params[0].length = &c1_len;
+  params[0].is_null = NULL;
+  params[0].num = 1;
+
+  params[1].buffer_type = TSDB_DATA_TYPE_BINARY;
+  params[1].buffer = &c2;
+  params[1].length = &c2_len;
+  params[1].is_null = NULL;
+
+  params[2].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+  params[2].buffer = &ts;
+  params[2].length = &ts_len;
+  params[2].is_null = NULL;
+  params[2].num = 1;
+
+  code = taos_stmt_bind_param_batch(stmt, params);
+  checkError(stmt, code);
+
+  code = taos_stmt_add_batch(stmt);
+  checkError(stmt, code);
+
+  code = taos_stmt_execute(stmt);
+  checkError(stmt, code);
+
+  taos_stmt_close(stmt);
+  do_query(taos, "DROP DATABASE IF EXISTS stmt_testdb_6");
+  taos_close(taos);
+}
+
 #pragma GCC diagnostic pop
