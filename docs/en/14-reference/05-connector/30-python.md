@@ -142,7 +142,7 @@ TDengine currently supports timestamp, numeric, character, boolean types, and th
 | GEOMETRY          | bytearray       |
 | VARBINARY         | bytearray       |
 | DECIMAL           | Decimal         |
-
+| BLOB              | bytearray       |
 ## Example Programs Summary
 
 | Example Program Link                                         | Example Program Content                        |
