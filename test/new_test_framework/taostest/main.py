@@ -224,4 +224,3 @@ def main(params: dict):
 
 def signal_handler(signum, frame):
     print("receive signal:", signum)
-
