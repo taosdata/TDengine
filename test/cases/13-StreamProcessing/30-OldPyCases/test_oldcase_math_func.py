@@ -87,7 +87,7 @@ class TestMathFunctionInStream:
                 if callable(getattr(math, name))
             }
             math_env["abs"] = abs  # 加入内置 abs 函数
-            # expected = eval(math_func.replace("val", str(val)))
+            math_env["round"] = round  # 加入内置 round 函数
             expected = eval(
                 math_func.replace("val", str(val)), {"__builtins__": None}, math_env
             )
