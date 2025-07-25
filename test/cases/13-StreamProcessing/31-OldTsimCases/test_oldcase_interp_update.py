@@ -1,5 +1,10 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
+from new_test_framework.utils import (
+    tdLog,
+    tdSql,
+    tdStream,
+    StreamCheckItem,
+)
 
 
 class TestStreamOldCaseInterpUpdate:
@@ -10,8 +15,7 @@ class TestStreamOldCaseInterpUpdate:
     def test_stream_oldcase_interp_update(self):
         """Stream interp update
 
-        1. basic test
-        2. out of order data
+        Validate the calculation results of the ​​interp​​ function during data updates
 
         Catalog:
             - Streams:OldTsimCases
@@ -23,9 +27,9 @@ class TestStreamOldCaseInterpUpdate:
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpUpdate.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpUpdate1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpUpdate2.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpUpdate.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpUpdate1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpUpdate2.sim
 
         """
 

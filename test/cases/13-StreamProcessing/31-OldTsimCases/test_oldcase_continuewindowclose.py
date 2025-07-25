@@ -27,8 +27,8 @@ class TestStreamOldCaseContinueWindowClose:
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/nonblockIntervalBasic.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/nonblockIntervalHistory.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/nonblockIntervalBasic.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/nonblockIntervalHistory.sim
 
         """
 

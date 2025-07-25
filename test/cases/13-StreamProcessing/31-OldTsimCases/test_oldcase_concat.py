@@ -27,10 +27,10 @@ class TestStreamOldCaseConcat:
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/udTableAndCol0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/udTableAndTag0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/udTableAndTag1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/udTableAndTag2.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/udTableAndCol0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/udTableAndTag0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/udTableAndTag1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/udTableAndTag2.sim
 
         """
 
