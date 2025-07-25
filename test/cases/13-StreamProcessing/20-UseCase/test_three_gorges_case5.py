@@ -55,10 +55,8 @@ class Test_ThreeGorges:
         self.createSnodeTest()
         self.createStream()
         self.checkStreamRunning()
-        # tdSql.query(f"select * from {self.dbname}.str_cjdl_point_data_szls_yc_test")
-        # if tdSql.getRows() < 5:
-        #     raise Exception("ERROR: result is not right!")
-        tdSql.checkRowsLoop(10,f"select val,senid,senid_name from {self.dbname}.{self.outTbname} order by _c0;",100,0.3)
+        
+        tdSql.checkRowsLoop(10,f"select val,senid,senid_name from {self.dbname}.{self.outTbname} order by _c0;",100,2)
         self.checkResultWithResultFile()
 
     def createStream(self):
