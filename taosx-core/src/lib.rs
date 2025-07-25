@@ -11,7 +11,6 @@ pub mod migrations;
 
 pub use csv::*;
 pub use legacy::*;
-pub use parquets::*;
 pub use plugins::*;
 pub use transform::Action;
 
@@ -20,7 +19,6 @@ pub mod csv;
 mod extensions;
 mod fake;
 mod legacy;
-mod parquets;
 pub mod plugins;
 pub mod s3;
 pub mod taoz;
