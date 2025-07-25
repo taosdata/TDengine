@@ -1488,6 +1488,12 @@ class TestStreamNotifyTrigger:
                 f"select _wstart, _wend, count(*), count(cbool), sum(cfloat), last(cdouble), last(cbytes),sum(cdecimal) from ct0 interval(1s);"
             )
 
+            tdSql.error(
+                f"create stream s3 period(10s) from ct0  "
+                f"notify('http://localhost:12345/notify') notify_options(notify_history) into res_ct0 as "
+                f"select _wstart, _wend, count(*), count(cbool), sum(cfloat), last(cdouble), last(cbytes),sum(cdecimal) from ct0 interval(1s);"
+            )
+
         def insert1(self):
             pass
 
