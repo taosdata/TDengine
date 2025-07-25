@@ -482,6 +482,23 @@ static int32_t stTriggerTaskParseCheckpoint(SStreamTriggerTask *pTask, uint8_t *
   QUERY_CHECK_CONDITION(decoder.pos == len, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   atomic_store_32(&pTask->checkpointVersion, ver);
 
+#if !TRIGGER_USE_HISTORY_META
+  bool startFromBound = !pTask->fillHistory && !pTask->fillHistoryFirst;
+#else
+  bool startFromBound = true;
+#endif
+  if (startFromBound) {
+    for (int32_t i = 0; i < TARRAY_SIZE(pTask->readerList); i++) {
+      SStreamTaskAddr      *pReader = TARRAY_GET_ELEM(pTask->readerList, i);
+      SSTriggerWalProgress *pProgress =
+          tSimpleHashGet(pTask->pRealtimeContext->pReaderWalProgress, &pReader->nodeId, sizeof(int32_t));
+      QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      void *px = tSimpleHashGet(pTask->pRealtimeStartVer, &pProgress->pTaskAddr->nodeId, sizeof(int32_t));
+      QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      pProgress->lastScanVer = pProgress->latestVer = *(int64_t *)px;
+    }
+  }
+
 _end:
   tDecoderClear(&decoder);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2497,32 +2514,6 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pContext->pTask;
 
-  if (!pContext->haveReadCheckpoint) {
-    stDebug("[checkpoint] read checkpoint for stream %" PRIx64, pTask->task.streamId);
-    if (atomic_load_8(&pTask->isCheckpointReady) == 1) {
-      void   *buf = NULL;
-      int64_t len = 0;
-      code = streamReadCheckPoint(pTask->task.streamId, &buf, &len);
-      if (code != TSDB_CODE_SUCCESS) {
-        taosMemoryFree(buf);
-        QUERY_CHECK_CODE(code, lino, _end);
-      }
-      code = stTriggerTaskParseCheckpoint(pTask, buf, len);
-      if (code != TSDB_CODE_SUCCESS) {
-        taosMemoryFree(buf);
-        QUERY_CHECK_CODE(code, lino, _end);
-      }
-      taosMemoryFree(buf);
-      pContext->haveReadCheckpoint = true;
-    } else {
-      // wait 1 second and retry
-      int64_t resumeTime = taosGetTimestampNs() + 1 * NANOSECOND_PER_SEC;
-      code = stTriggerTaskAddWaitSession(pTask, pContext->sessionId, pContext->periodWindow.ekey);
-      QUERY_CHECK_CODE(code, lino, _end);
-      goto _end;
-    }
-  }
-
   if (listNEles(&pContext->retryPullReqs) > 0) {
     while (listNEles(&pContext->retryPullReqs) > 0) {
       SListNode            *pNode = TD_DLIST_HEAD(&pContext->retryPullReqs);
@@ -2552,7 +2543,35 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
       }
       goto _end;
     }
+  }
 
+  if (!pContext->haveReadCheckpoint) {
+    stDebug("[checkpoint] read checkpoint for stream %" PRIx64, pTask->task.streamId);
+    if (atomic_load_8(&pTask->isCheckpointReady) == 1) {
+      void   *buf = NULL;
+      int64_t len = 0;
+      code = streamReadCheckPoint(pTask->task.streamId, &buf, &len);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosMemoryFree(buf);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      code = stTriggerTaskParseCheckpoint(pTask, buf, len);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosMemoryFree(buf);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      taosMemoryFree(buf);
+      pContext->haveReadCheckpoint = true;
+    } else {
+      // wait 1 second and retry
+      int64_t resumeTime = taosGetTimestampNs() + 1 * NANOSECOND_PER_SEC;
+      code = stTriggerTaskAddWaitSession(pTask, pContext->sessionId, pContext->periodWindow.ekey);
+      QUERY_CHECK_CODE(code, lino, _end);
+      goto _end;
+    }
+  }
+
+  if (pContext->status == STRIGGER_CONTEXT_IDLE) {
     if (taosArrayGetSize(pTask->readerList) > 0 && tSimpleHashGetSize(pTask->pRealtimeStartVer) == 0) {
       pContext->status = STRIGGER_CONTEXT_DETERMINE_BOUND;
       for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
@@ -3377,14 +3396,14 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           VTableInfo            *pInfo = TARRAY_GET_ELEM(vtableInfo.infos, i);
           SSTriggerVirTableInfo *pTable = tSimpleHashGet(pTask->pVirTableInfos, &pInfo->uid, sizeof(int64_t));
           if (pTable == NULL) {
-            ST_TASK_DLOG("found new added virtual table, gid:%" PRId64 ", uid:%" PRId64 ", ver:%" PRId64, pInfo->gId,
-                         pInfo->uid, pInfo->ver);
+            ST_TASK_DLOG("found new added virtual table, gid:%" PRId64 ", uid:%" PRId64 ", ver:%d" , pInfo->gId,
+                         pInfo->uid, pInfo->cols.version);
             code = TSDB_CODE_INTERNAL_ERROR;
             QUERY_CHECK_CODE(code, lino, _end);
           }
-          if (pTable->tbVer != pInfo->ver) {
-            ST_TASK_DLOG("virtual table version changed, gid:%" PRId64 ", uid:%" PRId64 ", ver:%" PRId64 " -> %" PRId64,
-                         pInfo->gId, pInfo->uid, pTable->tbVer, pInfo->ver);
+          if (pTable->tbVer != pInfo->cols.version) {
+            ST_TASK_DLOG("virtual table version changed, gid:%" PRId64 ", uid:%" PRId64 ", ver:%" PRId64 " -> %d",
+                         pInfo->gId, pInfo->uid, pTable->tbVer, pInfo->cols.version);
             code = TSDB_CODE_INTERNAL_ERROR;
             QUERY_CHECK_CODE(code, lino, _end);
           }
@@ -3404,7 +3423,10 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
                             TSDB_CODE_INTERNAL_ERROR);
       for (int32_t i = 0; i < nVirTables; i++) {
         VTableInfo           *pInfo = TARRAY_GET_ELEM(vtableInfo.infos, i);
-        SSTriggerVirTableInfo newInfo = {.tbGid = pInfo->gId, .tbUid = pInfo->uid, .tbVer = pInfo->ver, .vgId = vgId};
+        SSTriggerVirTableInfo newInfo = {
+            .tbGid = pInfo->gId, .tbUid = pInfo->uid, .tbVer = pInfo->cols.version, .vgId = vgId};
+        ST_TASK_DLOG("got virtual table info, gid:%" PRId64 ", uid:%" PRId64 ", ver:%d", pInfo->gId,
+                     pInfo->uid, pInfo->cols.version);
         code = tSimpleHashPut(pTask->pVirTableInfos, &newInfo.tbUid, sizeof(int64_t), &newInfo,
                               sizeof(SSTriggerVirTableInfo));
         QUERY_CHECK_CODE(code, lino, _end);

@@ -74,11 +74,11 @@ class Test_ThreeGorges:
         tdLog.info(f"insert into {self.dbname}.a0 values({base_ts + 86770001*2},1000);")
         tdSql.execute(f"insert into {self.dbname}.a0 values({base_ts + 86770001*2},1000);")
         time.sleep(3)
-        tdSql.query(f"select * from {self.dbname}.{self.outTbname}")
-        if tdSql.getRows() == 0:
-            raise Exception("ERROR:no result!")
+        # tdSql.query(f"select * from {self.dbname}.{self.outTbname}")
+        # if tdSql.getRows() == 0:
+        #     raise Exception("ERROR:no result!")
         
-        # self.checkResultWithResultFile()
+        self.checkResultWithResultFile()
 
     def createStream(self):
         tdLog.info(f"create stream :")
@@ -102,7 +102,7 @@ class Test_ThreeGorges:
         tdLog.info(f"create stream success!")
     
     def checkResultWithResultFile(self):
-        chkSql = f"select * from {self.dbname}.{self.outTbname} order by _c0;"
+        chkSql = f"select max_val,min_val,index_code,ps_code from {self.dbname}.{self.outTbname} order by index_code;"
         tdLog.info(f"check result with sql: {chkSql}")
         if tdSql.getRows() >0:
             tdCom.generate_query_result_file(self.caseName, self.resultIdx, chkSql)
