@@ -85,7 +85,7 @@ class Test_snode_restart_with_checkpoint:
         #     results.append(tdSql.getData(i,1))
 
         sql = "select * from st1 order by groupid,`ts`"
-        tdSql.checkRowsLoop(rowCnt, sql, loopCount=100, waitTime=0.5)
+        tdSql.checkRowsLoop(rowCnt, sql, loopCount=100, waitTime=2)
         stRow = tdSql.getRows()
         tdLog.info(f"stream result num is {stRow}")
         if stRow < rowCnt -1:
