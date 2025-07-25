@@ -3211,6 +3211,7 @@ int32_t msmGrpAddActionRecalc(SStmGrpCtx* pCtx, int64_t streamId, SArray* recalc
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t action = STREAM_ACT_RECALC;
+  SStmAction newAction = {0};
   
   SStmAction *pAction = taosHashGet(pCtx->actionStm, &streamId, sizeof(streamId));
   if (pAction) {
@@ -3219,7 +3220,6 @@ int32_t msmGrpAddActionRecalc(SStmGrpCtx* pCtx, int64_t streamId, SArray* recalc
 
     mstsDebug("stream append recalc action, listSize:%d, actions:%x", (int32_t)taosArrayGetSize(recalcList), pAction->actions);
   } else {
-    SStmAction newAction = {0};
     newAction.actions = action;
     newAction.recalc.recalcList = recalcList;
     
@@ -3231,6 +3231,7 @@ int32_t msmGrpAddActionRecalc(SStmGrpCtx* pCtx, int64_t streamId, SArray* recalc
 _exit:
 
   if (code) {
+    mstDestroySStmAction(&newAction);
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
 

@@ -1166,6 +1166,7 @@ int32_t mstAppendNewRecalcRange(int64_t streamId, SStmStatus *pStream, STimeWind
   int32_t code = 0;
   int32_t lino = 0;
   bool    locked = false;
+  SArray* userRecalcList = NULL;
 
   SStreamRecalcReq req = {.recalcId = 0, .start = pRange->skey, .end = pRange->ekey};
   TAOS_CHECK_EXIT(taosGetSystemUUIDU64(&req.recalcId));
@@ -1174,7 +1175,7 @@ int32_t mstAppendNewRecalcRange(int64_t streamId, SStmStatus *pStream, STimeWind
   locked = true;
   
   if (NULL == pStream->userRecalcList) {
-    SArray* userRecalcList = taosArrayInit(2, sizeof(SStreamRecalcReq));
+    userRecalcList = taosArrayInit(2, sizeof(SStreamRecalcReq));
     if (NULL == userRecalcList) {
       TAOS_CHECK_EXIT(terrno);
     }
@@ -1182,6 +1183,7 @@ int32_t mstAppendNewRecalcRange(int64_t streamId, SStmStatus *pStream, STimeWind
     TSDB_CHECK_NULL(taosArrayPush(userRecalcList, &req), code, lino, _exit, terrno);
 
     atomic_store_ptr(&pStream->userRecalcList, userRecalcList);
+    userRecalcList = NULL;    
   } else {
     TSDB_CHECK_NULL(taosArrayPush(pStream->userRecalcList, &req), code, lino, _exit, terrno);
   }
@@ -1189,6 +1191,8 @@ int32_t mstAppendNewRecalcRange(int64_t streamId, SStmStatus *pStream, STimeWind
   mstsInfo("stream recalc ID:%" PRIx64 " range:%" PRId64 " - %" PRId64 " added", req.recalcId, pRange->skey, pRange->ekey);
 
 _exit:
+
+  taosArrayDestroy(userRecalcList);
 
   if (locked) {
     taosWUnLockLatch(&pStream->userRecalcLock);
