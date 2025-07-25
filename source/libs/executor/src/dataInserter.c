@@ -2061,6 +2061,8 @@ int32_t streamDataBlocksToSubmitReq(SDataInserterHandle* pInserter, SStreamDataI
 
       return code;
     }
+    // Reset auto create table flag, just the first block need to create table
+    pInserterInfo->isAutoCreateTable = false;
   }
 
   code = submitReqToMsg(vgInfo->vgId, pReq, pMsg, msgLen);
