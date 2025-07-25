@@ -170,7 +170,7 @@ int32_t tableBuilderOpen(int64_t ts, STableBuilder **pBuilder, SBse *pBse) {
   p->blockCap = BSE_BLOCK_SIZE(pBse);
 
   code = bseMemTableCreate(&p->pMemTable, BSE_BLOCK_SIZE(pBse));
-  TSDB_CHECK_CODE(terrno, lino, _error);
+  TSDB_CHECK_CODE(code, lino, _error);
 
   p->compressType = BSE_COMPRESS_TYPE(pBse);
   TSDB_CHECK_CODE(code, lino, _error);
