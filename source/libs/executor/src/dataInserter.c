@@ -396,26 +396,26 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
     taosMemoryFree(pInserter->submitRes.pRsp);
   }
 
-  if (TSDB_CODE_TDB_TABLE_ALREADY_EXIST == code) {
-    pInserter->submitRes.code = code;
-    if (pParam->putParam != NULL && ((SStreamDataInserterInfo*)pParam->putParam)->isAutoCreateTable) {
-      pInserter->submitRes.pRsp = taosMemoryCalloc(1, sizeof(SSubmitRsp2));
-      if (NULL == pInserter->submitRes.pRsp) {
-        pInserter->submitRes.code = terrno;
-        goto _return;
-      }
+  if ((TSDB_CODE_TDB_TABLE_ALREADY_EXIST == code && pParam->putParam != NULL &&
+       ((SStreamDataInserterInfo*)pParam->putParam)->isAutoCreateTable) ||
+      TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER == code) {
+    pInserter->submitRes.code = TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
+    pInserter->submitRes.pRsp = taosMemoryCalloc(1, sizeof(SSubmitRsp2));
+    if (NULL == pInserter->submitRes.pRsp) {
+      pInserter->submitRes.code = terrno;
+      goto _return;
+    }
 
-      tDecoderInit(&coder, pMsg->pData, pMsg->len);
-      code2 = tDecodeSSubmitRsp2(&coder, pInserter->submitRes.pRsp);
-      if (code2 == TSDB_CODE_SUCCESS) {
-        code2 = checkAndSaveCreateGrpTableInfo(pInserter, (SStreamDataInserterInfo*)pParam->putParam);
-      }
-      tDestroySSubmitRsp2(pInserter->submitRes.pRsp, TSDB_MSG_FLG_DECODE);
-      taosMemoryFree(pInserter->submitRes.pRsp);
-      if (code2) {
-        pInserter->submitRes.code = code2;
-        goto _return;
-      }
+    tDecoderInit(&coder, pMsg->pData, pMsg->len);
+    code2 = tDecodeSSubmitRsp2(&coder, pInserter->submitRes.pRsp);
+    if (code2 == TSDB_CODE_SUCCESS) {
+      code2 = checkAndSaveCreateGrpTableInfo(pInserter, (SStreamDataInserterInfo*)pParam->putParam);
+    }
+    tDestroySSubmitRsp2(pInserter->submitRes.pRsp, TSDB_MSG_FLG_DECODE);
+    taosMemoryFree(pInserter->submitRes.pRsp);
+    if (code2) {
+      pInserter->submitRes.code = code2;
+      goto _return;
     }
   }
 
@@ -1545,7 +1545,7 @@ int32_t buildNormalTableCreateReq(SDataInserterHandle* pInserter, SStreamInserte
   if (NULL == tbData->pCreateTbReq) {
     goto _end;
   }
-  tbData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
+  tbData->flags |= (SUBMIT_REQ_AUTO_CREATE_TABLE | SUBMIT_REQ_SCHEMA_RES);
   tbData->pCreateTbReq->type = TSDB_NORMAL_TABLE;
   tbData->pCreateTbReq->flags |= (TD_CREATE_NORMAL_TB_IN_STREAM | TD_CREATE_IF_NOT_EXISTS);
   tbData->pCreateTbReq->uid = 0;
@@ -1743,7 +1743,7 @@ static int32_t buildStreamSubTableCreateReq(SDataInserterHandle* pInserter, SStr
     }
   }
 
-  tbData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
+  tbData->flags |= (SUBMIT_REQ_AUTO_CREATE_TABLE | SUBMIT_REQ_SCHEMA_RES);
   tbData->uid = 0;
   tbData->suid = pInsertParam->suid;
   tbData->sver = pInsertParam->sver;
