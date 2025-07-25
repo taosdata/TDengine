@@ -168,8 +168,10 @@ int32_t tableBuilderOpen(int64_t ts, STableBuilder **pBuilder, SBse *pBse) {
   p->timestamp = ts;
   memcpy(p->name, name, strlen(name));
 
-  code = bseMemTableCreate(&p->pMemTable, BSE_BLOCK_SIZE(pBse));
   p->blockCap = BSE_BLOCK_SIZE(pBse);
+
+  code = bseMemTableCreate(&p->pMemTable, BSE_BLOCK_SIZE(pBse));
+  TSDB_CHECK_CODE(code, lino, _error);
 
   p->compressType = BSE_COMPRESS_TYPE(pBse);
   TSDB_CHECK_CODE(code, lino, _error);
@@ -179,6 +181,7 @@ int32_t tableBuilderOpen(int64_t ts, STableBuilder **pBuilder, SBse *pBse) {
 
   p->pBse = pBse;
   code = tableOpenFile(path, 0, &p->pDataFile, &p->offset);
+  p->blockCap = BSE_BLOCK_SIZE(pBse);
 
   *pBuilder = p;
   p->pMemTable->pTableBuilder = p;
@@ -473,23 +476,23 @@ static void updateTableRange(SBTableMeta *pTableMeta, SArray *pMetaBlock) {
 }
 static int32_t tableBuilderClearImmuMemTable(STableBuilder *p) {
   int32_t code = 0;
-  taosThreadRwlockWrlock(&p->pBse->rwlock);
+  (void)taosThreadRwlockWrlock(&p->pBse->rwlock);
   atomic_store_8(&p->hasImmuMemTable, 0);
   bseMemTableUnRef(p->pImmuMemTable);
   p->pImmuMemTable = NULL;
 
-  taosThreadRwlockUnlock(&p->pBse->rwlock);
+  (void)taosThreadRwlockUnlock(&p->pBse->rwlock);
   return code;
 }
 static int32_t tableBuildeSwapMemTable(STableBuilder *p) {
   int32_t code = 0;
-  taosThreadRwlockWrlock(&p->pBse->rwlock);
+  (void)taosThreadRwlockWrlock(&p->pBse->rwlock);
   p->pImmuMemTable = p->pMemTable;
   p->pMemTable = NULL;
 
   atomic_store_8(&p->hasImmuMemTable, 1);
 
-  taosThreadRwlockUnlock(&p->pBse->rwlock);
+  (void)taosThreadRwlockUnlock(&p->pBse->rwlock);
   return code;
 }
 
@@ -545,24 +548,27 @@ void tableBuilderClose(STableBuilder *p, int8_t commited) {
   if (p == NULL) {
     return;
   }
-  int32_t code = 0;
 
   bseMemTableUnRef(p->pMemTable);
   bseMemTableUnRef(p->pImmuMemTable);
 
-  taosCloseFile(&p->pDataFile);
+  if (taosCloseFile(&p->pDataFile) != 0) {
+    bseError("failed to close table builder file %s since %s", p->name, tstrerror(terrno));
+  }
   taosMemoryFree(p);
 }
 
 static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, int8_t fileType, int8_t blockType,
                                    int64_t timestamp) {
   SBseSnapMeta *pSnapMeta = pBlkWrapper->data;
+
   pSnapMeta->range = range;
   pSnapMeta->fileType = fileType;
   pSnapMeta->blockType = blockType;
   pSnapMeta->timestamp = timestamp;
   return;
 }
+
 static void updateSnapshotMeta(SBlockWrapper *pBlkWrapper, SSeqRange range, int8_t fileType, int8_t blockType,
                                int64_t timestamp) {
   SBseSnapMeta *pSnapMeta = (SBseSnapMeta *)pBlkWrapper->data;
@@ -627,7 +633,6 @@ _error:
   }
   return code;
 }
-
 int32_t tableReaderLoadRawFooter(STableReader *p, SBlockWrapper *blkWrapper) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -708,7 +713,6 @@ _error:
   }
   return code;
 }
-
 void tableReaderShouldPutToCache(STableReader *p, int8_t cache) { p->putInCache = cache; }
 
 int32_t tableReaderGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *len) {
@@ -1020,7 +1024,6 @@ int32_t metaBlockDecode(SMetaBlock *pMeta, char *buf) {
   p = taosDecodeVariantI64(p, &pMeta->range.eseq);
   return p - buf;
 }
-
 int32_t metaBlockAdd(SBlock *p, SMetaBlock *pBlk) {
   int32_t  code = 0;
   uint8_t *data = (uint8_t *)p->data + p->len;
@@ -1485,7 +1488,9 @@ int32_t bseReadCurrentSnap(SBse *pBse, uint8_t **pValue, int32_t *len) {
   if (nread != sz) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
-  taosCloseFile(&fd);
+  if (taosCloseFile(&fd) != 0) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
 
   SBseSnapMeta *pMeta = (SBseSnapMeta *)(pCurrent);
   pMeta->fileType = BSE_CURRENT_SNAP;
@@ -1496,7 +1501,9 @@ int32_t bseReadCurrentSnap(SBse *pBse, uint8_t **pValue, int32_t *len) {
 _error:
   if (code != 0) {
     bseError("vgId:%d, failed to read current at line %d since %s", BSE_VGID(pBse), lino, tstrerror(code));
-    taosCloseFile(&fd);
+    if (taosCloseFile(&fd) != 0) {
+      bseError("failed to close file %s since %s", name, tstrerror(terrno));
+    }
     taosMemoryFree(pCurrent);
   }
   return code;

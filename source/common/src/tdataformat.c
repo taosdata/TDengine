@@ -513,7 +513,9 @@ static int32_t tRowBuildTupleWithBlob2(SArray *aColVal, const SRowBuildScanInfo 
                 varlen += colValArray[colValIndex].value.nData;
               } else {
                 uint64_t seq = 0;
-                tGetU64(colValArray[colValIndex].value.pData, &seq);
+                if (tGetU64(colValArray[colValIndex].value.pData, &seq) < 0) {
+                  TAOS_CHECK_RETURN(TSDB_CODE_INVALID_PARA);
+                }
                 SBlobItem item = {0};
 
                 code = tBlobSetGet(pSrcBlobSet, seq, &item);
@@ -799,7 +801,9 @@ static int32_t tRowBuildKVRowWithBlob2(SArray *aColVal, const SRowBuildScanInfo 
                 payloadSize += colValArray[colValIndex].value.nData;
               } else {
                 uint64_t seq = 0;
-                tGetU64(colValArray[colValIndex].value.pData, &seq);
+                if (tGetU64(colValArray[colValIndex].value.pData, &seq) < 0) {
+                  TAOS_CHECK_RETURN(TSDB_CODE_INVALID_PARA);
+                }
                 SBlobItem item = {0};
 
                 int32_t code = tBlobSetGet(pSrcBlobSet, seq, &item);
@@ -1258,16 +1262,14 @@ int32_t tBlobSetSize(SBlobSet *pBlobSet) {
   return taosArrayGetSize(pBlobSet->pSeqTable);
 }
 
-int32_t tBlobSetDestroy(SBlobSet *pBlobSet) {
-  if (pBlobSet == NULL) return 0;
-  int32_t code = 0;
+void tBlobSetDestroy(SBlobSet *pBlobSet) {
+  if (pBlobSet == NULL) return;
   uTrace("destroy blob row, seqTable size %p", pBlobSet);
   taosMemoryFree(pBlobSet->data);
   taosArrayDestroy(pBlobSet->pSeqTable);
   taosHashCleanup(pBlobSet->pSeqToffset);
   taosArrayDestroy(pBlobSet->pSet);
   taosMemoryFree(pBlobSet);
-  return code;
 }
 int32_t tBlobSetClear(SBlobSet *pBlobSet) {
   if (pBlobSet == NULL) return 0;
@@ -1636,7 +1638,10 @@ static int32_t tBlobSetTransferTo(SBlobSet *pSrc, SBlobSet *pDst, SColVal *pVal)
     TAOS_CHECK_GOTO(code, &lino, _error);
   } else {
     uint64_t seq = 0;
-    tGetU64(pVal->value.pData, &seq);
+    if (tGetU64(pVal->value.pData, &seq) < 0) {
+      uError("tBlobSetTransferTo: invalid blob value, seq %p", pVal->value.pData);
+      return TSDB_CODE_INVALID_PARA;
+    }
 
     SBlobItem item = {0};
     code = tBlobSetGet(pSrc, seq, &item);
@@ -1644,7 +1649,10 @@ static int32_t tBlobSetTransferTo(SBlobSet *pSrc, SBlobSet *pDst, SColVal *pVal)
 
     code = tBlobSetPush(pDst, &item, &seq, 1);
     TAOS_CHECK_GOTO(code, &lino, _error);
-    tPutU64(pVal->value.pData, seq);
+    if (tPutU64(pVal->value.pData, seq) < 0) {
+      uError("tBlobSetTransferTo: put seq %llu to colVal failed", seq);
+      return TSDB_CODE_INVALID_PARA;
+    }
   }
 
 _error:
