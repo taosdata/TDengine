@@ -1255,7 +1255,7 @@ int32_t tableReaderIterInit(int64_t timestamp, int8_t type, STableReaderIter **p
     }
 
     code = tableMetaReaderLoadMetaHandle(p->pTableReader->pMetaReader, p->pMetaHandle);
-    TSDB_CHECK_CODE(code = terrno, lino, _error);
+    TSDB_CHECK_CODE(code, lino, _error);
 
   } else {
     p->isOver = 1;

@@ -99,7 +99,7 @@ int32_t createSubTableMgt(int64_t timestamp, int32_t readOnly, STableMgt *pMgt, 
   SSubTableMgt *p = taosMemCalloc(1, sizeof(SSubTableMgt));
   if (p == NULL) {
     code = terrno;
-    TSDB_CHECK_CODE(terrno, lino, _error);
+    TSDB_CHECK_CODE(code, lino, _error);
   }
 
   if (!readOnly) {
