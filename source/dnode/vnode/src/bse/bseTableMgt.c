@@ -138,8 +138,8 @@ void destroySubTableMgt(SSubTableMgt *p) {
 int32_t bseTableMgtGet(STableMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *len) {
   if (pMgt == NULL) return 0;
 
-  int32_t code = 0;
-  int32_t lino = 0;
+  int32_t       code = 0;
+  int32_t       lino = 0;
   int32_t       readOnly = 1;
   SSubTableMgt *pSubMgt = NULL;
 
@@ -441,7 +441,7 @@ int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **p
   int32_t code = 0;
   int32_t lino = 0;
 
-  STableReader    *pReader = NULL;
+  STableReader *pReader = NULL;
 
   code = tableReaderOpen(pReaderMgt->timestamp, &pReader, pReaderMgt);
   TSDB_CHECK_CODE(code, lino, _error);
