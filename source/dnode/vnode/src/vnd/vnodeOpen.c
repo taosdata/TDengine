@@ -362,7 +362,7 @@ void vnodeDestroy(int32_t vgId, const char *path, STfs *pTfs, int32_t nodeId) {
     // we should only do this on the leader node, but it is ok to do this on all nodes
     char prefix[TSDB_FILENAME_LEN];
     snprintf(prefix, TSDB_FILENAME_LEN, "vnode%d/", vgId);
-    code = tssDeleteFileByPrefixFromDefault(prefix);
+    int32_t code = tssDeleteFileByPrefixFromDefault(prefix);
     if (code < 0) {
       vError("vgId:%d, failed to remove vnode files from shared storage since %s", vgId, tstrerror(terrno));
     } else {
