@@ -758,11 +758,22 @@ int32_t mstGetStreamStatusStr(SStreamObj* pStream, char* status, int32_t statusS
   }
 
   char tmpBuf[256];
-  if (1 == atomic_load_8(&pStatus->stopped)) {
-    STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_FAILED], statusSize);
-    snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s, Failed times: %" PRId64, tstrerror(pStatus->fatalError), pStatus->fatalRetryTimes);
-    STR_WITH_MAXSIZE_TO_VARSTR(msg, tmpBuf, msgSize);
-    goto _exit;
+  int8_t stopped = atomic_load_8(&pStatus->stopped);
+  switch (stopped) {
+    case 1:
+      STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_FAILED], statusSize);
+      snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s, Failed times: %" PRId64, tstrerror(pStatus->fatalError), pStatus->fatalRetryTimes);
+      STR_WITH_MAXSIZE_TO_VARSTR(msg, tmpBuf, msgSize);
+      goto _exit;
+      break;
+    case 4:
+      STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_FAILED], statusSize);
+      snprintf(tmpBuf, sizeof(tmpBuf), "Error: %s", tstrerror(TSDB_CODE_GRANT_STREAM_EXPIRED));
+      STR_WITH_MAXSIZE_TO_VARSTR(msg, tmpBuf, msgSize);
+      goto _exit;
+      break;
+    default:
+      break;
   }
 
   if (pStatus->triggerTask && STREAM_STATUS_RUNNING == pStatus->triggerTask->status) {
