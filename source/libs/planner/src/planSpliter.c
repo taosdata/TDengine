@@ -2143,9 +2143,6 @@ static const int32_t splitRuleNum = (sizeof(splitRuleSet) / sizeof(SSplitRule));
 
 static int32_t dumpLogicSubplan(const char* pRuleName, SLogicSubplan* pSubplan) {
   int32_t code = 0;
-  if (!tsQueryPlannerTrace) {
-    return code;
-  }
   char* pStr = NULL;
   code = nodesNodeToString((SNode*)pSubplan, false, &pStr, NULL);
   if (TSDB_CODE_SUCCESS == code) {
@@ -2170,6 +2167,7 @@ static int32_t applySplitRule(SPlanContext* pCxt, SLogicSubplan* pSubplan) {
     for (int32_t i = 0; i < splitRuleNum; ++i) {
       cxt.split = false;
       PLAN_ERR_RET(splitRuleSet[i].splitFunc(&cxt, pSubplan));
+      planInfo("splitRuleSet[%d].splitFunc return %d", i, cxt.split);
       if (cxt.split) {
         split = true;
         PLAN_ERR_RET(dumpLogicSubplan(splitRuleSet[i].pName, pSubplan));
