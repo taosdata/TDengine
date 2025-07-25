@@ -15,8 +15,7 @@ class TestStreamOldCaseState:
     def test_stream_oldcase_state(self):
         """Stream state
 
-        1. basic test
-        2. out of order data
+        Test the correctness of state windows
 
         Catalog:
             - Streams:OldTsimCases
@@ -28,8 +27,8 @@ class TestStreamOldCaseState:
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/state0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/state1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/state0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/state1.sim
 
         """
 

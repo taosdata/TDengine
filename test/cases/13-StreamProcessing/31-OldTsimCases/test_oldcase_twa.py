@@ -15,8 +15,7 @@ class TestStreamOldCaseTwa:
     def test_stream_oldcase_twa(self):
         """Stream twa
 
-        1. basic test
-        2. out of order data
+        Verify the behavior of the legacy TWA (Time-Weighted Average) function in the new streaming computation system
 
         Catalog:
             - Streams:OldTsimCases
@@ -28,12 +27,12 @@ class TestStreamOldCaseTwa:
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaError.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaFwcFill.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaFwcFillPrimaryKey.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaFwcInterval.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaFwcIntervalPrimaryKey.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaInterpFwc.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamTwaError.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamTwaFwcFill.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamTwaFwcFillPrimaryKey.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamTwaFwcInterval.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamTwaFwcIntervalPrimaryKey.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamTwaInterpFwc.sim
 
         """
 
