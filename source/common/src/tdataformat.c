@@ -3021,7 +3021,7 @@ int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t byt
     bool allValue = true;
     bool allNull = true;
     for (int32_t i = 0; i < nRows; ++i) {
-      if (!colDataIsNull_f(lengthOrbitmap, i)) {
+      if (!BMIsNull(lengthOrbitmap, i)) {
         allNull = false;
       } else {
         allValue = false;
@@ -3045,7 +3045,7 @@ int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t byt
       }
     } else {
       for (int32_t i = 0; i < nRows; ++i) {
-        if (colDataIsNull_f(lengthOrbitmap, i)) {
+        if (BMIsNull(lengthOrbitmap, i)) {
           code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
           if (code) goto _exit;
         } else {

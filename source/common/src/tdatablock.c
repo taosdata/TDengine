@@ -639,7 +639,7 @@ int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnI
             }
             i += (1 << NBIT) - 1;
           } else {
-            if (colDataIsNull_f(pSrc->nullbitmap, srcIdx + i)) {
+            if (colDataIsNull_f(pSrc, srcIdx + i)) {
               colDataSetNull_f(pDst->nullbitmap, dstIdx + i);
               pDst->hasNull = true;
             } else {
@@ -649,7 +649,7 @@ int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnI
         }
       } else {
         for (int32_t i = 0; i < numOfRows; ++i) {
-          if (colDataIsNull_f(pSrc->nullbitmap, srcIdx + i)) {
+          if (colDataIsNull_f(pSrc, srcIdx + i)) {
             colDataSetNull_f(pDst->nullbitmap, dstIdx + i);
             pDst->hasNull = true;
           } else {
@@ -1126,7 +1126,7 @@ static bool colDataIsNNull(const SColumnInfoData* pColumnInfoData, int32_t start
     }
 
     for (int32_t i = startIndex; i < nRows; ++i) {
-      if (!colDataIsNull_f(pColumnInfoData->nullbitmap, i)) {
+      if (!colDataIsNull_f(pColumnInfoData, i)) {
         return false;
       }
     }
@@ -1326,7 +1326,7 @@ static void blockDataAssign(SColumnInfoData* pCols, const SSDataBlock* pDataBloc
       }
     } else {
       for (int32_t j = 0; j < pDataBlock->info.rows; ++j) {
-        if (colDataIsNull_f(pSrc->nullbitmap, index[j])) {
+        if (colDataIsNull_f(pSrc, index[j])) {
           colDataSetNull_f_s(pDst, j);
           continue;
         }
@@ -3569,7 +3569,7 @@ int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolL
               continue;
             }
 
-            if (colDataIsNull_f(pBitmap, j)) {
+            if (BMIsNull(pBitmap, j)) {
               colDataSetNull_f(pDst->nullbitmap, numOfRows);
             } else {
               ((int64_t*)pDst->pData)[numOfRows] = ((int64_t*)pDst->pData)[j];
@@ -3586,7 +3586,7 @@ int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolL
               j += 1;
               continue;
             }
-            if (colDataIsNull_f(pBitmap, j)) {
+            if (BMIsNull(pBitmap, j)) {
               colDataSetNull_f(pDst->nullbitmap, numOfRows);
             } else {
               ((int32_t*)pDst->pData)[numOfRows] = ((int32_t*)pDst->pData)[j];
@@ -3602,7 +3602,7 @@ int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolL
               j += 1;
               continue;
             }
-            if (colDataIsNull_f(pBitmap, j)) {
+            if (BMIsNull(pBitmap, j)) {
               colDataSetNull_f(pDst->nullbitmap, numOfRows);
             } else {
               ((int16_t*)pDst->pData)[numOfRows] = ((int16_t*)pDst->pData)[j];
@@ -3619,7 +3619,7 @@ int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolL
               j += 1;
               continue;
             }
-            if (colDataIsNull_f(pBitmap, j)) {
+            if (BMIsNull(pBitmap, j)) {
               colDataSetNull_f(pDst->nullbitmap, numOfRows);
             } else {
               ((int8_t*)pDst->pData)[numOfRows] = ((int8_t*)pDst->pData)[j];
@@ -3635,7 +3635,7 @@ int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolL
               j += 1;
               continue;
             }
-            if (colDataIsNull_f(pBitmap, j)) {
+            if (BMIsNull(pBitmap, j)) {
               colDataSetNull_f(pDst->nullbitmap, numOfRows);
             } else {
               memcpy(pDst->pData + numOfRows * pDst->info.bytes, pDst->pData + j * pDst->info.bytes, pDst->info.bytes);

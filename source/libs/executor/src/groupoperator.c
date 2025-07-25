@@ -723,7 +723,7 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
           columnLen = (int32_t*)((char*)pPage + startOffset + BitmapLen(pInfo->rowCapacity));
           char* data = (char*)columnLen + sizeof(int32_t);
 
-          bool isNull = colDataIsNull_f(pColInfoData->nullbitmap, j);
+          bool isNull = colDataIsNull_f(pColInfoData, j);
           if (isNull) {
             colDataSetNull_f(bitmap, (*rows));
           } else {

@@ -743,7 +743,7 @@ int32_t vectorConvertToVarData(SSclVectorConvCtx *pCtx) {
   if (IS_SIGNED_NUMERIC_TYPE(pCtx->inType) || pCtx->inType == TSDB_DATA_TYPE_BOOL ||
       pCtx->inType == TSDB_DATA_TYPE_TIMESTAMP) {
     for (int32_t i = pCtx->startIndex; i <= pCtx->endIndex; ++i) {
-      if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+      if (colDataIsNull_f(pInputCol, i)) {
         colDataSetNULL(pOutputCol, i);
         continue;
       }
@@ -760,7 +760,7 @@ int32_t vectorConvertToVarData(SSclVectorConvCtx *pCtx) {
     }
   } else if (IS_UNSIGNED_NUMERIC_TYPE(pCtx->inType)) {
     for (int32_t i = pCtx->startIndex; i <= pCtx->endIndex; ++i) {
-      if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+      if (colDataIsNull_f(pInputCol, i)) {
         colDataSetNULL(pOutputCol, i);
         continue;
       }
@@ -777,7 +777,7 @@ int32_t vectorConvertToVarData(SSclVectorConvCtx *pCtx) {
     }
   } else if (IS_FLOAT_TYPE(pCtx->inType)) {
     for (int32_t i = pCtx->startIndex; i <= pCtx->endIndex; ++i) {
-      if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+      if (colDataIsNull_f(pInputCol, i)) {
         colDataSetNULL(pOutputCol, i);
         continue;
       }
@@ -866,7 +866,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
   switch (cCtx.outType) {
     case TSDB_DATA_TYPE_BOOL: {
       for (int32_t i = cCtx.startIndex; i <= cCtx.endIndex; ++i) {
-        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+        if (colDataIsNull_f(pInputCol, i)) {
           colDataSetNULL(pOutputCol, i);
           continue;
         }
@@ -879,7 +879,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
     }
     case TSDB_DATA_TYPE_TINYINT: {
       for (int32_t i = cCtx.startIndex; i <= cCtx.endIndex; ++i) {
-        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+        if (colDataIsNull_f(pInputCol, i)) {
           colDataSetNULL(pOutputCol, i);
           continue;
         }
@@ -892,7 +892,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
     }
     case TSDB_DATA_TYPE_SMALLINT: {
       for (int32_t i = cCtx.startIndex; i <= cCtx.endIndex; ++i) {
-        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+        if (colDataIsNull_f(pInputCol, i)) {
           colDataSetNULL(pOutputCol, i);
           continue;
         }
@@ -905,7 +905,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
     }
     case TSDB_DATA_TYPE_INT: {
       for (int32_t i = cCtx.startIndex; i <= cCtx.endIndex; ++i) {
-        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+        if (colDataIsNull_f(pInputCol, i)) {
           colDataSetNULL(pOutputCol, i);
           continue;
         }
@@ -919,7 +919,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP: {
       for (int32_t i = cCtx.startIndex; i <= cCtx.endIndex; ++i) {
-        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+        if (colDataIsNull_f(pInputCol, i)) {
           colDataSetNULL(pOutputCol, i);
           continue;
         }
@@ -932,7 +932,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
     }
     case TSDB_DATA_TYPE_UTINYINT: {
       for (int32_t i = cCtx.startIndex; i <= cCtx.endIndex; ++i) {
-        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+        if (colDataIsNull_f(pInputCol, i)) {
           colDataSetNULL(pOutputCol, i);
           continue;
         }
@@ -945,7 +945,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
     }
     case TSDB_DATA_TYPE_USMALLINT: {
       for (int32_t i = cCtx.startIndex; i <= cCtx.endIndex; ++i) {
-        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+        if (colDataIsNull_f(pInputCol, i)) {
           colDataSetNULL(pOutputCol, i);
           continue;
         }
@@ -958,7 +958,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
     }
     case TSDB_DATA_TYPE_UINT: {
       for (int32_t i = cCtx.startIndex; i <= cCtx.endIndex; ++i) {
-        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+        if (colDataIsNull_f(pInputCol, i)) {
           colDataSetNULL(pOutputCol, i);
           continue;
         }
@@ -971,7 +971,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
     }
     case TSDB_DATA_TYPE_UBIGINT: {
       for (int32_t i = cCtx.startIndex; i <= cCtx.endIndex; ++i) {
-        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+        if (colDataIsNull_f(pInputCol, i)) {
           colDataSetNULL(pOutputCol, i);
           continue;
         }
@@ -984,7 +984,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
     }
     case TSDB_DATA_TYPE_FLOAT: {
       for (int32_t i = cCtx.startIndex; i <= cCtx.endIndex; ++i) {
-        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+        if (colDataIsNull_f(pInputCol, i)) {
           colDataSetNULL(pOutputCol, i);
           continue;
         }
@@ -997,7 +997,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
     }
     case TSDB_DATA_TYPE_DOUBLE: {
       for (int32_t i = cCtx.startIndex; i <= cCtx.endIndex; ++i) {
-        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+        if (colDataIsNull_f(pInputCol, i)) {
           colDataSetNULL(pOutputCol, i);
           continue;
         }
@@ -1016,7 +1016,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
     }
     case TSDB_DATA_TYPE_DECIMAL: {
       for (int32_t i = cCtx.startIndex; i <= cCtx.endIndex; ++i) {
-        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+        if (colDataIsNull_f(pInputCol, i)) {
           colDataSetNULL(pOutputCol, i);
           continue;
         }
@@ -1863,8 +1863,8 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
         int32_t leftIndex = (i >= pLeft->numOfRows) ? 0 : i;
         int32_t rightIndex = (i >= pRight->numOfRows) ? 0 : i;
 
-        if (colDataIsNull_f(pLeft->columnData->nullbitmap, leftIndex) ||
-            colDataIsNull_f(pRight->columnData->nullbitmap, rightIndex)) {
+        if (colDataIsNull_f(pLeft->columnData, leftIndex) ||
+            colDataIsNull_f(pRight->columnData, rightIndex)) {
           pRes[i] = false;
           continue;
         }

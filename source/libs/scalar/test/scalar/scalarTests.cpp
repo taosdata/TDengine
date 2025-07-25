@@ -1526,7 +1526,7 @@ int32_t makeCalculate(void *json, void *key, int32_t rightType, void *rightData,
   }
   SColumnInfoData *column = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
 
-  if (colDataIsNull_f(column->nullbitmap, 0)) {
+  if (colDataIsNull_f(column, 0)) {
     if (DBL_MAX != exceptValue) {
       (void)printf("expect value = DBL_MAX, but got %d\n", exceptValue);
       SCL_ERR_RET(TSDB_CODE_FAILED);
