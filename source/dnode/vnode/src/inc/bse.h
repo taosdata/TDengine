@@ -33,18 +33,18 @@ enum {
 };
 
 typedef struct {
-  int32_t vgId;
-  int32_t encryptAlgorithm;
-  char    encryptKey[ENCRYPT_KEY_LEN + 1];
-  int8_t  compressType;
-  int32_t blockSize;
-  int8_t  clearUncommittedFile;
-  int64_t keepDays;
+  int32_t    vgId;
+  int32_t    encryptAlgorithm;
+  char       encryptKey[ENCRYPT_KEY_LEN + 1];
+  int8_t     compressType;
+  int32_t    blockSize;
+  int8_t     clearUncommittedFile;
+  int64_t    keepDays;
   int32_t    keeps;
   SRetention retention;  // retention in seconds, 0 means no retention
-  int8_t  precision;  // precision in seconds, 0 means no precision
-  int32_t tableCacheSize;
-  int32_t blockCacheSize;
+  int8_t     precision;  // precision in seconds, 0 means no precision
+  int32_t    tableCacheSize;
+  int32_t    blockCacheSize;
 } SBseCfg;
 
 typedef struct SBse              SBse;
