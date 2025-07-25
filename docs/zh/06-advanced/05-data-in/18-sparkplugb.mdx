@@ -62,7 +62,7 @@ TDengine 可以通过 SparkplugB 连接器从 MQTT 代理订阅数据并将其�
 
 在 **Group ID** 中填写 SparkplugB 规定的 group id 字段，通常一个 group id 代表一个集团/公司/工厂/流水线 等概念。
 
-在 **节点/设备列表** 中填写需要订阅的节点和设备的列表，以逗号分隔，其中节点直接填写 ID 即可，设备需要按照 节点ID/设备ID 格式填写。
+在 **节点/设备列表** 中填写需要订阅的节点和设备的列表，以逗号分隔，其中节点直接填写 ID 即可，设备需要按照 节点 ID/设备 ID 格式填写。
 
 在 **消息类型** 中填写需要订阅的 SparkplugB 消息类型，以逗号分隔，有 NBIRTH/NDEATH/NDATA/NCMD/DBIRTH/DDEATH/DDATA/DCMD/STATE。在订阅时，NBIRTH/NDEATH/NDATA/NCMD 类型的消息只会匹配 "节点/设备列表" 中的节点，而 DBIRTH/DDEATH/DDATA/DCMD 只会匹配 "节点/设备列表" 中的设备。
 
