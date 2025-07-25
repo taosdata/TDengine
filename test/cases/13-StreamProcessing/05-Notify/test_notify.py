@@ -1436,55 +1436,55 @@ class TestStreamNotifyTrigger:
             tdLog.info(f"=============== create stream")
             tdSql.error(
                 f"create stream s3 count_window(1) from ct0 stream_options(FILL_HISTORY) "
-                f"notify('http://localhost:12345/notify') into res_ct0 as "
+                f"notify('ws://localhost:12345/notify') into res_ct0 as "
                 f"select _wstart, _wend, count(*), count(cbool), sum(cfloat), last(cdouble), last(cbytes),sum(cdecimal) from ct0 interval(10a) "
             )
 
             tdSql.error(
                 f"create stream s3 session(ts, 20s) from ct0 stream_options(FILL_HISTORY) "
-                f"notify('http://localhost:12345/notify') into res_ct0 as "
+                f"notify('ws://localhost:12345/notify') into res_ct0 as "
                 f"select _wstart, _wend, count(*), count(cbool), sum(cfloat), last(cdouble), last(cbytes),sum(cdecimal) from ct0 interval(10a) "
             )
 
             tdSql.error(
                 f"create stream s3 state_window(cint) from ct0 stream_options(FILL_HISTORY) "
-                f"notify('http://localhost:12345/notify') into res_ct0 as "
+                f"notify('ws://localhost:12345/notify') into res_ct0 as "
                 f"select _wstart, _wend, count(*), count(cbool), sum(cfloat), last(cdouble), last(cbytes),sum(cdecimal) from ct0 interval(10a) "
             )
 
             tdSql.error(
                 f"create stream s3 event_window(start with cdouble < 4 or cdecimal >8 end with cast(cbytes as int) > 13) from ct0 stream_options(FILL_HISTORY) "
-                f"notify('http://localhost:12345/notify') into res_ct0 as "
+                f"notify('ws://localhost:12345/notify') into res_ct0 as "
                 f"select _wstart, _wend, count(*), count(cbool), sum(cfloat), last(cdouble), last(cbytes),sum(cdecimal) from ct0 interval(10a) "
             )
 
             tdSql.error(
                 f"create stream s3 event_window(start with cdouble < 4 or cdecimal >8 end with cast(cbytes as int) > 13) from ct0 stream_options(FILL_HISTORY) "
-                f"notify('http://localhost:12345/notify') on(window_both) into res_ct0 as "
+                f"notify('ws://localhost:12345/notify') on(window_both) into res_ct0 as "
                 f"select _wstart, _wend, count(*), count(cbool), sum(cfloat), last(cdouble), last(cbytes),sum(cdecimal) from ct0 interval(10a) "
             )
 
             tdSql.error(
                 f"create stream s3 period(10s) from ct0 "
-                f"notify('http://localhost:12345/notify') on(window_open|window_close|) notify_options(notify_history) into res_ct0 as "
+                f"notify('ws://localhost:12345/notify') on(window_open|window_close|) notify_options(notify_history) into res_ct0 as "
                 f"select _wstart, _wend, count(*), count(cbool), sum(cfloat), last(cdouble), last(cbytes),sum(cdecimal) from ct0 interval(1s);"
             )
 
             tdSql.error(
                 f"create stream s3 period(10s) from ct0 "
-                f"notify('http://localhost:12345/notify') on(window_open|window_close|) notify_options() into res_ct0 as "
+                f"notify('ws://localhost:12345/notify') on(window_open|window_close|) notify_options() into res_ct0 as "
                 f"select _wstart, _wend, count(*), count(cbool), sum(cfloat), last(cdouble), last(cbytes),sum(cdecimal) from ct0 interval(1s);"
             )
 
             tdSql.error(
                 f"create stream s3 period(10s) from ct0 on(window_open|window_close)  "
-                f"notify('http://localhost:12345/notify') notify_options(on_failure_pause1) into res_ct0 as "
+                f"notify('ws://localhost:12345/notify') notify_options(on_failure_pause1) into res_ct0 as "
                 f"select _wstart, _wend, count(*), count(cbool), sum(cfloat), last(cdouble), last(cbytes),sum(cdecimal) from ct0 interval(1s); "
             )
 
             tdSql.error(
                 f"create stream s3 period(10s) from ct0  "
-                f"notify('http://localhost:12345/notify') notify_options(notify_history|window_close) into res_ct0 as "
+                f"notify('ws://localhost:12345/notify') notify_options(notify_history|window_close) into res_ct0 as "
                 f"select _wstart, _wend, count(*), count(cbool), sum(cfloat), last(cdouble), last(cbytes),sum(cdecimal) from ct0 interval(1s);"
             )
 
