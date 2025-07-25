@@ -27,11 +27,11 @@ class TestStreamOldCaseBasic2:
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/pauseAndResume.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/sliding.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/tag.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/triggerInterval0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/windowClose.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/pauseAndResume.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/sliding.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/tag.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/triggerInterval0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/windowClose.sim
 
         """
 
