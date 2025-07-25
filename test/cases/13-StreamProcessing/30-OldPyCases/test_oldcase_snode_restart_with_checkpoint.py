@@ -69,13 +69,12 @@ class Test_snode_restart_with_checkpoint:
         tdDnodes = cluster.dnodes
         tdDnodes[3].stoptaosd()
         time.sleep(2)
+        os.system("unset LD_PRELOAD;kill -9 `pgrep taosBenchmark`")
+        tdLog.info("========stop insert ok========")
         tdDnodes[3].starttaosd()
         tdLog.info("========snode restart ok========")
 
-        time.sleep(10)
-        os.system("unset LD_PRELOAD;kill -9 `pgrep taosBenchmark`")
-        tdLog.info("========stop insert ok========")
-        time.sleep(2)
+        self.checkStreamRunning()
 
         tdSql.query("select _wstart,sum(voltage),groupid from meters partition by groupid interval(2s) order by groupid,_wstart",queryTimes=3)
         rowCnt = tdSql.getRows()
