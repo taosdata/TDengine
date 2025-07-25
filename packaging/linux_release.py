@@ -158,7 +158,7 @@ def build_and_install_taosx_on_linux(release_info, mode='release'):
     platform = "linux"
     arch = "amd64"
     dst_dir = os.path.join(release_dir,"bin")
-    binary_file = os.path.join(top_dir,"target","deploy","taosx")
+    binary_file = os.path.join(top_dir,"target","deploy",f"{release_info.CustomPrompt}x")
     check_directory(dst_dir)
     os.chdir(top_dir)
 
@@ -181,7 +181,7 @@ def install_taos_explorer_on_linux(release_info, mode='release'):
     logging.info("install taosx-explore under linux...")
     dst_dir = os.path.join(release_dir,"bin")
     deploy_dir = os.path.join(top_dir, "target", "deploy")
-    deploy_file = os.path.join(deploy_dir, "taos-explorer")
+    deploy_file = os.path.join(deploy_dir, f"{release_info.CustomPrompt}-explorer")
 
     check_directory(dst_dir)
     shutil.copy(deploy_file, dst_dir)
