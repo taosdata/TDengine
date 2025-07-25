@@ -730,12 +730,12 @@ int32_t bseBatchPut(SBseBatch *pBatch, int64_t *seq, uint8_t *value, int32_t len
 
   int64_t lseq = pBatch->seq;
 
-  code = bseBatchMayResize(pBatch, pBatch->len + len);
+  code = bseBatchMayResize(pBatch, pBatch->len + sizeof(int64_t) + sizeof(int32_t) + len);
   TSDB_CHECK_CODE(code, lino, _error);
 
   uint8_t *p = pBatch->buf + pBatch->len;
-  // offset += taosEncodeVariantI64((void **)&p, lseq);
-  // offset += taosEncodeVariantI32((void **)&p, len);
+  offset += taosEncodeVariantI64((void **)&p, lseq);
+  offset += taosEncodeVariantI32((void **)&p, len);
   offset += taosEncodeBinary((void **)&p, value, len);
 
   SBlockItemInfo info = {.size = offset, .seq = lseq};
@@ -771,7 +771,7 @@ int32_t bseBatchGetSize(SBseBatch *pBatch, int32_t *sz) {
 int32_t bseBatchExccedLimit(SBseBatch *pBatch) {
   if (pBatch == NULL) return 0;
   SBse *pBse = pBatch->pBse;
-  if ((pBatch->len + 128) >= BSE_BLOCK_SIZE(pBse)) {
+  if ((pBatch->len + 128) >= (BSE_BLOCK_SIZE(pBse) >> 2)) {
     return 1;
   }
   return 0;
