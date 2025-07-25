@@ -120,10 +120,10 @@ stop_taosx_agent_service(){
 
 stop_explorer_service(){
   if echo `uname` | grep -qwi "Darwin"; then
-    service=com.tdengine.taos-explorer
+    service=com.taosdata.taos-explorer
     explore_service_config=${SERVICE_CONFIG_DIR}/${service}.plist
     if [ -e "$explore_service_config" ]; then
-      ${csudo}launchctl stop ${service}
+      ${csudo}launchctl stop ${service} || :
       ${csudo}launchctl unload -w ${explore_service_config} || :
       ${csudo}launchctl remove ${service} || :
       ${csudo}rm ${explore_service_config} >/dev/null 2>&1 || :
@@ -303,10 +303,10 @@ install_explorer_only(){
     echo "install services to ${SERVICE_CONFIG_DIR}..."
 
     if echo `uname` | grep -qwi "Darwin"; then
-      if [ -f etc/launchd/com.tdengine.taos-explorer.plist ]; then
-        ${csudo}launchctl unload -w ${SERVICE_CONFIG_DIR}/com.tdengine.taos-explorer.plist
+      if [ -f etc/launchd/com.taosdata.taos-explorer.plist ]; then
+        ${csudo}launchctl unload -w ${SERVICE_CONFIG_DIR}/com.taosdata.taos-explorer.plist
         ${csudo}cp -fr etc/launchd/* ${SERVICE_CONFIG_DIR}
-        ${csudo}launchctl load -w ${SERVICE_CONFIG_DIR}/com.tdengine.taos-explorer.plist || :
+        ${csudo}launchctl load -w ${SERVICE_CONFIG_DIR}/com.taosdata.taos-explorer.plist || :
       fi
     else
       ${csudo}cp -fr etc/systemd/system/* ${SERVICE_CONFIG_DIR}
