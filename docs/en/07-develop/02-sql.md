@@ -316,11 +316,11 @@ Below are code examples of setting reqId to execute SQL in various language conn
 </TabItem>
 <TabItem label="C" value="c">
 
-```c "WebSocket Connection"
+```c title="WebSocket Connection"
 {{#include docs/examples/c-ws-new/with_reqid_demo.c:with_reqid}}
 ```
 
-```c "Native Connection"
+```c title="Native Connection"
 {{#include docs/examples/c/with_reqid_demo.c:with_reqid}}
 ```
 

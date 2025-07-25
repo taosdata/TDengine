@@ -318,11 +318,11 @@ After subscribing to a topic, consumers can start receiving and processing messa
 
 Steps for subscribing and consuming data:
 
-  1. Call the `ws_build_topic_list` function to create a topic list `topic_list`.
-  1. If `topic_list` is `NULL`, it means creation failed, and the function returns `-1`.
-  1. Use the `ws_tmq_subscribe` function to subscribe to the topic list specified by `tmq`. If the subscription fails, print an error message.
-  1. Destroy the topic list `topic_list` to free resources.
-  1. Call the `basic_consume_loop` function to start the basic consumption loop, processing the subscribed messages.
+  1. Call the `build_topic_list` function to create a topic list `topic_list`.
+  2. If `topic_list` is `NULL`, it means creation failed, and the function returns `-1`.
+  3. Use the `tmq_subscribe` function to subscribe to the topic list specified by `tmq`. If the subscription fails, print an error message.
+  4. Destroy the topic list `topic_list` to free resources.
+  5. Call the `basic_consume_loop` function to start the basic consumption loop, processing the subscribed messages.
 
 </TabItem>
 <TabItem label="REST API" value="rest">
@@ -479,12 +479,12 @@ Record this information.
 {{#include docs/examples/c-ws-new/tmq_demo.c:consume_repeatly}}
 ```
 
-1. Use the `ws_tmq_get_topic_assignment` function to obtain the assignment information for a specific topic, including the number of assignments and the details of each assignment.
-1. If fetching the assignment information fails, print an error message and return.
-1. For each assignment, use the `ws_tmq_offset_seek` function to set the consumer's offset to the earliest offset.
-1. If setting the offset fails, print an error message.
-1. Release the assignment information array to free resources.
-1. Call the `basic_consume_loop` function to start a new consumption loop and process messages.
+1. Use the `tmq_get_topic_assignment` function to obtain the assignment information for a specific topic, including the number of assignments and the details of each assignment.
+2. If fetching the assignment information fails, print an error message and return.
+3. For each assignment, use the `tmq_offset_seek` function to set the consumer's offset to the earliest offset.
+4. If setting the offset fails, print an error message.
+5. Release the assignment information array to free resources.
+6. Call the `basic_consume_loop` function to start a new consumption loop and process messages.
 
 </TabItem>
 <TabItem label="REST API" value="rest">
@@ -620,7 +620,7 @@ You can manually submit the consumption progress using the `consumer.commit` met
 {{#include docs/examples/c-ws-new/tmq_demo.c:manual_commit}}
 ```
 
-You can manually submit the consumption progress using the `ws_tmq_commit_sync` function.
+You can manually submit the consumption progress using the `tmq_commit_sync` function.
 
 </TabItem>
 <TabItem label="REST API" value="rest">
