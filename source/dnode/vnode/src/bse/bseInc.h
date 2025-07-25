@@ -91,9 +91,13 @@ typedef struct {
   int8_t  compressType;
 
   void *pCachItem;
+  uint8_t *kvBuffer;  // meta handle, used for table reader
+  int32_t  kvSize;
+  int32_t  kvCap;
 } SBlockWrapper;
 
 int32_t blockWrapperInit(SBlockWrapper *p, int32_t cap);
+int32_t blockWrapperPush(SBlockWrapper *p, int64_t seq, uint8_t *value, int32_t len);
 void    blockWrapperCleanup(SBlockWrapper *p);
 int32_t blockWrapperResize(SBlockWrapper *p, int32_t cap);
 void    blockWrapperClear(SBlockWrapper *p);

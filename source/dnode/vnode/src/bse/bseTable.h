@@ -63,6 +63,8 @@ typedef struct {
 typedef struct {
   int32_t type;
   int32_t len;
+  int32_t version;
+  int64_t offset;
   char    data[0];
 } SBlock;
 

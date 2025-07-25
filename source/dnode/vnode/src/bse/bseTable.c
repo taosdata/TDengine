@@ -90,8 +90,11 @@ static int32_t tableFlushBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapp
 static int32_t tableLoadBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBlk);
 static int32_t tableLoadRawBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBlk, int8_t checkSum);
 
+static int32_t blockWrapperSize(SBlockWrapper *p, int32_t extra);
+static int32_t blockWrapperSeek(SBlockWrapper *p, int64_t tgt, uint8_t **pValue, int32_t *len);
 /*---block formate----*/
 //---datatype--|---len---|--data---|--rawdatasize---|--compressType---|---checksum---|
+//- int8_t   |  int32_t | uint8_t[] |    int32_t     |      int8_t     |    TSCKSUM|
 #define BLOCK_ROW_SIZE_OFFSET(p)      (sizeof(SBlock) + (p)->len)
 #define BLOCK_ROW_SIZE(p)             BLOCK_ROW_SIZE_OFFSET(p)
 #define BLOCK_COMPRESS_TYPE_OFFSET(p) (BLOCK_ROW_SIZE_OFFSET(p) + sizeof(int32_t))
@@ -209,6 +212,17 @@ _error:
   bseMemTableUnRef(pMemTable);
   return code;
 }
+int32_t tableBuilderSetBlockInfo(STableMemTable *pMemTable) {
+  int32_t        code = 0;
+  SBlockWrapper *pWp = &pMemTable->pBlockWrapper;
+  SBlock        *pBlock = (SBlock *)pWp->data;
+
+  pBlock->offset = pBlock->len;
+  memcpy(pBlock->data + pBlock->len, pWp->kvBuffer, pWp->kvSize);
+  pBlock->len += pWp->kvSize;
+
+  return code;
+}
 int32_t tableBuilderFlush(STableBuilder *p, int8_t type, int8_t immutable) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -218,6 +232,9 @@ int32_t tableBuilderFlush(STableBuilder *p, int8_t type, int8_t immutable) {
 
   SBlockWrapper wrapper = {0};
   code = bseMemTableRef(pMemTable);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = tableBuilderSetBlockInfo(pMemTable);
   TSDB_CHECK_CODE(code, lino, _error);
 
   SBlock *pBlk = pMemTable->pBlockWrapper.data;
@@ -307,7 +324,9 @@ void memtableUpdateBlockRange(STableMemTable *p, SBlockItemInfo *pInfo) {
   seqRangeUpdate(&p->range, &range);
 }
 
-/*|seq len value|seq len value| seq len value| seq len value|*/
+// table block data
+// data1 data2 data3 data4 k1v1 k2v2, k3,v3 compresss size raw_size
+//|seq len value|seq len value| seq len value| seq len value|
 int32_t tableBuilderPut(STableBuilder *p, SBseBatch *pBatch) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -328,11 +347,12 @@ int32_t tableBuilderPut(STableBuilder *p, SBseBatch *pBatch) {
     }
 
     if (atomic_load_8(&p->hasImmuMemTable) ||
-        (blockEsimateSize(pBlockWrapper->data, len + pInfo->size) < tableBuilderGetBlockSize(p))) {
+        (blockWrapperSize(pBlockWrapper, len + pInfo->size + 12) < tableBuilderGetBlockSize(p))) {
       i++;
       len += pInfo->size;
       tableBuilderUpdateBlockRange(p, pInfo);
       memtableUpdateBlockRange(p->pMemTable, pInfo);
+      code = blockWrapperPush(pBlockWrapper, pInfo->seq, NULL, pInfo->size);
 
       bseTrace("start to insert  bse table builder mem %p, idx %d", p->pMemTable, i);
       continue;
@@ -344,13 +364,17 @@ int32_t tableBuilderPut(STableBuilder *p, SBseBatch *pBatch) {
       code = tableBuilderFlush(p, BSE_TABLE_DATA_TYPE, 0);
       TSDB_CHECK_CODE(code, lino, _error);
       len = 0;
+
+      code = blockWrapperPush(pBlockWrapper, pInfo->seq, NULL, pInfo->size);
+      TSDB_CHECK_CODE(code, lino, _error);
     }
   }
 
   if (offset < pBatch->len) {
     int32_t size = pBatch->len - offset;
     if (size > 0) {
-      code = blockWrapperResize(pBlockWrapper, size + BLOCK_TOTAL_SIZE((SBlock *)(pBlockWrapper->data)));
+      code = blockWrapperResize(pBlockWrapper,
+                                size + BLOCK_TOTAL_SIZE((SBlock *)(pBlockWrapper->data)) + pBlockWrapper->kvSize);
       TSDB_CHECK_CODE(code, lino, _error);
     }
 
@@ -419,7 +443,7 @@ int32_t findInMemtable(STableMemTable *p, int64_t seq, uint8_t **value, int32_t 
       code = tableBuilderSeek(p->pTableBuilder, pHandle, seq, value, len);
     }
   } else {
-    code = blockSeek(p->pBlockWrapper.data, seq, value, len);
+    code = blockWrapperSeek(&p->pBlockWrapper, seq, value, len);
   }
 _error:
   bseMemTableUnRef(p);
@@ -546,7 +570,6 @@ static void updateSnapshotMeta(SBlockWrapper *pBlkWrapper, SSeqRange range, int8
   pSnapMeta->timestamp = timestamp;
   return;
 }
-
   int32_t tableReaderLoadRawBlock(STableReader *p, SBlkHandle *pHandle, SBlockWrapper *blkWrapper) {
     int32_t code = 0;
     int32_t lino = 0;
@@ -782,6 +805,12 @@ static void updateSnapshotMeta(SBlockWrapper *pBlkWrapper, SSeqRange range, int8
 
   int32_t blockEsimateSize(SBlock *p, int32_t extra) { return BLOCK_TOTAL_SIZE(p) + extra; }
 
+  int32_t blockWrapperSize(SBlockWrapper *p, int32_t extra) {
+    if (p == NULL || p->data == NULL) {
+      return 0;
+    }
+    return p->kvSize + blockEsimateSize(p->data, extra);
+  }
   int32_t blockAppendBatch(SBlock *p, uint8_t *value, int32_t len) {
     int32_t  code = 0;
     int32_t  offset = 0;
@@ -811,7 +840,7 @@ static void updateSnapshotMeta(SBlockWrapper *pBlkWrapper, SSeqRange range, int8
     int32_t code = 0;
     int32_t offset = 0;
 
-    uint8_t *p1 = (uint8_t *)p->data;
+    uint8_t *p1 = (uint8_t *)p->data + p->offset;
     uint8_t *p2 = p1;
     while (p2 - p1 < p->len) {
       int64_t k;
@@ -819,18 +848,46 @@ static void updateSnapshotMeta(SBlockWrapper *pBlkWrapper, SSeqRange range, int8
       p2 = taosDecodeVariantI64(p2, &k);
       p2 = taosDecodeVariantI32(p2, &v);
       if (seq == k) {
-      *pValue = taosMemCalloc(1, v);
-      memcpy(*pValue, p2, v);
       *len = v;
       found = 1;
+
+      *pValue = taosMemoryCalloc(1, k);
+      memcpy(*pValue, (uint8_t *)p->data + offset, v);
       break;
       }
-      p2 += v;
+      offset += v;
     }
     if (found == 0) {
       code = TSDB_CODE_NOT_FOUND;
     }
+    return code;
+  }
 
+  int32_t blockWrapperSeek(SBlockWrapper *p, int64_t tgt, uint8_t **pValue, int32_t *len) {
+    int32_t code = 0;
+    if (p == NULL || p->data == NULL) {
+      return TSDB_CODE_NOT_FOUND;
+    }
+    int32_t  offset = 0;
+    uint8_t *p1 = p->kvBuffer;
+    uint8_t *p2 = p1;
+    while ((p2 - p1) < p->kvSize) {
+      int64_t seq = 0;
+      int32_t vlen = 0;
+      p2 = taosDecodeVariantI64(p2, &seq);
+      p2 = taosDecodeVariantI32(p2, &vlen);
+
+      if (seq == tgt) {
+      *len = vlen;
+      *pValue = taosMemoryCalloc(1, vlen);
+      if (*pValue == NULL) {
+        return terrno;
+      }
+      uint8_t *pdata = (uint8_t *)p->data + offset;
+      memcpy(*pValue, pdata, vlen);
+      return 0;
+      }
+    }
     return code;
   }
 
@@ -1152,8 +1209,35 @@ static void updateSnapshotMeta(SBlockWrapper *pBlkWrapper, SSeqRange range, int8
     if (p->data == NULL) {
       return terrno;
     }
+    p->kvBuffer = taosMemoryCalloc(1, 1024);
+    p->kvSize = 0;
+    p->kvCap = 1024;
+
+    SBlock *block = (SBlock *)p->data;
+    block->offset = 0;
+    block->version = 0;
     p->cap = cap;
     return 0;
+  }
+  int32_t blockWrapperPush(SBlockWrapper *p, int64_t seq, uint8_t *value, int32_t len) {
+    int32_t code = 0;
+    if ((p->kvSize + 12) > p->kvCap) {
+      if (p->kvCap == 0) {
+        p->kvCap = 512;
+      } else {
+        p->kvCap *= 2;
+      }
+
+      void *data = taosMemoryRealloc(p->kvBuffer, p->kvCap);
+      if (data == NULL) {
+        return terrno;
+      }
+      p->kvBuffer = data;
+    }
+    uint8_t *data = (uint8_t *)p->kvBuffer + p->kvSize;
+    p->kvSize += taosEncodeVariantI64((void **)&data, seq);
+    p->kvSize += taosEncodeVariantI32((void **)&data, len);
+    return code;
   }
 
   void blockWrapperCleanup(SBlockWrapper *p) {
@@ -1161,6 +1245,8 @@ static void updateSnapshotMeta(SBlockWrapper *pBlkWrapper, SSeqRange range, int8
       taosMemoryFree(p->data);
       p->data = NULL;
     }
+    p->kvSize = 0;
+    taosMemoryFreeClear(p->kvBuffer);
     p->cap = 0;
   }
 
@@ -1170,6 +1256,14 @@ static void updateSnapshotMeta(SBlockWrapper *pBlkWrapper, SSeqRange range, int8
     }
     dst->data = src->data;
     dst->cap = src->cap;
+
+    dst->kvBuffer = src->kvBuffer;
+    dst->kvSize = src->kvSize;
+    dst->kvCap = src->kvCap;
+
+    src->kvBuffer = NULL;
+    src->kvSize = 0;
+    src->kvCap = 0;
 
     src->data = NULL;
     src->cap = 0;
@@ -1197,7 +1291,7 @@ static void updateSnapshotMeta(SBlockWrapper *pBlkWrapper, SSeqRange range, int8
       return;
     }
     SBlock *block = (SBlock *)p->data;
-
+    p->kvSize = 0;
     p->size = 0 ;
     blockClear(block);
   }

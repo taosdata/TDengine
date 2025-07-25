@@ -558,5 +558,25 @@ TEST(bseCase, emptyNot) {
   
 #endif
 }
+TEST(bseCase, smallData) {
+  // Implement multi-threaded read/write test
+#ifdef LINUX
+  initLog();
+  SBse *bse = NULL;
+  SBseCfg cfg = {.vgId = 2};
+  taosRemoveDir("/tmp/bse");
+
+  int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
+  ASSERT_EQ(code, 0);
+
+  std::vector<int64_t> data;
+  putData(bse, 10, 10, &data);
+  bseCommit(bse);
+  
+  getData(bse, &data);
+  
+  bseClose(bse);
+#endif
+}
 
   
