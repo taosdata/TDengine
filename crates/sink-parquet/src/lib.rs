@@ -97,6 +97,7 @@ fn column_to_arrow(column: &ColumnView) -> Result<ArrayRef> {
         ColumnView::Json(v) => Arc::new(arrow::array::StringArray::from_iter(v.to_vec().iter())),
         ColumnView::VarBinary(v) => Arc::new(arrow::array::BinaryArray::from_iter(v.iter())),
         ColumnView::Geometry(v) => Arc::new(arrow::array::BinaryArray::from_iter(v.iter())),
+        ColumnView::Blob(v) => Arc::new(arrow::array::BinaryArray::from_iter(v.iter())),
         ColumnView::Decimal(v) => {
             let (precision, scale) = v.precision_and_scale();
             Arc::new(

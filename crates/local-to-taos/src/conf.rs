@@ -41,6 +41,8 @@ pub struct LocalRestoreConfig {
     pub s3_config: Option<S3Config>,
     /// 恢复成功后的操作
     pub post_action: Option<PostAction>,
+    /// 是否持续监听
+    pub watch: Option<bool>,
 }
 
 impl LocalRestoreConfig {
@@ -129,6 +131,8 @@ impl LocalRestoreConfigBuilder {
         // error.retry.interval
         let error_retry_interval = utils::parse_duration_in_dsn(&self.to, "retry_interval")?
             .unwrap_or(Duration::from_secs(5));
+        // watch
+        let watch = utils::parse_keys_in_dsn::<bool>(&self.from, &["watch"])?;
 
         // post action
         let post_action = PostAction::try_from_dsn(&self.from)?;
@@ -147,6 +151,7 @@ impl LocalRestoreConfigBuilder {
             database: self.to.subject.clone(),
             s3_config,
             post_action,
+            watch,
         })
     }
 }

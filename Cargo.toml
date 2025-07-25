@@ -200,7 +200,7 @@ archive = { path = "./crates/archive" }
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
-rev = "399d3ec9"
+rev = "b49f50d7"
 git = "https://github.com/taosdata/taos-connector-rust.git"
 default-features = false
 features = ["ws", "optin", "deadpool"]
