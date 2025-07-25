@@ -206,12 +206,12 @@ class TestStreamTriggerSession:
         # except Exception as e:
         #     tdLog.error(f"case 8 error: {e}")
         #
-        # clear_output("sm8", "tb8")
-        # self.prepare_source_table(1000, 10, info)
-        # try:
-        #     self.create_and_check_stream_basic_9("sm9", "tb9", info)
-        # except Exception as e:
-        #     tdLog.error(f"case 9 error: {e}")
+        clear_output("sm8", "tb8")
+        self.prepare_source_table(1000, 10, info)
+        try:
+            self.create_and_check_stream_basic_9("sm9", "tb9", info)
+        except Exception as e:
+            tdLog.error(f"case 9 error: {e}")
 
         # clear_output("sm9", "tb9")
         # self.prepare_source_table(1000, 10, False, info)
@@ -248,12 +248,12 @@ class TestStreamTriggerSession:
         # except Exception as e:
         #     tdLog.error(f"case 14 error: {e}")
 
-        clear_output("sm14", "tb14")
-        self.prepare_source_table(5000, 10, info)
-        try:
-            self.create_and_check_stream_basic_15("sm15", "tb15", info)
-        except Exception as e:
-            tdLog.error(f"case 15 error: {e}")
+        # clear_output("sm14", "tb14")
+        # self.prepare_source_table(5000, 10, info)
+        # try:
+        #     self.create_and_check_stream_basic_15("sm15", "tb15", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 15 error: {e}")
 
     def create_env(self):
         tdLog.info(f"create {self.num_snode} snode(s)")
@@ -435,8 +435,7 @@ class TestStreamTriggerSession:
 
 
     def create_and_check_stream_basic_9(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 9: Pass
-        """
+        """simple 9: Pass """
         time.sleep(10)
 
         tdSql.execute("use db")

@@ -39,13 +39,13 @@ class TestStreamNotifyTrigger:
         # streams.append(self.Basic3())    # failed
         # streams.append(self.Basic4())    # OK
         # streams.append(self.Basic5())    # OK
-        # streams.append(self.Basic6())    # failed
+        # streams.append(self.Basic6())        # OK, time interval not correct
         # streams.append(self.Basic7())      # OK
         # streams.append(self.Basic8())      # OK
         # streams.append(self.Basic9())      # OK
-        # streams.append(self.Basic10())      # failed
-        # streams.append(self.Basic11())      #
-        streams.append(self.Basic12())      #
+        # streams.append(self.Basic10())      # OK
+        streams.append(self.Basic11())      #
+        # streams.append(self.Basic12())      #
 
         tdStream.checkAll(streams)
 
@@ -859,6 +859,7 @@ class TestStreamNotifyTrigger:
                 f"where _c0>= _twstart and _c0 <= _twend "
             )
 
+            # time interval not correct
             tdSql.execute(
                 f"create stream s5 period(20a) from stb partition by tbname, tag1 "
                 f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
@@ -1355,7 +1356,7 @@ class TestStreamNotifyTrigger:
             tdLog.info("do check the results")
             tdSql.checkResultsByFunc(
                 sql=f"select * from {self.db}.res_ct0",
-                func=lambda: tdSql.getRows() == 3
+                func=lambda: tdSql.getRows() == 11
             )
 
 

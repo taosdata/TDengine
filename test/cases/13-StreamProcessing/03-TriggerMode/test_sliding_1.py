@@ -109,12 +109,12 @@ class TestStreamTriggerSliding:
         # except Exception as e:
         #     tdLog.error(f"case 10 error: {e}")
         #
-        # clear_output("sm10", "tb10")
-        # self.prepare_tables(10000, 10, info)
-        # try:
-        #     self.create_and_check_stream_basic_11("sm11", "tb11", info)
-        # except Exception as e:
-        #     tdLog.error(f"case 11 error: {e}")
+        clear_output("sm10", "tb10")
+        self.prepare_tables(10000, 10, info)
+        try:
+            self.create_and_check_stream_basic_11("sm11", "tb11", info)
+        except Exception as e:
+            tdLog.error(f"case 11 error: {e}")
         #
         # clear_output("sm11", "tb11")
         # self.prepare_tables(1000, 10, info)
@@ -158,12 +158,12 @@ class TestStreamTriggerSliding:
         # except Exception as e:
         #     tdLog.error(f"case 17 error: {e}")
 
-        clear_output("sm17", "tb17")
-        self.prepare_tables(100, 10, info)
-        try:
-            self.create_and_check_stream_basic_18("sm18", "tb18", info)
-        except Exception as e:
-            tdLog.error(f"case 18 error: {e}")
+        # clear_output("sm17", "tb17")
+        # self.prepare_tables(100, 10, info)
+        # try:
+        #     self.create_and_check_stream_basic_18("sm18", "tb18", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 18 error: {e}")
 
     def create_env(self):
         tdLog.info(f"create {self.num_snode} snode(s)")
@@ -465,9 +465,7 @@ class TestStreamTriggerSliding:
         # self.check_all_results(f"select count(*) from {dst_table} ", [(10000,)])
 
     def create_and_check_stream_basic_13(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 13:
-           Error: no results generated
-        """
+        """simple 13: Pass """
         tdLog.info(f"start exec stream {stream_name}")
         time.sleep(10)
         
@@ -487,7 +485,7 @@ class TestStreamTriggerSliding:
 
         wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", info.num_of_tables)
 
-        # self.check_all_results(f"select count(*) from {dst_table} ", [(10000,)])
+        check_all_results(f"select count(*) from {dst_table} where c is null and `count(*)` = 0", [[2]])
 
     def create_and_check_stream_basic_14(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 14: Pass """

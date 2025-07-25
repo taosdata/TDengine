@@ -43,8 +43,8 @@ class TestStreamStateTrigger:
         # streams.append(self.Basic7()) # fail
         # streams.append(self.Basic8()) # fail
         # streams.append(self.Basic9()) # fail
-        # streams.append(self.Basic10()) # fail
-        streams.append(self.Basic11()) #
+        streams.append(self.Basic10()) # fail
+        # streams.append(self.Basic11()) #
 
         tdStream.checkAll(streams)
 

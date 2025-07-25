@@ -48,8 +48,8 @@ class TestStreamCountTrigger:
         # streams.append(self.Basic12())  # failed
         # streams.append(self.Basic13())  # OK
         # streams.append(self.Basic14())  # OK
-        streams.append(self.Basic15())  # failed
-        # streams.append(self.Basic16())  #
+        # streams.append(self.Basic15())  # failed
+        streams.append(self.Basic16())  #
 
         tdStream.checkAll(streams)
 
