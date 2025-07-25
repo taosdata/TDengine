@@ -767,6 +767,7 @@ class TestStreamMetaTrigger:
             tdSql.execute(f"alter vtable {self.db}.vct3 set tag tbigint = 100")
             tdSql.execute(f"alter vtable {self.db}.vct4 set tag tbigint = 200")            
             tdSql.execute(f"alter vtable {self.db}.vct5 set tag tbigint = 9999")
+            time.sleep(10) # stream get schema change by 10s timer
             
             sqls = [  
                 # "insert into ct1 values ('2025-01-01 00:01:00', 3);", 
