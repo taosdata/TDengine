@@ -389,8 +389,8 @@ class TestStreamTriggerSession:
 
         check_all_results(f"select count(*) from {dst_table}", [[info.num_of_tables * info.num_of_rows]])
 
-    def create_and_check_stream_basic_9(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 9:
+    def create_and_check_stream_basic_7(self, stream_name, dst_table, info: WriteDataInfo) -> None:
+        """simple 7:
            ERROR:
         """
         time.sleep(10)
@@ -412,8 +412,8 @@ class TestStreamTriggerSession:
         check_all_results(f"select max(c) from {dst_table} group by tbname",
                           [[999], [999], [999], [999], [999], [999], [999], [999], [999], [999]])
 
-    def create_and_check_stream_basic_10(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 10:
+    def create_and_check_stream_basic_8(self, stream_name, dst_table, info: WriteDataInfo) -> None:
+        """simple 8:
            Error: recalculate failed
         """
         time.sleep(10)
@@ -434,8 +434,8 @@ class TestStreamTriggerSession:
         check_all_results(f"select count(*) from {dst_table} ", [[5000]])
 
 
-    def create_and_check_stream_basic_11(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 11: Pass
+    def create_and_check_stream_basic_9(self, stream_name, dst_table, info: WriteDataInfo) -> None:
+        """simple 9: Pass
         """
         time.sleep(10)
 
@@ -459,8 +459,8 @@ class TestStreamTriggerSession:
                            [1000, 1999, 999500], [1000, 1999, 999500],
                            [1000, 1999, 999500], [1000, 1999, 999500]])
 
-    def create_and_check_stream_basic_12(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 12: Pass
+    def create_and_check_stream_basic_10(self, stream_name, dst_table, info: WriteDataInfo) -> None:
+        """simple 10: Pass
         """
         time.sleep(10)
 
@@ -482,8 +482,8 @@ class TestStreamTriggerSession:
         wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 4)
 
 
-    def create_and_check_stream_basic_13(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 13: invalid results """
+    def create_and_check_stream_basic_11(self, stream_name, dst_table, info: WriteDataInfo) -> None:
+        """simple 11: invalid results """
         time.sleep(10)
 
         tdSql.execute("use db")
@@ -511,8 +511,8 @@ class TestStreamTriggerSession:
                           [['2025-01-01 10:10:10.500', '', 9, 5, 19]])
 
 
-    def create_and_check_stream_basic_14(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 13: invalid results """
+    def create_and_check_stream_basic_12(self, stream_name, dst_table, info: WriteDataInfo) -> None:
+        """simple 12: invalid results """
         tdSql.execute("use db")
 
         tdSql.execute("create vtable vtb_1 (ts timestamp, col_1 int from c0.k, col_2 varchar(12) from c1.c1, "
@@ -542,7 +542,7 @@ class TestStreamTriggerSession:
 
         # todo random: session interval insert 10w records.
 
-    def create_and_check_stream_basic_15(self, stream_name, dst_table, info: WriteDataInfo) -> None:
+    def create_and_check_stream_basic_13(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 13: invalid results """
         tdSql.execute("use db")
         time.sleep(3)

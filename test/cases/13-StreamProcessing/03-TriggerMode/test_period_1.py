@@ -195,12 +195,12 @@ class TestStreamCheckpoint:
         self.create_env()
         info = WriteDataInfo(1000, 10)
 
-        # self.prepare_source_table(1000, 1, info)
-        # try:
-        #     self.create_and_check_stream_basic_1("sm1", "tb1", info)
-        # except Exception as e:
-        #     tdLog.error(f"case 1 error: {e}")
-        #
+        self.prepare_source_table(1000, 1, info)
+        try:
+            self.create_and_check_stream_basic_1("sm1", "tb1", info)
+        except Exception as e:
+            tdLog.error(f"case 1 error: {e}")
+
         # clear_output("sm1", "tb1")
         # self.prepare_source_table(1000, 1, info)
         # try:

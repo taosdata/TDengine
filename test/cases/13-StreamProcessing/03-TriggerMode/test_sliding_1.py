@@ -1,8 +1,6 @@
 import threading
 import time
 
-import taos
-
 from new_test_framework.utils import tdLog, clusterComCheck, tdStream, tdSql
 from test_period_1 import wait_for_insert_complete, check_all_results, wait_for_stream_done, check_ts_step, \
     clear_output, get_conf_dir, WriteDataInfo, do_write_data_fn

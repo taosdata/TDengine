@@ -1882,7 +1882,6 @@ class TestStreamStateTrigger:
             tdSql.query(f"show tables")
             tdSql.checkRows(4)
 
-
             tdLog.info(f"=============== create stream")
             tdSql.execute(
                 f"create stream s0 state_window(cint) from ct0 "
