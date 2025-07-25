@@ -3072,6 +3072,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
     }
 
     case STRIGGER_PULL_WAL_META: {
+      ST_TASK_DLOG("got %d wal_meta_rsp", pContext->curReaderIdx);
       QUERY_CHECK_CONDITION(pContext->status == STRIGGER_CONTEXT_FETCH_META, code, lino, _end,
                             TSDB_CODE_INTERNAL_ERROR);
       SSTriggerWalProgress *pProgress = NULL;
@@ -3119,6 +3120,8 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         goto _end;
       }
 
+      ST_TASK_DLOG("wal_meta_rsp readerIdx %d", pContext->curReaderIdx);
+
       bool continueToFetch = false;
       pContext->getWalMetaThisRound = false;
       for (int32_t i = 0; i < TARRAY_SIZE(pTask->readerList); i++) {
@@ -3126,6 +3129,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         SSTriggerWalProgress *pTempProgress =
             tSimpleHashGet(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(int32_t));
         QUERY_CHECK_NULL(pTempProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        assert(TARRAY_SIZE(pTempProgress->pMetadatas) > 0);
         SSDataBlock *pBlock =
             *(SSDataBlock **)TARRAY_GET_ELEM(pTempProgress->pMetadatas, TARRAY_SIZE(pTempProgress->pMetadatas) - 1);
         int32_t nrows = blockDataGetNumOfRows(pBlock);
