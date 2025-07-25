@@ -523,6 +523,7 @@ static int32_t initDataSource(int32_t numOfSources, SExchangeInfo* pInfo, const 
       taosArrayDestroyEx(pInfo->pSourceDataInfo, freeSourceDataInfo);
       return terrno;
     }
+    qDebug("init source data info %d, pDs:%p, status:%d", i, pDs, pDs->status);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1198,6 +1199,7 @@ int32_t getCompletedSources(const SArray* pArray, int32_t* pRes) {
     SSourceDataInfo* p = taosArrayGet(pArray, k);
     QUERY_CHECK_NULL(p, code, lino, _end, terrno);
     if (p->status == EX_SOURCE_DATA_EXHAUSTED) {
+      qDebug("source %d is completed, info:%p %p", k, pArray, p);
       completed += 1;
     }
   }
