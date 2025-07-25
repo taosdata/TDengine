@@ -777,7 +777,7 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
 
 - 暂不支持按普通数据列分组的场景。
 - 暂不支持 `Geometry` 数据类型。
-- 暂不支持 `Interp`、`Percentile`、`Forcast` 和 UDF 函数。
+- 暂不支持 `Interp`、`Percentile`、`Forecast` 和 UDF 函数。
 - 暂不支持 `DELETE_OUTPUT_TABLE` 选项。
 - 暂不支持在 `NOTIFY_OPTIONS` 中使用 `ON_FAILURE_PAUSE` 选项。
 - 暂不支持在状态窗口触发中使用 `Cast` 函数。
