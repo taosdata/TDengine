@@ -1983,7 +1983,7 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
 
   STSchema* pTSchema = pInsertParam->pSchema;
   tbData.flags |= SUBMIT_REQ_SCHEMA_RES;
-  if (pInserterInfo->isAutoCreateTable) {
+  if (pInserterInfo->isAutoCreateTable && pTSchema) {
     if (pInsertParam->tbType == TSDB_NORMAL_TABLE) {
       code = buildNormalTableCreateReq(pInserter, pInsertParam, &tbData, vgInfo);
     } else if (pInsertParam->tbType == TSDB_SUPER_TABLE) {
@@ -2061,8 +2061,6 @@ int32_t streamDataBlocksToSubmitReq(SDataInserterHandle* pInserter, SStreamDataI
 
       return code;
     }
-    // Reset auto create table flag, just the first block need to create table
-    pInserterInfo->isAutoCreateTable = false;
   }
 
   code = submitReqToMsg(vgInfo->vgId, pReq, pMsg, msgLen);
