@@ -1650,7 +1650,7 @@ static int32_t tBlobSetTransferTo(SBlobSet *pSrc, SBlobSet *pDst, SColVal *pVal)
     code = tBlobSetPush(pDst, &item, &seq, 1);
     TAOS_CHECK_GOTO(code, &lino, _error);
     if (tPutU64(pVal->value.pData, seq) < 0) {
-      uError("tBlobSetTransferTo: put seq %llu to colVal failed", seq);
+      uError("tBlobSetTransferTo: put seq to colVal failed");
       return TSDB_CODE_INVALID_PARA;
     }
   }
