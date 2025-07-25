@@ -38,7 +38,7 @@ class TestStreamMetaTrigger:
         # streams.append(self.Basic2())  # tag过滤时，修改tag的值，从满足流条件，到不满足流条件; 从不满足流条件，到满足流条件 [fail]       
         
         # TD-36750 [流计算开发阶段] 虚拟表+删除pre_filter(cbigint >=1)中cbigint列后，应该没有符合条件的数据了，不会触发计算窗口
-        # streams.append(self.Basic3())  # [fail]
+        streams.append(self.Basic3())  # [ok]
         
         streams.append(self.Basic4())  # [ok]
         streams.append(self.Basic5())  # [ok] 
@@ -1044,6 +1044,7 @@ class TestStreamMetaTrigger:
             tdSql.execute(f"alter vtable {self.db}.{self.vntbName} add column cdouble double")
             tdSql.execute(f"alter vtable {self.db}.{self.vntbName} drop column cbigint")
             tdSql.execute(f"alter vtable {self.db}.{self.vntbName} drop column cfloat")
+            time.sleep(10) # stream get schema change by 10s timer
             
             sqls = [
                 "insert into ct1 (cts, cint, cbigint, cfloat) values ('2025-01-01 00:01:05', 3,3,3);", 
@@ -1074,7 +1075,6 @@ class TestStreamMetaTrigger:
                 # f"insert into {self.ntbName} (cts, cint, cdouble) values ('2025-01-01 00:01:20', 3,4);", 
             ]
             tdSql.executes(sqls)
-            time.sleep(3)
 
         def check2(self):
 
