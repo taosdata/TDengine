@@ -48,8 +48,8 @@ class TestStreamCountTrigger:
         # streams.append(self.Basic12())  # failed
         # streams.append(self.Basic13())  # OK
         # streams.append(self.Basic14())  # OK
-        # streams.append(self.Basic15())  # OK
-        streams.append(self.Basic16())  #
+        streams.append(self.Basic15())  # failed
+        # streams.append(self.Basic16())  #
 
         tdStream.checkAll(streams)
 
@@ -3022,7 +3022,6 @@ class TestStreamCountTrigger:
                 f"select _twstart ts, first(_c0), last_row(_c0), _twduration, count(cint), sum(cint) "
                 f"from stb where _c0 >= _twstart and _c0 <= _twend "
             )
-
 
             # tdSql.execute(
             #     f"create stream s14_0 count_window(20, 11111111111111111111) from stb partition by tbname into res_vstb as "

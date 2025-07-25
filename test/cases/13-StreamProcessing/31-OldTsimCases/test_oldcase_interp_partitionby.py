@@ -1,5 +1,10 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
+from new_test_framework.utils import (
+    tdLog,
+    tdSql,
+    tdStream,
+    StreamCheckItem,
+)
 
 
 class TestStreamOldCaseInterpPartitionBy:
@@ -10,8 +15,7 @@ class TestStreamOldCaseInterpPartitionBy:
     def test_stream_oldcase_interp_partitionby(self):
         """Stream interp partition by
 
-        1. basic test
-        2. out of order data
+        Validate the calculation results of the ​​interp​​ function under ​​PARTITION BY​​ clauses
 
         Catalog:
             - Streams:OldTsimCases
@@ -23,8 +27,8 @@ class TestStreamOldCaseInterpPartitionBy:
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPartitionBy0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPartitionBy1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpPartitionBy0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpPartitionBy1.sim
 
         """
 

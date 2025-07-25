@@ -372,9 +372,10 @@ static int32_t stTriggerTaskGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *bu
 
   code = tEncodeI32(&encoder, ver);  // version
   QUERY_CHECK_CODE(code, lino, _end);
-  code = tEncodeI32(&encoder, STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION);
-  QUERY_CHECK_CODE(code, lino, _end);
   code = tEncodeI64(&encoder, pTask->task.streamId);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  code = tEncodeI32(&encoder, STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION);
   QUERY_CHECK_CODE(code, lino, _end);
 
   code = tEncodeI32(&encoder, tSimpleHashGetSize(pTask->pRealtimeStartVer));
@@ -436,14 +437,14 @@ static int32_t stTriggerTaskParseCheckpoint(SStreamTriggerTask *pTask, uint8_t *
 
   code = tDecodeI32(&decoder, &ver);
   QUERY_CHECK_CODE(code, lino, _end);
-  code = tDecodeI32(&decoder, &formatVer);
-  QUERY_CHECK_CODE(code, lino, _end);
-  QUERY_CHECK_CONDITION(formatVer == STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION, code, lino, _end,
-                        TSDB_CODE_INVALID_PARA);
   code = tDecodeI64(&decoder, &streamId);
   QUERY_CHECK_CODE(code, lino, _end);
   QUERY_CHECK_CONDITION(streamId == pTask->task.streamId, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
+  code = tDecodeI32(&decoder, &formatVer);
+  QUERY_CHECK_CODE(code, lino, _end);
+  QUERY_CHECK_CONDITION(formatVer == STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION, code, lino, _end,
+                        TSDB_CODE_INVALID_PARA);
   int32_t nVgroups = 0;
   code = tDecodeI32(&decoder, &nVgroups);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -2396,7 +2397,14 @@ static int32_t stRealtimeContextRetryPullRequest(SSTriggerRealtimeContext *pCont
   QUERY_CHECK_NULL(pReq, code, lino, _end, TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_CONDITION(*(SSTriggerPullRequest **)pNode->data == pReq, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
-  for (int32_t i = 0; i < TARRAY_SIZE(pTask->readerList); i++) {
+  for (int32_t i = 0; i < taosArrayGetSize(pTask->virtReaderList); i++) {
+    SStreamTaskAddr *pTempReader = TARRAY_GET_ELEM(pTask->virtReaderList, i);
+    if (pTempReader->taskId == pReq->readerTaskId) {
+      pReader = pTempReader;
+      break;
+    }
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(pTask->readerList); i++) {
     SStreamTaskAddr *pTempReader = TARRAY_GET_ELEM(pTask->readerList, i);
     if (pTempReader->taskId == pReq->readerTaskId) {
       pReader = pTempReader;
@@ -4907,7 +4915,8 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SArra
 
         if (pTypes[i] == WAL_DELETE_DATA) {
           // shrink the range of existing metas for delete metadata
-          for (int32_t j = 0; j < TARRAY_SIZE(pTableMeta->pMetas); j++) {
+          int32_t nMetas = TARRAY_SIZE(pTableMeta->pMetas);
+          for (int32_t j = 0; j < nMetas; j++) {
             SSTriggerMetaData *pMeta = TARRAY_GET_ELEM(pTableMeta->pMetas, j);
             if (pMeta->skey > pMeta->ekey || pMeta->skey > pEkeys[i] || pMeta->ekey < pSkeys[i]) {
               continue;
@@ -4918,12 +4927,14 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SArra
               pMeta->ekey = pSkeys[i] - 1;
               SET_TRIGGER_META_EKEY_INACCURATE(pMeta);
             } else {
-              SSTriggerMetaData *pNewMeta = taosArrayPush(pTableMeta->pMetas, pMeta);
-              QUERY_CHECK_NULL(pNewMeta, code, lino, _end, terrno);
+              SSTriggerMetaData newMeta = *pMeta;
+              newMeta.skey = pEkeys[i] + 1;
+              SET_TRIGGER_META_SKEY_INACCURATE(&newMeta);
               pMeta->ekey = pSkeys[i] - 1;
               SET_TRIGGER_META_EKEY_INACCURATE(pMeta);
-              pNewMeta->skey = pEkeys[i] + 1;
-              SET_TRIGGER_META_SKEY_INACCURATE(pNewMeta);
+              void *px = taosArrayPush(pTableMeta->pMetas, &newMeta);
+              QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+              continue;
             }
             if (pMeta->skey > pMeta->ekey) {
               // set the range of invalid metadata to INT64_MAX, so they will be sorted to the end

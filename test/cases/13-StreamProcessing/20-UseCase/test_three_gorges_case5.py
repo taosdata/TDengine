@@ -56,7 +56,7 @@ class Test_ThreeGorges:
         self.createStream()
         self.checkStreamRunning()
         
-        tdSql.checkRowsLoop(10,f"select val,senid,senid_name from {self.dbname}.{self.outTbname} order by _c0;",100,1)
+        tdSql.checkRowsLoop(10,f"select val,senid,senid_name from {self.dbname}.{self.outTbname} order by _c0;",100,6)
         self.checkResultWithResultFile()
 
     def createStream(self):

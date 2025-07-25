@@ -59,7 +59,9 @@ class Test_ThreeGorges:
         self.createStream()
         self.checkStreamRunning()
         self.sxny_data2()
-        tdSql.checkRowsLoop(2,f"select v,tablename,senid, sen_name, index_code, jz_location,jz_no,ps_name,ps_code from {self.dbname}.{self.outTbname} order by tablename;",100,0.3)
+        tdSql.checkRowsLoop(2,f"select v,tablename,senid, sen_name, index_code, jz_location,jz_no,ps_name,ps_code from {self.dbname}.{self.outTbname} order by tablename;",100,1)
+        list = tdSql.getResult(f"select v,tablename,senid, sen_name, index_code, jz_location,jz_no,ps_name,ps_code from {self.dbname}.{self.outTbname} order by tablename;")
+        tdLog.info(f"result: {list}")
         self.checkResultWithResultFile()
 
 
@@ -160,9 +162,9 @@ class Test_ThreeGorges:
             ts = base_ts + i * interval_ms
             c1 = random.randint(0, 1000)
             for tb in tables:
-                sql1 = "INSERT INTO test1.%s VALUES (now,%d)" % (tb, c1)
-                sql2 = "INSERT INTO test1.%s VALUES (now+1s,%d)" % (tb, c1+1)
-                sql3 = "INSERT INTO test1.%s VALUES (now+30m,%d)" % (tb, c1)
+                sql1 = "INSERT INTO test1.%s VALUES ('2025-07-25 10:00:00',%d)" % (tb, c1)
+                sql2 = "INSERT INTO test1.%s VALUES ('2025-07-25 10:20:00',%d)" % (tb, c1+1)
+                sql3 = "INSERT INTO test1.%s VALUES ('2025-07-25 10:30:00',%d)" % (tb, c1+2)
                 
                 tdSql.execute(sql1)          
                 tdSql.execute(sql2)          

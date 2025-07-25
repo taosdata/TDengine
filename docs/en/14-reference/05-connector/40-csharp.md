@@ -25,6 +25,7 @@ import RequestId from "../../assets/resources/_request_id.mdx";
 
 | Connector Version | Major Changes                                              | TDengine Version   |
 |-------------------|------------------------------------------------------------|--------------------|
+| 3.1.7             | Support IPv6 connections and DECIMAL data type.            | 3.3.6.0 and higher |
 | 3.1.6             | Optimize WebSocket connection message handling.            | -                  |
 | 3.1.5             | Fix WebSocket encoding error for Chinese character length. | -                  |
 | 3.1.4             | Improved WebSocket query and insert performance.           | 3.3.2.0 and higher |
