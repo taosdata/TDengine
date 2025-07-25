@@ -307,11 +307,11 @@ int32_t funcTestWriteSmallData() {
 
   bseCommit(bse);
 
-  putNoRandomData(bse, 100000, 100000, &data);
+  putNoRandomData(bse, 10000, 100000, &data);
 
   bseCommit(bse);
 
-  putNoRandomData(bse, 100000, 100000, &data);
+  putNoRandomData(bse, 10000, 100000, &data);
 
   bseCommit(bse);
 

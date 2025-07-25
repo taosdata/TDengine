@@ -354,7 +354,9 @@ int32_t tableBuilderPut(STableBuilder *p, SBseBatch *pBatch) {
       len += pInfo->size;
       tableBuilderUpdateBlockRange(p, pInfo);
       memtableUpdateBlockRange(p->pMemTable, pInfo);
+
       code = blockWrapperPushMeta(pBlockWrapper, pInfo->seq, NULL, pInfo->size);
+      TSDB_CHECK_CODE(code, lino, _error);
 
       bseTrace("start to insert  bse table builder mem %p, idx %d", p->pMemTable, i);
       continue;
@@ -367,8 +369,8 @@ int32_t tableBuilderPut(STableBuilder *p, SBseBatch *pBatch) {
       TSDB_CHECK_CODE(code, lino, _error);
       len = 0;
 
-      code = blockWrapperPushMeta(pBlockWrapper, pInfo->seq, NULL, pInfo->size);
-      TSDB_CHECK_CODE(code, lino, _error);
+      // code = blockWrapperPushMeta(pBlockWrapper, pInfo->seq, NULL, pInfo->size);
+      // TSDB_CHECK_CODE(code, lino, _error);
     }
   }
 
@@ -849,17 +851,17 @@ int32_t blockSeek(SBlock *p, int64_t seq, uint8_t **pValue, int32_t *len) {
   int32_t code = 0;
   int32_t offset = 0;
 
-  uint8_t *p1 = (uint8_t *)p->data + p->offset;
-  uint8_t *p2 = p1;
+  uint8_t *p1 = (uint8_t *)p->data;
+  uint8_t *p2 = p1 + p->offset;
   while (p2 - p1 < p->len) {
     int64_t k;
     int32_t v;
     p2 = taosDecodeVariantI64(p2, &k);
     p2 = taosDecodeVariantI32(p2, &v);
+
     if (seq == k) {
       *len = v;
       found = 1;
-
       *pValue = taosMemoryCalloc(1, v);
       memcpy(*pValue, (uint8_t *)p->data + offset, v);
       break;
