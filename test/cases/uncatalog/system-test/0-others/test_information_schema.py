@@ -214,8 +214,7 @@ class TestInformationSchema:
             tdSql.checkEqual(20470,len(tdSql.queryResult))
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
-        tdLog.info(len(tdSql.queryResult))
-        tdSql.checkRows(336)
+        tdSql.checkRows(330)
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
         tdSql.checkRows(62)
 

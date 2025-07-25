@@ -482,6 +482,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_topic.py
 #,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_params.py
 #,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_params.py -R
+,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_force_drop_topic.py
 ## 03-WebSocket
 ## 04-MQTT
 ,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_smoking.py
