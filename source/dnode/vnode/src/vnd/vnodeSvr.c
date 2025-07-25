@@ -2241,7 +2241,7 @@ static void addExistTableInfoIntoRes(SVnode *pVnode, SSubmitReq2 *pRequest, SSub
   if ((pTbData->flags & SUBMIT_REQ_SCHEMA_RES) == 0) {
     return;
   }
-  if (pRequest->aSubmitTbData) {  // If aSubmitTbData is not NULL, it means that the request is a create table request,
+  if (pResponse->aCreateTbRsp) {  // If aSubmitTbData is not NULL, it means that the request is a create table request,
                                   // so table info has exitst and we do not need to add again.
     return;
   }
