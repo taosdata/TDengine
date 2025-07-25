@@ -84,6 +84,7 @@ static void streamConcurrentlyLoadRemoteData(SOperatorInfo* pOperator, SExchange
     T_LONG_JMP(pTaskInfo->env, code);
   }
   if (completed == totalSources) {
+    qDebug("%s setAllSourcesCompleted1 %p ", GET_TASKID(pTaskInfo), pOperator);
     setAllSourcesCompleted(pOperator);
     return;
   }
@@ -92,6 +93,7 @@ static void streamConcurrentlyLoadRemoteData(SOperatorInfo* pOperator, SExchange
 
   while (1) {
     if (pExchangeInfo->current < 0) {
+      qDebug("%s setAllSourcesCompleted2 %p", GET_TASKID(pTaskInfo), pOperator);
       setAllSourcesCompleted(pOperator);
       return;
     }
@@ -104,6 +106,7 @@ static void streamConcurrentlyLoadRemoteData(SOperatorInfo* pOperator, SExchange
         T_LONG_JMP(pTaskInfo->env, code);
       }
       if (completed == totalSources) {
+        qDebug("%s setAllSourcesCompleted3 %p", GET_TASKID(pTaskInfo), pOperator);
         setAllSourcesCompleted(pOperator);
         return;
       }
@@ -425,7 +428,7 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
       qDebug("block with rows:%" PRId64 " loaded", p->info.rows);
       return p;
     }
-  }
+}
 }
 
 static int32_t loadRemoteDataNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
@@ -677,7 +680,7 @@ int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNo
   code = filterInitFromNode((SNode*)pExNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
                             pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _error);
-
+  qError("%s exchange op:%p", __func__, pOperator);
   pOperator->fpSet = createOperatorFpSet(prepareLoadRemoteData, loadRemoteDataNext, NULL, destroyExchangeOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorResetStateFn(pOperator, resetExchangeOperState);
