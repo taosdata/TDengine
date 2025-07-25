@@ -88,7 +88,7 @@ static int32_t stmtCreateRequest(STscStmt* pStmt) {
     }
     if (TSDB_CODE_SUCCESS == code) {
       pStmt->exec.pRequest->syncQuery = true;
-      pStmt->exec.pRequest->isStmtBind = true;
+      pStmt->exec.pRequest->stmtBindVersion = 1;
     }
   }
 
@@ -348,6 +348,7 @@ int32_t stmtParseSql(STscStmt* pStmt) {
   };
 
   STMT_ERR_RET(stmtCreateRequest(pStmt));
+  pStmt->exec.pRequest->stmtBindVersion = 1;
 
   pStmt->stat.parseSqlNum++;
   STMT_ERR_RET(parseSql(pStmt->exec.pRequest, false, &pStmt->sql.pQuery, &stmtCb));
@@ -770,7 +771,7 @@ int32_t stmtAsyncOutput(STscStmt* pStmt, void* param) {
     atomic_store_8((int8_t*)&pStmt->sql.siInfo.tableColsReady, true);
   } else {
     STMT_ERR_RET(qAppendStmtTableOutput(pStmt->sql.pQuery, pStmt->sql.pVgHash, &pParam->tblData, pStmt->exec.pCurrBlock,
-                                        &pStmt->sql.siInfo, NULL));
+                                        &pStmt->sql.siInfo));
 
     // taosMemoryFree(pParam->pTbData);
 

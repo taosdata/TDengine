@@ -28,6 +28,8 @@ class TestStreamMetaTrigger:
         """
 
         tdStream.createSnode()
+        tdSql.execute(f"alter all dnodes 'debugflag 131';")
+        tdSql.execute(f"alter all dnodes 'stdebugflag 131';")
 
         streams = []
         streams.append(self.Basic0())  # [ok] add ctb and drop ctb from stb 

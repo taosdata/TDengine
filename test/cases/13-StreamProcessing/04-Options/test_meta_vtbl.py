@@ -28,13 +28,12 @@ class TestStreamMetaTrigger:
         """
 
         tdStream.createSnode()
+        tdSql.execute(f"alter all dnodes 'debugflag 131';")
+        tdSql.execute(f"alter all dnodes 'stdebugflag 131';")
 
         streams = []
-        # TD-36727 [流计算开发阶段] 创建流之后增加新的虚拟子表，没有预期触发生成结果表
-        # streams.append(self.Basic0())  # add ctb and drop ctb from stb [fail]
-        
-        # TD-36984 [流计算开发阶段] 虚拟表触发多出一个没有的窗口
-        # streams.append(self.Basic1())  # drop data source table [fail]
+        streams.append(self.Basic0())  # [ok] add ctb and drop ctb from stb
+        streams.append(self.Basic1())  # [ok] drop data source table
         
         # streams.append(self.Basic2())  # tag过滤时，修改tag的值，从满足流条件，到不满足流条件; 从不满足流条件，到满足流条件 [fail]       
         
@@ -328,7 +327,7 @@ class TestStreamMetaTrigger:
             tdSql.execute(f"create vtable vct2 (cint from {self.db}.ct2.cint) using {self.db}.{self.vstbName} tags(2)")
             tdSql.execute(f"create vtable vct3 (cint from {self.db}.ct3.cint) using {self.db}.{self.vstbName} tags(3)")
             tdSql.execute(f"create vtable vct4 (cint from {self.db}.ct4.cint) using {self.db}.{self.vstbName} tags(3)")  
-            tdSql.execute(f"create vtable vct5 (cint from {self.db}.ct1.cint) using {self.db}.{self.vstbName} tags(3)")
+            tdSql.execute(f"create vtable vct5 (cint from {self.db}.ct5.cint) using {self.db}.{self.vstbName} tags(3)")
 
             tdSql.execute(
                 f"create stream s1_g state_window(cint) from {self.vstbName} partition by tbname, tint stream_options(force_output | pre_filter(tint=3)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (startts, firstts, lastts, cnt_v, sum_v, avg_v, rownum_s) as select _twstart, first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint), _twrownum from ct2 where _c0 >= _twstart and _c0 <= _twend;"
