@@ -6,13 +6,54 @@ toc_max_heading_level: 4
 
 C/C++ 开发人员可以使用 TDengine 客户端驱动（即 C/C++ 连接器）开发自己的应用来连接 TDengine 集群，完成数据存储、查询以及其他功能。TDengine 客户端驱动的 API 类似于 MySQL 的 C API。应用程序使用时，需要包含 TDengine 头文件，里面列出了提供的 API 的函数原型；应用程序还要链接到所在平台上对应的动态库。
 
-TDengine 客户端驱动提供了 taos 动态库，同时支持 WebSocket 连接和原生连接。两种连接方式的区别在于：WebSocket 连接不要求客户端和服务端版本完全匹配，而原生连接要求版本匹配；在性能上，WebSocket 连接方式接近于原生连接。**一般推荐使用 WebSocket 连接方式。**
+## 连接方式
+
+TDengine 客户端驱动提供了 taos 动态库，支持两种连接方式：WebSocket 连接和原生连接。两种连接方式的区别在于：WebSocket 连接不要求客户端和服务端版本完全匹配，而原生连接要求版本匹配；在性能上，WebSocket 连接方式接近于原生连接。**一般推荐使用 WebSocket 连接方式。**
+
+### 头文件和动态库
+
+无论使用哪种连接方式，都需要引入 `taos.h` 头文件和链接 `taos` 动态库：
+
+```c
+#include "taos.h"
+```
+
+安装 TDengine 客户端或服务端后，`taos.h` 头文件位于：
+
+- **Linux**：`/usr/local/taos/include`
+- **Windows**：`C:\TDengine\include`
+- **macOS**：`/usr/local/include`
+
+TDengine 客户端驱动的动态库位于：
+
+- **Linux**：`/usr/local/taos/driver/libtaos.so`
+- **Windows**：`C:\TDengine\driver\taos.dll`
+- **macOS**：`/usr/local/lib/libtaos.dylib`
+
+### 连接方式示例
+
+TDengine 客户端驱动支持两种连接方式，开发者可以根据需求灵活选择。
+
+原生连接是 TDengine 的默认连接方式，直接调用 `taos_connect()` 即可建立连接：
+
+```c
+// 原生连接示例
+TAOS *taos = taos_connect(ip, user, password, database, port);
+```
+
+WebSocket 连接需要先设置驱动类型，然后调用 `taos_connect()`：
+
+```c
+// WebSocket 连接示例
+taos_options(TSDB_OPTION_DRIVER, "websocket");
+TAOS *taos = taos_connect(ip, user, password, database, port);
+```
 
 ## 支持的平台
 
 TDengine 客户端驱动支持多种平台，具体支持的平台列表请参考：[支持的平台列表](../#支持的平台)
 
-## 版本历史
+## 版本说明
 
 ### WebSocket 连接
 
@@ -26,11 +67,16 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号严格对�
 
 ## 错误码
 
-在 C 接口的设计中，错误码采用整数类型表示，每个错误码都对应一个特定的错误状态。如未特别说明，当 API 的返回值是整数时，_0_ 代表成功，其它是代表失败原因的错误码，当返回值是指针时，_NULL_ 表示失败。
+在 C 接口的设计中，错误码采用整数类型表示，每个错误码都对应一个特定的错误状态。如未特别说明，当 API 的返回值是整数时，_0_ 代表成功，其他是代表失败原因的错误码，当返回值是指针时，_NULL_ 表示失败。
+
+### 通用错误码
+
+所有的错误码以及对应的原因描述在 `taoserror.h` 文件中。
+详细的错误码说明参考：[错误码](../../../reference/error-code)
 
 ### WebSocket 连接特有错误码
 
-WebSocket 连接方式除了包含所有原生连接的错误码外，还有以下特有的错误码：
+除通用错误码外，WebSocket 连接还有以下特有错误码：
 
 | 错误码 | 错误描述   | 可能的出错场景或者可能的原因 | 建议用户采取的措施                      |
 | ------ | ---------- | ---------------------------- | --------------------------------------- |
@@ -44,16 +90,11 @@ WebSocket 连接方式除了包含所有原生连接的错误码外，还有以�
 | 0xE007 | 编解码错误 | 数据编解码异常               | 检查数据格式，排查 `taosadapter` 日志   |
 | 0xE008 | 连接断开   | WebSocket 连接断开           | 检查网络状况，重新建立连接              |
 
-### 通用错误码
-
-所有的错误码以及对应的原因描述在 `taoserror.h` 文件中。
-详细的错误码说明参考：[错误码](../../../reference/error-code)
-
 ## 示例程序
 
 本节展示了使用客户端驱动访问 TDengine 集群的常见访问方式的示例代码。
 
-### WebSocket 连接
+### WebSocket 连接示例
 
 - 同步查询示例：[同步查询](https://github.com/taosdata/TDengine/tree/main/docs/examples/c-ws-new/query_data_demo.c)
 
@@ -69,7 +110,7 @@ WebSocket 连接方式除了包含所有原生连接的错误码外，还有以�
 更多示例代码及下载请见 [GitHub](https://github.com/taosdata/TDengine/tree/main/docs/examples/c-ws-new)。
 :::
 
-### 原生连接
+### 原生连接示例
 
 - 同步查询示例：[同步查询](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/demo.c)
 
@@ -90,7 +131,7 @@ WebSocket 连接方式除了包含所有原生连接的错误码外，还有以�
 以下分别介绍 TDengine 客户端驱动的基础 API、同步查询 API、异步查询 API、参数绑定 API、无模式写入 API 和数据订阅 API。
 
 :::info **连接方式兼容性说明**
-TDengine 客户端驱动同时支持 WebSocket 连接和原生连接两种方式。大部分 API 在两种连接方式下功能完全一致。但有少数 API 存在功能差异：
+TDengine 客户端驱动支持 WebSocket 连接和原生连接两种方式。大部分 API 在两种连接方式下功能完全一致，但有少数 API 存在功能差异：
 
 **原生连接**：所有 API 都提供完整功能支持。
 
@@ -136,7 +177,7 @@ TDengine 客户端驱动同时支持 WebSocket 连接和原生连接两种方式
   - **连接方式兼容性**：WebSocket 连接暂不支持。
   - **说明**：
     - 字符集、时区默认为操作系统当前设置，Windows 不支持连接级别的时区设置。
-    - `arg` 为 `NULL` 时表示重置该选项。
+    - arg 为 NULL 时表示重置该选项。
     - 该接口只对当前连接有效，不会影响其他连接。
     - 同样参数多次调用该接口，以后面的为准，可以作为修改的方法。
     - `TSDB_OPTION_CONNECTION_CLEAR` 选项用于重置所有连接选项。
@@ -202,8 +243,8 @@ TDengine 客户端驱动同时支持 WebSocket 连接和原生连接两种方式
     - required：[出参] 存储当前数据库名称所需的空间（包含最后的 '\0'）。
   - **返回值**：`0`：成功，`-1`：失败，可调用函数 `taos_errstr(NULL)` 获取更详细的错误信息。
     - 如果 `database == NULL` 或者 `len <= 0` 返回失败。
-    - 如果 `len` 小于存储数据库名称所需的空间（包含最后的 '\0'），返回失败，`database` 里赋值截断的数据，以 '\0' 结尾。
-    - 如果 `len` 大于等于存储数据库名称所需的空间（包含最后的 '\0'），返回成功，`database` 里赋值以 '\0' 结尾数据库名称。
+    - 如果 len 小于存储数据库名称所需的空间（包含最后的 '\0'），返回失败，database 里赋值截断的数据，以 '\0' 结尾。
+    - 如果 len 大于等于存储数据库名称所需的空间（包含最后的 '\0'），返回成功，database 里赋值以 '\0' 结尾数据库名称。
 
 - `int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type)`
 
