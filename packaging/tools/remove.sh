@@ -227,6 +227,19 @@ function clean_service_on_launchctl() {
   ${csudo}rm /Library/LaunchDaemons/com.taosdata.* >/dev/null 2>&1 || :
 }
 
+function batch_remove_paths_and_clean_dir() {
+  local dir="$1"
+  shift
+  local paths=("$@")
+  for path in "${paths[@]}"; do
+    ${csudo}rm -rf "$path" || :
+  done
+  ${csudo}find "$dir" -type d -empty -delete || :
+  if [ -z "$(ls -A "$dir" 2>/dev/null)" ]; then
+    ${csudo}rm -rf "$dir" || :
+  fi
+}
+
 function remove_data_and_config() {
   data_dir=$(grep dataDir /etc/${PREFIX}/${PREFIX}.cfg | grep -v '#' | tail -n 1 | awk {'print $2'})
   if [ -z "$data_dir" ]; then
@@ -244,32 +257,28 @@ function remove_data_and_config() {
   fi
 
   if [ -d "${data_dir}" ]; then
-    # delete dnode, mnode, vnode, udf, running and taosudf directories
-    ${csudo}rm -rf "${data_dir}/dnode" || :
-    ${csudo}rm -rf "${data_dir}/mnode" || :
-    ${csudo}rm -rf "${data_dir}/vnode" || :
-    ${csudo}rm -rf "${data_dir}/.udf" || :
-    ${csudo}rm -rf "${data_dir}/.running"*  || :
-    ${csudo}rm -rf "${data_dir}/.taosudf"* || :
-    ${csudo}find "${data_dir}" -type d -empty -delete || :
-    if [ -z "$(ls -A "${data_dir}")" ]; then
-      ${csudo}rm -rf "${data_dir}" || :
-    fi
+    data_remove_list=(
+      "${data_dir}/dnode"
+      "${data_dir}/mnode"
+      "${data_dir}/vnode"
+      "${data_dir}/.udf"
+      "${data_dir}/.running"*
+      "${data_dir}/.taosudf"*
+    )
+    batch_remove_paths_and_clean_dir "${data_dir}" "${data_remove_list[@]}"
   fi
   
   if [ -d "${log_dir}" ]; then
-    # delete taos, ufd, and other log files
-    ${csudo}rm -rf "${log_dir}/taos"* || :
-    ${csudo}rm -rf "${log_dir}/udf"* || :
-    ${csudo}rm -rf "${log_dir}/jemalloc" || :
-    ${csudo}rm -rf "${log_dir}/tcmalloc" || :
-    ${csudo}rm -rf "${log_dir}/set_taos_malloc.log" || :
-    ${csudo}rm -rf "${log_dir}/.startRecord" || :
-    ${csudo}rm -rf "${log_dir}/.startSeq" || :
-    ${csudo}find "${log_dir}" -type d -empty -delete || :
-    if [ -z "$(ls -A "${log_dir}")" ]; then
-      ${csudo}rm -rf "${log_dir}" || :
-    fi
+    log_remove_list=(
+      "${log_dir}/taos"*
+      "${log_dir}/udf"*
+      "${log_dir}/jemalloc"
+      "${log_dir}/tcmalloc"
+      "${log_dir}/set_taos_malloc.log"
+      "${log_dir}/.startRecord"
+      "${log_dir}/.startSeq"
+    )
+    batch_remove_paths_and_clean_dir "${log_dir}" "${log_remove_list[@]}"
   fi
 }
 
