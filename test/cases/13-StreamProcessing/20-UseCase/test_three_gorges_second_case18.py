@@ -11,7 +11,7 @@ import time
 import datetime
 
 class Test_ThreeGorges:
-    caseName = "str_sxny_cn_sbgjpt_stationmsg_cnstationstatus_bj1"
+    caseName = "test_three_gorges_second_case18"
     currentDir = os.path.dirname(os.path.abspath(__file__))
     runAll = False
     dbname = "test1"
@@ -60,6 +60,8 @@ class Test_ThreeGorges:
         self.checkStreamRunning()
         self.sxny_data2()
         self.dataIn()
+        tdSql.checkRowsLoop(500,f"select val,tablename,point, ps_code, cnstationno, index_code from {self.dbname}.{self.outTbname} order by tablename;",100,0.5)
+        self.checkResultWithResultFile()
 
 
     def createStream(self):
@@ -89,7 +91,7 @@ class Test_ThreeGorges:
         tdLog.info(f"create stream success!")
     
     def checkResultWithResultFile(self):
-        chkSql = f"select * from {self.dbname}.{self.outTbname} order by _c0;"
+        chkSql = f"select val,tablename,point, ps_code, cnstationno, index_code from {self.dbname}.{self.outTbname} order by tablename;"
         tdLog.info(f"check result with sql: {chkSql}")
         if tdSql.getRows() >0:
             tdCom.generate_query_result_file(self.caseName, self.resultIdx, chkSql)

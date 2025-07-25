@@ -945,7 +945,6 @@ typedef struct STsInfo {
 typedef struct VTableInfo {
   int64_t gId;        // group id
   int64_t uid;        // table uid
-  int64_t ver;        // table version
   SColRefWrapper cols;    
 } VTableInfo;
 

@@ -11,7 +11,7 @@ import time
 import datetime
 
 class Test_ThreeGorges:
-    caseName = "str_hbny_sx_mint_jzzt2"
+    caseName = "test_three_gorges_second_case19"
     currentDir = os.path.dirname(os.path.abspath(__file__))
     runAll = False
     dbname = "test1"
@@ -59,6 +59,8 @@ class Test_ThreeGorges:
         self.createStream()
         self.checkStreamRunning()
         self.sxny_data2()
+        tdSql.checkRowsLoop(2,f"select v,tablename,senid, sen_name, index_code, jz_location,jz_no,ps_name,ps_code from {self.dbname}.{self.outTbname} order by tablename;",100,0.3)
+        self.checkResultWithResultFile()
 
 
     def createStream(self):
@@ -79,7 +81,7 @@ class Test_ThreeGorges:
                     ps_code varchar(255) as ps_code
                     )
                     as select
-                        _wstart ts,
+                        _twstart ts,
                         last(v) v
                     from
                         %%trows;
@@ -91,7 +93,7 @@ class Test_ThreeGorges:
         tdLog.info(f"create stream success!")
     
     def checkResultWithResultFile(self):
-        chkSql = f"select * from {self.dbname}.{self.outTbname} order by _c0;"
+        chkSql = f"select v,tablename,senid, sen_name, index_code, jz_location,jz_no,ps_name,ps_code from {self.dbname}.{self.outTbname} order by tablename;"
         tdLog.info(f"check result with sql: {chkSql}")
         if tdSql.getRows() >0:
             tdCom.generate_query_result_file(self.caseName, self.resultIdx, chkSql)
@@ -160,7 +162,7 @@ class Test_ThreeGorges:
             for tb in tables:
                 sql1 = "INSERT INTO test1.%s VALUES (now,%d)" % (tb, c1)
                 sql2 = "INSERT INTO test1.%s VALUES (now+1s,%d)" % (tb, c1+1)
-                sql3 = "INSERT INTO test1.%s VALUES (now+10m,%d)" % (tb, c1)
+                sql3 = "INSERT INTO test1.%s VALUES (now+30m,%d)" % (tb, c1)
                 
                 tdSql.execute(sql1)          
                 tdSql.execute(sql2)          

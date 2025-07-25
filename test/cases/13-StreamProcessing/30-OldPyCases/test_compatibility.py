@@ -17,16 +17,99 @@ class TestStreamCompatibility:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_compatibility(self):
-        """Stream Compatibility Test
+        """Stream Processing Backward and Forward Compatibility Test
 
-        Test compatibility aspects of stream processing:
-        1. Backward compatibility with legacy syntax patterns
-        2. Forward compatibility with new features
-        3. Cross-version compatibility considerations
-        4. Migration path validation
+        Test compatibility across 5 baseline versions with stream processing validation:
+
+        1. Test [v3.2.0.0 Base Version Compatibility]
+            1.1 Install v3.2.0.0 and prepare data using tdCb.prepareDataOnOldVersion()
+                1.1.1 Create test databases and tables with taosBenchmark
+                1.1.2 Insert sample data and create streams
+                1.1.3 Setup TMQ topics and consumers
+                1.1.4 Verify stream functionality on v3.2.0.0
+            1.2 Upgrade to new version with mode 2 (no upgrade mode)
+                1.2.1 Kill all dnodes and update to new version
+                1.2.2 Start new version with existing data
+                1.2.3 Verify cross-major version compatibility (corss_major_version=True)
+            1.3 Verify data and functionality using tdCb.verifyData()
+                1.3.1 Check table counts and row counts consistency
+                1.3.2 Verify stream processing functionality
+                1.3.3 Test TMQ consumer operations
+                1.3.4 Validate aggregation results accuracy
+
+        2. Test [v3.3.3.0 Base Version Compatibility]
+            2.1 Install v3.3.3.0 and prepare data using tdCb.prepareDataOnOldVersion()
+                2.1.1 Create test databases and tables with taosBenchmark
+                2.1.2 Insert sample data and create streams
+                2.1.3 Setup TMQ topics and consumers
+                2.1.4 Verify stream functionality on v3.3.3.0
+            2.2 Upgrade to new version with mode 2 (no upgrade mode)
+                2.2.1 Kill all dnodes and update to new version
+                2.2.2 Start new version with existing data
+                2.2.3 Verify compatibility (corss_major_version=True)
+            2.3 Verify data and functionality using tdCb.verifyData()
+                2.3.1 Check table counts and row counts consistency
+                2.3.2 Verify stream processing functionality
+                2.3.3 Test TMQ consumer operations
+                2.3.4 Validate aggregation results accuracy
+
+        3. Test [v3.3.4.3 Base Version Compatibility]
+            3.1 Install v3.3.4.3 and prepare data using tdCb.prepareDataOnOldVersion()
+                3.1.1 Create test databases and tables with taosBenchmark
+                3.1.2 Insert sample data and create streams
+                3.1.3 Setup TMQ topics and consumers
+                3.1.4 Verify stream functionality on v3.3.4.3
+            3.2 Upgrade to new version with mode 2 (no upgrade mode)
+                3.2.1 Kill all dnodes and update to new version
+                3.2.2 Start new version with existing data
+                3.2.3 Verify compatibility (corss_major_version=True)
+            3.3 Verify data and functionality using tdCb.verifyData()
+                3.3.1 Check table counts and row counts consistency
+                3.3.2 Verify stream processing functionality
+                3.3.3 Test TMQ consumer operations
+                3.3.4 Validate aggregation results accuracy
+
+        4. Test [v3.3.5.0 Base Version Compatibility]
+            4.1 Install v3.3.5.0 and prepare data using tdCb.prepareDataOnOldVersion()
+                4.1.1 Create test databases and tables with taosBenchmark
+                4.1.2 Insert sample data and create streams
+                4.1.3 Setup TMQ topics and consumers
+                4.1.4 Verify stream functionality on v3.3.5.0
+            4.2 Upgrade to new version with mode 2 (no upgrade mode)
+                4.2.1 Kill all dnodes and update to new version
+                4.2.2 Start new version with existing data
+                4.2.3 Verify compatibility (corss_major_version=True)
+            4.3 Verify data and functionality using tdCb.verifyData()
+                4.3.1 Check table counts and row counts consistency
+                4.3.2 Verify stream processing functionality
+                4.3.3 Test TMQ consumer operations
+                4.3.4 Validate aggregation results accuracy
+
+        5. Test [v3.3.6.0 Base Version Compatibility - Final]
+            5.1 Install v3.3.6.0 and prepare data using tdCb.prepareDataOnOldVersion()
+                5.1.1 Create test databases and tables with taosBenchmark
+                5.1.2 Insert sample data and create streams
+                5.1.3 Setup TMQ topics and consumers
+                5.1.4 Verify stream functionality on v3.3.6.0
+            5.2 Upgrade to new version with mode 2 (no upgrade mode)
+                5.2.1 Kill all dnodes and update to new version
+                5.2.2 Start new version with existing data
+                5.2.3 Verify compatibility (corss_major_version=False as final version)
+            5.3 Verify data and functionality using tdCb.verifyData()
+                5.3.1 Check table counts and row counts consistency
+                5.3.2 Verify stream processing functionality
+                5.3.3 Test TMQ consumer operations
+                5.3.4 Validate aggregation results accuracy
+
+        6. Test [SQL Syntax Compatibility Verification]
+            6.1 Test backticks in SQL using tdCb.verifyBackticksInTaosSql()
+                6.1.1 Test database operations with backticks
+                6.1.2 Test table operations with backticks
+                6.1.3 Test stream operations with backticks
+                6.1.4 Verify error handling for invalid backtick usage
 
         Catalog:
-            - Streams:OldPyCases
+            - Streams:Compatibility:BackwardForward
 
         Since: v3.3.7.0
 
@@ -35,7 +118,7 @@ class TestStreamCompatibility:
         Jira: None
 
         History:
-            - 2025-12-19 Migrated from system-test/0-others/compatibility.py
+            - 2025-07-23 Beryl migrated from system-test/0-others/compatibility.py
             - Note: Focused on stream-related compatibility, removed cluster upgrade tests
 
         """

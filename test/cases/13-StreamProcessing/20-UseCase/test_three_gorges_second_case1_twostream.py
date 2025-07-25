@@ -22,7 +22,7 @@ class Test_ThreeGorges:
     subTblNum = 3
     tblRowNum = 10
     tableList = []
-    outTbname = "stb_sxny_cn_drzcfd_test01"
+    outTbname = "stb_sxny_cn_drzcfd_test02"
     streamName = "str_sxny_cn_drzcfd_test01"
     tableList = []
     resultIdx = "1"
@@ -79,10 +79,12 @@ class Test_ThreeGorges:
         if tdSql.getRows() == 0:
             raise Exception("ERROR:no result!")
         
-        # self.checkResultWithResultFile()
+        
         
         self.createStream2()
         self.checkStreamRunning()
+        tdSql.checkRowsLoop(2,f"select val,tablename,index_code,ps_code from {self.dbname}.{self.outTbname} order by _c0,tablename;",100,0.3)
+        self.checkResultWithResultFile()
 
     def createStream(self):
         tdLog.info(f"create stream :")
@@ -127,7 +129,7 @@ class Test_ThreeGorges:
         tdLog.info(f"create stream success!")
     
     def checkResultWithResultFile(self):
-        chkSql = f"select * from {self.dbname}.{self.outTbname} order by _c0;"
+        chkSql = f"select val,tablename,index_code,ps_code from {self.dbname}.{self.outTbname} order by _c0,tablename;"
         tdLog.info(f"check result with sql: {chkSql}")
         if tdSql.getRows() >0:
             tdCom.generate_query_result_file(self.caseName, self.resultIdx, chkSql)

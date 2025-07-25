@@ -4924,6 +4924,6 @@ void calcTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, STimeWindow *pWinR
   } else {
     pWinRange->ekey = INT64_MAX;
   }
-  qInfo("%s, skey:%" PRId64 ", ekey:%" PRId64, __func__, pWinRange->skey, pWinRange->ekey);
+  qDebug("%s, skey:%" PRId64 ", ekey:%" PRId64, __func__, pWinRange->skey, pWinRange->ekey);
   *winRangeValid = true;
 }
