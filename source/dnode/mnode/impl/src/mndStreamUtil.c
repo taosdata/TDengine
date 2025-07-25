@@ -136,6 +136,10 @@ void mstDestroySStmStatus(void* param) {
 
   mstResetSStmStatus(pStatus);
 
+  taosWLockLatch(&pStatus->userRecalcLock);
+  taosArrayDestroy(pStatus->userRecalcList);
+  taosWUnLockLatch(&pStatus->userRecalcLock);
+
   tFreeSCMCreateStreamReq(pStatus->pCreate);
   taosMemoryFreeClear(pStatus->pCreate);  
 }
