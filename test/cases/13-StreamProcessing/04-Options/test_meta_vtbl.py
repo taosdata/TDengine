@@ -599,7 +599,7 @@ class TestStreamMetaTrigger:
             tdSql.execute(f"create vtable vct2 (cint from {self.db}.ct2.cint) using {self.db}.{self.vstbName} tags(2,2)")
             tdSql.execute(f"create vtable vct3 (cint from {self.db}.ct3.cint) using {self.db}.{self.vstbName} tags(3,3)")
             tdSql.execute(f"create vtable vct4 (cint from {self.db}.ct4.cint) using {self.db}.{self.vstbName} tags(4,4)")  
-            tdSql.execute(f"create vtable vct5 (cint from {self.db}.ct1.cint) using {self.db}.{self.vstbName} tags(5,5)")
+            tdSql.execute(f"create vtable vct5 (cint from {self.db}.ct5.cint) using {self.db}.{self.vstbName} tags(5,5)")
             
             tdSql.execute(
                 f"create stream s2_g state_window(cint) from {self.vstbName} partition by tbname, tint stream_options(pre_filter(tbigint == 1 or tbigint == 100)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
