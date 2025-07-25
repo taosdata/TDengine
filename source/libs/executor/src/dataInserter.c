@@ -1982,6 +1982,7 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
   }
 
   STSchema* pTSchema = pInsertParam->pSchema;
+  tbData.flags |= SUBMIT_REQ_SCHEMA_RES;
   if (pInserterInfo->isAutoCreateTable) {
     if (pInsertParam->tbType == TSDB_NORMAL_TABLE) {
       code = buildNormalTableCreateReq(pInserter, pInsertParam, &tbData, vgInfo);
