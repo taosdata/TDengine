@@ -119,6 +119,7 @@ typedef struct SSTriggerRealtimeContext {
 
   // these fields are shared by all groups and do not need to be destroyed
   bool                   reenterCheck;
+  bool                   needCheckAgain;
   int32_t                tbIter;
   STimeWindow            periodWindow;   // for period trigger
   SSTriggerVirTableInfo *pCurVirTable;   // only for virtual tables
