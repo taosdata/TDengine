@@ -57,7 +57,8 @@ static int32_t handleTriggerCalcReq(SSnode* pSnode, void* pWorkerCb, SRpcMsg* pR
 
   req.brandNew = true;
   req.execId = -1;
-  pTask->pMsgCb = &pSnode->msgCb;
+  pTask->msgCb = pSnode->msgCb;
+  //pTask->pMsgCb = &pSnode->msgCb;
   pTask->pWorkerCb = pWorkerCb;
   req.curWinIdx = 0;
   TAOS_CHECK_EXIT(stRunnerTaskExecute(pTask, &req));
@@ -220,7 +221,8 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
 
   TAOS_CHECK_EXIT(streamAcquireTask(calcReq.streamId, calcReq.runnerTaskId, (SStreamTask**)&pTask, &taskAddr));
 
-  pTask->pMsgCb = &pSnode->msgCb;
+  pTask->msgCb = pSnode->msgCb;
+  //pTask->pMsgCb = &pSnode->msgCb;
   pTask->pWorkerCb = pWorkerCb;
   
   TAOS_CHECK_EXIT(stRunnerTaskExecute(pTask, &calcReq));
