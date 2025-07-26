@@ -163,7 +163,7 @@ The example code for binding parameters with stmt2 (TDengine v3.3.5.0 or higher 
 {{#include docs/examples/c/stmt2_insert_demo.c}}
 ```
 
-The example code for binding parameters with stmt is as follows (not recommended, stmt2 is recommended):
+The example code for binding parameters with stmt is as follows (TDengine v3.3.5.0 has stopped maintenance):
 
 <details>
 <summary>Click to view stmt example code</summary>
