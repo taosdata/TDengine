@@ -2260,7 +2260,7 @@ static int32_t msmLaunchStreamDeployAction(SStmGrpCtx* pCtx, SStmStreamAction* p
     mstsWarn("stream %s already dropped by user, ignore deploy it", pAction->streamName);
     atomic_store_8(&pStatus->stopped, 2);
     mstsInfo("set stream %s stopped by user since streamId mismatch", streamName);
-    return TSDB_CODE_MND_STREAM_NOT_EXIST;
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_NOT_EXIST);
   }
 
   int8_t userStopped = atomic_load_8(&pStream->userStopped);
