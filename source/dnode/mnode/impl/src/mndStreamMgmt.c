@@ -2256,11 +2256,11 @@ static int32_t msmLaunchStreamDeployAction(SStmGrpCtx* pCtx, SStmStreamAction* p
 
   TAOS_CHECK_EXIT(code);
 
-  if (pStream->pCreate->streamId != streamId) {
+  if (pStatus && pStream->pCreate->streamId != streamId) {
     mstsWarn("stream %s already dropped by user, ignore deploy it", pAction->streamName);
     atomic_store_8(&pStatus->stopped, 2);
     mstsInfo("set stream %s stopped by user since streamId mismatch", streamName);
-    return TSDB_CODE_MND_STREAM_NOT_EXIST;
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_NOT_EXIST);
   }
 
   int8_t userStopped = atomic_load_8(&pStream->userStopped);
@@ -3363,7 +3363,7 @@ void msmHandleStatusUpdateErr(SStmGrpCtx* pCtx, EStmErrType err, SStmTaskStatusM
   SStreamTask* pTask = (SStreamTask*)pStatus;
   int64_t streamId = pStatus->streamId;
 
-  msttInfo("start to handle task status update error: %d", err);
+  msttInfo("start to handle task status update exception, type: %d", err);
   
   // STREAMTODO
 
