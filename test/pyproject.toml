@@ -23,7 +23,7 @@ dependencies = [
     "pytest-xdist>=3.6.1",
     "pytz==2025.1",
     "requests==2.32.4",
-    "taospy>=2.8.2",
+    "taospy>=2.8.3",
     "tomli==2.2.1",
     "urllib3==2.5.0",
     "pywinrm>=0.5.0",

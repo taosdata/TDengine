@@ -41,10 +41,12 @@ The taosAdapter provides the following features:
   icinga2 is a software for collecting check results metrics and performance data. Visit [https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer](https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer) for more information.
 - TCollector data writing:
   TCollector is a client process that collects data from local collectors and pushes it to OpenTSDB. Visit [http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html) for more information.
-- node_exporter data collection and writing:
-  node_exporter is an exporter of machine metrics. Visit [https://github.com/prometheus/node_exporter](https://github.com/prometheus/node_exporter) for more information.
+- OpenMetrics data collection and writing:
+  OpenMetrics is an emerging standard in the field of cloud-native monitoring. It extends and standardizes the Prometheus metric format and has become the de facto standard for modern monitoring tools. Visit [OpenMetrics Specification](https://github.com/prometheus/OpenMetrics/blob/main/specification/OpenMetrics.md) for more information.
 - Supports Prometheus remote_read and remote_write:
   remote_read and remote_write are Prometheus's data read-write separation cluster solutions. Visit [https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis](https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis) for more information.
+- node_exporter data collection and writing:
+  node_exporter is an exporter of machine metrics. Visit [https://github.com/prometheus/node_exporter](https://github.com/prometheus/node_exporter) for more information.
 - RESTful API:
   [RESTful API](../../client-libraries/rest-api/)
 
@@ -63,6 +65,7 @@ Supported InfluxDB parameters are as follows:
 - `u` TDengine username
 - `p` TDengine password
 - `ttl` the lifespan of automatically created subtables, determined by the TTL parameter of the first data entry in the subtable, which cannot be updated. For more information, please refer to the TTL parameter in the [table creation document](../../sql-manual/manage-tables/).
+- `table_name_key` the custom tag key for subtable names. If set, the subtable name will use the value of this tag key
 
 Note: Currently, InfluxDB's token authentication method is not supported, only Basic authentication and query parameter verification are supported.
 Example: `curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root:taosdata" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577836800000000000"`
@@ -92,17 +95,33 @@ You can use any client that supports the HTTP protocol to write data in OpenTSDB
 
 <TCollector />
 
+### OpenMetrics data collection and writing
+
+OpenMetrics is an open standard supported by CNCF (Cloud Native Computing Foundation) that focuses on standardizing the collection and transmission of metric data. 
+It serves as one of the core specifications for monitoring and observability systems in the cloud-native ecosystem.
+
+Starting from version **3.3.7.0**, taosAdapter supports OpenMetrics v1.0.0 data collection and writing, 
+while maintaining compatibility with Prometheus 0.0.4 protocol to ensure seamless integration with the Prometheus ecosystem.
+
+To enable OpenMetrics data collection and writing, follow these steps:
+
+1. Enable taosAdapter configuration by setting `open_metrics.enable`
+2. Configure OpenMetrics related settings
+3. Restart taosAdapter service
+
+### Supports Prometheus remote_read and remote_write
+
+<Prometheus />
+
 ### node_exporter data collection and writing
+
+Starting with version **3.3.7.0**, you can use the OpenMetrics plugin as a replacement for node_exporter to perform data collection and writing.
 
 An exporter used by Prometheus that exposes hardware and operating system metrics from \*NIX kernels
 
 - Enable configuration of taosAdapter node_exporter.enable
 - Set the relevant configuration for node_exporter
 - Restart taosAdapter
-
-### Supports Prometheus remote_read and remote_write
-
-<Prometheus />
 
 ### RESTful API
 
@@ -179,6 +198,7 @@ taosAdapter uses a connection pool to manage connections to TDengine, improving 
 - collectd data writing
 - StatsD data writing
 - node_exporter data collection writing
+- OpenMetrics data collection and writing
 - Prometheus remote_read and remote_write
 
 The configuration parameters for the connection pool are as follows:
@@ -263,6 +283,7 @@ The `smlAutoCreateDB` parameter only affects the following interfaces:
 - collectd data writing
 - StatsD data writing
 - node_exporter data writing
+- OpenMetrics data collection and writing
 
 #### Parameter Description
 
@@ -386,68 +407,6 @@ curl --location --request PUT 'http://127.0.0.1:6041/config' \
 
   Enable/disable InfluxDB protocol support (Default: `true`)
 
-#### Node Exporter Configuration
-
-- **`node_exporter.enable`**
-
-  Enable node_exporter data collection (Default: `false`)
-
-- **`node_exporter.db`**
-
-  Target database name (Default: `"node_exporter"`)
-
-- **`node_exporter.urls`**
-
-  Service endpoints (Default: `["http://localhost:9100"]`)
-
-- **`node_exporter.gatherDuration`**
-
-  Collection interval (Default: `5s`)
-
-- **`node_exporter.responseTimeout`**
-
-  Request timeout (Default: `5s`)
-
-- **`node_exporter.user`**
-
-  Database username (Default: `"root"`)
-
-- **`node_exporter.password`**
-
-  Database password (Default: `"taosdata"`)
-
-- **`node_exporter.ttl`**
-
-  Data TTL (Default: `0`)
-
-- **`node_exporter.httpUsername`**
-
-  HTTP Basic Auth username (Optional)
-
-- **`node_exporter.httpPassword`**
-
-  HTTP Basic Auth password (Optional)
-
-- **`node_exporter.httpBearerTokenString`**
-
-  HTTP Bearer Token (Optional)
-
-- **`node_exporter.insecureSkipVerify`**
-
-  Skip SSL verification (Default: `true`)
-
-- **`node_exporter.certFile`**
-
-  Client certificate path (Optional)
-
-- **`node_exporter.keyFile`**
-
-  Client key path (Optional)
-
-- **`node_exporter.caCertFile`**
-
-  CA certificate path (Optional)
-
 #### OpenTSDB Configuration
 
 - **`opentsdb.enable`**
@@ -566,6 +525,134 @@ curl --location --request PUT 'http://127.0.0.1:6041/config' \
 
   Enable Prometheus protocol (Default: `true`)
 
+#### OpenMetrics Configuration
+
+- **`open_metrics.enable`**
+
+  Enable/disable OpenMetrics data collection (Default: `false`).
+
+- **`open_metrics.user`**
+
+  Username for TDengine connection (Default: `"root"`).
+
+- **`open_metrics.password`**
+
+  Password for TDengine connection (Default: `"taosdata"`).
+
+- **`open_metrics.urls`**
+
+  List of OpenMetrics data collection endpoints (Default: `["http://localhost:9100"]`, automatically appends `/metrics` if no route specified).
+
+- **`open_metrics.dbs`**
+
+  Target databases for data writing (Default: `["open_metrics"]`, must match number of collection URLs).
+
+- **`open_metrics.responseTimeoutSeconds`**
+
+  Collection timeout in seconds (Default: `[5]`, must match number of collection URLs).
+
+- **`open_metrics.httpUsernames`**
+
+  Basic authentication usernames (If enabled, must match number of collection URLs, Default: empty).
+
+- **`open_metrics.httpPasswords`**
+
+  Basic authentication passwords (If enabled, must match number of collection URLs, Default: empty).
+
+- **`open_metrics.httpBearerTokenStrings`**
+
+  Bearer token authentication strings (If enabled, must match number of collection URLs, Default: empty).
+
+- **`open_metrics.caCertFiles`**
+
+  Root certificate file paths (If enabled, must match number of collection URLs, Default: empty).
+
+- **`open_metrics.certFiles`**
+
+  Client certificate file paths (If enabled, must match number of collection URLs, Default: empty).
+
+- **`open_metrics.keyFiles`**
+
+  Client certificate key file paths (If enabled, must match number of collection URLs, Default: empty).
+
+- **`open_metrics.insecureSkipVerify`**
+
+  Skip HTTPS certificate verification (Default: `true`).
+
+- **`open_metrics.gatherDurationSeconds`**
+
+  Collection interval in seconds (Default: `[5]`, must match number of collection URLs).
+
+- **`open_metrics.ttl`**
+
+  Table Time-To-Live in seconds (`0` means no expiration, if enabled must match number of collection URLs, Default: empty).
+
+- **`open_metrics.ignoreTimestamp`**
+
+  Ignore timestamps in collected data (uses collection time if ignored, Default: `false`).
+
+#### Node Exporter Configuration
+
+- **`node_exporter.enable`**
+
+  Enable node_exporter data collection (Default: `false`)
+
+- **`node_exporter.db`**
+
+  Target database name (Default: `"node_exporter"`)
+
+- **`node_exporter.urls`**
+
+  Service endpoints (Default: `["http://localhost:9100"]`)
+
+- **`node_exporter.gatherDuration`**
+
+  Collection interval (Default: `5s`)
+
+- **`node_exporter.responseTimeout`**
+
+  Request timeout (Default: `5s`)
+
+- **`node_exporter.user`**
+
+  Database username (Default: `"root"`)
+
+- **`node_exporter.password`**
+
+  Database password (Default: `"taosdata"`)
+
+- **`node_exporter.ttl`**
+
+  Data TTL (Default: `0`)
+
+- **`node_exporter.httpUsername`**
+
+  HTTP Basic Auth username (Optional)
+
+- **`node_exporter.httpPassword`**
+
+  HTTP Basic Auth password (Optional)
+
+- **`node_exporter.httpBearerTokenString`**
+
+  HTTP Bearer Token (Optional)
+
+- **`node_exporter.insecureSkipVerify`**
+
+  Skip SSL verification (Default: `true`)
+
+- **`node_exporter.certFile`**
+
+  Client certificate path (Optional)
+
+- **`node_exporter.keyFile`**
+
+  Client key path (Optional)
+
+- **`node_exporter.caCertFile`**
+
+  CA certificate path (Optional)
+
 ### Metrics Reporting Configuration
 
 taosAdapter reports metrics to taosKeeper with these parameters:
@@ -656,6 +743,22 @@ Configuration Parameters and their corresponding environment variables:
 | `node_exporter.ttl`                   | `TAOS_ADAPTER_NODE_EXPORTER_TTL`                      |
 | `node_exporter.urls`                  | `TAOS_ADAPTER_NODE_EXPORTER_URLS`                     |
 | `node_exporter.user`                  | `TAOS_ADAPTER_NODE_EXPORTER_USER`                     |
+| `open_metrics.enable`                 | `TAOS_ADAPTER_OPEN_METRICS_ENABLE`                    |
+| `open_metrics.user`                   | `TAOS_ADAPTER_OPEN_METRICS_USER`                      |
+| `open_metrics.password`               | `TAOS_ADAPTER_OPEN_METRICS_PASSWORD`                  |
+| `open_metrics.urls`                   | `TAOS_ADAPTER_OPEN_METRICS_URLS`                      |
+| `open_metrics.dbs`                    | `TAOS_ADAPTER_OPEN_METRICS_DBS`                       |
+| `open_metrics.responseTimeoutSeconds` | `TAOS_ADAPTER_OPEN_METRICS_RESPONSE_TIMEOUT_SECONDS`  |
+| `open_metrics.httpUsernames`          | `TAOS_ADAPTER_OPEN_METRICS_HTTP_USERNAMES`            |
+| `open_metrics.httpPasswords`          | `TAOS_ADAPTER_OPEN_METRICS_HTTP_PASSWORDS`            |
+| `open_metrics.httpBearerTokenStrings` | `TAOS_ADAPTER_OPEN_METRICS_HTTP_BEARER_TOKEN_STRINGS` |
+| `open_metrics.caCertFiles`            | `TAOS_ADAPTER_OPEN_METRICS_CA_CERT_FILES`             |
+| `open_metrics.certFiles`              | `TAOS_ADAPTER_OPEN_METRICS_CERT_FILES`                |
+| `open_metrics.keyFiles`               | `TAOS_ADAPTER_OPEN_METRICS_KEY_FILES`                 |
+| `open_metrics.insecureSkipVerify`     | `TAOS_ADAPTER_OPEN_METRICS_INSECURE_SKIP_VERIFY`      |
+| `open_metrics.gatherDurationSeconds`  | `TAOS_ADAPTER_OPEN_METRICS_GATHER_DURATION_SECONDS`   |
+| `open_metrics.ignoreTimestamp`        | `TAOS_ADAPTER_OPEN_METRICS_IGNORE_TIMESTAMP`          |
+| `open_metrics.ttl`                    | `TAOS_ADAPTER_OPEN_METRICS_TTL`                       |
 | `opentsdb.enable`                     | `TAOS_ADAPTER_OPENTSDB_ENABLE`                        |
 | `opentsdb_telnet.batchSize`           | `TAOS_ADAPTER_OPENTSDB_TELNET_BATCH_SIZE`             |
 | `opentsdb_telnet.dbs`                 | `TAOS_ADAPTER_OPENTSDB_TELNET_DBS`                    |

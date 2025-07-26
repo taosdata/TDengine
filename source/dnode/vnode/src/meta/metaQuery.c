@@ -59,6 +59,7 @@ int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t u
   }
 
   // decode the entry
+  tDecoderClear(&pReader->coder);
   tDecoderInit(&pReader->coder, pReader->pBuf, pReader->szBuf);
 
   code = metaDecodeEntry(&pReader->coder, &pReader->me);
@@ -190,7 +191,7 @@ int metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid) {
   return 0;
 }
 
-int metaGetTableTypeSuidByName(void *pVnode, char *tbName, ETableType *tbType, uint64_t* suid) {
+int metaGetTableTypeSuidByName(void *pVnode, char *tbName, ETableType *tbType, uint64_t *suid) {
   int         code = 0;
   SMetaReader mr = {0};
   metaReaderDoInit(&mr, ((SVnode *)pVnode)->pMeta, META_READER_LOCK);
@@ -378,7 +379,7 @@ int32_t metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType) {
   return 0;
 }
 
-SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock, SExtSchema** extSchema) {
+SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock, SExtSchema **extSchema) {
   void           *pData = NULL;
   int             nData = 0;
   int64_t         version;
@@ -456,11 +457,11 @@ _err:
 }
 
 int64_t metaGetTableCreateTime(SMeta *pMeta, tb_uid_t uid, int lock) {
-  void           *pData = NULL;
-  int             nData = 0;
-  int64_t         version = 0;
-  SDecoder        dc = {0};
-  int64_t         createTime = INT64_MAX;
+  void    *pData = NULL;
+  int      nData = 0;
+  int64_t  version = 0;
+  SDecoder dc = {0};
+  int64_t  createTime = INT64_MAX;
   if (lock) {
     metaRLock(pMeta);
   }
@@ -487,7 +488,7 @@ int64_t metaGetTableCreateTime(SMeta *pMeta, tb_uid_t uid, int lock) {
   }
   tDecoderClear(&dc);
 
-  _exit:
+_exit:
   if (lock) {
     metaULock(pMeta);
   }
@@ -1527,8 +1528,7 @@ int32_t metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList) {
       memcpy(p->pTagVal, val, len);
       tdbFree(val);
     } else {
-      metaError("vgId:%d, failed to table tags, suid: %" PRId64 ", uid: %" PRId64, TD_VID(pMeta->pVnode), suid,
-                p->uid);
+      metaError("vgId:%d, failed to table tags, suid: %" PRId64 ", uid: %" PRId64, TD_VID(pMeta->pVnode), suid, p->uid);
     }
   }
   //  }
@@ -1610,6 +1610,91 @@ int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
 
   taosHashCleanup(pSepecifiedUidMap);
   metaCloseCtbCursor(pCur);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t metaFlagCache(SVnode *pVnode) {
+  SMStbCursor *pCur = metaOpenStbCursor(pVnode->pMeta, 0);
+  if (!pCur) {
+    return terrno;
+  }
+
+  SArray *suids = NULL;
+  while (1) {
+    tb_uid_t id = metaStbCursorNext(pCur);
+    if (id == 0) {
+      break;
+    }
+
+    if (!suids) {
+      suids = taosArrayInit(8, sizeof(tb_uid_t));
+      if (!suids) {
+        return terrno;
+      }
+    }
+
+    if (taosArrayPush(suids, &id) == NULL) {
+      taosArrayDestroy(suids);
+      return terrno;
+    }
+  }
+
+  metaCloseStbCursor(pCur);
+
+  for (int idx = 0; suids && idx < TARRAY_SIZE(suids); ++idx) {
+    tb_uid_t id = ((tb_uid_t *)TARRAY_DATA(suids))[idx];
+    STsdb   *pTsdb = pVnode->pTsdb;
+    SMeta   *pMeta = pVnode->pMeta;
+    SArray  *uids = NULL;
+
+    int32_t code = metaGetChildUidsOfSuperTable(pMeta, id, &uids);
+    if (code) {
+      metaError("vgId:%d, failed to get subtables, suid:%" PRId64 " since %s.", TD_VID(pVnode), id, tstrerror(code));
+
+      taosArrayDestroy(uids);
+      taosArrayDestroy(suids);
+
+      return code;
+    }
+
+    if (uids && TARRAY_SIZE(uids) > 0) {
+      STSchema *pTSchema = NULL;
+
+      code = metaGetTbTSchemaEx(pMeta, id, id, -1, &pTSchema);
+      if (code) {
+        metaError("vgId:%d, failed to get schema, suid:%" PRId64 " since %s.", TD_VID(pVnode), id, tstrerror(code));
+
+        taosArrayDestroy(uids);
+        taosArrayDestroy(suids);
+
+        return code;
+      }
+
+      int32_t nCol = pTSchema->numOfCols;
+      for (int32_t i = 0; i < nCol; ++i) {
+        int16_t cid = pTSchema->columns[i].colId;
+        int8_t  col_type = pTSchema->columns[i].type;
+
+        code = tsdbCacheNewSTableColumn(pTsdb, uids, cid, col_type);
+        if (code) {
+          metaError("vgId:%d, failed to flag cache, suid:%" PRId64 " since %s.", TD_VID(pVnode), id, tstrerror(code));
+
+          tDestroyTSchema(pTSchema);
+          taosArrayDestroy(uids);
+          taosArrayDestroy(suids);
+
+          return code;
+        }
+      }
+
+      tDestroyTSchema(pTSchema);
+    }
+
+    taosArrayDestroy(uids);
+  }
+
+  taosArrayDestroy(suids);
+
   return TSDB_CODE_SUCCESS;
 }
 

@@ -89,7 +89,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.6.3</version>
+  <version>3.7.0</version>
 </dependency>
 ```
 
@@ -115,7 +115,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
             ```
         - 指定某个特定版本安装
             ```
-            pip3 install taospy==2.8.2
+            pip3 install taospy==2.8.3
             ```
         - 从 GitHub 安装
             ```
@@ -298,6 +298,12 @@ dotnet add package TDengine.Connector
 
     ```text
     username:password@protocol(address)/dbname?param=value
+    ```
+
+    当使用 IPv6 地址时（v3.7.1 及以上版本支持），地址需要用方括号括起来，例如：
+
+    ```text
+    root:taosdata@ws([::1]:6041)/testdb
     ```
 
     支持的 DSN 参数如下

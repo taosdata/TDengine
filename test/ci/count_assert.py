@@ -48,11 +48,14 @@ exclude_source_files = [
 def grep_asserts_in_file(file_path, summary_list, detaild_list):
     """Search for assert, ASSERTS, or ASSERT function calls in a file and print them."""
     match_count = 0
-    with open(file_path, 'r') as file:
-        for line_number, line in enumerate(file, start=1):
-            if re.search(r'\bassert\(.*\)|\bASSERT\(.*\)|\bASSERTS\(.*\)|\bASSERT_CORE\(.*\)', line):
-                detaild_list.append(f"{file_path}:{line.strip()}:{line_number}")
-                match_count += 1
+    try:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as file:
+            for line_number, line in enumerate(file, start=1):
+                if re.search(r'\bassert\(.*\)|\bASSERT\(.*\)|\bASSERTS\(.*\)|\bASSERT_CORE\(.*\)', line):
+                    detaild_list.append(f"{file_path}:{line.strip()}:{line_number}")
+                    match_count += 1
+    except Exception as e:
+        print(f"Error reading {file_path}: {e}")
     if match_count > 0:
         summary_list.append(f"Total matches in {file_path}:{match_count}")
 
