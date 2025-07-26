@@ -929,7 +929,7 @@ int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask* pTask = NULL;
-  void* taskAddr = NULL;
+  void*               taskAddr = NULL;
 
   *pppIter = NULL;
 
@@ -941,26 +941,33 @@ int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
   if (((SStreamTriggerTask*)pTask)->triggerType == STREAM_TRIGGER_SLIDING) {
     end = end - 1;
   }
+  SHashObj* pCalcDataCacheIters = NULL;
+  void*     pCalcDataCache = NULL;
   if (pTask->pRealtimeContext->sessionId == sessionId) {
-    void** px = taosHashGet(pTask->pRealtimeContext->pCalcDataCacheIters, &groupId, sizeof(int64_t));
-    if (px == NULL) {
-      void* pIter = NULL;
-      code =
-          taosHashPut(pTask->pRealtimeContext->pCalcDataCacheIters, &groupId, sizeof(int64_t), &pIter, POINTER_BYTES);
-      QUERY_CHECK_CODE(code, lino, _end);
-      px = taosHashGet(pTask->pRealtimeContext->pCalcDataCacheIters, &groupId, sizeof(int64_t));
-      QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INVALID_PARA);
-    }
-    if (*px == NULL) {
-      code = getStreamDataCache(pTask->pRealtimeContext->pCalcDataCache, groupId, start, end, px);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
-    *pppIter = px;
+    pCalcDataCacheIters = pTask->pRealtimeContext->pCalcDataCacheIters;
+    pCalcDataCache = pTask->pRealtimeContext->pCalcDataCache;
+  } else if (pTask->pHistoryContext->sessionId == sessionId) {
+    pCalcDataCacheIters = pTask->pHistoryContext->pCalcDataCacheIters;
+    pCalcDataCache = pTask->pHistoryContext->pCalcDataCache;
   } else {
-    stsError("sessionId %" PRId64 " not match with task %" PRId64, sessionId, pTask->pRealtimeContext->sessionId);
+    stsError("sessionId %" PRId64 " not found in task %" PRId64, sessionId, pTask->task.taskId);
     code = TSDB_CODE_INTERNAL_ERROR;
     QUERY_CHECK_CODE(code, lino, _end);
   }
+
+  void** px = taosHashGet(pCalcDataCacheIters, &groupId, sizeof(int64_t));
+  if (px == NULL) {
+    void* pIter = NULL;
+    code = taosHashPut(pCalcDataCacheIters, &groupId, sizeof(int64_t), &pIter, POINTER_BYTES);
+    QUERY_CHECK_CODE(code, lino, _end);
+    px = taosHashGet(pCalcDataCacheIters, &groupId, sizeof(int64_t));
+    QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  }
+  if (*px == NULL) {
+    code = getStreamDataCache(pCalcDataCache, groupId, start, end, px);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  *pppIter = px;
 
 _end:
 

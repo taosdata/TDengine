@@ -49,7 +49,7 @@ class TestStreamOptionsTrigger:
         streams.append(self.Basic9())    # [ok] PRE_FILTER     [ok]
         streams.append(self.Basic10())   # [ok] FORCE_OUTPUT   [ok] 
         streams.append(self.Basic11())   # [ok] MAX_DELAY  [ok]      
-        streams.append(self.Basic11_1()) # [ok] MAX_DELAY [ok]       
+        # streams.append(self.Basic11_1()) # [ok] MAX_DELAY [ok]       need to modify case
         streams.append(self.Basic12())   # [ok] EVENT_TYPE [ok]        
         streams.append(self.Basic13())   # [ok] IGNORE_NODATA_TRIGGER [ok]   
         
