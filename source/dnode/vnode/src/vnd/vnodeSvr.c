@@ -591,9 +591,11 @@ int32_t vnodePreProcessSsMigrateReq(SVnode* pVnode, SRpcMsg* pMsg) {
   }
 
   req.nodeId = vnodeNodeId(pVnode);
-  code = tSerializeSSsMigrateVgroupReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead),
-                                       &req);
-
+  if (tSerializeSSsMigrateVgroupReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead),
+                                    &req) < 0) {
+    vError("vgId:%d %s failed to serialize ss migrate request", TD_VID(pVnode), __func__);
+    code = TSDB_CODE_INVALID_MSG;
+  }
 _exit:
   return code;
 }
