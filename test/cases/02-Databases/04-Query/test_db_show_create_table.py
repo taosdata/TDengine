@@ -90,5 +90,5 @@ class TestDatabaseShowCreateTable:
 
         tdSql.query(f"show create table db.normalTbl")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, "CREATE TABLE `normaltbl` (`ts` TIMESTAMP, `zone` VARCHAR(8))CREATE TABLE `normaltbl`")
-        #tdSql.execute(f"drop database db")
+        tdSql.checkData(0, 1, "CREATE TABLE `normaltbl` (`ts` TIMESTAMP, `zone` VARCHAR(8))")
+        tdSql.execute(f"drop database db")
