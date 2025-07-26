@@ -307,6 +307,7 @@ extern bool    tsStreamCoverage;
 extern int32_t tsStreamNotifyMessageSize;
 extern int32_t tsStreamNotifyFrameSize;
 extern bool    tsCompareAsStrInGreatest;
+extern bool    tsShowFullCreateTableColumn;  // 0: show create table, and not include column compress info
 
 // shared storage
 extern int32_t tsSsEnabled;
