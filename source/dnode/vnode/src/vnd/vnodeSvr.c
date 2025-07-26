@@ -591,7 +591,8 @@ int32_t vnodePreProcessSsMigrateReq(SVnode* pVnode, SRpcMsg* pMsg) {
   }
 
   req.nodeId = vnodeNodeId(pVnode);
-  tSerializeSSsMigrateVgroupReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead), &req);
+  code = tSerializeSSsMigrateVgroupReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead),
+                                       &req);
 
 _exit:
   return code;
