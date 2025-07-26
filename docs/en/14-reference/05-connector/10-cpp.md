@@ -653,7 +653,9 @@ This section showcases example code for common access methods to the TDengine cl
 
 - Asynchronous query example: [Asynchronous Query](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/asyncdemo.c)
 
-- Parameter binding example: [Parameter Binding](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/prepare.c)
+- Parameter binding example: [Parameter Binding](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/stmt2_insert_demo.c)
+
+- Parameter binding(old) example: [Parameter Binding](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/prepare.c)
 
 - Schemaless write example: [Schemaless Write](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/schemaless.c)
 
@@ -892,6 +894,99 @@ TDengine's asynchronous APIs all use a non-blocking call mode. Applications can 
 
 In addition to directly calling `taos_query()` for queries, TDengine also offers a Prepare API that supports parameter binding, similar in style to MySQL, currently only supporting the use of a question mark `?` to represent the parameter to be bound.
 
+Starting from version 3.3.5.0, TDengine has significantly simplified the usage interface of the old parameter binding. This avoids the resource consumption of SQL syntax parsing when writing data through the parameter binding interface, and through batch binding, significantly improves writing performance in most cases. The typical operation steps are as follows:
+
+1. Call `taos_stmt2_init()` to create a parameter binding object;
+2. Call `taos_stmt2_prepare()` to parse INSERT or SELECT statements;
+3. Call `taos_stmt2_bind_param()` to bind multiple subtables to a single supertable, with each subtable able to bind multiple rows of data;
+4. Call `taos_stmt2_exec()` to execute the prepared batch processing command;
+5. Steps 3 to 4 can be repeated to write more data rows without re-parsing SQL;
+6. After execution is complete, call `taos_stmt2_close()` to release all resources.
+
+Note: If `taos_stmt2_exec()` executes successfully and there is no need to change the SQL statement, then it is possible to reuse the parsing result of `taos_stmt2_prepare()` and directly proceed to steps 3 to 4 to bind new data. However, if there is an error in execution, it is not recommended to continue working in the current context. Instead, it is advisable to release resources and start over from the `taos_stmt2_init()` step. You can check the specific error reason through `taos_stmt2_error`.
+
+The difference between stmt2 and stmt is:
+- stmt2 supports batch binding of data in multiple tables, while stmt only supports binding data in a single table.
+- stmt2 supports asynchronous execution, while stmt only supports synchronous execution.
+- stmt2 supports efficient write mode and automatic table creation, while stmt does not support it.
+- stmt2 supports `insert into stb(...tbname,...)values(?,?,?)` syntax, while stmt does not support it.
+- stmt2 supports some labels/columns as fixed values, while stmt requires all columns to be `?`.
+
+stmt upgrade stmt2 changes:
+1. Change `taos_stmt_init()` to `taos_stmt2_init()`, add `TAOS_STMT2_OPTION`.
+2. Change `taos_stmt_prepare()` to `taos_stmt2_prepare()`.
+3. Change `taos_stmt_set_tbname_tags`, `taos_stmt_bind_param()` and `taos_stmt_add_batch` to `taos_stmt2_bind_param()`, change `TAOS_MULTI_BIND` to `TAOS_STMT2_BINDV`.
+4. Change `taos_stmt_execute()` to `taos_stmt2_exec()`, add `affected_rows` parameter.
+5. Change `taos_stmt_close()` to `taos_stmt2_close()`.
+
+The specific functions related to the interface are as follows (you can also refer to the [stmt2_insert_demo.c](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/stmt2_insert_demo.c) file for how to use the corresponding functions):
+
+- `TAOS_STMT2 *taos_stmt2_init(TAOS *taos, TAOS_STMT2_OPTION *option)`
+  - **Interface Description**: Initializes a precompiled SQL statement object.
+  - **Parameter Description**:
+    - taos: [Input] Pointer to the database connection, which is established through the `taos_connect()` function.
+    - option: [Input] Creation configuration. When selecting high-efficiency write mode, `singleStbInsert` and `singleTableBindOnce` need to be set to `true`; when selecting asynchronous execution, the callback function `asyncExecFn` and parameter `userdata` need to be set.
+  - **Return Value**: Non-`NULL`: Success, returns a pointer to a TAOS_STMT2 structure representing the precompiled SQL statement object. `NULL`: Failure, please call taos_stmt_errstr() function for error details.
+
+- `int taos_stmt2_prepare(TAOS_STMT2 *stmt, const char *sql, unsigned long length)`
+  - **Interface Description**: Parses a precompiled SQL statement and binds the parsing results and parameter information to stmt.
+  - **Parameter Description**:
+    - stmt: [Input] Pointer to a valid precompiled SQL statement object.
+    - sql: [Input] SQL statement to be parsed.
+    - length: [Input] Length of the sql parameter. If the length is greater than 0, this parameter will be used as the length of the SQL statement; if it is 0, the length of the SQL statement will be automatically determined.
+  - **Return Value**: `0`: Success. Non-`0`: Failure, please refer to the error code page for details.
+
+- `int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx)`
+  - **Interface Description**: Binds a batch of parameters to a precompiled SQL statement.
+  - **Parameter Description**:
+    - stmt: [Input] Pointer to a valid precompiled SQL statement object.
+    - bindv: [Input] Pointer to a valid TAOS_STMT2_BINDV structure, which contains the table names, tags, and data to be bound. `count` represents the number of tables to be bound, one `tbnames` can correspond to one set of `tags` and multiple sets of `bind_cols`; if it is a `SELECT` statement, only `bind_cols` needs to be bound.
+    - col_idx: [Input] Represents the position of the specified column to be bound, `-1` means full column binding.
+  - **Return Value**: `0`: Success. Non-`0`: Failure, please refer to the error code page for details.
+
+- `int taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows)`
+  - **Interface Description**: Executes the SQL with bound data, can be synchronous or asynchronous, determined by option.
+  - **Parameter Description**:
+    - stmt: [Input] Pointer to a valid precompiled SQL statement object.
+    - affected_rows: [Output] If synchronous execution, represents the number of rows affected by this execution.
+  - **Return Value**: `0`: Success. Non-`0`: Failure, please refer to the error code page for details.
+
+- `int taos_stmt2_close(TAOS_STMT2 *stmt)`
+  - **Interface Description**: After execution, releases all resources.
+  - **Parameter Description**:
+    - stmt: [Input] Pointer to a valid precompiled SQL statement object.
+  - **Return Value**: `0`: Success. Non-`0`: Failure, please refer to the error code page for details.
+
+- `int taos_stmt2_get_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields)`
+  - **Interface Description**: Gets an array of column data attributes (column name, column data type, column length, column schema type) corresponding to the `?` order.
+  - **Parameter Description**:
+    - stmt: [Input] Pointer to a valid precompiled SQL statement object.
+    - count: [Output] Returns the number of `?` in the bound SQL.
+    - fields: [Output] Returns the column data attributes corresponding to the `?` order. If it is a `SELECT` statement, this structure returns `NULL`.
+  - **Return Value**: `0`: Success. Non-`0`: Failure, please refer to the error code page for details.
+
+- `void taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_ALL *fields)`
+  - **Interface Description**: Releases the memory of TAOS_FIELD_ALL return value, generally used after taos_stmt2_get_fields.
+  - **Parameter Description**:
+    - stmt: [Input] Pointer to a valid precompiled SQL statement object.
+    - fields: [Input] Pointer to the resource to be released.
+  - **Return Value**: None.
+
+- `TAOS_RES *taos_stmt2_result(TAOS_STMT2 *stmt)`
+  - **Interface Description**: Gets the result returned after executing SQL.
+  - **Parameter Description**:
+    - stmt: [Input] Pointer to a valid precompiled SQL statement object.
+  - **Return Value**: Returns a pointer to a TAOS_RES structure, which contains the results of the insert operation. The returned TAOS_RES must be managed by the caller to avoid memory leaks.
+
+- `char *taos_stmt2_error(TAOS_STMT2 *stmt)`
+  - **Interface Description**: Used to obtain error information when other STMT2 APIs return an error (return error code or null pointer).
+  - **Parameter Description**:
+    - stmt: [Input] Pointer to a valid precompiled SQL statement object.
+  - **Return Value**: Returns a pointer to a string containing error information.
+
+<details>
+<summary>Parameter Binding(old)</summary>
+
 Starting from versions 2.1.1.0 and 2.1.2.0, TDengine has significantly improved the parameter binding interface support for data writing (INSERT) scenarios. This avoids the resource consumption of SQL syntax parsing when writing data through the parameter binding interface, thereby significantly improving writing performance in most cases. The typical operation steps are as follows:
 
 1. Call `taos_stmt_init()` to create a parameter binding object;
@@ -985,6 +1080,7 @@ The specific functions related to the interface are as follows (you can also ref
   - **Interface Description**: (Added in version 2.1.3.0) Used to obtain error information when other STMT APIs return an error (return error code or null pointer).
     - stmt: [Input] Points to a valid pointer to a precompiled SQL statement object.
   - **Return Value**: Returns a pointer to a string containing error information.
+</details>
 
 #### Schemaless Insert
 

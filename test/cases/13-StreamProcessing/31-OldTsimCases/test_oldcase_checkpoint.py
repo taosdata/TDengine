@@ -1,5 +1,12 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
+from new_test_framework.utils import (
+    tdLog,
+    tdSql,
+    sc,
+    clusterComCheck,
+    tdStream,
+    StreamCheckItem,
+)
 
 
 class TestStreamOldCaseCheckPoint:
@@ -10,335 +17,412 @@ class TestStreamOldCaseCheckPoint:
     def test_stream_oldcase_checkpoint(self):
         """Stream checkpoint
 
-        1. -
+        Test if the stream continues to run after a restart.
 
         Catalog:
             - Streams:OldTsimCases
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common, ci
 
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/checkpointInterval0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/checkpointInterval1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/checkpointSession0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/checkpointSession1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/checkpointState0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/checkpointInterval0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/checkpointInterval1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/checkpointSession0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/checkpointSession1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/checkpointState0.sim
 
         """
 
-        self.checkpointInterval0()
-        self.checkpointInterval1()
-        self.checkpointSession0()
-        self.checkpointSession1()
-        self.checkpointState0()
+        tdStream.createSnode()
 
-    def checkpointInterval0(self):
-        tdLog.info(f"checkpointInterval0")
-        tdStream.dropAllStreamsAndDbs()
-
-        tdLog.info(f"step 1")
-
-        tdLog.info(f"=============== create database")
         tdSql.execute(f"create database test vgroups 1;")
         tdSql.execute(f"use test;")
 
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int , c int, d double);")
-        tdSql.execute(
-            f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart, count(*) c1, sum(a) from t1 interval(10s);"
-        )
-        tdSql.execute(
-            f"create stream streams1 trigger window_close IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt1 as select  _wstart, count(*) c1, sum(a) from t1 interval(10s);"
-        )
+        streams = []
+        streams.append(self.Interval0())
+        streams.append(self.Interval1())
+        streams.append(self.Session0())
+        streams.append(self.Session1())
+        streams.append(self.State0())
+        tdStream.checkAll(streams)
 
-        tdStream.checkStreamStatus()
+    class Interval0(StreamCheckItem):
+        def __init__(self):
+            self.db = "test"
 
-        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
-        tdSql.execute(f"insert into t1 values(1648791213001,2,2,3,1.1);")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 1
-            and tdSql.getData(0, 1) == 2
-            and tdSql.getData(0, 2) == 3,
-        )
-        tdSql.checkResultsByFunc(f"select * from streamt1;", lambda: tdSql.getRows() == 0)
+        def create(self):
+            tdSql.execute(
+                f"create table interval0_t1(ts timestamp, a int, b int, c int, d double);"
+            )
+            tdSql.execute(
+                f"create stream interval0_stream0 interval(10s) sliding(10s) from interval0_t1 stream_options(max_delay(3s)) into interval0_result0 as select _twstart, count(*) c1, sum(a) from interval0_t1 where ts >= _twstart and ts < _twend;"
+            )
+            tdSql.execute(
+                f"create stream interval0_stream1 interval(10s) sliding(10s) from interval0_t1 into interval0_result1 as select _twstart, count(*) c1, sum(a) from interval0_t1 where ts >= _twstart and ts < _twend;"
+            )
 
-        sc.dnodeStop(1)
-        sc.dnodeStart(1)
-        tdStream.checkStreamStatus()
+        def insert1(self):
+            tdSql.execute(
+                f"insert into interval0_t1 values(1648791213000, 1, 2, 3, 1.0);"
+            )
+            tdSql.execute(
+                f"insert into interval0_t1 values(1648791213001, 2, 2, 3, 1.1);"
+            )
 
-        tdSql.execute(f"insert into t1 values(1648791213002,3,2,3,1.1);")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 1
-            and tdSql.getData(0, 1) == 3
-            and tdSql.getData(0, 2) == 6,
-        )
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                f"select * from interval0_result0;",
+                lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:30.000")
+                and tdSql.compareData(0, 1, 2)
+                and tdSql.compareData(0, 2, 3),
+            )
 
-        tdSql.execute(f"insert into t1 values(1648791223003,4,2,3,1.1);")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 2
-            and tdSql.getData(0, 1) == 3
-            and tdSql.getData(0, 2) == 6
-            and tdSql.getData(1, 1) == 1
-            and tdSql.getData(1, 2) == 4,
-        )
+        def insert2(self):
+            sc.dnodeStop(1)
+            sc.dnodeStart(1)
 
-        tdSql.checkResultsByFunc(
-            f"select * from streamt1;",
-            lambda: tdSql.getRows() == 1
-            and tdSql.getData(0, 1) == 3
-            and tdSql.getData(0, 2) == 6,
-        )
+        def check2(self):
+            clusterComCheck.checkDnodes(1)
+            tdStream.checkStreamStatus()
 
-        tdLog.info(f"step 2")
+        def insert3(self):
+            tdSql.execute(
+                f"insert into interval0_t1 values(1648791213002, 3, 2, 3, 1.1);"
+            )
 
-        tdLog.info(f"restart taosd 02 ......")
+        def check3(self):
+            tdSql.checkResultsByFunc(
+                f"select * from interval0_result0;",
+                lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:30.000")
+                and tdSql.compareData(0, 1, 3)
+                and tdSql.compareData(0, 2, 6),
+            )
 
-        sc.dnodeStop(1)
-        sc.dnodeStart(1)
-        tdStream.checkStreamStatus()
+        def insert4(self):
+            tdSql.execute(
+                f"insert into interval0_t1 values(1648791223003, 4, 2, 3, 1.1);"
+            )
 
-        tdSql.execute(f"insert into t1 values(1648791223004,5,2,3,1.1);")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 2
-            and tdSql.getData(0, 1) == 3
-            and tdSql.getData(0, 2) == 6
-            and tdSql.getData(1, 1) == 2
-            and tdSql.getData(1, 2) == 9,
-        )
+        def check4(self):
+            tdSql.checkResultsByFunc(
+                f"select * from interval0_result0;",
+                lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:30.000")
+                and tdSql.compareData(0, 1, 3)
+                and tdSql.compareData(0, 2, 6)
+                and tdSql.compareData(1, 0, "2022-04-01 13:33:40.000")
+                and tdSql.compareData(1, 1, 1)
+                and tdSql.compareData(1, 2, 4),
+            )
+            tdSql.checkResultsByFunc(
+                f"select * from interval0_result1;",
+                lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:30.000")
+                and tdSql.compareData(0, 1, 3)
+                and tdSql.compareData(0, 2, 6),
+            )
 
-        tdSql.checkResultsByFunc(
-            f"select * from streamt1;",
-            lambda: tdSql.getRows() == 1
-            and tdSql.getData(0, 1) == 3
-            and tdSql.getData(0, 2) == 6,
-        )
+        def insert5(self):
+            sc.dnodeStop(1)
+            sc.dnodeStart(1)
 
-    def checkpointInterval1(self):
-        tdLog.info(f"checkpointInterval1")
-        tdStream.dropAllStreamsAndDbs()
+        def check5(self):
+            clusterComCheck.checkDnodes(1)
+            tdStream.checkStreamStatus()
 
-        tdLog.info(f"step 1")
-        tdSql.execute(f"create database test vgroups 4;")
-        tdSql.execute(f"use test;")
+        def insert6(self):
+            tdSql.execute(
+                f"insert into interval0_t1 values(1648791223004, 5, 2, 3, 1.1);"
+            )
 
-        tdSql.execute(
-            f"create stable st(ts timestamp,a int,b int,c int, d double) tags(ta int,tb int,tc int);"
-        )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
-        tdSql.execute(
-            f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart, count(*) c1, sum(a) from st interval(10s);"
-        )
-        tdStream.checkStreamStatus()
+        def check6(self):
+            tdSql.checkResultsByFunc(
+                f"select * from interval0_result0;",
+                lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:30.000")
+                and tdSql.compareData(0, 1, 3)
+                and tdSql.compareData(0, 2, 6)
+                and tdSql.compareData(1, 0, "2022-04-01 13:33:40.000")
+                and tdSql.compareData(1, 1, 2)
+                and tdSql.compareData(1, 2, 9),
+            )
+            tdSql.checkResultsByFunc(
+                f"select * from interval0_result1;",
+                lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:30.000")
+                and tdSql.compareData(0, 1, 3)
+                and tdSql.compareData(0, 2, 6),
+            )
 
-        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
-        tdSql.execute(f"insert into t2 values(1648791213001,2,2,3,1.1);")
+    class Interval1(StreamCheckItem):
+        def __init__(self):
+            self.db = "test"
 
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 1
-            and tdSql.getData(0, 1) == 2
-            and tdSql.getData(0, 2) == 3,
-        )
+        def create(self):
+            tdSql.execute(
+                f"create stable interval1_st(ts timestamp, a int, b int, c int, d double) tags(ta int, tb int, tc int);"
+            )
+            tdSql.execute(
+                f"create table interval1_t1 using interval1_st tags(1, 1, 1);"
+            )
+            tdSql.execute(
+                f"create table interval1_t2 using interval1_st tags(2, 2, 2);"
+            )
 
-        sc.dnodeStop(1)
-        sc.dnodeStart(1)
-        tdStream.checkStreamStatus()
+            tdSql.execute(
+                f"create stream interval1_stream interval(10s) sliding(10s) from interval1_st stream_options(max_delay(3s)) into interval1_result as select _twstart, count(*) c1, sum(a) from interval1_st where ts >= _twstart and ts < _twend;"
+            )
 
-        tdSql.execute(f"insert into t1 values(1648791213002,3,2,3,1.1);")
-        tdSql.execute(f"insert into t2 values(1648791223003,4,2,3,1.1);")
+        def insert1(self):
+            tdSql.execute(
+                f"insert into interval1_t1 values(1648791213000, 1, 2, 3, 1.0);"
+            )
+            tdSql.execute(
+                f"insert into interval1_t2 values(1648791213001, 2, 2, 3, 1.1);"
+            )
 
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 2
-            and tdSql.getData(0, 1) == 3
-            and tdSql.getData(0, 2) == 6
-            and tdSql.getData(1, 1) == 1
-            and tdSql.getData(1, 2) == 4,
-        )
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                f"select * from interval1_result;",
+                lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:30.000")
+                and tdSql.compareData(0, 1, 2)
+                and tdSql.compareData(0, 2, 3),
+            )
 
-    def checkpointSession0(self):
-        tdLog.info(f"checkpointSession0")
-        tdStream.dropAllStreamsAndDbs()
+        def insert6(self):
+            tdSql.execute(
+                f"insert into interval1_t1 values(1648791213002, 3, 2, 3, 1.1);"
+            )
+            tdSql.execute(
+                f"insert into interval1_t2 values(1648791223003, 4, 2, 3, 1.1);"
+            )
 
-        tdLog.info(f"step 1")
+        def check6(self):
+            tdSql.checkResultsByFunc(
+                f"select * from interval1_result;",
+                lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:30.000")
+                and tdSql.compareData(0, 1, 3)
+                and tdSql.compareData(0, 2, 6)
+                and tdSql.compareData(1, 0, "2022-04-01 13:33:40.000")
+                and tdSql.compareData(1, 1, 1)
+                and tdSql.compareData(1, 2, 4),
+            )
 
-        tdLog.info(f"=============== create database")
-        tdSql.execute(f"create database test vgroups 1;")
-        tdSql.execute(f"use test;")
+    class Session0(StreamCheckItem):
+        def __init__(self):
+            self.db = "test"
 
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int , c int, d double);")
-        tdSql.execute(
-            f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart, count(*) c1, sum(a) from t1 session(ts, 10s);"
-        )
-        tdStream.checkStreamStatus()
+        def create(self):
+            tdSql.execute(
+                f"create table session0_t1(ts timestamp, a int, b int, c int, d double);"
+            )
+            tdSql.execute(
+                f"create stream session0_stream session(ts, 10s) from session0_t1 stream_options(max_delay(3s)) into session0_result as select _twstart, _twend, count(*) c1, sum(a) from session0_t1 where ts >= _twstart and ts <= _twend;"
+            )
 
-        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
-        tdSql.execute(f"insert into t1 values(1648791213001,2,2,3,1.1);")
+        def insert1(self):
+            tdSql.execute(
+                f"insert into session0_t1 values(1648791213000, 1, 2, 3, 1.0);"
+            )
+            tdSql.execute(
+                f"insert into session0_t1 values(1648791213001, 2, 2, 3, 1.1);"
+            )
 
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 1
-            and tdSql.getData(0, 1) == 2
-            and tdSql.getData(0, 2) == 3,
-        )
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                f"select * from session0_result;",
+                lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.000")
+                and tdSql.compareData(0, 1, "2022-04-01 13:33:33.001")
+                and tdSql.compareData(0, 2, 2)
+                and tdSql.compareData(0, 3, 3),
+            )
 
-        sc.dnodeStop(1)
-        sc.dnodeStart(1)
-        tdStream.checkStreamStatus()
+        def insert3(self):
+            tdSql.execute(
+                f"insert into session0_t1 values(1648791213002, 3, 2, 3, 1.1);"
+            )
 
-        tdSql.execute(f"insert into t1 values(1648791213002,3,2,3,1.1);")
+        def check3(self):
+            tdSql.checkResultsByFunc(
+                f"select * from session0_result;",
+                lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.000")
+                and tdSql.compareData(0, 1, "2022-04-01 13:33:33.002")
+                and tdSql.compareData(0, 2, 3)
+                and tdSql.compareData(0, 3, 6),
+            )
 
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 1
-            and tdSql.getData(0, 1) == 3
-            and tdSql.getData(0, 2) == 6,
-        )
+        def insert4(self):
+            tdSql.execute(
+                f"insert into session0_t1 values(1648791233003, 4, 2, 3, 1.1);"
+            )
 
-        tdSql.execute(f"insert into t1 values(1648791233003,4,2,3,1.1);")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 2
-            and tdSql.getData(0, 1) == 3
-            and tdSql.getData(0, 2) == 6
-            and tdSql.getData(1, 1) == 1
-            and tdSql.getData(1, 2) == 4,
-        )
+        def check4(self):
+            tdSql.checkResultsByFunc(
+                f"select * from session0_result;",
+                lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.000")
+                and tdSql.compareData(0, 1, "2022-04-01 13:33:33.002")
+                and tdSql.compareData(0, 2, 3)
+                and tdSql.compareData(0, 3, 6)
+                and tdSql.compareData(1, 0, "2022-04-01 13:33:53.003")
+                and tdSql.compareData(1, 1, "2022-04-01 13:33:53.003")
+                and tdSql.compareData(1, 2, 1)
+                and tdSql.compareData(1, 3, 4),
+            )
 
-        tdLog.info(f"step 2")
-        tdLog.info(f"restart taosd 02 ......")
-        sc.dnodeStop(1)
-        sc.dnodeStart(1)
-        tdStream.checkStreamStatus()
+        def insert6(self):
+            tdSql.execute(
+                f"insert into session0_t1 values(1648791233004, 5, 2, 3, 1.1);"
+            )
 
-        tdSql.execute(f"insert into t1 values(1648791233004,5,2,3,1.1);")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 2
-            and tdSql.getData(0, 1) == 3
-            and tdSql.getData(0, 2) == 6
-            and tdSql.getData(1, 1) == 2
-            and tdSql.getData(1, 2) == 9,
-        )
+        def check6(self):
+            tdSql.checkResultsByFunc(
+                f"select * from session0_result;",
+                lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.000")
+                and tdSql.compareData(0, 1, "2022-04-01 13:33:33.002")
+                and tdSql.compareData(0, 2, 3)
+                and tdSql.compareData(0, 3, 6)
+                and tdSql.compareData(1, 0, "2022-04-01 13:33:53.003")
+                and tdSql.compareData(1, 1, "2022-04-01 13:33:53.004")
+                and tdSql.compareData(1, 2, 2)
+                and tdSql.compareData(1, 3, 9),
+            )
 
-    def checkpointSession1(self):
-        tdLog.info(f"checkpointSession1")
-        tdStream.dropAllStreamsAndDbs()
+    class Session1(StreamCheckItem):
+        def __init__(self):
+            self.db = "test"
 
-        tdLog.info(f"step 1")
-        tdSql.execute(f"create database test vgroups 4;")
-        tdSql.execute(f"use test;")
+        def create(self):
+            tdSql.execute(
+                f"create stable session1_st(ts timestamp, a int, b int, c int, d double) tags(ta int, tb int, tc int);"
+            )
+            tdSql.execute(f"create table session1_t1 using session1_st tags(1, 1, 1);")
+            tdSql.execute(f"create table session1_t2 using session1_st tags(2, 2, 2);")
 
-        tdSql.execute(
-            f"create stable st(ts timestamp,a int,b int,c int, d double) tags(ta int,tb int,tc int);"
-        )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
-        tdSql.execute(
-            f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart, count(*) c1, sum(a) from st session(ts, 10s);"
-        )
+            tdSql.execute(
+                f"create stream session1_stream session(ts, 10s) from session1_st stream_options(max_delay(3s)) into session1_result as select _twstart, _twend, count(*) c1, sum(a) from session1_st where ts >= _twstart and ts <= _twend;"
+            )
 
-        tdStream.checkStreamStatus()
+        def insert1(self):
+            tdSql.execute(
+                f"insert into session1_t1 values(1648791213000, 1, 2, 3, 1.0);"
+            )
+            tdSql.execute(
+                f"insert into session1_t2 values(1648791213001, 2, 2, 3, 1.1);"
+            )
 
-        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
-        tdSql.execute(f"insert into t2 values(1648791213001,2,2,3,1.1);")
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                f"select * from session1_result;",
+                lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.000")
+                and tdSql.compareData(0, 1, "2022-04-01 13:33:33.001")
+                and tdSql.compareData(0, 2, 2)
+                and tdSql.compareData(0, 3, 3),
+            )
 
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 1
-            and tdSql.getData(0, 1) == 2
-            and tdSql.getData(0, 2) == 3,
-        )
+        def insert6(self):
+            tdSql.execute(
+                f"insert into session1_t1 values(1648791213002, 3, 2, 3, 1.1);"
+            )
+            tdSql.execute(
+                f"insert into session1_t2 values(1648791233003, 4, 2, 3, 1.1);"
+            )
 
-        tdLog.info(f"waiting for checkpoint generation 1 ......")
-        sc.dnodeStop(1)
-        sc.dnodeStart(1)
-        tdStream.checkStreamStatus()
+        def check6(self):
+            tdSql.checkResultsByFunc(
+                f"select * from session1_result;",
+                lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.000")
+                and tdSql.compareData(0, 1, "2022-04-01 13:33:33.002")
+                and tdSql.compareData(0, 2, 3)
+                and tdSql.compareData(0, 3, 6)
+                and tdSql.compareData(1, 0, "2022-04-01 13:33:53.003")
+                and tdSql.compareData(1, 1, "2022-04-01 13:33:53.003")
+                and tdSql.compareData(1, 2, 1)
+                and tdSql.compareData(1, 3, 4),
+            )
 
-        tdSql.execute(f"insert into t1 values(1648791213002,3,2,3,1.1);")
-        tdSql.execute(f"insert into t2 values(1648791233003,4,2,3,1.1);")
+    class State0(StreamCheckItem):
+        def __init__(self):
+            self.db = "test"
 
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 2
-            and tdSql.getData(0, 1) == 3
-            and tdSql.getData(0, 2) == 6
-            and tdSql.getData(1, 1) == 1
-            and tdSql.getData(1, 2) == 4,
-        )
+        def create(self):
+            tdSql.execute(
+                f"create table state0_t1(ts timestamp, a int, b int, c int, d double);"
+            )
+            tdSql.execute(
+                f"create stream state0_stream state_window(b) from state0_t1 stream_options(max_delay(3s)) into state0_result as select _twstart, _twend, count(*) c1, sum(a) from state0_t1  where ts >= _twstart and ts <= _twend;"
+            )
 
-    def checkpointState0(self):
-        tdLog.info(f"checkpointState0")
-        tdStream.dropAllStreamsAndDbs()
+        def insert1(self):
+            tdSql.execute(f"insert into state0_t1 values(1648791213000, 1, 2, 3, 1.0);")
+            tdSql.execute(f"insert into state0_t1 values(1648791213001, 2, 2, 3, 1.1);")
 
-        tdLog.info(f"step 1")
-        tdLog.info(f"=============== create database")
-        tdSql.execute(f"create database test vgroups 1;")
-        tdSql.execute(f"use test;")
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                f"select * from state0_result;",
+                lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.000")
+                and tdSql.compareData(0, 1, "2022-04-01 13:33:33.001")
+                and tdSql.compareData(0, 2, 2)
+                and tdSql.compareData(0, 3, 3),
+            )
 
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int , c int, d double);")
-        tdSql.execute(
-            f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart, count(*) c1, sum(a) from t1 state_window(b);"
-        )
+        def insert3(self):
+            tdSql.execute(f"insert into state0_t1 values(1648791213002, 3, 2, 3, 1.1);")
 
-        tdStream.checkStreamStatus()
+        def check3(self):
+            tdSql.checkResultsByFunc(
+                f"select * from state0_result;",
+                lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.000")
+                and tdSql.compareData(0, 1, "2022-04-01 13:33:33.002")
+                and tdSql.compareData(0, 2, 3)
+                and tdSql.compareData(0, 3, 6),
+            )
 
-        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
-        tdSql.execute(f"insert into t1 values(1648791213001,2,2,3,1.1);")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 1
-            and tdSql.getData(0, 1) == 2
-            and tdSql.getData(0, 2) == 3,
-        )
+        def insert4(self):
+            tdSql.execute(f"insert into state0_t1 values(1648791233003, 4, 3, 3, 1.1);")
 
-        tdLog.info(f"restart taosd 01 ......")
-        sc.dnodeStop(1)
-        sc.dnodeStart(1)
-        tdStream.checkStreamStatus()
+        def check4(self):
+            tdSql.checkResultsByFunc(
+                f"select * from state0_result;",
+                lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.000")
+                and tdSql.compareData(0, 1, "2022-04-01 13:33:33.002")
+                and tdSql.compareData(0, 2, 3)
+                and tdSql.compareData(0, 3, 6)
+                and tdSql.compareData(1, 0, "2022-04-01 13:33:53.003")
+                and tdSql.compareData(1, 1, "2022-04-01 13:33:53.003")
+                and tdSql.compareData(1, 2, 1)
+                and tdSql.compareData(1, 3, 4),
+            )
 
-        tdSql.execute(f"insert into t1 values(1648791213002,3,2,3,1.1);")
+        def insert6(self):
+            tdSql.execute(f"insert into state0_t1 values(1648791233004, 5, 3, 3, 1.1);")
 
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 1
-            and tdSql.getData(0, 1) == 3
-            and tdSql.getData(0, 2) == 6,
-        )
-
-        tdSql.execute(f"insert into t1 values(1648791233003,4,3,3,1.1);")
-
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 2
-            and tdSql.getData(0, 1) == 3
-            and tdSql.getData(0, 2) == 6
-            and tdSql.getData(1, 1) == 1
-            and tdSql.getData(1, 2) == 4,
-        )
-
-        tdLog.info(f"step 2")
-
-        tdLog.info(f"restart taosd 02 ......")
-        sc.dnodeStop(1)
-        sc.dnodeStart(1)
-        tdStream.checkStreamStatus()
-
-        tdSql.execute(f"insert into t1 values(1648791233004,5,3,3,1.1);")
-
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 2
-            and tdSql.getData(0, 1) == 3
-            and tdSql.getData(0, 2) == 6
-            and tdSql.getData(1, 1) == 2
-            and tdSql.getData(1, 2) == 9,
-        )
+        def check6(self):
+            tdSql.checkResultsByFunc(
+                f"select * from state0_result;",
+                lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.000")
+                and tdSql.compareData(0, 1, "2022-04-01 13:33:33.002")
+                and tdSql.compareData(0, 2, 3)
+                and tdSql.compareData(0, 3, 6)
+                and tdSql.compareData(1, 0, "2022-04-01 13:33:53.003")
+                and tdSql.compareData(1, 1, "2022-04-01 13:33:53.004")
+                and tdSql.compareData(1, 2, 2)
+                and tdSql.compareData(1, 3, 9),
+            )

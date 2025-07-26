@@ -24,6 +24,7 @@ import RequestId from "./_request_id.mdx";
 
 | Connector 版本 | 主要变化                        | TDengine 版本   |
 |:-------------|:----------------------------|:--------------|
+| 3.1.7        | 支持 IPv6 连接，支持 DECIMAL 类型。   | 3.3.6.0 及更高版本 |
 | 3.1.6        | 优化 WebSocket 连接接收消息处理。      | -             |
 | 3.1.5        | 修复 WebSocket 协议编码中文时长度错误。   | -             |
 | 3.1.4        | 提升 WebSocket 查询和写入性能。       | 3.3.2.0 及更高版本 |
@@ -58,10 +59,17 @@ TDengine 其他功能模块的报错，请参考 [错误码](../../../reference/
 | JSON              | byte[]           |
 | VARBINARY         | byte[]           |
 | GEOMETRY          | byte[]           |
+| DECIMAL           | decimal          |
 
-**注意**：JSON 类型仅在 tag 中支持。
-GEOMETRY 类型是 little endian 字节序的二进制数据，符合 WKB 规范。详细信息请参考 [数据类型](../../taos-sql/data-type/#数据类型)。
+**注意**：
+
+- JSON 类型仅在 tag 中支持。
+- GEOMETRY 类型是 little endian 字节序的二进制数据，符合 WKB 规范。详细信息请参考 [数据类型](../../taos-sql/data-type/#数据类型)。
 WKB 规范请参考 [Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)。
+- DECIMAL 类型在 C# 中使用 `decimal` 类型表示，支持高精度的十进制数值。因为 C# 的 `decimal` 类型与 TDengine 的 DECIMAL 类型在精度和范围上有所不同，
+  C# `decimal` 精度最大 29 位，TDengine DECIMAL 类型精度最大 38 位，所以在使用时需要注意：
+    - 未超出 C# decimal 类型范围时可以使用 `GetDecimal` 或 `GetValue` 获取。
+    - 当超出 C# decimal 类型范围时 `GetDecimal` 和 `GetValue` 方法会抛出 `OverflowException`，此时可以使用 `GetString` 方法获取字符串表示形式。
 
 ## 示例程序汇总
 
@@ -330,6 +338,15 @@ C# 驱动提供了符合 ADO.NET 标准的 `DbDataReader` 接口，提供了用�
         - `ordinal`：列索引。
     - **返回值**：日期时间值。
     - **异常**：类型不对应抛出 `InvalidCastException` 异常。
+
+- `public decimal GetDecimal(int ordinal)`
+  - **接口说明**：获取指定列的十进制数值。
+  - **参数说明**：
+  - `ordinal`：列索引。
+  - **返回值**：十进制数值。
+  - **异常**：
+    - 类型不对应抛出 `InvalidCastException` 异常。
+    - 超出范围抛出 `OverflowException` 异常。
 
 - `public double GetDouble(int ordinal)`
     - **接口说明**：获取指定列的双精度浮点数值。

@@ -59,13 +59,22 @@ int32_t tsdbTFileObjCmpr(const STFileObj **fobj1, const STFileObj **fobj2);
 
 struct STFile {
   tsdb_ftype_t type;
-  SDiskID      did;  // disk id
-  int32_t      lcn;  // last chunk number
-  int32_t      fid;  // file id
-  int64_t      cid;  // commit id
-  int64_t      size;
-  int64_t      minVer;
-  int64_t      maxVer;
+  SDiskID      did;     // disk id
+  int32_t      fid;     // file id
+
+  // last chunk number, also number of chunks, only for data file. compaction resets this
+  // field.
+  int32_t      lcn;
+
+  // migration id. note this id is only be updated after file is downloaded from shared
+  // storage, but not after file is uploaded to shared storage. compaction resets this id
+  // to 0.
+  int32_t      mid;
+
+  int64_t cid;          // commit id
+  int64_t size;         // the logical file size, not the physical size
+  int64_t minVer;
+  int64_t maxVer;
   union {
     struct {
       int32_t level;

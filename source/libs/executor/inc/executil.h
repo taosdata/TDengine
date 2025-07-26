@@ -19,6 +19,7 @@
 #include "function.h"
 #include "nodes.h"
 #include "plannodes.h"
+#include "query.h"
 #include "storageapi.h"
 #include "tcommon.h"
 #include "tpagedbuf.h"
@@ -111,12 +112,21 @@ typedef struct STableListInfo {
   SHashObj*        remainGroups;  // remaining group has not yet processed the empty group
   STableListIdInfo idInfo;        // this maybe the super table or ordinary table
 } STableListInfo;
+typedef struct SDBVgInfoReq {
+  tsem_t     ready;
+  SUseDbRsp* pRsp;
+} SDBVgInfoReq;
+
+typedef struct SDBVgInfoMgr {
+  SHashObj* dbVgInfoMap;
+  SRWLatch  lock;
+} SDBVgInfoMgr;
 
 struct SqlFunctionCtx;
 
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
                                 STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
-                                SExecTaskInfo* pTaskInfo);
+                                SExecTaskInfo* pTaskInfo, SHashObj* groupIdMap);
 
 STableListInfo* tableListCreate();
 void            tableListDestroy(STableListInfo* pTableListInfo);
@@ -165,7 +175,6 @@ bool hasRemainResults(SGroupResInfo* pGroupResInfo);
 
 int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
 
-SSDataBlock* createDataBlockFromDescNode(SDataBlockDescNode* pNode);
 int32_t      prepareDataBlockBuf(SSDataBlock* pDataBlock, SColMatchInfo* pMatchInfo);
 
 EDealRes doTranslateTagExpr(SNode** pNode, void* pContext);
@@ -180,8 +189,8 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
 
 int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId);
 int32_t createExprFromTargetNode(SExprInfo* pExp, STargetNode* pTargetNode);
-int32_t createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, SExprInfo** pExprInfo, int32_t* numOfExprs);
 
+void destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_t numOfOutput);
 SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowEntryInfoOffset,
                                      SFunctionStateStore* pStore);
 int32_t relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray* pCols, bool outputEveryColumn);
@@ -194,17 +203,16 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
                                const SReadHandle* readHandle);
 int32_t initQueryTableDataCondWithColArray(SQueryTableDataCond* pCond, SQueryTableDataCond* pOrgCond,
                                      const SReadHandle* readHandle, SArray* colArray);
-void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
 
 int32_t convertFillType(int32_t mode);
 int32_t resultrowComparAsc(const void* p1, const void* p2);
 int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified, SStorageAPI* pAPI);
 char*   getStreamOpName(uint16_t opType);
-void    printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr);
+
 void    printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr, const char* taskIdStr);
 
 TSKEY getStartTsKey(STimeWindow* win, const TSKEY* tsCols);
-void  updateTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pWin, int64_t delta);
+void  updateTimeWindowInfo(SColumnInfoData* pColData, const STimeWindow* pWin, int64_t delta);
 
 SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, SArray* pUidTagList, void* pVnode,
                                         SStorageAPI* pStorageAPI);
@@ -225,5 +233,8 @@ uint64_t calcGroupId(char* pData, int32_t len);
 SNodeList* makeColsNodeArrFromSortKeys(SNodeList* pSortKeys);
 
 int32_t extractKeysLen(const SArray* keys, int32_t* pLen);
+
+int32_t getDbVgInfoForExec(void* clientRpc, const char* dbFName, const char* tbName, SVgroupInfo* pVgInfo);
+void    rmDbVgInfoFromCache(const char* dbFName);
 
 #endif  // TDENGINE_EXECUTIL_H

@@ -9,6 +9,7 @@
  */
 
 #include "meta.h"
+#include "vnodeInt.h"
 
 extern SDmNotifyHandle dmNotifyHdl;
 
@@ -696,6 +697,9 @@ static int32_t metaNameIdxUpsert(SMeta *pMeta, const SMetaHandleParam *pParam, E
                        pMeta->txn);
   } else {
     code = TSDB_CODE_INVALID_PARA;
+  }
+  if (code) {
+    metaErr(TD_VID(pMeta->pVnode), code);
   }
   return code;
 }
