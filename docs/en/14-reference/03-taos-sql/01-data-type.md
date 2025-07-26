@@ -43,8 +43,8 @@ In TDengine, the following data types can be used in the data model of basic tab
 | 16   |      VARCHAR      | Custom    | Alias for BINARY type                                        |
 | 17   |     GEOMETRY      | Custom    | Geometry type, supported starting from version 3.1.0.0       |
 | 18   |     VARBINARY     | Custom    | Variable-length binary data, supported starting from version 3.1.1.0 |
-| 19  |      DECIMAL      |  8 or 16  | High-precision numeric type. The range of values depends on the precision and scale specified in the type. Supported starting from version 3.3.6. See the description below. |
-| 20  |      BLOB      |  4M  |  Variable-length binary data, supported starting from version 3.3.8.0 |
+| 19   |      DECIMAL      | 8 or 16   | High-precision numeric type. The range of values depends on the precision and scale specified in the type. Supported starting from version 3.3.6. See the description below. |
+| 20   |      BLOB         | 4M        | Variable-length binary data, supported starting from version 3.3.7.0 |
 
 :::note
 
