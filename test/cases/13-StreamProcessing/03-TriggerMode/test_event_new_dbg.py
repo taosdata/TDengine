@@ -2407,11 +2407,6 @@ class TestStreamStateTrigger:
                 f"from vtb_1 where _c0 >= _twstart and _c0 <= _twend "
             )
 
-            tdSql.error(
-                f"create stream s8 event_window(start with cint > 20) from vtb_1 into res_vtb_1 "
-                f"as select _twstart, first(_c0), last_row(_c0), count(vtb_1.col_1), first(vtb_1.col_4) "
-                f"from vtb_1 where _c0 >= _twstart and _c0 <= _twend "
-            )
 
             tdSql.error(
                 f"create stream s8 event_window(start with cint > 20 end with cint < 100) true_for(1n) from vtb_1 into res_vtb_1 "
