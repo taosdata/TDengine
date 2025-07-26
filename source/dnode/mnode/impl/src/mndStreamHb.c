@@ -34,6 +34,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   char*        msg = POINTER_SHIFT(pReq->pCont, sizeof(SStreamMsgGrpHeader));
   int32_t      len = pReq->contLen - sizeof(SStreamMsgGrpHeader);
   int64_t      currTs = taosGetTimestampMs();
+  SRpcMsg      rspMsg = {0};
 
   mstDebug("start to process stream hb req msg");
 
@@ -56,8 +57,6 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   rsp.streamGId = req.streamGId;
 
-  SRpcMsg rspMsg = {0};
-  
   (void)msmHandleStreamHbMsg(pMnode, currTs, &req, pReq, &rspMsg);
 
 _exit:
