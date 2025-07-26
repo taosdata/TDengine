@@ -1189,7 +1189,11 @@ static int32_t vnodeProcessSsMigrateReq(SVnode *pVnode, int64_t ver, void *pReq,
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-  tSerializeSSsMigrateVgroupRsp(pRsp->pCont, pRsp->contLen, &rsp);
+
+  if (tSerializeSSsMigrateVgroupRsp(pRsp->pCont, pRsp->contLen, &rsp) < 0) {
+    vError("vgId:%d, failed to serialize ssmigrate response", TD_VID(pVnode));
+    code = TSDB_CODE_INVALID_MSG;
+  }
 
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
