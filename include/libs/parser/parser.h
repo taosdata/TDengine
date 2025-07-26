@@ -141,6 +141,7 @@ typedef struct SParseContext {
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);
 bool    qIsInsertValuesSql(const char* pStr, size_t length);
 bool    qIsUpdateSetSql(const char* pStr, size_t length);
+int32_t convertUpdateToInsert(const char* pStr, char** pNewSql);
 bool    qParseDbName(const char* pStr, size_t length, char** pDbName);
 
 // for async mode

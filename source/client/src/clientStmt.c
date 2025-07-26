@@ -948,6 +948,13 @@ int stmtPrepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_PREPARE));
 
+  if (qIsUpdateSetSql(sql, strlen(sql))) {
+    char* newSql = NULL;
+    STMT_ERR_RET(convertUpdateToInsert(sql, &newSql));
+    sql = newSql;
+    length = strlen(newSql);
+  }
+
   if (length <= 0) {
     length = strlen(sql);
   }

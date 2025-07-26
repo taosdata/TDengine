@@ -77,149 +77,121 @@ bool qIsUpdateSetSql(const char* pStr, size_t length) {
   return false;
 }
 
-static int32_t convertUpdateToInsert(SParseContext* pCxt, char** pNewSql) {
-  if (NULL == pCxt || NULL == pCxt->pSql) {
+int32_t convertUpdateToInsert(const char* pSql, char** pNewSql) {
+  if (NULL == pSql || NULL == pNewSql) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  const char* pSql = pCxt->pSql;
-  const char* pEnd = pSql + pCxt->sqlLen;
-
-  // 解析 UPDATE 语句的各个部分
+  const char* pEnd = pSql + strlen(pSql);
+  size_t      maxSqlLen = strlen(pSql) * 2;
+  char*  newSql = taosMemoryMalloc(maxSqlLen);
+  if (newSql == NULL) {
+    return terrno;
+  }
+  char*   p = newSql;
   int32_t index = 0;
   SToken  t;
 
-  // 跳过 UPDATE
+  // UPDATE
   t = tStrGetToken((char*)pSql, &index, false, NULL);
   if (TK_UPDATE != t.type) {
+    taosMemoryFree(newSql);
     return TSDB_CODE_PAR_SYNTAX_ERROR;
   }
   pSql += index;
 
-  // 获取表名
+  // tbname
   index = 0;
   t = tStrGetToken((char*)pSql, &index, false, NULL);
   if (t.n == 0 || t.z == NULL) {
+    taosMemoryFree(newSql);
     return TSDB_CODE_PAR_SYNTAX_ERROR;
   }
-  char* tableName = taosMemoryMalloc(t.n + 1);
-  if (tableName == NULL) {
-    return terrno;
-  }
-  strncpy(tableName, t.z, t.n);
-  tableName[t.n] = '\0';
+
+  p += sprintf(p, "INSERT INTO ");
+  memcpy(p, t.z, t.n);
+  p += t.n;
+  p += sprintf(p, " (");
   pSql += index;
 
-  // 跳过 SET
+  // SET
   index = 0;
   t = tStrGetToken((char*)pSql, &index, false, NULL);
   if (TK_SET != t.type) {
-    taosMemoryFree(tableName);
+    taosMemoryFree(newSql);
     return TSDB_CODE_PAR_SYNTAX_ERROR;
   }
   pSql += index;
 
-  // 收集 SET 子句中的列名
-  SArray* setColumns = taosArrayInit(8, TSDB_COL_NAME_LEN);
-  // SArray* setValues = taosArrayInit(8, sizeof(char*));
-  if (setColumns == NULL) {
-    taosMemoryFree(tableName);
-    taosArrayDestroy(setColumns);
-    // taosArrayDestroy(setValues);
-    return terrno;
-  }
-
+  bool    firstColumn = true;
+  int32_t columnCount = 0;
   bool inSetClause = true;
+
+  // col name
   while (inSetClause && pSql < pEnd) {
-    // 获取列名
     index = 0;
     t = tStrGetToken((char*)pSql, &index, false, NULL);
     if (t.n == 0 || t.z == NULL) {
       break;
     }
 
-    char colName[TSDB_COL_NAME_LEN];
-    tstrncpy(colName, t.z, TSDB_COL_NAME_LEN);
-    colName[t.n] = '\0';
-    taosArrayPush(setColumns, colName);
+    if (!firstColumn) {
+      *p++ = ',';
+    }
+    memcpy(p, t.z, t.n);
+    p += t.n;
+    firstColumn = false;
+    columnCount++;
     pSql += index;
 
-    // 跳过等号
     index = 0;
     t = tStrGetToken((char*)pSql, &index, false, NULL);
     if (t.type != TK_NK_EQ) {
-      taosMemoryFree(tableName);
-      taosArrayDestroy(setColumns);
-      // taosArrayDestroy(setValues);
+      taosMemoryFree(newSql);
       return TSDB_CODE_PAR_SYNTAX_ERROR;
     }
     pSql += index;
 
-    // 获取值（占位符或字面量）
     index = 0;
     t = tStrGetToken((char*)pSql, &index, false, NULL);
     if (t.n == 0 || t.z == NULL) {
       break;
     }
-
-    // 验证值是否为占位符 ?
     if (t.type != TK_NK_QUESTION) {
-      taosMemoryFree(tableName);
-      taosArrayDestroy(setColumns);
+      taosMemoryFree(newSql);
       return TSDB_CODE_PAR_SYNTAX_ERROR;
     }
     pSql += index;
 
-    // 检查下一个token
     index = 0;
     t = tStrGetToken((char*)pSql, &index, false, NULL);
-    if (t.type == TK_NK_COMMA) {
-      pSql += index;
-    } else if (t.type == TK_WHERE) {
+    // if (t.type == TK_NK_COMMA) {
+    //   pSql += index;
+    if (t.type == TK_WHERE) {
       inSetClause = false;
       pSql += index;
-    } else {
-      break;
     }
   }
 
-  // 收集 WHERE 子句中的列名
-  SArray* whereColumns = taosArrayInit(8, sizeof(char*));
-  SArray* whereValues = taosArrayInit(8, sizeof(char*));
-  if (whereColumns == NULL || whereValues == NULL) {
-    taosMemoryFree(tableName);
-    taosArrayDestroy(setColumns);
-    // taosArrayDestroy(setValues);
-    taosArrayDestroy(whereColumns);
-    taosArrayDestroy(whereValues);
-    return terrno;
-  }
-
+  // where clause
   if (pSql < pEnd) {
     bool inWhereClause = true;
     while (inWhereClause && pSql < pEnd) {
-      // 获取列名
       index = 0;
       t = tStrGetToken((char*)pSql, &index, false, NULL);
       if (t.n == 0 || t.z == NULL) {
         break;
       }
 
-      char* colName = taosMemoryMalloc(t.n + 1);
-      if (colName == NULL) {
-        taosMemoryFree(tableName);
-        taosArrayDestroy(setColumns);
-        // taosArrayDestroy(setValues);
-        taosArrayDestroy(whereColumns);
-        taosArrayDestroy(whereValues);
-        return terrno;
+      if (!firstColumn) {
+        *p++ = ',';
       }
-      strncpy(colName, t.z, t.n);
-      colName[t.n] = '\0';
-      taosArrayPush(whereColumns, colName);
+      memcpy(p, t.z, t.n);
+      p += t.n;
+      firstColumn = false;
+      columnCount++;
       pSql += index;
 
-      // 跳过操作符（=, >, <, etc.）
       index = 0;
       t = tStrGetToken((char*)pSql, &index, false, NULL);
       if (t.n == 0 || t.z == NULL) {
@@ -227,23 +199,17 @@ static int32_t convertUpdateToInsert(SParseContext* pCxt, char** pNewSql) {
       }
       pSql += index;
 
-      // 获取值
       index = 0;
       t = tStrGetToken((char*)pSql, &index, false, NULL);
       if (t.n == 0 || t.z == NULL) {
         break;
       }
-
-      // 验证值是否为占位符 ?
       if (t.type != TK_NK_QUESTION) {
-        taosMemoryFree(tableName);
-        taosArrayDestroy(setColumns);
-        taosArrayDestroy(whereColumns);
+        taosMemoryFree(newSql);
         return TSDB_CODE_PAR_SYNTAX_ERROR;
       }
       pSql += index;
 
-      // 检查下一个token
       index = 0;
       t = tStrGetToken((char*)pSql, &index, false, NULL);
       if (t.type == TK_AND || t.type == TK_OR) {
@@ -254,133 +220,18 @@ static int32_t convertUpdateToInsert(SParseContext* pCxt, char** pNewSql) {
     }
   }
 
-  // 构建新的 INSERT 语句
-  size_t newSqlLen = 0;
-  newSqlLen += strlen("INSERT INTO ");
-  newSqlLen += strlen(tableName);
-  newSqlLen += strlen(" (");
-
-  // 计算所有列名的长度
-  for (int32_t i = 0; i < taosArrayGetSize(setColumns); i++) {
-    char* col = taosArrayGet(setColumns, i);
-    newSqlLen += strlen(col);
-    if (i < taosArrayGetSize(setColumns) - 1) {
-      newSqlLen += 1;  // 逗号
-    }
-  }
-
-  for (int32_t i = 0; i < taosArrayGetSize(whereColumns); i++) {
-    char* col = taosArrayGet(whereColumns, i);
-    newSqlLen += strlen(col);
-    if (i < taosArrayGetSize(whereColumns) - 1 || taosArrayGetSize(setColumns) > 0) {
-      newSqlLen += 1;  // 逗号
-    }
-  }
-
-  newSqlLen += strlen(") VALUES (");
-
-  // // 计算所有值的长度
-  // for (int32_t i = 0; i < taosArrayGetSize(setValues); i++) {
-  //   char* val = taosArrayGet(setValues, i);
-  //   newSqlLen += strlen(val);
-  //   if (i < taosArrayGetSize(setValues) - 1) {
-  //     newSqlLen += 1;  // 逗号
-  //   }
-  // }
-
-  // for (int32_t i = 0; i < taosArrayGetSize(whereValues); i++) {
-  //   char* val = taosArrayGet(whereValues, i);
-  //   newSqlLen += strlen(val);
-  //   if (i < taosArrayGetSize(whereValues) - 1 || taosArrayGetSize(setValues) > 0) {
-  //     newSqlLen += 1;  // 逗号
-  //   }
-  // }
-
-  newSqlLen += strlen(")");
-  newSqlLen += 1;  // 字符串结束符
-
-  char* newSql = taosMemoryMalloc(newSqlLen);
-  if (newSql == NULL) {
-    taosMemoryFree(tableName);
-    taosArrayDestroy(setColumns);
-    // taosArrayDestroy(setValues);
-    taosArrayDestroy(whereColumns);
-    taosArrayDestroy(whereValues);
-    return terrno;
-  }
-
-  // 构建 INSERT 语句
-  char* p = newSql;
-  p += sprintf(p, "INSERT INTO %s (", tableName);
-
-  // 添加 SET 列名
-  for (int32_t i = 0; i < taosArrayGetSize(setColumns); i++) {
-    char* col = taosArrayGet(setColumns, i);
-    p += sprintf(p, "%s", col);
-    if (i < taosArrayGetSize(setColumns) - 1) {
-      p += sprintf(p, ",");
-    }
-  }
-
-  // 添加 WHERE 列名
-  for (int32_t i = 0; i < taosArrayGetSize(whereColumns); i++) {
-    char* col = taosArrayGet(whereColumns, i);
-    if (i == 0 && taosArrayGetSize(setColumns) > 0) {
-      p += sprintf(p, ",");
-    }
-    p += sprintf(p, "%s", col);
-    if (i < taosArrayGetSize(whereColumns) - 1) {
-      p += sprintf(p, ",");
-    }
-  }
-
   p += sprintf(p, ") VALUES (");
-
-  // // 添加 SET 值
-  // for (int32_t i = 0; i < taosArrayGetSize(setValues); i++) {
-  //   char* val = taosArrayGet(setValues, i);
-  //   p += sprintf(p, "%s", val);
-  //   if (i < taosArrayGetSize(setValues) - 1) {
-  //     p += sprintf(p, ",");
-  //   }
-  // }
-
-  // // 添加 WHERE 值
-  // for (int32_t i = 0; i < taosArrayGetSize(whereValues); i++) {
-  //   char* val = taosArrayGet(whereValues, i);
-  //   if (i == 0 && taosArrayGetSize(setValues) > 0) {
-  //     p += sprintf(p, ",");
-  //   }
-  //   p += sprintf(p, "%s", val);
-  //   if (i < taosArrayGetSize(whereValues) - 1) {
-  //     p += sprintf(p, ",");
-  //   }
-  // }
-
-  p += sprintf(p, ")");
+  for (int32_t i = 0; i < columnCount; i++) {
+    if (i > 0) {
+      *p++ = ',';
+    }
+    *p++ = '?';
+  }
+  *p++ = ')';
+  *p = '\0';
 
   // 返回转换后的 SQL
   *pNewSql = newSql;
-
-  // 清理内存
-  taosMemoryFree(tableName);
-  for (int32_t i = 0; i < taosArrayGetSize(setColumns); i++) {
-    taosMemoryFree(taosArrayGet(setColumns, i));
-  }
-  // for (int32_t i = 0; i < taosArrayGetSize(setValues); i++) {
-  //   taosMemoryFree(taosArrayGet(setValues, i));
-  // }
-  for (int32_t i = 0; i < taosArrayGetSize(whereColumns); i++) {
-    taosMemoryFree(taosArrayGet(whereColumns, i));
-  }
-  for (int32_t i = 0; i < taosArrayGetSize(whereValues); i++) {
-    taosMemoryFree(taosArrayGet(whereValues, i));
-  }
-  taosArrayDestroy(setColumns);
-  // taosArrayDestroy(setValues);
-  taosArrayDestroy(whereColumns);
-  taosArrayDestroy(whereValues);
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -588,17 +439,6 @@ int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (qIsInsertValuesSql(pCxt->pSql, pCxt->sqlLen)) {
     code = parseInsertSql(pCxt, pQuery, NULL, NULL);
-  } else if (qIsUpdateSetSql(pCxt->pSql, pCxt->sqlLen)) {
-    char* newSql = NULL;
-    code = convertUpdateToInsert(pCxt, &newSql);
-    if (TSDB_CODE_SUCCESS == code && newSql != NULL) {
-      // 创建临时的 SParseContext 来解析转换后的 SQL
-      SParseContext tempCxt = *pCxt;
-      tempCxt.pSql = newSql;
-      tempCxt.sqlLen = strlen(newSql);
-      code = parseInsertSql(&tempCxt, pQuery, NULL, NULL);
-      taosMemoryFree(newSql);
-    }
   } else {
     code = parseSqlIntoAst(pCxt, pQuery);
   }

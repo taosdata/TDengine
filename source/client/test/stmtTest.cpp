@@ -625,7 +625,7 @@ TEST(stmtCase, update) {
 
   TAOS_STMT *stmt = taos_stmt_init(taos);
   ASSERT_NE(stmt, nullptr);
-  char *sql = "update stmt_testdb_6t1 set c1 = ?,c2 = ? where ts = ?";
+  char *sql = "update stmt_testdb_6.t1 set c1 = ?,c2 = ? where ts = ?";
   int   code = taos_stmt_prepare(stmt, sql, 0);
   checkError(stmt, code);
 
@@ -644,9 +644,10 @@ TEST(stmtCase, update) {
   params[0].num = 1;
 
   params[1].buffer_type = TSDB_DATA_TYPE_BINARY;
-  params[1].buffer = &c2;
+  params[1].buffer = c2;
   params[1].length = &c2_len;
   params[1].is_null = NULL;
+  params[1].num = 1;
 
   params[2].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
   params[2].buffer = &ts;
@@ -662,6 +663,23 @@ TEST(stmtCase, update) {
 
   code = taos_stmt_execute(stmt);
   checkError(stmt, code);
+
+  TAOS_RES *result = taos_query(taos, "select c1,c2 from stmt_testdb_6.t1 where ts=1591060628000");
+  ASSERT_NE(result, nullptr);
+  ASSERT_EQ(taos_errno(result), 0);
+
+  TAOS_ROW row = taos_fetch_row(result);
+  ASSERT_NE(row, nullptr);
+
+  int32_t actual_c1 = *(int32_t *)row[0];
+  ASSERT_EQ(actual_c1, 10);
+
+  char *actual_c2 = (char *)row[1];
+  ASSERT_STREQ(actual_c2, "def");
+
+  printf("UPDATE test passed: c1=%d, c2=%s\n", actual_c1, actual_c2);
+
+  taos_free_result(result);
 
   taos_stmt_close(stmt);
   do_query(taos, "DROP DATABASE IF EXISTS stmt_testdb_6");
