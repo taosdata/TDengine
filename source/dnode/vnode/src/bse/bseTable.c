@@ -952,8 +952,13 @@ int32_t footerDecode(STableFooter *pFooter, char *buf) {
   char    *mp = buf + kEncodeLen - 8;
   uint32_t ml, mh;
 
-  taosDecodeFixedU32(mp, &ml);
-  taosDecodeFixedU32(mp + 4, &mh);
+  if (taosDecodeFixedU32(mp, &ml) == NULL) {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+  if (taosDecodeFixedU32(mp + 4, &mh) == NULL) {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
   if (ml != kMagicNum || mh != kMagicNum) {
     return TSDB_CODE_FILE_CORRUPTED;
   }
