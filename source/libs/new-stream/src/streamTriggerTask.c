@@ -372,9 +372,10 @@ static int32_t stTriggerTaskGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *bu
 
   code = tEncodeI32(&encoder, ver);  // version
   QUERY_CHECK_CODE(code, lino, _end);
-  code = tEncodeI32(&encoder, STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION);
-  QUERY_CHECK_CODE(code, lino, _end);
   code = tEncodeI64(&encoder, pTask->task.streamId);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  code = tEncodeI32(&encoder, STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION);
   QUERY_CHECK_CODE(code, lino, _end);
 
   code = tEncodeI32(&encoder, tSimpleHashGetSize(pTask->pRealtimeStartVer));
@@ -436,14 +437,14 @@ static int32_t stTriggerTaskParseCheckpoint(SStreamTriggerTask *pTask, uint8_t *
 
   code = tDecodeI32(&decoder, &ver);
   QUERY_CHECK_CODE(code, lino, _end);
-  code = tDecodeI32(&decoder, &formatVer);
-  QUERY_CHECK_CODE(code, lino, _end);
-  QUERY_CHECK_CONDITION(formatVer == STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION, code, lino, _end,
-                        TSDB_CODE_INVALID_PARA);
   code = tDecodeI64(&decoder, &streamId);
   QUERY_CHECK_CODE(code, lino, _end);
   QUERY_CHECK_CONDITION(streamId == pTask->task.streamId, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
+  code = tDecodeI32(&decoder, &formatVer);
+  QUERY_CHECK_CODE(code, lino, _end);
+  QUERY_CHECK_CONDITION(formatVer == STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION, code, lino, _end,
+                        TSDB_CODE_INVALID_PARA);
   int32_t nVgroups = 0;
   code = tDecodeI32(&decoder, &nVgroups);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -2742,12 +2743,17 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
       }
     }
     TD_DLIST_POP(&pContext->groupsToCheck, pGroup);
-    int32_t nRemainParams = taosArrayGetSize(pGroup->pPendingCalcParams);
-    bool    needMoreCalc =
-        (pTask->lowLatencyCalc && (nRemainParams > 0) || (nRemainParams >= STREAM_CALC_REQ_MAX_WIN_NUM));
-    if (needMoreCalc) {
-      // the group has remaining calc params to be calculated
+    if (pContext->needCheckAgain) {
+      pContext->needCheckAgain = false;
       TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+    } else {
+      int32_t nRemainParams = taosArrayGetSize(pGroup->pPendingCalcParams);
+      bool    needMoreCalc =
+          (pTask->lowLatencyCalc && (nRemainParams > 0) || (nRemainParams >= STREAM_CALC_REQ_MAX_WIN_NUM));
+      if (needMoreCalc) {
+        // the group has remaining calc params to be calculated
+        TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+      }
     }
     pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
   }
@@ -2883,6 +2889,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
 #define STRIGGER_VIRTUAL_TABLE_INFO_INTERVAL_NS 10 * NANOSECOND_PER_SEC  // 10s
   if (pTask->isVirtualTable && pContext->lastVirtTableInfoTime + STRIGGER_VIRTUAL_TABLE_INFO_INTERVAL_NS <= now) {
     // check virtual table info
+    pContext->status = STRIGGER_CONTEXT_FETCH_META;
     for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->virtReaderList);
          pContext->curReaderIdx++) {
       code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_VTABLE_INFO);
@@ -3403,7 +3410,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           VTableInfo            *pInfo = TARRAY_GET_ELEM(vtableInfo.infos, i);
           SSTriggerVirTableInfo *pTable = tSimpleHashGet(pTask->pVirTableInfos, &pInfo->uid, sizeof(int64_t));
           if (pTable == NULL) {
-            ST_TASK_DLOG("found new added virtual table, gid:%" PRId64 ", uid:%" PRId64 ", ver:%d" , pInfo->gId,
+            ST_TASK_DLOG("found new added virtual table, gid:%" PRId64 ", uid:%" PRId64 ", ver:%d", pInfo->gId,
                          pInfo->uid, pInfo->cols.version);
             code = TSDB_CODE_INTERNAL_ERROR;
             QUERY_CHECK_CODE(code, lino, _end);
@@ -3432,8 +3439,8 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         VTableInfo           *pInfo = TARRAY_GET_ELEM(vtableInfo.infos, i);
         SSTriggerVirTableInfo newInfo = {
             .tbGid = pInfo->gId, .tbUid = pInfo->uid, .tbVer = pInfo->cols.version, .vgId = vgId};
-        ST_TASK_DLOG("got virtual table info, gid:%" PRId64 ", uid:%" PRId64 ", ver:%d", pInfo->gId,
-                     pInfo->uid, pInfo->cols.version);
+        ST_TASK_DLOG("got virtual table info, gid:%" PRId64 ", uid:%" PRId64 ", ver:%d", pInfo->gId, pInfo->uid,
+                     pInfo->cols.version);
         code = tSimpleHashPut(pTask->pVirTableInfos, &newInfo.tbUid, sizeof(int64_t), &newInfo,
                               sizeof(SSTriggerVirTableInfo));
         QUERY_CHECK_CODE(code, lino, _end);
@@ -4788,8 +4795,13 @@ static void stRealtimeGroupClearTempState(SSTriggerRealtimeGroup *pGroup) {
 static void stRealtimeGroupClearMetadatas(SSTriggerRealtimeGroup *pGroup, int64_t prevWindowEnd) {
   SSTriggerRealtimeContext *pContext = pGroup->pContext;
   SStreamTriggerTask       *pTask = pContext->pTask;
-  int32_t                   iter = 0;
-  SSTriggerTableMeta       *pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, NULL, &iter);
+
+  if (pContext->needCheckAgain) {
+    return;
+  }
+
+  int32_t             iter = 0;
+  SSTriggerTableMeta *pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, NULL, &iter);
   while (pTableMeta != NULL) {
     if (taosArrayGetSize(pTableMeta->pMetas) > 0) {
       int64_t endTime = prevWindowEnd;
@@ -5682,6 +5694,10 @@ static int32_t stRealtimeGroupDoSlidingCheck(SSTriggerRealtimeGroup *pGroup) {
       int64_t nextStart = pGroup->nextWindow.skey;
       int64_t curEnd = IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) ? TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey : INT64_MAX;
       int64_t ts = TMIN(nextStart, curEnd);
+      if (taosArrayGetSize(pGroup->pPendingCalcParams) >= STREAM_CALC_REQ_MAX_WIN_NUM) {
+        pContext->needCheckAgain = true;
+        goto _end;
+      }
       if (ts > pGroup->newThreshold) {
         break;
       }

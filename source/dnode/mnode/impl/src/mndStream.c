@@ -60,7 +60,8 @@ static int32_t mndStreamSeqActionUpdate(SSdb *pSdb, SStreamSeq *pOldStream, SStr
 static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq);
 
 void mndCleanupStream(SMnode *pMnode) {
-  //STREAMTODO
+  msmDestroyRuntimeInfo(pMnode);
+  
   mDebug("mnd stream runtime info cleanup");
 }
 
@@ -965,8 +966,8 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
   SStreamObj *pStream = NULL;
   int32_t     code = 0;
 
-  if ((code = grantCheck(TSDB_GRANT_STREAMS)) < 0) {
-    TAOS_RETURN(code);
+  if ((code = grantCheckExpire(TSDB_GRANT_STREAMS)) < 0) {
+    return code;
   }
 
   SMRecalcStreamReq recalcReq = {0};

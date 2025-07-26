@@ -7,34 +7,27 @@ import os
 import subprocess
 import json
 
-class TestSdnyStream:
-    caseName = "test_sdny_case1_bug1"
+class TestSliding:
     currentDir = os.path.dirname(os.path.abspath(__file__))
-    runAll = False
     dbname = "test1"
-    stbname= "stba"
-    stName = ""
-    resultIdx = ""
-    sliding = 1
+    dbname2 = "test2"
+    username1 = "lvze1"
+    username2 = "lvze2"
     subTblNum = 3
     tblRowNum = 10
     tableList = []
-    outTbname = "monitor_info_sldc_gml2"
-    streamName = "stream_monitor_info_sldc_gml2"
-    tableList = []
-    resultIdx = "1"
     
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_sdny_case1_bug1(self):
-        """Stream sdny test
+    def test_sliding_case1(self):
+        """Stream test_sliding_case1 test
         
-        1. test sdny stream 
+        1. test_sliding_case1
         
 
         Catalog:
-            - Streams:sdny
+            - Streams:test_sliding_case1
 
         Since: v3.3.3.7
 
@@ -50,29 +43,103 @@ class TestSdnyStream:
         tdStream.dropAllStreamsAndDbs()
         self.createSnodeTest()
         tdSql.execute(f'create database test1 vgroups 10 ;')
-        self.sdnydata()
+        # self.dataIn()
+        self.createTable()
+        stream1 = (
+        """ create stream test1.st1 interval(5m) sliding(5m) from test1.stba 
+                        stream_options(fill_history)
+                        into test1.st1out 
+                        as select
+                            _twstart as start_time,
+                            _twend as end_time,
+                            cint,
+                            STATECOUNT(cint , "ge", 5) a
+                            from
+                            %%trows t1 ;
+        """
+        )
+        stream2 = (
+        """ create stream test1.st1 interval(1s) sliding(1s) from test1.stba 
+                        stream_options(fill_history)
+                        into test1.st1out 
+                        as select
+                            _twstart as start_time,
+                            _twend as end_time,
+                            cint,
+                            STATECOUNT(cint , "ge", 5) a
+                            from
+                            %%trows t1 ;
+        """
+        )
+        
+        # stream3 = (
+        # """ create stream test1.st3 interval(1s) sliding(1s) from test1.stba  
+        #             stream_options(fill_history)
+        #             into test1.st3out 
+        #             as select
+        #                 _twstart as start_time,
+        #                 _twend as end_time,
+        #                 cint,
+        #                 STATECOUNT(cint , "ge", 5) a
+        #                 from
+        #                 %%trows;
+        # """
+        # )
+        
+        # sql = (
+        #     "create stream s0 state_window(cint) from devices partition by tbname stream_options(pre_filter(cint>2)|fill_history('1970-01-01 00:00:00')) "  
+        #     "into s0_out output_subtable(concat('xxxx',tbname))  tags(yyyy varchar(100) comment 'table name1' as 'cint+10') "
+        #     "as   select ts,cint,i1,  %%tbname from %%trows  order by ts;"
+        # )
+        
+        # sql1=(
+        #     "create stream `s1` state_window(cint) from devices partition by tbname stream_options(fill_history('2025-01-01 00:00:00')) into `s1_out` "
+        #     "as select * from (select last_row(ts) ts,sum(cint) cint ,sum(tint) tint from devices  where tint % 2 = 0 partition by tbname having(sum(cint))>50) where tint>0;"
+        # )
+        
+        # sql2=(
+        #     "create stream `s3` state_window(cint) from devices partition by  tbname stream_options(fill_history('2025-01-01 00:00:00')) into `s3_out` "
+        #     "as select * from (select last_row(ts) ts,sum(cint) cint ,sum(tint) tint from %%tbname  "
+        #     "where tint % 2 = 0 partition by tbname having(sum(cint))>50) where tint>0;"
+        # )
+        
+        # sql3=(
+        #     "create stream `s2` state_window(cint) from devices partition by  tbname stream_options(fill_history('2025-01-01 00:00:00')) into `s2_out` "
+        #     "as select * from (select last_row(ts) ts,sum(cint) cint ,sum(tint) tint from devices "
+        #     "where tint % 2 = 0 partition by tbname having(sum(cint))>50) where tint<23;"
+        # )
+        
+        # sql4 = ("create stream s4 sliding(5s) from stba partition by  tbname stream_options(fill_history('1970-01-01 00:00:00')) into s4_out output_subtable(concat('xxxx',tbname))  tags(yyyy varchar(100)  as 'tint+10')  as select _wstart,_wend, sum(cint) ,count(i1),last(tint) from stba  partition by tbname interval(60s) ")
+        # sql5 = ("create stream s5 sliding(5s) from stba partition by tint, tbname stream_options(fill_history('1970-01-01 00:00:00')) into s5_out  as select _wstart,_wend, sum(cint),sum(i1) from  (select _wstart,_wend, sum(cint) cint ,count(i1) i1 from a1 event_window start with cint>0 end with cint <9 ) interval(3s)")
+        # sql6 = ("create stream s6 sliding(5s) from stba partition by tint, tbname stream_options(fill_history('1970-01-01 00:00:00')) into s6_out  as select _wstart,_wend, sum(cint),sum(i1) from  (select _wstart,_wend, sum(cint) cint ,count(i1) i1 from stba event_window start with cint>0 end with cint <9 ) interval(3s)")
+        # sql7 = ("create stream s7 sliding(5s) from stba partition by tint, tbname stream_options(pre_filter(cint>3)|fill_history('1970-01-01 00:00:00')) into s7_out  as select _wstart,_wend, sum(cint),sum(i1) from  (select _wstart,_wend, sum(cint) cint ,count(i1) i1 from stba event_window start with cint>5 end with cint <9 ) interval(3s)")
+        # sql8 = ("create stream s8 sliding(5s) from stba partition by tint, tbname stream_options(pre_filter(cint>3)|fill_history('1970-01-01 00:00:00')) into s8_out  as select _wstart,_wend, count(cint) cint from  (select _wstart,_wend, count(*) cint from stba event_window start with cint>5 end with cint <9 ) interval(3s)")
+        # sql9 = ("create stream s9 sliding(5s) from devices partition by tint, tbname stream_options(pre_filter(cint>3)|fill_history('1970-01-01 00:00:00')) into s9_out  as select _wstart,_wend, count(cint) cint from  (select _wstart,_wend, count(*) cint from stba event_window start with cint>5 end with cint <9 ) interval(3s)")
+        # sql10 = ("create stream s10 session(ts,3s) from devices partition by tint, tbname stream_options(pre_filter(cint>3)|fill_history('1970-01-01 00:00:00')) into s10_out  as select last_row(ts),last_row(cint),last_row(i1) from devices partition by tbname")
+        # sql11 = ("create stream s11 interval(1s) sliding(1s)  from test1.stba into test1.mgout as select now(),* from information_schema.ins_grants;")
+        # sql12 = ("create stream s12 sliding(1s) from pt partition by tbname stream_options(pre_filter(c1>100)|fill_history('1970-01-01 00:00:00'))  into s12_out as  select pt.ts,pt.c1,pt.c2,pt.c3,pt1.ts pt1ts,pt1.c1 pt1c1,pt1.c2 pt1c2,pt1.c3 pt1c3 from pt1,pt where pt1.ts=pt.ts;")
+        # sql13 = ("create stream s13 sliding(30s) from s12_out partition by tbname stream_options(fill_history(0)) into s13_out as select _tcurrent_ts,sum(c1),avg(c2) ,last(c3) from s12_out ;")
+        # #create stream
 
-        sql = (f"""
-            create stream test1.stream_monitor_info_sldc_gml2 interval(30s) sliding(30s) from test1.sldc_dp 
-                    stream_options(fill_history|pre_filter(ts > '2025-07-17 08:30:00.000'))
-                    into test1.monitor_info_sldc_gml2 
-                    as select
-                        _wstart as start_time,
-                        _wend as end_time,
-                        '01072016' as org_code,
-                        '盛鲁电厂' as org_name,
-                        last(jz1gmjassllfk+jz1gmjbssllfk+jz1gmjcssllfk+jz1gmjdssllfk+jz1gmjessllfk+jz1gmjfssllfk+jz2gmjassllfk+
-                        jz2gmjbssllfk+jz2gmjcssllfk+jz2gmjdssllfk+jz2gmjessllfk+jz2gmjfssllfk) as gml
-                        from
-                        test1.sldc_dp 
-                        where ts >= _twstart -1s and ts< _twend
-                        interval (1s)
-                        fill(prev)""")
-        
-        tdSql.execute(sql,queryTimes=2)
+        tdSql.execute(stream1)
         self.checkStreamRunning()
+        tdSql.checkResultsByFunc("select * from test1.st1out;",lambda: tdSql.getRows() == 1,delay=0.5, retry=2,show=True)
+        tdSql.execute(f"drop stream st1")
+        tdSql.execute(stream2)
+        self.checkStreamRunning()
+        tdSql.checkResultsByFunc("select * from test1.st1out;",lambda: tdSql.getRows() == 1,delay=1, retry=10,show=True)
+        tdSql.execute(f"insert into a0(ts,cint) values('2025-01-01 00:00:11.000',11);")
+        tdSql.execute(f"insert into a0(ts,cint) values('2025-01-01 00:00:12.000',12);")
+        time.sleep(5)
+        tdSql.checkResultsByFunc("select * from test1.st1out;",lambda: tdSql.getRows() == 3,delay=1, retry=10,show=True)
+
         
-        # tdSql.checkRowsLoop(4,f"select * from test1.monitor_info_sldc_gml2",100,6)
+        self.checkStreamRunning()
+        # tdSql.execute("insert into test1.a0 values(now,now,200,300);")
+        # tdSql.execute("insert into test1.a1 values(now,now,200,300);")
+        # tdSql.execute("insert into test1.a2 values(now,now,500,300);")
+        # tdSql.execute("select * from (select last_row(ts) ts,sum(cint) cint ,sum(tint)  tint from devices  where tint % 2 = 0 partition by tbname having(sum(cint))>50) where tint>0;")
+        
         
             
 
@@ -126,48 +193,6 @@ class TestSdnyStream:
                 tdLog.info(f"stream running status: {streamRunning}")
                 time.sleep(1)
 
-    def insert_data(self,table_count=100, total_rows=10, interval_sec=30):
-        import time, random
-
-        db_name = "test1"
-        stable_name = "stba"
-        base_ts = int(time.mktime(time.strptime("2025-01-01 00:00:00", "%Y-%m-%d %H:%M:%S"))) * 1000
-        interval_ms = interval_sec * 1000
-
-        
-        random.seed(42)
-
-        
-        tdSql.execute(f"create database if not exists {db_name} vgroups 6;")
-        tdSql.execute(f"""
-            CREATE STABLE IF NOT EXISTS {db_name}.{stable_name} (
-                ts TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium',
-                cts TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium',
-                cint INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium',
-                i1 INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium'
-            ) TAGS (
-                tint INT, tdouble DOUBLE, tvar VARCHAR(100),
-                tnchar NCHAR(100), tts TIMESTAMP, tbool BOOL
-            );
-        """)
-
-        # 创建 table_count 张表
-        for i in range(table_count):
-            tb_name = f"a{i}"
-            tag_values = f"({i % 50}, {random.uniform(0, 100):.6e}, 'tagv{i}', 'nchar{i}', {random.randint(1000000000, 2000000000)}, {'true' if i % 2 == 0 else 'false'})"
-            tdSql.execute(f"CREATE TABLE IF NOT EXISTS {db_name}.{tb_name} USING {db_name}.{stable_name} TAGS {tag_values};")
-
-        # 写入数据
-        for i in range(total_rows):
-            ts = base_ts + i * interval_ms
-            c1 = random.randint(0, 1000)
-            c2 = random.randint(1000, 2000)
-            values = f"({ts},{ts},{c1},{c2})"
-            for j in range(table_count):
-                tb_name = f"a{j}"
-                tdSql.execute(f"INSERT INTO {db_name}.{tb_name} VALUES {values}")
-
-
     def dataIn(self):
         tdLog.info(f"insert more data:")
         config = {
@@ -198,13 +223,13 @@ class TestSdnyStream:
                     "super_tables": [{
                             "name": "stba",
                             "child_table_exists": "no",
-                            "childtable_count": 100,
+                            "childtable_count": 3000,
                             "childtable_prefix": "a",
                             "auto_create_table": "no",
                             "batch_create_tbl_num": 10,
                             "data_source": "rand",
                             "insert_mode": "taosc",
-                            "insert_rows": 10,
+                            "insert_rows": 500,
                             "childtable_limit": 100000000,
                             "childtable_offset": 0,
                             "interlace_rows": 0,
@@ -213,7 +238,7 @@ class TestSdnyStream:
                             "disorder_ratio": 0,
                             "disorder_range": 1000,
                             "timestamp_step": 30000,
-                            "start_timestamp": "2025-01-01 20:00:00.000",
+                            "start_timestamp": "2025-05-01 00:00:00.000",
                             "sample_format": "",
                             "sample_file": "",
                             "tags_file": "",
@@ -248,34 +273,14 @@ class TestSdnyStream:
         time.sleep(5)
         tdLog.info(f"Insert data:taosBenchmark -f insert_config.json")
 
-    def sdnydata(self):
-        tdLog.info("sdnydata ready insert:")
-        tdSql.execute(f"use {self.dbname}")
-        stbsql = (
-            " CREATE STABLE `sldc_dp` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `data_write_time` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `jz1fdgl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1ssfdfh` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1fdmh` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1gdmh` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1qjrhl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1zhcydl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1zkby` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1zzqyl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1zzqwda` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1zzqwdb` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1zzqll` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1gswd` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1gsll` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1glxl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1qjrh` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1zhrxl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1gmjassllfk` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1gmjasslllj` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1gmjbssllfk` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1gmjbsslllj` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1gmjcssllfk` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1gmjcsslllj` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1gmjdssllfk` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1gmjdsslllj` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1gmjessllfk` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1gmjesslllj` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1gmjfssllfk` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1gmjfsslllj` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1zrqwda` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1zrqwdb` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1zrzqyl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1mmjadl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1mmjbdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1mmjcdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1mmjddl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1mmjedl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1mmjfdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1cyqckwda` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1cyqckwdb` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1njswd` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1nqqxhsckawd` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1nqqxhsckbwd` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1nqqxhsrkawd` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1nqqxhsrkbwd` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1kyqackyqwdsel` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1kyqbckyqwdsel` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1yfjackyqwd` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1yfjbckyqwd` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1trkyqwd` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1trkyqwd1` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1trkyqwd2` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1trkyqwd3` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1tckjyqwd1` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1tckjyqwd2` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1tckyqwd1` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1bya` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1byb` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1pqwda` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1pqwdb` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1gmjadl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1gmjbdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1gmjcdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1gmjddl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1gmjedl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1gmjfdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1yfjadl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1yfjbdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1ycfjadl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1ycfjbdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1sfjadl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1sfjbdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1fdjyggl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1fdjwggl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1sjzs` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1zfl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1ltyl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1smb` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1rll` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1grd` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1zjwd` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1yl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1kyqckwd` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1abmfsybrkcy` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1bbmfsybrkcy` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1abjcsdmfytwdzdz` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1bbjcsdmfytwdzdz` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2fdgl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2ssfdfh` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2fdmh` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2gdmh` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2qjrhl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2zhcydl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2zkby` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2zzqyl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2zzqwda` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2zzqwdb` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2zzqll` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2gswd` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2gsll` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2glxl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2qjrh` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2zhrxl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2gmjassllfk` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2gmjasslllj` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2gmjbssllfk` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2gmjbsslllj` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2gmjcssllfk` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2gmjcsslllj` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2gmjdssllfk` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2gmjdsslllj` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2gmjessllfk` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2gmjesslllj` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2gmjfssllfk` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2gmjfsslllj` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2zrqwda` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2zrqwdb` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2zrzqyl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2mmjadl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2mmjbdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2mmjcdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2mmjddl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2mmjedl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2mmjfdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2cyqckwda` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2cyqckwdb` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2njswd` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2nqqxhsckawd` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2nqqxhsckbwd` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2nqqxhsrkawd` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2nqqxhsrkbwd` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2kyqackyqwdsel` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2kyqbckyqwdsel` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2yfjackyqwd` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2yfjbckyqwd` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2trkyqwd` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2trkyqwd1` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2trkyqwd2` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2trkyqwd3` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2tckjyqwd1` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2tckjyqwd2` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2tckyqwd1` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2bya` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2byb` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2pqwda` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2pqwdb` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2gmjadl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2gmjbdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2gmjcdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2gmjddl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2gmjedl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2gmjfdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2yfjadl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2yfjbdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2ycfjadl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2ycfjbdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2sfjadl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2sfjbdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2fdjyggl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2fdjwggl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2sjzs` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2zfl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2ltyl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2smb` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2rll` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2grd` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2zjwd` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2yl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2kyqckwd` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2abmfsybrkcy` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2bbmfsybrkcy` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2abjcsdmfytwdzdz` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2bbjcsdmfytwdzdz` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1kyqazdjdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1kyqabydjdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1kyqbbydjdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz1kyqbzdjdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2kyqazdjdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2kyqabydjdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2kyqbbydjdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `jz2kyqbzdjdl` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium') TAGS (`iot_hub_id` VARCHAR(100), `device_group_code` VARCHAR(100), `device_code` VARCHAR(100)) ;"
-        )
-        tb1sql = (
-            'CREATE TABLE `e010720169990001` USING `sldc_dp` (`iot_hub_id`, `device_group_code`, `device_code`) TAGS ("01072016", "1834406116550639618", "e010720169990001");'
-        )
-        tb2sql = (
-            'CREATE TABLE `e010720169990002` USING `sldc_dp` (`iot_hub_id`, `device_group_code`, `device_code`) TAGS ("01072017", "1834406116550639619", "e010720169990002");'
-        )
-        tdSql.execute(stbsql)
-        tdSql.execute(tb1sql)
-        tdSql.execute(tb2sql)
-        tdSql.execute(f"insert into {self.dbname}.e010720169990001 file 'cases/13-StreamProcessing/20-UseCase/e010720169990001.csv';")
-        tdSql.execute(f"insert into {self.dbname}.e010720169990002 file 'cases/13-StreamProcessing/20-UseCase/e010720169990001.csv';")
-        tdLog.info("load csv file success.")
-        
-    
     def createTable(self):
         tdSql.execute(f"use test1;")
-        # tdSql.execute(f"CREATE STABLE `stba` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `cts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `cint` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', `i1` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium') TAGS (`tint` INT, `tdouble` DOUBLE, `tvar` VARCHAR(100), `tnchar` NCHAR(100), `tts` TIMESTAMP, `tbool` BOOL);")
+        tdSql.execute(f"CREATE STABLE `stba` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `cts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `cint` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', `i1` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium') TAGS (`tint` INT, `tdouble` DOUBLE, `tvar` VARCHAR(100), `tnchar` NCHAR(100), `tts` TIMESTAMP, `tbool` BOOL);")
         tdSql.execute(f"CREATE STABLE `stbb` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `cts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `cint` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', `i1` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium') TAGS (`tint` INT, `tdouble` DOUBLE, `tvar` VARCHAR(100), `tnchar` NCHAR(100), `tts` TIMESTAMP, `tbool` BOOL);")
         tdSql.execute(f"CREATE STABLE `stbc` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `cts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `cint` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', `i1` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium') TAGS (`tint` INT, `tdouble` DOUBLE, `tvar` VARCHAR(100), `tnchar` NCHAR(100), `tts` TIMESTAMP, `tbool` BOOL);")
-        # tdSql.execute(f"create table a0 using stba tags(1,1.1,'a0','测试a0','2025-01-01 00:00:01',1);")
-        # tdSql.execute(f"create table a1 using stba tags(NULL,2.1,'a1','测试a1','2025-01-01 00:00:02',0);")
-        # tdSql.execute(f"create table a2 using stba tags(2,3.1,'a2','测试a2','2025-01-01 00:00:03',1);")
+        tdSql.execute(f"create table a0 using stba tags(1,1.1,'a0','测试a0','2025-01-01 00:00:01',1);")
+        tdSql.execute(f"create table a1 using stba tags(NULL,2.1,'a1','测试a1','2025-01-01 00:00:02',0);")
+        tdSql.execute(f"create table a2 using stba tags(2,3.1,'a2','测试a2','2025-01-01 00:00:03',1);")
         tdSql.execute(f"create table b0 using stbb tags(1,1.1,'a0','测试a0','2025-01-01 00:00:01',1);")
         tdSql.execute(f"create table b1 using stbb tags(NULL,2.1,'a1','测试a1','2025-01-01 00:00:02',0);")
         tdSql.execute(f"create table b2 using stbb tags(2,3.1,'a2','测试a2','2025-01-01 00:00:03',1);")
