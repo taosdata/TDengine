@@ -17,11 +17,14 @@ else()
 
 	target_link_libraries(rocks-reader
 	    PUBLIC rocksdb
-	    PUBLIC pthread
-	    PUBLIC m
 	)
   endif()
 endif()
+
+target_link_libraries(rocks-reader
+    PUBLIC pthread
+    PUBLIC m
+)
 
 target_include_directories(
     rocks-reader
