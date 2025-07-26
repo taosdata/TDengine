@@ -124,6 +124,7 @@ class TestOthersOldCaseAtonce:
             #     f" into res_vstb OUTPUT_SUBTABLE(CONCAT('res_vstb_', tbname)) (lastts, firstts, cnt_v, sum_v, ysum_v, tws, twe)"
             #     f" as select last_row(_c0), first(_c0), count(cint), sum(cint), sum(ctiny), _twstart, _twend from %%trows;"
             # )
+            
 
         def insert1(self):
             sqls = [
