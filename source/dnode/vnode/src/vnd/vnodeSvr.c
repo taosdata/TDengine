@@ -2292,6 +2292,10 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
     SMetaInfo      info = {0};
     SSubmitTbData *pTbData = taosArrayGet(pRequest->aSubmitTbData, i);
 
+    if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+      continue;  // skip column data format
+    }
+
     code = metaGetInfo(pVnode->pMeta, pTbData->uid, &info, NULL);
     if (code) {
       code = TSDB_CODE_TDB_TABLE_NOT_EXIST;
