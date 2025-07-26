@@ -167,6 +167,16 @@ CREATE stream sm1 PERIOD(1h)
   NOTIFY("ws://localhost:8080/notify");
 ```
 
+### 事件窗口
+
+- 当环境温度超过 80 度持续超过 10 分钟时，计算环境温度的平均值
+
+```SQL
+CREATE STREAM `idmp`.`ana_temp` event_window( start with `环境温度` > 80 end with `环境温度` <= 80 ) true_for(10m) FROM `idmp`.`vt_气象传感器02_471544` stream_options(ignore_disorder)
+  INTO `idmp`.`ana_temp`
+    AS SELECT _twstart+0s as output_timestamp, avg(`环境温度`) as `平均环境温度` FROM idmp.`vt_气象传感器02_471544` where ts >= _twstart and ts <= _twend;
+```
+
 ## 流式计算的其他特性
 
 ### 高可用
