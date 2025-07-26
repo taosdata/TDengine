@@ -443,7 +443,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
       rsmaSnapReaderClose(&pReader->pRsmaReader);
     }
   }
- 
+
   if (!pReader->bseDone) {
     if (pReader->pBseReader == NULL) {
       code = bseSnapReaderOpen(pReader->pVnode->pBse, pReader->sver, pReader->ever, &pReader->pBseReader);
@@ -726,8 +726,7 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
   }
 
   if (pWriter->pBseSnapWriter) {
-    code = bseSnapWriterClose(&pWriter->pBseSnapWriter, rollback);
-    if (code) goto _exit;
+    bseSnapWriterClose(&pWriter->pBseSnapWriter, rollback);
   }
 
 #endif

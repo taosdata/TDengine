@@ -160,7 +160,7 @@ void bseBuildDataName(int64_t ts, char *name) {
   snprintf(name, BSE_FILE_FULL_LEN, "%" PRId64 ".%s", ts, BSE_DATA_SUFFIX);
 }
 
-int32_t bseGetRetentionTsBySeq(SBse *pBse, int64_t seq, int64_t *retentionTs) {
+int32_t bseGetTableIdBySeq(SBse *pBse, int64_t seq, int64_t *timestamp) {
   int32_t code = 0;
   int64_t tts = 0;
 
@@ -172,11 +172,11 @@ int32_t bseGetRetentionTsBySeq(SBse *pBse, int64_t seq, int64_t *retentionTs) {
   for (int32_t i = 0; i < taosArrayGetSize(pCommitInfo->pFileList); i++) {
     SBseLiveFileInfo *pInfo = taosArrayGet(pCommitInfo->pFileList, i);
     if (seqRangeContains(&pInfo->range, seq)) {
-      tts = pInfo->retentionTs;
+      tts = pInfo->timestamp;
       break;
     }
   }
 
-  *retentionTs = tts;
+  *timestamp = tts;
   return code;
 }
