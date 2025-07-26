@@ -149,7 +149,7 @@ class Test_IDMP_Vehicle:
             # stream7
             "create stream if not exists `idmp`.`ana_stream7`      interval(5m) sliding(10m) from `idmp`.`vt_7`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream7`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
             "create stream if not exists `idmp`.`ana_stream7_sub1` interval(5m) sliding(10m) from `idmp`.`vt_7` stream_options(IGNORE_NODATA_TRIGGER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream7_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
-            # stream8
+            # stream8 stable
             "create stream if not exists `idmp`.`ana_stream8`      interval(5m) sliding(5m) from `idmp`.`vst_车辆_652220`  partition by `车辆资产模型`,`车辆ID`  stream_options(IGNORE_NODATA_TRIGGER)      notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream8`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`, sum(`里程`) as `里程和` from %%trows",
         ]
 
