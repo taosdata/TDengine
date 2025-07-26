@@ -21,7 +21,6 @@
 #include "scalar.h"
 #include "tanalytics.h"
 #include "taoserror.h"
-#include "ttime.h"
 #include "functionMgt.h"
 #include "ttypes.h"
 #include "tglobal.h"
@@ -415,7 +414,9 @@ static bool paramSupportDecimal(uint64_t typeFlag) {
 
 static bool paramSupportBlob(uint64_t typeFlag) {
   return FUNC_MGT_TEST_MASK(typeFlag, FUNC_PARAM_SUPPORT_BLOB_TYPE) ||
-         FUNC_MGT_TEST_MASK(typeFlag, FUNC_PARAM_SUPPORT_ALL_TYPE);
+         FUNC_MGT_TEST_MASK(typeFlag, FUNC_PARAM_SUPPORT_ALL_TYPE) ||
+         FUNC_MGT_TEST_MASK(typeFlag, FUNC_PARAM_SUPPORT_VAR_TYPE) ||
+         FUNC_MGT_TEST_MASK(typeFlag, FUNC_PARAM_SUPPORT_STRING_TYPE);
 }
 
 static bool paramSupportValueNode(uint64_t typeFlag) {
@@ -1359,7 +1360,7 @@ static int32_t translateForecast(SFunctionNode* pFunc, char* pErrBuf, int32_t le
 }
 
 static int32_t translateForecastConf(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_FLOAT].bytes, .type = TSDB_DATA_TYPE_FLOAT};
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
   return TSDB_CODE_SUCCESS;
 }
 

@@ -8,7 +8,26 @@ class TestStreamCountTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_count_trigger(self):
-        """Stream basic test 1
+        """basic test
+
+        Verification testing during the development process.
+
+        Catalog:
+            - Streams: 03-TriggerMode
+        Description:
+            - create 14 streams, each stream has 1 source tables
+            - write data to source tables
+            - check stream results
+
+        Since: v3.3.3.7
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-07-22
+
         """
 
         tdStream.createSnode()
@@ -2441,7 +2460,7 @@ class TestStreamCountTrigger:
 
             tdSql.execute(
                 f"create stream s10_0 count_window(4,cint) "
-                f"from ct1 stream_options(EVENT_TYPE(WINDOW_CLOSE)|MAX_DELAY(1s)) "
+                f"from ct1 stream_options(EVENT_TYPE(WINDOW_CLOSE)|max_delay(3s)) "
                 f"into res_ct1 (firstts, lastts, exects, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), cast(_tlocaltime/1000000 as timestamp) exec_ts, count(cint), sum(cint), avg(cint) from %%trows;"
             )

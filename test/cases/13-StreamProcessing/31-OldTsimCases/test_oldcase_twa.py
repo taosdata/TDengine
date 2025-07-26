@@ -85,7 +85,7 @@ class TestStreamOldCaseTwa:
                 f"create stream streams8 state_window(a) from st partition by tbname, ta stream_options(expired_time(0s)|ignore_disorder) into streamt8 as select _twstart, twa(a) from %%trows;;"
             )
             tdSql.execute(
-                f"create stream streams9 interval(2s) sliding(2s) from st partition by tbname, ta stream_options(max_delay(1s)|expired_time(0s)|ignore_disorder|force_output) into streamt9 as select _twstart, elapsed(ts) from st where tbname=%%1 and ta=%%2;"
+                f"create stream streams9 interval(2s) sliding(2s) from st partition by tbname, ta stream_options(max_delay(3s)|expired_time(0s)|ignore_disorder|force_output) into streamt9 as select _twstart, elapsed(ts) from st where tbname=%%1 and ta=%%2;"
             )
             tdSql.execute(
                 f"create stream streams10 interval(2s, 1s) sliding(1s) from st partition by tbname, ta stream_options(expired_time(0s)|ignore_disorder) into streamt10 as select _twstart, sum(a) from %%trows;"
