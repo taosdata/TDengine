@@ -136,7 +136,7 @@ void destroySubTableMgt(SSubTableMgt *p) {
   taosMemoryFree(p);
 }
 int32_t bseTableMgtGet(STableMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *len) {
-  if (pMgt == NULL) return 0;
+  if (pMgt == NULL) return TSDB_CODE_INVALID_PARA;
 
   int32_t       code = 0;
   int32_t       lino = 0;
@@ -446,6 +446,9 @@ int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **p
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = tableReaderGet(pReader, seq, pValue, len);
+  if (code == 0 && *len == 0) {
+    ASSERT(0);
+  }
   TSDB_CHECK_CODE(code, lino, _error);
 
 _error:

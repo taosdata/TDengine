@@ -87,16 +87,7 @@ static int32_t putData(SBse *bse, int nItem, int32_t vlen, std::vector<int64_t> 
     std::string value = genRandomString(vlen);
     int64_t     seq = 0;
     code = bseBatchPut(pBatch, &seq, (uint8_t *)value.c_str(), value.size());
-    
-    if (bseBatchExccedLimit(pBatch)) {
-      code = bseCommitBatch(bse, pBatch);
-      if (code != 0) {
-        printf("failed to commit batch error code: %d\n", code);
-        ASSERT(0);
-      }
-      code = bseBatchInit(bse, &pBatch, nItem);
-    }
-      
+
     data->push_back(seq);
   }
   printf("put result ");
@@ -112,18 +103,9 @@ static int32_t putNoRandomData(SBse *bse, int nItem, int32_t vlen, std::vector<i
   for (int32_t i = 0; i < nItem; i++) {
     // std::string value;
     // value.reserve(vlen);
-    int64_t     seq = 0;
+    int64_t seq = 0;
     code = bseBatchPut(pBatch, &seq, (uint8_t *)str, vlen);
-    
-    if (bseBatchExccedLimit(pBatch)) {
-      code = bseCommitBatch(bse, pBatch);
-      if (code != 0) {
-        printf("failed to commit batch error code: %d\n", code);
-        ASSERT(0);
-      }
-      code = bseBatchInit(bse, &pBatch, nItem);
-    }
-      
+
     data->push_back(seq);
   }
   taosMemoryFree(str);
@@ -131,7 +113,7 @@ static int32_t putNoRandomData(SBse *bse, int nItem, int32_t vlen, std::vector<i
   code = bseCommitBatch(bse, pBatch);
   return code;
 }
-static int32_t getData(SBse *pBse, std::vector<int64_t> *data) {
+static int32_t getData(SBse *pBse, std::vector<int64_t> *data, int32_t expectLen) {
   int32_t code = 0;
   for (int32_t i = 0; i < data->size(); i++) {
     uint8_t *value = NULL;
@@ -143,6 +125,10 @@ static int32_t getData(SBse *pBse, std::vector<int64_t> *data) {
       printf("failed to get key %d error code: %d\n", i, code);
       ASSERT(0);
     } else {
+      if (len != expectLen) {
+        printf("get key %d len %d, expect %d\n", i, len, expectLen);
+        ASSERT(0);
+      }
       // std::string str((char *)value, len);
       // printf("get result %d: %s\n", i, str.c_str());
     }
@@ -177,7 +163,7 @@ int32_t getDataAndValid(SBse *pBse, std::string &inStr, std::vector<int64_t> *se
       if (strncmp((const char *)value, inStr.c_str(), len) != 0) {
         ASSERT(0);
       } else {
-        //printf("succ to get key %d\n", (int32_t)seq);
+        // printf("succ to get key %d\n", (int32_t)seq);
       }
     }
     taosMemoryFree(value);
@@ -190,7 +176,7 @@ int32_t testCompress(SBse *bse, int8_t compressType) {
   SBseCfg              cfg = {.compressType = compressType};
   bseUpdateCfg(bse, &cfg);
 
-  putStringData(bse, 10000, str, &data);
+  putStringData(bse, 100000, str, &data);
   bseCommit(bse);
 
   getDataAndValid(bse, str, &data);
@@ -208,7 +194,7 @@ int32_t benchTest() {
   std::vector<int64_t> data;
   SBseCfg              cfg = {.vgId = 2};
   taosRemoveDir("/tmp/bse");
-  
+
   {
     int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
     {
@@ -220,18 +206,18 @@ int32_t benchTest() {
     // getData(bse, &data);
 
     bseCommit(bse);
-    getData(bse, &data);
+    getData(bse, &data, 1000);
 
-    putData(bse, 10000, 200, &data);
+    putData(bse, 10000, 1000, &data);
 
     bseCommit(bse);
 
-    putData(bse, 10000, 200, &data);
+    putData(bse, 10000, 1000, &data);
 
-    getData(bse, &data);
+    getData(bse, &data, 1000);
     bseCommit(bse);
 
-    getData(bse, &data);
+    getData(bse, &data, 1000);
 
     // test compress
     testAllCompress(bse);
@@ -247,58 +233,82 @@ int32_t funcTest() {
   SBseCfg              cfg = {.vgId = 2};
   std::vector<int64_t> data;
   taosRemoveDir("/tmp/bse");
-  int32_t              code = bseOpen("/tmp/bse", &cfg, &bse);
+  int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
   putData(bse, 10000, 1000, &data);
-  getData(bse, &data);
+  getData(bse, &data, 1000);
 
   bseCommit(bse);
 
-  getData(bse, &data);
+  getData(bse, &data, 1000);
 
   bseClose(bse);
 
   {
     code = bseOpen("/tmp/bse", &cfg, &bse);
-    getData(bse, &data);
+    getData(bse, &data, 1000);
     bseClose(bse);
   }
 
   return 0;
 }
+int32_t randomGet(SBse *pBse, std::vector<int64_t> *data, int32_t count, int32_t expectLen) {
+  int32_t code = 0;
+  int32_t i = 0;
+  while (i < count) {
+    int32_t   idx = taosRand() % data->size();
+    uint8_t *value = NULL;
+    int32_t   len = 0;
+    int64_t   seq = data->at(idx);
+    //uInfo("%d get seq %"PRId64"", idx, seq); 
+    code = bseGet(pBse, seq, &value, &len);
+    if (code != 0) {
+      ASSERT(0);
+    } else {
+      if (len != expectLen){
+       uInfo("len %d, expect len %d", len, expectLen);
+        ASSERT(0);
+      }
+    }
+    taosMemoryFree(value);
+    i++;
+  }
+
+  return code;
+}
 int32_t funcTestSmallData() {
-  SBse                *bse = NULL;
-  SBseCfg              cfg = {.vgId = 2};
+  SBse   *bse = NULL;
+  SBseCfg cfg = {.vgId = 2};
   taosRemoveDir("/tmp/bse");
 
   std::vector<int64_t> data;
   int32_t              code = bseOpen("/tmp/bse", &cfg, &bse);
-  putData(bse, 10000, 10000, &data);
-  getData(bse, &data);
+  int32_t len = 10000;
+  putData(bse, 10000, len, &data);
+  randomGet(bse, &data, 1000, len);
 
   bseCommit(bse);
 
-  getData(bse, &data);
+  randomGet(bse, &data, 1000, len);
 
-  putData(bse, 10000, 10000, &data);
-
-  bseCommit(bse);
-
-  putData(bse, 10000, 10000, &data);
-  getData(bse, &data);
+  putData(bse, 10000, len, &data);
 
   bseCommit(bse);
 
-  getData(bse, &data);
+  putData(bse, 10000, len, &data);
+  randomGet(bse, &data, 100, len);
+
+  bseCommit(bse);
+
+  randomGet(bse, &data, 100, len);
 
   bseClose(bse);
-
 
   return 0;
 }
 
 int32_t funcTestWriteSmallData() {
-  SBse                *bse = NULL;
-  SBseCfg              cfg = {.vgId = 2};
+  SBse   *bse = NULL;
+  SBseCfg cfg = {.vgId = 2};
   taosRemoveDir("/tmp/bse");
 
   std::vector<int64_t> data;
@@ -316,7 +326,6 @@ int32_t funcTestWriteSmallData() {
   bseCommit(bse);
 
   bseClose(bse);
-
 
   return 0;
 }
@@ -337,7 +346,6 @@ int32_t snapTest() {
     int32_t  len = 0;
     bseGet(bse, seq, &value, &len);
     taosMemoryFree(value);
-    // getData(bse, &data);
   }
   {
     int32_t code = bseOpen("/tmp/bseDst", &cfg, &bseDst);
@@ -363,7 +371,7 @@ int32_t snapTest() {
       taosMemFreeClear(data);
     }
     taosMemoryFree(data);
-   
+
     bseSnapReaderClose(&pReader);
     bseSnapWriterClose(&pWriter, 0);
 
@@ -427,36 +435,24 @@ TEST(bseCase, emptysnapTest) {
 #ifdef LINUX
   initLog();
   emptySnapTest();
-  // benchTest();
-  // funcTest();
-  //funcTestSmallData();
 #endif
 }
 TEST(bseCase, snapTest) {
 #ifdef LINUX
   initLog();
   snapTest();
-  // //snapTest();
-  // emptySnapTest();
-  // // benchTest();
-  // // funcTest();
-  // //funcTestSmallData();
 #endif
 }
 TEST(bseCase, benchTest) {
 #ifdef LINUX
   initLog();
   benchTest();
-  // // funcTest();
-  // //funcTestSmallData();
 #endif
 }
 TEST(bseCase, funcTest) {
 #ifdef LINUX
   initLog();
-  // // benchTest();
   funcTest();
-  // //funcTestSmallData();
 #endif
 }
 TEST(bseCase, smallDataTest) {
@@ -464,7 +460,8 @@ TEST(bseCase, smallDataTest) {
   initLog();
   funcTestSmallData();
 #endif
-}TEST(bseCase, smallDataWriteTest) {
+}
+TEST(bseCase, smallDataWriteTest) {
 #ifdef LINUX
   initLog();
   funcTestWriteSmallData();
@@ -475,7 +472,7 @@ TEST(bseCase, multiThreadReadWriteTest) {
   // Implement multi-threaded read/write test
 #ifdef LINUX
   initLog();
-  SBse *bse = NULL;
+  SBse   *bse = NULL;
   SBseCfg cfg = {.vgId = 2};
   taosRemoveDir("/tmp/bse");
 
@@ -485,9 +482,9 @@ TEST(bseCase, multiThreadReadWriteTest) {
   std::vector<int64_t> data;
   putData(bse, 10000, 1000, &data);
   bseCommit(bse);
-  
-  getData(bse, &data);
-  
+
+  getData(bse, &data, 1000);
+
   bseClose(bse);
 #endif
 }
@@ -496,7 +493,7 @@ TEST(bseCase, recover) {
   // Implement multi-threaded read/write test
 #ifdef LINUX
   initLog();
-  SBse *bse = NULL;
+  SBse   *bse = NULL;
   SBseCfg cfg = {.vgId = 2};
   taosRemoveDir("/tmp/bse");
 
@@ -505,39 +502,39 @@ TEST(bseCase, recover) {
 
   std::vector<int64_t> data;
   putData(bse, 10000, 1000, &data);
-  getData(bse, &data);
+  getData(bse, &data, 1000);
   bseCommit(bse);
-  
-  getData(bse, &data);
+
+  getData(bse, &data, 1000);
   putData(bse, 10000, 1000, &data);
 
   bseCommit(bse);
   bseClose(bse);
   {
-    code = bseOpen("/tmp/bse", &cfg, &bse);  
+    code = bseOpen("/tmp/bse", &cfg, &bse);
     ASSERT_EQ(code, 0);
 
-    getData(bse, &data); 
+    getData(bse, &data, 1000);
 
     bseClose(bse);
   }
-  
+
 #endif
 }
 TEST(bseCase, emptyNot) {
   // Implement multi-threaded read/write test
 #ifdef LINUX
   initLog();
-  SBse *bse = NULL;
+  SBse   *bse = NULL;
   SBseCfg cfg = {.vgId = 2};
   taosRemoveDir("/tmp/bse");
 
   std::vector<int64_t> data;
-  data.push_back(1); 
-  data.push_back(2); 
-  data.push_back(3); 
-  int32_t code = bseOpen("/tmp/bse", &cfg, &bse);  
-  char *value = NULL;
+  data.push_back(1);
+  data.push_back(2);
+  data.push_back(3);
+  int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
+  char   *value = NULL;
   int32_t len = 0;
   for (int32_t i = 0; i < data.size(); i++) {
     code = bseGet(bse, data[i], (uint8_t **)&value, &len);
@@ -550,19 +547,19 @@ TEST(bseCase, emptyNot) {
     taosMemoryFree(value);
   }
   // code = bseGet(bse, 1, &value, &len);
-  // code = getData(bse, &data);   
+  // code = getData(bse, &data);
   // EXPECT_NE(code, 0);
 
   bseClose(bse);
   //}
-  
+
 #endif
 }
 TEST(bseCase, smallData) {
   // Implement multi-threaded read/write test
 #ifdef LINUX
   initLog();
-  SBse *bse = NULL;
+  SBse   *bse = NULL;
   SBseCfg cfg = {.vgId = 2};
   taosRemoveDir("/tmp/bse");
 
@@ -572,11 +569,9 @@ TEST(bseCase, smallData) {
   std::vector<int64_t> data;
   putData(bse, 10, 10, &data);
   bseCommit(bse);
-  
-  getData(bse, &data);
-  
+
+  getData(bse, &data, 10);
+
   bseClose(bse);
 #endif
 }
-
-  

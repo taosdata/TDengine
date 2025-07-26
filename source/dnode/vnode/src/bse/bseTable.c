@@ -429,28 +429,39 @@ int32_t findTargetBlock(SArray *pMetaHandle, int64_t seq) {
 
 int32_t findInMemtable(STableMemTable *p, int64_t seq, uint8_t **value, int32_t *len) {
   int32_t code = 0;
+  int8_t  inBuf = 1;
+  int32_t lino = 0;
   if (p == NULL) {
     return TSDB_CODE_NOT_FOUND;
   }
 
   SBlkHandle *pHandle = NULL;
   code = bseMemTableRef(p);
+  if (code != 0) {
+    return code;
+  }
 
   if (taosArrayGetSize(p->pMetaHandle) > 0) {
     pHandle = taosArrayGetLast(p->pMetaHandle);
     if (!seqRangeIsGreater(&pHandle->range, seq)) {
+      inBuf = 0;
       int32_t idx = findTargetBlock(p->pMetaHandle, seq);
       if (idx < 0) {
-        return TSDB_CODE_NOT_FOUND;
+        TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_RANGE, lino, _error);
       }
       pHandle = taosArrayGet(p->pMetaHandle, idx);
       code = tableBuilderSeek(p->pTableBuilder, pHandle, seq, value, len);
     }
-  } else {
+  }
+
+  if (inBuf == 1) {
     code = blockWrapperSeek(&p->pBlockWrapper, seq, value, len);
   }
 _error:
   bseMemTableUnRef(p);
+  if (code != 0) {
+    bseInfo("failed to find seq %" PRId64 " in memtable %p at line %d since %s", seq, p, lino, tstrerror(code));
+  }
   return code;
 }
 int32_t tableBuilderGet(STableBuilder *p, int64_t seq, uint8_t **value, int32_t *len) {
@@ -462,6 +473,9 @@ int32_t tableBuilderGet(STableBuilder *p, int64_t seq, uint8_t **value, int32_t 
   code = findInMemtable(p->pMemTable, seq, value, len);
   if (code != 0) {
     code = findInMemtable(p->pImmuMemTable, seq, value, len);
+  }
+  if (code == 0 && *len == 0) {
+    ASSERT(0);
   }
   return code;
 }
@@ -866,6 +880,9 @@ int32_t blockSeek(SBlock *p, int64_t seq, uint8_t **pValue, int32_t *len) {
       *len = v;
       found = 1;
       *pValue = taosMemoryCalloc(1, v);
+      if (*pValue == NULL) {
+        return terrno;
+      }
       memcpy(*pValue, (uint8_t *)p->data + offset, v);
       break;
     }
@@ -901,8 +918,9 @@ int32_t blockWrapperSeek(SBlockWrapper *p, int64_t tgt, uint8_t **pValue, int32_
       memcpy(*pValue, pdata, vlen);
       return 0;
     }
+    offset += vlen;
   }
-  return code;
+  return TSDB_CODE_BLOB_SEQ_NOT_FOUND;
 }
 
 int8_t blockGetType(SBlock *p) { return p->type; }
