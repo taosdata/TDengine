@@ -1,4 +1,4 @@
-// to compiple: gcc -o async_demo async_demo.c -ltaos
+// to compile: gcc -o async_demo async_demo.c -ltaos
 
 #include <inttypes.h>
 #include <stdio.h>

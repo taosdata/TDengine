@@ -142,7 +142,16 @@ TDengine 客户端驱动支持 WebSocket 连接和原生连接两种方式。大
 - **原生连接**：直接调用 `taos_connect()` 即可，这是默认的连接方式。
 - **WebSocket 连接**：需要先调用 `taos_options(TSDB_OPTION_DRIVER, "websocket")` 设置驱动类型，然后再调用 `taos_connect()`，其余操作同原生连接。
 
-对于存在差异的 API，我们会在具体的 API 说明中特别标注。未来版本将逐步完善 WebSocket 连接的功能支持。
+**WebSocket 连接功能差异说明：**
+
+以下 API 在 WebSocket 连接方式下暂时只返回成功状态，但不执行实际操作：
+
+- `taos_options_connection` - 连接选项设置
+- `taos_connect_auth` - MD5 加密密码连接
+- `taos_set_notify_cb` - 事件回调函数设置
+- `tmq_get_connect` - 获取 TMQ 连接句柄
+
+这些 API 在原生连接方式下功能完整。如需使用上述功能，建议选择原生连接方式。未来版本将逐步完善 WebSocket 连接的功能支持。
 :::
 
 ### 基础 API
@@ -174,7 +183,6 @@ TDengine 客户端驱动支持 WebSocket 连接和原生连接两种方式。大
     - option：[入参] 设置项类型。
     - arg：[入参] 设置项值。
   - **返回值**：`0`：成功，非 `0`：失败。
-  - **连接方式兼容性**：WebSocket 连接暂不支持。
   - **说明**：
     - 字符集、时区默认为操作系统当前设置，Windows 不支持连接级别的时区设置。
     - arg 为 NULL 时表示重置该选项。
@@ -216,7 +224,6 @@ TDengine 客户端驱动支持 WebSocket 连接和原生连接两种方式。大
     - db：[入参] 数据库名称，如果用户没有提供，也可以正常连接，用户可以通过该连接创建新的数据库，如果用户提供了数据库名字，则说明该数据库用户已经创建好，缺省使用该数据库。
     - port：[入参] taosd 程序监听的端口。
   - **返回值**：返回数据库连接，返回值为空表示失败。应用程序需要保存返回的参数，以便后续使用。
-  - **连接方式兼容性**：WebSocket 连接暂不支持。
 
 - `char *taos_get_server_info(TAOS *taos)`
 
@@ -255,7 +262,6 @@ TDengine 客户端驱动支持 WebSocket 连接和原生连接两种方式。大
     - param：[入参] 用户自定义参数。
     - type：[入参] 事件类型。
   - **返回值**：`0`：成功，`-1`：失败，可调用函数 `taos_errstr(NULL)` 获取更详细的错误信息。
-  - **连接方式兼容性**：WebSocket 连接暂不支持。
 
 - `void taos_close(TAOS *taos)`
   - **接口说明**：关闭连接。
@@ -940,7 +946,6 @@ stmt 升级到 stmt2 的改动：
   - **接口说明**：从 TMQ 消费者对象中获取与 TDengine 数据库的连接句柄。
     - tmq：[入参] 指向一个有效的 `tmq_t` 结构体指针，该结构体代表一个 TMQ 消费者对象。
   - **返回值**：非 `NULL`：成功，返回一个 `TAOS*` 类型的指针，指向与 TDengine 数据库的连接句柄。`NULL`：失败，非法的输入参数。
-  - **连接方式兼容性**：WebSocket 连接暂不支持。
 
 - `const char *tmq_get_table_name(TAOS_RES *res)`
 

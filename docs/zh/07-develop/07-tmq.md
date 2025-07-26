@@ -376,7 +376,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
   3. 使用 `tmq_subscribe` 函数订阅 `tmq` 指定的主题列表。如果订阅失败，打印错误信息。
   4. 销毁主题列表 `topic_list` 以释放资源。
   5. 调用 `basic_consume_loop` 函数开始基本的消费循环，处理订阅的消息。
-   
+
 </TabItem>
 <TabItem label="REST API" value="rest">
 不支持

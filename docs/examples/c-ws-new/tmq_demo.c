@@ -229,6 +229,8 @@ tmq_t* build_consumer(const ConsumerConfig* config) {
   tmq_conf_res_t code;
   tmq_t*         tmq = NULL;
 
+  taos_options(TSDB_OPTION_DRIVER, "websocket");
+
   // create a configuration object
   tmq_conf_t* conf = tmq_conf_new();
 
