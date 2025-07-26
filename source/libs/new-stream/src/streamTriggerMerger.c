@@ -112,7 +112,7 @@ void stTimestampSorterDestroy(void *ptr) {
     taosArrayDestroy(pSorter->pSessWins);
     pSorter->pSessWins = NULL;
   }
-  taosMemoryFree(pSorter);
+  taosMemoryFreeClear(*ppSorter);
 }
 
 void stTimestampSorterReset(SSTriggerTimestampSorter *pSorter) {
@@ -915,6 +915,10 @@ void stVtableMergerDestroy(void *ptr) {
     taosArrayDestroy(pMerger->pReaderInfos);
     pMerger->pReaderInfos = NULL;
   }
+  if (pMerger->pPseudoCols != NULL) {
+    blockDataDestroy(pMerger->pPseudoCols);
+    pMerger->pPseudoCols = NULL;
+  }
 
   if (pMerger->pReaders != NULL) {
     taosArrayDestroyEx(pMerger->pReaders, stTimestampSorterDestroy);
@@ -925,6 +929,7 @@ void stVtableMergerDestroy(void *ptr) {
     tMergeTreeDestroy(&pMerger->pDataMerger);
     pMerger->pDataMerger = NULL;
   }
+  taosMemFreeClear(*ppMerger);
 }
 
 void stVtableMergerReset(SSTriggerVtableMerger *pMerger) {

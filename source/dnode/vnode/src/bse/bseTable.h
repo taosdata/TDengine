@@ -53,7 +53,7 @@ typedef struct {
 typedef struct {
   uint64_t  offset;
   uint64_t  size;
-  SSeqRange range;
+  struct SSeqRange range;
 } SBlkHandle;
 typedef struct {
   SBlkHandle metaHandle[1];
@@ -63,6 +63,8 @@ typedef struct {
 typedef struct {
   int32_t type;
   int32_t len;
+  int32_t version;
+  int64_t offset;
   char    data[0];
 } SBlock;
 
@@ -72,35 +74,13 @@ typedef struct {
   int16_t   reserve;
   int64_t   offset;
   int64_t   size;
-  SSeqRange range;
+  struct SSeqRange range;
 } SMetaBlock;
 
 typedef struct {
   SBlock *pBlock;
   SArray *pMeta;
 } SBlockWithMeta;
-
-typedef struct {
-  void   *data;
-  int32_t cap;
-  int8_t  type;
-  int64_t size;
-  int8_t  compressType;
-
-  void *pCachItem;
-} SBlockWrapper;
-
-int32_t blockWrapperInit(SBlockWrapper *p, int32_t cap);
-void    blockWrapperCleanup(SBlockWrapper *p);
-int32_t blockWrapperResize(SBlockWrapper *p, int32_t cap);
-void    blockWrapperClear(SBlockWrapper *p);
-void    blockWrapperTransfer(SBlockWrapper *dst, SBlockWrapper *src);
-void    blockWrapperSetType(SBlockWrapper *p, int8_t type);
-
-int8_t seqRangeContains(SSeqRange *p, int64_t seq);
-void   seqRangeReset(SSeqRange *p);
-void   seqRangeUpdate(SSeqRange *dst, SSeqRange *src);
-int8_t seqRangeIsGreater(SSeqRange *p, int64_t seq);
 
 typedef struct {
   char          name[TSDB_FILENAME_LEN];
@@ -139,27 +119,28 @@ typedef struct {
   SBtableMetaReader *pReader;
 
   SSeqRange range;
-  int64_t   retentionTs;
+  int64_t   timestamp;
   SBse     *pBse;
 } SBTableMeta;
+
 typedef struct {
   char             name[TSDB_FILENAME_LEN];
-
   TdFilePtr        pDataFile;
-  SArray          *pMeta;
 
-  SArray       *pMetaHandle;
-  SBlockWrapper pBlockWrapper;
   int32_t       blockCap;
   int8_t        compressType;
   int64_t       offset;
-  int32_t       blockId;
   SSeqRange     tableRange;
   SSeqRange     blockRange;
+
+  STableMemTable *pMemTable;
+  STableMemTable *pImmuMemTable;
+  int8_t          hasImmuMemTable;
+
   int32_t nRef;
 
   SBTableMeta *pTableMeta;
-  int64_t retentionTs;
+  int64_t      timestamp;
 
   SBse *pBse;
 } STableBuilder;
@@ -178,21 +159,22 @@ typedef struct {
   SBtableMetaReader *pMetaReader;
   SBlockWrapper      blockWrapper;
   SSeqRange range;
+
+  int64_t timestamp;
 } STableReader;
 
 typedef struct {
   SSeqRange range;
   int64_t size;
   int32_t level;
-  int64_t retentionTs;
+  int64_t   timestamp;
   char    name[TSDB_FILENAME_LEN];
 } SBseLiveFileInfo;
 
 int32_t tableBuilderOpen(int64_t timestamp, STableBuilder **pBuilder, SBse *pBse);
-int32_t tableBuilderPut(STableBuilder *p, int64_t *seq, uint8_t *value, int32_t len);
-int32_t tableBuilderPutBatch(STableBuilder *p, SBseBatch *pBatch);
+int32_t tableBuilderPut(STableBuilder *p, SBseBatch *pBatch);
 int32_t tableBuilderGet(STableBuilder *p, int64_t seq, uint8_t **value, int32_t *len);
-int32_t tableBuilderFlush(STableBuilder *p, int8_t type);
+int32_t tableBuilderFlush(STableBuilder *p, int8_t type, int8_t immuTable);
 int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo);
 void    tableBuilderClose(STableBuilder *p, int8_t commited);
 int32_t tableBuilderTruncFile(STableBuilder *p, int64_t size);
@@ -225,12 +207,12 @@ typedef struct {
   SBlockWrapper blockWrapper;
   int8_t        blockType;  // BSE_TABLE_DATA_TYPE, BSE_TABLE_META_TYPE, BSE_TABLE_FOOTER_TYPE
   int8_t        fileType;
-  int64_t       retentionTs;
+  int64_t       timestamp;
 
   void *pSubMgt;
 } STableReaderIter;
 
-int32_t tableReaderIterInit(int64_t retetion, int8_t type, STableReaderIter **ppIter, SBse *pBse);
+int32_t tableReaderIterInit(int64_t timestamp, int8_t type, STableReaderIter **ppIter, SBse *pBse);
 
 int32_t tableReaderIterNext(STableReaderIter *pIter, uint8_t **pValue, int32_t *len);
 
