@@ -146,6 +146,10 @@
   TD_DEF_MSG_TYPE(TDMT_DND_MOUNT_VNODE, "mount-vnode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_KILL_SSMIGRATE, "kill-ssmigrate", NULL, NULL) // placeholder for future use
   TD_DEF_MSG_TYPE(TDMT_MND_QUERY_SSMIGRATE_PROGRESS_TIMER, "query-ssmigrate-progress-tmr", NULL, NULL)
+  // xnode msg overload
+  TD_DEF_MSG_TYPE(TDMT_MND_CREATE_XNODE, "create-xnode", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_UPDATE_XNODE, "update-xnode", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_DROP_XNODE, "drop-xnode", NULL, NULL)
   TD_CLOSE_MSG_SEG(TDMT_DND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_MND_MSG)  // 1<<8
