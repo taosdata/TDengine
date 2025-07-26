@@ -32,7 +32,8 @@ def release(release_info,build_info):
         if info.Name =='opentsdb':
             build_and_install_opentsdb_on_linux(info.VersionMode)
         if info.Name == 'hebeipower':
-            build_and_install_hebeipower_on_linux(info.VersionMode)
+            # build_and_install_hebeipower_on_linux(info.VersionMode)
+            print("build hebeipower plugin is disabled for now")
         if info.Name =='taosx' and release_info.UploadAgent == False and release_info.BuildAgent == False:
             build_and_install_taosx_on_linux(release_info, info.VersionMode)
         if info.Name =='taosx-agent':

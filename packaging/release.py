@@ -24,8 +24,8 @@ pi_connector = "pi"
 opc_connector = "opc"
 influxdb_connector = "influxdb"
 opentsdb_connector = "opentsdb"
-hebeipower_plugin = "hebeipower"
-all_connectors = [pi_connector, opc_connector, influxdb_connector, opentsdb_connector, hebeipower_plugin]
+# hebeipower_plugin = "hebeipower"
+all_connectors = [pi_connector, opc_connector, influxdb_connector, opentsdb_connector]
 
 class SubmoduleBuildInfo:
     def __init__(self, name, build_mode):
