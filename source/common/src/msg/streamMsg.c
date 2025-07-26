@@ -2828,6 +2828,8 @@ int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStre
     pDst->outTags = taosArrayDup(pSrc->outTags, NULL);
     TSDB_CHECK_NULL(pDst->outTags, code, lino, _exit, terrno);
   }
+
+  pDst->triggerType = pSrc->triggerType;
   
   switch (pSrc->triggerType) {
     case WINDOW_TYPE_EVENT:

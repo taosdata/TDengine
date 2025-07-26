@@ -675,28 +675,28 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
 
   uint64_t ar[] = {groupId, pParam->wstart};
   uint64_t hash = MurmurHash3_64((const char*)ar, sizeof(ar));
-  char     windowId[32];
-  u64toaFastLut(hash, windowId);
+  char     triggerId[32];
+  u64toaFastLut(hash, triggerId);
 
-  const char* windowType = NULL;
+  const char* triggerTypeStr = NULL;
   switch (triggerType) {
     case STREAM_TRIGGER_PERIOD:
-      windowType = "Period";
+      triggerTypeStr = "Period";
       break;
     case STREAM_TRIGGER_SLIDING:
-      windowType = (pParam->notifyType == STRIGGER_EVENT_ON_TIME) ? "Sliding" : "Time";
+      triggerTypeStr = (pParam->notifyType == STRIGGER_EVENT_ON_TIME) ? "Sliding" : "Interval";
       break;
     case STREAM_TRIGGER_SESSION:
-      windowType = "Session";
+      triggerTypeStr = "Session";
       break;
     case STREAM_TRIGGER_COUNT:
-      windowType = "Count";
+      triggerTypeStr = "Count";
       break;
     case STREAM_TRIGGER_STATE:
-      windowType = "State";
+      triggerTypeStr = "State";
       break;
     case STREAM_TRIGGER_EVENT:
-      windowType = "Event";
+      triggerTypeStr = "Event";
       break;
     default:
       code = TSDB_CODE_INVALID_PARA;
@@ -707,8 +707,8 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
   QUERY_CHECK_NULL(obj, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
   JSON_CHECK_ADD_ITEM(obj, "eventType", cJSON_CreateStringReference(eventType));
   JSON_CHECK_ADD_ITEM(obj, "eventTime", cJSON_CreateNumber(taosGetTimestampMs()));
-  JSON_CHECK_ADD_ITEM(obj, "windowId", cJSON_CreateStringReference(windowId));
-  JSON_CHECK_ADD_ITEM(obj, "windowType", cJSON_CreateStringReference(windowType));
+  JSON_CHECK_ADD_ITEM(obj, "triggerId", cJSON_CreateStringReference(triggerId));
+  JSON_CHECK_ADD_ITEM(obj, "triggerType", cJSON_CreateStringReference(triggerTypeStr));
 
   if (tableName != NULL) {
     JSON_CHECK_ADD_ITEM(obj, "tableName", cJSON_CreateStringReference(tableName));

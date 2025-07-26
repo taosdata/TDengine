@@ -342,6 +342,10 @@ static int32_t stRunnerInitTbTagVal(SStreamRunnerTask* pTask, SStreamRunnerTaskE
 static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec, SSDataBlock* pBlock,
                                    bool* createTb) {
   int32_t code = 0;
+  if (stRunnerTaskWaitQuit(pTask)) {
+    ST_TASK_ILOG("[runner calc]quit, skip output. status:%d", pTask->task.status);
+    return TSDB_CODE_SUCCESS;
+  }
   if (pTask->notification.calcNotifyOnly) return 0;
   bool needCalcTbName = pExec->tbname[0] == '\0';
   if (pBlock && pBlock->info.rows > 0) {

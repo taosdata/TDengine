@@ -1977,7 +1977,7 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
 
   STSchema* pTSchema = pInsertParam->pSchema;
   tbData.flags |= SUBMIT_REQ_SCHEMA_RES;
-  if (pInserterInfo->isAutoCreateTable) {
+  if (pInserterInfo->isAutoCreateTable && pTSchema) {
     if (pInsertParam->tbType == TSDB_NORMAL_TABLE) {
       code = buildNormalTableCreateReq(pInserter, pInsertParam, &tbData, vgInfo);
     } else if (pInsertParam->tbType == TSDB_SUPER_TABLE) {
@@ -2015,15 +2015,12 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
 
   if (NULL == taosArrayPush(pReq->aSubmitTbData, &tbData)) {
     code = terrno;
-    tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
 _end:
   if (code != 0) {
-    if (tbData.aRowP) {
-      taosArrayDestroy(tbData.aRowP);
-    }
+    tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
   }
 
   return code;
