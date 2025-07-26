@@ -76,7 +76,7 @@ static void streamConcurrentlyLoadRemoteData(SOperatorInfo* pOperator, SExchange
   int32_t code = 0;
   int32_t lino = 0;
   int64_t startTs = taosGetTimestampUs();  
-  size_t  totalSources = taosArrayGetSize(pExchangeInfo->pSourceDataInfo);
+  int32_t  totalSources = (int32_t)taosArrayGetSize(pExchangeInfo->pSourceDataInfo);
   int32_t completed = 0;
   code = getCompletedSources(pExchangeInfo->pSourceDataInfo, &completed);
   if (code != TSDB_CODE_SUCCESS) {
@@ -84,6 +84,7 @@ static void streamConcurrentlyLoadRemoteData(SOperatorInfo* pOperator, SExchange
     T_LONG_JMP(pTaskInfo->env, code);
   }
   if (completed == totalSources) {
+    qDebug("%s no load since all sources completed, completed:%d, totalSources:%d", pTaskInfo->id.str, completed, totalSources);
     setAllSourcesCompleted(pOperator);
     return;
   }
@@ -92,6 +93,7 @@ static void streamConcurrentlyLoadRemoteData(SOperatorInfo* pOperator, SExchange
 
   while (1) {
     if (pExchangeInfo->current < 0) {
+      qDebug("current %d and all sources complted, totalSources:%d", pExchangeInfo->current, totalSources);
       setAllSourcesCompleted(pOperator);
       return;
     }
@@ -104,6 +106,7 @@ static void streamConcurrentlyLoadRemoteData(SOperatorInfo* pOperator, SExchange
         T_LONG_JMP(pTaskInfo->env, code);
       }
       if (completed == totalSources) {
+        qDebug("stop to load since all sources complted, completed:%d, totalSources:%d", completed, totalSources);
         setAllSourcesCompleted(pOperator);
         return;
       }
@@ -193,7 +196,7 @@ static void streamConcurrentlyLoadRemoteData(SOperatorInfo* pOperator, SExchange
     SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
     if (pRsp->completed == 1) {
       qDebug("%s fetch msg rsp from vgId:%d, clientId:0x%" PRIx64 " taskId:0x%" PRIx64 " execId:%d numOfRows:%" PRId64
-             ", rowsOfSource:%" PRIu64 ", totalRows:%" PRIu64 ", totalBytes:%" PRIu64 " try next %d/%" PRIzu,
+             ", rowsOfSource:%" PRIu64 ", totalRows:%" PRIu64 ", totalBytes:%" PRIu64 " try next %d/%d",
              GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->clientId, pSource->taskId, pSource->execId,
              pRetrieveRsp->numOfRows, pDataInfo->totalRows, pLoadInfo->totalRows, pLoadInfo->totalSize,
              pExchangeInfo->current + 1, totalSources);
@@ -433,6 +436,8 @@ static int32_t loadRemoteDataNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
   int32_t        lino = 0;
   SExchangeInfo* pExchangeInfo = pOperator->info;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+
+  qDebug("%s start to load from exchange %p", pTaskInfo->id.str, pExchangeInfo);
 
   code = pOperator->fpSet._openFn(pOperator);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -1462,6 +1467,8 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
     return TSDB_CODE_INVALID_PARA;
   }
 
+  qDebug("start to add single exchange source");
+
   if (pBasicParam->isVtbRefScan) {
     SSourceDataInfo dataInfo = {0};
     dataInfo.status = EX_SOURCE_DATA_NOT_READY;
@@ -1606,8 +1613,10 @@ int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
   SExchangeInfo* pExchangeInfo = pOperator->info;
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
+  
   if ((OPTR_IS_OPENED(pOperator) && !pExchangeInfo->dynamicOp) ||
       (pExchangeInfo->dynamicOp && NULL == pOperator->pOperatorGetParam)) {
+    qDebug("skip prepare, opened:%d, dynamicOp:%d, getParam:%p", OPTR_IS_OPENED(pOperator), pExchangeInfo->dynamicOp, pOperator->pOperatorGetParam);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1630,6 +1639,8 @@ int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
 
   OPTR_SET_OPENED(pOperator);
   pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
+
+  qDebug("%s prepare load complete", pOperator->pTaskInfo->id.str);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
