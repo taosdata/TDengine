@@ -688,14 +688,6 @@ static int32_t inline vnodeSubmitSubRowBlobData(SVnode *pVnode, SSubmitTbData *p
       code = TSDB_CODE_INVALID_MSG;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
-
-    if (bseBatchExccedLimit(pBatch)) {
-      code = bseCommitBatch(pVnode->pBse, pBatch);
-      TSDB_CHECK_CODE(code, lino, _exit);
-
-      code = bseBatchInit(pVnode->pBse, &pBatch, sz - i);
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
   }
 
   code = bseCommitBatch(pVnode->pBse, pBatch);
@@ -755,14 +747,6 @@ static int32_t inline vnodeSubmitSubColBlobData(SVnode *pVnode, SSubmitTbData *p
 
     memcpy(pBlobCol->pData + offset, (void *)&seq, BSE_SEQUECE_SIZE);
     offset += BSE_SEQUECE_SIZE;
-
-    if (bseBatchExccedLimit(pBatch)) {
-      code = bseCommitBatch(pVnode->pBse, pBatch);
-      TSDB_CHECK_CODE(code, lino, _exit);
-
-      code = bseBatchInit(pVnode->pBse, &pBatch, sz - i);
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
   }
 
   code = bseCommitBatch(pVnode->pBse, pBatch);
