@@ -233,7 +233,7 @@ void lruCacheFree(SLruCache *pCache) {
   }
 
   if (tdListFree(pCache->lruList) == NULL) {
-    bseWarn("failed to free lru list");
+    bseTrace("failed to free lru list");
   }
   pCache->lruList = NULL;
 
