@@ -1186,7 +1186,7 @@ int32_t tDispatchWorkerAllocQueue(SDispatchWorkerPool *pPool, void *ahandle, FIt
       break;
     }
     (void)taosThreadAttrDestroy(&thAttr);
-    uInfo("worker:%s:%d is launched, threadId:%" PRId64 ", total:%d", pPool->name, pWorker->id, (int64_t)pWorker->thread, pPool->num);
+    uInfo("worker:%s:%d is launched, threadId:%" PRId64 ", total:%d", pPool->name, pWorker->id, taosGetPthreadId(pWorker->thread), pPool->num);
   }
 
   taosThreadMutexUnlock(&pPool->poolLock);
@@ -1256,7 +1256,7 @@ int32_t tAddTaskIntoDispatchWorkerPool(SDispatchWorkerPool *pPool, void *pMsg) {
   if (code != 0) {
     uError("worker:%s, failed to add task into dispatch worker pool, code:%d", pPool->name, code);
   } else {
-    uDebug("msg %p dispatch to the %dth worker, threadId:%" PRId64, pMsg, idx, (int64_t)pWorker->thread);
+    uDebug("msg %p dispatch to the %dth worker, threadId:%" PRId64, pMsg, idx, taosGetPthreadId(pWorker->thread));
   }
   return code;
 }
