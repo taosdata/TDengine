@@ -581,8 +581,11 @@ int32_t vnodePreProcessSsMigrateReq(SVnode *pVnode, SRpcMsg *pMsg) {
   }
 
   req.nodeId = vnodeNodeId(pVnode);
-  tSerializeSSsMigrateVgroupReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead), &req);
-
+  if (tSerializeSSsMigrateVgroupReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead),
+                                    &req) < 0) {
+    vError("vgId:%d %s failed to serialize ss migrate request", TD_VID(pVnode), __func__);
+    code = TSDB_CODE_INVALID_MSG;
+  }
 _exit:
   return code;
 }
@@ -670,7 +673,10 @@ static int32_t inline vnodeSubmitSubRowBlobData(SVnode *pVnode, SSubmitTbData *p
       break;
     }
 
-    tPutU64(row->data + p->dataOffset, seq);
+    if (tPutU64(row->data + p->dataOffset, seq) < 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
   }
 
   code = bseCommitBatch(pVnode->pBse, pBatch);
@@ -1172,7 +1178,11 @@ static int32_t vnodeProcessSsMigrateReq(SVnode *pVnode, int64_t ver, void *pReq,
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-  tSerializeSSsMigrateVgroupRsp(pRsp->pCont, pRsp->contLen, &rsp);
+
+  if (tSerializeSSsMigrateVgroupRsp(pRsp->pCont, pRsp->contLen, &rsp) < 0) {
+    vError("vgId:%d, failed to serialize ssmigrate response", TD_VID(pVnode));
+    code = TSDB_CODE_INVALID_MSG;
+  }
 
 _exit:
   if (code != TSDB_CODE_SUCCESS) {

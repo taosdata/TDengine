@@ -470,7 +470,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME}
 - tableName：字符串类型，是对应目标子表的表名。
 - eventType：字符串类型，表示事件类型，支持 WINDOW_OPEN、WINDOW_CLOSE、WINDOW_INVALIDATION 三种类型。
 - eventTime：长整型时间戳，表示事件生成时间，精确到毫秒，即：'00:00, Jan 1 1970 UTC' 以来的毫秒数。
-- triggerId：字符串类型，触发事件的唯一标识符，确保打开和关闭事件(如果有的话)的 ID 一致，便于外部系统将两者关联。如果 taosd 发生故障重启，部分事件可能会重复发送，会保证同一事件的 triggerId 保持不变。
+- triggerId：字符串类型，触发事件的唯一标识符，确保打开和关闭事件（如果有的话）的 ID 一致，便于外部系统将两者关联。如果 taosd 发生故障重启，部分事件可能会重复发送，会保证同一事件的 triggerId 保持不变。
 - triggerType：字符串类型，表示触发类型，支持 Period、SLIDING 两种非窗口触发类型以及 INTERVAL、State、Session、Event、Count 五种窗口类型。
 - groupId: 字符串类型，是对应分组的唯一标识符，如果是按子表分组，则与对应表的 uid 一致。
 
@@ -482,14 +482,14 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME}
 - eventType 固定为 ON_TIME，包含如下字段：
   - result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
 
-###### 滑动触发(Sliding)相关字段
+###### 滑动触发（Sliding）相关字段
 
 这部分是 triggerType 为 Sliding 时 event 对象的关键字段。
 
 - eventType 固定为 ON_TIME，包含如下字段：
   - result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
 
-###### 滑动触发(Interval)相关字段
+###### 滑动触发（Interval）相关字段
 
 这部分是 triggerType 为 Interval 时 event 对象的关键字段。
 
