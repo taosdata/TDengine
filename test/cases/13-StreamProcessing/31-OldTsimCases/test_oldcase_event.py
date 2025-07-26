@@ -46,7 +46,7 @@ class TestStreamOldCaseEvent:
 
         tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream streams1 event_window(start with a = 0 end with a = 9) from t1 stream_options(max_delay(1s)) into streamt as select _twstart as s, count(*) c1, sum(b), max(c) from t1 where ts >= _twstart and ts < _twend;"
+            f"create stream streams1 event_window(start with a = 0 end with a = 9) from t1 stream_options(max_delay(3s)) into streamt as select _twstart as s, count(*) c1, sum(b), max(c) from t1 where ts >= _twstart and ts < _twend;"
         )
         tdStream.checkStreamStatus()
 

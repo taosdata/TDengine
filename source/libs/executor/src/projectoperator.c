@@ -44,9 +44,6 @@ typedef struct SIndefOperatorInfo {
 static int32_t      doGenerateSourceData(SOperatorInfo* pOperator);
 static int32_t      doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
 static int32_t      doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
-static int32_t      setRowTsColumnOutputInfo(SqlFunctionCtx* pCtx, int32_t numOfCols, SArray** pResList);
-static int32_t      setFunctionResultOutput(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, SAggSupporter* pSup,
-                                            int32_t stage, int32_t numOfExprs);
 
 static void destroyProjectOperatorInfo(void* param) {
   if (NULL == param) {
@@ -728,7 +725,7 @@ int32_t initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size) {
  *           offset[0]                                  offset[1]                                   offset[2]
  */
 // TODO refactor: some function move away
-int32_t setFunctionResultOutput(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t stage,
+int32_t setFunctionResultOutput(struct SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t stage,
                              int32_t numOfExprs) {
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SqlFunctionCtx* pCtx = pOperator->exprSupp.pCtx;
@@ -764,7 +761,7 @@ int32_t setRowTsColumnOutputInfo(SqlFunctionCtx* pCtx, int32_t numOfCols, SArray
   }
 
   for (int32_t i = 0; i < numOfCols; ++i) {
-    if (fmIsPseudoColumnFunc(pCtx[i].functionId)) {
+    if (fmIsPseudoColumnFunc(pCtx[i].functionId) && !fmIsPlaceHolderFunc(pCtx[i].functionId)) {
       void* px = taosArrayPush(pList, &i);
       if (px == NULL) {
         return terrno;

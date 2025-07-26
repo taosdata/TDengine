@@ -231,7 +231,7 @@ cmd ::= CREATE BNODE ON DNODE NK_INTEGER(A) bnode_options(B).                   
 cmd ::= DROP BNODE ON DNODE NK_INTEGER(A).                                        { pCxt->pRootNode = createDropBnodeStmt(pCxt, &A); }
 
 bnode_options(A) ::= .                                                            { A = createDefaultBnodeOptions(pCxt); }
-bnode_options(A) ::= bnode_options(B) PROTOCOL NK_STRING(C).                      { A = setBnodeOption(pCxt, B, BNODE_OPTION_PROTOCOL, &C); }
+bnode_options(A) ::= bnode_options(B) NK_ID(C) NK_STRING(D).                      { A = setBnodeOption(pCxt, B, &C, &D); }
 
 /************************************************ create/drop/restore mnode ***************************************************/
 cmd ::= CREATE MNODE ON DNODE NK_INTEGER(A).                                      { pCxt->pRootNode = createCreateComponentNodeStmt(pCxt, QUERY_NODE_CREATE_MNODE_STMT, &A); }
@@ -1006,10 +1006,7 @@ stream_tags_def_opt(A) ::= TAGS NK_LP stream_tags_def_list(B) NK_RP.            
 stream_tags_def_list(A) ::= stream_tags_def(B).                                        { A = createNodeList(pCxt, B); }
 stream_tags_def_list(A) ::= stream_tags_def_list(B) NK_COMMA stream_tags_def(C).       { A = addNodeToList(pCxt, B, C); }
 
-stream_tags_def(A) ::= column_name(B) type_name(C) tag_comment(D) AS expression(E).    { A = createStreamTagDefNode(pCxt, &B, C, D, releaseRawExprNode(pCxt, E)); }
-
-tag_comment(A) ::= .                                                                   { A = NULL; }
-tag_comment(A) ::= COMMENT NK_STRING(B).                                               { A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
+stream_tags_def(A) ::= column_name(B) type_name(C) AS expression(D).                   { A = createStreamTagDefNode(pCxt, &B, C, releaseRawExprNode(pCxt, D)); }
 
 %type column_name_unit                                                                 { SNodeList* }
 %destructor column_name_unit                                                           { nodesDestroyList($$); }

@@ -145,7 +145,7 @@ If you are using Maven to manage your project, simply add the following dependen
     - Install a specific version
 
     ```shell
-    pip3 install taospy==2.8.2
+    pip3 install taospy==2.8.3
     ```
 
     - Install from GitHub
@@ -363,6 +363,12 @@ Complete DSN format:
 
 ```text
 username:password@protocol(address)/dbname?param=value
+```
+
+When using an IPv6 address (supported in v3.7.1 and above), the address needs to be enclosed in square brackets, for example:
+
+```text
+root:taosdata@ws([::1]:6041)/testdb
 ```
 
 Supported DSN parameters are as follows:

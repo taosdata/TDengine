@@ -212,7 +212,7 @@ char*   getStreamOpName(uint16_t opType);
 void    printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr, const char* taskIdStr);
 
 TSKEY getStartTsKey(STimeWindow* win, const TSKEY* tsCols);
-void  updateTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pWin, int64_t delta);
+void  updateTimeWindowInfo(SColumnInfoData* pColData, const STimeWindow* pWin, int64_t delta);
 
 SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, SArray* pUidTagList, void* pVnode,
                                         SStorageAPI* pStorageAPI);

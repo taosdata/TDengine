@@ -77,7 +77,7 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
   code = sdbGetRawSoftVer(pRaw, &sver);
   TSDB_CHECK_CODE(code, lino, _over);
 
-  if (sver < 1 || sver > MND_STREAM_VER_NUMBER) {
+  if (sver != MND_STREAM_VER_NUMBER) {
     mError("stream read invalid ver, data ver: %d, curr ver: %d", sver, MND_STREAM_VER_NUMBER);
     goto _over;
   }
@@ -192,7 +192,7 @@ int32_t  mndStreamSeqActionInsert(SSdb *pSdb, SStreamSeq *pStream) { return 0; }
 int32_t  mndStreamSeqActionDelete(SSdb *pSdb, SStreamSeq *pStream) { return 0; }
 int32_t  mndStreamSeqActionUpdate(SSdb *pSdb, SStreamSeq *pOldStream, SStreamSeq *pNewStream) { return 0; }
 
-static int32_t mndStreamBuildObj(SMnode *pMnode, SStreamObj *pObj, SCMCreateStreamReq *pCreate, int32_t snodeId) {
+static void mndStreamBuildObj(SMnode *pMnode, SStreamObj *pObj, SCMCreateStreamReq *pCreate, int32_t snodeId) {
   int32_t     code = 0;
 
   pObj->pCreate = pCreate;
@@ -206,8 +206,6 @@ static int32_t mndStreamBuildObj(SMnode *pMnode, SStreamObj *pObj, SCMCreateStre
   pObj->updateTime = pObj->createTime;
 
   mstLogSStreamObj("create stream", pObj);
-
-  return code;
 }
 
 static int32_t mndStreamCreateOutStb(SMnode *pMnode, STrans *pTrans, const SCMCreateStreamReq *pStream, const char *user) {
@@ -573,27 +571,31 @@ static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
   if (pStream == NULL || code != 0) {
     if (pauseReq.igNotExists) {
       mInfo("stream:%s, not exist, not stop stream", pauseReq.name);
+      taosMemoryFree(pauseReq.name);
       return 0;
     } else {
       mError("stream:%s not exist, failed to stop stream", pauseReq.name);
+      taosMemoryFree(pauseReq.name);
       TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_EXIST);
     }
   }
 
+  taosMemoryFree(pauseReq.name);
+
   int64_t streamId = pStream->pCreate->streamId;
   
-  mstsInfo("start to stop stream %s", pauseReq.name);
+  mstsInfo("start to stop stream %s", pStream->name);
 
   code = mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->pCreate->streamDB);
   if (code != TSDB_CODE_SUCCESS) {
-    mstsError("user %s failed to stop stream %s since %s", pReq->info.conn.user, pauseReq.name, tstrerror(code));
+    mstsError("user %s failed to stop stream %s since %s", pReq->info.conn.user, pStream->name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     return code;
   }
 
   if (atomic_load_8(&pStream->userDropped)) {
     code = TSDB_CODE_MND_STREAM_DROPPING;
-    mstsError("user %s failed to stop stream %s since %s", pReq->info.conn.user, pauseReq.name, tstrerror(code));
+    mstsError("user %s failed to stop stream %s since %s", pReq->info.conn.user, pStream->name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     return code;
   }
@@ -601,7 +603,7 @@ static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
   STrans *pTrans = NULL;
   code = mndStreamCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_STOP_NAME, &pTrans);
   if (pTrans == NULL || code) {
-    mstsError("failed to stop stream %s since %s", pauseReq.name, tstrerror(code));
+    mstsError("failed to stop stream %s since %s", pStream->name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     return code;
   }
@@ -612,7 +614,7 @@ static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
 
   MND_STREAM_SET_LAST_TS(STM_EVENT_STOP_STREAM, pStream->updateTime);
 
-  msmUndeployStream(pMnode, streamId, pStream->pCreate->name);
+  msmUndeployStream(pMnode, streamId, pStream->name);
 
   // stop stream
   code = mndStreamTransAppend(pStream, pTrans, SDB_STATUS_READY);
@@ -655,35 +657,39 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
   if (pStream == NULL || code != 0) {
     if (resumeReq.igNotExists) {
       mInfo("stream:%s not exist, not start stream", resumeReq.name);
+      taosMemoryFree(resumeReq.name);
       sdbRelease(pMnode->pSdb, pStream);
       return 0;
     } else {
       mError("stream:%s not exist, failed to start stream", resumeReq.name);
+      taosMemoryFree(resumeReq.name);
       TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_EXIST);
     }
   }
 
+  taosMemoryFree(resumeReq.name);
+
   int64_t streamId = pStream->pCreate->streamId;
 
-  mstsInfo("start to start stream %s from stopped", resumeReq.name);
+  mstsInfo("start to start stream %s from stopped", pStream->name);
 
   code = mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->pCreate->streamDB);
   if (code != TSDB_CODE_SUCCESS) {
-    mstsError("user %s failed to start stream %s since %s", pReq->info.conn.user, resumeReq.name, tstrerror(code));
+    mstsError("user %s failed to start stream %s since %s", pReq->info.conn.user, pStream->name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     return code;
   }
 
   if (atomic_load_8(&pStream->userDropped)) {
     code = TSDB_CODE_MND_STREAM_DROPPING;
-    mstsError("user %s failed to start stream %s since %s", pReq->info.conn.user, resumeReq.name, tstrerror(code));
+    mstsError("user %s failed to start stream %s since %s", pReq->info.conn.user, pStream->name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     return code;
   }
 
   if (0 == atomic_load_8(&pStream->userStopped)) {
     code = TSDB_CODE_MND_STREAM_NOT_STOPPED;
-    mstsError("user %s failed to start stream %s since %s", pReq->info.conn.user, resumeReq.name, tstrerror(code));
+    mstsError("user %s failed to start stream %s since %s", pReq->info.conn.user, pStream->name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     return code;
   }
@@ -697,14 +703,14 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
   STrans *pTrans = NULL;
   code = mndStreamCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_START_NAME, &pTrans);
   if (pTrans == NULL || code) {
-    mstsError("failed to start stream %s since %s", resumeReq.name, tstrerror(code));
+    mstsError("failed to start stream %s since %s", pStream->name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     return code;
   }
 
   code = mndStreamTransAppend(pStream, pTrans, SDB_STATUS_READY);
   if (code != TSDB_CODE_SUCCESS) {
-    mstsError("failed to start stream %s since %s", resumeReq.name, tstrerror(code));
+    mstsError("failed to start stream %s since %s", pStream->name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return code;
@@ -712,13 +718,13 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
 
   code = mndTransPrepare(pMnode, pTrans);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mstsError("trans:%d, failed to prepare start stream %s trans since %s", pTrans->id, resumeReq.name, tstrerror(code));
+    mstsError("trans:%d, failed to prepare start stream %s trans since %s", pTrans->id, pStream->name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return code;
   }
 
-  mstPostStreamAction(mStreamMgmt.actionQ, streamId, pStream->pCreate->name, NULL, true, STREAM_ACT_DEPLOY);
+  mstPostStreamAction(mStreamMgmt.actionQ, streamId, pStream->name, NULL, true, STREAM_ACT_DEPLOY);
 
   sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);
@@ -895,8 +901,8 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   code = mndStreamValidateCreate(pMnode, pReq->info.conn.user, pCreate);
   TSDB_CHECK_CODE(code, lino, _OVER);
 
-  code = mndStreamBuildObj(pMnode, &streamObj, pCreate, snodeId);
-  TSDB_CHECK_CODE(code, lino, _OVER);
+  mndStreamBuildObj(pMnode, &streamObj, pCreate, snodeId);
+  pCreate = NULL;
 
   pStream = &streamObj;
 
@@ -906,8 +912,8 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   }
 
   // create stb for stream
-  if (TSDB_SUPER_TABLE == pCreate->outTblType && !pCreate->outStbExists) {
-    pCreate->outStbUid = mndGenerateUid(pCreate->outTblName, strlen(pCreate->outTblName));
+  if (TSDB_SUPER_TABLE == pStream->pCreate->outTblType && !pStream->pCreate->outStbExists) {
+    pStream->pCreate->outStbUid = mndGenerateUid(pStream->pCreate->outTblName, strlen(pStream->pCreate->outTblName));
     code = mndStreamCreateOutStb(pMnode, pTrans, pStream->pCreate, pReq->info.conn.user);
     TSDB_CHECK_CODE(code, lino, _OVER);
   }
@@ -915,7 +921,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   // add stream to trans
   code = mndStreamTransAppend(pStream, pTrans, SDB_STATUS_READY);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mstsError("failed to persist stream %s since %s", pCreate->name, tstrerror(code));
+    mstsError("failed to persist stream %s since %s", pStream->pCreate->name, tstrerror(code));
     goto _OVER;
   }
 
@@ -925,8 +931,9 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     mstsError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
     goto _OVER;
   }
+  code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  auditRecord(pReq, pMnode->clusterId, "createStream", pCreate->streamDB, pCreate->name, pCreate->sql, strlen(pCreate->sql));
+  auditRecord(pReq, pMnode->clusterId, "createStream", pStream->pCreate->streamDB, pStream->pCreate->name, pStream->pCreate->sql, strlen(pStream->pCreate->sql));
 
   MND_STREAM_SET_LAST_TS(STM_EVENT_CREATE_STREAM, taosGetTimestampMs());
 
@@ -935,11 +942,17 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 _OVER:
 
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mstsError("failed to create stream %s at line:%d since %s", pCreate ? pCreate->name : "unknown", lino, tstrerror(code));
+    if (pStream && pStream->pCreate) {
+      mstsError("failed to create stream %s at line:%d since %s", pStream->pCreate->name, lino, tstrerror(code));
+    } else {
+      mstsError("failed to create stream at line:%d since %s", lino, tstrerror(code));
+    }
   } else {
-    mstsDebug("create stream %s half completed", pCreate ? pCreate->name : "unknown");
-    code = TSDB_CODE_ACTION_IN_PROGRESS;
+    mstsDebug("create stream %s half completed", pStream->pCreate ? pStream->pCreate->name : "unknown");
   }
+
+  tFreeSCMCreateStreamReq(pCreate);
+  taosMemoryFreeClear(pCreate);
 
   mndTransDrop(pTrans);
   tFreeStreamObj(&streamObj);
