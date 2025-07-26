@@ -45,7 +45,7 @@ CREATE DATABASE db_name PRECISION 'ns';
 | 17  |      GEOMETRY     | 自定义    | 几何类型，v3.1.0.0 开始支持
 | 18  |      VARBINARY     | 自定义    | 可变长的二进制数据，v3.1.1.0 开始支持|
 | 19  |      DECIMAL      |  8 或 16    | 高精度数值类型，取值范围取决于类型中指定的 precision 和 scale，自 v3.3.6.0 开始支持，见下文描述|
-| 19  |      BLOB      |  最大长度4M    | 可变长的二进制数据，v3.3.8.0 开始支持|
+| 19  |      BLOB      |  最大长度 4M    | 可变长的二进制数据，v3.3.8.0 开始支持|
 
 :::note
 
