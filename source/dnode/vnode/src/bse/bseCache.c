@@ -384,7 +384,6 @@ int32_t blockCachePut(SBlockCache *pCache, SSeqRange *key, void *pBlock) {
 
   code = cacheLRUPut(pCache->pCache, key, sizeof(SSeqRange), pBlock);
   TSDB_CHECK_CODE(code, lino, _error);
-
 _error:
   if (code != 0) {
     bseError("failed to put block cache at line %d since %s", lino, tstrerror(code));
