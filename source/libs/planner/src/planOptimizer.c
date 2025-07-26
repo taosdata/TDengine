@@ -6547,7 +6547,7 @@ static int32_t stbJoinOptCreateTagHashJoinNode(SLogicNode* pOrig, SNodeList* pCh
   return code;
 }
 
-static int32_t stbJoinOptCreateTableScanNodes(SLogicNode* pJoin, SNodeList** ppList, bool* srcScan) {
+static int32_t stbJoinOptCreateTableScanNodes(SOptimizeContext* pCxt, SLogicNode* pJoin, SNodeList** ppList, bool* srcScan) {
   SNodeList* pList = NULL;
   int32_t    code = nodesCloneList(pJoin->pChildren, &pList);
   if (NULL == pList) {
@@ -6570,7 +6570,7 @@ static int32_t stbJoinOptCreateTableScanNodes(SLogicNode* pJoin, SNodeList** ppL
     pScan->pTagIndexCond = NULL;
 
     pScan->node.dynamicOp = true;
-    *(srcScan + i++) = pScan->pVgroupList->numOfVgroups <= 1;
+    *(srcScan + i++) = (pScan->pVgroupList->numOfVgroups <= 1 && !pCxt->pPlanCxt->streamCalcQuery);
 
     pScan->scanType = SCAN_TYPE_TABLE;
 
@@ -6788,7 +6788,7 @@ static int32_t stbJoinOptRewriteStableJoin(SOptimizeContext* pCxt, SLogicNode* p
     code = stbJoinOptCreateTagHashJoinNode(pJoin, pTagScanNodes, &pHJoinNode);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = stbJoinOptCreateTableScanNodes(pJoin, &pTbScanNodes, srcScan);
+    code = stbJoinOptCreateTableScanNodes(pCxt, pJoin, &pTbScanNodes, srcScan);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = stbJoinOptCreateGroupCacheNode(getLogicNodeRootNode(pJoin), pTbScanNodes, &pGrpCacheNode);

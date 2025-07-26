@@ -213,9 +213,6 @@ static int32_t initTableInfo(SStreamDataInserterInfo* pInserterInfo,   STSchema*
 
 static bool colsIsSupported(const STableMetaRsp* pTableMetaRsp, const SStreamInserterParam* pInserterParam) {
   SArray* pCreatingFields = pInserterParam->pFields;
-  if (pTableMetaRsp->numOfColumns < pCreatingFields->size) {
-    return false;
-  }
 
   for (int32_t i = 0; i < pCreatingFields->size; ++i) {
     SFieldWithOptions* pField = taosArrayGet(pCreatingFields, i);
@@ -239,9 +236,6 @@ static bool colsIsSupported(const STableMetaRsp* pTableMetaRsp, const SStreamIns
 
 static bool TagsIsSupported(const STableMetaRsp* pTableMetaRsp, const SStreamInserterParam* pInserterParam) {
   SArray* pCreatingTags = pInserterParam->pTagFields;
-  if (pTableMetaRsp->numOfTags < pCreatingTags->size) {
-    return false;
-  }
 
   int32_t            tagIndexOffset = -1;
   SFieldWithOptions* pField = taosArrayGet(pCreatingTags, 0);
@@ -1983,7 +1977,7 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
 
   STSchema* pTSchema = pInsertParam->pSchema;
   tbData.flags |= SUBMIT_REQ_SCHEMA_RES;
-  if (pInserterInfo->isAutoCreateTable) {
+  if (pInserterInfo->isAutoCreateTable && pTSchema) {
     if (pInsertParam->tbType == TSDB_NORMAL_TABLE) {
       code = buildNormalTableCreateReq(pInserter, pInsertParam, &tbData, vgInfo);
     } else if (pInsertParam->tbType == TSDB_SUPER_TABLE) {
@@ -2021,15 +2015,12 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
 
   if (NULL == taosArrayPush(pReq->aSubmitTbData, &tbData)) {
     code = terrno;
-    tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
 _end:
   if (code != 0) {
-    if (tbData.aRowP) {
-      taosArrayDestroy(tbData.aRowP);
-    }
+    tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
   }
 
   return code;
