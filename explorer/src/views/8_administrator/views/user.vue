@@ -154,7 +154,7 @@ function handlePageChange() {
 }
 
 function del(data: { name: string }) {
-  ElMessageBox.confirm(t('isDel', [data.name]), t('wraning'), {
+  ElMessageBox.confirm(t('isDel', [data.name]), t('warning'), {
     confirmButtonText: t('confirm'),
     cancelButtonText: t('cancel'),
     type: 'warning'

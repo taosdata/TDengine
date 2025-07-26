@@ -55,7 +55,7 @@ export function getDBStruct(dbName: string) {
 export function deleteDBReq(dbName: string) {
   return request({
     baseURL: import.meta.env.VITE_APP_BASE_URL,
-    url: '/rest/sql',
+    url: '/api/-/rest/sql',
     data: `DROP DATABASE \`${dbName}\`;`,
     headers: {
       'Content-Type': 'text/plain'
@@ -91,7 +91,7 @@ export function createDB(data: Recordable) {
   const name = formatWithBackticks(data.name);
   return request({
     baseURL: import.meta.env.VITE_APP_BASE_URL,
-    url: '/rest/sql',
+    url: '/api/-/rest/sql',
     headers: {
       'Content-Type': 'text/plain'
     },

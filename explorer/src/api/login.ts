@@ -11,10 +11,22 @@ export function getUrls() {
         }
     });
 }
-export function fetchApiByCluster(token: string, data: Recordable) {
+export function firstLoginWith(token: string, data: string) {
+    return request({
+        baseURL: import.meta.env.VITE_APP_EXPLORER_API,
+        url: `/login`,
+        method: "post",
+        headers: {
+            Authorization: token,
+            "Content-Type": "text/plain"
+        },
+        data
+    });
+}
+export function fetchApiByCluster(token: string, data: string) {
     return request({
         baseURL: import.meta.env.VITE_APP_BASE_URL,
-        url: `/rest/sql`,
+        url: `/api/-/rest/sql`,
         method: "post",
         headers: {
             Authorization: token,

@@ -158,7 +158,7 @@ function changeState(data) {
     title = t('isEnable').replace('{isDisableName}', data.user_name);
     // state = 1;
   }
-  ElMessageBox.confirm(title, t('wraning'), {
+  ElMessageBox.confirm(title, t('warning'), {
     confirmButtonText: t('confirm'),
     cancelButtonText: t('cancel'),
     type: 'warning'

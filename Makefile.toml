@@ -124,16 +124,6 @@ args = ["build", "--profile", "${BUILD_PROFILE}", "-p", "taosx-agent"]
 [tasks.plugins]
 dependencies = ["taosx-influxdb", "taosx-opentsdb", "taosx-opc"]
 
-[tasks.taos-explorer]
-script = """
-remote_path=/root/enterprise_build_zip_work/enterprise-docs
-rsync -u root@192.168.0.30:${remote_path}/docs-zh.zip .
-rsync -u root@192.168.0.30:${remote_path}/docs-en.zip .
-rm -rf public/docs && unzip docs-zh.zip -d explorer/public/docs
-rm -rf public/docs-en && unzip docs-en.zip -d explorer/public/docs-en
-cargo build --release -p taos-explorer
-"""
-
 [tasks.clean-plugins]
 script = """
 set -ex
@@ -158,6 +148,13 @@ built=$(date +"%F %T %:z")
 go mod tidy
 go build -o taosx-opc \
   -ldflags "-X collector/version.CommitID=${commit} -X 'collector/version.BuildAt=$built'"
+"""
+
+[tasks.taosx-plugin-hebeipower]
+cwd = "crates/transform/parsers/hebeipower"
+script = """
+cargo clean
+cargo build --release
 """
 
 [tasks.package]
@@ -811,7 +808,26 @@ dependencies = [
   "test-explorer-without-cov",
 ]
 
+[tasks.download-docs-from-remote]
+condition.env_not_set = ["COMMUNITY"]
+condition.env_true = ["DOWNLOAD_EXPLORER_DOCS"]
+script_runner = "@shell"
+script = """
+remote_path=/root/enterprise_build_zip_work/enterprise-docs
+rsync -u root@192.168.0.30:${remote_path}/docs-zh.zip .
+rsync -u root@192.168.0.30:${remote_path}/docs-en.zip .
+rm -rf explorer/public/docs && unzip -u docs-zh.zip -d explorer/public/docs
+rm -rf explorer/public/docs-en && unzip -u docs-en.zip -d explorer/public/docs-en
+"""
+[tasks.remove-docs-if-community]
+condition.env = { "COMMUNITY" = "community" }
+script_runner = "@shell"
+script = """
+rm -rf explorer/public/docs
+rm -rf explorer/public/docs-en
+"""
 [tasks.explorer-ui-prod]
+dependencies = ["download-docs-from-remote", "remove-docs-if-community"]
 condition.files_modified = { input = [
   "explorer/package.json",
   "explorer/vite.config.ts",
@@ -851,6 +867,8 @@ docker run --rm -e COMMUNITY=${COMMUNITY} -e "CUS_PROMPT=${CUS_PROMPT}" -e "CUS_
 dependencies = ["explorer-ui-prod"]
 command = "cargo"
 args = ["build", "-p", "taos-explorer", "--profile", "${BUILD_PROFILE}"]
+[tasks.taos-explorer]
+alias = "explorer"
 
 [tasks.deploy-explorer]
 dependencies = ["explorer"]
