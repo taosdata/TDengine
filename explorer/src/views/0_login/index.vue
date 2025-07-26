@@ -20,7 +20,7 @@
       <div v-if="registered" class="login-content">
         <div class="login-title">
           <span v-if="$INDUSTRY" class="dynamic-title">{{ $t('header.power') }}</span>
-          <span v-else class="dynamic-title">{{ $t('login.systemTitle') }}</span>
+          <span v-else class="dynamic-title">{{ displaySystemTitle }}</span>
         </div>
         <el-form
           ref="dynamicValidateFormRef"
@@ -373,6 +373,8 @@ const locallanguage = computed(() => {
   }
 });
 
+const displaySystemTitle = ref( import.meta.env.VITE_APP_CUS_NAME + t('login.systemTitle'))
+
 async function init() {
   await getClusterAndDashboardUrl();
   localStorage.setItem('supportWebsite', dataJson.supportWebsite);
@@ -386,10 +388,10 @@ init();
 onMounted(() => {
   usernameRef.value?.focus();
   nextTick(() => {
-    if (import.meta.env.VITE_APP_CUS_NAME && import.meta.env.VITE_APP_CUS_NAME !== 'TDengine') {
-      const dynamic: HTMLElement = document.querySelector('.dynamic-title') as HTMLElement;
-      dynamic.innerText = import.meta.env.VITE_APP_CUS_NAME + ' Management System';
-    }
+    // if (import.meta.env.VITE_APP_CUS_NAME && import.meta.env.VITE_APP_CUS_NAME !== 'TDengine') {
+    //   const dynamic: HTMLElement = document.querySelector('.dynamic-title') as HTMLElement;
+    //   dynamic.innerText = import.meta.env.VITE_APP_CUS_NAME + ' Management System';
+    // }
   });
 });
 
@@ -745,6 +747,8 @@ function switchLanguage() {
   dynamicValidateFormRef.value?.resetFields();
   registerValidateFormRef.value?.resetFields();
   formRules.username[0].message = t('login.usernameTips');
+
+  displaySystemTitle.value = import.meta.env.VITE_APP_CUS_NAME + t('login.systemTitle');
 }
 </script>
 <style lang="scss" scoped>
