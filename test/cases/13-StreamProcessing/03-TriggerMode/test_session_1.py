@@ -241,12 +241,12 @@ class TestStreamTriggerSession:
         # except Exception as e:
         #     tdLog.error(f"case 13 error: {e}")
 
-        # clear_output("sm13", "tb13")
-        # self.prepare_source_table(5000, 10, info)
-        # try:
-        #     self.create_and_check_stream_basic_14("sm14", "tb14", info)
-        # except Exception as e:
-        #     tdLog.error(f"case 14 error: {e}")
+        clear_output("sm13", "tb13")
+        self.prepare_source_table(1000, 10, info)
+        try:
+            self.create_and_check_stream_basic_14("sm14", "tb14", info)
+        except Exception as e:
+            tdLog.error(f"case 14 error: {e}")
 
         # clear_output("sm14", "tb14")
         # self.prepare_source_table(5000, 10, info)
@@ -575,3 +575,25 @@ class TestStreamTriggerSession:
                     f"select _twstart st, _twend et, count(*),  max(k) c "
                     f"from c6 ")
 
+
+    def create_and_check_stream_basic_14(self, stream_name, dst_table, info: WriteDataInfo) -> None:
+        """simple 14: Pass """
+        tdSql.execute("use db")
+
+        tdSql.execute("create vtable vtb_1 (ts timestamp, col_1 int from c0.k, col_2 varchar(12) from c1.c1, "
+                      "col_3 double from c2.c2)")
+        tdSql.execute("create vtable vtb_2 (ts timestamp, col_1 int from c3.k, col_2 varchar(12) from c4.c1, "
+                      "col_3 double from c5.c2)")
+        time.sleep(10)
+
+        tdSql.execute(
+            f"create stream {stream_name} session(ts, 1100a) from source_table partition by tbname into {dst_table} as "
+            f"select _twstart st, _twend et, count(*),  max(vtb_1.col_1) c, sum(vtb_2.col_3), first(c6.c1), spread(vtb_1.col_3)  "
+            f"from vtb_1, vtb_2, c6 "
+            f"where _c0 >= _twstart and _c0 <= _twend and vtb_1.ts=vtb_2.ts and vtb_1.ts = c6.ts ")
+
+        tdLog.info(f"create stream completed, start to write data after 10sec")
+        tdStream.checkStreamStatus(stream_name)
+        do_write_data(stream_name, info)
+
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 10)
