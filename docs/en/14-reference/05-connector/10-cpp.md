@@ -610,7 +610,6 @@ The specific functions related to the interface are as follows (you can also ref
   - **Interface Description**: (Added in version 2.1.3.0) Used to obtain error information when other STMT APIs return an error (return error code or null pointer).
     - stmt: [Input] Points to a valid pointer to a precompiled SQL statement object.
   - **Return Value**: Returns a pointer to a string containing error information.
-</details>
 
 </details>
 
