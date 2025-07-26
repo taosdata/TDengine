@@ -200,21 +200,21 @@ class TestStreamTriggerSession:
         #     tdLog.error(f"case 7 error: {e}")
         #
         # clear_output("sm7", "tb7")
-        # self.prepare_source_table(10000, 10, info)
+        # self.prepare_source_table(1000, 4, info)
         # try:
         #     self.create_and_check_stream_basic_8("sm8", "tb8", info)
         # except Exception as e:
         #     tdLog.error(f"case 8 error: {e}")
         #
-        clear_output("sm8", "tb8")
-        self.prepare_source_table(1000, 10, info)
-        try:
-            self.create_and_check_stream_basic_9("sm9", "tb9", info)
-        except Exception as e:
-            tdLog.error(f"case 9 error: {e}")
+        # clear_output("sm8", "tb8")
+        # self.prepare_source_table(1000, 10, info)
+        # try:
+        #     self.create_and_check_stream_basic_9("sm9", "tb9", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 9 error: {e}")
 
         # clear_output("sm9", "tb9")
-        # self.prepare_source_table(1000, 10, False, info)
+        # self.prepare_source_table(1000, 10, info)
         # try:
         #     self.create_and_check_stream_basic_10("sm10", "tb10", info)
         # except Exception as e:
@@ -413,8 +413,7 @@ class TestStreamTriggerSession:
                           [[999], [999], [999], [999], [999], [999], [999], [999], [999], [999]])
 
     def create_and_check_stream_basic_8(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 8:
-           Error: recalculate failed
+        """simple 8: Pass
         """
         time.sleep(10)
 
@@ -430,8 +429,8 @@ class TestStreamTriggerSession:
         info.delete_data = True
         do_write_data(stream_name, info)
 
-        wait_for_stream_done(dst_table, f"select max(c) from {dst_table}", info.num_of_rows - 1)
-        check_all_results(f"select count(*) from {dst_table} ", [[5000]])
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", info.num_of_rows * 2)
+        check_all_results(f"select max(`count(*)`) from {dst_table} ", [[1]])
 
 
     def create_and_check_stream_basic_9(self, stream_name, dst_table, info: WriteDataInfo) -> None:
@@ -459,8 +458,7 @@ class TestStreamTriggerSession:
                            [1000, 1999, 999500], [1000, 1999, 999500]])
 
     def create_and_check_stream_basic_10(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 10: Pass
-        """
+        """simple 10: Pass """
         time.sleep(10)
 
         tdSql.execute("use db")

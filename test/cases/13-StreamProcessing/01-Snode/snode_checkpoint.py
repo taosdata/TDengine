@@ -33,18 +33,7 @@ class TestStreamCheckpoint:
 
 
     def case_2(self):
-        """add new snode
-        Verification testing during the development process.
-        Catalog:
-            - Streams: 01-snode
-        Since: v3.3.3.7
-        Labels: common,ci
-        Jira: None
-        History:
-            - 2025-07-07
-        """
-
-        self.num_snode = 1
+        self.num_snode = 2
         self.num_vgroups = 4
         self.streams = []
         self.stream_id = 1
@@ -57,16 +46,6 @@ class TestStreamCheckpoint:
 
         self.do_write_data()
         self.check_results()
-
-        # no checkpoint yet
-        # self.checkpoint()
-
-        # sc.dnodeStopAll()
-        # sc.dnodeStartAll()
-        #
-        # self.query_after_restart()
-
-        tdSql.execute("create snode on dnode 2")
 
         while True:
             if clusterComCheck.checkDnodes(2):
@@ -137,7 +116,7 @@ class TestStreamCheckpoint:
             res_query="select ts, te, td, c1, c2 from r5",
             exp_query="select _wstart ts, _wend te, _wduration td, count(c1) c1, avg(c2) c2 "
                       "from source_table "
-                      "where ts<'2025-1-1 00:15:10' and ts>='2025-1-1' "
+                      "where ts<'2025-1-1 00:21:00' and ts>='2025-1-1' "
                       "partition by tbname "
                       "interval(10s) sliding(10s) fill(value, 0, null)",
             check_func=self.check5,
@@ -156,7 +135,7 @@ class TestStreamCheckpoint:
 
         tdSql.checkResultsByFunc(
             sql="select ts, te, td, c1, tag_tbname from r5 where tag_tbname='c1'",
-            func=lambda: tdSql.getRows() == 91
+            func=lambda: tdSql.getRows() == 126
         )
 
     def checkpoint(self) -> None:

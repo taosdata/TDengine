@@ -44,8 +44,8 @@ class TestStreamNotifyTrigger:
         # streams.append(self.Basic8())      # OK
         # streams.append(self.Basic9())      # OK
         # streams.append(self.Basic10())      # OK
-        streams.append(self.Basic11())      #
-        # streams.append(self.Basic12())      #
+        # streams.append(self.Basic11())      #
+        streams.append(self.Basic12())      #
 
         tdStream.checkAll(streams)
 
@@ -1413,7 +1413,7 @@ class TestStreamNotifyTrigger:
 
     class Basic12(StreamCheckItem):
         def __init__(self):
-            self.db = "sdb11"
+            self.db = "sdb12"
             self.stb = "stb"
 
         def create(self):

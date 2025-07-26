@@ -1888,7 +1888,7 @@ class TestStreamStateTrigger:
                 f"stream_options(DELETE_RECALC) into "
                 f"res_ct0 (firstts, lastts, cnt_v, sum_v, avg_v, sum_dec) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint), sum(cdecimal) from ct0 "
-                f"where _twstart - 10s <= _c0 and _c0 <= _twend "
+                f"where _twstart<= _c0 and _c0 <= _twend "
             )
 
 
