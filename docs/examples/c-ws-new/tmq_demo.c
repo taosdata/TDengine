@@ -43,12 +43,6 @@ void* prepare_data(void* arg) {
   uint16_t    port = 6041;
   int         code = 0;
 
-  code = taos_options(TSDB_OPTION_DRIVER, "websocket");
-  if (code != 0) {
-    fprintf(stderr, "Failed to set driver option, code: %d\n", code);
-    exit(EXIT_FAILURE);
-  }
-
   TAOS* pConn = taos_connect(host, user, password, NULL, port);
   if (pConn == NULL) {
     fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
@@ -240,12 +234,6 @@ void tmq_commit_cb_print(tmq_t* tmq, int32_t code, void* param) {
 tmq_t* build_consumer(const ConsumerConfig* config) {
   tmq_conf_res_t code;
   tmq_t*         tmq = NULL;
-
-  int errno = taos_options(TSDB_OPTION_DRIVER, "websocket");
-  if (errno != 0) {
-    fprintf(stderr, "Failed to set driver option, code: %d\n", errno);
-    exit(EXIT_FAILURE);
-  }
 
   // create a configuration object
   tmq_conf_t* conf = tmq_conf_new();
