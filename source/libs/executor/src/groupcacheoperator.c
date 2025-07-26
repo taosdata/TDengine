@@ -112,6 +112,7 @@ static void freeSGroupCacheFileInfo(void* p) {
 
 static void freeSGcFileCacheCtx(SGcFileCacheCtx* pFileCtx) {
   taosHashCleanup(pFileCtx->pCacheFile);
+  pFileCtx->pCacheFile = NULL;
 }
 
 static void freeSGcVgroupCtx(void* p) {
@@ -1545,7 +1546,6 @@ static int32_t resetGroupCacheDownstreamCtx(SOperatorInfo* pOper) {
     taosHashClear(pCtx->pSessions);
     taosHashClear(pCtx->pWaitSessions);
     freeSGcFileCacheCtx(&pCtx->fileCtx);
-
 
     pCtx->grpLock = 0;
     pCtx->fetchSessionId = -1;

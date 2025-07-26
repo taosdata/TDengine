@@ -1947,7 +1947,7 @@ void tFreeSStreamRunnerDeployMsg(SStreamRunnerDeployMsg* pRunner) {
   taosMemoryFree(pRunner->outDBFName);
   taosMemoryFree(pRunner->outTblName);
 
-  taosArrayDestroyEx(pRunner->pNotifyAddrUrls, taosAutoMemoryFree);
+  taosArrayDestroyEx(pRunner->pNotifyAddrUrls, tFreeStreamNotifyUrl);
   taosArrayDestroy(pRunner->outCols);
   taosArrayDestroy(pRunner->outTags);
 
@@ -2828,6 +2828,8 @@ int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStre
     pDst->outTags = taosArrayDup(pSrc->outTags, NULL);
     TSDB_CHECK_NULL(pDst->outTags, code, lino, _exit, terrno);
   }
+
+  pDst->triggerType = pSrc->triggerType;
   
   switch (pSrc->triggerType) {
     case WINDOW_TYPE_EVENT:
@@ -3392,13 +3394,16 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
     case STRIGGER_PULL_FIRST_TS: {
       SSTriggerFirstTsRequest* pRequest = (SSTriggerFirstTsRequest*)pReq;
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->startTime));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
       break;
     }
     case STRIGGER_PULL_TSDB_META: {
       SSTriggerTsdbMetaRequest* pRequest = (SSTriggerTsdbMetaRequest*)pReq;
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->startTime));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->endTime));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->gid));
       TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRequest->order));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
       break;
     }
     case STRIGGER_PULL_TSDB_META_NEXT: {
@@ -3410,6 +3415,7 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->uid));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->skey));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ekey));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
       break;
     }
     case STRIGGER_PULL_TSDB_TRIGGER_DATA: {
@@ -3417,6 +3423,7 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->startTime));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->gid));
       TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRequest->order));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
       break;
     }
     case STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT: {
@@ -3427,6 +3434,7 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->gid));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->skey));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ekey));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
       break;
     }
     case STRIGGER_PULL_TSDB_CALC_DATA_NEXT: {
@@ -3440,6 +3448,7 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ekey));
       TAOS_CHECK_EXIT(encodeColsArray(&encoder, pRequest->cids));
       TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRequest->order));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
       break;
     }
     case STRIGGER_PULL_TSDB_DATA_NEXT: {
@@ -3515,7 +3524,7 @@ _exit:
 }
 
 
-int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullRequestUnion* pReq) {
+int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullRequestUnion* pReq) {
   SDecoder decoder = {0};
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
@@ -3560,13 +3569,16 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
     case STRIGGER_PULL_FIRST_TS: {
       SSTriggerFirstTsRequest* pRequest = &(pReq->firstTsReq);
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->startTime));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
       break;
     }
     case STRIGGER_PULL_TSDB_META: {
       SSTriggerTsdbMetaRequest* pRequest = &(pReq->tsdbMetaReq);
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->startTime));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->endTime));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->gid));
       TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRequest->order));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
       break;
     }
     case STRIGGER_PULL_TSDB_META_NEXT: {
@@ -3578,6 +3590,7 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->uid));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->skey));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ekey));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
       break;
     }
     case STRIGGER_PULL_TSDB_TRIGGER_DATA: {
@@ -3585,6 +3598,7 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->startTime));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->gid));
       TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRequest->order));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
       break;
     }
     case STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT: {
@@ -3595,6 +3609,7 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->gid));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->skey));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ekey));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
       break;
     }
     case STRIGGER_PULL_TSDB_CALC_DATA_NEXT: {
@@ -3608,6 +3623,7 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ekey));
       TAOS_CHECK_EXIT(decodeColsArray(&decoder, &pRequest->cids));
       TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRequest->order));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
       break;
     }
     case STRIGGER_PULL_TSDB_DATA_NEXT: {
@@ -4065,7 +4081,6 @@ int32_t tSerializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, const SStreamM
     }
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, info->gId));
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, info->uid));
-    TAOS_CHECK_EXIT(tEncodeI64(&encoder, info->ver));
     TAOS_CHECK_EXIT(tEncodeSColRefWrapper(&encoder, &info->cols));
   }
 
@@ -4102,7 +4117,6 @@ int32_t tDeserializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, SStreamMsgVT
     }
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &info->gId));
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &info->uid));
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &info->ver));
     TAOS_CHECK_EXIT(tDecodeSColRefWrapperEx(&decoder, &info->cols, false));
   }
 
