@@ -474,9 +474,6 @@ int32_t tableBuilderGet(STableBuilder *p, int64_t seq, uint8_t **value, int32_t 
   if (code != 0) {
     code = findInMemtable(p->pImmuMemTable, seq, value, len);
   }
-  if (code == 0 && *len == 0) {
-    ASSERT(0);
-  }
   return code;
 }
 

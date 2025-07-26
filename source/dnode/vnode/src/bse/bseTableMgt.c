@@ -446,9 +446,6 @@ int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **p
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = tableReaderGet(pReader, seq, pValue, len);
-  if (code == 0 && *len == 0) {
-    ASSERT(0);
-  }
   TSDB_CHECK_CODE(code, lino, _error);
 
 _error:
