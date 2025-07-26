@@ -1,7 +1,7 @@
 import time
 import math
 import random
-from new_test_framework.utils import tdLog, tdSql, tdStream, streamUtil,StreamTableType, StreamTable, cluster
+from new_test_framework.utils import tdLog, tdSql, tdStream, streamUtil,StreamTableType, StreamTable, cluster,tdCom
 from random import randint
 import os
 import subprocess
@@ -11,7 +11,7 @@ import time
 import datetime
 
 class Test_ThreeGorges:
-    caseName = "test_three_gorges_case4"
+    caseName = "test_three_gorges_case4_bug1"
     currentDir = os.path.dirname(os.path.abspath(__file__))
     runAll = False
     dbname = "test1"
@@ -22,11 +22,15 @@ class Test_ThreeGorges:
     subTblNum = 3
     tblRowNum = 10
     tableList = []
+    outTbname = "str_cjdl_point_data_szls_jk_test"
+    streamName = "str_cjdl_point_data_szls_jk_test"
+    tableList = []
+    resultIdx = "1"
     
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_three_gorges_case4(self):
+    def test_three_gorges_case4_bug1(self):
         """test_three_gorges_case
         
         1. create snode
@@ -70,19 +74,20 @@ class Test_ThreeGorges:
         time.sleep(3)
         tdLog.info(f"Write the time data for the next 1 days")
         tdSql.execute(f"insert into {self.dbname}.a1 values({base_ts+86400000*6},997,997) ;")#写入未来1天时间数据（7.20 号）
-        time.sleep(5)
-        #检查过去 5 天数据是否写入
-        tdSql.query(f"select * from {self.dbname}.str_cjdl_point_data_szls_jk_test where _c0 <= today()-5d")
-        tdLog.info(f"select today+1 data:select * from {self.dbname}.str_cjdl_point_data_szls_jk_test where _c0 <= today()-5d")
-        if tdSql.getRows() == 1:
-            raise Exception("ERROR: result is now right!")
+        # time.sleep(5)
+        # #检查过去 5 天数据是否写入
+        # tdSql.query(f"select * from {self.dbname}.str_cjdl_point_data_szls_jk_test where _c0 <= today()-5d")
+        # tdLog.info(f"select * from {self.dbname}.str_cjdl_point_data_szls_jk_test where _c0 <= today()-5d")
+        # if tdSql.getRows() != 1:
+        #     raise Exception("ERROR: result is now right!")
         
-        #检查未来 1 天数据是否写入
-        tdSql.query(f"select * from {self.dbname}.str_cjdl_point_data_szls_jk_test where _c0 >today()")
-        tdLog.info(f"select today+1 data:select * from {self.dbname}.str_cjdl_point_data_szls_jk_test where _c0 >today()")
-        if tdSql.getRows() == 0:
-            raise Exception("ERROR: result is now right!")
-        
+        # #检查未来 1 天数据是否写入
+        # tdSql.query(f"select * from {self.dbname}.str_cjdl_point_data_szls_jk_test where _c0 >today()")
+        # tdLog.info(f"select * from {self.dbname}.str_cjdl_point_data_szls_jk_test where _c0 >today()")
+        # if tdSql.getRows() != 1:
+        #     raise Exception("ERROR: result is now right!")
+        tdSql.checkRowsLoop(7,f"select val,senid,senid_name from {self.dbname}.{self.outTbname} order by _c0;",200,1)
+        self.checkResultWithResultFile()
         
 
     def createStream(self):
@@ -136,7 +141,13 @@ class Test_ThreeGorges:
                 sql = "INSERT INTO test1.%s VALUES (%d,%d,%d)" % (tb, ts, c1,c2)
                 tdSql.execute(sql)
 
-            
+    def checkResultWithResultFile(self):
+        chkSql = f"select val,senid,senid_name from {self.dbname}.{self.outTbname} order by _c0;"
+        tdLog.info(f"check result with sql: {chkSql}")
+        if tdSql.getRows() >0:
+            tdCom.generate_query_result_file(self.caseName, self.resultIdx, chkSql)
+            tdCom.compare_query_with_result_file(self.resultIdx, chkSql, f"{self.currentDir}/ans/{self.caseName}.{self.resultIdx}.csv", self.caseName)
+            tdLog.info("check result with result file succeed")        
         
 
     def checkResultRows(self, expectedRows):

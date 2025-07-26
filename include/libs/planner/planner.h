@@ -48,8 +48,6 @@ typedef struct SPlanContext {
   int64_t     allocatorId;
   void*       timezone;
   int64_t     recalculateInterval;
-  bool        virtualStableQuery;
-  bool        phTbnameQuery;
   bool        streamVtableCalc;
   SNode*      streamTriggerScanSubplan;
   SArray*     pStreamCalcVgArray;

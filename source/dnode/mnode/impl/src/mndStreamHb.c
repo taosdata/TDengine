@@ -38,7 +38,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   mstDebug("start to process stream hb req msg");
 
   if ((code = grantCheckExpire(TSDB_GRANT_STREAMS)) < 0) {
-    TAOS_CHECK_EXIT(msmHandleGrantExpired(pMnode));
+    TAOS_CHECK_EXIT(msmHandleGrantExpired(pMnode, code));
   }
 
   tDecoderInit(&decoder, msg, len);

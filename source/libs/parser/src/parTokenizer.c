@@ -201,7 +201,6 @@ static SKeyword keywordTable[] = {
     {"NULLS",                TK_NULLS},
     {"OFFSET",               TK_OFFSET},
     {"ON",                   TK_ON},
-    {"ON_FAILURE_PAUSE",     TK_ON_FAILURE_PAUSE},
     {"OR",                   TK_OR},
     {"ORDER",                TK_ORDER},
     {"OUTER",                TK_OUTER},

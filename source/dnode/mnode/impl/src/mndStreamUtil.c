@@ -136,6 +136,10 @@ void mstDestroySStmStatus(void* param) {
 
   mstResetSStmStatus(pStatus);
 
+  taosWLockLatch(&pStatus->userRecalcLock);
+  taosArrayDestroy(pStatus->userRecalcList);
+  taosWUnLockLatch(&pStatus->userRecalcLock);
+
   tFreeSCMCreateStreamReq(pStatus->pCreate);
   taosMemoryFreeClear(pStatus->pCreate);  
 }
@@ -237,173 +241,6 @@ static void mstShowStreamStatus(char *dst, int8_t status, int32_t bufLen) {
   } else if (status == STREAM_STATUS_FAILED) {
     tstrncpy(dst, "failed", bufLen);
   }
-}
-
-int32_t mstGenerateResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows) {
-  int32_t code = 0;
-  int32_t cols = 0;
-  int32_t lino = 0;
-
-/* STREAMTODO
-  char streamName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-  STR_WITH_MAXSIZE_TO_VARSTR(streamName, mndGetDbStr(pStream->name), sizeof(streamName));
-  SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
-
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)streamName, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // create time
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)&pStream->createTime, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // stream id
-  char buf[128] = {0};
-  int64ToHexStr(pStream->uid, buf, tListLen(buf));
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
-  code = colDataSetVal(pColInfo, numOfRows, buf, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // related fill-history stream id
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
-  if (pStream->hTaskUid != 0) {
-    int64ToHexStr(pStream->hTaskUid, buf, tListLen(buf));
-    code = colDataSetVal(pColInfo, numOfRows, buf, false);
-  } else {
-    code = colDataSetVal(pColInfo, numOfRows, buf, true);
-  }
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // related fill-history stream id
-  char sql[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
-  STR_WITH_MAXSIZE_TO_VARSTR(sql, pStream->sql, sizeof(sql));
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)sql, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  char status[20 + VARSTR_HEADER_SIZE] = {0};
-  char status2[MND_STREAM_TRIGGER_NAME_SIZE] = {0};
-  bool isPaused = false;
-  //code = isAllTaskPaused(pStream, &isPaused);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  int8_t streamStatus = atomic_load_8(&pStream->status);
-  if (isPaused && pStream->pTaskList != NULL) {
-    streamStatus = STREAM_STATUS__PAUSE;
-  }
-  mndShowStreamStatus(status2, streamStatus);
-  STR_WITH_MAXSIZE_TO_VARSTR(status, status2, sizeof(status));
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
-
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)&status, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  char sourceDB[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-  STR_WITH_MAXSIZE_TO_VARSTR(sourceDB, mndGetDbStr(pStream->sourceDb), sizeof(sourceDB));
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
-
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)&sourceDB, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  char targetDB[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-  STR_WITH_MAXSIZE_TO_VARSTR(targetDB, mndGetDbStr(pStream->targetDb), sizeof(targetDB));
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
-
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)&targetDB, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  if (pStream->targetSTbName[0] == 0) {
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
-
-    code = colDataSetVal(pColInfo, numOfRows, NULL, true);
-  } else {
-    char targetSTB[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(targetSTB, mndGetStbStr(pStream->targetSTbName), sizeof(targetSTB));
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
-
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)&targetSTB, false);
-  }
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
-
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)&pStream->conf.watermark, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  char trigger[20 + VARSTR_HEADER_SIZE] = {0};
-  char trigger2[MND_STREAM_TRIGGER_NAME_SIZE] = {0};
-  mndShowStreamTrigger(trigger2, pStream);
-  STR_WITH_MAXSIZE_TO_VARSTR(trigger, trigger2, sizeof(trigger));
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
-
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)&trigger, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // sink_quota
-  char sinkQuota[20 + VARSTR_HEADER_SIZE] = {0};
-  sinkQuota[0] = '0';
-  char dstStr[20] = {0};
-  STR_TO_VARSTR(dstStr, sinkQuota)
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
-
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)dstStr, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
-
-  // checkpoint backup type
-  char backup[20 + VARSTR_HEADER_SIZE] = {0};
-  STR_TO_VARSTR(backup, "none")
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
-
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)backup, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // history scan idle
-  char scanHistoryIdle[20 + VARSTR_HEADER_SIZE] = {0};
-  tstrncpy(scanHistoryIdle, "100a", sizeof(scanHistoryIdle));
-
-  memset(dstStr, 0, tListLen(dstStr));
-  STR_TO_VARSTR(dstStr, scanHistoryIdle)
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
-
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)dstStr, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
-  char msg[TSDB_RESERVE_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
-  if (streamStatus == STREAM_STATUS__FAILED){
-    STR_TO_VARSTR(msg, pStream->reserve)
-  } else {
-    STR_TO_VARSTR(msg, " ")
-  }
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)msg, false);
-
-_end:
-  if (code) {
-    mError("error happens when build stream attr result block, lino:%d, code:%s", lino, tstrerror(code));
-  }
-*/
-
-  return code;
 }
 
 int32_t mstCheckSnodeExists(SMnode *pMnode) {
@@ -731,6 +568,44 @@ void mstLogSStreamObj(char* tips, SStreamObj* p) {
       q->eventTypes, q->flags, q->tsmaId, q->placeHolderBitmap, q->calcTsSlotId, q->triTsSlotId,
       q->triggerTblVgId, q->outTblVgId, calcScanNum, forceOutColNum);
 
+  switch (q->triggerType) {
+    case WINDOW_TYPE_INTERVAL: {
+      SSlidingTrigger* t = &q->trigger.sliding;
+      mstsDebug("sliding trigger options, intervalUnit:%d, slidingUnit:%d, offsetUnit:%d, soffsetUnit:%d, precision:%d, interval:%" PRId64 ", offset:%" PRId64 ", sliding:%" PRId64 ", soffset:%" PRId64, 
+          t->intervalUnit, t->slidingUnit, t->offsetUnit, t->soffsetUnit, t->precision, t->interval, t->offset, t->sliding, t->soffset);
+      break;
+    }  
+    case WINDOW_TYPE_SESSION: {
+      SSessionTrigger* t = &q->trigger.session;
+      mstsDebug("session trigger options, slotId:%d, sessionVal:%" PRId64, t->slotId, t->sessionVal);
+      break;
+    }
+    case WINDOW_TYPE_STATE: {
+      SStateWinTrigger* t = &q->trigger.stateWin;
+      mstsDebug("state trigger options, slotId:%d, trueForDuration:%" PRId64, t->slotId, t->trueForDuration);
+      break;
+    }
+    case WINDOW_TYPE_EVENT:{
+      SEventTrigger* t = &q->trigger.event;
+      mstsDebug("event trigger options, startCond:%s, endCond:%s, trueForDuration:%" PRId64, (char*)t->startCond, (char*)t->endCond, t->trueForDuration);
+      break;
+    }
+    case WINDOW_TYPE_COUNT: {
+      SCountTrigger* t = &q->trigger.count;
+      mstsDebug("count trigger options, countVal:%" PRId64 ", sliding:%" PRId64 ", condCols:%s", t->countVal, t->sliding, (char*)t->condCols);
+      break;
+    }
+    case WINDOW_TYPE_PERIOD: {
+      SPeriodTrigger* t = &q->trigger.period;
+      mstsDebug("period trigger options, periodUnit:%d, offsetUnit:%d, precision:%d, period:%" PRId64 ", offset:%" PRId64, 
+          t->periodUnit, t->offsetUnit, t->precision, t->period, t->offset);
+      break;
+    }
+    default:
+      mstsDebug("unknown triggerType:%d", q->triggerType);
+      break;
+  }
+
   mstsDebugL("create_info: triggerCols:[%s]", (char*)q->triggerCols);
 
   mstsDebugL("create_info: partitionCols:[%s]", (char*)q->partitionCols);
@@ -887,11 +762,22 @@ int32_t mstGetStreamStatusStr(SStreamObj* pStream, char* status, int32_t statusS
   }
 
   char tmpBuf[256];
-  if (1 == atomic_load_8(&pStatus->stopped)) {
-    STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_FAILED], statusSize);
-    snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s, Failed times: %" PRId64, tstrerror(pStatus->fatalError), pStatus->fatalRetryTimes);
-    STR_WITH_MAXSIZE_TO_VARSTR(msg, tmpBuf, msgSize);
-    goto _exit;
+  int8_t stopped = atomic_load_8(&pStatus->stopped);
+  switch (stopped) {
+    case 1:
+      STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_FAILED], statusSize);
+      snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s, Failed times: %" PRId64, tstrerror(pStatus->fatalError), pStatus->fatalRetryTimes);
+      STR_WITH_MAXSIZE_TO_VARSTR(msg, tmpBuf, msgSize);
+      goto _exit;
+      break;
+    case 4:
+      STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_FAILED], statusSize);
+      snprintf(tmpBuf, sizeof(tmpBuf), "Error: %s", tstrerror(TSDB_CODE_GRANT_STREAM_EXPIRED));
+      STR_WITH_MAXSIZE_TO_VARSTR(msg, tmpBuf, msgSize);
+      goto _exit;
+      break;
+    default:
+      break;
   }
 
   if (pStatus->triggerTask && STREAM_STATUS_RUNNING == pStatus->triggerTask->status) {
@@ -1284,6 +1170,7 @@ int32_t mstAppendNewRecalcRange(int64_t streamId, SStmStatus *pStream, STimeWind
   int32_t code = 0;
   int32_t lino = 0;
   bool    locked = false;
+  SArray* userRecalcList = NULL;
 
   SStreamRecalcReq req = {.recalcId = 0, .start = pRange->skey, .end = pRange->ekey};
   TAOS_CHECK_EXIT(taosGetSystemUUIDU64(&req.recalcId));
@@ -1292,7 +1179,7 @@ int32_t mstAppendNewRecalcRange(int64_t streamId, SStmStatus *pStream, STimeWind
   locked = true;
   
   if (NULL == pStream->userRecalcList) {
-    SArray* userRecalcList = taosArrayInit(2, sizeof(SStreamRecalcReq));
+    userRecalcList = taosArrayInit(2, sizeof(SStreamRecalcReq));
     if (NULL == userRecalcList) {
       TAOS_CHECK_EXIT(terrno);
     }
@@ -1300,6 +1187,7 @@ int32_t mstAppendNewRecalcRange(int64_t streamId, SStmStatus *pStream, STimeWind
     TSDB_CHECK_NULL(taosArrayPush(userRecalcList, &req), code, lino, _exit, terrno);
 
     atomic_store_ptr(&pStream->userRecalcList, userRecalcList);
+    userRecalcList = NULL;    
   } else {
     TSDB_CHECK_NULL(taosArrayPush(pStream->userRecalcList, &req), code, lino, _exit, terrno);
   }
@@ -1307,6 +1195,8 @@ int32_t mstAppendNewRecalcRange(int64_t streamId, SStmStatus *pStream, STimeWind
   mstsInfo("stream recalc ID:%" PRIx64 " range:%" PRId64 " - %" PRId64 " added", req.recalcId, pRange->skey, pRange->ekey);
 
 _exit:
+
+  taosArrayDestroy(userRecalcList);
 
   if (locked) {
     taosWUnLockLatch(&pStream->userRecalcLock);

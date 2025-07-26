@@ -119,6 +119,7 @@ typedef struct SSTriggerRealtimeContext {
 
   // these fields are shared by all groups and do not need to be destroyed
   bool                   reenterCheck;
+  bool                   needCheckAgain;
   int32_t                tbIter;
   STimeWindow            periodWindow;   // for period trigger
   SSTriggerVirTableInfo *pCurVirTable;   // only for virtual tables
@@ -144,6 +145,7 @@ typedef struct SSTriggerRealtimeContext {
 #endif
   bool    haveReadCheckpoint;
   int64_t lastCheckpointTime;
+  int64_t lastVirtTableInfoTime;
   SList   retryPullReqs;  // SList<SSTriggerPullRequest*>
   SList   retryCalcReqs;  // SList<SSTriggerCalcRequest*>
 } SSTriggerRealtimeContext;
@@ -278,7 +280,8 @@ typedef struct SStreamTriggerTask {
   SSHashObj *pGroupRunning;  // SSHashObj<gid, bool[]>
 
   // runtime status
-  int8_t                    isCheckpointReady;
+  volatile int8_t           isCheckpointReady;
+  volatile int32_t          checkpointVersion;
   volatile int64_t          mgmtReqId;
   char                     *streamName;
   SSTriggerRealtimeContext *pRealtimeContext;

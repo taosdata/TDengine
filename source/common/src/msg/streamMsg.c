@@ -1947,7 +1947,7 @@ void tFreeSStreamRunnerDeployMsg(SStreamRunnerDeployMsg* pRunner) {
   taosMemoryFree(pRunner->outDBFName);
   taosMemoryFree(pRunner->outTblName);
 
-  taosArrayDestroyEx(pRunner->pNotifyAddrUrls, taosAutoMemoryFree);
+  taosArrayDestroyEx(pRunner->pNotifyAddrUrls, tFreeStreamNotifyUrl);
   taosArrayDestroy(pRunner->outCols);
   taosArrayDestroy(pRunner->outTags);
 
@@ -2828,6 +2828,8 @@ int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStre
     pDst->outTags = taosArrayDup(pSrc->outTags, NULL);
     TSDB_CHECK_NULL(pDst->outTags, code, lino, _exit, terrno);
   }
+
+  pDst->triggerType = pSrc->triggerType;
   
   switch (pSrc->triggerType) {
     case WINDOW_TYPE_EVENT:
@@ -4065,7 +4067,6 @@ int32_t tSerializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, const SStreamM
     }
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, info->gId));
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, info->uid));
-    TAOS_CHECK_EXIT(tEncodeI64(&encoder, info->ver));
     TAOS_CHECK_EXIT(tEncodeSColRefWrapper(&encoder, &info->cols));
   }
 
@@ -4102,7 +4103,6 @@ int32_t tDeserializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, SStreamMsgVT
     }
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &info->gId));
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &info->uid));
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &info->ver));
     TAOS_CHECK_EXIT(tDecodeSColRefWrapperEx(&decoder, &info->cols, false));
   }
 

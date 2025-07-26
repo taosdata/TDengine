@@ -161,6 +161,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
       STREAM_CHECK_RET_GOTO(qStreamCreateTableListForReader(
           pVnode, options->suid, options->uid, options->tableType, options->partitionCols, options->groupSort,
           options->pTagCond, options->pTagIndexCond, api, &pTask->pTableList, groupIdMap));
+
       if (options->gid != 0) {
         int32_t index = qStreamGetGroupIndex(pTask->pTableList, options->gid);
         STREAM_CHECK_CONDITION_GOTO(index < 0, TSDB_CODE_INVALID_PARA);
@@ -339,13 +340,13 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
         ((STableScanPhysiNode*)(sStreamReaderInfo->calcAst->pNode))->scan.node.pOutputDataBlockDesc;
     sStreamReaderInfo->calcResBlock = createDataBlockFromDescNode(pDescNode);
     STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->calcResBlock, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
-    STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->calcResBlock, false, &sStreamReaderInfo->calcResBlockTmp));
     
 
     SNodeList* pseudoCols = ((STableScanPhysiNode*)(sStreamReaderInfo->calcAst->pNode))->scan.pScanPseudoCols;
     SNodeList* pScanCols = ((STableScanPhysiNode*)(sStreamReaderInfo->calcAst->pNode))->scan.pScanCols;
     setColIdForCalcResBlock(pseudoCols, sStreamReaderInfo->calcResBlock->pDataBlock);
     setColIdForCalcResBlock(pScanCols, sStreamReaderInfo->calcResBlock->pDataBlock);
+    STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->calcResBlock, false, &sStreamReaderInfo->calcResBlockTmp));
   }
 
   STREAM_CHECK_RET_GOTO(createDataBlockForTs(&sStreamReaderInfo->tsBlock));
@@ -524,18 +525,18 @@ int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t*
   pRetrieve->numOfRows = 0;
   pRetrieve->numOfBlocks = htonl(blockNum);
 
-  void* dataBuf = pRetrieve->data;
+  char* dataBuf = (char*)(pRetrieve->data);
   for(size_t i = 0; i < taosArrayGetSize(pResList); i++){
     SSDataBlock* pBlock = taosArrayGetP(pResList, i);
     if (pBlock == NULL || pBlock->info.rows == 0) continue;
     int32_t blockSize = blockGetEncodeSize(pBlock);
     *((int32_t*)(dataBuf)) = blockSize;
-    *((int32_t*)((char*)dataBuf + INT_BYTES)) = blockSize;
+    *((int32_t*)(dataBuf + INT_BYTES)) = blockSize;
     pRetrieve->numOfRows += pBlock->info.rows;
     int32_t actualLen =
-        blockEncode(pBlock, (char*)dataBuf + INT_BYTES * 2, blockSize, taosArrayGetSize(pBlock->pDataBlock));
+        blockEncode(pBlock, dataBuf + INT_BYTES * 2, blockSize, taosArrayGetSize(pBlock->pDataBlock));
     STREAM_CHECK_CONDITION_GOTO(actualLen < 0, terrno);
-    dataBuf = (char*)dataBuf + (INT_BYTES * 2 + actualLen);
+    dataBuf += (INT_BYTES * 2 + actualLen);
   }
   stDebug("stream fetch get result blockNum:%d, rows:%" PRId64, blockNum, pRetrieve->numOfRows);
 
