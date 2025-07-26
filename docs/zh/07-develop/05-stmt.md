@@ -162,9 +162,11 @@ stmt 绑定参数的示例代码如下（不推荐使用，建议使用 stmt2）
 
 <details>
 <summary>点击查看 stmt 示例代码</summary>
+
 ```c
 {{#include docs/examples/c/stmt_insert_demo.c}}
 ```
+
 </details>
 
 </TabItem>
