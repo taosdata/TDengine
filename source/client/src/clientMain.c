@@ -1104,7 +1104,7 @@ bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
   if (IS_VAR_DATA_TYPE(pResultInfo->fields[col].type)) {
     return (pCol->offset[row] == -1);
   } else {
-    return colDataIsNull_f(pCol->nullbitmap, row);
+    return colDataIsNull_f(pCol, row);
   }
 }
 
@@ -1243,7 +1243,7 @@ int taos_is_null_by_column(TAOS_RES *res, int columnIndex, bool result[], int *r
     }
   } else {
     for (int i = 0; i < *rows; i++) {
-      if (colDataIsNull_f(pCol->nullbitmap, i)) {
+      if (colDataIsNull_f(pCol, i)) {
         result[i] = true;
       } else {
         result[i] = false;
