@@ -11,23 +11,39 @@ class TestStreamRecalcManual:
     def test_stream_recalc_manual(self):
         """Stream Manual Recalculation Test
 
-        Test manual recalculation functionality:
-        1. Manual recalculation with time range - should recalculate specified time period
-        2. Manual recalculation without end time - should recalculate from start time to current
-        3. Different trigger types behavior with manual recalculation
-        4. Edge cases and error handling
+        Test manual recalculation functionality for four different window types, verifying the recalculate stream command in various window scenarios:
+
+        1. INTERVAL Window Stream Manual Recalculation Test
+            1.1 Create interval(2m) sliding(2m) stream (s_interval_manual)
+            1.2 Insert test data and execute recalculation from specified time point
+            1.3 Verify data correctness in result table after recalculation
+
+        2. SESSION Window Stream Manual Recalculation Test
+            2.1 Create session(ts,45s) stream (s_session_manual)
+            2.2 Insert test data and execute recalculation from specified time point
+            2.3 Verify session window data correctness after recalculation
+
+        3. STATE_WINDOW Stream Manual Recalculation Test
+            3.1 Create state_window(status) stream (s_state_manual)
+            3.2 Insert test data and execute recalculation for specified time range
+            3.3 Verify state window data correctness after recalculation
+
+        4. EVENT_WINDOW Stream Manual Recalculation Test
+            4.1 Create event_window(start with event_val >= 5 end with event_val > 10) stream (s_event_manual)
+            4.2 Verify initial computation results for event window
+            4.3 Test event window manual recalculation functionality (currently blocked by TD-36691)
 
         Catalog:
-            - Streams:Recalculation
+            - Streams:Recalculation:Manual
 
-        Since: v3.0.0.0
+        Since: v3.3.7.0
 
         Labels: common,ci
 
         Jira: None
 
         History:
-            - 2025-12-19 Generated from recalculation mechanism design
+            - 2025-07-23 Beryl Created
 
         """
 

@@ -34,7 +34,7 @@ class TestOdbc:
         tdSql.checkData(5, 4, 8)
 
         tdSql.query("desc information_schema.ins_columns")
-        tdSql.checkRows(11)
+        tdSql.checkRows(10)
         tdSql.checkData(0, 0, "table_name")
         tdSql.checkData(5, 0, "col_length")
         tdSql.checkData(1, 2, 64)

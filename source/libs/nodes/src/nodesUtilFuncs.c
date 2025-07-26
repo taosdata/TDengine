@@ -1025,6 +1025,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = TSDB_CODE_OPS_NOT_SUPPORT;
       break;
     default:
+      code = TSDB_CODE_OPS_NOT_SUPPORT;
       break;
   }
   if (TSDB_CODE_SUCCESS != code) {

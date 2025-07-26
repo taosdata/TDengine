@@ -260,7 +260,7 @@ typedef struct SStmStatus {
   int32_t           runnerDeploys;
   int32_t           runnerReplica;
 
-  int8_t            stopped;         // 1:runtime error stopped, 2:user stopped, 3:user dropped
+  int8_t            stopped;         // 1:runtime error stopped, 2:user stopped, 3:user dropped, 4:grant expired
 
   int64_t           deployTimes;
   int64_t           lastActionTs;
@@ -285,6 +285,7 @@ typedef struct SStmStatus {
 
 #define MST_IS_USER_STOPPED(_s) (2 == (_s) || 3 == (_s))
 #define MST_IS_ERROR_STOPPED(_s) (1 == (_s))
+#define MST_IS_GRANT_STOPPED(_s) (4 == (_s))
 
 typedef struct SStmTaskStatusExt{
   int64_t         streamId;
@@ -383,9 +384,7 @@ typedef struct SStmThreadCtx {
 
 typedef struct SStmHealthCheckCtx {
   int32_t   slotIdx;
-  
   int64_t   currentTs;
-  int32_t   validStreamNum;
 } SStmHealthCheckCtx;
 
 typedef struct SStmRuntimeStat {
@@ -423,12 +422,13 @@ typedef struct SStmLastTs {
 
 typedef struct SStmRuntime {
   int8_t           active;
+  int8_t           grantExpired;
+  SRWLatch         runtimeLock;
+
   SStmLastTs       lastTs[STM_EVENT_MAX_VALUE];
   int8_t           state;
   int64_t          lastTaskId;
     
-  SRWLatch         runtimeLock;
-
   SRWLatch         actionQLock;
   SStmActionQ*     actionQ;
   
@@ -497,7 +497,7 @@ void msmClearStreamToDeployMaps(SStreamHbMsg* pHb);
 void msmCleanStreamGrpCtx(SStreamHbMsg* pHb);
 int32_t msmHandleStreamHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, SRpcMsg *pReq, SRpcMsg* pRspMsg);
 void msmEncodeStreamHbRsp(int32_t code, SRpcHandleInfo *pRpcInfo, SMStreamHbRspMsg* pRsp, SRpcMsg* pMsg);
-int32_t msmHandleGrantExpired(SMnode *pMnode);
+int32_t msmHandleGrantExpired(SMnode *pMnode, int32_t errCode);
 bool mndStreamActionDequeue(SStmActionQ* pQueue, SStmQNode **param);
 void msmHandleBecomeLeader(SMnode *pMnode);
 void msmHandleBecomeNotLeader(SMnode *pMnode);
@@ -532,7 +532,7 @@ void mstDestroySStmVgTasksToDeploy(void* param);
 void mstDestroySStmTaskToDeployExt(void* param);
 void mstDestroyScanAddrList(void* param);
 int32_t msmGetTriggerTaskAddr(SMnode *pMnode, int64_t streamId, SStreamTaskAddr* pAddr);
-
+void msmDestroyRuntimeInfo(SMnode *pMnode);
 
 #ifdef __cplusplus
 }

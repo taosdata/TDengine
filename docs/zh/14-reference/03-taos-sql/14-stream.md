@@ -343,7 +343,7 @@ notification_definition:
 event_types:
     event_type [|event_type]    
     
-event_type: {WINDOW_OPEN | WINDOW_CLOSE}   
+event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME}   
 ```
 
 详细说明如下：
@@ -352,6 +352,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
 - [ON (event_types)]：指定需要通知的事件类型，可多选。SLIDING（不带 INTERVAL）和 PERIOD 触发不需要指定，其他触发必须指定，支持的事件类型有：
   - WINDOW_OPEN：窗口打开事件，在触发表分组窗口打开时发送通知。
   - WINDOW_CLOSE：窗口关闭事件，在触发表分组窗口关闭时发送通知。
+  - ON_TIME: 定时触发事件，在触发时发送通知。
 - [WHERE condition]：指定通知需要满足的条件，`condition` 中只能指定含计算结果列和（或）常量的条件。
 - [NOTIFY_OPTIONS(notify_option[|notify_option])]：可选，指定通知选项用于控制通知的行为，可以多选，目前支持的通知选项包括：
   - NOTIFY_HISTORY：指定计算历史数据时是否发送通知，未指定时默认不发送。
@@ -380,8 +381,8 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
           "tableName": "t_a667a16127d3b5a18988e32f3e76cd30",
           "eventType": "WINDOW_OPEN",
           "eventTime": 1733284887097,
-          "windowId": "window-id-67890",
-          "windowType": "Time",
+          "triggerId": "window-id-67890",
+          "triggerType": "Interval",
           "groupId": "2650968222368530754",
           "windowStart": 1733284800000
         },
@@ -389,8 +390,8 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
           "tableName": "t_a667a16127d3b5a18988e32f3e76cd30",
           "eventType": "WINDOW_CLOSE",
           "eventTime": 1733284887197,
-          "windowId": "window-id-67890",
-          "windowType": "Time",
+          "triggerId": "window-id-67890",
+          "triggerType": "Interval",
           "groupId": "2650968222368530754",
           "windowStart": 1733284800000,
           "windowEnd": 1733284860000,
@@ -408,8 +409,8 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
           "tableName": "t_96f62b752f36e9b16dc969fe45363748",
           "eventType": "WINDOW_OPEN",
           "eventTime": 1733284887231,
-          "windowId": "window-id-13579",
-          "windowType": "Event",
+          "triggerId": "window-id-13579",
+          "triggerType": "Event",
           "groupId": "7533998559487590581",
           "windowStart": 1733284800000,
           "triggerCondition": {
@@ -424,8 +425,8 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
           "tableName": "t_96f62b752f36e9b16dc969fe45363748",
           "eventType": "WINDOW_CLOSE",
           "eventTime": 1733284887231,
-          "windowId": "window-id-13579",
-          "windowType": "Event",
+          "triggerId": "window-id-13579",
+          "triggerType": "Event",
           "groupId": "7533998559487590581",
           "windowStart": 1733284800000,
           "windowEnd": 1733284810000,
@@ -469,24 +470,38 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
 - tableName：字符串类型，是对应目标子表的表名。
 - eventType：字符串类型，表示事件类型，支持 WINDOW_OPEN、WINDOW_CLOSE、WINDOW_INVALIDATION 三种类型。
 - eventTime：长整型时间戳，表示事件生成时间，精确到毫秒，即：'00:00, Jan 1 1970 UTC' 以来的毫秒数。
-- windowId：字符串类型，窗口的唯一标识符，确保打开和关闭事件的 ID 一致，便于外部系统将两者关联。如果 taosd 发生故障重启，部分事件可能会重复发送，会保证同一窗口的 windowId 保持不变。
-- windowType：字符串类型，表示窗口类型，支持 Time、State、Session、Event、Count 五种类型。
+- triggerId：字符串类型，触发事件的唯一标识符，确保打开和关闭事件(如果有的话)的 ID 一致，便于外部系统将两者关联。如果 taosd 发生故障重启，部分事件可能会重复发送，会保证同一事件的 triggerId 保持不变。
+- triggerType：字符串类型，表示触发类型，支持 Period、SLIDING 两种非窗口触发类型以及 INTERVAL、State、Session、Event、Count 五种窗口类型。
 - groupId: 字符串类型，是对应分组的唯一标识符，如果是按子表分组，则与对应表的 uid 一致。
 
-###### 时间窗口相关字段
 
-这部分是 windowType 为 Time 时 event 对象才有的字段。
+###### 定时触发相关字段
+
+这部分是 triggerType 为 Period 时 event 对象的关键字段。
+
+- eventType 固定为 ON_TIME，包含如下字段：
+  - result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
+
+###### 滑动触发(Sliding)相关字段
+
+这部分是 triggerType 为 Sliding 时 event 对象的关键字段。
+
+- eventType 固定为 ON_TIME，包含如下字段：
+  - result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
+
+###### 滑动触发(Interval)相关字段
+
+这部分是 triggerType 为 Interval 时 event 对象的关键字段。
 
 - 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
   - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
 - 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
   - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
   - windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
-  - result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
 
 ###### 状态窗口相关字段
 
-这部分是 windowType 为 State 时 event 对象才有的字段。
+这部分是 triggerType 为 State 时 event 对象才有的字段。
 
 - 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
   - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
@@ -501,7 +516,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
 
 ###### 会话窗口相关字段
 
-这部分是 windowType 为 Session 时 event 对象才有的字段。
+这部分是 triggerType 为 Session 时 event 对象才有的字段。
 
 - 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
   - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
@@ -512,7 +527,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
 
 ###### 事件窗口相关字段
 
-这部分是 windowType 为 Event 时 event 对象才有的字段。
+这部分是 triggerType 为 Event 时 event 对象才有的字段。
 
 - 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
 - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
@@ -529,7 +544,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
 
 ###### 计数窗口相关字段
 
-这部分是 windowType 为 Count 时 event 对象才有的字段。
+这部分是 triggerType 为 Count 时 event 对象才有的字段。
 
 - 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
   - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
