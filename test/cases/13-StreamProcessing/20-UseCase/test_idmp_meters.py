@@ -149,7 +149,6 @@ class Test_IDMP_Meters:
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4_sub5` INTERVAL(10m)  SLIDING(10m) FROM `tdasset`.`vt_em-4` STREAM_OPTIONS(IGNORE_DISORDER|LOW_LATENCY_CALC) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN)              INTO `tdasset`.`result_stream4_sub5` AS SELECT _twstart + 10h as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend",
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4_sub6` INTERVAL(10m)  SLIDING(10m) FROM `tdasset`.`vt_em-4` STREAM_OPTIONS(IGNORE_DISORDER|LOW_LATENCY_CALC) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN)              INTO `tdasset`.`result_stream4_sub6` AS SELECT _twstart + 10d as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend",
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4_sub7` INTERVAL(600s) SLIDING(1h)  FROM `tdasset`.`vt_em-4` STREAM_OPTIONS(IGNORE_DISORDER|LOW_LATENCY_CALC) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream4_sub7` AS SELECT _twstart as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend AND ts >= 1752574200000",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4_sub8` INTERVAL(1a)   SLIDING(1a)  FROM `tdasset`.`vt_em-4` STREAM_OPTIONS(IGNORE_DISORDER|LOW_LATENCY_CALC) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream4_sub8` AS SELECT _twstart as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend AND ts >= 1752574200000",
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4_sub9` INTERVAL(1d)   SLIDING(60s) FROM `tdasset`.`vt_em-4` STREAM_OPTIONS(IGNORE_DISORDER|LOW_LATENCY_CALC) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream4_sub9` AS SELECT _twstart as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts < _twend AND ts >= 1752574200000",
             # stream5
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream5`      SESSION(ts, 10m) FROM `tdasset`.`vt_em-5` STREAM_OPTIONS(IGNORE_DISORDER)  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5`      AS SELECT _twstart+0s AS output_timestamp, COUNT(ts) AS cnt, LAST(`电流`) AS `最后电流` FROM tdasset.`vt_em-5` WHERE ts >= _twstart AND ts <=_twend",
@@ -160,7 +159,9 @@ class Test_IDMP_Meters:
             # stream7
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream7` STATE_WINDOW(`电压`) TRUE_FOR(30s) FROM `tdasset`.`vt_em-7` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream7` AS SELECT _twstart+0s AS output_timestamp, COUNT(ts) AS cnt, AVG(`电流`) AS `平均电流`, SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-7` WHERE ts >= _twstart AND ts <=_twend",
             # stream8
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream8` PERIOD(1s, 0s) FROM `tdasset`.`vt_em-8` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream8` AS SELECT CAST(_tlocaltime/1000000 as timestamp), COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows"
+            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream8` PERIOD(1s, 0s) FROM `tdasset`.`vt_em-8` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream8` AS SELECT CAST(_tlocaltime/1000000 as timestamp), COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
+            # stream9
+            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream9` INTERVAL(1a) SLIDING(1a) FROM `tdasset`.`vt_em-9` STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream9` AS SELECT _twstart as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-9` WHERE ts >=_twstart AND ts <=_twend AND ts >= 1752574200000",
         ]
 
         tdSql.executes(sqls)
@@ -194,6 +195,8 @@ class Test_IDMP_Meters:
         self.trigger_stream7()
         # stream8
         self.trigger_stream8()
+        # stream8
+        self.trigger_stream9()
 
 
     # 
@@ -209,6 +212,7 @@ class Test_IDMP_Meters:
         self.verify_stream6()
         self.verify_stream7()
         self.verify_stream8()
+        self.verify_stream9()
 
 
     # 
@@ -557,6 +561,18 @@ class Test_IDMP_Meters:
         fixedVals = "100, 200, 300"
         tdSql.insertNow(table, sleepS, count, cols, fixedVals)
 
+    #
+    #  stream9 trigger 
+    #
+    def trigger_stream9(self):
+        ts = self.start2
+        table = "asset01.`em-9`"
+        step  = 100 # 100ms
+        count = 120
+        cols = "ts,voltage,power"
+        vals = "400,200"
+        tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+
 
     #
     # ---------------------   verify    ----------------------
@@ -699,10 +715,6 @@ class Test_IDMP_Meters:
         # verify stream4_sub7
         self.verify_stream4_sub7()
 
-        # verify stream4_sub8
-        # ***** bug5 ****
-        #self.verify_stream4_sub8()
-
         # verify stream4_sub9
         self.verify_stream4_sub9()
 
@@ -736,13 +748,6 @@ class Test_IDMP_Meters:
             and tdSql.checkData(0, 3, 10*200)
         )
 
-    def verify_stream4_sub8(self):
-        # result_stream4_sub8
-        tdSql.checkResultsBySql(
-            sql     = f"select * from {self.vdb}.`result_stream4_sub8` ", 
-            exp_sql = f"select ts,1,voltage,power from asset01.`em-4` where ts >= 1752574200000 limit 119;"
-        )
-        tdLog.info("verify stream4_sub8 ............................. successfully.")
 
     def verify_stream4_sub9(self):
         # result_stream4_sub9
@@ -882,41 +887,6 @@ class Test_IDMP_Meters:
         # no change
         self.verify_stream6()
 
-
-    '''
-    # verify stream6 sub1
-    def verify_stream6_sub1(self):
-        # result_stream6_sub1
-        result_sql = f"select * from {self.vdb}.`result_stream6_sub1` "
-        ts         = self.start2
-        step       = 1 * 60 * 1000 # 1 minute
-        cnt        = 5
-
-        tdSql.checkResultsByFunc (
-            sql  = result_sql, 
-            func = lambda: tdSql.getRows() == 3
-            # window1
-            and tdSql.compareData(0, 0, ts)      # ts
-            and tdSql.compareData(0, 1, 5)       # cnt
-            and tdSql.compareData(0, 2, 200)     # min(voltage)
-            and tdSql.compareData(0, 3, 204)     # max(voltage)
-            # window2
-            and tdSql.compareData(1, 0, ts + 5 * step) # ts
-            and tdSql.compareData(1, 1, 5)       # cnt
-            and tdSql.compareData(1, 2, 205)     # min(voltage)
-            and tdSql.compareData(1, 3, 209)     # max(voltage)
-            # window3 disorder
-            and tdSql.compareData(2, 0, ts + 10 * step) # ts
-            and tdSql.compareData(2, 1, 5)       # cnt
-            and tdSql.compareData(2, 2, 400)     # min(voltage)
-            and tdSql.compareData(2, 3, 404)     # max(voltage)
-
-        )
-
-        tdLog.info(f"verify stream6 sub1 ............................ successfully.")
-    '''    
-
-
     #
     # verify stream7
     #
@@ -979,6 +949,16 @@ class Test_IDMP_Meters:
 
         tdLog.info(f"verify stream8 ................................. successfully.")
 
+    #
+    # verify stream9
+    #
+    def verify_stream9(self):
+        # result_stream9
+        tdSql.checkResultsBySql(
+            sql     = f"select * from {self.vdb}.`result_stream9` ", 
+            exp_sql = f"select ts,1,voltage,power from asset01.`em-9` where ts >= 1752574200000;"
+        )
+        tdLog.info("verify stream9 .................................. successfully.")
 
     #
     # ---------------------   find other bugs   ----------------------
