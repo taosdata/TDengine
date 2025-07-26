@@ -2903,7 +2903,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"bypassFlag", &tsBypassFlag},
                                          {"safetyCheckLevel", &tsSafetyCheckLevel},
                                          {"streamCoverage", &tsStreamCoverage},
-                                         {"compareAsStrInGreatest", &tsCompareAsStrInGreatest}};
+                                         {"compareAsStrInGreatest", &tsCompareAsStrInGreatest},
+                                         {"showFullCreateTableColumn", &tsShowFullCreateTableColumn}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);

@@ -71,4 +71,43 @@ class TestDatabaseShowCreateTable:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "meters")
 
+        tdSql.query('alter local \'showFullCreateTableColumn\' \'1\'')
+
+        tdSql.query(f"show create table meters")
+        tdSql.checkRows(1)
+
+        tdLog.info(f"===============check sub table")
+        tdSql.query(f"show create table t0")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "t0")
+
+        tdLog.info(f"===============check normal table")
+
+        tdSql.query(f"show create table normalTbl")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "normaltbl")
+
+        tdLog.info(f"===============check super table")
+        tdSql.query(f"show create table meters")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "meters")
+
+        tdLog.info(f"===============check sub table with prefix")
+
+        tdSql.query(f"show create table db.t0")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "t0")
+
+        tdLog.info(f"===============check normal table with prefix")
+        tdSql.query(f"show create table db.normalTbl")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "normaltbl")
+
+        tdLog.info(f"===============check super table with prefix")
+        tdSql.query(f"show create table db.meters")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "meters")
+
+        tdSql.query('alter local \'showFullCreateTableColumn\' \'0\'')
+
         tdSql.execute(f"drop database db")
