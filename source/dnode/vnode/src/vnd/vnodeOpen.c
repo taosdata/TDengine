@@ -362,7 +362,12 @@ void vnodeDestroy(int32_t vgId, const char *path, STfs *pTfs, int32_t nodeId) {
     // we should only do this on the leader node, but it is ok to do this on all nodes
     char prefix[TSDB_FILENAME_LEN];
     snprintf(prefix, TSDB_FILENAME_LEN, "vnode%d/", vgId);
-    tssDeleteFileByPrefixFromDefault(prefix);
+    int32_t code = tssDeleteFileByPrefixFromDefault(prefix);
+    if (code < 0) {
+      vError("vgId:%d, failed to remove vnode files from shared storage since %s", vgId, tstrerror(code));
+    } else {
+      vInfo("vgId:%d, removed vnode files from shared storage", vgId);
+    }
   }
 #endif
 }
@@ -546,7 +551,13 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   vInfo("vgId:%d, start to open blob store engine", TD_VID(pVnode));
   (void)tsnprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_BSE_DIR);
 
-  SBseCfg cfg = {.vgId = pVnode->config.vgId, .keepDays = 365 * 24 * 3600};
+  SBseCfg cfg = {
+      .vgId = pVnode->config.vgId,
+      .keepDays = pVnode->config.tsdbCfg.days,
+      .keeps = pVnode->config.tsdbCfg.keep0,
+      .retention = pVnode->config.tsdbCfg.retentions[0],
+      .precision = pVnode->config.tsdbCfg.precision,
+  };
   ret = bseOpen(tdir, &cfg, &pVnode->pBse);
   if (ret != 0) {
     vError("vgId:%d, failed to open blob store engine since %s", TD_VID(pVnode), tstrerror(ret));
