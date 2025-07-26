@@ -56,7 +56,7 @@ class TestSdnyStream:
             create stream test1.stream_monitor_info_sldc_gml2 interval(30s) sliding(30s) from test1.sldc_dp 
                     stream_options(fill_history|pre_filter(ts > '2025-07-17 08:30:00.000'))
                     into test1.monitor_info_sldc_gml2 
-                    as select * from (select
+                    as select
                         _wstart as start_time,
                         _wend as end_time,
                         '01072016' as org_code,
@@ -67,7 +67,7 @@ class TestSdnyStream:
                         test1.sldc_dp 
                         where ts >= _twstart -1s and ts< _twend
                         interval (1s)
-                        fill(prev)) where gml is not null ;""")
+                        fill(prev)""")
         
         tdSql.execute(sql,queryTimes=2)
         self.checkStreamRunning()
