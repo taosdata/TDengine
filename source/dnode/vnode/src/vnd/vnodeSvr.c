@@ -2234,11 +2234,15 @@ static int32_t vnodeHandleAutoCreateTable(SVnode      *pVnode,    // vnode
   return code;
 }
 
-static void addExistTableInfoIntoRes(SVnode *pVnode, SSubmitRsp2 *pResponse, SSubmitTbData *pTbData,
+static void addExistTableInfoIntoRes(SVnode *pVnode, SSubmitReq2 *pRequest, SSubmitRsp2 *pResponse, SSubmitTbData *pTbData,
                                      int32_t numTbData) {
   int32_t code = 0;
   int32_t lino = 0;
   if ((pTbData->flags & SUBMIT_REQ_SCHEMA_RES) == 0) {
+    return;
+  }
+  if (pResponse->aCreateTbRsp) {  // If aSubmitTbData is not NULL, it means that the request is a create table request,
+                                  // so table info has exitst and we do not need to add again.
     return;
   }
   pResponse->aCreateTbRsp = taosArrayInit(numTbData, sizeof(SVCreateTbRsp));
@@ -2307,7 +2311,7 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
 
     if (pTbData->sver != info.skmVer) {
       code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
-      addExistTableInfoIntoRes(pVnode, pResponse, pTbData, numTbData);
+      addExistTableInfoIntoRes(pVnode, pRequest, pResponse, pTbData, numTbData);
       vDebug("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " uid:%" PRId64
              " sver:%d"
              " info.skmVer:%d",

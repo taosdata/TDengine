@@ -146,8 +146,11 @@ class Test_IDMP_Vehicle:
             # stream6
             "create stream if not exists `idmp`.`ana_stream6`      interval(10m) sliding(5m) from `idmp`.`vt_6`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream6`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
             "create stream if not exists `idmp`.`ana_stream6_sub1` interval(10m) sliding(5m) from `idmp`.`vt_6` stream_options(IGNORE_NODATA_TRIGGER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream6_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
+            # stream7
             "create stream if not exists `idmp`.`ana_stream7`      interval(5m) sliding(10m) from `idmp`.`vt_7`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream7`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
             "create stream if not exists `idmp`.`ana_stream7_sub1` interval(5m) sliding(10m) from `idmp`.`vt_7` stream_options(IGNORE_NODATA_TRIGGER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream7_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
+            # stream8
+            "create stream if not exists `idmp`.`ana_stream8`      interval(5m) sliding(5m) from `idmp`.`vst_车辆_652220`  partition by `车辆资产模型`,`车辆ID`  stream_options(IGNORE_NODATA_TRIGGER)      notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream8`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`, sum(`里程`) as `里程和` from %%trows",
         ]
 
         tdSql.executes(sqls)
@@ -179,10 +182,9 @@ class Test_IDMP_Vehicle:
         self.trigger_stream6()
         # stream7
         self.trigger_stream7()
-        '''
         # stream8
         self.trigger_stream8()
-        '''
+
 
 
     # 
@@ -198,9 +200,7 @@ class Test_IDMP_Vehicle:
         self.verify_stream5()
         self.verify_stream6()
         self.verify_stream7()
-        '''
-        #self.verify_stream8()
-        '''
+        self.verify_stream8()
 
 
     # 
@@ -621,7 +621,15 @@ class Test_IDMP_Vehicle:
     #  stream8 trigger
     #
     def trigger_stream8(self):
-        pass
+        table = f"{self.db}.`vehicle_110100_008`"
+        cols  = "ts,speed,mileage"
+
+        # data1
+        ts    = self.start
+        vals  = "150,300"
+        count = 11
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+
 
     #
     # ---------------------   verify    ----------------------
@@ -938,4 +946,21 @@ class Test_IDMP_Vehicle:
     # verify stream8
     #
     def verify_stream8(self):
+        # check data
+        result_sql = f"select * from {self.vdb}.`result_stream8` where `车辆ID`= '110100_008'"
+        tdSql.checkResultsByFunc (
+            sql = result_sql, 
+            func = lambda: tdSql.getRows() == 2
+            # row1
+            and tdSql.compareData(0, 0, self.start) # ts
+            and tdSql.compareData(0, 1, 5)          # cnt
+            and tdSql.compareData(0, 2, 150)        # avg(speed)
+            and tdSql.compareData(0, 3, 1500)       # sum
+            # row2
+            and tdSql.compareData(1, 0, self.start + 5 * self.step) # ts
+            and tdSql.compareData(1, 1, 5)          # cnt
+            and tdSql.compareData(1, 2, 150)        # avg(speed)
+            and tdSql.compareData(1, 3, 1500)       # sum
+        )
+
         tdLog.info(f"verify stream8 ................................. successfully.")

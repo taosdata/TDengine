@@ -136,6 +136,10 @@ void mstDestroySStmStatus(void* param) {
 
   mstResetSStmStatus(pStatus);
 
+  taosWLockLatch(&pStatus->userRecalcLock);
+  taosArrayDestroy(pStatus->userRecalcList);
+  taosWUnLockLatch(&pStatus->userRecalcLock);
+
   tFreeSCMCreateStreamReq(pStatus->pCreate);
   taosMemoryFreeClear(pStatus->pCreate);  
 }
@@ -758,11 +762,22 @@ int32_t mstGetStreamStatusStr(SStreamObj* pStream, char* status, int32_t statusS
   }
 
   char tmpBuf[256];
-  if (1 == atomic_load_8(&pStatus->stopped)) {
-    STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_FAILED], statusSize);
-    snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s, Failed times: %" PRId64, tstrerror(pStatus->fatalError), pStatus->fatalRetryTimes);
-    STR_WITH_MAXSIZE_TO_VARSTR(msg, tmpBuf, msgSize);
-    goto _exit;
+  int8_t stopped = atomic_load_8(&pStatus->stopped);
+  switch (stopped) {
+    case 1:
+      STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_FAILED], statusSize);
+      snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s, Failed times: %" PRId64, tstrerror(pStatus->fatalError), pStatus->fatalRetryTimes);
+      STR_WITH_MAXSIZE_TO_VARSTR(msg, tmpBuf, msgSize);
+      goto _exit;
+      break;
+    case 4:
+      STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_FAILED], statusSize);
+      snprintf(tmpBuf, sizeof(tmpBuf), "Error: %s", tstrerror(TSDB_CODE_GRANT_STREAM_EXPIRED));
+      STR_WITH_MAXSIZE_TO_VARSTR(msg, tmpBuf, msgSize);
+      goto _exit;
+      break;
+    default:
+      break;
   }
 
   if (pStatus->triggerTask && STREAM_STATUS_RUNNING == pStatus->triggerTask->status) {
@@ -938,7 +953,7 @@ int32_t mstSetStreamTaskResBlock(SStreamObj* pStream, SStmTaskStatus* pTask, SSD
   // stream id
   char idstr[19 + VARSTR_HEADER_SIZE] = {0};
   snprintf(&idstr[VARSTR_HEADER_SIZE], sizeof(idstr) - VARSTR_HEADER_SIZE, "%" PRIx64, pStream->pCreate->streamId);
-  varDataSetLen(idstr, strlen(&idstr[VARSTR_HEADER_SIZE]) + VARSTR_HEADER_SIZE); 
+  varDataSetLen(idstr, strlen(&idstr[VARSTR_HEADER_SIZE])); 
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
   code = colDataSetVal(pColInfo, numOfRows, (const char*)idstr, false);
@@ -946,7 +961,7 @@ int32_t mstSetStreamTaskResBlock(SStreamObj* pStream, SStmTaskStatus* pTask, SSD
 
   // task id
   snprintf(&idstr[VARSTR_HEADER_SIZE], sizeof(idstr) - VARSTR_HEADER_SIZE, "%" PRIx64, pTask->id.taskId);
-  varDataSetLen(idstr, strlen(&idstr[VARSTR_HEADER_SIZE]) + VARSTR_HEADER_SIZE);
+  varDataSetLen(idstr, strlen(&idstr[VARSTR_HEADER_SIZE]));
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
   code = colDataSetVal(pColInfo, numOfRows, (const char*)idstr, false);
@@ -962,7 +977,7 @@ int32_t mstSetStreamTaskResBlock(SStreamObj* pStream, SStmTaskStatus* pTask, SSD
 
   // serious id
   snprintf(&idstr[VARSTR_HEADER_SIZE], sizeof(idstr) - VARSTR_HEADER_SIZE, "%" PRIx64, pTask->id.seriousId);
-  varDataSetLen(idstr, strlen(&idstr[VARSTR_HEADER_SIZE]) + VARSTR_HEADER_SIZE);
+  varDataSetLen(idstr, strlen(&idstr[VARSTR_HEADER_SIZE]));
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
   code = colDataSetVal(pColInfo, numOfRows, (const char*)idstr, false);
@@ -1155,6 +1170,7 @@ int32_t mstAppendNewRecalcRange(int64_t streamId, SStmStatus *pStream, STimeWind
   int32_t code = 0;
   int32_t lino = 0;
   bool    locked = false;
+  SArray* userRecalcList = NULL;
 
   SStreamRecalcReq req = {.recalcId = 0, .start = pRange->skey, .end = pRange->ekey};
   TAOS_CHECK_EXIT(taosGetSystemUUIDU64(&req.recalcId));
@@ -1163,7 +1179,7 @@ int32_t mstAppendNewRecalcRange(int64_t streamId, SStmStatus *pStream, STimeWind
   locked = true;
   
   if (NULL == pStream->userRecalcList) {
-    SArray* userRecalcList = taosArrayInit(2, sizeof(SStreamRecalcReq));
+    userRecalcList = taosArrayInit(2, sizeof(SStreamRecalcReq));
     if (NULL == userRecalcList) {
       TAOS_CHECK_EXIT(terrno);
     }
@@ -1171,6 +1187,7 @@ int32_t mstAppendNewRecalcRange(int64_t streamId, SStmStatus *pStream, STimeWind
     TSDB_CHECK_NULL(taosArrayPush(userRecalcList, &req), code, lino, _exit, terrno);
 
     atomic_store_ptr(&pStream->userRecalcList, userRecalcList);
+    userRecalcList = NULL;    
   } else {
     TSDB_CHECK_NULL(taosArrayPush(pStream->userRecalcList, &req), code, lino, _exit, terrno);
   }
@@ -1178,6 +1195,8 @@ int32_t mstAppendNewRecalcRange(int64_t streamId, SStmStatus *pStream, STimeWind
   mstsInfo("stream recalc ID:%" PRIx64 " range:%" PRId64 " - %" PRId64 " added", req.recalcId, pRange->skey, pRange->ekey);
 
 _exit:
+
+  taosArrayDestroy(userRecalcList);
 
   if (locked) {
     taosWUnLockLatch(&pStream->userRecalcLock);

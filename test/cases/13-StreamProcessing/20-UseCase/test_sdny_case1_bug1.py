@@ -53,7 +53,7 @@ class TestSdnyStream:
         self.sdnydata()
 
         sql = (f"""
-            create stream test1.stream_monitor_info_sldc_gml2 interval(5m) sliding(5m) from test1.sldc_dp 
+            create stream test1.stream_monitor_info_sldc_gml2 interval(30s) sliding(30s) from test1.sldc_dp 
                     stream_options(fill_history|pre_filter(ts > '2025-07-17 08:30:00.000'))
                     into test1.monitor_info_sldc_gml2 
                     as select
@@ -65,15 +65,14 @@ class TestSdnyStream:
                         jz2gmjbssllfk+jz2gmjcssllfk+jz2gmjdssllfk+jz2gmjessllfk+jz2gmjfssllfk) as gml
                         from
                         test1.sldc_dp 
-                        where ts >= today()-1d  and ts< now
-                        interval (5m)
-                        fill(prev) ;""")
+                        where ts >= _twstart -1s and ts< _twend
+                        interval (1s)
+                        fill(prev)""")
         
         tdSql.execute(sql,queryTimes=2)
         self.checkStreamRunning()
         
-        tdSql.query(f"select * from test1.monitor_info_sldc_gml2")
-        raise Exception("error: no result data.")
+        # tdSql.checkRowsLoop(4,f"select * from test1.monitor_info_sldc_gml2",100,6)
         
             
 

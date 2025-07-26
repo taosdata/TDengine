@@ -1,5 +1,10 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
+from new_test_framework.utils import (
+    tdLog,
+    tdSql,
+    tdStream,
+    StreamCheckItem,
+)
 
 
 class TestStreamOldCaseInterpPrimary:
@@ -10,8 +15,7 @@ class TestStreamOldCaseInterpPrimary:
     def test_stream_oldcase_interp_primary(self):
         """Stream interp primary
 
-        1. basic test
-        2. out of order data
+        Validate the calculation results of the interp function with cmposite keys
 
         Catalog:
             - Streams:OldTsimCases
@@ -23,10 +27,10 @@ class TestStreamOldCaseInterpPrimary:
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPrimaryKey0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPrimaryKey1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPrimaryKey2.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPrimaryKey3.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpPrimaryKey0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpPrimaryKey1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpPrimaryKey2.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpPrimaryKey3.sim
 
         """
 
@@ -224,7 +228,9 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"insert into t1 values(1648791213000, 10, 10, 10, 10.0);")
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdSql.checkResultsByFunc(f"select * from streamt;", lambda: tdSql.getRows() == 1)
+        tdSql.checkResultsByFunc(
+            f"select * from streamt;", lambda: tdSql.getRows() == 1
+        )
 
         tdSql.execute(f"insert into t1 values(1648791213000, 9, 9, 9, 9.0);")
         tdSql.execute(f"insert into t1 values(1648791213009, 30, 30, 30, 30.0);")

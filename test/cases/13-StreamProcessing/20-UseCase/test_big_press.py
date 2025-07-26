@@ -2,9 +2,11 @@ import time
 import math
 import random
 import threading
-from new_test_framework.utils import tdLog, tdSql, tdStream, etool
 from datetime import datetime
 from datetime import date
+
+from new_test_framework.utils import tdLog, tdSql, tdStream, etool
+from new_test_framework.utils.srvCtl import *
 
 
 class Test_BigPress:
@@ -34,9 +36,6 @@ class Test_BigPress:
         #
         #  main test
         #
-
-        # env
-        tdStream.createSnode()
 
         # prepare data
         self.prepare()
@@ -71,6 +70,10 @@ class Test_BigPress:
         # name
         self.start   = 1752600000000
         self.threads = []
+
+        # create snode
+        for i in range(5):
+            tdSql.execute(f"create snode on dnode {i + 1}", show = True)
 
         # create meters db
         etool.benchmark(f"-f cases/13-StreamProcessing/20-UseCase/json/idmp_meters.json")

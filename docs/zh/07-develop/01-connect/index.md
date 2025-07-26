@@ -89,7 +89,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.6.3</version>
+  <version>3.7.0</version>
 </dependency>
 ```
 
@@ -115,7 +115,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
             ```
         - 指定某个特定版本安装
             ```
-            pip3 install taospy==2.8.2
+            pip3 install taospy==2.8.3
             ```
         - 从 GitHub 安装
             ```

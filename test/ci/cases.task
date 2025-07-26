@@ -274,8 +274,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_commit.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_insert_backquote.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_insert_null.py
-#memleak,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_insert_select.py
-,,n,.,pytest cases/06-DataIngestion/05-Others/test_insert_select.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_insert_select.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_wal_kill.py
 
 # 07-DataQuerying
@@ -482,6 +481,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_topic.py
 #,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_params.py
 #,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_params.py -R
+,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_force_drop_topic.py
 ## 03-WebSocket
 ## 04-MQTT
 ,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_smoking.py
