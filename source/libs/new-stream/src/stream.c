@@ -45,8 +45,11 @@ void streamSetSnodeDisabled(bool cleanup) {
 
 void streamMgmtCleanup() {
   taosArrayDestroy(gStreamMgmt.vgLeaders);
+  gStreamMgmt.vgLeaders = NULL;
   taosHashCleanup(gStreamMgmt.taskMap);
+  gStreamMgmt.taskMap = NULL;
   taosHashCleanup(gStreamMgmt.vgroupMap);
+  gStreamMgmt.vgroupMap = NULL;
   for (int32_t i = 0; i < STREAM_MAX_GROUP_NUM; ++i) {
     taosHashCleanup(gStreamMgmt.stmGrp[i]);
     gStreamMgmt.stmGrp[i] = NULL;
