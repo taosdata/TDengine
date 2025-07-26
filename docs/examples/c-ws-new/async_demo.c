@@ -66,6 +66,7 @@ int main(int argc, char *argv[]) {
   char           prefix[20] = {0};
   char           db[128] = {0};
   STable        *tableList;
+  int            code = 0;
 
   if (argc != 5) {
     printf("usage: %s server-ip dbname rowsPerTable numOfTables\n", argv[0]);
@@ -81,7 +82,12 @@ int main(int argc, char *argv[]) {
   tableList = (STable *)malloc(size);
   memset(tableList, 0, size);
 
-  taos_options(TSDB_OPTION_DRIVER, "websocket");
+  code = taos_options(TSDB_OPTION_DRIVER, "websocket");
+  if (code != 0) {
+    fprintf(stderr, "Failed to set driver option, code: %d\n", code);
+    exit(0);
+  }
+
   taos = taos_connect(argv[1], "root", "taosdata", NULL, 0);
   if (taos == NULL) shellPrintError(taos);
 
@@ -105,7 +111,14 @@ int main(int argc, char *argv[]) {
     queryDB(taos, sql);
   }
 
-  gettimeofday(&systemTime, NULL);
+  code = gettimeofday(&systemTime, NULL);
+  if (code != 0) {
+    fprintf(stderr, "Failed to get system time, code: %d\n", code);
+    taos_close(taos);
+    taos_cleanup();
+    exit(0);
+  }
+
   for (i = 0; i < numOfTables; ++i)
     tableList[i].timeStamp = (time_t)(systemTime.tv_sec) * 1000 + systemTime.tv_usec / 1000;
 
@@ -113,7 +126,15 @@ int main(int argc, char *argv[]) {
   getchar();
 
   printf("start to insert...\n");
-  gettimeofday(&systemTime, NULL);
+
+  code = gettimeofday(&systemTime, NULL);
+  if (code != 0) {
+    fprintf(stderr, "Failed to get system time, code: %d\n", code);
+    taos_close(taos);
+    taos_cleanup();
+    exit(0);
+  }
+
   st = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
 
   tablesInsertProcessed = 0;
@@ -139,7 +160,15 @@ int main(int argc, char *argv[]) {
   }
 
   printf("start to query...\n");
-  gettimeofday(&systemTime, NULL);
+
+  code = gettimeofday(&systemTime, NULL);
+  if (code != 0) {
+    fprintf(stderr, "Failed to get system time, code: %d\n", code);
+    taos_close(taos);
+    taos_cleanup();
+    exit(0);
+  }
+
   st = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
 
   for (i = 0; i < numOfTables; ++i) {
@@ -204,7 +233,12 @@ void taos_insert_call_back(void *param, TAOS_RES *tres, int code) {
     printf("%d rows data are inserted into %s\n", points, pTable->name);
     tablesInsertProcessed++;
     if (tablesInsertProcessed >= numOfTables) {
-      gettimeofday(&systemTime, NULL);
+      code = gettimeofday(&systemTime, NULL);
+      if (code != 0) {
+        fprintf(stderr, "Failed to get system time, code: %d\n", code);
+        exit(EXIT_FAILURE);
+      }
+
       et = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
       printf("%" PRId64 " mseconds to insert %d data points\n", (et - st) / 1000, points * numOfTables);
     }
@@ -237,7 +271,12 @@ void taos_retrieve_call_back(void *param, TAOS_RES *tres, int numOfRows) {
 
     tablesSelectProcessed++;
     if (tablesSelectProcessed >= numOfTables) {
-      gettimeofday(&systemTime, NULL);
+      int code = gettimeofday(&systemTime, NULL);
+      if (code != 0) {
+        fprintf(stderr, "Failed to get system time, code: %d\n", code);
+        exit(EXIT_FAILURE);
+      }
+
       et = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
       printf("%" PRId64 " mseconds to query %d data rows\n", (et - st) / 1000, points * numOfTables);
     }

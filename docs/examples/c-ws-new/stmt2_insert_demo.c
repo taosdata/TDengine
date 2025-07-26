@@ -37,7 +37,10 @@ void executeSQL(TAOS *taos, const char *sql) {
 void checkErrorCode(TAOS_STMT2 *stmt2, int code, const char *msg) {
   if (code != 0) {
     fprintf(stderr, "%s. Code: %d, Error: %s\n", msg, code, taos_stmt2_error(stmt2));
-    taos_stmt2_close(stmt2);
+    code = taos_stmt2_close(stmt2);
+    if (code != 0) {
+      fprintf(stderr, "Failed to close statement, code: %d\n", code);
+    }
     exit(EXIT_FAILURE);
   }
 }
@@ -92,7 +95,12 @@ void prepareBindData(char ***table_name, TAOS_STMT2_BIND ***tags, TAOS_STMT2_BIN
 
     for (int j = 0; j < NUM_OF_ROWS; j++) {
       struct timeval tv;
-      gettimeofday(&tv, NULL);
+      int code = gettimeofday(&tv, NULL);
+      if (code != 0) {
+        fprintf(stderr, "Failed to get system time, code: %d\n", code);
+        exit(EXIT_FAILURE);
+      }
+
       ts[j] = tv.tv_sec * 1000LL + tv.tv_usec / 1000 + j;
       current[j] = (float)rand() / RAND_MAX * 30;
       voltage[j] = rand() % 300;
@@ -161,7 +169,11 @@ void insertData(TAOS *taos) {
   printf("Successfully inserted %d rows.\n", affected);
   // free and close
   freeBindData(&table_name, &tags, &params);
-  taos_stmt2_close(stmt2);
+  int code = taos_stmt2_close(stmt2);
+  if (code != 0) {
+    fprintf(stderr, "Failed to close statement, code: %d\n", code);
+    exit(EXIT_FAILURE);
+  }
 }
 
 int main() {
@@ -169,7 +181,13 @@ int main() {
   const char *user = "root";
   const char *password = "taosdata";
   uint16_t    port = 6041;
-  taos_options(TSDB_OPTION_DRIVER, "websocket");
+
+  int code = taos_options(TSDB_OPTION_DRIVER, "websocket");
+  if (code != 0) {
+    fprintf(stderr, "Failed to set driver option, code: %d\n", code);
+    return -1;
+  }
+
   TAOS *taos = taos_connect(host, user, password, NULL, port);
   if (taos == NULL) {
     fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),

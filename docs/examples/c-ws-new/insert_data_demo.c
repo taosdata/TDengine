@@ -14,8 +14,13 @@ static int DemoInsertData() {
   uint16_t    port = 6041;
   int         code = 0;
 
+  code = taos_options(TSDB_OPTION_DRIVER, "websocket");
+  if (code != 0) {
+    fprintf(stderr, "Failed to set driver option, code: %d\n", code);
+    return -1;
+  }
+
   // connect
-  taos_options(TSDB_OPTION_DRIVER, "websocket");
   TAOS *taos = taos_connect(host, user, password, NULL, port);
   if (taos == NULL) {
     fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),

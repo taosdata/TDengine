@@ -10,7 +10,13 @@ int main() {
   const char *passwd = "taosdata";
   const char *db = NULL;
   uint16_t    port = 6041;
-  taos_options(TSDB_OPTION_DRIVER, "websocket");
+
+  int code = taos_options(TSDB_OPTION_DRIVER, "websocket");
+  if (code != 0) {
+    fprintf(stderr, "Failed to set driver option, code: %d\n", code);
+    return -1;
+  }
+
   TAOS *taos = taos_connect(host, user, passwd, db, port);
   fprintf(stdout, "Connected to %s:%hu successfully.\n", host, port);
 

@@ -42,7 +42,13 @@ void* prepare_data(void* arg) {
   const char* password = "taosdata";
   uint16_t    port = 6041;
   int         code = 0;
-  taos_options(TSDB_OPTION_DRIVER, "websocket");
+
+  code = taos_options(TSDB_OPTION_DRIVER, "websocket");
+  if (code != 0) {
+    fprintf(stderr, "Failed to set driver option, code: %d\n", code);
+    exit(EXIT_FAILURE);
+  }
+
   TAOS* pConn = taos_connect(host, user, password, NULL, port);
   if (pConn == NULL) {
     fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
@@ -103,7 +109,13 @@ TAOS* init_env() {
   const char* password = "taosdata";
   uint16_t    port = 6041;
   int         code = 0;
-  taos_options(TSDB_OPTION_DRIVER, "websocket");
+
+  code = taos_options(TSDB_OPTION_DRIVER, "websocket");
+  if (code != 0) {
+    fprintf(stderr, "Failed to set driver option, code: %d\n", code);
+    exit(EXIT_FAILURE);
+  }
+
   TAOS* pConn = taos_connect(host, user, password, NULL, port);
   if (pConn == NULL) {
     fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
@@ -229,7 +241,11 @@ tmq_t* build_consumer(const ConsumerConfig* config) {
   tmq_conf_res_t code;
   tmq_t*         tmq = NULL;
 
-  taos_options(TSDB_OPTION_DRIVER, "websocket");
+  int errno = taos_options(TSDB_OPTION_DRIVER, "websocket");
+  if (errno != 0) {
+    fprintf(stderr, "Failed to set driver option, code: %d\n", errno);
+    exit(EXIT_FAILURE);
+  }
 
   // create a configuration object
   tmq_conf_t* conf = tmq_conf_new();
@@ -497,7 +513,11 @@ int main(int argc, char* argv[]) {
   // ANCHOR_END: unsubscribe_and_close
 
   thread_stop = 1;
-  pthread_join(thread_id, NULL);
+  code = pthread_join(thread_id, NULL);
+  if (code != 0) {
+    fprintf(stderr, "Failed to join thread, code: %d\n", code);
+    return -1;
+  }
 
   if (drop_topic(pConn) < 0) {
     fprintf(stderr, "Failed to drop topic.\n");
