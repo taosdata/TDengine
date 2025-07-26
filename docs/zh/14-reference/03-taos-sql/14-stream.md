@@ -883,14 +883,26 @@ CREATE stream sm2 count_window(10, 1, col1) FROM tb1
     SELECT avg(col1) FROM %%trows;
 ```
 
+##### 事件窗口触发
+
+- 当环境温度超过 80 度持续超过 10 分钟时，计算环境温度的平均值。
+
+```SQL
+CREATE STREAM `idmp`.`ana_temp` EVENT_WINDOW(start with `环境温度` > 80 end with `环境温度` <= 80 ) TRUE_FOR(10m) FROM `idmp`.`vt_气象传感器02_471544` 
+  STREAM_OPTIONS( IGNORE_DISORDER)
+  INTO `idmp`.`ana_temp` 
+  AS 
+    SELECT _twstart+0s as output_timestamp, avg(`环境温度`) as `平均环境温度` FROM idmp.`vt_气象传感器02_471544` where ts >= _twstart and ts <= _twend;
+```
+
 ##### 滑动触发
 
-- 超级表 stb1 的每个子表在每 5 分钟的时间窗口结束后，计算这 5 分钟的 col1 的平均值（如果没有数据则忽略），每个子表的计算结果分别写入超级表 stb2 的不同子表中。
+- 超级表 stb1 的每个子表在每 5 分钟的时间窗口结束后，计算这 5 分钟的 col1 的平均值，每个子表的计算结果分别写入超级表 stb2 的不同子表中。
 
 ```SQL
 CREATE stream sm1 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname 
-  STREAM_OPTIONS(FILL_HISTORY_FIRST) 
-  INTO stb2 AS 
+  INTO stb2 
+  AS 
     SELECT _twstart, avg(col1) FROM %%tbname 
     WHERE _c0 >= _twstart AND _c0 <= _twend;
 ```
@@ -902,7 +914,8 @@ CREATE stream sm1 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname
 ```SQL
 CREATE stream sm2 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname 
   STREAM_OPTIONS(MAX_DELAY(1m) | FILL_HISTORY_FIRST) 
-  INTO stb2 AS 
+  INTO stb2 
+  AS 
     SELECT _twstart, avg(col1) FROM %%tbname WHERE _c0 >= _twstart AND _c0 <= _twend;
 ```
 
@@ -912,7 +925,8 @@ CREATE stream sm2 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname
 CREATE STREAM avg_stream INTERVAL(1m) SLIDING(1m) FROM meters 
   NOTIFY ('ws://localhost:8080/notify', 'wss://192.168.1.1:8080/notify?key=foo') ON ('WINDOW_OPEN', 'WINDOW_CLOSE') NOTIFY_OPTIONS(NOTIFY_HISTORY | ON_FAILURE_PAUSE)
   INTO avg_stb
-    AS SELECT _twstart, _twend, AVG(current) FROM %%trows;
+  AS 
+    SELECT _twstart, _twend, AVG(current) FROM %%trows;
 ```
 
 ##### 定时触发
@@ -921,7 +935,8 @@ CREATE STREAM avg_stream INTERVAL(1m) SLIDING(1m) FROM meters
 
 ```SQL
 CREATE stream sm1 PERIOD(1h) 
-  INTO tb2 AS
+  INTO tb2 
+  AS
     SELECT cast(_tlocaltime/1000000 AS TIMESTAMP), count(*) FROM tb1;
 ```
 
