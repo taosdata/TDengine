@@ -224,7 +224,7 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
       STR_TO_VARSTR(buf, "VIEW COL");
     }
     COL_DATA_SET_VAL_AND_CHECK(pCol4, pBlock->info.rows, buf, false);
-    if (withExtSchema(pMeta->tableType) && pMeta->schemaExt && tsShowFullCreateTableColumn) {
+    if (withExtSchema(pMeta->tableType) && pMeta->schemaExt) {
       if (i < pMeta->tableInfo.numOfColumns) {
         STR_TO_VARSTR(buf, columnEncodeStr(COMPRESS_L1_TYPE_U32(pMeta->schemaExt[i].compress)));
         COL_DATA_SET_VAL_AND_CHECK(pCol5, pBlock->info.rows, buf, false);
