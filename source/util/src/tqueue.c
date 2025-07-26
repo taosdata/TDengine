@@ -251,7 +251,7 @@ int32_t taosWriteQitem(STaosQueue *queue, void *pItem) {
       uDebug("sem_post Qset %p, sem:%p", queue->qset, &queue->qset->sem);
     }
   } else {
-    uError("empty qset");
+    uDebug("empty qset");
   }
   return code;
 }
