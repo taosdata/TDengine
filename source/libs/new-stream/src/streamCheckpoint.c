@@ -71,7 +71,8 @@ int32_t streamWriteCheckPoint(int64_t streamId, void* data, int64_t dataLen) {
       goto end;
     }
   } else {
-    stDebug("[checkpoint] write checkpoint file for streamId:%" PRIx64 ", file:%s, len:%"PRId64, streamId, filepath, dataLen);
+    stDebug("[checkpoint] write checkpoint file for streamId:%" PRIx64 ", file:%s, content(%d, %"PRIx64") len:%"PRId64, 
+      streamId, filepath, *(int32_t*)(data), *(int64_t*)POINTER_SHIFT(data, INT_BYTES), dataLen);
     STREAM_CHECK_RET_GOTO(writeFile(filepath, data, dataLen));
   }
 
@@ -98,7 +99,8 @@ int32_t streamReadCheckPoint(int64_t streamId, void** data, int64_t* dataLen) {
   STREAM_CHECK_NULL_GOTO(*data, terrno);
 
   STREAM_CHECK_CONDITION_GOTO(taosReadFile(pFile, *data, *dataLen) != *dataLen, terrno);
-  stDebug("[checkpoint] read checkpoint file for streamId:%" PRIx64 ", file:%s, len:%"PRId64, streamId, filepath, *dataLen);
+  stDebug("[checkpoint] read checkpoint file for streamId:%" PRIx64 ", file:%s, content:(%d %" PRIx64") len:%"PRId64, 
+    streamId, filepath, *(int32_t*)(*data), *(int64_t*)POINTER_SHIFT(*data, INT_BYTES), *dataLen);
 
 end:
   if (code != TSDB_CODE_SUCCESS) {

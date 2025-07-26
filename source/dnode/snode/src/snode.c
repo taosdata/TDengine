@@ -138,10 +138,12 @@ static int32_t handleSyncWriteCheckPointRsp(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   } 
   void* data = pRpcMsg->pCont;
   int32_t dataLen = pRpcMsg->contLen;
-  stDebug("[checkpoint] handleSyncWriteCheckPointRsp, dataLen:%d", dataLen);
   
   int32_t ver = *(int32_t*)data;
   int64_t streamId = *(int64_t*)(POINTER_SHIFT(data, INT_BYTES));
+  stDebug("[checkpoint] handleSyncWriteCheckPointRsp, ver:%d, streamId:%"PRIx64",dataLen:%d", 
+    ver, streamId, dataLen);
+
   if (ver != -1){
     (void)streamWriteCheckPoint(streamId, data, dataLen);
   }
