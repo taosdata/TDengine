@@ -522,7 +522,8 @@ int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo) {
     return code;
   }
 
-  tableBuilderClearImmuMemTable(p);
+  code = tableBuilderClearImmuMemTable(p);
+  TSDB_CHECK_CODE(code, lino, _error);
 
   code = tableMetaCommit(p->pTableMeta, pMetaBlock);
   TSDB_CHECK_CODE(code, lino, _error);
@@ -796,7 +797,9 @@ void tableReaderClose(STableReader *p) {
 
   taosArrayDestroy(p->pMetaHandle);
 
-  taosCloseFile(&p->pDataFile);
+  if (taosCloseFile(&p->pDataFile) != 0) {
+    bseError("failed to close table reader file %s since %s", p->name, tstrerror(terrno));
+  }
   tableMetaReaderClose(p->pMetaReader);
   blockWrapperCleanup(&p->blockWrapper);
 
@@ -939,8 +942,8 @@ int32_t footerEncode(STableFooter *pFooter, char *buf) {
   len += blkHandleEncode(pFooter->indexHandle, p + len);
 
   p = buf + kEncodeLen - 8;
-  taosEncodeFixedU32((void **)&p, kMagicNum);
-  taosEncodeFixedU32((void **)&p, kMagicNum);
+  len += taosEncodeFixedU32((void **)&p, kMagicNum);
+  len += taosEncodeFixedU32((void **)&p, kMagicNum);
   return 0;
 }
 int32_t footerDecode(STableFooter *pFooter, char *buf) {
@@ -1563,11 +1566,11 @@ _error:
   return code;
 }
 
-int32_t blockWithMetaCleanup(SBlockWithMeta *p) {
-  if (p == NULL) return 0;
+void blockWithMetaCleanup(SBlockWithMeta *p) {
+  if (p == NULL) return;
   taosArrayDestroy(p->pMeta);
   taosMemoryFree(p);
-  return 0;
+  return;
 }
 
 int comprareFunc(const void *pLeft, const void *pRight) {
@@ -2045,7 +2048,9 @@ _error:
 
 void tableMetaWriterClose(SBtableMetaWriter *p) {
   if (p == NULL) return;
-  taosCloseFile(&p->pFile);
+  if (taosCloseFile(&p->pFile) != 0) {
+    bseError("failed to close table meta writer file since %s", tstrerror(terrno));
+  }
   taosArrayDestroy(p->pBlkHandle);
   taosArrayDestroy(p->pBlock);
   blockWrapperCleanup(&p->blockWrapper);
@@ -2087,7 +2092,9 @@ _error:
 
 void tableMetaReaderClose(SBtableMetaReader *p) {
   if (p == NULL) return;
-  taosCloseFile(&p->pFile);
+  if (taosCloseFile(&p->pFile) != 0) {
+    bseError("failed to close table meta reader file since %s", tstrerror(terrno));
+  }
   taosArrayDestroy(p->pBlkHandle);
   blockWrapperCleanup(&p->blockWrapper);
   taosMemoryFree(p);

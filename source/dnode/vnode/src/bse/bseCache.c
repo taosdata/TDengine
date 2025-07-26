@@ -35,7 +35,7 @@ static int32_t lruCacheRemoveNolock(SLruCache *pCache, SSeqRange *key, int32_t k
 static int32_t lrcCacheResize(SLruCache *pCache, int32_t newCap);
 static void    lruCacheFree(SLruCache *pCache);
 static void    freeItemInListNode(SListNode *pItem, CacheFreeFn fn);
-static int32_t lruCacheClear(SLruCache *pCache);
+static void    lruCacheClear(SLruCache *pCache);
 
 void freeItemInListNode(SListNode *pItem, CacheFreeFn fn) {
   if (pItem == NULL || fn == NULL) return;
@@ -232,13 +232,15 @@ void lruCacheFree(SLruCache *pCache) {
     bseCacheUnrefItem(pCacheItem);
   }
 
-  tdListFree(pCache->lruList);
+  if (tdListFree(pCache->lruList) == NULL) {
+    bseWarn("failed to free lru list");
+  }
   pCache->lruList = NULL;
 
   (void)taosThreadMutexDestroy(&pCache->mutex);
   taosMemoryFree(pCache);
 }
-int32_t lruCacheClear(SLruCache *pCache) {
+void lruCacheClear(SLruCache *pCache) {
   (void)taosThreadMutexLock(&pCache->mutex);
   while (!isListEmpty(pCache->lruList)) {
     SListNode *pNode = tdListPopTail(pCache->lruList);
@@ -250,8 +252,6 @@ int32_t lruCacheClear(SLruCache *pCache) {
   taosHashClear(pCache->pCache);
   pCache->size = 0;
   (void)taosThreadMutexUnlock(&pCache->mutex);
-
-  return 0;
 }
 
 int32_t tableCacheOpen(int32_t cap, CacheFreeFn fn, STableCache **p) {
@@ -288,7 +288,7 @@ int32_t tableCacheClear(STableCache *p) {
   int32_t code = 0;
   if (p == NULL) return 0;
 
-  code = lruCacheClear((SLruCache *)p->pCache);
+  lruCacheClear((SLruCache *)p->pCache);
   p->size = 0;
   return code;
 }

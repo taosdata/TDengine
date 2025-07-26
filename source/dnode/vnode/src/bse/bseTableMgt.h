@@ -105,7 +105,7 @@ int32_t bseTableMgtSetTableCacheSize(STableMgt *pMgt, int32_t cap);
 
 int32_t blockWithMetaInit(SBlock *pBlock, SBlockWithMeta **pMeta);
 
-int32_t blockWithMetaCleanup(SBlockWithMeta *p);
+void blockWithMetaCleanup(SBlockWithMeta *p);
 
 int32_t blockWithMetaSeek(SBlockWithMeta *p, int64_t seq, uint8_t **pValue, int32_t *len);
 

@@ -911,7 +911,10 @@ _error:
   }
   taosMemoryFree(pBuf);
 
-  taosCloseFile(&fd);
+  if (taosCloseFile(&fd) != 0) {
+    bseError("vgId:%d failed to close file %s since %s", BSE_VGID(pBse), buf, tstrerror(terrno));
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
   return code;
 }
 

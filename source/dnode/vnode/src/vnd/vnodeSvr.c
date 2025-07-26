@@ -681,7 +681,10 @@ static int32_t inline vnodeSubmitSubRowBlobData(SVnode *pVnode, SSubmitTbData *p
       break;
     }
 
-    tPutU64(row->data + p->dataOffset, seq);
+    if (tPutU64(row->data + p->dataOffset, seq) < 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
 
     if (bseBatchExccedLimit(pBatch)) {
       code = bseCommitBatch(pVnode->pBse, pBatch);
