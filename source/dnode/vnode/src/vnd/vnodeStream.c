@@ -971,7 +971,7 @@ end:
 
 static int32_t createOptionsForTsdbMeta(SStreamTriggerReaderTaskInnerOptions* options,
                                         SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t start, int64_t end,
-                                        int64_t gid, int8_t order, int64_t ver) {
+                                        int64_t gid, int8_t order, int64_t ver, bool onlyTs) {
   int32_t code = 0;
   int32_t lino = 0;
   SArray* schemas = NULL;
@@ -980,13 +980,15 @@ static int32_t createOptionsForTsdbMeta(SStreamTriggerReaderTaskInnerOptions* op
   schemas = taosArrayInit(8, sizeof(SSchema));
   STREAM_CHECK_NULL_GOTO(schemas, terrno);
   STREAM_CHECK_RET_GOTO(qStreamBuildSchema(schemas, TSDB_DATA_TYPE_TIMESTAMP, LONG_BYTES, index++))  // skey
-  STREAM_CHECK_RET_GOTO(qStreamBuildSchema(schemas, TSDB_DATA_TYPE_TIMESTAMP, LONG_BYTES, index++))  // ekey
-  STREAM_CHECK_RET_GOTO(qStreamBuildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, index++))  // uid
-  if (sStreamReaderInfo->uidList == NULL) {
-    STREAM_CHECK_RET_GOTO(qStreamBuildSchema(schemas, TSDB_DATA_TYPE_UBIGINT, LONG_BYTES, index++))  // gid
+  if (!onlyTs){
+    STREAM_CHECK_RET_GOTO(qStreamBuildSchema(schemas, TSDB_DATA_TYPE_TIMESTAMP, LONG_BYTES, index++))  // ekey
+    STREAM_CHECK_RET_GOTO(qStreamBuildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, index++))  // uid
+    if (sStreamReaderInfo->uidList == NULL) {
+      STREAM_CHECK_RET_GOTO(qStreamBuildSchema(schemas, TSDB_DATA_TYPE_UBIGINT, LONG_BYTES, index++))  // gid
+    }
+    STREAM_CHECK_RET_GOTO(qStreamBuildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, index++))     // nrows
   }
-  STREAM_CHECK_RET_GOTO(qStreamBuildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, index++))     // nrows
-
+  
   BUILD_OPTION(op, sStreamReaderInfo, ver, true, order, start, end, schemas, true, (gid != 0 ? STREAM_SCAN_GROUP_ONE_BY_ONE : STREAM_SCAN_ALL), gid,
                true, sStreamReaderInfo->uidList);
   schemas = NULL;
@@ -1275,6 +1277,7 @@ static int32_t vnodeProcessStreamTsdbMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTr
   int32_t lino = 0;
   void*   buf = NULL;
   size_t  size = 0;
+  SStreamTriggerReaderTaskInnerOptions options = {0};
 
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
   void* pTask = sStreamReaderInfo->pTask;
@@ -1284,17 +1287,17 @@ static int32_t vnodeProcessStreamTsdbMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTr
   int64_t                 key = getSessionKey(req->base.sessionId, STRIGGER_PULL_TSDB_META);
 
   if (req->base.type == STRIGGER_PULL_TSDB_META) {
-    SStreamTriggerReaderTaskInnerOptions options = {0};
+    SStreamTriggerReaderTaskInnerOptions optionsTs = {0};
 
-    STREAM_CHECK_RET_GOTO(createOptionsForTsdbMeta(&options, sStreamReaderInfo, req->tsdbMetaReq.startTime,
-      req->tsdbMetaReq.endTime, req->tsdbMetaReq.gid, req->tsdbMetaReq.order, req->tsdbMetaReq.ver));
+    STREAM_CHECK_RET_GOTO(createOptionsForTsdbMeta(&optionsTs, sStreamReaderInfo, req->tsdbMetaReq.startTime,
+      req->tsdbMetaReq.endTime, req->tsdbMetaReq.gid, req->tsdbMetaReq.order, req->tsdbMetaReq.ver, true));
     SStorageAPI api = {0};
     initStorageAPI(&api);
-    STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTaskInner, NULL, sStreamReaderInfo->groupIdMap, &api));
+    STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &optionsTs, &pTaskInner, NULL, sStreamReaderInfo->groupIdMap, &api));
 
-    STREAM_CHECK_RET_GOTO(createOneDataBlock(pTaskInner->pResBlock, false, &pTaskInner->pResBlockDst));
-
-    STREAM_CHECK_RET_GOTO(taosHashPut(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES, &pTaskInner, sizeof(pTaskInner)));
+    STREAM_CHECK_RET_GOTO(createOptionsForTsdbMeta(&options, sStreamReaderInfo, req->tsdbMetaReq.startTime,
+      req->tsdbMetaReq.endTime, req->tsdbMetaReq.gid, req->tsdbMetaReq.order, req->tsdbMetaReq.ver, false));
+    STREAM_CHECK_RET_GOTO(createDataBlockForStream(options.schemas, &pTaskInner->pResBlockDst));
   } else {
     void** tmp = taosHashGet(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES);
     STREAM_CHECK_NULL_GOTO(tmp, TSDB_CODE_STREAM_NO_CONTEXT);
@@ -1342,6 +1345,7 @@ end:
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
+  taosArrayDestroy(options.schemas);
   return code;
 }
 
