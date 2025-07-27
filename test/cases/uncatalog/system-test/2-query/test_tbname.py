@@ -417,6 +417,7 @@ class TestTbname:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "`vctb`100`")
         #super table
+        tdSql.execute("alter local \'showFullCreateTableColumn\' \'1\'")
         tdSql.query("show create vtable db.```vstb``100```")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "`vstb`100`")
