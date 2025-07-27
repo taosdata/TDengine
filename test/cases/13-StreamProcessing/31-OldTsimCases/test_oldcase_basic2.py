@@ -27,11 +27,11 @@ class TestStreamOldCaseBasic2:
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/pauseAndResume.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/sliding.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/tag.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/triggerInterval0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/windowClose.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/pauseAndResume.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/sliding.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/tag.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/triggerInterval0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/windowClose.sim
 
         """
 
@@ -108,7 +108,7 @@ class TestStreamOldCaseBasic2:
         def check4(self):
             tdSql.checkResultsByFunc(
                 f"select * from streamt1;",
-                lambda: tdSql.getRows() == 1 and tdSql.getData(0, 2) == 4,
+                lambda: tdSql.getRows() == 2 and tdSql.getData(0, 2) == 4,
             )
 
         def insert5(self):
@@ -120,10 +120,11 @@ class TestStreamOldCaseBasic2:
         def check5(self):
             tdSql.checkResultsByFunc(
                 f"select * from streamt1;",
-                lambda: tdSql.getRows() == 3
+                lambda: tdSql.getRows() == 4
                 and tdSql.getData(0, 2) == 4
                 and tdSql.getData(1, 2) == 4
-                and tdSql.getData(2, 2) == 4,
+                and tdSql.getData(2, 2) == 4
+                and tdSql.getData(3, 2) == 4,
             )
 
     class PauseAndResume1(StreamCheckItem):
@@ -167,7 +168,7 @@ class TestStreamOldCaseBasic2:
         def check4(self):
             tdSql.checkResultsByFunc(
                 f"select * from streamt2;",
-                lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 1,
+                lambda: tdSql.getRows() == 2 and tdSql.getData(0, 1) == 1 and tdSql.getData(1, 1) == 1
             )
 
         def insert5(self):
@@ -195,13 +196,17 @@ class TestStreamOldCaseBasic2:
         def check8(self):
             tdSql.checkResultsByFunc(
                 f"select * from streamt2;",
-                lambda: tdSql.getRows() == 3
-                and tdSql.compareData(0, 0, "2022-04-01 13:33:40.000")
+                lambda: tdSql.getRows() == 5
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:30.000")
                 and tdSql.compareData(0, 1, 1)
-                and tdSql.compareData(1, 0, "2022-04-01 13:34:00.000")
+                and tdSql.compareData(1, 0, "2022-04-01 13:33:40.000")
                 and tdSql.compareData(1, 1, 1)
-                and tdSql.compareData(2, 0, "2022-04-01 13:34:10.000")
-                and tdSql.compareData(2, 1, 1),
+                and tdSql.compareData(2, 0, "2022-04-01 13:33:50.000")
+                and tdSql.compareData(2, 1, 1)
+                and tdSql.compareData(3, 0, "2022-04-01 13:34:00.000")
+                and tdSql.compareData(3, 1, 1)
+                and tdSql.compareData(4, 0, "2022-04-01 13:34:10.000")
+                and tdSql.compareData(4, 1, 1),
             )
 
     class Sliding0(StreamCheckItem):

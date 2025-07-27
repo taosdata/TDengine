@@ -1002,7 +1002,7 @@ class TestStreamSubqueryCount:
 
         stream = StreamItem(
             id=104,
-            stream="create stream rdb.s104 count_window(2, c1) from tdb.triggers partition by tbname into rdb.r104 as select _wstart ts, CASE c1 WHEN 0 THEN 'Running' WHEN 5 THEN 'Warning' ELSE 'Unknown' END t1, c1 & c2 t2, c1 | c2 t3, (c1 != 0 or c2 <> 0) t4  from %%trows",
+            stream="create stream rdb.s104 count_window(2, c1) from tdb.triggers partition by tbname into rdb.r104 as select ts, CASE c1 WHEN 0 THEN 'Running' WHEN 5 THEN 'Warning' ELSE 'Unknown' END t1, c1 & c2 t2, c1 | c2 t3, (c1 != 0 or c2 <> 0) t4  from %%trows",
             res_query="select ts, t1, t2, t3, t4 from rdb.r104 where tag_tbname='t1' limit 6",
             exp_query="select ts, CASE c1 WHEN 0 THEN 'Running' WHEN 5 THEN 'Warning' ELSE 'Unknown' END t1, c1 & c2 t2, c1 | c2 t3, (c1 != 0 or c2 <> 0) t4 from tdb.t1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:15:00.000';",
         )
