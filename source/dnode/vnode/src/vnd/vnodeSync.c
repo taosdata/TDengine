@@ -646,7 +646,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
 
 static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
-  vInfo("vgId:%d, become follower", pVnode->config.vgId);
+  vInfo("vgId:%d, becomefollower callback", pVnode->config.vgId);
 
   (void)taosThreadMutexLock(&pVnode->lock);
   if (pVnode->blocked) {
@@ -685,7 +685,7 @@ static void vnodeBecomeLearner(const SSyncFSM *pFsm) {
 
 static void vnodeBecomeLeader(const SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
-  vDebug("vgId:%d, become leader", pVnode->config.vgId);
+  vInfo("vgId:%d, becomeleader callback", pVnode->config.vgId);
 #ifdef USE_TQ
   if (pVnode->pTq) {
     tqUpdateNodeStage(pVnode->pTq, true);
