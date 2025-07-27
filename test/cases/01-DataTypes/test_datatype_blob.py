@@ -27,6 +27,7 @@ class TestDatatypeVarbinary:
         Jira: None
 
         History:
+           - 2025-7-27 yhDeng create 
 
         """
         self.create_table()
