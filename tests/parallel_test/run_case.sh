@@ -96,6 +96,7 @@ md5sum /usr/lib/libtaosnative.so.1
 md5sum /home/TDinternal/debug/build/lib/libtaosnative.so
 
 cp /var/log/taos/* /home/TDinternal/sim/var_taoslog/
+cp ${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log /home/TDinternal/sim/var_taoslog/
 
 if [ $RET -ne 0 ]; then
     pwd
