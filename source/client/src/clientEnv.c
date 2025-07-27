@@ -1176,6 +1176,18 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
     tstrncpy(configDir, str, PATH_MAX);
     tscInfo("set cfg:%s to %s", configDir, str);
     return 0;
+  } else if (option == TSDB_OPTION_DATADIR) {
+    tscInfo("set dataDir:%s to %s", tsDataDir, str);
+    tstrncpy(tsDataDir, str, PATH_MAX);
+    return 0;
+  } else if (option == TSDB_OPTION_LOGDIR) {
+    tscInfo("set logDir:%s to %s", tsLogDir, str);
+    tstrncpy(tsLogDir, str, PATH_MAX);
+    return 0;
+  } else if (option == TSDB_OPTION_TMPDIR) {
+    tscInfo("set tempDir:%s to %s", tsTempDir, str);
+    tstrncpy(tsTempDir, str, PATH_MAX);
+    return 0;
   }
 
   // initialize global config

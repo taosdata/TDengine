@@ -79,8 +79,12 @@ int32_t osDefaultInit() {
   if (configDir[0] == 0) {
     tstrncpy(configDir, TD_CFG_DIR_PATH, sizeof(configDir));
   }
-  tstrncpy(tsDataDir, TD_DATA_DIR_PATH, sizeof(tsDataDir));
-  tstrncpy(tsLogDir, TD_LOG_DIR_PATH, sizeof(tsLogDir));
+  if (tsDataDir[0] == 0) {
+    tstrncpy(tsDataDir, TD_DATA_DIR_PATH, sizeof(tsDataDir));
+  }
+  if (tsLogDir[0] == 0) {
+    tstrncpy(tsLogDir, TD_LOG_DIR_PATH, sizeof(tsLogDir));
+  }
   if (strlen(tsTempDir) == 0) {
     tstrncpy(tsTempDir, TD_TMP_DIR_PATH, sizeof(tsTempDir));
   }

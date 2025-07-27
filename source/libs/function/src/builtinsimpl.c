@@ -2500,7 +2500,7 @@ static FORCE_INLINE TSKEY getRowPTs(SColumnInfoData* pTsColInfo, int32_t rowInde
     return 0;
   }
 
-  return (TSKEY)taosGetInt64Aligned(colDataGetData(pTsColInfo, rowIndex));
+  return (TSKEY)taosGetPInt64Alignedx(colDataGetData(pTsColInfo, rowIndex));
 }
 
 int32_t firstLastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
@@ -3977,7 +3977,7 @@ int32_t saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock*
       return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
     }
     key.groupId = pSrcBlock->info.id.groupId;
-    key.ts = taosGetInt64Aligned(colDataGetData(pColInfo, rowIndex));
+    key.ts = taosGetPInt64Alignedx(colDataGetData(pColInfo, rowIndex));
     key.numInGroup = pCtx->pExpr->pExpr->_function.bindExprID;
   }
 

@@ -310,7 +310,7 @@ static FORCE_INLINE void taosAddDoubleAligned(double *p, double val) {
 #define TAOS_GET_TYPE_ALIGNED(Type,  var)    (var)
 #define TAOS_GET_PTYPE_ALIGNED(Type, ptr)  (*((Type *)(ptr)))
 #define TAOS_SET_TYPE_ALIGNED(Type, to, from)  (to) = (from)
-#define TAOS_SET_PTYPE_ALIGNED(Type, to, pFrom) (to) = *((Type *)(from))
+#define TAOS_SET_PTYPE_ALIGNED(Type, to, pFrom) (to) = *((Type *)(pFrom))
 #define TAOS_SET_LTYPE_ALIGNED(Type, to, literal)  (to) = ((Type)(literal))
 #define TAOS_PSET_TYPE_ALIGNED(Type, pTo, from)   *((Type *)(pTo)) = (from)
 #define TAOS_PSET_PTYPE_ALIGNED(Type, pTo, pFrom)  *((Type *)(pTo)) = *((Type *)(pFrom))
