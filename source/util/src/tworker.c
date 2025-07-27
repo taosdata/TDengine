@@ -142,7 +142,9 @@ STaosQueue *tQWorkerAllocQueue(SQWorkerPool *pool, void *ahandle, FItem fp) {
       TdThreadAttr thAttr;
       (void)taosThreadAttrInit(&thAttr);
       (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
-
+      char threadName[64];
+      snprintf(threadName, sizeof(threadName), "%s:%d", pool->name, worker->id);
+      taosThreadAttrSetName(&thAttr, threadName);
       if (taosThreadCreate(&worker->thread, &thAttr, (ThreadFp)tQWorkerThreadFp, worker) != 0) {
         taosCloseQueue(queue);
         terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -302,7 +304,9 @@ STaosQueue *tAutoQWorkerAllocQueue(SAutoQWorkerPool *pool, void *ahandle, FItem 
     TdThreadAttr thAttr;
     (void)taosThreadAttrInit(&thAttr);
     (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
-
+    char threadName[64];
+    snprintf(threadName, sizeof(threadName), "%s:%d", pool->name, worker->id);
+    taosThreadAttrSetName(&thAttr, threadName);
     if (taosThreadCreate(&worker->thread, &thAttr, (ThreadFp)tAutoQWorkerThreadFp, worker) != 0) {
       uError("worker:%s:%d failed to create thread, total:%d", pool->name, worker->id, curWorkerNum);
       void *tmp = taosArrayPop(pool->workers);
@@ -443,6 +447,9 @@ STaosQueue *tWWorkerAllocQueue(SWWorkerPool *pool, void *ahandle, FItems fp) {
     TdThreadAttr thAttr;
     (void)taosThreadAttrInit(&thAttr);
     (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+    char threadName[64];
+    snprintf(threadName, sizeof(threadName), "%s:%d", pool->name, worker->id);
+    taosThreadAttrSetName(&thAttr, threadName);
     code = taosThreadCreate(&worker->thread, &thAttr, (ThreadFp)tWWorkerThreadFp, worker);
     if ((code)) goto _OVER;
 
@@ -978,7 +985,10 @@ STaosQueue *tQueryAutoQWorkerAllocQueue(SQueryAutoQWorkerPool *pool, void *ahand
       TdThreadAttr thAttr;
       (void)taosThreadAttrInit(&thAttr);
       (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
-
+      char threadName[64];
+      snprintf(threadName, sizeof(threadName), "%s:%d", pool->name, pWorker->id);
+      taosThreadAttrSetName(&thAttr, threadName);
+      uInfo("worker:%s:%d is launching, total:%d", pool->name, pWorker->id, pool->num);
       if (taosThreadCreate(&pWorker->thread, &thAttr, (ThreadFp)tQueryAutoQWorkerThreadFp, pWorker) != 0) {
         taosCloseQueue(queue);
         queue = NULL;
@@ -1029,7 +1039,9 @@ static int32_t tQueryAutoQWorkerAddWorker(SQueryAutoQWorkerPool *pool) {
   TdThreadAttr thAttr;
   (void)taosThreadAttrInit(&thAttr);
   (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
-
+  char threadName[64];
+  snprintf(threadName, sizeof(threadName), "%s:%d", pool->name, pWorker->id);
+  taosThreadAttrSetName(&thAttr, threadName);
   if (taosThreadCreate(&pWorker->thread, &thAttr, (ThreadFp)tQueryAutoQWorkerThreadFp, pWorker) != 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;

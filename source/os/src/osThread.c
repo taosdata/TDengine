@@ -142,6 +142,16 @@ int32_t taosThreadAttrSetInheritSched(TdThreadAttr *attr, int32_t inheritsched) 
   return code;
 }
 
+int32_t (TdThreadAttr *attr, char* name) {
+  // OS_PARAM_CHECK(attr);
+  // int32_t code = pthread_attr_setname(attr, name);
+  // if (code) {
+  //   return (terrno = TAOS_SYSTEM_ERROR(code));
+  // }
+  // return code;
+  return 0;
+}
+
 int32_t taosThreadAttrSetSchedParam(TdThreadAttr *attr, const struct sched_param *param) {
   OS_PARAM_CHECK(attr);
   int32_t code = pthread_attr_setschedparam(attr, param);

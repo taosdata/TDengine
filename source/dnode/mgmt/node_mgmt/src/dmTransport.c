@@ -136,7 +136,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   const STraceId *trace = &pRpc->info.traceId;
   dGTrace("msg:%s is received, handle:%p len:%d code:0x%x app:%p refId:%" PRId64, TMSG_INFO(pRpc->msgType),
           pRpc->info.handle, pRpc->contLen, pRpc->code, pRpc->info.ahandle, pRpc->info.refId);
-
+#ifndef TD_ASTRA
   int32_t svrVer = 0;
   code = taosVersionStrToInt(td_version, &svrVer);
   if (code != 0) {
@@ -154,7 +154,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     code = TSDB_CODE_IP_NOT_IN_WHITE_LIST;
     goto _OVER;
   }
-
+#endif
   switch (pRpc->msgType) {
     case TDMT_DND_NET_TEST:
       dmProcessNetTestReq(pDnode, pRpc);

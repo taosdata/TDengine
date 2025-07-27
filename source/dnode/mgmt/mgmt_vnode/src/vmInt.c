@@ -627,6 +627,7 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
 #ifdef TD_COMPACT_OS
     (void)taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL);
 #endif
+    taosThreadAttrSetName(&thAttr, "open-vnodes");
     if (taosThreadCreate(&pThread->thread, &thAttr, vmOpenVnodeInThread, pThread) != 0) {
       dError("thread:%d, failed to create thread to open vnode, reason:%s", pThread->threadIndex, strerror(ERRNO));
     }
@@ -747,6 +748,7 @@ static void vmCloseVnodes(SVnodeMgmt *pMgmt) {
 #ifdef TD_COMPACT_OS
     (void)taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL);
 #endif
+    taosThreadAttrSetName(&thAttr, "close-vnodes");
     if (taosThreadCreate(&pThread->thread, &thAttr, vmCloseVnodeInThread, pThread) != 0) {
       dError("thread:%d, failed to create thread to close vnode since %s", pThread->threadIndex, strerror(ERRNO));
     }
@@ -860,6 +862,7 @@ static int32_t vmInitTimer(SVnodeMgmt *pMgmt) {
 #ifdef TD_COMPACT_OS
   (void)taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL);
 #endif
+  taosThreadAttrSetName(&thAttr, "vnode-timer");
   if (taosThreadCreate(&pMgmt->thread, &thAttr, vmThreadFp, pMgmt) != 0) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
     dError("failed to create vnode timer thread since %s", tstrerror(code));
@@ -1056,6 +1059,7 @@ static int32_t vmStartVnodes(SVnodeMgmt *pMgmt) {
     TdThreadAttr thAttr;
     (void)taosThreadAttrInit(&thAttr);
     (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+    taosThreadAttrSetName(&thAttr, "restore-vnodes");
     if (taosThreadCreate(&pThread->thread, &thAttr, vmRestoreVnodeInThread, pThread) != 0) {
       dError("thread:%d, failed to create thread to restore vnode since %s", pThread->threadIndex, strerror(ERRNO));
     }

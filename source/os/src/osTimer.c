@@ -189,6 +189,7 @@ int taosInitTimer(void (*callback)(int), int ms) {
   stopTimer = false;
   TdThreadAttr tattr;
   (void)taosThreadAttrInit(&tattr);
+  taosThreadAttrSetName(&tattr, "tmr");
   int code = taosThreadCreate(&timerThread, &tattr, taosProcessAlarmSignal, callback);
   (void)taosThreadAttrDestroy(&tattr);
   if (code != 0) {

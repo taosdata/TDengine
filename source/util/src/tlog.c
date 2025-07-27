@@ -162,6 +162,7 @@ static int32_t taosStartLog() {
 #ifdef TD_COMPACT_OS
   (void)taosThreadAttrSetStackSize(&threadAttr, STACK_SIZE_SMALL);
 #endif
+  taosThreadAttrSetName(&threadAttr, "taos-async-log");
   if (taosThreadCreate(&(tsLogObj.logHandle->asyncThread), &threadAttr, taosAsyncOutputLog, tsLogObj.logHandle) != 0) {
     return terrno;
   }
@@ -489,6 +490,7 @@ static int32_t taosOpenNewLogFile() {
       (void)taosThreadAttrDestroy(&attr);
       return terrno;
     }
+    taosThreadAttrSetName(&attr, "taos-close-old-log-file");
     if (taosThreadCreate(&thread, &attr, taosThreadToCloseOldFile, oldFileKeeper) != 0) {
       uError("failed to create thread to close old log file");
       taosMemoryFreeClear(oldFileKeeper);
@@ -1196,6 +1198,7 @@ static void *taosAsyncOutputLog(void *param) {
 #ifdef TD_COMPACT_OS
         (void)taosThreadAttrSetStackSize(&attr, STACK_SIZE_SMALL);
 #endif
+        taosThreadAttrSetName(&attr, "logRotate");
         if (taosThreadCreate(&thread, &attr, taosLogRotateFunc, tsLogObj.logHandle) == 0) {
           uInfo("process log rotation");
           lastCheckSec = curSec;

@@ -719,20 +719,20 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
         case TSDB_DATA_TYPE_DOUBLE:
         case TSDB_DATA_TYPE_UBIGINT:
         case TSDB_DATA_TYPE_BIGINT:
-          pBuf->v = *(int64_t*)p;
+          taosSetLInt64Alignedx(pBuf->v, *(int64_t*)p);
           break;
         case TSDB_DATA_TYPE_UINT:
         case TSDB_DATA_TYPE_INT:
-          pBuf->v = *(int32_t*)p;
+          taosSetLInt64Alignedx(pBuf->v, *(int32_t*)p);
           break;
         case TSDB_DATA_TYPE_USMALLINT:
         case TSDB_DATA_TYPE_SMALLINT:
-          pBuf->v = *(int16_t*)p;
+          taosSetLInt64Alignedx(pBuf->v, *(int16_t*)p);
           break;
         case TSDB_DATA_TYPE_BOOL:
         case TSDB_DATA_TYPE_UTINYINT:
         case TSDB_DATA_TYPE_TINYINT:
-          pBuf->v = *(int8_t*)p;
+          taosSetLInt64Alignedx(pBuf->v, *(int8_t*)p);
           break;
         case TSDB_DATA_TYPE_FLOAT: {
           *(float*)&pBuf->v = *(float*)p;

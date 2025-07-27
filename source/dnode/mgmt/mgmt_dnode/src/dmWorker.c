@@ -345,6 +345,7 @@ int32_t dmStartStatusThread(SDnodeMgmt *pMgmt) {
 #ifdef TD_COMPACT_OS
   (void)taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL);
 #endif
+  taosThreadAttrSetName(&thAttr, "dnode-status");
   if (taosThreadCreate(&pMgmt->statusThread, &thAttr, dmStatusThreadFp, pMgmt) != 0) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
     dError("failed to create status thread since %s", tstrerror(code));
@@ -364,6 +365,7 @@ int32_t dmStartConfigThread(SDnodeMgmt *pMgmt) {
 #ifdef TD_COMPACT_OS
   (void)taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL);
 #endif
+  taosThreadAttrSetName(&thAttr, "dnode-config");
   if (taosThreadCreate(&pMgmt->configThread, &thAttr, dmConfigThreadFp, pMgmt) != 0) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
     dError("failed to create config thread since %s", tstrerror(code));
@@ -383,6 +385,7 @@ int32_t dmStartStatusInfoThread(SDnodeMgmt *pMgmt) {
 #ifdef TD_COMPACT_OS
   (void)taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL);
 #endif
+  taosThreadAttrSetName(&thAttr, "dnode-status-info");
   if (taosThreadCreate(&pMgmt->statusInfoThread, &thAttr, dmStatusInfoThreadFp, pMgmt) != 0) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
     dError("failed to create status Info thread since %s", tstrerror(code));

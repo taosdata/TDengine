@@ -817,6 +817,7 @@ static int32_t tscMonitortInit() {
     tscError("failed to set thread attr since %s", strerror(ERRNO));
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
+  taosThreadAttrSetName(&thAttr, "monitor-slowlog");
 
   if (taosThreadCreate(&monitorThread, &thAttr, monitorThreadFunc, NULL) != 0) {
     tscError("failed to create monitor thread since %s", strerror(ERRNO));

@@ -441,6 +441,9 @@ static void vnodeAsyncLaunchWorker(SVAsync *async) {
   TdThreadAttr thAttr;
   (void)taosThreadAttrInit(&thAttr);
   (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  char threadName[64];
+  snprintf(threadName, sizeof(threadName), "%s", async->label);
+  taosThreadAttrSetName(&thAttr, threadName);
 #ifdef TD_COMPACT_OS
   (void)taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL);
 #endif

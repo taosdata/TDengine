@@ -970,6 +970,7 @@ static int32_t shellStartDaemon(int argc, char *argv[]) {
   TdThreadAttr thAttr;
   (void)taosThreadAttrInit(&thAttr);
   (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  taosThreadAttrSetName(&thAttr, "taosd-daemon");
 #ifdef TD_COMPACT_OS
   (void)taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL);
 #endif

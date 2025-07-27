@@ -300,7 +300,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
     dError("failed to start mnode mnode-sync-rd worker since %s", tstrerror(code));
     return code;
   }
-
+#ifndef TD_ASTRA
   SSingleWorkerCfg arbCfg = {
       .min = 1,
       .max = 1,
@@ -312,7 +312,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
     dError("failed to start mnode mnode-arb worker since %s", tstrerror(code));
     return code;
   }
-
+#endif
   dDebug("mnode workers are initialized");
   return code;
 }

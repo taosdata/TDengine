@@ -224,6 +224,7 @@ int32_t taosThreadAttrGetStackSize(const TdThreadAttr *attr, size_t *stacksize);
 int32_t taosThreadAttrInit(TdThreadAttr *attr);
 int32_t taosThreadAttrSetDetachState(TdThreadAttr *attr, int32_t detachstate);
 int32_t taosThreadAttrSetInheritSched(TdThreadAttr *attr, int32_t inheritsched);
+int32_t taosThreadAttrSetName(TdThreadAttr *attr, char* name);
 int32_t taosThreadAttrSetSchedParam(TdThreadAttr *attr, const struct sched_param *param);
 int32_t taosThreadAttrSetSchedPolicy(TdThreadAttr *attr, int32_t policy);
 int32_t taosThreadAttrSetScope(TdThreadAttr *attr, int32_t contentionscope);

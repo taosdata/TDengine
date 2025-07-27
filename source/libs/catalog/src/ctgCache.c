@@ -3383,7 +3383,7 @@ int32_t ctgStartUpdateThread() {
 #ifdef TD_COMPACT_OS
   CTG_ERR_JRET(taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL));
 #endif
-
+  taosThreadAttrSetName(&thAttr, "catalog");
   if (taosThreadCreate(&gCtgMgmt.updateThread, &thAttr, ctgUpdateThreadFunc, NULL) != 0) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
     CTG_ERR_RET(terrno);

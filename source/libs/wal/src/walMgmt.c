@@ -393,6 +393,7 @@ static int32_t walCreateThread() {
 #ifdef TD_COMPACT_OS
     (void)taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL);
 #endif
+  taosThreadAttrSetName(&thAttr, "wal");
   if (taosThreadCreate(&tsWal.thread, &thAttr, walThreadFunc, NULL) != 0) {
     wError("failed to create wal thread since %s", strerror(ERRNO));
 

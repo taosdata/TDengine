@@ -527,14 +527,17 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   pVnode->pFetchQ = tWWorkerAllocQueue(&pMgmt->fetchPool, pVnode, (FItems)vmProcessFetchQueue);
 
   // init stream msg processing queue family
+#ifdef USE_STREAM
   pVnode->pStreamQ = tAutoQWorkerAllocQueue(&pMgmt->streamPool, pVnode, (FItem)vmProcessStreamQueue, 2);
   pVnode->pStreamCtrlQ = tWWorkerAllocQueue(&pMgmt->streamCtrlPool, pVnode, (FItems)vmProcessStreamCtrlQueue);
   pVnode->pStreamLongExecQ = tAutoQWorkerAllocQueue(&pMgmt->streamLongExecPool, pVnode, (FItem)vmProcessStreamLongExecQueue, 1);
   pVnode->pStreamChkQ = tWWorkerAllocQueue(&pMgmt->streamChkPool, pVnode, (FItems)vmProcessStreamChkptQueue);
-
+  if(pVnode->pStreamCtrlQ == NULL || pVnode->pStreamLongExecQ == NULL || pVnode->pStreamChkQ == NULL) {
+	  return TSDB_CODE_OUT_OF_MEMORY;
+  }
+#endif
   if (pVnode->pWriteW.queue == NULL || pVnode->pSyncW.queue == NULL || pVnode->pSyncRdW.queue == NULL ||
-      pVnode->pApplyW.queue == NULL || pVnode->pQueryQ == NULL || pVnode->pStreamQ == NULL || pVnode->pFetchQ == NULL
-      || pVnode->pStreamCtrlQ == NULL || pVnode->pStreamLongExecQ == NULL || pVnode->pStreamChkQ == NULL) {
+      pVnode->pApplyW.queue == NULL || pVnode->pQueryQ == NULL || pVnode->pStreamQ == NULL || pVnode->pFetchQ == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -549,12 +552,14 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   dInfo("vgId:%d, query-queue:%p is alloced", pVnode->vgId, pVnode->pQueryQ);
   dInfo("vgId:%d, fetch-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pFetchQ,
         taosQueueGetThreadId(pVnode->pFetchQ));
+#ifdef USE_STREAM
   dInfo("vgId:%d, stream-queue:%p is alloced", pVnode->vgId, pVnode->pStreamQ);
   dInfo("vgId:%d, stream-long-exec-queue:%p is alloced", pVnode->vgId, pVnode->pStreamLongExecQ);
   dInfo("vgId:%d, stream-ctrl-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pStreamCtrlQ,
         taosQueueGetThreadId(pVnode->pStreamCtrlQ));
   dInfo("vgId:%d, stream-chk-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pStreamChkQ,
         taosQueueGetThreadId(pVnode->pStreamChkQ));
+#endif
   return 0;
 }
 
@@ -587,7 +592,7 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
   if ((code = tQueryAutoQWorkerInit(pQPool)) != 0) return code;
 
   tsNumOfQueryThreads += tsNumOfVnodeQueryThreads;
-
+#ifdef USE_STREAM
   SAutoQWorkerPool *pStreamPool = &pMgmt->streamPool;
   pStreamPool->name = "vnode-stream";
   pStreamPool->ratio = tsRatioOfVnodeStreamThreads;
@@ -607,7 +612,7 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
   pStreamChkPool->name = "vnode-stream-chkpt";
   pStreamChkPool->max = 1;
   if ((code = tWWorkerInit(pStreamChkPool)) != 0) return code;
-
+#endif
   SWWorkerPool *pFPool = &pMgmt->fetchPool;
   pFPool->name = "vnode-fetch";
   pFPool->max = tsNumOfVnodeFetchThreads;
@@ -618,12 +623,14 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
 
   if ((code = tSingleWorkerInit(&pMgmt->mgmtWorker, &mgmtCfg)) != 0) return code;
 
-  int32_t threadNum = 0;
+  int32_t threadNum = 1;
+  #ifndef TD_ASTRA
   if (tsNumOfCores == 1) {
     threadNum = 2;
   } else {
     threadNum = tsNumOfCores;
   }
+  #endif
   SSingleWorkerCfg multiMgmtCfg = {.min = threadNum,
                                    .max = threadNum,
                                    .name = "vnode-multi-mgmt",

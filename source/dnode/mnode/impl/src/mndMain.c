@@ -499,6 +499,7 @@ static int32_t mndInitTimer(SMnode *pMnode) {
 #ifdef TD_COMPACT_OS
   (void)taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL);
 #endif
+  taosThreadAttrSetName(&thAttr, "mnode-timer");
   if ((code = taosThreadCreate(&pMnode->thread, &thAttr, mndThreadFp, pMnode)) != 0) {
     mError("failed to create timer thread since %s", tstrerror(code));
     TAOS_RETURN(code);

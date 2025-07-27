@@ -153,15 +153,15 @@ int32_t initTaskQueue() {
   taskQueue.wrokrerPool.name = "taskWorkPool";
   taskQueue.wrokrerPool.min = tsNumOfTaskQueueThreads;
   taskQueue.wrokrerPool.max = tsNumOfTaskQueueThreads;
-  int32_t coce = tQueryAutoQWorkerInit(&taskQueue.wrokrerPool);
-  if (TSDB_CODE_SUCCESS != coce) {
-    qError("failed to init task thread pool");
+  int32_t code = tQueryAutoQWorkerInit(&taskQueue.wrokrerPool);
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("failed to init task thread pool since %s", tstrerror(code));
     return -1;
   }
 
   taskQueue.pTaskQueue = tQueryAutoQWorkerAllocQueue(&taskQueue.wrokrerPool, NULL, (FItem)processTaskQueue);
   if (NULL == taskQueue.pTaskQueue) {
-    qError("failed to init task queue");
+    qError("failed to init task queue since %s", tstrerror(terrno));
     return -1;
   }
 

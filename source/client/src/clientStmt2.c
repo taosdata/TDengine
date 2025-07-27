@@ -365,6 +365,10 @@ static int32_t stmtCleanExecInfo(STscStmt2* pStmt, bool keepTable, bool deepClea
         taosMemoryFreeClear(pStmt->exec.pCurrBlock->pData);
         qDestroyStmtDataBlock(pStmt->exec.pCurrBlock);
       }
+      if (STMT_TYPE_QUERY != pStmt->sql.type) {
+        taos_free_result(pStmt->exec.pRequest);
+        pStmt->exec.pRequest = NULL;
+      }
     } else {
       pStmt->sql.siInfo.pTableColsIdx = 0;
       stmtResetQueueTableBuf(&pStmt->sql.siInfo.tbBuf, &pStmt->queue);
@@ -738,7 +742,7 @@ static int32_t stmtStartBindThread(STscStmt2* pStmt) {
   if (taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE) != 0) {
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
-
+  taosThreadAttrSetName(&thAttr, "stmtBind");
   if (taosThreadCreate(&pStmt->bindThread, &thAttr, stmtBindThreadFunc, pStmt) != 0) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
     STMT_ERR_RET(terrno);

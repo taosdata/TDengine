@@ -87,11 +87,20 @@ int32_t tsTimeToGetAvailableConn = 500000;
 
 int32_t tsNumOfQueryThreads = 0;
 int32_t tsNumOfCommitThreads = 2;
+#ifndef TD_ASTRA
 int32_t tsNumOfTaskQueueThreads = 16;
 int32_t tsNumOfMnodeQueryThreads = 16;
+#else
+int32_t tsNumOfTaskQueueThreads = 6;
+int32_t tsNumOfMnodeQueryThreads = 2;
+#endif
 int32_t tsNumOfMnodeFetchThreads = 1;
 int32_t tsNumOfMnodeReadThreads = 1;
+#ifndef TD_ASTRA
 int32_t tsNumOfVnodeQueryThreads = 16;
+#else
+int32_t tsNumOfVnodeQueryThreads = 2;
+#endif
 float   tsRatioOfVnodeStreamThreads = 0.5F;
 int32_t tsNumOfVnodeFetchThreads = 4;
 int32_t tsNumOfVnodeRsmaThreads = 2;

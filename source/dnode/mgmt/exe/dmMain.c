@@ -47,7 +47,11 @@
 #define DM_SET_ENCRYPTKEY  "Set encrypt key. such as: -y 1234567890abcdef, the length should be less or equal to 16."
 
 // clang-format on
+#ifndef TAOSD_INTEGRATED
 static struct {
+#else
+struct {
+#endif
 #ifdef WINDOWS
   bool winServiceMode;
 #endif

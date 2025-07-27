@@ -805,19 +805,22 @@ int64_t metaGetTbNum(SMeta *pMeta) {
 }
 
 void metaUpdTimeSeriesNum(SMeta *pMeta) {
+#ifndef TD_ASTRA
   int64_t nCtbTimeSeries = 0;
   if (vnodeGetTimeSeriesNum(pMeta->pVnode, &nCtbTimeSeries) == 0) {
     atomic_store_64(&pMeta->pVnode->config.vndStats.numOfTimeSeries, nCtbTimeSeries);
   }
+#endif
 }
 
 static FORCE_INLINE int64_t metaGetTimeSeriesNumImpl(SMeta *pMeta, bool forceUpd) {
-  // sum of (number of columns of stable -  1) * number of ctables (excluding timestamp column)
+  // sum of (number of columns of stable -  1) * number of ctables (excluding timestamp column) 
   SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;
+#ifndef TD_ASTRA 
   if (forceUpd || pStats->numOfTimeSeries <= 0) {
     metaUpdTimeSeriesNum(pMeta);
   }
-
+#endif
   return pStats->numOfTimeSeries + pStats->numOfNTimeSeries;
 }
 

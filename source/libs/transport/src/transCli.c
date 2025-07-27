@@ -2231,6 +2231,7 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
       goto _err;
     }
 
+    // taosThreadAttrSetName(&pThrd->attr, pThrd->pInst->label);
     int err = taosThreadCreate(&pThrd->thread, NULL, cliWorkThread, (void*)(pThrd));
     if (err != 0) {
       destroyThrdObj(pThrd);
@@ -3982,8 +3983,9 @@ _exception:
 int32_t transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* ctx) {
   int32_t code = 0;
   int32_t cliVer = 0;
-
+#ifndef TD_ASTRA
   code = taosVersionStrToInt(td_version, &cliVer);
+#endif
   STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
   if (pTransInst == NULL) {
     return TSDB_CODE_RPC_MODULE_QUIT;

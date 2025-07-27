@@ -2856,7 +2856,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
     }
 
     for (int32_t i = pInput->startRowIndex + round * 4; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
-      if (pResInfo->numOfRes == 0 || pInfo->ts < pts[i]) {
+      if (pResInfo->numOfRes == 0 || rts < pts[i]) {
         char*   data = colDataGetData(pInputCol, i);
         int32_t code = doSaveCurrentVal(pCtx, i, pts[i], NULL, type, data);
         if (code != TSDB_CODE_SUCCESS) {
