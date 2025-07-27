@@ -881,7 +881,8 @@ static int32_t processCalaTimeRange(SStreamTriggerReaderCalcInfo* sStreamReaderC
                                                    sStreamReaderCalcInfo->pTargetNodeTs, node));
 
     STREAM_CHECK_RET_GOTO(filterInitFromNode((SNode*)sStreamReaderCalcInfo->tsConditions,
-                                             (SFilterInfo**)&sStreamReaderCalcInfo->pFilterInfo, 0, NULL));
+                                             (SFilterInfo**)&sStreamReaderCalcInfo->pFilterInfo,
+                                             FLT_OPTION_NO_REWRITE | FLT_OPTION_SCALAR_MODE, NULL));
     SSTriggerCalcParam* pFirst = taosArrayGet(req->pStRtFuncInfo->pStreamPesudoFuncVals, 0);
     SSTriggerCalcParam* pLast = taosArrayGetLast(req->pStRtFuncInfo->pStreamPesudoFuncVals);
     STREAM_CHECK_NULL_GOTO(pFirst, terrno);
