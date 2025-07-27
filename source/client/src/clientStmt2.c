@@ -366,6 +366,10 @@ static int32_t stmtCleanExecInfo(STscStmt2* pStmt, bool keepTable, bool deepClea
         qDestroyStmtDataBlock(pStmt->exec.pCurrBlock);
         pStmt->exec.pCurrBlock = NULL;
       }
+      if (STMT_TYPE_QUERY != pStmt->sql.type) {
+        taos_free_result(pStmt->exec.pRequest);
+        pStmt->exec.pRequest = NULL;
+      }
     } else {
       pStmt->sql.siInfo.pTableColsIdx = 0;
       stmtResetQueueTableBuf(&pStmt->sql.siInfo.tbBuf, &pStmt->queue);
