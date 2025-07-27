@@ -21,6 +21,7 @@ class TestTbname:
         #tdSql.init(conn.cursor(), logSql)
 
     def td29092(self, dbname="db"):
+        tdSql.execute("alter local \'showFullCreateTableColumn\' \'1\'")
         tdSql.execute(f'use {dbname}')
         tdSql.execute('CREATE STABLE `st` (`ts` TIMESTAMP, `v1` INT) TAGS (`t1` INT);')
         tdSql.execute('CREATE STABLE `st2` (`ts` TIMESTAMP, `v1` INT) TAGS (`t1` INT);')
@@ -417,7 +418,6 @@ class TestTbname:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "`vctb`100`")
         #super table
-        tdSql.execute("alter local \'showFullCreateTableColumn\' \'1\'")
         tdSql.query("show create vtable db.```vstb``100```")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "`vstb`100`")
