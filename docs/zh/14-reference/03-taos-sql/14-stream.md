@@ -470,7 +470,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME}
 - tableName：字符串类型，是对应目标子表的表名。
 - eventType：字符串类型，表示事件类型，支持 WINDOW_OPEN、WINDOW_CLOSE、WINDOW_INVALIDATION 三种类型。
 - eventTime：长整型时间戳，表示事件生成时间，精确到毫秒，即：'00:00, Jan 1 1970 UTC' 以来的毫秒数。
-- triggerId：字符串类型，触发事件的唯一标识符，确保打开和关闭事件(如果有的话)的 ID 一致，便于外部系统将两者关联。如果 taosd 发生故障重启，部分事件可能会重复发送，会保证同一事件的 triggerId 保持不变。
+- triggerId：字符串类型，触发事件的唯一标识符，确保打开和关闭事件（如果有的话）的 ID 一致，便于外部系统将两者关联。如果 taosd 发生故障重启，部分事件可能会重复发送，会保证同一事件的 triggerId 保持不变。
 - triggerType：字符串类型，表示触发类型，支持 Period、SLIDING 两种非窗口触发类型以及 INTERVAL、State、Session、Event、Count 五种窗口类型。
 - groupId: 字符串类型，是对应分组的唯一标识符，如果是按子表分组，则与对应表的 uid 一致。
 
@@ -482,14 +482,14 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME}
 - eventType 固定为 ON_TIME，包含如下字段：
   - result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
 
-###### 滑动触发(Sliding)相关字段
+###### 滑动触发（Sliding）相关字段
 
 这部分是 triggerType 为 Sliding 时 event 对象的关键字段。
 
 - eventType 固定为 ON_TIME，包含如下字段：
   - result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
 
-###### 滑动触发(Interval)相关字段
+###### 滑动触发（Interval）相关字段
 
 这部分是 triggerType 为 Interval 时 event 对象的关键字段。
 
@@ -883,14 +883,26 @@ CREATE stream sm2 count_window(10, 1, col1) FROM tb1
     SELECT avg(col1) FROM %%trows;
 ```
 
+##### 事件窗口触发
+
+- 当环境温度超过 80 度持续超过 10 分钟时，计算环境温度的平均值。
+
+```SQL
+CREATE STREAM `idmp`.`ana_temp` EVENT_WINDOW(start with `环境温度` > 80 end with `环境温度` <= 80 ) TRUE_FOR(10m) FROM `idmp`.`vt_气象传感器02_471544` 
+  STREAM_OPTIONS( IGNORE_DISORDER)
+  INTO `idmp`.`ana_temp` 
+  AS 
+    SELECT _twstart+0s as output_timestamp, avg(`环境温度`) as `平均环境温度` FROM idmp.`vt_气象传感器02_471544` where ts >= _twstart and ts <= _twend;
+```
+
 ##### 滑动触发
 
-- 超级表 stb1 的每个子表在每 5 分钟的时间窗口结束后，计算这 5 分钟的 col1 的平均值（如果没有数据则忽略），每个子表的计算结果分别写入超级表 stb2 的不同子表中。
+- 超级表 stb1 的每个子表在每 5 分钟的时间窗口结束后，计算这 5 分钟的 col1 的平均值，每个子表的计算结果分别写入超级表 stb2 的不同子表中。
 
 ```SQL
 CREATE stream sm1 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname 
-  STREAM_OPTIONS(FILL_HISTORY_FIRST) 
-  INTO stb2 AS 
+  INTO stb2 
+  AS 
     SELECT _twstart, avg(col1) FROM %%tbname 
     WHERE _c0 >= _twstart AND _c0 <= _twend;
 ```
@@ -902,7 +914,8 @@ CREATE stream sm1 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname
 ```SQL
 CREATE stream sm2 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname 
   STREAM_OPTIONS(MAX_DELAY(1m) | FILL_HISTORY_FIRST) 
-  INTO stb2 AS 
+  INTO stb2 
+  AS 
     SELECT _twstart, avg(col1) FROM %%tbname WHERE _c0 >= _twstart AND _c0 <= _twend;
 ```
 
@@ -912,7 +925,8 @@ CREATE stream sm2 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname
 CREATE STREAM avg_stream INTERVAL(1m) SLIDING(1m) FROM meters 
   NOTIFY ('ws://localhost:8080/notify', 'wss://192.168.1.1:8080/notify?key=foo') ON ('WINDOW_OPEN', 'WINDOW_CLOSE') NOTIFY_OPTIONS(NOTIFY_HISTORY | ON_FAILURE_PAUSE)
   INTO avg_stb
-    AS SELECT _twstart, _twend, AVG(current) FROM %%trows;
+  AS 
+    SELECT _twstart, _twend, AVG(current) FROM %%trows;
 ```
 
 ##### 定时触发
@@ -921,7 +935,8 @@ CREATE STREAM avg_stream INTERVAL(1m) SLIDING(1m) FROM meters
 
 ```SQL
 CREATE stream sm1 PERIOD(1h) 
-  INTO tb2 AS
+  INTO tb2 
+  AS
     SELECT cast(_tlocaltime/1000000 AS TIMESTAMP), count(*) FROM tb1;
 ```
 
