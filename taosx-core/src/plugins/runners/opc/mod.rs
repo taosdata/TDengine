@@ -5,6 +5,7 @@ use crate::utils::dsn::json_to_dsn;
 use crate::{DataSet, DataSetsReq};
 use anyhow::{bail, Context};
 use csv::CsvParser;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::{io::prelude::*, path::PathBuf};
@@ -180,7 +181,7 @@ fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> Stri
 
 /// OPC UA: {ns} {id}
 /// OPC DA: {tag_name/TagName}
-fn generate_tag_value_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> String {
+pub fn generate_tag_value_from_pattern(ty: &str, template: &str, point_id: &str) -> String {
     match ty {
         "opcua" => {
             // ns=13;i=1003
@@ -200,14 +201,51 @@ fn generate_tag_value_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> S
                     id
                 };
                 assert!(!id.is_empty(), "id should not be empty: {}", point_id);
-                tb_name.replace("{ns}", ns).replace("{id}", id)
+                template
+                    .replace("{ns}", ns)
+                    .replace("{id}", id) // original id
+                    // Trim id after the last '.'
+                    .replace("{id.}", id.rsplit_once('.').map_or(id, |(id, _)| id))
+                    // Trim id after the last '/'
+                    .replace("{id/}", id.rsplit_once('/').map_or(id, |(id, _)| id))
+                    // Trim id after the last '_'
+                    .replace("{id_}", id.rsplit_once('_').map_or(id, |(id, _)| id))
+                    .replace(
+                        "{id..}",
+                        id.rsplit_once('.')
+                            .map(|(prefix, _)| prefix.rsplit_once('.').map_or(prefix, |(l, _)| l))
+                            .unwrap_or(id),
+                    )
+                    .replace(
+                        "{..id.}",
+                        id.rsplit('.').tuples().next().map_or(id, |(_, id)| id),
+                    )
             } else {
                 assert!(!point_id.is_empty(), "id should not be empty: {}", point_id);
-                tb_name.replace("{ns}", "0").replace("{id}", point_id)
+                let id = point_id;
+                template
+                    .replace("{ns}", "0")
+                    .replace("{id}", id)
+                    // Trim id after the last '.'
+                    .replace("{id.}", id.rsplit_once('.').map_or(id, |(id, _)| id))
+                    // Trim id after the last '/'
+                    .replace("{id/}", id.rsplit_once('/').map_or(id, |(id, _)| id))
+                    // Trim id after the last '_'
+                    .replace("{id_}", id.rsplit_once('_').map_or(id, |(id, _)| id))
+                    .replace(
+                        "{id..}",
+                        id.rsplit_once('.')
+                            .map(|(prefix, _)| prefix.rsplit_once('.').map_or(prefix, |(l, _)| l))
+                            .unwrap_or(id),
+                    )
+                    .replace(
+                        "{..id.}",
+                        id.rsplit('.').tuples().next().map_or(id, |(_, id)| id),
+                    )
             }
         }
         "opcda" => {
-            if tb_name.contains("{TagName}") || tb_name.contains("{tag_name}") {
+            if template.contains("{TagName}") || template.contains("{tag_name}") {
                 let tag_index = point_id.rfind(".");
                 let tag_name = if let Some(index) = tag_index {
                     // should be Device.DeviceType.TagName pattern
@@ -215,9 +253,9 @@ fn generate_tag_value_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> S
                 } else {
                     point_id
                 };
-                let tb_name = tb_name.replace("{TagName}", tag_name);
+                let tb_name = template.replace("{TagName}", tag_name);
                 tb_name.replace("{tag_name}", tag_name)
-            } else if tb_name.contains("{/tag_name}") {
+            } else if template.contains("{/tag_name}") {
                 let tag_index = point_id.rfind("/");
                 let tag_name = if let Some(index) = tag_index {
                     // should be Device/DeviceType/TagName pattern
@@ -225,16 +263,16 @@ fn generate_tag_value_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> S
                 } else {
                     point_id
                 };
-                tb_name.replace("{/tag_name}", tag_name)
-            } else if tb_name.contains("{id}") {
-                tb_name.replace("{id}", point_id)
-            } else if tb_name.contains("{_id}") {
-                tb_name.replace("{_id}", &point_id.replace("/", "_"))
+                template.replace("{/tag_name}", tag_name)
+            } else if template.contains("{id}") {
+                template.replace("{id}", point_id)
+            } else if template.contains("{_id}") {
+                template.replace("{_id}", &point_id.replace("/", "_"))
             } else {
-                tb_name.to_string()
+                template.to_string()
             }
         }
-        _ => tb_name.to_string(),
+        _ => template.to_string(),
     }
 }
 fn generate_stable_from_pattern(stable_expr: &str, value_type: &Option<IpcDataType>) -> String {
@@ -601,6 +639,23 @@ panic: (*logrus.Entry) 0xc00034aaf0"#.to_string();
 
             let datasets = opc_datasets_by_command(&config).await.unwrap();
             dbg!(&datasets);
+        }
+    }
+
+    #[test]
+    fn test_generate_tag_value_from_pattern() {
+        let point_id = "ns=2;s=PLC.DETAIL.DEV.METRIC";
+
+        let expects = [
+            ("{id}", "PLC.DETAIL.DEV.METRIC"),
+            ("{id.}", "PLC.DETAIL.DEV"),
+            ("{id..}", "PLC.DETAIL"),
+            ("{..id.}", "DEV"),
+        ];
+
+        for (t, e) in expects {
+            let v = generate_tag_value_from_pattern("opcua", t, point_id);
+            assert_eq!(v, e);
         }
     }
 }
