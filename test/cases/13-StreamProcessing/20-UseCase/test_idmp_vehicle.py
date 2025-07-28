@@ -693,8 +693,8 @@ class Test_IDMP_Vehicle:
         result_sql = f"select * from {self.vdb}.`result_stream2_sub1` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
-            func = lambda: tdSql.getRows() == 1
-            and tdSql.compareData(0, 0, self.start + 10 * self.step) # ts
+            func = lambda: tdSql.checkRows(2, show=True)
+            and tdSql.compareData(0, 0, self.start) # ts
             and tdSql.compareData(0, 1, 6)                     # cnt
         )        
         tdLog.info("verify stream2 sub1 ............................. successfully.")
