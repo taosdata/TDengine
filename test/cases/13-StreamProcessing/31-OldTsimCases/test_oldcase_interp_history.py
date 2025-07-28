@@ -1,5 +1,10 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
+from new_test_framework.utils import (
+    tdLog,
+    tdSql,
+    tdStream,
+    StreamCheckItem,
+)
 
 
 class TestStreamOldCaseInterpHistory:
@@ -10,28 +15,29 @@ class TestStreamOldCaseInterpHistory:
     def test_stream_oldcase_interp_history(self):
         """Stream interp history
 
-        1. basic test
-        2. out of order data
+        Validate the calculation results of the interp function when processing historical data
 
         Catalog:
             - Streams:OldTsimCases
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common, ci
 
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpHistory.sim
-            ## - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpHistory1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpOther.sim
-            ## - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpOther1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpHistory.sim
+            ## - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpHistory1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpOther.sim
+            ## - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpOther1.sim
 
         """
 
+        tdStream.createSnode()
+
         self.streamInterpHistory()
-        self.streamInterpOther()
+        # self.streamInterpOther()
 
     def streamInterpHistory(self):
         tdLog.info(f"streamInterpHistory")
@@ -45,22 +51,23 @@ class TestStreamOldCaseInterpHistory:
         tdSql.execute(f"use test;")
 
         tdSql.execute(
-            f"create stable st(ts timestamp,a int,b int,c int, d double) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
-        tdSql.execute(f"insert into t1 values(1648791212000,1,1,1,1.0);")
-        tdSql.execute(f"insert into t1 values(1648791215001,2,1,1,1.0);")
-        tdSql.execute(f"insert into t2 values(1648791212000,31,1,1,1.0);")
-        tdSql.execute(f"insert into t2 values(1648791216001,41,1,1,1.0);")
+        tdSql.execute(f"insert into t1 values(1648791212000, 1, 1, 1, 1.0);")
+        tdSql.execute(f"insert into t1 values(1648791215001, 2, 1, 1, 1.0);")
+        tdSql.execute(f"insert into t2 values(1648791212000, 31, 1, 1, 1.0);")
+        tdSql.execute(f"insert into t2 values(1648791216001, 41, 1, 1, 1.0);")
 
         tdSql.execute(
-            f"create stream streams1 trigger at_once FILL_HISTORY 1 IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, _isfilled as a1, interp(a) as a2 from st partition by tbname every(1s) fill(prev);"
+            f"create stream streams1 interval(1s) sliding(1s) from st partition by tbname stream_options(fill_history_first|max_delay(2s)) into streamt as select _irowts, _isfilled as a1, interp(a) as a2 from %%tbname range(_twstart) fill(prev);"
         )
+        tdSql.pause()
 
-        tdSql.execute(f"insert into t1 values(1648791217000,5,1,1,1.0);")
-        tdSql.execute(f"insert into t2 values(1648791217000,61,1,1,1.0);")
+        tdSql.execute(f"insert into t1 values(1648791217000, 5, 1, 1, 1.0);")
+        tdSql.execute(f"insert into t2 values(1648791217000, 61, 1, 1, 1.0);")
 
         tdLog.info(
             f"sql select _irowts, _isfilled as a1, interp(a) as a2 from t1 partition by tbname range(1648791212000, 1648791217000) every(1s) fill(prev) order by 3, 1;"
@@ -101,8 +108,8 @@ class TestStreamOldCaseInterpHistory:
         )
 
         tdStream.checkStreamStatus()
-        tdSql.execute(f"insert into t1 values(1648791219001,7,1,1,1.0);")
-        tdSql.execute(f"insert into t2 values(1648791219001,81,1,1,1.0);")
+        tdSql.execute(f"insert into t1 values(1648791219001, 7, 1, 1, 1.0);")
+        tdSql.execute(f"insert into t2 values(1648791219001, 81, 1, 1, 1.0);")
 
         tdLog.info(
             f"sql select _irowts, _isfilled as a1, interp(a) as a2 from t1 partition by tbname range(1648791212000, 1648791219000) every(1s) fill(prev) order by 3, 1;"
@@ -137,23 +144,23 @@ class TestStreamOldCaseInterpHistory:
         tdSql.execute(f"use test2;")
 
         tdSql.execute(
-            f"create stable st(ts timestamp,a int,b int,c int, d double) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
-        tdSql.execute(f"insert into t1 values(1648791212000,1,1,1,1.0);")
-        tdSql.execute(f"insert into t1 values(1648791215001,2,1,1,1.0);")
+        tdSql.execute(f"insert into t1 values(1648791212000, 1, 1, 1, 1.0);")
+        tdSql.execute(f"insert into t1 values(1648791215001, 2, 1, 1, 1.0);")
 
-        tdSql.execute(f"insert into t2 values(1648791212000,31,1,1,1.0);")
-        tdSql.execute(f"insert into t2 values(1648791216001,41,1,1,1.0);")
+        tdSql.execute(f"insert into t2 values(1648791212000, 31, 1, 1, 1.0);")
+        tdSql.execute(f"insert into t2 values(1648791216001, 41, 1, 1, 1.0);")
 
         tdSql.execute(
-            f"create stream streams2 trigger at_once FILL_HISTORY 1 IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, _isfilled as a1, interp(a) as a2 from st partition by tbname every(1s) fill(next);"
+            f"create stream streams2 trigger at_once FILL_HISTORY 1 IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _irowts, _isfilled as a1, interp(a) as a2 from st partition by tbname every(1s) fill(next);"
         )
 
-        tdSql.execute(f"insert into t1 values(1648791217000,5,1,1,1.0);")
-        tdSql.execute(f"insert into t2 values(1648791217000,61,1,1,1.0);")
+        tdSql.execute(f"insert into t1 values(1648791217000, 5, 1, 1, 1.0);")
+        tdSql.execute(f"insert into t2 values(1648791217000, 61, 1, 1, 1.0);")
 
         tdLog.info(
             f"sql select _irowts, _isfilled as a1, interp(a) as a2 from t1 partition by tbname range(1648791212000, 1648791217000) every(1s) fill(next) order by 3, 1;"
@@ -195,8 +202,8 @@ class TestStreamOldCaseInterpHistory:
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into t1 values(1648791219001,7,1,1,1.0);")
-        tdSql.execute(f"insert into t2 values(1648791219001,81,1,1,1.0);")
+        tdSql.execute(f"insert into t1 values(1648791219001, 7, 1, 1, 1.0);")
+        tdSql.execute(f"insert into t2 values(1648791219001, 81, 1, 1, 1.0);")
 
         tdLog.info(
             f"sql select _irowts, _isfilled as a1, interp(a) as a2 from t1 partition by tbname range(1648791212000, 1648791219000) every(1s) fill(next) order by 3, 1;"
@@ -232,25 +239,25 @@ class TestStreamOldCaseInterpHistory:
         tdSql.execute(f"use test3;")
 
         tdSql.execute(
-            f"create stable st(ts timestamp,a int,b int,c int, d double) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
-        tdSql.execute(f"insert into t1 values(1648791212000,1,1,1,1.0);")
-        tdSql.execute(f"insert into t1 values(1648791215001,2,1,1,1.0);")
+        tdSql.execute(f"insert into t1 values(1648791212000, 1, 1, 1, 1.0);")
+        tdSql.execute(f"insert into t1 values(1648791215001, 2, 1, 1, 1.0);")
 
-        tdSql.execute(f"insert into t2 values(1648791212000,31,1,1,1.0);")
-        tdSql.execute(f"insert into t2 values(1648791216001,41,1,1,1.0);")
+        tdSql.execute(f"insert into t2 values(1648791212000, 31, 1, 1, 1.0);")
+        tdSql.execute(f"insert into t2 values(1648791216001, 41, 1, 1, 1.0);")
 
         tdSql.execute(
-            f"create stream streams3 trigger at_once FILL_HISTORY 1 IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, _isfilled as a1, interp(a) as a2 from st partition by tbname every(1s) fill(prev);"
+            f"create stream streams3 trigger at_once FILL_HISTORY 1 IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _irowts, _isfilled as a1, interp(a) as a2 from st partition by tbname every(1s) fill(prev);"
         )
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into t1 values(1648791217000,5,1,1,1.0);")
-        tdSql.execute(f"insert into t2 values(1648791217000,61,1,1,1.0);")
+        tdSql.execute(f"insert into t1 values(1648791217000, 5, 1, 1, 1.0);")
+        tdSql.execute(f"insert into t2 values(1648791217000, 61, 1, 1, 1.0);")
 
         tdLog.info(
             f"sql select _irowts, _isfilled as a1, interp(a) as a2 from t1 partition by tbname range(1648791212000, 1648791217000) every(1s) fill(prev) order by 3, 1;"
@@ -301,27 +308,27 @@ class TestStreamOldCaseInterpHistory:
         tdSql.execute(f"create database test vgroups 4;")
         tdSql.execute(f"use test;")
 
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int , c int, d double);")
+        tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream streams1_1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt1_1 as select interp(a), _isfilled as a1, interp(b), _isfilled as a2, interp(c), _isfilled as a3, interp(d) from t1 every(1s) fill(prev);"
+            f"create stream streams1_1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt1_1 as select interp(a), _isfilled as a1, interp(b), _isfilled as a2, interp(c), _isfilled as a3, interp(d) from t1 every(1s) fill(prev);"
         )
         tdSql.execute(
-            f"create stream streams1_2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt1_2 as select interp(a), _isfilled as a1, interp(b), _isfilled as a2, interp(c), _isfilled as a3, interp(d) from t1 every(1s) fill(next);"
+            f"create stream streams1_2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt1_2 as select interp(a), _isfilled as a1, interp(b), _isfilled as a2, interp(c), _isfilled as a3, interp(d) from t1 every(1s) fill(next);"
         )
         tdSql.execute(
-            f"create stream streams1_3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt1_3 as select interp(a), _isfilled as a1, interp(b), _isfilled as a2, interp(c), _isfilled as a3, interp(d) from t1 every(1s) fill(linear);"
+            f"create stream streams1_3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt1_3 as select interp(a), _isfilled as a1, interp(b), _isfilled as a2, interp(c), _isfilled as a3, interp(d) from t1 every(1s) fill(linear);"
         )
         tdSql.execute(
-            f"create stream streams1_4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt1_4 as select interp(a), _isfilled as a1, interp(b), _isfilled as a2, interp(c), _isfilled as a3, interp(d) from t1 every(1s) fill(NULL);"
+            f"create stream streams1_4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt1_4 as select interp(a), _isfilled as a1, interp(b), _isfilled as a2, interp(c), _isfilled as a3, interp(d) from t1 every(1s) fill(NULL);"
         )
         tdSql.execute(
-            f"create stream streams1_5 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt1_5 as select interp(a), _isfilled as a1, interp(b), _isfilled as a2, interp(c), _isfilled as a3, interp(d) from t1 every(1s) fill(value,11,22,33,44);"
+            f"create stream streams1_5 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt1_5 as select interp(a), _isfilled as a1, interp(b), _isfilled as a2, interp(c), _isfilled as a3, interp(d) from t1 every(1s) fill(value, 11, 22, 33, 44);"
         )
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into t1 values(1648791215000,0,0,0,0.0);")
-        tdSql.execute(f"insert into t1 values(1648791212000,10,10,10,10.0);")
+        tdSql.execute(f"insert into t1 values(1648791215000, 0, 0, 0, 0.0);")
+        tdSql.execute(f"insert into t1 values(1648791212000, 10, 10, 10, 10.0);")
 
         tdLog.info(f"sql desc streamt1_1;")
         tdSql.checkResultsByFunc(
@@ -380,10 +387,10 @@ class TestStreamOldCaseInterpHistory:
         )
 
         tdLog.info(
-            f"sql select interp(a), _isfilled as a1, interp(b), _isfilled as a2, interp(c), _isfilled as a3, interp(d) from t1 range(1648791212000, 1648791215000) every(1s) fill(value,11,22,33,44);"
+            f"sql select interp(a), _isfilled as a1, interp(b), _isfilled as a2, interp(c), _isfilled as a3, interp(d) from t1 range(1648791212000, 1648791215000) every(1s) fill(value, 11, 22, 33, 44);"
         )
         tdSql.query(
-            f"select interp(a), _isfilled as a1, interp(b), _isfilled as a2, interp(c), _isfilled as a3, interp(d) from t1 range(1648791212000, 1648791215000) every(1s) fill(value,11,22,33,44);"
+            f"select interp(a), _isfilled as a1, interp(b), _isfilled as a2, interp(c), _isfilled as a3, interp(d) from t1 range(1648791212000, 1648791215000) every(1s) fill(value, 11, 22, 33, 44);"
         )
 
         tdLog.info(f"sql select * from streamt1_5;")
@@ -412,33 +419,33 @@ class TestStreamOldCaseInterpHistory:
         tdSql.execute(f"use test3;")
 
         tdSql.execute(
-            f"create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdSql.execute(
-            f'create stream streams3_1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt3_1 TAGS(cc varchar(100)) SUBTABLE(concat(concat("tbn-", tbname), "_1")) as select interp(a), _isfilled as a1 from st partition by tbname, b as cc every(1s) fill(prev);'
+            f'create stream streams3_1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt3_1 TAGS(cc varchar(100)) SUBTABLE(concat(concat("tbn-", tbname), "_1")) as select interp(a), _isfilled as a1 from st partition by tbname, b as cc every(1s) fill(prev);'
         )
         tdSql.execute(
-            f'create stream streams3_2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt3_2 TAGS(cc varchar(100)) SUBTABLE(concat(concat("tbn-", tbname), "_2")) as select interp(a), _isfilled as a1 from st partition by tbname, b as cc every(1s) fill(next);'
+            f'create stream streams3_2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt3_2 TAGS(cc varchar(100)) SUBTABLE(concat(concat("tbn-", tbname), "_2")) as select interp(a), _isfilled as a1 from st partition by tbname, b as cc every(1s) fill(next);'
         )
         tdSql.execute(
-            f'create stream streams3_3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt3_3 TAGS(cc varchar(100)) SUBTABLE(concat(concat("tbn-", tbname), "_3")) as select interp(a), _isfilled as a1 from st partition by tbname, b as cc every(1s) fill(linear);'
+            f'create stream streams3_3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt3_3 TAGS(cc varchar(100)) SUBTABLE(concat(concat("tbn-", tbname), "_3")) as select interp(a), _isfilled as a1 from st partition by tbname, b as cc every(1s) fill(linear);'
         )
         tdSql.execute(
-            f'create stream streams3_4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt3_4 TAGS(cc varchar(100)) SUBTABLE(concat(concat("tbn-", tbname), "_4")) as select interp(a), _isfilled as a1 from st partition by tbname, b as cc every(1s) fill(NULL);'
+            f'create stream streams3_4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt3_4 TAGS(cc varchar(100)) SUBTABLE(concat(concat("tbn-", tbname), "_4")) as select interp(a), _isfilled as a1 from st partition by tbname, b as cc every(1s) fill(NULL);'
         )
         tdSql.execute(
-            f'create stream streams3_5 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt3_5 TAGS(cc varchar(100)) SUBTABLE(concat(concat("tbn-", tbname), "_5")) as select interp(a), _isfilled as a1 from st partition by tbname, b as cc every(1s) fill(value,11);'
+            f'create stream streams3_5 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt3_5 TAGS(cc varchar(100)) SUBTABLE(concat(concat("tbn-", tbname), "_5")) as select interp(a), _isfilled as a1 from st partition by tbname, b as cc every(1s) fill(value, 11);'
         )
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into t1 values(1648791217000,1,2,3);")
-        tdSql.execute(f"insert into t1 values(1648791212000,10,2,3);")
-        tdSql.execute(f"insert into t1 values(1648791215001,20,2,3);")
-        tdSql.execute(f"insert into t2 values(1648791215001,20,2,3);")
+        tdSql.execute(f"insert into t1 values(1648791217000, 1, 2, 3);")
+        tdSql.execute(f"insert into t1 values(1648791212000, 10, 2, 3);")
+        tdSql.execute(f"insert into t1 values(1648791215001, 20, 2, 3);")
+        tdSql.execute(f"insert into t2 values(1648791215001, 20, 2, 3);")
 
         tdLog.info(f"sql select cc, * from `tbn-t1_1_streamt3_1_914568691400502130`;")
         tdSql.checkResultsByFunc(
@@ -507,28 +514,28 @@ class TestStreamOldCaseInterpHistory:
         tdSql.execute(f"create database test4 vgroups 4;")
         tdSql.execute(f"use test4;")
 
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int , c int, d double);")
+        tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream streams4_1 trigger at_once watermark 10s IGNORE EXPIRED 1 IGNORE UPDATE 0 into  streamt4_1 as select interp(a, 1), _isfilled as a1 from t1 every(1s) fill(prev);"
+            f"create stream streams4_1 trigger at_once watermark 10s IGNORE EXPIRED 1 IGNORE UPDATE 0 into streamt4_1 as select interp(a, 1), _isfilled as a1 from t1 every(1s) fill(prev);"
         )
         tdSql.execute(
-            f"create stream streams4_2 trigger at_once watermark 10s IGNORE EXPIRED 1 IGNORE UPDATE 0 into  streamt4_2 as select interp(a, 1), _isfilled as a1 from t1 every(1s) fill(next);"
+            f"create stream streams4_2 trigger at_once watermark 10s IGNORE EXPIRED 1 IGNORE UPDATE 0 into streamt4_2 as select interp(a, 1), _isfilled as a1 from t1 every(1s) fill(next);"
         )
         tdSql.execute(
-            f"create stream streams4_3 trigger at_once watermark 10s IGNORE EXPIRED 1 IGNORE UPDATE 0 into  streamt4_3 as select interp(a, 1), _isfilled as a1 from t1 every(1s) fill(linear);"
+            f"create stream streams4_3 trigger at_once watermark 10s IGNORE EXPIRED 1 IGNORE UPDATE 0 into streamt4_3 as select interp(a, 1), _isfilled as a1 from t1 every(1s) fill(linear);"
         )
         tdSql.execute(
-            f"create stream streams4_4 trigger at_once watermark 10s IGNORE EXPIRED 1 IGNORE UPDATE 0 into  streamt4_4 as select interp(a, 1), _isfilled as a1 from t1 every(1s) fill(NULL);"
+            f"create stream streams4_4 trigger at_once watermark 10s IGNORE EXPIRED 1 IGNORE UPDATE 0 into streamt4_4 as select interp(a, 1), _isfilled as a1 from t1 every(1s) fill(NULL);"
         )
         tdSql.execute(
-            f"create stream streams4_5 trigger at_once watermark 10s IGNORE EXPIRED 1 IGNORE UPDATE 0 into  streamt4_5 as select interp(a, 1), _isfilled as a1 from t1 every(1s) fill(value,11);"
+            f"create stream streams4_5 trigger at_once watermark 10s IGNORE EXPIRED 1 IGNORE UPDATE 0 into streamt4_5 as select interp(a, 1), _isfilled as a1 from t1 every(1s) fill(value, 11);"
         )
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into t1 values(1648791275000,NULL,0,0,0.0);")
+        tdSql.execute(f"insert into t1 values(1648791275000, NULL, 0, 0, 0.0);")
         tdSql.execute(
-            f"insert into t1 values(1648791276000,NULL,1,0,0.0) (1648791277000,NULL,2,0,0.0) (1648791275000,NULL,3,0,0.0);"
+            f"insert into t1 values(1648791276000, NULL, 1, 0, 0.0) (1648791277000, NULL, 2, 0, 0.0) (1648791275000, NULL, 3, 0, 0.0);"
         )
 
         tdLog.info(f"sql select * from streamt4_1;")
@@ -561,11 +568,11 @@ class TestStreamOldCaseInterpHistory:
             lambda: tdSql.getRows() == 0,
         )
 
-        tdLog.info(f"sql insert into t1 values(1648791215000,1,0,0,0.0);")
-        tdSql.execute(f"insert into t1 values(1648791215000,1,0,0,0.0);")
+        tdLog.info(f"sql insert into t1 values(1648791215000, 1, 0, 0, 0.0);")
+        tdSql.execute(f"insert into t1 values(1648791215000, 1, 0, 0, 0.0);")
 
         tdSql.execute(
-            f"insert into t1 values(1648791216000,2,1,0,0.0) (1648791217000,3,2,0,0.0) (1648791215000,4,3,0,0.0);"
+            f"insert into t1 values(1648791216000, 2, 1, 0, 0.0) (1648791217000, 3, 2, 0, 0.0) (1648791215000, 4, 3, 0, 0.0);"
         )
 
         tdLog.info(f"sql select * from streamt4_1;")
@@ -601,10 +608,10 @@ class TestStreamOldCaseInterpHistory:
         tdLog.info(f"step4_3")
 
         tdLog.info(
-            f"sql insert into t1 values(1648791278000,NULL,2,0,0.0) (1648791278001,NULL,2,0,0.0) (1648791279000,1,2,0,0.0) (1648791279001,NULL,2,0,0.0) (1648791280000,NULL,2,0,0.0)(1648791280001,NULL,2,0,0.0)(1648791281000,20,2,0,0.0) (1648791281001,NULL,2,0,0.0)(1648791281002,NULL,2,0,0.0) (1648791282000,NULL,2,0,0.0);"
+            f"sql insert into t1 values(1648791278000, NULL, 2, 0, 0.0) (1648791278001, NULL, 2, 0, 0.0) (1648791279000, 1, 2, 0, 0.0) (1648791279001, NULL, 2, 0, 0.0) (1648791280000, NULL, 2, 0, 0.0)(1648791280001, NULL, 2, 0, 0.0)(1648791281000, 20, 2, 0, 0.0) (1648791281001, NULL, 2, 0, 0.0)(1648791281002, NULL, 2, 0, 0.0) (1648791282000, NULL, 2, 0, 0.0);"
         )
         tdSql.execute(
-            f"insert into t1 values(1648791278000,NULL,2,0,0.0) (1648791278001,NULL,2,0,0.0) (1648791279000,1,2,0,0.0) (1648791279001,NULL,2,0,0.0) (1648791280000,NULL,2,0,0.0)(1648791280001,NULL,2,0,0.0)(1648791281000,20,2,0,0.0) (1648791281001,NULL,2,0,0.0)(1648791281002,NULL,2,0,0.0) (1648791282000,NULL,2,0,0.0);"
+            f"insert into t1 values(1648791278000, NULL, 2, 0, 0.0) (1648791278001, NULL, 2, 0, 0.0) (1648791279000, 1, 2, 0, 0.0) (1648791279001, NULL, 2, 0, 0.0) (1648791280000, NULL, 2, 0, 0.0)(1648791280001, NULL, 2, 0, 0.0)(1648791281000, 20, 2, 0, 0.0) (1648791281001, NULL, 2, 0, 0.0)(1648791281002, NULL, 2, 0, 0.0) (1648791282000, NULL, 2, 0, 0.0);"
         )
 
         tdLog.info(f"sql select * from streamt4_1;")

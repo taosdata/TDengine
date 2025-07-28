@@ -1097,7 +1097,7 @@ static void destroyHashJoinOperator(void* param) {
   taosMemoryFreeClear(param);
 }
 
-int32_t hJoinHandleConds(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinNode) {
+int32_t hJoinHandleConds(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo) {
   switch (pJoin->joinType) {
     case JOIN_TYPE_INNER: {
       SNode* pCond = NULL;
@@ -1109,18 +1109,20 @@ int32_t hJoinHandleConds(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinNod
       } else if (pJoinNode->node.pConditions != NULL) {
         pCond = pJoinNode->node.pConditions;
       }
-      
-      HJ_ERR_RET(filterInitFromNode(pCond, &pJoin->pFinFilter, 0));
+
+      HJ_ERR_RET(filterInitFromNode(pCond, &pJoin->pFinFilter, 0, pTaskInfo->pStreamRuntimeInfo));
       break;
     }
     case JOIN_TYPE_LEFT:
     case JOIN_TYPE_RIGHT:
     case JOIN_TYPE_FULL:
       if (pJoinNode->pFullOnCond != NULL) {
-        HJ_ERR_RET(filterInitFromNode(pJoinNode->pFullOnCond, &pJoin->pPreFilter, 0));
+        HJ_ERR_RET(filterInitFromNode(pJoinNode->pFullOnCond, &pJoin->pPreFilter, 0,
+                                      pTaskInfo->pStreamRuntimeInfo));
       }
       if (pJoinNode->node.pConditions != NULL) {
-        HJ_ERR_RET(filterInitFromNode(pJoinNode->node.pConditions, &pJoin->pFinFilter, 0));
+        HJ_ERR_RET(filterInitFromNode(pJoinNode->node.pConditions, &pJoin->pFinFilter, 0,
+                                      pTaskInfo->pStreamRuntimeInfo));
       }
       break;
     default:
@@ -1169,6 +1171,40 @@ int32_t hJoinInitResBlocks(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinN
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t resetHashJoinOperState(SOperatorInfo* pOper) {
+  SHJoinOperatorInfo* pHjOper = pOper->info;
+  pHjOper->keyHashBuilt = false;
+  blockDataCleanup(pHjOper->midBlk);
+  blockDataCleanup(pHjOper->finBlk);
+  pOper->status = OP_NOT_OPENED;
+
+  pHjOper->execInfo = (SHJoinExecInfo){0};
+
+  void*   pIte = NULL;
+  int32_t iter = 0;
+  while ((pIte = tSimpleHashIterate(pHjOper->pKeyHash, pIte, &iter)) != NULL) {
+    SGroupData* pGroup = pIte;
+    SBufRowInfo* pRow = pGroup->rows;
+    SBufRowInfo* pNext = NULL;
+    while (pRow) {
+      pNext = pRow->next;
+      taosMemoryFree(pRow);
+      pRow = pNext;
+    }
+  }
+  tSimpleHashCleanup(pHjOper->pKeyHash);
+  size_t hashCap = pHjOper->pBuild->inputStat.inputRowNum > 0 ? (pHjOper->pBuild->inputStat.inputRowNum * 1.5) : 1024;
+  pHjOper->pKeyHash = tSimpleHashInit(hashCap, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  if (pHjOper->pKeyHash == NULL) {
+    return terrno; 
+  }
+  taosArrayDestroyEx(pHjOper->pRowBufs, hJoinFreeBufPage);
+  int32_t code = hJoinInitBufPages(pHjOper);
+  int64_t limit = pHjOper->ctx.limit;
+  pHjOper->ctx = (SHJoinCtx){0};
+  pHjOper->ctx.limit = limit;
+  return code;
+}
 
 int32_t createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                            SHashJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
@@ -1205,7 +1241,7 @@ int32_t createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDow
     goto _return;
   }
 
-  HJ_ERR_JRET(hJoinHandleConds(pInfo, pJoinNode));
+  HJ_ERR_JRET(hJoinHandleConds(pInfo, pJoinNode, pTaskInfo));
 
   HJ_ERR_JRET(hJoinInitResBlocks(pInfo, pJoinNode));
 
@@ -1214,6 +1250,7 @@ int32_t createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDow
   HJ_ERR_JRET(appendDownstream(pOperator, pDownstream, numOfDownstream));
 
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, hJoinMainProcess, NULL, destroyHashJoinOperator, optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  setOperatorResetStateFn(pOperator, resetHashJoinOperState);
 
   qDebug("create hash Join operator done");
 

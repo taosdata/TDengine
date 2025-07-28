@@ -85,28 +85,28 @@ description: TDengine 服务端的错误码列表和详细说明
 
 ## tsc
 
-| 错误码     | 错误描述                    | 可能的出错场景或者可能的原因 | 建议用户采取的措施                                                         |
-| ---------- | --------------------------- | ---------------------------- | -------------------------------------------------------------------------- |
-| 0x80000207 | Invalid user name           | 数据库用户名不合法           | 检查数据库用户名是否正确                                                   |
-| 0x80000208 | Invalid password            | 数据库密码不合法             | 检查数据库密码是否正确                                                     |
-| 0x80000209 | Database name too long      | 数据库名称不合法             | 检查数据库名称是否正确                                                     |
-| 0x8000020A | Table name too long         | 表名不合法                   | 检查表名是否正确                                                           |
-| 0x8000020F | Query terminated            | 查询被中止                   | 检查是否有用户中止了查询                                                   |
-| 0x80000213 | Disconnected from server    | 连接已中断                   | 检查连接是否被人为中断或客户端正在退出                                     |
-| 0x80000216 | Syntax error in SQL         | SQL 语法错误                  | 检查 SQL 语句并修正错误                                                      |
-| 0x80000219 | SQL statement too long      | SQL 长度超出限制              | 检查 SQL 语句并修正错误                                                      |
-| 0x8000021A | File is empty               | 文件内容为空                 | 检查输入文件内容                                                           |
-| 0x8000021F | Invalid column length       | 列长度错误                   | 保留现场和日志，github 上报 issue                                            |
-| 0x80000222 | Invalid JSON data type      | JSON 数据类型错误             | 检查输入 JSON 内容                                                           |
-| 0x80000224 | Value out of range          | 数据大小超过类型范围         | 检查输入的数据值                                                           |
-| 0x80000229 | Invalid tsc input           | API 输入错误                  | 检查应用调用 API 时传递的参数                                                |
-| 0x8000022A | Stmt API usage error        | STMT API 使用错误             | 检查 STMT API 调用的顺序、适用场景、错误处理                                 |
-| 0x8000022B | Stmt table name not set     | STMT 未正确设置 table name     | 检查是否调用了设置 table name 接口                                           |
-| 0x8000022D | Query killed                | 查询被中止                   | 检查是否有用户中止了查询                                                   |
-| 0x8000022E | No available execution node | 没有可用的查询执行节点       | 检查当前 query policy 配置，如果需要有 Qnode 参与确保系统中存在可用的 Qnode 节点 |
-| 0x8000022F | Table is not a super table  | 当前语句中的表名不是超级表   | 检查当前语句中所用表名是否是超级表                                         |
-| 0x80000230 | Stmt cache error            | STMT 内部缓存出错             | 保留现场和日志，github 上报 issue                                            |
-| 0x80000231 | Tsc internal error          | TSC 内部错误                  | 保留现场和日志，github 上报 issue                                            |
+| 错误码     | 错误描述                          | 可能的出错场景或者可能的原因 | 建议用户采取的措施                                                               |
+| ---------- | --------------------------------- | ---------------------------- | -------------------------------------------------------------------------------- |
+| 0x80000207 | Invalid user name                 | 数据库用户名不合法           | 检查数据库用户名是否正确                                                         |
+| 0x80000208 | Invalid password                  | 数据库密码不合法             | 检查数据库密码是否正确                                                           |
+| 0x80000209 | Database name too long            | 数据库名称不合法             | 检查数据库名称是否正确                                                           |
+| 0x8000020A | Table name too long               | 表名不合法                   | 检查表名是否正确                                                                 |
+| 0x8000020F | Query terminated                  | 查询被中止                   | 检查是否有用户中止了查询                                                         |
+| 0x80000213 | Disconnected from server          | 连接已中断                   | 检查连接是否被人为中断或客户端正在退出                                           |
+| 0x80000216 | Syntax error in SQL               | SQL 语法错误                 | 检查 SQL 语句并修正错误                                                          |
+| 0x80000219 | SQL statement too long            | SQL 长度超出限制             | 检查 SQL 语句并修正错误                                                          |
+| 0x8000021A | File is empty                     | 文件内容为空                 | 检查输入文件内容                                                                 |
+| 0x8000021F | Invalid column length             | 列长度错误                   | 保留现场和日志，github 上报 issue                                                |
+| 0x80000222 | Invalid JSON data type            | JSON 数据类型错误            | 检查输入 JSON 内容                                                               |
+| 0x80000224 | Value out of range                | 数据大小超过类型范围         | 检查输入的数据值                                                                 |
+| 0x80000229 | Invalid tsc input                 | API 输入错误                 | 检查应用调用 API 时传递的参数                                                    |
+| 0x8000022A | Stmt API usage error              | STMT/STMT2 API 使用错误      | 检查 STMT/STMT2 API 调用的顺序、适用场景、错误处理                               |
+| 0x8000022B | Stmt table name not set correctly | STMT/STMT2 未正确设置表名    | 检查 STMT/STMT2 绑定的表名是否合法                                               |
+| 0x8000022D | Query killed                      | 查询被中止                   | 检查是否有用户中止了查询                                                         |
+| 0x8000022E | No available execution node       | 没有可用的查询执行节点       | 检查当前 query policy 配置，如果需要有 Qnode 参与确保系统中存在可用的 Qnode 节点 |
+| 0x8000022F | Table is not a super table        | 当前语句中的表名不是超级表   | 检查当前语句中所用表名是否是超级表                                               |
+| 0x80000230 | Stmt cache error                  | STMT/STMT2 内部缓存出错      | 保留现场和日志，github 上报 issue                                                |
+| 0x80000231 | Tsc internal error                | TSC 内部错误                 | 保留现场和日志，github 上报 issue                                                |
 
 
 
@@ -234,6 +234,19 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000482 | Invalid sma index option                                                                     | 内部错误                                      | 上报 issue                                                                                       |
 | 0x80000483 | index already exists                                                                         | 已存在                                        | 确认操作是否正确                                                                                |
 | 0x80000484 | index not exist                                                                              | 不存在                                        | 确认操作是否正确                                                                                |
+
+
+## Bnode
+
+| 错误码     | 错误描述                   | 可能的出错场景或者可能的原因 | 建议用户采取的措施     |
+| ---------- | -------------------------- | ---------------------------- | ---------------------- |
+| 0x80000450 | Bnode already exists       | 已创建                       | 检查节点状态           |
+| 0x80000451 | Bnode already deployed     | 已部署                       | 确认操作是否正确       |
+| 0x80000452 | Bnode not deployed         | 内部错误                     | 上报 issue             |
+| 0x80000453 | Bnode not there            | 不在线                       | 确认操作是否正确       |
+| 0x80000454 | Bnode not found            | 内部错误                     | 上报 issue             |
+| 0x80000455 | Bnode exec launch failed   | 内部错误                     | 上报 issue             |
+| 0x8000261C | Invalid Bnode option       | Bnode 选项值非法             | 检查并修正数据库选项值 |
 
 
 ## dnode

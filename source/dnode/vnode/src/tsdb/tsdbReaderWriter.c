@@ -14,7 +14,7 @@
  */
 
 #include "crypt.h"
-#include "tcs.h"
+#include "tss.h"
 #include "tsdb.h"
 #include "tsdbDef.h"
 #include "vnd.h"
@@ -29,13 +29,13 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
 
   pFD->pFD = taosOpenFile(path, flag);
   if (pFD->pFD == NULL) {
-    if (tsS3Enabled && pFD->lcn > 1 && !strncmp(path + strlen(path) - 5, ".data", 5)) {
+    if (tsSsEnabled && pFD->lcn > 1 && !strncmp(path + strlen(path) - 5, ".data", 5)) {
       char lc_path[TSDB_FILENAME_LEN];
       tstrncpy(lc_path, path, TSDB_FQDN_LEN);
 
       int32_t     vid = 0;
       const char *object_name = taosDirEntryBaseName((char *)path);
-      (void)sscanf(object_name, "v%df%dver%" PRId64 ".data", &vid, &pFD->fid, &pFD->cid);
+      (void)sscanf(object_name, "v%df%dver%" PRId64, &vid, &pFD->fid, &pFD->cid);
 
       char *dot = strrchr(lc_path, '.');
       if (!dot) {
@@ -55,7 +55,7 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
       tsdbInfo("no file: %s", path);
       TSDB_CHECK_CODE(code = terrno, lino, _exit);
     }
-    pFD->s3File = 1;
+    pFD->ssFile = 1;
   }
 
   pFD->pBuf = taosMemoryCalloc(1, szPage);
@@ -65,7 +65,7 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
 
   if (lc_size > 0) {
     SVnodeCfg *pCfg = &pFD->pTsdb->pVnode->config;
-    int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
+    int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->ssChunkSize;
 
     pFD->szFile = lc_size + chunksize * (pFD->lcn - 1);
   }
@@ -147,9 +147,9 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD, int32_t encryptAlgorithm, char *e
 
   if (pFD->pgno > 0) {
     int64_t offset = PAGE_OFFSET(pFD->pgno, pFD->szPage);
-    if (pFD->s3File && pFD->lcn > 1) {
+    if (pFD->ssFile && pFD->lcn > 1) {
       SVnodeCfg *pCfg = &pFD->pTsdb->pVnode->config;
-      int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
+      int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->ssChunkSize;
       int64_t    chunkoffset = chunksize * (pFD->lcn - 1);
 
       offset -= chunkoffset;
@@ -214,7 +214,7 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, int32_t encryptAlgor
   int64_t offset = PAGE_OFFSET(pgno, pFD->szPage);
   if (pFD->lcn > 1) {
     SVnodeCfg *pCfg = &pFD->pTsdb->pVnode->config;
-    int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
+    int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->ssChunkSize;
     int64_t    chunkoffset = chunksize * (pFD->lcn - 1);
 
     offset -= chunkoffset;
@@ -348,67 +348,55 @@ _exit:
   }
   return code;
 }
-#ifdef USE_S3
-static int32_t tsdbReadFileBlock(STsdbFD *pFD, int64_t offset, int64_t size, bool check, uint8_t **ppBlock) {
-  int32_t    code = 0;
-  int32_t    lino;
-  SVnodeCfg *pCfg = &pFD->pTsdb->pVnode->config;
-  int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
-  int64_t    cOffset = offset % chunksize;
-  int64_t    n = 0;
-  char      *buf = NULL;
 
-  char   *object_name = taosDirEntryBaseName(pFD->path);
-  char    object_name_prefix[TSDB_FILENAME_LEN];
-  int32_t node_id = vnodeNodeId(pFD->pTsdb->pVnode);
-  snprintf(object_name_prefix, TSDB_FQDN_LEN, "%d/%s", node_id, object_name);
 
-  char *dot = strrchr(object_name_prefix, '.');
-  if (!dot) {
-    tsdbError("unexpected path: %s", object_name_prefix);
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(ENOENT), lino, _exit);
-  }
+#ifdef USE_SHARED_STORAGE
+static int32_t tsdbReadFileBlock(STsdbFD *pFD, int64_t offset, int64_t size, uint8_t **ppBlock) {
+  int32_t code = 0, lino, vid = TD_VID(pFD->pTsdb->pVnode);
 
-  buf = taosMemoryCalloc(1, size);
+  char* buf = taosMemoryCalloc(1, size);
   if (buf == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
-  for (int32_t chunkno = offset / chunksize + 1; n < size; ++chunkno) {
-    int64_t nRead = TMIN(chunksize - cOffset, size - n);
+  SVnodeCfg *pCfg = &pFD->pTsdb->pVnode->config;
+  int64_t szChunk = (int64_t)pCfg->tsdbPageSize * pCfg->ssChunkSize;
 
-    if (chunkno >= pFD->lcn) {
-      // read last chunk
-      int64_t ret = taosLSeekFile(pFD->pFD, chunksize * (chunkno - pFD->lcn) + cOffset, SEEK_SET);
-      if (ret < 0) {
+  for (int64_t n = 0, nRead = 0; n < size; n += nRead, offset += nRead) {
+    int chunk = offset / szChunk + 1;
+
+    if (chunk >= pFD->lcn) {
+      if (taosLSeekFile(pFD->pFD, offset - szChunk * (pFD->lcn - 1), SEEK_SET) < 0) {
         TSDB_CHECK_CODE(code = terrno, lino, _exit);
       }
 
-      ret = taosReadFile(pFD->pFD, buf + n, nRead);
-      if (ret < 0) {
+      int64_t toRead = size - n;
+      nRead = taosReadFile(pFD->pFD, buf + n, toRead);
+      if (nRead < 0) {
         TSDB_CHECK_CODE(code = terrno, lino, _exit);
-      } else if (ret < nRead) {
+      } else if (nRead < toRead) {
+        TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+      }
+    } else if (tsSsEnabled) {
+      int64_t toRead = TMIN(szChunk - offset % szChunk, size - n);
+      nRead = toRead;
+
+      char path[TSDB_FILENAME_LEN];
+      sprintf(path, "vnode%d/f%d/v%df%dver%" PRId64 ".%d.data", vid, pFD->fid, vid, pFD->fid, pFD->cid, chunk);
+
+      code = tssReadFileFromDefault(path, offset % szChunk, buf + n, &nRead);
+      TSDB_CHECK_CODE(code, lino, _exit);
+      if (nRead < toRead) {
         TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
       }
     } else {
-      uint8_t *pBlock = NULL;
-
-      snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - object_name_prefix), "%d.data", chunkno);
-
-      code = tcsGetObjectBlock(object_name_prefix, cOffset, nRead, check, &pBlock);
-      TSDB_CHECK_CODE(code, lino, _exit);
-
-      memcpy(buf + n, pBlock, nRead);
-      taosMemoryFree(pBlock);
+      TSDB_CHECK_CODE(code = TSDB_CODE_OPS_NOT_SUPPORT, lino, _exit);
     }
-
-    n += nRead;
-    cOffset = 0;
   }
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(pFD->pTsdb->pVnode), lino, code);
+    TSDB_ERROR_LOG(vid, lino, code);
     taosMemoryFree(buf);
   } else {
     *ppBlock = (uint8_t *)buf;
@@ -416,8 +404,11 @@ _exit:
   return code;
 }
 #endif
-static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, int64_t szHint) {
-#ifdef USE_S3
+
+
+
+static int32_t tsdbReadFileSs(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, int64_t szHint) {
+#ifdef USE_SHARED_STORAGE
   int32_t code = 0;
   int32_t lino;
   int64_t n = 0;
@@ -438,7 +429,7 @@ static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64
   while (n < size) {
     if (pFD->pgno != pgno) {
       LRUHandle *handle = NULL;
-      code = tsdbCacheGetPageS3(pFD->pTsdb->pgCache, pFD, pgno, &handle);
+      code = tsdbCacheGetPageSs(pFD->pTsdb->pgCache, pFD, pgno, &handle);
       if (code != TSDB_CODE_SUCCESS) {
         if (handle) {
           tsdbCacheRelease(pFD->pTsdb->pgCache, handle);
@@ -482,13 +473,13 @@ static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64
 
     int64_t retrieve_size = (pgnoEnd - pgno + 1) * pFD->szPage;
 
-    code = tsdbReadFileBlock(pFD, retrieve_offset, retrieve_size, 1, &pBlock);
+    code = tsdbReadFileBlock(pFD, retrieve_offset, retrieve_size, &pBlock);
     TSDB_CHECK_CODE(code, lino, _exit);
     // 3, Store Pages in Cache
     int nPage = pgnoEnd - pgno + 1;
     for (int i = 0; i < nPage; ++i) {
       if (pFD->szFile != pgno) {  // DONOT cache last volatile page
-        tsdbCacheSetPageS3(pFD->pTsdb->pgCache, pFD, pgno, pBlock + i * pFD->szPage);
+        tsdbCacheSetPageSs(pFD->pTsdb->pgCache, pFD, pgno, pBlock + i * pFD->szPage);
       }
 
       if (szHint > 0 && n >= size) {
@@ -535,8 +526,8 @@ int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, 
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  if (pFD->s3File && pFD->lcn > 1 /* && tsS3BlockSize < 0*/) {
-    code = tsdbReadFileS3(pFD, offset, pBuf, size, szHint);
+  if (pFD->ssFile && pFD->lcn > 1 /* && tsSsBlockSize < 0*/) {
+    code = tsdbReadFileSs(pFD, offset, pBuf, size, szHint);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
     code = tsdbReadFileImp(pFD, offset, pBuf, size, encryptAlgorithm, encryptKey);

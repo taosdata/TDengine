@@ -26,9 +26,8 @@
 #include "tlog.h"
 #include "tmsg.h"
 #include "trpc.h"
-#include "tstream.h"
 #include "ttimer.h"
-
+#include "tconfig.h"
 #include "mnode.h"
 
 #ifdef __cplusplus
@@ -80,7 +79,11 @@ typedef enum {
   MND_OPER_BALANCE_VGROUP_LEADER,
   MND_OPER_CREATE_ANODE,
   MND_OPER_UPDATE_ANODE,
-  MND_OPER_DROP_ANODE
+  MND_OPER_DROP_ANODE,
+  MND_OPER_CREATE_BNODE,
+  MND_OPER_DROP_BNODE,
+  MND_OPER_CREATE_MOUNT,
+  MND_OPER_DROP_MOUNT,
 } EOperType;
 
 typedef enum {
@@ -285,12 +288,30 @@ typedef struct {
   SQnodeLoad load;
 } SQnodeObj;
 
+
 typedef struct {
   int32_t    id;
+  int32_t    leadersId[2];
+  int32_t    replicaId;
   int64_t    createdTime;
   int64_t    updateTime;
   SDnodeObj* pDnode;
 } SSnodeObj;
+
+typedef struct {
+  SSnodeObj* target;
+  int32_t    affNum;
+  SSnodeObj  affSnode[2];
+  SSnodeObj  affNewReplica[2];
+} SSnodeDropTraversaCtx;
+
+typedef struct {
+  int32_t    id;
+  int32_t    proto;
+  int64_t    createdTime;
+  int64_t    updateTime;
+  SDnodeObj* pDnode;
+} SBnodeObj;
 
 typedef struct {
   int32_t dnodeId;
@@ -415,6 +436,7 @@ typedef struct {
   SHashObj* alterViews;
   SHashObj* useDbs;
   SRWLatch  lock;
+  int8_t    passEncryptAlgorithm;
 } SUserObj;
 
 typedef struct {
@@ -440,6 +462,13 @@ typedef struct {
   int8_t  hashMethod;  // default is 1
   int8_t  cacheLast;
   int8_t  schemaless;
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t isMount : 1;  // TS-5868
+      uint8_t padding : 7;
+    };
+  };
   int16_t hashPrefix;
   int16_t hashSuffix;
   int16_t sstTrigger;
@@ -450,9 +479,9 @@ typedef struct {
   int32_t walRollPeriod;
   int64_t walRetentionSize;
   int64_t walSegmentSize;
-  int32_t s3ChunkSize;
-  int32_t s3KeepLocal;
-  int8_t  s3Compact;
+  int32_t ssChunkSize;
+  int32_t ssKeepLocal;
+  int8_t  ssCompact;
   int8_t  withArbitrator;
   int8_t  encryptAlgorithm;
   int8_t  compactTimeOffset;  // hour
@@ -474,8 +503,38 @@ typedef struct {
   SRWLatch lock;
   int64_t  stateTs;
   int64_t  compactStartTime;
+  int64_t  ssMigrateStartTime; // TODO: add this field to mndDbActionEncode/Decode
   int32_t  tsmaVersion;
 } SDbObj;
+
+typedef struct {
+  int64_t uid;
+  char    name[TSDB_DB_FNAME_LEN];
+} SMountDbObj;
+
+typedef struct {
+  char         name[TSDB_MOUNT_NAME_LEN];
+  char         acct[TSDB_USER_LEN];
+  char         createUser[TSDB_USER_LEN];
+  int64_t      createdTime;
+  int64_t      updateTime;
+  int64_t      uid;
+  int16_t      nMounts;
+  int16_t      nDbs;
+  int32_t*     dnodeIds;
+  char**       paths;
+  SMountDbObj* dbObj;
+  SRWLatch     lock;
+} SMountObj;
+
+typedef struct {
+  int32_t  id;
+  int64_t  createdTime;
+  int64_t  updateTime;
+  int64_t  mountTimes;
+  int64_t  umountTimes;
+  SRWLatch lock;
+} SMountLogObj;
 
 typedef struct {
   int32_t    dnodeId;
@@ -517,7 +576,10 @@ typedef struct {
   void*     pTsma;
   int32_t   numOfCachedTables;
   int32_t   syncConfChangeVer;
+  int32_t   mountVgId;  // TS-5868
 } SVgObj;
+
+
 
 typedef struct {
   char           name[TSDB_TABLE_FNAME_LEN];
@@ -786,6 +848,20 @@ typedef struct {
   //  SMqSubActionLogEntry* pLogEntry;
 } SMqRebOutputObj;
 
+typedef struct {
+  char                name[TSDB_STREAM_FNAME_LEN];
+  SCMCreateStreamReq* pCreate;
+
+  SRWLatch lock;
+  
+  // dynamic info
+  int32_t mainSnodeId;
+  int8_t  userDropped;  // no need to serialize
+  int8_t  userStopped;
+  int64_t createTime;
+  int64_t updateTime;
+} SStreamObj;
+#if 0
 typedef struct SStreamConf {
   int8_t  igExpired;
   int8_t  trigger;
@@ -793,6 +869,31 @@ typedef struct SStreamConf {
   int64_t triggerParam;
   int64_t watermark;
 } SStreamConf;
+
+typedef struct {
+  int32_t   vgId;
+  int64_t   createdTime;
+  int64_t   updateTime;
+  int32_t   version;
+  uint32_t  hashBegin;
+  uint32_t  hashEnd;
+  char      dbName[TSDB_DB_FNAME_LEN];
+  int64_t   dbUid;
+  int64_t   cacheUsage;
+  int64_t   numOfTables;
+  int64_t   numOfTimeSeries;
+  int64_t   totalStorage;
+  int64_t   compStorage;
+  int64_t   pointsWritten;
+  int8_t    compact;
+  int8_t    isTsma;
+  int8_t    replica;
+  SVnodeGid vnodeGid[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
+  void*     pTsma;
+  int32_t   numOfCachedTables;
+  int32_t   syncConfChangeVer;
+} SVgObj;
+
 
 typedef struct {
   char     name[TSDB_STREAM_FNAME_LEN];
@@ -848,6 +949,7 @@ typedef struct {
   SSHashObj*  pVTableMap;  // do not serialize
   SQueryPlan* pPlan;       // do not serialize
 } SStreamObj;
+#endif
 
 typedef struct SStreamSeq {
   char     name[24];
@@ -905,6 +1007,21 @@ typedef struct {
   int64_t startTime;
   SArray* compactDetail;
 } SCompactObj;
+
+
+typedef struct {
+  int32_t vgId;
+  int32_t nodeId; // dnode id of the leader vnode
+  bool done;
+} SVgroupSsMigrateDetail;
+
+typedef struct {
+  int32_t id;
+  int64_t dbUid;
+  char    dbname[TSDB_TABLE_FNAME_LEN];
+  int64_t startTime; // migration start time in seconds
+  SArray* vgroups;   // SArray<SVgroupSsMigrateDetail>
+} SSsMigrateObj;
 
 // SGrantLogObj
 typedef enum {

@@ -27,10 +27,11 @@ extern "C" {
 #define TSDB_INS_TABLE_MNODES            "ins_mnodes"
 #define TSDB_INS_TABLE_MODULES           "ins_modules"
 #define TSDB_INS_TABLE_QNODES            "ins_qnodes"
-#define TSDB_INS_TABLE_BNODES            "ins_bnodes"  // no longer used
+#define TSDB_INS_TABLE_BACKUP_NODES      "ins_backup_nodes"  // no longer used
 #define TSDB_INS_TABLE_SNODES            "ins_snodes"
 #define TSDB_INS_TABLE_ANODES            "ins_anodes"
 #define TSDB_INS_TABLE_ANODES_FULL       "ins_anodes_full"
+#define TSDB_INS_TABLE_BNODES            "ins_bnodes"
 #define TSDB_INS_TABLE_ARBGROUPS         "ins_arbgroups"
 #define TSDB_INS_TABLE_CLUSTER           "ins_cluster"
 #define TSDB_INS_TABLE_DATABASES         "ins_databases"
@@ -40,6 +41,7 @@ extern "C" {
 #define TSDB_INS_TABLE_TABLES            "ins_tables"
 #define TSDB_INS_TABLE_TAGS              "ins_tags"
 #define TSDB_INS_TABLE_COLS              "ins_columns"
+#define TSDB_INS_TABLE_VC_COLS           "ins_virtual_child_columns"
 #define TSDB_INS_TABLE_TABLE_DISTRIBUTED "ins_table_distributed"
 #define TSDB_INS_TABLE_USERS             "ins_users"
 #define TSDB_INS_TABLE_USERS_FULL        "ins_users_full"
@@ -52,6 +54,7 @@ extern "C" {
 #define TSDB_INS_TABLE_TOPICS            "ins_topics"
 #define TSDB_INS_TABLE_STREAMS           "ins_streams"
 #define TSDB_INS_TABLE_STREAM_TASKS      "ins_stream_tasks"
+#define TSDB_INS_TABLE_STREAM_RECALCULATES "ins_stream_recalculates"
 #define TSDB_INS_TABLE_USER_PRIVILEGES   "ins_user_privileges"
 #define TSDB_INS_TABLE_VIEWS             "ins_views"
 #define TSDB_INS_TABLE_COMPACTS          "ins_compacts"
@@ -64,6 +67,7 @@ extern "C" {
 #define TSDB_INS_DISK_USAGE              "ins_disk_usage"
 #define TSDB_INS_TABLE_FILESETS          "ins_filesets"
 #define TSDB_INS_TABLE_TRANSACTION_DETAILS   "ins_transaction_details"
+#define TSDB_INS_TABLE_MOUNTS            "ins_mounts"
 
 #define TSDB_PERFORMANCE_SCHEMA_DB   "performance_schema"
 #define TSDB_PERFS_TABLE_SMAS        "perf_smas"
@@ -73,6 +77,7 @@ extern "C" {
 #define TSDB_PERFS_TABLE_OFFSETS     "perf_offsets"
 #define TSDB_PERFS_TABLE_TRANS       "perf_trans"
 #define TSDB_PERFS_TABLE_APPS        "perf_apps"
+#define TSDB_PERFS_TABLE_WRITE_METRICS "perf_write_metrics"
 
 #define TSDB_AUDIT_DB                "audit"
 #define TSDB_AUDIT_STB_OPERATION     "operations"
