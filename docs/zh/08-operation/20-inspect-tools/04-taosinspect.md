@@ -218,25 +218,25 @@ Fail to get table info
 
 在工具所在节点执行巡检任务
 
-```
+```config
 ./taosinspect -m local
 ```
 
 在集群所有节点执行巡检任务
 
-```
+```config
 ./taosinspect -m ssh
 ```
 
 指定配置文件并在集群所有节点执行巡检任务
 
-```
+```config
 ./taosinspect -m ssh -f /path_to_file/inspect.cfg
 ```
 
 在集群所有节点执行巡检任务，包括检查 nginx 服务配置文件
 
-```
+```config
 ./taosinspect -m ssh -f /path_to_file/inspect.cfg -cn true
 ```
 
