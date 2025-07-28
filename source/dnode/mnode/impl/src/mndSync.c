@@ -378,7 +378,7 @@ int32_t mndSnapshotDoWrite(const SSyncFSM *pFsm, void *pWriter, void *pBuf, int3
 static void mndBecomeFollower(const SSyncFSM *pFsm) {
   SMnode    *pMnode = pFsm->data;
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
-  mInfo("vgId:1, become follower");
+  mInfo("vgId:1, becomefollower callback");
 
   (void)taosThreadMutexLock(&pMgmt->lock);
   if (pMgmt->transId != 0) {
@@ -416,7 +416,7 @@ static void mndBecomeLearner(const SSyncFSM *pFsm) {
 }
 
 static void mndBecomeLeader(const SSyncFSM *pFsm) {
-  mInfo("vgId:1, become leader");
+  mInfo("vgId:1, becomeleader callback");
   SMnode *pMnode = pFsm->data;
 
   mndUpdateStreamExecInfoRole(pMnode, NODE_ROLE_LEADER);
