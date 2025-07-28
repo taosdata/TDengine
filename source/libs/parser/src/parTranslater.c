@@ -19630,6 +19630,8 @@ static int32_t checkCreateVirtualTable(STranslateContext* pCxt, SCreateVTableStm
 
   PAR_ERR_RET(checkColumnType(pStmt->pCols, 1));
 
+  PAR_ERR_RET(checkColumnType(pStmt->pCols, 1));
+
   if (pCxt->pParseCxt->biMode != 0) {
     PAR_ERR_RET(biCheckCreateTableTbnameCol(pCxt, NULL, pStmt->pCols));
   }
