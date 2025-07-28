@@ -18,8 +18,10 @@
 
 #include <stdio.h>
 #include <string.h>
+#include "parInsertUtil.h"
 #include "parInt.h"
 #include "parToken.h"
+#include "tname.h"
 
 bool qIsInsertValuesSql(const char* pStr, size_t length) {
   if (NULL == pStr) {
@@ -50,7 +52,8 @@ bool qIsInsertValuesSql(const char* pStr, size_t length) {
   return false;
 }
 
-bool qIsUpdateSetSql(const char* pStr, size_t length) {
+bool qIsUpdateSetSql(const char* pStr, size_t length, SName* pTableName, int32_t acctId, const char* dbName,
+                     char* msgBuf, int32_t msgBufLen) {
   if (NULL == pStr) {
     return false;
   }
@@ -61,6 +64,22 @@ bool qIsUpdateSetSql(const char* pStr, size_t length) {
   SToken  t = tStrGetToken((char*)pStr, &index, false, NULL);
   if (TK_UPDATE != t.type) {
     return false;
+  }
+
+  pStr += index;
+  index = 0;
+  t = tStrGetToken((char*)pStr, &index, false, NULL);
+  if (t.n == 0 || t.z == NULL) {
+    return false;
+  }
+
+  if (pTableName != NULL) {
+    SMsgBuf pMsgBuf = {.len = msgBufLen, .buf = msgBuf};
+    int32_t code = insCreateSName(pTableName, &t, acctId, dbName, &pMsgBuf);
+    if (code != TSDB_CODE_SUCCESS) {
+      parserError("stmt update sql tbname error: %s", pMsgBuf.buf);
+      return TSDB_CODE_TSC_STMT_TBNAME_ERROR;
+    }
   }
 
   do {
@@ -77,7 +96,7 @@ bool qIsUpdateSetSql(const char* pStr, size_t length) {
   return false;
 }
 
-int32_t convertUpdateToInsert(const char* pSql, char** pNewSql) {
+int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTableMeta) {
   if (NULL == pSql || NULL == pNewSql) {
     return TSDB_CODE_INVALID_PARA;
   }

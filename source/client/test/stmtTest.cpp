@@ -620,40 +620,53 @@ TEST(stmtCase, update) {
   do_query(taos, "DROP DATABASE IF EXISTS stmt_testdb_6");
   do_query(taos, "CREATE DATABASE IF NOT EXISTS stmt_testdb_6");
   do_query(taos, "USE stmt_testdb_6");
-  do_query(taos, "create table stmt_testdb_6.t1(ts timestamp,c1 int,c2 binary(10));");
-  do_query(taos, "insert into stmt_testdb_6.t1 values(1591060628000,1,'abc');");
+  do_query(taos,
+           "create table stmt_testdb_6.devices(ts timestamp,device_id int,status binary(10),temperature float,humidity "
+           "float);");
+  do_query(taos, "insert into stmt_testdb_6.devices values(1591060628000,1,'abc',1.0,1.1);");
 
   TAOS_STMT *stmt = taos_stmt_init(taos);
   ASSERT_NE(stmt, nullptr);
-  char *sql = "update stmt_testdb_6.t1 set c1 = ?,c2 = ? where ts = ?";
+  char *sql =
+      "update stmt_testdb_6.devices set temperature = ?,humidity = ?,device_id=? where ts=? and device_id=? and status "
+      "IS NOT NULL";
   int   code = taos_stmt_prepare(stmt, sql, 0);
   checkError(stmt, code);
 
-  int32_t c1 = 10;
-  char   *c2 = "def";
+  float   temperature = 10.0;
+  float   humidity = 10.1;
   int64_t ts = 1591060628000;
+  int32_t device_id = 1;
 
-  int32_t         c1_len = sizeof(c1);
-  int32_t         c2_len = 3;
-  int32_t         ts_len = sizeof(int64_t);
-  TAOS_MULTI_BIND params[3];
-  params[0].buffer_type = TSDB_DATA_TYPE_INT;
-  params[0].buffer = &c1;
+  int32_t c1_len = sizeof(float);
+  int32_t c2_len = sizeof(float);
+  int32_t c3_len = sizeof(int64_t);
+  int32_t c4_len = sizeof(int32_t);
+
+  TAOS_MULTI_BIND params[4];
+  params[0].buffer_type = TSDB_DATA_TYPE_FLOAT;
+  params[0].buffer = &temperature;
   params[0].length = &c1_len;
   params[0].is_null = NULL;
-  params[0].num = 1;
+  params[1].num = 1;
 
-  params[1].buffer_type = TSDB_DATA_TYPE_BINARY;
-  params[1].buffer = c2;
+  params[1].buffer_type = TSDB_DATA_TYPE_FLOAT;
+  params[1].buffer = &humidity;
   params[1].length = &c2_len;
   params[1].is_null = NULL;
   params[1].num = 1;
 
-  params[2].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-  params[2].buffer = &ts;
-  params[2].length = &ts_len;
+  params[2].buffer_type = TSDB_DATA_TYPE_INT;
+  params[2].buffer = &device_id;
+  params[2].length = &c4_len;
   params[2].is_null = NULL;
   params[2].num = 1;
+
+  params[3].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+  params[3].buffer = &ts;
+  params[3].length = &c3_len;
+  params[3].is_null = NULL;
+  params[3].num = 1;
 
   code = taos_stmt_bind_param_batch(stmt, params);
   checkError(stmt, code);
