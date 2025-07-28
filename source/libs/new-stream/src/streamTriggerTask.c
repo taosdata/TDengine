@@ -369,6 +369,10 @@ static int32_t stTriggerTaskGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *bu
   int32_t                   iter = 0;
   int32_t                   ver = atomic_add_fetch_32(&pTask->checkpointVersion, 1);
 
+  if (tSimpleHashGetSize(pTask->pRealtimeStartVer) == 0) {
+    goto _end;
+  }
+
   tEncoderInit(&encoder, buf, *pLen);
   code = tStartEncode(&encoder);
   QUERY_CHECK_CODE(code, lino, _end);
