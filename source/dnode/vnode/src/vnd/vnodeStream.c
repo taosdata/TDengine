@@ -1356,6 +1356,7 @@ static int32_t vnodeProcessStreamTsdbTsDataReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   SStreamReaderTaskInner* pTaskInner = NULL;
   void*                   buf = NULL;
   size_t                  size = 0;
+  SSDataBlock*            pBlockRes = NULL;
 
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
   void* pTask = sStreamReaderInfo->pTask;
@@ -1367,8 +1368,8 @@ static int32_t vnodeProcessStreamTsdbTsDataReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   SStorageAPI api = {0};
   initStorageAPI(&api);
   STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTaskInner, sStreamReaderInfo->triggerResBlock, NULL, &api));
-
   STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->triggerResBlock, false, &pTaskInner->pResBlockDst));
+  STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->tsBlock, false, &pBlockRes));
 
   // STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->tsBlock, false, pBlock));
 
@@ -1392,18 +1393,19 @@ static int32_t vnodeProcessStreamTsdbTsDataReq(SVnode* pVnode, SRpcMsg* pMsg, SS
             TD_VID(pVnode), __func__, pTaskInner->pResBlock->info.window.skey, pTaskInner->pResBlock->info.window.ekey,
             pTaskInner->pResBlock->info.id.uid, pTaskInner->pResBlock->info.id.groupId, pTaskInner->pResBlock->info.rows);
   }
-  // blockDataTransform(*pBlock, pTaskInner->pResBlockDst);
-  // SSDataBlock* pBlock = NULL;
-  // blockDataDestroy(pBlock);
+
+  blockDataTransform(pBlockRes, pTaskInner->pResBlockDst);
 
   ST_TASK_DLOG("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pTaskInner->pResBlockDst->info.rows);
-  STREAM_CHECK_RET_GOTO(buildRsp(pTaskInner->pResBlockDst, &buf, &size));
+  STREAM_CHECK_RET_GOTO(buildRsp(pBlockRes, &buf, &size));
 
 end:
   STREAM_PRINT_LOG_END_WITHID(code, lino);
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
+  blockDataDestroy(pBlockRes);
+
   releaseStreamTask(&pTaskInner);
   return code;
 }
