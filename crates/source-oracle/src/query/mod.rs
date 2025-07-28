@@ -43,9 +43,25 @@ impl OracleQuery {
         let addr = format!("//{}:{}/{}", host, port, subject);
         let mut pool_builder = PoolBuilder::new(username, password, addr);
         // connection pool settings
-        pool_builder.min_connections(5);
-        pool_builder.max_connections(20);
-        pool_builder.timeout(Duration::from_secs(20))?;
+        let min = std::env::var("TAOSX_ORACLE_MIN_CONNECTIONS")
+            .map_or(5, |s| s.parse::<u32>().unwrap_or(5));
+        pool_builder.min_connections(min);
+
+        let max = std::env::var("TAOSX_ORACLE_MAX_CONNECTIONS")
+            .map_or(20, |s| s.parse::<u32>().unwrap_or(20));
+        pool_builder.max_connections(max);
+
+        let timeout =
+            std::env::var("TAOSX_ORACLE_TIMEOUT").map_or(20, |s| s.parse::<u64>().unwrap_or(20));
+        pool_builder.timeout(Duration::from_secs(timeout))?;
+
+        tracing::info!(
+            "create oracle pool, min: {}, max: {}, timeout: {}",
+            min,
+            max,
+            timeout
+        );
+
         // TODO timezone
         Ok(pool_builder.build()?)
     }
