@@ -508,7 +508,7 @@ static int32_t hJoinCopyResRowsToBlock(SHJoinOperatorInfo* pJoin, int32_t rowNum
           }
           pKeyData += pBuild->valCols[buildIdx].vardata ? varDataTLen(pKeyData) : pBuild->valCols[buildIdx].bytes;
         } else {
-          if (colDataIsNull_f(pData, buildValIdx)) {
+          if (BMIsNull(pData, buildValIdx)) {
             code = colDataSetVal(pDst, pRes->info.rows + r, NULL, true);
             if (code) {
               return code;
@@ -718,7 +718,7 @@ static FORCE_INLINE void hJoinCopyValColsDataToBuf(SHJoinTableCtx* pTable, int32
         bufLen += varDataTLen(pData);
       }
     } else {
-      if (colDataIsNull_f(pTable->valCols[i].bitMap, rowIdx)) {
+      if (BMIsNull(pTable->valCols[i].bitMap, rowIdx)) {
         colDataSetNull_f(pTable->valData, m);
       } else {
         pData = pTable->valCols[i].data + pTable->valCols[i].bytes * rowIdx;
