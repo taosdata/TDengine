@@ -9,6 +9,7 @@ use rumqttc::v5::{
     },
     AsyncClient, Event, EventLoop, Incoming, MqttOptions,
 };
+use shadow_rs::{concatcp, shadow};
 use taosx_tools::{
     fake_spb::{message_type::MessageType, topic::TopicComponents, NodeDeviceFaker, Schema},
     generate_random_string, select3,
@@ -18,7 +19,21 @@ use taosx_tools::{
 use tokio::{sync::Notify, task::JoinSet, time::sleep};
 use tokio_util::sync::CancellationToken;
 
+shadow!(build);
+
+const VERSION: &str = concatcp!(
+    "version: ",
+    build::PKG_VERSION,
+    "\ngit: ",
+    build::COMMIT_HASH,
+    "\nbuild: ",
+    build::BUILD_OS,
+    " ",
+    build::BUILD_TIME
+);
+
 #[derive(Debug, clap::Parser)]
+#[clap(version = VERSION, name = "spb_pub")]
 struct Args {
     #[arg(long)]
     schema: PathBuf,
