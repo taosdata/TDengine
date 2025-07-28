@@ -1,7 +1,5 @@
 import os
-import pytest
 from new_test_framework.utils import tdLog, tdSql, clusterComCheck, tdStream, StreamItem, sc
-
 
 class TestStreamCheckpoint:
 
@@ -30,28 +28,6 @@ class TestStreamCheckpoint:
 
         # self.case_1()
         self.case_2()
-
-
-    def case_2(self):
-        self.num_snode = 2
-        self.num_vgroups = 4
-        self.streams = []
-        self.stream_id = 1
-
-        self.create_env()
-        self.prepare_source_table()
-
-        self.create_streams()
-        tdStream.checkStreamStatus()
-
-        self.do_write_data()
-        self.check_results()
-
-        while True:
-            if clusterComCheck.checkDnodes(2):
-                break
-
-        # wait for 10min to check if the checkpoint transfer to second snode
 
 
     def create_env(self):
@@ -95,6 +71,18 @@ class TestStreamCheckpoint:
         ]
         tdSql.executes(sqls)
 
+    def do_write_history_data(self):
+        tdLog.info("start to write history data in table")
+        start_ts = 1750000000000
+
+        for i in range(0, 50000, 10):
+            sql = (f"insert into c1 values({start_ts}, {i}, '{i+33}', {i*3}) ({start_ts+i+1}, {i+1}, '{i+1+33}', {(i+1)*3})"
+                    f"({start_ts+i+2}, {i+2}, '{i+2+33}', {(i+2)*3})({start_ts+i+3}, {i+3}, '{i+3+33}', {(i+3)*3})"
+                    f"({start_ts+i+4}, {i+4}, '{i+4+33}', {(i+4)*3})({start_ts+i+5}, {i+5}, '{i+5+33}', {(i+5)*3})"
+                    f"({start_ts+i+6}, {i+6}, '{i+6+33}', {(i+6)*3})({start_ts+i+7}, {i+7}, '{i+7+33}', {(i+7)*3})"
+                    f"({start_ts+i+8}, {i+8}, '{i+8+33}', {(i+9)*3})({start_ts+i+9}, {i+9}, '{i+9+33}', {(i+9)*3})")
+            tdSql.execute(sql)
+
     def wait_for_stream_completed(self) -> None:
         tdLog.info(f"wait total:{len(self.streams)} streams run finish")
         tdStream.checkStreamStatus()
@@ -109,7 +97,7 @@ class TestStreamCheckpoint:
 
         stream = StreamItem(
             id=1,
-            stream="create stream s5 interval(10s) sliding(10s) from source_table partition by tbname into r5 as "
+            stream="create stream s5 interval(10s) sliding(10s) from source_table stream_options(fill_history) partition by tbname into r5 as "
                    "select _twstart ts, _twend te, _twduration td, _twrownum tw, %%tbname as tb, count(c1) c1, avg(c2) c2, now() "
                    "from %%tbname "
                    "where ts >= _twstart and ts < _twend",
@@ -177,4 +165,48 @@ class TestStreamCheckpoint:
         sc.dnodeStopAll()
         sc.dnodeStartAll()
 
-        self.query_after_restart()
+        self.query_after_restart()\
+
+
+    def case_2(self):
+        """multiple snodes in a cluster"""
+
+        self.num_snode = 2
+        self.num_vgroups = 4
+        self.streams = []
+        self.stream_id = 1
+
+        self.create_env()
+        self.prepare_source_table()
+
+        self.create_streams()
+        tdStream.checkStreamStatus()
+
+        self.do_write_data()
+        self.check_results()
+
+        while True:
+            if clusterComCheck.checkDnodes(2):
+                break
+
+        # wait for 10min to check if the checkpoint transfer to second snode
+
+
+    def case_3(self):
+        """ use the checkpoint for start query process """
+
+        self.num_snode = 2
+        self.num_vgroups = 4
+        self.streams = []
+        self.stream_id = 1
+
+        self.create_env()
+        self.prepare_source_table()
+
+        self.do_write_history_data()
+
+        self.create_streams()
+        tdStream.checkStreamStatus()
+
+        self.do_write_data()
+        self.check_results()
