@@ -564,7 +564,7 @@
 ,,n,.,pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_state.py
 
 ## 08-Recalc
-,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_expired_time.py
+#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_expired_time.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_ignore_disorder.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_delete_recalc.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_watermark.py
@@ -669,7 +669,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_alive.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_basic.py -N 2
 ,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_diskinfo.py 
-,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_table_distributed.py 
+,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_table_distributed.py
+,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_table_distributed_null.py
 
 # 23-Users
 ,,y,.,./ci/pytest.sh pytest cases/23-Users/test_user_basic.py

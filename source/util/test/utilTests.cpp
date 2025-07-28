@@ -514,8 +514,22 @@ void dataBlockNullTest(const F& setValFunc) {
   colDataSetNULL(&columnInfoData, 0);
   colDataSetNNULL(&columnInfoData, 3, totalRows - 3);
   checkNull(0, true);
-  checkNull(1, false);
-  checkNull(2, false);
+
+  // Ethan liu changed the expected value of a varchar type from false to true due to the change of colDataIsNull_s
+  // function, which now returns true if the pData is null of the SColumnInfoData.
+
+  // Same to the fix of TS-6908, when columnInfoData created, the pData default value is null.
+  // When offset of varmeta created, the offset default value is 0. Without any data set to the columnInfoData, we should consider it null
+  // so that the colDataIsNull_s function should return true.
+
+  if( IS_VAR_DATA_TYPE(type)) {
+    checkNull(1, true);
+    checkNull(2, true);
+  } else {
+    checkNull(1, false);
+    checkNull(2, false);
+  }
+
   checkNull(totalRows - 2, true);
   checkNull(totalRows - 1, true);
 
