@@ -876,7 +876,7 @@ static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecut
     return code;
   }
 
-  code = qSetTaskId(pExec->pExecutor, taskId, streamId);
+  code = qSetTaskId(pExec->pExecutor, taskId, streamId, pExec->runtimeInfo.execId);
   if (code) {
     return code;
   }

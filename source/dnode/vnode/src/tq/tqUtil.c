@@ -154,7 +154,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
   code = tqInitDataRsp(&dataRsp, *pOffset);
   TSDB_CHECK_CODE(code, lino, end);
 
-  code = qSetTaskId(pHandle->execHandle.task, consumerId, pRequest->reqId);
+  code = qSetTaskId(pHandle->execHandle.task, consumerId, pRequest->reqId, 0);
   TSDB_CHECK_CODE(code, lino, end);
 
   code = tqScanData(pTq, pHandle, &dataRsp, pOffset, pRequest);
