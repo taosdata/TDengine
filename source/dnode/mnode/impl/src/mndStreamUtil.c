@@ -72,10 +72,12 @@ void mstDestroySStmTaskToDeployExt(void* param) {
   switch (pExt->deploy.task.type) {
     case STREAM_TRIGGER_TASK:
       taosArrayDestroy(pExt->deploy.msg.trigger.readerList);
+      pExt->deploy.msg.trigger.readerList = NULL;
       taosArrayDestroy(pExt->deploy.msg.trigger.runnerList);
+      pExt->deploy.msg.trigger.runnerList = NULL;
       break;
     case STREAM_RUNNER_TASK:
-      taosMemoryFree(pExt->deploy.msg.runner.pPlan);
+      taosMemoryFreeClear(pExt->deploy.msg.runner.pPlan);
       break;
     default:  
       break;;
