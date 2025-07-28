@@ -12,20 +12,9 @@
 # -*- coding: utf-8 -*-
 
 import asyncio
-import signal
 import websockets
 import argparse
 
-
-
-# async def handle_connection(websocket, path):
-#     async for message in websocket:
-#         print(f"收到消息: {message}")
-#         await websocket.send(f"服务端回复: {message}")
-#
-# start_server = websockets.serve(handle_connection, "localhost", 8765)
-# asyncio.get_event_loop().run_until_complete(start_server)
-# asyncio.get_event_loop().run_forever()
 
 stop_event = asyncio.Event()
 
@@ -53,12 +42,8 @@ async def listen(port, log_file):
         print(f"WebSocket server starts to listen 0.0.0.0:{port}...")
         await asyncio.Future()
 
-# def signal_handler(sig, frame):
-#     stop_event.set()
 
 if __name__ == '__main__':
-    # signal.signal(signal.SIGINT, signal_handler)
-
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--log_file', type=str, default='stream_notify_server.log', help='log file')
     parser.add_argument('-p', '--port', type=int, default=12345, help='port number')
