@@ -1783,6 +1783,15 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
         while (px != NULL) {
           SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
           STimeWindow             range = {.skey = pReq->start, .ekey = pReq->end - 1};
+          if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
+            STimeWindow lastWindow = {0};
+            if (pTask->interval.interval > 0) {
+              lastWindow = stTriggerTaskGetIntervalWindow(pTask, range.ekey);
+            } else {
+              lastWindow = stTriggerTaskGetPeriodWindow(pTask, range.ekey);
+            }
+            range.ekey = lastWindow.ekey;
+          }
           range.ekey = TMIN(range.ekey, pGroup->oldThreshold);
           code = stTriggerTaskAddRecalcRequest(pTask, pGroup->gid, range, pContext->pReaderWalProgress, true);
           QUERY_CHECK_CODE(code, lino, _end);
