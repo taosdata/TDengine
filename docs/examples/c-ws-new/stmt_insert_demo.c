@@ -125,7 +125,10 @@ void insertData(TAOS *taos) {
       code = gettimeofday(&tv, NULL);
       if (code != 0) {
         fprintf(stderr, "Failed to get system time, code: %d\n", code);
-        taos_stmt_close(stmt);
+        code = taos_stmt_close(stmt);
+        if (code != 0) {
+          fprintf(stderr, "Failed to close statement, code: %d\n", code);
+        }
         exit(EXIT_FAILURE);
       }
 
