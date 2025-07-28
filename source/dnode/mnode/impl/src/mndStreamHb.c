@@ -34,8 +34,11 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   char*        msg = POINTER_SHIFT(pReq->pCont, sizeof(SStreamMsgGrpHeader));
   int32_t      len = pReq->contLen - sizeof(SStreamMsgGrpHeader);
   int64_t      currTs = taosGetTimestampMs();
+  SRpcMsg      rspMsg = {0};
 
   mstDebug("start to process stream hb req msg");
+
+  rsp.streamGId = req.streamGId;
 
   if ((code = grantCheckExpire(TSDB_GRANT_STREAMS)) < 0) {
     TAOS_CHECK_EXIT(msmHandleGrantExpired(pMnode, code));
@@ -54,10 +57,6 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   mstDebug("start to process grp %d stream-hb from dnode:%d, snodeId:%d, vgLeaders:%d, streamStatus:%d", 
       req.streamGId, req.dnodeId, req.snodeId, (int32_t)taosArrayGetSize(req.pVgLeaders), (int32_t)taosArrayGetSize(req.pStreamStatus));
 
-  rsp.streamGId = req.streamGId;
-
-  SRpcMsg rspMsg = {0};
-  
   (void)msmHandleStreamHbMsg(pMnode, currTs, &req, pReq, &rspMsg);
 
 _exit:

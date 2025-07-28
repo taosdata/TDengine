@@ -40,10 +40,10 @@ static int32_t bseRawFileWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBse
 
   SSeqRange *range = &pMeta->range;
   if (pMeta->fileType == BSE_TABLE_SNAP) {
-    bseBuildDataName(pMeta->keepDays, name);
+    bseBuildDataName(pMeta->timestamp, name);
     bseBuildFullName(pBse, name, path);
   } else if (pMeta->fileType == BSE_TABLE_META_TYPE) {
-    bseBuildMetaName(pMeta->keepDays, name);
+    bseBuildMetaName(pMeta->timestamp, name);
     bseBuildFullName(pBse, name, path);
   } else if (pMeta->fileType == BSE_CURRENT_SNAP) {
     bseBuildCurrentName(pBse, path);
@@ -65,7 +65,7 @@ static int32_t bseRawFileWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBse
 _error:
   if (code) {
     if (p != NULL) {
-      bseError("vgId:%d failed to open table pWriter at line %d since %s", BSE_GET_VGID((SBse *)pBse), lino,
+      bseError("vgId:%d failed to open table pWriter at line %d since %s", BSE_VGID((SBse *)pBse), lino,
                tstrerror(code));
       bseRawFileWriterClose(p, 0);
     }
@@ -89,9 +89,8 @@ static void bseRawFileWriterClose(SBseRawFileWriter *p, int8_t rollback) {
   if (p == NULL) return;
 
   int32_t code = 0;
-  taosCloseFile(&p->pFile);
-  if (rollback) {
-    bseError("vgId:%d failed to close table pWriter since %s", BSE_GET_VGID((SBse *)p->pBse), tstrerror(code));
+  if (taosCloseFile(&p->pFile) != 0) {
+    bseError("vgId:%d failed to close table pWriter since %s", BSE_VGID((SBse *)p->pBse), tstrerror(terrno));
   }
   taosMemoryFree(p);
 
@@ -118,7 +117,7 @@ static int32_t bseSnapMayOpenNewFile(SBseSnapWriter *pWriter, SBseSnapMeta *pMet
 
       if (taosArrayPush(pWriter->pFileSet, &info) == NULL) {
         code = terrno;
-        bseError("vgId:%d failed to push file info since %s", BSE_GET_VGID((SBse *)pBse), tstrerror(code));
+        bseError("vgId:%d failed to push file info since %s", BSE_VGID((SBse *)pBse), tstrerror(code));
         return code;
       }
       bseRawFileWriterClose(pOld, 0);
@@ -128,7 +127,7 @@ static int32_t bseSnapMayOpenNewFile(SBseSnapWriter *pWriter, SBseSnapMeta *pMet
     SBseRawFileWriter *pNew = NULL;
     code = bseRawFileWriterOpen(pBse, 0, 0, pMeta, &pNew);
     if (code) {
-      bseError("vgId:%d failed to open table pWriter since %s", BSE_GET_VGID((SBse *)pBse), tstrerror(code));
+      bseError("vgId:%d failed to open table pWriter since %s", BSE_VGID((SBse *)pBse), tstrerror(code));
       return code;
     }
     pWriter->pWriter = pNew;
@@ -155,7 +154,7 @@ int32_t bseSnapWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapWriter
 _error:
   if (code) {
     if (p != NULL) {
-      bseError("vgId:%d failed to open table pWriter at line %d since %s", BSE_GET_VGID((SBse *)pBse), lino,
+      bseError("vgId:%d failed to open table pWriter at line %d since %s", BSE_VGID((SBse *)pBse), lino,
                tstrerror(code));
       bseSnapWriterClose(&p, 0);
     }
@@ -184,26 +183,24 @@ int32_t bseSnapWriterWrite(SBseSnapWriter *p, uint8_t *data, int32_t len) {
 _error:
   if (code) {
     if (p->pWriter != NULL) {
-      bseError("vgId:%d failed to write snapshot data since %s", BSE_GET_VGID((SBse *)p->pBse), tstrerror(code));
+      bseError("vgId:%d failed to write snapshot data since %s", BSE_VGID((SBse *)p->pBse), tstrerror(code));
       bseRawFileWriterClose(p->pWriter, 0);
     }
     return code;
   }
   return code;
 }
-int32_t bseSnapWriterClose(SBseSnapWriter **pp, int8_t rollback) {
+void bseSnapWriterClose(SBseSnapWriter **pp, int8_t rollback) {
   int32_t code = 0;
 
   SBseSnapWriter *p = *pp;
   if (p == NULL) {
-    return code;
+    return;
   }
 
   taosArrayDestroy(p->pFileSet);
   bseRawFileWriterClose(p->pWriter, 0);
   taosMemoryFree(p);
-
-  return code;
 }
 
 int32_t bseSnapReaderOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapReader **ppReader) {
@@ -223,7 +220,7 @@ int32_t bseSnapReaderOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapReader
 _error:
   if (code) {
     if (p != NULL) {
-      bseError("vgId:%d failed to open table pReader at line %d since %s", BSE_GET_VGID((SBse *)pBse), lino,
+      bseError("vgId:%d failed to open table pReader at line %d since %s", BSE_VGID((SBse *)pBse), lino,
                tstrerror(code));
       bseSnapReaderClose(&p);
     }
@@ -232,7 +229,7 @@ _error:
   return code;
 }
 
-int32_t bseSnapReaderRead(SBseSnapReader *p, uint8_t **data) {
+static int32_t bseSnapReaderReadImpl(SBseSnapReader *p, uint8_t **data, int32_t *len) {
   int32_t code = 0;
   int32_t line = 0;
   int32_t size = 0;
@@ -249,8 +246,9 @@ int32_t bseSnapReaderRead(SBseSnapReader *p, uint8_t **data) {
   TSDB_CHECK_CODE(code, line, _error);
 
   if (bufLen == 0) {
-    return 0; 
-  } 
+    *data = NULL;
+    return 0;
+  }
 
   *data = taosMemoryCalloc(1, sizeof(SSnapDataHdr) + bufLen);
   if (*data == NULL) {
@@ -263,63 +261,34 @@ int32_t bseSnapReaderRead(SBseSnapReader *p, uint8_t **data) {
   uint8_t *tdata = pHdr->data;
   memcpy(tdata, pBuf, bufLen);
 
+  if (len != NULL) {
+    *len = sizeof(SSnapDataHdr) + bufLen;
+  }
+
 _error:
   if (code) {
     if (*data != NULL) {
       taosMemoryFree(*data);
       *data = NULL;
     }
-    bseError("vgId:%d failed to read snapshot data at line %d since %s", BSE_GET_VGID((SBse *)p->pBse), line,
+    bseError("vgId:%d failed to read snapshot data at line %d since %s", BSE_VGID((SBse *)p->pBse), line,
              tstrerror(code));
   }
   return code;
+}
+int32_t bseSnapReaderRead(SBseSnapReader *p, uint8_t **data) {
+  int32_t len = 0;
+  return bseSnapReaderReadImpl(p, data, NULL);
 }
 // test func
 int32_t bseSnapReaderRead2(SBseSnapReader *p, uint8_t **data, int32_t *len) {
-  int32_t code = 0;
-  int32_t line = 0;
-  int32_t size = 0;
-
-  uint8_t *pBuf = NULL;
-  int32_t  bufLen = 0;
-
-  if (bseIterIsOver(p->pIter)) {
-    *data = NULL;
-    return code;
-  }
-
-  code = bseIterNext(p->pIter, &pBuf, &bufLen);
-  TSDB_CHECK_CODE(code, line, _error);
-
-  *data = taosMemoryCalloc(1, sizeof(SSnapDataHdr) + bufLen);
-  if (*data == NULL) {
-    TSDB_CHECK_CODE(code = terrno, line, _error);
-  }
-
-  SSnapDataHdr *pHdr = (SSnapDataHdr *)(*data);
-  pHdr->type = SNAP_DATA_BSE;
-  pHdr->size = bufLen;
-  uint8_t *tdata = pHdr->data;
-  memcpy(tdata, pBuf, bufLen);
-
-  *len = sizeof(SSnapDataHdr) + bufLen;
-
-_error:
-  if (code) {
-    if (*data != NULL) {
-      taosMemoryFree(*data);
-      *data = NULL;
-    }
-    bseError("vgId:%d failed to read snapshot data at line %d since %s", BSE_GET_VGID((SBse *)p->pBse), line,
-             tstrerror(code));
-  }
-  return code;
+  return bseSnapReaderReadImpl(p, data, len);
 }
 
-int32_t bseSnapReaderClose(SBseSnapReader **p) {
+void bseSnapReaderClose(SBseSnapReader **p) {
   int32_t code = 0;
   if (p == NULL || *p == NULL) {
-    return code;
+    return;
   }
 
   SBseSnapReader *pReader = *p;
@@ -327,7 +296,6 @@ int32_t bseSnapReaderClose(SBseSnapReader **p) {
   taosMemoryFree(pReader);
 
   *p = NULL;
-  return code;
 }
 
 int32_t bseOpenIter(SBse *pBse, SBseIter **ppIter) {
@@ -352,7 +320,7 @@ int32_t bseOpenIter(SBse *pBse, SBseIter **ppIter) {
 
 _error:
   if (code != 0) {
-    bseError("vgId:%d failed to open iter since %s", BSE_GET_VGID(pBse), tstrerror(code));
+    bseError("vgId:%d failed to open iter since %s", BSE_VGID(pBse), tstrerror(code));
     taosMemoryFree(pIter);
     taosArrayDestroy(pAliveFile);
     return code;
@@ -392,7 +360,7 @@ int32_t bseIterNext(SBseIter *pIter, uint8_t **pValue, int32_t *len) {
       }
 
       SBseLiveFileInfo *pInfo = taosArrayGet(pIter->pFileSet, pIter->index);
-      code = tableReaderIterInit(pInfo->retentionTs, BSE_TABLE_DATA_TYPE, &pTableIter, pIter->pBse);
+      code = tableReaderIterInit(pInfo->timestamp, BSE_TABLE_DATA_TYPE, &pTableIter, pIter->pBse);
       TSDB_CHECK_CODE(code, lino, _error);
 
       pTableIter->fileType = BSE_TABLE_SNAP;
@@ -428,7 +396,7 @@ int32_t bseIterNext(SBseIter *pIter, uint8_t **pValue, int32_t *len) {
       }
 
       SBseLiveFileInfo *pInfo = taosArrayGet(pIter->pFileSet, pIter->index);
-      code = tableReaderIterInit(pInfo->retentionTs, BSE_TABLE_META_TYPE, &pTableIter, pIter->pBse);
+      code = tableReaderIterInit(pInfo->timestamp, BSE_TABLE_META_TYPE, &pTableIter, pIter->pBse);
       TSDB_CHECK_CODE(code, lino, _error);
 
       code = tableReaderIterNext(pTableIter, pValue, len);
@@ -445,13 +413,15 @@ int32_t bseIterNext(SBseIter *pIter, uint8_t **pValue, int32_t *len) {
     // do read current
     pIter->fileType = BSE_MAX_SNAP;
     pIter->isOver = 1;
+
+    pIter->pCurrentBuf = *pValue;
   } else if (pIter->fileType == BSE_MAX_SNAP) {
     pIter->isOver = 1;
   }
 
 _error:
   if (code != 0) {
-    bseError("vgId:%d failed to get next iter since %s", BSE_GET_VGID(pIter->pBse), tstrerror(code));
+    bseError("vgId:%d failed to get next iter since %s", BSE_VGID(pIter->pBse), tstrerror(code));
   }
   return code;
 }
@@ -466,6 +436,9 @@ void bseIterDestroy(SBseIter *pIter) {
   }
 
   taosArrayDestroy(pIter->pFileSet);
+  if (pIter->pCurrentBuf != NULL) {
+    taosMemoryFreeClear(pIter->pCurrentBuf);
+  }
   taosMemFree(pIter);
   return;
 }

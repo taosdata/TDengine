@@ -137,8 +137,8 @@ public class WSParameterBindingFullDemo {
             pstmt.setBoolean(4, true);
             pstmt.setString(5, "binary_value");
             pstmt.setNString(6, "nchar_value");
-            pstmt.setVarbinary(7, new byte[] { (byte) 0x98, (byte) 0xf4, 0x6e });
-            pstmt.setGeometry(8, new byte[] {
+            pstmt.setBytes(7, new byte[] { (byte) 0x98, (byte) 0xf4, 0x6e });
+            pstmt.setBytes(8, new byte[] {
                     0x01, 0x01, 0x00, 0x00,
                     0x00, 0x00, 0x00, 0x00,
                     0x00, 0x00, 0x00, 0x59,

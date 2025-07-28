@@ -35,7 +35,7 @@ static int32_t lruCacheRemoveNolock(SLruCache *pCache, SSeqRange *key, int32_t k
 static int32_t lrcCacheResize(SLruCache *pCache, int32_t newCap);
 static void    lruCacheFree(SLruCache *pCache);
 static void    freeItemInListNode(SListNode *pItem, CacheFreeFn fn);
-static int32_t lruCacheClear(SLruCache *pCache);
+static void    lruCacheClear(SLruCache *pCache);
 
 void freeItemInListNode(SListNode *pItem, CacheFreeFn fn) {
   if (pItem == NULL || fn == NULL) return;
@@ -65,7 +65,8 @@ int32_t lruCacheCreate(int32_t cap, int32_t keySize, SCacheFreeElemFn freeElemFu
 
   p->freeElemFunc = freeElemFunc;
 
-  taosThreadMutexInit(&p->mutex, NULL);
+  code = taosThreadMutexInit(&p->mutex, NULL);
+  TSDB_CHECK_CODE(code, lino, _error);
   *pCache = p;
 
 _error:
@@ -80,7 +81,8 @@ int32_t lruCacheGet(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void **pE
   int32_t code = 0;
   int32_t lino = 0;
 
-  taosThreadMutexLock(&pCache->mutex);
+  (void)taosThreadMutexLock(&pCache->mutex);
+
   SCacheItem **ppItem = taosHashGet(pCache->pCache, key, keyLen);
   if (ppItem == NULL || *ppItem == NULL) {
     TSDB_CHECK_CODE(code = TSDB_CODE_NOT_FOUND, lino, _error);
@@ -98,7 +100,7 @@ _error:
   if (code != 0) {
     bseDebug("failed to get cache lru at line %d since %s", lino, tstrerror(code));
   }
-  taosThreadMutexUnlock(&pCache->mutex);
+  (void)taosThreadMutexUnlock(&pCache->mutex);
   return code;
 }
 
@@ -106,7 +108,8 @@ int32_t cacheLRUPut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pEl
   int32_t code = 0;
   int32_t lino = 0;
 
-  taosThreadMutexLock(&pCache->mutex);
+  (void)taosThreadMutexLock(&pCache->mutex);
+
   SCacheItem **ppItem = taosHashGet(pCache->pCache, key, keyLen);
   if (ppItem != NULL && *ppItem != NULL) {
     SCacheItem *pItem = (SCacheItem *)*ppItem;
@@ -156,7 +159,7 @@ _error:
   } else {
     pCache->size++;
   }
-  taosThreadMutexUnlock(&pCache->mutex);
+  (void)taosThreadMutexUnlock(&pCache->mutex);
   return code;
 }
 int32_t lruCacheRemoveNolock(SLruCache *pCache, SSeqRange *key, int32_t keyLen) {
@@ -190,7 +193,7 @@ int32_t lruCacheResize(SLruCache *pCache, int32_t newCap) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  taosThreadMutexLock(&pCache->mutex);
+  (void)taosThreadMutexLock(&pCache->mutex);
   pCache->cap = newCap;
   while (pCache->size > pCache->cap) {
     SListNode *pNode = tdListGetTail(pCache->lruList);
@@ -204,15 +207,15 @@ _error:
   if (code != 0) {
     bseError("failed to resize cache lru at line %d since %s", lino, tstrerror(code));
   }
-  taosThreadMutexUnlock(&pCache->mutex);
+  (void)taosThreadMutexUnlock(&pCache->mutex);
   return code;
 }
 int32_t lruCacheRemove(SLruCache *pCache, SSeqRange *key, int32_t keyLen) {
   int32_t code = 0;
   int32_t lino = 0;
-  taosThreadMutexLock(&pCache->mutex);
+  (void)taosThreadMutexLock(&pCache->mutex);
   code = lruCacheRemoveNolock(pCache, key, keyLen);
-  taosThreadMutexUnlock(&pCache->mutex);
+  (void)taosThreadMutexUnlock(&pCache->mutex);
 
   return code;
 }
@@ -229,14 +232,16 @@ void lruCacheFree(SLruCache *pCache) {
     bseCacheUnrefItem(pCacheItem);
   }
 
-  tdListFree(pCache->lruList);
+  if (tdListFree(pCache->lruList) == NULL) {
+    bseTrace("failed to free lru list");
+  }
   pCache->lruList = NULL;
 
-  taosThreadMutexDestroy(&pCache->mutex);
+  (void)taosThreadMutexDestroy(&pCache->mutex);
   taosMemoryFree(pCache);
 }
-int32_t lruCacheClear(SLruCache *pCache) {
-  taosThreadMutexLock(&pCache->mutex);
+void lruCacheClear(SLruCache *pCache) {
+  (void)taosThreadMutexLock(&pCache->mutex);
   while (!isListEmpty(pCache->lruList)) {
     SListNode *pNode = tdListPopTail(pCache->lruList);
 
@@ -246,9 +251,7 @@ int32_t lruCacheClear(SLruCache *pCache) {
 
   taosHashClear(pCache->pCache);
   pCache->size = 0;
-  taosThreadMutexUnlock(&pCache->mutex);
-
-  return 0;
+  (void)taosThreadMutexUnlock(&pCache->mutex);
 }
 
 int32_t tableCacheOpen(int32_t cap, CacheFreeFn fn, STableCache **p) {
@@ -285,7 +288,7 @@ int32_t tableCacheClear(STableCache *p) {
   int32_t code = 0;
   if (p == NULL) return 0;
 
-  code = lruCacheClear((SLruCache *)p->pCache);
+  lruCacheClear((SLruCache *)p->pCache);
   p->size = 0;
   return code;
 }
@@ -381,7 +384,6 @@ int32_t blockCachePut(SBlockCache *pCache, SSeqRange *key, void *pBlock) {
 
   code = cacheLRUPut(pCache->pCache, key, sizeof(SSeqRange), pBlock);
   TSDB_CHECK_CODE(code, lino, _error);
-
 _error:
   if (code != 0) {
     bseError("failed to put block cache at line %d since %s", lino, tstrerror(code));
