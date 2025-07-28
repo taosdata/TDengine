@@ -290,6 +290,8 @@ typedef struct {
   SArray* calcScanPlanList;  // for calc action, SArray<SStreamCalcScan>
 
   // trigger part
+  int8_t  triggerHasPF;       // Since some filter will be processed in trigger's reader, triggerPrevFilter will be NULL.
+                              // Use this flag to mark whether trigger has preFilter.
   void*   triggerPrevFilter;  // filter for trigger table
 
   // runner part
@@ -526,6 +528,7 @@ typedef struct {
   int8_t igNoDataTrigger;
   int8_t hasPartitionBy;
   int8_t isTriggerTblVirt;
+  int8_t triggerHasPF;
 
   // notify options
   SArray* pNotifyAddrUrls;

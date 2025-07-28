@@ -14365,6 +14365,8 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStrea
 
   PAR_ERR_JRET(createStreamReqBulidTriggerExtractCondFromWindow(pCxt, pTriggerWindow, &pTriggerFilter));
 
+  pReq->triggerHasPF = (pTriggerFilter != NULL);
+
   PAR_ERR_JRET(getTableMeta(pCxt, pTriggerTable->table.dbName, pTriggerTable->table.tableName, &pTriggerTableMeta));
 
   PAR_ERR_JRET(createStreamReqBuildTriggerTableInfo(pCxt, pTriggerTable, pTriggerTableMeta, pReq));

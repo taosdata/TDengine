@@ -734,6 +734,14 @@ int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, int64_t gid, ST
 
   if (pTask->fillHistory || pTask->fillHistoryFirst) {
     range.skey = pTask->fillHistoryStartTime;
+  } else if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
+    STimeWindow firstWindow = {0};
+    if (pTask->interval.interval == 0) {
+      firstWindow = stTriggerTaskGetIntervalWindow(pTask, range.skey);
+    } else {
+      firstWindow = stTriggerTaskGetPeriodWindow(pTask, range.skey);
+    }
+    range.skey = firstWindow.skey;
   } else {
     void *px = tSimpleHashGet(pTask->pHistoryCutoffTime, &gid, sizeof(int64_t));
     range.skey = (px == NULL) ? (INT64_MIN + 1) : *(int64_t *)px;
@@ -1335,6 +1343,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   pTask->hasPartitionBy = pMsg->hasPartitionBy;
   pTask->isVirtualTable = pMsg->isTriggerTblVirt;
   pTask->ignoreNoDataTrigger = pMsg->igNoDataTrigger;
+  pTask->hasTriggerFilter = pMsg->triggerHasPF;
   if (pTask->ignoreNoDataTrigger) {
     QUERY_CHECK_CONDITION(
         (pTask->triggerType == STREAM_TRIGGER_PERIOD) || (pTask->triggerType == STREAM_TRIGGER_SLIDING), code, lino,
@@ -1773,7 +1782,16 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
         void             *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
         while (px != NULL) {
           SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
-          STimeWindow             range = {.skey = pReq->start, .ekey = pReq->end};
+          STimeWindow             range = {.skey = pReq->start, .ekey = pReq->end - 1};
+          if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
+            STimeWindow lastWindow = {0};
+            if (pTask->interval.interval > 0) {
+              lastWindow = stTriggerTaskGetIntervalWindow(pTask, range.ekey);
+            } else {
+              lastWindow = stTriggerTaskGetPeriodWindow(pTask, range.ekey);
+            }
+            range.ekey = lastWindow.ekey;
+          }
           range.ekey = TMIN(range.ekey, pGroup->oldThreshold);
           code = stTriggerTaskAddRecalcRequest(pTask, pGroup->gid, range, pContext->pReaderWalProgress, true);
           QUERY_CHECK_CODE(code, lino, _end);
@@ -5674,7 +5692,9 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SArra
 
   // add recalc request
   if (recalcRange.skey <= recalcRange.ekey) {
-    recalcRange.ekey = pGroup->oldThreshold;
+    if (pTask->triggerType != STREAM_TRIGGER_STATE && pTask->triggerType != STREAM_TRIGGER_EVENT) {
+      recalcRange.ekey = pGroup->oldThreshold;
+    }
     code = stTriggerTaskAddRecalcRequest(pTask, pGroup->gid, recalcRange, pContext->pReaderWalProgress, true);
     QUERY_CHECK_CODE(code, lino, _end);
   }
@@ -5977,8 +5997,10 @@ static int32_t stRealtimeGroupSaveInitWindow(SSTriggerRealtimeGroup *pGroup, SAr
   }
 
   if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
-    void *px = taosArrayPush(pInitWindows, &pGroup->nextWindow);
-    QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+    if (!IS_TRIGGER_GROUP_NONE_WINDOW(pGroup)) {
+      void *px = taosArrayPush(pInitWindows, &pGroup->nextWindow);
+      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+    }
   }
 
 _end:
@@ -5999,9 +6021,13 @@ static int32_t stRealtimeGroupRestoreInitWindow(SSTriggerRealtimeGroup *pGroup, 
   int32_t nWindows = taosArrayGetSize(pInitWindows);
 
   if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
-    QUERY_CHECK_CONDITION(nWindows > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
-    pGroup->nextWindow = *(STimeWindow *)taosArrayGetLast(pInitWindows);
-    nWindows--;
+    if (nWindows > 0) {
+      pGroup->nextWindow = *(STimeWindow *)taosArrayGetLast(pInitWindows);
+      nWindows--;
+    } else {
+      TRINGBUF_DESTROY(&pGroup->winBuf);
+      pGroup->nextWindow = (STimeWindow){0};
+    }
   }
 
   for (int32_t i = 0; i < nWindows; i++) {
@@ -6314,33 +6340,15 @@ static int32_t stRealtimeGroupDoSlidingCheck(SSTriggerRealtimeGroup *pGroup) {
   bool                      allTableProcessed = false;
   bool                      needFetchData = false;
 
-  if (IS_TRIGGER_GROUP_NONE_WINDOW(pGroup)) {
-    int64_t             ts = INT64_MAX;
-    int32_t             iter = 0;
-    SSTriggerTableMeta *pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, NULL, &iter);
-    while (pTableMeta != NULL) {
-      for (int32_t i = 0; i < taosArrayGetSize(pTableMeta->pMetas); i++) {
-        SSTriggerMetaData *pMeta = TARRAY_GET_ELEM(pTableMeta->pMetas, i);
-        ts = TMIN(ts, pMeta->skey);
-      }
-      pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, pTableMeta, &iter);
-    }
-    QUERY_CHECK_CONDITION(ts != INT64_MAX, code, lino, _end, TSDB_CODE_INVALID_PARA);
-    if (ts > pGroup->newThreshold) {
-      goto _end;
-    }
-    code = stRealtimeGroupOpenWindow(pGroup, ts, NULL, false, false);
-    QUERY_CHECK_CODE(code, lino, _end);
-    pGroup->oldThreshold = ts - 1;
-  }
-
   if (!pContext->reenterCheck) {
     // save initial windows at the first check
     code = stRealtimeGroupSaveInitWindow(pGroup, pContext->pInitWindows);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  if (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM) {
+  if ((pTask->triggerFilter != NULL) || pTask->hasTriggerFilter) {
+    readAllData = true;
+  } else if (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM) {
     readAllData = true;
   } else if (pTask->ignoreNoDataTrigger) {
     readAllData = true;
@@ -6373,8 +6381,14 @@ static int32_t stRealtimeGroupDoSlidingCheck(SSTriggerRealtimeGroup *pGroup) {
         }
         bool meetBound = (r < endIdx) || (r > 0 && pTsData[r - 1] == ts);
         if (ts == nextStart && meetBound) {
-          code = stRealtimeGroupOpenWindow(pGroup, ts, NULL, true, r > 0 && pTsData[r - 1] == nextStart);
-          QUERY_CHECK_CODE(code, lino, _end);
+          if (IS_TRIGGER_GROUP_NONE_WINDOW(pGroup)) {
+            code = stRealtimeGroupOpenWindow(pGroup, pTsData[r], NULL, true, true);
+            QUERY_CHECK_CODE(code, lino, _end);
+            r++;
+          } else {
+            code = stRealtimeGroupOpenWindow(pGroup, ts, NULL, true, r > 0 && pTsData[r - 1] == nextStart);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
         }
         if ((TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey == ts) && meetBound) {
           code = stRealtimeGroupCloseWindow(pGroup, NULL, true);
@@ -6383,6 +6397,25 @@ static int32_t stRealtimeGroupDoSlidingCheck(SSTriggerRealtimeGroup *pGroup) {
       }
     }
   } else {
+    if (IS_TRIGGER_GROUP_NONE_WINDOW(pGroup)) {
+      int64_t             ts = INT64_MAX;
+      int32_t             iter = 0;
+      SSTriggerTableMeta *pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, NULL, &iter);
+      while (pTableMeta != NULL) {
+        for (int32_t i = 0; i < taosArrayGetSize(pTableMeta->pMetas); i++) {
+          SSTriggerMetaData *pMeta = TARRAY_GET_ELEM(pTableMeta->pMetas, i);
+          ts = TMIN(ts, pMeta->skey);
+        }
+        pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, pTableMeta, &iter);
+      }
+      QUERY_CHECK_CONDITION(ts != INT64_MAX, code, lino, _end, TSDB_CODE_INVALID_PARA);
+      if (ts > pGroup->newThreshold) {
+        goto _end;
+      }
+      code = stRealtimeGroupOpenWindow(pGroup, ts, NULL, false, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+      pGroup->oldThreshold = ts - 1;
+    }
     allTableProcessed = true;
   }
 
@@ -6390,6 +6423,10 @@ static int32_t stRealtimeGroupDoSlidingCheck(SSTriggerRealtimeGroup *pGroup) {
     if (readAllData) {
       code = stRealtimeGroupMergeSavedWindows(pGroup, 0);
       QUERY_CHECK_CODE(code, lino, _end);
+    }
+
+    if (IS_TRIGGER_GROUP_NONE_WINDOW(pGroup)) {
+      goto _end;
     }
 
     while (true) {
@@ -6412,30 +6449,30 @@ static int32_t stRealtimeGroupDoSlidingCheck(SSTriggerRealtimeGroup *pGroup) {
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
-  }
 
 #if !TRIGGER_USE_HISTORY_META
-  if (pTask->fillHistory) {
-    void *px = tSimpleHashGet(pTask->pHistoryCutoffTime, &pGroup->gid, sizeof(int64_t));
-    if (px != NULL && pGroup->newThreshold == *(int64_t *)px && IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) &&
-        (pTask->calcEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
-      SSTriggerWindow *pHead = TRINGBUF_HEAD(&pGroup->winBuf);
-      SSTriggerWindow *p = pHead;
-      do {
-        SSTriggerCalcParam param = {
-            .triggerTime = taosGetTimestampNs(),
-            .wstart = p->range.skey,
-            .wend = p->range.ekey,
-            .wduration = p->range.ekey - p->range.skey,
-            .wrownum = (p == pHead) ? p->wrownum : (pHead->wrownum - p->wrownum),
-        };
-        TRINGBUF_MOVE_NEXT(&pGroup->winBuf, p);
-        void *px = taosArrayPush(pGroup->pPendingCalcParams, &param);
-        QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-      } while (p != TRINGBUF_TAIL(&pGroup->winBuf));
+    if (pTask->fillHistory) {
+      void *px = tSimpleHashGet(pTask->pHistoryCutoffTime, &pGroup->gid, sizeof(int64_t));
+      if (px != NULL && pGroup->newThreshold == *(int64_t *)px && IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) &&
+          (pTask->calcEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
+        SSTriggerWindow *pHead = TRINGBUF_HEAD(&pGroup->winBuf);
+        SSTriggerWindow *p = pHead;
+        do {
+          SSTriggerCalcParam param = {
+              .triggerTime = taosGetTimestampNs(),
+              .wstart = p->range.skey,
+              .wend = p->range.ekey,
+              .wduration = p->range.ekey - p->range.skey,
+              .wrownum = (p == pHead) ? p->wrownum : (pHead->wrownum - p->wrownum),
+          };
+          TRINGBUF_MOVE_NEXT(&pGroup->winBuf, p);
+          void *px = taosArrayPush(pGroup->pPendingCalcParams, &param);
+          QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+        } while (p != TRINGBUF_TAIL(&pGroup->winBuf));
+      }
     }
-  }
 #endif
+  }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -6459,9 +6496,9 @@ static int32_t stRealtimeGroupDoSessionCheck(SSTriggerRealtimeGroup *pGroup) {
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  if (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM) {
+  if ((pTask->triggerFilter != NULL) || pTask->hasTriggerFilter) {
     readAllData = true;
-  } else if (pTask->triggerFilter != NULL) {
+  } else if (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM) {
     readAllData = true;
   }
 
@@ -6563,7 +6600,7 @@ static int32_t stRealtimeGroupDoCountCheck(SSTriggerRealtimeGroup *pGroup) {
   bool                      allTableProcessed = false;
   bool                      needFetchData = false;
 
-  if (pTask->triggerFilter != NULL) {
+  if ((pTask->triggerFilter != NULL) || pTask->hasTriggerFilter) {
     readAllData = true;
   } else if (pTask->isVirtualTable) {
     readAllData = true;
@@ -7466,7 +7503,7 @@ static int32_t stHistoryGroupMergeSavedWindows(SSTriggerHistoryGroup *pGroup, in
     }
 
     // some window may have not been closed yet
-    if (pWin->range.ekey + gap > pContext->stepRange.ekey) {
+    if (pWin->range.ekey + gap > pContext->stepRange.ekey || pWin->range.ekey + gap > pContext->range.ekey) {
       // TODO(kjq): restore prevProcTime from saved init windows
       pWin->prevProcTime = taosGetTimestampNs();
       if (TRINGBUF_SIZE(&pGroup->winBuf) > 0) {
@@ -8029,7 +8066,7 @@ _end:
   return code;
 }
 
-static int32_t stHitoryGrupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
+static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
   SSTriggerHistoryContext *pContext = pGroup->pContext;
@@ -8080,6 +8117,11 @@ static int32_t stHitoryGrupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
       memcpy(pStateData, newVal, bytes);
       startIdx++;
     }
+
+    if (!IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) && pTsData[startIdx] > pContext->range.ekey) {
+      goto _end;
+    }
+
     for (int32_t r = startIdx; r < endIdx; r++) {
       char   *newVal = colDataGetData(pStateCol, r);
       int32_t bytes = isVarType ? varDataTLen(newVal) : pStateCol->info.bytes;
@@ -8092,8 +8134,12 @@ static int32_t stHitoryGrupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
                                                &pExtraNotifyContent);
           QUERY_CHECK_CODE(code, lino, _end);
         }
+        bool isLastWin = TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey > pContext->range.ekey;
         code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false);
         QUERY_CHECK_CODE(code, lino, _end);
+        if (isLastWin) {
+          break;
+        }
         if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
           code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, pStateData, newVal,
                                                &pExtraNotifyContent);
@@ -8145,6 +8191,10 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
     psCol = NULL;
     peCol = NULL;
 
+    if (!IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) && pTsData[startIdx] > pContext->range.ekey) {
+      goto _end;
+    }
+
     for (int32_t r = startIdx; r < endIdx; r++) {
       if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
         TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
@@ -8185,8 +8235,12 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
             code = streamBuildEventNotifyContent(pDataBlock, pTask->pEndCondCols, r, &pExtraNotifyContent);
             QUERY_CHECK_CODE(code, lino, _end);
           }
+          bool isLastWin = TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey > pContext->range.ekey;
           code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false);
           QUERY_CHECK_CODE(code, lino, _end);
+          if (isLastWin) {
+            break;
+          }
         }
       }
     }
@@ -8228,7 +8282,7 @@ static int32_t stHistoryGroupCheck(SSTriggerHistoryGroup *pGroup) {
       return stHistoryGroupDoCountCheck(pGroup);
 
     case STREAM_TRIGGER_STATE:
-      return stHitoryGrupDoStateCheck(pGroup);
+      return stHistoryGroupDoStateCheck(pGroup);
 
     case STREAM_TRIGGER_EVENT:
       return stHistoryGroupDoEventCheck(pGroup);
