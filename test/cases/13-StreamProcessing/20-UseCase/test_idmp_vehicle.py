@@ -130,7 +130,7 @@ class Test_IDMP_Vehicle:
         sqls = [
             # stream1            
             "create stream if not exists `idmp`.`ana_stream1`      event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_1` stream_options(ignore_disorder)       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream1`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from idmp.`vt_1` where ts >= _twstart and ts <_twend",
-            "create stream if not exists `idmp`.`ana_stream1_sub1` event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_1`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream1_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from idmp.`vt_1` where ts >= _twstart and ts <_twend",
+            "create stream if not exists `idmp`.`ana_stream1_sub1` event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_京Z1NW34_624364` stream_options(delete_recalc)    notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream1_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from idmp.`vt_京Z1NW34_624364` where ts >= _twstart and ts <_twend",
             # stream2
             "create stream if not exists `idmp`.`ana_stream2`      event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_2` stream_options(ignore_disorder)       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream2`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
             "create stream if not exists `idmp`.`ana_stream2_sub1` event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_2`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream2_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
@@ -650,7 +650,7 @@ class Test_IDMP_Vehicle:
         )
 
         # sub
-        #self.verify_stream1_sub1()
+        self.verify_stream1_sub1()
         tdLog.info("verify stream1 .................................. successfully.")
 
     # stream1 sub1
@@ -659,10 +659,10 @@ class Test_IDMP_Vehicle:
         result_sql = f"select * from {self.vdb}.`result_stream1_sub1` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
-            func = lambda: tdSql.getRows() == 3
-            and tdSql.compareData(1, 0, self.start + (5 + 2 + 1) * self.step) # ts
-            and tdSql.compareData(1, 1, 9)          # cnt
-            and tdSql.compareData(1, 2, 140)        # avg(speed)
+            func = lambda: tdSql.checkRows(1, show=True)
+            and tdSql.compareData(0, 0, self.start + (5 + 2 + 1 + 3 + 1) * self.step) # ts
+            and tdSql.compareData(0, 1, 9)          # cnt
+            and tdSql.compareData(0, 2, 140)        # avg(speed)
         )
 
         tdLog.info("verify stream1 sub1 ............................. successfully.")
