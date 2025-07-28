@@ -77,6 +77,9 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       SyncIndex commitIndex = syncNodeCheckCommitIndex(ths, indexLikely, &pRpcMsg->info.traceId);
       if (ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
         if (commitIndex >= ths->assignedCommitIndex) {
+          sInfo("vgId:%d, going to step down from assigned leader by append entries reply, commitIndex:%" PRId64
+                ", assignedCommitIndex:%" PRId64,
+                ths->vgId, ths->assignedCommitIndex, commitIndex);
           syncNodeStepDown(ths, pMsg->term, pMsg->destId);
         }
       } else {
