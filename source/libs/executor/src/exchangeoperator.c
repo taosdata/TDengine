@@ -598,7 +598,7 @@ int32_t resetExchangeOperState(SOperatorInfo* pOper) {
   SExchangeInfo* pInfo = pOper->info;
   SExchangePhysiNode* pPhynode = (SExchangePhysiNode*)pOper->pPhyNode;
 
-  qDebug("%s reset exchange info:%p", pOper->pTaskInfo->id.str, pInfo);
+  qDebug("%s reset exchange op:%p info:%p", pOper->pTaskInfo->id.str, pOper, pInfo);
 
   atomic_add_fetch_64(&pInfo->seqId, 1);
   pOper->status = OP_NOT_OPENED;
