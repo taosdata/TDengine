@@ -239,4 +239,3 @@ Fail to get table info
 ```config
 ./taosinspect -m ssh -f /path_to_file/inspect.cfg -cn true
 ```
-
