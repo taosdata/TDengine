@@ -95,8 +95,10 @@ The example code for stmt to bind parameters is as follows:
 ```
 </TabItem>
 <TabItem label="C" value="c">
+The example code for binding parameters with stmt2 (TDengine v3.3.5.0 or higher is required) is as follows:
+
 ```c
-{{#include docs/examples/c-ws/stmt_insert_demo.c}}
+{{#include docs/examples/c-ws-new/stmt2_insert_demo.c}}
 ```
 </TabItem>
 <TabItem label="REST API" value="rest">
@@ -161,11 +163,16 @@ The example code for binding parameters with stmt2 (TDengine v3.3.5.0 or higher 
 {{#include docs/examples/c/stmt2_insert_demo.c}}
 ```
 
-The example code for binding parameters with stmt is as follows:
+The example code for binding parameters with stmt is as follows (TDengine v3.3.5.0 has stopped maintenance):
+
+<details>
+<summary>Click to view stmt example code</summary>
 
 ```c
 {{#include docs/examples/c/stmt_insert_demo.c}}
 ```
+
+</details>
 
 </TabItem>
 <TabItem label="REST API" value="rest">
