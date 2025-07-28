@@ -400,20 +400,20 @@ int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGran
 
   int32_t       code = 0;
   SQWorker     *mgmt = (SQWorker *)qWorkerMgmt;
-  SSubQueryMsg  msg = {0};
-  if (tDeserializeSSubQueryMsg(pMsg->pCont, pMsg->contLen, &msg) < 0) {
+  SSubQueryMsg  msg = {0}; // 
+  if (tDeserializeSSubQueryMsg(pMsg->pCont, pMsg->contLen, &msg) < 0) { // 解析消息
     QW_ELOG("tDeserializeSSubQueryMsg failed, contLen:%d", pMsg->contLen);
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  if (chkGrant) {
-    if ((!TEST_SHOW_REWRITE_MASK(msg.msgMask))) {
-      if ((code = taosGranted(TSDB_GRANT_ALL)) < 0) {
+  if (chkGrant) { // 权限检查
+    if ((!TEST_SHOW_REWRITE_MASK(msg.msgMask))) { // 掩码
+      if ((code = taosGranted(TSDB_GRANT_ALL)) < 0) { // 全部权限
         QW_ELOG("query failed cause of grant expired, msgMask:%d", msg.msgMask);
         tFreeSSubQueryMsg(&msg);
         QW_ERR_RET(code);
       }
-      if ((TEST_VIEW_MASK(msg.msgMask)) && ((code = taosGranted(TSDB_GRANT_VIEW)) < 0)) {
+      if ((TEST_VIEW_MASK(msg.msgMask)) && ((code = taosGranted(TSDB_GRANT_VIEW)) < 0)) { // 视图权限
         QW_ELOG("query failed cause of view grant expired, msgMask:%d", msg.msgMask);
         tFreeSSubQueryMsg(&msg);
         QW_ERR_RET(code);

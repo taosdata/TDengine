@@ -19,8 +19,8 @@
 #include "qworker.h"
 
 int32_t mndPreProcessQueryMsg(SRpcMsg *pMsg) {
-  if (TDMT_SCH_QUERY != pMsg->msgType && TDMT_SCH_MERGE_QUERY != pMsg->msgType) return 0;
-  SMnode *pMnode = pMsg->info.node;
+  if (TDMT_SCH_QUERY != pMsg->msgType && TDMT_SCH_MERGE_QUERY != pMsg->msgType) return 0; // 合法性检查
+  SMnode *pMnode = pMsg->info.node; // 获取mnode
   return qWorkerPreprocessQueryMsg(pMnode->pQuery, pMsg, false);
 }
 

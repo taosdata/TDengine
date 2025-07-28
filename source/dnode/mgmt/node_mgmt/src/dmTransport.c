@@ -63,7 +63,7 @@ static inline void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg) {
 int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
   const STraceId *trace = &pMsg->info.traceId;
 
-  NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pMsg->msgType)];
+  NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pMsg->msgType)]; // 根据消息类型获取处理函数
   if (msgFp == NULL) {
     // terrno = TSDB_CODE_MSG_NOT_PROCESSED;
     dGError("msg:%p, not processed since no handler, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
@@ -132,12 +132,12 @@ static void dmUpdateAnalyticFunc(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc)
   rpcFreeCont(pRpc->pCont);
 }
 
-static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
+static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) { // 对请求分类处理
   SDnodeTrans  *pTrans = &pDnode->trans;
   int32_t       code = -1;
   SRpcMsg      *pMsg = NULL;
   SMgmtWrapper *pWrapper = NULL;
-  SDnodeHandle *pHandle = &pTrans->msgHandles[TMSG_INDEX(pRpc->msgType)];
+  SDnodeHandle *pHandle = &pTrans->msgHandles[TMSG_INDEX(pRpc->msgType)]; // 这个是在前边注册的handle
 
   const STraceId *trace = &pRpc->info.traceId;
   dGTrace("msg:%s is received, handle:%p len:%d code:0x%x app:%p refId:%" PRId64, TMSG_INFO(pRpc->msgType),
@@ -149,23 +149,23 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     dError("failed to convert version string:%s to int, code:%d", td_version, code);
     goto _OVER;
   }
-  if ((code = taosCheckVersionCompatible(pRpc->info.cliVer, svrVer, 3)) != 0) {
+  if ((code = taosCheckVersionCompatible(pRpc->info.cliVer, svrVer, 3)) != 0) {  // 检测版本是否匹配
     dError("Version not compatible, cli ver: %d, svr ver: %d, ip:%s", pRpc->info.cliVer, svrVer,
            IP_ADDR_STR(&pRpc->info.conn.cliAddr));
     goto _OVER;
   }
 
-  bool isForbidden = dmIsForbiddenIp(pRpc->info.forbiddenIp, pRpc->info.conn.user, &pRpc->info.conn.cliAddr);
+  bool isForbidden = dmIsForbiddenIp(pRpc->info.forbiddenIp, pRpc->info.conn.user, &pRpc->info.conn.cliAddr); // ip 黑名单
   if (isForbidden) {
     code = TSDB_CODE_IP_NOT_IN_WHITE_LIST;
     goto _OVER;
   }
 
-  switch (pRpc->msgType) {
+  switch (pRpc->msgType) { // 请求类型，这类属于管理请求
     case TDMT_DND_NET_TEST:
       dmProcessNetTestReq(pDnode, pRpc);
       return;
-    case TDMT_MND_SYSTABLE_RETRIEVE_RSP:
+    case TDMT_MND_SYSTABLE_RETRIEVE_RSP:   // resp 响应请求
     case TDMT_DND_SYSTABLE_RETRIEVE_RSP:
     case TDMT_SCH_FETCH_RSP:
     case TDMT_SCH_MERGE_FETCH_RSP:
@@ -201,9 +201,9 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   after this line, parent is set
   so when dmProcessRpcMsg is called, pDonde is still null.
   */
-  if (pDnode != NULL) {
-    if (pDnode->status != DND_STAT_RUNNING) {
-      if (pRpc->msgType == TDMT_DND_SERVER_STATUS) {
+  if (pDnode != NULL) { // 不是请求类数据走这里
+    if (pDnode->status != DND_STAT_RUNNING) { // 状态判断
+      if (pRpc->msgType == TDMT_DND_SERVER_STATUS) { // 请求服务器状态
         dmProcessServerStartupStatus(pDnode, pRpc);
         return;
       } else {
@@ -220,7 +220,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     goto _OVER;
   }
 
-  if (pRpc->pCont == NULL && (IsReq(pRpc) || pRpc->contLen != 0)) {
+  if (pRpc->pCont == NULL && (IsReq(pRpc) || pRpc->contLen != 0)) { // 异常数据检测
     dGError("msg:%p, type:%s pCont is NULL", pRpc, TMSG_INFO(pRpc->msgType));
     code = TSDB_CODE_INVALID_MSG_LEN;
     goto _OVER;
@@ -235,13 +235,13 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     goto _OVER;
   }
 
-  pWrapper = &pDnode->wrappers[pHandle->defaultNtype];
-  if (pHandle->needCheckVgId) {
+  pWrapper = &pDnode->wrappers[pHandle->defaultNtype];  // 取出处理函数
+  if (pHandle->needCheckVgId) {  // 这个时vnode检测
     if (pRpc->contLen > 0) {
       const SMsgHead *pHead = pRpc->pCont;
       const int32_t   vgId = ntohl(pHead->vgId);
-      switch (vgId) {
-        case QNODE_HANDLE:
+      switch (vgId) { // 处理三种node信息
+        case QNODE_HANDLE: 
           pWrapper = &pDnode->wrappers[QNODE];
           break;
         case SNODE_HANDLE:
@@ -265,25 +265,25 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     goto _OVER;
   }
 
-  pRpc->info.wrapper = pWrapper;
+  pRpc->info.wrapper = pWrapper; // 传递进rpc里边
 
   EQItype itype = RPC_QITEM;  // rsp msg is not restricted by tsQueueMemoryUsed
   if (IsReq(pRpc)) {
-    if (pRpc->msgType == TDMT_SYNC_HEARTBEAT || pRpc->msgType == TDMT_SYNC_HEARTBEAT_REPLY)
+    if (pRpc->msgType == TDMT_SYNC_HEARTBEAT || pRpc->msgType == TDMT_SYNC_HEARTBEAT_REPLY) // 心跳检测
       itype = DEF_QITEM;
     else
       itype = RPC_QITEM;
   } else {
     itype = DEF_QITEM;
   }
-  code = taosAllocateQitem(sizeof(SRpcMsg), itype, pRpc->contLen, (void **)&pMsg);
+  code = taosAllocateQitem(sizeof(SRpcMsg), itype, pRpc->contLen, (void **)&pMsg); // 给请求分配item
   if (code) goto _OVER;
 
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
   dGTrace("msg:%p, is created, type:%s handle:%p len:%d", pMsg, TMSG_INFO(pRpc->msgType), pMsg->info.handle,
           pRpc->contLen);
 
-  code = dmProcessNodeMsg(pWrapper, pMsg);
+  code = dmProcessNodeMsg(pWrapper, pMsg); // 调用处理函数
 
 _OVER:
   if (code != 0) {
@@ -296,12 +296,12 @@ _OVER:
 
     if (IsReq(pRpc)) {
       SRpcMsg rsp = {.code = code, .info = pRpc->info, .msgType = pRpc->msgType + 1};
-      if (code == TSDB_CODE_MNODE_NOT_FOUND) {
+      if (code == TSDB_CODE_MNODE_NOT_FOUND) {  // 这个在处理请求重定向消息
         dmBuildMnodeRedirectRsp(pDnode, &rsp);
       }
 
       if (pWrapper != NULL) {
-        dmSendRsp(&rsp);
+        dmSendRsp(&rsp);  
       } else {
         if (rpcSendResponse(&rsp) != 0) {
           dError("failed to send response, msg:%p", &rsp);
@@ -320,7 +320,7 @@ _OVER:
     pRpc->pCont = NULL;
   }
 
-  dmReleaseWrapper(pWrapper);
+  dmReleaseWrapper(pWrapper); // 释放资源
 }
 
 int32_t dmInitMsgHandle(SDnode *pDnode) {

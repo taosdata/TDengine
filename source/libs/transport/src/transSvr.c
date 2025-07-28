@@ -550,7 +550,7 @@ bool uvConnMayGetUserInfo(SSvrConn* pConn, STransMsgHead** ppHead, int32_t* msgL
   }
   return false;
 }
-static bool uvHandleReq(SSvrConn* pConn) {
+static bool uvHandleReq(SSvrConn* pConn) { // 解析请求
   STrans*    pInst = pConn->pInst;
   SWorkThrd* pThrd = pConn->hostThrd;
 
@@ -563,7 +563,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
     tError("%s conn:%p, read invalid packet", transLabel(pInst), pConn);
     return false;
   }
-  if (transDecompressMsg((char**)&pHead, &msgLen) < 0) {
+  if (transDecompressMsg((char**)&pHead, &msgLen) < 0) { // 解析数据
     tError("%s conn:%p, recv invalid packet, failed to decompress", transLabel(pInst), pConn);
     taosMemoryFree(pHead);
     return false;
@@ -590,7 +590,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
   pConn->inType = pHead->msgType;
 
   int8_t forbiddenIp = 0;
-  if (pThrd->enableIpWhiteList && tsEnableWhiteList) {
+  if (pThrd->enableIpWhiteList && tsEnableWhiteList) {  // 白名单管理
     forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
     if (forbiddenIp == 0) {
       uvWhiteListSetConnVer(pThrd->pWhiteList, pConn);
@@ -605,10 +605,10 @@ static bool uvHandleReq(SSvrConn* pConn) {
   transMsg.contLen = transContLenFromMsg(pHead->msgLen);
   transMsg.pCont = pHead->content;
   transMsg.msgType = pHead->msgType;
-  transMsg.code = pHead->code;
+  transMsg.code = pHead->code;  // 组装请求数据
 
   if (pHead->seqNum == 0) {
-    STraceId* trace = &pHead->traceId;
+    STraceId* trace = &pHead->traceId;  // 这个用在什么地方
     tGError("%s conn:%p, received invalid seqNum, msgType:%s", transLabel(pInst), pConn, TMSG_INFO(pHead->msgType));
     return false;
   }
@@ -632,18 +632,18 @@ static bool uvHandleReq(SSvrConn* pConn) {
   uvPerfLog_receive(pConn, pHead, &transMsg);
 
   // set up conn info
-  SRpcConnInfo* pConnInfo = &(transMsg.info.conn);
+  SRpcConnInfo* pConnInfo = &(transMsg.info.conn);  // 连接信息
   pConnInfo->cliAddr = pConn->clientIp;
   // pConnInfo->clientPort = pConn->port;
   tstrncpy(pConnInfo->user, pConn->user, sizeof(pConnInfo->user));
 
   transReleaseExHandle(uvGetConnRefOfThrd(pThrd), pConn->refId);
 
-  (*pInst->cfp)(pInst->parent, &transMsg, NULL);
+  (*pInst->cfp)(pInst->parent, &transMsg, NULL); // 回调函数
   return true;
 }
 
-void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
+void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) { // 读取数据后的回调
   int32_t    code = 0;
   SSvrConn*  conn = cli->data;
   STrans*    pInst = conn->pInst;
@@ -1120,7 +1120,7 @@ void uvGetSockInfo(struct sockaddr* addr, SIpAddr* ip) {
     ip->mask = 128;
   }
 }
-void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
+void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) { // 这里注册回调函数
   int32_t code = 0;
   STUB_RAND_NETWORK_ERR(nread);
   if (nread < 0) {

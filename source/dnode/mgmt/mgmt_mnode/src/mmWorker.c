@@ -168,14 +168,14 @@ int32_t mmPutMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     dGError("msg:%p, stop to pre-process in mnode since %s, type:%s", pMsg, tstrerror(code), TMSG_INFO(pMsg->msgType));
     return code;
   }
-  pMsg->info.node = pMgmt->pMnode;
-  if ((code = mndPreProcessQueryMsg(pMsg)) != 0) {
+  pMsg->info.node = pMgmt->pMnode; // 获取mnode
+  if ((code = mndPreProcessQueryMsg(pMsg)) != 0) { // 处理消息
     const STraceId *trace = &pMsg->info.traceId;
     dGError("msg:%p, failed to pre-process in mnode since %s, type:%s", pMsg, tstrerror(code),
             TMSG_INFO(pMsg->msgType));
     return code;
   }
-  return mmPutMsgToWorker(pMgmt, &pMgmt->queryWorker, pMsg);
+  return mmPutMsgToWorker(pMgmt, &pMgmt->queryWorker, pMsg); // 将消息放入work队列，进行下一步处理
 }
 
 int32_t mmPutMsgToFetchQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
