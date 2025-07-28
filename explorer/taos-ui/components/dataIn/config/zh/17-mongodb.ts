@@ -197,7 +197,7 @@ export default {
             {
               label: '查询模板',
               description:
-                '用于查询数据的查询语句，JSON格式，语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现（至少一个闭区间）。\n使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start_datetime}`、`${end_datetime}`：对应后端 datetime 类型字段的筛选，如：{"ddate":{"$gte":${start_datetime},"$lt":${end_datetime}}} 将被转换为 {"ddate":{"$gte":{"$date":"2024-06-01T00:00:00+00:00"},"$lt":{"$date":"2024-07-01T00:00:00+00:00"}}}\n2. `${start_timestamp}`、`${end_timestamp}`：对应后端 timestamp 类型字段的筛选，如：{"ttime":{"$gte":${start_timestamp},"$lt":${end_timestamp}}} 将被转换为 {"ttime":{"$gte":{"$timestamp":{"t":123,"i":456}},"$lt":{"$timestamp":{"t":123,"i":456}}}}\n\n如果使用子表字段，需要在语句中拼接字段占位符。\n\n示例：`{"ddate":{"$gte":${start_datetime},"$lt":${end_datetime}},${col_name1},${col_name2}}`',
+                '用于查询数据的查询语句，JSON格式，语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现（至少一个闭区间）。\n使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start_datetime}`、`${end_datetime}`：对应后端 datetime 类型字段的筛选，如：`{"ddate":{"$gte":${start_datetime},"$lt":${end_datetime}}}` 将被转换为 `{"ddate":{"$gte":{"$date":"2024-06-01T00:00:00+00:00"},"$lt":{"$date":"2024-07-01T00:00:00+00:00"}}}`\n2. `${start_timestamp}`、`${end_timestamp}`：对应后端 timestamp 类型字段的筛选，如：`{"ttime":{"$gte":${start_timestamp},"$lt":${end_timestamp}}}` 将被转换为 `{"ttime":{"$gte":{"$timestamp":{"t":123,"i":456}},"$lt":{"$timestamp":{"t":123,"i":456}}}}`\n\n如果使用子表字段，需要在语句中拼接字段占位符。\n\n示例：`{"ddate":{"$gte":${start_datetime},"$lt":${end_datetime}},${col_name1},${col_name2}}`',
               field: 'sql',
               required: true,
               placeholder: '{"ddate":{"$gte":${start_datetime},"$lt":${end_datetime}},${col_name1},${col_name2}}',
