@@ -741,7 +741,7 @@ static void vnodeBecomeLearner(const SSyncFSM *pFsm) {
 
 static void vnodeBecomeLeader(const SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
-  vInfo("vgId:%d, becomeleader callback", pVnode->config.vgId);
+  vInfo("vgId:%d, become leader callback", pVnode->config.vgId);
 
   streamAddVnodeLeader(pVnode->config.vgId);
 }
