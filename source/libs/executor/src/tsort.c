@@ -141,6 +141,7 @@ static void destoryAllocatedTuple(void* t) { taosMemoryFree(t); }
 #define tupleSetNull(tuple, colIdx, colNum)       colDataSetNull_f((char*)tuple + sizeof(uint32_t) * colNum, colIdx)
 #define tupleColIsNull(tuple, colIdx, colNum)     BMIsNull((char*)tuple + sizeof(uint32_t) * colNum, colIdx)
 #define tupleGetDataStartOffset(colNum)           (sizeof(uint32_t) * colNum + BitmapLen(colNum))
+#define tupleSetData(tuple, offset, data, length) memcpy(tuple + offset, data, length)
 
 /**
  * @param t the tuple pointer addr, if realloced, *t is changed to the new addr

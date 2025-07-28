@@ -4120,7 +4120,7 @@ int32_t blockEncodeAsRows(const SSDataBlock* pBlock, char* data, size_t dataBufl
       metaSize = BitmapLen(realRows);
       if(dataLen + metaSize > dataBuflen) goto _exit;
       for (int32_t j = 0; j < realRows; ++j) {
-        if (colDataIsNull_f(pColRes->nullbitmap, j + startIndex)) {
+        if (colDataIsNull_f(pColRes, j + startIndex)) {
           colDataSetNull_f(data, j);
         }
       }
@@ -4342,7 +4342,7 @@ int32_t blockSpecialDecodeLaterPart(SSDataBlock* pBlock, const char* pData, int3
 
       memcpy(pColInfoData->nullbitmap, pStart, BitmapLen(realRows));
       for (int32_t j = 0; j < realRows; ++j) {
-        if (colDataIsNull_f(pStart, j + firstRowNum)) {
+        if (BMIsNull(pStart, j + firstRowNum)) {
           colDataSetNull_f(pColInfoData->nullbitmap, j);
         }
       }
