@@ -50,6 +50,10 @@ taos_options(TSDB_OPTION_DRIVER, "websocket");
 TAOS *taos = taos_connect(ip, user, password, database, port);
 ```
 
+:::warning Important Notes
+`taos_options(TSDB_OPTION_DRIVER, arg)` **must be called at the beginning of the program to set the driver type, and can only be called once**. Once set, the configuration is valid for the entire program life cycle and cannot be changed.
+:::
+
 ## Supported Platforms
 
 TDengine client driver supports multiple platforms. For a list of supported platforms, please refer to: [Supported Platforms List](../#supported-platforms)
@@ -141,9 +145,8 @@ TDengine client driver supports WebSocket connection and native connection. Most
 
 **Usage**:
 
-- **Native connection**: Just call `taos_connect()` directly, which is the default connection method.
-
-- **WebSocket connection**: You need to call `taos_options(TSDB_OPTION_DRIVER, "websocket")` to set the driver type first, and then call `taos_connect()`. The rest of the operations are the same as native connection.
+- **Native connection**: No additional configuration is required, just call the API directly, this is the default connection method.
+- **WebSocket connection**: You need to call `taos_options(TSDB_OPTION_DRIVER, "websocket")` to set the driver type first, and then call other APIs.
 
 **WebSocket connection function difference description:**
 
@@ -155,6 +158,8 @@ The following APIs only return a success status in WebSocket connection mode, bu
 - `tmq_get_connect` - Get TMQ connection handle
 
 These APIs are fully functional in native connection mode. If you need to use the above functions, it is recommended to choose native connection mode. Future versions will gradually improve the functional support of WebSocket connection.
+
+**Note**: WebSocket connection requires calling `taos_options(TSDB_OPTION_DRIVER, "websocket")` to set the driver type at the beginning of the program, and it can only be called once. Once set, the configuration is valid for the entire program life cycle and cannot be changed.
 :::
 
 ### Basic API
@@ -173,6 +178,7 @@ The basic API is used to establish database connections and provide a runtime en
 - `int taos_options(TSDB_OPTION option, const void * arg, ...)`
 
   - **Interface Description**: Sets client options, currently supports locale (`TSDB_OPTION_LOCALE`), character set (`TSDB_OPTION_CHARSET`), timezone (`TSDB_OPTION_TIMEZONE`), configuration file path (`TSDB_OPTION_CONFIGDIR`), and driver type (`TSDB_OPTION_DRIVER`). Locale, character set, and timezone default to the current settings of the operating system. The driver type can be either the native interface(`native`) or the WebSocket interface(`websocket`), with the default being `websocket`.
+  - **Note**: The driver type setting (`TSDB_OPTION_DRIVER`) must be called at the beginning of the program and can only be called once.
   - **Parameter Description**:
     - `option`: [Input] Setting item type.
     - `arg`: [Input] Setting item value.

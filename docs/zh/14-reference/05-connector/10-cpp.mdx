@@ -49,6 +49,10 @@ taos_options(TSDB_OPTION_DRIVER, "websocket");
 TAOS *taos = taos_connect(ip, user, password, database, port);
 ```
 
+:::warning 重要说明
+`taos_options(TSDB_OPTION_DRIVER, arg)` 设置驱动类型**必须在程序开始时调用，且只能调用一次**。一旦设置后，该配置对整个程序生命周期有效，不可更改。
+:::
+
 ## 支持的平台
 
 TDengine 客户端驱动支持多种平台，具体支持的平台列表请参考：[支持的平台列表](../#支持的平台)
@@ -139,8 +143,8 @@ TDengine 客户端驱动支持 WebSocket 连接和原生连接两种方式。大
 
 **使用方式**：
 
-- **原生连接**：直接调用 `taos_connect()` 即可，这是默认的连接方式。
-- **WebSocket 连接**：需要先调用 `taos_options(TSDB_OPTION_DRIVER, "websocket")` 设置驱动类型，然后再调用 `taos_connect()`，其余操作同原生连接。
+- **原生连接**：无需额外配置，直接调用 API 即可，这是默认的连接方式。
+- **WebSocket 连接**：需要先调用 `taos_options(TSDB_OPTION_DRIVER, "websocket")` 设置驱动类型，然后再调用其他 API。
 
 **WebSocket 连接功能差异说明：**
 
@@ -152,6 +156,8 @@ TDengine 客户端驱动支持 WebSocket 连接和原生连接两种方式。大
 - `tmq_get_connect` - 获取 TMQ 连接句柄
 
 这些 API 在原生连接方式下功能完整。如需使用上述功能，建议选择原生连接方式。未来版本将逐步完善 WebSocket 连接的功能支持。
+
+**注意**：WebSocket 连接需要在程序开始时调用 `taos_options(TSDB_OPTION_DRIVER, "websocket")` 设置驱动类型，且只能调用一次。一旦设置后，该配置对整个程序生命周期有效，不可更改。
 :::
 
 ### 基础 API
@@ -170,6 +176,7 @@ TDengine 客户端驱动支持 WebSocket 连接和原生连接两种方式。大
 - `int taos_options(TSDB_OPTION option, const void * arg, ...)`
 
   - **接口说明**：设置客户端选项，支持区域设置（`TSDB_OPTION_LOCALE`）、字符集设置（`TSDB_OPTION_CHARSET`）、时区设置（`TSDB_OPTION_TIMEZONE`）、配置文件路径设置（`TSDB_OPTION_CONFIGDIR`）、驱动类型设置（`TSDB_OPTION_DRIVER`）。区域设置、字符集、时区默认为操作系统当前设置。驱动类型可选内部原生接口（`native`）和 WebSocket 接口（`websocket`），默认为 `websocket`。
+  - **注意事项**：驱动类型设置（`TSDB_OPTION_DRIVER`）必须在程序开始时调用，且只能调用一次。
   - **参数说明**：
     - `option`：[入参] 设置项类型。
     - `arg`：[入参] 设置项值。
