@@ -519,7 +519,7 @@ taosd 命令行参数如下：
 #### showFullCreateTableColumn  
 
 - 说明：`show create table` 的返回值是否带 `column` 的压缩信息
-- 类型：整数, 0: 不带压缩信息， 1：带压缩信息
+- 类型：整数, 0: 不带压缩信息， 1: 带压缩信息
 - 单位：1
 - 默认值：0
 - 最小值：0
