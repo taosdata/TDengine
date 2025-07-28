@@ -1802,6 +1802,11 @@ static int32_t resetDynQueryCtrlOperState(SOperatorInfo* pOper) {
           tSimpleHashClear(pStbJoin->ctx.prev.onceTable);
         }
       }
+      int32_t code = initSeqStbJoinTableHash(&pDyn->stbJoin.ctx.prev, pDyn->stbJoin.basic.batchFetch);
+      if (TSDB_CODE_SUCCESS != code) {
+        qError("initSeqStbJoinTableHash failed since %s", tstrerror(code));
+        return code;
+      }
       destroyStbJoinTableList(pStbJoin->ctx.prev.pListHead);
       pStbJoin->ctx.prev.pListHead = NULL;
       pStbJoin->ctx.prev.joinBuild = false;

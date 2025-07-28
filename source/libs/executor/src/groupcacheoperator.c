@@ -1570,7 +1570,7 @@ static int32_t resetGroupCacheOperState(SOperatorInfo* pOper) {
 
   resetGroupCacheDownstreamCtx(pOper);
 
-  memset(&pInfo->execInfo.pDownstreamBlkNum, 0, pOper->numOfDownstream * sizeof(int64_t));
+  memset(pInfo->execInfo.pDownstreamBlkNum, 0, pOper->numOfDownstream * sizeof(int64_t));
   
 _exit:
 
