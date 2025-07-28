@@ -105,9 +105,6 @@ else
         taosd &
     fi
 fi
-# wait for serverPort ready
-sleep 1s
-sh -c "taos -p'$TAOS_ROOT_PASSWORD' -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s 'create snode on dnode 1;'"
 
 if [ "$DISABLE_ADAPTER" = "0" ]; then
     which taosadapter >/dev/null && taosadapter &
@@ -163,6 +160,8 @@ if [ "$NEEDS_INITDB" = "1" ]; then
 
     touch "${DATA_DIR}/.docker-entrypoint-inited"
 fi
+
+sh -c "taos -p'$TAOS_ROOT_PASSWORD' -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s 'create snode on dnode 1;'"
 
 tail -f /dev/null
 # while true; do sleep 1000; done
