@@ -1,5 +1,10 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
+from new_test_framework.utils import (
+    tdLog,
+    tdSql,
+    tdStream,
+    StreamCheckItem,
+)
 
 
 class TestStreamOldCaseSession:
@@ -10,8 +15,7 @@ class TestStreamOldCaseSession:
     def test_stream_oldcase_session(self):
         """Stream session
 
-        1. basic test
-        2. out of order data
+        Test the correctness of session windows
 
         Catalog:
             - Streams:OldTsimCases
@@ -23,9 +27,9 @@ class TestStreamOldCaseSession:
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/session0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/session1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/triggerSession0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/session0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/session1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/triggerSession0.sim
 
         """
 
@@ -56,10 +60,14 @@ class TestStreamOldCaseSession:
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into t1 values(1648791213000, NULL, NULL, NULL, NULL, 1);")
+        tdSql.execute(
+            f"insert into t1 values(1648791213000, NULL, NULL, NULL, NULL, 1);"
+        )
         tdSql.execute(f"insert into t1 values(1648791223001, 10, 2, 3, 1.1, 2);")
         tdSql.execute(f"insert into t1 values(1648791233002, 3, 2, 3, 2.1, 3);")
-        tdSql.execute(f"insert into t1 values(1648791243003, NULL, NULL, NULL, NULL, 4);")
+        tdSql.execute(
+            f"insert into t1 values(1648791243003, NULL, NULL, NULL, NULL, 4);"
+        )
         tdSql.execute(
             f"insert into t1 values(1648791213002, NULL, NULL, NULL, NULL, 5) (1648791233012, NULL, NULL, NULL, NULL, 6);"
         )

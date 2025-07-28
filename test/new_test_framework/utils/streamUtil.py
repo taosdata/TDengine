@@ -994,109 +994,121 @@ class StreamUtil:
     # for StreamCheckItem, see cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
     def checkAll(self, streams):
         for stream in streams:
-            tdLog.info(f"stream:{stream.db} - create database, table, stream")
+            tdLog.info(f"stream:{stream.db} - create database, table, stream", color='blue')
             stream.create()
 
-        tdLog.info(f"total:{len(streams)} cases is running")
+        tdLog.info(f"total:{len(streams)} cases is running", color='blue')
         tdStream.checkStreamStatus()
 
         for stream in streams:
             if stream.insert1 != None:
-                tdLog.info(f"stream:{stream.db} - insert data step 1")
+                tdLog.info(f"stream:{stream.db} - insert step 1", color='blue')
                 tdSql.execute(f"use {stream.db}")
                 stream.insert1()
 
         for stream in streams:
             if stream.check1 != None:
-                tdLog.info(f"stream:{stream.db} - check result step 1")
+                tdLog.info(f"stream:{stream.db} - check step 1", color='blue')
                 tdSql.execute(f"use {stream.db}")
                 stream.check1()
 
         for stream in streams:
             if stream.insert2 != None:
-                tdLog.info(f"stream:{stream.db} - insert data step 2")
+                tdLog.info(f"stream:{stream.db} - insert step 2", color='blue')
                 tdSql.execute(f"use {stream.db}")
                 stream.insert2()
 
         for stream in streams:
             if stream.check2 != None:
-                tdLog.info(f"stream:{stream.db} - check result step 2")
+                tdLog.info(f"stream:{stream.db} - check step 2", color='blue')
                 tdSql.execute(f"use {stream.db}")
                 stream.check2()
 
         for stream in streams:
             if stream.insert3 != None:
-                tdLog.info(f"stream:{stream.db} - insert data step 3")
+                tdLog.info(f"stream:{stream.db} - insert step 3", color='blue')
                 tdSql.execute(f"use {stream.db}")
                 stream.insert3()
 
         for stream in streams:
             if stream.check3 != None:
-                tdLog.info(f"stream:{stream.db} - check result step 3")
+                tdLog.info(f"stream:{stream.db} - check step 3", color='blue')
                 tdSql.execute(f"use {stream.db}")
                 stream.check3()
 
         for stream in streams:
             if stream.insert4 != None:
-                tdLog.info(f"stream:{stream.db} - insert data step 4")
+                tdLog.info(f"stream:{stream.db} - insert step 4", color='blue')
                 tdSql.execute(f"use {stream.db}")
                 stream.insert4()
 
         for stream in streams:
             if stream.check4 != None:
-                tdLog.info(f"stream:{stream.db} - check result step 4")
+                tdLog.info(f"stream:{stream.db} - check step 4", color='blue')
                 tdSql.execute(f"use {stream.db}")
                 stream.check4()
 
         for stream in streams:
             if stream.insert5 != None:
-                tdLog.info(f"stream:{stream.db} - insert data step 5")
+                tdLog.info(f"stream:{stream.db} - insert step 5", color='blue')
                 tdSql.execute(f"use {stream.db}")
                 stream.insert5()
 
         for stream in streams:
             if stream.check5 != None:
-                tdLog.info(f"stream:{stream.db} - check result step 5")
+                tdLog.info(f"stream:{stream.db} - check step 5", color='blue')
                 tdSql.execute(f"use {stream.db}")
                 stream.check5()
 
         for stream in streams:
             if stream.insert6 != None:
-                tdLog.info(f"stream:{stream.db} - insert data step 6")
+                tdLog.info(f"stream:{stream.db} - insert step 6", color='blue')
                 tdSql.execute(f"use {stream.db}")
                 stream.insert6()
 
         for stream in streams:
             if stream.check6 != None:
-                tdLog.info(f"stream:{stream.db} - check result step 6")
+                tdLog.info(f"stream:{stream.db} - check step 6", color='blue')
                 tdSql.execute(f"use {stream.db}")
                 stream.check6()
 
         for stream in streams:
             if stream.insert7 != None:
-                tdLog.info(f"stream:{stream.db} - insert data step 7")
+                tdLog.info(f"stream:{stream.db} - insert step 7", color='blue')
                 tdSql.execute(f"use {stream.db}")
                 stream.insert7()
 
         for stream in streams:
             if stream.check7 != None:
-                tdLog.info(f"stream:{stream.db} - check result step 7")
+                tdLog.info(f"stream:{stream.db} - check step 7", color='blue')
                 tdSql.execute(f"use {stream.db}")
                 stream.check7()
 
         for stream in streams:
             if stream.insert8 != None:
-                tdLog.info(f"stream:{stream.db} - insert data step 8")
+                tdLog.info(f"stream:{stream.db} - insert step 8", color='blue')
                 tdSql.execute(f"use {stream.db}")
                 stream.insert8()
 
         for stream in streams:
             if stream.check8 != None:
-                tdLog.info(f"stream:{stream.db} - check result step 8")
+                tdLog.info(f"stream:{stream.db} - check step 8", color='blue')
                 tdSql.execute(f"use {stream.db}")
                 stream.check8()
 
-        tdLog.info(f"total:{len(streams)} streams check successfully")
+        for stream in streams:
+            if stream.insert9 != None:
+                tdLog.info(f"stream:{stream.db} - insert step 9", color='blue')
+                tdSql.execute(f"use {stream.db}")
+                stream.insert9()
+
+        for stream in streams:
+            if stream.check9 != None:
+                tdLog.info(f"stream:{stream.db} - check step 9", color='blue')
+                tdSql.execute(f"use {stream.db}")
+                stream.check9()
+
+        tdLog.info(f"total:{len(streams)} streams check successfully", color='yellow')
 
 
 tdStream = StreamUtil()
@@ -1413,6 +1425,12 @@ class StreamCheckItem:
         return
 
     def check8(self):
+        return
+    
+    def insert9(self):
+        return
+
+    def check9(self):
         return
 
 

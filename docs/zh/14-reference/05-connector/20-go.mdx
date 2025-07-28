@@ -25,25 +25,26 @@ import RequestId from "./_request_id.mdx";
 
 | driver-go 版本 | 主要变化                                       | TDengine 版本   |
 |--------------|--------------------------------------------|---------------|
+| v3.7.3       | 修复 WebSocket 连接 stmt 查询结果包含 decimal 数据崩溃   | -             |
 | v3.7.2       | 支持 BLOB 类型                                 | -             |
 | v3.7.1       | 支持 ipv6 连接                                 | -             |
 | v3.7.0       | 支持 decimal 类型                              | 3.3.6.0 及更高版本 |
 | v3.6.0       | stmt2 原生接口，DSN 支持密码包含特殊字符（url.QueryEscape） | 3.3.5.0 及更高版本 |
 | v3.5.8       | 修复空指针异常                                    | -             |
 | v3.5.7       | taosWS 和 taosRestful 支持传入 request id       | -             |
-| v3.5.6       | 提升 websocket 查询和写入性能                       | 3.3.2.0 及更高版本 |
+| v3.5.6       | 提升 WebSocket 查询和写入性能                       | 3.3.2.0 及更高版本 |
 | v3.5.5       | restful 支持跳过 ssl 证书检查                      | -             |
 | v3.5.4       | 兼容 TDengine 3.3.0.0 tmq raw data           | -             |
 | v3.5.3       | 重构 taosWS                                  | -             |
-| v3.5.2       | websocket 压缩和优化消息订阅性能                      | 3.2.3.0 及更高版本 |
+| v3.5.2       | WebSocket 压缩和优化消息订阅性能                      | 3.2.3.0 及更高版本 |
 | v3.5.1       | 原生 stmt 查询和 geometry 类型支持                  | 3.2.1.0 及更高版本 |
 | v3.5.0       | 获取消费进度及按照指定进度开始消费                          | 3.0.5.0 及更高版本 |
-| v3.3.1       | 基于 websocket 的 schemaless 协议写入             | 3.0.4.1 及更高版本 |
+| v3.3.1       | 基于 WebSocket 的 schemaless 协议写入             | 3.0.4.1 及更高版本 |
 | v3.1.0       | 提供贴近 kafka 的订阅 api                         | -             |
 | v3.0.4       | 新增 request id 相关接口                         | 3.0.2.2 及更高版本 |
-| v3.0.3       | 基于 websocket 的 statement 写入                | -             |
-| v3.0.2       | 基于 websocket 的数据查询和写入                      | 3.0.1.5 及更高版本 |
-| v3.0.1       | 基于 websocket 的消息订阅                         | -             |
+| v3.0.3       | 基于 WebSocket 的 statement 写入                | -             |
+| v3.0.2       | 基于 WebSocket 的数据查询和写入                      | 3.0.1.5 及更高版本 |
+| v3.0.1       | 基于 WebSocket 的消息订阅                         | -             |
 | v3.0.0       | 适配 TDengine 3.0 查询和写入                      | 3.0.0.0 及更高版本 |
 
 ## 异常和错误码

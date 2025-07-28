@@ -342,6 +342,10 @@ static int32_t stRunnerInitTbTagVal(SStreamRunnerTask* pTask, SStreamRunnerTaskE
 static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec, SSDataBlock* pBlock,
                                    bool* createTb) {
   int32_t code = 0;
+  if (stRunnerTaskWaitQuit(pTask)) {
+    ST_TASK_ILOG("[runner calc]quit, skip output. status:%d", pTask->task.status);
+    return TSDB_CODE_SUCCESS;
+  }
   if (pTask->notification.calcNotifyOnly) return 0;
   bool needCalcTbName = pExec->tbname[0] == '\0';
   if (pBlock && pBlock->info.rows > 0) {
@@ -409,7 +413,7 @@ static void clearNotifyContent(SStreamRunnerTaskExecution* pExec) {
 }
 
 static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec, int32_t startWinIdx,
-                                    int32_t endWinIdx) {
+                                    int32_t endWinIdx, const char* tbname) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -430,7 +434,7 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
     params[i - startWinIdx] = pTriggerCalcParams;
   }
 
-  code = streamSendNotifyContent(&pTask->task, pTask->streamName, pExec->runtimeInfo.funcInfo.triggerType,
+  code = streamSendNotifyContent(&pTask->task, pTask->streamName, tbname, pExec->runtimeInfo.funcInfo.triggerType,
                                  pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
                                  pTask->notification.notifyErrorHandle, *params, nParam);
 
@@ -446,7 +450,7 @@ _exit:
 }
 
 static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec,
-                                    const SSDataBlock* pBlock) {
+                                         const SSDataBlock* pBlock, const char* tbname) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -469,7 +473,7 @@ static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunner
     }
     pTriggerCalcParams->resultNotifyContent = pContent;
 
-    code = streamSendNotifyContent(&pTask->task, pTask->streamName, pExec->runtimeInfo.funcInfo.triggerType,
+    code = streamSendNotifyContent(&pTask->task, pTask->streamName, tbname, pExec->runtimeInfo.funcInfo.triggerType,
                                    pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
                                    pTask->notification.notifyErrorHandle, pTriggerCalcParams, 1);
     taosMemoryFreeClear(pTriggerCalcParams->resultNotifyContent);
@@ -481,7 +485,7 @@ static int32_t stRunnerHandleSingleWinResultBlock(SStreamRunnerTask* pTask, SStr
                                                   SSDataBlock* pBlock, bool* pCreateTb) {
   int32_t code = stRunnerOutputBlock(pTask, pExec, pBlock, pCreateTb);
   if (code == 0) {
-    code = streamDoNotification1For1(pTask, pExec, pBlock);
+    code = streamDoNotification1For1(pTask, pExec, pBlock, pExec->tbname);
     if (code != TSDB_CODE_SUCCESS) {
       ST_TASK_ELOG("failed to send notification for block, code:%s", tstrerror(code));
     }
@@ -674,7 +678,7 @@ static int32_t stRunnerTopTaskHandleOutputBlockAgg(SStreamRunnerTask* pTask, SSt
   if (code == 0 && taosArrayGetSize(pTask->notification.pNotifyAddrUrls) > 0) {
     endWinIdx = *pNextOutIdx - 1;
     if (endWinIdx >= startWinIdx) {
-      code = streamDoNotification(pTask, pExec, startWinIdx, endWinIdx);
+      code = streamDoNotification(pTask, pExec, startWinIdx, endWinIdx, pExec->tbname);
       if (code != TSDB_CODE_SUCCESS) {
         ST_TASK_ELOG("failed to send notification for block, code:%s", tstrerror(code));
       }
@@ -720,7 +724,7 @@ static int32_t stRunnerTopTaskHandleOutputBlockProj(SStreamRunnerTask* pTask, SS
   if (code == 0) {
     endWinIdx = *pNextOutIdx - 1;
     if (endWinIdx >= startWinIdx) {
-      streamDoNotification(pTask, pExec, startWinIdx, endWinIdx);
+      streamDoNotification(pTask, pExec, startWinIdx, endWinIdx, pExec->tbname);
     }
   }
   return code;
@@ -849,7 +853,8 @@ static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecut
   ST_TASK_DLOG("vgId:%d start to build stream task", vgId);
   SReadHandle handle = {0};
   handle.streamRtInfo = &pExec->runtimeInfo;
-  handle.pMsgCb = pTask->pMsgCb;
+  handle.pMsgCb = &pTask->msgCb;
+  //handle.pMsgCb = pTask->pMsgCb;
   handle.pWorkerCb = pTask->pWorkerCb;
   if (pTask->topTask) {
     SStreamInserterParam params = {.dbFName = pTask->output.outDbFName,

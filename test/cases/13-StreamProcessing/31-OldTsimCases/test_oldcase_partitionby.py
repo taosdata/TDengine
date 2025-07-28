@@ -1,6 +1,10 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
-
+from new_test_framework.utils import (
+    tdLog,
+    tdSql,
+    tdStream,
+    StreamCheckItem,
+)
 
 class TestStreamOldCasePartitionBy:
 
@@ -10,8 +14,7 @@ class TestStreamOldCasePartitionBy:
     def test_stream_oldcase_partitionby(self):
         """Stream partition by
 
-        1. basic test
-        2. out of order data
+        Validate the calculation results under PARTITION BY clauses
 
         Catalog:
             - Streams:OldTsimCases
@@ -23,12 +26,12 @@ class TestStreamOldCasePartitionBy:
         Jira: None
         
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/partitionby.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/partitionby1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/partitionbyColumnInterval.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/partitionbyColumnOther.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/partitionbyColumnSession.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/partitionbyColumnState.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/partitionby.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/partitionby1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/partitionbyColumnInterval.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/partitionbyColumnOther.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/partitionbyColumnSession.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/partitionbyColumnState.sim
         """
 
         tdStream.createSnode()

@@ -5,6 +5,7 @@ on:
     branches:
       - 'main'
       - '3.0'
+      - '3.3.6'
       - 'docs-cloud'
     paths:
       - 'docs/**'
@@ -58,7 +59,7 @@ jobs:
         with:
           args: --lint docs/zh/* docs/en/*
       - name: Report ReviewDog
-        if: always()
+        if: failure() && steps.autocorrect.conclusion == 'failure'
         uses: tomchon/autocorrect-action@fix/review-dog
         env:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}

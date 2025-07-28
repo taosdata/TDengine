@@ -362,7 +362,12 @@ void vnodeDestroy(int32_t vgId, const char *path, STfs *pTfs, int32_t nodeId) {
     // we should only do this on the leader node, but it is ok to do this on all nodes
     char prefix[TSDB_FILENAME_LEN];
     snprintf(prefix, TSDB_FILENAME_LEN, "vnode%d/", vgId);
-    tssDeleteFileByPrefixFromDefault(prefix);
+    int32_t code = tssDeleteFileByPrefixFromDefault(prefix);
+    if (code < 0) {
+      vError("vgId:%d, failed to remove vnode files from shared storage since %s", vgId, tstrerror(code));
+    } else {
+      vInfo("vgId:%d, removed vnode files from shared storage", vgId);
+    }
   }
 #endif
 }
@@ -461,7 +466,8 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   (void)taosThreadMutexInit(&pVnode->mutex, NULL);
   (void)taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
 
-  vInfo("vgId:%d, finished vnode load info %s, vnode committed:%" PRId64, info.config.vgId, dir, pVnode->state.committed);
+  vInfo("vgId:%d, finished vnode load info %s, vnode committed:%" PRId64, info.config.vgId, dir,
+        pVnode->state.committed);
 
   int8_t rollback = vnodeShouldRollback(pVnode);
 
@@ -487,9 +493,20 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
 
   // open tsdb
   vInfo("vgId:%d, start to open vnode tsdb", TD_VID(pVnode));
-  if (!VND_IS_RSMA(pVnode) && (terrno = tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, NULL, rollback, force)) < 0) {
+  if (!VND_IS_RSMA(pVnode) &&
+      (terrno = tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, NULL, rollback, force)) < 0) {
     vError("vgId:%d, failed to open vnode tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
+  }
+
+  if (TSDB_CACHE_RESET(pVnode->config)) {
+    // flag vnode tsdb cache
+    vInfo("vgId:%d, start to flag vnode tsdb cache", TD_VID(pVnode));
+
+    if (metaFlagCache(pVnode) < 0) {
+      vError("vgId:%d, failed to flag tsdb cache since %s", TD_VID(pVnode), tstrerror(terrno));
+      goto _err;
+    }
   }
 
   // open wal
@@ -534,7 +551,13 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   vInfo("vgId:%d, start to open blob store engine", TD_VID(pVnode));
   (void)tsnprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_BSE_DIR);
 
-  SBseCfg cfg = {.vgId = pVnode->config.vgId, .keepDays = 365 * 24 * 3600};
+  SBseCfg cfg = {
+      .vgId = pVnode->config.vgId,
+      .keepDays = pVnode->config.tsdbCfg.days,
+      .keeps = pVnode->config.tsdbCfg.keep0,
+      .retention = pVnode->config.tsdbCfg.retentions[0],
+      .precision = pVnode->config.tsdbCfg.precision,
+  };
   ret = bseOpen(tdir, &cfg, &pVnode->pBse);
   if (ret != 0) {
     vError("vgId:%d, failed to open blob store engine since %s", TD_VID(pVnode), tstrerror(ret));
