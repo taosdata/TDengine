@@ -598,7 +598,7 @@ int32_t resetExchangeOperState(SOperatorInfo* pOper) {
   SExchangeInfo* pInfo = pOper->info;
   SExchangePhysiNode* pPhynode = (SExchangePhysiNode*)pOper->pPhyNode;
 
-  qDebug("%s reset exchange info:%p", pOper->pTaskInfo->id.str, pInfo);
+  qDebug("%s reset exchange op:%p info:%p", pOper->pTaskInfo->id.str, pOper, pInfo);
 
   atomic_add_fetch_64(&pInfo->seqId, 1);
   pOper->status = OP_NOT_OPENED;
@@ -618,6 +618,10 @@ int32_t resetExchangeOperState(SOperatorInfo* pOper) {
     pDataInfo->fetchSent = false;
     taosWUnLockLatch(&pDataInfo->lock);
   }
+
+  if (pInfo->dynamicOp) {
+    taosArrayClearEx(pInfo->pSourceDataInfo, freeSourceDataInfo);
+  } 
 
   taosArrayClearEx(pInfo->pResultBlockList, freeBlock);
   taosArrayClearEx(pInfo->pRecycledBlocks, freeBlock);
@@ -683,7 +687,7 @@ int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNo
   code = filterInitFromNode((SNode*)pExNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
                             pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _error);
-  qError("%s exchange op:%p", __func__, pOperator);
+  qTrace("%s exchange op:%p", __func__, pOperator);
   pOperator->fpSet = createOperatorFpSet(prepareLoadRemoteData, loadRemoteDataNext, NULL, destroyExchangeOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorResetStateFn(pOperator, resetExchangeOperState);
