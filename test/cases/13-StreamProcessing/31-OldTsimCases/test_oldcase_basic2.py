@@ -622,7 +622,7 @@ class TestStreamOldCaseBasic2:
             tdSql.checkResultsByFunc(
                 f"select * from streamt;",
                 lambda: tdSql.getRows() == 2
-                and tdSql.getData(0, 1) == 7
+                and tdSql.getData(0, 1) == 4
                 and tdSql.getData(1, 1) == 7,
             )
 

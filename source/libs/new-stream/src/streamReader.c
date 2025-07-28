@@ -71,7 +71,7 @@ end:
 }
 
 int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order, void* schemas, bool isSchema,
-                                      STimeWindow twindows, uint64_t suid) {
+                                      STimeWindow twindows, uint64_t suid, int64_t ver) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -89,7 +89,7 @@ int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order,
   pCond->suid = suid;
   pCond->type = TIMEWINDOW_RANGE_CONTAINED;
   pCond->startVersion = -1;
-  pCond->endVersion = -1;
+  pCond->endVersion = ver;
   //  pCond->skipRollup = readHandle->skipRollup;
 
   pCond->notLoadData = false;
@@ -136,6 +136,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
   int32_t                 code = 0;
   int32_t                 lino = 0;
   SStreamReaderTaskInner* pTask = taosMemoryCalloc(1, sizeof(SStreamReaderTaskInner));
+  SNodeList*              groupNew = NULL;
   STREAM_CHECK_NULL_GOTO(pTask, terrno);
   pTask->api = *api;
   pTask->options = *options;
@@ -158,13 +159,14 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
       STREAM_CHECK_RET_GOTO(qStreamGetTableList(pTask->pTableList, -1, &pList, &pNum))
     } else {
       STREAM_CHECK_RET_GOTO(filterInitFromNode(options->pConditions, &pTask->pFilterInfo, 0, NULL));
+      STREAM_CHECK_RET_GOTO(nodesCloneList(options->partitionCols, &groupNew));
       STREAM_CHECK_RET_GOTO(qStreamCreateTableListForReader(
-          pVnode, options->suid, options->uid, options->tableType, options->partitionCols, options->groupSort,
+          pVnode, options->suid, options->uid, options->tableType, groupNew, options->groupSort,
           options->pTagCond, options->pTagIndexCond, api, &pTask->pTableList, groupIdMap));
 
       if (options->gid != 0) {
         int32_t index = qStreamGetGroupIndex(pTask->pTableList, options->gid);
-        STREAM_CHECK_CONDITION_GOTO(index < 0, TSDB_CODE_INVALID_PARA);
+        STREAM_CHECK_CONDITION_GOTO(index < 0, TSDB_CODE_STREAM_NO_DATA);
         pTask->currentGroupIndex = index;
       }
       if (options->scanMode == STREAM_SCAN_GROUP_ONE_BY_ONE) {
@@ -176,7 +178,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
 
     cleanupQueryTableDataCond(&pTask->cond);
     STREAM_CHECK_RET_GOTO(qStreamInitQueryTableDataCond(&pTask->cond, options->order, pTask->options.schemas, options->isSchema,
-                                                        options->twindows, options->suid));
+                                                        options->twindows, options->suid, options->ver));
     STREAM_CHECK_RET_GOTO(pTask->api.tsdReader.tsdReaderOpen(pVnode, &pTask->cond, pList, pNum, pTask->pResBlock,
                                                            (void**)&pTask->pReader, pTask->idStr, NULL));
   }
@@ -185,6 +187,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
   pTask = NULL;
 
 end:
+  nodesDestroyList(groupNew);
   STREAM_PRINT_LOG_END(code, lino);
   releaseStreamTask(&pTask);
   destroyOptions(options);

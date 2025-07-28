@@ -842,6 +842,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   pMsg->igNoDataTrigger = pStream->pCreate->igNoDataTrigger;
   pMsg->hasPartitionBy = (pStream->pCreate->partitionCols != NULL);
   pMsg->isTriggerTblVirt = STREAM_IS_VIRTUAL_TABLE(pStream->pCreate->triggerTblType, pStream->pCreate->flags);
+  pMsg->triggerHasPF = pStream->pCreate->triggerHasPF;
 
   pMsg->pNotifyAddrUrls = pInfo->pCreate->pNotifyAddrUrls;
   pMsg->notifyEventTypes = pStream->pCreate->notifyEventTypes;
