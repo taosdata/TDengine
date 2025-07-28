@@ -918,6 +918,7 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->igNoDataTrigger));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->hasPartitionBy));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->isTriggerTblVirt));
+  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->triggerHasPF));
 
   int32_t addrSize = (int32_t)taosArrayGetSize(pMsg->pNotifyAddrUrls);
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, addrSize));
@@ -1443,6 +1444,7 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->igNoDataTrigger));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->hasPartitionBy));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->isTriggerTblVirt));
+  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->triggerHasPF));
 
   int32_t addrSize = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &addrSize));
