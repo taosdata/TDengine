@@ -76,7 +76,7 @@ else
 fi
 
 if [ $ent -ne 0 ]; then
-    # enterprise edition
+    # TSDB-Enterprise edition
     extra_param="$extra_param -e"
     INTERNAL_REPDIR=$WORKDIR/TDinternal
     REPDIR=$INTERNAL_REPDIR/community
@@ -87,7 +87,7 @@ if [ $ent -ne 0 ]; then
     REP_MOUNT_DEBUG="${REPDIR_DEBUG}:/home/TDinternal/debug/"
     REP_MOUNT_LIB="${REPDIR_DEBUG}/build/lib:/home/TDinternal/debug/build/lib:ro"
 else
-    # community edition
+    # TSDB-OSS edition
     REPDIR=$WORKDIR/TDengine
     REPDIR_DEBUG=$WORKDIR/$DEBUGPATH/
     CONTAINER_TESTDIR=/home/TDengine
@@ -139,6 +139,6 @@ docker run \
     -v ${SOURCEDIR}:/usr/local/src/ \
     -v "$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}" \
     -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
-    --rm --ulimit core=-1 taos_test:v1.0 $CONTAINER_TESTDIR/test/ci/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param
+    --rm --ulimit core=-1 tdengine-ci:0.1 $CONTAINER_TESTDIR/test/ci/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param
 ret=$?
 exit $ret

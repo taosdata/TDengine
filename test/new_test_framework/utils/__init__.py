@@ -1,7 +1,10 @@
+from .autogen import *
 from .before_test import *
 from .eutil import *
+from .eos import *
 from .taoskeeper import *
 from .sql import *
+from .sqlset import *
 from .log import *
 from .common import *
 from .server.cluster import *
@@ -12,4 +15,8 @@ from .srvCtl import *
 from .clusterCommonCheck import *
 from typing import List
 from .streamUtil import *
+from .mqttUtil import *
+from .compatibilityUtil import *
+from .pathFinding import *
+from .tserror import *
 import random

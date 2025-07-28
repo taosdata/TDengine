@@ -161,4 +161,5 @@ if [ "$NEEDS_INITDB" = "1" ]; then
     touch "${DATA_DIR}/.docker-entrypoint-inited"
 fi
 
-while true; do sleep 1000; done
+tail -f /dev/null
+# while true; do sleep 1000; done

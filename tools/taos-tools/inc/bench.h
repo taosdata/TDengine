@@ -116,6 +116,10 @@ typedef unsigned __int32 uint32_t;
 #define TSDB_DATA_TYPE_DECIMAL 17
 #endif
 
+#ifndef TSDB_DATA_TYPE_BLOB
+#define TSDB_DATA_TYPE_BLOB 18
+#endif
+
 #ifndef TSDB_DATA_TYPE_MEDIUMBLOB
 #define TSDB_DATA_TYPE_MEDIUMBLOB 19
 #endif
@@ -212,6 +216,7 @@ typedef unsigned __int32 uint32_t;
 #define BENCH_PASS                \
     "The password to use when connecting to the server, default is taosdata."
 #define BENCH_OUTPUT  "The path of result output file, default is ./output.txt."
+#define BENCH_OUTPUT_JSON  "The path of result output json file, optional."
 #define BENCH_THREAD  "The number of thread when insert data, default is 8."
 #define BENCH_INTERVAL            \
     "Insert interval for interlace mode in milliseconds, default is 0."
@@ -266,10 +271,10 @@ typedef unsigned __int32 uint32_t;
     "when keep trying be enabled."
 #define BENCH_NODROP "Do not drop database."
 
-
 #define IS_VAR_DATA_TYPE(t)                                                                                 \
   (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR) || \
-   ((t) == TSDB_DATA_TYPE_JSON) || ((t) == TSDB_DATA_TYPE_GEOMETRY))
+   ((t) == TSDB_DATA_TYPE_JSON) || ((t) == TSDB_DATA_TYPE_GEOMETRY) || ((t) == TSDB_DATA_TYPE_BLOB) ||      \
+   ((t) == TSDB_DATA_TYPE_MEDIUMBLOB))
 
 enum TEST_MODE {
     INSERT_TEST,     // 0
@@ -566,6 +571,7 @@ typedef struct SSuperTable_S {
     int64_t   specifiedColumns;
     char      sampleFile[MAX_FILE_NAME_LEN];
     char      tagsFile[MAX_FILE_NAME_LEN];
+    char      primaryKeyName[TSDB_COL_NAME_LEN + 1];
     uint32_t  partialColNum;
     uint32_t  partialColFrom;
     char      *partialColNameBuf;
@@ -579,6 +585,7 @@ typedef struct SSuperTable_S {
 
     char      *sampleDataBuf;
     bool      useSampleTs;
+    bool      useTagTableName;
     bool      tcpTransfer;
     bool      non_stop;
     bool      autoFillback; // "start_fillback_time" item set "auto"
@@ -762,6 +769,7 @@ typedef struct SArguments_S {
     bool                performance_print;
     bool                chinese;
     char *              output_file;
+    char *              output_json_file;
     uint32_t            binwidth;
     uint32_t            intColumnCount;
     uint32_t            nthreads;
@@ -872,7 +880,8 @@ typedef struct SThreadInfo_S {
     char        *csql;
     int32_t     clen;  // csql current write position
     bool        stmtBind;
-
+    char **     childNames;
+    int32_t     childTblCount;
     // stmt2
     BArray      *tagsStmt;
 } threadInfo;
@@ -885,7 +894,7 @@ typedef struct SQueryThreadInfo_S {
     BArray*   query_delay_list;
     int32_t   sockfd;
     double   total_delay;
-
+    char*    dbName;
     char      filePath[MAX_PATH_LEN];
     uint64_t  start_table_from;
     uint64_t  end_table_to;
@@ -950,7 +959,7 @@ int     postProcessSql(char *sqlstr, char* dbName, int precision, int iface,
 int     queryDbExecCall(SBenchConn *conn, char *command);
 int     queryDbExecRest(char *command, char* dbName, int precision,
                     int iface, int protocol, bool tcp, int sockfd);
-SBenchConn* initBenchConn();
+SBenchConn* initBenchConn(char *dbName);
 void    closeBenchConn(SBenchConn* conn);
 int     convertHostToServAddr(char *host, uint16_t port,
                               struct sockaddr_in *serv_addr);
@@ -1036,7 +1045,7 @@ int tmpInt32ImplTag(Field *field, int i, int k);
 
 char* genQMark( int32_t QCnt);
 // get colNames , first is tbname if tbName is true
-char *genColNames(BArray *cols, bool tbName);
+char *genColNames(BArray *cols, bool tbName, char *primaryKeyName);
 
 // stmt2
 TAOS_STMT2_BINDV* createBindV(int32_t count, int32_t tagCnt, int32_t colCnt);
@@ -1081,6 +1090,7 @@ void getDecimal128DefaultMax(uint8_t precision, uint8_t scale, Decimal128* dec);
 void getDecimal128DefaultMin(uint8_t precision, uint8_t scale, Decimal128* dec);
 int decimal64BCompare(const Decimal64* a, const Decimal64* b);
 int decimal128BCompare(const Decimal128* a, const Decimal128* b);
+int check_write_permission(const char *path);
 
 #ifdef __cplusplus
 }

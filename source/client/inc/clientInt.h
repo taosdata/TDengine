@@ -291,7 +291,7 @@ typedef struct SRequestObj {
   bool                 inRetry;
   bool                 isSubReq;
   bool                 inCallback;
-  bool                 isStmtBind;  // is statement bind parameter
+  uint8_t              stmtBindVersion;  // 0 for not stmt; 1 for stmt1; 2 for stmt2
   bool                 isQuery;
   uint32_t             prevCode;  // previous error code: todo refactor, add update flag for catalog
   uint32_t             retry;
@@ -302,7 +302,6 @@ typedef struct SRequestObj {
   SMetaData            parseMeta;
   char*                effectiveUser;
   int8_t               source;
-  bool                 streamRunHistory;
 } SRequestObj;
 
 typedef struct SSyncQueryParam {

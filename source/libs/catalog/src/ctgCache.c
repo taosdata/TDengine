@@ -1106,7 +1106,11 @@ int32_t ctgDropStbMetaEnqueue(SCatalog *pCtg, const char *dbFName, int64_t dbId,
 
   msg->pCtg = pCtg;
   tstrncpy(msg->dbFName, dbFName, sizeof(msg->dbFName));
-  tstrncpy(msg->stbName, stbName, sizeof(msg->stbName));
+  if (stbName) {
+    tstrncpy(msg->stbName, stbName, sizeof(msg->stbName));
+  } else {
+    msg->stbName[0] = 0;
+  }
   msg->dbId = dbId;
   msg->suid = suid;
 
@@ -2557,19 +2561,27 @@ int32_t ctgOpDropStbMeta(SCtgCacheOperation *operation) {
 
   if ((0 != msg->dbId) && (dbCache->dbId != msg->dbId)) {
     ctgDebug("stb:%s, dbId already modified, current:0x%" PRIx64 ", dbId:0x%" PRIx64 ", db:%s, suid:0x%" PRIx64,
-             msg->stbName, dbCache->dbId, msg->dbId, msg->dbFName, msg->suid);
+      msg->stbName[0] ? msg->stbName : "null", dbCache->dbId, msg->dbId, msg->dbFName, msg->suid);
+
     goto _return;
   }
 
   char *stbName = taosHashGet(dbCache->stbCache, &msg->suid, sizeof(msg->suid));
   if (stbName) {
+    if (0 == msg->stbName[0]) {
+      tstrncpy(msg->stbName, stbName, sizeof(msg->stbName));
+    }
+
     uint64_t metaSize = strlen(stbName) + 1 + sizeof(msg->suid);
     if (taosHashRemove(dbCache->stbCache, &msg->suid, sizeof(msg->suid))) {
-      ctgDebug("stb:%s, stb not exist in stbCache, may be removed, db:%s, suid:0x%" PRIx64, msg->stbName, msg->dbFName,
+      ctgDebug("stb:%s, stb not exist in stbCache, may be removed, db:%s, suid:0x%" PRIx64, stbName, msg->dbFName,
                msg->suid);
     } else {
       (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, metaSize);
     }
+  } else if (0 == msg->stbName[0]) {
+    ctgDebug("stb with suid:0x%" PRIx64 " already not in cache", msg->suid);
+    goto _return;
   }
   
   SCtgTbCache *pTbCache = taosHashGet(dbCache->tbCache, msg->stbName, strlen(msg->stbName));
@@ -3790,7 +3802,7 @@ _return:
   return code;
 }
 
-int32_t ctgRemoveTbMetaFromCache(SCatalog *pCtg, SName *pTableName, bool syncReq) {
+int32_t ctgRemoveTbMetaFromCache(SCatalog *pCtg, SName *pTableName, bool syncReq, bool related) {
   int32_t       code = 0;
   STableMeta   *tblMeta = NULL;
   SCtgTbMetaCtx tbCtx = {0};
@@ -3805,6 +3817,9 @@ int32_t ctgRemoveTbMetaFromCache(SCatalog *pCtg, SName *pTableName, bool syncReq
 
     if (TSDB_SUPER_TABLE == tblMeta->tableType) {
       CTG_ERR_JRET(ctgDropStbMetaEnqueue(pCtg, dbFName, tbCtx.tbInfo.dbId, pTableName->tname, tblMeta->suid, syncReq));
+    } else if (TSDB_CHILD_TABLE == tblMeta->tableType || TSDB_VIRTUAL_CHILD_TABLE == tblMeta->tableType) {
+      CTG_ERR_JRET(ctgDropTbMetaEnqueue(pCtg, dbFName, tbCtx.tbInfo.dbId, pTableName->tname, syncReq));
+      CTG_ERR_JRET(ctgDropStbMetaEnqueue(pCtg, dbFName, tbCtx.tbInfo.dbId, NULL, tblMeta->suid, syncReq));    
     } else {
       CTG_ERR_JRET(ctgDropTbMetaEnqueue(pCtg, dbFName, tbCtx.tbInfo.dbId, pTableName->tname, syncReq));
     }

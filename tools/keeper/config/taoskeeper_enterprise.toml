@@ -12,6 +12,7 @@ gopoolsize = 50000
 RotationInterval = "15s"
 
 [tdengine]
+# Use square brackets for IPv6 (e.g., "[::1]") and dotted decimal for IPv4.
 host = "127.0.0.1"
 port = 6041
 username = "root"

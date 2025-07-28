@@ -105,6 +105,8 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
     return code;
   }
 
+  (*pTaskInfo)->pSubplan = pPlan;
+
   if (pHandle) {
     if (pHandle->pStateBackend) {
       (*pTaskInfo)->streamInfo.pState = pHandle->pStateBackend;
@@ -116,15 +118,14 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
     (*pTaskInfo)->sql = taosStrdup(sql);
     if (NULL == (*pTaskInfo)->sql) {
       code = terrno;
-      nodesDestroyNode((SNode*)pPlan);
       doDestroyTask(*pTaskInfo);
       (*pTaskInfo) = NULL;
       return code;
     }
   }
 
-  (*pTaskInfo)->pSubplan = pPlan;
   (*pTaskInfo)->pWorkerCb = pHandle->pWorkerCb;
+  (*pTaskInfo)->pStreamRuntimeInfo = pHandle->streamRtInfo;
   code = createOperator(pPlan->pNode, *pTaskInfo, pHandle, pPlan->pTagCond, pPlan->pTagIndexCond, pPlan->user,
                         pPlan->dbFName, &((*pTaskInfo)->pRoot), model);
 
@@ -301,15 +302,5 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
 }
 
 void buildTaskId(uint64_t taskId, uint64_t queryId, char* dst) {
-  char* p = dst;
-
-  int32_t offset = 6;
-  memcpy(p, "TID:0x", offset);
-  offset += tintToHex(taskId, &p[offset]);
-
-  memcpy(&p[offset], " QID:0x", 7);
-  offset += 7;
-  offset += tintToHex(queryId, &p[offset]);
-
-  p[offset] = 0;
+  sprintf(dst, "TID:%" PRIx64 " QID:%" PRIx64, taskId, queryId);
 }

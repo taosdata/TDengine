@@ -72,7 +72,7 @@ void tcsUninit() { tcs.End(); }
 int32_t tcsCheckCfg() {
   int32_t code = 0;
 
-  if (!tsS3Enabled) {
+  if (!tsSsEnabled) {
     (void)fprintf(stderr, "tcs not configured.\n");
     TAOS_RETURN(code);
   }

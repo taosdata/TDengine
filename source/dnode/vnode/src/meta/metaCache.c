@@ -993,20 +993,20 @@ int32_t metaGetCachedRefDbs(void* pVnode, tb_uid_t suid, SArray* pList) {
   (void)taosThreadMutexLock(pLock);
 
   SHashObj** pEntry = taosHashGet(pTableMap, &suid, sizeof(uint64_t));
-  TSDB_CHECK_NULL(pEntry, code, line, _return, terrno);
-
-  void *iter = taosHashIterate(*pEntry, NULL);
-  while (iter != NULL) {
-    size_t   dbNameLen = 0;
-    char*    name = NULL;
-    char*    dbName = NULL;
-    name = taosHashGetKey(iter, &dbNameLen);
-    TSDB_CHECK_NULL(name, code, line, _return, terrno);
-    dbName = taosMemoryMalloc(dbNameLen + 1);
-    TSDB_CHECK_NULL(dbName, code, line, _return, terrno);
-    tstrncpy(dbName, name, dbNameLen + 1);
-    TSDB_CHECK_NULL(taosArrayPush(pList, &dbName), code, line, _return, terrno);
-    iter = taosHashIterate(*pEntry, iter);
+  if (pEntry) {
+    void *iter = taosHashIterate(*pEntry, NULL);
+    while (iter != NULL) {
+      size_t   dbNameLen = 0;
+      char*    name = NULL;
+      char*    dbName = NULL;
+      name = taosHashGetKey(iter, &dbNameLen);
+      TSDB_CHECK_NULL(name, code, line, _return, terrno);
+      dbName = taosMemoryMalloc(dbNameLen + 1);
+      TSDB_CHECK_NULL(dbName, code, line, _return, terrno);
+      tstrncpy(dbName, name, dbNameLen + 1);
+      TSDB_CHECK_NULL(taosArrayPush(pList, &dbName), code, line, _return, terrno);
+      iter = taosHashIterate(*pEntry, iter);
+    }
   }
 
 _return:

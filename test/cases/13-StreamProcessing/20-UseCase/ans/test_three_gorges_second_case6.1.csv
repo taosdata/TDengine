@@ -1,0 +1,7 @@
+
+taos> select max_val,index_code,ps_code from test1.stb_sxny_cn_test_v006 order by index_code;
+          max_val          |           index_code           |            ps_code             |
+==============================================================================================
+                      1000 | index_a0                       | pscode_a0                      |
+                       101 | index_a0                       | pscode_a0                      |
+

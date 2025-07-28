@@ -36,16 +36,19 @@
 #include "storageapi.h"
 #include "tdb.h"
 
+#include "libs/metrics/metrics.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 // vnode
-typedef struct SVnode       SVnode;
-typedef struct STsdbCfg     STsdbCfg;  // todo: remove
-typedef struct SVnodeCfg    SVnodeCfg;
-typedef struct SVSnapReader SVSnapReader;
-typedef struct SVSnapWriter SVSnapWriter;
+typedef struct SVnode             SVnode;
+typedef struct STsdbCfg           STsdbCfg;  // todo: remove
+typedef struct SVnodeCfg          SVnodeCfg;
+typedef struct SVSnapReader       SVSnapReader;
+typedef struct SVSnapWriter       SVSnapWriter;
+typedef struct SVnodeWriteMetrics SVnodeWriteMetrics;
 
 extern const SVnodeCfg vnodeCfgDefault;
 
@@ -61,7 +64,7 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
 int32_t vnodeRestoreVgroupId(const char *srcPath, const char *dstPath, int32_t srcVgId, int32_t dstVgId,
                              int32_t diskPrimary, STfs *pTfs);
 void    vnodeDestroy(int32_t vgId, const char *path, STfs *pTfs, int32_t nodeId);
-SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgCb, bool force);
+SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMountTfs, SMsgCb msgCb, bool force);
 void    vnodePreClose(SVnode *pVnode);
 void    vnodePostClose(SVnode *pVnode);
 void    vnodeSyncCheckTimeout(SVnode *pVnode);
@@ -74,7 +77,6 @@ void    vnodeStop(SVnode *pVnode);
 int64_t vnodeGetSyncHandle(SVnode *pVnode);
 int32_t vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot);
 void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t *numOfTables, int64_t *numOfNormalTables);
-int32_t   vnodeProcessCreateTSma(SVnode *pVnode, void *pCont, uint32_t contLen);
 int32_t   vnodeGetTableList(void *pVnode, int8_t type, SArray *pList);
 int32_t   vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list);
 int32_t   vnodeIsCatchUp(SVnode *pVnode);
@@ -98,7 +100,7 @@ int32_t vnodeGetStbInfo(SVnode *pVnode, tb_uid_t suid, int64_t *keep, int8_t *fl
 int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num);
 int32_t vnodeGetAllCtbNum(SVnode *pVnode, int64_t *num);
 
-int32_t vnodeGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid);
+int32_t vnodeGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid, SSchemaWrapper **pTagSchema);
 
 void    vnodeResetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
@@ -112,10 +114,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
 int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
-int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
-int32_t vnodeProcessStreamCtrlMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
-int32_t vnodeProcessStreamLongExecMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
-int32_t vnodeProcessStreamChkptMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
+int32_t vnodeProcessStreamReaderMsg(SVnode *pVnode, SRpcMsg *pMsg);
 void    vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
 void    vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
 void    vnodeProposeCommitOnNeed(SVnode *pVnode, bool atExit);
@@ -134,7 +133,7 @@ int32_t     metaGetTableNameByUid(void *pVnode, uint64_t uid, char *tbName);
 
 int      metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName);
 int      metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid);
-int      metaGetTableTypeSuidByName(void *meta, char *tbName, ETableType *tbType, uint64_t* suid);
+int      metaGetTableTypeSuidByName(void *meta, char *tbName, ETableType *tbType, uint64_t *suid);
 int      metaGetTableTtlByUid(void *meta, uint64_t uid, int64_t *ttlDays);
 bool     metaIsTableExist(void *pVnode, tb_uid_t uid);
 int32_t  metaGetCachedTableUidList(void *pVnode, tb_uid_t suid, const uint8_t *key, int32_t keyLen, SArray *pList,
@@ -152,8 +151,8 @@ int32_t  metaInitTbFilterCache(SMeta *pMeta);
 
 int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t *numOfCols, int8_t *flags);
 
-int32_t metaGetCachedRefDbs(void* pVnode, tb_uid_t suid, SArray* pList);
-int32_t metaPutRefDbsToCache(void* pVnode, tb_uid_t suid, SArray* pList);
+int32_t metaGetCachedRefDbs(void *pVnode, tb_uid_t suid, SArray *pList);
+int32_t metaPutRefDbsToCache(void *pVnode, tb_uid_t suid, SArray *pList);
 
 // tsdb
 typedef struct STsdbReader STsdbReader;
@@ -171,14 +170,14 @@ typedef struct STsdbReader STsdbReader;
 
 int32_t  tsdbReaderOpen2(void *pVnode, SQueryTableDataCond *pCond, void *pTableList, int32_t numOfTables,
                          SSDataBlock *pResBlock, void **ppReader, const char *idstr, SHashObj **pIgnoreTables);
-int32_t  tsdbSetTableList2(STsdbReader *pReader, const void *pTableList, int32_t num);
+int32_t  tsdbSetTableList2(void *pReader, const void *pTableList, int32_t num);
 int32_t  tsdbReaderSetId(void *pReader, const char *idstr);
-void     tsdbReaderClose2(STsdbReader *pReader);
-int32_t  tsdbNextDataBlock2(STsdbReader *pReader, bool *hasNext);
+void     tsdbReaderClose2(void *pReader);
+int32_t  tsdbNextDataBlock2(void *pReader, bool *hasNext);
 int32_t  tsdbRetrieveDatablockSMA2(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave, bool *hasNullSMA);
-void     tsdbReleaseDataBlock2(STsdbReader *pReader);
-int32_t  tsdbRetrieveDataBlock2(STsdbReader *pReader, SSDataBlock **pBlock, SArray *pIdList);
-int32_t  tsdbReaderReset2(STsdbReader *pReader, SQueryTableDataCond *pCond);
+void     tsdbReleaseDataBlock2(void *pReader);
+int32_t  tsdbRetrieveDataBlock2(void *pReader, SSDataBlock **pBlock, SArray *pIdList);
+int32_t  tsdbReaderReset2(void *pReader, SQueryTableDataCond *pCond);
 int32_t  tsdbGetFileBlocksDistInfo2(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
 int64_t  tsdbGetNumOfRowsInMemTable2(STsdbReader *pHandle, uint32_t *rows);
 void    *tsdbGetIdx2(SMeta *pMeta);
@@ -226,22 +225,22 @@ typedef struct SVTSourceScanInfo {
 } SVTSourceScanInfo;
 
 typedef struct STqReader {
-  SPackedData     msg;
-  SSubmitReq2     submit;
-  int32_t         nextBlk;
-  int64_t         lastBlkUid;
-  SWalReader     *pWalReader;
-  SMeta          *pVnodeMeta;
-  SHashObj       *tbIdHash;
-  SArray         *pColIdList;  // SArray<int16_t>
-  int32_t         cachedSchemaVer;
-  int64_t         cachedSchemaSuid;
-  int64_t         cachedSchemaUid;
-  SSchemaWrapper *pSchemaWrapper;
-  SSDataBlock    *pResBlock;
-  int64_t         lastTs;
-  bool            hasPrimaryKey;
-  SExtSchema     *extSchema;
+  SPackedData       msg;
+  SSubmitReq2       submit;
+  int32_t           nextBlk;
+  int64_t           lastBlkUid;
+  SWalReader       *pWalReader;
+  SMeta            *pVnodeMeta;
+  SHashObj         *tbIdHash;
+  SArray           *pColIdList;  // SArray<int16_t>
+  int32_t           cachedSchemaVer;
+  int64_t           cachedSchemaSuid;
+  int64_t           cachedSchemaUid;
+  SSchemaWrapper   *pSchemaWrapper;
+  SSDataBlock      *pResBlock;
+  int64_t           lastTs;
+  bool              hasPrimaryKey;
+  SExtSchema       *extSchema;
   SVTSourceScanInfo vtSourceScanInfo;
 } STqReader;
 
@@ -253,8 +252,8 @@ void tqSetTablePrimaryKey(STqReader *pReader, int64_t uid);
 
 int32_t tqReaderSetColIdList(STqReader *pReader, SArray *pColIdList, const char *id);
 int32_t tqReaderSetTbUidList(STqReader *pReader, const SArray *tbUidList, const char *id);
-void tqReaderAddTbUidList(STqReader *pReader, const SArray *pTableUidList);
-void tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
+void    tqReaderAddTbUidList(STqReader *pReader, const SArray *pTableUidList);
+void    tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
 
 bool tqReaderIsQueriedTable(STqReader *pReader, uint64_t uid);
 bool tqCurrentBlockConsumed(const STqReader *pReader);
@@ -266,13 +265,11 @@ SWalReader  *tqGetWalReader(STqReader *pReader);
 SSDataBlock *tqGetResultBlock(STqReader *pReader);
 int64_t      tqGetResultBlockTime(STqReader *pReader);
 
-int32_t extractMsgFromWal(SWalReader *pReader, void **pItem, int64_t maxVer, const char *id);
 int32_t tqReaderSetSubmitMsg(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver, SArray* rawList);
 void    tqReaderClearSubmitMsg(STqReader *pReader);
 bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
 int32_t tqRetrieveDataBlock(STqReader *pReader, SSDataBlock **pRes, const char *idstr);
 int32_t tqRetrieveTaosxBlock(STqReader *pReader, SMqDataRsp* pRsp, SArray *blocks, SArray *schemas, SSubmitTbData **pSubmitTbDataRet, SArray* rawList, int8_t fetchMeta);
-int32_t tqGetStreamExecInfo(SVnode *pVnode, int64_t streamId, int64_t *pDelay, bool *fhFinished);
 
 int32_t tqReaderSetVtableInfo(STqReader *pReader, void *vnode, void *pAPI, SSHashObj *pVtableInfos,
                               SSDataBlock **ppResBlock, const char *idstr);
@@ -332,10 +329,12 @@ typedef struct {
   int64_t pointsWritten;
   int64_t totalStorage;
   int64_t compStorage;
+  int64_t storageLastUpd;
 } SVnodeStats;
 
 struct SVnodeCfg {
   int32_t     vgId;
+  int32_t     mountVgId;
   char        dbname[TSDB_DB_FNAME_LEN];
   uint64_t    dbId;
   int32_t     cacheLastSize;
@@ -362,9 +361,9 @@ struct SVnodeCfg {
   int32_t     tsdbPageSize;
   int32_t     tdbEncryptAlgorithm;
   char        tdbEncryptKey[ENCRYPT_KEY_LEN + 1];
-  int32_t     s3ChunkSize;
-  int32_t     s3KeepLocal;
-  int8_t      s3Compact;
+  int32_t     ssChunkSize;
+  int32_t     ssKeepLocal;
+  int8_t      ssCompact;
 };
 
 #define TABLE_ROLLUP_ON       ((int8_t)0x1)
@@ -387,6 +386,24 @@ void    tsdbFileSetReaderClose(struct SFileSetReader **ppReader);
 
 int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry);
 void    metaFetchEntryFree(SMetaEntry **ppEntry);
+
+/**
+ * @brief Get raw write metrics for a vnode
+ *
+ * @param pVnode Pointer to the vnode object
+ * @param pRawMetrics Pointer to the SRawWriteMetrics struct to fill with raw metrics
+ * @return 0 on success, non-zero on error
+ */
+int32_t vnodeGetRawWriteMetrics(void *pVnode, SRawWriteMetrics *pRawMetrics);
+
+/**
+ * @brief Reset raw write metrics for a vnode by subtracting old values
+ *
+ * @param pVnode Pointer to the vnode object
+ * @param pOldMetrics Pointer to the SRawWriteMetrics struct containing values to subtract
+ * @return 0 on success, non-zero on error
+ */
+int32_t vnodeResetRawWriteMetrics(void *pVnode, const SRawWriteMetrics *pOldMetrics);
 
 #ifdef __cplusplus
 }

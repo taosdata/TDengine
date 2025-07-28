@@ -20,6 +20,7 @@ on:
       - 'tests/script/tsim/analytics'
       - '**/*.md'
       - '.github/workflows/**'
+      
   workflow_dispatch:
     inputs:
       specified_source_branch:
@@ -48,6 +49,7 @@ jobs:
   run-tests-on-linux:
     # NOTE: using tomchon-patch-3 branch for the moment
     uses: taosdata/.github/.github/workflows/run-tests-on-linux.yml@main
+    #uses: taosdata/.github/.github/workflows/run-tests-on-linux.yml@enh/remove-return-tests
     with:
       tdinternal: false
       specified_source_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || inputs.specified_source_branch }}

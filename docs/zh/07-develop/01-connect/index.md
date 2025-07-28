@@ -89,7 +89,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.6.3</version>
+  <version>3.7.1</version>
 </dependency>
 ```
 
@@ -115,7 +115,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
             ```
         - 指定某个特定版本安装
             ```
-            pip3 install taospy==2.8.1
+            pip3 install taospy==2.8.3
             ```
         - 从 GitHub 安装
             ```
@@ -278,10 +278,12 @@ dotnet add package TDengine.Connector
     </TabItem>
     <TabItem label="Python" value="python">
     Python 连接器使用 `connect()` 方法来建立连接，下面是连接参数的具体说明：    
-        - url： `taosAdapter` REST 服务的 URL。默认是 `localhost` 的 `6041` 端口。 
+        - url： `taosAdapter` Websocket 服务的 URL。默认是 `localhost` 的 `6041` 端口。 
         - user： TDengine 用户名。默认是 `root`。  
         - password： TDengine 用户密码。默认是 `taosdata`。  
         - timeout： HTTP 请求超时时间。单位为秒。默认为 `socket._GLOBAL_DEFAULT_TIMEOUT`。一般无需配置。
+
+    URL 的详细参数说明和如何使用详见 [url 规范](../../reference/connector/python/#url-规范)
 
     </TabItem>
     <TabItem label="Go" value="go">
@@ -296,6 +298,12 @@ dotnet add package TDengine.Connector
 
     ```text
     username:password@protocol(address)/dbname?param=value
+    ```
+
+    当使用 IPv6 地址时（v3.7.1 及以上版本支持），地址需要用方括号括起来，例如：
+
+    ```text
+    root:taosdata@ws([::1]:6041)/testdb
     ```
 
     支持的 DSN 参数如下
@@ -390,27 +398,18 @@ DSN 的详细说明和如何使用详见 [连接功能](../../reference/connecto
     - `reconnectIntervalMs`：重连间隔毫秒时间，默认为 2000。
     </TabItem>
     <TabItem label="C" value="c">
-**WebSocket 连接**  
-C/C++ 语言连接器 WebSocket 连接方式使用 `ws_connect()` 函数用于建立与 TDengine 数据库的连接。其参数为 DSN 描述字符串，其基本结构如下：
 
-```text
-<driver>[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
-|------|------------|---|-----------|-----------|------|------|------------|-----------------------|
-|driver|   protocol |   | username  | password  | host | port |  database  |  params               |
-```
+C/C++ 连接器使用 `taos_connect()` 函数建立与 TDengine 数据库的连接。各参数说明如下：
 
-DSN 的详细说明和如何使用详见 [连接功能](../../reference/connector/cpp/#dsn)
+- `host`：数据库服务器的主机名或 IP 地址。如果是本地数据库，可以使用 `"localhost"`。
+- `user`：数据库登录用户名。
+- `passwd`：对应用户名的登录密码。
+- `db`：连接时默认使用的数据库名。如果不指定数据库，可以传递 `NULL` 或空字符串。
+- `port`：数据库服务器监听的端口号。原生连接默认端口为 `6030`，WebSocket 连接默认端口为 `6041`。
 
-**原生连接**  
-C/C++ 语言连接器原生连接方式使用 `taos_connect()` 函数用于建立与 TDengine 数据库的连接。其参数详细说明如下：
+WebSocket 连接需要先调用 `taos_options(TSDB_OPTION_DRIVER, "websocket")` 设置驱动类型，然后再调用 `taos_connect()` 建立连接。
 
-- `host`：要连接的数据库服务器的主机名或 IP 地址。如果是本地数据库，可以使用 `"localhost"`。
-- `user`：用于登录数据库的用户名。
-- `passwd`：与用户名对应的密码。
-- `db`：连接时默认选择的数据库名。如果不指定数据库，可以传递 `NULL` 或空字符串。
-- `port`：数据库服务器监听的端口号。默认的端口号是 `6030`。
-
-还提供了 `taos_connect_auth()` 函数用于使用 MD5 加密的密码建立与 TDengine 数据库的连接。此函数与 `taos_connect` 功能相同，不同之处在于密码的处理方式，`taos_connect_auth` 需要的是密码的 MD5 加密字符串。
+原生连接还提供 `taos_connect_auth()` 函数，用于使用 MD5 加密的密码建立连接。该函数与 `taos_connect()` 功能相同，区别在于密码的处理方式，`taos_connect_auth()` 需要的是密码的 MD5 加密字符串。
 
     </TabItem>
 <TabItem label="REST API" value="rest">
@@ -456,7 +455,7 @@ C/C++ 语言连接器原生连接方式使用 `taos_connect()` 函数用于建�
     </TabItem>
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c-ws/connect_example.c}}
+{{#include docs/examples/c-ws-new/connect_example.c}}
 ```
 
 </TabItem>    
@@ -594,9 +593,9 @@ C/C++ 语言连接器原生连接方式使用 `taos_connect()` 函数用于建�
     </TabItem>
     <TabItem label="Rust" value="rust">
 
-在复杂应用中，建议启用连接池。[taos] 的连接池默认（异步模式）使用 [deadpool] 实现。
+在复杂应用中，建议启用连接池。`taos` 的连接池在异步模式下使用 `deadpool` 实现。
 
-如下，可以生成一个默认参数的连接池。
+创建默认参数的连接池：
 
 ```rust
 let pool: Pool<TaosBuilder> = TaosBuilder::from_dsn("taos:///")
@@ -605,19 +604,19 @@ let pool: Pool<TaosBuilder> = TaosBuilder::from_dsn("taos:///")
     .unwrap();
 ```
 
-同样可以使用连接池的构造器，对连接池参数进行设置：
+使用连接池构造器自定义参数：
 
 ```rust
-let pool: Pool<TaosBuilder> = Pool::builder(Manager::from_dsn(self.dsn.clone()).unwrap().0)
-    .max_size(88)  // 最大连接数
+let pool: Pool<TaosBuilder> = Pool::builder(Manager::from_dsn("taos:///").unwrap().0)
+    .max_size(88) // 最大连接数
     .build()
     .unwrap();
 ```
 
-在应用代码中，使用 `pool.get()?` 来获取一个连接对象 [Taos]。
+从连接池获取连接对象：
 
 ```rust
-let taos = pool.get()?;
+let taos = pool.get().await?;
 ```
 
     </TabItem>
