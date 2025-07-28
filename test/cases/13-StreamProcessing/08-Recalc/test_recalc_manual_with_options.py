@@ -90,31 +90,31 @@ class TestStreamRecalcWithOptions:
 
         # Trigger tables for WATERMARK testing
         stb_watermark = "create table tdb.watermark_triggers (ts timestamp, cint int, c2 int, c3 double, category varchar(16)) tags(id int, name varchar(16));"
-        ctb_watermark = "create table tdb.wm1 using tdb.watermark_triggers tags(1, 'device1'), tdb.wm2 using tdb.watermark_triggers tags(2, 'device2'), tdb.wm3 using tdb.watermark_triggers tags(3, 'device3')"
+        ctb_watermark = "create table tdb.wm1 using tdb.watermark_triggers tags(1, 'device1') tdb.wm2 using tdb.watermark_triggers tags(2, 'device2') tdb.wm3 using tdb.watermark_triggers tags(3, 'device3')"
         tdSql.execute(stb_watermark)
         tdSql.execute(ctb_watermark)
 
         # Trigger tables for EXPIRED_TIME testing
         stb_expired = "create table tdb.expired_triggers (ts timestamp, cint int, c2 int, c3 double, category varchar(16)) tags(id int, name varchar(16));"
-        ctb_expired = "create table tdb.exp1 using tdb.expired_triggers tags(1, 'device1'), tdb.exp2 using tdb.expired_triggers tags(2, 'device2'), tdb.exp3 using tdb.expired_triggers tags(3, 'device3')"
+        ctb_expired = "create table tdb.exp1 using tdb.expired_triggers tags(1, 'device1') tdb.exp2 using tdb.expired_triggers tags(2, 'device2') tdb.exp3 using tdb.expired_triggers tags(3, 'device3')"
         tdSql.execute(stb_expired)
         tdSql.execute(ctb_expired)
 
         # Trigger tables for IGNORE_DISORDER testing
         stb_disorder = "create table tdb.disorder_triggers (ts timestamp, cint int, c2 int, c3 double, category varchar(16)) tags(id int, name varchar(16));"
-        ctb_disorder = "create table tdb.dis1 using tdb.disorder_triggers tags(1, 'device1'), tdb.dis2 using tdb.disorder_triggers tags(2, 'device2'), tdb.dis3 using tdb.disorder_triggers tags(3, 'device3')"
+        ctb_disorder = "create table tdb.dis1 using tdb.disorder_triggers tags(1, 'device1') tdb.dis2 using tdb.disorder_triggers tags(2, 'device2') tdb.dis3 using tdb.disorder_triggers tags(3, 'device3')"
         tdSql.execute(stb_disorder)
         tdSql.execute(ctb_disorder)
 
         # Trigger tables for DELETE_RECALC testing
         stb_delete = "create table tdb.delete_triggers (ts timestamp, cint int, c2 int, c3 double, category varchar(16)) tags(id int, name varchar(16));"
-        ctb_delete = "create table tdb.del1 using tdb.delete_triggers tags(1, 'device1'), tdb.del2 using tdb.delete_triggers tags(2, 'device2'), tdb.del3 using tdb.delete_triggers tags(3, 'device3')"
+        ctb_delete = "create table tdb.del1 using tdb.delete_triggers tags(1, 'device1') tdb.del2 using tdb.delete_triggers tags(2, 'device2') tdb.del3 using tdb.delete_triggers tags(3, 'device3')"
         tdSql.execute(stb_delete)
         tdSql.execute(ctb_delete)
 
         # Additional trigger tables for session window with options
         stb_session_opt = "create table tdb.session_opt_triggers (ts timestamp, val_num int, status varchar(16)) tags(device_id int);"
-        ctb_session_opt = "create table tdb.so1 using tdb.session_opt_triggers tags(1), tdb.so2 using tdb.session_opt_triggers tags(2), tdb.so3 using tdb.session_opt_triggers tags(3)"
+        ctb_session_opt = "create table tdb.so1 using tdb.session_opt_triggers tags(1) tdb.so2 using tdb.session_opt_triggers tags(2) tdb.so3 using tdb.session_opt_triggers tags(3)"
         tdSql.execute(stb_session_opt)
         tdSql.execute(ctb_session_opt)
 
@@ -221,6 +221,10 @@ class TestStreamRecalcWithOptions:
         )
         self.streams.append(stream)
 
+        tdLog.info(f"create total:{len(self.streams)} streams")
+        for stream in self.streams:
+            stream.createStream()
+
     # Check functions for each test case
     def check01(self):
         # Test WATERMARK with manual recalculation
@@ -264,7 +268,7 @@ class TestStreamRecalcWithOptions:
                     tdSql.getRows() == 1
                     and tdSql.compareData(0, 0, "2025-01-01 02:10:00")
                     and tdSql.compareData(0, 1, 400)
-                    and tdSql.compareData(0, 2, 241.5)
+                    and tdSql.compareData(0, 2, 261.5)
                 )
             )
 
@@ -293,7 +297,7 @@ class TestStreamRecalcWithOptions:
                     tdSql.getRows() == 1
                     and tdSql.compareData(0, 0, "2025-01-01 02:20:00")
                     and tdSql.compareData(0, 1, 400)
-                    and tdSql.compareData(0, 2, 241.5)
+                    and tdSql.compareData(0, 2, 281.5)
                 )
             )
 
@@ -320,7 +324,7 @@ class TestStreamRecalcWithOptions:
                     tdSql.getRows() == 1
                     and tdSql.compareData(0, 0, "2025-01-01 02:30:00")
                     and tdSql.compareData(0, 1, 400)
-                    and tdSql.compareData(0, 2, 241.5)
+                    and tdSql.compareData(0, 2, 301.5)
                 )
             )
 
