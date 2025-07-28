@@ -2743,7 +2743,7 @@ int32_t calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowI
     pBlock->info.parTbName[0] = 0;
     if (pInfo->hasPart == false) {
       pInfo->stateStore.streamStateSetParNameInvalid(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState);
-      clearParTbNameHashPtr(pTaskInfo->pRoot, idStr, &pTaskInfo->storageAPI);
+      code = clearParTbNameHashPtr(pTaskInfo->pRoot, idStr, &pTaskInfo->storageAPI);
     }
   } else {
     code = appendCreateTableRow(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, &pInfo->tbnameCalSup,
