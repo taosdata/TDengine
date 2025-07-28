@@ -145,7 +145,7 @@ If you are using Maven to manage your project, simply add the following dependen
     - Install a specific version
 
     ```shell
-    pip3 install taospy==2.8.2
+    pip3 install taospy==2.8.3
     ```
 
     - Install from GitHub
@@ -363,6 +363,12 @@ Complete DSN format:
 
 ```text
 username:password@protocol(address)/dbname?param=value
+```
+
+When using an IPv6 address (supported in v3.7.1 and above), the address needs to be enclosed in square brackets, for example:
+
+```text
+root:taosdata@ws([::1]:6041)/testdb
 ```
 
 Supported DSN parameters are as follows:
@@ -745,9 +751,9 @@ Using `sql.Open` creates a connection that has already implemented a connection 
 
 <TabItem label="Rust" value="rust">
 
-In complex applications, it is recommended to enable connection pooling. The connection pool for [taos] by default (in asynchronous mode) is implemented using [deadpool].
+In complex applications, it is recommended to enable connection pooling. The connection pool of `taos` is implemented using `deadpool` in asynchronous mode.
 
-Below, you can create a connection pool with default parameters.
+Create a connection pool with default parameters:
 
 ```rust
 let pool: Pool<TaosBuilder> = TaosBuilder::from_dsn("taos:///")
@@ -756,19 +762,19 @@ let pool: Pool<TaosBuilder> = TaosBuilder::from_dsn("taos:///")
     .unwrap();
 ```
 
-You can also use the connection pool builder to set the connection pool parameters:
+Use the connection pool constructor to customize the parameters:
 
 ```rust
-let pool: Pool<TaosBuilder> = Pool::builder(Manager::from_dsn(self.dsn.clone()).unwrap().0)
-    .max_size(88)  // Maximum number of connections
+let pool: Pool<TaosBuilder> = Pool::builder(Manager::from_dsn("taos:///").unwrap().0)
+    .max_size(88) // Maximum number of connections
     .build()
     .unwrap();
 ```
 
-In your application code, use `pool.get()?` to obtain a connection object [Taos].
+Get a connection object from the connection pool:
 
 ```rust
-let taos = pool.get()?;
+let taos = pool.get().await?;
 ```
 
 </TabItem>

@@ -7,7 +7,6 @@ on:
       - '3.0'
       - '3.1'
       - '3.3.6'
-      - 'enh/cmake-TD-33848'
 
     paths-ignore:
       - 'docs/**'
@@ -15,6 +14,7 @@ on:
       - 'tests/**'
       - '**/*.md'
       - 'test/**'
+      - '.github/workflows/tdengine-docs-ci.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -149,14 +149,15 @@ jobs:
         id: cache-ext
         with:
           path: ${{ github.workspace }}/.externals
-          key: ${{ runner.os }}-${{ matrix.os }}-${{ hashFiles('cmake/external.cmake', 'cmake/in/**') }}-build-ext-v3 # this is tailing cache-version-tick
+          key: ${{ runner.os }}-${{ matrix.os }}-${{ hashFiles('cmake/external.cmake', 'cmake/in/**') }}-debug-build-ext-v3 # this is tailing cache-version-tick
 
       - if: ${{ steps.cache-ext.outputs.cache-hit != 'true' && runner.os != 'Windows' }}
         name: Build externals on Linux and macOS
         continue-on-error: false
         run: |
+          export TD_CONFIG=Release
           ./build.sh gen
-          ./build.sh bld --target build_externals -v
+          ./build.sh bld --target build_externals 
 
       - if: ${{ steps.cache-ext.outputs.cache-hit != 'true' && runner.os == 'Windows' }}
         name: Build externals on Windows
@@ -165,14 +166,16 @@ jobs:
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
           set CL=/MP8
+          set TD_CONFIG=Release
           call .\build.bat gen -G "NMake Makefiles JOM"
-          call .\build.bat bld --target build_externals -v
+          call .\build.bat bld --target build_externals 
 
       - name: Build TDengine on Linux and macOS
         if: runner.os != 'Windows'
         run: |
+          export TD_CONFIG=Release
           ./build.sh gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON
-          ./build.sh bld -v
+          ./build.sh bld 
           ./build.sh install
           which taosd
           which taosadapter
@@ -187,8 +190,9 @@ jobs:
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
           set CL=/MP8
+          set TD_CONFIG=Release
           call .\build.bat gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON -G "NMake Makefiles JOM"
-          call .\build.bat bld -v
+          call .\build.bat bld 
           call .\build.bat install
           echo %PATH%
           dir C:\TDengine

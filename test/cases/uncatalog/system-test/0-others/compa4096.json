@@ -1,0 +1,66 @@
+{
+  "filetype": "insert",
+  "cfgdir": "/etc/taos",
+  "host": "localhost",
+  "port": 6030,
+  "rest_port": 6041,
+  "user": "root",
+  "password": "taosdata",
+  "thread_count": 100,
+  "create_table_thread_count": 24,
+  "result_file": "taosBenchmark_result.log",
+  "confirm_parameter_prompt": "no",
+  "insert_interval": 0,
+  "num_of_records_per_req": 1000000,
+  "max_sql_len": 1024000,
+  "databases": [
+    {
+      "dbinfo": {
+        "name": "db4096",
+        "drop": "yes",
+        "replica": 1,
+        "duration": 10,
+        "precision": "ms",
+        "keep": 3650,
+        "comp": 2,
+        "vgroups": 2,
+        "buffer": 1000
+      },
+      "super_tables": [
+        {
+          "name": "stb0",
+          "child_table_exists": "no",
+          "childtable_count": 5,
+          "childtable_prefix": "ctb0",
+          "escape_character": "no",
+          "auto_create_table": "no",
+          "batch_create_tbl_num": 500,
+          "data_source": "rand",
+          "insert_mode": "taosc",
+          "rollup": null,
+          "interlace_rows": 0,
+          "line_protocol": null,
+          "tcp_transfer": "no",
+          "insert_rows": 10000,
+          "childtable_limit": 0,
+          "childtable_offset": 0,
+          "rows_per_tbl": 0,
+          "max_sql_len": 1048576, 
+          "disorder_ratio": 0,
+          "disorder_range": 1000,
+          "timestamp_step": 1000,
+          "start_timestamp": "2022-10-22 17:20:36",
+          "sample_format": "csv",
+          "sample_file": "./sample.csv",
+          "tags_file": "",
+          "columns": [{ "type": "INT","count": 4093}],
+          "tags": [{"type": "TINYINT", "count": 1},{"type": "NCHAR","count": 1}]
+        }
+      ]
+    }
+  ],
+  "prepare_rand": 10000,
+  "chinese": "no",
+  "streams": false,
+  "test_log": "/root/testlog/"
+}

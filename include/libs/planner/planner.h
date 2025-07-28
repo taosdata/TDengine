@@ -29,11 +29,13 @@ typedef struct SPlanContext {
   SEpSet      mgmtEpSet;
   SNode*      pAstRoot;
   bool        topicQuery;
-  bool        streamQuery;
+  bool        streamCalcQuery;
+  bool        streamTriggerQuery;
   bool        rSmaQuery;
   bool        showRewrite;
   bool        isView;
   bool        isAudit;
+  bool        withExtWindow;
   int8_t      triggerType;
   int64_t     watermark;
   int64_t     deleteMark;
@@ -44,16 +46,12 @@ typedef struct SPlanContext {
   const char* pUser;
   bool        sysInfo;
   int64_t     allocatorId;
-  bool        destHasPrimaryKey;
-  bool        sourceHasPrimaryKey;
   void*       timezone;
   int64_t     recalculateInterval;
-  char        pStbFullName[TSDB_TABLE_FNAME_LEN];
-  char        pWstartName[TSDB_COL_NAME_LEN];
-  char        pWendName[TSDB_COL_NAME_LEN];
-  char        pGroupIdName[TSDB_COL_NAME_LEN];
-  char        pIsWindowFilledName[TSDB_COL_NAME_LEN];
-  bool        virtualStableQuery;
+  bool        streamVtableCalc;
+  SNode*      streamTriggerScanSubplan;
+  SArray*     pStreamCalcVgArray;
+  SHashObj*   pStreamCalcDbs;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.

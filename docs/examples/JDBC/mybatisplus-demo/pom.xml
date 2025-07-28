@@ -83,7 +83,7 @@
         <dependency>
             <groupId>com.taosdata.jdbc</groupId>
             <artifactId>taos-jdbcdriver</artifactId>
-            <version>3.6.3</version>
+            <version>3.7.1</version>
         </dependency>
 
         <dependency>
@@ -100,7 +100,7 @@
         <dependency>
             <groupId>org.apache.tomcat.embed</groupId>
             <artifactId>tomcat-embed-core</artifactId>
-            <version>9.0.104</version>
+            <version>9.0.106</version>
             <scope>provided</scope>
         </dependency>
         <dependency>

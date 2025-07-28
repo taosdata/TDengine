@@ -89,7 +89,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.6.3</version>
+  <version>3.7.1</version>
 </dependency>
 ```
 
@@ -115,7 +115,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
             ```
         - 指定某个特定版本安装
             ```
-            pip3 install taospy==2.8.2
+            pip3 install taospy==2.8.3
             ```
         - 从 GitHub 安装
             ```
@@ -298,6 +298,12 @@ dotnet add package TDengine.Connector
 
     ```text
     username:password@protocol(address)/dbname?param=value
+    ```
+
+    当使用 IPv6 地址时（v3.7.1 及以上版本支持），地址需要用方括号括起来，例如：
+
+    ```text
+    root:taosdata@ws([::1]:6041)/testdb
     ```
 
     支持的 DSN 参数如下
@@ -596,9 +602,9 @@ C/C++ 语言连接器原生连接方式使用 `taos_connect()` 函数用于建�
     </TabItem>
     <TabItem label="Rust" value="rust">
 
-在复杂应用中，建议启用连接池。[taos] 的连接池默认（异步模式）使用 [deadpool] 实现。
+在复杂应用中，建议启用连接池。`taos` 的连接池在异步模式下使用 `deadpool` 实现。
 
-如下，可以生成一个默认参数的连接池。
+创建默认参数的连接池：
 
 ```rust
 let pool: Pool<TaosBuilder> = TaosBuilder::from_dsn("taos:///")
@@ -607,19 +613,19 @@ let pool: Pool<TaosBuilder> = TaosBuilder::from_dsn("taos:///")
     .unwrap();
 ```
 
-同样可以使用连接池的构造器，对连接池参数进行设置：
+使用连接池构造器自定义参数：
 
 ```rust
-let pool: Pool<TaosBuilder> = Pool::builder(Manager::from_dsn(self.dsn.clone()).unwrap().0)
-    .max_size(88)  // 最大连接数
+let pool: Pool<TaosBuilder> = Pool::builder(Manager::from_dsn("taos:///").unwrap().0)
+    .max_size(88) // 最大连接数
     .build()
     .unwrap();
 ```
 
-在应用代码中，使用 `pool.get()?` 来获取一个连接对象 [Taos]。
+从连接池获取连接对象：
 
 ```rust
-let taos = pool.get()?;
+let taos = pool.get().await?;
 ```
 
     </TabItem>

@@ -4,6 +4,10 @@ ENDIF()
 
 add_subdirectory(shell)
 
+IF(${TD_LINUX})
+add_subdirectory(rocks-reader)
+ENDIF()
+
 IF(TD_BUILD_HTTP)
     MESSAGE("")
     MESSAGE("${Yellow} use original embedded httpd ${ColourReset}")
@@ -153,6 +157,10 @@ IF(TD_BUILD_KEEPER)
         ENDIF()
 
         set(_ldflags_list
+            "-X 'github.com/taosdata/taoskeeper/version.TD_PRODUCT_NAME=${TD_PRODUCT_NAME}'"
+            "-X 'github.com/taosdata/taoskeeper/version.CUS_NAME=${CUS_NAME}'"
+            "-X 'github.com/taosdata/taoskeeper/version.CUS_PROMPT=${CUS_PROMPT}'"
+        
             "-X 'github.com/taosdata/taoskeeper/version.Version=${taos_version}'"
             "-X 'github.com/taosdata/taoskeeper/version.Gitinfo=${taoskeeper_commit_sha1}'"
             "-X 'github.com/taosdata/taoskeeper/version.CommitID=${taoskeeper_commit_sha1}'"
