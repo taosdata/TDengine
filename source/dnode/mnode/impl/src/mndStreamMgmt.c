@@ -2131,7 +2131,8 @@ static int32_t msmSTRemoveStream(int64_t streamId, bool fromStreamMap) {
       if (pExt->deployed || pExt->deploy.task.streamId != streamId) {
         continue;
       }
-      
+
+      mstDestroySStmTaskToDeployExt(pExt);
       pExt->deployed = true;
     }
     
@@ -2150,6 +2151,7 @@ static int32_t msmSTRemoveStream(int64_t streamId, bool fromStreamMap) {
           continue;
         }
         
+        mstDestroySStmTaskToDeployExt(pExt);
         pExt->deployed = true;
       }
     }
@@ -2162,6 +2164,7 @@ static int32_t msmSTRemoveStream(int64_t streamId, bool fromStreamMap) {
           continue;
         }
         
+        mstDestroySStmTaskToDeployExt(pExt);
         pExt->deployed = true;
       }
     }
