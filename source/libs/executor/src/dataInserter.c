@@ -1607,6 +1607,7 @@ int32_t buildNormalTableCreateReq(SDataInserterHandle* pInserter, SStreamInserte
         tbData->pCreateTbReq->pExtSchemas = taosMemoryCalloc(numOfCols, sizeof(SExtSchema));
         if (NULL == tbData->pCreateTbReq->pExtSchemas) {
           tdDestroySVCreateTbReq(tbData->pCreateTbReq);
+          tbData->pCreateTbReq = NULL;
           return terrno;
         }
       }
@@ -1797,8 +1798,8 @@ static int32_t buildStreamSubTableCreateReq(SDataInserterHandle* pInserter, SStr
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     if (tbData->pCreateTbReq) {
-      taosMemoryFree(tbData->pCreateTbReq->name);
-      taosMemoryFree(tbData->pCreateTbReq);
+      taosMemoryFreeClear(tbData->pCreateTbReq->name);
+      taosMemoryFreeClear(tbData->pCreateTbReq);
     }
     if (TagNames) {
       taosArrayDestroy(TagNames);
