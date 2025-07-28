@@ -102,7 +102,7 @@ async function getLicense() {
         password: getPassword(),
         tdClusterId: getClusterID()
       });
-      const versionName = license.value[0]['version'];
+      let versionName = license.value[0]['version'];
       // switch (grants.value[0].version) {
       //   case 'trial':
       //   case `TDengine Enterprise Edition trial`:
@@ -132,6 +132,7 @@ async function getLicense() {
       //     versionName = $IS_TSDBLITE ? 'Lite' : 'OSS';
       //     break;
       // }
+      versionName = versionName.replace("official", "").trim();
       version.value = versionName + ' ' + getVersion(license.value[0]['server_version()']);
       localStorage.setItem('serverVersion', version.value);
     });
