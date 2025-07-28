@@ -1783,6 +1783,15 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
         while (px != NULL) {
           SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
           STimeWindow             range = {.skey = pReq->start, .ekey = pReq->end - 1};
+          if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
+            STimeWindow lastWindow = {0};
+            if (pTask->interval.interval > 0) {
+              lastWindow = stTriggerTaskGetIntervalWindow(pTask, range.ekey);
+            } else {
+              lastWindow = stTriggerTaskGetPeriodWindow(pTask, range.ekey);
+            }
+            range.ekey = lastWindow.ekey;
+          }
           range.ekey = TMIN(range.ekey, pGroup->oldThreshold);
           code = stTriggerTaskAddRecalcRequest(pTask, pGroup->gid, range, pContext->pReaderWalProgress, true);
           QUERY_CHECK_CODE(code, lino, _end);
@@ -5683,7 +5692,9 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SArra
 
   // add recalc request
   if (recalcRange.skey <= recalcRange.ekey) {
-    recalcRange.ekey = pGroup->oldThreshold;
+    if (pTask->triggerType != STREAM_TRIGGER_STATE && pTask->triggerType != STREAM_TRIGGER_EVENT) {
+      recalcRange.ekey = pGroup->oldThreshold;
+    }
     code = stTriggerTaskAddRecalcRequest(pTask, pGroup->gid, recalcRange, pContext->pReaderWalProgress, true);
     QUERY_CHECK_CODE(code, lino, _end);
   }
@@ -7492,7 +7503,7 @@ static int32_t stHistoryGroupMergeSavedWindows(SSTriggerHistoryGroup *pGroup, in
     }
 
     // some window may have not been closed yet
-    if (pWin->range.ekey + gap > pContext->stepRange.ekey) {
+    if (pWin->range.ekey + gap > pContext->stepRange.ekey || pWin->range.ekey + gap > pContext->range.ekey) {
       // TODO(kjq): restore prevProcTime from saved init windows
       pWin->prevProcTime = taosGetTimestampNs();
       if (TRINGBUF_SIZE(&pGroup->winBuf) > 0) {
@@ -8055,7 +8066,7 @@ _end:
   return code;
 }
 
-static int32_t stHitoryGrupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
+static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
   SSTriggerHistoryContext *pContext = pGroup->pContext;
@@ -8106,6 +8117,11 @@ static int32_t stHitoryGrupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
       memcpy(pStateData, newVal, bytes);
       startIdx++;
     }
+
+    if (!IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) && pTsData[startIdx] > pContext->range.ekey) {
+      goto _end;
+    }
+
     for (int32_t r = startIdx; r < endIdx; r++) {
       char   *newVal = colDataGetData(pStateCol, r);
       int32_t bytes = isVarType ? varDataTLen(newVal) : pStateCol->info.bytes;
@@ -8118,8 +8134,12 @@ static int32_t stHitoryGrupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
                                                &pExtraNotifyContent);
           QUERY_CHECK_CODE(code, lino, _end);
         }
+        bool isLastWin = TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey > pContext->range.ekey;
         code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false);
         QUERY_CHECK_CODE(code, lino, _end);
+        if (isLastWin) {
+          break;
+        }
         if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
           code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, pStateData, newVal,
                                                &pExtraNotifyContent);
@@ -8171,6 +8191,10 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
     psCol = NULL;
     peCol = NULL;
 
+    if (!IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) && pTsData[startIdx] > pContext->range.ekey) {
+      goto _end;
+    }
+
     for (int32_t r = startIdx; r < endIdx; r++) {
       if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
         TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
@@ -8211,8 +8235,12 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
             code = streamBuildEventNotifyContent(pDataBlock, pTask->pEndCondCols, r, &pExtraNotifyContent);
             QUERY_CHECK_CODE(code, lino, _end);
           }
+          bool isLastWin = TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey > pContext->range.ekey;
           code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false);
           QUERY_CHECK_CODE(code, lino, _end);
+          if (isLastWin) {
+            break;
+          }
         }
       }
     }
@@ -8254,7 +8282,7 @@ static int32_t stHistoryGroupCheck(SSTriggerHistoryGroup *pGroup) {
       return stHistoryGroupDoCountCheck(pGroup);
 
     case STREAM_TRIGGER_STATE:
-      return stHitoryGrupDoStateCheck(pGroup);
+      return stHistoryGroupDoStateCheck(pGroup);
 
     case STREAM_TRIGGER_EVENT:
       return stHistoryGroupDoEventCheck(pGroup);
