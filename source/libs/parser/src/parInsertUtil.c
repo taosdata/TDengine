@@ -1070,6 +1070,9 @@ int32_t insResetBlob(SSubmitReq2* p) {
   } else {
     for (int32_t i = 0; i < taosArrayGetSize(p->aSubmitTbData); i++) {
       SSubmitTbData* pSubmitTbData = taosArrayGet(p->aSubmitTbData, i);
+      if (pSubmitTbData->pBlobSet == NULL) {
+        continue;
+      }
       pSubmitTbData->pBlobSet = NULL;  // reset blob row to NULL, so that it will not be freed in destroy
     }
   }
