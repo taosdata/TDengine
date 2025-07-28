@@ -1192,7 +1192,12 @@ static int32_t resetHashJoinOperState(SOperatorInfo* pOper) {
       pRow = pNext;
     }
   }
-  tSimpleHashClear(pHjOper->pKeyHash);
+  tSimpleHashCleanup(pHjOper->pKeyHash);
+  size_t hashCap = pHjOper->pBuild->inputStat.inputRowNum > 0 ? (pHjOper->pBuild->inputStat.inputRowNum * 1.5) : 1024;
+  pHjOper->pKeyHash = tSimpleHashInit(hashCap, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  if (pHjOper->pKeyHash == NULL) {
+    return terrno; 
+  }
   taosArrayDestroyEx(pHjOper->pRowBufs, hJoinFreeBufPage);
   int32_t code = hJoinInitBufPages(pHjOper);
   int64_t limit = pHjOper->ctx.limit;
