@@ -528,6 +528,7 @@ typedef struct {
   int8_t igNoDataTrigger;
   int8_t hasPartitionBy;
   int8_t isTriggerTblVirt;
+  int8_t triggerHasPF;
 
   // notify options
   SArray* pNotifyAddrUrls;

@@ -899,6 +899,7 @@ int32_t blockWrapperSeek(SBlockWrapper *p, int64_t tgt, uint8_t **pValue, int32_
   int32_t  offset = 0;
   uint8_t *p1 = p->kvBuffer;
   uint8_t *p2 = p1;
+  SBlock  *pBlk = (SBlock *)p->data;
   while ((p2 - p1) < p->kvSize) {
     int64_t seq = 0;
     int32_t vlen = 0;
@@ -911,7 +912,7 @@ int32_t blockWrapperSeek(SBlockWrapper *p, int64_t tgt, uint8_t **pValue, int32_
       if (*pValue == NULL) {
         return terrno;
       }
-      uint8_t *pdata = (uint8_t *)p->data + offset;
+      uint8_t *pdata = (uint8_t *)pBlk->data + offset;
       memcpy(*pValue, pdata, vlen);
       return 0;
     }
