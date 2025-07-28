@@ -46,7 +46,6 @@ After modifying configuration file parameters, you need to restart the *taosd* s
 | maxRetryWaitTime       |                         | Supported, effective after restart                           | Maximum timeout for reconnection,calculated from the time of retry,range is 3000-86400000,in milliseconds, default value 10000 |
 | shareConnLimit         | Added in 3.3.4.0        | Supported, effective after restart                           | Number of requests a connection can share, range 1-512, default value 10 |
 | readTimeout            | Added in 3.3.4.0        | Supported, effective after restart                           | Minimum timeout for a single request, range 64-604800, in seconds, default value 900 |
-
 ### Monitoring Related
 
 | Parameter Name     | Supported Version | Dynamic Modification               | Description                                                  |
@@ -79,6 +78,7 @@ After modifying configuration file parameters, you need to restart the *taosd* s
 | filterScalarMode         |                   | Not supported                      | Force scalar filter mode, 0: off; 1: on, default value 0     |
 | queryRsmaTolerance       |                   | Not supported                      | Internal parameter, tolerance time for determining which level of rsma data to query, in milliseconds |
 | pqSortMemThreshold       |                   | Not supported                      | Internal parameter, memory threshold for sorting             |
+| showFullCreateTableColumn | Added in 3.3.7.1 | Supported                          | Whether show column compress info while execute `show create table tablname`, range 0/1, default: 0.
 
 ### Region Related
 
