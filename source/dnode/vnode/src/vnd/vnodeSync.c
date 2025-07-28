@@ -744,12 +744,6 @@ static void vnodeBecomeLeader(const SSyncFSM *pFsm) {
   vInfo("vgId:%d, become leader callback", pVnode->config.vgId);
 
   streamAddVnodeLeader(pVnode->config.vgId);
-
-#ifdef USE_TQ
-  if (pVnode->pTq) {
-    tqUpdateNodeStage(pVnode->pTq, true);
-  }
-#endif
 }
 
 static void vnodeBecomeAssignedLeader(const SSyncFSM *pFsm) {
