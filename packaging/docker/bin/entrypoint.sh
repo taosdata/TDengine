@@ -105,6 +105,9 @@ else
         taosd &
     fi
 fi
+# wait for serverPort ready
+sleep 1s
+sh -c "taos -p'$TAOS_ROOT_PASSWORD' -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s 'create snode on dnode 1;'"
 
 if [ "$DISABLE_ADAPTER" = "0" ]; then
     which taosadapter >/dev/null && taosadapter &
