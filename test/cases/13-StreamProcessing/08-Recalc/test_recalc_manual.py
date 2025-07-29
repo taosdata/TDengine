@@ -443,16 +443,16 @@ class TestStreamRecalcManual:
         tdSql.checkResultsByFunc(
                 sql=f"select ts, cnt, avg_val from rdb.r_state_manual",
                 func=lambda: (
-                    tdSql.getRows() == 2
+                    tdSql.getRows() == 3
                     and tdSql.compareData(0, 0, "2025-01-01 02:20:00")
                     and tdSql.compareData(0, 1, 102)
                     and tdSql.compareData(0, 2, 274.705882352941)
                     and tdSql.compareData(1, 0, "2025-01-01 02:21:00")
-                    and tdSql.compareData(1, 1, 100)
-                    and tdSql.compareData(1, 2, 282)
+                    and tdSql.compareData(1, 1, 101)
+                    and tdSql.compareData(1, 2, 279.306930693069)
                     and tdSql.compareData(2, 0, "2025-01-01 02:22:00")
                     and tdSql.compareData(2, 1, 100)
-                    and tdSql.compareData(2, 2, 284)                   
+                    and tdSql.compareData(2, 2, 284)
                 )
             )
 
