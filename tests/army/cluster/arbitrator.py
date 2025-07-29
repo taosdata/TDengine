@@ -18,6 +18,7 @@ from frame import epath
 # from frame.server.cluster import *
 
 
+
 class TDTestCase(TBase):
     
     def init(self, conn, logSql, replicaVar=1):
