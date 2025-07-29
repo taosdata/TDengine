@@ -53,7 +53,7 @@ bool qIsInsertValuesSql(const char* pStr, size_t length) {
 }
 
 bool qIsUpdateSetSql(const char* pStr, size_t length, SName* pTableName, int32_t acctId, const char* dbName,
-                     char* msgBuf, int32_t msgBufLen) {
+                     char* msgBuf, int32_t msgBufLen, int* pCode) {
   if (NULL == pStr) {
     return false;
   }
@@ -75,10 +75,10 @@ bool qIsUpdateSetSql(const char* pStr, size_t length, SName* pTableName, int32_t
 
   if (pTableName != NULL) {
     SMsgBuf pMsgBuf = {.len = msgBufLen, .buf = msgBuf};
-    int32_t code = insCreateSName(pTableName, &t, acctId, dbName, &pMsgBuf);
-    if (code != TSDB_CODE_SUCCESS) {
+    *pCode = insCreateSName(pTableName, &t, acctId, dbName, &pMsgBuf);
+    if ((*pCode) != TSDB_CODE_SUCCESS) {
       parserError("stmt update sql tbname error: %s", pMsgBuf.buf);
-      return TSDB_CODE_TSC_STMT_TBNAME_ERROR;
+      return false;
     }
   }
 
@@ -111,7 +111,8 @@ static bool isColumnPrimaryKey(const STableMeta* pTableMeta, const char* colName
   return false;
 }
 
-int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTableMeta) {
+int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTableMeta, char* msgBuf,
+                              int32_t msgBufLen) {
   if (NULL == pSql || NULL == pNewSql) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -125,12 +126,15 @@ int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTab
   char*   p = newSql;
   int32_t index = 0;
   SToken  t;
+  int32_t code = TSDB_CODE_SUCCESS;
+  SMsgBuf pMsgBuf = {msgBufLen, msgBuf};
 
   // UPDATE
   t = tStrGetToken((char*)pSql, &index, false, NULL);
   if (TK_UPDATE != t.type) {
     taosMemoryFree(newSql);
-    return TSDB_CODE_PAR_SYNTAX_ERROR;
+    code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Expected UPDATE keyword");
+    return code;
   }
   pSql += index;
 
@@ -139,7 +143,8 @@ int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTab
   t = tStrGetToken((char*)pSql, &index, false, NULL);
   if (t.n == 0 || t.z == NULL) {
     taosMemoryFree(newSql);
-    return TSDB_CODE_PAR_SYNTAX_ERROR;
+    code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid table name");
+    return code;
   }
 
   p += sprintf(p, "INSERT INTO ");
@@ -153,7 +158,8 @@ int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTab
   t = tStrGetToken((char*)pSql, &index, false, NULL);
   if (TK_SET != t.type) {
     taosMemoryFree(newSql);
-    return TSDB_CODE_PAR_SYNTAX_ERROR;
+    code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Expected SET keyword");
+    return code;
   }
   pSql += index;
 
@@ -172,7 +178,9 @@ int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTab
     // pk can't set
     if (pTableMeta != NULL && isColumnPrimaryKey(pTableMeta, t.z, t.n)) {
       taosMemoryFree(newSql);
-      return TSDB_CODE_PAR_SYNTAX_ERROR;
+      code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Cannot update primary key column '%.*s'",
+                                     t.n, t.z);
+      return code;
     }
 
     if (!firstColumn) {
@@ -188,7 +196,8 @@ int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTab
     t = tStrGetToken((char*)pSql, &index, false, NULL);
     if (t.type != TK_NK_EQ) {
       taosMemoryFree(newSql);
-      return TSDB_CODE_PAR_SYNTAX_ERROR;
+      code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Expected '=' after column name");
+      return code;
     }
     pSql += index;
 
@@ -200,7 +209,8 @@ int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTab
     }
     if (t.type != TK_NK_QUESTION) {
       taosMemoryFree(newSql);
-      return TSDB_CODE_PAR_SYNTAX_ERROR;
+      code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Expected '?' placeholder");
+      return code;
     }
     pSql += index;
 
@@ -273,7 +283,7 @@ int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTab
   *p = '\0';
 
   *pNewSql = newSql;
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 bool qIsCreateTbFromFileSql(const char* pStr, size_t length) {

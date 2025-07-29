@@ -972,8 +972,9 @@ int stmtPrepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
 
   STMT_ERR_RET(stmtCreateRequest(pStmt));
 
+  int32_t code = 0;
   if (qIsUpdateSetSql(sql, strlen(sql), &pStmt->bInfo.sname, pStmt->taos->acctId, pStmt->taos->db,
-                      pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen)) {
+                      pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen, &code)) {
     // get table meta
     STableMeta* pTableMeta = NULL;
     STMT_ERR_RET(stmtGetTableMeta(pStmt, &pTableMeta));
@@ -981,7 +982,8 @@ int stmtPrepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
     char* newSql = NULL;
 
     // conver update sql to insert sql
-    int32_t code = convertUpdateToInsert(sql, &newSql, pTableMeta);
+    code =
+        convertUpdateToInsert(sql, &newSql, pTableMeta, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen);
     taosMemoryFree(pTableMeta);
 
     if (TSDB_CODE_SUCCESS != code) {
@@ -998,6 +1000,8 @@ int stmtPrepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
     pStmt->exec.pRequest->sqlstr = taosStrndup(sql, length);
     pStmt->exec.pRequest->sqlLen = length;
   }
+
+  STMT_ERR_RET(code);
 
   if (length <= 0) {
     length = strlen(sql);
