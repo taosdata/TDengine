@@ -42,7 +42,6 @@ typedef struct STaskIdInfo {
   char*    str;
   int32_t  vgId;
   uint64_t taskId;
-  int32_t  execId;
 } STaskIdInfo;
 
 typedef struct STaskCostInfo {
