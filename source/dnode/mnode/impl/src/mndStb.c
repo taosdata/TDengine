@@ -3602,12 +3602,9 @@ static int32_t buildDbColsInfoBlock(const SSDataBlock *p, const SSysTableMeta *p
       varDataSetLen(colTypeStr, colTypeLen);
       TAOS_CHECK_GOTO(colDataSetVal(pColInfoData, numOfRows, (char *)colTypeStr, false), &lino, _OVER);
 
-      // col length
       pColInfoData = taosArrayGet(p->pDataBlock, 5);
       TAOS_CHECK_GOTO(colDataSetVal(pColInfoData, numOfRows, (const char *)&pm->schema[j].bytes, false), &lino, _OVER);
-
-      // col precision, col scale, col nullable, col source
-      for (int32_t k = 6; k <= 10; ++k) {
+      for (int32_t k = 6; k <= 9; ++k) {
         pColInfoData = taosArrayGet(p->pDataBlock, k);
         colDataSetNULL(pColInfoData, numOfRows);
       }
@@ -3770,21 +3767,13 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
         varDataSetLen(colTypeStr, colTypeLen);
         RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (char *)colTypeStr, false), pStb, &lino, _OVER);
 
-        // col length
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pStb->pColumns[i].bytes, false), pStb,
                             &lino, _OVER);
-        
-        // col precision, col scale, col nullable
-        for (int32_t j = 6; j <= 9; ++j) {
-          pColInfo = taosArrayGet(pBlock->pDataBlock, j);
+        while (cols < pShow->numOfColumns) {
+          pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
           colDataSetNULL(pColInfo, numOfRows);
         }
-
-        // col id
-        pColInfo = taosArrayGet(pBlock->pDataBlock, 10);
-        RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pStb->pColumns[i].colId, false), pStb,
-                            &lino, _OVER);
         numOfRows++;
       }
 
