@@ -1627,7 +1627,7 @@ static int32_t stableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
       break;
   }
 
-  if (info.pSplitNode && !pCxt->pPlanCxt->streamTriggerQuery && !pCxt->pPlanCxt->streamCalcQuery) {
+  if (info.pSplitNode) {
     info.pSplitNode->splitDone = true;
   }
   pCxt->split = true;
