@@ -18,7 +18,7 @@ typedef double (*_double_fn_2)(double, double);
 typedef int (*_conv_fn)(int);
 typedef void (*_trim_space_fn)(char *, char *, int32_t, int32_t, void *);
 typedef int32_t (*_trim_fn)(char *, char *, char *, int32_t, int32_t, void *);
-typedef int32_t (*_len_fn)(char *, int32_t, VarDataLenT *);
+typedef int32_t (*_len_fn)(char *, int32_t, void *);
 
 /** Math functions **/
 static double tlog(double v) { return log(v); }
@@ -458,11 +458,11 @@ static int32_t doScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
 }
 
 /** String functions **/
-static int32_t tlength(char *input, int32_t type, VarDataLenT *len) {
-  if (type == IS_STR_DATA_BLOB(type)) {
-    *len = blobDataLen(input);
+static int32_t tlength(char *input, int32_t type, void *len) {
+  if (IS_STR_DATA_BLOB(type)) {
+    *(BlobDataLenT *)len = blobDataLen(input);
   } else {
-    *len = varDataLen(input);
+    *(VarDataLenT *)len = varDataLen(input);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -484,7 +484,7 @@ uint8_t getCharLen(const unsigned char *str) {
   }
 }
 
-static int32_t tcharlength(char *input, int32_t type, VarDataLenT *len) {
+static int32_t tcharlength(char *input, int32_t type, void *len) {
   if (type == TSDB_DATA_TYPE_VARCHAR) {
     // calculate the number of characters in the string considering the multi-byte character
     char       *str = varDataVal(input);
@@ -494,19 +494,19 @@ static int32_t tcharlength(char *input, int32_t type, VarDataLenT *len) {
       strLen++;
       pos += getCharLen((unsigned char *)(str + pos));
     }
-    *len = strLen;
+    *(VarDataLenT *)len = strLen;
     return TSDB_CODE_SUCCESS;
   } else if (type == TSDB_DATA_TYPE_GEOMETRY) {
-    *len = varDataLen(input);
+    *(VarDataLenT *)len = varDataLen(input);
   } else if (IS_STR_DATA_BLOB(type)) {
     // for blob, we just return the length of the blob data
-    *len = blobDataLen(input);
+    *(BlobDataLenT *)len = blobDataLen(input);
   } else {
     // for nchar, we assume each character is 4 bytes
     if (type != TSDB_DATA_TYPE_NCHAR) {
       return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
     } else {  // NCHAR
-      *len = varDataLen(input) / TSDB_NCHAR_SIZE;
+      *(VarDataLenT *)len = varDataLen(input) / TSDB_NCHAR_SIZE;
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -826,7 +826,11 @@ static int32_t doLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
     }
 
     char *in = colDataGetData(pInputData, i);
-    SCL_ERR_RET(lenFn(in, type, (VarDataLenT *)&(out[i])));
+    if (IS_STR_DATA_BLOB(type)) {
+      SCL_ERR_RET(lenFn(in, type, (BlobDataLenT *)&(out[i])));
+    } else {
+      SCL_ERR_RET(lenFn(in, type, (VarDataLenT *)&(out[i])));
+    }
   }
 
   pOutput->numOfRows = pInput->numOfRows;
