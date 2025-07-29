@@ -252,16 +252,14 @@ class TestStreamRecalcWithOptions:
         tdLog.info("Test WATERMARK manual recalculation - within tolerance range")
         tdSql.execute("recalculate stream rdb.s_watermark_interval from '2025-01-01 02:00:00' to '2025-01-01 02:05:00';")
         
+        # recalc can not recalc the data that is inside the watermark range
         tdSql.checkResultsByFunc(
                 sql=f"select ts, cnt, avg_val from rdb.r_watermark_interval",
                 func=lambda: (
-                    tdSql.getRows() == 2
+                    tdSql.getRows() == 1
                     and tdSql.compareData(0, 0, "2025-01-01 02:00:00")
                     and tdSql.compareData(0, 1, 400)
                     and tdSql.compareData(0, 2, 241.5)
-                    and tdSql.compareData(1, 0, "2025-01-01 02:04:00")
-                    and tdSql.compareData(1, 1, 401)
-                    and tdSql.compareData(1, 2, 244.912718204489)
                 )
             )
 
