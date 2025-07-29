@@ -503,7 +503,6 @@ typedef struct {
   SRWLatch lock;
   int64_t  stateTs;
   int64_t  compactStartTime;
-  int64_t  ssMigrateStartTime; // TODO: add this field to mndDbActionEncode/Decode
   int32_t  tsmaVersion;
 } SDbObj;
 
@@ -1008,19 +1007,34 @@ typedef struct {
   SArray* compactDetail;
 } SCompactObj;
 
-
 typedef struct {
+  int32_t nodeId;    // dnode id of the leader vnode
   int32_t vgId;
-  int32_t nodeId; // dnode id of the leader vnode
-  bool done;
-} SVgroupSsMigrateDetail;
+  int32_t fid;       // file set id
+  int32_t state;
+  int64_t startTime; // migration start time of this file set in seconds
+} SSsMigrateFileSet;
+
+typedef enum {
+  SSMIGRATE_VGSTATE_INIT = 0,                  // initial state
+  SSMIGRATE_VGSTATE_WAITING_FSET_LIST = 1,     // waiting for file set list
+  SSMIGRATE_VGSTATE_FSET_LIST_RECEIVED = 2,    // file set list received
+  SSMIGRATE_VGSTATE_FSET_STARTING = 3,         // fset ssmigrate request was sent, waiting for response
+  SSMIGRATE_VGSTATE_FSET_STARTED = 4,          // fset ssmigrate response received
+} ESMigrateVgroupState;
 
 typedef struct {
-  int32_t id;
+  int32_t id;                 // migration id
   int64_t dbUid;
   char    dbname[TSDB_TABLE_FNAME_LEN];
-  int64_t startTime; // migration start time in seconds
-  SArray* vgroups;   // SArray<SVgroupSsMigrateDetail>
+  int64_t startTime;          // migration start time in seconds
+  int64_t stateUpdateTime;    // last state(vgState or currFest.state) update time in seconds
+  int32_t vgIdx;              // index of current vgroup
+  int32_t vgState;            // vgroup migration state
+  int32_t fsetIdx;            // index of current file set
+  SSsMigrateFileSet currFset; // current file set being processed
+  SArray* vgroups;            // SArray<int32_t>, vgroup ids of current migration
+  SArray* fileSets;           // SArray<int32_t>, file set ids of current vgroup
 } SSsMigrateObj;
 
 // SGrantLogObj
