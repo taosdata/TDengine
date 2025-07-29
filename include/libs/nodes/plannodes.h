@@ -129,6 +129,7 @@ typedef struct SScanLogicNode {
   bool               needSplit;
   bool               noPseudoRefAfterGrp;  // no pseudo columns referenced ater group/partition clause
   bool               virtualStableScan;
+  bool               phTbnameScan;
   EStreamPlaceholder placeholderType;
 } SScanLogicNode;
 

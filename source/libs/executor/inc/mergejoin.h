@@ -360,7 +360,7 @@ typedef struct SMJoinOperatorInfo {
 
 #define BLK_IS_FULL(_blk) ((_blk)->info.rows == (_blk)->info.capacity)
 
-#define MJOIN_ROW_BITMAP_SET(_b, _base, _idx) (!colDataIsNull_f((_b + _base), _idx))
+#define MJOIN_ROW_BITMAP_SET(_b, _base, _idx) (!BMIsNull((_b + _base), _idx))
 #define MJOIN_SET_ROW_BITMAP(_b, _base, _idx) colDataClearNull_f((_b + _base), _idx)
 
 #define ASOF_EQ_ROW_INCLUDED(_op) (OP_TYPE_GREATER_EQUAL == (_op) || OP_TYPE_LOWER_EQUAL == (_op) || OP_TYPE_EQUAL == (_op))

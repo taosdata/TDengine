@@ -25,7 +25,7 @@ class TestCount:
 
         """
 
-        tdLog.info(f"step1")
+        tdLog.info(f"step1: normatable")
         tdLog.info(f"=============== create database")
         tdSql.execute(f"create database test vgroups 1;")
         tdSql.execute(f"use test;")
@@ -56,7 +56,82 @@ class TestCount:
 
         tdSql.checkData(1, 3, 3)
 
-        tdLog.info(f"step2")
+        tdSql.execute(f"insert into t1 values(1648791213010,NULL,3,3,1.0);")
+        tdSql.execute(f"insert into t1 values(1648791213011,0,NULL,3,1.0);")
+        tdSql.execute(f"insert into t1 values(1648791223005,NULL,NULL,3,1.0);")
+        tdSql.query(
+            f"select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(3, 3, a);"
+        )
+        
+        tdSql.checkData(0, 1, 3)
+
+        tdSql.checkData(0, 2, 6)
+
+        tdSql.checkData(0, 3, 3)
+
+        # row 1
+        tdSql.checkData(1, 1, 3)
+
+        tdSql.checkData(1, 2, 3)
+
+        tdSql.checkData(1, 3, 3)
+        
+        # row 2
+        tdSql.checkData(2, 1, 1)
+
+        tdSql.checkData(2, 2, 3)
+
+        tdSql.checkData(2, 3, 3)
+        
+        tdSql.query(
+            f"select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(3, 3, b);"
+        )
+        
+        tdSql.checkData(0, 1, 3)
+
+        tdSql.checkData(0, 2, 6)
+
+        tdSql.checkData(0, 3, 3)
+
+        # row 1
+        tdSql.checkData(1, 1, 3)
+
+        tdSql.checkData(1, 2, 6)
+
+        tdSql.checkData(1, 3, 3)
+        
+        # row 2
+        tdSql.checkData(2, 1, 1)
+
+        tdSql.checkData(2, 2, 3)
+
+        tdSql.checkData(2, 3, 3)
+    
+        tdSql.query(
+            f"select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(3, 3, a, b);"
+        )
+        
+        tdSql.checkData(0, 1, 3)
+
+        tdSql.checkData(0, 2, 6)
+
+        tdSql.checkData(0, 3, 3)
+
+        # row 1
+        tdSql.checkData(1, 1, 3)
+
+        tdSql.checkData(1, 2, 4)
+
+        tdSql.checkData(1, 3, 3)
+        
+        # row 2
+        tdSql.checkData(2, 1, 2)
+
+        tdSql.checkData(2, 2, 5)
+
+        tdSql.checkData(2, 3, 3)
+
+        tdLog.info(f"step2: subper table")
         tdLog.info(f"=============== create database")
         tdSql.execute(f"create database test2 vgroups 4;")
         tdSql.execute(f"use test2;")
@@ -129,8 +204,241 @@ class TestCount:
         tdSql.checkData(3, 2, 6)
 
         tdSql.checkData(3, 3, 3)
+        
+        tdSql.execute(f"insert into t1 values(1648791213005,NULL,2,2,1.1);")
+        tdSql.execute(f"insert into t1 values(1648791213008,0,NULL,3,1.0);")
+        tdSql.execute(f"insert into t1 values(1648791223011,NULL,NULL,1,1.0);")
+        
+        tdSql.execute(f"insert into t2 values(1648791213005,NULL,NULL,2,1.1);")
+        tdSql.execute(f"insert into t2 values(1648791213008,NULL,7,3,1.0);")
+        tdSql.execute(f"insert into t2 values(1648791223011,NULL,5,1,1.0);")
 
-        tdLog.info(f"step3")
+        tdSql.query(
+            f"select  _wstart as s, count(*) c1,  sum(b), max(c) from st partition by tbname count_window(3, 3, a) order by tbname, s;"
+        )
+        
+        tdSql.checkData(0, 1, 3)
+
+        tdSql.checkData(0, 2, 3)
+
+        tdSql.checkData(0, 3, 3)
+
+        # row 1
+        tdSql.checkData(1, 1, 3)
+
+        tdSql.checkData(1, 2, 6)
+
+        tdSql.checkData(1, 3, 3)
+
+        # row 2
+        tdSql.checkData(2, 1, 1)
+
+        tdSql.checkData(2, 2, 3)
+
+        tdSql.checkData(2, 3, 3)
+
+        # row 3
+        tdSql.checkData(3, 1, 3)
+
+        tdSql.checkData(3, 2, 6)
+
+        tdSql.checkData(3, 3, 3)
+        
+        # row 4
+        tdSql.checkData(4, 1, 3)
+
+        tdSql.checkData(4, 2, 6)
+
+        tdSql.checkData(4, 3, 3)
+        
+        tdSql.query(
+            f"select  _wstart as s, count(*) c1,  sum(b), max(c) from st partition by tbname count_window(3, 3, b) order by tbname, s;"
+        )
+        
+        tdSql.checkData(0, 1, 3)
+
+        tdSql.checkData(0, 2, 5)
+
+        tdSql.checkData(0, 3, 2)
+
+        # row 1
+        tdSql.checkData(1, 1, 3)
+
+        tdSql.checkData(1, 2, 6)
+
+        tdSql.checkData(1, 3, 3)
+
+        # row 2
+        tdSql.checkData(2, 1, 1)
+
+        tdSql.checkData(2, 2, 3)
+
+        tdSql.checkData(2, 3, 3)
+
+        # row 3
+        tdSql.checkData(3, 1, 3)
+
+        tdSql.checkData(3, 2, 10)
+
+        tdSql.checkData(3, 3, 3)
+        
+        # row 4
+        tdSql.checkData(4, 1, 3)
+
+        tdSql.checkData(4, 2, 6)
+
+        tdSql.checkData(4, 3, 3)
+
+        # row 5
+        tdSql.checkData(5, 1, 2)
+
+        tdSql.checkData(5, 2, 8)
+
+        tdSql.checkData(5, 3, 3) 
+        
+        tdSql.query(
+            f"select  _wstart as s, count(*) c1,  sum(b), max(c) from st partition by tbname count_window(3, 3, a, b) order by tbname, s;"
+        )
+        
+        tdSql.checkData(0, 1, 3)
+
+        tdSql.checkData(0, 2, 5)
+
+        tdSql.checkData(0, 3, 2)
+
+        # row 1
+        tdSql.checkData(1, 1, 3)
+
+        tdSql.checkData(1, 2, 4)
+
+        tdSql.checkData(1, 3, 3)
+
+        # row 2
+        tdSql.checkData(2, 1, 2)
+
+        tdSql.checkData(2, 2, 5)
+
+        tdSql.checkData(2, 3, 3)
+
+        # row 3
+        tdSql.checkData(3, 1, 3)
+
+        tdSql.checkData(3, 2, 10)
+
+        tdSql.checkData(3, 3, 3)
+        
+        # row 4
+        tdSql.checkData(4, 1, 3)
+
+        tdSql.checkData(4, 2, 6)
+
+        tdSql.checkData(4, 3, 3)
+
+        # row 5
+        tdSql.checkData(5, 1, 2)
+
+        tdSql.checkData(5, 2, 8)
+
+        tdSql.checkData(5, 3, 3) 
+        
+        tdSql.query(
+            f"select  _wstart as s, count(*) c1,  sum(b), max(c) from st partition by tbname count_window(3, 1, b) order by tbname, s;"
+        )
+        
+        tdSql.checkData(0, 1, 3)
+
+        tdSql.checkData(0, 2, 5)
+
+        tdSql.checkData(0, 3, 2)
+
+        # row 1
+        tdSql.checkData(1, 1, 3)
+
+        tdSql.checkData(1, 2, 7)
+
+        tdSql.checkData(1, 3, 3)
+
+        # row 2
+        tdSql.checkData(2, 1, 3)
+
+        tdSql.checkData(2, 2, 6)
+
+        tdSql.checkData(2, 3, 3)
+
+        # row 3
+        tdSql.checkData(3, 1, 3)
+
+        tdSql.checkData(3, 2, 6)
+
+        tdSql.checkData(3, 3, 3)
+        
+        # row 4
+        tdSql.checkData(4, 1, 3)
+
+        tdSql.checkData(4, 2, 6)
+
+        tdSql.checkData(4, 3, 3)
+
+        # row 5
+        tdSql.checkData(5, 1, 2)
+
+        tdSql.checkData(5, 2, 5)
+
+        tdSql.checkData(5, 3, 3) 
+        
+        # row 6
+        tdSql.checkData(6, 1, 1)
+
+        tdSql.checkData(6, 2, 3)
+
+        tdSql.checkData(6, 3, 3) 
+        
+        tdSql.query(
+            f"select  _wstart as s, count(*) c1,  sum(b), max(c) from st partition by tbname count_window(3, 1, a, b) order by tbname, s;"
+        )
+        
+        tdSql.checkData(0, 1, 3)
+
+        tdSql.checkData(0, 2, 5)
+
+        tdSql.checkData(0, 3, 2)
+
+        # row 1
+        tdSql.checkData(1, 1, 3)
+
+        tdSql.checkData(1, 2, 4)
+
+        tdSql.checkData(1, 3, 3)
+
+        # row 2
+        tdSql.checkData(2, 1, 3)
+
+        tdSql.checkData(2, 2, 5)
+
+        tdSql.checkData(2, 3, 3)
+
+        # row 3
+        tdSql.checkData(3, 1, 3)
+
+        tdSql.checkData(3, 2, 4)
+
+        tdSql.checkData(3, 3, 3)
+        
+        # row 4
+        tdSql.checkData(4, 1, 3)
+
+        tdSql.checkData(4, 2, 6)
+
+        tdSql.checkData(4, 3, 3)
+
+        # row 5
+        tdSql.checkData(4, 1, 3)
+
+        tdSql.checkData(4, 2, 6)
+
+        tdSql.checkData(4, 3, 3) 
+
+        tdLog.info(f"step3: subper table with having")
         tdLog.info(f"=============== create database")
         tdSql.execute(f"create database test3 vgroups 1;")
         tdSql.execute(f"use test3;")
