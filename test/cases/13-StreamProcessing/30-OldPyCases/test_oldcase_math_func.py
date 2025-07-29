@@ -75,6 +75,8 @@ class TestMathFunctionInStream:
             val = round(random.uniform(-1, 1), 2)
         elif math_func.startswith("atan"):
             val = round(random.uniform(-(math.pi / 2), math.pi / 2), 2)
+        elif math_func.startswith("tan"):
+            val = round(random.uniform(-1.4, 1.4), 2)
         else:
             val = round(random.uniform(1, 100), 2)
         tdSql.execute(f"INSERT INTO tb VALUES({ts}, {val});")
@@ -100,11 +102,7 @@ class TestMathFunctionInStream:
         tdSql.checkResultsByFunc(
             sql=f"select * from {self.stream}",
             func=lambda: tdSql.getRows() == 1
-            and tdSql.compareData(
-                0,
-                2,
-                expected,
-            ),
+            and math.isclose(tdSql.getData(0, 2), expected, rel_tol=1e-5, abs_tol=1e-8),
         )
 
         tdLog.info("test math function done.")

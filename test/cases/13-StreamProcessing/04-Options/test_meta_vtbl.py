@@ -43,7 +43,7 @@ class TestStreamMetaTrigger:
         streams.append(self.Basic4())  # [ok]
         streams.append(self.Basic5())  # [ok] 
         
-        # TD-36525 [流计算开发阶段] 删除流结果表后继续触发了也没有重建，不符合预期
+        # TD-37144 [流计算开发阶段] 删除流结果表后继续触发了也没有重建，不符合预期
         # streams.append(self.Basic6())  #  [fail]
         
         streams.append(self.Basic7())  # [ok] 

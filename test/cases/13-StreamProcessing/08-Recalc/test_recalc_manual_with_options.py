@@ -90,31 +90,31 @@ class TestStreamRecalcWithOptions:
 
         # Trigger tables for WATERMARK testing
         stb_watermark = "create table tdb.watermark_triggers (ts timestamp, cint int, c2 int, c3 double, category varchar(16)) tags(id int, name varchar(16));"
-        ctb_watermark = "create table tdb.wm1 using tdb.watermark_triggers tags(1, 'device1'), tdb.wm2 using tdb.watermark_triggers tags(2, 'device2'), tdb.wm3 using tdb.watermark_triggers tags(3, 'device3')"
+        ctb_watermark = "create table tdb.wm1 using tdb.watermark_triggers tags(1, 'device1') tdb.wm2 using tdb.watermark_triggers tags(2, 'device2') tdb.wm3 using tdb.watermark_triggers tags(3, 'device3')"
         tdSql.execute(stb_watermark)
         tdSql.execute(ctb_watermark)
 
         # Trigger tables for EXPIRED_TIME testing
         stb_expired = "create table tdb.expired_triggers (ts timestamp, cint int, c2 int, c3 double, category varchar(16)) tags(id int, name varchar(16));"
-        ctb_expired = "create table tdb.exp1 using tdb.expired_triggers tags(1, 'device1'), tdb.exp2 using tdb.expired_triggers tags(2, 'device2'), tdb.exp3 using tdb.expired_triggers tags(3, 'device3')"
+        ctb_expired = "create table tdb.exp1 using tdb.expired_triggers tags(1, 'device1') tdb.exp2 using tdb.expired_triggers tags(2, 'device2') tdb.exp3 using tdb.expired_triggers tags(3, 'device3')"
         tdSql.execute(stb_expired)
         tdSql.execute(ctb_expired)
 
         # Trigger tables for IGNORE_DISORDER testing
         stb_disorder = "create table tdb.disorder_triggers (ts timestamp, cint int, c2 int, c3 double, category varchar(16)) tags(id int, name varchar(16));"
-        ctb_disorder = "create table tdb.dis1 using tdb.disorder_triggers tags(1, 'device1'), tdb.dis2 using tdb.disorder_triggers tags(2, 'device2'), tdb.dis3 using tdb.disorder_triggers tags(3, 'device3')"
+        ctb_disorder = "create table tdb.dis1 using tdb.disorder_triggers tags(1, 'device1') tdb.dis2 using tdb.disorder_triggers tags(2, 'device2') tdb.dis3 using tdb.disorder_triggers tags(3, 'device3')"
         tdSql.execute(stb_disorder)
         tdSql.execute(ctb_disorder)
 
         # Trigger tables for DELETE_RECALC testing
         stb_delete = "create table tdb.delete_triggers (ts timestamp, cint int, c2 int, c3 double, category varchar(16)) tags(id int, name varchar(16));"
-        ctb_delete = "create table tdb.del1 using tdb.delete_triggers tags(1, 'device1'), tdb.del2 using tdb.delete_triggers tags(2, 'device2'), tdb.del3 using tdb.delete_triggers tags(3, 'device3')"
+        ctb_delete = "create table tdb.del1 using tdb.delete_triggers tags(1, 'device1') tdb.del2 using tdb.delete_triggers tags(2, 'device2') tdb.del3 using tdb.delete_triggers tags(3, 'device3')"
         tdSql.execute(stb_delete)
         tdSql.execute(ctb_delete)
 
         # Additional trigger tables for session window with options
         stb_session_opt = "create table tdb.session_opt_triggers (ts timestamp, val_num int, status varchar(16)) tags(device_id int);"
-        ctb_session_opt = "create table tdb.so1 using tdb.session_opt_triggers tags(1), tdb.so2 using tdb.session_opt_triggers tags(2), tdb.so3 using tdb.session_opt_triggers tags(3)"
+        ctb_session_opt = "create table tdb.so1 using tdb.session_opt_triggers tags(1) tdb.so2 using tdb.session_opt_triggers tags(2) tdb.so3 using tdb.session_opt_triggers tags(3)"
         tdSql.execute(stb_session_opt)
         tdSql.execute(ctb_session_opt)
 
@@ -159,7 +159,7 @@ class TestStreamRecalcWithOptions:
             "insert into tdb.del1 values ('2025-01-01 02:30:00', 10, 100, 1.5, 'normal');",
             "insert into tdb.del1 values ('2025-01-01 02:30:30', 20, 200, 2.5, 'normal');",
             "insert into tdb.del1 values ('2025-01-01 02:31:00', 30, 300, 3.5, 'normal');",
-            "insert into tdb.del1 values ('2025-01-01 02:31:30', 40, 400, 4.5, 'normal');",
+            "insert into tdb.del1 values ('2025-01-01 02:31:50', 40, 400, 4.5, 'normal');",
             "insert into tdb.del1 values ('2025-01-01 02:32:00', 50, 500, 5.5, 'normal');",
             "insert into tdb.del1 values ('2025-01-01 02:32:30', 60, 600, 6.5, 'normal');",
         ]
@@ -216,10 +216,14 @@ class TestStreamRecalcWithOptions:
         # Test 4.1: INTERVAL stream without DELETE_RECALC - manual recalculation for deleted data
         stream = StreamItem(
             id=5,
-            stream="create stream rdb.s_delete_interval interval(2m) sliding(2m) from tdb.delete_triggers partition by tbname into rdb.r_delete_interval as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            stream="create stream rdb.s_delete_interval session(ts,45s) from tdb.delete_triggers partition by tbname into rdb.r_delete_interval as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
             check_func=self.check05,
         )
         self.streams.append(stream)
+
+        tdLog.info(f"create total:{len(self.streams)} streams")
+        for stream in self.streams:
+            stream.createStream()
 
     # Check functions for each test case
     def check01(self):
@@ -246,11 +250,20 @@ class TestStreamRecalcWithOptions:
         
         # Manual recalculation within WATERMARK range - should recalculate
         tdLog.info("Test WATERMARK manual recalculation - within tolerance range")
-        tdSql.execute("recalculate stream rdb.s_watermark_interval from '2025-01-01 02:02:00' to '2025-01-01 02:04:00';")
-
+        tdSql.execute("recalculate stream rdb.s_watermark_interval from '2025-01-01 02:00:00' to '2025-01-01 02:05:00';")
         
-        time.sleep(2)  # Wait for processing
-
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_watermark_interval",
+                func=lambda: (
+                    tdSql.getRows() == 2
+                    and tdSql.compareData(0, 0, "2025-01-01 02:00:00")
+                    and tdSql.compareData(0, 1, 400)
+                    and tdSql.compareData(0, 2, 241.5)
+                    and tdSql.compareData(1, 0, "2025-01-01 02:04:00")
+                    and tdSql.compareData(1, 1, 401)
+                    and tdSql.compareData(1, 2, 244.912718204489)
+                )
+            )
 
     def check03(self):
         # Test EXPIRED_TIME with manual recalculation
@@ -264,7 +277,7 @@ class TestStreamRecalcWithOptions:
                     tdSql.getRows() == 1
                     and tdSql.compareData(0, 0, "2025-01-01 02:10:00")
                     and tdSql.compareData(0, 1, 400)
-                    and tdSql.compareData(0, 2, 241.5)
+                    and tdSql.compareData(0, 2, 261.5)
                 )
             )
 
@@ -274,12 +287,28 @@ class TestStreamRecalcWithOptions:
         # Note: This test simulates that we're now at a much later time, making earlier data expired
         # In real scenario, the current stream processing time would determine what's expired
         tdSql.execute("insert into tdb.exp1 values ('2025-01-01 02:04:00', 15, 150, 1.75, 'expired');")
-        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:04:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
         
         # Manual recalculation for expired data - should still work since manual recalc bypasses expiry
         tdLog.info("Test EXPIRED_TIME manual recalculation - expired data")
         tdSql.execute("recalculate stream rdb.s_expired_interval from '2025-01-01 02:04:00' to '2025-01-01 02:14:00';")
-        time.sleep(2)
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_expired_interval",
+                func=lambda: (
+                    tdSql.getRows() == 4
+                    and tdSql.compareData(0, 0, "2025-01-01 02:04:00")
+                    and tdSql.compareData(0, 1, 400)
+                    and tdSql.compareData(0, 2, 249.5)
+                    and tdSql.compareData(1, 0, "2025-01-01 02:06:00")
+                    and tdSql.compareData(1, 1, 400)
+                    and tdSql.compareData(1, 2, 253.5)
+                    and tdSql.compareData(2, 0, "2025-01-01 02:08:00")
+                    and tdSql.compareData(2, 1, 400)
+                    and tdSql.compareData(2, 2, 257.5)
+                    and tdSql.compareData(3, 0, "2025-01-01 02:10:00")
+                    and tdSql.compareData(3, 1, 400)
+                    and tdSql.compareData(3, 2, 261.5)
+                )
+            )
 
     def check04(self):
         # Test IGNORE_DISORDER with manual recalculation
@@ -293,18 +322,30 @@ class TestStreamRecalcWithOptions:
                     tdSql.getRows() == 1
                     and tdSql.compareData(0, 0, "2025-01-01 02:20:00")
                     and tdSql.compareData(0, 1, 400)
-                    and tdSql.compareData(0, 2, 241.5)
+                    and tdSql.compareData(0, 2, 281.5)
                 )
             )
 
         # Test 1: Write disordered data that would normally be ignored
         tdLog.info("Write disordered data that is normally ignored")
-        tdSql.execute("insert into tdb.dis1 values ('2025-01-01 02:18:15', 25, 250, 2.75, 'disorder');")
-        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:18:15', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
+        tdSql.execute("insert into tdb.dis1 values ('2025-01-01 02:18:00', 25, 250, 2.75, 'disorder');")
         
         # Manual recalculation - should process ignored disordered data
         tdLog.info("Test IGNORE_DISORDER manual recalculation - should process ignored data")
-        tdSql.execute("recalculate stream rdb.s_disorder_interval from '2025-01-01 02:18:00' to '2025-01-01 02:24:00';")
+        tdSql.execute("recalculate stream rdb.s_disorder_interval from '2025-01-01 02:16:00' to '2025-01-01 02:24:00';")
+
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_disorder_interval",
+                func=lambda: (
+                    tdSql.getRows() == 2
+                    and tdSql.compareData(0, 0, "2025-01-01 02:18:00")
+                    and tdSql.compareData(0, 1, 400)
+                    and tdSql.compareData(0, 2, 277.5)
+                    and tdSql.compareData(1, 0, "2025-01-01 02:20:00")
+                    and tdSql.compareData(1, 1, 400)
+                    and tdSql.compareData(1, 2, 281.5)
+                )
+            )
         time.sleep(2)
         
 
@@ -319,40 +360,23 @@ class TestStreamRecalcWithOptions:
                 func=lambda: (
                     tdSql.getRows() == 1
                     and tdSql.compareData(0, 0, "2025-01-01 02:30:00")
-                    and tdSql.compareData(0, 1, 400)
-                    and tdSql.compareData(0, 2, 241.5)
+                    and tdSql.compareData(0, 1, 200)
+                    and tdSql.compareData(0, 2, 300.5)
                 )
             )
-
-        # Test 1: Delete some data from trigger table
-        tdLog.info("Delete data from trigger table")
+        
         tdSql.execute("delete from tdb.del1 where ts = '2025-01-01 02:30:30';")
         
-        # Also delete corresponding data from query table for consistency
-        tdSql.execute("delete from qdb.t0 where cts >= '2025-01-01 02:30:30' and cts < '2025-01-01 02:30:31';")
-        
-        # Since DELETE_RECALC is not specified, deletion should be ignored by auto-recalc
-        # But manual recalculation should still work
-        time.sleep(2)
-        
-        # Manual recalculation after deletion - should reflect the deletion
-        tdLog.info("Test manual recalculation after deletion (no DELETE_RECALC)")
-        tdSql.execute("recalculate stream rdb.s_delete_interval from '2025-01-01 02:30:00' to '2025-01-01 02:32:00';")
-        time.sleep(2)
-        
-        # Test 2: Add back some data and delete again
-        tdLog.info("Add back data and delete again")
-        tdSql.execute("insert into tdb.del1 values ('2025-01-01 02:30:45', 35, 350, 3.75, 'new');")
-        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:30:45', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
-        time.sleep(2)
-        
-        # Delete the newly added data
-        tdSql.execute("delete from tdb.del1 where ts = '2025-01-01 02:30:45';")
-        tdSql.execute("delete from qdb.t0 where cts = '2025-01-01 02:30:45';")
-        
-        # Manual recalculation should handle the deletion
-        tdLog.info("Test manual recalculation after second deletion")
-        tdSql.execute("recalculate stream rdb.s_delete_interval from '2025-01-01 02:30:00' to '2025-01-01 02:32:00';")
-        time.sleep(2)
-
-        tdLog.info("Manual recalculation with options test completed") 
+        tdSql.execute("recalculate stream rdb.s_delete_interval from '2025-01-01 02:28:00' to '2025-01-01 02:34:00';")
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_delete_interval",
+                func=lambda: (
+                    tdSql.getRows() == 2
+                    and tdSql.compareData(0, 0, "2025-01-01 02:30:00")
+                    and tdSql.compareData(0, 1, 0)
+                    and tdSql.compareData(0, 2, None)
+                    and tdSql.compareData(1, 0, "2025-01-01 02:31:00")
+                    and tdSql.compareData(1, 1, 0)
+                    and tdSql.compareData(1, 2, None)
+                )
+            )

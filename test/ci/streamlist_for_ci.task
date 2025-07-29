@@ -68,11 +68,11 @@
 ,,n,.,pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_state.py
 
 ## 08-Recalc
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_expired_time.py        crash in stream reader
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_expired_time.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_ignore_disorder.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_delete_recalc.py       crash in stream reader
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_watermark.py           crash in stream reader
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_combined_options.py    crash in stream reader
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_delete_recalc.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_watermark.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_combined_options.py
 
 ## 20-UseCase
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_idmp_meters.py
@@ -96,8 +96,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case19_bug1.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case22.py
 
-
-
 ## 21-Stability 
 
 ## 22-Performance
@@ -108,6 +106,8 @@
 ## 30-OldPyCases
 ,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_state_window.py
 ,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_window_true_for.py
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_math_func.py
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_string_func.py
 ,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_backquote_check.py
 ,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_taosdShell.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_checkpoint_info.py -N 4
@@ -119,6 +119,7 @@
 ,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_compatibility.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_drop.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_empty_identifier.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_at_once.py
 
 
 ## 31-OldCases
