@@ -165,10 +165,9 @@ int32_t doSetTaskId(SOperatorInfo* pOperator, SStorageAPI* pAPI) {
   return 0;
 }
 
-int32_t qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId, int32_t execId) {
+int32_t qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId) {
   SExecTaskInfo* pTaskInfo = tinfo;
   pTaskInfo->id.queryId = queryId;
-  pTaskInfo->id.execId = execId;
   buildTaskId(taskId, queryId, pTaskInfo->id.str);
 
   // set the idstr for tsdbReader
