@@ -1636,7 +1636,11 @@ static int32_t findAndSetTempTableColumn(STranslateContext* pCxt, SColumnNode** 
   SExprNode*      pFoundExpr = NULL;
   FOREACH(pNode, pProjectList) {
     SExprNode* pExpr = (SExprNode*)pNode;
-    if (0 == strcmp(pCol->colName, pExpr->aliasName)) {
+    bool found = false;
+    if(QUERY_NODE_FUNCTION == nodeType(pExpr) && 0 == strcmp(pCol->colName, pExpr->userAlias)) {
+      found = true;
+    }
+    if (0 == strcmp(pCol->colName, pExpr->aliasName) || found) {
       if (*pFound) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_AMBIGUOUS_COLUMN, pCol->colName);
       }
