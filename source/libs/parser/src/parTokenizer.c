@@ -91,6 +91,7 @@ static SKeyword keywordTable[] = {
     {"DBS",                  TK_DBS},
     {"DECIMAL",              TK_DECIMAL},
     {"DELETE",               TK_DELETE},
+    {"DELETE_MARK",          TK_DELETE_MARK},
     {"DELETE_OUTPUT_TABLE",  TK_DELETE_OUTPUT_TABLE},
     {"DELETE_RECALC",        TK_DELETE_RECALC},
     {"DESC",                 TK_DESC},
