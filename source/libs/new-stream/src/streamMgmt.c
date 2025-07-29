@@ -293,7 +293,7 @@ int32_t smStartStreamTasks(SStreamTaskStart* pStart) {
   SStreamTask* pTask= NULL;
   void*   taskAddr = NULL;
   
-  TAOS_CHECK_EXIT(streamAcquireTask(streamId, pStart->task.streamId, (SStreamTask**)&pTask, &taskAddr));
+  TAOS_CHECK_EXIT(streamAcquireTask(streamId, pStart->task.taskId, (SStreamTask**)&pTask, &taskAddr));
 
   pStart->startMsg.header.msgType = STREAM_MSG_START;
   STM_CHK_SET_ERROR_EXIT(stTriggerTaskExecute((SStreamTriggerTask *)pTask, (SStreamMsg *)&pStart->startMsg));
