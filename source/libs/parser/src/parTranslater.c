@@ -2148,10 +2148,13 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
             SFunctionNode* pFunc = NULL;
             SValueNode*    pVal = NULL;
 
-            nodesMakeValueNodeFromInt32(index, (SNode**)&pVal);
+            pCxt->errCode = nodesMakeValueNodeFromInt32(index, (SNode**)&pVal);
+            if (TSDB_CODE_SUCCESS != pCxt->errCode) return DEAL_RES_ERROR;
             pVal->translate = true;
-            nodesListMakeStrictAppend(&pParamList, (SNode*)pVal);
-            createFunction("_placeholder_column", pParamList, &pFunc);
+            pCxt->errCode = nodesListMakeStrictAppend(&pParamList, (SNode*)pVal);
+            if (TSDB_CODE_SUCCESS != pCxt->errCode) return DEAL_RES_ERROR;
+            pCxt->errCode = createFunction("_placeholder_column", pParamList, &pFunc);
+            if (TSDB_CODE_SUCCESS != pCxt->errCode) return DEAL_RES_ERROR;
             nodesDestroyNode((SNode*)*pCol);
             *pCol = (SColumnNode*)pFunc;
             return translateFunction(pCxt, (SFunctionNode**)pCol);
@@ -3690,10 +3693,13 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
         SFunctionNode* ppFunc = NULL;
         SValueNode*    pVal = NULL;
 
-        nodesMakeValueNodeFromInt32(index, (SNode**)&pVal);
+        pCxt->errCode = nodesMakeValueNodeFromInt32(index, (SNode**)&pVal);
+        if (TSDB_CODE_SUCCESS != pCxt->errCode) return DEAL_RES_ERROR;
         pVal->translate = true;
-        nodesListMakeStrictAppend(&pParamList, (SNode*)pVal);
-        createFunction("_placeholder_column", pParamList, &ppFunc);
+        pCxt->errCode = nodesListMakeStrictAppend(&pParamList, (SNode*)pVal);
+        if (TSDB_CODE_SUCCESS != pCxt->errCode) return DEAL_RES_ERROR;
+        pCxt->errCode = createFunction("_placeholder_column", pParamList, &ppFunc);
+        if (TSDB_CODE_SUCCESS != pCxt->errCode) return DEAL_RES_ERROR;
         nodesDestroyNode((SNode*)*pFunc);
         *pFunc = ppFunc;
         return translateFunction(pCxt, (SFunctionNode**)&ppFunc);
@@ -4779,7 +4785,7 @@ static int32_t setVSuperTableRefScanVgroupList(STranslateContext* pCxt, SName* p
 
 
   SArray* pVStbRefs = NULL;
-  getVStbRefDbsFromCache(pCxt->pMetaCache, pName, &pVStbRefs);
+  PAR_ERR_JRET(getVStbRefDbsFromCache(pCxt->pMetaCache, pName, &pVStbRefs));
   dbNameHash = tSimpleHashInit(taosArrayGetSize(pVStbRefs), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
   QUERY_CHECK_NULL(dbNameHash, code, lino, _return, terrno);
 
@@ -5448,7 +5454,7 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
   PAR_ERR_JRET(setVSuperTableRefScanVgroupList(pCxt, pName, pRealTable));
   if (pRealTable->pVgroupList->numOfVgroups == 0) {
     // no vgroups, means virtual super table do not have child table, make a fake one is ok.
-    cloneVgroups(&pRealTable->pVgroupList, pVTable->pVgroupList);
+    PAR_ERR_JRET(cloneVgroups(&pRealTable->pVgroupList, pVTable->pVgroupList));
   }
   PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRealTable));
 
@@ -6770,6 +6776,7 @@ static bool filterExtractTsNeedCollect(SNode* pLeft, SNode* pRight) {
 }
 
 EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
+  int32_t                  code = TSDB_CODE_SUCCESS;
   SFilterExtractTsContext *pCxt = (SFilterExtractTsContext*)pContext;
   switch(nodeType(*pNode)) {
     case QUERY_NODE_OPERATOR: {
@@ -6780,27 +6787,27 @@ EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
           pOperator->opType == OP_TYPE_GREATER_THAN) {
         if (filterExtractTsNeedCollect(pOperator->pLeft, pOperator->pRight)) {
           if (pOperator->opType == OP_TYPE_LOWER_EQUAL || pOperator->opType == OP_TYPE_LOWER_THAN) {
-            nodesListMakeAppend(&pCxt->pEnd, *pNode);
+            PAR_ERR_JRET(nodesListMakeAppend(&pCxt->pEnd, *pNode));
             SValueNode *pVal = NULL;
-            nodesMakeValueNodeFromBool(true, &pVal);
+            PAR_ERR_JRET(nodesMakeValueNodeFromBool(true, &pVal));
             *pNode = (SNode*)pVal;
           } else {
-            nodesListMakeAppend(&pCxt->pStart, *pNode);
+            PAR_ERR_JRET(nodesListMakeAppend(&pCxt->pStart, *pNode));
             SValueNode *pVal = NULL;
-            nodesMakeValueNodeFromBool(true, &pVal);
+            PAR_ERR_JRET(nodesMakeValueNodeFromBool(true, &pVal));
             *pNode = (SNode*)pVal;
           }
           return DEAL_RES_IGNORE_CHILD;
         } else if (filterExtractTsNeedCollect(pOperator->pRight, pOperator->pLeft)) {
           if (pOperator->opType == OP_TYPE_LOWER_EQUAL || pOperator->opType == OP_TYPE_LOWER_THAN) {
-            nodesListMakeAppend(&pCxt->pStart, *pNode);
+            PAR_ERR_JRET(nodesListMakeAppend(&pCxt->pStart, *pNode));
             SValueNode *pVal = NULL;
-            nodesMakeValueNodeFromBool(true, &pVal);
+            PAR_ERR_JRET(nodesMakeValueNodeFromBool(true, &pVal));
             *pNode = (SNode*)pVal;
           } else {
-            nodesListMakeAppend(&pCxt->pEnd, *pNode);
+            PAR_ERR_JRET(nodesListMakeAppend(&pCxt->pEnd, *pNode));
             SValueNode *pVal = NULL;
-            nodesMakeValueNodeFromBool(true, &pVal);
+            PAR_ERR_JRET(nodesMakeValueNodeFromBool(true, &pVal));
             *pNode = (SNode*)pVal;
           }
           return DEAL_RES_IGNORE_CHILD;
@@ -6813,13 +6820,13 @@ EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
           SNode*      startNode = NULL;
           SNode*      endNode = NULL;
           SValueNode* pVal = NULL;
-          nodesCloneNode(*pNode, &startNode);
-          nodesCloneNode(*pNode, &endNode);
+          PAR_ERR_JRET(nodesCloneNode(*pNode, &startNode));
+          PAR_ERR_JRET(nodesCloneNode(*pNode, &endNode));
           ((SOperatorNode*)startNode)->opType = OP_TYPE_GREATER_EQUAL;
           ((SOperatorNode*)endNode)->opType = OP_TYPE_LOWER_EQUAL;
-          nodesListMakeAppend(&pCxt->pStart, startNode);
-          nodesListMakeAppend(&pCxt->pEnd, endNode);
-          nodesMakeValueNodeFromBool(true, &pVal);
+          PAR_ERR_JRET(nodesListMakeAppend(&pCxt->pStart, startNode));
+          PAR_ERR_JRET(nodesListMakeAppend(&pCxt->pEnd, endNode));
+          PAR_ERR_JRET(nodesMakeValueNodeFromBool(true, &pVal));
           *pNode = (SNode*)pVal;
 
           return DEAL_RES_IGNORE_CHILD;
@@ -6843,6 +6850,9 @@ EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
     default:
       return DEAL_RES_CONTINUE;
   }
+_return:
+  parserError("filterExtractTsCondImpl failed");
+  return DEAL_RES_ERROR;
 }
 
 static int32_t filterExtractTsCond(SNode** pCond, SNode** pTimeRangeExpr) {
@@ -9349,26 +9359,34 @@ static int32_t translateSetOperator(STranslateContext* pCxt, SSetOperator* pSetO
     (*pCxt->pParseCxt->setQueryFp)(pCxt->pParseCxt->requestRid);
   }
 
-  int32_t code = translateQuery(pCxt, pSetOperator->pLeft);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = resetHighLevelTranslateNamespace(pCxt);
+  bool    hasTrows = false;
+  int32_t code = TSDB_CODE_SUCCESS;
+  PAR_ERR_RET(translateQuery(pCxt, pSetOperator->pLeft));
+
+  if (pCxt->createStreamCalc) {
+    hasTrows = BIT_FLAG_TEST_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS);
+    BIT_FLAG_UNSET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS);
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = translateQuery(pCxt, pSetOperator->pRight);
+
+  PAR_ERR_RET(resetHighLevelTranslateNamespace(pCxt));
+  PAR_ERR_RET(translateQuery(pCxt, pSetOperator->pRight));
+
+  if (pCxt->createStreamCalc && hasTrows) {
+    if (BIT_FLAG_TEST_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS)) {
+      PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY,
+                                          "%%%%trows can not appear multi times in union query"));
+    } else {
+      BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS);
+    }
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    pSetOperator->joinContains = getBothJoinContais(pSetOperator->pLeft, pSetOperator->pRight);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    pSetOperator->precision = calcSetOperatorPrecision(pSetOperator);
-    code = translateSetOperProject(pCxt, pSetOperator);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = translateSetOperOrderBy(pCxt, pSetOperator);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = checkSetOperLimit(pCxt, (SLimitNode*)pSetOperator->pLimit);
-  }
+
+  pSetOperator->joinContains = getBothJoinContais(pSetOperator->pLeft, pSetOperator->pRight);
+  pSetOperator->precision = calcSetOperatorPrecision(pSetOperator);
+
+  PAR_ERR_RET(translateSetOperProject(pCxt, pSetOperator));
+  PAR_ERR_RET(translateSetOperOrderBy(pCxt, pSetOperator));
+  PAR_ERR_RET(checkSetOperLimit(pCxt, (SLimitNode*)pSetOperator->pLimit));
+  
   return code;
 }
 
@@ -15497,8 +15515,8 @@ static int32_t createTsmaReqBuildStreamSubTableName(SCreateTSMAStmt* pStmt, SMCr
   snprintf(pMd5Func->functionName, TSDB_FUNC_NAME_LEN, "%s", "md5");
   snprintf(pConcatFunc->functionName, TSDB_FUNC_NAME_LEN, "%s", "concat");
 
-  nodesMakeValueNodeFromString(pReq->name, &pTsmaName);
-  nodesMakeValueNodeFromString("_", &pDash);
+  PAR_ERR_JRET(nodesMakeValueNodeFromString(pReq->name, &pTsmaName));
+  PAR_ERR_JRET(nodesMakeValueNodeFromString("_", &pDash));
   PAR_ERR_JRET(nodesCloneNode(pTbname, &pNew));
 
   // not recursive tsma, md5(concat('1.test.tsma1_', tbname))
@@ -15544,8 +15562,8 @@ static int32_t buildIntervalForCreateStream(SNode *pInt, SNode** pOutput) {
   if (NULL == pInterval) {
     return code;
   }
-  nodesCloneNode(pInt, &pInterval->pInterval);
-  nodesCloneNode(pInt, &pInterval->pSliding);
+  PAR_ERR_RET(nodesCloneNode(pInt, &pInterval->pInterval));
+  PAR_ERR_RET(nodesCloneNode(pInt, &pInterval->pSliding));
 
   pInterval->pCol = NULL;
   code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pInterval->pCol);
@@ -15591,9 +15609,9 @@ static int32_t createTsmaReqBuildCreateStreamReq(STranslateContext* pCxt, SCreat
     PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_ROW_LENGTH);
   }
 
-  createSelectStmtImpl(false, pFuncList, (SNode*)pFromTable, NULL, (SNode**)&pStreamQuery);
+  PAR_ERR_JRET(createSelectStmtImpl(false, pFuncList, (SNode*)pFromTable, NULL, (SNode**)&pStreamQuery));
 
-  nodesCloneNode((SNode*)pStreamQuery, (SNode**)&pSelect);
+  PAR_ERR_JRET(nodesCloneNode((SNode*)pStreamQuery, (SNode**)&pSelect));
 
   pCxt->createStreamTriggerTbl = (SNode*)pTriggerTable;
   pCxt->createStreamCalc = true;
@@ -15626,17 +15644,17 @@ static int32_t createTsmaReqBuildCreateStreamReq(STranslateContext* pCxt, SCreat
 
   SStreamTriggerNode* pTrigger = NULL;
 
-  nodesMakeNode(QUERY_NODE_STREAM_TRIGGER, (SNode**)&pTrigger);
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_STREAM_TRIGGER, (SNode**)&pTrigger));
   SIntervalWindowNode* pInterval = NULL;
-  buildIntervalForCreateStream(pStmt->pOptions->pInterval, (SNode**)&pInterval);
+  PAR_ERR_JRET(buildIntervalForCreateStream(pStmt->pOptions->pInterval, (SNode**)&pInterval));
 
   SStreamTriggerOptions* pOptions = NULL;
-  nodesMakeNode(QUERY_NODE_STREAM_TRIGGER_OPTIONS, (SNode**)&pOptions);
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_STREAM_TRIGGER_OPTIONS, (SNode**)&pOptions));
 
   pOptions->fillHistoryFirst = true;
   pOptions->deleteOutputTable = true;
   pOptions->deleteRecalc = true;
-  nodesMakeDurationValueNodeFromString("1s", (SValueNode**)&pOptions->pMaxDelay);
+  PAR_ERR_JRET(nodesMakeDurationValueNodeFromString("1s", (SValueNode**)&pOptions->pMaxDelay));
 
   pTrigger->pTriggerWindow = (SNode*)pInterval;
   pTrigger->pTrigerTable = (SNode*)pTriggerTable;
@@ -15658,7 +15676,7 @@ static int32_t createTsmaReqBuildCreateStreamReq(STranslateContext* pCxt, SCreat
     pTagDef->dataType.bytes = pTags[idx].bytes;
     tstrncpy(pTagDef->tagName, pTags[idx].name, TSDB_COL_NAME_LEN);
     PAR_ERR_JRET(createColumnNodeWithName(pTags[idx].name, &pTagCol));
-    nodesCloneNode(pTagCol, (SNode**)&pTagDef->pTagExpr);
+    PAR_ERR_JRET(nodesCloneNode(pTagCol, (SNode**)&pTagDef->pTagExpr));
     PAR_ERR_JRET(nodesListMakeStrictAppend(&pTriggerPartition, pTagCol));
     if (idx == numOfTags - 1 && pStmt->pOptions->recursiveTsma) {
       tstrncpy(pTagDef->tagName, "tbname", TSDB_COL_NAME_LEN);
@@ -15675,7 +15693,7 @@ static int32_t createTsmaReqBuildCreateStreamReq(STranslateContext* pCxt, SCreat
     tstrncpy(pTagDef->tagName, "tbname", TSDB_COL_NAME_LEN);
     PAR_ERR_JRET(createTbnameFunction((SFunctionNode**)&tbnameFunc));
     snprintf(((SFunctionNode*)tbnameFunc)->node.userAlias, TSDB_COL_NAME_LEN, "tbname");
-    nodesCloneNode(tbnameFunc, (SNode**)&pTagDef->pTagExpr);
+    PAR_ERR_JRET(nodesCloneNode(tbnameFunc, (SNode**)&pTagDef->pTagExpr));
     pTagDef->dataType.type = TSDB_DATA_TYPE_VARCHAR;
     pTagDef->dataType.bytes = TSDB_TABLE_FNAME_LEN - 1;
     PAR_ERR_JRET(nodesListMakeStrictAppend(&pTriggerPartition, (SNode*)tbnameFunc));
