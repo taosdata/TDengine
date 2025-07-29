@@ -8111,7 +8111,7 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
       // open the first window
       char   *newVal = colDataGetData(pStateCol, startIdx);
       int32_t bytes = isVarType ? varDataTLen(newVal) : pStateCol->info.bytes;
-      if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
+      if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
         code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, NULL, newVal,
                                              &pExtraNotifyContent);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -8129,14 +8129,14 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
         TRINGBUF_HEAD(&pGroup->winBuf)->wrownum++;
         TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
       } else {
-        if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
+        if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
           code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, &pStateCol->info, pStateData, newVal,
                                                &pExtraNotifyContent);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false);
         QUERY_CHECK_CODE(code, lino, _end);
-        if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
+        if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
           code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, pStateData, newVal,
                                                &pExtraNotifyContent);
           QUERY_CHECK_CODE(code, lino, _end);
@@ -8203,7 +8203,7 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
           ps = (bool *)psCol->pData;
         }
         if (ps[r]) {
-          if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
+          if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
             code = streamBuildEventNotifyContent(pDataBlock, pTask->pStartCondCols, r, &pExtraNotifyContent);
             QUERY_CHECK_CODE(code, lino, _end);
           }
@@ -8223,7 +8223,7 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
           pe = (bool *)peCol->pData;
         }
         if (pe[r]) {
-          if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
+          if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
             code = streamBuildEventNotifyContent(pDataBlock, pTask->pEndCondCols, r, &pExtraNotifyContent);
             QUERY_CHECK_CODE(code, lino, _end);
           }
