@@ -623,48 +623,54 @@ TEST(stmtCase, update) {
   do_query(taos,
            "create table stmt_testdb_6.devices(ts timestamp,device_id int,status binary(10),temperature float,humidity "
            "float);");
-  do_query(taos, "insert into stmt_testdb_6.devices values(1591060628000,1,'abc',1.0,1.1);");
+  do_query(taos,
+           "insert into stmt_testdb_6.devices (ts,device_id,status,temperature,humidity) "
+           "values(1591060628000,1,'abc',1.0,1.1);");
 
   TAOS_STMT *stmt = taos_stmt_init(taos);
   ASSERT_NE(stmt, nullptr);
   char *sql =
-      "update stmt_testdb_6.devices set temperature = ?,humidity = ?,device_id=? where ts=? and device_id=? and status "
-      "IS NOT NULL";
+      "update stmt_testdb_6.devices set temperature = ?,humidity = ?,device_id=? where ts=? and device_id=? and "
+      "status IS NOT NULL";
   int   code = taos_stmt_prepare(stmt, sql, 0);
   checkError(stmt, code);
 
   float   temperature = 10.0;
   float   humidity = 10.1;
+  int32_t device_id = 2;
   int64_t ts = 1591060628000;
-  int32_t device_id = 1;
 
   int32_t c1_len = sizeof(float);
   int32_t c2_len = sizeof(float);
-  int32_t c3_len = sizeof(int64_t);
-  int32_t c4_len = sizeof(int32_t);
+  int32_t c3_len = sizeof(int32_t);
+  int32_t c4_len = sizeof(int64_t);
 
   TAOS_MULTI_BIND params[4];
   params[0].buffer_type = TSDB_DATA_TYPE_FLOAT;
   params[0].buffer = &temperature;
+  params[0].buffer_length = sizeof(float);
   params[0].length = &c1_len;
   params[0].is_null = NULL;
-  params[1].num = 1;
+  params[0].num = 1;
 
   params[1].buffer_type = TSDB_DATA_TYPE_FLOAT;
   params[1].buffer = &humidity;
+  params[0].buffer_length = sizeof(float);
   params[1].length = &c2_len;
   params[1].is_null = NULL;
   params[1].num = 1;
 
   params[2].buffer_type = TSDB_DATA_TYPE_INT;
   params[2].buffer = &device_id;
-  params[2].length = &c4_len;
+  params[2].buffer_length = sizeof(int32_t);
+  params[2].length = &c3_len;
   params[2].is_null = NULL;
   params[2].num = 1;
 
   params[3].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
   params[3].buffer = &ts;
-  params[3].length = &c3_len;
+  params[3].buffer_length = sizeof(int64_t);
+  params[3].length = &c4_len;
   params[3].is_null = NULL;
   params[3].num = 1;
 
@@ -677,20 +683,22 @@ TEST(stmtCase, update) {
   code = taos_stmt_execute(stmt);
   checkError(stmt, code);
 
-  TAOS_RES *result = taos_query(taos, "select c1,c2 from stmt_testdb_6.t1 where ts=1591060628000");
+  TAOS_RES *result =
+      taos_query(taos, "select temperature,humidity,device_id from stmt_testdb_6.devices where ts=1591060628000");
   ASSERT_NE(result, nullptr);
   ASSERT_EQ(taos_errno(result), 0);
 
   TAOS_ROW row = taos_fetch_row(result);
   ASSERT_NE(row, nullptr);
 
-  int32_t actual_c1 = *(int32_t *)row[0];
-  ASSERT_EQ(actual_c1, 10);
+  int32_t actual_temperature = *(float *)row[0];
+  ASSERT_EQ(actual_temperature, 10);
 
-  char *actual_c2 = (char *)row[1];
-  ASSERT_STREQ(actual_c2, "def");
+  float actual_humidity = *(float *)row[1];
+  ASSERT_EQ(static_cast<int>(actual_humidity * 10), static_cast<int>(10.1 * 10));
 
-  printf("UPDATE test passed: c1=%d, c2=%s\n", actual_c1, actual_c2);
+  int32_t actual_device_id = *(int32_t *)row[2];
+  ASSERT_EQ(actual_device_id, 2);
 
   taos_free_result(result);
 

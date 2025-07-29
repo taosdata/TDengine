@@ -990,6 +990,13 @@ int stmtPrepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
     }
     sql = newSql;
     length = strlen(newSql);
+
+    if (pStmt->exec.pRequest->sqlstr) {
+      taosMemoryFreeClear(pStmt->exec.pRequest->sqlstr);
+      pStmt->exec.pRequest->sqlstr = NULL;
+    }
+    pStmt->exec.pRequest->sqlstr = taosStrndup(sql, length);
+    pStmt->exec.pRequest->sqlLen = length;
   }
 
   if (length <= 0) {
