@@ -6394,7 +6394,8 @@ _exit:
   return code;
 }
 
-int32_t tSerializeSSsMigrateVgroupReq(void *buf, int32_t bufLen, SSsMigrateVgroupReq *pReq) {
+// Request & Response serialization for TDMT_VND_LIST_SSMIGATE_FILESETS
+int32_t tSerializeSListSsMigrateFileSetsReq(void *buf, int32_t bufLen, SListSsMigrateFileSetsReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -6403,9 +6404,6 @@ int32_t tSerializeSSsMigrateVgroupReq(void *buf, int32_t bufLen, SSsMigrateVgrou
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->ssMigrateId));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->nodeId));
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->timestamp));
-
   tEndEncode(&encoder);
 
 _exit:
@@ -6418,7 +6416,7 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeSSsMigrateVgroupReq(void *buf, int32_t bufLen, SSsMigrateVgroupReq *pReq) {
+int32_t tDeserializeSListSsMigrateFileSetsReq(void *buf, int32_t bufLen, SListSsMigrateFileSetsReq *pReq) {
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -6426,8 +6424,6 @@ int32_t tDeserializeSSsMigrateVgroupReq(void *buf, int32_t bufLen, SSsMigrateVgr
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->ssMigrateId));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->nodeId));
-  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->timestamp));
   tEndDecode(&decoder);
 
 _exit:
@@ -6435,7 +6431,7 @@ _exit:
   return code;
 }
 
-int32_t tSerializeSSsMigrateVgroupRsp(void *buf, int32_t bufLen, SSsMigrateVgroupRsp *pRsp) {
+int32_t tSerializeSListSsMigrateFileSetsRsp(void* buf, int32_t bufLen, SListSsMigrateFileSetsRsp* pRsp) {
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -6445,8 +6441,12 @@ int32_t tSerializeSSsMigrateVgroupRsp(void *buf, int32_t bufLen, SSsMigrateVgrou
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->ssMigrateId));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->vgId));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->nodeId));
-
+  int32_t numFs = pRsp->pFileSets ? taosArrayGetSize(pRsp->pFileSets) : 0;
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, numFs));
+  for (int32_t i = 0; i < numFs; ++i) {
+    int32_t *fid = taosArrayGet(pRsp->pFileSets, i);
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, *fid));
+  }
   tEndEncode(&encoder);
 
 _exit:
@@ -6459,26 +6459,52 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeSSsMigrateVgroupRsp(void *buf, int32_t bufLen, SSsMigrateVgroupRsp *pRsp) {
+int32_t tDeserializeSListSsMigrateFileSetsRsp(void* buf, int32_t bufLen, SListSsMigrateFileSetsRsp* pRsp) {
   SDecoder decoder = {0};
-  int32_t  code = 0;
-  int32_t  lino;
+  int32_t  code = 0, lino = 0;
+  int32_t numFs = 0;
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->ssMigrateId));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->vgId));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->nodeId));
+
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &numFs));
+  if (numFs > 0) {
+    pRsp->pFileSets = taosArrayInit(numFs, sizeof(int32_t));
+    if (pRsp->pFileSets == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+  }
+  for (int32_t i = 0; i < numFs; ++i) {
+    int32_t fid = 0;
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &fid));
+    if (taosArrayPush(pRsp->pFileSets, &fid) == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+  }
+
   tEndDecode(&decoder);
 
 _exit:
   tDecoderClear(&decoder);
+  if (code != 0) {
+    taosArrayDestroy(pRsp->pFileSets);
+    pRsp->pFileSets = NULL;
+  }
   return code;
 }
 
+void tFreeSListSsMigrateFileSetsRsp(SListSsMigrateFileSetsRsp* pRsp) {
+  if (pRsp->pFileSets) {
+    taosArrayDestroy(pRsp->pFileSets);
+    pRsp->pFileSets = NULL;
+  }
+}
 
 
-int32_t tSerializeSQuerySsMigrateProgressReq(void* buf, int32_t bufLen, SQuerySsMigrateProgressReq* pReq) {
+// Request & Response serialization for TDMT_VND_SSMIGATE_FILESET
+int32_t tSerializeSSsMigrateFileSetReq(void* buf, int32_t bufLen, SSsMigrateFileSetReq* pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -6487,9 +6513,9 @@ int32_t tSerializeSQuerySsMigrateProgressReq(void* buf, int32_t bufLen, SQuerySs
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->ssMigrateId));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->vgId));
-  //TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->timestamp));
-
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->nodeId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->fid));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->startTimeSec));
   tEndEncode(&encoder);
 
 _exit:
@@ -6502,7 +6528,7 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeSQuerySsMigrateProgressReq(void* buf, int32_t bufLen, SQuerySsMigrateProgressReq* pReq) {
+int32_t tDeserializeSSsMigrateFileSetReq(void* buf, int32_t bufLen, SSsMigrateFileSetReq* pReq) {
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -6510,8 +6536,9 @@ int32_t tDeserializeSQuerySsMigrateProgressReq(void* buf, int32_t bufLen, SQuery
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->ssMigrateId));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->vgId));
-  //TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->timestamp));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->nodeId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->fid));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->startTimeSec));
   tEndDecode(&decoder);
 
 _exit:
@@ -6519,7 +6546,7 @@ _exit:
   return code;
 }
 
-int32_t tSerializeSVnodeSsMigrateState(void* buf, int32_t bufLen, SVnodeSsMigrateState* pState) {
+int32_t tSerializeSSsMigrateFileSetRsp(void* buf, int32_t bufLen, SSsMigrateFileSetRsp* pRsp) {
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -6527,20 +6554,10 @@ int32_t tSerializeSVnodeSsMigrateState(void* buf, int32_t bufLen, SVnodeSsMigrat
   tEncoderInit(&encoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pState->mnodeMigrateId));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pState->vnodeMigrateId));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pState->dnodeId));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pState->vgId));
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pState->startTimeSec));
-
-  int32_t numFs = taosArrayGetSize(pState->pFileSetStates);
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, numFs));
-  for (int32_t i = 0; i < numFs; ++i) {
-    SFileSetSsMigrateState *fs = taosArrayGet(pState->pFileSetStates, i);
-    TAOS_CHECK_EXIT(tEncodeI32(&encoder, fs->fid));
-    TAOS_CHECK_EXIT(tEncodeI32(&encoder, fs->state));
-  }
-
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->ssMigrateId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->nodeId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->vgId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->fid));
   tEndEncode(&encoder);
 
 _exit:
@@ -6553,46 +6570,71 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeSVnodeSsMigrateState(void* buf, int32_t bufLen, SVnodeSsMigrateState* pState) {
+int32_t tDeserializeSSsMigrateFileSetRsp(void* buf, int32_t bufLen, SSsMigrateFileSetRsp* pRsp) {
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
-  int32_t numFs = 0;
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pState->mnodeMigrateId));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pState->vnodeMigrateId));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pState->dnodeId));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pState->vgId));
-  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pState->startTimeSec));
-
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &numFs));
-  if (numFs > 0) {
-    pState->pFileSetStates = taosArrayInit(numFs, sizeof(SFileSetSsMigrateState));
-    if (pState->pFileSetStates == NULL) {
-      TAOS_CHECK_EXIT(terrno);
-    }
-  }
-  for (int32_t i = 0; i < numFs; ++i) {
-    SFileSetSsMigrateState state = {0};
-    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &state.fid));
-    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &state.state));
-    taosArrayPush(pState->pFileSetStates, &state);
-  }
-
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->ssMigrateId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->nodeId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->vgId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->fid));
   tEndDecode(&decoder);
+
 _exit:
   tDecoderClear(&decoder);
   return code;
 }
 
-void tFreeSVnodeSsMigrateState(SVnodeSsMigrateState* pState) {
-  if (pState->pFileSetStates) {
-    taosArrayDestroy(pState->pFileSetStates);
-    pState->pFileSetStates = NULL;
+
+// Request and response serialization for TDMT_VND_QUERY_SSMIGRATE_PROGRESS and TDMT_VND_FOLLOWER_SSMIGRATE
+int tSerializeSSsMigrateProgress(void* buf, int32_t bufLen, SSsMigrateProgress* pProgress) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pProgress->ssMigrateId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pProgress->nodeId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pProgress->vgId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pProgress->fid));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pProgress->state));
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
   }
+  tEncoderClear(&encoder);
+  return tlen;
 }
+
+
+int tDeserializeSSsMigrateProgress(void* buf, int32_t bufLen, SSsMigrateProgress* pProgress) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pProgress->ssMigrateId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pProgress->nodeId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pProgress->vgId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pProgress->fid));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pProgress->state));
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
 
 int32_t tSerializeSVDropTtlTableReq(void *buf, int32_t bufLen, SVDropTtlTableReq *pReq) {
   SEncoder encoder = {0};

@@ -45,8 +45,6 @@ static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t ver, void *pR
 static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
-static int32_t vnodeProcessSsMigrateReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
-static int32_t vnodeProcessFollowerSsMigrateReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
                                      SRpcMsg *pOriginalMsg);
 static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
@@ -65,7 +63,11 @@ static int32_t vnodeProcessFetchTtlExpiredTbs(SVnode *pVnode, int64_t ver, void 
 
 extern int32_t vnodeProcessKillCompactReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 extern int32_t vnodeQueryCompactProgress(SVnode *pVnode, SRpcMsg *pMsg);
+
+extern int32_t vnodeListSsMigrateFileSets(SVnode *pVnode, SRpcMsg *pMsg);
+static int32_t vnodeProcessSsMigrateFileSetReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 extern int32_t vnodeQuerySsMigrateProgress(SVnode *pVnode, SRpcMsg *pMsg);
+static int32_t vnodeProcessFollowerSsMigrateReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 
 static int32_t vnodePreprocessCreateTableReq(SVnode *pVnode, SDecoder *pCoder, int64_t btime, int64_t *pUid) {
   int32_t code = 0;
@@ -575,24 +577,20 @@ _exit:
   return code;
 }
 
-int32_t vnodePreProcessSsMigrateReq(SVnode *pVnode, SRpcMsg *pMsg) {
-  int32_t             code = TSDB_CODE_SUCCESS;
-  int32_t             lino = 0;
-  SSsMigrateVgroupReq req = {0};
 
-  code = tDeserializeSSsMigrateVgroupReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead),
-                                         &req);
+int32_t vnodePreProcessSsMigrateFileSetReq(SVnode* pVnode, SRpcMsg* pMsg) {
+  int32_t          code = TSDB_CODE_SUCCESS, lino = 0;
+  SSsMigrateFileSetReq req = {0};
+
+  code = tDeserializeSSsMigrateFileSetReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead), &req);
   if (code < 0) {
     terrno = code;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   req.nodeId = vnodeNodeId(pVnode);
-  if (tSerializeSSsMigrateVgroupReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead),
-                                    &req) < 0) {
-    vError("vgId:%d %s failed to serialize ss migrate request", TD_VID(pVnode), __func__);
-    code = TSDB_CODE_INVALID_MSG;
-  }
+  tSerializeSSsMigrateFileSetReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead), &req);
+
 _exit:
   return code;
 }
@@ -633,9 +631,11 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     case TDMT_VND_DROP_TABLE: {
       code = vnodePreProcessDropTbMsg(pVnode, pMsg);
     } break;
-    case TDMT_VND_SSMIGRATE: {
-      code = vnodePreProcessSsMigrateReq(pVnode, pMsg);
+#ifdef TD_ENTERPRISE
+    case TDMT_VND_SSMIGRATE_FILESET: {
+      code = vnodePreProcessSsMigrateFileSetReq(pVnode, pMsg);
     } break;
+#endif
     default:
       break;
   }
@@ -859,13 +859,17 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       code = vnodeProcessTrimReq(pVnode, ver, pReq, len, pRsp);
       TSDB_CHECK_CODE(code, lino, _err);
       break;
-    case TDMT_VND_SSMIGRATE:
-      if (vnodeProcessSsMigrateReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
+#ifdef TD_ENTERPRISE
+    case TDMT_VND_SSMIGRATE_FILESET:
+      if (vnodeProcessSsMigrateFileSetReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
     case TDMT_VND_FOLLOWER_SSMIGRATE:
       if (vnodeProcessFollowerSsMigrateReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
+    case TDMT_VND_KILL_SSMIGRATE:
+      //if (vnodeProcessKillSsMigrateReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
+#endif
     /* TSDB */
     case TDMT_VND_SUBMIT: {
       METRICS_TIMING_BLOCK(pVnode->writeMetrics.apply_time, METRIC_LEVEL_LOW, {
@@ -1086,9 +1090,13 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
 #ifdef TD_ENTERPRISE
     case TDMT_VND_QUERY_COMPACT_PROGRESS:
       return vnodeQueryCompactProgress(pVnode, pMsg);
-#endif
+
+    case TDMT_VND_LIST_SSMIGRATE_FILESETS:
+      return vnodeListSsMigrateFileSets(pVnode, pMsg);
+
     case TDMT_VND_QUERY_SSMIGRATE_PROGRESS:
       return vnodeQuerySsMigrateProgress(pVnode, pMsg);
+#endif
       //    case TDMT_VND_TMQ_CONSUME:
       //      return tqProcessPollReq(pVnode->pTq, pMsg);
 #ifdef USE_TQ
@@ -1148,48 +1156,45 @@ _exit:
   return code;
 }
 
-extern int32_t vnodeAsyncSsMigrate(SVnode *pVnode, SSsMigrateVgroupReq *pReq);
+extern int32_t vnodeAsyncSsMigrateFileSet(SVnode *pVnode, SSsMigrateFileSetReq *pReq);
 
-static int32_t vnodeProcessSsMigrateReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  int32_t             code = 0;
-  SSsMigrateVgroupReq req = {0};
-  SSsMigrateVgroupRsp rsp = {0};
-  pRsp->msgType = TDMT_VND_SSMIGRATE_RSP;
+static int32_t vnodeProcessSsMigrateFileSetReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  int32_t          code = 0;
+
+  SSsMigrateFileSetReq req = {0};
+  SSsMigrateFileSetRsp rsp = {0};
+  pRsp->msgType = TDMT_VND_SSMIGRATE_FILESET_RSP;
   pRsp->code = 0;
   pRsp->pCont = NULL;
   pRsp->contLen = 0;
 
-  if (tDeserializeSSsMigrateVgroupReq(pReq, len, &req) != 0) {
+  if (tDeserializeSSsMigrateFileSetReq(pReq, len, &req) != 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
 
-  vInfo("vgId:%d, process ssmigrate vnode request, time:%" PRId64, pVnode->config.vgId, req.timestamp);
+  vInfo("vgId:%d, ssmigrate:%d, fid:%d, process ssmigrate fileset request, time:%" PRId64, pVnode->config.vgId, req.ssMigrateId, req.fid, req.startTimeSec);
+  rsp.ssMigrateId = req.ssMigrateId;
+  rsp.vgId = TD_VID(pVnode);
+  rsp.nodeId = req.nodeId;
+  rsp.fid = req.fid;
 
-  code = vnodeAsyncSsMigrate(pVnode, &req);
+  code = vnodeAsyncSsMigrateFileSet(pVnode, &req);
   if (code != TSDB_CODE_SUCCESS) {
     vError("vgId:%d, failed to async ssmigrate since %s", TD_VID(pVnode), tstrerror(code));
     pRsp->code = code;
     goto _exit;
   }
 
-  rsp.ssMigrateId = req.ssMigrateId;
-  rsp.vgId = TD_VID(pVnode);
-  rsp.nodeId = req.nodeId;
-
   pRsp->code = TSDB_CODE_SUCCESS;
-  pRsp->contLen = tSerializeSSsMigrateVgroupRsp(NULL, 0, &rsp);
+  pRsp->contLen = tSerializeSSsMigrateFileSetRsp(NULL, 0, &rsp);
   pRsp->pCont = rpcMallocCont(pRsp->contLen);
   if (pRsp->pCont == NULL) {
-    vError("vgId:%d, failed to allocate memory for ssmigrate response", TD_VID(pVnode));
+    vError("vgId:%d, failed to allocate memory for ssmigrate fileset response", TD_VID(pVnode));
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-
-  if (tSerializeSSsMigrateVgroupRsp(pRsp->pCont, pRsp->contLen, &rsp) < 0) {
-    vError("vgId:%d, failed to serialize ssmigrate response", TD_VID(pVnode));
-    code = TSDB_CODE_INVALID_MSG;
-  }
+  tSerializeSSsMigrateFileSetRsp(pRsp->pCont, pRsp->contLen, &rsp);
 
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
@@ -1198,14 +1203,14 @@ _exit:
   return code;
 }
 
-extern int32_t vnodeFollowerSsMigrate(SVnode *pVnode, SFollowerSsMigrateReq *pReq);
+extern int32_t vnodeFollowerSsMigrate(SVnode *pVnode, SSsMigrateProgress *pReq);
 
 static int32_t vnodeProcessFollowerSsMigrateReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  int32_t               code = 0;
-  SFollowerSsMigrateReq req = {0};
+  int32_t          code = 0;
+  SSsMigrateProgress req = {0};
 
   // decode
-  if (tDeserializeSFollowerSsMigrateReq(pReq, len, &req) != 0) {
+  if (tDeserializeSSsMigrateProgress(pReq, len, &req) != 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
@@ -1213,7 +1218,7 @@ static int32_t vnodeProcessFollowerSsMigrateReq(SVnode *pVnode, int64_t ver, voi
   code = vnodeFollowerSsMigrate(pVnode, &req);
 
 _exit:
-  tFreeSFollowerSsMigrateReq(&req);
+  pRsp->code = code;
   return code;
 }
 
