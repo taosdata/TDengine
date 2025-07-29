@@ -78,7 +78,6 @@ After modifying configuration file parameters, you need to restart the *taosd* s
 | filterScalarMode         |                   | Not supported                      | Force scalar filter mode, 0: off; 1: on, default value 0     |
 | queryRsmaTolerance       |                   | Not supported                      | Internal parameter, tolerance time for determining which level of rsma data to query, in milliseconds |
 | pqSortMemThreshold       |                   | Not supported                      | Internal parameter, memory threshold for sorting             |
-| showFullCreateTableColumn | Added in 3.3.7.1 | Supported                          | Whether show column compress info while execute `show create table tablname`, range 0/1, default: 0.
 
 ### Region Related
 
