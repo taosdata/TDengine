@@ -1542,7 +1542,7 @@ static int32_t resetGroupCacheDownstreamCtx(SOperatorInfo* pOper) {
       tSimpleHashPut(pCtx->pVgTbHash, &defaultVg, sizeof(defaultVg), &vgCtx, sizeof(vgCtx));
     }
     
-    taosArrayClear(pCtx->pFreeBlock);
+    taosArrayClearEx(pCtx->pFreeBlock, freeGcBlockInList);
     taosHashClear(pCtx->pSessions);
     taosHashClear(pCtx->pWaitSessions);
     freeSGcFileCacheCtx(&pCtx->fileCtx);
