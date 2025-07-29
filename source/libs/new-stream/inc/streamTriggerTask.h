@@ -71,6 +71,8 @@ typedef struct SSTriggerHistoryGroup {
   SArray    *pVirTableInfos;  // SArray<SSTriggerVirTableInfo *>
   SSHashObj *pTableMetas;     // SSHashObj<tbUid, SSTriggerTableMeta>
 
+  bool finished;
+
   TriggerWindowBuf winBuf;
   STimeWindow      nextWindow;
   SValue           stateVal;
@@ -158,10 +160,11 @@ typedef struct SSTriggerHistoryContext {
   ESTriggerContextStatus     status;
 
   int64_t     gid;
-  STimeWindow range;
+  STimeWindow scanRange;
+  STimeWindow calcRange;
+  STimeWindow stepRange;
   bool        isHistory;
   bool        needTsdbMeta;
-  STimeWindow stepRange;
   bool        pendingToFinish;
 
   SSHashObj *pReaderTsdbProgress;  // SSHashObj<vgId, SSTriggerTsdbProgress>
@@ -221,7 +224,8 @@ typedef struct SSTriggerCalcNode {
 
 typedef struct SSTriggerRecalcRequest {
   int64_t     gid;
-  STimeWindow range;
+  STimeWindow scanRange;
+  STimeWindow calcRange;
   SSHashObj  *pTsdbVersions;
   bool        isHistory;
 } SSTriggerRecalcRequest;
@@ -318,8 +322,8 @@ int32_t stTriggerTaskAcquireRequest(SStreamTriggerTask *pTask, int64_t sessionId
                                     SSTriggerCalcRequest **ppRequest);
 int32_t stTriggerTaskReleaseRequest(SStreamTriggerTask *pTask, SSTriggerCalcRequest **ppRequest);
 
-int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, int64_t gid, STimeWindow range,
-                                      SSHashObj *pWalProgress, bool isHistory);
+int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup,
+                                      STimeWindow *pCalcRange, SSHashObj *pWalProgress, bool isHistory);
 int32_t stTriggerTaskFetchRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRecalcRequest **ppReq);
 
 // interfaces called by stream mgmt thread
