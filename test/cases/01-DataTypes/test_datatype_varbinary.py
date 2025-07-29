@@ -102,40 +102,40 @@ class TestDatatypeVarbinary:
 
         tdSql.execute(f"insert into st_varbinary_2 values(now, 'NULL')")
         tdSql.query(f"select * from st_varbinary_2")
-        # tdSql.checkData(0, 1, '\\x4E554C4C')
+        tdSql.checkData(0, 1, bytes.fromhex('4E554C4C'))
 
         tdSql.execute(f"insert into st_varbinary_3 values(now, 'NULL')")
         tdSql.query(f"select * from st_varbinary_3")
-        # tdSql.checkData(0, 1, '\\x4E554C4C')
+        tdSql.checkData(0, 1, bytes.fromhex('4E554C4C'))
 
         tdSql.execute(f'insert into st_varbinary_4 values(now, "NULL")')
         tdSql.query(f"select * from st_varbinary_4")
-        # tdSql.checkData(0, 1, '\\x4E554C4C')
+        tdSql.checkData(0, 1, bytes.fromhex('4E554C4C'))
 
         tdSql.execute(f'insert into st_varbinary_5 values(now, "NULL")')
         tdSql.query(f"select * from st_varbinary_5")
-        # tdSql.checkData(0, 1, '\\x4E554C4C')
+        tdSql.checkData(0, 1, bytes.fromhex('4E554C4C'))
 
         tdSql.execute(f'insert into st_varbinary_6 values(now, "")')
         tdSql.query(f"select * from st_varbinary_6")
-        # tdSql.checkData(0, 1, '\\x')
+        tdSql.checkData(0, 1, bytes.fromhex(''))
 
         tdSql.execute(f'insert into st_varbinary_7 values(now, " ")')
         tdSql.query(f"select * from st_varbinary_7")
-        # tdSql.checkData(0, 1, '\\x20')
+        tdSql.checkData(0, 1, bytes.fromhex('20'))
 
         str = "\\x"
         tdSql.execute(f'insert into st_varbinary_8 values(now, "{str}")')
         tdSql.query(f"select * from st_varbinary_8")
-        # tdSql.checkData(0, 1, '\\x')
+        tdSql.checkData(0, 1, bytes.fromhex(''))
 
         tdSql.execute(f'insert into st_varbinary_9 values(now, "{str}aB")')
         tdSql.query(f"select * from st_varbinary_9")
-        # tdSql.checkData(0, 1, '\\xAB')
+        tdSql.checkData(0, 1, bytes.fromhex('AB'))
 
         tdSql.execute(f'insert into st_varbinary_10 values(now, "aB")')
         tdSql.query(f"select * from st_varbinary_10")
-        # tdSql.checkData(0, 1, '\\x6142')
+        tdSql.checkData(0, 1, bytes.fromhex('6142'))
 
     def auto_create_table(self):
         tdLog.info(f"case 2: dynamic create table for test tag values")
@@ -156,7 +156,7 @@ class TestDatatypeVarbinary:
         tdSql.checkData(0, 5, None)
 
         tdSql.query(f"select * from st_varbinary_101")
-        # tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 1, None)
 
         tdSql.execute(
             f"insert into st_varbinary_102 using mt_varbinary tags('NULL') values(now,'NULL')"
@@ -165,7 +165,7 @@ class TestDatatypeVarbinary:
         tdSql.checkData(0, 5, "\\x4E554C4C")
 
         tdSql.query(f"select * from st_varbinary_102")
-        # tdSql.checkData(0, 1, '\\x4E554C4C')
+        tdSql.checkData(0, 1, bytes.fromhex('4E554C4C'))
 
         tdSql.execute(
             f"insert into st_varbinary_103 using mt_varbinary tags('NULL') values(now,'NULL')"
@@ -174,7 +174,7 @@ class TestDatatypeVarbinary:
         tdSql.checkData(0, 5, "\\x4E554C4C")
 
         tdSql.query(f"select * from st_varbinary_103")
-        # tdSql.checkData(0, 1, '\\x4E554C4C')
+        tdSql.checkData(0, 1, bytes.fromhex('4E554C4C'))
 
         tdSql.execute(
             f'insert into st_varbinary_104 using mt_varbinary tags("NULL") values(now,"NULL")'
@@ -183,7 +183,7 @@ class TestDatatypeVarbinary:
         tdSql.checkData(0, 5, "\\x4E554C4C")
 
         tdSql.query(f"select * from st_varbinary_104")
-        # tdSql.checkData(0, 1, '\\x4E554C4C')
+        tdSql.checkData(0, 1, bytes.fromhex('4E554C4C'))
 
         tdSql.execute(
             f'insert into st_varbinary_105 using mt_varbinary tags("NULL") values(now,"NULL")'
@@ -192,7 +192,7 @@ class TestDatatypeVarbinary:
         tdSql.checkData(0, 5, "\\x4E554C4C")
 
         tdSql.query(f"select * from st_varbinary_105")
-        # tdSql.checkData(0, 1, '\\x4E554C4C')
+        tdSql.checkData(0, 1, bytes.fromhex('4E554C4C'))
 
         tdSql.execute(
             f'insert into st_varbinary_106 using mt_varbinary tags("") values(now,"")'
@@ -201,7 +201,7 @@ class TestDatatypeVarbinary:
         tdSql.checkData(0, 5, "\\x")
 
         tdSql.query(f"select * from st_varbinary_106")
-        # tdSql.checkData(0, 1, '\\x')
+        tdSql.checkData(0, 1, bytes.fromhex(''))
 
         tdSql.execute(
             f'insert into st_varbinary_107 using mt_varbinary tags(" ") values(now," ")'
@@ -210,7 +210,7 @@ class TestDatatypeVarbinary:
         tdSql.checkData(0, 5, "\\x20")
 
         tdSql.query(f"select * from st_varbinary_107")
-        # tdSql.checkData(0, 1, '\\x20')
+        tdSql.checkData(0, 1, bytes.fromhex('20'))
 
         str = "\\x"
         tdSql.execute(
@@ -220,7 +220,7 @@ class TestDatatypeVarbinary:
         tdSql.checkData(0, 5, "\\x")
 
         tdSql.query(f"select * from st_varbinary_108")
-        # tdSql.checkData(0, 1, '\\x')
+        tdSql.checkData(0, 1, bytes.fromhex(''))
 
         tdSql.execute(
             f'insert into st_varbinary_109 using mt_varbinary tags("{str}aB") values(now,"{str}aB")'
@@ -229,7 +229,7 @@ class TestDatatypeVarbinary:
         tdSql.checkData(0, 5, "\\xAB")
 
         tdSql.query(f"select * from st_varbinary_109")
-        # tdSql.checkData(0, 1, '\\xAB')
+        tdSql.checkData(0, 1, bytes.fromhex('AB'))
 
         tdSql.execute(
             f'insert into st_varbinary_1010 using mt_varbinary tags("aB") values(now,"aB")'
@@ -238,7 +238,7 @@ class TestDatatypeVarbinary:
         tdSql.checkData(0, 5, "\\x6142")
 
         tdSql.query(f"select * from st_varbinary_1010")
-        # tdSql.checkData(0, 1, '\\x6142')
+        tdSql.checkData(0, 1, bytes.fromhex('6142'))
 
     def alter_tag_value(self):
         tdLog.info(f"case 3: alter tag value")
