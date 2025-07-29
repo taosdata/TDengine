@@ -290,25 +290,23 @@ int32_t smStartStreamTasks(SStreamTaskStart* pStart) {
   int64_t streamId = pStart->task.streamId;
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  SStreamTask* pTask= NULL;
+  void*   taskAddr = NULL;
   
-  SStreamTask** ppTask = taosHashGet(gStreamMgmt.taskMap, &pStart->task.streamId, sizeof(pStart->task.streamId) + sizeof(pStart->task.taskId));
-  if (NULL == ppTask) {
-    stsError("stream not exists while try to start task %" PRId64, pStart->task.taskId);
-    goto _exit;
-  }
-
-  SStreamTask* pTask = *ppTask;
+  TAOS_CHECK_EXIT(streamAcquireTask(streamId, pStart->task.streamId, (SStreamTask**)&pTask, &taskAddr));
 
   pStart->startMsg.header.msgType = STREAM_MSG_START;
   STM_CHK_SET_ERROR_EXIT(stTriggerTaskExecute((SStreamTriggerTask *)pTask, (SStreamMsg *)&pStart->startMsg));
 
-  ST_TASK_ILOG("stream start succeed, tidx:%d", pTask->taskIdx);
-
-  return code;
-
 _exit:
 
-  stsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  if (code) {
+    stsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  } else {
+    ST_TASK_ILOG("stream start succeed, tidx:%d", pTask->taskIdx);
+  }
+
+  streamReleaseTask(taskAddr);
 
   return code;
 }
@@ -748,15 +746,11 @@ int32_t smHandleTaskMgmtRsp(SStreamMgmtRsp* pRsp) {
   int64_t key[2] = {streamId, pRsp->task.taskId};
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  SStreamTask* pTask= NULL;
+  void*   taskAddr = NULL;
   
-  SStreamTask** ppTask = taosHashAcquire(gStreamMgmt.taskMap, key, sizeof(key));
-  if (NULL == ppTask) {
-    stsWarn("TASK:%" PRIx64 " already not exists in taskMap while try to handle mgmtRsp", key[1]);
-    return code;
-  }
-
-  SStreamTask* pTask= *ppTask;
-
+  TAOS_CHECK_EXIT(streamAcquireTask(streamId, pRsp->task.taskId, (SStreamTask**)&pTask, &taskAddr));
+      
   switch (pRsp->header.msgType) {
     case STREAM_MSG_ORIGTBL_READER_INFO: {
       SStreamMgmtReq* pReq = atomic_load_ptr(&pTask->pMgmtReq);
@@ -788,7 +782,7 @@ _exit:
     ST_TASK_ILOG("handle task mgmt rsp succeed, tidx:%d", pTask->taskIdx);
   }
 
-  taosHashRelease(gStreamMgmt.taskMap, ppTask);
+  streamReleaseTask(taskAddr);
   
   return code;
 }
