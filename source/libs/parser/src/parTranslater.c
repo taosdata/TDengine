@@ -1636,11 +1636,7 @@ static int32_t findAndSetTempTableColumn(STranslateContext* pCxt, SColumnNode** 
   SExprNode*      pFoundExpr = NULL;
   FOREACH(pNode, pProjectList) {
     SExprNode* pExpr = (SExprNode*)pNode;
-    bool found = false;
-    if(QUERY_NODE_FUNCTION == nodeType(pExpr) && 0 == strcmp(pCol->colName, pExpr->userAlias)) {
-      found = true;
-    }
-    if (0 == strcmp(pCol->colName, pExpr->aliasName) || found) {
+    if (0 == strcmp(pCol->colName, pExpr->aliasName)) {
       if (*pFound) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_AMBIGUOUS_COLUMN, pCol->colName);
       }
@@ -3027,6 +3023,8 @@ static int32_t translateMultiResFunc(STranslateContext* pCxt, SFunctionNode* pFu
     }
   }
   if (tsKeepColumnName && 1 == LIST_LENGTH(pFunc->pParameterList) && !pFunc->node.asAlias && !pFunc->node.asParam) {
+    tstrncpy(pFunc->node.aliasName, ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->aliasName,
+             TSDB_COL_NAME_LEN);
     tstrncpy(pFunc->node.userAlias, ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->userAlias,
              TSDB_COL_NAME_LEN);
   }
