@@ -80,7 +80,7 @@ async function getLicense() {
       );
     });
     await sendSQLReq(
-      `select server_version(), version, (expire_time < now) as valid from information_schema.ins_grants;`
+      `select server_version(), version from information_schema.ins_grants;`
     ).then(res => {
       license.value = res.data.map(data => {
         return Object.fromEntries(
@@ -103,35 +103,6 @@ async function getLicense() {
         tdClusterId: getClusterID()
       });
       let versionName = license.value[0]['version'];
-      // switch (grants.value[0].version) {
-      //   case 'trial':
-      //   case `TDengine Enterprise Edition trial`:
-      //   case `${OEM_NAME} Enterprise Edition trial`:
-      //   case `${OEM_NAME} TSDB Enterprise Edition trial`:
-      //   case `${OEM_NAME}-Enterprise trial`:
-      //     versionName = license.value[0].valid ? 'Trial Expired' : 'Trial';
-      //     break;
-      //   case 'official':
-      //   case `TDengine Enterprise Edition official`:
-      //   case `${OEM_NAME} Enterprise Edition official`:
-      //   case `${OEM_NAME} TSDB Enterprise Edition official`:
-      //   case `${OEM_NAME}-Enterprise official`:
-      //     versionName = license.value[0].valid ? 'Enterprise License Expired' : 'Enterprise';
-      //     break;
-      //   case `TDengine ${$INDUSTRY} Edition trial`:
-      //   case `TDengine TSDB ${$INDUSTRY} Edition trial`:
-      //     versionName = 'Trial';
-      //     industry.value = 'power';
-      //     break;
-      //   case `TDengine ${$INDUSTRY} Edition official`:
-      //   case `TDengine TSDB ${$INDUSTRY} Edition official`:
-      //     versionName = 'Official';
-      //     industry.value = 'power';
-      //     break;
-      //   default:
-      //     versionName = $IS_TSDBLITE ? 'Lite' : 'OSS';
-      //     break;
-      // }
       versionName = versionName.replace("official", "").trim();
       version.value = versionName + ' ' + getVersion(license.value[0]['server_version()']);
       localStorage.setItem('serverVersion', version.value);
