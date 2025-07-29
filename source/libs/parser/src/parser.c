@@ -65,19 +65,18 @@ bool qIsUpdateSetSql(const char* pStr, size_t length, SName* pTableName, int32_t
   if (TK_UPDATE != t.type) {
     return false;
   }
-
+  SMsgBuf pMsgBuf = {.len = msgBufLen, .buf = msgBuf};
   pStr += index;
   index = 0;
   t = tStrGetToken((char*)pStr, &index, false, NULL);
   if (t.n == 0 || t.z == NULL) {
+    *pCode = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_TSC_STMT_TBNAME_ERROR, "Invalid table name");
     return false;
   }
 
   if (pTableName != NULL) {
-    SMsgBuf pMsgBuf = {.len = msgBufLen, .buf = msgBuf};
     *pCode = insCreateSName(pTableName, &t, acctId, dbName, &pMsgBuf);
     if ((*pCode) != TSDB_CODE_SUCCESS) {
-      parserError("stmt update sql tbname error: %s", pMsgBuf.buf);
       return false;
     }
   }
