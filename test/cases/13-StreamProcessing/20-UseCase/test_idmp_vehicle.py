@@ -155,7 +155,7 @@ class Test_IDMP_Vehicle:
             "create stream if not exists `idmp`.`veh_stream7_sub1` interval(5m) sliding(10m) from `idmp`.`vt_7` stream_options(IGNORE_NODATA_TRIGGER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream7_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
             # stream8 watermark
             "create stream if not exists `idmp`.`veh_stream8`      interval(10m) sliding(10m) from `idmp`.`vt_8`  stream_options(WATERMARK(1m)|IGNORE_DISORDER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream8`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`,sum(`里程`) as `里程和` from %%trows",
-            "create stream if not exists `idmp`.`veh_stream8_sub1` interval(10m) sliding(10m) from `idmp`.`vt_8`  stream_options(WATERMARK(1m))                 notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream8`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`,sum(`里程`) as `里程和` from %%trows",
+            "create stream if not exists `idmp`.`veh_stream8_sub1` interval(10m) sliding(10m) from `idmp`.`vt_8`  stream_options(WATERMARK(1m))                 notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream8_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`,sum(`里程`) as `里程和` from %%trows",
         ]
 
         tdSql.executes(sqls)
@@ -654,37 +654,47 @@ class Test_IDMP_Vehicle:
         table = f"{self.db}.`vehicle_110100_008`"
         cols  = "ts,speed,mileage"
 
-        # win1 1 -> blank delay 2 -> edge 1 -> win2 1 -> delay 2 ->win2 1 
+        # init
         ts    = self.start
         vals  = "120,100"
 
-        # win1 3
+        # win1 1
         count = 1
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
         # blank delay 2 skip
         ts_blank = ts
         ts += 2 * self.step
-        # to win1 edge  
+        # go to win1 end
         ts += 6 * self.step
-        # win1 edge 1
+        # win1 10
         count = 1
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
-        # win2 1 not trigger win1 close
+        # win2 one not trigger win1 close
         vals  = "150,200"
         count = 1
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
-        # write delay 2 rows
+        # win1 2~3 disorder
         count = 2
         vals  = "120,100"
-        tdSql.insertFixedVal(table, ts_blank, self.step, count, cols, vals)
+        ts_blank = tdSql.insertFixedVal(table, ts_blank, self.step, count, cols, vals)
 
         # expect win1 not close
         sql = "select * from idmp.result_stream8" # expect table not exist
         tdSql.waitError(sql)
 
-        # write win2 again
+        # win2 two trigger win1 close
+        vals  = "150,200"
+        count = 1
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+
+        # win1 4~5 disorder
+        count = 2
+        vals  = "120,100"
+        ts_blank = tdSql.insertFixedVal(table, ts_blank, self.step, count, cols, vals)
+
+        # win2 three
         vals  = "150,200"
         count = 1
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
@@ -1034,9 +1044,29 @@ class Test_IDMP_Vehicle:
             func = lambda: tdSql.checkRows(1)
             # row1
             and tdSql.compareData(0, 0, self.start) # ts
-            and tdSql.compareData(0, 1, 4)          # cnt
+            and tdSql.compareData(0, 1, 2)          # cnt
             and tdSql.compareData(0, 2, 120)        # avg
-            and tdSql.compareData(0, 3, 400)        # sum
+            and tdSql.compareData(0, 3, 200)        # sum
         )
 
+        # sub1
+        # ***** bug11 *****
+        #self.verify_stream8_sub1()
+
         tdLog.info(f"verify stream8 ................................. successfully.")
+
+    # verify stream8_sub1
+    def verify_stream8_sub1(self):
+        # check data
+        result_sql = f"select * from {self.vdb}.`result_stream8_sub1` "
+        tdSql.checkResultsByFunc (
+            sql = result_sql, 
+            func = lambda: tdSql.checkRows(1)
+            # row1
+            and tdSql.compareData(0, 0, self.start) # ts
+            and tdSql.compareData(0, 1, 6)          # cnt
+            and tdSql.compareData(0, 2, 120)        # avg
+            and tdSql.compareData(0, 3, 600)        # sum
+        )
+
+        tdLog.info(f"verify stream8 sub1 ............................ successfully.")
