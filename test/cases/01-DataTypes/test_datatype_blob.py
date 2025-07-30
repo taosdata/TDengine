@@ -156,7 +156,8 @@ class TestDatatypeBlob:
         tdSql.execute(f'insert into st_blob_7 values(now, " ")')
         tdSql.query(f"select * from st_blob_7")
         tdSql.checkData(0, 1, bytes.fromhex('20'))
-
+        
+        tdSql.flushDb("db")
         str = "\\x"
         tdSql.execute(f'insert into st_blob_8 values(now, "{str}")')
         tdSql.query(f"select * from st_blob_8")
