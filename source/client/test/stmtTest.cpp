@@ -743,8 +743,11 @@ TEST(stmtCase, update) {
         "status IS NOT NULL";
     code = taos_stmt_prepare(stmt, sql, 0);
     code = taos_stmt_bind_param_batch(stmt, params);
-    ASSERT_EQ(TSDB_CODE_PAR_INCOMPLETE_SQL, code);
-    ASSERT_STREQ("Incomplete SQL statement", taos_stmt_errstr(stmt));
+    ASSERT_EQ(TSDB_CODE_PAR_SYNTAX_ERROR, code);
+    ASSERT_STREQ(
+        "syntax error near \"stmt_testdb_6.devices temperature = ?,humidity = ?,device_id=? where ts=? and device_id=? "
+        "and status IS NOT NULL\"",
+        taos_stmt_errstr(stmt));
 
     taos_stmt_close(stmt);
   }

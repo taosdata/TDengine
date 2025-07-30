@@ -992,13 +992,6 @@ int stmtPrepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
     }
     sql = newSql;
     length = strlen(newSql);
-
-    if (pStmt->exec.pRequest->sqlstr) {
-      taosMemoryFreeClear(pStmt->exec.pRequest->sqlstr);
-      pStmt->exec.pRequest->sqlstr = NULL;
-    }
-    pStmt->exec.pRequest->sqlstr = taosStrndup(sql, length);
-    pStmt->exec.pRequest->sqlLen = length;
   }
 
   STMT_ERR_RET(code);
@@ -1013,6 +1006,13 @@ int stmtPrepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   }
   pStmt->sql.sqlLen = length;
   pStmt->sql.stbInterlaceMode = pStmt->stbInterlaceMode;
+
+  // reset request sql
+  if (pStmt->exec.pRequest->sqlstr) {
+    taosMemoryFreeClear(pStmt->exec.pRequest->sqlstr);
+  }
+  pStmt->exec.pRequest->sqlstr = taosStrndup(sql, length);
+  pStmt->exec.pRequest->sqlLen = length;
 
   char* dbName = NULL;
   if (qParseDbName(sql, length, &dbName)) {
