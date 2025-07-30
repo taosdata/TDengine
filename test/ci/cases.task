@@ -332,6 +332,7 @@
 ## 08-SubQuery
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/08-SubQuery/test_nestquery.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/08-SubQuery/test_timeline.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/08-SubQuery/test_last_row.py
 ## 09-SelectList
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_column_1.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_column_7.py

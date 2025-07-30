@@ -1492,11 +1492,13 @@ static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, 
     code = colDataSetVal(pColInfoData, numOfRows, (char*)colTypeStr, false);
     QUERY_CHECK_CODE(code, lino, _end);
 
+    // col length
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 5);
     QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
     code = colDataSetVal(pColInfoData, numOfRows, (const char*)&schemaRow->pSchema[i].bytes, false);
     QUERY_CHECK_CODE(code, lino, _end);
 
+    // col precision, col scale, col nullable
     for (int32_t j = 6; j <= 8; ++j) {
       pColInfoData = taosArrayGet(dataBlock->pDataBlock, j);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
@@ -1521,6 +1523,13 @@ static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, 
       code = colDataSetVal(pColInfoData, numOfRows, (char*)refColName, false);
       QUERY_CHECK_CODE(code, lino, _end);
     }
+
+    // col id
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 10);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    code = colDataSetVal(pColInfoData, numOfRows, (const char*)&schemaRow->pSchema[i].colId, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     ++numOfRows;
   }
 
