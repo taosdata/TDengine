@@ -166,7 +166,7 @@ awaitgroup = "0.7.0"
 lazy_static = "1.4"
 async-trait = "0.1"
 async-backtrace = "0.2.2"
-async-compression = { version = "0.4", features = ["all"] }
+async-compression = { version = "0.4", default-features = false,  features = ["zstd", "tokio"] }
 utoipa = { version = "4", features = ["actix_extras", "chrono"] }
 utoipa-swagger-ui = { version = "7", features = ["actix-web"] }
 socket2 = "0.6"
