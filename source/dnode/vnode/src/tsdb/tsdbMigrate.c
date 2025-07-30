@@ -606,21 +606,19 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
     tsdbTFileLastChunkName(rtner->tsdb, flocal->f, path);
   }
 
-  int64_t mtime = 0, size = 0;
-  *pCode = taosStatFile(path, &size, &mtime, NULL);
+  int64_t mtime = 0;
+  *pCode = taosStatFile(path, NULL, &mtime, NULL);
   if (*pCode != TSDB_CODE_SUCCESS) {
     tsdbError("vgId:%d, fid:%d, migration cancelled, failed to stat file %s since %s", vid, pLocalFset->fid, path, tstrerror(*pCode));
     setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_FAILED);
     return false;
   }
 
-  if (size <= (int64_t)pCfg->tsdbPageSize * pCfg->ssChunkSize) {
-    tsdbInfo("vgId:%d, fid:%d, migration skipped, data file is too small, size: %" PRId64 " bytes", vid, pLocalFset->fid, size);
-    setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_SKIPPED);
-    return false; // file too small, no need to migrate
-  }
-
-  if (mtime >= rtner->now - tsSsUploadDelaySec) {
+  // 'mtime >= rtner->now - tsSsUploadDelaySec' means the file is active writing, and we should skip
+  // the migration. However, this may also be a result of the [ssCompact] option, which should not
+  // be skipped, so we also check 'mtime > pLocalFset->lastCompact / 1000 || !pCfg->ssCompact', note
+  // this is not an acurate condition, but is simple and good enough.
+  if (mtime >= rtner->now - tsSsUploadDelaySec && (mtime > pLocalFset->lastCompact / 1000 || !pCfg->ssCompact)) {
     tsdbInfo("vgId:%d, fid:%d, migration skipped, data file is active writting, modified at %" PRId64, vid, pLocalFset->fid, mtime);
     setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_SKIPPED);
     return false; // still active writing, postpone migration
@@ -941,6 +939,7 @@ int32_t tsdbDoSsMigrate(SRTNer *rtner) {
 int32_t tsdbListSsMigrateFileSets(STsdb *tsdb, SArray* fidArr) {
   int32_t vid = TD_VID(tsdb->pVnode), code = 0;
   int64_t now = taosGetTimestampSec();
+  SVnodeCfg *pCfg = &tsdb->pVnode->config;
 
   (void)taosThreadMutexLock(&tsdb->mutex);
 
@@ -948,12 +947,37 @@ int32_t tsdbListSsMigrateFileSets(STsdb *tsdb, SArray* fidArr) {
   TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
     if (tsdbFidLevel(fset->fid, &tsdb->keepCfg, now) < 0) {
       tsdbInfo("vgId:%d, fid:%d, migration skipped, file set is expired", vid, fset->fid);
-      continue; // file set expired
+      continue;
     }
 
     if (tsdbSsFidLevel(fset->fid, &tsdb->keepCfg, tsdb->pVnode->config.ssKeepLocal, now) < 1) {
       tsdbInfo("vgId:%d, fid:%d, migration skipped, keep local file set", vid, fset->fid);
-      continue; // keep on local storage
+      continue;
+    }
+
+    STFileObj *fdata = fset->farr[TSDB_FTYPE_DATA];
+    if (fdata == NULL) {
+      tsdbInfo("vgId:%d, fid:%d, migration skipped, no data file", vid, fset->fid);
+      continue;
+    }
+
+    char path[TSDB_FILENAME_LEN];
+    if (fdata->f->lcn <= 1) {
+      strcpy(path, fdata->fname);
+    } else {
+      tsdbTFileLastChunkName(tsdb, fdata->f, path);
+    }
+
+    int64_t size = 0;
+    int32_t code = taosStatFile(path, &size, NULL, NULL);
+    if (code != TSDB_CODE_SUCCESS) {
+      tsdbError("vgId:%d, fid:%d, migration skipped, failed to stat file since %s", vid, fset->fid, tstrerror(code));
+      continue;
+    }
+
+    if (size <= (int64_t)pCfg->tsdbPageSize * pCfg->ssChunkSize) {
+      tsdbInfo("vgId:%d, fid:%d, migration skipped, data file is too small, size: %" PRId64 " bytes", vid, fset->fid, size);
+      continue;
     }
 
     if (taosArrayPush(fidArr, &fset->fid) == NULL) {
