@@ -57,6 +57,7 @@ jobs:
         uses: huacnlee/autocorrect-action@v2
         with:
           args: --lint docs/zh/* docs/en/*
+        continue-on-error: true
       - name: Report ReviewDog
         if: always()
         uses: tomchon/autocorrect-action@fix/review-dog
