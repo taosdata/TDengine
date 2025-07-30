@@ -301,6 +301,7 @@ class TDTestCase:
             'mongodb':'MongoDB',
             'csv':'CSV',
             'sparkplugb':"SparkplugB",
+            'orc':'ORC',
             'idmp_ts_attr':'TDengine IDMP Time-Series Attributes',
             'idmp_nts_attr':'TDengine IDMP Non-Time-Series Attributes',
             'idmp_element':'TDengine IDMP Elements',
