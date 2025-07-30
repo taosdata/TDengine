@@ -474,7 +474,6 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME}
 - triggerType：字符串类型，表示触发类型，支持 Period、SLIDING 两种非窗口触发类型以及 INTERVAL、State、Session、Event、Count 五种窗口类型。
 - groupId: 字符串类型，是对应分组的唯一标识符，如果是按子表分组，则与对应表的 uid 一致。
 
-
 ###### 定时触发相关字段
 
 这部分是 triggerType 为 Period 时 event 对象的关键字段。
