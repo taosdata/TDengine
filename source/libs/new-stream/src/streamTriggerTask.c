@@ -3727,7 +3727,8 @@ static int32_t stHistoryContextInit(SSTriggerHistoryContext *pContext, SStreamTr
   pContext->sessionId = STREAM_TRIGGER_HISTORY_SESSIONID;
   pContext->status = STRIGGER_CONTEXT_WAIT_RECALC_REQ;
   if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
-    pContext->needTsdbMeta = (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM);
+    pContext->needTsdbMeta = (pTask->triggerFilter != NULL) || pTask->hasTriggerFilter ||
+                             (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM) || pTask->ignoreNoDataTrigger;
   } else if (pTask->isVirtualTable || (pTask->triggerType == STREAM_TRIGGER_SESSION) ||
              (pTask->triggerType == STREAM_TRIGGER_COUNT)) {
     pContext->needTsdbMeta = true;
@@ -7402,8 +7403,10 @@ static int32_t stHistoryGroupSaveInitWindow(SSTriggerHistoryGroup *pGroup, SArra
   }
 
   if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
-    void *px = taosArrayPush(pInitWindows, &pGroup->nextWindow);
-    QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+    if (!IS_TRIGGER_GROUP_NONE_WINDOW(pGroup)) {
+      void *px = taosArrayPush(pInitWindows, &pGroup->nextWindow);
+      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+    }
   }
 
 _end:
@@ -7424,9 +7427,13 @@ static int32_t stHistoryGroupRestoreInitWindow(SSTriggerHistoryGroup *pGroup, SA
   int32_t nWindows = taosArrayGetSize(pInitWindows);
 
   if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
-    QUERY_CHECK_CONDITION(nWindows > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
-    pGroup->nextWindow = *(STimeWindow *)taosArrayGetLast(pInitWindows);
-    nWindows--;
+    if (nWindows > 0) {
+      pGroup->nextWindow = *(STimeWindow *)taosArrayGetLast(pInitWindows);
+      nWindows--;
+    } else {
+      TRINGBUF_DESTROY(&pGroup->winBuf);
+      pGroup->nextWindow = (STimeWindow){0};
+    }
   }
 
   for (int32_t i = 0; i < nWindows; i++) {
@@ -7762,21 +7769,15 @@ static int32_t stHistoryGroupDoSlidingCheck(SSTriggerHistoryGroup *pGroup) {
   bool                     allTableProcessed = false;
   bool                     needFetchData = false;
 
-  if (IS_TRIGGER_GROUP_NONE_WINDOW(pGroup)) {
-    void *px = tSimpleHashGet(pContext->pFirstTsMap, &pGroup->gid, sizeof(int64_t));
-    QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    int64_t ts = *(int64_t *)px;
-    code = stHistoryGroupOpenWindow(pGroup, ts, NULL, false, false);
-    QUERY_CHECK_CODE(code, lino, _end);
-  }
-
   if (!pContext->reenterCheck) {
     // save initial windows at the first check
     code = stHistoryGroupSaveInitWindow(pGroup, pContext->pInitWindows);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  if (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM) {
+  if ((pTask->triggerFilter != NULL) || pTask->hasTriggerFilter) {
+    readAllData = true;
+  } else if (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM) {
     readAllData = true;
   } else if (pTask->ignoreNoDataTrigger) {
     readAllData = true;
@@ -7809,8 +7810,14 @@ static int32_t stHistoryGroupDoSlidingCheck(SSTriggerHistoryGroup *pGroup) {
         }
         bool meetBound = (r < endIdx) || (r > 0 && pTsData[r - 1] == ts);
         if (ts == nextStart && meetBound) {
-          code = stHistoryGroupOpenWindow(pGroup, ts, NULL, true, r > 0 && pTsData[r - 1] == nextStart);
-          QUERY_CHECK_CODE(code, lino, _end);
+          if (IS_TRIGGER_GROUP_NONE_WINDOW(pGroup)) {
+            code = stHistoryGroupOpenWindow(pGroup, pTsData[r], NULL, true, true);
+            QUERY_CHECK_CODE(code, lino, _end);
+            r++;
+          } else {
+            code = stHistoryGroupOpenWindow(pGroup, ts, NULL, true, r > 0 && pTsData[r - 1] == nextStart);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
         }
         if ((TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey == ts) && meetBound) {
           code = stHistoryGroupCloseWindow(pGroup, NULL, true);
@@ -7819,6 +7826,14 @@ static int32_t stHistoryGroupDoSlidingCheck(SSTriggerHistoryGroup *pGroup) {
       }
     }
   } else {
+    if (IS_TRIGGER_GROUP_NONE_WINDOW(pGroup)) {
+      void *px = tSimpleHashGet(pContext->pFirstTsMap, &pGroup->gid, sizeof(int64_t));
+      QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      int64_t ts = *(int64_t *)px;
+      code = stHistoryGroupOpenWindow(pGroup, ts, NULL, false, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+
     allTableProcessed = true;
   }
 
@@ -7826,6 +7841,10 @@ static int32_t stHistoryGroupDoSlidingCheck(SSTriggerHistoryGroup *pGroup) {
     if (readAllData) {
       code = stHistoryGroupMergeSavedWindows(pGroup, 0);
       QUERY_CHECK_CODE(code, lino, _end);
+    }
+
+    if (IS_TRIGGER_GROUP_NONE_WINDOW(pGroup)) {
+      goto _end;
     }
 
     while (true) {
@@ -7868,9 +7887,9 @@ static int32_t stHistoryGroupDoSessionCheck(SSTriggerHistoryGroup *pGroup) {
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  if (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM) {
+  if ((pTask->triggerFilter != NULL) || pTask->hasTriggerFilter) {
     readAllData = true;
-  } else if (pTask->triggerFilter != NULL) {
+  } else if (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM) {
     readAllData = true;
   }
 
@@ -7972,7 +7991,7 @@ static int32_t stHistoryGroupDoCountCheck(SSTriggerHistoryGroup *pGroup) {
   bool                     allTableProcessed = false;
   bool                     needFetchData = false;
 
-  if (pTask->triggerFilter != NULL) {
+  if ((pTask->triggerFilter != NULL) || pTask->hasTriggerFilter) {
     readAllData = true;
   } else if (pTask->isVirtualTable) {
     readAllData = true;
