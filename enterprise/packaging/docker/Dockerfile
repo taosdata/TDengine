@@ -15,6 +15,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /root/
 RUN tar -zxf $(basename ${pkgFile}) && cd /root/${dirName}/ && /bin/bash install.sh -e no && cd /root && rm /root/$(basename ${pkgFile}) && rm -rf /root/${dirName} && apt-get update && apt-get install -y locales tzdata netcat curl gdb vim tmux less net-tools valgrind openjdk-11-jdk rsync jq sqlite3 ca-certificates && locale-gen en_US.UTF-8 && apt-get clean && rm -rf /var/lib/apt/lists/ && locale-gen en_US.UTF-8 && chmod +x /tini
 
+# Configure queryUseMemoryPool parameter
+RUN sed -i '/^#*\s*queryUseMemoryPool/d' /etc/taos/taos.cfg && echo "queryUseMemoryPool 0" >> /etc/taos/taos.cfg
+
 ENV LD_LIBRARY_PATH=/usr/lib \
     LC_CTYPE=en_US.UTF-8 \
     LANG=en_US.UTF-8 \
