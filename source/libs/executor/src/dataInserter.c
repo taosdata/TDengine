@@ -282,6 +282,7 @@ static int32_t updateInsertGrpTableInfo(SStreamDataInserterInfo* pInserterInfo, 
     if (code == TSDB_CODE_DUP_KEY) {
       freeCacheTbInfo(pNewInfo);
     }
+    freeCacheTbInfo(&pNewInfo->next);
     stInfo("update table info for streamId:%" PRIx64 ", groupId:%" PRIx64 ", uid:%" PRId64 ", vgid:%" PRId64
            ", version:%d",
            pInserterInfo->streamId, pInserterInfo->groupId, pNewInfo->uid, pNewInfo->vgid, pNewInfo->version);
