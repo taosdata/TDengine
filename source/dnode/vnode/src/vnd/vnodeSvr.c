@@ -2278,7 +2278,7 @@ static void addExistTableInfoIntoRes(SVnode *pVnode, SSubmitReq2 *pRequest, SSub
       vError("vgId:%d, table uid:%" PRId64 " not exists, line:%d", TD_VID(pVnode), pTbData->uid, __LINE__);
     }
   } else {
-    buildExistSubTalbeRsp(pVnode, pTbData, &pCreateTbRsp->pMeta);
+    code = buildExistSubTalbeRsp(pVnode, pTbData, &pCreateTbRsp->pMeta);
   }
 
   TSDB_CHECK_CODE(code, lino, _exit);
