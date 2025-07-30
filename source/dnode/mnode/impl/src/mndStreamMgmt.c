@@ -2196,9 +2196,9 @@ static int32_t msmSTRemoveStream(int64_t streamId, bool fromStreamMap) {
       int64_t taskId = *(pStreamId + 1);
       code = taosHashRemove(mStreamMgmt.taskMap, pStreamId, keyLen);
       if (code) {
-        mstsError("TASK:%" PRId64 " remove from taskMap failed, error:%s", taskId, tstrerror(code));
+        mstsError("TASK:%" PRIx64 " remove from taskMap failed, error:%s", taskId, tstrerror(code));
       } else {
-        mstsDebug("TASK:%" PRId64 " removed from taskMap", taskId);
+        mstsDebug("TASK:%" PRIx64 " removed from taskMap", taskId);
       }
     }
   }
@@ -2237,18 +2237,18 @@ static int32_t msmLaunchStreamDeployAction(SStmGrpCtx* pCtx, SStmStreamAction* p
   if (pStatus) {
     stopped = atomic_load_8(&pStatus->stopped);
     if (0 == stopped) {
-      mstsDebug("stream %s already running and in streamMap, ignore deploy it", pAction->streamName);
-      return code;
-    }
-
-    if (MST_IS_USER_STOPPED(stopped) && !pAction->userAction) {
-      mstsWarn("stream %s already stopped by user, stopped:%d, ignore deploy it", pAction->streamName, stopped);
-      return code;
-    }
-    
-    if (stopped == atomic_val_compare_exchange_8(&pStatus->stopped, stopped, 0)) {
       mstsDebug("stream %s will try to reset and redeploy it", pAction->streamName);
       msmResetStreamForRedeploy(streamId, pStatus);
+    } else {
+      if (MST_IS_USER_STOPPED(stopped) && !pAction->userAction) {
+        mstsWarn("stream %s already stopped by user, stopped:%d, ignore deploy it", pAction->streamName, stopped);
+        return code;
+      }
+      
+      if (stopped == atomic_val_compare_exchange_8(&pStatus->stopped, stopped, 0)) {
+        mstsDebug("stream %s will try to reset and redeploy it from stopped %d", pAction->streamName, stopped);
+        msmResetStreamForRedeploy(streamId, pStatus);
+      }
     }
   }
 

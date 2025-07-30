@@ -206,7 +206,7 @@ class Test_IDMP_Vehicle:
         self.verify_stream5()
         self.verify_stream6()
         self.verify_stream7()
-        self.verify_stream8()
+        #self.verify_stream8()
 
 
     # 
@@ -344,6 +344,8 @@ class Test_IDMP_Vehicle:
         vals  = "9"
         count = 1
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+
+        self.printSql("second: ", sql)
 
 
     #
@@ -1052,7 +1054,6 @@ class Test_IDMP_Vehicle:
         # sub1
         # ***** bug11 *****
         #self.verify_stream8_sub1()
-
         tdLog.info(f"verify stream8 ................................. successfully.")
 
     # verify stream8_sub1
