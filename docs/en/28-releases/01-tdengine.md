@@ -21,7 +21,7 @@ For TDengine 2.x version installation packages, see [Download Historical Version
 
 ## TDengine 3.x Downloads
 
-For TDengine 3.3.7.0 and later versions, see [Download Center](https://www.tdengine.com/download-center).
+For TDengine 3.3.7.0 and later versions, see [Download Center](https://tdengine.com/downloads/).
 
 Download links for TDengine 3.x version installation packages are as follows:
 
