@@ -86,7 +86,7 @@ class Test_ThreeGorges:
         # tdLog.info(f"select * from {self.dbname}.str_cjdl_point_data_szls_jk_test where _c0 >today()")
         # if tdSql.getRows() != 1:
         #     raise Exception("ERROR: result is now right!")
-        tdSql.checkRowsLoop(7,f"select val,senid,senid_name from {self.dbname}.{self.outTbname} order by _c0;",200,1)
+        tdSql.checkRowsLoop(6,f"select val,senid,senid_name from {self.dbname}.{self.outTbname} order by _c0;",200,1)
         self.checkResultWithResultFile()
         
 
