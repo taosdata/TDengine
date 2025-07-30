@@ -23,8 +23,7 @@
 #include "tmisce.h"
 #include "tmsgcb.h"
 
-#define MND_SSMIGRATE_VER_NUMBER 1
-#define MND_SSMIGRATE_ID_LEN     11
+#define MND_SSMIGRATE_VER_NUMBER       2
 
 static int32_t mndProcessSsMigrateDbTimer(SRpcMsg *pReq);
 static int32_t mndProcessUpdateSsMigrateProgressTimer(SRpcMsg *pReq);
@@ -554,7 +553,7 @@ static int32_t mndUpdateSsMigrate(SMnode *pMnode, SSsMigrateObj *pSsMigrate) {
 _exit:
   mndTransDrop(pTrans);
   if (code == TSDB_CODE_SUCCESS) {
-    mInfo("ssmigrate:%d was updated successfully", pSsMigrate->id);
+    mTrace("ssmigrate:%d was updated successfully", pSsMigrate->id);
   } else {
     mError("ssmigrate:%d, failed to update at lino %d since %s", pSsMigrate->id, lino, tstrerror(code));
   }
@@ -713,11 +712,11 @@ static void mndSendSsMigrateFileSetReq(SMnode* pMnode, SSsMigrateObj* pSsMigrate
   SRpcMsg rpcMsg = {.msgType = TDMT_VND_SSMIGRATE_FILESET, .pCont = pHead, .contLen = contLen};
   int32_t code = tmsgSendReq(&epSet, &rpcMsg);
   if (code != 0) {
-    mError("ssmigrate:%d, vgId:%d, failed to send list filesets request to vnode since 0x%x", req.ssMigrateId, vgId, code);
+    mError("ssmigrate:%d, vgId:%d, fid:%d, failed to send migrate fileset request to vnode since 0x%x", req.ssMigrateId, vgId, req.fid, code);
     pSsMigrate->vgState = SSMIGRATE_VGSTATE_INIT;
     pSsMigrate->vgIdx++;
   } else {
-    mInfo("ssmigrate:%d, vgId:%d, list filesets request was sent to vnode", req.ssMigrateId, vgId);
+    mInfo("ssmigrate:%d, vgId:%d, fid:%d, migrate fileset request was sent to vnode", req.ssMigrateId, vgId, req.fid);
     pSsMigrate->vgState = SSMIGRATE_VGSTATE_FSET_STARTING;
     pSsMigrate->currFset.startTime = req.startTimeSec;
   }
@@ -731,7 +730,7 @@ static int32_t mndProcessSsMigrateFileSetRsp(SRpcMsg *pMsg) {
   int32_t code = 0, lino = 0;
 
   if (pMsg->code != 0) {
-    mError("received wrong ssmigrate fileset response, req code is %s", tstrerror(pMsg->code));
+    mError("received wrong ssmigrate fileset response, error code is %s", tstrerror(pMsg->code));
     TAOS_RETURN(pMsg->code);
   }
 
@@ -833,7 +832,7 @@ static int32_t mndProcessQuerySsMigrateProgressRsp(SRpcMsg *pMsg) {
   int32_t code = 0, lino = 0;
 
   if (pMsg->code != 0) {
-    mError("received wrong ssmigrate response, req code is %s", tstrerror(pMsg->code));
+    mError("received wrong query ssmigrate progress response, error code is %s", tstrerror(pMsg->code));
     TAOS_RETURN(pMsg->code);
   }
 
@@ -861,7 +860,11 @@ static int32_t mndProcessQuerySsMigrateProgressRsp(SRpcMsg *pMsg) {
     TAOS_CHECK_GOTO(TSDB_CODE_INVALID_MSG, &lino, _exit);
   }
 
-  mTrace("ssmigrate:%d, vgId:%d, fid:%d, state is %d", rsp.ssMigrateId, rsp.vgId, rsp.fid, rsp.state);
+  if (rsp.state == pSsMigrate->currFset.state) {
+    mTrace("ssmigrate:%d, vgId:%d, fid:%d, state is %d", rsp.ssMigrateId, rsp.vgId, rsp.fid, rsp.state);
+  } else {
+    mInfo("ssmigrate:%d, vgId:%d, fid:%d, state is %d", rsp.ssMigrateId, rsp.vgId, rsp.fid, rsp.state);
+  }
   pSsMigrate->currFset.state = rsp.state;
   pSsMigrate->stateUpdateTime = taosGetTimestampSec();
   mndUpdateSsMigrate(pMnode, pSsMigrate);
@@ -873,7 +876,6 @@ _exit:
     mError("%s:%d, error=%s", __func__, lino, tstrerror(code));
   }
   mndReleaseSsMigrate(pMnode, pSsMigrate);
-  return code;
   return code;
 }
 
@@ -926,6 +928,8 @@ void mndSendQuerySsMigrateProgressReq(SMnode *pMnode, SSsMigrateObj *pSsMigrate)
     mTrace("ssmigrate:%d, vgId:%d, fid:%d, ssmigrate-query-progress request sent", req.ssMigrateId, req.vgId, req.fid);
   }
 }
+
+
 
 static void mndUpdateSsMigrateProgress(SMnode* pMnode, SSsMigrateObj* pSsMigrate) {
   int32_t numVg = taosArrayGetSize(pSsMigrate->vgroups);
@@ -1000,8 +1004,8 @@ static void mndUpdateSsMigrateProgress(SMnode* pMnode, SSsMigrateObj* pSsMigrate
   }
 
   // wait at least 30 seconds after the leader node has processed the file set, this is to ensure
-  // that the follower nodes have enough time to process the file set, and make the code of tsdb
-  // simpler.
+  // that the follower nodes have enough time to start process the file set, and make the code of
+  // tsdb simpler.
   if (taosGetTimestampSec() - pSsMigrate->stateUpdateTime < 30) {
     return;
   }
