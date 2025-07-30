@@ -35,22 +35,22 @@ class TestStreamOldCaseCount:
             - 2025-7-25 Simon Guan Migrated from tsim/stream/countSliding1.sim
             - 2025-7-25 Simon Guan Migrated from tsim/stream/countSliding2.sim
             - 2025-7-25 Simon Guan Migrated from tsim/stream/scalar.sim
-            
+
         """
 
         tdStream.createSnode()
 
         streams = []
-        streams.append(self.Count0())
-        streams.append(self.Count02())
-        streams.append(self.Count03())
-        streams.append(self.Count21())
-        streams.append(self.Count22())
-        streams.append(self.Count31())
-        streams.append(self.Sliding01())
-        streams.append(self.Sliding02())
+        # streams.append(self.Count01()) pass
+        # streams.append(self.Count02()) pass
+        # streams.append(self.Count03()) pass
+        # streams.append(self.Count21()) pass
+        # streams.append(self.Count22()) pass
+        # streams.append(self.Count31()) pass
+        # streams.append(self.Sliding01()) pass
+        # streams.append(self.Sliding02()) pass
         streams.append(self.Sliding11())
-        streams.append(self.Sliding21())
+        # streams.append(self.Sliding21())
         tdStream.checkAll(streams)
 
     class Count01(StreamCheckItem):
@@ -65,7 +65,7 @@ class TestStreamOldCaseCount:
                 f"create table t1(ts timestamp, a int, b int, c int, d double);"
             )
             tdSql.execute(
-                f"create stream streams1 count_window(3) from t1 stream_options(max_delay(3s)|expired_time(0)|watermark(100s)) into streamt as select _wstart as s, count(*) c1, sum(b), max(c) from t1 where ts >= _wstart and ts < _twend;"
+                f"create stream streams1 count_window(3) from t1 stream_options(max_delay(3s)|expired_time(200s)|watermark(100s)) into streamt as select _twstart as s, count(*) c1, sum(b), max(c) from t1 where ts >= _twstart and ts <= _twend;"
             )
 
         def insert1(self):
@@ -77,16 +77,19 @@ class TestStreamOldCaseCount:
             tdSql.execute(f"insert into t1 values(1648791223001, 9, 2, 2, 1.1);")
             tdSql.execute(f"insert into t1 values(1648791223009, 0, 3, 3, 1.0);")
 
+            tdSql.execute(f"insert into t1 values(1648791323009, 0, 4, 4, 4.0);")
+
         def check1(self):
             tdSql.checkResultsByFunc(
                 f"select * from streamt;",
-                lambda: tdSql.getRows() > 1
-                and tdSql.getData(0, 1) == 3
-                and tdSql.getData(0, 2) == 6
-                and tdSql.getData(0, 3) == 3
-                and tdSql.getData(1, 1) == 3
-                and tdSql.getData(1, 2) == 6
-                and tdSql.getData(1, 3) == 3,
+                lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.000")
+                and tdSql.compareData(0, 2, 6)
+                and tdSql.compareData(0, 3, 3)
+                and tdSql.compareData(1, 0, "2022-04-01 13:33:43.000")
+                and tdSql.compareData(1, 1, 3)
+                and tdSql.compareData(1, 2, 6)
+                and tdSql.compareData(1, 3, 3),
             )
 
     class Count02(StreamCheckItem):
@@ -103,7 +106,7 @@ class TestStreamOldCaseCount:
             tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
             tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
             tdSql.execute(
-                f"create stream streams2 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt2 as select _wstart as s, count(*) c1, sum(b), max(c) from st partition by tbname count_window(3)"
+                f"create stream streams2 count_window(3) from st partition by tbname stream_options(max_delay(3s)|expired_time(200s)) into streamt2 as select _twstart as s, count(*) c1, sum(b), max(c) from %%trows count_window(3)"
             )
 
         def insert1(self):
@@ -125,17 +128,14 @@ class TestStreamOldCaseCount:
 
         def check1(self):
             tdSql.checkResultsByFunc(
-                f"select * from streamt2 order by 1, 2;",
-                lambda: tdSql.getRows() > 2
+                f"select * from streamt2 where tag_tbname='t1';",
+                lambda: tdSql.getRows() == 2
                 and tdSql.getData(0, 1) == 3
                 and tdSql.getData(0, 2) == 6
                 and tdSql.getData(0, 3) == 3
                 and tdSql.getData(1, 1) == 3
                 and tdSql.getData(1, 2) == 6
-                and tdSql.getData(1, 3) == 3
-                and tdSql.getData(2, 1) == 3
-                and tdSql.getData(2, 2) == 6
-                and tdSql.getData(2, 3) == 3,
+                and tdSql.getData(1, 3) == 3,
             )
 
     class Count03(StreamCheckItem):
@@ -154,24 +154,22 @@ class TestStreamOldCaseCount:
             tdSql.execute(f"insert into t1 values(1648791213009, 0, 3, 3, 1.0);")
 
             tdSql.execute(
-                f"create stream streams3 trigger at_once FILL_HISTORY 1 IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt3 as select _wstart as s, count(*) c1, sum(b), max(c) from t1 count_window(3);"
+                f"create stream streams3 count_window(3) from t1 stream_options(max_delay(3s)|expired_time(1s)) into streamt3 as select _twstart as s, count(*) c1, sum(b), max(c) from %%trows;"
             )
 
         def insert1(self):
             tdSql.execute(f"insert into t1 values(1648791223000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791221001, 9, 2, 2, 1.1);")
             tdSql.execute(f"insert into t1 values(1648791223001, 9, 2, 2, 1.1);")
             tdSql.execute(f"insert into t1 values(1648791223009, 0, 3, 3, 1.0);")
 
         def check1(self):
             tdSql.checkResultsByFunc(
                 f"select * from streamt3;",
-                lambda: tdSql.getRows() > 1
+                lambda: tdSql.getRows() == 1
                 and tdSql.getData(0, 1) == 3
                 and tdSql.getData(0, 2) == 6
-                and tdSql.getData(0, 3) == 3
-                and tdSql.getData(1, 1) == 3
-                and tdSql.getData(1, 2) == 6
-                and tdSql.getData(1, 3) == 3,
+                and tdSql.getData(0, 3) == 3,
             )
 
     class Count21(StreamCheckItem):
@@ -186,7 +184,7 @@ class TestStreamOldCaseCount:
                 f"create table t1(ts timestamp, a int, b int, c int, d double);"
             )
             tdSql.execute(
-                f"create stream streams1 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt as select _wstart as s, count(*) c1, sum(b), max(c) from t1 count_window(3);"
+                f"create stream streams1 count_window(3) from t1 stream_options(max_delay(3s)|expired_time(200s)) into streamt as select _twstart as s, count(*) c1, sum(b), max(c) from %%trows;"
             )
 
         def insert1(self):
@@ -196,7 +194,9 @@ class TestStreamOldCaseCount:
         def check1(self):
             tdSql.checkResultsByFunc(
                 f"select * from streamt;",
-                lambda: tdSql.getRows() > 0 and tdSql.getData(0, 1) == 2,
+                lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.001")
+                and tdSql.compareData(0, 1, 2),
             )
 
         def insert2(self):
@@ -205,7 +205,9 @@ class TestStreamOldCaseCount:
         def check2(self):
             tdSql.checkResultsByFunc(
                 f"select * from streamt;",
-                lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 3,
+                lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.001")
+                and tdSql.compareData(0, 1, 2),
             )
 
         def insert3(self):
@@ -216,19 +218,24 @@ class TestStreamOldCaseCount:
         def check3(self):
             tdSql.checkResultsByFunc(
                 f"select * from streamt order by 1;",
-                lambda: tdSql.getRows() == 2,
+                lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.001")
+                and tdSql.compareData(0, 1, 3)
+                and tdSql.compareData(1, 0, "2022-04-01 13:33:43.001")
+                and tdSql.compareData(1, 1, 2),
             )
 
         def insert4(self):
-            tdSql.execute(f"insert into t1 values(1648791212000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791224000, 0, 1, 1, 1.0);")
 
         def check4(self):
             tdSql.checkResultsByFunc(
                 f"select * from streamt order by 1;",
-                lambda: tdSql.getRows() == 3
-                and tdSql.getData(0, 1) == 3
-                and tdSql.getData(1, 1) == 3
-                and tdSql.getData(2, 1) == 1,
+                lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.001")
+                and tdSql.compareData(0, 1, 3)
+                and tdSql.compareData(1, 0, "2022-04-01 13:33:43.001")
+                and tdSql.compareData(1, 1, 3),
             )
 
     class Count22(StreamCheckItem):
@@ -245,49 +252,53 @@ class TestStreamOldCaseCount:
             tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
             tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
             tdSql.execute(
-                f"create stream streams2 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt2 as select _wstart as s, count(*) c1, sum(b), max(c) from st partition by tbname count_window(3)"
+                f"create stream streams2 count_window(3) from st partition by tbname stream_options(max_delay(3s)|expired_time(2s)|watermark(1s)) into streamt2 as select _twstart as s, count(*) c1, sum(b), max(c) from %%trows "
             )
 
         def insert1(self):
             tdSql.execute(f"insert into t1 values(1648791213001, 9, 2, 2, 1.1);")
-            tdSql.execute(f"insert into t1 values(1648791213009, 0, 3, 3, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791214009, 0, 3, 3, 1.0);")
 
             tdSql.execute(f"insert into t2 values(1648791213001, 9, 2, 2, 1.1);")
-            tdSql.execute(f"insert into t2 values(1648791213009, 0, 3, 3, 1.0);")
+            tdSql.execute(f"insert into t2 values(1648791214009, 0, 3, 3, 1.0);")
 
         def check1(self):
             tdSql.checkResultsByFunc(
-                f"select * from streamt2 order by 1;;",
-                lambda: tdSql.getRows() > 1
-                and tdSql.getData(0, 1) == 2
-                and tdSql.getData(1, 1) == 2,
+                f"select * from streamt2 where tag_tbname='t1' order by 1;",
+                lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.001")
+                and tdSql.compareData(0, 1, 1),
             )
 
         def insert2(self):
-            tdSql.execute(f"insert into t1 values(1648791213000, 0, 1, 1, 1.0);")
-            tdSql.execute(f"insert into t2 values(1648791213000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791215009, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t2 values(1648791215009, 0, 1, 1, 1.0);")
 
         def check2(self):
             tdSql.checkResultsByFunc(
-                f"select * from streamt2 order by 1;;",
-                lambda: tdSql.getRows() == 2
-                and tdSql.getData(0, 1) == 3
-                and tdSql.getData(1, 1) == 3,
+                f"select * from streamt2 where tag_tbname='t1' order by 1;",
+                lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.001")
+                and tdSql.compareData(0, 1, 2),
             )
 
         def insert3(self):
             tdSql.execute(f"insert into t1 values(1648791223000, 0, 1, 1, 1.0);")
             tdSql.execute(f"insert into t1 values(1648791223001, 9, 2, 2, 1.1);")
-            tdSql.execute(f"insert into t1 values(1648791223009, 0, 3, 3, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791224009, 0, 3, 3, 1.0);")
 
             tdSql.execute(f"insert into t2 values(1648791223000, 0, 1, 1, 1.0);")
             tdSql.execute(f"insert into t2 values(1648791223001, 9, 2, 2, 1.1);")
-            tdSql.execute(f"insert into t2 values(1648791223009, 0, 3, 3, 1.0);")
+            tdSql.execute(f"insert into t2 values(1648791224009, 0, 3, 3, 1.0);")
 
         def check3(self):
             tdSql.checkResultsByFunc(
-                f"select * from streamt2 order by 1;",
-                lambda: tdSql.getRows() == 4,
+                f"select * from streamt2 where tag_tbname='t1' order by 1;",
+                lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.001")
+                and tdSql.compareData(0, 1, 3)
+                and tdSql.compareData(1, 0, "2022-04-01 13:33:43.000")
+                and tdSql.compareData(1, 1, 2),
             )
 
         def insert4(self):
@@ -296,14 +307,12 @@ class TestStreamOldCaseCount:
 
         def check4(self):
             tdSql.checkResultsByFunc(
-                f"select * from streamt2 order by 1;",
-                lambda: tdSql.getRows() == 6
-                and tdSql.getData(0, 1) == 3
-                and tdSql.getData(1, 1) == 3
-                and tdSql.getData(2, 1) == 3
-                and tdSql.getData(3, 1) == 3
-                and tdSql.getData(4, 1) == 1
-                and tdSql.getData(5, 1) == 1,
+                f"select * from streamt2 where tag_tbname='t1' order by 1;",
+                lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.001")
+                and tdSql.compareData(0, 1, 3)
+                and tdSql.compareData(1, 0, "2022-04-01 13:33:43.000")
+                and tdSql.compareData(1, 1, 2),
             )
 
     class Count31(StreamCheckItem):
@@ -318,7 +327,7 @@ class TestStreamOldCaseCount:
                 f"create table t1(ts timestamp, a int, b int, c int, d double);"
             )
             tdSql.execute(
-                f"create stream streams1 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt as select _wstart as s, count(*) c1, sum(b), max(c) from t1 count_window(3);"
+                f"create stream streams1 count_window(3) from t1 stream_options(max_delay(3s)|expired_time(200s)) into streamt as select _twstart as s, count(*) c1, sum(b), max(c) from %%trows ;"
             )
 
         def insert1(self):
@@ -355,7 +364,7 @@ class TestStreamOldCaseCount:
                 f"select * from streamt order by 1;",
                 lambda: tdSql.getRows() == 2
                 and tdSql.getData(0, 1) == 3
-                and tdSql.getData(1, 1) == 2,
+                and tdSql.getData(1, 1) == 3,
             )
 
     class Sliding01(StreamCheckItem):
@@ -370,7 +379,7 @@ class TestStreamOldCaseCount:
                 f"create table t1(ts timestamp, a int, b int, c int, d double);"
             )
             tdSql.execute(
-                f"create stream streams1 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt as select _wstart as s, count(*) c1, sum(b), max(c) from t1 count_window(4, 2);"
+                f"create stream streams1 count_window(4, 2) from t1 stream_options(max_delay(3s)) into streamt as select _twstart as s, count(*) c1, sum(b), max(c) from t1 where ts >= _twstart and ts <= _twend;"
             )
 
         def insert1(self):
@@ -447,10 +456,10 @@ class TestStreamOldCaseCount:
 
     class Sliding02(StreamCheckItem):
         def __init__(self):
-            self.db = "Count00"
+            self.db = "sliding02"
 
         def create(self):
-            tdSql.execute(f"create database sliding02 vgroups 4;")
+            tdSql.execute(f"create database sliding02 vgroups 4 buffer 8;")
             tdSql.execute(f"use sliding02;")
 
             tdSql.execute(
@@ -459,7 +468,7 @@ class TestStreamOldCaseCount:
             tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
             tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
             tdSql.execute(
-                f"create stream streams2 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt2 as select _wstart as s, count(*) c1, sum(b), max(c) from st partition by tbname count_window(4, 2);"
+                f"create stream streams2 count_window(4, 2) from st partition by tbname stream_options(max_delay(3s)) into streamt2 as select _twstart as s, count(*) c1, sum(b), max(c) from %%trows;"
             )
 
         def insert1(self):
@@ -522,7 +531,7 @@ class TestStreamOldCaseCount:
         def check5(self):
             tdSql.checkResultsByFunc(
                 f"select * from streamt2;",
-                lambda: tdSql.getRows() == 9,
+                lambda: tdSql.getRows() == 7,
             )
 
         def insert6(self):

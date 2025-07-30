@@ -247,6 +247,20 @@ class TestStreamRecalcManual:
             )
         # Test 2: Manual recalculation with time range and end time
         tdSql.execute("insert into tdb.mt1 values ('2025-01-01 02:04:00', 10, 100, 1.5, 'normal');")
+
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_interval_manual",
+                func=lambda: (
+                    tdSql.getRows() == 2
+                    and tdSql.compareData(0, 0, "2025-01-01 02:00:00")
+                    and tdSql.compareData(0, 1, 401)
+                    and tdSql.compareData(0, 2,  240.922693266833)
+                    and tdSql.compareData(1, 0, "2025-01-01 02:02:00")
+                    and tdSql.compareData(1, 1, 400)
+                    and tdSql.compareData(1, 2, 245.5)
+                )
+            )
+        
         tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:00:02', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
         tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:02:03', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
         tdSql.execute("recalculate stream rdb.s_interval_manual from '2025-01-01 02:00:00' to '2025-01-01 02:01:00';")

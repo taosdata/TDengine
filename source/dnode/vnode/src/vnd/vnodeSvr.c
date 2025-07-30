@@ -58,6 +58,7 @@ static int32_t vnodeProcessArbCheckSyncReq(SVnode *pVnode, void *pReq, int32_t l
 static int32_t vnodeProcessDropTSmaCtbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
                                           SRpcMsg *pOriginRpc);
 
+static int32_t vnodeCheckState(SVnode *pVnode);
 static int32_t vnodeCheckToken(SVnode *pVnode, char *member0Token, char *member1Token);
 static int32_t vnodeCheckSyncd(SVnode *pVnode, char *member0Token, char *member1Token);
 static int32_t vnodeProcessFetchTtlExpiredTbs(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
@@ -495,6 +496,12 @@ static int32_t vnodePreProcessBatchDeleteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 }
 
 static int32_t vnodePreProcessArbCheckSyncMsg(SVnode *pVnode, SRpcMsg *pMsg) {
+  int32_t ret = 0;
+  if ((ret = vnodeCheckState(pVnode)) != 0) {
+    vDebug("vgId:%d, failed to preprocess vnode-arb-check-sync request since %s", TD_VID(pVnode), tstrerror(ret));
+    return 0;
+  }
+
   SVArbCheckSyncReq syncReq = {0};
 
   if (tDeserializeSVArbCheckSyncReq((char *)pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead),
@@ -502,9 +509,9 @@ static int32_t vnodePreProcessArbCheckSyncMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     return TSDB_CODE_INVALID_MSG;
   }
 
-  int32_t ret = vnodeCheckToken(pVnode, syncReq.member0Token, syncReq.member1Token);
+  ret = vnodeCheckToken(pVnode, syncReq.member0Token, syncReq.member1Token);
   if (ret != 0) {
-    vError("vgId:%d, failed to preprocess arb check sync request since %s", TD_VID(pVnode), tstrerror(ret));
+    vError("vgId:%d, failed to preprocess vnode-arb-check-sync request since %s", TD_VID(pVnode), tstrerror(ret));
   }
 
   int32_t code = terrno;
@@ -2271,7 +2278,7 @@ static void addExistTableInfoIntoRes(SVnode *pVnode, SSubmitReq2 *pRequest, SSub
       vError("vgId:%d, table uid:%" PRId64 " not exists, line:%d", TD_VID(pVnode), pTbData->uid, __LINE__);
     }
   } else {
-    buildExistSubTalbeRsp(pVnode, pTbData, &pCreateTbRsp->pMeta);
+    code = buildExistSubTalbeRsp(pVnode, pTbData, &pCreateTbRsp->pMeta);
   }
 
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -2292,6 +2299,9 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
     SMetaInfo      info = {0};
     SSubmitTbData *pTbData = taosArrayGet(pRequest->aSubmitTbData, i);
 
+    if (pTbData->flags & SUBMIT_REQ_WITH_BLOB) {
+      hasBlob = 1;
+    }
     if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
       continue;  // skip column data format
     }
@@ -2332,10 +2342,6 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
              TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), version, pTbData->uid, pTbData->sver,
              info.skmVer);
       return code;
-    }
-
-    if (pTbData->flags & SUBMIT_REQ_WITH_BLOB) {
-      hasBlob = 1;
     }
   }
 
@@ -3020,12 +3026,15 @@ static int32_t vnodeProcessConfigChangeReq(SVnode *pVnode, int64_t ver, void *pR
   return 0;
 }
 
-static int32_t vnodeCheckToken(SVnode *pVnode, char *member0Token, char *member1Token) {
+static int32_t vnodeCheckState(SVnode *pVnode) {
   SSyncState syncState = syncGetState(pVnode->sync);
   if (syncState.state != TAOS_SYNC_STATE_LEADER) {
     return terrno = TSDB_CODE_SYN_NOT_LEADER;
   }
+  return 0;
+}
 
+static int32_t vnodeCheckToken(SVnode *pVnode, char *member0Token, char *member1Token) {
   char token[TSDB_ARB_TOKEN_SIZE] = {0};
   if (vnodeGetArbToken(pVnode, token) != 0) {
     return terrno = TSDB_CODE_NOT_FOUND;
@@ -3051,6 +3060,11 @@ static int32_t vnodeCheckSyncd(SVnode *pVnode, char *member0Token, char *member1
 
 static int32_t vnodeProcessArbCheckSyncReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp) {
   int32_t code = 0;
+
+  if ((code = vnodeCheckState(pVnode)) != 0) {
+    vDebug("vgId:%d, failed to preprocess vnode-arb-check-sync request since %s", TD_VID(pVnode), tstrerror(code));
+    return 0;
+  }
 
   SVArbCheckSyncReq syncReq = {0};
 

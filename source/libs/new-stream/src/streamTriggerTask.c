@@ -369,6 +369,10 @@ static int32_t stTriggerTaskGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *bu
   int32_t                   iter = 0;
   int32_t                   ver = atomic_add_fetch_32(&pTask->checkpointVersion, 1);
 
+  if (tSimpleHashGetSize(pTask->pRealtimeStartVer) == 0) {
+    goto _end;
+  }
+
   tEncoderInit(&encoder, buf, *pLen);
   code = tStartEncode(&encoder);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -725,41 +729,39 @@ _end:
   return code;
 }
 
-int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, int64_t gid, STimeWindow range,
-                                      SSHashObj *pWalProgress, bool isHistory) {
+int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup,
+                                      STimeWindow *pCalcRange, SSHashObj *pWalProgress, bool isHistory) {
   int32_t                 code = TSDB_CODE_SUCCESS;
   int32_t                 lino = 0;
   bool                    needUnlock = false;
   SSTriggerRecalcRequest *pReq = NULL;
 
-  if (pTask->fillHistory || pTask->fillHistoryFirst) {
-    range.skey = pTask->fillHistoryStartTime;
-  } else if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
-    STimeWindow firstWindow = {0};
-    if (pTask->interval.interval == 0) {
-      firstWindow = stTriggerTaskGetIntervalWindow(pTask, range.skey);
-    } else {
-      firstWindow = stTriggerTaskGetPeriodWindow(pTask, range.skey);
-    }
-    range.skey = firstWindow.skey;
-  } else {
-    void *px = tSimpleHashGet(pTask->pHistoryCutoffTime, &gid, sizeof(int64_t));
-    range.skey = (px == NULL) ? (INT64_MIN + 1) : *(int64_t *)px;
-  }
-
-  if (range.skey > range.ekey) {
-    goto _end;
-  }
+  QUERY_CHECK_NULL(pGroup, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
   pReq = taosMemoryCalloc(1, sizeof(SSTriggerRecalcRequest));
   QUERY_CHECK_NULL(pReq, code, lino, _end, terrno);
-  pReq->gid = gid;
-  pReq->range = range;
+  pReq->gid = pGroup->gid;
+  pReq->calcRange = *pCalcRange;
+
+  if (pTask->fillHistory || pTask->fillHistoryFirst) {
+    pReq->scanRange.skey = pTask->fillHistoryStartTime;
+  } else {
+    void *px = tSimpleHashGet(pTask->pHistoryCutoffTime, &pReq->gid, sizeof(int64_t));
+    pReq->scanRange.skey = ((px == NULL) ? INT64_MIN : *(int64_t *)px) + 1;
+  }
+  pReq->scanRange.ekey = pGroup->oldThreshold;
+
+  if (pReq->scanRange.skey > pReq->scanRange.ekey) {
+    goto _end;
+  }
+
+  ST_TASK_DLOG("add recalc request, gid: %" PRId64 ", scanRange: [%" PRId64 ", %" PRId64 "], calcRange: [%" PRId64
+               ", %" PRId64 "]",
+               pReq->gid, pReq->scanRange.skey, pReq->scanRange.ekey, pReq->calcRange.skey, pReq->calcRange.ekey);
+
   pReq->pTsdbVersions = tSimpleHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
   QUERY_CHECK_NULL(pReq->pTsdbVersions, code, lino, _end, terrno);
   pReq->isHistory = isHistory;
-
-  ST_TASK_DLOG("add recalc request, gid: %" PRId64 ", range: [%" PRId64 ", %" PRId64 "]", gid, range.skey, range.ekey);
 
   int32_t               iter = 0;
   SSTriggerWalProgress *pProgress = tSimpleHashIterate(pWalProgress, NULL, &iter);
@@ -807,8 +809,10 @@ int32_t stTriggerTaskFetchRecalcRequest(SStreamTriggerTask *pTask, SSTriggerReca
   if (pNode != NULL) {
     *ppReq = *(SSTriggerRecalcRequest **)pNode->data;
     taosMemoryFreeClear(pNode);
-    ST_TASK_DLOG("start recalc request, gid: %" PRId64 ", range: [%" PRId64 ", %" PRId64 "]", (*ppReq)->gid,
-                 (*ppReq)->range.skey, (*ppReq)->range.ekey);
+    ST_TASK_DLOG("start recalc request, gid: %" PRId64 ", scanRange: [%" PRId64 ", %" PRId64 "], calcRange: [%" PRId64
+                 ", %" PRId64 "]",
+                 (*ppReq)->gid, (*ppReq)->scanRange.skey, (*ppReq)->scanRange.ekey, (*ppReq)->calcRange.skey,
+                 (*ppReq)->calcRange.ekey);
 
   } else {
     *ppReq = NULL;
@@ -1783,8 +1787,7 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
         while (px != NULL) {
           SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
           STimeWindow             range = {.skey = pReq->start, .ekey = pReq->end - 1};
-          range.ekey = TMIN(range.ekey, pGroup->oldThreshold);
-          code = stTriggerTaskAddRecalcRequest(pTask, pGroup->gid, range, pContext->pReaderWalProgress, true);
+          code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, pContext->pReaderWalProgress, true);
           QUERY_CHECK_CODE(code, lino, _end);
           px = tSimpleHashIterate(pContext->pGroups, px, &iter);
         }
@@ -2545,6 +2548,7 @@ static int32_t stRealtimeContextRetryPullRequest(SSTriggerRealtimeContext *pCont
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    destroyAhandle(msg.info.ahandle);
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
@@ -3762,7 +3766,6 @@ static int32_t stHistoryContextInit(SSTriggerHistoryContext *pContext, SStreamTr
       QUERY_CHECK_NULL(pProgress->reqCids, code, lino, _end, terrno);
     }
   }
-  pContext->stepRange = pContext->range;
 
   pContext->pTrigDataBlocks = taosArrayInit(0, POINTER_BYTES);
   QUERY_CHECK_NULL(pContext->pTrigDataBlocks, code, lino, _end, terrno);
@@ -3837,8 +3840,9 @@ static int32_t stHistoryContextHandleRequest(SSTriggerHistoryContext *pContext, 
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pContext->pTask;
   pContext->gid = pReq->gid;
-  pContext->range = pReq->range;
-  pContext->stepRange = pContext->range;
+  pContext->scanRange = pReq->scanRange;
+  pContext->calcRange = pReq->calcRange;
+  pContext->stepRange = pContext->scanRange;
   pContext->isHistory = pReq->isHistory;
   int32_t                iter = 0;
   SSTriggerTsdbProgress *pProgress = tSimpleHashIterate(pContext->pReaderTsdbProgress, NULL, &iter);
@@ -3948,7 +3952,7 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
       pProgress = tSimpleHashGet(pContext->pReaderTsdbProgress, &pReader->nodeId, sizeof(int32_t));
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       SSTriggerFirstTsRequest *pReq = &pProgress->pullReq.firstTsReq;
-      pReq->startTime = pContext->range.skey;
+      pReq->startTime = pContext->scanRange.skey;
       pReq->ver = pProgress->version;
       break;
     }
@@ -3989,7 +3993,7 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
       pProgress = tSimpleHashGet(pContext->pReaderTsdbProgress, &pReader->nodeId, sizeof(int32_t));
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       SSTriggerTsdbTriggerDataRequest *pReq = &pProgress->pullReq.tsdbTriggerDataReq;
-      pReq->startTime = pContext->range.skey;
+      pReq->startTime = pContext->scanRange.skey;
       pReq->gid = pContext->gid;
       pReq->order = 1;
       pReq->ver = pProgress->version;
@@ -4510,7 +4514,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
       }
       goto _end;
       // TODO(kjq): backward start time to the previous window end of each group
-    } else if (pContext->range.skey > pContext->range.ekey) {
+    } else if (pContext->scanRange.skey > pContext->scanRange.ekey) {
       goto _end;
     }
 
@@ -4518,7 +4522,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
     if (pContext->needTsdbMeta) {
       // TODO(kjq): use precision of trigger table
       int64_t step = STREAM_TRIGGER_HISTORY_STEP_MS;
-      pContext->stepRange.skey = pContext->range.skey / step * step;
+      pContext->stepRange.skey = pContext->scanRange.skey / step * step;
       pContext->stepRange.ekey = pContext->stepRange.skey + step - 1;
       for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
            pContext->curReaderIdx++) {
@@ -4600,10 +4604,22 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
             int32_t nParams = taosArrayGetSize(pGroup->pPendingCalcParams);
             bool    needCalc = (pTask->lowLatencyCalc && (nParams > 0)) || (nParams >= STREAM_CALC_REQ_MAX_WIN_NUM);
             if (needCalc) {
-              int32_t nCalcParams = TMIN(nParams, STREAM_CALC_REQ_MAX_WIN_NUM);
-              void   *px =
-                  taosArrayAddBatch(pContext->pCalcReq->params, TARRAY_DATA(pGroup->pPendingCalcParams), nCalcParams);
-              QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+              SSTriggerCalcParam *pParam = NULL;
+              for (int32_t i = 0; i < nParams; i++) {
+                pParam = TARRAY_GET_ELEM(pGroup->pPendingCalcParams, i);
+                if ((i + 1 < nParams && (pParam + 1)->wstart <= pContext->calcRange.skey) || pGroup->finished) {
+                  // skip params out of calc range
+                  continue;
+                }
+                void *px = taosArrayPush(pContext->pCalcReq->params, pParam);
+                QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+                pGroup->finished = (pParam->wend >= pContext->calcRange.ekey);
+                if (TARRAY_SIZE(pContext->pCalcReq->params) >= STREAM_CALC_REQ_MAX_WIN_NUM) {
+                  // max windows reached, send calc request
+                  break;
+                }
+              }
+              int32_t nCalcParams = TARRAY_ELEM_IDX(pGroup->pPendingCalcParams, pParam) + 1;
               taosArrayPopFrontBatch(pGroup->pPendingCalcParams, nCalcParams);
             }
           }
@@ -4650,7 +4666,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
       int64_t step = STREAM_TRIGGER_HISTORY_STEP_MS;
       QUERY_CHECK_CONDITION(pContext->stepRange.skey + step - 1 == pContext->stepRange.ekey, code, lino, _end,
                             TSDB_CODE_INTERNAL_ERROR);
-      finished = (pContext->stepRange.skey + step > pContext->range.ekey);
+      finished = (pContext->stepRange.skey + step > pContext->scanRange.ekey);
     } else if (pTask->triggerType != STREAM_TRIGGER_SLIDING) {
       for (int32_t i = 0; i < TARRAY_SIZE(pContext->pTrigDataBlocks); i++) {
         SSDataBlock *pDataBlock = *(SSDataBlock **)TARRAY_GET_ELEM(pContext->pTrigDataBlocks, i);
@@ -4904,7 +4920,7 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
       int32_t iter = 0;
       void   *px = tSimpleHashIterate(pContext->pFirstTsMap, NULL, &iter);
       while (px != NULL) {
-        pContext->range.skey = TMAX(pContext->range.skey, *(int64_t *)px);
+        pContext->scanRange.skey = TMAX(pContext->scanRange.skey, *(int64_t *)px);
         px = tSimpleHashIterate(pContext->pFirstTsMap, px, &iter);
       }
 
@@ -5683,8 +5699,7 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SArra
 
   // add recalc request
   if (recalcRange.skey <= recalcRange.ekey) {
-    recalcRange.ekey = pGroup->oldThreshold;
-    code = stTriggerTaskAddRecalcRequest(pTask, pGroup->gid, recalcRange, pContext->pReaderWalProgress, true);
+    code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &recalcRange, pContext->pReaderWalProgress, true);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -7492,7 +7507,7 @@ static int32_t stHistoryGroupMergeSavedWindows(SSTriggerHistoryGroup *pGroup, in
     }
 
     // some window may have not been closed yet
-    if (pWin->range.ekey + gap > pContext->stepRange.ekey) {
+    if (pWin->range.ekey + gap > pContext->stepRange.ekey || pWin->range.ekey + gap > pContext->scanRange.ekey) {
       // TODO(kjq): restore prevProcTime from saved init windows
       pWin->prevProcTime = taosGetTimestampNs();
       if (TRINGBUF_SIZE(&pGroup->winBuf) > 0) {
@@ -8055,7 +8070,7 @@ _end:
   return code;
 }
 
-static int32_t stHitoryGrupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
+static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
   SSTriggerHistoryContext *pContext = pGroup->pContext;
@@ -8096,7 +8111,7 @@ static int32_t stHitoryGrupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
       // open the first window
       char   *newVal = colDataGetData(pStateCol, startIdx);
       int32_t bytes = isVarType ? varDataTLen(newVal) : pStateCol->info.bytes;
-      if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
+      if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
         code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, NULL, newVal,
                                              &pExtraNotifyContent);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -8106,6 +8121,7 @@ static int32_t stHitoryGrupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
       memcpy(pStateData, newVal, bytes);
       startIdx++;
     }
+
     for (int32_t r = startIdx; r < endIdx; r++) {
       char   *newVal = colDataGetData(pStateCol, r);
       int32_t bytes = isVarType ? varDataTLen(newVal) : pStateCol->info.bytes;
@@ -8113,14 +8129,14 @@ static int32_t stHitoryGrupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
         TRINGBUF_HEAD(&pGroup->winBuf)->wrownum++;
         TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
       } else {
-        if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
+        if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
           code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, &pStateCol->info, pStateData, newVal,
                                                &pExtraNotifyContent);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false);
         QUERY_CHECK_CODE(code, lino, _end);
-        if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
+        if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
           code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, pStateData, newVal,
                                                &pExtraNotifyContent);
           QUERY_CHECK_CODE(code, lino, _end);
@@ -8187,7 +8203,7 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
           ps = (bool *)psCol->pData;
         }
         if (ps[r]) {
-          if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
+          if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
             code = streamBuildEventNotifyContent(pDataBlock, pTask->pStartCondCols, r, &pExtraNotifyContent);
             QUERY_CHECK_CODE(code, lino, _end);
           }
@@ -8207,7 +8223,7 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
           pe = (bool *)peCol->pData;
         }
         if (pe[r]) {
-          if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
+          if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
             code = streamBuildEventNotifyContent(pDataBlock, pTask->pEndCondCols, r, &pExtraNotifyContent);
             QUERY_CHECK_CODE(code, lino, _end);
           }
@@ -8254,7 +8270,7 @@ static int32_t stHistoryGroupCheck(SSTriggerHistoryGroup *pGroup) {
       return stHistoryGroupDoCountCheck(pGroup);
 
     case STREAM_TRIGGER_STATE:
-      return stHitoryGrupDoStateCheck(pGroup);
+      return stHistoryGroupDoStateCheck(pGroup);
 
     case STREAM_TRIGGER_EVENT:
       return stHistoryGroupDoEventCheck(pGroup);

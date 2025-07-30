@@ -1782,27 +1782,13 @@ static int32_t resetDynQueryCtrlOperState(SOperatorInfo* pOper) {
     case DYN_QTYPE_STB_HASH:{
       pDyn->stbJoin.execInfo = (SDynQueryCtrlExecInfo){0};
       SStbJoinDynCtrlInfo* pStbJoin = &pDyn->stbJoin;
-      if (pStbJoin->basic.batchFetch) {
-        if (pStbJoin->ctx.prev.leftHash) {
-          tSimpleHashSetFreeFp(pStbJoin->ctx.prev.leftHash, freeVgTableList);
-          tSimpleHashClear(pStbJoin->ctx.prev.leftHash);
-        }
-        if (pStbJoin->ctx.prev.rightHash) {
-          tSimpleHashSetFreeFp(pStbJoin->ctx.prev.rightHash, freeVgTableList);
-          tSimpleHashClear(pStbJoin->ctx.prev.rightHash);
-        }
-      } else {
-        if (pStbJoin->ctx.prev.leftCache) {
-          tSimpleHashClear(pStbJoin->ctx.prev.leftCache);
-        }
-        if (pStbJoin->ctx.prev.rightCache) {
-          tSimpleHashClear(pStbJoin->ctx.prev.rightCache);
-        }
-        if (pStbJoin->ctx.prev.onceTable) {
-          tSimpleHashClear(pStbJoin->ctx.prev.onceTable);
-        }
+      destroyStbJoinDynCtrlInfo(&pDyn->stbJoin);
+      
+      int32_t code = initSeqStbJoinTableHash(&pDyn->stbJoin.ctx.prev, pDyn->stbJoin.basic.batchFetch);
+      if (TSDB_CODE_SUCCESS != code) {
+        qError("initSeqStbJoinTableHash failed since %s", tstrerror(code));
+        return code;
       }
-      destroyStbJoinTableList(pStbJoin->ctx.prev.pListHead);
       pStbJoin->ctx.prev.pListHead = NULL;
       pStbJoin->ctx.prev.joinBuild = false;
       pStbJoin->ctx.prev.pListTail = NULL;
