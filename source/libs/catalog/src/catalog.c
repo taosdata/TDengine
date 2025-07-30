@@ -2040,6 +2040,22 @@ int32_t catalogClearCache(void) {
   CTG_API_LEAVE_NOLOCK(code);
 }
 
+// clear all users cache
+int32_t catalogClearAllUserCache(SCatalog* pCtg) {
+  if (pCtg == NULL || pCtg->userCache == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  void* pIter = taosHashIterate(pCtg->userCache, NULL);
+  while (pIter) {
+    SCtgUserAuth* userCache = pIter;
+    ctgFreeSCtgUserAuth(userCache);
+    pIter = taosHashIterate(pCtg->userCache, pIter);
+  }
+  taosHashClear(pCtg->userCache);
+  return TSDB_CODE_SUCCESS;
+}
+
 void catalogDestroy(void) {
   qInfo("start to destroy catalog");
 

@@ -427,6 +427,8 @@ int32_t catalogAsyncUpdateDbTsmaVersion(SCatalog* pCtg, int32_t tsmaVersion, con
 
 int32_t ctgHashValueComp(void const* lp, void const* rp);
 
+int32_t catalogClearAllUserCache(SCatalog* pCty);
+
 /**
  * Destroy catalog and relase all resources
  */

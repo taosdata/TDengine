@@ -238,6 +238,7 @@ int32_t processCreateDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
         tscError("QID:0x%" PRIx64 ", failed to refresh db vg info", pRequest->requestId);
       }
     }
+    catalogClearAllUserCache(pCatalog);
   }
 
   if (pRequest->body.queryFp) {

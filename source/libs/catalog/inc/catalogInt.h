@@ -1143,6 +1143,7 @@ int32_t ctgCloneVgInfo(SDBVgInfo* src, SDBVgInfo** dst);
 int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput);
 int32_t ctgGenerateVgList(SCatalog* pCtg, SHashObj* vgHash, SArray** pList, const char* dbFName);
 void    ctgFreeJob(void* job);
+void    ctgFreeSCtgUserAuth(SCtgUserAuth* userCache);
 void    ctgFreeHandleImpl(SCatalog* pCtg);
 int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SEpSet* pMgmtEps, SDBVgInfo* dbInfo, const SName* pTableName,
                                   SVgroupInfo* pVgroup);
