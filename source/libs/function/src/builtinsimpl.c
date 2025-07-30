@@ -98,7 +98,7 @@ typedef enum {
   do {                                                                   \
     _t* d = (_t*)(_col->pData);                                          \
     for (int32_t i = (_start); i < (_rows) + (_start); ++i) {            \
-      if (((_col)->hasNull) && colDataIsNull_f((_col)->nullbitmap, i)) { \
+      if (((_col)->hasNull) && colDataIsNull_f(_col, i)) { \
         continue;                                                        \
       };                                                                 \
       (_res) += (d)[i];                                                  \
@@ -111,7 +111,7 @@ typedef enum {
     _t*                d = (_t*)(_col->pData);                                                        \
     const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);                                  \
     for (int32_t i = (_start); i < (_rows) + (_start); ++i) {                                         \
-      if (((_col)->hasNull) && colDataIsNull_f((_col)->nullbitmap, i)) {                              \
+      if (((_col)->hasNull) && colDataIsNull_f(_col, i)) {                              \
         continue;                                                                                     \
       };                                                                                              \
       overflow = overflow || decimal128AddCheckOverflow((Decimal*)_res, d + i, DECIMAL_WORD_NUM(_t)); \
@@ -125,7 +125,7 @@ typedef enum {
   do {                                                                   \
     _t* d = (_t*)(_col->pData);                                          \
     for (int32_t i = (_start); i < (_rows) + (_start); ++i) {            \
-      if (((_col)->hasNull) && colDataIsNull_f((_col)->nullbitmap, i)) { \
+      if (((_col)->hasNull) && colDataIsNull_f(_col, i)) { \
         continue;                                                        \
       };                                                                 \
       (_res) -= (d)[i];                                                  \
@@ -137,7 +137,7 @@ typedef enum {
 //  do {                                                                    \
 //    T* plist = (T*)pCol->pData;                                           \
 //    for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) { \
-//      if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {        \
+//      if (pCol->hasNull && colDataIsNull_f(pCol, i)) {        \
 //        continue;                                                         \
 //      }                                                                   \
 //                                                                          \
@@ -151,7 +151,7 @@ typedef enum {
   do {                                                             \
     T* plist = (T*)pCol->pData;                                    \
     for (int32_t i = start; i < numOfRows + start; ++i) {          \
-      if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) { \
+      if (pCol->hasNull && colDataIsNull_f(pCol, i)) { \
         continue;                                                  \
       }                                                            \
       numOfElem += 1;                                              \
@@ -252,7 +252,7 @@ int32_t funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow,
         return code;
       }
 
-      pIter->prevIsDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, pIter->inputEndIndex);
+      pIter->prevIsDataNull = colDataIsNull_f(pIter->pDataCol, pIter->inputEndIndex);
 
       pIter->pPrevData = taosMemoryMalloc(pIter->pDataCol->info.bytes);
       if (NULL == pIter->pPrevData) {
@@ -288,7 +288,7 @@ int32_t funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow,
         pRow->rowIndex = 0;
       } else {
         pRow->ts = pIter->tsList[idx - 1];
-        pRow->isDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, idx - 1);
+        pRow->isDataNull = colDataIsNull_f(pIter->pDataCol, idx - 1);
         pRow->pData = colDataGetData(pIter->pDataCol, idx - 1);
         pRow->pPk = colDataGetData(pIter->pPkCol, idx - 1);
         pRow->block = pIter->pSrcBlock;
@@ -307,7 +307,7 @@ int32_t funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow,
         ++idx;
       }
       pRow->ts = pIter->tsList[idx];
-      pRow->isDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, idx);
+      pRow->isDataNull = colDataIsNull_f(pIter->pDataCol, idx);
       pRow->pData = colDataGetData(pIter->pDataCol, idx);
       pRow->pPk = colDataGetData(pIter->pPkCol, idx);
       pRow->block = pIter->pSrcBlock;
@@ -318,7 +318,7 @@ int32_t funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow,
     } else {
       pIter->hasPrev = true;
       pIter->prevBlockTsEnd = tsEnd;
-      pIter->prevIsDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, pIter->inputEndIndex);
+      pIter->prevIsDataNull = colDataIsNull_f(pIter->pDataCol, pIter->inputEndIndex);
       pIter->pPrevData = taosMemoryMalloc(pIter->pDataCol->info.bytes);
       if (NULL == pIter->pPrevData) {
         qError("out of memory when function get input row.");
@@ -352,7 +352,7 @@ static void forwardToNextDiffTsRow(SFuncInputRowIter* pIter, int32_t rowIndex) {
 static void setInputRowInfo(SFuncInputRow* pRow, SFuncInputRowIter* pIter, int32_t rowIndex, bool setPk) {
   pRow->ts = pIter->tsList[rowIndex];
   pRow->ts = pIter->tsList[rowIndex];
-  pRow->isDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, rowIndex);
+  pRow->isDataNull = colDataIsNull_f(pIter->pDataCol, rowIndex);
   pRow->pData = colDataGetData(pIter->pDataCol, rowIndex);
   pRow->pPk = setPk ? colDataGetData(pIter->pPkCol, rowIndex) : NULL;
   pRow->block = pIter->pSrcBlock;
@@ -1207,7 +1207,7 @@ int32_t stdFunction(SqlFunctionCtx* pCtx) {
     case TSDB_DATA_TYPE_TINYINT: {
       int8_t* plist = (int8_t*)pCol->pData;
       for (int32_t i = start; i < numOfRows + start; ++i) {
-        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (pCol->hasNull && colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -1223,7 +1223,7 @@ int32_t stdFunction(SqlFunctionCtx* pCtx) {
     case TSDB_DATA_TYPE_SMALLINT: {
       int16_t* plist = (int16_t*)pCol->pData;
       for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (pCol->hasNull && colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -1238,7 +1238,7 @@ int32_t stdFunction(SqlFunctionCtx* pCtx) {
     case TSDB_DATA_TYPE_INT: {
       int32_t* plist = (int32_t*)pCol->pData;
       for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (pCol->hasNull && colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -1254,7 +1254,7 @@ int32_t stdFunction(SqlFunctionCtx* pCtx) {
     case TSDB_DATA_TYPE_BIGINT: {
       int64_t* plist = (int64_t*)pCol->pData;
       for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (pCol->hasNull && colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -1269,7 +1269,7 @@ int32_t stdFunction(SqlFunctionCtx* pCtx) {
     case TSDB_DATA_TYPE_UTINYINT: {
       uint8_t* plist = (uint8_t*)pCol->pData;
       for (int32_t i = start; i < numOfRows + start; ++i) {
-        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (pCol->hasNull && colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -1285,7 +1285,7 @@ int32_t stdFunction(SqlFunctionCtx* pCtx) {
     case TSDB_DATA_TYPE_USMALLINT: {
       uint16_t* plist = (uint16_t*)pCol->pData;
       for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (pCol->hasNull && colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -1300,7 +1300,7 @@ int32_t stdFunction(SqlFunctionCtx* pCtx) {
     case TSDB_DATA_TYPE_UINT: {
       uint32_t* plist = (uint32_t*)pCol->pData;
       for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (pCol->hasNull && colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -1316,7 +1316,7 @@ int32_t stdFunction(SqlFunctionCtx* pCtx) {
     case TSDB_DATA_TYPE_UBIGINT: {
       uint64_t* plist = (uint64_t*)pCol->pData;
       for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (pCol->hasNull && colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -1331,7 +1331,7 @@ int32_t stdFunction(SqlFunctionCtx* pCtx) {
     case TSDB_DATA_TYPE_FLOAT: {
       float* plist = (float*)pCol->pData;
       for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (pCol->hasNull && colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -1346,7 +1346,7 @@ int32_t stdFunction(SqlFunctionCtx* pCtx) {
     case TSDB_DATA_TYPE_DOUBLE: {
       double* plist = (double*)pCol->pData;
       for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (pCol->hasNull && colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -1622,7 +1622,7 @@ int32_t leastSQRFunction(SqlFunctionCtx* pCtx) {
     case TSDB_DATA_TYPE_TINYINT: {
       int8_t* plist = (int8_t*)pCol->pData;
       for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (pCol->hasNull && colDataIsNull_f(pCol, i)) {
           continue;
         }
         numOfElem++;
@@ -1633,7 +1633,7 @@ int32_t leastSQRFunction(SqlFunctionCtx* pCtx) {
     case TSDB_DATA_TYPE_SMALLINT: {
       int16_t* plist = (int16_t*)pCol->pData;
       for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (pCol->hasNull && colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -1646,7 +1646,7 @@ int32_t leastSQRFunction(SqlFunctionCtx* pCtx) {
     case TSDB_DATA_TYPE_INT: {
       int32_t* plist = (int32_t*)pCol->pData;
       for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (pCol->hasNull && colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -1659,7 +1659,7 @@ int32_t leastSQRFunction(SqlFunctionCtx* pCtx) {
     case TSDB_DATA_TYPE_BIGINT: {
       int64_t* plist = (int64_t*)pCol->pData;
       for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (pCol->hasNull && colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -1672,7 +1672,7 @@ int32_t leastSQRFunction(SqlFunctionCtx* pCtx) {
     case TSDB_DATA_TYPE_UTINYINT: {
       uint8_t* plist = (uint8_t*)pCol->pData;
       for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (pCol->hasNull && colDataIsNull_f(pCol, i)) {
           continue;
         }
         numOfElem++;
@@ -1683,7 +1683,7 @@ int32_t leastSQRFunction(SqlFunctionCtx* pCtx) {
     case TSDB_DATA_TYPE_USMALLINT: {
       uint16_t* plist = (uint16_t*)pCol->pData;
       for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (pCol->hasNull && colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -1696,7 +1696,7 @@ int32_t leastSQRFunction(SqlFunctionCtx* pCtx) {
     case TSDB_DATA_TYPE_UINT: {
       uint32_t* plist = (uint32_t*)pCol->pData;
       for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (pCol->hasNull && colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -1709,7 +1709,7 @@ int32_t leastSQRFunction(SqlFunctionCtx* pCtx) {
     case TSDB_DATA_TYPE_UBIGINT: {
       uint64_t* plist = (uint64_t*)pCol->pData;
       for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (pCol->hasNull && colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -1722,7 +1722,7 @@ int32_t leastSQRFunction(SqlFunctionCtx* pCtx) {
     case TSDB_DATA_TYPE_FLOAT: {
       float* plist = (float*)pCol->pData;
       for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (pCol->hasNull && colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -1735,7 +1735,7 @@ int32_t leastSQRFunction(SqlFunctionCtx* pCtx) {
     case TSDB_DATA_TYPE_DOUBLE: {
       double* plist = (double*)pCol->pData;
       for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (pCol->hasNull && colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -1929,7 +1929,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
       // check the valid data one by one
       int32_t start = pInput->startRowIndex;
       for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
-        if (colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -1952,7 +1952,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
     // the second stage, calculate the true percentile value
     int32_t start = pInput->startRowIndex;
     for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
-      if (colDataIsNull_f(pCol->nullbitmap, i)) {
+      if (colDataIsNull_f(pCol, i)) {
         continue;
       }
 
@@ -2131,7 +2131,7 @@ int32_t apercentileFunction(SqlFunctionCtx* pCtx) {
     buildTDigestInfo(pInfo);
     tdigestAutoFill(pInfo->pTDigest, COMPRESSION);
     for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
-      if (colDataIsNull_f(pCol->nullbitmap, i)) {
+      if (colDataIsNull_f(pCol, i)) {
         continue;
       }
       numOfElems += 1;
@@ -2153,7 +2153,7 @@ int32_t apercentileFunction(SqlFunctionCtx* pCtx) {
            __FUNCTION__, numOfElems, pInfo->pHisto->numOfElems, pInfo->pHisto->numOfEntries, pInfo->pHisto,
            pInfo->pHisto->elems);
     for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
-      if (colDataIsNull_f(pCol->nullbitmap, i)) {
+      if (colDataIsNull_f(pCol, i)) {
         continue;
       }
       numOfElems += 1;
@@ -3690,7 +3690,7 @@ int32_t topFunction(SqlFunctionCtx* pCtx) {
 
   int32_t start = pInput->startRowIndex;
   for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
-    if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+    if (pCol->hasNull && colDataIsNull_f(pCol, i)) {
       continue;
     }
 
@@ -3724,7 +3724,7 @@ int32_t bottomFunction(SqlFunctionCtx* pCtx) {
 
   int32_t start = pInput->startRowIndex;
   for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
-    if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+    if (pCol->hasNull && colDataIsNull_f(pCol, i)) {
       continue;
     }
 
@@ -4206,7 +4206,7 @@ int32_t spreadFunction(SqlFunctionCtx* pCtx) {
     int32_t start = pInput->startRowIndex;
     // check the valid data one by one
     for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
-      if (colDataIsNull_f(pCol->nullbitmap, i)) {
+      if (colDataIsNull_f(pCol, i)) {
         continue;
       }
 
@@ -4760,7 +4760,7 @@ static int32_t histogramFunctionImpl(SqlFunctionCtx* pCtx, bool isPartial) {
 
   int32_t numOfElems = 0;
   for (int32_t i = start; i < numOfRows + start; ++i) {
-    if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+    if (pCol->hasNull && colDataIsNull_f(pCol, i)) {
       continue;
     }
 
@@ -5260,7 +5260,7 @@ int32_t stateCountFunction(SqlFunctionCtx* pCtx) {
     pInfo->isPrevTsSet = true;
     numOfElems++;
 
-    if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+    if (colDataIsNull_f(pInputCol, i)) {
       colDataSetNULL(pOutput, i);
       // handle selectivity
       if (pCtx->subsidiaries.num > 0) {
@@ -5332,7 +5332,7 @@ int32_t stateDurationFunction(SqlFunctionCtx* pCtx) {
     pInfo->isPrevTsSet = true;
     numOfElems++;
 
-    if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+    if (colDataIsNull_f(pInputCol, i)) {
       colDataSetNULL(pOutput, i);
       // handle selectivity
       if (pCtx->subsidiaries.num > 0) {
@@ -5402,7 +5402,7 @@ int32_t csumFunction(SqlFunctionCtx* pCtx) {
     pSumRes->isPrevTsSet = true;
 
     int32_t pos = startOffset + numOfElems;
-    if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+    if (colDataIsNull_f(pInputCol, i)) {
       // colDataSetNULL(pOutput, i);
       continue;
     }
@@ -5505,7 +5505,7 @@ int32_t mavgFunction(SqlFunctionCtx* pCtx) {
     pInfo->isPrevTsSet = true;
 
     int32_t pos = startOffset + numOfElems;
-    if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+    if (colDataIsNull_f(pInputCol, i)) {
       // colDataSetNULL(pOutput, i);
       continue;
     }

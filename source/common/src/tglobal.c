@@ -14,12 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "tglobal.h"
 #include "cJSON.h"
 #include "defines.h"
 #include "os.h"
 #include "osString.h"
 #include "tconfig.h"
-#include "tglobal.h"
 #include "tgrant.h"
 #include "tjson.h"
 #include "tlog.h"
@@ -45,7 +45,7 @@ int32_t       tsVersion = 30000000;
 int32_t       tsForceReadConfig = 0;
 int32_t       tsdmConfigVersion = -1;
 int32_t       tsConfigInited = 0;
-int32_t       tsStatusInterval = 1;   // second
+int32_t       tsStatusInterval = 1;  // second
 int32_t       tsNumOfSupportVnodes = 256;
 uint16_t      tsMqttPort = 6083;
 char          tsEncryptAlgorithm[16] = {0};
@@ -54,8 +54,8 @@ EEncryptAlgor tsiEncryptAlgorithm = 0;
 EEncryptScope tsiEncryptScope = 0;
 // char     tsAuthCode[500] = {0};
 // char     tsEncryptKey[17] = {0};
-char   tsEncryptKey[17] = {0};
-int8_t tsEnableStrongPassword = 1;
+char          tsEncryptKey[17] = {0};
+int8_t        tsEnableStrongPassword = 1;
 char          tsEncryptPassAlgorithm[16] = {0};
 EEncryptAlgor tsiEncryptPassAlgorithm = 0;
 
@@ -107,8 +107,8 @@ int32_t tsNumOfQnodeQueryThreads = 16;
 int32_t tsNumOfQnodeFetchThreads = 1;
 int32_t tsNumOfSnodeStreamThreads = 4;
 int32_t tsNumOfSnodeWriteThreads = 1;
-int32_t tsPQSortMemThreshold = 16;      // M
-int32_t tsRetentionSpeedLimitMB = 0;    // unlimited
+int32_t tsPQSortMemThreshold = 16;    // M
+int32_t tsRetentionSpeedLimitMB = 0;  // unlimited
 int32_t tsNumOfMnodeStreamMgmtThreads = 2;
 int32_t tsNumOfStreamMgmtThreads = 2;
 int32_t tsNumOfVnodeStreamReaderThreads = 4;
@@ -163,7 +163,7 @@ uint16_t tsMonitorPort = 6043;
 int32_t  tsMonitorMaxLogs = 100;
 bool     tsMonitorComp = false;
 bool     tsMonitorLogProtocol = false;
-int32_t  tsEnableMetrics = 0;    // 0: disable, 1: enable
+int32_t  tsEnableMetrics = 0;     // 0: disable, 1: enable
 int32_t  tsMetricsLevel = 0;      // 0: only high level metrics, 1: full metrics
 int32_t  tsMetricsInterval = 30;  // second
 #ifdef USE_MONITOR
@@ -171,7 +171,6 @@ bool tsMonitorForceV2 = true;
 #else
 bool    tsMonitorForceV2 = false;
 #endif
-
 
 // audit
 #ifdef USE_AUDIT
@@ -347,14 +346,14 @@ int32_t tsCompactPullupInterval = 10;
 int32_t tsMqRebalanceInterval = 2;
 int32_t tsTtlUnit = 86400;
 int32_t tsTtlPushIntervalSec = 10;
-int32_t tsTrimVDbIntervalSec = 60 * 60;    // interval of trimming db in all vgroups
+int32_t tsTrimVDbIntervalSec = 60 * 60;  // interval of trimming db in all vgroups
 int32_t tsGrantHBInterval = 60;
 int32_t tsUptimeInterval = 300;    // seconds
 char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udfd exits
 char    tsUdfdLdLibPath[512] = "";
 bool    tsDisableStream = false;
-int32_t tsStreamBufferSize = 0; //MB
-int64_t tsStreamBufferSizeBytes = 0; // bytes
+int32_t tsStreamBufferSize = 0;       // MB
+int64_t tsStreamBufferSizeBytes = 0;  // bytes
 bool    tsFilterScalarMode = false;
 
 bool tsUpdateCacheBatch = true;
@@ -362,8 +361,8 @@ bool tsUpdateCacheBatch = true;
 int32_t tsSsEnabled = 0;  // enable shared storage, 0: disabled, 1: enabled, 2: enabled with auto migration
 char    tsSsAccessString[1024] = "";
 int32_t tsSsAutoMigrateIntervalSec = 60 * 60;  // auto migrate interval of shared storage migration
-int32_t tsSsBlockSize = -1;  // number of tsdb pages (4096). note: some related (but unused) code hasn't check the
-                             // negative value, which is a bug.
+int32_t tsSsBlockSize = -1;        // number of tsdb pages (4096). note: some related (but unused) code hasn't check the
+                                   // negative value, which is a bug.
 int32_t tsSsBlockCacheSize = 16;   // number of blocks
 int32_t tsSsPageCacheSize = 4096;  // number of pages
 int32_t tsSsUploadDelaySec = 60;
@@ -378,6 +377,7 @@ void   *pTimezoneNameMap = NULL;
 int32_t tsStreamNotifyMessageSize = 8 * 1024;  // KB, default 8MB
 int32_t tsStreamNotifyFrameSize = 256;         // KB, default 256KB
 
+bool    tsShowFullCreateTableColumn = 0;  // 0: show full create table, 1: show only table name and db name
 int32_t taosCheckCfgStrValueLen(const char *name, const char *value, int32_t len);
 
 #define TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, pName) \
@@ -419,9 +419,7 @@ int32_t taosUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs) {
   return cfgUpdateTfsItemDisable(pCfg, value, pTfs);
 }
 
-struct SConfig *taosGetCfg() {
-  return tsCfg;
-}
+struct SConfig *taosGetCfg() { return tsCfg; }
 
 static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
                            char *apolloUrl) {
@@ -559,7 +557,8 @@ static int32_t taosAddServerLogCfg(SConfig *pCfg) {
       cfgAddInt32(pCfg, "sndDebugFlag", sndDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(
       cfgAddInt32(pCfg, "bseDebugFlag", bseDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "bndDebugFlag", bndDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(
+      cfgAddInt32(pCfg, "bndDebugFlag", bndDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -578,8 +577,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "fqdn", defaultFqdn, CFG_SCOPE_SERVER, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "serverPort", defaultServerPort, 1, 65056, CFG_SCOPE_SERVER, CFG_DYN_CLIENT,
                                 CFG_CATEGORY_LOCAL));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "mqttPort", defaultMqttPort, 1, 65056, CFG_SCOPE_SERVER, CFG_DYN_CLIENT,
-                                CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(
+      cfgAddInt32(pCfg, "mqttPort", defaultMqttPort, 1, 65056, CFG_SCOPE_SERVER, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddDir(pCfg, "tempDir", tsTempDir, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(
       cfgAddFloat(pCfg, "minimalTmpDirGB", 1.0f, 0.001f, 10000000, CFG_SCOPE_BOTH, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
@@ -679,6 +678,9 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "compareAsStrInGreatest", tsCompareAsStrInGreatest, CFG_SCOPE_CLIENT,
                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
+
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "showFullCreateTableColumn", tsShowFullCreateTableColumn, CFG_SCOPE_CLIENT,
+                               CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -721,6 +723,7 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "buildinfo", td_buildinfo, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableIpv6", tsEnableIpv6, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
+
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -751,7 +754,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   tsNumOfStreamMgmtThreads = tsNumOfCores / 8;
   tsNumOfStreamMgmtThreads = TRANGE(tsNumOfStreamMgmtThreads, 2, 5);
-  
 
   tsNumOfVnodeStreamReaderThreads = tsNumOfCores / 2;
   tsNumOfVnodeStreamReaderThreads = TMAX(tsNumOfVnodeStreamReaderThreads, 4);
@@ -1417,6 +1419,9 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "compareAsStrInGreatest");
   tsCompareAsStrInGreatest = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "showFullCreateTableColumn");
+  tsShowFullCreateTableColumn = pItem->bval;
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -2518,19 +2523,15 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
 
   {  //  'bool/int32_t/int64_t/float/double' variables with general modification function
     static OptionNameAndVar debugOptions[] = {
-        {"dDebugFlag", &dDebugFlag},       {"vDebugFlag", &vDebugFlag},
-        {"mDebugFlag", &mDebugFlag},       {"wDebugFlag", &wDebugFlag},
-        {"azDebugFlag", &azDebugFlag},     {"sDebugFlag", &sDebugFlag},
-        {"tsdbDebugFlag", &tsdbDebugFlag}, {"tqDebugFlag", &tqDebugFlag},
-        {"fsDebugFlag", &fsDebugFlag},     {"udfDebugFlag", &udfDebugFlag},
-        {"smaDebugFlag", &smaDebugFlag},   {"idxDebugFlag", &idxDebugFlag},
-        {"tdbDebugFlag", &tdbDebugFlag},   {"tmrDebugFlag", &tmrDebugFlag},
-        {"uDebugFlag", &uDebugFlag},       {"smaDebugFlag", &smaDebugFlag},
-        {"rpcDebugFlag", &rpcDebugFlag},   {"qDebugFlag", &qDebugFlag},
-        {"metaDebugFlag", &metaDebugFlag}, {"stDebugFlag", &stDebugFlag},
-        {"bseDebugFlag", &bseDebugFlag},
-        {"sndDebugFlag", &sndDebugFlag},   {"bndDebugFlag", &bndDebugFlag},
-        {"tqClientDebugFlag", &tqClientDebugFlag}, {"tssDebugFlag", &tssDebugFlag},
+        {"dDebugFlag", &dDebugFlag},       {"vDebugFlag", &vDebugFlag},     {"mDebugFlag", &mDebugFlag},
+        {"wDebugFlag", &wDebugFlag},       {"azDebugFlag", &azDebugFlag},   {"sDebugFlag", &sDebugFlag},
+        {"tsdbDebugFlag", &tsdbDebugFlag}, {"tqDebugFlag", &tqDebugFlag},   {"fsDebugFlag", &fsDebugFlag},
+        {"udfDebugFlag", &udfDebugFlag},   {"smaDebugFlag", &smaDebugFlag}, {"idxDebugFlag", &idxDebugFlag},
+        {"tdbDebugFlag", &tdbDebugFlag},   {"tmrDebugFlag", &tmrDebugFlag}, {"uDebugFlag", &uDebugFlag},
+        {"smaDebugFlag", &smaDebugFlag},   {"rpcDebugFlag", &rpcDebugFlag}, {"qDebugFlag", &qDebugFlag},
+        {"metaDebugFlag", &metaDebugFlag}, {"stDebugFlag", &stDebugFlag},   {"bseDebugFlag", &bseDebugFlag},
+        {"sndDebugFlag", &sndDebugFlag},   {"bndDebugFlag", &bndDebugFlag}, {"tqClientDebugFlag", &tqClientDebugFlag},
+        {"tssDebugFlag", &tssDebugFlag},
     };
 
     static OptionNameAndVar options[] = {{"audit", &tsEnableAudit},
@@ -2872,7 +2873,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"numOfRpcSessions", &tsNumOfRpcSessions},
                                          {"bypassFlag", &tsBypassFlag},
                                          {"safetyCheckLevel", &tsSafetyCheckLevel},
-                                         {"compareAsStrInGreatest", &tsCompareAsStrInGreatest}};
+                                         {"compareAsStrInGreatest", &tsCompareAsStrInGreatest},
+                                         {"showFullCreateTableColumn", &tsShowFullCreateTableColumn}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);

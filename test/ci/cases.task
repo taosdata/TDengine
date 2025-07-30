@@ -16,6 +16,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_uint.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_unsign.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_varbinary.py
+,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_blob.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_varchar.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null_column.py
@@ -569,6 +570,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_delete_recalc.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_watermark.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_combined_options.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_manual.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_manual_with_options.py
 
 ## 20-UseCase
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_idmp_meters.py
@@ -578,6 +581,19 @@
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_idmp_pv.py
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_nevados.py 
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_phase1.py 
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_case4.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_case4_bug1.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_case5.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case1_bug1.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case1_twostream.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case3.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case4.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case6.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case17.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case18.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case19.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case19_bug1.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case22.py
 
 ## 21-Stability 
 
@@ -589,10 +605,12 @@
 ## 30-OldPyCases
 ,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_state_window.py
 ,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_window_true_for.py
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_math_func.py
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_string_func.py
 ,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_backquote_check.py
 ,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_taosdShell.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_checkpoint_info.py -N 4
-# ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_snode_restart_with_checkpoint.py -N 4
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_snode_restart_with_checkpoint.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_stream_multi_agg.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_stream_basic.py
 ,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_compatibility_rolling_upgrade.py -N 3
@@ -600,6 +618,8 @@
 ,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_compatibility.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_drop.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_empty_identifier.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_at_once.py
+
 
 ## 31-OldCases
 ,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic1.py 
@@ -669,7 +689,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_alive.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_basic.py -N 2
 ,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_diskinfo.py 
-,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_table_distributed.py 
+,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_table_distributed.py
+,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_table_distributed_null.py
 
 # 23-Users
 ,,y,.,./ci/pytest.sh pytest cases/23-Users/test_user_basic.py
@@ -1812,10 +1833,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_delete_normaltable.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_keep_expired.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_stmt_error.py
-#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_drop.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_drop.py -N 3 -M 3 -I False --replica 3
-
-
 
 ### 3-enterprise
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/3-enterprise/restore/test_restore_dnode.py -N 5 -M 3 -I False
