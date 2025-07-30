@@ -641,7 +641,13 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, t
   }
 
   if (!IS_CALENDAR_TIME_DURATION(unit)) {
-    return t + duration;
+    double tmp = t;
+    if (tmp + duration >= (double)INT64_MAX || tmp + duration <= (double)INT64_MIN) {
+      uError("time overflow, t:%" PRId64 ", duration:%" PRId64 ", unit:%c, precision:%d", t, duration, unit, precision);
+      return t;
+    } else {
+      return t + duration;
+    }
   }
 
   // The following code handles the y/n time duration

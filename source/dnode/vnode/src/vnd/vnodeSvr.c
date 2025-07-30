@@ -2278,7 +2278,7 @@ static void addExistTableInfoIntoRes(SVnode *pVnode, SSubmitReq2 *pRequest, SSub
       vError("vgId:%d, table uid:%" PRId64 " not exists, line:%d", TD_VID(pVnode), pTbData->uid, __LINE__);
     }
   } else {
-    buildExistSubTalbeRsp(pVnode, pTbData, &pCreateTbRsp->pMeta);
+    code = buildExistSubTalbeRsp(pVnode, pTbData, &pCreateTbRsp->pMeta);
   }
 
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -2299,6 +2299,9 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
     SMetaInfo      info = {0};
     SSubmitTbData *pTbData = taosArrayGet(pRequest->aSubmitTbData, i);
 
+    if (pTbData->flags & SUBMIT_REQ_WITH_BLOB) {
+      hasBlob = 1;
+    }
     if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
       continue;  // skip column data format
     }
@@ -2339,10 +2342,6 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
              TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), version, pTbData->uid, pTbData->sver,
              info.skmVer);
       return code;
-    }
-
-    if (pTbData->flags & SUBMIT_REQ_WITH_BLOB) {
-      hasBlob = 1;
     }
   }
 

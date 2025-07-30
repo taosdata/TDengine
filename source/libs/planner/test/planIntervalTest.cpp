@@ -32,30 +32,29 @@ TEST_F(PlanIntervalTest, pseudoCol) {
   run("SELECT _WSTART, _WDURATION, _WEND, COUNT(*) FROM t1 INTERVAL(10s)");
 }
 
-// TODO(smj) : disable for stream, reopen it later
-//TEST_F(PlanIntervalTest, fill) {
-//  useDb("root", "test");
-//
-//  run("SELECT COUNT(*) FROM t1 WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' "
-//      "INTERVAL(10s) FILL(LINEAR)");
-//
-//  run("SELECT COUNT(*) FROM st1 WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' "
-//      "INTERVAL(10s) FILL(LINEAR)");
-//
-//  run("SELECT COUNT(*), SUM(c1) FROM t1 "
-//      "WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' "
-//      "INTERVAL(10s) FILL(VALUE, 10, 20)");
-//
-//  run("SELECT _WSTART, TBNAME, COUNT(*) FROM st1 "
-//      "WHERE ts > '2022-04-01 00:00:00' and ts < '2022-04-30 23:59:59' "
-//      "PARTITION BY TBNAME INTERVAL(10s) FILL(PREV)");
-//
-//  run("SELECT COUNT(c1), MAX(c3), COUNT(c1) FROM t1 "
-//      "WHERE ts > '2022-04-01 00:00:00' and ts < '2022-04-30 23:59:59' INTERVAL(10s) FILL(PREV)");
-//
-//  run("SELECT COUNT(c1) FROM t1 WHERE ts > '2022-04-01 00:00:00' and ts < '2022-04-30 23:59:59' "
-//      "PARTITION BY c2 INTERVAL(10s) FILL(PREV) ORDER BY c2");
-//}
+TEST_F(PlanIntervalTest, fill) {
+  useDb("root", "test");
+
+  run("SELECT COUNT(*) FROM t1 WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' "
+      "INTERVAL(10s) FILL(LINEAR)");
+
+  run("SELECT COUNT(*) FROM st1 WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' "
+      "INTERVAL(10s) FILL(LINEAR)");
+
+  run("SELECT COUNT(*), SUM(c1) FROM t1 "
+      "WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' "
+      "INTERVAL(10s) FILL(VALUE, 10, 20)");
+
+  run("SELECT _WSTART, TBNAME, COUNT(*) FROM st1 "
+      "WHERE ts > '2022-04-01 00:00:00' and ts < '2022-04-30 23:59:59' "
+      "PARTITION BY TBNAME INTERVAL(10s) FILL(PREV)");
+
+  run("SELECT COUNT(c1), MAX(c3), COUNT(c1) FROM t1 "
+      "WHERE ts > '2022-04-01 00:00:00' and ts < '2022-04-30 23:59:59' INTERVAL(10s) FILL(PREV)");
+
+  run("SELECT COUNT(c1) FROM t1 WHERE ts > '2022-04-01 00:00:00' and ts < '2022-04-30 23:59:59' "
+      "PARTITION BY c2 INTERVAL(10s) FILL(PREV) ORDER BY c2");
+}
 
 TEST_F(PlanIntervalTest, selectFunc) {
   useDb("root", "test");
