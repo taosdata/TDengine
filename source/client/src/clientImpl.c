@@ -233,12 +233,15 @@ void freeQueryParam(SSyncQueryParam* param) {
 
 int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, bool validateSql,
                      SRequestObj** pRequest, int64_t reqid) {
+  
+                      // 生成一个request
   int32_t code = createRequest(connId, TSDB_SQL_SELECT, reqid, pRequest);
   if (TSDB_CODE_SUCCESS != code) {
     tscError("failed to malloc sqlObj, %s", sql);
     return code;
   }
 
+  // sql 字符串
   (*pRequest)->sqlstr = taosMemoryMalloc(sqlLen + 1);
   if ((*pRequest)->sqlstr == NULL) {
     tscError("req:0x%" PRIx64 ", failed to prepare sql string buffer, %s", (*pRequest)->self, sql);
@@ -247,6 +250,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
     return terrno;
   }
 
+  // 这里是将sql字符串转换为小写
   (void)strntolower((*pRequest)->sqlstr, sql, (int32_t)sqlLen);
   (*pRequest)->sqlstr[sqlLen] = 0;
   (*pRequest)->sqlLen = sqlLen;
@@ -256,6 +260,8 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   ((SSyncQueryParam*)(*pRequest)->body.interParam)->userParam = param;
 
   STscObj* pTscObj = (*pRequest)->pTscObj;
+  // hash的使用
+  // 这里是将请求添加到连接的请求列表中
   int32_t  err = taosHashPut(pTscObj->pRequests, &(*pRequest)->self, sizeof((*pRequest)->self), &(*pRequest)->self,
                              sizeof((*pRequest)->self));
   if (err) {
@@ -2559,6 +2565,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4, bool isS
 char* getDbOfConnection(STscObj* pObj) {
   terrno = TSDB_CODE_SUCCESS;
   char* p = NULL;
+  // 这个是所有使用这个连接的共用
   (void)taosThreadMutexLock(&pObj->mutex);
   size_t len = strlen(pObj->db);
   if (len > 0) {
@@ -2962,6 +2969,7 @@ void syncQueryFn(void* param, void* res, int32_t code) {
     clientOperateReport(pParam->pRequest);
   }
 
+  // 设置信号量，通知等待的线程
   if (TSDB_CODE_SUCCESS != tsem_post(&pParam->sem)) {
     tscError("failed to post semaphore since %s", tstrerror(terrno));
   }
@@ -2988,6 +2996,7 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
 
   tscDebug("conn:0x%" PRIx64 ", taos_query execute, sql:%s", connId, sql);
 
+  // 组装请求信息
   SRequestObj* pRequest = NULL;
   int32_t      code = buildRequest(connId, sql, sqlLen, param, validateOnly, &pRequest, 0);
   if (code != TSDB_CODE_SUCCESS) {
@@ -3036,27 +3045,35 @@ void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_
 }
 
 TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t source) {
+  // 调用的是这个实现
   if (NULL == taos) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return NULL;
   }
 
+  // 查询参数
   SSyncQueryParam* param = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
   if (NULL == param) {
     return NULL;
   }
+  // 这里也有个信号量，用于等待别的线程查询结束
   int32_t code = tsem_init(&param->sem, 0, 0);
   if (TSDB_CODE_SUCCESS != code) {
     taosMemoryFree(param);
     return NULL;
   }
 
+  // 这个是异步查询接口
+  // 回调函数 syncQueryFn
   taosAsyncQueryImpl(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly, source);
+  // 等待查询结束
+  // 回调函数会设置信号量通知
   code = tsem_wait(&param->sem);
   if (TSDB_CODE_SUCCESS != code) {
     taosMemoryFree(param);
     return NULL;
   }
+
   code = tsem_destroy(&param->sem);
   if (TSDB_CODE_SUCCESS != code) {
     tscError("failed to destroy semaphore since %s", tstrerror(code));
@@ -3211,11 +3228,14 @@ void doRequestCallback(SRequestObj* pRequest, int32_t code) {
            pRequest);
 
   if (pRequest->body.queryFp != NULL) {
+    // 回调函数
+    // 唤醒继续后续，一个查询在阻塞等待
     pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
   }
 
   SRequestObj* pReq = acquireRequest(this);
   if (pReq != NULL) {
+    // 设置请求状态
     pReq->inCallback = false;
     (void)releaseRequest(this);
   }

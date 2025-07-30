@@ -85,6 +85,7 @@ int32_t taosDriverInit(EDriverType driverType) {
     return code;
   }
 
+  // 这里加载不通系统的实现函数， 在动态库里边
   // printf("load driver from %s\r\n", driverPath);
   LOAD_FUNC(fp_taos_set_config, "taos_set_config");
 

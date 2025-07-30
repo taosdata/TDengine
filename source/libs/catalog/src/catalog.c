@@ -743,6 +743,7 @@ _return:
 
 
 void ctgProcessTimerEvent(void *param, void *tmrId) {
+  // 定期器回调函数
   CTG_API_NENTER();
 
   (void)ctgdShowCacheInfo();
@@ -756,6 +757,7 @@ void ctgProcessTimerEvent(void *param, void *tmrId) {
     
     qDebug("catalog cache size: %" PRIu64"B, maxCaseSize:%dMB, %s", cacheSize, cacheMaxSize, overflow ? "overflow" : "NO overflow");
 
+    // 队列任务过多
     if (overflow) {
       int32_t code = ctgClearCacheEnqueue(NULL, true, false, false, false);
       if (code) {
@@ -769,6 +771,7 @@ void ctgProcessTimerEvent(void *param, void *tmrId) {
     }
   }
 
+  // 重置定时器
   qTrace("reset catalog timer");
   if (taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer)) {
     qError("reset catalog cache monitor timer error, timer stoppped");
@@ -846,6 +849,7 @@ _return:
 
 
 int32_t catalogInit(SCatalogCfg* cfg) {
+  // 元数据信息配置
   qInfo("catalog init");
   if (gCtgMgmt.pCluster) {
     qError("catalog already initialized");
@@ -899,6 +903,7 @@ int32_t catalogInit(SCatalogCfg* cfg) {
     gCtgMgmt.cfg.tsmaRentSec = CTG_DEFAULT_RENT_SECOND;
   }
 
+  // 这里也有一个hash表，存储集群的SCatalog对象
   gCtgMgmt.pCluster = taosHashInit(CTG_DEFAULT_CACHE_CLUSTER_NUMBER, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT),
                                    false, HASH_ENTRY_LOCK);
   if (NULL == gCtgMgmt.pCluster) {
@@ -906,6 +911,7 @@ int32_t catalogInit(SCatalogCfg* cfg) {
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
+  // 这里有一个信号量
   if (tsem_init(&gCtgMgmt.queue.reqSem, 0, 0)) {
     qError("tsem_init failed, terror:%s", tstrerror(terrno));
     CTG_ERR_RET(TSDB_CODE_CTG_SYS_ERROR);
@@ -918,6 +924,7 @@ int32_t catalogInit(SCatalogCfg* cfg) {
   }
   gCtgMgmt.queue.tail = gCtgMgmt.queue.head;
 
+  // 任务池
   gCtgMgmt.jobPool = taosOpenRef(200, ctgFreeJob);
   if (gCtgMgmt.jobPool < 0) {
     qError("taosOpenRef failed, error:%s", tstrerror(terrno));
@@ -930,6 +937,7 @@ int32_t catalogInit(SCatalogCfg* cfg) {
     CTG_ERR_RET(terrno);
   }
 
+  // 这里有定时器
   gCtgMgmt.cacheTimer = taosTmrStart(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer);
   if (NULL == gCtgMgmt.cacheTimer) {
     qError("start cache timer failed");
@@ -960,6 +968,8 @@ int32_t catalogGetHandle(int64_t clusterId, SCatalog** catalogHandle) {
   SCatalog* clusterCtg = NULL;
 
   while (true) {
+    // catlog 的缓存是一个哈希表，key是集群ID，value是SCatalog对象
+    // 这里是从哈希表中获取SCatalog对象
     SCatalog** ctg = (SCatalog**)taosHashGet(gCtgMgmt.pCluster, (char*)&clusterId, sizeof(clusterId));
 
     if (ctg && (*ctg)) {

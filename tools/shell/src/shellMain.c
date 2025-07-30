@@ -41,7 +41,7 @@ void shellCrashHandler(int signum, void *sigInfo, void *context) {
 }
 
 // init arguments
-void initArgument(SShellArgs *pArgs) {
+void initArgument(SShellArgs *pArgs) {  // 初始化参数，默认值
   pArgs->host     = NULL;
   pArgs->port     = 0;
   pArgs->user     = NULL;
@@ -55,21 +55,22 @@ void initArgument(SShellArgs *pArgs) {
 }
 
 int main(int argc, char *argv[]) {
+  // 这里是shell 入口
   int code  = 0;
 #if !defined(WINDOWS)
-  taosSetSignal(SIGBUS, shellCrashHandler);
+  taosSetSignal(SIGBUS, shellCrashHandler);  //注册信号处理函数
 #endif
   taosSetSignal(SIGABRT, shellCrashHandler);
   taosSetSignal(SIGFPE, shellCrashHandler);
   taosSetSignal(SIGSEGV, shellCrashHandler);
 
-  initArgument(&shell.args);
+  initArgument(&shell.args); // 传入参数处理
 
   if (shellCheckIntSize() != 0) {
     return -1;
   }
 
-  if (shellParseArgs(argc, argv) != 0) {
+  if (shellParseArgs(argc, argv) != 0) { // 解析参数
     return -1;
   }
 
@@ -83,7 +84,7 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  if (shell.args.is_help) {
+  if (shell.args.is_help) {  // 打印帮助信息
     shellPrintHelp();
     return 0;
   }
@@ -98,12 +99,12 @@ int main(int argc, char *argv[]) {
   }
 
   // first taos_option(TSDB_OPTION_DRIVER ...) no load driver
-  if (setConnMode(shell.args.connMode, shell.args.dsn, false)) {
+  if (setConnMode(shell.args.connMode, shell.args.dsn, false)) { // 是否是BI模式
     return -1;
   }
 
   // second taos_option(TSDB_OPTION_CONFIGDIR ...) set configDir global
-  if (configDirShell[0] != 0) {
+  if (configDirShell[0] != 0) {  // 加载配之项
     code = taos_options(TSDB_OPTION_CONFIGDIR, configDirShell);
     if (code) {
       fprintf(stderr, "failed to set config dir:%s  code:[0x%08X]\r\n", configDirShell, code);
@@ -115,35 +116,35 @@ int main(int argc, char *argv[]) {
 #ifndef TD_ASTRA
   // dump config
   if (shell.args.is_dump_config) {
-    shellDumpConfig();
+    shellDumpConfig();   // 输出信息
     return 0;
   }
 #endif
 
   // taos_init
-  if (taos_init() != 0) {
+  if (taos_init() != 0) {  // 必要的初始化操作
     fprintf(stderr, "failed to init shell since %s [0x%08X]\r\n", taos_errstr(NULL), taos_errno(NULL));
     return -1;
   }
 
   // kill heart-beat thread when quit
-  taos_set_hb_quit(1);
+  taos_set_hb_quit(1);   // 心跳线程
 
 #ifndef TD_ASTRA
   if (shell.args.is_startup || shell.args.is_check) {
-    shellCheckServerStatus();
+    shellCheckServerStatus();   // 检查服务器状态
     taos_cleanup();
     return 0;
   }
 
   if (shell.args.netrole != NULL) {
-    shellTestNetWork();
+    shellTestNetWork(); // 测试网络连接
     taos_cleanup();
     return 0;
   }
 #endif
   // support port feature
-  shellAutoInit();
+  shellAutoInit();  // 这个里边初始化了线程
   int32_t ret = shellExecute(argc, argv);
   shellAutoExit();
 

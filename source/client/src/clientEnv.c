@@ -546,20 +546,25 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
     return terrno;
   }
 
+  // 这里对连接使用引用计数，避免连接被释放后，仍然有请求在使用
   STscObj *pTscObj = acquireTscObj(connId);
   if (pTscObj == NULL) {
     TSC_ERR_JRET(TSDB_CODE_TSC_DISCONNECTED);
   }
+
   SSyncQueryParam *interParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
   if (interParam == NULL) {
     releaseTscObj(connId);
     TSC_ERR_JRET(terrno);
   }
+
   TSC_ERR_JRET(tsem_init(&interParam->sem, 0, 0));
   interParam->pRequest = *pRequest;
   (*pRequest)->body.interParam = interParam;
 
   (*pRequest)->resType = RES_TYPE__QUERY;
+  // 每次都生成一个新的id，或者使用传入的reqid
+  // native 传入的是0， 每次需要生成新的id
   (*pRequest)->requestId = reqid == 0 ? generateRequestId() : reqid;
   (*pRequest)->metric.start = taosGetTimestampUs();
 
@@ -568,6 +573,7 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
   (*pRequest)->type = type;
   (*pRequest)->allocatorRefId = -1;
 
+  // 连接使用的db
   (*pRequest)->pDb = getDbOfConnection(pTscObj);
   if (NULL == (*pRequest)->pDb) {
     TSC_ERR_JRET(terrno);
@@ -580,6 +586,7 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
     goto _return;
   }
   (*pRequest)->msgBufLen = ERROR_MSG_BUF_DEFAULT_SIZE;
+  // 这里又来一个引用计数，避免请求被释放后，仍然有请求在使用
   TSC_ERR_JRET(tsem_init(&(*pRequest)->body.rspSem, 0, 0));
   TSC_ERR_JRET(registerRequest(*pRequest, pTscObj));
 
@@ -1040,9 +1047,11 @@ void shellStopDaemon() {
 #endif
 
 void taos_init_imp(void) {
+  // 配置初始化
+  // 合适的队列初始化
 #if defined(LINUX)
   if (tscDbg.memEnable) {
-    int32_t code = taosMemoryDbgInit();
+    int32_t code = taosMemoryDbgInit(); // 内存检测
     if (code) {
       (void)printf("failed to init memory dbg, error:%s\n", tstrerror(code));
     } else {
@@ -1061,7 +1070,7 @@ void taos_init_imp(void) {
 
   appInfo.pid = taosGetPId();
   appInfo.startTime = taosGetTimestampMs();
-  appInfo.pInstMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  appInfo.pInstMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK); // 初始化hash
   appInfo.pInstMapByClusterId =
       taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   if (NULL == appInfo.pInstMap || NULL == appInfo.pInstMapByClusterId) {
@@ -1085,7 +1094,7 @@ void taos_init_imp(void) {
   ENV_ERR_RET(taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1), "failed to init cfg");
 #endif
 
-  initQueryModuleMsgHandle();
+  initQueryModuleMsgHandle();  // 初始化查询模块消息处理，这里有各种消息处理函数的注册
 #ifndef DISALLOW_NCHAR_WITHOUT_ICONV
   if ((tsCharsetCxt = taosConvInit(tsCharset)) == NULL) {
     tscInitRes = terrno;
@@ -1120,6 +1129,7 @@ void taos_init_imp(void) {
   clientReqRefPool = taosOpenRef(40960, doDestroyRequest);
 
   ENV_ERR_RET(taosGetAppName(appInfo.appName, NULL), "failed to get app name");
+  // 互斥在app上
   ENV_ERR_RET(taosThreadMutexInit(&appInfo.mutex, NULL), "failed to init thread mutex");
 #ifdef USE_REPORT
   ENV_ERR_RET(tscCrashReportInit(), "failed to init crash report");

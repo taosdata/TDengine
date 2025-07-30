@@ -803,18 +803,20 @@ void GenerateVarType(int type, char** p, int count) {
 void shellAutoInit() {
   // command
   int32_t count = SHELL_COMMAND_COUNT();
+  // 解析命令行
   for (int32_t i = 0; i < count; i++) {
     parseCommand(shellCommands + i, true);
   }
 
   // tires
   memset(tires, 0, sizeof(STire*) * WT_VAR_CNT);
-  taosThreadMutexInit(&tiresMutex, NULL);
+  taosThreadMutexInit(&tiresMutex, NULL); // 这里有个锁
 
   // threads
-  memset(threads, 0, sizeof(TdThread*) * WT_FROM_DB_CNT);
+  memset(threads, 0, sizeof(TdThread*) * WT_FROM_DB_CNT); // 线程池
 
   // generate varType
+  // 类型
   GenerateVarType(WT_VAR_FUNC, functions, sizeof(functions) / sizeof(char*));
   GenerateVarType(WT_VAR_KEYWORD, keywords, sizeof(keywords) / sizeof(char*));
   GenerateVarType(WT_VAR_TBACTION, tb_actions, sizeof(tb_actions) / sizeof(char*));

@@ -263,6 +263,7 @@ static int32_t parseQuerySyntax(SParseContext* pCxt, SQuery** pQuery, struct SCa
   SParseMetaCache metaCache = {0};
   int32_t         code = parseSqlSyntax(pCxt, pQuery, &metaCache);
   if (TSDB_CODE_SUCCESS == code) {
+    // 成功后请求catalog 进行下一步的处理
     code = buildCatalogReq(&metaCache, pCatalogReq);
   }
   destoryParseMetaCache(&metaCache, true);
@@ -278,11 +279,14 @@ static int32_t parseCreateTbFromFileSyntax(SParseContext* pCxt, SQuery** pQuery,
 int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq) {
   int32_t code = nodesAcquireAllocator(pCxt->allocatorId);
   if (TSDB_CODE_SUCCESS == code) {
+    // insert 语句的解析
     if (qIsInsertValuesSql(pCxt->pSql, pCxt->sqlLen)) {
       code = parseInsertSql(pCxt, pQuery, pCatalogReq, NULL);
     } else if (qIsCreateTbFromFileSql(pCxt->pSql, pCxt->sqlLen)) {
+      // create table from file 语句的解析
       code = parseCreateTbFromFileSyntax(pCxt, pQuery, pCatalogReq);
     } else {
+      // 
       code = parseQuerySyntax(pCxt, pQuery, pCatalogReq);
     }
   }

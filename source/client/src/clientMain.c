@@ -1580,11 +1580,14 @@ void taos_query_a_with_reqid(TAOS *taos, const char *sql, __taos_async_fn_t fp, 
 int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SSqlCallbackWrapper *pWrapper) {
   const STscObj *pTscObj = pRequest->pTscObj;
 
+  // 开始分配上下文了
   *pCxt = taosMemoryCalloc(1, sizeof(SParseContext));
   if (*pCxt == NULL) {
     return terrno;
   }
 
+  // 设置了一下目前的值
+  // 后续还会更新
   **pCxt = (SParseContext){.requestId = pRequest->requestId,
                            .requestRid = pRequest->self,
                            .acctId = pTscObj->acctId,
@@ -1627,22 +1630,26 @@ int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *p
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    // 准备parser的ctx
     code = createParseContext(pRequest, &pWrapper->pParseCtx, pWrapper);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    // 这个是mnode？
     pWrapper->pParseCtx->mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
     code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pWrapper->pParseCtx->pCatalog);
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL == pRequest->pQuery) {
     int64_t syntaxStart = taosGetTimestampUs();
-
+    
+    // catlog 是元数据请求
     pWrapper->pCatalogReq = taosMemoryCalloc(1, sizeof(SCatalogReq));
     if (pWrapper->pCatalogReq == NULL) {
       code = terrno;
     } else {
       pWrapper->pCatalogReq->forceUpdate = updateMetaForce;
+      // 判断是否需要计算节点
       TSC_ERR_RET(qnodeRequired(pRequest, &pWrapper->pCatalogReq->qNodeRequired));
       code = qParseSqlSyntax(pWrapper->pParseCtx, &pRequest->pQuery, pWrapper->pCatalogReq);
     }
@@ -1657,16 +1664,19 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   SSqlCallbackWrapper *pWrapper = NULL;
   int32_t              code = TSDB_CODE_SUCCESS;
 
+  // 有重试
   if (pRequest->retry++ > REQUEST_TOTAL_EXEC_TIMES) {
     code = pRequest->prevCode;
     terrno = code;
     pRequest->code = code;
     tscDebug("req:0x%" PRIx64 ", call sync query cb with code:%s", pRequest->self, tstrerror(code));
+    // 重试失败的处理
     doRequestCallback(pRequest, code);
     return;
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    // 解析
     code = prepareAndParseSqlSyntax(&pWrapper, pRequest, updateMetaForce);
   }
 

@@ -43,8 +43,10 @@ int32_t buildQueryAfterParse(SQuery** pQuery, SNode* pRootNode, int16_t placehol
   return TSDB_CODE_SUCCESS;
 }
 
+// 到 parser 模块了
 int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   SAstCreateContext cxt;
+  // 自己的ctx
   initAstCreateContext(pParseCxt, &cxt);
   void* pParser = ParseAlloc((FMalloc)taosMemMalloc);
   if (!pParser) return terrno;

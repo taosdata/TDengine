@@ -25,6 +25,7 @@ SSchedulerMgmt schMgmt = {
 };
 
 int32_t schedulerInit() {
+  // 调度器初始化
   if (schMgmt.jobRef >= 0) {
     qError("scheduler already initialized");
     return TSDB_CODE_QRY_INVALID_INPUT;
@@ -44,12 +45,14 @@ int32_t schedulerInit() {
     SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
+  // hash 存储连接信息
   schMgmt.hbConnections = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (NULL == schMgmt.hbConnections) {
     qError("taosHashInit hb connections failed");
     SCH_ERR_RET(terrno);
   }
 
+  // 也有一个定时器
   schMgmt.timer = taosTmrInit(0, 0, 0, "scheduler");
   if (NULL == schMgmt.timer) {
     qError("init timer failed, error:%s", tstrerror(terrno));

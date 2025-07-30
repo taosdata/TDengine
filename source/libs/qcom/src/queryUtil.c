@@ -154,6 +154,7 @@ static void processTaskQueue(SQueueInfo *pInfo, SSchedMsg *pSchedMsg) {
 }
 
 int32_t initTaskQueue() {
+  // 任务队列初始化
   memset(&taskQueue, 0, sizeof(taskQueue));
   
   taskQueue.wrokrerPool.name = "taskWorkPool";

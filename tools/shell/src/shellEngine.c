@@ -99,6 +99,7 @@ int32_t shellRunSingleCommand(char *command) {
     return 0;
   }
 
+  // max_binary_display_width 设置输出显示
   if (shellRegexMatch(command, "^[\t ]*set[ \t]+max_binary_display_width[ \t]+(default|[1-9][0-9]*)[ \t;]*$",
                       REG_EXTENDED | REG_ICASE)) {
     strtok(command, " \t");
@@ -244,6 +245,7 @@ void shellRunSingleCommandImp(char *command) {
 
   st = taosGetTimestampUs();
 
+  // 调用同步查询接口
   TAOS_RES *pSql = taos_query(shell.conn, command);
   if (taos_errno(pSql)) {
     shellPrintError(pSql, st);
@@ -1389,6 +1391,7 @@ TAOS *createConnect(SShellArgs *pArgs) {
   }
 
   // connect main
+  // 连接
   TAOS *taos = NULL;
   if (pArgs->auth) {
     taos = taos_connect_auth(host, user, pArgs->auth, pArgs->database, port);
@@ -1402,6 +1405,7 @@ TAOS *createConnect(SShellArgs *pArgs) {
 }
 
 int32_t shellExecute(int argc, char *argv[]) {
+  // 这里执行这个shell
   int32_t code = 0;
   printf(shell.info.clientVersion, shell.info.cusName,
          workingMode(shell.args.connMode, shell.args.dsn) == CONN_MODE_NATIVE ? STR_NATIVE : STR_WEBSOCKET,
@@ -1409,6 +1413,7 @@ int32_t shellExecute(int argc, char *argv[]) {
   fflush(stdout);
 
   SShellArgs *pArgs = &shell.args;
+  // 建立一个连接
   shell.conn = createConnect(pArgs);
 
   if (shell.conn == NULL) {
@@ -1432,7 +1437,7 @@ int32_t shellExecute(int argc, char *argv[]) {
     if (pArgs->commands != NULL) {
       printf("%s%s\r\n", shell.info.promptHeader, pArgs->commands);
       char *cmd = taosStrdup(pArgs->commands);
-      shellRunCommand(cmd, true);
+      shellRunCommand(cmd, true); // 执行命令
       taosMemoryFree(cmd);
     }
 
@@ -1478,6 +1483,7 @@ int32_t shellExecute(int argc, char *argv[]) {
     taosThreadJoin(shell.pid, NULL);
     taosThreadClear(&shell.pid);
     if (shell.exit) {
+      // 发送取消信号
       tsem_post(&shell.cancelSem);
       break;
     }

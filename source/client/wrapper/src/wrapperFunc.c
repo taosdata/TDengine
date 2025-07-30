@@ -99,6 +99,7 @@ static void taos_init_driver(void) {
   tsDriverOnceRet = 0;
 }
 static void taos_init_wrapper(void) {
+  // 调用注册函数里的init
   if (fp_taos_init == NULL) {
     terrno = TSDB_CODE_DLL_FUNC_NOT_LOAD;
     tsInitOnceRet = -1;
@@ -108,7 +109,7 @@ static void taos_init_wrapper(void) {
 }
 
 int taos_init(void) {
-  (void)taosThreadOnce(&tsDriverOnce, taos_init_driver);
+  (void)taosThreadOnce(&tsDriverOnce, taos_init_driver); //一次初始化
   (void)taosThreadOnce(&tsInitOnce, taos_init_wrapper);
   return tsInitOnceRet;
 }
