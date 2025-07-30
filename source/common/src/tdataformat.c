@@ -958,51 +958,6 @@ int32_t tBlobRowPush(SBlobSet *pBlobRow, SBlobItem *pItem, uint64_t *seq, int8_t
 _exit:
   return code;
 }
-int32_t tBlobRowUpdate(SBlobSet *pBlobRow, uint64_t seq, SBlobItem *pItem) {
-  int32_t code = 0;
-  return code;
-  if (pBlobRow == NULL || pItem == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-  if (pBlobRow->pSeqToffset == NULL || pBlobRow->pSeqTable == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-
-  return code;
-}
-int32_t tBlobRowGet(SBlobSet *pBlobRow, uint64_t seq, SBlobItem *pItem) {
-  if (pBlobRow == NULL || pItem == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-  if (pBlobRow->pSeqToffset == NULL || pBlobRow->pSeqTable == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-
-  int32_t code = 0;
-  int32_t len = 0;
-  int32_t dataOffset = 0;
-  int8_t  nextRow = 0;
-
-  int32_t *offset = (int32_t *)taosHashGet(pBlobRow->pSeqToffset, &seq, sizeof(int64_t));
-  if (offset == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-
-  SBlobValue *value = taosArrayGet(pBlobRow->pSeqTable, *offset - 1);
-  if (value == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-
-  len = value->len;
-  dataOffset = value->dataOffset;
-  nextRow = value->nextRow;
-
-  pItem->seqOffsetInRow = dataOffset + pBlobRow->data - (uint8_t *)pBlobRow;
-  pItem->len = len;
-  pItem->data = pBlobRow->data + value->offset;
-
-  return code;
-}
 
 int32_t tBlobRowSize(SBlobSet *pBlobRow) {
   if (pBlobRow == NULL) return 0;
@@ -5748,17 +5703,6 @@ int32_t tEncodeBlobSet(SEncoder *pEncoder, SBlobSet *pRow) {
   int32_t nSeq = taosArrayGetSize(pRow->pSeqTable);
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, nSeq));
 
-  // if (pRow->type) {
-  void *pIter = taosHashIterate(pRow->pSeqToffset, NULL);
-  while (pIter) {
-    uint64_t seq = *(uint64_t *)taosHashGetKey(pIter, NULL);
-    int32_t  idx = *(int32_t *)pIter;
-    TAOS_CHECK_EXIT(tEncodeU64(pEncoder, seq));
-    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, idx));
-
-    pIter = taosHashIterate(pRow->pSeqToffset, pIter);
-  }
-  //}
   for (int32_t i = 0; i < nSeq; i++) {
     SBlobValue *p = taosArrayGet(pRow->pSeqTable, i);
     TAOS_CHECK_EXIT(tEncodeU64(pEncoder, p->offset));
@@ -5788,22 +5732,6 @@ int32_t tDecodeBlobSet(SDecoder *pDecoder, SBlobSet **pBlobSet) {
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pBlob->len));
 
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &nSeq));
-
-  // if (pBlob->type) {
-  pBlob->pSeqToffset = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_NO_LOCK);
-  if (pBlob->pSeqToffset == NULL) {
-    TAOS_CHECK_EXIT(terrno);
-  }
-  for (int32_t i = 0; i < nSeq; i++) {
-    uint64_t seq;
-    int32_t  idx;
-    TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &seq));
-    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &idx));
-
-    code = taosHashPut(pBlob->pSeqToffset, &seq, sizeof(seq), &idx, sizeof(idx));
-    TAOS_CHECK_EXIT(code);
-  }
-  //}
 
   pBlob->pSeqTable = taosArrayInit(nSeq, sizeof(SBlobValue));
   if (pBlob->pSeqTable == NULL) {
