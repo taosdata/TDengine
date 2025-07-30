@@ -970,6 +970,17 @@ int stmtPrepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_PREPARE));
 
+  if (length <= 0) {
+    length = strlen(sql);
+  }
+
+  pStmt->sql.sqlStr = taosStrndup(sql, length);
+  if (!pStmt->sql.sqlStr) {
+    return terrno;
+  }
+  pStmt->sql.sqlLen = length;
+  pStmt->sql.stbInterlaceMode = pStmt->stbInterlaceMode;
+
   STMT_ERR_RET(stmtCreateRequest(pStmt));
 
   int32_t code = 0;
@@ -990,29 +1001,22 @@ int stmtPrepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
       STMT_ELOG("convert update sql to insert sql failed, code: 0x%x", code);
       return code;
     }
-    sql = newSql;
-    length = strlen(newSql);
+
+    // reset request sql
+    if (pStmt->exec.pRequest->sqlstr) {
+      taosMemoryFreeClear(pStmt->exec.pRequest->sqlstr);
+    }
+    pStmt->exec.pRequest->sqlstr = newSql;
+    pStmt->exec.pRequest->sqlLen = strlen(newSql);
+
+    if (pStmt->sql.sqlStr) {
+      taosMemoryFreeClear(pStmt->sql.sqlStr);
+    }
+    pStmt->sql.sqlStr = taosStrndup(newSql, strlen(newSql));
+    pStmt->sql.sqlLen = strlen(newSql);
   }
 
   STMT_ERR_RET(code);
-
-  if (length <= 0) {
-    length = strlen(sql);
-  }
-
-  pStmt->sql.sqlStr = taosStrndup(sql, length);
-  if (!pStmt->sql.sqlStr) {
-    return terrno;
-  }
-  pStmt->sql.sqlLen = length;
-  pStmt->sql.stbInterlaceMode = pStmt->stbInterlaceMode;
-
-  // reset request sql
-  if (pStmt->exec.pRequest->sqlstr) {
-    taosMemoryFreeClear(pStmt->exec.pRequest->sqlstr);
-  }
-  pStmt->exec.pRequest->sqlstr = taosStrndup(sql, length);
-  pStmt->exec.pRequest->sqlLen = length;
 
   char* dbName = NULL;
   if (qParseDbName(sql, length, &dbName)) {

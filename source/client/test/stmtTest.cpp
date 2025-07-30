@@ -740,13 +740,13 @@ TEST(stmtCase, update) {
     ASSERT_NE(stmt, nullptr);
     char *sql =
         "update stmt_testdb_6.devices temperature = ?,humidity = ?,device_id=? where ts=? and device_id=? and "
-        "status IS NOT NULL";
+        "status IS not null";
     code = taos_stmt_prepare(stmt, sql, 0);
     code = taos_stmt_bind_param_batch(stmt, params);
     ASSERT_EQ(TSDB_CODE_PAR_SYNTAX_ERROR, code);
     ASSERT_STREQ(
         "syntax error near \"stmt_testdb_6.devices temperature = ?,humidity = ?,device_id=? where ts=? and device_id=? "
-        "and status IS NOT NULL\"",
+        "and status is not null\"",
         taos_stmt_errstr(stmt));
 
     taos_stmt_close(stmt);
