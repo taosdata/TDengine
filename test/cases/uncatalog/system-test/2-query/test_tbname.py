@@ -21,6 +21,7 @@ class TestTbname:
         #tdSql.init(conn.cursor(), logSql)
 
     def td29092(self, dbname="db"):
+        tdSql.execute("alter local \'showFullCreateTableColumn\' \'1\'")
         tdSql.execute(f'use {dbname}')
         tdSql.execute('CREATE STABLE `st` (`ts` TIMESTAMP, `v1` INT) TAGS (`t1` INT);')
         tdSql.execute('CREATE STABLE `st2` (`ts` TIMESTAMP, `v1` INT) TAGS (`t1` INT);')
@@ -177,6 +178,7 @@ class TestTbname:
         tdSql.checkRows(3)
 
     def ts6532(self, dbname="db"):
+        tdSql.execute("alter local \'showFullCreateTableColumn\' \'1\'")
         tdSql.execute(f'use {dbname}')
         tdSql.execute('CREATE STABLE ```s``t``` (`ts` TIMESTAMP, ```v1``` INT) TAGS (```t``1``` INT);')
         tdSql.execute('CREATE STABLE ```s``t2``` (`ts` TIMESTAMP, ```v1``` INT) TAGS (```t``1``` INT);')
