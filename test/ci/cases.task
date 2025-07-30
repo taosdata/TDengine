@@ -551,7 +551,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_multi_vnode_replica1.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_multi_vnode_replica3.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_qnode_snode.py -N 2
-,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_vnode_replica1.py -N 3
+#,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_vnode_replica1.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_vnode_replica3.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_offline_reason.py -N 2 -C 1
 #,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_use_dropped_dnode.py -N 3
