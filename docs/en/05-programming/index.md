@@ -15,7 +15,7 @@ To develop an application to process time-series data using TDengine, we recomme
 7. In many use cases (such as fleet management), the application needs to obtain the latest status of each data collection point. It is recommended that you use the cache function of TDengine instead of deploying Redis separately.
 8. If you find that the SQL functions of TDengine cannot meet your requirements, then you can use user-defined functions to solve the problem.
 
-This section is organized in the order described above. For ease of understanding, TDengine provides sample code for each supported programming language for each function. If you want to learn more about the use of SQL, please read the [SQL manual](../tdengine-reference/sql-manual/). For a more in-depth understanding of the use of each client library, please read the [Client Library Reference Guide](./client-libraries/). For more ways to writing data into TDengine, please refer to [Data In](../data-in/), for more ways to read data out of TDengine, please refer to [Tools](../tools/).
+This section is organized in the order described above. For ease of understanding, TDengine provides sample code for each supported programming language for each function. For a more in-depth understanding of the use of each client library, please read the [Client Library Reference Guide](./client-libraries/). For more ways to writing data into TDengine, please refer to [Data In](../data-in/), for more ways to read data out of TDengine, please refer to [Tools](../tools/).
 
 If you encounter any problems during the development process, please click ["Submit an issue"](https://github.com/taosdata/TDengine/issues/new/choose) at the bottom of each page and submit it on GitHub right away.
 

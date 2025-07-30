@@ -13,7 +13,7 @@ The characteristics of time-series data from different data collection points ma
 
 ![TDengine create-database](./create-database.png)
 
-For more details please refer to [Database](../../tdengine-reference/sql-manual/manage-databases/).
+For more details please refer to [Database](/tdengine-reference/sql-manual/manage-databases/).
 
 :::note IMPORTANT
 
@@ -31,7 +31,7 @@ In a time-series application, there may be multiple kinds of data collection poi
 CREATE STable power.meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);
 ```
 
-Similar to creating a regular table, when creating a STable, the name and schema need to be provided. In the STable schema, the first column must always be a timestamp (like ts in the example), and the other columns (like current, voltage and phase in the example) are the data collected. The remaining columns can [contain data of type](../../tdengine-reference/sql-manual/data-types/) integer, float, double, string etc. In addition, the schema for tags, like location and groupId in the example, must be provided. The tag type can be integer, float, string, etc. Tags are essentially the static properties of a data collection point. For example, properties like the location, device type, device group ID, manager ID are tags. Tags in the schema can be added, removed or updated. Please refer to [STable](../../tdengine-reference/sql-manual/manage-supertables/) for more details.
+Similar to creating a regular table, when creating a STable, the name and schema need to be provided. In the STable schema, the first column must always be a timestamp (like ts in the example), and the other columns (like current, voltage and phase in the example) are the data collected. The remaining columns can [contain data of type](/tdengine-reference/sql-manual/data-types/) integer, float, double, string etc. In addition, the schema for tags, like location and groupId in the example, must be provided. The tag type can be integer, float, string, etc. Tags are essentially the static properties of a data collection point. For example, properties like the location, device type, device group ID, manager ID are tags. Tags in the schema can be added, removed or updated. Please refer to [STable](/tdengine-reference/sql-manual/manage-supertables/) for more details.
 
 For each kind of data collection point, a corresponding STable must be created. There may be many STables in an application. For electrical power system, we need to create a STable respectively for meters, transformers, busbars, switches. There may be multiple kinds of data collection points on a single device, for example there may be one data collection point for electrical data like current and voltage and another data collection point for environmental data like temperature, humidity and wind direction. Multiple STables are required for these kinds of devices.
 
@@ -45,7 +45,7 @@ A specific table needs to be created for each data collection point. Similar to 
 CREATE TABLE power.d101 USING meters TAGS ("California.SanFrancisco", 2);
 ```
 
-In the above SQL statement, "d101" is the table name, "meters" is the STable name, followed by the value of tag "Location" and the value of tag "groupId", which are "California.SanFrancisco" and "2" respectively in the example. The tag values can be updated after the table is created. Please refer to [Tables](../../tdengine-reference/sql-manual/manage-tables/) for details.
+In the above SQL statement, "d101" is the table name, "meters" is the STable name, followed by the value of tag "Location" and the value of tag "groupId", which are "California.SanFrancisco" and "2" respectively in the example. The tag values can be updated after the table is created. Please refer to [Tables](/tdengine-reference/sql-manual/manage-tables/) for details.
 
 In the TDengine system, it's recommended to create a table for a data collection point via STable. A table created via STable is called subtable in some parts of the TDengine documentation. All SQL commands applied on regular tables can be applied on subtables.
 
@@ -65,7 +65,7 @@ INSERT INTO power.d101 USING meters TAGS ("California.SanFrancisco", 2) VALUES (
 
 In the above SQL statement, a row with value `(now, 10.2, 219, 0.32)` will be inserted into table "d101". If table "d101" doesn't exist, it will be created automatically using STable "meters" as template with tag value `"California.SanFrancisco", 2`.
 
-For more details please refer to [Create Table Automatically](../../tdengine-reference/sql-manual/insert-data/#automatic-table-creation-during-record-insertion).
+For more details please refer to [Create Table Automatically](/tdengine-reference/sql-manual/insert-data/#automatic-table-creation-during-record-insertion).
 
 ## Single Column vs Multiple Column
 
