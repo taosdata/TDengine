@@ -938,7 +938,7 @@ int32_t tBlobSetCreate(int64_t cap, int8_t type, SBlobSet **ppBlobSet) {
     TAOS_CHECK_EXIT(terrno);
   }
 
-  p->data = taosMemCalloc(1024, cap * sizeof(uint8_t));
+  p->data = taosMemCalloc(1, cap * sizeof(uint8_t));
   if (p->data == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
@@ -974,6 +974,9 @@ int32_t tBlobSetPush(SBlobSet *pBlobSet, SBlobItem *pItem, uint64_t *seq, int8_t
   uint64_t tlen = pBlobSet->len + len;
   if (tlen > pBlobSet->cap) {
     int64_t cap = pBlobSet->cap;
+    if (cap == 0) {
+      cap = 1024;  // initial capacity
+    }
     // opt later
     do {
       cap = cap * 2;
