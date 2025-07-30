@@ -118,6 +118,7 @@ typedef struct SStreamRunnerTask {
   SStreamRunnerTaskNotification notification;
   const char                   *pPlan;
   int32_t                       parallelExecutionNun;
+  SMsgCb                        msgCb;
   void                         *pMsgCb;
   void                         *pWorkerCb;
   void                         *pSubTableExpr;

@@ -11,22 +11,49 @@ class TestStreamRecalcWatermark:
     def test_stream_recalc_watermark(self):
         """Stream Recalculation WATERMARK Option Test
 
-        Test WATERMARK option with out-of-order data:
-        1. Write out-of-order data within WATERMARK tolerance - should trigger recalculation
-        2. Write out-of-order data exceeding WATERMARK tolerance - should be handled by recalculation mechanism
-        3. Different trigger types behavior with WATERMARK
+        Test WATERMARK option behavior with six different window types and out-of-order data handling:
+
+        1. INTERVAL Window with WATERMARK Test
+            1.1 Create interval(2m) sliding(2m) stream with watermark(45s) (s_interval_watermark)
+            1.2 Test out-of-order data handling within watermark tolerance
+            1.3 Verify recalculation triggered by data within watermark window
+
+        2. SESSION Window with WATERMARK Test
+            2.1 Create session(ts,45s) stream with watermark(1m) (s_session_watermark)
+            2.2 Test session modification with out-of-order data within tolerance
+            2.3 Verify session window recalculation behavior
+
+        3. STATE_WINDOW with WATERMARK Test
+            3.1 Create state_window(status) stream with watermark(45s) (s_state_watermark)
+            3.2 Test state window recalculation with delayed state changes
+            3.3 Verify state transition handling within watermark tolerance
+
+        4. EVENT_WINDOW with WATERMARK Test
+            4.1 Create event_window(start with event_val >= 5 end with event_val > 10) stream with watermark(1m) (s_event_watermark)
+            4.2 Test event sequence processing with out-of-order events
+            4.3 Verify event window completion with delayed events
+
+        5. PERIOD Window with WATERMARK Test
+            5.1 Create period(30s) stream with watermark(45s) (s_period_watermark)
+            5.2 Test periodic window recalculation with out-of-order data
+            5.3 Verify period-based time window behavior
+
+        6. COUNT_WINDOW with WATERMARK Test
+            6.1 Create count_window(3) stream with watermark(1m) (s_count_watermark)
+            6.2 Test count-based window recalculation with delayed records
+            6.3 Verify count window completion with out-of-order data
 
         Catalog:
-            - Streams:Recalculation
+            - Streams:Recalculation:Watermark
 
-        Since: v3.0.0.0
+        Since: v3.3.7.0
 
         Labels: common,ci
 
         Jira: None
 
         History:
-            - 2025-12-19 Generated from recalculation mechanism design
+            - 2025-07-23 Beryl Created
 
         """
 
@@ -302,18 +329,13 @@ class TestStreamRecalcWatermark:
                 )
             )
         
-        # push water mark to a high value
-        # tdSql.execute("insert into tdb.wm1 values ('2026-01-01 02:01:02', 10, 100, 1.5, 'normal');")
-        # tdSql.execute("insert into tdb.wm1 values ('2025-01-01 02:06:02', 10, 100, 1.5, 'normal');")
-        # tdSql.checkResultsByFunc(
-        #         sql=f"select ts, cnt, avg_val from rdb.r_interval_watermark",
-        #         func=lambda: (
-        #             tdSql.getRows() == 3
-        #             and tdSql.compareData(0, 0, "2025-01-01 02:00:00")
-        #             and tdSql.compareData(0, 1, 401)
-        #             and tdSql.compareData(0, 2, 240.922693266833)
-        #         )
-        #     )
+        tdSql.execute("insert into tdb.wm1 values ('2026-01-01 02:01:02', 10, 100, 1.5, 'normal');")
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_interval_watermark",
+                func=lambda: (
+                    tdSql.getRows() > 10000
+                )
+            )
         
 
 

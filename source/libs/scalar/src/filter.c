@@ -5411,7 +5411,7 @@ static int32_t fltSclCollectOperators(SNode *pNode, SArray *sclOpList) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t fltOptimizeNodes(SFilterInfo *pInfo, SNode **pNode, SFltTreeStat *pStat) {
+int32_t fltOptimizeNodes(SFilterInfo *pInfo, SNode **pNode) {
   SArray *sclOpList = taosArrayInit(16, sizeof(SFltSclOperator));
   int32_t code = TSDB_CODE_SUCCESS;
   if (NULL == sclOpList) {
@@ -5519,23 +5519,28 @@ int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options, 
   info->options = options;
   info->pStreamRtInfo = pSclExtraParams;
 
-  SFltTreeStat stat = {0};
-  stat.precision = -1;
-  stat.info = info;
-
-  FLT_ERR_JRET(fltReviseNodes(info, &pNode, &stat));
-  if (tsFilterScalarMode) {
+  if (options & FLT_OPTION_SCALAR_MODE) {
     info->scalarMode = true;
+    fltDebug("force set scalar mode: %d", info->scalarMode);
   } else {
-    info->scalarMode = stat.scalarMode;
+    SFltTreeStat stat = {0};
+    stat.precision = -1;
+    stat.info = info;
+
+    FLT_ERR_JRET(fltReviseNodes(info, &pNode, &stat));
+    if (tsFilterScalarMode) {
+      info->scalarMode = true;
+    } else {
+      info->scalarMode = stat.scalarMode;
+    }
+    fltDebug("scalar mode: %d", info->scalarMode);
   }
-  fltDebug("scalar mode: %d", info->scalarMode);
 
   if (!info->scalarMode) {
     FLT_ERR_JRET(fltInitFromNode(pNode, info, options));
   } else {
     info->sclCtx.node = pNode;
-    FLT_ERR_JRET(fltOptimizeNodes(info, &info->sclCtx.node, &stat));
+    FLT_ERR_JRET(fltOptimizeNodes(info, &info->sclCtx.node));
   }
 
   return TSDB_CODE_SUCCESS;

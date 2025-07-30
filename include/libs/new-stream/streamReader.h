@@ -36,7 +36,6 @@ typedef struct SStreamTriggerReaderInfo {
   SSDataBlock* triggerResBlock;
   SSDataBlock* calcResBlock;
   SSDataBlock* tsBlock;
-  SSDataBlock* calcResBlockTmp;
   SExprInfo*   pExprInfo;
   int32_t      numOfExpr;
   SArray*      uidList;       // for virtual table stream, uid list
@@ -66,6 +65,7 @@ typedef struct SStreamTriggerReaderTaskInnerOptions {
   STimeWindow twindows;
   uint64_t    suid;
   uint64_t    uid;
+  int64_t     ver;
   uint64_t    gid;
   int8_t      tableType;
   bool        groupSort;
@@ -94,7 +94,7 @@ typedef struct SStreamReaderTaskInner {
 } SStreamReaderTaskInner;
 
 int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order, void* schemas, bool isSchema,
-                                      STimeWindow twindows, uint64_t suid);
+                                      STimeWindow twindows, uint64_t suid, int64_t ver);
 int32_t createDataBlockForStream(SArray* schemas, SSDataBlock** pBlockRet);
 int32_t qStreamBuildSchema(SArray* schemas, int8_t type, int32_t bytes, col_id_t colId);
 void    releaseStreamTask(void* p);

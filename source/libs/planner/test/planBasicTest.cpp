@@ -30,23 +30,23 @@ TEST_F(PlanBasicTest, selectClause) {
   run("SELECT MAX(c1) c2, c2 FROM st1");
 }
 
-// TODO(smj) : disable for stream, reopen it later
-//TEST_F(PlanBasicTest, whereClause) {
-//  useDb("root", "test");
-//
-//  run("SELECT * FROM t1 WHERE c1 > 10");
-//
-//  run("SELECT * FROM t1 WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59'");
-//
-//  run("SELECT ts, c1 FROM t1 WHERE ts > NOW AND ts IS NULL AND (c1 > 0 OR c3 < 20)");
-//}
-//
-//TEST_F(PlanBasicTest, caseWhen) {
-//  useDb("root", "test");
-//
-//  run("SELECT CASE WHEN ts > '2020-1-1 10:10:10' THEN c1 + 10 ELSE c1 - 10 END FROM t1 "
-//      "WHERE CASE c1 WHEN c2 + 20 THEN c4 - 1 WHEN c2 + 10 THEN c4 - 2 ELSE 10 END > 0");
-//}
+
+TEST_F(PlanBasicTest, whereClause) {
+  useDb("root", "test");
+
+  run("SELECT * FROM t1 WHERE c1 > 10");
+
+  run("SELECT * FROM t1 WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59'");
+
+  run("SELECT ts, c1 FROM t1 WHERE ts > NOW AND ts IS NULL AND (c1 > 0 OR c3 < 20)");
+}
+
+TEST_F(PlanBasicTest, caseWhen) {
+  useDb("root", "test");
+
+  run("SELECT CASE WHEN ts > '2020-1-1 10:10:10' THEN c1 + 10 ELSE c1 - 10 END FROM t1 "
+      "WHERE CASE c1 WHEN c2 + 20 THEN c4 - 1 WHEN c2 + 10 THEN c4 - 2 ELSE 10 END > 0");
+}
 
 TEST_F(PlanBasicTest, func) {
   useDb("root", "test");
@@ -110,24 +110,24 @@ TEST_F(PlanBasicTest, interpFunc) {
   run("SELECT TBNAME, _IROWTS, INTERP(c1) FROM t1 PARTITION BY TBNAME "
       "RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR)");
 }
-// TODO(smj) : disable for stream, reopen it later
-//TEST_F(PlanBasicTest, lastRowFuncWithoutCache) {
-//  useDb("root", "test");
-//
-//  run("SELECT LAST_ROW(c1) FROM t1");
-//
-//  run("SELECT LAST_ROW(*) FROM t1");
-//
-//  run("SELECT LAST_ROW(c1, c2) FROM t1");
-//
-//  run("SELECT LAST_ROW(c1), c2 FROM t1");
-//
-//  run("SELECT LAST_ROW(c1) FROM st1");
-//
-//  run("SELECT LAST_ROW(c1) FROM st1 PARTITION BY TBNAME");
-//
-//  run("SELECT LAST_ROW(c1), SUM(c3) FROM t1");
-//}
+
+TEST_F(PlanBasicTest, lastRowFuncWithoutCache) {
+  useDb("root", "test");
+
+  run("SELECT LAST_ROW(c1) FROM t1");
+
+  run("SELECT LAST_ROW(*) FROM t1");
+
+  run("SELECT LAST_ROW(c1, c2) FROM t1");
+
+  run("SELECT LAST_ROW(c1), c2 FROM t1");
+
+  run("SELECT LAST_ROW(c1) FROM st1");
+
+  run("SELECT LAST_ROW(c1) FROM st1 PARTITION BY TBNAME");
+
+  run("SELECT LAST_ROW(c1), SUM(c3) FROM t1");
+}
 
 TEST_F(PlanBasicTest, timeLineFunc) {
   useDb("root", "test");
@@ -172,16 +172,16 @@ TEST_F(PlanBasicTest, pseudoColumn) {
   run("SELECT _TAGS, * FROM st1s1");
 }
 
-// TODO(smj) : disable for stream, reopen it later
-//TEST_F(PlanBasicTest, indefiniteRowsFunc) {
-//  useDb("root", "test");
-//
-//  run("SELECT DIFF(c1) FROM t1");
-//
-//  run("SELECT DIFF(c1), c2 FROM t1");
-//
-//  run("SELECT DIFF(c1), DIFF(c3), ts FROM t1");
-//}
+
+TEST_F(PlanBasicTest, indefiniteRowsFunc) {
+  useDb("root", "test");
+
+  run("SELECT DIFF(c1) FROM t1");
+
+  run("SELECT DIFF(c1), c2 FROM t1");
+
+  run("SELECT DIFF(c1), DIFF(c3), ts FROM t1");
+}
 
 TEST_F(PlanBasicTest, withoutFrom) {
   useDb("root", "test");

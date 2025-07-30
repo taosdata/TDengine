@@ -1,7 +1,10 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
-
-
+from new_test_framework.utils import (
+    tdLog,
+    tdSql,
+    tdStream,
+    StreamCheckItem,
+)
 class TestStreamOldCaseFillInterval:
 
     def setup_class(cls):
@@ -10,8 +13,7 @@ class TestStreamOldCaseFillInterval:
     def test_stream_oldcase_fill_interval(self):
         """Stream fill interval
 
-        1. basic test
-        2. out of order data
+        Test the results of various numerical fillings in the interval window
 
         Catalog:
             - Streams:OldTsimCases
@@ -23,14 +25,14 @@ class TestStreamOldCaseFillInterval:
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillIntervalDelete0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillIntervalDelete1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillIntervalLinear.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillIntervalPartitionBy.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillIntervalPrevNext.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillIntervalPrevNext1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillIntervalRange.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillIntervalValue.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillIntervalDelete0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillIntervalDelete1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillIntervalLinear.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillIntervalPartitionBy.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillIntervalPrevNext.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillIntervalPrevNext1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillIntervalRange.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillIntervalValue.sim
 
         """
 

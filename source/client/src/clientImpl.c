@@ -1994,7 +1994,7 @@ void doSetOneRowPtr(SReqResultInfo* pResultInfo) {
         pResultInfo->length[i] = 0;
       }
     } else {
-      if (!colDataIsNull_f(pCol->nullbitmap, pResultInfo->current)) {
+      if (!colDataIsNull_f(pCol, pResultInfo->current)) {
         pResultInfo->row[i] = pResultInfo->pCol[i].pData + schemaBytes * pResultInfo->current;
         pResultInfo->length[i] = schemaBytes;
       } else {

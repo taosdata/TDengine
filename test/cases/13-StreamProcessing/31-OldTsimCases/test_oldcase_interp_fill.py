@@ -1,5 +1,10 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
+from new_test_framework.utils import (
+    tdLog,
+    tdSql,
+    tdStream,
+    StreamCheckItem,
+)
 
 
 class TestStreamOldCaseInterpFill:
@@ -10,8 +15,7 @@ class TestStreamOldCaseInterpFill:
     def test_stream_oldcase_interp_fill(self):
         """Stream interp fill
 
-        1. basic test
-        2. out of order data
+        Validate the calculation results of the interp function when filling data
 
         Catalog:
             - Streams:OldTsimCases
@@ -23,12 +27,12 @@ class TestStreamOldCaseInterpFill:
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpLarge.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpLinear0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpNext0.sim
-            ## - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPrev0.sim
-            ## - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPrev1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpValue0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpLarge.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpLinear0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpNext0.sim
+            ## - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpPrev0.sim
+            ## - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpPrev1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpValue0.sim
 
         """
 
@@ -52,7 +56,7 @@ class TestStreamOldCaseInterpFill:
         tdSql.execute(
             f"create stream streams1 interval(1s) sliding(1s) from t1 stream_options(max_delay(3s)) into streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(_twstart) fill(prev);"
         )
-        
+
         tdSql.pause()
 
         tdStream.checkStreamStatus()

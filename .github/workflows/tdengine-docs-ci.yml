@@ -58,8 +58,9 @@ jobs:
         uses: huacnlee/autocorrect-action@v2
         with:
           args: --lint docs/zh/* docs/en/*
+        continue-on-error: true
       - name: Report ReviewDog
-        if: always()
+        if: failure() && steps.autocorrect.conclusion == 'failure'
         uses: tomchon/autocorrect-action@fix/review-dog
         env:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}

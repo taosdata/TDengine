@@ -45,14 +45,18 @@ class TestStreamRecalc:
         self.createSnodeTest()
         self.createOneStream()
         self.checkStreamRunning()
+        tdLog.info(f"drop table test1.xxxxst1_0")
         tdSql.execute("drop table test1.xxxxst1_0")
         tdLog.info(f"recalculate stream sdny5 from 0 :")
         tdSql.execute("recalculate stream sdny5 from 0")
         tdLog.info(f"recalculate stream sdny5 from 0 success.")
         tdLog.info(f"check out child table data:")
-        tdSql.query(f"select * from test1.xxxxst1_0",queryTimes=5)
+        tdSql.query(f"select * from test1.xxxxst1_0",queryTimes=10)
         rows = tdSql.getRows()
-        tdLog.info(f"test1.xxxxst1_0 rows is :{rows}")
+        if rows ==0:
+            raise Exception("error: xxxxst1_0 table no data")
+        else:
+            tdLog.info(f"test1.xxxxst1_0 rows is :{rows}")
     
     
         #check normal user no write privilege to recalc stream 
@@ -339,7 +343,7 @@ class TestStreamRecalc:
             
     def createOneStream(self):
         sql = (
-        f"create stream test1.sdny5 state_window(cast(cint as int)) from test1.st1 partition by tbname stream_options(pre_filter(cint>3)|fill_history('1970-01-01 00:00:00')) into test1.s99out output_subtable(concat('xxxx',tbname))  tags(yyyy varchar(100) comment 'table name1' as concat(tbname,'10'))  as select last(cts),sum(cint) as cint , sum(cint+cint) as cint2 from  %%trows "
+        f"create stream test1.sdny5 state_window(cint) from test1.st1 partition by tbname stream_options(pre_filter(cint>3)|fill_history('1970-01-01 00:00:00')) into test1.s99out output_subtable(concat('xxxx',tbname))  tags(yyyy varchar(100) as concat(tbname,'10'))  as select last(cts),sum(cint) as cint , sum(cint+cint) as cint2 from  %%trows "
         )
 
         tdSql.execute(sql)

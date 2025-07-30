@@ -500,6 +500,7 @@ For the following parameters, see the description of [Subscription](../../../adv
 | 17  |  GEOMETRY          |    geometry
 | 18  |  JSON              |    json
 | 19  |  DECIMAL           |    decimal
+| 20  |  BLOB              |    blob 
 
 Note: Data types in the taosBenchmark configuration file must be in lowercase to be recognized.
 

@@ -28,28 +28,25 @@ class TestStreamMetaTrigger:
         """
 
         tdStream.createSnode()
+        tdSql.execute(f"alter all dnodes 'debugflag 131';")
+        tdSql.execute(f"alter all dnodes 'stdebugflag 131';")
 
         streams = []
-        # TD-36727 [流计算开发阶段] 创建流之后增加新的虚拟子表，没有预期触发生成结果表
-        # streams.append(self.Basic0())  # add ctb and drop ctb from stb [fail]
+        streams.append(self.Basic0())  # [ok] add ctb and drop ctb from stb
+        streams.append(self.Basic1())  # [ok] drop data source table
         
-        # TD-36358 [流计算开发阶段] 多条流同时运行时force_output下多个分组的结果有的正确有的错误
-        # # streams.append(self.Basic1())  # drop data source table [fail]
-        
-        # TD-36595 [流计算开发阶段] 虚拟表+pre_filter(tag列)创建流失败
         # streams.append(self.Basic2())  # tag过滤时，修改tag的值，从满足流条件，到不满足流条件; 从不满足流条件，到满足流条件 [fail]       
         
         # TD-36750 [流计算开发阶段] 虚拟表+删除pre_filter(cbigint >=1)中cbigint列后，应该没有符合条件的数据了，不会触发计算窗口
-        # streams.append(self.Basic3())  # [fail]
+        streams.append(self.Basic3())  # [ok]
         
         streams.append(self.Basic4())  # [ok]
         streams.append(self.Basic5())  # [ok] 
         
-        # TD-36525 [流计算开发阶段] 删除流结果表后继续触发了也没有重建，不符合预期
+        # TD-37144 [流计算开发阶段] 删除流结果表后继续触发了也没有重建，不符合预期
         # streams.append(self.Basic6())  #  [fail]
         
-        # TD-36809 [流计算开发阶段] 删除数据库用例单跑可以通过，与其他不同数据库用例同跑就报错
-        # streams.append(self.Basic7())  # [ok] 
+        streams.append(self.Basic7())  # [ok] 
         
         tdStream.checkAll(streams)
 
@@ -330,7 +327,7 @@ class TestStreamMetaTrigger:
             tdSql.execute(f"create vtable vct2 (cint from {self.db}.ct2.cint) using {self.db}.{self.vstbName} tags(2)")
             tdSql.execute(f"create vtable vct3 (cint from {self.db}.ct3.cint) using {self.db}.{self.vstbName} tags(3)")
             tdSql.execute(f"create vtable vct4 (cint from {self.db}.ct4.cint) using {self.db}.{self.vstbName} tags(3)")  
-            tdSql.execute(f"create vtable vct5 (cint from {self.db}.ct1.cint) using {self.db}.{self.vstbName} tags(3)")
+            tdSql.execute(f"create vtable vct5 (cint from {self.db}.ct5.cint) using {self.db}.{self.vstbName} tags(3)")
 
             tdSql.execute(
                 f"create stream s1_g state_window(cint) from {self.vstbName} partition by tbname, tint stream_options(force_output | pre_filter(tint=3)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (startts, firstts, lastts, cnt_v, sum_v, avg_v, rownum_s) as select _twstart, first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint), _twrownum from ct2 where _c0 >= _twstart and _c0 <= _twend;"
@@ -427,7 +424,7 @@ class TestStreamMetaTrigger:
                 and tdSql.compareData(1, 0, "2025-01-01 00:00:13")
                 and tdSql.compareData(1, 1, 'None')
                 and tdSql.compareData(1, 2, 'None')
-                and tdSql.compareData(1, 3, 'None')
+                and tdSql.compareData(1, 3, 0)
                 and tdSql.compareData(1, 4, 'None')
                 and tdSql.compareData(1, 5, 'None')
                 and tdSql.compareData(1, 6, 3)
@@ -453,7 +450,7 @@ class TestStreamMetaTrigger:
                 and tdSql.compareData(0, 0, "2025-01-01 00:00:13")
                 and tdSql.compareData(0, 1, 'None')
                 and tdSql.compareData(0, 2, 'None')
-                and tdSql.compareData(0, 3, 'None')
+                and tdSql.compareData(0, 3, 0)
                 and tdSql.compareData(0, 4, 'None')
                 and tdSql.compareData(0, 5, 'None')
                 and tdSql.compareData(0, 6, 3)
@@ -541,7 +538,7 @@ class TestStreamMetaTrigger:
                 and tdSql.compareData(1, 0, "2025-01-01 00:00:13")
                 and tdSql.compareData(1, 1, 'None')
                 and tdSql.compareData(1, 2, 'None')
-                and tdSql.compareData(1, 3, 'None')
+                and tdSql.compareData(1, 3, 0)
                 and tdSql.compareData(1, 4, 'None')
                 and tdSql.compareData(1, 5, 'None')
                 and tdSql.compareData(1, 6, 3)
@@ -556,7 +553,7 @@ class TestStreamMetaTrigger:
 
             tdSql.checkResultsByFunc(
                 sql=f"select startts, firstts, lastts, cnt_v, sum_v, avg_v, rownum_s from {self.db}.res_stb_vct5",
-                func=lambda: tdSql.getRows() == 3
+                func=lambda: tdSql.getRows() == 2
                 # and tdSql.compareData(0, 0, "2025-01-01 00:00:10")
                 # and tdSql.compareData(0, 1, "2025-01-01 00:00:10")
                 # and tdSql.compareData(0, 2, "2025-01-01 00:00:12")
@@ -567,7 +564,7 @@ class TestStreamMetaTrigger:
                 and tdSql.compareData(0, 0, "2025-01-01 00:00:13")
                 and tdSql.compareData(0, 1, 'None')
                 and tdSql.compareData(0, 2, 'None')
-                and tdSql.compareData(0, 3, 'None')
+                and tdSql.compareData(0, 3, 0)
                 and tdSql.compareData(0, 4, 'None')
                 and tdSql.compareData(0, 5, 'None')
                 and tdSql.compareData(0, 6, 3)
@@ -602,7 +599,7 @@ class TestStreamMetaTrigger:
             tdSql.execute(f"create vtable vct2 (cint from {self.db}.ct2.cint) using {self.db}.{self.vstbName} tags(2,2)")
             tdSql.execute(f"create vtable vct3 (cint from {self.db}.ct3.cint) using {self.db}.{self.vstbName} tags(3,3)")
             tdSql.execute(f"create vtable vct4 (cint from {self.db}.ct4.cint) using {self.db}.{self.vstbName} tags(4,4)")  
-            tdSql.execute(f"create vtable vct5 (cint from {self.db}.ct1.cint) using {self.db}.{self.vstbName} tags(5,5)")
+            tdSql.execute(f"create vtable vct5 (cint from {self.db}.ct5.cint) using {self.db}.{self.vstbName} tags(5,5)")
             
             tdSql.execute(
                 f"create stream s2_g state_window(cint) from {self.vstbName} partition by tbname, tint stream_options(pre_filter(tbigint == 1 or tbigint == 100)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
@@ -770,6 +767,7 @@ class TestStreamMetaTrigger:
             tdSql.execute(f"alter vtable {self.db}.vct3 set tag tbigint = 100")
             tdSql.execute(f"alter vtable {self.db}.vct4 set tag tbigint = 200")            
             tdSql.execute(f"alter vtable {self.db}.vct5 set tag tbigint = 9999")
+            time.sleep(10) # stream get schema change by 10s timer
             
             sqls = [  
                 # "insert into ct1 values ('2025-01-01 00:01:00', 3);", 
@@ -1047,6 +1045,7 @@ class TestStreamMetaTrigger:
             tdSql.execute(f"alter vtable {self.db}.{self.vntbName} add column cdouble double")
             tdSql.execute(f"alter vtable {self.db}.{self.vntbName} drop column cbigint")
             tdSql.execute(f"alter vtable {self.db}.{self.vntbName} drop column cfloat")
+            time.sleep(10) # stream get schema change by 10s timer
             
             sqls = [
                 "insert into ct1 (cts, cint, cbigint, cfloat) values ('2025-01-01 00:01:05', 3,3,3);", 
@@ -1077,7 +1076,6 @@ class TestStreamMetaTrigger:
                 # f"insert into {self.ntbName} (cts, cint, cdouble) values ('2025-01-01 00:01:20', 3,4);", 
             ]
             tdSql.executes(sqls)
-            time.sleep(3)
 
         def check2(self):
 
@@ -2219,13 +2217,13 @@ class TestStreamMetaTrigger:
             tdSql.error(f"drop database {self.db3}") # 规则1
             tdSql.error(f"drop database {self.db4}") # 规则1
             tdSql.execute(f"drop database {self.db5} force") 
-            tdSql.execute(f"drop database {self.db2}")
-            tdSql.execute(f"drop database {self.db3}")
-            tdSql.execute(f"drop database {self.db4}")         
+            tdSql.error(f"drop database {self.db2}") # 当其他库存在虚拟表流时不能删除任何库
+            tdSql.error(f"drop database {self.db3}") # 当其他库存在虚拟表流时不能删除任何库
+            tdSql.error(f"drop database {self.db4}") # 当其他库存在虚拟表流时不能删除任何库
             
         def check2(self):
             tdSql.query(f'select * from information_schema.ins_databases where name like "sdb7_%"')
-            tdSql.checkRows(0)
+            tdSql.checkRows(3)
             # tdSql.checkResultsByFunc(
             #     sql=f'select * from information_schema.ins_databases where name like "sdb7_%"',
             #     func=lambda: tdSql.getRows() == 0

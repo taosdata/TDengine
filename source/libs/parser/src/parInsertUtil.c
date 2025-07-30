@@ -1053,6 +1053,10 @@ static void destroyVgDataBlocks(void* p) {
 
 int32_t insResetBlob(SSubmitReq2* p) {
   int32_t code = 0;
+  if (p->raw) {
+    return TSDB_CODE_SUCCESS;  // no blob data in raw mode
+  }
+
   if (p->aSubmitBlobData != NULL) {
     for (int32_t i = 0; i < taosArrayGetSize(p->aSubmitTbData); i++) {
       SSubmitTbData* pSubmitTbData = taosArrayGet(p->aSubmitTbData, i);

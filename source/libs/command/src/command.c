@@ -613,7 +613,7 @@ static void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
       typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, "(%d,%d)", precision, scale);
     }
 
-    if (withExtSchema(pCfg->tableType) && pCfg->pSchemaExt) {
+    if (withExtSchema(pCfg->tableType) && pCfg->pSchemaExt && tsShowFullCreateTableColumn) {
       typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, " ENCODE \'%s\'",
                            columnEncodeStr(COMPRESS_L1_TYPE_U32(pCfg->pSchemaExt[i].compress)));
       typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, " COMPRESS \'%s\'",

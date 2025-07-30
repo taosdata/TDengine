@@ -376,17 +376,6 @@ _exit:
   return code;
 }
 
-static int32_t vnodeBseCommit(void *arg) {
-  int32_t      code = 0;
-  SCommitInfo *pInfo = (SCommitInfo *)arg;
-  SVnode      *pVnode = pInfo->pVnode;
-
-  code = bseCommit(pVnode->pBse);
-_exit:
-  taosMemoryFree(arg);
-  return code;
-}
-
 static void vnodeCommitCancel(void *arg) { taosMemoryFree(arg); }
 
 int vnodeAsyncCommit(SVnode *pVnode) {
@@ -397,13 +386,6 @@ int vnodeAsyncCommit(SVnode *pVnode) {
   if (NULL == pInfo) {
     TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
-  // SCommitInfo *pBseCommitInfo = (SCommitInfo *)taosMemoryCalloc(1, sizeof(*pInfo));
-  // if (NULL == pInfo) {
-  //   TSDB_CHECK_CODE(code = terrno, lino, _exit);
-  // }
-  // pBseCommitInfo->pVnode = pVnode;
-
-  // prepare to commit
   code = vnodePrepareCommit(pVnode, pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -414,7 +396,6 @@ int vnodeAsyncCommit(SVnode *pVnode) {
 _exit:
   if (code) {
     taosMemoryFree(pInfo);
-    // taosMemoryFree(pBseCommitInfo);
     vError("vgId:%d %s failed at line %d since %s" PRId64, TD_VID(pVnode), __func__, lino, tstrerror(code));
   } else {
     vInfo("vgId:%d, vnode async commit done, commitId:%" PRId64 " term:%" PRId64 " applied:%" PRId64, TD_VID(pVnode),

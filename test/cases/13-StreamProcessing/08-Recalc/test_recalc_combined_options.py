@@ -11,23 +11,79 @@ class TestStreamRecalcCombinedOptions:
     def test_stream_recalc_combined_options(self):
         """Stream Recalculation Combined Options Test
 
-        Test combination of multiple stream options:
-        1. EXPIRED_TIME + WATERMARK - test interaction between expired data and watermark
-        2. IGNORE_DISORDER + WATERMARK - test conflict resolution
-        3. DELETE_RECALC + EXPIRED_TIME - test delete recalculation with expired data
-        4. WATERMARK + DELETE_RECALC + EXPIRED_TIME - test comprehensive option combination
+        Test complex interactions between multiple stream recalculation options:
+
+        1. Test [EXPIRED_TIME + WATERMARK] Combination
+            1.1 Test option compatibility verification
+                1.1.1 Both options specified - verify legal combination
+                1.1.2 Option value conflict checking - verify error handling
+            1.2 Test data processing behavior
+                1.2.1 Data within watermark tolerance - should process normally
+                1.2.2 Data beyond watermark but within expired_time - should trigger recalculation
+                1.2.3 Data beyond both watermark and expired_time - should be ignored
+            1.3 Test boundary conditions
+                1.3.1 Data exactly at watermark boundary
+                1.3.2 Data exactly at expired_time boundary
+                1.3.3 Watermark value equals expired_time value
+
+        2. Test [IGNORE_DISORDER + WATERMARK] Combination
+            2.1 Test option conflict resolution
+                2.1.1 IGNORE_DISORDER true with WATERMARK - verify conflict handling
+                2.1.2 IGNORE_DISORDER false with WATERMARK - verify normal operation
+            2.2 Test out-of-order data handling
+                2.2.1 Disorder within watermark tolerance - test processing priority
+                2.2.2 Disorder beyond watermark tolerance - test ignore behavior
+            2.3 Test window trigger behavior
+                2.3.1 INTERVAL windows with conflicting options
+                2.3.2 SESSION windows with conflicting options
+                2.3.3 STATE_WINDOW with conflicting options
+
+        3. Test [DELETE_RECALC + EXPIRED_TIME] Combination
+            3.1 Test delete operation with expired data
+                3.1.1 Delete recent data - should trigger recalculation
+                3.1.2 Delete expired data - should not trigger recalculation
+                3.1.3 Delete data at expired_time boundary
+            3.2 Test different deletion scenarios
+                3.2.1 Delete from trigger table
+                3.2.2 Delete entire child table
+                3.2.3 Batch delete operations
+
+        4. Test [WATERMARK + DELETE_RECALC + EXPIRED_TIME] Comprehensive Combination
+            4.1 Test three-option interaction
+                4.1.1 All options compatible - verify normal operation
+                4.1.2 Option precedence verification
+                4.1.3 Performance impact assessment
+            4.2 Test complex data scenarios
+                4.2.1 Mixed operations (insert, update, delete) with all options
+                4.2.2 Out-of-order data with deletion and expiration
+                4.2.3 Boundary data across all option thresholds
+            4.3 Test error handling and recovery
+                4.3.1 Invalid option combinations
+                4.3.2 Resource constraints with multiple options
+                4.3.3 Stream recovery after option conflicts
+
+        5. Test Window Type Compatibility
+            5.1 Test INTERVAL windows with combined options
+                5.1.1 Different sliding window configurations
+                5.1.2 Option behavior with overlapping windows
+            5.2 Test SESSION windows with combined options
+                5.2.1 Session timeout interaction with options
+                5.2.2 Session boundary handling
+            5.3 Test STATE_WINDOW with combined options
+                5.3.1 State change detection with multiple options
+                5.3.2 State persistence across option boundaries
 
         Catalog:
-            - Streams:Recalculation
+            - Streams:Recalculation:CombinedOptions
 
-        Since: v3.0.0.0
+        Since: v3.3.7.0
 
         Labels: common,ci
 
         Jira: None
 
         History:
-            - 2025-12-19 Generated from recalculation mechanism design
+            - 2025-07-23 Beryl Created
 
         """
 

@@ -40,7 +40,9 @@ typedef struct SBlockOrderInfo {
 #define BitPos(_n)               ((_n) & ((1 << NBIT) - 1))
 #define CharPos(r_)              ((r_) >> NBIT)
 #define BMCharPos(bm_, r_)       ((bm_)[(r_) >> NBIT])
-#define colDataIsNull_f(bm_, r_) ((BMCharPos(bm_, r_) & (1u << (7u - BitPos(r_)))) == (1u << (7u - BitPos(r_))))
+#define colDataIsNull_f(c_, r_) (((c_)->nullbitmap && (BMIsNull((c_)->nullbitmap, r_))) || (c_)->pData == NULL)
+#define BMIsNull(bm_, r_) ((BMCharPos(bm_, r_) & (1u << (7u - BitPos(r_)))) == (1u << (7u - BitPos(r_))))
+
 
 #define QRY_PARAM_CHECK(_o)          \
   do {                               \
@@ -67,7 +69,7 @@ typedef struct SBlockOrderInfo {
     BMCharPos(bm_, r_) &= ((char)(~(1u << (7u - BitPos(r_))))); \
   } while (0)
 
-#define colDataIsNull_var(pColumnInfoData, row)  (pColumnInfoData->varmeta.offset[row] == -1)
+#define colDataIsNull_var(pColumnInfoData, row)  (pColumnInfoData->varmeta.offset[row] == -1 || pColumnInfoData->pData == NULL)
 #define colDataSetNull_var(pColumnInfoData, row) (pColumnInfoData->varmeta.offset[row] = -1)
 
 #define BitmapLen(_n) (((_n) + ((1 << NBIT) - 1)) >> NBIT)
@@ -96,7 +98,7 @@ static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData,
       return false;
     }
 
-    return colDataIsNull_f(pColumnInfoData->nullbitmap, row);
+    return colDataIsNull_f(pColumnInfoData, row);
   }
 }
 
@@ -105,7 +107,7 @@ static FORCE_INLINE bool colDataIsNull_t(const SColumnInfoData* pColumnInfoData,
   if (isVarType) {
     return colDataIsNull_var(pColumnInfoData, row);
   } else {
-    return pColumnInfoData->nullbitmap ? colDataIsNull_f(pColumnInfoData->nullbitmap, row) : false;
+    return pColumnInfoData->nullbitmap ? colDataIsNull_f(pColumnInfoData, row) : false;
   }
 }
 
@@ -130,7 +132,7 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
       return false;
     }
 
-    return colDataIsNull_f(pColumnInfoData->nullbitmap, row);
+    return colDataIsNull_f(pColumnInfoData, row);
   }
 }
 

@@ -28,15 +28,12 @@ extern "C" {
 typedef struct SSubTableMgt SSubTableMgt;
 
 typedef struct {
-  STableBuilder *p[2];
-  int8_t         inUse;
+  STableBuilder *p;
 
-  int8_t inited;
-
-  TdThreadMutex mutex;
-  int64_t       retenTs;
+  TdThreadRwlock mutex;
   SSubTableMgt *pMgt;
 
+  int64_t timestamp;
   SBse *pBse;
 } STableBuilderMgt;
 
@@ -47,7 +44,7 @@ typedef struct {
   SBse          *pBse;
 
   SSubTableMgt *pMgt;
-  int64_t       retenTs;
+  int64_t       timestamp;
 } STableReaderMgt;
 
 typedef struct {
@@ -55,7 +52,7 @@ typedef struct {
   SBse     *pBse;
 
   SBTableMeta *pTableMeta;
-  int64_t      retenTs;
+  int64_t      timestamp;
 
   SSubTableMgt *pMgt;
 } STableMetaMgt;
@@ -78,19 +75,19 @@ typedef struct {
 struct STableMgt {
   void         *pBse;
   SSubTableMgt *pCurrTableMgt;
-  int64_t       retionTs;
+  int64_t       timestamp;
   SHashObj     *pHashObj;
   SCacheMgt    *pCacheMgt;
 };
 
 int32_t bseTableMgtCreate(SBse *pBse, void **pMgt);
-int32_t bseTableMgtSetLastRetentionTs(STableMgt *pMgt, int64_t retention);
+int32_t bseTableMgtSetLastTableId(STableMgt *pMgt, int64_t retention);
 
 int32_t bseTableMgtCreateCache(STableMgt *pMgt);
 
 int32_t bseTableMgtGet(STableMgt *p, int64_t seq, uint8_t **pValue, int32_t *len);
 
-int32_t bseTableMgtCleanup(void *p);
+void bseTableMgtCleanup(void *p);
 
 int32_t bseTableMgtCommit(STableMgt *pMgt, SBseLiveFileInfo *pInfo);
 
@@ -108,13 +105,13 @@ int32_t bseTableMgtSetTableCacheSize(STableMgt *pMgt, int32_t cap);
 
 int32_t blockWithMetaInit(SBlock *pBlock, SBlockWithMeta **pMeta);
 
-int32_t blockWithMetaCleanup(SBlockWithMeta *p);
+void blockWithMetaCleanup(SBlockWithMeta *p);
 
 int32_t blockWithMetaSeek(SBlockWithMeta *p, int64_t seq, uint8_t **pValue, int32_t *len);
 
 int32_t bseTableMgtRecoverTable(STableMgt *pMgt, SBseLiveFileInfo *pInfo);
 
-int32_t createSubTableMgt(int64_t retenTs, int32_t readOnly, STableMgt *pMgt, SSubTableMgt **pSubMgt);
+int32_t createSubTableMgt(int64_t timestamp, int32_t readOnly, STableMgt *pMgt, SSubTableMgt **pSubMgt);
 void    destroySubTableMgt(SSubTableMgt *p);
 #ifdef __cplusplus
 }

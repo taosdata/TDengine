@@ -523,7 +523,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   int32_t         code = makeScanLogicNode(pCxt, pRealTable, pSelect->hasRepeatScanFuncs, (SLogicNode**)&pScan);
 
   pScan->placeholderType = pRealTable->placeholderType;
-  pCxt->pPlanCxt->phTbnameQuery =( pRealTable->pMeta->tableType == TSDB_SUPER_TABLE && pRealTable->placeholderType == SP_PARTITION_TBNAME);
+  pScan->phTbnameScan = (pRealTable->pMeta->tableType == TSDB_SUPER_TABLE && pRealTable->placeholderType == SP_PARTITION_TBNAME);
   pScan->node.groupAction = GROUP_ACTION_NONE;
   pScan->node.resultDataOrder = (pRealTable->pMeta->tableType == TSDB_SUPER_TABLE) ? DATA_ORDER_LEVEL_IN_BLOCK : DATA_ORDER_LEVEL_GLOBAL;
 
@@ -1095,6 +1095,7 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   ((SScanLogicNode *)pRealTableScan)->virtualStableScan = true;
   if (pTagScan) {
     ((SScanLogicNode*)pTagScan)->node.dynamicOp = true;
+    ((SScanLogicNode*)pTagScan)->virtualStableScan = true;
     ((SLogicNode *)pTagScan)->pParent = (SLogicNode *)pVtableScan;
     PLAN_ERR_JRET(nodesListStrictAppend(pVtableScan->node.pChildren, pTagScan));
   }
@@ -1110,14 +1111,16 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   nodesDestroyList(((SScanLogicNode*)pInsColumnsScan)->node.pTargets);
   PLAN_ERR_JRET(addInsColumnScanCol((SRealTableNode*)nodesListGetNode(pVirtualTable->refTables, 1), &((SScanLogicNode*)pInsColumnsScan)->pScanCols));
   PLAN_ERR_JRET(createColumnByRewriteExprs(((SScanLogicNode*)pInsColumnsScan)->pScanCols, &((SScanLogicNode*)pInsColumnsScan)->node.pTargets));
+  ((SScanLogicNode *)pInsColumnsScan)->virtualStableScan = true;
 
   // Dynamic query control node -> Virtual table scan node -> Real table scan node
   PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL, (SNode**)&pDynCtrl));
   pDynCtrl->qType = DYN_QTYPE_VTB_SCAN;
   pDynCtrl->vtbScan.scanAllCols = pVtableScan->scanAllCols;
   pDynCtrl->vtbScan.suid = pVtableScan->stableId;
-  pDynCtrl->dynTbname = pCxt->pPlanCxt->phTbnameQuery;
-  pCxt->pPlanCxt->phTbnameQuery = false;  // reset phTbnameQuery, it is only used for vtable scan
+  pDynCtrl->dynTbname = ((SScanLogicNode*)pRealTableScan)->phTbnameScan;
+  ((SScanLogicNode*)pRealTableScan)->phTbnameScan = false;  // reset phTbnameQuery, it is only used for vtable scan
+
   tstrncpy(pDynCtrl->vtbScan.dbName, pVtableScan->tableName.dbname, TSDB_DB_NAME_LEN);
   tstrncpy(pDynCtrl->vtbScan.stbName, pVtableScan->tableName.tname, TSDB_TABLE_NAME_LEN);
   PLAN_ERR_JRET(nodesListMakeStrictAppend(&pDynCtrl->node.pChildren, (SNode*)pVtableScan));
@@ -1128,8 +1131,6 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   ((SScanLogicNode*)pInsColumnsScan)->node.pParent = (SLogicNode*)pDynCtrl;
   pVtableScan->node.dynamicOp = true;
   *pLogicNode = (SLogicNode*)pDynCtrl;
-
-  pCxt->pPlanCxt->virtualStableQuery = true;
 
   return code;
 _return:

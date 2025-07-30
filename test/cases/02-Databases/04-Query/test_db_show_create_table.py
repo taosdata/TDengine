@@ -71,4 +71,24 @@ class TestDatabaseShowCreateTable:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "meters")
 
+        tdSql.execute('alter local \'showFullCreateTableColumn\' \'1\'')
+
+        tdSql.query(f"show create table db.meters")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "meters")
+        tdSql.checkData(0, 1, "CREATE STABLE `meters` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `f` VARCHAR(8) ENCODE 'disabled' COMPRESS 'zstd' LEVEL 'medium') TAGS (`loc` INT, `zone` VARCHAR(8))")
+
+        tdSql.query(f"show create table db.normalTbl")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "CREATE TABLE `normaltbl` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `zone` VARCHAR(8) ENCODE 'disabled' COMPRESS 'zstd' LEVEL 'medium')")
+
+
+        tdSql.execute('alter local \'showFullCreateTableColumn\' \'0\'')
+        tdSql.query(f"show create table db.meters")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "CREATE STABLE `meters` (`ts` TIMESTAMP, `f` VARCHAR(8)) TAGS (`loc` INT, `zone` VARCHAR(8))")
+
+        tdSql.query(f"show create table db.normalTbl")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "CREATE TABLE `normaltbl` (`ts` TIMESTAMP, `zone` VARCHAR(8))")
         tdSql.execute(f"drop database db")

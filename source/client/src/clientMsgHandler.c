@@ -98,9 +98,9 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
     goto End;
   }
 
-  int updateEpSet = 1;
+  int    updateEpSet = 1;
+  SEpSet srcEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
   if (connectRsp.dnodeNum == 1) {
-    SEpSet srcEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
     SEpSet dstEpSet = connectRsp.epSet;
     if (srcEpSet.numOfEps == 1) {
       if (rpcSetDefaultAddr(pTscObj->pAppInfo->pTransporter, srcEpSet.eps[srcEpSet.inUse].fqdn,
@@ -110,7 +110,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
       updateEpSet = 0;
     }
   }
-  if (updateEpSet == 1 && !isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &connectRsp.epSet)) {
+  if (updateEpSet == 1 && !isEpsetEqual(&srcEpSet, &connectRsp.epSet)) {
     SEpSet corEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
 
     SEpSet* pOrig = &corEpSet;

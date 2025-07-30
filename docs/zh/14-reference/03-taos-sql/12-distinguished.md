@@ -49,7 +49,7 @@ window_clause: {
   | STATE_WINDOW(col) [TRUE_FOR(true_for_duration)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_duration)]
-  | COUNT_WINDOW(count_val[, sliding_val])
+  | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
 }
 ```
 
@@ -210,7 +210,7 @@ select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c
 
 ### 计数窗口
 
-计数窗口按固定的数据行数来划分窗口。默认将数据按时间戳排序，再按照 count_val 的值，将数据划分为多个窗口，然后做聚合计算。count_val 表示每个 count window 包含的最大数据行数，总数据行数不能整除 count_val 时，最后一个窗口的行数会小于 count_val。sliding_val 是常量，表示窗口滑动的数量，类似于 interval 的 SLIDING。
+计数窗口按固定的数据行数来划分窗口。默认将数据按时间戳排序，再按照 count_val 的值，将数据划分为多个窗口，然后做聚合计算。count_val 表示每个 count window 包含的最大数据行数，总数据行数不能整除 count_val 时，最后一个窗口的行数会小于 count_val。sliding_val 是常量，表示窗口滑动的数量，类似于 interval 的 SLIDING。col_name 参数，在 v3.3.7.0 之后开始支持，col_name, 指定一列或者多列，在 count_window 窗口计数时，窗口中的每行数据，指定列中至少有一列非空，否则该行数据不包含在计数窗口内。如果没有指定 col_name，表示没有非空限制。
 
 以下面的 SQL 语句为例，计数窗口切分如图所示：
 ```sql

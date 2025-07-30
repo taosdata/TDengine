@@ -76,11 +76,11 @@ typedef struct SDataSinkMgtCfg {
 int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg, SStorageAPI* pAPI, void** ppSinkManager);
 
 typedef struct SStreamDataInserterInfo {
-  bool        isAutoCreateTable;
-  int64_t     streamId;
-  int64_t     groupId;
-  const char* tbName;
-  SArray*     pTagVals;  // SArray<SStreamTagInfo>
+  bool    isAutoCreateTable;
+  int64_t streamId;
+  int64_t groupId;
+  char*   tbName;
+  SArray* pTagVals;  // SArray<SStreamTagInfo>
 } SStreamDataInserterInfo;
 
 typedef struct SInputData {

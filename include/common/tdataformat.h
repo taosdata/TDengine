@@ -174,7 +174,7 @@ int32_t tBlobSetCreate(int64_t cap, int8_t type, SBlobSet **ppBlobSet);
 int32_t tBlobSetPush(SBlobSet *pBlobSet, SBlobItem *pBlobItem, uint64_t *seq, int8_t nextRow);
 int32_t tBlobSetUpdate(SBlobSet *pBlobSet, uint64_t seq, SBlobItem *pBlobItem);
 int32_t tBlobSetGet(SBlobSet *pBlobSet, uint64_t seq, SBlobItem *pItem);
-int32_t tBlobSetDestroy(SBlobSet *pBlowRow);
+void    tBlobSetDestroy(SBlobSet *pBlowRow);
 int32_t tBlobSetSize(SBlobSet *pBlobSet);
 void    tBlobSetSwap(SBlobSet *p1, SBlobSet *p2);
 // int32_t tBlobRowEnd(SBlobSet *pBlobSet);
@@ -300,11 +300,11 @@ struct SBlobSet {
   int8_t    type;
   int8_t    rowType;
   SHashObj *pSeqToffset;
-  int64_t  seq;
-  int64_t  len;
-  int32_t  cap;
-  uint8_t  compress;
-  SArray  *pSeqTable;
+  int64_t   seq;
+  int64_t   len;
+  int32_t   cap;
+  uint8_t   compress;
+  SArray   *pSeqTable;
 
   SArray  *pSet;
   uint8_t *data;

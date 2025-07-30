@@ -4627,7 +4627,7 @@ _err:
 }
 
 static bool validateNotifyUrl(const char* url) {
-  const char* prefix[] = {"http://", "https://", "ws://", "wss://"};
+  const char* prefix[] = {"ws://", "wss://"};
   const char* host = NULL;
 
   if (!url || *url == '\0') return false;

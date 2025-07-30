@@ -247,7 +247,11 @@ int32_t taosWriteQitem(STaosQueue *queue, void *pItem) {
   if (queue->qset) {
     if (tsem_post(&queue->qset->sem) != 0) {
       uError("failed to post semaphore for queue set:%p", queue->qset);
+    } else {
+      uDebug("sem_post Qset %p, sem:%p", queue->qset, &queue->qset->sem);
     }
+  } else {
+    uDebug("empty qset");
   }
   return code;
 }
@@ -462,9 +466,11 @@ int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, SQueueInfo *qinfo)
   STaosQnode *pNode = NULL;
   int32_t     code = 0;
 
+  uDebug("start to waitfromQset %p, sem:%p, idx:%d", qset, &qset->sem, qinfo->workerId);
   if (tsem_wait(&qset->sem) != 0) {
     uError("failed to wait semaphore for qset:%p", qset);
   }
+  uDebug("end waitfromQset %p, sem:%p, idx:%d", qset, &qset->sem, qinfo->workerId);
 
   (void)taosThreadMutexLock(&qset->mutex);
 

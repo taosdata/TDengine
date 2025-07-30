@@ -1,7 +1,7 @@
 import time
 import math
 import random
-from new_test_framework.utils import tdLog, tdSql, tdStream, streamUtil,StreamTableType, StreamTable, cluster
+from new_test_framework.utils import tdLog, tdSql, tdStream, streamUtil,StreamTableType, StreamTable, cluster,tdCom
 from random import randint
 import os
 import subprocess
@@ -19,6 +19,10 @@ class Test_ThreeGorges:
     subTblNum = 3
     tblRowNum = 10
     tableList = []
+    outTbname = "str_cjdl_point_data_szls_jk_test"
+    streamName = "str_cjdl_point_data_szls_jk_test"
+    tableList = []
+    resultIdx = "1"
     
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -51,9 +55,11 @@ class Test_ThreeGorges:
         self.createSnodeTest()
         self.createStream()
         self.checkStreamRunning()
-        tdSql.query(f"select * from {self.dbname}.str_cjdl_point_data_szls_jk_test")
-        if tdSql.getRows() == 0:
-            raise Exception("ERROR:no result!")
+        # tdSql.query(f"select * from {self.dbname}.str_cjdl_point_data_szls_jk_test")
+        # if tdSql.getRows() == 0:
+        #     raise Exception("ERROR:no result!")
+        tdSql.checkRowsLoop(5,f"select val,senid,senid_name from {self.dbname}.{self.outTbname} order by _c0;",100,1)
+        self.checkResultWithResultFile()
 
     def createStream(self):
         tdLog.info(f"create stream :")
@@ -109,7 +115,13 @@ class Test_ThreeGorges:
                 tdSql.execute(sql)
 
                 
-      
+    def checkResultWithResultFile(self):
+        chkSql = f"select val,senid,senid_name from {self.dbname}.{self.outTbname} order by _c0;"
+        tdLog.info(f"check result with sql: {chkSql}")
+        if tdSql.getRows() >0:
+            tdCom.generate_query_result_file(self.caseName, self.resultIdx, chkSql)
+            tdCom.compare_query_with_result_file(self.resultIdx, chkSql, f"{self.currentDir}/ans/{self.caseName}.{self.resultIdx}.csv", self.caseName)
+            tdLog.info("check result with result file succeed")  
         
     def dataIn(self):
         tdLog.info(f"insert more data:")

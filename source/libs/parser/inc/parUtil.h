@@ -26,12 +26,12 @@ extern "C" {
 #include "parToken.h"
 #include "query.h"
 
-#define parserFatal(param, ...) qFatal("parser " param, ##__VA_ARGS__)
-#define parserError(param, ...) qError("parser " param, ##__VA_ARGS__)
-#define parserWarn(param, ...)  qWarn ("parser " param, ##__VA_ARGS__)
-#define parserInfo(param, ...)  qInfo ("parser " param, ##__VA_ARGS__)
-#define parserDebug(param, ...) qDebug("parser " param, ##__VA_ARGS__)
-#define parserTrace(param, ...) qTrace("parser " param, ##__VA_ARGS__)
+#define parserFatal(...) qFatal("parser " __VA_ARGS__)
+#define parserError(...) qError("parser " __VA_ARGS__)
+#define parserWarn(...)  qWarn ("parser " __VA_ARGS__)
+#define parserInfo(...)  qInfo ("parser " __VA_ARGS__)
+#define parserDebug(...) qDebug("parser " __VA_ARGS__)
+#define parserTrace(...) qTrace("parser " __VA_ARGS__)
 
 #define ROWTS_PSEUDO_COLUMN_NAME "_rowts"
 #define C0_PSEUDO_COLUMN_NAME    "_c0"

@@ -1,5 +1,10 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
+from new_test_framework.utils import (
+    tdLog,
+    tdSql,
+    tdStream,
+    StreamCheckItem,
+)
 
 
 class TestStreamOldCaseOptions:
@@ -10,8 +15,7 @@ class TestStreamOldCaseOptions:
     def test_stream_oldcase_options(self):
         """Stream stream_options
 
-        1. basic test
-        2. out of order data
+        Validate the calculation results when ignore update and ignore delete are applied
 
         Catalog:
             - Streams:OldTsimCases
@@ -23,8 +27,8 @@ class TestStreamOldCaseOptions:
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/ignoreCheckUpdate.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/ignoreExpiredData.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/ignoreCheckUpdate.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/ignoreExpiredData.sim
 
         """
 
@@ -218,11 +222,17 @@ class TestStreamOldCaseOptions:
         tdSql.execute(f"insert into t1 values(1648791243003, 2, 2, 3, 3.1);")
         tdSql.execute(f"insert into t1 values(1648791200000, 4, 2, 3, 4.1);")
 
-        tdSql.checkResultsByFunc(f"select * from streamt1;", lambda: tdSql.getRows() == 4)
+        tdSql.checkResultsByFunc(
+            f"select * from streamt1;", lambda: tdSql.getRows() == 4
+        )
 
-        tdSql.checkResultsByFunc(f"select * from streamt2;", lambda: tdSql.getRows() == 4)
+        tdSql.checkResultsByFunc(
+            f"select * from streamt2;", lambda: tdSql.getRows() == 4
+        )
 
-        tdSql.checkResultsByFunc(f"select * from streamt3;", lambda: tdSql.getRows() == 2)
+        tdSql.checkResultsByFunc(
+            f"select * from streamt3;", lambda: tdSql.getRows() == 2
+        )
 
         tdLog.info(f"=============== create database")
         tdStream.dropAllStreamsAndDbs()

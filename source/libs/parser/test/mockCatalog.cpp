@@ -115,17 +115,18 @@ void generateInformationSchema(MockCatalogService* mcs) {
       .addColumn("view_name", TSDB_DATA_TYPE_BINARY, TSDB_VIEW_NAME_LEN)
       .addColumn("create_time", TSDB_DATA_TYPE_TIMESTAMP)
       .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_STREAMS, TSDB_SYSTEM_TABLE, 5)
+    .addColumn("stream_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
+    .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
+    .addColumn("status", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
+    .addColumn("message", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
+    .addColumn("create_time", TSDB_DATA_TYPE_TIMESTAMP)
+    .done();
 }
 
 void generatePerformanceSchema(MockCatalogService* mcs) {
   mcs->createTableBuilder(TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_TRANS, TSDB_SYSTEM_TABLE, 2)
       .addColumn("id", TSDB_DATA_TYPE_INT)
-      .addColumn("create_time", TSDB_DATA_TYPE_TIMESTAMP)
-      .done();
-  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_STREAMS, TSDB_SYSTEM_TABLE, 4)
-      .addColumn("stream_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
-      .addColumn("status", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
-      .addColumn("message", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
       .addColumn("create_time", TSDB_DATA_TYPE_TIMESTAMP)
       .done();
   mcs->createTableBuilder(TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_CONSUMERS, TSDB_SYSTEM_TABLE, 2)
@@ -225,7 +226,7 @@ void generateTestStables(MockCatalogService* mcs, const std::string& db) {
     mcs->createSubTable(db, "st2", "st2s2", 3);
   }
   {
-    ITableBuilder& builder = mcs->createTableBuilder(db, "t1", TSDB_NORMAL_TABLE, 3, 0)
+    ITableBuilder& builder = mcs->createTableBuilder(db, "stream_t1", TSDB_NORMAL_TABLE, 3, 0)
                                  .setPrecision(TSDB_TIME_PRECISION_MILLI)
                                  .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
                                  .addColumn("c1", TSDB_DATA_TYPE_INT)
@@ -233,7 +234,7 @@ void generateTestStables(MockCatalogService* mcs, const std::string& db) {
     builder.done();
   }
   {
-    ITableBuilder& builder = mcs->createTableBuilder(db, "t2", TSDB_NORMAL_TABLE, 4, 0)
+    ITableBuilder& builder = mcs->createTableBuilder(db, "stream_t2", TSDB_NORMAL_TABLE, 4, 0)
                                  .setPrecision(TSDB_TIME_PRECISION_MILLI)
                                  .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
                                  .addColumn("c1", TSDB_DATA_TYPE_INT)
@@ -360,6 +361,8 @@ int32_t __catalogRefreshGetTableMeta(SCatalog* pCatalog, SRequestConnInfo* pConn
 
 int32_t __catalogRemoveTableMeta(SCatalog* pCtg, SName* pTableName) { return 0; }
 
+int32_t __catalogRemoveTableRelatedMeta(SCatalog* pCtg, SName* pTableName) { return 0; }
+
 int32_t __catalogRemoveViewMeta(SCatalog* pCtg, SName* pTableName) { return 0; }
 
 int32_t __catalogGetTableIndex(SCatalog* pCtg, void* pTrans, const SEpSet* pMgmtEps, const SName* pName,
@@ -398,6 +401,7 @@ void initMetaDataEnv() {
   stub.set(catalogGetUdfInfo, __catalogGetUdfInfo);
   stub.set(catalogRefreshGetTableMeta, __catalogRefreshGetTableMeta);
   stub.set(catalogRemoveTableMeta, __catalogRemoveTableMeta);
+  stub.set(catalogRemoveTableRelatedMeta, __catalogRemoveTableRelatedMeta);
   stub.set(catalogRemoveViewMeta, __catalogRemoveViewMeta);
   stub.set(catalogGetTableIndex, __catalogGetTableIndex);
   stub.set(catalogGetDnodeList, __catalogGetDnodeList);

@@ -33,17 +33,18 @@ enum {
 };
 
 typedef struct {
-  int32_t vgId;
-  int32_t encryptAlgorithm;
-  char    encryptKey[ENCRYPT_KEY_LEN + 1];
-  int8_t  compressType;
-  int32_t blockSize;
-  int8_t  clearUncommittedFile;
-  int64_t keepDays;
-  int64_t retention;
-
-  int32_t tableCacheSize;
-  int32_t blockCacheSize;
+  int32_t    vgId;
+  int32_t    encryptAlgorithm;
+  char       encryptKey[ENCRYPT_KEY_LEN + 1];
+  int8_t     compressType;
+  int32_t    blockSize;
+  int8_t     clearUncommittedFile;
+  int64_t    keepDays;
+  int32_t    keeps;
+  SRetention retention;  // retention in seconds, 0 means no retention
+  int8_t     precision;  // precision in seconds, 0 means no precision
+  int32_t    tableCacheSize;
+  int32_t    blockCacheSize;
 } SBseCfg;
 
 typedef struct SBse              SBse;
@@ -59,7 +60,8 @@ typedef struct SBlockItemInfo    SBlockItemInfo;
 int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKey);
 int32_t bseBatchPut(SBseBatch *pBatch, int64_t *seq, uint8_t *value, int32_t len);
 int32_t bseBatchGetSize(SBseBatch *pBatch, int32_t *size);
-int32_t bseBatchDestroy(SBseBatch *pBatch);
+int32_t bseBatchExccedLimit(SBseBatch *pBatch);
+void    bseBatchDestroy(SBseBatch *pBatch);
 int32_t bseCommitBatch(SBse *pBse, SBseBatch *pBatch);
 
 int32_t bseUpdateCfg(SBse *pBse, SBseCfg *pCfg);
@@ -70,21 +72,14 @@ int32_t bseSetBlockCacheSize(SBse *pBse, int32_t blockCacheSize);
 int32_t bseSetTableCacheSize(SBse *pBse, int32_t blockCacheSize);
 int32_t bseSetKeepDays(SBse *pBse, int32_t keepDays);
 
-#define BSE_GET_BLOCK_SIZE(p)       ((p)->cfg.blockSize)
-#define BSE_GET_COMPRESS_TYPE(p)    ((p)->cfg.compressType)
-#define BSE_GET_KEEPS_DAYS(p)       ((p)->cfg.keepDays)
-#define BSE_GET_TABLE_CACHE_SIZE(p) ((p)->cfg.tableCacheSize)
-#define BSE_GET_BLOCK_CACHE_SIZE(p) ((p)->cfg.blockCacheSize)
-#define BSE_GET_VGID(p)             ((p)->cfg.vgId)
-
 int32_t bseSnapWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapWriter **writer);
 int32_t bseSnapWriterWrite(SBseSnapWriter *writer, uint8_t *data, int32_t len);
-int32_t bseSnapWriterClose(SBseSnapWriter **writer, int8_t rollback);
+void    bseSnapWriterClose(SBseSnapWriter **writer, int8_t rollback);
 
 int32_t bseSnapReaderOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapReader **reader);
 int32_t bseSnapReaderRead(SBseSnapReader *reader, uint8_t **data);
 int32_t bseSnapReaderRead2(SBseSnapReader *reader, uint8_t **data, int32_t *len);
-int32_t bseSnapReaderClose(SBseSnapReader **reader);
+void    bseSnapReaderClose(SBseSnapReader **reader);
 
 int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse);
 void    bseClose(SBse *pBse);

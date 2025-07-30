@@ -3,6 +3,8 @@
 """configuration model definition"""
 import configparser
 import logging
+import os.path
+from pathlib import Path
 
 _ANODE_SECTION_NAME = "taosanode"
 
@@ -82,6 +84,11 @@ class AppLogger():
 
     def set_handler(self, file_path: str):
         """ set the log_inst handler """
+        path = Path(file_path)
+
+        # create directory if not exists
+        if not os.path.exists(path.parent):
+            os.mkdir(path.parent)
 
         handler = logging.FileHandler(file_path)
         handler.setFormatter(logging.Formatter(self.LOG_STR_FORMAT))

@@ -71,7 +71,8 @@ int32_t streamWriteCheckPoint(int64_t streamId, void* data, int64_t dataLen) {
       goto end;
     }
   } else {
-    stDebug("[checkpoint] write checkpoint file for streamId:%" PRIx64 ", file:%s, len:%"PRId64, streamId, filepath, dataLen);
+    stDebug("[checkpoint] write checkpoint file for streamId:%" PRIx64 ", file:%s, content(%d, %"PRIx64") len:%"PRId64, 
+      streamId, filepath, *(int32_t*)(POINTER_SHIFT(data, INT_BYTES)), *(int64_t*)POINTER_SHIFT(data, 2 * INT_BYTES), dataLen);
     STREAM_CHECK_RET_GOTO(writeFile(filepath, data, dataLen));
   }
 
@@ -98,7 +99,8 @@ int32_t streamReadCheckPoint(int64_t streamId, void** data, int64_t* dataLen) {
   STREAM_CHECK_NULL_GOTO(*data, terrno);
 
   STREAM_CHECK_CONDITION_GOTO(taosReadFile(pFile, *data, *dataLen) != *dataLen, terrno);
-  stDebug("[checkpoint] read checkpoint file for streamId:%" PRIx64 ", file:%s, len:%"PRId64, streamId, filepath, *dataLen);
+  stDebug("[checkpoint] read checkpoint file for streamId:%" PRIx64 ", file:%s, content:(%d %" PRIx64") len:%"PRId64, 
+    streamId, filepath, *(int32_t*)(POINTER_SHIFT(*data, INT_BYTES)), *(int64_t*)POINTER_SHIFT(*data, 2 * INT_BYTES), *dataLen);
 
 end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -177,12 +179,12 @@ int32_t streamSyncWriteCheckpoint(int64_t streamId, SEpSet* epSet, void* data, i
   if (data == NULL) {
     int32_t ret = streamReadCheckPoint(streamId, &data, &dataLen);
     if (ret != TSDB_CODE_SUCCESS || terrno == TAOS_SYSTEM_ERROR(ENOENT)) {
-      dataLen = INT_BYTES + LONG_BYTES;
+      dataLen = 2 * INT_BYTES + LONG_BYTES;
       taosMemoryFreeClear(data);
-      data = taosMemoryCalloc(1, INT_BYTES + LONG_BYTES);
+      data = taosMemoryCalloc(1, 2 * INT_BYTES + LONG_BYTES);
       STREAM_CHECK_NULL_GOTO(data, terrno);
-      *(int32_t*)data = -1;
-      *(int64_t*)(POINTER_SHIFT(data, INT_BYTES)) = streamId;
+      *(int32_t*)(POINTER_SHIFT(data, INT_BYTES)) = -1;
+      *(int64_t*)(POINTER_SHIFT(data, 2 * INT_BYTES)) = streamId;
     }
   }
   STREAM_CHECK_RET_GOTO(sendSyncMsg(data, dataLen, epSet));

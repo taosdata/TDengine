@@ -3215,6 +3215,9 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
     } else {
       pTableListInfo->numOfOuputGroups = 1;
     }
+    if (groupSort || pScanNode->groupOrderScan) {
+      code = sortTableGroup(pTableListInfo);
+    }
   } else {
     bool initRemainGroups = false;
     if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pScanNode)) {
@@ -3290,8 +3293,7 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
     return TSDB_CODE_SUCCESS;
   }
 
-  code = buildGroupIdMapForAllTables(pTableListInfo, pHandle, pScanNode, pGroupTags, groupSort, digest,
-                                     &pTaskInfo->storageAPI, groupIdMap);
+  code = buildGroupIdMapForAllTables(pTableListInfo, pHandle, pScanNode, pGroupTags, groupSort, digest, &pTaskInfo->storageAPI, groupIdMap);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -3322,7 +3324,7 @@ void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr
     qDebug("%s===stream===%s: Block is Empty. block type %d", taskIdStr, flag, pBlock->info.type);
     return;
   }
-  if (qDebugFlag & DEBUG_DEBUG) {
+  if (qDebugFlag & DEBUG_TRACE) {
     char*   pBuf = NULL;
     int32_t code = dumpBlockData(pBlock, flag, &pBuf, taskIdStr);
     if (code == 0) {

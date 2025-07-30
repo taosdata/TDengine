@@ -3,14 +3,13 @@ import time
 from new_test_framework.utils import tdLog, tdSql, tdCom, tdStream
 
 
-class TestPeriodInterval:
+class TestIntervalCases:
     updatecfgDict = {"debugFlag": 135, "asynclog": 0}
 
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
         cls.tdCom = tdCom
-        # self.tdCom = tdCom
-    
+
     def get_source_firt_ts(self, table_name1):
         tdSql.query(
             f'select  cast(first(ts) as bigint) from  {table_name1} order by 1'
@@ -130,20 +129,15 @@ class TestPeriodInterval:
                 col_value_type=col_value_type,
         )
 
-    def do_exec(
-        self,
-        interval,
-        partition="tbname",
-        delete=False,
-        fill_value=None,
-        filter=None
-    ):
+    def do_exec(self, interval, partition="tbname", delete=False, fill_value=None, filter=None):
         # partition must be tbname, and not NONE.
         tdLog.info(
             f"*** testing stream do_exec + interval + fill. partition: {partition}, interval: {interval}, fill: {fill_value}, delete: {delete} ***"
         )
+
         fwc_downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "twa(c7)", "count(c8)", "elapsed(ts)", "timediff(1, 0, 1h)", "timezone()","min(t1)", "max(t2)", "sum(t3)",
             "twa(t7)", "count(t8)"]
+
         fwc_stb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', fwc_downsampling_function_list)))
         fwc_tb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', fwc_downsampling_function_list[0:7])))
         fwc_stb_source_select_str = ','.join(fwc_downsampling_function_list)
@@ -155,6 +149,7 @@ class TestPeriodInterval:
         self.tdCom.custom_col_val = 0
         self.delete = delete
         self.tdCom.case_name = sys._getframe().f_code.co_name
+
         self.tdCom.prepare_data(
             interval=interval,
             custom_col_index=custom_col_index,

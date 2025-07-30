@@ -193,8 +193,11 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       break;
     }
     case QUERY_NODE_COUNT_WINDOW: {
-      SCountWindowNode* pEvent = (SCountWindowNode*)pNode;
-      res = walkExpr(pEvent->pCol, order, walker, pContext);
+      SCountWindowNode* pCount = (SCountWindowNode*)pNode;
+      res = walkExpr(pCount->pCol, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExprs(pCount->pColList, order, walker, pContext);
+      }
       break;
     }
     case QUERY_NODE_ANOMALY_WINDOW: {
@@ -425,8 +428,11 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       break;
     }
     case QUERY_NODE_COUNT_WINDOW: {
-      SCountWindowNode* pEvent = (SCountWindowNode*)pNode;
-      res = rewriteExpr(&pEvent->pCol, order, rewriter, pContext);
+      SCountWindowNode* pCount = (SCountWindowNode*)pNode;
+      res = rewriteExpr(&pCount->pCol, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExprs(pCount->pColList, order, rewriter, pContext);
+      }
       break;
     }
     case QUERY_NODE_ANOMALY_WINDOW: {

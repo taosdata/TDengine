@@ -1708,8 +1708,7 @@ int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t ui
   SReadHandle    pHandle = {.vnode = pVnode};
   SExecTaskInfo  pTaskInfo = {.id.str = "", .storageAPI = *storageAPI};
 
-  int32_t code = createScanTableListInfo(&pScanNode, pGroupTags, groupSort, &pHandle, pList, pTagCond, pTagIndexCond,
-                                         &pTaskInfo, groupIdMap);
+  int32_t code = createScanTableListInfo(&pScanNode, pGroupTags, groupSort, &pHandle, pList, pTagCond, pTagIndexCond, &pTaskInfo, groupIdMap);
   if (code != 0) {
     tableListDestroy(pList);
     qError("failed to createScanTableListInfo, code:%s", tstrerror(code));
@@ -1722,6 +1721,11 @@ int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t ui
 int32_t qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STableKeyInfo** pKeyInfo, int32_t* size) {
   if (pTableListInfo == NULL || pKeyInfo == NULL || size == NULL) {
     return TSDB_CODE_INVALID_PARA;
+  }
+  if (taosArrayGetSize(((STableListInfo*)pTableListInfo)->pTableList) == 0) {
+    *size = 0;
+    *pKeyInfo = NULL;
+    return 0;
   }
   if (currentGroupId == -1) {
     *size = taosArrayGetSize(((STableListInfo*)pTableListInfo)->pTableList);
@@ -1742,6 +1746,9 @@ int32_t  qStreamSetTableList(void** pTableListInfo, STableKeyInfo* data){
 }
 
 int32_t qStreamGetGroupIndex(void* pTableListInfo, int64_t gid) {
+  if (((STableListInfo*)pTableListInfo)->groupOffset == NULL){
+    return 0;
+  }
   for (int32_t i = 0; i < ((STableListInfo*)pTableListInfo)->numOfOuputGroups; ++i) {
     int32_t offset = ((STableListInfo*)pTableListInfo)->groupOffset[i];
 

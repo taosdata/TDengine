@@ -16,6 +16,7 @@ import sys
 import os
 import time
 import platform
+import subprocess
 
 from pathlib import Path
 from .log import *
@@ -84,11 +85,20 @@ class CompatibilityBase:
         if not my_file.exists():
             print(f"{packageName} is not exists")
             tdLog.info(f"cd {packagePath} && wget {download_url}")
-            os.system(f"cd {packagePath} && wget {download_url}")
+            ret_code = os.system(f"cd {packagePath} && wget {download_url}")
+            if ret_code != 0:
+                return False
+            
+            # Check if file was actually downloaded
+            my_file = Path(f"{packagePath}/{packageName}")
+            if not my_file.exists():
+                return False
         else: 
             print(f"{packageName} has been exists")
             
-        os.system(f" cd {packagePath} && tar xvf {packageName} && cd {packageTPath} && ./install.sh -e no")
+        install_ret = os.system(f" cd {packagePath} && tar xvf {packageName} && cd {packageTPath} && ./install.sh -e no")
+        if install_ret != 0:
+            return False
         
         for dnodePath in dnodePaths:
             tdLog.info(f"start taosd: rm -rf {dnodePath}data/* && nohup /usr/bin/taosd -c {dnodePath}cfg/ &")
@@ -105,6 +115,8 @@ class CompatibilityBase:
             print(f"LD_LIBRARY_PATH=/usr/lib -c {taosadapter_cfg} 2>&1 &")
             os.system(f"LD_LIBRARY_PATH=/usr/lib /usr/bin/taosadapter -c {taosadapter_cfg} 2>&1 &")
             time.sleep(5)
+        
+        return True
 
     # Modified installTaosd to accept version parameter
     def installTaosd(self, bPath, cPath, base_version):

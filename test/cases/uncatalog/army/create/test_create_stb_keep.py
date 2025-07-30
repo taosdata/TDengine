@@ -91,6 +91,7 @@ class TestCreateStbKeep:
         tdSql.error("ALTER TABLE ntb keep 1d",expectErrInfo="only super table can alter keep duration", fullMatched=False)
 
     def chceck_stb_keep_show_create(self):
+        tdSql.execute('alter local \'showFullCreateTableColumn\' \'1\'')
         tdLog.info(f"check stb keep show create")
         tdSql.execute("USE test")
         tdSql.execute("CREATE STABLE stb (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP 10d")

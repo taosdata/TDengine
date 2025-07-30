@@ -1,5 +1,10 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
+from new_test_framework.utils import (
+    tdLog,
+    tdSql,
+    tdStream,
+    StreamCheckItem,
+)
 
 
 class TestStreamOldCaseSnode:
@@ -10,8 +15,7 @@ class TestStreamOldCaseSnode:
     def test_stream_oldcase_snode(self):
         """Stream snode
 
-        1. basic test
-        2. out of order data
+        Test basic operations of snode
 
         Catalog:
             - Streams:OldTsimCases
@@ -23,8 +27,8 @@ class TestStreamOldCaseSnode:
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/schedSnode.sim
-            ## - 2025-5-15 Simon Guan Migrated from tsim/stream/snodeCheck.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/schedSnode.sim
+            ## - 2025-7-25 Simon Guan Migrated from tsim/stream/snodeCheck.sim
 
         """
 

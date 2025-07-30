@@ -845,6 +845,11 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
     QW_ERR_JRET(code);
   }
 
+  if (NULL == plan) {
+    QW_TASK_ELOG("empty task physical plan to subplan, msg:%p, len:%d", qwMsg->msg, qwMsg->msgLen);
+    QW_ERR_JRET(TSDB_CODE_QRY_INVALID_MSG);
+  }
+
   taosEnableMemPoolUsage(ctx->memPoolSession);
   code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, qwMsg->msgInfo.compressMsg, sql,
                          OPTR_EXEC_MODEL_BATCH);

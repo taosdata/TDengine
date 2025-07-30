@@ -13,7 +13,7 @@ from taosanalytics.conf import conf
 from taosanalytics.model import get_avail_model
 from taosanalytics.servicemgmt import loader
 from taosanalytics.util import app_logger, validate_pay_load, get_data_index, get_ts_index, is_white_noise, \
-    parse_options, convert_results_to_windows, get_past_dynamic_data, get_dynamic_data
+    parse_options, get_past_dynamic_data, get_dynamic_data
 
 app = Flask(__name__)
 

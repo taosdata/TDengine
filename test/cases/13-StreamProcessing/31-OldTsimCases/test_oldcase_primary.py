@@ -1,5 +1,10 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
+from new_test_framework.utils import (
+    tdLog,
+    tdSql,
+    tdStream,
+    StreamCheckItem,
+)
 
 
 class TestStreamOldCaseInterpPrimary:
@@ -10,8 +15,7 @@ class TestStreamOldCaseInterpPrimary:
     def test_stream_oldcase_interp_primary(self):
         """Stream interp primary
 
-        1. basic test
-        2. out of order data
+        Validate the calculation results with composite keys
 
         Catalog:
             - Streams:OldTsimCases
@@ -23,10 +27,10 @@ class TestStreamOldCaseInterpPrimary:
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamPrimaryKey0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamPrimaryKey1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamPrimaryKey2.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamPrimaryKey3.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamPrimaryKey0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamPrimaryKey1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamPrimaryKey2.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamPrimaryKey3.sim
         """
 
         tdStream.createSnode()
@@ -182,10 +186,14 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"insert into t1 values(1648791220001, 4, 2, 3, 3.1);")
 
         tdLog.info(f"1 select * from streamt3_1;")
-        tdSql.checkResultsByFunc(f"select * from streamt3_1;", lambda: tdSql.getRows() == 4)
+        tdSql.checkResultsByFunc(
+            f"select * from streamt3_1;", lambda: tdSql.getRows() == 4
+        )
 
         tdLog.info(f"1 select * from streamt3_2;")
-        tdSql.checkResultsByFunc(f"select * from streamt3_2;", lambda: tdSql.getRows() == 4)
+        tdSql.checkResultsByFunc(
+            f"select * from streamt3_2;", lambda: tdSql.getRows() == 4
+        )
 
     def streamPrimaryKey1(self):
         tdLog.info(f"streamPrimaryKey1")

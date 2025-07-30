@@ -310,7 +310,7 @@ class Test_checkpoint_info_Case:
         tdLog.info(f"checkpointfile list:{files}")
         tdLog.info(f"checkpoint file is  {len(files)} ")
         tdSql.query(f"show {self.dbname}.streams")
-        if len(files) < tdSql.getRows() * 2 :
+        if len(files) < tdSql.getRows() * 2 or len(files) == tdSql.getRows() * 2 -1:
             tdLog.info(f"ERROR: checkpoint file number is not right")
         else:
             tdLog.info(f"checkpoint files is ok")

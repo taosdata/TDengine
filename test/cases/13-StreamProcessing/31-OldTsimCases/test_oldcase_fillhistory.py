@@ -1,5 +1,10 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
+from new_test_framework.utils import (
+    tdLog,
+    tdSql,
+    tdStream,
+    StreamCheckItem,
+)
 
 
 class TestStreamOldCaseFillHistory:
@@ -10,8 +15,7 @@ class TestStreamOldCaseFillHistory:
     def test_stream_oldcase_fillhistory(self):
         """Stream fill history
 
-        1. basic test
-        2. out of order data
+        Verify the correctness of historical data calculation results, as well as the calculation results at the boundary between historical and real-time computation.
 
         Catalog:
             - Streams:OldTsimCases
@@ -23,11 +27,11 @@ class TestStreamOldCaseFillHistory:
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillHistoryBasic1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillHistoryBasic2.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillHistoryBasic3.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillHistoryBasic4.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillHistoryTransform.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillHistoryBasic1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillHistoryBasic2.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillHistoryBasic3.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillHistoryBasic4.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillHistoryTransform.sim
 
         """
 

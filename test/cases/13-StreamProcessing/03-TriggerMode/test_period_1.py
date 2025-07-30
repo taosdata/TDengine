@@ -195,12 +195,12 @@ class TestStreamCheckpoint:
         self.create_env()
         info = WriteDataInfo(1000, 10)
 
-        # self.prepare_source_table(1000, 1, info)
-        # try:
-        #     self.create_and_check_stream_basic_1("sm1", "tb1", info)
-        # except Exception as e:
-        #     tdLog.error(f"case 1 error: {e}")
-        #
+        self.prepare_source_table(1000, 1, info)
+        try:
+            self.create_and_check_stream_basic_1("sm1", "tb1", info)
+        except Exception as e:
+            tdLog.error(f"case 1 error: {e}")
+
         # clear_output("sm1", "tb1")
         # self.prepare_source_table(1000, 1, info)
         # try:
@@ -272,12 +272,19 @@ class TestStreamCheckpoint:
         # except Exception as e:
         #     tdLog.error(f"case 11 error: {e}")
 
-        clear_output("sm11", "tb11")
+        # clear_output("sm11", "tb11")
+        # self.prepare_source_table(1000, 10, info)
+        # try:
+        #     self.create_and_check_stream_basic_12("sm12", "tb12", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 12 error: {e}")
+
+        clear_output("sm12", "tb12")
         self.prepare_source_table(1000, 10, info)
         try:
-            self.create_and_check_stream_basic_12("sm12", "tb12", info)
+            self.create_and_check_stream_basic_13("sm13", "tb13", info)
         except Exception as e:
-            tdLog.error(f"case 12 error: {e}")
+            tdLog.error(f"case 13 error: {e}")
 
 
     def create_env(self):
@@ -502,9 +509,6 @@ class TestStreamCheckpoint:
         tdLog.info(f"start exec stream {stream_name}")
         tdSql.execute("use db")
 
-        # tdSql.execute("create vtable vtb_1 (ts timestamp, col_1 int from c0.k, col_2 varchar(12) from c1.c1, "
-        #               "col_3 double from c2.c2)")
-
         tdSql.execute(
             f"create table if not exists stb (cts timestamp, cint int, cfloat float, cdouble double, cdecimal decimal(11,3), "
             f"cvar varchar(12)) tags (tint int)")
@@ -620,3 +624,84 @@ class TestStreamCheckpoint:
 
         # do_write_data(stream_name, info)
         # wait_for_stream_done(dst_table, f"select max(avg_col_3) from {dst_table}", 499.5)
+
+    def create_and_check_stream_basic_13(self, stream_name, dst_table, info: WriteDataInfo) -> None:
+        """simple 13: """
+        tdLog.info(f"start exec stream {stream_name}")
+        time.sleep(10)
+
+        tdSql.execute("use db")
+        tdSql.error(
+            f"create stream {stream_name} PERIOD(9a) from source_table partition by tbname into {dst_table} as "
+            f"select cast(_tlocaltime/1000000 as timestamp) local_ts, count(*)  "
+            f"from source_table partition by tbname "
+        )
+
+        tdSql.error(
+            f"create stream {stream_name} PERIOD(3651d) from source_table partition by tbname into {dst_table} as "
+            f"select cast(_tlocaltime/1000000 as timestamp) local_ts, count(*)  "
+            f"from source_table partition by tbname "
+        )
+
+        tdSql.error(
+            f"create stream {stream_name} PERIOD(10s, -10s) from source_table partition by tbname into {dst_table} as "
+            f"select cast(_tlocaltime/1000000 as timestamp) local_ts, count(*)  "
+            f"from source_table partition by tbname "
+        )
+
+        tdSql.error(
+            f"create stream {stream_name} PERIOD(10s, 100h) from source_table partition by tbname into {dst_table} as "
+            f"select cast(_tlocaltime/1000000 as timestamp) local_ts, count(*)  "
+            f"from source_table partition by tbname "
+        )
+
+        tdSql.error(
+            f"create stream {stream_name} PERIOD(10s, 1h-20m) from source_table partition by tbname into {dst_table} as "
+            f"select cast(_tlocaltime/1000000 as timestamp) local_ts, count(*)  "
+            f"from source_table partition by tbname "
+        )
+
+        tdSql.error(
+            f"create stream {stream_name} PERIOD(10s, 0.5d) from source_table partition by tbname into {dst_table} as "
+            f"select cast(_tlocaltime/1000000 as timestamp) local_ts, count(*)  "
+            f"from source_table partition by tbname "
+        )
+
+        tdSql.error(
+            f"create stream {stream_name} from source_table partition by tbname into {dst_table} as "
+            f"select cast(_tlocaltime/1000000 as timestamp) local_ts, count(*)  "
+            f"from source_table partition by tbname "
+        )
+
+        tdSql.error(
+            f"create stream {stream_name} period(10s) from information_schema.ins_tables into {dst_table} as "
+            f"select cast(_tlocaltime/1000000 as timestamp) local_ts, count(*)  "
+            f"from source_table partition by tbname "
+        )
+
+        tdSql.error(
+            f"create stream {stream_name} period(10s) into information_schema.abc as "
+            f"select cast(_tlocaltime/1000000 as timestamp) local_ts, count(*)  "
+            f"from source_table partition by tbname "
+        )
+
+        tdSql.error(
+            f"create stream {stream_name} period(10s) from db.abc into {dst_table} as "
+            f"select cast(_tlocaltime/1000000 as timestamp) local_ts, count(*)  "
+            f"from source_table partition by tbname "
+        )
+
+        tdSql.error(
+            f"create stream {stream_name} period(10s) from db.ct20 into {dst_table} as "
+            f"select cast(_tlocaltime/1000000 as timestamp) local_ts, count(*)  "
+            f"from source_table partition by tbname "
+        )
+
+        for i in range(40):
+            tdSql.execute(
+                f"create stream {stream_name} period(10s) from db.c1 partition by a into {dst_table} as "
+                f"select cast(_tlocaltime/1000000 as timestamp) local_ts, count(*)  "
+                f"from source_table partition by tbname "
+            )
+
+            tdSql.execute(f"drop stream {stream_name}")

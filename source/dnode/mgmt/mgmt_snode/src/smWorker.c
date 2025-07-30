@@ -56,7 +56,7 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 
   SSnodeMgmt *pMgmt = pInfo->ahandle;
   STraceId   *trace = &pMsg->info.traceId;
-  dGDebug("msg:%p, get from snode-stream-trigger queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+  dGDebug("msg:%p, get from snode-stream-trigger queue, type:%s %" PRIx64 ":%" PRIx64, pMsg, TMSG_INFO(pMsg->msgType), TRACE_GET_ROOTID(trace), TRACE_GET_MSGID(trace));
 
   if (pMsg->msgType == TDMT_SND_BATCH_META) {
     code = tDeserializeSBatchReq(pMsg->pCont, pMsg->contLen, &batchReq);
