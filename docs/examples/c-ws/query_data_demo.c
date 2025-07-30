@@ -14,7 +14,7 @@
  */
 
 // TAOS standard API example. The same syntax as MySQL, but only a subset
-// to compile: gcc -o query_data_demo query_data_demo.c -ltaos
+// to compile: gcc -o query_data_demo query_data_demo.c -ltaosws
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -41,7 +41,10 @@ static int DemoQueryData() {
   if (code != 0) {
     fprintf(stderr, "Failed to query data from power.meters, sql: %s, ErrCode: 0x%x, ErrMessage: %s\n.", sql, code,
             ws_errstr(result));
-    ws_close(taos);
+    code = ws_close(taos);
+    if (code != 0) {
+      fprintf(stderr, "Failed to close connection, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    }
     return -1;
   }
 
@@ -55,14 +58,27 @@ static int DemoQueryData() {
   // fetch the records row by row
   while ((row = ws_fetch_row(result))) {
     // Add your data processing logic here
-
     rows++;
   }
   fprintf(stdout, "total rows: %d\n", rows);
-  ws_free_result(result);
+
+  code = ws_free_result(result);
+  if (code != 0) {
+    fprintf(stderr, "Failed to free result, ErrCode: 0x%x, ErrMessage: %s\n.", code, ws_errstr(result));
+    code = ws_close(taos);
+    if (code != 0) {
+      fprintf(stderr, "Failed to close connection, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    }
+    return -1;
+  }
 
   // close & clean
-  ws_close(taos);
+  code = ws_close(taos);
+  if (code != 0) {
+    fprintf(stderr, "Failed to close connection, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    return -1;
+  }
+
   return 0;
   // ANCHOR_END: query_data
 }
