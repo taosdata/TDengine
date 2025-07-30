@@ -103,6 +103,7 @@ typedef struct SStreamRunnerTaskExecMgr {
   SList*        pFreeExecs;
   SList*        pRunningExecs;
   TdThreadMutex lock;
+  bool          lockInited;
 } SStreamRunnerTaskExecMgr;
 
 typedef struct SStreamTagInfo {
@@ -117,6 +118,7 @@ typedef struct SStreamRunnerTask {
   SStreamRunnerTaskNotification notification;
   const char                   *pPlan;
   int32_t                       parallelExecutionNun;
+  SMsgCb                        msgCb;
   void                         *pMsgCb;
   void                         *pWorkerCb;
   void                         *pSubTableExpr;

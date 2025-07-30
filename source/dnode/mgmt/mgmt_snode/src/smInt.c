@@ -45,8 +45,8 @@ static void smInitOption(SSnodeMgmt *pMgmt, SSnodeOpt *pOption) { pOption->msgCb
 
 static void smClose(SSnodeMgmt *pMgmt) {
   if (pMgmt->pSnode != NULL) {
-    smStopWorker(pMgmt);
     sndClose(pMgmt->pSnode);
+    smStopWorker(pMgmt);
     pMgmt->pSnode = NULL;
   }
 

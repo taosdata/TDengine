@@ -31,10 +31,6 @@ typedef struct SVnodeMgmt {
   const char           *path;
   const char           *name;
   SQueryAutoQWorkerPool queryPool;
-  SAutoQWorkerPool      streamPool;
-  SAutoQWorkerPool      streamLongExecPool;
-  SWWorkerPool          streamCtrlPool;
-  SWWorkerPool          streamChkPool;
   SWWorkerPool          fetchPool;
   SSingleWorker         mgmtWorker;
   SSingleWorker         mgmtMultiWorker;

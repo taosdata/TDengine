@@ -15,9 +15,11 @@
 
 #include "cJSON.h"
 #include "dataSink.h"
+#include "osMemPool.h"
 #include "streamInt.h"
 #include "tdatablock.h"
 #include "tstrbuild.h"
+#include "decimal.h"
 
 #ifndef WINDOWS
 #include "curl/curl.h"
@@ -306,7 +308,8 @@ void stmDestroySStreamMgmtReq(SStreamMgmtReq* pReq) {
 #define JSON_CHECK_ADD_ITEM(obj, str, item) \
   QUERY_CHECK_CONDITION(cJSON_AddItemToObjectCS(obj, str, item), code, lino, _end, TSDB_CODE_OUT_OF_MEMORY)
 
-static int32_t jsonAddColumnField(const char* colName, int16_t type, bool isNull, const char* pData, cJSON* obj) {
+static int32_t jsonAddColumnField(const char* colName, const SColumnInfo* colInfo, bool isNull, const char* pData, cJSON* obj) {
+  int8_t  type = colInfo->type;
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   char*   temp = NULL;
@@ -408,6 +411,27 @@ static int32_t jsonAddColumnField(const char* colName, int16_t type, bool isNull
       break;
     }
 
+    case TSDB_DATA_TYPE_DECIMAL64:
+    case TSDB_DATA_TYPE_DECIMAL: {
+      Decimal128* pIn = (Decimal128*)pData;
+      uint8_t     inputPrec = colInfo->precision;
+      uint8_t     inputScale = colInfo->scale;
+
+      const int32_t len = 64;
+      temp = cJSON_malloc(len + 1);
+      QUERY_CHECK_NULL(temp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_CODE(decimalToStr(pData, colInfo->type, inputPrec, inputScale, temp, len), lino, _end);
+      temp[len] = '\0';
+
+      cJSON* item = cJSON_CreateStringReference(temp);
+      JSON_CHECK_ADD_ITEM(obj, colName, item);
+
+      // let the cjson object to free memory later
+      item->type &= ~cJSON_IsReference;
+      temp = NULL;
+      break;
+    }
+
     default: {
       JSON_CHECK_ADD_ITEM(obj, colName, cJSON_CreateStringReference("<Unable to display this data type>"));
       break;
@@ -424,7 +448,7 @@ _end:
   return code;
 }
 
-int32_t streamBuildStateNotifyContent(ESTriggerEventType eventType, int16_t dataType, const char* pFromState,
+int32_t streamBuildStateNotifyContent(ESTriggerEventType eventType, SColumnInfo* colInfo, const char* pFromState,
                                       const char* pToState, char** ppContent) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -435,14 +459,14 @@ int32_t streamBuildStateNotifyContent(ESTriggerEventType eventType, int16_t data
   obj = cJSON_CreateObject();
   QUERY_CHECK_NULL(obj, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
   if (eventType == STRIGGER_EVENT_WINDOW_OPEN) {
-    code = jsonAddColumnField("prevState", dataType, pFromState == NULL, pFromState, obj);
+    code = jsonAddColumnField("prevState", colInfo, pFromState == NULL, pFromState, obj);
     QUERY_CHECK_CODE(code, lino, _end);
-    code = jsonAddColumnField("curState", dataType, false, pToState, obj);
+    code = jsonAddColumnField("curState", colInfo, false, pToState, obj);
     QUERY_CHECK_CODE(code, lino, _end);
   } else if (eventType == STRIGGER_EVENT_WINDOW_CLOSE) {
-    code = jsonAddColumnField("curState", dataType, false, pFromState, obj);
+    code = jsonAddColumnField("curState", colInfo, false, pFromState, obj);
     QUERY_CHECK_CODE(code, lino, _end);
-    code = jsonAddColumnField("nextState", dataType, false, pToState, obj);
+    code = jsonAddColumnField("nextState", colInfo, false, pToState, obj);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -475,7 +499,7 @@ int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNod
   FOREACH(pNode, pCondCols) {
     const SColumnNode*     pColDef = (const SColumnNode*)pNode;
     const SColumnInfoData* pColData = taosArrayGet(pInputBlock->pDataBlock, pColDef->slotId);
-    code = jsonAddColumnField(pColDef->colName, pColData->info.type, colDataIsNull_s(pColData, rowIdx),
+    code = jsonAddColumnField(pColDef->colName, &pColData->info, colDataIsNull_s(pColData, rowIdx),
                               colDataGetData(pColData, rowIdx), fields);
     QUERY_CHECK_CODE(code, lino, _end);
   }
@@ -523,7 +547,7 @@ int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** pp
   cJSON* pArr = cJSON_AddArrayToObject(pResult, "data");
   QUERY_CHECK_NULL(pArr, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
-  cJSON* size = cJSON_CreateNumber(pBlock->info.rows);
+  cJSON* size = cJSON_CreateNumber(endRow - startRow + 1);
   QUERY_CHECK_NULL(size, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
   if (!cJSON_AddItemToObjectCS(pResult, "curSize", size)) {
     cJSON_Delete(size);
@@ -557,7 +581,7 @@ int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** pp
       }
       colName = pField->name;
       bool isNull = colDataIsNull_s(pCol, rowIdx);
-      code = jsonAddColumnField(colName, pCol->info.type, isNull, isNull ? NULL : colDataGetData(pCol, rowIdx), pRow);
+      code = jsonAddColumnField(colName, &pCol->info, isNull, isNull ? NULL : colDataGetData(pCol, rowIdx), pRow);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -634,7 +658,7 @@ _end:
 }
 
 static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, const SSTriggerCalcParam* pParam,
-                                         SStringBuilder* pBuilder) {
+                                         SStringBuilder* pBuilder, const char* tableName) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   cJSON*  obj = NULL;
@@ -651,28 +675,28 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
 
   uint64_t ar[] = {groupId, pParam->wstart};
   uint64_t hash = MurmurHash3_64((const char*)ar, sizeof(ar));
-  char     windowId[32];
-  u64toaFastLut(hash, windowId);
+  char     triggerId[32];
+  u64toaFastLut(hash, triggerId);
 
-  const char* windowType = NULL;
+  const char* triggerTypeStr = NULL;
   switch (triggerType) {
     case STREAM_TRIGGER_PERIOD:
-      windowType = "Period";
+      triggerTypeStr = "Period";
       break;
     case STREAM_TRIGGER_SLIDING:
-      windowType = (pParam->notifyType == STRIGGER_EVENT_ON_TIME) ? "Sliding" : "Time";
+      triggerTypeStr = (pParam->notifyType == STRIGGER_EVENT_ON_TIME) ? "Sliding" : "Interval";
       break;
     case STREAM_TRIGGER_SESSION:
-      windowType = "Session";
+      triggerTypeStr = "Session";
       break;
     case STREAM_TRIGGER_COUNT:
-      windowType = "Count";
+      triggerTypeStr = "Count";
       break;
     case STREAM_TRIGGER_STATE:
-      windowType = "State";
+      triggerTypeStr = "State";
       break;
     case STREAM_TRIGGER_EVENT:
-      windowType = "Event";
+      triggerTypeStr = "Event";
       break;
     default:
       code = TSDB_CODE_INVALID_PARA;
@@ -683,10 +707,14 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
   QUERY_CHECK_NULL(obj, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
   JSON_CHECK_ADD_ITEM(obj, "eventType", cJSON_CreateStringReference(eventType));
   JSON_CHECK_ADD_ITEM(obj, "eventTime", cJSON_CreateNumber(taosGetTimestampMs()));
-  JSON_CHECK_ADD_ITEM(obj, "windowId", cJSON_CreateString(windowId));
+  JSON_CHECK_ADD_ITEM(obj, "triggerId", cJSON_CreateStringReference(triggerId));
+  JSON_CHECK_ADD_ITEM(obj, "triggerType", cJSON_CreateStringReference(triggerTypeStr));
 
-  if (STREAM_TRIGGER_PERIOD != triggerType && STREAM_TRIGGER_SLIDING != triggerType) {
-    JSON_CHECK_ADD_ITEM(obj, "windowType", cJSON_CreateStringReference(windowType));
+  if (tableName != NULL) {
+    JSON_CHECK_ADD_ITEM(obj, "tableName", cJSON_CreateStringReference(tableName));
+  }
+
+  if (pParam->notifyType != STRIGGER_EVENT_ON_TIME) {
     JSON_CHECK_ADD_ITEM(obj, "windowStart", cJSON_CreateNumber(pParam->wstart));
     if (pParam->notifyType == STRIGGER_EVENT_WINDOW_CLOSE) {
       int64_t wend = pParam->wend;
@@ -777,9 +805,9 @@ static void streamNotifyClose(CURL** pConn, const char* url) {
 
 #define STREAM_EVENT_NOTIFY_RETRY_MS 50  // 50 ms
 
-int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, int32_t triggerType, int64_t groupId,
-                                const SArray* pNotifyAddrUrls, int32_t errorHandle, const SSTriggerCalcParam* pParams,
-                                int32_t nParam) {
+int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName, int32_t triggerType,
+                                int64_t groupId, const SArray* pNotifyAddrUrls, int32_t errorHandle,
+                                const SSTriggerCalcParam* pParams, int32_t nParam) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SStringBuilder sb = {0};
@@ -817,7 +845,7 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, int3
     if (pParams[i].notifyType == STRIGGER_EVENT_WINDOW_NONE) {
       continue;
     }
-    code = streamAppendNotifyContent(triggerType, groupId, &pParams[i], &sb);
+    code = streamAppendNotifyContent(triggerType, groupId, &pParams[i], &sb, tableName);
     QUERY_CHECK_CODE(code, lino, _end);
     taosStringBuilderAppendChar(&sb, ',');
   }
@@ -888,9 +916,9 @@ _end:
   return code;
 }
 #else
-int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, int32_t triggerType, int64_t groupId,
-                                const SArray* pNotifyAddrUrls, int32_t errorHandle, const SSTriggerCalcParam* pParams,
-                                int32_t nParam) {
+int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName, int32_t triggerType,
+                                int64_t groupId, const SArray* pNotifyAddrUrls, int32_t errorHandle,
+                                const SSTriggerCalcParam* pParams, int32_t nParam) {
   ST_TASK_ELOG("stream notify events is not supported on windows, streamName:%s", streamName);
   return TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS;
 }
@@ -901,7 +929,7 @@ int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask* pTask = NULL;
-  void* taskAddr = NULL;
+  void*               taskAddr = NULL;
 
   *pppIter = NULL;
 
@@ -913,26 +941,33 @@ int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
   if (((SStreamTriggerTask*)pTask)->triggerType == STREAM_TRIGGER_SLIDING) {
     end = end - 1;
   }
+  SHashObj* pCalcDataCacheIters = NULL;
+  void*     pCalcDataCache = NULL;
   if (pTask->pRealtimeContext->sessionId == sessionId) {
-    void** px = taosHashGet(pTask->pRealtimeContext->pCalcDataCacheIters, &groupId, sizeof(int64_t));
-    if (px == NULL) {
-      void* pIter = NULL;
-      code =
-          taosHashPut(pTask->pRealtimeContext->pCalcDataCacheIters, &groupId, sizeof(int64_t), &pIter, POINTER_BYTES);
-      QUERY_CHECK_CODE(code, lino, _end);
-      px = taosHashGet(pTask->pRealtimeContext->pCalcDataCacheIters, &groupId, sizeof(int64_t));
-      QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INVALID_PARA);
-    }
-    if (*px == NULL) {
-      code = getStreamDataCache(pTask->pRealtimeContext->pCalcDataCache, groupId, start, end, px);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
-    *pppIter = px;
+    pCalcDataCacheIters = pTask->pRealtimeContext->pCalcDataCacheIters;
+    pCalcDataCache = pTask->pRealtimeContext->pCalcDataCache;
+  } else if (pTask->pHistoryContext->sessionId == sessionId) {
+    pCalcDataCacheIters = pTask->pHistoryContext->pCalcDataCacheIters;
+    pCalcDataCache = pTask->pHistoryContext->pCalcDataCache;
   } else {
-    stsError("sessionId %" PRId64 " not match with task %" PRId64, sessionId, pTask->pRealtimeContext->sessionId);
+    stsError("sessionId %" PRId64 " not found in task %" PRId64, sessionId, pTask->task.taskId);
     code = TSDB_CODE_INTERNAL_ERROR;
     QUERY_CHECK_CODE(code, lino, _end);
   }
+
+  void** px = taosHashGet(pCalcDataCacheIters, &groupId, sizeof(int64_t));
+  if (px == NULL) {
+    void* pIter = NULL;
+    code = taosHashPut(pCalcDataCacheIters, &groupId, sizeof(int64_t), &pIter, POINTER_BYTES);
+    QUERY_CHECK_CODE(code, lino, _end);
+    px = taosHashGet(pCalcDataCacheIters, &groupId, sizeof(int64_t));
+    QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  }
+  if (*px == NULL) {
+    code = getStreamDataCache(pCalcDataCache, groupId, start, end, px);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  *pppIter = px;
 
 _end:
 

@@ -767,6 +767,7 @@ static int32_t smlProcessSchemaAction(SSmlHandle *info, SSchema *schemaField, SH
     SML_CHECK_NULL(kv);
     SML_CHECK_CODE(smlGenerateSchemaAction(schemaField, schemaHash, kv, isTag, action, info));
     if (taosHashGet(schemaHashCheck, kv->key, kv->keyLen) != NULL) {
+      uError("SML:0x%" PRIx64 ", %s duplicated column %s", info->id, __FUNCTION__, kv->key);
       SML_CHECK_CODE(TSDB_CODE_PAR_DUPLICATED_COLUMN);
     }
   }
@@ -1189,9 +1190,11 @@ static int32_t smlInsertMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols
     if (ret == 0) {
       SML_CHECK_NULL(taosArrayPush(metaArray, kv));
       if (taosHashGet(checkDuplicate, kv->key, kv->keyLen) != NULL) {
+        uError("%s duplicated column %s", __FUNCTION__, kv->key);
         SML_CHECK_CODE(TSDB_CODE_PAR_DUPLICATED_COLUMN);
       }
     } else if (terrno == TSDB_CODE_DUP_KEY) {
+      uError("%s duplicated column %s", __FUNCTION__, kv->key);
       return TSDB_CODE_PAR_DUPLICATED_COLUMN;
     }
   }
@@ -1236,6 +1239,7 @@ static int32_t smlUpdateMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols
       SML_CHECK_CODE(taosHashPut(metaHash, kv->key, kv->keyLen, &size, SHORT_BYTES));
       SML_CHECK_NULL(taosArrayPush(metaArray, kv));
       if (taosHashGet(checkDuplicate, kv->key, kv->keyLen) != NULL) {
+        uError("%s duplicated column %s", __FUNCTION__, kv->key);
         SML_CHECK_CODE(TSDB_CODE_PAR_DUPLICATED_COLUMN);
       }
     }
@@ -1359,6 +1363,7 @@ static int32_t smlPushCols(SArray *colsArray, SArray *cols) {
     terrno = 0;
     code = taosHashPut(kvHash, kv->key, kv->keyLen, &kv, POINTER_BYTES);
     if (terrno == TSDB_CODE_DUP_KEY) {
+      uError("%s duplicated column %s", __FUNCTION__, kv->key);
       SML_CHECK_CODE(TSDB_CODE_PAR_DUPLICATED_COLUMN);
     }
     SML_CHECK_CODE(code);

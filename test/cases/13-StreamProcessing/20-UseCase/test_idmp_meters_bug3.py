@@ -190,10 +190,10 @@ class Test_Scene_Asset01:
         # vt_em-4
         tdSql.checkResultsByFunc (
             sql  = "SELECT *  FROM tdasset.`vt_em-4` WHERE `电流` is null;",
-            func = lambda: tdSql.getRows() == 239 
+            func = lambda: tdSql.getRows() == 120 
             and tdSql.compareData(0, 0, 1752574200000) 
-            and tdSql.compareData(0, 1, 400)
-            and tdSql.compareData(0, 2, 200)
+            and tdSql.compareData(0, 2, 400)
+            and tdSql.compareData(0, 3, 200)
         )   
 
 

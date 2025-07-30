@@ -73,12 +73,12 @@ def readFileContext(filename):
     return context
 
 # run return output and error
-def run(command, timeout = 20, ret_code=False):
+def run(command, timeout = 20, ret_code=False, show = True):
     id = time.time_ns() % 100000
     out = f"out_{id}.txt"
     err = f"err_{id}.txt"
     
-    code = exe(command + f" 1>{out} 2>{err}")
+    code = exe(command + f" 1>{out} 2>{err}", show)
 
     # read from file
     output = readFileContext(out)
@@ -97,8 +97,8 @@ def run(command, timeout = 20, ret_code=False):
 
 
 # return list after run
-def runRetList(command, timeout=10, checkRun=False, retFail=False):
-    output, error, code = run(command, ret_code=True)
+def runRetList(command, timeout=10, checkRun=False, retFail=False, show = True):
+    output, error, code = run(command, ret_code=True, show=show)
     if checkRun and code != 0:
         print(f"eos.runRetList checkRun return code failed. code={code} error={error}")
         assert code == 0

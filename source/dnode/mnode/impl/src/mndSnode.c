@@ -22,7 +22,7 @@
 #include "mndUser.h"
 #include "mndStream.h"
 
-#define SNODE_VER_NUMBER   1
+#define SNODE_VER_NUMBER   2
 #define SNODE_RESERVE_SIZE 64
 
 static SSdbRaw *mndSnodeActionEncode(SSnodeObj *pObj);
@@ -206,7 +206,7 @@ static int32_t mndSetUpdateSnodeRedoLogs(STrans *pTrans, SSnodeObj *pObj) {
     TAOS_RETURN(code);
   }
   TAOS_CHECK_RETURN(mndTransAppendGroupRedolog(pTrans, pRedoRaw, -1));
-  TAOS_CHECK_RETURN(sdbSetRawStatus(pRedoRaw, SDB_STATUS_UPDATE));
+  TAOS_CHECK_RETURN(sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY));
   TAOS_RETURN(code);
 }
 

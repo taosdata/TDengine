@@ -275,16 +275,19 @@ C 接口网络不可用相关错误码：
 - "JSON"
 - "VARBINARY"
 - "GEOMETRY"
+- "DECIMAL(precision, scale)"
+- "BLOB"
 
-`VARBINARY` 和 `GEOMETRY` 类型返回数据为 Hex 字符串，样例：
+DECIMAL 类型的 precision 是指最大支持的有效数字个数，scale 是指最大支持的小数位数，例如 `DECIMAL(8, 4)` 可表示范围即 [-9999.9999, 9999.9999]。
+
+`VARBINARY` 、 `GEOMETRY` 和 `BLOB` 类型返回数据为 Hex 字符串，样例：
 
 准备数据
 
 ```bash
-create database demo
-use demo
-create table t(ts timestamp,c1 varbinary(20),c2 geometry(100))
-insert into t values(now,'\x7f8290','point(100 100)')
+create database demo;
+create table demo.t(ts timestamp,c1 varbinary(20),c2 geometry(100),c3 blob);
+insert into demo.t values(now,'\x7f8290','point(100 100)','\x010203ddff');
 ```
 
 执行查询
@@ -316,13 +319,19 @@ curl --location 'http://<fqdn>:<port>/rest/sql' \
             "c2",
             "GEOMETRY",
             100
+        ],
+        [
+            "c3",
+            "BLOB",
+            4194304
         ]
     ],
     "data": [
         [
-            "2023-11-01T06:28:15.210Z",
+            "2025-07-22T05:58:41.798Z",
             "7f8290",
-            "010100000000000000000059400000000000005940"
+            "010100000000000000000059400000000000005940",
+            "010203ddff"
         ]
     ],
     "rows": 1

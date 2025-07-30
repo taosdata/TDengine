@@ -10,15 +10,36 @@ class TestStreamDisorderTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_state_trigger(self):
-        """Stream basic test 1
+        """stream options
+
+        test data disorder/update/delete change cases to stream
+
+        Catalog:
+            - Streams:UseCases
+
+        Since: v3.3.3.7
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-6-16 Lihui Created
+
         """
 
         tdStream.createSnode()
 
         streams = []
-        streams.append(self.Basic0())
-        # streams.append(self.Basic1())
-        # streams.append(self.Basic2())
+        streams.append(self.Basic0()) # [ok]
+        
+        # TD-36528 [流计算开发阶段] 历史数据在建流前被删除，但建流后的结果表还对删除数据进行了计算
+        # streams.append(self.Basic1()) # [fail]
+        
+        # TD-36573 [流计算开发阶段] expired_time(10d)未过期数据有乱序数据时，窗口计算结果不正确。
+        # streams.append(self.Basic2()) # [fail]
+        
+        # TD-36579 [流计算开发阶段] ignore_disorder控制乱序和更新数据，delete_recalc 控制删除数据
         # streams.append(self.Basic3()) # [fail]
         
         tdStream.checkAll(streams)

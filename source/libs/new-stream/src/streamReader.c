@@ -71,7 +71,7 @@ end:
 }
 
 int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order, void* schemas, bool isSchema,
-                                      STimeWindow twindows, uint64_t suid) {
+                                      STimeWindow twindows, uint64_t suid, int64_t ver) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -89,7 +89,7 @@ int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order,
   pCond->suid = suid;
   pCond->type = TIMEWINDOW_RANGE_CONTAINED;
   pCond->startVersion = -1;
-  pCond->endVersion = -1;
+  pCond->endVersion = ver;
   //  pCond->skipRollup = readHandle->skipRollup;
 
   pCond->notLoadData = false;
@@ -136,6 +136,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
   int32_t                 code = 0;
   int32_t                 lino = 0;
   SStreamReaderTaskInner* pTask = taosMemoryCalloc(1, sizeof(SStreamReaderTaskInner));
+  SNodeList*              groupNew = NULL;
   STREAM_CHECK_NULL_GOTO(pTask, terrno);
   pTask->api = *api;
   pTask->options = *options;
@@ -158,12 +159,14 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
       STREAM_CHECK_RET_GOTO(qStreamGetTableList(pTask->pTableList, -1, &pList, &pNum))
     } else {
       STREAM_CHECK_RET_GOTO(filterInitFromNode(options->pConditions, &pTask->pFilterInfo, 0, NULL));
+      STREAM_CHECK_RET_GOTO(nodesCloneList(options->partitionCols, &groupNew));
       STREAM_CHECK_RET_GOTO(qStreamCreateTableListForReader(
-          pVnode, options->suid, options->uid, options->tableType, options->partitionCols, options->groupSort,
+          pVnode, options->suid, options->uid, options->tableType, groupNew, options->groupSort,
           options->pTagCond, options->pTagIndexCond, api, &pTask->pTableList, groupIdMap));
+
       if (options->gid != 0) {
         int32_t index = qStreamGetGroupIndex(pTask->pTableList, options->gid);
-        STREAM_CHECK_CONDITION_GOTO(index < 0, TSDB_CODE_INVALID_PARA);
+        STREAM_CHECK_CONDITION_GOTO(index < 0, TSDB_CODE_STREAM_NO_DATA);
         pTask->currentGroupIndex = index;
       }
       if (options->scanMode == STREAM_SCAN_GROUP_ONE_BY_ONE) {
@@ -175,7 +178,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
 
     cleanupQueryTableDataCond(&pTask->cond);
     STREAM_CHECK_RET_GOTO(qStreamInitQueryTableDataCond(&pTask->cond, options->order, pTask->options.schemas, options->isSchema,
-                                                        options->twindows, options->suid));
+                                                        options->twindows, options->suid, options->ver));
     STREAM_CHECK_RET_GOTO(pTask->api.tsdReader.tsdReaderOpen(pVnode, &pTask->cond, pList, pNum, pTask->pResBlock,
                                                            (void**)&pTask->pReader, pTask->idStr, NULL));
   }
@@ -184,6 +187,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
   pTask = NULL;
 
 end:
+  nodesDestroyList(groupNew);
   STREAM_PRINT_LOG_END(code, lino);
   releaseStreamTask(&pTask);
   destroyOptions(options);
@@ -294,6 +298,7 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
     sStreamReaderInfo->uid = pMsg->msg.trigger.triggerTblUid;
   }
 
+  ST_TASK_DLOG("pMsg->msg.trigger.deleteReCalc: %d", pMsg->msg.trigger.deleteReCalc);
   sStreamReaderInfo->deleteReCalc = pMsg->msg.trigger.deleteReCalc;
   sStreamReaderInfo->deleteOutTbl = pMsg->msg.trigger.deleteOutTbl;
   // process triggerScanPlan
@@ -338,13 +343,13 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
         ((STableScanPhysiNode*)(sStreamReaderInfo->calcAst->pNode))->scan.node.pOutputDataBlockDesc;
     sStreamReaderInfo->calcResBlock = createDataBlockFromDescNode(pDescNode);
     STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->calcResBlock, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
-    STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->calcResBlock, false, &sStreamReaderInfo->calcResBlockTmp));
     
 
     SNodeList* pseudoCols = ((STableScanPhysiNode*)(sStreamReaderInfo->calcAst->pNode))->scan.pScanPseudoCols;
     SNodeList* pScanCols = ((STableScanPhysiNode*)(sStreamReaderInfo->calcAst->pNode))->scan.pScanCols;
     setColIdForCalcResBlock(pseudoCols, sStreamReaderInfo->calcResBlock->pDataBlock);
     setColIdForCalcResBlock(pScanCols, sStreamReaderInfo->calcResBlock->pDataBlock);
+    STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->calcResBlock, false, &sStreamReaderInfo->calcResBlockTmp));
   }
 
   STREAM_CHECK_RET_GOTO(createDataBlockForTs(&sStreamReaderInfo->tsBlock));
@@ -498,13 +503,20 @@ end:
 }
 
 
-int32_t streamBuildFetchRsp(SSDataBlock* pBlock, void** data, size_t* size, int8_t precision) {
+int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t* size, int8_t precision) {
   int32_t code = 0;
   int32_t lino = 0;
   void*   buf = NULL;
 
-  int32_t blockSize = pBlock == NULL ? 0 : blockGetEncodeSize(pBlock);
-  size_t  dataEncodeBufSize = sizeof(SRetrieveTableRsp) + INT_BYTES * 2 + blockSize;
+  int32_t blockNum = 0;
+  size_t  dataEncodeBufSize = sizeof(SRetrieveTableRsp);
+  for(size_t i = 0; i < taosArrayGetSize(pResList); i++){
+    SSDataBlock* pBlock = taosArrayGetP(pResList, i);
+    if (pBlock == NULL || pBlock->info.rows == 0) continue;
+    int32_t blockSize = blockGetEncodeSize(pBlock);
+    dataEncodeBufSize += (INT_BYTES * 2 + blockSize);
+    blockNum++;
+  }
   buf = rpcMallocCont(dataEncodeBufSize);
   STREAM_CHECK_NULL_GOTO(buf, terrno);
 
@@ -512,20 +524,27 @@ int32_t streamBuildFetchRsp(SSDataBlock* pBlock, void** data, size_t* size, int8
   pRetrieve->version = 0;
   pRetrieve->precision = precision;
   pRetrieve->compressed = 0;
-  *((int32_t*)(pRetrieve->data)) = blockSize;
-  *((int32_t*)(pRetrieve->data + INT_BYTES)) = blockSize;
-  if (pBlock == NULL || pBlock->info.rows == 0) {
-    pRetrieve->numOfRows = 0;
-    pRetrieve->numOfBlocks = 0;
-    pRetrieve->completed = 1;
-  } else {
-    pRetrieve->numOfRows = htobe64((int64_t)pBlock->info.rows);
-    pRetrieve->numOfBlocks = htonl(1);
-    int32_t actualLen =
-        blockEncode(pBlock, pRetrieve->data + INT_BYTES * 2, blockSize, taosArrayGetSize(pBlock->pDataBlock));
-    STREAM_CHECK_CONDITION_GOTO(actualLen < 0, terrno);
-  }
+  pRetrieve->completed = hasNext ? 0 : 1;
+  pRetrieve->numOfRows = 0;
+  pRetrieve->numOfBlocks = htonl(blockNum);
 
+  char* dataBuf = (char*)(pRetrieve->data);
+  for(size_t i = 0; i < taosArrayGetSize(pResList); i++){
+    SSDataBlock* pBlock = taosArrayGetP(pResList, i);
+    if (pBlock == NULL || pBlock->info.rows == 0) continue;
+    int32_t blockSize = blockGetEncodeSize(pBlock);
+    *((int32_t*)(dataBuf)) = blockSize;
+    *((int32_t*)(dataBuf + INT_BYTES)) = blockSize;
+    pRetrieve->numOfRows += pBlock->info.rows;
+    int32_t actualLen =
+        blockEncode(pBlock, dataBuf + INT_BYTES * 2, blockSize, taosArrayGetSize(pBlock->pDataBlock));
+    STREAM_CHECK_CONDITION_GOTO(actualLen < 0, terrno);
+    dataBuf += (INT_BYTES * 2 + actualLen);
+  }
+  stDebug("stream fetch get result blockNum:%d, rows:%" PRId64, blockNum, pRetrieve->numOfRows);
+
+  pRetrieve->numOfRows = htobe64(pRetrieve->numOfRows);
+  
   *data = buf;
   *size = dataEncodeBufSize;
   buf = NULL;

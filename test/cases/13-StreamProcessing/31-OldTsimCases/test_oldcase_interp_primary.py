@@ -1,5 +1,10 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
+from new_test_framework.utils import (
+    tdLog,
+    tdSql,
+    tdStream,
+    StreamCheckItem,
+)
 
 
 class TestStreamOldCaseInterpPrimary:
@@ -10,8 +15,7 @@ class TestStreamOldCaseInterpPrimary:
     def test_stream_oldcase_interp_primary(self):
         """Stream interp primary
 
-        1. basic test
-        2. out of order data
+        Validate the calculation results of the interp function with cmposite keys
 
         Catalog:
             - Streams:OldTsimCases
@@ -23,10 +27,10 @@ class TestStreamOldCaseInterpPrimary:
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPrimaryKey0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPrimaryKey1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPrimaryKey2.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPrimaryKey3.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpPrimaryKey0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpPrimaryKey1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpPrimaryKey2.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpPrimaryKey3.sim
 
         """
 
@@ -52,7 +56,7 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
         tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
         tdSql.execute(
-            f"create stream streams1 interval(1s) sliding(1s) from st partition by tbname stream_options(max_delay(1s)) into streamt as select _irowts, interp(b) from st partition by tbname range(_twstart) fill(prev);"
+            f"create stream streams1 interval(1s) sliding(1s) from st partition by tbname stream_options(max_delay(3s)) into streamt as select _irowts, interp(b) from st partition by tbname range(_twstart) fill(prev);"
         )
         tdStream.checkStreamStatus()
         tdSql.pause()
@@ -224,7 +228,9 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"insert into t1 values(1648791213000, 10, 10, 10, 10.0);")
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdSql.checkResultsByFunc(f"select * from streamt;", lambda: tdSql.getRows() == 1)
+        tdSql.checkResultsByFunc(
+            f"select * from streamt;", lambda: tdSql.getRows() == 1
+        )
 
         tdSql.execute(f"insert into t1 values(1648791213000, 9, 9, 9, 9.0);")
         tdSql.execute(f"insert into t1 values(1648791213009, 30, 30, 30, 30.0);")

@@ -293,7 +293,7 @@ class Test_Three_Gorges_Phase1:
             "  interval(1m) sliding(1m)"
             "  from ctg_tsdb.stb_cjdl_point_data"
             "  partition by tbname, senid, senid_name"
-            f" stream_options(expired_time(0s) | fill_history('{start}') | pre_filter(tag_temp = 'A001') | max_delay(1s))"
+            f" stream_options(expired_time(0s) | fill_history('{start}') | pre_filter(tag_temp = 'A001') | max_delay(3s))"
             f" into `ctg_test`.`stb_cjdl_point_data_szls_jk_test`"
             "  output_subtable( concat('cjdl_point_data_szls_jk_test_', %%2))"
             "  tags("

@@ -5,7 +5,6 @@
     "port": 6030,
     "user": "root",
     "password": "taosdata",
-    "connection_pool_size": 8,
     "thread_count": 4,
     "create_table_thread_count": 4,
     "result_file": "./insert_res.txt",

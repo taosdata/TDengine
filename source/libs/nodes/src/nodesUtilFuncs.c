@@ -1025,6 +1025,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = TSDB_CODE_OPS_NOT_SUPPORT;
       break;
     default:
+      code = TSDB_CODE_OPS_NOT_SUPPORT;
       break;
   }
   if (TSDB_CODE_SUCCESS != code) {
@@ -1263,7 +1264,6 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_STREAM_TAG_DEF:
       nodesDestroyNode(((SStreamTagDefNode*)pNode)->pTagExpr);
-      nodesDestroyNode(((SStreamTagDefNode*)pNode)->pComment);
       break;
     case QUERY_NODE_TARGET:
       nodesDestroyNode(((STargetNode*)pNode)->pExpr);

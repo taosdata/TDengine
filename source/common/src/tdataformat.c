@@ -513,7 +513,9 @@ static int32_t tRowBuildTupleWithBlob2(SArray *aColVal, const SRowBuildScanInfo 
                 varlen += colValArray[colValIndex].value.nData;
               } else {
                 uint64_t seq = 0;
-                tGetU64(colValArray[colValIndex].value.pData, &seq);
+                if (tGetU64(colValArray[colValIndex].value.pData, &seq) < 0) {
+                  TAOS_CHECK_RETURN(TSDB_CODE_INVALID_PARA);
+                }
                 SBlobItem item = {0};
 
                 code = tBlobSetGet(pSrcBlobSet, seq, &item);
@@ -799,7 +801,9 @@ static int32_t tRowBuildKVRowWithBlob2(SArray *aColVal, const SRowBuildScanInfo 
                 payloadSize += colValArray[colValIndex].value.nData;
               } else {
                 uint64_t seq = 0;
-                tGetU64(colValArray[colValIndex].value.pData, &seq);
+                if (tGetU64(colValArray[colValIndex].value.pData, &seq) < 0) {
+                  TAOS_CHECK_RETURN(TSDB_CODE_INVALID_PARA);
+                }
                 SBlobItem item = {0};
 
                 int32_t code = tBlobSetGet(pSrcBlobSet, seq, &item);
@@ -1258,16 +1262,14 @@ int32_t tBlobSetSize(SBlobSet *pBlobSet) {
   return taosArrayGetSize(pBlobSet->pSeqTable);
 }
 
-int32_t tBlobSetDestroy(SBlobSet *pBlobSet) {
-  if (pBlobSet == NULL) return 0;
-  int32_t code = 0;
+void tBlobSetDestroy(SBlobSet *pBlobSet) {
+  if (pBlobSet == NULL) return;
   uTrace("destroy blob row, seqTable size %p", pBlobSet);
   taosMemoryFree(pBlobSet->data);
   taosArrayDestroy(pBlobSet->pSeqTable);
   taosHashCleanup(pBlobSet->pSeqToffset);
   taosArrayDestroy(pBlobSet->pSet);
   taosMemoryFree(pBlobSet);
-  return code;
 }
 int32_t tBlobSetClear(SBlobSet *pBlobSet) {
   if (pBlobSet == NULL) return 0;
@@ -1534,7 +1536,16 @@ static int32_t tRowPCmprFn(const void *p1, const void *p2) {
   return tRowKeyCompare(&key1, &key2);
 }
 static void    tRowPDestroy(SRow **ppRow) { tRowDestroy(*ppRow); }
-static int32_t tRowMergeImpl(SArray *aRowP, STSchema *pTSchema, int32_t iStart, int32_t iEnd, int8_t flag) {
+
+static SColVal* tRowFindColumnValue(SRowIter *iter, int32_t targetCid) {
+  SColVal* pColVal = tRowIterNext(iter);
+  while (pColVal != NULL && pColVal->cid < targetCid) {
+    pColVal = tRowIterNext(iter);
+  }
+  return pColVal;
+}
+
+static int32_t tRowMergeImpl(SArray *aRowP, STSchema *pTSchema, int32_t iStart, int32_t iEnd, ERowMergeStrategy strategy) {
   int32_t code = 0;
 
   int32_t    nRow = iEnd - iStart;
@@ -1563,23 +1574,28 @@ static int32_t tRowMergeImpl(SArray *aRowP, STSchema *pTSchema, int32_t iStart, 
   }
 
   for (int32_t iCol = 0; iCol < pTSchema->numOfCols; iCol++) {
+    int32_t targetCid = pTSchema->columns[iCol].colId;
     SColVal *pColVal = NULL;
 
-    for (int32_t iRow = nRow - 1; iRow >= 0; --iRow) {
-      SColVal *pColValT = tRowIterNext(aIter[iRow]);
-      while (pColValT->cid < pTSchema->columns[iCol].colId) {
-        pColValT = tRowIterNext(aIter[iRow]);
-      }
-
-      // todo: take strategy according to the flag
-      if (COL_VAL_IS_VALUE(pColValT)) {
-        pColVal = pColValT;
+    switch (strategy) {
+      case KEEP_CONSISTENCY:
+        if (nRow > 0)
+          pColVal = tRowFindColumnValue(aIter[nRow - 1], targetCid);
         break;
-      } else if (COL_VAL_IS_NULL(pColValT)) {
-        if (pColVal == NULL) {
-          pColVal = pColValT;
+
+      default:  // default using PREFER_NON_NULL strategy
+      case PREFER_NON_NULL:
+        for (int32_t iRow = nRow - 1; iRow >= 0; --iRow) {
+          SColVal *pColValT = tRowFindColumnValue(aIter[iRow], targetCid);
+
+          if (COL_VAL_IS_VALUE(pColValT)) {
+            pColVal = pColValT;
+            break;
+          } else if (pColVal == NULL) {
+            pColVal = pColValT;
+          }
         }
-      }
+        break;
     }
 
     if (pColVal) {
@@ -1622,7 +1638,10 @@ static int32_t tBlobSetTransferTo(SBlobSet *pSrc, SBlobSet *pDst, SColVal *pVal)
     TAOS_CHECK_GOTO(code, &lino, _error);
   } else {
     uint64_t seq = 0;
-    tGetU64(pVal->value.pData, &seq);
+    if (tGetU64(pVal->value.pData, &seq) < 0) {
+      uError("tBlobSetTransferTo: invalid blob value, seq %p", pVal->value.pData);
+      return TSDB_CODE_INVALID_PARA;
+    }
 
     SBlobItem item = {0};
     code = tBlobSetGet(pSrc, seq, &item);
@@ -1630,7 +1649,10 @@ static int32_t tBlobSetTransferTo(SBlobSet *pSrc, SBlobSet *pDst, SColVal *pVal)
 
     code = tBlobSetPush(pDst, &item, &seq, 1);
     TAOS_CHECK_GOTO(code, &lino, _error);
-    tPutU64(pVal->value.pData, seq);
+    if (tPutU64(pVal->value.pData, seq) < 0) {
+      uError("tBlobSetTransferTo: put seq to colVal failed");
+      return TSDB_CODE_INVALID_PARA;
+    }
   }
 
 _error:
@@ -1849,7 +1871,7 @@ int32_t tRowSort(SArray *aRowP) {
   return code;
 }
 
-int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag) {
+int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, ERowMergeStrategy strategy) {
   int32_t code = 0;
 
   int32_t iStart = 0;
@@ -1871,7 +1893,7 @@ int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag) {
     }
 
     if (iEnd - iStart > 1) {
-      code = tRowMergeImpl(aRowP, pTSchema, iStart, iEnd, flag);
+      code = tRowMergeImpl(aRowP, pTSchema, iStart, iEnd, strategy);
       if (code) return code;
     }
 
@@ -4575,7 +4597,7 @@ int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t byt
     bool allValue = true;
     bool allNull = true;
     for (int32_t i = 0; i < nRows; ++i) {
-      if (!colDataIsNull_f(lengthOrbitmap, i)) {
+      if (!BMIsNull(lengthOrbitmap, i)) {
         allNull = false;
       } else {
         allValue = false;
@@ -4599,7 +4621,7 @@ int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t byt
       }
     } else {
       for (int32_t i = 0; i < nRows; ++i) {
-        if (colDataIsNull_f(lengthOrbitmap, i)) {
+        if (BMIsNull(lengthOrbitmap, i)) {
           code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
           if (code) goto _exit;
         } else {
@@ -5808,7 +5830,7 @@ int32_t tDecodeBlobSet(SDecoder *pDecoder, SBlobSet **pBlobSet) {
   TAOS_CHECK_EXIT(tDecodeFixed(pDecoder, pBlob->data, pBlob->len));
   *pBlobSet = pBlob;
 
-  uInfo("decode blob len:%d", (int32_t)(pBlob->len));
+  uTrace("decode blob len:%d", (int32_t)(pBlob->len));
 
 _exit:
   if (code != 0) {

@@ -1,5 +1,10 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
+from new_test_framework.utils import (
+    tdLog,
+    tdSql,
+    tdStream,
+    StreamCheckItem,
+)
 
 
 class TestStreamOldCaseFillHistory:
@@ -10,8 +15,7 @@ class TestStreamOldCaseFillHistory:
     def test_stream_oldcase_fillhistory(self):
         """Stream fill history
 
-        1. basic test
-        2. out of order data
+        Verify the correctness of historical data calculation results, as well as the calculation results at the boundary between historical and real-time computation.
 
         Catalog:
             - Streams:OldTsimCases
@@ -23,11 +27,11 @@ class TestStreamOldCaseFillHistory:
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillHistoryBasic1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillHistoryBasic2.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillHistoryBasic3.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillHistoryBasic4.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillHistoryTransform.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillHistoryBasic1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillHistoryBasic2.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillHistoryBasic3.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillHistoryBasic4.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillHistoryTransform.sim
 
         """
 
@@ -51,7 +55,7 @@ class TestStreamOldCaseFillHistory:
         tdSql.execute(f"use test;")
         tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream stream1 interval(10s) sliding(10s) from t1 stream_options(max_delay(1s)|fill_history_first) into streamt as select _twstart, count(*) c1, count(d) c2, sum(a) c3, max(b) c4, min(c) c5 from t1 where ts >= _twstart and ts < _twend;"
+            f"create stream stream1 interval(10s) sliding(10s) from t1 stream_options(max_delay(3s)|fill_history_first) into streamt as select _twstart, count(*) c1, count(d) c2, sum(a) c3, max(b) c4, min(c) c5 from t1 where ts >= _twstart and ts < _twend;"
         )
         tdStream.checkStreamStatus()
         tdSql.pause()

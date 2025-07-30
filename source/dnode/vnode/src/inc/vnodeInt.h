@@ -210,6 +210,7 @@ SArray*       metaGetSmaIdsByTable(SMeta* pMeta, tb_uid_t uid);
 SArray*       metaGetSmaTbUids(SMeta* pMeta);
 void*         metaGetIdx(SMeta* pMeta);
 void*         metaGetIvtIdx(SMeta* pMeta);
+int32_t       metaFlagCache(SVnode* pVnode);
 
 int64_t metaGetTbNum(SMeta* pMeta);
 void    metaReaderDoInit(SMetaReader* pReader, SMeta* pMeta, int32_t flags);
@@ -547,6 +548,8 @@ struct SVnode {
 #define TSDB_CACHE_NO(c)       ((c).cacheLast == 0)
 #define TSDB_CACHE_LAST_ROW(c) (((c).cacheLast & 1) > 0)
 #define TSDB_CACHE_LAST(c)     (((c).cacheLast & 2) > 0)
+#define TSDB_CACHE_RESET(c)    (((c).cacheLast & 4) > 0)
+
 #define TSDB_TFS(v)            ((v)->pMountTfs ? (v)->pMountTfs : (v)->pTfs)
 #define TSDB_VID(v)            ((v)->mounted ? (v)->config.mountVgId : (v)->config.vgId)
 

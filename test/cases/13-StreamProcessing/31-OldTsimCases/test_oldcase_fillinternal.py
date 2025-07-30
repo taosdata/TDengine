@@ -1,7 +1,10 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
-
-
+from new_test_framework.utils import (
+    tdLog,
+    tdSql,
+    tdStream,
+    StreamCheckItem,
+)
 class TestStreamOldCaseFillInterval:
 
     def setup_class(cls):
@@ -10,8 +13,7 @@ class TestStreamOldCaseFillInterval:
     def test_stream_oldcase_fill_interval(self):
         """Stream fill interval
 
-        1. basic test
-        2. out of order data
+        Test the results of various numerical fillings in the interval window
 
         Catalog:
             - Streams:OldTsimCases
@@ -23,14 +25,14 @@ class TestStreamOldCaseFillInterval:
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillIntervalDelete0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillIntervalDelete1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillIntervalLinear.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillIntervalPartitionBy.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillIntervalPrevNext.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillIntervalPrevNext1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillIntervalRange.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillIntervalValue.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillIntervalDelete0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillIntervalDelete1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillIntervalLinear.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillIntervalPartitionBy.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillIntervalPrevNext.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillIntervalPrevNext1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillIntervalRange.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/fillIntervalValue.sim
 
         """
 
@@ -62,7 +64,7 @@ class TestStreamOldCaseFillInterval:
             f"create table t1(ts timestamp, a int, b int, c int, d double, s varchar(20));"
         )
         tdSql.execute(
-            f"create stream streams1 interval(1s) sliding(1s) from t1 stream_options(max_delay(1s)|force_output|pre_filter(ts >= 1648791210000 and ts < 1648791261000)) into streamt1 as select _twstart as ts, max(a), sum(b), count(*) from t1 where ts >= _twstart and ts < _twend;"
+            f"create stream streams1 interval(1s) sliding(1s) from t1 stream_options(max_delay(3s)|force_output|pre_filter(ts >= 1648791210000 and ts < 1648791261000)) into streamt1 as select _twstart as ts, max(a), sum(b), count(*) from t1 where ts >= _twstart and ts < _twend;"
         )
         # tdSql.execute(
         #     f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt2 as select _wstart as ts, max(a), sum(b), count(*) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(value, 100, 200, 300);"

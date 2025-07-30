@@ -15,8 +15,7 @@ class TestStreamOldCaseTwa:
     def test_stream_oldcase_twa(self):
         """Stream twa
 
-        1. basic test
-        2. out of order data
+        Verify the behavior of the legacy TWA (Time-Weighted Average) function in the new streaming computation system
 
         Catalog:
             - Streams:OldTsimCases
@@ -28,12 +27,12 @@ class TestStreamOldCaseTwa:
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaError.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaFwcFill.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaFwcFillPrimaryKey.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaFwcInterval.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaFwcIntervalPrimaryKey.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaInterpFwc.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamTwaError.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamTwaFwcFill.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamTwaFwcFillPrimaryKey.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamTwaFwcInterval.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamTwaFwcIntervalPrimaryKey.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamTwaInterpFwc.sim
 
         """
 
@@ -85,7 +84,7 @@ class TestStreamOldCaseTwa:
                 f"create stream streams8 state_window(a) from st partition by tbname, ta stream_options(expired_time(0s)|ignore_disorder) into streamt8 as select _twstart, twa(a) from %%trows;;"
             )
             tdSql.execute(
-                f"create stream streams9 interval(2s) sliding(2s) from st partition by tbname, ta stream_options(max_delay(1s)|expired_time(0s)|ignore_disorder|force_output) into streamt9 as select _twstart, elapsed(ts) from st where tbname=%%1 and ta=%%2;"
+                f"create stream streams9 interval(2s) sliding(2s) from st partition by tbname, ta stream_options(max_delay(3s)|expired_time(0s)|ignore_disorder|force_output) into streamt9 as select _twstart, elapsed(ts) from st where tbname=%%1 and ta=%%2;"
             )
             tdSql.execute(
                 f"create stream streams10 interval(2s, 1s) sliding(1s) from st partition by tbname, ta stream_options(expired_time(0s)|ignore_disorder) into streamt10 as select _twstart, sum(a) from %%trows;"

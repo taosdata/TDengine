@@ -553,7 +553,7 @@ timezone GMT-8
 timezone Asia/Shanghai
 ```
 
-均是合法的设置东八区时区的格式。但需注意，Windows 下并不支持 `timezone Asia/Shanghai` 这样的写法，而必须写成 `timezone UTC-8`。
+均是合法的设置东八区时区的格式。但需注意，Windows 下并不支持 `timezone UTC-8` 这样的写法，而必须写成 `timezone Asia/Shanghai`。
 
 时区的设置对于查询和写入 SQL 语句中非 Unix 时间戳的内容（时间戳字符串、关键词 now 的解析）产生影响。例如：
 

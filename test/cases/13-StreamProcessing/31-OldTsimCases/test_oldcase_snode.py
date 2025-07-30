@@ -1,5 +1,10 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
+from new_test_framework.utils import (
+    tdLog,
+    tdSql,
+    tdStream,
+    StreamCheckItem,
+)
 
 
 class TestStreamOldCaseSnode:
@@ -10,8 +15,7 @@ class TestStreamOldCaseSnode:
     def test_stream_oldcase_snode(self):
         """Stream snode
 
-        1. basic test
-        2. out of order data
+        Test basic operations of snode
 
         Catalog:
             - Streams:OldTsimCases
@@ -23,8 +27,8 @@ class TestStreamOldCaseSnode:
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/schedSnode.sim
-            ## - 2025-5-15 Simon Guan Migrated from tsim/stream/snodeCheck.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/schedSnode.sim
+            ## - 2025-7-25 Simon Guan Migrated from tsim/stream/snodeCheck.sim
 
         """
 
@@ -49,7 +53,7 @@ class TestStreamOldCaseSnode:
         tdSql.execute(f"create table ts3 using st tags(3, 2, 2);")
         tdSql.execute(f"create table ts4 using st tags(4, 2, 2);")
         tdSql.execute(
-            f"create stream stream_t1 interval(10s) sliding(10s) from st stream_options(max_delay(1s)) into target.streamtST1 as select _wstart, count(*) c1, count(d) c2, sum(a) c3, max(b) c4, min(c) c5 from %%trows"
+            f"create stream stream_t1 interval(10s) sliding(10s) from st stream_options(max_delay(3s)) into target.streamtST1 as select _wstart, count(*) c1, count(d) c2, sum(a) c3, max(b) c4, min(c) c5 from %%trows"
         )
         tdStream.checkStreamStatus()
 

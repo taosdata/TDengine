@@ -337,12 +337,6 @@ _end:
   return code;
 }
 
-static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t code = getAggregateResultNext(pOperator, &pRes);
-  return pRes;
-}
-
 int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (!pOperator || (pOperator->exprSupp.numOfExprs > 0 && pCtx == NULL)) {

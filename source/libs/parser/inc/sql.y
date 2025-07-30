@@ -231,7 +231,7 @@ cmd ::= CREATE BNODE ON DNODE NK_INTEGER(A) bnode_options(B).                   
 cmd ::= DROP BNODE ON DNODE NK_INTEGER(A).                                        { pCxt->pRootNode = createDropBnodeStmt(pCxt, &A); }
 
 bnode_options(A) ::= .                                                            { A = createDefaultBnodeOptions(pCxt); }
-bnode_options(A) ::= bnode_options(B) PROTOCOL NK_STRING(C).                      { A = setBnodeOption(pCxt, B, BNODE_OPTION_PROTOCOL, &C); }
+bnode_options(A) ::= bnode_options(B) NK_ID(C) NK_STRING(D).                      { A = setBnodeOption(pCxt, B, &C, &D); }
 
 /************************************************ create/drop/restore mnode ***************************************************/
 cmd ::= CREATE MNODE ON DNODE NK_INTEGER(A).                                      { pCxt->pRootNode = createCreateComponentNodeStmt(pCxt, QUERY_NODE_CREATE_MNODE_STMT, &A); }
@@ -874,7 +874,7 @@ stream_trigger(A) ::= trigger_type(B) trigger_table_opt(C) stream_partition_by_o
 /***** trigger type *****/
 
 trigger_type(A) ::= SESSION NK_LP column_reference(B) NK_COMMA interval_sliding_duration_literal(C) NK_RP.                  { A = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
-trigger_type(A) ::= STATE_WINDOW NK_LP expr_or_subquery(B) NK_RP true_for_opt(C).                                           { A = createStateWindowNode(pCxt, releaseRawExprNode(pCxt, B), C); }
+trigger_type(A) ::= STATE_WINDOW NK_LP column_reference(B) NK_RP true_for_opt(C).                                           { A = createStateWindowNode(pCxt, releaseRawExprNode(pCxt, B), C); }
 trigger_type(A) ::= interval_opt(B) SLIDING NK_LP sliding_expr(C) NK_RP.                                                    { A = createIntervalWindowNodeExt(pCxt, B, C); }
 trigger_type(A) ::= EVENT_WINDOW NK_LP START WITH search_condition(B) END WITH search_condition(C) NK_RP true_for_opt(D).   { A = createEventWindowNode(pCxt, B, C, D); }
 trigger_type(A) ::= COUNT_WINDOW NK_LP count_window_args(B) NK_RP.                                                          { A = createCountWindowNodeFromArgs(pCxt, B); }
@@ -962,7 +962,6 @@ notify_options_list(A) ::= notify_options_list(B) NK_BITOR notify_option(C).    
 %type notify_option                                                               { int64_t }
 %destructor notify_option                                                         { }
 notify_option(A) ::= NOTIFY_HISTORY.                                              { A = NOTIFY_HISTORY; }
-notify_option(A) ::= ON_FAILURE_PAUSE.                                            { A = NOTIFY_ON_FAILURE_PAUSE; }
 
 /***** common part *****/
 
@@ -1006,10 +1005,7 @@ stream_tags_def_opt(A) ::= TAGS NK_LP stream_tags_def_list(B) NK_RP.            
 stream_tags_def_list(A) ::= stream_tags_def(B).                                        { A = createNodeList(pCxt, B); }
 stream_tags_def_list(A) ::= stream_tags_def_list(B) NK_COMMA stream_tags_def(C).       { A = addNodeToList(pCxt, B, C); }
 
-stream_tags_def(A) ::= column_name(B) type_name(C) tag_comment(D) AS expression(E).    { A = createStreamTagDefNode(pCxt, &B, C, D, releaseRawExprNode(pCxt, E)); }
-
-tag_comment(A) ::= .                                                                   { A = NULL; }
-tag_comment(A) ::= COMMENT NK_STRING(B).                                               { A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
+stream_tags_def(A) ::= column_name(B) type_name(C) AS expression(D).                   { A = createStreamTagDefNode(pCxt, &B, C, releaseRawExprNode(pCxt, D)); }
 
 %type column_name_unit                                                                 { SNodeList* }
 %destructor column_name_unit                                                           { nodesDestroyList($$); }

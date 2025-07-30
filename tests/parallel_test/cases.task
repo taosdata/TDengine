@@ -44,3 +44,4 @@
 #newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/force_window_close_interval.py
 #newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/checkpoint_info.py -N 4
 #newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/checkpoint_info2.py -N 4
+

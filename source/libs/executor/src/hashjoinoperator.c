@@ -508,7 +508,7 @@ static int32_t hJoinCopyResRowsToBlock(SHJoinOperatorInfo* pJoin, int32_t rowNum
           }
           pKeyData += pBuild->valCols[buildIdx].vardata ? varDataTLen(pKeyData) : pBuild->valCols[buildIdx].bytes;
         } else {
-          if (colDataIsNull_f(pData, buildValIdx)) {
+          if (BMIsNull(pData, buildValIdx)) {
             code = colDataSetVal(pDst, pRes->info.rows + r, NULL, true);
             if (code) {
               return code;
@@ -718,7 +718,7 @@ static FORCE_INLINE void hJoinCopyValColsDataToBuf(SHJoinTableCtx* pTable, int32
         bufLen += varDataTLen(pData);
       }
     } else {
-      if (colDataIsNull_f(pTable->valCols[i].bitMap, rowIdx)) {
+      if (BMIsNull(pTable->valCols[i].bitMap, rowIdx)) {
         colDataSetNull_f(pTable->valData, m);
       } else {
         pData = pTable->valCols[i].data + pTable->valCols[i].bytes * rowIdx;
@@ -1192,7 +1192,12 @@ static int32_t resetHashJoinOperState(SOperatorInfo* pOper) {
       pRow = pNext;
     }
   }
-  tSimpleHashClear(pHjOper->pKeyHash);
+  tSimpleHashCleanup(pHjOper->pKeyHash);
+  size_t hashCap = pHjOper->pBuild->inputStat.inputRowNum > 0 ? (pHjOper->pBuild->inputStat.inputRowNum * 1.5) : 1024;
+  pHjOper->pKeyHash = tSimpleHashInit(hashCap, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  if (pHjOper->pKeyHash == NULL) {
+    return terrno; 
+  }
   taosArrayDestroyEx(pHjOper->pRowBufs, hJoinFreeBufPage);
   int32_t code = hJoinInitBufPages(pHjOper);
   int64_t limit = pHjOper->ctx.limit;

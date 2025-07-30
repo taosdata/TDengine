@@ -108,7 +108,11 @@ int32_t sclExtendResRowsRange(SScalarParam *pDst, int32_t rowStartIdx, int32_t r
   pLeft->numOfRows = pb->info.rows;
 
   if (pDst->numOfRows < pb->info.rows) {
-    SCL_ERR_JRET(colInfoDataEnsureCapacity(pDst->columnData, pb->info.rows, true));
+    
+    // When rowStartIdx equals -1, the stream computation performs a forceout operation on the window, and the capacity has been completed 
+    if (rowStartIdx == -1) {
+      SCL_ERR_JRET(colInfoDataEnsureCapacity(pDst->columnData, pb->info.rows, true));
+    }
   }
 
   if (rowStartIdx < 0 || rowEndIdx < 0) {
@@ -1098,8 +1102,12 @@ static int32_t calcStreamTimeRangeForPseudoCols(SScalarCtx *ctx, SStreamTSRangeP
              nodeType(node->pLeft), nodeType(node->pRight));
   }
 
-  streamTsRange->timeValue = timeValue;
   streamTsRange->opType = node->opType;
+  if (streamTsRange->opType == OP_TYPE_GREATER_EQUAL || streamTsRange->opType == OP_TYPE_GREATER_THAN) {
+    streamTsRange->timeValue = (streamTsRange->timeValue > timeValue) ? streamTsRange->timeValue : timeValue;
+  } else {
+    streamTsRange->timeValue = (streamTsRange->timeValue < timeValue) ? streamTsRange->timeValue : timeValue;
+  }
   if (code != TSDB_CODE_SUCCESS) {
     sclError("get ts value for stream timerange failed, code:%d", code);
   }

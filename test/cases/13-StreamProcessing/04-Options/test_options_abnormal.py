@@ -9,34 +9,28 @@ class TestStreamOptionsTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_options_trigger(self):
-        """Stream basic test 1
+        """stream options
+
+        test abnormal cases to stream
+
+        Catalog:
+            - Streams:UseCases
+
+        Since: v3.3.3.7
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-6-16 Lihui Created
+
         """
 
         tdStream.createSnode()
 
         streams = []
-        streams.append(self.Basic0())  # WATERMARK [ok]
-        # streams.append(self.Basic1())  # EXPIRED_TIME   fail 
-        # streams.append(self.Basic2())  # IGNORE_DISORDER  [ok]
-        
-        # TD-36343 [流计算开发阶段] 流计算state窗口+delete_recalc删除数据后重算结果错误
-        # streams.append(self.Basic3())  # DELETE_RECALC
-        
-        # TD-36305 [流计算开发阶段] 流计算state窗口+超级表%%rows+delete_output_table没有删除结果表
-        # streams.append(self.Basic4())  # DELETE_OUTPUT_TABLE
-        
-        # streams.append(self.Basic5())  # FILL_HISTORY        [ok]
-        # streams.append(self.Basic6())  # FILL_HISTORY_FIRST  [ok]
-        # streams.append(self.Basic7())  # CALC_NOTIFY_ONLY
-        # # streams.append(self.Basic8())  # LOW_LATENCY_CALC  temp no test
-        # streams.append(self.Basic9())  # PRE_FILTER     [ok]
-        # streams.append(self.Basic10()) # FORCE_OUTPUT   [ok] 
-        # streams.append(self.Basic11()) # MAX_DELAY        
-        # streams.append(self.Basic11_1()) # MAX_DELAY        
-        # streams.append(self.Basic12()) # EVENT_TYPE [ok]
-        # streams.append(self.Basic13()) # IGNORE_NODATA_TRIGGER
-        
-        # streams.append(self.Basic14()) # watermark + expired_time + ignore_disorder  fail  对超期的数据仍然进行了计算
+        streams.append(self.Basic0())  
         
         tdStream.checkAll(streams)
 
@@ -45,6 +39,7 @@ class TestStreamOptionsTrigger:
             self.db  = "sdb0"
             self.stbName = "stb"
             self.stbName2 = "stb2"
+            self.vstbName = "vstb"
             
             self.ntbName = "ntb"
 
@@ -62,6 +57,24 @@ class TestStreamOptionsTrigger:
 
             tdSql.execute(f"create table ct101 using {self.stbName2} tags(1)")
             tdSql.execute(f"create table ct102 using {self.stbName2} tags(2)")
+            
+            # must not create stb/ctb/ntb using create vtable
+            tdSql.error(f"create vtable if not exists err_stb1  (cts timestamp, cint int) tags (tint int)")
+            tdSql.error(f"create vtable if not exists err_ct1 using {self.stbName2} tags(100)")
+            
+            tdSql.execute(f"create vtable if not exists null_vntb1 (cts timestamp, cint int)")
+            tdSql.error(f"alter table null_vntb1 alter column cint set {self.ntbName}.cint")
+            tdSql.execute(f"alter vtable null_vntb1 alter column cint set {self.ntbName}.cint")
+            tdSql.error(f"alter vtable null_vntb1 alter column cint set {self.ntbName}.cdouble")
+            # drop table can be used to drop any type of table
+            #tdSql.error(f"drop table null_vntb1")
+            tdSql.error(f"drop vtable ct1")
+            
+            # must not create vctb/vntb using create table
+            tdSql.execute(f"create table if not exists  {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")            
+            tdSql.error(f"create table if not exists err_ct2 (cint from {self.db}.ct1.cint) using {self.db}.{self.vstbName} tags(1)")
+            
+            tdSql.error(f"create table if not exists err_ntb2 (cts timestamp, cint int from {self.db}.{self.ntbName}.cint)")      
 
             # tdSql.query(f"show tables")
             # tdSql.checkRows(2)
@@ -115,9 +128,9 @@ class TestStreamOptionsTrigger:
             )
             
             # %%trows must not use with WINDOW_OPEN in event_type
-            # tdSql.error(
-            #     f"create stream sn10 state_window(cint) from ct1 stream_options(event_type(WINDOW_OPEN|WINDOW_CLOSE)) into res_ct1 (lastts, firstts, cnt_v, sum_v, avg_v) as select last_row(_c0), first(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
-            # )
+            tdSql.error(
+                f"create stream sn10 state_window(cint) from ct1 stream_options(event_type(WINDOW_OPEN|WINDOW_CLOSE)) into res_ct1 (lastts, firstts, cnt_v, sum_v, avg_v) as select last_row(_c0), first(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+            )
             
             tdSql.execute(
                 f"create stream sn11_g state_window(cint) from {self.stbName} partition by tbname, tint stream_options(watermark(10s) | expired_time(500s)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"

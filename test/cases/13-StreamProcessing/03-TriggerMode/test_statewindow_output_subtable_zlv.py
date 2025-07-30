@@ -5,6 +5,7 @@ from new_test_framework.utils import tdLog, tdSql, tdStream, streamUtil,StreamTa
 from random import randint
 import os
 import subprocess
+import json
 
 class TestPeriodOutputSubtable:
     currentDir = os.path.dirname(os.path.abspath(__file__))
@@ -41,19 +42,63 @@ class TestPeriodOutputSubtable:
 
         tdStream.dropAllStreamsAndDbs()
         self.createSnodeTest()
+        tdSql.execute(f'create database test1 vgroups 10 ;')
+        self.dataIn()
         self.createTable()
         sql = (
-            "create stream s20 state_window(cint) from devices partition by tbname stream_options(pre_filter(cint>2)|fill_history('1970-01-01 00:00:00')) "  
-            "into s20_out output_subtable(concat('xxxx',tbname))  tags(yyyy varchar(100) comment 'table name1' as 'cint+10') "
+            "create stream s0 state_window(cint) from devices partition by tbname stream_options(pre_filter(cint>2)|fill_history('1970-01-01 00:00:00')) "  
+            "into s0_out output_subtable(concat('xxxx',tbname))  tags(yyyy varchar(100) comment 'table name1' as 'cint+10') "
             "as   select ts,cint,i1,  %%tbname from %%trows  order by ts;"
         )
         
+        sql1=(
+            "create stream `s1` state_window(cint) from devices partition by tbname stream_options(fill_history('2025-01-01 00:00:00')) into `s1_out` "
+            "as select * from (select last_row(ts) ts,sum(cint) cint ,sum(tint) tint from devices  where tint % 2 = 0 partition by tbname having(sum(cint))>50) where tint>0;"
+        )
+        
+        sql2=(
+            "create stream `s3` state_window(cint) from devices partition by  tbname stream_options(fill_history('2025-01-01 00:00:00')) into `s3_out` "
+            "as select * from (select last_row(ts) ts,sum(cint) cint ,sum(tint) tint from %%tbname  "
+            "where tint % 2 = 0 partition by tbname having(sum(cint))>50) where tint>0;"
+        )
+        
+        sql3=(
+            "create stream `s2` state_window(cint) from devices partition by  tbname stream_options(fill_history('2025-01-01 00:00:00')) into `s2_out` "
+            "as select * from (select last_row(ts) ts,sum(cint) cint ,sum(tint) tint from devices "
+            "where tint % 2 = 0 partition by tbname having(sum(cint))>50) where tint<23;"
+        )
+        
+        sql4 = ("create stream s4 sliding(5s) from stba partition by  tbname stream_options(fill_history('1970-01-01 00:00:00')) into s4_out output_subtable(concat('xxxx',tbname))  tags(yyyy varchar(100) comment 'table name1' as 'tint+10')  as select _wstart,_wend, sum(cint) ,count(i1),last(tint) from stba  partition by tbname interval(60s) ")
+        sql5 = ("create stream s5 sliding(5s) from stba partition by tint, tbname stream_options(fill_history('1970-01-01 00:00:00')) into s5_out  as select _wstart,_wend, sum(cint),sum(i1) from  (select _wstart,_wend, sum(cint) cint ,count(i1) i1 from a1 event_window start with cint>0 end with cint <9 ) interval(3s)")
+        sql6 = ("create stream s6 sliding(5s) from stba partition by tint, tbname stream_options(fill_history('1970-01-01 00:00:00')) into s6_out  as select _wstart,_wend, sum(cint),sum(i1) from  (select _wstart,_wend, sum(cint) cint ,count(i1) i1 from stba event_window start with cint>0 end with cint <9 ) interval(3s)")
+        sql7 = ("create stream s7 sliding(5s) from stba partition by tint, tbname stream_options(pre_filter(cint>3)|fill_history('1970-01-01 00:00:00')) into s7_out  as select _wstart,_wend, sum(cint),sum(i1) from  (select _wstart,_wend, sum(cint) cint ,count(i1) i1 from stba event_window start with cint>5 end with cint <9 ) interval(3s)")
+        sql8 = ("create stream s8 sliding(5s) from stba partition by tint, tbname stream_options(pre_filter(cint>3)|fill_history('1970-01-01 00:00:00')) into s8_out  as select _wstart,_wend, count(cint) cint from  (select _wstart,_wend, count(*) cint from stba event_window start with cint>5 end with cint <9 ) interval(3s)")
+        sql9 = ("create stream s9 sliding(5s) from devices partition by tint, tbname stream_options(pre_filter(cint>3)|fill_history('1970-01-01 00:00:00')) into s9_out  as select _wstart,_wend, count(cint) cint from  (select _wstart,_wend, count(*) cint from stba event_window start with cint>5 end with cint <9 ) interval(3s)")
+        sql10 = ("create stream s10 session(ts,3s) from devices partition by tint, tbname stream_options(pre_filter(cint>3)|fill_history('1970-01-01 00:00:00')) into s10_out  as select last_row(ts),last_row(cint),last_row(i1) from devices partition by tbname")
+        sql11 = ("create stream s11 interval(1s) sliding(1s)  from test1.stba into test1.mgout as select now(),* from information_schema.ins_grants;")
+        sql12 = ("create stream s12 sliding(1s) from pt partition by tbname stream_options(pre_filter(c1>100)|fill_history('1970-01-01 00:00:00'))  into s12_out as  select pt.ts,pt.c1,pt.c2,pt.c3,pt1.ts pt1ts,pt1.c1 pt1c1,pt1.c2 pt1c2,pt1.c3 pt1c3 from pt1,pt where pt1.ts=pt.ts;")
+        sql13 = ("create stream s13 sliding(30s) from s12_out partition by tbname stream_options(fill_history(0)) into s13_out as select _tcurrent_ts,sum(c1),avg(c2) ,last(c3) from s12_out ;")
         #create stream
-        tdSql.execute(sql)
+        # tdSql.execute(sql)
+        # tdSql.execute(sql1)
+        # tdSql.execute(sql2)
+        # tdSql.execute(sql3)
+        tdSql.execute(sql4)
+        # tdSql.execute(sql5)
+        # tdSql.execute(sql6)
+        # tdSql.execute(sql7)
+        # tdSql.execute(sql8)
+        # tdSql.execute(sql9)
+        # tdSql.execute(sql10)
+        # tdSql.execute(sql11)
+        # tdSql.execute(sql12)
+        # tdSql.execute(sql13)
+        
         self.checkStreamRunning()
         tdSql.execute("insert into test1.a0 values(now,now,200,300);")
         tdSql.execute("insert into test1.a1 values(now,now,200,300);")
         tdSql.execute("insert into test1.a2 values(now,now,500,300);")
+        # tdSql.execute("select * from (select last_row(ts) ts,sum(cint) cint ,sum(tint)  tint from devices  where tint % 2 = 0 partition by tbname having(sum(cint))>50) where tint>0;")
         
         
             
@@ -108,16 +153,94 @@ class TestPeriodOutputSubtable:
                 tdLog.info(f"stream running status: {streamRunning}")
                 time.sleep(1)
 
+    def dataIn(self):
+        tdLog.info(f"insert more data:")
+        config = {
+            "filetype": "insert",
+            "cfgdir": "/etc/taos",
+            "host": "localhost",
+            "port": 6030,
+            "user": "root",
+            "password": "taosdata",
+            "thread_count": 16,
+            "thread_count_create_tbl": 8,
+            "result_file": "./insert.txt",
+            "confirm_parameter_prompt": "no",
+            "insert_interval": 0,
+            "num_of_records_per_req": 1000,
+            "max_sql_len": 1048576,
+            "databases": [{
+                    "dbinfo": {
+                        "name": "test1",
+                        "drop": "no",
+                        "replica": 3,
+                        "days": 10,
+                        "precision": "ms",
+                        "keep": 36500,
+                        "minRows": 100,
+                        "maxRows": 4096
+                    },
+                    "super_tables": [{
+                            "name": "stba",
+                            "child_table_exists": "no",
+                            "childtable_count": 3000,
+                            "childtable_prefix": "a",
+                            "auto_create_table": "no",
+                            "batch_create_tbl_num": 10,
+                            "data_source": "rand",
+                            "insert_mode": "taosc",
+                            "insert_rows": 500,
+                            "childtable_limit": 100000000,
+                            "childtable_offset": 0,
+                            "interlace_rows": 0,
+                            "insert_interval": 0,
+                            "max_sql_len": 1048576,
+                            "disorder_ratio": 0,
+                            "disorder_range": 1000,
+                            "timestamp_step": 30000,
+                            "start_timestamp": "2025-05-01 00:00:00.000",
+                            "sample_format": "",
+                            "sample_file": "",
+                            "tags_file": "",
+                            "columns": [
+                                {"type": "timestamp","name":"cts","count": 1,"start":"2025-02-01 00:00:00.000"},
+                                {"type": "int","name":"cint","max":100,"min":-1},
+                                {"type": "int","name":"i1","max":100,"min":-1}
+                            ],
+                            "tags": [
+                                {"type": "int","name":"tint","max":100,"min":-1},
+                                {"type": "double","name":"tdouble","max":100,"min":0},
+                                {"type": "varchar","name":"tvar","len":100,"count": 1},
+                                {"type": "nchar","name":"tnchar","len":100,"count": 1},
+                                {"type": "timestamp","name":"tts"},
+                                {"type": "bool","name":"tbool"}
+                            ]
+                        }
+
+                    ]
+                }
+            ]
+        }
+        
+        with open('insert_config.json','w') as f:
+            json.dump(config,f,indent=4)
+        tdLog.info('config file ready')
+        cmd = f"taosBenchmark -f insert_config.json "
+        # output = subprocess.check_output(cmd, shell=True).decode().strip()
+        ret = os.system(cmd)
+        if ret != 0:
+            raise Exception("taosBenchmark run failed")
+        time.sleep(5)
+        tdLog.info(f"Insert data:taosBenchmark -f insert_config.json")
 
     def createTable(self):
-        tdSql.execute(f'create database test1 vgroups 10 ;')
         tdSql.execute(f"use test1;")
-        tdSql.execute(f"CREATE STABLE `stba` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `cts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `cint` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', `i1` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium') TAGS (`tint` INT, `tdouble` DOUBLE, `tvar` VARCHAR(100), `tnchar` NCHAR(100), `tts` TIMESTAMP, `tbool` BOOL);")
+        # tdSql.execute(f"CREATE STABLE `stba` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `cts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `cint` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', `i1` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium') TAGS (`tint` INT, `tdouble` DOUBLE, `tvar` VARCHAR(100), `tnchar` NCHAR(100), `tts` TIMESTAMP, `tbool` BOOL);")
         tdSql.execute(f"CREATE STABLE `stbb` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `cts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `cint` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', `i1` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium') TAGS (`tint` INT, `tdouble` DOUBLE, `tvar` VARCHAR(100), `tnchar` NCHAR(100), `tts` TIMESTAMP, `tbool` BOOL);")
         tdSql.execute(f"CREATE STABLE `stbc` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `cts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `cint` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', `i1` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium') TAGS (`tint` INT, `tdouble` DOUBLE, `tvar` VARCHAR(100), `tnchar` NCHAR(100), `tts` TIMESTAMP, `tbool` BOOL);")
-        tdSql.execute(f"create table a0 using stba tags(1,1.1,'a0','测试a0','2025-01-01 00:00:01',1);")
-        tdSql.execute(f"create table a1 using stba tags(NULL,2.1,'a1','测试a1','2025-01-01 00:00:02',0);")
-        tdSql.execute(f"create table a2 using stba tags(2,3.1,'a2','测试a2','2025-01-01 00:00:03',1);")
+        # tdSql.execute(f"create table a0 using stba tags(1,1.1,'a0','测试a0','2025-01-01 00:00:01',1);")
+        # tdSql.execute(f"create table a1 using stba tags(NULL,2.1,'a1','测试a1','2025-01-01 00:00:02',0);")
+        # tdSql.execute(f"create table a2 using stba tags(2,3.1,'a2','测试a2','2025-01-01 00:00:03',1);")
         tdSql.execute(f"create table b0 using stbb tags(1,1.1,'a0','测试a0','2025-01-01 00:00:01',1);")
         tdSql.execute(f"create table b1 using stbb tags(NULL,2.1,'a1','测试a1','2025-01-01 00:00:02',0);")
         tdSql.execute(f"create table b2 using stbb tags(2,3.1,'a2','测试a2','2025-01-01 00:00:03',1);")

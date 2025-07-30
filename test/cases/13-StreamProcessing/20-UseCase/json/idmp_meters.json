@@ -1,0 +1,61 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "num_of_records_per_req": 20000,
+    "thread_count": 4,
+    "create_table_thread_count": 1,
+    "confirm_parameter_prompt": "no",
+    "continue_if_fail": "yes",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "asset01",
+                "drop": "yes",
+                "vgroups": 4,
+                "replica": 3,
+                "precision": "ms"
+            },
+            "super_tables": [
+                {
+                    "name": "electricity_meters",
+                    "child_table_exists": "no",
+                    "childtable_count": 10,
+                    "insert_rows": 1000,
+                    "childtable_prefix": "em_",
+                    "insert_mode": "taosc",
+                    "timestamp_step": 1000,
+                    "start_timestamp":"now",
+                    "random_write_future": "yes",
+                    "disorder_ratio": 10,
+                    "update_ratio": 5,
+                    "delete_ratio": 1,
+                    "disorder_fill_interval": 300,
+                    "update_fill_interval": 25,
+                    "generate_row_rule": 2,
+                    "columns": [
+                        { "type": "FLOAT",  "name": "current", "min": 1,   "max": 50 },
+                        { "type": "INT",    "name": "voltage", "min": 180, "max": 250 },
+                        { "type": "FLOAT",  "name": "power",   "min": 0,   "max": 300 },
+                        { "type": "FLOAT",  "name": "phase",   "min": 0,   "max": 1 }
+                    ],
+                    "tags": [
+                        { "type": "VARCHAR",  "name": "location" , "len": 32,
+                            "values": ["New York", "Los Angeles", "Chicago", "Houston",
+                                       "Phoenix", "Philadelphia", "San Antonio", "San Diego",
+                                       "Dallas", "San Jose"] },
+                        { "type": "TINYINT",  "name": "unit",      "min": 0,   "max": 200 },
+                        { "type": "TINYINT",  "name": "floor",     "min": 0,   "max": 100 },
+                        { "type": "NCHAR",    "name": "device_id", "len": 16,
+                            "values": ["dev001", "dev002", "dev003", "dev004",
+                                       "dev005", "dev006", "dev007", "dev008",
+                                       "dev009", "dev010"] }
+                    ]
+                }
+            ]
+        }
+    ]
+}

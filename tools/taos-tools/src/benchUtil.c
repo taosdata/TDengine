@@ -346,7 +346,9 @@ SBenchConn* initBenchConnImpl(char *dbName) {
     succPrint("%s connect successfully.\n", show);
 
     // check write correct connect
-    conn->ctaos = taos_connect(host, user, pwd, NULL, port);
+    if (g_arguments->check_sql) {
+        conn->ctaos = taos_connect(host, user, pwd, NULL, port);
+    }
 
     if (dsnc) {
         tmfree(dsnc);

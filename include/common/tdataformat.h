@@ -107,6 +107,12 @@ const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b001111
 #define COL_VAL_IS_NULL(CV)  ((CV)->flag == CV_FLAG_NULL)
 #define COL_VAL_IS_VALUE(CV) ((CV)->flag == CV_FLAG_VALUE)
 
+// Strategies of merging rows with
+// same pk in single insert batch.
+typedef enum {
+  PREFER_NON_NULL = 0,  // choose latest non-null value for each column
+  KEEP_CONSISTENCY = 1  // choose latest row
+} ERowMergeStrategy;
 #define BSE_SEQUECE_SIZE sizeof(uint64_t)
 
 enum { TSDB_DATA_BLOB_VALUE = 0x1, TSDB_DATA_BLOB_EMPTY_VALUE = 0x2, TSDB_DATA_BLOB_NULL_VALUE = 0x4 };
@@ -168,7 +174,7 @@ int32_t tBlobSetCreate(int64_t cap, int8_t type, SBlobSet **ppBlobSet);
 int32_t tBlobSetPush(SBlobSet *pBlobSet, SBlobItem *pBlobItem, uint64_t *seq, int8_t nextRow);
 int32_t tBlobSetUpdate(SBlobSet *pBlobSet, uint64_t seq, SBlobItem *pBlobItem);
 int32_t tBlobSetGet(SBlobSet *pBlobSet, uint64_t seq, SBlobItem *pItem);
-int32_t tBlobSetDestroy(SBlobSet *pBlowRow);
+void    tBlobSetDestroy(SBlobSet *pBlowRow);
 int32_t tBlobSetSize(SBlobSet *pBlobSet);
 void    tBlobSetSwap(SBlobSet *p1, SBlobSet *p2);
 // int32_t tBlobRowEnd(SBlobSet *pBlobSet);
@@ -177,7 +183,7 @@ void    tBlobSetSwap(SBlobSet *p1, SBlobSet *p2);
 int32_t tRowGetBlobSeq(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal, uint64_t *seq);
 void    tRowDestroy(SRow *pRow);
 int32_t tRowSort(SArray *aRowP);
-int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag);
+int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, ERowMergeStrategy strategy);
 int32_t tRowUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData, int32_t flag);
 void    tRowGetPrimaryKey(SRow *pRow, SRowKey *key);
 int32_t tRowKeyCompare(const SRowKey *key1, const SRowKey *key2);
@@ -294,11 +300,11 @@ struct SBlobSet {
   int8_t    type;
   int8_t    rowType;
   SHashObj *pSeqToffset;
-  int64_t  seq;
-  int64_t  len;
-  int32_t  cap;
-  uint8_t  compress;
-  SArray  *pSeqTable;
+  int64_t   seq;
+  int64_t   len;
+  int32_t   cap;
+  uint8_t   compress;
+  SArray   *pSeqTable;
 
   SArray  *pSet;
   uint8_t *data;

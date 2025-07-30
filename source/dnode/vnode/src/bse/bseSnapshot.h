@@ -62,6 +62,7 @@ typedef struct {
   int8_t           isOver;
 
   void *pTableIter;
+  uint8_t *pCurrentBuf;
 
 } SBseIter;
 
@@ -69,7 +70,7 @@ typedef struct {
   struct SSeqRange range;
   int8_t           fileType;   // fileType
   int8_t           blockType;  // blockType
-  int64_t          keepDays;   // keepDays
+  int64_t          timestamp;  // keepDays
 } SBseSnapMeta;
 
 int32_t bseOpenIter(SBse *pBse, SBseIter **ppIter);

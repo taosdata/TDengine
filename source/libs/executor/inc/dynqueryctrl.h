@@ -82,6 +82,7 @@ typedef struct SVtbScanDynCtrlInfo {
   SEpSet           epSet;
   SUseDbRsp*       pRsp;
   uint64_t         suid;
+  uint64_t         dynTbUid;
   int32_t          acctId;
   int32_t          curTableIdx;
   int32_t          lastTableIdx;

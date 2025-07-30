@@ -494,26 +494,6 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
 
   tsNumOfQueryThreads += tsNumOfVnodeQueryThreads;
 
-  SAutoQWorkerPool *pStreamPool = &pMgmt->streamPool;
-  pStreamPool->name = "vnode-stream";
-  pStreamPool->ratio = tsRatioOfVnodeStreamThreads;
-  if ((code = tAutoQWorkerInit(pStreamPool)) != 0) return code;
-
-  SAutoQWorkerPool *pLongExecPool = &pMgmt->streamLongExecPool;
-  pLongExecPool->name = "vnode-stream-long-exec";
-  pLongExecPool->ratio = tsRatioOfVnodeStreamThreads/3;
-  if ((code = tAutoQWorkerInit(pLongExecPool)) != 0) return code;
-
-  SWWorkerPool *pStreamCtrlPool = &pMgmt->streamCtrlPool;
-  pStreamCtrlPool->name = "vnode-stream-ctrl";
-  pStreamCtrlPool->max = 4;
-  if ((code = tWWorkerInit(pStreamCtrlPool)) != 0) return code;
-
-  SWWorkerPool *pStreamChkPool = &pMgmt->streamChkPool;
-  pStreamChkPool->name = "vnode-stream-chkpt";
-  pStreamChkPool->max = 1;
-  if ((code = tWWorkerInit(pStreamChkPool)) != 0) return code;
-
   SWWorkerPool *pFPool = &pMgmt->fetchPool;
   pFPool->name = "vnode-fetch";
   pFPool->max = tsNumOfVnodeFetchThreads;
@@ -556,10 +536,6 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
 
 void vmStopWorker(SVnodeMgmt *pMgmt) {
   tQueryAutoQWorkerCleanup(&pMgmt->queryPool);
-  tAutoQWorkerCleanup(&pMgmt->streamPool);
-  tAutoQWorkerCleanup(&pMgmt->streamLongExecPool);
-  tWWorkerCleanup(&pMgmt->streamCtrlPool);
-  tWWorkerCleanup(&pMgmt->streamChkPool);
   tWWorkerCleanup(&pMgmt->fetchPool);
   tWWorkerCleanup(&pMgmt->streamReaderPool);
   tSingleWorkerCleanup(&pMgmt->streamRunnerWorker);

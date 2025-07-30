@@ -66,6 +66,7 @@ typedef struct SStreamTriggerReaderTaskInnerOptions {
   STimeWindow twindows;
   uint64_t    suid;
   uint64_t    uid;
+  int64_t     ver;
   uint64_t    gid;
   int8_t      tableType;
   bool        groupSort;
@@ -94,7 +95,7 @@ typedef struct SStreamReaderTaskInner {
 } SStreamReaderTaskInner;
 
 int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order, void* schemas, bool isSchema,
-                                      STimeWindow twindows, uint64_t suid);
+                                      STimeWindow twindows, uint64_t suid, int64_t ver);
 int32_t createDataBlockForStream(SArray* schemas, SSDataBlock** pBlockRet);
 int32_t qStreamBuildSchema(SArray* schemas, int8_t type, int32_t bytes, col_id_t colId);
 void    releaseStreamTask(void* p);
@@ -102,7 +103,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
                          SSDataBlock* pResBlock, SHashObj* groupIdMap, SStorageAPI*  api);
 void*   qStreamGetReaderInfo(int64_t streamId, int64_t taskId, void** taskAddr);
 void    qStreamSetTaskRunning(int64_t streamId, int64_t taskId);
-int32_t streamBuildFetchRsp(SSDataBlock* pBlock, void** data, size_t* size, int8_t precision);
+int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t* size, int8_t precision);
 
 #ifdef __cplusplus
 }

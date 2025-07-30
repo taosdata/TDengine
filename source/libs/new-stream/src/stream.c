@@ -24,12 +24,20 @@
 SStreamMgmtInfo gStreamMgmt = {0};
 
 void streamSetSnodeEnabled(  SMsgCb* msgCb) {
+  if (tsDisableStream) {
+    return;
+  }
+  
   gStreamMgmt.snodeEnabled = true;
   gStreamMgmt.msgCb = *msgCb;
   stInfo("snode %d enabled", (*gStreamMgmt.getDnode)(gStreamMgmt.dnode));
 }
 
 void streamSetSnodeDisabled(bool cleanup) {
+  if (tsDisableStream) {
+    return;
+  }
+  
   stInfo("snode disabled");
   gStreamMgmt.snodeEnabled = false;
   smUndeploySnodeTasks(cleanup);
@@ -37,20 +45,38 @@ void streamSetSnodeDisabled(bool cleanup) {
 
 void streamMgmtCleanup() {
   taosArrayDestroy(gStreamMgmt.vgLeaders);
+  gStreamMgmt.vgLeaders = NULL;
   taosHashCleanup(gStreamMgmt.taskMap);
+  gStreamMgmt.taskMap = NULL;
   taosHashCleanup(gStreamMgmt.vgroupMap);
+  gStreamMgmt.vgroupMap = NULL;
+  for (int32_t i = 0; i < STREAM_MAX_GROUP_NUM; ++i) {
+    taosHashCleanup(gStreamMgmt.stmGrp[i]);
+    gStreamMgmt.stmGrp[i] = NULL;
+  }
 }
 
 void streamCleanup(void) {
+  if (tsDisableStream) {
+    return;
+  }
+  
+  stInfo("stream cleanup start");
   stTriggerTaskEnvCleanup();
   streamTimerCleanUp();
   smUndeployAllTasks();
   destroyDataSinkMgr();
   streamMgmtCleanup();
   destroyInserterGrpInfo();
+  stInfo("stream cleanup end");
 }
 
 int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode, getSynEpset_f getSynEpset) {
+  if (tsDisableStream) {
+    stInfo("stream disabled");
+    return TSDB_CODE_SUCCESS;
+  }
+  
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
@@ -106,6 +132,10 @@ int32_t streamVgIdSort(void const *lp, void const *rp) {
 
 
 void streamRemoveVnodeLeader(int32_t vgId) {
+  if (tsDisableStream) {
+    return;
+  }
+  
   taosWLockLatch(&gStreamMgmt.vgLeadersLock);
   int32_t idx = taosArraySearchIdx(gStreamMgmt.vgLeaders, &vgId, streamVgIdSort, TD_EQ);
   if (idx >= 0) {
@@ -119,10 +149,14 @@ void streamRemoveVnodeLeader(int32_t vgId) {
     stWarn("remove vgroup %d from vgroupLeaders failed since not exists", vgId);
   }
 
-  smUndeployVgTasks(vgId);
+  smUndeployVgTasks(vgId, false);
 }
 
 void streamAddVnodeLeader(int32_t vgId) {
+  if (tsDisableStream) {
+    return;
+  }
+  
   int32_t code = TSDB_CODE_SUCCESS;
   taosWLockLatch(&gStreamMgmt.vgLeadersLock);
   void* p = taosArrayPush(gStreamMgmt.vgLeaders, &vgId);
@@ -132,6 +166,8 @@ void streamAddVnodeLeader(int32_t vgId) {
     code = terrno;
   }
   taosWUnLockLatch(&gStreamMgmt.vgLeadersLock);
+
+  smEnableVgDeploy(vgId);
   
   if (p) {
     stInfo("add vgroup %d to vgroupLeaders succeed", vgId);

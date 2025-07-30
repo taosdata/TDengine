@@ -195,6 +195,8 @@ bool fmIsWindowClauseFunc(int32_t funcId) { return fmIsAggFunc(funcId) || fmIsWi
 
 bool fmIsStreamWindowClauseFunc(int32_t funcId) { return fmIsWindowClauseFunc(funcId) || fmIsPlaceHolderFunc(funcId); }
 
+bool fmIsStreamVectorFunc(int32_t funcId) { return fmIsVectorFunc(funcId) || fmIsPlaceHolderFunc(funcId); }
+
 bool fmIsIndefiniteRowsFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_INDEFINITE_ROWS_FUNC); }
 
 bool fmIsSpecialDataRequiredFunc(int32_t funcId) {
@@ -775,18 +777,6 @@ const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInf
   return NULL;
 }
 
-void fmGetStreamPesudoFuncValTbname(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo, void** data, int32_t* dataLen) {
-  SArray* pVal = (SArray*)fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeFuncInfo);
-  for (int32_t i = 0; i < taosArrayGetSize(pVal); ++i) {
-    SStreamGroupValue* pValue = taosArrayGet(pVal, i);
-    if (pValue != NULL && pValue->isTbname) {
-      *data = pValue->data.pData;
-      *dataLen = pValue->data.nData;
-      break;
-    }
-  }
-}
-
 int32_t fmGetStreamPesudoFuncEnv(int32_t funcId, SNodeList* pParamNodes, SFuncExecEnv *pEnv) {
   if (NULL == pParamNodes || pParamNodes->length < 1) {
     uError("invalid stream pesudo func param list %p", pParamNodes);
@@ -819,7 +809,7 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
   }
 
   int32_t t = funcMgtBuiltins[funcId].type;
-  uInfo("set stream pseudo func param val, functype: %d, pStreamRuntimeInfo: %p", t, pStreamRuntimeInfo);
+  uDebug("set stream pseudo func param val, functype: %d, pStreamRuntimeInfo: %p", t, pStreamRuntimeInfo);
   if (FUNCTION_TYPE_TGRPID == t) {
     SValue v = {0};
     v.type = TSDB_DATA_TYPE_BIGINT;

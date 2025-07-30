@@ -231,6 +231,10 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, int32_t encryptAlgor
   if (n < 0) {
     TSDB_CHECK_CODE(code = terrno, lino, _exit);
   } else if (n < pFD->szPage) {
+    tsdbError(
+        "vgId:%d %s failed at %s:%d since read file size is less than page size, "
+        "read size: %" PRId64 ", page size: %d, fname:%s, pgno:%" PRId64,
+        TD_VID(pFD->pTsdb->pVnode), __func__, __FILE__, __LINE__, n, pFD->szPage, pFD->path, pFD->pgno);
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
   }
   //}
@@ -259,6 +263,8 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, int32_t encryptAlgor
 
   // check
   if (pgno > 1 && !taosCheckChecksumWhole(pFD->pBuf, pFD->szPage)) {
+    tsdbError("vgId:%d %s failed at %s:%d since checksum mismatch, fname:%s, pgno:%" PRId64, TD_VID(pFD->pTsdb->pVnode),
+              __func__, __FILE__, __LINE__, pFD->path, pgno);
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
   }
 

@@ -18,12 +18,12 @@ class TestVtableAlter():
 
     @staticmethod
     def prepare_vtables():
-        tdSql.execute("drop table if exists vtb_virtual_stb;")
-        tdSql.execute("drop table if exists vtb_virtual_stb_1;")
-        tdSql.execute("drop table if exists vtb_virtual_ctb0;")
-        tdSql.execute("drop table if exists vtb_virtual_ctb_after_modified_1;")
-        tdSql.execute("drop table if exists vtb_virtual_ctb_after_modified_2;")
-        tdSql.execute("drop table if exists vtb_virtual_ntb0;")
+        tdSql.execute("drop stable if exists vtb_virtual_stb;")
+        tdSql.execute("drop stable if exists vtb_virtual_stb_1;")
+        tdSql.execute("drop vtable if exists vtb_virtual_ctb0;")
+        tdSql.execute("drop vtable if exists vtb_virtual_ctb_after_modified_1;")
+        tdSql.execute("drop vtable if exists vtb_virtual_ctb_after_modified_2;")
+        tdSql.execute("drop vtable if exists vtb_virtual_ntb0;")
         tdLog.info(f"prepare virtual super tables.")
         tdSql.execute(f"CREATE STABLE `vtb_virtual_stb` ("
                       "ts timestamp, "

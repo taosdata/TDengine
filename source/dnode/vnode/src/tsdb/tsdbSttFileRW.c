@@ -62,6 +62,8 @@ int32_t tsdbSttFileReaderOpen(const char *fname, const SSttFileReaderConfig *con
   // // open each segment reader
   int64_t offset = config->file->size - sizeof(SSttFooter);
   if (offset < TSDB_FHDR_SIZE) {
+    tsdbError("vgId:%d %s failed at %s:%d since file size is too small: %" PRId64 " fname:%s",
+              TD_VID(config->tsdb->pVnode), __func__, __FILE__, __LINE__, config->file->size, reader[0]->fd->path);
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
   }
 
@@ -117,6 +119,8 @@ int32_t tsdbSttFileReadStatisBlk(SSttFileReader *reader, const TStatisBlkArray *
   if (!reader->ctx->statisBlkLoaded) {
     if (reader->footer->statisBlkPtr->size > 0) {
       if (reader->footer->statisBlkPtr->size % sizeof(SStatisBlk) != 0) {
+        tsdbError("vgId:%d %s failed at %s:%d since stt file statis block size is not valid, fname:%s",
+                  TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, reader->fd->path);
         return TSDB_CODE_FILE_CORRUPTED;
       }
 
@@ -151,6 +155,8 @@ int32_t tsdbSttFileReadTombBlk(SSttFileReader *reader, const TTombBlkArray **tom
   if (!reader->ctx->tombBlkLoaded) {
     if (reader->footer->tombBlkPtr->size > 0) {
       if (reader->footer->tombBlkPtr->size % sizeof(STombBlk) != 0) {
+        tsdbError("vgId:%d %s failed at %s:%d since stt file tomb block size is not valid, fname:%s",
+                  TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, reader->fd->path);
         return TSDB_CODE_FILE_CORRUPTED;
       }
 
@@ -185,6 +191,8 @@ int32_t tsdbSttFileReadSttBlk(SSttFileReader *reader, const TSttBlkArray **sttBl
   if (!reader->ctx->sttBlkLoaded) {
     if (reader->footer->sttBlkPtr->size > 0) {
       if (reader->footer->sttBlkPtr->size % sizeof(SSttBlk) != 0) {
+        tsdbError("vgId:%d %s failed at %s:%d since stt file stt block size is not valid, fname:%s",
+                  TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, reader->fd->path);
         return TSDB_CODE_FILE_CORRUPTED;
       }
 
@@ -264,6 +272,8 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
   TAOS_CHECK_GOTO(tGetDiskDataHdr(&br, &hdr), &lino, _exit);
 
   if (hdr.delimiter != TSDB_FILE_DLMT) {
+    tsdbError("vgId:%d %s failed at %s:%d since disk data header delimiter is invalid, fname:%s",
+              TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, reader->fd->path);
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
   }
 
@@ -276,6 +286,9 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
   // key part
   TAOS_CHECK_GOTO(tBlockDataDecompressKeyPart(&hdr, &br, bData, assist), &lino, _exit);
   if (br.offset != buffer0->size) {
+    tsdbError("vgId:%d %s failed at %s:%d since key part size mismatch, expected:%u, actual:%u, fname:%s",
+              TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, buffer0->size, br.offset,
+              reader->fd->path);
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
   }
 
@@ -388,6 +401,8 @@ int32_t tsdbSttFileReadTombBlock(SSttFileReader *reader, const STombBlk *tombBlk
   }
 
   if (br.offset != tombBlk->dp->size) {
+    tsdbError("vgId:%d %s failed at %s:%d since tomb block size mismatch, fname:%s",
+              TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, reader->fd->path);
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
   }
 
@@ -459,6 +474,9 @@ int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *sta
   }
 
   if (br.offset != buffer0->size) {
+    tsdbError("vgId:%d %s failed at %s:%d since statis block size mismatch, expected: %u, actual: %u, fname:%s",
+              TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, buffer0->size, br.offset,
+              reader->fd->path);
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
   }
 

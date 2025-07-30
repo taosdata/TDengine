@@ -5870,9 +5870,6 @@ static int32_t streamTagDefNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkStreamTagDefTagExpr, nodeToJson, pNode->pTagExpr);
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkStreamTagDefComment, nodeToJson, pNode->pComment);
-  }
   return code;
 }
 
@@ -5884,9 +5881,6 @@ static int32_t jsonToStreamTagDefNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkStreamTagDefTagExpr, &pNode->pTagExpr);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkStreamTagDefComment, &pNode->pComment);
   }
   return code;
 }

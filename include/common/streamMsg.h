@@ -290,6 +290,8 @@ typedef struct {
   SArray* calcScanPlanList;  // for calc action, SArray<SStreamCalcScan>
 
   // trigger part
+  int8_t  triggerHasPF;       // Since some filter will be processed in trigger's reader, triggerPrevFilter will be NULL.
+                              // Use this flag to mark whether trigger has preFilter.
   void*   triggerPrevFilter;  // filter for trigger table
 
   // runner part
@@ -526,6 +528,7 @@ typedef struct {
   int8_t igNoDataTrigger;
   int8_t hasPartitionBy;
   int8_t isTriggerTblVirt;
+  int8_t triggerHasPF;
 
   // notify options
   SArray* pNotifyAddrUrls;
@@ -716,6 +719,7 @@ typedef enum ESTriggerPullType {
   STRIGGER_PULL_WAL_DATA,
   STRIGGER_PULL_GROUP_COL_VALUE,
   STRIGGER_PULL_VTABLE_INFO,
+  STRIGGER_PULL_VTABLE_PSEUDO_COL,
   STRIGGER_PULL_OTABLE_INFO,
   STRIGGER_PULL_TYPE_MAX,
 } ESTriggerPullType;
@@ -740,13 +744,16 @@ typedef struct SSTriggerLastTsRequest {
 typedef struct SSTriggerFirstTsRequest {
   SSTriggerPullRequest base;
   int64_t              startTime;
+  int64_t              ver;
 } SSTriggerFirstTsRequest;
 
 typedef struct SSTriggerTsdbMetaRequest {
   SSTriggerPullRequest base;
   int64_t              startTime;
-  int64_t              gid;
+  int64_t              endTime;
+  int64_t              gid;    // optional, 0 by default
   int8_t               order;  // 1 for asc, 2 for desc
+  int64_t              ver;
 } SSTriggerTsdbMetaRequest;
 
 typedef struct SSTriggerTsdbTsDataRequest {
@@ -755,13 +762,15 @@ typedef struct SSTriggerTsdbTsDataRequest {
   int64_t              uid;
   int64_t              skey;
   int64_t              ekey;
+  int64_t              ver;
 } SSTriggerTsdbTsDataRequest;
 
 typedef struct SSTriggerTsdbTriggerDataRequest {
   SSTriggerPullRequest base;
   int64_t              startTime;
-  int64_t              gid;
+  int64_t              gid;    // optional, 0 by default
   int8_t               order;  // 1 for asc, 2 for desc
+  int64_t              ver;
 } SSTriggerTsdbTriggerDataRequest;
 
 typedef struct SSTriggerTsdbCalcDataRequest {
@@ -769,6 +778,7 @@ typedef struct SSTriggerTsdbCalcDataRequest {
   int64_t              gid;
   int64_t              skey;
   int64_t              ekey;
+  int64_t              ver;
 } SSTriggerTsdbCalcDataRequest;
 
 typedef struct SSTriggerTsdbDataRequest {
@@ -777,8 +787,9 @@ typedef struct SSTriggerTsdbDataRequest {
   int64_t              uid;
   int64_t              skey;
   int64_t              ekey;
-  SArray*              cids;  // SArray<col_id_t>, col_id starts from 0
+  SArray*              cids;   // SArray<col_id_t>, col_id starts from 0
   int8_t               order;  // 1 for asc, 2 for desc
+  int64_t              ver;
 } SSTriggerTsdbDataRequest;
 
 typedef struct SSTriggerWalMetaRequest {
@@ -806,6 +817,11 @@ typedef struct SSTriggerVirTableInfoRequest {
   SArray*              cids;  // SArray<col_id_t>, col ids of the virtual table
 } SSTriggerVirTableInfoRequest;
 
+typedef struct SSTriggerVirTablePseudoColRequest {
+  SSTriggerPullRequest base;
+  int64_t              uid;
+  SArray*              cids;  // SArray<col_id_t>, -1 means tbname
+} SSTriggerVirTablePseudoColRequest;
 typedef struct OTableInfoRsp {
   int64_t  suid;
   int64_t  uid;
@@ -844,11 +860,12 @@ typedef union SSTriggerPullRequestUnion {
   SSTriggerWalDataRequest             walDataReq;
   SSTriggerGroupColValueRequest       groupColValueReq;
   SSTriggerVirTableInfoRequest        virTableInfoReq;
+  SSTriggerVirTablePseudoColRequest   virTablePseudoColReq;
   SSTriggerOrigTableInfoRequest       origTableInfoReq;
 } SSTriggerPullRequestUnion;
 
 int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTriggerPullRequest* pReq);
-int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullRequestUnion* pReq);
+int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullRequestUnion* pReq);
 void    tDestroySTriggerPullRequest(SSTriggerPullRequestUnion* pReq);
 
 typedef struct SSTriggerCalcParam {
@@ -900,6 +917,21 @@ int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalc
 void    tDestroySSTriggerCalcParam(void* ptr);
 void    tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq);
 
+typedef enum ESTriggerCtrlType {
+  STRIGGER_CTRL_START = 0,
+  STRIGGER_CTRL_STOP = 1,
+} ESTriggerCtrlType;
+
+typedef struct SSTriggerCtrlRequest {
+  ESTriggerCtrlType type;
+  int64_t           streamId;
+  int64_t           taskId;
+  int64_t           sessionId;
+} SSTriggerCtrlRequest;
+
+int32_t tSerializeSTriggerCtrlRequest(void* buf, int32_t bufLen, const SSTriggerCtrlRequest* pReq);
+int32_t tDeserializeSTriggerCtrlRequest(void* buf, int32_t bufLen, SSTriggerCtrlRequest* pReq);
+
 typedef struct SStreamRuntimeFuncInfo {
   SArray* pStreamPesudoFuncVals;
   SArray* pStreamPartColVals;
@@ -923,7 +955,6 @@ typedef struct STsInfo {
 typedef struct VTableInfo {
   int64_t gId;        // group id
   int64_t uid;        // table uid
-  int64_t ver;        // table version
   SColRefWrapper cols;    
 } VTableInfo;
 

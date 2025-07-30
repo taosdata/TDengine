@@ -35,7 +35,7 @@
                     "insert_mode": "stmt2",
                     "non_stop_mode": "no",
                     "line_protocol": "line",
-                    "insert_rows": 10000,
+                    "insert_rows": 1000000,
                     "childtable_limit": 0,
                     "childtable_offset": 0,
                     "interlace_rows": 0,

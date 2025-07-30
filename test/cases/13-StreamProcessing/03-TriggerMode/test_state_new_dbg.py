@@ -8,7 +8,26 @@ class TestStreamStateTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_state_trigger(self):
-        """Stream basic test 1
+        """basic test
+
+        Verification testing during the development process.
+
+        Catalog:
+            - Streams: 03-TriggerMode
+        Description:
+            - create 14 streams, each stream has 1 source tables
+            - write data to source tables
+            - check stream results
+
+        Since: v3.3.3.7
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-07-22
+
         """
 
         tdStream.createSnode()
@@ -24,7 +43,8 @@ class TestStreamStateTrigger:
         # streams.append(self.Basic7()) # fail
         # streams.append(self.Basic8()) # fail
         # streams.append(self.Basic9()) # fail
-        streams.append(self.Basic10()) # fail
+        # streams.append(self.Basic10()) # fail
+        streams.append(self.Basic11()) #
 
         tdStream.checkAll(streams)
 
@@ -1739,7 +1759,7 @@ class TestStreamStateTrigger:
                 "create vtable vtb_1 ( ts timestamp, col_1 int from ct1.cint, col_2 int from ct2.cint, col_3 int from ct3.cint)")
 
             tdSql.execute(
-                f"create stream s9 state_window(col_1) true_for(10s) from vtb_1 stream_options(max_delay(1s)) into res_ct1 (firstts, lastts, cnt_col_1, sum_col_1, avg_col_1, "
+                f"create stream s9 state_window(col_1) true_for(10s) from vtb_1 stream_options(max_delay(3s)) into res_ct1 (firstts, lastts, cnt_col_1, sum_col_1, avg_col_1, "
                 f"count_col_2, sum_col_2, avg_col_2) as "
                 f"select first(_c0), last_row(_c0), count(col_1), sum(col_1), avg(col_1), count(col_2), sum(col_2), avg(col_2) "
                 f"from %%trows "
@@ -1862,7 +1882,6 @@ class TestStreamStateTrigger:
             tdSql.query(f"show tables")
             tdSql.checkRows(4)
 
-
             tdLog.info(f"=============== create stream")
             tdSql.execute(
                 f"create stream s0 state_window(cint) from ct0 "
@@ -1871,6 +1890,7 @@ class TestStreamStateTrigger:
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint), sum(cdecimal) from ct0 "
                 f"where _twstart - 10s <= _c0 and _c0 <= _twend "
             )
+
 
         def insert1(self):
             tdLog.info(f"=============== insert data into stb")
@@ -1900,3 +1920,68 @@ class TestStreamStateTrigger:
                     f"{self.db}.res_ct0",
                 func=lambda: tdSql.getRows() == 3
             )
+
+    class Basic11(StreamCheckItem):
+        def __init__(self):
+            self.db = "sdb11"
+            self.stb = "stb"
+
+        def create(self):
+            tdLog.info(f"=============== create database")
+            tdSql.execute(f"create database {self.db} vgroups 4;")
+            tdSql.execute(f"use {self.db}")
+
+            tdSql.execute(
+                f"create table if not exists {self.stb} (ts timestamp, cint int, cbool bool, cfloat float, cdouble double, cbytes varchar(100), cdecimal decimal(10, 2)) tags (tag1 int, tag2 int);")
+            tdSql.query(f"show stables")
+            tdSql.checkRows(1)
+
+            tdLog.info(f"=============== create sub table")
+            tdSql.execute(f"create table ct0 using {self.stb} tags(0, 1);")
+            tdSql.execute(f"create table ct1 using {self.stb} tags(1, 2);")
+            tdSql.execute(f"create table ct2 using {self.stb} tags(2, 3);")
+            tdSql.execute(f"create table ct3 using {self.stb} tags(3, 4);")
+
+            tdSql.query(f"show tables")
+            tdSql.checkRows(4)
+
+            tdLog.info(f"================ correct stream test")
+            tdSql.execute(
+                f"create stream s0_succ state_window(cint) true_for(100) from ct0 into res_ct0 as "
+                f"select first(_c0), last_row(_c0), count(cint) from ct0 "
+                f"where _twstart - 10s <= _c0 and _c0 <= _twend "
+            )
+
+            tdSql.execute("drop stream s0_succ")
+
+            tdLog.info(f"================ error stream test")
+            tdSql.error(
+                f"create stream s0_error state_window(tag1) from ct0 into res_ct0 as "
+                f"select first(_c0), last_row(_c0), count(cint) from ct0 "
+                f"where _twstart - 10s <= _c0 and _c0 <= _twend "
+            )
+
+            tdSql.error(
+                f"create stream s0_error state_window(cfloat) from ct0 into res_ct0 as "
+                f"select first(_c0), last_row(_c0), count(cint) from ct0 "
+                f"where _twstart - 10s <= _c0 and _c0 <= _twend "
+            )
+
+            tdSql.error(
+                f"create stream s0_error state_window(cint) true_for(-1s) from ct0 into res_ct0 as "
+                f"select first(_c0), last_row(_c0), count(cint) from ct0 "
+                f"where _twstart - 10s <= _c0 and _c0 <= _twend "
+            )
+
+            tdSql.error(
+                f"create stream s0_error state_window(cint) true_for(1n) from ct0 into res_ct0 as "
+                f"select first(_c0), last_row(_c0), count(cint) from ct0 "
+                f"where _twstart - 10s <= _c0 and _c0 <= _twend "
+            )
+
+            tdSql.error(
+                f"create stream s0_error state_window(cint) true_for(1s) from ct0 partition by cdouble into res_ct0 as "
+                f"select first(_c0), last_row(_c0), count(cint) from ct0 "
+                f"where _twstart - 10s <= _c0 and _c0 <= _twend "
+            )
+

@@ -94,7 +94,7 @@ int32_t mJoinTrimKeepFirstRow(SSDataBlock* pBlock) {
         pDst->varmeta.length = calcStrBytesByType(pDst->info.type, p1);
       }
     } else {
-      bool isNull = colDataIsNull_f(pDst->nullbitmap, 0);
+      bool isNull = colDataIsNull_f(pDst, 0);
 
       TAOS_MEMSET(pDst->nullbitmap, 0, bmLen);
       if (isNull) {
@@ -196,7 +196,7 @@ int32_t mJoinTrimKeepOneRow(SSDataBlock* pBlock, int32_t totalRows, const bool* 
               continue;
             }
 
-            if (colDataIsNull_f(pBitmap, j)) {
+            if (BMIsNull(pBitmap, j)) {
               colDataSetNull_f(pDst->nullbitmap, numOfRows);
             } else {
               ((int64_t*)pDst->pData)[numOfRows] = ((int64_t*)pDst->pData)[j];
@@ -214,7 +214,7 @@ int32_t mJoinTrimKeepOneRow(SSDataBlock* pBlock, int32_t totalRows, const bool* 
               j += 1;
               continue;
             }
-            if (colDataIsNull_f(pBitmap, j)) {
+            if (BMIsNull(pBitmap, j)) {
               colDataSetNull_f(pDst->nullbitmap, numOfRows);
             } else {
               ((int32_t*)pDst->pData)[numOfRows] = ((int32_t*)pDst->pData)[j];
@@ -231,7 +231,7 @@ int32_t mJoinTrimKeepOneRow(SSDataBlock* pBlock, int32_t totalRows, const bool* 
               j += 1;
               continue;
             }
-            if (colDataIsNull_f(pBitmap, j)) {
+            if (BMIsNull(pBitmap, j)) {
               colDataSetNull_f(pDst->nullbitmap, numOfRows);
             } else {
               ((int16_t*)pDst->pData)[numOfRows] = ((int16_t*)pDst->pData)[j];
@@ -249,7 +249,7 @@ int32_t mJoinTrimKeepOneRow(SSDataBlock* pBlock, int32_t totalRows, const bool* 
               j += 1;
               continue;
             }
-            if (colDataIsNull_f(pBitmap, j)) {
+            if (BMIsNull(pBitmap, j)) {
               colDataSetNull_f(pDst->nullbitmap, numOfRows);
             } else {
               ((int8_t*)pDst->pData)[numOfRows] = ((int8_t*)pDst->pData)[j];

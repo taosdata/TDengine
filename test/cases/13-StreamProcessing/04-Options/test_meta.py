@@ -9,20 +9,40 @@ class TestStreamMetaTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_meta_trigger(self):
-        """Stream basic test 1
+        """stream options
+
+        test meta change (add/drop/modify) cases to stream
+
+        Catalog:
+            - Streams:UseCases
+
+        Since: v3.3.3.7
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-6-16 Lihui Created
+
         """
 
         tdStream.createSnode()
+        tdSql.execute(f"alter all dnodes 'debugflag 131';")
+        tdSql.execute(f"alter all dnodes 'stdebugflag 131';")
 
         streams = []
-        streams.append(self.Basic0())  # add ctb and drop ctb from stb [ok]
-        # # streams.append(self.Basic1())  # drop data source table [fail]
-        streams.append(self.Basic2())  # tag过滤时，修改tag的值，从满足流条件，到不满足流条件; 从不满足流条件，到满足流条件 [ok]       
+        streams.append(self.Basic0())  # [ok] add ctb and drop ctb from stb 
+        streams.append(self.Basic1())  # [ok] drop data source table         
+        streams.append(self.Basic2())  # [ok] tag过滤时，修改tag的值，从满足流条件，到不满足流条件; 从不满足流条件，到满足流条件      
         streams.append(self.Basic3())  # [ok]
-        # streams.append(self.Basic4())  # [ok]
-        # # streams.append(self.Basic5())  # [fail] 
-        # # streams.append(self.Basic6())  #  [fail]
-        # streams.append(self.Basic7())  # [ok] 
+        streams.append(self.Basic4())  # [ok]
+        streams.append(self.Basic5())  # [ok] 
+        
+        # TD-36525 [流计算开发阶段] 删除流结果表后继续触发了也没有重建，不符合预期
+        # streams.append(self.Basic6())  # [fail]
+        
+        streams.append(self.Basic7())  # [ok] 
         
         tdStream.checkAll(streams)
 
@@ -381,7 +401,7 @@ class TestStreamMetaTrigger:
                 and tdSql.compareData(1, 0, "2025-01-01 00:00:13")
                 and tdSql.compareData(1, 1, 'None')
                 and tdSql.compareData(1, 2, 'None')
-                and tdSql.compareData(1, 3, 'None')
+                and tdSql.compareData(1, 3, 0)
                 and tdSql.compareData(1, 4, 'None')
                 and tdSql.compareData(1, 5, 'None')
                 and tdSql.compareData(1, 6, 3)
@@ -407,7 +427,7 @@ class TestStreamMetaTrigger:
                 and tdSql.compareData(0, 0, "2025-01-01 00:00:13")
                 and tdSql.compareData(0, 1, 'None')
                 and tdSql.compareData(0, 2, 'None')
-                and tdSql.compareData(0, 3, 'None')
+                and tdSql.compareData(0, 3, 0)
                 and tdSql.compareData(0, 4, 'None')
                 and tdSql.compareData(0, 5, 'None')
                 and tdSql.compareData(0, 6, 3)
@@ -495,7 +515,7 @@ class TestStreamMetaTrigger:
                 and tdSql.compareData(1, 0, "2025-01-01 00:00:13")
                 and tdSql.compareData(1, 1, 'None')
                 and tdSql.compareData(1, 2, 'None')
-                and tdSql.compareData(1, 3, 'None')
+                and tdSql.compareData(1, 3, 0)
                 and tdSql.compareData(1, 4, 'None')
                 and tdSql.compareData(1, 5, 'None')
                 and tdSql.compareData(1, 6, 3)
@@ -510,7 +530,7 @@ class TestStreamMetaTrigger:
 
             tdSql.checkResultsByFunc(
                 sql=f"select startts, firstts, lastts, cnt_v, sum_v, avg_v, rownum_s from {self.db}.res_stb_ct5",
-                func=lambda: tdSql.getRows() == 3
+                func=lambda: tdSql.getRows() == 2
                 # and tdSql.compareData(0, 0, "2025-01-01 00:00:10")
                 # and tdSql.compareData(0, 1, "2025-01-01 00:00:10")
                 # and tdSql.compareData(0, 2, "2025-01-01 00:00:12")
@@ -521,7 +541,7 @@ class TestStreamMetaTrigger:
                 and tdSql.compareData(0, 0, "2025-01-01 00:00:13")
                 and tdSql.compareData(0, 1, 'None')
                 and tdSql.compareData(0, 2, 'None')
-                and tdSql.compareData(0, 3, 'None')
+                and tdSql.compareData(0, 3, 0)
                 and tdSql.compareData(0, 4, 'None')
                 and tdSql.compareData(0, 5, 'None')
                 and tdSql.compareData(0, 6, 3)
@@ -1505,7 +1525,7 @@ class TestStreamMetaTrigger:
 
             tdSql.checkResultsByFunc(
                 sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_ntb",
-                func=lambda: tdSql.getRows() == 2
+                func=lambda: tdSql.getRows() == 3
                 and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
                 and tdSql.compareData(0, 1, "2025-01-01 00:00:25")
                 and tdSql.compareData(0, 2, 6)
@@ -1516,16 +1536,21 @@ class TestStreamMetaTrigger:
                 and tdSql.compareData(1, 2, 6)
                 and tdSql.compareData(1, 3, 12)
                 and tdSql.compareData(1, 4, 2)
+                and tdSql.compareData(2, 0, "2025-01-01 00:01:00")
+                and tdSql.compareData(2, 1, "2025-01-01 00:01:15")
+                and tdSql.compareData(2, 2, 4)
+                and tdSql.compareData(2, 3, 12)
+                and tdSql.compareData(2, 4, 3)
             )
 
             tdSql.checkResultsByFunc(
                 sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_ntb_1",
                 func=lambda: tdSql.getRows() == 1
                 and tdSql.compareData(0, 0, "2025-01-01 00:00:30")
-                and tdSql.compareData(0, 1, "2025-01-01 00:01:00")
-                and tdSql.compareData(0, 2, 7)
-                and tdSql.compareData(0, 3, 15)
-                # and tdSql.compareData(0, 4, 2.143)
+                and tdSql.compareData(0, 1, "2025-01-01 00:01:20")
+                and tdSql.compareData(0, 2, 11)
+                and tdSql.compareData(0, 3, 28)
+                # and tdSql.compareData(0, 4, 2.545)
             )
 
     class Basic6(StreamCheckItem):

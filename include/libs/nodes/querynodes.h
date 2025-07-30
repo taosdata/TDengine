@@ -456,7 +456,6 @@ typedef struct SStreamTagDefNode {
   char      tagName[TSDB_COL_NAME_LEN];
   SDataType dataType;
   SNode*    pTagExpr;
-  SNode*    pComment;
 } SStreamTagDefNode;
 
 typedef struct SPeriodWindowNode {

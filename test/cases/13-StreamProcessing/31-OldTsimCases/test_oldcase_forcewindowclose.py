@@ -1,5 +1,10 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
+from new_test_framework.utils import (
+    tdLog,
+    tdSql,
+    tdStream,
+    StreamCheckItem,
+)
 
 
 class TestStreamOldCaseForceWindowClose:
@@ -10,8 +15,7 @@ class TestStreamOldCaseForceWindowClose:
     def test_stream_oldcase_force_window_close(self):
         """Stream force window close
 
-        1. basic test
-        2. out of order data
+        Verify the alternative approach to the original force window close trigger mode in the new streaming computation
 
         Catalog:
             - Streams:OldTsimCases
@@ -23,11 +27,11 @@ class TestStreamOldCaseForceWindowClose:
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/forcewindowclose.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamFwcIntervalFill.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpForceWindowClose.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpForceWindowClose1.sim
-            ## - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpFwcError.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/forcewindowclose.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamFwcIntervalFill.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpForceWindowClose.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpForceWindowClose1.sim
+            ## - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpFwcError.sim
 
         """
 
@@ -229,7 +233,9 @@ class TestStreamOldCaseForceWindowClose:
         )
 
         tdLog.info(f"2 sql select * from streamt;")
-        tdSql.checkResultsByFunc(f"select * from streamt;", lambda: tdSql.getRows() >= 6)
+        tdSql.checkResultsByFunc(
+            f"select * from streamt;", lambda: tdSql.getRows() >= 6
+        )
 
         tdLog.info(f"step2")
         tdLog.info(f"=============== create database")

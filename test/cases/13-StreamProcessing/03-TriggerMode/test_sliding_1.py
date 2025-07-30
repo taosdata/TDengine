@@ -1,8 +1,6 @@
 import threading
 import time
 
-import taos
-
 from new_test_framework.utils import tdLog, clusterComCheck, tdStream, tdSql
 from test_period_1 import wait_for_insert_complete, check_all_results, wait_for_stream_done, check_ts_step, \
     clear_output, get_conf_dir, WriteDataInfo, do_write_data_fn
@@ -153,12 +151,19 @@ class TestStreamTriggerSliding:
         # except Exception as e:
         #     tdLog.error(f"case 16 error: {e}")
 
-        clear_output("sm16", "tb16")
-        self.prepare_tables(5000, 10, info)
+        # clear_output("sm16", "tb16")
+        # self.prepare_tables(5000, 10, info)
+        # try:
+        #     self.create_and_check_stream_basic_17("sm17", "tb17", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 17 error: {e}")
+
+        clear_output("sm17", "tb17")
+        self.prepare_tables(100, 10, info)
         try:
-            self.create_and_check_stream_basic_17("sm17", "tb17", info)
+            self.create_and_check_stream_basic_18("sm18", "tb18", info)
         except Exception as e:
-            tdLog.error(f"case 16 error: {e}")
+            tdLog.error(f"case 18 error: {e}")
 
     def create_env(self):
         tdLog.info(f"create {self.num_snode} snode(s)")
@@ -296,7 +301,7 @@ class TestStreamTriggerSliding:
         # self.check_results_by_compare(tb_name=dst_table, freq=30)
 
     def create_and_check_stream_basic_5(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 5: invalid results        """
+        """simple 5: invalid results"""
         tdLog.info(f"start exec stream {stream_name}")
 
         tdSql.execute("use db")
@@ -358,31 +363,27 @@ class TestStreamTriggerSliding:
                            [10000, 9999, "c9"]])
 
     def create_and_check_stream_basic_8(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 8:
-           Expect: report error message
-           Error: no results generated
+        """simple 8: Pass
         """
         tdLog.info(f"start exec stream {stream_name}")
-
         time.sleep(10)
 
         tdSql.execute("use db")
         tdSql.execute(
-            f"create stream {stream_name} interval(30s) sliding(30s) from source_table partition by tbname into {dst_table} as "
+            f"create stream {stream_name} interval(100a) sliding(100a) from source_table partition by tbname into {dst_table} as "
             f"select ts, k c, c1, c2 "
             f"from source_table partition by tbname")
 
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(stream_name, info)
 
-        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", info.num_of_tables * self.num_of_rows)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", info.num_of_tables * info.num_of_rows)
 
     def create_and_check_stream_basic_9(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 9:
            Error: results error
         """
         tdLog.info(f"start exec stream {stream_name}")
-
         time.sleep(10)
 
         tdSql.execute("use db")
@@ -601,4 +602,62 @@ class TestStreamTriggerSliding:
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(stream_name, info)
         wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 1000)
+
+    def create_and_check_stream_basic_18(self, stream_name, dst_table, info: WriteDataInfo) -> None:
+        """simple 18:"""
+        tdLog.info(f"start exec stream {stream_name}")
+
+        tdSql.execute("create vtable vtb_1 (ts timestamp, col_1 int from c0.k, col_2 varchar(12) from c1.c1, "
+                      "col_3 double from c2.c2)")
+
+        tdSql.execute("use db")
+
+        tdSql.error(
+            f"create stream {stream_name} sliding(1n) "
+            f"from vtb_1 into {dst_table} as "
+            f"select _twstart, _twend, count(c9.*) k, first(c9.c2), sum(c9.c2), last(c9.k) c "
+            f"from c9 where _c0 >= _twstart and _c0 < _twend ")
+
+        tdSql.error(
+            f"create stream {stream_name} sliding(5s, -10s) "
+            f"from vtb_1 into {dst_table} as "
+            f"select _twstart, _twend, count(c9.*) k, first(c9.c2), sum(c9.c2), last(c9.k) c "
+            f"from c9 where _c0 >= _twstart and _c0 < _twend ")
+
+        tdSql.error(
+            f"create stream {stream_name} sliding(0s, 10s) "
+            f"from vtb_1 into {dst_table} as "
+            f"select _twstart, _twend, count(c9.*) k, first(c9.c2), sum(c9.c2), last(c9.k) c "
+            f"from c9 where _c0 >= _twstart and _c0 < _twend ")
+
+        tdSql.error(
+            f"create stream {stream_name} interval(10s, -1s) sliding(10s, 10s) "
+            f"from vtb_1 into {dst_table} as "
+            f"select _twstart, _twend, count(c9.*) k, first(c9.c2), sum(c9.c2), last(c9.k) c "
+            f"from c9 where _c0 >= _twstart and _c0 < _twend ")
+
+        tdSql.error(
+            f"create stream {stream_name} interval(10s, 1s)"
+            f"from vtb_1 into {dst_table} as "
+            f"select _twstart, _twend, count(c9.*) k, first(c9.c2), sum(c9.c2), last(c9.k) c "
+            f"from c9 where _c0 >= _twstart and _c0 < _twend ")
+
+        tdSql.error(
+            f"create stream {stream_name} sliding(10s) interval(10s, 1s)"
+            f"from vtb_1 into {dst_table} as "
+            f"select _twstart, _twend, count(c9.*) k, first(c9.c2), sum(c9.c2), last(c9.k) c "
+            f"from c9 where _c0 >= _twstart and _c0 < _twend ")
+
+        tdSql.error(
+            f"create stream {stream_name} interval(10s) sliding(10s) "
+            f"from vtb_1 partition by col_2 into {dst_table} as "
+            f"select _twstart, _twend, count(c9.*) k, first(c9.c2), sum(c9.c2), last(c9.k) c "
+            f"from c9 where _c0 >= _twstart and _c0 < _twend ")
+
+        tdSql.error(
+            f"create stream {stream_name} interval(1n) sliding(1n) "
+            f"from vtb_1 into {dst_table} as "
+            f"select _twstart, _twend, count(c9.*) k, first(c9.c2), sum(c9.c2), last(c9.k) c "
+            f"from c9 where _c0 >= _twstart and _c0 < _twend ")
+
 

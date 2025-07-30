@@ -13406,14 +13406,17 @@ void tDestroySubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
     }
 
     if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
-      int32_t   nColData = TARRAY_SIZE(pTbData->aCol);
-      SColData *aColData = (SColData *)TARRAY_DATA(pTbData->aCol);
+      if (pTbData->aCol) {
+        int32_t   nColData = TARRAY_SIZE(pTbData->aCol);
+        SColData *aColData = (SColData *)TARRAY_DATA(pTbData->aCol);
 
-      for (int32_t i = 0; i < nColData; ++i) {
-        tColDataDestroy(&aColData[i]);
+        for (int32_t i = 0; i < nColData; ++i) {
+          tColDataDestroy(&aColData[i]);
+        }
+        taosArrayDestroy(pTbData->aCol);
+        pTbData->aCol = NULL;
       }
-      taosArrayDestroy(pTbData->aCol);
-    } else {
+    } else if (pTbData->aRowP) {
       int32_t nRow = TARRAY_SIZE(pTbData->aRowP);
       SRow  **rows = (SRow **)TARRAY_DATA(pTbData->aRowP);
 
