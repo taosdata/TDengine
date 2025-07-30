@@ -660,6 +660,56 @@ int32_t tsDecompressINTImp2(const char *const input, int32_t ninput, const int32
   return tsDecompressINTImp(input, nelements, output, type);
 }
 
+static int32_t tsEncodeFloatImpl(const char *const input, const int32_t inputSize, char *const output, const int32_t outputSize, uint8_t bytes) {
+  if (NULL == input || NULL == output) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t pos = 0;
+  int32_t numEles = inputSize / bytes;
+
+  for (int32_t i = 0; i < bytes; i++) {
+    for (int32_t j = 0; j < numEles; j++) {
+      output[pos++] = input[i + j * bytes];
+    }
+  }
+
+  return pos;
+}
+
+static int32_t tsDecodeFloatImpl(const char *const input, const int32_t inputSize, char *const output, const int32_t outputSize, uint8_t bytes) {
+  if (NULL == input || NULL == output) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t pos = 0;
+  int32_t numEles = inputSize / bytes;
+
+  for (int32_t i = 0; i < numEles; i++) {
+    for (int32_t j = 0; j < bytes; j++) {
+      output[pos++] = input[i + j * numEles];
+    }
+  }
+
+  return pos;
+}
+
+static int32_t tsEncodeF32(const char *const input, const int32_t inputSize, char *const output, const int32_t outputSize) {
+  return tsEncodeFloatImpl(input, inputSize, output, outputSize, sizeof(float));
+}
+
+static int32_t tsDecodeF32(const char *const input, const int32_t inputSize, char *const output, const int32_t outputSize) {
+  return tsDecodeFloatImpl(input, inputSize, output, outputSize, sizeof(float));
+}
+
+static int32_t tsEncodeF64(const char *const input, const int32_t inputSize, char *const output, const int32_t outputSize) {
+  return tsEncodeFloatImpl(input, inputSize, output, outputSize, sizeof(double));
+}
+
+static int32_t tsDecodeF64(const char *const input, const int32_t inputSize, char *const output, const int32_t outputSize) {
+  return tsDecodeFloatImpl(input, inputSize, output, outputSize, sizeof(double));
+}
+
 #if 0
 /* Run Length Encoding(RLE) Method */
 int32_t tsCompressBoolRLEImp(const char *const input, const int32_t nelements, char *const output) {
