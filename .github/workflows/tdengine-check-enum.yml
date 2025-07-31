@@ -1,3 +1,35 @@
+name: Enum Check
+
+on:
+  pull_request:
+    branches:
+      - 'main'
+      - '3.0'
+      - '3.1'
+      - '3.3.6'
+    paths-ignore:
+      - 'packaging/**'
+      - 'docs/**'
+      - 'tools/tdgpt/**'
+      - 'source/libs/executor/src/forecastoperator.c'
+      - 'source/libs/executor/src/anomalywindowoperator.c'
+      - 'source/dnode/mnode/impl/src/mndAnode.c'
+      - 'include/common/tanalytics.h'
+      - 'source/common/src/tanalytics.c'
+      - 'tests/parallel/tdgpt_cases.task'
+      - 'tests/script/tsim/analytics'
+      - '**/*.md'
+      - '.github/workflows/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-
+    ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref || inputs.specified_target_branch }}-
+    ${{ github.event_name == 'pull_request' && github.event.pull_request.number || inputs.specified_pr_number }}-TDengine
+  cancel-in-progress: true
+
+env:
+  WKC: '/var/lib/jenkins/workspace/TDinternal/community'
+
 jobs:
   enum-check:
     runs-on: ubuntu-latest
