@@ -394,7 +394,7 @@ void smRemoveTaskCb(void* param) {
         }
       }
       taosWLockLatch(&pStream->undeployLock);
-      TAOS_UNUSED(taosArrayPush(pStream->undeployReaders, &pTask->taskId));
+      code = taosArrayPush(pStream->undeployReaders, &pTask->taskId);
       taosWUnLockLatch(&pStream->undeployLock);
       break;
     case STREAM_TRIGGER_TASK: {
@@ -407,7 +407,7 @@ void smRemoveTaskCb(void* param) {
         }
       }
       taosWLockLatch(&pStream->undeployLock);
-      TAOS_UNUSED(taosArrayPush(pStream->undeployTriggers, &pTask->taskId));
+      code = taosArrayPush(pStream->undeployTriggers, &pTask->taskId);
       taosWUnLockLatch(&pStream->undeployLock);
       break;
     }
@@ -421,7 +421,7 @@ void smRemoveTaskCb(void* param) {
         }
       }
       taosWLockLatch(&pStream->undeployLock);
-      TAOS_UNUSED(taosArrayPush(pStream->undeployRunners, &pTask->taskId));
+      code = taosArrayPush(pStream->undeployRunners, &pTask->taskId);
       taosWUnLockLatch(&pStream->undeployLock);
       break;
     default:
