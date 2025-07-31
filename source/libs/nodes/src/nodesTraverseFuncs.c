@@ -282,6 +282,7 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
     }
   }
 
+  // 一直找到subnode再回来
   SNode* pNode = *pRawNode;
   switch (nodeType(pNode)) {
     case QUERY_NODE_COLUMN:
@@ -291,6 +292,8 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       break;
     case QUERY_NODE_OPERATOR: {
       SOperatorNode* pOpNode = (SOperatorNode*)pNode;
+      // 先左节点
+      // 后右节点
       res = rewriteExpr(&(pOpNode->pLeft), order, rewriter, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&(pOpNode->pRight), order, rewriter, pContext);
@@ -312,10 +315,13 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       break;  // todo
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoinTableNode = (SJoinTableNode*)pNode;
+      // 左节点
       res = rewriteExpr(&(pJoinTableNode->pLeft), order, rewriter, pContext);
+      // 右节点
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&(pJoinTableNode->pRight), order, rewriter, pContext);
       }
+      // 处理条件节点
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&(pJoinTableNode->pOnCond), order, rewriter, pContext);
       }
@@ -469,6 +475,8 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       break;
   }
 
+  // 处理完子节点
+  // 调用处理函数，处理当前节点
   if (DEAL_RES_ERROR != res && DEAL_RES_END != res && TRAVERSAL_POSTORDER == order) {
     res = rewriter(pRawNode, pContext);
   }
@@ -496,6 +504,7 @@ void nodesRewriteExprs(SNodeList* pList, FNodeRewriter rewriter, void* pContext)
 }
 
 void nodesRewriteExprPostOrder(SNode** pNode, FNodeRewriter rewriter, void* pContext) {
+  // 使用后续遍历
   (void)rewriteExpr(pNode, TRAVERSAL_POSTORDER, rewriter, pContext);
 }
 

@@ -38,6 +38,7 @@ static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInf
 void setQueryRequest(int64_t rId) {
   SRequestObj* pReq = acquireRequest(rId);
   if (pReq != NULL) {
+    // 只是设置了一个标志位
     pReq->isQuery = true;
     (void)releaseRequest(rId);
   }
@@ -321,7 +322,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
       .svrVer = pTscObj->sVer,
       .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
       .stmtBindVersion = pRequest->stmtBindVersion,
-      .setQueryFp = setQueryRequest,
+      .setQueryFp = setQueryRequest, // 这里设置了一个回调函数
       .timezone = pTscObj->optionInfo.timezone,
       .charsetCxt = pTscObj->optionInfo.charsetCxt,
   };
@@ -395,6 +396,7 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
     return;
   }
 
+  // 构造返回信息
   int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp,
                               atomic_load_8(&pRequest->pTscObj->biMode), pRequest->pTscObj->optionInfo.charsetCxt);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
@@ -1380,6 +1382,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
     if (NULL == pMnodeList) {
       code = terrno;
     }
+    // plan 自己的ctx
     SPlanContext cxt = {.queryId = pRequest->requestId,
                         .acctId = pRequest->pTscObj->acctId,
                         .mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp),
@@ -1466,6 +1469,7 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
     return;
   }
 
+  // mode设置
   pRequest->body.execMode = pQuery->execMode;
   if (QUERY_EXEC_MODE_SCHEDULE != pRequest->body.execMode) {
     destorySqlCallbackWrapper(pWrapper);
@@ -1479,7 +1483,7 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
         (0 == ((SVnodeModifyOpStmt*)pQuery->pRoot)->sqlNodeType)) {
       (void)atomic_add_fetch_64((int64_t*)&pActivity->numOfInsertsReq, 1);
     } else if (QUERY_NODE_SELECT_STMT == pQuery->pRoot->type) {
-      (void)atomic_add_fetch_64((int64_t*)&pActivity->numOfQueryReq, 1);
+      (void)atomic_add_fetch_64((int64_t*)&pActivity->numOfQueryReq, 1); // 统计信息
     }
   }
 
@@ -1491,6 +1495,7 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
       code = asyncExecDdlQuery(pRequest, pQuery);
       break;
     case QUERY_EXEC_MODE_SCHEDULE: {
+      // 这个里边会有plan
       code = asyncExecSchQuery(pRequest, pQuery, pResultMeta, pWrapper);
       break;
     }

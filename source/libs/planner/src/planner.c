@@ -74,7 +74,9 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   SQueryLogicPlan* pLogicPlan = NULL;
 
   int32_t code = nodesAcquireAllocator(pCxt->allocatorId);
+  // 开始执行一系列plan
   if (TSDB_CODE_SUCCESS == code) {
+    // 这里建立的是一些列node
     code = createLogicPlan(pCxt, &pLogicSubplan);
   }
   if (TSDB_CODE_SUCCESS == code) {

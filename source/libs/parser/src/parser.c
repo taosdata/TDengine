@@ -123,6 +123,7 @@ static int32_t analyseSemantic(SParseContext* pCxt, SQuery* pQuery, SParseMetaCa
     return code;
   }
 
+  // 这里有占位符
   if (TSDB_CODE_SUCCESS == code && pQuery->placeholderNum > 0) {
     TSWAP(pQuery->pPrepareRoot, pQuery->pRoot);
     return TSDB_CODE_SUCCESS;
@@ -301,9 +302,11 @@ int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCata
   SParseMetaCache metaCache = {0};
   int32_t         code = nodesAcquireAllocator(pCxt->allocatorId);
   if (TSDB_CODE_SUCCESS == code && pCatalogReq) {
+    // 这里已经获取到了缓存信息
     code = putMetaDataToCache(pCatalogReq, pMetaData, &metaCache);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    // 这里处理一些实际替换
     code = analyseSemantic(pCxt, pQuery, &metaCache);
   }
   (void)nodesReleaseAllocator(pCxt->allocatorId);

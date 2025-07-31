@@ -669,6 +669,7 @@ int32_t ctgHandleForceUpdateView(SCatalog* pCtg, const SCatalogReq* pReq) {
 }
 
 int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, const SCatalogReq* pReq) {
+  // db和table的hash
   int32_t   code = TSDB_CODE_SUCCESS;
   SHashObj* pDb = taosHashInit(taskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   SHashObj* pTb = taosHashInit(taskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
@@ -678,12 +679,14 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, con
     CTG_ERR_RET(terrno);
   }
 
+  // vgroup
   for (int32_t i = 0; i < pJob->dbVgNum; ++i) {
     char* dbFName = taosArrayGet(pReq->pDbVgroup, i);
     if (NULL == dbFName) {
       qError("taosArrayGet the %dth db in req failed", i);
       CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
     }
+    // 写入hash
     CTG_ERR_JRET(taosHashPut(pDb, dbFName, strlen(dbFName), dbFName, TSDB_DB_FNAME_LEN));
   }
 
@@ -868,6 +871,7 @@ int32_t ctgInitTask(SCtgJob* pJob, CTG_TASK_TYPE type, void* param, int32_t* tas
   int32_t code = 0;
   int32_t tid = atomic_fetch_add_32(&pJob->taskIdx, 1);
 
+  // 这里是一个回调函数
   CTG_LOCK(CTG_WRITE, &pJob->taskLock);
   CTG_ERR_JRET((*gCtgAsyncFps[type].initFp)(pJob, tid, param));
 
@@ -907,6 +911,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
   int32_t tbNameNum = (int32_t)ctgGetTablesReqNum(pReq->pTableName);
   int32_t vstbRefDbsNum = (int32_t)taosArrayGetSize(pReq->pVStbRefDbs);
 
+  // 计算task数量
   int32_t taskNum = tbMetaNum + dbVgNum + udfNum + tbHashNum + qnodeNum + dnodeNum + svrVerNum + dbCfgNum + indexNum +
                     userNum + dbInfoNum + tbIndexNum + tbCfgNum + tbTagNum + viewNum + tbTsmaNum + tbNameNum;
   int32_t taskNumWithSubTasks = tbMetaNum * gCtgAsyncFps[CTG_TASK_GET_TB_META].subTaskFactor + dbVgNum * gCtgAsyncFps[CTG_TASK_GET_DB_VGROUP].subTaskFactor +
@@ -928,10 +933,11 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
 
   SCtgJob* pJob = *job;
 
+  // 填充job
   pJob->jobRes.ctgFree = true;
   pJob->subTaskNum = taskNum;
   pJob->queryId = pConn->requestId;
-  pJob->userFp = fp;
+  pJob->userFp = fp;  // 这个是用户的回调函数
   pJob->pCtg = pCtg;
   pJob->conn = *pConn;
   pJob->userParam = param;
@@ -957,6 +963,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
   pJob->vstbRefDbNum = vstbRefDbsNum;
 
 #if CTG_BATCH_FETCH
+// 这里也是一个hash
   pJob->pBatchs =
       taosHashInit(CTG_DEFAULT_BATCH_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   if (NULL == pJob->pBatchs) {
@@ -1576,7 +1583,7 @@ int32_t ctgCallUserCb(void* param) {
 
   qDebug("QID:0x%" PRIx64 ", catalog start to call user cb with rsp, code:%s", pJob->queryId, tstrerror(pJob->jobResCode));
 
-  (*pJob->userFp)(&pJob->jobRes, pJob->userParam, pJob->jobResCode);
+  (*pJob->userFp)(&pJob->jobRes, pJob->userParam, pJob->jobResCode); // 这里回调用户的回调函数
 
   qDebug("QID:0x%" PRIx64 ", catalog end to call user cb", pJob->queryId);
 
@@ -4507,6 +4514,7 @@ int32_t ctgCloneDbVg(SCtgTask* pTask, void** pRes) {
   CTG_RET(cloneDbVgInfo(pOut->dbVgroup, (SDBVgInfo**)pRes));
 }
 
+// 不同任务的处理函数指针数组
 SCtgAsyncFps gCtgAsyncFps[] = {
     {ctgInitGetQnodeTask, ctgLaunchGetQnodeTask, ctgHandleGetQnodeRsp, ctgDumpQnodeRes, NULL, NULL, 1},
     {ctgInitGetDnodeTask, ctgLaunchGetDnodeTask, ctgHandleGetDnodeRsp, ctgDumpDnodeRes, NULL, NULL, 1},
@@ -4688,6 +4696,7 @@ int32_t ctgLaunchSubTask(SCtgTask** ppTask, CTG_TASK_TYPE type, ctgSubTaskCbFp f
 int32_t ctgLaunchJob(SCtgJob* pJob) {
   int32_t taskNum = taosArrayGetSize(pJob->pTasks);
 
+  // task数量
   for (int32_t i = 0; i < taskNum; ++i) {
     SCtgTask* pTask = taosArrayGet(pJob->pTasks, i);
     if (NULL == pTask) {
@@ -4697,6 +4706,7 @@ int32_t ctgLaunchJob(SCtgJob* pJob) {
 
     qDebug("QID:0x%" PRIx64 ", job:0x%" PRIx64 ", catalog launch [%dth] task", pJob->queryId, pJob->refId,
            pTask->taskId);
+           // 这里开始回调处理
     CTG_ERR_RET((*gCtgAsyncFps[pTask->type].launchFp)(pTask));
 
     pTask = taosArrayGet(pJob->pTasks, i);
@@ -4706,6 +4716,9 @@ int32_t ctgLaunchJob(SCtgJob* pJob) {
       CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
+    // 如果任务已经被标记为CTG_TASK_LAUNCHED，则不需要再次设置状态
+    // 这里是为了防止在任务执行过程中，可能会有其他线程修改
+    // pTask->status的值，导致状态被重置为0
     (void)atomic_val_compare_exchange_32((int32_t*)&pTask->status, 0, CTG_TASK_LAUNCHED);
   }
 

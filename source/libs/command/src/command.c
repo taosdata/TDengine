@@ -1215,6 +1215,7 @@ static int32_t buildSelectResultDataBlock(SNodeList* pProjects, SSDataBlock* pBl
 
 static int32_t execSelectWithoutFrom(SSelectStmt* pSelect, SRetrieveTableRsp** pRsp) {
   SSDataBlock* pBlock = NULL;
+  // 构造block
   int32_t      code = createSelectResultDataBlock(pSelect->pProjectionList, &pBlock);
   if (TSDB_CODE_SUCCESS == code) {
     code = buildSelectResultDataBlock(pSelect->pProjectionList, pBlock);
@@ -1241,6 +1242,7 @@ static int32_t execShowCreateView(SShowCreateViewStmt* pStmt, SRetrieveTableRsp*
 
 int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp, int8_t biMode,
                      void* charsetCxt) {
+                      
   switch (nodeType(pStmt)) {
     case QUERY_NODE_DESCRIBE_STMT:
       return execDescribe(sysInfoUser, pStmt, pRsp, biMode);

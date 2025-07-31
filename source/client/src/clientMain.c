@@ -1345,6 +1345,7 @@ void destroyCtxInRequest(SRequestObj *pRequest) {
 }
 
 static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t code) {
+  // catalog task 任务结束后回调
   SSqlCallbackWrapper *pWrapper = (SSqlCallbackWrapper *)param;
   SRequestObj         *pRequest = pWrapper->pRequest;
   SQuery              *pQuery = pRequest->pQuery;
@@ -1356,6 +1357,7 @@ static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t
   pWrapper->pParseCtx->parseOnly = pRequest->parseOnly;
 
   if (TSDB_CODE_SUCCESS == code) {
+    // 处理一些替换信息
     code = qAnalyseSqlSemantic(pWrapper->pParseCtx, pWrapper->pCatalogReq, pResultMeta, pQuery);
   }
 
@@ -1437,6 +1439,7 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
   SRequestObj *pRequest = pWrapper->pRequest;
   SQuery      *pQuery = pRequest->pQuery;
 
+  // 这里有子查询
   if (code == TSDB_CODE_SUCCESS && pQuery->pPrevRoot) {
     SNode *prevRoot = pQuery->pPrevRoot;
     pQuery->pPrevRoot = NULL;
@@ -1462,6 +1465,7 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     TSWAP(pRequest->tableList, (pQuery)->pTableList);
     TSWAP(pRequest->targetTableList, (pQuery)->pTargetTableList);
 
+    // 这里开始调用查询
     launchAsyncQuery(pRequest, pQuery, pResultMeta, pWrapper);
   } else {
     destorySqlCallbackWrapper(pWrapper);
@@ -1472,6 +1476,7 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     if (NEED_CLIENT_HANDLE_ERROR(code)) {
       tscDebug("req:0x%" PRIx64 ", client retry to handle the error, code:%d - %s, tryCount:%d, QID:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
+               // 注意，这里有重试
       restartAsyncQuery(pRequest, code);
       return;
     }
@@ -1485,6 +1490,7 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
 }
 
 static int32_t getAllMetaAsync(SSqlCallbackWrapper *pWrapper, catalogCallback fp) {
+  // 组装回调函数
   SRequestConnInfo conn = {.pTrans = pWrapper->pParseCtx->pTransporter,
                            .requestId = pWrapper->pParseCtx->requestId,
                            .requestObjRefId = pWrapper->pParseCtx->requestRid,
@@ -1500,6 +1506,7 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
 
 static int32_t phaseAsyncQuery(SSqlCallbackWrapper *pWrapper) {
   int32_t code = TSDB_CODE_SUCCESS;
+  // 获取目前阶段
   switch (pWrapper->pRequest->pQuery->execStage) {
     case QUERY_EXEC_STAGE_PARSE: {
       // continue parse after get metadata
@@ -1508,6 +1515,7 @@ static int32_t phaseAsyncQuery(SSqlCallbackWrapper *pWrapper) {
     }
     case QUERY_EXEC_STAGE_ANALYSE: {
       // analysis after get metadata
+      // 查询走这个
       code = getAllMetaAsync(pWrapper, doAsyncQueryFromAnalyse);
       break;
     }
@@ -1609,7 +1617,7 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
                            .allocatorId = pRequest->allocatorRefId,
                            .parseSqlFp = clientParseSql,
                            .parseSqlParam = pWrapper,
-                           .setQueryFp = setQueryRequest,
+                           .setQueryFp = setQueryRequest, // parse的回调
                            .timezone = pTscObj->optionInfo.timezone,
                            .charsetCxt = pTscObj->optionInfo.charsetCxt};
   int8_t biMode = atomic_load_8(&((STscObj *)pTscObj)->biMode);
@@ -1681,7 +1689,9 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    // 根结点的type作为整个stmt的type
     pRequest->stmtType = pRequest->pQuery->pRoot->type;
+    // 开始执行异步查询
     code = phaseAsyncQuery(pWrapper);
   }
 
@@ -1702,6 +1712,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
                 pRequest->requestId);
       }
       pRequest->prevCode = code;
+      // 这个是重试的逻辑
       doAsyncQuery(pRequest, true);
       return;
     }

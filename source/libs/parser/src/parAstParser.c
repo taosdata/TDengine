@@ -269,8 +269,11 @@ static EDealRes collectMetaKeyFromOperator(SCollectMetaKeyFromExprCxt* pCxt, SOp
 }
 
 static EDealRes collectMetaKeyFromExprImpl(SNode* pNode, void* pContext) {
+  // 这是一个回调实现
+  // 取出上下文
   SCollectMetaKeyFromExprCxt* pCxt = pContext;
   switch (nodeType(pNode)) {
+    // 区分几种node类型
     case QUERY_NODE_FUNCTION:
       return collectMetaKeyFromFunction(pCxt, (SFunctionNode*)pNode);
     case QUERY_NODE_REAL_TABLE:
@@ -310,11 +313,15 @@ static int32_t reserveDbCfgForLastRow(SCollectMetaKeyCxt* pCxt, SNode* pTable) {
 }
 
 static int32_t collectMetaKeyFromSelect(SCollectMetaKeyCxt* pCxt, SSelectStmt* pStmt) {
+  // 这里又是一个ctx
   SCollectMetaKeyFromExprCxt cxt = {.pComCxt = pCxt, .hasLastRowOrLast = false, .errCode = TSDB_CODE_SUCCESS};
+  // 这里区分一下table类型
   if (pStmt->pFromTable && QUERY_NODE_REAL_TABLE == nodeType(pStmt->pFromTable)) {
     cxt.tbnameCollect = true;
     cxt.pComCxt->collectVStbRefDbs = true;
   }
+
+  // ctx作为上下文一直传递到后面
   nodesWalkSelectStmt(pStmt, SQL_CLAUSE_FROM, collectMetaKeyFromExprImpl, &cxt);
   if (TSDB_CODE_SUCCESS == cxt.errCode && cxt.hasLastRowOrLast) {
     cxt.errCode = reserveDbCfgForLastRow(pCxt, pStmt->pFromTable);

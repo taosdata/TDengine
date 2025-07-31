@@ -1589,6 +1589,8 @@ int32_t catalogAsyncGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SC
 
   int32_t  code = 0;
   SCtgJob* pJob = NULL;
+  // 这个开始有catalog的job了
+  // job和各种子task，job是一个完整的任务，包含了多个子任务
   CTG_ERR_JRET(ctgInitJob(pCtg, pConn, &pJob, pReq, fp, param));
 
   CTG_ERR_JRET(ctgLaunchJob(pJob));

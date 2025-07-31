@@ -463,6 +463,7 @@ static bool hasSameTableAlias(SArray* pTables) {
 
 static int32_t addNamespace(STranslateContext* pCxt, void* pTable) {
   int32_t code = 0;
+  // 这个命名空间的作用稍后看一下？
   size_t  currTotalLevel = taosArrayGetSize(pCxt->pNsLevel);
   if (currTotalLevel > pCxt->currLevel) {
     SArray* pTables = taosArrayGetP(pCxt->pNsLevel, pCxt->currLevel);
@@ -984,6 +985,7 @@ static int32_t initTranslateContext(SParseContext* pParseCxt, SParseMetaCache* p
   pCxt->levelNo = 0;
   pCxt->currClause = 0;
   pCxt->pMetaCache = pMetaCache;
+  // 初始化db和table的hash
   pCxt->pDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   pCxt->pTables = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   pCxt->pTargetTables = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
@@ -2132,6 +2134,7 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN, (*pCol)->colName);
   }
 
+  // 这个是流计算用的
   if (pCxt->createStreamOutTable) {
     if (!pCxt->createStreamTriggerPartitionList) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, (*pCol)->colName);
@@ -3927,6 +3930,7 @@ static EDealRes translateCaseWhen(STranslateContext* pCxt, SCaseWhenNode* pCaseW
 
 static EDealRes doTranslateExpr(SNode** pNode, void* pContext) {
   STranslateContext* pCxt = (STranslateContext*)pContext;
+  // 不同类型的处理
   switch (nodeType(*pNode)) {
     case QUERY_NODE_COLUMN:
       return translateColumn(pCxt, (SColumnNode**)pNode);
@@ -3951,6 +3955,7 @@ static EDealRes doTranslateExpr(SNode** pNode, void* pContext) {
 }
 
 static int32_t translateExpr(STranslateContext* pCxt, SNode** pNode) {
+  // 表达式重写
   nodesRewriteExprPostOrder(pNode, doTranslateExpr, pCxt);
   return pCxt->errCode;
 }
@@ -5443,6 +5448,7 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
     PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_TABLE_TYPE);
   }
 
+  // 获取一些缓存信息
   PAR_ERR_JRET(getTargetMeta(pCxt, pName, &(pVTable->pMeta), true));
   PAR_ERR_JRET(setVSuperTableVgroupList(pCxt, pName, pVTable));
   PAR_ERR_JRET(setVSuperTableRefScanVgroupList(pCxt, pName, pRealTable));
@@ -5455,11 +5461,12 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
   bool tmpAsync = pCxt->pParseCxt->async;
   pCxt->pParseCxt->async = false;
   pCxt->refTable = true;
+  // copy 设置一些信息
   PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pInsCols));
   tstrncpy(pInsCols->table.dbName, TSDB_INFORMATION_SCHEMA_DB, sizeof(pInsCols->table.dbName));
   tstrncpy(pInsCols->table.tableName, TSDB_INS_TABLE_VC_COLS, sizeof(pInsCols->table.tableName));
   tstrncpy(pInsCols->table.tableAlias, TSDB_INS_TABLE_VC_COLS, sizeof(pInsCols->table.tableAlias));
-  PAR_ERR_JRET(translateTable(pCxt, (SNode**)&pInsCols, false));
+  PAR_ERR_JRET(translateTable(pCxt, (SNode**)&pInsCols, false)); // 这个就是递归处理了
   PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pInsCols));
   pCxt->refTable = false;
   pCxt->pParseCxt->async = tmpAsync;
@@ -5487,6 +5494,7 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
   TSWAP(pVTable->pMeta, pRealTable->pMeta);
   TSWAP(pVTable->pVgroupList, pRealTable->pVgroupList);
 
+  // 一些缓存信息
   pTableNameHash =
       taosHashInit(pMeta->numOfColRefs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   QUERY_CHECK_NULL(pTableNameHash, code, lino, _return, terrno);
@@ -5494,6 +5502,7 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
   bool tmpAsync = pCxt->pParseCxt->async;
   pCxt->pParseCxt->async = false;
   pCxt->refTable = true;
+  // 处理每一列
   for (int32_t i = 0; i < pMeta->numOfColRefs; i++) {
     if (pMeta->colRef[i].hasRef) {
       char tableNameKey[TSDB_TABLE_FNAME_LEN] = {0};
@@ -5532,6 +5541,7 @@ static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SN
   STableMeta*        pMeta = pRealTable->pMeta;
   SVirtualTableNode* pVTable = NULL;
 
+  // 这是一些表示在不同的类型里边标识
   if (!isSelectStmt(pCxt->pCurrStmt)) {
     // virtual table only support select operation
     PAR_ERR_JRET(TSDB_CODE_TSC_INVALID_OPERATION);
@@ -5539,10 +5549,12 @@ static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SN
   if (pCxt->pParseCxt->stmtBindVersion > 0) {
     PAR_ERR_JRET(TSDB_CODE_VTABLE_NOT_SUPPORT_STMT);
   }
+  // 分层级表示
   if (pCxt->pParseCxt->topicQuery) {
     PAR_ERR_JRET(TSDB_CODE_VTABLE_NOT_SUPPORT_TOPIC);
   }
 
+  // copy了一些属性
   PAR_ERR_RET(nodesMakeNode(QUERY_NODE_VIRTUAL_TABLE, (SNode**)&pVTable));
   tstrncpy(pVTable->table.dbName, pRealTable->table.dbName, sizeof(pVTable->table.dbName));
   tstrncpy(pVTable->table.tableName, pRealTable->table.tableName, sizeof(pVTable->table.tableName));
@@ -5885,8 +5897,10 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
     SName name = {0};
     toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, pRealTable->table.tableName, &name);
     if (pCxt->refTable) {
+      // 引用table
       PAR_ERR_JRET(collectUseTable(&name, pCxt->pTargetTables));
     }
+    // 获取目标表的meta
     PAR_ERR_JRET(getTargetMeta(pCxt, &name, &(pRealTable->pMeta), true));
 
 #ifdef TD_ENTERPRISE
@@ -5900,6 +5914,7 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
     // create stream trigger's plan will treat virtual table as real table
     if (pRealTable->placeholderType != SP_PARTITION_ROWS && !pCxt->createStreamTrigger &&
         (isVirtualTable(pRealTable->pMeta) || isVirtualSTable(pRealTable->pMeta))) {
+          // 处理虚拟表
       PAR_RET(translateVirtualTable(pCxt, pTable, &name));
     }
 
@@ -5907,10 +5922,11 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
     PAR_ERR_JRET(setTableTsmas(pCxt, &name, pRealTable));
   }
 
+  // 从meta填充一些信息
   pRealTable->table.precision = pRealTable->pMeta->tableInfo.precision;
   pRealTable->table.singleTable = isSingleTable(pRealTable);
   if (TSDB_SUPER_TABLE == pRealTable->pMeta->tableType) {
-    pCxt->stableQuery = true;
+    pCxt->stableQuery = true; // 标记是超级表查询
   }
   if (TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType) {
     if (isSelectStmt(pCxt->pCurrStmt)) {
@@ -6069,6 +6085,7 @@ _return:
 }
 
 int32_t translateTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
+  // 处理当前的stmt
   SSelectStmt* pCurrSmt = (SSelectStmt*)(pCxt->pCurrStmt);
   int32_t      code = TSDB_CODE_SUCCESS;
   
@@ -6076,6 +6093,7 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
   
   switch (nodeType(*pTable)) {
     case QUERY_NODE_REAL_TABLE: {
+      // 用实际的信息填充
       PAR_ERR_JRET(translateRealTable(pCxt, pTable, inJoin));
       break;
     }
@@ -8448,6 +8466,7 @@ static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
 }
 
 static int32_t translateFrom(STranslateContext* pCxt, SNode** pTable) {
+  // 表示当前处理的语句
   pCxt->currClause = SQL_CLAUSE_FROM;
   return translateTable(pCxt, pTable, false);
 }
@@ -9071,8 +9090,10 @@ _end:
 }
 
 static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  // 转换为stmt
   pCxt->pCurrStmt = (SNode*)pSelect;
   pCxt->dual = false;
+  // 这里顺序处理sql语句中的各个阶段
   int32_t code = translateFrom(pCxt, &pSelect->pFromTable);
   if (TSDB_CODE_SUCCESS == code) {
     pSelect->precision = ((STableNode*)pSelect->pFromTable)->precision;
@@ -9159,6 +9180,7 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
 
 static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (pCxt->pParseCxt && pCxt->pParseCxt->setQueryFp) {
+    // 先处理回调，设置一个标志
     (*pCxt->pParseCxt->setQueryFp)(pCxt->pParseCxt->requestRid);
   }
 
@@ -20387,6 +20409,7 @@ static int32_t rewriteShowAliveStmt(STranslateContext* pCxt, SQuery* pQuery) {
 
 static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
+  // node类型
   switch (nodeType(pQuery->pRoot)) {
     case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_DATABASES_STMT:
@@ -20500,6 +20523,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
       code = rewriteShowAliveStmt(pCxt, pQuery);
       break;
     default:
+    // select 没处理
       break;
   }
   return code;
@@ -20524,12 +20548,14 @@ static int32_t toMsgType(ENodeType type) {
 }
 
 static int32_t setRefreshMeta(STranslateContext* pCxt, SQuery* pQuery) {
+  //
   if (NULL != pCxt->pDbs) {
     taosArrayDestroy(pQuery->pDbList);
     pQuery->pDbList = taosArrayInit(taosHashGetSize(pCxt->pDbs), TSDB_DB_FNAME_LEN);
     if (NULL == pQuery->pDbList) {
       return terrno;
     }
+    // 遍历填充数据库
     SFullDatabaseName* pDb = taosHashIterate(pCxt->pDbs, NULL);
     while (NULL != pDb) {
       if (NULL == taosArrayPush(pQuery->pDbList, pDb->fullDbName)) {
@@ -20564,6 +20590,7 @@ static int32_t setRefreshMeta(STranslateContext* pCxt, SQuery* pQuery) {
     }
     SName* pTable = taosHashIterate(pCxt->pTargetTables, NULL);
     while (NULL != pTable) {
+      // 将信息填充到query中
       if (NULL == taosArrayPush(pQuery->pTargetTableList, pTable)) {
         taosHashCancelIterate(pCxt->pTargetTables, pTable);
         return terrno;
@@ -20576,10 +20603,12 @@ static int32_t setRefreshMeta(STranslateContext* pCxt, SQuery* pQuery) {
 }
 
 static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
+  // 区分类型
+  // 这里设置一下查询类型
   switch (nodeType(pQuery->pRoot)) {
     case QUERY_NODE_SELECT_STMT:
       if (NULL == ((SSelectStmt*)pQuery->pRoot)->pFromTable) {
-        pQuery->execMode = QUERY_EXEC_MODE_LOCAL;
+        pQuery->execMode = QUERY_EXEC_MODE_LOCAL;  // 本地查询
         pQuery->haveResultSet = true;
         break;
       }
@@ -20640,11 +20669,13 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
   if (pQuery->haveResultSet) {
     taosMemoryFreeClear(pQuery->pResSchema);
     taosMemoryFreeClear(pQuery->pResExtSchema);
+    // 获取表的schema
     if (TSDB_CODE_SUCCESS !=
         extractResultSchema(pQuery->pRoot, &pQuery->numOfResCols, &pQuery->pResSchema, &pQuery->pResExtSchema)) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
+    // 获取精度
     if (nodeType(pQuery->pRoot) == QUERY_NODE_SELECT_STMT) {
       pQuery->precision = extractResultTsPrecision((SSelectStmt*)pQuery->pRoot);
     } else if (nodeType(pQuery->pRoot) == QUERY_NODE_SET_OPERATOR) {
@@ -20656,10 +20687,12 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
 }
 
 int32_t translate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
+  // 有自己的ctx
   STranslateContext cxt = {0};
 
   int32_t code = initTranslateContext(pParseCxt, pMetaCache, &cxt);
   if (TSDB_CODE_SUCCESS == code) {
+    // select 没处理
     code = rewriteQuery(&cxt, pQuery);
   }
   if (TSDB_CODE_SUCCESS == code) {

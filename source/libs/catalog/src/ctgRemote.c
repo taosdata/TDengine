@@ -437,6 +437,7 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
 }
 
 int32_t ctgHandleMsgCallback(void* param, SDataBuf* pMsg, int32_t rspCode) {
+  // 这个是消息返回后的回调函数
   SCtgTaskCallbackParam* cbParam = (SCtgTaskCallbackParam*)param;
   int32_t                code = 0;
   SCtgJob*               pJob = NULL;
@@ -451,6 +452,7 @@ int32_t ctgHandleMsgCallback(void* param, SDataBuf* pMsg, int32_t rspCode) {
 
   SCatalog* pCtg = pJob->pCtg;
 
+  // 区分消息类型
   if (TDMT_VND_BATCH_META == cbParam->reqType || TDMT_MND_BATCH_META == cbParam->reqType || TDMT_SND_BATCH_META == cbParam->reqType) {
     CTG_ERR_JRET(ctgHandleBatchRsp(pJob, cbParam, pMsg, rspCode));
   } else {
@@ -470,6 +472,7 @@ int32_t ctgHandleMsgCallback(void* param, SDataBuf* pMsg, int32_t rspCode) {
            TMSG_INFO(cbParam->reqType + 1));
 
 #if CTG_BATCH_FETCH
+// hash对象用于存储批处理任务
     SHashObj* pBatchs =
         taosHashInit(CTG_DEFAULT_BATCH_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
     if (NULL == pBatchs) {
@@ -490,6 +493,7 @@ int32_t ctgHandleMsgCallback(void* param, SDataBuf* pMsg, int32_t rspCode) {
     tReq.pTask = pTask;
     tReq.msgIdx = -1;
 
+    // response 回调函数
     CTG_ERR_JRET((*gCtgAsyncFps[pTask->type].handleRspFp)(&tReq, cbParam->reqType, pMsg, rspCode));
 
 #if CTG_BATCH_FETCH
@@ -555,6 +559,7 @@ int32_t ctgAsyncSendMsg(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob* pJob, 
                         SArray* pMsgIdx, char* dbFName, int32_t vgId, int32_t msgType, void** msg, uint32_t msgSize) {
   int32_t       code = 0;
   SMsgSendInfo* pMsgSendInfo = NULL;
+  // 构造消息
   CTG_ERR_JRET(ctgMakeMsgSendInfo(pJob, pTaskId, batchId, pMsgIdx, msgType, &pMsgSendInfo));
 
   CTG_ERR_JRET(ctgUpdateSendTargetInfo(pMsgSendInfo, msgType, dbFName, vgId));
@@ -567,6 +572,8 @@ int32_t ctgAsyncSendMsg(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob* pJob, 
   pMsgSendInfo->msgType = msgType;
   *msg = NULL;
 
+  // 这里发送给了mnode
+  // 异步消息
   code = asyncSendMsgToServer(pConn->pTrans, &pConn->mgmtEps, NULL, pMsgSendInfo);
   pMsgSendInfo = NULL;
   if (code) {
@@ -821,6 +828,7 @@ int32_t ctgBuildBatchReqMsg(SCtgBatch* pBatch, int32_t vgId, void** msg, int32_t
 int32_t ctgLaunchBatchs(SCatalog* pCtg, SCtgJob* pJob, SHashObj* pBatchs) {
   int32_t code = 0;
   void*   msg = NULL;
+  // 便利task
   void*   p = taosHashIterate(pBatchs, NULL);
   while (NULL != p) {
     size_t     len = 0;
@@ -831,7 +839,9 @@ int32_t ctgLaunchBatchs(SCatalog* pCtg, SCtgJob* pJob, SHashObj* pBatchs) {
     qDebug("QID:0x%" PRIx64 ", job:0x%" PRIx64 ", catalog start to launch batch:%d", pJob->queryId, pJob->refId,
            pBatch->batchId);
 
+           // 请求
     CTG_ERR_JRET(ctgBuildBatchReqMsg(pBatch, *vgId, &msg, &msgSize));
+    // 这个发送给谁了
     code = ctgAsyncSendMsg(pCtg, &pBatch->conn, pJob, pBatch->pTaskIds, pBatch->batchId, pBatch->pMsgIdxs,
                            pBatch->dbFName, *vgId, pBatch->msgType, &msg, msgSize);
     pBatch->pTaskIds = NULL;

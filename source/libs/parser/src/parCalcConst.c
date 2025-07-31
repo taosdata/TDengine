@@ -430,6 +430,7 @@ static int32_t calcConstSelectFrom(SCalcConstContext* pCxt, SSelectStmt* pSelect
   if (pSelect->mixSysTableAndActualTable) {
     return code;
   }
+  // 各个阶段都处理一遍
   if (TSDB_CODE_SUCCESS == code) {
     code = calcConstProjections(pCxt, pSelect, subquery);
   }
@@ -689,6 +690,7 @@ static void resetProjectNullType(SNode* pStmt) {
 }
 
 int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery) {
+  // 自己的ctx
   SCalcConstContext cxt = {.pParseCxt = pParseCxt,
                            .msgBuf.buf = pParseCxt->pMsg,
                            .msgBuf.len = pParseCxt->msgLen,

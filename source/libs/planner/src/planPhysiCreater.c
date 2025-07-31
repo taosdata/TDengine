@@ -3179,6 +3179,7 @@ static int32_t createPhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode, 
   }
 
   SNode* pLogicChild;
+  // 遍历创建
   FOREACH(pLogicChild, pLogicNode->pChildren) {
     SPhysiNode* pChild = NULL;
     code = createPhysiNode(pCxt, (SLogicNode*)pLogicChild, pSubplan, &pChild);
@@ -3245,6 +3246,7 @@ static int32_t createDataDispatcher(SPhysiPlanContext* pCxt, const SPhysiNode* p
 
 static int32_t makeSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SSubplan** ppSubplan) {
   SSubplan* pSubplan = NULL;
+  // 创建node
   int32_t   code = nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, (SNode**)&pSubplan);
   if (NULL == pSubplan) {
     return code;
@@ -3462,6 +3464,7 @@ static int32_t buildPhysiPlan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubp
   int32_t   code = createPhysiSubplan(pCxt, pLogicSubplan, &pSubplan);
 
   if (TSDB_CODE_SUCCESS == code) {
+    // plan是分层的
     code = pushSubplan(pCxt, (SNode*)pSubplan, pLogicSubplan->level, pQueryPlan->pSubplans);
     ++(pQueryPlan->numOfSubplans);
   }
@@ -3480,6 +3483,7 @@ static int32_t buildPhysiPlan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubp
 
   if (TSDB_CODE_SUCCESS == code) {
     SNode* pChild = NULL;
+    // 又到写一层构建
     FOREACH(pChild, pLogicSubplan->pChildren) {
       code = buildPhysiPlan(pCxt, (SLogicSubplan*)pChild, pSubplan, pQueryPlan);
       if (TSDB_CODE_SUCCESS != code) {
@@ -3499,6 +3503,7 @@ static int32_t doCreatePhysiPlan(SPhysiPlanContext* pCxt, SQueryLogicPlan* pLogi
   }
 
   SNode* pSubplan = NULL;
+  // 遍历构造
   FOREACH(pSubplan, pLogicPlan->pTopSubplans) {
     code = buildPhysiPlan(pCxt, (SLogicSubplan*)pSubplan, NULL, pPlan);
     if (TSDB_CODE_SUCCESS != code) {
