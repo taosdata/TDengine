@@ -704,7 +704,6 @@ class Test_IDMP_Vehicle:
         count = 1
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
-
     #
     #  stream9 trigger
     #
@@ -729,11 +728,6 @@ class Test_IDMP_Vehicle:
         count = 1
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
-        # win2 one not trigger win1 close
-        vals  = "150,200"
-        count = 1
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-
         # win1 2~3 disorder
         count = 8
         vals  = "120,100"
@@ -745,8 +739,9 @@ class Test_IDMP_Vehicle:
 
         # win2 two trigger win1 close
         vals  = "150,200"
-        count = 5
+        count = 6
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+
 
     #
     # ---------------------   verify    ----------------------
