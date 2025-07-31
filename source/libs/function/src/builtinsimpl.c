@@ -1523,7 +1523,7 @@ int32_t stddevsampFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   double rows = (double)(pStddevRes->count - 1);
   if (pStddevRes->count < 2) {
-    rows = 1.0f;
+    rows = 1.0;
   }
 
   if (IS_SIGNED_NUMERIC_TYPE(type)) {
@@ -1558,7 +1558,7 @@ int32_t stdvarsampFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   double rows = (double)(pStdvarRes->count - 1);
   if (pStdvarRes->count < 2) {
-    rows = 1.0f;
+    rows = 1.0;
   }
 
   if (IS_SIGNED_NUMERIC_TYPE(type)) {
