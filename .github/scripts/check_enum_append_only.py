@@ -3,18 +3,13 @@ import os
 import subprocess
 from clang.cindex import Index, CursorKind, Config
 
-# Use LIBCLANG_PATH env var if set
-if 'LIBCLANG_PATH' in os.environ:
-    Config.set_library_file(os.environ['LIBCLANG_PATH'])
-else:
-    for path in [
-        "/usr/lib/llvm-16/lib/libclang.so",
-        "/usr/lib/x86_64-linux-gnu/libclang-16.so.1",
-        "/usr/lib/x86_64-linux-gnu/libclang.so.1",
-    ]:
-        if os.path.exists(path):
-            Config.set_library_file(path)
-            break
+# Use the libclang shared object installed via pip (libclang package)
+try:
+    from libclang import get_library_path
+    Config.set_library_path(get_library_path())
+except ImportError:
+    print("libclang package not installed. Please run: pip install libclang")
+    sys.exit(1)
 
 def extract_enums_with_values(filepath):
     index = Index.create()
