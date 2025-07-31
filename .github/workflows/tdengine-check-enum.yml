@@ -1,47 +1,15 @@
-name: Enum Check
-
-on:
-  pull_request:
-    branches:
-      - 'main'
-      - '3.0'
-      - '3.1'
-      - '3.3.6'
-    paths-ignore:
-      - 'packaging/**'
-      - 'docs/**'
-      - 'tools/tdgpt/**'
-      - 'source/libs/executor/src/forecastoperator.c'
-      - 'source/libs/executor/src/anomalywindowoperator.c'
-      - 'source/dnode/mnode/impl/src/mndAnode.c'
-      - 'include/common/tanalytics.h'
-      - 'source/common/src/tanalytics.c'
-      - 'tests/parallel/tdgpt_cases.task'
-      - 'tests/script/tsim/analytics'
-      - '**/*.md'
-      - '.github/workflows/**'
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-
-    ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref || inputs.specified_target_branch }}-
-    ${{ github.event_name == 'pull_request' && github.event.pull_request.number || inputs.specified_pr_number }}-TDengine
-  cancel-in-progress: true
-
-env:
-  WKC: '/var/lib/jenkins/workspace/TDinternal/community'
-
 jobs:
   enum-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # 需要完整历史支持 diff
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'  # 建议显式指定非 3.13，兼容更好
+          python-version: '3.10'
 
       - name: Show Python info
         run: |
@@ -55,9 +23,10 @@ jobs:
           sudo apt-get install -y llvm
           python3 -m pip install --upgrade pip
           python3 -m pip install libclang
-          python3 -c "import libclang; print('libclang path:', libclang.get_library_path())"
 
-
+      - name: Confirm libclang works
+        run: |
+          python3 -c "from libclang import get_library_path; print('libclang path:', get_library_path())"
 
       - name: Determine base branch
         id: base
@@ -68,7 +37,7 @@ jobs:
         run: |
           git fetch origin $BASE_BRANCH
           FILES=$(git diff --name-only origin/$BASE_BRANCH...HEAD | grep -E '\.(c|h)$' || echo '')
-          echo "::set-output name=files::$FILES"
+          echo "files=$FILES" >> "$GITHUB_OUTPUT"
 
       - name: Run enum check
         if: steps.changed_files.outputs.files != ''
