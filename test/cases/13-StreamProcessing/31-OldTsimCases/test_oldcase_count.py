@@ -653,9 +653,9 @@ class TestStreamOldCaseCount:
             )
             
         def insert3(self):
-            tdSql.pause()
+            # tdSql.pause()
             tdSql.execute("delete from streamt where s > '2022-03-01 13:33:33.000'")
-            tdSql.pause()
+            # tdSql.pause()
             tdSql.execute(f"RECALCULATE STREAM streams1 from '2022-03-01 13:33:33.000';")
 
         def check3(self):
