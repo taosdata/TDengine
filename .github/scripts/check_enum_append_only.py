@@ -4,6 +4,7 @@ import subprocess
 from clang.cindex import Index, CursorKind, Config
 
 # Use the libclang shared object installed via pip (libclang package)
+
 try:
     from libclang import get_library_path
     Config.set_library_path(get_library_path())

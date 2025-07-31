@@ -41,14 +41,20 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: '3.10'  # 建议显式指定非 3.13，兼容更好
+
+      - name: Show Python info
+        run: |
+          which python3
+          python3 --version
+          python3 -m site
 
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y llvm
-          pip install --upgrade pip
-          pip install libclang
+          python3 -m pip install --upgrade pip
+          python3 -m pip install libclang
           python3 -c "import libclang; print('libclang path:', libclang.get_library_path())"
 
 
