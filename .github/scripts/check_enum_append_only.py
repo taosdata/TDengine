@@ -3,8 +3,18 @@ import os
 import subprocess
 from clang.cindex import Index, CursorKind, Config
 
-# 如果报错找不到libclang，可以取消下面一行注释，修改成你系统中的libclang路径
-# Config.set_library_file("/usr/lib/llvm-14/lib/libclang.so.1")
+# Use LIBCLANG_PATH env var if set
+if 'LIBCLANG_PATH' in os.environ:
+    Config.set_library_file(os.environ['LIBCLANG_PATH'])
+else:
+    for path in [
+        "/usr/lib/llvm-16/lib/libclang.so",
+        "/usr/lib/x86_64-linux-gnu/libclang-16.so.1",
+        "/usr/lib/x86_64-linux-gnu/libclang.so.1",
+    ]:
+        if os.path.exists(path):
+            Config.set_library_file(path)
+            break
 
 def extract_enums_with_values(filepath):
     index = Index.create()
