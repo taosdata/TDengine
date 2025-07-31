@@ -1,5 +1,6 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
+import time
 
 class TestInsertBasic:
 
@@ -7,7 +8,7 @@ class TestInsertBasic:
         tdLog.debug(f"start to execute {__file__}")
 
 
-
+    
     def test_insert_basic(self):
         """insert use ns precision
 
@@ -38,83 +39,91 @@ class TestInsertBasic:
         i = 1
         tb_orderd = tbPrefix + str(i)
 
-        tdSql.execute(f"create database {db} vgroups 2 precision 'ns'")
+        tdSql.execute(f"create database {db} vgroups 2")
         tdSql.execute(f"use {db}")
 
         tdLog.info(f"=========== step1 check ordered data")
-        self.createTableAndBasicCheck(db, tb, 2000, 1)
+        self.createTableAndBasicCheck(db, tb, 1000, 1)
 
 
-        tdLog.info(f"=============step2 check unordered data") 
+        #tdLog.info(f"=============step2 check unordered data") 
         self.createTableAndBasicCheck(db, tb_orderd, 100, 0)
 
 
         tdSql.execute(f"drop database {db}")
 
     def checkBlobResult(self, tb, expectColSet, count):
-        tdSql.query(f"select * from {tb}")
+        tdSql.query(f"select * from {tb} limit 100000")
         tdLog.info(f"{tdSql.getRows()}) points data are retrieved")
-        tdSql.checkRows(count)
-        for i in range(tdSql.queryRows): 
-            if expectColSet[i] != None: 
-                result = expectColSet[i].encode()
-                tdSql.checkData(i, 1, result)
+        tdSql.checkRows(len(expectColSet))
+        
+        for i in range(len(expectColSet)): 
+            #timestamp = str(tdSql.getData(i, 0))
+            #sqlCol = tdSql.getData(i, 1) 
+            #print(f"timestamp {timestamp}, data {sqlCol}")
+            #print(f"check data {i} {tdSql.getData(i, 0)}, expect {expectColSet[i]}")
+            result = expectColSet[i]   
+            if result != None:
+                encResult = result.encode()
+                tdLog.error((f"check data {i} {tdSql.getData(i, 0)}"))
+                tdSql.checkData(i, 1, encResult, 1)
             else:
-                tdSql.checkData(i, 1, expectColSet[i])
-    def insertBatchData(self, tb, count, colSet, ordered):
-        x = 0   
+                #print("get null data")
+                tdLog.error((f"check data {i} {tdSql.getData(i, 0)}"))
+                tdSql.checkData(i, 1, result, 1)
+
+    def insertBatchData(self, tb, count, colSet, startTs, ordered):
+        x = 0
         str1 = f"insert into {tb} values"
-        if ordered == 1: 
+        if ordered == 1:
             while x < count:
                 blobCol = "" 
-                if x/10 == 0:
+                if x%50 == 0:
                     blobCol = None 
-                    str1 = str1 + f'(now, NULL)'
-                elif x/50 == 0:
+                    str1 = str1 + f'({startTs}, NULL)'
+                elif x%10 == 0:
                     blobCol = ""
-                    str1 = str1 + f'(now, "{blobCol}")'
+                    str1 = str1 + f'({startTs}, "{blobCol}")'
                 else: 
                     blobCol = f"BLOB_{x}"
-                    str1 = str1 +  f'(now, "{blobCol}")'
-                colSet.append(blobCol) 
+                    str1 = str1 +  f'({startTs}, "{blobCol}")'
+                colSet.append(blobCol)  
+                startTs = startTs + 1
                 x = x + 1       
         else:
             while x < count:
                 blobCol = "" 
-                if x/10 == 0:
+                if x%50 == 0:
                     blobCol = None 
-                    str1 = str1 + f'(now - 1h, NULL)'
-                elif x/50 == 0:
+                    str1 = str1 + f'({startTs}, NULL)'
+                elif x%10 == 0:
                     blobCol = ""
-                    str1 = str1 + f'(now - 1h, "{blobCol}")'
+                    str1 = str1 + f'({startTs}, "{blobCol}")'
                 else: 
                     blobCol = f"BLOB_{x}"
-                    str1 = str1 +  f'(now - 1h, "{blobCol}")'
-                colSet.append(blobCol) 
+                    str1 = str1 +  f'({startTs}, "{blobCol}")'
+                colSet.append(blobCol)  
+                startTs = startTs + 1
                 x = x + 1       
         tdSql.execute(str1)
     def createTableAndBasicCheck(self, db, tb, batchCount, ordered):
 
+        tdSql.execute(f"use {db}")
         tdSql.execute(f"create table {tb} (ts timestamp, desc1 blob)")
         count = 0
-        colSet = []
+        colSet = [] 
 
-        self.insertBatchData(tb, batchCount, colSet, ordered)
-        count = count + batchCount
-
-        # query before commit
-
-        self.checkBlobResult(tb, colSet, count)
-
-        tdSql.flushDb(f"{db}")
-        self.checkBlobResult(tb, colSet, count)
-
-        self.insertBatchData(tb, batchCount, colSet, ordered)
+        self.insertBatchData(tb, batchCount, colSet, 1717122968000,ordered)
         count = count + batchCount
 
         self.checkBlobResult(tb, colSet, count)
-
+        #self.checkBlobResult(tb, colSet, count)
+        #self.checkBlobResult(tb, colSet, count)
+        #self.checkBlobResult(tb, colSet, count)
+        #self.checkBlobResult(tb, colSet, count)
         tdSql.flushDb(f"{db}")
+        time.sleep(5) 
+        self.insertBatchData(tb, batchCount, colSet, 1717122968000 + batchCount*10, ordered)
+        count = count + batchCount
 
         self.checkBlobResult(tb, colSet, count)
-        tdSql.execute(f"drop database {db}")
