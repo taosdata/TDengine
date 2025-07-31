@@ -46,8 +46,11 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y llvm  # 不再装 libclang-dev 或 python3-clang
+          sudo apt-get install -y llvm
+          pip install --upgrade pip
           pip install libclang
+          python3 -c "import libclang; print('libclang path:', libclang.get_library_path())"
+
 
 
       - name: Determine base branch
