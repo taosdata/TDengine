@@ -783,15 +783,19 @@ static int32_t buildDbReq(SHashObj* pDbsHash, SArray** pDbs) {
 static int32_t buildTableReqFromDb(SHashObj* pDbsHash, SArray** pDbs) {
   if (NULL != pDbsHash) {
     if (NULL == *pDbs) {
+      // 这里是一个缓存数组
       *pDbs = taosArrayInit(taosHashGetSize(pDbsHash), sizeof(STablesReq));
       if (NULL == *pDbs) {
         return terrno;
       }
     }
+
+    // 检查缓存
     SParseTablesMetaReq* p = taosHashIterate(pDbsHash, NULL);
     while (NULL != p) {
       STablesReq req = {0};
       tstrncpy(req.dbFName, p->dbFName, TSDB_DB_FNAME_LEN);
+      // 处理所有的
       int32_t code = buildTableReq(p->pTables, &req.pTables);
       if (TSDB_CODE_SUCCESS == code) {
         if (NULL == taosArrayPush(*pDbs, &req)) {
@@ -863,6 +867,7 @@ static int32_t buildUdfReq(SHashObj* pUdfHash, SArray** pUdf) {
 
 int32_t buildCatalogReq(SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq) {
   int32_t code = buildTableReqFromDb(pMetaCache->pTableMeta, &pCatalogReq->pTableMeta);
+  // 请求各种类型的元数据
   if (TSDB_CODE_SUCCESS == code) {
     code = buildDbReq(pMetaCache->pDbVgroup, &pCatalogReq->pDbVgroup);
   }

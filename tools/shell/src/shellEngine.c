@@ -1207,6 +1207,7 @@ int32_t shellGetGrantInfo(char *buf) {
 #ifndef TD_ASTRA
   char sql[] = "show grants";
 
+  // 先查询一次处理权限问题
   TAOS_RES *tres = taos_query(shell.conn, sql);
 
   int32_t code = taos_errno(tres);
@@ -1219,6 +1220,8 @@ int32_t shellGetGrantInfo(char *buf) {
     return verType;
   }
 
+  // 获取结果
+  // 这是一个同步查询？
   int32_t num_fields = taos_field_count(tres);
   if (num_fields == 0) {
     fprintf(stderr, "\r\nInvalid grant information.\r\n");
@@ -1229,6 +1232,7 @@ int32_t shellGetGrantInfo(char *buf) {
       exit(0);
     }
 
+    // 获取每一行数据
     TAOS_FIELD *fields = taos_fetch_fields(tres);
     TAOS_ROW    row = taos_fetch_row(tres);
     if (row == NULL) {
@@ -1452,6 +1456,7 @@ int32_t shellExecute(int argc, char *argv[]) {
     return 0;
   }
 
+  // 注册取消信号量
   if ((code = tsem_init(&shell.cancelSem, 0, 0)) != 0) {
     printf("failed to create cancel semaphore since %s\r\n", tstrerror(code));
     return code;
@@ -1465,6 +1470,7 @@ int32_t shellExecute(int argc, char *argv[]) {
   taosSetSignal(SIGINT, shellQueryInterruptHandler);
 
   char    buf[512] = {0};
+  // 先进性一次权限检查，也是查询
   int32_t verType = shellGetGrantInfo(buf);
 #ifndef WINDOWS
   printfIntroduction(verType);
@@ -1479,6 +1485,8 @@ int32_t shellExecute(int argc, char *argv[]) {
   }
 
   while (1) {
+    // 这里循环处理命令行输入的命令
+    // 开启以一个新的线程
     taosThreadCreate(&shell.pid, NULL, shellThreadLoop, NULL);
     taosThreadJoin(shell.pid, NULL);
     taosThreadClear(&shell.pid);

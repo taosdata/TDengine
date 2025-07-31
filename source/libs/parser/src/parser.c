@@ -146,6 +146,7 @@ static int32_t parseSqlIntoAst(SParseContext* pCxt, SQuery** pQuery) {
 }
 
 static int32_t parseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, SParseMetaCache* pMetaCache) {
+  // 结果会在query中
   int32_t code = parse(pCxt, pQuery);
   if (TSDB_CODE_SUCCESS == code) {
     code = collectMetaKey(pCxt, *pQuery, pMetaCache);

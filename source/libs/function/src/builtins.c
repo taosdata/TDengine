@@ -1931,6 +1931,7 @@ static int32_t translateGreatestleast(SFunctionNode* pFunc, char* pErrBuf, int32
 }
 
 // clang-format off
+// 支持的函数注册
 const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "count",
@@ -2792,7 +2793,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = irateScalarFunction,
     .finalizeFunc = irateFinalize,
   },
-  {
+  { // 在这里注册函数
     .name = "last_row",
     .type = FUNCTION_TYPE_LAST_ROW,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |

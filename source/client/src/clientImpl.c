@@ -3068,6 +3068,7 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t s
   taosAsyncQueryImpl(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly, source);
   // 等待查询结束
   // 回调函数会设置信号量通知
+  // 前面查询还是异步的，这里等待数据汇总
   code = tsem_wait(&param->sem);
   if (TSDB_CODE_SUCCESS != code) {
     taosMemoryFree(param);

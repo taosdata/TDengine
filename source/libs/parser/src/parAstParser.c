@@ -31,13 +31,17 @@ extern void  ParseTrace(FILE*, char*);
 
 int32_t buildQueryAfterParse(SQuery** pQuery, SNode* pRootNode, int16_t placeholderNo, SArray** pPlaceholderValues) {
   *pQuery = NULL;
+  // 开始处理node
+  // query node
   int32_t code = nodesMakeNode(QUERY_NODE_QUERY, (SNode**)pQuery);
   if (NULL == *pQuery) {
     return code;
   }
+  
   (*pQuery)->pRoot = pRootNode;
   (*pQuery)->placeholderNum = placeholderNo;
   TSWAP((*pQuery)->pPlaceholderValues, *pPlaceholderValues);
+  // 这里有个阶段
   (*pQuery)->execStage = QUERY_EXEC_STAGE_ANALYSE;
 
   return TSDB_CODE_SUCCESS;
@@ -66,13 +70,15 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
     }
     t0.z = (char*)(cxt.pQueryCxt->pSql + i);
     i += t0.n;
-
+    
+    // 一个个解析token
     switch (t0.type) {
       case TK_NK_SPACE:
       case TK_NK_COMMENT: {
         break;
       }
       case TK_NK_SEMI: {
+        // 调用lemon接口
         Parse(pParser, 0, t0, &cxt);
         goto abort_parse;
       }
@@ -98,6 +104,8 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
 abort_parse:
   ParseFree(pParser, (FFree)taosAutoMemoryFree);
   if (TSDB_CODE_SUCCESS == cxt.errCode) {
+    // 解析成功，构建查询
+    // 这里有占位符处理
     int32_t code = buildQueryAfterParse(pQuery, cxt.pRootNode, cxt.placeholderNo, &cxt.pPlaceholderValues);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
@@ -1149,6 +1157,7 @@ static int32_t collectMetaKeyFromShowAlive(SCollectMetaKeyCxt* pCxt, SShowAliveS
 
 static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
   pCxt->pStmt = pStmt;
+  //  根据node类型判断需要的缓存
   switch (nodeType(pStmt)) {
     case QUERY_NODE_SET_OPERATOR:
       return collectMetaKeyFromSetOperator(pCxt, (SSetOperator*)pStmt);
@@ -1328,6 +1337,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
 }
 
 int32_t collectMetaKey(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
+  // root 是一个stmt
+  // ctx是可以组合的
   SCollectMetaKeyCxt cxt = {.pParseCxt = pParseCxt, .pMetaCache = pMetaCache, .pStmt = pQuery->pRoot};
   return collectMetaKeyFromQuery(&cxt, pQuery->pRoot);
 }
