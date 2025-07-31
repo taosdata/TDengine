@@ -63,13 +63,17 @@ int32_t stmAddPeriodReport(int64_t streamId, SArray** ppReport, SStreamTriggerTa
   }
 
   SSTriggerRuntimeStatus status = {0};
-  stTriggerTaskGetStatus((SStreamTask*)triggerTask, &status);
+  TAOS_CHECK_EXIT(stTriggerTaskGetStatus((SStreamTask*)triggerTask, &status));
 
   TSDB_CHECK_NULL(taosArrayPush(*ppReport, &status), code, lino, _exit, terrno);
 
   stsDebug("trigger task period report added, recalcNum:%d", (int32_t)taosArrayGetSize(status.userRecalcs));
 
 _exit:
+
+  if (code) {
+    stsError("%s failed at line %d since %s", __FUNCTION__, lino, tstrerror(code));
+  }
 
   return code;
 }
@@ -223,7 +227,7 @@ int32_t stmBuildHbStreamsStatusReq(SStreamHbMsg* pMsg) {
     SStreamInfo* pStream = (SStreamInfo*)pIter;
     int64_t*     streamId = taosHashGetKey(pIter, NULL);
 
-    stmHbAddStreamStatus(pMsg, pStream, *streamId, reportPeriod);
+    (void)stmHbAddStreamStatus(pMsg, pStream, *streamId, reportPeriod);
   }
 
   return code;
@@ -247,8 +251,7 @@ void stmDestroySStreamInfo(void* param) {
     ST_TASK_DLOG("task removed from stream readerList, remain:%d, listNode:%p", TD_DLIST_NELES(p->readerList), tmp);
     taosMemoryFreeClear(tmp);
   }
-  tdListFree(p->readerList);
-  p->readerList = NULL;
+  p->readerList = tdListFree(p->readerList);
 
   memset(&iter, 0, sizeof(iter));
   tdListInitIter(p->triggerList, &iter, TD_LIST_FORWARD);
@@ -258,8 +261,7 @@ void stmDestroySStreamInfo(void* param) {
     ST_TASK_DLOG("task removed from stream triggerList, remain:%d", TD_DLIST_NELES(p->triggerList));
     taosMemoryFreeClear(tmp);
   }
-  tdListFree(p->triggerList);
-  p->triggerList = NULL;
+  p->triggerList = tdListFree(p->triggerList);
 
   memset(&iter, 0, sizeof(iter));
   tdListInitIter(p->runnerList, &iter, TD_LIST_FORWARD);
@@ -269,8 +271,7 @@ void stmDestroySStreamInfo(void* param) {
     ST_TASK_DLOG("task removed from stream runnerList, remain:%d", TD_DLIST_NELES(p->runnerList));
     taosMemoryFreeClear(tmp);
   }
-  tdListFree(p->runnerList);
-  p->runnerList = NULL;
+  p->runnerList = tdListFree(p->runnerList);
 
   taosArrayDestroy(p->undeployReaders);
   p->undeployReaders = NULL;
@@ -659,7 +660,7 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
   uint64_t ar[] = {groupId, pParam->wstart};
   uint64_t hash = MurmurHash3_64((const char*)ar, sizeof(ar));
   char     triggerId[32];
-  u64toaFastLut(hash, triggerId);
+  (void)u64toaFastLut(hash, triggerId);
 
   const char* triggerTypeStr = NULL;
   switch (triggerType) {

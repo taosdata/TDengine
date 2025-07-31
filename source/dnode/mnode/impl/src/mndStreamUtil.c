@@ -119,7 +119,7 @@ void mstResetSStmStatus(SStmStatus* pStatus) {
   taosArrayDestroy(pStatus->calcReaders);
   pStatus->calcReaders = NULL;
   if (pStatus->triggerTask) {
-    mstWaitLock(&pStatus->triggerTask->detailStatusLock, false);
+    (void)mstWaitLock(&pStatus->triggerTask->detailStatusLock, false);
     taosMemoryFreeClear(pStatus->triggerTask->detailStatus);
     taosWUnLockLatch(&pStatus->triggerTask->detailStatusLock);
   }
@@ -289,7 +289,7 @@ bool mndStreamActionDequeue(SStmActionQ* pQueue, SStmQNode **param) {
 
   taosMemoryFreeClear(orig);
 
-  atomic_sub_fetch_64(&pQueue->qRemainNum, 1);
+  (void)atomic_sub_fetch_64(&pQueue->qRemainNum, 1);
 
   return true;
 }
@@ -300,7 +300,7 @@ void mndStreamActionEnqueue(SStmActionQ* pQueue, SStmQNode* param) {
   pQueue->tail = param;
   taosWUnLockLatch(&pQueue->lock);
 
-  atomic_add_fetch_64(&pQueue->qRemainNum, 1);
+  (void)atomic_add_fetch_64(&pQueue->qRemainNum, 1);
 }
 
 char* mstGetStreamActionString(int32_t action) {
@@ -752,7 +752,7 @@ int32_t mstGetStreamStatusStr(SStreamObj* pStream, char* status, int32_t statusS
     return TSDB_CODE_SUCCESS;
   }
 
-  mstWaitLock(&mStreamMgmt.runtimeLock, true);
+  (void)mstWaitLock(&mStreamMgmt.runtimeLock, true);
   
   SStmStatus* pStatus = (SStmStatus*)taosHashGet(mStreamMgmt.streamMap, &pStream->pCreate->streamId, sizeof(pStream->pCreate->streamId));
   if (NULL == pStatus) {
@@ -783,7 +783,7 @@ int32_t mstGetStreamStatusStr(SStreamObj* pStream, char* status, int32_t statusS
   if (pStatus->triggerTask && STREAM_STATUS_RUNNING == pStatus->triggerTask->status) {
     STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_RUNNING], statusSize);
     strcpy(tmpBuf, "Running start from: ");
-    formatTimestampLocal(&tmpBuf[strlen(tmpBuf)], pStatus->triggerTask->runningStartTs, TSDB_TIME_PRECISION_MILLI);
+    (void)formatTimestampLocal(&tmpBuf[strlen(tmpBuf)], pStatus->triggerTask->runningStartTs, TSDB_TIME_PRECISION_MILLI);
     STR_WITH_MAXSIZE_TO_VARSTR(msg, tmpBuf, msgSize);
     goto _exit;
   }
@@ -1076,7 +1076,7 @@ int32_t mstSetStreamTasksResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int3
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
 
-  mstWaitLock(&mStreamMgmt.runtimeLock, true);
+  (void)mstWaitLock(&mStreamMgmt.runtimeLock, true);
 
   SStmStatus* pStatus = (SStmStatus*)taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
   if (NULL == pStatus) {
@@ -1276,7 +1276,7 @@ int32_t mstSetStreamRecalculatesResBlock(SStreamObj* pStream, SSDataBlock* pBloc
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
 
-  mstWaitLock(&mStreamMgmt.runtimeLock, true);
+  (void)mstWaitLock(&mStreamMgmt.runtimeLock, true);
 
   SStmStatus* pStatus = (SStmStatus*)taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
   if (NULL == pStatus) {
@@ -1295,7 +1295,7 @@ int32_t mstSetStreamRecalculatesResBlock(SStreamObj* pStream, SSDataBlock* pBloc
     goto _exit;
   }
 
-  mstWaitLock(&pStatus->triggerTask->detailStatusLock, true);
+  (void)mstWaitLock(&pStatus->triggerTask->detailStatusLock, true);
   if (NULL == pStatus->triggerTask->detailStatus) {
     mstsDebug("no trigger task now, deployTimes:%" PRId64 ", ignore it", pStatus->deployTimes);
     taosRUnLockLatch(&pStatus->triggerTask->detailStatusLock);

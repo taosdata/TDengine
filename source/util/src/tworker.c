@@ -1192,7 +1192,7 @@ int32_t tDispatchWorkerAllocQueue(SDispatchWorkerPool *pPool, void *ahandle, FIt
     uInfo("worker:%s:%d is launched, threadId:%" PRId64 ", total:%d", pPool->name, pWorker->id, taosGetPthreadId(pWorker->thread), pPool->num);
   }
 
-  taosThreadMutexUnlock(&pPool->poolLock);
+  (void)taosThreadMutexUnlock(&pPool->poolLock);
   if (code == 0) uInfo("worker:%s, queue:%p is allocated, ahandle:%p", pPool->name, pWorker->queue, ahandle);
   return code;
 }
