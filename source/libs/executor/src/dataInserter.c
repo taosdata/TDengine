@@ -646,7 +646,7 @@ _return:
     taosMemoryFree(buf1);
   }
   taosMemoryFree(pReq);
-  tsem_destroy(&dbVgInfoReq.ready);
+  (void)tsem_destroy(&dbVgInfoReq.ready);
   if (dbVgInfoReq.pRsp) {
     tFreeSUsedbRsp(dbVgInfoReq.pRsp);
     taosMemoryFreeClear(dbVgInfoReq.pRsp);
@@ -1604,7 +1604,7 @@ static int32_t getStreamInsertTableInfo(SStreamDataInserterInfo* pInserterInfo, 
     return TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND;
   }
 
-  atomic_add_fetch_32(&(*ppTmp)->refCount, 1);
+  (void)atomic_add_fetch_32(&(*ppTmp)->refCount, 1);
   *ppTbInfo = *ppTmp;
   return TSDB_CODE_SUCCESS;
 }
@@ -2641,7 +2641,7 @@ _exit:
 void rmDbVgInfoFromCache(const char* dbFName) {
   taosWLockLatch(&g_dbVgInfoMgr.lock);
   
-  taosHashRemove(g_dbVgInfoMgr.dbVgInfoMap, dbFName, strlen(dbFName));
+  (void)taosHashRemove(g_dbVgInfoMgr.dbVgInfoMap, dbFName, strlen(dbFName));
   
   taosWUnLockLatch(&g_dbVgInfoMgr.lock);
 }
