@@ -914,7 +914,7 @@ _exit:
   return code;
 }
 
-static void hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputBlock, bool isFirstOpen) {
+static void hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputBlock) {
   SExternalWindowOperator* pExtW = (SExternalWindowOperator*)pOperator->info;
   SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
   SExprSupp*               pSup = &pOperator->exprSupp;
@@ -951,14 +951,11 @@ static void hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
   }
 
   STimeWindow win = *pWin;
-  if (isFirstOpen) {
-    ret = setExtWindowOutputBuf(pResultRowInfo, &win, &pResult, pInputBlock->info.id.groupId, pSup->pCtx, numOfOutput,
-                                pSup->rowEntryInfoOffset, &pExtW->aggSup, pTaskInfo);
-    if (ret != 0 || !pResult) {
-      T_LONG_JMP(pTaskInfo->env, ret);
-    }
+  ret = setExtWindowOutputBuf(pResultRowInfo, &win, &pResult, pInputBlock->info.id.groupId, pSup->pCtx, numOfOutput,
+                              pSup->rowEntryInfoOffset, &pExtW->aggSup, pTaskInfo);
+  if (ret != 0 || !pResult) {
+    T_LONG_JMP(pTaskInfo->env, ret);
   }
-
   TSKEY   ekey = ascScan ? win.ekey : win.skey;
   int32_t forwardRows = getNumOfRowsInTimeWindow(&pInputBlock->info, tsCols, startPos, ekey - 1, binarySearchForKey, NULL,
                                                  pExtW->binfo.inputTsOrder);
@@ -1061,7 +1058,6 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
     pExtW->lastWinId = -1;
   }
 
-  bool isFirstOpen = true;
   while (1) {
     SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
     if (pBlock == NULL) {
@@ -1079,7 +1075,7 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
         TAOS_CHECK_EXIT(hashExternalWindowProject(pOperator, pBlock));
         break;
       case EEXT_MODE_AGG:
-        hashExternalWindowAgg(pOperator, pBlock, isFirstOpen);
+        hashExternalWindowAgg(pOperator, pBlock);
         break;
       case EEXT_MODE_INDEFR_FUNC:
         TAOS_CHECK_EXIT(hashExternalWindowIndefRows(pOperator, pBlock));
@@ -1087,7 +1083,6 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
       default:
         break;
     }
-    isFirstOpen = false;
   }
 
   OPTR_SET_OPENED(pOperator);
