@@ -2978,7 +2978,7 @@ void msmCleanDeployedVgTasks(SArray* pVgLeaders) {
       (void)atomic_sub_fetch_32(&mStreamMgmt.toDeployVgTaskNum, taskNum);
       taosArrayDestroyEx(pVg->taskList, mstDestroySStmTaskToDeployExt);
       pVg->taskList = NULL;
-      (void)taosHashRemove(mStreamMgmt.toDeployVgMap, vgId, sizeof(*vgId));
+      TAOS_UNUSED(taosHashRemove(mStreamMgmt.toDeployVgMap, vgId, sizeof(*vgId)));
       taosWUnLockLatch(&pVg->lock);
       taosHashRelease(mStreamMgmt.toDeployVgMap, pVg);
       continue;
@@ -3049,7 +3049,7 @@ void msmCleanDeployedSnodeTasks (int32_t snodeId) {
   }
 
   if (NULL == pSnode->triggerList && NULL == pSnode->runnerList) {
-    (void)taosHashRemove(mStreamMgmt.toDeploySnodeMap, &snodeId, sizeof(snodeId));
+    TAOS_UNUSED(taosHashRemove(mStreamMgmt.toDeploySnodeMap, &snodeId, sizeof(snodeId)));
     taosWUnLockLatch(&pSnode->lock);
     taosHashRelease(mStreamMgmt.toDeploySnodeMap, pSnode);
     return;
@@ -4834,7 +4834,7 @@ void msmCheckSnodesState(SMnode *pMnode) {
     SStmSnodeStatus* pSnode = (SStmSnodeStatus*)pIter;
     if (NULL == pSnode->streamTasks) {
       mstDebug("snode %d already cleanup, try to rm it", snodeId);
-      (void)taosHashRemove(mStreamMgmt.snodeMap, &snodeId, sizeof(snodeId));
+      TAOS_UNUSED(taosHashRemove(mStreamMgmt.snodeMap, &snodeId, sizeof(snodeId)));
       continue;
     }
     

@@ -556,3 +556,5 @@ TAOS_UNUSED(taosThreadJoin
 TAOS_UNUSED(tdbOsClose
 TAOS_UNUSED(taosThreadMutexInit
 TAOS_UNUSED(taosThreadMutexLock
+TAOS_UNUSED(taosHashRemove
+TAOS_UNUSED(tdListFree

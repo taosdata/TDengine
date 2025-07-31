@@ -1597,7 +1597,7 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
       }
       taosMemoryFreeClear(pReq);
     }
-    (void)tdListFree(pTask->pRecalcRequests);
+    TAOS_UNUSED(tdListFree(pTask->pRecalcRequests));
     pTask->pRecalcRequests = NULL;
   }
 
