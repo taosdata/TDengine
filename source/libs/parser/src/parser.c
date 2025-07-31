@@ -224,11 +224,33 @@ int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTab
   // where clause
   if (pSql < pEnd) {
     bool inWhereClause = true;
+    int32_t bracketLevel = 0;
+
     while (inWhereClause && pSql < pEnd) {
       index = 0;
       t = tStrGetToken((char*)pSql, &index, false, NULL);
       if (t.n == 0 || t.z == NULL) {
         break;
+      }
+
+      if (t.type == TK_NK_LP) {
+        bracketLevel++;
+        pSql += index;
+        continue;
+      } else if (t.type == TK_NK_RP) {
+        bracketLevel--;
+        pSql += index;
+        continue;
+      } else if (t.type == TK_IN || t.type == TK_EXISTS) {
+        while (pSql < pEnd) {
+          pSql += index;
+          index = 0;
+          t = tStrGetToken((char*)pSql, &index, false, NULL);
+          if (t.type == TK_AND || t.type == TK_OR || t.n == 0 || t.z == NULL) {
+            break;
+          }
+        }
+        continue;
       }
 
       const char* colName = t.z;
@@ -266,7 +288,10 @@ int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTab
       if (t.type == TK_AND || t.type == TK_OR) {
         pSql += index;
       } else {
-        break;
+        if (bracketLevel == 0) {
+          break;
+        }
+        pSql += index;
       }
     }
   }
