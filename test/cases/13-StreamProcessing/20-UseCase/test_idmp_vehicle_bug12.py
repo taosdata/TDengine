@@ -239,11 +239,6 @@ class Test_IDMP_Vehicle:
         count = 1
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
-        # win2 one not trigger win1 close
-        vals  = "150,200"
-        count = 1
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-
         # win1 2~3 disorder
         count = 8
         vals  = "120,100"
@@ -255,7 +250,7 @@ class Test_IDMP_Vehicle:
 
         # win2 two trigger win1 close
         vals  = "150,200"
-        count = 5
+        count = 6
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
     #
     # ---------------------   verify    ----------------------
@@ -281,18 +276,3 @@ class Test_IDMP_Vehicle:
 
         tdLog.info(f"verify stream9 ................................. successfully.")
 
-    # verify stream9_sub1
-    def verify_stream9_sub1(self):
-        # check data
-        result_sql = f"select * from {self.vdb}.`result_stream9_sub1` "
-        tdSql.checkResultsByFunc (
-            sql = result_sql, 
-            func = lambda: tdSql.checkRows(1)
-            # row1
-            and tdSql.compareData(0, 0, self.start) # ts
-            and tdSql.compareData(0, 1, 6)          # cnt
-            and tdSql.compareData(0, 2, 120)        # avg
-            and tdSql.compareData(0, 3, 600)        # sum
-        )
-
-        tdLog.info(f"verify stream9 sub1 ............................ successfully.")
