@@ -214,7 +214,6 @@ static void releaseStreamReaderInfo(void* p) {
   blockDataDestroy(pInfo->triggerResBlock);
   blockDataDestroy(pInfo->calcResBlock);
   blockDataDestroy(pInfo->tsBlock);
-  blockDataDestroy(pInfo->calcResBlockTmp);
   destroyExprInfo(pInfo->pExprInfo, pInfo->numOfExpr);
   taosMemoryFreeClear(pInfo->pExprInfo);
   taosArrayDestroy(pInfo->uidList);
@@ -349,7 +348,6 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
     SNodeList* pScanCols = ((STableScanPhysiNode*)(sStreamReaderInfo->calcAst->pNode))->scan.pScanCols;
     setColIdForCalcResBlock(pseudoCols, sStreamReaderInfo->calcResBlock->pDataBlock);
     setColIdForCalcResBlock(pScanCols, sStreamReaderInfo->calcResBlock->pDataBlock);
-    STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->calcResBlock, false, &sStreamReaderInfo->calcResBlockTmp));
   }
 
   STREAM_CHECK_RET_GOTO(createDataBlockForTs(&sStreamReaderInfo->tsBlock));

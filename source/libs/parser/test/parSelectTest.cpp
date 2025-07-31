@@ -50,20 +50,20 @@ TEST_F(ParserSelectTest, constant) {
   run("SELECT * FROM t1 WHERE -2");
 }
 
-//TEST_F(ParserSelectTest, expression) {
-//  useDb("root", "test");
-//
-//  run("SELECT ts + 10s, c1 + 10, concat(c2, 'abc') FROM t1");
-//
-//  run("SELECT ts > 0, c1 < 20 and c2 = 'qaz' FROM t1");
-//
-//  run("SELECT ts > 0, c1 between 10 and 20 and c2 = 'qaz' FROM t1");
-//
-//  run("SELECT c1 | 10, c2 & 20, c4 | c5 FROM t1");
-//
-//  run("SELECT CASE WHEN ts > '2020-1-1 10:10:10' THEN c1 + 10 ELSE c1 - 10 END FROM t1 "
-//      "WHERE CASE c1 WHEN c3 + 20 THEN c3 - 1 WHEN c3 + 10 THEN c3 - 2 ELSE 10 END > 0");
-//}
+TEST_F(ParserSelectTest, expression) {
+  useDb("root", "test");
+
+  run("SELECT ts + 10s, c1 + 10, concat(c2, 'abc') FROM t1");
+
+  run("SELECT ts > 0, c1 < 20 and c2 = 'qaz' FROM t1");
+
+  run("SELECT ts > 0, c1 between 10 and 20 and c2 = 'qaz' FROM t1");
+
+  run("SELECT c1 | 10, c2 & 20, c4 | c5 FROM t1");
+
+  run("SELECT CASE WHEN ts > '2020-1-1 10:10:10' THEN c1 + 10 ELSE c1 - 10 END FROM t1 "
+      "WHERE CASE c1 WHEN c3 + 20 THEN c3 - 1 WHEN c3 + 10 THEN c3 - 2 ELSE 10 END > 0");
+}
 
 TEST_F(ParserSelectTest, condition) {
   useDb("root", "test");
@@ -95,59 +95,59 @@ TEST_F(ParserSelectTest, aggFunc) {
   run("SELECT LEASTSQUARES(c1, -1, 1) FROM t1");
 }
 
-//TEST_F(ParserSelectTest, multiResFunc) {
-//  useDb("root", "test");
-//
-//  run("SELECT LAST(*), FIRST(*), LAST_ROW(*) FROM t1");
-//
-//  run("SELECT LAST(c1, c2), FIRST(t1.*), LAST_ROW(c3) FROM t1");
-//
-//  run("SELECT LAST(t2.*), FIRST(t1.c1, t2.*), LAST_ROW(t1.*, t2.*) FROM st1s1 t1, st1s2 t2 WHERE t1.ts = t2.ts");
-//}
+TEST_F(ParserSelectTest, multiResFunc) {
+  useDb("root", "test");
 
-//TEST_F(ParserSelectTest, timelineFunc) {
-//  useDb("root", "test");
-//
-//  run("SELECT LAST(*), FIRST(*) FROM t1");
-//
-//  run("SELECT FIRST(ts), FIRST(c1), FIRST(c2), FIRST(c3) FROM t1");
-//
-//  run("SELECT LAST(*), FIRST(*) FROM t1 GROUP BY c1");
-//
-//  run("SELECT LAST(*), FIRST(*) FROM t1 INTERVAL(10s)");
-//
-//  run("SELECT diff(c1) FROM t1");
-//
-//  run("select diff(ts) from (select _wstart as ts, count(*) from st1 partition by tbname interval(1d))", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
-//
-//  run("select diff(ts) from (select _wstart as ts, count(*) from st1 partition by tbname interval(1d) order by ts)");
-//
-//  run("select t1.* from st1s1 t1, (select _wstart as ts, count(*) from st1s2 partition by tbname interval(1d)) t2 WHERE t1.ts = t2.ts");
-//
-//  run("select t1.* from st1s1 t1, (select _wstart as ts, count(*) from st1s2 partition by tbname interval(1d) order by ts) t2 WHERE t1.ts = t2.ts");
-//
-//}
+  run("SELECT LAST(*), FIRST(*), LAST_ROW(*) FROM t1");
 
-//TEST_F(ParserSelectTest, selectFunc) {
-//  useDb("root", "test");
-//
-//  // select function
-//  run("SELECT MAX(c1), MIN(c1) FROM t1");
-//  // select function for GROUP BY clause
-//  run("SELECT MAX(c1), MIN(c1) FROM t1 GROUP BY c1");
-//  // select function for INTERVAL clause
-//  run("SELECT MAX(c1), MIN(c1) FROM t1 INTERVAL(10s)");
-//  // select function along with the columns of select row
-//  run("SELECT MAX(c1), c2 FROM t1");
-//  run("SELECT MAX(c1), t1.* FROM t1");
-//  // select function along with the columns of select row, and with GROUP BY clause
-//  run("SELECT MAX(c1), c2 FROM t1 GROUP BY c3");
-//  run("SELECT MAX(c1), t1.* FROM t1 GROUP BY c3");
-//  // select function along with the columns of select row, and with window clause
-//  run("SELECT MAX(c1), c2 FROM t1 INTERVAL(10s)");
-//  run("SELECT MAX(c1), c2 FROM t1 SESSION(ts, 10s)");
-//  run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3)");
-//}
+  run("SELECT LAST(c1, c2), FIRST(t1.*), LAST_ROW(c3) FROM t1");
+
+  run("SELECT LAST(t2.*), FIRST(t1.c1, t2.*), LAST_ROW(t1.*, t2.*) FROM st1s1 t1, st1s2 t2 WHERE t1.ts = t2.ts");
+}
+
+TEST_F(ParserSelectTest, timelineFunc) {
+  useDb("root", "test");
+
+  run("SELECT LAST(*), FIRST(*) FROM t1");
+
+  run("SELECT FIRST(ts), FIRST(c1), FIRST(c2), FIRST(c3) FROM t1");
+
+  run("SELECT LAST(*), FIRST(*) FROM t1 GROUP BY c1");
+
+  run("SELECT LAST(*), FIRST(*) FROM t1 INTERVAL(10s)");
+
+  run("SELECT diff(c1) FROM t1");
+
+  run("select diff(ts) from (select _wstart as ts, count(*) from st1 partition by tbname interval(1d))", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+
+  run("select diff(ts) from (select _wstart as ts, count(*) from st1 partition by tbname interval(1d) order by ts)");
+
+  run("select t1.* from st1s1 t1, (select _wstart as ts, count(*) from st1s2 partition by tbname interval(1d)) t2 WHERE t1.ts = t2.ts");
+
+  run("select t1.* from st1s1 t1, (select _wstart as ts, count(*) from st1s2 partition by tbname interval(1d) order by ts) t2 WHERE t1.ts = t2.ts");
+
+}
+
+TEST_F(ParserSelectTest, selectFunc) {
+  useDb("root", "test");
+
+  // select function
+  run("SELECT MAX(c1), MIN(c1) FROM t1");
+  // select function for GROUP BY clause
+  run("SELECT MAX(c1), MIN(c1) FROM t1 GROUP BY c1");
+  // select function for INTERVAL clause
+  run("SELECT MAX(c1), MIN(c1) FROM t1 INTERVAL(10s)");
+  // select function along with the columns of select row
+  run("SELECT MAX(c1), c2 FROM t1");
+  run("SELECT MAX(c1), t1.* FROM t1");
+  // select function along with the columns of select row, and with GROUP BY clause
+  run("SELECT MAX(c1), c2 FROM t1 GROUP BY c3");
+  run("SELECT MAX(c1), t1.* FROM t1 GROUP BY c3");
+  // select function along with the columns of select row, and with window clause
+  run("SELECT MAX(c1), c2 FROM t1 INTERVAL(10s)");
+  run("SELECT MAX(c1), c2 FROM t1 SESSION(ts, 10s)");
+  run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3)");
+}
 
 TEST_F(ParserSelectTest, IndefiniteRowsFunc) {
   useDb("root", "test");
@@ -155,21 +155,21 @@ TEST_F(ParserSelectTest, IndefiniteRowsFunc) {
   run("SELECT DIFF(c1) FROM t1");
 }
 
-//TEST_F(ParserSelectTest, IndefiniteRowsFuncSemanticCheck) {
-//  useDb("root", "test");
-//
-//  run("SELECT DIFF(c1), c2 FROM t1");
-//
-//  run("SELECT DIFF(c1), tbname FROM t1");
-//
-//  run("SELECT DIFF(c1), count(*) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
-//
-//  run("SELECT DIFF(c1), CSUM(c1) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
-//
-//  run("SELECT CSUM(c3) FROM t1 STATE_WINDOW(c1)", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
-//
-//  run("SELECT DIFF(c1) FROM t1 INTERVAL(10s)", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
-//}
+TEST_F(ParserSelectTest, IndefiniteRowsFuncSemanticCheck) {
+  useDb("root", "test");
+
+  run("SELECT DIFF(c1), c2 FROM t1");
+
+  run("SELECT DIFF(c1), tbname FROM t1");
+
+  run("SELECT DIFF(c1), count(*) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+
+  run("SELECT DIFF(c1), CSUM(c1) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+
+  run("SELECT CSUM(c3) FROM t1 STATE_WINDOW(c1)", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+
+  run("SELECT DIFF(c1) FROM t1 INTERVAL(10s)", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+}
 
 TEST_F(ParserSelectTest, useDefinedFunc) {
   useDb("root", "test");
@@ -221,11 +221,11 @@ TEST_F(ParserSelectTest, partitionBy) {
   run("SELECT SUM(c1), c2 FROM t1 PARTITION BY c2");
 }
 
-//TEST_F(ParserSelectTest, partitionBySemanticCheck) {
-//  useDb("root", "test");
-//
-//  run("SELECT SUM(c1), c2, c3 FROM t1 PARTITION BY c2", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
-//}
+TEST_F(ParserSelectTest, partitionBySemanticCheck) {
+  useDb("root", "test");
+
+  run("SELECT SUM(c1), c2, c3 FROM t1 PARTITION BY c2", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
+}
 
 TEST_F(ParserSelectTest, groupBy) {
   useDb("root", "test");

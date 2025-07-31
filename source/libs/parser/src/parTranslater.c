@@ -9349,26 +9349,34 @@ static int32_t translateSetOperator(STranslateContext* pCxt, SSetOperator* pSetO
     (*pCxt->pParseCxt->setQueryFp)(pCxt->pParseCxt->requestRid);
   }
 
-  int32_t code = translateQuery(pCxt, pSetOperator->pLeft);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = resetHighLevelTranslateNamespace(pCxt);
+  bool    hasTrows = false;
+  int32_t code = TSDB_CODE_SUCCESS;
+  PAR_ERR_RET(translateQuery(pCxt, pSetOperator->pLeft));
+
+  if (pCxt->createStreamCalc) {
+    hasTrows = BIT_FLAG_TEST_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS);
+    BIT_FLAG_UNSET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS);
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = translateQuery(pCxt, pSetOperator->pRight);
+
+  PAR_ERR_RET(resetHighLevelTranslateNamespace(pCxt));
+  PAR_ERR_RET(translateQuery(pCxt, pSetOperator->pRight));
+
+  if (pCxt->createStreamCalc && hasTrows) {
+    if (BIT_FLAG_TEST_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS)) {
+      PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY,
+                                          "%%%%trows can not appear multi times in union query"));
+    } else {
+      BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS);
+    }
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    pSetOperator->joinContains = getBothJoinContais(pSetOperator->pLeft, pSetOperator->pRight);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    pSetOperator->precision = calcSetOperatorPrecision(pSetOperator);
-    code = translateSetOperProject(pCxt, pSetOperator);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = translateSetOperOrderBy(pCxt, pSetOperator);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = checkSetOperLimit(pCxt, (SLimitNode*)pSetOperator->pLimit);
-  }
+
+  pSetOperator->joinContains = getBothJoinContais(pSetOperator->pLeft, pSetOperator->pRight);
+  pSetOperator->precision = calcSetOperatorPrecision(pSetOperator);
+
+  PAR_ERR_RET(translateSetOperProject(pCxt, pSetOperator));
+  PAR_ERR_RET(translateSetOperOrderBy(pCxt, pSetOperator));
+  PAR_ERR_RET(checkSetOperLimit(pCxt, (SLimitNode*)pSetOperator->pLimit));
+  
   return code;
 }
 

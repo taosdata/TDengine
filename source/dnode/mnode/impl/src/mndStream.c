@@ -109,7 +109,7 @@ _over:
   taosMemoryFreeClear(buf);
 
   if (code != TSDB_CODE_SUCCESS) {
-    char *p = (pStream == NULL) ? "null" : pStream->pCreate->name;
+    char *p = (pStream == NULL || NULL == pStream->pCreate) ? "null" : pStream->pCreate->name;
     mError("stream:%s, failed to decode from raw:%p since %s at:%d", p, pRaw, tstrerror(code), lino);
     taosMemoryFreeClear(pRow);
 

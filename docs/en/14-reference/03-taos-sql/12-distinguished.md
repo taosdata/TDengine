@@ -56,7 +56,7 @@ window_clause: {
   | STATE_WINDOW(col) [TRUE_FOR(true_for_duration)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_duration)]
-  | COUNT_WINDOW(count_val[, sliding_val])
+  | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
 }
 ```
 
@@ -226,7 +226,7 @@ select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c
 
 ### Count Window
 
-Count windows divide data into windows based on a fixed number of data rows. By default, data is sorted by timestamp, then divided into multiple windows based on the value of count_val, and aggregate calculations are performed. count_val represents the maximum number of data rows in each count window; if the total number of data rows is not divisible by count_val, the last window will have fewer rows than count_val. sliding_val is a constant that represents the number of rows the window slides, similar to the SLIDING in interval.
+Count windows divide data into windows based on a fixed number of data rows. By default, data is sorted by timestamp, then divided into multiple windows based on the value of count_val, and aggregate calculations are performed. count_val represents the maximum number of data rows in each count window; if the total number of data rows is not divisible by count_val, the last window will have fewer rows than count_val. sliding_val is a constant that represents the number of rows the window slides, similar to the SLIDING in interval. The col_name parameter starts to be supported after version 3.3.7.0. col_name specifies one or more columns. When counting in the count_window, for each row of data in the window, at least one of the specified columns must be non-null; otherwise, that row of data is not included in the counting window. If col_name is not specified, it means there is no non-null restriction.
 
 Take the following SQL statement as an example, the count window segmentation is shown in the diagram:
 

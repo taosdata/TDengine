@@ -1,5 +1,9 @@
 #caseID,rerunTimes,Run with Sanitizer,casePath,caseCommand
 #NA,NA,y or n,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
+#examples
+,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
+,,n,.,pytest cases/01-DataTypes/test_datatype_bigint.py
+
 # 01-DataTypes
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bool.py
@@ -16,6 +20,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_uint.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_unsign.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_varbinary.py
+,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_blob.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_varchar.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null_column.py
@@ -567,11 +572,13 @@
 ,,n,.,pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_state.py
 
 ## 08-Recalc
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_expired_time.py   need to modify case
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_expired_time.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_ignore_disorder.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_delete_recalc.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_watermark.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_combined_options.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_manual.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_manual_with_options.py
 
 ## 20-UseCase
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_idmp_meters.py
@@ -615,6 +622,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_stream_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_drop.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_empty_identifier.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_at_once.py
 
 
 ## 31-OldCases
