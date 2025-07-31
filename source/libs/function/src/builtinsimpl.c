@@ -1521,15 +1521,20 @@ int32_t stddevsampFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     return functionFinalize(pCtx, pBlock);
   }
 
+  double rows = (double)(pStddevRes->count - 1);
+  if (pStddevRes->count < 2) {
+    rows = 1.0f;
+  }
+
   if (IS_SIGNED_NUMERIC_TYPE(type)) {
-    avg = pStddevRes->isum / ((double)(pStddevRes->count - 1));
-    pStddevRes->result = sqrt(fabs(pStddevRes->quadraticISum / ((double)(pStddevRes->count - 1)) - avg * avg));
+    avg = pStddevRes->isum / rows;
+    pStddevRes->result = sqrt(fabs(pStddevRes->quadraticISum / rows - avg * avg));
   } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-    avg = pStddevRes->usum / ((double)(pStddevRes->count - 1));
-    pStddevRes->result = sqrt(fabs(pStddevRes->quadraticUSum / ((double)(pStddevRes->count - 1)) - avg * avg));
+    avg = pStddevRes->usum / rows;
+    pStddevRes->result = sqrt(fabs(pStddevRes->quadraticUSum / rows - avg * avg));
   } else {
-    avg = pStddevRes->dsum / ((double)(pStddevRes->count - 1));
-    pStddevRes->result = sqrt(fabs(pStddevRes->quadraticDSum / ((double)(pStddevRes->count - 1)) - avg * avg));
+    avg = pStddevRes->dsum / rows;
+    pStddevRes->result = sqrt(fabs(pStddevRes->quadraticDSum / rows - avg * avg));
   }
 
   // check for overflow
@@ -1551,15 +1556,20 @@ int32_t stdvarsampFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     return functionFinalize(pCtx, pBlock);
   }
 
+  double rows = (double)(pStdvarRes->count - 1);
+  if (pStdvarRes->count < 2) {
+    rows = 1.0f;
+  }
+
   if (IS_SIGNED_NUMERIC_TYPE(type)) {
-    avg = pStdvarRes->isum / ((double)(pStdvarRes->count - 1));
-    pStdvarRes->result = fabs(pStdvarRes->quadraticISum / ((double)(pStdvarRes->count -1)) - avg * avg);
+    avg = pStdvarRes->isum / rows;
+    pStdvarRes->result = fabs(pStdvarRes->quadraticISum / rows - avg * avg);
   } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-    avg = pStdvarRes->usum / ((double)(pStdvarRes->count - 1));
-    pStdvarRes->result = fabs(pStdvarRes->quadraticUSum / ((double)(pStdvarRes->count - 1)) - avg * avg);
+    avg = pStdvarRes->usum / rows;
+    pStdvarRes->result = fabs(pStdvarRes->quadraticUSum / rows - avg * avg);
   } else {
-    avg = pStdvarRes->dsum / ((double)(pStdvarRes->count - 1));
-    pStdvarRes->result = fabs(pStdvarRes->quadraticDSum / ((double)(pStdvarRes->count - 1)) - avg * avg);
+    avg = pStdvarRes->dsum / rows;
+    pStdvarRes->result = fabs(pStdvarRes->quadraticDSum / rows - avg * avg);
   }
 
   // check for overflow
