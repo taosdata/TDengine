@@ -65,7 +65,7 @@ jobs:
         run: |
           echo "Checking enums in files:"
           echo "${{ steps.changed_files.outputs.files }}"
-          python3 scripts/check_enum_append_only.py ${{ steps.changed_files.outputs.files }}
+          python3 .github/scripts/check_enum_append_only.py ${{ steps.changed_files.outputs.files }}
 
       - name: Skip enum check
         if: steps.changed_files.outputs.files == ''
