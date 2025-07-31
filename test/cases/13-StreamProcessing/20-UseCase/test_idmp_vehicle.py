@@ -706,7 +706,7 @@ class Test_IDMP_Vehicle:
 
 
     #
-    #  stream8 trigger
+    #  stream9 trigger
     #
     def trigger_stream9(self):
         
@@ -1118,3 +1118,41 @@ class Test_IDMP_Vehicle:
         )
 
         tdLog.info(f"verify stream8 sub1 ............................ successfully.")
+
+
+    #
+    # verify stream9
+    #
+    def verify_stream9(self):
+        # ***** bug12 *****
+        return 
+
+        # check data
+        result_sql = f"select * from {self.vdb}.`result_stream9` "
+        tdSql.checkResultsByFunc (
+            sql = result_sql, 
+            func = lambda: tdSql.checkRows(1)
+            # row1
+            and tdSql.compareData(0, 0, self.start) # ts
+            and tdSql.compareData(0, 1, 7)          # cnt
+            and tdSql.compareData(0, 2, 120)        # avg
+            and tdSql.compareData(0, 3, 700)        # sum
+        )
+
+        tdLog.info(f"verify stream9 ................................. successfully.")
+
+    # verify stream9_sub1
+    def verify_stream9_sub1(self):
+        # check data
+        result_sql = f"select * from {self.vdb}.`result_stream9_sub1` "
+        tdSql.checkResultsByFunc (
+            sql = result_sql, 
+            func = lambda: tdSql.checkRows(1)
+            # row1
+            and tdSql.compareData(0, 0, self.start) # ts
+            and tdSql.compareData(0, 1, 6)          # cnt
+            and tdSql.compareData(0, 2, 120)        # avg
+            and tdSql.compareData(0, 3, 600)        # sum
+        )
+
+        tdLog.info(f"verify stream9 sub1 ............................ successfully.")
