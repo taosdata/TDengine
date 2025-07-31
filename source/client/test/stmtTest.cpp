@@ -717,6 +717,33 @@ TEST(stmtCase, update) {
 
     taos_free_result(result);
 
+    sql =
+        "update stmt_testdb_6.devices set temperature = ?,humidity = ?,device_id=? where (ts=? and device_id=? and "
+        "status IS NOT NULL)";
+    code = taos_stmt_prepare(stmt, sql, 0);
+    checkError(stmt, code);
+
+    code = taos_stmt_bind_param_batch(stmt, params);
+    checkError(stmt, code);
+
+    sql =
+        "UPDATE stmt_testdb_6.devices SET temperature=?, humidity=?, device_id=? WHERE ts=? AND device_id=? AND status "
+        "IN ('active', 'online') )";
+    code = taos_stmt_prepare(stmt, sql, 0);
+    checkError(stmt, code);
+
+    code = taos_stmt_bind_param_batch(stmt, params);
+    checkError(stmt, code);
+
+    sql =
+        "UPDATE stmt_testdb_6.devices SET temperature=?, humidity=?, device_id=? WHERE ts=? AND device_id=? AND EXISTS "
+        "(SELECT 1 FROM test.device_logs WHERE device_id = test.devices.device_id)";
+    code = taos_stmt_prepare(stmt, sql, 0);
+    checkError(stmt, code);
+
+    code = taos_stmt_bind_param_batch(stmt, params);
+    checkError(stmt, code);
+
     taos_stmt_close(stmt);
   }
 
