@@ -225,12 +225,12 @@
 
 static const char gConnName[CONN_TYPE_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
     "opc_da", "opc_ua",   "pi",     "kafka", "influxdb", "mqtt", "avevahistorian", "opentsdb", "td2.6", "td3.0",
-    "mysql",  "postgres", "oracle", "mssql", "mongodb",  "csv",  "sparkplugb"};
+    "mysql",  "postgres", "oracle", "mssql", "mongodb",  "csv",  "sparkplugb",     "orc"};
 
 static const char *gConnDisplay[CONN_TYPE_DYN_MAX] = {
-    "OPC_DA",         "OPC_UA",    "Pi",          "Kafka",       "InfluxDB",  "MQTT",
-    "avevaHistorian", "OpenTSDB",  "TDengine2.6", "TDengine3.0", "MySQL",     "PostgreSQL",
-    "Oracle",         "SqlServer", "MongoDB",     "CSV",         "SparkplugB"};
+    "OPC_DA",         "OPC_UA",    "Pi",          "Kafka",       "InfluxDB",   "MQTT",
+    "avevaHistorian", "OpenTSDB",  "TDengine2.6", "TDengine3.0", "MySQL",      "PostgreSQL",
+    "Oracle",         "SqlServer", "MongoDB",     "CSV",         "SparkplugB", "ORC"};
 
 static const char gGrantName[GRANT_OPT_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
     "basic",         "service",   "stream",         "subscription",   "audit",         "csv",
@@ -553,6 +553,9 @@ static void grantInitShowFlags() {
 #endif
 #if !defined(TD_INDUSTRY) || defined(TD_DATAIN_SPARKPLUGB)
   grantHandle.showDataIns[CONN_TYPE_SPARKPLUGB] = 1;
+#endif
+#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_ORC)
+  grantHandle.showDataIns[CONN_TYPE_ORC] = 1;
 #endif
 
   // add future datains here ...

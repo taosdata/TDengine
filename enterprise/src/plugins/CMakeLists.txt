@@ -260,7 +260,7 @@ IF(TD_BUILD_KEEPER_INTERNAL)
       SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/keeper
       BUILD_ALWAYS off
       BUILD_IN_SOURCE 1
-      CONFIGURE_COMMAND cmake -E echo "taoskeeper no need cmake to config"
+      CONFIGURE_COMMAND cmake -E echo "taoskeeper doesn't need cmake for configuration."
       PATCH_COMMAND
       COMMAND git clean -f -d
       BUILD_COMMAND
