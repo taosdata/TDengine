@@ -261,7 +261,7 @@ class TDTestCase:
                 tdLog.info(f"expireTime: {expireTime}, serviceTime: {serviceTime}")
                 tdSql.checkEqual(True, abs(expireTime - serviceTime - 864000) < 15)
                 tdSql.query(f'show grants full;')
-                nGrantItems = 46
+                nGrantItems = 47
                 tdSql.checkEqual(len(tdSql.queryResult), nGrantItems)
                 tdSql.checkEqual(tdSql.queryResult[0][2], serviceTimeStr)
                 for i in range(1, nGrantItems):
