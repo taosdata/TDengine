@@ -31,15 +31,15 @@ TEST_F(PlanStateTest, stateExpr) {
 
   run("SELECT COUNT(*) FROM t1 STATE_WINDOW(CASE WHEN c1 > 10 THEN 1 ELSE 0 END)");
 }
-// TODO(smj) : disable for stream, reopen it later
-//TEST_F(PlanStateTest, selectFunc) {
-//  useDb("root", "test");
-//
-//  // select function for STATE_WINDOW clause
-//  run("SELECT MAX(c1), MIN(c1) FROM t1 STATE_WINDOW(c3)");
-//  // select function along with the columns of select row, and with STATE_WINDOW clause
-//  run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3)");
-//}
+
+TEST_F(PlanStateTest, selectFunc) {
+  useDb("root", "test");
+
+  // select function for STATE_WINDOW clause
+  run("SELECT MAX(c1), MIN(c1) FROM t1 STATE_WINDOW(c3)");
+  // select function along with the columns of select row, and with STATE_WINDOW clause
+  run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3)");
+}
 
 TEST_F(PlanStateTest, stable) {
   useDb("root", "test");

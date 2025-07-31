@@ -189,6 +189,7 @@ class TestFuncLastLru:
         tdSql.execute(
             f"create table stb (ts timestamp,a int COMPOSITE key,b int,c int) tags(ta int,tb int,tc int);"
         )
+        tdSql.execute('alter local \'showFullCreateTableColumn\' \'1\'')
         tdSql.query(f"show create table stb")
         tdSql.checkData(
             0,

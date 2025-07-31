@@ -65,7 +65,7 @@ class Test_Nevados:
         
         self.kpi_db_test(db, stb, precision, real_start_time)                              # 2 [ok]
         self.kpi_trackers_test(db, stb, precision, real_start_time)                        # 4 [ok]
-        # self.off_target_trackers(db, stb, precision, real_start_time)                      # 5 [fail]
+        self.off_target_trackers(db, stb, precision, real_start_time)                      # 5 [fail]
         self.kpi_zones_test(db, stb, precision, real_start_time)                           # 7 [ok]
         self.kpi_sites_test(db, stb, precision, real_start_time)                           # 8 [ok]
         self.trackers_motor_current_state_window(db, stb, precision, real_start_time)      # 9 [ok]
@@ -634,7 +634,7 @@ class Test_Nevados:
         sql = f"select * from dev.off_target_trackers_{sub_prefix}0 limit 40;"
         exp_sql = (f"select _wend as window_end, site, tracker," 
                   f" last(reg_pitch) as off_target_pitch, last(mode) as mode" 
-                  f" from trackers where tbname = '{sub_prefix}0' and _ts >= '2025-01-01 00:00:00.000' and _ts < '2025-02-02 04:30:00.000' and abs(reg_pitch-reg_move_pitch) > 2"
+                  f" from trackers where tbname = '{sub_prefix}0' and _ts >= '2025-02-01 00:00:00.000' and _ts < '2025-02-02 04:30:00.000' and abs(reg_pitch-reg_move_pitch) > 2"
                   f" partition by site,tracker interval(15m) sliding(5m) limit 40;")
         tdLog.info(f"exp_sql: {exp_sql}")          
         tdSql.checkResultsBySql(sql=sql, exp_sql=exp_sql)        

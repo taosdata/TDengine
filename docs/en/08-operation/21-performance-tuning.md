@@ -38,7 +38,7 @@ TDengine provides a memory allocator configuration script, `set_taos_malloc.sh`,
 
 ### Notes
 
-- After modification, it is recommended to restart the taosd/taosadapter service or re-source the environment variable file.
-- Only supported when running in the TDengine installation directory.
+- After modification, you need to restart the taosd/taosadapter service or re-source the environment variable file.
+- Only supported when running in the TDengine installation directory `/usr/local/taos/bin/`.
 
 For more advanced usage, please refer to the script comments or contact operations support.

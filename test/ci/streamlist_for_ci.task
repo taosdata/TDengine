@@ -68,11 +68,13 @@
 ,,n,.,pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_state.py
 
 ## 08-Recalc
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_expired_time.py   need to modify case
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_expired_time.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_ignore_disorder.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_delete_recalc.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_watermark.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_combined_options.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_manual.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_manual_with_options.py
 
 ## 20-UseCase
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_idmp_meters.py
@@ -95,8 +97,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case19.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case19_bug1.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case22.py
-
-
 
 ## 21-Stability 
 
@@ -121,6 +121,7 @@
 ,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_compatibility.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_drop.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_empty_identifier.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_at_once.py
 
 
 ## 31-OldCases
