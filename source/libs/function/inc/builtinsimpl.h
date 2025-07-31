@@ -86,6 +86,8 @@ int32_t stdFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo)
 int32_t stdFunction(SqlFunctionCtx* pCtx);
 int32_t stdFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t stddevFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t stddevsampFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t stdvarsampFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t stdvarFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t stdPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
