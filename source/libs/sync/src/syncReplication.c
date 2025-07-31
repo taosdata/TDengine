@@ -60,7 +60,8 @@ int32_t syncNodeReplicate(SSyncNode* pNode) {
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
   int32_t         ret = 0;
   if ((ret = taosThreadMutexTryLock(&pBuf->mutex)) != 0) {
-    return ret;
+    sWarn("vgId:%d, failed to get log buffer mutex since %d", pNode->vgId, ret);
+    return TSDB_CODE_FAIL_GET_LOCK;
   }
   ret = syncNodeReplicateWithoutLock(pNode);
   (void)taosThreadMutexUnlock(&pBuf->mutex);
