@@ -55,13 +55,6 @@ class Test_IDMP_Vehicle:
         # verify results
         self.verifyResults()
 
-        # write trigger data again
-        self.writeTriggerDataAgain()
-
-        # verify results
-        self.verifyResultsAgain()
-
-
         '''
         # restart dnode
         self.restartDnode()
@@ -158,59 +151,8 @@ class Test_IDMP_Vehicle:
         self.verify_stream9()
 
 
-    # 
-    # 6. write trigger data again
-    #
-    def writeTriggerDataAgain(self):
-        # stream3
-        self.trigger_stream3_again()
 
 
-    # 
-    # 7. verify results again
-    #
-    def verifyResultsAgain(self):
-        pass
-        # stream3
-        self.verify_stream3_again()
-        self.verify_stream3_sub1_again()
-
-    #
-    # 8. restart dnode
-    #
-    def restartDnode(self):
-        # restart
-        tdLog.info("restart dnode ...")
-        sc.dnodeRestartAll()
-
-        # wait stream ready
-        tdLog.info("wait stream ready after dnode restart ...")
-        self.checkStreamStatus()
-
-        tdLog.info("dnode restarted successfully.")
-
-
-    #
-    # 9. write trigger after restart
-    #
-    def writeTriggerAfterRestart(self):
-        pass
-
-
-    #
-    # 10. verify results after restart
-    #
-    def verifyResultsAfterRestart(self):
-        pass       
-
-
-    def printSql(self, label, sql):
-        print(label + sql)
-        rows = tdSql.getResult(sql)
-        i = 0
-        for row in rows:
-            print(f"i={i} {row}")
-            i += 1
 
 
     # ---------------------   stream trigger    ----------------------
