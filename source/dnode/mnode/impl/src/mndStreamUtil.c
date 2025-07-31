@@ -31,9 +31,7 @@ bool mstWaitLock(SRWLatch* pLock, bool readLock) {
     return true;
   }
 
-  while (taosWTryLockLatch(pLock)) {
-    taosMsleep(1);
-  }
+  taosWWaitLockLatch(pLock);
 
   return true;
 }

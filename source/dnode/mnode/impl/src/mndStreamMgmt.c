@@ -4847,15 +4847,31 @@ void msmCheckSnodesState(SMnode *pMnode) {
   MND_STREAM_SET_LAST_TS(STM_EVENT_LOOP_MAP, mStreamMgmt.hCtx.currentTs);
 }
 
-void msmHealthCheck(SMnode *pMnode) {
+bool msmCheckNeedHealthCheck(SMnode *pMnode) {
   int8_t active = atomic_load_8(&mStreamMgmt.active), state = atomic_load_8(&mStreamMgmt.state);
   if (0 == active || MND_STM_STATE_NORMAL != state) {
     mstTrace("ignore health check since active:%d state:%d", active, state);
-    return;
+    return false;
   }
 
   if (sdbGetSize(pMnode->pSdb, SDB_STREAM) <= 0) {
     mstTrace("ignore health check since no stream now");
+    return false;
+  }
+
+  return true;
+}
+
+void msmHealthCheck(SMnode *pMnode) {
+  if (!msmCheckNeedHealthCheck(pMnode)) {
+    return;
+  }
+
+  mstDebug("start wait health check, currentTs:%" PRId64,  taosGetTimestampMs());
+  
+  mstWaitLock(&mStreamMgmt.runtimeLock, false);
+  if (!msmCheckNeedHealthCheck(pMnode)) {
+    taosWUnLockLatch(&mStreamMgmt.runtimeLock);
     return;
   }
   
@@ -4863,8 +4879,6 @@ void msmHealthCheck(SMnode *pMnode) {
   mStreamMgmt.hCtx.currentTs = taosGetTimestampMs();
 
   mstDebug("start health check, soltIdx:%d, checkStartTs:%" PRId64, mStreamMgmt.hCtx.slotIdx, mStreamMgmt.hCtx.currentTs);
-
-  mstWaitLock(&mStreamMgmt.runtimeLock, false);
   
   msmCheckStreamsStatus(pMnode);
   msmCheckTasksStatus(pMnode);

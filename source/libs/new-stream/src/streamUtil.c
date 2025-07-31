@@ -75,45 +75,16 @@ _exit:
 }
 
 void stmHandleStreamRemovedTasks(SStreamInfo* pStream, int64_t streamId, int32_t gid) {
-  bool isLastTask = false;
-
   if (taosArrayGetSize(pStream->undeployReaders) > 0) {
-    smHandleRemovedTask(pStream, streamId, gid, true);
+    smHandleRemovedTask(pStream, streamId, gid, STREAM_READER_TASK, pStream->undeployReaders, pStream->readerList);
   }
 
+  if (taosArrayGetSize(pStream->undeployTriggers) > 0) {
+    smHandleRemovedTask(pStream, streamId, gid, STREAM_TRIGGER_TASK, pStream->undeployTriggers, pStream->triggerList);
+  }
+  
   if (taosArrayGetSize(pStream->undeployRunners) > 0) {
-    smHandleRemovedTask(pStream, streamId, gid, false);
-  }
-
-  taosWLockLatch(&pStream->undeployLock);
-  if (0 == pStream->undeployTriggerId) {
-    taosWUnLockLatch(&pStream->undeployLock);
-    return;
-  }
-
-  if (pStream->triggerTask->task.taskId != pStream->undeployTriggerId) {
-    stsWarn("undeploy trigger task %" PRIx64 " mismatch with current trigger taskId:%" PRIx64,
-            pStream->undeployTriggerId, pStream->triggerTask->task.taskId);
-    pStream->undeployTriggerId = 0;
-    taosWUnLockLatch(&pStream->undeployLock);
-    return;
-  }
-
-  pStream->undeployTriggerId = 0;
-  taosMemoryFreeClear(pStream->triggerTask);
-  smRemoveTaskPostCheck(streamId, pStream, &isLastTask);
-  taosWUnLockLatch(&pStream->undeployLock);
-
-  if (!isLastTask) {
-    return;
-  }
-
-  int32_t code = taosHashRemove(gStreamMgmt.stmGrp[gid], &streamId, sizeof(streamId));
-  if (TSDB_CODE_SUCCESS == code) {
-    stsInfo("stream removed from streamGrpHash %d, remainStream:%d", gid, taosHashGetSize(gStreamMgmt.stmGrp[gid]));
-  } else {
-    stsWarn("stream remove from streamGrpHash %d failed, remainStream:%d, error:%s", gid,
-            taosHashGetSize(gStreamMgmt.stmGrp[gid]), tstrerror(code));
+    smHandleRemovedTask(pStream, streamId, gid, STREAM_RUNNER_TASK, pStream->undeployRunners, pStream->runnerList);
   }
 }
 
@@ -181,18 +152,19 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
     stsDebug("%d reader tasks status added to hb", TD_DLIST_NELES(pStream->readerList));
   }
 
-  if (pStream->triggerTask) {
-    pTask = (SStreamTask*)pStream->triggerTask;
+  if (pStream->triggerList && (TD_DLIST_NELES(pStream->triggerList) > 0)) {
+    listNode = TD_DLIST_HEAD(pStream->triggerList);
+    pTask = (SStreamTask*)listNode->data;
     if (reportPeriod) {
-      TAOS_CHECK_EXIT(stmAddPeriodReport(streamId, &pMsg->pTriggerStatus, pStream->triggerTask));
-      pStream->triggerTask->task.detailStatus = taosArrayGetSize(pMsg->pTriggerStatus) - 1;
+      TAOS_CHECK_EXIT(stmAddPeriodReport(streamId, &pMsg->pTriggerStatus, (SStreamTriggerTask*)pTask));
+      pTask->detailStatus = taosArrayGetSize(pMsg->pTriggerStatus) - 1;
     } else {
-      pStream->triggerTask->task.detailStatus = -1;
+      pTask->detailStatus = -1;
     }
     
-    TAOS_CHECK_EXIT(stmHbAddTaskStatus(streamId, pMsg, &pStream->triggerTask->task));
+    TAOS_CHECK_EXIT(stmHbAddTaskStatus(streamId, pMsg, pTask));
     
-    ST_TASK_DLOG("task status added to hb %s mgmtReq", pStream->triggerTask->task.pMgmtReq ? "with" : "without");
+    ST_TASK_DLOG("task status added to hb %s mgmtReq", pTask->pMgmtReq ? "with" : "without");
     stsDebug("%d trigger tasks status added to hb", 1);
   }
 
@@ -278,7 +250,16 @@ void stmDestroySStreamInfo(void* param) {
   tdListFree(p->readerList);
   p->readerList = NULL;
 
-  taosMemoryFreeClear(p->triggerTask);
+  memset(&iter, 0, sizeof(iter));
+  tdListInitIter(p->triggerList, &iter, TD_LIST_FORWARD);
+  while ((listNode = tdListNext(&iter)) != NULL) {
+    SStreamTask* pTask = (SStreamTask*)listNode->data;
+    SListNode* tmp = tdListPopNode(p->triggerList, listNode);
+    ST_TASK_DLOG("task removed from stream triggerList, remain:%d", TD_DLIST_NELES(p->triggerList));
+    taosMemoryFreeClear(tmp);
+  }
+  tdListFree(p->triggerList);
+  p->triggerList = NULL;
 
   memset(&iter, 0, sizeof(iter));
   tdListInitIter(p->runnerList, &iter, TD_LIST_FORWARD);
@@ -293,6 +274,8 @@ void stmDestroySStreamInfo(void* param) {
 
   taosArrayDestroy(p->undeployReaders);
   p->undeployReaders = NULL;
+  taosArrayDestroy(p->undeployTriggers);
+  p->undeployTriggers = NULL;
   taosArrayDestroy(p->undeployRunners);
   p->undeployRunners = NULL;
 }

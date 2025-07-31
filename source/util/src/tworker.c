@@ -515,6 +515,7 @@ int32_t tSingleWorkerInit(SSingleWorker *pWorker, const SSingleWorkerCfg *pCfg) 
       pPool->name = pCfg->name;
       pPool->min = pCfg->min;
       pPool->max = pCfg->max;
+      pPool->stopNoWaitQueue = pCfg->stopNoWaitQueue;
       pWorker->pool = pPool;
 
       code = tQueryAutoQWorkerInit(pPool);
@@ -873,7 +874,9 @@ int32_t tQueryAutoQWorkerInit(SQueryAutoQWorkerPool *pool) {
 
 void tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool) {
   (void)taosThreadMutexLock(&pPool->poolLock);
-  pPool->exit = true;
+  if (pPool->stopNoWaitQueue) {
+    pPool->exit = true;
+  }
   int32_t size = 0;
   if (pPool->workers) {
     size = listNEles(pPool->workers);
