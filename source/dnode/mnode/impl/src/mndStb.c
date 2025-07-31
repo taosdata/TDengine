@@ -3719,7 +3719,7 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
         RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pStb->pColumns[i].bytes, false), pStb,
                             &lino, _OVER);
         
-        // col precision, col scale, col nullable
+        // col precision, col scale, col nullable, col source
         for (int32_t j = 6; j <= 9; ++j) {
           pColInfo = taosArrayGet(pBlock->pDataBlock, j);
           colDataSetNULL(pColInfo, numOfRows);
