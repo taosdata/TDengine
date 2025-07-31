@@ -44,7 +44,7 @@ use tonic::{codec::CompressionEncoding, transport::Channel};
 use tracing::{debug, error, info, instrument, trace, warn};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
-use crate::core_metrics::{get_metrics, get_metrics_arc_from_i64};
+use crate::core_metrics::{get_metrics, get_metrics_arc_from_i64, get_metrics_arc_or};
 use crate::core_metrics::{CoreMetrics, TaskMetrics};
 use crate::plugins::runners::opc::config::OPCConfig;
 use crate::plugins::runners::opc::model::OpcModelConfig;
@@ -3764,6 +3764,7 @@ pub async fn channel_based_transformer(
     connector: Option<&'static str>,
     task_id: Option<i64>,
     notifier: crate::TaskNotifySender,
+    send_capacity: usize,
 ) -> anyhow::Result<(
     flume::Sender<Result<RecordBatch, ArrowError>>,
     flume::Receiver<LushAck>,
@@ -3846,7 +3847,7 @@ pub async fn channel_based_transformer(
 
     let taos = target.get().await?;
     let target_precision = get_current_precision(&taos).in_current_span().await?;
-    let (msg_tx, msg_rx) = flume::bounded(32);
+    let (msg_tx, msg_rx) = flume::bounded(send_capacity);
     let (ack_tx, ack_rx) = flume::unbounded();
 
     let stream = msg_rx.into_stream();
@@ -3865,6 +3866,10 @@ pub async fn channel_based_transformer(
     } else {
         None
     };
+    let metrics = get_metrics_arc_or(task_id, || {
+        Arc::new(CoreMetrics::IPC(IpcMetrics::default()))
+    })
+    .await;
     tokio::spawn(
         async move {
             tokio::select! {
@@ -3881,7 +3886,7 @@ pub async fn channel_based_transformer(
                         target_precision,
                         notifier,
                         ipc_error_strategy,
-                        get_metrics_arc_from_i64(task_id).await,
+                        metrics,
                         batch_counter,
                         archive_tx.clone(),
                         None,

@@ -4,11 +4,12 @@ pub mod validate;
 use std::sync::atomic::{AtomicU32, AtomicU64};
 
 use anyhow::Context;
-use sink_csv::{csv_to_taos, query_to_csv};
 use sink_parquet::query_to_parquet;
+use source_csv::{csv_to_taos, query_to_csv};
 use source_mqtt::mqtt_to_taos;
 use source_opc::opc_to_taos;
 use source_opentsdb::opentsdb_to_taos;
+use source_orc::orc_to_taos;
 use source_pi::pi_to_taos;
 use taos::Dsn;
 use taoslog::QidManager;
@@ -399,6 +400,17 @@ impl TaskOpts {
                         notify.clone(),
                     )
                     .await?;
+                }
+                ("orc", "taos") => {
+                    orc_to_taos(
+                        from.clone(),
+                        parser.clone(),
+                        to.clone(),
+                        task_id_number,
+                        cancel.clone(),
+                        notify.clone(),
+                    )
+                    .await?
                 }
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }

@@ -579,6 +579,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                 "mssql" => "mssql",
                 "mongodb" => "mongodb",
                 "csv" => "csv",
+                "orc" => "orc",
                 connector => {
                     bail!("The current connector {connector} is not supported by license.");
                 }

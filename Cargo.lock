@@ -3062,6 +3062,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4443176a9f2c162692bd3d352d745ef9413eec5782a80d8fd6f8a1ac692a07f7"
 
 [[package]]
+name = "fallible-streaming-iterator"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7360491ce676a36bf9bb3c56c1aa791658183a54d2744120f27285738d90465a"
+
+[[package]]
 name = "fastrand"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4791,6 +4797,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "lzokay-native"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "792ba667add2798c6c3e988e630f4eb921b5cbc735044825b7111ef1582c8730"
+dependencies = [
+ "byteorder",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "macro_magic"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5732,6 +5748,31 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "orc-rust"
+version = "0.6.0"
+source = "git+https://github.com/datafusion-contrib/orc-rust.git?rev=refs%2Fpull%2F49%2Fhead#c2c17b75112a872f0e4a2f34acef2300e49630a8"
+dependencies = [
+ "arrow",
+ "async-trait",
+ "bytemuck",
+ "bytes",
+ "chrono",
+ "chrono-tz",
+ "fallible-streaming-iterator",
+ "flate2",
+ "futures",
+ "futures-util",
+ "lz4_flex",
+ "lzokay-native",
+ "num",
+ "prost 0.13.5",
+ "snafu",
+ "snap",
+ "tokio",
+ "zstd 0.13.3",
 ]
 
 [[package]]
@@ -8055,36 +8096,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sink-csv"
-version = "1.11.0"
-dependencies = [
- "anyhow",
- "arrow",
- "arrow-schema",
- "bytes",
- "chrono",
- "csv",
- "csv-async",
- "faststr",
- "flate2",
- "flume",
- "futures-util",
- "glob",
- "notify",
- "regex",
- "scc",
- "serde",
- "serde_json",
- "taos",
- "taosx-core",
- "taosx-ipc",
- "tempfile",
- "tokio",
- "tokio-util",
- "tracing",
-]
-
-[[package]]
 name = "sink-kafka"
 version = "1.11.0"
 dependencies = [
@@ -8242,6 +8253,36 @@ checksum = "233504af464074f9d066d7b5416c5f9b894a5862a6506e306f7b816cdd6f1807"
 dependencies = [
  "libc",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "source-csv"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "arrow-schema",
+ "bytes",
+ "chrono",
+ "csv",
+ "csv-async",
+ "faststr",
+ "flate2",
+ "flume",
+ "futures-util",
+ "glob",
+ "notify",
+ "regex",
+ "scc",
+ "serde",
+ "serde_json",
+ "taos",
+ "taosx-core",
+ "taosx-ipc",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "tracing",
 ]
 
 [[package]]
@@ -8477,6 +8518,21 @@ dependencies = [
  "taosx-core",
  "taosx-ipc",
  "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "source-orc"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "futures",
+ "opendal",
+ "orc-rust",
+ "taos",
+ "taosx-core",
  "tokio-util",
  "tracing",
 ]
@@ -9281,6 +9337,7 @@ dependencies = [
  "shadow-rs 0.38.1",
  "shlex",
  "socket2 0.6.0",
+ "source-csv",
  "source-kafka",
  "source-opc",
  "sqlx",
@@ -9517,10 +9574,10 @@ dependencies = [
  "flume",
  "legacy-to-taos",
  "local-to-taos",
- "sink-csv",
  "sink-kafka",
  "sink-mqtt",
  "sink-parquet",
+ "source-csv",
  "source-historian",
  "source-influxdb",
  "source-kafka",
@@ -9531,6 +9588,7 @@ dependencies = [
  "source-opc",
  "source-opentsdb",
  "source-oracle",
+ "source-orc",
  "source-pi",
  "source-postgres",
  "source-sparkplugb",
@@ -9566,6 +9624,7 @@ dependencies = [
  "num-bigint",
  "num-integer",
  "num-traits",
+ "orc-rust",
  "parquet",
  "paste",
  "prost 0.14.1",

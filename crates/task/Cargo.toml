@@ -13,6 +13,7 @@ tokio.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
 
+source-csv.path = "../source-csv"
 source-historian.path = "../source-historian"
 source-influxdb.path = "../source-influxdb"
 source-kafka.path = "../source-kafka"
@@ -26,8 +27,8 @@ source-oracle.path = "../source-oracle"
 source-pi.path = "../source-pi"
 source-postgres.path = "../source-postgres"
 source-sparkplugb.path = "../source-sparkplugb"
+source-orc.path = "../source-orc"
 
-sink-csv.path = "../sink-csv"
 sink-kafka.path = "../sink-kafka"
 sink-mqtt.path = "../sink-mqtt"
 sink-parquet.path = "../sink-parquet"

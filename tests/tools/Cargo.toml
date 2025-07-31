@@ -48,6 +48,7 @@ num-bigint = "0.4"
 prost.workspace = true
 paste.workspace = true
 shadow-rs.workspace = true
+orc-rust.workspace = true
 
 [build-dependencies]
 shadow-rs.workspace = true

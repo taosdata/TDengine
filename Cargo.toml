@@ -29,7 +29,7 @@ members = [
   "crates/source-postgres",
   "crates/source-sparkplugb",
   "crates/sink-parquet",
-  "crates/sink-csv",
+  "crates/source-csv",
   "crates/sink-mqtt",
   "crates/sink-kafka",
   "crates/task",
@@ -37,6 +37,7 @@ members = [
   "crates/tmq-to-local",
   "crates/local-to-taos",
   "crates/legacy-to-taos",
+  "crates/source-orc",
 ]
 exclude = ["crates/transform/parsers/hebeipower"]
 
@@ -86,7 +87,7 @@ serde = "1"
 # NOTE: 当前 arrow-json 不兼容 serde_json 的 arbitrary_precision feature，添加需谨慎
 serde_json = { version = "1.0", features = ["raw_value", "preserve_order"] }
 fundu = "2.0.1"
-opendal = { version = "0.53", features = ["services-s3"] }
+opendal = { version = "0.53" }
 rumqttc = "0.24.0"
 rustls = { version = "0.23.18", default-features = false }
 rustls-pemfile = { version = "2" }
@@ -184,11 +185,13 @@ assert_cmd = "2"
 assert_fs = "1.1.2"
 mimalloc = { version = "0.1.43", default-features = false }
 pin-project-lite = "0.2"
+orc-rust = "0.6"
 
 taosx-core = { path = "./taosx-core", default-features = false }
 taosx-ipc.path = "./taosx-ipc"
 taosx-task.path = "crates/task"
 taosx-metrics.path = "./taosx-metrics"
+source-csv.path = "./crates/source-csv"
 source-kafka.path = "./crates/source-kafka"
 tmq-to-local.path = "./crates/tmq-to-local"
 tmq-to-td.path = "./crates/tmq-to-td"
@@ -228,7 +231,7 @@ anyhow.workspace = true
 arrow = { workspace = true }
 arrow-flight = { workspace = true }
 zerocopy = { workspace = true }
-opendal = { workspace = true }
+opendal = { workspace = true, features = ["services-s3"] }
 multi_index_map = "0.15.0"
 #multi_index_map = { git = "https://github.com/lun3x/multi_index_map.git", branch = "master" }
 scc = { workspace = true, features = ["serde"] }
@@ -351,6 +354,7 @@ tmq-to-td.workspace = true
 legacy-to-taos.workspace = true
 local-to-taos.workspace = true
 source-opc.workspace = true
+source-csv.workspace = true
 
 archive = { workspace = true }
 
@@ -373,7 +377,7 @@ shadow-rs = { workspace = true }
 [dev-dependencies]
 assert_cmd.workspace = true
 shlex = "1"
-opendal = { workspace = true }
+opendal = { workspace = true, features = ["services-s3"] }
 urlencoding = { workspace = true }
 
 [features]
@@ -414,7 +418,7 @@ strip = "debuginfo"
 [patch.crates-io]
 sasl2-sys = { path = "./crates/rust-sasl/sasl2-sys" }
 actix-http = { git = "https://github.com/bitcapybara/actix-web", rev = "5ec0783" }
-# actix-http = { path = "/root/actix-web/actix-http" }
+orc-rust = { git = "https://github.com/datafusion-contrib/orc-rust.git", rev = "refs/pull/49/head" }
 
 [lints]
 workspace = true

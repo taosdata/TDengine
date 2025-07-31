@@ -22,8 +22,9 @@ use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 use utoipa::*;
 
+use source_csv::get_csv_files_from_task;
 use taosx_core::core_metrics::CoreMetrics;
-use taosx_core::{get_csv_files_from_task, get_data_dir, get_file_upload_home_dir};
+use taosx_core::{get_data_dir, get_file_upload_home_dir};
 
 use super::controller::agent::AgentActivityFilter;
 use super::metrics::ws::echo_heartbeat_ws;
@@ -1196,7 +1197,7 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
                 .split(",")
                 .map(|path| data_dir.join(path).display().to_string())
                 .collect_vec();
-            let csv_header = taosx_core::csv_header(
+            let csv_header = source_csv::csv_header(
                 filepath_or_filedir,
                 file_pattern,
                 has_header,

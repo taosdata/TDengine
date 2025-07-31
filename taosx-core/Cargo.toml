@@ -105,7 +105,7 @@ chardetng = "0.1.17"
 encoding_rs.workspace = true
 bigdecimal.workspace = true
 rumqttc.workspace = true
-opendal = { workspace = true }
+opendal = { workspace = true, features = ["services-s3"] }
 taoslog.workspace = true
 bitfield.workspace = true
 file-guard = "0.2.0"
