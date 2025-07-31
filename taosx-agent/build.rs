@@ -6,16 +6,26 @@ fn shadow_build() {
     const DEFAULT_CUS_NAME: &str = "TDengine";
     const DEFAULT_CUS_PROMPT: &str = "taos";
 
+    /// Get ${CARGO_BUILD_TARGET_DIR}/${BUILD_PROFILE} dir
+    fn get_target_dir(out_dir: &Path) -> Option<&Path> {
+        out_dir.parent()?.parent()?.parent()
+    }
+
     fn labeling(mut file: &File) -> SdResult<()> {
         let clippy_allow: &str =
             r"#[allow(clippy::all, clippy::pedantic, clippy::restriction, clippy::nursery)]";
         writeln!(file, "{clippy_allow}")?;
 
+        let out_dir = std::env::var("OUT_DIR").unwrap();
+        let out_dir = std::path::Path::new(out_dir.as_str());
         let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         let manifest_dir = Path::new(&manifest_dir);
-        let readme = manifest_dir.join("src").join("CLI.md");
-        let target_dir = manifest_dir.parent().unwrap().join("target");
+        let target_dir = get_target_dir(out_dir).expect("build artifacts dir should exist");
+        if !target_dir.exists() {
+            std::fs::create_dir_all(target_dir).unwrap();
+        }
 
+        let readme = manifest_dir.join("src").join("CLI.md");
         let cus_name = std::env::var("CUS_NAME").unwrap_or(DEFAULT_CUS_NAME.to_string());
         let cus_prompt = std::env::var("CUS_PROMPT").unwrap_or(DEFAULT_CUS_PROMPT.to_string());
         let td_version = std::env::var("VER_NUMBER").ok();
@@ -29,6 +39,11 @@ fn shadow_build() {
         } else {
             cus_prompt.trim()
         };
+        let canonical_cus_name = if cus_name.starts_with("TDengine") {
+            "TDengine"
+        } else {
+            cus_name
+        };
         // OEM for README.md
         let content = std::fs::read_to_string(&readme)
             .unwrap()
@@ -40,9 +55,7 @@ fn shadow_build() {
             .unwrap_or_else(|_| panic!("{}", service_template.display()))
             .replace(DEFAULT_CUS_PROMPT, cus_prompt)
             .replace(DEFAULT_CUS_NAME, cus_name);
-        if !target_dir.exists() {
-            std::fs::create_dir_all(&target_dir).unwrap();
-        }
+
         std::fs::write(
             target_dir.join(format!("{cus_prompt}x-agent.service")),
             service,
@@ -53,16 +66,8 @@ fn shadow_build() {
         let srv = std::fs::read_to_string(&srv_template)
             .unwrap_or_else(|_| panic!("{}", srv_template.display()))
             .replace(DEFAULT_CUS_PROMPT, cus_prompt)
-            .replace(DEFAULT_CUS_NAME, cus_name);
-        if !target_dir.exists() {
-            std::fs::create_dir_all(&target_dir).unwrap();
-        }
+            .replace(DEFAULT_CUS_NAME, canonical_cus_name);
         std::fs::write(target_dir.join(format!("{cus_prompt}x-agent-srv.xml")), srv).unwrap();
-        let canonical_cus_name = if cus_name.starts_with("TDengine") {
-            "TDengine"
-        } else {
-            cus_name
-        };
         writeln!(file, r#"pub const CUS_NAME: &str = "{}";"#, cus_name)?;
         writeln!(file, r#"pub const CUS_PROMPT: &str = "{}";"#, cus_prompt)?;
         writeln!(

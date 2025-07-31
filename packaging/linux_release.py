@@ -1,4 +1,4 @@
-import os;
+import os
 import logging
 import shutil
 import sys
@@ -34,11 +34,11 @@ def release(release_info,build_info):
         if info.Name == 'hebeipower':
             # build_and_install_hebeipower_on_linux(info.VersionMode)
             print("build hebeipower plugin is disabled for now")
-        if info.Name =='taosx' and release_info.UploadAgent == False and release_info.BuildAgent == False:
+        if info.Name =='taosx' and not release_info.UploadAgent and not release_info.BuildAgent:
             build_and_install_taosx_on_linux(release_info, info.VersionMode)
         if info.Name =='taosx-agent':
             build_and_install_taosx_agent_on_linux(release_info, info.VersionMode)
-        if info.Name =='taos-explorer' and release_info.UploadAgent == False and release_info.BuildAgent == False:
+        if info.Name =='taos-explorer' and not release_info.UploadAgent and not release_info.BuildAgent:
             install_taos_explorer_on_linux(release_info, info.VersionMode)
 
     chmodReleaseDir(release_info)
@@ -65,9 +65,6 @@ def init_release_dir(release_info):
 
 def build_and_install_opc_on_linux(release_info,mode='release'):
     logging.info("building taosx-opc")
-    platform = "linux"
-    arch = "amd64"
-    verMode = "release"
 
     dst_dir = os.path.join(release_dir,"plugins","opc")
     binary_file = os.path.join(opc_dir,"taosx-opc")
@@ -94,8 +91,6 @@ def build_and_install_opc_on_linux(release_info,mode='release'):
 
 def build_and_install_influxdb_on_linux(mode='release'):
     logging.info("build_and_install taosx-influxdb on linux")
-    platform = "linux"
-    arch = "amd64"
     dst_dir = os.path.join(release_dir,"plugins","influxdb")
     binary_file = os.path.join(influxdb_dir,"target","taosx-influxdb.jar")
     check_directory(dst_dir)
@@ -115,8 +110,6 @@ def build_and_install_influxdb_on_linux(mode='release'):
 
 def build_and_install_opentsdb_on_linux(mode='release'):
     logging.info("build_and_install taosx-opentsdb on linux")
-    platform = "linux"
-    arch = "amd64"
     dst_dir = os.path.join(release_dir,"plugins","opentsdb")
     binary_file = os.path.join(opentsdb_dir,"target","taosx-opentsdb.jar")
     check_directory(dst_dir)
@@ -136,8 +129,6 @@ def build_and_install_opentsdb_on_linux(mode='release'):
 
 def build_and_install_hebeipower_on_linux(mode='release'):
     logging.info("build_and_install hebeipower plugin on linux")
-    platform = "linux"
-    arch = "amd64"
     #  /usr/local/taos/plugins/parsers/libhebeipower.so
     dst_dir = os.path.join(release_dir, "plugins", "parsers")
     lib_file = os.path.join(hebeipower_dir, "target", "release", "libhebeipower.so")
@@ -156,8 +147,6 @@ def build_and_install_hebeipower_on_linux(mode='release'):
 def build_and_install_taosx_on_linux(release_info, mode='release'):
     logging.info("build_and_install taosx under linux...")
 
-    platform = "linux"
-    arch = "amd64"
     dst_dir = os.path.join(release_dir,"bin")
     binary_file = os.path.join(top_dir,"target","deploy",f"{release_info.CustomPrompt}x")
     check_directory(dst_dir)
@@ -172,7 +161,7 @@ def build_and_install_taosx_on_linux(release_info, mode='release'):
     shutil.copy(binary_file,dst_dir)
     logging.info("taosx copied to {release_dir}".format(release_dir=dst_dir))
 
-    shutil.copy(os.path.join(top_dir,"target",f"{release_info.CustomPrompt}x.service"), systemd_path)
+    shutil.copy(os.path.join(top_dir,"target","deploy", f"{release_info.CustomPrompt}x.service"), systemd_path)
 
     cfg_path = os.path.join(release_dir, "etc", "taos")
     check_directory(cfg_path)
@@ -189,7 +178,7 @@ def install_taos_explorer_on_linux(release_info, mode='release'):
     logging.info("taosx-explorer copied to {release_dir}".format(release_dir=dst_dir))
 
     os.chdir(explore_dir)
-    shutil.copy2(os.path.join(top_dir, "target", mode.lower(), f"{release_info.CustomPrompt}-explorer.service"), systemd_path)
+    shutil.copy2(os.path.join(top_dir, "target", "deploy", f"{release_info.CustomPrompt}-explorer.service"), systemd_path)
 
     cfg_path = os.path.join(release_dir,"etc", "taos")
     check_directory(cfg_path)
@@ -197,8 +186,6 @@ def install_taos_explorer_on_linux(release_info, mode='release'):
 
 def build_and_install_taosx_agent_on_linux(release_info, mode='release'):
     logging.info("build_and_install taosx-agent under linux...")
-    platform = "linux"
-    arch = "amd64"
     dst_dir = os.path.join(release_dir,"bin")
     binary_file = os.path.join(top_dir,"target","deploy","taosx-agent")
     check_directory(dst_dir)
@@ -215,7 +202,7 @@ def build_and_install_taosx_agent_on_linux(release_info, mode='release'):
     shutil.copy(binary_file,dst_dir)
     logging.info("taosx-agent copied to {release_dir}".format(release_dir=dst_dir))
 
-    shutil.copy2(os.path.join(top_dir,"target",f"{release_info.CustomPrompt}x-agent.service"), systemd_path)
+    shutil.copy2(os.path.join(top_dir,"target","deploy", f"{release_info.CustomPrompt}x-agent.service"), systemd_path)
 
     cfg_path = os.path.join(release_dir,"etc", "taos")
     check_directory(cfg_path)
@@ -239,8 +226,8 @@ def make_agent_package(release_info):
     logging.info("making agent package")
     shutil.copy(os.path.join(script_dir,"uninstall.sh"),release_dir)
     shutil.copy(os.path.join(script_dir,"install.sh"),release_dir)
-    replace_file_content(os.path.join(release_dir, "uninstall.sh"), f'target=""', f'target="{target}"')
-    replace_file_content(os.path.join(release_dir, "install.sh"), f'target=""', f'target="{target}"')
+    replace_file_content(os.path.join(release_dir, "uninstall.sh"), 'target=""', f'target="{target}"')
+    replace_file_content(os.path.join(release_dir, "install.sh"), 'target=""', f'target="{target}"')
 
     os.chmod(os.path.join(release_dir,"uninstall.sh"),0o755)
     os.chmod(os.path.join(release_dir,"install.sh"),0o755)
@@ -262,8 +249,8 @@ def make_tar_package(release_info):
     logging.info("making tar package")
     shutil.copy(os.path.join(script_dir,"uninstall.sh"),release_dir)
     shutil.copy(os.path.join(script_dir,"install.sh"),release_dir)
-    replace_file_content(os.path.join(release_dir, "uninstall.sh"), f'target=""', f'target="{target}"')
-    replace_file_content(os.path.join(release_dir, "install.sh"), f'target=""', f'target="{target}"')
+    replace_file_content(os.path.join(release_dir, "uninstall.sh"), 'target=""', f'target="{target}"')
+    replace_file_content(os.path.join(release_dir, "install.sh"), 'target=""', f'target="{target}"')
 
     os.chmod(os.path.join(release_dir,"uninstall.sh"),0o755)
     os.chmod(os.path.join(release_dir,"install.sh"),0o755)
@@ -286,13 +273,13 @@ def test_handle(release_info, process):
         print("Calling Package function...")
         chmodReleaseDir(release_info)
         make_tar_package(release_info)
-    elif process == "taosx" and release_info.UploadAgent == False and release_info.BuildAgent == False:
+    elif process == "taosx" and not release_info.UploadAgent and not release_info.BuildAgent:
         print("Calling taosx function...")
         build_and_install_taosx_on_linux(release_info, "Debug")
     elif process == "agent":
         print("Calling taosx agent function...")
         build_and_install_taosx_agent_on_linux(release_info, "Debug")
-    elif process == "explorer" and release_info.UploadAgent == False and release_info.BuildAgent == False:
+    elif process == "explorer" and not release_info.UploadAgent and not release_info.BuildAgent:
         print("Calling taos-explorer function...")
         install_taos_explorer_on_linux(release_info, "Release")
     elif process == "influxdb":

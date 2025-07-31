@@ -55,6 +55,8 @@ jobs:
       - uses: rustsec/audit-check@v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Packaging check
+        run: ruff check packaging/*.py
       - name: Format check
         run: |
           cargo fmt --check --all
