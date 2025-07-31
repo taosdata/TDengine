@@ -3,7 +3,9 @@
 #include "clientLog.h"
 #include "tdef.h"
 
+#include "catalog.h"
 #include "clientStmt.h"
+#include "parser.h"
 
 char* gStmtStatusStr[] = {"unknown",     "init", "prepare", "settbname", "settags",
                           "fetchFields", "bind", "bindCol", "addBatch",  "exec"};
@@ -584,6 +586,26 @@ int32_t stmtRebuildDataBlock(STscStmt* pStmt, STableDataCxt* pDataBlock, STableD
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t stmtGetTableMeta(STscStmt* pStmt, STableMeta** ppTableMeta) {
+  if (NULL == pStmt->pCatalog) {
+    STMT_ERR_RET(catalogGetHandle(pStmt->taos->pAppInfo->clusterId, &pStmt->pCatalog));
+    pStmt->sql.siInfo.pCatalog = pStmt->pCatalog;
+  }
+
+  SRequestConnInfo conn = {.pTrans = pStmt->taos->pAppInfo->pTransporter,
+                           .requestId = pStmt->exec.pRequest->requestId,
+                           .requestObjRefId = pStmt->exec.pRequest->self,
+                           .mgmtEps = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp)};
+
+  int32_t code = catalogGetTableMeta(pStmt->pCatalog, &conn, &pStmt->bInfo.sname, ppTableMeta);
+  if (TSDB_CODE_SUCCESS != code) {
+    STMT_ELOG("get table meta failed, code: 0x%x", code);
+    return code;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t stmtGetFromCache(STscStmt* pStmt) {
   if (pStmt->sql.stbInterlaceMode && pStmt->sql.siInfo.pDataCtx) {
     pStmt->bInfo.needParse = false;
@@ -959,6 +981,43 @@ int stmtPrepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   }
   pStmt->sql.sqlLen = length;
   pStmt->sql.stbInterlaceMode = pStmt->stbInterlaceMode;
+
+  STMT_ERR_RET(stmtCreateRequest(pStmt));
+
+  int32_t code = 0;
+  if (qIsUpdateSetSql(sql, strlen(sql), &pStmt->bInfo.sname, pStmt->taos->acctId, pStmt->taos->db,
+                      pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen, &code)) {
+    // get table meta
+    STableMeta* pTableMeta = NULL;
+    STMT_ERR_RET(stmtGetTableMeta(pStmt, &pTableMeta));
+
+    char* newSql = NULL;
+
+    // conver update sql to insert sql
+    code =
+        convertUpdateToInsert(sql, &newSql, pTableMeta, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen);
+    taosMemoryFree(pTableMeta);
+
+    if (TSDB_CODE_SUCCESS != code) {
+      STMT_ELOG("convert update sql to insert sql failed, code: 0x%x", code);
+      return code;
+    }
+
+    // reset request sql
+    if (pStmt->exec.pRequest->sqlstr) {
+      taosMemoryFreeClear(pStmt->exec.pRequest->sqlstr);
+    }
+    pStmt->exec.pRequest->sqlstr = newSql;
+    pStmt->exec.pRequest->sqlLen = strlen(newSql);
+
+    if (pStmt->sql.sqlStr) {
+      taosMemoryFreeClear(pStmt->sql.sqlStr);
+    }
+    pStmt->sql.sqlStr = taosStrndup(newSql, strlen(newSql));
+    pStmt->sql.sqlLen = strlen(newSql);
+  }
+
+  STMT_ERR_RET(code);
 
   char* dbName = NULL;
   if (qParseDbName(sql, length, &dbName)) {
