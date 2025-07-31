@@ -153,9 +153,12 @@ class Test_IDMP_Vehicle:
             # stream7
             "create stream if not exists `idmp`.`veh_stream7`      interval(5m) sliding(10m) from `idmp`.`vt_7`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream7`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
             "create stream if not exists `idmp`.`veh_stream7_sub1` interval(5m) sliding(10m) from `idmp`.`vt_7` stream_options(IGNORE_NODATA_TRIGGER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream7_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
-            # stream8 watermark
+            # stream8 watermark 1m
             "create stream if not exists `idmp`.`veh_stream8`      interval(10m) sliding(10m) from `idmp`.`vt_8`  stream_options(WATERMARK(1m)|IGNORE_DISORDER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream8`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`,sum(`里程`) as `里程和` from %%trows",
             "create stream if not exists `idmp`.`veh_stream8_sub1` interval(10m) sliding(10m) from `idmp`.`vt_8`  stream_options(WATERMARK(1m))                 notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream8_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`,sum(`里程`) as `里程和` from %%trows",
+            # stream9 watermark 5m
+            "create stream if not exists `idmp`.`veh_stream9`      interval(10m) sliding(10m) from `idmp`.`vt_9`  stream_options(WATERMARK(5m)|IGNORE_DISORDER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream9`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`,sum(`里程`) as `里程和` from %%trows",
+            "create stream if not exists `idmp`.`veh_stream9_sub1` interval(10m) sliding(10m) from `idmp`.`vt_9`  stream_options(WATERMARK(5m))                 notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream9_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`,sum(`里程`) as `里程和` from %%trows",
         ]
 
         tdSql.executes(sqls)
@@ -191,6 +194,8 @@ class Test_IDMP_Vehicle:
         self.trigger_stream7()
         # stream8
         self.trigger_stream8()
+        # stream9
+        self.trigger_stream9()
 
     # 
     # 5. verify results
@@ -344,8 +349,6 @@ class Test_IDMP_Vehicle:
         vals  = "9"
         count = 1
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-
-        self.printSql("second: ", sql)
 
 
     #
@@ -699,6 +702,50 @@ class Test_IDMP_Vehicle:
         # win2 three
         vals  = "150,200"
         count = 1
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+
+
+    #
+    #  stream8 trigger
+    #
+    def trigger_stream9(self):
+        
+        table = f"{self.db}.`vehicle_110100_009`"
+        cols  = "ts,speed,mileage"
+
+        # init
+        ts    = self.start
+        vals  = "120,100"
+
+        # win1 1
+        count = 1
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+        # blank delay 2 skip
+        ts_blank = ts
+        ts += 2 * self.step
+        # go to win1 end
+        ts += 6 * self.step
+        # win1 10
+        count = 1
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+
+        # win2 one not trigger win1 close
+        vals  = "150,200"
+        count = 1
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+
+        # win1 2~3 disorder
+        count = 8
+        vals  = "120,100"
+        ts_blank = tdSql.insertFixedVal(table, ts_blank, self.step, count, cols, vals)
+
+        # expect win1 not close
+        sql = "select * from idmp.result_stream9" # expect table not exist
+        tdSql.waitError(sql)
+
+        # win2 two trigger win1 close
+        vals  = "150,200"
+        count = 5
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
     #
