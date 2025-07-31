@@ -46,9 +46,9 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y llvm
+          sudo apt-get install -y llvm  # 不再装 libclang-dev 或 python3-clang
+          pip install libclang
 
-          pip install libclang  # 自动下载匹配版本的 libclang.so
 
       - name: Determine base branch
         id: base
