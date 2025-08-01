@@ -34,16 +34,16 @@ IF(TD_BUILD_TAOSA_INTERNAL)
 
   SET(taos_version ${TD_VER_NUMBER})
   set(_cgo_cflags_list
-          "-I${CMAKE_CURRENT_SOURCE_DIR}/../../../community/include/client"
+    "-I${CMAKE_CURRENT_SOURCE_DIR}/../../../community/include/client"
   )
   set(_cgo_ldflags_list
-          "-L${CMAKE_BINARY_DIR}/build/lib ${_rpath}"
+    "-L${CMAKE_BINARY_DIR}/build/lib ${_rpath}"
   )
   set(_ldflags_list
-          "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}'"
-          "-X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
-          "-X 'github.com/taosdata/taosadapter/v3/version.CUS_NAME=${TAOSA_CUS_NAME}'"
-          "-X 'github.com/taosdata/taosadapter/v3/version.CUS_PROMPT=${TAOSA_CUS_PROMPT}'"
+    "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}'"
+    "-X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+    "-X 'github.com/taosdata/taosadapter/v3/version.CUS_NAME=${TAOSA_CUS_NAME}'"
+    "-X 'github.com/taosdata/taosadapter/v3/version.CUS_PROMPT=${TAOSA_CUS_PROMPT}'"
   )
   string(JOIN " " _cgo_cflags ${_cgo_cflags_list})
   string(JOIN " " _cgo_ldflags ${_cgo_ldflags_list})
@@ -52,20 +52,20 @@ IF(TD_BUILD_TAOSA_INTERNAL)
 
   INCLUDE(ExternalProject)
   if(${TD_LINUX})
-      set(ext_taosadapter_static taosadapter.a)
-      set(taosadapter_exe        taosadapter)
-      set(_rpath                 "-Wl,-rpath=\$ORIGIN/../lib")
-      set(_shell_cmd             sh -c "go build -a -o ${taosadapter_exe} -ldflags \"${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=$(cd ${TD_INTERNALS_BASE_DIR}/build/ext_taosadapter/src/ext_taosadapter && git rev-parse HEAD)'\"")
+    set(ext_taosadapter_static taosadapter.a)
+    set(taosadapter_exe taosadapter)
+    set(_rpath "-Wl,-rpath=\$ORIGIN/../lib")
+    set(_shell_cmd sh -c "go build -a -o ${taosadapter_exe} -ldflags \"${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=$(cd ${TD_INTERNALS_BASE_DIR}/build/ext_taosadapter/src/ext_taosadapter && git rev-parse HEAD)'\"")
   elseif(${TD_DARWIN})
-      set(ext_taosadapter_static taosadapter.a)
-      set(taosadapter_exe        taosadapter)
-      set(_rpath                 "-Wl,-rpath,\$ORIGIN/../lib")
-      set(_shell_cmd             sh -c "go build -a -o ${taosadapter_exe} -ldflags \"${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=$(cd ${TD_INTERNALS_BASE_DIR}/build/ext_taosadapter/src/ext_taosadapter && git rev-parse HEAD)'\"")
+    set(ext_taosadapter_static taosadapter.a)
+    set(taosadapter_exe taosadapter)
+    set(_rpath "-Wl,-rpath,\$ORIGIN/../lib")
+    set(_shell_cmd sh -c "go build -a -o ${taosadapter_exe} -ldflags \"${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=$(cd ${TD_INTERNALS_BASE_DIR}/build/ext_taosadapter/src/ext_taosadapter && git rev-parse HEAD)'\"")
   elseif(${TD_WINDOWS})
-      set(ext_taosadapter_static taosadapter.lib)
-      set(taosadapter_exe        taosadapter.exe)
-      set(_rpath                 "")
-      set(_shell_cmd             cmd /c for /f %i in ('git -C ${TD_INTERNALS_BASE_DIR}/build/ext_taosadapter/src/ext_taosadapter rev-parse HEAD') do go build -a -o ${taosadapter_exe} -ldflags "${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=%i'")
+    set(ext_taosadapter_static taosadapter.lib)
+    set(taosadapter_exe taosadapter.exe)
+    set(_rpath "")
+    set(_shell_cmd cmd /c for /f %i in ('git -C ${TD_INTERNALS_BASE_DIR}/build/ext_taosadapter/src/ext_taosadapter rev-parse HEAD') do go build -a -o ${taosadapter_exe} -ldflags "${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=%i'")
   endif()
 
 
@@ -83,8 +83,8 @@ IF(TD_BUILD_TAOSA_INTERNAL)
     BUILD_COMMAND
     COMMAND go mod tidy
     COMMAND "${CMAKE_COMMAND}" -E env "CGO_CFLAGS=${_cgo_cflags}"
-                                      "CGO_LDFLAGS=${_cgo_ldflags}"
-            ${_shell_cmd}
+    "CGO_LDFLAGS=${_cgo_ldflags}"
+    ${_shell_cmd}
 
     INSTALL_COMMAND
     COMMAND "${CMAKE_COMMAND}" -E echo "Copy taosadapter"
@@ -219,42 +219,47 @@ IF(TD_BULID_TAOSX)
   ENDIF()
 ENDIF()
 
-IF(TD_BUILD_KEEPER_INTERNAL)
-  MESSAGE("")
-  MESSAGE("${Green} build taoskeeper, current platform is ${PLATFORM_ARCH_STR} ${ColourReset}")
+if(TD_BUILD_KEEPER_INTERNAL)
+  message("")
+  message("${Green} build taoskeeper, current platform is ${PLATFORM_ARCH_STR} ${ColourReset}")
 
-  EXECUTE_PROCESS(
+  execute_process(
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/keeper
     COMMAND git rev-parse HEAD
     OUTPUT_VARIABLE taoskeeper_commit_sha1
   )
 
-  IF("${taoskeeper_commit_sha1}" STREQUAL "")
-    SET(taoskeeper_commit_sha1 "unknown")
-  ELSE()
-    STRING(STRIP "${taoskeeper_commit_sha1}" taoskeeper_commit_sha1)
-  ENDIF()
+  if("${taoskeeper_commit_sha1}" STREQUAL "")
+    set(taoskeeper_commit_sha1 "unknown")
+  else()
+    string(STRIP "${taoskeeper_commit_sha1}" taoskeeper_commit_sha1)
+  endif()
 
-  SET(taos_version ${TD_VER_NUMBER})
-  MESSAGE("${Green} taoskeeper will use ${taos_version} and commit ${taoskeeper_commit_sha1} as version ${ColourReset}")
-  MESSAGE(" current source dir is ${CMAKE_CURRENT_SOURCE_DIR}")
+  set(taoskeeper_version ${TD_VER_NUMBER})
+  message("${Green} taoskeeper will use ${taoskeeper_version} and commit ${taoskeeper_commit_sha1} as version ${ColourReset}")
+  message(" current source dir is ${CMAKE_CURRENT_SOURCE_DIR}")
+
+  if("${TD_PRODUCT_NAME}" STREQUAL "")
+    set(taoskeeper_product_name "TDengine TSDB-Enterprise")
+  else()
+    set(taoskeeper_product_name "${TD_PRODUCT_NAME}")
+  endif()
 
   set(_ldflags_list
     "-X 'github.com/taosdata/taoskeeper/version.IsEnterprise=true'"
-    "-X 'github.com/taosdata/taoskeeper/version.Version=${taos_version}'"
+    "-X 'github.com/taosdata/taoskeeper/version.Version=${taoskeeper_version}'"
     "-X 'github.com/taosdata/taoskeeper/version.Gitinfo=${taoskeeper_commit_sha1}'"
     "-X 'github.com/taosdata/taoskeeper/version.CommitID=${taoskeeper_commit_sha1}'"
     "-X 'github.com/taosdata/taoskeeper/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
     "-X 'github.com/taosdata/taoskeeper/version.CUS_NAME=${TAOSA_CUS_NAME}'"
     "-X 'github.com/taosdata/taoskeeper/version.CUS_PROMPT=${TAOSA_CUS_PROMPT}'"
-    "-X 'github.com/taosdata/taoskeeper/version.CUS_PROMPT=${TAOSA_CUS_PROMPT}'"
-    "-X 'github.com/taosdata/taoskeeper/version.TD_PRODUCT_NAME=${TD_PRODUCT_NAME}'"
+    "-X 'github.com/taosdata/taoskeeper/version.TD_PRODUCT_NAME=${taoskeeper_product_name}'"
   )
   string(JOIN " " _ldflags ${_ldflags_list})
 
-  IF(TD_WINDOWS)
-    MESSAGE("Building taoskeeper on Windows")
-    INCLUDE(ExternalProject)
+  if(TD_WINDOWS)
+    message("Building taoskeeper on Windows")
+    include(ExternalProject)
     ExternalProject_Add(taoskeeper
       PREFIX "taoskeeper"
       SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/keeper
@@ -274,14 +279,14 @@ IF(TD_BUILD_KEEPER_INTERNAL)
       COMMAND cmake -E echo "Copy taoskeeper.service"
       COMMAND cmake -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/keeper/taoskeeper.service ${CMAKE_BINARY_DIR}/test/cfg/
     )
-  ELSE()
-    IF(TD_DARWIN)
-      MESSAGE("Building taoskeeper on macOS")
-    ELSE()
-      MESSAGE("Building taoskeeper on Linux")
-    ENDIF()
+  else()
+    if(TD_DARWIN)
+      message("Building taoskeeper on macOS")
+    else()
+      message("Building taoskeeper on Linux")
+    endif()
 
-    INCLUDE(ExternalProject)
+    include(ExternalProject)
     ExternalProject_Add(taoskeeper
       PREFIX "taoskeeper"
       SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/keeper
@@ -301,5 +306,5 @@ IF(TD_BUILD_KEEPER_INTERNAL)
       COMMAND cmake -E echo "Copy taoskeeper.service"
       COMMAND cmake -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/keeper/taoskeeper.service ${CMAKE_BINARY_DIR}/test/cfg/
     )
-  ENDIF()
-ENDIF()
+  endif()
+endif()
