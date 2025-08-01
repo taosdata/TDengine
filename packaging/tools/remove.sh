@@ -361,7 +361,9 @@ if [ X$remove_flag == X"true" ]; then
   remove_data_and_config
 fi
 
-${csudo}rm -rf ${install_main_dir} || :
+if [ -d "${install_main_dir}" ] && [ -z "$(ls -A "${install_main_dir}")" ]; then
+    ${csudo}rm -rf "${install_main_dir}" || :
+fi
 if [[ -e /etc/os-release ]]; then
   osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
 else
