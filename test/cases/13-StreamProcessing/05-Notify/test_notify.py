@@ -44,7 +44,8 @@ class TestStreamNotifyTrigger:
         # streams.append(self.Basic8())      # OK
         # streams.append(self.Basic9())      # OK
         # streams.append(self.Basic10())      # failed
-        streams.append(self.Basic11())      #
+        # streams.append(self.Basic11())      #
+        streams.append(self.Basic12())      #
 
         tdStream.checkAll(streams)
 
@@ -1406,3 +1407,95 @@ class TestStreamNotifyTrigger:
                 sql=f"select * from {self.db}.res_ct0",
                 func=lambda: tdSql.getRows() == 3
             )
+
+    class Basic12(StreamCheckItem):
+        def __init__(self):
+            self.db = "sdb11"
+            self.stb = "stb"
+
+        def create(self):
+            tdLog.info(f"=============== create database")
+            tdSql.execute(f"create database {self.db} vgroups 4;")
+            tdSql.execute(f"use {self.db}")
+
+            tdSql.execute(f"create table if not exists {self.stb} (ts timestamp, cint int, cbool bool, cfloat float, cdouble double, cbytes varchar(100), cdecimal decimal(10, 2)) tags (tag1 int, tag2 int);")
+            tdSql.query(f"show stables")
+            tdSql.checkRows(1)
+
+            tdLog.info(f"=============== create sub table")
+            tdSql.execute(f"create table ct0 using {self.stb} tags(0, 1);")
+            tdSql.execute(f"create table ct1 using {self.stb} tags(1, 2);")
+            tdSql.execute(f"create table ct2 using {self.stb} tags(2, 3);")
+            tdSql.execute(f"create table ct3 using {self.stb} tags(3, 4);")
+
+            tdSql.query(f"show tables")
+            tdSql.checkRows(4)
+
+            tdLog.info(f"=============== create stream")
+            tdSql.error(
+                f"create stream s3 count_window(1) from ct0 stream_options(FILL_HISTORY) "
+                f"notify('http://localhost:12345/notify') into res_ct0 as "
+                f"select _wstart, _wend, _twstart, count(*), count(cbool), sum(cfloat), last(cdouble), last(cbytes),sum(cdecimal) from ct0 interval(10a) "
+            )
+
+            tdSql.error(
+                f"create stream s3 session(ts, 20s) from ct0 stream_options(FILL_HISTORY) "
+                f"notify('http://localhost:12345/notify') into res_ct0 as "
+                f"select _wstart, _wend, _twstart, count(*), count(cbool), sum(cfloat), last(cdouble), last(cbytes),sum(cdecimal) from ct0 interval(10a) "
+            )
+
+            tdSql.error(
+                f"create stream s3 state_window(cint) from ct0 stream_options(FILL_HISTORY) "
+                f"notify('http://localhost:12345/notify') into res_ct0 as "
+                f"select _wstart, _wend, _twstart, count(*), count(cbool), sum(cfloat), last(cdouble), last(cbytes),sum(cdecimal) from ct0 interval(10a) "
+            )
+
+            tdSql.error(
+                f"create stream s3 event_window(start with cdouble < 4 or cdecimal >8 end with cast(cbytes as int) > 13) from ct0 stream_options(FILL_HISTORY) "
+                f"notify('http://localhost:12345/notify') into res_ct0 as "
+                f"select _wstart, _wend, _twstart, count(*), count(cbool), sum(cfloat), last(cdouble), last(cbytes),sum(cdecimal) from ct0 interval(10a) "
+            )
+
+            tdSql.error(
+                f"create stream s3 event_window(start with cdouble < 4 or cdecimal >8 end with cast(cbytes as int) > 13) from ct0 stream_options(FILL_HISTORY) "
+                f"notify('http://localhost:12345/notify') on(window_both) into res_ct0 as "
+                f"select _wstart, _wend, _twstart, count(*), count(cbool), sum(cfloat), last(cdouble), last(cbytes),sum(cdecimal) from ct0 interval(10a) "
+            )
+
+            tdSql.error(
+                f"create stream s3 period(10s) from ct0 "
+                f"notify('http://localhost:12345/notify') on(window_open|window_close|) notify_options(notify_history) into res_ct0 as "
+                f"select _wstart, _wend, _twstart, count(*), count(cbool), sum(cfloat), last(cdouble), last(cbytes),sum(cdecimal) from ct0 "
+            )
+
+            tdSql.error(
+                f"create stream s3 period(10s) from ct0 "
+                f"notify('http://localhost:12345/notify') on(window_open|window_close|) notify_options() into res_ct0 as "
+                f"select _wstart, _wend, _twstart, count(*), count(cbool), sum(cfloat), last(cdouble), last(cbytes),sum(cdecimal) from ct0 "
+            )
+
+            tdSql.error(
+                f"create stream s3 period(10s) from ct0 on(window_open|window_close)  "
+                f"notify('http://localhost:12345/notify') notify_options(on_failure_pause) into res_ct0 as "
+                f"select _wstart, _wend, _twstart, count(*), count(cbool), sum(cfloat), last(cdouble), last(cbytes),sum(cdecimal) from ct0 "
+            )
+
+        def insert1(self):
+            pass
+            # time.sleep(5)
+            #
+            # tdLog.info(f"=============== insert data into stb")
+            #
+            # ts = 1735660860000
+            # for i in range(10000):
+            #     sql = f"insert into ct0 values ({ts}, {i}, 0, {random()}, {random()}, '11', 3.3333333);"
+            #     tdSql.execute(sql)
+            #     ts += 1000
+
+        def check1(self):
+            pass
+            # tdLog.info("do check the results")
+            # tdSql.checkResultsByFunc(
+            #     sql=f"select * from {self.db}.res_ct0",
+            #     func=lambda: tdSql.getRows() == 3
+            # )

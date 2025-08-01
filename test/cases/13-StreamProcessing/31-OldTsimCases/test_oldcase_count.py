@@ -1,5 +1,10 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
+from new_test_framework.utils import (
+    tdLog,
+    tdSql,
+    tdStream,
+    StreamCheckItem,
+)
 
 
 class TestStreamOldCaseCount:
@@ -10,7 +15,7 @@ class TestStreamOldCaseCount:
     def test_stream_oldcase_count(self):
         """Stream count
 
-        1. -
+        Basic use cases of count window, include expired-data, out-of-order data, and data-deletion
 
         Catalog:
             - Streams:OldTsimCases
@@ -22,637 +27,639 @@ class TestStreamOldCaseCount:
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/count0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/count1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/count2.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/count3.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/countSliding0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/countSliding1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/countSliding2.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/count0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/count1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/count2.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/count3.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/countSliding0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/countSliding1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/countSliding2.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/scalar.sim
 
         """
 
         tdStream.createSnode()
 
-        self.count0()
-        # self.count1()
-        # self.count2()
-        # self.count3()
-        # self.countSliding0()
-        # self.countSliding1()
-        # self.countSliding2()
-
-    def count0(self):
-        tdLog.info(f"count0")
-        tdStream.dropAllStreamsAndDbs()
-
-        tdLog.info(f"step1")
-        tdLog.info(f"=============== create database")
-        tdSql.execute(f"create database test vgroups 1;")
-        tdSql.execute(f"use test;")
-
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
-        tdSql.execute(
-            f"create stream streams1 count_window(3) from t1 stream_options(max_delay(3s)|expired_time(0)|watermark(100s)) into streamt as select _wstart as s, count(*) c1, sum(b), max(c) from t1 where ts >= _wstart and ts < _twend;"
-        )
-
-        tdStream.checkStreamStatus()
-
-        tdSql.execute(f"insert into t1 values(1648791213000, 0, 1, 1, 1.0);")
-        tdSql.execute(f"insert into t1 values(1648791213001, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t1 values(1648791213009, 0, 3, 3, 1.0);")
-
-        tdSql.execute(f"insert into t1 values(1648791223000, 0, 1, 1, 1.0);")
-        tdSql.execute(f"insert into t1 values(1648791223001, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t1 values(1648791223009, 0, 3, 3, 1.0);")
-
-        tdSql.pause()
-
-        tdLog.info(f"1 sql select * from streamt;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() > 1
-            and tdSql.getData(0, 1) == 3
-            and tdSql.getData(0, 2) == 6
-            and tdSql.getData(0, 3) == 3
-            and tdSql.getData(1, 1) == 3
-            and tdSql.getData(1, 2) == 6
-            and tdSql.getData(1, 3) == 3,
-        )
-
-        tdLog.info(f"step2")
-        tdLog.info(f"=============== create database")
-        tdSql.execute(f"create database test2 vgroups 4;")
-        tdSql.execute(f"use test2;")
-
-        tdSql.execute(
-            f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int, tb int, tc int);"
-        )
-        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
-        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
-        tdSql.execute(
-            f"create stream streams2 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt2 as select _wstart as s, count(*) c1, sum(b), max(c) from st partition by tbname count_window(3)"
-        )
-
-        tdStream.checkStreamStatus()
-
-        tdSql.execute(f"insert into t1 values(1648791213000, 0, 1, 1, 1.0);")
-        tdSql.execute(f"insert into t1 values(1648791213001, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t1 values(1648791213009, 0, 3, 3, 1.0);")
-
-        tdSql.execute(f"insert into t2 values(1648791213000, 0, 1, 1, 1.0);")
-        tdSql.execute(f"insert into t2 values(1648791213001, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t2 values(1648791213009, 0, 3, 3, 1.0);")
-
-        tdSql.execute(f"insert into t1 values(1648791223000, 0, 1, 1, 1.0);")
-        tdSql.execute(f"insert into t1 values(1648791223001, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t1 values(1648791223009, 0, 3, 3, 1.0);")
-
-        tdSql.execute(f"insert into t2 values(1648791223000, 0, 1, 1, 1.0);")
-        tdSql.execute(f"insert into t2 values(1648791223001, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t2 values(1648791223009, 0, 3, 3, 1.0);")
-
-        tdLog.info(f"1 sql select * from streamt;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt2 order by 1, 2;",
-            lambda: tdSql.getRows() > 2
-            and tdSql.getData(0, 1) == 3
-            and tdSql.getData(0, 2) == 6
-            and tdSql.getData(0, 3) == 3
-            and tdSql.getData(1, 1) == 3
-            and tdSql.getData(1, 2) == 6
-            and tdSql.getData(1, 3) == 3
-            and tdSql.getData(2, 1) == 3
-            and tdSql.getData(2, 2) == 6
-            and tdSql.getData(2, 3) == 3,
-        )
-
-        tdLog.info(f"step3")
-        tdLog.info(f"=============== create database")
-        tdSql.execute(f"create database test3 vgroups 1;")
-        tdSql.execute(f"use test3;")
-
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
-        tdSql.execute(f"insert into t1 values(1648791213000, 0, 1, 1, 1.0);")
-        tdSql.execute(f"insert into t1 values(1648791213001, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t1 values(1648791213009, 0, 3, 3, 1.0);")
-
-        tdSql.execute(
-            f"create stream streams3 trigger at_once FILL_HISTORY 1 IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt3 as select _wstart as s, count(*) c1, sum(b), max(c) from t1 count_window(3);"
-        )
-        tdStream.checkStreamStatus()
-
-        tdSql.execute(f"insert into t1 values(1648791223000, 0, 1, 1, 1.0);")
-        tdSql.execute(f"insert into t1 values(1648791223001, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t1 values(1648791223009, 0, 3, 3, 1.0);")
-
-        tdLog.info(f"1 sql select * from streamt3;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt3;",
-            lambda: tdSql.getRows() > 1
-            and tdSql.getData(0, 1) == 3
-            and tdSql.getData(0, 2) == 6
-            and tdSql.getData(0, 3) == 3
-            and tdSql.getData(1, 1) == 3
-            and tdSql.getData(1, 2) == 6
-            and tdSql.getData(1, 3) == 3,
-        )
-
-    def count1(self):
-        tdLog.info(f"count1")
-        tdStream.dropAllStreamsAndDbs()
-
-        tdLog.info(f"step1")
-        tdLog.info(f"=============== create database")
-        tdSql.execute(f"create database test vgroups 1;")
-        tdSql.execute(f"use test;")
-
-        tdSql.execute(
-            f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
-        )
-        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
-        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
-
-        # stable
-        tdSql.error(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 10s into streamt as select _wstart as s, count(*) c1, sum(b), max(c) from st count_window(3);"
-        )
-
-        # IGNORE EXPIRED 0
-        tdSql.error(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 WATERMARK 10s into streamt as select _wstart as s, count(*) c1, sum(b), max(c) from t1 count_window(3);"
-        )
-
-        # WATERMARK 0
-        tdSql.error(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 into streamt as select _wstart as s, count(*) c1, sum(b), max(c) from t1 count_window(3);"
-        )
-
-        # All
-        tdSql.error(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _wstart as s, count(*) c1, sum(b), max(c) from st count_window(3);"
-        )
-
-        # 2~INT32_MAX
-        tdSql.error(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 into streamt as select _wstart as s, count(*) c1, sum(b), max(c) from t1 count_window(1);"
-        )
-        tdSql.error(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 into streamt as select _wstart as s, count(*) c1, sum(b), max(c) from t1 count_window(2147483648);"
-        )
-
-        tdSql.execute(
-            f"create stream streams2 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 10s into streamt2 as select _wstart as s, count(*) c1, sum(b), max(c) from t1 count_window(2);"
-        )
-        tdSql.execute(
-            f"create stream streams3 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 10s into streamt3 as select _wstart as s, count(*) c1, sum(b), max(c) from t1 count_window(2147483647);"
-        )
-
-    def count2(self):
-        tdLog.info(f"count2")
-        tdStream.dropAllStreamsAndDbs()
-
-        tdLog.info(f"step1")
-        tdLog.info(f"=============== create database")
-        tdSql.execute(f"create database test vgroups 1;")
-        tdSql.execute(f"use test;")
-
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
-        tdSql.execute(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt as select _wstart as s, count(*) c1, sum(b), max(c) from t1 count_window(3);"
-        )
-
-        tdStream.checkStreamStatus()
-
-        tdSql.execute(f"insert into t1 values(1648791213001, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t1 values(1648791213009, 0, 3, 3, 1.0);")
-
-        tdLog.info(f"0 sql select * from streamt;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() > 0 and tdSql.getData(0, 1) == 2,
-        )
-
-        tdSql.execute(f"insert into t1 values(1648791213000, 0, 1, 1, 1.0);")
-        tdLog.info(f"1 sql select * from streamt;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 3,
-        )
-
-        tdSql.execute(f"insert into t1 values(1648791223000, 0, 1, 1, 1.0);")
-        tdSql.execute(f"insert into t1 values(1648791223001, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t1 values(1648791223009, 0, 3, 3, 1.0);")
-
-        tdLog.info(f"2 sql select * from streamt order by 1;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt order by 1;",
-            lambda: tdSql.getRows() == 2,
-        )
-
-        tdSql.execute(f"insert into t1 values(1648791212000, 0, 1, 1, 1.0);")
-        tdLog.info(f"3 sql select * from streamt order by 1;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt order by 1;",
-            lambda: tdSql.getRows() == 3
-            and tdSql.getData(0, 1) == 3
-            and tdSql.getData(1, 1) == 3
-            and tdSql.getData(2, 1) == 1,
-        )
-
-        tdLog.info(f"step2")
-        tdLog.info(f"=============== create database")
-        tdSql.execute(f"create database test2 vgroups 1;")
-        tdSql.execute(f"use test2;")
-
-        tdSql.execute(
-            f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int, tb int, tc int);"
-        )
-        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
-        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
-        tdSql.execute(
-            f"create stream streams2 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt2 as select _wstart as s, count(*) c1, sum(b), max(c) from st partition by tbname count_window(3)"
-        )
-
-        tdStream.checkStreamStatus()
-
-        tdSql.execute(f"insert into t1 values(1648791213001, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t1 values(1648791213009, 0, 3, 3, 1.0);")
-
-        tdSql.execute(f"insert into t2 values(1648791213001, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t2 values(1648791213009, 0, 3, 3, 1.0);")
-
-        tdLog.info(f"0 sql select * from streamt2 order by 1;;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt2 order by 1;;",
-            lambda: tdSql.getRows() > 1
-            and tdSql.getData(0, 1) == 2
-            and tdSql.getData(1, 1) == 2,
-        )
-
-        tdSql.execute(f"insert into t1 values(1648791213000, 0, 1, 1, 1.0);")
-        tdSql.execute(f"insert into t2 values(1648791213000, 0, 1, 1, 1.0);")
-        tdLog.info(f"1 sql select * from streamt2 order by 1;;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt2 order by 1;;",
-            lambda: tdSql.getRows() == 2
-            and tdSql.getData(0, 1) == 3
-            and tdSql.getData(1, 1) == 3,
-        )
-
-        tdSql.execute(f"insert into t1 values(1648791223000, 0, 1, 1, 1.0);")
-        tdSql.execute(f"insert into t1 values(1648791223001, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t1 values(1648791223009, 0, 3, 3, 1.0);")
-
-        tdSql.execute(f"insert into t2 values(1648791223000, 0, 1, 1, 1.0);")
-        tdSql.execute(f"insert into t2 values(1648791223001, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t2 values(1648791223009, 0, 3, 3, 1.0);")
-
-        tdLog.info(f"2 sql select * from streamt2 order by 1;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt2 order by 1;",
-            lambda: tdSql.getRows() == 4,
-        )
-
-        tdSql.execute(f"insert into t1 values(1648791212000, 0, 1, 1, 1.0);")
-        tdSql.execute(f"insert into t2 values(1648791212000, 0, 1, 1, 1.0);")
-
-        tdLog.info(f"3 sql select * from streamt2 order by 1;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt2 order by 1;",
-            lambda: tdSql.getRows() == 6
-            and tdSql.getData(0, 1) == 3
-            and tdSql.getData(1, 1) == 3
-            and tdSql.getData(2, 1) == 3
-            and tdSql.getData(3, 1) == 3
-            and tdSql.getData(4, 1) == 1
-            and tdSql.getData(5, 1) == 1,
-        )
-
-    def count3(self):
-        tdLog.info(f"count3")
-        tdStream.dropAllStreamsAndDbs()
-
-        tdLog.info(f"step1")
-        tdLog.info(f"=============== create database")
-        tdSql.execute(f"create database test vgroups 1;")
-        tdSql.execute(f"use test;")
-
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
-        tdSql.execute(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt as select _wstart as s, count(*) c1, sum(b), max(c) from t1 count_window(3);"
-        )
-
-        tdStream.checkStreamStatus()
-
-        tdSql.execute(f"insert into t1 values(1648791213000, 0, 1, 1, 1.0);")
-        tdSql.execute(f"insert into t1 values(1648791213001, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t1 values(1648791213009, 0, 3, 3, 1.0);")
-
-        tdSql.execute(f"insert into t1 values(1648791223000, 0, 1, 1, 1.0);")
-        tdSql.execute(f"insert into t1 values(1648791223001, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t1 values(1648791223009, 0, 3, 3, 1.0);")
-
-        tdLog.info(f"2 sql select * from streamt order by 1;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt order by 1;",
-            lambda: tdSql.getRows() == 2,
-        )
-
-        tdSql.execute(f"insert into t1 values(1648791213000, 4, 4, 4, 4.0);")
-
-        tdLog.info(f"3 sql select * from streamt order by 1;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt order by 1;",
-            lambda: tdSql.getRows() == 2
-            and tdSql.getData(0, 1) == 3
-            and tdSql.getData(1, 1) == 3,
-        )
-
-        tdSql.execute(f"delete from t1 where ts = 1648791223001;")
-
-        tdLog.info(f"3 sql select * from streamt order by 1;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt order by 1;",
-            lambda: tdSql.getRows() == 2
-            and tdSql.getData(0, 1) == 3
-            and tdSql.getData(1, 1) == 2,
-        )
-
-    def countSliding0(self):
-        tdLog.info(f"countSliding0")
-        tdStream.dropAllStreamsAndDbs()
-
-        tdLog.info(f"step1")
-        tdLog.info(f"=============== create database")
-        tdSql.execute(f"create database test vgroups 1;")
-        tdSql.execute(f"use test;")
-
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
-        tdSql.execute(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt as select _wstart as s, count(*) c1, sum(b), max(c) from t1 count_window(4, 2);"
-        )
-
-        tdStream.checkStreamStatus()
-
-        tdSql.execute(f"insert into t1 values(1648791213000, 0, 1, 1, 1.0);")
-        tdSql.execute(f"insert into t1 values(1648791213001, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t1 values(1648791213002, 0, 3, 3, 1.0);")
-        tdSql.execute(f"insert into t1 values(1648791213009, 0, 3, 3, 1.0);")
-
-        tdLog.info(f"1 sql select * from streamt;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 2
-            and tdSql.getData(0, 1) == 4
-            and tdSql.getData(1, 1) == 2,
-        )
-
-        tdSql.execute(f"insert into t1 values(1648791223000, 0, 1, 1, 1.0);")
-        tdSql.execute(f"insert into t1 values(1648791223001, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t1 values(1648791223002, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t1 values(1648791223009, 0, 3, 3, 1.0);")
-
-        tdLog.info(f"1 sql select * from streamt;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 4
-            and tdSql.getData(0, 1) == 4
-            and tdSql.getData(1, 1) == 4
-            and tdSql.getData(2, 1) == 4
-            and tdSql.getData(3, 1) == 2,
-        )
-
-        tdSql.execute(
-            f"insert into t1 values(1648791233000, 0, 1, 1, 1.0) (1648791233001, 9, 2, 2, 1.1) (1648791233002, 9, 2, 2, 1.1) (1648791233009, 0, 3, 3, 1.0);"
-        )
-
-        tdLog.info(f"1 sql select * from streamt;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;", lambda: tdSql.getRows() == 6
-        )
-
-        tdSql.execute(
-            f"insert into t1 values(1648791243000, 0, 1, 1, 1.0) (1648791243001, 9, 2, 2, 1.1);"
-        )
-
-        tdLog.info(f"1 sql select * from streamt;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 7,
-        )
-        tdSql.checkRows(7)
-
-        tdSql.execute(
-            f"insert into t1 values(1648791253000, 0, 1, 1, 1.0) (1648791253001, 9, 2, 2, 1.1) (1648791253002, 9, 2, 2, 1.1);"
-        )
-
-        tdLog.info(f"1 sql select * from streamt;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 9,
-        )
-
-        tdSql.execute(f"insert into t1 values(1648791263000, 0, 1, 1, 1.0);")
-
-        tdLog.info(f"1 sql select * from streamt;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 9,
-        )
-
-        tdLog.info(f"step2")
-        tdLog.info(f"=============== create database")
-        tdSql.execute(f"create database test2 vgroups 4;")
-        tdSql.execute(f"use test2;")
-
-        tdSql.execute(
-            f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int, tb int, tc int);"
-        )
-        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
-        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
-        tdSql.execute(
-            f"create stream streams2 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt2 as select _wstart as s, count(*) c1, sum(b), max(c) from st partition by tbname count_window(4, 2);"
-        )
-
-        tdStream.checkStreamStatus()
-
-        tdSql.execute(f"insert into t1 values(1648791213000, 0, 1, 1, 1.0);")
-        tdSql.execute(f"insert into t1 values(1648791213001, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t1 values(1648791213002, 0, 3, 3, 1.0);")
-        tdSql.execute(f"insert into t1 values(1648791213009, 0, 3, 3, 1.0);")
-
-        tdLog.info(f"1 sql select * from streamt2;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt2;",
-            lambda: tdSql.getRows() == 2
-            and tdSql.getData(0, 1) == 4
-            and tdSql.getData(1, 1) == 2,
-        )
-
-        tdSql.execute(f"insert into t1 values(1648791223000, 0, 1, 1, 1.0);")
-        tdSql.execute(f"insert into t1 values(1648791223001, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t1 values(1648791223002, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t1 values(1648791223009, 0, 3, 3, 1.0);")
-
-        tdLog.info(f"1 sql select * from streamt2;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt2;",
-            lambda: tdSql.getRows() == 4
-            and tdSql.getData(0, 1) == 4
-            and tdSql.getData(1, 1) == 4
-            and tdSql.getData(2, 1) == 4
-            and tdSql.getData(3, 1) == 2,
-        )
-
-        tdSql.execute(
-            f"insert into t1 values(1648791233000, 0, 1, 1, 1.0) (1648791233001, 9, 2, 2, 1.1) (1648791233002, 9, 2, 2, 1.1) (1648791233009, 0, 3, 3, 1.0);"
-        )
-
-        tdLog.info(f"1 sql select * from streamt2;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt2;",
-            lambda: tdSql.getRows() == 6,
-        )
-
-        tdSql.execute(
-            f"insert into t1 values(1648791243000, 0, 1, 1, 1.0) (1648791243001, 9, 2, 2, 1.1);"
-        )
-        tdLog.info(f"1 sql select * from streamt2;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt2;",
-            lambda: tdSql.getRows() == 7,
-        )
-
-        tdSql.execute(
-            f"insert into t1 values(1648791253000, 0, 1, 1, 1.0) (1648791253001, 9, 2, 2, 1.1) (1648791253002, 9, 2, 2, 1.1);"
-        )
-
-        tdLog.info(f"1 sql select * from streamt2;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt2;",
-            lambda: tdSql.getRows() == 9,
-        )
-
-        tdSql.execute(f"insert into t1 values(1648791263000, 0, 1, 1, 1.0);")
-
-        tdLog.info(f"1 sql select * from streamt2;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt2;",
-            lambda: tdSql.getRows() == 9,
-        )
-
-    def countSliding1(self):
-        tdLog.info(f"countSliding1")
-        tdStream.dropAllStreamsAndDbs()
-
-        tdLog.info(f"step1")
-        tdLog.info(f"=============== create database")
-        tdSql.execute(f"create database test vgroups 1;")
-        tdSql.execute(f"use test;")
-
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
-        tdSql.execute(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt as select _wstart as s, count(*) c1, sum(b), max(c) from t1 count_window(4, 2);"
-        )
-
-        tdStream.checkStreamStatus()
-
-        tdSql.execute(f"insert into t1 values(1648791213000, 0, 1, 1, 1.0);")
-        tdSql.execute(f"insert into t1 values(1648791213001, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t1 values(1648791213002, 0, 3, 3, 1.0);")
-        tdSql.execute(f"insert into t1 values(1648791213009, 0, 3, 3, 1.0);")
-        tdSql.execute(f"insert into t1 values(1648791223000, 0, 1, 1, 1.0);")
-        tdSql.execute(f"insert into t1 values(1648791223001, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t1 values(1648791223002, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t1 values(1648791223009, 0, 3, 3, 1.0);")
-
-        tdLog.info(f"1 sql select * from streamt;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 4
-            and tdSql.getData(0, 1) == 4
-            and tdSql.getData(1, 1) == 4
-            and tdSql.getData(2, 1) == 4
-            and tdSql.getData(3, 1) == 2,
-        )
-
-        tdSql.execute(f"insert into t1 values(1648791213000, 0, 1, 1, 1.0);")
-
-        tdLog.info(f"1 sql select * from streamt;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 4
-            and tdSql.getData(0, 1) == 4
-            and tdSql.getData(1, 1) == 4
-            and tdSql.getData(2, 1) == 4
-            and tdSql.getData(3, 1) == 2,
-        )
-
-        tdSql.execute(f"insert into t1 values(1648791223002, 9, 2, 2, 1.1);")
-
-        tdLog.info(f"1 sql select * from streamt;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 4
-            and tdSql.getData(0, 1) == 4
-            and tdSql.getData(1, 1) == 4
-            and tdSql.getData(2, 1) == 4
-            and tdSql.getData(3, 1) == 2,
-        )
-
-    def countSliding2(self):
-        tdLog.info(f"countSliding2")
-        tdStream.dropAllStreamsAndDbs()
-
-        tdLog.info(f"step1")
-        tdLog.info(f"=============== create database")
-        tdSql.execute(f"create database test vgroups 1;")
-        tdSql.execute(f"use test;")
-
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
-        tdSql.execute(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt as select _wstart as s, count(*) c1, sum(b), max(c) from t1 count_window(4, 2);"
-        )
-
-        tdStream.checkStreamStatus()
-
-        tdSql.execute(f"insert into t1 values(1648791213000, 0, 1, 1, 1.0);")
-        tdSql.execute(f"insert into t1 values(1648791213001, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t1 values(1648791213002, 0, 3, 3, 1.0);")
-        tdSql.execute(f"insert into t1 values(1648791213009, 0, 3, 3, 1.0);")
-        tdSql.execute(f"insert into t1 values(1648791223000, 0, 1, 1, 1.0);")
-        tdSql.execute(f"insert into t1 values(1648791223001, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t1 values(1648791223002, 9, 2, 2, 1.1);")
-        tdSql.execute(f"insert into t1 values(1648791223009, 0, 3, 3, 1.0);")
-
-        tdLog.info(f"1 sql select * from streamt;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 4
-            and tdSql.getData(0, 1) == 4
-            and tdSql.getData(1, 1) == 4
-            and tdSql.getData(2, 1) == 4
-            and tdSql.getData(3, 1) == 2,
-        )
-
-        tdSql.execute(f"delete from t1 where ts = 1648791213000;")
-        tdLog.info(f"1 sql select * from streamt;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 4
-            and tdSql.getData(0, 1) == 4
-            and tdSql.getData(1, 1) == 4
-            and tdSql.getData(2, 1) == 3
-            and tdSql.getData(3, 1) == 1,
-        )
-
-        tdSql.execute(f"delete from t1 where ts = 1648791223002;")
-        tdLog.info(f"1 sql select * from streamt;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 3
-            and tdSql.getData(0, 1) == 4
-            and tdSql.getData(1, 1) == 4
-            and tdSql.getData(2, 1) == 2,
-        )
+        streams = []
+        # streams.append(self.Count01()) pass
+        # streams.append(self.Count02()) pass
+        # streams.append(self.Count03()) pass
+        # streams.append(self.Count21()) pass
+        # streams.append(self.Count22()) pass
+        # streams.append(self.Count31()) pass
+        # streams.append(self.Sliding01()) pass
+        # streams.append(self.Sliding02()) pass
+        streams.append(self.Sliding11())
+        # streams.append(self.Sliding21())
+        tdStream.checkAll(streams)
+
+    class Count01(StreamCheckItem):
+        def __init__(self):
+            self.db = "Count01"
+
+        def create(self):
+            tdSql.execute(f"create database count01 vgroups 1 buffer 8;")
+            tdSql.execute(f"use count01;")
+
+            tdSql.execute(
+                f"create table t1(ts timestamp, a int, b int, c int, d double);"
+            )
+            tdSql.execute(
+                f"create stream streams1 count_window(3) from t1 stream_options(max_delay(3s)|expired_time(200s)|watermark(100s)) into streamt as select _twstart as s, count(*) c1, sum(b), max(c) from t1 where ts >= _twstart and ts <= _twend;"
+            )
+
+        def insert1(self):
+            tdSql.execute(f"insert into t1 values(1648791213000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791213001, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t1 values(1648791213009, 0, 3, 3, 1.0);")
+
+            tdSql.execute(f"insert into t1 values(1648791223000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791223001, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t1 values(1648791223009, 0, 3, 3, 1.0);")
+
+            tdSql.execute(f"insert into t1 values(1648791323009, 0, 4, 4, 4.0);")
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt;",
+                lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.000")
+                and tdSql.compareData(0, 2, 6)
+                and tdSql.compareData(0, 3, 3)
+                and tdSql.compareData(1, 0, "2022-04-01 13:33:43.000")
+                and tdSql.compareData(1, 1, 3)
+                and tdSql.compareData(1, 2, 6)
+                and tdSql.compareData(1, 3, 3),
+            )
+
+    class Count02(StreamCheckItem):
+        def __init__(self):
+            self.db = "Count02"
+
+        def create(self):
+            tdSql.execute(f"create database count02 vgroups 4 buffer 8;")
+            tdSql.execute(f"use count02;")
+
+            tdSql.execute(
+                f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int, tb int, tc int);"
+            )
+            tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+            tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
+            tdSql.execute(
+                f"create stream streams2 count_window(3) from st partition by tbname stream_options(max_delay(3s)|expired_time(200s)) into streamt2 as select _twstart as s, count(*) c1, sum(b), max(c) from %%trows count_window(3)"
+            )
+
+        def insert1(self):
+            tdSql.execute(f"insert into t1 values(1648791213000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791213001, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t1 values(1648791213009, 0, 3, 3, 1.0);")
+
+            tdSql.execute(f"insert into t2 values(1648791213000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t2 values(1648791213001, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t2 values(1648791213009, 0, 3, 3, 1.0);")
+
+            tdSql.execute(f"insert into t1 values(1648791223000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791223001, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t1 values(1648791223009, 0, 3, 3, 1.0);")
+
+            tdSql.execute(f"insert into t2 values(1648791223000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t2 values(1648791223001, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t2 values(1648791223009, 0, 3, 3, 1.0);")
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt2 where tag_tbname='t1';",
+                lambda: tdSql.getRows() == 2
+                and tdSql.getData(0, 1) == 3
+                and tdSql.getData(0, 2) == 6
+                and tdSql.getData(0, 3) == 3
+                and tdSql.getData(1, 1) == 3
+                and tdSql.getData(1, 2) == 6
+                and tdSql.getData(1, 3) == 3,
+            )
+
+    class Count03(StreamCheckItem):
+        def __init__(self):
+            self.db = "Count03"
+
+        def create(self):
+            tdSql.execute(f"create database count03 vgroups 1 buffer 8;")
+            tdSql.execute(f"use count03;")
+
+            tdSql.execute(
+                f"create table t1(ts timestamp, a int, b int, c int, d double);"
+            )
+            tdSql.execute(f"insert into t1 values(1648791213000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791213001, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t1 values(1648791213009, 0, 3, 3, 1.0);")
+
+            tdSql.execute(
+                f"create stream streams3 count_window(3) from t1 stream_options(max_delay(3s)|expired_time(1s)) into streamt3 as select _twstart as s, count(*) c1, sum(b), max(c) from %%trows;"
+            )
+
+        def insert1(self):
+            tdSql.execute(f"insert into t1 values(1648791223000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791221001, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t1 values(1648791223001, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t1 values(1648791223009, 0, 3, 3, 1.0);")
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt3;",
+                lambda: tdSql.getRows() == 1
+                and tdSql.getData(0, 1) == 3
+                and tdSql.getData(0, 2) == 6
+                and tdSql.getData(0, 3) == 3,
+            )
+
+    class Count21(StreamCheckItem):
+        def __init__(self):
+            self.db = "Count21"
+
+        def create(self):
+            tdSql.execute(f"create database count21 vgroups 1 buffer 8;")
+            tdSql.execute(f"use count21;")
+
+            tdSql.execute(
+                f"create table t1(ts timestamp, a int, b int, c int, d double);"
+            )
+            tdSql.execute(
+                f"create stream streams1 count_window(3) from t1 stream_options(max_delay(3s)|expired_time(200s)) into streamt as select _twstart as s, count(*) c1, sum(b), max(c) from %%trows;"
+            )
+
+        def insert1(self):
+            tdSql.execute(f"insert into t1 values(1648791213001, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t1 values(1648791213009, 0, 3, 3, 1.0);")
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt;",
+                lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.001")
+                and tdSql.compareData(0, 1, 2),
+            )
+
+        def insert2(self):
+            tdSql.execute(f"insert into t1 values(1648791213000, 0, 1, 1, 1.0);")
+
+        def check2(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt;",
+                lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.001")
+                and tdSql.compareData(0, 1, 2),
+            )
+
+        def insert3(self):
+            tdSql.execute(f"insert into t1 values(1648791223000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791223001, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t1 values(1648791223009, 0, 3, 3, 1.0);")
+
+        def check3(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt order by 1;",
+                lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.001")
+                and tdSql.compareData(0, 1, 3)
+                and tdSql.compareData(1, 0, "2022-04-01 13:33:43.001")
+                and tdSql.compareData(1, 1, 2),
+            )
+
+        def insert4(self):
+            tdSql.execute(f"insert into t1 values(1648791224000, 0, 1, 1, 1.0);")
+
+        def check4(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt order by 1;",
+                lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.001")
+                and tdSql.compareData(0, 1, 3)
+                and tdSql.compareData(1, 0, "2022-04-01 13:33:43.001")
+                and tdSql.compareData(1, 1, 3),
+            )
+
+    class Count22(StreamCheckItem):
+        def __init__(self):
+            self.db = "Count22"
+
+        def create(self):
+            tdSql.execute(f"create database count22 vgroups 1 buffer 8;")
+            tdSql.execute(f"use count22;")
+
+            tdSql.execute(
+                f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int, tb int, tc int);"
+            )
+            tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+            tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
+            tdSql.execute(
+                f"create stream streams2 count_window(3) from st partition by tbname stream_options(max_delay(3s)|expired_time(2s)|watermark(1s)) into streamt2 as select _twstart as s, count(*) c1, sum(b), max(c) from %%trows "
+            )
+
+        def insert1(self):
+            tdSql.execute(f"insert into t1 values(1648791213001, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t1 values(1648791214009, 0, 3, 3, 1.0);")
+
+            tdSql.execute(f"insert into t2 values(1648791213001, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t2 values(1648791214009, 0, 3, 3, 1.0);")
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt2 where tag_tbname='t1' order by 1;",
+                lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.001")
+                and tdSql.compareData(0, 1, 1),
+            )
+
+        def insert2(self):
+            tdSql.execute(f"insert into t1 values(1648791215009, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t2 values(1648791215009, 0, 1, 1, 1.0);")
+
+        def check2(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt2 where tag_tbname='t1' order by 1;",
+                lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.001")
+                and tdSql.compareData(0, 1, 2),
+            )
+
+        def insert3(self):
+            tdSql.execute(f"insert into t1 values(1648791223000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791223001, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t1 values(1648791224009, 0, 3, 3, 1.0);")
+
+            tdSql.execute(f"insert into t2 values(1648791223000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t2 values(1648791223001, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t2 values(1648791224009, 0, 3, 3, 1.0);")
+
+        def check3(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt2 where tag_tbname='t1' order by 1;",
+                lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.001")
+                and tdSql.compareData(0, 1, 3)
+                and tdSql.compareData(1, 0, "2022-04-01 13:33:43.000")
+                and tdSql.compareData(1, 1, 2),
+            )
+
+        def insert4(self):
+            tdSql.execute(f"insert into t1 values(1648791212000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t2 values(1648791212000, 0, 1, 1, 1.0);")
+
+        def check4(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt2 where tag_tbname='t1' order by 1;",
+                lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2022-04-01 13:33:33.001")
+                and tdSql.compareData(0, 1, 3)
+                and tdSql.compareData(1, 0, "2022-04-01 13:33:43.000")
+                and tdSql.compareData(1, 1, 2),
+            )
+
+    class Count31(StreamCheckItem):
+        def __init__(self):
+            self.db = "Count31"
+
+        def create(self):
+            tdSql.execute(f"create database count31 vgroups 1 buffer 8;")
+            tdSql.execute(f"use count31;")
+
+            tdSql.execute(
+                f"create table t1(ts timestamp, a int, b int, c int, d double);"
+            )
+            tdSql.execute(
+                f"create stream streams1 count_window(3) from t1 stream_options(max_delay(3s)|expired_time(200s)) into streamt as select _twstart as s, count(*) c1, sum(b), max(c) from %%trows ;"
+            )
+
+        def insert1(self):
+            tdSql.execute(f"insert into t1 values(1648791213000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791213001, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t1 values(1648791213009, 0, 3, 3, 1.0);")
+
+            tdSql.execute(f"insert into t1 values(1648791223000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791223001, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t1 values(1648791223009, 0, 3, 3, 1.0);")
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt order by 1;",
+                lambda: tdSql.getRows() == 2,
+            )
+
+        def insert2(self):
+            tdSql.execute(f"insert into t1 values(1648791213000, 4, 4, 4, 4.0);")
+
+        def check2(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt order by 1;",
+                lambda: tdSql.getRows() == 2
+                and tdSql.getData(0, 1) == 3
+                and tdSql.getData(1, 1) == 3,
+            )
+
+        def insert3(self):
+            tdSql.execute(f"delete from t1 where ts = 1648791223001;")
+
+        def check3(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt order by 1;",
+                lambda: tdSql.getRows() == 2
+                and tdSql.getData(0, 1) == 3
+                and tdSql.getData(1, 1) == 3,
+            )
+
+    class Sliding01(StreamCheckItem):
+        def __init__(self):
+            self.db = "Sliding01"
+
+        def create(self):
+            tdSql.execute(f"create database sliding01 vgroups 1 buffer 8;")
+            tdSql.execute(f"use sliding01;")
+
+            tdSql.execute(
+                f"create table t1(ts timestamp, a int, b int, c int, d double);"
+            )
+            tdSql.execute(
+                f"create stream streams1 count_window(4, 2) from t1 stream_options(max_delay(3s)) into streamt as select _twstart as s, count(*) c1, sum(b), max(c) from t1 where ts >= _twstart and ts <= _twend;"
+            )
+
+        def insert1(self):
+            tdSql.execute(f"insert into t1 values(1648791213000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791213001, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t1 values(1648791213002, 0, 3, 3, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791213009, 0, 3, 3, 1.0);")
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt;",
+                lambda: tdSql.getRows() == 2
+                and tdSql.getData(0, 1) == 4
+                and tdSql.getData(1, 1) == 2,
+            )
+
+        def insert2(self):
+            tdSql.execute(f"insert into t1 values(1648791223000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791223001, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t1 values(1648791223002, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t1 values(1648791223009, 0, 3, 3, 1.0);")
+
+        def check2(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt;",
+                lambda: tdSql.getRows() == 4
+                and tdSql.getData(0, 1) == 4
+                and tdSql.getData(1, 1) == 4
+                and tdSql.getData(2, 1) == 4
+                and tdSql.getData(3, 1) == 2,
+            )
+
+        def insert3(self):
+            tdSql.execute(
+                f"insert into t1 values(1648791233000, 0, 1, 1, 1.0) (1648791233001, 9, 2, 2, 1.1) (1648791233002, 9, 2, 2, 1.1) (1648791233009, 0, 3, 3, 1.0);"
+            )
+
+        def check3(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt;", lambda: tdSql.getRows() == 6
+            )
+
+        def insert4(self):
+            tdSql.execute(
+                f"insert into t1 values(1648791243000, 0, 1, 1, 1.0) (1648791243001, 9, 2, 2, 1.1);"
+            )
+
+        def check4(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt;",
+                lambda: tdSql.getRows() == 7,
+            )
+            tdSql.checkRows(7)
+
+        def insert5(self):
+            tdSql.execute(
+                f"insert into t1 values(1648791253000, 0, 1, 1, 1.0) (1648791253001, 9, 2, 2, 1.1) (1648791253002, 9, 2, 2, 1.1);"
+            )
+
+        def check5(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt;",
+                lambda: tdSql.getRows() == 9,
+            )
+
+        def insert6(self):
+            tdSql.execute(f"insert into t1 values(1648791263000, 0, 1, 1, 1.0);")
+
+        def check6(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt;",
+                lambda: tdSql.getRows() == 9,
+            )
+
+    class Sliding02(StreamCheckItem):
+        def __init__(self):
+            self.db = "sliding02"
+
+        def create(self):
+            tdSql.execute(f"create database sliding02 vgroups 4 buffer 8;")
+            tdSql.execute(f"use sliding02;")
+
+            tdSql.execute(
+                f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int, tb int, tc int);"
+            )
+            tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+            tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
+            tdSql.execute(
+                f"create stream streams2 count_window(4, 2) from st partition by tbname stream_options(max_delay(3s)) into streamt2 as select _twstart as s, count(*) c1, sum(b), max(c) from %%trows;"
+            )
+
+        def insert1(self):
+            tdSql.execute(f"insert into t1 values(1648791213000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791213001, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t1 values(1648791213002, 0, 3, 3, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791213009, 0, 3, 3, 1.0);")
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt2;",
+                lambda: tdSql.getRows() == 2
+                and tdSql.getData(0, 1) == 4
+                and tdSql.getData(1, 1) == 2,
+            )
+
+        def insert2(self):
+            tdSql.execute(f"insert into t1 values(1648791223000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791223001, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t1 values(1648791223002, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t1 values(1648791223009, 0, 3, 3, 1.0);")
+
+        def check2(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt2;",
+                lambda: tdSql.getRows() == 4
+                and tdSql.getData(0, 1) == 4
+                and tdSql.getData(1, 1) == 4
+                and tdSql.getData(2, 1) == 4
+                and tdSql.getData(3, 1) == 2,
+            )
+
+        def insert3(self):
+            tdSql.execute(
+                f"insert into t1 values(1648791233000, 0, 1, 1, 1.0) (1648791233001, 9, 2, 2, 1.1) (1648791233002, 9, 2, 2, 1.1) (1648791233009, 0, 3, 3, 1.0);"
+            )
+
+        def check3(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt2;",
+                lambda: tdSql.getRows() == 6,
+            )
+
+        def insert4(self):
+            tdSql.execute(
+                f"insert into t1 values(1648791243000, 0, 1, 1, 1.0) (1648791243001, 9, 2, 2, 1.1);"
+            )
+
+        def check4(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt2;",
+                lambda: tdSql.getRows() == 7,
+            )
+
+        def insert5(self):
+            tdSql.execute(
+                f"insert into t1 values(1648791253000, 0, 1, 1, 1.0) (1648791253001, 9, 2, 2, 1.1) (1648791253002, 9, 2, 2, 1.1);"
+            )
+
+        def check5(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt2;",
+                lambda: tdSql.getRows() == 7,
+            )
+
+        def insert6(self):
+            tdSql.execute(f"insert into t1 values(1648791263000, 0, 1, 1, 1.0);")
+
+        def check6(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt2;",
+                lambda: tdSql.getRows() == 9,
+            )
+
+    class Sliding11(StreamCheckItem):
+        def __init__(self):
+            self.db = "Sliding11"
+
+        def create(self):
+            tdSql.execute(f"create database sliding11 vgroups 1 buffer 8;")
+            tdSql.execute(f"use sliding11;")
+
+            tdSql.execute(
+                f"create table t1(ts timestamp, a int, b int, c int, d double);"
+            )
+            tdSql.execute(
+                f"create stream streams1 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt as select _wstart as s, count(*) c1, sum(b), max(c) from t1 count_window(4, 2);"
+            )
+
+        def insert1(self):
+            tdSql.execute(f"insert into t1 values(1648791213000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791213001, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t1 values(1648791213002, 0, 3, 3, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791213009, 0, 3, 3, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791223000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791223001, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t1 values(1648791223002, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t1 values(1648791223009, 0, 3, 3, 1.0);")
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt;",
+                lambda: tdSql.getRows() == 4
+                and tdSql.getData(0, 1) == 4
+                and tdSql.getData(1, 1) == 4
+                and tdSql.getData(2, 1) == 4
+                and tdSql.getData(3, 1) == 2,
+            )
+
+        def insert2(self):
+            tdSql.execute(f"insert into t1 values(1648791213000, 0, 1, 1, 1.0);")
+
+        def check2(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt;",
+                lambda: tdSql.getRows() == 4
+                and tdSql.getData(0, 1) == 4
+                and tdSql.getData(1, 1) == 4
+                and tdSql.getData(2, 1) == 4
+                and tdSql.getData(3, 1) == 2,
+            )
+
+        def insert3(self):
+            tdSql.execute(f"insert into t1 values(1648791223002, 9, 2, 2, 1.1);")
+
+        def check3(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt;",
+                lambda: tdSql.getRows() == 4
+                and tdSql.getData(0, 1) == 4
+                and tdSql.getData(1, 1) == 4
+                and tdSql.getData(2, 1) == 4
+                and tdSql.getData(3, 1) == 2,
+            )
+
+    class Sliding21(StreamCheckItem):
+        def __init__(self):
+            self.db = "Sliding21"
+
+        def create(self):
+            tdSql.execute(f"create database sliding21 vgroups 1 buffer 8;")
+            tdSql.execute(f"use sliding21;")
+
+            tdSql.execute(
+                f"create table t1(ts timestamp, a int, b int, c int, d double);"
+            )
+            tdSql.execute(
+                f"create stream streams1 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt as select _wstart as s, count(*) c1, sum(b), max(c) from t1 count_window(4, 2);"
+            )
+
+        def insert1(self):
+            tdSql.execute(f"insert into t1 values(1648791213000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791213001, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t1 values(1648791213002, 0, 3, 3, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791213009, 0, 3, 3, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791223000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791223001, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t1 values(1648791223002, 9, 2, 2, 1.1);")
+            tdSql.execute(f"insert into t1 values(1648791223009, 0, 3, 3, 1.0);")
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt;",
+                lambda: tdSql.getRows() == 4
+                and tdSql.getData(0, 1) == 4
+                and tdSql.getData(1, 1) == 4
+                and tdSql.getData(2, 1) == 4
+                and tdSql.getData(3, 1) == 2,
+            )
+
+        def insert2(self):
+            tdSql.execute(f"delete from t1 where ts = 1648791213000;")
+
+        def check2(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt;",
+                lambda: tdSql.getRows() == 4
+                and tdSql.getData(0, 1) == 4
+                and tdSql.getData(1, 1) == 4
+                and tdSql.getData(2, 1) == 3
+                and tdSql.getData(3, 1) == 1,
+            )
+
+        def insert3(self):
+            tdSql.execute(f"delete from t1 where ts = 1648791223002;")
+
+        def check3(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt;",
+                lambda: tdSql.getRows() == 3
+                and tdSql.getData(0, 1) == 4
+                and tdSql.getData(1, 1) == 4
+                and tdSql.getData(2, 1) == 2,
+            )

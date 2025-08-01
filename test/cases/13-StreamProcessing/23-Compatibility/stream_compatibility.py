@@ -47,29 +47,96 @@ class TestStreamCompatibility:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_compatibility(self):
-        """Stream Processing Compatibility Test
+        """Stream Processing Cross-Version Compatibility Test
 
-        Test stream processing compatibility across different TDengine versions:
-        1. Download and setup multiple base versions (3.3.3.0, 3.3.4.0, 3.3.5.0, 3.3.6.0)
-        2. Start TDengine service with each base version
-        3. Create databases, tables and streams with base version
-        4. Upgrade to current version and verify stream functionality
-        5. Test stream data processing and consumption compatibility
-        6. Verify stream metadata and status consistency after upgrade
+        Test stream processing and TSMA compatibility across 4 base versions with actual stream/TSMA creation and verification:
+
+        1. Test [v3.3.3.0 Version Compatibility]
+            1.1 Install v3.3.3.0 enterprise package and create old format streams and TSMAs
+                1.1.1 Create avg_stream: INTERVAL(5s) aggregation on meters table
+                1.1.2 Create max_stream: trigger at_once with MAX aggregation by tbname
+                1.1.3 Create count_stream: INTERVAL(10s) with WHERE voltage > 10 filter
+                1.1.4 Create tsma_meters: 1-minute TSMA with avg(voltage), max(current), min(voltage), count(ts)
+                1.1.5 Create tsma_meters_hourly: 1-hour TSMA with avg(voltage), max(current), min(current), count(ts)
+                1.1.6 Create tsma_meters_detail: 30-second TSMA with sum(voltage), avg(current), max(phase), min(phase)
+            1.2 Verify new version startup behavior with old streams and TSMAs
+                1.2.1 Attempt to start new version (should fail due to incompatible streams/TSMAs)
+                1.2.2 Verify stream and TSMA incompatibility detection
+            1.3 Clean up old streams/TSMAs and create new format streams
+                1.3.1 Drop all old format streams and TSMAs before database cleanup
+                1.3.2 Create s_interval: INTERVAL(5s) SLIDING(5s) with trigger/source separation
+                1.3.3 Create s_count: COUNT_WINDOW(5) with %%trows reference
+                1.3.4 Create s_period: PERIOD(30s) with cross-database computation
+                1.3.5 Create s_session: SESSION(ts, 5s) with window boundary functions
+
+        2. Test [v3.3.4.0 Version Compatibility]
+            2.1 Install v3.3.4.0 enterprise package and create old format streams and TSMAs
+                2.1.1 Create avg_stream: INTERVAL(5s) aggregation on meters table
+                2.1.2 Create max_stream: trigger at_once with MAX aggregation by tbname
+                2.1.3 Create count_stream: INTERVAL(10s) with WHERE voltage > 10 filter
+                2.1.4 Create tsma_meters: 1-minute TSMA with avg(voltage), max(current), min(voltage), count(ts)
+                2.1.5 Create tsma_meters_hourly: 1-hour TSMA with avg(voltage), max(current), min(current), count(ts)
+                2.1.6 Create tsma_meters_detail: 30-second TSMA with sum(voltage), avg(current), max(phase), min(phase)
+            2.2 Verify new version startup behavior with old streams and TSMAs
+                2.2.1 Attempt to start new version (should fail due to incompatible streams/TSMAs)
+                2.2.2 Verify stream and TSMA incompatibility detection
+            2.3 Clean up old streams/TSMAs and create new format streams
+                2.3.1 Drop all old format streams and TSMAs before database cleanup
+                2.3.2 Create s_interval: INTERVAL(5s) SLIDING(5s) with trigger/source separation
+                2.3.3 Create s_count: COUNT_WINDOW(5) with %%trows reference
+                2.3.4 Create s_period: PERIOD(30s) with cross-database computation
+                2.3.5 Create s_session: SESSION(ts, 5s) with window boundary functions
+
+        3. Test [v3.3.5.0 Version Compatibility]
+            3.1 Install v3.3.5.0 enterprise package and create old format streams and TSMAs
+                3.1.1 Create avg_stream: INTERVAL(5s) aggregation on meters table
+                3.1.2 Create max_stream: trigger at_once with MAX aggregation by tbname
+                3.1.3 Create count_stream: INTERVAL(10s) with WHERE voltage > 10 filter
+                3.1.4 Create tsma_meters: 1-minute TSMA with avg(voltage), max(current), min(voltage), count(ts)
+                3.1.5 Create tsma_meters_hourly: 1-hour TSMA with avg(voltage), max(current), min(current), count(ts)
+                3.1.6 Create tsma_meters_detail: 30-second TSMA with sum(voltage), avg(current), max(phase), min(phase)
+            3.2 Verify new version startup behavior with old streams and TSMAs
+                3.2.1 Attempt to start new version (should fail due to incompatible streams/TSMAs)
+                3.2.2 Verify stream and TSMA incompatibility detection
+            3.3 Clean up old streams/TSMAs and create new format streams
+                3.3.1 Drop all old format streams and TSMAs before database cleanup
+                3.3.2 Create s_interval: INTERVAL(5s) SLIDING(5s) with trigger/source separation
+                3.3.3 Create s_count: COUNT_WINDOW(5) with %%trows reference
+                3.3.4 Create s_period: PERIOD(30s) with cross-database computation
+                3.3.5 Create s_session: SESSION(ts, 5s) with window boundary functions
+
+        4. Test [v3.3.6.0 Version Compatibility]
+            4.1 Install v3.3.6.0 enterprise package and create old format streams and TSMAs
+                4.1.1 Create avg_stream: INTERVAL(5s) aggregation on meters table
+                4.1.2 Create max_stream: trigger at_once with MAX aggregation by tbname
+                4.1.3 Create count_stream: INTERVAL(10s) with WHERE voltage > 10 filter
+                4.1.4 Create tsma_meters: 1-minute TSMA with avg(voltage), max(current), min(voltage), count(ts)
+                4.1.5 Create tsma_meters_hourly: 1-hour TSMA with avg(voltage), max(current), min(current), count(ts)
+                4.1.6 Create tsma_meters_detail: 30-second TSMA with sum(voltage), avg(current), max(phase), min(phase)
+            4.2 Verify new version startup behavior with old streams and TSMAs
+                4.2.1 Attempt to start new version (should fail due to incompatible streams/TSMAs)
+                4.2.2 Verify stream and TSMA incompatibility detection
+            4.3 Clean up old streams/TSMAs and create new format streams
+                4.3.1 Drop all old format streams and TSMAs before database cleanup
+                4.3.2 Create s_interval: INTERVAL(5s) SLIDING(5s) with trigger/source separation
+                4.3.3 Create s_count: COUNT_WINDOW(5) with %%trows reference
+                4.3.4 Create s_period: PERIOD(30s) with cross-database computation
+                4.3.5 Create s_session: SESSION(ts, 5s) with window boundary functions
 
         Catalog:
-            - Streams:Compatibility
+            - Streams:Compatibility:CrossVersion
 
         Since: v3.3.7.0
 
-        Labels: compatibility,ci
+        Labels: common,ci
 
-        Jira: TS-6100
+        Jira: None
 
         History:
-            - 2025-07-22 Beryl Migrated to new test framework
+            - 2025-07-23 Beryl Created
 
         """
+
         try:
             import distro
             distro_id = distro.id()
@@ -161,8 +228,8 @@ class TestStreamCompatibility:
 
     def createStreamOnOldVersion(self, base_version):
         """Create snode and streams on old version"""
-        tdLog.printNoPrefix(f"==========Creating snode and streams on old version {base_version}==========")
-        
+        tdLog.printNoPrefix(f"==========Creating snode, streams and TSMAs on old version {base_version}==========")
+
         # Create test database and tables
         os.system("LD_LIBRARY_PATH=/usr/lib taos -s 'drop database if exists stream_test;'")
         os.system("LD_LIBRARY_PATH=/usr/lib taos -s 'create database stream_test;'")
@@ -195,14 +262,26 @@ class TestStreamCompatibility:
             os.system(f"LD_LIBRARY_PATH=/usr/lib taos -s '{sql}'")
             tdLog.info(f"Created stream: {sql[:50]}...")
         
-        # Show streams
+        # Create TSMA (Time-Range Small Materialized Aggregates)
+        tsma_sqls = [
+            "create tsma tsma_meters on stream_test.meters function(avg(voltage), max(current), min(voltage), count(ts)) interval(1m);",
+            "create tsma tsma_meters_hourly on stream_test.meters function(avg(voltage), max(current), min(current), count(ts)) interval(1h);",
+            "create tsma tsma_meters_detail on stream_test.meters function(sum(voltage), avg(current), max(phase), min(phase)) interval(30s);"
+        ]
+        
+        for sql in tsma_sqls:
+            os.system(f"LD_LIBRARY_PATH=/usr/lib taos -s '{sql}'")
+            tdLog.info(f"Created TSMA: {sql[:50]}...")
+        
+        # Show streams and TSMAs
         os.system("LD_LIBRARY_PATH=/usr/lib taos -s 'show streams;'")
         os.system("LD_LIBRARY_PATH=/usr/lib taos -s 'show snodes;'")
+        os.system("LD_LIBRARY_PATH=/usr/lib taos -s 'show stream_test.tsmas;'")
         
         # Flush database
         os.system("LD_LIBRARY_PATH=/usr/lib taos -s 'flush database stream_test;'")
         
-        tdLog.info("Stream creation on old version completed")
+        tdLog.info("Stream and TSMA creation on old version completed")
 
     def tryStartWithNewVersion(self, bPath):
         """Try to start with new version - should fail due to incompatible streams"""
@@ -241,8 +320,8 @@ class TestStreamCompatibility:
 
     def cleanupStreamsOnOldVersion(self, bPath, cPath, base_version):
         """Start old version and cleanup streams"""
-        tdLog.printNoPrefix(f"==========Cleaning up streams on old version {base_version}==========")
-        
+        tdLog.printNoPrefix(f"==========Cleaning up streams and TSMAs on old version {base_version}==========")
+
         # Restart old version
         self.restartTaosd(cPath)
         time.sleep(5)
@@ -252,11 +331,30 @@ class TestStreamCompatibility:
             "drop stream if exists avg_stream;",
             "drop stream if exists max_stream;", 
             "drop stream if exists count_stream;",
+        ]
+        
+        for sql in cleanup_sqls:
+            os.system(f"LD_LIBRARY_PATH=/usr/lib taos -s '{sql}'")
+            tdLog.info(f"Executed cleanup: {sql}")
+        
+        # Drop TSMAs (must be done before dropping database)
+        tsma_cleanup_sqls = [
+            "drop tsma if exists stream_test.tsma_meters;",
+            "drop tsma if exists stream_test.tsma_meters_hourly;",
+            "drop tsma if exists stream_test.tsma_meters_detail;"
+        ]
+        
+        for sql in tsma_cleanup_sqls:
+            os.system(f"LD_LIBRARY_PATH=/usr/lib taos -s '{sql}'")
+            tdLog.info(f"Executed TSMA cleanup: {sql}")
+        
+        # Drop snode and database
+        final_cleanup_sqls = [
             "drop snode on dnode 1;",
             "drop database if exists stream_test;"
         ]
         
-        for sql in cleanup_sqls:
+        for sql in final_cleanup_sqls:
             os.system(f"LD_LIBRARY_PATH=/usr/lib taos -s '{sql}'")
             tdLog.info(f"Executed cleanup: {sql}")
         

@@ -124,7 +124,7 @@ typedef struct SParseContext {
   bool             isView;
   bool             isAudit;
   bool             nodeOffline;
-  bool             isStmtBind;
+  uint8_t          stmtBindVersion;  // 0 for not stmt; 1 for stmt1; 2 for stmt2
   const char*      svrVer;
   SArray*          pTableMetaPos;    // sql table pos => catalog data pos
   SArray*          pTableVgroupPos;  // sql table pos => catalog data pos
@@ -140,6 +140,10 @@ typedef struct SParseContext {
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);
 bool    qIsInsertValuesSql(const char* pStr, size_t length);
+bool    qIsUpdateSetSql(const char* pStr, size_t length, SName* pTableName, int32_t acctId, const char* dbName,
+                        char* msgBuf, int32_t msgBufLen, int* pCode);
+int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTableMeta, char* msgBuf,
+                              int32_t msgBufLen);
 bool    qParseDbName(const char* pStr, size_t length, char** pDbName);
 
 // for async mode
@@ -160,7 +164,9 @@ int32_t qInitKeywordsTable();
 void    qCleanupKeywordsTable();
 
 int32_t qAppendStmtTableOutput(SQuery* pQuery, SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,
-                               SStbInterlaceInfo* pBuildInfo, SVCreateTbReq* ctbReq);
+                               SStbInterlaceInfo* pBuildInfo);
+int32_t qAppendStmt2TableOutput(SQuery* pQuery, SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,
+                                SStbInterlaceInfo* pBuildInfo, SVCreateTbReq* ctbReq);
 int32_t qBuildStmtFinOutput(SQuery* pQuery, SHashObj* pAllVgHash, SArray* pVgDataBlocks);
 // int32_t     qBuildStmtOutputFromTbList(SQuery* pQuery, SHashObj* pVgHash, SArray* pBlockList, STableDataCxt* pTbCtx,
 // int32_t tbNum);
@@ -230,7 +236,9 @@ int32_t serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap, SArray** pOut);
 void    destoryCatalogReq(SCatalogReq* pCatalogReq);
 bool    isPrimaryKeyImpl(SNode* pExpr);
 int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,
-                                  SStbInterlaceInfo* pBuildInfo, SVCreateTbReq* ctbReq);
+                                  SStbInterlaceInfo* pBuildInfo);
+int32_t insAppendStmt2TableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,
+                                   SStbInterlaceInfo* pBuildInfo, SVCreateTbReq* ctbReq);
 
 #ifdef __cplusplus
 }

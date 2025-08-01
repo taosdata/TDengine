@@ -139,7 +139,7 @@ static void destoryAllocatedTuple(void* t) { taosMemoryFree(t); }
 #define tupleOffset(tuple, colIdx)                ((uint32_t*)(tuple + sizeof(uint32_t) * colIdx))
 #define tupleSetOffset(tuple, colIdx, offset)     (*tupleOffset(tuple, colIdx) = offset)
 #define tupleSetNull(tuple, colIdx, colNum)       colDataSetNull_f((char*)tuple + sizeof(uint32_t) * colNum, colIdx)
-#define tupleColIsNull(tuple, colIdx, colNum)     colDataIsNull_f((char*)tuple + sizeof(uint32_t) * colNum, colIdx)
+#define tupleColIsNull(tuple, colIdx, colNum)     BMIsNull((char*)tuple + sizeof(uint32_t) * colNum, colIdx)
 #define tupleGetDataStartOffset(colNum)           (sizeof(uint32_t) * colNum + BitmapLen(colNum))
 #define tupleSetData(tuple, offset, data, length) memcpy(tuple + offset, data, length)
 

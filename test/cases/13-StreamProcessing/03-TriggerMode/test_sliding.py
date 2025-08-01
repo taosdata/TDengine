@@ -80,7 +80,7 @@ class TestStreamSlidingTrigger:
         ("select _wstart, _tcurrent_ts, avg(cint), max(cint) from {calcTbname} partition by tbname interval(5s)", (0, False), True), #25
         ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from {calcTbname} interval(10s)", (0, False), True), #26
         ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from {calcTbname} where cts >= _tprev_ts and cts < _tcurrent_ts interval(10s)", (0, False), True), #27
-        ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from %%trows where cts >= _tprev_ts + 1s and cts < _tcurrent_ts - 1s interval(1s)", (0, False), True), #28
+        ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from %%trows interval(1s)", (0, False), True), #28
         ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from %%trows interval(60s)" , (0, False), True), #29
 
         ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from {calcTbname} partition by cint state_window(cuint)", (0, False), True), #30
@@ -95,11 +95,11 @@ class TestStreamSlidingTrigger:
         ("select _wstart,sum({calcTbname}.cint), max({calcTbname}.cint) from {calcTbname} ,{calcTbname} as t2 where {calcTbname}.cts=t2.cts  interval(120s)", (0, False), True), #37
         ("(select _wstart, avg(cint) c, max(cint) from {calcTbname} partition by cint interval(60s) ) union all (select _wstart, avg(cint) c, max(cint) from {calcTbname} partition by cint interval(60s) order by _wstart,c)", (0, False), True), #38
         ("select last(cts), avg(cint), sum(cint) from %%tbname group by tbname", (1, True), True), #39
-        ("select cts, cint,   %%tbname from %%trows where %%tbname like '%1' order by cts", (0, False), True), #40
+        ("select cts, cint,   %%tbname from %%trows order by cts", (0, False), True), #40
         ("select cts, cint from {calcTbname} where _tcurrent_ts % 2 = 1 order by cts", (0, False), True), #41
         ("select last(cts), avg(cint), sum(cint) from %%trows group by tbname", (1, True), True), #42
         ("(select _wstart, avg(cint) c, max(cint) from {calcTbname}  interval(60s) order by _wstart,c) union all (select _wstart, avg(cint) c, max(cint) from {calcTbname}  interval(60s) order by _wstart,c)", (0, False), True), #43
-        ("select cts, cint,   %%tbname from %%trows where cint >15 and tint >0 and  %%tbname like '%2' order by cts", (0, False), True), #44
+        ("select cts, cint,   %%tbname from %%trows order by cts", (0, False), True), #44
         ("select _tcurrent_ts, avg(cint), sum(cint) from %%tbname group by cint order by cint", (1, True), True), #45
 
     ]

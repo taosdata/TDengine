@@ -1,5 +1,9 @@
 #caseID,rerunTimes,Run with Sanitizer,casePath,caseCommand
 #NA,NA,y or n,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
+#examples
+,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
+,,n,.,pytest cases/01-DataTypes/test_datatype_bigint.py
+
 # 01-DataTypes
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bool.py
@@ -16,11 +20,15 @@
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_uint.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_unsign.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_varbinary.py
+,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_blob.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_varchar.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null_column.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_ts6333.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_composite_key_load.py
+
+
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_compatibility_rolling_upgrade.py -N 3
 
 # 02-Databases
 ## 01-Create
@@ -274,8 +282,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_commit.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_insert_backquote.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_insert_null.py
-#memleak,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_insert_select.py
-,,n,.,pytest cases/06-DataIngestion/05-Others/test_insert_select.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_insert_select.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_wal_kill.py
 
 # 07-DataQuerying
@@ -482,6 +489,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_topic.py
 #,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_params.py
 #,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_params.py -R
+,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_force_drop_topic.py
 ## 03-WebSocket
 ## 04-MQTT
 ,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_smoking.py
@@ -518,13 +526,15 @@
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/02-Stream/stream_long_name.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/02-Stream/stream_samename.py
 
-## 03-Trigger
+## 03-TriggerMode
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_state.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_count.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_event.py
 #,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_notify.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_fill_history.py
 #,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_sliding.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_window_close_state_window.py
+
 ,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_sliding.py
 ,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_state_new.py
 #,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_state_disorderNupdate_new.py
@@ -532,7 +542,7 @@
 ,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_event_new.py
 ,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_period_1.py
 
-## 04-Option
+## 04-Options
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options_vtbl.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options_abnormal.py
@@ -541,12 +551,13 @@
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_meta_vtbl.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_disorderUpdateDelete.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_disorderUpdateDelete_vtbl.py
+
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options_us.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options_ns.py
 
 ## 05-Notify
 
-## 06-Output
+## 06-ResultSaved
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/06-ResultSaved/test_result_saved_comprehensive.py 
 
 ## 07-SubQuery
@@ -560,32 +571,67 @@
 ,,n,.,pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_session.py
 ,,n,.,pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_state.py
 
-## 08-ReCalculate
+## 08-Recalc
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_expired_time.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_ignore_disorder.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_delete_recalc.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_watermark.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_combined_options.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_manual.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_manual_with_options.py
 
 ## 20-UseCase
-,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_idmp_meters.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_idmp_meters.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_idmp_vehicle.py
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_idmp_meters_td36808.py
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_idmp_tobacco.py
-#,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_nevados.py 
+,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_idmp_pv.py
+,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_nevados.py 
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_phase1.py 
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_case4.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_case4_bug1.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_case5.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case1_bug1.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case1_twostream.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case3.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case4.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case6.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case17.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case18.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case19.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case19_bug1.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case22.py
 
 ## 21-Stability 
 
 ## 22-Performance
 
 ## 23-Compatibility 
+,,n,.,pytest cases/13-StreamProcessing/23-Compatibility/stream_compatibility.py
 
-## 24-OldCases
+## 30-OldPyCases
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_state_window.py
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_window_true_for.py
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_math_func.py
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_string_func.py
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_backquote_check.py
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_taosdShell.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_checkpoint_info.py -N 4
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_snode_restart_with_checkpoint.py -N 4
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_stream_multi_agg.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_stream_basic.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_drop.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_empty_identifier.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_at_once.py
+
+
+## 31-OldCases
 ,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic1.py 
-#,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic2.py 
-#,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_check.py
-#,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_checkpoint.py
-#,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_concat.py
+,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic2.py 
+,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_check.py
+,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_checkpoint.py
+,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_concat.py
+,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_continuewindowclose.py 
 ,,n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_state.py 
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
 
@@ -647,7 +693,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_alive.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_basic.py -N 2
 ,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_diskinfo.py 
-,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_table_distributed.py 
+,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_table_distributed.py
+,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_table_distributed_null.py
 
 # 23-Users
 ,,y,.,./ci/pytest.sh pytest cases/23-Users/test_user_basic.py
@@ -960,6 +1007,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stbJoin.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stbJoin.py -Q 4
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hint.py
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_compatibility_rolling_upgrade_all.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hint.py -Q 2
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hint.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hint.py -Q 4
@@ -1497,6 +1545,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_blockSMA.py -Q 2
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_projectionDesc.py -Q 2
 
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_compatibility.py
+
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_between.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distinct.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_varchar.py -Q 3
@@ -1790,10 +1840,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_delete_normaltable.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_keep_expired.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_stmt_error.py
-#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_drop.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_drop.py -N 3 -M 3 -I False --replica 3
-
-
 
 ### 3-enterprise
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/3-enterprise/restore/test_restore_dnode.py -N 5 -M 3 -I False
@@ -1914,9 +1960,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_information_schema.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_ins_filesets.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_grant.py
-#newstm,,n,.,pytest cases/uncatalog/system-test/0-others/test_compatibility_rolling_upgrade_all.py -N 3
-#newstm,,n,.,pytest cases/uncatalog/system-test/0-others/test_compatibility.py
-#newstm,,n,.,pytest cases/uncatalog/system-test/0-others/test_compatibility_rolling_upgrade.py -N 3
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/view/non_marterial_view/test_view.py
 

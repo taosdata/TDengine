@@ -58,6 +58,7 @@ static int32_t vnodeProcessArbCheckSyncReq(SVnode *pVnode, void *pReq, int32_t l
 static int32_t vnodeProcessDropTSmaCtbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
                                           SRpcMsg *pOriginRpc);
 
+static int32_t vnodeCheckState(SVnode *pVnode);
 static int32_t vnodeCheckToken(SVnode *pVnode, char *member0Token, char *member1Token);
 static int32_t vnodeCheckSyncd(SVnode *pVnode, char *member0Token, char *member1Token);
 static int32_t vnodeProcessFetchTtlExpiredTbs(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
@@ -303,16 +304,6 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
   }
 
   int32_t keep = pVnode->config.tsdbCfg.keep2;
-  /*
-  int32_t nlevel = tfsGetLevel(pVnode->pTfs);
-  if (nlevel > 1 && tsSsEnabled) {
-    if (nlevel == 3) {
-      keep = pVnode->config.tsdbCfg.keep1;
-    } else if (nlevel == 2) {
-      keep = pVnode->config.tsdbCfg.keep0;
-    }
-  }
-  */
 
   TSKEY minKey = now - tsTickPerMin[pVnode->config.tsdbCfg.precision] * keep;
   TSKEY maxKey = tsMaxKeyByPrecision[pVnode->config.tsdbCfg.precision];
@@ -505,6 +496,12 @@ static int32_t vnodePreProcessBatchDeleteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 }
 
 static int32_t vnodePreProcessArbCheckSyncMsg(SVnode *pVnode, SRpcMsg *pMsg) {
+  int32_t ret = 0;
+  if ((ret = vnodeCheckState(pVnode)) != 0) {
+    vDebug("vgId:%d, failed to preprocess vnode-arb-check-sync request since %s", TD_VID(pVnode), tstrerror(ret));
+    return 0;
+  }
+
   SVArbCheckSyncReq syncReq = {0};
 
   if (tDeserializeSVArbCheckSyncReq((char *)pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead),
@@ -512,9 +509,9 @@ static int32_t vnodePreProcessArbCheckSyncMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     return TSDB_CODE_INVALID_MSG;
   }
 
-  int32_t ret = vnodeCheckToken(pVnode, syncReq.member0Token, syncReq.member1Token);
+  ret = vnodeCheckToken(pVnode, syncReq.member0Token, syncReq.member1Token);
   if (ret != 0) {
-    vError("vgId:%d, failed to preprocess arb check sync request since %s", TD_VID(pVnode), tstrerror(ret));
+    vError("vgId:%d, failed to preprocess vnode-arb-check-sync request since %s", TD_VID(pVnode), tstrerror(ret));
   }
 
   int32_t code = terrno;
@@ -578,25 +575,27 @@ _exit:
   return code;
 }
 
-
-int32_t vnodePreProcessSsMigrateReq(SVnode* pVnode, SRpcMsg* pMsg) {
-  int32_t          code = TSDB_CODE_SUCCESS;
-  int32_t          lino = 0;
+int32_t vnodePreProcessSsMigrateReq(SVnode *pVnode, SRpcMsg *pMsg) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
   SSsMigrateVgroupReq req = {0};
 
-  code = tDeserializeSSsMigrateVgroupReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead), &req);
+  code = tDeserializeSSsMigrateVgroupReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead),
+                                         &req);
   if (code < 0) {
     terrno = code;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   req.nodeId = vnodeNodeId(pVnode);
-  tSerializeSSsMigrateVgroupReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead), &req);
-
+  if (tSerializeSSsMigrateVgroupReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead),
+                                    &req) < 0) {
+    vError("vgId:%d %s failed to serialize ss migrate request", TD_VID(pVnode), __func__);
+    code = TSDB_CODE_INVALID_MSG;
+  }
 _exit:
   return code;
 }
-
 
 int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = 0;
@@ -652,9 +651,9 @@ static int32_t inline vnodeSubmitSubRowBlobData(SVnode *pVnode, SSubmitTbData *p
   int32_t code = 0;
   int32_t lino = 0;
 
-  int64_t    st = taosGetTimestampUs();
-  SBlobSet  *pBlobSet = pSubmitTbData->pBlobSet;
-  int32_t    sz = taosArrayGetSize(pBlobSet->pSeqTable);
+  int64_t   st = taosGetTimestampUs();
+  SBlobSet *pBlobSet = pSubmitTbData->pBlobSet;
+  int32_t   sz = taosArrayGetSize(pBlobSet->pSeqTable);
 
   SBseBatch *pBatch = NULL;
 
@@ -681,7 +680,10 @@ static int32_t inline vnodeSubmitSubRowBlobData(SVnode *pVnode, SSubmitTbData *p
       break;
     }
 
-    tPutU64(row->data + p->dataOffset, seq);
+    if (tPutU64(row->data + p->dataOffset, seq) < 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
   }
 
   code = bseCommitBatch(pVnode->pBse, pBatch);
@@ -703,11 +705,11 @@ static int32_t inline vnodeSubmitSubColBlobData(SVnode *pVnode, SSubmitTbData *p
   int32_t code = 0;
   int32_t lino = 0;
 
-  int32_t    blobColIdx = 0;
-  SColData  *pBlobCol = NULL;
-  int64_t    st = taosGetTimestampUs();
-  SBlobSet  *pBlobSet = pSubmitTbData->pBlobSet;
-  int32_t    sz = taosArrayGetSize(pBlobSet->pSeqTable);
+  int32_t   blobColIdx = 0;
+  SColData *pBlobCol = NULL;
+  int64_t   st = taosGetTimestampUs();
+  SBlobSet *pBlobSet = pSubmitTbData->pBlobSet;
+  int32_t   sz = taosArrayGetSize(pBlobSet->pSeqTable);
 
   SBseBatch *pBatch = NULL;
 
@@ -804,8 +806,8 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
   }
 
   if (!(pVnode->state.applied + 1 == ver)) {
-    vError("vgId:%d, mountVgId:%d, ver mismatch, expected: %" PRId64 ", received: %" PRId64, TD_VID(pVnode), pVnode->config.mountVgId,
-           pVnode->state.applied + 1, ver);
+    vError("vgId:%d, mountVgId:%d, ver mismatch, expected: %" PRId64 ", received: %" PRId64, TD_VID(pVnode),
+           pVnode->config.mountVgId, pVnode->state.applied + 1, ver);
     return terrno = TSDB_CODE_INTERNAL_ERROR;
   }
 
@@ -1149,7 +1151,7 @@ _exit:
 extern int32_t vnodeAsyncSsMigrate(SVnode *pVnode, SSsMigrateVgroupReq *pReq);
 
 static int32_t vnodeProcessSsMigrateReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  int32_t          code = 0;
+  int32_t             code = 0;
   SSsMigrateVgroupReq req = {0};
   SSsMigrateVgroupRsp rsp = {0};
   pRsp->msgType = TDMT_VND_SSMIGRATE_RSP;
@@ -1183,7 +1185,11 @@ static int32_t vnodeProcessSsMigrateReq(SVnode *pVnode, int64_t ver, void *pReq,
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-  tSerializeSSsMigrateVgroupRsp(pRsp->pCont, pRsp->contLen, &rsp);
+
+  if (tSerializeSSsMigrateVgroupRsp(pRsp->pCont, pRsp->contLen, &rsp) < 0) {
+    vError("vgId:%d, failed to serialize ssmigrate response", TD_VID(pVnode));
+    code = TSDB_CODE_INVALID_MSG;
+  }
 
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
@@ -1192,11 +1198,10 @@ _exit:
   return code;
 }
 
-
 extern int32_t vnodeFollowerSsMigrate(SVnode *pVnode, SFollowerSsMigrateReq *pReq);
 
 static int32_t vnodeProcessFollowerSsMigrateReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  int32_t          code = 0;
+  int32_t               code = 0;
   SFollowerSsMigrateReq req = {0};
 
   // decode
@@ -1984,7 +1989,7 @@ static int32_t vnodeSubmitReqConvertToSubmitReq2(SVnode *pVnode, SSubmitReq *pRe
     while (TSDB_CODE_SUCCESS == code && (cxt.pRow = tGetSubmitBlkNext(&cxt.blkIter)) != NULL) {
       code = vnodeTSRowConvertToColValArray(&cxt);
       if (TSDB_CODE_SUCCESS == code) {
-        SRow            **pNewRow = taosArrayReserve(cxt.pTbData->aRowP, 1);
+        SRow **pNewRow = taosArrayReserve(cxt.pTbData->aRowP, 1);
 
         SRowBuildScanInfo sinfo = {0};
         code = tRowBuild(cxt.pColValues, cxt.pTbSchema, pNewRow, &sinfo);
@@ -2035,8 +2040,9 @@ static int32_t buildExistSubTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbDat
     vError("vgId:%d, table uid:%" PRId64 " not exists, line:%d", TD_VID(pVnode), pSubmitTbData->uid, __LINE__);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-    if (pEntry->type != TSDB_SUPER_TABLE) {
-    vError("vgId:%d, table uid:%" PRId64 " exists, but is not super table, line:%d", TD_VID(pVnode), pSubmitTbData->uid, __LINE__);
+  if (pEntry->type != TSDB_SUPER_TABLE) {
+    vError("vgId:%d, table uid:%" PRId64 " exists, but is not super table, line:%d", TD_VID(pVnode), pSubmitTbData->uid,
+           __LINE__);
     code = TSDB_CODE_STREAM_INSERT_SCHEMA_NOT_MATCH;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -2083,18 +2089,19 @@ _exit:
   return code;
 }
 
-static int32_t buildExistNormalTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbData, STableMetaRsp **ppRsp) {
+static int32_t buildExistNormalTalbeRsp(SVnode *pVnode, int64_t uid, STableMetaRsp **ppRsp) {
   int32_t code = 0;
   int32_t lino = 0;
 
   SMetaEntry *pEntry = NULL;
-  code = metaFetchEntryByUid(pVnode->pMeta, pSubmitTbData->uid, &pEntry);
+  code = metaFetchEntryByUid(pVnode->pMeta, uid, &pEntry);
   if (code) {
-    vError("vgId:%d, table uid:%" PRId64 " not exists, line:%d", TD_VID(pVnode), pSubmitTbData->uid, __LINE__);
+    vError("vgId:%d, table uid:%" PRId64 " not exists, line:%d", TD_VID(pVnode), uid, __LINE__);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
   if (pEntry->type != TSDB_NORMAL_TABLE) {
-    vError("vgId:%d, table uid:%" PRId64 " exists, but is not normal table, line:%d", TD_VID(pVnode), pSubmitTbData->uid, __LINE__);
+    vError("vgId:%d, table uid:%" PRId64 " exists, but is not normal table, line:%d", TD_VID(pVnode),
+           uid, __LINE__);
     code = TSDB_CODE_STREAM_INSERT_SCHEMA_NOT_MATCH;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -2132,9 +2139,9 @@ _exit:
   return code;
 }
 
-static int32_t buildExistTalbeInStreamRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbData, STableMetaRsp **ppRsp) {
+static int32_t buildExistTableInStreamRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbData, STableMetaRsp **ppRsp) {
   if (pSubmitTbData->pCreateTbReq->flags & TD_CREATE_NORMAL_TB_IN_STREAM) {
-    int32_t code = buildExistNormalTalbeRsp(pVnode, pSubmitTbData, ppRsp);
+    int32_t code = buildExistNormalTalbeRsp(pVnode, pSubmitTbData->uid, ppRsp);
     if (code) {
       vError("vgId:%d, table uid:%" PRId64 " not exists, line:%d", TD_VID(pVnode), pSubmitTbData->uid, __LINE__);
       return code;
@@ -2146,16 +2153,400 @@ static int32_t buildExistTalbeInStreamRsp(SVnode *pVnode, SSubmitTbData *pSubmit
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t vnodeHandleAutoCreateTable(SVnode      *pVnode,    // vnode
+                                          int64_t      version,   // version
+                                          SSubmitReq2 *pRequest,  // request
+                                          SSubmitRsp2 *pResponse  // response
+) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t numTbData = taosArrayGetSize(pRequest->aSubmitTbData);
+  SArray *newTbUids = NULL;
+
+  for (int32_t i = 0; i < numTbData; ++i) {
+    SSubmitTbData *pTbData = taosArrayGet(pRequest->aSubmitTbData, i);
+
+    if (pTbData->pCreateTbReq == NULL) {
+      continue;
+    }
+
+    pTbData->uid = pTbData->pCreateTbReq->uid;
+
+    // Alloc necessary resources
+    if (pResponse->aCreateTbRsp == NULL) {
+      pResponse->aCreateTbRsp = taosArrayInit(numTbData, sizeof(SVCreateTbRsp));
+      if (pResponse->aCreateTbRsp == NULL) {
+        code = terrno;
+        vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pVnode), __func__, __FILE__, __LINE__,
+               tstrerror(code), version);
+        taosArrayDestroy(newTbUids);
+        return code;
+      }
+    }
+
+    // Do create table
+    vDebug("vgId:%d start to handle auto create table, version:%" PRId64, TD_VID(pVnode), version);
+
+    SVCreateTbRsp *pCreateTbRsp = taosArrayReserve(pResponse->aCreateTbRsp, 1);
+    code = metaCreateTable2(pVnode->pMeta, version, pTbData->pCreateTbReq, &pCreateTbRsp->pMeta);
+    if (code == TSDB_CODE_SUCCESS) {
+      // Allocate necessary resources
+      if (newTbUids == NULL) {
+        newTbUids = taosArrayInit(numTbData, sizeof(int64_t));
+        if (newTbUids == NULL) {
+          code = terrno;
+          vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pVnode), __func__, __FILE__, __LINE__,
+                 tstrerror(code), version);
+          return code;
+        }
+      }
+
+      if (taosArrayPush(newTbUids, &pTbData->uid) == NULL) {
+        code = terrno;
+        vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pVnode), __func__, __FILE__, __LINE__,
+               tstrerror(code), version);
+        taosArrayDestroy(newTbUids);
+        return code;
+      }
+
+      if (pCreateTbRsp->pMeta) {
+        vnodeUpdateMetaRsp(pVnode, pCreateTbRsp->pMeta);
+      }
+    } else if (code == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
+      code = terrno = 0;
+      pTbData->uid = pTbData->pCreateTbReq->uid;  // update uid if table exist for using below
+
+      // stream: get sver from meta, write to pCreateTbRsp, and need to check crateTbReq is same as meta.
+      if (i == 0) {
+        // In the streaming scenario, multiple grouped req requests will only operate on the same write table, and
+        // only the first one needs to be processed.
+        code = buildExistTableInStreamRsp(pVnode, pTbData, &pCreateTbRsp->pMeta);
+        if (code) {
+          vInfo("vgId:%d failed to create table in stream:%s, code(0x%0x):%s", TD_VID(pVnode),
+                pTbData->pCreateTbReq->name, code, tstrerror(code));
+          taosArrayDestroy(newTbUids);
+          return code;
+        }
+      }
+    } else {
+      code = terrno;
+      vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pVnode), __func__, __FILE__, __LINE__,
+             tstrerror(code), version);
+      taosArrayDestroy(newTbUids);
+      return code;
+    }
+  }
+
+  // Update the affected table uid list
+  if (taosArrayGetSize(newTbUids) > 0) {
+    vDebug("vgId:%d, add %d table into query table list in handling submit", TD_VID(pVnode),
+           (int32_t)taosArrayGetSize(newTbUids));
+    if (tqUpdateTbUidList(pVnode->pTq, newTbUids, true) != 0) {
+      vError("vgId:%d, failed to update tbUid list", TD_VID(pVnode));
+    }
+  }
+
+  vDebug("vgId:%d, handle auto create table done, version:%" PRId64, TD_VID(pVnode), version);
+
+  taosArrayDestroy(newTbUids);
+  return code;
+}
+
+static void addExistTableInfoIntoRes(SVnode *pVnode, SSubmitReq2 *pRequest, SSubmitRsp2 *pResponse, SSubmitTbData *pTbData,
+                                     int32_t numTbData) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  if ((pTbData->flags & SUBMIT_REQ_SCHEMA_RES) == 0) {
+    return;
+  }
+  if (pResponse->aCreateTbRsp) {  // If aSubmitTbData is not NULL, it means that the request is a create table request,
+                                  // so table info has exitst and we do not need to add again.
+    return;
+  }
+  pResponse->aCreateTbRsp = taosArrayInit(numTbData, sizeof(SVCreateTbRsp));
+  if (pResponse->aCreateTbRsp == NULL) {
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  SVCreateTbRsp *pCreateTbRsp = taosArrayReserve(pResponse->aCreateTbRsp, 1);
+  if (pCreateTbRsp == NULL) {
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  if (pTbData->suid == 0) {
+    code = buildExistNormalTalbeRsp(pVnode, pTbData->uid, &pCreateTbRsp->pMeta);
+    if (code) {
+      vError("vgId:%d, table uid:%" PRId64 " not exists, line:%d", TD_VID(pVnode), pTbData->uid, __LINE__);
+    }
+  } else {
+    code = buildExistSubTalbeRsp(pVnode, pTbData, &pCreateTbRsp->pMeta);
+  }
+
+  TSDB_CHECK_CODE(code, lino, _exit);
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    vError("vgId:%d, failed to add exist table info into response, code:0x%0x, line:%d", TD_VID(pVnode), code, lino);
+  }
+  return;
+}
+
+static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2 *pRequest, SSubmitRsp2 *pResponse) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t numTbData = taosArrayGetSize(pRequest->aSubmitTbData);
+  int8_t  hasBlob = 0;
+
+  // Scan submit data
+  for (int32_t i = 0; i < numTbData; ++i) {
+    SMetaInfo      info = {0};
+    SSubmitTbData *pTbData = taosArrayGet(pRequest->aSubmitTbData, i);
+
+    if (pTbData->flags & SUBMIT_REQ_WITH_BLOB) {
+      hasBlob = 1;
+    }
+    if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+      continue;  // skip column data format
+    }
+
+    code = metaGetInfo(pVnode->pMeta, pTbData->uid, &info, NULL);
+    if (code) {
+      code = TSDB_CODE_TDB_TABLE_NOT_EXIST;
+      vWarn("vgId:%d, error occurred at %s:%d since %s, version:%" PRId64 " uid:%" PRId64, TD_VID(pVnode), __FILE__,
+            __LINE__, tstrerror(code), version, pTbData->uid);
+      return code;
+    }
+
+    if (info.suid != pTbData->suid) {
+      code = TSDB_CODE_INVALID_MSG;
+      vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " uid:%" PRId64 " suid:%" PRId64
+             " info.suid:%" PRId64,
+             TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), version, pTbData->uid, pTbData->suid,
+             info.suid);
+      return code;
+    }
+
+    if (info.suid) {
+      code = metaGetInfo(pVnode->pMeta, info.suid, &info, NULL);
+      if (code) {
+        code = TSDB_CODE_INTERNAL_ERROR;
+        vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " suid:%" PRId64, TD_VID(pVnode), __func__,
+               __FILE__, __LINE__, tstrerror(code), version, info.suid);
+        return code;
+      }
+    }
+
+    if (pTbData->sver != info.skmVer) {
+      code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+      addExistTableInfoIntoRes(pVnode, pRequest, pResponse, pTbData, numTbData);
+      vDebug("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " uid:%" PRId64
+             " sver:%d"
+             " info.skmVer:%d",
+             TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), version, pTbData->uid, pTbData->sver,
+             info.skmVer);
+      return code;
+    }
+  }
+
+  // Do write data
+  vDebug("vgId:%d start to handle data write, version:%" PRId64, TD_VID(pVnode), version);
+
+  for (int32_t i = 0; i < numTbData; ++i) {
+    int32_t        affectedRows = 0;
+    SSubmitTbData *pTbData = taosArrayGet(pRequest->aSubmitTbData, i);
+
+    if (hasBlob) {
+      code = vnodeSubmitBlobData(pVnode, pTbData);
+      if (code) {
+        vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " uid:%" PRId64, TD_VID(pVnode), __func__,
+               __FILE__, __LINE__, tstrerror(code), version, pTbData->uid);
+        return code;
+      }
+    }
+
+    code = tsdbInsertTableData(pVnode->pTsdb, version, pTbData, &affectedRows);
+    if (code) {
+      vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " uid:%" PRId64, TD_VID(pVnode), __func__,
+             __FILE__, __LINE__, tstrerror(code), version, pTbData->uid);
+      return code;
+    }
+
+    code = metaUpdateChangeTimeWithLock(pVnode->pMeta, pTbData->uid, pTbData->ctimeMs);
+    if (code) {
+      vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " uid:%" PRId64, TD_VID(pVnode), __func__,
+             __FILE__, __LINE__, tstrerror(code), version, pTbData->uid);
+      return code;
+    }
+    pResponse->affectedRows += affectedRows;
+  }
+
+  vDebug("vgId:%d, handle data write done, version:%" PRId64 ", affectedRows:%d", TD_VID(pVnode), version,
+         pResponse->affectedRows);
+  return code;
+}
+
+static int32_t vnodeScanColumnData(SVnode *pVnode, SSubmitTbData *pTbData, TSKEY minKey, TSKEY maxKey) {
+  int32_t code = 0;
+
+  int32_t   numCols = taosArrayGetSize(pTbData->aCol);
+  SColData *aColData = (SColData *)TARRAY_DATA(pTbData->aCol);
+
+  if (numCols <= 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64 " numCols:%d", TD_VID(pVnode), __func__,
+           __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid, numCols);
+    return code;
+  }
+
+  if (aColData[0].cid != PRIMARYKEY_TIMESTAMP_COL_ID || aColData[0].type != TSDB_DATA_TYPE_TIMESTAMP ||
+      aColData[0].nVal <= 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64
+           " first column is not primary key timestamp, cid:%d type:%d nVal:%d",
+           TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid, aColData[0].cid,
+           aColData[0].type, aColData[0].nVal);
+    return code;
+  }
+
+  for (int32_t i = 1; i < numCols; ++i) {
+    if (aColData[i].nVal != aColData[0].nVal) {
+      code = TSDB_CODE_INVALID_MSG;
+      vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64
+             " column cid:%d type:%d nVal:%d is not equal to primary key timestamp nVal:%d",
+             TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid,
+             aColData[i].cid, aColData[i].type, aColData[i].nVal, aColData[0].nVal);
+      return code;
+    }
+  }
+
+  SRowKey *pLastKey = NULL;
+  SRowKey  lastKey = {0};
+  for (int32_t i = 0; i < aColData[0].nVal; ++i) {
+    SRowKey key = {0};
+
+    tColDataArrGetRowKey(aColData, numCols, i, &key);
+
+    if (key.ts < minKey || key.ts > maxKey) {
+      code = TSDB_CODE_INVALID_MSG;
+      vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64 " row[%d] key:%" PRId64
+             " is out of range [%" PRId64 ", %" PRId64 "]",
+             TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid, i, key.ts,
+             minKey, maxKey);
+      return code;
+    }
+
+    if (pLastKey && tRowKeyCompare(pLastKey, &key) >= 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64 " row[%d] key:%" PRId64
+             " is not in order, lastKey:%" PRId64,
+             TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid, i, key.ts,
+             pLastKey->ts);
+      return code;
+    } else if (pLastKey == NULL) {
+      pLastKey = &lastKey;
+    }
+
+    *pLastKey = key;
+  }
+
+  return code;
+}
+
+static int32_t vnodeScanSubmitRowData(SVnode *pVnode, SSubmitTbData *pTbData, TSKEY minKey, TSKEY maxKey) {
+  int32_t code = 0;
+
+  int32_t numRows = taosArrayGetSize(pTbData->aRowP);
+  SRow  **aRow = (SRow **)TARRAY_DATA(pTbData->aRowP);
+
+  if (numRows <= 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64 " numRows:%d", TD_VID(pVnode), __func__,
+           __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid, numRows);
+    return code;
+  }
+
+  SRowKey *pLastKey = NULL;
+  SRowKey  lastKey = {0};
+  for (int32_t i = 0; i < numRows; ++i) {
+    SRow *pRow = aRow[i];
+    if (pRow->sver != pTbData->sver) {
+      code = TSDB_CODE_INVALID_MSG;
+      vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64 " row[%d] sver:%d pTbData->sver:%d",
+             TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid, i, pRow->sver,
+             pTbData->sver);
+      return code;
+    }
+
+    SRowKey key = {0};
+    tRowGetKey(pRow, &key);
+    if (key.ts < minKey || key.ts > maxKey) {
+      code = TSDB_CODE_INVALID_MSG;
+      vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64 " row[%d] key:%" PRId64
+             " is out of range [%" PRId64 ", %" PRId64 "]",
+             TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid, i, key.ts,
+             minKey, maxKey);
+      return code;
+    }
+
+    if (pLastKey && tRowKeyCompare(pLastKey, &key) >= 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64 " row[%d] key:%" PRId64
+             " is not in order, lastKey:%" PRId64,
+             TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid, i, key.ts,
+             pLastKey->ts);
+      return code;
+    } else if (pLastKey == NULL) {
+      pLastKey = &lastKey;
+    }
+
+    *pLastKey = key;
+  }
+
+  return code;
+}
+
+static int32_t vnodeScanSubmitReq(SVnode *pVnode, int64_t version, SSubmitReq2 *pRequest, SSubmitRsp2 *pResponse) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t numTbData = taosArrayGetSize(pRequest->aSubmitTbData);
+
+  TSKEY now = taosGetTimestamp(pVnode->config.tsdbCfg.precision);
+  TSKEY minKey = now - tsTickPerMin[pVnode->config.tsdbCfg.precision] * pVnode->config.tsdbCfg.keep2;
+  TSKEY maxKey = tsMaxKeyByPrecision[pVnode->config.tsdbCfg.precision];
+  for (int32_t i = 0; i < numTbData; i++) {
+    SSubmitTbData *pTbData = taosArrayGet(pRequest->aSubmitTbData, i);
+
+    if (pTbData->pCreateTbReq && pTbData->pCreateTbReq->uid == 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pVnode), __func__, __FILE__, __LINE__,
+             tstrerror(code), version);
+      return code;
+    }
+
+    if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+      code = vnodeScanColumnData(pVnode, pTbData, minKey, maxKey);
+      if (code) {
+        vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " uid:%" PRId64, TD_VID(pVnode), __func__,
+               __FILE__, __LINE__, tstrerror(code), version, pTbData->uid);
+        return code;
+      }
+    } else {
+      code = vnodeScanSubmitRowData(pVnode, pTbData, minKey, maxKey);
+      if (code) {
+        vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " uid:%" PRId64, TD_VID(pVnode), __func__,
+               __FILE__, __LINE__, tstrerror(code), version, pTbData->uid);
+        return code;
+      }
+    }
+  }
+
+  return code;
+}
+
 static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
                                      SRpcMsg *pOriginalMsg) {
   int32_t code = 0;
   int32_t lino = 0;
   terrno = 0;
-  uint8_t hasBlob = 0;
 
   SSubmitReq2 *pSubmitReq = &(SSubmitReq2){0};
   SSubmitRsp2 *pSubmitRsp = &(SSubmitRsp2){0};
-  SArray      *newTbUids = NULL;
   int32_t      ret;
   SEncoder     ec = {0};
 
@@ -2163,7 +2554,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
 
   void           *pAllocMsg = NULL;
   SSubmitReq2Msg *pMsg = (SSubmitReq2Msg *)pReq;
-  SDecoder dc = {0};
+  SDecoder        dc = {0};
   if (0 == taosHton64(pMsg->version)) {
     code = vnodeSubmitReqConvertToSubmitReq2(pVnode, (SSubmitReq *)pMsg, pSubmitReq);
     if (TSDB_CODE_SUCCESS == code) {
@@ -2185,210 +2576,31 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
     }
   }
 
-  // scan
-  TSKEY now = taosGetTimestamp(pVnode->config.tsdbCfg.precision);
-  TSKEY minKey = now - tsTickPerMin[pVnode->config.tsdbCfg.precision] * pVnode->config.tsdbCfg.keep2;
-  TSKEY maxKey = tsMaxKeyByPrecision[pVnode->config.tsdbCfg.precision];
-  for (int32_t i = 0; i < TARRAY_SIZE(pSubmitReq->aSubmitTbData); ++i) {
-    SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
-
-    if (pSubmitTbData->pCreateTbReq && pSubmitTbData->pCreateTbReq->uid == 0) {
-      code = TSDB_CODE_INVALID_MSG;
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
-
-    if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
-      if (TARRAY_SIZE(pSubmitTbData->aCol) <= 0) {
-        code = TSDB_CODE_INVALID_MSG;
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
-
-      SColData *colDataArr = TARRAY_DATA(pSubmitTbData->aCol);
-      SRowKey   lastKey;
-      tColDataArrGetRowKey(colDataArr, TARRAY_SIZE(pSubmitTbData->aCol), 0, &lastKey);
-      for (int32_t iRow = 1; iRow < colDataArr[0].nVal; iRow++) {
-        SRowKey key;
-        tColDataArrGetRowKey(TARRAY_DATA(pSubmitTbData->aCol), TARRAY_SIZE(pSubmitTbData->aCol), iRow, &key);
-        if (tRowKeyCompare(&lastKey, &key) >= 0) {
-          code = TSDB_CODE_INVALID_MSG;
-          vError("vgId:%d %s failed 1 since %s, version:%" PRId64, TD_VID(pVnode), __func__, tstrerror(terrno), ver);
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-      }
-    } else {
-      int32_t nRow = TARRAY_SIZE(pSubmitTbData->aRowP);
-      SRow  **aRow = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
-      SRowKey lastRowKey;
-      for (int32_t iRow = 0; iRow < nRow; ++iRow) {
-#ifndef NO_UNALIGNED_ACCESS
-        if (aRow[iRow]->ts < minKey || aRow[iRow]->ts > maxKey) {
-#else
-        TSKEY ts = taosGetInt64Aligned(&(aRow[iRow]->ts));
-        if (ts < minKey || ts > maxKey) {
-#endif
-          code = TSDB_CODE_INVALID_MSG;
-          vError("vgId:%d %s failed 2 since %s, version:%" PRId64, TD_VID(pVnode), __func__, tstrerror(code), ver);
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-        if (iRow == 0) {
-          tRowGetKey(aRow[iRow], &lastRowKey);
-        } else {
-          SRowKey rowKey;
-          tRowGetKey(aRow[iRow], &rowKey);
-
-          if (tRowKeyCompare(&lastRowKey, &rowKey) >= 0) {
-            code = TSDB_CODE_INVALID_MSG;
-            vError("vgId:%d %s failed 3 since %s, version:%" PRId64, TD_VID(pVnode), __func__, tstrerror(code), ver);
-            TSDB_CHECK_CODE(code, lino, _exit);
-          }
-          lastRowKey = rowKey;
-        }
-      }
-    }
-  }
-
-  for (int32_t i = 0; i < TARRAY_SIZE(pSubmitReq->aSubmitTbData); ++i) {
-    SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
-
-    if (pSubmitTbData->pCreateTbReq) {
-      pSubmitTbData->uid = pSubmitTbData->pCreateTbReq->uid;
-    } else {
-      SMetaInfo info = {0};
-
-      code = metaGetInfo(pVnode->pMeta, pSubmitTbData->uid, &info, NULL);
-      if (code) {
-        code = TSDB_CODE_TDB_TABLE_NOT_EXIST;
-        vWarn("vgId:%d, table uid:%" PRId64 " not exists", TD_VID(pVnode), pSubmitTbData->uid);
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
-
-      if (info.suid != pSubmitTbData->suid) {
-        vError("vgId:%d, submit uid:%" PRId64 " submit suid:%" PRId64 " info suid:%" PRId64 " not match, line:%d",
-               TD_VID(pVnode), pSubmitTbData->uid, pSubmitTbData->suid, info.suid, __LINE__);
-        code = TSDB_CODE_INVALID_MSG;
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
-
-      if (info.suid) {
-        if (metaGetInfo(pVnode->pMeta, info.suid, &info, NULL) != 0) {
-          vWarn("vgId:%d, table uid:%" PRId64 " not exists", TD_VID(pVnode), info.suid);
-        }
-      }
-
-      if (pSubmitTbData->sver != info.skmVer) {
-        code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
-    }
-    if (pSubmitTbData->flags & SUBMIT_REQ_WITH_BLOB) hasBlob = 1;
-
-    if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
-      int32_t   nColData = TARRAY_SIZE(pSubmitTbData->aCol);
-      SColData *aColData = (SColData *)TARRAY_DATA(pSubmitTbData->aCol);
-
-      if (nColData <= 0) {
-        code = TSDB_CODE_INVALID_MSG;
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
-
-      if (aColData[0].cid != PRIMARYKEY_TIMESTAMP_COL_ID || aColData[0].type != TSDB_DATA_TYPE_TIMESTAMP ||
-          aColData[0].nVal <= 0) {
-        code = TSDB_CODE_INVALID_MSG;
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
-
-      for (int32_t j = 1; j < nColData; j++) {
-        if (aColData[j].nVal != aColData[0].nVal) {
-          code = TSDB_CODE_INVALID_MSG;
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-      }
-    }
+  // Scan the request
+  code = vnodeScanSubmitReq(pVnode, ver, pSubmitReq, pSubmitRsp);
+  if (code) {
+    vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pVnode), __func__, __FILE__, __LINE__,
+           tstrerror(code), ver);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   vGDebug(pOriginalMsg ? &pOriginalMsg->info.traceId : NULL, "vgId:%d, index:%" PRId64 ", submit block, rows:%d",
           TD_VID(pVnode), ver, (int32_t)taosArrayGetSize(pSubmitReq->aSubmitTbData));
 
-  // loop to handle
-  for (int32_t i = 0; i < TARRAY_SIZE(pSubmitReq->aSubmitTbData); ++i) {
-    SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
-
-    // create table
-    if (pSubmitTbData->pCreateTbReq) {
-      // alloc if need
-      if (pSubmitRsp->aCreateTbRsp == NULL &&
-          (pSubmitRsp->aCreateTbRsp = taosArrayInit(TARRAY_SIZE(pSubmitReq->aSubmitTbData), sizeof(SVCreateTbRsp))) ==
-              NULL) {
-        code = terrno;
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
-
-      SVCreateTbRsp *pCreateTbRsp = taosArrayReserve(pSubmitRsp->aCreateTbRsp, 1);
-
-      // create table
-      if (metaCreateTable2(pVnode->pMeta, ver, pSubmitTbData->pCreateTbReq, &pCreateTbRsp->pMeta) == 0) {
-        // create table success
-
-        if (newTbUids == NULL &&
-            (newTbUids = taosArrayInit(TARRAY_SIZE(pSubmitReq->aSubmitTbData), sizeof(int64_t))) == NULL) {
-          code = terrno;
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-
-        if (taosArrayPush(newTbUids, &pSubmitTbData->uid) == NULL) {
-          code = terrno;
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-
-        if (pCreateTbRsp->pMeta) {
-          vnodeUpdateMetaRsp(pVnode, pCreateTbRsp->pMeta);
-        }
-      } else {  // create table failed
-        if (terrno != TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
-          code = terrno;
-          vError("vgId:%d failed to create table:%s, code:%s", TD_VID(pVnode), pSubmitTbData->pCreateTbReq->name,
-                 tstrerror(terrno));
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-        terrno = 0;
-        pSubmitTbData->uid = pSubmitTbData->pCreateTbReq->uid;  // update uid if table exist for using below
-
-        // stream: get sver from meta, write to pCreateTbRsp, and need to check crateTbReq is same as meta.
-        if (i == 0) {
-          // In the streaming scenario, multiple grouped req requests will only operate on the same write table, and
-          // only the first one needs to be processed.
-          code = buildExistTalbeInStreamRsp(pVnode, pSubmitTbData, &pCreateTbRsp->pMeta);
-          if (code) {
-            vInfo("vgId:%d failed to create table in stream:%s, code(0x%0x):%s", TD_VID(pVnode),
-                  pSubmitTbData->pCreateTbReq->name,  code, tstrerror(code));
-            TSDB_CHECK_CODE(code, lino, _exit);
-          }
-        }
-      }
-    }
-
-    if (hasBlob) {
-      code = vnodeSubmitBlobData(pVnode, pSubmitTbData);
-      if (code) goto _exit;
-    }
-    // insert data
-    int32_t affectedRows;
-    code = tsdbInsertTableData(pVnode->pTsdb, ver, pSubmitTbData, &affectedRows);
+  // Handle auto create table
+  code = vnodeHandleAutoCreateTable(pVnode, ver, pSubmitReq, pSubmitRsp);
+  if (code) {
+    vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pVnode), __func__, __FILE__, __LINE__,
+           tstrerror(code), ver);
     TSDB_CHECK_CODE(code, lino, _exit);
-
-    code = metaUpdateChangeTimeWithLock(pVnode->pMeta, pSubmitTbData->uid, pSubmitTbData->ctimeMs);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    pSubmitRsp->affectedRows += affectedRows;
   }
 
-  // update the affected table uid list
-  if (taosArrayGetSize(newTbUids) > 0) {
-    vDebug("vgId:%d, add %d table into query table list in handling submit", TD_VID(pVnode),
-           (int32_t)taosArrayGetSize(newTbUids));
-    if (tqUpdateTbUidList(pVnode->pTq, newTbUids, true) != 0) {
-      vError("vgId:%d, failed to update tbUid list", TD_VID(pVnode));
-    }
+  // Handle data write
+  code = vnodeHandleDataWrite(pVnode, ver, pSubmitReq, pSubmitRsp);
+  if (code) {
+    vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pVnode), __func__, __FILE__, __LINE__,
+           tstrerror(code), ver);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
 _exit:
@@ -2428,26 +2640,8 @@ _exit:
     (void)atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, 1);
     code = tdProcessRSmaSubmit(pVnode->pSma, ver, pSubmitReq, pReq, len);
   }
-  /*
-  if (code == 0) {
-    atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, 1);
-    code = tdProcessRSmaSubmit(pVnode->pSma, ver, pSubmitReq, pReq, len);
-
-    const char *batch_sample_labels[] = {VNODE_METRIC_TAG_VALUE_INSERT, pVnode->monitor.strClusterId,
-                                        pVnode->monitor.strDnodeId, tsLocalEp, pVnode->monitor.strVgId,
-                                          pOriginalMsg->info.conn.user, "Success"};
-    taos_counter_inc(pVnode->monitor.insertCounter, batch_sample_labels);
-  }
-  else{
-    const char *batch_sample_labels[] = {VNODE_METRIC_TAG_VALUE_INSERT, pVnode->monitor.strClusterId,
-                                        pVnode->monitor.strDnodeId, tsLocalEp, pVnode->monitor.strVgId,
-                                        pOriginalMsg->info.conn.user, "Failed"};
-    taos_counter_inc(pVnode->monitor.insertCounter, batch_sample_labels);
-  }
-  */
 
   // clear
-  taosArrayDestroy(newTbUids);
   tDestroySubmitReq(pSubmitReq, 0 == taosHton64(pMsg->version) ? TSDB_MSG_FLG_CMPT : TSDB_MSG_FLG_DECODE);
   tDestroySSubmitRsp2(pSubmitRsp, TSDB_MSG_FLG_ENCODE);
 
@@ -2832,12 +3026,15 @@ static int32_t vnodeProcessConfigChangeReq(SVnode *pVnode, int64_t ver, void *pR
   return 0;
 }
 
-static int32_t vnodeCheckToken(SVnode *pVnode, char *member0Token, char *member1Token) {
+static int32_t vnodeCheckState(SVnode *pVnode) {
   SSyncState syncState = syncGetState(pVnode->sync);
   if (syncState.state != TAOS_SYNC_STATE_LEADER) {
     return terrno = TSDB_CODE_SYN_NOT_LEADER;
   }
+  return 0;
+}
 
+static int32_t vnodeCheckToken(SVnode *pVnode, char *member0Token, char *member1Token) {
   char token[TSDB_ARB_TOKEN_SIZE] = {0};
   if (vnodeGetArbToken(pVnode, token) != 0) {
     return terrno = TSDB_CODE_NOT_FOUND;
@@ -2863,6 +3060,11 @@ static int32_t vnodeCheckSyncd(SVnode *pVnode, char *member0Token, char *member1
 
 static int32_t vnodeProcessArbCheckSyncReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp) {
   int32_t code = 0;
+
+  if ((code = vnodeCheckState(pVnode)) != 0) {
+    vDebug("vgId:%d, failed to preprocess vnode-arb-check-sync request since %s", TD_VID(pVnode), tstrerror(code));
+    return 0;
+  }
 
   SVArbCheckSyncReq syncReq = {0};
 
@@ -2921,7 +3123,8 @@ static int32_t vnodeProcessArbCheckSyncReq(SVnode *pVnode, void *pReq, int32_t l
   pRsp->contLen = contLen;
 
   vInfo(
-      "vgId:%d, suceed to process vnode-arb-check-sync req rsp.code:%s, arbToken:%s, member0Token:%s, member1Token:%s",
+      "vgId:%d, suceed to process vnode-arb-check-sync req rsp.code:%s, arbToken:%s, member0Token:%s, "
+      "member1Token:%s",
       TD_VID(pVnode), tstrerror(syncRsp.errCode), syncRsp.arbToken, syncRsp.member0Token, syncRsp.member1Token);
 
   code = TSDB_CODE_SUCCESS;

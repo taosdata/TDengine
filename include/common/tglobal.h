@@ -110,7 +110,6 @@ extern int32_t tsNumOfMnodeQueryThreads;
 extern int32_t tsNumOfMnodeFetchThreads;
 extern int32_t tsNumOfMnodeReadThreads;
 extern int32_t tsNumOfVnodeQueryThreads;
-extern float   tsRatioOfVnodeStreamThreads;
 extern int32_t tsNumOfVnodeFetchThreads;
 extern int32_t tsNumOfVnodeRsmaThreads;
 extern int32_t tsNumOfQnodeQueryThreads;
@@ -299,14 +298,15 @@ extern int32_t tsTrimVDbIntervalSec;
 extern int32_t tsGrantHBInterval;
 extern int32_t tsUptimeInterval;
 extern bool    tsUpdateCacheBatch;
+extern bool    tsDisableStream;
 extern int32_t tsStreamBufferSize;
 extern int64_t tsStreamBufferSizeBytes;
 extern bool    tsFilterScalarMode;
 extern int32_t tsPQSortMemThreshold;
-extern bool    tsStreamCoverage;
 extern int32_t tsStreamNotifyMessageSize;
 extern int32_t tsStreamNotifyFrameSize;
 extern bool    tsCompareAsStrInGreatest;
+extern bool    tsShowFullCreateTableColumn;  // 0: show create table, and not include column compress info
 
 // shared storage
 extern int32_t tsSsEnabled;
