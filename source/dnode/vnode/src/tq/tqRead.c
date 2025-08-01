@@ -437,7 +437,7 @@ int32_t tqReaderSetSubmitMsg(STqReader* pReader, void* msgStr, int32_t msgLen, i
   SDecoder decoder = {0};
 
   tDecoderInit(&decoder, pReader->msg.msgStr, pReader->msg.msgLen);
-  int32_t code = tDecodeSubmitReq(&decoder, &pReader->submit, rawList);
+  int32_t code = tDecodeSubmitReq(&decoder, &pReader->submit, rawList, NULL);
   tDecoderClear(&decoder);
 
   if (code != 0) {
