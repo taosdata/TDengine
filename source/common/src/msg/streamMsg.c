@@ -3471,6 +3471,7 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       SSTriggerWalDataRequest* pRequest = (SSTriggerWalDataRequest*)pReq;
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->uid));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->offset));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->skey));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ekey));
       TAOS_CHECK_EXIT(encodeColsArray(&encoder, pRequest->cids));
@@ -3646,6 +3647,7 @@ int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPull
       SSTriggerWalDataRequest* pRequest = &(pReq->walDataReq);
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->uid));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->offset));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->skey));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ekey));
       TAOS_CHECK_EXIT(decodeColsArray(&decoder, &pRequest->cids));
