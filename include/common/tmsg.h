@@ -5021,7 +5021,8 @@ typedef struct {
 
 int32_t transformRawSSubmitTbData(void* data, int64_t suid, int64_t uid, int32_t sver);
 int32_t tEncodeSubmitReq(SEncoder* pCoder, const SSubmitReq2* pReq);
-int32_t tDecodeSubmitReq(SDecoder* pCoder, SSubmitReq2* pReq, SArray* rawList);
+int32_t tDecodeSubmitReq(SDecoder* pCoder, SSubmitReq2* pReq, SArray* rawList, SArray* dataOffset);
+int32_t tDecodeOneSubmit(SDecoder *pCoder, SSubmitTbData *data, int64_t offset);
 void    tDestroySubmitTbData(SSubmitTbData* pTbData, int32_t flag);
 void    tDestroySubmitReq(SSubmitReq2* pReq, int32_t flag);
 

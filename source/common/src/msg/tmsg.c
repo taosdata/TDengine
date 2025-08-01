@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tarray.h"
 #define _DEFAULT_SOURCE
 #include "tmsg.h"
 #include "tglobal.h"
@@ -13353,7 +13354,7 @@ _exit:
   return code;
 }
 
-int32_t tDecodeSubmitReq(SDecoder *pCoder, SSubmitReq2 *pReq, SArray *rawList) {
+int32_t tDecodeSubmitReq(SDecoder *pCoder, SSubmitReq2 *pReq, SArray *rawList, SArray* dataOffset) {
   int32_t code = 0;
 
   memset(pReq, 0, sizeof(*pReq));
@@ -13378,6 +13379,10 @@ int32_t tDecodeSubmitReq(SDecoder *pCoder, SSubmitReq2 *pReq, SArray *rawList) {
 
   for (uint64_t i = 0; i < nSubmitTbData; i++) {
     SSubmitTbData *data = taosArrayReserve(pReq->aSubmitTbData, 1);
+    if (taosArrayPush(dataOffset, &pCoder->pos) == NULL){
+      code = terrno;
+      goto _exit;
+    }
     if (tDecodeSSubmitTbData(pCoder, data, rawList != NULL ? taosArrayReserve(rawList, 1) : NULL) < 0) {
       code = TSDB_CODE_INVALID_MSG;
       goto _exit;
@@ -13385,6 +13390,23 @@ int32_t tDecodeSubmitReq(SDecoder *pCoder, SSubmitReq2 *pReq, SArray *rawList) {
   }
 
   tEndDecode(pCoder);
+
+_exit:
+  return code;
+}
+
+int32_t tDecodeOneSubmit(SDecoder *pCoder, SSubmitTbData *data, int64_t offset) {
+  int32_t code = 0;
+
+  pCoder->pos = offset;
+  if (pCoder->pos >= pCoder->size || pCoder->pos < 0) {
+    code = TSDB_CODE_OUT_OF_RANGE;
+    goto _exit;
+  }
+  if (tDecodeSSubmitTbData(pCoder, data, NULL) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
 
 _exit:
   return code;
