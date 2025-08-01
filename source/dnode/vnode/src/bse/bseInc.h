@@ -109,6 +109,7 @@ int32_t blockWrapperSize(SBlockWrapper *p, int32_t extra);
 int32_t blockWrapperSeek(SBlockWrapper *p, int64_t tgt, uint8_t **pValue, int32_t *len);
 
 typedef struct {
+  SRWLatch         latch;
   int32_t          ref;
   struct SSeqRange range;
   struct SSeqRange tableRange;

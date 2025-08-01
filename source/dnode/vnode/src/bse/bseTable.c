@@ -199,9 +199,11 @@ int32_t tableBuilderGetMetaBlock(STableBuilder *p, SArray **pMetaBlock) {
 }
 
 int32_t tableBuilderAddMeta(STableBuilder *p, SBlkHandle *pHandle, int8_t immu) {
-  int32_t         code = 0;
-  int32_t         lino = 0;
+  int32_t code = 0;
+  int32_t lino = 0;
+
   STableMemTable *pMemTable = immu ? p->pImmuMemTable : p->pMemTable;
+
   code = bseMemTableRef(pMemTable);
   TAOS_CHECK_GOTO(code, &lino, _error);
 
@@ -215,19 +217,25 @@ _error:
 }
 int32_t tableBuilderSetBlockInfo(STableMemTable *pMemTable) {
   int32_t        code = 0;
+  int32_t        lino = 0;
   SBlockWrapper *pWp = &pMemTable->pBlockWrapper;
-  SBlock        *pBlock = (SBlock *)pWp->data;
+
+  code = blockWrapperResize(pWp, BLOCK_TOTAL_SIZE((SBlock *)(pWp->data)) + pWp->kvSize);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  SBlock *pBlock = (SBlock *)pWp->data;
 
   pBlock->offset = pBlock->len;
   memcpy(pBlock->data + pBlock->len, pWp->kvBuffer, pWp->kvSize);
   pBlock->len += pWp->kvSize;
   pBlock->version = BSE_DATA_VER;
-
+_error:
   return code;
 }
 int32_t tableBuilderFlush(STableBuilder *p, int8_t type, int8_t immutable) {
   int32_t code = 0;
   int32_t lino = 0;
+  int8_t  inLock = 0;
 
   STableMemTable *pMemTable = immutable ? p->pImmuMemTable : p->pMemTable;
   if (p == NULL) return code;
@@ -236,18 +244,17 @@ int32_t tableBuilderFlush(STableBuilder *p, int8_t type, int8_t immutable) {
   code = bseMemTableRef(pMemTable);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  SBlockWrapper *pBlockWrapper = &pMemTable->pBlockWrapper;
-  code = blockWrapperResize(pBlockWrapper, BLOCK_TOTAL_SIZE((SBlock *)(pBlockWrapper->data)) + pBlockWrapper->kvSize);
-  TSDB_CHECK_CODE(code, lino, _error);
+  if (immutable) {
+    taosWLockLatch(&pMemTable->latch);
+    inLock = 1;
+  }
 
   code = tableBuilderSetBlockInfo(pMemTable);
   TSDB_CHECK_CODE(code, lino, _error);
 
   SBlock *pBlk = pMemTable->pBlockWrapper.data;
   if (pBlk->len == 0) {
-    bseDebug("no data to flush for table %s", p->name);
-    bseMemTableUnRef(pMemTable);
-    return 0;
+    goto _error;
   }
 
   int8_t compressType = BSE_COMPRESS_TYPE(p->pBse);
@@ -310,6 +317,9 @@ _error:
 
   if (pMemTable != NULL) {
     if (!immutable) blockWrapperClear(&pMemTable->pBlockWrapper);
+    if (inLock) {
+      taosWUnLockLatch(&pMemTable->latch);
+    }
     bseMemTableUnRef(pMemTable);
   }
   blockWrapperCleanup(&wrapper);
@@ -338,11 +348,15 @@ int32_t tableBuilderPut(STableBuilder *p, SBseBatch *pBatch) {
   int32_t code = 0;
   int32_t lino = 0;
   int32_t len = 0, offset = 0;
+  int8_t  inLock = 0;
 
   code = bseMemTableRef(p->pMemTable);
   if (code != 0) {
     return code;
   }
+
+  taosWLockLatch(&p->pMemTable->latch);
+  inLock = 1;
 
   SBlockWrapper *pBlockWrapper = &p->pMemTable->pBlockWrapper;
 
@@ -392,6 +406,9 @@ _error:
   if (code != 0) {
     bseError("failed to append batch since %s", tstrerror(code));
   }
+  if (inLock) {
+    taosWUnLockLatch(&p->pMemTable->latch);
+  }
 
   bseMemTableUnRef(p->pMemTable);
   return code;
@@ -433,21 +450,25 @@ int32_t findInMemtable(STableMemTable *p, int64_t seq, uint8_t **value, int32_t 
   int32_t code = 0;
   int8_t  inBuf = 1;
   int32_t lino = 0;
+  int8_t  inLock = 0;
   if (p == NULL) {
     return TSDB_CODE_NOT_FOUND;
   }
 
-  SBlkHandle *pHandle = NULL;
   code = bseMemTableRef(p);
   if (code != 0) {
     return code;
   }
+
+  taosRLockLatch(&p->latch);
+  inLock = 1;
+
   if (!seqRangeContains(&p->tableRange, seq)) {
     TSDB_CHECK_CODE(TSDB_CODE_NOT_FOUND, lino, _error);
   }
 
   if (taosArrayGetSize(p->pMetaHandle) > 0) {
-    pHandle = taosArrayGetLast(p->pMetaHandle);
+    SBlkHandle *pHandle = taosArrayGetLast(p->pMetaHandle);
     if (!seqRangeIsGreater(&pHandle->range, seq)) {
       inBuf = 0;
       int32_t idx = findTargetBlock(p->pMetaHandle, seq);
@@ -468,6 +489,9 @@ int32_t findInMemtable(STableMemTable *p, int64_t seq, uint8_t **value, int32_t 
     TSDB_CHECK_CODE(code, lino, _error);
   }
 _error:
+  if (inLock) {
+    taosRUnLockLatch(&p->latch);
+  }
   bseMemTableUnRef(p);
   if (code != 0) {
     bseInfo("failed to find seq %" PRId64 " in memtable %p at line %d since %s", seq, p, lino, tstrerror(code));
@@ -498,7 +522,7 @@ static void updateTableRange(SBTableMeta *pTableMeta, SArray *pMetaBlock) {
   }
 }
 static int32_t tableBuilderClearImmuMemTable(STableBuilder *p) {
-  int32_t code = 0;
+  int32_t           code = 0;
   STableBuilderMgt *pMgt = p->pBuilderMgt;
   (void)taosThreadRwlockWrlock(&pMgt->mutex);
   atomic_store_8(&p->hasImmuMemTable, 0);
@@ -2329,6 +2353,7 @@ int32_t bseMemTableCreate(STableMemTable **pMemTable, int32_t cap) {
   code = blockWrapperInit(&p->pBlockWrapper, cap);
   TAOS_CHECK_GOTO(code, &lino, _error);
 
+  taosInitRWLatch(&p->latch);
   seqRangeReset(&p->range);
   seqRangeReset(&p->tableRange);
   p->ref = 1;
@@ -2382,19 +2407,31 @@ int32_t bseMemTablePush(STableMemTable *pMemTable, void *pHandle) {
     code = TSDB_CODE_INVALID_PARA;
     return code;
   }
+
   if (taosArrayPush(pMemTable->pMetaHandle, pHandle) == NULL) {
     code = terrno;
     bseError("Failed to push handle to memtable since %s", tstrerror(code));
+
     return code;
   }
   return code;
 }
 int32_t bseMemTablGetMetaBlock(STableMemTable *p, SArray **pMetaBlock) {
-  int32_t code = 0;
+  int32_t inLock = 0;
+  int32_t lino = 0;
+  int32_t code = bseMemTableRef(p);
+  if (code != 0) {
+    bseError("Failed to ref memtable since %s", tstrerror(code));
+    return code;
+  }
+
   SArray *pBlock = taosArrayInit(8, sizeof(SMetaBlock));
   if (pBlock == NULL) {
-    return terrno;
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
+  taosRLockLatch(&p->latch);
+  inLock = 1;
+
   for (int32_t i = 0; i < taosArrayGetSize(p->pMetaHandle); i++) {
     SBlkHandle *handle = taosArrayGet(p->pMetaHandle, i);
     SMetaBlock  block = {.type = BSE_TABLE_META_TYPE,
@@ -2402,12 +2439,20 @@ int32_t bseMemTablGetMetaBlock(STableMemTable *p, SArray **pMetaBlock) {
                          .range = handle->range,
                          .offset = handle->offset,
                          .size = handle->size};
-
     if (taosArrayPush(pBlock, &block) == NULL) {
-      taosArrayDestroy(pBlock);
-      return terrno;
+      TSDB_CHECK_CODE(code = terrno, lino, _error);
     }
   }
+_error:
+  if (inLock) taosRUnLockLatch(&p->latch);
+  if (code != 0) {
+    bseError("failed to get meta block from memtable since %s", tstrerror(code));
+    taosArrayDestroy(pBlock);
+    pBlock = NULL;
+  }
+  bseMemTableUnRef(p);
+
   *pMetaBlock = pBlock;
+
   return code;
 }
