@@ -956,7 +956,6 @@ static void hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
   if (ret != 0 || !pResult) {
     T_LONG_JMP(pTaskInfo->env, ret);
   }
-
   TSKEY   ekey = ascScan ? win.ekey : win.skey;
   int32_t forwardRows = getNumOfRowsInTimeWindow(&pInputBlock->info, tsCols, startPos, ekey - 1, binarySearchForKey, NULL,
                                                  pExtW->binfo.inputTsOrder);
