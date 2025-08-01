@@ -383,8 +383,8 @@ void smRemoveTaskCb(void* param) {
   }
 
   bool isLastTask = false;
-  switch (pTask->type){
-    case STREAM_READER_TASK:
+  switch (pTask->type) {
+    case STREAM_READER_TASK: {
       if (NULL == pStream->undeployReaders) {
         int32_t num = pStream->readerList ? TD_DLIST_NELES(pStream->readerList) : 0;
         SArray* pReaders = taosArrayInit(num, sizeof(int64_t) * 2);
@@ -394,9 +394,11 @@ void smRemoveTaskCb(void* param) {
         }
       }
       taosWLockLatch(&pStream->undeployLock);
-      code = taosArrayPush(pStream->undeployReaders, &pTask->taskId);
+      void* pTmp = taosArrayPush(pStream->undeployReaders, &pTask->taskId);
       taosWUnLockLatch(&pStream->undeployLock);
+      TSDB_CHECK_NULL(pTmp, code, lino, _exit, terrno);
       break;
+    }
     case STREAM_TRIGGER_TASK: {
       if (NULL == pStream->undeployTriggers) {
         int32_t num = pStream->triggerList ? TD_DLIST_NELES(pStream->triggerList) : 0;
@@ -407,11 +409,12 @@ void smRemoveTaskCb(void* param) {
         }
       }
       taosWLockLatch(&pStream->undeployLock);
-      code = taosArrayPush(pStream->undeployTriggers, &pTask->taskId);
+      void* pTmp = taosArrayPush(pStream->undeployTriggers, &pTask->taskId);
       taosWUnLockLatch(&pStream->undeployLock);
+      TSDB_CHECK_NULL(pTmp, code, lino, _exit, terrno);
       break;
     }
-    case STREAM_RUNNER_TASK:
+    case STREAM_RUNNER_TASK: {
       if (NULL == pStream->undeployRunners) {
         int32_t num = pStream->runnerList ? TD_DLIST_NELES(pStream->runnerList) : 0;
         SArray* pRunners = taosArrayInit(num, sizeof(int64_t) * 2);
@@ -421,9 +424,11 @@ void smRemoveTaskCb(void* param) {
         }
       }
       taosWLockLatch(&pStream->undeployLock);
-      code = taosArrayPush(pStream->undeployRunners, &pTask->taskId);
+      void* pTmp = taosArrayPush(pStream->undeployRunners, &pTask->taskId);
       taosWUnLockLatch(&pStream->undeployLock);
+      TSDB_CHECK_NULL(pTmp, code, lino, _exit, terrno);
       break;
+    }
     default:
       ST_TASK_ELOG("Invalid task type:%d", pTask->type);
       TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
