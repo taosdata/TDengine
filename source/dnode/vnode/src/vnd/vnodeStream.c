@@ -14,11 +14,8 @@
  */
 
 #include "scalar.h"
-#include "stream.h"
 #include "streamReader.h"
-#include "tarray.h"
 #include "tdb.h"
-#include "tdef.h"
 #include "tencode.h"
 #include "tglobal.h"
 #include "tmsg.h"

@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tarray.h"
 #define _DEFAULT_SOURCE
 #include "tmsg.h"
 #include "tglobal.h"
