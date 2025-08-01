@@ -21,7 +21,7 @@ use std::{
     io::{BufReader, Read},
     path::PathBuf,
     str::FromStr,
-    sync::OnceLock,
+    sync::{LazyLock, OnceLock},
     time::Duration,
 };
 use taos::{taos_query::common::RowView, *};
@@ -81,6 +81,16 @@ struct UserPool {
 }
 
 static TAOS_POOL: OnceLock<scc::HashMap<String, UserPool>> = OnceLock::new();
+
+static EXPLORER_SKIP_REGISTER: LazyLock<bool> = LazyLock::new(|| {
+    std::env::var("EXPLORER_SKIP_REGISTER").is_ok_and(|s| {
+        let skip = matches!(s.as_str(), "" | "1" | "true" | "T" | "yes");
+        if skip {
+            tracing::info!("skip register by env");
+        }
+        skip
+    })
+});
 
 fn clear_pool(dsn: &Dsn, username: String) {
     let map = TAOS_POOL.get_or_init(scc::HashMap::new);
@@ -1085,7 +1095,10 @@ async fn login(
     match args.query(header, sql, tz).await {
         Ok(mut ok) => {
             let mut resp = HttpResponseBuilder::new(StatusCode::OK);
-            if db.is_registered().await {
+            if *EXPLORER_SKIP_REGISTER {
+                ok.registered_user
+                    .replace(FastStr::from_static_str("skipped"));
+            } else if db.is_registered().await {
                 if let Some(subject) = favorites::TAOSX_VERIFICATION_SUBJECT.get() {
                     tracing::trace!(
                         subject = subject.as_str(),

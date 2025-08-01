@@ -24,8 +24,8 @@ pi_connector = "pi"
 opc_connector = "opc"
 influxdb_connector = "influxdb"
 opentsdb_connector = "opentsdb"
-hebeipower_plugin = "hebeipower"
-all_connectors = [pi_connector, opc_connector, influxdb_connector, opentsdb_connector, hebeipower_plugin]
+# hebeipower_plugin = "hebeipower"
+all_connectors = [pi_connector, opc_connector, influxdb_connector, opentsdb_connector]
 
 class SubmoduleBuildInfo:
     def __init__(self, name, build_mode):
@@ -111,7 +111,7 @@ def get_taosx_agent_version():
 
 def get_install_path():
     target = f"{release_info.CustomPrompt}x"
-    if release_info.Target == "agent" or release_info.UploadAgent == True or release_info.BuildAgent == True:
+    if release_info.Target == "agent" or release_info.UploadAgent or release_info.BuildAgent:
         target = f"{release_info.CustomPrompt}x-agent"
 
     if release_info.OnlyBuild:
@@ -125,7 +125,7 @@ def get_install_path():
 def get_package_name():
     target = f"{release_info.CustomPrompt}x"
     product_name = release_info.CustomName.lower()
-    if release_info.Target == "agent" or release_info.UploadAgent == True or release_info.BuildAgent == True:
+    if release_info.Target == "agent" or release_info.UploadAgent or release_info.BuildAgent:
         target = f"{release_info.CustomPrompt}x-agent"
     if release_info.OS == 'Windows':  # Windows操作系统
         return f'{product_name}-{target}-{release_info.TdengineVersion}-{release_info.OS.lower()}-{release_info.CpuType.lower()}'
@@ -325,7 +325,7 @@ def build_and_install_opc_on_windows(mode):
     os.environ["GOOS"] = "windows"
     os.environ["GOARCH"] = "386"
     opc_app_name = "taosx-opc.exe"
-    os.system(f"go mod vendor")
+    os.system("go mod vendor")
     os.system(f"go build -ldflags "
               f"\"-s -w -X 'collector/version.BuildAt={release_info.BuildTime}' "
               f"-X 'collector/version.CommitID={release_info.Commit}'\" "
@@ -359,36 +359,30 @@ def build_and_install_opc(mode):
         sys.exit()
 
 def copy_taosx_service_file(taosx_install_path):
-    taosx_path = os.path.join(taosx_dir, "bin")
-    # for filename in os.listdir(taosx_path):
-    #     if filename.startswith("taosx-srv"):
-    #         filepath = os.path.join(taosx_path, filename)
-    #         if os.path.isfile(filepath):
-    #             shutil.copy2(filepath, taosx_install_path)
-    taosx_exe_path = os.path.join(taosx_path, "taosx-srv.exe")
-    srv_target = os.path.join(taosx_install_path, f"{release_info.CustomPrompt}x-srv.exe")
+    taosx_target_path = os.path.join(taosx_dir, "target", "deploy")
+
+    taosx_exe_filename = f"{release_info.CustomPrompt}x-srv.exe"
+    taosx_exe_path = os.path.join(taosx_target_path, taosx_exe_filename)
+    srv_target = os.path.join(taosx_install_path, taosx_exe_filename)
     shutil.copy2(taosx_exe_path, srv_target)
 
-    taosx_target_path = os.path.join(taosx_dir, "target")
-    taosx_xml_path = os.path.join(taosx_target_path, f"{release_info.CustomPrompt}x-srv.xml")
-    xml_target = os.path.join(taosx_install_path, f"{release_info.CustomPrompt}x-srv.xml")
+    taosx_xml_filename = f"{release_info.CustomPrompt}x-srv.xml"
+    taosx_xml_path = os.path.join(taosx_target_path, taosx_xml_filename)
+    xml_target = os.path.join(taosx_install_path, taosx_xml_filename)
     shutil.copy2(taosx_xml_path, xml_target)
 
 def copy_taosx_agent_service_file(taosx_install_path):
-    taosx_agent_path = os.path.join(taosx_dir, "taosx-agent", "bin")
-    # for filename in os.listdir(taosx_agent_path):
-    #     if filename.startswith("taosx-agent-srv"):
-    #         filepath = os.path.join(taosx_agent_path, filename)
-    #         if os.path.isfile(filepath):
-    #             shutil.copy2(filepath, taosx_install_path)
-    taosx_agent_exe_path = os.path.join(taosx_agent_path, "taosx-agent-srv.exe")
-    srv_target = os.path.join(taosx_install_path, f"{release_info.CustomPrompt}x-agent-srv.exe")
-    shutil.copy2(taosx_agent_exe_path, srv_target)
+    taosx_target_path = os.path.join(taosx_dir, "target", "deploy")
 
-    taosx_target_path = os.path.join(taosx_dir, "target")
-    taosx_agent_xml_path = os.path.join(taosx_target_path, f"{release_info.CustomPrompt}x-agent-srv.xml")
-    xml_target = os.path.join(taosx_install_path, f"{release_info.CustomPrompt}x-agent-srv.xml")
-    shutil.copy2(taosx_agent_xml_path, xml_target)
+    exe_filename = f"{release_info.CustomPrompt}x-agent-srv.exe"
+    srv_source = os.path.join(taosx_target_path, exe_filename)
+    srv_target = os.path.join(taosx_install_path, exe_filename)
+    shutil.copy2(srv_source, srv_target)
+
+    xml_filename = f"{release_info.CustomPrompt}x-agent-srv.xml"
+    xml_source = os.path.join(taosx_target_path, xml_filename)
+    xml_target = os.path.join(taosx_install_path, xml_filename)
+    shutil.copy2(xml_source, xml_target)
 
 
 def copy_taosx_cfg(taos_cfg_path):
@@ -523,7 +517,7 @@ def build_and_install_hebeipower(mode):
         sys.exit()
 
 def build_taos_explorer(explorer_path, mode):
-    if release_info.build_without_docs == False:
+    if not release_info.build_without_docs:
         update_docs_zip_file(explorer_path)
         copy_docs_to_explorer(explorer_path)
     else:
@@ -567,7 +561,7 @@ def package_on_windows():
     target = f"{release_info.CustomPrompt}x"
     sub_directory = f"{release_info.CustomPrompt}x"
     app_before_install_txt = "info_before_install.txt"
-    if release_info.Target == "agent" or release_info.UploadAgent == True or release_info.BuildAgent == True:
+    if release_info.Target == "agent" or release_info.UploadAgent or release_info.BuildAgent:
         target = f"{release_info.CustomPrompt}x-agent"
     cmd = f'iscc /F"{release_info.PackageName}" '\
         f'/DMyAppVersion="{release_info.TdengineVersion}" '\
@@ -719,13 +713,13 @@ def test_handle_windows(process):
     elif process == "package":
         print("Calling Package function...")
         package()
-    elif process == "taosx" and release_info.UploadAgent == False and release_info.BuildAgent == False:
+    elif process == "taosx" and not release_info.UploadAgent and not release_info.BuildAgent:
         print("Calling taosx function...")
         build_and_install_taosx("Debug")
     elif process == "agent":
         print("Calling taosx agent function...")
         build_and_install_taosx_agent("Debug")
-    elif process == "explorer" and release_info.UploadAgent == False and release_info.BuildAgent == False:
+    elif process == "explorer" and not release_info.UploadAgent and not release_info.BuildAgent:
         print("Calling taos-explorer function...")
         build_and_install_taos_explorer("Debug")
     elif process == influxdb_connector:
@@ -755,14 +749,14 @@ if __name__ == '__main__':
 
     if release_info.OS.lower() == 'linux':
         for task in sub_module:
-            if taos_explorer_name == task.Name and release_info.UploadAgent == False and release_info.BuildAgent == False:
+            if taos_explorer_name == task.Name and not release_info.UploadAgent and not release_info.BuildAgent:
                 print("build taos_explorer on linux")
                 build_and_install_taos_explorer(task.VersionMode)
         linux_release.release(release_info=release_info, build_info=sub_module)
     elif release_info.OS.lower() == 'windows':
         init_install_directory()
         for task in sub_module:
-            if taosx_name == task.Name and release_info.UploadAgent == False and release_info.BuildAgent == False:
+            if taosx_name == task.Name and not release_info.UploadAgent and not release_info.BuildAgent:
                 print("build taosx")
                 build_and_install_taosx(task.VersionMode)
             elif taosx_agent_name == task.Name:
@@ -780,10 +774,10 @@ if __name__ == '__main__':
             elif opentsdb_connector == task.Name:
                 print("build opentsdb_connector")
                 build_and_install_opentsdb(task.VersionMode)
-            elif hebeipower_plugin == task.Name:
-                print("build hebeipower plugin not supported on windows for now")
+            #elif hebeipower_plugin == task.Name:
+                #print("build hebeipower plugin not supported on windows for now")
                 # build_and_install_hebeipower(task.VersionMode)
-            elif taos_explorer_name == task.Name and release_info.UploadAgent == False and release_info.BuildAgent == False:
+            elif taos_explorer_name == task.Name and not release_info.UploadAgent and not release_info.BuildAgent:
                 print("build taos_explorer")
                 build_and_install_taos_explorer(task.VersionMode)
         init_release_directory()

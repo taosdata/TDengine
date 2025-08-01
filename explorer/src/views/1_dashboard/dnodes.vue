@@ -2,7 +2,7 @@
   <div>
     <header class="static-header">
       <span class="cluster-title">{{ $t('dashboard.cluster') }}</span>
-      <span class="plain-text">3316550173447983005</span>
+      <span class="plain-text">{{ clusterID }}</span>
     </header>
 
     <div>
@@ -84,6 +84,8 @@ const statisticData = ref({
   taosX: 0,
   keeper: 0
 });
+
+const clusterID = getClusterID();
 
 const dnodeList = ref([]);
 

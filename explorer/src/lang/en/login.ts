@@ -18,7 +18,7 @@ export default {
     taosx500: "The TaosX API cannot be accessed. Please check the taosx service status",
     changepwdtip: "Password is successfully changed, please log in again",
     copyright: "Copyright (c) 2025 by TDengine, All Rights Reserved.",
-    systemTitle: "TDengine Management System",
+    systemTitle: " Management System",
     emailError: "Please enter a valid email address.",
     phoneError: "Malformed phone number!",
     oldPass: "Old Password",
@@ -28,6 +28,6 @@ export default {
     passwordTip: `<div>Password must be 8 to 255 characters long and contain at least 3 of the following characters:</div><ul><li><el-icon class='el-icon-circle-check'></el-icon> Uppercase letters</li><li><el-icon class='el-icon-circle-check'></el-icon> Lowercase letters</li><li><el-icon class='el-icon-circle-check'></el-icon> Numbers</li><li><el-icon class='el-icon-circle-check'></el-icon> Special characters</li></ul>`,
     passwordNotStrictTip: `<div>Password must be 8 to 255 characters long and contain the following characters:</div><ul><li><el-icon class='el-icon-circle-check'></el-icon> Uppercase letters</li><li><el-icon class='el-icon-circle-check'></el-icon> Lowercase letters</li><li><el-icon class='el-icon-circle-check'></el-icon> Numbers</li><li><el-icon class='el-icon-circle-check'></el-icon> Special characters</li></ul>`,
     twoPassError: "The two passwords do not match!",
-  
+
   }
 }

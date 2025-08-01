@@ -5,7 +5,7 @@ use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 use std::vec;
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use arrow::array::{ArrayRef, StringArray};
 use arrow::record_batch::RecordBatch;
 use arrow_schema::ArrowError;
@@ -21,19 +21,18 @@ use serde::{Deserialize, Serialize};
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, Itertools, TaosBuilder};
 use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
-
-use taosx_ipc::types::dsv::DataSourceValidation;
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
-use tracing::{info, instrument, warn, Instrument, Span};
+use tracing::{Instrument, Span, info, instrument, warn};
 
-use crate::core_metrics::{get_metrics_arc_from_i64, CoreMetrics};
-use crate::sink::channel_based_transformer;
-use crate::sink::ipc_metric::IpcMetrics;
-use crate::utils::breakpoints;
-use crate::utils::dsn::json_to_dsn;
-use crate::utils::port_pool::PortPool;
-use crate::{utils, Parser, Transferred};
+use taosx_core::core_metrics::{CoreMetrics, get_metrics_arc_from_i64};
+use taosx_core::sink::channel_based_transformer;
+use taosx_core::sink::ipc_metric::IpcMetrics;
+use taosx_core::utils::breakpoints;
+use taosx_core::utils::dsn::json_to_dsn;
+use taosx_core::utils::port_pool::PortPool;
+use taosx_core::{Parser, TaskNotifySender, Transferred, utils};
+use taosx_ipc::types::dsv::DataSourceValidation;
 
 type MsgSender = flume::Sender<std::result::Result<RecordBatch, ArrowError>>;
 trait CsvReaderExt: Send + Sync + std::io::Read {}
@@ -156,7 +155,7 @@ async fn csv_to_taos_with_channel(
     to: Dsn,
     cancel: CancellationToken,
     task_id: Option<i64>,
-    notify: crate::TaskNotifySender,
+    notify: TaskNotifySender,
 ) -> Result<()> {
     // load metrics
     let metrics_arc = get_metrics_arc_from_i64(task_id).await;
@@ -166,9 +165,16 @@ async fn csv_to_taos_with_channel(
     let builder = taos::TaosBuilder::from_dsn(to)?;
     let pool = builder.pool()?;
     let worker_cancel = cancel.child_token();
-    let (msg, ack) =
-        channel_based_transformer(pool, worker_cancel, parser, Some("csv"), task_id, notify)
-            .await?;
+    let (msg, ack) = channel_based_transformer(
+        pool,
+        worker_cancel,
+        parser,
+        Some("csv"),
+        task_id,
+        notify,
+        32,
+    )
+    .await?;
 
     let ack_handler = tokio::spawn(async move {
         let mut count = 0;
@@ -436,104 +442,6 @@ pub async fn csv_to_taos(
     notify: crate::TaskNotifySender,
 ) -> Result<()> {
     csv_to_taos_with_channel(from, parser, to, cancel, task_id, notify).await
-
-    // let port = port_pool
-    //     .get()
-    //     .await
-    //     .ok_or_else(|| anyhow::format_err!("No available port for CSV connection"))?;
-    // let socket = format!("127.0.0.1:{}", port);
-    // let mut ipc_handler = build_ipc(
-    //     &socket,
-    //     parser,
-    //     &to,
-    //     Some("csv"),
-    //     None,
-    //     &cancel,
-    //     with_agent,
-    //     transferred,
-    //     span,
-    //     task_id.clone(),
-    //     notify,
-    // )
-    // .await?;
-
-    // let mut source = CsvSource::new(&mut from, port)?;
-    // // metrics::counter!(METRIC_CSV_FILES, source.readers.len() as u64);
-    // info!("spawn CSV worker");
-    // let worker = tokio::spawn(
-    //     async move {
-    //         info!(
-    //             "Reading CSV with config(concurrent: {}, batch_size: {})",
-    //             source.concurrent, source.batch_size
-    //         );
-    //         let handlers = source.read().await?;
-    //         for handler in handlers {
-    //             tokio::task::yield_now().await;
-    //             handler.await??;
-    //         }
-    //         Ok::<_, anyhow::Error>(())
-    //     }
-    //     .instrument(Span::current()),
-    // );
-    // info!("CSV worker spawned");
-    // let abort_handle = worker.abort_handle();
-
-    // let port_pool = port_pool.clone();
-
-    // info!("Spawn task handler");
-    // tokio::spawn(async move {
-    //     info!("Spawned task handler");
-    //     tokio::select! {
-    //         // application exit with error code
-    //         status = worker => {
-    //             match status? {
-    //                 Ok(_) => {
-    //                     match ipc_handler.try_recv_error() {
-    //                         Ok(res) => {
-    //                             tracing::error!("IPC Error: {res}");
-    //                             tokio::time::sleep(Duration::from_millis(100)).await;
-    //                             port_pool.put(port).await;
-    //                             anyhow::bail!("CSV exit with IPC error: {res}");
-    //                         }
-    //                         Err(err) => {
-    //                             tracing::debug!("CSV worker done, cause: {:#}", err);
-    //                         }
-    //                     }
-    //                 }
-    //                 Err(err) => {
-    //                     let _ = ipc_handler.close().await;
-    //                     port_pool.put(port).await;
-    //                     anyhow::bail!("CSV exit with error: {:#}", err);
-    //                 }
-    //             }
-    //         },
-    //         err = ipc_handler.recv_error() => {
-    //             tracing::info!("have received worker thread panicked message, terminate child process");
-    //             abort_handle.abort();
-    //             if let Some(err) = err {
-    //                 let _ = ipc_handler.close().await;
-    //                 port_pool.put(port).await;
-    //                 anyhow::bail!("CSV writer error: {err:#}");
-    //             }
-    //         },
-    //         _ = cancel.cancelled() => {
-    //             tracing::info!("CSV task cancelled");
-    //             abort_handle.abort();
-    //         }
-    //     };
-    //     // wait for completion
-    //     tokio::time::sleep(Duration::from_millis(100)).await;
-    //     // stop the connector
-    //     tracing::info!("CSV task finished");
-    //     // wait for handler closed
-    //     let _ = ipc_handler.close().await;
-    //     // put ipc port back to port pool.
-    //     port_pool.put(port).await;
-    //     Ok(())
-    // })
-    // .await??;
-
-    // Ok(())
 }
 
 pub struct CsvHeader {

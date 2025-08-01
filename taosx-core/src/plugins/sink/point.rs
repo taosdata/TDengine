@@ -1,4 +1,5 @@
 use crate::runners::opc::model::{ColumnConfig, OpcModelConfig, TableConfig, TagConfig};
+use crate::utils::sql::sql_value_escaped_fmt;
 use anyhow::Context;
 use arrow::array::{
     ArrayRef, BinaryArray, BooleanArray, Float16Array, Float32Array, Float64Array, Int16Array,
@@ -13,6 +14,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use taosx_ipc::prelude::{record_batch_to_column_view, IpcDataType};
 use taosx_ipc::stream::point::{RecordMessage, RecordTransform};
+
+static OPC_PARSER_ID_PATH_DEVICE: std::sync::LazyLock<bool> = std::sync::LazyLock::new(|| {
+    std::env::var("OPC_PARSER_ID_PATH_DEVICE")
+        .map(|v| matches!(v.as_str(), "true" | "1" | "yes" | "on"))
+        .unwrap_or(false)
+});
 
 /// 处理 Point RecordMessage 的 transform
 /// request_ts 是 3.3.6.0 版本新增的字段，表示：轮询 OPC Server 的请求的发起时间
@@ -576,9 +583,29 @@ pub async fn point_records_to_sql(
         let point_id = id_column_view
             .get(i)
             .ok_or(anyhow::anyhow!("id not found"))?
-            .into_value()
             .to_string()
             .context("invalid id value")?;
+        let point_config = point_config_map.get(&point_id);
+        tracing::info!(?point_config);
+        let point_id_short = crate::runners::opc::generate_tag_value_from_pattern(
+            config.opc_type.as_static_str(),
+            "{id}",
+            &point_id,
+        );
+        let path = crate::runners::opc::generate_tag_value_from_pattern(
+            config.opc_type.as_static_str(),
+            "{id..}",
+            &point_id,
+        );
+        let point_path = sql_value_escaped_fmt(&path);
+
+        let device = crate::runners::opc::generate_tag_value_from_pattern(
+            config.opc_type.as_static_str(),
+            "{..id.}",
+            &point_id,
+        );
+        let point_device = sql_value_escaped_fmt(&device);
+        let point_id_short_sql = sql_value_escaped_fmt(&point_id_short);
         let point_id_sql = id_column_view
             .get(i)
             .ok_or(anyhow::anyhow!("id not found"))?
@@ -761,22 +788,32 @@ pub async fn point_records_to_sql(
         if tag_names.is_empty() {
             if child_table_create_sql_map.contains_key(&stable_name) {
                 let map = child_table_create_sql_map.get_mut(&stable_name).unwrap();
-                map.insert(
-                    child_table_name.clone(),
+                let sql = if *OPC_PARSER_ID_PATH_DEVICE {
+                    format!(
+                        "(`point_id`, `id`, `path`, `device`, `point_name`) TAGS ({}, {}, {}, {}, {})",
+                        &point_id_sql, &point_id_short_sql, point_path, point_device, &point_name
+                    )
+                } else {
                     format!(
                         "(`point_id`, `point_name`) TAGS ({}, {})",
                         &point_id_sql, &point_name
-                    ),
-                );
+                    )
+                };
+                map.insert(child_table_name.clone(), sql);
             } else {
                 let mut map = HashMap::new();
-                map.insert(
-                    child_table_name.clone(),
+                let sql = if *OPC_PARSER_ID_PATH_DEVICE {
+                    format!(
+                        "(`point_id`, `id`, `path`, `device`, `point_name`) TAGS ({}, {}, {}, {}, {})",
+                        &point_id_sql, &point_id_short_sql, point_path, point_device, &point_name
+                    )
+                } else {
                     format!(
                         "(`point_id`, `point_name`) TAGS ({}, {})",
                         &point_id_sql, &point_name
-                    ),
-                );
+                    )
+                };
+                map.insert(child_table_name.clone(), sql);
                 child_table_create_sql_map.insert(stable_name.clone(), map);
             }
         } else if child_table_create_sql_map.contains_key(&stable_name) {
@@ -990,7 +1027,11 @@ impl PointInsertion {
 
         // tags
         let tags = if table_config.tag_configs.is_none() {
-            "`point_id` VARCHAR(256),`point_name` VARCHAR(256)".to_string()
+            if *OPC_PARSER_ID_PATH_DEVICE {
+                "`point_id` VARCHAR(256), `id` VARCHAR(256), `path` VARCHAR(256), `device` VARCHAR(256), `point_name` VARCHAR(256)".to_string()
+            } else {
+                "`point_id` VARCHAR(256), `point_name` VARCHAR(256)".to_string()
+            }
         } else {
             let tag_configs = table_config.tag_configs.clone().unwrap();
             tag_configs

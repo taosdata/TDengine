@@ -49,9 +49,7 @@ export function getBrowserLang(): string {
  */
 export function setTitle(): void {
   const lang = getBrowserLang()
-  const title = lang === 'en'
-    ? $IS_COMMUNITY ? 'TDengine OSS' : $INDUSTRY ? 'TDengine Power Edition' : 'TDengine Enterprise'
-    : $IS_COMMUNITY ? 'TDengine OSS' : $INDUSTRY ? 'TDengine 电力版' : 'TDengine 企业版'
+  const title = $IS_COMMUNITY ? "TDengine TSDB-OSS" : import.meta.env.VITE_APP_CUS_NAME || "TDengine TSDB-Enterprise"
   document.title = title
 }
 

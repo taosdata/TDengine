@@ -665,9 +665,12 @@ upx_run ${1} ${2}
 [tasks.clean-taosx]
 script_runner = "@duckscript"
 script.pre = """
-echo "Before deploy taosx with ${BUILD_PROFILE}"
-echo rm target/${BUILD_PROFILE}/taosx
-rm target/${BUILD_PROFILE}/taosx
+echo "Clean taosx with profile ${BUILD_PROFILE}"
+if eq ${BUILD_PROFILE} "dev"
+  rm target/debug/taosx
+else
+  rm target/${BUILD_PROFILE}/taosx
+end
 """
 
 [tasks.deploy-taosx]
@@ -676,12 +679,12 @@ script_runner = "@duckscript"
 script.main = """
 !include_files .github/helpers.duck
 
-cus_prompt = get_env CUS_PROMPT
-profile = get_env "BUILD_PROFILE"
-if eq ${profile} "dev"
-  cp target/debug/taosx target/deploy/${cus_prompt}x
+if eq ${BUILD_PROFILE} "dev"
+  cp target/${BUILD_PROFILE}/taosx target/deploy/${CUS_PROMPT}x
+  cp target/debug/${CUS_PROMPT}x.service target/deploy/${CUS_PROMPT}x.service
 else
-  upx_run target/${profile}/taosx target/deploy/${cus_prompt}x
+  upx_run target/${BUILD_PROFILE}/taosx target/deploy/${CUS_PROMPT}x
+  cp target/${BUILD_PROFILE}/${CUS_PROMPT}x.service target/deploy/${CUS_PROMPT}x.service
 end
 """
 
@@ -694,11 +697,16 @@ cus_prompt = get_env CUS_PROMPT
 profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
   cp target/debug/taosx.exe target/deploy/${cus_prompt}x.exe
+  cp target/debug/${CUS_PROMPT}x-srv.xml target/deploy/${CUS_PROMPT}x-srv.xml
 else
   upx_run target/${profile}/taosx.exe target/deploy/${cus_prompt}x.exe
+  cp target/${BUILD_PROFILE}/${CUS_PROMPT}x-srv.xml target/deploy/${CUS_PROMPT}x-srv.xml
 end
+cp bin/taosx-srv.exe target/deploy/${CUS_PROMPT}x-srv.exe
 """
 
+[tasks.deploy-agent]
+alias = "deploy-taosx-agent"
 [tasks.deploy-taosx-agent]
 dependencies = ["taosx-agent"]
 script_runner = "@duckscript"
@@ -709,8 +717,10 @@ cus_prompt = get_env CUS_PROMPT
 profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
   cp target/debug/taosx-agent target/deploy/${cus_prompt}x-agent
+  cp target/debug/${CUS_PROMPT}x-agent.service target/deploy/${CUS_PROMPT}x-agent.service
 else
   upx_run target/${profile}/taosx-agent target/deploy/${cus_prompt}x-agent
+  cp target/${BUILD_PROFILE}/${CUS_PROMPT}x-agent.service target/deploy/${CUS_PROMPT}x-agent.service
 end
 """
 
@@ -724,9 +734,13 @@ cus_prompt = get_env CUS_PROMPT
 profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
   cp target/debug/taosx-agent.exe target/deploy/${cus_prompt}x-agent.exe
+  cp target/debug/${CUS_PROMPT}x-agent-srv.xml target/deploy/${CUS_PROMPT}x-agent-srv.xml
 else
   upx_run target/${profile}/taosx-agent.exe target/deploy/${cus_prompt}x-agent.exe
+  cp target/${BUILD_PROFILE}/${CUS_PROMPT}x-agent-srv.xml target/deploy/${CUS_PROMPT}x-agent-srv.xml
 end
+
+cp bin/taosx-agent-srv.exe target/deploy/${CUS_PROMPT}x-agent-srv.exe
 """
 
 [tasks.zigbuild-aarch64-image]
@@ -838,6 +852,7 @@ condition.files_modified = { input = [
 ], output = [
   "explorer/dist/",
 ] }
+condition.env_not_set = ["NO_BUILD_UI"]
 cwd = "explorer"
 script_runner = "@duckscript"
 script = """
@@ -881,8 +896,10 @@ cus_prompt = get_env CUS_PROMPT
 profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
   cp target/debug/taos-explorer target/deploy/${cus_prompt}-explorer
+  cp target/debug/${cus_prompt}-explorer.service target/deploy/${cus_prompt}-explorer.service
 else
   upx_run target/${profile}/taos-explorer target/deploy/${cus_prompt}-explorer
+  cp target/${profile}/${cus_prompt}-explorer.service target/deploy/${cus_prompt}-explorer.service
 end
 
 cp explorer/server/examples/explorer.toml target/deploy/explorer.toml
@@ -896,12 +913,13 @@ cus_prompt = get_env CUS_PROMPT
 profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
   cp target/debug/taos-explorer.exe target/deploy/${cus_prompt}-explorer.exe
+  cp target/debug/${cus_prompt}-explorer-srv.xml target/deploy/${cus_prompt}-explorer-srv.xml
 else
   cp target/${profile}/taos-explorer.exe target/deploy/${cus_prompt}-explorer.exe
+  cp target/${profile}/${cus_prompt}-explorer-srv.xml target/deploy/${cus_prompt}-explorer-srv.xml
 end
 
 cp explorer/bin/taos-explorer-srv.exe target/deploy/${cus_prompt}-explorer-srv.exe
-cp explorer/bin/taos-explorer-srv.xml target/deploy/${cus_prompt}-explorer-srv.xml
 cp explorer/server/examples/explorer.toml target/deploy/explorer.toml
 """
 

@@ -333,6 +333,26 @@ where
         .transpose()
 }
 
+pub fn parse_multiple_value<T>(dsn: &Dsn, key: &str) -> anyhow::Result<Option<Vec<T>>>
+where
+    T: std::str::FromStr,
+    T::Err: std::error::Error + Send + Sync + 'static,
+{
+    dsn.get(key)
+        .filter(|v| !v.is_empty())
+        .map(|v| {
+            v.split(',')
+                .map(|v| v.trim())
+                .filter(|v| !v.is_empty())
+                .map(|v| {
+                    v.parse::<T>()
+                        .with_context(|| format!("invalid {key}: `{v}`"))
+                })
+                .collect::<Result<Vec<_>>>()
+        })
+        .transpose()
+}
+
 #[cfg(test)]
 mod tests {
     use crate::utils::dsn::dsn_to_json;
