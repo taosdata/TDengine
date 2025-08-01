@@ -163,7 +163,7 @@ class Test_IDMP_Vehicle:
             # stream9 watermark 5m
             "create stream if not exists `idmp`.`veh_stream9`      interval(10m) sliding(10m) from `idmp`.`vt_9`  stream_options(WATERMARK(5m)|IGNORE_DISORDER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream9`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`,sum(`里程`) as `里程和` from %%trows",
             "create stream if not exists `idmp`.`veh_stream9_sub1` interval(10m) sliding(10m) from `idmp`.`vt_9`  stream_options(WATERMARK(5m))                 notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream9_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`,sum(`里程`) as `里程和` from %%trows",
-            # stream10 expired_time 1d
+            # stream10 expired_time 1h
             "create stream if not exists `idmp`.`veh_stream10`      interval(10m) sliding(10m) from `idmp`.`vt_10`  stream_options(EXPIRED_TIME(1h)|IGNORE_DISORDER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream10`      as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`,sum(`里程`) as `里程和` from %%trows",
             "create stream if not exists `idmp`.`veh_stream10_sub1` interval(10m) sliding(10m) from `idmp`.`vt_10`  stream_options(EXPIRED_TIME(1h))                 notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream10_sub1` as select _twstart+0s as output_timestamp, count(*) as cnt, avg(`速度`) as `平均速度`,sum(`里程`) as `里程和` from %%trows",
         ]
@@ -183,6 +183,7 @@ class Test_IDMP_Vehicle:
     # 4. write trigger data
     #
     def writeTriggerData(self):
+        print("write data ...")
         # stream_stb1
         self.trigger_stream_stb1()
         # stream1
@@ -204,12 +205,13 @@ class Test_IDMP_Vehicle:
         # stream9
         self.trigger_stream9()
         # stream10
-        self.trigger_stream9()
+        self.trigger_stream10()
 
     # 
     # 5. verify results
     #
     def verifyResults(self):
+        print("verify results ...")
         self.verify_stream_stb1()
         self.verify_stream1()
         self.verify_stream2()
@@ -1203,19 +1205,62 @@ class Test_IDMP_Vehicle:
     # verify stream10
     #
     def verify_stream10(self):
-        # ***** bug12 *****
+        # ***** bug13 *****
         return 
 
         # check data
         result_sql = f"select * from {self.vdb}.`result_stream10` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
-            func = lambda: tdSql.checkRows(1)
+            func = lambda: tdSql.checkRows(7)
             # row1
             and tdSql.compareData(0, 0, self.start) # ts
-            and tdSql.compareData(0, 1, 7)          # cnt
+            and tdSql.compareData(0, 1, 1)          # cnt
             and tdSql.compareData(0, 2, 120)        # avg
-            and tdSql.compareData(0, 3, 700)        # sum
+            and tdSql.compareData(0, 3, 100)        # sum
+            # row2
+            and tdSql.compareData(1, 1, 0)
+            and tdSql.compareData(1, 0, self.start + 1 * self.step)
+            and tdSql.compareData(2, 0, self.start + 2 * self.step)
+            and tdSql.compareData(3, 0, self.start + 3 * self.step)
+            and tdSql.compareData(4, 0, self.start + 4 * self.step)
+            and tdSql.compareData(5, 0, self.start + 5 * self.step)
+            and tdSql.compareData(6, 0, self.start + 6 * self.step)
         )
 
+        # sub
+        self.verify_stream10_sub1()
+
         tdLog.info(f"verify stream10 ................................ successfully.")
+
+
+    # verify stream10_sub1
+    def verify_stream10_sub1(self):
+        # check data
+        result_sql = f"select * from {self.vdb}.`result_stream10_sub1` "
+        tdSql.checkResultsByFunc (
+            sql = result_sql, 
+            func = lambda: tdSql.checkRows(8)
+            # row1
+            and tdSql.compareData(0, 0, self.start - 1 * self.step) # ts
+            and tdSql.compareData(0, 1, 9)          # cnt
+            and tdSql.compareData(0, 2, 120)        # avg
+            and tdSql.compareData(0, 3, 900)        # sum
+            # row2 
+            and tdSql.compareData(1, 0, self.start) # ts
+            and tdSql.compareData(1, 1, 1)          # cnt
+            # row3
+            and tdSql.compareData(2, 0, self.start + 1 * self.step) # ts
+            # ***** bug13 *****
+            #and tdSql.compareData(2, 1, 0)          # cnt
+            # row4
+            and tdSql.compareData(3, 0, self.start + 2 * self.step) # ts
+            and tdSql.compareData(3, 1, 10)         # cnt
+            # row5 ~ 8
+            and tdSql.compareData(4, 0, self.start + 3 * self.step)
+            and tdSql.compareData(5, 0, self.start + 4 * self.step)
+            and tdSql.compareData(6, 0, self.start + 5 * self.step)
+            and tdSql.compareData(7, 0, self.start + 6 * self.step)
+        )
+
+        tdLog.info(f"verify stream10 sub1 ........................... successfully.")
