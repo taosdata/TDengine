@@ -60,7 +60,9 @@ static int32_t mndStreamSeqActionUpdate(SSdb *pSdb, SStreamSeq *pOldStream, SStr
 static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq);
 
 void mndCleanupStream(SMnode *pMnode) {
-  msmDestroyRuntimeInfo(pMnode);
+  mDebug("try to clean up stream");
+  
+  msmHandleBecomeNotLeader(pMnode);
   
   mDebug("mnd stream runtime info cleanup");
 }

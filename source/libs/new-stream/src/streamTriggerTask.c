@@ -1459,7 +1459,7 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
       int32_t leaderSid = pTask->leaderSnodeId;
       SEpSet *epSet = gStreamMgmt.getSynEpset(leaderSid);
       if (epSet != NULL) {
-        streamSyncWriteCheckpoint(pTask->task.streamId, epSet, buf, len);
+        code = streamSyncWriteCheckpoint(pTask->task.streamId, epSet, buf, len);
         buf = NULL;
       }
     } while (0);
@@ -1471,7 +1471,7 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
     int32_t leaderSid = pTask->leaderSnodeId;
     SEpSet *epSet = gStreamMgmt.getSynEpset(leaderSid);
     if (epSet != NULL) {
-      streamSyncDeleteCheckpoint(pTask->task.streamId, epSet);
+      code = streamSyncDeleteCheckpoint(pTask->task.streamId, epSet);
     }
   }
 
@@ -1597,7 +1597,7 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
       }
       taosMemoryFreeClear(pReq);
     }
-    tdListFree(pTask->pRecalcRequests);
+    TAOS_UNUSED(tdListFree(pTask->pRecalcRequests));
     pTask->pRecalcRequests = NULL;
   }
 
@@ -2203,7 +2203,8 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       SSTriggerVirTableInfoRequest *pReq = &pProgress->pullReq.virTableInfoReq;
       int32_t                       nCols = pTask->nVirDataCols;
       pReq->cids = pProgress->reqCids;
-      taosArrayEnsureCap(pReq->cids, nCols);
+      code = taosArrayEnsureCap(pReq->cids, nCols);
+      QUERY_CHECK_CODE(code, lino, _end);
       TARRAY_SIZE(pReq->cids) = nCols;
       for (int32_t i = 0; i < nCols; i++) {
         SColumnInfoData *pCol = TARRAY_GET_ELEM(pTask->pVirDataBlock->pDataBlock, i);
@@ -2619,6 +2620,7 @@ static int32_t stRealtimeContextRetryCalcRequest(SSTriggerRealtimeContext *pCont
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    destroyAhandle(msg.info.ahandle);
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
@@ -3495,7 +3497,8 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
             QUERY_CHECK_NULL(pTbInfo->pColumns, code, lino, _end, terrno);
           }
           col_id_t colid = 0;
-          tSimpleHashPut(pTbInfo->pColumns, pColRef->refColName, colNameLen, &colid, sizeof(col_id_t));
+          code = tSimpleHashPut(pTbInfo->pColumns, pColRef->refColName, colNameLen, &colid, sizeof(col_id_t));
+          QUERY_CHECK_CODE(code, lino, _end);
         }
       }
 
@@ -4360,6 +4363,7 @@ static int32_t stHistoryContextRetryPullRequest(SSTriggerHistoryContext *pContex
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    destroyAhandle(msg.info.ahandle);
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
@@ -4430,6 +4434,7 @@ static int32_t stHistoryContextRetryCalcRequest(SSTriggerHistoryContext *pContex
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    destroyAhandle(msg.info.ahandle);
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;

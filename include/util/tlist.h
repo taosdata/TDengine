@@ -229,6 +229,7 @@ void       tdListPrependNode(SList *list, SListNode *node);
 void       tdListAppendNode(SList *list, SListNode *node);
 int32_t    tdListPrepend(SList *list, void *data);
 int32_t    tdListAppend(SList *list, const void *data);
+void*      tdListPreReserve(SList *list);
 void*      tdListReserve(SList *list);
 SListNode *tdListAdd(SList *list, const void *data);
 SListNode *tdListPopHead(SList *list);
