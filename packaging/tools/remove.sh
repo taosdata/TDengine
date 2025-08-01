@@ -46,6 +46,7 @@ xName="${PREFIX}x"
 explorerName="${PREFIX}-explorer"
 inspect_name="${PREFIX}inspect"
 tarbitratorName="tarbitratord"
+mqtt_name="${PREFIX}mqtt"
 productName="TDengine TSDB"
 
 #install main path
@@ -59,15 +60,14 @@ config_dir="/etc/${PREFIX}"
 
 if [ "${verMode}" == "cluster" ]; then
   if [ "${entMode}" == "full" ]; then
-    services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"keeper")
+    services=("${serverName}" ${adapterName} "${keeperName}")
   else
-    services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"keeper" ${PREFIX}"-explorer")
+    services=("${serverName}" ${adapterName} "${keeperName}" "${explorerName}")
   fi
-  tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo" ${PREFIX}"inspect" ${PREFIX}"udf" set_core.sh TDinsight.sh $uninstallScript start-all.sh stop-all.sh)
+  tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${PREFIX}udf" "${mqtt_name}" "set_core.sh" "TDinsight.sh" "$uninstallScript" "start-all.sh" "stop-all.sh")
 else
-  tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo" ${PREFIX}"udf" set_core.sh TDinsight.sh $uninstallScript start-all.sh stop-all.sh)
-
-  services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"keeper" ${PREFIX}"-explorer")
+  tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${PREFIX}udf" "${mqtt_name}" "set_core.sh" "TDinsight.sh" "$uninstallScript" "start-all.sh" "stop-all.sh")
+  services=("${serverName}" ${adapterName} "${keeperName}" "${explorerName}")
 fi
 
 csudo=""
@@ -214,15 +214,15 @@ function clean_log() {
 }
 
 function clean_service_on_launchctl() {
-  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosd.plist || :
-  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${PREFIX}adapter.plist || :
-  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${PREFIX}keeper.plist || :
-  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${PREFIX}-explorer.plist || :
+  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${serverName}.plist || :
+  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${adapterName}.plist || :
+  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${keeperName}.plist || :
+  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${explorerName}.plist || :
 
   ${csudo}launchctl remove com.tdengine.taosd || :
-  ${csudo}launchctl remove com.tdengine.${PREFIX}adapter || :
-  ${csudo}launchctl remove com.tdengine.${PREFIX}keeper || :
-  ${csudo}launchctl remove com.tdengine.${PREFIX}-explorer || :
+  ${csudo}launchctl remove com.tdengine.${adapterName} || :
+  ${csudo}launchctl remove com.tdengine.${keeperName} || :
+  ${csudo}launchctl remove com.tdengine.${explorerName} || :
 
   ${csudo}rm /Library/LaunchDaemons/com.taosdata.* >/dev/null 2>&1 || :
 }
