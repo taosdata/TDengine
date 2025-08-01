@@ -546,13 +546,16 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
   req.alterOriDataLen = alterOriDataLen;
   req.source = pStb->source;
   req.virtualStb = pStb->virtualStb;
-  // todo
+
   req.schemaRow.nCols = pStb->numOfColumns;
   req.schemaRow.version = pStb->colVer;
   req.schemaRow.pSchema = pStb->pColumns;
+  req.schemaRow.pExtSchema = pStb->pExtSchemas;
+
   req.schemaTag.nCols = pStb->numOfTags;
   req.schemaTag.version = pStb->tagVer;
   req.schemaTag.pSchema = pStb->pTags;
+  req.schemaTag.pExtSchema = NULL;
 
   req.colCmpred = 1;
   SColCmprWrapper *pCmpr = &req.colCmpr;

@@ -11581,22 +11581,6 @@ _exit:
   return code;
 }
 
-static int32_t tEncodeSExtSchema(SEncoder *pCoder, const SExtSchema *pExtSchema) {
-  int32_t code = 0, lino;
-  TAOS_CHECK_EXIT(tEncodeI32v(pCoder, pExtSchema->typeMod));
-
-_exit:
-  return code;
-}
-
-int32_t tDecodeSExtSchema(SDecoder *pCoder, SExtSchema *pExtSchema) {
-  int32_t code = 0, lino;
-  TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &pExtSchema->typeMod));
-
-_exit:
-  return code;
-}
-
 static int32_t tEncodeSExtSchemas(SEncoder *pCoder, const SExtSchema *pExtSchemas, int32_t nCol) {
   int32_t code = 0, lino;
   for (int32_t i = 0; i < nCol; ++i) {
@@ -11852,6 +11836,7 @@ void tDestroySVCreateTbReq(SVCreateTbReq *pReq, int32_t flags) {
       pReq->ctb.tagName = NULL;
     } else if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
       taosMemoryFreeClear(pReq->ntb.schemaRow.pSchema);
+      taosMemoryFreeClear(pReq->ntb.schemaRow.pExtSchema);
     }
   }
 
@@ -13617,6 +13602,7 @@ void *tDecodeMqSubTopicEp(void *buf, SMqSubTopicEp *pTopicEp) {
 
 void tDeleteMqSubTopicEp(SMqSubTopicEp *pSubTopicEp) {
   taosMemoryFreeClear(pSubTopicEp->schema.pSchema);
+  taosMemoryFreeClear(pSubTopicEp->schema.pExtSchema);
   pSubTopicEp->schema.nCols = 0;
   taosArrayDestroy(pSubTopicEp->vgs);
 }

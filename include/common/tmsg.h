@@ -843,6 +843,7 @@ typedef struct {
   int32_t  nCols;
   int32_t  version;
   SSchema* pSchema;
+  SExtSchema* pExtSchema;
 } SSchemaWrapper;
 
 typedef struct {
@@ -932,10 +933,11 @@ static FORCE_INLINE void tDeleteSColCmprWrapper(SColCmprWrapper* pWrapper) {
   taosMemoryFreeClear(pWrapper->pColCmpr);
   taosMemoryFreeClear(pWrapper);
 }
+
 static FORCE_INLINE SSchemaWrapper* tCloneSSchemaWrapper(const SSchemaWrapper* pSchemaWrapper) {
   if (pSchemaWrapper->pSchema == NULL) return NULL;
 
-  SSchemaWrapper* pSW = (SSchemaWrapper*)taosMemoryMalloc(sizeof(SSchemaWrapper));
+  SSchemaWrapper* pSW = (SSchemaWrapper*)taosMemoryCalloc(1, sizeof(SSchemaWrapper));
   if (pSW == NULL) {
     return NULL;
   }
@@ -946,14 +948,27 @@ static FORCE_INLINE SSchemaWrapper* tCloneSSchemaWrapper(const SSchemaWrapper* p
     taosMemoryFree(pSW);
     return NULL;
   }
-
   (void)memcpy(pSW->pSchema, pSchemaWrapper->pSchema, pSW->nCols * sizeof(SSchema));
+
+  if (NULL != pSchemaWrapper->pExtSchema) {
+    pSW->pExtSchema = (SExtSchema*)taosMemoryCalloc(pSW->nCols, sizeof(SExtSchema));
+    if (pSW->pExtSchema == NULL) {
+      taosMemoryFree(pSW->pSchema);
+      taosMemoryFree(pSW);
+      return NULL;
+    }
+    (void)memcpy(pSW->pExtSchema, pSchemaWrapper->pExtSchema, pSW->nCols * sizeof(SExtSchema));
+  } else {
+    pSW->pExtSchema = NULL;
+  }
+
   return pSW;
 }
 
 static FORCE_INLINE void tDeleteSchemaWrapper(SSchemaWrapper* pSchemaWrapper) {
   if (pSchemaWrapper) {
     taosMemoryFree(pSchemaWrapper->pSchema);
+    taosMemoryFree(pSchemaWrapper->pExtSchema);
     taosMemoryFree(pSchemaWrapper);
   }
 }
@@ -961,6 +976,7 @@ static FORCE_INLINE void tDeleteSchemaWrapper(SSchemaWrapper* pSchemaWrapper) {
 static FORCE_INLINE void tDeleteSSchemaWrapperForHash(void* pSchemaWrapper) {
   if (pSchemaWrapper != NULL && *(SSchemaWrapper**)pSchemaWrapper != NULL) {
     taosMemoryFree((*(SSchemaWrapper**)pSchemaWrapper)->pSchema);
+    taosMemoryFree((*(SSchemaWrapper**)pSchemaWrapper)->pExtSchema);
     taosMemoryFree(*(SSchemaWrapper**)pSchemaWrapper);
   }
 }
@@ -984,6 +1000,17 @@ static FORCE_INLINE void* taosDecodeSSchema(const void* buf, SSchema* pSchema) {
   return (void*)buf;
 }
 
+static FORCE_INLINE int32_t taosEncodeSExtSchema(void** buf, const SExtSchema* pExtSchema) {
+  int32_t tlen = 0;
+  tlen += taosEncodeFixedI32(buf, pExtSchema->typeMod);
+  return tlen;
+}
+
+static FORCE_INLINE void* taosDecodeSExtSchema(const void* buf, SExtSchema* pExtSchema) {
+  buf = taosDecodeFixedI32(buf, &pExtSchema->typeMod);
+  return (void*)buf;
+}
+
 static FORCE_INLINE int32_t tEncodeSSchema(SEncoder* pEncoder, const SSchema* pSchema) {
   TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pSchema->type));
   TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pSchema->flags));
@@ -999,6 +1026,16 @@ static FORCE_INLINE int32_t tDecodeSSchema(SDecoder* pDecoder, SSchema* pSchema)
   TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pSchema->bytes));
   TAOS_CHECK_RETURN(tDecodeI16v(pDecoder, &pSchema->colId));
   TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pSchema->name));
+  return 0;
+}
+
+static FORCE_INLINE int32_t tEncodeSExtSchema(SEncoder* pEncoder, const SExtSchema* pExtSchema) {
+  TAOS_CHECK_RETURN(tEncodeI32v(pEncoder, pExtSchema->typeMod));
+  return 0;
+}
+
+static FORCE_INLINE int32_t tDecodeSExtSchema(SDecoder* pDecoder, SExtSchema* pExtSchema) {
+  TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pExtSchema->typeMod));
   return 0;
 }
 
@@ -1046,24 +1083,50 @@ static FORCE_INLINE int32_t taosEncodeSSchemaWrapper(void** buf, const SSchemaWr
   for (int32_t i = 0; i < pSW->nCols; i++) {
     tlen += taosEncodeSSchema(buf, &pSW->pSchema[i]);
   }
+
+  if (NULL != pSW->pExtSchema) {
+    tlen += taosEncodeFixedI8(buf, 1);  // pExtSchema is not NULL
+    for (int32_t i = 0; i < pSW->nCols; i++) {
+      tlen += taosEncodeSExtSchema(buf, &pSW->pExtSchema[i]);
+    }
+  } else {
+    tlen += taosEncodeFixedI8(buf, 0);  // pExtSchema is NULL
+  }
+
   return tlen;
 }
 
 static FORCE_INLINE void* taosDecodeSSchemaWrapper(const void* buf, SSchemaWrapper* pSW) {
   buf = taosDecodeVariantI32(buf, &pSW->nCols);
   buf = taosDecodeVariantI32(buf, &pSW->version);
+  pSW->pSchema = NULL;
+  pSW->pExtSchema = NULL;
+
   if (pSW->nCols > 0) {
     pSW->pSchema = (SSchema*)taosMemoryCalloc(pSW->nCols, sizeof(SSchema));
     if (pSW->pSchema == NULL) {
       return NULL;
     }
-
     for (int32_t i = 0; i < pSW->nCols; i++) {
       buf = taosDecodeSSchema(buf, &pSW->pSchema[i]);
     }
-  } else {
-    pSW->pSchema = NULL;
+
+    int8_t hasExtSchema = 0;
+    buf = taosDecodeFixedI8(buf, &hasExtSchema);
+    if (hasExtSchema) {
+      pSW->pExtSchema = (SExtSchema*)taosMemoryCalloc(pSW->nCols, sizeof(SExtSchema));
+      if (pSW->pExtSchema == NULL) {
+        taosMemoryFree(pSW->pSchema);
+        return NULL;
+      }
+      for (int32_t i = 0; i < pSW->nCols; i++) {
+        buf = taosDecodeSExtSchema(buf, &pSW->pExtSchema[i]);
+      }
+    } else {
+      pSW->pExtSchema = NULL;
+    }
   }
+
   return (void*)buf;
 }
 
@@ -1076,6 +1139,16 @@ static FORCE_INLINE int32_t tEncodeSSchemaWrapper(SEncoder* pEncoder, const SSch
   for (int32_t i = 0; i < pSW->nCols; i++) {
     TAOS_CHECK_RETURN(tEncodeSSchema(pEncoder, &pSW->pSchema[i]));
   }
+  
+  if (NULL != pSW->pExtSchema) {
+    TAOS_CHECK_RETURN(tEncodeI8(pEncoder, 1));  // pExtSchema is not NULL
+    for (int32_t i = 0; i < pSW->nCols; i++) {
+      TAOS_CHECK_RETURN(tEncodeSExtSchema(pEncoder, &pSW->pExtSchema[i]));
+    }
+  } else {
+    TAOS_CHECK_RETURN(tEncodeI8(pEncoder, 0));  // pExtSchema is NULL
+  }
+
   return 0;
 }
 
@@ -1093,6 +1166,21 @@ static FORCE_INLINE int32_t tDecodeSSchemaWrapper(SDecoder* pDecoder, SSchemaWra
   for (int32_t i = 0; i < pSW->nCols; i++) {
     TAOS_CHECK_RETURN(tDecodeSSchema(pDecoder, &pSW->pSchema[i]));
   }
+  
+  int8_t hasExtSchema = 0;
+  TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &hasExtSchema));
+  if (hasExtSchema) {
+    pSW->pExtSchema = (SExtSchema*)taosMemoryCalloc(pSW->nCols, sizeof(SExtSchema));
+    if (pSW->pExtSchema == NULL) {
+      taosMemoryFree(pSW->pSchema);
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    for (int32_t i = 0; i < pSW->nCols; i++) {
+      TAOS_CHECK_RETURN(tDecodeSExtSchema(pDecoder, &pSW->pExtSchema[i]));
+    }
+  } else {
+    pSW->pExtSchema = NULL;
+  }
 
   return 0;
 }
@@ -1107,6 +1195,21 @@ static FORCE_INLINE int32_t tDecodeSSchemaWrapperEx(SDecoder* pDecoder, SSchemaW
   }
   for (int32_t i = 0; i < pSW->nCols; i++) {
     TAOS_CHECK_RETURN(tDecodeSSchema(pDecoder, &pSW->pSchema[i]));
+  }
+
+  int8_t hasExtSchema = 0;
+  TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &hasExtSchema));
+  if (hasExtSchema) {
+    pSW->pExtSchema = (SExtSchema*)tDecoderMalloc(pDecoder, pSW->nCols * sizeof(SExtSchema));
+    if (pSW->pExtSchema == NULL) {
+      taosMemoryFree(pSW->pSchema);
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    for (int32_t i = 0; i < pSW->nCols; i++) {
+      TAOS_CHECK_RETURN(tDecodeSExtSchema(pDecoder, &pSW->pExtSchema[i]));
+    }
+  } else {
+    pSW->pExtSchema = NULL;
   }
 
   return 0;
@@ -4532,6 +4635,11 @@ static FORCE_INLINE void tDestroyTSma(STSma* pSma) {
     taosMemoryFreeClear(pSma->dstTbName);
     taosMemoryFreeClear(pSma->expr);
     taosMemoryFreeClear(pSma->tagsFilter);
+
+    taosMemoryFreeClear(pSma->schemaRow.pSchema);
+    taosMemoryFreeClear(pSma->schemaRow.pExtSchema);
+    taosMemoryFreeClear(pSma->schemaTag.pSchema);
+    taosMemoryFreeClear(pSma->schemaTag.pExtSchema);
   }
 }
 
