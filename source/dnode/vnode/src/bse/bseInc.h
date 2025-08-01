@@ -111,6 +111,7 @@ int32_t blockWrapperSeek(SBlockWrapper *p, int64_t tgt, uint8_t **pValue, int32_
 typedef struct {
   int32_t          ref;
   struct SSeqRange range;
+  struct SSeqRange tableRange;
   SArray          *pMetaHandle;
   SBlockWrapper    pBlockWrapper;
   void            *pBse;

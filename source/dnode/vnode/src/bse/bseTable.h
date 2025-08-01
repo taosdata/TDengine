@@ -141,6 +141,7 @@ typedef struct {
 
   SBTableMeta *pTableMeta;
   int64_t      timestamp;
+  void        *pBuilderMgt;
 
   SBse *pBse;
 } STableBuilder;

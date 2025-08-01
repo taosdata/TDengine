@@ -36,9 +36,6 @@ class TestInsertBasic:
         db = dbPrefix + str(i)
         tb = tbPrefix + str(i)
 
-        i = 1
-        tb_orderd = tbPrefix + str(i)
-
         tdSql.execute(f"create database {db} vgroups 2")
         tdSql.execute(f"use {db}")
 
@@ -46,9 +43,11 @@ class TestInsertBasic:
         self.createTableAndBasicCheck(db, tb, 1000, 1)
 
 
-        #tdLog.info(f"=============step2 check unordered data") 
-        self.createTableAndBasicCheck(db, tb_orderd, 100, 0)
-
+        tdLog.info(f"=============step2 check unordered data") 
+        for i in range(2):
+            tdLog.info(f"=============i check unordered data") 
+            tb_orderd = tbPrefix + str(i + 10)
+            self.createTableAndBasicCheck(db, tb_orderd, 10000, 0)
 
         tdSql.execute(f"drop database {db}")
 
@@ -117,12 +116,7 @@ class TestInsertBasic:
         count = count + batchCount
 
         self.checkBlobResult(tb, colSet, count)
-        #self.checkBlobResult(tb, colSet, count)
-        #self.checkBlobResult(tb, colSet, count)
-        #self.checkBlobResult(tb, colSet, count)
-        #self.checkBlobResult(tb, colSet, count)
         tdSql.flushDb(f"{db}")
-        time.sleep(5) 
         self.insertBatchData(tb, batchCount, colSet, 1717122968000 + batchCount*10, ordered)
         count = count + batchCount
 

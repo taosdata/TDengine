@@ -236,6 +236,10 @@ int32_t tableBuilderFlush(STableBuilder *p, int8_t type, int8_t immutable) {
   code = bseMemTableRef(pMemTable);
   TSDB_CHECK_CODE(code, lino, _error);
 
+  SBlockWrapper *pBlockWrapper = &pMemTable->pBlockWrapper;
+  code = blockWrapperResize(pBlockWrapper, BLOCK_TOTAL_SIZE((SBlock *)(pBlockWrapper->data)) + pBlockWrapper->kvSize);
+  TSDB_CHECK_CODE(code, lino, _error);
+
   code = tableBuilderSetBlockInfo(pMemTable);
   TSDB_CHECK_CODE(code, lino, _error);
 
@@ -305,7 +309,7 @@ _error:
   }
 
   if (pMemTable != NULL) {
-    blockWrapperClear(&pMemTable->pBlockWrapper);
+    if (!immutable) blockWrapperClear(&pMemTable->pBlockWrapper);
     bseMemTableUnRef(pMemTable);
   }
   blockWrapperCleanup(&wrapper);
@@ -324,6 +328,7 @@ void tableBuilderUpdateBlockRange(STableBuilder *p, SBlockItemInfo *pInfo) {
 void memtableUpdateBlockRange(STableMemTable *p, SBlockItemInfo *pInfo) {
   SSeqRange range = {.sseq = pInfo->seq, .eseq = pInfo->seq};
   seqRangeUpdate(&p->range, &range);
+  seqRangeUpdate(&p->tableRange, &range);
 }
 
 // table block data
@@ -368,9 +373,6 @@ int32_t tableBuilderPut(STableBuilder *p, SBseBatch *pBatch) {
       code = tableBuilderFlush(p, BSE_TABLE_DATA_TYPE, 0);
       TSDB_CHECK_CODE(code, lino, _error);
       len = 0;
-
-      // code = blockWrapperPushMeta(pBlockWrapper, pInfo->seq, NULL, pInfo->size);
-      // TSDB_CHECK_CODE(code, lino, _error);
     }
   }
 
@@ -440,6 +442,9 @@ int32_t findInMemtable(STableMemTable *p, int64_t seq, uint8_t **value, int32_t 
   if (code != 0) {
     return code;
   }
+  if (!seqRangeContains(&p->tableRange, seq)) {
+    TSDB_CHECK_CODE(TSDB_CODE_NOT_FOUND, lino, _error);
+  }
 
   if (taosArrayGetSize(p->pMetaHandle) > 0) {
     pHandle = taosArrayGetLast(p->pMetaHandle);
@@ -451,11 +456,16 @@ int32_t findInMemtable(STableMemTable *p, int64_t seq, uint8_t **value, int32_t 
       }
       pHandle = taosArrayGet(p->pMetaHandle, idx);
       code = tableBuilderSeek(p->pTableBuilder, pHandle, seq, value, len);
+      TSDB_CHECK_CODE(code, lino, _error);
     }
   }
 
   if (inBuf == 1) {
     code = blockWrapperSeek(&p->pBlockWrapper, seq, value, len);
+    if (code != 0) {
+      bseInfo("mem table range [%" PRId64 ", %" PRId64 "]", p->tableRange.sseq, p->tableRange.eseq);
+    }
+    TSDB_CHECK_CODE(code, lino, _error);
   }
 _error:
   bseMemTableUnRef(p);
@@ -489,12 +499,13 @@ static void updateTableRange(SBTableMeta *pTableMeta, SArray *pMetaBlock) {
 }
 static int32_t tableBuilderClearImmuMemTable(STableBuilder *p) {
   int32_t code = 0;
-  (void)taosThreadRwlockWrlock(&p->pBse->rwlock);
+  STableBuilderMgt *pMgt = p->pBuilderMgt;
+  (void)taosThreadRwlockWrlock(&pMgt->mutex);
   atomic_store_8(&p->hasImmuMemTable, 0);
   bseMemTableUnRef(p->pImmuMemTable);
   p->pImmuMemTable = NULL;
 
-  (void)taosThreadRwlockUnlock(&p->pBse->rwlock);
+  (void)taosThreadRwlockUnlock(&pMgt->mutex);
   return code;
 }
 static int32_t tableBuildeSwapMemTable(STableBuilder *p) {
@@ -533,9 +544,6 @@ int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo) {
     return code;
   }
 
-  code = tableBuilderClearImmuMemTable(p);
-  TSDB_CHECK_CODE(code, lino, _error);
-
   code = tableMetaCommit(p->pTableMeta, pMetaBlock);
   TSDB_CHECK_CODE(code, lino, _error);
 
@@ -545,6 +553,9 @@ int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo) {
   pInfo->range = p->pTableMeta->range;
   pInfo->timestamp = p->timestamp;
   pInfo->size = p->offset;
+
+  code = tableBuilderClearImmuMemTable(p);
+  TSDB_CHECK_CODE(code, lino, _error);
 
 _error:
   if (code != 0) {
@@ -918,6 +929,7 @@ int32_t blockWrapperSeek(SBlockWrapper *p, int64_t tgt, uint8_t **pValue, int32_
     }
     offset += vlen;
   }
+  bseInfo("blockWrapperSeek not found seq:%" PRId64 ", tgt:%" PRId64 "", tgt, tgt);
   return TSDB_CODE_BLOB_SEQ_NOT_FOUND;
 }
 
@@ -2318,6 +2330,7 @@ int32_t bseMemTableCreate(STableMemTable **pMemTable, int32_t cap) {
   TAOS_CHECK_GOTO(code, &lino, _error);
 
   seqRangeReset(&p->range);
+  seqRangeReset(&p->tableRange);
   p->ref = 1;
   bseTrace("create mem table %p", p);
 
