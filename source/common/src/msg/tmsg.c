@@ -13357,13 +13357,14 @@ int32_t tDecodeSubmitReq(SDecoder *pCoder, SSubmitReq2 *pReq, SArray *rawList, S
   int32_t code = 0;
 
   memset(pReq, 0, sizeof(*pReq));
-
+  uint32_t offset = pCoder->pos;
   // decode
   if (tStartDecode(pCoder) < 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
-
+  offset += INT_BYTES;
+  
   uint64_t nSubmitTbData;
   if (tDecodeU64v(pCoder, &nSubmitTbData) < 0) {
     code = TSDB_CODE_INVALID_MSG;
@@ -13378,7 +13379,8 @@ int32_t tDecodeSubmitReq(SDecoder *pCoder, SSubmitReq2 *pReq, SArray *rawList, S
 
   for (uint64_t i = 0; i < nSubmitTbData; i++) {
     SSubmitTbData *data = taosArrayReserve(pReq->aSubmitTbData, 1);
-    if (taosArrayPush(dataOffset, &pCoder->pos) == NULL){
+    offset += pCoder->pos;
+    if (dataOffset != NULL && taosArrayPush(dataOffset, &offset) == NULL){
       code = terrno;
       goto _exit;
     }
@@ -13394,11 +13396,11 @@ _exit:
   return code;
 }
 
-int32_t tDecodeOneSubmit(SDecoder *pCoder, SSubmitTbData *data, int64_t offset) {
+int32_t tDecodeOneSubmit(SDecoder *pCoder, SSubmitTbData *data, int32_t offset) {
   int32_t code = 0;
 
   pCoder->pos = offset;
-  if (pCoder->pos >= pCoder->size || pCoder->pos < 0) {
+  if (offset < 0 || pCoder->pos >= pCoder->size) {
     code = TSDB_CODE_OUT_OF_RANGE;
     goto _exit;
   }

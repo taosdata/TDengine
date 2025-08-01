@@ -31,7 +31,7 @@ typedef struct SSTriggerMetaData {
   int64_t skey;
   int64_t ekey;
   int64_t ver;
-  int64_t offset;
+  int32_t offset;
   int64_t nrows;
 } SSTriggerMetaData;
 

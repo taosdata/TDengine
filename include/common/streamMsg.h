@@ -802,7 +802,7 @@ typedef struct SSTriggerWalDataRequest {
   SSTriggerPullRequest base;
   int64_t              uid;
   int64_t              ver;
-  int64_t              offset;
+  int32_t              offset;
   int64_t              skey;
   int64_t              ekey;
   SArray*              cids;  // SArray<col_id_t>, col_id starts from 0

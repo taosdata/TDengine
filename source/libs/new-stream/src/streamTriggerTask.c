@@ -5603,7 +5603,7 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SArra
     int64_t *pNrows = (int64_t *)pNrowsCol->pData;
     SColumnInfoData *pOffsetCol = taosArrayGet(pBlock->pDataBlock, iCol++);
     QUERY_CHECK_NULL(pOffsetCol, code, lino, _end, terrno);
-    int64_t *pOffsets = (int64_t *)pOffsetCol->pData;
+    int32_t *pOffsets = (int32_t *)pOffsetCol->pData;
 
     for (int32_t i = 0; i < nrows; i++) {
       bool inGroup = false;

@@ -162,7 +162,7 @@ end:
 }
 
 static int32_t buildWalMetaBlock(SSDataBlock* pBlock, int8_t type, int64_t gid, bool isVTable, int64_t uid,
-                                 int64_t skey, int64_t ekey, int64_t ver, int64_t rows, int64_t offset) {
+                                 int64_t skey, int64_t ekey, int64_t ver, int64_t rows, int32_t offset) {
   int32_t code = 0;
   int32_t lino = 0;
   int32_t index = 0;
@@ -191,7 +191,7 @@ static void buildTSchema(STSchema* pTSchema, int32_t ver, col_id_t colId, int8_t
 }
 
 int32_t retrieveWalMetaData(SSubmitTbData* pSubmitTbData, void* pTableList, bool isVTable, SSDataBlock* pBlock,
-                            int64_t ver, int64_t offset) {
+                            int64_t ver, int32_t offset) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -431,7 +431,8 @@ static int32_t scanSubmitData(void* pTableList, bool isVTable, SSDataBlock* pBlo
   int32_t  code = 0;
   int32_t  lino = 0;
   SDecoder decoder = {0};
-  SArray*  dataOffset = taosArrayInit(0, LONG_BYTES);
+  SArray*  dataOffset = taosArrayInit(0, INT_BYTES);
+  STREAM_CHECK_NULL_GOTO(dataOffset, terrno);
 
   SSubmitReq2 submit = {0};
   tDecoderInit(&decoder, data, len);
@@ -445,10 +446,10 @@ static int32_t scanSubmitData(void* pTableList, bool isVTable, SSDataBlock* pBlo
   while (++nextBlk < numOfBlocks) {
     SSubmitTbData* pSubmitTbData = taosArrayGet(submit.aSubmitTbData, nextBlk);
     STREAM_CHECK_NULL_GOTO(pSubmitTbData, terrno);
-    int64_t* offset = taosArrayGet(dataOffset, nextBlk);
+    int32_t* offset = taosArrayGet(dataOffset, nextBlk);
     STREAM_CHECK_NULL_GOTO(offset, terrno);
     STREAM_CHECK_RET_GOTO(retrieveWalMetaData(pSubmitTbData, pTableList, isVTable, pBlock, ver, *offset));
-    stDebug("stream reader scan submit, next data block %d/%d, offset:%"PRId64, nextBlk, numOfBlocks, *offset);
+    stDebug("stream reader scan submit, next data block %d/%d, offset:%d", nextBlk, numOfBlocks, *offset);
   }
 end:
   tDestroySubmitReq(&submit, TSDB_MSG_FLG_DECODE);
@@ -501,7 +502,7 @@ end:
 }
 
 int32_t scanWalOneVer(SVnode* pVnode, SSDataBlock* pBlock, SSDataBlock* pBlockRet,
-                      int64_t ver, int64_t uid, int64_t offset, STimeWindow* window) {
+                      int64_t ver, int64_t uid, int32_t offset, STimeWindow* window) {
   int32_t     code = 0;
   int32_t     lino = 0;
   SSubmitTbData pSubmitTbData = {0};
@@ -603,7 +604,7 @@ end:
 }
 
 static int32_t processWalVerData(SVnode* pVnode, SStreamTriggerReaderInfo* sStreamInfo, int64_t ver, bool isTrigger,
-                                 int64_t uid, int64_t offset, STimeWindow* window, SSDataBlock* pSrcBlock, SSDataBlock** pBlock) {
+                                 int64_t uid, int32_t offset, STimeWindow* window, SSDataBlock* pSrcBlock, SSDataBlock** pBlock) {
   int32_t      code = 0;
   int32_t      lino = 0;
   SFilterInfo* pFilterInfo = NULL;
@@ -710,7 +711,7 @@ end:
 }
 
 static int32_t processWalVerDataVTable(SVnode* pVnode, SArray *cids, int64_t ver,
-  int64_t uid, int64_t offset, STimeWindow* window, SSDataBlock** pBlock) {
+  int64_t uid, int32_t offset, STimeWindow* window, SSDataBlock** pBlock) {
   int32_t      code = 0;
   int32_t      lino = 0;
   SArray*      schemas = NULL;
@@ -914,7 +915,7 @@ static int32_t createBlockForWalMeta(SSDataBlock** pBlock, bool isVTable) {
   STREAM_CHECK_RET_GOTO(qStreamBuildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, index++))  // ekey
   STREAM_CHECK_RET_GOTO(qStreamBuildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, index++))  // ver
   STREAM_CHECK_RET_GOTO(qStreamBuildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, index++))  // nrows
-  STREAM_CHECK_RET_GOTO(qStreamBuildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, index++))  // offset
+  STREAM_CHECK_RET_GOTO(qStreamBuildSchema(schemas, TSDB_DATA_TYPE_INT, INT_BYTES, index++))  // offset
 
   STREAM_CHECK_RET_GOTO(createDataBlockForStream(schemas, pBlock));
 
@@ -1681,7 +1682,7 @@ static int32_t vnodeProcessStreamWalDataReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
 
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
   void* pTask = sStreamReaderInfo->pTask;
-  ST_TASK_DLOG("vgId:%d %s start, request type:%d skey:%" PRId64 ",ekey:%" PRId64 ",uid:%" PRId64 ",ver:%" PRId64  ",offset:%" PRId64, TD_VID(pVnode),
+  ST_TASK_DLOG("vgId:%d %s start, request type:%d skey:%" PRId64 ",ekey:%" PRId64 ",uid:%" PRId64 ",ver:%" PRId64  ",offset:%d", TD_VID(pVnode),
   __func__, req->walDataReq.base.type, req->walDataReq.skey, req->walDataReq.ekey, req->walDataReq.uid, req->walDataReq.ver, req->walDataReq.offset);
 
   STimeWindow window = {.skey = req->walDataReq.skey, .ekey = req->walDataReq.ekey};
