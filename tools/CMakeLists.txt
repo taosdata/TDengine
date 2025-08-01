@@ -126,42 +126,60 @@ ELSE()
     add_dependencies(build_ext_taosadapter ext_taosadapter)
 ENDIF()
 
-IF(TD_BUILD_KEEPER)
-    MESSAGE("")
-    MESSAGE("${Green} build taoskeeper, current platform is ${PLATFORM_ARCH_STR} ${ColourReset}")
+if(TD_BUILD_KEEPER)
+    message("")
+    message("${Green} build taoskeeper, current platform is ${PLATFORM_ARCH_STR} ${ColourReset}")
 
-    EXECUTE_PROCESS(
+    execute_process(
         COMMAND git rev-parse HEAD
         OUTPUT_VARIABLE taoskeeper_commit_sha1
     )
 
-    IF("${taoskeeper_commit_sha1}" STREQUAL "")
-        SET(taoskeeper_commit_sha1 "unknown")
-    ELSE()
-        STRING(STRIP "${taoskeeper_commit_sha1}" taoskeeper_commit_sha1)
-    ENDIF()
+    if("${taoskeeper_commit_sha1}" STREQUAL "")
+        set(taoskeeper_commit_sha1 "unknown")
+    else()
+        string(STRIP "${taoskeeper_commit_sha1}" taoskeeper_commit_sha1)
+    endif()
 
-    SET(taos_version ${TD_VER_NUMBER})
-    MESSAGE("${Green} taoskeeper will use ${taos_version} and commit ${taoskeeper_commit_sha1} as version ${ColourReset}")
-    MESSAGE(" current source dir is ${CMAKE_CURRENT_SOURCE_DIR}")
+    set(taoskeeper_version ${TD_VER_NUMBER})
+    message("${Green} taoskeeper will use ${taoskeeper_version} and commit ${taoskeeper_commit_sha1} as version ${ColourReset}")
+    message(" current source dir is ${CMAKE_CURRENT_SOURCE_DIR}")
 
-    IF(TD_DARWIN)
-        MESSAGE("Building taoskeeper on macOS")
+    if(TD_DARWIN)
+        message("Building taoskeeper on macOS")
         set(taoskeeper_exe taoskeeper)
-    ELSEIF(TD_WINDOWS)
-        MESSAGE("Building taoskeeper on Windows")
+    elseif(TD_WINDOWS)
+        message("Building taoskeeper on Windows")
         set(taoskeeper_exe taoskeeper.exe)
-    ELSE()
-        MESSAGE("Building taoskeeper on Linux")
+    else()
+        message("Building taoskeeper on Linux")
         set(taoskeeper_exe taoskeeper)
-    ENDIF()
+    endif()
+
+    if("${TD_PRODUCT_NAME}" STREQUAL "")
+        set(taoskeeper_product_name "TDengine TSDB-OSS")
+    else()
+        set(taoskeeper_product_name "${TD_PRODUCT_NAME}")
+    endif()
+
+    if("${CUS_NAME}" STREQUAL "")
+        set(taoskeeper_cus_name "TDengine")
+    else()
+        set(taoskeeper_cus_name "${CUS_NAME}")
+    endif()
+
+    if("${CUS_PROMPT}" STREQUAL "")
+        set(taoskeeper_cus_prompt "taos")
+    else()
+        set(taoskeeper_cus_prompt "${CUS_PROMPT}")
+    endif()
 
     set(_ldflags_list
-        "-X 'github.com/taosdata/taoskeeper/version.TD_PRODUCT_NAME=${TD_PRODUCT_NAME}'"
-        "-X 'github.com/taosdata/taoskeeper/version.CUS_NAME=${CUS_NAME}'"
-        "-X 'github.com/taosdata/taoskeeper/version.CUS_PROMPT=${CUS_PROMPT}'"
+        "-X 'github.com/taosdata/taoskeeper/version.TD_PRODUCT_NAME=${taoskeeper_product_name}'"
+        "-X 'github.com/taosdata/taoskeeper/version.CUS_NAME=${taoskeeper_cus_name}'"
+        "-X 'github.com/taosdata/taoskeeper/version.CUS_PROMPT=${taoskeeper_cus_prompt}'"
 
-        "-X 'github.com/taosdata/taoskeeper/version.Version=${taos_version}'"
+        "-X 'github.com/taosdata/taoskeeper/version.Version=${taoskeeper_version}'"
         "-X 'github.com/taosdata/taoskeeper/version.Gitinfo=${taoskeeper_commit_sha1}'"
         "-X 'github.com/taosdata/taoskeeper/version.CommitID=${taoskeeper_commit_sha1}'"
         "-X 'github.com/taosdata/taoskeeper/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
@@ -190,4 +208,4 @@ IF(TD_BUILD_KEEPER)
     )
     add_custom_target(build_taoskeeper ALL)
     add_dependencies(build_taoskeeper taoskeeper)
-ENDIF()
+endif()
