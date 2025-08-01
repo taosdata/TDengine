@@ -3101,8 +3101,10 @@ void msmClearStreamToDeployMaps(SStreamHbMsg* pHb) {
 
 void msmCleanStreamGrpCtx(SStreamHbMsg* pHb) {
   int32_t tidx = streamGetThreadIdx(mStreamMgmt.threadNum, pHb->streamGId);
-  taosHashClear(mStreamMgmt.tCtx[tidx].actionStm[pHb->streamGId]);
-  taosHashClear(mStreamMgmt.tCtx[tidx].deployStm[pHb->streamGId]);
+  if (mStreamMgmt.tCtx) {
+    taosHashClear(mStreamMgmt.tCtx[tidx].actionStm[pHb->streamGId]);
+    taosHashClear(mStreamMgmt.tCtx[tidx].deployStm[pHb->streamGId]);
+  }
 }
 
 int32_t msmGrpAddActionStart(SHashObj* pHash, int64_t streamId, SStmTaskId* pId) {
@@ -4288,11 +4290,6 @@ int32_t msmHandleStreamHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, 
   SMStreamHbRspMsg rsp = {0};
   rsp.streamGId = pHb->streamGId;
 
-  if (0 == atomic_load_8(&mStreamMgmt.active)) {
-    mstWarn("mnode stream is NOT active, ignore stream hb from dnode %d streamGid %d", pHb->dnodeId, pHb->streamGId);
-    goto _exit;
-  }
-
   (void)mstWaitLock(&mStreamMgmt.runtimeLock, true);
 
   if (0 == atomic_load_8(&mStreamMgmt.active)) {
@@ -4332,7 +4329,7 @@ _exit:
   msmClearStreamToDeployMaps(pHb);
 
   taosRUnLockLatch(&mStreamMgmt.runtimeLock);
-
+  
   tFreeSMStreamHbRspMsg(&rsp);
 
   return code;

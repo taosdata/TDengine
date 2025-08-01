@@ -25,7 +25,7 @@
 #include "curl/curl.h"
 #endif
 
-int32_t streamGetThreadIdx(int32_t threadNum, int64_t streamGId) { return streamGId % threadNum; }
+int32_t streamGetThreadIdx(int32_t threadNum, int64_t streamGId) { return threadNum ? (streamGId % threadNum) : 0; }
 
 int32_t stmAddFetchStreamGid(void) {
   if (++gStreamMgmt.stmGrpIdx >= STREAM_MAX_GROUP_NUM) {
