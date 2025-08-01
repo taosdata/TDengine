@@ -934,6 +934,9 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
   pDnode->accessTimes++;
   pDnode->lastAccessTime = curMs;
+  if ((DND_REASON_ONLINE != pDnode->offlineReason) && (online || mndIsDnodeOnline(pDnode, curMs))) {
+    pDnode->offlineReason = DND_REASON_ONLINE;
+  }
   code = 0;
 
 _OVER:
