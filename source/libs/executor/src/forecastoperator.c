@@ -394,6 +394,7 @@ static int32_t forecastNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SForecastOperatorInfo* pInfo = pOperator->info;
   SSDataBlock*           pResBlock = pInfo->pRes;
   SForecastSupp*         pSupp = &pInfo->forecastSupp;
+  SExprSupp*             pScalarSupp = &pInfo->scalarSup;
   SAnalyticBuf*          pBuf = &pSupp->analyBuf;
   int64_t                st = taosGetTimestampUs();
   int32_t                numOfBlocks = pSupp->numOfBlocks;
@@ -405,6 +406,14 @@ static int32_t forecastNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
     if (pBlock == NULL) {
       break;
+    }
+
+    if (pScalarSupp->pExprInfo != NULL) {
+      code = projectApplyFunctions(pScalarSupp->pExprInfo, pBlock, pBlock, pScalarSupp->pCtx, pScalarSupp->numOfExprs,
+                                   NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
+      if (code != TSDB_CODE_SUCCESS) {
+        T_LONG_JMP(pTaskInfo->env, code);
+      }
     }
 
     if (pSupp->groupId == 0 || pSupp->groupId == pBlock->info.id.groupId) {

@@ -275,12 +275,26 @@ void vnodeGetMetaPath(SVnode *pVnode, const char *metaDir, char *fname) {
 
 bool generateNewMeta = false;
 
+static void metaResetStatisInfo(SMeta *pMeta) {
+  pMeta->pVnode->config.vndStats.numOfSTables = 0;
+  pMeta->pVnode->config.vndStats.numOfCTables = 0;
+  pMeta->pVnode->config.vndStats.numOfNTables = 0;
+  pMeta->pVnode->config.vndStats.numOfVTables = 0;
+  pMeta->pVnode->config.vndStats.numOfVCTables = 0;
+  pMeta->pVnode->config.vndStats.numOfNTimeSeries = 0;
+  pMeta->pVnode->config.vndStats.numOfTimeSeries = 0;
+  pMeta->pVnode->config.vndStats.numOfTimeSeries = 0;
+}
+
 static int32_t metaGenerateNewMeta(SMeta **ppMeta) {
   SMeta  *pNewMeta = NULL;
   SMeta  *pMeta = *ppMeta;
   SVnode *pVnode = pMeta->pVnode;
 
   metaInfo("vgId:%d start to generate new meta", TD_VID(pMeta->pVnode));
+
+  // Reset statistics info
+  metaResetStatisInfo(pMeta);
 
   // Open a new meta for organization
   int32_t code = metaOpenImpl(pMeta->pVnode, &pNewMeta, VNODE_META_TMP_DIR, false);
