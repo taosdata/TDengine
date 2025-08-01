@@ -22,7 +22,7 @@ ELSEIF(TD_BUILD_TAOSA_INTERNAL)
     ExternalProject_Add(ext_taosadapter
         GIT_REPOSITORY ${_git_url}
         PREFIX ${_base}
-        GIT_TAG ${TAOSADAPTER_GIT_TAG_NAME}
+        GIT_TAG ver-3.3.6.18
         GIT_SHALLOW ${TAOSADAPTER_GIT_TAG_SHALLOW}
         BUILD_IN_SOURCE TRUE
         DEPENDS ${TAOS_NATIVE_LIB}
@@ -81,7 +81,7 @@ ELSE()
     set(_cmakelists "${CMAKE_CURRENT_SOURCE_DIR}/../cmake/in/taosadapter.CMakeLists.txt.in")
 
     # GIT_REPOSITORY https://github.com/taosdata/taosadapter.git
-    # GIT_TAG 3.0
+    # GIT_TAG ver-3.3.6.18
     # get_from_local_repo_if_exists("https://github.com/taosdata/taosadapter.git")
 
     # NOTE: it's strongly suggested to use main branch of taosadapter.git during developping process
@@ -91,7 +91,7 @@ ELSE()
 
     ExternalProject_Add(ext_taosadapter
         GIT_REPOSITORY ${_git_url}
-        GIT_TAG ${TAOSADAPTER_GIT_TAG_NAME}
+        GIT_TAG ver-3.3.6.18
         GIT_SHALLOW ${TAOSADAPTER_GIT_TAG_SHALLOW} # NOTE: if you specify branch other than main, please change this to FALSE
         BUILD_IN_SOURCE TRUE
         DEPENDS ${TAOS_NATIVE_LIB}
