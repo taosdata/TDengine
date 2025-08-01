@@ -742,7 +742,8 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     ret = tqMetaSaveHandle(pTq, req.subKey, &handle);
     taosWUnLockLatch(&pTq->lock);
   } else {
-    while (1) {
+    int maxLoop = 1000;
+    while (maxLoop-- > 0) {
       taosWLockLatch(&pTq->lock);
       bool exec = tqIsHandleExec(pHandle);
       if (exec) {

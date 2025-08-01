@@ -896,6 +896,9 @@ END:
     TQ_ERR_GO_TO_END(doSetVal(pColData, curRow - lastRow, &colVal)); \
     sourceIdx++;                                                     \
     targetIdx++;                                                     \
+  } else {                                                           \
+    colDataSetNULL(pColData, curRow - lastRow);                      \
+    targetIdx++;                                                     \
   }
 
 static int32_t processBuildNew(STqReader* pReader, SSubmitTbData* pSubmitTbData, SArray* blocks, SArray* schemas,
@@ -958,13 +961,26 @@ static int32_t tqProcessColData(STqReader* pReader, SSubmitTbData* pSubmitTbData
   for (int32_t i = 0; i < numOfRows; i++) {
     bool buildNew = false;
 
-    for (int32_t j = 0; j < numOfCols; j++) {
-      pCol = taosArrayGet(pCols, j);
-      TQ_NULL_GO_TO_END(pCol);
-      SColVal colVal = {0};
-      TQ_ERR_GO_TO_END(tColDataGetValue(pCol, i, &colVal));
-      PROCESS_VAL
+    for (int32_t j = 0; j < pSchemaWrapper->nCols; j++) {
+      int32_t k = 0;
+      for (; k < numOfCols; k++) {
+        pCol = taosArrayGet(pCols, k);
+        if (pSchemaWrapper->pSchema[j].colId == pCol->cid) {
+          TQ_NULL_GO_TO_END(pCol);
+          SColVal colVal = {0};
+          TQ_ERR_GO_TO_END(tColDataGetValue(pCol, i, &colVal));
+          PROCESS_VAL
+          tqTrace("assign[%d] = %d, nCols:%d", j, assigned[j], numOfCols);
+          break;
+        }
+      }
+      if (k >= numOfCols) {
+        // this column is not in the current row, so we set it to NULL
+        assigned[j] = 0;
+        buildNew = true;
+      }
     }
+    
 
     if (buildNew) {
       TQ_ERR_GO_TO_END(processBuildNew(pReader, pSubmitTbData, blocks, schemas, assigned, numOfRows,
@@ -980,7 +996,7 @@ static int32_t tqProcessColData(STqReader* pReader, SSubmitTbData* pSubmitTbData
     int32_t targetIdx = 0;
     int32_t sourceIdx = 0;
     int32_t colActual = blockDataGetNumOfCols(pBlock);
-    while (targetIdx < colActual) {
+    while (targetIdx < colActual && sourceIdx < numOfCols) {
       pCol = taosArrayGet(pCols, sourceIdx);
       TQ_NULL_GO_TO_END(pCol);
       SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, targetIdx);
@@ -988,6 +1004,7 @@ static int32_t tqProcessColData(STqReader* pReader, SSubmitTbData* pSubmitTbData
       SColVal colVal = {0};
       TQ_ERR_GO_TO_END(tColDataGetValue(pCol, i, &colVal));
       SET_DATA
+      tqTrace("targetIdx:%d sourceIdx:%d colActual:%d", targetIdx, sourceIdx, colActual);
     }
 
     curRow++;
@@ -1029,6 +1046,7 @@ int32_t tqProcessRowData(STqReader* pReader, SSubmitTbData* pSubmitTbData, SArra
       SColVal colVal = {0};
       TQ_ERR_GO_TO_END(tRowGet(pRow, pTSchema, j, &colVal));
       PROCESS_VAL
+      tqDebug("assign[%d] = %d, nCols:%d", j, assigned[j], pTSchema->numOfCols);
     }
 
     if (buildNew) {
@@ -1050,6 +1068,7 @@ int32_t tqProcessRowData(STqReader* pReader, SSubmitTbData* pSubmitTbData, SArra
       SColVal          colVal = {0};
       TQ_ERR_GO_TO_END(tRowGet(pRow, pTSchema, sourceIdx, &colVal));
       SET_DATA
+      tqDebug("targetIdx:%d sourceIdx:%d colActual:%d", targetIdx, sourceIdx, colActual);
     }
 
     curRow++;

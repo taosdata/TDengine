@@ -66,15 +66,13 @@ void tmq_commit_cb_print(tmq_t* tmq, int32_t code, void* param) {
 
 tmq_t* build_consumer() {
   tmq_conf_t* conf = tmq_conf_new();
-  tmq_conf_set(conf, "group.id", "tg2");
+  tmq_conf_set(conf, "group.id", "teew2");
   tmq_conf_set(conf, "client.id", "my app 1");
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "msg.with.table.name", "true");
   tmq_conf_set(conf, "enable.auto.commit", "true");
   tmq_conf_set(conf, "auto.offset.reset", "earliest");
-  tmq_conf_set(conf, "msg.consume.excluded", "1");
-  tmq_conf_set(conf, "experimental.snapshot.enable", "true");
 
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
   tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
@@ -85,7 +83,7 @@ tmq_t* build_consumer() {
 
 tmq_list_t* build_topic_list() {
   tmq_list_t* topic_list = tmq_list_new();
-  tmq_list_append(topic_list, "db_5466_topic");
+  tmq_list_append(topic_list, "tt");
   return topic_list;
 }
 
@@ -102,7 +100,7 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 5000);
     if (tmqmessage) {
       cnt++;
-      msg_process(tmqmessage);
+      // msg_process(tmqmessage);
       taos_free_result(tmqmessage);
     } else {
       break;
