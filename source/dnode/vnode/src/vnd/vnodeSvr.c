@@ -589,7 +589,7 @@ int32_t vnodePreProcessSsMigrateFileSetReq(SVnode* pVnode, SRpcMsg* pMsg) {
   }
 
   req.nodeId = vnodeNodeId(pVnode);
-  tSerializeSSsMigrateFileSetReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead), &req);
+  TAOS_UNUSED(tSerializeSSsMigrateFileSetReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead), &req));
 
 _exit:
   return code;
@@ -1194,7 +1194,7 @@ static int32_t vnodeProcessSsMigrateFileSetReq(SVnode *pVnode, int64_t ver, void
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-  tSerializeSSsMigrateFileSetRsp(pRsp->pCont, pRsp->contLen, &rsp);
+  TAOS_UNUSED(tSerializeSSsMigrateFileSetRsp(pRsp->pCont, pRsp->contLen, &rsp));
 
 _exit:
   if (code != TSDB_CODE_SUCCESS) {

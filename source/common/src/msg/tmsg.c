@@ -2775,7 +2775,7 @@ int32_t tDeserializeRetrieveAnalyticAlgoRsp(void *buf, int32_t bufLen, SRetrieve
     }
 
     char dstName[TSDB_ANALYTIC_ALGO_NAME_LEN] = {0};
-    strntolower(dstName, name, nameLen);
+    (void)strntolower(dstName, name, nameLen);
 
     TAOS_CHECK_EXIT(taosHashPut(pRsp->hash, dstName, nameLen, &url, sizeof(SAnalyticsUrl)));
   }
@@ -10752,7 +10752,7 @@ _exit:
 
 void    tDestroySResFetchReq(SResFetchReq* pReq){
   if (pReq != NULL) {
-    tDestroyStRtFuncInfo(pReq->pStRtFuncInfo);
+    (void)tDestroyStRtFuncInfo(pReq->pStRtFuncInfo);
     taosMemoryFree(pReq->pStRtFuncInfo);
   }
 }
@@ -13191,11 +13191,11 @@ _exit:
   return code;
 }
 
-static int32_t tPreCheckSubmitTbData(const SSubmitTbData *pSubmitData, int8_t *hasBlog) {
+static int32_t tPreCheckSubmitTbData(const SSubmitTbData *pSubmitData, int8_t *hasBlob) {
   int32_t code = 0;
   int32_t line = 0;
   if (tBlobSetSize(pSubmitData->pBlobSet) > 0) {
-    *hasBlog = 1;
+    *hasBlob = 1;
     return code;
   }
     return 0;
@@ -13203,16 +13203,16 @@ static int32_t tPreCheckSubmitTbData(const SSubmitTbData *pSubmitData, int8_t *h
 static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubmitTbData) {
   int32_t code = 0;
   int32_t lino;
-  int8_t  hasBlog = 0;
+  int8_t  hasBlob = 0;
 
   int32_t count = 0;
-  TAOS_CHECK_EXIT(tPreCheckSubmitTbData(pSubmitTbData, &hasBlog));
+  TAOS_CHECK_EXIT(tPreCheckSubmitTbData(pSubmitTbData, &hasBlob));
 
   TAOS_CHECK_EXIT(tStartEncode(pCoder));
 
   int32_t flags = pSubmitTbData->flags | ((SUBMIT_REQUEST_VERSION) << 8);
 
-  if (hasBlog) {
+  if (hasBlob) {
     flags |= SUBMIT_REQ_WITH_BLOB;
   }
   TAOS_CHECK_EXIT(tEncodeI32v(pCoder, flags));
@@ -13257,8 +13257,8 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
   }
   TAOS_CHECK_EXIT(tEncodeI64(pCoder, pSubmitTbData->ctimeMs));
 
-  if (hasBlog) {
-    tEncodeBlobSet(pCoder, pSubmitTbData->pBlobSet);
+  if (hasBlob) {
+    TAOS_CHECK_EXIT(tEncodeBlobSet(pCoder, pSubmitTbData->pBlobSet));
     if (tBlobSetSize(pSubmitTbData->pBlobSet) != count) {
       uError("blob set size %d not match row size %d", tBlobSetSize(pSubmitTbData->pBlobSet), count);
       return TSDB_CODE_INVALID_MSG;

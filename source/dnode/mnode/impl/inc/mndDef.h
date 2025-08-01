@@ -1021,7 +1021,7 @@ typedef enum {
   SSMIGRATE_VGSTATE_FSET_LIST_RECEIVED = 2,    // file set list received
   SSMIGRATE_VGSTATE_FSET_STARTING = 3,         // fset ssmigrate request was sent, waiting for response
   SSMIGRATE_VGSTATE_FSET_STARTED = 4,          // fset ssmigrate response received
-} ESMigrateVgroupState;
+} ESsMigrateVgroupState;
 
 typedef struct {
   int32_t id;                 // migration id
