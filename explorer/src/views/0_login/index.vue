@@ -379,7 +379,6 @@ async function init() {
   await getClusterAndDashboardUrl();
   localStorage.setItem('supportWebsite', dataJson.supportWebsite);
   localStorage.setItem('documentWebsite', dataJson.documentWebsite);
-  console.log('IS_TSDBLITE', $IS_TSDBLITE);
   if ($IS_COMMUNITY && !$IS_TSDBLITE) {
     await getIsbinding();
   }
