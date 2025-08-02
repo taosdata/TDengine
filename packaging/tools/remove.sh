@@ -57,6 +57,17 @@ cfg_link_dir=${installDir}/cfg
 local_bin_link_dir="/usr/local/bin"
 service_config_dir="/etc/systemd/system"
 config_dir="/etc/${PREFIX}"
+bin_dir="${installDir}/bin"
+cfg_dir="${installDir}/cfg"
+connector_dir="${installDir}/connector"
+driver_dir="${installDir}/driver"
+examples_dir="${installDir}/examples"
+include_dir="${installDir}/include"
+plugins_dir="${installDir}/plugins"
+# script_dir="${installDir}/script"
+share_dir="${installDir}/share"
+
+
 
 if [ "${verMode}" == "cluster" ]; then
   if [ "${entMode}" == "full" ]; then
@@ -172,11 +183,17 @@ remove_tools_of() {
 
 remove_bin() {
   for _service in "${services[@]}"; do
-    remove_service_of ${_service}
+    if [ -z "$_service" ]; then
+      continue
+    fi
+    remove_service_of "${_service}"
   done
 
   for _tool in "${tools[@]}"; do
-    remove_tools_of ${_tool}
+    if [ -z "$_tool" ]; then
+      continue
+    fi
+    remove_tools_of "${_tool}"
   done
 }
 
@@ -291,6 +308,35 @@ function usage() {
   echo "  no:  don't remove the data, log, and configuration files."
 }
 
+function remove_install_dir() {
+  for dir in \
+    "${bin_dir}" \
+    "${cfg_dir}" \
+    "${connector_dir}" \
+    "${driver_dir}" \
+    "${examples_dir}" \
+    "${include_dir}" \
+    "${plugins_dir}" \
+    "${share_dir}"
+  do
+    if [ -d "$dir" ]; then
+      ${csudo}rm -rf "$dir"
+    fi
+  done
+  if [ -f "${install_main_dir}/README.md" ]; then
+    ${csudo}rm -f "${install_main_dir}/README.md"
+  fi
+  if [ -f "${install_main_dir}/uninstall_taosx.sh" ]; then
+    ${csudo}rm -f "${install_main_dir}/uninstall_taosx.sh"
+  fi
+  if [ -f "${install_main_dir}/uninstall.sh" ]; then
+    ${csudo}rm -f "${install_main_dir}/uninstall.sh"
+  fi
+  if [ -d "${install_main_dir}" ] && [ -z "$(ls -A "${install_main_dir}")" ]; then
+    ${csudo}rm -rf "${install_main_dir}" || :
+  fi
+}
+
 # main
 interactive_remove="yes"
 remove_flag="false"
@@ -363,9 +409,8 @@ if [ X$remove_flag == X"true" ]; then
   remove_data_and_config
 fi
 
-if [ -d "${install_main_dir}" ] && [ -z "$(ls -A "${install_main_dir}")" ]; then
-    ${csudo}rm -rf "${install_main_dir}" || :
-fi
+remove_install_dir
+
 if [[ -e /etc/os-release ]]; then
   osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
 else
