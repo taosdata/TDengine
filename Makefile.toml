@@ -740,7 +740,7 @@ else
   cp target/${BUILD_PROFILE}/${CUS_PROMPT}x-agent-srv.xml target/deploy/${CUS_PROMPT}x-agent-srv.xml
 end
 
-cp bin/taosx-agent-srv.exe target/deploy/${CUS_PROMPT}x-agent-srv.exe
+cp taosx-agent/bin/taosx-agent-srv.exe target/deploy/${CUS_PROMPT}x-agent-srv.exe
 """
 
 [tasks.zigbuild-aarch64-image]
