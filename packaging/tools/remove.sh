@@ -64,7 +64,6 @@ driver_dir="${installDir}/driver"
 examples_dir="${installDir}/examples"
 include_dir="${installDir}/include"
 plugins_dir="${installDir}/plugins"
-# script_dir="${installDir}/script"
 share_dir="${installDir}/share"
 
 
