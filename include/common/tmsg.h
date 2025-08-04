@@ -16,6 +16,7 @@
 #ifndef _TD_COMMON_TAOS_MSG_H_
 #define _TD_COMMON_TAOS_MSG_H_
 
+
 #include "taosdef.h"
 #include "taoserror.h"
 #include "tarray.h"
