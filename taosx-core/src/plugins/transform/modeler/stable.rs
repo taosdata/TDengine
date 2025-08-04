@@ -22,14 +22,14 @@ pub struct FastStrExpr {
 }
 
 impl FastStrExpr {
-    fn new(name: FastStr) -> Self {
+    pub fn new(name: FastStr) -> Self {
         Self {
             template: name,
             expr: OnceLock::new(),
         }
     }
 
-    fn eval(&self, records: &RecordBatch, row: usize) -> anyhow::Result<FastStr> {
+    pub fn eval(&self, records: &RecordBatch, row: usize) -> anyhow::Result<FastStr> {
         if !self.is_expr() {
             return Ok(self.template.clone());
         }

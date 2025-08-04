@@ -10,6 +10,7 @@
 
 use std::{
     borrow::{Borrow, Cow},
+    cell::OnceCell,
     collections::BTreeMap,
     ops::Range,
     str::FromStr,
@@ -62,7 +63,7 @@ use taosx_ipc::prelude::IpcDataType;
 use tracing::instrument;
 
 use super::expr;
-use crate::plugins::transform::parse::ArrayForTaos;
+use crate::plugins::transform::{modeler::stable::FastStrExpr, parse::ArrayForTaos};
 use crate::{core_metrics::CoreMetrics, plugins::transform::modeler::Table};
 use crate::{
     get_data_dir,
@@ -1195,8 +1196,6 @@ impl Parser {
         // (ts, value, point_name, ${point_name}, site_controller_id)
         let transformed_batch = self.transform_records(records)?;
         let schema = transformed_batch.schema();
-        let transformed_batches = vec![transformed_batch];
-        let transformed_batch = &transformed_batches[0];
         // tracing::info!("Parse message {:?}", batch);
 
         let pivot_fields = schema
@@ -1210,21 +1209,15 @@ impl Parser {
             })
             .collect_vec();
 
-        let json_batches = to_json_valid_batches(&transformed_batches);
-
-        let json: Vec<_> = json_batches
-            .iter()
-            .map(|batch| batch.to_json_rows::<serde_json::Value>())
-            .flatten_ok()
-            .try_collect()?;
-
         let stables = self
             .s_model
             .as_ref()
-            .map(|s| s.apply(transformed_batch, self.global()))
+            .map(|s| s.apply(&transformed_batch, self.global()))
             .transpose()?;
 
         let mut data = vec![];
+
+        let json_batch = OnceCell::new();
 
         'table: for table in &self.model {
             let archive_indices = HashMap::new();
@@ -1321,7 +1314,7 @@ impl Parser {
                                 err_timestamp_vec.push(Utc::now().timestamp_nanos_opt().unwrap());
                             }
                             archive_records(
-                                transformed_batch,
+                                &transformed_batch,
                                 err_vec,
                                 err_timestamp_vec,
                                 archive_tx.clone(),
@@ -1429,30 +1422,27 @@ impl Parser {
                         self.global.process_on_abnormal.clone(),
                         table,
                         row,
-                        transformed_batch,
+                        &transformed_batch,
                         &table.name,
-                        &json,
-                    ) {
-                        Ok((HandlingResult::Skip, err)) => {
+                        &json_batch,
+                    )? {
+                        (HandlingResult::Skip, err) => {
                             let _ = skip_indices.upsert(row, err);
-                            Ok((String::default(), row))
+                            anyhow::Ok((String::default(), row))
                         }
-                        Ok((HandlingResult::Archive, err)) => {
+                        (HandlingResult::Archive, err) => {
                             let _ = skip_indices.upsert(row, err.clone());
                             let _ = archive_indices.upsert(row, err);
                             Ok((String::default(), row))
                         }
-                        Ok((HandlingResult::Modify(mut name), _)) => {
+                        (HandlingResult::Modify(mut name), _) => {
                             Ok((name.pop().unwrap_or_default(), row))
                         }
-                        Ok((HandlingResult::ModifyAndArchive(mut name), err)) => {
+                        (HandlingResult::ModifyAndArchive(mut name), err) => {
                             let _ = archive_indices.upsert(row, err);
                             Ok((name.pop().unwrap_or_default(), row))
                         }
-                        Ok((HandlingResult::Retry, _)) => unreachable!(),
-                        Err(e) => {
-                            anyhow::bail!("{:#}", e);
-                        }
+                        (HandlingResult::Retry, _) => unreachable!(),
                     }
                 })
                 .try_collect::<_, Vec<_>, _>()?
@@ -1506,6 +1496,10 @@ impl Parser {
                 // check_skipped_rows: 写入前检查过滤掉的 rows
                 metrics.add_check_skipped_rows(skip_indices.len() as u64);
             }
+            let using_expr = table
+                .using
+                .as_ref()
+                .map(|name| FastStrExpr::new(name.clone().into()));
             // name: sub_table_name, indices: group row index
             for (name, indices) in tables {
                 // 2. skip records
@@ -1563,10 +1557,10 @@ impl Parser {
                 let ranges = indices_to_ranges(&indices);
                 let name_row = indices[0];
 
-                let using = table
-                    .using
+                let using = using_expr
                     .as_ref()
-                    .and_then(|_| template.render_value("using", &json[name_row]).ok())
+                    .map(|expr| expr.eval(&transformed_batch, name_row))
+                    .transpose()?
                     .map(|using| self.global().canonical_table_name(&using).to_string());
 
                 let tags = tags
@@ -1794,7 +1788,7 @@ fn generate_table_name(
     row: usize,
     records: &RecordBatch,
     table_name_org: &str,
-    data: &[serde_json::Value],
+    json_batch: &OnceCell<Vec<serde_json::Value>>,
 ) -> anyhow::Result<(HandlingResult, String)> {
     // render table name
     match table.eval_table_name_row(records, row) {
@@ -1817,12 +1811,25 @@ fn generate_table_name(
             Ok((HandlingResult::Modify(vec![name]), String::new()))
         }
         Err(e) => {
+            let data = match json_batch.get() {
+                Some(data) => data[row].clone(),
+                None => {
+                    let json_batches = to_json_valid_batches(&[records.clone()]);
+                    let data: Vec<_> = json_batches
+                        .iter()
+                        .map(|batch| batch.to_json_rows::<serde_json::Value>())
+                        .flatten_ok()
+                        .try_collect()?;
+                    let data = json_batch.get_or_init(|| data);
+                    data[row].clone()
+                }
+            };
             // render table name failed
             process_on_abnormal
                 .variable_not_exist_in_table_name_template
                 .handle(
                     table_name_org,
-                    &data[row],
+                    &data,
                     format!("render table name '{table_name_org}' failed, e: {:?}", e),
                 )
         }
