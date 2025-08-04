@@ -1,0 +1,216 @@
+[08/01 14:44:19.957587] SUCC: host:127.0.0.1 port:0 dbname:(null) connect successfully.
+[08/01 14:44:20.425106] SUCC: created database (test)
+[08/01 14:44:20.426841] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:20.437416] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:20.522781] INFO: start creating 10000 table(s) with 4 thread(s)
+[08/01 14:44:20.524117] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:20.525407] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:20.526919] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:20.528670] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.128594] SUCC: Spent 1.6060 seconds to create 10000 table(s) with 4 thread(s) speed: 6227 tables/s, already exist 0 table(s), actual 10000 table(s) pre created, 0 table(s) will be auto created
+[08/01 14:44:22.129899] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.129908] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.130112] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.130280] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.130312] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.130313] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.131840] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.130791] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.132709] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.131396] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.130739] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.131259] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.132783] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.133401] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.133568] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.133598] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.134009] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.134344] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.135430] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.136376] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.137173] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.137469] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.138030] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.139219] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.140297] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.140357] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.141411] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.142928] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.143653] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.144106] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.144487] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.145357] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.146226] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.146769] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.147416] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.148736] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.149271] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.149853] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.150280] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.150980] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.151330] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.152048] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.152260] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.152576] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.153626] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.154375] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.154514] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:44:22.154997] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 14:45:26.005626] SUCC: thread[45] progressive mode, completed total inserted rows: 2080000, 33144.16 records/second
+[08/01 14:45:26.450590] SUCC: thread[8] progressive mode, completed total inserted rows: 2090000, 32961.46 records/second
+[08/01 14:45:29.832132] SUCC: thread[7] progressive mode, completed total inserted rows: 2090000, 31243.15 records/second
+[08/01 14:45:33.490549] SUCC: thread[43] progressive mode, completed total inserted rows: 2080000, 29528.39 records/second
+[08/01 14:45:34.242087] SUCC: thread[17] progressive mode, completed total inserted rows: 2080000, 29197.35 records/second
+[08/01 14:45:34.461658] SUCC: thread[11] progressive mode, completed total inserted rows: 2090000, 29269.01 records/second
+[08/01 14:45:35.009419] SUCC: thread[27] progressive mode, completed total inserted rows: 2080000, 28912.11 records/second
+[08/01 14:45:35.581976] SUCC: thread[1] progressive mode, completed total inserted rows: 2090000, 28813.80 records/second
+[08/01 14:45:35.614077] SUCC: thread[37] progressive mode, completed total inserted rows: 2080000, 28818.16 records/second
+[08/01 14:45:35.689694] SUCC: thread[30] progressive mode, completed total inserted rows: 2080000, 28659.77 records/second
+[08/01 14:45:35.975825] SUCC: thread[44] progressive mode, completed total inserted rows: 2080000, 28533.74 records/second
+[08/01 14:45:36.227409] SUCC: thread[38] progressive mode, completed total inserted rows: 2080000, 28426.70 records/second
+[08/01 14:45:36.313685] SUCC: thread[36] progressive mode, completed total inserted rows: 2080000, 28407.66 records/second
+[08/01 14:45:36.833922] SUCC: thread[20] progressive mode, completed total inserted rows: 2080000, 28156.61 records/second
+[08/01 14:45:36.851345] SUCC: thread[32] progressive mode, completed total inserted rows: 2080000, 28177.21 records/second
+[08/01 14:45:36.874042] SUCC: thread[3] progressive mode, completed total inserted rows: 2090000, 28276.04 records/second
+[08/01 14:45:37.009616] SUCC: thread[23] progressive mode, completed total inserted rows: 2080000, 28149.23 records/second
+[08/01 14:45:37.198394] SUCC: thread[21] progressive mode, completed total inserted rows: 2080000, 28074.87 records/second
+[08/01 14:45:38.394805] SUCC: thread[12] progressive mode, completed total inserted rows: 2090000, 27760.70 records/second
+[08/01 14:45:38.927831] SUCC: thread[26] progressive mode, completed total inserted rows: 2080000, 27393.08 records/second
+[08/01 14:45:39.161870] SUCC: thread[19] progressive mode, completed total inserted rows: 2080000, 27334.76 records/second
+[08/01 14:45:41.261760] SUCC: thread[28] progressive mode, completed total inserted rows: 2080000, 26612.28 records/second
+[08/01 14:45:41.594069] SUCC: thread[16] progressive mode, completed total inserted rows: 2080000, 26547.82 records/second
+[08/01 14:45:41.648872] SUCC: thread[22] progressive mode, completed total inserted rows: 2080000, 26458.47 records/second
+[08/01 14:45:41.825756] SUCC: thread[42] progressive mode, completed total inserted rows: 2080000, 26454.18 records/second
+[08/01 14:45:41.973964] SUCC: thread[14] progressive mode, completed total inserted rows: 2090000, 26481.69 records/second
+[08/01 14:45:42.220296] SUCC: thread[41] progressive mode, completed total inserted rows: 2080000, 26295.72 records/second
+[08/01 14:45:42.277851] SUCC: thread[9] progressive mode, completed total inserted rows: 2090000, 26395.21 records/second
+[08/01 14:45:42.303671] SUCC: thread[15] progressive mode, completed total inserted rows: 2090000, 26361.86 records/second
+[08/01 14:45:42.370616] SUCC: thread[5] progressive mode, completed total inserted rows: 2090000, 26370.69 records/second
+[08/01 14:45:43.475313] SUCC: thread[46] progressive mode, completed total inserted rows: 2080000, 25839.09 records/second
+[08/01 14:45:43.634246] SUCC: thread[24] progressive mode, completed total inserted rows: 2080000, 25888.81 records/second
+[08/01 14:45:43.813991] SUCC: thread[31] progressive mode, completed total inserted rows: 2080000, 25793.68 records/second
+[08/01 14:45:43.893954] SUCC: thread[33] progressive mode, completed total inserted rows: 2080000, 25777.38 records/second
+[08/01 14:45:43.962576] SUCC: thread[40] progressive mode, completed total inserted rows: 2080000, 25722.52 records/second
+[08/01 14:45:43.978616] SUCC: thread[25] progressive mode, completed total inserted rows: 2080000, 25685.12 records/second
+[08/01 14:45:44.057733] SUCC: thread[39] progressive mode, completed total inserted rows: 2080000, 25703.54 records/second
+[08/01 14:45:44.346802] SUCC: thread[4] progressive mode, completed total inserted rows: 2090000, 25679.89 records/second
+[08/01 14:45:44.359309] SUCC: thread[0] progressive mode, completed total inserted rows: 2090000, 25736.48 records/second
+[08/01 14:45:44.367866] SUCC: thread[34] progressive mode, completed total inserted rows: 2080000, 25597.62 records/second
+[08/01 14:45:44.588302] SUCC: thread[13] progressive mode, completed total inserted rows: 2090000, 25682.70 records/second
+[08/01 14:45:45.080721] SUCC: thread[18] progressive mode, completed total inserted rows: 2080000, 25358.88 records/second
+[08/01 14:45:45.084730] SUCC: thread[6] progressive mode, completed total inserted rows: 2090000, 25513.67 records/second
+[08/01 14:45:45.167285] SUCC: thread[2] progressive mode, completed total inserted rows: 2090000, 25477.96 records/second
+[08/01 14:45:45.215110] SUCC: thread[10] progressive mode, completed total inserted rows: 2090000, 25437.13 records/second
+[08/01 14:45:45.373911] SUCC: thread[47] progressive mode, completed total inserted rows: 2080000, 25243.26 records/second
+[08/01 14:45:46.271843] SUCC: thread[29] progressive mode, completed total inserted rows: 2080000, 24987.58 records/second
+[08/01 14:45:46.477250] SUCC: thread[35] progressive mode, completed total inserted rows: 2080000, 24976.52 records/second
+[08/01 14:45:46.480054] SUCC: Spent 84.318706 (real 76.838877) seconds to insert rows: 100000000 with 48 thread(s) into test 1185976.45 (real 1301424.54) records/second
+[08/01 14:45:46.480815] SUCC: insert delay, min: 45.2970ms, avg: 368.8266ms, p90: 590.0750ms, p95: 1826.3400ms, p99: 3910.6290ms, max: 6189.9170ms
+[08/01 15:28:10.855882] SUCC: host:127.0.0.1 port:0 dbname:(null) connect successfully.
+[08/01 15:28:16.106258] SUCC: created database (test)
+[08/01 15:28:16.107464] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:28:16.118115] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:28:16.916463] INFO: start creating 1000000 table(s) with 4 thread(s)
+[08/01 15:28:16.917726] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:28:16.919169] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:28:16.921012] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:28:16.922725] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.956525] SUCC: Spent 143.0400 seconds to create 1000000 table(s) with 4 thread(s) speed: 6991 tables/s, already exist 0 table(s), actual 1000000 table(s) pre created, 0 table(s) will be auto created
+[08/01 15:30:39.957954] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.958079] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.957988] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.958013] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.958540] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.957975] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.958683] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.958620] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.959522] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.959070] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.959202] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.959980] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.958060] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.959244] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.960430] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.960556] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.960881] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.961000] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.961141] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.961743] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.962477] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.963186] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.964231] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.964256] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.964622] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.965666] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.966647] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.966824] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.968582] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.969101] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.969129] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.970288] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.971132] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.971547] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.972668] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.973573] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.974059] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.974287] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.974351] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.974986] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.975053] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.975731] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.976093] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.976816] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.977803] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.977980] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.978231] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:30:39.978949] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/01 15:33:41.037567] SUCC: thread[18] progressive mode, completed total inserted rows: 2083300, 11588.10 records/second
+[08/01 15:33:42.924144] SUCC: thread[8] progressive mode, completed total inserted rows: 2083400, 11474.65 records/second
+[08/01 15:33:43.569220] SUCC: thread[31] progressive mode, completed total inserted rows: 2083300, 11432.04 records/second
+[08/01 15:33:43.909942] SUCC: thread[47] progressive mode, completed total inserted rows: 2083300, 11410.98 records/second
+[08/01 15:33:44.941896] SUCC: thread[9] progressive mode, completed total inserted rows: 2083400, 11351.33 records/second
+[08/01 15:33:45.000942] SUCC: thread[30] progressive mode, completed total inserted rows: 2083300, 11355.14 records/second
+[08/01 15:33:45.108707] SUCC: thread[32] progressive mode, completed total inserted rows: 2083300, 11335.42 records/second
+[08/01 15:33:45.109970] SUCC: thread[28] progressive mode, completed total inserted rows: 2083300, 11337.50 records/second
+[08/01 15:33:45.315593] SUCC: thread[21] progressive mode, completed total inserted rows: 2083300, 11324.91 records/second
+[08/01 15:33:45.626107] SUCC: thread[4] progressive mode, completed total inserted rows: 2083400, 11310.18 records/second
+[08/01 15:33:45.637980] SUCC: thread[38] progressive mode, completed total inserted rows: 2083300, 11305.59 records/second
+[08/01 15:33:45.800547] SUCC: thread[34] progressive mode, completed total inserted rows: 2083300, 11297.44 records/second
+[08/01 15:33:45.886725] SUCC: thread[11] progressive mode, completed total inserted rows: 2083400, 11294.63 records/second
+[08/01 15:33:45.899045] SUCC: thread[29] progressive mode, completed total inserted rows: 2083300, 11289.57 records/second
+[08/01 15:33:45.956867] SUCC: thread[46] progressive mode, completed total inserted rows: 2083300, 11286.72 records/second
+[08/01 15:33:45.993123] SUCC: thread[5] progressive mode, completed total inserted rows: 2083400, 11290.86 records/second
+[08/01 15:33:46.002828] SUCC: thread[42] progressive mode, completed total inserted rows: 2083300, 11282.86 records/second
+[08/01 15:33:46.069017] SUCC: thread[12] progressive mode, completed total inserted rows: 2083400, 11283.87 records/second
+[08/01 15:33:46.095968] SUCC: thread[17] progressive mode, completed total inserted rows: 2083300, 11282.61 records/second
+[08/01 15:33:46.119583] SUCC: thread[22] progressive mode, completed total inserted rows: 2083300, 11275.35 records/second
+[08/01 15:33:46.172862] SUCC: thread[40] progressive mode, completed total inserted rows: 2083300, 11275.36 records/second
+[08/01 15:33:46.388863] SUCC: thread[3] progressive mode, completed total inserted rows: 2083400, 11263.68 records/second
+[08/01 15:33:46.391713] SUCC: thread[41] progressive mode, completed total inserted rows: 2083300, 11261.01 records/second
+[08/01 15:33:46.409509] SUCC: thread[24] progressive mode, completed total inserted rows: 2083300, 11259.31 records/second
+[08/01 15:33:46.413907] SUCC: thread[37] progressive mode, completed total inserted rows: 2083300, 11253.99 records/second
+[08/01 15:33:46.504061] SUCC: thread[14] progressive mode, completed total inserted rows: 2083400, 11253.78 records/second
+[08/01 15:33:46.506543] SUCC: thread[0] progressive mode, completed total inserted rows: 2083400, 11254.15 records/second
+[08/01 15:33:46.536859] SUCC: thread[6] progressive mode, completed total inserted rows: 2083400, 11257.39 records/second
+[08/01 15:33:46.596108] SUCC: thread[44] progressive mode, completed total inserted rows: 2083300, 11249.35 records/second
+[08/01 15:33:46.764570] SUCC: thread[23] progressive mode, completed total inserted rows: 2083300, 11246.28 records/second
+[08/01 15:33:46.773443] SUCC: thread[15] progressive mode, completed total inserted rows: 2083400, 11241.11 records/second
+[08/01 15:33:46.787323] SUCC: thread[35] progressive mode, completed total inserted rows: 2083300, 11237.87 records/second
+[08/01 15:33:46.836796] SUCC: thread[16] progressive mode, completed total inserted rows: 2083300, 11238.40 records/second
+[08/01 15:33:46.858034] SUCC: thread[45] progressive mode, completed total inserted rows: 2083300, 11237.05 records/second
+[08/01 15:33:46.862429] SUCC: thread[19] progressive mode, completed total inserted rows: 2083300, 11231.50 records/second
+[08/01 15:33:46.862429] SUCC: thread[39] progressive mode, completed total inserted rows: 2083300, 11238.37 records/second
+[08/01 15:33:46.896268] SUCC: thread[7] progressive mode, completed total inserted rows: 2083400, 11234.53 records/second
+[08/01 15:33:46.927405] SUCC: thread[43] progressive mode, completed total inserted rows: 2083300, 11231.79 records/second
+[08/01 15:33:46.999691] SUCC: thread[20] progressive mode, completed total inserted rows: 2083300, 11228.04 records/second
+[08/01 15:33:47.126640] SUCC: thread[26] progressive mode, completed total inserted rows: 2083300, 11222.10 records/second
+[08/01 15:33:47.137200] SUCC: thread[2] progressive mode, completed total inserted rows: 2083400, 11217.43 records/second
+[08/01 15:33:47.161555] SUCC: thread[1] progressive mode, completed total inserted rows: 2083400, 11213.06 records/second
+[08/01 15:33:47.172346] SUCC: thread[13] progressive mode, completed total inserted rows: 2083400, 11219.43 records/second
+[08/01 15:33:47.197534] SUCC: thread[25] progressive mode, completed total inserted rows: 2083300, 11217.92 records/second
+[08/01 15:33:47.287867] SUCC: thread[27] progressive mode, completed total inserted rows: 2083300, 11203.31 records/second
+[08/01 15:33:47.321212] SUCC: thread[36] progressive mode, completed total inserted rows: 2083300, 11206.67 records/second
+[08/01 15:33:47.518813] SUCC: thread[33] progressive mode, completed total inserted rows: 2083300, 11199.48 records/second
+[08/01 15:33:47.677492] SUCC: thread[10] progressive mode, completed total inserted rows: 2083400, 11183.84 records/second
+[08/01 15:33:47.898112] SUCC: Spent 187.695636 (real 184.719005) seconds to insert rows: 100000000 with 48 thread(s) into test 532777.44 (real 541362.81) records/second
+[08/01 15:33:47.898196] SUCC: insert delay, min: 0.8540ms, avg: 8.8665ms, p90: 16.0880ms, p95: 24.9330ms, p99: 49.6490ms, max: 3040.2240ms
