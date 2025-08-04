@@ -393,6 +393,10 @@ int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen) {
         dst[j] = '\'';
       } else if (src[k + 1] == '"') {
         dst[j] = '"';
+      } else if (src[k + 1] == 'f') {
+        dst[j] = '\f';
+      } else if (src[k + 1] == 'b') {
+        dst[j] = '\b';
       } else if (src[k + 1] == '%' || src[k + 1] == '_' || src[k + 1] == 'x') {
         dst[j++] = src[k];
         dst[j] = src[k + 1];
