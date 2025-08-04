@@ -15,12 +15,12 @@ class TestStreamOldCaseTwa:
     def test_stream_oldcase_twa(self):
         """Stream twa
 
-        Verify the behavior of the legacy TWA (Time-Weighted Average) function in the new streaming computation system
+        Verify the behavior of the legacy TWA function in the new streaming computation system
 
         Catalog:
             - Streams:OldTsimCases
 
-        Since: v3.0.0.0
+        Since: v3.3.7.0
 
         Labels: common, ci
 
