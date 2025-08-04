@@ -1,5 +1,9 @@
 #caseID,rerunTimes,Run with Sanitizer,casePath,caseCommand
 #NA,NA,y or n,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
+#examples
+,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
+,,n,.,pytest cases/01-DataTypes/test_datatype_bigint.py
+
 # 01-DataTypes
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bool.py
@@ -16,11 +20,15 @@
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_uint.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_unsign.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_varbinary.py
+,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_blob.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_varchar.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null_column.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_ts6333.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_composite_key_load.py
+
+
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_compatibility_rolling_upgrade.py -N 3
 
 # 02-Databases
 ## 01-Create
@@ -564,11 +572,13 @@
 ,,n,.,pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_state.py
 
 ## 08-Recalc
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_expired_time.py   need to modify case
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_expired_time.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_ignore_disorder.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_delete_recalc.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_watermark.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_combined_options.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_manual.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_manual_with_options.py
 
 ## 20-UseCase
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_idmp_meters.py
@@ -610,11 +620,9 @@
 ,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_snode_restart_with_checkpoint.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_stream_multi_agg.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_stream_basic.py
-,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_compatibility_rolling_upgrade.py -N 3
-,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_compatibility_rolling_upgrade_all.py -N 3
-,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_compatibility.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_drop.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_empty_identifier.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_at_once.py
 
 
 ## 31-OldCases
@@ -999,6 +1007,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stbJoin.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stbJoin.py -Q 4
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hint.py
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_compatibility_rolling_upgrade_all.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hint.py -Q 2
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hint.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hint.py -Q 4
@@ -1536,6 +1545,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_blockSMA.py -Q 2
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_projectionDesc.py -Q 2
 
+,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_compatibility.py
+
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_between.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distinct.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_varchar.py -Q 3
@@ -1949,9 +1960,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_information_schema.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_ins_filesets.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_grant.py
-#newstm,,n,.,pytest cases/uncatalog/system-test/0-others/test_compatibility_rolling_upgrade_all.py -N 3
-#newstm,,n,.,pytest cases/uncatalog/system-test/0-others/test_compatibility.py
-#newstm,,n,.,pytest cases/uncatalog/system-test/0-others/test_compatibility_rolling_upgrade.py -N 3
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/view/non_marterial_view/test_view.py
 
