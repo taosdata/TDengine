@@ -1,5 +1,5 @@
 ---
-title: TDengine 3.x
+title: TDengine Subscription
 slug: /advanced-features/data-connectors/tdengine-3
 ---
 
@@ -62,7 +62,7 @@ Click the "Create" button, return to the topic list and copy the **DSN** of the 
 ### Step Two: Enter Data Source Information
 
 1. Enter the task name
-2. Select the task type "TDengine3"
+2. Select the task type "TDengine Data Subscription"
 3. Select the target database
 4. Paste the DSN copied in the preparation step into the **Topic DSN** field. For example: tmq+ws://root:taosdata@localhost:6041/topic
 5. After completing the above steps, click the "Connectivity Check" button to test connectivity with the source

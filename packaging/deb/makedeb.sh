@@ -110,7 +110,8 @@ sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" ${pkg_dir}${in
 cp ${compile_dir}/build/bin/taosd                   ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taosudf                 ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taosBenchmark           ${pkg_dir}${install_home_path}/bin
-cp ${compile_dir}/build/bin/taosdump               ${pkg_dir}${install_home_path}/bin
+cp ${compile_dir}/build/bin/taosdump                ${pkg_dir}${install_home_path}/bin
+cp ${compile_dir}/build/bin/taosmqtt                ${pkg_dir}${install_home_path}/bin
 
 if [ -f "${compile_dir}/build/bin/taosadapter" ]; then
     cp ${compile_dir}/build/bin/taosadapter                    ${pkg_dir}${install_home_path}/bin ||:
