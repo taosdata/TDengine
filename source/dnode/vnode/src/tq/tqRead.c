@@ -965,8 +965,8 @@ static int32_t tqProcessColData(STqReader* pReader, SSubmitTbData* pSubmitTbData
       int32_t k = 0;
       for (; k < numOfCols; k++) {
         pCol = taosArrayGet(pCols, k);
+        TQ_NULL_GO_TO_END(pCol);
         if (pSchemaWrapper->pSchema[j].colId == pCol->cid) {
-          TQ_NULL_GO_TO_END(pCol);
           SColVal colVal = {0};
           TQ_ERR_GO_TO_END(tColDataGetValue(pCol, i, &colVal));
           PROCESS_VAL
