@@ -30,6 +30,7 @@ static int32_t debugPrintNode(SNode* pNode) {
 }
 
 static int32_t dumpQueryPlan(SQueryPlan* pPlan) {
+  return 0;
   int32_t code = 0;
   char* pStr = NULL;
   code = nodesNodeToString((SNode*)pPlan, false, &pStr, NULL);
