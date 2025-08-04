@@ -943,7 +943,7 @@ if(${BUILD_GEOS})           # {
         CMAKE_ARGS -DBUILD_TESTING:BOOL=OFF
         CMAKE_ARGS -DBUILD_GEOSOP:BOOL=OFF
         BUILD_COMMAND
-            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+            COMMAND "${CMAKE_COMMAND}" --build . --parallel --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
         EXCLUDE_FROM_ALL TRUE
