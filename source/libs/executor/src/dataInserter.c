@@ -218,10 +218,6 @@ static int32_t createNewInsertTbInfo(const SSubmitRes* pSubmitRes, SInsertTableI
   res->vgid = pCreateTbRsp->pMeta->vgId;
 
   res->version = pCreateTbRsp->pMeta->sversion;
-  if (res->pSchema != NULL) {
-    tDestroyTSchema(res->pSchema);
-    res->pSchema = NULL;
-  }
   res->pSchema = tBuildTSchema(pCreateTbRsp->pMeta->pSchemas, pCreateTbRsp->pMeta->numOfColumns, res->version);
   if (res->pSchema == NULL) {
     stError("failed to build schema for table:%s, uid:%" PRId64 ", vgid:%" PRId64 ", version:%d", res->tbname, res->uid,
@@ -302,15 +298,13 @@ static int32_t initTableInfo(SDataInserterHandle* pInserter, SStreamDataInserter
   int64_t key[2] = {pInserterInfo->streamId, pInserterInfo->groupId};
   code = taosHashPut(gStreamGrpTableHash, key, sizeof(key), &res, sizeof(SInsertTableInfo*));
   if (code == TSDB_CODE_DUP_KEY) {
-    taosMemFree(res->tbname);
-    taosMemFree(res);
+    releaseInsertTableInfoRef(&res);
     return TSDB_CODE_SUCCESS;
   }
 
 _return:
   if (code != TSDB_CODE_SUCCESS) {
-    taosMemFree(res->tbname);
-    taosMemFree(res);
+    releaseInsertTableInfoRef(&res);
   }
   return code;
 }
