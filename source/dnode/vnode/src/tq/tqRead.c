@@ -1062,8 +1062,9 @@ int32_t tqProcessRowData(STqReader* pReader, SSubmitTbData* pSubmitTbData, SArra
     int32_t targetIdx = 0;
     int32_t sourceIdx = 0;
     int32_t colActual = blockDataGetNumOfCols(pBlock);
-    while (targetIdx < colActual) {
+    while (targetIdx < colActual && sourceIdx < pTSchema->numOfCols) {
       SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, targetIdx);
+      TQ_NULL_GO_TO_END(pColData);
       SColVal          colVal = {0};
       TQ_ERR_GO_TO_END(tRowGet(pRow, pTSchema, sourceIdx, &colVal));
       SET_DATA
