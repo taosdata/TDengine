@@ -533,6 +533,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_taosx.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts5466.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_td33504.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_td37265.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts6392.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts5906.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/td-32187.py
