@@ -72,7 +72,7 @@ class TDTestCase(TBase):
         [["tinyint","tinyint unsigned","smallint","smallint unsigned","int","int unsigned","bigint","bigint unsigned"], ["simple8B"]],
         [["timestamp","bigint","bigint unsigned"],  ["Delta-i"]],
         [["bool"],                                  ["Bit-packing"]],
-        [["float","double"],                        ["Delta-d"]]
+        [["float", "double"],                        ["Delta-d", "bss"]]
     ]
 
     

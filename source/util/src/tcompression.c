@@ -669,11 +669,11 @@ int32_t tsDecompressINTImp2(const char *const input, int32_t ninput, const int32
 
 static int32_t tsEncodeDoubleImpl(const char *const input, const int32_t inputSize, char *const output,
                                   const int32_t outputSize, uint8_t bytes) {
-  if (NULL == input ||               //
-      NULL == output ||              //
-      inputSize <= 0 ||              //
-      outputSize < inputSize + 1 ||  //
-      inputSize % bytes != 0         //
+  if (NULL == input ||           //
+      NULL == output ||          //
+      inputSize <= 0 ||          //
+      outputSize < inputSize ||  //
+      inputSize % bytes != 0     //
   ) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -681,7 +681,6 @@ static int32_t tsEncodeDoubleImpl(const char *const input, const int32_t inputSi
   int32_t pos = 0;
   int32_t numEles = inputSize / bytes;
 
-  output[pos++] = 0;
   for (int32_t i = 0; i < bytes; i++) {
     for (int32_t j = 0; j < numEles; j++) {
       output[pos++] = input[i + j * bytes];
@@ -693,11 +692,12 @@ static int32_t tsEncodeDoubleImpl(const char *const input, const int32_t inputSi
 
 static int32_t tsDecodeDoubleImpl(const char *const input, const int32_t inputSize, char *const output,
                                   const int32_t outputSize, uint8_t bytes) {
-  if (NULL == input ||               //
-      NULL == output ||              //
-      inputSize <= 0 ||              //
-      outputSize < inputSize - 1 ||  //
-      input[0] != 0) {
+  if (NULL == input ||           //
+      NULL == output ||          //
+      inputSize <= 0 ||          //
+      outputSize < inputSize ||  //
+      inputSize % bytes != 0     //
+  ) {
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -706,7 +706,7 @@ static int32_t tsDecodeDoubleImpl(const char *const input, const int32_t inputSi
 
   for (int32_t i = 0; i < numEles; i++) {
     for (int32_t j = 0; j < bytes; j++) {
-      output[pos++] = input[1 + i + j * numEles];
+      output[pos++] = input[i + j * numEles];
     }
   }
 
