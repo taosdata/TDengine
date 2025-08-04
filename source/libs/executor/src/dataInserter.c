@@ -504,7 +504,7 @@ _return:
     qError("update inserter table info failed, error:%s", tstrerror(code2));
   }
   tDecoderClear(&coder);
-  (void)tsem_post(&pInserter->ready);
+  TAOS_UNUSED(tsem_post(&pInserter->ready));
 
   taosMemoryFree(pMsg->pData);
 
