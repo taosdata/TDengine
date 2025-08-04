@@ -1209,7 +1209,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     TAOS_CHECK_GOTO(TSDB_CODE_INVALID_PTR, &lino, _OVER);
   }
 
-  if (sver < 1 || sver > USER_VER_NUMBER) {
+  if (sver < 1 || sver > USER_VER_NUMBER || sver != 7) {
     TAOS_CHECK_GOTO(TSDB_CODE_SDB_INVALID_DATA_VER, &lino, _OVER);
   }
 
@@ -1478,7 +1478,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     }
   }
   // decoder white list
-  if (sver >= 5) {
+  if (sver >= 5 && sver <= USER_VER_NUMBER) {
     int32_t len = 0;
     SDB_GET_INT32(pRaw, dataPos, &len, _OVER);
 
