@@ -1209,8 +1209,10 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     TAOS_CHECK_GOTO(TSDB_CODE_INVALID_PTR, &lino, _OVER);
   }
 
-  if (sver < 1 || sver > USER_VER_NUMBER || sver != 7) {
-    TAOS_CHECK_GOTO(TSDB_CODE_SDB_INVALID_DATA_VER, &lino, _OVER);
+  if (sver < 1 || sver > USER_VER_NUMBER) {
+    if (sver != 7) {
+      TAOS_CHECK_GOTO(TSDB_CODE_SDB_INVALID_DATA_VER, &lino, _OVER);
+    }
   }
 
   pRow = sdbAllocRow(sizeof(SUserObj));
