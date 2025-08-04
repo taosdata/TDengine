@@ -2684,7 +2684,8 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
     }
   }
 
-  if (pTask->pHistoryContext == NULL) {
+  if (!pTask->historyCalcStarted) {
+    QUERY_CHECK_CONDITION(pTask->pHistoryContext == NULL, code, lino, _end, TSDB_CODE_INVALID_PARA);
     pTask->pHistoryContext = taosMemoryCalloc(1, sizeof(SSTriggerHistoryContext));
     QUERY_CHECK_NULL(pTask->pHistoryContext, code, lino, _end, terrno);
     code = stHistoryContextInit(pTask->pHistoryContext, pTask);
@@ -2709,6 +2710,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
 
     ST_TASK_DLOG("send start control request for session: %" PRIx64, req.sessionId);
     ST_TASK_DLOG("control request 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId, msg.info.traceId.msgId);
+    pTask->historyCalcStarted = true;
   }
 
   if (pContext->status == STRIGGER_CONTEXT_IDLE) {
