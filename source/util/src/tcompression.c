@@ -87,6 +87,10 @@ int32_t tsCompressDoubleImp2(const char *const input, const int32_t nelements, c
 int32_t tsDecompressDoubleImp2(const char *const input, int32_t ninput, const int32_t nelements, char *const output,
                                char const type);
 
+static int32_t tsEncodeDouble(const char *const input, const int32_t nelements, char *const output, char const type);
+static int32_t tsDecodeDouble(const char *const input, int32_t ninput, const int32_t nelements, char *const output,
+                              const char type);
+
 int32_t tsCompressDoubleImp(const char *const input, const int32_t nelements, char *const output);
 int32_t tsDecompressDoubleImp(const char *const input, int32_t ninput, const int32_t nelements, char *const output);
 int32_t tsCompressFloatImp(const char *const input, const int32_t nelements, char *const output);
@@ -277,11 +281,14 @@ int32_t l2DecompressImpl_xz(const char *const input, const int32_t compressedSiz
 }
 #endif
 
-TCmprL1FnSet compressL1Dict[] = {{"PLAIN", NULL, tsCompressPlain2, tsDecompressPlain2},
-                                 {"SIMPLE-8B", NULL, tsCompressINTImp2, tsDecompressINTImp2},
-                                 {"DELTAI", NULL, tsCompressTimestampImp2, tsDecompressTimestampImp2},
-                                 {"BIT-PACKING", NULL, tsCompressBoolImp2, tsDecompressBoolImp2},
-                                 {"DELTAD", NULL, tsCompressDoubleImp2, tsDecompressDoubleImp2}};
+TCmprL1FnSet compressL1Dict[] = {
+    {"PLAIN", NULL, tsCompressPlain2, tsDecompressPlain2},
+    {"SIMPLE-8B", NULL, tsCompressINTImp2, tsDecompressINTImp2},
+    {"DELTAI", NULL, tsCompressTimestampImp2, tsDecompressTimestampImp2},
+    {"BIT-PACKING", NULL, tsCompressBoolImp2, tsDecompressBoolImp2},
+    {"DELTAD", NULL, tsCompressDoubleImp2, tsDecompressDoubleImp2},
+    {"BYTE-STREAM_SPLIT", NULL, tsEncodeDouble, tsDecodeDouble},
+};
 
 TCmprLvlSet compressL2LevelDict[] = {
     {"unknown", .lvl = {1, 2, 3}}, {"lz4", .lvl = {1, 2, 3}}, {"zlib", .lvl = {1, 6, 9}},
@@ -660,14 +667,21 @@ int32_t tsDecompressINTImp2(const char *const input, int32_t ninput, const int32
   return tsDecompressINTImp(input, nelements, output, type);
 }
 
-static int32_t tsEncodeFloatImpl(const char *const input, const int32_t inputSize, char *const output, const int32_t outputSize, uint8_t bytes) {
-  if (NULL == input || NULL == output) {
+static int32_t tsEncodeDoubleImpl(const char *const input, const int32_t inputSize, char *const output,
+                                  const int32_t outputSize, uint8_t bytes) {
+  if (NULL == input ||               //
+      NULL == output ||              //
+      inputSize <= 0 ||              //
+      outputSize < inputSize + 1 ||  //
+      inputSize % bytes != 0         //
+  ) {
     return TSDB_CODE_INVALID_PARA;
   }
 
   int32_t pos = 0;
   int32_t numEles = inputSize / bytes;
 
+  output[pos++] = 0;
   for (int32_t i = 0; i < bytes; i++) {
     for (int32_t j = 0; j < numEles; j++) {
       output[pos++] = input[i + j * bytes];
@@ -677,8 +691,13 @@ static int32_t tsEncodeFloatImpl(const char *const input, const int32_t inputSiz
   return pos;
 }
 
-static int32_t tsDecodeFloatImpl(const char *const input, const int32_t inputSize, char *const output, const int32_t outputSize, uint8_t bytes) {
-  if (NULL == input || NULL == output) {
+static int32_t tsDecodeDoubleImpl(const char *const input, const int32_t inputSize, char *const output,
+                                  const int32_t outputSize, uint8_t bytes) {
+  if (NULL == input ||               //
+      NULL == output ||              //
+      inputSize <= 0 ||              //
+      outputSize < inputSize - 1 ||  //
+      input[0] != 0) {
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -687,27 +706,31 @@ static int32_t tsDecodeFloatImpl(const char *const input, const int32_t inputSiz
 
   for (int32_t i = 0; i < numEles; i++) {
     for (int32_t j = 0; j < bytes; j++) {
-      output[pos++] = input[i + j * numEles];
+      output[pos++] = input[1 + i + j * numEles];
     }
   }
 
   return pos;
 }
 
-static int32_t tsEncodeF32(const char *const input, const int32_t inputSize, char *const output, const int32_t outputSize) {
-  return tsEncodeFloatImpl(input, inputSize, output, outputSize, sizeof(float));
+static int32_t tsEncodeDouble(const char *const input, const int32_t nelements, char *const output, char const type) {
+  if (TSDB_DATA_TYPE_FLOAT == type) {
+    return tsEncodeDoubleImpl(input, nelements * sizeof(float), output, nelements * sizeof(float) + 1, sizeof(float));
+  } else if (TSDB_DATA_TYPE_DOUBLE == type) {
+    return tsEncodeDoubleImpl(input, nelements * sizeof(double), output, nelements * sizeof(double) + 1,
+                              sizeof(double));
+  }
+  return TSDB_CODE_THIRDPARTY_ERROR;
 }
 
-static int32_t tsDecodeF32(const char *const input, const int32_t inputSize, char *const output, const int32_t outputSize) {
-  return tsDecodeFloatImpl(input, inputSize, output, outputSize, sizeof(float));
-}
-
-static int32_t tsEncodeF64(const char *const input, const int32_t inputSize, char *const output, const int32_t outputSize) {
-  return tsEncodeFloatImpl(input, inputSize, output, outputSize, sizeof(double));
-}
-
-static int32_t tsDecodeF64(const char *const input, const int32_t inputSize, char *const output, const int32_t outputSize) {
-  return tsDecodeFloatImpl(input, inputSize, output, outputSize, sizeof(double));
+static int32_t tsDecodeDouble(const char *const input, int32_t inputSize, const int32_t nelements, char *const output,
+                              const char type) {
+  if (TSDB_DATA_TYPE_FLOAT == type) {
+    return tsDecodeDoubleImpl(input, inputSize, output, nelements * sizeof(float), sizeof(float));
+  } else if (TSDB_DATA_TYPE_DOUBLE == type) {
+    return tsDecodeDoubleImpl(input, inputSize, output, nelements * sizeof(double), sizeof(double));
+  }
+  return TSDB_CODE_THIRDPARTY_ERROR;
 }
 
 #if 0
@@ -1887,7 +1910,6 @@ int32_t tsCompressDecimal64(void *pIn, int32_t nIn, int32_t nEle, void *pOut, in
 }
 int32_t tsDecompressDecimal64(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
                               void *pBuf, int32_t nBuf) {
-
   FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_DECIMAL64, 0);
 }
 
