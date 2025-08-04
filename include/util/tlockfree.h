@@ -70,6 +70,7 @@ typedef volatile int32_t SRWLatch;
 
 void    taosInitRWLatch(SRWLatch *pLatch);
 void    taosWLockLatch(SRWLatch *pLatch);
+void    taosWWaitLockLatch(SRWLatch *pLatch);
 void    taosWUnLockLatch(SRWLatch *pLatch);
 void    taosRLockLatch(SRWLatch *pLatch);
 int32_t taosRTryLockLatch(SRWLatch *pLatch);

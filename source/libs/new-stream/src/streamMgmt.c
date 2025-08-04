@@ -166,7 +166,7 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
       code = smAddTaskToVgroupMap(pTask);
       if (code) {
         ST_TASK_ELOG("reader task fail to add to vgroup map, error:%s", tstrerror(code));
-        taosHashRemove(gStreamMgmt.taskMap, &pTask->task.streamId, sizeof(pTask->task.streamId) + sizeof(pTask->task.taskId));
+        TAOS_UNUSED(taosHashRemove(gStreamMgmt.taskMap, &pTask->task.streamId, sizeof(pTask->task.streamId) + sizeof(pTask->task.taskId)));
         streamReleaseTask(taskAddr);
         taosMemoryFree(tdListPopTail(pStream->readerList));
         continue;
@@ -176,7 +176,7 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
       if (code) {
         ST_TASK_ELOG("reader task deploy failed, error:%s", tstrerror(code));
         smRemoveReaderFromVgMap((SStreamTask*)pTask);
-        taosHashRemove(gStreamMgmt.taskMap, &pTask->task.streamId, sizeof(pTask->task.streamId) + sizeof(pTask->task.taskId));
+        TAOS_UNUSED(taosHashRemove(gStreamMgmt.taskMap, &pTask->task.streamId, sizeof(pTask->task.streamId) + sizeof(pTask->task.taskId)));
         streamReleaseTask(taskAddr);
         taosMemoryFree(tdListPopTail(pStream->readerList));
         continue;
@@ -184,49 +184,53 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
 
       ST_TASK_DLOG("%sReader task deploy succeed, tidx:%d", STREAM_IS_TRIGGER_READER(pTask->task.flags) ? "trig" : "calc", pTask->task.taskIdx);      
 
-      atomic_add_fetch_32(&pStream->taskNum, 1);
+      (void)atomic_add_fetch_32(&pStream->taskNum, 1);
       streamReleaseTask(taskAddr);
     }
   }
 
   if (pDeploy->triggerTask) {
-    triggerNum = 1;
-    SStreamTask* pTask = &pDeploy->triggerTask->task;
-    if (NULL == pStream->triggerTask) {
-      pStream->triggerTaskId = pTask->taskId;
-      pStream->triggerTask = taosMemoryCalloc(1, sizeof(SStreamTriggerTask));
-      TSDB_CHECK_NULL(pStream->triggerTask, code, lino, _exit, terrno);
+    if (NULL == pStream->triggerList) {
+      pStream->triggerList = tdListNew(sizeof(SStreamTriggerTask));
+      TSDB_CHECK_NULL(pStream->triggerList, code, lino, _exit, terrno);
+    } else if (TD_DLIST_NELES(pStream->triggerList) > 0) {
+      stsWarn("%d trigger tasks already exist, will try to undeploy them", TD_DLIST_NELES(pStream->triggerList));      
+      smUndeployStreamTriggerTasks(pStream, streamId);
+    }
+    
+    SStreamTask* pSrc = &pDeploy->triggerTask->task;
+    SStreamTriggerTask* pTask = tdListPreReserve(pStream->triggerList);
+    TSDB_CHECK_NULL(pTask, code, lino, _exit, terrno);
+    
+    pStream->triggerTaskId = pSrc->taskId;
+    pTask->task = *pSrc;
 
-      pStream->triggerTask->task = *pTask;
+    code = taosHashPut(gStreamMgmt.taskMap, &pSrc->streamId, sizeof(pSrc->streamId) + sizeof(pSrc->taskId), &pTask, POINTER_BYTES);
+    if (code) {
+      ST_TASK_ELOG("trigger task fail to add to taskMap, error:%s", tstrerror(code));
+      taosMemoryFree(tdListPopHead(pStream->triggerList));
+      TAOS_CHECK_EXIT(code);
+    }
 
-      code = taosHashPut(gStreamMgmt.taskMap, &pTask->streamId, sizeof(pTask->streamId) + sizeof(pTask->taskId), &pStream->triggerTask, POINTER_BYTES);
-      if (code) {
-        ST_TASK_ELOG("trigger task fail to add to taskMap, error:%s", tstrerror(code));
-        taosMemoryFreeClear(pStream->triggerTask);
-        TAOS_CHECK_EXIT(code);
-      }
+    code = streamAcquireTask(pSrc->streamId, pSrc->taskId, (SStreamTask**)&pTask, &taskAddr);
+    if (code) {
+      ST_TASK_ELOG("trigger task no longer exists, error:%s", tstrerror(code));
+      TAOS_CHECK_EXIT(code);
+    }
 
-      code = streamAcquireTask(pTask->streamId, pTask->taskId, &pTask, &taskAddr);
-      if (code) {
-        ST_TASK_ELOG("trigger task no longer exists, error:%s", tstrerror(code));
-        TAOS_CHECK_EXIT(code);
-      }
-
-      code = stTriggerTaskDeploy(pStream->triggerTask, &pDeploy->triggerTask->msg.trigger);
-      if (code) {
-        ST_TASK_ELOG("trigger task fail to deploy, error:%s", tstrerror(code));
-        taosHashRemove(gStreamMgmt.taskMap, &pTask->streamId, sizeof(pTask->streamId) + sizeof(pTask->taskId));
-        streamReleaseTask(taskAddr);
-        taosMemoryFreeClear(pStream->triggerTask);
-        TAOS_CHECK_EXIT(code);
-      }
-
-      ST_TASK_DLOG("trigger task deploy succeed, tidx:%d", pTask->taskIdx);      
-      atomic_add_fetch_32(&pStream->taskNum, 1);
+    code = stTriggerTaskDeploy(pTask, &pDeploy->triggerTask->msg.trigger);
+    if (code) {
+      ST_TASK_ELOG("trigger task fail to deploy, error:%s", tstrerror(code));
+      TAOS_UNUSED(taosHashRemove(gStreamMgmt.taskMap, &pSrc->streamId, sizeof(pSrc->streamId) + sizeof(pSrc->taskId)));
       streamReleaseTask(taskAddr);
-    } else {
-      ST_TASK_ELOG("trigger task already exists, ignore deploy, taskId:%" PRId64 ", tidx:%d", pTask->taskId, pTask->taskIdx);      
-    }    
+      taosMemoryFree(tdListPopHead(pStream->triggerList));
+      TAOS_CHECK_EXIT(code);
+    }
+
+    ST_TASK_DLOG("trigger task deploy succeed, tidx:%d", pSrc->taskIdx);   
+    
+    (void)atomic_add_fetch_32(&pStream->taskNum, 1);
+    streamReleaseTask(taskAddr);
   }
 
   if (pDeploy->runnerTasks) {
@@ -259,14 +263,14 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
       code = stRunnerTaskDeploy(pTask, &pRunner->msg.runner);
       if (code) {
         ST_TASK_ELOG("runner task fail to deploy, error:%s", tstrerror(code));
-        taosHashRemove(gStreamMgmt.taskMap, &pTask->task.streamId, sizeof(pTask->task.streamId) + sizeof(pTask->task.taskId));
+        TAOS_UNUSED(taosHashRemove(gStreamMgmt.taskMap, &pTask->task.streamId, sizeof(pTask->task.streamId) + sizeof(pTask->task.taskId)));
         streamReleaseTask(taskAddr);
         taosMemoryFree(tdListPopTail(pStream->runnerList));
         continue;
       }
       
       ST_TASK_DLOG("runner task deploy succeed, tidx:%d", pTask->task.taskIdx);      
-      atomic_add_fetch_32(&pStream->taskNum, 1);
+      (void)atomic_add_fetch_32(&pStream->taskNum, 1);
       streamReleaseTask(taskAddr);
     }
   }  
@@ -333,13 +337,14 @@ void smRemoveTaskPostCheck(int64_t streamId, SStreamInfo* pStream, bool* isLastT
   int32_t remainTasks = atomic_sub_fetch_32(&pStream->taskNum, 1);
   if (0 >= remainTasks) {
     int32_t readerNum = pStream->readerList ? TD_DLIST_NELES(pStream->readerList) : 0;
+    int32_t triggerNum = pStream->triggerList ? TD_DLIST_NELES(pStream->triggerList) : 0;
     int32_t runnerNum = pStream->runnerList ? TD_DLIST_NELES(pStream->runnerList) : 0;
     if (readerNum > 0) {
       stsError("remain readerNum %d while taskNum %d", readerNum, remainTasks);
       taskRemains = true;
     }
-    if (NULL != pStream->triggerTask) {
-      stsError("trigger task remain while taskNum %d", readerNum);
+    if (triggerNum > 0) {
+      stsError("remain triggerNum %d while taskNum %d", triggerNum, remainTasks);
       taskRemains = true;
     }
     if (runnerNum > 0) {
@@ -378,8 +383,8 @@ void smRemoveTaskCb(void* param) {
   }
 
   bool isLastTask = false;
-  switch (pTask->type){
-    case STREAM_READER_TASK:
+  switch (pTask->type) {
+    case STREAM_READER_TASK: {
       if (NULL == pStream->undeployReaders) {
         int32_t num = pStream->readerList ? TD_DLIST_NELES(pStream->readerList) : 0;
         SArray* pReaders = taosArrayInit(num, sizeof(int64_t) * 2);
@@ -389,16 +394,27 @@ void smRemoveTaskCb(void* param) {
         }
       }
       taosWLockLatch(&pStream->undeployLock);
-      taosArrayPush(pStream->undeployReaders, &pTask->taskId);
+      void* pTmp = taosArrayPush(pStream->undeployReaders, &pTask->taskId);
       taosWUnLockLatch(&pStream->undeployLock);
-      break;
-    case STREAM_TRIGGER_TASK: {
-      taosWLockLatch(&pStream->undeployLock);
-      pStream->undeployTriggerId = pTask->taskId;
-      taosWUnLockLatch(&pStream->undeployLock);
+      TSDB_CHECK_NULL(pTmp, code, lino, _exit, terrno);
       break;
     }
-    case STREAM_RUNNER_TASK:
+    case STREAM_TRIGGER_TASK: {
+      if (NULL == pStream->undeployTriggers) {
+        int32_t num = pStream->triggerList ? TD_DLIST_NELES(pStream->triggerList) : 0;
+        SArray* pTriggers = taosArrayInit(num, sizeof(int64_t) * 2);
+        TSDB_CHECK_NULL(pTriggers, code, lino, _exit, terrno);
+        if (NULL != atomic_val_compare_exchange_ptr(&pStream->undeployTriggers, NULL, pTriggers)) {
+          taosArrayDestroy(pTriggers);
+        }
+      }
+      taosWLockLatch(&pStream->undeployLock);
+      void* pTmp = taosArrayPush(pStream->undeployTriggers, &pTask->taskId);
+      taosWUnLockLatch(&pStream->undeployLock);
+      TSDB_CHECK_NULL(pTmp, code, lino, _exit, terrno);
+      break;
+    }
+    case STREAM_RUNNER_TASK: {
       if (NULL == pStream->undeployRunners) {
         int32_t num = pStream->runnerList ? TD_DLIST_NELES(pStream->runnerList) : 0;
         SArray* pRunners = taosArrayInit(num, sizeof(int64_t) * 2);
@@ -408,9 +424,11 @@ void smRemoveTaskCb(void* param) {
         }
       }
       taosWLockLatch(&pStream->undeployLock);
-      taosArrayPush(pStream->undeployRunners, &pTask->taskId);
+      void* pTmp = taosArrayPush(pStream->undeployRunners, &pTask->taskId);
       taosWUnLockLatch(&pStream->undeployLock);
+      TSDB_CHECK_NULL(pTmp, code, lino, _exit, terrno);
       break;
+    }
     default:
       ST_TASK_ELOG("Invalid task type:%d", pTask->type);
       TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
@@ -507,7 +525,7 @@ void smUndeployVgTasks(int32_t vgId, bool cleanup) {
   undeploy.undeployMsg.doCleanup = false;
 
   if (cleanup) {
-    taosHashRemove(gStreamMgmt.vgroupMap, &vgId, sizeof(vgId));
+    TAOS_UNUSED(taosHashRemove(gStreamMgmt.vgroupMap, &vgId, sizeof(vgId)));
   } else {
     atomic_store_8(&pVg->inactive, 1);
   }
@@ -527,34 +545,49 @@ void smUndeployVgTasks(int32_t vgId, bool cleanup) {
   taosHashRelease(gStreamMgmt.vgroupMap, pVg);
 }
 
-void smHandleRemovedTask(SStreamInfo* pStream, int64_t streamId, int32_t gid, bool isReader) {
-  SArray* pList = isReader ? pStream->undeployReaders : pStream->undeployRunners;
-  SList*  pSrc = isReader ? pStream->readerList : pStream->runnerList;
+void smUndeployStreamTriggerTasks(SStreamInfo* pStream, int64_t streamId) {
+  stsDebug("start to undeploy stream all trigger tasks, num:%d", TD_DLIST_NELES(pStream->triggerList));
+
+  SStreamTaskUndeploy undeploy = {0};
+  undeploy.undeployMsg.doCheckpoint = true;
+  undeploy.undeployMsg.doCleanup = false;
+
+  SListIter iter = {0};
+  SListNode* listNode = NULL;  
+  tdListInitIter(pStream->triggerList, &iter, TD_LIST_FORWARD);
+  while ((listNode = tdListNext(&iter)) != NULL) {
+    SStreamTask* pTask = (SStreamTask*)listNode->data;
+    undeploy.task = *pTask;
+    (void)smUndeployTask(&undeploy, false);
+  }
+}
+
+void smHandleRemovedTask(SStreamInfo* pStream, int64_t streamId, int32_t gid, EStreamTaskType type, SArray* pUndeployList, SList* pTaskList) {
   bool isLastTask = false;
   SListNode* listNode = NULL;
 
-  stsDebug("start to handle removed %s tasks", isReader ? "Reader" : "Runner");
+  stsDebug("start to handle removed %s tasks", gStreamTaskTypeStr[type]);
   
   taosWLockLatch(&pStream->undeployLock);
   
-  int32_t unNum = taosArrayGetSize(pList);
+  int32_t unNum = taosArrayGetSize(pUndeployList);
   for (int32_t i = 0; i < unNum; ++i) {
-    int64_t* taskId = taosArrayGet(pList, i);
+    int64_t* taskId = taosArrayGet(pUndeployList, i);
     int64_t* seriousId = taskId + 1;
     SListIter iter = {0};
-    tdListInitIter(pSrc, &iter, TD_LIST_FORWARD);
+    tdListInitIter(pTaskList, &iter, TD_LIST_FORWARD);
     while ((listNode = tdListNext(&iter)) != NULL) {
       SStreamTask* pTask = (SStreamTask*)listNode->data;
       if (pTask->taskId == *taskId && pTask->seriousId == *seriousId) {
-        SListNode* tmp = tdListPopNode(pSrc, listNode);
-        ST_TASK_DLOG("task removed from stream taskList, remain:%d", TD_DLIST_NELES(pSrc));
+        SListNode* tmp = tdListPopNode(pTaskList, listNode);
+        ST_TASK_DLOG("task removed from stream taskList, remain:%d", TD_DLIST_NELES(pTaskList));
         taosMemoryFreeClear(tmp);
         smRemoveTaskPostCheck(streamId, pStream, &isLastTask);
         break;
       }
     }
   }
-  taosArrayClear(pList);
+  taosArrayClear(pUndeployList);
   taosWUnLockLatch(&pStream->undeployLock);
 
   if (!isLastTask) {
@@ -608,14 +641,18 @@ void smUndeployGrpSnodeTasks(SHashObj* pGrp, bool cleanup) {
     }
 
     pStream = (SStreamInfo*)pIter;
+    
     taosWLockLatch(&pStream->lock);
-    if (pStream->triggerTask) {
-      undeploy.task = pStream->triggerTask->task;
+    SListIter iter = {0};
+    SListNode* listNode = NULL;
+    tdListInitIter(pStream->triggerList, &iter, TD_LIST_FORWARD);
+    while ((listNode = tdListNext(&iter)) != NULL) {
+      SStreamTriggerTask* pTrigger = (SStreamTriggerTask*)listNode->data;
+      undeploy.task = pTrigger->task;
       (void)smUndeployTask(&undeploy, false);
     }
 
-    SListIter iter = {0};
-    SListNode* listNode = NULL;
+    memset(&iter, 0, sizeof(iter));
     tdListInitIter(pStream->runnerList, &iter, TD_LIST_FORWARD);
     while ((listNode = tdListNext(&iter)) != NULL) {
       SStreamRunnerTask* pRunner = (SStreamRunnerTask*)listNode->data;
@@ -685,7 +722,7 @@ int32_t smUndeployTasks(SStreamUndeployActions* actions) {
     SStreamTaskUndeploy* pUndeploy = taosArrayGet(actions->taskList, i);
     streamId = pUndeploy->task.streamId;
     
-    smUndeployTask(pUndeploy, true);
+    (void)smUndeployTask(pUndeploy, true);
   }
 
   return code;
@@ -717,11 +754,15 @@ void smUndeployFreeStreamTasks(SStreamInfo* pStream) {
     }
   }
 
-  if (pStream->triggerTask) {
-    SStreamTask* pTask = (SStreamTask*)pStream->triggerTask;
-    undeploy.task = *pTask;
-    ST_TASK_DLOG("task %p will be undeployed for stream reason", pStream->triggerTask);
-    (void)smUndeployTask(&undeploy, true);
+  if (pStream->triggerList) {
+    memset(&iter, 0, sizeof(iter));
+    tdListInitIter(pStream->triggerList, &iter, TD_LIST_FORWARD);
+    while ((listNode = tdListNext(&iter)) != NULL) {
+      SStreamTask* pTask = (SStreamTask*)listNode->data;
+      undeploy.task = *pTask;
+      ST_TASK_DLOG("task %p will be undeployed for stream reason", pTask);
+      (void)smUndeployTask(&undeploy, true);
+    }
   }
 
   if (pStream->runnerList) {
@@ -791,7 +832,7 @@ int32_t smHandleMgmtRsp(SStreamMgmtRsps* rsps) {
   int32_t rspNum = taosArrayGetSize(rsps->rspList);
   for (int32_t i = 0; i < rspNum; ++i) {
     SStreamMgmtRsp* pRsp = taosArrayGet(rsps->rspList, i);
-    smHandleTaskMgmtRsp(pRsp);
+    (void)smHandleTaskMgmtRsp(pRsp);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -851,7 +892,7 @@ int32_t smDeployStreams(SStreamDeployActions* actions) {
     SStmStreamDeploy* pDeploy = taosArrayGet(actions->streamList, i);
     streamId = pDeploy->streamId;
 
-    smDeployTasks(pDeploy);
+    (void)smDeployTasks(pDeploy);
   }
 
   return code;
