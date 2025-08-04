@@ -148,12 +148,12 @@ TDengine 客户端驱动支持 WebSocket 连接和原生连接两种方式。大
 
 **WebSocket 连接功能差异说明：**
 
-以下 API 在 WebSocket 连接方式下暂时只返回成功状态，但不执行实际操作：
-
-- `taos_options_connection` - 连接选项设置
-- `taos_connect_auth` - MD5 加密密码连接
-- `taos_set_notify_cb` - 事件回调函数设置
-- `tmq_get_connect` - 获取 TMQ 连接句柄
+| API                     | 支持状态 | 接口说明           | 使用限制                                |
+| ----------------------- | -------- | ------------------ | --------------------------------------- |
+| taos_connect_auth       | 不支持   | MD5 加密密码连接   | 只返回成功状态，不执行实际操作          |
+| taos_set_notify_cb      | 不支持   | 设置事件回调函数   | 只返回成功状态，不执行实际操作          |
+| tmq_get_connect         | 不支持   | 获取 TMQ 连接句柄  | 只返回成功状态，不执行实际操作          |
+| taos_options_connection | 部分支持 | 设置客户端连接选项 | 不支持字符集设置，固定使用 UTF-8 字符集 |
 
 这些 API 在原生连接方式下功能完整。如需使用上述功能，建议选择原生连接方式。未来版本将逐步完善 WebSocket 连接的功能支持。
 

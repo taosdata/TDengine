@@ -4,81 +4,68 @@ title: 用 Docker 快速体验 TDengine
 description: 使用 Docker 快速体验 TDengine 的高效写入和查询
 ---
 
-本节首先介绍如何通过 Docker 快速体验 TDengine，然后介绍如何在 Docker 环境下体验 TDengine 的写入和查询功能。如果你不熟悉 Docker，请使用[安装包的方式快速体验](../../get-started/package/)。如果您希望为 TDengine 贡献代码或对内部技术实现感兴趣，请参考 [TDengine GitHub 主页](https://github.com/taosdata/TDengine)下载源码构建和安装。
+本节首先介绍如何通过 Docker 快速体验 TDengine，然后介绍如何在 Docker 环境下体验 TDengine 的写入和查询功能。如果您不熟悉 Docker，请使用[安装包的方式快速体验](../../get-started/package/)。如果您希望为 TDengine 贡献代码或对内部技术实现感兴趣，请参考 [TDengine GitHub 主页](https://github.com/taosdata/TDengine)下载源码构建和安装。
+
+:::note
+从 3.3.7.0 版本开始，TDengine TSDB 的镜像名称从 `tdengine/tdengine` 重命名为 `tdengine/tsdb`.
+:::
 
 ## 启动 TDengine
 
-如果已经安装了 Docker，首先拉取最新的 TDengine 容器镜像：
+1. 拉取 TDengine 容器镜像：
 
 ```shell
+# 拉取最新版本的 Docker 镜像
 docker pull tdengine/tsdb:latest
-```
 
-或者指定版本的容器镜像：
-
-```shell
+# 拉取制定版本的 Docker 进入容器，例如：3.3.7.0
 docker pull tdengine/tsdb:3.3.7.0
 ```
 
-然后只需执行下面的命令：
-
-```shell
-docker run -d \
-  -p 6030:6030 -p 6041:6041 -p 6043:6043 -p 6060:6060 \
-  -p 6044-6049:6044-6049 -p 6044-6045:6044-6045/udp \
-  tdengine/tsdb
-```
-
-:::note
-
-1. 从 3.3.7.0 版本开始，TDengine 的镜像名称从 `tdengine/tdengine` 重命名为 `tdengine/tsdb`.
-1. TDengine 3.0 服务端仅使用 6030 TCP 端口。6041 为 taosAdapter 所使用提供 REST 服务端口。6043 为 taosKeeper 使用端口。6044-6049 TCP 端口为 taosAdapter 提供第三方应用接入所使用端口，可根据需要选择是否打开。6044 和 6045 UDP 端口为 statsd 和 collectd 格式写入接口，可根据需要选择是否打开。6060 为 taosExplorer 使用端口。具体端口使用情况请参考[网络端口要求](../../operation/planning#网络端口要求)。
-
-:::
-
-如果需要将数据持久化到本机的某一个文件夹，则执行下边的命令：
+2. 启动 TDengine Docker 容器：
 
 ```shell
 docker run -d \
   -v ~/data/taos/dnode/data:/var/lib/taos \
   -v ~/data/taos/dnode/log:/var/log/taos \
   -p 6030:6030 -p 6041:6041 -p 6043:6043 -p 6060:6060 \
-  -p 6044-6049:6044-6049 -p 6044-6045:6044-6045/udp \
+  -p 6044-6049:6044-6049 \
+  -p 6044-6045:6044-6045/udp \
+  --name tdengine-tsdb
   tdengine/tsdb
 ```
 
-:::note
+关于 TDengine 的端口占用情况，请参考运维指南中的[网络端口要求](../../operation/planning/#网络端口要求)章节。
 
-- /var/lib/taos: TDengine 默认数据文件目录。可通过[配置文件]修改位置。你可以修改 ~/data/taos/dnode/data 为你自己的数据目录
-- /var/log/taos: TDengine 默认日志文件目录。可通过[配置文件]修改位置。你可以修改 ~/data/taos/dnode/log 为你自己的日志目录
-  
-:::
-
-确定该容器已经启动并且在正常运行。
+3. 查看 TDengine Docker 容器的运行状态：
 
 ```shell
-docker ps
+docker ps -f name=tdengine-tsdb
 ```
 
-进入该容器并执行 `bash`
+请查看已命令输出的 STATUS (状态) 字段，如果该状态的值为 "Up ... (healthy)", 说明容器已启动并正常运行。
+
+4. 进入容器体验 TDengine
+
+执行以下命令，进入容器内部：
 
 ```shell
-docker exec -it <container name> bash
+docker exec -it tdegnine-tsdb bash
 ```
 
-然后就可以执行相关的 Linux 命令操作和访问 TDengine。
-
-注：Docker 工具自身的下载和使用请参考 [Docker 官网文档](https://docs.docker.com/get-docker/)。
+然后，就可以执行相关的 Linux 命令操作和访问 TDengine.
 
 ## TDengine 命令行界面
 
-进入容器，执行 `taos`：
+进入容器后，在命令行执行 `taos` 即可进入 taos shell：
 
 ```shell
-$ taos
+taos
 
 taos>
 ```
+
+关于使用 Docker 部署 TDengine 的更多详情，请参考运维指南中的 [Docker 部署](../../operation/deployment/#docker-部署)章节。
 
 import Getstarted from './_get_started.mdx'
 
