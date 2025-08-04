@@ -169,7 +169,7 @@ async-trait = "0.1"
 async-backtrace = "0.2.2"
 async-compression = { version = "0.4", default-features = false,  features = ["zstd", "tokio"] }
 utoipa = { version = "4", features = ["actix_extras", "chrono"] }
-utoipa-swagger-ui = { version = "7", features = ["actix-web"] }
+utoipa-swagger-ui = { version = "7", features = ["actix-web", "vendored"] }
 socket2 = "0.6"
 zstd = "0.13"
 crossbeam = "0.8.4"

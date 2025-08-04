@@ -5,10 +5,11 @@ use arrow::{
 };
 use arrow_schema::Fields;
 use lazy_static::lazy_static;
-use rhai::{Dynamic, EvalAltResult, ParseError, Scope, AST};
+use rhai::{Dynamic, EvalAltResult, LexError, ParseError, ParseErrorType, Scope, AST};
 use rhai_dylib::module_resolvers::libloading::DylibModuleResolver;
 use rhai_dylib::rhai::{config::hashing::set_hashing_seed, Engine};
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize};
+use serde_json::Value;
 use std::fmt;
 use std::{collections::HashMap, sync::Arc};
 use tracing::{instrument, warn};
@@ -262,6 +263,33 @@ fn init_data_field(name: &str, data_type: DataType, cast_from: &str) -> Field {
         cast_from.to_string(),
     )]))
 }
+
+fn json_value_to_dynamic(value: Value) -> Dynamic {
+    match value {
+        Value::Null => Dynamic::UNIT,
+        Value::Bool(b) => Dynamic::from(b),
+        Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Dynamic::from(i)
+            } else if let Some(f) = n.as_f64() {
+                Dynamic::from(f)
+            } else {
+                Dynamic::from(n.to_string())
+            }
+        }
+        Value::String(s) => Dynamic::from(s),
+        Value::Array(arr) => Dynamic::from(
+            arr.into_iter()
+                .map(json_value_to_dynamic)
+                .collect::<Vec<_>>(),
+        ),
+        Value::Object(map) => Dynamic::from(
+            map.into_iter()
+                .map(|(k, v)| (k.into(), json_value_to_dynamic(v)))
+                .collect::<rhai::Map>(),
+        ),
+    }
+}
 impl Udt {
     #[instrument(skip_all)]
     fn parse_data(&self, item_raw_data: &str) -> Result<Vec<Dynamic>, super::ParseError> {
@@ -274,23 +302,14 @@ impl Udt {
         }
         let mut scope = Scope::new();
         scope.push("raw", item_raw_data.to_string());
-
-        match ENGINE.parse_json(item_raw_data, true) {
-            Ok(map) => {
-                scope.push("data", map);
-            }
-            Err(_) => {
-                let js = format!(r#"{{"v":{}}}"#, item_raw_data);
-                let mut map = ENGINE
-                    .parse_json(&js, true)
-                    .map_err(|rhai_error| super::ParseError::UdtError(*rhai_error))?;
-                let data = map
-                    .remove("v")
-                    .unwrap_or_else(|| Dynamic::from(item_raw_data.to_string()));
-                scope.push("data", data);
-            }
-        };
-
+        let json: Value = serde_json::from_str(item_raw_data).map_err(|e| {
+            tracing::error!(raw = item_raw_data, "Failed to parse JSON: {e}");
+            super::ParseError::UdtError(EvalAltResult::ErrorParsing(
+                ParseErrorType::BadInput(LexError::UnexpectedInput(item_raw_data.to_string())),
+                rhai::Position::START,
+            ))
+        })?;
+        scope.push("data", json_value_to_dynamic(json));
         // 约定返回的数据为
         ENGINE
             .eval_ast_with_scope::<Dynamic>(
@@ -304,7 +323,14 @@ impl Udt {
                     vec![v]
                 }
             })
-            .map_err(|source| super::ParseError::UdtError(*source))
+            .map_err(|source| {
+                tracing::error!(
+                    raw = item_raw_data,
+                    expr = self.udt.script.as_str(),
+                    "Failed to evaluate UDT: {source}"
+                );
+                super::ParseError::UdtError(*source)
+            })
     }
 }
 
