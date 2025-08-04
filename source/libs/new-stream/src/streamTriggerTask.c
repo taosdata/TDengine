@@ -3197,7 +3197,8 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       pProgress->latestVer = pDataBlock->info.id.groupId;
       if (nrows > 0) {
         int32_t          ncols = blockDataGetNumOfCols(pDataBlock);
-        SColumnInfoData *pVerCol = taosArrayGet(pDataBlock->pDataBlock, ncols - 2);
+        SColumnInfoData *pVerCol = taosArrayGet(pDataBlock->pDataBlock, pTask->isVirtualTable ? 4 : 5);
+        QUERY_CHECK_NULL(pVerCol, code, lino, _end, terrno);
         pProgress->lastScanVer = *(int64_t *)colDataGetNumData(pVerCol, nrows - 1);
       }
       void *px = taosArrayPush(pProgress->pMetadatas, &pDataBlock);
