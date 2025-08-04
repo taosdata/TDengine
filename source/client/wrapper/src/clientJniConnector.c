@@ -240,6 +240,47 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setOptions(JNIEnv
   return res;
 }
 
+
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setConnectionOptions(JNIEnv *env, jobject jobj, jlong con, jint optionIndex,
+                                                                          jstring optionValue) {
+  TAOS *tscon = (TAOS *)con;
+  if (tscon == NULL) {
+    jniError("jobj:%p, connection obj is null", jobj);
+    return JNI_CONNECTION_NULL;
+  }
+
+  if (optionValue == NULL) {
+    jniDebug("option index:%d value is null", (int32_t)optionIndex);
+    return 0;
+  }
+
+  int res = 0;
+
+  if (optionIndex == TSDB_OPTION_CONNECTION_CHARSET) {
+    const char *charset = (*env)->GetStringUTFChars(env, optionValue, NULL);
+    if (charset && strlen(charset) != 0) {
+      res = taos_options_connection(tscon, TSDB_OPTION_CONNECTION_CHARSET, charset);
+      jniDebug("set character encoding to %s, result:%d", charset, res);
+    } else {
+      jniDebug("input character encoding is empty");
+    }
+    (*env)->ReleaseStringUTFChars(env, optionValue, charset);
+  } else if (optionIndex == TSDB_OPTION_CONNECTION_TIMEZONE) {
+    const char *tz1 = (*env)->GetStringUTFChars(env, optionValue, NULL);
+    if (tz1 && strlen(tz1) != 0) {
+      res = taos_options_connection(tscon, TSDB_OPTION_CONNECTION_TIMEZONE, tz1);
+      jniDebug("set timezone to %s, result:%d", tz1, res);
+    } else {
+      jniDebug("input timezone is empty");
+    }
+    (*env)->ReleaseStringUTFChars(env, optionValue, tz1);
+  } else {
+    jniError("option index:%d is not found", (int32_t)optionIndex);
+  }
+
+  return res;
+}
+
 JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_connectImp(JNIEnv *env, jobject jobj, jstring jhost,
                                                                            jint jport, jstring jdbName, jstring juser,
                                                                            jstring jpass) {

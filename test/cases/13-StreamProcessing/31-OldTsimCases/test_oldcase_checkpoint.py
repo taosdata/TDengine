@@ -29,11 +29,11 @@ class TestStreamOldCaseCheckPoint:
         Jira: None
 
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/checkpointInterval0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/checkpointInterval1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/checkpointSession0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/checkpointSession1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/checkpointState0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/checkpointInterval0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/checkpointInterval1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/checkpointSession0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/checkpointSession1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/checkpointState0.sim
 
         """
 
@@ -45,9 +45,9 @@ class TestStreamOldCaseCheckPoint:
         streams = []
         streams.append(self.Interval0())
         streams.append(self.Interval1())
-        # streams.append(self.Session0()) TD-36912
-        # streams.append(self.Session1()) TD-36912
-        # streams.append(self.State0())   TD-36912
+        streams.append(self.Session0())
+        streams.append(self.Session1())
+        streams.append(self.State0())
         tdStream.checkAll(streams)
 
     class Interval0(StreamCheckItem):

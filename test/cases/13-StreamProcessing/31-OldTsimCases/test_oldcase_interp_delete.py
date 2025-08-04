@@ -1,5 +1,10 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
+from new_test_framework.utils import (
+    tdLog,
+    tdSql,
+    tdStream,
+    StreamCheckItem,
+)
 
 
 class TestStreamOldCaseInterpDelete:
@@ -10,8 +15,7 @@ class TestStreamOldCaseInterpDelete:
     def test_stream_oldcase_interp_delete(self):
         """Stream interp delete
 
-        1. basic test
-        2. out of order data
+        Verify the calculation results of the interp function when deleting data
 
         Catalog:
             - Streams:OldTsimCases
@@ -23,10 +27,10 @@ class TestStreamOldCaseInterpDelete:
         Jira: None
 
         History:
-            ## - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpError.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpDelete0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpDelete1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpDelete2.sim
+            ## - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpError.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpDelete0.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpDelete1.sim
+            - 2025-7-25 Simon Guan Migrated from tsim/stream/streamInterpDelete2.sim
 
         """
 

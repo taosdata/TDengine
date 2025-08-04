@@ -63,22 +63,22 @@ tag_definition:
 PERIOD(period_time[, offset_time])
 ```
 
-定时触发通过系统时间的固定间隔来驱动，以建流当天系统时间的零点作为基准时间点，然后根据间隔来确定下次触发的时间点，可以通过指定时间偏移来改变基准时间点。定时触发本质上就是我们常说的定时任务，定时触发不属于窗口触发。各参数含义如下：
+定时触发通过系统时间的固定间隔来驱动，本质上就是我们常说的定时任务。定时触发不属于窗口触发。各参数含义如下：
 
-- period_time：定时触发的系统时间间隔，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)，支持的时间范围为 `[10a, 3650d]`。
-- offset_time：可选，指定定时触发的时间偏移，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)，偏移大小应该小于 1 天。
+- period_time：定时间隔，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)，支持的时间范围为 `[10a, 3650d]`。
+- offset_time：可选，定时偏移，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)，偏移大小应该小于 1 天。
 
 使用说明：
 
-- 定时间隔小于 1 天时，基准时间点的时间偏移在每天重置，表现为相对于每日零点的偏移，以前后两日的基准时间点为一个周期，在周期内按照间隔进行定时触发，最后一次定时触发的时间点与下一日的基准时间点之间的间隔可能小于固定的定时间隔。例如：
+- 定时间隔小于 1 天时，基准时间点为每日零点加定时偏移，根据定时间隔来确定下次触发的时间点。基准时间点在每日零点重置。每日最后一次触发的时间点与下一日的基准时间点之间的间隔可能小于定时间隔。例如：
   - 定时间隔为 5 小时 30 分钟，那么当天的触发时刻为 `[00:00, 05:30, 11:00, 16:30, 22:00]`，后续每一天的触发时刻都是相同的。
-  - 同样的定时间隔，如果指定时间偏移为 1 秒，那么当天的触发时刻为 `[00:01, 05:31, 11:01, 16:31, 22:01]`，后续每一天的触发时刻都是相同的。
+  - 同样的定时间隔，如果指定时间偏移为 1 分钟，那么当天的触发时刻为 `[00:01, 05:31, 11:01, 16:31, 22:01]`，后续每一天的触发时刻都是相同的。
   - 同样条件下，如果建流时当前系统时间为 `12:00`，那么当天的触发时刻为 `[16:31, 22:01]`，后续每一天内的触发时刻为 `[00:01, 05:31, 11:01, 16:31, 22:01]`。
-- 定时间隔大于等于 1 天时，基准时间点只在第一次是相对于建流当日零点的偏移，后续不会进行重置。例如：
+- 定时间隔大于等于 1 天时，基准时间点为当日的零点加定时偏移，后续不会重置。例如：
   - 定时间隔为 1 天 1 小时，建流时当前系统时间为 `05-01 12:00`，那么在当天及随后几天的触发时刻为 `[05-02 01:00, 05-03 02:00, 05-04 03:00, 05-05 04:00, ……]`。
-  - 同样条件下，如果指定时间偏移为 1 秒，那么当天及随后几天的触发时刻为 `[05-02 01:01, 05-03 02:02, 05-04 03:03, 05-05 04:04, ……]`。
+  - 同样条件下，如果指定时间偏移为 1 分钟，那么当天及随后几天的触发时刻为 `[05-02 01:01, 05-03 02:02, 05-04 03:03, 05-05 04:04, ……]`。
 
-适用场景：需要按照事件时间连续定时驱动计算的场景，例如每小时计算生成一次当天的统计数据，每天定时发送统计报告等。
+适用场景：需要按照系统时间连续定时驱动计算的场景，例如每小时计算生成一次当天的统计数据，每天定时发送统计报告等。
 
 ##### 滑动触发
 
@@ -188,7 +188,7 @@ COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 
 - count_val：计数条数，当写入数据条目数达到 `count_val` 时触发，最小值为 1。
 - sliding_val：可选，窗口滑动的条数。
-- col1 [, ...]：可选，按列触发模式时的数据列列表，列表中任一列有非空数据写入时才为有效条目，NULL 值视为无效值。
+- col1 [, ...]：可选，按列触发模式时的触发列列表，只支持普通列，列表中任一列有非空数据写入时才为有效条目，NULL 值视为无效值。
 
 使用说明：
 
@@ -343,7 +343,7 @@ notification_definition:
 event_types:
     event_type [|event_type]    
     
-event_type: {WINDOW_OPEN | WINDOW_CLOSE}   
+event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME}   
 ```
 
 详细说明如下：
@@ -352,6 +352,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
 - [ON (event_types)]：指定需要通知的事件类型，可多选。SLIDING（不带 INTERVAL）和 PERIOD 触发不需要指定，其他触发必须指定，支持的事件类型有：
   - WINDOW_OPEN：窗口打开事件，在触发表分组窗口打开时发送通知。
   - WINDOW_CLOSE：窗口关闭事件，在触发表分组窗口关闭时发送通知。
+  - ON_TIME: 定时触发事件，在触发时发送通知。
 - [WHERE condition]：指定通知需要满足的条件，`condition` 中只能指定含计算结果列和（或）常量的条件。
 - [NOTIFY_OPTIONS(notify_option[|notify_option])]：可选，指定通知选项用于控制通知的行为，可以多选，目前支持的通知选项包括：
   - NOTIFY_HISTORY：指定计算历史数据时是否发送通知，未指定时默认不发送。
@@ -380,8 +381,8 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
           "tableName": "t_a667a16127d3b5a18988e32f3e76cd30",
           "eventType": "WINDOW_OPEN",
           "eventTime": 1733284887097,
-          "windowId": "window-id-67890",
-          "windowType": "Time",
+          "triggerId": "window-id-67890",
+          "triggerType": "Interval",
           "groupId": "2650968222368530754",
           "windowStart": 1733284800000
         },
@@ -389,8 +390,8 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
           "tableName": "t_a667a16127d3b5a18988e32f3e76cd30",
           "eventType": "WINDOW_CLOSE",
           "eventTime": 1733284887197,
-          "windowId": "window-id-67890",
-          "windowType": "Time",
+          "triggerId": "window-id-67890",
+          "triggerType": "Interval",
           "groupId": "2650968222368530754",
           "windowStart": 1733284800000,
           "windowEnd": 1733284860000,
@@ -408,8 +409,8 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
           "tableName": "t_96f62b752f36e9b16dc969fe45363748",
           "eventType": "WINDOW_OPEN",
           "eventTime": 1733284887231,
-          "windowId": "window-id-13579",
-          "windowType": "Event",
+          "triggerId": "window-id-13579",
+          "triggerType": "Event",
           "groupId": "7533998559487590581",
           "windowStart": 1733284800000,
           "triggerCondition": {
@@ -424,8 +425,8 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
           "tableName": "t_96f62b752f36e9b16dc969fe45363748",
           "eventType": "WINDOW_CLOSE",
           "eventTime": 1733284887231,
-          "windowId": "window-id-13579",
-          "windowType": "Event",
+          "triggerId": "window-id-13579",
+          "triggerType": "Event",
           "groupId": "7533998559487590581",
           "windowStart": 1733284800000,
           "windowEnd": 1733284810000,
@@ -469,24 +470,37 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
 - tableName：字符串类型，是对应目标子表的表名。
 - eventType：字符串类型，表示事件类型，支持 WINDOW_OPEN、WINDOW_CLOSE、WINDOW_INVALIDATION 三种类型。
 - eventTime：长整型时间戳，表示事件生成时间，精确到毫秒，即：'00:00, Jan 1 1970 UTC' 以来的毫秒数。
-- windowId：字符串类型，窗口的唯一标识符，确保打开和关闭事件的 ID 一致，便于外部系统将两者关联。如果 taosd 发生故障重启，部分事件可能会重复发送，会保证同一窗口的 windowId 保持不变。
-- windowType：字符串类型，表示窗口类型，支持 Time、State、Session、Event、Count 五种类型。
+- triggerId：字符串类型，触发事件的唯一标识符，确保打开和关闭事件（如果有的话）的 ID 一致，便于外部系统将两者关联。如果 taosd 发生故障重启，部分事件可能会重复发送，会保证同一事件的 triggerId 保持不变。
+- triggerType：字符串类型，表示触发类型，支持 Period、SLIDING 两种非窗口触发类型以及 INTERVAL、State、Session、Event、Count 五种窗口类型。
 - groupId: 字符串类型，是对应分组的唯一标识符，如果是按子表分组，则与对应表的 uid 一致。
 
-###### 时间窗口相关字段
+###### 定时触发相关字段
 
-这部分是 windowType 为 Time 时 event 对象才有的字段。
+这部分是 triggerType 为 Period 时 event 对象的关键字段。
+
+- eventType 固定为 ON_TIME，包含如下字段：
+  - result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
+
+###### 滑动触发（Sliding）相关字段
+
+这部分是 triggerType 为 Sliding 时 event 对象的关键字段。
+
+- eventType 固定为 ON_TIME，包含如下字段：
+  - result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
+
+###### 时间窗口（Interval）相关字段
+
+这部分是 triggerType 为 Interval 时 event 对象的关键字段。
 
 - 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
   - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
 - 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
   - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
   - windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
-  - result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
 
 ###### 状态窗口相关字段
 
-这部分是 windowType 为 State 时 event 对象才有的字段。
+这部分是 triggerType 为 State 时 event 对象才有的字段。
 
 - 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
   - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
@@ -501,7 +515,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
 
 ###### 会话窗口相关字段
 
-这部分是 windowType 为 Session 时 event 对象才有的字段。
+这部分是 triggerType 为 Session 时 event 对象才有的字段。
 
 - 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
   - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
@@ -512,7 +526,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
 
 ###### 事件窗口相关字段
 
-这部分是 windowType 为 Event 时 event 对象才有的字段。
+这部分是 triggerType 为 Event 时 event 对象才有的字段。
 
 - 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
 - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
@@ -529,7 +543,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
 
 ###### 计数窗口相关字段
 
-这部分是 windowType 为 Count 时 event 对象才有的字段。
+这部分是 triggerType 为 Count 时 event 对象才有的字段。
 
 - 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
   - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
@@ -777,9 +791,11 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
 
 - 暂不支持按普通数据列分组的场景。
 - 暂不支持 `Geometry` 数据类型。
-- 暂不支持 `interp` 和 `percentile` 函数。
+- 暂不支持 `Interp`、`Percentile`、`Forecast` 和 UDF 函数。
 - 暂不支持 `DELETE_OUTPUT_TABLE` 选项。
-- 暂不支持 windows 平台。
+- 暂不支持在 `NOTIFY_OPTIONS` 中使用 `ON_FAILURE_PAUSE` 选项。
+- 暂不支持在状态窗口触发中使用 `Cast` 函数。
+- 暂不支持 `Windows` 平台。
 
 ### 兼容性说明
 
@@ -866,14 +882,26 @@ CREATE stream sm2 count_window(10, 1, col1) FROM tb1
     SELECT avg(col1) FROM %%trows;
 ```
 
+##### 事件窗口触发
+
+- 当环境温度超过 80 度持续超过 10 分钟时，计算环境温度的平均值。
+
+```SQL
+CREATE STREAM `idmp`.`ana_temp` EVENT_WINDOW(start with `环境温度` > 80 end with `环境温度` <= 80 ) TRUE_FOR(10m) FROM `idmp`.`vt_气象传感器02_471544` 
+  STREAM_OPTIONS( IGNORE_DISORDER)
+  INTO `idmp`.`ana_temp` 
+  AS 
+    SELECT _twstart+0s as output_timestamp, avg(`环境温度`) as `平均环境温度` FROM idmp.`vt_气象传感器02_471544` where ts >= _twstart and ts <= _twend;
+```
+
 ##### 滑动触发
 
-- 超级表 stb1 的每个子表在每 5 分钟的时间窗口结束后，计算这 5 分钟的 col1 的平均值（如果没有数据则忽略），每个子表的计算结果分别写入超级表 stb2 的不同子表中。
+- 超级表 stb1 的每个子表在每 5 分钟的时间窗口结束后，计算这 5 分钟的 col1 的平均值，每个子表的计算结果分别写入超级表 stb2 的不同子表中。
 
 ```SQL
 CREATE stream sm1 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname 
-  STREAM_OPTIONS(FILL_HISTORY_FIRST) 
-  INTO stb2 AS 
+  INTO stb2 
+  AS 
     SELECT _twstart, avg(col1) FROM %%tbname 
     WHERE _c0 >= _twstart AND _c0 <= _twend;
 ```
@@ -885,7 +913,8 @@ CREATE stream sm1 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname
 ```SQL
 CREATE stream sm2 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname 
   STREAM_OPTIONS(MAX_DELAY(1m) | FILL_HISTORY_FIRST) 
-  INTO stb2 AS 
+  INTO stb2 
+  AS 
     SELECT _twstart, avg(col1) FROM %%tbname WHERE _c0 >= _twstart AND _c0 <= _twend;
 ```
 
@@ -895,7 +924,8 @@ CREATE stream sm2 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname
 CREATE STREAM avg_stream INTERVAL(1m) SLIDING(1m) FROM meters 
   NOTIFY ('ws://localhost:8080/notify', 'wss://192.168.1.1:8080/notify?key=foo') ON ('WINDOW_OPEN', 'WINDOW_CLOSE') NOTIFY_OPTIONS(NOTIFY_HISTORY | ON_FAILURE_PAUSE)
   INTO avg_stb
-    AS SELECT _twstart, _twend, AVG(current) FROM %%trows;
+  AS 
+    SELECT _twstart, _twend, AVG(current) FROM %%trows;
 ```
 
 ##### 定时触发
@@ -904,7 +934,8 @@ CREATE STREAM avg_stream INTERVAL(1m) SLIDING(1m) FROM meters
 
 ```SQL
 CREATE stream sm1 PERIOD(1h) 
-  INTO tb2 AS
+  INTO tb2 
+  AS
     SELECT cast(_tlocaltime/1000000 AS TIMESTAMP), count(*) FROM tb1;
 ```
 

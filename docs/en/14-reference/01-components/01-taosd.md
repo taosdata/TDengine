@@ -46,7 +46,6 @@ After modifying configuration file parameters, you need to restart the *taosd* s
 | maxRetryWaitTime       |                         | Supported, effective after restart                           | Maximum timeout for reconnection,calculated from the time of retry,range is 3000-86400000,in milliseconds, default value 10000 |
 | shareConnLimit         | Added in 3.3.4.0        | Supported, effective after restart                           | Number of requests a connection can share, range 1-512, default value 10 |
 | readTimeout            | Added in 3.3.4.0        | Supported, effective after restart                           | Minimum timeout for a single request, range 64-604800, in seconds, default value 900 |
-
 ### Monitoring Related
 
 | Parameter Name     | Supported Version | Dynamic Modification               | Description                                                  |
@@ -102,7 +101,7 @@ timezone GMT-8
 timezone Asia/Shanghai
 ```
 
-All are valid settings for the GMT+8 time zone. However, note that on Windows, the format `timezone Asia/Shanghai` is not supported, and must be written as `timezone UTC-8`.
+All are valid settings for the GMT+8 time zone. However, note that on Windows, the format `timezone UTC-8` is not supported, and must be written as `timezone Asia/Shanghai`.
 
 The setting of the time zone affects the querying and writing of SQL statements involving non-Unix timestamp content (timestamp strings, interpretation of the keyword now). For example:
 

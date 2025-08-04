@@ -85,7 +85,7 @@ md5sum /usr/lib/libtaosnative.so.1
 md5sum /home/TDinternal/debug/build/lib/libtaosnative.so
 
 #get python connector and update: taospy and  taos-ws-py to latest
-pip3 install taospy==2.8.2
+pip3 install taospy==2.8.3
 pip3 install taos-ws-py==0.5.3
 $TIMEOUT_CMD $cmd
 RET=$?
@@ -96,6 +96,7 @@ md5sum /usr/lib/libtaosnative.so.1
 md5sum /home/TDinternal/debug/build/lib/libtaosnative.so
 
 cp /var/log/taos/* /home/TDinternal/sim/var_taoslog/
+cp ${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log /home/TDinternal/sim/var_taoslog/
 
 if [ $RET -ne 0 ]; then
     pwd

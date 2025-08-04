@@ -1002,7 +1002,7 @@ class TestStreamSubqueryState:
 
         stream = StreamItem(
             id=104,
-            stream="create stream rdb.s104 state_window(c1) from tdb.triggers partition by tbname into rdb.r104 as select _wstart ts, CASE c1 WHEN 0 THEN 'Running' WHEN 5 THEN 'Warning' ELSE 'Unknown' END t1, c1 & c2 t2, c1 | c2 t3, (c1 != 0 or c2 <> 0) t4  from %%trows",
+            stream="create stream rdb.s104 state_window(c1) from tdb.triggers partition by tbname into rdb.r104 as select ts, CASE c1 WHEN 0 THEN 'Running' WHEN 5 THEN 'Warning' ELSE 'Unknown' END t1, c1 & c2 t2, c1 | c2 t3, (c1 != 0 or c2 <> 0) t4  from %%trows",
             res_query="select ts, t1, t2, t3, t4 from rdb.r104 where tag_tbname='t1' limit 6",
             exp_query="select ts, CASE c1 WHEN 0 THEN 'Running' WHEN 5 THEN 'Warning' ELSE 'Unknown' END t1, c1 & c2 t2, c1 | c2 t3, (c1 != 0 or c2 <> 0) t4 from tdb.t1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:15:00.000';",
         )
@@ -1137,11 +1137,11 @@ class TestStreamSubqueryState:
 
         stream = StreamItem(
             id=121,
-            stream="create stream rdb.s121 state_window(c1) from tdb.triggers partition by id into rdb.r121 as select first(ts2), tbname, sum(v_int) from (select t1.ts ts1, t2.ts ts2, t2.v_int, t2.tbname from db1_st1 t1 right join db1_st2 t2 on t1.ts=t2.ts and t2.ts <= now and (t2.v_binary like '%abc%' or t2.v_binary not like '%abc%') where t2.v_binary like '%abc%' or t2.v_binary not like '%abc%') group by tbname order by tbname;",
-            res_query="select * from rdb.r121",
-            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
+            stream="create stream rdb.s121 state_window(c1) from tdb.triggers partition by tbname into rdb.r121 as select ta.ts tats, tb.cts tbts, ta.c1 tac1, ta.c2 tac2, tb.cint tbc1, tb.cuint tbc2, _twstart tw, _twend te, %%tbname tb from %%tbname ta inner join qdb.t1 tb on ta.ts=tb.cts where ta.ts >= _twstart and ta.ts <= _twend",
+            res_query="select tats, tbts, tac1, tac2, tbc1, tbc2 from rdb.r121 where tag_tbname='t1'",
+            exp_query="select ta.ts tats, tb.cts tbts, ta.c1 tac1, ta.c2 tac2, tb.cint tbc1, tb.cuint tbc2 from tdb.t1 ta inner join qdb.t1 tb on ta.ts=tb.cts where ta.ts >= '2025-01-01 00:00:00.000' and ta.ts < '2025-01-01 00:35:00.000';",
         )
-        # self.streams.append(stream) TD-36443
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=122,

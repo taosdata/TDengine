@@ -11,22 +11,50 @@ class TestStreamRecalcIgnoreDisorder:
     def test_stream_recalc_ignore_disorder(self):
         """Stream Recalculation IGNORE_DISORDER Option Test
 
-        Test IGNORE_DISORDER option with out-of-order data:
-        1. Write out-of-order data - streams with IGNORE_DISORDER should not trigger recalculation
-        2. Write updated data - streams with IGNORE_DISORDER should ignore updates
-        3. Different trigger types behavior with out-of-order data
+        Test IGNORE_DISORDER option behavior with six different window types to verify out-of-order data handling:
+
+        1. INTERVAL Window with IGNORE_DISORDER Test
+            1.1 Create interval(2m) sliding(2m) stream with ignore_disorder (s_interval_disorder)
+            1.2 Test out-of-order data processing behavior - should not trigger recalculation
+            1.3 Verify sliding window results without recalculation for disorder
+
+        2. SESSION Window with IGNORE_DISORDER Test
+            2.1 Create session(ts,45s) stream with ignore_disorder (s_session_disorder)
+            2.2 Test session boundary maintenance with out-of-order data
+            2.3 Verify session windows are not recalculated for disorder
+
+        3. STATE_WINDOW with IGNORE_DISORDER Test
+            3.1 Create state_window(status) stream with ignore_disorder (s_state_disorder)
+            3.2 Test state transition handling with out-of-order data
+            3.3 Verify state windows are not recalculated for disorder
+
+        4. EVENT_WINDOW with IGNORE_DISORDER Test
+            4.1 Create event_window(start with event_val >= 5 end with event_val > 10) stream with ignore_disorder (s_event_disorder)
+            4.2 Test event sequence maintenance with out-of-order events
+            4.3 Verify event windows are not recalculated for disorder
+
+        5. PERIOD Window with IGNORE_DISORDER Test
+            5.1 Create period(30s) stream with ignore_disorder (s_period_disorder)
+            5.2 Test periodic window handling with out-of-order data
+            5.3 Verify period windows are not recalculated for disorder
+
+        6. COUNT_WINDOW with IGNORE_DISORDER Test
+            6.1 Create count_window(3) stream with ignore_disorder (s_count_disorder)
+            6.2 Test count-based window handling with out-of-order data
+            6.3 Verify count windows are not recalculated for disorder
+
 
         Catalog:
-            - Streams:Recalculation
+            - Streams:Recalculation:IgnoreDisorder
 
-        Since: v3.0.0.0
+        Since: v3.3.7.0
 
         Labels: common,ci
 
         Jira: None
 
         History:
-            - 2025-12-19 Generated from recalculation mechanism design
+            - 2025-07-23 Beryl Created
 
         """
 
