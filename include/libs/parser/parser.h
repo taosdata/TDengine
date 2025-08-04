@@ -142,8 +142,8 @@ int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);
 bool    qIsInsertValuesSql(const char* pStr, size_t length);
 bool    qIsUpdateSetSql(const char* pStr, size_t length, SName* pTableName, int32_t acctId, const char* dbName,
                         char* msgBuf, int32_t msgBufLen, int* pCode);
-int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTableMeta, char* msgBuf,
-                              int32_t msgBufLen);
+int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTableMeta, SSHashObj* predicateCols,
+                              char* msgBuf, int32_t msgBufLen);
 bool    qParseDbName(const char* pStr, size_t length, char** pDbName);
 
 // for async mode
@@ -183,6 +183,9 @@ int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery);
 int32_t qBindStmtStbColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen,
                               STSchema** pTSchema, SBindInfo* pBindInfos, void* charsetCxt);
 int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen, void* charsetCxt);
+int32_t qBindUpdateStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen,
+                                 void* charsetCxt, SSHashObj* parsedCols);
+
 int32_t qBindStmtSingleColValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen,
                                 int32_t colIdx, int32_t rowNum, void* charsetCxt);
 int32_t qBuildStmtColFields(void* pDataBlock, int32_t* fieldNum, TAOS_FIELD_E** fields);
@@ -191,7 +194,7 @@ int32_t qBuildStmtStbColFields(void* pBlock, void* boundTags, SSHashObj* parsedC
 int32_t qBuildStmtTagFields(void* pBlock, void* boundTags, int32_t* fieldNum, TAOS_FIELD_E** fields);
 int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const char* sTableName, char* tName,
                            TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen, void* charsetCxt);
-
+int32_t qBuildUpdateStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_E** fields, SSHashObj* parsedCols);
 int32_t qStmtBindParams2(SQuery* pQuery, TAOS_STMT2_BIND* pParams, int32_t colIdx, void* charsetCxt);
 int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, TAOS_STMT2_BIND* bind, char* msgBuf,
                                int32_t msgBufLen, STSchema** pTSchema, SBindInfo2* pBindInfos, void* charsetCxt,
