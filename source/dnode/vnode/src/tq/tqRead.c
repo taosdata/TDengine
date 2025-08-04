@@ -651,7 +651,7 @@ static int32_t doSetBlobVal(SColumnInfoData* pColumnInfoData, int32_t idx, SColV
     uint64_t seq = 0;
     int32_t  len = 0;
     if (pColVal->value.pData != NULL) {
-      tGetU64(pColVal->value.pData, &seq);
+      (void)tGetU64(pColVal->value.pData, &seq);
       SBlobItem item = {0};
       code = tBlobSetGet(pBlobRow2, seq, &item);
       if (code != 0) {
@@ -1275,17 +1275,18 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
         SArray* list = NULL;
         int     ret = qGetTableList(pTqHandle->execHandle.execTb.suid, pTq->pVnode, pTqHandle->execHandle.execTb.node,
                                     &list, pTqHandle->execHandle.task);
+        if (ret == 0){
+          ret = tqReaderSetTbUidList(pTqHandle->execHandle.pTqReader, list, NULL);
+        }
+        taosArrayDestroy(list);
         if (ret != TDB_CODE_SUCCESS) {
           tqError("qGetTableList in tqUpdateTbUidList error:%d handle %s consumer:0x%" PRIx64, ret, pTqHandle->subKey,
                   pTqHandle->consumerId);
-          taosArrayDestroy(list);
           taosHashCancelIterate(pTq->pHandle, pIter);
           taosWUnLockLatch(&pTq->lock);
 
           return ret;
         }
-        tqReaderSetTbUidList(pTqHandle->execHandle.pTqReader, list, NULL);
-        taosArrayDestroy(list);
       } else {
         tqReaderRemoveTbUidList(pTqHandle->execHandle.pTqReader, tbUidList);
       }
@@ -1293,35 +1294,6 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
   }
   taosWUnLockLatch(&pTq->lock);
 
-  // update the table list handle for each stream scanner/wal reader
-/* STREAMTODO
-  streamMetaWLock(pTq->pStreamMeta);
-  while (1) {
-    pIter = taosHashIterate(pTq->pStreamMeta->pTasksMap, pIter);
-    if (pIter == NULL) {
-      break;
-    }
-
-    int64_t      refId = *(int64_t*)pIter;
-    SStreamTask* pTask = taosAcquireRef(streamTaskRefPool, refId);
-    if (pTask != NULL) {
-      int32_t taskId = pTask->id.taskId;
-
-      if ((pTask->info.taskLevel == TASK_LEVEL__SOURCE) && (pTask->exec.pExecutor != NULL)) {
-        int32_t code = qUpdateTableListForStreamScanner(pTask->exec.pExecutor, tbUidList, isAdd);
-        if (code != 0) {
-          tqError("vgId:%d, s-task:0x%x update qualified table error for stream task", vgId, taskId);
-        }
-      }
-      int32_t ret = taosReleaseRef(streamTaskRefPool, refId);
-      if (ret) {
-        tqError("vgId:%d release task refId failed, refId:%" PRId64, vgId, refId);
-      }
-    }
-  }
-
-  streamMetaWUnLock(pTq->pStreamMeta);
-*/  
   return 0;
 }
 
