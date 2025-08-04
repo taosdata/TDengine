@@ -592,7 +592,6 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
     }
   }
 */  
-  req.pExtSchemas = pStb->pExtSchemas; // only reference to it.
   // get length
   int32_t ret = 0;
   tEncodeSize(tEncodeSVCreateStbReq, &req, contLen, ret);

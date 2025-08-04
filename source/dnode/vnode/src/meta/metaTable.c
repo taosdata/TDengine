@@ -71,36 +71,68 @@ int32_t updataTableColCmpr(SColCmprWrapper *pWp, SSchema *pSchema, int8_t add, u
 }
 
 int32_t addTableExtSchema(SMetaEntry *pEntry, const SSchema *pColumn, int32_t newColNum, SExtSchema *pExtSchema) {
+  SSchemaWrapper *schema = NULL;
+  switch (pEntry->type)
+  {
+  case TSDB_SUPER_TABLE:
+    schema = &pEntry->stbEntry.schemaRow;
+    break;
+  case TSDB_NORMAL_TABLE:
+  case TSDB_VIRTUAL_NORMAL_TABLE:
+    schema = &pEntry->ntbEntry.schemaRow;
+    break;
+  default:
+    metaError("addTableExtSchema get invalid table type:%d", pEntry->type);
+    terrno = TSDB_CODE_INTERNAL_ERROR;
+    return terrno;
+  }
+
   // no need to add ext schema when no column needs ext schemas
-  if (!HAS_TYPE_MOD(pColumn) && !pEntry->pExtSchemas) return 0;
-  if (!pEntry->pExtSchemas) {
+  if (!HAS_TYPE_MOD(pColumn) && !schema->pExtSchema) return 0;
+  if (!schema->pExtSchema) {
     // add a column which needs ext schema
     // set all extschemas to zero for all columns alrady existed
-    pEntry->pExtSchemas = (SExtSchema *)taosMemoryCalloc(newColNum, sizeof(SExtSchema));
+    schema->pExtSchema = (SExtSchema *)taosMemoryCalloc(newColNum, sizeof(SExtSchema));
   } else {
     // already has columns with ext schema
-    pEntry->pExtSchemas = (SExtSchema *)taosMemoryRealloc(pEntry->pExtSchemas, sizeof(SExtSchema) * newColNum);
+    schema->pExtSchema = (SExtSchema *)taosMemoryRealloc(schema->pExtSchema, sizeof(SExtSchema) * newColNum);
   }
-  if (!pEntry->pExtSchemas) return terrno;
-  pEntry->pExtSchemas[newColNum - 1] = *pExtSchema;
+  if (!schema->pExtSchema) return terrno;
+  schema->pExtSchema[newColNum - 1] = *pExtSchema;
   return 0;
 }
 
 int32_t dropTableExtSchema(SMetaEntry *pEntry, int32_t dropColId, int32_t newColNum) {
+  SSchemaWrapper *schema = NULL;
+  switch (pEntry->type)
+  {
+  case TSDB_SUPER_TABLE:
+    schema = &pEntry->stbEntry.schemaRow;
+    break;
+  case TSDB_NORMAL_TABLE:
+  case TSDB_VIRTUAL_NORMAL_TABLE:
+    schema = &pEntry->ntbEntry.schemaRow;
+    break;
+  default:
+    metaError("dropTableExtSchema get invalid table type:%d", pEntry->type);
+    terrno = TSDB_CODE_INTERNAL_ERROR;
+    return terrno;
+  }
+
   // no ext schema, no need to drop
-  if (!pEntry->pExtSchemas) return 0;
+  if (!schema->pExtSchema) return 0;
   if (dropColId == newColNum) {
     // drop the last column
-    pEntry->pExtSchemas[dropColId - 1] = (SExtSchema){0};
+    schema->pExtSchema[dropColId - 1] = (SExtSchema){0};
   } else {
     // drop a column in the middle
-    memmove(pEntry->pExtSchemas + dropColId, pEntry->pExtSchemas + dropColId + 1,
+    memmove(schema->pExtSchema + dropColId, schema->pExtSchema + dropColId + 1,
             (newColNum - dropColId) * sizeof(SExtSchema));
   }
   for (int32_t i = 0; i < newColNum; i++) {
-    if (hasExtSchema(pEntry->pExtSchemas + i)) return 0;
+    if (hasExtSchema(schema->pExtSchema + i)) return 0;
   }
-  taosMemoryFreeClear(pEntry->pExtSchemas);
+  taosMemoryFreeClear(schema->pExtSchema);
   return 0;
 }
 

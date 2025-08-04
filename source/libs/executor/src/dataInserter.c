@@ -1662,15 +1662,15 @@ int32_t buildNormalTableCreateReq(SDataInserterHandle* pInserter, SStreamInserte
     }
     snprintf(tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].name, TSDB_COL_NAME_LEN, "%s", pField->name);
     if (IS_DECIMAL_TYPE(pField->type)) {
-      if (!tbData->pCreateTbReq->pExtSchemas) {
-        tbData->pCreateTbReq->pExtSchemas = taosMemoryCalloc(numOfCols, sizeof(SExtSchema));
-        if (NULL == tbData->pCreateTbReq->pExtSchemas) {
+      if (!tbData->pCreateTbReq->ntb.schemaRow.pExtSchema) {
+        tbData->pCreateTbReq->ntb.schemaRow.pExtSchema = taosMemoryCalloc(numOfCols, sizeof(SExtSchema));
+        if (NULL == tbData->pCreateTbReq->ntb.schemaRow.pExtSchema) {
           tdDestroySVCreateTbReq(tbData->pCreateTbReq);
           tbData->pCreateTbReq = NULL;
           return terrno;
         }
       }
-      tbData->pCreateTbReq->pExtSchemas[i].typeMod = pField->typeMod;
+      tbData->pCreateTbReq->ntb.schemaRow.pExtSchema[i].typeMod = pField->typeMod;
     }
   }
   return TSDB_CODE_SUCCESS;

@@ -17501,14 +17501,14 @@ static int32_t buildNormalTableBatchReq(const SCreateTableStmt* pStmt, const SVg
       }
     }
     if (IS_DECIMAL_TYPE(pColDef->dataType.type)) {
-      if (!req.pExtSchemas) {
-        req.pExtSchemas = taosMemoryCalloc(pStmt->pCols->length, sizeof(SExtSchema));
-        if (NULL == req.pExtSchemas) {
+      if (!req.ntb.schemaRow.pExtSchema) {
+        req.ntb.schemaRow.pExtSchema = taosMemoryCalloc(pStmt->pCols->length, sizeof(SExtSchema));
+        if (NULL == req.ntb.schemaRow.pExtSchema) {
           tdDestroySVCreateTbReq(&req);
           return terrno;
         }
       }
-      req.pExtSchemas[index].typeMod = calcTypeMod(&pColDef->dataType);
+      req.ntb.schemaRow.pExtSchema[index].typeMod = calcTypeMod(&pColDef->dataType);
     }
     ++index;
   }

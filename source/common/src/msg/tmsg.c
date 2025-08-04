@@ -11627,12 +11627,6 @@ int tEncodeSVCreateStbReq(SEncoder *pCoder, const SVCreateStbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI8(pCoder, pReq->colCmpred));
   TAOS_CHECK_EXIT(tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr));
   TAOS_CHECK_EXIT(tEncodeI64(pCoder, pReq->keep));
-  if (pReq->pExtSchemas) {
-    TAOS_CHECK_EXIT(tEncodeI8(pCoder, 1));
-    TAOS_CHECK_EXIT(tEncodeSExtSchemas(pCoder, pReq->pExtSchemas, pReq->schemaRow.nCols));
-  } else {
-    TAOS_CHECK_EXIT(tEncodeI8(pCoder, 0));
-  }
   TAOS_CHECK_EXIT(tEncodeI8(pCoder, pReq->virtualStb));
   tEndEncode(pCoder);
 
@@ -11670,13 +11664,6 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
     }
     if (!tDecodeIsEnd(pCoder)) {
       TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pReq->keep));
-    }
-    if (!tDecodeIsEnd(pCoder)) {
-      int8_t hasExtSchema = 0;
-      TAOS_CHECK_EXIT(tDecodeI8(pCoder, &hasExtSchema));
-      if (hasExtSchema) {
-        TAOS_CHECK_EXIT(tDecodeSExtSchemas(pCoder, &pReq->pExtSchemas, pReq->schemaRow.nCols));
-      }
     }
   }
   if (!tDecodeIsEnd(pCoder)) {
@@ -11733,12 +11720,6 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
   }
   if (pReq->type == TSDB_VIRTUAL_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
     TAOS_CHECK_EXIT(tEncodeSColRefWrapper(pCoder, &pReq->colRef));
-  }
-  if (pReq->pExtSchemas) {
-    TAOS_CHECK_EXIT(tEncodeI8(pCoder, 1));
-    TAOS_CHECK_EXIT(tEncodeSExtSchemas(pCoder, pReq->pExtSchemas, pReq->ntb.schemaRow.nCols));
-  } else {
-    TAOS_CHECK_EXIT(tEncodeI8(pCoder, 0));
   }
 
   tEndEncode(pCoder);
@@ -11806,14 +11787,6 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
     } else if (pReq->type == TSDB_VIRTUAL_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
       if (!tDecodeIsEnd(pCoder)) {
         TAOS_CHECK_EXIT(tDecodeSColRefWrapperEx(pCoder, &pReq->colRef, true));
-      }
-    }
-
-    if (!tDecodeIsEnd(pCoder)) {
-      int8_t hasExtSchema = 0;
-      TAOS_CHECK_EXIT(tDecodeI8(pCoder, &hasExtSchema));
-      if (hasExtSchema) {
-        TAOS_CHECK_EXIT(tDecodeSExtSchemas(pCoder, &pReq->pExtSchemas, pReq->ntb.schemaRow.nCols));
       }
     }
   }

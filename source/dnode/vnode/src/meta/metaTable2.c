@@ -195,8 +195,6 @@ int32_t metaCreateSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq
     entry.colCmpr = pReq->colCmpr;
   }
 
-  entry.pExtSchemas = pReq->pExtSchemas;
-
   if (pReq->virtualStb) {
     TABLE_SET_VIRTUAL(entry.flags);
   }
@@ -465,9 +463,6 @@ static int32_t metaBuildCreateNormalTableRsp(SMeta *pMeta, SMetaEntry *pEntry, S
     SColCmpr *p = &pEntry->colCmpr.pColCmpr[i];
     (*ppRsp)->pSchemaExt[i].colId = p->id;
     (*ppRsp)->pSchemaExt[i].compress = p->alg;
-    if (pEntry->pExtSchemas) {
-      (*ppRsp)->pSchemaExt[i].typeMod = pEntry->pExtSchemas[i].typeMod;
-    }
   }
 
   return code;
@@ -498,7 +493,6 @@ static int32_t metaCreateNormalTable(SMeta *pMeta, int64_t version, SVCreateTbRe
     .ntbEntry.schemaRow = pReq->ntb.schemaRow,
     .ntbEntry.ncid = pReq->ntb.schemaRow.pSchema[pReq->ntb.schemaRow.nCols - 1].colId + 1,
     .colCmpr = pReq->colCmpr,
-    .pExtSchemas = pReq->pExtSchemas,
   };
   TABLE_SET_COL_COMPRESSED(entry.flags);
 
@@ -2297,7 +2291,6 @@ int32_t metaAlterSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq)
       .stbEntry.schemaTag = pReq->schemaTag,
       .stbEntry.keep = pReq->keep,
       .colCmpr = pReq->colCmpr,
-      .pExtSchemas = pReq->pExtSchemas,
   };
   TABLE_SET_COL_COMPRESSED(entry.flags);
   if (pReq->virtualStb) {

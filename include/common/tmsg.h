@@ -3778,7 +3778,6 @@ typedef struct SVCreateStbReq {
   int8_t          colCmpred;
   SColCmprWrapper colCmpr;
   int64_t         keep;
-  SExtSchema*     pExtSchemas;
   int8_t          virtualStb;
 } SVCreateStbReq;
 
@@ -3822,7 +3821,6 @@ typedef struct SVCreateTbReq {
   int32_t         sqlLen;
   char*           sql;
   SColCmprWrapper colCmpr;
-  SExtSchema*     pExtSchemas;
   SColRefWrapper  colRef;  // col reference for virtual table
 } SVCreateTbReq;
 
@@ -3847,7 +3845,6 @@ static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
     taosMemoryFreeClear(req->ntb.schemaRow.pSchema);
   }
   taosMemoryFreeClear(req->colCmpr.pColCmpr);
-  taosMemoryFreeClear(req->pExtSchemas);
   taosMemoryFreeClear(req->colRef.pColRef);
 }
 
