@@ -90,6 +90,7 @@ typedef enum ESTriggerContextStatus {
   STRIGGER_CONTEXT_CHECK_CONDITION,
   STRIGGER_CONTEXT_SEND_CALC_REQ,
   STRIGGER_CONTEXT_WAIT_RECALC_REQ,
+  STRIGGER_CONTEXT_SEND_DROP_REQ,
 } ESTriggerContextStatus;
 
 typedef struct SSTriggerWalProgress {
@@ -114,6 +115,7 @@ typedef struct SSTriggerRealtimeContext {
   SSHashObj *pGroups;
   TD_DLIST(SSTriggerRealtimeGroup) groupsToCheck;
   TD_DLIST(SSTriggerRealtimeGroup) groupsMaxDelay;
+  SArray   *groupsToDelete;
 
   // these fields are shared by all groups and do not need to be destroyed
   bool                   reenterCheck;
@@ -140,6 +142,7 @@ typedef struct SSTriggerRealtimeContext {
 
   SList retryPullReqs;  // SList<SSTriggerPullRequest*>
   SList retryCalcReqs;  // SList<SSTriggerCalcRequest*>
+  SList dropTableReqs;  // SList<SSTriggerDropRequest*>
 
   bool    haveReadCheckpoint;
   int64_t lastCheckpointTime;

@@ -729,6 +729,113 @@ _end:
   return code;
 }
 
+int32_t stTriggerTaskAcquireDropTableRequest(SStreamTriggerTask *pTask, int64_t sessionId, int64_t gid,
+                                             SSTriggerDropRequest **ppRequest) {
+  int32_t               code = TSDB_CODE_SUCCESS;
+  int32_t               lino = 0;
+  bool                 *pRunningFlag = NULL;
+  bool                  needUnlock = false;
+  SSTriggerDropRequest *pRequest = NULL;
+
+  *ppRequest = NULL;
+
+  taosWLockLatch(&pTask->calcPoolLock);
+  needUnlock = true;
+
+  // check if the group is running
+  int64_t p[2] = {sessionId, gid};
+  pRunningFlag = tSimpleHashGet(pTask->pGroupRunning, p, sizeof(p));
+  if (pRunningFlag && pRunningFlag[0] == true) {
+    // if group is running, drop later
+    goto _end;
+  }
+
+  pRequest = taosMemoryMalloc(sizeof(SSTriggerDropRequest));
+  QUERY_CHECK_NULL(pRequest, code, lino, _end, terrno);
+
+  // random select a calc node
+  SSTriggerCalcNode    *pNode = TARRAY_GET_ELEM(pTask->pCalcNodes, taosRand() % taosArrayGetSize(pTask->pCalcNodes));
+  int32_t               idx = TARRAY_ELEM_IDX(pTask->pCalcNodes, pNode);
+  SStreamRunnerTarget  *pRunner = taosArrayGet(pTask->runnerList, idx);
+  QUERY_CHECK_NULL(pRunner, code, lino, _end, terrno);
+  pRequest->streamId = pTask->task.streamId;
+  pRequest->runnerTaskId = pRunner->addr.taskId;
+  pRequest->sessionId = sessionId;
+  pRequest->triggerTaskId = pTask->task.taskId;
+  pRequest->gid = gid;
+
+  if (pRequest->groupColVals == NULL) {
+    pRequest->groupColVals = taosArrayInit(0, sizeof(SStreamGroupValue));
+    QUERY_CHECK_NULL(pRequest->groupColVals, code, lino, _end, terrno);
+  } else {
+    taosArrayClearEx(pRequest->groupColVals, tDestroySStreamGroupValue);
+  }
+  *ppRequest = pRequest;
+
+_end:
+  if (needUnlock) {
+    taosWUnLockLatch(&pTask->calcPoolLock);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    if (pRequest != NULL) {
+      taosMemoryFree(pRequest);
+    }
+  }
+  return code;
+}
+
+int32_t stTriggerTaskReleaseDropTableRequest(SStreamTriggerTask *pTask, SSTriggerDropRequest **ppRequest) {
+  int32_t               code = TSDB_CODE_SUCCESS;
+  int32_t               lino = 0;
+  SSTriggerDropRequest *pReq = NULL;
+  SSTriggerCalcNode    *pNode = NULL;
+  bool                 *pRunningFlag = NULL;
+  bool                  needUnlock = false;
+  bool                  hasSent = false;
+
+  pReq = *ppRequest;
+  *ppRequest = NULL;
+  taosArrayClearEx(pReq->groupColVals, tDestroySStreamGroupValue);
+
+  int32_t idx = 0;
+  int32_t nRunners = taosArrayGetSize(pTask->runnerList);
+  while (idx < nRunners) {
+    SStreamRunnerTarget *pRunner = TARRAY_GET_ELEM(pTask->runnerList, idx);
+    if (pRunner->addr.taskId == pReq->runnerTaskId) {
+      break;
+    }
+    idx++;
+  }
+  QUERY_CHECK_CONDITION(idx < nRunners, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  taosWLockLatch(&pTask->calcPoolLock);
+  needUnlock = true;
+
+  int64_t p[] = {pReq->sessionId, pReq->gid};
+  pRunningFlag = tSimpleHashGet(pTask->pGroupRunning, p, sizeof(p));
+  QUERY_CHECK_NULL(pRunningFlag, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  pRunningFlag[0] = false;
+  pRunningFlag[idx + 1] = hasSent;
+
+  pNode = taosArrayGet(pTask->pCalcNodes, idx);
+  QUERY_CHECK_NULL(pNode, code, lino, _end, terrno);
+  SSTriggerCalcSlot *pSlot = (SSTriggerCalcSlot *)pReq;
+  int32_t            eIdx = TARRAY_ELEM_IDX(pNode->pSlots, pSlot);
+  QUERY_CHECK_CONDITION(eIdx >= 0 && eIdx < TARRAY_SIZE(pNode->pSlots), code, lino, _end, TSDB_CODE_INVALID_PARA);
+  TD_DLIST_APPEND(&pNode->idleSlots, pSlot);
+
+_end:
+  if (needUnlock) {
+    taosWUnLockLatch(&pTask->calcPoolLock);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+
 int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup,
                                       STimeWindow *pCalcRange, SSHashObj *pWalProgress, bool isHistory) {
   int32_t                 code = TSDB_CODE_SUCCESS;
@@ -1987,6 +2094,8 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
   QUERY_CHECK_NULL(pContext->pGroups, code, lino, _end, terrno);
   tSimpleHashSetFreeFp(pContext->pGroups, stRealtimeGroupDestroy);
   TD_DLIST_INIT(&pContext->groupsToCheck);
+  pContext->groupsToDelete = taosArrayInit(0, sizeof(int64_t));
+  QUERY_CHECK_NULL(pContext->groupsToDelete, code, lino, _end, terrno);
 
   pContext->pSorter = taosMemoryCalloc(1, sizeof(SSTriggerTimestampSorter));
   QUERY_CHECK_NULL(pContext->pSorter, code, lino, _end, terrno);
@@ -2028,6 +2137,7 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
 
   tdListInit(&pContext->retryPullReqs, POINTER_BYTES);
   tdListInit(&pContext->retryCalcReqs, POINTER_BYTES);
+  tdListInit(&pContext->dropTableReqs, POINTER_BYTES);
 
 _end:
   return code;
@@ -2088,6 +2198,7 @@ static void stRealtimeContextDestroy(void *ptr) {
 
   tdListEmpty(&pContext->retryPullReqs);
   tdListEmpty(&pContext->retryCalcReqs);
+  tdListEmpty(&pContext->dropTableReqs);
 
   taosMemFreeClear(*ppContext);
 }
@@ -2491,6 +2602,72 @@ _end:
   return code;
 }
 
+static int32_t stRealtimeContextSendDropTableReq(SSTriggerRealtimeContext *pContext, int64_t gid, SSTriggerDropRequest *pDropReq) {
+  int32_t                   code = TSDB_CODE_SUCCESS;
+  int32_t                   lino = 0;
+  SStreamTriggerTask       *pTask = pContext->pTask;
+  SStreamRunnerTarget      *pCalcRunner = NULL;
+  bool                      needTagValue = false;
+  SRpcMsg                   msg = {.msgType = TDMT_STREAM_TRIGGER_DROP};
+
+
+  int32_t nRunners = taosArrayGetSize(pTask->runnerList);
+  for (int32_t i = 0; i < nRunners; i++) {
+    pCalcRunner = TARRAY_GET_ELEM(pTask->runnerList, i);
+    if (pCalcRunner->addr.taskId == pDropReq->runnerTaskId) {
+      break;
+    }
+    pCalcRunner = NULL;
+  }
+  QUERY_CHECK_NULL(pCalcRunner, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+
+  if (pTask->hasPartitionBy || (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_IDX) ||
+      (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_TBNAME)) {
+    needTagValue = true;
+  }
+
+  if (needTagValue && taosArrayGetSize(pDropReq->groupColVals) == 0) {
+    code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_GROUP_COL_VALUE);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = tdListAppend(&pContext->dropTableReqs, &pDropReq);
+    QUERY_CHECK_CODE(code, lino, _end);
+    goto _end;
+  }
+
+  // serialize and send request
+  QUERY_CHECK_CODE(stTriggerTaskAllocAhandle(pTask, pContext->sessionId, pDropReq, &msg.info.ahandle), lino, _end);
+  ST_TASK_DLOG("trigger calc req ahandle %p allocated", msg.info.ahandle);
+
+  msg.contLen = tSerializeSTriggerDropTableRequest(NULL, 0, pDropReq);
+  QUERY_CHECK_CONDITION(msg.contLen > 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+  msg.contLen += sizeof(SMsgHead);
+  msg.pCont = rpcMallocCont(msg.contLen);
+  QUERY_CHECK_NULL(msg.pCont, code, lino, _end, terrno);
+  SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
+  pMsgHead->contLen = htonl(msg.contLen);
+  pMsgHead->vgId = htonl(SNODE_HANDLE);
+  int32_t tlen =
+      tSerializeSTriggerDropTableRequest((char *)msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pDropReq);
+  QUERY_CHECK_CONDITION(tlen == msg.contLen - sizeof(SMsgHead), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+  TRACE_SET_ROOTID(&msg.info.traceId, pTask->task.streamId);
+  TRACE_SET_MSGID(&msg.info.traceId, tGenIdPI64());
+
+  code = tmsgSendReq(&pCalcRunner->addr.epset, &msg);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  ST_TASK_DLOG("send drop table request to node:%d task:%" PRIx64, pCalcRunner->addr.nodeId, pCalcRunner->addr.taskId);
+  ST_TASK_DLOG("trigger drop table req 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId, msg.info.traceId.msgId);
+
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    destroyAhandle(msg.info.ahandle);
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+
 static int32_t stRealtimeContextRetryPullRequest(SSTriggerRealtimeContext *pContext, SListNode *pNode,
                                                  SSTriggerPullRequest *pReq) {
   int32_t             code = TSDB_CODE_SUCCESS;
@@ -2623,6 +2800,75 @@ _end:
   }
   return code;
 }
+
+static int32_t stRealtimeContextRetryDropRequest(SSTriggerRealtimeContext *pContext, SListNode *pNode,
+                                                 SSTriggerDropRequest *pReq) {
+  int32_t              code = TSDB_CODE_SUCCESS;
+  int32_t              lino = 0;
+  SStreamTriggerTask  *pTask = pContext->pTask;
+  SStreamRunnerTarget *pRunner = NULL;
+  bool                 needTagValue = false;
+  SRpcMsg              msg = {.msgType = TDMT_STREAM_TRIGGER_DROP};
+
+  QUERY_CHECK_NULL(pNode, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pReq, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_CONDITION(*(SSTriggerDropRequest **)pNode->data == pReq, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  int32_t nRunners = taosArrayGetSize(pTask->runnerList);
+  for (int32_t i = 0; i < nRunners; i++) {
+    SStreamRunnerTarget *pTempRunner = TARRAY_GET_ELEM(pTask->runnerList, i);
+    if (pTempRunner->addr.taskId == pReq->runnerTaskId) {
+      pRunner = pTempRunner;
+      break;
+    }
+  }
+  QUERY_CHECK_NULL(pRunner, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+
+  if (pTask->hasPartitionBy || (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_IDX) ||
+      (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_TBNAME)) {
+    needTagValue = true;
+  }
+
+  if (needTagValue && taosArrayGetSize(pReq->groupColVals) == 0) {
+    code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_GROUP_COL_VALUE);
+    QUERY_CHECK_CODE(code, lino, _end);
+    goto _end;
+  }
+
+  // serialize and send request
+  QUERY_CHECK_CODE(stTriggerTaskAllocAhandle(pTask, pContext->sessionId, pReq, &msg.info.ahandle), lino, _end);
+  stDebug("trigger calc req ahandle %p allocated", msg.info.ahandle);
+
+  msg.contLen = tSerializeSTriggerDropTableRequest(NULL, 0, pReq);
+  QUERY_CHECK_CONDITION(msg.contLen > 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+  msg.contLen += sizeof(SMsgHead);
+  msg.pCont = rpcMallocCont(msg.contLen);
+  QUERY_CHECK_NULL(msg.pCont, code, lino, _end, terrno);
+  SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
+  pMsgHead->contLen = htonl(msg.contLen);
+  pMsgHead->vgId = htonl(SNODE_HANDLE);
+  int32_t tlen =
+      tSerializeSTriggerDropTableRequest((char *)msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pReq);
+  QUERY_CHECK_CONDITION(tlen == msg.contLen - sizeof(SMsgHead), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+  TRACE_SET_ROOTID(&msg.info.traceId, pTask->task.streamId);
+  TRACE_SET_MSGID(&msg.info.traceId, tGenIdPI64());
+
+  code = tmsgSendReq(&pRunner->addr.epset, &msg);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  ST_TASK_DLOG("send calc request to node:%d task:%" PRIx64, pRunner->addr.nodeId, pRunner->addr.taskId);
+  ST_TASK_DLOG("trigger calc req 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId, msg.info.traceId.msgId);
+
+  pNode = tdListPopNode(&pContext->dropTableReqs, pNode);
+  taosMemoryFreeClear(pNode);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 
 static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
   int32_t             code = TSDB_CODE_SUCCESS;
@@ -2991,6 +3237,21 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
     pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
   }
 
+  int32_t deleteGroupNum = taosArrayGetSize(pContext->groupsToDelete);
+  for (int32_t i = deleteGroupNum - 1; i >= 0; i--) {
+    int64_t                   gid = ((int64_t *)TARRAY_DATA(pContext->groupsToDelete))[i];
+    bool                      drop = true;
+    SSTriggerDropRequest     *pDropReq = NULL;
+    code = stTriggerTaskAcquireDropTableRequest(pTask, pContext->sessionId, gid, &pDropReq);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (pDropReq) {
+      code = stRealtimeContextSendDropTableReq(pContext, gid, pDropReq);
+      QUERY_CHECK_CODE(code, lino, _end);
+      taosArrayRemove(pContext->groupsToDelete, i);
+    }
+    pContext->status = STRIGGER_CONTEXT_SEND_DROP_REQ;
+  }
+
 #define STRIGGER_CHECKPOINT_INTERVAL_NS 10 * NANOSECOND_PER_MINUTE  // 10min
   int64_t now = taosGetTimestampNs();
   if (pContext->lastCheckpointTime + STRIGGER_CHECKPOINT_INTERVAL_NS <= now) {
@@ -3354,30 +3615,55 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
     }
 
     case STRIGGER_PULL_GROUP_COL_VALUE: {
-      QUERY_CHECK_CONDITION(pContext->status == STRIGGER_CONTEXT_SEND_CALC_REQ, code, lino, _end,
-                            TSDB_CODE_INTERNAL_ERROR);
+      QUERY_CHECK_CONDITION((pContext->status == STRIGGER_CONTEXT_SEND_CALC_REQ ||
+                             pContext->status == STRIGGER_CONTEXT_SEND_DROP_REQ),
+                            code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       SSTriggerGroupColValueRequest *pRequest = (SSTriggerGroupColValueRequest *)pReq;
-      if (pContext->pCalcReq != NULL && pContext->pCalcReq->gid == pRequest->gid) {
-        SStreamGroupInfo groupInfo = {.gInfo = pContext->pCalcReq->groupColVals};
-        code = tDeserializeSStreamGroupInfo(pRsp->pCont, pRsp->contLen, &groupInfo);
-        QUERY_CHECK_CODE(code, lino, _end);
-        code = stRealtimeContextCheck(pContext);
-        QUERY_CHECK_CODE(code, lino, _end);
-      } else {
-        SListIter  iter = {0};
-        SListNode *pNode = NULL;
-        tdListInitIter(&pContext->retryCalcReqs, &iter, TD_LIST_FORWARD);
-        while ((pNode = tdListNext(&iter)) != NULL) {
-          SSTriggerCalcRequest *pCalcReq = *(SSTriggerCalcRequest **)pNode->data;
-          if (pCalcReq->gid == pRequest->gid) {
-            SStreamGroupInfo groupInfo = {.gInfo = pCalcReq->groupColVals};
+      switch (pContext->status) {
+        case STRIGGER_CONTEXT_SEND_CALC_REQ: {
+          if (pContext->pCalcReq != NULL && pContext->pCalcReq->gid == pRequest->gid) {
+            SStreamGroupInfo groupInfo = {.gInfo = pContext->pCalcReq->groupColVals};
             code = tDeserializeSStreamGroupInfo(pRsp->pCont, pRsp->contLen, &groupInfo);
             QUERY_CHECK_CODE(code, lino, _end);
-            code = stRealtimeContextRetryCalcRequest(pContext, pNode, pCalcReq);
+            code = stRealtimeContextCheck(pContext);
             QUERY_CHECK_CODE(code, lino, _end);
-            break;
+          } else {
+            SListIter  iter = {0};
+            SListNode *pNode = NULL;
+            tdListInitIter(&pContext->retryCalcReqs, &iter, TD_LIST_FORWARD);
+            while ((pNode = tdListNext(&iter)) != NULL) {
+              SSTriggerCalcRequest *pCalcReq = *(SSTriggerCalcRequest **)pNode->data;
+              if (pCalcReq->gid == pRequest->gid) {
+                SStreamGroupInfo groupInfo = {.gInfo = pCalcReq->groupColVals};
+                code = tDeserializeSStreamGroupInfo(pRsp->pCont, pRsp->contLen, &groupInfo);
+                QUERY_CHECK_CODE(code, lino, _end);
+                code = stRealtimeContextRetryCalcRequest(pContext, pNode, pCalcReq);
+                QUERY_CHECK_CODE(code, lino, _end);
+                break;
+              }
+            }
           }
+          break;
         }
+        case STRIGGER_CONTEXT_SEND_DROP_REQ: {
+          SListIter  iter = {0};
+          SListNode *pNode = NULL;
+          tdListInitIter(&pContext->dropTableReqs, &iter, TD_LIST_FORWARD);
+          while ((pNode = tdListNext(&iter)) != NULL) {
+            SSTriggerDropRequest *pDropReq = *(SSTriggerDropRequest **)pNode->data;
+            if (pDropReq->gid == pRequest->gid) {
+              SStreamGroupInfo groupInfo = {.gInfo = pDropReq->groupColVals};
+              code = tDeserializeSStreamGroupInfo(pRsp->pCont, pRsp->contLen, &groupInfo);
+              QUERY_CHECK_CODE(code, lino, _end);
+              code = stRealtimeContextRetryDropRequest(pContext, pNode, pDropReq);
+              QUERY_CHECK_CODE(code, lino, _end);
+              break;
+            }
+          }
+          break;
+        }
+        default:
+          break;
       }
       break;
     }
@@ -3695,6 +3981,23 @@ static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, 
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
+  for (int32_t i = 0; i < taosArrayGetSize(pContext->groupsToDelete); i++) {
+    int64_t gid = ((int64_t *)TARRAY_DATA(pContext->groupsToDelete))[i];
+    if (gid == pReq->gid) {
+      // send drop table req
+      bool                      drop = true;
+      SSTriggerDropRequest     *pDropReq = NULL;
+      QUERY_CHECK_NULL(pDropReq, code, lino, _end, terrno);
+      code = stTriggerTaskAcquireDropTableRequest(pTask, pContext->sessionId, gid, &pDropReq);
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (pDropReq) {
+        code = stRealtimeContextSendDropTableReq(pContext, gid, pDropReq);
+        QUERY_CHECK_CODE(code, lino, _end);
+        taosArrayRemove(pContext->groupsToDelete, i);
+      }
+      break;
+    }
+  }
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -5693,6 +5996,9 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SArra
             SET_TRIGGER_META_SKEY_INACCURATE(pNewMeta);
           }
         }
+      } else if (pTypes[i] == WAL_DELETE_TABLE) {
+        void *px = taosArrayPush(pContext->groupsToDelete, &pGroup->gid);
+        QUERY_CHECK_NULL(px, code, lino, _end, terrno);
       }
     }
   }
