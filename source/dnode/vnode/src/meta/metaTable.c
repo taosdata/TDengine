@@ -241,8 +241,8 @@ int32_t metaUpdateVtbMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema
 
   return code;
 _return:
-  taosMemoryFreeClear(pMetaRsp->pSchemaExt);
   taosMemoryFreeClear(pMetaRsp->pSchemas);
+  taosMemoryFreeClear(pMetaRsp->pSchemaExt);
   taosMemoryFreeClear(pMetaRsp->pColRefs);
   return code;
 }

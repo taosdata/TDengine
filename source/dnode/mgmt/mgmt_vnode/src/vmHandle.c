@@ -917,8 +917,8 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
             if (pSchema->colId != pColComp->id) {
               TSDB_CHECK_CODE(TSDB_CODE_FILE_CORRUPTED, lino, _exit0);
             }
-            if (mr.me.pExtSchemas) {
-              col.typeMod = (mr.me.pExtSchemas + c)->typeMod;
+            if (mr.me.stbEntry.schemaRow.pExtSchema) {
+              col.typeMod = (mr.me.stbEntry.schemaRow.pExtSchema + c)->typeMod;
             }
             TSDB_CHECK_NULL(taosArrayPush(pCols, &col), code, lino, _exit0, terrno);
             TSDB_CHECK_NULL(taosArrayPush(pColExts, &pSchema->colId), code, lino, _exit0, terrno);

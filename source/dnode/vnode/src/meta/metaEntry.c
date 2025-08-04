@@ -401,6 +401,7 @@ static int32_t metaCloneSchema(const SSchemaWrapper *pSrc, SSchemaWrapper *pDst)
 static void metaCloneSchemaFree(SSchemaWrapper *pSchema) {
   if (pSchema) {
     taosMemoryFreeClear(pSchema->pSchema);
+    taosMemoryFreeClear(pSchema->pExtSchema);
   }
 }
 

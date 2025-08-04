@@ -1186,6 +1186,7 @@ static void freeClientTopic(void* param) {
   }
   SMqClientTopic* pTopic = param;
   taosMemoryFreeClear(pTopic->schema.pSchema);
+  taosMemoryFreeClear(pTopic->schema.pExtSchema);
   taosArrayDestroyEx(pTopic->vgs, freeClientVg);
 }
 

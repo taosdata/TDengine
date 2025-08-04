@@ -3843,6 +3843,7 @@ static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
     req->ctb.tagName = NULL;
   } else if (req->type == TSDB_NORMAL_TABLE || req->type == TSDB_VIRTUAL_NORMAL_TABLE) {
     taosMemoryFreeClear(req->ntb.schemaRow.pSchema);
+    taosMemoryFreeClear(req->ntb.schemaRow.pExtSchema);
   }
   taosMemoryFreeClear(req->colCmpr.pColCmpr);
   taosMemoryFreeClear(req->colRef.pColRef);

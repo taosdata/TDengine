@@ -2775,7 +2775,7 @@ int32_t tDeserializeRetrieveAnalyticAlgoRsp(void *buf, int32_t bufLen, SRetrieve
     }
 
     char dstName[TSDB_ANALYTIC_ALGO_NAME_LEN] = {0};
-    strntolower(dstName, name, nameLen);
+    (void)strntolower(dstName, name, nameLen);
 
     TAOS_CHECK_EXIT(taosHashPut(pRsp->hash, dstName, nameLen, &url, sizeof(SAnalyticsUrl)));
   }
@@ -6578,7 +6578,9 @@ int32_t tDeserializeSVnodeSsMigrateState(void* buf, int32_t bufLen, SVnodeSsMigr
     SFileSetSsMigrateState state = {0};
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &state.fid));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &state.state));
-    taosArrayPush(pState->pFileSetStates, &state);
+    if (NULL == taosArrayPush(pState->pFileSetStates, &state)) {
+      TAOS_CHECK_EXIT(terrno);
+    }
   }
 
   tEndDecode(&decoder);
@@ -10708,9 +10710,9 @@ _exit:
   return code;
 }
 
-void    tDestroySResFetchReq(SResFetchReq* pReq){
+void tDestroySResFetchReq(SResFetchReq* pReq){
   if (pReq != NULL) {
-    tDestroyStRtFuncInfo(pReq->pStRtFuncInfo);
+    (void)tDestroyStRtFuncInfo(pReq->pStRtFuncInfo);
     taosMemoryFree(pReq->pStRtFuncInfo);
   }
 }
@@ -13174,7 +13176,7 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
   TAOS_CHECK_EXIT(tEncodeI64(pCoder, pSubmitTbData->ctimeMs));
 
   if (hasBlog) {
-    tEncodeBlobSet(pCoder, pSubmitTbData->pBlobSet);
+    TAOS_CHECK_EXIT(tEncodeBlobSet(pCoder, pSubmitTbData->pBlobSet));
     if (tBlobSetSize(pSubmitTbData->pBlobSet) != count) {
       uError("blob set size %d not match row size %d", tBlobSetSize(pSubmitTbData->pBlobSet), count);
       return TSDB_CODE_INVALID_MSG;

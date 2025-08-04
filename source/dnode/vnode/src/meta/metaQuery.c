@@ -674,6 +674,7 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) {
   pTSchema = tBuildTSchema(pSW->pSchema, pSW->nCols, pSW->version);
 
   taosMemoryFree(pSW->pSchema);
+  taosMemoryFree(pSW->pExtSchema);
   taosMemoryFree(pSW);
   return pTSchema;
 }
@@ -779,6 +780,7 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
   tdbFree(pData);
   if (TSDB_CODE_SUCCESS != code) {
     taosMemoryFree(pSchemaWrapper->pSchema);
+    taosMemoryFree(pSchemaWrapper->pExtSchema);
     goto _exit;
   }
 
@@ -790,6 +792,7 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
 
   *ppTSchema = pTSchema;
   taosMemoryFree(pSchemaWrapper->pSchema);
+  taosMemoryFree(pSchemaWrapper->pExtSchema);
 
 _exit:
   return code;

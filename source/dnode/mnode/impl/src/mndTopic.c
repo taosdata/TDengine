@@ -309,7 +309,10 @@ static int32_t mndTopicActionDelete(SSdb *pSdb, SMqTopicObj *pTopic) {
   taosMemoryFreeClear(pTopic->sql);
   taosMemoryFreeClear(pTopic->ast);
   taosMemoryFreeClear(pTopic->physicalPlan);
-  if (pTopic->schema.nCols) taosMemoryFreeClear(pTopic->schema.pSchema);
+  if (pTopic->schema.nCols) {
+    taosMemoryFreeClear(pTopic->schema.pSchema);
+    taosMemoryFreeClear(pTopic->schema.pExtSchema);
+  }
   taosArrayDestroy(pTopic->ntbColIds);
   return 0;
 }
@@ -532,6 +535,7 @@ END:
   taosArrayDestroy(topicObj.ntbColIds);
   if (topicObj.schema.nCols) {
     taosMemoryFreeClear(topicObj.schema.pSchema);
+    taosMemoryFreeClear(topicObj.schema.pExtSchema);
   }
   nodesDestroyNode(pAst);
   nodesDestroyNode((SNode *)pPlan);

@@ -651,7 +651,7 @@ static int32_t doSetBlobVal(SColumnInfoData* pColumnInfoData, int32_t idx, SColV
     uint64_t seq = 0;
     int32_t  len = 0;
     if (pColVal->value.pData != NULL) {
-      tGetU64(pColVal->value.pData, &seq);
+      TAOS_UNUSED(tGetU64(pColVal->value.pData, &seq));
       SBlobItem item = {0};
       code = tBlobSetGet(pBlobRow2, seq, &item);
       if (code != 0) {
@@ -1284,7 +1284,16 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
 
           return ret;
         }
-        tqReaderSetTbUidList(pTqHandle->execHandle.pTqReader, list, NULL);
+        ret = tqReaderSetTbUidList(pTqHandle->execHandle.pTqReader, list, NULL);
+        if (ret != TSDB_CODE_SUCCESS) {
+          tqError("tqReaderSetTbUidList in tqUpdateTbUidList error:%d handle %s consumer:0x%" PRIx64, ret,
+                  pTqHandle->subKey, pTqHandle->consumerId);
+          taosArrayDestroy(list);
+          taosHashCancelIterate(pTq->pHandle, pIter);
+          taosWUnLockLatch(&pTq->lock);
+
+          return ret;
+        }
         taosArrayDestroy(list);
       } else {
         tqReaderRemoveTbUidList(pTqHandle->execHandle.pTqReader, tbUidList);

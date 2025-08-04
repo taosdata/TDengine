@@ -941,7 +941,7 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
         tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
         goto _end;
       }
-      taosHashPut(pHash, &vgIdForTbName, sizeof(int32_t), &pReq, POINTER_BYTES);
+      code = taosHashPut(pHash, &vgIdForTbName, sizeof(int32_t), &pReq, POINTER_BYTES);
     } else {
       pReq = *ppReq;
     }
@@ -1363,8 +1363,14 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
         goto _end;
       }
 
-      inserterBuildCreateTbReq(tbData.pCreateTbReq, tableName, pTag, *suid, pInserter->pNode->tableName, TagNames,
+      code = inserterBuildCreateTbReq(tbData.pCreateTbReq, tableName, pTag, *suid, pInserter->pNode->tableName, TagNames,
                                pInserter->pTagSchema->nCols, TSDB_DEFAULT_TABLE_TTL);
+      if (code != TSDB_CODE_SUCCESS) {
+        terrno = code;
+        qError("failed to build create table request, error:%s", tstrerror(code));
+        tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
+        goto _end;
+      }
     }
 
     for (int32_t k = 0; k < pTSchema->numOfCols; ++k) {  // iterate by column
@@ -2248,7 +2254,7 @@ static int32_t resetInserterTbVersion(SDataInserterHandle* pInserter, const SInp
   if (pInserter->pParam->streamInserterParam->tbType != TSDB_NORMAL_TABLE) {
     pInserter->pParam->streamInserterParam->sver = pTbInfo->version;
   }
-  releaseStreamInsertTableInfo(ppTbInfo);
+  TAOS_UNUSED(releaseStreamInsertTableInfo(ppTbInfo));
   return code;
 }
 
@@ -2375,6 +2381,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
 
   if (pInserter->pTagSchema) {
     taosMemoryFreeClear(pInserter->pTagSchema->pSchema);
+    taosMemoryFreeClear(pInserter->pTagSchema->pExtSchema);
     taosMemoryFree(pInserter->pTagSchema);
   }
 
