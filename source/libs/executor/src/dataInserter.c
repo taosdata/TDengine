@@ -96,7 +96,6 @@ typedef struct SInsertTableInfo {
   int32_t                  version;
   STSchema*                pSchema;
   char*                    tbname;
-  int32_t                  refCount;
 } SInsertTableInfo;
 
 typedef struct SBuildInsertDataInfo {
@@ -120,11 +119,11 @@ static int32_t initInsertProcessInfo(SBuildInsertDataInfo* pBuildInsertDataInfo,
   return TSDB_CODE_SUCCESS;
 }
 
-static void freeCacheTbInfo(void* pp) {
-  if (pp == NULL || *(SInsertTableInfo**)pp == NULL) {
+static void freeCacheTbInfo(void* p) {
+  if (p == NULL) {
     return;
   }
-  SInsertTableInfo* pTbInfo = *(SInsertTableInfo**)pp;
+  SInsertTableInfo* pTbInfo = (SInsertTableInfo*)p;
   if (pTbInfo->tbname) {
     taosMemFree(pTbInfo->tbname);
     pTbInfo->tbname = NULL;
@@ -210,7 +209,6 @@ static int32_t createNewInsertTbInfo(const SSubmitRes* pSubmitRes, SInsertTableI
     stError("failed to allocate memory for table name");
     return terrno;
   }
-  res->refCount = 1;
 
   res->vgid = pCreateTbRsp->pMeta->vgId;
 
@@ -228,36 +226,37 @@ static int32_t createNewInsertTbInfo(const SSubmitRes* pSubmitRes, SInsertTableI
   return TSDB_CODE_SUCCESS;
 }
 
-static void releaseInsertTableInfoRef(SInsertTableInfo** pTbInfo);
 static int32_t updateInsertGrpTableInfo(SStreamDataInserterInfo* pInserterInfo, const SSubmitRes* pSubmitRes) {
-  int32_t            code = TSDB_CODE_SUCCESS;
-  int64_t            key[2] = {pInserterInfo->streamId, pInserterInfo->groupId};
-  SInsertTableInfo** ppTbRes = taosHashGet(gStreamGrpTableHash, key, sizeof(key));
-  if (NULL == ppTbRes || *ppTbRes == NULL) {
+  int32_t           code = TSDB_CODE_SUCCESS;
+  int32_t           lino = 0;
+  int64_t           key[2] = {pInserterInfo->streamId, pInserterInfo->groupId};
+  SInsertTableInfo* pTbRes = taosHashAcquire(gStreamGrpTableHash, key, sizeof(key));
+  if (NULL == pTbRes) {
     return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
   }
-  SInsertTableInfo* pTbRes = *ppTbRes;
-  bool              schemaChanged = false;
+
+  bool schemaChanged = false;
   code = checkResAndResetTableInfo(pSubmitRes, pTbRes, &schemaChanged);
-  if (code) {
-    return code;
-  }
+  QUERY_CHECK_CODE(code, lino, _exit);
+
   if (schemaChanged) {
     SInsertTableInfo* pNewInfo = NULL;
-    code = createNewInsertTbInfo(pSubmitRes, *ppTbRes, &pNewInfo);
-    if (code != TSDB_CODE_SUCCESS) {
-      stError("failed to create new insert tbInfo for streamId:%" PRIx64 ", groupId:%" PRIx64 ", code:%d",
-              pInserterInfo->streamId, pInserterInfo->groupId, code);
-      return code;
-    }
+    code = createNewInsertTbInfo(pSubmitRes, pTbRes, &pNewInfo);
+    QUERY_CHECK_CODE(code, lino, _exit);
 
-    while (1) {
-      pTbRes = *ppTbRes;
-      void* tmp = atomic_val_compare_exchange_ptr(ppTbRes, pTbRes, pNewInfo);
-      if (tmp == pTbRes) {
-        releaseInsertTableInfoRef(&pTbRes);
-        break;
-      }
+    TAOS_UNUSED(taosHashRemove(gStreamGrpTableHash, key, sizeof(key)));
+
+    code = taosHashPut(gStreamGrpTableHash, key, sizeof(key), pNewInfo, sizeof(SInsertTableInfo));
+
+    if (code == TSDB_CODE_DUP_KEY) {
+      freeCacheTbInfo(pNewInfo);
+      code = TSDB_CODE_SUCCESS;
+      goto _exit;
+    } else if (code != TSDB_CODE_SUCCESS) {
+      freeCacheTbInfo(pNewInfo);
+      stError("failed to put new insert tbInfo for streamId:%" PRIx64 ", groupId:%" PRIx64 ", code:%d",
+              pInserterInfo->streamId, pInserterInfo->groupId, code);
+      QUERY_CHECK_CODE(code, lino, _exit);
     }
 
     stInfo("update table info for streamId:%" PRIx64 ", groupId:%" PRIx64 ", uid:%" PRId64 ", vgid:%" PRId64
@@ -265,6 +264,14 @@ static int32_t updateInsertGrpTableInfo(SStreamDataInserterInfo* pInserterInfo, 
            pInserterInfo->streamId, pInserterInfo->groupId, pNewInfo->uid, pNewInfo->vgid, pNewInfo->version);
   }
   return TSDB_CODE_SUCCESS;
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("failed to check and reset table info for streamId:%" PRIx64 ", groupId:%" PRIx64 ", code:%d",
+            pInserterInfo->streamId, pInserterInfo->groupId, code);
+  }
+  taosHashRelease(gStreamGrpTableHash, pTbRes);
+  return code;
 }
 
 static int32_t buildTSchmaFromInserter(SStreamInserterParam* pInsertParam, STSchema** ppTSchema);
@@ -284,7 +291,6 @@ static int32_t initTableInfo(SDataInserterHandle* pInserter, SStreamDataInserter
     res->version = pInsertParam->sver;
   }
 
-  res->refCount = 1;
   res->tbname = taosStrdup(pInserterInfo->tbName);
   if (res->tbname == NULL) {
     taosMemoryFree(res);
@@ -298,13 +304,15 @@ static int32_t initTableInfo(SDataInserterHandle* pInserter, SStreamDataInserter
   int64_t key[2] = {pInserterInfo->streamId, pInserterInfo->groupId};
   code = taosHashPut(gStreamGrpTableHash, key, sizeof(key), &res, sizeof(SInsertTableInfo*));
   if (code == TSDB_CODE_DUP_KEY) {
-    releaseInsertTableInfoRef(&res);
+    freeCacheTbInfo(res);
     return TSDB_CODE_SUCCESS;
   }
 
 _return:
   if (code != TSDB_CODE_SUCCESS) {
-    releaseInsertTableInfoRef(&res);
+    stError("failed to build table info for streamId:%" PRIx64 ", groupId:%" PRIx64 ", code:%d",
+            pInserterInfo->streamId, pInserterInfo->groupId, code);
+    freeCacheTbInfo(res);
   }
   return code;
 }
@@ -1593,23 +1601,13 @@ int32_t dataBlocksToSubmitReq(SDataInserterHandle* pInserter, void** pMsg, int32
 
 static int32_t getStreamInsertTableInfo(SStreamDataInserterInfo* pInserterInfo, SInsertTableInfo** ppTbInfo) {
   int64_t key[2] = {pInserterInfo->streamId, pInserterInfo->groupId};
-  SInsertTableInfo** ppTmp = taosHashGet(gStreamGrpTableHash, key, sizeof(key));
+  SInsertTableInfo** ppTmp = taosHashAcquire(gStreamGrpTableHash, key, sizeof(key));
   if (NULL == ppTmp || *ppTmp == NULL) {
     return TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND;
   }
 
-  (void)atomic_add_fetch_32(&(*ppTmp)->refCount, 1);
   *ppTbInfo = *ppTmp;
   return TSDB_CODE_SUCCESS;
-}
-
-static void releaseInsertTableInfoRef(SInsertTableInfo** ppTbInfo) {
-  if (ppTbInfo && *ppTbInfo) {
-    int32_t res = atomic_sub_fetch_32(&(*ppTbInfo)->refCount, 1);
-    if(res == 0) {
-      freeCacheTbInfo(ppTbInfo);
-    }
-  }
 }
 
 int32_t buildNormalTableCreateReq(SDataInserterHandle* pInserter, SStreamInserterParam* pInsertParam,
@@ -2088,7 +2086,7 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
   QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
-  releaseInsertTableInfoRef(&pTbInfo);
+  freeCacheTbInfo(pTbInfo);
   if (code != TSDB_CODE_SUCCESS) {
     stError(
         "buildStreamSubmitReqFromBlock, code:%d, streamId:0x%" PRIx64 " groupId:%" PRId64 " tbname:%s autoCreate:%d",
@@ -2242,7 +2240,7 @@ static int32_t resetInserterTbVersion(SDataInserterHandle* pInserter, const SInp
   if (pInserter->pParam->streamInserterParam->tbType != TSDB_NORMAL_TABLE) {
     pInserter->pParam->streamInserterParam->sver = pTbInfo->version;
   }
-  releaseInsertTableInfoRef(&pTbInfo);
+  freeCacheTbInfo(pTbInfo);
   return code;
 }
 
