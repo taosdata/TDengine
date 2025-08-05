@@ -302,7 +302,7 @@ static int32_t initTableInfo(SDataInserterHandle* pInserter, SStreamDataInserter
   QUERY_CHECK_CODE(code, lino, _return);
 
   int64_t key[2] = {pInserterInfo->streamId, pInserterInfo->groupId};
-  code = taosHashPut(gStreamGrpTableHash, key, sizeof(key), &res, sizeof(SInsertTableInfo*));
+  code = taosHashPut(gStreamGrpTableHash, key, sizeof(key), res, sizeof(SInsertTableInfo));
   if (code == TSDB_CODE_DUP_KEY) {
     freeCacheTbInfo(res);
     return TSDB_CODE_SUCCESS;
@@ -1601,12 +1601,17 @@ int32_t dataBlocksToSubmitReq(SDataInserterHandle* pInserter, void** pMsg, int32
 
 static int32_t getStreamInsertTableInfo(SStreamDataInserterInfo* pInserterInfo, SInsertTableInfo** ppTbInfo) {
   int64_t key[2] = {pInserterInfo->streamId, pInserterInfo->groupId};
-  SInsertTableInfo** ppTmp = taosHashAcquire(gStreamGrpTableHash, key, sizeof(key));
-  if (NULL == ppTmp || *ppTmp == NULL) {
+  SInsertTableInfo* pTmp = taosHashAcquire(gStreamGrpTableHash, key, sizeof(key));
+  if (NULL == pTmp) {
     return TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND;
   }
 
-  *ppTbInfo = *ppTmp;
+  *ppTbInfo = pTmp;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t releaseStreamInsertTableInfo(SInsertTableInfo* pTbInfo) {
+  taosHashRelease(gStreamGrpTableHash, pTbInfo);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2086,7 +2091,7 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
   QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
-  freeCacheTbInfo(pTbInfo);
+  releaseStreamInsertTableInfo(pTbInfo);
   if (code != TSDB_CODE_SUCCESS) {
     stError(
         "buildStreamSubmitReqFromBlock, code:%d, streamId:0x%" PRIx64 " groupId:%" PRId64 " tbname:%s autoCreate:%d",
@@ -2240,7 +2245,7 @@ static int32_t resetInserterTbVersion(SDataInserterHandle* pInserter, const SInp
   if (pInserter->pParam->streamInserterParam->tbType != TSDB_NORMAL_TABLE) {
     pInserter->pParam->streamInserterParam->sver = pTbInfo->version;
   }
-  freeCacheTbInfo(pTbInfo);
+  releaseStreamInsertTableInfo(pTbInfo);
   return code;
 }
 
