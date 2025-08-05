@@ -4135,7 +4135,11 @@ int32_t blockEncodeAsRows(const SSDataBlock* pBlock, char* data, size_t dataBufl
       metaSize = realRows * sizeof(int32_t);
       if(dataLen + metaSize > dataBuflen) goto _exit;
       memcpy(data, (char*)pColRes->varmeta.offset + (startIndex * sizeof(int32_t)), metaSize);
-      resetVarDataOffset((int32_t*)data, realRows);
+      int32_t offset = resetVarDataOffset((int32_t*)data, realRows);
+      if (offset < 0) {
+        uError("Invalid offset %d for column %d", offset, col);
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
     } else {
       metaSize = BitmapLen(realRows);
       if(dataLen + metaSize > dataBuflen) goto _exit;
