@@ -1,4 +1,5 @@
 use taos::Dsn;
+use taosx_core::utils;
 
 #[derive(Debug, Clone)]
 pub struct ConnectConfig {
@@ -9,6 +10,10 @@ pub struct ConnectConfig {
     // authentication
     pub username: String,
     pub password: String,
+    // connection pool config
+    pub min_connections: Option<u32>,
+    pub max_connections: Option<u32>,
+    pub connection_timeout: Option<u64>,
 }
 
 impl ConnectConfig {
@@ -19,6 +24,9 @@ impl ConnectConfig {
             subject: Self::parse_subject(dsn)?,
             username: Self::parse_username(dsn)?,
             password: Self::parse_password(dsn)?,
+            min_connections: utils::parse_key_in_dsn(dsn, "min_connections")?,
+            max_connections: utils::parse_key_in_dsn(dsn, "max_connections")?,
+            connection_timeout: utils::parse_key_in_dsn(dsn, "connection_timeout")?,
         })
     }
 
