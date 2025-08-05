@@ -381,8 +381,8 @@ int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle
   return code;
 }
 
-static int32_t filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const SArray* tableIdList, const char* idstr,
-                                       SStorageAPI* pAPI, SArray** ppArrayRes) {
+static int32_t filterUnqualifiedTables(SNode* pTagCond, const SArray* tableIdList, SStorageAPI* pAPI, void* pVnode, 
+                                        uint64_t suid, uint64_t uid, int8_t type, SArray** ppArrayRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   SArray* qa = taosArrayInit(4, sizeof(tb_uid_t));
@@ -393,23 +393,16 @@ static int32_t filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
     goto _error;
   }
 
-  STableScanInfo* pTableScanInfo = pScanInfo->pTableScanOp->info;
-
-  uint64_t suid = 0;
-  uint64_t uid = 0;
-  int32_t  type = 0;
-  tableListGetSourceTableInfo(pTableScanInfo->base.pTableListInfo, &suid, &uid, &type);
-
   // let's discard the tables those are not created according to the queried super table.
   SMetaReader mr = {0};
-  pAPI->metaReaderFn.initReader(&mr, pScanInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
+  pAPI->metaReaderFn.initReader(&mr, pVnode, META_READER_LOCK, &pAPI->metaFn);
   for (int32_t i = 0; i < numOfUids; ++i) {
     uint64_t* id = (uint64_t*)taosArrayGet(tableIdList, i);
     QUERY_CHECK_NULL(id, code, lino, _end, terrno);
 
     int32_t code = pAPI->metaReaderFn.getTableEntryByUid(&mr, *id);
     if (code != TSDB_CODE_SUCCESS) {
-      qError("failed to get table meta, uid:%" PRIu64 " code:%s, %s", *id, tstrerror(terrno), idstr);
+      qError("failed to get table meta, uid:%" PRIu64 " code:%s", *id, tstrerror(terrno));
       continue;
     }
 
@@ -432,12 +425,12 @@ static int32_t filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
       }
     }
 
-    if (pScanInfo->pTagCond != NULL) {
+    if (pTagCond != NULL) {
       bool          qualified = false;
       STableKeyInfo info = {.groupId = 0, .uid = mr.me.uid};
-      code = isQualifiedTable(&info, pScanInfo->pTagCond, pScanInfo->readHandle.vnode, &qualified, pAPI);
+      code = isQualifiedTable(&info, pTagCond, pVnode, &qualified, pAPI);
       if (code != TSDB_CODE_SUCCESS) {
-        qError("failed to filter new table, uid:0x%" PRIx64 ", %s", info.uid, idstr);
+        qError("failed to filter new table, uid:0x%" PRIx64, info.uid);
         continue;
       }
 
@@ -463,13 +456,79 @@ _error:
   return code;
 }
 
-int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd) {
+static void qAddTableToUidList(void* pVnode, SStorageAPI* pAPI, SNode* pTagCond, SNodeList* pGroupTags, const SArray* tableIdList, 
+                          void* pTableListInfo, void* tqReader){
+  SArray* qa = NULL;
+  char*  keyBuf = NULL;
+
+  uint64_t suid = 0;
+  uint64_t uid = 0;
+  int32_t  type = 0;
+  tableListGetSourceTableInfo(pTableListInfo, &suid, &uid, &type);
+
+  int32_t code = filterUnqualifiedTables(pTagCond, tableIdList, pAPI, pVnode, suid, uid, type, &qa);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto end;
+  }
+  int32_t numOfQualifiedTables = taosArrayGetSize(qa);
+  qDebug("%d qualified child tables added into tablelist", numOfQualifiedTables);
+  if (tqReader != NULL) {
+    pAPI->tqReaderFn.tqReaderAddTables(tqReader, qa);
+  }
+
+  bool   assignUid = false;
+  size_t bufLen = (pGroupTags != NULL) ? getTableTagsBufLen(pGroupTags) : 0;
+  if (bufLen > 0) {
+    assignUid = groupbyTbname(pGroupTags);
+    keyBuf = taosMemoryMalloc(bufLen);
+    if (keyBuf == NULL) {
+      code = terrno;
+      goto end;
+    }
+  }
+
+  for (int32_t i = 0; i < numOfQualifiedTables; ++i) {
+    uint64_t* uid = taosArrayGet(qa, i);
+    if (uid == NULL) {
+      code = terrno;
+      goto end;
+    }
+    STableKeyInfo keyInfo = {.uid = *uid, .groupId = 0};
+
+    if (bufLen > 0) {
+      if (assignUid) {
+        keyInfo.groupId = keyInfo.uid;
+      } else {
+        code = getGroupIdFromTagsVal(pVnode, keyInfo.uid, pGroupTags, keyBuf, &keyInfo.groupId, pAPI);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto end;
+        }
+      }
+    }
+
+    code = tableListAddTableInfo(pTableListInfo, keyInfo.uid, keyInfo.groupId);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto end;  
+    }
+  } 
+
+end:
+  taosMemoryFree(keyBuf);
+  taosArrayDestroy(qa);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed to add table info, code:%s", __func__, tstrerror(code));
+  }
+}
+
+int32_t qUpdateTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   const char*    id = GET_TASKID(pTaskInfo);
   int32_t        code = 0;
 
   if (isAdd) {
     qDebug("try to add %d tables id into query list, %s", (int32_t)taosArrayGetSize(tableIdList), id);
+  } else {
+    qDebug("%d remove child tables from the stream scanner, %s", (int32_t)taosArrayGetSize(tableIdList), id);
   }
 
   // traverse to the stream scanner node to add this table id
@@ -488,78 +547,16 @@ int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableI
     }
   }
 
+  taosWLockLatch(&pTaskInfo->lock);
   if (isAdd) {  // add new table id
-    SArray* qa = NULL;
-    code = filterUnqualifiedTables(pScanInfo, tableIdList, id, &pTaskInfo->storageAPI, &qa);
-    if (code != TSDB_CODE_SUCCESS) {
-      taosArrayDestroy(qa);
-      return code;
-    }
-    int32_t numOfQualifiedTables = taosArrayGetSize(qa);
-    qDebug("%d qualified child tables added into stream scanner, %s", numOfQualifiedTables, id);
-    pTaskInfo->storageAPI.tqReaderFn.tqReaderAddTables(pScanInfo->tqReader, qa);
-
-    bool   assignUid = false;
-    size_t bufLen = (pScanInfo->pGroupTags != NULL) ? getTableTagsBufLen(pScanInfo->pGroupTags) : 0;
-    char*  keyBuf = NULL;
-    if (bufLen > 0) {
-      assignUid = groupbyTbname(pScanInfo->pGroupTags);
-      keyBuf = taosMemoryMalloc(bufLen);
-      if (keyBuf == NULL) {
-        taosArrayDestroy(qa);
-        return terrno;
-      }
-    }
-
     STableListInfo* pTableListInfo = ((STableScanInfo*)pScanInfo->pTableScanOp->info)->base.pTableListInfo;
-    taosWLockLatch(&pTaskInfo->lock);
-
-    for (int32_t i = 0; i < numOfQualifiedTables; ++i) {
-      uint64_t* uid = taosArrayGet(qa, i);
-      if (!uid) {
-        taosMemoryFree(keyBuf);
-        taosArrayDestroy(qa);
-        taosWUnLockLatch(&pTaskInfo->lock);
-        return terrno;
-      }
-      STableKeyInfo keyInfo = {.uid = *uid, .groupId = 0};
-
-      if (bufLen > 0) {
-        if (assignUid) {
-          keyInfo.groupId = keyInfo.uid;
-        } else {
-          code = getGroupIdFromTagsVal(pScanInfo->readHandle.vnode, keyInfo.uid, pScanInfo->pGroupTags, keyBuf,
-                                       &keyInfo.groupId, &pTaskInfo->storageAPI);
-          if (code != TSDB_CODE_SUCCESS) {
-            taosMemoryFree(keyBuf);
-            taosArrayDestroy(qa);
-            taosWUnLockLatch(&pTaskInfo->lock);
-            return code;
-          }
-        }
-      }
-
-      code = tableListAddTableInfo(pTableListInfo, keyInfo.uid, keyInfo.groupId);
-      if (code != TSDB_CODE_SUCCESS) {
-        taosMemoryFree(keyBuf);
-        taosArrayDestroy(qa);
-        taosWUnLockLatch(&pTaskInfo->lock);
-        return code;
-      }
-    }
-
-    taosWUnLockLatch(&pTaskInfo->lock);
-    if (keyBuf != NULL) {
-      taosMemoryFree(keyBuf);
-    }
-
-    taosArrayDestroy(qa);
+    qAddTableToUidList(pScanInfo->readHandle.vnode, &pTaskInfo->storageAPI, pScanInfo->pTagCond, 
+                pScanInfo->pGroupTags, tableIdList, pTableListInfo, pScanInfo->tqReader);
   } else {  // remove the table id in current list
-    qDebug("%d remove child tables from the stream scanner, %s", (int32_t)taosArrayGetSize(tableIdList), id);
-    taosWLockLatch(&pTaskInfo->lock);
     pTaskInfo->storageAPI.tqReaderFn.tqReaderRemoveTables(pScanInfo->tqReader, tableIdList);
-    taosWUnLockLatch(&pTaskInfo->lock);
   }
+  taosWUnLockLatch(&pTaskInfo->lock);
+
 
   return code;
 }

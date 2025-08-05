@@ -31,6 +31,7 @@ typedef struct SStreamTriggerReaderInfo {
   SNodeList*   triggerPseudoCols;
   SHashObj*    streamTaskMap;
   SHashObj*    groupIdMap;
+  void*        pTableList;
   SSubplan*    triggerAst;
   SSubplan*    calcAst;
   SSDataBlock* triggerResBlock;

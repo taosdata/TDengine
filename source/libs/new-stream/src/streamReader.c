@@ -207,6 +207,9 @@ static void releaseStreamReaderInfo(void* p) {
   taosHashCleanup(pInfo->groupIdMap);
   pInfo->streamTaskMap = NULL;
 
+  qStreamDestroyTableList(pInfo->pTableList);
+  pInfo->pTableList = NULL;
+
   nodesDestroyNode((SNode*)(pInfo->triggerAst));
   nodesDestroyNode((SNode*)(pInfo->calcAst));
   

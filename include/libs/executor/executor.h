@@ -150,7 +150,7 @@ int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks,
  * @param isAdd
  * @return
  */
-int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd);
+int32_t qUpdateTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd);
 
 bool qIsDynamicExecTask(qTaskInfo_t tinfo);
 
@@ -255,6 +255,8 @@ void     streamDestroyExecTask(qTaskInfo_t tInfo);
 int32_t  qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType,
                                          SNodeList* pGroupTags, bool groupSort, SNode* pTagCond, SNode* pTagIndexCond,
                                          SStorageAPI* storageAPI, void** pTableListInfo, SHashObj* groupIdMap);
+// void     qAddTableToUidList(void* pVnode, SStorageAPI* pAPI, SNode* pTagCond, SNodeList* pGroupTags, const SArray* tableIdList, 
+//                           void* pTableListInfo, void* tqReader);
 int32_t  qStreamSetTableList(void** pTableListInfo, STableKeyInfo* pKeyInfo);
 int32_t  qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STableKeyInfo** pKeyInfo, int32_t* size);
 uint64_t qStreamGetGroupId(void* pTableListInfo, int64_t uid);
