@@ -9741,6 +9741,7 @@ dependencies = [
  "flume",
  "futures",
  "metrics",
+ "num",
  "serde",
  "serde_json",
  "taos",
