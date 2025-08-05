@@ -1,14 +1,13 @@
-use std::time::Duration;
-
-use crate::appender;
-use crate::config::connect::ConnectConfig;
-
 use arrow::record_batch::RecordBatch;
 use linked_hash_map::LinkedHashMap;
 use oracle::{
     pool::{Pool, PoolBuilder},
     sql_type::OracleType,
 };
+use std::time::Duration;
+
+use crate::appender;
+use crate::config::connect::ConnectConfig;
 
 #[derive(Clone)]
 pub struct OracleQuery {
@@ -18,41 +17,37 @@ pub struct OracleQuery {
 
 impl OracleQuery {
     pub fn try_new(config: ConnectConfig, time_zone: String) -> anyhow::Result<Self> {
-        let pool = Self::connect(
-            &config.host,
-            config.port,
-            &config.subject,
-            &config.username,
-            &config.password,
-            time_zone.clone(),
-        )
-        .map_err(|err| {
+        let pool = Self::connect(&config).map_err(|err| {
             anyhow::anyhow!("failed to connect to oracle, cause: {}", err.to_string())
         })?;
         Ok(Self { pool, time_zone })
     }
 
-    fn connect(
-        host: &String,
-        port: u16,
-        subject: &String,
-        username: &String,
-        password: &String,
-        _time_zone: String,
-    ) -> anyhow::Result<Pool> {
-        let addr = format!("//{}:{}/{}", host, port, subject);
-        let mut pool_builder = PoolBuilder::new(username, password, addr);
+    fn connect(config: &ConnectConfig) -> anyhow::Result<Pool> {
+        let addr = format!("//{}:{}/{}", &config.host, &config.port, &config.subject);
+        let mut pool_builder = PoolBuilder::new(&config.username, &config.password, addr);
+
         // connection pool settings
-        let min = std::env::var("TAOSX_ORACLE_MIN_CONNECTIONS")
-            .map_or(5, |s| s.parse::<u32>().unwrap_or(5));
+        let min = match config.min_connections {
+            Some(min) => min,
+            None => std::env::var("TAOSX_ORACLE_MIN_CONNECTIONS")
+                .map_or(5, |s| s.parse::<u32>().unwrap_or(5)),
+        };
         pool_builder.min_connections(min);
 
-        let max = std::env::var("TAOSX_ORACLE_MAX_CONNECTIONS")
-            .map_or(20, |s| s.parse::<u32>().unwrap_or(20));
+        let max = match config.max_connections {
+            Some(max) => max,
+            None => std::env::var("TAOSX_ORACLE_MAX_CONNECTIONS")
+                .map_or(20, |s| s.parse::<u32>().unwrap_or(20)),
+        };
         pool_builder.max_connections(max);
 
-        let timeout =
-            std::env::var("TAOSX_ORACLE_TIMEOUT").map_or(20, |s| s.parse::<u64>().unwrap_or(20));
+        let timeout = match config.connection_timeout {
+            None => {
+                std::env::var("TAOSX_ORACLE_TIMEOUT").map_or(20, |s| s.parse::<u64>().unwrap_or(20))
+            }
+            Some(timeout) => timeout,
+        };
         pool_builder.timeout(Duration::from_secs(timeout))?;
 
         tracing::info!(
@@ -62,7 +57,6 @@ impl OracleQuery {
             timeout
         );
 
-        // TODO timezone
         Ok(pool_builder.build()?)
     }
 

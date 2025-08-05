@@ -44,6 +44,33 @@ export default {
           pattern: null,
           defaultValue: '',
           type: 'input'
+        },
+        {
+          label: 'minimum Connections',
+          description: 'The minimum number of connections in the connection pool, default is 5.',
+          field: 'min_connections',
+          required: false,
+          type: 'number',
+          min: 1,
+          max: 10000
+        },
+        {
+          label: 'maximum Connections',
+          description: 'The maximum number of connections in the connection pool, default is 20.',
+          field: 'max_connections',
+          required: false,
+          type: 'number',
+          min: 1,
+          max: 10000
+        },
+        {
+          label: 'Connection Timeout',
+          description: 'The timeout for establishing a connection, default is 20 seconds.',
+          field: 'connection_timeout',
+          required: false,
+          type: 'number',
+          min: 1,
+          max: 2000
         }
       ]
     },
