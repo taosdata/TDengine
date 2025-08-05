@@ -63,7 +63,6 @@ arrow-schema = { version = "55", features = ["serde"] }
 arrow-compute-ext = { path = "crates/arrow-compute-ext" }
 arrow-cast-guess-precision = { path = "crates/arrow-cast-guess-precision" }
 serde_arrow = { version = "0.13", features = ["arrow-55"] }
-datafusion = { version = "48", default-features = false }
 parquet = "55"
 
 futures-ext = { path = "crates/futures-ext" }

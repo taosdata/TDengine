@@ -114,7 +114,6 @@ snafu.workspace = true
 parking_lot.workspace = true
 lz4.workspace = true
 snap.workspace = true
-datafusion.workspace = true
 zstd.workspace = true
 hex.workspace = true
 persist-queue = { path = "../crates/persist-queue" }
