@@ -380,12 +380,12 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
   return code;
 }
 
-static int32_t streamPrepareNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec,
+static void streamPrepareNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec,
                                          const SSDataBlock* pBlock, const int32_t curWinIdx, const int32_t startRow,
                                          const int32_t endRow) {
   int32_t code = 0;
   int32_t lino = 0;
-  if (!pBlock || pBlock->info.rows <= 0) return code;
+  if (!pBlock || pBlock->info.rows <= 0) return;
   char* pContent = NULL;
   code = streamBuildBlockResultNotifyContent(pBlock, &pContent, pTask->output.outCols, startRow, endRow);
   if (code == 0) {
@@ -395,11 +395,11 @@ static int32_t streamPrepareNotification(SStreamRunnerTask* pTask, SStreamRunner
       ST_TASK_ELOG("%s failed to get trigger calc params for win index:%d, size:%d", __FUNCTION__, curWinIdx,
                    (int32_t)pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals->size);
       taosMemoryFreeClear(pContent);
-      return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+      return;
     }
     pTriggerCalcParams->resultNotifyContent = pContent;
   }
-  return code;
+  return;
 }
 
 static void clearNotifyContent(SStreamRunnerTaskExecution* pExec) {
