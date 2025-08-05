@@ -120,10 +120,18 @@ export default {
           description: '连接超时间隔，单位为：秒 (s)。',
           field: 'connect_timeout',
           placeholder: '10',
-          pattern: null,
-          defaultValue: '10',
           type: 'number',
-          min: 1
+          min: 1,
+          defaultValue: 10
+        },
+        {
+          label: '请求超时',
+          description: '请求的超时间隔，单位为：秒 (s)。',
+          field: 'request_timeout',
+          placeholder: '10',
+          type: 'number',
+          min: 1,
+          defaultValue: 10
         }
       ]
     },
