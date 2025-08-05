@@ -20,7 +20,9 @@
 #include "functionMgtInt.h"
 #include "taos.h"
 #include "taoserror.h"
+#include "tcommon.h"
 #include "thash.h"
+#include "tlog.h"
 #include "tudf.h"
 
 typedef struct SFuncMgtService {
@@ -795,7 +797,8 @@ int32_t fmGetStreamPesudoFuncEnv(int32_t funcId, SNodeList* pParamNodes, SFuncEx
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, const SStreamRuntimeFuncInfo* pStreamRuntimeInfo) {
+int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, const SStreamRuntimeFuncInfo* pStreamRuntimeInfo,
+                                      EOPTR_CALC_EXPR_TYPE exprCalcType) {
   if (!pStreamRuntimeInfo) {
     uError("internal error, should have pVals for stream pseudo funcs");
     return TSDB_CODE_INTERNAL_ERROR;
@@ -837,21 +840,41 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
       uError("invalid idx: %d for func: %d, should be in [1, %d]", idx, funcId, (int32_t)taosArrayGetSize(pVal));
       return TSDB_CODE_INTERNAL_ERROR;
     }
-    if (!pValue->isNull){
-      if (pValue->data.type != ((SValueNode*)pFirstParam)->node.resType.type){
-        uError("invalid value type: %d for func: %d, should be: %d", pValue->data.type, funcId, ((SValueNode*)pFirstParam)->node.resType.type);
+    if (!pValue->isNull) {
+      if (pValue->data.type != ((SValueNode*)pFirstParam)->node.resType.type) {
+        uError("invalid value type: %d for func: %d, should be: %d", pValue->data.type, funcId,
+               ((SValueNode*)pFirstParam)->node.resType.type);
         return TSDB_CODE_INTERNAL_ERROR;
       }
       if (IS_VAR_DATA_TYPE(((SValueNode*)pFirstParam)->node.resType.type)) {
         taosMemoryFree(((SValueNode*)pFirstParam)->datum.p);
-        ((SValueNode*)pFirstParam)->datum.p = taosMemoryCalloc(1, pValue->data.nData + VARSTR_HEADER_SIZE); 
+        ((SValueNode*)pFirstParam)->datum.p = taosMemoryCalloc(1, pValue->data.nData + VARSTR_HEADER_SIZE);
         memcpy(varDataVal(((SValueNode*)pFirstParam)->datum.p), pValue->data.pData, pValue->data.nData);
         varDataLen(((SValueNode*)pFirstParam)->datum.p) = pValue->data.nData;
       } else {
         code = nodesSetValueNodeValue((SValueNode*)pFirstParam, VALUE_GET_DATUM(&pValue->data, pValue->data.type));
       }
+      ((SValueNode*)pFirstParam)->isNull = pValue->isNull;
+    } else if (exprCalcType == OPTR_CALC_EXPR_STREAM_TBNAME) {
+      if (IS_VAR_DATA_TYPE(((SValueNode*)pFirstParam)->node.resType.type)) {
+        ((SValueNode*)pFirstParam)->datum.p = taosMemoryCalloc(1, VARSTR_HEADER_SIZE);
+        if (NULL == ((SValueNode*)pFirstParam)->datum.p) {
+          return terrno;
+        }
+        varDataLen(((SValueNode*)pFirstParam)->datum.p) = 0;
+      } else if (TSDB_DATA_TYPE_DECIMAL == ((SValueNode*)pFirstParam)->node.resType.type ||
+                 TSDB_DATA_TYPE_DECIMAL64 == ((SValueNode*)pFirstParam)->node.resType.type) {
+        uError("invalid type: %d for func: %d, decimal  type can not suppported: %d",
+               ((SValueNode*)pFirstParam)->node.resType.type, funcId, TSDB_DATA_TYPE_BINARY);
+        return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+      } else {
+        code = nodesSetValueNodeZero((SValueNode*)pFirstParam);
+      }
+
+      ((SValueNode*)pFirstParam)->isNull = false;
+    } else {
+      ((SValueNode*)pFirstParam)->isNull = pValue->isNull;
     }
-    ((SValueNode*)pFirstParam)->isNull = pValue->isNull;
   } else if (FUNCTION_TYPE_PLACEHOLDER_TBNAME == t) {
     SArray* pVal = (SArray*)fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
     for (int32_t i = 0; i < taosArrayGetSize(pVal); ++i) {

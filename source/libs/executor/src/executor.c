@@ -27,6 +27,7 @@
 #include "querytask.h"
 #include "storageapi.h"
 #include "streamexecutorInt.h"
+#include "tcommon.h"
 #include "tdatablock.h"
 #include "tref.h"
 #include "trpc.h"
@@ -1778,11 +1779,11 @@ void streamDestroyExecTask(qTaskInfo_t tInfo) {
   qDestroyTask(tInfo);
 }
 
-int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamRuntimeFuncInfo* pExtraParams) {
-  return streamCalcOneScalarExprInRange(pExpr, pDst, -1, -1, pExtraParams);
+int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamRuntimeFuncInfo* pExtraParams, EOPTR_CALC_EXPR_TYPE exprCalcType) {
+  return streamCalcOneScalarExprInRange(pExpr, pDst, -1, -1, pExtraParams, exprCalcType);
 }
 
-int32_t streamCalcOneScalarExprInRange(SNode* pExpr, SScalarParam* pDst, int32_t rowStartIdx, int32_t rowEndIdx, const SStreamRuntimeFuncInfo* pExtraParams) {
+int32_t streamCalcOneScalarExprInRange(SNode* pExpr, SScalarParam* pDst, int32_t rowStartIdx, int32_t rowEndIdx, const SStreamRuntimeFuncInfo* pExtraParams, EOPTR_CALC_EXPR_TYPE exprCalcType) {
   int32_t      code = 0;
   SNode*       pNode = 0;
   SNodeList*   pList = NULL;
@@ -1829,7 +1830,7 @@ int32_t streamCalcOneScalarExprInRange(SNode* pExpr, SScalarParam* pDst, int32_t
     block.info.rows = 1;
     SSDataBlock* pBlock = &block;
     taosArrayPush(pBlockList, &pBlock);
-    if (code == 0) code = scalarCalculateInRange(pSclNode, pBlockList, pDst, rowStartIdx, rowEndIdx, pExtraParams, NULL);
+    if (code == 0) code = scalarCalculateInRange(pSclNode, pBlockList, pDst, rowStartIdx, rowEndIdx, pExtraParams, NULL, exprCalcType);
     taosArrayDestroy(pBlockList);
   }
   nodesDestroyList(pList);
@@ -1880,7 +1881,7 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes, int32_t winIdx)
       dst.columnData = pInfo;
       dst.numOfRows = rowIdx;
       dst.colAlloced = false;
-      code = streamCalcOneScalarExprInRange(pNode, &dst, rowIdx,  rowIdx, &pTaskInfo->pStreamRuntimeInfo->funcInfo);
+      code = streamCalcOneScalarExprInRange(pNode, &dst, rowIdx,  rowIdx, &pTaskInfo->pStreamRuntimeInfo->funcInfo, OPTR_CALC_EXPR_DEFAULT);
     }
     ++idx;
     // TODO sclFreeParam(&dst);
@@ -1940,7 +1941,7 @@ int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, const SStreamRuntimeF
       dst.columnData = pCol;
       dst.numOfRows = 1;
       dst.colAlloced = true;
-      code = streamCalcOneScalarExpr(pExpr, &dst, pStreamRuntimeInfo);
+      code = streamCalcOneScalarExpr(pExpr, &dst, pStreamRuntimeInfo, OPTR_CALC_EXPR_STREAM_TBNAME);
       if (code == 0) {
         pVal = varDataVal(colDataGetVarData(dst.columnData, 0));
         len = varDataLen(colDataGetVarData(dst.columnData, 0));

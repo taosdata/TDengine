@@ -296,8 +296,8 @@ int32_t getCurrentMnodeEpset(SEpSet* pEpSet);
 int32_t cloneStreamInserterParam(SStreamInserterParam** pDst, SStreamInserterParam* pSrc);
 void    destroyStreamInserterParam(SStreamInserterParam* pParam);
 int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes, int32_t winIdx);
-int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamRuntimeFuncInfo* pExtraParams);
-int32_t streamCalcOneScalarExprInRange(SNode* pExpr, SScalarParam* pDst, int32_t rowStartIdx, int32_t rowEndIdx,  const SStreamRuntimeFuncInfo* pExtraParams);
+int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamRuntimeFuncInfo* pExtraParams, EOPTR_CALC_EXPR_TYPE exprCalcType);
+int32_t streamCalcOneScalarExprInRange(SNode* pExpr, SScalarParam* pDst, int32_t rowStartIdx, int32_t rowEndIdx,  const SStreamRuntimeFuncInfo* pExtraParams, EOPTR_CALC_EXPR_TYPE exprCalcType);
 void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
 
 #ifdef __cplusplus

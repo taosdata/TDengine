@@ -309,7 +309,7 @@ static int32_t stRunnerCalcSubTbTagVal(SStreamRunnerTask* pTask, SStreamRunnerTa
       void* p = nodesGetValueFromNode((SValueNode*)pNode);
       code = colDataSetVal(pCol, 0, p, ((SValueNode*)pNode)->isNull);
     } else {
-      code = streamCalcOneScalarExpr(pNode, &dst, &pExec->runtimeInfo.funcInfo);
+      code = streamCalcOneScalarExpr(pNode, &dst, &pExec->runtimeInfo.funcInfo, OPTR_CALC_EXPR_DEFAULT);
     }
     if (code != 0) {
       sclFreeParam(&dst);

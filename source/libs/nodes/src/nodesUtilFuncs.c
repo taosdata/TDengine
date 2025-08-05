@@ -2587,6 +2587,70 @@ int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t nodesSetValueNodeZero(SValueNode* pNode) {
+  switch (pNode->node.resType.type) {
+    case TSDB_DATA_TYPE_NULL:
+      break;
+    case TSDB_DATA_TYPE_BOOL:
+      pNode->datum.b = false;
+      *(bool*)&pNode->typeData = pNode->datum.b;
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+      pNode->datum.i = 0;
+      *(int8_t*)&pNode->typeData = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+      pNode->datum.i = 0;
+      *(int16_t*)&pNode->typeData = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_INT:
+      pNode->datum.i = 0;
+      *(int32_t*)&pNode->typeData = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_BIGINT:
+      pNode->datum.i = 0;
+      *(int64_t*)&pNode->typeData = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      pNode->datum.i = 0;
+      *(int64_t*)&pNode->typeData = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      pNode->datum.u = 0;
+      *(int8_t*)&pNode->typeData = pNode->datum.u;
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      pNode->datum.u = 0;
+      *(int16_t*)&pNode->typeData = pNode->datum.u;
+      break;
+    case TSDB_DATA_TYPE_UINT:
+      pNode->datum.u = 0;
+      *(int32_t*)&pNode->typeData = pNode->datum.u;
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      pNode->datum.u = 0;
+      *(uint64_t*)&pNode->typeData = pNode->datum.u;
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      pNode->datum.d = 0;
+      *(float*)&pNode->typeData = pNode->datum.d;
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      pNode->datum.d = 0;
+      *(double*)&pNode->typeData = pNode->datum.d;
+      break;
+    case TSDB_DATA_TYPE_DECIMAL64:
+      pNode->datum.i = 0;
+      pNode->typeData = 0;
+      break;
+    default:
+      return TSDB_CODE_APP_ERROR;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 char* nodesGetStrValueFromNode(SValueNode* pNode) {
   switch (pNode->node.resType.type) {
     case TSDB_DATA_TYPE_BOOL: {
