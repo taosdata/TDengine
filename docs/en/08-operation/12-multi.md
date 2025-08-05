@@ -67,24 +67,27 @@ Starting from version 3.3.2.0, a new configuration `disable_create_new_file` has
 
 ## Shared Storage
 
-This section describes how to use shared storage in TDengine Enterprise. This feature is currently based on the generic S3 SDK and has been adapted for various S3 compatible platforms, allowing access to object storage services such as MinIO, Tencent Cloud COS, Amazon S3, etc. By configuring the appropriate parameters, most of the colder time-series data can be stored in S3 compatible services.
+This section describes how to use shared storage in TDengine Enterprise. TDengine supports using various S3 compatible object storage services such as MinIO, Tencent Cloud COS, Amazon S3, or locally mounted NAS, SAN, etc as shared storage device, 
 
 **Note** When used in conjunction with multi-tier storage, data saved on each storage medium may be migrated to shared storage and local data files deleted according to rules.
 
-### Configuration Method
-
-In the configuration file `/etc/taos/taos.cfg`, add parameters for shared storage access:
+The configuration items releated to shared storage are stored in `/etc/taos/taos.cfg`, as shown in the following table:
 
 | Parameter Name        |   Description                                      |
 |:-------------|:-----------------------------------------------|
 | ssEnabled | Whether to enable shared storage or not, allowed values are `0`, `1` and `2`. `0` is the default, which means shared storage is disabled; `1` means only enable manual migration, and `2` means also enable auto migation. 
-| ssAccessString | A string which contains various options for accessing the shared storage, the format is `<device-type>:<option-name>=<option-value>;<option-name>=<option-value>;...`, currently,  only Amazon S3 compatible object storage providers are supported, so the `device-type` should be `s3`, and please refer the next table for the possible options. |
+| ssAccessString | A string which contains various options for accessing the shared storage, the format is `<device-type>:<option-name>=<option-value>;<option-name>=<option-value>;...`, available options differ from storage device types, please refer the next section for details. |
 | ssUploadDelaySec | How long a data file remains unchanged before being uploaded to shared storage, in seconds. Minimum: 1; Maximum: 2592000 (30 days), default value 60 seconds |
 | ssPageCacheSize | Number of shared storage page cache pages, in pages. Minimum: 4; Maximum: 1024 * 1024 * 1024, default value 4096 |
 | ssAutoMigrateIntervalSec | The trigger cycle for automatic upload of local data files to shared storage, in seconds. Minimum: 600; Maximum: 100000. Default value 3600 |
 
+### Access String of Storage Devices
 
-`ssAccessString` options for S3 compatible object storage providers:
+The available options for the configuration parameter ssAccessString depend on the specific type of storage device.
+
+#### S3 Compatible Object Storages
+
+When using S3 compatible object storage services as shared storage device, the `device-type` in `ssAccessString` must be `s3`, and the following table lists all available options.
 
 Name            |   Description
 ----------------|----------------------------------------------
@@ -103,6 +106,20 @@ For example:
 
 ```
 ssAccessString s3:endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protocol=https;accessKeyId=AKMYACCESSKEY;secretAccessKey=MYSECRETACCESSKEY;region=us-east-2;chunkSize=64;maxChunks=10000;maxRetry=3
+```
+
+#### Locally Mounted Storage Devices
+
+For TDengine, a network storage device mounted locally is treated the same as a local disk. When using such a device as shared storage, the device-type in `ssAccessString` must be `fs`. The available options are as follows:
+
+Name           |   Description
+---------------|----------------------------------------------
+baseDir        | path of a directory, TDengine will use this directory as shared storage.
+
+For example:
+
+```
+ssAccessString fs:baseDir=/var/taos/ss
 ```
 
 ### Check Configuration Parameter Availability
