@@ -1488,6 +1488,7 @@ int32_t stddevFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   if (pStddevRes->count == 0) {
     GET_RES_INFO(pCtx)->numOfRes = 0;
+
     return functionFinalize(pCtx, pBlock);
   }
 
