@@ -1575,7 +1575,7 @@ int32_t stddevFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   if (pStddevRes->count == 1) {
     pStddevRes->result = 0.0;
   } else {
-    pStddevRes->result = pStddevRes->quadraticDSum / pStddevRes->count;
+    pStddevRes->result = sqrt(pStddevRes->quadraticDSum / pStddevRes->count);
   }
   // check for overflow
   if (isinf(pStddevRes->result) || isnan(pStddevRes->result)) {
