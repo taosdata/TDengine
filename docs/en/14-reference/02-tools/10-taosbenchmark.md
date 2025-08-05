@@ -216,7 +216,10 @@ In insertion scenarios, `filetype` must be set to `insert`. For this parameter a
 - **keep_trying**: Number of retries after failure, default is no retry. Requires version v3.0.9 or above.
 
 - **trying_interval**: Interval between retries in milliseconds, effective only when retries are specified in keep_trying. Requires version v3.0.9 or above.
+
 - **childtable_from and childtable_to**: Specifies the range of child tables to write to, the interval is [childtable_from, childtable_to].
+
+- **escape_character**: Whether the supertable and child table names contain escape characters, default is "no", options are "yes" or "no".
 
 - **continue_if_fail**: Allows users to define behavior after failure
 
@@ -243,8 +246,6 @@ Parameters related to supertable creation are configured in the `super_tables` s
 - **childtable_count**: Number of child tables, default is 10.
 
 - **childtable_prefix**: Prefix for child table names, mandatory, no default value.
-
-- **escape_character**: Whether the supertable and child table names contain escape characters, default is "no", options are "yes" or "no".
 
 - **auto_create_table**: Effective only when insert_mode is taosc, rest, stmt and child_table_exists is "no", "yes" means taosBenchmark will automatically create non-existent tables during data insertion; "no" means all tables are created in advance before insertion.
 

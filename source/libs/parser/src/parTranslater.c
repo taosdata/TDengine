@@ -3250,6 +3250,8 @@ static int32_t translateMultiResFunc(STranslateContext* pCxt, SFunctionNode* pFu
     }
   }
   if (tsKeepColumnName && 1 == LIST_LENGTH(pFunc->pParameterList) && !pFunc->node.asAlias && !pFunc->node.asParam) {
+    tstrncpy(pFunc->node.aliasName, ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->aliasName,
+             TSDB_COL_NAME_LEN);
     tstrncpy(pFunc->node.userAlias, ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->userAlias,
              TSDB_COL_NAME_LEN);
   }

@@ -150,12 +150,12 @@ TDengine client driver supports WebSocket connection and native connection. Most
 
 **WebSocket connection function difference description:**
 
-The following APIs only return a success status in WebSocket connection mode, but do not perform actual operations:
-
-- `taos_options_connection` - Connection option settings
-- `taos_connect_auth` - MD5 encrypted password connection
-- `taos_set_notify_cb` - Event callback function settings
-- `tmq_get_connect` - Get TMQ connection handle
+| API                     | Support Status      | Interface Description             | Usage Restrictions                                                             |
+| ----------------------- | ------------------- | --------------------------------- | ------------------------------------------------------------------------------ |
+| taos_connect_auth       | Not supported       | MD5 encrypted password connection | Only returns a success status, no actual operation is performed                |
+| taos_set_notify_cb      | Not supported       | Set an event callback function    | Only returns a success status, no actual operation is performed                |
+| tmq_get_connect         | Not supported       | Get a TMQ connection handle       | Only returns a success status, no actual operation is performed                |
+| taos_options_connection | Partially supported | Set client connection options     | Character set settings are not supported, and the UTF-8 character set is fixed |
 
 These APIs are fully functional in native connection mode. If you need to use the above functions, it is recommended to choose native connection mode. Future versions will gradually improve the functional support of WebSocket connection.
 

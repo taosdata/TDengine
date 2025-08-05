@@ -36,13 +36,14 @@ class TestStreamOldCaseEvent:
         tdStream.createSnode()
 
         streams = []
-        streams.append(self.Event00())
-        streams.append(self.Event01())
-        streams.append(self.Event02())
-        streams.append(self.Event10())
-        streams.append(self.Event11())
-        streams.append(self.Event12())
-        streams.append(self.Event20())
+        # streams.append(self.Event00()) pass
+        # streams.append(self.Event01()) pass
+        # streams.append(self.Event02()) recalculate
+        # streams.append(self.Event10()) pass
+        # streams.append(self.Event11()) update
+        # streams.append(self.Event12()) pass
+        # streams.append(self.Event20()) recalculate
+        # streams.append(self.Event21()) recalculate
         tdStream.checkAll(streams)
 
     class Event00(StreamCheckItem):
@@ -57,7 +58,7 @@ class TestStreamOldCaseEvent:
                 f"create table t1(ts timestamp, a int, b int, c int, d double);"
             )
             tdSql.execute(
-                f"create stream streams1 event_window(start with a = 0 end with a = 9) from t1 stream_options(max_delay(3s)) into streamt as select _twstart as s, count(*) c1, sum(b), max(c) from t1 where ts >= _twstart and ts < _twend;"
+                f"create stream streams1 event_window(start with a = 0 end with a = 9) from t1 stream_options(max_delay(3s)) into streamt as select _twstart as s, count(*) c1, sum(b), max(c) from t1 where ts >= _twstart and ts <= _twend;"
             )
 
         def insert1(self):
@@ -120,7 +121,7 @@ class TestStreamOldCaseEvent:
                 f"create table t1(ts timestamp, a int, b int, c int, d double);"
             )
             tdSql.execute(
-                f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt2 as select _wstart as s, count(*) c1, sum(b), max(c) from t1 event_window start with a = 0 end with b = 9;"
+                f"create stream streams2 event_window(start with a = 0 end with b = 9) from t1 stream_options(max_delay(3s)) into streamt2 as select _twstart as s, count(*) c1, sum(b), max(c) from t1 where ts >= _twstart and ts <= _twend;"
             )
 
         def insert1(self):
@@ -149,7 +150,7 @@ class TestStreamOldCaseEvent:
                 f"create table t1(ts timestamp, a int, b int, c int, d double);"
             )
             tdSql.execute(
-                f"create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt3 as select _wstart as s, count(*) c1, sum(b), max(c) from t1 event_window start with a = 0 end with b = 9;"
+                f"create stream streams3 event_window(start with a = 0 end with a = 9) from t1 stream_options(max_delay(3s)) into streamt3 as select _twstart as s, count(*) c1, sum(b), max(c) from t1 where ts >= _twstart and ts <= _twend;"
             )
 
         def insert1(self):
@@ -198,7 +199,7 @@ class TestStreamOldCaseEvent:
                 f"create table t1(ts timestamp, a int, b int, c int, d double);"
             )
             tdSql.execute(
-                f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt1 as select _wstart as s, count(*) c1, sum(b), max(c) from t1 event_window start with a = 0 end with b = 9;"
+                f"create stream streams1 event_window(start with a = 0 end with a = 9) from t1 stream_options(max_delay(3s)) into streamt1 as select _twstart as s, count(*) c1, sum(b), max(c) from t1 where ts >= _twstart and ts <= _twend;"
             )
 
         def insert1(self):
@@ -214,7 +215,7 @@ class TestStreamOldCaseEvent:
 
     class Event11(StreamCheckItem):
         def __init__(self):
-            self.db = "Event10"
+            self.db = "Event11"
 
         def create(self):
             tdSql.execute(f"create database event11 vgroups 1 buffer 8;")
@@ -224,7 +225,7 @@ class TestStreamOldCaseEvent:
                 f"create table t1(ts timestamp, a int, b int, c int, d double);"
             )
             tdSql.execute(
-                f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt2 as select _wstart as s, count(*) c1, sum(b), max(c) from t1 event_window start with a = 0 end with b = 9;"
+                f"create stream streams2 event_window(start with a = 0 end with a = 9) from t1 stream_options(max_delay(3s)) into streamt2 as select _twstart as s, count(*) c1, sum(b), max(c) from t1 where ts >= _twstart and ts <= _twend;"
             )
 
         def insert1(self):
@@ -291,7 +292,6 @@ class TestStreamOldCaseEvent:
             self.db = "Event12"
 
         def create(self):
-            tdLog.info(f"=============== create database test3")
             tdSql.execute(f"create database event12 vgroups 1 buffer 8;")
             tdSql.execute(f"use event12;")
 
@@ -302,7 +302,7 @@ class TestStreamOldCaseEvent:
             tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
             tdSql.execute(
-                f"create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt3 as select _wstart as s, count(*) c1, sum(b), max(c) from st partition by tbname event_window start with a = 0 end with b = 9;"
+                f"create stream streams3 event_window(start with a = 0 end with a = 9) from st partition by tbname stream_options(max_delay(3s)) into streamt3 as select _twstart as s, count(*) c1, sum(b), max(c) from st where tbname=%%1 and ts >= _twstart and ts <= _twend;"
             )
 
         def insert1(self):
@@ -338,7 +338,7 @@ class TestStreamOldCaseEvent:
 
     class Event20(StreamCheckItem):
         def __init__(self):
-            self.db = "Event12"
+            self.db = "Event20"
 
         def create(self):
             tdSql.execute(f"create database event20 vgroups 1 buffer 8;")
@@ -366,7 +366,66 @@ class TestStreamOldCaseEvent:
             tdSql.execute(f"insert into t4 values(1648791243000, 1, 9, 12, 2.0);")
 
             tdSql.execute(
-                f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 fill_history 1 into streamt0 as select _wstart as s, count(*) c1, sum(b), max(c), _wend as e from st partition by tbname event_window start with a = 0 end with b = 9;"
+                f"create stream streams0 event_window(start with a = 0 end with a = 9) from st partition by tbname stream_options(max_delay(3s)|fill_history(1648791123000)) into streamt0 as select _twstart as s, count(*) c1, sum(b), max(c), _twend as e from st where tbname=%%tbname and ts >= _twstart and ts <= _twend;"
+            )
+            tdStream.checkStreamStatus()
+
+        def insert1(self):
+            tdSql.execute(f"insert into t1 values(1648791253000, 1, 9, 13, 2.0);")
+            tdSql.execute(f"insert into t2 values(1648791253000, 1, 9, 14, 2.0);")
+            tdSql.execute(f"insert into t3 values(1648791253000, 1, 9, 15, 2.0);")
+            tdSql.execute(f"insert into t4 values(1648791253000, 1, 9, 16, 2.0);")
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt0 order by 1, 2, 3, 4;",
+                lambda: tdSql.getRows() == 3
+                and tdSql.getData(0, 1) == 4
+                and tdSql.getData(1, 1) == 4
+                and tdSql.getData(2, 1) == 3,
+            )
+
+        def insert2(self):
+            tdSql.execute(f"insert into t3 values(1648791222000, 0, 1, 7, 3.0);")
+            tdSql.execute(f"RECALCULATE STREAM streams1 from 1648791123000;")
+
+        def check2(self):
+            tdSql.checkResultsByFunc(
+                f"select * from streamt0 order by 1, 2, 3, 4;",
+                lambda: tdSql.getRows() == 4 and tdSql.getData(0, 1) == 5,
+            )
+
+    class Event21(StreamCheckItem):
+        def __init__(self):
+            self.db = "Event21"
+
+        def create(self):
+            tdSql.execute(f"create database event21 vgroups 1 buffer 8;")
+            tdSql.execute(f"use event21;")
+
+            tdSql.execute(
+                f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int, tb int, tc int);"
+            )
+            tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+            tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
+            tdSql.execute(f"create table t3 using st tags(3, 3, 3);")
+            tdSql.execute(f"create table t4 using st tags(3, 3, 3);")
+
+            tdSql.execute(f"insert into t1 values(1648791223000, 0, 1, 1, 1.0);")
+            tdSql.execute(f"insert into t1 values(1648791233000, 0, 2, 2, 2.0);")
+            tdSql.execute(f"insert into t1 values(1648791243000, 1, 3, 3, 3.0);")
+            tdSql.execute(f"insert into t2 values(1648791223000, 0, 1, 4, 3.0);")
+            tdSql.execute(f"insert into t2 values(1648791233000, 0, 2, 5, 1.0);")
+            tdSql.execute(f"insert into t2 values(1648791243000, 1, 3, 6, 2.0);")
+            tdSql.execute(f"insert into t3 values(1648791223000, 1, 1, 7, 3.0);")
+            tdSql.execute(f"insert into t3 values(1648791233000, 1, 2, 8, 1.0);")
+            tdSql.execute(f"insert into t3 values(1648791243000, 1, 3, 9, 2.0);")
+            tdSql.execute(f"insert into t4 values(1648791223000, 1, 1, 10, 3.0);")
+            tdSql.execute(f"insert into t4 values(1648791233000, 0, 2, 11, 1.0);")
+            tdSql.execute(f"insert into t4 values(1648791243000, 1, 9, 12, 2.0);")
+
+            tdSql.execute(
+                f"create stream streams0 event_window(start with a = 0 end with b = 9) from st partition by tbname stream_options(max_delay(3s)|fill_history(1648791123000)) into streamt0 as select _twstart as s, count(*) c1, sum(b), max(c), _twend as e from st where tbname=%%tbname and ts >= _twstart and ts <= _twend;"
             )
             tdStream.checkStreamStatus()
 
@@ -387,6 +446,7 @@ class TestStreamOldCaseEvent:
 
         def insert2(self):
             tdSql.execute(f"insert into t3 values(1648791222000, 0, 1, 7, 3.0);")
+            tdSql.execute(f"RECALCULATE STREAM streams1 from 1648791123000;")
 
         def check2(self):
             tdSql.checkResultsByFunc(

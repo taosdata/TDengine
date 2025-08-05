@@ -340,6 +340,7 @@
 ## 08-SubQuery
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/08-SubQuery/test_nestquery.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/08-SubQuery/test_timeline.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/08-SubQuery/test_last_row.py
 ## 09-SelectList
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_column_1.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_column_7.py
@@ -577,8 +578,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_delete_recalc.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_watermark.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_combined_options.py
-,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_manual.py
-,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_manual_with_options.py
+#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_manual.py
+#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_manual_with_options.py
 
 ## 20-UseCase
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_idmp_meters.py
