@@ -270,19 +270,31 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
   int32_t rows = 0;
   tjsonGetInt32ValueFromDouble(pJson, "rows", rows, code);
   if (rows < 0 && code == 0) {
+    code = TSDB_CODE_ANA_ANODE_RETURN_ERROR;
+
     char pMsg[1024] = {0};
     code = tjsonGetStringValue(pJson, "msg", pMsg);
     if (code != 0) {
       qError("%s failed to get msg from rsp, unknown error", pId);
     } else {
       qError("%s failed to exec forecast, msg:%s", pId, pMsg);
+      void* p = strstr(pMsg, "white noise");
+      if (p != NULL) {
+        code = TSDB_CODE_ANA_WN_DATA;
+      } else {
+        p = strstr(pMsg, "[Errno 111] Connection refused");
+        if (p != NULL) {  // the specified forecast model not loaded yet
+          code = TSDB_CODE_ANA_ALGO_NOT_LOAD;
+        }
+      }
     }
 
     tjsonDelete(pJson);
-    return TSDB_CODE_ANA_ANODE_RETURN_ERROR;
+    return code;
   }
 
-  if (code < 0) {
+  // invalid json format
+  if (code != 0) {
     goto _OVER;
   }
 
