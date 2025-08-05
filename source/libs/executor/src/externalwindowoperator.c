@@ -1233,7 +1233,7 @@ static int32_t doMergeAlignExtWindowAgg(SOperatorInfo* pOperator, SResultRowInfo
   int32_t currPos = startPos;
   pMlExtInfo->curTs = pWin->skey;
   while (++currPos < pBlock->info.rows) {
-    if (tsCols[currPos] == pMlExtInfo->curTs) continue;
+    if (tsCols[currPos] == pMlExtInfo->curTs && currPos + 1 < pBlock->info.rows) continue;
 
     qDebug("current ts:%" PRId64 ", startPos:%d, currPos:%d, tsCols[currPos]:%" PRId64,
       pMlExtInfo->curTs, startPos, currPos, tsCols[currPos]); 
