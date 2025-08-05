@@ -856,20 +856,17 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
       }
       ((SValueNode*)pFirstParam)->isNull = pValue->isNull;
     } else if (exprCalcType == OPTR_CALC_EXPR_STREAM_TBNAME) {
-      if (IS_VAR_DATA_TYPE(((SValueNode*)pFirstParam)->node.resType.type)) {
-        ((SValueNode*)pFirstParam)->datum.p = taosMemoryCalloc(1, VARSTR_HEADER_SIZE);
-        if (NULL == ((SValueNode*)pFirstParam)->datum.p) {
-          return terrno;
-        }
-        varDataLen(((SValueNode*)pFirstParam)->datum.p) = 0;
-      } else if (TSDB_DATA_TYPE_DECIMAL == ((SValueNode*)pFirstParam)->node.resType.type ||
-                 TSDB_DATA_TYPE_DECIMAL64 == ((SValueNode*)pFirstParam)->node.resType.type) {
-        uError("invalid type: %d for func: %d, decimal  type can not suppported: %d",
-               ((SValueNode*)pFirstParam)->node.resType.type, funcId, TSDB_DATA_TYPE_BINARY);
-        return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
-      } else {
-        code = nodesSetValueNodeZero((SValueNode*)pFirstParam);
+      if (!IS_VAR_DATA_TYPE(((SValueNode*)pFirstParam)->node.resType.type)) {
+        ((SValueNode*)pFirstParam)->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
       }
+      const char* nullData = "null";
+      int32_t     nullDataLen = strlen(nullData);
+      ((SValueNode*)pFirstParam)->datum.p = taosMemoryCalloc(1, nullDataLen + VARSTR_HEADER_SIZE);
+      if (NULL == ((SValueNode*)pFirstParam)->datum.p) {
+        return terrno;
+      }
+      memcpy(varDataVal(((SValueNode*)pFirstParam)->datum.p), nullData, nullDataLen);
+      varDataLen(((SValueNode*)pFirstParam)->datum.p) = nullDataLen;
 
       ((SValueNode*)pFirstParam)->isNull = false;
     } else {
