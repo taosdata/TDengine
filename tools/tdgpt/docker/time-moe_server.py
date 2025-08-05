@@ -47,8 +47,7 @@ from transformers import AutoModelForCausalLM
 device = 'cpu'
 
 # native model files in docker
-model_path = ["models/models--Maple728--TimeMoE-200M/snapshots/794591bfeb1225fdf742cec0f4c71f20c3f3b87e/",
-              "models/models--Maple728--TimeMoE-50M/snapshots/446753ee48ff3726d0606a81d0092d54acee995e/"]
+model_path = ["models/models--Maple728--TimeMoE-200M/snapshots/794591bfeb1225fdf742cec0f4c71f20c3f3b87e/"]
 
 model = AutoModelForCausalLM.from_pretrained(
     model_path[0],
@@ -78,7 +77,6 @@ pred_y = predictions[0]
 @app.route('/ds_predict', methods=['POST'])
 def ds_predict():
     logger.info(f"predict")
-    global model
 
     """处理POST请求并返回模型预测结果"""
     try:
