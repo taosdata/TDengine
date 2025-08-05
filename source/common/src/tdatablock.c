@@ -3274,7 +3274,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
     terrno = code;
     return -1;
   }
-  int64_t blockLimit = 0;
+  int64_t blockSize = 0;
 
   int32_t dataLen = 0;
 
@@ -3331,7 +3331,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
   data += numOfCols * sizeof(int32_t);
 
   dataLen = blockDataGetSerialMetaSize(numOfCols);
-  blockLimit = dataLen;
+  blockSize = dataLen;
 
   int32_t numOfRows = pBlock->info.rows;
   for (int32_t col = 0; col < numOfCols; ++col) {
@@ -3360,8 +3360,8 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
 
     data += metaSize;
     dataLen += metaSize;
-    blockLimit += metaSize;
-    TAOS_CHECK_GOTO(blockCheckSize(blockLimit), NULL, _exit);
+    blockSize += metaSize;
+    TAOS_CHECK_GOTO(blockCheckSize(blockSize), NULL, _exit);
 
     if (pColRes->reassigned && IS_VAR_DATA_TYPE(pColRes->info.type)) {
       colSizes[col] = 0;
@@ -3373,8 +3373,8 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
         dataLen += colSize;
         if (dataLen > dataBuflen) goto _exit;
 
-        blockLimit += colSize;
-        TAOS_CHECK_GOTO(blockCheckSize(blockLimit), NULL, _exit);
+        blockSize += colSize;
+        TAOS_CHECK_GOTO(blockCheckSize(blockSize), NULL, _exit);
 
         (void)memmove(data, pColData, colSize);
         data += colSize;
@@ -3384,8 +3384,8 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
       dataLen += colSizes[col];
       if (dataLen > dataBuflen) goto _exit;
 
-      blockLimit += colSizes[col];
-      TAOS_CHECK_GOTO(blockCheckSize(blockLimit), NULL, _exit);
+      blockSize += colSizes[col];
+      TAOS_CHECK_GOTO(blockCheckSize(blockSize), NULL, _exit);
 
       if (pColRes->pData != NULL) {
         (void)memmove(data, pColRes->pData, colSizes[col]);
