@@ -47,7 +47,7 @@ class TestTmqForceDropTopic:
         tdSql.execute(f"drop topic if exists force {self.drop_topic}")
 
         tdSql.execute(f"drop database if exists {self.db}")
-        tdSql.execute(f"create database {self.db}")
+        tdSql.execute(f"create database {self.db} vgroups 1")
         tdSql.execute(f"use {self.db}")
 
         # create super table and sub table
@@ -97,6 +97,7 @@ class TestTmqForceDropTopic:
                 "auto.offset.reset": "earliest",
                 "td.connect.ip": "localhost",
                 "td.connect.port": "6030",
+                "fetch.max.wait.ms": "1000",
             }
         )
 
@@ -104,7 +105,7 @@ class TestTmqForceDropTopic:
 
         tdLog.info(f"Start consuming data from topic {topic_name} with consumer group {consumer_group}")
         while self.consume_data:
-            message = consumer.poll()
+            message = consumer.poll(10)
             if message is None:
                 tdLog.info(f"No message consumed from {topic_name}, stop consume")
                 break

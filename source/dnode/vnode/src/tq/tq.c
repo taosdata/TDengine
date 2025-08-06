@@ -28,6 +28,7 @@ static int32_t tqInitialize(STQ* pTq);
 static FORCE_INLINE bool tqIsHandleExec(STqHandle* pHandle) { return pHandle != NULL ? TMQ_HANDLE_STATUS_EXEC == pHandle->status : true; }
 static FORCE_INLINE void tqSetHandleExec(STqHandle* pHandle) { if (pHandle != NULL) pHandle->status = TMQ_HANDLE_STATUS_EXEC; }
 static FORCE_INLINE void tqSetHandleIdle(STqHandle* pHandle) { if (pHandle != NULL) pHandle->status = TMQ_HANDLE_STATUS_IDLE; }
+#define MAX_LOOP 100
 
 void tqDestroyTqHandle(void* data) {
   if (data == NULL) return;
@@ -747,7 +748,8 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     ret = tqMetaSaveHandle(pTq, req.subKey, &handle);
     taosWUnLockLatch(&pTq->lock);
   } else {
-    while (1) {
+    int maxLoop = MAX_LOOP;
+    while (maxLoop-- > 0) {
       taosWLockLatch(&pTq->lock);
       bool exec = tqIsHandleExec(pHandle);
       if (exec) {
