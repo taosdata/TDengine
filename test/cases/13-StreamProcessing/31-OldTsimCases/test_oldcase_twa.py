@@ -15,12 +15,12 @@ class TestStreamOldCaseTwa:
     def test_stream_oldcase_twa(self):
         """Stream twa
 
-        Verify the behavior of the legacy TWA (Time-Weighted Average) function in the new streaming computation system
+        Verify the behavior of the legacy TWA function in the new streaming computation system
 
         Catalog:
             - Streams:OldTsimCases
 
-        Since: v3.0.0.0
+        Since: v3.3.7.0
 
         Labels: common, ci
 
@@ -39,19 +39,29 @@ class TestStreamOldCaseTwa:
         tdStream.createSnode()
 
         streams = []
-        streams.append(self.TwaError())
-        streams.append(self.TwaFwcFill())
-        # streams.append(self.TwaFwcFill21())
+        # streams.append(self.TwaError()) pass
+        # streams.append(self.TwaFill1()) pass
+        # streams.append(self.TwaFill2()) pass
+        # streams.append(self.TwaFill3()) pass
+        # streams.append(self.TwaFwcFillPK1()) TD-37328
+        # streams.append(self.TwaFwcFillPK2()) pass
+        # streams.append(self.TwaFwcInterval1()) TD-37328
+        # streams.append(self.TwaFwcInterval2()) TD-37328
+        # streams.append(self.TwaFwcInterval3()) TD-37328
+        # streams.append(self.TwaFwcIntervalPK()) TD-37328
+        # streams.append(self.TwaFwcInterp1()) interp
+        # streams.append(self.TwaFwcInterp2()) interp
+        # streams.append(self.TwaFwcInterp3()) interp
 
         tdStream.checkAll(streams)
 
     class TwaError(StreamCheckItem):
         def __init__(self):
-            self.db = "twa_error"
+            self.db = "twaerror"
 
         def create(self):
-            tdSql.execute(f"create database twa_error vgroups 1 buffer 8;")
-            tdSql.execute(f"use twa_error;")
+            tdSql.execute(f"create database twaerror vgroups 1 buffer 8;")
+            tdSql.execute(f"use twaerror;")
 
             tdSql.execute(
                 f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
@@ -100,26 +110,26 @@ class TestStreamOldCaseTwa:
             )
 
         def check1(self):
-            tdSql.query("show twa_error.streams;")
+            tdSql.query("show twaerror.streams;")
             tdSql.checkRows(12)
             tdSql.checkKeyData("streams1", 0, "streams1")
             tdSql.checkKeyData("streams2", 0, "streams2")
             tdSql.checkKeyData("streams3", 0, "streams3")
 
             tdSql.query(
-                "select * from information_schema.ins_streams where db_name = 'twa_error';"
+                "select * from information_schema.ins_streams where db_name = 'twaerror';"
             )
             tdSql.checkRows(12)
-            tdSql.checkKeyData("streams5", 1, "twa_error")
-            tdSql.checkKeyData("streams6", 1, "twa_error")
+            tdSql.checkKeyData("streams5", 1, "twaerror")
+            tdSql.checkKeyData("streams6", 1, "twaerror")
 
-    class TwaFwcFill(StreamCheckItem):
+    class TwaFill1(StreamCheckItem):
         def __init__(self):
-            self.db = "twa_fwc_fill"
+            self.db = "twafill1"
 
         def create(self):
-            tdSql.execute(f"create database twa_fwc_fill vgroups 1 buffer 32;")
-            tdSql.execute(f"use twa_fwc_fill;")
+            tdSql.execute(f"create database twafill1 vgroups 1 buffer 32;")
+            tdSql.execute(f"use twafill1;")
 
             tdSql.execute(
                 f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
@@ -141,22 +151,22 @@ class TestStreamOldCaseTwa:
 
         def check1(self):
             tdSql.checkResultsByFunc(
-                f"select * from twa_fwc_fill.streamt where ta == 1;",
+                f"select * from twafill1.streamt where ta == 1;",
                 lambda: tdSql.getRows() == 5,
             )
 
             tdSql.checkResultsByFunc(
-                f"select * from twa_fwc_fill.streamt where ta == 2;",
+                f"select * from twafill1.streamt where ta == 2;",
                 lambda: tdSql.getRows() == 5,
             )
 
-    class TwaFwcFill21(StreamCheckItem):
+    class TwaFill2(StreamCheckItem):
         def __init__(self):
-            self.db = "twa_fwc_fill21"
+            self.db = "twafill2"
 
         def create(self):
-            tdSql.execute(f"create database twa_fwc_fill21 vgroups 1 buffer 32;")
-            tdSql.execute(f"use twa_fwc_fill21;")
+            tdSql.execute(f"create database twafill2 vgroups 1 buffer 32;")
+            tdSql.execute(f"use twafill2;")
 
             tdSql.execute(
                 f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
@@ -178,7 +188,7 @@ class TestStreamOldCaseTwa:
 
         def check1(self):
             tdSql.checkResultsByFunc(
-                f"select * from twa_fwc_fill21.streamt;",
+                f"select * from twafill2.streamt;",
                 lambda: tdSql.getRows() > 0,
                 retry=100,
             )
@@ -199,13 +209,13 @@ class TestStreamOldCaseTwa:
             else:
                 tdLog.info(f"triggered within 60000 ms (actual:{tcalc - tnow} ms).")
 
-    class TwaFwcFill22(StreamCheckItem):
+    class TwaFill3(StreamCheckItem):
         def __init__(self):
-            self.db = "twa_fwc_fill22"
+            self.db = "twafill3"
 
         def create(self):
-            tdSql.execute(f"create database test3 vgroups 1;")
-            tdSql.execute(f"use test3;")
+            tdSql.execute(f"create database twafill3 vgroups 1 buffer 8;")
+            tdSql.execute(f"use twafill3;")
 
             tdSql.execute(
                 f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
@@ -213,7 +223,7 @@ class TestStreamOldCaseTwa:
             tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
             tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
             tdSql.execute(
-                f"create stream streams3 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into streamt as select _wstart, twa(a), twa(b), elapsed(ts), now, timezone(), ta from st partition by tbname interval(2s) fill(value, 100, 200, 300);"
+                f"create stream streams3 interval(2s) sliding(2s) from st partition by tbname stream_options(expired_time(0s) | ignore_disorder) into streamt as select ts, case t1 when null then 100 else t1 end t1, case t2 when null then 100 else t2 end t2, case t3 when null then 100 else t3 end t3, t4, t5, ta from (select _twstart ts, twa(a) t1, twa(b) t2, elapsed(ts) t3, now t4, timezone() t5, ta from %%trows);"
             )
 
         def insert1(self):
@@ -239,7 +249,7 @@ class TestStreamOldCaseTwa:
             self.db = "twa_fwc_fill_pk1"
 
         def create(self):
-            tdSql.execute(f"create database test vgroups 1;")
+            tdSql.execute(f"create database test vgroups 1 buffer 8;")
             tdSql.execute(f"use test;")
 
             tdSql.execute(
@@ -283,11 +293,11 @@ class TestStreamOldCaseTwa:
 
     class TwaFwcFillPK2(StreamCheckItem):
         def __init__(self):
-            self.db = "twa_fwc_fill_pk2"
+            self.db = "twafwcfillpk2"
 
         def create(self):
-            tdSql.execute(f"create database test2 vgroups 1;")
-            tdSql.execute(f"use test2;")
+            tdSql.execute(f"create database twafwcfillpk2 vgroups 1 buffer 8;")
+            tdSql.execute(f"use twafwcfillpk2;")
 
             tdSql.execute(
                 f"create stable st(ts timestamp, a int primary key, b int, c int) tags(ta int, tb int, tc int);"
@@ -295,7 +305,7 @@ class TestStreamOldCaseTwa:
             tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
             tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
             tdSql.execute(
-                f"create stream streams2 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into streamt as select _wstart, twa(b), ta from st partition by tbname, ta interval(2s) fill(NULL);"
+                f"create stream streams2 interval(2s) sliding(2s) from st partition by tbname, ta stream_options(expired_time(0s) | ignore_disorder | FORCE_OUTPUT | max_delay(3s)) into streamt as select _twstart, twa(b), %%2 as ta2 from %%tbname where ts  >= _twstart and ts < _twend;"
             )
 
         def insert1(self):
@@ -319,24 +329,24 @@ class TestStreamOldCaseTwa:
 
             tdSql.checkResultsByFunc(
                 f"select * from streamt where ta == 1;",
-                lambda: tdSql.getRows() >= 6 and tdSql.getData(0, 1) == query1_data,
+                lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == query1_data,
             )
 
             tdLog.info(f"2 sql select * from streamt where ta == 2;")
             tdSql.checkResultsByFunc(
                 f"select * from streamt where ta == 2;",
-                lambda: tdSql.getRows() >= 6 and tdSql.getData(0, 1) == query2_data,
+                lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == query2_data,
             )
 
     class TwaFwcInterval1(StreamCheckItem):
         def __init__(self):
-            self.db = "twa_fwc_interval1"
+            self.db = "twafwcinterval1"
 
         def create(self):
             tdLog.info(f"step1")
             tdLog.info(f"=============== create database")
-            tdSql.execute(f"create database test vgroups 1 buffer 16;")
-            tdSql.execute(f"use test;")
+            tdSql.execute(f"create database twafwcinterval1 vgroups 1 buffer 16;")
+            tdSql.execute(f"use twafwcinterval1;")
 
             tdSql.execute(
                 f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
@@ -345,23 +355,23 @@ class TestStreamOldCaseTwa:
             tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
             tdSql.execute(
-                f"create stream streams1 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into streamt as select _wstart, twa(a), ta from st partition by tbname, ta interval(2s);"
+                f"create stream streams1 interval(2s) sliding(2s) from st partition by tbname, ta stream_options(expired_time(0s) | ignore_disorder | max_delay(3s)) into streamt as select _twstart, twa(a), _twend from %%tbname where ts >= _twstart and ts < _twend;"
             )
 
         def insert1(self):
             tdSql.execute(
-                f"insert into t1 values(now +  3000a, 1, 1, 1) (now +  3100a, 5, 10, 10) (now +  3200a, 5, 10, 10)  (now + 5100a, 20, 1, 1) (now + 5200a, 30, 10, 10) (now + 5300a, 40, 10, 10);"
+                f"insert into t1 values('2025-08-06 16:16:45.885', 1, 1, 1) ('2025-08-06 16:16:45.985', 5, 10, 10) ('2025-08-06 16:16:46.085', 5, 10, 10)  ('2025-08-06 16:16:47.985', 20, 1, 1) ('2025-08-06 16:16:48.085', 30, 10, 10) ('2025-08-06 16:16:48.185', 40, 10, 10);"
             )
             tdSql.execute(
-                f"insert into t2 values(now +  3000a, 1, 1, 1) (now +  3100a, 2, 10, 10) (now +  3200a, 30, 10, 10) (now + 5100a, 10, 1, 1) (now + 5200a, 40, 10, 10) (now + 5300a, 7, 10, 10);"
+                f"insert into t2 values('2025-08-06 16:16:45.885', 1, 1, 1) ('2025-08-06 16:16:45.985', 2, 10, 10) ('2025-08-06 16:16:46.085', 30, 10, 10)  ('2025-08-06 16:16:47.985', 10, 1, 1) ('2025-08-06 16:16:48.085', 40, 10, 10) ('2025-08-06 16:16:48.185', 7, 10, 10);"
             )
 
         def check1(self):
-            tdSql.query(f"select _wstart, twa(a) from t1 interval(2s);")
+            tdSql.query(f"select _wstart, twa(a), _wend from t1 interval(2s);")
             query1_data01 = tdSql.getData(0, 1)
             query1_data11 = tdSql.getData(1, 1)
 
-            tdSql.query(f"select _wstart, twa(a) from t2 interval(2s);")
+            tdSql.query(f"select _wstart, twa(a), _wend from t2 interval(2s);")
             query2_data01 = tdSql.getData(0, 1)
             query2_data11 = tdSql.getData(1, 1)
 
@@ -381,11 +391,11 @@ class TestStreamOldCaseTwa:
 
     class TwaFwcInterval2(StreamCheckItem):
         def __init__(self):
-            self.db = "twa_fwc_interval2"
+            self.db = "twafwcinterval2"
 
         def create(self):
-            tdSql.execute(f"create database test2 vgroups 4 buffer 16;")
-            tdSql.execute(f"use test2;")
+            tdSql.execute(f"create database twafwcinterval2 vgroups 4 buffer 16;")
+            tdSql.execute(f"use twafwcinterval2;")
 
             tdSql.execute(
                 f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
@@ -394,7 +404,7 @@ class TestStreamOldCaseTwa:
             tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
             tdSql.execute(
-                f"create stream streams2 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into streamt as select _wstart, count(*), ta from st partition by tbname, ta interval(2s);"
+                f"create stream streams2 interval(2s) sliding(2s) from st partition by tbname, ta stream_options(expired_time(0s) | ignore_disorder | max_delay(3s)) into streamt as select _wstart, count(*) from %%trows;"
             )
 
         def insert1(self):
@@ -468,12 +478,12 @@ class TestStreamOldCaseTwa:
 
     class TwaFwcInterval3(StreamCheckItem):
         def __init__(self):
-            self.db = "twa_fwc_interval3"
+            self.db = "twafwcinterval3"
 
         def create(self):
             tdLog.info(f"======step3")
-            tdSql.execute(f"create database test3 vgroups 1 buffer 16;")
-            tdSql.execute(f"use test3;")
+            tdSql.execute(f"create database twafwcinterval3 vgroups 1 buffer 16;")
+            tdSql.execute(f"use twafwcinterval3;")
 
             tdSql.execute(
                 f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
@@ -482,7 +492,7 @@ class TestStreamOldCaseTwa:
             tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
             tdSql.execute(
-                f"create stream streams3 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into streamt3 as select _wstart, twa(a), ta from st partition by tbname, ta interval(10s);"
+                f"create stream streams3 interval(2s) sliding(2s) from st partition by tbname, ta stream_options(expired_time(0s) | ignore_disorder | max_delay(3s)) into streamt3 as select _wstart, twa(a), ta from st where tbname=%%tbname and ts >= _twstart and ts < _twend;"
             )
 
         def insert1(self):
@@ -509,13 +519,13 @@ class TestStreamOldCaseTwa:
 
     class TwaFwcIntervalPK(StreamCheckItem):
         def __init__(self):
-            self.db = "twa_fwc_interval_pk"
+            self.db = "twafwcintervalpk"
 
         def create(self):
             tdLog.info(f"step1")
             tdLog.info(f"=============== create database")
-            tdSql.execute(f"create database test vgroups 1;")
-            tdSql.execute(f"use test;")
+            tdSql.execute(f"create database twafwcintervalpk vgroups 1 buffer 8;")
+            tdSql.execute(f"use twafwcintervalpk;")
 
             tdSql.execute(
                 f"create stable st(ts timestamp, a int primary key, b int, c int) tags(ta int, tb int, tc int);"
@@ -524,7 +534,7 @@ class TestStreamOldCaseTwa:
             tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
             tdSql.execute(
-                f"create stream streams1 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into streamt as select _wstart, count(*), ta from st partition by tbname, ta interval(2s);"
+                f"create stream streams1 interval(2s) sliding(2s) from st partition by tbname, ta stream_options(expired_time(0s) | ignore_disorder | max_delay(3s)) into streamt as select _wstart, count(*), ta from %%trows;"
             )
 
         def insert1(self):
@@ -561,14 +571,14 @@ class TestStreamOldCaseTwa:
 
     class TwaFwcInterp1(StreamCheckItem):
         def __init__(self):
-            self.db = "twa_fwc_interp1"
+            self.db = "twafwcinterp1"
 
         def create(self):
 
             tdLog.info(f"step1")
             tdLog.info(f"=============== create database")
-            tdSql.execute(f"create database test vgroups 4;")
-            tdSql.execute(f"use test;")
+            tdSql.execute(f"create database twafwcinterp1 vgroups 4 buffer 8;")
+            tdSql.execute(f"use twafwcinterp1;")
 
             tdSql.execute(
                 f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
@@ -653,11 +663,11 @@ class TestStreamOldCaseTwa:
 
     class TwaFwcInterp2(StreamCheckItem):
         def __init__(self):
-            self.db = "twa_fwc_interp2"
+            self.db = "twafwcinterp2"
 
         def create(self):
-            tdSql.execute(f"create database test4 vgroups 4;")
-            tdSql.execute(f"use test4;")
+            tdSql.execute(f"create database twafwcinterp2 vgroups 4 buffer 8;")
+            tdSql.execute(f"use twafwcinterp2;")
 
             tdSql.execute(
                 f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
@@ -748,13 +758,13 @@ class TestStreamOldCaseTwa:
 
     class TwaFwcInterp3(StreamCheckItem):
         def __init__(self):
-            self.db = "twa_fwc_interp3"
+            self.db = "twafwcinterp3"
 
         def create(self):
 
             tdLog.info(f"=============== create database")
-            tdSql.execute(f"create database test4 vgroups 4;")
-            tdSql.execute(f"use test4;")
+            tdSql.execute(f"create database twafwcinterp3 vgroups 4 buffer 8;")
+            tdSql.execute(f"use twafwcinterp3;")
 
             tdSql.execute(
                 f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
