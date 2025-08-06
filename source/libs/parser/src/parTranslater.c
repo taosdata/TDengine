@@ -14837,9 +14837,9 @@ static int32_t createStreamReqBuildCalcPart1(STranslateContext* pCxt, SCreateStr
   if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS)) {
     // need collect scan cols and put into trigger's scan list
     SNodeList* queryCols = NULL;
-    nodesCollectColumns((SSelectStmt*)pStmt->pQuery, SQL_CLAUSE_FROM, ((STableNode*)(pTriggerSelect->pFromTable))->tableAlias, COLLECT_COL_TYPE_ALL, &queryCols);
-    nodesCollectColumnsFromNode(pStmt->pQuery, ((STableNode*)(pTriggerSelect->pFromTable))->tableAlias, COLLECT_COL_TYPE_ALL, &queryCols);
-    nodesListAppendList(pTriggerSelect->pProjectionList, queryCols);
+    PAR_ERR_JRET(nodesCollectColumns((SSelectStmt*)pStmt->pQuery, SQL_CLAUSE_FROM, ((STableNode*)(pTriggerSelect->pFromTable))->tableAlias, COLLECT_COL_TYPE_ALL, &queryCols));
+    PAR_ERR_JRET(nodesCollectColumnsFromNode(pStmt->pQuery, ((STableNode*)(pTriggerSelect->pFromTable))->tableAlias, COLLECT_COL_TYPE_ALL, &queryCols));
+    PAR_ERR_JRET(nodesListAppendList(pTriggerSelect->pProjectionList, queryCols));
   }
 _return:
   if (code) {
