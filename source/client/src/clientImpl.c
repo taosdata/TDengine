@@ -68,6 +68,63 @@ static char* getClusterKey(const char* user, const char* auth, const char* ip, i
   return taosStrdup(key);
 }
 
+static int32_t escapeToPrinted(char* dst, size_t maxDstLength, const char* src, size_t srcLength) {
+  if (dst == NULL || src == NULL || srcLength == 0) {
+    return 0;
+  }
+  
+  size_t escapeLength = 0;
+  for(size_t i = 0; i < srcLength; ++i) {
+    if( src[i] == '\"' || src[i] == '\\' || src[i] == '\b' || src[i] == '\f' || src[i] == '\n' ||
+        src[i] == '\r' || src[i] == '\t') {
+      escapeLength += 1; 
+    }    
+  }
+
+  size_t dstLength = srcLength;
+  if(escapeLength == 0) {
+     (void)memcpy(dst, src, srcLength);
+  } else {
+    dstLength = 0;
+    for(size_t i = 0; i < srcLength && dstLength <= maxDstLength; i++) {
+      switch(src[i]) {
+        case '\"':
+          dst[dstLength++] = '\\';
+          dst[dstLength++] = '\"';
+          break;
+        case '\\':
+          dst[dstLength++] = '\\';
+          dst[dstLength++] = '\\';
+          break;
+        case '\b':
+          dst[dstLength++] = '\\';
+          dst[dstLength++] = 'b';
+          break;
+        case '\f':
+          dst[dstLength++] = '\\';
+          dst[dstLength++] = 'f';
+          break;
+        case '\n':
+          dst[dstLength++] = '\\';
+          dst[dstLength++] = 'n';
+          break;
+        case '\r':
+          dst[dstLength++] = '\\';
+          dst[dstLength++] = 'r';
+          break;
+        case '\t':
+          dst[dstLength++] = '\\';
+          dst[dstLength++] = 't';
+          break;
+        default:
+           dst[dstLength++] = src[i];
+      }
+    }
+  }
+
+  return dstLength;
+}
+
 bool chkRequestKilled(void* param) {
   bool         killed = false;
   SRequestObj* pRequest = acquireRequest((int64_t)param);
@@ -2368,15 +2425,18 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
           taosMemoryFree(jsonString);
         } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {  // value -> "value"
           *(char*)varDataVal(dst) = '\"';
+          char    tmp[TSDB_MAX_JSON_TAG_LEN] = {0};
           int32_t length = taosUcs4ToMbs((TdUcs4*)varDataVal(jsonInnerData), varDataLen(jsonInnerData),
-                                         varDataVal(dst) + CHAR_BYTES, pResultInfo->charsetCxt);
+                                         varDataVal(tmp), pResultInfo->charsetCxt);
           if (length <= 0) {
             tscError("charset:%s to %s. convert failed.", DEFAULT_UNICODE_ENCODEC,
                      pResultInfo->charsetCxt != NULL ? ((SConvInfo*)(pResultInfo->charsetCxt))->charset : tsCharset);
             length = 0;
           }
-          varDataSetLen(dst, length + CHAR_BYTES * 2);
-          *(char*)POINTER_SHIFT(varDataVal(dst), length + CHAR_BYTES) = '\"';
+          int32_t escapeLength = escapeToPrinted(varDataVal(dst) + CHAR_BYTES, TSDB_MAX_JSON_TAG_LEN - CHAR_BYTES * 2,varDataVal(tmp), length);
+          varDataSetLen(dst, escapeLength + CHAR_BYTES * 2);
+          *(char*)POINTER_SHIFT(varDataVal(dst), escapeLength + CHAR_BYTES) = '\"';
+          tscError("value:%s.", varDataVal(dst));
         } else if (jsonInnerType == TSDB_DATA_TYPE_DOUBLE) {
           double jsonVd = *(double*)(jsonInnerData);
           (void)snprintf(varDataVal(dst), TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE, "%.9lf", jsonVd);
