@@ -157,6 +157,7 @@ taos> select degrees(PI());
 ```sql
 EXP(expr)
 ```
+
 **功能说明**：返回 e（自然对数的底）的指定乘方后的值。
 
 **版本**：v3.3.3.0
@@ -640,6 +641,7 @@ taos> select truncate(8888.88, -1);
 ```sql
 CRC32(expr)
 ```
+
 **功能说明**: 传回代表循环冗余检查 (CRC) 的无符号 32 位整数。
 
 **返回结果类型**: 无符号 32 位整数。
@@ -970,6 +972,7 @@ taos> select position('d' in 'cba');
 ```sql
 REPEAT(expr, count)
 ```
+
 **功能说明**：返回将字符串重复指定次数得到的字符串。
 
 **版本**：v3.3.3.0
@@ -1009,6 +1012,7 @@ taos> select repeat('abc',-1);
 ```sql
 REPLACE(expr, from_str, to_str)
 ```
+
 **功能说明**：将字符串中的 `from_str` 全部替换为 `to_str`。
 
 **版本**：v3.3.3.0
@@ -1062,6 +1066,7 @@ RTRIM(expr)
 SUBSTRING/SUBSTR(expr, pos [, len])
 SUBSTRING/SUBSTR(expr FROM pos [FOR len])
 ```
+
 **功能说明**：返回字符串 `expr` 在 `pos` 位置开始的子串，若指定了 `len`，则返回在 `pos` 位置开始，长度为 `len` 的子串。
 
 **返回结果类型**：与输入字段 `expr` 的原始类型相同。
@@ -1472,6 +1477,7 @@ return_timestamp: {
 ```sql
 DAYOFWEEK(expr)
 ```
+
 **功能说明**：返回输入日期是周几。
 
 **版本**：v3.3.3.0
@@ -1641,6 +1647,7 @@ TODAY()
 ```sql
 WEEK(expr [, mode])
 ```
+
 **功能说明**：返回输入日期的周数。
 
 **版本**：v3.3.3.0
@@ -1672,6 +1679,7 @@ WEEK(expr [, mode])
 | 5    | 周一     | 0 - 53 | 第一个包含周一的周为第 1 周    |
 | 6    | 周日     | 1 - 53 | 第一个包含四天及以上的周为第 1 周 |
 | 7    | 周一     | 1 - 53 | 第一个包含周一的周为第 1 周    |
+
 - 当返回值范围为 0 - 53 时，第 1 周之前的日期为第 0 周。
 - 当返回值范围为 1 - 53 时，第 1 周之前的日期为上一年的最后一周。
 - 以`2000-01-01`为例，
@@ -1708,6 +1716,7 @@ taos> select week('2000-01-01',3);
 ```sql
 WEEKDAY(expr)
 ```
+
 **功能说明**：返回输入日期是周几。
 
 **版本**：v3.3.3.0
@@ -1740,6 +1749,7 @@ taos> select weekday('2000-01-01');
 ```sql
 WEEKOFYEAR(expr)
 ```
+
 **功能说明**：返回输入日期的周数。
 
 **版本**：v3.3.3.0
@@ -1793,7 +1803,8 @@ algo_type: {
 **适用于**：表和超级表。
 
 **说明**：
-- p 值范围是 [0,100]，当为 0 时等同 于 MIN，为 100 时等同于 MAX。
+
+- p 值范围是 [0,100]，当为 0 时等同于 MIN，为 100 时等同于 MAX。
 - algo_type 取值为 "default" 或 "t-digest"。输入为 "default" 时函数使用基于直方图算法进行计算。输入为 "t-digest" 时使用 t-digest 算法计算分位数的近似结果。如果不指定 algo_type 则使用 "default" 算法。
 - t-digest 算法的近似结果对于输入数据顺序敏感，对超级表查询时不同的输入排序结果可能会有微小的误差。
 
@@ -1871,6 +1882,7 @@ HISTOGRAM(expr，bin_type, bin_description, normalized)
 **适用于**：表和超级表。
 
 **详细说明**：
+
 - bin_type 用户指定的分桶类型，有效输入类型为 "user_input"、"linear_bin"、"log_bin"。
 - bin_description 描述如何生成分桶区间，针对三种桶类型，分别为以下描述格式 (均为 JSON 格式字符串)：
     - "user_input": "[1, 3, 5, 7]"
@@ -1892,8 +1904,9 @@ HYPERLOGLOG(expr)
 ```
 
 **功能说明**：
-  - 采用 hyperloglog 算法，返回某列的基数。该算法在数据量很大的情况下，可以明显降低内存的占用，求出来的基数是个估算值，标准误差（标准误差是多次实验，每次的平均数的标准差，不是与真实结果的误差）为 0.81%。
-  - 在数据量较少的时候该算法不是很准确，可以使用 `select count(data) from (select unique(col) as data from table)` 的方法。
+
+- 采用 hyperloglog 算法，返回某列的基数。该算法在数据量很大的情况下，可以明显降低内存的占用，求出来的基数是个估算值，标准误差（标准误差是多次实验，每次的平均数的标准差，不是与真实结果的误差）为 0.81%。
+- 在数据量较少的时候该算法不是很准确，可以使用 `select count(data) from (select unique(col) as data from table)` 的方法。
 
 **返回结果类型**：INTEGER。
 
@@ -2324,6 +2337,7 @@ ignore_option: {
 ```
 
 **功能说明**：统计表中特定列与之前行的当前列有效值之差。ignore_option 取值为 0|1|2|3，可以不填，默认值为 0。 
+
 - `0` 表示 diff 结果不忽略负值不忽略 null 值
 - `1` 表示 diff 结果的负值作为 null 值
 - `2` 表示 diff 结果不忽略负值但忽略 null 值
@@ -2368,6 +2382,7 @@ ignore_null_values: {
 **适用于**：表和超级表。
 
 **使用说明**
+
 - INTERP 用于在指定时间断面获取指定列的记录值，使用时有专用语法 (interp_clause)，语法介绍[参考链接](../select/#interp) 。
 - 当指定时间断面不存在符合条件的行数据时，INTERP 函数会根据 [FILL](../distinguished/#fill-子句) 参数的设定进行插值。
 - INTERP 作用于超级表时，会将该超级表下的所有子表数据按照主键列排序后进行插值计算，也可以搭配 PARTITION BY tbname 使用，将结果强制规约到单个时间线。
@@ -2630,7 +2645,7 @@ ST_Equals(GEOMETRY geomA, GEOMETRY geomB)
 ST_Intersects(GEOMETRY geomA, GEOMETRY geomB)
 ```
 
-##功能说明**：比较两个几何对象，并在它们相交时返回 true。
+**功能说明**：比较两个几何对象，并在它们相交时返回 true。
 
 **返回值类型**：BOOL。
 
