@@ -252,6 +252,7 @@ function run_thread() {
         if [ -z "$case_file" ]; then
             continue
         fi
+        echo "DEBUG: case_cmd=[$case_cmd] case_file=[$case_file]" >&2
         if [ "$exec_dir" == "." ]; then
             case_sql_file="${case_file}.sql"
             case_file="${case_file}.${index}.${thread_no}.${count}"
@@ -278,7 +279,7 @@ function run_thread() {
         case_info=$(echo "$line" | cut -d, -f 3,4,5)
         while [ ${redo_count} -le "$case_redo_time" ]; do
             if [ -f "$case_log_file" ]; then
-                cp "$case_log_file" "$log_dir"/"$case_file".${redo_count}.redotxt
+                cp "$case_log_file" "$log_dir"/"$case_file".${redo_count}.redo.txt
             fi
             echo "${hosts[index]}-${thread_no} order:${count}, redo:${redo_count} task:${line}" >"$case_log_file"
             local current_time
