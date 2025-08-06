@@ -1455,16 +1455,11 @@ static void stdTransferInfo(SStdRes* pInput, SStdRes* pOutput) {
      pOutput->dsum += pInput->dsum;
    }
   */
-  // pOutput->quadraticDSum *= ((double)pOutput->count) / (pOutput->count + pInput->count);
-  // pOutput->quadraticDSum += pInput->quadraticDSum * (((double)pInput->count) / (pOutput->count + pInput->count));
   double totalCount = pOutput->count + pInput->count;
   double mean = pInput->count / totalCount * pInput->dsum + pOutput->count / totalCount * pOutput->dsum;
 
   pOutput->quadraticDSum += pInput->quadraticDSum + pInput->count * pInput->dsum * pInput->dsum +
                             pOutput->count * pOutput->dsum * pOutput->dsum - totalCount * mean * mean;
-
-  // pOutput->dsum *= .5;
-  // pOutput->dsum += pInput->dsum * .5;
   pOutput->dsum = mean;
   pOutput->count += pInput->count;
 }
