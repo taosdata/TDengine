@@ -208,6 +208,22 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       }
       break;
     }
+    case QUERY_NODE_STREAM_TRIGGER: {
+      SStreamTriggerNode* pTrigger = (SStreamTriggerNode*)pNode;
+      res = walkExpr(pTrigger->pTriggerWindow, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExprs(pTrigger->pPartitionList, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pTrigger->pOptions, order, walker, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_STREAM_TRIGGER_OPTIONS: {
+      SStreamTriggerOptions* pOptions = (SStreamTriggerOptions*)pNode;
+      res = walkExpr(pOptions->pPreFilter, order, walker, pContext);
+      break;
+    }
     default:
       break;
   }
