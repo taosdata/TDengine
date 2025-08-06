@@ -193,6 +193,7 @@ function run_thread() {
         if echo "$line" | grep -q "^#"; then
             continue
         fi
+        echo "line:${line}"
         local case_redo_time
         case_redo_time=$(echo "$line" | cut -d, -f2)
         if [ -z "$case_redo_time" ]; then
