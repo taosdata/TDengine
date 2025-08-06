@@ -1465,8 +1465,9 @@ static void stdTransferInfo(SStdRes* pInput, SStdRes* pOutput) {
     pOutput->quadraticDSum += pInput->quadraticDSum + pInput->count * pInput->dsum * pInput->dsum +
                               pOutput->count * pOutput->dsum * pOutput->dsum - totalCount * mean * mean;
     pOutput->dsum = mean;
-    pOutput->count += pInput->count;
   }
+
+  pOutput->count += pInput->count;
 }
 
 int32_t stdFunctionMerge(SqlFunctionCtx* pCtx) {
