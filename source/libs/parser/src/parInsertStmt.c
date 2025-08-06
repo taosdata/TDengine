@@ -767,6 +767,7 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCol
                                SBlobSet** ppBlob) {
   STableDataCxt*  pDataBlock = (STableDataCxt*)pBlock;
   SSchema*        pSchema = getTableColumnSchema(pDataBlock->pMeta);
+  SSchemaExt*     pSchemaExt = getTableColumnExtSchema(pDataBlock->pMeta);
   SBoundColInfo*  boundInfo = &pDataBlock->boundColsInfo;
   SMsgBuf         pBuf = {.buf = msgBuf, .len = msgBufLen};
   int32_t         rowNum = bind->num;
@@ -870,7 +871,7 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCol
   }
 
   if (hasBlob == 0) {
-    code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, parsedCols, colInOrder, *pTSchema, pCols,
+    code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, parsedCols, colInOrder, *pTSchema, pSchemaExt, pCols,
                               &pDataBlock->ordered, &pDataBlock->duplicateTs);
   } else {
     code = tBlobSetCreate(1024, 1, ppBlob);
@@ -1124,6 +1125,7 @@ int32_t qBindStmt2RowValue(void* pBlock, SArray* pCols, SSHashObj* parsedCols, T
                            int32_t msgBufLen, STSchema** pTSchema, SBindInfo2* pBindInfos, void* charsetCxt) {
   STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
   SSchema*         pSchema = getTableColumnSchema(pDataBlock->pMeta);
+  SSchemaExt*      pSchemaExt = getTableColumnExtSchema(pDataBlock->pMeta);
   SBoundColInfo*   boundInfo = &pDataBlock->boundColsInfo;
   SMsgBuf          pBuf = {.buf = msgBuf, .len = msgBufLen};
   int32_t          rowNum = bind->num;
@@ -1204,8 +1206,8 @@ int32_t qBindStmt2RowValue(void* pBlock, SArray* pCols, SSHashObj* parsedCols, T
   }
 
   if (hasBlob == 0) {
-    code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, parsedCols, colInOrder, *pTSchema, pCols,
-                            &pDataBlock->ordered, &pDataBlock->duplicateTs);
+    code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, parsedCols, colInOrder, *pTSchema, pSchemaExt, pCols,
+                              &pDataBlock->ordered, &pDataBlock->duplicateTs);
   } else {
     code = TSDB_CODE_BLOB_NOT_SUPPORT;
   }
@@ -1353,6 +1355,9 @@ int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32
         (*fields)[idx].bytes = schema->bytes;
         if (TSDB_DATA_TYPE_TIMESTAMP == schema->type) {
           (*fields)[idx].precision = pMeta->tableInfo.precision;
+        }
+        if (TSDB_DATA_TYPE_DECIMAL64 == schema->type || TSDB_DATA_TYPE_DECIMAL == schema->type) {
+          decimalFromTypeMod(pMeta->schemaExt[idxCol].typeMod, &(*fields)[idx].precision, &(*fields)[idx].scale);
         }
         idx++;
       }

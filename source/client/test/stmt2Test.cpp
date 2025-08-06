@@ -2437,6 +2437,67 @@ TEST(stmt2Case, geometry) {
   taos_close(taos);
 }
 
+TEST(stmt2Case, decimal) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_20");
+  do_query(taos, "CREATE DATABASE IF NOT EXISTS stmt2_testdb_20");
+  do_query(taos, "CREATE STABLE `stmt2_testdb_20`.stb (ts TIMESTAMP, b1 DECIMAL(4,2), b2 DECIMAL(20,10)) TAGS (t INT)");
+
+  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+  // 1 insert stb
+  char* sql = "insert into `stmt2_testdb_20`.? using `stmt2_testdb_20`.stb tags(1) values(?,?,?)";
+  int   code = taos_stmt2_prepare(stmt, sql, 0);
+  checkError(stmt, code, __FILE__, __LINE__);
+  int total_affected = 0;
+
+  int             fieldNum = 0;
+  TAOS_FIELD_ALL* pFields = NULL;
+  code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+  checkError(stmt, code, __FILE__, __LINE__);
+  ASSERT_EQ(fieldNum, 4);
+  ASSERT_STREQ(pFields[2].name, "b1");
+  ASSERT_EQ(pFields[2].type, TSDB_DATA_TYPE_DECIMAL64);
+  ASSERT_EQ(pFields[2].precision, 4);
+  ASSERT_EQ(pFields[2].scale, 2);
+
+  ASSERT_STREQ(pFields[3].name, "b2");
+  ASSERT_EQ(pFields[3].type, TSDB_DATA_TYPE_DECIMAL);
+  ASSERT_EQ(pFields[3].precision, 20);
+  ASSERT_EQ(pFields[3].scale, 10);
+
+  taos_stmt2_free_fields(stmt, pFields);
+
+  int64_t ts[2] = {1591060628000, 1591060629000};
+  char*   b1[2] = {"9999.9999", "1.0234"};
+  char*   b2[2] = {"1234567890123.1234567890123", "1.23e+10"};
+  int     tag_len[1] = {sizeof(int64_t)};
+  char*   tbnames = "tb1";
+
+  int              t64_len[2] = {sizeof(int64_t), sizeof(int64_t)};
+  int              b1_len[2] = {8, 5};
+  int              b2_len[2] = {28, 10};
+  TAOS_STMT2_BIND  col[3] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts[0], &t64_len[0], NULL, 2},
+                             {TSDB_DATA_TYPE_DECIMAL64, &b1[0], &b1_len[0], NULL, 2},
+                             {TSDB_DATA_TYPE_DECIMAL, &b2[0], &b2_len[0], NULL, 2}};
+  TAOS_STMT2_BIND* cols = &col[0];
+  TAOS_STMT2_BINDV bindv = {1, &tbnames, NULL, &cols};
+  code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  int affected_rows;
+  code = taos_stmt2_exec(stmt, &affected_rows);
+  checkError(stmt, code, __FILE__, __LINE__);
+  ASSERT_EQ(affected_rows, 2);
+
+  // do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_20");
+  taos_stmt2_close(stmt);
+  taos_close(taos);
+}
+
 void testMultiPrepare(TAOS* taos, TAOS_STMT2_OPTION* option) {
   TAOS_STMT2* stmt = taos_stmt2_init(taos, option);
   ASSERT_NE(stmt, nullptr);

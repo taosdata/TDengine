@@ -4880,7 +4880,8 @@ _exit:
  * `pDupTs` is the pointer to store duplicateTs
  */
 int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *parsedCols, bool infoSorted,
-                           const STSchema *pTSchema, SArray *rowArray, bool *pOrdered, bool *pDupTs) {
+                           const STSchema *pTSchema, const SSchemaExt *pSchemaExt, SArray *rowArray, bool *pOrdered,
+                           bool *pDupTs) {
   if (infos == NULL || numOfInfos <= 0 || numOfInfos > pTSchema->numOfCols || pTSchema == NULL || rowArray == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -4980,11 +4981,56 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
           }
           // value.pData = (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bind->buffer_length * iRow;
         } else {
-          uint8_t *val = (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bytes * iRow;
-          if (TSDB_DATA_TYPE_BOOL == value.type && *val > 1) {
-            *val = 1;
+          if (infos[iInfo].type == TSDB_DATA_TYPE_DECIMAL) {
+            if (!pSchemaExt) {
+              uError("Decimal type without ext schema info, cannot parse decimal values");
+              return TSDB_CODE_PAR_INTERNAL_ERROR;
+            }
+            uint8_t precision = 0, scale = 0;
+            decimalFromTypeMod(pSchemaExt[iInfo].typeMod, &precision, &scale);
+            Decimal128 dec = {0};
+            uint8_t  **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo - numOfFixedValue];
+            int32_t    length = infos[iInfo].bind->length[iRow];
+            int32_t    code = decimal128FromStr(*data, length, precision, scale, &dec);
+            *data += length;
+            if (TSDB_CODE_SUCCESS != code) {
+              return code;
+            }
+
+            // precision check
+            // scale auto fit
+
+            code = decimal128ToDataVal(&dec, &value);
+            if (TSDB_CODE_SUCCESS != code) {
+              return code;
+            }
+            break;
+          } else if (infos[iInfo].type == TSDB_DATA_TYPE_DECIMAL64) {
+            if (!pSchemaExt) {
+              uError("Decimal type without ext schema info, cannot parse decimal values");
+              return TSDB_CODE_PAR_INTERNAL_ERROR;
+            }
+            uint8_t precision = 0, scale = 0;
+            decimalFromTypeMod(pSchemaExt[iInfo].typeMod, &precision, &scale);
+            Decimal64 dec = {0};
+            uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo - numOfFixedValue];
+            int32_t   length = infos[iInfo].bind->length[iRow];
+            int32_t   code = decimal64FromStr(*data, length, precision, scale, &dec);
+            *data += length;
+            if (TSDB_CODE_SUCCESS != code) {
+              return code;
+            }
+            code = decimal64ToDataVal(&dec, &value);
+            if (TSDB_CODE_SUCCESS != code) {
+              return code;
+            }
+          } else {
+            uint8_t *val = (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bytes * iRow;
+            if (TSDB_DATA_TYPE_BOOL == value.type && *val > 1) {
+              *val = 1;
+            }
+            valueSetDatum(&value, infos[iInfo].type, val, infos[iInfo].bytes);
           }
-          valueSetDatum(&value, infos[iInfo].type, val, infos[iInfo].bytes);
         }
         colVal = COL_VAL_VALUE(infos[iInfo].columnId, value);
       }
