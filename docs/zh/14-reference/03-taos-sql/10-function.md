@@ -1857,7 +1857,8 @@ ELAPSED(ts_primary_key [, time_unit])
 
 **适用于**：表、超级表、嵌套查询的外层查询。
 
-**说明**：
+**使用说明**：
+
 - `ts_primary_key` 参数只能是表的第一列，即 TIMESTAMP 类型的主键列。
 - 返回值的时间单位由 `time_unit` 参数指定，最小是数据库的时间分辨率。`time_unit` 参数未指定时，以数据库的时间分辨率为时间单位。支持的时间单位 `time_unit` 如下：1b(纳秒)、1u(微秒)、1a(毫秒)、1s(秒)、1m(分)、1h(小时)、1d(天)、1w(周)。
 - 可以和 interval 组合使用，返回每个时间窗口的时间戳差值。需要特别注意的是，除第一个时间窗口和最后一个时间窗口外，中间窗口的时间戳差值均为窗口长度。
@@ -1928,7 +1929,6 @@ LEASTSQUARES(expr, start_val, step_val)
 
 **适用于**：表。
 
-
 ### PERCENTILE
 
 ```sql
@@ -1963,7 +1963,6 @@ SPREAD(expr)
 
 **适用于**：表和超级表。
 
-
 ### STDDEV/STDDEV_POP
 
 ```sql
@@ -1978,7 +1977,8 @@ STDDEV/STDDEV_POP(expr)
 
 **适用于**：表和超级表。
 
-**说明**：
+**使用说明**：
+
 - `STDDEV_POP` 函数等价于 `STDDEV` 函数，从 v3.3.3.0 开始支持。
 
 **举例**：
@@ -2059,7 +2059,7 @@ taos> select var_pop(id) from test_var;
 BOTTOM(expr, k)
 ```
 
-**功能说明**：统计表/超级表中某列的值最小 _k_ 个非 NULL 值。如果多条数据取值一样，全部取用又会超出 k 条限制时，系统会从相同值中随机选取符合要求的数量返回。
+**功能说明**：统计表/超级表中某列的值最小 **k** 个非 NULL 值。如果多条数据取值一样，全部取用又会超出 k 条限制时，系统会从相同值中随机选取符合要求的数量返回。
 
 **返回数据类型**：同应用的字段。
 
@@ -2224,7 +2224,7 @@ TAIL(expr, k [, offset_rows])
 TOP(expr, k)
 ```
 
-**功能说明**：统计表/超级表中某列的值最大 _k_ 个非 NULL 值。如果多条数据取值一样，全部取用又会超出 k 条限制时，系统会从相同值中随机选取符合要求的数量返回。
+**功能说明**：统计表/超级表中某列的值最大 **k** 个非 NULL 值。如果多条数据取值一样，全部取用又会超出 k 条限制时，系统会从相同值中随机选取符合要求的数量返回。
 
 **返回数据类型**：同应用的字段。
 
@@ -2273,7 +2273,6 @@ COLS(func(expr), output_expr1, [, output_expr2] ... )
 - 注意，函数 func 的结果并没有返回，如需输出 func 结果，可额外增加输出列，如 `select fist(ts), cols(first(ts), c1) from ...`
 - 输出只有一列时，可以对 cols 函数设置别名。例如 `select cols(first(ts), c1) as c11 from ...`
 - 输出一列或者多列时，可以对 cols 函数的每个输出列设置命名。例如 `select cols(first(ts), c1 as c11, c2 as c22)`
-
 
 ## 时序数据特有函数
 
@@ -2381,7 +2380,7 @@ ignore_null_values: {
 
 **适用于**：表和超级表。
 
-**使用说明**
+**使用说明**：
 
 - INTERP 用于在指定时间断面获取指定列的记录值，使用时有专用语法 (interp_clause)，语法介绍[参考链接](../select/#interp) 。
 - 当指定时间断面不存在符合条件的行数据时，INTERP 函数会根据 [FILL](../distinguished/#fill-子句) 参数的设定进行插值。
@@ -2637,7 +2636,6 @@ ST_Equals(GEOMETRY geomA, GEOMETRY geomB)
 **适用表类型**：标准表和超表。
 
 **使用说明**："空间相等"意味着 ST_Contains(A,B) = true 和 ST_Contains(B,A) = true，并且点的顺序可能不同，但表示相同的几何结构。
-
 
 #### ST_Intersects
 
