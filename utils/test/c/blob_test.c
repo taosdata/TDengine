@@ -51,6 +51,7 @@ void freeBindData(char ***table_name, TAOS_STMT2_BIND ***tags, TAOS_STMT2_BIND *
     }
     taosMemFree((*params)[i]);
   }
+
   taosMemFree(*table_name);
   taosMemFree(*tags);
   taosMemFree(*params);
