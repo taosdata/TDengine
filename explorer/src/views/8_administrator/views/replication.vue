@@ -163,7 +163,7 @@ import { excuteStart, excuteStop, excuteDel } from '@/api/common';
 import { getReplicationList, addReplicationData } from '@/api/replication';
 import { get, has } from 'lodash-es';
 import { getDBListReq } from '@/api/database';
-import { parsinginZone } from '@/utils/index';
+import { decrypt, parsinginZone } from '@/utils/index';
 import { replicationMockData } from '@/const';
 import { FormInstance, FormRules } from 'element-plus';
 const { t } = useI18n();
@@ -206,10 +206,12 @@ let topicList = ref([]);
 // parsinginZone,
 
 const fromUrl = () => {
+  const user = localStorage.getItem('username') || '';
+  const password = encodeURIComponent(decrypt(localStorage.getItem('pwd') || ''));
   const native_url = localStorage.getItem('native_url');
   const base_url = native_url || localStorage.getItem('base_url') || '';
   const splitArr = base_url?.split('//');
-  const url = splitArr[0] + '//' + splitArr[1];
+  const url = splitArr[0] + '//' + user + ':' + password + '@' + splitArr[1];
   const type = props.isLessThan3330 ? 'tmq' : 'sync';
   return splitArr[0].startsWith('taos') ? type + ':' + '//' + splitArr[1] : type + '+' + url;
 };
