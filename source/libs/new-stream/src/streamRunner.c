@@ -762,7 +762,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
 
   pExec->runtimeInfo.funcInfo.curIdx = pReq->curWinIdx;
   pExec->runtimeInfo.funcInfo.curOutIdx = pReq->curWinIdx;
-  bool    createTable = pReq->createTable;
+  bool    createTable = (pReq->createTable != 0);
   int32_t nextOutIdx = pExec->runtimeInfo.funcInfo.curOutIdx;
   while (pExec->runtimeInfo.funcInfo.curOutIdx < winNum && code == 0) {
     if (stRunnerTaskWaitQuit(pTask)) {
