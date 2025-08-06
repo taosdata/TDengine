@@ -1443,17 +1443,29 @@ static void stdTransferInfo(SStdRes* pInput, SStdRes* pOutput) {
     return;
   }
   pOutput->type = pInput->type;
-  if (IS_SIGNED_NUMERIC_TYPE(pOutput->type)) {
-    pOutput->quadraticISum += pInput->quadraticISum;
-    pOutput->isum += pInput->isum;
-  } else if (IS_UNSIGNED_NUMERIC_TYPE(pOutput->type)) {
-    pOutput->quadraticUSum += pInput->quadraticUSum;
-    pOutput->usum += pInput->usum;
-  } else {
-    pOutput->quadraticDSum += pInput->quadraticDSum;
-    pOutput->dsum += pInput->dsum;
-  }
+  /*
+   if (IS_SIGNED_NUMERIC_TYPE(pOutput->type)) {
+     pOutput->quadraticISum += pInput->quadraticISum;
+     pOutput->isum += pInput->isum;
+   } else if (IS_UNSIGNED_NUMERIC_TYPE(pOutput->type)) {
+     pOutput->quadraticUSum += pInput->quadraticUSum;
+     pOutput->usum += pInput->usum;
+   } else {
+     pOutput->quadraticDSum += pInput->quadraticDSum;
+     pOutput->dsum += pInput->dsum;
+   }
+  */
+  // pOutput->quadraticDSum *= ((double)pOutput->count) / (pOutput->count + pInput->count);
+  // pOutput->quadraticDSum += pInput->quadraticDSum * (((double)pInput->count) / (pOutput->count + pInput->count));
+  double totalCount = pOutput->count + pInput->count;
+  double mean = pInput->count / totalCount * pInput->dsum + pOutput->count / totalCount * pOutput->dsum;
 
+  pOutput->quadraticDSum += pInput->quadraticDSum + pInput->count * pInput->dsum * pInput->dsum +
+                            pOutput->count * pOutput->dsum * pOutput->dsum - totalCount * mean * mean;
+
+  // pOutput->dsum *= .5;
+  // pOutput->dsum += pInput->dsum * .5;
+  pOutput->dsum = mean;
   pOutput->count += pInput->count;
 }
 
