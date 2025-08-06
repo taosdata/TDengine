@@ -492,7 +492,7 @@ class TestStreamOldCaseTwa:
             tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
             tdSql.execute(
-                f"create stream streams3 interval(2s) sliding(2s) from st partition by tbname, ta stream_options(expired_time(0s) | ignore_disorder | max_delay(3s)) into streamt3 as select _wstart, twa(a), ta from st where tbname=%%tbname and ts >= _twstart and ts < _twend;";"
+                f"create stream streams3 interval(2s) sliding(2s) from st partition by tbname, ta stream_options(expired_time(0s) | ignore_disorder | max_delay(3s)) into streamt3 as select _wstart, twa(a), ta from st where tbname=%%tbname and ts >= _twstart and ts < _twend;"
             )
 
         def insert1(self):

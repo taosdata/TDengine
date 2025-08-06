@@ -138,11 +138,13 @@ DEGREES(expr)
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - 如果 `expr` 为 NULL，则返回 NULL。
 - degree = radian * 180 / π。
 - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
 **举例**：
+
 ```sql
 taos> select degrees(PI());
        degrees(pi())       |
@@ -168,10 +170,12 @@ EXP(expr)
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - 如果 `expr` 为 NULL，返回 NULL。
 - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
 **举例**：
+
 ```sql
 taos> select exp(2);
           exp(2)           |
@@ -185,10 +189,10 @@ taos> select exp(2);
 FLOOR(expr)
 ```
 
-**功能说明**：获得指定字段的向下取整数的结果。
- 其他使用说明参见 [CEIL](#ceil) 函数描述。
+**功能说明**：获得指定字段的向下取整数的结果。其他使用说明参见 [CEIL](#ceil) 函数描述。
 
 #### GREATEST
+
 ```sql
 GREATEST(expr1, expr2[, expr]...)
 ```
@@ -200,10 +204,12 @@ GREATEST(expr1, expr2[, expr]...)
 **返回结果类型**：参考比较规则，比较类型即为最终返回类型。
 
 **适用数据类型**：
+
 - 数值类型：包括 bool 型，整型和浮点型
 - 字符串类型：包括 nchar 和 varchar 类型。
 
 **比较规则**：以下规则描述了比较操作的转换方式：
+
 - 如果有任何一个参数为 NULL，则比较结果为 NULL。
 - 如果比较操作中的所有参数都是字符串类型，按照字符串类型比较
 - 如果所有参数都是数值类型，则将它们作为数值类型进行比较。
@@ -213,6 +219,7 @@ GREATEST(expr1, expr2[, expr]...)
 **相关配置项**：客户端配置，compareAsStrInGreatest 为 1 表示同时存在字符串类型和数值类型统一转为字符串比较，为 0 表示统一转为数值类型比较。默认为 1。
 
 #### LEAST
+
 ```sql
 LEAST(expr1, expr2[, expr]...)
 ```
@@ -238,11 +245,13 @@ LN(expr)
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - 如果 `expr` 为 NULL，返回 NULL。
 - 如果 `epxr` 小于等于 0，返回 NULL。
 - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
 **举例**：
+
 ```sql
 taos> select ln(10);
           ln(10)           |
@@ -287,11 +296,13 @@ MOD(expr1, expr2)
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - 如果 `expr2` 为 0 则返回 NULL。
 - 如果 `expr1` 或 `expr2` 为 NULL，返回 NULL。
 - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
 **举例**：
+
 ``` sql
 taos> select mod(10,3);
          mod(10,3)         |
@@ -323,10 +334,12 @@ PI()
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - π ≈ 3.141592653589793。
 - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
 **举例**：
+
 ```sql
 taos> select pi();
            pi()            |
@@ -371,11 +384,13 @@ RADIANS(expr)
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - 如果 `expr` 为 NULL，则返回 NULL。
 - radian = degree * π / 180。
 - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
 **举例**：
+
 ```sql
 taos> select radians(180);
        radians(180)        |
@@ -396,6 +411,7 @@ RAND([seed])
 **返回结果类型**：DOUBLE。
 
 **适用数据类型**：
+
 - `seed`：INTEGER。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
@@ -403,10 +419,12 @@ RAND([seed])
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - 如果指定了 `seed` 值，那么将会用指定的 `seed` 作为随机种子，确保生成的随机数序列具有确定性。
 - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
 **举例**：
+
 ``` sql
 taos> select rand();
           rand()           |
@@ -440,6 +458,7 @@ ROUND(expr[, digits])
 **返回结果类型**：与指定字段的原始数据类型一致。
 
 **适用数据类型**：
+
 - `expr`：数值类型。
 - `digits`：数值类型。
 
@@ -448,6 +467,7 @@ ROUND(expr[, digits])
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - 若 `expr` 或 `digits` 为 NULL，返回 NULL。
 - 若指定了`digits`，则会保留 `digits` 位小数，默认为 0。
 - 若输入值是 INTEGER 类型，无论 `digits` 值为多少，都只会返回 INTEGER 类型，不会保留小数。
@@ -458,6 +478,7 @@ ROUND(expr[, digits])
 - `digits` 从 v3.3.3.0 开始支持。
 
 **举例**：
+
 ```sql
 taos> select round(8888.88);
       round(8888.88)       |
@@ -489,6 +510,7 @@ SIGN(expr)
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - 如果 `expr` 为负，返回 -1。
 - 如果 `expr` 为正，返回 1。
 - 如果 `expr` 为 0，返回 0。
@@ -496,6 +518,7 @@ SIGN(expr)
 - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
 **举例**：
+
 ```sql
 taos> select sign(-1);
        sign(-1)        |
@@ -580,6 +603,7 @@ TRUNCATE(expr, digits)
 **返回结果类型**：与 `expr` 字段的原始数据类型一致。
 
 **适用数据类型**：
+
 - `expr`：数值类型。
 - `digits`：数值类型。
 
@@ -588,6 +612,7 @@ TRUNCATE(expr, digits)
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - 若 `expr` 或 `digits` 为 NULL，返回 NULL。
 - 截取指按保留位数直接进行截取，没有四舍五入。
 - `digits` 大于零表示对小数位进行操作，截取到 `digits` 位小数，若小数位数小于 `digits` 位，不进行截取操作，直接返回。
@@ -597,6 +622,7 @@ TRUNCATE(expr, digits)
 - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
 **举例**：
+
 ```sql
 taos> select truncate(8888.88, 0);
  truncate(8888.88, 0)    |
@@ -707,10 +733,12 @@ ASCII(expr)
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - 如果 `expr` 为 NULL，返回 NULL。
 - 如果 `expr` 的第一个字符为多字节字符，只会返回该字符第一个字节的值对应的 ASCII 码。
 
 **举例**：
+
 ```sql
 taos> select ascii('testascii');
  ascii('testascii') |
@@ -737,6 +765,7 @@ CHAR(expr1 [, expr2] [, epxr3] ...)
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - 输入的值超过 255 会被转化成多字节的结果，如 `CHAR(256)` 等同于 `CHAR(1,0)`、`CHAR(256 * 256)` 等同于 `CHAR(1,0,0)`。
 - 输入参数的 NULL 值会被跳过。
 - 输入参数若为字符串类型，会将其转换为数值类型处理。
@@ -744,6 +773,7 @@ CHAR(expr1 [, expr2] [, epxr3] ...)
 - 输入参数的个数上限为 2^31 - 1 个。
 
 **举例**：
+
 ```sql
 taos> select char(77);
  char(77) |
@@ -787,10 +817,12 @@ CHAR_LENGTH(expr)
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - 与 `LENGTH()` 函数不同在于，对于多字节字符，比如中文字符，`CHAR_LENGTH()` 函数会将其算做一个字符，长度为 1，而 `LENGTH()` 会计算其字节数，长度为 3。比如 `CHAR_LENGTH('你好') = 2`，`LENGTH('你好') = 6`。
 - 如果 `expr` 为 NULL，返回 NULL。
 
 **举例**：
+
 ```sql
 taos> select char_length('Hello world');
  char_length('Hello world') |
@@ -897,6 +929,7 @@ POSITION(expr1 IN expr2)
 **返回结果类型**：BIGINT。
 
 **适用数据类型**：
+
 - `expr1`：VARCHAR、NCHAR。
 - `expr2`：VARCHAR、NCHAR。
 
@@ -905,6 +938,7 @@ POSITION(expr1 IN expr2)
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - 若 `expr1` 或 `expr2` 为 NULL，返回 NULL。
 - 若 `expr1` 在 `expr2` 中不存在，返回 0。
 - 若 `expr1` 为空串，认为 `expr1` 在 `expr2` 中总能匹配成功，返回 1。
@@ -912,6 +946,7 @@ POSITION(expr1 IN expr2)
 - 该函数是多字节安全的。
 
 **举例**：
+
 ```sql
 taos> select position('a' in 'cba');
  position('a' in 'cba') |
@@ -942,6 +977,7 @@ REPEAT(expr, count)
 **返回结果类型**：与输入字段 `expr` 的原始类型相同。
 
 **适用数据类型**：
+
 - `expr`：VARCHAR、NCHAR。
 - `count`：INTEGER。
 
@@ -950,10 +986,12 @@ REPEAT(expr, count)
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - 若 `count < 1`，返回空串。
 - 若 `expr` 或 `count` 为 NULL，返回 NULL。
 
 **举例**：
+
 ```sql
 taos> select repeat('abc',5);
       repeat('abc',5)      |
@@ -978,6 +1016,7 @@ REPLACE(expr, from_str, to_str)
 **返回结果类型**：与输入字段 `expr` 的原始类型相同。
 
 **适用数据类型**：
+
 - `expr`：VARCHAR、NCHAR。
 - `from_str`：VARCHAR、NCHAR。
 - `to_str`：VARCHAR、NCHAR。
@@ -987,11 +1026,13 @@ REPLACE(expr, from_str, to_str)
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - 该函数是大小写敏感的。
 - 任意参数为 NULL，返回 NULL。
 - 该函数是多字节安全的。
 
 **举例**：
+
 ```sql
 taos> select replace('aabbccAABBCC', 'AA', 'DD');
  replace('aabbccAABBCC', 'AA', 'DD') |
@@ -1026,6 +1067,7 @@ SUBSTRING/SUBSTR(expr FROM pos [FOR len])
 **返回结果类型**：与输入字段 `expr` 的原始类型相同。
 
 **适用数据类型**：
+
 - `expr`：VARCHAR、NCHAR。
 - `pos`：整数类型。
 - `len`：整数类型。
@@ -1035,6 +1077,7 @@ SUBSTRING/SUBSTR(expr FROM pos [FOR len])
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - 若 `pos` 为正数，则返回的结果为 `expr` 从左到右开始数 `pos` 位置开始的右侧的子串。
 - 若 `pos` 为负数，则返回的结果为 `expr` 从右到左开始数 `pos` 位置开始的右侧的子串。
 - 任意参数为 NULL，返回 NULL。
@@ -1046,6 +1089,7 @@ SUBSTRING/SUBSTR(expr FROM pos [FOR len])
 - `SUBSTRING/SUBSTR(expr FROM pos [FOR len])` 语法从 v3.3.3.0 开始支持。
 
 **举例**：
+
 ```sql
 taos> select substring('tdengine', 0);
  substring('tdengine', 0) |
@@ -1086,6 +1130,7 @@ SUBSTRING_INDEX(expr, delim, count)
 **返回结果类型**：与输入字段 `expr` 的原始类型相同。
 
 **适用数据类型**：
+
 - `expr`：VARCHAR、NCHAR。
 - `delim`：VARCHAR、NCHAR。
 - `count`：INTEGER。
@@ -1095,12 +1140,14 @@ SUBSTRING_INDEX(expr, delim, count)
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - 若 `count` 为正数，则返回的结果为 `expr` 从左到右开始数第 `count` 次 出现 `delim` 的位置左侧的字符串。
 - 若 `count` 为负数，则返回的结果为 `expr` 从右到左开始数第 `count` 的绝对值次 出现 `delim` 的位置右侧的字符串。
 - 任意参数为 NULL，返回 NULL。
 - 该函数是多字节安全的。
 
 **举例**：
+
 ```sql
 taos> select substring_index('www.taosdata.com','.',2);
  substring_index('www.taosdata.com','.',2) |
@@ -1127,6 +1174,7 @@ TRIM([remstr FROM] expr)
 **返回结果类型**：与输入字段 epxr 的原始类型相同。
 
 **适用数据类型**：
+
 - remstr：VARCHAR、NCHAR。
 - epxr：VARCHAR、NCHAR。
 
@@ -1135,6 +1183,7 @@ TRIM([remstr FROM] expr)
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - 第一个可选变量[LEADING | BOTH | TRAILING]指定要剪裁字符串的哪一侧：
   - LEADING 将移除字符串开头的指定字符。
   - TRAILING 将移除字符串末尾的指定字符。
@@ -1146,6 +1195,7 @@ TRIM([remstr FROM] expr)
 - 该函数是多字节安全的。
 
 **举例**：
+
 ```sql
 taos> select trim('        a         ');
  trim('        a         ') |
@@ -1309,6 +1359,7 @@ TO_CHAR(ts, format_str_literal)
 | TZH,tzh             | 时区小时                                  | 2023-01-30 11:59:59PM +08 |
 
 **使用说明**：
+
 - `Month`、`Day`等的输出格式是左对齐的，右侧添加空格，如 `2023-OCTOBER  -01`、`2023-SEPTEMBER-01`，9 月是月份中英文字母数最长的，因此 9 月没有空格。星期类似。
 - 使用`ms`、`us`、`ns`时，以上三种格式的输出只在精度上不同，比如 ts 为 `1697182085123`，`ms` 的输出为 `123`，`us` 的输出为 `123000`，`ns` 的输出为 `123000000`。
 - 时间格式中无法匹配规则的内容会直接输出。如果想要在格式串中指定某些能够匹配规则的部分不做转换，可以使用双引号，如 `to_char(ts, 'yyyy-mm-dd "is formatted by yyyy-mm-dd"')`。如果想要输出双引号，那么在双引号之前加一个反斜杠，如 `to_char(ts, '\"yyyy-mm-dd\"')` 将会输出 `"2023-10-10"`。
@@ -1374,6 +1425,7 @@ TO_TIMESTAMP(ts_str_literal, format_str_literal)
 **使用说明**：与 `to_char` 相同。
 
 **使用说明**：
+
 - 若 `ms`、`us`、`ns` 同时指定，那么结果时间戳包含上述三个字段的和，如 `to_timestamp('2023-10-10 10:10:10.123.000456.000000789', 'yyyy-mm-dd hh:mi:ss.ms.us.ns')` 输出为 `2023-10-10 10:10:10.123456789`对应的时间戳。
 - `MONTH`、`MON`、`DAY`、`DY` 以及其他输出为数字的格式的大小写意义相同，如 `to_timestamp('2023-JANUARY-01', 'YYYY-month-dd')`，`month`可以被替换为 `MONTH` 或者 `Month`。
 - 如果同一字段被指定了多次，那么前面的指定将会被覆盖，如 `to_timestamp('2023-22-10-10', 'yyyy-yy-MM-dd')`，输出年份是 `2022`。
@@ -1433,11 +1485,13 @@ DAYOFWEEK(expr)
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - 返回值 1 代表周日，2 代表周一 ... 7 代表周六
 - 若 `expr` 为 NULL，返回 NULL。
 - 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒。
   
 **举例**：
+
 ```sql
 taos> select dayofweek('2000-01-01');
  dayofweek('2000-01-01') |
@@ -1478,6 +1532,7 @@ TIMEDIFF(expr1, expr2 [, time_unit])
 **返回结果类型**：BIGINT。
 
 **适用数据类型**：
+
 - `expr1`：表示时间戳的 BIGINT、TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR、NCHAR 类型。
 - `expr2`：表示时间戳的 BIGINT、TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR、NCHAR 类型。
 - `time_unit`：见使用说明。
@@ -1488,6 +1543,7 @@ TIMEDIFF(expr1, expr2 [, time_unit])
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - `expr1` 或 `expr2` 为 NULL，返回 NULL。
 - 输入包含不符合时间日期格式的字符串则返回 NULL。
 - 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒。
@@ -1495,6 +1551,7 @@ TIMEDIFF(expr1, expr2 [, time_unit])
 - `time_unit` 为 NULL，等同于未指定时间单位。
 
 **举例**：
+
 ```sql
 taos> select timediff('2022-01-01 08:00:00', '2022-01-01 08:00:01',1s);
  timediff('2022-01-01 08:00:00', '2022-01-01 08:00:01',1s) |
@@ -1532,6 +1589,7 @@ use_current_timezone: {
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - 支持的时间单位 time_unit 包括 1b(纳秒)、1u(微秒)、1a(毫秒)、1s(秒)、1m(分)、，1h(小时)、1d(天)、1w(周)。
 - 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
 - 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒。
@@ -1590,6 +1648,7 @@ WEEK(expr [, mode])
 **返回结果类型**：BIGINT。
 
 **适用数据类型**：
+
 - `expr`：表示时间戳的 BIGINT、TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR、NCHAR 类型。
 - `mode`：0 - 7 之间的整数。
 
@@ -1598,6 +1657,7 @@ WEEK(expr [, mode])
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - 若 `expr` 为 NULL，返回 NULL。
 - 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒。
 - `mode` 用来指定一周是从周日开始还是周一开始，以及指定返回值范围是 1 - 53 还是 0 - 53。下表详细描述不同的 mode 对应的计算方法：
@@ -1620,6 +1680,7 @@ WEEK(expr [, mode])
     - 在 `mode=2` 时返回值为 `52`，因为从 `2000-01-02` 起才是第 1 周，并且返回值范围为 1-53，所以 `2000-01-01` 算做上一年的最后一周，即 1999 年的第 52 周，返回 52。
 
 **举例**：
+
 ```sql
 taos> select week('2000-01-01',0);
  week('2000-01-01',0)  |
@@ -1643,6 +1704,7 @@ taos> select week('2000-01-01',3);
 ```
 
 #### WEEKDAY
+
 ```sql
 WEEKDAY(expr)
 ```
@@ -1659,11 +1721,13 @@ WEEKDAY(expr)
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - 返回值 0 代表周一，1 代表周二 ... 6 代表周日。
 - 若 `expr` 为 NULL，返回 NULL。
 - 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒。
 
 **举例**：
+
 ```sql
 taos> select weekday('2000-01-01');
  weekday('2000-01-01') |
@@ -1689,11 +1753,13 @@ WEEKOFYEAR(expr)
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - 等同于`WEEK(expr, 3)`，即在每周第一天是周一，返回值范围为 1 - 53，第一个包含四天及以上的周为第 1 周的条件下判断输入日期的周数。
 - 若 `expr` 为 NULL，返回 NULL。
 - 输入时间戳的精度由所查询表的精度确定，未指定表，则精度为毫秒。
 
 **举例**：
+
 ```sql
 taos> select weekofyear('2000-01-01');
  weekofyear('2000-01-01') |
@@ -1903,6 +1969,7 @@ STDDEV/STDDEV_POP(expr)
 - `STDDEV_POP` 函数等价于 `STDDEV` 函数，从 v3.3.3.0 开始支持。
 
 **举例**：
+
 ```sql
 taos> select id from test_stddev;
      id      |
@@ -1952,6 +2019,7 @@ VAR_POP(expr)
 **适用于**：表和超级表。
 
 **举例**：
+
 ```sql
 taos> select id from test_var;
      id      |
@@ -2049,6 +2117,7 @@ LAST_ROW(expr)
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - 如果要返回各个列的最后一条记录（时间戳最大），可以使用 LAST_ROW(\*) 查询超级表，且 multiResultFunctionStarReturnTags 设置为 0 (默认值) 时，LAST_ROW(\*) 只返回超级表的普通列；设置为 1 时，返回超级表的普通列和标签列。
 - 在用于超级表时，时间戳完全一样且同为最大的数据行可能有多个，那么会从中随机返回一条，而并不保证多次运行所挑选的数据行必然一致。
 - 不能与 INTERVAL 一起使用。
@@ -2069,6 +2138,7 @@ MAX(expr)
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - max 函数可以接受字符串作为输入参数，当输入参数为字符串类型时，返回最大的字符串值，从 v3.3.3.0 开始支持，之前的版本不支持字符串参数。
 
 ### MIN
@@ -2086,6 +2156,7 @@ MIN(expr)
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - min 函数可以接受字符串作为输入参数，当输入参数为字符串类型时，返回最大的字符串值，从 v3.3.3.0 开始支持，之前的版本不支持字符串参数。
 
 ### MODE
@@ -2183,6 +2254,7 @@ COLS(func(expr), output_expr1, [, output_expr2] ... )
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - func 函数类型：必须是单行选择函数（输出结果为一行的选择函数，例如 last 是单行选择函数，但 top 是多行选择函数）。
 - 主要用于一个 sql 中获取多个选择函数结果关联列的场景，例如 `select cols(max(c0), ts), cols(max(c1), ts) from ...` 可用于获取 c0、c1 列最大值的不同 ts 值。
 - 注意，函数 func 的结果并没有返回，如需输出 func 结果，可额外增加输出列，如 `select fist(ts), cols(first(ts), c1) from ...`
@@ -2211,6 +2283,7 @@ CSUM(expr)
 **适用于**：表和超级表。
 
 **使用说明**：
+
 - 不支持 +、-、*、/ 运算，如 csum(col1) + csum(col2)。
 - 只能与聚合（Aggregation）函数一起使用。该函数可以应用在普通表和超级表上。
 
