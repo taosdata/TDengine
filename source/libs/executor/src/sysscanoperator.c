@@ -2529,13 +2529,52 @@ static int32_t buildVgDiskUsage(SOperatorInfo* pOperator, SDbSizeStatisInfo* pSt
 _end:
   return code;
 }
+
+static int32_t shouldEstimateRawDataSize(SOperatorInfo* pOperator, int8_t* estimate) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  size_t  size = 0;
+  int32_t index = 0;
+
+  const char*          tgt = "raw_data";
+  const SSysTableMeta* pMeta = NULL;
+  SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
+
+  SSysTableScanInfo* pInfo = pOperator->info;
+  getInfosDbMeta(&pMeta, &size);
+
+  *estimate = 0;
+  for (int32_t i = 0; i < size; ++i) {
+    if (strcmp(pMeta[i].name, TSDB_INS_DISK_USAGE) == 0) {
+      index = i;
+      break;
+    }
+  }
+
+  for (int32_t i = 0; i < pMeta[index].colNum; i++) {
+    SColumnInfoData colInfoData =
+        createColumnInfoData(pMeta[index].schema[i].type, pMeta[index].schema[i].bytes, i + 1);
+    const char* colName = pMeta[index].schema[i].name;
+    if (strncmp(colName, tgt, strlen(tgt)) == 0) {
+      for (int32_t i = 0; i < taosArrayGetSize(pInfo->matchInfo.pList); i++) {
+        SColMatchItem* pItem = taosArrayGet(pInfo->matchInfo.pList, i);
+        if (pItem->colId == colInfoData.info.colId) {
+          *estimate = 1;
+        }
+      }
+      break;
+    }
+  }
+
+  return code;
+}
 static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*       pAPI = &pTaskInfo->storageAPI;
   SSysTableScanInfo* pInfo = pOperator->info;
-  SDbSizeStatisInfo  staticsInfo = {0};
+  SDbSizeStatisInfo  staticsInfo = {.estimateRawData = 1};
 
   char*        buf = NULL;
   SSDataBlock* p = NULL;
@@ -2558,6 +2597,11 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   }
 
   SSDataBlock* pBlock = pInfo->pRes;
+
+  if (!pInfo->showRewrite) {
+    code = shouldEstimateRawDataSize(pOperator, &staticsInfo.estimateRawData);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
 
   code = buildVgDiskUsage(pOperator, &staticsInfo);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -4196,6 +4240,10 @@ static int32_t vnodeEstimateRawDataSize(SOperatorInfo* pOperator, SDbSizeStatisI
   SSysTableScanInfo* pInfo = pOperator->info;
   int32_t            numOfRows = 0;
   int32_t            ret = 0;
+  if (pStaticInfo->estimateRawData == 0) {
+    pStaticInfo->rawDataSize = 0;
+    return code;
+  }
 
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
