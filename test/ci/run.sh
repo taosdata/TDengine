@@ -563,7 +563,7 @@ cp_status=$?
 echo "Copying allure results to $results_dir, status: $cp_status"
 
 # generate the test report for pr
-/opt/allure/bin/allure generate "$results_dir" -o "$report_dir" --clean
+/opt/allure-2.22.1/bin/allure generate "$results_dir" -o "$report_dir" --clean
 generate_status=$?
 echo "Generating allure report, status: $generate_status"
 
