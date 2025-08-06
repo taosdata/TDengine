@@ -102,6 +102,7 @@ typedef struct SStmtSQLInfo {
   bool              autoCreateTbl;
   SHashObj         *pVgHash;
   SBindInfo        *pBindInfo;
+  SSHashObj        *predicateCols;
 
   SStbInterlaceInfo siInfo;
 } SStmtSQLInfo;
