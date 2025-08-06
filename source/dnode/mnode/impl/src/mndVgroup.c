@@ -2740,6 +2740,96 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
 
     code = mndRedistributeVgroup(pMnode, pReq, pDb, pVgroup, pNew1, pOld1, pNew2, pOld2, pNew3, pOld3);
 
+  } else if (pVgroup->replica == 2) {
+    if (req.dnodeId1 <= 0 || req.dnodeId2 <= 0) {
+      code = TSDB_CODE_MND_INVALID_REPLICA;
+      goto _OVER;
+    }
+
+    if (req.dnodeId1 == req.dnodeId2) {
+      code = TSDB_CODE_MND_INVALID_REPLICA;
+      goto _OVER;
+    }
+
+    if (req.dnodeId1 != pVgroup->vnodeGid[0].dnodeId && req.dnodeId1 != pVgroup->vnodeGid[1].dnodeId) {
+      newDnodeId[++newIndex] = req.dnodeId1;
+      mInfo("vgId:%d, dnode:%d will be added, index:%d", pVgroup->vgId, newDnodeId[newIndex], newIndex);
+    }
+
+    if (req.dnodeId2 != pVgroup->vnodeGid[0].dnodeId && req.dnodeId2 != pVgroup->vnodeGid[1].dnodeId) {
+      newDnodeId[++newIndex] = req.dnodeId2;
+      mInfo("vgId:%d, dnode:%d will be added, index:%d", pVgroup->vgId, newDnodeId[newIndex], newIndex);
+    }
+
+    if (req.dnodeId1 != pVgroup->vnodeGid[0].dnodeId && req.dnodeId2 != pVgroup->vnodeGid[0].dnodeId) {
+      oldDnodeId[++oldIndex] = pVgroup->vnodeGid[0].dnodeId;
+      mInfo("vgId:%d, dnode:%d will be removed, index:%d", pVgroup->vgId, oldDnodeId[oldIndex], oldIndex);
+    }
+
+    if (req.dnodeId1 != pVgroup->vnodeGid[1].dnodeId && req.dnodeId2 != pVgroup->vnodeGid[1].dnodeId) {
+      oldDnodeId[++oldIndex] = pVgroup->vnodeGid[1].dnodeId;
+      mInfo("vgId:%d, dnode:%d will be removed, index:%d", pVgroup->vgId, oldDnodeId[oldIndex], oldIndex);
+    }
+
+    if (newDnodeId[0] != 0) {
+      pNew1 = mndAcquireDnode(pMnode, newDnodeId[0]);
+      if (pNew1 == NULL) {
+        code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+        if (terrno != 0) code = terrno;
+        goto _OVER;
+      }
+      if (!mndIsDnodeOnline(pNew1, curMs)) {
+        code = TSDB_CODE_MND_HAS_OFFLINE_DNODE;
+        goto _OVER;
+      }
+    }
+
+    if (newDnodeId[1] != 0) {
+      pNew2 = mndAcquireDnode(pMnode, newDnodeId[1]);
+      if (pNew2 == NULL) {
+        code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+        if (terrno != 0) code = terrno;
+        goto _OVER;
+      }
+      if (!mndIsDnodeOnline(pNew2, curMs)) {
+        code = TSDB_CODE_MND_HAS_OFFLINE_DNODE;
+        goto _OVER;
+      }
+    }
+
+    if (oldDnodeId[0] != 0) {
+      pOld1 = mndAcquireDnode(pMnode, oldDnodeId[0]);
+      if (pOld1 == NULL) {
+        code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+        if (terrno != 0) code = terrno;
+        goto _OVER;
+      }
+      if (!mndIsDnodeOnline(pOld1, curMs)) {
+        code = TSDB_CODE_MND_HAS_OFFLINE_DNODE;
+        goto _OVER;
+      }
+    }
+
+    if (oldDnodeId[1] != 0) {
+      pOld2 = mndAcquireDnode(pMnode, oldDnodeId[1]);
+      if (pOld2 == NULL) {
+        code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+        if (terrno != 0) code = terrno;
+        goto _OVER;
+      }
+      if (!mndIsDnodeOnline(pOld2, curMs)) {
+        code = TSDB_CODE_MND_HAS_OFFLINE_DNODE;
+        goto _OVER;
+      }
+    }
+
+    if (pNew1 == NULL && pOld1 == NULL && pNew2 == NULL && pOld2 == NULL) {
+      // terrno = TSDB_CODE_MND_VGROUP_UN_CHANGED;
+      code = 0;
+      goto _OVER;
+    }
+
+    code = mndRedistributeVgroup(pMnode, pReq, pDb, pVgroup, pNew1, pOld1, pNew2, pOld2, NULL, NULL);
   } else {
     code = TSDB_CODE_MND_REQ_REJECTED;
     goto _OVER;
@@ -3374,11 +3464,13 @@ int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgro
   }
 #endif
 
-  if (pDb->cfg.withArbitrator) {
-    code = TSDB_CODE_OPS_NOT_SUPPORT;
-    mError("vgId:%d, db:%s, with arbitrator, split vgroup not allowed", pVgroup->vgId, pVgroup->dbName);
-    goto _OVER;
-  }
+  /*
+    if (pDb->cfg.withArbitrator) {
+      code = TSDB_CODE_OPS_NOT_SUPPORT;
+      mError("vgId:%d, db:%s, with arbitrator, split vgroup not allowed", pVgroup->vgId, pVgroup->dbName);
+      goto _OVER;
+    }
+  */
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "split-vgroup");
   if (pTrans == NULL) {
@@ -3423,7 +3515,7 @@ int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgro
     TAOS_CHECK_GOTO(mndAddAlterVnodeReplicaAction(pMnode, pTrans, pDb, &newVg1, newVg1.vnodeGid[1].dnodeId), NULL,
                     _OVER);
   } else {
-    goto _OVER;
+    // goto _OVER;
   }
 
   for (int32_t i = 0; i < newVg1.replica; ++i) {
