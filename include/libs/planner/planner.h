@@ -51,6 +51,7 @@ typedef struct SPlanContext {
   bool        streamVtableCalc;
   SNode*      streamTriggerScanSubplan;
   SArray*     pStreamCalcVgArray;
+  SNodeList*  streamTriggerScanList;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.

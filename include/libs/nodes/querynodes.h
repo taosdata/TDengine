@@ -427,6 +427,26 @@ typedef struct SExternalWindowNode {
   void*       timezone;
 } SExternalWindowNode;
 
+typedef struct SStreamTriggerOptions {
+  ENodeType type; // QUERY_NODE_STREAM_TRIGGER_OPTIONS
+  SNode*    pPreFilter;
+  SNode*    pWaterMark;
+  SNode*    pMaxDelay;
+  SNode*    pExpiredTime;
+  SNode*    pFillHisStartTime;
+  int64_t   pEventType;
+  int64_t   fillHistoryStartTime;
+  bool      ignoreDisorder;
+  bool      deleteRecalc;
+  bool      deleteOutputTable;
+  bool      fillHistory;
+  bool      fillHistoryFirst;
+  bool      calcNotifyOnly;
+  bool      lowLatencyCalc;
+  bool      forceOutput;
+  bool      ignoreNoDataTrigger;
+} SStreamTriggerOptions;
+
 typedef struct SStreamTriggerNode {
   ENodeType   type;
   SNode*      pTriggerWindow; // S.*WindowNode

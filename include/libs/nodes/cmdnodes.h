@@ -636,27 +636,6 @@ typedef struct SKillQueryStmt {
   char      queryId[TSDB_QUERY_ID_LEN];
 } SKillQueryStmt;
 
-
-typedef struct SStreamTriggerOptions {
-  ENodeType type; // QUERY_NODE_STREAM_TRIGGER_OPTIONS
-  SNode*    pPreFilter;
-  SNode*    pWaterMark;
-  SNode*    pMaxDelay;
-  SNode*    pExpiredTime;
-  SNode*    pFillHisStartTime;
-  int64_t   pEventType;
-  int64_t   fillHistoryStartTime;
-  bool      ignoreDisorder;
-  bool      deleteRecalc;
-  bool      deleteOutputTable;
-  bool      fillHistory;
-  bool      fillHistoryFirst;
-  bool      calcNotifyOnly;
-  bool      lowLatencyCalc;
-  bool      forceOutput;
-  bool      ignoreNoDataTrigger;
-} SStreamTriggerOptions;
-
 typedef enum EStreamNotifyEventType {
   SNOTIFY_EVENT_WINDOW_INVALIDATION = 0,
   SNOTIFY_EVENT_WINDOW_OPEN = BIT_FLAG_MASK(0),
