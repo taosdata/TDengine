@@ -228,7 +228,7 @@ function run_thread() {
         # get python cases from cases.task file without asan or sim cases
         if echo "$case_cmd" | grep -q "^pytest"; then
             # get python cases from cases.task file without asan
-            if [[ $case_cmd == *"\.py"* ]]; then
+            if [[ $case_cmd == *".py"* ]]; then
                 case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
             fi
             # get sim cases from cases.task file
