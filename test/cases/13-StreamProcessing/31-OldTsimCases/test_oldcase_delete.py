@@ -15,12 +15,12 @@ class TestStreamOldCaseDelete:
     def test_stream_oldcase_delete(self):
         """Stream delete
 
-        Testing the correctness of results when deleting data in various trigger windows
+        Test the correctness of results when deleting data in various trigger windows
 
         Catalog:
             - Streams:OldTsimCases
 
-        Since: v3.0.0.0
+        Since: v3.3.7.0
 
         Labels: common, ci
 
