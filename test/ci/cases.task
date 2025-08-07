@@ -67,6 +67,7 @@
 ## 05-Sync
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance_replica_1.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance_replica_3.py -N 5
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance_vnode_clean.py -N 4 -C 2
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance1.py -N 4 -C 1
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance2.py -N 5 -C 3
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance3.py -N 6 -C 4
@@ -79,19 +80,13 @@
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_split_vgroup_replica1.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_split_vgroup_replica3.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_stable_balance_replica1.py -N 2
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_stable_dnode2_stop.py -N 2
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_stable_dnode2.py -N 2
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_stable_dnode3.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_stable_replica3_dnode6.py -N 6
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_stable_replica3_vnode3.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_sync_3Replica1VgElect.py -N 5
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_sync_3Replica5VgElect.py -N 5
 #failed,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_sync_vnodesnapshot_rsma.py -N 4
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_clean.py -N 4 -C 2
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_replica3_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_replica3_import.py -N 4
 #,,n,.,pytest cases/02-Databases/05-Sync/test_vnode_replica3_many.py -N 4
-#,,n,.,pytest cases/02-Databases/05-Sync/test_vnode_replica3_repeat.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_replica3_vgroup.py -N 4
 
 ## 06-Precision

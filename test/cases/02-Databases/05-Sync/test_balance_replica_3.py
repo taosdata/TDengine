@@ -8,7 +8,7 @@ class TestBalanceReplica3:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_balance_replica_3(self):
-        """Balance: replica 3
+        """Balance: replica-3
 
         1. Create a 3-replica database with 4 vgroups and insert data
         2. Start a new dnode and add it to the cluster
