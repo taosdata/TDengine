@@ -24,6 +24,10 @@ pretrained_model = MoiraiMoEModule.from_pretrained(
     _model_list[0]
 ).to(device)
 
+# if load the safetensor from local directory
+# pretrained_model = MoiraiModule.from_pretrained(
+#     '/var/lib/taos/taosanode/model/moirai/'
+# )
 
 @app.route('/ds_predict', methods=['POST'])
 def uni2ts():
