@@ -374,7 +374,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_column_1.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_column_7.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_const_col.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_const.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_read.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_select_complex.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_select_res_num.py

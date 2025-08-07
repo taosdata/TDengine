@@ -8,11 +8,11 @@ class TestDatabaseCreate:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_create(self):
-        """check database name
+        """Name
 
-        1. case sensitivity
-        2. illegal names
-        3. chinese names
+        1. Case sensitivity
+        2. Illegal names
+        3. Chinese names
 
         Catalog:
             - Database:Create

@@ -8,11 +8,11 @@ class TestDatabaseTablePrefixSuffix:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_table_prefix_suffix(self):
-        """create database use table prefix and suffix
+        """Options: table prefix and suffix
 
-        1. create database use TABLE_PREFIX and TABLE_SUFFIX options
-        2. create tables
-        3. verify that the table distribution in the vgroup meets expectations.
+        1. Create database with TABLE_PREFIX and TABLE_SUFFIX options
+        2. Create tables
+        3. Verify that tables are distributed across vgroups as expected
 
         Catalog:
             - Database:Create

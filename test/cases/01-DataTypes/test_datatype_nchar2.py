@@ -9,9 +9,9 @@ class TestNChar:
     def test_nchar(self):
         """DataTypes: nchar (Chinese)
 
-        1. create table
-        2. insert data
-        3. query data
+        1. Create table
+        2. Insert data
+        3. Query data
 
         Catalog:
             - DataTypes

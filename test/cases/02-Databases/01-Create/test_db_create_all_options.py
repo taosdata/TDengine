@@ -8,11 +8,11 @@ class TestDatabaseCreateAllOptions:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_create_all_options(self):
-        """create database use options
+        """Options
 
-        1. create database using all the available options
-        2. query information_schema.ins_databases to confirm that the options are displayed correctly
-        3. test the ranges of each option.
+        1. Create database using all available options
+        2. Query information_schema.ins_databases to verify correct display
+        3. Test the valid ranges of each option
 
         Catalog:
             - Database:Create

@@ -9,9 +9,9 @@ class TestNullTag:
     def test_null_tag(self):
         """NULL: tag
 
-        1. create table with NULL tags
-        2. select tags
-        3. alter tags
+        1. Create table with NULL tags
+        2. Select tags
+        3. Alter tags
 
         Catalog:
             - DataTypes
