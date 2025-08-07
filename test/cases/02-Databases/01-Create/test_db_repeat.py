@@ -8,7 +8,7 @@ class TestDatabaseRepeat:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_repeat(self):
-        """repeatedly create and drop databases
+        """Database: repeatedly create and drop
 
         1. create database
         2. create table

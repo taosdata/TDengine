@@ -8,7 +8,7 @@ class TestDatabaseBasic1:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_basic1(self):
-        """create database 1
+        """Database: basic 1
 
         1. creat database use vgroup option
         2. show vgroups
@@ -16,6 +16,7 @@ class TestDatabaseBasic1:
 
         Catalog:
             - Databases:Create
+            - Databases:Drop
 
         Since: v3.0.0.0
 

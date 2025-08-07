@@ -8,7 +8,7 @@ class TestDatabaseBasic3:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_basic3(self):
-        """create database 3
+        """Database: basic 3
 
         1. create database
         2. create normal table with db. as the prefix
@@ -16,6 +16,7 @@ class TestDatabaseBasic3:
 
         Catalog:
             - Database:Create
+            - Databases:Drop
 
         Since: v3.0.0.0
 

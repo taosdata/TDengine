@@ -8,7 +8,7 @@ class TestDatabaseBasic6:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_basic6(self):
-        """create database 6
+        """Database: basic 6
 
         1. create database use options such as replcai, duraiton, keep, minrows
         2. select from information_schema.ins_databases and check result
@@ -16,6 +16,7 @@ class TestDatabaseBasic6:
 
         Catalog:
             - Database:Create
+            - Databases:Drop
 
         Since: v3.0.0.0
 

@@ -8,7 +8,7 @@ class TestDatabaseDnodeList:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_dnode_list(self):
-        """create database use dnodelist option
+        """Options: dnodelist
 
         1. create database with dnodelist option
         2. test the creation with different numbers of replicas and vgroups

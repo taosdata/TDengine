@@ -8,7 +8,7 @@ class TestDatabaseKeep:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_Keep(self):
-        """create database use keep option
+        """Options: keep
 
         1. create database with keep option
         2. write and query data, include data not within the keep range

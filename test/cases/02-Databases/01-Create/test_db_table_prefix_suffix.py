@@ -8,7 +8,7 @@ class TestDatabaseTablePrefixSuffix:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_table_prefix_suffix(self):
-        """create database use table prefix and suffix
+        """Options: table prefix and suffix
 
         1. create database use TABLE_PREFIX and TABLE_SUFFIX options
         2. create tables
