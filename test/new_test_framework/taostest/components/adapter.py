@@ -4,6 +4,7 @@ import winrm
 from threading import Thread
 import platform
 import subprocess
+import psutil
 from ..util.file import dict2toml, dict2file
 from ..util.remote import Remote
 from ..util.common import TDCom
@@ -44,10 +45,14 @@ class TaosAdapter:
         win_adapter.run_cmd(f'net start taosadapter')
 
     def _configure_and_start(self, node, tmp_dir, nodeDict, config_dir, config_file):
-        self._remote.cmd(node, ["mkdir -p {}".format(config_dir)])
+        self._remote.mkdir(node, config_dir)
         self._remote.put(node, os.path.join(tmp_dir, config_file), config_dir)
         taosadapter_path = nodeDict["spec"]["taosadapterPath"] if "taosadapterPath" in nodeDict["spec"] else "/usr/bin/taosadapter"
-        self._remote.cmd(node, [f"screen -d -m {taosadapter_path} -c {nodeDict['spec']['config_file']}", "sleep 5s"])
+        if platform.system().lower() == "windows":
+            start_cmd = f"mintty -h never {taosadapter_path} -c  {nodeDict['spec']['config_file']}"
+            self._remote.cmd_windows(node, [start_cmd, "sleep 5s"])
+        else:
+            self._remote.cmd(node, [f"screen -d -m {taosadapter_path} -c {nodeDict['spec']['config_file']}", "sleep 5s"])
 
     def configure_and_start(self, tmp_dir, nodeDict):
         config_dir, config_file = os.path.split(nodeDict["spec"]["config_file"])
@@ -83,14 +88,34 @@ class TaosAdapter:
     def destroy(self, nodeDict):
         tmpDict = nodeDict["spec"]
         for i in nodeDict["fqdn"]:
-            if 'system' in nodeDict['spec'].keys() and nodeDict['spec']['system'].lower() == 'windows':
-                win_taosadapter=winrm.Session(f'http://{i}:5985/wsman',auth=('administrator','tbase125!'))
-                win_taosadapter.run_cmd("taskkill -f /im taosadapter.exe")
-                win_taosadapter.run_cmd("sc delete 'taosdadapter'")
-                for dir in (tmpDict["config_file"], tmpDict["adapter_config"]["taosConfigDir"],
-                            tmpDict["adapter_config"]["log"]["path"], tmpDict["taos_config"]["logDir"]):
-                    dir_win = dir.replace('/','\\')
-                    win_taosadapter.run_cmd(f"rd /S /Q {dir_win}")
+            if platform.system().lower() == "windows":
+                if "asanDir" in i:
+                    self.logger.info("Windows not support asan test yet")
+                else:
+                    self.logger.debug("destroy taosadapter on windows")
+                    pid = None
+                    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                        if ('mintty' in  proc.info['name']
+                            and proc.info['cmdline']  # 确保 cmdline 非空
+                            and any('taosadapter' in arg for arg in proc.info['cmdline'])
+                        ):
+                            self.logger.debug(proc.info)
+                            self.logger.debug("Found taosd.exe process with PID: %s", proc.info['pid'])
+                            pid = proc.info['pid']
+                            #kernel32 = ctypes.windll.kernel32
+                            #kernel32.GenerateConsoleCtrlEvent(0, pid)
+                            killCmd = f"taskkill /PID {pid} /T /F"
+                            #killCmd = "for /f %%a in ('wmic process where \"name='taosd.exe'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' | xargs)"
+                            self._remote.cmd_windows(fqdn, [killCmd])
+            
+            # if 'system' in nodeDict['spec'].keys() and nodeDict['spec']['system'].lower() == 'windows':
+                # win_taosadapter=winrm.Session(f'http://{i}:5985/wsman',auth=('administrator','tbase125!'))
+                # win_taosadapter.run_cmd("taskkill -f /im taosadapter.exe")
+                # win_taosadapter.run_cmd("sc delete 'taosdadapter'")
+                # for dir in (tmpDict["config_file"], tmpDict["adapter_config"]["taosConfigDir"],
+                #             tmpDict["adapter_config"]["log"]["path"], tmpDict["taos_config"]["logDir"]):
+                #     dir_win = dir.replace('/','\\')
+                #     win_taosadapter.run_cmd(f"rd /S /Q {dir_win}")
             else:
                 if "asanDir" in tmpDict:
                     if i == "localhost":

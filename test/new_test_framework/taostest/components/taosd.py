@@ -4,6 +4,8 @@ from ..util.common import TDCom
 from ..frame import *
 from threading import Thread
 import winrm
+import ctypes
+import psutil
 import os
 import time
 import re
@@ -87,7 +89,8 @@ class TaosD:
         tmp_dir=os.path.join(tmp_dir, cfg["fqdn"] + "_" + cfg["serverPort"])
         dict2file(tmp_dir, "taos.cfg", cfg)
         self._remote.mkdir(cfg["fqdn"], dnode["config_dir"])
-        self._remote.mkdir(cfg["fqdn"], "/var/log/valgrind")
+        if self.taosd_valgrind:
+            self._remote.mkdir(cfg["fqdn"], "/var/log/valgrind")
         taosd_path = dnode["taosdPath"] if "taosdPath" in dnode else "/usr/bin/taosd"
         error_output = dnode["asanDir"] if "asanDir" in dnode else None
         if "dataDir" in cfg:
@@ -120,9 +123,14 @@ class TaosD:
                 ]
                 run_cmd = " && ".join(cmds)
                 start_cmd = f"screen -d -m bash -c '{run_cmd}'"
+                self._remote.cmd(cfg["fqdn"], ["ulimit -n 1048576", start_cmd])
             else:
-                start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']}  "
-        self._remote.cmd(cfg["fqdn"], ["ulimit -n 1048576", start_cmd])
+                if platform.system().lower() == "windows":
+                    start_cmd = f"mintty -h never {taosd_path} -c {dnode['config_dir']}"
+                    self._remote.cmd_windows(cfg["fqdn"], [start_cmd])
+                else:
+                    start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']}  "
+                    self._remote.cmd(cfg["fqdn"], ["ulimit -n 1048576", start_cmd])
         
         if self.taosd_valgrind == 0:
             time.sleep(0.1)
@@ -327,16 +335,27 @@ class TaosD:
             nodeDictList = [nodeDict["spec"]["dnodes"], nodeDict["spec"]["reserve_dnodes"]]
         nodeDictList = [nodeDict["spec"]["dnodes"], nodeDict["spec"]["reserve_dnodes"]] if "reserve_dnodes" in nodeDict["spec"] else [nodeDict["spec"]["dnodes"]]
         for dnodeList in nodeDictList:
-
             for i in dnodeList:
                 fqdn, _ = i["endpoint"].split(":")
-                if "system" in i.keys() and i["system"].lower() == "windows":
-                    win_taosd=winrm.Session(f'http://{fqdn}:5985/wsman',auth=('administrator','tbase125!'))
-                    win_taosd.run_cmd("taskkill -f /im taosd.exe")
-                    win_taosd.run_cmd("sc delete 'taosd'")
-                    for dir in (i["config_dir"], i["config"]["dataDir"], i["config"]["logDir"]):
-                        dir_win = dir.replace('/','\\')
-                        win_taosd.run_cmd(f"rd /S /Q {dir_win}")
+                if platform.system().lower() == "windows":
+                    if "asanDir" in i:
+                        self.logger.info("Windows not support asanDir yet")
+                    else:
+                        self.logger.debug("destroy taosd on windows")
+                        pid = None
+                        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                            if ('mintty' in  proc.info['name']
+                                and proc.info['cmdline']  # 确保 cmdline 非空
+                                and any('taosd' in arg for arg in proc.info['cmdline'])
+                            ):
+                                self.logger.debug(proc.info)
+                                self.logger.debug("Found taosd.exe process with PID: %s", proc.info['pid'])
+                                pid = proc.info['pid']
+                                #kernel32 = ctypes.windll.kernel32
+                                #kernel32.GenerateConsoleCtrlEvent(0, pid)
+                                killCmd = f"taskkill /PID {pid} /T /F"
+                                #killCmd = "for /f %%a in ('wmic process where \"name='taosd.exe'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' | xargs)"
+                                self._remote.cmd_windows(fqdn, [killCmd])
 
                 else:
                     if "asanDir" in i:
