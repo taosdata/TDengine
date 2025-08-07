@@ -8,7 +8,7 @@ class TestDatatypeUint:
         tdSql.prepare(dbname="db", drop=True)
 
     def test_datatype_uint(self):
-        """unsigned int
+        """DataTypes: unsigned int
 
         1. create table
         2. insert data

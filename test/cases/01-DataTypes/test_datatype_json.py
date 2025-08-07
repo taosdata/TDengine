@@ -8,7 +8,7 @@ class TestDatatypeJson:
         tdSql.prepare(dbname="db", drop=True)
 
     def test_datatype_json(self):
-        """json
+        """DataTypes: json
 
         1. create table
         2. auto create table

@@ -8,7 +8,7 @@ class TestDatatypeInt:
         tdSql.prepare(dbname="db", drop=True)
 
     def test_datatype_int(self):
-        """int
+        """DataTypes: int
 
         1. create table
         2. insert data

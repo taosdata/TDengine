@@ -8,7 +8,7 @@ class TestDatatypeTimestamp:
         tdSql.prepare(dbname="db", drop=True)
 
     def test_datatype_timestamp(self):
-        """timestamp
+        """DataTypes: timestamp
 
         1. create table
         2. insert data
