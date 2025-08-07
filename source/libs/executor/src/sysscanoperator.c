@@ -20,6 +20,7 @@
 #include "nodes.h"
 #include "querynodes.h"
 #include "systable.h"
+#include "tcommon.h"
 #include "tname.h"
 
 #include "tdatablock.h"
@@ -2530,11 +2531,11 @@ _end:
   return code;
 }
 
-static int32_t shouldEstimateRawDataSize(SOperatorInfo* pOperator, int8_t* estimate) {
-  int32_t code = TSDB_CODE_SUCCESS;
+static int8_t shouldEstimateRawDataSize(SOperatorInfo* pOperator) {
   int32_t lino = 0;
   size_t  size = 0;
   int32_t index = 0;
+  int8_t  estimate = 0;
 
   const char*          tgt = "raw_data";
   const SSysTableMeta* pMeta = NULL;
@@ -2543,31 +2544,27 @@ static int32_t shouldEstimateRawDataSize(SOperatorInfo* pOperator, int8_t* estim
   SSysTableScanInfo* pInfo = pOperator->info;
   getInfosDbMeta(&pMeta, &size);
 
-  *estimate = 0;
   for (int32_t i = 0; i < size; ++i) {
     if (strcmp(pMeta[i].name, TSDB_INS_DISK_USAGE) == 0) {
       index = i;
       break;
     }
   }
+  if (index >= size) {
+    return 1;
+  }
+  const SSysTableMeta* pTgtMeta = &pMeta[index];
+  int32_t              colNum = pTgtMeta->colNum;
+  SColumnInfoData      colInfoData =
+      createColumnInfoData(pTgtMeta->schema[colNum - 1].type, pTgtMeta->schema[colNum - 1].bytes, colNum);
 
-  for (int32_t i = 0; i < pMeta[index].colNum; i++) {
-    SColumnInfoData colInfoData =
-        createColumnInfoData(pMeta[index].schema[i].type, pMeta[index].schema[i].bytes, i + 1);
-    const char* colName = pMeta[index].schema[i].name;
-    if (strncmp(colName, tgt, strlen(tgt)) == 0) {
-      for (int32_t i = 0; i < taosArrayGetSize(pInfo->matchInfo.pList); i++) {
-        SColMatchItem* pItem = taosArrayGet(pInfo->matchInfo.pList, i);
-        if (pItem->colId == colInfoData.info.colId) {
-          *estimate = 1;
-          break;
-        }
-      }
-      break;
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->matchInfo.pList); i++) {
+    SColMatchItem* pItem = taosArrayGet(pInfo->matchInfo.pList, i);
+    if (pItem->colId == colInfoData.info.colId) {
+      return 1;
     }
   }
-
-  return code;
+  return 0;
 }
 static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   int32_t            code = TSDB_CODE_SUCCESS;
@@ -2600,8 +2597,7 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   SSDataBlock* pBlock = pInfo->pRes;
 
   if (!pInfo->showRewrite) {
-    code = shouldEstimateRawDataSize(pOperator, &staticsInfo.estimateRawData);
-    QUERY_CHECK_CODE(code, lino, _end);
+    staticsInfo.estimateRawData = shouldEstimateRawDataSize(pOperator);
   }
 
   code = buildVgDiskUsage(pOperator, &staticsInfo);
