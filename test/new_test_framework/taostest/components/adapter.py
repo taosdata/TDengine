@@ -106,8 +106,8 @@ class TaosAdapter:
                             #kernel32.GenerateConsoleCtrlEvent(0, pid)
                             killCmd = f"taskkill /PID {pid} /T /F"
                             #killCmd = "for /f %%a in ('wmic process where \"name='taosd.exe'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' | xargs)"
-                            self._remote.cmd_windows(i, [killCmd])
-            
+                            self._remote.cmd_windows(fqdn, [killCmd])
+
             # if 'system' in nodeDict['spec'].keys() and nodeDict['spec']['system'].lower() == 'windows':
                 # win_taosadapter=winrm.Session(f'http://{i}:5985/wsman',auth=('administrator','tbase125!'))
                 # win_taosadapter.run_cmd("taskkill -f /im taosadapter.exe")
