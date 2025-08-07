@@ -4,6 +4,8 @@ export default {
     title: 'TDengine Management System',
     titleTip: 'Please register first to use TDengine explorer for better experience and technical support',
     name: 'Name',
+    firstName: 'First Name',
+    lastName: 'Last Name',
     phone: 'Mobile phone number',
     email: 'Email',
     verificationCode: 'Verification code',
