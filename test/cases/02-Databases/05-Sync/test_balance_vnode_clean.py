@@ -8,9 +8,19 @@ class TestVnodeClean:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_vnode_clean(self):
-        """vnode clean
+        """Scale-up: repica-1
 
-        1. -
+        1. Start a 1-node cluster
+        2. Create database d1 (1 vgroup, 1 replica); create table, insert data, verify
+        3. Add dnode2 → run BALANCE VGROUP
+        4. Create database d2 (1 vgroup, 1 replica); create table, insert data, verify
+        5. Remove dnode2
+        6. Add dnode3 → run BALANCE VGROUP
+        7. Create database d3 (1 vgroup, 1 replica); create table, insert data, verify
+        8. Add dnode4 → run BALANCE VGROUP
+        9. Create database d4 (4 vgroups, 1 replica); create tables, insert data, verify
+        10. Remove dnode3
+        11. Check data integrity for all databases d1, d2, d3, and d4
 
         Catalog:
             - Database:Sync

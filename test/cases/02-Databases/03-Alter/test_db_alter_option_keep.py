@@ -1,15 +1,20 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
 
 
-class TestDatabaseAlterOptionKeep1:
+class TestDatabaseAlterOptionKeep:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_database_alter_option_kee1p(self):
-        """alter database option keep 1
+    def test_database_alter_option_keep(self):
+        """Alter keep
 
-        1. -
+        1. Use invalid input to alter the KEEP option
+        2. Verify results after changing KEEP
+        3. Add or drop columns on the super table
+        4. Insert data
+        5. Check results
+        6. Repeat steps 3-5 several times
 
         Catalog:
             - Database:Alter
@@ -21,6 +26,7 @@ class TestDatabaseAlterOptionKeep1:
         Jira: None
 
         History:
+            - 2025-5-6 Simon Guan Migrated from tsim/parser/alter.sim
             - 2025-5-6 Simon Guan Migrated from tsim/parser/alter__for_community_version.sim
 
         """
@@ -125,11 +131,13 @@ class TestDatabaseAlterOptionKeep1:
 
         tdSql.execute(f"alter table mt add column c3 nchar(4)")
         tdSql.query(f"select * from tb order by ts desc")
+        tdSql.checkData(0, 3, None)
 
         tdSql.execute(f"insert into tb values (now, 2, 2, 'taos')")
         tdSql.query(f"select * from tb order by ts desc")
         tdSql.checkRows(2)
         tdSql.checkData(0, 3, "taos")
+        tdSql.checkData(1, 3, None)
 
         tdSql.execute(f"drop table tb")
         tdSql.execute(f"drop table mt")
@@ -272,3 +280,64 @@ class TestDatabaseAlterOptionKeep1:
 
         # drop non-existing columns
         tdSql.error(f"alter table mt drop column c9")
+
+        # merge other cases
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} duration 3 keep 20,20,20")
+        tdSql.execute(f"use {db}")
+
+        tdSql.error(f'alter database {db} keep "20"')
+        tdSql.error(f'alter database {db} keep "20","20","20"')
+        tdSql.error(f"alter database {db} keep 20,19")
+        tdSql.error(f"alter database {db} keep 20.0")
+        tdSql.error(f"alter database {db} keep 20.0,20.0,20.0")
+        tdSql.error(f"alter database {db} keep 0,0,0")
+        tdSql.error(f"alter database {db} keep -1,-1,-1")
+        tdSql.error(f"alter database {db} keep 8,20")
+        tdSql.error(f"alter database {db} keep 8,9,9")
+        tdSql.error(f"alter database {db} keep 20,20,19")
+        tdSql.error(f"alter database {db} keep 20,19,20")
+        tdSql.error(f"alter database {db} keep 20,19,19")
+        tdSql.error(f"alter database {db} keep 20,19,18")
+        tdSql.error(f"alter database {db} keep 20,20,20,20")
+        tdSql.error(f"alter database {db} keep 365001,365001,365001")
+        tdSql.execute(f"alter database {db} keep 21")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(3)
+
+        tdSql.checkData(2, 7, "21d,21d,21d")
+
+        tdSql.execute(f"alter database {db} keep 11,12")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(3)
+
+        tdSql.checkData(2, 7, "11d,12d,12d")
+
+        tdSql.execute(f"alter database {db} keep 20,20,20")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(3)
+
+        tdSql.checkData(2, 7, "20d,20d,20d")
+
+        tdSql.execute(f"alter database {db} keep 10,10,10")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(3)
+
+        tdSql.checkData(2, 7, "10d,10d,10d")
+
+        tdSql.execute(f"alter database {db} keep 10,10,11")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(3)
+
+        tdSql.checkData(2, 7, "10d,10d,11d")
+
+        tdSql.execute(f"alter database {db} keep 11,12,13")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(3)
+
+        tdSql.checkData(2, 7, "11d,12d,13d")
+
+        tdSql.execute(f"alter database {db} keep 365000,365000,365000")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(3)
+        tdSql.checkData(2, 7, "365000d,365000d,365000d")

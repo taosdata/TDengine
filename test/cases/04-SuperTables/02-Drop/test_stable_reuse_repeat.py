@@ -8,9 +8,12 @@ class TestDatabaseDeleteReuseVnode2:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_delete_reuse_vnode2(self):
-        """db reuse vnode 2
+        """Reuse: vnode 2
 
-        1. -
+        1. Create a super table.
+        2. Create child tables and insert data.
+        3. Drop the super table.
+        4. Repeat the above 30 times with the same super-table name.
 
         Catalog:
             - Database:Drop

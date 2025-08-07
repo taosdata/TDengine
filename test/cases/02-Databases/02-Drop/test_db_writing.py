@@ -3,15 +3,20 @@ import threading
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
 
 
-class TestDatabaseDeleteWriting2:
+class TestDatabaseDeleteWriting:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_database_delete_writing2(self):
-        """db writing 2
+    def test_database_delete_writing(self):
+        """Drop while writing
 
-        1. -
+        1. Create database
+        2. Create normal table
+        3. Insert data
+        4. Sleep 1s
+        5. Repeat 10 times with the same names
+        6. Meanwhile, start a thread that keeps inserting into that table regardless of success
 
         Catalog:
             - Database:Drop
