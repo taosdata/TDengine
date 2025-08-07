@@ -429,6 +429,10 @@ class BeforeTest:
     def init_dnode_cluster(self, request, dnode_nums, mnode_nums, independentMnode=True, level=1, disk=1):
         global tdDnodes, clusterDnodes, cluster
         host = socket.gethostname()
+        if sys.platform == "win32":
+            taosd_binary_name = "taosd.exe"
+        else:
+            taosd_binary_name = "taosd"
         if request.session.host == host or request.session.host == "localhost":
             master_ip = ""
         else:
@@ -436,14 +440,14 @@ class BeforeTest:
         #logger.info(f"tdDnodes_pytest in init_dnode_cluster: {tdDnodes_pytest}")
         if dnode_nums > 1:
             dnodes_list = cluster.configure_cluster(dnodeNums=dnode_nums, mnodeNums=mnode_nums, independentMnode=independentMnode, hostname=request.session.host, level=level, disk=disk)
-            clusterDnodes.init(dnodes_list, request.session.work_dir, os.path.join(request.session.taos_bin_path, "taosd"), master_ip)
+            clusterDnodes.init(dnodes_list, request.session.work_dir, os.path.join(request.session.taos_bin_path, taosd_binary_name), master_ip)
             clusterDnodes.setTestCluster(False)
             clusterDnodes.setValgrind(0)
             clusterDnodes.setAsan(request.session.asan)
             tdDnodes.dnodes = dnodes_list #clusterDnodes.dnodes
-            tdDnodes.init(request.session.work_dir, os.path.join(request.session.taos_bin_path, "taosd"), master_ip)
+            tdDnodes.init(request.session.work_dir, os.path.join(request.session.taos_bin_path, taosd_binary_name), master_ip)
         else:
-            tdDnodes.init(request.session.work_dir, os.path.join(request.session.taos_bin_path, "taosd"), master_ip)
+            tdDnodes.init(request.session.work_dir, os.path.join(request.session.taos_bin_path, taosd_binary_name), master_ip)
             tdDnodes.setKillValgrind(1)
             tdDnodes.setTestCluster(False)
             tdDnodes.setValgrind(0)
@@ -501,6 +505,10 @@ class BeforeTest:
 
     def getPath(self, binary="taosd"):
         selfPath = os.path.dirname(os.path.realpath(__file__))
+        if sys.platform == "win32":
+            binary_file = f"{binary}.exe"
+        else:
+            binary_file = binary
 
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
@@ -510,11 +518,12 @@ class BeforeTest:
         paths = []
         debug_path = os.path.join(projPath, "debug", "build", "bin")
         for root, dirs, files in os.walk(debug_path):
-            if (binary in files or (f"{binary}.exe") in files):
+            if binary_file in files:
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
-                    paths.append(os.path.join(root, binary))
+                    paths.append(os.path.join(root, binary_file))
                     break
+        tdLog.info(f"getPath: {paths}")
         if (len(paths) == 0):
             if sys.platform == "win32":
                 return f"C:\\TDengine\\bin\\{binary}.exe"
