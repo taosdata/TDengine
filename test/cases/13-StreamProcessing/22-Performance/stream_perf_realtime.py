@@ -186,7 +186,7 @@ class MonitorSystemLoad:
         pids = {}
         # 使用 ps 命令获取详细进程信息
         result = subprocess.run(
-            'ps -ef | grep taosd | grep -v grep', 
+            'ps -efww | grep taosd | grep -v grep',
             shell=True, 
             capture_output=True, 
             text=True
@@ -740,7 +740,7 @@ class StreamStarter:
             time.sleep(10)
             
             # 检查是否还有进程存在
-            result = subprocess.run('ps -ef | grep "taosd -c" | grep -v grep', 
+            result = subprocess.run('ps -efww | grep "taosd -c" | grep -v grep',
                                 shell=True, capture_output=True, text=True)
             if result.stdout:
                 print("发现顽固进程，强制停止...")
@@ -761,7 +761,7 @@ class StreamStarter:
     def check_taosd_status(self):
         """检查taosd进程状态"""
         try:
-            result = subprocess.run('ps -ef | grep "taosd -c" | grep -v grep', 
+            result = subprocess.run('ps -efww | grep "taosd -c" | grep -v grep',
                                 shell=True, capture_output=True, text=True)
             if result.stdout:
                 print("\n当前运行的taosd进程:")
@@ -1606,7 +1606,7 @@ EOF
                 print("\n监控被中断")
             finally:
                 # 检查taosd进程
-                result = subprocess.run('ps -ef | grep taosd | grep -v grep', 
+                result = subprocess.run('ps -efww | grep taosd | grep -v grep',
                                     shell=True, capture_output=True, text=True)
                 if result.stdout:
                     print("\ntaosd进程仍在运行")
@@ -1672,7 +1672,7 @@ EOF
                 print("\n监控被中断")
             finally:
                 # 检查taosd进程
-                result = subprocess.run('ps -ef | grep taosd | grep -v grep', 
+                result = subprocess.run('ps -efww | grep taosd | grep -v grep',
                                     shell=True, capture_output=True, text=True)
                 if result.stdout:
                     print("\ntaosd进程仍在运行")
@@ -2276,7 +2276,7 @@ def main():
     except KeyboardInterrupt:
         print("\n程序退出")
         # 检查taosd进程状态
-        result = subprocess.run('ps -ef | grep "taosd -c" | grep -v grep', 
+        result = subprocess.run('ps -efww | grep "taosd -c" | grep -v grep',
                                 shell=True, capture_output=True, text=True)
         if result.stdout:
             print("\ntaosd进程仍在运行:")

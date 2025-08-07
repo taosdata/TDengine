@@ -133,7 +133,7 @@ def initEnv():
     os.system("taosBenchmark -f taosx-performance.json")
 
 def stopTaosd(str):
-    psCmd = f"ps -ef | grep -w taosd | grep -v grep | grep {str}" + " | awk '{print $2}' | xargs"
+    psCmd = f"ps -efww | grep -w taosd | grep -v grep | grep {str}" + " | awk '{print $2}' | xargs"
     processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
     print(f"kill taosd pid={processID}")
     if processID:

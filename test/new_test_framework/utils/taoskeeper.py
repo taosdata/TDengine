@@ -252,7 +252,7 @@ class TaosKeeper:
             return
         toBeKilled = "taoskeeper"
         if platform.system().lower() == 'windows':
-            psCmd = f"ps -ef|grep -w {toBeKilled}| grep -v grep | awk '{{print $2}}'"
+            psCmd = f"ps -efww |grep -w {toBeKilled}| grep -v grep | awk '{{print $2}}'"
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
             while(processID):
                 killCmd = "kill %s %s > nul 2>&1" % (signal, processID)
@@ -264,7 +264,7 @@ class TaosKeeper:
 
         else:
             if self.running != 0:
-                psCmd = f"ps -ef|grep -w {toBeKilled}| grep -v grep | awk '{{print $2}}'"
+                psCmd = f"ps -efww |grep -w {toBeKilled}| grep -v grep | awk '{{print $2}}'"
                 processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
                 while(processID):
                     killCmd = "kill %s %s > /dev/null 2>&1" % (signal, processID)

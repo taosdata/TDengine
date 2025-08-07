@@ -99,7 +99,7 @@ class TaosKeeper:
                     win_taosadapter.run_cmd(f"rd /S /Q {dir_win}")
             else:
                 killCmd = [
-                    "ps -ef|grep -wi %s| grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1" % nodeDict[
+                    "ps -efww |grep -wi %s| grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1" % nodeDict[
                         "name"]]
                 self._remote.cmd(i, killCmd)
                 cmdList = []
@@ -152,7 +152,7 @@ class TaosKeeper:
                     i, taoskeeperCfgPath, config_dir)
                 self._remote.put(i, taosCfgPath, config_dir)
                 if restart:
-                    killCmd = "ps -ef | grep -wi taoskeeper | grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1"
+                    killCmd = "ps -efww | grep -wi taoskeeper | grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1"
                     self._remote.cmd(i, [killCmd, "screen -d -m taoskeeper -c {}  ".format(tmp_dict["spec"]["config_file"]), "sleep 5s"])
     
     def get_cfg(self, tmp_dict, cfg_dict):

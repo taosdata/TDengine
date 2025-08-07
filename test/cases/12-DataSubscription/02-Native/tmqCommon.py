@@ -112,9 +112,9 @@ class TMQCom:
         os.system(shellCmd)
 
     def stopTmqSimProcess(self, processorName):
-        psCmd = "unset LD_PRELOAD; ps -ef|grep -w %s|grep -v grep | awk '{print $2}'"%(processorName)
+        psCmd = "unset LD_PRELOAD; ps -efww |grep -w %s|grep -v grep | awk '{print $2}'"%(processorName)
         if platform.system().lower() == 'windows':
-            psCmd = "ps -ef|grep -w %s|grep -v grep | awk '{print $2}'"%(processorName)
+            psCmd = "ps -efww |grep -w %s|grep -v grep | awk '{print $2}'"%(processorName)
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         onlyKillOnceWindows = 0
         while(processID):
@@ -564,10 +564,10 @@ class TMQCom:
             psCmd = ("wmic process where name=\"%s.exe\" | findstr \"%s.exe\"" % (processerName, processerName))
         else:
             killCmd = (
-                "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1"
+                "ps -efww |grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1"
                 % processerName
             )
-            psCmd = ("ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % processerName)
+            psCmd = ("ps -efww |grep -w %s| grep -v grep | awk '{print $2}'" % processerName)
 
         processID = ""
         

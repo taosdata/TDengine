@@ -99,7 +99,7 @@ if [ "$EXEC_OPTON" = "start" ]; then
     nohup $PROGRAM -c $CFG_DIR -y $POLL_DELAY -d $DB_NAME -g $SHOW_MSG -r $SHOW_ROW -w $CDB_NAME -e $EXP_USE_SNAPSHOT > /dev/null 2>&1 &
   fi
 else
-  PID=`ps -ef|grep tmq_sim | grep -v grep | awk '{print $2}'`
+  PID=`ps -efww |grep tmq_sim | grep -v grep | awk '{print $2}'`
   while [ -n "$PID" ]
   do
     if [ "$SIGNAL" = "SIGKILL" ]; then
@@ -110,6 +110,6 @@ else
       kill -SIGINT $PID
     fi
     sleep 1
-    PID=`ps -ef|grep tmq_sim | grep -v grep | awk '{print $2}'`
+    PID=`ps -efww |grep tmq_sim | grep -v grep | awk '{print $2}'`
   done 
 fi

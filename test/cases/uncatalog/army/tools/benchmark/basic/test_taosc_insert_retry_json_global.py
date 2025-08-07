@@ -50,7 +50,7 @@ class TestTaoscInsertRetryJsonGlobal:
         sc.dnodeStart(1)
         time.sleep(2)
 
-        psCmd = "ps -ef|grep -w taosBenchmark| grep -v grep | awk '{print $2}'"
+        psCmd = "ps -efww |grep -w taosBenchmark| grep -v grep | awk '{print $2}'"
         processID = subprocess.check_output(psCmd, shell=True)
 
         while processID:

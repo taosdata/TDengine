@@ -613,7 +613,7 @@ class TestUdfTest:
             clean_env = os.environ.copy()
             clean_env.pop('ASAN_OPTIONS', None)
             clean_env.pop('LD_PRELOAD', None)
-            get_processID = "ps -ef | grep -w taosudf | grep -v grep| grep -v defunct | awk '{print $2}'"
+            get_processID = "ps -efww | grep -w taosudf | grep -v grep| grep -v defunct | awk '{print $2}'"
             processID = subprocess.check_output(get_processID, shell=True, env=clean_env).decode("utf-8")
             tdLog.info("taosudf process ID: %s" % processID)
             stop_udfd = " kill -9 %s" % processID
