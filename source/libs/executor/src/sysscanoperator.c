@@ -2535,9 +2535,7 @@ static int8_t shouldEstimateRawDataSize(SOperatorInfo* pOperator) {
   int32_t lino = 0;
   size_t  size = 0;
   int32_t index = 0;
-  int8_t  estimate = 0;
 
-  const char*          tgt = "raw_data";
   const SSysTableMeta* pMeta = NULL;
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
 
