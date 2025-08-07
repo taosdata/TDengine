@@ -2280,7 +2280,7 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*       pAPI = &pTaskInfo->storageAPI;
   SSysTableScanInfo* pInfo = pOperator->info;
-  SDbSizeStatisInfo  staticsInfo = {0};
+  SDbSizeStatisInfo  staticsInfo = {.estimateRawData = 1};
 
   char*        buf = NULL;
   SSDataBlock* p = NULL;
