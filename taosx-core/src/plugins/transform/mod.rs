@@ -1880,8 +1880,7 @@ fn pivot(
     pivot_fields: &[(&str, &str)],
     common_fields: Option<&[&str]>,
 ) -> anyhow::Result<Vec<RecordBatch>> {
-    let mut partitions: std::collections::HashMap<String, Vec<usize>> =
-        std::collections::HashMap::new();
+    let mut partitions: HashMap<String, Vec<usize>> = HashMap::with_capacity(batch.num_rows());
     let schema = batch.schema();
 
     let ts_array = batch
@@ -1891,13 +1890,11 @@ fn pivot(
         .context("build ts formatter error")?;
     for row in 0..batch.num_rows() {
         let ts = formatter.value(row).to_string();
-        let rows = partitions
-            .entry(ts)
-            .or_insert_with(|| Vec::with_capacity(200));
+        let rows: &mut Vec<usize> = partitions.entry(ts).or_default();
         rows.push(row);
     }
 
-    let mut res: HashMap<Arc<Schema>, Vec<RecordBatch>> = HashMap::new();
+    let mut res: HashMap<Arc<Schema>, Vec<RecordBatch>> = HashMap::with_capacity(batch.num_rows());
 
     let common_fields = match common_fields {
         Some(common_fields) => common_fields
@@ -1928,14 +1925,14 @@ fn pivot(
 
     // 一个分区的数据，转换成一行，一个 recordbatch
     for rows in partitions.values() {
-        let mut fields = Vec::from_iter(common_fields.clone());
+        let mut fields = common_fields.clone();
         let mut arrays = Vec::from_iter(common_arrays.iter().map(|s| s.slice(rows[0], 1)).clone());
         for (pivot_name, pivot_value) in pivot_fields {
             let (Some(name_col), Some(value_col)) = (
                 batch.column_by_name(pivot_name),
                 batch.column_by_name(pivot_value),
             ) else {
-                unreachable!()
+                anyhow::bail!("pivot column `{pivot_name}` or `{pivot_value}` not found");
             };
 
             let name_col = name_col.as_string::<i32>();
