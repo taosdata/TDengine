@@ -27,7 +27,7 @@ description: 'TDengine 支持的数据类型：时间戳、浮点型、JSON 类�
 | 17  |      GEOMETRY     | 自定义    | 几何类型                          |
 | 18  |      VARBINARY    | 自定义    | 可变长的二进制数据                 |
 | 19  |      DECIMAL      |  8 或 16  | 高精度数值类型，取值范围取决于类型中指定的 Precision 和 Scale |
-| 19  |      BLOB         |  最大长度 4MB    | 可变长的二进制数据          |
+| 20  |      BLOB         |  最大长度 4MB    | 可变长的二进制数据          |
 
 :::note
 
