@@ -2560,6 +2560,7 @@ static int32_t shouldEstimateRawDataSize(SOperatorInfo* pOperator, int8_t* estim
         SColMatchItem* pItem = taosArrayGet(pInfo->matchInfo.pList, i);
         if (pItem->colId == colInfoData.info.colId) {
           *estimate = 1;
+          break;
         }
       }
       break;
