@@ -1821,12 +1821,13 @@ int32_t streamCalcOneScalarExprInRange(SNode* pExpr, SScalarParam* pDst, int32_t
         code = TSDB_CODE_OPS_NOT_SUPPORT;
         break;
     }
-    SArray*     pBlockList = taosArrayInit(2, POINTER_BYTES);
     SSDataBlock block = {0};
     block.info.rows = 1;
     SSDataBlock* pBlock = &block;
-    taosArrayPush(pBlockList, &pBlock);
-    if (code == 0) code = scalarCalculateInRange(pSclNode, pBlockList, pDst, rowStartIdx, rowEndIdx, pExtraParams, NULL);
+    SArray*     pBlockList = taosArrayInit(2, POINTER_BYTES);
+    if (code == 0 && pBlockList != NULL && taosArrayPush(pBlockList, &pBlock) != NULL) {
+      code = scalarCalculateInRange(pSclNode, pBlockList, pDst, rowStartIdx, rowEndIdx, pExtraParams, NULL);
+    }
     taosArrayDestroy(pBlockList);
   }
   nodesDestroyList(pList);
@@ -1857,8 +1858,11 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes, int32_t winIdx)
     }
   }
 
-  blockDataEnsureCapacity(*pRes, (*pRes)->info.rows + 1);
-
+  code = blockDataEnsureCapacity(*pRes, (*pRes)->info.rows + 1);
+  if (code != 0) {
+    qError("failed to ensure capacity for block data, code:%s", tstrerror(code));
+    return code;
+  }
   // loop all exprs for force output, execute all exprs
   int32_t idx = 0;
   int32_t rowIdx = (*pRes)->info.rows;
@@ -1933,7 +1937,12 @@ int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, const SStreamRuntimeF
       pCol->info.bytes = ((SExprNode*)pExpr)->resType.bytes;
       pCol->info.precision = ((SExprNode*)pExpr)->resType.precision;
       pCol->info.scale = ((SExprNode*)pExpr)->resType.scale;
-      colInfoDataEnsureCapacity(pCol, 1, true);
+      code = colInfoDataEnsureCapacity(pCol, 1, true);
+      if (code != 0) {
+        qError("failed to ensure capacity for col info data at: %s, %d", __func__, __LINE__);
+        taosMemoryFree(pCol);
+        break;
+      }
       dst.columnData = pCol;
       dst.numOfRows = 1;
       dst.colAlloced = true;

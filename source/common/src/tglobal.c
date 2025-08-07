@@ -111,7 +111,7 @@ int32_t tsPQSortMemThreshold = 16;    // M
 int32_t tsRetentionSpeedLimitMB = 0;  // unlimited
 int32_t tsNumOfMnodeStreamMgmtThreads = 2;
 int32_t tsNumOfStreamMgmtThreads = 2;
-int32_t tsNumOfVnodeStreamReaderThreads = 4;
+int32_t tsNumOfVnodeStreamReaderThreads = 16;
 int32_t tsNumOfStreamTriggerThreads = 4;
 int32_t tsNumOfStreamRunnerThreads = 4;
 

@@ -289,10 +289,8 @@ int32_t retrieveWalData(SVnode* pVnode, SSubmitTbData* pSubmitTbData, SSDataBloc
     for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {
       SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
       STREAM_CHECK_NULL_GOTO(pColData, terrno);
-      if (i >= taosArrayGetSize(pSubmitTbData->aCol)) {
-        break;
-      }
-      for (int32_t j = 0; j < taosArrayGetSize(pSubmitTbData->aCol); j++) {
+      int32_t j = 0;
+      for (; j < taosArrayGetSize(pSubmitTbData->aCol); j++) {
         SColData* pCol = taosArrayGet(pSubmitTbData->aCol, j);
         STREAM_CHECK_NULL_GOTO(pCol, terrno);
         if (pCol->cid == pColData->info.colId) {
@@ -302,7 +300,11 @@ int32_t retrieveWalData(SVnode* pVnode, SSubmitTbData* pSubmitTbData, SSDataBloc
             STREAM_CHECK_RET_GOTO(colDataSetVal(pColData, k, VALUE_GET_DATUM(&colVal.value, colVal.value.type),
                                                 !COL_VAL_IS_VALUE(&colVal)));
           }
+          break;
         }
+      }
+      if (j == taosArrayGetSize(pSubmitTbData->aCol)) {
+        colDataSetNNULL(pColData, 0, numOfRows);
       }
     }
   } else {
@@ -317,21 +319,19 @@ int32_t retrieveWalData(SVnode* pVnode, SSubmitTbData* pSubmitTbData, SSDataBloc
         continue;
       }
       for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {  // reader todo test null
-        if (i >= schemas->numOfCols) {
-          break;
-        }
         SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
         STREAM_CHECK_NULL_GOTO(pColData, terrno);
         SColVal colVal = {0};
         int32_t sourceIdx = 0;
         while (1) {
-          STREAM_CHECK_RET_GOTO(tRowGet(pRow, schemas, sourceIdx, &colVal));
-          if (colVal.cid < pColData->info.colId) {
-            sourceIdx++;
-            continue;
-          } else {
+          if (sourceIdx >= schemas->numOfCols) {
             break;
           }
+          STREAM_CHECK_RET_GOTO(tRowGet(pRow, schemas, sourceIdx, &colVal));
+          if (colVal.cid == pColData->info.colId) {
+            break;
+          }
+          sourceIdx++;
         }
         if (colVal.cid == pColData->info.colId && COL_VAL_IS_VALUE(&colVal)) {
           if (IS_VAR_DATA_TYPE(colVal.value.type) || colVal.value.type == TSDB_DATA_TYPE_DECIMAL){
@@ -1674,7 +1674,7 @@ static int32_t vnodeProcessStreamWalMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   req->walMetaReq.lastVer, req->walMetaReq.ctime);
 
   bool isVTable = sStreamReaderInfo->uidList != NULL;
-  if (!isVTable && sStreamReaderInfo->pTableList == NULL) {
+  if (!isVTable) {
     SStorageAPI api = {0};
     initStorageAPI(&api);
     STREAM_CHECK_RET_GOTO(nodesCloneList(sStreamReaderInfo->partitionCols, &groupNew));
@@ -1708,7 +1708,11 @@ end:
   STREAM_PRINT_LOG_END_WITHID(code, lino);
   nodesDestroyList(groupNew);
   blockDataDestroy(pBlock);
-
+  if (sStreamReaderInfo != NULL) {
+    qStreamDestroyTableList(sStreamReaderInfo->pTableList);
+    sStreamReaderInfo->pTableList = NULL;
+  }
+  
   return code;
 }
 

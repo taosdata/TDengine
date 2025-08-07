@@ -329,8 +329,8 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
       STREAM_CHECK_RET_GOTO(
           createExprInfo(sStreamReaderInfo->triggerPseudoCols, NULL, &sStreamReaderInfo->pExprInfo, &sStreamReaderInfo->numOfExpr));
     }
-    setColIdForCalcResBlock(sStreamReaderInfo->triggerPseudoCols, sStreamReaderInfo->triggerResBlock->pDataBlock);
-    setColIdForCalcResBlock(sStreamReaderInfo->triggerCols, sStreamReaderInfo->triggerResBlock->pDataBlock);
+    STREAM_CHECK_RET_GOTO(setColIdForCalcResBlock(sStreamReaderInfo->triggerPseudoCols, sStreamReaderInfo->triggerResBlock->pDataBlock));
+    STREAM_CHECK_RET_GOTO(setColIdForCalcResBlock(sStreamReaderInfo->triggerCols, sStreamReaderInfo->triggerResBlock->pDataBlock));
   }
 
   // process calcCacheScanPlan
@@ -349,8 +349,8 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
 
     SNodeList* pseudoCols = ((STableScanPhysiNode*)(sStreamReaderInfo->calcAst->pNode))->scan.pScanPseudoCols;
     SNodeList* pScanCols = ((STableScanPhysiNode*)(sStreamReaderInfo->calcAst->pNode))->scan.pScanCols;
-    setColIdForCalcResBlock(pseudoCols, sStreamReaderInfo->calcResBlock->pDataBlock);
-    setColIdForCalcResBlock(pScanCols, sStreamReaderInfo->calcResBlock->pDataBlock);
+    STREAM_CHECK_RET_GOTO(setColIdForCalcResBlock(pseudoCols, sStreamReaderInfo->calcResBlock->pDataBlock));
+    STREAM_CHECK_RET_GOTO(setColIdForCalcResBlock(pScanCols, sStreamReaderInfo->calcResBlock->pDataBlock));
   }
 
   STREAM_CHECK_RET_GOTO(createDataBlockForTs(&sStreamReaderInfo->tsBlock));

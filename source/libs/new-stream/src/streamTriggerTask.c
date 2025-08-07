@@ -1460,7 +1460,6 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
       SEpSet *epSet = gStreamMgmt.getSynEpset(leaderSid);
       if (epSet != NULL) {
         code = streamSyncWriteCheckpoint(pTask->task.streamId, epSet, buf, len);
-        if (code != 0) break;
         buf = NULL;
       }
     } while (0);
