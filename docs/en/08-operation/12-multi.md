@@ -71,7 +71,7 @@ This section describes how to use shared storage in TDengine Enterprise. TDengin
 
 **Note** When used in conjunction with multi-tier storage, data saved on each storage medium may be migrated to shared storage and local data files deleted according to rules.
 
-The configuration items releated to shared storage are stored in `/etc/taos/taos.cfg`, as shown in the following table:
+The configuration items related to shared storage are stored in `/etc/taos/taos.cfg`, as shown in the following table:
 
 | Parameter Name        |   Description                                      |
 |:-------------|:-----------------------------------------------|
