@@ -126,14 +126,12 @@ TEST(TssTest, BasicTest) {
     code = tssCreateInstance(as, &ss);
     GTEST_ASSERT_EQ(code, TSDB_CODE_NOT_FOUND);
 
-#if 0
     printf("test file system based shared storage\n");
     as = "fs:baseDir=/tmp/ss";
     code = tssCreateInstance(as, &ss);
     GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
     tssInstTest(ss, 512);
     tssCloseInstance(ss);
-#endif
 
 #ifdef USE_S3
     printf("test libs3 based shared storage\n");
