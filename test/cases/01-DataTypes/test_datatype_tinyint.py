@@ -8,7 +8,7 @@ class TestDatatypeTinyint:
         tdSql.prepare(dbname="db", drop=True)
 
     def test_datatype_tinyint(self):
-        """tinyint datatype
+        """DataTypes: tinyint
 
         1. create table
         2. insert data

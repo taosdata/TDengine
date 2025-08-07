@@ -8,7 +8,7 @@ class TestDatatypeDouble:
         tdSql.prepare(dbname="db", drop=True)
 
     def test_datatype_double(self):
-        """double datatype
+        """DataTypes: double
 
         1. create table
         2. insert data

@@ -8,7 +8,7 @@ class TestDatatypeUnsigned:
         tdSql.prepare(dbname="db", drop=True)
 
     def test_datatype_unsigned(self):
-        """unsigned datatypes()
+        """DataTypes: unsigned numeric
 
         1. create table
         2. alter tag value

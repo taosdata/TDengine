@@ -8,7 +8,7 @@ class TestDatatypeNchar:
         tdSql.prepare(dbname="db", drop=True)
 
     def test_datatype_nchar(self):
-        """nchar datatype
+        """DataTypes: nchar
 
         1. create table
         2. insert data

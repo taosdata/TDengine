@@ -8,7 +8,7 @@ class TestDatatypeSmallint:
         tdSql.prepare(dbname="db", drop=True)
 
     def test_datatype_smallint(self):
-        """smallint datatype
+        """DataTypes: smallint
 
         1. create table
         2. insert data

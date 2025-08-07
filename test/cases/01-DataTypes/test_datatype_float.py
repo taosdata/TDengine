@@ -8,7 +8,7 @@ class TestDatatypeFloat:
         tdSql.prepare(dbname="db", drop=True)
 
     def test_datatype_float(self):
-        """float datatype
+        """DataTypes: float
 
         1. create table
         2. insert data

@@ -8,13 +8,17 @@ class TestCompositeKeyLoad:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_project_column_1(self):
-        """读取内存中数据和 stt 中复合主键数据出现错误
+    def test_composite_key_load(self):
+        """read from STT​
 
-        原因是：minKey 采用浅拷贝，导致stt向后迭代时候，修改了 minKey 的值， 导致内存中的 key 和 stt 中key 合并后， 出现错误
+        Error Reading Composite Key Data from Memory and STT Files
 
-        1. 创建单表，时间列和composite key 字符串列。向 stt 中写入 4 条记录，内存中写入一条记录
-        2. 查询出错
+        Root Cause:
+        The minKeyused a shallow copy. During backward iteration in STT, this accidentally modified the minKeyvalue. When merging keys from memory and STT, inconsistent key states caused data corruption.
+
+        Reproduction Steps:
+        1. Create table with timestamp column and composite key string column. Insert 4 records into STT files and 1 record into memory.
+        2. Execute query → Trigger failure
 
         Catalog:
             - Query:SelectList
