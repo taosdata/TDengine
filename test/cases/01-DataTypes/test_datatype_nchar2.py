@@ -7,7 +7,7 @@ class TestNChar:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_nchar(self):
-        """nchar datatype (Chinese)
+        """nchar (Chinese)
 
         1. create table
         2. insert data

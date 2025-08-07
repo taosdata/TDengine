@@ -8,7 +8,7 @@ class TestDatatypeBigInt:
         tdSql.prepare(dbname="db", drop=True)
 
     def test_datatype_bigint(self):
-        """bigint datatype
+        """bigint
 
         1. create table
         2. insert data

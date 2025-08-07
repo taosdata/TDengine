@@ -7,7 +7,7 @@ class TestNullColumn:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_null_column(self):
-        """NULL Column
+        """NULL column
 
         1. create table
         2. insert data with NULL
