@@ -375,7 +375,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_MANY_ALGO_TYPE, "Anode too many algori
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_URL_RSP_IS_NULL,         "Analysis service response is NULL")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_URL_CANT_ACCESS,         "Analysis service can't access")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ALGO_NOT_FOUND,          "Analysis algorithm is missing")
-TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ALGO_NOT_LOAD,           "Analysis algorithm not loaded")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ALGO_NOT_LOAD,           "Analysis algorithm/model not loaded")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_BUF_INVALID_TYPE,        "Analysis invalid buffer type")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ANODE_RETURN_ERROR,      "Analysis failed since anode return error")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS,     "Analysis failed since too many input rows")
