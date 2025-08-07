@@ -10,13 +10,12 @@ class TestDatabaseBasic1:
     def test_database_basic1(self):
         """Database: basic 1
 
-        1. creat database use vgroup option
-        2. show vgroups
-        3. show vnodes
+        1. Create database with vgroup option
+        2. Show vgroups
+        3. Show vnodes
 
         Catalog:
             - Databases:Create
-            - Databases:Drop
 
         Since: v3.0.0.0
 

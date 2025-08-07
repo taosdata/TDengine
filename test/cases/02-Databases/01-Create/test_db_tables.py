@@ -10,11 +10,11 @@ class TestDatabaseTables:
     def test_database_tables(self):
         """Database: cache
 
-        1. create database and table
-        2. write and query data
-        3. drop them
-        4. reset query cache
-        5. test again
+        1. Create database and table
+        2. Write and query data
+        3. Drop both
+        4. Reset query cache
+        5. Retest
 
         Catalog:
             - Database:Create

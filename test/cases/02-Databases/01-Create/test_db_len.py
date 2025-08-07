@@ -10,8 +10,8 @@ class TestDatabaseLen:
     def test_database_len(self):
         """Name: length
 
-        1. create database using excessively long name
-        2. test using some invalid values
+        1. Create database with an excessively long name
+        2. Test with invalid values
 
         Catalog:
             - Database:Create

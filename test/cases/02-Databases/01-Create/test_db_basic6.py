@@ -10,13 +10,12 @@ class TestDatabaseBasic6:
     def test_database_basic6(self):
         """Database: basic 6
 
-        1. create database use options such as replcai, duraiton, keep, minrows
-        2. select from information_schema.ins_databases and check result
-        3. repeatedly perform operations such as create database, drop database, create table, and writing data
+        1. Create database with options (replica, duration, keep, minrows)
+        2. Query information_schema.ins_databases and verify results
+        3. Repeatedly execute create database, drop database, create table, and write data
 
         Catalog:
             - Database:Create
-            - Databases:Drop
 
         Since: v3.0.0.0
 

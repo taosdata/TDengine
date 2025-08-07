@@ -10,10 +10,10 @@ class TestDatabaseRepeat:
     def test_database_repeat(self):
         """Database: repeatedly create and drop
 
-        1. create database
-        2. create table
-        3. drop them
-        4. repeat the test several times
+        1. Create database
+        2. Create table
+        3. Drop both
+        4. Repeat several times
 
         Catalog:
             - Database:Create

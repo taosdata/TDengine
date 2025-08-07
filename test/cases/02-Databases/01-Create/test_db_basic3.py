@@ -10,13 +10,12 @@ class TestDatabaseBasic3:
     def test_database_basic3(self):
         """Database: basic 3
 
-        1. create database
-        2. create normal table with db. as the prefix
-        3. show tables use db. as the prefix
+        1. Create database
+        2. Create normal table with the 'db.' prefix
+        3. Show tables using the 'db.' prefix
 
         Catalog:
             - Database:Create
-            - Databases:Drop
 
         Since: v3.0.0.0
 

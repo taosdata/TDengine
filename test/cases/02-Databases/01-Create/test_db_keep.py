@@ -10,10 +10,10 @@ class TestDatabaseKeep:
     def test_database_Keep(self):
         """Options: keep
 
-        1. create database with keep option
-        2. write and query data, include data not within the keep range
-        3. alter database keep option
-        4. write and query data again
+            1. Create database with the KEEP option
+            2. Write and query data—including data outside the KEEP range
+            3. ALTER database KEEP option
+            4. Write and query data again
 
         Catalog:
             - Database:Create

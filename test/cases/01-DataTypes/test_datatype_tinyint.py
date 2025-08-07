@@ -10,11 +10,11 @@ class TestDatatypeTinyint:
     def test_datatype_tinyint(self):
         """DataTypes: tinyint
 
-        1. create table
-        2. insert data
-        3. auto create table
-        4. alter tag value
-        5. illegal input
+        1. Create table
+        2. Insert data
+        3. Auto-create table
+        4. Alter tag value
+        5. Handle illegal input
 
         Catalog:
             - DataTypes

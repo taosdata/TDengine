@@ -10,16 +10,15 @@ class TestDatabaseBasic2:
     def test_database_basic2(self):
         """Database: basic 2
 
-        1. create database
-        2. create super table
-        3. create child table
-        4. create normal table
-        5. show tables
-        6. drop database
+        1. Create database
+        2. Create supertable
+        3. Create subtable
+        4. Create regular table
+        5. Show tables
+        6. Drop database
 
         Catalog:
             - Database:Create
-            - Databases:Drop
 
         Since: v3.0.0.0
 
