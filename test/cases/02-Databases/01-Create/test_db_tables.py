@@ -8,7 +8,7 @@ class TestDatabaseTables:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_tables(self):
-        """meta cache for databases and tables
+        """Database: cache
 
         1. create database and table
         2. write and query data
