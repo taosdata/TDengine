@@ -640,10 +640,10 @@ async function getMsgBody() {
     requesting.value = true;
     const isSupportType = sourceForm.type == 'kafka' || sourceForm.type == 'mqtt' || sourceForm.type == 'mongodb';
     const params: Recordable = { dsn: sourceForm };
-    params.sample_data_limit = transformerState.limitOffset;
-    if (isSupportType) {
-      params.get_sample_timeout = 3;
-    }
+    params.dsn.sample_data_limit = transformerState.limitOffset;
+    // if (isSupportType) {
+    //   params.dsn.get_sample_timeout = 3;
+    // }
     const result = await dataInProps.transform.api.getSampleDataMsgbody(params);
     if (result && Object.hasOwnProperty.call(result, 'code')) {
       ElMessage.error(result.message || result.desc);

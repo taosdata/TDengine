@@ -570,18 +570,17 @@ async fn get_sample_message(
         .await
         .context("build MQTT poller from config error")?;
 
-    let start = std::time::Instant::now();
+    let deadline = tokio::time::Instant::now() + timeout;
     let mut count = 0;
     let mut res = Vec::with_capacity(limit);
     loop {
-        let elapsed = start.elapsed();
-        if elapsed >= timeout || count >= limit {
-            break;
+        if count >= limit {
+            return Ok(res);
         }
 
-        let message = match tokio::time::timeout(timeout - elapsed, poller.poll()).await {
+        let message = match tokio::time::timeout_at(deadline, poller.poll()).await {
             Ok(res) => res.context("No MQTT message found")?,
-            Err(_elapsed) => continue,
+            Err(_elapsed) => return Ok(res),
         };
 
         let mut map = HashMap::with_capacity(limit);
@@ -602,6 +601,4 @@ async fn get_sample_message(
         res.push(map);
         count += 1;
     }
-
-    Ok(res)
 }
