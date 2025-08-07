@@ -79,7 +79,6 @@ typedef struct SStreamInserterParam {
   int8_t    tbType;
   char*     dbFName;
   void*     pSinkHandle;
-  STSchema* pSchema;
 } SStreamInserterParam;
 
 typedef struct {

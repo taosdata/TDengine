@@ -15,12 +15,12 @@ class TestStreamOldCaseContinueWindowClose:
     def test_stream_oldcase_continue_window_close(self):
         """Stream continue window close
 
-        To mimic the original CONTINUOUS_WINDOW_CLOSE behavior
+        Verify the alternative approach to the original continuous window close trigger mode in the new streaming computation
 
         Catalog:
             - Streams:OldTsimCases
 
-        Since: v3.0.0.0
+        Since: v3.3.7.0
 
         Labels: common, ci
 
