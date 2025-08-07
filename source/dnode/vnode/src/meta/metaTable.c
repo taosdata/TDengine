@@ -197,8 +197,10 @@ int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STabl
   pMetaRsp->rversion = 1;
   pMetaRsp->tuid = uid;
   pMetaRsp->virtualStb = false; // super table will never be processed here
-
   memcpy(pMetaRsp->pSchemas, pSchema->pSchema, pSchema->nCols * sizeof(SSchema));
+  for (int i = 0; i < pSchema->nCols; ++i) {
+    pMetaRsp->pSchemaExt[i].typeMod = pSchema->pExtSchema ? pSchema->pExtSchema[i].typeMod : 0;
+  }
 
   return 0;
 }
@@ -225,6 +227,9 @@ int32_t metaUpdateVtbMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema
     pMetaRsp->numOfColumns = pSchema->nCols;
     pMetaRsp->sversion = pSchema->version;
     memcpy(pMetaRsp->pSchemas, pSchema->pSchema, pSchema->nCols * sizeof(SSchema));
+    for (int i = 0; i < pSchema->nCols; ++i) {
+      pMetaRsp->pSchemaExt[i].typeMod = pSchema->pExtSchema ? pSchema->pExtSchema[i].typeMod : 0;
+    }
   }
   pMetaRsp->pColRefs = taosMemoryMalloc(pRef->nCols * sizeof(SColRef));
   if (NULL == pMetaRsp->pColRefs) {

@@ -17354,6 +17354,8 @@ static int32_t buildVirtualTableBatchReq(const SCreateVTableStmt* pStmt, const S
   if (NULL == req.name || NULL == req.ntb.schemaRow.pSchema) {
     PAR_ERR_JRET(terrno);
   }
+  req.ntb.schemaRow.pExtSchema = NULL;
+
   if (pStmt->ignoreExists) {
     req.flags |= TD_CREATE_IF_NOT_EXISTS;
   }
@@ -17367,6 +17369,16 @@ static int32_t buildVirtualTableBatchReq(const SCreateVTableStmt* pStmt, const S
       PAR_ERR_JRET(setColRef(&req.colRef.pColRef[index], index + 1, ((SColumnOptions*)pColDef->pOptions)->refColumn,
                              ((SColumnOptions*)pColDef->pOptions)->refTable,
                              ((SColumnOptions*)pColDef->pOptions)->refDb));
+    }
+    if (IS_DECIMAL_TYPE(pColDef->dataType.type)) {
+      if (!req.ntb.schemaRow.pExtSchema) {
+        req.ntb.schemaRow.pExtSchema = taosMemoryCalloc(pStmt->pCols->length, sizeof(SExtSchema));
+        if (NULL == req.ntb.schemaRow.pExtSchema) {
+          tdDestroySVCreateTbReq(&req);
+          return terrno;
+        }
+      }
+      req.ntb.schemaRow.pExtSchema[index].typeMod = calcTypeMod(&pColDef->dataType);
     }
     ++index;
   }
@@ -17475,6 +17487,8 @@ static int32_t buildNormalTableBatchReq(const SCreateTableStmt* pStmt, const SVg
     tdDestroySVCreateTbReq(&req);
     return terrno;
   }
+  req.ntb.schemaRow.pExtSchema = NULL;
+
   if (pStmt->ignoreExists) {
     req.flags |= TD_CREATE_IF_NOT_EXISTS;
   }

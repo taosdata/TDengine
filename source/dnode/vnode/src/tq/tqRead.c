@@ -547,20 +547,31 @@ int32_t tqMaskBlock(SSchemaWrapper* pDst, SSDataBlock* pBlock, const SSchemaWrap
   if (pDst->pSchema == NULL) {
     return TAOS_GET_TERRNO(terrno);
   }
+  if (extSrc != NULL) {
+    pDst->pExtSchema = taosMemoryCalloc(cnt, sizeof(SExtSchema));
+    if (pDst->pExtSchema == NULL) {
+      taosMemoryFree(pDst->pSchema);
+      return TAOS_GET_TERRNO(terrno);
+    }
+  } else {
+    pDst->pExtSchema = NULL;
+  }
 
   int32_t j = 0;
   for (int32_t i = 0; i < pSrc->nCols; i++) {
     if (mask[i]) {
-      pDst->pSchema[j++] = pSrc->pSchema[i];
+      pDst->pSchema[j] = pSrc->pSchema[i];
       SColumnInfoData colInfo =
           createColumnInfoData(pSrc->pSchema[i].type, pSrc->pSchema[i].bytes, pSrc->pSchema[i].colId);
       if (extSrc != NULL) {
         decimalFromTypeMod(extSrc[i].typeMod, &colInfo.info.precision, &colInfo.info.scale);
+        pDst->pExtSchema[j].typeMod = extSrc[i].typeMod;
       }
       code = blockDataAppendColInfo(pBlock, &colInfo);
       if (code != 0) {
         return code;
       }
+      j++;
     }
   }
   return 0;

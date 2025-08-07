@@ -2075,7 +2075,11 @@ static int32_t buildExistSubTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbDat
       *ppRsp = NULL;
       TSDB_CHECK_CODE(code = terrno, lino, _exit);
     }
-    memcpy((*ppRsp)->pSchemaExt, pEntry->stbEntry.schemaRow.pExtSchema, pEntry->colCmpr.nCols * sizeof(SExtSchema));
+    for (int i = 0; i < pEntry->stbEntry.schemaRow.nCols; ++i) {
+      (*ppRsp)->pSchemaExt[i].colId = pEntry->stbEntry.schemaRow.pSchema->colId;
+      (*ppRsp)->pSchemaExt[i].compress = pEntry->colCmpr.pColCmpr->alg;
+      (*ppRsp)->pSchemaExt[i].typeMod = pEntry->stbEntry.schemaRow.pExtSchema[i].typeMod;
+    }
   }
 
   if (pEntry->stbEntry.schemaRow.version != pSubmitTbData->sver) {
@@ -2121,6 +2125,8 @@ static int32_t buildExistNormalTalbeRsp(SVnode *pVnode, int64_t uid, STableMetaR
     TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
   memcpy((*ppRsp)->pSchemas, pEntry->ntbEntry.schemaRow.pSchema, pEntry->ntbEntry.schemaRow.nCols * sizeof(SSchema));
+  (*ppRsp)->pSchemaExt = NULL;
+
   if (pEntry->ntbEntry.schemaRow.pExtSchema != NULL) {
     (*ppRsp)->pSchemaExt = taosMemoryCalloc(pEntry->ntbEntry.schemaRow.nCols, sizeof(SSchemaExt));
     if (NULL == (*ppRsp)->pSchemaExt) {
@@ -2128,7 +2134,11 @@ static int32_t buildExistNormalTalbeRsp(SVnode *pVnode, int64_t uid, STableMetaR
       taosMemoryFree(*ppRsp);
       TSDB_CHECK_CODE(code = terrno, lino, _exit);
     }
-    memcpy((*ppRsp)->pSchemaExt, pEntry->ntbEntry.schemaRow.pExtSchema, pEntry->ntbEntry.schemaRow.nCols * sizeof(SSchemaExt));
+    for (int i = 0; i < pEntry->ntbEntry.schemaRow.nCols; ++i) {
+      (*ppRsp)->pSchemaExt[i].colId = pEntry->ntbEntry.schemaRow.pSchema[i].colId;
+      (*ppRsp)->pSchemaExt[i].compress = pEntry->colCmpr.pColCmpr[i].alg;
+      (*ppRsp)->pSchemaExt[i].typeMod = pEntry->ntbEntry.schemaRow.pExtSchema[i].typeMod;
+    }
   }
 
 _exit:

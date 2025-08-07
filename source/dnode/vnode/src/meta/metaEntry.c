@@ -395,6 +395,18 @@ static int32_t metaCloneSchema(const SSchemaWrapper *pSrc, SSchemaWrapper *pDst)
     return terrno;
   }
   memcpy(pDst->pSchema, pSrc->pSchema, pSrc->nCols * sizeof(SSchema));
+
+  if (NULL != pSrc->pExtSchema) {
+    pDst->pExtSchema = (SExtSchema *)taosMemoryMalloc(pSrc->nCols * sizeof(SExtSchema));
+    if (pDst->pExtSchema == NULL) {
+      taosMemoryFreeClear(pDst->pSchema);
+      return terrno;
+    }
+    (void)memcpy(pDst->pExtSchema, pSrc->pExtSchema, pSrc->nCols * sizeof(SExtSchema));
+  } else {
+    pDst->pExtSchema = NULL;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
