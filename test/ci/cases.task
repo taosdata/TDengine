@@ -5,8 +5,10 @@
 ,,n,.,pytest cases/01-DataTypes/test_datatype_bigint.py
 
 # 01-DataTypes
+,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_blob.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bool.py
+,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_blob.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_double.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_float.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_geometry.py
@@ -20,10 +22,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_uint.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_unsign.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_varbinary.py
-,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_blob.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_varchar.py
-,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null_column.py
+,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null_tag.py
 
 # ​​​Special gap before priority support
 ,,n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_compatibility_rolling_upgrade.py -N 3
@@ -37,27 +38,24 @@
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_basic5.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_basic6.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_commit.py -N 2
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_create_all_options.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_create.py
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_dnodelist.py -N 5
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_keep.py -N 2
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_len.py
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_repeat.py
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_table_prefix_suffix.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_tables.py
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_name_all.py
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_name_len.py
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_op_all.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_op_dnodelist.py -N 5
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_op_keep.py -N 2
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_op_table_prefix_suffix.py
 
 ## 02-Drop
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_catalog.py
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_delete_reuse_vnode1.py
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_delete_reuse_vnode2.py
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_delete_reuse_vnode.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_delete_reuse1.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_delete_reuse2.py
-,,n,.,pytest cases/02-Databases/02-Drop/test_db_delete_writing1.py
-,,n,.,pytest cases/02-Databases/02-Drop/test_db_delete_writing2.py
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_repeat.py
+,,n,.,pytest cases/02-Databases/02-Drop/test_db_writing.py
 
 ## 03-Alter
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_option_keep1.py
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_option_keep2.py
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_option_keep.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_option.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_replicas_13.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_replicas_31.py -N 4
@@ -174,6 +172,7 @@
 
 ## 02-Drop
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/02-Drop/test_stable_drop_basic3.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/02-Drop/test_stable_reuse_repeat.py
 
 ## 03-Alter
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_parser_alter_column.py 

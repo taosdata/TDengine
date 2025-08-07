@@ -8,9 +8,17 @@ class TestBalance1:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_balance_1(self):
-        """balance 1
+        """Scale-up: 1
 
-        1. -
+        1. Create a 1-dnode cluster.
+        2. Create database d1 (1 vgroup, replica 1) and insert data.
+        3. Start dnode2, join it to the cluster, run BALANCE VGROUP; verify vnode distribution and data integrity.
+        4. Create database d2 (1 vgroup, replica 1) and insert data; check distribution & integrity.
+        5. Remove dnode2; verify vnode distribution and data integrity.
+        6. Start dnode3, join it to the cluster, run BALANCE VGROUP; verify distribution & integrity.
+        7. Create database d3 (1 vgroup, replica 1) and insert data; check distribution & integrity.
+        8. Remove dnode3; verify vnode distribution and data integrity.
+        9. Create database d4 (1 vgroup, replica 1) and insert data; check distribution & integrity.
 
         Catalog:
             - Database:Sync
