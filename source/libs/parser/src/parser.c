@@ -632,9 +632,7 @@ void destoryCatalogReq(SCatalogReq* pCatalogReq) {
     taosArrayDestroyEx(pCatalogReq->pTableName, destoryTablesReq);
   }
   taosArrayDestroy(pCatalogReq->pUdf);
-  taosArrayDestroy(pCatalogReq->pIndex);
   taosArrayDestroy(pCatalogReq->pUser);
-  taosArrayDestroy(pCatalogReq->pTableIndex);
   taosArrayDestroy(pCatalogReq->pTableCfg);
   taosArrayDestroy(pCatalogReq->pTableTag);
   taosArrayDestroy(pCatalogReq->pVStbRefDbs);

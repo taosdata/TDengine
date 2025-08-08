@@ -365,11 +365,6 @@ int32_t __catalogRemoveTableRelatedMeta(SCatalog* pCtg, SName* pTableName) { ret
 
 int32_t __catalogRemoveViewMeta(SCatalog* pCtg, SName* pTableName) { return 0; }
 
-int32_t __catalogGetTableIndex(SCatalog* pCtg, void* pTrans, const SEpSet* pMgmtEps, const SName* pName,
-                               SArray** pRes) {
-  return g_mockCatalogService->catalogGetTableIndex(pName, pRes);
-}
-
 int32_t __catalogGetDnodeList(SCatalog* pCatalog, SRequestConnInfo* pConn, SArray** pDnodeList) {
   return g_mockCatalogService->catalogGetDnodeList(pDnodeList);
 }
@@ -403,7 +398,6 @@ void initMetaDataEnv() {
   stub.set(catalogRemoveTableMeta, __catalogRemoveTableMeta);
   stub.set(catalogRemoveTableRelatedMeta, __catalogRemoveTableRelatedMeta);
   stub.set(catalogRemoveViewMeta, __catalogRemoveViewMeta);
-  stub.set(catalogGetTableIndex, __catalogGetTableIndex);
   stub.set(catalogGetDnodeList, __catalogGetDnodeList);
   stub.set(catalogRefreshGetTableCfg, __catalogRefreshGetTableCfg);
 }

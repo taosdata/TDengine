@@ -40,16 +40,12 @@ static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw);
 static int32_t  mndSmaActionInsert(SSdb *pSdb, SSmaObj *pSma);
 static int32_t  mndSmaActionDelete(SSdb *pSdb, SSmaObj *pSpSmatb);
 static int32_t  mndSmaActionUpdate(SSdb *pSdb, SSmaObj *pOld, SSmaObj *pNew);
-static int32_t  mndProcessDropSmaReq(SRpcMsg *pReq);
-static int32_t  mndProcessGetSmaReq(SRpcMsg *pReq);
-static int32_t  mndProcessGetTbSmaReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 
 static int32_t mndProcessCreateTSMAReq(SRpcMsg *pReq);
 static int32_t mndProcessDropTSMAReq(SRpcMsg *pReq);
 
 // sma and tag index comm func
-static int32_t mndProcessDropIdxReq(SRpcMsg *pReq);
 static int32_t mndRetrieveIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelRetrieveIdx(SMnode *pMnode, void *pIter);
 
@@ -83,11 +79,6 @@ int32_t mndInitSma(SMnode *pMnode) {
       .updateFp = (SdbUpdateFp)mndSmaActionUpdate,
       .deleteFp = (SdbDeleteFp)mndSmaActionDelete,
   };
-
-//  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_SMA, mndProcessCreateSmaReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_DROP_SMA, mndProcessDropIdxReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_GET_INDEX, mndProcessGetSmaReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_GET_TABLE_INDEX, mndProcessGetTbSmaReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndRetrieveIdx);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndCancelRetrieveIdx);
@@ -562,272 +553,6 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t mndProcessDropSmaReq(SRpcMsg *pReq) {
-  SMnode      *pMnode = pReq->info.node;
-  int32_t      code = -1;
-  SDbObj      *pDb = NULL;
-  SSmaObj     *pSma = NULL;
-  SMDropSmaReq dropReq = {0};
-
-  TAOS_CHECK_GOTO(tDeserializeSMDropSmaReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
-
-  mInfo("sma:%s, start to drop", dropReq.name);
-
-  SSIdx idx = {0};
-  if ((code = mndAcquireGlobalIdx(pMnode, dropReq.name, SDB_SMA, &idx)) == 0) {
-    pSma = idx.pIdx;
-  } else {
-    goto _OVER;
-  }
-  if (pSma == NULL) {
-    if (dropReq.igNotExists) {
-      mInfo("sma:%s, not exist, ignore not exist is set", dropReq.name);
-      code = 0;
-      goto _OVER;
-    } else {
-      code = TSDB_CODE_MND_SMA_NOT_EXIST;
-      goto _OVER;
-    }
-  }
-
-  SName name = {0};
-  code = tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-  if (TSDB_CODE_SUCCESS != code) {
-    goto _OVER;
-  }
-  char db[TSDB_TABLE_FNAME_LEN] = {0};
-  (void)tNameGetFullDbName(&name, db);
-
-  pDb = mndAcquireDb(pMnode, db);
-  if (pDb == NULL) {
-    code = TSDB_CODE_MND_DB_NOT_SELECTED;
-    goto _OVER;
-  }
-
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb), NULL, _OVER);
-
-  code = mndDropSma(pMnode, pReq, pDb, pSma);
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
-
-_OVER:
-  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("sma:%s, failed to drop since %s", dropReq.name, tstrerror(code));
-  }
-
-  mndReleaseSma(pMnode, pSma);
-  mndReleaseDb(pMnode, pDb);
-  TAOS_RETURN(code);
-}
-
-static int32_t mndGetSma(SMnode *pMnode, SUserIndexReq *indexReq, SUserIndexRsp *rsp, bool *exist) {
-  int32_t  code = -1;
-  SSmaObj *pSma = NULL;
-
-  SSIdx idx = {0};
-  if (0 == mndAcquireGlobalIdx(pMnode, indexReq->indexFName, SDB_SMA, &idx)) {
-    pSma = idx.pIdx;
-  } else {
-    *exist = false;
-    return 0;
-  }
-
-  if (pSma == NULL) {
-    *exist = false;
-    return 0;
-  }
-
-  memcpy(rsp->dbFName, pSma->db, sizeof(pSma->db));
-  memcpy(rsp->tblFName, pSma->stb, sizeof(pSma->stb));
-  tstrncpy(rsp->indexType, TSDB_INDEX_TYPE_SMA, TSDB_INDEX_TYPE_LEN);
-
-  SNodeList *pList = NULL;
-  int32_t    extOffset = 0;
-  code = nodesStringToList(pSma->expr, &pList);
-  if (0 == code) {
-    SNode *node = NULL;
-    FOREACH(node, pList) {
-      SFunctionNode *pFunc = (SFunctionNode *)node;
-      extOffset += tsnprintf(rsp->indexExts + extOffset, sizeof(rsp->indexExts) - extOffset - 1, "%s%s",
-                             (extOffset ? "," : ""), pFunc->functionName);
-    }
-
-    *exist = true;
-  }
-
-  mndReleaseSma(pMnode, pSma);
-  return code;
-}
-
-int32_t mndGetTableSma(SMnode *pMnode, char *tbFName, STableIndexRsp *rsp, bool *exist) {
-  int32_t         code = 0;
-  SSmaObj        *pSma = NULL;
-  SSdb           *pSdb = pMnode->pSdb;
-  void           *pIter = NULL;
-  STableIndexInfo info;
-
-  SStbObj *pStb = mndAcquireStb(pMnode, tbFName);
-  if (NULL == pStb) {
-    *exist = false;
-    return TSDB_CODE_SUCCESS;
-  }
-
-  tstrncpy(rsp->dbFName, pStb->db, TSDB_DB_FNAME_LEN);
-  tstrncpy(rsp->tbName, pStb->name + strlen(pStb->db) + 1, TSDB_TABLE_NAME_LEN);
-  rsp->suid = pStb->uid;
-  rsp->version = pStb->smaVer;
-  mndReleaseStb(pMnode, pStb);
-
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_SMA, pIter, (void **)&pSma);
-    if (pIter == NULL) break;
-
-    if (pSma->stb[0] != tbFName[0] || strcmp(pSma->stb, tbFName)) {
-      sdbRelease(pSdb, pSma);
-      continue;
-    }
-
-    info.intervalUnit = pSma->intervalUnit;
-    info.slidingUnit = pSma->slidingUnit;
-    info.interval = pSma->interval;
-    info.offset = pSma->offset;
-    info.sliding = pSma->sliding;
-    info.dstTbUid = pSma->dstTbUid;
-    info.dstVgId = pSma->dstVgId;
-
-    SVgObj *pVg = mndAcquireVgroup(pMnode, pSma->dstVgId);
-    if (pVg == NULL) {
-      code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-      if (terrno != 0) code = terrno;
-      sdbRelease(pSdb, pSma);
-      sdbCancelFetch(pSdb, pIter);
-      return code;
-    }
-    info.epSet = mndGetVgroupEpset(pMnode, pVg);
-
-    info.expr = taosMemoryMalloc(pSma->exprLen + 1);
-    if (info.expr == NULL) {
-      code = terrno;
-      sdbRelease(pSdb, pSma);
-      sdbCancelFetch(pSdb, pIter);
-      return code;
-    }
-
-    memcpy(info.expr, pSma->expr, pSma->exprLen);
-    info.expr[pSma->exprLen] = 0;
-
-    if (NULL == taosArrayPush(rsp->pIndex, &info)) {
-      code = terrno;
-      taosMemoryFree(info.expr);
-      sdbRelease(pSdb, pSma);
-      sdbCancelFetch(pSdb, pIter);
-      return code;
-    }
-
-    rsp->indexSize += sizeof(info) + pSma->exprLen + 1;
-    *exist = true;
-
-    sdbRelease(pSdb, pSma);
-  }
-
-  TAOS_RETURN(code);
-}
-
-static int32_t mndProcessGetSmaReq(SRpcMsg *pReq) {
-  SUserIndexReq indexReq = {0};
-  SMnode       *pMnode = pReq->info.node;
-  int32_t       code = -1;
-  SUserIndexRsp rsp = {0};
-  bool          exist = false;
-
-  TAOS_CHECK_GOTO(tDeserializeSUserIndexReq(pReq->pCont, pReq->contLen, &indexReq), NULL, _OVER);
-
-  code = mndGetSma(pMnode, &indexReq, &rsp, &exist);
-  if (code) {
-    goto _OVER;
-  }
-
-  if (!exist) {
-    // TODO GET INDEX FROM FULLTEXT
-    code = TSDB_CODE_MND_DB_INDEX_NOT_EXIST;
-  } else {
-    int32_t contLen = tSerializeSUserIndexRsp(NULL, 0, &rsp);
-    void   *pRsp = rpcMallocCont(contLen);
-    if (pRsp == NULL) {
-      code = terrno;
-      goto _OVER;
-    }
-
-    contLen = tSerializeSUserIndexRsp(pRsp, contLen, &rsp);
-    if (contLen < 0) {
-      code = terrno;
-      goto _OVER;
-    }
-
-    pReq->info.rsp = pRsp;
-    pReq->info.rspLen = contLen;
-
-    code = 0;
-  }
-
-_OVER:
-  if (code != 0) {
-    mError("failed to get index %s since %s", indexReq.indexFName, tstrerror(code));
-  }
-
-  TAOS_RETURN(code);
-}
-
-static int32_t mndProcessGetTbSmaReq(SRpcMsg *pReq) {
-  STableIndexReq indexReq = {0};
-  SMnode        *pMnode = pReq->info.node;
-  int32_t        code = -1;
-  STableIndexRsp rsp = {0};
-  bool           exist = false;
-
-  TAOS_CHECK_GOTO(tDeserializeSTableIndexReq(pReq->pCont, pReq->contLen, &indexReq), NULL, _OVER);
-
-  rsp.pIndex = taosArrayInit(10, sizeof(STableIndexInfo));
-  if (NULL == rsp.pIndex) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  code = mndGetTableSma(pMnode, indexReq.tbFName, &rsp, &exist);
-  if (code) {
-    goto _OVER;
-  }
-
-  if (!exist) {
-    code = TSDB_CODE_MND_DB_INDEX_NOT_EXIST;
-  } else {
-    int32_t contLen = tSerializeSTableIndexRsp(NULL, 0, &rsp);
-    void   *pRsp = rpcMallocCont(contLen);
-    if (pRsp == NULL) {
-      code = terrno;
-      goto _OVER;
-    }
-
-    contLen = tSerializeSTableIndexRsp(pRsp, contLen, &rsp);
-    if (contLen < 0) {
-      code = terrno;
-      goto _OVER;
-    }
-
-    pReq->info.rsp = pRsp;
-    pReq->info.rspLen = contLen;
-
-    code = 0;
-  }
-
-_OVER:
-  if (code != 0) {
-    mError("failed to get table index %s since %s", indexReq.tbFName, tstrerror(code));
-  }
-
-  tFreeSerializeSTableIndexRsp(&rsp);
-  TAOS_RETURN(code);
-}
-
 static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode  *pMnode = pReq->info.node;
   SSdb    *pSdb = pMnode->pSdb;
@@ -916,16 +641,6 @@ static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   mndReleaseDb(pMnode, pDb);
   pShow->numOfRows += numOfRows;
   return numOfRows;
-}
-
-// sma and tag index comm func
-static int32_t mndProcessDropIdxReq(SRpcMsg *pReq) {
-  int ret = mndProcessDropSmaReq(pReq);
-  if (ret == TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST || ret == TSDB_CODE_MND_SMA_NOT_EXIST) {
-    terrno = 0;
-    ret = mndProcessDropTagIdxReq(pReq);
-  }
-  return ret;
 }
 
 static int32_t mndRetrieveIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {

@@ -74,7 +74,6 @@ class MockCatalogService {
   int32_t catalogGetDBVgList(const char* pDbFName, SArray** pVgList) const;
   int32_t catalogGetDBCfg(const char* pDbFName, SDbCfgInfo* pDbCfg) const;
   int32_t catalogGetUdfInfo(const std::string& funcName, SFuncInfo* pInfo) const;
-  int32_t catalogGetTableIndex(const SName* pTableName, SArray** pIndexes) const;
   int32_t catalogGetDnodeList(SArray** pDnodes) const;
   int32_t catalogGetAllMeta(const SCatalogReq* pCatalogReq, SMetaData* pMetaData) const;
 

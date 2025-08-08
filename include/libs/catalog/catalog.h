@@ -89,9 +89,7 @@ typedef struct SCatalogReq {
   SArray* pTableMeta;     // element is STablesReq
   SArray* pTableHash;     // element is STablesReq
   SArray* pUdf;           // element is udf name
-  SArray* pIndex;         // element is index name
   SArray* pUser;          // element is SUserAuthInfo
-  SArray* pTableIndex;    // element is SNAME
   SArray* pTableCfg;      // element is SNAME
   SArray* pTableTag;      // element is SNAME
   SArray* pView;          // element is STablesReq
@@ -119,9 +117,7 @@ typedef struct SMetaData {
   SArray*   pDbInfo;      // pRes = SDbInfo*
   SArray*   pTableMeta;   // pRes = STableMeta*
   SArray*   pTableHash;   // pRes = SVgroupInfo*
-  SArray*   pTableIndex;  // pRes = SArray<STableIndexInfo>*
   SArray*   pUdfList;     // pRes = SFuncInfo*
-  SArray*   pIndex;       // pRes = SIndexInfo*
   SArray*   pUser;        // pRes = SUserAuthRes*
   SArray*   pQnodeList;   // pRes = SArray<SQueryNodeLoad>*
   SArray*   pTableCfg;    // pRes = STableCfg*
@@ -370,8 +366,6 @@ int32_t catalogGetExpiredTsmas(SCatalog* pCtg, STSMAVersion** tsmas, uint32_t* n
 int32_t catalogGetDBCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, SDbCfgInfo* pDbCfg);
 
 int32_t catalogGetIndexMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const char* indexName, SIndexInfo* pInfo);
-
-int32_t catalogGetTableIndex(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SArray** pRes);
 
 int32_t catalogGetTableTag(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SArray** pRes);
 

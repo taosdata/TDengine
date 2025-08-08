@@ -419,44 +419,6 @@ int32_t ctgGetTbType(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName,
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgGetTbIndex(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, SArray** pRes) {
-  CTG_ERR_RET(ctgReadTbIndexFromCache(pCtg, pTableName, pRes));
-  if (*pRes) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  STableIndex* pIndex = taosMemoryCalloc(1, sizeof(STableIndex));
-  if (NULL == pIndex) {
-    CTG_ERR_RET(terrno);
-  }
-
-  int32_t code = ctgGetTbIndexFromMnode(pCtg, pConn, (SName*)pTableName, pIndex, NULL);
-  if (TSDB_CODE_MND_DB_INDEX_NOT_EXIST == code) {
-    code = 0;
-    goto _return;
-  }
-  CTG_ERR_JRET(code);
-
-  SArray* pInfo = NULL;
-  CTG_ERR_JRET(ctgCloneTableIndex(pIndex->pIndex, &pInfo));
-
-  *pRes = pInfo;
-
-  CTG_ERR_JRET(ctgUpdateTbIndexEnqueue(pCtg, &pIndex, false));
-
-  return TSDB_CODE_SUCCESS;
-
-_return:
-
-  tFreeSTableIndexRsp(pIndex);
-  taosMemoryFree(pIndex);
-
-  taosArrayDestroyEx(*pRes, tFreeSTableIndexInfo);
-  *pRes = NULL;
-
-  CTG_RET(code);
-}
-
 int32_t ctgGetTbCfg(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, STableCfg** pCfg) {
   int32_t tbType = 0;
   CTG_ERR_RET(ctgGetTbType(pCtg, pConn, pTableName, &tbType));
@@ -1225,29 +1187,6 @@ _return:
   CTG_API_LEAVE(code);
 }
 
-int32_t catalogUpdateTableIndex(SCatalog* pCtg, STableIndexRsp* pRsp) {
-  CTG_API_ENTER();
-
-  int32_t code = 0;
-
-  if (NULL == pCtg || NULL == pRsp) {
-    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
-  }
-
-  STableIndex* pIndex = taosMemoryCalloc(1, sizeof(STableIndex));
-  if (NULL == pIndex) {
-    CTG_API_LEAVE(terrno);
-  }
-
-  TAOS_MEMCPY(pIndex, pRsp, sizeof(STableIndex));
-
-  CTG_ERR_JRET(ctgUpdateTbIndexEnqueue(pCtg, &pIndex, false));
-
-_return:
-
-  CTG_API_LEAVE(code);
-}
-
 int32_t catalogRemoveTableMeta(SCatalog* pCtg, SName* pTableName) {
   CTG_API_ENTER();
 
@@ -1732,31 +1671,6 @@ int32_t catalogGetDBCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbF
   }
 
   CTG_API_LEAVE(ctgGetDBCfg(pCtg, pConn, dbFName, pDbCfg));
-}
-
-int32_t catalogGetIndexMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const char* indexName, SIndexInfo* pInfo) {
-  CTG_API_ENTER();
-
-  if (NULL == pCtg || NULL == pConn || NULL == indexName || NULL == pInfo) {
-    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
-  }
-
-  CTG_API_LEAVE(ctgGetIndexInfoFromMnode(pCtg, pConn, indexName, pInfo, NULL));
-}
-
-int32_t catalogGetTableIndex(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SArray** pRes) {
-  CTG_API_ENTER();
-
-  if (NULL == pCtg || NULL == pConn || NULL == pTableName || NULL == pRes) {
-    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
-  }
-
-  int32_t code = 0;
-  CTG_ERR_JRET(ctgGetTbIndex(pCtg, pConn, (SName*)pTableName, pRes));
-
-_return:
-
-  CTG_API_LEAVE(code);
 }
 
 #if 0

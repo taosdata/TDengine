@@ -1381,9 +1381,7 @@ int32_t cloneCatalogReq(SCatalogReq **ppTarget, SCatalogReq *pSrc) {
     pTarget->pTableMeta = taosArrayDup(pSrc->pTableMeta, NULL);
     pTarget->pTableHash = taosArrayDup(pSrc->pTableHash, NULL);
     pTarget->pUdf = taosArrayDup(pSrc->pUdf, NULL);
-    pTarget->pIndex = taosArrayDup(pSrc->pIndex, NULL);
     pTarget->pUser = taosArrayDup(pSrc->pUser, NULL);
-    pTarget->pTableIndex = taosArrayDup(pSrc->pTableIndex, NULL);
     pTarget->pTableCfg = taosArrayDup(pSrc->pTableCfg, NULL);
     pTarget->pTableTag = taosArrayDup(pSrc->pTableTag, NULL);
     pTarget->pView = taosArrayDup(pSrc->pView, NULL);

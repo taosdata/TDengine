@@ -895,31 +895,6 @@ static int32_t getUdfInfo(STranslateContext* pCxt, SFunctionNode* pFunc) {
   return code;
 }
 
-static int32_t getTableIndex(STranslateContext* pCxt, const SName* pName, SArray** pIndexes) {
-  SParseContext* pParCxt = pCxt->pParseCxt;
-  int32_t        code = collectUseDatabase(pName, pCxt->pDbs);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = collectUseTable(pName, pCxt->pTables);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    if (pParCxt->async) {
-      code = getTableIndexFromCache(pCxt->pMetaCache, pName, pIndexes);
-    } else {
-      SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
-                               .requestId = pParCxt->requestId,
-                               .requestObjRefId = pParCxt->requestRid,
-                               .mgmtEps = pParCxt->mgmtEpSet};
-
-      code = catalogGetTableIndex(pParCxt->pCatalog, &conn, pName, pIndexes);
-    }
-  }
-  if (TSDB_CODE_SUCCESS != code) {
-    parserError("QID:0x%" PRIx64 ", getTableIndex error, code:%s, dbName:%s, tbName:%s", pCxt->pParseCxt->requestId,
-                tstrerror(code), pName->dbname, pName->tname);
-  }
-  return code;
-}
-
 static int32_t getDnodeList(STranslateContext* pCxt, SArray** pDnodes) {
   SParseContext* pParCxt = pCxt->pParseCxt;
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -4908,17 +4883,6 @@ static bool isSingleTable(SRealTableNode* pRealTable) {
           TSDB_VIRTUAL_NORMAL_TABLE == tableType);
 }
 
-static int32_t setTableIndex(STranslateContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
-  if (QUERY_SMA_OPTIMIZE_DISABLE == tsQuerySmaOptimize || QUERY_SMA_OPTIMIZE_NOT_SUPPORT) {
-    return TSDB_CODE_SUCCESS;
-  }
-  if (0 && isSelectStmt(pCxt->pCurrStmt) && NULL != ((SSelectStmt*)pCxt->pCurrStmt)->pWindow &&
-      QUERY_NODE_INTERVAL_WINDOW == nodeType(((SSelectStmt*)pCxt->pCurrStmt)->pWindow)) {
-    return getTableIndex(pCxt, pName, &pRealTable->pSmaIndexes);
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t setTableTsmas(STranslateContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
   int32_t code = 0;
   if (QUERY_SMA_OPTIMIZE_DISABLE == tsQuerySmaOptimize || QUERY_SMA_OPTIMIZE_NOT_SUPPORT) {
@@ -5925,7 +5889,6 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
       PAR_RET(translateVirtualTable(pCxt, pTable, &name));
     }
 
-    PAR_ERR_JRET(setTableIndex(pCxt, &name, pRealTable));
     PAR_ERR_JRET(setTableTsmas(pCxt, &name, pRealTable));
   }
 

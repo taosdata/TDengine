@@ -826,9 +826,6 @@ void ctgTestRspAuto(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp)
     case TDMT_MND_TABLE_CFG:
       ctgTestRspTableCfg(shandle, pEpSet, pMsg, pRsp);
       break;
-    case TDMT_MND_GET_TABLE_INDEX:
-      ctgTestRspTableIndex(shandle, pEpSet, pMsg, pRsp);
-      break;
     case TDMT_MND_GET_DB_CFG:
       ctgTestRspDBCfg(shandle, pEpSet, pMsg, pRsp);
       break;
@@ -1926,10 +1923,6 @@ TEST(getIndexInfo, notExists) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SIndexInfo info;
-  code = catalogGetIndexMeta(pCtg, mockPointer, "index1", &info);
-  ASSERT_TRUE(code != 0);
-
   catalogDestroy();
 }
 
@@ -2989,43 +2982,6 @@ TEST(apiTest, catalogRefreshGetTableCfg_test) {
   catalogDestroy();
 }
 
-TEST(apiTest, catalogGetTableIndex_test) {
-  struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo  connInfo = {0};
-  SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
-
-  ctgTestInitLogFile();
-
-  TAOS_MEMSET(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
-  ctgTestRspIdx = 0;
-  ctgTestRspFunc[0] = CTGT_RSP_TBLINDEX;
-
-  ctgTestSetRspByIdx();
-
-  initQueryModuleMsgHandle();
-
-  int32_t code = catalogInit(NULL);
-  ASSERT_EQ(code, 0);
-
-  code = catalogGetHandle(ctgTestClusterId, &pCtg);
-  ASSERT_EQ(code, 0);
-
-  SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  TAOS_STRCPY(n.dbname, "db1");
-  TAOS_STRCPY(n.tname, ctgTestTablename);
-  SArray *pRes = NULL;
-
-  code = catalogGetTableIndex(pCtg, mockPointer, &n, &pRes);
-  ASSERT_EQ(code, 0);
-  ASSERT_TRUE(NULL != pRes);
-  ASSERT_EQ(taosArrayGetSize(pRes), ctgTestIndexNum);
-
-  taosArrayDestroyEx(pRes, tFreeSTableIndexInfo);
-
-  catalogDestroy();
-}
-
-
 TEST(apiTest, catalogGetDBCfg_test) {
   struct SCatalog  *pCtg = NULL;
   SRequestConnInfo  connInfo = {0};
@@ -3147,38 +3103,6 @@ TEST(apiTest, catalogGetServerVersion_test) {
   code = catalogGetServerVersion(pCtg, mockPointer, &ver);
   ASSERT_EQ(code, 0);
   ASSERT_TRUE(0 == strcmp(ver, "1.0"));
-
-  catalogDestroy();
-}
-
-TEST(apiTest, catalogUpdateTableIndex_test) {
-  struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo  connInfo = {0};
-  SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
-
-  ctgTestInitLogFile();
-
-  TAOS_MEMSET(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
-  ctgTestRspIdx = 0;
-  ctgTestRspFunc[0] = CTGT_RSP_SVRVER;
-
-  ctgTestSetRspByIdx();
-
-  initQueryModuleMsgHandle();
-
-  int32_t code = catalogInit(NULL);
-  ASSERT_EQ(code, 0);
-
-  code = catalogGetHandle(ctgTestClusterId, &pCtg);
-  ASSERT_EQ(code, 0);
-
-  STableIndexRsp rsp = {0};
-  TAOS_STRCPY(rsp.dbFName, ctgTestDbname);
-  TAOS_STRCPY(rsp.tbName, ctgTestSTablename);
-  rsp.suid = ctgTestSuid;
-  rsp.version = 1;
-  code = catalogUpdateTableIndex(pCtg, &rsp);
-  ASSERT_EQ(code, 0);
 
   catalogDestroy();
 }

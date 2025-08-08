@@ -219,10 +219,6 @@ typedef struct SCtgTbNamesCtx {
   SArray*  pFetchs;
 } SCtgTbNamesCtx;
 
-typedef struct SCtgTbIndexCtx {
-  SName* pName;
-} SCtgTbIndexCtx;
-
 typedef struct SCtgTbCfgCtx {
   SName*       pName;
   int32_t      tbType;
@@ -441,10 +437,8 @@ typedef struct SCtgJob {
   int32_t          qnodeNum;
   int32_t          dnodeNum;
   int32_t          dbCfgNum;
-  int32_t          indexNum;
   int32_t          userNum;
   int32_t          dbInfoNum;
-  int32_t          tbIndexNum;
   int32_t          tbCfgNum;
   int32_t          svrVerNum;
   int32_t          viewNum;
@@ -1088,10 +1082,6 @@ int32_t ctgUpdateViewMetaToCache(SCatalog* pCtg, SViewMetaRsp* pRsp, bool syncRe
 int32_t ctgStartUpdateThread();
 int32_t ctgRelaunchGetTbMetaTask(SCtgTask* pTask);
 void    ctgReleaseVgInfoToCache(SCatalog* pCtg, SCtgDBCache* dbCache);
-int32_t ctgReadTbIndexFromCache(SCatalog* pCtg, SName* pTableName, SArray** pRes);
-int32_t ctgDropTbIndexEnqueue(SCatalog* pCtg, SName* pName, bool syncOp);
-int32_t ctgOpDropTbIndex(SCtgCacheOperation* operation);
-int32_t ctgOpUpdateTbIndex(SCtgCacheOperation* operation);
 int32_t ctgOpClearCache(SCtgCacheOperation* operation);
 int32_t ctgOpUpdateViewMeta(SCtgCacheOperation* operation);
 int32_t ctgReadTbTypeFromCache(SCatalog* pCtg, char* dbFName, char* tableName, int32_t* tbType);
@@ -1106,9 +1096,6 @@ int32_t ctgGetQnodeListFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, SArray
 int32_t ctgGetDnodeListFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, SArray** out, SCtgTask* pTask);
 int32_t ctgGetDBCfgFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, SDbCfgInfo* out,
                              SCtgTask* pTask);
-int32_t ctgGetIndexInfoFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char* indexName, SIndexInfo* out,
-                                 SCtgTask* pTask);
-int32_t ctgGetTbIndexFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, SName* name, STableIndex* out, SCtgTask* pTask);
 int32_t ctgGetUdfInfoFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char* funcName, SFuncInfo* out,
                                SCtgTask* pTask);
 int32_t ctgGetUserDbAuthFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, SGetUserAuthRsp* out,
