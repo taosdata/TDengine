@@ -231,7 +231,7 @@ static int32_t mndStreamCreateOutStb(SMnode *pMnode, STrans *pTrans, const SCMCr
     SFieldWithOptions *pSrc = taosArrayGet(pStream->outCols, i);
 
     tstrncpy(pField->name, pSrc->name, TSDB_COL_NAME_LEN);
-    pField->flags = 0;
+    pField->flags = pSrc->flags;
     pField->type = pSrc->type;
     pField->bytes = pSrc->bytes;
     pField->compress = createDefaultColCmprByType(pField->type);
