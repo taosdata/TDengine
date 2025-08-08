@@ -131,6 +131,14 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
 STableListInfo* tableListCreate();
 void            tableListDestroy(STableListInfo* pTableListInfo);
 void            tableListClear(STableListInfo* pTableListInfo);
+
+// TableListInfo pool management functions for performance optimization
+STableListInfo* tableListGetFromPool(SExecTaskInfo* pTaskInfo);
+void            tableListReturnToPool(STableListInfo* pListInfo);
+int32_t         initTableListPool(SExecTaskInfo* pTaskInfo);
+void            destroyTableListPool(SExecTaskInfo* pTaskInfo);
+// Global pool management
+void            destroyGlobalTableListPool();
 int32_t         tableListGetOutputGroups(const STableListInfo* pTableList);
 bool            oneTableForEachGroup(const STableListInfo* pTableList);
 uint64_t        tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tableUid);

@@ -187,11 +187,6 @@ int main(int argc, char* argv[]) {
     }
 
     gettimeofday(&global_end_time, NULL);
-
-    double global_start_sec = global_start_time.tv_sec + global_start_time.tv_usec / 1000000.0;
-    double global_end_sec = global_end_time.tv_sec + global_end_time.tv_usec / 1000000.0;
-    double global_duration = global_end_sec - global_start_sec;
-    int total_count = thread_count * queries_per_thread;
     
     // 计算每个线程QPS的总和
     double total_thread_qps = 0.0;

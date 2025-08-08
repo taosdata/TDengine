@@ -74,14 +74,13 @@ int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t u
 
 bool metaIsTableExist(void *pVnode, tb_uid_t uid) {
   SVnode *pVnodeObj = pVnode;
-  metaRLock(pVnodeObj->pMeta);  // query uid.idx
 
-  if (tdbTbGet(pVnodeObj->pMeta->pUidIdx, &uid, sizeof(uid), NULL, NULL) < 0) {
-    metaULock(pVnodeObj->pMeta);
+  SMetaInfo info;
+  int32_t   code = metaGetInfo(pVnodeObj->pMeta, uid, &info, NULL);
+  if (code) {
     return false;
   }
 
-  metaULock(pVnodeObj->pMeta);
   return true;
 }
 
@@ -386,51 +385,22 @@ SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int
   SSchemaWrapper  schema = {0};
   SSchemaWrapper *pSchema = NULL;
   SDecoder        dc = {0};
+  SMetaInfo       info = {0};
+  SSkmDbKey       key = {0};
   if (lock) {
     metaRLock(pMeta);
   }
-_query:
-  if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData) < 0) {
-    goto _err;
-  }
-
-  version = ((SUidIdxVal *)pData)[0].version;
-
-  if (tdbTbGet(pMeta->pTbDb, &(STbDbKey){.uid = uid, .version = version}, sizeof(STbDbKey), &pData, &nData) != 0) {
-    goto _err;
-  }
-
-  SMetaEntry me = {0};
-  tDecoderInit(&dc, pData, nData);
-  int32_t code = metaDecodeEntry(&dc, &me);
+  int32_t code = metaGetInfo(pMeta, uid, &info, NULL);
   if (code) {
-    tDecoderClear(&dc);
     goto _err;
   }
-  if (me.type == TSDB_SUPER_TABLE) {
-    if (sver == -1 || sver == me.stbEntry.schemaRow.version) {
-      pSchema = tCloneSSchemaWrapper(&me.stbEntry.schemaRow);
-      if (extSchema != NULL) *extSchema = metaGetSExtSchema(&me);
-      tDecoderClear(&dc);
-      goto _exit;
-    }
-  } else if (me.type == TSDB_CHILD_TABLE) {
-    uid = me.ctbEntry.suid;
-    tDecoderClear(&dc);
-    goto _query;
+  if (info.suid == info.uid) {
+    key = (SSkmDbKey){.uid = uid, .sver = info.version};
   } else {
-    if (sver == -1 || sver == me.ntbEntry.schemaRow.version) {
-      pSchema = tCloneSSchemaWrapper(&me.ntbEntry.schemaRow);
-      if (extSchema != NULL) *extSchema = metaGetSExtSchema(&me);
-      tDecoderClear(&dc);
-      goto _exit;
-    }
+    key = (SSkmDbKey){.uid = info.suid, .sver = info.skmVer};
   }
-  if (extSchema != NULL) *extSchema = metaGetSExtSchema(&me);
-  tDecoderClear(&dc);
-
   // query from skm db
-  if (tdbTbGet(pMeta->pSkmDb, &(SSkmDbKey){.uid = uid, .sver = sver}, sizeof(SSkmDbKey), &pData, &nData) < 0) {
+  if (tdbTbGet(pMeta->pSkmDb, &key, sizeof(SSkmDbKey), &pData, &nData) < 0) {
     goto _err;
   }
 

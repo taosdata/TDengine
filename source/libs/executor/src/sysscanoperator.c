@@ -4053,7 +4053,7 @@ static int32_t buildTableListInfo(SOperatorInfo* pOperator, STableId* id, STable
   SReadHandle*       pReadHandle = &pInfo->readHandle;
   SArray*            pList = NULL;
 
-  STableListInfo* pTableListInfo = tableListCreate();
+  STableListInfo* pTableListInfo = tableListGetFromPool(pTaskInfo);
   QUERY_CHECK_NULL(ppTableListInfo, code, line, _end, terrno);
 
   if (id->type == TSDB_SUPER_TABLE) {

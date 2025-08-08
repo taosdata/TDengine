@@ -13,10 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "executor.h"
 #include <stdint.h>
 #include "cmdnodes.h"
 #include "dataSinkInt.h"
+#include "executil.h"
+#include "executor.h"
 #include "executorInt.h"
 #include "libs/new-stream/stream.h"
 #include "operator.h"
@@ -56,6 +57,8 @@ int32_t getCurrentMnodeEpset(SEpSet* pEpSet) {
 static void cleanupRefPool() {
   int32_t ref = atomic_val_compare_exchange_32(&exchangeObjRefPool, exchangeObjRefPool, 0);
   taosCloseRef(ref);
+  // Also cleanup global TableListInfo pool
+  destroyGlobalTableListPool();
 }
 
 static void initRefPool() {

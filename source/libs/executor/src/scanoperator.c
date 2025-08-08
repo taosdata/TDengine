@@ -1643,7 +1643,9 @@ static void destroyTableScanBase(STableScanBase* pBase, TsdReader* pAPI) {
     taosArrayDestroy(pBase->matchInfo.pList);
   }
 
-  tableListDestroy(pBase->pTableListInfo);
+  tableListReturnToPool(pBase->pTableListInfo);
+  pBase->pTableListInfo = NULL;
+
   taosLRUCacheCleanup(pBase->metaCache.pTableMetaEntryCache);
   cleanupExprSupp(&pBase->pseudoSup);
 }
@@ -1751,6 +1753,7 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
   pInfo->ignoreTag = false;
 
   pInfo->base.pTableListInfo = pTableListInfo;
+  pInfo->base.pTaskInfo = pTaskInfo;  // Set task info for pool management
   pInfo->base.metaCache.pTableMetaEntryCache = taosLRUCacheInit(1024 * 128, -1, .5);
   if (pInfo->base.metaCache.pTableMetaEntryCache == NULL) {
     code = terrno;
@@ -2316,7 +2319,9 @@ static void destroyTmqRawScanOperatorInfo(void* param) {
   SStreamRawScanInfo* pRawScan = (SStreamRawScanInfo*)param;
   pRawScan->pAPI->tsdReader.tsdReaderClose(pRawScan->dataReader);
   pRawScan->pAPI->snapshotFn.destroySnapshot(pRawScan->sContext);
-  tableListDestroy(pRawScan->pTableListInfo);
+  tableListReturnToPool(pRawScan->pTableListInfo);
+  pRawScan->pTableListInfo = NULL;
+
   taosMemoryFree(pRawScan);
 }
 
@@ -2341,8 +2346,9 @@ int32_t createTmqRawScanOperatorInfo(SReadHandle* pHandle, SExecTaskInfo* pTaskI
     goto _end;
   }
 
-  pInfo->pTableListInfo = tableListCreate();
+  pInfo->pTableListInfo = tableListGetFromPool(pTaskInfo);
   QUERY_CHECK_NULL(pInfo->pTableListInfo, code, lino, _end, terrno);
+  pInfo->pTaskInfo = pTaskInfo;  // Set task info for pool management
   pInfo->vnode = pHandle->vnode;
   pInfo->pAPI = &pTaskInfo->storageAPI;
 
@@ -2390,10 +2396,9 @@ void destroyTmqScanOperatorInfo(void* param) {
     taosArrayDestroy(pStreamScan->pVtableReadyHandles);
     pStreamScan->pVtableReadyHandles = NULL;
   }
-  if (pStreamScan->pTableListInfo) {
-    tableListDestroy(pStreamScan->pTableListInfo);
-    pStreamScan->pTableListInfo = NULL;
-  }
+  tableListReturnToPool(pStreamScan->pTableListInfo);
+  pStreamScan->pTableListInfo = NULL;
+
   if (pStreamScan->matchInfo.pList) {
     taosArrayDestroy(pStreamScan->matchInfo.pList);
   }
@@ -3236,10 +3241,12 @@ static void destroyTagScanOperatorInfo(void* param) {
 
   blockDataDestroy(pInfo->pRes);
   taosArrayDestroy(pInfo->matchInfo.pList);
-  tableListDestroy(pInfo->pTableListInfo);
+
+  tableListReturnToPool(pInfo->pTableListInfo);
 
   pInfo->pRes = NULL;
   pInfo->pTableListInfo = NULL;
+  pInfo->pTaskInfo = NULL;
   taosMemoryFreeClear(param);
 }
 
@@ -3279,6 +3286,7 @@ int32_t createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* p
   pInfo->pStorageAPI = &pTaskInfo->storageAPI;
 
   pInfo->pTableListInfo = pTableListInfo;
+  pInfo->pTaskInfo = pTaskInfo;  // Set task info for pool management
   pInfo->pRes = createDataBlockFromDescNode(pDescNode);
   QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
 
@@ -4540,6 +4548,7 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
   pInfo->base.limitInfo.limit.limit = -1;
   pInfo->base.limitInfo.slimit.limit = -1;
   pInfo->base.pTableListInfo = pTableListInfo;
+  pInfo->base.pTaskInfo = pTaskInfo;  // Set task info for pool management
 
   pInfo->sample.sampleRatio = pTableScanNode->ratio;
   pInfo->sample.seed = taosGetTimestampSec();

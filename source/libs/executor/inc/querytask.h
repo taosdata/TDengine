@@ -105,6 +105,9 @@ struct SExecTaskInfo {
   bool                  paramSet;
   SQueryAutoQWorkerPoolCB* pWorkerCb;
   SStreamRuntimeInfo*      pStreamRuntimeInfo;
+  // TableListInfo pool for performance optimization
+  SArray*  pTableListPool;     // pool of reusable STableListInfo instances
+  SRWLatch tableListPoolLock;  // protect pool access
 };
 
 void    buildTaskId(uint64_t taskId, uint64_t queryId, char* dst);

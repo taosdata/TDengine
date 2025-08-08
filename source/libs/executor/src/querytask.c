@@ -60,6 +60,10 @@ int32_t doCreateTask(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC
   p->storageAPI = *pAPI;
   taosInitRWLatch(&p->lock);
 
+  // Initialize TableListInfo pool for performance optimization
+  p->pTableListPool = NULL;
+  taosInitRWLatch(&p->tableListPoolLock);
+
   p->id.vgId = vgId;
   p->id.queryId = queryId;
   p->id.taskId = taskId;
@@ -296,6 +300,10 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
     freeOperatorParam(pTaskInfo->pOpParam, OP_GET_PARAM);
     pTaskInfo->pOpParam = NULL;
   }
+
+  // Cleanup TableListInfo pool
+  destroyTableListPool(pTaskInfo);
+
   taosMemoryFreeClear(pTaskInfo->sql);
   taosMemoryFreeClear(pTaskInfo->id.str);
   taosMemoryFreeClear(pTaskInfo);
