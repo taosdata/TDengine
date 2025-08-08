@@ -2,15 +2,19 @@ import time
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
 
 
-class TestStableDnode2:
+class TestStableDnode:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_stable_dnode2(self):
-        """stable dnode2
+    def test_stable_dnode(self):
+        """Query: after restart
 
-        1. -
+        1. Start a 2-node cluster
+        2. Create a 1-replica database with 3 vgroups
+        3. Create one super table and 10 child tables; insert 20 rows into each
+        4. Stop dnode2 → expect queries to fail
+        5. Restart dnode2 → queries succeed and all data are present
 
         Catalog:
             - DataBase:Sync
@@ -22,6 +26,7 @@ class TestStableDnode2:
         Jira: None
 
         History:
+            - 2025-5-5 Simon Guan Migrated from tsim/vnode/stable_dnode2_stop.sim
             - 2025-5-5 Simon Guan Migrated from tsim/vnode/stable_dnode2.sim
 
         """
@@ -70,8 +75,22 @@ class TestStableDnode2:
         tdSql.query(f"show vgroups")
         tdLog.info(f"vgroups ==> {tdSql.getRows()})")
         tdSql.checkRows(3)
+        
+        sc.dnodeStop(2)
+        clusterComCheck.checkDnodes(1)
 
         tdLog.info(f"=============== step2")
+        tdSql.error(f"select count(*) from {mt}")
+        tdSql.error(f"select count(tbcol) from {mt}")
+
+        sc.dnodeStart(2)
+        clusterComCheck.checkDnodes(2)
+        
+        tdSql.query(f"select * from information_schema.ins_dnodes")
+        tdSql.checkRows(2)
+        tdSql.checkKeyData(1, 4, "ready")
+        tdSql.checkKeyData(2, 4, "ready")
+        
         i = 1
         tb = tbPrefix + str(i)
 

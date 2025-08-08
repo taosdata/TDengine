@@ -249,10 +249,6 @@ void taos_cleanup(void) {
   fmFuncMgtDestroy();
   qCleanupKeywordsTable();
 
-  if (TSDB_CODE_SUCCESS != cleanupTaskQueue()) {
-    tscWarn("failed to cleanup task queue");
-  }
-
 #if !defined(WINDOWS) && !defined(TD_ASTRA)
   tzCleanup();
 #endif
@@ -270,6 +266,10 @@ void taos_cleanup(void) {
   cleanupAppInfo();
   rpcCleanup();
   tscDebug("rpc cleanup");
+
+  if (TSDB_CODE_SUCCESS != cleanupTaskQueue()) {
+    tscWarn("failed to cleanup task queue");
+  }
 
   taosConvDestroy();
   DestroyRegexCache();
