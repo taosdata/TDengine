@@ -107,7 +107,6 @@ typedef struct SParseMetaCache {
   SHashObj* pDbInfo;       // key is tbFName, element is SDbInfo*
   SHashObj* pUserAuth;     // key is SUserAuthInfo serialized string, element is bool indicating whether or not to pass
   SHashObj* pUdf;          // key is funcName, element is SFuncInfo*
-  SHashObj* pTableIndex;   // key is tbFName, element is SArray<STableIndexInfo>*
   SHashObj* pTableCfg;     // key is tbFName, element is STableCfg*
   SHashObj* pViews;        // key is viewFName, element is SViewMeta*
   SHashObj* pTableTSMAs;   // key is tbFName, elements are SArray<STableTSMAInfo*>
@@ -158,7 +157,6 @@ int32_t reserveUserAuthInCache(int32_t acctId, const char* pUser, const char* pD
 int32_t reserveViewUserAuthInCache(int32_t acctId, const char* pUser, const char* pDb, const char* pTable, AUTH_TYPE type,
                               SParseMetaCache* pMetaCache);
 int32_t reserveUdfInCache(const char* pFunc, SParseMetaCache* pMetaCache);
-int32_t reserveTableIndexInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t reserveTableCfgInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t reserveDnodeRequiredInCache(SParseMetaCache* pMetaCache);
 int32_t reserveTableTSMAInfoInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);

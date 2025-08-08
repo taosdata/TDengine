@@ -28,8 +28,6 @@ SCtgOperation gCtgCacheOperation[CTG_OP_MAX] = {{CTG_OP_UPDATE_VGROUP, "update v
                                                 {CTG_OP_DROP_TB_META, "drop tbMeta", ctgOpDropTbMeta},
                                                 {CTG_OP_UPDATE_USER, "update user", ctgOpUpdateUser},
                                                 {CTG_OP_UPDATE_VG_EPSET, "update epset", ctgOpUpdateEpset},
-                                                {CTG_OP_UPDATE_TB_INDEX, "update tbIndex", ctgOpUpdateTbIndex},
-                                                {CTG_OP_DROP_TB_INDEX, "drop tbIndex", ctgOpDropTbIndex},
                                                 {CTG_OP_UPDATE_VIEW_META, "update viewMeta", ctgOpUpdateViewMeta},
                                                 {CTG_OP_DROP_VIEW_META, "drop viewMeta", ctgOpDropViewMeta},
                                                 {CTG_OP_UPDATE_TB_TSMA, "update tbTSMA", ctgOpUpdateTbTSMA},
@@ -795,32 +793,6 @@ int32_t ctgReadTbTypeSuidFromCache(SCatalog *pCtg, char *dbFName, char *tbName, 
   return TSDB_CODE_SUCCESS;
 }
 
-
-
-int32_t ctgReadTbIndexFromCache(SCatalog *pCtg, SName *pTableName, SArray **pRes) {
-  int32_t      code = 0;
-  SCtgDBCache *dbCache = NULL;
-  SCtgTbCache *tbCache = NULL;
-  char         dbFName[TSDB_DB_FNAME_LEN] = {0};
-  (void)tNameGetFullDbName(pTableName, dbFName);
-
-  *pRes = NULL;
-
-  CTG_ERR_RET(ctgAcquireTbIndexFromCache(pCtg, dbFName, pTableName->tname, &dbCache, &tbCache));
-  if (NULL == tbCache) {
-    ctgReleaseTbIndexToCache(pCtg, dbCache, tbCache);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  CTG_ERR_JRET(ctgCloneTableIndex(tbCache->pIndex->pIndex, pRes));
-
-_return:
-
-  ctgReleaseTbIndexToCache(pCtg, dbCache, tbCache);
-
-  CTG_RET(code);
-}
-
 int32_t ctgReadDBCfgFromCache(SCatalog *pCtg, const char* dbFName, SDbCfgInfo* pDbCfg) {
   int32_t code = 0;
   SCtgDBCache *dbCache = NULL;
@@ -1358,75 +1330,6 @@ int32_t ctgUpdateUserEnqueue(SCatalog *pCtg, SGetUserAuthRsp *pAuth, bool syncOp
 _return:
 
   tFreeSGetUserAuthRsp(pAuth);
-
-  CTG_RET(code);
-}
-
-int32_t ctgUpdateTbIndexEnqueue(SCatalog *pCtg, STableIndex **pIndex, bool syncOp) {
-  int32_t             code = 0;
-  SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
-  if (NULL == op) {
-    ctgError("malloc %d failed", (int32_t)sizeof(SCtgCacheOperation));
-    CTG_ERR_RET(terrno);
-  }
-
-  op->opId = CTG_OP_UPDATE_TB_INDEX;
-  op->syncOp = syncOp;
-
-  SCtgUpdateTbIndexMsg *msg = taosMemoryMalloc(sizeof(SCtgUpdateTbIndexMsg));
-  if (NULL == msg) {
-    ctgError("malloc %d failed", (int32_t)sizeof(SCtgUpdateTbIndexMsg));
-    taosMemoryFree(op);
-    CTG_ERR_JRET(terrno);
-  }
-
-  msg->pCtg = pCtg;
-  msg->pIndex = *pIndex;
-
-  op->data = msg;
-
-  CTG_ERR_JRET(ctgEnqueue(pCtg, op));
-
-  *pIndex = NULL;
-  return TSDB_CODE_SUCCESS;
-
-_return:
-
-  taosArrayDestroyEx((*pIndex)->pIndex, tFreeSTableIndexInfo);
-  taosMemoryFreeClear(*pIndex);
-
-  CTG_RET(code);
-}
-
-int32_t ctgDropTbIndexEnqueue(SCatalog *pCtg, SName *pName, bool syncOp) {
-  int32_t             code = 0;
-  SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
-  if (NULL == op) {
-    ctgError("malloc %d failed", (int32_t)sizeof(SCtgCacheOperation));
-    CTG_ERR_RET(terrno);
-  }
-
-  op->opId = CTG_OP_DROP_TB_INDEX;
-  op->syncOp = syncOp;
-
-  SCtgDropTbIndexMsg *msg = taosMemoryMalloc(sizeof(SCtgDropTbIndexMsg));
-  if (NULL == msg) {
-    ctgError("malloc %d failed", (int32_t)sizeof(SCtgDropTbIndexMsg));
-    taosMemoryFree(op);
-    CTG_ERR_RET(terrno);
-  }
-
-  msg->pCtg = pCtg;
-  (void)tNameGetFullDbName(pName, msg->dbFName);
-  TAOS_STRCPY(msg->tbName, pName->tname);
-
-  op->data = msg;
-
-  CTG_ERR_JRET(ctgEnqueue(pCtg, op));
-
-  return TSDB_CODE_SUCCESS;
-
-_return:
 
   CTG_RET(code);
 }
@@ -2806,71 +2709,6 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgOpUpdateTbIndex(SCtgCacheOperation *operation) {
-  int32_t               code = 0;
-  SCtgUpdateTbIndexMsg *msg = operation->data;
-  SCatalog             *pCtg = msg->pCtg;
-  STableIndex          *pIndex = msg->pIndex;
-  SCtgDBCache          *dbCache = NULL;
-
-  if (pCtg->stopUpdate) {
-    goto _return;
-  }
-
-  CTG_ERR_JRET(ctgGetAddDBCache(pCtg, pIndex->dbFName, 0, &dbCache));
-
-  CTG_ERR_JRET(ctgWriteTbIndexToCache(pCtg, dbCache, pIndex->dbFName, pIndex->tbName, &pIndex));
-
-_return:
-
-  if (pIndex) {
-    taosArrayDestroyEx(pIndex->pIndex, tFreeSTableIndexInfo);
-    taosMemoryFreeClear(pIndex);
-  }
-
-  taosMemoryFreeClear(msg);
-
-  CTG_RET(code);
-}
-
-int32_t ctgOpDropTbIndex(SCtgCacheOperation *operation) {
-  int32_t             code = 0;
-  SCtgDropTbIndexMsg *msg = operation->data;
-  SCatalog           *pCtg = msg->pCtg;
-  SCtgDBCache        *dbCache = NULL;
-
-  if (pCtg->stopUpdate) {
-    goto _return;
-  }
-
-  CTG_ERR_JRET(ctgGetDBCache(pCtg, msg->dbFName, &dbCache));
-  if (NULL == dbCache) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  STableIndex *pIndex = taosMemoryCalloc(1, sizeof(STableIndex));
-  if (NULL == pIndex) {
-    CTG_ERR_JRET(terrno);
-  }
-  TAOS_STRCPY(pIndex->tbName, msg->tbName);
-  TAOS_STRCPY(pIndex->dbFName, msg->dbFName);
-  pIndex->version = -1;
-
-  CTG_ERR_JRET(ctgWriteTbIndexToCache(pCtg, dbCache, pIndex->dbFName, pIndex->tbName, &pIndex));
-
-_return:
-
-  if (pIndex) {
-    taosArrayDestroyEx(pIndex->pIndex, tFreeSTableIndexInfo);
-    taosMemoryFreeClear(pIndex);
-  }
-
-  taosMemoryFreeClear(msg);
-
-  CTG_RET(code);
-}
-
-
 int32_t ctgOpUpdateViewMeta(SCtgCacheOperation *operation) {
   int32_t               code = 0;
   SCtgUpdateViewMetaMsg *msg = operation->data;
@@ -3248,7 +3086,6 @@ void ctgFreeCacheOperationData(SCtgCacheOperation *op) {
     case CTG_OP_DROP_STB_META:
     case CTG_OP_DROP_TB_META:
     case CTG_OP_UPDATE_VG_EPSET:
-    case CTG_OP_DROP_TB_INDEX:
     case CTG_OP_DROP_VIEW_META:
     case CTG_OP_DROP_TB_TSMA:
     case CTG_OP_CLEAR_CACHE: {
