@@ -2555,7 +2555,6 @@ static int8_t shouldEstimateRawDataSize(SOperatorInfo* pOperator) {
   int32_t              colNum = pTgtMeta->colNum;
   SColumnInfoData      colInfoData =
       createColumnInfoData(pTgtMeta->schema[colNum - 1].type, pTgtMeta->schema[colNum - 1].bytes, colNum);
-
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->matchInfo.pList); i++) {
     SColMatchItem* pItem = taosArrayGet(pInfo->matchInfo.pList, i);
     if (pItem->colId == colInfoData.info.colId) {
@@ -4235,6 +4234,11 @@ static int32_t vnodeEstimateRawDataSize(SOperatorInfo* pOperator, SDbSizeStatisI
   SSysTableScanInfo* pInfo = pOperator->info;
   int32_t            numOfRows = 0;
   int32_t            ret = 0;
+  if (pStaticInfo->estimateRawData == 0) {
+    pStaticInfo->rawDataSize = 0;
+    return code;
+  }
+
   if (pStaticInfo->estimateRawData == 0) {
     pStaticInfo->rawDataSize = 0;
     return code;

@@ -406,7 +406,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/17-Tags/test_select_distinct_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/17-Tags/test_select_with_tags.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/17-Tags/test_tags_scan.py
-
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/17-Tags/test_select_with_json_tags.py
 ## 18-Regexp
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/18-Regexp/test_regex.py
 
