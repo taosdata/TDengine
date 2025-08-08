@@ -7,12 +7,9 @@ class TestNormalTableSynatx:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_normal_table_synatx(self):
-        """create normal table (synatx)
+        """Name: length
 
-        1. create normal table
-        2. insert data
-        3. drop table
-        4. show tables
+        Create normal tables with valid and invalid names
 
         Catalog:
             - Table:NormalTable:Create

@@ -1,18 +1,17 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestNormalTableHash:
+class TestDatabaseTableHash:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_normal_table_hash(self):
-        """create normal table (hash)
+    def test_database_table_hash(self):
+        """Options: table hash
 
-        1. create normal table
-        2. insert data
-        3. drop table
-        4. show tables
+        1. Create a database with 2 vgroups and explicitly set table_prefix / table_suffix
+        2. Create one super table and 5 child tables; query information_schema.ins_tables to confirm their vgroup distribution
+        3. Create 5 normal tables; query information_schema.ins_tables again to verify their vgroup placement
 
         Catalog:
             - Table:NormalTable:Create

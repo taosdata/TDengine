@@ -9,9 +9,9 @@ class TestNormalTableColumnNumLimit:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_normal_table_column_num_limit(self):
-        """Test Normal Table Column Numbers Limit
+        """Column: num limit
 
-        1. create normal table
+        1. Create normal table
         2. Add or delete columns
         3. Check column count, the count should not exceed 4096
 

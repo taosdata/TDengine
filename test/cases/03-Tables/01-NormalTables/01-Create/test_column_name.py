@@ -7,11 +7,9 @@ class TestNormalTableColumnName:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_normal_table_column_name(self):
-        """create normal table (name)
+        """Column: name limit
 
-        1. create normal table
-        2. insert data
-        3. query from normal table
+        Create normal tables with valid and invalid column names
 
         Catalog:
             - Table:NormalTable:Create

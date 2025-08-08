@@ -1,20 +1,24 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestNormalTableDate:
+class TestDatabasePrecisionUs:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_normal_table_date(self):
-        """create normal table (database precision)
+    def test_database_precision_us(self):
+        """Precision: ms and us
 
-        1. create normal table
-        2. insert data
-        3. query from normal table
+        1. Millisecond-precision test
+        2. Create a millisecond-precision database
+        3. Insert both valid and invalid timestamps
+        4. Query the data
+        5. Microsecond-precision test
+        6. Create a microsecond-precision database
+        7. Repeat the same insert and query steps as above
 
         Catalog:
-            - Table:NormalTable:Create
+            - Database:Precision
 
         Since: v3.0.0.0
 
