@@ -91,8 +91,6 @@ char* ctgTaskTypeStr(CTG_TASK_TYPE type) {
       return "[get table sma]";
     case CTG_TASK_GET_TB_CFG:
       return "[get table cfg]";
-    case CTG_TASK_GET_INDEX_INFO:
-      return "[get index info]";
     case CTG_TASK_GET_UDF:
       return "[get udf]";
     case CTG_TASK_GET_USER:
@@ -157,9 +155,6 @@ void ctgFreeSMetaData(SMetaData* pData) {
   taosArrayDestroy(pData->pTableHash);
   pData->pTableHash = NULL;
 
-  taosArrayDestroy(pData->pTableIndex);
-  pData->pTableIndex = NULL;
-
   taosArrayDestroy(pData->pUdfList);
   pData->pUdfList = NULL;
 
@@ -174,9 +169,6 @@ void ctgFreeSMetaData(SMetaData* pData) {
 
   taosArrayDestroy(pData->pDbInfo);
   pData->pDbInfo = NULL;
-
-  taosArrayDestroy(pData->pIndex);
-  pData->pIndex = NULL;
 
   taosArrayDestroy(pData->pUser);
   pData->pUser = NULL;
@@ -578,11 +570,6 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
       pCtx->out = NULL;
       break;
     }
-    case TDMT_MND_GET_INDEX: {
-      SIndexInfo* pOut = (SIndexInfo*)pCtx->out;
-      taosMemoryFreeClear(pCtx->out);
-      break;
-    }
     case TDMT_MND_QNODE_LIST: {
       SArray* pOut = (SArray*)pCtx->out;
       taosArrayDestroy(pOut);
@@ -596,14 +583,6 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
       taosMemoryFree(pOut->tbMeta);
       taosMemoryFree(pOut->vctbMeta);
       taosMemoryFreeClear(pCtx->out);
-      break;
-    }
-    case TDMT_MND_GET_TABLE_INDEX: {
-      STableIndex* pOut = (STableIndex*)pCtx->out;
-      if (pOut) {
-        taosArrayDestroyEx(pOut->pIndex, tFreeSTableIndexInfo);
-        taosMemoryFreeClear(pCtx->out);
-      }
       break;
     }
     case TDMT_VND_TABLE_CFG:
@@ -804,7 +783,6 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
     }
     case CTG_TASK_GET_TB_HASH:
     case CTG_TASK_GET_DB_INFO:
-    case CTG_TASK_GET_INDEX_INFO:
     case CTG_TASK_GET_UDF:
     case CTG_TASK_GET_SVR_VER:
     case CTG_TASK_GET_TB_META: {
@@ -916,7 +894,6 @@ void ctgFreeSubTaskRes(CTG_TASK_TYPE type, void** pRes) {
     case CTG_TASK_GET_TB_META:
     case CTG_TASK_GET_DB_INFO:
     case CTG_TASK_GET_TB_HASH:
-    case CTG_TASK_GET_INDEX_INFO:
     case CTG_TASK_GET_UDF:
     case CTG_TASK_GET_SVR_VER:
     case CTG_TASK_GET_USER: {
@@ -1001,12 +978,6 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
       taosMemoryFreeClear(pTask->taskCtx);
       break;
     }
-    case CTG_TASK_GET_TB_SMA_INDEX: {
-      SCtgTbIndexCtx* taskCtx = (SCtgTbIndexCtx*)pTask->taskCtx;
-      taosMemoryFreeClear(taskCtx->pName);
-      taosMemoryFreeClear(pTask->taskCtx);
-      break;
-    }
     case CTG_TASK_GET_TB_CFG: {
       SCtgTbCfgCtx* taskCtx = (SCtgTbCfgCtx*)pTask->taskCtx;
       taosMemoryFreeClear(taskCtx->pName);
@@ -1024,7 +995,6 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
     case CTG_TASK_GET_DB_VGROUP:
     case CTG_TASK_GET_DB_CFG:
     case CTG_TASK_GET_DB_INFO:
-    case CTG_TASK_GET_INDEX_INFO:
     case CTG_TASK_GET_UDF:
     case CTG_TASK_GET_QNODE:
     case CTG_TASK_GET_USER: {
@@ -1771,37 +1741,6 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgCloneTableIndex(SArray* pIndex, SArray** pRes) {
-  if (NULL == pIndex) {
-    *pRes = NULL;
-    return TSDB_CODE_SUCCESS;
-  }
-
-  int32_t num = taosArrayGetSize(pIndex);
-  *pRes = taosArrayInit(num, sizeof(STableIndexInfo));
-  if (NULL == *pRes) {
-    CTG_ERR_RET(terrno);
-  }
-
-  for (int32_t i = 0; i < num; ++i) {
-    STableIndexInfo* pInfo = taosArrayGet(pIndex, i);
-    if (NULL == pInfo) {
-      qError("fail to get the %dth STableIndexInfo, total:%d", i, (int32_t)taosArrayGetSize(pIndex));
-      CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
-    }
-    pInfo = taosArrayPush(*pRes, pInfo);
-    if (NULL == pInfo) {
-      CTG_ERR_RET(terrno);
-    }
-    pInfo->expr = taosStrdup(pInfo->expr);
-    if (NULL == pInfo->expr) {
-      CTG_ERR_RET(terrno);
-    }
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t ctgUpdateSendTargetInfo(SMsgSendInfo* pMsgSendInfo, int32_t msgType, char* dbFName, int32_t vgId) {
   if (msgType == TDMT_VND_TABLE_META || msgType == TDMT_VND_TABLE_CFG || msgType == TDMT_VND_BATCH_META ||
       msgType == TDMT_VND_TABLE_NAME || msgType == TDMT_VND_VSTB_REF_DBS) {
@@ -1979,16 +1918,6 @@ static int32_t ctgCloneVgroupInfo(void* pSrc, void** ppDst) {
 
 static void ctgFreeVgroupInfo(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
 
-static int32_t ctgCloneTableIndexs(void* pSrc, void** ppDst) {
-#if 0
-  return taosArrayDup((const SArray*)pSrc, NULL);
-#else
-  return TSDB_CODE_CTG_INTERNAL_ERROR;
-#endif
-}
-
-static void ctgFreeTableIndexs(void* p) { taosArrayDestroy((SArray*)((SMetaRes*)p)->pRes); }
-
 static int32_t ctgCloneFuncInfo(void* pSrc, void** ppDst) {
 #if 0
   SFuncInfo* pDst = taosMemoryMalloc(sizeof(SFuncInfo));
@@ -2016,8 +1945,6 @@ static int32_t ctgCloneIndexInfo(void* pSrc) {
   return TSDB_CODE_CTG_INTERNAL_ERROR;
 #endif
 }
-
-static void ctgFreeIndexInfo(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
 
 static int32_t ctgCloneUserAuth(void* pSrc) {
 #if 0
@@ -2442,9 +2369,7 @@ void ctgDestroySMetaData(SMetaData* pData) {
   taosArrayDestroyEx(pData->pDbInfo, ctgFreeDbInfo);
   taosArrayDestroyEx(pData->pTableMeta, ctgFreeTableMeta);
   taosArrayDestroyEx(pData->pTableHash, ctgFreeVgroupInfo);
-  taosArrayDestroyEx(pData->pTableIndex, ctgFreeTableIndexs);
   taosArrayDestroyEx(pData->pUdfList, ctgFreeFuncInfo);
-  taosArrayDestroyEx(pData->pIndex, ctgFreeIndexInfo);
   taosArrayDestroyEx(pData->pUser, ctgFreeUserAuth);
   taosArrayDestroyEx(pData->pQnodeList, ctgFreeQnodeList);
   taosArrayDestroyEx(pData->pTableCfg, ctgFreeTableCfg);
