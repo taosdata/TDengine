@@ -746,7 +746,19 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
     if (pSrc->ntb.schemaRow.nCols > 0 && pSrc->ntb.schemaRow.pSchema) {
       (*pDst)->ntb.schemaRow.pSchema = taosMemoryMalloc(pSrc->ntb.schemaRow.nCols * sizeof(SSchema));
       if (NULL == (*pDst)->ntb.schemaRow.pSchema) goto _exit;
-      memcpy((*pDst)->ntb.schemaRow.pSchema, pSrc->ntb.schemaRow.pSchema, pSrc->ntb.schemaRow.nCols * sizeof(SSchema));
+      (void)memcpy((*pDst)->ntb.schemaRow.pSchema, pSrc->ntb.schemaRow.pSchema, pSrc->ntb.schemaRow.nCols * sizeof(SSchema));
+
+      if (pSrc->ntb.schemaRow.pExtSchema) {
+        (*pDst)->ntb.schemaRow.pExtSchema = taosMemoryMalloc(pSrc->ntb.schemaRow.nCols * sizeof(SExtSchema));
+        if (NULL == (*pDst)->ntb.schemaRow.pExtSchema) {
+          taosMemFreeClear((*pDst)->ntb.schemaRow.pSchema);
+          goto _exit;
+        }
+        (void)memcpy((*pDst)->ntb.schemaRow.pExtSchema, pSrc->ntb.schemaRow.pExtSchema,
+               pSrc->ntb.schemaRow.nCols * sizeof(SExtSchema));
+      } else {
+        (*pDst)->ntb.schemaRow.pExtSchema = NULL;
+      }
     }
   }
 

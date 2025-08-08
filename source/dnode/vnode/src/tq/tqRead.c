@@ -547,20 +547,31 @@ int32_t tqMaskBlock(SSchemaWrapper* pDst, SSDataBlock* pBlock, const SSchemaWrap
   if (pDst->pSchema == NULL) {
     return TAOS_GET_TERRNO(terrno);
   }
+  if (extSrc != NULL) {
+    pDst->pExtSchema = taosMemoryCalloc(cnt, sizeof(SExtSchema));
+    if (pDst->pExtSchema == NULL) {
+      taosMemoryFree(pDst->pSchema);
+      return TAOS_GET_TERRNO(terrno);
+    }
+  } else {
+    pDst->pExtSchema = NULL;
+  }
 
   int32_t j = 0;
   for (int32_t i = 0; i < pSrc->nCols; i++) {
     if (mask[i]) {
-      pDst->pSchema[j++] = pSrc->pSchema[i];
+      pDst->pSchema[j] = pSrc->pSchema[i];
       SColumnInfoData colInfo =
           createColumnInfoData(pSrc->pSchema[i].type, pSrc->pSchema[i].bytes, pSrc->pSchema[i].colId);
       if (extSrc != NULL) {
         decimalFromTypeMod(extSrc[i].typeMod, &colInfo.info.precision, &colInfo.info.scale);
+        pDst->pExtSchema[j].typeMod = extSrc[i].typeMod;
       }
       code = blockDataAppendColInfo(pBlock, &colInfo);
       if (code != 0) {
         return code;
       }
+      j++;
     }
   }
   return 0;
@@ -651,7 +662,7 @@ static int32_t doSetBlobVal(SColumnInfoData* pColumnInfoData, int32_t idx, SColV
     uint64_t seq = 0;
     int32_t  len = 0;
     if (pColVal->value.pData != NULL) {
-      tGetU64(pColVal->value.pData, &seq);
+      TAOS_UNUSED(tGetU64(pColVal->value.pData, &seq));
       SBlobItem item = {0};
       code = tBlobSetGet(pBlobRow2, seq, &item);
       if (code != 0) {
@@ -1284,7 +1295,16 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
 
           return ret;
         }
-        tqReaderSetTbUidList(pTqHandle->execHandle.pTqReader, list, NULL);
+        ret = tqReaderSetTbUidList(pTqHandle->execHandle.pTqReader, list, NULL);
+        if (ret != TSDB_CODE_SUCCESS) {
+          tqError("tqReaderSetTbUidList in tqUpdateTbUidList error:%d handle %s consumer:0x%" PRIx64, ret,
+                  pTqHandle->subKey, pTqHandle->consumerId);
+          taosArrayDestroy(list);
+          taosHashCancelIterate(pTq->pHandle, pIter);
+          taosWUnLockLatch(&pTq->lock);
+
+          return ret;
+        }
         taosArrayDestroy(list);
       } else {
         tqReaderRemoveTbUidList(pTqHandle->execHandle.pTqReader, tbUidList);

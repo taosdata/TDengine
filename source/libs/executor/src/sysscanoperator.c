@@ -156,8 +156,8 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
                                                 int32_t* pNumOfRows, const SSDataBlock* dataBlock);
 
 static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, const char* dbname, int32_t* pNumOfRows,
-                                                const SSDataBlock* dataBlock, char* tName,
-                                                SSchemaWrapper* schemaRow, char* tableType, SColRefWrapper *colRef);
+                                                const SSDataBlock* dataBlock, char* tName, SSchemaWrapper* schemaRow, 
+                                                char* tableType, SColRefWrapper *colRef);
 
 static int32_t sysTableUserColsFillOneVirtualChildTableCols(const SSysTableScanInfo* pInfo, const char* dbname, int32_t* pNumOfRows,
                                                             const SSDataBlock* dataBlock, char* tName, char* stName,
@@ -1487,6 +1487,10 @@ static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, 
     } else if (colType == TSDB_DATA_TYPE_NCHAR) {
       colTypeLen += tsnprintf(varDataVal(colTypeStr) + colTypeLen, colStrBufflen, "(%d)",
                               (int32_t)((schemaRow->pSchema[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+    } else if (IS_DECIMAL_TYPE(colType)) {
+      uint8_t prec = 0, scale = 0;
+      decimalFromTypeMod(schemaRow->pExtSchema[i].typeMod, &prec, &scale);
+      colTypeLen += sprintf(varDataVal(colTypeStr) + colTypeLen, "(%d,%d)", prec, scale);
     }
     varDataSetLen(colTypeStr, colTypeLen);
     code = colDataSetVal(pColInfoData, numOfRows, (char*)colTypeStr, false);

@@ -214,8 +214,8 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     if (code < 0) {
       goto _exit;
     }
-    for (int32_t i = 0; i < metaRsp.numOfColumns && pReader->me.pExtSchemas; i++) {
-      metaRsp.pSchemaExt[i].typeMod = pReader->me.pExtSchemas[i].typeMod;
+    for (int32_t i = 0; i < metaRsp.numOfColumns && schema.pExtSchema; i++) {
+      metaRsp.pSchemaExt[i].typeMod = schema.pExtSchema[i].typeMod;
     }
   } else {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -403,8 +403,8 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       SSchemaExt *pSchExt = cfgRsp.pSchemaExt + i;
       pSchExt->colId = pCmpr->id;
       pSchExt->compress = pCmpr->alg;
-      if (pReader->me.pExtSchemas)
-        pSchExt->typeMod = pReader->me.pExtSchemas[i].typeMod;
+      if (NULL != schema.pExtSchema)
+        pSchExt->typeMod = schema.pExtSchema[i].typeMod;
       else
         pSchExt->typeMod = 0;
     }

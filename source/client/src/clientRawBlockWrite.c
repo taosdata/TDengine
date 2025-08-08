@@ -1084,7 +1084,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
       SColCmpr* pCmp = &req.colCmpr.pColCmpr[i];
       field.compress = pCmp->alg;
     }
-    if (req.pExtSchemas) field.typeMod = req.pExtSchemas[i].typeMod;
+    if (req.schemaRow.pExtSchema) field.typeMod = req.schemaRow.pExtSchema[i].typeMod;
     RAW_NULL_CHECK(taosArrayPush(pReq.pColumns, &field));
   }
   pReq.pTags = taosArrayInit(req.schemaTag.nCols, sizeof(SField));

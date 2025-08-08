@@ -2775,7 +2775,7 @@ int32_t tDeserializeRetrieveAnalyticAlgoRsp(void *buf, int32_t bufLen, SRetrieve
     }
 
     char dstName[TSDB_ANALYTIC_ALGO_NAME_LEN] = {0};
-    strntolower(dstName, name, nameLen);
+    (void)strntolower(dstName, name, nameLen);
 
     TAOS_CHECK_EXIT(taosHashPut(pRsp->hash, dstName, nameLen, &url, sizeof(SAnalyticsUrl)));
   }
@@ -6578,7 +6578,9 @@ int32_t tDeserializeSVnodeSsMigrateState(void* buf, int32_t bufLen, SVnodeSsMigr
     SFileSetSsMigrateState state = {0};
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &state.fid));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &state.state));
-    taosArrayPush(pState->pFileSetStates, &state);
+    if (NULL == taosArrayPush(pState->pFileSetStates, &state)) {
+      TAOS_CHECK_EXIT(terrno);
+    }
   }
 
   tEndDecode(&decoder);
@@ -10708,9 +10710,9 @@ _exit:
   return code;
 }
 
-void    tDestroySResFetchReq(SResFetchReq* pReq){
+void tDestroySResFetchReq(SResFetchReq* pReq){
   if (pReq != NULL) {
-    tDestroyStRtFuncInfo(pReq->pStRtFuncInfo);
+    (void)tDestroyStRtFuncInfo(pReq->pStRtFuncInfo);
     taosMemoryFree(pReq->pStRtFuncInfo);
   }
 }
@@ -11581,22 +11583,6 @@ _exit:
   return code;
 }
 
-static int32_t tEncodeSExtSchema(SEncoder *pCoder, const SExtSchema *pExtSchema) {
-  int32_t code = 0, lino;
-  TAOS_CHECK_EXIT(tEncodeI32v(pCoder, pExtSchema->typeMod));
-
-_exit:
-  return code;
-}
-
-int32_t tDecodeSExtSchema(SDecoder *pCoder, SExtSchema *pExtSchema) {
-  int32_t code = 0, lino;
-  TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &pExtSchema->typeMod));
-
-_exit:
-  return code;
-}
-
 static int32_t tEncodeSExtSchemas(SEncoder *pCoder, const SExtSchema *pExtSchemas, int32_t nCol) {
   int32_t code = 0, lino;
   for (int32_t i = 0; i < nCol; ++i) {
@@ -11643,12 +11629,6 @@ int tEncodeSVCreateStbReq(SEncoder *pCoder, const SVCreateStbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI8(pCoder, pReq->colCmpred));
   TAOS_CHECK_EXIT(tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr));
   TAOS_CHECK_EXIT(tEncodeI64(pCoder, pReq->keep));
-  if (pReq->pExtSchemas) {
-    TAOS_CHECK_EXIT(tEncodeI8(pCoder, 1));
-    TAOS_CHECK_EXIT(tEncodeSExtSchemas(pCoder, pReq->pExtSchemas, pReq->schemaRow.nCols));
-  } else {
-    TAOS_CHECK_EXIT(tEncodeI8(pCoder, 0));
-  }
   TAOS_CHECK_EXIT(tEncodeI8(pCoder, pReq->virtualStb));
   tEndEncode(pCoder);
 
@@ -11686,13 +11666,6 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
     }
     if (!tDecodeIsEnd(pCoder)) {
       TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pReq->keep));
-    }
-    if (!tDecodeIsEnd(pCoder)) {
-      int8_t hasExtSchema = 0;
-      TAOS_CHECK_EXIT(tDecodeI8(pCoder, &hasExtSchema));
-      if (hasExtSchema) {
-        TAOS_CHECK_EXIT(tDecodeSExtSchemas(pCoder, &pReq->pExtSchemas, pReq->schemaRow.nCols));
-      }
     }
   }
   if (!tDecodeIsEnd(pCoder)) {
@@ -11749,12 +11722,6 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
   }
   if (pReq->type == TSDB_VIRTUAL_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
     TAOS_CHECK_EXIT(tEncodeSColRefWrapper(pCoder, &pReq->colRef));
-  }
-  if (pReq->pExtSchemas) {
-    TAOS_CHECK_EXIT(tEncodeI8(pCoder, 1));
-    TAOS_CHECK_EXIT(tEncodeSExtSchemas(pCoder, pReq->pExtSchemas, pReq->ntb.schemaRow.nCols));
-  } else {
-    TAOS_CHECK_EXIT(tEncodeI8(pCoder, 0));
   }
 
   tEndEncode(pCoder);
@@ -11824,14 +11791,6 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
         TAOS_CHECK_EXIT(tDecodeSColRefWrapperEx(pCoder, &pReq->colRef, true));
       }
     }
-
-    if (!tDecodeIsEnd(pCoder)) {
-      int8_t hasExtSchema = 0;
-      TAOS_CHECK_EXIT(tDecodeI8(pCoder, &hasExtSchema));
-      if (hasExtSchema) {
-        TAOS_CHECK_EXIT(tDecodeSExtSchemas(pCoder, &pReq->pExtSchemas, pReq->ntb.schemaRow.nCols));
-      }
-    }
   }
 
   tEndDecode(pCoder);
@@ -11852,6 +11811,7 @@ void tDestroySVCreateTbReq(SVCreateTbReq *pReq, int32_t flags) {
       pReq->ctb.tagName = NULL;
     } else if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
       taosMemoryFreeClear(pReq->ntb.schemaRow.pSchema);
+      taosMemoryFreeClear(pReq->ntb.schemaRow.pExtSchema);
     }
   }
 
@@ -13216,7 +13176,7 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
   TAOS_CHECK_EXIT(tEncodeI64(pCoder, pSubmitTbData->ctimeMs));
 
   if (hasBlog) {
-    tEncodeBlobSet(pCoder, pSubmitTbData->pBlobSet);
+    TAOS_CHECK_EXIT(tEncodeBlobSet(pCoder, pSubmitTbData->pBlobSet));
     if (tBlobSetSize(pSubmitTbData->pBlobSet) != count) {
       uError("blob set size %d not match row size %d", tBlobSetSize(pSubmitTbData->pBlobSet), count);
       return TSDB_CODE_INVALID_MSG;
@@ -13617,6 +13577,7 @@ void *tDecodeMqSubTopicEp(void *buf, SMqSubTopicEp *pTopicEp) {
 
 void tDeleteMqSubTopicEp(SMqSubTopicEp *pSubTopicEp) {
   taosMemoryFreeClear(pSubTopicEp->schema.pSchema);
+  taosMemoryFreeClear(pSubTopicEp->schema.pExtSchema);
   pSubTopicEp->schema.nCols = 0;
   taosArrayDestroy(pSubTopicEp->vgs);
 }
