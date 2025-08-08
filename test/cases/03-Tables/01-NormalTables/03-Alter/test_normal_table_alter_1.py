@@ -7,11 +7,12 @@ class TestNormalTableAlter1:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_normal_table_alter_1(self):
-        """alter normal table 1
+        """Alter: then desc
 
-        1. add column
-        2. drop column
-        3. modify column
+        1. ALTER TABLE … ADD/DROP/MODIFY columns
+        2. DESCRIBE each change to confirm
+        3. Restart the database
+        4. Resume ADD/DROP/MODIFY operations and verify again
 
         Catalog:
             - Table:NormalTable:Alter
@@ -39,161 +40,98 @@ class TestNormalTableAlter1:
 
         tdSql.query(f"describe tb")
         tdSql.checkData(0, 0, "ts")
-
         tdSql.checkData(0, 1, "TIMESTAMP")
-
         tdSql.checkData(1, 0, "a")
-
         tdSql.checkData(1, 1, "INT")
 
         tdLog.info(f"======== step2")
         tdSql.execute(f"alter table tb add column b smallint")
         tdSql.query(f"describe tb")
         tdSql.checkData(0, 0, "ts")
-
         tdSql.checkData(0, 1, "TIMESTAMP")
-
         tdSql.checkData(1, 0, "a")
-
         tdSql.checkData(1, 1, "INT")
-
         tdSql.checkData(2, 0, "b")
-
         tdSql.checkData(2, 1, "SMALLINT")
 
         tdLog.info(f"======== step3")
         tdSql.execute(f"alter table tb add column c tinyint")
         tdSql.query(f"describe tb")
         tdSql.checkData(0, 0, "ts")
-
         tdSql.checkData(0, 1, "TIMESTAMP")
-
         tdSql.checkData(1, 0, "a")
-
         tdSql.checkData(1, 1, "INT")
-
         tdSql.checkData(2, 0, "b")
-
         tdSql.checkData(2, 1, "SMALLINT")
-
         tdSql.checkData(3, 0, "c")
-
         tdSql.checkData(3, 1, "TINYINT")
 
         tdLog.info(f"======== step4")
         tdSql.execute(f"alter table tb add column d int")
         tdSql.query(f"describe tb")
         tdSql.checkData(0, 0, "ts")
-
         tdSql.checkData(0, 1, "TIMESTAMP")
-
         tdSql.checkData(1, 0, "a")
-
         tdSql.checkData(1, 1, "INT")
-
         tdSql.checkData(2, 0, "b")
-
         tdSql.checkData(2, 1, "SMALLINT")
-
         tdSql.checkData(3, 0, "c")
-
         tdSql.checkData(3, 1, "TINYINT")
-
         tdSql.checkData(4, 0, "d")
-
         tdSql.checkData(4, 1, "INT")
 
         tdLog.info(f"======== step5")
         tdSql.execute(f"alter table tb add column e bigint")
         tdSql.query(f"describe tb")
         tdSql.checkData(0, 0, "ts")
-
         tdSql.checkData(0, 1, "TIMESTAMP")
-
         tdSql.checkData(1, 0, "a")
-
         tdSql.checkData(1, 1, "INT")
-
         tdSql.checkData(2, 0, "b")
-
         tdSql.checkData(2, 1, "SMALLINT")
-
         tdSql.checkData(3, 0, "c")
-
         tdSql.checkData(3, 1, "TINYINT")
-
         tdSql.checkData(4, 0, "d")
-
         tdSql.checkData(4, 1, "INT")
-
         tdSql.checkData(5, 0, "e")
-
         tdSql.checkData(5, 1, "BIGINT")
 
         tdLog.info(f"======== step6")
         tdSql.execute(f"alter table tb add column f float")
         tdSql.query(f"describe tb")
         tdSql.checkData(0, 0, "ts")
-
         tdSql.checkData(0, 1, "TIMESTAMP")
-
         tdSql.checkData(1, 0, "a")
-
         tdSql.checkData(1, 1, "INT")
-
         tdSql.checkData(2, 0, "b")
-
         tdSql.checkData(2, 1, "SMALLINT")
-
         tdSql.checkData(3, 0, "c")
-
         tdSql.checkData(3, 1, "TINYINT")
-
         tdSql.checkData(4, 0, "d")
-
         tdSql.checkData(4, 1, "INT")
-
         tdSql.checkData(5, 0, "e")
-
         tdSql.checkData(5, 1, "BIGINT")
-
         tdSql.checkData(6, 0, "f")
-
         tdSql.checkData(6, 1, "FLOAT")
 
         tdLog.info(f"======== step7")
         tdSql.execute(f"alter table tb add column g double")
         tdSql.query(f"describe tb")
         tdSql.checkData(0, 0, "ts")
-
         tdSql.checkData(0, 1, "TIMESTAMP")
-
         tdSql.checkData(1, 0, "a")
-
         tdSql.checkData(1, 1, "INT")
-
         tdSql.checkData(2, 0, "b")
-
         tdSql.checkData(2, 1, "SMALLINT")
-
         tdSql.checkData(3, 0, "c")
-
         tdSql.checkData(3, 1, "TINYINT")
-
         tdSql.checkData(4, 0, "d")
-
         tdSql.checkData(4, 1, "INT")
-
         tdSql.checkData(5, 0, "e")
-
         tdSql.checkData(5, 1, "BIGINT")
-
         tdSql.checkData(6, 0, "f")
-
         tdSql.checkData(6, 1, "FLOAT")
-
         tdSql.checkData(7, 0, "g")
-
         tdSql.checkData(7, 1, "DOUBLE")
 
         tdLog.info(f"======== step8")
@@ -201,41 +139,23 @@ class TestNormalTableAlter1:
         tdSql.query(f"select * from tb")
         tdSql.query(f"describe tb")
         tdSql.checkData(0, 0, "ts")
-
         tdSql.checkData(0, 1, "TIMESTAMP")
-
         tdSql.checkData(1, 0, "a")
-
         tdSql.checkData(1, 1, "INT")
-
         tdSql.checkData(2, 0, "b")
-
         tdSql.checkData(2, 1, "SMALLINT")
-
         tdSql.checkData(3, 0, "c")
-
         tdSql.checkData(3, 1, "TINYINT")
-
         tdSql.checkData(4, 0, "d")
-
         tdSql.checkData(4, 1, "INT")
-
         tdSql.checkData(5, 0, "e")
-
         tdSql.checkData(5, 1, "BIGINT")
-
         tdSql.checkData(6, 0, "f")
-
         tdSql.checkData(6, 1, "FLOAT")
-
         tdSql.checkData(7, 0, "g")
-
         tdSql.checkData(7, 1, "DOUBLE")
-
         tdSql.checkData(8, 0, "h")
-
         tdSql.checkData(8, 1, "VARCHAR")
-
         tdSql.checkData(8, 2, 10)
 
         tdLog.info(f"======== step9")
@@ -248,41 +168,23 @@ class TestNormalTableAlter1:
         tdSql.execute(f"use d1")
         tdSql.query(f"describe tb")
         tdSql.checkData(0, 0, "ts")
-
         tdSql.checkData(0, 1, "TIMESTAMP")
-
         tdSql.checkData(1, 0, "a")
-
         tdSql.checkData(1, 1, "INT")
-
         tdSql.checkData(2, 0, "b")
-
         tdSql.checkData(2, 1, "SMALLINT")
-
         tdSql.checkData(3, 0, "c")
-
         tdSql.checkData(3, 1, "TINYINT")
-
         tdSql.checkData(4, 0, "d")
-
         tdSql.checkData(4, 1, "INT")
-
         tdSql.checkData(5, 0, "e")
-
         tdSql.checkData(5, 1, "BIGINT")
-
         tdSql.checkData(6, 0, "f")
-
         tdSql.checkData(6, 1, "FLOAT")
-
         tdSql.checkData(7, 0, "g")
-
         tdSql.checkData(7, 1, "DOUBLE")
-
         tdSql.checkData(8, 0, "h")
-
         tdSql.checkData(8, 1, "VARCHAR")
-
         tdSql.checkData(8, 2, 10)
 
         tdLog.info(f"======== step11")
@@ -296,162 +198,96 @@ class TestNormalTableAlter1:
         tdSql.execute(f"alter table tb drop column b")
         tdSql.query(f"describe tb")
         tdSql.checkData(0, 0, "ts")
-
         tdSql.checkData(0, 1, "TIMESTAMP")
-
         tdSql.checkData(1, 0, "a")
-
         tdSql.checkData(1, 1, "INT")
-
         tdSql.checkData(2, 0, "c")
-
         tdSql.checkData(2, 1, "TINYINT")
-
         tdSql.checkData(3, 0, "d")
-
         tdSql.checkData(3, 1, "INT")
-
         tdSql.checkData(4, 0, "e")
-
         tdSql.checkData(4, 1, "BIGINT")
-
         tdSql.checkData(5, 0, "f")
-
         tdSql.checkData(5, 1, "FLOAT")
-
         tdSql.checkData(6, 0, "g")
-
         tdSql.checkData(6, 1, "DOUBLE")
-
         tdSql.checkData(7, 0, "h")
-
         tdSql.checkData(7, 1, "VARCHAR")
-
         tdSql.checkData(7, 2, 10)
 
         tdLog.info(f"======== step13")
         tdSql.execute(f"alter table tb drop column c")
         tdSql.query(f"describe tb")
         tdSql.checkData(0, 0, "ts")
-
         tdSql.checkData(0, 1, "TIMESTAMP")
-
         tdSql.checkData(1, 0, "a")
-
         tdSql.checkData(1, 1, "INT")
-
         tdSql.checkData(2, 0, "d")
-
         tdSql.checkData(2, 1, "INT")
-
         tdSql.checkData(3, 0, "e")
-
         tdSql.checkData(3, 1, "BIGINT")
-
         tdSql.checkData(4, 0, "f")
-
         tdSql.checkData(4, 1, "FLOAT")
-
         tdSql.checkData(5, 0, "g")
-
         tdSql.checkData(5, 1, "DOUBLE")
-
         tdSql.checkData(6, 0, "h")
-
         tdSql.checkData(6, 1, "VARCHAR")
-
         tdSql.checkData(6, 2, 10)
 
         tdLog.info(f"======== step14")
         tdSql.execute(f"alter table tb drop column d")
         tdSql.query(f"describe tb")
         tdSql.checkData(0, 0, "ts")
-
         tdSql.checkData(0, 1, "TIMESTAMP")
-
         tdSql.checkData(1, 0, "a")
-
         tdSql.checkData(1, 1, "INT")
-
         tdSql.checkData(2, 0, "e")
-
         tdSql.checkData(2, 1, "BIGINT")
-
         tdSql.checkData(3, 0, "f")
-
         tdSql.checkData(3, 1, "FLOAT")
-
         tdSql.checkData(4, 0, "g")
-
         tdSql.checkData(4, 1, "DOUBLE")
-
         tdSql.checkData(5, 0, "h")
-
         tdSql.checkData(5, 1, "VARCHAR")
-
         tdSql.checkData(5, 2, 10)
 
         tdLog.info(f"======== step15")
         tdSql.execute(f"alter table tb drop column e")
         tdSql.query(f"describe tb")
         tdSql.checkData(0, 0, "ts")
-
         tdSql.checkData(0, 1, "TIMESTAMP")
-
         tdSql.checkData(1, 0, "a")
-
         tdSql.checkData(1, 1, "INT")
-
         tdSql.checkData(2, 0, "f")
-
         tdSql.checkData(2, 1, "FLOAT")
-
         tdSql.checkData(3, 0, "g")
-
         tdSql.checkData(3, 1, "DOUBLE")
-
         tdSql.checkData(4, 0, "h")
-
         tdSql.checkData(4, 1, "VARCHAR")
-
         tdSql.checkData(4, 2, 10)
 
         tdLog.info(f"======== step16")
         tdSql.execute(f"alter table tb drop column f")
         tdSql.query(f"describe tb")
         tdSql.checkData(0, 0, "ts")
-
         tdSql.checkData(0, 1, "TIMESTAMP")
-
         tdSql.checkData(1, 0, "a")
-
         tdSql.checkData(1, 1, "INT")
-
         tdSql.checkData(2, 0, "g")
-
         tdSql.checkData(2, 1, "DOUBLE")
-
         tdSql.checkData(3, 0, "h")
-
         tdSql.checkData(3, 1, "VARCHAR")
-
         tdSql.checkData(3, 2, 10)
 
         tdLog.info(f"======== step17")
         tdSql.execute(f"alter table tb drop column g")
         tdSql.query(f"describe tb")
         tdSql.checkData(0, 0, "ts")
-
         tdSql.checkData(0, 1, "TIMESTAMP")
-
         tdSql.checkData(1, 0, "a")
-
         tdSql.checkData(1, 1, "INT")
-
         tdSql.checkData(2, 0, "h")
-
         tdSql.checkData(2, 1, "VARCHAR")
-
         tdSql.checkData(2, 2, 10)
 
         tdLog.info(f"============= step18")

@@ -1,8 +1,6 @@
 #caseID,rerunTimes,Run with Sanitizer,casePath,caseCommand
 #NA,NA,y or n,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
 #examples
-,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
-,,n,.,pytest cases/01-DataTypes/test_datatype_bigint.py
 
 # 01-DataTypes
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_blob.py
@@ -44,6 +42,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_op_all.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_op_dnodelist.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_op_keep.py -N 2
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_op_table_hash.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_op_table_prefix_suffix.py
 
 ## 02-Drop
@@ -63,6 +62,7 @@
 ## 04-Query
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/04-Query/test_db_show_create_db.py 
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/04-Query/test_db_show_create_table.py
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/04-Query/test_db_show_vgroup.py
 
 ## 05-Sync
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance_replica_1.py -N 3
@@ -91,6 +91,7 @@
 
 ## 06-Precision
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/06-Precision/test_db_precision_ns.py
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/06-Precision/test_db_precision_us.py
 
 ## 07-Flush
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/07-Flush/test_db_flush.py
@@ -98,33 +99,22 @@
 # 03-Tables
 ## 01-NormalTables
 ### 01-Create
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_basic.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_bigint.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_binary.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_bool.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_column_dbprefix.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_column_name.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_column_num.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_column_type.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_column_value.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_date.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_describe.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_double.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_float.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_hash.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_int.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_limit.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_multi.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_smallint.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_synatx.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_vgroup.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_tinyint.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_column_name.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_column_num_limit.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_datatype_bigint.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_datatype_binary.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_datatype_bool.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_datatype_double.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_datatype_float.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_datatype_int.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_datatype_smallint.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_datatype_tinyint.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_name_length.py 
 
 ### 02-Drop
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_delete_reuse1.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_delete_reuse2.py
 ,,n,.,pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_delete_writing.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_drop.py
 
 ### 03-Alter
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normal_table_alter_1.py 
@@ -132,20 +122,24 @@
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normal_table_alter_3.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normal_table_alter_4.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normal_table_alter_5.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normal_table_basic04.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normal_table_query.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_column_num_limit.py
+
 ### 04-Query
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normal_table_basic.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normal_table_describe.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normal_table_drop.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normal_table_limit.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normal_table_query.py
 
 ## 02-SubTables
-### 01-Create
+### 01-Create 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_normal_table_multi.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_autocreate_tb_drop_tb.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_autocreate_tb.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_autocreate.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_batchcreate.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_create_tb.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_create_with_tag_name.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_tags_dynamically_specifiy.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_tags_dynamically_specifiy.py
 
 ### 02-Drop
 
@@ -545,7 +539,6 @@
 
 # 13-StreamProcessing
 ## 01-Snode
-,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
 #,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_basic1.py
 #,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_mgmt.py -N 8
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_mgmt_zlv.py -N 6 --replica 3

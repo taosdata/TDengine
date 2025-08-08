@@ -2,12 +2,12 @@ import time
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
 
 
-class TestDatabaseDeleteReuseVnode1:
+class TestDatabaseDeleteReuseVnode:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_database_delete_reuse_vnode1(self):
+    def test_database_delete_reuse_vnode(self):
         """Repeatedly drop 1
 
         1. Create a database and a normal table, insert data, and repeat the above 30 times using the same names

@@ -1,18 +1,17 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestNormalTableVgroup:
+class TestDatabaseShowVgroup:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_normal_table_vgroup(self):
-        """create normal table (vgroup)
+    def test_database_show_vgroup(self):
+        """Show vgroups
 
-        1. create normal table
-        2. insert data
-        3. drop table
-        4. show tables
+        1. Create multiple databases
+        2. Repeatedly create and drop tables
+        3. Run SHOW VGROUPS after each cycle to confirm the expected vgroup count
 
         Catalog:
             - Table:NormalTable:Create

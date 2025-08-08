@@ -7,11 +7,11 @@ class TestNormalTableBigint:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_normal_table_bigint(self):
-        """create normal table (bigint)
+        """Datatype: bigint
 
-        1. create normal table
-        2. insert data
-        3. query from normal table
+        1. Create normal table
+        2. Insert data
+        3. Query from normal table
 
         Catalog:
             - Table:NormalTable:Create
