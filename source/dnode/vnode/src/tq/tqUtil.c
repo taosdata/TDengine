@@ -413,7 +413,14 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
           code = buildBatchMeta(&btMetaRsp, TDMT_VND_CREATE_TABLE, len, pBuf);
         }
         taosMemoryFree(pBuf);
-        taosArrayDestroyP(taosxRsp.createTableReq, NULL);
+        for (int i = 0; i < taosArrayGetSize(taosxRsp.createTableReq); i++) {
+          void* pCreateTbReq = taosArrayGetP(taosxRsp.createTableReq, i);
+          if (pCreateTbReq != NULL) {
+            tDestroySVSubmitCreateTbReq(pCreateTbReq, TSDB_MSG_FLG_DECODE);
+          }
+          taosMemoryFree(pCreateTbReq);
+        }
+        taosArrayDestroy(taosxRsp.createTableReq);
         taosxRsp.createTableReq = NULL;
         fetchVer++;
         if (code != 0){
