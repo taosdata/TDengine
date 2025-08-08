@@ -718,7 +718,7 @@
   
     <li class="md-nav__item">
       <a href="#03-Tables.01-NormalTables.03-Alter.test_normal_table_alter_1.TestNormalTableAlter1.test_normal_table_alter_1" class="md-nav__link">
-        alter normal table 1 
+        Alter: then desc 
       </a>
       
     </li>
@@ -729,7 +729,7 @@
   
     <li class="md-nav__item">
       <a href="#03-Tables.01-NormalTables.03-Alter.test_normal_table_alter_2.TestNormalTableAlter2.test_normal_table_alter_2" class="md-nav__link">
-        alter normal table 2 
+        Alter: then insert 
       </a>
       
     </li>
@@ -740,7 +740,7 @@
   
     <li class="md-nav__item">
       <a href="#03-Tables.01-NormalTables.03-Alter.test_normal_table_alter_3.TestNormalTableAlter3.test_normal_table_alter_3" class="md-nav__link">
-        alter normal table 3 
+        Alter: import old data 
       </a>
       
     </li>
@@ -751,7 +751,7 @@
   
     <li class="md-nav__item">
       <a href="#03-Tables.01-NormalTables.03-Alter.test_normal_table_alter_4.TestNormalTableAlter4.test_normal_table_alter_4" class="md-nav__link">
-        alter normal table 4 
+        Alter: repeatedly add 
       </a>
       
     </li>
@@ -762,7 +762,7 @@
   
     <li class="md-nav__item">
       <a href="#03-Tables.01-NormalTables.03-Alter.test_normal_table_alter_5.TestNormalTableAlter5.test_normal_table_alter_5" class="md-nav__link">
-        alter normal table 5 
+        Alter: repeatedly drop 
       </a>
       
     </li>
@@ -2794,7 +2794,7 @@
   
     <li class="md-nav__item">
       <a href="#03-Tables.01-NormalTables.03-Alter.test_normal_table_alter_1.TestNormalTableAlter1.test_normal_table_alter_1" class="md-nav__link">
-        alter normal table 1 
+        Alter: then desc 
       </a>
       
     </li>
@@ -2805,7 +2805,7 @@
   
     <li class="md-nav__item">
       <a href="#03-Tables.01-NormalTables.03-Alter.test_normal_table_alter_2.TestNormalTableAlter2.test_normal_table_alter_2" class="md-nav__link">
-        alter normal table 2 
+        Alter: then insert 
       </a>
       
     </li>
@@ -2816,7 +2816,7 @@
   
     <li class="md-nav__item">
       <a href="#03-Tables.01-NormalTables.03-Alter.test_normal_table_alter_3.TestNormalTableAlter3.test_normal_table_alter_3" class="md-nav__link">
-        alter normal table 3 
+        Alter: import old data 
       </a>
       
     </li>
@@ -2827,7 +2827,7 @@
   
     <li class="md-nav__item">
       <a href="#03-Tables.01-NormalTables.03-Alter.test_normal_table_alter_4.TestNormalTableAlter4.test_normal_table_alter_4" class="md-nav__link">
-        alter normal table 4 
+        Alter: repeatedly add 
       </a>
       
     </li>
@@ -2838,7 +2838,7 @@
   
     <li class="md-nav__item">
       <a href="#03-Tables.01-NormalTables.03-Alter.test_normal_table_alter_5.TestNormalTableAlter5.test_normal_table_alter_5" class="md-nav__link">
-        alter normal table 5 
+        Alter: repeatedly drop 
       </a>
       
     </li>
@@ -2874,14 +2874,15 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> alter normal table 1
+                    <strong>Summary:</strong> Alter: then desc
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. add column</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. drop column</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. modify column</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. ALTER TABLE … ADD/DROP/MODIFY columns</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. DESCRIBE each change to confirm</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Restart the database</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Resume ADD/DROP/MODIFY operations and verify again</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -2905,18 +2906,15 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> alter normal table 2
+                    <strong>Summary:</strong> Alter: then insert
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. add column</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. insert data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. count new column</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. kill then restart</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. drop column</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. insert data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. count</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Execute ADD COLUMN, DROP COLUMN, MODIFY COLUMN operations.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data and run SELECT COUNT queries to verify.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Restart the database.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Continue modifying columns and verify the changes.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -2940,14 +2938,14 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> alter normal table 3
+                    <strong>Summary:</strong> Alter: import old data
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. add column</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. insert out-of-order data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. query data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Add column</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert out-of-order data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Query data</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -2971,16 +2969,16 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> alter normal table 4
+                    <strong>Summary:</strong> Alter: repeatedly add
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. add column</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. insert data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. project query</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. loop for 7 times</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. kill then restart</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Add column</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Project query</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Loop for 7 times</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Kill then restart</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -3004,16 +3002,16 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> alter normal table 5
+                    <strong>Summary:</strong> Alter: repeatedly drop
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. drop column</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. insert data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. project query</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. loop for 7 times</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. kill then restart</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Drop column</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Project query</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Loop for 7 times</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Kill then restart</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
