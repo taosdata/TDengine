@@ -2027,6 +2027,7 @@ typedef struct {
   int64_t     rawDataSize;
   int64_t     s3Size;
   const char* dbname;
+  int8_t      estimateRawData;
 } SDbSizeStatisInfo;
 
 typedef struct {

@@ -156,7 +156,7 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
 
 static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, const char* dbname, int32_t* pNumOfRows,
                                                 const SSDataBlock* dataBlock, char* tName, SSchemaWrapper* schemaRow,
-                                                char* tableType, SColRefWrapper *colRef);
+                                                char* tableType, SColRefWrapper* colRef);
 
 static void relocateAndFilterSysTagsScanResult(SSysTableScanInfo* pInfo, int32_t numOfRows, SSDataBlock* dataBlock,
                                                SFilterInfo* pFilterInfo, SExecTaskInfo* pTaskInfo);
@@ -755,7 +755,8 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
       }
     }
     // if pInfo->pRes->info.rows == 0, also need to add the meta to pDataBlock
-    code = sysTableUserColsFillOneTableCols(pInfo, dbname, &numOfRows, pDataBlock, tableName, schemaRow, typeName, colRef);
+    code =
+        sysTableUserColsFillOneTableCols(pInfo, dbname, &numOfRows, pDataBlock, tableName, schemaRow, typeName, colRef);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -1237,7 +1238,7 @@ _end:
 
 static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, const char* dbname, int32_t* pNumOfRows,
                                                 const SSDataBlock* dataBlock, char* tName, SSchemaWrapper* schemaRow,
-                                                char* tableType, SColRefWrapper *colRef) {
+                                                char* tableType, SColRefWrapper* colRef) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (schemaRow == NULL) {
@@ -1326,7 +1327,7 @@ static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, 
       strcat(tmpColName, colRef->pColRef[i].refColName);
       STR_TO_VARSTR(refColName, tmpColName);
 
-      code = colDataSetVal(pColInfoData, numOfRows, (char *)refColName, false);
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)refColName, false);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -2239,13 +2240,46 @@ static int32_t buildVgDiskUsage(SOperatorInfo* pOperator, SDbSizeStatisInfo* pSt
 _end:
   return code;
 }
+
+static int8_t shouldEstimateRawDataSize(SOperatorInfo* pOperator) {
+  int32_t lino = 0;
+  size_t  size = 0;
+  int32_t index = 0;
+
+  const SSysTableMeta* pMeta = NULL;
+  SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
+
+  SSysTableScanInfo* pInfo = pOperator->info;
+  getInfosDbMeta(&pMeta, &size);
+
+  for (int32_t i = 0; i < size; ++i) {
+    if (strcmp(pMeta[i].name, TSDB_INS_DISK_USAGE) == 0) {
+      index = i;
+      break;
+    }
+  }
+  if (index >= size) {
+    return 1;
+  }
+  const SSysTableMeta* pTgtMeta = &pMeta[index];
+  int32_t              colNum = pTgtMeta->colNum;
+  SColumnInfoData      colInfoData =
+      createColumnInfoData(pTgtMeta->schema[colNum - 1].type, pTgtMeta->schema[colNum - 1].bytes, colNum);
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->matchInfo.pList); i++) {
+    SColMatchItem* pItem = taosArrayGet(pInfo->matchInfo.pList, i);
+    if (pItem->colId == colInfoData.info.colId) {
+      return 1;
+    }
+  }
+  return 0;
+}
 static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*       pAPI = &pTaskInfo->storageAPI;
   SSysTableScanInfo* pInfo = pOperator->info;
-  SDbSizeStatisInfo  staticsInfo = {0};
+  SDbSizeStatisInfo  staticsInfo = {.estimateRawData = 1};
 
   char*        buf = NULL;
   SSDataBlock* p = NULL;
@@ -2268,6 +2302,10 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   }
 
   SSDataBlock* pBlock = pInfo->pRes;
+
+  if (!pInfo->showRewrite) {
+    staticsInfo.estimateRawData = shouldEstimateRawDataSize(pOperator);
+  }
 
   code = buildVgDiskUsage(pOperator, &staticsInfo);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -3862,6 +3900,11 @@ static int32_t vnodeEstimateRawDataSize(SOperatorInfo* pOperator, SDbSizeStatisI
   SSysTableScanInfo* pInfo = pOperator->info;
   int32_t            numOfRows = 0;
   int32_t            ret = 0;
+
+  if (pStaticInfo->estimateRawData == 0) {
+    pStaticInfo->rawDataSize = 0;
+    return code;
+  }
 
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
