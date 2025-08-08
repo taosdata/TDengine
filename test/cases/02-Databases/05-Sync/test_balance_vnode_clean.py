@@ -2,23 +2,25 @@ import time
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
 
 
-class TestBalance1:
+class TestVnodeClean:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_balance_1(self):
-        """Scale-up: repica-1 (mnode)
+    def test_vnode_clean(self):
+        """Scale-up: repica-1
 
-        1. Create a 1-dnode cluster
-        2. Create database d1 (1 vgroup, replica 1) and insert data
-        3. Start dnode2, join it to the cluster, run BALANCE VGROUP; verify vnode distribution and data integrity
-        4. Create database d2 (1 vgroup, replica 1) and insert data; check distribution & integrity
-        5. Remove dnode2; verify vnode distribution and data integrity
-        6. Start dnode3, join it to the cluster, run BALANCE VGROUP; verify distribution & integrity
-        7. Create database d3 (1 vgroup, replica 1) and insert data; check distribution & integrity
-        8. Remove dnode3; verify vnode distribution and data integrity
-        9. Create database d4 (1 vgroup, replica 1) and insert data; check distribution & integrity
+        1. Start a 1-node cluster
+        2. Create database d1 (1 vgroup, 1 replica); create table, insert data, verify
+        3. Add dnode2 → run BALANCE VGROUP
+        4. Create database d2 (1 vgroup, 1 replica); create table, insert data, verify
+        5. Remove dnode2
+        6. Add dnode3 → run BALANCE VGROUP
+        7. Create database d3 (1 vgroup, 1 replica); create table, insert data, verify
+        8. Add dnode4 → run BALANCE VGROUP
+        9. Create database d4 (4 vgroups, 1 replica); create tables, insert data, verify
+        10. Remove dnode3
+        11. Check data integrity for all databases d1, d2, d3, and d4
 
         Catalog:
             - Database:Sync
@@ -30,13 +32,13 @@ class TestBalance1:
         Jira: None
 
         History:
-            - 2025-5-6 Simon Guan Migrated from tsim/dnode/balance1.sim
+            - 2025-5-6 Simon Guan Migrated from tsim/dnode/vnode_clean.sim
 
         """
 
+        clusterComCheck.checkDnodes(2)
+        sc.dnodeStop(2)
         clusterComCheck.checkDnodes(1)
-        tdSql.execute(f"alter dnode 1 'supportVnodes' '4'")
-        clusterComCheck.checkDnodeSupportVnodes(1, 4)
 
         tdLog.info(f"========== step1")
         tdSql.execute(f"create database d1 vgroups 1")
@@ -51,15 +53,8 @@ class TestBalance1:
         tdSql.checkKeyData(1, 2, 1)
 
         tdLog.info(f"========== step2")
-        tdSql.execute(f"create dnode localhost port 6130")
+        sc.dnodeStart(2)
         clusterComCheck.checkDnodes(2)
-        tdSql.execute(f"alter dnode 2 'supportVnodes' '4'")
-        clusterComCheck.checkDnodeSupportVnodes(2, 4)
-
-        tdSql.query(f"select * from information_schema.ins_dnodes")
-        tdSql.checkRows(2)
-        tdSql.checkKeyData(1, 4, "ready")
-        tdSql.checkKeyData(2, 4, "ready")
 
         tdSql.execute(f"balance vgroup")
         tdSql.query(f"select * from information_schema.ins_dnodes")
@@ -68,6 +63,7 @@ class TestBalance1:
 
         tdLog.info(f"========== step3")
         tdSql.execute(f"create database d2 vgroups 1")
+
         tdSql.execute(f"create table d2.t2 (t timestamp, i int)")
         tdSql.execute(f"insert into d2.t2 values(now+1s, 25)")
         tdSql.execute(f"insert into d2.t2 values(now+2s, 24)")
@@ -79,70 +75,32 @@ class TestBalance1:
         tdSql.checkKeyData(1, 2, 1)
         tdSql.checkKeyData(2, 2, 1)
 
-        tdSql.query(f"select * from d1.t1 order by t desc")
-        tdSql.checkData(0, 1, 11)
-        tdSql.checkData(1, 1, 12)
-        tdSql.checkData(2, 1, 13)
-        tdSql.checkData(3, 1, 14)
-        tdSql.checkData(4, 1, 15)
-
-        tdSql.query(f"select * from d2.t2 order by t desc")
-        tdSql.checkData(0, 1, 21)
-        tdSql.checkData(1, 1, 22)
-        tdSql.checkData(2, 1, 23)
-        tdSql.checkData(3, 1, 24)
-        tdSql.checkData(4, 1, 25)
-
         tdLog.info(f"========== step4")
         tdSql.execute(f"drop dnode 2")
         tdSql.query(f"select * from information_schema.ins_dnodes")
         tdSql.checkKeyData(1, 2, 2)
 
-        tdSql.query(f"select * from d1.t1 order by t desc")
-        tdSql.checkData(0, 1, 11)
-        tdSql.checkData(1, 1, 12)
-        tdSql.checkData(2, 1, 13)
-        tdSql.checkData(3, 1, 14)
-        tdSql.checkData(4, 1, 15)
-
-        tdSql.query(f"select * from d2.t2 order by t desc")
-        tdSql.checkData(0, 1, 21)
-        tdSql.checkData(1, 1, 22)
-        tdSql.checkData(2, 1, 23)
-        tdSql.checkData(3, 1, 24)
-        tdSql.checkData(4, 1, 25)
-
         sc.dnodeStop(2)
+        clusterComCheck.checkDnodes(1)
 
         tdLog.info(f"========== step5")
+
         tdSql.execute(f"create dnode localhost port 6230")
         clusterComCheck.checkDnodes(2)
-        tdSql.execute(f"alter dnode 3 'supportVnodes' '4'")
-        clusterComCheck.checkDnodeSupportVnodes(3, 4)
 
         tdSql.query(f"select * from information_schema.ins_dnodes")
+        tdLog.info(
+            f"===> {tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)}"
+        )
+        tdLog.info(
+            f"===> {tdSql.getData(1,0)} {tdSql.getData(1,1)} {tdSql.getData(1,2)} {tdSql.getData(1,3)} {tdSql.getData(1,4)} {tdSql.getData(1,5)}"
+        )
         tdSql.checkRows(2)
-        tdSql.checkKeyData(1, 4, "ready")
-        tdSql.checkKeyData(3, 4, "ready")
 
         tdSql.execute(f"balance vgroup")
         tdSql.query(f"select * from information_schema.ins_dnodes")
         tdSql.checkKeyData(1, 2, 1)
         tdSql.checkKeyData(3, 2, 1)
-
-        tdSql.query(f"select * from d1.t1 order by t desc")
-        tdSql.checkData(0, 1, 11)
-        tdSql.checkData(1, 1, 12)
-        tdSql.checkData(2, 1, 13)
-        tdSql.checkData(3, 1, 14)
-        tdSql.checkData(4, 1, 15)
-
-        tdSql.query(f"select * from d2.t2 order by t desc")
-        tdSql.checkData(0, 1, 21)
-        tdSql.checkData(1, 1, 22)
-        tdSql.checkData(2, 1, 23)
-        tdSql.checkData(3, 1, 24)
-        tdSql.checkData(4, 1, 25)
 
         tdLog.info(f"========== step6")
         tdSql.execute(f"create database d3 vgroups 1")
@@ -160,14 +118,15 @@ class TestBalance1:
         tdLog.info(f"========== step7")
         tdSql.execute(f"create dnode localhost port 6330")
         clusterComCheck.checkDnodes(3)
-        tdSql.execute(f"alter dnode 4 'supportVnodes' '4'")
-        clusterComCheck.checkDnodeSupportVnodes(4, 4)
 
         tdSql.query(f"select * from information_schema.ins_dnodes")
         tdSql.checkRows(3)
-        tdSql.checkKeyData(1, 4, "ready")
-        tdSql.checkKeyData(3, 4, "ready")
-        tdSql.checkKeyData(4, 4, "ready")
+
+        tdSql.execute(f"balance vgroup")
+        tdSql.query(f"select * from information_schema.ins_dnodes")
+        tdSql.checkKeyData(1, 2, 1)
+        tdSql.checkKeyData(3, 2, 1)
+        tdSql.checkKeyData(4, 2, 1)
 
         tdLog.info(f"========== step8")
         tdSql.execute(f"create database d4 vgroups 1")
@@ -190,32 +149,33 @@ class TestBalance1:
         tdSql.checkKeyData(4, 2, 2)
 
         sc.dnodeStop(3)
+        clusterComCheck.checkDnodes(2)
+
         tdSql.execute(f"reset query cache")
 
         tdLog.info(f"========== step10")
-        tdSql.query(f"select * from d1.t1 order by t desc")
+        tdSql.query(f"select * from d1.t1  order by t desc")
         tdSql.checkData(0, 1, 11)
         tdSql.checkData(1, 1, 12)
         tdSql.checkData(2, 1, 13)
         tdSql.checkData(3, 1, 14)
         tdSql.checkData(4, 1, 15)
 
-        tdSql.query(f"select * from d2.t2 order by t desc")
+        tdSql.query(f"select * from d2.t2  order by t desc")
         tdSql.checkData(0, 1, 21)
         tdSql.checkData(1, 1, 22)
         tdSql.checkData(2, 1, 23)
         tdSql.checkData(3, 1, 24)
         tdSql.checkData(4, 1, 25)
 
-        tdSql.query(f"select * from d3.t3 order by t desc")
+        tdSql.query(f"select * from d3.t3  order by t desc")
         tdSql.checkData(0, 1, 31)
         tdSql.checkData(1, 1, 32)
         tdSql.checkData(2, 1, 33)
         tdSql.checkData(3, 1, 34)
         tdSql.checkData(4, 1, 35)
 
-        tdSql.query(f"select * from d4.t4 order by t desc")
-
+        tdSql.query(f"select * from d4.t4  order by t desc")
         tdSql.checkData(0, 1, 41)
         tdSql.checkData(1, 1, 42)
         tdSql.checkData(2, 1, 43)

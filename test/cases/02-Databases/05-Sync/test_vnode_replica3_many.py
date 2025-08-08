@@ -9,9 +9,13 @@ class TestVnodeReplica3Many:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_vnode_replica3_many(self):
-        """vnode replica3 many
+        """Write: replica-3 restart
 
-        1. -
+        1. Start a 4-node cluster.
+        2. Create four 1-vgroup, 3-replica databases and a normal table in each.
+        3. In a background thread, insert one record into every table every 0.1 s (ignore any failures).
+        4. Sequentially restart dnode1 → dnode2 → dnode3 → dnode4; repeat this full cycle 8 times.
+        5. After every restart, confirm that row counts never decrease.
 
         Catalog:
             - DataBase:Sync

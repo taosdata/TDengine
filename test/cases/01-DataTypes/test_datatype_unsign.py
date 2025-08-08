@@ -10,10 +10,10 @@ class TestDatatypeUnsigned:
     def test_datatype_unsigned(self):
         """DataTypes: unsigned numeric
 
-        1. create table
-        2. alter tag value
-        3. insert data
-        4. query data
+        1. Create table
+        2. Insert data
+        3. Alter tag value
+        4. Handle illegal input
 
         Catalog:
             - DataTypes

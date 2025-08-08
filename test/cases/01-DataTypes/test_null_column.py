@@ -9,9 +9,9 @@ class TestNullColumn:
     def test_null_column(self):
         """NULL: column
 
-        1. create table
-        2. insert data with NULL
-        3. query data
+        1. Create table
+        2. Insert data with NULL
+        3. Query data
 
         Catalog:
             - DataTypes
