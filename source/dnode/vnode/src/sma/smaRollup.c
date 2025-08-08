@@ -160,7 +160,7 @@ static int32_t tdUpdateTbUidListImpl(SSma *pSma, tb_uid_t *suid, SArray *tbUids,
 
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pRSmaInfo->taskInfo[i]) {
-      if ((code = qUpdateTableListForStreamScanner(pRSmaInfo->taskInfo[i], tbUids, isAdd)) < 0) {
+      if ((code = qUpdateTableListForTmqScanner(pRSmaInfo->taskInfo[i], tbUids, isAdd)) < 0) {
         tdReleaseRSmaInfo(pSma, pRSmaInfo);
         smaError("vgId:%d, update tbUidList failed for uid:%" PRIi64 " level %d since %s", SMA_VID(pSma), *suid, i,
                  tstrerror(code));
