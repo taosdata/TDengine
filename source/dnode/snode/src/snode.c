@@ -297,6 +297,31 @@ static void sndSendErrorRrsp(SRpcMsg *pMsg, int32_t errCode) {
   tmsgSendRsp(&rspMsg);
 }
 
+static int32_t handleStreamDropTableReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
+  SSTriggerDropRequest req = {0};
+  SStreamRunnerTask* pTask = NULL;
+  void* taskAddr = NULL;
+  int32_t code = 0, lino = 0;
+  TAOS_CHECK_EXIT(tDeserializeSTriggerDropTableRequest(POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead)), pRpcMsg->contLen - sizeof(SMsgHead), &req));
+  TAOS_CHECK_EXIT(streamAcquireTask(req.streamId, req.runnerTaskId, (SStreamTask**)&pTask, &taskAddr));
+  
+  pTask->msgCb = pSnode->msgCb;
+  TAOS_CHECK_EXIT(stRunnerTaskDropTable(pTask, &req));
+
+_exit:
+  tDestroySSTriggerDropRequest(&req);
+  if (code) {
+    sndError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+    sndSendErrorRrsp(pRpcMsg, code);
+  } else {
+    SRpcMsg rsp = {.code = 0, .msgType = TDMT_STREAM_TRIGGER_DROP_RSP, .contLen = 0, .pCont = NULL, .info = pRpcMsg->info};
+    tmsgSendRsp(&rsp);
+  }
+  streamReleaseTask(taskAddr);
+
+  return code;
+}
+
 
 int32_t sndProcessStreamMsg(SSnode *pSnode, void *pWorkerCb, SRpcMsg *pMsg) {
   int32_t code = 0, lino = 0;
@@ -318,6 +343,9 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, void *pWorkerCb, SRpcMsg *pMsg) {
       break;
     case TDMT_STREAM_FETCH_FROM_CACHE:
       TAOS_CHECK_EXIT(handleStreamFetchFromCache(pSnode, pMsg));
+      break;
+      case TDMT_STREAM_TRIGGER_DROP:
+     TAOS_CHECK_EXIT(handleStreamDropTableReq(pSnode, pMsg));
       break;
     default:
       sndError("invalid snode msg:%d", pMsg->msgType);
