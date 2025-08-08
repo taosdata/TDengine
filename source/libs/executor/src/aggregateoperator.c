@@ -18,6 +18,7 @@
 #include "nodes.h"
 #include "os.h"
 #include "querynodes.h"
+#include "tcommon.h"
 #include "tfill.h"
 #include "tname.h"
 
@@ -777,7 +778,7 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
       SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(&pCtx[k]);
       char* p = GET_ROWCELL_INTERBUF(pEntryInfo);
 
-      TAOS_CHECK_EXIT(fmSetStreamPseudoFuncParamVal(pCtx[k].functionId, pCtx[k].pExpr->base.pParamList, &taskInfo->pStreamRuntimeInfo->funcInfo));
+      TAOS_CHECK_EXIT(fmSetStreamPseudoFuncParamVal(pCtx[k].functionId, pCtx[k].pExpr->base.pParamList, &taskInfo->pStreamRuntimeInfo->funcInfo, OPTR_CALC_EXPR_DEFAULT));
 
       SValueNode *valueNode = (SValueNode *)nodesListGetNode(pCtx[k].pExpr->base.pParamList, 0);
       pEntryInfo->isNullRes = 0;

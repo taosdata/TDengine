@@ -454,6 +454,12 @@ static inline STypeMod typeGetTypeModFromCol(const SColumn* pCol) {
   return typeGetTypeMod(pCol->type, pCol->precision, pCol->scale, pCol->bytes);
 }
 
+
+typedef enum {
+  OPTR_CALC_EXPR_DEFAULT = 0x0,
+  OPTR_CALC_EXPR_STREAM_TBNAME = 0x1,
+} EOPTR_CALC_EXPR_TYPE;
+
 #ifdef __cplusplus
 }
 #endif

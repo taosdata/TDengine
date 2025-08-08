@@ -540,7 +540,8 @@ static int32_t sclInitStreamPseudoFuncParamList(int32_t funcId, SScalarParam **p
     return TSDB_CODE_INTERNAL_ERROR;
   }
 
-  code = fmSetStreamPseudoFuncParamVal(funcId, pParamNodes, pCtx->pStreamRuntimeFuncInfo);
+  code = fmSetStreamPseudoFuncParamVal(funcId, pParamNodes, pCtx->pStreamRuntimeFuncInfo,  
+                                       pCtx->exprCalcType);
   if (code != 0) {
     sclError("failed to set stream pseudo func param vals: %s", tstrerror(code));
     return code;
@@ -2118,18 +2119,18 @@ int32_t scalarCalculateConstantsFromDual(SNode *pNode, SNode **pRes) { return sc
 
 int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, const void *pExtraParam,
                         void *streamTsRange) {
-  return scalarCalculateInRange(pNode, pBlockList, pDst, -1, -1, pExtraParam, streamTsRange);
+  return scalarCalculateInRange(pNode, pBlockList, pDst, -1, -1, pExtraParam, streamTsRange, OPTR_CALC_EXPR_DEFAULT);
 }
 
 int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, int32_t rowStartIdx,
-                               int32_t rowEndIdx, const void *pExtraParam, void *pTsRange) {
+                               int32_t rowEndIdx, const void *pExtraParam, void *pTsRange, EOPTR_CALC_EXPR_TYPE exprCalcType) {
   if (NULL == pNode || (NULL == pBlockList && pTsRange == NULL)) {
     SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
   int32_t    code = 0;
   SScalarCtx ctx = {.code = 0, .pBlockList = pBlockList, .param = pDst ? pDst->param : NULL, 
-    .pStreamRuntimeFuncInfo = pExtraParam, .streamTsRange = pTsRange};
+    .pStreamRuntimeFuncInfo = pExtraParam, .streamTsRange = pTsRange, .exprCalcType = exprCalcType};
 
   // TODO: OPT performance
   ctx.pRes = taosHashInit(SCL_DEFAULT_OP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
