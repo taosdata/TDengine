@@ -917,6 +917,20 @@ int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalc
 void    tDestroySSTriggerCalcParam(void* ptr);
 void    tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq);
 
+typedef struct SSTriggerDropRequest {
+  int64_t streamId;
+  int64_t runnerTaskId;
+  int64_t sessionId;
+  int64_t triggerTaskId;  // does not serialize
+
+  int64_t gid;
+  SArray* groupColVals;  // SArray<SStreamGroupValue>
+} SSTriggerDropRequest;
+
+int32_t tSerializeSTriggerDropTableRequest(void* buf, int32_t bufLen, const SSTriggerDropRequest* pReq);
+int32_t tDeserializeSTriggerDropTableRequest(void* buf, int32_t bufLen, SSTriggerDropRequest* pReq);
+void    tDestroySSTriggerDropRequest(SSTriggerDropRequest* pReq);
+
 typedef enum ESTriggerCtrlType {
   STRIGGER_CTRL_START = 0,
   STRIGGER_CTRL_STOP = 1,
