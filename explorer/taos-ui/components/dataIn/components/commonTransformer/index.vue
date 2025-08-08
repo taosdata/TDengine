@@ -640,10 +640,10 @@ async function getMsgBody() {
     requesting.value = true;
     const isSupportType = sourceForm.type == 'kafka' || sourceForm.type == 'mqtt' || sourceForm.type == 'mongodb';
     const params: Recordable = { dsn: sourceForm };
-    params.sample_data_limit = transformerState.limitOffset;
-    if (isSupportType) {
-      params.get_sample_timeout = 3;
-    }
+    params.dsn.sample_data_limit = transformerState.limitOffset;
+    // if (isSupportType) {
+    //   params.dsn.get_sample_timeout = 3;
+    // }
     const result = await dataInProps.transform.api.getSampleDataMsgbody(params);
     if (result && Object.hasOwnProperty.call(result, 'code')) {
       ElMessage.error(result.message || result.desc);
@@ -1300,7 +1300,7 @@ function echoMappingData(transformEchoMapData: Recordable) {
   nextTick(async () => {
     sruleForm.s_name = transformEchoMapData.model?.using;
     transformerState.s_model = transformEchoMapData.s_model;
-    await getSTbaleList(true, !!transformEchoMapData.s_model);
+    await getSTbaleList(true, !!transformEchoMapData.s_model, transformEchoMapData);
     echoFetchMap(transformEchoMapData);
     if (sourceForm.type !== 'csv' && !supportTransform.supportSQL) {
       selectJson();
@@ -1747,7 +1747,12 @@ function createStable(command: string) {
   componentKey.value++;
 }
 
-async function getSTbaleList(isEcho: boolean, isTemplateCreate?: boolean) {
+async function getSTbaleList(isEcho: boolean, isTemplateCreate?: boolean, transformEchoMapData?: Recordable) {
+  const col_models = transformEchoMapData?.tableData;
+  const tags = {} as Recordable;
+  transformEchoMapData?.model.tags.forEach(key => {
+    tags[key] = true
+  });
   try {
     currentPage.value = 1;
     let res = {} as Recordable;
@@ -1755,10 +1760,21 @@ async function getSTbaleList(isEcho: boolean, isTemplateCreate?: boolean) {
     if (isTemplateCreate) {
       res.data = convert(transformerState.s_model);
     } else {
-      res = await executeSqlFn!(`desc \`${sourceForm.targetDB}\`.\`${sruleForm.s_name}\``);
-      if (res.desc) {
-        ElMessage.error(res.desc);
-        return;
+      try {
+        res = await executeSqlFn!(`desc \`${sourceForm.targetDB}\`.\`${sruleForm.s_name}\``);
+        if (res.desc) {
+          ElMessage.error(res.desc);
+          return;
+        }
+      } catch(error) {
+        console.log(error);
+        res.data = col_models ?  col_models.map((val) => {
+          if (tags[val.columnname]) {
+            return [val.columnname, val.datatype, 0, 'TAG', 'disabled', 'disabled', 'disabled'];
+          } else {
+            return [val.columnname, val.datatype, 0, '', '', '', ''];
+          }
+        }) : {};
       }
     }
     const precision = await executeSqlFn!(`
@@ -1796,7 +1812,7 @@ async function getSTbaleList(isEcho: boolean, isTemplateCreate?: boolean) {
       tableRow.Type = val[1] == 'TIMESTAMP' ? val[1] + '(' + precision.data[0][0] + ')' : val[1];
       tableRow.maptype = equalindex > -1 ? ['mapping', `${defaultmap[equalindex]}`] : ['expression', 'value'];
       tableRow.Expression = equalindex > -1 && !isEcho ? defaultmap[equalindex] : '';
-      tableRow.PrimaryKey = val[3] == 'PRIMARY KEY' || (val[1] == 'TIMESTAMP' && !index);
+      tableRow.PrimaryKey = val[3] == 'PRIMARY KEY' || (val[1].includes('TIMESTAMP') && !index);
 
       return tableRow;
     });

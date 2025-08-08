@@ -43,6 +43,33 @@ export default {
           pattern: null,
           defaultValue: '',
           type: 'input'
+        },
+        {
+          label: '最小连接数',
+          description: '连接池中最小的连接数，默认为 5',
+          field: 'min_connections',
+          required: false,
+          type: 'number',
+          min: 1,
+          max: 10000
+        },
+        {
+          label: '最大连接数',
+          description: '连接池中最大的连接数，默认为 20',
+          field: 'max_connections',
+          required: false,
+          type: 'number',
+          min: 1,
+          max: 10000
+        },
+        {
+          label: '连接超时',
+          description: '连接池中连接的超时时间，单位为秒，默认为 20 秒',
+          field: 'connection_timeout',
+          required: false,
+          type: 'number',
+          min: 1,
+          max: 2000
         }
       ]
     },

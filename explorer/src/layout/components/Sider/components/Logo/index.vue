@@ -31,8 +31,9 @@ const opened = computed(() => store.state.sidebar.opened)
   cursor: pointer;
 
   & .sidebar_logo_expend {
-    width: 180px;
-    height: 68px;
+    width: 100%;
+    height: auto;
+    padding: 5% 5%;
     transition-duration: 0.4s;
   }
   & .sidebar_logo_fold {

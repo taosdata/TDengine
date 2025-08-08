@@ -118,10 +118,18 @@ export default {
           description: 'Timeout for connect to endpoint in seconds',
           field: 'connect_timeout',
           placeholder: '10',
-          pattern: null,
-          defaultValue: '10',
           type: 'number',
-          min: 1
+          min: 1,
+          defaultValue: '10'
+        },
+        {
+          label: 'Request Timeout',
+          description: 'Timeout for a request to endpoint in seconds',
+          field: 'request_timeout',
+          placeholder: '10',
+          type: 'number',
+          min: 1,
+          defaultValue: 10
         }
       ]
     },

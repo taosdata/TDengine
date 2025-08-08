@@ -59,7 +59,7 @@ export function fetchCaptcha(phone_email: string, ts: number | string) {
     });
 }
 // 发送验证码
-export function fetchVerificationCode(phone_email: string, captcha: string, ts: string, lang: string) {
+export function fetchVerificationCode(phone_email: string, captcha: string, ts: number | undefined, lang: string) {
     return request({
         baseURL: import.meta.env.VITE_APP_EXPLORER_API,
         url: `/verification-code?phone_email=${phone_email}&captcha=${captcha}&ts=${ts}&lang=${lang}`,
