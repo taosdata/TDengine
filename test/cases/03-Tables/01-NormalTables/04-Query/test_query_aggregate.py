@@ -1,20 +1,20 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestNormalTableBasic:
+class TestNormalTableAggregate:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_normal_table_basic(self):
-        """create read write normal table
+    def test_normal_table_aggregate(self):
+        """Query: aggregate
 
-        1. create 256 column table
-        2. insert
-        3. project query
-        4. filter query
-        5. aggregate query
-        6. kill then restart
+        1. Create a table with 256 columns
+        2. Insert data
+        3. Execute projection queries
+        4. Execute filter queries
+        5. Execute aggregate queries
+        6. Kill the process and restart the database
 
         Catalog:
             - Table:NormalTable:Query
@@ -110,23 +110,13 @@ class TestNormalTableBasic:
         tdSql.query(
             f"select count(c001), count(c250), avg(c001), avg(c250), sum(c001), max(c001), min(c250), stddev(c250) from d1.t1"
         )
-        tdLog.info(
-            f"{tdSql.getData(0,0)}  {tdSql.getData(0,1)}  {tdSql.getData(0,2)}  {tdSql.getData(0,3)}  {tdSql.getData(0,4)}  {tdSql.getData(0,5)}  {tdSql.getData(0,6)}  {tdSql.getData(0,7)}"
-        )
         tdSql.checkData(0, 0, 10)
-
         tdSql.checkData(0, 1, 10)
-
         tdSql.checkData(0, 2, 4.500000000)
-
         tdSql.checkData(0, 3, 4.500000000)
-
         tdSql.checkData(0, 4, 45)
-
         tdSql.checkData(0, 5, 9)
-
         tdSql.checkData(0, 6, 0)
-
         tdSql.checkData(0, 7, 2.872281323)
 
         tdSql.query(
@@ -134,19 +124,12 @@ class TestNormalTableBasic:
         )
 
         tdSql.checkData(0, 0, 10)
-
         tdSql.checkData(0, 1, 10)
-
         tdSql.checkData(0, 2, 4.500000000)
-
         tdSql.checkData(0, 3, 4.500000000)
-
         tdSql.checkData(0, 4, 45)
-
         tdSql.checkData(0, 5, 9)
-
         tdSql.checkData(0, 6, 0)
-
         tdSql.checkData(0, 7, 2.872281323)
 
         tdLog.info(f"=============== step4")
@@ -177,40 +160,23 @@ class TestNormalTableBasic:
         tdSql.query(
             f"select count(c001), count(c250), avg(c001), avg(c250), sum(c001), max(c001), min(c250), stddev(c250) from d1.t1"
         )
-        tdLog.info(
-            f"{tdSql.getData(0,0)}  {tdSql.getData(0,1)}  {tdSql.getData(0,2)}  {tdSql.getData(0,3)}  {tdSql.getData(0,4)}  {tdSql.getData(0,5)}  {tdSql.getData(0,6)}  {tdSql.getData(0,7)}"
-        )
         tdSql.checkData(0, 0, 10)
-
         tdSql.checkData(0, 1, 10)
-
         tdSql.checkData(0, 2, 4.500000000)
-
         tdSql.checkData(0, 3, 4.500000000)
-
         tdSql.checkData(0, 4, 45)
-
         tdSql.checkData(0, 5, 9)
-
         tdSql.checkData(0, 6, 0)
-
         tdSql.checkData(0, 7, 2.872281323)
 
         tdSql.query(
             f"select count(c001), count(c250), avg(c001), avg(c250), sum(c001), max(c001), min(c250), stddev(c250), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*) from d1.t1"
         )
         tdSql.checkData(0, 0, 10)
-
         tdSql.checkData(0, 1, 10)
-
         tdSql.checkData(0, 2, 4.500000000)
-
         tdSql.checkData(0, 3, 4.500000000)
-
         tdSql.checkData(0, 4, 45)
-
         tdSql.checkData(0, 5, 9)
-
         tdSql.checkData(0, 6, 0)
-
         tdSql.checkData(0, 7, 2.872281323)

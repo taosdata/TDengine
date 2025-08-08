@@ -7,13 +7,12 @@ class TestNormalTableDrop:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_normal_table_drop(self):
-        """drop normal table
+        """Query: after drop
 
-        1. create normal table
-        2. insert data
-        3. drop table
-        4. show tables
-
+        1. Create a table → insert one record → query that record → repeat this sequence 8 times
+        2. Drop all created tables
+        3. Repeat 1 times
+    
         Catalog:
             - Table:NormalTable:Drop
 

@@ -124,11 +124,10 @@
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normal_table_alter_5.py
 
 ### 04-Query
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normal_table_basic.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normal_table_describe.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normal_table_drop.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normal_table_limit.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normal_table_query.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_query_after_drop.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_query_aggregate.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_composite_key_load.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_query_filter.py
 
 ## 02-SubTables
 ### 01-Create 
@@ -149,9 +148,6 @@
 
 ### 04-Query
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/04-Query/test_sub_table_basic.py
-
-## 03-CompositeKey
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/03-CompositeKey/test_composite_key_load.py
 
 # 04-SuperTables
 ## 01-Create

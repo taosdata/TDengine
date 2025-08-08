@@ -9,7 +9,7 @@ class TestCompositeKeyLoad:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_composite_key_load(self):
-        """read from STT​
+        """Query: composite key
 
         Error Reading Composite Key Data from Memory and STT Files
 

@@ -7,13 +7,13 @@ class TestNormalTableQuery:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_normal_table_query(self):
-        """查询普通表
+        """Query: filter
 
-        1. 创建普通表
-        2. 写入数据
-        3. 投影查询
-        4. 聚合查询
-        5. 字段筛选
+        1. Create a normal table
+        2. Insert data
+        3. Execute projection queries
+        4. Execute aggregate queries
+        5. Execute field filtering queries
 
         Catalog:
             - Table:NormalTable:Query
