@@ -310,20 +310,7 @@ static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalo
     }
   }
 
-  int32_t numOfIndex = taosArrayGetSize(hbRsp.pIndexRsp);
-  for (int32_t i = 0; i < numOfIndex; ++i) {
-    STableIndexRsp *rsp = taosArrayGet(hbRsp.pIndexRsp, i);
-    if (NULL == rsp) {
-      code = terrno;
-      goto _return;
-    }
-    TSC_ERR_JRET(catalogUpdateTableIndex(pCatalog, rsp));
-  }
-
 _return:
-  taosArrayDestroy(hbRsp.pIndexRsp);
-  hbRsp.pIndexRsp = NULL;
-
   tFreeSSTbHbRsp(&hbRsp);
   return code;
 }
