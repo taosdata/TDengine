@@ -130,6 +130,7 @@ Java 连接器创建消费者的参数为 Properties，可以设置的参数列�
 - `ws.autoReconnect`：WebSocket 是否自动重连，默认 false。
 - `ws.reconnectIntervalMs`：WebSocket 重连间隔时间毫秒，默认 2000。
 - `ws.reconnectRetryCount`：WebSocket 重连重试次数，默认 3。
+- `timezone`：订阅结果时间类型解析使用的时区，使用 IANA 时区格式，例如：`Europe/Paris`（v3.7.4 及以上版本支持）。
 
 其他参数见上表。
 
