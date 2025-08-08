@@ -286,7 +286,7 @@ class TestUdfCluster:
             tdLog.info(" loop restart taosudf  %d_th  at dnode_index : %s" % (i ,dnode.index))
             self.basic_udf_query(dnode)
             # stop taosudf cmds
-            get_processID = "ps -ef | grep -w taosudf | grep %s | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}'"%cfgPath
+            get_processID = "ps -efww | grep -w taosudf | grep %s | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}'"%cfgPath
             processID = subprocess.check_output(get_processID, shell=True).decode("utf-8")
             stop_udfd = " kill -9 %s" % processID
             os.system(stop_udfd)

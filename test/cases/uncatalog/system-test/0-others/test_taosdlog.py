@@ -117,7 +117,7 @@ class TestTaosdlog:
         if platform.system().lower() == 'windows':
             psCmd = "for /f %%a in ('wmic process where \"name='%s.exe'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' | xargs)" % binName
         else:
-            psCmd = "ps -ef | grep -w %s | grep -v grep | awk '{print $2}'" % binName
+            psCmd = "ps -efww | grep -w %s | grep -v grep | awk '{print $2}'" % binName
         tdLog.info(f"psCmd:{psCmd}")
 
         try:

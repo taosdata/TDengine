@@ -582,7 +582,7 @@ class TestUdfCfg2:
             tdSql.checkData(0,0,169.661427555)
             tdSql.checkData(0,1,169.661427555)
             # stop taosudf cmds
-            get_processID = "ps -ef | grep -w taosudf | grep -v grep| grep -v defunct | awk '{print $2}'"
+            get_processID = "ps -efww | grep -w taosudf | grep -v grep| grep -v defunct | awk '{print $2}'"
             processID = subprocess.check_output(get_processID, shell=True).decode("utf-8")
             stop_udfd = " kill -9 %s" % processID
             os.system(stop_udfd)

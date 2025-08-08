@@ -94,7 +94,7 @@ class TaosAdapter:
             else:
                 if "asanDir" in tmpDict:
                     if i == "localhost":
-                        killCmd = ["ps -ef | grep -w taosadapter | grep -v grep | awk '{print $2}' | xargs kill "]
+                        killCmd = ["ps -efww | grep -w taosadapter | grep -v grep | awk '{print $2}' | xargs kill "]
                         env = os.environ.copy()
                         env.pop('LD_PRELOAD', None)
                         try:
@@ -102,11 +102,11 @@ class TaosAdapter:
                         except Exception as e:
                             print(e)
                     else:
-                        killCmd = ["ps -ef | grep -w %s | grep -v grep | awk '{print $2}' | xargs kill " % nodeDict["name"]]
+                        killCmd = ["ps -efww | grep -w %s | grep -v grep | awk '{print $2}' | xargs kill " % nodeDict["name"]]
                         self._remote.cmd(i, killCmd)
                 else:
                     killCmd = [
-                        "ps -ef|grep -wi %s| grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1 || true" % nodeDict[
+                        "ps -efww |grep -wi %s| grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1 || true" % nodeDict[
                             "name"]]
                     self._remote.cmd(i, killCmd)
                 #cmdList = []
@@ -160,7 +160,7 @@ class TaosAdapter:
                     i, adapterCfgPath, config_dir)
                 self._remote.put(i, taosCfgPath, config_dir)
                 if restart:
-                    killCmd = "ps -ef | grep -wi taosAdapter | grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1"
+                    killCmd = "ps -efww | grep -wi taosAdapter | grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1"
                     self._remote.cmd(i, [killCmd, "screen -d -m taosadapter -c {}  ".format(tmp_dict["spec"]["config_file"]), "sleep 5s"])
 
     def update_taosa_toml(self, tmp_dict, node, restart):
@@ -174,7 +174,7 @@ class TaosAdapter:
                     i, adapterCfgPath, config_dir)
                 self._remote.put(i, taosCfgPath, config_dir)
                 if restart:
-                    killCmd = "ps -ef | grep -wi taosAdapter | grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1"
+                    killCmd = "ps -efww | grep -wi taosAdapter | grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1"
                     self._remote.cmd(i, [killCmd, "screen -d -m taosadapter -c {}  ".format(tmp_dict["spec"]["config_file"]), "sleep 5s"])
 
     def get_cfg(self, tmp_dict, cfg_dict):

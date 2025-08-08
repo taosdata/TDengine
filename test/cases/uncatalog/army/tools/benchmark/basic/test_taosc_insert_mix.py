@@ -48,7 +48,7 @@ class TestTaoscInsertMix:
             tdLog.info("%s" % cmd)
             os.system("%s" % cmd)
 
-        psCmd = "ps -ef|grep -w taosBenchmark| grep -v grep | awk '{print $2}'"
+        psCmd = "ps -efww |grep -w taosBenchmark| grep -v grep | awk '{print $2}'"
         processID = subprocess.check_output(psCmd, shell=True)
 
         while processID:

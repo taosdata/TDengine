@@ -151,8 +151,8 @@ def taosdStart():
 def taosdStop():
     i = 1
     toBeKilled = "taosd"
-    killCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1" % toBeKilled
-    psCmd   = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % toBeKilled
+    killCmd = "ps -efww |grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1" % toBeKilled
+    psCmd   = "ps -efww |grep -w %s| grep -v grep | awk '{print $2}'" % toBeKilled
     processID = subprocess.check_output(psCmd, shell=True)
     while(processID):
         os.system(killCmd)

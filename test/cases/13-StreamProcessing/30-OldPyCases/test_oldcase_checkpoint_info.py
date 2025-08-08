@@ -260,7 +260,7 @@ class Test_checkpoint_info_Case:
         if numOfDnodes >2:
             tdLog.info(f"kill one dnode: ")
             cmd = (
-            f"ps -ef | grep -wi taosd | grep 'dnode{numOfDnodes}/cfg' "
+            f"ps -efww | grep -wi taosd | grep 'dnode{numOfDnodes}/cfg' "
             "| grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1"
             )
 

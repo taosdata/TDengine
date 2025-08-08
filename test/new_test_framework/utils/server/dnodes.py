@@ -188,10 +188,10 @@ class TDDnodes:
             )
         else:
             killCmd = (
-                "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1"
+                "ps -efww |grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1"
                 % processerName
             )
-            psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % processerName
+            psCmd = "ps -efww |grep -w %s| grep -v grep | awk '{print $2}'" % processerName
 
         processID = ""
 
@@ -231,7 +231,7 @@ class TDDnodes:
             self.dnodes[i].stop()
 
         if distro_id == "alpine":
-            psCmd = "ps -ef | grep -w taosd | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
+            psCmd = "ps -efww | grep -w taosd | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
             processID = (
                 subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
             )
@@ -248,7 +248,7 @@ class TDDnodes:
             self.killProcesser("tmq_sim")
             self.killProcesser("taosBenchmark")
         else:
-            psCmd = "ps -ef | grep -w taosd | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
+            psCmd = "ps -efww | grep -w taosd | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
             processID = (
                 subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
             )
@@ -257,7 +257,7 @@ class TDDnodes:
                 os.system(cmd)
             # if os.system(cmd) != 0 :
             # tdLog.exit(cmd)
-            psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
+            psCmd = "ps -efww |grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
             processID = (
                 subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
             )
@@ -270,7 +270,7 @@ class TDDnodes:
                 )
         if self.killValgrind == 1:
             psCmd = (
-                "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}' | xargs"
+                "ps -efww |grep -w valgrind.bin| grep -v grep | awk '{print $2}' | xargs"
             )
             processID = (
                 subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
