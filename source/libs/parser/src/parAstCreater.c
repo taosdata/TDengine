@@ -1072,6 +1072,15 @@ SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pL
     pVal->node.resType.type = getMinusDataType(pVal->node.resType.type);
     return pLeft;
   }
+  if (QUERY_NODE_VALUE == nodeType(pLeft)) {
+    SValueNode* pVal = (SValueNode*)pLeft;
+    pVal->tz = pCxt->pQueryCxt->timezone;
+  }
+  if (QUERY_NODE_VALUE == nodeType(pRight)) {
+    SValueNode* pVal = (SValueNode*)pRight;
+    pVal->tz = pCxt->pQueryCxt->timezone;
+  }
+
   SOperatorNode* op = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&op);
   CHECK_MAKE_NODE(op);
