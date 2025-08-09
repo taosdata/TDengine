@@ -310,9 +310,10 @@ dotnet add package TDengine.Connector
 
     原生连接：
 
-    - `cfg` 指定 taos.cfg 目录
-    - `cgoThread` 指定 cgo 同时执行的数量，默认为系统核数
-    - `cgoAsyncHandlerPoolSize` 指定异步函数的 handle 大小，默认为 10000
+    - `cfg` 指定 taos.cfg 目录。
+    - `cgoThread` 指定 cgo 同时执行的数量，默认为系统核数。
+    - `cgoAsyncHandlerPoolSize` 指定异步函数的 handle 大小，默认为 10000。
+    - `timezone` 指定连接使用的时区，sql 解析以及查询结果都会按照此时区进行转换，只支持 IANA 时区格式，特殊字符需要进行编码，以巴黎时区（`Europe/Paris`）为例：`timezone=Europe%2FParis`。
 
     REST 连接：
 
@@ -320,12 +321,14 @@ dotnet add package TDengine.Connector
     - `readBufferSize` 读取数据的缓存区大小默认为 4K（4096），当查询结果数据量多时可以适当调大该值。
     - `token` 连接云服务时使用的 token。
     - `skipVerify` 是否跳过证书验证，默认为 false 不跳过证书验证，如果连接的是不安全的服务设置为 true。
+    - `timezone` 指定连接使用的时区，sql 解析以及查询结果都会按照此时区进行转换，只支持 IANA 时区格式，特殊字符需要进行编码，以巴黎时区（`Europe/Paris`）为例：`timezone=Europe%2FParis`。
 
     WebSocket 连接：
 
     - `enableCompression` 是否发送压缩数据，默认为 false 不发送压缩数据，如果传输数据使用压缩设置为 true。
     - `readTimeout` 读取数据的超时时间，默认为 5m。
     - `writeTimeout` 写入数据的超时时间，默认为 10s。
+    - `timezone` 指定连接使用的时区，sql 解析以及查询结果都会按照此时区进行转换，只支持 IANA 时区格式，特殊字符需要进行编码，以巴黎时区（`Europe/Paris`）为例：`timezone=Europe%2FParis`。
 
     </TabItem>
     <TabItem label="Rust" value="rust">
