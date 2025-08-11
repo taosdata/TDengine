@@ -3783,7 +3783,9 @@ static int32_t stHistoryContextInit(SSTriggerHistoryContext *pContext, SStreamTr
   pContext->pTask = pTask;
   pContext->sessionId = STREAM_TRIGGER_HISTORY_SESSIONID;
   pContext->status = STRIGGER_CONTEXT_WAIT_RECALC_REQ;
-  if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
+  if (pTask->isVirtualTable) {
+    pContext->needTsdbMeta = true;
+  } else if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
     pContext->needTsdbMeta = (pTask->triggerFilter != NULL) || pTask->hasTriggerFilter ||
                              (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM) || pTask->ignoreNoDataTrigger;
   } else if (pTask->isVirtualTable || (pTask->triggerType == STREAM_TRIGGER_SESSION) ||
@@ -4580,8 +4582,8 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
     if (pContext->needTsdbMeta) {
       // TODO(kjq): use precision of trigger table
       int64_t step = STREAM_TRIGGER_HISTORY_STEP_MS;
-      pContext->stepRange.skey = pContext->scanRange.skey / step * step;
-      pContext->stepRange.ekey = pContext->stepRange.skey + step - 1;
+      pContext->stepRange.skey = pContext->scanRange.skey;
+      pContext->stepRange.ekey = pContext->scanRange.skey / step * step + step - 1;
       for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
            pContext->curReaderIdx++) {
         code = stHistoryContextSendPullReq(pContext, STRIGGER_PULL_TSDB_META);
@@ -4722,9 +4724,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
     if (pContext->needTsdbMeta) {
       // TODO(kjq): use precision of trigger table
       int64_t step = STREAM_TRIGGER_HISTORY_STEP_MS;
-      QUERY_CHECK_CONDITION(pContext->stepRange.skey + step - 1 == pContext->stepRange.ekey, code, lino, _end,
-                            TSDB_CODE_INTERNAL_ERROR);
-      finished = (pContext->stepRange.skey + step > pContext->scanRange.ekey);
+      finished = (pContext->stepRange.ekey + 1 > pContext->scanRange.ekey);
     } else if (pTask->triggerType != STREAM_TRIGGER_SLIDING) {
       for (int32_t i = 0; i < TARRAY_SIZE(pContext->pTrigDataBlocks); i++) {
         SSDataBlock *pDataBlock = *(SSDataBlock **)TARRAY_GET_ELEM(pContext->pTrigDataBlocks, i);
@@ -4833,7 +4833,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
     if (pContext->needTsdbMeta) {
       // TODO(kjq): use precision of trigger table
       int64_t step = STREAM_TRIGGER_HISTORY_STEP_MS;
-      pContext->stepRange.skey += step;
+      pContext->stepRange.skey += pContext->stepRange.ekey + 1;
       pContext->stepRange.ekey += step;
       for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
            pContext->curReaderIdx++) {
@@ -7821,7 +7821,9 @@ static int32_t stHistoryGroupDoSlidingCheck(SSTriggerHistoryGroup *pGroup) {
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  if ((pTask->triggerFilter != NULL) || pTask->hasTriggerFilter) {
+  if (pTask->isVirtualTable) {
+    readAllData = true;
+  } else if ((pTask->triggerFilter != NULL) || pTask->hasTriggerFilter) {
     readAllData = true;
   } else if (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM) {
     readAllData = true;
