@@ -349,6 +349,15 @@ typedef struct SDiffInfo {
   int64_t prevTs;
 } SDiffInfo;
 
+typedef struct SValueChangeInfo {
+  bool   hasPrev;
+  bool   isFirstRow;
+  int8_t ignoreOption;  // replace the ignore with case when
+  int64_t prev;
+
+  int64_t prevTs;
+} SValueChangeInfo;
+
 typedef struct SElapsedInfo {
   double  result;
   TSKEY   min;

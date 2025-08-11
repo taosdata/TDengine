@@ -3204,6 +3204,12 @@ bool getDiffFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   return true;
 }
 
+bool getValueChangeFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  // pEnv->calcMemSize = sizeof(SValueChangeInfo);
+  // return true;
+  return getDiffFuncEnv(pFunc, pEnv);  // reuse diff function env
+}
+
 int32_t diffFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   if (pResInfo->initialized) {
     return TSDB_CODE_SUCCESS;
@@ -3222,6 +3228,31 @@ int32_t diffFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
     pDiffInfo->ignoreOption = 0;
   }
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t valueChangeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
+  #if 0
+  if (pResInfo->initialized) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (TSDB_CODE_SUCCESS != functionSetup(pCtx, pResInfo)) {
+    return TSDB_CODE_FUNC_SETUP_ERROR;
+  }
+  SValueChangeInfo* pValueChangeInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  pValueChangeInfo->hasPrev = false;
+  pValueChangeInfo->isFirstRow = true;
+  pValueChangeInfo->prev = 0;
+  pValueChangeInfo->prevTs = -1;
+  if (pCtx->numOfParams > 1) {
+    pValueChangeInfo->ignoreOption = pCtx->param[1].param.i;  // TODO set correct param
+  } else {
+    pValueChangeInfo->ignoreOption = 1;
+  }
+
+  return TSDB_CODE_SUCCESS;
+  #endif
+
+  return diffFunctionSetup(pCtx, pResInfo);  // reuse diff function setup
 }
 
 static int32_t doSetPrevVal(SDiffInfo* pDiffInfo, int32_t type, const char* pv, int64_t ts) {
@@ -3530,8 +3561,12 @@ int32_t setDoDiffResult(SqlFunctionCtx* pCtx, SFuncInputRow* pRow, int32_t pos) 
 
 int32_t diffFunction(SqlFunctionCtx* pCtx) { return TSDB_CODE_SUCCESS; }
 
+int32_t valueChangeFunction(SqlFunctionCtx* pCtx) { return TSDB_CODE_SUCCESS; }
+
 int32_t diffFunctionByRow(SArray* pCtxArray) {
+
   int32_t code = TSDB_CODE_SUCCESS;
+  #if 1
   int     diffColNum = pCtxArray->size;
   if (diffColNum == 0) {
     return TSDB_CODE_SUCCESS;
@@ -3636,7 +3671,121 @@ _exit:
     taosArrayDestroy(pRows);
     pRows = NULL;
   }
+  #endif
   return code;
+}
+
+int32_t valueChangeFunctionByRow(SArray* pCtxArray) {
+  #if 0
+  int32_t code = TSDB_CODE_SUCCESS;
+  int     diffColNum = pCtxArray->size;
+  if (diffColNum == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t numOfElems = 0;
+
+  SArray* pRows = taosArrayInit_s(sizeof(SFuncInputRow), diffColNum);
+  if (NULL == pRows) {
+    return terrno;
+  }
+
+  bool keepNull = false;
+  for (int i = 0; i < diffColNum; ++i) {
+    SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
+    if (NULL == pCtx) {
+      code = terrno;
+      goto _exit;
+    }
+    funcInputUpdate(pCtx);
+    SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+    SValueChangeInfo*    pValueChangeInfo = GET_ROWCELL_INTERBUF(pResInfo);
+    if (!ignoreNull(pValueChangeInfo->ignoreOption)) {
+      keepNull = true;
+    }
+  }
+
+  SqlFunctionCtx* pCtx0 = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, 0);
+  SFuncInputRow*  pRow0 = (SFuncInputRow*)taosArrayGet(pRows, 0);
+  if (NULL == pCtx0 || NULL == pRow0) {
+    code = terrno;
+    goto _exit;
+  }
+  int32_t startOffset = pCtx0->offset;
+  bool    result = false;
+  while (1) {
+    code = funcInputGetNextRow(pCtx0, pRow0, &result);
+    if (TSDB_CODE_SUCCESS != code) {
+      goto _exit;
+    }
+    if (!result) {
+      break;
+    }
+    bool hasNotNullValue = !diffResultIsNull(pCtx0, pRow0);
+    for (int i = 1; i < diffColNum; ++i) {
+      SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
+      SFuncInputRow*  pRow = (SFuncInputRow*)taosArrayGet(pRows, i);
+      if (NULL == pCtx || NULL == pRow) {
+        code = terrno;
+        goto _exit;
+      }
+      code = funcInputGetNextRow(pCtx, pRow, &result);
+      if (TSDB_CODE_SUCCESS != code) {
+        goto _exit;
+      }
+      if (!result) {
+        // rows are not equal
+        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        goto _exit;
+      }
+      if (!diffResultIsNull(pCtx, pRow)) {
+        hasNotNullValue = true;
+      }
+    }
+    int32_t pos = startOffset + numOfElems;
+
+    bool newRow = false;
+    for (int i = 0; i < diffColNum; ++i) {
+      SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
+      SFuncInputRow*  pRow = (SFuncInputRow*)taosArrayGet(pRows, i);
+      if (NULL == pCtx || NULL == pRow) {
+        code = terrno;
+        goto _exit;
+      }
+      if ((keepNull || hasNotNullValue) && !isFirstRow(pCtx, pRow)) {
+        code = setDoDiffResult(pCtx, pRow, pos);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _exit;
+        }
+        newRow = true;
+      } else {
+        code = trySetPreVal(pCtx, pRow);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _exit;
+        }
+      }
+    }
+    if (newRow) ++numOfElems; 
+  }
+  
+  for (int i = 0; i < diffColNum; ++i) {
+    SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
+    if (NULL == pCtx) {
+      code = terrno;
+      goto _exit;
+    }
+    SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+    pResInfo->numOfRes = numOfElems;
+  }
+  
+_exit:
+  if (pRows) {
+    taosArrayDestroy(pRows);
+    pRows = NULL;
+  }
+  return code;
+  #endif
+  
+  return diffFunctionByRow(pCtxArray);  // reuse diff function by row
 }
 
 int32_t getTopBotInfoSize(int64_t numOfItems) { return sizeof(STopBotRes) + numOfItems * sizeof(STopBotResItem); }
