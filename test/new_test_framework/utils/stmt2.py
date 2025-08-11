@@ -7,13 +7,12 @@ from .log import tdLog
 
 class TDStmt2:
     """
-    TDengine Stmt2 utility class for easier statement preparation and execution
-    Based on official Python connector API (v0.5.1+)
+    TDengine Stmt2 utility class 
     """
     
     def __init__(self, conn=None):
         """
-        Initialize stmt2 helper with connection
+        Initialize stmt2 with connection
         
         Args:
             conn: TDengine connection object
@@ -34,14 +33,12 @@ class TDStmt2:
             database (str): Default database
             **kwargs: Additional connection parameters
         """
-        # Close existing connection if any
         if self.conn:
             try:
                 self.conn.close()
             except:
                 pass
         
-        # Close existing statement if any  
         if self.stmt:
             try:
                 self.stmt.close()
@@ -50,7 +47,6 @@ class TDStmt2:
             self.stmt = None
             self._is_prepared = False
             
-        # Build connection parameters
         conn_params = {
             'host': host,
             'port': port,
@@ -163,8 +159,6 @@ class TDStmt2:
                 column_values = [row[col_idx] for row in params]
                 column_data.append(column_values)
             
-            # For stmt2, we pass the column data directly (not wrapped in another list)
-            # This follows the official example format where data = [col1, col2, col3, col4]
             self.stmt.bind_param(None, None, [column_data])
             
             tdLog.debug("Batch parameters bound successfully")
@@ -175,7 +169,7 @@ class TDStmt2:
         
     def bind_super_table_data(self, tbnames, tags, datas):
         """
-        Bind data for super table operations (following official example format)
+        Bind data for super table operations 
         
         Args:
             tbnames: List of sub-table names
@@ -186,7 +180,7 @@ class TDStmt2:
             self for method chaining
             
         Example:
-            # For official example format:
+            # example data structure
             tbnames = ["d_bind_0", "d_bind_1"]
             tags = [[0, "location_0"], [1, "location_1"]]  
             datas = [
@@ -201,7 +195,6 @@ class TDStmt2:
             if not self._is_prepared:
                 raise ValueError("Statement must be prepared before binding parameters")
             
-            # Use the official stmt2 bind_param method directly
             self.stmt.bind_param(tbnames, tags, datas)
             
             tdLog.debug("Super table data bound successfully")
