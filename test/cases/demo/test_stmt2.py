@@ -28,7 +28,6 @@ class TestStmt2:
     def run_basic_stmt2(self, conn):
         """Test basic stmt2 operations with new API"""
         
-        # Setup test environment
         dbname = "stmt2_test"
         conn.execute(f"DROP DATABASE IF EXISTS {dbname}")
         conn.execute(f"CREATE DATABASE {dbname}")
@@ -83,7 +82,6 @@ class TestStmt2:
         conn.execute(f"CREATE DATABASE {dbname}")
         conn.select_db(dbname)
         
-        # Create super table
         conn.execute("CREATE TABLE device_metrics (ts TIMESTAMP,val DOUBLE,status INT) TAGS (device_id BINARY(50),type INT,location BINARY(100))")
         
         stmt = TDStmt2()
@@ -116,7 +114,6 @@ class TestStmt2:
         conn.execute(f"CREATE DATABASE {dbname}")
         conn.select_db(dbname)
         
-        # Create test table
         conn.execute("CREATE TABLE batch_test (ts TIMESTAMP, val1 INT, val2 DOUBLE, val3 BINARY(50))")
         
         batch_size = 1000
@@ -152,8 +149,24 @@ class TestStmt2:
         tdLog.info(f"Insert of {batch_size} records took: {end_time - start_time:.4f} seconds")
 
     def test_stmt2(self):
-        """Run all new API tests"""
+        """summary: example of using stmt2 API
 
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         config = tdCom.getClientCfgPath()
         host = "localhost"
         conn = self.newcon(host, config)
