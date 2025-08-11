@@ -80,17 +80,18 @@ int32_t initSSL(SSL_CTX* pCtx, STransTLS* ppTLs) {
   if (pTls == NULL) {
     TAOS_CHECK_GOTO(terrno, &lino, _error);
   }
+
   pTls->ssl_ctx = pCtx;
   pTls->ssl = SSL_new(pCtx);
   if (pTls->ssl == NULL) {
-    tError("Failed to create new SSL");
+    tError("Failed to create new SSL_new");
     TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
   }
 
   pTls->readBio = BIO_new(BIO_s_mem());
   pTls->writeBio = BIO_new(BIO_s_mem());
   if (pTls->readBio == NULL || pTls->writeBio == NULL) {
-    tError("Failed to create read/write BIO");
+    tError("Failed to create read/write BIO buffer");
     TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
   }
 
@@ -108,23 +109,6 @@ void setSSLMode(STransTLS* pTls) {
 }
 int32_t sslReadDecryptedData(STransTLS* pTls, char* data, size_t ndata);
 
-// void sslDoRead(STransTLS* pTls) {
-//   char buf[4096] = {0};
-//   while (1) {
-//     int n = SSL_read(pTls->ssl, buf, sizeof(buf));
-//     if (n <= 0) {
-//       int err = SSL_get_error(pTls->ssl, n);
-//       if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
-//         // Non-blocking mode, wait for more data
-//         break;
-//       } else {
-//         handleSSLError(pTls->ssl, n);
-//         return;  // Error occurred
-//       }
-//     }
-//   }
-//   return;
-// }
 void sslOnRead(STransTLS* pTls, size_t nread, const uv_buf_t* buf) {
   if (nread > 0) {
     BIO_write(pTls->readBio, buf->base, nread);

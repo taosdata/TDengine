@@ -22,6 +22,8 @@ extern "C" {
 #endif
 
 typedef struct {
+} STransTLSCtx;
+typedef struct {
   SSL_CTX* ssl_ctx;   // SSL context
   SSL*     ssl;       // SSL connection
   int32_t  refCount;  // reference count
