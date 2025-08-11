@@ -8,12 +8,14 @@ class TestDatabaseShowCreateDb:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_show_create_db(self):
-        """show create db
+        """Show create db
 
-        1. -
+        1. Create database
+        2. Run SHOW CREATE DATABASE
+        3. Verify the result
 
         Catalog:
-            - Database:Create
+            - Database:Query
 
         Since: v3.0.0.0
 
