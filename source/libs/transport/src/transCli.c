@@ -18,6 +18,7 @@
 #include "tversion.h"
 #include "tmisce.h"
 #include "transLog.h"
+#include "transTLS.h"
 // clang-format on
 
 #ifndef TD_ASTRA_RPC
@@ -31,30 +32,6 @@ typedef struct SConnList {
   int32_t size;
   int32_t totalSize;
 } SConnList;
-
-typedef struct {
-  queue   wq;
-  int32_t len;
-
-  int connMax;
-  int connCnt;
-  int batchLenLimit;
-  int sending;
-
-  char*    dst;
-  char*    ip;
-  uint16_t port;
-
-} SCliBatchList;
-
-typedef struct {
-  queue          wq;
-  queue          listq;
-  int32_t        wLen;
-  int32_t        shareConnLimit;  //
-  int32_t        batch;
-  SCliBatchList* pList;
-} SCliBatch;
 
 typedef struct SCliConn {
   int32_t      ref;
@@ -76,8 +53,6 @@ typedef struct SCliConn {
   bool       broken;  // link broken or not
   ConnStatus status;  //
 
-  SCliBatch* pBatch;
-
   SDelayTask* task;
 
   HeapNode node;  // for heap
@@ -95,6 +70,7 @@ typedef struct SCliConn {
 
   int8_t    registered;
   int8_t    connnected;
+
   SHashObj* pQTable;
   int8_t    userInited;
   void*     pInitUserReq;
@@ -235,7 +211,6 @@ static void cliDestroyConnMsgs(SCliConn* conn, bool destroy);
 
 static void doFreeTimeoutMsg(void* param);
 
-static void cliDestroyBatch(SCliBatch* pBatch);
 // cli util func
 static FORCE_INLINE bool    cliIsEpsetUpdated(int32_t code, SReqCtx* pCtx);
 static FORCE_INLINE int32_t cliMayCvtFqdnToIp(SReqEpSet* pEpSet, const SCvtAddr* pCvtAddr);
@@ -1585,20 +1560,6 @@ int32_t cliSendReqPrepare(SCliConn* pConn, SCliReq* pCliMsg) {
   }
   // return cliBatchSend(pConn);
   return 0;
-}
-
-static void cliDestroyBatch(SCliBatch* pBatch) {
-  if (pBatch == NULL) return;
-  while (!QUEUE_IS_EMPTY(&pBatch->wq)) {
-    queue* h = QUEUE_HEAD(&pBatch->wq);
-    QUEUE_REMOVE(h);
-
-    SCliReq* p = QUEUE_DATA(h, SCliReq, q);
-    destroyReq(p);
-  }
-  SCliBatchList* p = pBatch->pList;
-  p->sending -= 1;
-  taosMemoryFree(pBatch);
 }
 
 int32_t cliBuildSockByIpType(SIpAddr* ipAddr, struct sockaddr* addr) {
