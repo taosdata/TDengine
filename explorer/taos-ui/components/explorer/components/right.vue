@@ -27,7 +27,7 @@
         effect="light"
         :content="t('explorer.' + (favorited ? 'deleteCurrentSavedSql' : 'saveCurrentSqlAsFavorite'))"
       >
-        <el-button :disabled="!sqlStr || sqlExecuting" type="success" size="small" @click="toggleFavorite">
+        <el-button :disabled="!sqlStr || sqlExecuting || favorited" type="success" size="small" @click="toggleFavorite">
           <template v-if="!favorited">
             <el-icon :size="14">
               <Star></Star>
@@ -82,32 +82,44 @@ const { sqlStr, sqlExecuting } = getSqlProvider();
 const { favorite, isCloud } = getExplorerProps();
 const sqlEditorRef = ref<null | InstanceType<typeof Sql>>(null);
 const unsubscribe = updateFavoriteEvent.on(() => getFavorites());
-const favorited = computed(
-  () => favoriteData.personal.find(item => item.sql.toLowerCase() == sqlStr.value?.toLowerCase().trim())?.id || ''
-);
+const favorited = computed<Recordable | null>(() => {
+  const current = normalizeSql(sqlStr.value || '');
+  // 在 personal 与 shared 中同时查找，避免 favoriteActiveTab 不同导致找不到
+  const all = [...favoriteData.personal, ...favoriteData.shared];
+  const match = all.find(item => {
+    const itemNorm = normalizeSql(item.sql);
+    // 调试输出
+    // console.log('compare:', current, itemNorm, current === itemNorm, item.sql, sqlStr.value);
+    return itemNorm === current;
+  });
+  return match || null;
+});
 
 function getFavorites() {
-  isCloud ? getCloudFavorites() : getEnterpriseFavorites();
+  return isCloud ? getCloudFavorites() : getEnterpriseFavorites();
 }
 function getCloudFavorites() {
-  favorite.api.getList().then((data: Recordable[]) => {
-    favoriteData.personal = data;
-  });
-
-  favorite.api.getSharedList().then((data: Recordable[]) => {
-    favoriteData.shared = data;
-  });
+  return Promise.all([
+    favorite.api.getList().then((data: Recordable[]) => {
+      favoriteData.personal.splice(0, favoriteData.personal.length, ...data);
+    }),
+    favorite.api.getSharedList().then((data: Recordable[]) => {
+      favoriteData.shared.splice(0, favoriteData.shared.length, ...data);
+    })
+  ]);
 }
 function getEnterpriseFavorites() {
-  favoriteActiveTab.value == 'personal'
-    ? favorite.api.getList(favoriteParams).then((res: Recordable) => {
-        favoriteData.personal = res.data.list;
-        favoriteData.total = res.data.total;
-      })
-    : favorite.api.getSharedList(favoriteParams).then((res: Recordable) => {
-        favoriteData.shared = res.data.list;
-        favoriteData.total = res.data.total;
-      });
+  if (favoriteActiveTab.value == 'personal') {
+    return favorite.api.getList(favoriteParams).then((res: Recordable) => {
+      favoriteData.personal.splice(0, favoriteData.personal.length, ...res.data.list);
+      favoriteData.total = res.data.total;
+    });
+  } else {
+    return favorite.api.getSharedList(favoriteParams).then((res: Recordable) => {
+      favoriteData.shared.splice(0, favoriteData.shared.length, ...res.data.list);
+      favoriteData.total = res.data.total;
+    });
+  }
 }
 onMounted(() => {
   dragChangeHeight('bar', 'sql');
@@ -139,43 +151,63 @@ function dragChangeHeight(drag: string, panel: string) {
 }
 
 async function toggleFavorite() {
-  favorited.value
-    ? await favorite.api
-        .delete(favorited.value.id)
-        .then(() => ElMessage.success(t('msg.deleteSuccess')))
-        .catch(() => {})
-    : isCloud
-      ? await favorite.api
-          .add(sqlStr.value.trim())
-          .then(() => ElMessage.success(t('msg.addSuccess')))
-          .catch(() => {})
-      : addDesc();
+  if (favorited.value) {
+    // favorited 现在是对象
+    await favorite.api
+      .delete(favorited.value.id)
+      .then(() => {
+        ElMessage.success(t('msg.deleteSuccess'));
+      })
+      .catch(() => {});
+    await getFavorites(); // 刷新收藏列表
+  } else if (isCloud) {
+    await favorite.api
+      .add(normalizeSql(sqlStr.value))
+      .then(() => {
+        ElMessage.success(t('msg.addSuccess'));
+      })
+      .catch(() => {});
+    await getFavorites();
+  } else {
+    await addDesc();
+    await getFavorites();
+  }
   panelActiveTab.value = 'favorites';
-  getFavorites();
+}
+
+function normalizeSql(sql: string) {
+  return sql.replace(/\s+/g, '').toLowerCase();
 }
 
 function addDesc() {
-  ElMessageBox.prompt('', t('explorer.addDesc'), {
-    closeOnClickModal: false,
-    confirmButtonText: t('common.confirm'),
-    cancelButtonText: t('common.cancel'),
-    inputPattern: /^.{0,20}$/,
-    inputErrorMessage: t('explorer.characterLen', ['20']),
-    inputPlaceholder: t('explorer.descPlaceholder', ['20'])
-  })
-    .then(({ value }) => {
-      const params = {
-        sql: sqlStr.value.trim(),
-        description: value
-      };
-      favorite.api
-        .add(params)
-        .then(() => ElMessage.success(t('msg.addSuccess')))
-        .catch(() => {});
+    return new Promise((resolve, reject) => {
+    ElMessageBox.prompt('', t('explorer.addDesc'), {
+      closeOnClickModal: false,
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
+      inputPattern: /^.{0,20}$/,
+      inputErrorMessage: t('explorer.characterLen', ['20']),
+      inputPlaceholder: t('explorer.descPlaceholder', ['20'])
     })
-    .catch(err => {
-      console.log(err);
-    });
+      .then(({ value }) => {
+        const params = {
+          sql: normalizeSql(sqlStr.value),
+          description: value
+        };
+        favorite.api
+          .add(params)
+          .then(() => {
+            ElMessage.success(t('msg.addSuccess'));
+            resolve(undefined);
+          })
+          .catch(err => {
+            reject(err);
+          });
+      })
+      .catch(err => {
+        reject(err);
+      });
+  });
 }
 </script>
 
