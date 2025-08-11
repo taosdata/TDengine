@@ -20,7 +20,10 @@
 #include "transLog.h"
 // clang-format on
 
-SSL_CTX* init_ssl_ctx(const char* cert_path, const char* key_path, const char* ca_path) {
+static int32_t sslReadDecryptedData(STransTLS* pTls, char* data, size_t ndata);
+static int32_t sslWriteEncyptedData(STransTLS* pTls, const char* data, size_t ndata);
+
+SSL_CTX* initSSLCtx(const char* cert_path, const char* key_path, const char* ca_path) {
   SSL_CTX* ctx = SSL_CTX_new(TLS_method());
   SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
 
@@ -49,7 +52,7 @@ SSL_CTX* init_ssl_ctx(const char* cert_path, const char* key_path, const char* c
   }
   return ctx;
 }
-void destroy_ssl_ctx(SSL_CTX* ctx) {
+void destroySSLCtx(SSL_CTX* ctx) {
   if (ctx) {
     SSL_CTX_free(ctx);
   }
@@ -92,7 +95,7 @@ int32_t transTlsCtxCreate(const char* certPath, const char* keyPath, const char*
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
-  pCtx->ssl_ctx = init_ssl_ctx(certPath, keyPath, caPath);
+  pCtx->ssl_ctx = initSSLCtx(certPath, keyPath, caPath);
   if (pCtx->ssl_ctx == NULL) {
     tError("Failed to initialize SSL context");
     TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
@@ -109,7 +112,8 @@ _error:
 
 void transTlsCtxDestroy(STransTLSCtx* pCtx) {
   if (pCtx) {
-    destroy_ssl_ctx(pCtx->ssl_ctx);
+    destroySSLCtx(pCtx->ssl_ctx);
+    pCtx->ssl_ctx = NULL;
 
     taosMemoryFree(pCtx->certfile);
     taosMemoryFree(pCtx->keyfile);
@@ -162,18 +166,26 @@ void setSSLMode(STransTLS* pTls) {
 int32_t sslReadDecryptedData(STransTLS* pTls, char* data, size_t ndata);
 
 void sslOnRead(STransTLS* pTls, size_t nread, const uv_buf_t* buf) {
+  int32_t code = 0;
   int32_t nwrite = 0;
   if (nread > 0) {
     nwrite = BIO_write(pTls->readBio, buf->base, nread);
 
     if (!SSL_is_init_finished(pTls->ssl)) {
-      int ret = SSL_accept(pTls->ssl);
-      if (ret <= 0) {
-        handleSSLError(pTls->ssl, ret);
-        return;
+      int ret = SSL_connect(pTls->ssl);
+      if (ret != 1) {
+        int err = SSL_get_error(pTls->ssl, ret);
+        if (err == SSL_ERROR_WANT_READ) {
+          code = sslWriteEncyptedData(pTls, buf->base, nread);
+        } else {
+          tError("SSL connect error: %s", ERR_reason_error_string(ERR_get_error()));
+          code = TSDB_CODE_THIRDPARTY_ERROR;
+        }
+      } else {
+        SSL_write(pTls->ssl, buf->base, nread);
       }
     } else {
-      sslReadDecryptedData(pTls, NULL, 0);
+      code = sslReadDecryptedData(pTls, NULL, 0);
     }
   } else if (nread < 0) {
     tError("SSL read error: %s", ERR_reason_error_string(ERR_get_error()));
@@ -222,7 +234,9 @@ void sslOnWrite(STransTLS* pTls, const char* data, size_t ndata) {
 
 void sslOnNewConn(STransTLS* pTls) { return; }
 
-void sslOnConn(STransTLS* pTls) {}
+void sslOnConn(STransTLS* pTls) {
+  
+}
 
 void destroySSL(STransTLS* pTLs) {
   if (pTLs && pTLs->pTlsCtx) {
