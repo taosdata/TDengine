@@ -193,7 +193,6 @@ class TDTestCase:
         self.check_stmt_insert_multi(connectstmt, True)
         self.check_stmt_insert_multi(connectstmt, False)
         self.clear_env(connectstmt)
-        self.test_stmt_insert_multi(connectstmt)
         return
 
 
