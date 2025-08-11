@@ -1015,7 +1015,7 @@ static int32_t smlModifyTag(SSmlHandle *info, SHashObj* hashTmpCheck, SHashObj* 
 
     info->cost.numOfAlterTagSTables++;
     taosMemoryFreeClear(*pTableMeta);
-    SML_CHECK_CODE(catalogRefreshTableMeta(info->pCatalog, conn, pName, -1));
+    SML_CHECK_CODE(catalogRemoveTableMeta(info->pCatalog, pName));
     SML_CHECK_CODE(catalogGetSTableMeta(info->pCatalog, conn, pName, pTableMeta));
   }
 
@@ -1046,7 +1046,7 @@ static int32_t smlModifyCols(SSmlHandle *info, SHashObj* hashTmpCheck, SHashObj*
 
     info->cost.numOfAlterColSTables++;
     taosMemoryFreeClear(*pTableMeta);
-    SML_CHECK_CODE(catalogRefreshTableMeta(info->pCatalog, conn, pName, -1));
+    SML_CHECK_CODE(catalogRemoveTableMeta(info->pCatalog, pName));
     SML_CHECK_CODE(catalogGetSTableMeta(info->pCatalog, conn, pName, pTableMeta));
   }
 
@@ -1157,7 +1157,7 @@ END:
   taosHashCleanup(colHashTmp);
   taosHashCleanup(tagHashTmp);
   taosMemoryFreeClear(pTableMeta);
-  (void)catalogRefreshTableMeta(info->pCatalog, &conn, &pName, 1);  // ignore refresh meta code if there is an error
+  (void)(catalogRemoveTableMeta(info->pCatalog, pName));
   uError("SML:0x%" PRIx64 ", %s end failed:%d:%s, format:%d, needModifySchema:%d", info->id, __FUNCTION__, code,
          tstrerror(code), info->dataFormat, info->needModifySchema);
 
