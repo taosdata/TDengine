@@ -109,6 +109,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_datatype_int.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_datatype_smallint.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_datatype_tinyint.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_name_illegal.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_name_length.py 
 
 ### 02-Drop
@@ -130,96 +131,32 @@
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_query_filter.py
 
 ## 02-SubTables
-### 01-Create 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_normal_table_multi.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_autocreate_tb_drop_tb.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_autocreate_tb.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_autocreate.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_batchcreate.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_create_tb.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_create_with_tag_name.py 
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_tags_dynamically_specifiy.py
-
-### 02-Drop
-
-### 03-Alter
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/03-Alter/test_set_tag_vals.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/03-Alter/test_sub_table_alter.py
-
-### 04-Query
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/04-Query/test_sub_table_basic.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_autocreate.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_batchcreate.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_drop.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_query.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_set_tag_vals.py
 
 # 04-SuperTables
 ## 01-Create
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_create_mt.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_metrics.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_refcount.py 
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_create_basic.py
 
 ## 02-Drop
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/02-Drop/test_stable_drop_basic3.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/02-Drop/test_stable_reuse_repeat.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/02-Drop/test_stable_drop_basic.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/02-Drop/test_stable_drop_repeat.py
 
 ## 03-Alter
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_parser_alter_column.py 
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_parser_alter_stable.py 
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_parser_alter1.py 
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_parser_op.py 
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_alter_1.py 
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_alter_2.py 
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_alter_3.py 
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_alter_4.py 
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_alter_5.py 
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_tag_add.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_tag_drop.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_tag_modify.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_tag_rename.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_tag_add.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_tag_change.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_tag_commit.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_tag_create.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_tag_drop.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_tag_drop_table.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_tag_set_multi.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_tag_set.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_alter_basic.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_alter_tag.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_alter_write_data.py
 
 ## 04-Query
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_2.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_3.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_4.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_5.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_6.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_bigint.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_binary.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_bool.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_double.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_float.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_int.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_smallint.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_tinyint.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_ubigint.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_dnode3.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_vnode3.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_tag_filter_2.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_3.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_4.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_5.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_6.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_bigint.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_binary_binary.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_binary.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_bool_binary.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_bool_int.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_bool.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_column.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_double.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_filter.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_float.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_int_binary.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_int_float.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_int.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_smallint.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_tbname_in.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_tinyint.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_column_datatypes.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_column_filter.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_from_dnodes.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_tag_datatypes.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_tag_filter.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_tbname_filter.py
 
 # 05-VirtualTables
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_create.py
