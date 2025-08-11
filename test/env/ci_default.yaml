@@ -1,0 +1,48 @@
+settings:
+- fqdn:
+  - localhost
+  name: taosd
+  spec:
+    config:
+      firstEP: localhost:6030
+    dnodes:
+    - asanDir: /home/tony/codes/TDengine/sim/asan/dnode1.asan
+      config:
+        asyncLog: 0
+        cDebugFlag: 135
+        charset: UTF-8
+        dDebugFlag: 131
+        dataDir: /home/tony/codes/TDengine/sim/dnode1/data
+        enableQueryHb: 1
+        jniDebugFlag: 131
+        keepColumnName: '1'
+        locale: en_US.UTF-8
+        logDir: /home/tony/codes/TDengine/sim/dnode1/log
+        mDebugFlag: 135
+        maxShellConns: 30000
+        monitor: 0
+        mqttPort: 6083
+        numOfLogLines: 100000000
+        qDebugFlag: 131
+        queryBufferSize: 10240
+        querySmaOptimize: '1'
+        rpcDebugFlag: 135
+        sDebugFlag: 131
+        slowLogScope: none
+        smaDebugFlag: 135
+        stDebugFlag: 135
+        statusInterval: 1
+        supportVnodes: '1024'
+        telemetryReporting: 0
+        tmrDebugFlag: 131
+        tqDebugFlag: 135
+        ttlChangeOnWrite: '1'
+        uDebugFlag: 131
+        vDebugFlag: 131
+        wDebugFlag: 131
+      config_dir: /home/tony/codes/TDengine/sim/dnode1/cfg
+      endpoint: localhost:6030
+      mqttPort: 6083
+      system: linux
+      taosdPath: /home/tony/codes/TDengine/debug/build/bin/taosd
+    version: 2.4.0.0
