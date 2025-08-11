@@ -174,9 +174,11 @@ int32_t bseTableMgtGet(STableMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *
     TSDB_CHECK_CODE(code, lino, _error);
   } else {
     code = tableBuilderMgtSeek(pSubMgt->pBuilderMgt, seq, pValue, len);
-    if (code == TSDB_CODE_OUT_OF_RANGE) {
-      code = tableReaderMgtSeek(pSubMgt->pReaderMgt, seq, pValue, len);
-      TSDB_CHECK_CODE(code, lino, _error);
+    if (code != TSDB_CODE_SUCCESS) {
+      if (code != TSDB_CODE_OUT_OF_RANGE) {
+        code = tableReaderMgtSeek(pSubMgt->pReaderMgt, seq, pValue, len);
+        TSDB_CHECK_CODE(code, lino, _error);
+      }
     }
   }
 _error:
@@ -519,7 +521,7 @@ int32_t tableBuilderMgtSeek(STableBuilderMgt *pMgt, int64_t seq, uint8_t **pValu
   (void)taosThreadRwlockRdlock(&pMgt->mutex);
   pBuilder = pMgt->p;
 
-  if (pBuilder && seqRangeContains(&pBuilder->tableRange, seq)) {
+  if (pBuilder) {
     code = tableBuilderGet(pBuilder, seq, pValue, len);
   } else {
     code = TSDB_CODE_OUT_OF_RANGE;  //  continue to read from reader
@@ -540,8 +542,7 @@ int32_t tableBuilderMgtOpenBuilder(STableBuilderMgt *pMgt, int64_t seq, STableBu
   TSDB_CHECK_CODE(code, lino, _error);
 
   p->pTableMeta = pMgt->pMgt->pTableMetaMgt->pTableMeta;
-
-  p->pBse = pMgt->pBse;
+  p->pBuilderMgt = pMgt;
   pMgt->p = p;
 
   *pBuilder = p;
@@ -582,12 +583,13 @@ int32_t tableBuilderMgtCommit(STableBuilderMgt *pMgt, SBseLiveFileInfo *pInfo) {
   (void)taosThreadRwlockWrlock(&pMgt->mutex);
   pBuilder = pMgt->p;
 
-  bseTrace("start to commit bse table builder mem %p, immu mem %p", pBuilder->pMemTable, pBuilder->pImmuMemTable);
+  bseInfo("start to commit bse table builder mem %p, immu mem %p", pBuilder->pMemTable, pBuilder->pImmuMemTable);
   pBuilder->pImmuMemTable = pBuilder->pMemTable;
   pBuilder->pMemTable = NULL;
   (void)taosThreadRwlockUnlock(&pMgt->mutex);
 
   code = tableBuilderCommit(pBuilder, pInfo);
+
 _error:
   if (code != 0) {
     bseError("failed to commit table builder at line %d since %s", lino, tstrerror(code));
