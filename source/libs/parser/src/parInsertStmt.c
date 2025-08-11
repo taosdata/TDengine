@@ -1007,8 +1007,6 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, 
         goto _return;
       }
       pBind = &ncharBind;
-    } else if (TSDB_DATA_TYPE_DECIMAL == pColSchema->type) {
-    } else if (TSDB_DATA_TYPE_DECIMAL64 == pColSchema->type) {
     } else {
       pBind = bind + bindIdx;
     }
@@ -1022,14 +1020,26 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, 
         bytes = pColSchema->bytes - VARSTR_HEADER_SIZE;
       }
     }
-    if (isBlob == 0) {
-      code = tColDataAddValueByBind2(pCol, pBind, bytes, initCtxAsText, checkWKB);
-    } else {
+
+    if (pColSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
+      code = tColDataAddValueByBind2WithGeos(pCol, pBind, bytes, initCtxAsText, checkWKB);
+    } else if (isBlob == 1) {
       if (pDataBlock->pData->pBlobSet == NULL) {
         code = tBlobSetCreate(1024, 1, &pDataBlock->pData->pBlobSet);
         TAOS_CHECK_GOTO(code, &lino, _return);
       }
       code = tColDataAddValueByBind2WithBlob(pCol, pBind, bytes, pDataBlock->pData->pBlobSet);
+    } else if (IS_DECIMAL_TYPE(pColSchema->type)) {
+      SSchemaExt* pExtSchema = getTableColumnExtSchema(pDataBlock->pMeta);
+      if (pExtSchema == NULL) {
+        code = buildInvalidOperationMsg(&pBuf, "decimal column ext schema is null");
+        goto _return;
+      }
+      uint8_t precision = 0, scale = 0;
+      decimalFromTypeMod(pExtSchema[c].typeMod, &precision, &scale);
+      code = tColDataAddValueByBind2WithDecimal(pCol, pBind, bytes, precision, scale);
+    } else {
+      code = tColDataAddValueByBind2(pCol, pBind, bytes);
     }
 
     if (code) {
@@ -1106,8 +1116,19 @@ int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* b
       TAOS_CHECK_GOTO(code, &lino, _return);
     }
     code = tColDataAddValueByBind2WithBlob(pCol, pBind, bytes, pDataBlock->pData->pBlobSet);
+  } else if (pColSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
+    code = tColDataAddValueByBind2WithGeos(pCol, pBind, bytes, initCtxAsText, checkWKB);
+  } else if (IS_DECIMAL_TYPE(pColSchema->type)) {
+    SSchemaExt* pExtSchema = getTableColumnExtSchema(pDataBlock->pMeta);
+    if (pExtSchema == NULL) {
+      code = buildInvalidOperationMsg(&pBuf, "decimal column ext schema is null");
+      goto _return;
+    }
+    uint8_t precision = 0, scale = 0;
+    decimalFromTypeMod(pExtSchema->typeMod, &precision, &scale);
+    code = tColDataAddValueByBind2WithDecimal(pCol, pBind, bytes, precision, scale);
   } else {
-    code = tColDataAddValueByBind2(pCol, pBind, bytes, initCtxAsText, checkWKB);
+    code = tColDataAddValueByBind2(pCol, pBind, bytes);
   }
 
   parserDebug("stmt col %d bind %d rows data", colIdx, rowNum);
