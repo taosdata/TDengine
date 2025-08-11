@@ -1007,6 +1007,8 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, 
         goto _return;
       }
       pBind = &ncharBind;
+    } else if (TSDB_DATA_TYPE_DECIMAL == pColSchema->type) {
+    } else if (TSDB_DATA_TYPE_DECIMAL64 == pColSchema->type) {
     } else {
       pBind = bind + bindIdx;
     }
