@@ -49,6 +49,11 @@ SSL_CTX* init_ssl_ctx(const char* cert_path, const char* key_path, const char* c
   }
   return ctx;
 }
+void destroy_ssl_ctx(SSL_CTX* ctx) {
+  if (ctx) {
+    SSL_CTX_free(ctx);
+  }
+}
 
 void handleSSLError(SSL* ssl, int ret) {
   int err = SSL_get_error(ssl, ret);
@@ -68,7 +73,53 @@ void handleSSLError(SSL* ssl, int ret) {
   }
 }
 
-int32_t initSSL(SSL_CTX* pCtx, STransTLS* ppTLs) {
+int32_t transTlsCtxCreate(const char* certPath, const char* keyPath, const char* caPath, STransTLSCtx** ppCtx) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  STransTLSCtx* pCtx = (STransTLSCtx*)taosMemCalloc(1, sizeof(STransTLSCtx));
+  if (pCtx == NULL) {
+    tError("Failed to allocate memory for TLS context");
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pCtx->certfile = taosStrdupi(certPath);
+  pCtx->keyfile = taosStrdupi(keyPath);
+  pCtx->cafile = taosStrdupi(caPath);
+  if (pCtx->certfile == NULL || pCtx->keyfile == NULL || pCtx->cafile == NULL) {
+    code = terrno;
+    tError("Failed to duplicate TLS context file paths since %s", tstrerror(code));
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  pCtx->ssl_ctx = init_ssl_ctx(certPath, keyPath, caPath);
+  if (pCtx->ssl_ctx == NULL) {
+    tError("Failed to initialize SSL context");
+    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
+  }
+
+  *ppCtx = pCtx;
+_error:
+  if (code != 0) {
+    transTlsCtxDestroy(pCtx);
+  }
+
+  return code;
+}
+
+void transTlsCtxDestroy(STransTLSCtx* pCtx) {
+  if (pCtx) {
+    destroy_ssl_ctx(pCtx->ssl_ctx);
+
+    taosMemoryFree(pCtx->certfile);
+    taosMemoryFree(pCtx->keyfile);
+    taosMemoryFree(pCtx->cafile);
+
+    taosMemFree(pCtx);
+  }
+}
+
+int32_t initSSL(STransTLSCtx* pCtx, STransTLS** ppTLs) {
   int32_t code = 0;
   int32_t lino = 0;
   if (pCtx == NULL) {
@@ -81,8 +132,7 @@ int32_t initSSL(SSL_CTX* pCtx, STransTLS* ppTLs) {
     TAOS_CHECK_GOTO(terrno, &lino, _error);
   }
 
-  pTls->ssl_ctx = pCtx;
-  pTls->ssl = SSL_new(pCtx);
+  pTls->ssl = SSL_new(pCtx->ssl_ctx);
   if (pTls->ssl == NULL) {
     tError("Failed to create new SSL_new");
     TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
@@ -97,6 +147,8 @@ int32_t initSSL(SSL_CTX* pCtx, STransTLS* ppTLs) {
 
   SSL_set_bio(pTls->ssl, pTls->readBio, pTls->writeBio);
 
+  *ppTLs = pTls;
+
 _error:
   if (code != 0) {
     destroySSL(pTls);
@@ -110,8 +162,9 @@ void setSSLMode(STransTLS* pTls) {
 int32_t sslReadDecryptedData(STransTLS* pTls, char* data, size_t ndata);
 
 void sslOnRead(STransTLS* pTls, size_t nread, const uv_buf_t* buf) {
+  int32_t nwrite = 0;
   if (nread > 0) {
-    BIO_write(pTls->readBio, buf->base, nread);
+    nwrite = BIO_write(pTls->readBio, buf->base, nread);
 
     if (!SSL_is_init_finished(pTls->ssl)) {
       int ret = SSL_accept(pTls->ssl);
@@ -170,20 +223,7 @@ void sslOnNewConn(STransTLS* pTls) { return; }
 void sslOnConn(STransTLS* pTls) {}
 
 void destroySSL(STransTLS* pTLs) {
-  if (pTLs) {
-    if (pTLs->ssl) {
-      SSL_free(pTLs->ssl);
-    }
-    if (pTLs->ssl_ctx) {
-      SSL_CTX_free(pTLs->ssl_ctx);
-    }
-    taosMemFree(pTLs->certfile);
-    taosMemFree(pTLs->keyfile);
-    taosMemFree(pTLs->cafile);
-    taosMemFree(pTLs->capath);
-    taosMemFree(pTLs->psk_hint);
-    taosMemFree(pTLs);
+  if (pTLs && pTLs->pTlsCtx) {
+    SSL_free(pTLs->ssl);
   }
 }
-
-void transTLSDestroy() {}

@@ -22,23 +22,29 @@ extern "C" {
 #endif
 
 typedef struct {
-} STransTLSCtx;
-typedef struct {
-  SSL_CTX* ssl_ctx;   // SSL context
-  SSL*     ssl;       // SSL connection
-  int32_t  refCount;  // reference count
-  int32_t  status;    // connection status
   char*    certfile;  // certificate file path
   char*    keyfile;   // private key file path
   char*    cafile;    // CA file path
   char*    capath;    // CA directory path
   char*    psk_hint;  // PSK hint for TLS-PSK
+  SSL_CTX* ssl_ctx;   // SSL context
+} STransTLSCtx;
+
+int32_t transTlsCtxCreate(const char* certPath, const char* keyPath, const char* caPath, STransTLSCtx** ppCtx);
+void    transTlsCtxDestroy(STransTLSCtx* pCtx);
+
+typedef struct {
+  STransTLSCtx* pTlsCtx;  // pointer to TLS context
+
+  SSL*    ssl;       // SSL connection
+  int32_t refCount;  // reference count
+  int32_t status;    // connection status
 
   BIO* readBio;
   BIO* writeBio;  // BIO for reading and writing data
 } STransTLS;
 
-int32_t initSSL(SSL_CTX* pCtx, STransTLS* ppTLs);
+int32_t initSSL(STransTLSCtx* pCtx, STransTLS** ppTLs);
 void    destroySSL(STransTLS* pTLs);
 
 void setSSLMode(STransTLS* pTls);
