@@ -5567,7 +5567,7 @@ int32_t tColDataSortMergeWithBlob(SArray **arr, SBlobSet *pBlob) {
     TAOS_CHECK_RETURN(tColDataSort(aColData, nColData));
   }
 
-  if (doMerge != 1) {
+  if ((doMerge != 1) && (doSort == 1)) {
     tColDataArrGetRowKey(aColData, nColData, 0, &lastKey);
     for (int32_t iVal = 1; iVal < aColData[0].nVal; ++iVal) {
       SRowKey key;
