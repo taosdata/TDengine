@@ -242,9 +242,9 @@ taosx --from 'orc:/root/test.orc?batch_size=1000&projection=col1,col3,col4' \
     --to 'taos+http://localhost:6041/test'
 ```
 
-* `--from`/`-f` 参数指定读取的 ORC 文件地址，`batch_size` 表示一次读取的数据量，默认 1000 条，`projection` 指定要读取的列，本例中表示读取 `col1`, `col3`, `col4` 这三列，也可以按照索引指定读取的列，如 `projection=1,3,4` 表示读取第 1，3，4 列。
-* `--parser` 用于设置数据处理配置和入库参数映射配置，同上面的 CSV 数据源
-* `--to`/`-t` 参数指定写入的目标数据库，本例中表示写入 `test` 数据库
+- `--from`/`-f` 参数指定读取的 ORC 文件地址，`batch_size` 表示一次读取的数据量，默认 1000 条，`projection` 指定要读取的列，本例中表示读取 `col1`, `col3`, `col4` 这三列，也可以按照索引指定读取的列，如 `projection=1,3,4` 表示读取第 1，3，4 列。
+- `--parser` 用于设置数据处理配置和入库参数映射配置，同上面的 CSV 数据源
+- `--to`/`-t` 参数指定写入的目标数据库，本例中表示写入 `test` 数据库
 
 #### TMQ 订阅数据发布到 MQTT
 
