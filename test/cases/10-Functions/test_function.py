@@ -40,7 +40,7 @@ class TestFunction:
 
     def run_normal_query_new(self, testCase):
         # read sql from .sql file and execute
-        tdLog.info("test normal query.")
+        tdLog.info("test normal query: " + testCase)
         self.sqlFile = etool.curFile(__file__, f"in/{testCase}.in")
         self.ansFile = etool.curFile(__file__, f"ans/{testCase}.csv")
 
@@ -148,6 +148,10 @@ class TestFunction:
 
     def run_dayofweek(self):
         self.run_normal_query_new("dayofweek")
+
+    def run_date(self):
+        self.run_normal_query_new("date")
+        tdSql.error("select date(1000.0)")
 
     def run_stddev_pop(self):
         self.run_normal_query_new("stddev")
@@ -496,6 +500,7 @@ class TestFunction:
         self.run_weekday()
         self.run_weekofyear()
         self.run_dayofweek()
+        self.run_date()
 
     def test_agg_function(self):
         """test aggregate function

@@ -389,6 +389,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataDeletion/test_insert_delete.py
 
 # 10-Functions
+,,y,.,./ci/pytest.sh pytest cases/10-Functions/test_function.py
 ## 01-SingleRow
 ,,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_single_row_in_tb.py
 ,,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_cast.py
@@ -432,6 +433,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_topbot.py
 ,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_paramnum.py
 ,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_selection_function_with_json.py
+
 ## 04-TimeseriesSpecfic
 ,,y,.,./ci/pytest.sh pytest cases/10-Functions/04-TimeseriesSpecfic/test_func_diff.py
 ,,y,.,./ci/pytest.sh pytest cases/10-Functions/04-TimeseriesSpecfic/test_func_diff2.py

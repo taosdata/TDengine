@@ -2655,7 +2655,11 @@ int32_t dateFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutp
     char *data = colDataGetData(pInput[0].columnData, rowIdx);
     int64_t ts = 0;
     if (IS_VAR_DATA_TYPE(type)) { // datetime format strings
-      SCL_ERR_JRET(convertStringToTimestamp(type, data, precision, &ts, pInput->tz, pInput->charsetCxt));
+      int32_t ret = convertStringToTimestamp(type, data, precision, &ts, pInput->tz, pInput->charsetCxt);
+      if (ret != TSDB_CODE_SUCCESS) {
+        colDataSetNULL(pOutput->columnData, rowIdx);
+        continue;
+      }
     } else if (type == TSDB_DATA_TYPE_TIMESTAMP || type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_INT) {
       GET_TYPED_DATA(ts, int64_t, type, data, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
     }
