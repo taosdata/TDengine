@@ -7278,3 +7278,243 @@ int32_t cachedLastRowFunction(SqlFunctionCtx* pCtx) {
   SET_VAL(pResInfo, numOfElems, 1);
   return TSDB_CODE_SUCCESS;
 }
+
+bool getBitChangeFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SBitChangeInfo);
+  return true;
+}
+
+int32_t bitChangeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+  if (NULL == pCol) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  pResInfo->isNullRes = (pResInfo->numOfRes == 0) ? 1 : 0;
+
+  SBitChangeInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  int32_t    code = colDataSetVal(pCol, pBlock->info.rows, (const char*)&pInfo->total, pResInfo->isNullRes);
+
+  return code;
+}
+
+int64_t getMask(const char* data, int32_t dataLen) {
+  // TODO:: parser data to mask
+    // data format 6,7 6:8
+    return 0;
+}
+
+int32_t bitChangeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
+  if (pResInfo->initialized) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (TSDB_CODE_SUCCESS != functionSetup(pCtx, pResInfo)) {
+    return TSDB_CODE_FUNC_SETUP_ERROR;
+  }
+
+  SBitChangeInfo* pValueChangeInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  pValueChangeInfo->isFirstRow = true;
+  pValueChangeInfo->prev = 0;
+  pValueChangeInfo->prevTs = -1;
+
+  if (pCtx->numOfParams > 3) {
+    pValueChangeInfo->mask = getMask(pCtx->param[1].param.pz, pCtx->param[1].param.nLen);
+    pValueChangeInfo->flag = pCtx->param[2].param.i;
+  } else if (pCtx->numOfParams > 2) {
+    pValueChangeInfo->mask = getMask(pCtx->param[1].param.pz, pCtx->param[1].param.nLen);
+  } else {
+    pValueChangeInfo->mask = 1;
+    pValueChangeInfo->flag = 0;
+  }
+
+  pValueChangeInfo->preIsNull = false;
+  pValueChangeInfo->total = 0;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t setValue(SBitChangeInfo* pValueChangeInfo, int32_t type, const char* pv, int64_t ts) {
+  switch (type) {
+    case TSDB_DATA_TYPE_BOOL:
+      pValueChangeInfo->prev = *(bool*)pv ? 1 : 0;
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_TINYINT:
+      pValueChangeInfo->prev = *(int8_t*)pv;
+      break;
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_INT:
+      pValueChangeInfo->prev = *(int32_t*)pv;
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+      pValueChangeInfo->prev = *(int16_t*)pv;
+      break;
+    case TSDB_DATA_TYPE_TIMESTAMP:
+    case TSDB_DATA_TYPE_UBIGINT:
+    case TSDB_DATA_TYPE_BIGINT:
+      pValueChangeInfo->prev = *(int64_t*)pv;
+      break;
+    default:
+      return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
+
+  pValueChangeInfo->prevTs = ts;
+  pValueChangeInfo->preIsNull = false;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t getInt64ValBitChange(const void *pLeft, const void *pRight, int64_t mask, int8_t flag) {
+  int64_t left = GET_INT64_VAL(pLeft), right = GET_INT64_VAL(pRight);
+  // TODO::
+  int32_t chageCount = 0;
+  switch (flag) {
+    case 0:
+      break;
+    case 1:
+      break;
+    case 2:
+      break;
+    default:
+      return chageCount;
+  }
+
+  return chageCount;
+}
+
+static int32_t setValueChange(SBitChangeInfo* pValueInfo, int32_t type, const char* pv, int32_t pvLen, int64_t ts) {
+  switch (type) {
+    case TSDB_DATA_TYPE_UINT: {
+      int64_t v = *(uint32_t*)pv;
+      pValueInfo->total += getInt64ValBitChange(&pValueInfo->prev, &v, pValueInfo->mask, pValueInfo->flag);
+      break;
+    }
+    case TSDB_DATA_TYPE_INT: {
+      int64_t v = *(int32_t*)pv;
+      pValueInfo->total += getInt64ValBitChange(&pValueInfo->prev, &v, pValueInfo->mask, pValueInfo->flag);
+      break;
+    }
+    case TSDB_DATA_TYPE_BOOL: {
+      int64_t v = *(bool*)pv;
+      pValueInfo->total += getInt64ValBitChange(&pValueInfo->prev, &v, pValueInfo->mask, pValueInfo->flag);
+      break;
+    }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      int64_t v = *(uint8_t*)pv;
+      pValueInfo->total += getInt64ValBitChange(&pValueInfo->prev, &v, pValueInfo->mask, pValueInfo->flag);
+      break;
+    }
+    case TSDB_DATA_TYPE_TINYINT: {
+      int64_t v = *(int8_t*)pv;
+      pValueInfo->total += getInt64ValBitChange(&pValueInfo->prev, &v, pValueInfo->mask, pValueInfo->flag);
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT: {
+      int64_t v = *(uint16_t*)pv;
+      pValueInfo->total += getInt64ValBitChange(&pValueInfo->prev, &v, pValueInfo->mask, pValueInfo->flag);
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      int64_t v = *(int16_t*)pv;
+      pValueInfo->total += getInt64ValBitChange(&pValueInfo->prev, &v, pValueInfo->mask, pValueInfo->flag);
+      break;
+    }
+    case TSDB_DATA_TYPE_TIMESTAMP:
+    case TSDB_DATA_TYPE_UBIGINT:
+    case TSDB_DATA_TYPE_BIGINT: {
+      int64_t v = *(int64_t*)pv;
+      pValueInfo->total += getInt64ValBitChange(&pValueInfo->prev, &v, pValueInfo->mask, pValueInfo->flag);
+      break;
+    }
+    default:
+      return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
+
+  return setValue(pValueInfo, type, pv, ts);
+}
+
+int32_t setPreVal(SqlFunctionCtx* pCtx, int32_t rowIndex) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SBitChangeInfo*    pValueInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pInputCol = pInput->pData[0];
+  pValueInfo->isFirstRow = false;
+
+  if (colDataIsNull_s(pInputCol, rowIndex)) {
+    pValueInfo->preIsNull = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int8_t inputType = pInputCol->info.type;
+  int32_t inputBytes = pInputCol->info.bytes;
+
+  char* data = colDataGetData(pInputCol, rowIndex);
+  TSKEY ts = getRowPTs(pInput->pPTS, rowIndex);
+  return setValue(pValueInfo, inputType, data, ts);
+}
+
+int32_t setValueChangeResult(SqlFunctionCtx* pCtx, int32_t rowIndex) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SBitChangeInfo*           pValueInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pInputCol = pInput->pData[0];
+  int8_t                inputType = pInputCol->info.type;
+  int32_t inputBytes = pInputCol->info.bytes;
+
+  int32_t               code = TSDB_CODE_SUCCESS;
+
+  TSKEY ts = getRowPTs(pInput->pPTS, rowIndex);
+  if (colDataIsNull_s(pInputCol, rowIndex)) {
+    pValueInfo->preIsNull = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (ts == pValueInfo->prevTs) {
+    return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+  }
+
+  char* data = colDataGetData(pInputCol, rowIndex);
+  return setValueChange(pValueInfo, inputType, data, inputBytes, ts);
+}
+
+int32_t bitChangeFunction(SqlFunctionCtx* pCtx) {
+  int32_t              code = TSDB_CODE_SUCCESS;
+
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SBitChangeInfo* pValueInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pInputCol = pInput->pData[0];
+
+  int32_t start = pInput->startRowIndex;
+  int32_t numOfElems = pInput->numOfRows;
+  if(numOfElems <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t       type = pInputCol->info.type;
+
+  for (int32_t i = start; i < numOfElems + start; ++i) {
+    bool isFirstRow = pValueInfo->isFirstRow;
+
+    if(isFirstRow) {
+      code = setPreVal(pCtx, i);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    } else {
+      code = setValueChangeResult(pCtx, i);
+      if(code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    }
+  }
+
+  SET_VAL(pResInfo, numOfElems, 1);
+  return TSDB_CODE_SUCCESS;
+}

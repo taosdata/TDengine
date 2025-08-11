@@ -160,6 +160,7 @@ int32_t sampleScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
 int32_t tailScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t uniqueScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t modeScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t bitChangeScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 // stream pseudo functions
 int32_t streamPseudoScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
