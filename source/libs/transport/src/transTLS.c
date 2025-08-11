@@ -13,10 +13,193 @@
  */
 
 // clang-format off
+#include "transTLS.h"
+#include "transComm.h"
+#include <openssl/err.h>
+#include <openssl/ssl.h>
+#include "transLog.h"
+// clang-format on
 
-#include "transTLS.h" 
+SSL_CTX* init_ssl_ctx(const char* cert_path, const char* key_path, const char* ca_path) {
+  SSL_CTX* ctx = SSL_CTX_new(TLS_method());
+  SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
 
-int32_t transTLSInit() {
-    int32_t code = 0;
-    return code;
+  if (SSL_CTX_use_certificate_file(ctx, cert_path, SSL_FILETYPE_PEM) <= 0) {
+    tError("failed to load certificate file: %s", cert_path);
+    SSL_CTX_free(ctx);
+    return NULL;
+  }
+
+  if (SSL_CTX_use_PrivateKey_file(ctx, key_path, SSL_FILETYPE_PEM) <= 0) {
+    tError("failed to load private key file: %s", key_path);
+    SSL_CTX_free(ctx);
+    return NULL;
+  }
+
+  if (SSL_CTX_check_private_key(ctx) <= 0) {
+    tError("private key does not match the public certificate");
+    SSL_CTX_free(ctx);
+    return NULL;
+  }
+
+  if (SSL_CTX_load_verify_locations(ctx, ca_path, NULL) <= 0) {
+    tError("failed to load CA file: %s", ca_path);
+    SSL_CTX_free(ctx);
+    return NULL;
+  }
+  return ctx;
 }
+
+void handleSSLError(SSL* ssl, int ret) {
+  int err = SSL_get_error(ssl, ret);
+  switch (err) {
+    case SSL_ERROR_WANT_READ:
+      // read
+      break;
+    case SSL_ERROR_WANT_WRITE:
+      // write
+      break;
+    case SSL_ERROR_SSL:
+      tError("SSL error: %s", ERR_reason_error_string(ERR_get_error()));
+      break;
+    default:
+      tError("Unknown SSL error: %s", ERR_reason_error_string(ERR_get_error()));
+      break;
+  }
+}
+
+int32_t initSSL(SSL_CTX* pCtx, STransTLS* ppTLs) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  if (pCtx == NULL) {
+    tError("SSL context is not initialized");
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  STransTLS* pTls = (STransTLS*)taosMemCalloc(1, sizeof(STransTLS));
+  if (pTls == NULL) {
+    TAOS_CHECK_GOTO(terrno, &lino, _error);
+  }
+  pTls->ssl_ctx = pCtx;
+  pTls->ssl = SSL_new(pCtx);
+  if (pTls->ssl == NULL) {
+    tError("Failed to create new SSL");
+    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
+  }
+
+  pTls->readBio = BIO_new(BIO_s_mem());
+  pTls->writeBio = BIO_new(BIO_s_mem());
+  if (pTls->readBio == NULL || pTls->writeBio == NULL) {
+    tError("Failed to create read/write BIO");
+    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
+  }
+
+  SSL_set_bio(pTls->ssl, pTls->readBio, pTls->writeBio);
+
+_error:
+  if (code != 0) {
+    destroySSL(pTls);
+  }
+  return code;
+}
+
+void setSSLMode(STransTLS* pTls) {
+  SSL_set_accept_state(pTls->ssl);  // server mode
+}
+int32_t sslReadDecryptedData(STransTLS* pTls, char* data, size_t ndata);
+
+// void sslDoRead(STransTLS* pTls) {
+//   char buf[4096] = {0};
+//   while (1) {
+//     int n = SSL_read(pTls->ssl, buf, sizeof(buf));
+//     if (n <= 0) {
+//       int err = SSL_get_error(pTls->ssl, n);
+//       if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
+//         // Non-blocking mode, wait for more data
+//         break;
+//       } else {
+//         handleSSLError(pTls->ssl, n);
+//         return;  // Error occurred
+//       }
+//     }
+//   }
+//   return;
+// }
+void sslOnRead(STransTLS* pTls, size_t nread, const uv_buf_t* buf) {
+  if (nread > 0) {
+    BIO_write(pTls->readBio, buf->base, nread);
+
+    if (!SSL_is_init_finished(pTls->ssl)) {
+      int ret = SSL_accept(pTls->ssl);
+      if (ret <= 0) {
+        handleSSLError(pTls->ssl, ret);
+        return;
+      }
+    } else {
+      sslReadDecryptedData(pTls, NULL, 0);
+    }
+  } else if (nread < 0) {
+  }
+  return;
+}
+
+int32_t sslReadDecryptedData(STransTLS* pTls, char* data, size_t ndata) {
+  if (pTls == NULL || pTls->ssl == NULL) {
+    tError("SSL is not initialized");
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  int n = SSL_read(pTls->ssl, data, ndata);
+  if (n <= 0) {
+    handleSSLError(pTls->ssl, n);
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
+  return n;  // Return number of bytes read
+}
+int32_t sslWriteEncyptedData(STransTLS* pTls, const char* data, size_t ndata) {
+  char    buf[4096] = {0};
+  int32_t code = 0;
+  int32_t total = 0;
+  while (1) {
+    int n = BIO_read(pTls->writeBio, (void*)data, ndata);
+    if (n <= 0) {
+      break;
+    }
+    total += n;
+  }
+
+  if (total > 0) {
+    // uv_write
+  }
+  return code;
+}
+void sslOnWrite(STransTLS* pTls, const char* data, size_t ndata) {
+  if (pTls == NULL || pTls->ssl == NULL) {
+    tError("SSL is not initialized");
+    return;
+  }
+  SSL_write(pTls->ssl, data, ndata);
+}
+
+void sslOnNewConn(STransTLS* pTls) { return; }
+
+void sslOnConn(STransTLS* pTls) {}
+
+void destroySSL(STransTLS* pTLs) {
+  if (pTLs) {
+    if (pTLs->ssl) {
+      SSL_free(pTLs->ssl);
+    }
+    if (pTLs->ssl_ctx) {
+      SSL_CTX_free(pTLs->ssl_ctx);
+    }
+    taosMemFree(pTLs->certfile);
+    taosMemFree(pTLs->keyfile);
+    taosMemFree(pTLs->cafile);
+    taosMemFree(pTLs->capath);
+    taosMemFree(pTLs->psk_hint);
+    taosMemFree(pTLs);
+  }
+}
+
+void transTLSDestroy() {}

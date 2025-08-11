@@ -14,11 +14,32 @@
 #ifndef _TD_TRANSPORT_TLS_H
 #define _TD_TRANSPORT_TLS_H
 
+#include <openssl/err.h>
 #include <openssl/ssl.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct {
+  SSL_CTX* ssl_ctx;   // SSL context
+  SSL*     ssl;       // SSL connection
+  int32_t  refCount;  // reference count
+  int32_t  status;    // connection status
+  char*    certfile;  // certificate file path
+  char*    keyfile;   // private key file path
+  char*    cafile;    // CA file path
+  char*    capath;    // CA directory path
+  char*    psk_hint;  // PSK hint for TLS-PSK
+
+  BIO* readBio;
+  BIO* writeBio;  // BIO for reading and writing data
+} STransTLS;
+
+int32_t initSSL(SSL_CTX* pCtx, STransTLS* ppTLs);
+void    destroySSL(STransTLS* pTLs);
+
+void setSSLMode(STransTLS* pTls);
 
 int32_t transTLSInit(void);
 #ifdef __cplusplus
