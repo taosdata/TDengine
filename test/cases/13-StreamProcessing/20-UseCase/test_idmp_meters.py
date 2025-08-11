@@ -927,20 +927,20 @@ class Test_IDMP_Meters:
 
         tdSql.query(result_sql)
         count = tdSql.getRows()
-        found = False
+        sum   = 0
 
         for i in range(count):
             # row
-            if  tdSql.getData(i, 1) == 20 :
-                found = True
-
-            if found:
-                tdSql.checkData(i, 1, 20)  # cnt
-                tdSql.checkData(i, 2, 200) # avg(voltage)
-                tdSql.checkData(i, 3, 6000) # sum(power)
+            cnt = tdSql.getData(i, 1)
+            if cnt > 5:
+                tdLog.exit(f"stream8 expected cnt <= 5, actual cnt={cnt}")
+            elif cnt > 0:
+                tdSql.checkData(i, 2, 200)  # avg(voltage)
+                tdSql.checkData(i, 3, cnt * 300) # sum(power)
+            sum += cnt
         
-        if found == False:
-            tdLog.exit(f"stream8 not found expected data.")
+        if sum != 20:
+            tdLog.exit(f"stream8 not found expected data. expected sum(cnt) == 20, actual: {sum}")
 
         tdLog.info(f"verify stream8 ................................. successfully.")
 
