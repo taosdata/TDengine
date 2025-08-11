@@ -26,7 +26,7 @@
 
 #define BUILD_OPTION(options, sStreamInfo, _ver, _groupSort, _order, startTime, endTime, _schemas, _isSchema, _scanMode, \
                      _gid, _initReader, _uidList)                                                                        \
-  SStreamTriggerReaderTaskInnerOptions options = {.suid = sStreamInfo->suid,                                       \
+  SStreamTriggerReaderTaskInnerOptions options = {.suid = (_uidList == NULL ? sStreamInfo->suid : 0),              \
                                                   .uid = sStreamInfo->uid,                                         \
                                                   .ver = _ver,                                                     \
                                                   .tableType = sStreamInfo->tableType,                             \

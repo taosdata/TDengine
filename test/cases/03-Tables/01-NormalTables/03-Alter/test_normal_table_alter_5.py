@@ -7,13 +7,13 @@ class TestNormalTableAlter5:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_normal_table_alter_5(self):
-        """alter normal table 5
+        """Alter: repeatedly drop
 
-        1. drop column
-        2. insert data
-        3. project query
-        4. loop for 7 times
-        5. kill then restart
+        1. Drop column
+        2. Insert data
+        3. Project query
+        4. Loop for 7 times
+        5. Kill then restart
 
         Catalog:
             - Table:NormalTable:Alter
