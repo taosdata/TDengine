@@ -12,7 +12,7 @@ from taos import *
 import time
 
 class TestStmt2:
-    """Test case demonstrating the new stmt2 API usage"""
+    """Test case demonstrating stmt2 API usage"""
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
 
@@ -26,7 +26,7 @@ class TestStmt2:
         return con
 
     def run_basic_stmt2(self, conn):
-        """Test basic stmt2 operations with new API"""
+        """Test basic stmt2 operations """
         
         dbname = "stmt2_test"
         conn.execute(f"DROP DATABASE IF EXISTS {dbname}")
@@ -75,7 +75,7 @@ class TestStmt2:
         tdLog.debug("All basic stmt2 operations completed successfully")
     
     def run_super_table(self, conn):
-        """Test super table operations with new API"""
+        """Test super table operations with stmt2 API"""
         
         dbname = "stmt2_stable_test"
         conn.execute(f"DROP DATABASE IF EXISTS {dbname}")
@@ -107,7 +107,7 @@ class TestStmt2:
             stmt.close()
 
     def run_batch_insert(self, conn):
-        """Test performance of stmt2 API"""
+        """Test stmt2 API"""
         
         dbname = "stmt2_batch_test"
         conn.execute(f"DROP DATABASE IF EXISTS {dbname}")
