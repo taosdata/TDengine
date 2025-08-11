@@ -2635,6 +2635,42 @@ _return:
   return code;
 }
 
+int32_t dateFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput) {
+  int32_t code = 0;
+  char* format = "yyyy-mm-dd";
+  char* out = taosMemoryCalloc(1, TS_FORMAT_MAX_LEN + VARSTR_HEADER_SIZE);
+  SArray *formats = NULL;
+  if (format == NULL || out == NULL) {
+    SCL_ERR_JRET(terrno);
+  }
+
+  for (int32_t rowIdx = 0; rowIdx < pInput[0].numOfRows; ++rowIdx) {
+    if (colDataIsNull_s(pInput[0].columnData, rowIdx)) {
+      colDataSetNULL(pOutput->columnData, rowIdx);
+      continue;
+    }
+
+    int32_t precision = pInput[0].columnData->info.precision;
+    int32_t type = GET_PARAM_TYPE(&pInput[0]);
+    char *data = colDataGetData(pInput[0].columnData, rowIdx);
+    int64_t ts = 0;
+    if (IS_VAR_DATA_TYPE(type)) { // datetime format strings
+      SCL_ERR_JRET(convertStringToTimestamp(type, data, precision, &ts, pInput->tz, pInput->charsetCxt));
+    } else if (type == TSDB_DATA_TYPE_TIMESTAMP || type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_INT) {
+      GET_TYPED_DATA(ts, int64_t, type, data, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
+    }
+
+    SCL_ERR_JRET(taosTs2Char(format, &formats, ts, precision, varDataVal(out), TS_FORMAT_MAX_LEN, pInput->tz));
+    varDataSetLen(out, strlen(varDataVal(out)));
+    SCL_ERR_JRET(colDataSetVal(pOutput->columnData, rowIdx, out, false));
+  }
+
+_return:
+  if (formats) taosArrayDestroy(formats);
+  taosMemoryFree(out);
+  return code;
+}
+
 int32_t toCharFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput) {
   char *  format = taosMemoryMalloc(TS_FORMAT_MAX_LEN);
   char *  out = taosMemoryCalloc(1, TS_FORMAT_MAX_LEN + VARSTR_HEADER_SIZE);

@@ -118,6 +118,7 @@ int32_t weekdayFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
 int32_t dayofweekFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t weekFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t weekofyearFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t dateFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 bool getTimePseudoFuncEnv(struct SFunctionNode *pFunc, SFuncExecEnv *pEnv);
 

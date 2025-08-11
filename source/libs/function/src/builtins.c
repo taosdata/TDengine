@@ -1696,6 +1696,7 @@ static int32_t translateOutVarchar(SFunctionNode* pFunc, char* pErrBuf, int32_t 
       bytes = sizeof(STableBlockDistInfo);
       break;
     case FUNCTION_TYPE_TO_CHAR:
+    case FUNCTION_TYPE_DATE:
       bytes = 4096;
       break;
     case FUNCTION_TYPE_HYPERLOGLOG_STATE_MERGE:
@@ -5911,6 +5912,27 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = NULL,
     .sprocessFunc = isWinFilledFunction,
     .finalizeFunc = NULL,
+  },
+  {
+    .name = "date",
+    .type = FUNCTION_TYPE_DATE,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE | FUNC_PARAM_SUPPORT_INTEGER_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
+    .translateFunc = translateOutVarchar,
+    .getEnvFunc = NULL,
+    .initFunc = NULL,
+    .sprocessFunc = dateFunction,
+    .finalizeFunc = NULL
   },
 };
 // clang-format on
