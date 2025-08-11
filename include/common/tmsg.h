@@ -3727,6 +3727,7 @@ typedef struct SVCreateTbReq {
 int  tEncodeSVCreateTbReq(SEncoder* pCoder, const SVCreateTbReq* pReq);
 int  tDecodeSVCreateTbReq(SDecoder* pCoder, SVCreateTbReq* pReq);
 void tDestroySVCreateTbReq(SVCreateTbReq* pReq, int32_t flags);
+void tDestroySVSubmitCreateTbReq(SVCreateTbReq *pReq, int32_t flags);
 
 static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
   if (NULL == req) {
