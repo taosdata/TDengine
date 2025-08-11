@@ -1114,7 +1114,7 @@ static int32_t doGetValueFromBseBySeq(void* arg, uint8_t* pKey, int32_t keyLen, 
     *len = 0; 
     return code;
   } else {
-    tGetU64(pKey, &seq);
+    (void)tGetU64(pKey, &seq);
   }
  
   if (seq == 0) {

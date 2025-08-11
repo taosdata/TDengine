@@ -2775,7 +2775,7 @@ int32_t tDeserializeRetrieveAnalyticAlgoRsp(void *buf, int32_t bufLen, SRetrieve
     }
 
     char dstName[TSDB_ANALYTIC_ALGO_NAME_LEN] = {0};
-    strntolower(dstName, name, nameLen);
+    (void)strntolower(dstName, name, nameLen);
 
     TAOS_CHECK_EXIT(taosHashPut(pRsp->hash, dstName, nameLen, &url, sizeof(SAnalyticsUrl)));
   }
@@ -6578,7 +6578,9 @@ int32_t tDeserializeSVnodeSsMigrateState(void* buf, int32_t bufLen, SVnodeSsMigr
     SFileSetSsMigrateState state = {0};
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &state.fid));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &state.state));
-    taosArrayPush(pState->pFileSetStates, &state);
+    if (taosArrayPush(pState->pFileSetStates, &state) == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
   }
 
   tEndDecode(&decoder);
@@ -13216,7 +13218,7 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
   TAOS_CHECK_EXIT(tEncodeI64(pCoder, pSubmitTbData->ctimeMs));
 
   if (hasBlog) {
-    tEncodeBlobSet(pCoder, pSubmitTbData->pBlobSet);
+    TAOS_CHECK_EXIT(tEncodeBlobSet(pCoder, pSubmitTbData->pBlobSet));
     if (tBlobSetSize(pSubmitTbData->pBlobSet) != count) {
       uError("blob set size %d not match row size %d", tBlobSetSize(pSubmitTbData->pBlobSet), count);
       return TSDB_CODE_INVALID_MSG;
@@ -13353,17 +13355,16 @@ _exit:
   return code;
 }
 
-int32_t tDecodeSubmitReq(SDecoder *pCoder, SSubmitReq2 *pReq, SArray *rawList) {
+int32_t tDecodeSubmitReq(SDecoder *pCoder, SSubmitReq2 *pReq, SArray *rawList, SArray* dataOffset) {
   int32_t code = 0;
 
   memset(pReq, 0, sizeof(*pReq));
-
   // decode
   if (tStartDecode(pCoder) < 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
-
+  
   uint64_t nSubmitTbData;
   if (tDecodeU64v(pCoder, &nSubmitTbData) < 0) {
     code = TSDB_CODE_INVALID_MSG;
@@ -13375,9 +13376,13 @@ int32_t tDecodeSubmitReq(SDecoder *pCoder, SSubmitReq2 *pReq, SArray *rawList) {
     code = terrno;
     goto _exit;
   }
-
   for (uint64_t i = 0; i < nSubmitTbData; i++) {
     SSubmitTbData *data = taosArrayReserve(pReq->aSubmitTbData, 1);
+    int32_t offset = INT_BYTES + pCoder->pos;
+    if (dataOffset != NULL && taosArrayPush(dataOffset, &offset) == NULL){
+      code = terrno;
+      goto _exit;
+    }
     if (tDecodeSSubmitTbData(pCoder, data, rawList != NULL ? taosArrayReserve(rawList, 1) : NULL) < 0) {
       code = TSDB_CODE_INVALID_MSG;
       goto _exit;
@@ -13385,6 +13390,23 @@ int32_t tDecodeSubmitReq(SDecoder *pCoder, SSubmitReq2 *pReq, SArray *rawList) {
   }
 
   tEndDecode(pCoder);
+
+_exit:
+  return code;
+}
+
+int32_t tDecodeOneSubmit(SDecoder *pCoder, SSubmitTbData *data, int32_t offset) {
+  int32_t code = 0;
+
+  pCoder->pos = offset;
+  if (offset < 0 || pCoder->pos >= pCoder->size) {
+    code = TSDB_CODE_OUT_OF_RANGE;
+    goto _exit;
+  }
+  if (tDecodeSSubmitTbData(pCoder, data, NULL) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
 
 _exit:
   return code;

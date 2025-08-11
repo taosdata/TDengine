@@ -2164,6 +2164,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       SSTriggerWalDataRequest *pReq = &pProgress->pullReq.walDataReq;
       pReq->uid = pCurTableMeta->tbUid;
       pReq->ver = pMetaToFetch->ver;
+      pReq->offset = pMetaToFetch->offset;
       pReq->skey = pMetaToFetch->skey;
       pReq->ekey = pMetaToFetch->ekey;
       pReq->cids = NULL;
@@ -2178,6 +2179,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       SSTriggerWalDataRequest *pReq = &pProgress->pullReq.walDataReq;
       pReq->uid = pColRefToFetch->otbUid;
       pReq->ver = pMetaToFetch->ver;
+      pReq->offset = pMetaToFetch->offset;
       pReq->skey = pMetaToFetch->skey;
       pReq->ekey = pMetaToFetch->ekey;
       pReq->cids = pProgress->reqCids;
@@ -3250,7 +3252,8 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       pProgress->latestVer = pDataBlock->info.id.groupId;
       if (nrows > 0) {
         int32_t          ncols = blockDataGetNumOfCols(pDataBlock);
-        SColumnInfoData *pVerCol = taosArrayGet(pDataBlock->pDataBlock, ncols - 2);
+        SColumnInfoData *pVerCol = taosArrayGet(pDataBlock->pDataBlock, pTask->isVirtualTable ? 4 : 5);
+        QUERY_CHECK_NULL(pVerCol, code, lino, _end, terrno);
         pProgress->lastScanVer = *(int64_t *)colDataGetNumData(pVerCol, nrows - 1);
       }
       void *px = taosArrayPush(pProgress->pMetadatas, &pDataBlock);
@@ -5666,6 +5669,9 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SArra
     SColumnInfoData *pNrowsCol = taosArrayGet(pBlock->pDataBlock, iCol++);
     QUERY_CHECK_NULL(pNrowsCol, code, lino, _end, terrno);
     int64_t *pNrows = (int64_t *)pNrowsCol->pData;
+    SColumnInfoData *pOffsetCol = taosArrayGet(pBlock->pDataBlock, iCol++);
+    QUERY_CHECK_NULL(pOffsetCol, code, lino, _end, terrno);
+    int32_t *pOffsets = (int32_t *)pOffsetCol->pData;
 
     for (int32_t i = 0; i < nrows; i++) {
       bool inGroup = false;
@@ -5755,6 +5761,7 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SArra
           pNewMeta->skey = skey;
           pNewMeta->ekey = pEkeys[i];
           pNewMeta->ver = pVers[i];
+          pNewMeta->offset = pOffsets[i];
           pNewMeta->nrows = pNrows[i];
           if (skey != pSkeys[i]) {
             SET_TRIGGER_META_SKEY_INACCURATE(pNewMeta);
@@ -7187,6 +7194,7 @@ static int32_t stHistoryGroupAddMetaDatas(SSTriggerHistoryGroup *pGroup, SArray 
       pNewMeta->skey = pSkeys[i];
       pNewMeta->ekey = pEkeys[i];
       pNewMeta->ver = 0;
+      pNewMeta->offset = 0;
       pNewMeta->nrows = pNrows[i];
     }
   }

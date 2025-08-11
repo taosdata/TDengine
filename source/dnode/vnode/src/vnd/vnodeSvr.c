@@ -19,6 +19,7 @@
 #include "libs/new-stream/stream.h"
 #include "monitor.h"
 #include "taoserror.h"
+#include "tarray.h"
 #include "tencode.h"
 #include "tglobal.h"
 #include "tmsg.h"
@@ -1448,9 +1449,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
         vError("vgId:%d, failed to fetch tbUid list", TD_VID(pVnode));
       }
       if (taosArrayPush(tbUids, &pCreateReq->uid) == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        rcode = -1;
-        goto _exit;
+        vError("vgId:%d, failed to put uid to tbUid list, uid:%"PRId64, TD_VID(pVnode), pCreateReq->uid);
       }
       vnodeUpdateMetaRsp(pVnode, cRsp.pMeta);
     }
@@ -1730,6 +1729,9 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
         if (tdFetchTbUidList(pVnode->pSma, &pStore, pDropTbReq->suid, tbUid) < 0) {
           vError("vgId:%d, failed to fetch tbUid list", TD_VID(pVnode));
         }
+      }
+      if (taosArrayPush(tbUids, &pDropTbReq->uid) == NULL) {
+        vError("vgId:%d, failed to put uid to tbUids list, uid:%"PRId64, TD_VID(pVnode), pDropTbReq->uid);
       }
     }
 
@@ -2570,7 +2572,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
     len -= sizeof(SSubmitReq2Msg);
 
     tDecoderInit(&dc, pReq, len);
-    if (tDecodeSubmitReq(&dc, pSubmitReq, NULL) < 0) {
+    if (tDecodeSubmitReq(&dc, pSubmitReq, NULL, NULL) < 0) {
       code = TSDB_CODE_INVALID_MSG;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
