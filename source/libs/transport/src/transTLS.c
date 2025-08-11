@@ -176,6 +176,8 @@ void sslOnRead(STransTLS* pTls, size_t nread, const uv_buf_t* buf) {
       sslReadDecryptedData(pTls, NULL, 0);
     }
   } else if (nread < 0) {
+    tError("SSL read error: %s", ERR_reason_error_string(ERR_get_error()));
+    return;
   }
   return;
 }
