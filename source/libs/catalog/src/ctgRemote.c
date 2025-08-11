@@ -1372,7 +1372,7 @@ int32_t ctgGetTbMetaFromMnodeImpl(SCatalog* pCtg, SRequestConnInfo* pConn, const
   };
 
   SRpcMsg rpcRsp = {0};
-  CTG_ERR_RET(rpcSendRecv(pConn->pTrans, &pConn->mgmtEps, &rpcMsg, &rpcRsp));
+  CTG_ERR_RET(rpcSendRecvWithTimeout(pConn->pTrans, &pConn->mgmtEps, &rpcMsg, &rpcRsp, NULL, CATLOG_TIMEOUT));
 
   CTG_ERR_RET(ctgProcessRspMsg(out, reqType, rpcRsp.pCont, rpcRsp.contLen, rpcRsp.code, tbFName));
 
@@ -1457,7 +1457,7 @@ int32_t ctgGetTbMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SNa
   };
 
   SRpcMsg rpcRsp = {0};
-  CTG_ERR_RET(rpcSendRecv(pConn->pTrans, &vgroupInfo->epSet, &rpcMsg, &rpcRsp));
+  CTG_ERR_RET(rpcSendRecvWithTimeout(pConn->pTrans, &vgroupInfo->epSet, &rpcMsg, &rpcRsp, NULL, CATLOG_TIMEOUT));
 
   CTG_ERR_RET(ctgProcessRspMsg(out, reqType, rpcRsp.pCont, rpcRsp.contLen, rpcRsp.code, tbFName));
 

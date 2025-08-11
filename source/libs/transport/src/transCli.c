@@ -3417,7 +3417,7 @@ int32_t transSendRecvWithTimeout(void* pInstRef, SEpSet* pEpSet, STransMsg* pReq
     pSyncMsg->pRsp->pCont = NULL;
     if (pSyncMsg->hasEpSet == 1) {
       epsetAssign(pEpSet, &pSyncMsg->epSet);
-      *epUpdated = 1;
+      if(epUpdated) *epUpdated = 1;
     }
   }
 _RETURN:
