@@ -43,7 +43,7 @@ After modifying configuration file parameters, you need to restart the *taosd* s
 | resolveFQDNRetryTime   | Cancelled after 3.x     | Not supported                                                | Number of retries when FQDN resolution fails                 |
 | timeToGetAvailableConn | Cancelled after 3.3.4.x | Maximum waiting time to get an available connection, range 10-50000000, in milliseconds, default value 500000 |                                                              |
 | maxShellConns          | Cancelled after 3.x     | Supported, effective after restart                           | Maximum number of connections allowed                        |
-| maxRetryWaitTime       |                         | Supported, effective after restart                           | Maximum timeout for reconnection,calculated from the time of retry,range is 3000-86400000,in milliseconds, default value 10000 |
+| maxRetryWaitTime       |                         | Supported, effective after restart                           | Maximum timeout for reconnection,calculated from the time of retry,range is 3000-86400000,in milliseconds, default value 20000 |
 | shareConnLimit         | Added in 3.3.4.0        | Supported, effective after restart                           | Number of requests a connection can share, range 1-512, default value 10 |
 | readTimeout            | Added in 3.3.4.0        | Supported, effective after restart                           | Minimum timeout for a single request, range 64-604800, in seconds, default value 900 |
 ### Monitoring Related

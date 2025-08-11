@@ -7,11 +7,11 @@ class TestNormalTableAlter3:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_normal_table_alter_3(self):
-        """alter normal table 3
+        """Alter: import old data
 
-        1. add column
-        2. insert out-of-order data
-        3. query data
+        1. Add column
+        2. Insert out-of-order data
+        3. Query data
 
         Catalog:
             - Table:NormalTable:Alter

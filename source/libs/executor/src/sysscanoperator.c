@@ -20,6 +20,7 @@
 #include "nodes.h"
 #include "querynodes.h"
 #include "systable.h"
+#include "tcommon.h"
 #include "tname.h"
 
 #include "tdatablock.h"
@@ -1492,11 +1493,13 @@ static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, 
     code = colDataSetVal(pColInfoData, numOfRows, (char*)colTypeStr, false);
     QUERY_CHECK_CODE(code, lino, _end);
 
+    // col length
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 5);
     QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
     code = colDataSetVal(pColInfoData, numOfRows, (const char*)&schemaRow->pSchema[i].bytes, false);
     QUERY_CHECK_CODE(code, lino, _end);
 
+    // col precision, col scale, col nullable
     for (int32_t j = 6; j <= 8; ++j) {
       pColInfoData = taosArrayGet(dataBlock->pDataBlock, j);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
@@ -1521,6 +1524,13 @@ static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, 
       code = colDataSetVal(pColInfoData, numOfRows, (char*)refColName, false);
       QUERY_CHECK_CODE(code, lino, _end);
     }
+
+    // col id
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 10);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    code = colDataSetVal(pColInfoData, numOfRows, (const char*)&schemaRow->pSchema[i].colId, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     ++numOfRows;
   }
 
@@ -2520,13 +2530,46 @@ static int32_t buildVgDiskUsage(SOperatorInfo* pOperator, SDbSizeStatisInfo* pSt
 _end:
   return code;
 }
+
+static int8_t shouldEstimateRawDataSize(SOperatorInfo* pOperator) {
+  int32_t lino = 0;
+  size_t  size = 0;
+  int32_t index = 0;
+
+  const SSysTableMeta* pMeta = NULL;
+  SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
+
+  SSysTableScanInfo* pInfo = pOperator->info;
+  getInfosDbMeta(&pMeta, &size);
+
+  for (int32_t i = 0; i < size; ++i) {
+    if (strcmp(pMeta[i].name, TSDB_INS_DISK_USAGE) == 0) {
+      index = i;
+      break;
+    }
+  }
+  if (index >= size) {
+    return 1;
+  }
+  const SSysTableMeta* pTgtMeta = &pMeta[index];
+  int32_t              colNum = pTgtMeta->colNum;
+  SColumnInfoData      colInfoData =
+      createColumnInfoData(pTgtMeta->schema[colNum - 1].type, pTgtMeta->schema[colNum - 1].bytes, colNum);
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->matchInfo.pList); i++) {
+    SColMatchItem* pItem = taosArrayGet(pInfo->matchInfo.pList, i);
+    if (pItem->colId == colInfoData.info.colId) {
+      return 1;
+    }
+  }
+  return 0;
+}
 static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*       pAPI = &pTaskInfo->storageAPI;
   SSysTableScanInfo* pInfo = pOperator->info;
-  SDbSizeStatisInfo  staticsInfo = {0};
+  SDbSizeStatisInfo  staticsInfo = {.estimateRawData = 1};
 
   char*        buf = NULL;
   SSDataBlock* p = NULL;
@@ -2549,6 +2592,10 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   }
 
   SSDataBlock* pBlock = pInfo->pRes;
+
+  if (!pInfo->showRewrite) {
+    staticsInfo.estimateRawData = shouldEstimateRawDataSize(pOperator);
+  }
 
   code = buildVgDiskUsage(pOperator, &staticsInfo);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -4187,6 +4234,15 @@ static int32_t vnodeEstimateRawDataSize(SOperatorInfo* pOperator, SDbSizeStatisI
   SSysTableScanInfo* pInfo = pOperator->info;
   int32_t            numOfRows = 0;
   int32_t            ret = 0;
+  if (pStaticInfo->estimateRawData == 0) {
+    pStaticInfo->rawDataSize = 0;
+    return code;
+  }
+
+  if (pStaticInfo->estimateRawData == 0) {
+    pStaticInfo->rawDataSize = 0;
+    return code;
+  }
 
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);

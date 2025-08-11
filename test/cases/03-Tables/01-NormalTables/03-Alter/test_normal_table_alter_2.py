@@ -7,15 +7,12 @@ class TestNormalTableAlter2:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_normal_table_alter_2(self):
-        """alter normal table 2
+        """Alter: then insert
 
-        1. add column
-        2. insert data
-        2. count new column
-        3. kill then restart
-        4. drop column
-        5. insert data
-        6. count
+        1. Execute ADD COLUMN, DROP COLUMN, MODIFY COLUMN operations.
+        2. Insert data and run SELECT COUNT queries to verify.
+        3. Restart the database.
+        4. Continue modifying columns and verify the changes.
 
         Catalog:
             - Table:NormalTable:Alter

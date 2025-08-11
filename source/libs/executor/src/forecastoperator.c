@@ -181,7 +181,10 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp, const char* id) {
       int16_t         valType = pCol->col.type;
       for (int32_t j = 0; j < pCol->numOfRows; ++j) {
         char* pVal = colDataGetData(&pCol->data, j);
-        taosAnalyBufWriteColData(pBuf, i, valType, pVal);
+        code = taosAnalyBufWriteColData(pBuf, i, valType, pVal);
+        if (code != 0) {
+          return code;
+        }
       }
     }
 
@@ -270,19 +273,31 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
   int32_t rows = 0;
   tjsonGetInt32ValueFromDouble(pJson, "rows", rows, code);
   if (rows < 0 && code == 0) {
+    code = TSDB_CODE_ANA_ANODE_RETURN_ERROR;
+
     char pMsg[1024] = {0};
     code = tjsonGetStringValue(pJson, "msg", pMsg);
     if (code != 0) {
       qError("%s failed to get msg from rsp, unknown error", pId);
     } else {
       qError("%s failed to exec forecast, msg:%s", pId, pMsg);
+      void* p = strstr(pMsg, "white noise");
+      if (p != NULL) {
+        code = TSDB_CODE_ANA_WN_DATA;
+      } else {
+        p = strstr(pMsg, "[Errno 111] Connection refused");
+        if (p != NULL) {  // the specified forecast model not loaded yet
+          code = TSDB_CODE_ANA_ALGO_NOT_LOAD;
+        }
+      }
     }
 
     tjsonDelete(pJson);
-    return TSDB_CODE_ANA_ANODE_RETURN_ERROR;
+    return code;
   }
 
-  if (code < 0) {
+  // invalid json format
+  if (code != 0) {
     goto _OVER;
   }
 
@@ -873,7 +888,12 @@ static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id) {
 
         d.numOfRows = num;
 
-        colInfoDataEnsureCapacity(&d.data, num, true);
+        code = colInfoDataEnsureCapacity(&d.data, num, true);
+        if (code != 0) {
+          qError("%s failed to prepare buffer, code:%s", id, tstrerror(code));
+          goto _end;
+        }
+
         for (int32_t j = 0; j < num; ++j) {
           char* ps = NULL;
           if (j == 0) {
@@ -882,63 +902,71 @@ static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id) {
             ps = pList[j];
           }
 
+          code = 0;
+
           switch(pColx->type) {
             case TSDB_DATA_TYPE_TINYINT: {
               int8_t t1 = taosStr2Int8(ps, NULL, 10);
-              colDataSetVal(&d.data, j, (const char*)&t1, false);
+              code = colDataSetVal(&d.data, j, (const char*)&t1, false);
               break;
             }
             case TSDB_DATA_TYPE_SMALLINT: {
               int16_t t1 = taosStr2Int16(ps, NULL, 10);
-              colDataSetVal(&d.data, j, (const char*)&t1, false);
+              code = colDataSetVal(&d.data, j, (const char*)&t1, false);
               break;
             }
             case TSDB_DATA_TYPE_INT: {
               int32_t t1 = taosStr2Int32(ps, NULL, 10);
-              colDataSetVal(&d.data, j, (const char*)&t1, false);
+              code = colDataSetVal(&d.data, j, (const char*)&t1, false);
               break;
             }
             case TSDB_DATA_TYPE_BIGINT: {
               int64_t t1 = taosStr2Int64(ps, NULL, 10);
-              colDataSetVal(&d.data, j, (const char*)&t1, false);
+              code = colDataSetVal(&d.data, j, (const char*)&t1, false);
               break;
             }
             case TSDB_DATA_TYPE_FLOAT: {
               float t1 = taosStr2Float(ps, NULL);
-              colDataSetVal(&d.data, j, (const char*)&t1, false);
+              code = colDataSetVal(&d.data, j, (const char*)&t1, false);
               break;
             }
             case TSDB_DATA_TYPE_DOUBLE: {
               double t1 = taosStr2Double(ps, NULL);
-              colDataSetVal(&d.data, j, (const char*)&t1, false);
+              code = colDataSetVal(&d.data, j, (const char*)&t1, false);
               break;
             }
             case TSDB_DATA_TYPE_UTINYINT: {
               uint8_t t1 = taosStr2UInt8(ps, NULL, 10);
-              colDataSetVal(&d.data, j, (const char*)&t1, false);
+              code = colDataSetVal(&d.data, j, (const char*)&t1, false);
               break;
             }
             case TSDB_DATA_TYPE_USMALLINT: {
               uint16_t t1 = taosStr2UInt16(ps, NULL, 10);
-              colDataSetVal(&d.data, j, (const char*)&t1, false);
+              code = colDataSetVal(&d.data, j, (const char*)&t1, false);
               break;
             }
             case TSDB_DATA_TYPE_UINT: {
               uint32_t t1 = taosStr2UInt32(ps, NULL, 10);
-              colDataSetVal(&d.data, j, (const char*)&t1, false);
+              code = colDataSetVal(&d.data, j, (const char*)&t1, false);
               break;
             }
             case TSDB_DATA_TYPE_UBIGINT: {
               uint64_t t1 = taosStr2UInt64(ps, NULL, 10);
-              colDataSetVal(&d.data, j, (const char*)&t1, false);
+              code = colDataSetVal(&d.data, j, (const char*)&t1, false);
               break;
             }
           }
 
+          if (code != 0) {
+            break;
+          }
         }
 
         taosMemoryFree(pList);
         taosMemoryFree(buf);
+        if (code != 0) {
+          goto _end;
+        }
 
         void* noret = taosArrayPush(pSupp->pDynamicRealList, &d);
         if (noret == NULL) {
