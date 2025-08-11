@@ -6,6 +6,7 @@ from random import randint
 import os
 import subprocess
 
+
 class TestSnodeMgmt:
     caseName = "test_stream_sliding_trigger"
     currentDir = os.path.dirname(os.path.abspath(__file__))
