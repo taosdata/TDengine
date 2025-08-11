@@ -1047,20 +1047,19 @@ static int32_t processTsNonVTable(SVnode* pVnode, SStreamTsResponse* tsRsp, SStr
   while (true) {
     bool hasNext = false;
     STREAM_CHECK_RET_GOTO(getTableDataInfo(pTask, &hasNext));
-    if (!hasNext) {
-      break;
+    if (hasNext) {
+      pTask->api.tsdReader.tsdReaderReleaseDataBlock(pTask->pReader);
+      STsInfo* tsInfo = taosArrayReserve(tsRsp->tsInfo, 1);
+      STREAM_CHECK_NULL_GOTO(tsInfo, terrno)
+      if (pTask->options.order == TSDB_ORDER_ASC) {
+        tsInfo->ts = pTask->pResBlock->info.window.skey;
+      } else {
+        tsInfo->ts = pTask->pResBlock->info.window.ekey;
+      }
+      tsInfo->gId = qStreamGetGroupId(pTask->pTableList, pTask->pResBlock->info.id.uid);
+      stDebug("vgId:%d %s get last ts:%" PRId64 ", gId:%" PRIu64 ", ver:%" PRId64, TD_VID(pVnode), __func__, tsInfo->ts,
+              tsInfo->gId, tsRsp->ver);
     }
-    pTask->api.tsdReader.tsdReaderReleaseDataBlock(pTask->pReader);
-    STsInfo* tsInfo = taosArrayReserve(tsRsp->tsInfo, 1);
-    STREAM_CHECK_NULL_GOTO(tsInfo, terrno)
-    if (pTask->options.order == TSDB_ORDER_ASC) {
-      tsInfo->ts = pTask->pResBlock->info.window.skey;
-    } else {
-      tsInfo->ts = pTask->pResBlock->info.window.ekey;
-    }
-    tsInfo->gId = qStreamGetGroupId(pTask->pTableList, pTask->pResBlock->info.id.uid);
-    stDebug("vgId:%d %s get last ts:%" PRId64 ", gId:%" PRIu64 ", ver:%" PRId64, TD_VID(pVnode), __func__, tsInfo->ts,
-            tsInfo->gId, tsRsp->ver);
 
     pTask->currentGroupIndex++;
     if (pTask->currentGroupIndex >= qStreamGetTableListGroupNum(pTask->pTableList)) {
@@ -1460,7 +1459,7 @@ static int32_t vnodeProcessStreamTsdbTriggerDataReq(SVnode* pVnode, SRpcMsg* pMs
     ST_TASK_DLOG("vgId:%d %s get skey:%" PRId64 ", eksy:%" PRId64 ", uid:%" PRId64 ", gId:%" PRIu64 ", rows:%" PRId64,
             TD_VID(pVnode), __func__, pTaskInner->pResBlock->info.window.skey, pTaskInner->pResBlock->info.window.ekey,
             pTaskInner->pResBlock->info.id.uid, pTaskInner->pResBlock->info.id.groupId, pTaskInner->pResBlock->info.rows);
-    if (pTaskInner->pResBlockDst->info.rows >= STREAM_RETURN_ROWS_NUM) {
+    if (pTaskInner->pResBlockDst->info.rows >= 0) { //todo
       break;
     }
   }
@@ -1489,7 +1488,8 @@ static int32_t vnodeProcessStreamTsdbCalcDataReq(SVnode* pVnode, SRpcMsg* pMsg, 
 
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
   void* pTask = sStreamReaderInfo->pTask;
-  ST_TASK_DLOG("vgId:%d %s start", TD_VID(pVnode), __func__);
+  ST_TASK_DLOG("vgId:%d %s start, skey:%"PRId64",ekey:%"PRId64",gid:%"PRId64, TD_VID(pVnode), __func__, 
+    req->tsdbCalcDataReq.skey, req->tsdbCalcDataReq.ekey, req->tsdbCalcDataReq.gid);
 
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->triggerCols, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
 
