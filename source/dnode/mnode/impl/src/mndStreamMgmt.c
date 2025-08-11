@@ -459,7 +459,7 @@ static int32_t msmSTAddToSnodeMapImpl(int64_t streamId, SStmTaskStatus* pStatus,
     TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
   } else {
     if (NULL == pSnode->streamTasks) {
-      pSnode->streamTasks = taosHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+      pSnode->streamTasks = taosHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
       TSDB_CHECK_NULL(pSnode->streamTasks, code, lino, _exit, terrno);
       taosHashSetFreeFp(pSnode->streamTasks, mstDestroySStmSnodeStreamStatus);
     }
@@ -3906,12 +3906,13 @@ void msmWatchCheckStreamMap(SStmGrpCtx* pCtx) {
 int32_t msmWatchHandleEnding(SStmGrpCtx* pCtx, bool watchError) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  int32_t minVal = watchError ? 0 : 1;
 
   if (0 != atomic_val_compare_exchange_8(&mStreamMgmt.watch.ending, 0, 1)) {
     return code;
   }
 
-  while (atomic_load_32(&mStreamMgmt.watch.processing) > 1) {
+  while (atomic_load_32(&mStreamMgmt.watch.processing) > minVal) {
     (void)sched_yield();
   }
 
