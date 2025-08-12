@@ -1008,8 +1008,8 @@ typedef struct SStreamTsResponse {
 int32_t tSerializeSStreamTsResponse(void* buf, int32_t bufLen, const SStreamTsResponse* pRsp);
 int32_t tDeserializeSStreamTsResponse(void* buf, int32_t bufLen, void *pBlock);
 
-
-
+int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, const SArray* pRsp);
+int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, SArray* pRsp);
 
 typedef struct SStreamGroupValue {
   SValue        data;

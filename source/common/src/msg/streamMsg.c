@@ -4283,3 +4283,67 @@ _exit:
   tDecoderClear(&decoder);
   return code;
 }
+
+int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, const SArray* pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t tlen = 0;
+
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+
+  int32_t nBlocks = taosArrayGetSize(pRsp);
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, nBlocks));
+  for (int32_t i = 0; i < nBlocks; i++) {
+    SSDataBlock* pBlock = *(SSDataBlock**)TARRAY_GET_ELEM(pRsp, i);
+    uint8_t* data = encoder.data ? (encoder.data + encoder.pos) : NULL;
+    int32_t  len = blockEncode(pBlock, (char*)data, encoder.size - encoder.pos, blockDataGetNumOfCols(pBlock));
+    if (len < 0) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    encoder.pos += len;
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, pBlock->info.version));
+    TAOS_CHECK_EXIT(tEncodeU64(&encoder, pBlock->info.id.uid));
+  }
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSStreamWalDataResponse(void *buf, int32_t bufLen, SArray *pRsp) {
+  SDecoder decoder = {0};
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+
+  int32_t nBlocks = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nBlocks));
+  taosArrayClearP(pRsp, (void (*)(void*))blockDataDestroy);
+  TAOS_CHECK_EXIT(taosArrayEnsureCap(pRsp, nBlocks));
+  for (int32_t i = 0; i < nBlocks; i++) {
+    SSDataBlock* pBlock = NULL;
+    TAOS_CHECK_EXIT(createDataBlock(&pBlock));
+    const char* pEndPos = NULL;
+    TAOS_CHECK_EXIT(blockDecode(pBlock, (char*)decoder.data + decoder.pos, &pEndPos));
+    decoder.pos = (uint8_t*)pEndPos - decoder.data;
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pBlock->info.version));
+    TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pBlock->info.id.uid));
+  }
+
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
