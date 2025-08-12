@@ -107,7 +107,8 @@ Supported parameters include:
 - `password`: Password for the connection.
 - `protocol`: Connection protocol, options are Native or WebSocket, default is Native.
 - `db`: Database to connect to.
-- `timezone`: The timezone used for parsing time types in the query result set. Defaults to the local timezone. For format details, see [Timezone Settings for Result Sets](#timezone-settings-for-result-sets).
+- `timezone`: The timezone used for parsing time types in the query result set. Defaults to the local timezone. For format details, see [Timezone Settings](#timezone-settings).
+- `connectionTimezone`: Connection-level timezone setting (supported in version 3.1.8 and above), only available for .NET 6+ and supports IANA timezone format exclusively. Cannot be set simultaneously with `timezone`. For details, see [Timezone Settings](#timezone-settings).
 
 ##### WebSocket Connection
 
@@ -121,7 +122,8 @@ Supported parameters include:
 - `password`: Password for the connection.
 - `protocol`: Connection protocol, options are Native or WebSocket, default is Native.
 - `db`: Database to connect to.
-- `timezone`: The timezone used for parsing time types in the query result set. Defaults to the local timezone. For format details, see [Timezone Settings for Result Sets](#timezone-settings-for-result-sets).
+- `timezone`: The timezone used for parsing time types in the query result set. Defaults to the local timezone. For format details, see [Timezone Settings](#timezone-settings).
+- `connectionTimezone`: Connection-level timezone setting (supported in version 3.1.8 and above), only available for .NET 6+ and supports IANA timezone format exclusively. Cannot be set simultaneously with `timezone`. For details, see [Timezone Settings](#timezone-settings).
 - `connTimeout`: Connection timeout, default is 1 minute.
 - `readTimeout`: Read timeout, default is 5 minutes.
 - `writeTimeout`: Send timeout, default is 10 seconds.
@@ -132,17 +134,62 @@ Supported parameters include:
 - `reconnectRetryCount`: Number of retries for reconnection, default is 3.
 - `reconnectIntervalMs`: Interval for reconnection in milliseconds, default is 2000.
 
-#### Timezone Settings for Result Sets
+#### Timezone Settings
 
-The C# driver, when parsing result sets, uses the local timezone by default to interpret time types. If you need to use a different timezone to parse time types, you can specify the timezone by setting the `timezone` parameter.  
-Internally, the `TimeZoneInfo.FindSystemTimeZoneById` method is used to retrieve timezone information:
+##### Connection-Level Timezone Settings
 
-- On Windows systems, `FindSystemTimeZoneById` attempts to match the subkey names under the registry branch `HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Time Zones`.
-- On Linux and macOS, the timezone information provided by the [ICU library](https://unicode-org.github.io/icu/userguide/datetime/timezone/) is used.
+Starting from version 3.1.8, the C# driver supports connection-level timezone settings. You can specify the connection-level timezone by setting the `connectionTimezone` parameter.
 
-Take the New York timezone as an example: Windows uses Eastern Standard Time, while Linux and macOS use America/New_York.
+###### Feature Specifications
 
-Starting with .NET 6, you can uniformly use the [IANA](https://www.iana.org/time-zones) time zone format, such as `America/New_York`.
+- Only supported in .NET 6.0 and above
+- Only supports IANA timezone formats, e.g., `America/New_York`
+- Not supported for native connections on Windows platforms
+- Cannot be used when TDengine server or taosAdapter is deployed on Windows
+- Cannot be set simultaneously with the `timezone` parameter
+
+###### Functional Impact
+
+This parameter affects the time type resolution for all queries and write operations executed through this connection, as well as the time type resolution of query result sets.
+
+###### Example
+
+When the TDengine server is in UTC timezone and `connectionTimezone=America/New_York` is set:
+
+Execute the write SQL:
+
+`insert into db.tb values('2025-08-08 14:00:00',1)`
+
+- The written time will be `2025-08-08 14:00:00` in New York timezone
+- Querying via taos shell will display `2025-08-08 18:00:00.000` (UTC time)
+
+When executing query SQL `select * from db.tb` with `connectionTimezone=America/New_York`, the time types in the query result set will be parsed as New York timezone.
+
+| Method              | Return Type      | Example Output                                                                                                    | Remarks                                                                                       |
+|---------------------|------------------|-------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|
+| `GetValue`          | `DateTime`       | `2025-08-08 14:00:00.000`                                                                                         | Represents New York timezone time                                                             |
+| `GetDateTime`       | `DateTime`       | `2025-08-08 14:00:00.000`                                                                                         | Same behavior as `GetValue`                                                                   |
+| `GetDateTimeOffset` | `DateTimeOffset` | `2025-08-08 14:00:00.000` (yyyy-MM-dd HH:mm:ss.fff) or `2025-08-08 14:00:00.000-04:00` (yyyy-MM-dd HH:mm:ss.fffK) | New method added in 3.1.8                                                                     |
+| `GetInt64`          | `long`           | `1754676000000` (millisecond precision)                                                                           | Time precision matches database definition (3.1.8 supports returning timestamps via GetInt64) |
+
+##### Query Result Set Timezone Parsing Settings
+
+The `timezone` parameter sets the timezone used for parsing time types in query result sets, internally using the `TimeZoneInfo.FindSystemTimeZoneById` method to obtain timezone information:
+
+- On Windows systems, `FindSystemTimeZoneById` attempts to match subkey names under the registry branch `HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Time Zones`.
+- On Linux and macOS, it uses timezone information provided by the [ICU library](https://unicode-org.github.io/icu/userguide/datetime/timezone/).
+
+For example, for New York timezone:
+- Windows uses `Eastern Standard Time`
+- Linux and macOS use `America/New_York`
+
+For .NET 6.0 and above, you can uniformly use [IANA](https://www.iana.org/time-zones) timezone formats, e.g., `America/New_York`.
+
+##### Parameter Binding Notes
+
+- Since DateTime doesn't contain offset information, the Kind property of the obtained DateTime is `Unspecified`. Using the `ToUniversalTime()` method will treat it as local timezone to get UTC time, resulting in incorrect UTC time. Therefore, **all DateTime objects with Kind property as `Unspecified` are prohibited for parameter binding**.
+- Starting from version 3.1.8, binding supports using DateTimeOffset type to write TDengine `TIMESTAMP` type, converting to timestamp using `UtcTicks` for writing.
+- Starting from version 3.1.8, binding supports using long type to write TDengine `TIMESTAMP` type, with time precision needing to match the database.
 
 #### Interface Description
 
@@ -676,6 +723,7 @@ Supported properties for creating consumers:
 - `ws.autoReconnect`: Whether to automatically reconnect, default is false.
 - `ws.reconnect.retry.count`: Number of reconnection attempts, default is 3.
 - `ws.reconnect.interval.ms`: Reconnection interval in milliseconds, default is 2000.
+- `connectionTimezone`: Connection-level timezone setting (supported in version 3.1.8 and above, currently only for timezone functionality when parsing result sets). Only available for .NET 6+ and supports IANA timezone format exclusively. For details, see [Timezone Settings](#timezone-settings).
 
 For other parameters, please refer to: [Consumer Parameter List](../../../developer-guide/manage-consumers/), note that the default value of auto.offset.reset in message subscription has changed starting from TDengine server version 3.2.0.0.
 
