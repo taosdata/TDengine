@@ -168,7 +168,7 @@ static int32_t addToFreeBlock(SDataSinkFileMgr* pFileMgr, const SFileBlockInfo* 
 
 bool setNextIteratorFromFile(SResultIter** ppResult) {
   SResultIter* pResult = *ppResult;
-  if (pResult->cleanMode == DATA_CLEAN_EXPIRED) {
+  if (pResult->dataMode & DATA_ALLOC_MODE_SLIDING) {
     SSlidingGrpMgr* pSlidingGrpMgr = (SSlidingGrpMgr*)pResult->groupData;
     if (++pResult->offset < pSlidingGrpMgr->blocksInFile->size) {
       return false;
@@ -325,7 +325,7 @@ int32_t readAlignDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock, int32
 }
 
 int32_t readDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock, int32_t tsColSlotId) {
-  if (pResult->cleanMode == DATA_CLEAN_EXPIRED) {
+  if (pResult->dataMode & DATA_ALLOC_MODE_SLIDING) {
     return readSlidingDataFromFile(pResult, ppBlock, tsColSlotId);
   } else {
     return readAlignDataFromFile(pResult, ppBlock, tsColSlotId);

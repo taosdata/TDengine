@@ -82,10 +82,12 @@ typedef struct SDataSinkFileMgr {
 } SDataSinkFileMgr;
 
 typedef enum {
-  DATA_CLEAN_NONE = 0,
-  DATA_CLEAN_IMMEDIATE = 1,
-  DATA_CLEAN_EXPIRED = 2,
-} SCleanMode;
+  DATA_CLEAN_IMMEDIATE = 0x01,
+  DATA_CLEAN_EXPIRED = 0x02,
+  DATA_CLEAN_EXTERNAL = 0x04,
+  DATA_ALLOC_MODE_ALIGN = 0x10,
+  DATA_ALLOC_MODE_SLIDING = 0x20,
+} SDataMgrMode;
 
 typedef struct SDataSinkManager2 {
   int64_t   memBufSize;
@@ -124,11 +126,11 @@ typedef struct SBlocksInfoFile {
 } SBlocksInfoFile;
 
 typedef struct STaskDSMgr {
-  int8_t cleanMode;  // 1 - immediate, 2 - expired
+  int8_t dataMode;
 } STaskDSMgr;
 
 typedef struct SAlignTaskDSMgr {
-  int8_t            cleanMode;  // 1 - immediate, 2 - expired
+  int8_t            dataMode;
   int64_t           streamId;
   int64_t           taskId;
   int64_t           sessionId;  // sessionId is used to distinguish different sessions in the same task
@@ -138,7 +140,7 @@ typedef struct SAlignTaskDSMgr {
 } SAlignTaskDSMgr;
 
 typedef struct SSlidingTaskDSMgr {
-  int8_t            cleanMode;  // 1 - immediate, 2 - expired
+  int8_t            dataMode;
   int64_t           streamId;
   int64_t           taskId;
   int64_t           sessionId;  // sessionId is used to distinguish different sessions in the same task
@@ -183,11 +185,12 @@ typedef enum {
 } SDataSinkPos;
 
 typedef struct SResultIter {
-  SCleanMode        cleanMode;    // 1 - immediate, 2 - expired
+  SDataMgrMode      dataMode;
   void*             groupData;    // SAlignGrpMgr(data in mem) or SSlidingGrpMgr(data in file)
   SDataSinkFileMgr* pFileMgr;     // when has data in file, pFileMgr is not NULL
   int32_t           tsColSlotId;  // ts column slot id
-  int32_t           winIndex;     // only for immediate clean mode, index of the window in the block
+  int32_t           blockIndex;   // index of the block in the group data, for align mode.
+  int32_t           winIndex;     // index of the window in the block
                      // when tmpBlocksInMem is not NULL, this is the index of the current tmpBlocksInMem's block
   int64_t      offset;          // array index, start from 0
   SArray*      tmpBlocksInMem;  // SWindowDataInMem, read from file,
