@@ -1941,6 +1941,10 @@ int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, const SStreamRuntimeF
       dst.numOfRows = 1;
       dst.colAlloced = true;
       code = streamCalcOneScalarExpr(pExpr, &dst, pStreamRuntimeInfo);
+      if (colDataIsNull_var(dst.columnData, 0)) {
+        qInfo("invalid sub tb expr with null value");
+        code = TSDB_CODE_MND_STREAM_TBNAME_CALC_FAILED;
+      }
       if (code == 0) {
         pVal = varDataVal(colDataGetVarData(dst.columnData, 0));
         len = varDataLen(colDataGetVarData(dst.columnData, 0));
