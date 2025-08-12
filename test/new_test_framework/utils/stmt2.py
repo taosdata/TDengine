@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 
 import taos
-from taos import *
-from ctypes import *
 from .log import tdLog
 
 class TDStmt2:
