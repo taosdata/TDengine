@@ -115,7 +115,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
             ```
         - 指定某个特定版本安装
             ```
-            pip3 install taospy==2.8.3
+            pip3 install taospy==2.8.4
             ```
         - 从 GitHub 安装
             ```
@@ -583,7 +583,27 @@ WebSocket 连接需要先调用 `taos_options(TSDB_OPTION_DRIVER, "websocket")` 
 
     </TabItem>
     <TabItem label="Python" value="python">
-        <ConnPythonNative />
+
+<details>
+<summary>SQLAlchemy 连接池示例（推荐使用）</summary>
+
+```python
+{{#include docs/examples/python/sqlalchemy_demo.py}}
+```
+
+</details>
+
+<details>
+<summary>DBUtils 连接池示例</summary>
+
+```python
+{{#include docs/examples/python/dbutils_demo.py}}
+```
+
+</details>
+
+
+
     </TabItem>
     <TabItem label="Go" value="go">
 

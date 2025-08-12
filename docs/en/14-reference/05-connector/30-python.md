@@ -57,6 +57,7 @@ Python Connector historical versions (it is recommended to use the latest versio
 
 |Python Connector Version | Major Changes                                                                           | TDengine Version|
 | --------- | ----------------------------------------------------------------------------------------------------- | ----------------- |
+|2.8.4 | Support DBUtils connection pool.                                                                            | - |
 |2.8.3 | Support BLOB data type.                                                                                     | - |
 |2.8.2 | The connection parameter settings support cross-platform compatibility.                                     | - |
 |2.8.1 | Add two functions to set the connect property                                                               | - |
