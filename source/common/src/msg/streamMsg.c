@@ -3483,19 +3483,19 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
     }
     case STRIGGER_PULL_WAL_DATA_NEW: {
       SSTriggerWalDataNewRequest* pRequest = (SSTriggerWalDataNewRequest*)pReq;
-      int32_t                     nCommit = taosArrayGetSize(pRequest->commitInfos);
-      TAOS_CHECK_EXIT(tEncodeI32(&encoder, nCommit));
-      for (int32_t i = 0; i < nCommit; i++) {
-        SSTriggerWalCommitInfo* pCommit = TARRAY_GET_ELEM(pRequest->commitInfos, i);
-        TAOS_CHECK_EXIT(tEncodeI64(&encoder, pCommit->ver));
-        int32_t nBlocks = taosArrayGetSize(pCommit->blockInfos);
-        TAOS_CHECK_EXIT(tEncodeI32(&encoder, nBlocks));
-        for (int32_t j = 0; j < nBlocks; j++) {
-          SSTriggerWalBlockInfo* pBlock = TARRAY_GET_ELEM(pCommit->blockInfos, j);
-          TAOS_CHECK_EXIT(tEncodeI64(&encoder, pBlock->gid));
-          TAOS_CHECK_EXIT(tEncodeI64(&encoder, pBlock->skey));
-          TAOS_CHECK_EXIT(tEncodeI64(&encoder, pBlock->ekey));
-        }
+      int32_t                     nVersion = taosArrayGetSize(pRequest->versions);
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, nVersion));
+      for (int32_t i = 0; i < nVersion; i++) {
+        int64_t ver = *(int64_t*)TARRAY_GET_ELEM(pRequest->versions, i);
+        TAOS_CHECK_EXIT(tEncodeI64(&encoder, ver));
+      }
+      int32_t nRanges = taosArrayGetSize(pRequest->ranges);
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, nRanges));
+      for (int32_t i = 0; i < nRanges; i++) {
+        SSTriggerWalDataRange* pRange = TARRAY_GET_ELEM(pRequest->ranges, i);
+        TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRange->gid));
+        TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRange->skey));
+        TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRange->ekey));
       }
       break;
     }
@@ -3686,21 +3686,21 @@ int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPull
     }
     case STRIGGER_PULL_WAL_DATA_NEW: {
       SSTriggerWalDataNewRequest* pRequest = &(pReq->walDataNewReq);
-      int32_t                     nCommit = 0;
-      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nCommit));
-      pRequest->commitInfos = taosArrayInit_s(nCommit, sizeof(SSTriggerWalCommitInfo));
-      for (int32_t i = 0; i < nCommit; i++) {
-        SSTriggerWalCommitInfo* pCommit = TARRAY_GET_ELEM(pRequest->commitInfos, i);
-        TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pCommit->ver));
-        int32_t nBlocks = 0;
-        TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nBlocks));
-        pCommit->blockInfos = taosArrayInit_s(nBlocks, sizeof(SSTriggerWalBlockInfo));
-        for (int32_t j = 0; j < nBlocks; j++) {
-          SSTriggerWalBlockInfo* pBlock = TARRAY_GET_ELEM(pCommit->blockInfos, j);
-          TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pBlock->gid));
-          TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pBlock->skey));
-          TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pBlock->ekey));
-        }
+      int32_t                     nVersion = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nVersion));
+      pRequest->versions = taosArrayInit_s(nVersion, sizeof(int64_t));
+      for (int32_t i = 0; i < nVersion; i++) {
+        int64_t* pVer = TARRAY_GET_ELEM(pRequest->versions, i);
+        TAOS_CHECK_EXIT(tDecodeI64(&decoder, pVer));
+      }
+      int32_t nRanges = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nRanges));
+      pRequest->ranges = taosArrayInit_s(nRanges, sizeof(SSTriggerWalDataRange));
+      for (int32_t i = 0; i < nRanges; i++) {
+        SSTriggerWalDataRange* pRange = TARRAY_GET_ELEM(pRequest->ranges, i);
+        TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRange->gid));
+        TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRange->skey));
+        TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRange->ekey));
       }
       break;
     }

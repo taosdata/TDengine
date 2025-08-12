@@ -815,20 +815,16 @@ typedef struct SSTriggerWalMetaNewRequest {
   int64_t              lastVer;
 } SSTriggerWalMetaNewRequest;
 
-typedef struct SSTriggerWalBlockInfo {
+typedef struct SSTriggerWalDataRange {
   int64_t gid;
   int64_t skey;
   int64_t ekey;
-} SSTriggerWalBlockInfo;
-
-typedef struct SSTriggerWalCommitInfo {
-  int64_t ver;
-  SArray* blockInfos;  // SArray<SSTriggerWalBlockInfo>
-} SSTriggerWalCommitInfo;
+} SSTriggerWalDataRange;
 
 typedef struct SSTriggerWalDataNewRequest {
   SSTriggerPullRequest base;
-  SArray*              commitInfos;  // SArray<SSTriggerWalCommitInfo>
+  SArray*              versions;  // SArray<int64_t>
+  SArray*              ranges;    // SArray<SSTriggerWalDataRange>
 } SSTriggerWalDataNewRequest;
 
 typedef struct SSTriggerWalMetaDataNewRequest {
