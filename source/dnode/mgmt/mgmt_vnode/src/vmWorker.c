@@ -515,7 +515,6 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
                                    .param = pMgmt};
 
   if ((code = tSingleWorkerInit(&pMgmt->mgmtMultiWorker, &multiMgmtCfg)) != 0) return code;
-
   dDebug("vnode workers are initialized");
   return 0;
 }
