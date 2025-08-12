@@ -8,9 +8,14 @@ class TestStableBalanceReplica1:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stable_balance_replica1(self):
-        """stable balance replica1
+        """Query: after balance
 
-        1. -
+        1. Launch a single-node cluster
+        2. Create a 1-replica database with 4 vgroups
+        3. Create one super table and 13 child tables; insert 200 rows into each
+        4. Add dnode2 to the cluster
+        5. Execute BALANCE VGROUP
+        6. Verify data integrity in all tables
 
         Catalog:
             - DataBase:Sync
