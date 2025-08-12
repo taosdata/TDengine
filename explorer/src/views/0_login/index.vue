@@ -218,7 +218,7 @@ const { t } = useI18n();
 const store = useStore();
 const router = useRouter();
 const { getGrantsFull } = useLicense();
-const { $IS_COMMUNITY, $IS_TSDBLITE, $IS_OEM, $INDUSTRY, $error } = inject(
+const { $IS_COMMUNITY, $IS_TSDBLITE, $IS_OEM, $INDUSTRY, $error, OEM_NAME } = inject(
   'globalCustomProperties'
 ) as GlobalCustomProperties;
 const usernameRef = ref<HTMLElement | null>();
@@ -378,7 +378,9 @@ const locallanguage = computed(() => {
   }
 });
 
-const displaySystemTitle = ref(import.meta.env.VITE_APP_CUS_NAME + t('login.systemTitle'));
+const displaySystemTitle = computed(() => {
+  return OEM_NAME + ' ' + t('login.systemTitle');
+});
 
 async function init() {
   await getClusterAndDashboardUrl();

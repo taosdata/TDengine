@@ -7,31 +7,11 @@
         <span>{{ labelText }}</span>
       </div>
       <span v-if="props.data.dataType" class="column-type">{{ props.data.dataType }}</span>
-      <section
-        v-if="type != 'dimension'"
-        class="operate-btn-wrapper"
-        :class="{
-          show: showMoreBtnType.includes(type)
-        }"
-        @click.stop
-      >
+      <section v-if="type != 'dimension'" class="operate-btn-wrapper" @click.stop>
         <template v-if="!props.data.dataType">
-          <!-- database 按钮 -->
-          <template v-if="type == 'database'">
-            <el-input
-              v-model="namefilterText"
-              size="small"
-              clearable
-              prefix-icon="search"
-              style="width: 80px"
-              @clear="dbFilter"
-              @keyup.enter="dbFilter"
-            >
-            </el-input>
-          </template>
           <!-- stable 按钮 -->
           <template v-if="type == 'stable' && props.data.tags.length">
-            <el-dropdown trigger="click" @command="stableTagChange">
+            <el-dropdown @command="stableTagChange">
               <span class="el-dropdown-link more-btn">
                 {{ t('stb.tag')
                 }}<el-icon class="el-icon--right">
@@ -63,14 +43,14 @@
             placement="top"
             :content="getTooltip(data, 'view')"
           >
-            <View class="operate-icon" @click.stop="view" />
+            <More class="operate-icon rotate-90" @click.stop="view" />
           </el-tooltip>
           <!-- db 和 stable 更多按钮 -->
           <template v-if="showMoreBtnType.includes(type)">
-            <el-dropdown v-if="isHasPermission('db:read', ['read', 'write'])" trigger="click">
+            <el-dropdown v-if="isHasPermission('db:read', ['read', 'write'])">
               <div>
                 <el-tooltip effect="light" placement="right" :content="getTooltip(data, 'moreOperations')">
-                  <More class="operate-icon more-btn ml-10px"></More>
+                  <More class="operate-icon more-btn ml-10px rotate-90" />
                 </el-tooltip>
               </div>
               <template #dropdown>
@@ -103,7 +83,7 @@
                     >
                       <div class="flex-start tree-menu-item" @click.stop="advancedFilter">
                         <i
-                          class="flex-center"
+                          class="flex-center mr-0px!"
                           placement="right"
                           :class="{
                             'advanced-filter-active': props.stableTagFilterMap[key].advanced.enable
@@ -137,7 +117,6 @@
                       isCloud &&
                       isHasPermission(
                         ['user-role:grant', 'user-role:delete', 'group-role:grant', 'group-role:delete'],
-
                         'read'
                       )
                     "
@@ -180,8 +159,8 @@
                         <Search class="operate-icon"></Search>
                         <div class="tree-menu-label">{{ t('common.query') }}</div>
                       </div>
-                    </el-tooltip></el-dropdown-item
-                  >
+                    </el-tooltip>
+                  </el-dropdown-item>
                   <el-dropdown-item command="clickAdd" class="tree-menu">
                     <el-tooltip effect="light" placement="right" :content="t('explorer.appendEditor')">
                       <div class="flex-start tree-menu-item" @click.stop="clickAdd(false)">
@@ -189,6 +168,22 @@
                         <div class="tree-menu-label">{{ t('common.append') }}</div>
                       </div>
                     </el-tooltip>
+                  </el-dropdown-item>
+                  <el-dropdown-item v-if="type == 'database'" command="clickAdd" class="tree-menu">
+                    <div class="flex-start tree-menu-item" @click.stop="clickAdd(false)">
+                      <Search class="operate-icon"></Search>
+                      <div class="tree-menu-label">
+                        <el-input
+                          v-model="namefilterText"
+                          size="small"
+                          clearable
+                          style="width: 80px"
+                          @clear="dbFilter"
+                          @keyup.enter="dbFilter"
+                        >
+                        </el-input>
+                      </div>
+                    </div>
                   </el-dropdown-item>
                 </el-dropdown-menu>
               </template>

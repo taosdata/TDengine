@@ -40,7 +40,8 @@
   ],
   "i18n-ally.localesPaths": [
     "src/lang",
-    "locales"
+    "locales",
+    "taos-ui/locales"
   ],
   "i18n-ally.enabledParsers": [
     "js",
@@ -50,7 +51,7 @@
     "vue-sfc",
     "vue"
   ],
-  "i18n-ally.namespace": false,
+  "i18n-ally.namespace": true,
   "i18n-ally.pathMatcher": "{locale}/{namespaces}.ts",
   "vue.inlayHints.missingProps": true,
   "eslint.run": "onSave",
