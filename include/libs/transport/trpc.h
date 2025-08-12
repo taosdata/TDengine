@@ -134,6 +134,7 @@ typedef struct SRpcInit {
   int8_t  startReadTimer;
   int64_t readTimeout;  // s
   int8_t  ipv6;
+  int8_t  enableSSL;
 
   void *parent;
 } SRpcInit;

@@ -125,9 +125,10 @@ void* rpcOpen(const SRpcInit* pInit) {
     TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
 
-  code = transTlsCtxCreate(NULL, NULL, NULL, (STransTLSCtx**)&pRpc->pSSLContext);
-  if (code != TSDB_CODE_SUCCESS) {
-    tError("failed to create SSL context, code:%d", code);
+  pRpc->enableSSL = pInit->enableSSL;
+
+  if (pRpc->enableSSL) {
+    code = transTlsCtxCreate(NULL, NULL, NULL, (STransTLSCtx**)&pRpc->pSSLContext);
     TAOS_CHECK_GOTO(code, NULL, _end);
   }
 

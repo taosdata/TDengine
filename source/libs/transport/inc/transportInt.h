@@ -98,6 +98,7 @@ typedef struct {
   TdThreadMutex mutex;
 
   void* pSSLContext;  // SSL context for mTLS
+  int8_t enableSSL;
 
 } SRpcInfo;
 #else

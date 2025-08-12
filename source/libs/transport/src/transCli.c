@@ -90,6 +90,7 @@ typedef struct SCliConn {
   int8_t inThreadSendq;
 
   STransTLS* pTls;
+  int8_t     enableSSL;  // enable SSL or not
 
 } SCliConn;
 
@@ -1162,6 +1163,8 @@ static void cliDestroy(uv_handle_t* handle) {
     conn->pInitUserReq = NULL;
   }
 
+  if (conn->pTls) destroySSL(conn->pTls);
+
   taosMemoryFree(conn->buf);
   destroyWQ(&conn->wq);
   transDestroyBuffer(&conn->readBuf);
@@ -1614,9 +1617,11 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
     conn->list->totalSize += 1;
   }
 
-  if (pThrd->pInst->pSSLContext != NULL) {
+  if (pThrd->pInst->enableSSL) {
     code = initSSL(pThrd->pInst->pSSLContext, &conn->pTls);
     TAOS_CHECK_GOTO(code, &lino, _exception1);
+
+    conn->enableSSL = 1;
   }
 
   ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);
@@ -1672,6 +1677,7 @@ int32_t cliConnSetSockInfo(SCliConn* pConn) {
 bool filteGetAll(void* q, void* arg) { return true; }
 void cliConnCb(uv_connect_t* req, int status) {
   int32_t   code = 0;
+  int32_t   lino = 0;
   SCliConn* pConn = req->data;
   SCliThrd* pThrd = pConn->hostThrd;
   bool      timeout = false;
@@ -1693,20 +1699,33 @@ void cliConnCb(uv_connect_t* req, int status) {
     tError("%s conn:%p, failed to connect to %s since %s", CONN_GET_INST_LABEL(pConn), pConn, pConn->dstAddr,
            uv_strerror(status));
     cliMayUpdateFqdnCache(pThrd->fqdn2ipCache, pConn->dstAddr);
-    TAOS_UNUSED(transUnrefCliHandle(pConn));
-    return;
+    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
   }
+
   pConn->connnected = 1;
   code = cliConnSetSockInfo(pConn);
   if (code != 0) {
-    tDebug("%s conn:%p, failed to get sock info since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
-    TAOS_UNUSED(transUnrefCliHandle(pConn));
+    tDebug("%:%p, failed to get sock info since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
+    TAOS_CHECK_GOTO(code, &lino, _error);
   }
+
   tTrace("%s conn:%p, connect to server successfully", CONN_GET_INST_LABEL(pConn), pConn);
+  if (pConn->enableSSL) {
+    code = sslDoConnect(pConn->pTls);
+    if (code != 0) {
+      tDebug("%s conn:%p, failed to do ssl_connect since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
+      TAOS_CHECK_GOTO(code, &lino, _error);
+    }
+  }
 
   code = cliBatchSend(pConn, 1);
   if (code != 0) {
     tDebug("%s conn:%p, failed to get sock info since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+_error:
+  if (code != 0) {
     TAOS_UNUSED(transUnrefCliHandle(pConn));
   }
 }

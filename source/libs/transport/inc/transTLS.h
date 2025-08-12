@@ -47,7 +47,9 @@ typedef struct {
 int32_t initSSL(STransTLSCtx* pCtx, STransTLS** ppTLs);
 void    destroySSL(STransTLS* pTLs);
 
-void setSSLMode(STransTLS* pTls);
+void setSSLMode(STransTLS* pTls, int8_t cliMode);
+
+int32_t sslDoConnect(STransTLS* pTls);
 
 int32_t transTLSInit(void);
 #ifdef __cplusplus
