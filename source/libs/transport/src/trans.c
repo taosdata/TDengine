@@ -14,6 +14,7 @@
  */
 
 #include "transComm.h"
+#include "transTLS.h"
 
 #ifndef TD_ASTRA_RPC
 void* (*taosInitHandle[])(SIpAddr* addr, char* label, int32_t numOfThreads, void* fp, void* pInit) = {transInitServer,
@@ -124,11 +125,18 @@ void* rpcOpen(const SRpcInit* pInit) {
     TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
 
+  code = transTlsCtxCreate(NULL, NULL, NULL, (STransTLSCtx**)&pRpc->pSSLContext);
+  if (code != TSDB_CODE_SUCCESS) {
+    tError("failed to create SSL context, code:%d", code);
+    TAOS_CHECK_GOTO(code, NULL, _end);
+  }
+
   int64_t refId = transAddExHandle(transGetInstMgt(), pRpc);
   void*   tmp = transAcquireExHandle(transGetInstMgt(), refId);
   pRpc->refId = refId;
 
   pRpc->shareConn = pInit->shareConn;
+
   return (void*)refId;
 _end:
   taosMemoryFree(pRpc);
@@ -152,6 +160,7 @@ void rpcCloseImpl(void* arg) {
   if (pRpc->tcphandle != NULL) {
     (*taosCloseHandle[pRpc->connType])(pRpc->tcphandle);
   }
+  transTlsCtxDestroy((STransTLSCtx*)pRpc->pSSLContext);
   taosMemoryFree(pRpc);
 }
 

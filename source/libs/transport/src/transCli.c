@@ -89,6 +89,8 @@ typedef struct SCliConn {
   queue  batchSendq;
   int8_t inThreadSendq;
 
+  STransTLS* pTls;
+
 } SCliConn;
 
 typedef struct {
@@ -1548,19 +1550,6 @@ int32_t cliSendReq(SCliConn* pConn, SCliReq* pCliMsg) {
 
   return cliBatchSend(pConn, pCliMsg->inRetry);
 }
-int32_t cliSendReqPrepare(SCliConn* pConn, SCliReq* pCliMsg) {
-  transQueuePush(&pConn->reqsToSend, &pCliMsg->q);
-
-  if (pConn->broken) {
-    return 0;
-  }
-
-  if (pConn->connnected != 1) {
-    return 0;
-  }
-  // return cliBatchSend(pConn);
-  return 0;
-}
 
 int32_t cliBuildSockByIpType(SIpAddr* ipAddr, struct sockaddr* addr) {
   if (ipAddr->type == 0) {
@@ -1623,6 +1612,11 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
   conn->list = taosHashGet((SHashObj*)pThrd->pool, conn->dstAddr, strlen(conn->dstAddr));
   if (conn->list != NULL) {
     conn->list->totalSize += 1;
+  }
+
+  if (pThrd->pInst->pSSLContext != NULL) {
+    code = initSSL(pThrd->pInst->pSSLContext, &conn->pTls);
+    TAOS_CHECK_GOTO(code, &lino, _exception1);
   }
 
   ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);

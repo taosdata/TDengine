@@ -96,6 +96,9 @@ typedef struct {
   int64_t       readTimeout;
   int8_t        ipv6;
   TdThreadMutex mutex;
+
+  void* pSSLContext;  // SSL context for mTLS
+
 } SRpcInfo;
 #else
 void* taosInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
