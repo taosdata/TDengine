@@ -50,7 +50,7 @@ extern "C" {
 
 #define CTG_BATCH_FETCH 1
 
-#define CATLOG_TIMEOUT 10000
+#define CATLOG_TIMEOUT 60000
 
 typedef enum {
   CTG_CI_CLUSTER = 0,
