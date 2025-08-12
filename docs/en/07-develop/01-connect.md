@@ -726,7 +726,23 @@ Example usage is as follows:
 
 <TabItem label="Python" value="python">
 
-<ConnPythonNative />
+<details>
+<summary>SQLAlchemy connection pool example (recommended)</summary>
+
+```python
+{{#include docs/examples/python/sqlalchemy_demo.py}}
+```
+
+</details>
+
+<details>
+<summary>DBUtils Connection Pool Example</summary>
+
+```python
+{{#include docs/examples/python/dbutils_demo.py}}
+```
+
+</details>
 
 </TabItem>
 

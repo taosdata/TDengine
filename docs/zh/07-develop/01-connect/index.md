@@ -582,6 +582,7 @@ WebSocket 连接需要先调用 `taos_options(TSDB_OPTION_DRIVER, "websocket")` 
 > 更多 druid 使用问题请查看[官方说明](https://github.com/alibaba/druid)。
 
     </TabItem>
+    
     <TabItem label="Python" value="python">
 
 <details>
