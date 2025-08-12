@@ -7,8 +7,6 @@ Example showing how to use the stmt2 API
 from new_test_framework.utils import tdLog
 from new_test_framework.utils.stmt2 import tdStmt2
 import time
-from taos import *
-import time
 
 class TestStmt2:
     """Test case demonstrating stmt2 API usage"""
