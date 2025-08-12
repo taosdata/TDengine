@@ -215,19 +215,22 @@ class TestVTableQuery:
 
 
     def test_select_virtual_normal_table(self):
-        """test select virtual normal table.
+        """Query: virtual normal table
 
-        1 test vstable select normal table projection
-        2 test vstable select normal table projection filter
-        3 test vstable select normal table interval
-        4 test vstable select normal table state
-        5 test vstable select normal table session
-        6 test vstable select normal table event
-        7 test vstable select normal table count
-        8 test vstable select normal table partition
-        9 test vstable select normal table group
-        10 test vstable select chnormalild table orderby
+        1. test vstable select normal table projection
+        2. test vstable select normal table projection filter
+        3. test vstable select normal table interval
+        4. test vstable select normal table state
+        5. test vstable select normal table session
+        6. test vstable select normal table event
+        7. test vstable select normal table count
+        8. test vstable select normal table partition
+        9. test vstable select normal table group
+        10. test vstable select chnormalild table orderby
 
+        Catalog:
+            - VirtualTable
+ 
         Since: v3.3.6.0
 
         Labels: virtual
@@ -254,18 +257,21 @@ class TestVTableQuery:
         self.run_normal_query("test_vtable_select_test_orderby")
 
     def test_select_virtual_child_table(self):
-        """test select virtual child table.
+        """Query: virtual child table
 
-        1 test vstable select child table projection
-        2 test vstable select child table projection filter
-        3 test vstable select child table interval
-        4 test vstable select child table state
-        5 test vstable select child table session
-        6 test vstable select child table event
-        7 test vstable select child table count
-        8 test vstable select child table partition
-        9 test vstable select child table group
-        10 test vstable select child table orderby
+        1. test vstable select child table projection
+        2. test vstable select child table projection filter
+        3. test vstable select child table interval
+        4. test vstable select child table state
+        5. test vstable select child table session
+        6. test vstable select child table event
+        7. test vstable select child table count
+        8. test vstable select child table partition
+        9. test vstable select child table group
+        10. test vstable select child table orderby
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 
@@ -293,18 +299,21 @@ class TestVTableQuery:
         self.run_normal_query("test_vctable_select_test_orderby")
 
     def test_select_virtual_super_table(self):
-        """test select virtual super table.
+        """Query: virtual super table
 
-        1 test vstable select super table projection
-        2 test vstable select super table projection filter
-        3 test vstable select super table interval
-        4 test vstable select super table state
-        5 test vstable select super table session
-        6 test vstable select super table event
-        7 test vstable select super table count
-        8 test vstable select super table partition
-        9 test vstable select super table group
-        10 test vstable select super table orderby
+        1. test vstable select super table projection
+        2. test vstable select super table projection filter
+        3. test vstable select super table interval
+        4. test vstable select super table state
+        5. test vstable select super table session
+        6. test vstable select super table event
+        7. test vstable select super table count
+        8. test vstable select super table partition
+        9. test vstable select super table group
+        10. test vstable select super table orderby
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 
