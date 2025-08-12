@@ -1,9 +1,9 @@
 ---
-title: "TDengine2"
-sidebar_label: "TDengine2"
+title: "TDengine 查询"
+sidebar_label: "TDengine 查询"
 ---
 
-本节讲述如何通过 Explorer 界面创建数据迁移任务，从旧版 TDengine2 迁移数据到当前集群。
+本节讲述如何通过 Explorer 界面创建数据迁移任务，从旧版本 TDengine(2.4+, 3.0+) 迁移到当前集群。
 
 ## 功能概述
 
@@ -27,7 +27,7 @@ taosX 支持三种迁移模式：
 首先，点击左侧“数据写入”菜单，然后点击右侧新“增数据源”按钮。
 ![](./migrate-step1.png)
 
-然后输入任务名称，比如“migrate-test”, 最后选择类型“TDengine2”。此时，表单切换为从 TDengine2 迁移数据专用的表单，包含了大量选项，每种选项都有详细的说明，如下图所示。
+然后输入任务名称，比如“migrate-test”, 最后选择类型“TDengine 查询”。此时，表单切换为从 "TDengine 查询" 迁移数据专用的表单，包含了大量选项，每种选项都有详细的说明，如下图所示。
 
 ![](./migrate-step2.png)
 ![](./migrate-step3.png)

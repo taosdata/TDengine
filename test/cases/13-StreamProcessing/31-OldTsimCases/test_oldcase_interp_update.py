@@ -15,12 +15,12 @@ class TestStreamOldCaseInterpUpdate:
     def test_stream_oldcase_interp_update(self):
         """Stream interp update
 
-        Validate the calculation results of the ​​interp​​ function during data updates
+        Validate the calculation results of the interp function during data updates
 
         Catalog:
             - Streams:OldTsimCases
 
-        Since: v3.0.0.0
+        Since: v3.3.7.0
 
         Labels: common, ci
 

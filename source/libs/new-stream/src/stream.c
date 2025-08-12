@@ -181,7 +181,7 @@ int32_t streamAcquireTask(int64_t streamId, int64_t taskId, SStreamTask** ppTask
 
   SStreamTask** task = taosHashAcquire(gStreamMgmt.taskMap, key, sizeof(key));
   if (NULL == task) {
-    stsError("task %" PRIx64 " not exists in taskMap", taskId);
+    stsWarn("task %" PRIx64 " not exists in taskMap", taskId);
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   }
 
@@ -232,7 +232,7 @@ int32_t streamAcquireTriggerTask(int64_t streamId, SStreamTask** ppTask, void** 
 
   SStreamInfo* pStream = taosHashAcquire(pGrp, &streamId, sizeof(streamId));
   if (NULL == pStream) {
-    stError("stream %" PRIx64 " not exists", streamId);
+    stsWarn("stream %" PRIx64 " not exists when acquire trigger task", streamId);
     return TSDB_CODE_MND_STREAM_NOT_EXIST;
   }
 
@@ -243,7 +243,7 @@ _exit:
   taosHashRelease(pGrp, pStream);
 
   if (code) {
-    stsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+    stsWarn("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
 
   return code;

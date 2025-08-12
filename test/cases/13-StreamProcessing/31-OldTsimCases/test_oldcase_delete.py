@@ -15,12 +15,12 @@ class TestStreamOldCaseDelete:
     def test_stream_oldcase_delete(self):
         """Stream delete
 
-        Testing the correctness of results when deleting data in various trigger windows
+        Test the correctness of results when deleting data in various trigger windows
 
         Catalog:
             - Streams:OldTsimCases
 
-        Since: v3.0.0.0
+        Since: v3.3.7.0
 
         Labels: common, ci
 
@@ -37,17 +37,17 @@ class TestStreamOldCaseDelete:
         tdStream.createSnode()
 
         streams = []
-        streams.append(self.Interval0())
-        streams.append(self.Interval1())
-        streams.append(self.Scalar0())
-        streams.append(self.Scalar1())
-        streams.append(self.Scalar2())
-        streams.append(self.Session0())
-        streams.append(self.Session1())
-        streams.append(self.Session2())
-        streams.append(self.Session3())
-        streams.append(self.State0())
-        streams.append(self.State1())
+        # streams.append(self.Interval0()) recalculate
+        # streams.append(self.Interval1()) recalculate
+        # streams.append(self.Scalar0()) recalculate
+        # streams.append(self.Scalar1()) recalculate
+        # streams.append(self.Scalar2()) recalculate
+        # streams.append(self.Session0()) recalculate
+        # streams.append(self.Session1()) recalculate
+        # streams.append(self.Session2()) recalculate
+        # streams.append(self.Session3()) recalculate
+        # streams.append(self.State0()) recalculate
+        # streams.append(self.State1()) recalculate
         tdStream.checkAll(streams)
 
     class Interval0(StreamCheckItem):

@@ -38,7 +38,7 @@ TDengine 提供了内存分配器配置脚本 `set_taos_malloc.sh`，用于优�
 
 ### 注意事项
 
-- 修改后，建议重启 taosd/taosadapter 服务或重新 source 环境变量文件。
-- 仅支持在 TDengine 安装目录下运行。
+- 修改后，需要重启 taosd/taosadapter 服务或重新 source 环境变量文件让配置生效。
+- 仅支持在 TDengine 安装目录`/usr/local/taos/bin/`下运行。
 
 如需更多高级用法，请参考脚本内注释或联系运维支持。

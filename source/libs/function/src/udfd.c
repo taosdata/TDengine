@@ -45,7 +45,6 @@ typedef struct SUdfCPluginCtx {
   TUdfAggStartFunc   aggStartFunc;
   TUdfAggProcessFunc aggProcFunc;
   TUdfAggFinishFunc  aggFinishFunc;
-  TUdfAggMergeFunc   aggMergeFunc;
 
   TUdfInitFunc    initFunc;
   TUdfDestroyFunc destroyFunc;
@@ -85,13 +84,6 @@ int32_t udfdCPluginUdfInitLoadAggFuncs(SUdfCPluginCtx *udfCtx, const char *udfNa
   snprintf(finishFuncName, sizeof(finishFuncName), "%s%s", processFuncName, finishSuffix);
   TAOS_CHECK_RETURN(uv_dlsym(&udfCtx->lib, finishFuncName, (void **)(&udfCtx->aggFinishFunc)));
 
-  char  mergeFuncName[TSDB_FUNC_NAME_LEN + 7] = {0};
-  char *mergeSuffix = "_merge";
-  snprintf(mergeFuncName, sizeof(mergeFuncName), "%s%s", processFuncName, mergeSuffix);
-  int ret = uv_dlsym(&udfCtx->lib, mergeFuncName, (void **)(&udfCtx->aggMergeFunc));
-  if (ret != 0) {
-    fnInfo("uv_dlsym function %s. error: %s", mergeFuncName, uv_strerror(ret));
-  }
   return 0;
 }
 
