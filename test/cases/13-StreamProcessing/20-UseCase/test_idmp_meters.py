@@ -556,17 +556,27 @@ class Test_IDMP_Meters:
         ts    = self.start2
         table = "asset01.`em-8`"
         cols  = "ts,current,voltage,power"
-        sleepS = 0.2  # 0.2 seconds
-
-        # write order
-        count = 20
         fixedVals = "100, 200, 300"
-        tdSql.insertNow(table, sleepS, count, cols, fixedVals)
 
-        # write disorder
+        # insert order 
         count = 10
         step  = 200
         ts = tdSql.insertFixedVal(table, ts, step, count, cols, fixedVals)
+
+        # delete
+        #sql = f"delete from asset01.`em-8` where ts >= {self.start2}"
+        #tdSql.execute(sql)
+
+        time.sleep(3)
+
+        # write order
+        count = 20
+        sleepS = 0.2  # 0.2 seconds
+        tdSql.insertNow(table, sleepS, count, cols, fixedVals)
+
+        # write disorder
+        #count = 10
+        #ts = tdSql.insertFixedVal(table, ts, step, count, cols, fixedVals)
 
     #
     #  stream9 trigger 
