@@ -172,29 +172,6 @@ class MockCatalogServiceImpl {
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t catalogGetTableIndex(const SName* pTableName, SArray** pIndexes) const {
-    char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
-    int32_t code = tNameExtractFullName(pTableName, tbFName);
-    if (TSDB_CODE_SUCCESS != code) {
-      return code;
-    }
-    auto it = index_.find(tbFName);
-    if (index_.end() == it) {
-      return TSDB_CODE_SUCCESS;
-    }
-    *pIndexes = taosArrayInit(it->second.size(), sizeof(STableIndexInfo));
-    for (const auto& index : it->second) {
-      STableIndexInfo info;
-
-      if (nullptr == taosArrayPush(*pIndexes, copyTableIndexInfo(&info, &index))) {
-        taosArrayDestroy(*pIndexes);
-        *pIndexes = nullptr;
-        return TSDB_CODE_OUT_OF_MEMORY;
-      }
-    }
-    return TSDB_CODE_SUCCESS;
-  }
-
   int32_t catalogGetDnodeList(SArray** pDnodes) const {
     *pDnodes = taosArrayInit(dnode_.size(), sizeof(SDNodeAddr));
     if (!pDnodes) {
@@ -229,9 +206,6 @@ class MockCatalogServiceImpl {
     }
     if (TSDB_CODE_SUCCESS == code) {
       code = getAllUdf(pCatalogReq->pUdf, &pMetaData->pUdfList);
-    }
-    if (TSDB_CODE_SUCCESS == code) {
-      code = getAllTableIndex(pCatalogReq->pTableIndex, &pMetaData->pTableIndex);
     }
     if (TSDB_CODE_SUCCESS == code && pCatalogReq->dNodeRequired) {
       code = getAllDnodeList(&pMetaData->pDnodeList);
@@ -728,27 +702,6 @@ class MockCatalogServiceImpl {
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t getAllTableIndex(SArray* pTableIndex, SArray** pTableIndexData) const {
-    if (NULL != pTableIndex) {
-      int32_t num = taosArrayGetSize(pTableIndex);
-      *pTableIndexData = taosArrayInit(num, sizeof(SMetaRes));
-      if (!*pTableIndexData) {
-        return TSDB_CODE_OUT_OF_MEMORY;
-      }
-      for (int32_t i = 0; i < num; ++i) {
-        SMetaRes res = {0};
-        res.code = catalogGetTableIndex((const SName*)taosArrayGet(pTableIndex, i), (SArray**)(&res.pRes));
-        if (nullptr == taosArrayPush(*pTableIndexData, &res)) {
-          MockCatalogService::destoryMetaRes(&res);
-          taosArrayDestroyEx(*pTableIndexData, MockCatalogService::destoryMetaRes);
-          *pTableIndexData = nullptr;
-          return TSDB_CODE_OUT_OF_MEMORY;
-        }
-      }
-    }
-    return TSDB_CODE_SUCCESS;
-  }
-
   int32_t getAllTableCfg(SArray* pTableCfgReq, SArray** pTableCfgData) const {
     if (NULL != pTableCfgReq) {
       int32_t ntables = taosArrayGetSize(pTableCfgReq);
@@ -899,10 +852,6 @@ int32_t MockCatalogService::catalogGetUdfInfo(const string& funcName, SFuncInfo*
   return impl_->catalogGetUdfInfo(funcName, pInfo);
 }
 
-int32_t MockCatalogService::catalogGetTableIndex(const SName* pTableName, SArray** pIndexes) const {
-  return impl_->catalogGetTableIndex(pTableName, pIndexes);
-}
-
 int32_t MockCatalogService::catalogGetDnodeList(SArray** pDnodes) const { return impl_->catalogGetDnodeList(pDnodes); }
 
 int32_t MockCatalogService::catalogGetAllMeta(const SCatalogReq* pCatalogReq, SMetaData* pMetaData) const {
@@ -921,9 +870,7 @@ void MockCatalogService::destoryCatalogReq(SCatalogReq* pReq) {
   taosArrayDestroyEx(pReq->pTableMeta, destoryTablesReq);
   taosArrayDestroyEx(pReq->pTableHash, destoryTablesReq);
   taosArrayDestroy(pReq->pUdf);
-  taosArrayDestroy(pReq->pIndex);
   taosArrayDestroy(pReq->pUser);
-  taosArrayDestroy(pReq->pTableIndex);
   taosArrayDestroy(pReq->pTableCfg);
   taosArrayDestroyEx(pReq->pView, destoryTablesReq);
   taosArrayDestroyEx(pReq->pTableTSMAs, destoryTablesReq);
@@ -946,9 +893,7 @@ void MockCatalogService::destoryMetaData(SMetaData* pData) {
   taosArrayDestroyEx(pData->pDbInfo, destoryMetaRes);
   taosArrayDestroyEx(pData->pTableMeta, destoryMetaRes);
   taosArrayDestroyEx(pData->pTableHash, destoryMetaRes);
-  taosArrayDestroyEx(pData->pTableIndex, destoryMetaRes);
   taosArrayDestroyEx(pData->pUdfList, destoryMetaRes);
-  taosArrayDestroyEx(pData->pIndex, destoryMetaRes);
   taosArrayDestroyEx(pData->pUser, destoryMetaRes);
   taosArrayDestroyEx(pData->pQnodeList, destoryMetaRes);
   taosArrayDestroyEx(pData->pTableCfg, destoryMetaRes);
