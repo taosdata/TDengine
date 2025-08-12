@@ -55,7 +55,7 @@ static int32_t tqInitTaosxRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
   pRsp->withTbName = 1;
   pRsp->withSchema = 1;
   pRsp->blockData = taosArrayInit(0, sizeof(void*));
-  TSDB_CHECK_NULL(pRsp->blockData, code, lino, END, terrno);\
+  TSDB_CHECK_NULL(pRsp->blockData, code, lino, END, terrno);
 
   pRsp->blockDataLen = taosArrayInit(0, sizeof(int32_t));
   TSDB_CHECK_NULL(pRsp->blockDataLen, code, lino, END, terrno);
