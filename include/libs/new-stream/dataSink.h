@@ -271,6 +271,17 @@ int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock);
 //      2. 取消数据遍历意味着读取操作结束，会触发底层 Cache Sink 的数据清理
 void cancelStreamDataCacheIterate(void** pIter);
 
+// @brief 清理数据缓存中的数据
+// @param pCache 数据缓存,使用 StreamDataCacheInit 创建
+// @param groupId 数据的分组ID,实际上是 "<streamid>_<taskid>_<groupid>" 格式的字符串
+// @param wstart 数据集的起始时间戳
+// @param wend 数据集的结束时间戳
+// @note
+//      1. 清理数据缓存中的数据，通常用于数据过期或不再需要时
+//      2. 如果数据块在内存中，清理后会释放内存
+//      3. 如果数据块在文件中，清理后会删除文件
+int32_t clearStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend);
+
 // @brief 释放 DataSink 相关所有资源
 void destroyDataSinkMgr();
 
