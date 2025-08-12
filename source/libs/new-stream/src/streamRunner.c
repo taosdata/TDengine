@@ -26,7 +26,11 @@ static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask, const SStreamRu
 
   pMgr->lockInited = true;
   
-  TAOS_UNUSED(taosThreadMutexLock(&pMgr->lock));
+  code = taosThreadMutexLock(&pMgr->lock);
+  if(code != 0) {
+    ST_TASK_ELOG("failed to lock stream runner task mgr mutex, code:%s", tstrerror(code));
+    return code;
+  }
   pMgr->pFreeExecs = tdListNew(sizeof(SStreamRunnerTaskExecution));
   TSDB_CHECK_NULL(pMgr->pFreeExecs, code, lino, _exit, terrno);
 
@@ -69,7 +73,11 @@ static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, int32_t 
                                               SStreamRunnerTaskExecution** ppExec) {
   SStreamRunnerTaskExecMgr* pMgr = &pTask->execMgr;
   int32_t                   code = 0;
-  TAOS_UNUSED(taosThreadMutexLock(&pMgr->lock));
+  code = taosThreadMutexLock(&pMgr->lock);
+  if (code != 0) {
+    ST_TASK_ELOG("failed to lock stream runner task exec mgr mutex, code:%s", tstrerror(code));
+    return code;
+  }
   ST_TASK_DLOG("get task exec with execId:%d", execId);
   if (execId == -1) {
     if (pMgr->pFreeExecs->dl_neles_ > 0) {
@@ -104,7 +112,11 @@ static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, int32_t 
 
 static void stRunnerTaskExecMgrReleaseExec(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec) {
   SStreamRunnerTaskExecMgr* pMgr = &pTask->execMgr;
-  (TAOS_UNUSED(taosThreadMutexLock(&pMgr->lock)));
+  int32_t code = (taosThreadMutexLock(&pMgr->lock));
+  if (code != 0) {
+    ST_TASK_ELOG("failed to lock stream runner task exec mgr mutex, code:%s", tstrerror(code));
+    return;
+  }
   SListNode* pNode = listNode(pExec);
   pNode = tdListPopNode(pMgr->pRunningExecs, pNode);
   tdListAppendNode(pMgr->pFreeExecs, pNode);
@@ -193,7 +205,11 @@ void stRunnerKillAllExecs(SStreamRunnerTask *pTask) {
     return;
   }
 
-  TAOS_UNUSED(taosThreadMutexLock(&pMgr->lock));
+  code = taosThreadMutexLock(&pMgr->lock);
+  if (code != 0) {
+    ST_TASK_ELOG("failed to lock stream runner task exec mgr mutex, code:%s", tstrerror(code));
+    return;
+  }
   if (NULL == pMgr->pRunningExecs) {
     TAOS_UNUSED(taosThreadMutexUnlock(&pMgr->lock));
     return;
