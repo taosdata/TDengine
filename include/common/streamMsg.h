@@ -717,6 +717,9 @@ typedef enum ESTriggerPullType {
   STRIGGER_PULL_WAL_TRIGGER_DATA,
   STRIGGER_PULL_WAL_CALC_DATA,
   STRIGGER_PULL_WAL_DATA,
+  STRIGGER_PULL_WAL_META_NEW,
+  STRIGGER_PULL_WAL_DATA_NEW,
+  STRIGGER_PULL_WAL_META_DATA_NEW,
   STRIGGER_PULL_GROUP_COL_VALUE,
   STRIGGER_PULL_VTABLE_INFO,
   STRIGGER_PULL_VTABLE_PSEUDO_COL,
@@ -807,6 +810,32 @@ typedef struct SSTriggerWalDataRequest {
   SArray*              cids;  // SArray<col_id_t>, col_id starts from 0
 } SSTriggerWalDataRequest;
 
+typedef struct SSTriggerWalMetaNewRequest {
+  SSTriggerPullRequest base;
+  int64_t              lastVer;
+} SSTriggerWalMetaNewRequest;
+
+typedef struct SSTriggerWalBlockInfo {
+  int64_t gid;
+  int64_t skey;
+  int64_t ekey;
+} SSTriggerWalBlockInfo;
+
+typedef struct SSTriggerWalCommitInfo {
+  int64_t ver;
+  SArray* blockInfos;  // SArray<SSTriggerWalBlockInfo>
+} SSTriggerWalCommitInfo;
+
+typedef struct SSTriggerWalDataNewRequest {
+  SSTriggerPullRequest base;
+  SArray*              commitInfos;  // SArray<SSTriggerWalCommitInfo>
+} SSTriggerWalDataNewRequest;
+
+typedef struct SSTriggerWalMetaDataNewRequest {
+  SSTriggerPullRequest base;
+  int64_t              lastVer;
+} SSTriggerWalMetaDataNewRequest;
+
 typedef struct SSTriggerGroupColValueRequest {
   SSTriggerPullRequest base;
   int64_t              gid;
@@ -858,6 +887,9 @@ typedef union SSTriggerPullRequestUnion {
   SSTriggerTsdbDataRequest            tsdbDataReq;
   SSTriggerWalMetaRequest             walMetaReq;
   SSTriggerWalDataRequest             walDataReq;
+  SSTriggerWalMetaNewRequest          walMetaNewReq;
+  SSTriggerWalDataNewRequest          walDataNewReq;
+  SSTriggerWalMetaDataNewRequest      walMetaDataNewReq;
   SSTriggerGroupColValueRequest       groupColValueReq;
   SSTriggerVirTableInfoRequest        virTableInfoReq;
   SSTriggerVirTablePseudoColRequest   virTablePseudoColReq;

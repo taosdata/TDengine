@@ -3476,6 +3476,34 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       TAOS_CHECK_EXIT(encodeColsArray(&encoder, pRequest->cids));
       break;
     }
+    case STRIGGER_PULL_WAL_META_NEW: {
+      SSTriggerWalMetaNewRequest* pRequest = (SSTriggerWalMetaNewRequest*)pReq;
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->lastVer));
+      break;
+    }
+    case STRIGGER_PULL_WAL_DATA_NEW: {
+      SSTriggerWalDataNewRequest* pRequest = (SSTriggerWalDataNewRequest*)pReq;
+      int32_t                     nCommit = taosArrayGetSize(pRequest->commitInfos);
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, nCommit));
+      for (int32_t i = 0; i < nCommit; i++) {
+        SSTriggerWalCommitInfo* pCommit = TARRAY_GET_ELEM(pRequest->commitInfos, i);
+        TAOS_CHECK_EXIT(tEncodeI64(&encoder, pCommit->ver));
+        int32_t nBlocks = taosArrayGetSize(pCommit->blockInfos);
+        TAOS_CHECK_EXIT(tEncodeI32(&encoder, nBlocks));
+        for (int32_t j = 0; j < nBlocks; j++) {
+          SSTriggerWalBlockInfo* pBlock = TARRAY_GET_ELEM(pCommit->blockInfos, j);
+          TAOS_CHECK_EXIT(tEncodeI64(&encoder, pBlock->gid));
+          TAOS_CHECK_EXIT(tEncodeI64(&encoder, pBlock->skey));
+          TAOS_CHECK_EXIT(tEncodeI64(&encoder, pBlock->ekey));
+        }
+      }
+      break;
+    }
+    case STRIGGER_PULL_WAL_META_DATA_NEW: {
+      SSTriggerWalMetaDataNewRequest* pRequest = (SSTriggerWalMetaDataNewRequest*)pReq;
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->lastVer));
+      break;
+    }
     case STRIGGER_PULL_GROUP_COL_VALUE: {
       SSTriggerGroupColValueRequest* pRequest = (SSTriggerGroupColValueRequest*)pReq;
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->gid));
@@ -3649,6 +3677,36 @@ int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPull
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->skey));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ekey));
       TAOS_CHECK_EXIT(decodeColsArray(&decoder, &pRequest->cids));
+      break;
+    }
+    case STRIGGER_PULL_WAL_META_NEW: {
+      SSTriggerWalMetaNewRequest* pRequest = &(pReq->walMetaNewReq);
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->lastVer));
+      break;
+    }
+    case STRIGGER_PULL_WAL_DATA_NEW: {
+      SSTriggerWalDataNewRequest* pRequest = &(pReq->walDataNewReq);
+      int32_t                     nCommit = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nCommit));
+      pRequest->commitInfos = taosArrayInit_s(nCommit, sizeof(SSTriggerWalCommitInfo));
+      for (int32_t i = 0; i < nCommit; i++) {
+        SSTriggerWalCommitInfo* pCommit = TARRAY_GET_ELEM(pRequest->commitInfos, i);
+        TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pCommit->ver));
+        int32_t nBlocks = 0;
+        TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nBlocks));
+        pCommit->blockInfos = taosArrayInit_s(nBlocks, sizeof(SSTriggerWalBlockInfo));
+        for (int32_t j = 0; j < nBlocks; j++) {
+          SSTriggerWalBlockInfo* pBlock = TARRAY_GET_ELEM(pCommit->blockInfos, j);
+          TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pBlock->gid));
+          TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pBlock->skey));
+          TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pBlock->ekey));
+        }
+      }
+      break;
+    }
+    case STRIGGER_PULL_WAL_META_DATA_NEW: {
+      SSTriggerWalMetaDataNewRequest* pRequest = &(pReq->walMetaDataNewReq);
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->lastVer));
       break;
     }
     case STRIGGER_PULL_GROUP_COL_VALUE: {
