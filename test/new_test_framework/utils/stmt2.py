@@ -10,62 +10,42 @@ class TDStmt2:
     TDengine Stmt2 utility class 
     """
     
-    def __init__(self, conn=None):
-        """
-        Initialize stmt2 with connection
-        
-        Args:
-            conn: TDengine connection object
-        """
-        self.conn = conn
+    def __init__(self):
+        self.conn = None
         self.stmt = None
         self._is_prepared = False
     
-    def connect(self, host="localhost", port=6030, username="root", passwd="taosdata", database=None, **kwargs):
+    def init(self, conn):
         """
-        Connect to TDengine server
+        Initialize stmt2 with connection
+        """
+        self.conn = conn
+        if self.stmt:
+            self.stmt.close()
+        self.stmt = None
+        self._is_prepared = False
+        tdLog.debug("TDStmt2 initialized with connection")
+        return self
+    
+    def reconnect(self, **kwargs):
+        """
+        Reconnect to the database with new parameters
         
         Args:
-            host (str): TDengine server host
-            port (int): TDengine server port  
-            username (str): Username
-            passwd (str): Password
-            database (str): Default database
-            **kwargs: Additional connection parameters
+            **kwargs: Connection parameters like host, user, password, etc.
+            
+        Returns:
+            self for method chaining
         """
         if self.conn:
-            try:
-                self.conn.close()
-            except:
-                pass
+            self.conn.close()
         
+        self.conn = taos.connect(**kwargs)
         if self.stmt:
-            try:
-                self.stmt.close()
-            except:
-                pass
-            self.stmt = None
-            self._is_prepared = False
-            
-        conn_params = {
-            'host': host,
-            'port': port,
-            'user': username,
-            'password': passwd,
-        }
-        
-        if database:
-            conn_params['database'] = database
-            
-        conn_params.update(kwargs)
-        
-        try:
-            self.conn = taos.connect(**conn_params)
-            tdLog.info(f"Connected to TDengine at {host}:{port}")
-            return self
-        except Exception as e:
-            tdLog.error(f"Failed to connect: {e}")
-            raise
+            self.stmt.close()
+        self.stmt = None
+        self._is_prepared = False
+        return self
           
     def prepare(self, sql):
         """
@@ -174,18 +154,26 @@ class TDStmt2:
         Args:
             tbnames: List of sub-table names
             tags: List of tag values for each table 
-            datas: List of column-oriented data for each table
+            datas: List of row-oriented data for each table
             
         Returns:
             self for method chaining
             
         Example:
-            # example data structure
+            # Row-oriented data format (easier to use)
             tbnames = ["d_bind_0", "d_bind_1"]
             tags = [[0, "location_0"], [1, "location_1"]]  
             datas = [
-                [[ts1, ts2], [curr1, curr2], [volt1, volt2], [phase1, phase2]],  # table 0 data
-                [[ts3, ts4], [curr3, curr4], [volt3, volt4], [phase3, phase4]]   # table 1 data
+                # table 0 data: 2 rows, 4 columns each
+                [
+                    [ts1, curr1, volt1, phase1],  # row 1
+                    [ts2, curr2, volt2, phase2]   # row 2
+                ],
+                # table 1 data: 2 rows, 4 columns each  
+                [
+                    [ts3, curr3, volt3, phase3],  # row 1
+                    [ts4, curr4, volt4, phase4]   # row 2
+                ]
             ]
         """
         try:
@@ -195,7 +183,29 @@ class TDStmt2:
             if not self._is_prepared:
                 raise ValueError("Statement must be prepared before binding parameters")
             
-            self.stmt.bind_param(tbnames, tags, datas)
+            # Convert row-oriented data to column-oriented data for each table
+            converted_datas = []
+            
+            for table_idx, table_data in enumerate(datas):
+                if not isinstance(table_data, list) or len(table_data) == 0:
+                    raise ValueError(f"Table {table_idx} data must be a non-empty list")
+                
+                num_cols = len(table_data[0])
+                for row_idx, row in enumerate(table_data):
+                    if len(row) != num_cols:
+                        raise ValueError(f"Table {table_idx}, row {row_idx}: inconsistent column count")
+                
+                # Convert from row-oriented to column-oriented
+                # Input:  [[ts1, curr1, volt1], [ts2, curr2, volt2]]
+                # Output: [[ts1, ts2], [curr1, curr2], [volt1, volt2]]
+                column_data = []
+                for col_idx in range(num_cols):
+                    column_values = [row[col_idx] for row in table_data]
+                    column_data.append(column_values)
+                
+                converted_datas.append(column_data)
+            
+            self.stmt.bind_param(tbnames, tags, converted_datas)
             
             tdLog.debug("Super table data bound successfully")
             return self
@@ -233,14 +243,14 @@ class TDStmt2:
         """
         try:
             if self.conn is None:
-                tdLog.warning("Connection is not established")
+                tdLog.error("Connection is not established")
                 return 0
                 
             if self.stmt:
                 return self.stmt.affect_rows()
             return 0
         except Exception as e:
-            tdLog.warning(f"Failed to get affected rows: {e}")
+            tdLog.error(f"Failed to get affected rows: {e}")
             return 0
             
     def close(self):
@@ -252,10 +262,180 @@ class TDStmt2:
                 self.stmt.close()
                 tdLog.debug("Statement closed")
             except Exception as e:
-                tdLog.warning(f"Error closing statement: {e}")
+                tdLog.error(f"Error closing statement: {e}")
             finally:
                 self.stmt = None
                 self._is_prepared = False
+    
+    def execute_stmt(self, sql, params=None, batch_params=None, tbnames=None, tags=None, datas=None, check_affected=True, expected_rows=None):
+        """
+        Execute a complete statement with prepare, bind, execute and affect_rows check
         
+        Args:
+            sql (str): SQL statement with ? placeholders
+            params (list, optional): Parameters for single row insert
+            batch_params (list, optional): Parameters for batch insert
+            tbnames (list, optional): Table names for super table operations
+            tags (list, optional): Tag values for super table operations  
+            datas (list, optional): Column data for super table operations
+            check_affected (bool): Whether to check and return affected rows
+            expected_rows (int, optional): Expected number of affected rows for validation
+            
+        Returns:
+            Number of affected rows if check_affected=True, otherwise None
+            
+        Raises:
+            AssertionError: When expected_rows is provided and doesn't match actual affected rows
+            
+        Examples:
+            # Single row insert with expected rows check
+            affected = stmt.execute_stmt(
+                "INSERT INTO sensor_data VALUES (?, ?, ?, ?)",
+                params=[timestamp, temp, humidity, location],
+                expected_rows=1
+            )
+            
+            # Batch insert with expected rows check
+            affected = stmt.execute_stmt(
+                "INSERT INTO sensor_data VALUES (?, ?, ?, ?)",
+                batch_params=[[ts1, temp1, hum1, loc1], [ts2, temp2, hum2, loc2]],
+                expected_rows=2
+            )
+            
+            # Super table insert with expected rows check
+            affected = stmt.execute_stmt(
+                "INSERT INTO ? USING device_metrics TAGS(?, ?, ?) VALUES (?, ?, ?)",
+                tbnames=["device_001"], 
+                tags=[["device_001", 1, "Building_A"]], 
+                datas=[[[timestamp], [value], [status]]],
+                expected_rows=1
+            )
+        """
+        try:
+            self.prepare(sql)
+            
+            param_count = sum([
+                1 if params is not None else 0,
+                1 if batch_params is not None else 0,
+                1 if all(x is not None for x in [tbnames, tags, datas]) else 0
+            ])
+            
+            if param_count == 0:
+                raise ValueError("At least one parameter type must be provided: params, batch_params, or super table data")
+            elif param_count > 1:
+                raise ValueError("Only one parameter type should be provided at a time")
+            
+            if params is not None:
+                # Single row insert
+                self.bind_params(params)
+            elif batch_params is not None:
+                # Batch insert
+                self.bind_batch_params(batch_params)
+            elif all(x is not None for x in [tbnames, tags, datas]):
+                # Super table insert
+                self.bind_super_table_data(tbnames, tags, datas)
+            
+            affected_rows = self.execute()
+            
+            if expected_rows is not None:
+                if affected_rows != expected_rows:
+                    error_msg = f"Expected {expected_rows} affected rows, but got {affected_rows}"
+                    tdLog.error(error_msg)
+                    raise AssertionError(error_msg)
+                else:
+                    tdLog.info(f"Expected rows validation passed: {affected_rows} rows affected")
+                
+            if check_affected:
+                tdLog.debug(f"Statement executed successfully, affected rows: {affected_rows}")
+                return affected_rows
+            else:
+                tdLog.debug("Statement executed successfully")
+                return None
+                
+        except Exception as e:
+            tdLog.error(f"Failed to execute complete statement: {e}")
+            raise
+        finally:
+            self.close()
+
+    def execute_single(self, sql, params, check_affected=True, expected_rows=None):
+        """
+        Convenience method for single row insert
+        
+        Args:
+            sql (str): SQL statement 
+            params (list): Single row parameters
+            check_affected (bool): Whether to check affected rows
+            expected_rows (int, optional): Expected number of affected rows
+            
+        Returns:
+            Number of affected rows if check_affected=True
+            
+        Examples:
+            # Insert with expected rows validation
+            affected = stmt.execute_single(
+                "INSERT INTO sensor_data VALUES (?, ?, ?, ?)",
+                [timestamp, temp, humidity, location],
+                expected_rows=1
+            )
+        """
+        return self.execute_stmt(sql, params=params, check_affected=check_affected, expected_rows=expected_rows)
+
+    def execute_batch(self, sql, batch_params, check_affected=True, expected_rows=None):
+        """
+        Convenience method for batch insert
+        
+        Args:
+            sql (str): SQL statement
+            batch_params (list): Batch parameters (list of lists)
+            check_affected (bool): Whether to check affected rows
+            expected_rows (int, optional): Expected number of affected rows
+            
+        Returns:
+            Number of affected rows if check_affected=True
+            
+        Examples:
+            # Batch insert with expected rows validation
+            batch_data = [[ts1, v1], [ts2, v2], [ts3, v3]]
+            affected = stmt.execute_batch(
+                "INSERT INTO table VALUES (?, ?)",
+                batch_data,
+                expected_rows=3
+            )
+        """
+        return self.execute_stmt(sql, batch_params=batch_params, check_affected=check_affected, expected_rows=expected_rows)
+
+    def execute_super_table(self, sql, tbnames, tags, datas, check_affected=True, expected_rows=None):
+        """
+        Convenience method for super table operations
+        
+        Args:
+            sql (str): SQL statement
+            tbnames (list): Table names
+            tags (list): Tag values
+            datas (list): Column data
+            check_affected (bool): Whether to check affected rows
+            expected_rows (int, optional): Expected number of affected rows
+            
+        Returns:
+            Number of affected rows if check_affected=True
+            
+        Examples:
+            # Super table insert with expected rows validation
+            affected = stmt.execute_super_table(
+                "INSERT INTO ? USING metrics TAGS(?, ?) VALUES (?, ?)",
+                tbnames=["device_001"],
+                tags=[["device_001", "Building_A"]],
+                datas=[[[timestamp], [value]]],
+                expected_rows=1
+            )
+        """
+        return self.execute_stmt(sql, tbnames=tbnames, tags=tags, datas=datas, check_affected=check_affected, expected_rows=expected_rows)
+    
+    def __enter__(self):
+        return self
+    
     def __exit__(self):
         self.close()
+
+tdStmt2 = TDStmt2()
