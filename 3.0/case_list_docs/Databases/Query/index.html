@@ -489,7 +489,7 @@
   
     <li class="md-nav__item">
       <a href="#02-Databases.04-Query.test_db_show_create_db.TestDatabaseShowCreateDb.test_database_show_create_db" class="md-nav__link">
-        show create db 
+        Show create db 
       </a>
       
     </li>
@@ -500,7 +500,18 @@
   
     <li class="md-nav__item">
       <a href="#02-Databases.04-Query.test_db_show_create_table.TestDatabaseShowCreateTable.test_database_show_create_table" class="md-nav__link">
-        show create table 
+        Show create table 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#02-Databases.04-Query.test_db_show_vgroup.TestDatabaseShowVgroup.test_database_show_vgroup" class="md-nav__link">
+        Show vgroups 
       </a>
       
     </li>
@@ -2759,7 +2770,7 @@
   
     <li class="md-nav__item">
       <a href="#02-Databases.04-Query.test_db_show_create_db.TestDatabaseShowCreateDb.test_database_show_create_db" class="md-nav__link">
-        show create db 
+        Show create db 
       </a>
       
     </li>
@@ -2770,7 +2781,18 @@
   
     <li class="md-nav__item">
       <a href="#02-Databases.04-Query.test_db_show_create_table.TestDatabaseShowCreateTable.test_database_show_create_table" class="md-nav__link">
-        show create table 
+        Show create table 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#02-Databases.04-Query.test_db_show_vgroup.TestDatabaseShowVgroup.test_database_show_vgroup" class="md-nav__link">
+        Show vgroups 
       </a>
       
     </li>
@@ -2806,12 +2828,14 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> show create db
+                    <strong>Summary:</strong> Show create db
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. -</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create database</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Run SHOW CREATE DATABASE</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify the result</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -2835,12 +2859,17 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> show create table
+                    <strong>Summary:</strong> Show create table
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. -</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a normal table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create a super table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Create child tables</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Execute SHOW CREATE TABLE and verify the output</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Change the showFullCreateTableColumn parameter</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Execute SHOW CREATE TABLE again and verify the new output</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -2848,6 +2877,37 @@
                     <strong>Path:</strong>
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/02-Databases/04-Query/test_db_show_create_table.py" target="_blank">
                       cases/02-Databases/04-Query/test_db_show_create_table.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h2 id="02-Databases.04-Query.test_db_show_vgroup.TestDatabaseShowVgroup.test_database_show_vgroup" class="doc doc-heading">
+
+<a href="#02-Databases.04-Query.test_db_show_vgroup.TestDatabaseShowVgroup.test_database_show_vgroup" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Summary:</strong> Show vgroups
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <strong>Description:</strong>
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create multiple databases</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Repeatedly create and drop tables</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Run SHOW VGROUPS after each cycle to confirm the expected vgroup count</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    <strong>Path:</strong>
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/02-Databases/04-Query/test_db_show_vgroup.py" target="_blank">
+                      cases/02-Databases/04-Query/test_db_show_vgroup.py
                     </a>
                   </div>
         </div>

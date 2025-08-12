@@ -740,8 +740,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#03-Tables.01-NormalTables.04-Query.test_normal_table_basic04.TestNormalTableBasic.test_normal_table_basic" class="md-nav__link">
-        create read write normal table 
+      <a href="#03-Tables.01-NormalTables.04-Query.test_normaltable_query_after_drop.TestNormalTableDrop.test_normal_table_drop" class="md-nav__link">
+        Query: after drop 
       </a>
       
     </li>
@@ -751,8 +751,30 @@
         
   
     <li class="md-nav__item">
-      <a href="#03-Tables.01-NormalTables.04-Query.test_normal_table_query.TestNormalTableQuery.test_normal_table_query" class="md-nav__link">
-        查询普通表 
+      <a href="#03-Tables.01-NormalTables.04-Query.test_normaltable_query_aggregate.TestNormalTableAggregate.test_normal_table_aggregate" class="md-nav__link">
+        Query: aggregate 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#03-Tables.01-NormalTables.04-Query.test_normaltable_query_composite.TestCompositeKeyLoad.test_composite_key_load" class="md-nav__link">
+        Query: composite key 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#03-Tables.01-NormalTables.04-Query.test_normaltable_query_filter.TestNormalTableQuery.test_normal_table_query" class="md-nav__link">
+        Query: filter 
       </a>
       
     </li>
@@ -2760,8 +2782,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#03-Tables.01-NormalTables.04-Query.test_normal_table_basic04.TestNormalTableBasic.test_normal_table_basic" class="md-nav__link">
-        create read write normal table 
+      <a href="#03-Tables.01-NormalTables.04-Query.test_normaltable_query_after_drop.TestNormalTableDrop.test_normal_table_drop" class="md-nav__link">
+        Query: after drop 
       </a>
       
     </li>
@@ -2771,8 +2793,30 @@
         
   
     <li class="md-nav__item">
-      <a href="#03-Tables.01-NormalTables.04-Query.test_normal_table_query.TestNormalTableQuery.test_normal_table_query" class="md-nav__link">
-        查询普通表 
+      <a href="#03-Tables.01-NormalTables.04-Query.test_normaltable_query_aggregate.TestNormalTableAggregate.test_normal_table_aggregate" class="md-nav__link">
+        Query: aggregate 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#03-Tables.01-NormalTables.04-Query.test_normaltable_query_composite.TestCompositeKeyLoad.test_composite_key_load" class="md-nav__link">
+        Query: composite key 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#03-Tables.01-NormalTables.04-Query.test_normaltable_query_filter.TestNormalTableQuery.test_normal_table_query" class="md-nav__link">
+        Query: filter 
       </a>
       
     </li>
@@ -2802,30 +2846,27 @@
   
   
   
-<h2 id="03-Tables.01-NormalTables.04-Query.test_normal_table_basic04.TestNormalTableBasic.test_normal_table_basic" class="doc doc-heading">
+<h2 id="03-Tables.01-NormalTables.04-Query.test_normaltable_query_after_drop.TestNormalTableDrop.test_normal_table_drop" class="doc doc-heading">
 
-<a href="#03-Tables.01-NormalTables.04-Query.test_normal_table_basic04.TestNormalTableBasic.test_normal_table_basic" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#03-Tables.01-NormalTables.04-Query.test_normaltable_query_after_drop.TestNormalTableDrop.test_normal_table_drop" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> create read write normal table
+                    <strong>Summary:</strong> Query: after drop
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. create 256 column table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. insert</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. project query</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. filter query</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. aggregate query</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. kill then restart</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a table → insert one record → query that record → repeat this sequence 8 times</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Drop all created tables</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Repeat 1 times</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     <strong>Path:</strong>
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/03-Tables/01-NormalTables/04-Query/test_normal_table_basic04.py" target="_blank">
-                      cases/03-Tables/01-NormalTables/04-Query/test_normal_table_basic04.py
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/03-Tables/01-NormalTables/04-Query/test_normaltable_query_after_drop.py" target="_blank">
+                      cases/03-Tables/01-NormalTables/04-Query/test_normaltable_query_after_drop.py
                     </a>
                   </div>
         </div>
@@ -2836,29 +2877,99 @@
   
   
   
-<h2 id="03-Tables.01-NormalTables.04-Query.test_normal_table_query.TestNormalTableQuery.test_normal_table_query" class="doc doc-heading">
+<h2 id="03-Tables.01-NormalTables.04-Query.test_normaltable_query_aggregate.TestNormalTableAggregate.test_normal_table_aggregate" class="doc doc-heading">
 
-<a href="#03-Tables.01-NormalTables.04-Query.test_normal_table_query.TestNormalTableQuery.test_normal_table_query" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#03-Tables.01-NormalTables.04-Query.test_normaltable_query_aggregate.TestNormalTableAggregate.test_normal_table_aggregate" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> 查询普通表
+                    <strong>Summary:</strong> Query: aggregate
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. 创建普通表</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. 写入数据</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. 投影查询</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. 聚合查询</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. 字段筛选</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a table with 256 columns</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Execute projection queries</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Execute filter queries</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Execute aggregate queries</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Kill the process and restart the database</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     <strong>Path:</strong>
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/03-Tables/01-NormalTables/04-Query/test_normal_table_query.py" target="_blank">
-                      cases/03-Tables/01-NormalTables/04-Query/test_normal_table_query.py
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/03-Tables/01-NormalTables/04-Query/test_normaltable_query_aggregate.py" target="_blank">
+                      cases/03-Tables/01-NormalTables/04-Query/test_normaltable_query_aggregate.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h2 id="03-Tables.01-NormalTables.04-Query.test_normaltable_query_composite.TestCompositeKeyLoad.test_composite_key_load" class="doc doc-heading">
+
+<a href="#03-Tables.01-NormalTables.04-Query.test_normaltable_query_composite.TestCompositeKeyLoad.test_composite_key_load" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Summary:</strong> Query: composite key
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <strong>Description:</strong>
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Error Reading Composite Key Data from Memory and STT Files</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Root Cause:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">The minKeyused a shallow copy. During backward iteration in STT, this accidentally modified the minKeyvalue. When merging keys from memory and STT, inconsistent key states caused data corruption.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Reproduction Steps:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create table with timestamp column and composite key string column. Insert 4 records into STT files and 1 record into memory.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Execute query → Trigger failure</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    <strong>Path:</strong>
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/03-Tables/01-NormalTables/04-Query/test_normaltable_query_composite.py" target="_blank">
+                      cases/03-Tables/01-NormalTables/04-Query/test_normaltable_query_composite.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h2 id="03-Tables.01-NormalTables.04-Query.test_normaltable_query_filter.TestNormalTableQuery.test_normal_table_query" class="doc doc-heading">
+
+<a href="#03-Tables.01-NormalTables.04-Query.test_normaltable_query_filter.TestNormalTableQuery.test_normal_table_query" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Summary:</strong> Query: filter
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <strong>Description:</strong>
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a normal table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Execute projection queries</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Execute aggregate queries</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Execute field filtering queries</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    <strong>Path:</strong>
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/03-Tables/01-NormalTables/04-Query/test_normaltable_query_filter.py" target="_blank">
+                      cases/03-Tables/01-NormalTables/04-Query/test_normaltable_query_filter.py
                     </a>
                   </div>
         </div>

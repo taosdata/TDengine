@@ -535,7 +535,18 @@
   
     <li class="md-nav__item">
       <a href="#02-Databases.06-Precision.test_db_precision_ns.TestDatabasePrecisionNs.test_database_precision_ns" class="md-nav__link">
-        database precision ns 
+        Precision: ns 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#02-Databases.06-Precision.test_db_precision_us.TestDatabasePrecisionUs.test_database_precision_us" class="md-nav__link">
+        Precision: ms and us 
       </a>
       
     </li>
@@ -2748,7 +2759,18 @@
   
     <li class="md-nav__item">
       <a href="#02-Databases.06-Precision.test_db_precision_ns.TestDatabasePrecisionNs.test_database_precision_ns" class="md-nav__link">
-        database precision ns 
+        Precision: ns 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#02-Databases.06-Precision.test_db_precision_us.TestDatabasePrecisionUs.test_database_precision_us" class="md-nav__link">
+        Precision: ms and us 
       </a>
       
     </li>
@@ -2784,12 +2806,17 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> database precision ns
+                    <strong>Summary:</strong> Precision: ns
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. -</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a nanosecond-precision database.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data using numeric timestamps.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify the row count.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Insert data using now().</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Filter data by timestamp.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Validate INTERVAL … SLIDING queries.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -2797,6 +2824,41 @@
                     <strong>Path:</strong>
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/02-Databases/06-Precision/test_db_precision_ns.py" target="_blank">
                       cases/02-Databases/06-Precision/test_db_precision_ns.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h2 id="02-Databases.06-Precision.test_db_precision_us.TestDatabasePrecisionUs.test_database_precision_us" class="doc doc-heading">
+
+<a href="#02-Databases.06-Precision.test_db_precision_us.TestDatabasePrecisionUs.test_database_precision_us" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Summary:</strong> Precision: ms and us
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <strong>Description:</strong>
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Millisecond-precision test</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create a millisecond-precision database</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Insert both valid and invalid timestamps</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Query the data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Microsecond-precision test</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Create a microsecond-precision database</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Repeat the same insert and query steps as above</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    <strong>Path:</strong>
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/02-Databases/06-Precision/test_db_precision_us.py" target="_blank">
+                      cases/02-Databases/06-Precision/test_db_precision_us.py
                     </a>
                   </div>
         </div>

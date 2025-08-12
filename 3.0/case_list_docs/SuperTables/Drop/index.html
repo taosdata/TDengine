@@ -958,8 +958,19 @@
         
   
     <li class="md-nav__item">
-      <a href="#04-SuperTables.02-Drop.test_stable_drop_basic3.TestStableDropBasic3.test_stable_drop_basic3" class="md-nav__link">
-        drop stable 
+      <a href="#04-SuperTables.02-Drop.test_stable_drop_basic.TestStableDropBasic.test_stable_drop_basic" class="md-nav__link">
+        Drop: basic 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#04-SuperTables.02-Drop.test_stable_drop_repeat.TestStableDropRepeat.test_stable_drop_repeat" class="md-nav__link">
+        Drop: repeatedly 
       </a>
       
     </li>
@@ -2747,8 +2758,19 @@
         
   
     <li class="md-nav__item">
-      <a href="#04-SuperTables.02-Drop.test_stable_drop_basic3.TestStableDropBasic3.test_stable_drop_basic3" class="md-nav__link">
-        drop stable 
+      <a href="#04-SuperTables.02-Drop.test_stable_drop_basic.TestStableDropBasic.test_stable_drop_basic" class="md-nav__link">
+        Drop: basic 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#04-SuperTables.02-Drop.test_stable_drop_repeat.TestStableDropRepeat.test_stable_drop_repeat" class="md-nav__link">
+        Drop: repeatedly 
       </a>
       
     </li>
@@ -2778,29 +2800,61 @@
   
   
   
-<h2 id="04-SuperTables.02-Drop.test_stable_drop_basic3.TestStableDropBasic3.test_stable_drop_basic3" class="doc doc-heading">
+<h2 id="04-SuperTables.02-Drop.test_stable_drop_basic.TestStableDropBasic.test_stable_drop_basic" class="doc doc-heading">
 
-<a href="#04-SuperTables.02-Drop.test_stable_drop_basic3.TestStableDropBasic3.test_stable_drop_basic3" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#04-SuperTables.02-Drop.test_stable_drop_basic.TestStableDropBasic.test_stable_drop_basic" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> drop stable
+                    <strong>Summary:</strong> Drop: basic
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. create stable</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. create sub table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. create normal table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. insert data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. drop stable</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a super table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create a child table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Create a normal table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Insert data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Drop the super table</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     <strong>Path:</strong>
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/04-SuperTables/02-Drop/test_stable_drop_basic3.py" target="_blank">
-                      cases/04-SuperTables/02-Drop/test_stable_drop_basic3.py
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/04-SuperTables/02-Drop/test_stable_drop_basic.py" target="_blank">
+                      cases/04-SuperTables/02-Drop/test_stable_drop_basic.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h2 id="04-SuperTables.02-Drop.test_stable_drop_repeat.TestStableDropRepeat.test_stable_drop_repeat" class="doc doc-heading">
+
+<a href="#04-SuperTables.02-Drop.test_stable_drop_repeat.TestStableDropRepeat.test_stable_drop_repeat" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Summary:</strong> Drop: repeatedly
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <strong>Description:</strong>
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a super table.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create child tables and insert data.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Drop the super table.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Repeat the above 30 times with the same super-table name.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    <strong>Path:</strong>
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/04-SuperTables/02-Drop/test_stable_drop_repeat.py" target="_blank">
+                      cases/04-SuperTables/02-Drop/test_stable_drop_repeat.py
                     </a>
                   </div>
         </div>

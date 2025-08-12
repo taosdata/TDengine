@@ -466,7 +466,7 @@
   
     <li class="md-nav__item">
       <a href="#02-Databases.03-Alter.test_db_alter_option.TestDatabaseAlterOption.test_database_alter_option" class="md-nav__link">
-        alter database option 
+        Alter all options 
       </a>
       
     </li>
@@ -476,19 +476,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#02-Databases.03-Alter.test_db_alter_option_keep1.TestDatabaseAlterOptionKeep1.test_database_alter_option_kee1p" class="md-nav__link">
-        alter database option keep 1 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#02-Databases.03-Alter.test_db_alter_option_keep2.TestDatabaseAlterOptionKeep2.test_database_alter_option_keep2" class="md-nav__link">
-        alter database option keep2 
+      <a href="#02-Databases.03-Alter.test_db_alter_option_keep.TestDatabaseAlterOptionKeep.test_database_alter_option_keep" class="md-nav__link">
+        Alter keep 
       </a>
       
     </li>
@@ -499,7 +488,7 @@
   
     <li class="md-nav__item">
       <a href="#02-Databases.03-Alter.test_db_alter_replicas_13.TestDatabaseAlterReplica13.test_database_alter_replica_13" class="md-nav__link">
-        alter database replica 13 
+        Alter replica from 1 to 3 
       </a>
       
     </li>
@@ -510,7 +499,7 @@
   
     <li class="md-nav__item">
       <a href="#02-Databases.03-Alter.test_db_alter_replicas_31.TestDatabaseAlterReplica13.test_database_alter_replica_31" class="md-nav__link">
-        alter database replica 31 
+        Alter replica from 3 to 1 
       </a>
       
     </li>
@@ -2792,7 +2781,7 @@
   
     <li class="md-nav__item">
       <a href="#02-Databases.03-Alter.test_db_alter_option.TestDatabaseAlterOption.test_database_alter_option" class="md-nav__link">
-        alter database option 
+        Alter all options 
       </a>
       
     </li>
@@ -2802,19 +2791,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#02-Databases.03-Alter.test_db_alter_option_keep1.TestDatabaseAlterOptionKeep1.test_database_alter_option_kee1p" class="md-nav__link">
-        alter database option keep 1 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#02-Databases.03-Alter.test_db_alter_option_keep2.TestDatabaseAlterOptionKeep2.test_database_alter_option_keep2" class="md-nav__link">
-        alter database option keep2 
+      <a href="#02-Databases.03-Alter.test_db_alter_option_keep.TestDatabaseAlterOptionKeep.test_database_alter_option_keep" class="md-nav__link">
+        Alter keep 
       </a>
       
     </li>
@@ -2825,7 +2803,7 @@
   
     <li class="md-nav__item">
       <a href="#02-Databases.03-Alter.test_db_alter_replicas_13.TestDatabaseAlterReplica13.test_database_alter_replica_13" class="md-nav__link">
-        alter database replica 13 
+        Alter replica from 1 to 3 
       </a>
       
     </li>
@@ -2836,7 +2814,7 @@
   
     <li class="md-nav__item">
       <a href="#02-Databases.03-Alter.test_db_alter_replicas_31.TestDatabaseAlterReplica13.test_database_alter_replica_31" class="md-nav__link">
-        alter database replica 31 
+        Alter replica from 3 to 1 
       </a>
       
     </li>
@@ -2872,12 +2850,14 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> alter database option
+                    <strong>Summary:</strong> Alter all options
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. -</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create database and inspect all option values.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Attempt to alter database with invalid options (expect failure).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Alter database with valid options and verify the changes.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -2895,54 +2875,30 @@
   
   
   
-<h2 id="02-Databases.03-Alter.test_db_alter_option_keep1.TestDatabaseAlterOptionKeep1.test_database_alter_option_kee1p" class="doc doc-heading">
+<h2 id="02-Databases.03-Alter.test_db_alter_option_keep.TestDatabaseAlterOptionKeep.test_database_alter_option_keep" class="doc doc-heading">
 
-<a href="#02-Databases.03-Alter.test_db_alter_option_keep1.TestDatabaseAlterOptionKeep1.test_database_alter_option_kee1p" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#02-Databases.03-Alter.test_db_alter_option_keep.TestDatabaseAlterOptionKeep.test_database_alter_option_keep" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> alter database option keep 1
+                    <strong>Summary:</strong> Alter keep
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. -</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Use invalid input to alter the KEEP option</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Verify results after changing KEEP</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Add or drop columns on the super table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Insert data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Check results</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Repeat steps 3-5 several times</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     <strong>Path:</strong>
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/02-Databases/03-Alter/test_db_alter_option_keep1.py" target="_blank">
-                      cases/02-Databases/03-Alter/test_db_alter_option_keep1.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-<h2 id="02-Databases.03-Alter.test_db_alter_option_keep2.TestDatabaseAlterOptionKeep2.test_database_alter_option_keep2" class="doc doc-heading">
-
-<a href="#02-Databases.03-Alter.test_db_alter_option_keep2.TestDatabaseAlterOptionKeep2.test_database_alter_option_keep2" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> alter database option keep2
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <strong>Description:</strong>
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. -</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    <strong>Path:</strong>
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/02-Databases/03-Alter/test_db_alter_option_keep2.py" target="_blank">
-                      cases/02-Databases/03-Alter/test_db_alter_option_keep2.py
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/02-Databases/03-Alter/test_db_alter_option_keep.py" target="_blank">
+                      cases/02-Databases/03-Alter/test_db_alter_option_keep.py
                     </a>
                   </div>
         </div>
@@ -2959,12 +2915,16 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> alter database replica 13
+                    <strong>Summary:</strong> Alter replica from 1 to 3
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. -</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a database with 1 replica</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create tables and insert data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Flush the database</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Alter the replica count from 1 to 3</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Verify that all data remains intact</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -2988,12 +2948,16 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> alter database replica 31
+                    <strong>Summary:</strong> Alter replica from 3 to 1
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. -</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a database with 3 replica</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create tables and insert data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Flush the database</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Alter the replica count from 3 to 1</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Verify that all data remains intact</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
