@@ -22,9 +22,12 @@ class TestVtableAuthAlterDropChild:
         tdSql.execute("create database test_vctable_auth_alter;")
 
     def test_alter_drop_virtual_child_table(self):
-        """test auth user alter virtual child tables.
+        """Auth: alter virtual child table
 
         test "write", "read", "none", "all" each auth user alter opration
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 

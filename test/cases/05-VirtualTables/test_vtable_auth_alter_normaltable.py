@@ -23,9 +23,12 @@ class TestVtableAuthAlterDrop:
 
 
     def test_alter_drop_virtual_normal_table(self):
-        """test auth user alter virtual normal tables.
+        """Auth: alter virtual normal table
 
         test "write", "read", "none", "all" each auth user alter opration
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 

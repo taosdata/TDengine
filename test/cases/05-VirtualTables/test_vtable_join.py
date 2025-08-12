@@ -172,9 +172,12 @@ class TestVtableJoin:
                       "USING `vtb_virtual_stb` TAGS (1, false, 1, 1, 'child1', 'child1')")
 
     def test_vtable_join(self):
-        """test query virtual normal tables join.
+        """Query: join
 
-        test query virtual normal tables join.
+        test query virtual tables join
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 

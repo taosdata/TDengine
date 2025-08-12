@@ -1,20 +1,21 @@
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
 
 
-class TestSubTableCreateTb:
+class TestNormalTableSynatx:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_sub_table_create_tb(self):
-        """Name: basic
+    def test_normal_table_synatx(self):
+        """Synatx
 
         1. Attempt to create tables with invalid table names
         2. Attempt to create tables with invalid column names
         3. Attempt to create tables with invalid data types
+        4. Create normal tables with valid and invalid names
 
         Catalog:
-            - Table:SubTable:Create
+            - Table:NormalTable:Create
 
         Since: v3.0.0.0
 
@@ -23,10 +24,21 @@ class TestSubTableCreateTb:
         Jira: None
 
         History:
-            - 2025-5-6 Simon Guan Migrated from tsim/parser/create_tb.sim
+            - 2025-8-12 Simon Guan Migrated from tsim/parser/create_tb.sim
+            - 2025-8-12 Simon Guan Migrated from tsim/table/column_name.sim
+            - 2025-8-12 Simon Guan Migrated from tsim/table/table.sim
 
         """
 
+        self.CreateTb()
+        tdStream.dropAllStreamsAndDbs()
+        self.ColumnName()
+        tdStream.dropAllStreamsAndDbs()
+        self.Table()
+        tdStream.dropAllStreamsAndDbs()
+        
+
+    def CreateTb(self):
         tdLog.info(f"======================== dnode1 start")
 
         dbPrefix = "fi_in_db"
@@ -201,6 +213,127 @@ class TestSubTableCreateTb:
         tdSql.error(f"create table {tbname65} (ts timestamp, col int)")
         # sql_error create table tb (ts timestamp, col bool)
         tdLog.info(f"table_already_exists test passed")
+
+        tdSql.execute(f"drop database {db}")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(2)
+
+    def ColumnName(self):
+        i = 0
+        dbPrefix = "lm_cm_db"
+        tbPrefix = "lm_cm_tb"
+        db = dbPrefix + str(i)
+        tb = tbPrefix + str(i)
+
+        tdLog.info(f"=============== step1")
+        tdSql.prepare(db)
+        tdSql.execute(f"use {db}")
+
+        tdSql.error(f"drop table dd ")
+        tdSql.error(f"create table {tb}(ts timestamp, int) ")
+
+        tdSql.query(f"show tables")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"=============== step2")
+        tdSql.execute(f"create table {tb} (ts timestamp, s int)")
+        tdSql.query(f"show tables")
+        tdSql.checkRows(1)
+
+        tdSql.execute(f"drop table {tb}")
+        tdSql.query(f"show tables")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"=============== step3")
+        tdSql.execute(f"create table {tb} (ts timestamp, a0123456789 int)")
+        tdSql.query(f"show tables")
+        tdSql.checkRows(1)
+
+        tdSql.execute(f"drop table {tb}")
+        tdSql.query(f"show tables")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"=============== step4")
+        tdSql.execute(
+            f"create table {tb} (ts timestamp, a0123456789012345678901234567890123456789 int)"
+        )
+        tdSql.execute(f"drop table {tb}")
+
+        tdSql.query(f"show tables")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"=============== step5")
+        tdSql.execute(f"create table {tb} (ts timestamp, a0123456789 int)")
+        tdSql.query(f"show tables")
+        tdSql.checkRows(1)
+
+        tdSql.execute(f"insert into {tb} values (now , 1)")
+        tdSql.query(f"select * from {tb}")
+        tdSql.checkRows(1)
+
+        tdSql.execute(f"drop database {db}")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(2)
+
+    def Table(self):
+        i = 0
+        dbPrefix = "lm_tb_db"
+        tbPrefix = "lm_tb_tb"
+        db = dbPrefix + str(i)
+        tb = tbPrefix + str(i)
+
+        tdLog.info(f"=============== step1")
+        tdSql.prepare(dbname=db)
+        tdSql.error(f"drop table dd")
+        tdSql.error(f"create table (ts timestamp, speed int)")
+
+        tdSql.query(f"show tables")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"=============== step2")
+        tdSql.execute(f"create table a (ts timestamp, speed int)")
+        tdSql.query(f"show tables")
+        tdSql.checkRows(1)
+
+        tdSql.execute(f"drop table a")
+        tdSql.query(f"show tables")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"=============== step3")
+        tdSql.execute(f"create table a0123456789 (ts timestamp, speed int)")
+        tdSql.query(f"show tables")
+        tdSql.checkRows(1)
+
+        tdSql.execute(f"drop table a0123456789")
+        tdSql.query(f"show tables")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"=============== step4")
+        tdSql.error(
+            f"create table ab01234567890123456789a0123456789a0123456789ab01234567890123456789a0123456789a0123456789ab01234567890123456789a0123456789a0123456789ab01234567890123456789a0123456789a0123456789ab01234567890123456789a0123456789a0123456789ab01234567890123456789a0123456789a0123456789 (ts timestamp, speed int) "
+        )
+
+        tdSql.query(f"show tables")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"=============== step5")
+        tdSql.error(f"create table a;1 (ts timestamp, speed int)")
+
+        tdSql.query(f"show tables")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"=============== step6")
+        tdSql.error(f"create table a'1  (ts timestamp, speed int)")
+        tdSql.query(f"show tables")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"=============== step7")
+        tdSql.error(f"create table (a)  (ts timestamp, speed int)")
+        tdSql.query(f"show tables")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"=============== step8")
+        tdSql.error(f"create table a.1  (ts timestamp, speed int) ")
 
         tdSql.execute(f"drop database {db}")
         tdSql.query(f"select * from information_schema.ins_databases")
