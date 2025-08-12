@@ -330,20 +330,21 @@ static int tqMetaInitHandle(STQ* pTq, STqHandle* handle) {
                                       (SSnapContext**)(&reader.sContext)));
     handle->execHandle.task = qCreateQueueExecTaskInfo(NULL, &reader, vgId, NULL, handle->consumerId);
     TQ_NULL_GO_TO_END(handle->execHandle.task);
+    handle->execHandle.pTqReader = tqReaderOpen(pVnode);
+    TQ_NULL_GO_TO_END(handle->execHandle.pTqReader);
     SArray* tbUidList = NULL;
-    int     ret = qGetTableList(handle->execHandle.execTb.suid, pVnode, handle->execHandle.execTb.node, &tbUidList,
+    int ret = qGetTableList(handle->execHandle.execTb.suid, pVnode, handle->execHandle.execTb.node, &tbUidList,
                                 handle->execHandle.task);
+    if (ret == 0){
+      ret = tqReaderSetTbUidList(handle->execHandle.pTqReader, tbUidList, NULL);
+    }
+    taosArrayDestroy(tbUidList);
     if (ret != TDB_CODE_SUCCESS) {
       tqError("qGetTableList error:%d handle %s consumer:0x%" PRIx64, ret, handle->subKey, handle->consumerId);
-      taosArrayDestroy(tbUidList);
       return TSDB_CODE_SCH_INTERNAL_ERROR;
     }
     tqInfo("vgId:%d, tq try to get ctb for stb subscribe, suid:%" PRId64, pVnode->config.vgId,
            handle->execHandle.execTb.suid);
-    handle->execHandle.pTqReader = tqReaderOpen(pVnode);
-    TQ_NULL_GO_TO_END(handle->execHandle.pTqReader);
-    tqReaderSetTbUidList(handle->execHandle.pTqReader, tbUidList, NULL);
-    taosArrayDestroy(tbUidList);
   }
   handle->tableCreateTimeHash = (SHashObj*)taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
 

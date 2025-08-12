@@ -2600,7 +2600,9 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
       }
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &calcScan.readFromCache));
       TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&calcScan.scanPlan, NULL));
-      taosArrayPush(pReq->calcScanPlanList, &calcScan);
+      if (taosArrayPush(pReq->calcScanPlanList, &calcScan) == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
     }
   }
 
@@ -3471,6 +3473,7 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       SSTriggerWalDataRequest* pRequest = (SSTriggerWalDataRequest*)pReq;
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->uid));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRequest->offset));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->skey));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ekey));
       TAOS_CHECK_EXIT(encodeColsArray(&encoder, pRequest->cids));
@@ -3646,6 +3649,7 @@ int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPull
       SSTriggerWalDataRequest* pRequest = &(pReq->walDataReq);
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->uid));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRequest->offset));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->skey));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ekey));
       TAOS_CHECK_EXIT(decodeColsArray(&decoder, &pRequest->cids));
@@ -4054,8 +4058,8 @@ _exit:
   return code;
 }
 
-int32_t tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo){
-  if (pInfo == NULL) return TSDB_CODE_SUCCESS;
+void tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo){
+  if (pInfo == NULL) return;
   if (pInfo->pStreamPesudoFuncVals != NULL) {
     taosArrayDestroyEx(pInfo->pStreamPesudoFuncVals, tDestroySSTriggerCalcParam);
     pInfo->pStreamPesudoFuncVals = NULL;
@@ -4064,7 +4068,6 @@ int32_t tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo){
     taosArrayDestroyEx(pInfo->pStreamPartColVals, tDestroySStreamGroupValue);
     pInfo->pStreamPartColVals = NULL;
   }
-  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tSerializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, const SStreamMsgVTableInfo* pRsp){

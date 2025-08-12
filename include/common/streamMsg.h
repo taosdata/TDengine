@@ -802,6 +802,7 @@ typedef struct SSTriggerWalDataRequest {
   SSTriggerPullRequest base;
   int64_t              uid;
   int64_t              ver;
+  int32_t              offset;
   int64_t              skey;
   int64_t              ekey;
   SArray*              cids;  // SArray<col_id_t>, col_id starts from 0
@@ -946,7 +947,7 @@ typedef struct SStreamRuntimeFuncInfo {
 
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo);
 int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo);
-int32_t tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo);
+void    tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo);
 typedef struct STsInfo {
   int64_t gId;
   int64_t  ts;
