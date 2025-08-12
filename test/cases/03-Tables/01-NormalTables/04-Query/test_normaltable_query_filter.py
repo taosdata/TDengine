@@ -25,7 +25,7 @@ class TestNormalTableQuery:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated from tsim/field/single.sim
+            - 2025-8-12 Simon Guan Migrated from tsim/field/single.sim
 
         """
 

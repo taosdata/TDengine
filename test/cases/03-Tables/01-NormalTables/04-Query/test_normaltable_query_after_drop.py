@@ -14,7 +14,7 @@ class TestNormalTableDrop:
         3. Repeat 1 times
     
         Catalog:
-            - Table:NormalTable:Drop
+            - Table:NormalTable:Query
 
         Since: v3.0.0.0
 
@@ -23,7 +23,7 @@ class TestNormalTableDrop:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated from tsim/table/table.sim
+            - 2025-8-12 Simon Guan Migrated from tsim/table/table.sim
 
         """
 

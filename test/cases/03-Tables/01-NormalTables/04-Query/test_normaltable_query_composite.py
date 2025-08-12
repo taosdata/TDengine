@@ -21,7 +21,7 @@ class TestCompositeKeyLoad:
         2. Execute query → Trigger failure
 
         Catalog:
-            - Query:SelectList
+            - Table:NormalTable:Query
 
         Since: v3.0.0.0
 

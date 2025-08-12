@@ -23,7 +23,7 @@ class TestNormalTableAlter3:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated from tsim/stable/alter_import.sim
+            - 2025-8-12 Simon Guan Migrated from tsim/stable/alter_import.sim
 
         """
 
