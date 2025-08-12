@@ -26,7 +26,11 @@ static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask, const SStreamRu
 
   pMgr->lockInited = true;
   
-  taosThreadMutexLock(&pMgr->lock);
+  code = taosThreadMutexLock(&pMgr->lock);
+  if(code != 0) {
+    ST_TASK_ELOG("failed to lock stream runner task mgr mutex, code:%s", tstrerror(code));
+    return code;
+  }
   pMgr->pFreeExecs = tdListNew(sizeof(SStreamRunnerTaskExecution));
   TSDB_CHECK_NULL(pMgr->pFreeExecs, code, lino, _exit, terrno);
 
@@ -54,7 +58,7 @@ _exit:
 }
 
 static void stRunnerDestroyRuntimeInfo(SStreamRuntimeInfo* pRuntime) {
-  tDestroyStRtFuncInfo(&pRuntime->funcInfo);
+  TAOS_UNUSED(tDestroyStRtFuncInfo(&pRuntime->funcInfo));
 }
 
 static void stRunnerDestroyTaskExecution(void* pExec) {
@@ -69,7 +73,11 @@ static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, int32_t 
                                               SStreamRunnerTaskExecution** ppExec) {
   SStreamRunnerTaskExecMgr* pMgr = &pTask->execMgr;
   int32_t                   code = 0;
-  taosThreadMutexLock(&pMgr->lock);
+  code = taosThreadMutexLock(&pMgr->lock);
+  if (code != 0) {
+    ST_TASK_ELOG("failed to lock stream runner task exec mgr mutex, code:%s", tstrerror(code));
+    return code;
+  }
   ST_TASK_DLOG("get task exec with execId:%d", execId);
   if (execId == -1) {
     if (pMgr->pFreeExecs->dl_neles_ > 0) {
@@ -85,7 +93,7 @@ static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, int32_t 
     while (pNode) {
       SStreamRunnerTaskExecution* pExec = (SStreamRunnerTaskExecution*)pNode->data;
       if (pExec->runtimeInfo.execId == execId) {
-        tdListPopNode(pMgr->pFreeExecs, pNode);
+        pNode = tdListPopNode(pMgr->pFreeExecs, pNode);
         tdListAppendNode(pMgr->pRunningExecs, pNode);
         *ppExec = pExec;
         break;
@@ -97,18 +105,22 @@ static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, int32_t 
       ST_TASK_ELOG("failed to get task exec, invalid execId:%d", execId);
     }
   }
-  taosThreadMutexUnlock(&pMgr->lock);
+  TAOS_UNUSED(taosThreadMutexUnlock(&pMgr->lock));
   if (*ppExec) ST_TASK_DLOG("get exec task with execId: %d", (*ppExec)->runtimeInfo.execId);
   return code;
 }
 
 static void stRunnerTaskExecMgrReleaseExec(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec) {
   SStreamRunnerTaskExecMgr* pMgr = &pTask->execMgr;
-  taosThreadMutexLock(&pMgr->lock);
+  int32_t code = (taosThreadMutexLock(&pMgr->lock));
+  if (code != 0) {
+    ST_TASK_ELOG("failed to lock stream runner task exec mgr mutex, code:%s", tstrerror(code));
+    return;
+  }
   SListNode* pNode = listNode(pExec);
   pNode = tdListPopNode(pMgr->pRunningExecs, pNode);
   tdListAppendNode(pMgr->pFreeExecs, pNode);
-  taosThreadMutexUnlock(&pMgr->lock);
+  TAOS_UNUSED(taosThreadMutexUnlock(&pMgr->lock));
 }
 
 static void stSetRunnerOutputInfo(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMsg) {
@@ -170,7 +182,7 @@ int32_t stRunnerTaskUndeployImpl(SStreamRunnerTask** ppTask, const SStreamUndepl
   SStreamRunnerTaskExecMgr* pMgr = &pTask->execMgr;
   tdListFreeP(pMgr->pRunningExecs, stRunnerDestroyTaskExecution);
   tdListFreeP(pMgr->pFreeExecs, stRunnerDestroyTaskExecution);
-  taosThreadMutexDestroy(&pMgr->lock);
+  TAOS_UNUSED(taosThreadMutexDestroy(&pMgr->lock));
   NODES_DESTORY_NODE(pTask->pSubTableExpr);
   NODES_DESTORY_LIST(pTask->output.pTagValExprs);
   taosArrayDestroy(pTask->output.outCols);
@@ -193,20 +205,24 @@ void stRunnerKillAllExecs(SStreamRunnerTask *pTask) {
     return;
   }
 
-  taosThreadMutexLock(&pMgr->lock);
+  code = taosThreadMutexLock(&pMgr->lock);
+  if (code != 0) {
+    ST_TASK_ELOG("failed to lock stream runner task exec mgr mutex, code:%s", tstrerror(code));
+    return;
+  }
   if (NULL == pMgr->pRunningExecs) {
-    taosThreadMutexUnlock(&pMgr->lock);
+    TAOS_UNUSED(taosThreadMutexUnlock(&pMgr->lock));
     return;
   }
   ST_TASK_DLOG("start to kill running execs, num:%d", listNEles(pMgr->pRunningExecs));
   SListNode* pNode = tdListGetHead(pMgr->pRunningExecs);
   while (pNode) {
     SStreamRunnerTaskExecution* pExec = (SStreamRunnerTaskExecution*)pNode->data;
-    qAsyncKillTask(pExec->pExecutor, TSDB_CODE_STREAM_EXEC_CANCELLED);
+    TAOS_UNUSED(qAsyncKillTask(pExec->pExecutor, TSDB_CODE_STREAM_EXEC_CANCELLED));
     pNode = pNode->dl_next_;
   }
   ST_TASK_DLOG("all runner execs killed, num: %d", listNEles(pMgr->pRunningExecs));
-  taosThreadMutexUnlock(&pMgr->lock);
+  TAOS_UNUSED(taosThreadMutexUnlock(&pMgr->lock));
 }
 
 int32_t stRunnerTaskUndeploy(SStreamRunnerTask** ppTask, bool force) {
@@ -280,6 +296,7 @@ static void stRunnerFreeTagInfo(void* p) {
 static int32_t stRunnerCalcSubTbTagVal(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec,
                                        SArray** ppTagVals) {
   int32_t code = 0;
+  int32_t lino = 0;
   SNode*  pNode = NULL;
   *ppTagVals = NULL;
   int32_t tagIdx = 0;
@@ -303,7 +320,12 @@ static int32_t stRunnerCalcSubTbTagVal(SStreamRunnerTask* pTask, SStreamRunnerTa
     pCol->info.bytes = pType.bytes;
     pCol->info.precision = pType.precision;
     pCol->info.scale = pType.scale;
-    colInfoDataEnsureCapacity(pCol, 1, true);
+    code = colInfoDataEnsureCapacity(pCol, 1, true);
+    if (code != 0) {
+      ST_TASK_ELOG("failed to ensure capacity for col info data: %s", strerror(code));
+      taosMemoryFreeClear(pCol);
+      break;
+    }
 
     dst.colAlloced = true;
     dst.numOfRows = 1;
@@ -715,7 +737,7 @@ static int32_t stRunnerTopTaskHandleOutputBlockProj(SStreamRunnerTask* pTask, SS
   }
 
   if (code == 0 && (*ppForceOutBlock) && (*ppForceOutBlock)->info.rows > 0) {
-    stRunnerOutputBlock(pTask, pExec, *ppForceOutBlock, createTable);
+    code = stRunnerOutputBlock(pTask, pExec, *ppForceOutBlock, createTable);
   }
 
   if (code == 0 && pBlock ) {  // && *pNextOutIdx < taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals)
@@ -765,7 +787,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
 
   pExec->runtimeInfo.funcInfo.curIdx = pReq->curWinIdx;
   pExec->runtimeInfo.funcInfo.curOutIdx = pReq->curWinIdx;
-  bool    createTable = pReq->createTable;
+  bool    createTable = (pReq->createTable != 0);
   int32_t nextOutIdx = pExec->runtimeInfo.funcInfo.curOutIdx;
   while (pExec->runtimeInfo.funcInfo.curOutIdx < winNum && code == 0) {
     if (stRunnerTaskWaitQuit(pTask)) {
@@ -822,7 +844,11 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
       break;
     }
     if (finished) {
-      streamResetTaskExec(pTask, pExec, true);
+      code = streamResetTaskExec(pTask, pExec, true);
+      if (code != 0) {
+        ST_TASK_ELOG("failed to reset task exec, code:%s", tstrerror(code));
+        break;
+      }
       if (pExec->runtimeInfo.funcInfo.withExternalWindow) break;
     }
   }
