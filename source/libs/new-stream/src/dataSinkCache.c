@@ -86,12 +86,12 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
       SWindowDataInMem* pWindowData = (SWindowDataInMem*)((char*)pBlockInfo + sizeof(SAlignBlocksInMem) + pResult->offset);
 
       bool found = false;
-      if (pWindowData->startTime > pResult->reqEndTime) {
+      if ((pResult->dataMode & DATA_CLEAN_IMMEDIATE) && pWindowData->startTime > pResult->reqEndTime) {
         *finished = true;
         return code;
       }
 
-      if (pWindowData->endTime >= pResult->reqStartTime) {
+      if (pWindowData->endTime >= pResult->reqStartTime && pWindowData->startTime <= pResult->reqEndTime) {
         found = true;
         if (pWindowData->dataLen == 0) {
           SMoveWindowInfo* pMoveWinInfo = getWindowDataBuf(pWindowData);

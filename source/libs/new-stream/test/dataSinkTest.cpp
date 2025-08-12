@@ -998,6 +998,183 @@ TEST(dataSinkTest, multiThreadGet) {
   destroyStreamDataCache(pCache);
 }
 
+TEST(dataSinkTest, cleanDataPassiveTest) {
+  INIT_DATA_SINK();
+  
+  SSDataBlock* pBlock = createTestBlock(baseTestTime1, 0);
+  ASSERT_NE(pBlock, nullptr);
+  int64_t streamId = 1;
+  int64_t taskId = 1;
+  int64_t groupID = 1;
+  int32_t cleanMode = DATA_ALLOC_MODE_ALIGN | DATA_CLEAN_PASSIVE;
+  TSKEY   wstart = baseTestTime1 + 0;
+  TSKEY   wend = baseTestTime1 + 100;
+  void*   pCache = NULL;
+
+  int32_t code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
+  ASSERT_EQ(code, 0);
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 99);
+  ASSERT_EQ(code, 0);
+  void* pIter = NULL;
+
+  code = getStreamDataCache(pCache, groupID, wstart, wend, &pIter);
+  ASSERT_EQ(code, 0);
+  SSDataBlock* pBlock1 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlock1);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlock1, nullptr);
+  ASSERT_EQ(pIter, nullptr);
+  bool equal = compareBlock(pBlock, pBlock1);
+  ASSERT_EQ(equal, true);
+  blockDataDestroy(pBlock1);
+
+  // get data repeatly, should not clean data
+  code = getStreamDataCache(pCache, groupID, wstart, wend, &pIter);
+  ASSERT_EQ(code, 0);
+  pBlock1 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlock1);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlock1, nullptr);
+  ASSERT_EQ(pIter, nullptr);
+  equal = compareBlock(pBlock, pBlock1);
+  ASSERT_EQ(equal, true);
+  blockDataDestroy(pBlock1);
+  blockDataDestroy(pBlock);
+
+  pBlock = createTestBlock(baseTestTime1, 100);
+  streamId = 1;
+  taskId = 1;
+  groupID = 2;
+  cleanMode = DATA_ALLOC_MODE_ALIGN | DATA_CLEAN_PASSIVE;
+  wstart = baseTestTime1 + 100;
+  wend = baseTestTime1 + 200;
+  pCache = NULL;
+  code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
+  ASSERT_EQ(code, 0);
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 99);
+  ASSERT_EQ(code, 0);
+  pIter = NULL;
+  code = getStreamDataCache(pCache, groupID, wstart, wend, &pIter);
+  ASSERT_EQ(code, 0);
+  pBlock1 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlock1);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlock1, nullptr);
+  ASSERT_EQ(pIter, nullptr);
+  equal = compareBlock(pBlock, pBlock1);
+  ASSERT_EQ(equal, true);
+  blockDataDestroy(pBlock1);
+  blockDataDestroy(pBlock);
+  pBlock = createTestBlock(baseTestTime1, 0);
+  streamId = 2;
+  taskId = 1;
+  groupID = 2;
+  cleanMode = DATA_ALLOC_MODE_ALIGN | DATA_CLEAN_PASSIVE;
+  wstart = baseTestTime1 + 0;
+  wend = baseTestTime1 + 100;
+  pCache = NULL;
+  code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
+  ASSERT_EQ(code, 0);
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 99);
+  ASSERT_EQ(code, 0);
+  pIter = NULL;
+  code = getStreamDataCache(pCache, groupID, wstart, wend, &pIter);
+  ASSERT_EQ(code, 0);
+  pBlock1 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlock1);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlock1, nullptr);
+  ASSERT_EQ(pIter, nullptr);
+  equal = compareBlock(pBlock, pBlock1);
+  ASSERT_EQ(equal, true);
+  blockDataDestroy(pBlock1);
+  destroyDataSinkMgr();
+  blockDataDestroy(pBlock);
+}
+
+TEST(dataSinkTest, cleanDataPassiveTest2) {
+  INIT_DATA_SINK();
+  
+  SSDataBlock* pBlockS0 = createTestBlock(baseTestTime1, 0);
+  ASSERT_NE(pBlockS0, nullptr);
+  int64_t streamId = 1;
+  int64_t taskId = 1;
+  int64_t groupID = 1;
+  int32_t cleanMode = DATA_ALLOC_MODE_ALIGN | DATA_CLEAN_PASSIVE;
+  TSKEY   wstart0 = baseTestTime1 + 0;
+  TSKEY   wend0 = baseTestTime1 + 99;
+  void*   pCache = NULL;
+
+  int32_t code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
+  ASSERT_EQ(code, 0);
+  code = putStreamDataCache(pCache, groupID, wstart0, wend0, pBlockS0, 0, 49);
+  ASSERT_EQ(code, 0);
+  void* pIter = NULL;
+
+  code = getStreamDataCache(pCache, groupID, wstart0, wend0, &pIter);
+  ASSERT_EQ(code, 0);
+  SSDataBlock* pBlockR0 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlockR0);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlockR0, nullptr);
+  ASSERT_EQ(pIter, nullptr);
+  bool equal = false;
+  for(int i = 0; i < 40; ++i) {
+    equal = compareBlockRow(pBlockR0, pBlockS0, i, i);
+    ASSERT_EQ(equal, true);
+  }
+  ASSERT_EQ(equal, true);
+  blockDataDestroy(pBlockR0);
+
+  SSDataBlock* pBlockS1 = createTestBlock(baseTestTime1, 100);
+  TSKEY wstart1 = baseTestTime1 + 100;
+  TSKEY wend1 = baseTestTime1 + 199;
+
+  code = putStreamDataCache(pCache, groupID, wstart1, wend1, pBlockS1, 0, 99);
+  ASSERT_EQ(code, 0);
+  pIter = NULL;
+  code = getStreamDataCache(pCache, groupID, wstart1, wend1, &pIter);
+  ASSERT_EQ(code, 0);
+  SSDataBlock* pBlockR1 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlockR1);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlockR1, nullptr);
+  ASSERT_EQ(pIter, nullptr);
+  equal = compareBlock(pBlockS1, pBlockR1);
+  ASSERT_EQ(equal, true);
+  blockDataDestroy(pBlockR1);
+
+  code = putStreamDataCache(pCache, groupID, wstart0, wend0, pBlockS0, 50, 99);
+  ASSERT_EQ(code, 0);
+
+  code = getStreamDataCache(pCache, groupID, wstart0, wend0, &pIter);
+  ASSERT_EQ(code, 0);
+  SSDataBlock* pBlockR2 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlockR2);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlockR2, nullptr);
+  ASSERT_NE(pIter, nullptr);
+  for(int i = 0; i < 40; ++i) {
+    equal = compareBlockRow(pBlockR2, pBlockS0, i, i);
+    ASSERT_EQ(equal, true);
+  }
+  blockDataDestroy(pBlockR2);
+  pBlockR2 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlockR2);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlockR2, nullptr);
+  ASSERT_EQ(pIter, nullptr);
+  for (int i = 0; i < 50; ++i) {
+    equal = compareBlockRow(pBlockR2, pBlockS0, i, i + 50);
+    ASSERT_EQ(equal, true);
+  }
+  blockDataDestroy(pBlockR2);
+
+  blockDataDestroy(pBlockS0);
+  blockDataDestroy(pBlockS1);
+  destroyDataSinkMgr();
+}
+
 int main(int argc, char** argv) {
   taos_init();
   ::testing::InitGoogleTest(&argc, argv);
