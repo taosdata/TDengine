@@ -785,6 +785,7 @@ _exit:
 int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq) {
   int32_t                     code = 0;
   int32_t                     lino = 0;
+  bool                        createTable = false;
   SSDataBlock*                pForceOutBlock = NULL;
   SStreamRunnerTaskExecution* pExec = NULL;
   ST_TASK_DLOG("[runner calc]start, gid:%" PRId64 ", topTask: %d", pReq->gid, pTask->topTask);
@@ -814,7 +815,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
 
   pExec->runtimeInfo.funcInfo.curIdx = pReq->curWinIdx;
   pExec->runtimeInfo.funcInfo.curOutIdx = pReq->curWinIdx;
-  bool    createTable = (pReq->createTable != 0);
+  createTable = (pReq->createTable != 0);
   int32_t nextOutIdx = pExec->runtimeInfo.funcInfo.curOutIdx;
   while (pExec->runtimeInfo.funcInfo.curOutIdx < winNum && code == 0) {
     if (stRunnerTaskWaitQuit(pTask)) {

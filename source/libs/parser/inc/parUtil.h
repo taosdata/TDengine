@@ -119,6 +119,19 @@ typedef struct SParseMetaCache {
   bool      forceFetchViewMeta;
 } SParseMetaCache;
 
+typedef struct SParseStreamInfo {
+  int64_t          placeHolderBitmap;
+  bool             calcClause;
+  bool             triggerClause;
+  bool             outTableClause;
+  bool             withExtWindow;
+  bool             extLeftEq; // used for external window, true means include left border
+  bool             extRightEq; // used for external window, true means include right border
+  SNode*           triggerTbl;
+  SNodeList*       triggerPartitionList;
+  SHashObj*        calcDbs;
+} SParseStreamInfo;
+
 int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...);
 int32_t generateSyntaxErrMsgExt(SMsgBuf* pBuf, int32_t errCode, const char* pFormat, ...);
 int32_t buildInvalidOperationMsg(SMsgBuf* pMsgBuf, const char* msg);

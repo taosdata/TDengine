@@ -254,9 +254,13 @@ typedef struct SDynQueryCtrlStbJoin {
 
 typedef struct SDynQueryCtrlVtbScan {
   bool          scanAllCols;
+  bool          isSuperTable;
   char          dbName[TSDB_DB_NAME_LEN];
-  char          stbName[TSDB_TABLE_NAME_LEN];
+  char          tbName[TSDB_TABLE_NAME_LEN];
   uint64_t      suid;
+  uint64_t      uid;
+  int32_t       rversion;
+  SNodeList*    pOrgVgIds;
   SVgroupsInfo* pVgroupList;
 } SDynQueryCtrlVtbScan;
 
@@ -650,12 +654,16 @@ typedef struct SStbJoinDynCtrlBasic {
 
 typedef struct SVtbScanDynCtrlBasic {
   bool       scanAllCols;
+  bool       isSuperTable;
   char       dbName[TSDB_DB_NAME_LEN];
-  char       stbName[TSDB_TABLE_NAME_LEN];
+  char       tbName[TSDB_TABLE_NAME_LEN];
   uint64_t   suid;
+  uint64_t   uid;
+  int32_t    rversion;
   int32_t    accountId;
   SEpSet     mgmtEpSet;
   SNodeList *pScanCols;
+  SNodeList *pOrgVgIds;
 } SVtbScanDynCtrlBasic;
 
 typedef struct SDynQueryCtrlPhysiNode {
