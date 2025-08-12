@@ -935,30 +935,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#04-SuperTables.01-Create.test_stable_create_mt.TestStableCreateMt.test_stable_create_mt" class="md-nav__link">
-        create mt 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#04-SuperTables.01-Create.test_stable_metrics.TestStableMetrics.test_stable_metrics" class="md-nav__link">
-        create super table 1 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#04-SuperTables.01-Create.test_stable_refcount.TestStableRefcount.test_stable_refcount" class="md-nav__link">
-        create super table 2 
+      <a href="#04-SuperTables.01-Create.test_stable_create_basic.TestStableCreateMt.test_stable_create_mt" class="md-nav__link">
+        Name: basic 
       </a>
       
     </li>
@@ -2769,30 +2747,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#04-SuperTables.01-Create.test_stable_create_mt.TestStableCreateMt.test_stable_create_mt" class="md-nav__link">
-        create mt 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#04-SuperTables.01-Create.test_stable_metrics.TestStableMetrics.test_stable_metrics" class="md-nav__link">
-        create super table 1 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#04-SuperTables.01-Create.test_stable_refcount.TestStableRefcount.test_stable_refcount" class="md-nav__link">
-        create super table 2 
+      <a href="#04-SuperTables.01-Create.test_stable_create_basic.TestStableCreateMt.test_stable_create_mt" class="md-nav__link">
+        Name: basic 
       </a>
       
     </li>
@@ -2822,93 +2778,28 @@
   
   
   
-<h2 id="04-SuperTables.01-Create.test_stable_create_mt.TestStableCreateMt.test_stable_create_mt" class="doc doc-heading">
+<h2 id="04-SuperTables.01-Create.test_stable_create_basic.TestStableCreateMt.test_stable_create_mt" class="doc doc-heading">
 
-<a href="#04-SuperTables.01-Create.test_stable_create_mt.TestStableCreateMt.test_stable_create_mt" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#04-SuperTables.01-Create.test_stable_create_basic.TestStableCreateMt.test_stable_create_mt" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> create mt
+                    <strong>Summary:</strong> Name: basic
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. -</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Attempt to create stables with invalid table names, column names, and invalid data types</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create a super table containing multiple tag types</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Create child tables and insert data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Query using tags</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     <strong>Path:</strong>
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/04-SuperTables/01-Create/test_stable_create_mt.py" target="_blank">
-                      cases/04-SuperTables/01-Create/test_stable_create_mt.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-<h2 id="04-SuperTables.01-Create.test_stable_metrics.TestStableMetrics.test_stable_metrics" class="doc doc-heading">
-
-<a href="#04-SuperTables.01-Create.test_stable_metrics.TestStableMetrics.test_stable_metrics" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> create super table 1
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <strong>Description:</strong>
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. create super table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. show tables</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. select from ins_tables</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. select from ins_stables</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. insert data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. drop table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. show tables</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    <strong>Path:</strong>
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/04-SuperTables/01-Create/test_stable_metrics.py" target="_blank">
-                      cases/04-SuperTables/01-Create/test_stable_metrics.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-<h2 id="04-SuperTables.01-Create.test_stable_refcount.TestStableRefcount.test_stable_refcount" class="doc doc-heading">
-
-<a href="#04-SuperTables.01-Create.test_stable_refcount.TestStableRefcount.test_stable_refcount" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> create super table 2
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <strong>Description:</strong>
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. create database</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. create stable</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. insert data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. drop table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. repeat 5 times</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    <strong>Path:</strong>
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/04-SuperTables/01-Create/test_stable_refcount.py" target="_blank">
-                      cases/04-SuperTables/01-Create/test_stable_refcount.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/04-SuperTables/01-Create/test_stable_create_basic.py" target="_blank">
+                      cases/04-SuperTables/01-Create/test_stable_create_basic.py
                     </a>
                   </div>
         </div>
