@@ -1477,7 +1477,6 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
       SEpSet *epSet = gStreamMgmt.getSynEpset(leaderSid);
       if (epSet != NULL) {
         code = streamSyncWriteCheckpoint(pTask->task.streamId, epSet, buf, len);
-        QUERY_CHECK_CODE(code, lino, _end);
         buf = NULL;
       }
     } while (0);
@@ -1490,7 +1489,6 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
     SEpSet *epSet = gStreamMgmt.getSynEpset(leaderSid);
     if (epSet != NULL) {
       code = streamSyncDeleteCheckpoint(pTask->task.streamId, epSet);
-      QUERY_CHECK_CODE(code, lino, _end);
     }
   }
 
@@ -2638,6 +2636,7 @@ static int32_t stRealtimeContextRetryCalcRequest(SSTriggerRealtimeContext *pCont
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    destroyAhandle(msg.info.ahandle);
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
@@ -4418,6 +4417,7 @@ static int32_t stHistoryContextRetryPullRequest(SSTriggerHistoryContext *pContex
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    destroyAhandle(msg.info.ahandle);
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
@@ -4488,6 +4488,7 @@ static int32_t stHistoryContextRetryCalcRequest(SSTriggerHistoryContext *pContex
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    destroyAhandle(msg.info.ahandle);
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
