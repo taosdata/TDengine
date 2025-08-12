@@ -1446,16 +1446,22 @@ static void stdTransferInfo(SStdRes* pInput, SStdRes* pOutput) {
   if (pOutput->count == 0) {
     pOutput->quadraticDSum += pInput->quadraticDSum;
     pOutput->dsum += pInput->dsum;
-  } else {
+    pOutput->count = pInput->count;
+  } else if (pInput->count > 0) {
     double totalCount = pOutput->count + pInput->count;
-    double mean = pInput->count / totalCount * pInput->dsum + pOutput->count / totalCount * pOutput->dsum;
+    double totalSum = pInput->count * pInput->dsum + pOutput->count * pOutput->dsum;
+    double mean = totalSum / totalCount;
 
+    /*
     pOutput->quadraticDSum += pInput->quadraticDSum + pInput->count * pInput->dsum * pInput->dsum +
-                              pOutput->count * pOutput->dsum * pOutput->dsum - totalCount * mean * mean;
-    pOutput->dsum = mean;
-  }
+                              pOutput->count * pOutput->dsum * pOutput->dsum - totalSum * mean;
+    */
 
-  pOutput->count += pInput->count;
+    double diff = pInput->dsum - pOutput->dsum;
+    pOutput->quadraticDSum += pInput->quadraticDSum + pInput->count * pOutput->count * (diff * diff) / totalCount;
+    pOutput->dsum = mean;
+    pOutput->count += pInput->count;
+  }
 }
 
 int32_t stdFunctionMerge(SqlFunctionCtx* pCtx) {
