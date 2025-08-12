@@ -38,9 +38,9 @@ void setUsedBlockBuf(SAlignBlocksInMem* pAlignBlockInfo, size_t usedSize) {
   pAlignBlockInfo->dataLen += usedSize;
 }
 
-void* getWindowDataBuf(SSlidingWindowInMem* pWindowData) { return (char*)pWindowData + sizeof(SSlidingWindowInMem); }
+void* getWindowDataBuf(SWindowDataInMem* pWindowData) { return (char*)pWindowData + sizeof(SWindowDataInMem); }
 
-static int32_t getRangeInWindowBlock(SSlidingWindowInMem* pWindowData, int32_t tsColSlotId, TSKEY start, TSKEY end,
+static int32_t getRangeInWindowBlock(SWindowDataInMem* pWindowData, int32_t tsColSlotId, TSKEY start, TSKEY end,
                                      SSDataBlock** ppBlock) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
@@ -83,7 +83,7 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
       return TSDB_CODE_STREAM_INTERNAL_ERROR;
     }
     while (pResult->winIndex < pBlockInfo->nWindow) {
-      SSlidingWindowInMem* pWindowData = (SSlidingWindowInMem*)((char*)pBlockInfo + sizeof(SAlignBlocksInMem) + pResult->offset);
+      SWindowDataInMem* pWindowData = (SWindowDataInMem*)((char*)pBlockInfo + sizeof(SAlignBlocksInMem) + pResult->offset);
 
       bool found = false;
       if (pWindowData->startTime > pResult->reqEndTime) {
@@ -182,8 +182,8 @@ static int32_t getSlidingDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock
 
   SSlidingGrpMgr* pSlidingGrpMgr = pResult->groupData;
   for (; pResult->offset < pSlidingGrpMgr->winDataInMem->size; ++pResult->offset) {
-    SSlidingWindowInMem* pWindowData =
-        *(SSlidingWindowInMem**)taosArrayGet(pSlidingGrpMgr->winDataInMem, pResult->offset);
+    SWindowDataInMem* pWindowData =
+        *(SWindowDataInMem**)taosArrayGet(pSlidingGrpMgr->winDataInMem, pResult->offset);
     if (pWindowData == NULL) {
       continue;
     }
@@ -239,25 +239,25 @@ bool setNextIteratorFromMem(SResultIter** ppResult) {
 }
 
 int32_t buildSlidingWindowInMem(SSDataBlock* pBlock, int32_t tsColSlotId, int32_t startIndex, int32_t endIndex,
-                                SSlidingWindowInMem** ppSlidingWinInMem) {
+                                SWindowDataInMem** ppSlidingWinInMem) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   size_t  numOfCols = taosArrayGetSize(pBlock->pDataBlock);
 
   // todo dataEncodeBufSize > real len
   size_t dataEncodeBufSize = blockGetEncodeSizeOfRows(pBlock, startIndex, endIndex);
-  char*  buf = taosMemoryCalloc(1, sizeof(SSlidingWindowInMem) + dataEncodeBufSize);
+  char*  buf = taosMemoryCalloc(1, sizeof(SWindowDataInMem) + dataEncodeBufSize);
   if (buf == NULL) {
     return terrno;
   }
-  *ppSlidingWinInMem = (SSlidingWindowInMem*)buf;
+  *ppSlidingWinInMem = (SWindowDataInMem*)buf;
   code = getStreamBlockTS(pBlock, tsColSlotId, endIndex, &(*ppSlidingWinInMem)->endTime);
   QUERY_CHECK_CODE(code, lino, _end);
 
   code = getStreamBlockTS(pBlock, tsColSlotId, startIndex, &(*ppSlidingWinInMem)->startTime);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  char*   pStart = buf + sizeof(SSlidingWindowInMem);
+  char*   pStart = buf + sizeof(SWindowDataInMem);
   int32_t len = 0;
   code = blockEncodeAsRows(pBlock, pStart, dataEncodeBufSize, numOfCols, startIndex, endIndex, &len);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -273,19 +273,19 @@ _end:
 }
 
 void destroySlidingWindowInMem(void* pData) {
-  SSlidingWindowInMem* pSlidingWinInMem = (SSlidingWindowInMem*)pData;
+  SWindowDataInMem* pSlidingWinInMem = (SWindowDataInMem*)pData;
   if (pSlidingWinInMem) {
-    atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pSlidingWinInMem->dataLen + sizeof(SSlidingWindowInMem));
+    atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pSlidingWinInMem->dataLen + sizeof(SWindowDataInMem));
     taosMemoryFree(pSlidingWinInMem);
   }
 }
 
 void destroySlidingWindowInMemPP(void* pData) {
-  SSlidingWindowInMem* pSlidingWinInMem = *(SSlidingWindowInMem**)pData;
+  SWindowDataInMem* pSlidingWinInMem = *(SWindowDataInMem**)pData;
   if (pSlidingWinInMem) {
-    atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pSlidingWinInMem->dataLen + sizeof(SSlidingWindowInMem));
+    atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pSlidingWinInMem->dataLen + sizeof(SWindowDataInMem));
     taosMemoryFree(pSlidingWinInMem);
-    *(SSlidingWindowInMem**)pData = NULL;
+    *(SWindowDataInMem**)pData = NULL;
   }
 }
 
@@ -348,13 +348,13 @@ int32_t buildAlignWindowInMemBlock(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlo
 
   // todo dataEncodeBufSize > real len
   size_t dataEncodeBufSize = blockGetEncodeSizeOfRows(pBlock, startIndex, endIndex);
-  size_t buffSize = sizeof(SSlidingWindowInMem) + dataEncodeBufSize;
+  size_t buffSize = sizeof(SWindowDataInMem) + dataEncodeBufSize;
 
   SAlignBlocksInMem* pAlignBlockInfo = NULL;
   code = getEnoughBuffWindow(pAlignGrpMgr, buffSize, &pAlignBlockInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  SSlidingWindowInMem* pSlidingWinInMem = (SSlidingWindowInMem*)(getNextBuffStart(pAlignBlockInfo));
+  SWindowDataInMem* pSlidingWinInMem = (SWindowDataInMem*)(getNextBuffStart(pAlignBlockInfo));
   pSlidingWinInMem->endTime = wend;
   pSlidingWinInMem->startTime = wstart;
   pSlidingWinInMem->dataLen = buffSize;
@@ -384,13 +384,13 @@ int32_t buildMoveAlignWindowInMem(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBloc
   int32_t lino = 0;
   size_t  numOfCols = taosArrayGetSize(pBlock->pDataBlock);
 
-  size_t             dataEncodeBufSize = sizeof(SSlidingWindowInMem) + sizeof(SMoveWindowInfo);
+  size_t             dataEncodeBufSize = sizeof(SWindowDataInMem) + sizeof(SMoveWindowInfo);
   size_t             moveSize = blockGetEncodeSize(pBlock);
   SAlignBlocksInMem* pAlignBlockInfo = NULL;
   code = getEnoughBuffWindow(pAlignGrpMgr, dataEncodeBufSize, &pAlignBlockInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  SSlidingWindowInMem* pSlidingWinInMem = (SSlidingWindowInMem*)(getNextBuffStart(pAlignBlockInfo));
+  SWindowDataInMem* pSlidingWinInMem = (SWindowDataInMem*)(getNextBuffStart(pAlignBlockInfo));
   pSlidingWinInMem->endTime = wend;
   pSlidingWinInMem->startTime = wstart;
   pSlidingWinInMem->dataLen = 0;  // move data, so no data length
