@@ -4961,73 +4961,6 @@ int32_t tColDataAddValueByBind2WithDecimal(SColData *pColData, TAOS_STMT2_BIND *
     }
   }
 
-  // if (IS_VAR_DATA_TYPE(pColData->type)) {  // var-length data type
-
-  // } else {  // fixed-length data type
-  //   bool allValue;
-  //   bool allNull;
-  //   bool allNone;
-  //   if (pBind->is_null) {
-  //     bool same = (memcmp(pBind->is_null, pBind->is_null + 1, pBind->num - 1) == 0);
-  //     allNull = (same && pBind->is_null[0] == 1);
-  //     allNone = (same && pBind->is_null[0] > 1);
-  //     allValue = (same && pBind->is_null[0] == 0);
-  //   } else {
-  //     allNull = false;
-  //     allNone = false;
-  //     allValue = true;
-  //   }
-
-  //   if ((pColData->cflag & COL_IS_KEY) && !allValue) {
-  //     code = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
-  //     goto _exit;
-  //   }
-
-  //   uint8_t *buf = pBind->buffer;
-
-  //   if (allValue) {
-  //     // optimize (todo)
-  //     for (int32_t i = 0; i < pBind->num; ++i) {
-  //       uint8_t *val = (uint8_t *)pBind->buffer + TYPE_BYTES[pColData->type] * i;
-  //       if (TSDB_DATA_TYPE_BOOL == pColData->type && *val > 1) {
-  //         *val = 1;
-  //       }
-  //       code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, val, TYPE_BYTES[pColData->type]);
-  //     }
-  //   } else if (allNull) {
-  //     // optimize (todo)
-  //     for (int32_t i = 0; i < pBind->num; ++i) {
-  //       code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
-  //       if (code) goto _exit;
-  //     }
-  //   } else if (allNone) {
-  //     // optimize (todo)
-  //     for (int32_t i = 0; i < pBind->num; ++i) {
-  //       code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
-  //       if (code) goto _exit;
-  //     }
-  //   } else {
-  //     for (int32_t i = 0; i < pBind->num; ++i) {
-  //       if (pBind->is_null[i]) {
-  //         if (pBind->is_null[i] == 1) {
-  //           code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
-  //           if (code) goto _exit;
-  //         } else {
-  //           code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
-  //           if (code) goto _exit;
-  //         }
-  //       } else {
-  //         uint8_t *val = (uint8_t *)pBind->buffer + TYPE_BYTES[pColData->type] * i;
-  //         if (TSDB_DATA_TYPE_BOOL == pColData->type && *val > 1) {
-  //           *val = 1;
-  //         }
-
-  //         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, val, TYPE_BYTES[pColData->type]);
-  //       }
-  //     }
-  //   }
-  // }
-
 _exit:
   return code;
 }
@@ -5056,6 +4989,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
   SArray *colValArray, *bufArray;
   SColVal colVal;
   int32_t numOfFixedValue = 0;
+  int32_t lino = 0;
 
   if ((colValArray = taosArrayInit(numOfInfos, sizeof(SColVal))) == NULL) {
     return terrno;
@@ -5094,7 +5028,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
               taosMemoryFree(colVal.value.pData);
             }
             code = terrno;
-            goto _exit;
+            TAOS_CHECK_GOTO(code, &lino, _exit);
           }
           continue;
         }
@@ -5104,7 +5038,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
         if (infos[iInfo].bind->is_null[iRow] == 1) {
           if (iInfo == 0) {
             code = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
-            goto _exit;
+            TAOS_CHECK_GOTO(code, &lino, _exit);
           }
           colVal = COL_VAL_NULL(infos[iInfo].columnId, infos[iInfo].type);
         } else {
@@ -5121,7 +5055,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
             value.nData = length;
             if (value.nData > (TSDB_MAX_BLOB_LEN - BLOBSTR_HEADER_SIZE)) {
               code = TSDB_CODE_PAR_VALUE_TOO_LONG;
-              uError("stmt bind param[%d] length:%d  greater than type maximum lenght: %d", iInfo,
+              uError("stmt2 bind col:%d, row:%d length:%d  greater than type maximum lenght: %d", iInfo, iRow,
                      value.nData + (uint32_t)(BLOBSTR_HEADER_SIZE), infos[iInfo].bytes);
               goto _exit;
             }
@@ -5133,8 +5067,8 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
             value.nData = length;
             if (value.nData > infos[iInfo].bytes - VARSTR_HEADER_SIZE) {
               code = TSDB_CODE_PAR_VALUE_TOO_LONG;
-              uError("stmt bind param[%d] length:%d  greater than type maximum lenght: %d", iInfo,
-                     value.nData + (uint32_t)(VARSTR_HEADER_SIZE), infos[iInfo].bytes);
+              uError("stmt2 bind col:%d, row:%d length:%d  greater than type maximum lenght: %d", iInfo, iRow,
+                     value.nData + (uint32_t)(BLOBSTR_HEADER_SIZE), infos[iInfo].bytes);
               goto _exit;
             }
             value.pData = *data;
@@ -5144,8 +5078,9 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
         } else {
           if (infos[iInfo].type == TSDB_DATA_TYPE_DECIMAL) {
             if (!pSchemaExt) {
-              uError("Decimal type without ext schema info, cannot parse decimal values");
-              return TSDB_CODE_PAR_INTERNAL_ERROR;
+              uError("stmt2 decimal64 type without ext schema info, cannot parse decimal values");
+              code = TSDB_CODE_PAR_INTERNAL_ERROR;
+              goto _exit;
             }
             uint8_t precision = 0, scale = 0;
             decimalFromTypeMod(pSchemaExt[iInfo].typeMod, &precision, &scale);
@@ -5154,21 +5089,19 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
             int32_t    length = infos[iInfo].bind->length[iRow];
             int32_t    code = decimal128FromStr(*(char **)data, length, precision, scale, &dec);
             *data += length;
-            if (TSDB_CODE_SUCCESS != code) {
-              return code;
-            }
+            TAOS_CHECK_GOTO(code, &lino, _exit);
 
             // precision check
             // scale auto fit
 
             code = decimal128ToDataVal(&dec, &value);
-            if (TSDB_CODE_SUCCESS != code) {
-              return code;
-            }
+            TAOS_CHECK_GOTO(code, &lino, _exit);
+
           } else if (infos[iInfo].type == TSDB_DATA_TYPE_DECIMAL64) {
             if (!pSchemaExt) {
-              uError("Decimal type without ext schema info, cannot parse decimal values");
-              return TSDB_CODE_PAR_INTERNAL_ERROR;
+              uError("stmt2 decimal128 type without ext schema info, cannot parse decimal values");
+              code = TSDB_CODE_PAR_INTERNAL_ERROR;
+              goto _exit;
             }
             uint8_t precision = 0, scale = 0;
             decimalFromTypeMod(pSchemaExt[iInfo].typeMod, &precision, &scale);
@@ -5177,13 +5110,11 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
             int32_t   length = infos[iInfo].bind->length[iRow];
             int32_t   code = decimal64FromStr(*(char **)data, length, precision, scale, &dec);
             *data += length;
-            if (TSDB_CODE_SUCCESS != code) {
-              return code;
-            }
+            TAOS_CHECK_GOTO(code, &lino, _exit);
+
             code = decimal64ToDataVal(&dec, &value);
-            if (TSDB_CODE_SUCCESS != code) {
-              return code;
-            }
+            TAOS_CHECK_GOTO(code, &lino, _exit);
+
           } else {
             uint8_t *val = (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bytes * iRow;
             if (TSDB_DATA_TYPE_BOOL == value.type && *val > 1) {
@@ -5204,14 +5135,12 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
 
     if (hasBlob == 0) {
       SRowBuildScanInfo sinfo = {0};
-      if ((code = tRowBuild(colValArray, pTSchema, &row, &sinfo))) {
-        goto _exit;
-      }
+      code = tRowBuild(colValArray, pTSchema, &row, &sinfo);
+      TAOS_CHECK_GOTO(code, &lino, _exit);
     } else {
       SRowBuildScanInfo sinfo = {.hasBlob = 1, .scanType = ROW_BUILD_UPDATE};
-      if ((code = tRowBuildWithBlob(colValArray, pTSchema, &row, NULL, &sinfo))) {
-        goto _exit;
-      }
+      code = tRowBuildWithBlob(colValArray, pTSchema, &row, NULL, &sinfo);
+      TAOS_CHECK_GOTO(code, &lino, _exit);
     }
 
     if ((taosArrayPush(rowArray, &row)) == NULL) {
@@ -5238,7 +5167,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
   }
 _exit:
   if (code != 0) {
-    uError("tRowBuildFromBind2 failed, code=%d", code);
+    uError("tRowBuildFromBind2 failed at line %d, ErrCode=0x%x", lino, code);
   }
   taosArrayDestroy(colValArray);
   taosArrayDestroy(bufArray);
