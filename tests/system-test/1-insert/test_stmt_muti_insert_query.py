@@ -190,8 +190,8 @@ class TDTestCase:
         config = buildPath+ "../sim/dnode1/cfg/"
         host="localhost"
         connectstmt=self.newcon(host,config)
-        self.check_stmt_insert_multi(connectstmt, True)
-        self.check_stmt_insert_multi(connectstmt, False)
+        self.test_stmt_insert_multi(connectstmt, True)
+        self.test_stmt_insert_multi(connectstmt, False)
         self.clear_env(connectstmt)
         return
 
