@@ -81,13 +81,16 @@ class TDTestCase:
         print(con)
         return con
 
-    def test_stmt_insert_multi(self,conn):
+    def clear_env(self,conn):
+        conn.close()
+
+    def test_stmt_insert_multi(self,conn,asc=True):
         # type: (TaosConnection) -> None
 
         dbname = "db_stmt"
         try:
             conn.execute("drop database if exists %s" % dbname)
-            conn.execute("create database if not exists %s" % dbname)
+            conn.execute("create database if not exists %s keep 36500d" % dbname)
             conn.select_db(dbname)
 
             conn.execute(
@@ -100,23 +103,27 @@ class TDTestCase:
             start = datetime.now()
             stmt = conn.statement("insert into stb1 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 
+            rows = 512 # refact for TD-37374, don't change the value of rows
             params = new_multi_binds(16)
-            params[0].timestamp((1626861392589, 1626861392590, 1626861392591))
-            params[1].bool((True, None, False))
-            params[2].tinyint([-128, -128, None]) # -128 is tinyint null
-            params[3].tinyint([0, 127, None])
-            params[4].smallint([3, None, 2])
-            params[5].int([3, 4, None])
-            params[6].bigint([3, 4, None])
-            params[7].tinyint_unsigned([3, 4, None])
-            params[8].smallint_unsigned([3, 4, None])
-            params[9].int_unsigned([3, 4, None])
-            params[10].bigint_unsigned([3, 4, None])
-            params[11].float([3, None, 1])
-            params[12].double([3, None, 1.2])
-            params[13].binary(["abc", "dddafadfadfadfadfa", None])
-            params[14].nchar(["涛思数据", None, "a long string with 中文字符"])
-            params[15].timestamp([None, None, 1626861392591])
+            if asc == True:
+                params[0].timestamp(list(range(1626861392589, 1626861392589 + rows, 1)))
+            else:
+                params[0].timestamp(list(range(1626861392589 + rows - 1, 1626861392589 - 1, -1)))
+            params[1].bool(list(itertools.islice(itertools.cycle((True, None, False, False)), rows)))
+            params[2].tinyint(list(itertools.islice(itertools.cycle((-128, -128, None, None)), rows))) # -128 is tinyint null
+            params[3].tinyint(list(itertools.islice(itertools.cycle((0, 127, None, None)), rows)))
+            params[4].smallint(list(itertools.islice(itertools.cycle((3, None, 2, 2)), rows)))
+            params[5].int(list(itertools.islice(itertools.cycle((3, 4, None, None)), rows)))
+            params[6].bigint(list(itertools.islice(itertools.cycle((3, 4, None, None)), rows)))
+            params[7].tinyint_unsigned(list(itertools.islice(itertools.cycle((3, 4, None, None)), rows)))
+            params[8].smallint_unsigned(list(itertools.islice(itertools.cycle((3, 4, None, None)), rows)))
+            params[9].int_unsigned(list(itertools.islice(itertools.cycle((3, 4, None, None)), rows)))
+            params[10].bigint_unsigned(list(itertools.islice(itertools.cycle((3, 4, None, None)), rows)))
+            params[11].float(list(itertools.islice(itertools.cycle((3, None, 1, 2)), rows)))
+            params[12].double(list(itertools.islice(itertools.cycle((3, None, 1.2, 1.3)), rows)))
+            params[13].binary(list(itertools.islice(itertools.cycle(("abc", "dddafadfadfadfadfa", None, None)), rows)))
+            params[14].nchar(list(itertools.islice(itertools.cycle(("涛思数据", None, "a long string with 中文字符", None)), rows)))
+            params[15].timestamp(list(itertools.islice(itertools.cycle((None, None, 1626861392591, None)), rows)))
             # print(type(stmt))
             tdLog.debug("bind_param_batch start")
             stmt.bind_param_batch(params)
@@ -125,7 +132,7 @@ class TDTestCase:
             tdLog.debug("execute end")
             end = datetime.now()
             print("elapsed time: ", end - start)
-            assert stmt.affected_rows == 3
+            assert stmt.affected_rows == rows
 
             #query 1
             querystmt=conn.statement("select ?,bu from stb1")
@@ -143,8 +150,12 @@ class TDTestCase:
             # rows=result.fetch_all()
             print(rows)
             assert rows[1][0] == "ts"
-            assert rows[0][1] == 3
-            assert rows[2][1] == None
+            if asc == True:
+                assert rows[0][1] == 3
+                assert rows[3][1] == None
+            else:
+                assert rows[0][1] == None
+                assert rows[3][1] == 3
 
             #query 2
             querystmt1=conn.statement("select * from stb1 where bu < ?")
@@ -156,15 +167,18 @@ class TDTestCase:
             result1=querystmt1.use_result()
             rows1=result1.fetch_all()
             print(rows1)
-            assert str(rows1[0][0]) == "2021-07-21 17:56:32.589000"
+            if asc == True:
+                assert str(rows1[0][0]) == "2021-07-21 17:56:32.589000"
+            else:
+                assert str(rows1[0][0]) == "2021-07-21 17:56:32.592000"
             assert rows1[0][10] == 3
             tdLog.debug("close start")
 
             stmt.close()
 
             # conn.execute("drop database if exists %s" % dbname)
-            conn.close()
-            tdLog.success("%s successfully executed" % __file__)
+            # conn.close()
+            tdLog.success("%s successfully executed, asc:%s" % (__file__, asc))
 
         except Exception as err:
             # conn.execute("drop database if exists %s" % dbname)
@@ -176,7 +190,9 @@ class TDTestCase:
         config = buildPath+ "../sim/dnode1/cfg/"
         host="localhost"
         connectstmt=self.newcon(host,config)
-        self.test_stmt_insert_multi(connectstmt)
+        self.test_stmt_insert_multi(connectstmt, True)
+        self.test_stmt_insert_multi(connectstmt, False)
+        self.clear_env(connectstmt)
         return
 
 
