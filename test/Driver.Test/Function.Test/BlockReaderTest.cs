@@ -247,7 +247,7 @@ namespace Driver.Test.Function.Test
             var cols = parser.GetValues(0, values);
             var expected = new object[]
             {
-                TDengineConstant.ConvertTimeToDatetime(1750324502986, TDenginePrecision.TSDB_TIME_PRECISION_MILLI),
+                TDengineConstant.ConvertTimestampToDateTime(1750324502986, TDenginePrecision.TSDB_TIME_PRECISION_MILLI),
                 true, // bool
                 (sbyte)127, // tinyint
                 (short)32767, // smallint
@@ -383,8 +383,8 @@ namespace Driver.Test.Function.Test
             // lost precision for float
             Assert.Equal((long)((float)2147483647), parser.GetInt64(rowIndex, floatIndex));
             Assert.Equal(9999999999999999, parser.GetInt64(rowIndex, decimal128Index));
+            Assert.Equal(1750324502986, parser.GetInt64(rowIndex, dateTimeIndex));
             Assert.Throws<InvalidCastException>(() => parser.GetInt64(rowIndex, boolIndex));
-            Assert.Throws<InvalidCastException>(() => parser.GetInt64(rowIndex, dateTimeIndex));
             Assert.Throws<OverflowException>(() => parser.GetInt64(rowIndex, bigIntUnsignedIndex));
             Assert.Throws<OverflowException>(() => parser.GetInt64(rowIndex, doubleIndex));
             Assert.Throws<InvalidCastException>(() => parser.GetInt64(rowIndex, binaryIndex));
@@ -461,7 +461,7 @@ namespace Driver.Test.Function.Test
             cols = parser.GetValues(1, values);
             expected = new object[]
             {
-                TDengineConstant.ConvertTimeToDatetime(1750324503986, TDenginePrecision.TSDB_TIME_PRECISION_MILLI),
+                TDengineConstant.ConvertTimestampToDateTime(1750324503986, TDenginePrecision.TSDB_TIME_PRECISION_MILLI),
                 null, // bool
                 null, // tinyint
                 null, // smallint
@@ -510,7 +510,7 @@ namespace Driver.Test.Function.Test
             cols = parser.GetValues(2, values);
             expected = new object[]
             {
-                TDengineConstant.ConvertTimeToDatetime(1750324504986, TDenginePrecision.TSDB_TIME_PRECISION_MILLI),
+                TDengineConstant.ConvertTimestampToDateTime(1750324504986, TDenginePrecision.TSDB_TIME_PRECISION_MILLI),
                 false, // bool
                 (sbyte)(-128), // tinyint
                 (short)(-32768), // smallint
@@ -617,8 +617,8 @@ namespace Driver.Test.Function.Test
             Assert.Equal(0, parser.GetInt64(rowIndex, bigIntUnsignedIndex));
             Assert.Equal(0, parser.GetInt64(rowIndex, floatIndex));
             Assert.Equal(0, parser.GetInt64(rowIndex, doubleIndex));
+            Assert.Equal(1750324504986, parser.GetInt64(rowIndex, dateTimeIndex));
             Assert.Throws<InvalidCastException>(() => parser.GetInt64(rowIndex, boolIndex));
-            Assert.Throws<InvalidCastException>(() => parser.GetInt64(rowIndex, dateTimeIndex));
             Assert.Throws<InvalidCastException>(() => parser.GetInt64(rowIndex, binaryIndex));
             Assert.Throws<InvalidCastException>(() => parser.GetInt64(rowIndex, ncharIndex));
             Assert.Throws<InvalidCastException>(() => parser.GetInt64(rowIndex, varbinaryIndex));
@@ -691,7 +691,7 @@ namespace Driver.Test.Function.Test
             cols = parser.GetValues(3, values);
             expected = new object[]
             {
-                TDengineConstant.ConvertTimeToDatetime(1750324505986, TDenginePrecision.TSDB_TIME_PRECISION_MILLI),
+                TDengineConstant.ConvertTimestampToDateTime(1750324505986, TDenginePrecision.TSDB_TIME_PRECISION_MILLI),
                 true, // bool
                 (sbyte)(1), // tinyint
                 (short)(1), // smallint
@@ -795,8 +795,8 @@ namespace Driver.Test.Function.Test
             Assert.Equal(1, parser.GetInt64(rowIndex, doubleIndex));
             // lost precision for float
             Assert.Equal((long)((float)1), parser.GetInt64(rowIndex, floatIndex));
+            Assert.Equal(1750324505986, parser.GetInt64(rowIndex, dateTimeIndex));
             Assert.Throws<InvalidCastException>(() => parser.GetInt64(rowIndex, boolIndex));
-            Assert.Throws<InvalidCastException>(() => parser.GetInt64(rowIndex, dateTimeIndex));
             Assert.Throws<InvalidCastException>(() => parser.GetInt64(rowIndex, binaryIndex));
             Assert.Throws<InvalidCastException>(() => parser.GetInt64(rowIndex, ncharIndex));
             Assert.Throws<InvalidCastException>(() => parser.GetInt64(rowIndex, varbinaryIndex));

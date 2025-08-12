@@ -73,11 +73,11 @@ namespace Driver.Test.Function.Test
                                 TDengineConstant.TimeZero.Ticks) * 100;
             var next2SecondTs = (dateTime.Add(TimeSpan.FromSeconds(2)).ToUniversalTime().Ticks -
                                  TDengineConstant.TimeZero.Ticks) * 100;
-            var now = TDengineConstant.ConvertTimeToDatetime(ts, TDenginePrecision.TSDB_TIME_PRECISION_NANO);
+            var now = TDengineConstant.ConvertTimestampToDateTime(ts, TDenginePrecision.TSDB_TIME_PRECISION_NANO);
             var nextSecond =
-                TDengineConstant.ConvertTimeToDatetime(nextSecondTs, TDenginePrecision.TSDB_TIME_PRECISION_NANO);
+                TDengineConstant.ConvertTimestampToDateTime(nextSecondTs, TDenginePrecision.TSDB_TIME_PRECISION_NANO);
             var next2Second =
-                TDengineConstant.ConvertTimeToDatetime(next2SecondTs, TDenginePrecision.TSDB_TIME_PRECISION_NANO);
+                TDengineConstant.ConvertTimestampToDateTime(next2SecondTs, TDenginePrecision.TSDB_TIME_PRECISION_NANO);
 
             var ab = new bool?[] { v1, null, vv1, };
             var ai8 = new sbyte?[] { v2, null, vv2 };

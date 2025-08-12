@@ -19,15 +19,14 @@ namespace TDengine.Driver
                 UuidHashId = ((long)BitConverter.ToUInt32(hashBytes, 0) & 0x07ff) << 52;
             }
 
-            Pid = Process.GetCurrentProcess().Id & (long)0x0f << 48;
+            Pid = ((long)(Process.GetCurrentProcess().Id & 0x0f)) << 48;
         }
 
         public static long GetReqId()
         {
-            long timeSpan = (long)(DateTimeOffset.UtcNow -TDengineConstant.TimeZero).TotalMilliseconds;
-            long ts = (timeSpan >> 8);
+            long timeSpan = ((DateTime.UtcNow.Ticks -TDengineConstant.TimeZero.Ticks) / 10000)>> 8;
             long val = Interlocked.Increment(ref _serialNo);
-            return UuidHashId | Pid | ((ts & 0x3ffffff) << 20) | (val & 0xfffff);
+            return UuidHashId | Pid | ((timeSpan & 0x3ffffff) << 20) | (val & 0xfffff);
         }
 
         private const uint C1 = 0xcc9e2d51;

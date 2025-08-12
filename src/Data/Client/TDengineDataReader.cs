@@ -102,6 +102,8 @@ namespace TDengine.Data.Client
         public override object GetValue(int ordinal) => _rows.GetValue(ordinal);
 
         public override int GetValues(object[] values) => _rows.GetValues(values);
+        
+        public DateTimeOffset GetDateTimeOffset(int ordinal) => _rows.GetDateTimeOffset(ordinal);
 
         public override bool IsDBNull(int ordinal) => _rows.IsDBNull(ordinal);
 

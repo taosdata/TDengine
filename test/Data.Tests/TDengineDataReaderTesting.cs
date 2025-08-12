@@ -230,8 +230,9 @@ namespace Data.Tests
 
                 reader.Read();
                 Assert.False(reader.IsDBNull(0));
-                Assert.Equal((now.ToUniversalTime().Ticks - TDengineConstant.TimeZero.Ticks) / 10000,
-                    (reader.GetDateTime(0).ToUniversalTime().Ticks - TDengineConstant.TimeZero.Ticks) / 10000);
+                var expectTs = TDengineConstant.ConvertDateTimeToTimestamp(now, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+                Assert.Equal(expectTs,TDengineConstant.ConvertDateTimeToTimestamp(reader.GetDateTime(0), TDenginePrecision.TSDB_TIME_PRECISION_MILLI));
+                Assert.Equal(expectTs,reader.GetInt64(0));
                 Assert.Equal(14, reader.FieldCount);
                 Assert.Equal((int)1, reader.GetValue(1));
                 Assert.Equal((int)1, reader.GetInt32(1));

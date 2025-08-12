@@ -27,7 +27,7 @@ namespace TDengine.Data.Client
             }
 
             _parameterName = name;
-            Value = value;
+            _value = value;
         }
         
         public override DbType DbType { get; set; } = DbType.Single;

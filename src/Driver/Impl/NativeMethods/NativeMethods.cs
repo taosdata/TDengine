@@ -324,5 +324,28 @@ namespace TDengine.Driver.Impl.NativeMethods
                 utf8PtrStruct.UTF8FreePtr();
             }
         }
+        // DLL_EXPORT int   taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...);
+        [DllImport(DLLName, EntryPoint = "taos_options_connection", CallingConvention = CallingConvention.Cdecl)]
+        private static extern int OptionsConnection(IntPtr res, int option, IntPtr arg);
+
+        public static int OptionsConnection(IntPtr res, int option, string arg)
+        {
+            UTF8PtrStruct utf8PtrStruct = new UTF8PtrStruct(arg);
+            try
+            {
+                return OptionsConnection(res, option, utf8PtrStruct.utf8Ptr);
+            }
+            finally
+            {
+                utf8PtrStruct.UTF8FreePtr();
+            }
+        }
+        
+        public static int CleanOptionsConnection(IntPtr res, int option)
+        {
+            // This is a workaround for the taos_options_connection function
+            // that does not support cleaning options.
+            return OptionsConnection(res, option, IntPtr.Zero);
+        }
     }
 }

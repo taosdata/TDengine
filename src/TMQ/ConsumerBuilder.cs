@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using TDengine.Data.Client;
 using TDengine.Driver;
-using TDengine.TMQ.Native;
 
 namespace TDengine.TMQ
 {
@@ -10,7 +8,7 @@ namespace TDengine.TMQ
     {
         protected internal IEnumerable<KeyValuePair<string, string>> Config { get; set; }
         
-        internal protected IDeserializer<TValue> ValueDeserializer { get; set; }
+        protected internal IDeserializer<TValue> ValueDeserializer { get; set; }
         
 
         
@@ -40,7 +38,7 @@ namespace TDengine.TMQ
                 case TDengineConstant.ProtocolWebSocket:
                     return new WebSocket.Consumer<TValue>(this);
                 case TDengineConstant.ProtocolNative:
-                    return new Consumer<TValue>(this);
+                    return new Native.Consumer<TValue>(this);
                 default:
                     throw new ArgumentException($"Unsupported connect type: {connectType}");
             }

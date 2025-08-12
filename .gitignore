@@ -23,6 +23,7 @@ examples/NET6Examples/obj/
 examples/Properties/
 examples/FrameWork45/FrameWork45.csproj.user
 .vs
+.idea
 .config/
 # User-specific files
 *.rsuser

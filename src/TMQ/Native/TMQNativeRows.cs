@@ -6,54 +6,18 @@ using TDengine.Driver.Impl.NativeMethods;
 
 namespace TDengine.TMQ.Native
 {
-    public class TMQNativeRows : ITMQRows
+    public class TMQNativeRows : AbstractRows, ITMQRows
     {
         private readonly IntPtr _result;
-        private int _currentRow;
-        private List<TDengineMeta> _metas;
-        private int _blockRows;
-        private byte[] _block;
-        private bool _completed;
-        private int _blockIndex;
-        private TMQBlockReader.TMQBlockInfo[] _blockInfo;
-        private readonly BlockReader _blockReader;
-        private readonly TMQBlockReader _tmqBlockReader;
 
-        public TMQNativeRows(IntPtr result, TimeZoneInfo tz)
+        public TMQNativeRows(IntPtr result, TimeZoneInfo tz) : base(0,0,tz)
         {
             _result = result;
-            _blockReader = new BlockReader(0, tz);
-            _tmqBlockReader = new TMQBlockReader(0);
         }
 
-        public object GetValue(int ordinal)
+        protected override void FetchBlock()
         {
-            return _blockReader.Read(_currentRow, ordinal);
-        }
-
-        public bool Read()
-        {
-            if (_completed) return false;
-            if (_block == null)
-            {
-                FetchBlock();
-                return !_completed;
-            }
-
-            _currentRow += 1;
-            if (_currentRow != _blockRows) return true;
-            FetchBlock();
-            return !_completed;
-        }
-
-        public int FieldCount { get; private set; }
-        public string TableName { get; private set; }
-
-        public string GetName(int ordinal) => _metas[ordinal].name;
-
-        private void FetchBlock()
-        {
-            if (_block == null)
+            if (Block == null)
             {
                 int structSize = Marshal.SizeOf(typeof(TMQRawData));
                 IntPtr raw = Marshal.AllocHGlobal(structSize);
@@ -66,10 +30,10 @@ namespace TDengine.TMQ.Native
                     }
 
                     TMQRawData rawData = (TMQRawData)Marshal.PtrToStructure(raw, typeof(TMQRawData));
-                    _block = new byte[rawData.rawLen];
-                    Marshal.Copy(rawData.raw, _block, 0, (int)rawData.rawLen);
-                    _blockInfo = _tmqBlockReader.Parse(_block);
-                    _blockIndex = 0;
+                    Block = new byte[rawData.rawLen];
+                    Marshal.Copy(rawData.raw, Block, 0, (int)rawData.rawLen);
+                    BlockInfo = TmqBlockReader.Parse(Block);
+                    BlockIndex = 0;
                 }
                 finally
                 {
@@ -78,29 +42,29 @@ namespace TDengine.TMQ.Native
             }
             else
             {
-                _blockIndex += 1;
+                BlockIndex += 1;
             }
 
-            if (_blockIndex == _blockInfo.Length)
+            if (BlockIndex == BlockInfo.Length)
             {
-                _completed = true;
+                Completed = true;
                 return;
             }
 
-            _blockReader.SetTMQBlock(_block, _blockInfo[_blockIndex].precision, _blockInfo[_blockIndex].rawBlockOffset);
-            _blockRows = _blockReader.GetRows();
-            _currentRow = 0;
+            BlockReader.SetTMQBlock(Block, BlockInfo[BlockIndex].precision, BlockInfo[BlockIndex].rawBlockOffset);
+            BlockRows = BlockReader.GetRows();
+            CurrentRow = 0;
 
-            FieldCount = _blockInfo[_blockIndex].schemas.Length;
-            TableName = _blockInfo[_blockIndex].tableName;
-            _metas = new List<TDengineMeta>();
+            FieldCount = BlockInfo[BlockIndex].schemas.Length;
+            TableName = BlockInfo[BlockIndex].tableName;
+            Metas = new List<TDengineMeta>();
             for (int i = 0; i < FieldCount; i++)
             {
-                _metas.Add(new TDengineMeta
+                Metas.Add(new TDengineMeta
                 {
-                    name = _blockInfo[_blockIndex].schemas[i].name,
-                    type = _blockInfo[_blockIndex].schemas[i].colType,
-                    size = _blockInfo[_blockIndex].schemas[i].bytes,
+                    name = BlockInfo[BlockIndex].schemas[i].name,
+                    type = BlockInfo[BlockIndex].schemas[i].colType,
+                    size = BlockInfo[BlockIndex].schemas[i].bytes,
                 });
             }
         }

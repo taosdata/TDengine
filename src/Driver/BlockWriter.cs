@@ -83,7 +83,7 @@ namespace TDengine.Driver
                         var v = (DateTime[])array;
                         for (int i = 0; i < rows; i++)
                         {
-                            vv[i] = TDengineConstant.ConvertDatetimeToTick(v[i],
+                            vv[i] = TDengineConstant.ConvertDateTimeToTimestamp(v[i],
                                 (TDenginePrecision)fields[colIndex].precision);
                         }
 
@@ -102,7 +102,40 @@ namespace TDengine.Driver
                             }
                             else
                             {
-                                vv[i] = TDengineConstant.ConvertDatetimeToTick(v[i].Value,
+                                vv[i] = TDengineConstant.ConvertDateTimeToTimestamp(v[i].Value,
+                                    (TDenginePrecision)fields[colIndex].precision);
+                            }
+                        }
+
+                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, vv,
+                            TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP);
+                    }
+                    else if (elementType == typeof(DateTimeOffset))
+                    {
+                        var vv = new long[rows];
+                        var v = (DateTimeOffset[])array;
+                        for (int i = 0; i < rows; i++)
+                        {
+                            vv[i] = TDengineConstant.ConvertDateTimeOffsetToTimestamp(v[i],
+                                (TDenginePrecision)fields[colIndex].precision);
+                        }
+
+                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, vv,
+                            TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP);
+                    }
+                    else if (elementType == typeof(DateTimeOffset?))
+                    {
+                        var vv = new long?[rows];
+                        var v = (DateTimeOffset?[])array;
+                        for (int i = 0; i < rows; i++)
+                        {
+                            if (v[i] == null)
+                            {
+                                vv[i] = null;
+                            }
+                            else
+                            {
+                                vv[i] = TDengineConstant.ConvertDateTimeOffsetToTimestamp(v[i].Value,
                                     (TDenginePrecision)fields[colIndex].precision);
                             }
                         }

@@ -133,7 +133,7 @@ namespace Function.Test.TMQ
                     for (int j = 0; j < consumeResult.Message.Count; j++)
                     {
                         var v = consumeResult.Message[j].Value;
-                        var ts = TDengineConstant.ConvertDatetimeToTick((DateTime)v["ts"],
+                        var ts = TDengineConstant.ConvertDateTimeToTimestamp((DateTime)v["ts"],
                             TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
                         var b = 0;
                         switch (consumeResult.Message[j].TableName)

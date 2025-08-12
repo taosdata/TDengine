@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Text;
 using TDengine.Driver.Impl.WebSocketMethods.Protocol;
 
@@ -6,17 +7,23 @@ namespace TDengine.Driver.Impl.WebSocketMethods
 {
     public partial class Connection : BaseConnection
     {
-        private readonly string _user = string.Empty;
-        private readonly string _password = string.Empty;
-        private readonly string _db = string.Empty;
+        private readonly string _user;
+        private readonly string _password;
+        private readonly string _db;
+        private readonly string _timezone = string.Empty;
 
         public Connection(string addr, string user, string password, string db, TimeSpan connectTimeout = default,
-            TimeSpan readTimeout = default, TimeSpan writeTimeout = default, bool enableCompression = false) : base(
+            TimeSpan readTimeout = default, TimeSpan writeTimeout = default, bool enableCompression = false,
+            TimeZoneInfo connectionTimezone = null) : base(
             addr, connectTimeout, readTimeout, writeTimeout, enableCompression)
         {
             _user = user;
             _password = password;
             _db = db;
+            if (connectionTimezone != null)
+            {
+                _timezone = connectionTimezone.Id;
+            }
         }
 
         public void Connect()
@@ -27,8 +34,10 @@ namespace TDengine.Driver.Impl.WebSocketMethods
                 ReqId = reqId,
                 User = _user,
                 Password = _password,
-                Db = _db
-            },reqId);
+                Db = _db,
+                Timezone = _timezone,
+                App = TDengineConstant.ProcessName
+            }, reqId);
         }
 
         public WSQueryResp BinaryQuery(string sql, ulong reqid = 0)
@@ -53,7 +62,7 @@ namespace TDengine.Driver.Impl.WebSocketMethods
             WriteUInt32ToBytes(req, (uint)src.Length, 26);
             Buffer.BlockCopy(src, 0, req, 30, src.Length);
 
-            return SendBinaryBackJson<WSQueryResp>(req,reqid);
+            return SendBinaryBackJson<WSQueryResp>(req, reqid);
         }
 
         public byte[] FetchRawBlockBinary(ulong resultId)
@@ -68,7 +77,7 @@ namespace TDengine.Driver.Impl.WebSocketMethods
             WriteUInt64ToBytes(req, resultId, 8);
             WriteUInt64ToBytes(req, WSActionBinary.FetchRawBlockMessage, 16);
             WriteUInt64ToBytes(req, 1, 24);
-            return SendBinaryBackBytes(req,reqId);
+            return SendBinaryBackBytes(req, reqId);
         }
 
         public void FreeResult(ulong resultId)
@@ -78,7 +87,7 @@ namespace TDengine.Driver.Impl.WebSocketMethods
             {
                 ReqId = reqId,
                 ResultId = resultId
-            },reqId);
+            }, reqId);
         }
     }
 }

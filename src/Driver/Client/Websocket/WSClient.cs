@@ -15,10 +15,10 @@ namespace TDengine.Driver.Client.Websocket
         public WSClient(ConnectionStringBuilder builder)
         {
             Debug.Assert(builder.Protocol == TDengineConstant.ProtocolWebSocket);
-            _tz = builder.Timezone;
+            _tz = builder.GetTimeZone();
             _connection = new Connection(GetUrl(builder), builder.Username, builder.Password,
                 builder.Database, builder.ConnTimeout, builder.ReadTimeout, builder.WriteTimeout,
-                builder.EnableCompression);
+                builder.EnableCompression,builder.ConnectionTimezone);
 
             _connection.Connect();
             _builder = builder;
@@ -88,7 +88,7 @@ namespace TDengine.Driver.Client.Websocket
                         System.Threading.Thread.Sleep(_builder.ReconnectIntervalMs);
                         connection = new Connection(GetUrl(_builder), _builder.Username, _builder.Password,
                             _builder.Database, _builder.ConnTimeout, _builder.ReadTimeout, _builder.WriteTimeout,
-                            _builder.EnableCompression);
+                            _builder.EnableCompression,_builder.ConnectionTimezone);
                         connection.Connect();
                         break;
                     }

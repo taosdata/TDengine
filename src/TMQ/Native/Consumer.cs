@@ -14,6 +14,8 @@ namespace TDengine.TMQ.Native
 
         private IDeserializer<TValue> valueDeserializer;
 
+        private TimeZoneInfo _tz = TimeZoneInfo.Local;
+
         private Dictionary<Type, object> defaultDeserializers = new Dictionary<Type, object>
         {
             { typeof(Dictionary<string, object>), DictionaryDeserializer.Dictionary },
@@ -27,11 +29,16 @@ namespace TDengine.TMQ.Native
             }
         }
 
-        internal void ConfSet(IntPtr conf, IEnumerable<KeyValuePair<string, string>> values)
+        private void ConfSet(IntPtr conf, IEnumerable<KeyValuePair<string, string>> values)
         {
             NullReferenceHandler(conf);
             foreach (var v in values)
             {
+                if (v.Key == "connectionTimezone")
+                {
+                    _tz = TimeZoneInfo.FindSystemTimeZoneById(v.Value);
+                    continue;
+                }
                 int code = NativeMethods.TmqConfSet(conf, v.Key, v.Value);
                 if ((TMQ_CONF_RES)code == TMQ_CONF_RES.TMQ_CONF_UNKNOWN)
                 {
@@ -182,7 +189,7 @@ namespace TDengine.TMQ.Native
                     new ConsumeResult<TValue>(topic, vGourpId, offset, type);
                 if (NeedGetData(type))
                 {
-                    var result = new TMQNativeRows(message, TimeZoneInfo.Local);
+                    var result = new TMQNativeRows(message, _tz);
                     while (result.Read())
                     {
                         var value = this.valueDeserializer.Deserialize(result, false, null);

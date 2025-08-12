@@ -37,8 +37,8 @@ namespace Function.Test.Taosc
             IntPtr _res = IntPtr.Zero;
             string tableName = "cn_insert_nchar_ntable";
             var now = DateTime.Now;
-            var ts = TDengineConstant.ConvertDatetimeToTick(now, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
-            now = TDengineConstant.ConvertTimeToDatetime(ts, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+            var ts = TDengineConstant.ConvertDateTimeToTimestamp(now, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+            now = TDengineConstant.ConvertTimestampToDateTime(ts, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
             var colData = new List<Object>
             {
                 now, 1, "涛思数据",
@@ -99,8 +99,8 @@ namespace Function.Test.Taosc
             IntPtr _res = IntPtr.Zero;
             string tableName = "cn_insert_nchar_stable";
             var now = DateTime.Now;
-            var ts = TDengineConstant.ConvertDatetimeToTick(now, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
-            now = TDengineConstant.ConvertTimeToDatetime(ts, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+            var ts = TDengineConstant.ConvertDateTimeToTimestamp(now, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+            now = TDengineConstant.ConvertTimestampToDateTime(ts, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
             var colData = new List<Object>
             {
                 now, 1, "涛思数据",
@@ -166,8 +166,8 @@ namespace Function.Test.Taosc
             IntPtr _res = IntPtr.Zero;
             string tableName = "cn_multi_insert_nchar_ntable";
             var now = DateTime.Now;
-            var ts = TDengineConstant.ConvertDatetimeToTick(now, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
-            now = TDengineConstant.ConvertTimeToDatetime(ts, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+            var ts = TDengineConstant.ConvertDateTimeToTimestamp(now, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+            now = TDengineConstant.ConvertTimestampToDateTime(ts, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
             var colData = new List<Object>
             {
                 now, 1, "涛思数据", "保利广场", "Beijing", "China",
@@ -240,8 +240,8 @@ namespace Function.Test.Taosc
             IntPtr _res = IntPtr.Zero;
             string tableName = "cn_multi_insert_nchar_stable";
             var now = DateTime.Now;
-            var ts = TDengineConstant.ConvertDatetimeToTick(now, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
-            now = TDengineConstant.ConvertTimeToDatetime(ts, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+            var ts = TDengineConstant.ConvertDateTimeToTimestamp(now, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+            now = TDengineConstant.ConvertTimestampToDateTime(ts, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
             var colData = new List<Object>
             {
                 now, 1, "涛思数据", "保利广场", "Beijing", "China",

@@ -119,7 +119,7 @@ namespace Test.Utils
                             insertSql.Append('\'');
                             break;
                         case DateTime val:
-                            var ts = TDengineConstant.ConvertDatetimeToTick(val,
+                            var ts = TDengineConstant.ConvertDateTimeToTimestamp(val,
                                 TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
                             insertSql.Append(ts);
                             break;
@@ -152,7 +152,7 @@ namespace Test.Utils
                         insertSql.Append('\'');
                         break;
                     case DateTime val:
-                        var ts = TDengineConstant.ConvertDatetimeToTick(val,
+                        var ts = TDengineConstant.ConvertDateTimeToTimestamp(val,
                             TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
                         insertSql.Append(ts);
                         break;
@@ -372,11 +372,11 @@ namespace Test.Utils
         public static List<Object> ColumnsList(int numOfRows)
         {
             var now = DateTime.Now;
-            var nowTs = TDengineConstant.ConvertDatetimeToTick(now, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+            var nowTs = TDengineConstant.ConvertDateTimeToTimestamp(now, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
             List<object> columns = new List<object>();
             for (int i = 0; i < numOfRows; i++)
             {
-                var ts = TDengineConstant.ConvertTimeToDatetime(nowTs + i * 10,
+                var ts = TDengineConstant.ConvertTimestampToDateTime(nowTs + i * 10,
                     TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
                 columns.Add(ts);
                 columns.Add((sbyte)(-10 + i));

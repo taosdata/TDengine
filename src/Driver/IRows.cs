@@ -42,5 +42,7 @@ namespace TDengine.Driver
         string GetString(int ordinal);
 
         int GetValues(object[] values);
+        
+        DateTimeOffset GetDateTimeOffset(int ordinal);
     }
 }

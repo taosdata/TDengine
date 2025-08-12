@@ -251,7 +251,7 @@ namespace TDengine.Driver.Impl.NativeMethods
             {
                 if (value.HasValue)
                 {
-                    return TDengineConstant.ConvertDatetimeToTick(value.Value,precision);
+                    return TDengineConstant.ConvertDateTimeToTimestamp(value.Value,precision);
                 }
 
                 return 0;
@@ -261,7 +261,26 @@ namespace TDengine.Driver.Impl.NativeMethods
         public static TAOS_MULTI_BIND MultiBindTimestamp(DateTime[] arr, TDenginePrecision precision)
         {
             return MultiBindTimestampInternal(arr,
-                (value) => TDengineConstant.ConvertDatetimeToTick(value,precision));
+                (value) => TDengineConstant.ConvertDateTimeToTimestamp(value,precision));
+        }
+
+        public static TAOS_MULTI_BIND MultiBindTimestamp(DateTimeOffset?[] arr, TDenginePrecision precision)
+        {
+            return MultiBindTimestampInternal(arr, (value) =>
+            {
+                if (value.HasValue)
+                {
+                    return TDengineConstant.ConvertDateTimeOffsetToTimestamp(value.Value,precision);
+                }
+
+                return 0;
+            });
+        }
+        
+        public static TAOS_MULTI_BIND MultiBindTimestamp(DateTimeOffset[] arr, TDenginePrecision precision)
+        {
+            return MultiBindTimestampInternal(arr,
+                (value) => TDengineConstant.ConvertDateTimeOffsetToTimestamp(value,precision));
         }
 
         public static TAOS_MULTI_BIND MultiBindTimestamp(long?[] arr)

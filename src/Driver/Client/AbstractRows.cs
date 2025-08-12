@@ -179,7 +179,12 @@ namespace TDengine.Driver.Client
         {
             return BlockReader.GetValues(CurrentRow, values);
         }
-
+        
+        public DateTimeOffset GetDateTimeOffset(int ordinal)
+        {
+            return BlockReader.GetDateTimeOffset(CurrentRow, ordinal);
+        }
+        
         protected abstract bool HasBlockData();
         protected abstract void FetchBlock();
     }

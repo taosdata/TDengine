@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System;
+using System.Text;
 using TDengine.Driver;
 using Xunit;
 using Xunit.Abstractions;
@@ -488,7 +489,7 @@ namespace Function.Test.Taosc
                 Assert.Equal(1, rows);
                 Assert.Equal(i + 1, blockReader.Read(0, 1));
                 var dateTime =
-                    TDengineConstant.ConvertTimeToDatetime(1706081119570, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+                    TDengineConstant.ConvertTimestampToDateTime(1706081119570, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
                 Assert.Equal(dateTime, blockReader.Read(0, 0));
             }
         }
@@ -718,21 +719,46 @@ namespace Function.Test.Taosc
             var rows = blockReader.GetRows();
             Assert.Equal(1, rows);
             var dateTime =
-                TDengineConstant.ConvertTimeToDatetime(1713766021022, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+                TDengineConstant.ConvertTimestampToDateTime(1713766021022, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+            var dateTimeOffset = TDengineConstant.ConvertTimestampToDateTimeOffset(1713766021022,
+                TDenginePrecision.TSDB_TIME_PRECISION_MILLI, TimeZoneInfo.Local);
             Assert.Equal(dateTime, blockReader.Read(0, 0));
+            Assert.Equal(1713766021022L,blockReader.GetInt64(0,0));
+            Assert.Equal(dateTime, blockReader.GetDateTime(0,0));
+            Assert.Equal(dateTimeOffset,blockReader.GetDateTimeOffset(0,0));
+            
             Assert.Equal(true, blockReader.Read(0, 1));
+            Assert.True(blockReader.GetBoolean(0,1));
+            
             Assert.Equal((sbyte)2, blockReader.Read(0, 2));
+            
             Assert.Equal((short)3, blockReader.Read(0, 3));
+            Assert.Equal((short)3, blockReader.GetInt16(0, 3));
+            
             Assert.Equal((int)4, blockReader.Read(0, 4));
+            Assert.Equal((int)4, blockReader.GetInt32(0, 4));
+            
             Assert.Equal((long)5, blockReader.Read(0, 5));
+            Assert.Equal((long)5, blockReader.GetInt64(0, 5));
+            
             Assert.Equal((byte)6, blockReader.Read(0, 6));
+            Assert.Equal((byte)6, blockReader.GetByte(0, 6));
+            
             Assert.Equal((ushort)7, blockReader.Read(0, 7));
             Assert.Equal((uint)8, blockReader.Read(0, 8));
             Assert.Equal((ulong)9, blockReader.Read(0, 9));
+            
             Assert.Equal((float)10.123, blockReader.Read(0, 10));
+            Assert.Equal((float)10.123, blockReader.GetFloat(0, 10));
+            
             Assert.Equal((double)11.123, blockReader.Read(0, 11));
+            Assert.Equal((double)11.123, blockReader.GetDouble(0, 11));
+            
             Assert.Equal(Encoding.UTF8.GetBytes("binary"), blockReader.Read(0, 12));
+            Assert.Equal("binary", blockReader.GetString(0, 12));
+            
             Assert.Equal("nchar", blockReader.Read(0, 13));
+            Assert.Equal("nchar", blockReader.GetString(0, 13));
         }
     }
 }

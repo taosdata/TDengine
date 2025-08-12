@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace TDengine.Driver
 {
+
     public enum TDengineDataType
     {
         TSDB_DATA_TYPE_NULL = 0, // 1 bytes
@@ -169,6 +171,17 @@ namespace TDengine.Driver
 
     public static class TDengineConstant
     {
+        public static readonly string ProcessName = new Lazy<string>(() =>
+        {
+            try
+            {
+                return Process.GetCurrentProcess().ProcessName;
+            }
+            catch
+            {
+                return "dotnet_unknown";
+            }
+        }).Value;
         public static readonly DateTime TimeZero = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         public static readonly int Int8Size = sizeof(sbyte);
         public static readonly int Int16Size = sizeof(short);
@@ -183,8 +196,19 @@ namespace TDengine.Driver
         public static readonly int ByteSize = sizeof(byte);
         public static readonly int BoolSize = sizeof(bool);
 
+        // Deprecated: Wrong function name, use ConvertDateTimeToTimestamp instead.
+        [Obsolete("Wrong function name, Use ConvertDateTimeToTimestamp instead.")]
         public static long ConvertDatetimeToTick(DateTime value, TDenginePrecision precision)
         {
+            return ConvertDateTimeToTimestamp(value, precision);
+        }
+        public static long ConvertDateTimeToTimestamp(DateTime value, TDenginePrecision precision)
+        {
+            // if kind is unspecified, the `ToUniversalTime` is assumed to be in local time, which may convert to an incorrect UTC time.
+            if (value.Kind == DateTimeKind.Unspecified)
+            {
+                throw new ArgumentException("Datetime Kind must be specified as UTC or Local.");
+            }
             switch (precision)
             {
                 case TDenginePrecision.TSDB_TIME_PRECISION_MILLI:
@@ -198,10 +222,25 @@ namespace TDengine.Driver
             }
         }
 
-        public static DateTime ConvertTimeToDatetime(long value, TDenginePrecision precision,
-            TimeZoneInfo tz = default)
+        public static long ConvertDateTimeToTimestamp(DateTime value, TDenginePrecision precision,
+            TimeZoneInfo timezone)
         {
-            if (tz == default)
+            var utcTime = TimeZoneInfo.ConvertTimeToUtc(value, timezone);
+            return ConvertDateTimeToTimestamp(utcTime,precision);
+        }
+        
+        // Deprecated: Wrong function name, use ConvertTimestampToDateTime instead.
+        [Obsolete("Wrong function name, Use ConvertTimestampToDateTime instead.")]
+        public static DateTime ConvertTimeToDatetime(long value, TDenginePrecision precision,
+            TimeZoneInfo tz = null)
+        {
+            return ConvertTimestampToDateTime(value, precision, tz);
+        }
+
+        public static DateTime ConvertTimestampToDateTime(long value, TDenginePrecision precision,
+            TimeZoneInfo tz = null)
+        {
+            if (tz == null)
             {
                 tz = TimeZoneInfo.Local;
             }
@@ -219,12 +258,51 @@ namespace TDengine.Driver
             }
         }
 
+        public static DateTimeOffset ConvertTimestampToDateTimeOffset(long value, TDenginePrecision precision,
+            TimeZoneInfo tz)
+        {
+            if (tz == null)
+            {
+                throw new ArgumentNullException(nameof(tz), "TimeZoneInfo cannot be null.");
+            }
+            DateTimeOffset utcDateTimeOffset;
+            switch (precision)
+            {
+                case TDenginePrecision.TSDB_TIME_PRECISION_MILLI:
+                    utcDateTimeOffset = new DateTimeOffset(TimeZero.AddTicks(value * 10000));
+                    break;
+                case TDenginePrecision.TSDB_TIME_PRECISION_MICRO:
+                    utcDateTimeOffset = new DateTimeOffset(TimeZero.AddTicks(value * 10));
+                    break;
+                case TDenginePrecision.TSDB_TIME_PRECISION_NANO:
+                    utcDateTimeOffset = new DateTimeOffset(TimeZero.AddTicks(value / 100));
+                    break;
+                default:
+                    throw new NotSupportedException($"unknown precision {precision}");
+            }
+            return TimeZoneInfo.ConvertTime(utcDateTimeOffset, tz);
+        }
+        
+        public static long ConvertDateTimeOffsetToTimestamp(DateTimeOffset value, TDenginePrecision precision)
+        {
+            switch (precision)
+            {
+                case TDenginePrecision.TSDB_TIME_PRECISION_MILLI:
+                    return (value.UtcTicks - TimeZero.Ticks) / 10000;
+                case TDenginePrecision.TSDB_TIME_PRECISION_MICRO:
+                    return (value.UtcTicks - TimeZero.Ticks) / 10;
+                case TDenginePrecision.TSDB_TIME_PRECISION_NANO:
+                    return (value.UtcTicks - TimeZero.Ticks) * 100;
+                default:
+                    throw new NotSupportedException($"unknown precision {precision}");
+            }
+        }
         public static int BitmapLen(int n) => (n + ((1 << 3) - 1)) >> 3;
         public static int BitPos(int n) => n & ((1 << 3) - 1);
         public static int CharOffset(int n) => n >> 3;
         public static bool BitmapIsNull(byte c, int n) => (c & (1 << (7 - BitPos(n)))) == (1 << (7 - BitPos(n)));
 
-        public static Dictionary<TDengineDataType, int> TypeLengthMap = new Dictionary<TDengineDataType, int>
+        public static readonly Dictionary<TDengineDataType, int> TypeLengthMap = new Dictionary<TDengineDataType, int>
         {
             { TDengineDataType.TSDB_DATA_TYPE_NULL, 1 },
             { TDengineDataType.TSDB_DATA_TYPE_BOOL, 1 },
@@ -441,5 +519,15 @@ namespace TDengine.Driver
         public IntPtr raw;
         public uint rawLen;
         public ushort rawType;
+    }
+
+    public enum TSDB_OPTION_CONNECTION
+    {
+        TSDB_OPTION_CONNECTION_CLEAR = -1, // means clear all option in this connection
+        TSDB_OPTION_CONNECTION_CHARSET, // charset, Same as the scope supported by the system
+        TSDB_OPTION_CONNECTION_TIMEZONE, // timezone, Same as the scope supported by the system
+        TSDB_OPTION_CONNECTION_USER_IP, // user ip
+        TSDB_OPTION_CONNECTION_USER_APP, // user app, max lengthe is 23, truncated if longer than 23
+        TSDB_MAX_OPTIONS_CONNECTION
     }
 }

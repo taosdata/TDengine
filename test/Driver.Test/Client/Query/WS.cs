@@ -171,7 +171,7 @@ namespace Driver.Test.Client.Query
                 {
                     ts[i] = (dateTime.Add(TimeSpan.FromSeconds(i)).ToUniversalTime().Ticks -
                              TDengineConstant.TimeZero.Ticks) / 10000;
-                    tsv[i] = TDengineConstant.ConvertTimeToDatetime(ts[i], precision);
+                    tsv[i] = TDengineConstant.ConvertTimestampToDateTime(ts[i], precision);
                 }
 
                 var valuesStr = "";
@@ -233,6 +233,27 @@ namespace Driver.Test.Client.Query
         }
 
         [Fact]
+        public void WebSocketQueryWithConnectionTimezoneMSTest()
+        {
+            var db = "ws_query_conn_tz_ms_test";
+            QueryWithConnectionTimezoneTest(this._wsConnectString, "Europe/Paris", db, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+        }
+        
+        [Fact]
+        public void WebSocketQueryWithConnectionTimezoneUSTest()
+        {
+            var db = "ws_query_conn_tz_us_test";
+            QueryWithConnectionTimezoneTest(this._wsConnectString, "Europe/Paris", db, TDenginePrecision.TSDB_TIME_PRECISION_MICRO);
+        }
+        
+        [Fact]
+        public void WebSocketQueryWithConnectionTimezoneNSTest()
+        {
+            var db = "ws_query_conn_tz_ns_test";
+            QueryWithConnectionTimezoneTest(this._wsConnectString, "Europe/Paris", db, TDenginePrecision.TSDB_TIME_PRECISION_NANO);
+        }
+
+        [Fact]
         public void WebSocketTimeoutTest()
         {
             var builder = new ConnectionStringBuilder(_wsConnectString);
@@ -255,6 +276,28 @@ namespace Driver.Test.Client.Query
             {
                 Assert.True(timeout);
             }
+        }
+        
+                
+        [Fact]
+        public void WebSocketStmtMSBindTimestampTest()
+        {
+            var db = "ws_stmt_bind_stmt_test_ms";
+            this.StmtBindTimestampTest(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+        }
+
+        [Fact]
+        public void WebSocketStmtUSBindTimestampTest()
+        {
+            var db = "ws_stmt_bind_stmt_test_us";
+            this.StmtBindTimestampTest(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_MICRO);
+        }
+
+        [Fact]
+        public void WebSocketStmtNSBindTimestampTest()
+        {
+            var db = "ws_stmt_bind_stmt_test_ns";
+            this.StmtBindTimestampTest(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_NANO);
         }
 
         [Theory]

@@ -194,8 +194,16 @@ namespace TDengine.Driver.Client.Websocket
                         {
                             type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_BINARY
                         };
-                        var time = val.ToString("yyyy-MM-dd'T'HH:mm:ss.fffK");
+                        var time = val.ToString("yyyy-MM-dd'T'HH:mm:ss.fffffffK");
                         row[i] = time;
+                        break;
+                    case DateTimeOffset val:
+                        result[i] = new TaosFieldE
+                        {
+                            type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_BINARY
+                        };
+                        var timeOffset = val.ToString("yyyy-MM-dd'T'HH:mm:ss.fffffffK");
+                        row[i] = timeOffset;
                         break;
                     case string _:
                         result[i] = new TaosFieldE

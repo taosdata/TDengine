@@ -20,16 +20,20 @@ namespace TDengine.Driver.Client.Native
                 throw new TDengineError(NativeMethods.ErrorNo(IntPtr.Zero), NativeMethods.Error(IntPtr.Zero));
             }
 
-            _tz = builder.Timezone;
+            _tz = builder.GetTimeZone();
+            if (builder.ConnectionTimezone == null) return;
+            var errNo= NativeMethods.OptionsConnection(_conn, (int)TSDB_OPTION_CONNECTION.TSDB_OPTION_CONNECTION_TIMEZONE,
+                builder.ConnectionTimezone.Id);
+            if (errNo == 0) return;
+            var error = new TDengineError(errNo, NativeMethods.Error(IntPtr.Zero));
+            throw error;
         }
 
         public void Dispose()
         {
-            if (_conn != IntPtr.Zero)
-            {
-                NativeMethods.Close(_conn);
-                _conn = IntPtr.Zero;
-            }
+            if (_conn == IntPtr.Zero) return;
+            NativeMethods.Close(_conn);
+            _conn = IntPtr.Zero;
         }
 
         public IStmt StmtInit()
@@ -88,12 +92,10 @@ namespace TDengine.Driver.Client.Native
         private void CheckError(IntPtr result)
         {
             var errNo = NativeMethods.ErrorNo(result);
-            if (errNo != 0)
-            {
-                var error = new TDengineError(errNo, NativeMethods.Error(result));
-                NativeMethods.FreeResult(result);
-                throw error;
-            }
+            if (errNo == 0) return;
+            var error = new TDengineError(errNo, NativeMethods.Error(result));
+            NativeMethods.FreeResult(result);
+            throw error;
         }
     }
 }

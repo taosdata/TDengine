@@ -96,5 +96,22 @@ namespace Driver.Test.Client.TMQ
             // Act & Assert
             Assert.Throws<NullReferenceException>(() => TMQConnection.GetUrl(options));
         }
+
+        [Fact]
+        public void WSConsumerTimezoneTest()
+        {
+            var db = "ws_tmq_timezone_test";
+            var topic = "ws_tmq_timezone_test_topic";
+            var tz = "Europe/Paris";
+            this.ConsumerTimezoneTest(this._wsConnectString, db, topic, tz, this._wsTMQCfg);
+        }
+
+        [Fact]
+        public void WSResultTest()
+        {
+            var db = "ws_tmq_result_test";
+            var topic = "ws_tmq_result_test_topic";
+            this.ResultTest(this._wsConnectString, db, topic, this._wsTMQCfg);
+        }
     }
 }

@@ -87,7 +87,7 @@ namespace Function.Test.TMQ
                         var b = j * 27;
                         var v = consumerResult.Message[j].Value;
                         _output.WriteLine(" ======= consume {0} {1}", i, tableName);
-                        var ts = TDengineConstant.ConvertDatetimeToTick(v.ts,
+                        var ts = TDengineConstant.ConvertDateTimeToTimestamp(v.ts,
                             TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
                         Assert.Equal(expectResData[0 + b], ts);
                         Assert.Equal(expectResData[1 + b], v.v1);
@@ -221,7 +221,7 @@ namespace Function.Test.TMQ
                                 for (int j = 0; j < consumeResult.Message.Count; j++)
                                 {
                                     var v = consumeResult.Message[j].Value;
-                                    var ts = TDengineConstant.ConvertDatetimeToTick((DateTime)v["ts"],
+                                    var ts = TDengineConstant.ConvertDateTimeToTimestamp((DateTime)v["ts"],
                                         TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
                                     Assert.Equal(expectResData[0][0], ts);
                                     Assert.Equal(expectResData[0][1], v["v1"]);
@@ -246,7 +246,7 @@ namespace Function.Test.TMQ
                                 for (int j = 0; j < consumeResult.Message.Count; j++)
                                 {
                                     var v = consumeResult.Message[j].Value;
-                                    var ts = TDengineConstant.ConvertDatetimeToTick((DateTime)v["ts"],
+                                    var ts = TDengineConstant.ConvertDateTimeToTimestamp((DateTime)v["ts"],
                                         TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
                                     Assert.Equal(expectResData[1][0], ts);
                                     Assert.Equal(expectResData[1][1], v["v1"]);
@@ -284,7 +284,7 @@ namespace Function.Test.TMQ
                                 for (int j = 0; j < consumeResult.Message.Count; j++)
                                 {
                                     var v = consumeResult.Message[j].Value;
-                                    var ts = TDengineConstant.ConvertDatetimeToTick((DateTime)v["ts"],
+                                    var ts = TDengineConstant.ConvertDateTimeToTimestamp((DateTime)v["ts"],
                                         TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
                                     Assert.Equal(expectResData[2][0], ts);
                                     Assert.Equal(expectResData[2][1], v["v1"]);

@@ -19,6 +19,7 @@ namespace TDengine.TMQ.WebSocket
         private readonly int _reconnectRetryIntervalMs;
         private List<string> _topics;
         private ulong _lastMessageId = 0;
+        private TimeZoneInfo _tz = TimeZoneInfo.Local;
 
         private IDeserializer<TValue> valueDeserializer;
 
@@ -32,7 +33,6 @@ namespace TDengine.TMQ.WebSocket
         public Consumer(ConsumerBuilder<TValue> builder)
         {
             _options = new TMQOptions(builder.Config);
-            _connection = new TMQConnection(_options);
             if (builder.ValueDeserializer == null)
             {
                 if (!defaultDeserializers.TryGetValue(typeof(TValue), out object deserializer))
@@ -72,6 +72,19 @@ namespace TDengine.TMQ.WebSocket
                 if (_reconnectRetryIntervalMs < 0)
                     throw new ArgumentException($"Invalid reconnect retry intervalMs {_options.TDReconnectIntervalMs}");
             }
+
+            if (!string.IsNullOrEmpty(_options.ConnectionTimezone))
+            {
+                try
+                {
+                    _tz = TimeZoneInfo.FindSystemTimeZoneById(_options.ConnectionTimezone);
+                }
+                catch (Exception e)
+                {
+                    throw new ArgumentException($"Invalid connection timezone {_options.ConnectionTimezone}", e);
+                }
+            }
+            _connection = new TMQConnection(_options);
         }
 
         private void Reconnect()
@@ -165,7 +178,7 @@ namespace TDengine.TMQ.WebSocket
             var consumeResult = new ConsumeResult<TValue>(resp.MessageId, resp.Topic, resp.VgroupId, resp.Offset,
                 (TMQ_RES)resp.MessageType);
             if (!NeedGetData((TMQ_RES)resp.MessageType)) return null;
-            var result = new TMQWSRows(resp, _connection, TimeZoneInfo.Local);
+            var result = new TMQWSRows(resp, _connection, _tz);
             while (result.Read())
             {
                 var value = this.valueDeserializer.Deserialize(result, false, null);
