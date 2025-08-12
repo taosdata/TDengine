@@ -537,13 +537,14 @@ static int32_t pushDownCondOptRebuildTbanme(SNode** pTagCond) {
   return code;
 }
 
-static void rewriteDnodeConds(SNode** pCond, SNodeList* pDnodeConds) {
+static int32_t rewriteDnodeConds(SNode** pCond, SNodeList* pDnodeConds) {
+  int32_t code = TSDB_CODE_SUCCESS;
   if (nodeType(*pCond) == QUERY_NODE_LOGIC_CONDITION) {
     SLogicConditionNode* pCondNode = *(SLogicConditionNode**)pCond;
     if (pCondNode->condType == LOGIC_COND_TYPE_AND) {
       SNode* pNode = NULL;
       WHERE_EACH(pNode, pCondNode->pParameterList) {
-        rewriteDnodeConds(&cell->pNode, pDnodeConds);
+        PLAN_ERR_RET(rewriteDnodeConds(&cell->pNode, pDnodeConds));
         if (cell->pNode == NULL) {
           ERASE_NODE(pCondNode->pParameterList);
           continue;
@@ -551,14 +552,14 @@ static void rewriteDnodeConds(SNode** pCond, SNodeList* pDnodeConds) {
         WHERE_NEXT;
       }
       if (pCondNode->pParameterList->length == 1) {
-        nodesCloneNode(pCondNode->pParameterList->pHead->pNode, pCond);
+        PLAN_ERR_RET(nodesCloneNode(pCondNode->pParameterList->pHead->pNode, pCond));
         nodesDestroyList(pCondNode->pParameterList);
       } else if (pCondNode->pParameterList->length == 0) {
         nodesDestroyNode(*pCond);
         *pCond = NULL;
       }
     } else {
-      return;
+      return code;
     }
   } else if (nodeType(*pCond) == QUERY_NODE_OPERATOR) {
     SOperatorNode* pOperNode = *(SOperatorNode**)pCond;
@@ -567,12 +568,12 @@ static void rewriteDnodeConds(SNode** pCond, SNodeList* pDnodeConds) {
       SNode* pRight = pOperNode->pRight;
       if ((QUERY_NODE_COLUMN == nodeType(pLeft) && strcmp(((SColumnNode*)pLeft)->node.aliasName, "dnode_id") == 0) ||
           (QUERY_NODE_COLUMN == nodeType(pRight) && strcmp(((SColumnNode*)pRight)->node.aliasName, "dnode_id") == 0)) {
-        nodesListAppend(pDnodeConds, (SNode*)pOperNode);
+        PLAN_ERR_RET(nodesListAppend(pDnodeConds, (SNode*)pOperNode));
         *pCond = NULL;
       }
     }
   }
-  return;
+  return code;
 }
 
 static int32_t filterDnodeConds(SOptimizeContext* pCxt, SScanLogicNode* pScan, SNodeList** pDnodeConds) {
@@ -587,7 +588,10 @@ static int32_t filterDnodeConds(SOptimizeContext* pCxt, SScanLogicNode* pScan, S
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
-  rewriteDnodeConds(&pScan->node.pConditions, *pDnodeConds);
+  code = rewriteDnodeConds(&pScan->node.pConditions, *pDnodeConds);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2386,7 +2390,9 @@ static int32_t pdcTrivialPushDown(SOptimizeContext* pCxt, SLogicNode* pLogicNode
 
 static int32_t pdcDealVirtualTable(SOptimizeContext* pCxt, SVirtualScanLogicNode* pVScan) {
   // TODO: remove it after full implementation of pushing down to child
-  if (1 != LIST_LENGTH(pVScan->node.pChildren) || 0 != LIST_LENGTH(pVScan->pScanPseudoCols) || pVScan->tableType == TSDB_SUPER_TABLE) {
+  if (1 != LIST_LENGTH(pVScan->node.pChildren) || 0 != LIST_LENGTH(pVScan->pScanPseudoCols) ||
+      pVScan->tableType == TSDB_SUPER_TABLE ||
+      (pVScan->node.pParent && nodeType(pVScan->node.pParent) == QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -7962,6 +7968,10 @@ static bool eliminateVirtualScanMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   if (nodeType(pNode) != QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN || LIST_LENGTH(pNode->pChildren) != 1) {
+    return false;
+  }
+
+  if (nodeType(pNode->pParent) == QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL) {
     return false;
   }
 

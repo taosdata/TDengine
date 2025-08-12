@@ -1982,6 +1982,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyLogicNode((SLogicNode*)pLogicNode);
       if (pLogicNode->qType == DYN_QTYPE_VTB_SCAN) {
         taosMemoryFreeClear(pLogicNode->vtbScan.pVgroupList);
+        nodesDestroyList(pLogicNode->vtbScan.pOrgVgIds);
       }
       break;
     }
