@@ -832,12 +832,11 @@ _end:
 
 void cancelStreamDataCacheIterate(void** pIter) { releaseDataResultAndResetMgrStatus(pIter); }
 
-int32_t destroyDataSinkMgr() {
+void destroyDataSinkMgr() {
   if (g_pDataSinkManager.dsStreamTaskList) {
     taosHashCleanup(g_pDataSinkManager.dsStreamTaskList);
     g_pDataSinkManager.dsStreamTaskList = NULL;
   }
-  return TSDB_CODE_SUCCESS;
 }
 
 void useMemSizeAdd(int64_t size) { atomic_fetch_add_64(&g_pDataSinkManager.usedMemSize, size); }
