@@ -212,10 +212,13 @@ void stRunnerKillAllExecs(SStreamRunnerTask *pTask) {
 int32_t stRunnerTaskUndeploy(SStreamRunnerTask** ppTask, bool force) {
   int32_t             code = TSDB_CODE_SUCCESS;
   SStreamRunnerTask *pTask = *ppTask;
+  int64_t            streamId = pTask->task.streamId;
+  int64_t            taskId = pTask->task.taskId;
+
+  stRunnerKillAllExecs(pTask);
   
   if (!force && taosWTryForceLockLatch(&pTask->task.entryLock)) {
-    stRunnerKillAllExecs(pTask);
-    ST_TASK_DLOG("ignore undeploy runner task since working, entryLock:%x", pTask->task.entryLock);
+    stsDebug("ignore undeploy runner task %" PRIx64 " since working", taskId);
     return code;
   }
 

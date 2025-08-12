@@ -100,7 +100,9 @@ Before starting TDengine, open the `/etc/taos/taos.cfg` file and configure the f
 
     The possible values for `ssEnabled` are `0`, `1` and `2`. `0` is the default, which means shared storage is disabled; `1` means only enable manual migration(migrate local data to shared storage), and `2` means also enable auto migration. 
 
-    The format of `ssAccessString` is `<device-type>:<option-name>=<option-value>;<option-name>=<option-value>;...`. Currently, TDengine supports using Amazon S3 compatible object storage as shared storage, its `device-type` is `s3`, and the following table list all possible options:
+    The format of `ssAccessString` is `<device-type>:<option-name>=<option-value>;<option-name>=<option-value>;...`.
+    
+    When using Amazon S3 compatible object storage as shared storage, the `device-type` should be `s3`, and the following table list all possible options:
 
     Name            |   Description
     ----------------|----------------------------------------------
@@ -114,6 +116,13 @@ Before starting TDengine, open the `/etc/taos/taos.cfg` file and configure the f
     chunkSize       | chunk size in MB, files larger than this size will use multipart upload, default is 64.
     maxChunks       | max number of allowed chunks in a multipart upload, default is 10000.
     maxRetry        | max retry times when encounter retryable errors, default is 3, negative value means unlimited retry.
+
+    When using locally mounted storage device as shared storage, the `device-type` should be `fs`, and the following table list all possible options:
+
+    Name           |   Description
+    ---------------|----------------------------------------------
+    baseDir        | path of a directory, TDengine will use this directory as shared storage.
+
 
 3. (Optional) Modify the `/etc/taos/taosadapter.toml` file as follows to enable SSL on taosAdapter:
 
