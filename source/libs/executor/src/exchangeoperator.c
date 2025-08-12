@@ -330,7 +330,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
 
       taosMemoryFreeClear(pDataInfo->pRsp);
 
-      if ((pDataInfo->status != EX_SOURCE_DATA_EXHAUSTED || NULL != pDataInfo->pSrcUidList) && !pDataInfo->isVtbRefScan) {
+      if ((pDataInfo->status != EX_SOURCE_DATA_EXHAUSTED || NULL != pDataInfo->pSrcUidList) && !pDataInfo->isVtbRefScan && !pDataInfo->isVtbTagScan) {
         pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
         code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
         if (code != TSDB_CODE_SUCCESS) {
@@ -600,7 +600,7 @@ int32_t resetExchangeOperState(SOperatorInfo* pOper) {
 
   qDebug("%s reset exchange op:%p info:%p", pOper->pTaskInfo->id.str, pOper, pInfo);
 
-  atomic_add_fetch_64(&pInfo->seqId, 1);
+  (void)atomic_add_fetch_64(&pInfo->seqId, 1);
   pOper->status = OP_NOT_OPENED;
   pInfo->current = 0;
   pInfo->loadInfo.totalElapsed = 0;
