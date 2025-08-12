@@ -161,7 +161,7 @@ static int32_t sysTableUserColsFillOneTableCols(const char* dbname, int32_t* pNu
                                                 const SSDataBlock* dataBlock, char* tName, SSchemaWrapper* schemaRow,
                                                 SExtSchema* extSchemaRow, char* tableType, SColRefWrapper* colRef);
 
-static int32_t sysTableUserColsFillOneVirtualChildTableCols(const SSysTableScanInfo* pInfo, const char* dbname, int32_t* pNumOfRows,
+static int32_t sysTableUserColsFillOneVirtualTableCols(const SSysTableScanInfo* pInfo, const char* dbname, int32_t* pNumOfRows,
                                                             const SSDataBlock* dataBlock, char* tName, char* stName,
                                                             SSchemaWrapper* schemaRow, char* tableType, SColRefWrapper *colRef, tb_uid_t uid, int32_t vgId);
 
@@ -903,7 +903,14 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
     } else if (pInfo->pCur->mr.me.type == TSDB_NORMAL_TABLE) {
       continue;
     } else if (pInfo->pCur->mr.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
-      continue;
+      qDebug("sysTableScanUserCols cursor get virtual normal table, %s", GET_TASKID(pTaskInfo));
+
+      STR_TO_VARSTR(typeName, "VIRTUAL_NORMAL_TABLE");
+      STR_TO_VARSTR(tableName, pInfo->pCur->mr.me.name);
+      STR_TO_VARSTR(stableName, pInfo->pCur->mr.me.name);
+
+      colRef = &pInfo->pCur->mr.me.colRef;
+      schemaRow = &pInfo->pCur->mr.me.ntbEntry.schemaRow;
     } else if (pInfo->pCur->mr.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
       qDebug("sysTableScanUserCols cursor get virtual child table, %s", GET_TASKID(pTaskInfo));
 
@@ -977,7 +984,7 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
       }
     }
     // if pInfo->pRes->info.rows == 0, also need to add the meta to pDataBlock
-    code = sysTableUserColsFillOneVirtualChildTableCols(pInfo, dbname, &numOfRows, pDataBlock, tableName, stableName, schemaRow, typeName, colRef, pInfo->pCur->mr.me.uid, pOperator->pTaskInfo->id.vgId);
+    code = sysTableUserColsFillOneVirtualTableCols(pInfo, dbname, &numOfRows, pDataBlock, tableName, stableName, schemaRow, typeName, colRef, pInfo->pCur->mr.me.uid, pOperator->pTaskInfo->id.vgId);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -1587,10 +1594,10 @@ _end:
   return code;
 }
 
-static int32_t sysTableUserColsFillOneVirtualChildTableCols(const SSysTableScanInfo* pInfo, const char* dbname, int32_t* pNumOfRows,
-                                                            const SSDataBlock* dataBlock, char* tName, char* stName,
-                                                            SSchemaWrapper* schemaRow, char* tableType, SColRefWrapper *colRef,
-                                                            tb_uid_t uid, int32_t vgId) {
+static int32_t sysTableUserColsFillOneVirtualTableCols(const SSysTableScanInfo* pInfo, const char* dbname, int32_t* pNumOfRows,
+                                                       const SSDataBlock* dataBlock, char* tName, char* stName,
+                                                       SSchemaWrapper* schemaRow, char* tableType, SColRefWrapper *colRef,
+                                                       tb_uid_t uid, int32_t vgId) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (schemaRow == NULL) {
@@ -1670,6 +1677,11 @@ static int32_t sysTableUserColsFillOneVirtualChildTableCols(const SSysTableScanI
     code = colDataSetVal(pColInfoData, numOfRows, (char*)&vgId, false);
     QUERY_CHECK_CODE(code, lino, _end);
 
+    // col ref version
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 8);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)&colRef->version, false);
+    QUERY_CHECK_CODE(code, lino, _end);
     ++numOfRows;
   }
 
