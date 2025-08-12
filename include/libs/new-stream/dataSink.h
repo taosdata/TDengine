@@ -84,7 +84,7 @@ typedef struct SDataSinkFileMgr {
 typedef enum {
   DATA_CLEAN_IMMEDIATE = 0x01,
   DATA_CLEAN_EXPIRED = 0x02,
-  DATA_CLEAN_EXTERNAL = 0x04,
+  DATA_CLEAN_PASSIVE = 0x04,
   DATA_ALLOC_MODE_ALIGN = 0x10,
   DATA_ALLOC_MODE_SLIDING = 0x20,
 } SDataMgrMode;
