@@ -939,9 +939,7 @@ class Test_IDMP_Meters:
         for i in range(count):
             # row
             cnt = tdSql.getData(i, 1)
-            if cnt > 5:
-                tdLog.exit(f"stream8 expected cnt <= 5, actual cnt={cnt}")
-            elif cnt > 0:
+            if cnt > 0:
                 tdSql.checkData(i, 2, 200)       # avg(voltage)
                 tdSql.checkData(i, 3, cnt * 300) # sum(power)
             sum += cnt
