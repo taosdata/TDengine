@@ -9,9 +9,10 @@ class TestConstCol:
     def test_const_column(self):
         """Const Column
 
-        1. -
+        Execute query statement that contains only constants
 
         Catalog:
+            - DataTypes
             - Query:SelectList
 
         Since: v3.0.0.0
@@ -22,6 +23,7 @@ class TestConstCol:
 
         History:
             - 2025-5-6 Simon Guan Migrated from tsim/parser/constCol.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/query/const.sim
 
         """
 
@@ -239,3 +241,6 @@ class TestConstCol:
 
         tdSql.query(f"select * from st2 where t2 < 200 and t2 is null;")
         tdSql.checkRows(0)
+
+        tdSql.query(f"select b.z from (select c.a as z from (select 'a' as a) c) b;")
+        tdSql.checkRows(1)

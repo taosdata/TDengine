@@ -88,7 +88,7 @@ class TestSnodeMgmt:
         try:
             tdSql.execute(sql)
         except Exception as e:
-                if "No stream available snode now" not in str(e):
+                if "No Snode is available" not in str(e):
                     raise Exception(f" user cant  create stream no snode ,but create success")
     
     def checkResultRows(self, expectedRows):
