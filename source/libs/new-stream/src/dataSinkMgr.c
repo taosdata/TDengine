@@ -63,12 +63,12 @@ static bool isManagerReady() {
   return false;
 }
 
-SCleanMode getCleanModeFromDSMgr(void* pData) {
+SDataMgrMode getDataModeFromDSMgr(void* pData) {
   if (pData == NULL) {
-    return DATA_CLEAN_NONE;
+    return 0;
   }
   STaskDSMgr* pTaskDSMgr = (STaskDSMgr*)pData;
-  return pTaskDSMgr->cleanMode;
+  return pTaskDSMgr->dataMode;
 }
 
 static void destroySlidingTaskDSMgr(SSlidingTaskDSMgr** pData) {
@@ -108,11 +108,11 @@ static void destroySStreamDSTaskMgr(void* pData) {
     stError("invalid data sink manager");
     return;
   }
-  SCleanMode cleanMode = getCleanModeFromDSMgr(*(void**)pData);
-  if (cleanMode == DATA_CLEAN_IMMEDIATE) {
+  SDataMgrMode cleanMode = getDataModeFromDSMgr(*(void**)pData);
+  if (cleanMode & DATA_ALLOC_MODE_ALIGN) {
     destroyAlignTaskDSMgr((SAlignTaskDSMgr**)pData);
     return;
-  } else if (cleanMode == DATA_CLEAN_EXPIRED) {
+  } else if (cleanMode & DATA_ALLOC_MODE_SLIDING) {
     destroySlidingTaskDSMgr((SSlidingTaskDSMgr**)pData);
     return;
   } else {
@@ -150,7 +150,7 @@ static void destroyAlignGrpMgr(void* pData) {
   taosMemoryFreeClear(pGroupData);
 }
 
-static int32_t createAlignTaskMgr(int64_t streamId, int64_t taskId, int64_t sessionId, int32_t tsSlotId, void** ppCache) {
+static int32_t createAlignTaskMgr(int32_t dataMode, int64_t streamId, int64_t taskId, int64_t sessionId, int32_t tsSlotId, void** ppCache) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
   SAlignTaskDSMgr* pAlignTaskDSMgr = taosMemCalloc(1, sizeof(SAlignTaskDSMgr));
@@ -158,7 +158,7 @@ static int32_t createAlignTaskMgr(int64_t streamId, int64_t taskId, int64_t sess
     return terrno;
   }
 
-  pAlignTaskDSMgr->cleanMode = DATA_CLEAN_IMMEDIATE;
+  pAlignTaskDSMgr->dataMode = dataMode;
   pAlignTaskDSMgr->streamId = streamId;
   pAlignTaskDSMgr->taskId = taskId;
   pAlignTaskDSMgr->sessionId = sessionId;
@@ -211,12 +211,12 @@ static void destroySSlidingGrpMgr(void* pData) {
   taosMemoryFreeClear(pGroupData);
 }
 
-static int32_t createSlidingTaskMgr(int64_t streamId, int64_t taskId, int64_t sessionId, int32_t tsSlotId, void** ppCache) {
+static int32_t createSlidingTaskMgr(int32_t dataMode, int64_t streamId, int64_t taskId, int64_t sessionId, int32_t tsSlotId, void** ppCache) {
   SSlidingTaskDSMgr* pSlidingTaskDSMgr = taosMemCalloc(1, sizeof(SSlidingTaskDSMgr));
   if (pSlidingTaskDSMgr == NULL) {
     return terrno;
   }
-  pSlidingTaskDSMgr->cleanMode = DATA_CLEAN_EXPIRED;
+  pSlidingTaskDSMgr->dataMode = dataMode;
   pSlidingTaskDSMgr->streamId = streamId;
   pSlidingTaskDSMgr->taskId = taskId;
   pSlidingTaskDSMgr->sessionId = sessionId;
@@ -236,7 +236,7 @@ static int32_t createSlidingTaskMgr(int64_t streamId, int64_t taskId, int64_t se
 }
 
 // @brief 初始化数据缓存
-int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int32_t cleanMode, int32_t tsSlotId,
+int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int32_t dataMode, int32_t tsSlotId,
                             void** ppCache) {
   int32_t code = 0;                            
   *ppCache = NULL;
@@ -245,13 +245,13 @@ int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
 
   void** ppStreamTaskDSManager = (void**)taosHashGet(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
   if (ppStreamTaskDSManager == NULL) {
-    if (cleanMode == DATA_CLEAN_IMMEDIATE) {
-      code = createAlignTaskMgr(streamId, taskId, sessionId, tsSlotId, ppCache);
+    if (dataMode & DATA_ALLOC_MODE_ALIGN) {
+      code = createAlignTaskMgr(dataMode, streamId, taskId, sessionId, tsSlotId, ppCache);
     } else {
-      code = createSlidingTaskMgr(streamId, taskId, sessionId, tsSlotId, ppCache);
+      code = createSlidingTaskMgr(dataMode, streamId, taskId, sessionId, tsSlotId, ppCache);
     }
     if (code != 0) {
-      stError("failed to create stream task data sink manager, cleanMode:%d, err: 0x%0x", cleanMode, code);
+      stError("failed to create stream task data sink manager, dataMode:%d, err: 0x%0x", dataMode, code);
       return code;
     } else {
       code = taosHashPut(g_pDataSinkManager.dsStreamTaskList, key, strlen(key), ppCache, sizeof(void*));
@@ -274,7 +274,7 @@ void destroyStreamDataCache(void* pCache) {
   if (pCache == NULL) {
     return;
   }
-  if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_IMMEDIATE) {
+  if (getDataModeFromDSMgr(pCache) & DATA_ALLOC_MODE_ALIGN) {
     SAlignTaskDSMgr* pStreamDataSink = (SAlignTaskDSMgr*)pCache;
     char             key[64] = {0};
     snprintf(key, sizeof(key), "%" PRId64 "_%" PRId64 "_%" PRId64, pStreamDataSink->streamId, pStreamDataSink->taskId,
@@ -284,7 +284,7 @@ void destroyStreamDataCache(void* pCache) {
     if (ppStreamTaskDSManager != NULL) {
       taosHashRemove(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
     }
-  } else if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_EXPIRED) {
+  } else if (getDataModeFromDSMgr(pCache) & DATA_ALLOC_MODE_SLIDING) {
     SSlidingTaskDSMgr* pStreamDataSink = (SSlidingTaskDSMgr*)pCache;
     char               key[64] = {0};
     snprintf(key, sizeof(key), "%" PRId64 "_%" PRId64 "_%" PRId64, pStreamDataSink->streamId, pStreamDataSink->taskId,
@@ -295,7 +295,7 @@ void destroyStreamDataCache(void* pCache) {
       taosHashRemove(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
     }
   } else {
-    stError("invalid clean mode: %d", getCleanModeFromDSMgr(pCache));
+    stError("invalid clean mode: %d", getDataModeFromDSMgr(pCache));
   }
 }
 
@@ -489,7 +489,7 @@ int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY we
     stError("failed to check and move mem cache for write, code: %d err: %s", code, terrMsg);
     TAOS_CHECK_EXIT(code);
   }
-  if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_IMMEDIATE) {
+  if (getDataModeFromDSMgr(pCache) & DATA_ALLOC_MODE_ALIGN) {
     SAlignTaskDSMgr* pStreamTaskMgr = (SAlignTaskDSMgr*)pCache;
     code = putDataToAlignTaskMgr(pStreamTaskMgr, groupId, wstart, wend, pBlock, startIndex, endIndex);
   } else {
@@ -519,7 +519,7 @@ int32_t moveStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY w
     stError("moveStreamDataCache param invalid, pCache is NULL");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
-  if (getCleanModeFromDSMgr(pCache) != DATA_CLEAN_IMMEDIATE) {
+  if ((getDataModeFromDSMgr(pCache) & DATA_CLEAN_IMMEDIATE) == 0) {
     stError("moveStreamDataCache param invalid, cleanMode is not immediate");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
@@ -551,10 +551,12 @@ int32_t getAlignDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY end,
   code = createDataResult((void**)(&pResultIter));
   QUERY_CHECK_CODE(code, lino, _end);
   *pIter = pResultIter;
-  pResultIter->cleanMode = pStreamTaskMgr->cleanMode;
+  pResultIter->dataMode = pStreamTaskMgr->dataMode;
   pResultIter->groupData = pExistGrpMgr;
   pResultIter->pFileMgr = pStreamTaskMgr->pFileMgr;
   pResultIter->tsColSlotId = pStreamTaskMgr->tsSlotId;
+  pResultIter->blockIndex = 0;
+  pResultIter->winIndex = 0;
   pResultIter->offset = 0;
   pResultIter->groupId = groupId;
   pResultIter->reqStartTime = start;
@@ -613,7 +615,7 @@ int32_t getSlidingDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY en
   QUERY_CHECK_CODE(code, lino, _end);
   *pIter = pResultIter;
 
-  pResultIter->cleanMode = pStreamTaskMgr->cleanMode;
+  pResultIter->dataMode = pStreamTaskMgr->dataMode;
   pResultIter->groupData = pExistGrpMgr;
   pResultIter->pFileMgr = pStreamTaskMgr->pFileMgr;
   pResultIter->tsColSlotId = pStreamTaskMgr->tsSlotId;
@@ -654,14 +656,14 @@ int32_t getStreamDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY end
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
 
-  if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_IMMEDIATE) {
+  if (getDataModeFromDSMgr(pCache) & DATA_ALLOC_MODE_ALIGN) {
     SAlignTaskDSMgr* pStreamTaskMgr = (SAlignTaskDSMgr*)pCache;
     return getAlignDataCache(pStreamTaskMgr, groupId, start, end, pIter);
-  } else if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_EXPIRED) {
+  } else if (getDataModeFromDSMgr(pCache) & DATA_ALLOC_MODE_SLIDING) {
     SSlidingTaskDSMgr* pStreamTaskMgr = (SSlidingTaskDSMgr*)pCache;
     return getSlidingDataCache(pStreamTaskMgr, groupId, start, end, pIter);
   } else {
-    stError("invalid clean mode: %d", getCleanModeFromDSMgr(pCache));
+    stError("invalid data mode: %d", getDataModeFromDSMgr(pCache));
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
 }
@@ -708,7 +710,7 @@ void releaseDataResultAndResetMgrStatus(void** pIter) {
   }
   SResultIter* pResult = (SResultIter*)*pIter;
 
-  if (pResult->cleanMode == DATA_CLEAN_EXPIRED) {
+  if (pResult->dataMode & DATA_ALLOC_MODE_SLIDING) {
     SSlidingGrpMgr* pSlidingGrpMgr = (SSlidingGrpMgr*)pResult->groupData;
     changeMgrStatus(&pSlidingGrpMgr->status, GRP_DATA_IDLE);
   } else {
@@ -858,7 +860,7 @@ int32_t moveMemCacheAllList() {
   while (ppTaskMgr != NULL) {
     STaskDSMgr* pTaskMgr = *ppTaskMgr;
     if (pTaskMgr == NULL) continue;
-    if (pTaskMgr->cleanMode == DATA_CLEAN_EXPIRED) {
+    if (pTaskMgr->dataMode & DATA_ALLOC_MODE_SLIDING) {
       SSlidingTaskDSMgr* pSlidingTaskMgr = (SSlidingTaskDSMgr*)pTaskMgr;
       int32_t            code = moveSlidingTaskMemCache(pSlidingTaskMgr);
       if (code != TSDB_CODE_SUCCESS) {

@@ -75,8 +75,8 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
   int32_t lino = 0;
 
   SAlignGrpMgr* pAlignGrpMgr = (SAlignGrpMgr*)pResult->groupData;
-  for (; pAlignGrpMgr->blocksInMem->size > 0;) {
-    SAlignBlocksInMem** ppBlockInfo = (SAlignBlocksInMem**)taosArrayGet(pAlignGrpMgr->blocksInMem, 0);
+  while (pResult->blockIndex < pAlignGrpMgr->blocksInMem->size) {
+    SAlignBlocksInMem** ppBlockInfo = (SAlignBlocksInMem**)taosArrayGet(pAlignGrpMgr->blocksInMem, pResult->blockIndex);
     SAlignBlocksInMem*  pBlockInfo = *ppBlockInfo;
     if (pBlockInfo == NULL) {
       stError("failed to get block info from mem, since block is NULL");
@@ -112,12 +112,20 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
       if (++pResult->winIndex >= pBlockInfo->nWindow) {
         pResult->winIndex = 0;
         pResult->offset = 0;
-        destroyAlignBlockInMemPP(ppBlockInfo);
-        taosArrayRemove(pAlignGrpMgr->blocksInMem, 0);
-        if (pAlignGrpMgr->blocksInMem->size == 0) {
-          *finished = true;
-          return code;
+        if (pResult->dataMode & DATA_CLEAN_IMMEDIATE) {
+          destroyAlignBlockInMemPP(ppBlockInfo);
+          taosArrayRemove(pAlignGrpMgr->blocksInMem, 0);
+          if (pAlignGrpMgr->blocksInMem->size == 0) {
+            *finished = true;
+            return code;
+          }
+        } else {
+          if (++pResult->blockIndex == pAlignGrpMgr->blocksInMem->size) {
+            *finished = true;
+            return code;
+          }
         }
+
         if (!found) {
           break;  // break the while loop
         }
@@ -208,7 +216,7 @@ static int32_t getSlidingDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock
 }
 
 int32_t readDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, bool* finished) {
-  if (pResult->cleanMode == DATA_CLEAN_IMMEDIATE) {
+  if (pResult->dataMode & DATA_ALLOC_MODE_ALIGN) {
     return getAlignDataFromMem(pResult, ppBlock, finished);
   } else {
     return getSlidingDataFromMem(pResult, ppBlock, finished);
@@ -223,17 +231,21 @@ void slidingGrpMgrUsedMemAdd(SSlidingGrpMgr* pGrpCacheMgr, int64_t size) {
 bool setNextIteratorFromMem(SResultIter** ppResult) {
   SResultIter* pResult = *ppResult;
 
-  if (pResult->cleanMode == DATA_CLEAN_EXPIRED) {
+  if (pResult->dataMode & DATA_CLEAN_EXPIRED) {
     SSlidingGrpMgr* pSlidingGrpMgr = (SSlidingGrpMgr*)pResult->groupData;
     if (++pResult->offset < pSlidingGrpMgr->winDataInMem->size) {
       return false;
     } else {
       return true;
     }
-  } else {
+  } else if (pResult->dataMode & DATA_CLEAN_IMMEDIATE) {
     // 在读取数据时已完成指针移动
     SAlignGrpMgr* pAlignGrpMgr = (SAlignGrpMgr*)pResult->groupData;
     return pAlignGrpMgr->blocksInMem->size == 0;
+  } else {
+    // 在读取数据时已完成指针移动
+    SAlignGrpMgr* pAlignGrpMgr = (SAlignGrpMgr*)pResult->groupData;
+    return pResult->blockIndex >= pAlignGrpMgr->blocksInMem->size;
   }
   return true;
 }
@@ -306,7 +318,7 @@ void destroyAlignBlockInMem(void* pData) {
   }
 }
 
-int32_t getEnoughBuffWindow(SAlignGrpMgr* pAlignGrpMgr, size_t dataEncodeBufSize,
+int32_t getEnoughBufferWindow(SAlignGrpMgr* pAlignGrpMgr, size_t dataEncodeBufSize,
                             SAlignBlocksInMem** ppAlignBlockInfo) {
   if (pAlignGrpMgr->blocksInMem == NULL) {
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
@@ -351,7 +363,7 @@ int32_t buildAlignWindowInMemBlock(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlo
   size_t buffSize = sizeof(SWindowDataInMem) + dataEncodeBufSize;
 
   SAlignBlocksInMem* pAlignBlockInfo = NULL;
-  code = getEnoughBuffWindow(pAlignGrpMgr, buffSize, &pAlignBlockInfo);
+  code = getEnoughBufferWindow(pAlignGrpMgr, buffSize, &pAlignBlockInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
   SWindowDataInMem* pSlidingWinInMem = (SWindowDataInMem*)(getNextBuffStart(pAlignBlockInfo));
@@ -387,7 +399,7 @@ int32_t buildMoveAlignWindowInMem(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBloc
   size_t             dataEncodeBufSize = sizeof(SWindowDataInMem) + sizeof(SMoveWindowInfo);
   size_t             moveSize = blockGetEncodeSize(pBlock);
   SAlignBlocksInMem* pAlignBlockInfo = NULL;
-  code = getEnoughBuffWindow(pAlignGrpMgr, dataEncodeBufSize, &pAlignBlockInfo);
+  code = getEnoughBufferWindow(pAlignGrpMgr, dataEncodeBufSize, &pAlignBlockInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
   SWindowDataInMem* pSlidingWinInMem = (SWindowDataInMem*)(getNextBuffStart(pAlignBlockInfo));

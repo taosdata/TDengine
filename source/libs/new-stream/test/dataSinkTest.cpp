@@ -196,7 +196,7 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   int64_t streamId = 1;
   int64_t taskId = 1;
   int64_t groupID = 1;
-  int32_t cleanMode = DATA_CLEAN_IMMEDIATE;
+  int32_t cleanMode = DATA_ALLOC_MODE_ALIGN | DATA_CLEAN_IMMEDIATE;
   TSKEY   wstart = baseTestTime1 + 0;
   TSKEY   wend = baseTestTime1 + 100;
   void*   pCache = NULL;
@@ -248,7 +248,7 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   streamId = 1;
   taskId = 1;
   groupID = 2;
-  cleanMode = DATA_CLEAN_IMMEDIATE;
+  cleanMode = DATA_ALLOC_MODE_ALIGN | DATA_CLEAN_IMMEDIATE;
   wstart = baseTestTime1 + 100;
   wend = baseTestTime1 + 200;
   pCache = NULL;
@@ -272,7 +272,7 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   streamId = 2;
   taskId = 1;
   groupID = 2;
-  cleanMode = DATA_CLEAN_IMMEDIATE;
+  cleanMode = DATA_ALLOC_MODE_ALIGN | DATA_CLEAN_IMMEDIATE;
   wstart = baseTestTime1 + 0;
   wend = baseTestTime1 + 100;
   pCache = NULL;
@@ -302,13 +302,13 @@ TEST(dataSinkTest, getSlidingStreamData) {
   int64_t streamId = 1;
   int64_t taskId = 1;
   int64_t groupID = 1;
-  int32_t cleanMode = DATA_CLEAN_EXPIRED;
+  int32_t cleanMode = DATA_ALLOC_MODE_SLIDING | DATA_CLEAN_EXPIRED;
   TSKEY   wstart = baseTestTime1 + 0;
   TSKEY   wend = baseTestTime1 + 100;
   void*   pCache = NULL;
   int32_t code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
   ASSERT_EQ(code, 0);
-  // Test invalid parameters, cleanMode is DATA_CLEAN_EXPIRED, cannot call moveStreamDataCache
+  // Test invalid parameters, cleanMode is DATA_ALLOC_MODE_SLIDING | DATA_CLEAN_EXPIRED, cannot call moveStreamDataCache
   code = moveStreamDataCache(pCache, groupID, wstart, wend, pBlock);
   ASSERT_EQ(code, TSDB_CODE_STREAM_INTERNAL_ERROR);
   code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 99);
@@ -316,7 +316,7 @@ TEST(dataSinkTest, getSlidingStreamData) {
   blockDataDestroy(pBlock);
 
   pBlock = createTestBlock(baseTestTime1, 100);
-  cleanMode = DATA_CLEAN_EXPIRED;
+  cleanMode = DATA_ALLOC_MODE_SLIDING | DATA_CLEAN_EXPIRED;
   wstart = baseTestTime1 + 100;
   wend = baseTestTime1 + 200;
   code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 99);
@@ -344,7 +344,7 @@ TEST(dataSinkTest, getSlidingStreamData) {
   pBlock1 = NULL;
 
   pBlock = createTestBlock(baseTestTime1, 200);
-  cleanMode = DATA_CLEAN_EXPIRED;
+  cleanMode = DATA_ALLOC_MODE_SLIDING | DATA_CLEAN_EXPIRED;
   wstart = baseTestTime1 + 200;
   wend = baseTestTime1 + 300;
   code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 99);
@@ -383,7 +383,7 @@ TEST(dataSinkTest, moveStreamData) {
   int64_t streamId = 3;
   int64_t taskId = 1;
   int64_t groupID = 1;
-  int32_t cleanMode = DATA_CLEAN_IMMEDIATE;
+  int32_t cleanMode = DATA_ALLOC_MODE_ALIGN | DATA_CLEAN_IMMEDIATE;
   TSKEY   wstart = baseTestTime1 + 0;
   TSKEY   wend = baseTestTime1 + 100;
   void*   pCache = NULL;
@@ -418,7 +418,7 @@ TEST(dataSinkTest, cancelStreamDataCacheIterateTest) {
   int64_t streamId = 3;
   int64_t taskId = 1;
   int64_t groupID = 1;
-  int32_t cleanMode = DATA_CLEAN_IMMEDIATE;
+  int32_t cleanMode = DATA_ALLOC_MODE_ALIGN | DATA_CLEAN_IMMEDIATE;
   void*   pCache = NULL;
   int32_t code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
   ASSERT_EQ(code, 0);
@@ -492,7 +492,7 @@ TEST(dataSinkTest, putStreamDataRows) {
   int64_t streamId = 1;
   int64_t taskId = 1;
   int64_t groupID = 1;
-  int32_t cleanMode = DATA_CLEAN_EXPIRED;
+  int32_t cleanMode = DATA_ALLOC_MODE_SLIDING | DATA_CLEAN_EXPIRED;
   TSKEY   wstart = baseTestTime1 + 0;
   TSKEY   wend = baseTestTime1 + 100;
   void*   pCache = NULL;
@@ -507,7 +507,7 @@ TEST(dataSinkTest, putStreamDataRows) {
   blockDataDestroy(pBlock);
 
   pBlock = createTestBlock(baseTestTime1, 100);
-  cleanMode = DATA_CLEAN_EXPIRED;
+  cleanMode = DATA_ALLOC_MODE_SLIDING | DATA_CLEAN_EXPIRED;
   wstart = baseTestTime1 + 100;
   wend = baseTestTime1 + 200;
   code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 49);
@@ -563,7 +563,7 @@ TEST(dataSinkTest, allWriteToFileTest) {
   int64_t streamId = 1;
   int64_t taskId = 1;
   int64_t groupID = 1;
-  int32_t cleanMode = DATA_CLEAN_EXPIRED;
+  int32_t cleanMode = DATA_ALLOC_MODE_SLIDING | DATA_CLEAN_EXPIRED;
   TSKEY   wstart = baseTestTime1 + 0;
   TSKEY   wend = baseTestTime1 + 100;
   void*   pCache1 = NULL;
@@ -581,7 +581,7 @@ TEST(dataSinkTest, allWriteToFileTest) {
   int64_t streamId2 = 1;
   int64_t taskId2 = 1;
   int64_t groupID2 = 2;
-  int32_t cleanMode2 = DATA_CLEAN_EXPIRED;
+  int32_t cleanMode2 = DATA_ALLOC_MODE_SLIDING | DATA_CLEAN_EXPIRED;
   TSKEY   wstart2 = baseTestTime2 + 0;
   TSKEY   wend2 = baseTestTime2 + 100;
   void*   pCache2 = NULL;
@@ -595,7 +595,7 @@ TEST(dataSinkTest, allWriteToFileTest) {
   ASSERT_EQ(code, 0);
 
   SSDataBlock* pBlock12 = createTestBlock(baseTestTime1, 100);
-  cleanMode = DATA_CLEAN_EXPIRED;
+  cleanMode = DATA_ALLOC_MODE_SLIDING | DATA_CLEAN_EXPIRED;
   wstart = baseTestTime1 + 100;
   wend = baseTestTime1 + 200;
   code = putStreamDataCache(pCache1, groupID, wstart, wend, pBlock12, 0, 49);
@@ -698,7 +698,7 @@ TEST(dataSinkTest, allWriteMultiStreamToFileTest) {
   int64_t streamId = 1;
   int64_t taskId = 1;
   int64_t groupID = 1;
-  int32_t cleanMode = DATA_CLEAN_EXPIRED;
+  int32_t cleanMode = DATA_ALLOC_MODE_SLIDING | DATA_CLEAN_EXPIRED;
   TSKEY   wstart = baseTestTime1 + 0;
   TSKEY   wend = baseTestTime1 + 100;
   void*   pCache1 = NULL;
@@ -716,7 +716,7 @@ TEST(dataSinkTest, allWriteMultiStreamToFileTest) {
   int64_t streamId2 = 2;
   int64_t taskId2 = 1;
   int64_t groupID2 = 2;
-  int32_t cleanMode2 = DATA_CLEAN_EXPIRED;
+  int32_t cleanMode2 = DATA_ALLOC_MODE_SLIDING | DATA_CLEAN_EXPIRED;
   TSKEY   wstart2 = baseTestTime2 + 0;
   TSKEY   wend2 = baseTestTime2 + 100;
   void*   pCache2 = NULL;
@@ -730,7 +730,7 @@ TEST(dataSinkTest, allWriteMultiStreamToFileTest) {
   ASSERT_EQ(code, 0);
 
   SSDataBlock* pBlock12 = createTestBlock(baseTestTime1, 100);
-  cleanMode = DATA_CLEAN_EXPIRED;
+  cleanMode = DATA_ALLOC_MODE_SLIDING | DATA_CLEAN_EXPIRED;
   wstart = baseTestTime1 + 100;
   wend = baseTestTime1 + 200;
   code = putStreamDataCache(pCache1, groupID, wstart, wend, pBlock12, 0, 49);
@@ -835,7 +835,7 @@ TEST(dataSinkTest, testWriteFileSize) {
   int64_t streamId = 3;
   void*   pCache = NULL;
   int64_t taskId = 1;
-  int32_t cleanMode = DATA_CLEAN_EXPIRED;
+  int32_t cleanMode = DATA_ALLOC_MODE_SLIDING | DATA_CLEAN_EXPIRED;
   int32_t code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
   ASSERT_NE(pBlock, nullptr);
   for (int32_t i = 0; i < 100000; i++) {
@@ -902,7 +902,7 @@ TEST(dataSinkTest, multiThreadGet) {
   setDataSinkMaxMemSize(DS_MEM_SIZE_RESERVED + 1024 * 1024);
   int64_t streamId = 100;
   int64_t taskId = 100;
-  int32_t cleanMode = DATA_CLEAN_EXPIRED;
+  int32_t cleanMode = DATA_ALLOC_MODE_SLIDING | DATA_CLEAN_EXPIRED;
   void*   pCache = NULL;
   int32_t code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
   ASSERT_EQ(code, 0);
