@@ -267,6 +267,7 @@ class TestTaosdMonitor:
     updatecfgDict["monitorMaxLogs"]        = "10"
     updatecfgDict["monitorComp"]        = "1"
     updatecfgDict["monitorForceV2"]        = "0"
+    updatecfgDict["monitorLogProtocol"]            = '1'
 
     updatecfgDict["audit"]            = '0'
 

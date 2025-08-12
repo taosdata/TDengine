@@ -8,9 +8,14 @@ class TestVnodeReplica3Basic:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_vnode_replica3_basic(self):
-        """vnode replica3 basic
+        """Write: replica-3 mnode-3
 
-        1. -
+        1. Start a 3-node cluster with 3 mnodes.
+        2. Create a 1-replica, 1-vgroup database; create table, insert data, and verify.
+        3. Stop dnode2 → insert data → start dnode2 → insert data.
+        4. Stop dnode3 → insert data → start dnode3 → insert data.
+        5. Stop dnode1 → insert data → start dnode1 → insert data.
+        6. Verify data integrity across all nodes.
 
         Catalog:
             - DataBase:Sync

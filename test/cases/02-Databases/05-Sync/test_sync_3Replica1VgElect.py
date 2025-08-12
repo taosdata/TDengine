@@ -2,15 +2,19 @@ import time
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
 
 
-class TestSync3Replica1VgElect:
+class TestSync3Replica5VgElect:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_sync_3Replica1VgElect(self):
-        """sync 3Replica1VgElect
+    def test_sync_3Replica5VgElect(self):
+        """Query: replica-3 restart
 
-        1. -
+        1. Start a 4-node cluster with dnode1 set to supportVnodes=0
+        2. Create a 3-replica database with 1 vgroup
+        3. Create one super table and 10 child tables; insert 20 rows into each
+        4. Restart each dnode multiple times
+        5. Verify data integrity
 
         Catalog:
             - Database:Sync
@@ -22,7 +26,7 @@ class TestSync3Replica1VgElect:
         Jira: None
 
         History:
-            - 2025-5-5 Simon Guan Migrated from tsim/sync/3Replica1VgElect.sim
+            - 2025-5-5 Simon Guan Migrated from tsim/sync/3Replica5VgElect.sim
 
         """
 
@@ -33,23 +37,23 @@ class TestSync3Replica1VgElect:
         clusterComCheck.checkDnodes(4)
 
         replica = 3
-        vgroups = 1
+        vgroups = 5
 
-        tdLog.info(f"============= create database db")
+        tdLog.info(f"============= create database")
         tdSql.execute(f"create database db replica {replica} vgroups {vgroups}")
         clusterComCheck.checkDbReady("db")
 
         tdSql.query(f"select * from information_schema.ins_databases")
         tdLog.info(f"===> rows: {tdSql.getRows()})")
         tdSql.checkRows(3)
-        tdSql.checkData(2, 15, "ready")
 
         tdSql.execute(f"use db")
+
         tdSql.query(f"show vgroups")
         tdLog.info(f"===> rows: {tdSql.getRows()})")
         tdSql.checkRows(vgroups)
 
-        tdLog.info(f"====>  create stable/child table")
+        tdLog.info(f"====>  create stable stb  /child table ctb and general table ntb")
         tdSql.execute(
             f"create table stb (ts timestamp, c1 int, c2 float, c3 binary(10)) tags (t1 int)"
         )
@@ -71,11 +75,10 @@ class TestSync3Replica1VgElect:
             i = i + 1
 
         totalTblNum = tbNum * 2
+
         tdSql.query(f"show tables")
         tdLog.info(f"====> expect {totalTblNum} and insert {tdSql.getRows()})  in fact")
         tdSql.checkRows(totalTblNum)
-
-        tdLog.info(f"====> start_switch_leader:")
 
         for i in range(4):
             tdSql.query(f"show vgroups")
@@ -128,6 +131,7 @@ class TestSync3Replica1VgElect:
         sc.dnodeStart(4)
         sc.dnodeStart(5)
         clusterComCheck.checkDnodes(5)
+        clusterComCheck.checkDbReady("db")
 
         tdLog.info(f"====> final test: create child table ctb2* and table ntb2*")
 
@@ -158,9 +162,14 @@ class TestSync3Replica1VgElect:
 
         tdLog.info(f"============= create database")
         tdSql.execute(f"create database db1 replica {replica} vgroups {vgroups}")
-        clusterComCheck.checkDbReady("db")
         clusterComCheck.checkDbReady("db1")
 
         tdSql.query(f"select * from information_schema.ins_databases")
         tdLog.info(f"===> rows: {tdSql.getRows()})")
         tdSql.checkRows(4)
+
+        tdSql.execute(f"use db1")
+
+        tdSql.query(f"show vgroups")
+        tdLog.info(f"===> rows: {tdSql.getRows()})")
+        tdSql.checkRows(vgroups)

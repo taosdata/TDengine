@@ -9,13 +9,13 @@ class TestNormalTableDeleteWriting:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_normal_table_delete_writing(self):
-        """drop normal table（continue write data）
+        """Repeatedly drop 3
 
-        1. create a background process that continuously writes data.
-        2. create normal table
-        3. insert data
-        4. drop table
-        5. continue 20 times
+        1. Create a background process that continuously writes data
+        2. Create a normal table
+        3. Insert data 
+        4. Query data
+        5. Repeat 20 timeses
 
         Catalog:
             - Table:NormalTable:Drop
