@@ -102,25 +102,25 @@ typedef struct SMoveWindowInfo {
   SSDataBlock* pData;  // data block to move
 } SMoveWindowInfo;
 
-typedef struct SSlidingWindowInMem {
+typedef struct SWindowDataInMem {
   int64_t startTime;
   int64_t endTime;
   int64_t dataLen;
-  // char*   realDataBuf;    // realDataBuf == &pData + sizeof(SSlidingWindowInMem)
-} SSlidingWindowInMem;
+  // char*   realDataBuf;    // realDataBuf == &pData + sizeof(SWindowDataInMem)
+} SWindowDataInMem;
 
 typedef struct SAlignBlocksInMem {
   int64_t capacity;
   int64_t dataLen;
   int32_t nWindow;
-  // void*   address;   // 后续地址存放的内容为 SSlidingWindowInMem 数组序列化后的内容
+  // void*   address;   // 后续地址存放的内容为 SWindowDataInMem 数组序列化后的内容
 } SAlignBlocksInMem;
 
 typedef struct SBlocksInfoFile {
   int64_t groupOffset;  // offset in file
   int64_t dataLen;
   int64_t capacity;  // size in file
-  // SSlidingWindowInMem *windowDataInFile;  // array SSlidingWindowInMem 实际数据，反序列化保存至文件
+  // SWindowDataInMem *windowDataInFile;  // array SWindowDataInMem 实际数据，反序列化保存至文件
 } SBlocksInfoFile;
 
 typedef struct STaskDSMgr {
@@ -164,7 +164,7 @@ typedef struct SSlidingGrpMgr {
   int64_t groupId;
   int8_t  status;  // EGroupStatus
   int64_t usedMemSize;
-  SArray* winDataInMem;  // array SSlidingWindowInMem
+  SArray* winDataInMem;  // array SWindowDataInMem
   SArray* blocksInFile;  // array SBlocksInfoFile
 } SSlidingGrpMgr;
 
@@ -190,7 +190,7 @@ typedef struct SResultIter {
   int32_t           winIndex;     // only for immediate clean mode, index of the window in the block
                      // when tmpBlocksInMem is not NULL, this is the index of the current tmpBlocksInMem's block
   int64_t      offset;          // array index, start from 0
-  SArray*      tmpBlocksInMem;  // SSlidingWindowInMem, read from file,
+  SArray*      tmpBlocksInMem;  // SWindowDataInMem, read from file,
   SDataSinkPos dataPos;         // 0 - data in mem, 1 - data in file
   int64_t      groupId;
   int64_t      reqStartTime;
@@ -284,10 +284,10 @@ bool    hasEnoughMemSize();
 int32_t moveSlidingGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SSlidingGrpMgr* pSlidingGrp);
 int32_t moveMemFromWaitList(int8_t mode);
 
-void* getWindowDataBuf(SSlidingWindowInMem* pWindowData);
+void* getWindowDataBuf(SWindowDataInMem* pWindowData);
 
 int32_t buildSlidingWindowInMem(SSDataBlock* pBlock, int32_t tsColSlotId, int32_t startIndex, int32_t endIndex,
-                                SSlidingWindowInMem** ppSlidingWinInMem);
+                                SWindowDataInMem** ppSlidingWinInMem);
 void    destroySlidingWindowInMem(void* pSlidingWinInMem);
 void    destroySlidingWindowInMemPP(void* ppSlidingWinInMem);
 

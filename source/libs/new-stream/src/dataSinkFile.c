@@ -229,7 +229,7 @@ static int32_t readFileDataToSlidingWindows(SResultIter* pResult, SSlidingGrpMgr
   *finished = false;
   char* start = buf;
   while (true) {
-    SSlidingWindowInMem* pWindowData = (SSlidingWindowInMem*)start;
+    SWindowDataInMem* pWindowData = (SWindowDataInMem*)start;
 
     if (pWindowData->startTime > pResult->reqEndTime) {
       *finished = true;
@@ -253,7 +253,7 @@ static int32_t readFileDataToSlidingWindows(SResultIter* pResult, SSlidingGrpMgr
         QUERY_CHECK_CODE(code, lino, _exit);
       }
     }
-    start += sizeof(SSlidingWindowInMem) + pWindowData->dataLen;
+    start += sizeof(SWindowDataInMem) + pWindowData->dataLen;
     if (start >= buf + pBlockInfo->dataLen) {
       break;  // 已经读取到数据末尾
     }
@@ -361,7 +361,7 @@ int32_t moveSlidingGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SSlidingGrpMg
   int32_t moveWinCount = 0;
   int32_t needSize = 0;
   for (int i = 0; i < nWin; ++i) {
-    SSlidingWindowInMem* pSlidingWin = *(SSlidingWindowInMem**)taosArrayGet(pSlidingGrp->winDataInMem, i);
+    SWindowDataInMem* pSlidingWin = *(SWindowDataInMem**)taosArrayGet(pSlidingGrp->winDataInMem, i);
     if (pSlidingWin == NULL || pSlidingWin->dataLen < 0) {
       stError("sliding window in mem is NULL or dataLen < 0, i:%d, pSlidingWin:%p", i, pSlidingWin);
       code = TSDB_CODE_STREAM_INTERNAL_ERROR;
@@ -370,13 +370,13 @@ int32_t moveSlidingGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SSlidingGrpMg
     if (pSlidingWin->dataLen == 0) {
       // todo
     }
-    if (needSize + pSlidingWin->dataLen + sizeof(SSlidingWindowInMem) > DS_FILE_BLOCK_SIZE) {
+    if (needSize + pSlidingWin->dataLen + sizeof(SWindowDataInMem) > DS_FILE_BLOCK_SIZE) {
       break;
     }
     ++moveWinCount;
     iov[i].iov_base = pSlidingWin;
-    iov[i].iov_len = pSlidingWin->dataLen + sizeof(SSlidingWindowInMem);
-    needSize += pSlidingWin->dataLen + sizeof(SSlidingWindowInMem);
+    iov[i].iov_len = pSlidingWin->dataLen + sizeof(SWindowDataInMem);
+    needSize += pSlidingWin->dataLen + sizeof(SWindowDataInMem);
   }
 
   if (pSlidingGrp->blocksInFile == NULL) {

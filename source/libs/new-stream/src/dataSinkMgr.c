@@ -185,7 +185,7 @@ int32_t createSlidingGrpMgr(int64_t groupId, SSlidingGrpMgr** ppSlidingGrpMgr) {
   }
   (*ppSlidingGrpMgr)->groupId = groupId;
   (*ppSlidingGrpMgr)->usedMemSize = 0;
-  (*ppSlidingGrpMgr)->winDataInMem = taosArrayInit(0, sizeof(SSlidingWindowInMem*));
+  (*ppSlidingGrpMgr)->winDataInMem = taosArrayInit(0, sizeof(SWindowDataInMem*));
   if ((*ppSlidingGrpMgr)->winDataInMem == NULL) {
     taosMemoryFree(*ppSlidingGrpMgr);
     stError("failed to create window data in mem, err: %s", terrMsg);
@@ -373,7 +373,7 @@ int32_t putDataToSlidingTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t group
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
 
-  SSlidingWindowInMem* pSlidingWinInMem = NULL;
+  SWindowDataInMem* pSlidingWinInMem = NULL;
   code = buildSlidingWindowInMem(pBlock, pStreamTaskMgr->tsSlotId, startIndex, endIndex, &pSlidingWinInMem);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -385,7 +385,7 @@ int32_t putDataToSlidingTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t group
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  slidingGrpMgrUsedMemAdd(pSlidingGrpMgr, sizeof(SSlidingWindowInMem) + pSlidingWinInMem->dataLen);
+  slidingGrpMgrUsedMemAdd(pSlidingGrpMgr, sizeof(SWindowDataInMem) + pSlidingWinInMem->dataLen);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
