@@ -259,7 +259,10 @@ static int32_t stmtUpdateBindInfo(TAOS_STMT2* stmt, STableMeta* pTableMeta, void
       for (int32_t i = 0; i < taosArrayGetSize(cols); i++) {
         SColVal* pColVal = taosArrayGet(cols, i);
         if (pColVal) {
-          tSimpleHashPut(pStmt->bInfo.boundCols, &pColVal->cid, sizeof(int16_t), pColVal, sizeof(SColVal));
+          code = tSimpleHashPut(pStmt->bInfo.boundCols, &pColVal->cid, sizeof(int16_t), pColVal, sizeof(SColVal));
+          if (code != 0) {
+            return code;
+          }
         }
       }
     }
