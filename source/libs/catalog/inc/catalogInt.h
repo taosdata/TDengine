@@ -853,6 +853,7 @@ typedef struct SCtgCacheItemInfo {
 #define ctgInfo(param, ...)  qInfo (param ", ctg:%p" , __VA_ARGS__, pCtg)
 #define ctgDebug(param, ...) qDebug(param ", ctg:%p" , __VA_ARGS__, pCtg)
 #define ctgTrace(param, ...) qTrace(param ", ctg:%p" , __VA_ARGS__, pCtg)
+#define ctgPerf(param, ...) qPerf(param ", ctg:%p" , __VA_ARGS__, pCtg)
 
 #define ctgTaskFatal(param, ...) qFatal("QID:0x%" PRIx64 ", " param ", ctg:%p", pTask->pJob->queryId, __VA_ARGS__, pCtg)
 #define ctgTaskError(param, ...) qError("QID:0x%" PRIx64 ", " param ", ctg:%p", pTask->pJob->queryId, __VA_ARGS__, pCtg)

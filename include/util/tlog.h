@@ -78,6 +78,7 @@ extern int32_t sndDebugFlag;
 extern int32_t bndDebugFlag;
 extern int32_t simDebugFlag;
 extern int32_t bseDebugFlag;
+extern int32_t perfDebugFlag;
 
 extern int32_t tqClientDebugFlag;
 int32_t        taosInitLogOutput(const char **ppLogName);

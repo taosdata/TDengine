@@ -438,6 +438,9 @@ extern SQueryMgmt gQueryMgmt;
 #define QW_SCH_TASK_DLOG(param, ...)                                                                               \
   qDebug("QW:%p, SID:%" PRId64 ", QID:0x%" PRIx64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d " param, mgmt, sId, \
          qId, cId, tId, eId, __VA_ARGS__)
+#define QW_SCH_TASK_PERF(param, ...)                                                                                 \
+  qPerf("QW:%p, SID:%" PRId64 ", QID:0x%" PRIx64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d " param, mgmt, sId, \
+        qId, cId, tId, eId, __VA_ARGS__)
 
 #define QW_LOCK_DEBUG(...)     \
   do {                         \

@@ -837,7 +837,10 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
   ctx->localExec = false;
 
   taosEnableMemPoolUsage(ctx->memPoolSession);
+  int64_t start = taosGetTimestampUs();
   code = qMsgToSubplan(qwMsg->msg, qwMsg->msgLen, &plan);
+  int64_t end = taosGetTimestampUs();
+  QW_SCH_TASK_PERF("qMsgToSubplan time: %ld us", end - start);
   taosDisableMemPoolUsage();
 
   if (TSDB_CODE_SUCCESS != code) {
@@ -851,8 +854,11 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
   }
 
   taosEnableMemPoolUsage(ctx->memPoolSession);
+  start = taosGetTimestampUs();
   code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, qwMsg->msgInfo.compressMsg, sql,
                          OPTR_EXEC_MODEL_BATCH);
+  end = taosGetTimestampUs();
+  QW_SCH_TASK_PERF("qCreateExecTask time: %ld us", end - start);
   taosDisableMemPoolUsage();
 
   if (code) {
@@ -881,7 +887,10 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
   QW_ERR_JRET(qwSaveTbVersionInfo(pTaskInfo, ctx));
 
   if (!ctx->dynamicTask) {
+    int64_t start = taosGetTimestampUs();
     QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, NULL, false));
+    int64_t end = taosGetTimestampUs();
+    QW_SCH_TASK_PERF("qwExecTask time: %ld us", end - start);
   } else {
     ctx->queryExecDone = true;
     ctx->queryEnd = true;

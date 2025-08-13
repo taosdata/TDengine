@@ -886,6 +886,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
                    void* param) {
   int32_t code = 0;
   int64_t st = taosGetTimestampUs();
+  ctgPerf("QID:0x%" PRIx64 ", catalog start to init job", pConn->requestId);
 
   int32_t tbMetaNum = (int32_t)ctgGetTablesReqNum(pReq->pTableMeta);
   int32_t dbVgNum = (int32_t)taosArrayGetSize(pReq->pDbVgroup);
@@ -1574,7 +1575,7 @@ _return:
 int32_t ctgCallUserCb(void* param) {
   SCtgJob* pJob = (SCtgJob*)param;
 
-  qDebug("QID:0x%" PRIx64 ", catalog start to call user cb with rsp, code:%s", pJob->queryId, tstrerror(pJob->jobResCode));
+  qPerf("QID:0x%" PRIx64 ", catalog finish job", pJob->queryId);
 
   (*pJob->userFp)(&pJob->jobRes, pJob->userParam, pJob->jobResCode);
 

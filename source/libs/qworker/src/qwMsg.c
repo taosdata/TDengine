@@ -504,12 +504,13 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
   qwMsg.msgInfo.needFetch = msg.needFetch;
   qwMsg.msgInfo.compressMsg = msg.compress;
 
-  QW_SCH_TASK_DLOG("processQuery start, node:%p, type:%s, compress:%d, handle:%p, SQL:%s, code:0x%x", node, TMSG_INFO(pMsg->msgType),
+  QW_SCH_TASK_PERF("processQuery start, node:%p, type:%s, compress:%d, handle:%p, SQL:%s, code:0x%x", node, TMSG_INFO(pMsg->msgType),
                    msg.compress, pMsg->info.handle, msg.sql, qwMsg.code);
-
+  int64_t start = taosGetTimestampUs();
   code = qwProcessQuery(QW_FPARAMS(), &qwMsg, msg.sql);
   msg.sql = NULL;
-
+  int64_t end = taosGetTimestampUs();
+  QW_SCH_TASK_PERF("processQuery time: %ld us", end - start);
   QW_SCH_TASK_DLOG("processQuery end, node:%p, code:%x", node, code);
   tFreeSSubQueryMsg(&msg);
 
