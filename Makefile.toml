@@ -366,19 +366,18 @@ script = """
 set -e
 echo TDengine version in cloud image is "${VER_NUMBER}"
 mkdir -p ./docker/serve/release/plugins/
-rsync -u root@192.168.1.213:/nas/TDengine/v${VER_NUMBER}/enterprise/TDengine-enterprise-client-${VER_NUMBER}-Linux-x64.tar.gz .
-rsync -u root@192.168.1.213:/nas/TDengine/v${VER_NUMBER}/enterprise/TDengine-enterprise-${VER_NUMBER}-Linux-x64.tar.gz .
-tar vxf TDengine-enterprise-client-${VER_NUMBER}-Linux-x64.tar.gz
-cp -r ./TDengine-enterprise-client-${VER_NUMBER} ./docker/serve/release/TDengine-enterprise-client
-tar vxf TDengine-enterprise-${VER_NUMBER}-Linux-x64.tar.gz
-cp ./TDengine-enterprise-${VER_NUMBER}/taosx/bin/taosx ./docker/serve/release/taosx
-cp ./TDengine-enterprise-${VER_NUMBER}/taosx/plugins/influxdb/taosx-influxdb.jar ./docker/serve/release/plugins/taosx-influxdb.jar
-cp ./TDengine-enterprise-${VER_NUMBER}/taosx/plugins/opentsdb/taosx-opentsdb.jar ./docker/serve/release/plugins/taosx-opentsdb.jar
-cp ./TDengine-enterprise-${VER_NUMBER}/taosx/plugins/opc/taosx-opc ./docker/serve/release/plugins/taosx-opc
-docker build -t image.cloud.taosdata.com/taosx/serve:${VER_NUMBER} ./docker/serve/
+rsync -u root@192.168.1.213:/nas/TDengine/3.3/v${VER_NUMBER}/enterprise/tdengine-tsdb-enterprise-client-${VER_NUMBER}-linux-x64.tar.gz .
+rsync -u root@192.168.1.213:/nas/TDengine/3.3/v${VER_NUMBER}/enterprise/tdengine-tsdb-enterprise-${VER_NUMBER}-linux-x64.tar.gz .
+tar vxf tdengine-tsdb-enterprise-client-${VER_NUMBER}-linux-x64.tar.gz
+cp -r ./tdengine-tsdb-enterprise-client-${VER_NUMBER} ./docker/serve/release/tdengine-tsdb-enterprise-client
+tar vxf tdengine-tsdb-enterprise-${VER_NUMBER}-linux-x64.tar.gz
+cp ./tdengine-tsdb-enterprise-${VER_NUMBER}/taosx/plugins/influxdb/taosx-influxdb.jar ./docker/serve/release/plugins/taosx-influxdb.jar
+cp ./tdengine-tsdb-enterprise-${VER_NUMBER}/taosx/plugins/opentsdb/taosx-opentsdb.jar ./docker/serve/release/plugins/taosx-opentsdb.jar
+cp ./tdengine-tsdb-enterprise-${VER_NUMBER}/taosx/plugins/opc/taosx-opc ./docker/serve/release/plugins/taosx-opc
+docker buildx build --platform linux/amd64 -t image.cloud.taosdata.com/taosx/serve:${VER_NUMBER} ./docker/serve/
 rm -rf ./docker/serve/release
-rm -rf ./TDengine-enterprise-client-${VER_NUMBER}
-rm -rf ./TDengine-enterprise-${VER_NUMBER}
+rm -rf ./tdengine-tsdb-enterprise-client-${VER_NUMBER}
+rm -rf ./tdengine-tsdb-enterprise-${VER_NUMBER}
 """
 
 [tasks.build-docker-agent-source]
@@ -541,6 +540,7 @@ case "${PLATFORM}" in
       -v $HOME/.cargo/registry:/root/.cargo/registry \
       -v $HOME/.cargo/git:/root/.cargo/git \
       -v $TARGET_DIR:/app/target \
+      -e DATABASE_URL=sqlite:/app/target/taosx.dev.db \
       taosx/dev \
       cargo build --release $EXTRAS
     ;;
