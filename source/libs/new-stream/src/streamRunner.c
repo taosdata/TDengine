@@ -742,8 +742,8 @@ static int32_t stRunnerTopTaskHandleOutputBlockProj(SStreamRunnerTask* pTask, SS
     } else if (*pNextOutIdx < pExec->runtimeInfo.funcInfo.curOutIdx && code == 0) {
       // got data from later windows, force output cur window
       while (*pNextOutIdx < pExec->runtimeInfo.funcInfo.curOutIdx && code == 0) {
-        code = streamForceOutput(pExec->pExecutor, ppForceOutBlock, *pNextOutIdx);
-        streamPrepareNotification(pTask, pExec, *ppForceOutBlock, *pNextOutIdx, 0, 0);
+        TAOS_CHECK_GOTO(streamForceOutput(pExec->pExecutor, ppForceOutBlock, *pNextOutIdx), &lino, _exit);
+        TAOS_CHECK_GOTO(streamPrepareNotification(pTask, pExec, *ppForceOutBlock, *pNextOutIdx, 0, 0), &lino, _exit);
         // won't overflow, total rows should smaller than 4096
         (*pNextOutIdx)++;
       }
