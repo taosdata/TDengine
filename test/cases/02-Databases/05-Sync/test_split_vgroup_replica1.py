@@ -8,9 +8,12 @@ class TestSplitVgroupReplica1:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_split_vgroup_replica1(self):
-        """split vgroup replica 1
+        """Split: replica-1
 
-        1. -
+        1. Start a 2-node cluster with dnode1 configured as supportVnodes=0
+        2. Create database d1 (1 vgroup, 1 replica) and insert data
+        3. Add a new dnode2 to the cluster
+        4. Run SPLIT VGROUP to split the vnode; verify the new vnode distribution and data integrity
 
         Catalog:
             - Database:Sync

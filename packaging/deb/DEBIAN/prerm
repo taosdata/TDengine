@@ -35,6 +35,7 @@ else
     ${csudo}rm -f ${bin_link_dir}/taosdemo   || :
     ${csudo}rm -f ${bin_link_dir}/taoskeeper   || :
     ${csudo}rm -f ${bin_link_dir}/taos-explorer   || :
+    ${csudo}rm -f ${bin_link_dir}/taosmqtt     || :
     ${csudo}rm -f ${cfg_link_dir}/*          || :
     ${csudo}rm -f ${inc_link_dir}/taos.h     || :
     ${csudo}rm -f ${inc_link_dir}/taosdef.h     || :

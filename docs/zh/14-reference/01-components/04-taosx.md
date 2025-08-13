@@ -232,6 +232,22 @@ d4,2017-07-14T10:40:00.006+08:00,-2.740636,10,-0.893545,7,California.LosAngles
 
 它将从 `./meters/meters.csv.gz`（一个 gzip 压缩的 CSV 文件）导入数据到超级表 `meters`，每一行都插入到指定的表名 - `${tbname}` 使用 CSV 内容中的 `tbname` 列作为表名（即在 JSON 解析器中的 `.model.name`）。
 
+#### 导入 ORC 文件数据
+
+ORC 文件（Optimized Row Columnar）专为 Hadoop 和 Hive 设计，支持高压缩率和快速查询，适合存储大量结构化数据。taosX 支持读取 ORC 文件数据并导入 TDengine，用法如下：
+
+```bash
+taosx --from 'orc:/root/test.orc?batch_size=1000&projection=col1,col3,col4' \
+    --parser '@parser.json' \
+    --to 'taos+http://localhost:6041/test'
+```
+
+- `--from`/`-f` 参数指定读取的 ORC 文件地址。
+- `batch_size` 表示一次读取的数据量，默认 1000 条。
+- `projection` 指定要读取的列，本例中表示读取 `col1`, `col3`, `col4` 这三列，也可以按照索引指定读取的列，如 `projection=1,3,4` 表示读取第 1，3，4 列，不指定此参数默认读取所有列。
+- `--parser` 用于设置数据处理配置和入库参数映射配置，同上面的 CSV 数据源。
+- `--to`/`-t` 参数指定写入的目标数据库，本例中表示写入 `test` 数据库。
+
 #### TMQ 订阅数据发布到 MQTT
 
 基本用法

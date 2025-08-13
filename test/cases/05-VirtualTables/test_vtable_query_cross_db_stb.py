@@ -218,18 +218,21 @@ class TestVtableQueryCrossDbStb:
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 
     def test_select_virtual_super_table(self):
-        """test select virtual super table.
+        """Query: virtual super table cross db
 
-        1 test vstable select super table cross db projection
-        2 test vstable select super table cross db projection filter
-        3 test vstable select super table cross db interval
-        4 test vstable select super table cross db state
-        5 test vstable select super table cross db session
-        6 test vstable select super table cross db event
-        7 test vstable select super table cross db count
-        8 test vstable select super table cross db partition
-        9 test vstable select super table cross db group
-        10 test vstable select super table cross db orderby
+        1. test vstable select super table cross db projection
+        2. test vstable select super table cross db projection filter
+        3. test vstable select super table cross db interval
+        4. test vstable select super table cross db state
+        5. test vstable select super table cross db session
+        6. test vstable select super table cross db event
+        7. test vstable select super table cross db count
+        8. test vstable select super table cross db partition
+        9. test vstable select super table cross db group
+        10. test vstable select super table cross db orderby
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 

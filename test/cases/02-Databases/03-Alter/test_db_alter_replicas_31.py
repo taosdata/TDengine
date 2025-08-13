@@ -7,9 +7,13 @@ class TestDatabaseAlterReplica13:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_alter_replica_31(self):
-        """alter database replica 31
+        """Alter replica from 3 to 1
 
-        1. -
+        1. Create a database with 3 replica
+        2. Create tables and insert data
+        3. Flush the database
+        4. Alter the replica count from 3 to 1
+        5. Verify that all data remains intact
 
         Catalog:
             - Database:Alter

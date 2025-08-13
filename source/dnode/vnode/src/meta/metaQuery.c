@@ -739,7 +739,7 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
       int32_t     nKey = 0;
       int32_t     ret = tdbTbcGet(pSkmDbC, &pKey, &nKey, NULL, NULL);
 
-      if (((SSkmDbKey *)pKey)->uid != skmDbKey.uid) {
+      if (ret != 0 || ((SSkmDbKey *)pKey)->uid != skmDbKey.uid) {
         metaULock(pMeta);
         tdbTbcClose(pSkmDbC);
         code = TSDB_CODE_NOT_FOUND;
