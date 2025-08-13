@@ -14,6 +14,7 @@
 
 #include "transComm.h"
 #include "transLog.h"
+#include "transTLS.h"
 
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
@@ -66,6 +67,10 @@ typedef struct SSvrConn {
   uv_buf_t* buf;
   int32_t   bufSize;
   queue     wq;  // uv_write_t queue
+
+  int8_t enableSSL;
+
+  STransTLS* pTls;  // TLS connection
 } SSvrConn;
 
 typedef struct SSvrRespMsg {
@@ -216,6 +221,17 @@ void uvAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* b
   SSvrConn*    conn = handle->data;
   SConnBuffer* pBuf = &conn->readBuf;
   int32_t      code = transAllocBuffer(pBuf, buf);
+  if (code < 0) {
+    tError("conn:%p, failed to alloc buffer, since %s", conn, tstrerror(code));
+  }
+}
+
+void uvAllocRecvBufferCbSSL(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
+  int32_t     code = 0;
+  SSvrConn*   conn = handle->data;
+  SSslBuffer* pBuf = &conn->pTls->readBuf;
+
+  code = sslBufferRealloc(pBuf, suggested_size, buf);
   if (code < 0) {
     tError("conn:%p, failed to alloc buffer, since %s", conn, tstrerror(code));
   }
@@ -693,6 +709,60 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
     transUnrefSrvHandle(conn);
   }
 }
+void uvOnRecvCbSSL(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
+  int32_t    code = 0;
+  int32_t    lino = 0;
+  SSvrConn*  conn = cli->data;
+  STrans*    pInst = conn->pInst;
+  SWorkThrd* pThrd = conn->hostThrd;
+
+  STUB_RAND_NETWORK_ERR(nread);
+
+  if (true == pThrd->quit) {
+    tInfo("work thread received quit msg, destroy conn");
+    destroyConn(conn, true);
+    return;
+  }
+
+  code = transSetReadOption((uv_handle_t*)cli);
+  if (code != 0) {
+    tWarn("%s conn:%p, failed to set recv opt since %s", transLabel(pInst), conn, tstrerror(code));
+  }
+
+  SConnBuffer* pBuf = &conn->readBuf;
+  if (nread > 0) {
+    code = sslDoRead(conn->pTls, pBuf, nread);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+
+    if (pBuf->len <= TRANS_PACKET_LIMIT) {
+      while (transReadComplete(pBuf)) {
+        if (true == pBuf->invalid || false == uvHandleReq(conn)) {
+          tError("%s conn:%p, read invalid packet, received from %s, local info:%s", transLabel(pInst), conn, conn->dst,
+                 conn->src);
+          conn->broken = true;
+          transUnrefSrvHandle(conn);
+          return;
+        }
+      }
+      return;
+    } else {
+      tError("%s conn:%p, read invalid packet, exceed limit, received from %s, local info:%s", transLabel(pInst), conn,
+             conn->dst, conn->src);
+      transUnrefSrvHandle(conn);
+      return;
+    }
+  }
+  if (nread == 0) {
+    return;
+  }
+
+  tDebug("%s conn:%p, read error:%s", transLabel(pInst), conn, uv_err_name(nread));
+_error:
+  if (nread < 0 || code != 0) {
+    conn->broken = true;
+    transUnrefSrvHandle(conn);
+  }
+}
 void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   buf->len = 2;
   buf->base = taosMemoryCalloc(1, sizeof(char) * buf->len);
@@ -891,8 +961,13 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrRespMsg* smsg) {
   }
 
   transRefSrvHandle(pConn);
+  int32_t ret = 0;
+  if (pConn->enableSSL == 0) {
+    ret = uv_write(req, (uv_stream_t*)pConn->pTcp, pBuf, bufNum, uvOnSendCb);
+  } else {
+    ret = sslDoWrite(pConn->pTls, (uv_stream_t*)pConn->pTcp, req, pBuf, bufNum, uvOnSendCb);
+  }
 
-  int32_t ret = uv_write(req, (uv_stream_t*)pConn->pTcp, pBuf, bufNum, uvOnSendCb);
   if (ret != 0) {
     tError("conn:%p, failed to write data since %s", pConn, uv_err_name(ret));
     pConn->broken = true;
@@ -1207,7 +1282,17 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     if (code != 0) {
       tWarn("failed to set tcp option since %s", tstrerror(code));
     }
-    code = uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocRecvBufferCb, uvOnRecvCb);
+
+    void (*pAllocCb)(uv_handle_t*, size_t, uv_buf_t*) = uvAllocRecvBufferCb;
+    void (*pRecvCb)(uv_stream_t*, ssize_t, const uv_buf_t*) = uvOnRecvCb;
+    if (pConn->enableSSL) {
+      pAllocCb = uvAllocRecvBufferCbSSL;
+      pRecvCb = uvOnRecvCbSSL;
+    }
+
+    setSSLMode(pConn->pTls, 0);
+
+    code = uv_read_start((uv_stream_t*)(pConn->pTcp), pAllocCb, pRecvCb);
     if (code != 0) {
       tWarn("conn:%p, failed to start to read since %s", pConn, uv_err_name(code));
       transUnrefSrvHandle(pConn);
@@ -1370,6 +1455,7 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   SWorkThrd* pThrd = hThrd;
   int32_t    lino;
   int8_t     wqInited = 0;
+  STrans*    pInst = pThrd->pInst;
   SSvrConn*  pConn = (SSvrConn*)taosMemoryCalloc(1, sizeof(SSvrConn));
   if (pConn == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _end);
@@ -1405,7 +1491,6 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
     TAOS_CHECK_GOTO(TSDB_CODE_REF_INVALID_ID, NULL, _end);
   }
 
-  STrans* pInst = pThrd->pInst;
   pConn->refId = exh->refId;
 
   QUEUE_INIT(&exh->q);
@@ -1420,16 +1505,20 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   TAOS_CHECK_GOTO(code, &lino, _end);
   wqInited = 1;
 
+  if (pInst->enableSSL) {
+    code = initSSL(pInst->pSSLContext, &pConn->pTls);
+    TAOS_CHECK_GOTO(code, &lino, _end);
+  }
   // init client handle
   pConn->pTcp = (uv_tcp_t*)taosMemoryMalloc(sizeof(uv_tcp_t));
   if (pConn->pTcp == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _end);
+    TAOS_CHECK_GOTO(terrno, &lino, _end);
   }
 
   pConn->bufSize = pInst->shareConnLimit;
-  pConn->buf = taosMemoryCalloc(1, pInst->shareConnLimit * sizeof(uv_buf_t));
+  pConn->buf = taosMemoryCalloc(1, pConn->bufSize * sizeof(uv_buf_t));
   if (pConn->buf == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _end);
+    TAOS_CHECK_GOTO(terrno, &lino, _end);
   }
 
   code = uv_tcp_init(pThrd->loop, pConn->pTcp);
@@ -1459,6 +1548,12 @@ _end:
     taosMemoryFree(pConn->pTcp);
     if (wqInited) destroyWQ(&pConn->wq);
     taosMemoryFree(pConn->buf);
+
+    if (pConn->pTls) {
+      destroySSL(pConn->pTls);
+      pConn->pTls = NULL;
+    }
+
     taosMemoryFree(pConn);
     pConn = NULL;
   }
@@ -1524,6 +1619,8 @@ static void uvDestroyConn(uv_handle_t* handle) {
   destroyWQ(&conn->wq);
   taosMemoryFree(conn->buf);
   taosMemoryFree(conn);
+
+  destroySSL(conn->pTls);
 
   if (thrd->quit && QUEUE_IS_EMPTY(&thrd->conn)) {
     tTrace("work thread quit");
@@ -2176,7 +2273,7 @@ int32_t transSetIpWhiteList(void *thandle, void *arg, FilteFunc *func) { return 
 
 void *transInitServer(SIpAddr *pAddr, char *label, int numOfThreads, void *fp, void *pInit) { return NULL; }
 void  transCloseServer(void *arg) {
-   // impl later
+  // impl later
   return;
 }
 

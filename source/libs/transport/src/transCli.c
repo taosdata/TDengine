@@ -68,8 +68,8 @@ typedef struct SCliConn {
 
   int64_t seq;
 
-  int8_t    registered;
-  int8_t    connnected;
+  int8_t registered;
+  int8_t connnected;
 
   SHashObj* pQTable;
   int8_t    userInited;
@@ -941,6 +941,7 @@ static void cliAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_
     tError("conn:%p, failed to alloc buffer, since %s", conn, tstrerror(code));
   }
 }
+
 static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
   int32_t code = 0;
   STUB_RAND_NETWORK_ERR(nread);
@@ -982,6 +983,67 @@ static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
   if (nread < 0) {
     tDebug("%s conn:%p, read error:%s, ref:%d", CONN_GET_INST_LABEL(conn), conn, uv_err_name(nread),
            transGetRefCount(conn));
+    conn->broken = true;
+    TAOS_UNUSED(transUnrefCliHandle(conn));
+  }
+}
+static void cliAllocRecvBufferCbSSL(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
+  int32_t     code = 0;
+  int32_t     lino = 0;
+  SCliConn*   conn = handle->data;
+  SSslBuffer* pBuf = &conn->pTls->readBuf;
+  // SConnBuffer* pBuf = &conn->readBuf;
+
+  code = sslBufferRealloc(pBuf, 0, buf);
+  if (code < 0) {
+    tError("conn:%p, failed to alloc buffer, since %s", conn, tstrerror(code));
+  }
+}
+static void cliRecvCbSSL(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  STUB_RAND_NETWORK_ERR(nread);
+
+  if (handle->data == NULL) {
+    return;
+  }
+
+  SCliConn* conn = handle->data;
+  code = transSetReadOption((uv_handle_t*)handle);
+  if (code != 0) {
+    tWarn("%s conn:%p, failed to set recv opt since %s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));
+  }
+  SConnBuffer* pBuf = &conn->readBuf;
+  if (nread > 0) {
+    code = sslDoRead(conn->pTls, pBuf, nread);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+
+    while (transReadComplete(pBuf)) {
+      tTrace("%s conn:%p, read complete", CONN_GET_INST_LABEL(conn), conn);
+      if (pBuf->invalid) {
+        conn->broken = true;
+        TAOS_UNUSED(transUnrefCliHandle(conn));
+        return;
+        break;
+      } else {
+        cliHandleResp(conn);
+      }
+    }
+    return;
+  }
+
+  if (nread == 0) {
+    // ref http://docs.libuv.org/en/v1.x/stream.html?highlight=uv_read_start#c.uv_read_cb
+    // nread might be 0, which does not indicate an error or EOF. This is equivalent to EAGAIN or EWOULDBLOCK under
+    // read(2).
+    tTrace("%s conn:%p, read empty", CONN_GET_INST_LABEL(conn), conn);
+    return;
+  }
+
+_error:
+  if (nread < 0 || code != 0) {
+    tDebug("%s conn:%p, read error:%s, ref:%d since %s", CONN_GET_INST_LABEL(conn), conn, uv_err_name(nread),
+           transGetRefCount(conn), tstrerror(code));
     conn->broken = true;
     TAOS_UNUSED(transUnrefCliHandle(conn));
   }
@@ -1332,7 +1394,18 @@ static void cliBatchSendCb(uv_write_t* req, int status) {
 
   cliConnMayUpdateTimer(conn, pInst->readTimeout * 1000);
   if (conn->readerStart == 0) {
-    code = uv_read_start((uv_stream_t*)conn->stream, cliAllocRecvBufferCb, cliRecvCb);
+    void (*pRecvAllocCb)(uv_handle_t * handle, size_t suggested_size, uv_buf_t * buf) = NULL;
+    void (*pRecvCb)(uv_stream_t * handle, ssize_t nread, const uv_buf_t* buf) = NULL;
+
+    if (conn->enableSSL) {
+      pRecvAllocCb = cliAllocRecvBufferCbSSL;
+      pRecvCb = cliRecvCbSSL;
+    } else {
+      pRecvAllocCb = cliAllocRecvBufferCb;
+      pRecvCb = cliRecvCb;
+    }
+
+    code = uv_read_start((uv_stream_t*)conn->stream, pRecvAllocCb, pRecvCb);
     if (code != 0) {
       tDebug("%s conn:%p, failed to start read since%s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));
       TAOS_UNUSED(transUnrefCliHandle(conn));
@@ -1523,7 +1596,7 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
       removeReqFromSendQ(pCliMsg);
     }
 
-    transRefCliHandle(pConn);
+    TAOS_UNUSED(transUnrefCliHandle(pConn));
     return terrno;
   }
 
@@ -1532,22 +1605,24 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
   QUEUE_MOVE(&reqToSend, &pWreq->node);
   tTrace("%s conn:%p, start to send msg, batch size:%d, len:%d", CONN_GET_INST_LABEL(pConn), pConn, j, totalLen);
 
+  int32_t ret = 0;
   if (pConn->enableSSL == 0) {
-    int32_t ret = uv_write(req, (uv_stream_t*)pConn->stream, wb, j, cliBatchSendCb);
-    if (ret != 0) {
-      tError("%s conn:%p, failed to send msg since %s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(ret));
-      while (!QUEUE_IS_EMPTY(&pWreq->node)) {
-        queue*   h = QUEUE_HEAD(&pWreq->node);
-        SCliReq* pCliMsg = QUEUE_DATA(h, SCliReq, sendQ);
-        removeReqFromSendQ(pCliMsg);
-      }
-
-      freeWReqToWQ(&pConn->wq, req->data);
-      code = TSDB_CODE_THIRDPARTY_ERROR;
-      TAOS_UNUSED(transUnrefCliHandle(pConn));
-    }
+    ret = uv_write(req, (uv_stream_t*)pConn->stream, wb, j, cliBatchSendCb);
   } else {
-    int32_t ret = 0;
+    ret = sslDoWrite(pConn->pTls, pConn->stream, req, wb, j, cliBatchSendCb);
+  }
+  if (ret != 0) {
+    tError("%s conn:%p, failed to send msg since %s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(ret));
+    while (!QUEUE_IS_EMPTY(&pWreq->node)) {
+      queue*   h = QUEUE_HEAD(&pWreq->node);
+      SCliReq* pCliMsg = QUEUE_DATA(h, SCliReq, sendQ);
+      removeReqFromSendQ(pCliMsg);
+    }
+
+    freeWReqToWQ(&pConn->wq, req->data);
+    TAOS_UNUSED(transUnrefCliHandle(pConn));
+
+    code = TSDB_CODE_THIRDPARTY_ERROR;
   }
 
   return code;
@@ -1625,6 +1700,7 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
   if (pThrd->pInst->enableSSL) {
     code = initSSL(pThrd->pInst->pSSLContext, &conn->pTls);
     TAOS_CHECK_GOTO(code, &lino, _exception1);
+
     conn->enableSSL = 1;
   }
 
@@ -1679,6 +1755,7 @@ int32_t cliConnSetSockInfo(SCliConn* pConn) {
 };
 
 bool filteGetAll(void* q, void* arg) { return true; }
+
 void cliConnCb(uv_connect_t* req, int status) {
   int32_t   code = 0;
   int32_t   lino = 0;

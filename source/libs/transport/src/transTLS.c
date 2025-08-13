@@ -95,11 +95,11 @@ void handleSSLError(SSL* ssl, int ret) {
   }
 }
 
-int32_t transTlsCtxCreate(const char* certPath, const char* keyPath, const char* caPath, STransTLSCtx** ppCtx) {
+int32_t transTlsCtxCreate(const char* certPath, const char* keyPath, const char* caPath, SSslCtx** ppCtx) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  STransTLSCtx* pCtx = (STransTLSCtx*)taosMemCalloc(1, sizeof(STransTLSCtx));
+  SSslCtx* pCtx = (SSslCtx*)taosMemCalloc(1, sizeof(SSslCtx));
   if (pCtx == NULL) {
     tError("Failed to allocate memory for TLS context");
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -129,7 +129,7 @@ _error:
   return code;
 }
 
-void transTlsCtxDestroy(STransTLSCtx* pCtx) {
+void transTlsCtxDestroy(SSslCtx* pCtx) {
   if (pCtx) {
     destroySSLCtx(pCtx->ssl_ctx);
     pCtx->ssl_ctx = NULL;
@@ -142,7 +142,74 @@ void transTlsCtxDestroy(STransTLSCtx* pCtx) {
   }
 }
 
-int32_t initSSL(STransTLSCtx* pCtx, STransTLS** ppTLs) {
+int32_t sslBufferInit(SSslBuffer* buf, int32_t cap) {
+  if (buf == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  buf->cap = cap;
+  buf->len = 0;
+  buf->buf = taosMemoryCalloc(1, cap);
+  if (buf->buf == NULL) {
+    return terrno;
+  }
+  return 0;
+}
+
+int32_t sslBufferClear(SSslBuffer* buf) {
+  if (buf == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  buf->len = 0;
+  memset(buf->buf, 0, buf->cap);
+  return 0;
+}
+
+int32_t sslBufferDestroy(SSslBuffer* buf) {
+  if (buf == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  taosMemoryFree(buf->buf);
+  buf->buf = NULL;
+  buf->cap = 0;
+  buf->len = 0;
+  return 0;
+}
+
+int32_t sslBufferRealloc(SSslBuffer* buf, int32_t newCap, uv_buf_t* uvbuf) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  if (buf == NULL || newCap <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (buf->len <= buf->cap / 2) {
+    goto _error;  // no need to realloc
+  } else {
+    newCap = buf->cap * 2;
+  }
+  uint8_t* newBuf = taosMemoryRealloc(buf->buf, newCap);
+  if (newBuf == NULL) {
+    TAOS_CHECK_GOTO(terrno, &lino, _error);
+  }
+
+  buf->buf = newBuf;
+  buf->cap = newCap;
+
+_error:
+  if (code != 0) {
+    tError("failed to realloc ssl buffer since %s", tstrerror(code));
+    return code;
+  }
+
+  uvbuf->base = (char*)buf->buf + buf->len;
+  uvbuf->len = buf->cap - buf->len;
+  return 0;
+}
+
+int32_t initSSL(SSslCtx* pCtx, STransTLS** ppTLs) {
   int32_t code = 0;
   int32_t lino = 0;
   if (pCtx == NULL) {
@@ -169,6 +236,9 @@ int32_t initSSL(STransTLSCtx* pCtx, STransTLS** ppTLs) {
   }
 
   SSL_set_bio(pTls->ssl, pTls->readBio, pTls->writeBio);
+
+  code = sslBufferInit(&pTls->readBuf, 4096);
+  TAOS_CHECK_GOTO(code, &lino, _error);
 
   *ppTLs = pTls;
 
@@ -201,8 +271,51 @@ int32_t sslDoConnect(STransTLS* pTls) {
   return code;
 }
 
-int32_t sslDoWrite(STransTLS* pTls, uv_buf_t* pBuf, int32_t nBuf) {
+int32_t sslDoWrite(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req, uv_buf_t* pBuf, int32_t nBuf,
+                   void (*cb)(uv_write_t*, int)) {
   int32_t code = 0;
+  int32_t nread = 0;
+  for (int i = 0; i < nBuf; i++) {
+    int n = SSL_write(pTls->ssl, pBuf[i].base, pBuf[i].len);
+    if (n <= 0) {
+      handleSSLError(pTls->ssl, n);
+      code = TSDB_CODE_THIRDPARTY_ERROR;
+      break;
+    }
+  }
+
+  if (code != 0) {
+    tError("SSL write error: %s", ERR_reason_error_string(ERR_get_error()));
+    return code;
+  }
+
+  char buf[4096] = {0};
+  while ((nread = BIO_read(pTls->writeBio, buf, sizeof(buf))) > 0) {
+    uv_buf_t b = uv_buf_init(buf, nread);
+    code = uv_write(req, stream, &b, 1, cb);
+  }
+  return code;
+}
+
+// netcore --> BIO ---> SSL ---> user
+
+int32_t sslDoRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread) {
+  int32_t     code = 0;
+  SSslBuffer* sslBuf = &pTls->readBuf;
+
+  sslBuf->len += nread;
+  int32_t nwrite = BIO_write(pTls->readBio, sslBuf->buf, sslBuf->len);
+
+  sslBuf->len = 0;
+
+  char buf[4096] = {0};
+  while ((nwrite = SSL_read(pTls->ssl, buf, sizeof(buf))) > 0) {
+    code = transConnBufferAppend(pBuf, buf, nwrite);
+    if (code != 0) {
+      tError("failed to append decrypted data to conn buffer since %s", tstrerror(code));
+      return code;
+    }
+  }
   return code;
 }
 
@@ -321,6 +434,8 @@ void sslOnConn(STransTLS* pTls) {}
 void destroySSL(STransTLS* pTls) {
   if (pTls) {
     SSL_free(pTls->ssl);
+
+    sslBufferDestroy(&pTls->readBuf);
     taosMemoryFree(pTls);
   }
 }

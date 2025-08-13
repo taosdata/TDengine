@@ -128,7 +128,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->enableSSL = pInit->enableSSL;
 
   if (pRpc->enableSSL) {
-    code = transTlsCtxCreate(NULL, NULL, NULL, (STransTLSCtx**)&pRpc->pSSLContext);
+    code = transTlsCtxCreate(NULL, NULL, NULL, (SSslCtx**)&pRpc->pSSLContext);
     TAOS_CHECK_GOTO(code, NULL, _end);
   }
 
@@ -161,7 +161,7 @@ void rpcCloseImpl(void* arg) {
   if (pRpc->tcphandle != NULL) {
     (*taosCloseHandle[pRpc->connType])(pRpc->tcphandle);
   }
-  transTlsCtxDestroy((STransTLSCtx*)pRpc->pSSLContext);
+  transTlsCtxDestroy((SSslCtx*)pRpc->pSSLContext);
   taosMemoryFree(pRpc);
 }
 
