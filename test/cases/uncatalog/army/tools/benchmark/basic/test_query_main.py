@@ -74,8 +74,10 @@ class TestQueryMain:
         ret, value = self.getKeyValue(output, key, end)
         if ret == False:
             tdLog.exit(f"not found key:{key}. end:{end} output:\n{output}")
-        tdLog.info(f"get key:{key} value:{value} end:{end}")
-        fval = float(value)
+
+        tdLog.info(f"get key:{key} value:{value} end:{end}, output:\n{output}")
+        cleaned_value = value.split("\n")[0]
+        fval = float(cleaned_value)
         # compare
         if equal and fval != expect:
             tdLog.exit(f"check not expect. expect:{expect} real:{fval}, key:'{key}' end:'{end}' output:\n{output}")
@@ -191,7 +193,6 @@ class TestQueryMain:
         # check
         for item in items:
             if len(item[0]) > 0:
-                tdLog.info(f"check item: {item[0]}, {item[1]}, {item[2]}, {item[3]}, output: {output}")
                 self.checkItem(output, item[0], item[1], item[2], item[3])
 
     # native
