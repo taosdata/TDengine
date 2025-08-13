@@ -567,7 +567,7 @@ export default {
   allNodes: 'points',
   pointFilter: 'Press Enter to filter',
   fullscreen: 'Full screen',
-  healthStatusTitle: 'Health Status',
+  healthStatusTitle: 'Health',
   healthStatus: {
     ready: 'Ready',
     readyDesc: 'The health check between the source and target systems has passed, allowing data reading and writing.',

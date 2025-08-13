@@ -529,7 +529,7 @@ export default {
   target: '目标数据库',
   createat: '创建时间',
   via: '代理',
-  status: '状态',
+  status: '运行状态',
   operation: '操作',
   addsource: '新增数据源',
   sourcetype: '数据源类型',
