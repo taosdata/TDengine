@@ -1419,8 +1419,8 @@ static int32_t optimizeTbnameInCondImpl(void* pVnode, SArray* pExistedUidList, S
     return -1;
   }
 
-  if ((pNode->pLeft != NULL && nodeType(pNode->pLeft) == QUERY_NODE_COLUMN &&
-       ((SColumnNode*)pNode->pLeft)->colType == COLUMN_TYPE_TBNAME) &&
+  if ((pNode->pLeft != NULL &&
+       (nodeType(pNode->pLeft) == QUERY_NODE_COLUMN || nodeType(pNode->pLeft) == QUERY_NODE_FUNCTION)) &&
       (pNode->pRight != NULL && nodeType(pNode->pRight) == QUERY_NODE_NODE_LIST)) {
     SNodeListNode* pList = (SNodeListNode*)pNode->pRight;
 
