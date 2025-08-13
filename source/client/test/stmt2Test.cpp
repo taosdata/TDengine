@@ -2597,6 +2597,23 @@ TEST(stmt2Case, decimal) {
     int   code = taos_stmt2_prepare(stmt, sql, 0);
     checkError(stmt, code, __FILE__, __LINE__);
 
+    int             fieldNum = 0;
+    TAOS_FIELD_ALL* pFields = NULL;
+    code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+    checkError(stmt, code, __FILE__, __LINE__);
+    ASSERT_EQ(fieldNum, 3);
+    ASSERT_STREQ(pFields[1].name, "b1");
+    ASSERT_EQ(pFields[1].type, TSDB_DATA_TYPE_DECIMAL64);
+    ASSERT_EQ(pFields[1].precision, 4);
+    ASSERT_EQ(pFields[1].scale, 2);
+
+    ASSERT_STREQ(pFields[2].name, "b2");
+    ASSERT_EQ(pFields[2].type, TSDB_DATA_TYPE_DECIMAL);
+    ASSERT_EQ(pFields[2].precision, 20);
+    ASSERT_EQ(pFields[2].scale, 10);
+
+    taos_stmt2_free_fields(stmt, pFields);
+
     TAOS_STMT2_BIND  col[3] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts[0], &t64_len[0], NULL, 2},
                                {TSDB_DATA_TYPE_DECIMAL64, &b1_data[0], &b1_len[0], NULL, 2},
                                {TSDB_DATA_TYPE_DECIMAL, &b2_data[0], &b2_len[0], NULL, 2}};
