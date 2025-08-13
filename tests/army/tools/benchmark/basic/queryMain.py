@@ -87,7 +87,9 @@ class TDTestCase(TBase):
         if ret == False:
             tdLog.exit(f"not found key:{key}. end:{end} output:\n{output}")
 
-        fval = float(value)
+        tdLog.info(f"get key:{key} value:{value} end:{end}, output:\n{output}")
+        cleaned_value = value.split("\n")[0]
+        fval = float(cleaned_value)
         # compare
         if equal and fval != expect:
             tdLog.exit(f"check not expect. expect:{expect} real:{fval}, key:'{key}' end:'{end}' output:\n{output}")
