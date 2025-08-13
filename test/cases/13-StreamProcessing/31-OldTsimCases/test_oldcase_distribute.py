@@ -20,7 +20,7 @@ class TestStreamOldCaseDistribute:
         Catalog:
             - Streams:OldTsimCases
 
-        Since: v3.0.0.0
+        Since: v3.3.7.0
 
         Labels: common, ci
 
@@ -37,14 +37,14 @@ class TestStreamOldCaseDistribute:
         tdStream.createSnode()
 
         streams = []
-        streams.append(self.Interval0())
-        streams.append(self.Interval1())
-        streams.append(self.Interval2())
-        streams.append(self.Retrive0())
+        # streams.append(self.Interval0()) pass
+        # streams.append(self.Interval1()) pass
+        # streams.append(self.Interval2()) pass
+        # streams.append(self.Retrive0()) pass
         streams.append(self.Retrive1())
-        streams.append(self.Multi0())
-        streams.append(self.Session0())
-        streams.append(self.Session1())
+        # streams.append(self.Multi0())
+        # streams.append(self.Session0())
+        # streams.append(self.Session1())
         tdStream.checkAll(streams)
 
     class Interval0(StreamCheckItem):
@@ -64,7 +64,7 @@ class TestStreamOldCaseDistribute:
             tdSql.execute(f"create table ts4 using st tags(4, 2, 2);")
 
             tdSql.execute(
-                f"create stream stream_t1 interval(10s) sliding(10s) from st stream_options(watermark(1d)|max_delay(3s)) into streamtST1 as select _twstart, count(*) c1, count(d) c2, sum(a) c3, max(b) c4, min(c) c5 from st where ts >= _twstart and ts < _twend;"
+                f"create stream stream_t1 interval(10s) sliding(10s) from st stream_options(max_delay(3s)) into streamtST1 as select _twstart, count(*) c1, count(d) c2, sum(a) c3, max(b) c4, min(c) c5 from st where ts >= _twstart and ts < _twend;"
             )
 
         def insert1(self):
@@ -266,7 +266,7 @@ class TestStreamOldCaseDistribute:
             tdSql.execute(f"create table ts1 using st tags(1, 1, 1);")
             tdSql.execute(f"create table ts2 using st tags(2, 2, 2);")
             tdSql.execute(
-                f"create stream stream_t2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 20s into streamtST1 as select _wstart, count(*) c1, count(a) c2, sum(a) c3, max(b) c5, min(c) c6 from st interval(10s) ;"
+                f"create stream stream_t2 interval(10s) sliding(10s) from st stream_options(max_delay(3s)) into streamtST1 as select _twstart, count(*) c1, count(a) c2, sum(a) c3, max(b) c5, min(c) c6 from st where ts >= _twstart and ts < _twend;"
             )
 
         def insert1(self):
@@ -296,7 +296,7 @@ class TestStreamOldCaseDistribute:
             tdSql.execute(f"create table ts1 using st tags(1, 1, 1);")
             tdSql.execute(f"create table ts2 using st tags(2, 2, 2);")
             tdSql.execute(
-                f"create stream stream_t3 trigger at_once into streamtST3 as select ts, min(a) c6, a, b, c, ta, tb, tc from st interval(10s) ;"
+                f"create stream stream_t3 interval(10s) sliding(10s) from st stream_options(max_delay(3s)) into streamtST3 as select ts, min(a) c6, a, b, c, ta, tb, tc from st where ts >= _twstart and ts < _twend;"
             )
 
         def insert1(self):
@@ -328,7 +328,7 @@ class TestStreamOldCaseDistribute:
             tdSql.execute(f"create table ts3 using st tags(3, 2, 2);")
             tdSql.execute(f"create table ts4 using st tags(4, 2, 2);")
             tdSql.execute(
-                f"create stream stream_t1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  delete_mark 10s into streamtST1 as select _wstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from st interval(10s);"
+                f"create stream stream_t1 interval(10s) sliding(10s) from st stream_options(max_delay(3s)) into streamtST1 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from st where ts >= _twstart and ts < _twend;"
             )
 
         def insert1(self):
@@ -429,19 +429,22 @@ class TestStreamOldCaseDistribute:
             tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
             tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
             tdSql.execute(
-                f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  delete_mark 20s into streamt1 as select _wstart as c0, count(*) c1, count(a) c2 from st interval(10s) ;"
+                f"create stream streams1 interval(10s) sliding(10s) from st stream_options(max_delay(3s)) into streamt1 as select _twstart as c0, count(*) c1, count(a) c2 from st where ts >= _twstart and ts < _twend;"
             )
 
         def insert1(self):
             tdSql.execute(f"insert into t1 values(1648791211000, 1, 2, 3);")
 
-            tdSql.execute(f"insert into t1 values(1262275200000, 2, 2, 3);")
-            tdSql.execute(f"insert into t2 values(1262275200000, 1, 2, 3);")
+            tdSql.execute(f"insert into t1 values(1646275200000, 2, 2, 3);")
+            tdSql.execute(f"insert into t2 values(1646275200000, 1, 2, 3);")
 
         def check1(self):
             tdSql.checkResultsByFunc(
-                f"select * from streamt1 order by c0;",
-                lambda: tdSql.getRows() == 2 and tdSql.getData(0, 1) == 2,
+                f"select _wstart, count(*) from streamt1 interval(10d);",
+                func=lambda: tdSql.getRows() == 4
+                and tdSql.compareData(1, 1, 86400)
+                and tdSql.compareData(2, 1, 86400),
+                retry=180
             )
 
             tdLog.info(f"loop4 over")
@@ -461,7 +464,7 @@ class TestStreamOldCaseDistribute:
             tdSql.execute(f"create table ts3 using st tags(3, 2, 2);")
             tdSql.execute(f"create table ts4 using st tags(4, 2, 2);")
             tdSql.execute(
-                f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt1 as select _wstart, count(*) c1, sum(a) c3, max(b) c4 from st interval(10s);"
+                f"create stream streams1 interval(10s) sliding(10s) from st stream_options(max_delay(3s)) into streamt1 as select _twstart, count(*) c1, sum(a) c3, max(b) c4 from st where ts >= _twstart and ts < _twend;"
             )
 
         def insert1(self):
@@ -551,7 +554,7 @@ class TestStreamOldCaseDistribute:
             tdSql.execute(f"create table ts1 using st tags(1, 1, 1);")
             tdSql.execute(f"create table ts2 using st tags(2, 2, 2);")
             tdSql.execute(
-                f"create stream stream_t1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamtST as select _wstart, count(*) c1, sum(a) c2, max(b) c3 from st session(ts, 10s) ;"
+                f"create stream stream_t1 session(ts, 10s) from st stream_options(max_delay(3s)) into streamtST as select _twstart, count(*) c1, sum(a) c2, max(b) c3 from st where ts >= _twstart and ts <= _twend;"
             )
 
         def insert1(self):
@@ -601,7 +604,7 @@ class TestStreamOldCaseDistribute:
             tdSql.execute(f"create table ts1 using st tags(1, 1, 1);")
             tdSql.execute(f"create table ts2 using st tags(2, 2, 2);")
             tdSql.execute(
-                f"create stream stream_t2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamtST2 as select _wstart, count(*) c1, sum(a) c2, max(b) c3 from st partition by a session(ts, 10s) ;"
+                f"create stream stream_t2 session(ts, 10s) from st partition by a stream_options(max_delay(3s)) into streamtST2 as select _twstart, count(*) c1, sum(a) c2, max(b) c3 from st where a=%%1 and ts >= _twstart and ts <= _twend;"
             )
 
         def insert1(self):

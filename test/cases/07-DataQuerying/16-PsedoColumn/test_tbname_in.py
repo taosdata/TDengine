@@ -12,7 +12,7 @@ class TestTbnameIn:
         1.
 
         Catalog:
-            - DataTypes
+            - PsedoColumn
 
         Since: v3.0.0.0
 

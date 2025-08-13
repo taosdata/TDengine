@@ -958,7 +958,7 @@ static void getColInfoResultForGroupbyForStream(void* pVnode, SNodeList* group, 
   }
 
   for (int i = 0; i < rows; i++) {
-    gInfo = taosArrayInit(rows, sizeof(SStreamGroupValue));
+    gInfo = taosArrayInit(taosArrayGetSize(groupData), sizeof(SStreamGroupValue));
     QUERY_CHECK_NULL(gInfo, code, lino, end, terrno);
 
     STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
@@ -1159,7 +1159,7 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
     QUERY_CHECK_NULL(info, code, lino, end, terrno);
 
     if (groupIdMap != NULL){
-      gInfo = taosArrayInit(rows, sizeof(SStreamGroupValue));
+      gInfo = taosArrayInit(taosArrayGetSize(groupData), sizeof(SStreamGroupValue));
     }
     
     char* isNull = (char*)keyBuf;

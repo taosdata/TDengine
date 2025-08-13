@@ -1509,10 +1509,6 @@ int32_t ctgDumpVStbRefDbsRes(SCtgTask* pTask) {
   SCtgVStbRefDbsCtx* pCtx = (SCtgVStbRefDbsCtx*)pTask->taskCtx;
   SCatalog*          pCtg = pTask->pJob->pCtg;
 
-  if (NULL == pTask->res) {
-    return TSDB_CODE_SUCCESS;
-  }
-
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pVStbRefDbs) {
     SArray* pRes = taosArrayInit(pJob->vstbRefDbNum, sizeof(SMetaRes));
@@ -4280,7 +4276,7 @@ int32_t ctgLaunchGetVStbRefDbsTask(SCtgTask* pTask) {
       CTG_ERR_RET(terrno);
     }
 
-    tNameExtractFullName(pCtx->pNames, pMsgCtx->target);
+    CTG_ERR_RET(tNameExtractFullName(pCtx->pNames, pMsgCtx->target));
   }
 
   (void)tNameGetFullDbName(pCtx->pNames, dbFName);
