@@ -27,6 +27,8 @@ extern "C" {
 
 #define TRIGGER_USE_HISTORY_META 0  // todo(kjq): remove the flag
 
+#define BOOST_TRIGGER_PULL_DATA
+
 typedef struct SSTriggerVirTableInfo {
   int64_t tbGid;
   int64_t tbUid;
@@ -101,16 +103,27 @@ typedef struct SSTriggerWalProgress {
   SArray                   *reqCids;     // SArray<col_id_t>
   SArray                   *reqCols;     // SArray<OTableInfo>
   SArray                   *pMetadatas;  // SArray<SSDataBlock*>
+  SArray                   *pVersions;   // SArray<int64_t>
 } SSTriggerWalProgress;
+
+typedef enum ESTriggerWalMode {
+  STRIGGER_WAL_META_ONLY,
+  STRIGGER_WAL_DATA_ONLY,
+  STRIGGER_WAL_META_THEN_DATA,
+} ESTriggerWalMode;
 
 typedef struct SSTriggerRealtimeContext {
   struct SStreamTriggerTask *pTask;
   int64_t                    sessionId;
   ESTriggerContextStatus     status;
+  ESTriggerWalMode           walMode;
 
   SSHashObj *pReaderWalProgress;  // SSHashObj<vgId, SSTriggerWalProgress>
   int32_t    curReaderIdx;
   bool       getWalMetaThisRound;
+
+  SSHashObj *pRanges;
+  SSHashObj *pDataBlocks;  // SSHashObj<{vgId, uid, ver}, SSDataBlock>
 
   SSHashObj *pGroups;
   TD_DLIST(SSTriggerRealtimeGroup) groupsToCheck;

@@ -625,7 +625,7 @@ static int32_t scanWalNew(SVnode* pVnode, void* pTableList, bool isVTable, SSDat
     } else if (wCont->msgType == TDMT_VND_SUBMIT) {
       data = POINTER_SHIFT(wCont->body, sizeof(SSubmitReq2Msg));
       len = wCont->bodyLen - sizeof(SSubmitReq2Msg);
-      STREAM_CHECK_RET_GOTO(scanSubmitData(pTableList, isVTable, pBlock, data, len, ver));
+      STREAM_CHECK_RET_GOTO(scanSubmitDataNew(pTableList, isVTable, pBlock, data, len, ver));
     }
 
     if (pBlock->info.rows >= STREAM_RETURN_ROWS_NUM) {
@@ -867,7 +867,7 @@ end:
 }
 
 static int32_t processWalVerDataNew2(SVnode* pVnode, void* pTableList, SStreamTriggerReaderInfo* sStreamInfo, 
-                                    SArray* versions, SHashObj* ranges, SArray* pBlockList, int64_t* retVer) {
+                                    SArray* versions, SSHashObj* ranges, SArray* pBlockList, int64_t* retVer) {
   int32_t      code = 0;
   int32_t      lino = 0;
   SSubmitReq2 submit = {0};
@@ -911,7 +911,7 @@ static int32_t processWalVerDataNew2(SVnode* pVnode, void* pTableList, SStreamTr
         continue;
       }
       uint64_t gid = qStreamGetGroupId(pTableList, pSubmitTbData->uid);
-      void* timerange = taosHashGet(ranges, &gid, sizeof(gid));
+      void* timerange = tSimpleHashGet(ranges, &gid, sizeof(gid));
       if (timerange == NULL) continue;
       int64_t* pRange = (int64_t*)timerange;
       STimeWindow window = {.skey = pRange[0], .ekey = pRange[1]};
@@ -2071,16 +2071,16 @@ static int32_t vnodeProcessStreamWalMetaDataNewReq(SVnode* pVnode, SRpcMsg* pMsg
         &pTableList, sStreamReaderInfo->groupIdMap));
   }
 
-  pBlockList = taosArrayInit(sizeof(SSDataBlock*), 0);
+  pBlockList = taosArrayInit(0, sizeof(SSDataBlock*));
   STREAM_CHECK_NULL_GOTO(pBlockList, terrno);
 
   STREAM_CHECK_RET_GOTO(processWalVerDataNew(pVnode, pTableList, sStreamReaderInfo, req->walMetaDataNewReq.lastVer, pBlockList, &lastVer));
 
   ST_TASK_DLOG("vgId:%d %s get result block num:%zu", TD_VID(pVnode), __func__, taosArrayGetSize(pBlockList));
 
-  size = tSerializeBlockList(NULL, 0, pBlockList);
+  size = tSerializeSStreamWalDataResponse(NULL, 0, pBlockList);
   buf = rpcMallocCont(size);
-  tSerializeBlockList(buf, size, pBlockList);
+  tSerializeSStreamWalDataResponse(buf, size, pBlockList);
 
 end:
   if (code == 0 && taosArrayGetSize(pTableList) == 0) {
@@ -2128,16 +2128,16 @@ static int32_t vnodeProcessStreamWalDataNewReq(SVnode* pVnode, SRpcMsg* pMsg, SS
         &pTableList, sStreamReaderInfo->groupIdMap));
   }
 
-  pBlockList = taosArrayInit(sizeof(SSDataBlock*), 0);
+  pBlockList = taosArrayInit(0, sizeof(SSDataBlock*));
   STREAM_CHECK_NULL_GOTO(pBlockList, terrno);
 
   STREAM_CHECK_RET_GOTO(processWalVerDataNew2(pVnode, pTableList, sStreamReaderInfo, req->walDataNewReq.versions, req->walDataNewReq.ranges, pBlockList, &lastVer));
 
   ST_TASK_DLOG("vgId:%d %s get result block num:%zu", TD_VID(pVnode), __func__, taosArrayGetSize(pBlockList));
 
-  size = tSerializeBlockList(NULL, 0, pBlockList);
+  size = tSerializeSStreamWalDataResponse(NULL, 0, pBlockList);
   buf = rpcMallocCont(size);
-  tSerializeBlockList(buf, size, pBlockList);
+  tSerializeSStreamWalDataResponse(buf, size, pBlockList);
 
 end:
   if (code == 0 && taosArrayGetSize(pTableList) == 0) {

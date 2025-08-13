@@ -824,7 +824,7 @@ typedef struct SSTriggerWalDataRange {
 typedef struct SSTriggerWalDataNewRequest {
   SSTriggerPullRequest base;
   SArray*              versions;  // SArray<int64_t>
-  SHashObj*            ranges;    // SArray<SSTriggerWalDataRange>
+  SSHashObj*           ranges;    // SSHash<SSTriggerWalDataRange>
 } SSTriggerWalDataNewRequest;
 
 typedef struct SSTriggerWalMetaDataNewRequest {
