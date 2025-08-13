@@ -79,6 +79,7 @@ typedef struct SSysTableScanInfo {
 
   // file set iterate
   struct SFileSetReader* pFileSetReader;
+  SHashObj*              pExtSchema;
 } SSysTableScanInfo;
 
 typedef struct {
@@ -581,8 +582,6 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
   int32_t            ret = 0;
   char               dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
   SSDataBlock*       pDataBlock = NULL;
-  SHashObj*          pExtSchemas = taosHashInit(0, 
-    taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
 
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
@@ -621,8 +620,11 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
     pInfo->pSchema = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
     taosHashSetFreeFp(pInfo->pSchema, tDeleteSSchemaWrapperForHash);
   }
+  if (pInfo->pExtSchema == NULL) {
+    pInfo->pExtSchema = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+  }
 
-  if (!pInfo->pCur || !pInfo->pSchema) {
+  if (!pInfo->pCur || !pInfo->pSchema || !pInfo->pExtSchema) {
     qError("sysTableScanUserCols failed since %s", terrstr());
     blockDataDestroy(pDataBlock);
     pInfo->loadInfo.totalRows = 0;
@@ -652,10 +654,10 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
         QUERY_CHECK_CODE(code, lino, _end);
       }
 
-      void * pExtSchema = taosHashGet(pExtSchemas, &pInfo->pCur->mr.me.uid, sizeof(int64_t));
+      void *pExtSchema = taosHashGet(pInfo->pExtSchema, &pInfo->pCur->mr.me.uid, sizeof(int64_t));
       if (pExtSchema == NULL) {
         SExtSchema *pExtSchema = pInfo->pCur->mr.me.pExtSchemas;
-        code = taosHashPut(pExtSchemas, &pInfo->pCur->mr.me.uid, sizeof(int64_t), pExtSchema,
+        code = taosHashPut(pInfo->pExtSchema, &pInfo->pCur->mr.me.uid, sizeof(int64_t), pExtSchema,
           pInfo->pCur->mr.me.stbEntry.schemaRow.nCols * sizeof(SExtSchema));
         if (code == TSDB_CODE_DUP_KEY) {
           code = TSDB_CODE_SUCCESS;
@@ -670,11 +672,11 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
       STR_TO_VARSTR(typeName, "CHILD_TABLE");
       STR_TO_VARSTR(tableName, pInfo->pCur->mr.me.name);
       int64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
-      void*   schema = taosHashGet(pInfo->pSchema, &pInfo->pCur->mr.me.ctbEntry.suid, sizeof(int64_t));
-      void*   pExtSchema = taosHashGet(pExtSchemas, &pInfo->pCur->mr.me.ctbEntry.suid, sizeof(int64_t));
+      void*   schema = taosHashGet(pInfo->pSchema, &suid, sizeof(int64_t));
+      void*   pExtSchema = taosHashGet(pInfo->pExtSchema, &suid, sizeof(int64_t));
       if (schema != NULL && pExtSchema != NULL) {
         schemaRow = *(SSchemaWrapper**)schema;
-        extSchemaRow = *(SExtSchema**)pExtSchema;
+        extSchemaRow = (SExtSchema*)pExtSchema;
       } else {
         SMetaReader smrSuperTable = {0};
         pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
@@ -703,13 +705,13 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
           code = TSDB_CODE_SUCCESS;
         }
         SExtSchema *pExtSchema = smrSuperTable.me.pExtSchemas;
-        code = taosHashPut(pExtSchemas, &suid, sizeof(int64_t), pExtSchema,
+        code = taosHashPut(pInfo->pExtSchema, &suid, sizeof(int64_t), pExtSchema,
           smrSuperTable.me.stbEntry.schemaRow.nCols * sizeof(SExtSchema));
         if (code == TSDB_CODE_DUP_KEY) {
           code = TSDB_CODE_SUCCESS;
         }
         schemaRow = schemaWrapper;
-        extSchemaRow = taosHashGet(pExtSchemas, &suid, sizeof(int64_t));
+        extSchemaRow = taosHashGet(pInfo->pExtSchema, &suid, sizeof(int64_t));
         pAPI->metaReaderFn.clearReader(&smrSuperTable);
         QUERY_CHECK_CODE(code, lino, _end);
       }
@@ -734,10 +736,10 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
       colRef = &pInfo->pCur->mr.me.colRef;
       int64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
       void*   schema = taosHashGet(pInfo->pSchema, &suid, sizeof(int64_t));
-      void*   extSchema = taosHashGet(pExtSchemas, &suid, sizeof(int64_t));
-      if (schema != NULL && extSchema != NULL) {
+      void*   pExtSchema = taosHashGet(pInfo->pExtSchema, &suid, sizeof(int64_t));
+      if (schema != NULL && pExtSchema != NULL) {
         schemaRow = *(SSchemaWrapper**)schema;
-        extSchemaRow = *(SExtSchema**)extSchema;
+        extSchemaRow = (SExtSchema*)pExtSchema;
       } else {
         SMetaReader smrSuperTable = {0};
         pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
@@ -766,13 +768,13 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
           code = TSDB_CODE_SUCCESS;
         }
         SExtSchema *pExtSchema = smrSuperTable.me.pExtSchemas;
-        code = taosHashPut(pExtSchemas, &suid, sizeof(int64_t), pExtSchema,
+        code = taosHashPut(pInfo->pExtSchema, &suid, sizeof(int64_t), pExtSchema,
           smrSuperTable.me.stbEntry.schemaRow.nCols * sizeof(SExtSchema));
         if (code == TSDB_CODE_DUP_KEY) {
           code = TSDB_CODE_SUCCESS;
         }
         schemaRow = schemaWrapper;
-        extSchemaRow = taosHashGet(pExtSchemas, &suid, sizeof(int64_t));
+        extSchemaRow = taosHashGet(pInfo->pExtSchema, &suid, sizeof(int64_t));
         pAPI->metaReaderFn.clearReader(&smrSuperTable);
         QUERY_CHECK_CODE(code, lino, _end);
       }
@@ -1330,7 +1332,8 @@ static int32_t sysTableUserColsFillOneTableCols(const char* dbname, int32_t* pNu
     } else if (colType == TSDB_DATA_TYPE_NCHAR) {
       colTypeLen += tsnprintf(varDataVal(colTypeStr) + colTypeLen, colStrBufflen, "(%d)",
                               (int32_t)((schemaRow->pSchema[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
-    } else if (IS_DECIMAL_TYPE(colType) && extSchemaRow) {
+    } else if (IS_DECIMAL_TYPE(colType)) {
+      QUERY_CHECK_NULL(extSchemaRow, code, lino, _end, TSDB_CODE_INVALID_PARA);
       STypeMod typeMod = extSchemaRow[i].typeMod;
       uint8_t prec = 0, scale = 0;
       decimalFromTypeMod(typeMod, &prec, &scale);
@@ -3235,6 +3238,10 @@ void destroySysScanOperator(void* param) {
   if (pInfo->pSchema) {
     taosHashCleanup(pInfo->pSchema);
     pInfo->pSchema = NULL;
+  }
+  if (pInfo->pExtSchema) {
+    taosHashCleanup(pInfo->pExtSchema);
+    pInfo->pExtSchema = NULL;
   }
 
   taosArrayDestroy(pInfo->matchInfo.pList);
