@@ -52,14 +52,6 @@ class TestTaosdumpStartEndTime:
         )
 
     def test_taosdump_start_end_time(self):
-        self.taosdump_start_end_time("ns")
-        self.taosdump_start_end_time("us")
-        self.taosdump_start_end_time("ms")
-        self.taosdump_start_end_time()
-
-
-
-    def taosdump_start_end_time(self, time_unit=''):
         """summary: xxx
 
         description: xxx
@@ -77,6 +69,12 @@ class TestTaosdumpStartEndTime:
             - xxx
             - xxx
         """
+        self.taosdump_start_end_time("ns")
+        self.taosdump_start_end_time("us")
+        self.taosdump_start_end_time("ms")
+        self.taosdump_start_end_time()
+
+    def taosdump_start_end_time(self, time_unit=''):
         precision = ''
         if time_unit == "ns":
             precision = '997000000'
