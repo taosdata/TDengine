@@ -20,6 +20,37 @@ class TestTaosdumpStartEndTime:
         case1<sdsang>: [TS-2769] taosdump start-time end-time test
         """
 
+    def prepare(self, time_unit='', precision=''):
+        
+        tdSql.prepare()
+        if time_unit != '':
+            time_unit = f"precision '{time_unit}'"
+
+        tdLog.info("taosdump start time end time test, precision: %s" % precision)
+
+        tdSql.execute("drop database if exists db")
+        tdSql.execute(f"create database db  keep 3649 {time_unit} ")
+
+        tdSql.execute("use db")
+        tdSql.execute(
+            "create table t1 (ts timestamp, n int)"
+        )
+        tdSql.execute(
+            "create table t2 (ts timestamp, n int)"
+        )
+        tdSql.execute(
+            "create table t3 (ts timestamp, n int)"
+        )
+        tdSql.execute(
+            f"insert into t1 values('2023-02-28 12:00:00.{precision}',11)('2023-02-28 12:00:01.{precision}',12)('2023-02-28 12:00:02.{precision}',15)('2023-02-28 12:00:03.{precision}',16)('2023-02-28 12:00:04.{precision}',17)"
+        )
+        tdSql.execute(
+            f"insert into t2 values('2023-02-28 12:00:00.{precision}',11)('2023-02-28 12:00:01.{precision}',12)('2023-02-28 12:00:02.{precision}',15)('2023-02-28 12:00:03.{precision}',16)('2023-02-28 12:00:04.{precision}',17)"
+        )
+        tdSql.execute(
+            f"insert into t3 values('2023-02-28 12:00:00.{precision}',11)('2023-02-28 12:00:01.{precision}',12)('2023-02-28 12:00:02.{precision}',15)('2023-02-28 12:00:03.{precision}',16)('2023-02-28 12:00:04.{precision}',17)"
+        )
+
     def test_taosdump_start_end_time(self):
         self.taosdump_start_end_time("ns")
         self.taosdump_start_end_time("us")
@@ -53,38 +84,17 @@ class TestTaosdumpStartEndTime:
             precision = '997000'
         elif time_unit == "ms":
             precision = '997'
+        else:
+            precision = '0'    
 
+        self.prepare(time_unit, precision)
+        tdLog.info("taosdump start time end time test, precision: %s" % precision)
 
         binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosdump not found!")
         else:
             tdLog.info("taosdump found in %s" % binPath)
-
-        tdSql.prepare()
-
-        tdSql.execute("drop database if exists db")
-        tdSql.execute(f"create database db  keep 3649 precision {time_unit}")
-
-        tdSql.execute("use db")
-        tdSql.execute(
-            "create table t1 (ts timestamp, n int)"
-        )
-        tdSql.execute(
-            "create table t2 (ts timestamp, n int)"
-        )
-        tdSql.execute(
-            "create table t3 (ts timestamp, n int)"
-        )
-        tdSql.execute(
-            f"insert into t1 values('2023-02-28 12:00:00.{precision}',11)('2023-02-28 12:00:01.{precision}',12)('2023-02-28 12:00:02.{precision}',15)('2023-02-28 12:00:03.{precision}',16)('2023-02-28 12:00:04.{precision}',17)"
-        )
-        tdSql.execute(
-            "insert into t2 values('2023-02-28 12:00:00.{precision}',11)('2023-02-28 12:00:01.{precision}',12)('2023-02-28 12:00:02.{precision}',15)('2023-02-28 12:00:03.{precision}',16)('2023-02-28 12:00:04.{precision}',17)"
-        )
-        tdSql.execute(
-            "insert into t3 values('2023-02-28 12:00:00.{precision}',11)('2023-02-28 12:00:01.{precision}',12)('2023-02-28 12:00:02.{precision}',15)('2023-02-28 12:00:03.{precision}',16)('2023-02-28 12:00:04.{precision}',17)"
-        )
 
         #        sys.exit(1)
 
@@ -95,7 +105,7 @@ class TestTaosdumpStartEndTime:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system("%s db t1 -o %s -T 1 -S 2023-02-28T12:00:01.{precision}+0800 -E 2023-02-28T12:00:03.{precision}+0800 " % (binPath, self.tmpdir))
+        os.system("%s db t1 -o %s -T 1 -S 2023-02-28T12:00:01.%s+0800 -E 2023-02-28T12:00:03.%s+0800 " % (binPath, self.tmpdir, precision, precision))
 
         tdSql.execute("drop table t1")
 
@@ -111,7 +121,7 @@ class TestTaosdumpStartEndTime:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system("%s db t2 -o %s -T 1 -S 2023-02-28T12:00:01.{precision}+0800 " % (binPath, self.tmpdir))
+        os.system("%s db t2 -o %s -T 1 -S 2023-02-28T12:00:01.%s+0800 " % (binPath, self.tmpdir, precision))
 
         tdSql.execute("drop table t2")
         os.system("%s -i %s -T 1" % (binPath, self.tmpdir))
@@ -126,7 +136,7 @@ class TestTaosdumpStartEndTime:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system("%s db t3 -o %s -T 1 -E 2023-02-28T12:00:03.{precision}+0800 " % (binPath, self.tmpdir))
+        os.system("%s db t3 -o %s -T 1 -E 2023-02-28T12:00:03.%s+0800 " % (binPath, self.tmpdir, precision))
 
         tdSql.execute("drop table t3")
 
