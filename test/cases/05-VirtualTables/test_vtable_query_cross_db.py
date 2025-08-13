@@ -11,6 +11,7 @@
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
+import os
 
 
 class TestVtableQueryCrossDB:
@@ -213,8 +214,8 @@ class TestVtableQueryCrossDB:
     def run_normal_query(self, testCase):
         # read sql from .sql file and execute
         tdLog.info(f"test case : {testCase}.")
-        self.sqlFile = etool.curFile(__file__, f"in/{testCase}.in")
-        self.ansFile = etool.curFile(__file__, f"ans/{testCase}.ans")
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", f"{testCase}.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", f"{testCase}.ans")
 
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 

@@ -126,14 +126,14 @@ def process_pytest_file(input_file, exclusion_file="win_ignore_cases"):
                     logger.info(f"Case {pytest_cmd}: Success. Time cost: {execution_time:.2f}s")
                 else:
                     failed_cases += 1
-                    failed_case_list.append((total_cases, pytest_cmd))
+                    failed_case_list.append(pytest_cmd)
                     logger.info(f"Case {pytest_cmd} Failed. Time cost: {execution_time:.2f}s")
                     
             except Exception as e:
                 case_end = time.time()
                 execution_time = case_end - case_start
                 failed_cases += 1
-                failed_case_list.append((total_cases, pytest_cmd))
+                failed_case_list.append(pytest_cmd)
                 logger.info(f"Case {total_cases} Exception: {str(e)}. Time cost: {execution_time:.2f}s")
                 
     # 计算总执行时间
@@ -150,8 +150,8 @@ def process_pytest_file(input_file, exclusion_file="win_ignore_cases"):
     
     if failed_cases > 0:
         logger.info("\nFailed cases list:")
-        for case_num, cmd in failed_case_list:
-            logger.info(f"{case_num}: {cmd}")
+        for cmd in failed_case_list:
+            logger.info(cmd)
             
     # 如果没有失败用例，删除日志目录
     #if failed_cases == 0 and os.path.exists(log_dir):

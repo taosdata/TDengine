@@ -71,6 +71,29 @@ class TestHavingBuffix:
                     sql += f"({start_ts + i * 1000 * 1000 + j * 1000}, {','.join([str(item) for item in data[index[i]]])}),"
                 sql += ";"
                 tdSql.execute(sql)
+                
+        # database for case TD-31880
+        tdSql.execute("create database db_td31880;")
+        tdSql.execute("use db_td31880;")
+        # super table
+        # tdSql.execute("create table st (ts timestamp, c1 int) tags(t1 int);")
+        tdSql.execute("create stable if not exists db_td31880.stb (ts timestamp, c1 timestamp, c2 tinyint, c3 smallint, c4 int, c5 bigint, c6 tinyint unsigned, c7 smallint unsigned, c8 int unsigned, c9 bigint unsigned, c10 float, c11 double, c12 varchar(64), c13 varbinary(64), c14 nchar(64), c15 geometry(64), c16 bool) tags (t1 timestamp, t2 tinyint, t3 smallint, t4 int, t5 bigint, t6 tinyint unsigned, t7 smallint unsigned, t8 int unsigned, t9 bigint unsigned, t10 float, t11 double, t12 varchar(64), t13 varbinary(64), t14 nchar(64), t15 geometry(64), t16 bool);")
+        csv_file = os.path.join(os.path.dirname(__file__), "create_table_by_csv_0627_5.csv")
+        tdSql.execute(f"insert into db_td31880.stb (ts,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,tbname) file '{csv_file}';")
+
+        # database for case TD-31966
+        tdSql.execute("create database db_td31966;")
+        tdSql.execute("use db_td31966;")
+        tdSql.execute("create table tb1 (ts timestamp, c1 int, c2 int);")
+        sql = "insert into tb1 values ('2024-09-09 11:41:00', 1, 1)('2024-09-09 11:41:01', 1, 100)('2024-09-09 11:41:02', 2, 1)('2024-09-09 11:41:11', 2, 2)('2024-09-09 11:41:12', 2, 100)"
+        tdSql.execute(sql)
+
+    def test_ts4806(self):
+        """test event_windows + case when + having query fix
+
+        test event_windows + case when + having query fix
+
+        Since: v3.3.0.0
 
         tdSql.execute("use db_ts4806;")
         tdSql.query(

@@ -56,7 +56,7 @@ class TestQueryAccuracy:
         # tdSql.execute("create table st (ts timestamp, c1 int) tags(t1 int);")
         tdSql.execute(
             "create stable if not exists db_td31880.stb (ts timestamp, c1 timestamp, c2 tinyint, c3 smallint, c4 int, c5 bigint, c6 tinyint unsigned, c7 smallint unsigned, c8 int unsigned, c9 bigint unsigned, c10 float, c11 double, c12 varchar(64), c13 varbinary(64), c14 nchar(64), c15 geometry(64), c16 bool) tags (t1 timestamp, t2 tinyint, t3 smallint, t4 int, t5 bigint, t6 tinyint unsigned, t7 smallint unsigned, t8 int unsigned, t9 bigint unsigned, t10 float, t11 double, t12 varchar(64), t13 varbinary(64), t14 nchar(64), t15 geometry(64), t16 bool);")
-        csv_file = os.sep.join([os.path.dirname(__file__), "create_table_by_csv_0627_5.csv"])
+        csv_file = os.path.join(os.path.dirname(__file__), "create_table_by_csv_0627_5.csv")
         tdSql.execute(
             f"insert into db_td31880.stb (ts,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,tbname) file '{csv_file}';")
 

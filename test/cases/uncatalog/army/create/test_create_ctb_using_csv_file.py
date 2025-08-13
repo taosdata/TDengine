@@ -35,7 +35,7 @@ class TestCreateCtbUsingCsvFile:
     def create_ctb_using_csv_file(self):
         tdLog.info(f"create ctb using csv file")
         tdSql.execute("USE qxjtest")
-        datafile = etool.curFile(__file__, "data/create_ctb_127.csv")
+        datafile =os.path.join(os.path.dirname(__file__), "data", "create_ctb_127.csv")
         tdLog.info(f"create table if not exists using qxjtest.gdcdata(tbname,element,height,validtime,latitude) file '{datafile}';")
         tdSql.execute(f"create table if not exists using qxjtest.gdcdata(tbname,element,height,validtime,latitude) file '{datafile}';")
 

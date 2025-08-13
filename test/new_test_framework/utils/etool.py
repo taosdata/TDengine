@@ -123,7 +123,7 @@ def curFile(fullPath, filename):
     Returns:
         str: The full path to the file in the current directory.
     """
-    return os.path.dirname(fullPath) + "/" + filename
+    return os.path.join(os.path.dirname(fullPath), filename)
 
 
 # run build/bin file
