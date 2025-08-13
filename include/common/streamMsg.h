@@ -824,7 +824,7 @@ typedef struct SSTriggerWalDataRange {
 typedef struct SSTriggerWalDataNewRequest {
   SSTriggerPullRequest base;
   SArray*              versions;  // SArray<int64_t>
-  SArray*              ranges;    // SArray<SSTriggerWalDataRange>
+  SHashObj*            ranges;    // SArray<SSTriggerWalDataRange>
 } SSTriggerWalDataNewRequest;
 
 typedef struct SSTriggerWalMetaDataNewRequest {
@@ -895,6 +895,10 @@ typedef union SSTriggerPullRequestUnion {
 int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTriggerPullRequest* pReq);
 int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullRequestUnion* pReq);
 void    tDestroySTriggerPullRequest(SSTriggerPullRequestUnion* pReq);
+
+int32_t tSerializeBlockList(void* buf, int32_t bufLen, const SArray* blockList);
+int32_t tDeserializeBlockList(void* buf, int32_t bufLen, SArray* blockList);
+void    tDestroyBlockList(SArray* blockList);
 
 typedef struct SSTriggerCalcParam {
   // These fields only have values when used in the statement, otherwise they are 0
