@@ -54,7 +54,7 @@
 #define VALUE_BUF_LEN              4096
 #define MAX_RECORDS_PER_REQ        32766
 #define NEED_CALC_COUNT            UINT64_MAX
-#define HUMAN_TIME_LEN             28
+#define HUMAN_TIME_LEN             60
 #define DUMP_DIR_LEN               (MAX_DIR_LEN - (TSDB_DB_NAME_LEN + 10))
 #define TSDB_USET_PASSWORD_LONGLEN 256  // come from tdef.h
 #define ITEM_SPACE                 50
