@@ -3979,6 +3979,65 @@ void tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq) {
   }
 }
 
+int32_t tSerializeSTriggerDropTableRequest(void* buf, int32_t bufLen, const SSTriggerDropRequest* pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  int32_t  tlen = 0;
+
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->streamId));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->runnerTaskId));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->sessionId));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->gid));
+
+  TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(&encoder, pReq->groupColVals, -1));
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSTriggerDropTableRequest(void* buf, int32_t bufLen, SSTriggerDropRequest* pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->streamId));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->runnerTaskId));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->sessionId));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->gid));
+
+  TAOS_CHECK_EXIT(tDeserializeStriggerGroupColVals(&decoder, &pReq->groupColVals));
+
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tDestroySSTriggerDropRequest(SSTriggerDropRequest* pReq) {
+  if (pReq != NULL) {
+    if (pReq->groupColVals != NULL) {
+      taosArrayDestroyEx(pReq->groupColVals, tDestroySStreamGroupValue);
+      pReq->groupColVals = NULL;
+    }
+  }
+}
+
 int32_t tSerializeSTriggerCtrlRequest(void* buf, int32_t bufLen, const SSTriggerCtrlRequest* pReq) {
   SEncoder encoder = {0};
   int32_t  code = TSDB_CODE_SUCCESS;
