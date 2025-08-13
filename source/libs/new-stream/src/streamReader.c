@@ -312,7 +312,6 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
     sStreamReaderInfo->pTagIndexCond = sStreamReaderInfo->triggerAst->pTagIndexCond;
     sStreamReaderInfo->pConditions = sStreamReaderInfo->triggerAst->pNode->pConditions;
     STREAM_CHECK_RET_GOTO(nodesStringToList(pMsg->msg.trigger.partitionCols, &sStreamReaderInfo->partitionCols));
-    // sStreamReaderInfo->partitionCols = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->pGroupTags;
     sStreamReaderInfo->twindows = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scanRange;
     sStreamReaderInfo->triggerCols = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scan.pScanCols;
     STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->triggerCols, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
@@ -320,7 +319,6 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
         ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scan.node.pOutputDataBlockDesc;
     sStreamReaderInfo->triggerResBlock = createDataBlockFromDescNode(pDescNode);
     STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->triggerResBlock, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
-    // STREAM_CHECK_RET_GOTO(buildSTSchemaForScanData(&sStreamReaderInfo->triggerSchema, sStreamReaderInfo->triggerCols));
     sStreamReaderInfo->triggerPseudoCols = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scan.pScanPseudoCols;
     if (sStreamReaderInfo->triggerPseudoCols != NULL) {
       STREAM_CHECK_RET_GOTO(
