@@ -28,7 +28,7 @@ class TestInsertCsvFileWithRowSplit:
     def create_ctb_using_csv_file(self):
         tdLog.info(f"create ctb using csv file")
         tdSql.execute("USE vehicle_prod2")
-        datafile = etool.curFile(__file__, "data/test.csv")
+        datafile = os.path.join(os.path.dirname(__file__), "data", "test.csv")
         tdLog.info(f"INSERT INTO vehicle_prod2.up_topic (tbname,ts,msg_id,topic_content,command_code,msg,data_source,device_id) FILE '{datafile}';")
         tdSql.execute(f"INSERT INTO vehicle_prod2.up_topic (tbname,ts,msg_id,topic_content,command_code,msg,data_source,device_id) FILE '{datafile}';")
 

@@ -1,0 +1,223 @@
+cases/02-Databases/04-Query/test_db_show_create_table.py
+cases/05-VirtualTables/test_vtable_meta.py
+cases/05-VirtualTables/test_vtable_query.py
+cases/05-VirtualTables/test_vtable_query_cross_db.py
+cases/05-VirtualTables/test_vtable_query_after_alter.py
+cases/05-VirtualTables/test_vtable_join.py
+cases/06-DataIngestion/02-Import/test_import_file.py
+cases/06-DataIngestion/02-Import/test_import_large.py
+cases/07-DataQuerying/03-GroupBy/test_groupby.py
+cases/07-DataQuerying/06-Limit/test_projection_limit_offset.py
+cases/07-DataQuerying/08-SubQuery/test_last_row.py
+cases/07-DataQuerying/11-Interp/test_interp2.py
+cases/07-DataQuerying/12-Having/test_query_accuracy.py
+cases/07-DataQuerying/17-Tags/test_select_with_tags.py
+cases/07-DataQuerying/17-Tags/test_tags_scan.py
+cases/10-Functions/03-Selection/test_func_last_both.py
+cases/10-Functions/03-Selection/test_func_last_cache.py
+cases/10-Functions/03-Selection/test_func_last_lru.py
+cases/12-DataSubscription/02-Native/test_tmq_force_drop_topic.py
+cases/12-DataSubscription/04-MQTT/test_mqtt_smoking.py
+cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 2
+cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 6
+cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 11
+cases/12-DataSubscription/04-MQTT/test_mqtt_qos.py
+cases/12-DataSubscription/04-MQTT/test_mqtt_special.py
+cases/12-DataSubscription/04-MQTT/test_mqtt_rb.py
+cases/13-StreamProcessing/01-Snode/snode_mgmt_zlv.py -N 6 --replica 3
+cases/13-StreamProcessing/01-Snode/snode_privileges.py
+cases/13-StreamProcessing/01-Snode/snode_privileges_monitor_table.py
+cases/13-StreamProcessing/01-Snode/snode_privileges_recalc.py
+cases/13-StreamProcessing/01-Snode/snode_privileges_twodb.py
+cases/13-StreamProcessing/01-Snode/snode_params_check_default.py
+cases/13-StreamProcessing/01-Snode/snode_params_check.py
+cases/13-StreamProcessing/02-Stream/stream_nosnode.py
+cases/13-StreamProcessing/02-Stream/stream_checkname.py
+cases/13-StreamProcessing/02-Stream/stream_long_name.py
+cases/13-StreamProcessing/02-Stream/stream_samename.py
+cases/13-StreamProcessing/03-TriggerMode/test_state.py
+cases/13-StreamProcessing/03-TriggerMode/test_count.py
+cases/13-StreamProcessing/03-TriggerMode/test_event.py
+cases/13-StreamProcessing/03-TriggerMode/test_fill_history.py
+cases/13-StreamProcessing/03-TriggerMode/test_window_close_state_window.py
+cases/13-StreamProcessing/03-TriggerMode/test_sliding.py
+cases/13-StreamProcessing/03-TriggerMode/test_state_new.py
+cases/13-StreamProcessing/03-TriggerMode/test_event_new.py
+cases/13-StreamProcessing/04-Options/test_options.py
+cases/13-StreamProcessing/04-Options/test_options_vtbl.py
+cases/13-StreamProcessing/04-Options/test_options_abnormal.py
+cases/13-StreamProcessing/04-Options/test_options_abnormal_vtbl.py
+cases/13-StreamProcessing/04-Options/test_meta.py
+cases/13-StreamProcessing/04-Options/test_meta_vtbl.py
+cases/13-StreamProcessing/04-Options/test_disorderUpdateDelete.py
+cases/13-StreamProcessing/04-Options/test_disorderUpdateDelete_vtbl.py
+cases/13-StreamProcessing/04-Options/test_options_us.py
+cases/13-StreamProcessing/04-Options/test_options_ns.py
+cases/13-StreamProcessing/06-ResultSaved/test_result_saved_comprehensive.py
+cases/13-StreamProcessing/07-SubQuery/test_subquery_basic.py
+cases/13-StreamProcessing/07-SubQuery/test_subquery_count_1.py
+cases/13-StreamProcessing/07-SubQuery/test_subquery_count_2.py
+cases/13-StreamProcessing/07-SubQuery/test_subquery_event.py
+cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding.py
+cases/13-StreamProcessing/07-SubQuery/test_subquery_session.py
+cases/13-StreamProcessing/07-SubQuery/test_subquery_state.py
+cases/13-StreamProcessing/08-Recalc/test_recalc_expired_time.py
+cases/13-StreamProcessing/08-Recalc/test_recalc_ignore_disorder.py
+cases/13-StreamProcessing/08-Recalc/test_recalc_delete_recalc.py
+cases/13-StreamProcessing/08-Recalc/test_recalc_watermark.py
+cases/13-StreamProcessing/08-Recalc/test_recalc_combined_options.py
+cases/13-StreamProcessing/20-UseCase/test_idmp_meters.py
+cases/13-StreamProcessing/20-UseCase/test_idmp_vehicle.py
+cases/13-StreamProcessing/20-UseCase/test_idmp_meters_td36808.py
+cases/13-StreamProcessing/20-UseCase/test_idmp_tobacco.py
+cases/13-StreamProcessing/20-UseCase/test_idmp_pv.py
+cases/13-StreamProcessing/20-UseCase/test_nevados.py
+cases/13-StreamProcessing/20-UseCase/test_three_gorges_phase1.py
+cases/13-StreamProcessing/20-UseCase/test_three_gorges_case4.py
+cases/13-StreamProcessing/20-UseCase/test_three_gorges_case4_bug1.py
+cases/13-StreamProcessing/20-UseCase/test_three_gorges_case5.py
+cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case1_bug1.py
+cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case1_twostream.py
+cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case3.py
+cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case4.py
+cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case6.py
+cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case17.py
+cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case18.py
+cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case19.py
+cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case19_bug1.py
+cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case22.py
+cases/13-StreamProcessing/23-Compatibility/stream_compatibility.py
+cases/13-StreamProcessing/30-OldPyCases/test_oldcase_state_window.py
+cases/13-StreamProcessing/30-OldPyCases/test_oldcase_window_true_for.py
+cases/13-StreamProcessing/30-OldPyCases/test_oldcase_math_func.py
+cases/13-StreamProcessing/30-OldPyCases/test_oldcase_string_func.py
+cases/13-StreamProcessing/30-OldPyCases/test_oldcase_backquote_check.py
+cases/13-StreamProcessing/30-OldPyCases/test_oldcase_taosdShell.py
+cases/13-StreamProcessing/30-OldPyCases/test_oldcase_checkpoint_info.py -N 4
+cases/13-StreamProcessing/30-OldPyCases/test_oldcase_snode_restart_with_checkpoint.py -N 4
+cases/13-StreamProcessing/30-OldPyCases/test_oldcase_stream_multi_agg.py
+cases/13-StreamProcessing/30-OldPyCases/test_oldcase_stream_basic.py
+cases/13-StreamProcessing/30-OldPyCases/test_drop.py
+cases/13-StreamProcessing/30-OldPyCases/test_oldcase_at_once.py
+cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic1.py
+cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic2.py
+cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_check.py
+cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_checkpoint.py
+cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_concat.py
+cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_continuewindowclose.py
+cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_state.py
+cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
+cases/22-Show/test_show_table_distributed_null.py
+cases/23-Users/test_user_privilege_sysinfo.py
+cases/29-JoinQueries/test_join.py
+cases/30-DataCompression/test_compress_basic.py -N 3
+cases/uncatalog/army/alter/test_alter_config.py -N 3
+cases/uncatalog/army/cluster/test_snapshot.py -N 3 -L 3 -D 2
+cases/uncatalog/army/cluster/test_tsdb_snapshot.py -N 3 -M 3
+cases/uncatalog/army/cluster/test_strong_password.py
+cases/uncatalog/army/cmdline/test_taos_cli.py -B
+cases/uncatalog/army/create/test_create_stb_keep.py
+cases/uncatalog/army/create/test_create_stb_keep.py -N 3
+cases/uncatalog/army/create/test_create_ctb_using_csv_file.py
+cases/uncatalog/army/create/test_create_ctb_using_csv_file.py -N 3
+cases/uncatalog/army/db-encrypt/test_basic.py -N 3 -M 3
+cases/uncatalog/army/insert/test_insert_csv_file_with_row_split.py
+cases/uncatalog/army/query/accuracy/test_query_accuracy.py
+cases/uncatalog/army/query/accuracy/test_ts5400.py
+cases/uncatalog/army/query/function/test_function.py
+cases/uncatalog/army/query/function/test_resinfo.py
+cases/uncatalog/army/query/function/test_interp.py
+cases/uncatalog/army/query/function/test_interval_diff_tz.py
+cases/uncatalog/army/query/function/test_cast.py
+cases/uncatalog/army/query/test_join_const.py
+cases/uncatalog/army/query/test_query_bugs.py -N 3
+cases/uncatalog/army/storage/test_compress_basic.py -N 3
+cases/uncatalog/army/tools/benchmark/basic/test_commandline.py
+cases/uncatalog/army/tools/benchmark/basic/test_commandline_supplement_insert.py
+cases/uncatalog/army/tools/benchmark/basic/test_conn_mode.py -R
+cases/uncatalog/army/tools/benchmark/basic/test_csv_export.py
+cases/uncatalog/army/tools/benchmark/basic/test_insert_decimal.py
+cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_sml.py
+cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_stmt2.py
+cases/uncatalog/army/tools/benchmark/basic/test_insert_json_csv.py
+cases/uncatalog/army/tools/benchmark/basic/test_insert_basic.py
+cases/uncatalog/army/tools/benchmark/basic/test_query_main.py
+cases/uncatalog/army/tools/benchmark/basic/test_stmt_insert_alltypes_same_min_max.py
+cases/uncatalog/army/tools/benchmark/basic/test_stmt_sample_csv_json_subtable.py
+cases/uncatalog/army/tools/benchmark/basic/test_stmt_sample_csv_json.py
+cases/uncatalog/army/tools/benchmark/basic/test_telnet_tcp.py -R
+cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_unsigned_int.py
+cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_nano_support.py
+cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_big_int.py
+cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_loose_mode.py
+cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_inspect.py
+cases/uncatalog/army/tools/taosdump/native/test_taosdump_commandline.py -B
+cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_unsigned_int.py -B
+cases/uncatalog/army/tools/taosdump/ws/test_taosdump_retry.py -B
+cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_tiny_int.py -B
+cases/uncatalog/army/user/test_passwd.py
+cases/uncatalog/army/whole/test_check_error_code.py
+cases/uncatalog/system-test/2-query/test_nestedQuery_time.py
+cases/uncatalog/system-test/2-query/test_nestedQuery_time.py -Q 2
+cases/uncatalog/system-test/2-query/test_columnLenUpdated.py
+cases/uncatalog/system-test/2-query/test_columnLenUpdated.py -Q 2
+cases/uncatalog/system-test/2-query/test_columnLenUpdated.py -Q 3
+cases/uncatalog/system-test/2-query/test_columnLenUpdated.py -Q 4
+cases/uncatalog/system-test/2-query/test_nestedQuery_time.py -Q 4
+cases/uncatalog/system-test/2-query/test_tbname.py
+cases/uncatalog/system-test/2-query/test_tbname.py -Q 2
+cases/uncatalog/system-test/2-query/test_tbname.py -Q 3
+cases/uncatalog/system-test/2-query/test_tbname.py -Q 4
+cases/uncatalog/system-test/2-query/test_decimal.py
+cases/uncatalog/system-test/2-query/test_decimal.py -Q 4
+cases/uncatalog/system-test/2-query/test_decimal.py -Q 3
+cases/uncatalog/system-test/2-query/test_decimal.py -Q 2
+cases/uncatalog/system-test/2-query/test_decimal.py -Q 1
+cases/uncatalog/system-test/2-query/test_decimal2.py
+cases/uncatalog/system-test/2-query/test_decimal2.py -Q 4
+cases/uncatalog/system-test/2-query/test_decimal2.py -Q 3
+cases/uncatalog/system-test/2-query/test_decimal2.py -Q 2
+cases/uncatalog/system-test/2-query/test_decimal2.py -Q 1
+cases/uncatalog/system-test/2-query/test_decimal3.py
+cases/uncatalog/system-test/2-query/test_decimal3.py -Q 4
+cases/uncatalog/system-test/2-query/test_decimal3.py -Q 3
+cases/uncatalog/system-test/2-query/test_decimal3.py -Q 2
+cases/uncatalog/system-test/2-query/test_decimal3.py -Q 1
+cases/uncatalog/system-test/2-query/test_nestedQuery_time.py -Q 3
+cases/uncatalog/system-test/2-query/test_select_null.py -Q 4
+cases/uncatalog/system-test/2-query/test_slimit.py
+cases/uncatalog/system-test/2-query/test_large_data.py
+cases/uncatalog/system-test/2-query/test_stddev_test.py
+cases/uncatalog/system-test/2-query/test_stddev_test.py -Q 2
+cases/uncatalog/system-test/2-query/test_group_partition.py
+cases/uncatalog/system-test/2-query/test_group_partition.py -Q 2
+cases/uncatalog/system-test/2-query/test_group_partition.py -Q 3
+cases/uncatalog/system-test/2-query/test_count.py
+cases/uncatalog/system-test/2-query/test_count.py -R
+cases/uncatalog/system-test/2-query/test_sml_TS-3724.py
+cases/uncatalog/system-test/2-query/test_varbinary.py
+cases/uncatalog/system-test/2-query/test_sml.py
+cases/uncatalog/system-test/2-query/test_sml.py -R
+cases/uncatalog/system-test/2-query/test_timetruncate.py
+cases/uncatalog/system-test/2-query/test_To_iso8601.py
+cases/uncatalog/system-test/2-query/test_To_iso8601.py -R
+cases/uncatalog/system-test/2-query/test_nestedQueryInterval.py
+cases/uncatalog/system-test/2-query/test_queryQnode.py
+cases/uncatalog/system-test/2-query/test_count.py -Q 2
+cases/uncatalog/system-test/2-query/test_To_iso8601.py -Q 2
+cases/uncatalog/system-test/2-query/test_timetruncate.py -Q 2
+cases/uncatalog/system-test/2-query/test_nestedQueryInterval.py -Q 2
+cases/uncatalog/system-test/2-query/test_sml.py -Q 2
+cases/uncatalog/system-test/2-query/test_count.py -Q 3
+cases/uncatalog/system-test/2-query/test_To_iso8601.py -Q 3
+cases/uncatalog/system-test/2-query/test_timetruncate.py -Q 3
+cases/uncatalog/system-test/2-query/test_nestedQueryInterval.py -Q 3
+cases/uncatalog/system-test/2-query/test_sml.py -Q 3
+cases/uncatalog/system-test/2-query/test_interp.py -Q 3
+cases/uncatalog/system-test/2-query/test_count.py -Q 4
+cases/uncatalog/system-test/2-query/test_To_iso8601.py -Q 4
+cases/uncatalog/system-test/2-query/test_timetruncate.py -Q 4
+cases/uncatalog/system-test/2-query/test_nestedQueryInterval.py -Q 4
+cases/uncatalog/system-test/2-query/test_stablity.py -Q 4
+cases/uncatalog/system-test/2-query/test_sml.py -Q 4
+cases/uncatalog/system-test/2-query/test_odbc.py

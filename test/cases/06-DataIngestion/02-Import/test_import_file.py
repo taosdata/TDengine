@@ -32,12 +32,9 @@ class TestImportFile:
         tdSql.execute(f"create database if not exists indb")
         tdSql.execute(f"use indb")
 
-        if platform.system().lower() == "windows":
-            inFileName = "'C:\\Windows\\Temp\\data.sql'"
-        else:
-            inFileName = "'/tmp/data.sql'"
+        inFileName = os.path.join(os.path.dirname(__file__), "data.sql")
 
-        os.system("tools/gendata.sh")
+        #os.system("tools/gendata.sh")
 
         tdSql.execute(
             f"create table stbx (ts TIMESTAMP, collect_area NCHAR(12), device_id BINARY(16), imsi BINARY(16),  imei BINARY(16),  mdn BINARY(10), net_type BINARY(4), mno NCHAR(4), province NCHAR(10), city NCHAR(16), alarm BINARY(2)) tags(a int, b binary(12))"
@@ -73,4 +70,4 @@ class TestImportFile:
         tdSql.checkData(0, 1, None)
         tdSql.checkData(0, 2, "abcf")
 
-        os.system(f"rm -f {inFileName}")
+        #os.system(f"rm -f {inFileName}")
