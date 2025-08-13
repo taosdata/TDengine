@@ -46,7 +46,7 @@ threadpoolctl==3.5.0
 --find-links https://download.pytorch.org/whl/torch/
 torch==2.4.1+cpu
 typing_extensions==4.13.0
-urllib3==2.2.3
+urllib3==2.5.0
 transformers==4.40.0
 uWSGI==2.0.27
 Werkzeug==3.0.6
