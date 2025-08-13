@@ -159,8 +159,10 @@ class Test_IDMP_Meters:
             # stream7
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream7` STATE_WINDOW(`电压`) TRUE_FOR(30s) FROM `tdasset`.`vt_em-7` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream7` AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, AVG(`电流`) AS `平均电流`, SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-7` WHERE ts >= _twstart AND ts <=_twend",
             # stream8
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream8`      PERIOD(1s, 0s) FROM `tdasset`.`vt_em-8`                                       NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream8`      AS SELECT CAST(_tlocaltime/1000000 as timestamp) AS ts, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream8_sub1` PERIOD(1s, 0s) FROM `tdasset`.`vt_em-8` STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream8_sub1` AS SELECT CAST(_tlocaltime/1000000 as timestamp) AS ts, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
+            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream8`      PERIOD(1s, 0s) FROM `tdasset`.`vt_em-8`                                       NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream8`      AS SELECT CAST(_tlocaltime/1000000 as timestamp) AS ts,                                                                                                                 COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
+            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream8_sub1` PERIOD(1s, 0s) FROM `tdasset`.`vt_em-8` STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream8_sub1` AS SELECT CAST(_tlocaltime/1000000 as timestamp) AS ts,                                                                                                                 COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
+            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream8_sub2` PERIOD(1s, 0s) FROM `tdasset`.`vt_em-8`                                       NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream8_sub2` AS SELECT CAST(_tlocaltime/1000000 as timestamp) AS ts, CAST(_tprev_localtime/1000000 as timestamp) AS ts_prev, CAST(_tnext_localtime/1000000 as timestamp) AS ts_next, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
+            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream8_sub3` PERIOD(1s, 0s)                                                                NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream8_sub3` AS SELECT (CAST(_tlocaltime/1000000 as timestamp) - 10000) AS ts, (CAST(_tprev_localtime/1000000 as timestamp) - 10000) AS ts_prev, (CAST(_tnext_localtime/1000000 as timestamp) - 10000) AS ts_next, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-8` WHERE ts >= CAST(_tlocaltime/1000000 as timestamp) - 10000 AND ts < CAST(_tnext_localtime/1000000 as timestamp) - 10000",
 
             # stream9
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream9` INTERVAL(1a) SLIDING(1a) FROM `tdasset`.`vt_em-9` STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream9` AS SELECT _twstart as ts,COUNT(*) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-9` WHERE ts >=_twstart AND ts <=_twend AND ts >= 1752574200000",
@@ -563,11 +565,11 @@ class Test_IDMP_Meters:
         step  = 200
         ts = tdSql.insertFixedVal(table, ts, step, count, cols, fixedVals)
 
-        # delete
+        # delete no affected
         #sql = f"delete from asset01.`em-8` where ts >= {self.start2}"
         #tdSql.execute(sql)
 
-        time.sleep(3)
+        time.sleep(5)
 
         # write order
         count = 20
@@ -577,6 +579,12 @@ class Test_IDMP_Meters:
         # write disorder
         #count = 10
         #ts = tdSql.insertFixedVal(table, ts, step, count, cols, fixedVals)
+
+        #update no affected
+        #updateVals = "1000, 2000, 3000"
+        #step  = 300
+        #count = 5
+        #tdSql.insertFixedVal(table, self.start2, step, count, cols, updateVals)
 
     #
     #  stream9 trigger 
@@ -600,9 +608,9 @@ class Test_IDMP_Meters:
     #
     def verify_stream1(self):
         # result_stream1
-        result_sql      = f"select * from {self.vdb}.`result_stream1` "
-        result_sql_sub1 = f"select * from {self.vdb}.`result_stream1_sub1` "
-        result_sql_sub2 = f"select * from {self.vdb}.`result_stream1_sub2` "
+        result_sql      = f"select * from tdasset.`result_stream1` "
+        result_sql_sub1 = f"select * from tdasset.`result_stream1_sub1` "
+        result_sql_sub2 = f"select * from tdasset.`result_stream1_sub2` "
 
         # result_stream1        
         tdSql.checkResultsByFunc (
@@ -637,7 +645,7 @@ class Test_IDMP_Meters:
     #
     def verify_stream2(self):
         # result_stream2
-        result_sql = f"select * from {self.vdb}.`result_stream2` "
+        result_sql = f"select * from tdasset.`result_stream2` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
             func = lambda: tdSql.getRows() == 2
@@ -654,7 +662,7 @@ class Test_IDMP_Meters:
     #
     def verify_stream3(self):
         # result_stream3
-        result_sql = f"select * from {self.vdb}.`result_stream3` "
+        result_sql = f"select * from tdasset.`result_stream3` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
             func = lambda: tdSql.getRows() == 2
@@ -679,7 +687,7 @@ class Test_IDMP_Meters:
             objects = tables
 
         for obj in objects:
-            result_sql = f"select * from {self.vdb}.`{obj}` "
+            result_sql = f"select * from tdasset.`{obj}` "
             tdSql.checkResultsByFunc (
                 sql = result_sql, 
                 func = lambda: tdSql.getRows() == 11
@@ -709,7 +717,7 @@ class Test_IDMP_Meters:
         ]
 
         for i in range(2, 7):
-            result_sql = f"select * from {self.vdb}.`result_stream4_sub{i}` "
+            result_sql = f"select * from tdasset.`result_stream4_sub{i}` "
             tdSql.checkResultsByFunc (
                 sql = result_sql, 
                 func = lambda: tdSql.getRows() == 11
@@ -750,7 +758,7 @@ class Test_IDMP_Meters:
     def verify_stream4_sub7(self):
         # result_stream4_sub7
         wins = self.getSlidingWindow(self.start2, 1*60*60*1000, 1)
-        result_sql = f"select * from {self.vdb}.`result_stream4_sub7` "
+        result_sql = f"select * from tdasset.`result_stream4_sub7` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
             func = lambda: tdSql.getRows() == 1
@@ -764,7 +772,7 @@ class Test_IDMP_Meters:
     def verify_stream4_sub9(self):
         # result_stream4_sub9
         ts = 1752487860000
-        result_sql = f"select * from {self.vdb}.`result_stream4_sub9` "
+        result_sql = f"select * from tdasset.`result_stream4_sub9` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
             func = lambda: tdSql.getRows() == 119,
@@ -785,7 +793,7 @@ class Test_IDMP_Meters:
     def verify_stream4_again(self):
         # result_stream4
         ts         = self.start2
-        result_sql = f"select * from {self.vdb}.`result_stream4` "
+        result_sql = f"select * from tdasset.`result_stream4` "
         tdSql.checkResultsByFunc (
             sql   = result_sql, 
             func  = lambda: tdSql.getRows() == 11,
@@ -833,7 +841,7 @@ class Test_IDMP_Meters:
 
     def verify_stream5(self):
         # result_stream5
-        result_sql = f"select * from {self.vdb}.`result_stream5` "
+        result_sql = f"select * from tdasset.`result_stream5` "
         tdSql.checkResultsByFunc (
             sql  = result_sql, 
             func = lambda: tdSql.getRows() == 1
@@ -850,7 +858,7 @@ class Test_IDMP_Meters:
 
     def verify_stream5_sub1(self):    
         # result_stream5_sub1
-        result_sql = f"select * from {self.vdb}.`result_stream5_sub1` "
+        result_sql = f"select * from tdasset.`result_stream5_sub1` "
         tdSql.checkResultsByFunc (
             sql  = result_sql, 
             func = lambda: tdSql.getRows() == 1
@@ -868,7 +876,7 @@ class Test_IDMP_Meters:
 
     def verify_stream6(self):
         # result_stream6
-        result_sql = f"select * from {self.vdb}.`result_stream6` "
+        result_sql = f"select * from tdasset.`result_stream6` "
         ts         = self.start2
         step       = 1 * 60 * 1000 # 1 minute
         cnt        = 5
@@ -889,7 +897,7 @@ class Test_IDMP_Meters:
         )
 
         # sub1
-        exp_sql = f"select * from {self.vdb}.`result_stream6_sub1` "
+        exp_sql = f"select * from tdasset.`result_stream6_sub1` "
 
         tdSql.checkResultsBySql(result_sql, exp_sql)
 
@@ -904,7 +912,7 @@ class Test_IDMP_Meters:
     #
     def verify_stream7(self):
         # result_stream7
-        result_sql = f"select * from {self.vdb}.`result_stream7` "
+        result_sql = f"select * from tdasset.`result_stream7` "
         ts         = self.start2
         step       = 1 * 60 * 1000 # 1 minute
 
@@ -940,7 +948,7 @@ class Test_IDMP_Meters:
         time.sleep(5)
 
         # result_stream8
-        result_sql = f"select * from {self.vdb}.`result_stream8` "
+        result_sql = f"select * from tdasset.`result_stream8` "
 
         tdSql.query(result_sql)
         count = tdSql.getRows()
@@ -954,7 +962,10 @@ class Test_IDMP_Meters:
                 tdSql.checkData(i, 3, cnt * 300) # sum(power)
             sum += cnt
 
+
         # ***** bug2 *****
+        self.verify_stream8_sub2()
+        self.verify_stream8_sub3()
         return
 
         if sum != 30:
@@ -969,7 +980,7 @@ class Test_IDMP_Meters:
     def verify_stream8_sub1(self):
         # check sum
         tdSql.checkResultsByFunc (
-            sql  = f"select sum(cnt) from {self.vdb}.`result_stream8_sub1`",
+            sql  = f"select sum(cnt) from tdasset.`result_stream8_sub1`",
             func = lambda: tdSql.getRows() == 1
             and tdSql.compareData(0, 0, 30)
         )
@@ -978,13 +989,42 @@ class Test_IDMP_Meters:
         # ***** bug1 *****
         '''
         tdSql.checkResultsByFunc (
-            sql  = f"select * from {self.vdb}.`result_stream8_sub1` where cnt = 0 ",
+            sql  = f"select * from tdasset.`result_stream8_sub1` where cnt = 0 ",
             func = lambda: tdSql.getRows() == 0
         )
         '''
 
         tdLog.info("verify stream8_sub1 ............................. successfully.")
 
+    # verify stream8_sub2
+    def verify_stream8_sub2(self):
+        # ts - ts_prev = 1000
+        tdSql.checkResultsByFunc (
+            sql  = "select (cast(ts as bigint) - cast(ts_prev as bigint) ) as dif from tdasset.result_stream8_sub2",
+            func = lambda: tdSql.getRows() > 1
+        )
+        for i in range(tdSql.getRows()):
+            tdSql.checkData(i, 0, 1000)
+
+        # ts_next - ts = 1000
+        tdSql.checkResultsByFunc (
+            sql  = "select (cast(ts_next as bigint) - cast(ts as bigint) ) as dif from tdasset.result_stream8_sub2",
+            func = lambda: tdSql.getRows() > 1
+        )
+        for i in range(tdSql.getRows()):
+            tdSql.checkData(i, 0, 1000)
+
+        tdLog.info("verify stream8_sub2 ............................. successfully.")
+
+    # verify stream8_sub3
+    def verify_stream8_sub3(self):
+        tdSql.checkResultsByFunc (
+            sql  = "select sum(cnt) from tdasset.result_stream8_sub3",
+            func = lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, 20)
+        )
+
+        tdLog.info("verify stream8_sub3 ............................. successfully.")
 
     #
     # verify stream9
@@ -992,7 +1032,7 @@ class Test_IDMP_Meters:
     def verify_stream9(self):
         # result_stream9
         tdSql.checkResultsBySql(
-            sql     = f"select * from {self.vdb}.`result_stream9` ", 
+            sql     = f"select * from tdasset.`result_stream9` ", 
             exp_sql = f"select ts,1,voltage,power from asset01.`em-9` where ts >= 1752574200000;"
         )
         tdLog.info("verify stream9 .................................. successfully.")
