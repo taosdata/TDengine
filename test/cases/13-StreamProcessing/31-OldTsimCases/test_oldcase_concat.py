@@ -113,7 +113,7 @@ class TestStreamOldCaseConcat:
                 tbname="streamt7;",
                 schema=[
                     ["a", "TIMESTAMP", 8, ""],
-                    ["b", "BIGINT", 8, ""],
+                    ["b", "BIGINT", 8, "COMPOSITE KEY"],
                     ["c", "INT", 4, ""],
                     ["tbn", "VARCHAR", 60, "TAG"],
                 ],
