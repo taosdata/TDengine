@@ -2541,7 +2541,7 @@ TEST(stmt2Case, decimal) {
                                 {TSDB_DATA_TYPE_DECIMAL64, NULL, NULL, &is_null1, 1},
                                 {TSDB_DATA_TYPE_DECIMAL, NULL, NULL, &is_null1, 1}};
     TAOS_STMT2_BIND* cols1 = &col1[0];
-    bindv = (TAOS_STMT2_BINDV){1, &tbnames[0], &pTags[0], &cols1};
+    bindv = TAOS_STMT2_BINDV{1, &tbnames[0], &pTags[0], &cols1};
     code = taos_stmt2_bind_param(stmt, &bindv, -1);
     checkError(stmt, code, __FILE__, __LINE__);
 
@@ -2581,7 +2581,7 @@ TEST(stmt2Case, decimal) {
                                 {TSDB_DATA_TYPE_DECIMAL64, b1_data2, &b1_len2, NULL, 1},
                                 {TSDB_DATA_TYPE_DECIMAL, b2_data2, &b2_len2, NULL, 1}};
     TAOS_STMT2_BIND* cols2 = &col2[0];
-    TAOS_STMT2_BINDV bindv = (TAOS_STMT2_BINDV){1, &tbnames[0], NULL, &cols2};
+    TAOS_STMT2_BINDV bindv = TAOS_STMT2_BINDV{1, &tbnames[0], NULL, &cols2};
 
     code = taos_stmt2_bind_param(stmt, &bindv, -1);
     ASSERT_EQ(code, TSDB_CODE_DECIMAL_OVERFLOW);
