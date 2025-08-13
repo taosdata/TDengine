@@ -42,6 +42,8 @@ typedef struct {
 
   BIO* readBio;
   BIO* writeBio;  // BIO for reading and writing data
+
+  void* pStream;
 } STransTLS;
 
 int32_t initSSL(STransTLSCtx* pCtx, STransTLS** ppTLs);

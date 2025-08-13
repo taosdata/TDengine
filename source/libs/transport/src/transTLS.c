@@ -201,6 +201,11 @@ int32_t sslDoConnect(STransTLS* pTls) {
   return code;
 }
 
+int32_t sslDoWrite(STransTLS* pTls, uv_buf_t* pBuf, int32_t nBuf) {
+  int32_t code = 0;
+  return code;
+}
+
 int32_t sslFlushWbio(STransTLS* pTls) {
   if (pTls == NULL || pTls->ssl == NULL) {
     tError("SSL is not initialized");

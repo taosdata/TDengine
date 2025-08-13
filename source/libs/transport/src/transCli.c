@@ -1395,6 +1395,7 @@ bool cliConnMayAddUserInfo(SCliConn* pConn, STransMsgHead** ppHead, int32_t* msg
   }
   return true;
 }
+
 int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
   int32_t   code = 0;
   SCliThrd* pThrd = pConn->hostThrd;
@@ -1531,18 +1532,22 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
   QUEUE_MOVE(&reqToSend, &pWreq->node);
   tTrace("%s conn:%p, start to send msg, batch size:%d, len:%d", CONN_GET_INST_LABEL(pConn), pConn, j, totalLen);
 
-  int32_t ret = uv_write(req, (uv_stream_t*)pConn->stream, wb, j, cliBatchSendCb);
-  if (ret != 0) {
-    tError("%s conn:%p, failed to send msg since %s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(ret));
-    while (!QUEUE_IS_EMPTY(&pWreq->node)) {
-      queue*   h = QUEUE_HEAD(&pWreq->node);
-      SCliReq* pCliMsg = QUEUE_DATA(h, SCliReq, sendQ);
-      removeReqFromSendQ(pCliMsg);
-    }
+  if (pConn->enableSSL == 0) {
+    int32_t ret = uv_write(req, (uv_stream_t*)pConn->stream, wb, j, cliBatchSendCb);
+    if (ret != 0) {
+      tError("%s conn:%p, failed to send msg since %s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(ret));
+      while (!QUEUE_IS_EMPTY(&pWreq->node)) {
+        queue*   h = QUEUE_HEAD(&pWreq->node);
+        SCliReq* pCliMsg = QUEUE_DATA(h, SCliReq, sendQ);
+        removeReqFromSendQ(pCliMsg);
+      }
 
-    freeWReqToWQ(&pConn->wq, req->data);
-    code = TSDB_CODE_THIRDPARTY_ERROR;
-    TAOS_UNUSED(transUnrefCliHandle(pConn));
+      freeWReqToWQ(&pConn->wq, req->data);
+      code = TSDB_CODE_THIRDPARTY_ERROR;
+      TAOS_UNUSED(transUnrefCliHandle(pConn));
+    }
+  } else {
+    int32_t ret = 0;
   }
 
   return code;
@@ -1620,7 +1625,6 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
   if (pThrd->pInst->enableSSL) {
     code = initSSL(pThrd->pInst->pSSLContext, &conn->pTls);
     TAOS_CHECK_GOTO(code, &lino, _exception1);
-
     conn->enableSSL = 1;
   }
 
