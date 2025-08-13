@@ -5087,7 +5087,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
             Decimal128 dec = {0};
             uint8_t  **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo - numOfFixedValue];
             int32_t    length = infos[iInfo].bind->length[iRow];
-            int32_t    code = decimal128FromStr(*(char **)data, length, precision, scale, &dec);
+            code = decimal128FromStr(*(char **)data, length, precision, scale, &dec);
             *data += length;
             TAOS_CHECK_GOTO(code, &lino, _exit);
 
@@ -5108,7 +5108,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
             Decimal64 dec = {0};
             uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo - numOfFixedValue];
             int32_t   length = infos[iInfo].bind->length[iRow];
-            int32_t   code = decimal64FromStr(*(char **)data, length, precision, scale, &dec);
+            code = decimal64FromStr(*(char **)data, length, precision, scale, &dec);
             *data += length;
             TAOS_CHECK_GOTO(code, &lino, _exit);
 

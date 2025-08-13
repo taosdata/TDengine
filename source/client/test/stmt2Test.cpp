@@ -1712,7 +1712,7 @@ TEST(stmt2Case, stmt2_insert_duplicate) {
   ASSERT_EQ(getRecordCounts, 2);
   taos_free_result(pRes);
 
-  // do_query(taos, "drop database if exists stmt2_testdb_18");
+  do_query(taos, "drop database if exists stmt2_testdb_18");
   taos_close(taos);
 }
 
@@ -2444,9 +2444,9 @@ TEST(stmt2Case, decimal) {
   do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_20");
   do_query(taos, "CREATE DATABASE IF NOT EXISTS stmt2_testdb_20");
   do_query(taos, "CREATE STABLE `stmt2_testdb_20`.stb (ts TIMESTAMP, b1 DECIMAL(4,2), b2 DECIMAL(20,10)) TAGS (t INT)");
+  do_query(taos, "CREATE TABLE `stmt2_testdb_20`.ntb (ts TIMESTAMP, b1 DECIMAL(4,2), b2 DECIMAL(20,10))");
 
   TAOS_STMT2_OPTION option[2] = {{0, true, true, NULL, NULL}, {0, false, false, NULL, NULL}};
-  TAOS_STMT2*       stmt;
 
   int64_t ts[3] = {1591060628000, 1591060629000, 1591060630000};
 
@@ -2460,15 +2460,16 @@ TEST(stmt2Case, decimal) {
   int b1_len[2] = {7, 6};
   int b2_len[2] = {24, 7};
 
-  int   tag_len[1] = {sizeof(int64_t)};
-  char* tbnames = "tb1";
+  int   tag_data = 1;
+  int   tag_len = sizeof(int64_t);
+  char* tbnames[2] = {"tb1", "tb2"};
   int   affected_rows;
 
+  // insert stb with interlace and no interlace
   for (int i = 0; i < 2; i++) {
-    stmt = taos_stmt2_init(taos, &option[i]);
+    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option[i]);
     ASSERT_NE(stmt, nullptr);
-    // 1 insert stb
-    char* sql = "insert into `stmt2_testdb_20`.? using `stmt2_testdb_20`.stb tags(1) values(?,?,?)";
+    char* sql = "insert into `stmt2_testdb_20`.? using `stmt2_testdb_20`.stb tags(?) values(?,?,?)";
     int   code = taos_stmt2_prepare(stmt, sql, 0);
     checkError(stmt, code, __FILE__, __LINE__);
 
@@ -2476,24 +2477,131 @@ TEST(stmt2Case, decimal) {
     TAOS_FIELD_ALL* pFields = NULL;
     code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
     checkError(stmt, code, __FILE__, __LINE__);
-    ASSERT_EQ(fieldNum, 4);
-    ASSERT_STREQ(pFields[2].name, "b1");
-    ASSERT_EQ(pFields[2].type, TSDB_DATA_TYPE_DECIMAL64);
-    ASSERT_EQ(pFields[2].precision, 4);
-    ASSERT_EQ(pFields[2].scale, 2);
+    ASSERT_EQ(fieldNum, 5);
+    ASSERT_STREQ(pFields[3].name, "b1");
+    ASSERT_EQ(pFields[3].type, TSDB_DATA_TYPE_DECIMAL64);
+    ASSERT_EQ(pFields[3].precision, 4);
+    ASSERT_EQ(pFields[3].scale, 2);
 
-    ASSERT_STREQ(pFields[3].name, "b2");
-    ASSERT_EQ(pFields[3].type, TSDB_DATA_TYPE_DECIMAL);
-    ASSERT_EQ(pFields[3].precision, 20);
-    ASSERT_EQ(pFields[3].scale, 10);
+    ASSERT_STREQ(pFields[4].name, "b2");
+    ASSERT_EQ(pFields[4].type, TSDB_DATA_TYPE_DECIMAL);
+    ASSERT_EQ(pFields[4].precision, 20);
+    ASSERT_EQ(pFields[4].scale, 10);
 
     taos_stmt2_free_fields(stmt, pFields);
+
+    TAOS_STMT2_BIND  tag = {TSDB_DATA_TYPE_INT, &tag_data, &tag_len, NULL, 1};
+    TAOS_STMT2_BIND* pTags[2] = {&tag, &tag};
 
     TAOS_STMT2_BIND  col[3] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts[0], &t64_len[0], NULL, 2},
                                {TSDB_DATA_TYPE_DECIMAL64, &b1_data[0], &b1_len[0], NULL, 2},
                                {TSDB_DATA_TYPE_DECIMAL, &b2_data[0], &b2_len[0], NULL, 2}};
-    TAOS_STMT2_BIND* cols = &col[0];
-    TAOS_STMT2_BINDV bindv = {1, &tbnames, NULL, &cols};
+    TAOS_STMT2_BIND* cols[2] = {&col[0], &col[0]};
+    TAOS_STMT2_BINDV bindv = {2, &tbnames[0], &pTags[0], &cols[0]};
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    code = taos_stmt2_exec(stmt, &affected_rows);
+    checkError(stmt, code, __FILE__, __LINE__);
+    ASSERT_EQ(affected_rows, 4);
+
+    TAOS_RES* result = taos_query(taos, "select b1,b2,tbname from stmt2_testdb_20.stb order by tbname");
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(taos_errno(result), 0);
+
+    TAOS_ROW row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_STREQ((char*)row[0], "99.99");
+    ASSERT_STREQ((char*)row[1], "1234567890.1234567890");
+    ASSERT_EQ(strncmp((char*)row[2], "tb1", 3), 0);
+
+    row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_STREQ((char*)row[0], "1.02");
+    ASSERT_STREQ((char*)row[1], "123000.0000000000");
+    ASSERT_EQ(strncmp((char*)row[2], "tb1", 3), 0);
+
+    row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_STREQ((char*)row[0], "99.99");
+    ASSERT_STREQ((char*)row[1], "1234567890.1234567890");
+    ASSERT_EQ(strncmp((char*)row[2], "tb2", 3), 0);
+
+    row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_STREQ((char*)row[0], "1.02");
+    ASSERT_STREQ((char*)row[1], "123000.0000000000");
+    ASSERT_EQ(strncmp((char*)row[2], "tb2", 3), 0);
+
+    taos_free_result(result);
+
+    // check null decimal
+    char             is_null1 = '1';
+    TAOS_STMT2_BIND  col1[3] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts[2], &t64_len[0], NULL, 1},
+                                {TSDB_DATA_TYPE_DECIMAL64, NULL, NULL, &is_null1, 1},
+                                {TSDB_DATA_TYPE_DECIMAL, NULL, NULL, &is_null1, 1}};
+    TAOS_STMT2_BIND* cols1 = &col1[0];
+    bindv = (TAOS_STMT2_BINDV){1, &tbnames[0], &pTags[0], &cols1};
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    code = taos_stmt2_exec(stmt, &affected_rows);
+    checkError(stmt, code, __FILE__, __LINE__);
+    ASSERT_EQ(affected_rows, 1);
+
+    result = taos_query(taos, "select b1,b2,tbname from stmt2_testdb_20.tb1 where ts = 1591060630000 order by tbname");
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(taos_errno(result), 0);
+
+    row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_STREQ((char*)row[0], NULL);
+    ASSERT_STREQ((char*)row[1], NULL);
+    ASSERT_EQ(strncmp((char*)row[2], "tb1", 3), 0);
+    taos_free_result(result);
+
+    do_query(taos, "delete from stmt2_testdb_20.tb1");
+    do_query(taos, "delete from stmt2_testdb_20.tb2");
+    taos_stmt2_close(stmt);
+  }
+
+  // check decimal overflow
+  {
+    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option[0]);
+    ASSERT_NE(stmt, nullptr);
+    char* sql = "insert into `stmt2_testdb_20`.? using `stmt2_testdb_20`.stb tags(1) values(?,?,?)";
+    int   code = taos_stmt2_prepare(stmt, sql, 0);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    char*            b1_data2 = "99.99999";
+    char*            b2_data2 = "1.23e+5";
+    int32_t          b1_len2 = 8;
+    int32_t          b2_len2 = 7;
+    TAOS_STMT2_BIND  col2[3] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts[0], &t64_len[0], NULL, 1},
+                                {TSDB_DATA_TYPE_DECIMAL64, b1_data2, &b1_len2, NULL, 1},
+                                {TSDB_DATA_TYPE_DECIMAL, b2_data2, &b2_len2, NULL, 1}};
+    TAOS_STMT2_BIND* cols2 = &col2[0];
+    TAOS_STMT2_BINDV bindv = (TAOS_STMT2_BINDV){1, &tbnames[0], NULL, &cols2};
+
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    ASSERT_EQ(code, TSDB_CODE_DECIMAL_OVERFLOW);
+
+    taos_stmt2_close(stmt);
+  }
+
+  // normal table
+  {
+    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option[0]);
+    ASSERT_NE(stmt, nullptr);
+    char* sql = "insert into stmt2_testdb_20.ntb values(?,?,?)";
+    int   code = taos_stmt2_prepare(stmt, sql, 0);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    TAOS_STMT2_BIND  col[3] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts[0], &t64_len[0], NULL, 2},
+                               {TSDB_DATA_TYPE_DECIMAL64, &b1_data[0], &b1_len[0], NULL, 2},
+                               {TSDB_DATA_TYPE_DECIMAL, &b2_data[0], &b2_len[0], NULL, 2}};
+    TAOS_STMT2_BIND* cols[2] = {&col[0]};
+    TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &cols[0]};
     code = taos_stmt2_bind_param(stmt, &bindv, -1);
     checkError(stmt, code, __FILE__, __LINE__);
 
@@ -2501,7 +2609,7 @@ TEST(stmt2Case, decimal) {
     checkError(stmt, code, __FILE__, __LINE__);
     ASSERT_EQ(affected_rows, 2);
 
-    TAOS_RES* result = taos_query(taos, "select b1,b2 from stmt2_testdb_20.tb1");
+    TAOS_RES* result = taos_query(taos, "select b1,b2 from stmt2_testdb_20.ntb");
     ASSERT_NE(result, nullptr);
     ASSERT_EQ(taos_errno(result), 0);
 
@@ -2514,82 +2622,11 @@ TEST(stmt2Case, decimal) {
     ASSERT_NE(row, nullptr);
     ASSERT_STREQ((char*)row[0], "1.02");
     ASSERT_STREQ((char*)row[1], "123000.0000000000");
-
     taos_free_result(result);
-
-    // check null decimal
-    char             is_null1 = '1';
-    TAOS_STMT2_BIND  col1[3] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts[2], &t64_len[0], NULL, 1},
-                                {TSDB_DATA_TYPE_DECIMAL64, NULL, NULL, &is_null1, 1},
-                                {TSDB_DATA_TYPE_DECIMAL, NULL, NULL, &is_null1, 1}};
-    TAOS_STMT2_BIND* cols1 = &col1[0];
-    bindv = (TAOS_STMT2_BINDV){1, &tbnames, NULL, &cols1};
-    code = taos_stmt2_bind_param(stmt, &bindv, -1);
-    checkError(stmt, code, __FILE__, __LINE__);
-
-    code = taos_stmt2_exec(stmt, &affected_rows);
-    checkError(stmt, code, __FILE__, __LINE__);
-    ASSERT_EQ(affected_rows, 1);
-
-    result = taos_query(taos, "select b1,b2 from stmt2_testdb_20.tb1 where ts = 1591060630000");
-    ASSERT_NE(result, nullptr);
-    ASSERT_EQ(taos_errno(result), 0);
-
-    row = taos_fetch_row(result);
-    ASSERT_NE(row, nullptr);
-    ASSERT_STREQ((char*)row[0], NULL);
-    ASSERT_STREQ((char*)row[1], NULL);
-
-    taos_free_result(result);
-
-    do_query(taos, "delete from stmt2_testdb_20.tb1");
+    taos_stmt2_close(stmt);
   }
 
-  // float double unknow ERROR
-  // float   b1_data3 = 10.01;
-  // double  b2_data3 = 10.01;
-  // int32_t float_len = sizeof(float);
-  // int32_t double_len = sizeof(double);
-  // TAOS_STMT2_BIND  col3[3] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts[0], &t64_len[0], NULL, 1},
-  //                             {TSDB_DATA_TYPE_DECIMAL64, &b1_data3, &float_len, NULL, 1},
-  //                             {TSDB_DATA_TYPE_DECIMAL, &b2_data3, &double_len, NULL, 1}};
-  // TAOS_STMT2_BIND* cols3 = &col3[0];
-  // TAOS_STMT2_BINDV bindv = (TAOS_STMT2_BINDV){1, &tbnames, NULL, &cols3};
-
-  // int code = taos_stmt2_bind_param(stmt, &bindv, -1);
-  // checkError(stmt, code, __FILE__, __LINE__);
-
-  // code = taos_stmt2_exec(stmt, &affected_rows);
-  // checkError(stmt, code, __FILE__, __LINE__);
-  // ASSERT_EQ(affected_rows, 1);
-
-  // TAOS_RES* result = taos_query(taos, "select b1,b2 from stmt2_testdb_20.tb1 where ts = 1591060632000");
-  // ASSERT_NE(result, nullptr);
-  // ASSERT_EQ(taos_errno(result), 0);
-
-  // TAOS_ROW row = taos_fetch_row(result);
-  // ASSERT_NE(row, nullptr);
-  // ASSERT_STREQ((char*)row[0], "0");
-  // ASSERT_STREQ((char*)row[1], "0");
-
-  // taos_free_result(result);
-
-  // check decimal overflow
-  char*            b1_data2 = "99.99999";
-  char*            b2_data2 = "1.23e+5";
-  int32_t          b1_len2 = 8;
-  int32_t          b2_len2 = 7;
-  TAOS_STMT2_BIND  col2[3] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts[0], &t64_len[0], NULL, 1},
-                              {TSDB_DATA_TYPE_DECIMAL64, b1_data2, &b1_len2, NULL, 1},
-                              {TSDB_DATA_TYPE_DECIMAL, b2_data2, &b2_len2, NULL, 1}};
-  TAOS_STMT2_BIND* cols2 = &col2[0];
-  TAOS_STMT2_BINDV bindv = (TAOS_STMT2_BINDV){1, &tbnames, NULL, &cols2};
-
-  int code = taos_stmt2_bind_param(stmt, &bindv, -1);
-  ASSERT_EQ(code, TSDB_CODE_DECIMAL_OVERFLOW);
-
-  // do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_20");
-  taos_stmt2_close(stmt);
+  do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_20");
   taos_close(taos);
 }
 
@@ -2890,7 +2927,7 @@ TEST(stmt2Case, mixed_bind) {
   }
 
   geosFreeBuffer(outputGeom1);
-  // do_query(taos, "drop database if exists stmt2_testdb_19");
+  do_query(taos, "drop database if exists stmt2_testdb_19");
   taos_close(taos);
 }
 
@@ -3003,7 +3040,7 @@ TEST(stmt2Case, usage_error) {
   ASSERT_STREQ(taos_stmt2_error(stmt), "stmt only support select or insert");
 
   taos_stmt2_close(stmt);
-  do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_14");
+  do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_17");
   taos_close(taos);
 }
 

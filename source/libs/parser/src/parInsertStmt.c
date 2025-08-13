@@ -955,6 +955,7 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, 
                             int32_t msgBufLen, void* charsetCxt) {
   STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
   SSchema*         pSchema = getTableColumnSchema(pDataBlock->pMeta);
+  SSchemaExt*      pExtSchema = getTableColumnExtSchema(pDataBlock->pMeta);
   SBoundColInfo*   boundInfo = &pDataBlock->boundColsInfo;
   SMsgBuf          pBuf = {.buf = msgBuf, .len = msgBufLen};
   int32_t          rowNum = bind->num;
@@ -1033,7 +1034,6 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, 
       }
       code = tColDataAddValueByBind2WithBlob(pCol, pBind, bytes, pDataBlock->pData->pBlobSet);
     } else if (IS_DECIMAL_TYPE(pColSchema->type)) {
-      SSchemaExt* pExtSchema = getTableColumnExtSchema(pDataBlock->pMeta);
       if (pExtSchema == NULL) {
         code = buildInvalidOperationMsg(&pBuf, "decimal column ext schema is null");
         goto _return;
@@ -1524,13 +1524,14 @@ int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool rese
   pNewCxt->pValues = NULL;
 
   if (pCxt->pMeta) {
-    void* pNewMeta = taosMemoryMalloc(TABLE_META_SIZE(pCxt->pMeta));
-    if (NULL == pNewMeta) {
-      insDestroyTableDataCxt(*pDst);
-      return terrno;
-    }
-    memcpy(pNewMeta, pCxt->pMeta, TABLE_META_SIZE(pCxt->pMeta));
-    pNewCxt->pMeta = pNewMeta;
+    pNewCxt->pMeta = tableMetaDup(pCxt->pMeta);
+    // void* pNewMeta = taosMemoryMalloc(TABLE_META_SIZE(pCxt->pMeta));
+    // if (NULL == pNewMeta) {
+    //   insDestroyTableDataCxt(*pDst);
+    //   return terrno;
+    // }
+    // memcpy(pNewMeta, pCxt->pMeta, TABLE_META_SIZE(pCxt->pMeta));
+    // pNewCxt->pMeta = pNewMeta;
   }
 
   memcpy(&pNewCxt->boundColsInfo, &pCxt->boundColsInfo, sizeof(pCxt->boundColsInfo));
