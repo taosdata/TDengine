@@ -52,22 +52,21 @@ class TestTaosdumpStartEndTime:
         )
 
     def test_taosdump_start_end_time(self):
-        """summary: xxx
+        """summary: taosdump time filtering import and export testing
 
-        description: xxx
+        description: taosdump import and export testing of time filtering with different time accuracies
 
-        Since: xxx
+        Since: 3.3.7.2
 
-        Labels: xxx
+        Labels: taosdump
 
-        Jira: xxx
+        Jira: https://jira.taosdata.com:18080/browse/TS-7053
 
         Catalog:
-            - xxx:xxx
+            - taos-tool:taosdump
 
         History:
-            - xxx
-            - xxx
+            - 2025-08-13: Created
         """
         self.taosdump_start_end_time("ns")
         self.taosdump_start_end_time("us")
