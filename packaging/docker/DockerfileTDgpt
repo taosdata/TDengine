@@ -5,9 +5,9 @@ ARG pkgFile
 ARG dirName
 ARG modelDlUrl
 
-# for timer-moe
-# ADD ${modelDlUrl}/timer-moe.tar.gz /root/
-# RUN tar -xzf timer-moe.tar.gz && rm -rf timer-moe.tar.gz
+# for time-moe
+# ADD ${modelDlUrl}/time-moe.tar.gz /root/
+# RUN tar -xzf time-moe.tar.gz && rm -rf time-moe.tar.gz
 
 ADD ${pkgFile} \
     ${modelDlUrl}/taos.pth \
