@@ -7,8 +7,7 @@ import uuid
 import json
 import tempfile
 import random
-from new_test_framework.utils import tdSql, etool, tdLog, BeforeTest, eutil, eos
-from new_test_framework.utils.stmt2 import tdStmt2
+from new_test_framework.utils import tdSql, etool, tdLog, BeforeTest, eutil, eos, tdStmt2
 
 
 def pytest_addoption(parser):

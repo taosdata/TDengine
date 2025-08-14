@@ -19,5 +19,5 @@ from .mqttUtil import *
 from .compatibilityUtil import *
 from .pathFinding import *
 from .tserror import *
-from .stmt2 import TDStmt2
+from .stmt2 import tdStmt2
 import random
