@@ -8704,6 +8704,22 @@ static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
         return DEAL_RES_CONTINUE;
       }
     }
+  } else if (pCxt->nameMatch && QUERY_NODE_VALUE != nodeType(*pNode)) {
+    FOREACH(pProject, pProjectionList) {
+      SExprNode* pExpr = (SExprNode*)pProject;
+      if (nodesEqualNode(*pNode, pProject)) {
+        SNode*  pNew = NULL;
+        int32_t code = nodesCloneNode(pProject, &pNew);
+        if (NULL == pNew) {
+          pCxt->pTranslateCxt->errCode = code;
+          return DEAL_RES_ERROR;
+        }
+        nodesDestroyNode(*pNode);
+        *pNode = pNew;
+        return DEAL_RES_CONTINUE;
+      }
+    }
+    pCxt->notFound = true;
   }
 
   return DEAL_RES_CONTINUE;
