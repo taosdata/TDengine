@@ -335,19 +335,31 @@ taosAdapter 提供了参数 `restfulRowLimit`，用于控制 HTTP 接口返回�
 
   为日志目录保留的磁盘空间（支持 KB/MB/GB 单位，默认值：`"1GB"`）。
 
-- **`log.enableRecordHttpSql`**
+- **`log.enableSqlToCsvLogging`**
+
+  是否启用记录 SQL 到 CSV 文件（默认值：`false`）具体内容见 [记录 SQL 到 csv 文件](#记录-sql-到-csv-文件)。
+
+- **`log.enableRecordHttpSql`** 
+
+  **不建议继续使用此参数，推荐使用[记录 SQL 到 csv 文件](#记录-sql-到-csv-文件)作为替代方案**
 
   是否记录 HTTP SQL 请求（默认值：`false`）。
 
 - **`log.sqlRotationCount`**
 
+  **不建议继续使用此参数，推荐使用[记录 SQL 到 csv 文件](#记录-sql-到-csv-文件)作为替代方案**
+
   SQL 日志轮转数量（默认值：`2`）。
 
 - **`log.sqlRotationSize`**
 
+  **不建议继续使用此参数，推荐使用[记录 SQL 到 csv 文件](#记录-sql-到-csv-文件)作为替代方案**
+
   单个 SQL 日志文件最大大小（支持 KB/MB/GB 单位，默认值：`"1GB"`）。
 
 - **`log.sqlRotationTime`**
+
+  **不建议继续使用此参数，推荐使用[记录 SQL 到 csv 文件](#记录-sql-到-csv-文件)作为替代方案**
 
   SQL 日志轮转时间（默认值：`24h`）。
 
@@ -702,6 +714,7 @@ taosAdapter 将指标上报到 taosKeeper 进行统一管理，参数如下：
 | `instanceId`                          | `TAOS_ADAPTER_INSTANCE_ID`                            |
 | `log.compress`                        | `TAOS_ADAPTER_LOG_COMPRESS`                           |
 | `log.enableRecordHttpSql`             | `TAOS_ADAPTER_LOG_ENABLE_RECORD_HTTP_SQL`             |
+| `log.enableSqlToCsvLogging`           | `TAOS_ADAPTER_LOG_ENABLE_SQL_TO_CSV_LOGGING`          |
 | `log.keepDays`                        | `TAOS_ADAPTER_LOG_KEEP_DAYS`                          |
 | `log.level`                           | `TAOS_ADAPTER_LOG_LEVEL`                              |
 | `log.path`                            | `TAOS_ADAPTER_LOG_PATH`                               |
@@ -815,8 +828,165 @@ taosAdapter 和 TDengine TSDB server 需要使用相同版本。请通过升级 
 
 ## IPv6 支持
 
-taosAdapter 自 **3.3.7.0** 版本起支持 IPv6，用户无需进行任何额外配置。
+taosAdapter 自 **3.3.6.13** 版本起支持 IPv6，用户无需进行任何额外配置。
 taosAdapter 将自动检测系统的 IPv6 支持情况，并在系统支持时自动启用 IPv6，且同时监听 IPv4 和 IPv6 地址。
+
+## 记录 SQL 到 CSV 文件
+
+taosAdapter 支持将 SQL 请求记录到 CSV 文件中。用户可以通过配置参数 `log.enableSqlToCsvLogging` 来启用此功能，或使用 HTTP 请求动态开启和关闭。
+
+### 配置参数
+
+1. 新增配置项 `log.enableSqlToCsvLogging` 布尔值，默认为 false，表示是否开启 sql 记录到 csv 文件。设置为 true 将开启 sql 记录到 csv 文件任务，开始记录时间为启动时间，结束时间为 `2300-01-01 00:00:00`。
+2. 文件命名与日志相同规则：`taosadapterSql_{instanceId}_{yyyyMMdd}.csv[.index]`
+   - `instanceId`：taosAdapter 实例 ID，可通过 `instanceId` 参数设置。
+   - `yyyyMMdd`：日期，格式为年月日。
+   - `index`：如果存在多个文件，则会在文件名后添加数字后缀。
+3. 保留空间、文件切割、保存路径等使用 log 已存在参数：
+   - `log.path`：保存路径。
+   - `log.keepDays` ：保留天数。
+   - `log.rotationCount`：最多保留份数。
+   - `log.rotationSize`：单个文件最大大小。
+   - `log.compress`：是否启用压缩。
+   - `log.reservedDiskSize`：保留硬盘空间大小。
+
+### 动态开启
+
+通过发送 HTTP POST 请求到 `/record_sql` 接口来动态开启记录，使用与 `/rest/sql` 相同的鉴权方式，样例如下：
+
+```bash
+curl --location --request POST 'http://127.0.0.1:6041/record_sql' \
+-u root:taosdata \
+--data '{"start_time":"2025-07-15 17:00:00","end_time":"2025-07-15 18:00:00","location":"Asia/Shanghai"}'
+```
+
+支持的参数项如下：
+- start_time：[可选参数] 开始采集的时间，格式为 `yyyy-MM-dd HH:mm:ss`，如果不设置则使用当前时间。
+- end_time：[可选参数] 结束采集的时间，格式为 `yyyy-MM-dd HH:mm:ss`，如果不设置则使用 `2300-01-01 00:00:00`。
+- location：[可选参数] 解析采集开始和结束时间使用的时区信息，如果不设置则使用 taosAdapter 所在服务器时区。时区使用 IANA 格式，例如：`Asia/Shanghai`。
+
+如果所有参数都使用默认值则可以不传 data，样例如下：
+
+```bash
+curl --location --request POST 'http://127.0.0.1:6041/record_sql' \
+-u root:taosdata
+```
+
+成功返回 HTTP code 200，返回结构如下
+
+```json
+{"code":0,"desc":""}
+```
+
+失败返回 HTTP code 非 200，返回 json 结构如下，code 非 0，desc 描述错误内容
+
+```json
+{"code":65535,"desc":"unmarshal json error"}
+```
+
+### 动态关闭
+
+通过发送 HTTP DELETE 请求到 `/record_sql` 接口来关闭，使用与 `/rest/sql` 相同的鉴权方式，样例如下：
+
+```bash
+curl --location --request DELETE 'http://127.0.0.1:6041/record_sql' \
+-u root:taosdata
+```
+
+成功返回 HTTP code 200
+
+1. 任务存在时返回如下
+
+```json
+{
+        "code": 0,
+        "message": "",
+        "start_time": "2025-07-23 17:00:00",
+        "end_time": "2025-07-23 18:00:00"
+}
+```
+
+- start_time 为取消任务配置的启动时间，时区为 taosAdapter 所在服务器时区。
+- end_time 为取消任务配置的结束时间，时区为 taosAdapter 所在服务器时区。
+
+2. 任务不存在时返回如下
+
+```json
+{
+        "code": 0,
+        "message": ""
+}
+```
+
+### 查询状态
+
+通过发送 HTTP GET 请求到 `/record_sql` 接口来查询任务，使用与 `/rest/sql` 相同的鉴权方式，样例如下：
+
+```bash
+curl --location 'http://127.0.0.1:6041/record_sql' \
+-u root:taosdata
+```
+
+成功返回 HTTP code 200，返回样例如下
+
+```json
+{
+        "code": 0,
+        "desc": "",
+        "exists": true,
+        "running": true,
+        "start_time": "2025-07-16 17:00:00",
+        "end_time": "2025-07-16 18:00:00",
+        "current_concurrent": 100
+}
+```
+
+- code：错误码，0 为成功。
+- desc：错误信息，成功为空字符串。
+- exists：任务是否存在。
+- running：任务是否在运行期。
+- start_time：开始时间，时区为 taosAdapter 所在服务器时区。
+- end_time：结束时间，时区为 taosAdapter 所在服务器时区。
+- current_concurrent：当前 SQL 记录并发度。
+
+### 记录格式
+
+在 `taos_free_result` 执行之前和任务结束（到达结束时间或主动关闭）时写入记录。
+记录以 CSV 格式存储，无表头，每行记录包含以下字段：
+
+1. TS：打印日志时间，格式为 `yyyy-MM-dd HH:mm:ss.SSSSSS`，时区为 taosAdapter 所在服务器时区。
+2. SQL：执行的 SQL，按照 CSV 标准不处理 SQL 中的换行符，当存在特殊字符（\n、\r、"）时使用双引号包裹，包含特殊字符时无法直接复制 SQL 使用，例如：
+   
+  原始 sql 为：
+
+  ```sql
+   select * from t1
+   where c1 = "ab"
+   ```
+
+   csv 文件中的记录为：
+
+   ```csv
+   "select * from t1
+   where c1 = ""ab"""
+   ```
+
+3. IP：客户端 IP。
+4. User：执行此 SQL 的用户名。
+5. ConnType：连接类型（HTTP、WS）。
+6. QID：请求 ID，保存为 16 进制。
+7. ReceiveTime：接收到 SQL 的时间，格式为 `yyyy-MM-dd HH:mm:ss.SSSSSS`，时区为 taosAdapter 所在服务器时区。
+8. FreeTime：SQL 释放的时间，格式为 `yyyy-MM-dd HH:mm:ss.SSSSSS`，时区为 taosAdapter 所在服务器时区。
+9. QueryDuration(us)：执行 `taos_query_a` 到回调完成时间消耗，单位微秒。
+10. FetchDuration(us)：多次执行 `taos_fetch_raw_block_a` 到回调完成的时间消耗累加值，单位微秒。
+11. GetConnDuration(us)：HTTP 请求从连接池获取连接的时间消耗，单位微秒。
+12. TotalDuration(us)：SQL 请求完成总时间，单位微秒，当 SQL 正常完成时为（SQL 释放的时间 - 接收到 SQL 的时间），当任务结束未完成时为（当前时间 - 接收到 SQL 的时间）。
+
+样例如下：
+
+```csv
+2025-07-23 17:10:08.724775,show databases,127.0.0.1,root,http,0x2000000000000008,2025-07-23 17:10:08.707741,2025-07-23 17:10:08.724775,14191,965,1706,17034
+```
 
 ## taosAdapter 监控指标
 

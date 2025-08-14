@@ -33,7 +33,8 @@ TDengine TSDB 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一
 
 | taos-jdbcdriver 版本 |                                                                        主要变化                                                                        |   TDengine TSDB 版本    |
 | ------------------| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-|        3.7.1        | 1. 使用 Netty 替换 Java-WebSocket 库，提升小查询性能<br/>  2. 兼容 IPv6 网络协议<br/>  3. 支持 BLOB 二进制数据类型<br/>  4. 实现 TDengine TSDB 版本兼容性检查<br/>  5. 支持 `varcharAsString` 配置属性<br/>  6. 优化 WebSocket 查询内存使用效率<br/>  7. 修复 WebSocket 连接的时区问题<br/>     |   -  |
+|        3.7.2        | 解决了 supportsBatchUpdates 问题，提升 Spring JdbcTemplate 参数绑定写入性能。     |   -  |
+|        3.7.1        | 1. 使用 Netty 替换 Java-WebSocket 库，提升小查询性能<br/>  2. 兼容 IPv6 网络协议<br/>  3. 支持 BLOB 二进制数据类型<br/>  4. 实现 TDengine 版本兼容性检查<br/>  5. 支持 `varcharAsString` 配置属性<br/>  6. 优化 WebSocket 查询内存使用效率<br/>  7. 修复 WebSocket 连接的时区问题<br/>     |   -  |
 |        3.6.3        | 解决了订阅数据库和超级表时的数据类型转换 bug   |   -  |
 |        3.6.2        | 1. 支持订阅数据库和超级表（不支持订阅元数据） <br/> 2. 解决了云服务订阅 bug <br/> 3. 优化了 setQueryTimeout 参数为 0 的实现    |   -  |
 |        3.6.1        | 解决 WebSocket 连接在小查询上的性能 bug     |   -  |
@@ -162,8 +163,8 @@ TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 Java 
 | BLOB              | byte[]               |仅在列中支持|
 | DECIMAL           | java.math.BigDecimal |仅在 WebSocket 连接方式支持|
 
-**注意**：由于历史原因，TDengine TSDB 中的 BINARY 底层不是真正的二进制数据，已不建议使用，请用 VARBINARY 类型代替。  
-GEOMETRY 类型是 little endian 字节序的二进制数据，符合 WKB 规范。详细信息请参考 [数据类型](../../taos-sql/data-type/#数据类型)  
+**注意**：由于历史原因，TDengine 中的 BINARY 底层不是真正的二进制数据，已不建议使用，请用 VARBINARY 类型代替。  
+GEOMETRY 类型是 little endian 字节序的二进制数据，符合 WKB 规范。详细信息请参考 [数据类型](../../taos-sql/datatype)  
 WKB 规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)  
 对于 java 连接器，可以使用 jts 库来方便的创建 GEOMETRY 类型对象，序列化后写入 TDengine TSDB，这里有一个样例[Geometry 示例](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/GeometryDemo.java)  
 

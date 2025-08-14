@@ -1,6 +1,6 @@
 ---
-title: "TDengine3"
-sidebar_label: "TDengine3"
+title: "TDengine 数据订阅"
+sidebar_label: "TDengine 数据订阅"
 ---
 
 本文讲述如何使用 Explorer 订阅另一个集群的数据到本集群。
@@ -42,7 +42,7 @@ sidebar_label: "TDengine3"
 ### 第二步：输入数据源信息
 
 1. 输入任务名称
-2. 选择任务类型“TDengine3”
+2. 选择任务类型“TDengine 数据订阅”
 3. 选择目标数据库
 4. 粘贴准备步骤复制的 DSN 到 **Topic DSN** 一栏。例如：tmq+ws://root:taosdata@localhost:6041/topic
 5. 完成以上步骤点击“连通性检查”按钮，测试与源端的连通性

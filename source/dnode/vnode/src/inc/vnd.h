@@ -88,7 +88,7 @@ struct SVBufPoolNode {
   SVBufPoolNode*  prev;
   SVBufPoolNode** pnext;
   int64_t         size;
-  uint8_t         data[];
+  uint8_t*        data;
 };
 
 struct SVBufPool {

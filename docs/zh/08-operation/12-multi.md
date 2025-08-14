@@ -69,27 +69,29 @@ dataDir /mnt/data6 2 0
 
 ## 共享存储
 
-本节介绍在 TDengine TSDB Enterprise 版本中如何使用共享存储功能，如 Amazon S3、Azure Blob Storage、华为 OBS、腾讯云 COS、阿里云 OSS、MinIO 等对象存储服务。
+本节介绍在 TDengine TSDB Enterprise 版本中如何使用共享存储功能，TDengine 支持使用 Amazon S3、Azure Blob Storage、华为 OBS、腾讯云 COS、阿里云 OSS、MinIO 等对象存储服务或挂载到本地的 NAS、SAN 等作为共享存储设备。
 
 **注意** 在配合多级存储使用时，每一级存储介质上保存的数据都有可能被按规则备份到远程共享存储中并删除本地数据文件。
 
-### S3 对象存储
-
-本功能基于通用 S3 SDK 实现，对各个 S3 兼容平台的访问参数进行了兼容适配，通过适当的参数配置，可以把大部分较冷的时序数据存储到 S3 兼容服务中。
-
-#### 配置方式
-
-在配置文件 /etc/taos/taos.cfg 中，添加用于 S3 访问的参数：
+共享存储相关的配置参数保存在 /etc/taos/taos.cfg 中，如下表所示：
 
 | 参数名称 | 参数含义 |
 |:---------------------|:-----------------------------------------------|
 | ssEnabled            | 是否启用共享存储，默认值为 0，表示禁用共享存储。<br/>1 表示启用共享存储，但仅支持数据的手动迁移。<br/>2 表示启用共享存储且支持自动迁移。|
-| ssAccessString       | 一个包含各种共享存储访问选项的字符串，格式为 `<device-type>:<option-name>=<option-value>;<option-name>=<option-value>;...`<br/>当前版本仅支持 S3 兼容的对象存储服务，下表列出了具体选项的详细信息。|
+| ssAccessString       | 一个包含各种共享存储访问选项的字符串，格式为 `<device-type>:<option-name>=<option-value>;<option-name>=<option-value>;...`<br/>根据存储设备的不同，此参数的具体选项与存储设备类型相关，下一节会分别详细说明。|
 | ssUploadDelaySec     | data 文件持续多长时间不再变动后上传至共享存储，单位：秒。<br/>最小值：1；最大值：2592000（30 天），默认值 60 秒。|
 | ssPageCacheSize      | 共享存储 page cache 缓存页数目，单位：页。<br/>最小值：4；最大值：1024*1024*1024。 ，默认值 4096。|
 | ssAutoMigrateIntervalSec | 本地数据文件自动上传共享存储的触发周期，单位为秒。<br/>最小值：600；最大值：100000。默认值 3600。|
 
-`ssAccessString` 针对 S3 兼容的对象存储的选项如下：
+### 存储设备的连接参数
+
+配置参数 `ssAccessString` 中可使用的选项与具体存储设备类型相关。 
+
+#### S3 对象存储
+
+本功能基于通用 S3 SDK 实现，对各个 S3 兼容平台的访问参数进行了兼容适配，通过适当的参数配置，可以支持大部分 S3 兼容服务。
+
+当使用 S3 兼容服务作为存储设备时，`ssAccessString` 中的 `device-type` 必须是 `s3`，可以使用的选项如下：
 
 | 名称            |   含义 |
 | ----------------|----------------------------------------------|
@@ -103,6 +105,25 @@ dataDir /mnt/data6 2 0
 | chunkSize       | 以 MB 为单位的数据片大小，默认值是 64，超过此大小的文件，将使用 multipart 方式上传。|
 | maxChunks       | 单个数据文件的最大分片数量，默认值为 10000。|
 | maxRetry        | 访问对象存储时出现可重试错误时的最大重试次数，默认值是 3，负值表示一直重试直到成功为止。|
+例如：
+
+```
+ssAccessString s3:endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protocol=https;accessKeyId=AKMYACCESSKEY;secretAccessKey=MYSECRETACCESSKEY;region=us-east-2;chunkSize=64;maxChunks=10000;maxRetry=3
+```
+
+#### 挂载到本地的存储设备
+
+对 TDengine 来说，网络存储设备挂载到本地后等同于本地磁盘，当使用此类设备作为共享存储时，`ssAccessString` 的 `device-type` 必须是 `fs`，可以使用的选项如下：
+
+| 名称            |   含义 | 
+| ----------------|----------------------------------------------| 
+| baseDir         | 一个路径，TDengine 将使用其对应的目录作为共享存储。| 
+
+例如：
+
+```
+ssAccessString fs:baseDir=/var/taos/ss
+```
 
 #### 检查配置参数可用性
 
@@ -114,7 +135,7 @@ taosd --checkss
 
 如果配置的共享存储服务无法访问，此命令会在运行过程中输出相应的错误信息。
 
-#### 创建使用共享存储的 DB
+### 创建使用共享存储的数据库
 
 完成配置后，即可启动 TDengine TSDB 集群，创建使用共享存储的数据库，比如：
 

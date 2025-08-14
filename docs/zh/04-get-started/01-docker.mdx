@@ -4,25 +4,29 @@ title: 用 Docker 快速体验 TDengine
 description: 使用 Docker 快速体验 TDengine TSDB的高效写入和查询
 ---
 
-本节首先介绍如何通过 Docker 快速体验 TDengine，然后介绍如何在 Docker 环境下体验 TDengine TSDB的写入和查询功能。如果您不熟悉 Docker，请使用[安装包的方式快速体验](../../get-started/package/)。如果您希望为 TDengine TSDB贡献代码或对内部技术实现感兴趣，请参考 [TDengine TSDBGitHub 主页](https://github.com/taosdata/TDengine)下载源码构建和安装。
+为了能够快速体验 TDengine TSDB 的完整功能，推荐您使用 TDengine TSDB-Enterprise. 本节首先介绍如何通过 Docker 快速启动 TDengine TSDB，然后介绍如何在 Docker 环境下体验 TDengine TSDB 的写入、查询、可视化管理、与 Grafana 集成和零代码数据写入等功能。如果您不熟悉 Docker，请使用[安装包的方式快速体验](../../get-started/package/)。如果您希望为 TDengine TSDB 贡献代码或对内部技术实现感兴趣，请参考 [TDengine TSDB GitHub 主页](https://github.com/taosdata/TDengine).
 
 :::note
-从 3.3.7.0 版本开始，TDengine TSDBTSDB 的镜像名称从 `tdengine/tdengine` 重命名为 `tdengine/tsdb`.
+从 3.3.7.0 版本开始，TDengine TSDB 的镜像名称调整如下：
+- 社区版的镜像名称从 `tdengine/tdengine` 重命名为 `tdengine/tsdb`
+- 企业版的镜像名称从 `tdengine/tdengine-ee` 重命名为 `tdengine/tsdb-ee`
 :::
 
-## 启动 TDengine
+## 启动 TDengine TSDB
 
-1. 拉取 TDengine TSDB容器镜像：
+1. 拉取 TDengine TSDB-Enterprise 容器镜像：
 
 ```shell
 # 拉取最新版本的 Docker 镜像
-docker pull tdengine/tsdb:latest
+docker pull tdengine/tsdb-ee:latest
 
-# 拉取制定版本的 Docker 进入容器，例如：3.3.7.0
-docker pull tdengine/tsdb:3.3.7.0
+# 拉取制定版本的 Docker 镜像，例如：3.3.7.0
+docker pull tdengine/tsdb-ee:3.3.7.0
 ```
 
-2. 启动 TDengine TSDBDocker 容器：
+如果您无法直接访问 Docker Hub, 可以前往 TDengine 产品下载中心的 TDengine TSDB-Enterprise [Docker 镜像下载页面](https://www.taosdata.com/download-center?product=TDengine+TSDB-Enterprise&platform=Docker)，获取 Docker 镜像的下载链接。完成下载后，请您根据页面上离线安装的提示，加载并修改镜像的名称、标签。
+
+2. 启动 TDengine TSDB Docker 容器：
 
 ```shell
 docker run -d \
@@ -32,12 +36,12 @@ docker run -d \
   -p 6044-6049:6044-6049 \
   -p 6044-6045:6044-6045/udp \
   --name tdengine-tsdb
-  tdengine/tsdb
+  tdengine/tsdb-ee
 ```
 
-关于 TDengine TSDB的端口占用情况，请参考运维指南中的[网络端口要求](../../operation/planning/#网络端口要求)章节。
+关于 TDengine TSDB 各服务的端口占用情况，请参考运维指南中的[网络端口要求](../../operation/planning/#网络端口要求)章节。
 
-3. 查看 TDengine TSDBDocker 容器的运行状态：
+3. 查看 TDengine TSDB Docker 容器的运行状态：
 
 ```shell
 docker ps -f name=tdengine-tsdb
@@ -45,27 +49,17 @@ docker ps -f name=tdengine-tsdb
 
 请查看已命令输出的 STATUS (状态) 字段，如果该状态的值为 "Up ... (healthy)", 说明容器已启动并正常运行。
 
-4. 进入容器体验 TDengine
+4. 进入容器体验 TDengine TSDB
 
 执行以下命令，进入容器内部：
 
 ```shell
-docker exec -it tdegnine-tsdb bash
+docker exec -it tdengine-tsdb bash
 ```
 
-然后，就可以执行相关的 Linux 命令操作和访问 TDengine.
+然后，就可以执行相关的 Linux 命令操作和访问 TDengine TSDB.
 
-## TDengine TSDB命令行界面
-
-进入容器后，在命令行执行 `taos` 即可进入 taos shell：
-
-```shell
-taos
-
-taos>
-```
-
-关于使用 Docker 部署 TDengine TSDB的更多详情，请参考运维指南中的 [Docker 部署](../../operation/deployment/#docker-部署)章节。
+关于使用 Docker 部署 TDengine TSDB 的更多详情，请参考运维指南中的 [Docker 部署](../../operation/deployment/#docker-部署)章节。
 
 import Getstarted from './_get_started.mdx'
 
