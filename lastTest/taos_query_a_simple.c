@@ -26,6 +26,73 @@ static taos_close_f taos_close_func = NULL;
 static taos_errno_f taos_errno_func = NULL;
 static taos_errstr_f taos_errstr_func = NULL;
 
+// Global array to store 16 SQL statements
+static char* g_sql_statements[16] = {NULL};
+
+// Function to generate table names for a given range
+static char* generate_table_list(int start_idx, int count) {
+  int   max_len = count * 10 + 1000;  // Estimate buffer size
+  char* buffer = malloc(max_len);
+  if (!buffer) return NULL;
+
+  int pos = 0;
+  pos += snprintf(buffer + pos, max_len - pos, "(");
+
+  for (int i = 0; i < count; i++) {
+    int table_num = start_idx + i + 1;
+    if (i > 0) {
+      pos += snprintf(buffer + pos, max_len - pos, ",'d%d'", table_num);
+    } else {
+      pos += snprintf(buffer + pos, max_len - pos, "'d%d'", table_num);
+    }
+  }
+
+  pos += snprintf(buffer + pos, max_len - pos, ")");
+  return buffer;
+}
+
+// Function to generate 16 SQL statements
+static int generate_sql_statements() {
+  const int tables_per_sql = 625;  // 10000 / 16 = 625
+
+  for (int i = 0; i < 16; i++) {
+    int   start_table = i * tables_per_sql;
+    char* table_list = generate_table_list(start_table, tables_per_sql);
+    if (!table_list) {
+      printf("Failed to generate table list for SQL %d\n", i);
+      return -1;
+    }
+
+    // Generate the complete SQL statement
+    int sql_len = strlen("select tbname,last(*) from test.meters where tbname in ") + strlen(table_list) +
+                  strlen(" partition by tbname;") + 100;
+
+    g_sql_statements[i] = malloc(sql_len);
+    if (!g_sql_statements[i]) {
+      printf("Failed to allocate memory for SQL %d\n", i);
+      free(table_list);
+      return -1;
+    }
+
+    snprintf(g_sql_statements[i], sql_len,
+             "select tbname,last(*) from test.meters where tbname in %s partition by tbname;", table_list);
+
+    free(table_list);
+  }
+
+  return 0;
+}
+
+// Function to free SQL statements
+static void free_sql_statements() {
+  for (int i = 0; i < 16; i++) {
+    if (g_sql_statements[i]) {
+      free(g_sql_statements[i]);
+      g_sql_statements[i] = NULL;
+    }
+  }
+}
+
 typedef struct {
     int thread_id;
     TAOS* taos;
@@ -143,6 +210,22 @@ int main(int argc, char* argv[]) {
     queries_per_thread = 100;
     max_query_nums = 5;
     qps_rate = 100;
+  } else if (query_mode == 2) {
+  } else if (query_mode == 3) {
+    generate_sql_statements();
+    thread_count = 16;
+    queries_per_thread = 100;
+    max_query_nums = 5;
+    qps_rate = 625;
+  } else if (query_mode == 4) {
+    sql = "select tbname,last(*) from test.meters partition by tbname;";
+    thread_count = 16;
+    queries_per_thread = 2;
+    max_query_nums = 1;
+    qps_rate = 1000000;
+  } else {
+    printf("Usage: %s <query_mode>\n", argv[0]);
+    return 1;
   }
 
   if (load_taos_functions(lib_path) != 0) {
@@ -156,8 +239,13 @@ int main(int argc, char* argv[]) {
   pthread_t*   threads = malloc(thread_count * sizeof(pthread_t));
   double*      thread_qps = malloc(thread_count * sizeof(double));
 
-  printf("Starting %d threads, each executing %d queries, max_query_nums: %d, sql: %s\n", thread_count,
-         queries_per_thread, max_query_nums, sql);
+  if (query_mode == 3) {
+    printf("Starting %d threads, each executing %d queries, max_query_nums: %d\n sql: %s\n", thread_count,
+           queries_per_thread, max_query_nums, g_sql_statements[0]);
+  } else {
+    printf("Starting %d threads, each executing %d queries, max_query_nums: %d, sql: %s\n", thread_count,
+           queries_per_thread, max_query_nums, sql);
+  }
 
   gettimeofday(&global_start_time, NULL);
 
@@ -169,7 +257,11 @@ int main(int argc, char* argv[]) {
     }
     params[i].thread_id = i;
     params[i].taos = taos;
-    params[i].sql = (const char*)sql;
+    if (query_mode == 3) {
+      params[i].sql = g_sql_statements[i];
+    } else {
+      params[i].sql = (const char*)sql;
+    }
     params[i].queries_per_thread = queries_per_thread;
     params[i].mutex = &mutex;
     params[i].thread_qps = &thread_qps[i];
@@ -194,7 +286,7 @@ int main(int argc, char* argv[]) {
   }
   total_thread_qps = total_thread_qps * qps_rate;
 
-  printf("\nTotal QPS (sum of all threads): %.2f queries/second\n", total_thread_qps);
+  printf("\nTotal number of devices (sum of all threads): %.2f queries/second\n", total_thread_qps);
 
   free(params);
   free(threads);

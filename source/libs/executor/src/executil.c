@@ -3321,10 +3321,12 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
   if (group == NULL || groupByTbname) {
     if (tsCountAlwaysReturnValue && QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pScanNode) &&
         ((STableScanPhysiNode*)pScanNode)->needCountEmptyTable) {
-      pTableListInfo->remainGroups =
-          taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
       if (pTableListInfo->remainGroups == NULL) {
-        return terrno;
+        pTableListInfo->remainGroups =
+            taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+        if (pTableListInfo->remainGroups == NULL) {
+          return terrno;
+        }
       }
 
       for (int i = 0; i < numOfTables; i++) {
