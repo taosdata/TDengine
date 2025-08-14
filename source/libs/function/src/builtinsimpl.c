@@ -31,6 +31,7 @@
 
 bool ignoreNegative(int8_t ignoreOption) { return (ignoreOption & 0x1) == 0x1; }
 bool ignoreNull(int8_t ignoreOption) { return (ignoreOption & 0x2) == 0x2; }
+bool valueChangeIgnoreNull(int8_t ignoreOption) { return (ignoreOption == 1); }
 
 typedef enum {
   APERCT_ALGO_UNKNOWN = 0,
@@ -354,6 +355,7 @@ static void setInputRowInfo(SFuncInputRow* pRow, SFuncInputRowIter* pIter, int32
   pRow->ts = pIter->tsList[rowIndex];
   pRow->isDataNull = colDataIsNull_f(pIter->pDataCol, rowIndex);
   pRow->pData = colDataGetData(pIter->pDataCol, rowIndex);
+  pRow->dataLen = colDataGetRowLength(pIter->pDataCol, rowIndex);
   pRow->pPk = setPk ? colDataGetData(pIter->pPkCol, rowIndex) : NULL;
   pRow->block = pIter->pSrcBlock;
   pRow->rowIndex = rowIndex;
@@ -3204,12 +3206,6 @@ bool getDiffFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   return true;
 }
 
-bool getValueChangeFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
-  // pEnv->calcMemSize = sizeof(SValueChangeInfo);
-  // return true;
-  return getDiffFuncEnv(pFunc, pEnv);  // reuse diff function env
-}
-
 int32_t diffFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   if (pResInfo->initialized) {
     return TSDB_CODE_SUCCESS;
@@ -3228,31 +3224,6 @@ int32_t diffFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
     pDiffInfo->ignoreOption = 0;
   }
   return TSDB_CODE_SUCCESS;
-}
-
-int32_t valueChangeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
-  #if 0
-  if (pResInfo->initialized) {
-    return TSDB_CODE_SUCCESS;
-  }
-  if (TSDB_CODE_SUCCESS != functionSetup(pCtx, pResInfo)) {
-    return TSDB_CODE_FUNC_SETUP_ERROR;
-  }
-  SValueChangeInfo* pValueChangeInfo = GET_ROWCELL_INTERBUF(pResInfo);
-  pValueChangeInfo->hasPrev = false;
-  pValueChangeInfo->isFirstRow = true;
-  pValueChangeInfo->prev = 0;
-  pValueChangeInfo->prevTs = -1;
-  if (pCtx->numOfParams > 1) {
-    pValueChangeInfo->ignoreOption = pCtx->param[1].param.i;  // TODO set correct param
-  } else {
-    pValueChangeInfo->ignoreOption = 1;
-  }
-
-  return TSDB_CODE_SUCCESS;
-  #endif
-
-  return diffFunctionSetup(pCtx, pResInfo);  // reuse diff function setup
 }
 
 static int32_t doSetPrevVal(SDiffInfo* pDiffInfo, int32_t type, const char* pv, int64_t ts) {
@@ -3561,12 +3532,10 @@ int32_t setDoDiffResult(SqlFunctionCtx* pCtx, SFuncInputRow* pRow, int32_t pos) 
 
 int32_t diffFunction(SqlFunctionCtx* pCtx) { return TSDB_CODE_SUCCESS; }
 
-int32_t valueChangeFunction(SqlFunctionCtx* pCtx) { return TSDB_CODE_SUCCESS; }
-
 int32_t diffFunctionByRow(SArray* pCtxArray) {
 
   int32_t code = TSDB_CODE_SUCCESS;
-  #if 1
+
   int     diffColNum = pCtxArray->size;
   if (diffColNum == 0) {
     return TSDB_CODE_SUCCESS;
@@ -3671,121 +3640,8 @@ _exit:
     taosArrayDestroy(pRows);
     pRows = NULL;
   }
-  #endif
+
   return code;
-}
-
-int32_t valueChangeFunctionByRow(SArray* pCtxArray) {
-  #if 0
-  int32_t code = TSDB_CODE_SUCCESS;
-  int     diffColNum = pCtxArray->size;
-  if (diffColNum == 0) {
-    return TSDB_CODE_SUCCESS;
-  }
-  int32_t numOfElems = 0;
-
-  SArray* pRows = taosArrayInit_s(sizeof(SFuncInputRow), diffColNum);
-  if (NULL == pRows) {
-    return terrno;
-  }
-
-  bool keepNull = false;
-  for (int i = 0; i < diffColNum; ++i) {
-    SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
-    if (NULL == pCtx) {
-      code = terrno;
-      goto _exit;
-    }
-    funcInputUpdate(pCtx);
-    SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-    SValueChangeInfo*    pValueChangeInfo = GET_ROWCELL_INTERBUF(pResInfo);
-    if (!ignoreNull(pValueChangeInfo->ignoreOption)) {
-      keepNull = true;
-    }
-  }
-
-  SqlFunctionCtx* pCtx0 = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, 0);
-  SFuncInputRow*  pRow0 = (SFuncInputRow*)taosArrayGet(pRows, 0);
-  if (NULL == pCtx0 || NULL == pRow0) {
-    code = terrno;
-    goto _exit;
-  }
-  int32_t startOffset = pCtx0->offset;
-  bool    result = false;
-  while (1) {
-    code = funcInputGetNextRow(pCtx0, pRow0, &result);
-    if (TSDB_CODE_SUCCESS != code) {
-      goto _exit;
-    }
-    if (!result) {
-      break;
-    }
-    bool hasNotNullValue = !diffResultIsNull(pCtx0, pRow0);
-    for (int i = 1; i < diffColNum; ++i) {
-      SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
-      SFuncInputRow*  pRow = (SFuncInputRow*)taosArrayGet(pRows, i);
-      if (NULL == pCtx || NULL == pRow) {
-        code = terrno;
-        goto _exit;
-      }
-      code = funcInputGetNextRow(pCtx, pRow, &result);
-      if (TSDB_CODE_SUCCESS != code) {
-        goto _exit;
-      }
-      if (!result) {
-        // rows are not equal
-        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-        goto _exit;
-      }
-      if (!diffResultIsNull(pCtx, pRow)) {
-        hasNotNullValue = true;
-      }
-    }
-    int32_t pos = startOffset + numOfElems;
-
-    bool newRow = false;
-    for (int i = 0; i < diffColNum; ++i) {
-      SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
-      SFuncInputRow*  pRow = (SFuncInputRow*)taosArrayGet(pRows, i);
-      if (NULL == pCtx || NULL == pRow) {
-        code = terrno;
-        goto _exit;
-      }
-      if ((keepNull || hasNotNullValue) && !isFirstRow(pCtx, pRow)) {
-        code = setDoDiffResult(pCtx, pRow, pos);
-        if (code != TSDB_CODE_SUCCESS) {
-          goto _exit;
-        }
-        newRow = true;
-      } else {
-        code = trySetPreVal(pCtx, pRow);
-        if (code != TSDB_CODE_SUCCESS) {
-          goto _exit;
-        }
-      }
-    }
-    if (newRow) ++numOfElems; 
-  }
-  
-  for (int i = 0; i < diffColNum; ++i) {
-    SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
-    if (NULL == pCtx) {
-      code = terrno;
-      goto _exit;
-    }
-    SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-    pResInfo->numOfRes = numOfElems;
-  }
-  
-_exit:
-  if (pRows) {
-    taosArrayDestroy(pRows);
-    pRows = NULL;
-  }
-  return code;
-  #endif
-  
-  return diffFunctionByRow(pCtxArray);  // reuse diff function by row
 }
 
 int32_t getTopBotInfoSize(int64_t numOfItems) { return sizeof(STopBotRes) + numOfItems * sizeof(STopBotResItem); }
@@ -7421,6 +7277,296 @@ int32_t cachedLastRowFunction(SqlFunctionCtx* pCtx) {
         return code;
       }
       pResInfo->numOfRes = 1;
+    }
+  }
+
+  SET_VAL(pResInfo, numOfElems, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+bool getValueChangeFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SValueChangeInfo);
+  return true;
+}
+
+int32_t valueChangeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+  if (NULL == pCol) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  pResInfo->isNullRes = (pResInfo->numOfRes == 0) ? 1 : 0;
+
+  SValueChangeInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+ 
+  int32_t    code = colDataSetVal(pCol, pBlock->info.rows, (const char*)&pInfo->total, pResInfo->isNullRes);
+
+  return code;
+}
+
+int32_t valueChangeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
+  if (pResInfo->initialized) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (TSDB_CODE_SUCCESS != functionSetup(pCtx, pResInfo)) {
+    return TSDB_CODE_FUNC_SETUP_ERROR;
+  }
+  SValueChangeInfo* pValueChangeInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  pValueChangeInfo->isFirstRow = true;
+  pValueChangeInfo->prev.i64 = 0;
+  pValueChangeInfo->prevTs = -1;
+  if (pCtx->numOfParams > 2) {
+    pValueChangeInfo->ignoreOption = pCtx->param[2].param.i;
+  } else {
+    pValueChangeInfo->ignoreOption = 1;
+  }
+
+  pValueChangeInfo->preIsNull = false;
+  pValueChangeInfo->total = 0;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t setValue(SValueChangeInfo* pValueChangeInfo, int32_t type, const char* pv, int32_t pvLen, int64_t ts) {
+  switch (type) {
+    case TSDB_DATA_TYPE_BOOL:
+      pValueChangeInfo->prev.i64 = *(bool*)pv ? 1 : 0;
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_TINYINT:
+      pValueChangeInfo->prev.i64 = *(int8_t*)pv;
+      break;
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_INT:
+      pValueChangeInfo->prev.i64 = *(int32_t*)pv;
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+      pValueChangeInfo->prev.i64 = *(int16_t*)pv;
+      break;
+    case TSDB_DATA_TYPE_TIMESTAMP:
+    case TSDB_DATA_TYPE_UBIGINT:
+    case TSDB_DATA_TYPE_BIGINT:
+      pValueChangeInfo->prev.i64 = *(int64_t*)pv;
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      pValueChangeInfo->prev.d64 = *(float*)pv;
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      pValueChangeInfo->prev.d64 = *(double*)pv;
+      break;
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_BLOB: {
+      int32_t hashVal = MurmurHash3_32(pv,pvLen);
+      pValueChangeInfo->prev.i64 = hashVal;
+      break;
+    }
+    default:
+      return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
+
+  pValueChangeInfo->prevTs = ts;
+  pValueChangeInfo->preIsNull = false;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t setValueChange(SValueChangeInfo* pValueInfo, int32_t type, const char* pv, int32_t pvLen, int64_t ts) {
+  switch (type) {
+    case TSDB_DATA_TYPE_UINT: {
+      int64_t v = *(uint32_t*)pv;
+      if(compareInt64Val(&pValueInfo->prev.i64, &v) != 0) {
+        pValueInfo->total += 1;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_INT: {
+      int64_t v = *(int32_t*)pv;
+      if(compareInt64Val(&pValueInfo->prev.i64, &v) != 0) {
+        pValueInfo->total += 1;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_BOOL: {
+      int64_t v = *(bool*)pv;
+      if(compareInt64Val(&pValueInfo->prev.i64, &v) != 0) {
+        pValueInfo->total += 1;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      int64_t v = *(uint8_t*)pv;
+     if(compareInt64Val(&pValueInfo->prev.i64, &v) != 0) {
+        pValueInfo->total += 1;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_TINYINT: {
+      int64_t v = *(int8_t*)pv;
+      if(compareInt64Val(&pValueInfo->prev.i64, &v) != 0) {
+        pValueInfo->total += 1;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT: {
+      int64_t v = *(uint16_t*)pv;
+      if(compareInt64Val(&pValueInfo->prev.i64, &v) != 0) {
+        pValueInfo->total += 1;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      int64_t v = *(int16_t*)pv;
+      if(compareInt64Val(&pValueInfo->prev.i64, &v) != 0) {
+        pValueInfo->total += 1;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_TIMESTAMP:
+    case TSDB_DATA_TYPE_UBIGINT:
+    case TSDB_DATA_TYPE_BIGINT: {
+      int64_t v = *(int64_t*)pv;
+      if(compareInt64Val(&pValueInfo->prev.i64, &v) != 0) {
+        pValueInfo->total += 1;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      double v = *(float*)pv;
+      if(compareDoubleVal(&pValueInfo->prev.d64, &v) != 0) {
+        pValueInfo->total += 1;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double v = *(double*)pv;
+      if(compareDoubleVal(&pValueInfo->prev.d64, &v) != 0) {
+        pValueInfo->total += 1;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_BLOB: {
+      int32_t hashVal = MurmurHash3_32(pv,pvLen);
+      int64_t v = hashVal;
+      if(compareInt64Val(&pValueInfo->prev.i64, &v) != 0) {
+          pValueInfo->total += 1;
+      }
+      break;
+    }
+    default:
+      return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
+
+  return setValue(pValueInfo, type, pv, pvLen, ts);
+}
+
+int32_t setValueChangeResult(SqlFunctionCtx* pCtx, SFuncInputRow* pRow) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SValueChangeInfo*           pValueInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pInputCol = pInput->pData[0];
+  int8_t                inputType = pInputCol->info.type;
+
+  int32_t               code = TSDB_CODE_SUCCESS;
+
+  if (pRow->isDataNull) {
+    char* pv = pRow->pData;
+    if(!valueChangeIgnoreNull(pValueInfo->ignoreOption) && !pValueInfo->preIsNull) {
+      pValueInfo->total += 1;
+    }
+
+    pValueInfo->preIsNull = true;
+    
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if(pValueInfo->preIsNull && !valueChangeIgnoreNull(pValueInfo->ignoreOption)) {
+    pValueInfo->total += 1;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pRow->ts == pValueInfo->prevTs) {
+    return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+  }
+
+  char* pv = pRow->pData;
+  int32_t pvLen = pRow->dataLen;
+  code = setValueChange(pValueInfo, inputType, pv, pvLen, pRow->ts);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t setPreVal(SqlFunctionCtx* pCtx, SFuncInputRow* pRow) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SValueChangeInfo*    pValueInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  pValueInfo->isFirstRow = false;
+  if (pRow->isDataNull) {
+    pValueInfo->preIsNull = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pInputCol = pInput->pData[0];
+  int8_t                inputType = pInputCol->info.type;
+
+  char* pv = pRow->pData;
+  int32_t pvLen = pRow->dataLen;
+  return setValue(pValueInfo, inputType, pv, pvLen, pRow->ts);
+}
+
+int32_t valueChangeFunction(SqlFunctionCtx* pCtx) { 
+  int32_t              code = TSDB_CODE_SUCCESS;
+
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SValueChangeInfo* pValueInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pInputCol = pInput->pData[0];
+
+  int32_t numOfElems = pInput->numOfRows;
+  if(numOfElems <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  funcInputUpdate(pCtx);
+
+  int32_t       type = pInputCol->info.type;
+  SFuncInputRow curRow = {0};
+  bool          result = false;
+
+  while (1) {
+    code = funcInputGetNextRow(pCtx, &curRow, &result);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+
+    if (!result) {
+      break;
+    }
+
+    bool isFirstRow = pValueInfo->isFirstRow;
+    if(isFirstRow) {
+      code = setPreVal(pCtx, &curRow);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    } else {
+      code = setValueChangeResult(pCtx, &curRow);
+      if(code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
     }
   }
 

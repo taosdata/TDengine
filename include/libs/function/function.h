@@ -227,6 +227,7 @@ typedef struct SFuncInputRow {
   // TODO:
   //  int32_t startOffset; // for diff, derivative
   //  SPoint1 startPoint; // for twa
+  int64_t dataLen;
 } SFuncInputRow;
 
 typedef struct SFuncInputRowIter {
