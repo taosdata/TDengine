@@ -7,7 +7,7 @@ export LC_ALL=en_US.UTF-8
 
 CONFIG_FILE="/usr/local/taos/taosanode/cfg/taosanode.ini"
 TS_SERVER_FILE="/root/taos_ts_server.py"
-TIMER_POE_FILE="/root/timer-moe/timer-moe_server.py"
+TIME_MOE_FILE="/root/time-moe/time-moe_server.py"
 
 if [ ! -f "$CONFIG_FILE" ]; then
   echo "Error: Configuration file $CONFIG_FILE not found!"
@@ -25,14 +25,14 @@ if [ -f $TS_SERVER_FILE ];then
     exit 1
   fi
 fi
-if [ -f $TIMER_POE_FILE ];then
-  echo "Starting timer-moe server..."
-  cd $(dirname "$TIMER_POE_FILE")
-  python3 $TIMER_POE_FILE --action server &
-  TIMER_MOE_PID=$!
+if [ -f $TIME_MOE_FILE ];then
+  echo "Starting time-moe server..."
+  cd $(dirname "$TIME_MOE_FILE")
+  python3 $TIME_MOE_FILE --action server &
+  TIME_MOE_PID=$!
 
-  if ! ps -p $TIMER_MOE_PID > /dev/null; then
-    echo "Error: timer-moe server failed to start!"
+  if ! ps -p $TIME_MOE_PID > /dev/null; then
+    echo "Error: time-moe server failed to start!"
     exit 1
   fi
 fi

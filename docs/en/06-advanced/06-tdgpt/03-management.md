@@ -24,7 +24,7 @@ Time-series foundation models require significant hardware resources. For this r
 start-tdtsfm
 
 # Start Time-MoE
-start-timer-moe
+start-time-moe
 ```
 
 ```bash
@@ -32,7 +32,7 @@ start-timer-moe
 stop-tdtsfm
 
 # Stop Time-MoE
-stop-timer-moe
+stop-time-moe
 ```
 
 ### Directory and Configuration Information
