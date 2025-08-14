@@ -29,8 +29,9 @@ SHOW CLUSTER ALIVE;
 ```
 
 查询当前集群的状态是否可用，返回值如下
-- 0：不可用 
-- 1：完全可用 
+
+- 0：不可用
+- 1：完全可用
 - 2：部分可用（集群中部分节点下线，但其它节点仍可以正常使用）
 
 ## SHOW CLUSTER MACHINES
@@ -42,6 +43,7 @@ SHOW CLUSTER MACHINES;
 显示集群的机器码等信息。
 
 备注
+
 - 企业版功能
 - v3.2.3.0 开始支持
 
@@ -114,12 +116,13 @@ SHOW FUNCTIONS;
 ```sql
 SHOW LICENCES;
 SHOW GRANTS;
-SHOW GRANTS FULL; // 从 TDengine 3.2.3.0 版本开始支持
+SHOW GRANTS FULL; // 从 TDengine TSDB 3.2.3.0 版本开始支持
 ```
 
 显示企业版许可授权的信息。
 
 备注
+
 - 企业版功能
 
 ## SHOW INDEXES
@@ -172,6 +175,7 @@ SHOW SCORES;
 显示系统被许可授权的容量的信息。
 
 备注
+
 - 企业版功能
 
 ## SHOW STABLES
@@ -228,13 +232,12 @@ _block_dist: Total_Blocks=[5] Total_Size=[93.65 KB] Average_size=[18.73 KB] Comp
 
 Total_Blocks：表 d0 占用的 block 个数为 5 个
 
-Total_Size：表 d0 所有 block 在文件中占用的大小为 93.65 KB 
+Total_Size：表 d0 所有 block 在文件中占用的大小为 93.65 KB
 
 Average_size：平均每个 block 在文件中占用的空间大小为 18.73 KB
 
 Compression_Ratio: 数据压缩率 23.98%
 
- 
 *************************** 2.row ***************************
 
 _block_dist: Total_Rows=[20000] Inmem_Rows=[0] MinRows=[3616] MaxRows=[4096] Average_Rows=[4000]
@@ -249,7 +252,6 @@ MaxRows：BLOCK 中最大的行数，为 4096 行
 
 Average_Rows：每个 BLOCK 中的平均行数，此时为 4000 行
 
-
 *************************** 3.row ***************************
 
 _block_dist: Total_Tables=[1] Total_Files=[2] Total_Vgroups=[1]
@@ -259,7 +261,6 @@ Total_Tables：子表的个数，这里为 1
 Total_Files：表数据被分别保存的数据文件数量，这里是 2 个文件
 
 Total_Vgroups：表数据分布的虚拟节点（vnode）数量
-
 
 *************************** 5.row ***************************
 
