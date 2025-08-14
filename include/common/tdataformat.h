@@ -471,11 +471,16 @@ int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted,
                           SArray *rowArray, bool *pOrdered, bool *pDupTs);
 
 // stmt2 binding
-int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen, initGeosFn igeos,
-                                checkWKBGeometryFn cgeos);
+int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen);
+
+int32_t tColDataAddValueByBind2WithGeos(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen,
+                                        initGeosFn igeos, checkWKBGeometryFn cgeos);
 
 int32_t tColDataAddValueByBind2WithBlob(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen,
                                         SBlobSet *pBlobSet);
+
+int32_t tColDataAddValueByBind2WithDecimal(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen,
+                                           uint8_t precision, uint8_t scale);
 
 typedef struct {
   int32_t          columnId;
@@ -486,7 +491,8 @@ typedef struct {
 } SBindInfo2;
 
 int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *parsedCols, bool infoSorted,
-                           const STSchema *pTSchema, SArray *rowArray, bool *pOrdered, bool *pDupTs);
+                           const STSchema *pTSchema, const SSchemaExt *pSchemaExt, SArray *rowArray, bool *pOrdered,
+                           bool *pDupTs);
 
 int32_t tRowBuildFromBind2WithBlob(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
                                    SArray *rowArray, bool *pOrdered, bool *pDupTs, SBlobSet *pBlobSet);

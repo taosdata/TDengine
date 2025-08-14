@@ -835,6 +835,7 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCol
                                SBlobSet** ppBlob) {
   STableDataCxt*  pDataBlock = (STableDataCxt*)pBlock;
   SSchema*        pSchema = getTableColumnSchema(pDataBlock->pMeta);
+  SSchemaExt*     pSchemaExt = getTableColumnExtSchema(pDataBlock->pMeta);
   SBoundColInfo*  boundInfo = &pDataBlock->boundColsInfo;
   SMsgBuf         pBuf = {.buf = msgBuf, .len = msgBufLen};
   int32_t         rowNum = bind->num;
@@ -860,7 +861,7 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCol
     ncharBinds = taosArrayInit(ncharColNums, sizeof(ncharBind));
     if (!ncharBinds) {
       code = terrno;
-      goto _return;
+      TAOS_CHECK_GOTO(code, &lino, _return);
     }
   }
 
@@ -897,9 +898,8 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCol
 
     if (TSDB_DATA_TYPE_NCHAR == pColSchema->type) {
       code = convertStmtStbNcharCol2(&pBuf, pColSchema, bind + bindIdx, &ncharBind, charsetCxt);
-      if (code) {
-        goto _return;
-      }
+      TAOS_CHECK_GOTO(code, &lino, _return);
+
       if (!taosArrayPush(ncharBinds, &ncharBind)) {
         code = terrno;
         goto _return;
@@ -908,7 +908,7 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCol
     } else if (TSDB_DATA_TYPE_GEOMETRY == pColSchema->type) {
       code = initCtxAsText();
       if (code) {
-        qError("geometry init failed:%s", tstrerror(code));
+        parserError("stmt2 bind geometry init failed, ErrCode: 0x%x", code);
         goto _return;
       }
       uint8_t* buf = bindData.buffer;
@@ -918,8 +918,7 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCol
         }
         code = checkWKB(buf, bindData.length[j]);
         if (code) {
-          qError("stmt2 interlace mode geometry data[%d]:{%s},length:%d must be in WKB format", c, buf,
-                 bindData.length[j]);
+          parserError("stmt2 interlace mode geometry data col:%d, row:%d must be in WKB format", c, j);
           goto _return;
         }
         buf += bindData.length[j];
@@ -938,8 +937,9 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCol
   }
 
   if (hasBlob == 0) {
-    code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, parsedCols, colInOrder, *pTSchema, pCols,
+    code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, parsedCols, colInOrder, *pTSchema, pSchemaExt, pCols,
                               &pDataBlock->ordered, &pDataBlock->duplicateTs);
+    TAOS_CHECK_GOTO(code, &lino, _return);
   } else {
     code = tBlobSetCreate(1024, 1, ppBlob);
     TAOS_CHECK_GOTO(code, &lino, _return);
@@ -949,7 +949,7 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCol
     TAOS_CHECK_GOTO(code, &lino, _return);
   }
 
-  parserDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
+  parserDebug("stmt2 all %d columns bind %d rows data as row format", boundInfo->numOfBound, rowNum);
 
 _return:
   if (ncharBinds) {
@@ -961,7 +961,7 @@ _return:
     taosArrayDestroy(ncharBinds);
   }
   if (code != 0) {
-    parserDebug("stmt2 failed to bind at lino %d since %s", lino, tstrerror(code));
+    parserError("stmt2 failed to bind stb col at lino %d since %s", lino, tstrerror(code));
   }
 
   return code;
@@ -1023,6 +1023,7 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, 
                             int32_t msgBufLen, void* charsetCxt) {
   STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
   SSchema*         pSchema = getTableColumnSchema(pDataBlock->pMeta);
+  SSchemaExt*      pExtSchema = getTableColumnExtSchema(pDataBlock->pMeta);
   SBoundColInfo*   boundInfo = &pDataBlock->boundColsInfo;
   SMsgBuf          pBuf = {.buf = msgBuf, .len = msgBufLen};
   int32_t          rowNum = bind->num;
@@ -1050,6 +1051,7 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, 
         for (int row = 0; row < rowNum; row++) {
           code = tColDataAppendValue(pCol, pParsedVal);
           if (code) {
+            parserError("stmt2 failed to add fixed value col:%d ,type:%d, ErrCode: 0x%x", c, pColSchema->type, code);
             goto _return;
           }
         }
@@ -1087,17 +1089,32 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, 
         bytes = pColSchema->bytes - VARSTR_HEADER_SIZE;
       }
     }
-    if (isBlob == 0) {
-      code = tColDataAddValueByBind2(pCol, pBind, bytes, initCtxAsText, checkWKB);
-    } else {
+
+    if (pColSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
+      code = tColDataAddValueByBind2WithGeos(pCol, pBind, bytes, initCtxAsText, checkWKB);
+    } else if (isBlob == 1) {
       if (pDataBlock->pData->pBlobSet == NULL) {
         code = tBlobSetCreate(1024, 1, &pDataBlock->pData->pBlobSet);
-        TAOS_CHECK_GOTO(code, &lino, _return);
+        if (code) {
+          parserError("stmt2 failed to create blob set, ErrCode: 0x%x", code);
+          goto _return;
+        }
       }
       code = tColDataAddValueByBind2WithBlob(pCol, pBind, bytes, pDataBlock->pData->pBlobSet);
+    } else if (IS_DECIMAL_TYPE(pColSchema->type)) {
+      if (pExtSchema == NULL) {
+        code = buildInvalidOperationMsg(&pBuf, "decimal column ext schema is null");
+        goto _return;
+      }
+      uint8_t precision = 0, scale = 0;
+      decimalFromTypeMod(pExtSchema[c].typeMod, &precision, &scale);
+      code = tColDataAddValueByBind2WithDecimal(pCol, pBind, bytes, precision, scale);
+    } else {
+      code = tColDataAddValueByBind2(pCol, pBind, bytes);
     }
 
     if (code) {
+      parserError("stmt2 failed to add col:%d ,type:%d, ErrCode: 0x%x", c, pColSchema->type, code);
       goto _return;
     }
     bindIdx++;
@@ -1109,9 +1126,6 @@ _return:
 
   taosMemoryFree(ncharBind.buffer);
   taosMemoryFree(ncharBind.length);
-  if (code != 0) {
-    parserDebug("stmt2 failed to bind col at lino %d since %s", lino, tstrerror(code));
-  }
 
   return code;
 }
@@ -1168,11 +1182,30 @@ int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* b
   if (hasBlob) {
     if (pDataBlock->pData->pBlobSet == NULL) {
       code = tBlobSetCreate(1024, 1, &pDataBlock->pData->pBlobSet);
-      TAOS_CHECK_GOTO(code, &lino, _return);
+      if (code) {
+        parserError("stmt2 failed to create blob set, ErrCode: 0x%x", code);
+        goto _return;
+      }
     }
     code = tColDataAddValueByBind2WithBlob(pCol, pBind, bytes, pDataBlock->pData->pBlobSet);
+  } else if (pColSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
+    code = tColDataAddValueByBind2WithGeos(pCol, pBind, bytes, initCtxAsText, checkWKB);
+  } else if (IS_DECIMAL_TYPE(pColSchema->type)) {
+    SSchemaExt* pExtSchema = getTableColumnExtSchema(pDataBlock->pMeta);
+    if (pExtSchema == NULL) {
+      code = buildInvalidOperationMsg(&pBuf, "decimal column ext schema is null");
+      goto _return;
+    }
+    uint8_t precision = 0, scale = 0;
+    decimalFromTypeMod(pExtSchema->typeMod, &precision, &scale);
+    code = tColDataAddValueByBind2WithDecimal(pCol, pBind, bytes, precision, scale);
   } else {
-    code = tColDataAddValueByBind2(pCol, pBind, bytes, initCtxAsText, checkWKB);
+    code = tColDataAddValueByBind2(pCol, pBind, bytes);
+  }
+
+  if (code) {
+    parserError("stmt2 failed to add single col:%d ,type:%d, ErrCode: 0x%x", colIdx, pColSchema->type, code);
+    goto _return;
   }
 
   parserDebug("stmt col %d bind %d rows data", colIdx, rowNum);
@@ -1181,9 +1214,6 @@ _return:
 
   taosMemoryFree(ncharBind.buffer);
   taosMemoryFree(ncharBind.length);
-  if (code != 0) {
-    parserDebug("stmt failed to parse at lino %d since %s", lino, tstrerror(code));
-  }
 
   return code;
 }
@@ -1192,6 +1222,7 @@ int32_t qBindStmt2RowValue(void* pBlock, SArray* pCols, SSHashObj* parsedCols, T
                            int32_t msgBufLen, STSchema** pTSchema, SBindInfo2* pBindInfos, void* charsetCxt) {
   STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
   SSchema*         pSchema = getTableColumnSchema(pDataBlock->pMeta);
+  SSchemaExt*      pSchemaExt = getTableColumnExtSchema(pDataBlock->pMeta);
   SBoundColInfo*   boundInfo = &pDataBlock->boundColsInfo;
   SMsgBuf          pBuf = {.buf = msgBuf, .len = msgBufLen};
   int32_t          rowNum = bind->num;
@@ -1272,8 +1303,8 @@ int32_t qBindStmt2RowValue(void* pBlock, SArray* pCols, SSHashObj* parsedCols, T
   }
 
   if (hasBlob == 0) {
-    code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, parsedCols, colInOrder, *pTSchema, pCols,
-                            &pDataBlock->ordered, &pDataBlock->duplicateTs);
+    code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, parsedCols, colInOrder, *pTSchema, pSchemaExt, pCols,
+                              &pDataBlock->ordered, &pDataBlock->duplicateTs);
   } else {
     code = TSDB_CODE_BLOB_NOT_SUPPORT;
   }
@@ -1421,6 +1452,9 @@ int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32
         (*fields)[idx].bytes = schema->bytes;
         if (TSDB_DATA_TYPE_TIMESTAMP == schema->type) {
           (*fields)[idx].precision = pMeta->tableInfo.precision;
+        }
+        if (TSDB_DATA_TYPE_DECIMAL64 == schema->type || TSDB_DATA_TYPE_DECIMAL == schema->type) {
+          decimalFromTypeMod(pMeta->schemaExt[idxCol].typeMod, &(*fields)[idx].precision, &(*fields)[idx].scale);
         }
         idx++;
       }
@@ -1602,13 +1636,14 @@ int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool rese
   pNewCxt->pValues = NULL;
 
   if (pCxt->pMeta) {
-    void* pNewMeta = taosMemoryMalloc(TABLE_META_SIZE(pCxt->pMeta));
-    if (NULL == pNewMeta) {
-      insDestroyTableDataCxt(*pDst);
-      return terrno;
-    }
-    memcpy(pNewMeta, pCxt->pMeta, TABLE_META_SIZE(pCxt->pMeta));
-    pNewCxt->pMeta = pNewMeta;
+    pNewCxt->pMeta = tableMetaDup(pCxt->pMeta);
+    // void* pNewMeta = taosMemoryMalloc(TABLE_META_SIZE(pCxt->pMeta));
+    // if (NULL == pNewMeta) {
+    //   insDestroyTableDataCxt(*pDst);
+    //   return terrno;
+    // }
+    // memcpy(pNewMeta, pCxt->pMeta, TABLE_META_SIZE(pCxt->pMeta));
+    // pNewCxt->pMeta = pNewMeta;
   }
 
   memcpy(&pNewCxt->boundColsInfo, &pCxt->boundColsInfo, sizeof(pCxt->boundColsInfo));
