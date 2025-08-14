@@ -280,7 +280,7 @@ int32_t moveStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY w
 
 // @brief 从数据缓存中读取数据
 // @param pCache 数据缓存,使用 StreamDataCacheInit 创建
-// @param groupId 数据的分组ID,实际上是 "<streamid>_<taskid>_<groupid>" 格式的字符串
+// @param groupId 数据的分组ID
 // @param start 读取数据的起始时间戳
 // @param end 读取数据的结束时间戳
 // @param pIter 迭代器,用于遍历数据块
@@ -306,7 +306,7 @@ void cancelStreamDataCacheIterate(void** pIter);
 
 // @brief 清理数据缓存中的数据
 // @param pCache 数据缓存,使用 StreamDataCacheInit 创建
-// @param groupId 数据的分组ID,实际上是 "<streamid>_<taskid>_<groupid>" 格式的字符串
+// @param groupId 数据的分组ID
 // @param wstart 数据集的起始时间戳
 // @param wend 数据集的结束时间戳
 // @note
@@ -369,6 +369,7 @@ bool changeMgrStatus(int8_t* pStatus, int8_t status);
 bool changeMgrStatusToMoving(int8_t* pStatus, int8_t mode);
 
 int32_t splitBlockToWindows(SList* pSlidingWinInMem, int32_t tsColSlotId, SSDataBlock* pBlock);
+int32_t clearUnsortedDataInMem(SUnsortedGrpMgr* pUnsortedGrpMgr, int64_t startTime, int64_t endTime);
 
 #ifdef __cplusplus
 }
