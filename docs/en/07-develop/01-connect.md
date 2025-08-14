@@ -375,9 +375,10 @@ Supported DSN parameters are as follows:
 
 Native connection:
 
-- `cfg` specifies the taos.cfg directory
-- `cgoThread` specifies the number of cgo operations that can be executed concurrently, default is the number of system cores
-- `cgoAsyncHandlerPoolSize` specifies the size of the async function handler, default is 10000
+- `cfg` specifies the taos.cfg directory.
+- `cgoThread` specifies the number of cgo operations that can be executed concurrently, default is the number of system cores.
+- `cgoAsyncHandlerPoolSize` specifies the size of the async function handler, default is 10000.
+- `timezone` specifies the timezone used for the connection. Both SQL parsing and query results will be converted according to this timezone. Only IANA timezone formats are supported, and special characters need to be encoded. Taking the Shanghai timezone (`Asia/Shanghai`) as an example: `timezone=Asia%2FShanghai`.
 
 REST connection:
 
@@ -385,12 +386,14 @@ REST connection:
 - `readBufferSize` the size of the buffer for reading data, default is 4K (4096), this value can be increased appropriately when the query result data volume is large.
 - `token` the token used when connecting to cloud services.
 - `skipVerify` whether to skip certificate verification, default is false which means not skipping certificate verification, set to true if connecting to an insecure service.
+- `timezone` specifies the timezone used for the connection. Both SQL parsing and query results will be converted according to this timezone. Only IANA timezone formats are supported, and special characters need to be encoded. Taking the Shanghai timezone (`Asia/Shanghai`) as an example: `timezone=Asia%2FShanghai`.
 
 WebSocket connection:
 
 - `enableCompression` whether to send compressed data, default is false which means not sending compressed data, set to true if data transmission uses compression.
 - `readTimeout` the timeout for reading data, default is 5m.
 - `writeTimeout` the timeout for writing data, default is 10s.
+- `timezone` specifies the timezone used for the connection. Both SQL parsing and query results will be converted according to this timezone. Only IANA timezone formats are supported, and special characters need to be encoded. Taking the Shanghai timezone (`Asia/Shanghai`) as an example: `timezone=Asia%2FShanghai`.
 
 </TabItem>
 

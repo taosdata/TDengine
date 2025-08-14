@@ -271,6 +271,7 @@ int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
 
 // @brief 销毁数据缓存
 void destroyStreamDataCache(void* pCache) {
+  int32_t code = 0;
   if (pCache == NULL) {
     return;
   }
@@ -282,7 +283,7 @@ void destroyStreamDataCache(void* pCache) {
     SAlignTaskDSMgr** ppStreamTaskDSManager =
         (SAlignTaskDSMgr**)taosHashGet(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
     if (ppStreamTaskDSManager != NULL) {
-      taosHashRemove(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
+      code = taosHashRemove(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
     }
   } else if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_EXPIRED) {
     SSlidingTaskDSMgr* pStreamDataSink = (SSlidingTaskDSMgr*)pCache;
@@ -292,10 +293,13 @@ void destroyStreamDataCache(void* pCache) {
     SSlidingTaskDSMgr** ppStreamTaskDSManager =
         (SSlidingTaskDSMgr**)taosHashGet(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
     if (ppStreamTaskDSManager != NULL) {
-      taosHashRemove(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
+      code = taosHashRemove(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
     }
   } else {
     stError("invalid clean mode: %d", getCleanModeFromDSMgr(pCache));
+  }
+  if (code != 0) {
+    stError("failed to remove stream task data sink manager, err: 0x%0x", code);
   }
 }
 
@@ -631,7 +635,7 @@ int32_t getSlidingDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY en
     return code;
   }
 _end:
-  changeMgrStatus(&pExistGrpMgr->status, GRP_DATA_READING);
+  (void)changeMgrStatus(&pExistGrpMgr->status, GRP_DATA_READING);
   if (code != TSDB_CODE_SUCCESS) {
     releaseDataResultAndResetMgrStatus((void**)&pResultIter);
     *pIter = NULL;
@@ -710,10 +714,10 @@ void releaseDataResultAndResetMgrStatus(void** pIter) {
 
   if (pResult->cleanMode == DATA_CLEAN_EXPIRED) {
     SSlidingGrpMgr* pSlidingGrpMgr = (SSlidingGrpMgr*)pResult->groupData;
-    changeMgrStatus(&pSlidingGrpMgr->status, GRP_DATA_IDLE);
+    (void)changeMgrStatus(&pSlidingGrpMgr->status, GRP_DATA_IDLE);
   } else {
     SAlignGrpMgr* pAlignGrpMgr = (SAlignGrpMgr*)pResult->groupData;
-    changeMgrStatus(&pAlignGrpMgr->status, GRP_DATA_IDLE);
+    (void)changeMgrStatus(&pAlignGrpMgr->status, GRP_DATA_IDLE);
   }
 
   releaseDataResult(pIter);
@@ -832,17 +836,12 @@ _end:
 
 void cancelStreamDataCacheIterate(void** pIter) { releaseDataResultAndResetMgrStatus(pIter); }
 
-int32_t destroyDataSinkMgr() {
+void destroyDataSinkMgr() {
   if (g_pDataSinkManager.dsStreamTaskList) {
     taosHashCleanup(g_pDataSinkManager.dsStreamTaskList);
     g_pDataSinkManager.dsStreamTaskList = NULL;
   }
-  return TSDB_CODE_SUCCESS;
 }
-
-void useMemSizeAdd(int64_t size) { atomic_fetch_add_64(&g_pDataSinkManager.usedMemSize, size); }
-
-void useMemSizeSub(int64_t size) { atomic_fetch_sub_64(&g_pDataSinkManager.usedMemSize, size); }
 
 bool hasEnoughMemSize() {
   int64_t usedMemSize = atomic_load_64(&g_pDataSinkManager.usedMemSize);
@@ -913,7 +912,11 @@ int32_t moveMemCache() {
   }
   stInfo("moveMemCache finished, used mem size: %" PRId64 ", max mem size: %" PRId64, g_pDataSinkManager.usedMemSize,
          tsStreamBufferSizeBytes);
-  atomic_val_compare_exchange_8(&g_slidigGrpMemList.status, DATA_MOVING, DATA_NORMAL);
+  status = atomic_val_compare_exchange_8(&g_slidigGrpMemList.status, DATA_MOVING, DATA_NORMAL);
+  if(status != DATA_MOVING) {
+    stError("moveMemCache status not changed, expected: %d, actual: %d", DATA_MOVING, status);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
 
   return code;
 }

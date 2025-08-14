@@ -71,6 +71,7 @@ Supported properties list for creating consumers:
 - `ws.autoReconnect`: Whether WebSocket should automatically reconnect, default false.
 - `ws.reconnectIntervalMs`: WebSocket reconnect interval in milliseconds, default 2000.
 - `ws.reconnectRetryCount`: WebSocket reconnect retry count, default 3.
+- `timezone`: The timezone used for parsing time-type data in subscription results, using the IANA timezone format, e.g., `Asia/Shanghai`(supported in v3.7.4 and above).
 
 See the table above for other parameters.
 
