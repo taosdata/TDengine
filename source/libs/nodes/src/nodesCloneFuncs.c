@@ -159,6 +159,7 @@ static int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
   COPY_SCALAR_FIELD(placeholderNo);
   COPY_SCALAR_FIELD(typeData);
   COPY_SCALAR_FIELD(unit);
+  COPY_SCALAR_FIELD(tz);
   if (!pSrc->translate || pSrc->isNull) {
     return TSDB_CODE_SUCCESS;
   }
@@ -225,6 +226,7 @@ static int32_t operatorNodeCopy(const SOperatorNode* pSrc, SOperatorNode* pDst) 
   COPY_SCALAR_FIELD(opType);
   CLONE_NODE_FIELD(pLeft);
   CLONE_NODE_FIELD(pRight);
+  COPY_SCALAR_FIELD(tz);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -247,6 +249,7 @@ static int32_t functionNodeCopy(const SFunctionNode* pSrc, SFunctionNode* pDst) 
   COPY_SCALAR_FIELD(hasOriginalFunc);
   COPY_SCALAR_FIELD(originalFuncId);
   COPY_OBJECT_FIELD(srcFuncInputType, sizeof(SDataType));
+  COPY_SCALAR_FIELD(tz);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -444,6 +447,7 @@ static int32_t caseWhenNodeCopy(const SCaseWhenNode* pSrc, SCaseWhenNode* pDst) 
   CLONE_NODE_FIELD(pCase);
   CLONE_NODE_FIELD(pElse);
   CLONE_NODE_LIST_FIELD(pWhenThenList);
+  COPY_SCALAR_FIELD(tz);
   return TSDB_CODE_SUCCESS;
 }
 
