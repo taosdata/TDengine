@@ -2600,7 +2600,9 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
       }
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &calcScan.readFromCache));
       TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&calcScan.scanPlan, NULL));
-      taosArrayPush(pReq->calcScanPlanList, &calcScan);
+      if (taosArrayPush(pReq->calcScanPlanList, &calcScan) == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
     }
   }
 
