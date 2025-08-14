@@ -1769,10 +1769,6 @@ SArray* qStreamGetTableArrayList(const void* pTableList) { return ((STableListIn
 
 int32_t qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo) { return doFilter(pBlock, pFilterInfo, NULL); }
 
-bool qStreamUidInTableList(void* pTableListInfo, uint64_t uid) {
-  return tableListGetTableGroupId(pTableListInfo, uid) != -1;
-}
-
 void streamDestroyExecTask(qTaskInfo_t tInfo) {
   qInfo("streamDestroyExecTask called, task:%p", tInfo);
   qDestroyTask(tInfo);
