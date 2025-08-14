@@ -542,7 +542,7 @@ case "${PLATFORM}" in
       -v $TARGET_DIR:/app/target \
       -e DATABASE_URL=sqlite:/app/target/taosx.dev.db \
       taosx/dev \
-      cargo build --release $EXTRAS
+      cargo build --profile ${BUILD_PROFILE} $EXTRAS
     ;;
   "")
     export TARGET_DIR=$PWD/target/centos7
@@ -553,7 +553,7 @@ case "${PLATFORM}" in
       -v $HOME/.cargo/git:/root/.cargo/git \
       -v $TARGET_DIR:/app/target \
       taosx/dev \
-      cargo build --release $@
+      cargo build --profile ${BUILD_PROFILE} $@
     ;;
   *)
     echo Unsupported platform $PLATFORM
