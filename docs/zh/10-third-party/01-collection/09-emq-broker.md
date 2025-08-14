@@ -38,7 +38,7 @@ CREATE TABLE sensor_data (ts TIMESTAMP, temperature FLOAT, humidity FLOAT, volum
 
 ### 登录 EMQX Dashboard
 
-使用浏览器打开网址 <http://IP:18083> 并登录 EMQX Dashboard。初次安装用户名为 `admin` 密码为：`public`。
+使用浏览器打开网址`http://IP:18083` 并登录 EMQX Dashboard。初次安装用户名为 `admin` 密码为：`public`。
 
 ![TDengine TSDB Database EMQX login dashboard](./emqx/login-dashboard.webp)
 

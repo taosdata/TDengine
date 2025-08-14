@@ -152,7 +152,7 @@ TDgpt 已经内置 Time-MoE 模型的支持，能够使用 Time-MoE 的能力进
 timemoe-fc = http://127.0.0.1:5001/ds_predict
 ```
 
-添加服务的地址。此时的 `key` 是模型的名称，此时即为 `timemoe-fc`，`value` 是 Time-MoE 本地服务的地址：<http://127.0.0.1:5001/ds_predict。>
+添加服务的地址。此时的 `key` 是模型的名称，此时即为 `timemoe-fc`，`value` 是 Time-MoE 本地服务的地址:`http://127.0.0.1:5001/ds_predict`。
 
 然后重启 taosnode 服务，并更新服务端算法缓存列表 `update all anodes`，之后即可通过 SQL 语句调用 Time-MoE 的时间序列数据预测服务。
 
