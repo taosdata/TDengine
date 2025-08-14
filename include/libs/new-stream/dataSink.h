@@ -12,30 +12,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-// 一个 group 无法避免有多个数据块在同一个文件中
-// 需要有标记来记录已经 get 完成 但是没有开始 put 的 group， 这些是优先要淘汰的内存
-// 上述内存淘汰完之后，内存还不足，代表这需要淘汰正在写的和正在读的的内存块了。
-
-// 1. 非 sliding, 读取后立即释放内存，一个单独 list 存放 buff 信息，每个 buff 10 M，当前 buff 写满开始下一个
-// buff，总大小超过则按时间升序将部分 buff 块写入文件，释放内存； 每次读取数据，会同时读取文件和 buff
-// 中的数据，读取完成后会全部释放。内存和文件中数据会有一个 groupid 标签，目前非 sliding 模式同时只会存在一个 groupid
-// 的数据，如果发现 有多个 groupid 数据在尝试同时写入，报错。 非 slidng
-// 模式，内存中需保存管理信息(同时保存的group信息理论上只有一个)： groupid，usedMemSize  blocksInMem: address, capacity,
-// size + (windows: startTime, endTime, dataLen) + dataBlock serialized data blocksInFile: offset, capacity, size
-//                文件中保存信息：(windows: startTime, endTime, dataLen) + dataBlock serialized data
-// 2. sliding 模式：每次写入数据，写入独立的内存段，内存不足时触发淘汰机制，将某些 group 的数据从内存淘汰，写入文件
-// 内存不足时，先淘汰占用内存最多并且当前不活跃的 group ，淘汰后内存仍不足时，淘汰当前 group
-// 的数据（理论上同一时间只有一个活跃的 group ） 当前不活跃的 group: 定义为 getdata 完成，没有进行新一轮的 putdata 的
-// group 每个 task 首次需要写入文件时，计算要写入的 group data 的长度（考虑 +20% 做缓冲，最多 + 1M ），作为文件中每个
-// group block 的大小，后续写入的 group block 均使用改大小，当大小不足时，申请新的 block 淘汰内存时，linux 下使用 writev
-// 来写入文件, 可以将分散的内存连续一次写入，其他平台不支持，可以先逐个写入内存后再写入文件，后续优化 从 group
-// 读取数据时，文件/内存中可能均有数据，先读文件后读取内存；
-// 每次读取数据后，检查使用内存情况，如果需要触发淘汰机制，在一个新线程中进行内存淘汰。读取数据时的内存淘汰触发条件要比写入时内存淘汰更敏感，设置一个略小的值（例如比写入时限制小
-// 10 M），尽量提前触发，避免在读取时需要阻塞读取进行释放 sliding 模式，内存中需保存的管理信息（多个
-// group）：groupid，usedMemSize  blocksInMem: address, capacity, size + (windows: startTime, endTime, dataLen) +
-// dataBlock serialized data blocksInFile: groupOffset, dataStartOffset, dataLen， capacity(same in a task)
-//                  文件中保存信息：(windows: startTime, endTime, dataLen) + dataBlock serialized data
-// 每个块写入的 window 保存：list, endtime, len
 
 #ifndef TDENGINE_DATA_SINK_H
 #define TDENGINE_DATA_SINK_H
