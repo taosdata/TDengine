@@ -803,8 +803,12 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   }
   pTask->task.status = STREAM_STATUS_RUNNING;
   pTask->task.sessionId = pReq->sessionId;
-  TSWAP(pExec->runtimeInfo.funcInfo.pStreamPartColVals, pReq->groupColVals);
-  TSWAP(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, pReq->params);
+  if (pReq->groupColVals) {
+    TSWAP(pExec->runtimeInfo.funcInfo.pStreamPartColVals, pReq->groupColVals);
+  }
+  if (pReq->params) {
+    TSWAP(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, pReq->params);
+  }
   pExec->runtimeInfo.funcInfo.groupId = pReq->gid;
   pExec->runtimeInfo.pForceOutputCols = pTask->forceOutCols;
   pExec->runtimeInfo.funcInfo.sessionId = pReq->sessionId;

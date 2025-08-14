@@ -1249,8 +1249,9 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       req.clientId = pTask->clientId;
       req.taskId = pTask->taskId;
       req.execId = pTask->execId;
+      req.reset = true;
 
-      msgSize = tSerializeSResFetchReq(NULL, 0, &req);
+      msgSize = tSerializeSResFetchReq(NULL, 0, &req, false);
       if (msgSize < 0) {
         SCH_TASK_ELOG("tSerializeSResFetchReq get size, msgSize:%d", msgSize);
         SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
@@ -1262,7 +1263,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
         SCH_ERR_RET(terrno);
       }
 
-      if (tSerializeSResFetchReq(msg, msgSize, &req) < 0) {
+      if (tSerializeSResFetchReq(msg, msgSize, &req, false) < 0) {
         SCH_TASK_ELOG("tSerializeSResFetchReq %d failed", msgSize);
         SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
       }

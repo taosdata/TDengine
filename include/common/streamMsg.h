@@ -967,6 +967,8 @@ int32_t tDeserializeSTriggerCtrlRequest(void* buf, int32_t bufLen, SSTriggerCtrl
 typedef struct SStreamRuntimeFuncInfo {
   SArray* pStreamPesudoFuncVals;
   SArray* pStreamPartColVals;
+  STimeWindow curWindow;
+//  STimeWindow wholeWindow;
   int64_t groupId;
   int32_t curIdx; // for pesudo func calculation
   int64_t sessionId;
@@ -976,7 +978,7 @@ typedef struct SStreamRuntimeFuncInfo {
   int32_t triggerType;
 } SStreamRuntimeFuncInfo;
 
-int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo);
+int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo, bool full);
 int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo);
 int32_t tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo);
 typedef struct STsInfo {

@@ -3846,8 +3846,8 @@ _exit:
   return code;
 }
 
-static int32_t tSerializeSTriggerCalcParam(SEncoder* pEncoder, SArray* pParams, bool ignoreNotificationInfo) {
-  int32_t size = taosArrayGetSize(pParams);
+static int32_t tSerializeSTriggerCalcParam(SEncoder* pEncoder, SArray* pParams, bool ignoreNotificationInfo, bool full) {
+  int32_t size = full ? taosArrayGetSize(pParams) : 0;
   int32_t code = 0;
   int32_t lino = 0;
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, size));
@@ -4067,7 +4067,7 @@ int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTrigger
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->triggerType));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->gid));
 
-  TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(&encoder, pReq->params, false));
+  TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(&encoder, pReq->params, false, true));
   TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(&encoder, pReq->groupColVals, -1));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->createTable));
 
@@ -4170,10 +4170,12 @@ _exit:
   return code;
 }
 
-int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo) {
+int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo, bool full) {
   int32_t code = 0, lino = 0;
-  TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(pEncoder, pInfo->pStreamPesudoFuncVals, true));
+  TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(pEncoder, pInfo->pStreamPesudoFuncVals, true, full));
   TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(pEncoder, pInfo->pStreamPartColVals, -1));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pInfo->curWindow.skey));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pInfo->curWindow.ekey));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pInfo->groupId));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pInfo->curIdx));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pInfo->sessionId));
@@ -4188,6 +4190,8 @@ int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pIn
   int32_t size = 0;
   TAOS_CHECK_EXIT(tDeserializeSTriggerCalcParam(pDecoder, &pInfo->pStreamPesudoFuncVals, true));
   TAOS_CHECK_EXIT(tDeserializeStriggerGroupColVals(pDecoder, &pInfo->pStreamPartColVals));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pInfo->curWindow.skey));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pInfo->curWindow.ekey));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pInfo->groupId));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pInfo->curIdx));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pInfo->sessionId));

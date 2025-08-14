@@ -10599,7 +10599,7 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
   return 0;
 }
 
-int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq) {
+int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq, bool needStreamPesudoFuncVals) {
   int32_t code = 0;
   int32_t lino;
   int32_t headLen = sizeof(SMsgHead);
@@ -10625,7 +10625,7 @@ int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->clientId));
   if (pReq->pStRtFuncInfo) {
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, 1));
-    TAOS_CHECK_EXIT(tSerializeStRtFuncInfo(&encoder, pReq->pStRtFuncInfo));
+    TAOS_CHECK_EXIT(tSerializeStRtFuncInfo(&encoder, pReq->pStRtFuncInfo, pReq->reset && needStreamPesudoFuncVals));
   } else {
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, 0));
   }
