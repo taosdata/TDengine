@@ -7,7 +7,7 @@ description: 模型评估工具
 import fc_result from './pic/fc-result.png';
 import ad_result from './pic/ad-result.png';
 
-TDgpt 在企业版中提供预测分析模型和异常检测模型有效性评估工具 `analytics_compare`，该工具能够使用 TDengine 中的时序数据作为
+TDgpt 在企业版中提供预测分析模型和异常检测模型有效性评估工具 `analytics_compare`，该工具能够使用 TDengine TSDB 中的时序数据作为
 回测依据，评估不同预测模型或训练模型的有效性。
 
 > 该工具在开源版本中不可用

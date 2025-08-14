@@ -4,12 +4,12 @@ title: MQTT 数据订阅
 toc_max_heading_level: 4
 ---
 
-TDengine v3.3.7.0 版本开始提供 MQTT 订阅功能，通过 MQTT 客户端连接 TDengine Bnode 服务，可直接订阅系统中已有主题的数据。
+TDengine TSDB v3.3.7.0 版本开始提供 MQTT 订阅功能，通过 MQTT 客户端连接 TDengine TSDB Bnode 服务，可直接订阅系统中已有主题的数据。
 
 主要特性：
 
 1. 协议支持：MQTT 5.0
-2. 身份验证：使用 TDengine 原生验证
+2. 身份验证：使用 TDengine TSDB 原生验证
 3. 主题管理：与标准 MQTT 协议不同，主题必须预先创建（因不支持消息发布，无法通过发布消息动态创建）
 4. 共享主题：形如 $shared/group_id/topic_name 的主题被视为共享订阅，适用于需要负载均衡和高可用场景
 5. 订阅位置：支持 latest，earliest (WAL 最早位置)
@@ -17,7 +17,7 @@ TDengine v3.3.7.0 版本开始提供 MQTT 订阅功能，通过 MQTT 客户端�
 
 ## Bnode 节点管理
 
-用户可通过 TDengine 的命令行工具 taos 进行 Bnode 的管理。执行下述命令都需要确保命令行工具 taos 工作正常。
+用户可通过 TDengine TSDB 的命令行工具 taos 进行 Bnode 的管理。执行下述命令都需要确保命令行工具 taos 工作正常。
 
 ### 创建 Bnode
 
@@ -47,7 +47,7 @@ Query OK, 1 row(s) in set (0.037205s)
 DROP BNODE ON DNODE {dnode_id}
 ```
 
-删除 bnode 将把 bnode 从 TDengine 集群中移除，同时停止 taosmqtt 服务。
+删除 bnode 将把 bnode 从 TDengine TSDB 集群中移除，同时停止 taosmqtt 服务。
 
 ## 订阅数据示例
 

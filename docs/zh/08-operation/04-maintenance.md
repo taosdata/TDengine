@@ -4,7 +4,7 @@ title: 集群维护
 sidebar_label: 集群维护
 ---
 
-本节介绍 TDengine Enterprise 中提供的高阶集群维护手段，能够使 TDengine 集群长期运行得更健壮和高效。
+本节介绍 TDengine TSDB Enterprise 中提供的高阶集群维护手段，能够使 TDengine TSDB 集群长期运行得更健壮和高效。
 
 ## 节点管理
 
@@ -12,7 +12,7 @@ sidebar_label: 集群维护
 
 ## 数据重整
 
-TDengine 面向多种写入场景，而很多写入场景下，TDengine 的存储会导致数据存储的放大或数据文件的空洞等。这一方面影响数据的存储效率，另一方面也会影响查询效率。为了解决上述问题，TDengine 企业版提供了对数据的重整功能，即 data compact 功能，将存储的数据文件重新整理，删除文件空洞和无效数据，提高数据的组织度，从而提高存储和查询的效率。数据重整功能在 3.0.3.0 版本第一次发布，此后又经过了多次迭代优化，建议使用最新版本。
+TDengine TSDB 面向多种写入场景，而很多写入场景下，TDengine TSDB 的存储会导致数据存储的放大或数据文件的空洞等。这一方面影响数据的存储效率，另一方面也会影响查询效率。为了解决上述问题，TDengine TSDB 企业版提供了对数据的重整功能，即 data compact 功能，将存储的数据文件重新整理，删除文件空洞和无效数据，提高数据的组织度，从而提高存储和查询的效率。数据重整功能在 3.0.3.0 版本第一次发布，此后又经过了多次迭代优化，建议使用最新版本。
 
 ### 语法
 
@@ -95,7 +95,7 @@ split vgroup <vgroup_id>
 
 ## 在线更新集群配置
 
-从 3.1.1.0 版本开始，TDengine Enterprise 支持在线热更新 `supportVnodes` 这个很重要的 dnode 配置参数。这个参数的原始配置方式是在 `taos.cfg` 配置文件中，表示该 dnode 能够支持的最大的 vnode 数量。当创建一个数据库时需要分配新的 vnode，当删除一个数据库时其 vnode 都会被销毁。
+从 3.1.1.0 版本开始，TDengine TSDB Enterprise 支持在线热更新 `supportVnodes` 这个很重要的 dnode 配置参数。这个参数的原始配置方式是在 `taos.cfg` 配置文件中，表示该 dnode 能够支持的最大的 vnode 数量。当创建一个数据库时需要分配新的 vnode，当删除一个数据库时其 vnode 都会被销毁。
 
 如果通过在线更新或配置文件方式设置的 `supportVnodes` 小于 dnode 当前已经实际存在的 vnode 数量，已经存在的 vnode 不会受影响。但当尝试创建新的 database 时，是否能够创建成功则仍然受实际生效的 `supportVnodes` 参数决定。
 

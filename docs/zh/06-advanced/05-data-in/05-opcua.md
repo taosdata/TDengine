@@ -2,7 +2,7 @@
 title: "OPC-UA"
 sidebar_label: "OPC-UA"
 ---
-本节讲述如何通过 Explorer 界面创建数据迁移任务，从 OPC-UA 服务器同步数据到当前 TDengine 集群。
+本节讲述如何通过 Explorer 界面创建数据迁移任务，从 OPC-UA 服务器同步数据到当前 TDengine TSDB 集群。
 
 ## 功能概述
 
@@ -10,7 +10,7 @@ OPC 是工业自动化领域和其他行业中安全可靠地交换数据的互�
 
 OPC-UA 是经典 OPC 规范的下一代标准，是一个平台无关的面向服务的架构规范，集成了现有 OPC Classic 规范的所有功能，提供了一条迁移到更安全和可扩展解决方案的路径。
 
-TDengine 可以高效地从 OPC-UA 服务器读取数据并将其写入 TDengine，以实现实时数据入库。
+TDengine TSDB 可以高效地从 OPC-UA 服务器读取数据并将其写入 TDengine TSDB，以实现实时数据入库。
 
 ## 创建任务
 
@@ -92,24 +92,24 @@ Header 是 CSV 文件的第一行，规则如下：
 | 序号 | 列名                      | 描述                                                                                                                 | 是否必填 | 默认行为                                                                                                                                                                                                                |
 |----|-------------------------|--------------------------------------------------------------------------------------------------------------------| -------- |---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 1  | point_id                | 数据点位在 OPC UA 服务器上的 id                                                                                              | 是       | 无                                                                                                                                                                                                                   |
-| 2  | stable                  | 数据点位在 TDengine 中对应的超级表                                                                                             | 是       | 无                                                                                                                                                                                                                   |
-| 3  | tbname                  | 数据点位在 TDengine 中对应的子表                                                                                              | 是       | 无                                                                                                                                                                                                                   |
+| 2  | stable                  | 数据点位在 TDengine TSDB 中对应的超级表                                                                                             | 是       | 无                                                                                                                                                                                                                   |
+| 3  | tbname                  | 数据点位在 TDengine TSDB 中对应的子表                                                                                              | 是       | 无                                                                                                                                                                                                                   |
 | 4  | enable                  | 是否采集该点位的数据                                                                                                         | 否       | 使用统一的默认值`1`作为 enable 的值                                                                                                                                                                                             |
-| 5  | value_col               | 数据点位采集值在 TDengine 中对应的列名                                                                                           | 否       | 使用统一的默认值`val` 作为 value_col 的值                                                                                                                                                                                       |
+| 5  | value_col               | 数据点位采集值在 TDengine TSDB 中对应的列名                                                                                           | 否       | 使用统一的默认值`val` 作为 value_col 的值                                                                                                                                                                                       |
 | 6  | value_transform         | 数据点位采集值在 taosX 中执行的变换函数                                                                                            | 否       | 统一不进行采集值的 transform                                                                                                                                                                                                 |
-| 7  | type                    | 数据点位采集值的数据类型                                                                                                       | 否       | 统一使用采集值的原始类型作为 TDengine 中的数据类型                                                                                                                                                                                      |
-| 8  | quality_col             | 数据点位采集值质量在 TDengine 中对应的列名                                                                                         | 否       | 统一不在 TDengine 添加 quality 列                                                                                                                                                                                          |
-| 9  | ts_col                  | 数据点位的原始时间戳在 TDengine 中对应的时间戳列                                                                                      | 否       | ts_col，request_ts，received_ts 这 3 列，当有 2 列以上存在时，以最左侧的列作为 TDengine 中的主键。                                                                                                                                             |
-| 10 | request_ts_col          | 请求到该点位采集值时的时间戳在 TDengine 中对应的时间戳列                                                                                  | 否       | ts_col，request_ts，received_ts 这 3 列，当有 2 列以上存在时，以最左侧的列作为 TDengine 中的主键。                                                                                                                                             |
-| 11 | received_ts_col         | 接收到该点位采集值时的时间戳在 TDengine 中对应的时间戳列                                                                                  | 否       | ts_col，request_ts，received_ts 这 3 列，当有 2 列以上存在时，以最左侧的列作为 TDengine 中的主键。                                                                                                                                             |
+| 7  | type                    | 数据点位采集值的数据类型                                                                                                       | 否       | 统一使用采集值的原始类型作为 TDengine TSDB 中的数据类型                                                                                                                                                                                      |
+| 8  | quality_col             | 数据点位采集值质量在 TDengine TSDB 中对应的列名                                                                                         | 否       | 统一不在 TDengine TSDB 添加 quality 列                                                                                                                                                                                          |
+| 9  | ts_col                  | 数据点位的原始时间戳在 TDengine TSDB 中对应的时间戳列                                                                                      | 否       | ts_col，request_ts，received_ts 这 3 列，当有 2 列以上存在时，以最左侧的列作为 TDengine TSDB 中的主键。                                                                                                                                             |
+| 10 | request_ts_col          | 请求到该点位采集值时的时间戳在 TDengine TSDB 中对应的时间戳列                                                                                  | 否       | ts_col，request_ts，received_ts 这 3 列，当有 2 列以上存在时，以最左侧的列作为 TDengine TSDB 中的主键。                                                                                                                                             |
+| 11 | received_ts_col         | 接收到该点位采集值时的时间戳在 TDengine TSDB 中对应的时间戳列                                                                                  | 否       | ts_col，request_ts，received_ts 这 3 列，当有 2 列以上存在时，以最左侧的列作为 TDengine TSDB 中的主键。                                                                                                                                             |
 | 12 | ts_transform            | 数据点位时间戳在 taosX 中执行的变换函数                                                                                            | 否       | 统一不进行数据点位原始时间戳的 transform                                                                                                                                                                                           |
 | 13 | request_ts_transform    | 数据点位接收时间戳在 taosX 中执行的变换函数                                                                                          | 否       | 统一不进行数据点位接收时间戳的 transform                                                                                                                                                                                           |
 | 14 | received_ts_transform   | 数据点位接收时间戳在 taosX 中执行的变换函数                                                                                          | 否       | 统一不进行数据点位接收时间戳的 transform                                                                                                                                                                                           |
-| 15 | tag::VARCHAR(200)::name | 数据点位在 TDengine 中对应的 Tag 列。其中`tag` 为保留关键字，表示该列为一个 tag 列；`VARCHAR(200)` 表示该 tag 的类型，也可以是其它合法的类型；`name` 是该 tag 的实际名称。 | 否       | 配置 1 个以上的 tag 列，则使用配置的 tag 列；没有配置任何 tag 列，且 stable 在 TDengine 中存在，使用 TDengine 中的 stable 的 tag；没有配置任何 tag 列，且 stable 在 TDengine 中不存在，则默认自动添加以下 2 个 tag 列：tag::VARCHAR(256)::point_id 和 tag::VARCHAR(256)::point_name |
+| 15 | tag::VARCHAR(200)::name | 数据点位在 TDengine TSDB 中对应的 Tag 列。其中`tag` 为保留关键字，表示该列为一个 tag 列；`VARCHAR(200)` 表示该 tag 的类型，也可以是其它合法的类型；`name` 是该 tag 的实际名称。 | 否       | 配置 1 个以上的 tag 列，则使用配置的 tag 列；没有配置任何 tag 列，且 stable 在 TDengine TSDB 中存在，使用 TDengine TSDB 中的 stable 的 tag；没有配置任何 tag 列，且 stable 在 TDengine TSDB 中不存在，则默认自动添加以下 2 个 tag 列：tag::VARCHAR(256)::point_id 和 tag::VARCHAR(256)::point_name |
 
 (2) CSV Header 中，不能有重复的列；
 
-(3) CSV Header 中，类似`tag::VARCHAR(200)::name`这样的列可以配置多个，对应 TDengine 中的多个 Tag，但 Tag 的名称不能重复。
+(3) CSV Header 中，类似`tag::VARCHAR(200)::name`这样的列可以配置多个，对应 TDengine TSDB 中的多个 Tag，但 Tag 的名称不能重复。
 
 (4) CSV Header 中，列的顺序不影响 CSV 文件校验规则；
 
@@ -125,24 +125,24 @@ CSV 文件中的每个 Row 配置一个 OPC 数据点位。Row 的规则如下�
 | 序号 | Header 中的列              | 值的类型 | 值的范围                                                                                                                                                                                                                  | 是否必填   | 默认值                   |
 |----|-------------------------| -------- |-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------| ------------------------ |
 | 1  | point_id                | String   | 类似`ns=3;i=1005`这样的字符串，要满足 OPC UA 的 ID 的规范，即：包含 ns 和 id 部分                                                                                                                                                             | 是      |                          |
-| 2  | enable                  | int      | 0：不采集该点位，且在 OPC DataIn 任务开始前，删除 TDengine 中点位对应的子表；1：采集该点位，在 OPC DataIn 任务开始前，不删除子表。                                                                                                                                   | 否      | 1                        |
-| 3  | stable                  | String   | 符合 TDengine 超级表命名规范的任何字符串；如果存在特殊字符`.`，使用下划线替换如果存在`{type}`，则：CSV 文件的 type 不为空，使用 type 的值进行替换 CSV 文件的 type 为空，使用采集值的原始类型进行替换                                                                                             | 是      |                          |
-| 4  | tbname                  | String   | 符合 TDengine 子表命名规范的任何字符串；如果存在特殊字符`.`，使用下划线替换对于 OPC UA：如果存在`{ns}`，使用 point_id 中的 ns 替换如果存在`{id}`，使用 point_id 中的 id 替换对于 OPC DA：如果存在`{tag_name}`，使用 tag_name 替换                                                         | 是      |                          |
-| 5  | value_col               | String   | 符合 TDengine 命名规范的列名                                                                                                                                                                                                   | 否      | val                      |
+| 2  | enable                  | int      | 0：不采集该点位，且在 OPC DataIn 任务开始前，删除 TDengine TSDB 中点位对应的子表；1：采集该点位，在 OPC DataIn 任务开始前，不删除子表。                                                                                                                                   | 否      | 1                        |
+| 3  | stable                  | String   | 符合 TDengine TSDB 超级表命名规范的任何字符串；如果存在特殊字符`.`，使用下划线替换如果存在`{type}`，则：CSV 文件的 type 不为空，使用 type 的值进行替换 CSV 文件的 type 为空，使用采集值的原始类型进行替换                                                                                             | 是      |                          |
+| 4  | tbname                  | String   | 符合 TDengine TSDB 子表命名规范的任何字符串；如果存在特殊字符`.`，使用下划线替换对于 OPC UA：如果存在`{ns}`，使用 point_id 中的 ns 替换如果存在`{id}`，使用 point_id 中的 id 替换对于 OPC DA：如果存在`{tag_name}`，使用 tag_name 替换                                                         | 是      |                          |
+| 5  | value_col               | String   | 符合 TDengine TSDB 命名规范的列名                                                                                                                                                                                                   | 否      | val                      |
 | 6  | value_transform         | String   | 符合 Rhai 引擎的计算表达式，例如：`(val + 10) / 1000 * 2.0`，`log(val) + 10`等；                                                                                                                                                       | 否      | None                     |
 | 7  | type                    | String   | 支持类型包括：b/bool/i8/tinyint/i16/small/inti32/int/i64/bigint/u8/tinyint unsigned/u16/smallint unsigned/u32/int unsigned/u64/bigint unsigned/f32/float/f64/double/timestamp/timestamp(ms)/timestamp(us)/timestamp(ns)/json | 否      | 数据点位采集值的原始类型 |
-| 8  | quality_col             | String   | 符合 TDengine 命名规范的列名                                                                                                                                                                                                   | 否      | None                     |
-| 9  | ts_col                  | String   | 符合 TDengine 命名规范的列名                                                                                                                                                                                                   | 否      | ts                       |
-| 10 | request_ts_col          | String   | 符合 TDengine 命名规范的列名                                                                                                                                                                                                   | 否      | rts                      |
-| 11 | received_ts_col         | String   | 符合 TDengine 命名规范的列名                                                                                                                                                                                                   | 否      | rts                      |
+| 8  | quality_col             | String   | 符合 TDengine TSDB 命名规范的列名                                                                                                                                                                                                   | 否      | None                     |
+| 9  | ts_col                  | String   | 符合 TDengine TSDB 命名规范的列名                                                                                                                                                                                                   | 否      | ts                       |
+| 10 | request_ts_col          | String   | 符合 TDengine TSDB 命名规范的列名                                                                                                                                                                                                   | 否      | rts                      |
+| 11 | received_ts_col         | String   | 符合 TDengine TSDB 命名规范的列名                                                                                                                                                                                                   | 否      | rts                      |
 | 12 | ts_transform            | String   | 支持 +、-、*、/、% 操作符，例如：ts / 1000 * 1000，将一个 ms 单位的时间戳的最后 3 位置为 0；ts + 8 * 3600 * 1000，将一个 ms 精度的时间戳，增加 8 小时；ts - 8 * 3600 * 1000，将一个 ms 精度的时间戳，减去 8 小时；                               | 否      | None                     |
 | 13 | request_ts_transform    | String   | 支持 +、-、*、/、% 操作符，例如：qts / 1000 * 1000，将一个 ms 单位的时间戳的最后 3 位置为 0；qts + 8 * 3600 * 1000，将一个 ms 精度的时间戳，增加 8 小时；qts - 8 * 3600 * 1000，将一个 ms 精度的时间戳，减去 8 小时；                            | 否      | None                     |
 | 14 | received_ts_transform   | String   | 支持 +、-、*、/、% 操作符，例如：rts / 1000 * 1000，将一个 ms 单位的时间戳的最后 3 位置为 0；rts + 8 * 3600 * 1000，将一个 ms 精度的时间戳，增加 8 小时；rts - 8 * 3600 * 1000，将一个 ms 精度的时间戳，减去 8 小时；                            | 否      | None                     |
 | 15 | tag::VARCHAR(200)::name | String   | tag 里的值，当 tag 的类型是 VARCHAR 时，可以是中文                                                                                                                                                                               | 否      | NULL                     |
 
-(2) point_id 在整个 DataIn 任务中是唯一的，即：在一个 OPC DataIn 任务中，一个数据点位只能被写入到 TDengine 的一张子表。如果需要将一个数据点位写入多张子表，需要建多个 OPC DataIn 任务；
+(2) point_id 在整个 DataIn 任务中是唯一的，即：在一个 OPC DataIn 任务中，一个数据点位只能被写入到 TDengine TSDB 的一张子表。如果需要将一个数据点位写入多张子表，需要建多个 OPC DataIn 任务；
 
-(3) 当 point_id 不同，但 tbname 相同时，value_col 必须不同。这种配置能够将不同数据类型的多个点位的数据写入同一张子表中不同的列。这种方式对应“OPC 数据入 TDengine 宽表”的使用场景。
+(3) 当 point_id 不同，但 tbname 相同时，value_col 必须不同。这种配置能够将不同数据类型的多个点位的数据写入同一张子表中不同的列。这种方式对应“OPC 数据入 TDengine TSDB 宽表”的使用场景。
 
 4. 其他规则
 
@@ -158,7 +158,7 @@ CSV 文件中的每个 Row 配置一个 OPC 数据点位。Row 的规则如下�
 
 通过配置 **超级表名**、**表名称**，指定数据要写入的超级表、子表。
 
-配置**主键列**，选择 origin_ts 表示使用 OPC 点位数据的原始时间戳作 TDengine 中的主键；选择 request_ts 表示使用数据的请求时间戳作 TDengine 中的主键；选择 received_ts 表示使用数据的接收时间戳作 TDengine 中的主键。配置**主键别名**，指定 TDengine 时间戳列的名称。
+配置**主键列**，选择 origin_ts 表示使用 OPC 点位数据的原始时间戳作 TDengine TSDB 中的主键；选择 request_ts 表示使用数据的请求时间戳作 TDengine TSDB 中的主键；选择 received_ts 表示使用数据的接收时间戳作 TDengine TSDB 中的主键。配置**主键别名**，指定 TDengine TSDB 时间戳列的名称。
 
 ![point.png](./pic/opcua-06-point.png)
 
@@ -171,9 +171,9 @@ CSV 文件中的每个 Row 配置一个 OPC 数据点位。Row 的规则如下�
 如上图所示，其中：
 
 - **采集模式**：可使用 `subscribe` 或 `observe` 模式。
-  - `subscribe`：订阅模式，变更时上报数据并写入 TDengine。
-  - `observe`：按照`采集间隔`时长，轮询读取点位最新值并写入 TDengine。
-- **采集间隔**：默认为 10 秒，数据点位采集间隔，从上次采集数据结束后开始计时，轮询读取点位最新值并写入 TDengine。仅在 **采集模式** 为 `observe` 时可配置。
+  - `subscribe`：订阅模式，变更时上报数据并写入 TDengine TSDB。
+  - `observe`：按照`采集间隔`时长，轮询读取点位最新值并写入 TDengine TSDB。
+- **采集间隔**：默认为 10 秒，数据点位采集间隔，从上次采集数据结束后开始计时，轮询读取点位最新值并写入 TDengine TSDB。仅在 **采集模式** 为 `observe` 时可配置。
 - **采集超时**：向 OPC 服务器读取点位数据时如果超过设定时间未返回数据，则读取失败，默认为 10 秒。仅在 **采集模式** 为 `observe` 时可配置。
 
 当 **点位集** 中使用 **选择数据点位** 方式时，采集配置中可以配置 **点位更新模式** 和 **点位更新间隔** 来启用动态点位更新。**动态点位更新** 是指，在任务运行期间，OPC Server 增加或删除了点位后，符合条件的点位会自动添加到当前任务中，不需要重启 OPC 任务。
@@ -215,7 +215,7 @@ CSV 文件中的每个 Row 配置一个 OPC 数据点位。Row 的规则如下�
 
 ### 8. 创建完成
 
-点击 **提交** 按钮，完成创建 OPC UA 到 TDengine 的数据同步任务，回到**数据源列表**页面可查看任务执行情况。
+点击 **提交** 按钮，完成创建 OPC UA 到 TDengine TSDB 的数据同步任务，回到**数据源列表**页面可查看任务执行情况。
 
 ## 增加数据点位
 

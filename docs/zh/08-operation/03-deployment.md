@@ -4,36 +4,36 @@ title: 集群部署
 toc_max_heading_level: 4
 ---
 
-由于 TDengine 设计之初就采用了分布式架构，具有强大的水平扩展能力，以满足不断增长的数据处理需求，因此 TDengine 支持集群，并将此核心功能开源。用户可以根据实际环境和需求选择 4 种部署方式—手动部署、Docker 部署、Kubernetes 部署和 Helm 部署。
+由于 TDengine TSDB 设计之初就采用了分布式架构，具有强大的水平扩展能力，以满足不断增长的数据处理需求，因此 TDengine TSDB 支持集群，并将此核心功能开源。用户可以根据实际环境和需求选择 4 种部署方式—手动部署、Docker 部署、Kubernetes 部署和 Helm 部署。
 
 ## 手动部署
 
 ### 部署 taosd
 
-taosd 是 TDengine 集群中最主要的服务组件，本节介绍手动部署 taosd 集群的步骤。
+taosd 是 TDengine TSDB 集群中最主要的服务组件，本节介绍手动部署 taosd 集群的步骤。
 
 #### 1. 清除数据
 
-如果搭建集群的物理节点中存在之前的测试数据或者装过其他版本（如 1.x/2.x）的 TDengine，请先将其删除，并清空所有数据。
+如果搭建集群的物理节点中存在之前的测试数据或者装过其他版本（如 1.x/2.x）的 TDengine TSDB，请先将其删除，并清空所有数据。
 
 #### 2. 检查环境
 
-在进行 TDengine 集群部署之前，全面检查所有 dnode 以及应用程序所在物理节点的网络设置至关重要。以下是检查步骤：
+在进行 TDengine TSDB 集群部署之前，全面检查所有 dnode 以及应用程序所在物理节点的网络设置至关重要。以下是检查步骤：
 
 - 第 1 步，在每个物理节点上执行 hostname -f 命令，以查看并确认所有节点的 hostname 是唯一的。对于应用程序驱动所在的节点，这一步骤可以省略。
 - 第 2 步，在每个物理节点上执行 ping host 命令，其中 host 是其他物理节点的 hostname。这一步骤旨在检测当前节点与其他物理节点之间的网络连通性。如果发现无法 ping 通，请立即检查网络和 DNS 设置。对于 Linux 操作系统，请检查 /etc/hosts 文件；对于 Windows 操作系统，请检查 `C:\Windows\system32\drivers\etc\hosts` 文件。网络不通畅将导致无法组建集群，请务必解决此问题。
 - 第 3 步，在应用程序运行的物理节点上重复上述网络检测步骤。如果发现网络不通畅，应用程序将无法连接到 taosd 服务。此时，请仔细检查应用程序所在物理节点的 DNS 设置或 hosts 文件，确保其配置正确无误。
 - 第 4 步，检查端口，确保集群中所有主机在端口 6030 上的 TCP 能够互通。
 
-通过以上步骤，你可以确保所有节点在网络层面顺利通信，从而为成功部署 TDengine 集群奠定坚实基础
+通过以上步骤，你可以确保所有节点在网络层面顺利通信，从而为成功部署 TDengine TSDB 集群奠定坚实基础
 
 #### 3. 安装
 
-为了确保集群内各物理节点的一致性和稳定性，请在所有物理节点上安装相同版本的 TDengine。
+为了确保集群内各物理节点的一致性和稳定性，请在所有物理节点上安装相同版本的 TDengine TSDB。
 
 #### 4. 修改配置
 
-修改 TDengine 的配置文件（所有节点的配置文件都需要修改）。假设准备启动的第 1 个 dnode 的 endpoint 为 h1.taosdata.com:6030，其与集群配置相关参数如下。
+修改 TDengine TSDB 的配置文件（所有节点的配置文件都需要修改）。假设准备启动的第 1 个 dnode 的 endpoint 为 h1.taosdata.com:6030，其与集群配置相关参数如下。
 
 ```shell
 # firstEp 是每个 dnode 首次启动后连接的第 1 个 dnode
@@ -46,7 +46,7 @@ serverPort 6030
 
 一定要修改的参数是 firstEp 和 fqdn。对于每个 dnode，firstEp 配置应该保持一致，但 fqdn 一定要配置成其所在 dnode 的值。其他参数可不做任何修改，除非你很清楚为什么要修改。
 
-对于希望加入集群的 dnode 节点，必须确保下表所列的与 TDengine 集群相关的参数设置完全一致。任何参数的不匹配都可能导致 dnode 节点无法成功加入集群。
+对于希望加入集群的 dnode 节点，必须确保下表所列的与 TDengine TSDB 集群相关的参数设置完全一致。任何参数的不匹配都可能导致 dnode 节点无法成功加入集群。
 
 | 参数名称         | 含义                                                       |
 |:---------------:|:----------------------------------------------------------:|
@@ -58,7 +58,7 @@ serverPort 6030
 
 #### 5. 启动
 
-按照前述步骤启动第 1 个 dnode，例如 h1.taosdata.com。接着在终端中执行 taos，启动 TDengine CLI 程序 taos，并在其中执行 show dnodes 命令，以查看当前集群中的所有 dnode 信息。
+按照前述步骤启动第 1 个 dnode，例如 h1.taosdata.com。接着在终端中执行 taos，启动 TDengine TSDB CLI 程序 taos，并在其中执行 show dnodes 命令，以查看当前集群中的所有 dnode 信息。
 
 ```shell
 taos> show dnodes;
@@ -71,7 +71,7 @@ taos> show dnodes;
 
 #### 6. 添加 dnode
 
-按照前述步骤，在每个物理节点启动 taosd。每个 dnode 都需要在 taos.cfg 文件中将 firstEp 参数配置为新建集群首个节点的 endpoint，在本例中是 h1.taosdata.com:6030。在第 1 个 dnode 所在机器，在终端中运行 taos，打开 TDengine CLI 程序 taos，然后登录 TDengine 集群，执行如下 SQL。
+按照前述步骤，在每个物理节点启动 taosd。每个 dnode 都需要在 taos.cfg 文件中将 firstEp 参数配置为新建集群首个节点的 endpoint，在本例中是 h1.taosdata.com:6030。在第 1 个 dnode 所在机器，在终端中运行 taos，打开 TDengine TSDB CLI 程序 taos，然后登录 TDengine TSDB 集群，执行如下 SQL。
 
 ```shell
 create dnode "h2.taosdata.com:6030"
@@ -86,13 +86,13 @@ show dnodes;
 在日志中，请确认输出的 dnode 的 fqdn 和端口是否与你刚刚尝试添加的 endpoint 一致。如果不一致，请修正为正确的 endpoint。遵循上述步骤，你可以持续地将新的 dnode 逐个加入集群，从而扩展集群规模并提高整体性能。确保在添加新节点时遵循正确的流程，这有助于维持集群的稳定性和可靠性。
 
 **Tips**
-- 任何已经加入集群的 dnode 都可以作为后续待加入节点的 firstEp。firstEp 参数仅仅在该 dnode 首次加入集群时起作用，加入集群后，该 dnode 会保存最新的 mnode 的 endpoint 列表，后续不再依赖这个参数。之后配置文件中的 firstEp 参数主要用于客户端连接，如果没有为 TDengine CLI 设置参数，则默认连接由 firstEp 指定的节点。
+- 任何已经加入集群的 dnode 都可以作为后续待加入节点的 firstEp。firstEp 参数仅仅在该 dnode 首次加入集群时起作用，加入集群后，该 dnode 会保存最新的 mnode 的 endpoint 列表，后续不再依赖这个参数。之后配置文件中的 firstEp 参数主要用于客户端连接，如果没有为 TDengine TSDB CLI 设置参数，则默认连接由 firstEp 指定的节点。
 - 两个没有配置 firstEp 参数的 dnode 在启动后会独立运行。这时无法将其中一个 dnode 加入另外一个 dnode，形成集群。
-- TDengine 不允许将两个独立的集群合并成新的集群。
+- TDengine TSDB 不允许将两个独立的集群合并成新的集群。
 
 #### 7. 添加 mnode
 
-在创建 TDengine 集群时，首个 dnode 将自动成为集群的 mnode，负责集群的管理和协调工作。为了实现 mnode 的高可用性，后续添加的 dnode 需要手动创建 mnode。请注意，一个集群最多允许创建 3 个 mnode，且每个 dnode 上只能创建一个 mnode。当集群中的 dnode 数量达到或超过 3 个时，你可以为现有集群创建 mnode。在第 1 个 dnode 中，首先通过 TDengine CLI 程序 taos 登录 TDengine，然后执行如下 SQL。
+在创建 TDengine TSDB 集群时，首个 dnode 将自动成为集群的 mnode，负责集群的管理和协调工作。为了实现 mnode 的高可用性，后续添加的 dnode 需要手动创建 mnode。请注意，一个集群最多允许创建 3 个 mnode，且每个 dnode 上只能创建一个 mnode。当集群中的 dnode 数量达到或超过 3 个时，你可以为现有集群创建 mnode。在第 1 个 dnode 中，首先通过 TDengine TSDB CLI 程序 taos 登录 TDengine TSDB，然后执行如下 SQL。
 
 ```shell
 create mnode on dnode <dnodeId>
@@ -103,7 +103,7 @@ create mnode on dnode <dnodeId>
 
 **Tips**
 
-在搭建 TDengine 集群的过程中，如果在执行 create dnode 命令以添加新节点后，新节点始终显示为离线状态，请按照以下步骤进行排查。
+在搭建 TDengine TSDB 集群的过程中，如果在执行 create dnode 命令以添加新节点后，新节点始终显示为离线状态，请按照以下步骤进行排查。
 
 - 第 1 步，检查新节点上的 taosd 服务是否已经正常启动。你可以通过查看日志文件或使用 ps 命令来确认。
 - 第 2 步，如果 taosd 服务已启动，接下来请检查新节点的网络连接是否畅通，并确认防火墙是否已关闭。网络不通或防火墙设置可能会阻止节点与集群的其他节点通信。
@@ -111,11 +111,11 @@ create mnode on dnode <dnodeId>
 
 ### 部署 taosAdapter
 
-本节讲述如何部署 taosAdapter，taosAdapter 为 TDengine 集群提供 RESTful 和 WebSocket 接入能力，因而在集群中扮演着很重要的角色。
+本节讲述如何部署 taosAdapter，taosAdapter 为 TDengine TSDB 集群提供 RESTful 和 WebSocket 接入能力，因而在集群中扮演着很重要的角色。
 
 1. 安装
 
-TDengine 安装完成后，即可使用 taosAdapter。如果想在不同的服务器上分别部署 taosAdapter，需要在这些服务器上都安装 TDengine。
+TDengine TSDB 安装完成后，即可使用 taosAdapter。如果想在不同的服务器上分别部署 taosAdapter，需要在这些服务器上都安装 TDengine TSDB。
 
 2. 单一实例部署
 
@@ -206,7 +206,7 @@ http {
 
 ### 部署 taosX
 
-如果想使用 TDengine 的数据接入能力，需要部署 taosX 服务，关于它的详细说明和部署请参考企业版参考手册。
+如果想使用 TDengine TSDB 的数据接入能力，需要部署 taosX 服务，关于它的详细说明和部署请参考企业版参考手册。
 
 ### 部署 taosX-Agent
 
@@ -214,16 +214,16 @@ http {
 
 ### 部署 taos-Explorer
 
-TDengine 提供了可视化管理 TDengine 集群的能力，要想使用图形化界面需要部署 taos-Explorer 服务，关于它的详细说明和部署请参考 [taos-Explorer 参考手册](../../reference/components/explorer)
+TDengine TSDB 提供了可视化管理 TDengine TSDB 集群的能力，要想使用图形化界面需要部署 taos-Explorer 服务，关于它的详细说明和部署请参考 [taos-Explorer 参考手册](../../reference/components/explorer)
 
 
 ## Docker 部署
 
-本节将介绍如何在 Docker 容器中启动 TDengine 服务并对其进行访问。你可以在 docker run 命令行或者 docker-compose 文件中使用环境变量来控制容器中服务的行为。
+本节将介绍如何在 Docker 容器中启动 TDengine TSDB 服务并对其进行访问。你可以在 docker run 命令行或者 docker-compose 文件中使用环境变量来控制容器中服务的行为。
 
-### 启动 TDengine
+### 启动 TDengine TSDB
 
-TDengine 镜像启动时默认激活 HTTP 服务，使用下列命令便可创建一个带有 HTTP 服务的容器化 TDengine 环境。
+TDengine TSDB 镜像启动时默认激活 HTTP 服务，使用下列命令便可创建一个带有 HTTP 服务的容器化 TDengine TSDB 环境。
 ```shell
 docker run -d --name tdengine \
 -v ~/data/taos/dnode/data:/var/lib/taos \
@@ -232,8 +232,8 @@ docker run -d --name tdengine \
 ```
 
 详细的参数说明如下。
-- /var/lib/taos：TDengine 默认数据文件目录，可通过配置文件修改位置。
-- /var/log/taos：TDengine 默认日志文件目录，可通过配置文件修改位置。
+- /var/lib/taos：TDengine TSDB 默认数据文件目录，可通过配置文件修改位置。
+- /var/log/taos：TDengine TSDB 默认日志文件目录，可通过配置文件修改位置。
 
 以上命令启动了一个名为 tdengine 的容器，并把其中的 HTTP 服务的端口 6041 映射到主机端口 6041。如下命令可以验证该容器中提供的 HTTP 服务是否可用。
 
@@ -241,7 +241,7 @@ docker run -d --name tdengine \
 curl -u root:taosdata -d "show databases" localhost:6041/rest/sql
 ```
 
-运行如下命令可在容器中访问 TDengine。
+运行如下命令可在容器中访问 TDengine TSDB。
 ```shell
 $ docker exec -it tdengine taos
 
@@ -253,16 +253,16 @@ taos> show databases;
 Query OK, 2 rows in database (0.033802s)
 ```
 
-在容器中，TDengine CLI 或者各种连接器（例如 JDBC-JNI）与服务器通过容器的 hostname 建立连接。从容器外访问容器内的 TDengine 比较复杂，通过 RESTful/WebSocket 连接方式是最简单的方法。
+在容器中，TDengine TSDB CLI 或者各种连接器（例如 JDBC-JNI）与服务器通过容器的 hostname 建立连接。从容器外访问容器内的 TDengine TSDB 比较复杂，通过 RESTful/WebSocket 连接方式是最简单的方法。
 
-### 在 host 网络模式下启动 TDengine
+### 在 host 网络模式下启动 TDengine TSDB
 
-运行以下命令可以在 host 网络模式下启动 TDengine，这样可以使用主机的 FQDN 建立连接，而不是使用容器的 hostname。
+运行以下命令可以在 host 网络模式下启动 TDengine TSDB，这样可以使用主机的 FQDN 建立连接，而不是使用容器的 hostname。
 ```shell
 docker run -d --name tdengine --network host tdengine/tdengine
 ```
 
-这种方式与在主机上使用 systemctl 命令启动 TDengine 的效果相同。在主机上已安装 TDengine 客户端的情况下，可以直接使用下面的命令访问 TDengine 服务。
+这种方式与在主机上使用 systemctl 命令启动 TDengine TSDB 的效果相同。在主机上已安装 TDengine TSDB 客户端的情况下，可以直接使用下面的命令访问 TDengine TSDB 服务。
 ```shell
 $ taos
 
@@ -273,7 +273,7 @@ taos> show dnodes;
 Query OK, 1 rows in database (0.010654s)
 ```
 
-### 以指定的 hostname 和 port 启动 TDengine
+### 以指定的 hostname 和 port 启动 TDengine TSDB
 
 :::note
 
@@ -282,7 +282,7 @@ Query OK, 1 rows in database (0.010654s)
 :::
 
 
-使用如下命令可以利用 TAOS_FQDN 环境变量或者 taos.cfg 中的 fqdn 配置项使 TDengine 在指定的 hostname 上建立连接。这种方式为部署 TDengine 提供了更大的灵活性。
+使用如下命令可以利用 TAOS_FQDN 环境变量或者 taos.cfg 中的 fqdn 配置项使 TDengine TSDB 在指定的 hostname 上建立连接。这种方式为部署 TDengine TSDB 提供了更大的灵活性。
 
 ```shell
 docker run -d \
@@ -294,38 +294,38 @@ docker run -d \
    tdengine/tdengine
 ```
 
-首先，上面的命令在容器中启动一个 TDengine 服务，其所监听的 hostname 为 tdengine，并将容器的端口 6030 映射到主机的端口 6030，将容器的端口段 [6041, 6049] 映射到主机的端口段 [6041, 6049]。如果主机上该端口段已经被占用，可以修改上述命令以指定一个主机上空闲的端口段。
+首先，上面的命令在容器中启动一个 TDengine TSDB 服务，其所监听的 hostname 为 tdengine，并将容器的端口 6030 映射到主机的端口 6030，将容器的端口段 [6041, 6049] 映射到主机的端口段 [6041, 6049]。如果主机上该端口段已经被占用，可以修改上述命令以指定一个主机上空闲的端口段。
 
 其次，要确保 tdengine 这个 hostname 在 /etc/hosts 中可解析。通过如下命令可将正确的配置信息保存到 hosts 文件中。
 ```shell
 echo 127.0.0.1 tdengine |sudo tee -a /etc/hosts
 ```
 
-最后，可以通过 TDengine CLI 以 tdengine 为服务器地址访问 TDengine 服务，命令如下。
+最后，可以通过 TDengine TSDB CLI 以 tdengine 为服务器地址访问 TDengine TSDB 服务，命令如下。
 ```shell
 taos -h tdengine -P 6030
 ```
 
-如果 TAOS_FQDN 被设置为与所在主机名相同，则效果与“在 host 网络模式下启动 TDengine”相同。
+如果 TAOS_FQDN 被设置为与所在主机名相同，则效果与“在 host 网络模式下启动 TDengine TSDB”相同。
 
 ## Kubernetes 部署
 
-作为面向云原生架构设计的时序数据库，TDengine 本身就支持 Kubernetes 部署。这里介绍如何使用 YAML 文件从头一步一步创建一个可用于生产使用的高可用 TDengine 集群，并重点介绍 Kubernetes 环境下 TDengine 的常用操作。本小节要求读者对 Kubernetes 有一定的了解，可以熟练运行常见的 kubectl 命令，了解 statefulset、service、pvc 等概念，对这些概念不熟悉的读者，可以先参考 Kubernetes 的官网进行学习。
+作为面向云原生架构设计的时序数据库，TDengine TSDB 本身就支持 Kubernetes 部署。这里介绍如何使用 YAML 文件从头一步一步创建一个可用于生产使用的高可用 TDengine TSDB 集群，并重点介绍 Kubernetes 环境下 TDengine TSDB 的常用操作。本小节要求读者对 Kubernetes 有一定的了解，可以熟练运行常见的 kubectl 命令，了解 statefulset、service、pvc 等概念，对这些概念不熟悉的读者，可以先参考 Kubernetes 的官网进行学习。
 为了满足高可用的需求，集群需要满足如下要求：
-- 3 个及以上 dnode：TDengine 的同一个 vgroup 中的多个 vnode，不允许同时分布在一个 dnode，所以如果创建 3 副本的数据库，则 dnode 数大于等于 3
-- 3 个 mnode：mnode 负责整个集群的管理工作，TDengine 默认是一个 mnode。如果这个 mnode 所在的 dnode 掉线，则整个集群不可用。
-- 数据库的 3 副本：TDengine 的副本配置是数据库级别，所以数据库 3 副本可满足在 3 个 dnode 的集群中，任意一个 dnode 下线，都不影响集群的正常使用。如果下线 dnode 个数为 2 时，此时集群不可用，因为 RAFT 无法完成选举。（企业版：在灾难恢复场景，任一节点数据文件损坏，都可以通过重新拉起 dnode 进行恢复）
+- 3 个及以上 dnode：TDengine TSDB 的同一个 vgroup 中的多个 vnode，不允许同时分布在一个 dnode，所以如果创建 3 副本的数据库，则 dnode 数大于等于 3
+- 3 个 mnode：mnode 负责整个集群的管理工作，TDengine TSDB 默认是一个 mnode。如果这个 mnode 所在的 dnode 掉线，则整个集群不可用。
+- 数据库的 3 副本：TDengine TSDB 的副本配置是数据库级别，所以数据库 3 副本可满足在 3 个 dnode 的集群中，任意一个 dnode 下线，都不影响集群的正常使用。如果下线 dnode 个数为 2 时，此时集群不可用，因为 RAFT 无法完成选举。（企业版：在灾难恢复场景，任一节点数据文件损坏，都可以通过重新拉起 dnode 进行恢复）
 
 ### 前置条件
 
-要使用 Kubernetes 部署管理 TDengine 集群，需要做好如下准备工作。
+要使用 Kubernetes 部署管理 TDengine TSDB 集群，需要做好如下准备工作。
 - 本文适用 Kubernetes v1.19 以上版本
 - 本文使用 kubectl 工具进行安装部署，请提前安装好相应软件
 - Kubernetes 已经安装部署并能正常访问使用或更新必要的容器仓库或其他服务
 
 ### 配置 Service 服务
 
-创建一个 Service 配置文件：taosd-service.yaml，服务名称 metadata.name（此处为 "taosd"）将在下一步中使用到。首先添加 TDengine 所用到的端口，然后在选择器设置确定的标签 app（此处为“tdengine”）。
+创建一个 Service 配置文件：taosd-service.yaml，服务名称 metadata.name（此处为 "taosd"）将在下一步中使用到。首先添加 TDengine TSDB 所用到的端口，然后在选择器设置确定的标签 app（此处为“tdengine”）。
 
 ```yaml
 ---
@@ -349,7 +349,7 @@ spec:
 
 ### 有状态服务 StatefulSet
 
-根据 Kubernetes 对各类部署的说明，我们将使用 StatefulSet 作为 TDengine 的部署资源类型。创建文件 tdengine.yaml，其中 replicas 定义集群节点的数量为 3。节点时区为中国（Asia/Shanghai），每个节点分配 5GB 标准（standard）存储，你也可以根据实际情况进行相应修改。
+根据 Kubernetes 对各类部署的说明，我们将使用 StatefulSet 作为 TDengine TSDB 的部署资源类型。创建文件 tdengine.yaml，其中 replicas 定义集群节点的数量为 3。节点时区为中国（Asia/Shanghai），每个节点分配 5GB 标准（standard）存储，你也可以根据实际情况进行相应修改。
 
 请特别注意 startupProbe 的配置，在 dnode 的 Pod 掉线一段时间后，再重新启动，这个时候新上线的 dnode 会短暂不可用。如果 startupProbe 配置过小，Kubernetes 会认为该 Pod 处于不正常的状态，并尝试重启该 Pod，该 dnode 的 Pod 会频繁重启，始终无法恢复到正常状态。
 
@@ -458,14 +458,14 @@ spec:
             storage: "5Gi"
 ```
 
-### 使用 kubectl 命令部署 TDengine 集群
+### 使用 kubectl 命令部署 TDengine TSDB 集群
 
 首先创建对应的 namespace dengine-test，以及 pvc，并保证 storageClassName 是 standard 的剩余空间足够。然后顺序执行以下命令：
 ```shell
 kubectl apply -f taosd-service.yaml -n tdengine-test
 ```
 
-上面的配置将生成一个三节点的 TDengine 集群，dnode 为自动配置，可以使用 show dnodes 命令查看当前集群的节点：
+上面的配置将生成一个三节点的 TDengine TSDB 集群，dnode 为自动配置，可以使用 show dnodes 命令查看当前集群的节点：
 ```shell
 kubectl exec -it tdengine-0 -n tdengine-test -- taos -s "show dnodes"
 kubectl exec -it tdengine-1 -n tdengine-test -- taos -s "show dnodes"
@@ -534,13 +534,13 @@ Query OK, 3 row(s) in set (0.003108s)
 
 ### 端口转发
 
-利用 kubectl 端口转发功能可以使应用可以访问 Kubernetes 环境运行的 TDengine 集群。
+利用 kubectl 端口转发功能可以使应用可以访问 Kubernetes 环境运行的 TDengine TSDB 集群。
 
 ```shell
 kubectl port-forward -n tdengine-test tdengine-0 6041:6041 &
 ```
 
-使用 curl 命令验证 TDengine REST API 使用的 6041 接口。
+使用 curl 命令验证 TDengine TSDB REST API 使用的 6041 接口。
 ```shell
 curl -u root:taosdata -d "show databases" 127.0.0.1:6041/rest/sql
 {"code":0,"column_meta":[["name","VARCHAR",64]],"data":[["information_schema"],["performance_schema"],["test"],["test1"]],"rows":4}
@@ -548,12 +548,12 @@ curl -u root:taosdata -d "show databases" 127.0.0.1:6041/rest/sql
 
 ### 集群扩容
 
-TDengine 支持集群扩容：
+TDengine TSDB 支持集群扩容：
 ```shell
 kubectl scale statefulsets tdengine  -n tdengine-test --replicas=4
 ```
 
-上面命令行中参数 `--replica=4` 表示要将 TDengine 集群扩容到 4 个节点，执行后首先检查 POD 的状态：
+上面命令行中参数 `--replica=4` 表示要将 TDengine TSDB 集群扩容到 4 个节点，执行后首先检查 POD 的状态：
 ```shell
 kubectl get pod -l app=tdengine -n tdengine-test  -o wide
 ```
@@ -567,12 +567,12 @@ tdengine-2   1/1     Running   0               5h16m   10.244.1.224   node85   <
 tdengine-3   1/1     Running   0               3m24s   10.244.2.76    node86   <none>           <none>
 ```
 
-此时 Pod 的状态仍然是 Running，TDengine 集群中的 dnode 状态要等 Pod 状态为 ready 之后才能看到：
+此时 Pod 的状态仍然是 Running，TDengine TSDB 集群中的 dnode 状态要等 Pod 状态为 ready 之后才能看到：
 ```shell
 kubectl exec -it tdengine-3 -n tdengine-test -- taos -s "show dnodes"
 ```
 
-扩容后的四节点 TDengine 集群的 dnode 列表：
+扩容后的四节点 TDengine TSDB 集群的 dnode 列表：
 ```text
 taos> show dnodes
      id      | endpoint         | vnodes | support_vnodes |   status   |       create_time       |       reboot_time       |              note              |          active_code           |         c_active_code          |
@@ -589,7 +589,7 @@ Query OK, 4 row(s) in set (0.003628s)
 **Warning**
 删除 pvc 时需要注意下 pv persistentVolumeReclaimPolicy 策略，建议改为 Delete，这样在删除 pvc 时才会自动清理 pv，同时会清理底层的 csi 存储资源，如果没有配置删除 pvc 自动清理 pv 的策略，再删除 pvc 后，在手动清理 pv 时，pv 对应的 csi 存储资源可能不会被释放。
 
-完整移除 TDengine 集群，需要分别清理 statefulset、svc、pvc，最后删除命名空间。
+完整移除 TDengine TSDB 集群，需要分别清理 statefulset、svc、pvc，最后删除命名空间。
 
 ```shell
 kubectl delete statefulset -l app=tdengine -n tdengine-test
@@ -600,14 +600,14 @@ kubectl delete namespace tdengine-test
 
 ### 集群灾备能力
 
-对于在 Kubernetes 环境下 TDengine 的高可用和高可靠来说，对于硬件损坏、灾难恢复，分为两个层面来讲：
+对于在 Kubernetes 环境下 TDengine TSDB 的高可用和高可靠来说，对于硬件损坏、灾难恢复，分为两个层面来讲：
 - 底层的分布式块存储具备的灾难恢复能力，块存储的多副本，当下流行的分布式块存储如 Ceph，就具备多副本能力，将存储副本扩展到不同的机架、机柜、机房、数据中心（或者直接使用公有云厂商提供的块存储服务）
-- TDengine 的灾难恢复，在 TDengine Enterprise 中，本身具备了当一个 dnode 永久下线（物理机磁盘损坏，数据分拣丢失）后，重新拉起一个空白的 dnode 来恢复原 dnode 的工作。
+- TDengine TSDB 的灾难恢复，在 TDengine TSDB Enterprise 中，本身具备了当一个 dnode 永久下线（物理机磁盘损坏，数据分拣丢失）后，重新拉起一个空白的 dnode 来恢复原 dnode 的工作。
 
-## 使用 Helm 部署 TDengine 集群
+## 使用 Helm 部署 TDengine TSDB 集群
 
 Helm 是 Kubernetes 的包管理器。
-上一节使用 Kubernetes 部署 TDengine 集群的操作已经足够简单，但 Helm 可以提供更强大的能力。
+上一节使用 Kubernetes 部署 TDengine TSDB 集群的操作已经足够简单，但 Helm 可以提供更强大的能力。
 
 ### 安装 Helm
 
@@ -620,9 +620,9 @@ chmod +x get_helm.sh
 
 Helm 会使用 kubectl 和 kubeconfig 的配置来操作 Kubernetes，可以参考 Rancher 安装 Kubernetes 的配置来进行设置。
 
-### 安装 TDengine Chart
+### 安装 TDengine TSDB Chart
 
-TDengine Chart 尚未发布到 Helm 仓库，当前可以从 GitHub 直接下载：
+TDengine TSDB Chart 尚未发布到 Helm 仓库，当前可以从 GitHub 直接下载：
 ```shell
 wget https://github.com/taosdata/TDengine-Operator/raw/3.0/helm/tdengine-3.0.2.tgz
 ```
@@ -649,7 +649,7 @@ helm install tdengine tdengine-3.0.2.tgz \
   --set image.tag=3.2.3.0
 ```
 
-部署成功后，TDengine Chart 将会输出操作 TDengine 的说明：
+部署成功后，TDengine TSDB Chart 将会输出操作 TDengine TSDB 的说明：
 ```shell
 export POD_NAME=$(kubectl get pods --namespace default \
   -l "app.kubernetes.io/name=tdengine,app.kubernetes.io/instance=tdengine" \
@@ -670,13 +670,13 @@ kubectl --namespace default exec $POD_NAME -- \
 
 ### 配置 values
 
-TDengine 支持 `values.yaml` 自定义。
-通过 helm show values 可以获取 TDengine Chart 支持的全部 values 列表：
+TDengine TSDB 支持 `values.yaml` 自定义。
+通过 helm show values 可以获取 TDengine TSDB Chart 支持的全部 values 列表：
 ```shell
 helm show values tdengine-3.0.2.tgz
 ```
 
-你可以将结果保存为 values.yaml，之后可以修改其中的各项参数，如 replica 数量，存储类名称，容量大小，TDengine 配置等，然后使用如下命令安装 TDengine 集群：
+你可以将结果保存为 values.yaml，之后可以修改其中的各项参数，如 replica 数量，存储类名称，容量大小，TDengine TSDB 配置等，然后使用如下命令安装 TDengine TSDB 集群：
 ```shell
 helm install tdengine tdengine-3.0.2.tgz -f values.yaml
 ```
@@ -749,8 +749,8 @@ clusterDomainSuffix: ""
 # Btw, keep quotes "" around the value like below, even the value will be number or not.
 taoscfg:
   # Starts as cluster or not, must be 0 or 1.
-  #   0: all pods will start as a separate TDengine server
-  #   1: pods will start as TDengine server cluster. [default]
+  #   0: all pods will start as a separate TDengine TSDB server
+  #   1: pods will start as TDengine TSDB server cluster. [default]
   CLUSTER: "1"
 
   # number of replications, for cluster only
@@ -841,7 +841,7 @@ export STS_NAME=$(kubectl get statefulset \
   -o jsonpath="{.items[0].metadata.name}")
 ```
 
-扩容操作极其简单，增加 replica 即可。以下命令将 TDengine 扩充到三节点：
+扩容操作极其简单，增加 replica 即可。以下命令将 TDengine TSDB 扩充到三节点：
 ```shell
 kubectl scale --replicas 3 statefulset/$STS_NAME
 ```

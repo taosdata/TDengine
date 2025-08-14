@@ -1,20 +1,20 @@
 ---
 toc_max_heading_level: 4
 sidebar_label: Java
-title: TDengine Java Connector
-description: TDengine Java 连接器基于标准 JDBC API 实现，并提供原生连接与 REST 连接两种连接器。
+title: TDengine TSDB Java Connector
+description: TDengine TSDB Java 连接器基于标准 JDBC API 实现，并提供原生连接与 REST 连接两种连接器。
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import RequestId from "./_request_id.mdx";
 
-`taos-jdbcdriver` 是 TDengine 的官方 Java 语言连接器，Java 开发人员可以通过它开发存取 TDengine 数据库的应用软件。`taos-jdbcdriver` 实现了 JDBC driver 标准的接口。
+`taos-jdbcdriver` 是 TDengine TSDB 的官方 Java 语言连接器，Java 开发人员可以通过它开发存取 TDengine TSDB 数据库的应用软件。`taos-jdbcdriver` 实现了 JDBC driver 标准的接口。
 
 :::info
-TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致，但 TDengine 与关系对象型数据库的使用场景和技术特征存在差异，所以`taos-jdbcdriver` 与传统的 JDBC driver 也存在一定差异。在使用时需要注意以下几点：
+TDengine TSDB 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致，但 TDengine TSDB 与关系对象型数据库的使用场景和技术特征存在差异，所以`taos-jdbcdriver` 与传统的 JDBC driver 也存在一定差异。在使用时需要注意以下几点：
 
-- TDengine 目前不支持针对单条数据记录的删除操作。
+- TDengine TSDB 目前不支持针对单条数据记录的删除操作。
 - 目前不支持事务操作。
 
 :::
@@ -26,14 +26,14 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 
 ## 支持的平台
 
-- 原生连接支持的平台和 TDengine 客户端驱动支持的平台一致。
+- 原生连接支持的平台和 TDengine TSDB 客户端驱动支持的平台一致。
 - WebSocket/REST 连接支持所有能运行 Java 的平台。
 
 ## 版本历史
 
-| taos-jdbcdriver 版本 |                                                                        主要变化                                                                        |   TDengine 版本    |
+| taos-jdbcdriver 版本 |                                                                        主要变化                                                                        |   TDengine TSDB 版本    |
 | ------------------| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-|        3.7.1        | 1. 使用 Netty 替换 Java-WebSocket 库，提升小查询性能<br/>  2. 兼容 IPv6 网络协议<br/>  3. 支持 BLOB 二进制数据类型<br/>  4. 实现 TDengine 版本兼容性检查<br/>  5. 支持 `varcharAsString` 配置属性<br/>  6. 优化 WebSocket 查询内存使用效率<br/>  7. 修复 WebSocket 连接的时区问题<br/>     |   -  |
+|        3.7.1        | 1. 使用 Netty 替换 Java-WebSocket 库，提升小查询性能<br/>  2. 兼容 IPv6 网络协议<br/>  3. 支持 BLOB 二进制数据类型<br/>  4. 实现 TDengine TSDB 版本兼容性检查<br/>  5. 支持 `varcharAsString` 配置属性<br/>  6. 优化 WebSocket 查询内存使用效率<br/>  7. 修复 WebSocket 连接的时区问题<br/>     |   -  |
 |        3.6.3        | 解决了订阅数据库和超级表时的数据类型转换 bug   |   -  |
 |        3.6.2        | 1. 支持订阅数据库和超级表（不支持订阅元数据） <br/> 2. 解决了云服务订阅 bug <br/> 3. 优化了 setQueryTimeout 参数为 0 的实现    |   -  |
 |        3.6.1        | 解决 WebSocket 连接在小查询上的性能 bug     |   -  |
@@ -60,7 +60,7 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 |        3.2.0         | 存在连接问题，不推荐使用                                                                |         -          |
 |        3.1.0         | WebSocket 连接支持订阅功能                                                               |         -          |
 |    3.0.1 - 3.0.4     | 修复一些情况下结果集数据解析错误的问题。3.0.1 在 JDK 11 环境编译，JDK 8 环境下建议使用其他版本                             |         -          |
-|        3.0.0         | 支持 TDengine 3.0                                                                    | 3.0.0.0 及更高版本 |
+|        3.0.0         | 支持 TDengine TSDB 3.0                                                                    | 3.0.0.0 及更高版本 |
 |        2.0.42        | 修复 WebSocket 连接中 wasNull 接口返回值                                                        |         -          |
 |        2.0.41        | 修复 REST 连接中用户名和密码转码方式                                                          |         -          |
 |   2.0.39 - 2.0.40    | 增加 REST 连接/请求 超时设置                                                              |         -          |
@@ -81,7 +81,7 @@ JDBC 连接器可能报错的错误码包括 4 种：
 - JDBC driver 本身的报错（错误码在 0x2301 到 0x2350 之间）
 - 原生连接方法的报错（错误码在 0x2351 到 0x2360 之间）
 - 数据订阅的报错（错误码在 0x2371 到 0x2380 之间）
-- TDengine 其他功能模块的报错，请参考 [错误码](../../../reference/error-code)    
+- TDengine TSDB 其他功能模块的报错，请参考 [错误码](../../../reference/error-code)    
 
 具体的错误码请参考：
 
@@ -97,11 +97,11 @@ JDBC 连接器可能报错的错误码包括 4 种：
 | 0x2308     | Can not issue SELECT via executeUpdate()                        | 查询操作应该使用 executeQuery()，而不是 executeUpdate()。                                 |
 | 0x230d     | parameter index out of range                                    | 参数越界，请检查参数的合理范围。                                                          |
 | 0x230e     | connection already closed                                       | 连接已经关闭，请检查 Connection 是否关闭后再次使用，或是连接是否正常。                    |
-| 0x230f     | unknown sql type in tdengine                                    | 请检查 TDengine 支持的 Data Type 类型。                                                   |
+| 0x230f     | unknown sql type in tdengine                                    | 请检查 TDengine TSDB 支持的 Data Type 类型。                                                   |
 | 0x2310     | can't register JDBC-JNI driver                                  | 不能注册 JNI 驱动，请检查 url 是否填写正确。                                              |
 | 0x2312     | url is not set                                                  | 请检查 REST 连接 url 是否填写正确。                                                       |
 | 0x2314     | numeric value out of range                                      | 请检查获取结果集中数值类型是否使用了正确的接口。                                          |
-| 0x2315     | unknown taos type in tdengine                                   | 在 TDengine 数据类型与 JDBC 数据类型转换时，是否指定了正确的 TDengine 数据类型。          |
+| 0x2315     | unknown taos type in tdengine                                   | 在 TDengine TSDB 数据类型与 JDBC 数据类型转换时，是否指定了正确的 TDengine TSDB 数据类型。          |
 | 0x2317     |                                                                 | REST 连接中使用了错误的请求类型。                                                         |
 | 0x2318     |                                                                 | REST 连接中出现了数据传输异常，请检查网络情况并重试。                                     |
 | 0x2319     | user is required                                                | 创建连接时缺少用户名信息                                                                  |
@@ -111,14 +111,14 @@ JDBC 连接器可能报错的错误码包括 4 种：
 | 0x231e     | failed to complete the task within the specified time           | 通过增加参数 messageWaitTimeout 增加执行耗时，或是请检查与 taosAdapter 之间的连接情况。   |
 | 0x231f     | restful client query exception           | HTTP 请求错误，请查看详细信息。   |
 | 0x2320     | type convert exception          | 检查是否没有使用正确的类型   |
-| 0x2321     | TDengine version incompatible           | TDengine 版本不匹配，请升级至对应版本。   |
+| 0x2321     | TDengine TSDB version incompatible           | TDengine TSDB 版本不匹配，请升级至对应版本。   |
 | 0x2322     | resource has been freed           | 资源已经释放，请确认操作正确。   |
 | 0x2323     | BLOB is unsupported on the server           | 服务端不支持 BLOB 类型，需要升级。   |
 | 0x2324     | line bind mode is unsupported on the server           | 服务端不支持行绑定模式，需要升级。   |
 | 0x2350     | unknown error                                                   | 未知异常，请在 github 反馈给开发人员。                                                    |
 | 0x2352     | Unsupported encoding                                            | 本地连接下指定了不支持的字符编码集                                                        |
 | 0x2353     | internal error of database, please see taoslog for more details | 本地连接执行 prepareStatement 时出现错误，请检查 taos log 进行问题定位。                  |
-| 0x2354     | JNI connection is NULL                                          | 本地连接执行命令时，Connection 已经关闭。请检查与 TDengine 的连接情况。                   |
+| 0x2354     | JNI connection is NULL                                          | 本地连接执行命令时，Connection 已经关闭。请检查与 TDengine TSDB 的连接情况。                   |
 | 0x2355     | JNI result set is NULL                                          | 本地连接获取结果集，结果集异常，请检查连接情况，并重试。                                  |
 | 0x2356     | invalid num of fields                                           | 本地连接获取结果集的 meta 信息不匹配。                                                    |
 | 0x2357     | empty sql string                                                | 填写正确的 SQL 进行执行。                                                                 |
@@ -126,22 +126,21 @@ JDBC 连接器可能报错的错误码包括 4 种：
 | 0x2371     | consumer properties must not be null!                           | 创建订阅时参数为空，请填写正确的参数。                                                    |
 | 0x2372     | configs contain empty key, failed to set consumer property      | 参数 key 中包含空值，请填写正确的参数。                                                   |
 | 0x2373     | failed to set consumer property,                                | 参数 value 中包含空值，请填写正确的参数。                                                 |
-| 0x2375     | topic reference has been destroyed                              | 创建数据订阅过程中，topic 引用被释放。请检查与 TDengine 的连接情况。                      |
+| 0x2375     | topic reference has been destroyed                              | 创建数据订阅过程中，topic 引用被释放。请检查与 TDengine TSDB 的连接情况。                      |
 | 0x2376     | failed to set consumer topic, topic name is empty               | 创建数据订阅过程中，订阅 topic 名称为空。请检查指定的 topic 名称是否填写正确。            |
-| 0x2377     | consumer reference has been destroyed                           | 订阅数据传输通道已经关闭，请检查与 TDengine 的连接情况。                                  |
+| 0x2377     | consumer reference has been destroyed                           | 订阅数据传输通道已经关闭，请检查与 TDengine TSDB 的连接情况。                                  |
 | 0x2378     | consumer create error                                           | 创建数据订阅失败，请根据错误信息检查 taos log 进行问题定位。                              |
 | 0x2379     | seek offset must not be a negative number                       | seek 接口参数不能为负值，请使用正确的参数                                                 |
 | 0x237a     | vGroup not found in result set                                  | VGroup 没有分配给当前 consumer，由于 Rebalance 机制导致 Consumer 与 VGroup 不是绑定的关系 |
 | 0x2390     | background thread write error in Efficient Writing              | 高效写入后台线程写入错误，可以停止写入，重建连接 |
 
-- [TDengine Java Connector Error Code](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
-<!-- - [TDengine_ERROR_CODE](../error-code) -->
+- [TDengine TSDB Java Connector Error Code](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
 
 ## 数据类型映射
 
-TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对应类型转换如下：
+TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 Java 对应类型转换如下：
 
-| TDengine DataType | JDBCType             | 备注|
+| TDengine TSDB DataType | JDBCType             | 备注|
 | ----------------- | -------------------- |-------------------- |
 | TIMESTAMP         | java.sql.Timestamp   ||
 | BOOL              | java.lang.Boolean    ||
@@ -163,10 +162,10 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 | BLOB              | byte[]               |仅在列中支持|
 | DECIMAL           | java.math.BigDecimal |仅在 WebSocket 连接方式支持|
 
-**注意**：由于历史原因，TDengine 中的 BINARY 底层不是真正的二进制数据，已不建议使用，请用 VARBINARY 类型代替。  
+**注意**：由于历史原因，TDengine TSDB 中的 BINARY 底层不是真正的二进制数据，已不建议使用，请用 VARBINARY 类型代替。  
 GEOMETRY 类型是 little endian 字节序的二进制数据，符合 WKB 规范。详细信息请参考 [数据类型](../../taos-sql/data-type/#数据类型)  
 WKB 规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)  
-对于 java 连接器，可以使用 jts 库来方便的创建 GEOMETRY 类型对象，序列化后写入 TDengine，这里有一个样例[Geometry 示例](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/GeometryDemo.java)  
+对于 java 连接器，可以使用 jts 库来方便的创建 GEOMETRY 类型对象，序列化后写入 TDengine TSDB，这里有一个样例[Geometry 示例](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/GeometryDemo.java)  
 
 ## 示例程序汇总
 
@@ -177,7 +176,7 @@ WKB 规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/
 - SpringJdbcTemplate：Spring JdbcTemplate 中使用 taos-jdbcdriver。
 - mybatisplus-demo：Springboot + Mybatis 中使用 taos-jdbcdriver。
 - springbootdemo：Springboot 中使用 taos-jdbcdriver。
-- consumer-demo：Consumer 消费 TDengine 数据示例，可通过参数控制消费速度。
+- consumer-demo：Consumer 消费 TDengine TSDB 数据示例，可通过参数控制消费速度。
 
 请参考：[JDBC example](https://github.com/taosdata/TDengine/tree/main/docs/examples/JDBC)
 
@@ -185,7 +184,7 @@ WKB 规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/
 
 1. 使用 Statement 的 `addBatch()` 和 `executeBatch()` 来执行“批量写入/更新”，为什么没有带来性能上的提升？
 
-**原因**：TDengine 的 JDBC 实现中，通过 `addBatch` 方法提交的 SQL 语句，会按照添加的顺序，依次执行，这种方式没有减少与服务端的交互次数，不会带来性能上的提升。
+**原因**：TDengine TSDB 的 JDBC 实现中，通过 `addBatch` 方法提交的 SQL 语句，会按照添加的顺序，依次执行，这种方式没有减少与服务端的交互次数，不会带来性能上的提升。
 
 **解决方法**：1. 在一条 insert 语句中拼接多个 values 值；2. 使用多线程的方式并发插入；3. 使用参数绑定的写入方式
 
@@ -197,15 +196,15 @@ WKB 规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/
 
 3. java.lang.UnsatisfiedLinkError: taos.dll Can't load AMD 64 bit on a IA 32-bit platform
 
-**原因**：目前 TDengine 只支持 64 位 JDK。
+**原因**：目前 TDengine TSDB 只支持 64 位 JDK。
 
 **解决方法**：重新安装 64 位 JDK。
 
 4. java.lang.NoSuchMethodError: setByteArray
 
-**原因**：taos-jdbcdriver 3.\* 版本仅支持 TDengine 3.0 及以上版本。
+**原因**：taos-jdbcdriver 3.\* 版本仅支持 TDengine TSDB 3.0 及以上版本。
 
-**解决方法**：使用 taos-jdbcdriver 2.\* 版本连接 TDengine 2.\* 版本。
+**解决方法**：使用 taos-jdbcdriver 2.\* 版本连接 TDengine TSDB 2.\* 版本。
 
 5. java.lang.NoSuchMethodError: java.nio.ByteBuffer.position(I)Ljava/nio/ByteBuffer; ... taos-jdbcdriver-3.0.1.jar
 
@@ -224,20 +223,20 @@ taos-jdbcdriver 实现了 JDBC 标准的 Driver 接口，提供了 3 个实现�
 - REST 连接使用驱动类 `com.taosdata.jdbc.rs.RestfulDriver`。
 
 #### URL 规范
-TDengine 的 JDBC URL 规范格式为：
+TDengine TSDB 的 JDBC URL 规范格式为：
 `jdbc:[TAOS|TAOS-WS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&batchfetch={batchfetch}]`
 
 `host_name` 参数支持合法的域名或 IP 地址。taos-jdbcdriver 同时支持 IPv4 和 IPv6 格式。对于 IPv6 地址，必须使用中括号括起来（例如 `[::1]` 或 `[2001:db8:1234:5678::1]`），以避免端口号解析冲突。  
 JDBC URL 中支持设置 Properties 中所有属性，具体请参考下文 **Properties** 章节。  
 
 **原生连接**  
-`jdbc:TAOS://taosdemo.com:6030/power?user=root&password=taosdata`，使用了 JDBC 原生连接的 TSDBDriver，建立了到 hostname 为 taosdemo.com，端口为 6030（TDengine 的默认端口），数据库名为 power 的连接。这个 URL
+`jdbc:TAOS://taosdemo.com:6030/power?user=root&password=taosdata`，使用了 JDBC 原生连接的 TSDBDriver，建立了到 hostname 为 taosdemo.com，端口为 6030（TDengine TSDB 的默认端口），数据库名为 power 的连接。这个 URL
 中指定用户名（user）为 root，密码（password）为 taosdata。
 
 **注意**：使用 JDBC 原生连接，taos-jdbcdriver 需要依赖客户端驱动（Linux 下是 libtaos.so；Windows 下是 taos.dll；macOS 下是 libtaos.dylib）。
 
 对于原生连接 url 中支持的配置参数如下：
-- user：登录 TDengine 用户名，默认值 'root'。
+- user：登录 TDengine TSDB 用户名，默认值 'root'。
 - password：用户登录密码，默认值 'taosdata'。
 - cfgdir：客户端配置文件目录路径，Linux OS 上默认值 `/etc/taos`，Windows OS 上默认值 `C:/TDengine/cfg`。
 - charset：客户端使用的字符集，默认值为系统字符集。
@@ -248,12 +247,12 @@ JDBC URL 中支持设置 Properties 中所有属性，具体请参考下文 **Pr
 
 JDBC 原生连接的使用请参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1955.html)。  
 
-**使用 TDengine 客户端驱动配置文件建立连接**  
+**使用 TDengine TSDB 客户端驱动配置文件建立连接**  
 
-当使用 JDBC 原生连接连接 TDengine 集群时，可以使用 TDengine 客户端驱动配置文件，在配置文件中指定集群的 firstEp、secondEp 等参数。此时在 JDBC url 中不指定 `hostname` 和 `port`。 
+当使用 JDBC 原生连接连接 TDengine TSDB 集群时，可以使用 TDengine TSDB 客户端驱动配置文件，在配置文件中指定集群的 firstEp、secondEp 等参数。此时在 JDBC url 中不指定 `hostname` 和 `port`。 
 配置如 `jdbc:TAOS://:/power?user=root&password=taosdata`。  
-在 TDengine 客户端驱动配置文件中指定 firstEp 和 secondEp，jdbc 会使用客户端的配置文件，建立连接。当集群中 firstEp 节点失效时，JDBC 会尝试使用 secondEp 连接集群。
-TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可以正常建立到集群的连接。
+在 TDengine TSDB 客户端驱动配置文件中指定 firstEp 和 secondEp，jdbc 会使用客户端的配置文件，建立连接。当集群中 firstEp 节点失效时，JDBC 会尝试使用 secondEp 连接集群。
+TDengine TSDB 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可以正常建立到集群的连接。
 
 > **注意**：这里的配置文件指的是调用 JDBC Connector 的应用程序所在机器上的配置文件，Linux OS 上默认值 /etc/taos/taos.cfg，Windows OS 上默认值 C://TDengine/cfg/taos.cfg。
 
@@ -265,7 +264,7 @@ TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可�
 3. 使用 6041 作为连接端口。
 
 对于 WebSocket 连接，url 中的配置参数如下：
-- user：登录 TDengine 用户名，默认值 'root'。
+- user：登录 TDengine TSDB 用户名，默认值 'root'。
 - password：用户登录密码，默认值 'taosdata'。
 - batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
 - httpConnectTimeout：连接超时时间，单位 ms，默认值为 60000。
@@ -289,7 +288,7 @@ TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可�
 3. 使用 6041 作为连接端口。
 
 对于 REST 连接，url 中的配置参数如下：
-- user：登录 TDengine 用户名，默认值 'root'。
+- user：登录 TDengine TSDB 用户名，默认值 'root'。
 - password：用户登录密码，默认值 'taosdata'。
 - batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
 - httpConnectTimeout：连接超时时间，单位 ms，默认值为 60000。
@@ -314,7 +313,7 @@ TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可�
 > **注意**：应用中设置的 client parameter 为进程级别的，即如果要更新 client 的参数，需要重启应用。这是因为 client parameter 是全局参数，仅在应用程序的第一次设置生效。
 
 properties 中的配置参数如下：  
-- TSDBDriver.PROPERTY_KEY_USER [`user`]：登录 TDengine 用户名，默认值 'root'。
+- TSDBDriver.PROPERTY_KEY_USER [`user`]：登录 TDengine TSDB 用户名，默认值 'root'。
 - TSDBDriver.PROPERTY_KEY_PASSWORD [`password`]：用户登录密码，默认值 'taosdata'。
 - TSDBDriver.PROPERTY_KEY_BATCH_LOAD [`batchfetch`]：true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。因历史原因使用 REST 连接时，若设置此参数为 true 会变成 WebSocket 连接。
 - TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE [`batchErrorIgnore`]：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 sq 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
@@ -357,14 +356,14 @@ properties 中的配置参数如下：
 
 1. JDBC URL 参数，如上所述，可以在 JDBC URL 的参数中指定。
 2. Properties connProps
-3. 使用原生连接时，TDengine 客户端驱动的配置文件 taos.cfg
+3. 使用原生连接时，TDengine TSDB 客户端驱动的配置文件 taos.cfg
 
 例如：在 url 中指定了 password 为 taosdata，在 Properties 中指定了 password 为 taosdemo，那么，JDBC 会使用 url 中的 password 建立连接。
 
 #### 接口说明  
 
 - `Connection connect(String url, java.util.Properties info) throws SQLException`
-  - **接口说明**：连接 TDengine 数据库。
+  - **接口说明**：连接 TDengine TSDB 数据库。
   - **参数说明**：
     - `url`：连接地址 url，详见上文 URL 规范。
     - `info`：连接属性，详见上文 Properties 章节。
@@ -787,7 +786,7 @@ JDBC 驱动提供了符合 JDBC 标准的 `Statement` 接口，支持以下功�
 
 - `int getFetchDirection() throws SQLException`
   - **接口说明**：获取 `Statement` 对象从数据库中获取行的方向。
-  - **返回值**：获取行的方向，TDengine 只支持 `FETCH_FORWARD` 方向。
+  - **返回值**：获取行的方向，TDengine TSDB 只支持 `FETCH_FORWARD` 方向。
   - **异常**：获取过程中发生数据库访问错误或其他错误，将抛出 `SQLException` 异常。
 
 - `void setFetchSize(int rows) throws SQLException`
@@ -1398,7 +1397,7 @@ JDBC 标准不支持数据订阅，因此本章所有接口都是扩展接口。
 
 创建消费者支持属性列表： 
 - td.connect.type：连接方式。jni：表示使用动态库连接的方式，ws/WebSocket：表示使用 WebSocket 进行数据通信。默认为 jni 方式。
-- bootstrap.servers：TDengine 服务端所在的`ip:port`，如果使用 WebSocket 连接，则为 taosAdapter 所在的`ip:port`。
+- bootstrap.servers：TDengine TSDB 服务端所在的`ip:port`，如果使用 WebSocket 连接，则为 taosAdapter 所在的`ip:port`。
 - enable.auto.commit：是否允许自动提交。
 - group.id：consumer：所在的 group。
 - value.deserializer：结果集反序列化方法，可以继承 `com.taosdata.jdbc.tmq.ReferenceDeserializer`，并指定结果集 bean，实现反序列化。也可以继承 `com.taosdata.jdbc.tmq.Deserializer`，根据 SQL 的 resultSet 自定义反序列化方式。
@@ -1410,7 +1409,7 @@ JDBC 标准不支持数据订阅，因此本章所有接口都是扩展接口。
 - TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS：自动重连重试间隔，单位毫秒，默认值 2000。仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
 - TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT：自动重连重试次数，默认值 3，仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
 
-其他参数请参考：[Consumer 参数列表](../../../develop/tmq/#创建参数)，注意 TDengine 服务端自 3.2.0.0 版本开始消息订阅中的 auto.offset.reset 默认值发生变化。
+其他参数请参考：[Consumer 参数列表](../../../develop/tmq/#创建参数)，注意 TDengine TSDB 服务端自 3.2.0.0 版本开始消息订阅中的 auto.offset.reset 默认值发生变化。
 
 - `void subscribe(Collection<String> topics) throws SQLException`
   - **接口说明**：订阅一组主题。

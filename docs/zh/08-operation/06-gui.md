@@ -4,25 +4,25 @@ title: 可视化管理工具
 toc_max_heading_level: 4
 ---
 
-为方便用户更高效地使用和管理 TDengine，TDengine 3.0 版本推出了一个全新的可视化组件 taosExplorer。这个组件旨在帮助用户在不熟悉 SQL 的情况下，也能轻松管理 TDengine 集群。通过 taosExplorer，用户可以轻松查看 TDengine 的运行状态、浏览数据、配置数据源、实现流计算和数据订阅等功能。此外，用户还可以利用 taosExplorer 进行数据的备份、复制和同步操作，以及配置用户的各种访问权限。这些功能极大地简化了数据库的使用过程，提高了用户体验。
+为方便用户更高效地使用和管理 TDengine TSDB，TDengine TSDB 3.0 版本推出了一个全新的可视化组件 taosExplorer。这个组件旨在帮助用户在不熟悉 SQL 的情况下，也能轻松管理 TDengine TSDB 集群。通过 taosExplorer，用户可以轻松查看 TDengine TSDB 的运行状态、浏览数据、配置数据源、实现流计算和数据订阅等功能。此外，用户还可以利用 taosExplorer 进行数据的备份、复制和同步操作，以及配置用户的各种访问权限。这些功能极大地简化了数据库的使用过程，提高了用户体验。
 
 本节介绍可视化管理的基本功能。
 
 ## 登录
 
-在完成 TDengine 的安装与启动流程之后，用户便可立即开始使用 taosExplorer。该组件默认监听 TCP 端口 6060，用户只须在浏览器中输入 `http://<IP>:6060/login`（其中的 IP 是用户自己的地址），便可顺利登录。成功登录集群后，用户会发现在左侧的导航栏中各项功能被清晰地划分为不同的模块。接下来将简单介绍主要模块。
+在完成 TDengine TSDB 的安装与启动流程之后，用户便可立即开始使用 taosExplorer。该组件默认监听 TCP 端口 6060，用户只须在浏览器中输入 `http://<IP>:6060/login`（其中的 IP 是用户自己的地址），便可顺利登录。成功登录集群后，用户会发现在左侧的导航栏中各项功能被清晰地划分为不同的模块。接下来将简单介绍主要模块。
 
 ## 运行监控面板
 
-在 Grafana 上安装 TDengine 数据源插件后，即可添加 TDengine 数据源，并导入 TDengine 的 Grafana Dashboard: TDengine for 3.x。通过这一操作，用户将能够在不编写任何代码的情况下实现对 TDengine 运行状态的实时监控和告警功能。详情请参考[运行监控](../monitor)
+在 Grafana 上安装 TDengine TSDB 数据源插件后，即可添加 TDengine TSDB 数据源，并导入 TDengine TSDB 的 Grafana Dashboard: TDengine TSDB for 3.x。通过这一操作，用户将能够在不编写任何代码的情况下实现对 TDengine TSDB 运行状态的实时监控和告警功能。详情请参考[运行监控](../monitor)
 
 ## 编程
 
-通过“编程”页面，可以看到不同编程语言如何与 TDengine 进行交互，实现写入和查询等基本操作。用户通过复制粘贴，即可完成一个示例工程的创建。目前支持的编程语言包括 Java、Go、Python、Node.js（Javascript）、C#、Rust、R 等。
+通过“编程”页面，可以看到不同编程语言如何与 TDengine TSDB 进行交互，实现写入和查询等基本操作。用户通过复制粘贴，即可完成一个示例工程的创建。目前支持的编程语言包括 Java、Go、Python、Node.js（Javascript）、C#、Rust、R 等。
 
 ## 数据写入
 
-通过创建不同的任务，用户能够以零代码的方式，将来自不同外部数据源的数据导入 TDengine。目前，TDengine 支持的数据源包括 AVEVA PI System、OPC-UA/DA、MQTT、Kafka、InfluxDB、OpenTSDB、TDengine 2、TDengine 3、CSV、AVEVA Historian 等。在任务的配置中，用户还可以添加与 ETL 相关的配置。
+通过创建不同的任务，用户能够以零代码的方式，将来自不同外部数据源的数据导入 TDengine TSDB。目前，TDengine TSDB 支持的数据源包括 AVEVA PI System、OPC-UA/DA、MQTT、Kafka、InfluxDB、OpenTSDB、TDengine TSDB 2、TDengine TSDB 3、CSV、AVEVA Historian 等。在任务的配置中，用户还可以添加与 ETL 相关的配置。
 
 在任务列表页中，可以实现任务的启动、停止、编辑、删除、查看任务的活动日志等操作。
 
@@ -122,9 +122,9 @@ toc_max_heading_level: 4
 
 ## 流计算
 
-通过 Explorer，您可以轻松地完成对流的管理，从而更好地利用 TDengine 提供的流计算能力。
+通过 Explorer，您可以轻松地完成对流的管理，从而更好地利用 TDengine TSDB 提供的流计算能力。
 点击左侧导航栏中的“流计算”，即可跳转至流计算配置管理页面。
-您可以通过以下两种方式创建流：流计算向导和自定义 SQL 语句。当前，通过流计算向导创建流时，暂不支持分组功能。通过自定义 SQL 创建流时，您需要了解 TDengine 提供的流计算 SQL 语句的语法，并保证其正确性。
+您可以通过以下两种方式创建流：流计算向导和自定义 SQL 语句。当前，通过流计算向导创建流时，暂不支持分组功能。通过自定义 SQL 创建流时，您需要了解 TDengine TSDB 提供的流计算 SQL 语句的语法，并保证其正确性。
 
 ![stream-01-streamEntry.jpeg](./pic/stream-01-streamEntry.jpeg "进入流计算页面")
 
@@ -150,9 +150,9 @@ toc_max_heading_level: 4
 
 ## 数据订阅
 
-通过 Explorer，您可以轻松地完成对数据订阅的管理，从而更好地利用 TDengine 提供的数据订阅能力。
+通过 Explorer，您可以轻松地完成对数据订阅的管理，从而更好地利用 TDengine TSDB 提供的数据订阅能力。
 点击左侧导航栏中的“数据订阅”，即可跳转至数据订阅配置管理页面。
-您可以通过以下两种方式创建主题：使用向导和自定义 SQL 语句。通过自定义 SQL 创建主题时，您需要了解 TDengine 提供的数据订阅 SQL 语句的语法，并保证其正确性。
+您可以通过以下两种方式创建主题：使用向导和自定义 SQL 语句。通过自定义 SQL 创建主题时，您需要了解 TDengine TSDB 提供的数据订阅 SQL 语句的语法，并保证其正确性。
 
 ![topic-01-dataSubscription.jpeg](./pic/topic-01-dataSubscription.jpeg "进入数据订阅页面")
 
@@ -200,16 +200,16 @@ toc_max_heading_level: 4
 
 ## 工具
 
-通过“工具”页面，用户可以了解如下 TDengine 周边工具的使用方法。
-- TDengine CLI
+通过“工具”页面，用户可以了解如下 TDengine TSDB 周边工具的使用方法。
+- TDengine TSDB CLI
 - taosBenchmark
 - taosdump
-- TDengine 与 BI 工具的集成，例如 Google Looker Studio、Power BI、永洪 BI 等
-- TDengine 与 Grafana、Seeq 的集成
+- TDengine TSDB 与 BI 工具的集成，例如 Google Looker Studio、Power BI、永洪 BI 等
+- TDengine TSDB 与 Grafana、Seeq 的集成
 
 ## 系统管理
 
-点击功能列表中的“系统管理”入口，可以创建用户、对用户进行访问授权、以及删除用户，还能够对当前所管理的集群中的数据进行备份和恢复，也可以配置一个远程 TDengine 的地址进行数据同步，同时也提供了集群信息和许可证的信息以及代理信息以供查看。系统管理菜单只有 root 用户才有权限看到。
+点击功能列表中的“系统管理”入口，可以创建用户、对用户进行访问授权、以及删除用户，还能够对当前所管理的集群中的数据进行备份和恢复，也可以配置一个远程 TDengine TSDB 的地址进行数据同步，同时也提供了集群信息和许可证的信息以及代理信息以供查看。系统管理菜单只有 root 用户才有权限看到。
 
 ### 用户管理
 

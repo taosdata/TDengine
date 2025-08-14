@@ -57,13 +57,13 @@ import TabItem from "@theme/TabItem";
 </TabItem>
 <TabItem label="Python" value="python">
 
-推荐使用 stmt2 绑定参数的示例代码如下（适用于 python 连接器 0.5.1 及以上、TDengine v3.3.5.0 及以上版本）：
+推荐使用 stmt2 绑定参数的示例代码如下（适用于 python 连接器 0.5.1 及以上、TDengine TSDB v3.3.5.0 及以上版本）：
 
 ```python
 {{#include docs/examples/python/stmt2_ws.py}}
 ```
 
-stmt 绑定参数的示例代码如下（TDengine v3.3.5.0 已停止维护）：
+stmt 绑定参数的示例代码如下（TDengine TSDB v3.3.5.0 已停止维护）：
 
 ```python
 {{#include docs/examples/python/stmt_ws.py}}
@@ -93,7 +93,7 @@ stmt 绑定参数的示例代码如下（TDengine v3.3.5.0 已停止维护）：
 ```
 </TabItem>
 <TabItem label="C" value="c">
-stmt2 绑定参数的示例代码如下（需要 TDengine v3.3.5.0 及以上）：
+stmt2 绑定参数的示例代码如下（需要 TDengine TSDB v3.3.5.0 及以上）：
 
 ```c
 {{#include docs/examples/c-ws-new/stmt2_insert_demo.c}}
@@ -123,13 +123,13 @@ stmt2 绑定参数的示例代码如下（需要 TDengine v3.3.5.0 及以上）�
 </TabItem>
 <TabItem label="Go" value="go">
 
-stmt2 绑定参数的示例代码如下（go 连接器 v3.6.0 及以上，TDengine v3.3.5.0 及以上）：
+stmt2 绑定参数的示例代码如下（go 连接器 v3.6.0 及以上，TDengine TSDB v3.3.5.0 及以上）：
 
 ```go
 {{#include docs/examples/go/stmt2/native/main.go}}
 ```
 
-stmt 绑定参数的示例代码如下（TDengine v3.3.5.0 已停止维护）：
+stmt 绑定参数的示例代码如下（TDengine TSDB v3.3.5.0 已停止维护）：
 
 ```go
 {{#include docs/examples/go/stmt/native/main.go}}
@@ -154,13 +154,13 @@ stmt 绑定参数的示例代码如下（TDengine v3.3.5.0 已停止维护）：
 </TabItem>
 <TabItem label="C" value="c">
 
-stmt2 绑定参数的示例代码如下（需要 TDengine v3.3.5.0 及以上）：
+stmt2 绑定参数的示例代码如下（需要 TDengine TSDB v3.3.5.0 及以上）：
 
 ```c
 {{#include docs/examples/c/stmt2_insert_demo.c}}
 ```
 
-stmt 绑定参数的示例代码如下（TDengine v3.3.5.0 已停止维护）：
+stmt 绑定参数的示例代码如下（TDengine TSDB v3.3.5.0 已停止维护）：
 
 <details>
 <summary>点击查看 stmt 示例代码</summary>

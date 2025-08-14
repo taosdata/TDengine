@@ -77,7 +77,7 @@ docker ps
 docker exec -it <container name> bash
 ```
 
-然后就可以执行相关的 Linux 命令操作和访问 TDengine。
+然后就可以执行相关的 Linux 命令操作和访问 TDengine TSDB。
 
 ## 注册云服务使用 TDgpt
 
@@ -87,10 +87,10 @@ TDgpt 可以在 TDengine Cloud 上进行快速体验。如果您已经有云服�
 
 ### 环境准备
 
-使用 TDgpt 的高级时序数据分析功能需要在 TDengine 集群中安装部署 Taos AI node（anode）。anode 运行在 Linux 平台上，对部署 anode 的有一定的环境要求：
+使用 TDgpt 的高级时序数据分析功能需要在 TDengine TSDB 集群中安装部署 Taos AI node（anode）。anode 运行在 Linux 平台上，对部署 anode 的有一定的环境要求：
 
 - Python: 3.10 或以上版本。
-- TDengine：需使用 3.3.6.0 或以上版本。
+- TDengine TSDB：需使用 3.3.6.0 或以上版本。
 - C 编译器：因依赖 uWSGI，部署环境需包含 C 编译器。
 
 使用如下命令在 Ubuntu Linux 上安装 Python 3.10 环境。如果您的系统环境中已经有 Python 3.10，请跳过本节，直接查看 [获取安装包](#获取安装包) 部分。
@@ -141,7 +141,7 @@ sudo apt install build-essential
 > 请将 `<version>` 替换为下载的安装包版本
 
 ```bash
-tar -zxvf TDengine-TDgpt-<version>-Linux-x64.tar.gz
+tar -zxvf tdengine-tdgpt-<version>-Linux-x64.tar.gz
 ```
 
 ### 执行安装脚本
@@ -150,7 +150,7 @@ tar -zxvf TDengine-TDgpt-<version>-Linux-x64.tar.gz
 请将 `<version>` 替换为下载的安装包版本
 
 ```bash
-cd TDengine-TDgpt-<version>
+cd tdengine-tdgpt-<version>
 ./install.sh
 ```
 

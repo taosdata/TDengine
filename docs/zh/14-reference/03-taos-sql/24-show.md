@@ -114,7 +114,7 @@ SHOW FUNCTIONS;
 ```sql
 SHOW LICENCES;
 SHOW GRANTS;
-SHOW GRANTS FULL; // 从 TDengine 3.2.3.0 版本开始支持
+SHOW GRANTS FULL; // 从 TDengine TSDB 3.2.3.0 版本开始支持
 ```
 
 显示企业版许可授权的信息。

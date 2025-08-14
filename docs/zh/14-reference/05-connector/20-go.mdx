@@ -2,7 +2,7 @@
 toc_max_heading_level: 4
 sidebar_position: 4
 sidebar_label: Go
-title: TDengine Go Connector
+title: TDengine TSDB Go Connector
 ---
 
 import Tabs from '@theme/Tabs';
@@ -10,7 +10,7 @@ import TabItem from '@theme/TabItem';
 
 import RequestId from "./_request_id.mdx";
 
-`driver-go` 是 TDengine 的官方 Go 语言连接器，实现了 Go 语言 [database/sql](https://golang.org/pkg/database/sql/)  包的接口。Go 开发人员可以通过它开发存取 TDengine 集群数据的应用软件。
+`driver-go` 是 TDengine TSDB 的官方 Go 语言连接器，实现了 Go 语言 [database/sql](https://golang.org/pkg/database/sql/)  包的接口。Go 开发人员可以通过它开发存取 TDengine TSDB 集群数据的应用软件。
 
 ## Go 版本兼容性
 
@@ -18,12 +18,12 @@ import RequestId from "./_request_id.mdx";
 
 ## 支持的平台
 
-- 原生连接支持的平台和 TDengine 客户端驱动支持的平台一致。
+- 原生连接支持的平台和 TDengine TSDB 客户端驱动支持的平台一致。
 - WebSocket/REST 连接支持所有能运行 Go 的平台。
 
 ## 版本历史
 
-| driver-go 版本 | 主要变化                                       | TDengine 版本   |
+| driver-go 版本 | 主要变化                                       | TDengine TSDB 版本   |
 |--------------|--------------------------------------------|---------------|
 | v3.7.3       | 修复 WebSocket 连接 stmt 查询结果包含 decimal 数据崩溃   | -             |
 | v3.7.2       | 支持 BLOB 类型                                 | -             |
@@ -34,7 +34,7 @@ import RequestId from "./_request_id.mdx";
 | v3.5.7       | taosWS 和 taosRestful 支持传入 request id       | -             |
 | v3.5.6       | 提升 WebSocket 查询和写入性能                       | 3.3.2.0 及更高版本 |
 | v3.5.5       | restful 支持跳过 ssl 证书检查                      | -             |
-| v3.5.4       | 兼容 TDengine 3.3.0.0 tmq raw data           | -             |
+| v3.5.4       | 兼容 TDengine TSDB 3.3.0.0 tmq raw data           | -             |
 | v3.5.3       | 重构 taosWS                                  | -             |
 | v3.5.2       | WebSocket 压缩和优化消息订阅性能                      | 3.2.3.0 及更高版本 |
 | v3.5.1       | 原生 stmt 查询和 geometry 类型支持                  | 3.2.1.0 及更高版本 |
@@ -45,11 +45,11 @@ import RequestId from "./_request_id.mdx";
 | v3.0.3       | 基于 WebSocket 的 statement 写入                | -             |
 | v3.0.2       | 基于 WebSocket 的数据查询和写入                      | 3.0.1.5 及更高版本 |
 | v3.0.1       | 基于 WebSocket 的消息订阅                         | -             |
-| v3.0.0       | 适配 TDengine 3.0 查询和写入                      | 3.0.0.0 及更高版本 |
+| v3.0.0       | 适配 TDengine TSDB 3.0 查询和写入                      | 3.0.0.0 及更高版本 |
 
 ## 异常和错误码
 
-如果是 TDengine 错误可以通过以下方式获取错误码和错误信息。
+如果是 TDengine TSDB 错误可以通过以下方式获取错误码和错误信息。
 
 ```go
 // import "github.com/taosdata/driver-go/v3/errors"
@@ -64,11 +64,11 @@ import RequestId from "./_request_id.mdx";
     }
 ```
 
-TDengine 其他功能模块的报错，请参考 [错误码](../../../reference/error-code)    
+TDengine TSDB 其他功能模块的报错，请参考 [错误码](../../../reference/error-code)    
 
 ## 数据类型映射
 
-| TDengine DataType | Go Type   |
+| TDengine TSDB DataType | Go Type   |
 |-------------------|-----------|
 | TIMESTAMP         | time.Time |
 | TINYINT           | int8      |
@@ -838,7 +838,7 @@ type ConfigMap map[string]ConfigValue
 - `ws.reconnectIntervalMs`：WebSocket 重连间隔时间毫秒，默认 2000。
 - `ws.reconnectRetryCount`：WebSocket 重连重试次数，默认 3。
 
-其他参数请参考：[Consumer 参数列表](../../../develop/tmq/#创建参数)，注意 TDengine 服务端自 3.2.0.0 版本开始消息订阅中的 auto.offset.reset 默认值发生变化。
+其他参数请参考：[Consumer 参数列表](../../../develop/tmq/#创建参数)，注意 TDengine TSDB 服务端自 3.2.0.0 版本开始消息订阅中的 auto.offset.reset 默认值发生变化。
 
 - `func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error`
     - **接口说明**：订阅主题。

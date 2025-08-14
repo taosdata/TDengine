@@ -1,7 +1,7 @@
 ---
 sidebar_label: 语法变更
 title: 语法变更
-description: "TDengine 3.0 版本的语法变更说明"
+description: "TDengine TSDB 3.0 版本的语法变更说明"
 ---
 
 ## SQL 基本元素变更
@@ -22,7 +22,7 @@ description: "TDengine 3.0 版本的语法变更说明"
 
 ## SQL 语句变更
 
-在 TDengine 中，普通表的数据模型中可使用以下数据类型。
+在 TDengine TSDB 中，普通表的数据模型中可使用以下数据类型。
 
 | # | **语句**  | **<div style={{width: 60}}>差异性</div>** | **说明** |
 | - | :------- | :-------- | :------- |

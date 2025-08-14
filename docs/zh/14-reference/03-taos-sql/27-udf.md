@@ -4,10 +4,10 @@ title: 自定义函数
 description: 使用 UDF 的详细指南
 ---
 
-除了 TDengine 的内置函数以外，用户还可以编写自己的函数逻辑并加入 TDengine 系统中。
+除了 TDengine TSDB 的内置函数以外，用户还可以编写自己的函数逻辑并加入 TDengine TSDB 系统中。
 ## 创建 UDF
 
-用户可以通过 SQL 指令在系统中加载客户端所在主机上的 UDF 函数库（不能通过 RESTful 接口或 HTTP 管理界面来进行这一过程）。一旦创建成功，则当前 TDengine 集群的所有用户都可以在 SQL 指令中使用这些函数。UDF 存储在系统的 mnode 节点上，因此即使重启 TDengine 系统，已经创建的 UDF 也仍然可用。
+用户可以通过 SQL 指令在系统中加载客户端所在主机上的 UDF 函数库（不能通过 RESTful 接口或 HTTP 管理界面来进行这一过程）。一旦创建成功，则当前 TDengine TSDB 集群的所有用户都可以在 SQL 指令中使用这些函数。UDF 存储在系统的 mnode 节点上，因此即使重启 TDengine TSDB 系统，已经创建的 UDF 也仍然可用。
 
 在创建 UDF 时，需要区分标量函数和聚合函数。如果创建时声明了错误的函数类别，则可能导致通过 SQL 指令调用函数时出错。此外，用户需要保证输入数据类型与 UDF 程序匹配，UDF 输出数据类型与 OUTPUTTYPE 匹配。
 

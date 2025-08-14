@@ -2,11 +2,11 @@
 
 ## 内存优化
 
-TDengine 提供了内存分配器配置脚本 `set_taos_malloc.sh`，用于优化内存分配策略。通过该脚本，用户可以轻松切换不同的内存分配器模式，以提高 TDengine 的性能和稳定性。
+TDengine TSDB 提供了内存分配器配置脚本 `set_taos_malloc.sh`，用于优化内存分配策略。通过该脚本，用户可以轻松切换不同的内存分配器模式，以提高 TDengine TSDB 的性能和稳定性。
 
-### TDengine 内存分配器配置脚本
+### TDengine TSDB 内存分配器配置脚本
 
-`set_taos_malloc.sh` 是 TDengine 提供的内存分配器配置脚本，用于一键切换 taosd/taosadapter 等服务的内存分配策略。
+`set_taos_malloc.sh` 是 TDengine TSDB 提供的内存分配器配置脚本，用于一键切换 taosd/taosadapter 等服务的内存分配策略。
 
 ### 作用
 
@@ -34,11 +34,11 @@ TDengine 提供了内存分配器配置脚本 `set_taos_malloc.sh`，用于优�
   - systemd taosadapter 环境变量文件：`/etc/default/taosadapter`
 - 日志文件：`/var/log/taos/set_taos_malloc.log`
 
-`/usr/local/taos` 和 `/var/log/taos` 是 TDengine 默认的安装路径和日志路径。
+`/usr/local/taos` 和 `/var/log/taos` 是 TDengine TSDB 默认的安装路径和日志路径。
 
 ### 注意事项
 
 - 修改后，需要重启 taosd/taosadapter 服务或重新 source 环境变量文件让配置生效。
-- 仅支持在 TDengine 安装目录`/usr/local/taos/bin/`下运行。
+- 仅支持在 TDengine TSDB 安装目录`/usr/local/taos/bin/`下运行。
 
 如需更多高级用法，请参考脚本内注释或联系运维支持。

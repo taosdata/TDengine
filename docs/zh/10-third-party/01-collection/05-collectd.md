@@ -1,19 +1,19 @@
 ---
 sidebar_label: collectd
 title: collectd 写入
-description: 使用 collected 向 TDengine 写入数据
+description: 使用 collected 向 TDengine TSDB 写入数据
 ---
 
 import CollectD from "../../14-reference/01-components/_collectd.mdx"
 
 collectd 是一个用来收集系统性能的守护进程。collectd 提供各种存储方式来存储不同值的机制。它会在系统运行和存储信息时周期性的统计系统的相关统计信息。利用这些信息有助于查找当前系统性能瓶颈和预测系统未来的负载等。
 
-只需要将 collectd 的配置指向运行 taosAdapter 的服务器域名（或 IP 地址）和相应端口即可将 collectd 采集的数据写入到 TDengine，可以充分利用 TDengine 对时序数据的高效存储查询性能和集群处理能力。
+只需要将 collectd 的配置指向运行 taosAdapter 的服务器域名（或 IP 地址）和相应端口即可将 collectd 采集的数据写入到 TDengine TSDB，可以充分利用 TDengine TSDB 对时序数据的高效存储查询性能和集群处理能力。
 
 ## 前置条件
 
-要将 collectd 数据写入 TDengine，需要几方面的准备工作。
-- TDengine 集群已经部署并正常运行
+要将 collectd 数据写入 TDengine TSDB，需要几方面的准备工作。
+- TDengine TSDB 集群已经部署并正常运行
 - taosAdapter 已经安装并正常运行，具体细节请参考 [taosAdapter 的使用手册](../../../reference/components/taosadapter)
 - collectd 已经安装。安装 collectd 请参考[官方文档](https://collectd.org/)
 
@@ -28,7 +28,7 @@ collectd 是一个用来收集系统性能的守护进程。collectd 提供各�
 sudo systemctl restart collectd
 ```
 
-使用 TDengine CLI 验证从 collectd 向 TDengine 写入数据并能够正确读出：
+使用 TDengine TSDB CLI 验证从 collectd 向 TDengine TSDB 写入数据并能够正确读出：
 
 ```
 taos> show databases;
@@ -75,5 +75,5 @@ Query OK, 10 row(s) in set (0.010348s)
 
 :::note
 
-- TDengine 默认生成的子表名是根据规则生成的唯一 ID 值。
+- TDengine TSDB 默认生成的子表名是根据规则生成的唯一 ID 值。
 :::

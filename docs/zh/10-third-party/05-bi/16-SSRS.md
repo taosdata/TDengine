@@ -6,7 +6,7 @@ toc_max_heading_level: 5
 
 [SQL Server Reporting Services](https://learn.microsoft.com/zh-cn/sql/reporting-services/) (SSRS) 作为微软 SQL Server 数据库平台内置组件，为企业级报表制作、浏览及管理提供强大支持。与微软旗下另一可制作灵活多样报表工具 Power BI 相比，SSRS 更适合于制作传统固定格式报表。
 
-TDengine 支持标准 ODBC 接口，SSRS 可实现无缝对接 TDengine。TDengine 高性能数据存储与查询能力为 SSRS 报表引擎提供实时数据源，SSRS 可视化报表生成功能则将 TDengine 中的物联网、金融等时序数据转化为直观业务洞察信息，满足了企业对跨平台报表解决方案的需求，同时通过标准化接口保障了数据交互安全与稳定性，为构建现代化数据驱动型组织提供坚实的技术支撑。
+TDengine TSDB 支持标准 ODBC 接口，SSRS 可实现无缝对接 TDengine TSDB。TDengine TSDB 高性能数据存储与查询能力为 SSRS 报表引擎提供实时数据源，SSRS 可视化报表生成功能则将 TDengine TSDB 中的物联网、金融等时序数据转化为直观业务洞察信息，满足了企业对跨平台报表解决方案的需求，同时通过标准化接口保障了数据交互安全与稳定性，为构建现代化数据驱动型组织提供坚实的技术支撑。
 
 ## 前置条件
 本示例需准备两台服务器两台客户端，搭建 SSRS 示例环境，网络部署图：
@@ -14,10 +14,10 @@ TDengine 支持标准 ODBC 接口，SSRS 可实现无缝对接 TDengine。TDengi
 ![deploy](img/deploy.webp)
 
 环境准备如下：
-### TDengine 服务器
+### TDengine TSDB 服务器
 
 - 操作系统不限。
-- 安装 TDengine 3.3.3.0 或以上服务器版（企业及社区版均可）。
+- 安装 TDengine TSDB 3.3.3.0 或以上服务器版（企业及社区版均可）。
 - taosAdapter 服务正常运行，检查参考 [taosAdapter 使用手册](../../../reference/components/taosadapter)。
 - 服务器 IP：192.168.2.124。
 - 提供 WebSocket 服务：端口 6041（默认）。
@@ -25,7 +25,7 @@ TDengine 支持标准 ODBC 接口，SSRS 可实现无缝对接 TDengine。TDengi
 ### SSRS 服务器
 
 - 要求 Windows 操作系统。
-- 安装 TDengine 3.3.3.0 或以上 Windows 客户端版（默认安装 TDengine ODBC 驱动）。
+- 安装 TDengine TSDB 3.3.3.0 或以上 Windows 客户端版（默认安装 TDengine TSDB ODBC 驱动）。
 - 安装 Microsoft SQL Server 2022 且数据库服务正常运行，[下载安装](https://www.microsoft.com/zh-cn/sql-server/sql-server-downloads)。
 - 安装 Microsoft SQL Server 2022 Reporting Service 且报表服务正常运行，[下载安装](https://learn.microsoft.com/zh-cn/sql/reporting-services/install-windows/install-reporting-services?view=sql-server-ver16)。
 - 配置 Microsoft SQL Server 2022 Reporting Service 使用 IP 地址对外提供服务。
@@ -38,7 +38,7 @@ TDengine 支持标准 ODBC 接口，SSRS 可实现无缝对接 TDengine。TDengi
 ### 报表制作客户端
 
 - 要求 Windows 操作系统。
-- 安装 TDengine 3.3.3.0 或以上 Windows 客户端版（默认安装 TDengine ODBC 驱动）。
+- 安装 TDengine TSDB 3.3.3.0 或以上 Windows 客户端版（默认安装 TDengine TSDB ODBC 驱动）。
 - 安装 Microsoft Report Builder（32 位），提供报表开发服务，[下载安装](https://www.microsoft.com/en-us/download/details.aspx?id=53613)。
 - 配置 Microsoft Report Builder 上报报表服务器地址，应填写前面记录的“Report Server Web Service URLs”址址。
   
@@ -52,7 +52,7 @@ TDengine 支持标准 ODBC 接口，SSRS 可实现无缝对接 TDengine。TDengi
 
 
 ## 配置数据源
-SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
+SSRS 通过 ODBC 访问 TDengine TSDB 数据源，配置步骤如下：
 
 1. SSRS 服务器配置 ODBC 数据源   
    打开 ODBC 数据源管理器（64 位），选择“System DSN”->“Add...”->“TDengine”->“Finish”, 弹出配置窗口如下：
@@ -62,7 +62,7 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
    - DSN：填写“TDengine”。
    - Connect type：选择“WebSocket”。
    - URL：`http://192.168.2.124:6041`。
-   - User/Password：填写连接 TDengine 数据库用户名/密码，不填写使用默认。
+   - User/Password：填写连接 TDengine TSDB 数据库用户名/密码，不填写使用默认。
    
    点击“Test Connection”，连接成功表示配置正确，点击“OK”保存配置。
 
@@ -88,7 +88,7 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
 
 
 ### 场景介绍
-某小区有 500 台智能电表，数据存储在 TDengine 数据库中，电力公司要求数据运营部门制作一张能够分页浏览此小区每台智能电表最后一次上报电压及电流值的报表，分析居民用电情况，同时要求报表可在公司内任意一台办公电脑上登录后浏览。
+某小区有 500 台智能电表，数据存储在 TDengine TSDB 数据库中，电力公司要求数据运营部门制作一张能够分页浏览此小区每台智能电表最后一次上报电压及电流值的报表，分析居民用电情况，同时要求报表可在公司内任意一台办公电脑上登录后浏览。
 
 开发人员使用微软提供的 SSRS 报表服务完成此项工作，使用 Report Builder 制作好报表，上传至报表服务器后供相关人员浏览。
 
@@ -168,4 +168,4 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
    对 SSRS 服务器上报表进行管理，可参考 [微软官网文档](https://learn.microsoft.com/zh-cn/sql/reporting-services/report-builder/finding-viewing-and-managing-reports-report-builder-and-ssrs?view=sql-server-ver16)。
 
 
-以上流程，我们使用了 SSRS 开发了基于 TDengine 数据源的一个简单报表制作、分发、浏览系统，更多丰富的报表还有待您的进一步开发。
+以上流程，我们使用了 SSRS 开发了基于 TDengine TSDB 数据源的一个简单报表制作、分发、浏览系统，更多丰富的报表还有待您的进一步开发。

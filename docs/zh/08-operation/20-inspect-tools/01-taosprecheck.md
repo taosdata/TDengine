@@ -6,7 +6,7 @@ toc_max_heading_level: 4
 
 ## 背景
 
-TDengine 的安装部署对环境系统有一定的依赖和要求，安装部署前需要对环境进行安装前检查，提前发现环境问题，本文档旨在说明安装前预配置工具在安装 TDengine 前对环境的预配置内容和工具的使用方法。 
+TDengine TSDB 的安装部署对环境系统有一定的依赖和要求，安装部署前需要对环境进行安装前检查，提前发现环境问题，本文档旨在说明安装前预配置工具在安装 TDengine TSDB 前对环境的预配置内容和工具的使用方法。 
 
 ## 安装件检查工具使用方法
 
@@ -43,7 +43,7 @@ optional arguments:
 ### 配置文件使用说明
 
 ```config
-# 安装部署 TDengine 的环境信息，支持免密登录和 SSH 登录两种方式，当环境配置了免密登录后可不用配置 password 信息
+# 安装部署 TDengine TSDB 的环境信息，支持免密登录和 SSH 登录两种方式，当环境配置了免密登录后可不用配置 password 信息
 [test_env]
 # 节点间通过 SSH 协议访问
 firstep=192.168.0.1||fqdn=tdengine1||username=root||password=123456||port=22
@@ -116,7 +116,7 @@ wget
 | **网络配置** | SSH 服务状态、22 端口是否可用和网络贷款 |   
 | **系统配置** | 系统名称、当前时区配置、防火墙和 SElinux 服务状态 | 
 | **coredump 配置** | coredump 路径是否配置 | 
-| **域名解析配置** | /etd/hosts 文件是否包含安装 TDengine 集群所有节点的域名解析信息 | 
+| **域名解析配置** | /etd/hosts 文件是否包含安装 TDengine TSDB 集群所有节点的域名解析信息 | 
 | **预安装软件** | 指定的原装软件是否已安装，若安装记录其版本 |
 | **SWAP 配置** | SWAP 状态和 SWAP 的当前配置 |
 | **KYSEC 配置** | KYSEC 服务是否关闭，该项检查仅针对麒麟系统 |

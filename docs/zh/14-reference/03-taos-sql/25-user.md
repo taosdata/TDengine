@@ -4,7 +4,7 @@ sidebar_label: 用户管理
 description: 本节讲述基本的用户管理功能
 ---
 
-用户和权限管理是 TDengine 企业版的功能，本节只讲述基本的用户管理部分。要想了解和获取全面的权限管理功能，请联系 TDengine 销售团队。
+用户和权限管理是 TDengine TSDB 企业版的功能，本节只讲述基本的用户管理部分。要想了解和获取全面的权限管理功能，请联系 TDengine TSDB 销售团队。
 
 ## 创建用户
 
@@ -93,4 +93,4 @@ Query OK, 0 of 0 rows affected (0.001160s)
 
 ## 授权管理
 
-授权管理仅在 TDengine 企业版中可用，请联系 TDengine 销售团队。
+授权管理仅在 TDengine TSDB 企业版中可用，请联系 TDengine TSDB 销售团队。

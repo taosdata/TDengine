@@ -1,12 +1,12 @@
 ---
 sidebar_label: 特色查询
 title: 特色查询
-description: TDengine 提供的时序数据特有的查询功能
+description: TDengine TSDB 提供的时序数据特有的查询功能
 ---
 
-TDengine 在支持标准 SQL 的基础之上，还提供了一系列满足时序业务场景需求的特色查询语法，这些语法能够为时序场景的应用的开发带来极大的便利。
+TDengine TSDB 在支持标准 SQL 的基础之上，还提供了一系列满足时序业务场景需求的特色查询语法，这些语法能够为时序场景的应用的开发带来极大的便利。
 
-TDengine 提供的特色查询包括数据切分查询和时间窗口切分查询。
+TDengine TSDB 提供的特色查询包括数据切分查询和时间窗口切分查询。
 
 ## 数据切分查询
 
@@ -22,7 +22,7 @@ select location, avg(voltage) from meters partition by location
 ```
 
 
-TDengine 按如下方式处理数据切分子句：
+TDengine TSDB 按如下方式处理数据切分子句：
 
 - 数据切分子句位于 WHERE 子句之后。
 - 数据切分子句将表数据按指定的维度进行切分，每个切分的分片进行指定的计算。计算由之后的子句定义（窗口子句、GROUP BY 子句或 SELECT 子句）。
@@ -39,7 +39,7 @@ select _wstart, tbname, avg(voltage) from meters partition by tbname interval(10
 
 ## 窗口切分查询
 
-TDengine 支持按时间窗口切分方式进行聚合结果查询，比如温度传感器每秒采集一次数据，但需查询每隔 10 分钟的温度平均值。这种场景下可以使用窗口子句来获得需要的查询结果。窗口子句用于针对查询的数据集合按照窗口切分成为查询子集并进行聚合，窗口包含时间窗口（time window）、状态窗口（status window）、会话窗口（session window）、事件窗口（event window）、计数窗口（count window）五种窗口。其中时间窗口又可划分为滑动时间窗口和翻转时间窗口。
+TDengine TSDB 支持按时间窗口切分方式进行聚合结果查询，比如温度传感器每秒采集一次数据，但需查询每隔 10 分钟的温度平均值。这种场景下可以使用窗口子句来获得需要的查询结果。窗口子句用于针对查询的数据集合按照窗口切分成为查询子集并进行聚合，窗口包含时间窗口（time window）、状态窗口（status window）、会话窗口（session window）、事件窗口（event window）、计数窗口（count window）五种窗口。其中时间窗口又可划分为滑动时间窗口和翻转时间窗口。
 
 窗口子句语法如下：
 
@@ -106,7 +106,7 @@ NULL、NULL_F、VALUE、VALUE_F 这几种填充模式针对不同场景区别如
 
 INTERVAL 子句用于产生相等时间周期的窗口，SLIDING 用以指定窗口向前滑动的时间。每次执行的查询是一个时间窗口，时间窗口随着时间流动向前滑动。在定义连续查询的时候需要指定时间窗口（time window）大小和每次前向增量时间（forward sliding times）。如图，[t0s, t0e] ，[t1s , t1e]，[t2s, t2e] 是分别是执行三次连续查询的时间窗口范围，窗口的前向滑动的时间范围 sliding time 标识。查询过滤、聚合等操作按照每个时间窗口为独立的单位执行。当 SLIDING 与 INTERVAL 相等的时候，滑动窗口即为翻转窗口。默认情况下，窗口是从 Unix time 0（1970-01-01 00:00:00 UTC）开始划分的；如果设置了 interval_offset，那么窗口的划分将从“Unix time 0 + interval_offset”开始。
 
-![TDengine Database 时间窗口示意图](./pic/time_window.webp)
+![TDengine TSDB Database 时间窗口示意图](./pic/time_window.webp)
 
 INTERVAL 和 SLIDING 子句需要配合聚合和选择函数来使用。以下 SQL 语句非法：
 
@@ -145,7 +145,7 @@ SELECT COUNT(*) FROM meters WHERE _rowts - voltage > 1000000;
 
 使用整数（布尔值）或字符串来标识产生记录时候设备的状态量。产生的记录如果具有相同的状态量数值则归属于同一个状态窗口，数值改变后该窗口关闭。如下图所示，根据状态量确定的状态窗口分别是 [2019-04-28 14:22:07，2019-04-28 14:22:10] 和 [2019-04-28 14:22:11，2019-04-28 14:22:12] 两个。
 
-![TDengine Database 状态窗口示意图](./pic/state_window.png)
+![TDengine TSDB Database 状态窗口示意图](./pic/state_window.png)
 
 使用 STATE_WINDOW 来确定状态窗口划分的列。例如 
 
@@ -159,7 +159,7 @@ SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status);
 SELECT * FROM (SELECT COUNT(*) AS cnt, FIRST(ts) AS fst, status FROM temp_tb_1 STATE_WINDOW(status)) t WHERE status = 2;
 ```
 
-TDengine 还支持将 CASE 表达式用在状态量，可以表达某个状态的开始是由满足某个条件而触发，这个状态的结束是由另外一个条件满足而触发的语义。例如，智能电表的电压正常范围是 205V 到 235V，那么可以通过监控电压来判断电路是否正常。
+TDengine TSDB 还支持将 CASE 表达式用在状态量，可以表达某个状态的开始是由满足某个条件而触发，这个状态的结束是由另外一个条件满足而触发的语义。例如，智能电表的电压正常范围是 205V 到 235V，那么可以通过监控电压来判断电路是否正常。
 
 ```
 SELECT tbname, _wstart, CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END status FROM meters PARTITION BY tbname STATE_WINDOW(CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END);
@@ -175,7 +175,7 @@ SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR 
 
 会话窗口根据记录的时间戳主键的值来确定是否属于同一个会话。如下图所示，如果设置时间戳的连续的间隔小于等于 12 秒，则以下 6 条记录构成 2 个会话窗口，分别是 [2019-04-28 14:22:10，2019-04-28 14:22:30] 和 [2019-04-28 14:23:10，2019-04-28 14:23:30]。因为 2019-04-28 14:22:30 与 2019-04-28 14:23:10 之间的时间间隔是 40 秒，超过了连续时间间隔（12 秒）。
 
-![TDengine Database 会话窗口示意图](./pic/session_window.png)
+![TDengine TSDB Database 会话窗口示意图](./pic/session_window.png)
 
 在 tol_value 时间间隔范围内的结果都认为归属于同一个窗口，如果连续的两条记录的时间超过 tol_val，则自动开启下一个窗口。
 
@@ -186,13 +186,13 @@ SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION(ts, tol_val);
 
 ### 事件窗口
 
-事件窗口根据开始条件和结束条件来划定窗口，当 start_trigger_condition 满足时则窗口开始，直到 end_trigger_condition 满足时窗口关闭。start_trigger_condition 和 end_trigger_condition 可以是任意 TDengine 支持的条件表达式，且可以包含不同的列。
+事件窗口根据开始条件和结束条件来划定窗口，当 start_trigger_condition 满足时则窗口开始，直到 end_trigger_condition 满足时窗口关闭。start_trigger_condition 和 end_trigger_condition 可以是任意 TDengine TSDB 支持的条件表达式，且可以包含不同的列。
 
 事件窗口可以仅包含一条数据。即当一条数据同时满足 start_trigger_condition 和 end_trigger_condition，且当前不在一个窗口内时，这条数据自己构成了一个窗口。
 
 事件窗口无法关闭时，不构成一个窗口，不会被输出。即有数据满足 start_trigger_condition，此时窗口打开，但后续数据都不能满足 end_trigger_condition，这个窗口无法被关闭，这部分数据不够成一个窗口，不会被输出。
 
-如果直接在超级表上进行事件窗口查询，TDengine 会将超级表的数据汇总成一条时间线，然后进行事件窗口的计算。
+如果直接在超级表上进行事件窗口查询，TDengine TSDB 会将超级表的数据汇总成一条时间线，然后进行事件窗口的计算。
 如果需要对子查询的结果集进行事件窗口查询，那么子查询的结果集需要满足按时间线输出的要求，且可以输出有效的时间戳列。
 
 以下面的 SQL 语句为例，事件窗口切分如图所示：
@@ -200,7 +200,7 @@ SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION(ts, tol_val);
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 
 ```
 
-![TDengine Database 事件窗口示意图](./pic/event_window.png)
+![TDengine TSDB Database 事件窗口示意图](./pic/event_window.png)
 
 事件窗口支持使用 TRUE_FOR 参数来设定窗口的最小持续时长。如果某个事件窗口的宽度低于该设定值，则会自动舍弃，不返回任何计算结果。例如，设置最短持续时长为 3s。
 
@@ -217,7 +217,7 @@ select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c
 select _wstart, _wend, count(*) from t count_window(4);
 ```
 
-![TDengine Database 计数窗口示意图](./pic/count_window.png)
+![TDengine TSDB Database 计数窗口示意图](./pic/count_window.png)
 
 ### 时间戳伪列
 

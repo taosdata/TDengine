@@ -1,7 +1,7 @@
 ---
 title: 转义字符
 sidebar_label: 转义字符
-description: TDengine 中使用转义字符的详细规则
+description: TDengine TSDB 中使用转义字符的详细规则
 ---
 
 ## 转义字符表

@@ -1,10 +1,10 @@
 ---
 sidebar_label: 错误码
-title: TDengine 错误码
-description: TDengine 服务端的错误码列表和详细说明
+title: TDengine TSDB 错误码
+description: TDengine TSDB 服务端的错误码列表和详细说明
 ---
 
-本文中详细列举了在使用 TDengine 客户端可能得到的服务端错误码以及所要采取的相应动作。所有语言的连接器在使用原生连接方式时也会将这些错误码返回给连接器的调用者。
+本文中详细列举了在使用 TDengine TSDB 客户端可能得到的服务端错误码以及所要采取的相应动作。所有语言的连接器在使用原生连接方式时也会将这些错误码返回给连接器的调用者。
 
 
 

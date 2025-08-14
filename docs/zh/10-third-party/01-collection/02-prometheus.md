@@ -1,21 +1,21 @@
 ---
 sidebar_label: Prometheus
 title: Prometheus 
-description: 使用 Prometheus 访问 TDengine
+description: 使用 Prometheus 访问 TDengine TSDB
 ---
 
 import Prometheus from "../../14-reference//01-components/_prometheus.mdx"
 
 Prometheus 是一款流行的开源监控告警系统。Prometheus 于 2016 年加入了 Cloud Native Computing Foundation（云原生云计算基金会，简称 CNCF），成为继 Kubernetes 之后的第二个托管项目，该项目拥有非常活跃的开发人员和用户社区。
 
-Prometheus 提供了 `remote_write` 和 `remote_read` 接口来利用其它数据库产品作为它的存储引擎。为了让 Prometheus 生态圈的用户能够利用 TDengine 的高效写入和查询，TDengine 也提供了对这两个接口的支持。
+Prometheus 提供了 `remote_write` 和 `remote_read` 接口来利用其它数据库产品作为它的存储引擎。为了让 Prometheus 生态圈的用户能够利用 TDengine TSDB 的高效写入和查询，TDengine TSDB 也提供了对这两个接口的支持。
 
-通过适当的配置，Prometheus 的数据可以通过 `remote_write` 接口存储到 TDengine 中，也可以通过 `remote_read` 接口来查询存储在 TDengine 中的数据，充分利用 TDengine 对时序数据的高效存储查询性能和集群处理能力。
+通过适当的配置，Prometheus 的数据可以通过 `remote_write` 接口存储到 TDengine TSDB 中，也可以通过 `remote_read` 接口来查询存储在 TDengine TSDB 中的数据，充分利用 TDengine TSDB 对时序数据的高效存储查询性能和集群处理能力。
 
 ## 前置条件
 
-要将 Prometheus 数据写入 TDengine 需要以下几方面的准备工作。
-- TDengine 集群已经部署并正常运行
+要将 Prometheus 数据写入 TDengine TSDB 需要以下几方面的准备工作。
+- TDengine TSDB 集群已经部署并正常运行
 - taosAdapter 已经安装并正常运行。具体细节请参考 [taosAdapter 的使用手册](../../../reference/components/taosadapter)
 - Prometheus 已经安装。安装 Prometheus 请参考 [官方文档](https://prometheus.io/docs/prometheus/latest/installation/)
 
@@ -24,9 +24,9 @@ Prometheus 提供了 `remote_write` 和 `remote_read` 接口来利用其它数�
 
 ## 验证方法
 
-重启 Prometheus 后可参考以下示例验证从 Prometheus 向 TDengine 写入数据并能够正确读出。
+重启 Prometheus 后可参考以下示例验证从 Prometheus 向 TDengine TSDB 写入数据并能够正确读出。
 
-### 使用 TDengine CLI 查询写入数据
+### 使用 TDengine TSDB CLI 查询写入数据
 ```
 taos> show databases;
               name              |
@@ -61,7 +61,7 @@ taos> select * from metrics limit 10;
 Query OK, 10 row(s) in set (0.011146s)
 ```
 
-### 使用 promql-cli 通过 remote_read 从 TDengine 读取数据
+### 使用 promql-cli 通过 remote_read 从 TDengine TSDB 读取数据
 
 安装 promql-cli
 
@@ -69,7 +69,7 @@ Query OK, 10 row(s) in set (0.011146s)
  go install github.com/nalbury/promql-cli@latest
 ```
 
-在 TDengine 和 taosAdapter 服务运行状态对 Prometheus 数据进行查询
+在 TDengine TSDB 和 taosAdapter 服务运行状态对 Prometheus 数据进行查询
 
 ```
 ubuntu@shuduo-1804 ~ $ promql-cli --host "http://127.0.0.1:9090" "sum(up) by (job)"
@@ -89,5 +89,5 @@ VALUE    TIMESTAMP
 
 :::note
 
-- TDengine 默认生成的子表名是根据规则生成的唯一 ID 值。
+- TDengine TSDB 默认生成的子表名是根据规则生成的唯一 ID 值。
 :::

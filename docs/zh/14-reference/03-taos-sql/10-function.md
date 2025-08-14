@@ -1,7 +1,7 @@
 ---
 sidebar_label: 函数
 title: 函数
-description: TDengine 支持的函数列表
+description: TDengine TSDB 支持的函数列表
 toc_max_heading_level: 4
 ---
 
@@ -1705,7 +1705,7 @@ taos> select weekofyear('2000-01-01');
 
 聚合函数为查询结果集的每一个分组返回单个结果行。可以由 GROUP BY 或窗口切分子句指定分组，如果没有，则整个查询结果集视为一个分组。
 
-TDengine 支持针对数据的聚合查询。提供如下聚合函数。
+TDengine TSDB 支持针对数据的聚合查询。提供如下聚合函数。
 
 ### APERCENTILE
 
@@ -2192,7 +2192,7 @@ COLS(func(expr), output_expr1, [, output_expr2] ... )
 
 ## 时序数据特有函数
 
-时序数据特有函数是 TDengine 为了满足时序数据的查询场景而量身定做出来的。在通用数据库中，实现类似功能通常需要复杂的查询语法，且效率很低。TDengine 以函数的方式内置了这些功能，最大程度的减轻了用户的使用成本。
+时序数据特有函数是 TDengine TSDB 为了满足时序数据的查询场景而量身定做出来的。在通用数据库中，实现类似功能通常需要复杂的查询语法，且效率很低。TDengine TSDB 以函数的方式内置了这些功能，最大程度的减轻了用户的使用成本。
 
 ### CSUM
 

@@ -4,7 +4,7 @@ title: 日志系统
 toc_max_heading_level: 4
 ---
 
-TDengine 通过日志文件记录系统运行状态，帮助用户监控系统运行情况，排查问题。Log 分为普通日志和慢日志。引擎测的运行状态通过普通日志的方式记录下来，系统运行相关的慢日志操作则记录到慢日志文件里。
+TDengine TSDB 通过日志文件记录系统运行状态，帮助用户监控系统运行情况，排查问题。Log 分为普通日志和慢日志。引擎测的运行状态通过普通日志的方式记录下来，系统运行相关的慢日志操作则记录到慢日志文件里。
 
 ## 普通日志
 
@@ -12,7 +12,7 @@ TDengine 通过日志文件记录系统运行状态，帮助用户监控系统�
 
 - 普通日志分同步和异步两种方式，同步立即写入日志文件，异步写入到 buff 里，然后定时写入日志文件。
 - 异步方式日志文件缓存在循环 buff 里，buff 的大小为 buffSize = 20M。如果某次写 buf 的日志大小大于 buf 可用空间，本次日志会舍弃，日志里记录： ...Lost N lines here...
-![TDengine 日志循环 buff](./normal_log1.png)
+![TDengine TSDB 日志循环 buff](./normal_log1.png)
 - 异步线程里每隔 1s 会更新磁盘信息用于判断是否有空间写日志
 - 异步线程每隔 Interval 时间处理一次写入逻辑。写入规则如下：
    - 如果 buff 里数据小于 buffSize/10，不写入磁盘，除非超过 1s。
@@ -22,7 +22,7 @@ TDengine 通过日志文件记录系统运行状态，帮助用户监控系统�
    - 数据量大时（大于 buffSize/3），写入间隔最小，Interval 为 5ms。
    - 数据量比较大时（大于 buffSize/4，小于等于buffSize/3），减小写入间隔，Interval 每次减小 5ms，最小 5ms。
    - 数据量适中时（大于等于 buffSize/10，小于等于buffSize/4），写入间隔不变。
-![TDengine 日志 buff 调整方式](./normal_log2.png)
+![TDengine TSDB 日志 buff 调整方式](./normal_log2.png)
 
 ### 普通日志行为说明   
 - 普通日志命名规则
@@ -41,7 +41,7 @@ TDengine 通过日志文件记录系统运行状态，帮助用户监控系统�
 系统除了记录普通日志以外，对于执行时间超过配置时间的操作，会被记录到慢日志中。慢日志文件主要用于分析系统性能，排查性能问题。
 ###  慢日志实现逻辑
 #### 上报架构
-![TDengine 上报框架](./slow_log1.png)
+![TDengine TSDB 上报框架](./slow_log1.png)
 #### 缓存逻辑
 - 为了提高上报效率，慢 sql 日志上报方式为批量上报。
 - 慢 sql 日志上报为了防止缓存丢失，采用写临时文件方式来实现缓存（crash 后不会丢失）。
@@ -97,7 +97,7 @@ typedef enum {
 
 日志开关通过 bit 位来控制，具体如下：
 
-  ![TDengine 日志级别](./slow_log2.png)
+  ![TDengine TSDB 日志级别](./slow_log2.png)
 
 例如：
 - 131 = 128 + 2 + 1                      文件 + info + error

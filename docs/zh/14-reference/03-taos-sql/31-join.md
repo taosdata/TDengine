@@ -12,9 +12,9 @@ description: 关联查询详细描述
 
 ### 连接条件
 
-连接条件是指进行表关联所指定的条件，TDengine 支持的所有关联查询都需要指定连接条件，连接条件通常（Inner Join 和 Window Join 例外）只出现在 `ON` 之后。根据语义，Inner Join 中出现在 `WHERE` 之后的条件也可以视作连接条件，而 Window Join 是通过 `WINDOW_OFFSET` 来指定连接条件。
+连接条件是指进行表关联所指定的条件，TDengine TSDB 支持的所有关联查询都需要指定连接条件，连接条件通常（Inner Join 和 Window Join 例外）只出现在 `ON` 之后。根据语义，Inner Join 中出现在 `WHERE` 之后的条件也可以视作连接条件，而 Window Join 是通过 `WINDOW_OFFSET` 来指定连接条件。
 
-除 ASOF Join 外，TDengine 支持的所有 Join 类型都必须显式指定连接条件，ASOF Join 因为默认定义有隐式的连接条件，所以（在默认条件可以满足需求的情况下）可以不必显式指定连接条件。
+除 ASOF Join 外，TDengine TSDB 支持的所有 Join 类型都必须显式指定连接条件，ASOF Join 因为默认定义有隐式的连接条件，所以（在默认条件可以满足需求的情况下）可以不必显式指定连接条件。
 
 除 ASOF/Window Join 外，连接条件中除了包含主连接条件外，还可以包含任意多条其他连接条件，主连接条件与其他连接条件间必须是 `AND` 关系，而其他连接条件之间则没有这个限制。其他连接条件中可以包含主键列、Tag、普通列、常量及其标量函数或运算的任意逻辑运算组合。
 
@@ -29,8 +29,8 @@ SELECT a.* FROM meters a LEFT ASOF JOIN meters b ON timetruncate(a.ts, 1s) < tim
 
 ### 主连接条件
 
-作为一款时序数据库，TDengine 所有的关联查询都围绕主键时戳列进行，因此要求除 ASOF/Window Join 外的所有关联查询都必须含有主键列的等值连接条件，而按照顺序首次出现在连接条件中的主键列等值连接条件将会被作为主连接条件。ASOF Join 的主连接条件可以包含非等值的连接条件，而 Window Join 的主连接条件则是通过 `WINDOW_OFFSET` 来指定。
-从 3.3.6.0 版本开始，TDengine 支持子查询中的常量（包含返回时戳的常量函数如 today()、now() 等，常量时戳及其加减运算）作为等价主键列可以出现在主连接条件中。例如：
+作为一款时序数据库，TDengine TSDB 所有的关联查询都围绕主键时戳列进行，因此要求除 ASOF/Window Join 外的所有关联查询都必须含有主键列的等值连接条件，而按照顺序首次出现在连接条件中的主键列等值连接条件将会被作为主连接条件。ASOF Join 的主连接条件可以包含非等值的连接条件，而 Window Join 的主连接条件则是通过 `WINDOW_OFFSET` 来指定。
+从 3.3.6.0 版本开始，TDengine TSDB 支持子查询中的常量（包含返回时戳的常量函数如 today()、now() 等，常量时戳及其加减运算）作为等价主键列可以出现在主连接条件中。例如：
 
 ```sql
 SELECT * from d1001 a JOIN (SELECT today() as ts1, * from d1002 WHERE ts = '2025-03-19 10:00:00.000') b ON timetruncate(a.ts, 1d) = b.ts1;
@@ -42,7 +42,7 @@ SELECT * from d1001 a JOIN (SELECT today() as ts1, * from d1002 WHERE ts = '2025
 SELECT * from d1001 a JOIN (SELECT timestamp '2025-03-19 10:00:00.000' as ts1, * from d1002 WHERE ts = '2025-03-19 10:00:00.000') b ON timetruncate(a.ts, 1d) = b.ts1;
 ```
 
-除 Window Join 外，TDengine 支持在主连接条件中进行 `timetruncate` 函数操作，例如 `ON timetruncate(a.ts, 1s) = timetruncate(b.ts, 1s)`，除此之外，暂不支持其他函数及标量运算。
+除 Window Join 外，TDengine TSDB 支持在主连接条件中进行 `timetruncate` 函数操作，例如 `ON timetruncate(a.ts, 1s) = timetruncate(b.ts, 1s)`，除此之外，暂不支持其他函数及标量运算。
 
 ### 分组条件
 
@@ -50,7 +50,7 @@ SELECT * from d1001 a JOIN (SELECT timestamp '2025-03-19 10:00:00.000' as ts1, *
 
 ### 主键时间线
 
-TDengine 作为时序数据库要求每个表（子表）中必须有主键时间戳列，它将作为该表的主键时间线进行很多跟时间相关的运算，而子查询的结果或者 Join 运算的结果中也需要明确哪一列将被视作主键时间线参与后续的时间相关的运算。在子查询中，查询结果中存在的有序的第一个出现的主键列（或其运算）或等同主键列的伪列（`_wstart`/`_wend`）将被视作该输出表的主键时间线。此外，从 3.3.6.0 版本开始，TDengine 也开始支持子查询结果中的常量时戳列作为输出表的主键时间线。Join 输出结果中主键时间线的选择遵从以下规则：
+TDengine TSDB 作为时序数据库要求每个表（子表）中必须有主键时间戳列，它将作为该表的主键时间线进行很多跟时间相关的运算，而子查询的结果或者 Join 运算的结果中也需要明确哪一列将被视作主键时间线参与后续的时间相关的运算。在子查询中，查询结果中存在的有序的第一个出现的主键列（或其运算）或等同主键列的伪列（`_wstart`/`_wend`）将被视作该输出表的主键时间线。此外，从 3.3.6.0 版本开始，TDengine TSDB 也开始支持子查询结果中的常量时戳列作为输出表的主键时间线。Join 输出结果中主键时间线的选择遵从以下规则：
 - Left/Right Join 系列中驱动表（子查询）的主键列将被作为后续查询的主键时间线；此外，在 Window Join 窗口内，因为左右表同时有序所以在窗口内可以把任意一个表的主键列做作主键时间线，优先选择本表的主键列作为主键时间线。
 - Inner Join 可以把任意一个表的主键列做作主键时间线，当存在类似分组条件（Tag 列的等值条件且与主连接条件 `AND` 关系）时将无法产生主键时间线。
 - Full Join 因为无法产生任何一个有效的主键时间序列，因此没有主键时间线，这也就意味着 Full Join 中无法进行时间线相关的运算。

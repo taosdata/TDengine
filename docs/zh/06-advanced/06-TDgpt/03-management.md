@@ -106,7 +106,7 @@ Anode 运行配置主要是以下：
 
 ### Anode 基本操作
 
-用户可通过 TDengine 的命令行工具 taos 进行 Anode 的管理。执行下述命令都需要确保命令行工具 taos 工作正常。 
+用户可通过 TDengine TSDB 的命令行工具 taos 进行 Anode 的管理。执行下述命令都需要确保命令行工具 taos 工作正常。 
 
 #### 创建 Anode
 
@@ -114,7 +114,7 @@ Anode 运行配置主要是以下：
 CREATE ANODE {node_url}
 ```
 
-node_url 是提供服务的 Anode 的 IP 和 PORT 组成的字符串，例如：`create anode '127.0.0.1:6090'`。Anode 启动后需要注册到 TDengine 集群中才能提供服务。不建议将 Anode 同时注册到两个集群中。
+node_url 是提供服务的 Anode 的 IP 和 PORT 组成的字符串，例如：`create anode '127.0.0.1:6090'`。Anode 启动后需要注册到 TDengine TSDB 集群中才能提供服务。不建议将 Anode 同时注册到两个集群中。
 
 #### 查看 Anode
 
@@ -181,4 +181,4 @@ UPDATE ALL ANODES
 DROP ANODE {anode_id}
 ```
 
-删除 Anode 只是将 Anode 从 TDengine 集群中移除，管理 Anode 的启停仍然需要使用 `systemctl` 来操作。卸载 Anode 需要使用 `rmtaosanode` 命令。
+删除 Anode 只是将 Anode 从 TDengine TSDB 集群中移除，管理 Anode 的启停仍然需要使用 `systemctl` 来操作。卸载 Anode 需要使用 `rmtaosanode` 命令。

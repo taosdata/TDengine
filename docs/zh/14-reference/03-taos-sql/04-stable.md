@@ -98,7 +98,7 @@ taos> SELECT DISTINCT TBNAME, id FROM st1;
 Query OK, 3 rows in database (0.002891s)
 ```
 
-需要注意，SELECT 语句中的 DISTINCT 和 TBNAME 都是必不可少的，TDengine 会根据它们对语句进行优化，使之在没有数据或数据非常多的情况下都可以正确并快速的返回标签值。
+需要注意，SELECT 语句中的 DISTINCT 和 TBNAME 都是必不可少的，TDengine TSDB 会根据它们对语句进行优化，使之在没有数据或数据非常多的情况下都可以正确并快速的返回标签值。
 
 ### 获取某个子表的标签信息
 
@@ -160,7 +160,7 @@ alter_table_option: {
 
 **使用说明**
 
-修改超级表的结构会对其下的所有子表生效。无法针对某个特定子表修改表结构。标签结构的修改需要对超级表下发，TDengine 会自动作用于此超级表的所有子表。
+修改超级表的结构会对其下的所有子表生效。无法针对某个特定子表修改表结构。标签结构的修改需要对超级表下发，TDengine TSDB 会自动作用于此超级表的所有子表。
 
 - ADD COLUMN：添加列。
 - DROP COLUMN：删除列。

@@ -1,16 +1,16 @@
 ---
 sidebar_label: 数据订阅
 title: 数据订阅
-description: TDengine 消息队列提供的数据订阅功能
+description: TDengine TSDB 消息队列提供的数据订阅功能
 ---
 
-TDengine 3.0.0.0 开始对消息队列做了大幅的优化和增强以简化用户的解决方案。
+TDengine TSDB 3.0.0.0 开始对消息队列做了大幅的优化和增强以简化用户的解决方案。
 
 ## 创建 topic
 
-TDengine 创建 topic 的个数上限通过参数 tmqMaxTopicNum 控制，默认 20 个。
+TDengine TSDB 创建 topic 的个数上限通过参数 tmqMaxTopicNum 控制，默认 20 个。
 
-TDengine 使用 SQL 创建一个 topic，共有三种类型的 topic。
+TDengine TSDB 使用 SQL 创建一个 topic，共有三种类型的 topic。
 
 ### 查询 topic
 
@@ -55,7 +55,7 @@ CREATE TOPIC [IF NOT EXISTS] topic_name [with meta] AS DATABASE db_name;
 
 - with meta 参数可选，选择时将返回创建数据库里所有超级表，子表的语句，主要用于 taosX 做数据库迁移。
 
-说明：超级表订阅和库订阅属于高级订阅模式，容易出错，如确实要使用，请咨询 TDengine 运维团队。
+说明：超级表订阅和库订阅属于高级订阅模式，容易出错，如确实要使用，请咨询 TDengine TSDB 运维团队。
 
 ## 删除 topic
 
@@ -78,7 +78,7 @@ SHOW TOPICS;
 
 ## 创建消费组
 
-消费组的创建只能通过 TDengine 客户端驱动或者连接器所提供的 API 创建。
+消费组的创建只能通过 TDengine TSDB 客户端驱动或者连接器所提供的 API 创建。
 
 ## 删除消费组
 
@@ -108,5 +108,5 @@ SHOW SUBSCRIPTIONS;
 
 ## MQTT 数据订阅
 
-TDengine v3.3.7.0 版本提供了 MQTT 订阅功能，可以通过 MQTT 客户端直接订阅数据，具体内容请参考 MQTT 数据订阅部分。
+TDengine TSDB v3.3.7.0 版本提供了 MQTT 订阅功能，可以通过 MQTT 客户端直接订阅数据，具体内容请参考 MQTT 数据订阅部分。
 

@@ -80,7 +80,7 @@ class _MyForecastService(AbstractForecastService):
 
 ```
 
-将该文件保存在 `./lib/taosanalytics/algo/fc/` 目录下，然后重启 taosanode 服务。在 TDengine 命令行接口中执行 `SHOW ANODES FULL` 能够看到新加入的算法。应用就可以通过 SQL 语句调用该预测算法。
+将该文件保存在 `./lib/taosanalytics/algo/fc/` 目录下，然后重启 taosanode 服务。在 TDengine TSDB 命令行接口中执行 `SHOW ANODES FULL` 能够看到新加入的算法。应用就可以通过 SQL 语句调用该预测算法。
 
 ```SQL
 --- 对 col 列进行异常检测，通过指定 algo 参数为 myfc 来调用新添加的预测类
@@ -88,7 +88,7 @@ SELECT  _flow, _fhigh, _frowts, FORECAST(col_name, "algo=myfc")
 FROM foo;
 ```
 
-如果是第一次启动 Anode, 请按照 [运维管理指南](../../../management) 里的步骤先将该 Anode 添加到 TDengine 系统中。
+如果是第一次启动 Anode, 请按照 [运维管理指南](../../../management) 里的步骤先将该 Anode 添加到 TDengine TSDB 系统中。
 
 ### 单元测试
 

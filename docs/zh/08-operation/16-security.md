@@ -4,7 +4,7 @@ title: 更多安全策略
 toc_max_heading_level: 4
 ---
 
-除了传统的用户和权限管理之外，TDengine 还有其他的安全策略，例如 IP 白名单、审计日志、数据加密等，这些都是 TDengine Enterprise 特有功能，其中白名单功能在 3.2.0.0 版本首次发布，审计日志在 3.1.1.0 版本中首次发布，数据库加密在 3.3.0.0 中首次发布，建议使用最新版本。
+除了传统的用户和权限管理之外，TDengine TSDB 还有其他的安全策略，例如 IP 白名单、审计日志、数据加密等，这些都是 TDengine TSDB Enterprise 特有功能，其中白名单功能在 3.2.0.0 版本首次发布，审计日志在 3.1.1.0 版本中首次发布，数据库加密在 3.3.0.0 中首次发布，建议使用最新版本。
 
 ## IP 白名单
 
@@ -45,7 +45,7 @@ ALTER USER TEST DROP HOST HOST_NAME1
 
 ## 审计日志
 
-TDengine 先对用户操作进行记录和管理，然后将这些作为审计日志发送给 taosKeeper，再由 taosKeeper 保存至任意 TDengine 集群。管理员可通过审计日志进行安全监控、历史追溯。TDengine 的审计日志功能开启和关闭操作非常简单，只须修改 TDengine 的配置文件后重启服务。审计日志的配置说明如下。
+TDengine TSDB 先对用户操作进行记录和管理，然后将这些作为审计日志发送给 taosKeeper，再由 taosKeeper 保存至任意 TDengine TSDB 集群。管理员可通过审计日志进行安全监控、历史追溯。TDengine TSDB 的审计日志功能开启和关闭操作非常简单，只须修改 TDengine TSDB 的配置文件后重启服务。审计日志的配置说明如下。
 
 ### taosd 配置
 
@@ -137,11 +137,11 @@ create stable operations(ts timestamp, details varchar(64000)， user varchar(25
 
 ### 查看审计日志
 
-在 taosd 和 taosKeeper 都正确配置并启动之后，随着系统的不断运行，系统中的各种操作（如上表所示）会被实时记录并上报，用户可以登录 taosExplorer，点击**系统管理**→**审计**页面，即可查看审计日志; 也可以在 TDengine CLI 中直接查询相应的库和表。
+在 taosd 和 taosKeeper 都正确配置并启动之后，随着系统的不断运行，系统中的各种操作（如上表所示）会被实时记录并上报，用户可以登录 taosExplorer，点击**系统管理**→**审计**页面，即可查看审计日志; 也可以在 TDengine TSDB CLI 中直接查询相应的库和表。
 
 ## 数据加密
 
-TDengine 支持透明数据加密（Transparent Data Encryption，TDE），通过对静态数据文件进行加密，阻止可能的攻击者绕过数据库直接从文件系统读取敏感信息。数据库的访问程序是完全无感知的，应用程序不需要做任何修改和编译，就能够直接应用到加密后的数据库，支持国标 SM4 等加密算法。在透明加密中，数据库密钥管理、数据库加密范围是两个最重要的话题。TDengine 采用机器码对数据库密钥进行加密处理，保存在本地而不是第三方管理器中。当数据文件被拷贝到其他机器后，由于机器码发生变化，无法获得数据库密钥，自然无法访问数据文件。TDengine 对所有数据文件进行加密，包括预写日志文件、元数据文件和时序数据文件。加密后，数据压缩率不变，写入性能和查询性能仅有轻微下降。
+TDengine TSDB 支持透明数据加密（Transparent Data Encryption，TDE），通过对静态数据文件进行加密，阻止可能的攻击者绕过数据库直接从文件系统读取敏感信息。数据库的访问程序是完全无感知的，应用程序不需要做任何修改和编译，就能够直接应用到加密后的数据库，支持国标 SM4 等加密算法。在透明加密中，数据库密钥管理、数据库加密范围是两个最重要的话题。TDengine TSDB 采用机器码对数据库密钥进行加密处理，保存在本地而不是第三方管理器中。当数据文件被拷贝到其他机器后，由于机器码发生变化，无法获得数据库密钥，自然无法访问数据文件。TDengine TSDB 对所有数据文件进行加密，包括预写日志文件、元数据文件和时序数据文件。加密后，数据压缩率不变，写入性能和查询性能仅有轻微下降。
 
 ### 配置密钥
 
@@ -160,7 +160,7 @@ create encrypt_key {encryptKey};
 
 ### 创建加密数据库
 
-TDengine 支持通过 SQL 创建加密数据库，SQL 如下。
+TDengine TSDB 支持通过 SQL 创建加密数据库，SQL 如下。
 ```sql
 create database [if not exists] db_name [database_options]
 database_options:

@@ -8,20 +8,20 @@ toc_max_heading_level: 5
 
 通过 SPARQL（W3C 制定的 RDF 查询语言）接口查询数据，并将结果转换为 RDF 格式。
 
-支持包括 MySQL、PostgreSQL、Oracle、SQL Server、SQLite 和 **TDengine** 在内的多种数据库。
+支持包括 MySQL、PostgreSQL、Oracle、SQL Server、SQLite 和 **TDengine TSDB** 在内的多种数据库。
 
 ## 前置条件
 
-Ontop 通过 [TDengine Java Connector](../../../reference/connector/java/) 连接 TDengine 数据源，需准备以下环境：
+Ontop 通过 [TDengine TSDB Java Connector](../../../reference/connector/java/) 连接 TDengine TSDB 数据源，需准备以下环境：
 
-- TDengine 3.3.6.0 及以上版本集群已部署并正常运行（企业及社区版均可）。
+- TDengine TSDB 3.3.6.0 及以上版本集群已部署并正常运行（企业及社区版均可）。
 - taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../../reference/components/taosadapter)。
 - JDBC 驱动 3.6.0 及以上版本，[下载](https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver)。
-- Ontop 支持 TDengine 功能已合入 `version5` 分支但未发布，请 [下载源码](https://github.com/ontop/ontop) 并参照 README 构建。
+- Ontop 支持 TDengine TSDB 功能已合入 `version5` 分支但未发布，请 [下载源码](https://github.com/ontop/ontop) 并参照 README 构建。
 
 ## 配置数据源
 
-在 Ontop 中配置 TDengine 数据源需以下步骤：
+在 Ontop 中配置 TDengine TSDB 数据源需以下步骤：
 
 ### 安装 JDBC 驱动
 
@@ -38,11 +38,11 @@ jdbc.password = [密码]
 jdbc.driver = com.taosdata.jdbc.ws.WebSocketDriver
 ```
 
-URL 参数详情参阅：[TDengine URL 规范](../../../reference/connector/java/#url-规范)。
+URL 参数详情参阅：[TDengine TSDB URL 规范](../../../reference/connector/java/#url-规范)。
 
 ### 配置表映射
 
-在 .obda 文件中定义 TDengine 与 Ontop 的映射关系（以智能电表场景为例）：
+在 .obda 文件中定义 TDengine TSDB 与 Ontop 的映射关系（以智能电表场景为例）：
 
 ``` properties
 [PrefixDeclaration]
@@ -61,12 +61,12 @@ ns: http://example.org/ns#
 | 关键字段  | 说明  |
 |:-------  |:----------------------------------- |
 | mappingId | 映射 ID，唯一标识该映射关系            |
-| source   | TDengine SQL 查询语句（支持复杂查询）   |  
+| source   | TDengine TSDB SQL 查询语句（支持复杂查询）   |  
 | target   | 字段映射关系（未指定类型时按默认规则转换） |
 
 **在 target 中可指定映射数据类型，若未指定则按以下规则转化：**
 
-| TDengine JDBC 数据类型 | Ontop 数据类型  |
+| TDengine TSDB JDBC 数据类型 | Ontop 数据类型  |
 |:-------------------- |:----------------|
 | java.sql.Timestamp   | xsd:datetime    |  
 | java.lang.Boolean    | xsd:boolean     |
@@ -97,7 +97,7 @@ ontop endpoint -p db.properties -m db.obda --port 8080
 
 ### 场景介绍
 
-某小区居民的智能电表数据存储在 TDengine 数据库中，使用 Ontop 将 TDengine 中的智能电表数据转化为虚拟知识图谱，通过 SPARQL 接口查询出电压超过 240V 的高负载设备。
+某小区居民的智能电表数据存储在 TDengine TSDB 数据库中，使用 Ontop 将 TDengine TSDB 中的智能电表数据转化为虚拟知识图谱，通过 SPARQL 接口查询出电压超过 240V 的高负载设备。
 
 ### 数据准备
 
@@ -223,7 +223,7 @@ jdbc.driver=com.taosdata.jdbc.ws.WebSocketDriver
 
 ## 总结
 
-本文通过 TDengine 与 Ontop 集成：
+本文通过 TDengine TSDB 与 Ontop 集成：
 
 - 实现了时序数据到 RDF 自动转换，支持 SPARQL 语义化查询。
 - 提供了符合 W3C 标准的统一数据访问接口。

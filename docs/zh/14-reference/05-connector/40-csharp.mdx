@@ -1,14 +1,14 @@
 ---
 toc_max_heading_level: 4
 sidebar_label: C#
-title: TDengine C# Connector
+title: TDengine TSDB C# Connector
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import RequestId from "./_request_id.mdx";
 
-`TDengine.Connector` 是 TDengine 提供的 C# 语言连接器。C# 开发人员可以通过它开发存取 TDengine 集群数据的 C# 应用软件。
+`TDengine.Connector` 是 TDengine TSDB 提供的 C# 语言连接器。C# 开发人员可以通过它开发存取 TDengine TSDB 集群数据的 C# 应用软件。
 
 ## .NET 版本兼容性
 
@@ -17,12 +17,12 @@ import RequestId from "./_request_id.mdx";
 
 ## 支持的平台
 
-- 原生连接支持的平台和 TDengine 客户端驱动支持的平台一致。
+- 原生连接支持的平台和 TDengine TSDB 客户端驱动支持的平台一致。
 - WebSocket 连接支持所有能运行 .NET 运行时的平台。
 
 ## 版本历史
 
-| Connector 版本 | 主要变化                        | TDengine 版本   |
+| Connector 版本 | 主要变化                        | TDengine TSDB 版本   |
 |:-------------|:----------------------------|:--------------|
 | 3.1.7        | 支持 IPv6 连接，支持 DECIMAL 类型。   | 3.3.6.0 及更高版本 |
 | 3.1.6        | 优化 WebSocket 连接接收消息处理。      | -             |
@@ -36,11 +36,11 @@ import RequestId from "./_request_id.mdx";
 ## 处理异常
 
 `TDengine.Connector` 会抛出异常，应用程序需要处理异常。taosc 异常类型 `TDengineError`，包含错误码和错误信息，应用程序可以根据错误码和错误信息进行处理。
-TDengine 其他功能模块的报错，请参考 [错误码](../../../reference/error-code)    
+TDengine TSDB 其他功能模块的报错，请参考 [错误码](../../../reference/error-code)    
 
 ## 数据类型映射
 
-| TDengine DataType | C# Type          |
+| TDengine TSDB DataType | C# Type          |
 |-------------------|------------------|
 | TIMESTAMP         | DateTime         |
 | TINYINT           | sbyte            |
@@ -66,8 +66,8 @@ TDengine 其他功能模块的报错，请参考 [错误码](../../../reference/
 - JSON 类型仅在 tag 中支持。
 - GEOMETRY 类型是 little endian 字节序的二进制数据，符合 WKB 规范。详细信息请参考 [数据类型](../../taos-sql/data-type/#数据类型)。
 WKB 规范请参考 [Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)。
-- DECIMAL 类型在 C# 中使用 `decimal` 类型表示，支持高精度的十进制数值。因为 C# 的 `decimal` 类型与 TDengine 的 DECIMAL 类型在精度和范围上有所不同，
-  C# `decimal` 精度最大 29 位，TDengine DECIMAL 类型精度最大 38 位，所以在使用时需要注意：
+- DECIMAL 类型在 C# 中使用 `decimal` 类型表示，支持高精度的十进制数值。因为 C# 的 `decimal` 类型与 TDengine TSDB 的 DECIMAL 类型在精度和范围上有所不同，
+  C# `decimal` 精度最大 29 位，TDengine TSDB DECIMAL 类型精度最大 38 位，所以在使用时需要注意：
     - 未超出 C# decimal 类型范围时可以使用 `GetDecimal` 或 `GetValue` 获取。
     - 当超出 C# decimal 类型范围时 `GetDecimal` 和 `GetValue` 方法会抛出 `OverflowException`，此时可以使用 `GetString` 方法获取字符串表示形式。
 
@@ -79,7 +79,7 @@ WKB 规范请参考 [Well-Known Binary (WKB)](https://libgeos.org/specifications
 
 ### ADO.NET 驱动
 
-`TDengine.Data.Client` 接口实现了 ADO.NET 驱动，支持连接 TDengine 数据库，进行数据操作。
+`TDengine.Data.Client` 接口实现了 ADO.NET 驱动，支持连接 TDengine TSDB 数据库，进行数据操作。
 
 #### 参数规范
 
@@ -97,8 +97,8 @@ ConnectionStringBuilder 使用 key-value 对方式设置连接参数，key 为�
 
 支持的参数如下：
 
-- `host`：TDengine 运行实例的地址。
-- `port`：TDengine 运行实例的端口。
+- `host`：TDengine TSDB 运行实例的地址。
+- `port`：TDengine TSDB 运行实例的端口。
 - `username`：连接的用户名。
 - `password`：连接的密码。
 - `protocol`：连接的协议，可选值为 Native 或 WebSocket，默认为 Native。
@@ -111,8 +111,8 @@ ConnectionStringBuilder 使用 key-value 对方式设置连接参数，key 为�
 
 支持的参数如下：
 
-- `host`：TDengine 运行实例的地址。
-- `port`：TDengine 运行实例的端口。
+- `host`：TDengine TSDB 运行实例的地址。
+- `port`：TDengine TSDB 运行实例的端口。
 - `username`：连接的用户名。
 - `password`：连接的密码。
 - `protocol`：连接的协议，可选值为 Native 或 WebSocket，默认为 Native。
@@ -121,7 +121,7 @@ ConnectionStringBuilder 使用 key-value 对方式设置连接参数，key 为�
 - `connTimeout`：连接超时时间，默认为 1 分钟。
 - `readTimeout`：读取超时时间，默认为 5 分钟。
 - `writeTimeout`：发送超时时间，默认为 10 秒。
-- `token`：连接 TDengine cloud 的 token。
+- `token`：连接 TDengine TSDB cloud 的 token。
 - `useSSL`：是否使用 SSL 连接，默认为 false。
 - `enableCompression`：是否启用 WebSocket 压缩，默认为 false。
 - `autoReconnect`：是否自动重连，默认为 false。
@@ -569,7 +569,7 @@ C# 驱动提供了符合 ADO.NET 标准的 `DbDataReader` 接口，提供了用�
     - **接口说明**：TDengineParameter 构造函数。
     - **参数说明**：
         - `name`：参数名，需要以 @ 开头，如 @0、@1、@2 等。
-        - `value`：参数值，需要 C# 列类型与 TDengine 列类型一一对应。
+        - `value`：参数值，需要 C# 列类型与 TDengine TSDB 列类型一一对应。
 
 - `public string ParameterName`
     - **接口说明**：获取或设置参数名。
@@ -670,13 +670,13 @@ C# 驱动提供了符合 ADO.NET 标准的 `DbDataReader` 接口，提供了用�
 创建消费者支持属性列表：
 
 - `useSSL`：是否使用 SSL 连接，默认为 false。
-- `token`：连接 TDengine cloud 的 token。
+- `token`：连接 TDengine TSDB cloud 的 token。
 - `ws.message.enableCompression`：是否启用 WebSocket 压缩，默认为 false。
 - `ws.autoReconnect`：是否自动重连，默认为 false。
 - `ws.reconnect.retry.count`：重连次数，默认为 3。
 - `ws.reconnect.interval.ms`：重连间隔毫秒时间，默认为 2000。
 
-其他参数请参考：[Consumer 参数列表](../../../develop/tmq/#创建参数)，注意 TDengine 服务端自 3.2.0.0 版本开始消息订阅中的 auto.offset.reset 默认值发生变化。
+其他参数请参考：[Consumer 参数列表](../../../develop/tmq/#创建参数)，注意 TDengine TSDB 服务端自 3.2.0.0 版本开始消息订阅中的 auto.offset.reset 默认值发生变化。
 
 - `public IConsumer<TValue> Build()`
     - **接口说明**：构建消费者。

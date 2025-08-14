@@ -7,15 +7,15 @@ toc_max_heading_level: 4
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-TDengine 提供了类似于消息队列产品的数据订阅和消费接口。在许多场景中，采用 TDengine 的时序大数据平台，无须再集成消息队列产品，从而简化应用程序设计并降低运维成本。本章介绍各语言连接器数据订阅的相关 API 以及使用方法。数据订阅的基础知识请参考 [数据订阅](../../advanced/subscription/)  
+TDengine TSDB 提供了类似于消息队列产品的数据订阅和消费接口。在许多场景中，采用 TDengine TSDB 的时序大数据平台，无须再集成消息队列产品，从而简化应用程序设计并降低运维成本。本章介绍各语言连接器数据订阅的相关 API 以及使用方法。数据订阅的基础知识请参考 [数据订阅](../../advanced/subscription/)  
 
 ## 创建主题
-请用 TDengine CLI 或者参考 [执行 SQL](../sql/) 章节用程序执行创建主题的 SQL：`CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters`  
+请用 TDengine TSDB CLI 或者参考 [执行 SQL](../sql/) 章节用程序执行创建主题的 SQL：`CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters`  
 
 上述 SQL 将创建一个名为 topic_meters 的订阅。使用该订阅所获取的消息中的每条记录都由此查询语句 `SELECT ts, current, voltage, phase, groupid, location FROM meters` 所选择的列组成。
 
 **注意**
-在 TDengine 连接器实现中，对于订阅查询，有以下限制。
+在 TDengine TSDB 连接器实现中，对于订阅查询，有以下限制。
 - 只支持订阅数据，不支持 `with meta` 的订阅。
   - Java（WebSocket 连接）、Go 和 Rust 连接器支持订阅数据库，超级表，以及 select 查询语句。
   - Java（原生连接）、C# 、Python 和 Nodejs 连接器只支持订阅 select 语句，并不支持其他类型的 SQL，如订阅库、订阅超级表。
@@ -24,7 +24,7 @@ TDengine 提供了类似于消息队列产品的数据订阅和消费接口。�
 
 ## 创建消费者
 
-TDengine 消费者的概念跟 Kafka 类似，消费者通过订阅主题来接收数据流。消费者可以配置多种参数，如连接方式、服务器地址、自动提交 Offset 等以适应不同的数据处理需求。有的语言连接器的消费者还支持自动重连和数据传输压缩等高级功能，以确保数据的高效和稳定接收。
+TDengine TSDB 消费者的概念跟 Kafka 类似，消费者通过订阅主题来接收数据流。消费者可以配置多种参数，如连接方式、服务器地址、自动提交 Offset 等以适应不同的数据处理需求。有的语言连接器的消费者还支持自动重连和数据传输压缩等高级功能，以确保数据的高效和稳定接收。
 
 
 ### 创建参数
@@ -146,7 +146,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 创建消费者支持属性列表：
 
 - `useSSL`：是否使用 SSL 连接，默认为 false。
-- `token`：连接 TDengine cloud 的 token。
+- `token`：连接 TDengine TSDB cloud 的 token。
 - `ws.message.enableCompression`：是否启用 WebSocket 压缩，默认为 false。
 - `ws.autoReconnect`：是否自动重连，默认为 false。
 - `ws.reconnect.retry.count`：重连次数，默认为 3。
@@ -724,7 +724,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 
 
 ## 取消订阅和关闭消费
-消费者可以取消对主题的订阅，停止接收消息。当消费者不再需要时，应该关闭消费者实例，以释放资源和断开与 TDengine 服务器的连接。  
+消费者可以取消对主题的订阅，停止接收消息。当消费者不再需要时，应该关闭消费者实例，以释放资源和断开与 TDengine TSDB 服务器的连接。  
 
 ### WebSocket 连接 
 <Tabs defaultValue="java" groupId="lang">

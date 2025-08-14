@@ -6,7 +6,7 @@ toc_max_heading_level: 4
 
 ## 背景
 
-TDengine 的安装部署对环境系统有一定的依赖和要求，安装部署前需要进行环境预配置操作，本文档旨在说明安装前预配置工具在安装 TDengine 前对环境的预配置内容和工具的使用方法。 
+TDengine TSDB 的安装部署对环境系统有一定的依赖和要求，安装部署前需要进行环境预配置操作，本文档旨在说明安装前预配置工具在安装 TDengine TSDB 前对环境的预配置内容和工具的使用方法。 
 
 ## 预配置工具使用方法
 
@@ -45,7 +45,7 @@ optional arguments:
 ### 配置文件使用说明
 
 ```config
-# 安装部署 TDengine 的环境信息，支持免密登录和 SSH 登录两种方式，当环境配置了免密登录后可不用配置 password 信息
+# 安装部署 TDengine TSDB 的环境信息，支持免密登录和 SSH 登录两种方式，当环境配置了免密登录后可不用配置 password 信息
 [test_env]
 # 节点间通过 SSH 协议访问
 firstep=192.168.0.1||fqdn=tdengine1||username=root||password=123456||port=22

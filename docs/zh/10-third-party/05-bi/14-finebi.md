@@ -5,13 +5,13 @@ title: 与 FineBI 集成
 
 帆软是一家专注于商业智能与数据分析领域的科技企业，凭借自主研发的 FineBI 和 FineReport 两款核心产品在行业内占据重要地位。帆软的 BI 工具广泛应用于各类企业，帮助用户实现数据的可视化分析、报表生成和数据决策支持。
 
-通过使用 `TDengine Java connector` 连接器，FineBI 可以快速访问 TDengine 的数据。用户可以在 FineBI 中直接连接 TDengine 数据库，获取时序数据进行分析并制作可视化报表，整个过程不需要任何代码编写过程。
+通过使用 `TDengine Java connector` 连接器，FineBI 可以快速访问 TDengine TSDB 的数据。用户可以在 FineBI 中直接连接 TDengine TSDB 数据库，获取时序数据进行分析并制作可视化报表，整个过程不需要任何代码编写过程。
 
 ## 前置条件 
 
 准备以下环境：
 
-- TDengine 3.3.4.0 以上版本集群已部署并正常运行（企业及社区版均可）。
+- TDengine TSDB 3.3.4.0 以上版本集群已部署并正常运行（企业及社区版均可）。
 - taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../../reference/components/taosadapter)。
 - FineBI 安装（如未安装，请下载并安装 [FineBI 下载](https://www.finebi.com/product/download)）。
 - 下载 `fine_conf_entity` 插件用于支持允许添加 JDBC 驱动，[下载地址](https://market.fanruan.com/plugin/1052a471-0239-4cd8-b832-045d53182c5d)。
