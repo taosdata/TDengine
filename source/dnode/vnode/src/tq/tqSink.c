@@ -295,6 +295,7 @@ int32_t setCreateTableMsgTableName(SVCreateTbReq* pCreateTableReq, SSDataBlock* 
 static int32_t doBuildAndSendCreateTableMsg(SVnode* pVnode, char* stbFullName, SSDataBlock* pDataBlock,
                                             SStreamTask* pTask, int64_t suid) {
   STSchema*          pTSchema = pTask->outputInfo.tbSink.pTSchema;
+  SSchemaWrapper*    pTagSchema = pTask->outputInfo.tbSink.pTagSchema;
   int32_t            rows = pDataBlock->info.rows;
   SArray*            tagArray = NULL;
   const char*        id = pTask->id.idStr;
@@ -342,13 +343,22 @@ static int32_t doBuildAndSendCreateTableMsg(SVnode* pVnode, char* stbFullName, S
         return code;
       }
     } else {
-      for (int32_t tagId = UD_TAG_COLUMN_INDEX, step = 1; tagId < size; tagId++, step++) {
+      uint64_t gid = pDataBlock->info.id.groupId;
+      if (pTagSchema->nCols != size - UD_TAG_COLUMN_INDEX) {
+        // tag mismatch, return error
+        tqError("s-task:%s vgId:%d vgId:%"PRId64" tag number mismatch, expected:%d, result:%d", id, vgId, gid,
+                pTagSchema->nCols, size - UD_TAG_COLUMN_INDEX);
+        code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+        goto _end;
+      }
+
+      for (int32_t tagId = UD_TAG_COLUMN_INDEX; tagId < size; tagId++) {
         SColumnInfoData* pTagData = taosArrayGet(pDataBlock->pDataBlock, tagId);
         if (pTagData == NULL) {
           continue;
         }
 
-        STagVal tagVal = {.cid = pTSchema->numOfCols + step, .type = pTagData->info.type};
+        STagVal tagVal = {.cid = pTagSchema->pSchema[tagId - UD_TAG_COLUMN_INDEX].colId, .type = pTagData->info.type};
         void*   pData = colDataGetData(pTagData, rowId);
         if (colDataIsNull_s(pTagData, rowId)) {
           continue;
@@ -1149,13 +1159,34 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
   SVnode*          pVnode = (SVnode*)vnode;
   int64_t          suid = pTask->outputInfo.tbSink.stbUid;
   char*            stbFullName = pTask->outputInfo.tbSink.stbFullName;
-  STSchema*        pTSchema = pTask->outputInfo.tbSink.pTSchema;
+  STSchema*        pTSchema = NULL;
   int32_t          vgId = TD_VID(pVnode);
   int32_t          numOfBlocks = taosArrayGetSize(pBlocks);
   int32_t          code = TSDB_CODE_SUCCESS;
   const char*      id = pTask->id.idStr;
   int64_t          earlyTs = tsdbGetEarliestTs(pVnode->pTsdb);
   STaskOutputInfo* pOutputInfo = &pTask->outputInfo;
+
+  if (pOutputInfo->tbSink.pTSchema == NULL) {
+    int32_t   ver1 = 1;
+    SMetaInfo info = {0};
+    code = metaGetInfo(pVnode->pMeta, pOutputInfo->tbSink.stbUid, &info, NULL);
+    if (code == TSDB_CODE_SUCCESS) {
+      ver1 = info.skmVer;
+    } else {
+      tqError("s-task:0x%x vgId:%d failed to get table meta for uid:%"PRId64, pTask->id.taskId, vgId, pOutputInfo->tbSink.stbUid);
+    }
+
+    SSchemaWrapper* pschemaWrapper = pOutputInfo->tbSink.pSchemaWrapper;
+    pOutputInfo->tbSink.pTSchema = tBuildTSchema(pschemaWrapper->pSchema, pschemaWrapper->nCols, ver1);
+    if (pOutputInfo->tbSink.pTSchema == NULL) {
+      tqError("s-task:%s vgId:%d failed to build dst table schema, code:%s, failed to sink results", id, vgId,
+      tstrerror(terrno));
+      return;
+    }
+  }
+
+  pTSchema = pOutputInfo->tbSink.pTSchema;
 
   code = checkTagSchema(pTask, pVnode);
   if (code != TSDB_CODE_SUCCESS) {

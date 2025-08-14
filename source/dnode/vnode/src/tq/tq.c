@@ -805,19 +805,6 @@ int32_t tqBuildStreamTask(void* pTqObj, SStreamTask* pTask, int64_t nextProcessV
     pOutputInfo->tbSink.vnode = pTq->pVnode;
     pOutputInfo->tbSink.tbSinkFunc = tqSinkDataIntoDstTable;
 
-    int32_t   ver1 = 1;
-    SMetaInfo info = {0};
-    code = metaGetInfo(pTq->pVnode->pMeta, pOutputInfo->tbSink.stbUid, &info, NULL);
-    if (code == TSDB_CODE_SUCCESS) {
-      ver1 = info.skmVer;
-    }
-
-    SSchemaWrapper* pschemaWrapper = pOutputInfo->tbSink.pSchemaWrapper;
-    pOutputInfo->tbSink.pTSchema = tBuildTSchema(pschemaWrapper->pSchema, pschemaWrapper->nCols, ver1);
-    if (pOutputInfo->tbSink.pTSchema == NULL) {
-      return terrno;
-    }
-
     pOutputInfo->tbSink.pTbInfo = tSimpleHashInit(10240, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
     if (pOutputInfo->tbSink.pTbInfo == NULL) {
       tqError("vgId:%d failed init sink tableInfo, code:%s", vgId, tstrerror(terrno));
