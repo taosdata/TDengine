@@ -112,6 +112,7 @@ The program measures and reports:
 ### Mode 1: Table Name IN Query Testing
 
 Tests query performance with `tbname IN` conditions:
+
 - Queries 100 specific tables using `tbname IN` clause
 - Uses `PARTITION BY tbname` for grouping
 - Tests filtering performance on multiple tables
@@ -119,6 +120,7 @@ Tests query performance with `tbname IN` conditions:
 ### Mode 2: Sub-table Query Testing
 
 Tests standard query performance on sub-tables:
+
 - Simple aggregation query on a single sub-table (`test.d1`)
 - High query volume (10,000 queries per thread)
 - Baseline performance measurement for sub-table queries
@@ -126,6 +128,7 @@ Tests standard query performance on sub-tables:
 ## Output
 
 The program displays:
+
 - Individual thread performance metrics
 - Overall system performance statistics
 - Query execution status and timing
