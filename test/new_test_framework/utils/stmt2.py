@@ -304,9 +304,9 @@ class TDStmt2:
             affected = stmt.execute_stmt(
                 "INSERT INTO ? USING device_metrics TAGS(?, ?, ?) VALUES (?, ?, ?)",
                 tbnames=["device_001"], 
-                tags=[["device_001", 1, "Building_A"]], 
-                datas=[[[timestamp], [value], [status]]],
-                expected_rows=1
+                tags=[["device_001", 1, "Building_A"],["device_002", 2, "Building_B"]], 
+                datas=datas = [[[ts1,100.1, 1]],[[ts2, 200.1, 2],[ts3, 200.2, 2]]],
+                expected_rows=3
             )
         """
         try:
@@ -419,13 +419,13 @@ class TDStmt2:
             Number of affected rows if check_affected=True
             
         Examples:
-            # Super table insert with expected rows validation
-            affected = stmt.execute_super_table(
-                "INSERT INTO ? USING metrics TAGS(?, ?) VALUES (?, ?)",
-                tbnames=["device_001"],
-                tags=[["device_001", "Building_A"]],
-                datas=[[[timestamp], [value]]],
-                expected_rows=1
+            # Super table insert with expected rows check
+            affected = stmt.execute_stmt(
+                "INSERT INTO ? USING device_metrics TAGS(?, ?, ?) VALUES (?, ?, ?)",
+                tbnames=["device_001"], 
+                tags=[["device_001", 1, "Building_A"],["device_002", 2, "Building_B"]], 
+                datas=datas = [[[ts1,100.1, 1]],[[ts2, 200.1, 2],[ts3, 200.2, 2]]],
+                expected_rows=3
             )
         """
         return self.execute_stmt(sql, tbnames=tbnames, tags=tags, datas=datas, check_affected=check_affected, expected_rows=expected_rows)
