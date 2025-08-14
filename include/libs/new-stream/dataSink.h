@@ -87,7 +87,7 @@ typedef enum {
   DATA_CLEAN_PASSIVE = 0x04,
   DATA_ALLOC_MODE_ALIGN = 0x10,
   DATA_ALLOC_MODE_SLIDING = 0x20,
-  DATA_ALLOC_MODE_UNSORTED = 0x40,
+  DATA_ALLOC_MODE_REORDER = 0x40,
 } SDataMgrMode;
 
 typedef struct SDataSinkManager2 {
@@ -181,13 +181,13 @@ typedef struct SSlidingGrpMgr {
   SArray* blocksInFile;  // array SBlocksInfoFile
 } SSlidingGrpMgr;
 
-typedef struct SUnsortedGrpMgr {
+typedef struct SReorderGrpMgr {
   int64_t groupId;
   int8_t  status;  // EGroupStatus
   int64_t usedMemSize;
   SList   winDataInMem;  // array SDataInMemWindows
   SArray* blocksInFile;  // array SBlocksInfoFile
-} SUnsortedGrpMgr;
+} SReorderGrpMgr;
 
 typedef struct SAlignGrpMgr {
   int64_t groupId;
@@ -369,7 +369,7 @@ bool changeMgrStatus(int8_t* pStatus, int8_t status);
 bool changeMgrStatusToMoving(int8_t* pStatus, int8_t mode);
 
 int32_t splitBlockToWindows(SList* pSlidingWinInMem, int32_t tsColSlotId, SSDataBlock* pBlock);
-int32_t clearUnsortedDataInMem(SUnsortedGrpMgr* pUnsortedGrpMgr, int64_t startTime, int64_t endTime);
+int32_t clearReorderDataInMem(SReorderGrpMgr* pReorderGrpMgr, int64_t startTime, int64_t endTime);
 
 #ifdef __cplusplus
 }
