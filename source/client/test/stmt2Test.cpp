@@ -2819,7 +2819,7 @@ TEST(stmt2Case, exec_retry) {
     int         total_affected_rows = 0;
     const char* sql = "insert into stmt2_testdb_21.stb (tbname,ts,b)values(?,?,?)";
     int         code = taos_stmt2_prepare(stmt, sql, 0);
-    checkError(stmt, code, __FILE__, __LINE__);
+    checkError(stmt, code);
     int64_t          ts[3] = {1591060628000, 1591060628001, 1591060628002};
     int              t64_len[3] = {sizeof(int64_t), sizeof(int64_t), sizeof(int64_t)};
     int              b_len[3] = {5, 5, 5};
@@ -2831,12 +2831,12 @@ TEST(stmt2Case, exec_retry) {
     TAOS_STMT2_BINDV bindv1 = {1, &tbname, NULL, &paramv1};
 
     code = taos_stmt2_bind_param(stmt, &bindv1, -1);
-    checkError(stmt, code, __FILE__, __LINE__);
+    checkError(stmt, code);
 
     do_query(taos, "drop table if exists stmt2_testdb_21.tb1");
 
     code = taos_stmt2_exec(stmt, NULL);
-    checkError(stmt, code, __FILE__, __LINE__);
+    checkError(stmt, code);
   }
 
   taos_stmt2_close(stmt);
