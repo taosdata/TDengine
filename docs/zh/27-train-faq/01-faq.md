@@ -283,8 +283,9 @@ TDengine 在写入数据时如果有很严重的乱序写入问题，会严重�
 
 ### 27 修改 database 的 root 密码后，启动 taos 遇到报错 "failed to connect to server, reason: Authentication failure"
 
-默认情况，启动 taos 服务会使用系统默认的用户名（root）和密码尝试连接 taosd，在 root 密码修改后，启用 taos 连接就需要指明用户名和密码，例如 `taos -h xxx.xxx.xxx.xxx -u root -p`，然后输入新密码进行连接。taosKeeper 和 taosAdapter 等需要修改相应的配置文件中的密码并重启之后可以正常连接。
-在V3.3.6.6之后，针对Docker，新增了TAOS_ROOT_PASSWORD设置自定义密码环境变量，执行类似docker run -d --privileged -e TAOS_ROOT_PASSWORD=******，docker启动之后会修改为用户自定义密码，taosKeeper 和 taosAdapter 等无需在手动修改配置文件中的密码即可以正常连接。
+默认情况，启动 taos 服务会使用系统默认的用户名（root）和密码尝试连接 taosd，在 root 密码修改后，启用 taos 连接就需要指明用户名和密码，例如 `taos -h xxx.xxx.xxx.xxx -u root -p`，然后输入新密码进行连接。修改密码后，您还需要相应地修改 taosKeeper 组件的配置文件（默认位于 /etc/taos/taoskeeper.toml），修改其访问 TDengine TSDB 的密码后重启服务。
+
+在 V3.3.6.6 版本之后，针对 Docker 环境新增了 `TAOS_ROOT_PASSWORD` 环境变量，用于设置自定义密码。使用 `docker run` 命令启动容器时，添加 `-e TAOS_ROOT_PASSWORD=<password>` 参数，即可使用自定义密码启动 TDengine TSDB 服务，无需修改配置文件。
 
 ### 28 修改 database 的 root 密码后，Grafana 监控插件 TDinsight 无数据展示
 
