@@ -623,3 +623,36 @@ _end:
   }
   return code;
 }
+
+void destroyUnsortedDataInMem(SDataInMemWindows* pWinData) {
+  if (pWinData) {
+    if (pWinData->datas) {
+      taosArrayDestroyP(pWinData->datas, NULL);
+    }
+  }
+}
+
+int32_t clearUnsortedDataInMem(SUnsortedGrpMgr* pUnsortedGrpMgr, TSKEY start, TSKEY end) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  SListIter  foundDataIter = {0};
+  SListNode* pNode = NULL;
+
+  tdListInitIter(&pUnsortedGrpMgr->winDataInMem, &foundDataIter, TD_LIST_FORWARD);
+  while ((pNode = tdListNext(&foundDataIter)) != NULL) {
+    SDataInMemWindows* pWinData = (SDataInMemWindows*)pNode->data;
+    if (pWinData->timeRange.startTime >= start && pWinData->timeRange.endTime <= end) {
+      TD_DLIST_POP(&pUnsortedGrpMgr->winDataInMem, pNode);
+      destroyUnsortedDataInMem(pWinData);
+      taosMemFree(pNode);
+      // remove the whole window
+      continue;
+    }
+    if (pWinData->timeRange.startTime > end) {
+      break;
+    }
+  }
+
+  return code;
+}

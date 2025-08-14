@@ -1193,8 +1193,8 @@ TEST(dataSinkTest, dataUnsortedCacheTest) {
   int32_t code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
   ASSERT_EQ(code, 0);
 
-  SArray* pWindws = taosArrayInit(3, sizeof(STimeRange));
-  STimeRange pRange = {wstart0, wstart0+29};
+  SArray*    pWindws = taosArrayInit(3, sizeof(STimeRange));
+  STimeRange pRange = {wstart0, wstart0 + 29};
   taosArrayPush(pWindws, &pRange);
   pRange.startTime = wstart0 + 30;
   pRange.endTime = wstart0 + 79;
@@ -1255,6 +1255,55 @@ TEST(dataSinkTest, dataUnsortedCacheTest) {
   ASSERT_EQ(pIter, nullptr);
   for(int i = 0; i < 50; ++i) {
     equal = compareBlockRow(pBlockR0, pBlockS0, i, i + 30);
+    ASSERT_EQ(equal, true);
+  }
+  blockDataDestroy(pBlockR0);
+
+  clearStreamDataCache(pCache, groupID, wstart0, wstart0 + 29);
+
+  code = getStreamDataCache(pCache, groupID, wstart0, wstart0 + 29, &pIter);
+  ASSERT_EQ(code, 0);
+  pBlockR0 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlockR0);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(pBlockR0, nullptr);
+
+  code = getStreamDataCache(pCache, groupID, wstart0 + 30, wstart0 + 99, &pIter);
+  ASSERT_EQ(code, 0);
+  pBlockR0 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlockR0);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlockR0, nullptr);
+  ASSERT_NE(pIter, nullptr);
+  for (int i = 0; i < 50; ++i) {
+    equal = compareBlockRow(pBlockR0, pBlockS0, i, i + 30);
+    ASSERT_EQ(equal, true);
+  }
+  blockDataDestroy(pBlockR0);
+  code = getNextStreamDataCache(&pIter, &pBlockR0);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlockR0, nullptr);
+  ASSERT_NE(pIter, nullptr);
+  for (int i = 0; i < 50; ++i) {
+    equal = compareBlockRow(pBlockR0, pBlockS0, i, i + 30);
+    ASSERT_EQ(equal, true);
+  }
+  blockDataDestroy(pBlockR0);
+  code = getNextStreamDataCache(&pIter, &pBlockR0);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlockR0, nullptr);
+  ASSERT_NE(pIter, nullptr);
+  for (int i = 0; i < 20; ++i) {
+    equal = compareBlockRow(pBlockR0, pBlockS0, i, i + 80);
+    ASSERT_EQ(equal, true);
+  }
+  blockDataDestroy(pBlockR0);
+  code = getNextStreamDataCache(&pIter, &pBlockR0);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlockR0, nullptr);
+  ASSERT_EQ(pIter, nullptr);
+  for (int i = 0; i < 20; ++i) {
+    equal = compareBlockRow(pBlockR0, pBlockS0, i, i + 80);
     ASSERT_EQ(equal, true);
   }
   blockDataDestroy(pBlockR0);

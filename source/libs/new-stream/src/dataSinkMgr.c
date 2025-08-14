@@ -542,6 +542,7 @@ int32_t getUnsortedDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY e
       break;
     }
     if (pWinData->timeRange.startTime > end) {
+      pNode = NULL;
       break;
     }
   }
@@ -1266,5 +1267,29 @@ bool changeMgrStatusToMoving(int8_t* pStatus, int8_t mode) {
 }
 
 int32_t clearStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend) {
-  return TSDB_CODE_SUCCESS;
+  int32_t            code = TSDB_CODE_SUCCESS;
+  int32_t            lino = 0;
+  SSlidingTaskDSMgr* pStreamTaskMgr = (SSlidingTaskDSMgr*)pCache;
+  SResultIter*       pResultIter = NULL;
+
+  if (pCache == NULL) {
+    stError("clearStreamDataCache param invalid, pCache is NULL");
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  if (wstart < 0 || wstart > wend) {
+    stError("clearStreamDataCache param invalid, wstart:%" PRId64 " wend:%" PRId64, wstart, wend);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  if (!isManagerReady()) {
+    stError("DataSinkManager is not ready");
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  SUnsortedGrpMgr** ppExistGrpMgr =
+      (SUnsortedGrpMgr**)taosHashGet(pStreamTaskMgr->pSlidingGrpList, &groupId, sizeof(groupId));
+  if (ppExistGrpMgr == NULL) {
+    stDebug("[remove data cache] nogroup groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 "STREAMID:%" PRIx64,
+            groupId, wstart, wend, pStreamTaskMgr->streamId);
+    return TSDB_CODE_SUCCESS;
+  }
+  return clearUnsortedDataInMem(*ppExistGrpMgr, wstart, wend);
 }
