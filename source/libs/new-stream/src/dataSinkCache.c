@@ -226,60 +226,24 @@ static int32_t getUnsortedDataFromMem(SResultIter* pResult, SSDataBlock** ppBloc
 
   SUnsortedGrpMgr*   pUnsortedGrpMgr = (SUnsortedGrpMgr*)pResult->groupData;
   SDataInMemWindows* pWindowData = NULL;
-  if (pUnsortedGrpMgr->winDataInMem == NULL || pUnsortedGrpMgr->winDataInMem->size == 0) {
-    *finished = true;  // no data in memory
-    return code;
-  }
-  if (pResult->winIndex < pUnsortedGrpMgr->winDataInMem->size) {
-    pWindowData = (SDataInMemWindows*)taosArrayGet(pUnsortedGrpMgr->winDataInMem, pResult->winIndex);
-    if (pWindowData == NULL) {
-      stError("getNextStreamDataCache failed, groupId: %" PRId64 " start:%" PRId64 " end:%" PRId64
-              " dataPos: %d, winIndex: %d, winDataInMem size: %" PRIzu,
-              pResult->groupId, pResult->reqStartTime, pResult->reqEndTime, pResult->dataPos, pResult->winIndex,
-              pUnsortedGrpMgr->winDataInMem->size);
-      return TSDB_CODE_STREAM_INTERNAL_ERROR;
-    }
 
-    if (pResult->offset < pWindowData->datas->size) {
-      char** data = taosArrayGet(pWindowData->datas, pResult->offset);
-      code = blockDecode(*ppBlock, *data, NULL);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
+  SListNode *pNode = (SListNode*)pResult->winIndex;
+  SListIter  iter = {(void*)pResult->winIndex, TD_LIST_FORWARD};
+
+  pWindowData = (SDataInMemWindows*)pNode->data;
+  if (pWindowData == NULL) {
+    stError("getNextStreamDataCache failed, groupId: %" PRId64 " start:%" PRId64 " end:%" PRId64
+            " dataPos: %d, winIndex: %" PRId64 ", offset: %" PRId64,
+            pResult->groupId, pResult->reqStartTime, pResult->reqEndTime, pResult->dataPos, pResult->winIndex,
+            pResult->offset);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
 
-  // move to next window
-  *finished = true;  // no more data in memory
-  if (++pResult->offset < pWindowData->datas->size) {
-    *finished = false;
+  if (pResult->offset < pWindowData->datas->size) {
+    char** data = taosArrayGet(pWindowData->datas, pResult->offset);
+    code = blockDecode(*ppBlock, *data, NULL);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
-  while (*finished && pResult->winIndex < pUnsortedGrpMgr->winDataInMem->size) {
-    SDataInMemWindows* pWindowData = (SDataInMemWindows*)taosArrayGet(pUnsortedGrpMgr->winDataInMem, pResult->winIndex);
-    if (pWindowData == NULL) {
-      stError("getNextStreamDataCache failed, groupId: %" PRId64 " start:%" PRId64 " end:%" PRId64
-              " dataPos: %d, winIndex: %d, winDataInMem size: %" PRIzu,
-              pResult->groupId, pResult->reqStartTime, pResult->reqEndTime, pResult->dataPos, pResult->winIndex,
-              pUnsortedGrpMgr->winDataInMem->size);
-      return TSDB_CODE_STREAM_INTERNAL_ERROR;
-    }
-    if (pResult->offset >= pWindowData->datas->size) {
-      ++pResult->winIndex;
-      pResult->offset = 0;
-      continue;  // to check next window;
-    }
-    if (pWindowData->timeRange.startTime <= pResult->reqEndTime &&
-        pWindowData->timeRange.startTime >= pResult->reqStartTime) {
-      *finished = false;
-      break;
-    }
-    if (pWindowData->timeRange.startTime > pResult->reqEndTime) {
-      break;
-    }
-  }
-
-  stDebug("[get data cache] get data in memory for groupId: %" PRId64 " start:%" PRId64 " end:%" PRId64
-          " winIndex: %d rows:%" PRId64 "finished: %d",
-          pResult->groupId, pResult->reqStartTime, pResult->reqEndTime, pResult->winIndex, (*ppBlock)->info.rows,
-          *finished);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -308,6 +272,35 @@ void slidingGrpMgrUsedMemAdd(SSlidingGrpMgr* pGrpCacheMgr, int64_t size) {
   atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, size);
 }
 
+bool setNextIteratorFromMemUnsorted(SResultIter** ppResult) {
+  SResultIter*       pResult = *ppResult;
+  SUnsortedGrpMgr*   pUnsortedGrpMgr = (SUnsortedGrpMgr*)pResult->groupData;
+  SDataInMemWindows* pWindowData = NULL;
+
+  ++pResult->offset;
+  SListNode* pNode = (SListNode*)pResult->winIndex;
+  SListIter  iter = {pNode->dl_next_, TD_LIST_FORWARD};
+
+  while (pNode != NULL) {
+    SDataInMemWindows* pWinData = (SDataInMemWindows*)pNode->data;
+    if (pResult->offset >= pWinData->datas->size) {
+      pResult->offset = 0;
+      pNode = tdListNext(&iter);
+      continue;  // to check next window
+    }
+    if (pWinData->timeRange.startTime >= pResult->reqStartTime &&
+        pWinData->timeRange.startTime <= pResult->reqEndTime && pWinData->datas->size > 0) {
+      break;
+    }
+    if (pWinData->timeRange.startTime > pResult->reqEndTime) {
+      pNode = NULL;
+      break;
+    }
+  }
+  pResult->winIndex = (int64_t)pNode;
+  return pNode == NULL;
+}
+
 bool setNextIteratorFromMem(SResultIter** ppResult) {
   SResultIter* pResult = *ppResult;
 
@@ -322,10 +315,8 @@ bool setNextIteratorFromMem(SResultIter** ppResult) {
     // 在读取数据时已完成指针移动
     SAlignGrpMgr* pAlignGrpMgr = (SAlignGrpMgr*)pResult->groupData;
     return pAlignGrpMgr->blocksInMem->size == 0;
-  } else { // DATA_ALLOC_MODE_UNSORTED
-    // 在读取数据时已完成指针移动
-    SUnsortedGrpMgr* pUnsortedGrpMgr = (SUnsortedGrpMgr*)pResult->groupData;
-    return pResult->winIndex >= pUnsortedGrpMgr->winDataInMem->size;
+  } else {  // DATA_ALLOC_MODE_UNSORTED
+    return setNextIteratorFromMemUnsorted(ppResult);
   }
   return true;
 }
@@ -578,7 +569,7 @@ int32_t moveSlidingTaskMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr) {
   return code;
 }
 
-int32_t splitBlockToWindows(SArray* pWindows, int32_t tsColSlotId, SSDataBlock* pBlock) {
+int32_t splitBlockToWindows(SList* pWindows, int32_t tsColSlotId, SSDataBlock* pBlock) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
@@ -590,8 +581,12 @@ int32_t splitBlockToWindows(SArray* pWindows, int32_t tsColSlotId, SSDataBlock* 
   code = getStreamBlockTS(pBlock, tsColSlotId, pBlock->info.rows - 1, &lastTs);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  for (int32_t i = 0; i < pWindows->size; ++i) {
-    SDataInMemWindows* pWin = (SDataInMemWindows*)taosArrayGet(pWindows, i);
+  SListIter  iter = {0};
+  SListNode* pNode = NULL;
+
+  tdListInitIter(pWindows, &iter, TD_LIST_FORWARD);
+  while ((pNode = tdListNext(&iter)) != NULL) {
+    SDataInMemWindows* pWin = (SDataInMemWindows*)pNode->data;
     if ((pWin->timeRange.startTime >= firstTs && pWin->timeRange.startTime <= lastTs) ||
         (pWin->timeRange.endTime >= firstTs && pWin->timeRange.endTime <= lastTs)) {
       int32_t startIndex = 0, endIndex = 0;

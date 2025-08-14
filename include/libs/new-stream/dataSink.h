@@ -185,7 +185,7 @@ typedef struct SUnsortedGrpMgr {
   int64_t groupId;
   int8_t  status;  // EGroupStatus
   int64_t usedMemSize;
-  SArray* winDataInMem;  // array SDataInMemWindows
+  SList   winDataInMem;  // array SDataInMemWindows
   SArray* blocksInFile;  // array SBlocksInfoFile
 } SUnsortedGrpMgr;
 
@@ -209,7 +209,7 @@ typedef struct SResultIter {
   SDataSinkFileMgr* pFileMgr;     // when has data in file, pFileMgr is not NULL
   int32_t           tsColSlotId;  // ts column slot id
   int32_t           blockIndex;   // index of the block in the group data, for align mode.
-  int32_t           winIndex;     // index of the window in the block
+  int64_t           winIndex;     // index of the window in the block
                      // when tmpBlocksInMem is not NULL, this is the index of the current tmpBlocksInMem's block
   int64_t      offset;          // array index, start from 0
   SArray*      tmpBlocksInMem;  // SWindowDataInMem, read from file,
@@ -368,7 +368,7 @@ void destroyStreamDataSinkFile(SDataSinkFileMgr** ppDaSinkFileMgr);
 bool changeMgrStatus(int8_t* pStatus, int8_t status);
 bool changeMgrStatusToMoving(int8_t* pStatus, int8_t mode);
 
-int32_t splitBlockToWindows(SArray* pSlidingWinInMem, int32_t tsColSlotId, SSDataBlock* pBlock);
+int32_t splitBlockToWindows(SList* pSlidingWinInMem, int32_t tsColSlotId, SSDataBlock* pBlock);
 
 #ifdef __cplusplus
 }

@@ -205,7 +205,7 @@ int32_t createUnsortedGrpMgr(int64_t groupId, SUnsortedGrpMgr** ppUnsortedGrpMgr
   }
   (*ppUnsortedGrpMgr)->groupId = groupId;
   (*ppUnsortedGrpMgr)->usedMemSize = 0;
-  (*ppUnsortedGrpMgr)->winDataInMem = NULL;
+  tdListInit(&(*ppUnsortedGrpMgr)->winDataInMem,  sizeof(SDataInMemWindows));
   (*ppUnsortedGrpMgr)->blocksInFile = NULL;  // delay init
   (*ppUnsortedGrpMgr)->status = GRP_DATA_WRITING;
 
@@ -448,39 +448,27 @@ int32_t declareStreamDataWindows(void* pCache, int64_t groupId, SArray* pWindows
     stError("invalid parameters, pCache: %p, pWindows: %p", pCache, pWindows);
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
-
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  int32_t nWindows = 0;
-  int32_t nNewWindows = pWindows->size;
-  int64_t lastWinStart = 0;
 
+  int32_t            nWindows = pWindows->size;
   SSlidingTaskDSMgr* pStreamTaskMgr = (SSlidingTaskDSMgr*)pCache;
   SUnsortedGrpMgr*   pUnsortedGrpMgr = NULL;
+
   code = getOrCreateSUnsortedGrpMgr(pStreamTaskMgr, groupId, &pUnsortedGrpMgr);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  if (pUnsortedGrpMgr->winDataInMem == NULL) {
-    pUnsortedGrpMgr->winDataInMem = taosArrayInit_s(sizeof(SDataInMemWindows), nNewWindows);
-    if (pUnsortedGrpMgr->winDataInMem == NULL) {
-      code = terrno;
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
-  } else {
-    nWindows = pUnsortedGrpMgr->winDataInMem->size;
-    lastWinStart = ((SDataInMemWindows*)taosArrayGet(pUnsortedGrpMgr->winDataInMem, nWindows - 1))->timeRange.startTime;
-    taosArrayReserve(pUnsortedGrpMgr->winDataInMem, nWindows);
-  }
-
-  for (int32_t i = 0; i < nNewWindows; ++i) {
+  for (int32_t i = 0; i < nWindows; ++i) {
     STimeRange* pWin = (STimeRange*)taosArrayGet(pWindows, i);
     TSDB_CHECK_NULL(pWin, code, lino, _end, terrno);
 
-    SDataInMemWindows* dataWindows = (SDataInMemWindows*)taosArrayGet(pUnsortedGrpMgr->winDataInMem, nWindows + i);
-    dataWindows->timeRange.startTime = pWin->startTime;
-    dataWindows->timeRange.endTime = pWin->endTime;
-    dataWindows->datas = taosArrayInit(4, sizeof(SWindowDataInMem*));
-    TSDB_CHECK_NULL(dataWindows->datas, code, lino, _end, terrno);
+    SDataInMemWindows dataWindows = {0};
+    dataWindows.timeRange.startTime = pWin->startTime;
+    dataWindows.timeRange.endTime = pWin->endTime;
+    dataWindows.datas = taosArrayInit(4, sizeof(SWindowDataInMem*));
+    TSDB_CHECK_NULL(dataWindows.datas, code, lino, _end, terrno);
+    code = tdListAppend(&pUnsortedGrpMgr->winDataInMem, &dataWindows);
+    TSDB_CHECK_CODE(code, lino, _end);
   }
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -505,7 +493,7 @@ int32_t putDataToUnsortedTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t grou
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
 
-  splitBlockToWindows(pUnsortedGrpMgr->winDataInMem, pStreamTaskMgr->tsSlotId, pBlock);
+  splitBlockToWindows(&pUnsortedGrpMgr->winDataInMem, pStreamTaskMgr->tsSlotId, pBlock);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -544,28 +532,24 @@ int32_t getUnsortedDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY e
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
 
-  if (pExistGrpMgr->winDataInMem->size == 0 && (!pExistGrpMgr->blocksInFile || pExistGrpMgr->blocksInFile->size == 0)) {
-    (void)changeMgrStatus(&pExistGrpMgr->status, GRP_DATA_IDLE);
-    stDebug("[get data cache] init nodata 1 groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 "STREAMID:%" PRIx64,
-            groupId, start, end, pStreamTaskMgr->streamId);
-    return TSDB_CODE_SUCCESS;
-  }
+  SListIter  foundDataIter = {0};
+  SListNode* pNode = NULL;
 
-  int32_t startIndex = -1;
-  for (int32_t i = 0; i < pExistGrpMgr->winDataInMem->size; ++i) {
-    SDataInMemWindows* pWinData = (SDataInMemWindows*)taosArrayGet(pExistGrpMgr->winDataInMem, i);
+  tdListInitIter(&pExistGrpMgr->winDataInMem, &foundDataIter, TD_LIST_FORWARD);
+  while ((pNode = tdListNext(&foundDataIter)) != NULL) {
+    SDataInMemWindows* pWinData = (SDataInMemWindows*)pNode->data;
     if (pWinData->timeRange.startTime >= start && pWinData->timeRange.startTime <= end && pWinData->datas->size > 0) {
-      startIndex = i;
       break;
     }
     if (pWinData->timeRange.startTime > end) {
       break;
     }
   }
-  if (startIndex < 0) {
-    stDebug("[get data cache] init nodata 2 groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 "STREAMID:%" PRIx64,
-            groupId, start, end, pStreamTaskMgr->streamId);
+
+  if (pNode == NULL) {
     (void)changeMgrStatus(&pExistGrpMgr->status, GRP_DATA_IDLE);
+    stDebug("[get data cache] init nodata 1 groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 "STREAMID:%" PRIx64,
+            groupId, start, end, pStreamTaskMgr->streamId);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -577,7 +561,7 @@ int32_t getUnsortedDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY e
   pResultIter->groupData = pExistGrpMgr;
   pResultIter->pFileMgr = pStreamTaskMgr->pFileMgr;
   pResultIter->tsColSlotId = pStreamTaskMgr->tsSlotId;
-  pResultIter->winIndex = startIndex;
+  pResultIter->winIndex = (int64_t)pNode;
   pResultIter->offset = 0;
   pResultIter->groupId = groupId;
   pResultIter->reqStartTime = start;
@@ -585,10 +569,6 @@ int32_t getUnsortedDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY e
 
   if (pExistGrpMgr->blocksInFile && pExistGrpMgr->blocksInFile->size > 0) {  // read from file first
     pResultIter->dataPos = DATA_SINK_FILE;
-    return code;
-  }
-  if (pExistGrpMgr->winDataInMem && pExistGrpMgr->winDataInMem->size > 0) {
-    pResultIter->dataPos = DATA_SINK_MEM;
     return code;
   }
 _end:
@@ -1008,7 +988,8 @@ int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock) {
     return TSDB_CODE_SUCCESS;
   }
   int64_t groupId = pResult->groupId;
-  stDebug("[get data cache] start groupID:%" PRId64 ", start:%" PRId64 " end:%" PRId64 " dataPos: %d, winIndex: %d",
+  stDebug("[get data cache] start groupID:%" PRId64 ", start:%" PRId64 " end:%" PRId64
+          " dataPos: %d, winIndex: %" PRId64,
           pResult->groupId, pResult->reqStartTime, pResult->reqEndTime, pResult->dataPos, pResult->winIndex);
   code = checkAndMoveMemCache(true);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -1034,7 +1015,7 @@ int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock) {
         } else {
           code = TSDB_CODE_STREAM_INTERNAL_ERROR;
           stError("getNextStreamDataCache failed, groupId: %" PRId64 " start:%" PRId64 " end:%" PRId64
-                  " dataPos: %d, winIndex: %d, tmpBlocksInMem size: %" PRIzu,
+                  " dataPos: %d, winIndex: %" PRId64 ", tmpBlocksInMem size: %" PRIzu,
                   pResult->groupId, pResult->reqStartTime, pResult->reqEndTime, pResult->dataPos, pResult->winIndex,
                   pResult->tmpBlocksInMem->size);
           QUERY_CHECK_CODE(code, lino, _end);
