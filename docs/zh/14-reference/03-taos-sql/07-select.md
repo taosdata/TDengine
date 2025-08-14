@@ -84,16 +84,17 @@ order_expr:
 ```
 
 ### 部分字段语法说明
+
 - select_expr: 选择列表达式，可以为常量、列、运算、函数以及它们的混合运算，不支持聚合函数的嵌套。
 - from_clause: 指定查询的数据源，可以是单个表（超级表、子表、普通表、虚拟表），也可以是视图，也支持多表关联查询。
 - table_reference: 指定单个表（含视图）的名称，可选指定表的别名。
 - table_expr: 指定查询数据源，可以为表名，视图名，子查询。
-- join_clause: 连接查询，支持在子表、普通表、超级表以及子查询间进行，在窗口连接中 WINDOW_OFFSET 使用 start_offset、end_offset 分别指定窗口左右边界相对于左右表主键的偏移量，两者之间无大小关联，为必填项，精度可选 1n（纳秒）、1u（微妙）、1a（毫秒）、1s（秒）、1m（分）、1h（小时）、1d（天）、1w（周），如 window_offset(-1a,1a)。JLIMIT 限制单行匹配最大行数，默认值为 1，取值范围为[0,1024]。更多详细信息可以参阅关联查询章节 [TDengine 关联查询](../join)。
+- join_clause: 连接查询，支持在子表、普通表、超级表以及子查询间进行，在窗口连接中 WINDOW_OFFSET 使用 start_offset、end_offset 分别指定窗口左右边界相对于左右表主键的偏移量，两者之间无大小关联，为必填项，精度可选 1n（纳秒）、1u（微妙）、1a（毫秒）、1s（秒）、1m（分）、1h（小时）、1d（天）、1w（周），如 window_offset(-1a,1a)。JLIMIT 限制单行匹配最大行数，默认值为 1，取值范围为[0,1024]。更多详细信息可以参阅关联查询章节 [TDengine TSDB 关联查询](../join)。
 - interp_clause: interp 子句，指定时间截面的记录值或者插值，可以指定插值的时间范围，输出时间间隔，插值类型。
   - RANGE: 指定单个或者开始结束时间值，结束时间须大于开始时间，ts_val 为标准时间戳类型，surrounding_time_val 可选，指定时间范围，为正值，精度可选 1n、1u、1a、1s、1m、1h、1d、1w。如 ```RANGE('2023-10-01T00:00:00.000')``` 、```RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999')```、```RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999'，1h)```。
   - EVERY: 时间间隔范围，every_val 为正值，精度可选 1n、1u、1a、1s、1m、1h、1d、1w，如 EVERY(1s)。
   - FILL: 类型可选 NONE (不填充)、VALUE（指定值填充）、PREV（前一个非 NULL 值）、NEXT（后一个非 NULL）、NEAR（前后最近的非 NULL 值）。
-- window_clause: 指定数据按照窗口进行切分并进行聚合，是时序数据库特色查询。详细信息可参阅特色查询章节 [TDengine 特色查询](../distinguished)。
+- window_clause: 指定数据按照窗口进行切分并进行聚合，是时序数据库特色查询。详细信息可参阅特色查询章节 [TDengine TSDB 特色查询](../distinguished)。
   - SESSION: 会话窗口，ts_col 指定时间戳主键列，tol_val 指定时间间隔，正值，时间精度可选 1n、1u、1a、1s、1m、1h、1d、1w，如 SESSION(ts, 12s)。
   - STATE_WINDOW: 状态窗口，TRUE_FOR 指定窗口最小持续时长，时间范围为正值，精度可选 1n、1u、1a、1s、1m、1h、1d、1w，如 TRUE_FOR(1a)。
   - INTERVAL: 时间窗口，interval_val 指定窗口大小，sliding_val 指定窗口滑动时间，大小限制在 interval_val 范围内，interval_val 和 sliding_val 时间范围为正值，精度可选 1n、1u、1a、1s、1m、1h、1d、1w，如 interval_val(2d)、SLIDING(1d)。
@@ -128,7 +129,7 @@ Hints 是用户控制单个语句查询优化的一种手段，当 Hint 不适�
 | SMALLDATA_TS_SORT| 无          | 超级表的数据按时间戳排序时，查询列长度大于等于 256，但是行数不多，使用这个提示，可以提高性能 | 超级表的数据按时间戳排序时  |
 | SKIP_TSMA        | 无          | 用于显示的禁用 TSMA 查询优化 | 带 Agg 函数的查询语句 |
 
-举例： 
+举例：
 
 ```sql
 SELECT /*+ BATCH_SCAN() */ a.ts FROM stable1 a, stable2 b where a.tag0 = b.tag0 and a.ts = b.ts;
@@ -178,6 +179,7 @@ SELECT location, groupid, current FROM d1001 LIMIT 2;
 ```
 
 ### 别名
+
 别名的命名规则与列相同，支持直接指定 UTF-8 编码格式的中文别名。
 
 ### 结果去重
@@ -211,7 +213,7 @@ SELECT DISTINCT col_name [, col_name ...] FROM tb_name;
 
 ```sql
 SELECT TAGS tag_name [, tag_name ...] FROM stb_name
-``` 
+```
 
 ### 结果集列名
 
@@ -264,7 +266,7 @@ SELECT COUNT(*) FROM (SELECT DISTINCT TBNAME FROM meters);
 
 **\_c0/\_ROWTS**
 
-TDengine 中，所有表的第一列都必须是时间戳类型，且为其主键，\_rowts 伪列和\_c0 伪列均代表了此列的值。相比实际的主键时间戳列，使用伪列更加灵活，语义也更加标准。例如，可以和 max\min 等函数一起使用。
+TDengine TSDB 中，所有表的第一列都必须是时间戳类型，且为其主键，\_rowts 伪列和\_c0 伪列均代表了此列的值。相比实际的主键时间戳列，使用伪列更加灵活，语义也更加标准。例如，可以和 max\min 等函数一起使用。
 
 ```sql
 select _rowts, max(current) from meters;
@@ -290,7 +292,7 @@ select _iorwts_origin, interp(current) from meters range('2020-01-01 10:00:00', 
 FROM 关键字后面可以是若干个表（超级表）列表，也可以是子查询的结果。
 如果没有指定用户的当前数据库，可以在表名称之前使用数据库的名称来指定表所属的数据库。例如：`power.d1001` 方式来跨库使用表。
 
-TDengine 支持基于时间戳主键的 INNER JOIN，规则如下：
+TDengine TSDB 支持基于时间戳主键的 INNER JOIN，规则如下：
 
 1. 支持 FROM 表列表和显式的 JOIN 子句两种语法。
 2. 对于普通表和子表，ON 条件必须有且只有时间戳主键的等值条件。
@@ -302,6 +304,7 @@ TDengine 支持基于时间戳主键的 INNER JOIN，规则如下：
 ## INTERP
 
 interp 子句是 INTERP 函数 (../function/#interp) 的专用语法，当 SQL 语句中存在 interp 子句时，只能查询 INTERP 函数而不能与其他函数一起查询，同时 interp 子句与窗口子句 (window_clause)、分组子句 (group_by_clause) 也不能同时使用。INTERP 函数在使用时需要与 RANGE、EVERY 和 FILL 子句一起使用；流计算不支持使用 RANGE，但需要与 EVERY 和 FILL 关键字一起使用。
+
 - INTERP 的输出时间范围根据 RANGE(timestamp1, timestamp2) 字段来指定，需满足 timestamp1 \<= timestamp2。其中 timestamp1 为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2 为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
 - INTERP 根据 EVERY(time_unit) 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（time_unit 值）进行插值，time_unit 可取值时间单位：1a(毫秒)、1s(秒)、1m(分)、1h(小时)、1d(天)、1w(周)。例如 EVERY(500a) 将对于指定数据每 500 毫秒间隔进行一次插值。
 - INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值。关于 FILL 子句如何使用请参考 [FILL 子句](../distinguished#fill-子句)
@@ -330,17 +333,15 @@ GROUP BY 子句中在使用位置语法和结果集列名进行分组时，其�
 
 该子句对行进行分组，但不保证结果集的顺序。若要对分组进行排序，请使用 ORDER BY 子句
 
-
 ## PARTITION BY
 
-PARTITION BY 子句是 TDengine 3.0 版本引入的特色语法，用于根据 part_list 对数据进行切分，在每个切分的分片中可以进行各种计算。
+PARTITION BY 子句是 TDengine TSDB 3.0 版本引入的特色语法，用于根据 part_list 对数据进行切分，在每个切分的分片中可以进行各种计算。
 
 PARTITION BY 与 GROUP BY 基本含义相似，都是按照指定列表进行数据分组然后进行计算，不同点在于 PARTITION BY 没有 GROUP BY 子句的 SELECT 列表的各种限制，组内可以进行任意运算（常量、聚合、标量、表达式等），因此在使用上 PARTITION BY 完全兼容 GROUP BY，所有使用 GROUP BY 子句的地方都可以替换为 PARTITION BY, 需要注意的是在没有聚合查询时两者的查询结果可能存在差异。
 
 因为 PARTITION BY 没有返回一行聚合数据的要求，因此还可以支持在分组切片后的各种窗口运算，所有需要分组进行的窗口运算都只能使用 PARTITION BY 子句。
 
-
-详见 [TDengine 特色查询](../distinguished)
+详见 [TDengine TSDB 特色查询](../distinguished)
 
 ## ORDER BY
 
@@ -385,7 +386,7 @@ SELECT SERVER_VERSION();
 
 ### 获取服务器状态
 
-服务器状态检测语句。如果服务器正常，返回一个数字（例如 1）。如果服务器异常，返回 error code。该 SQL 语法能兼容连接池对于 TDengine 状态的检查及第三方工具对于数据库服务器状态的检查。并可以避免出现使用了错误的心跳检测 SQL 语句导致的连接池连接丢失的问题。
+服务器状态检测语句。如果服务器正常，返回一个数字（例如 1）。如果服务器异常，返回 error code。该 SQL 语法能兼容连接池对于 TDengine TSDB 状态的检查及第三方工具对于数据库服务器状态的检查。并可以避免出现使用了错误的心跳检测 SQL 语句导致的连接池连接丢失的问题。
 
 ```sql
 SELECT SERVER_STATUS();
@@ -444,13 +445,13 @@ CASE WHEN condition THEN result [WHEN condition THEN result ...] [ELSE result] E
 
 ### 说明
 
-TDengine 通过 CASE 表达式让用户可以在 SQL 语句中使用 IF ... THEN ... ELSE 逻辑。
+TDengine TSDB 通过 CASE 表达式让用户可以在 SQL 语句中使用 IF ... THEN ... ELSE 逻辑。
 
 第一种 CASE 语法返回第一个 value 等于 compare_value 的 result，如果没有 compare_value 符合，则返回 ELSE 之后的 result，如果没有 ELSE 部分，则返回 NULL。
 
 第二种语法返回第一个 condition 为真的 result。如果没有 condition 符合，则返回 ELSE 之后的 result，如果没有 ELSE 部分，则返回 NULL。
 
-CASE 表达式的返回类型为第一个 WHEN THEN 部分的 result 类型，其余 WHEN THEN 部分和 ELSE 部分，result 类型都需要可以向其转换，否则 TDengine 会报错。
+CASE 表达式的返回类型为第一个 WHEN THEN 部分的 result 类型，其余 WHEN THEN 部分和 ELSE 部分，result 类型都需要可以向其转换，否则 TDengine TSDB 会报错。
 
 ### 示例
 
@@ -468,7 +469,7 @@ SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) F
 
 ## JOIN 子句
 
-在 3.3.0.0 版本之前 TDengine 只支持内连接，自 3.3.0.0 版本起 TDengine 支持了更为广泛的 JOIN 类型，这其中既包括传统数据库中的 LEFT JOIN、RIGHT JOIN、FULL JOIN、SEMI JOIN、ANTI-SEMI JOIN，也包括时序库中特色的 ASOF JOIN、WINDOW JOIN。JOIN 操作支持在子表、普通表、超级表以及子查询间进行。
+在 3.3.0.0 版本之前 TDengine TSDB 只支持内连接，自 3.3.0.0 版本起 TDengine TSDB 支持了更为广泛的 JOIN 类型，这其中既包括传统数据库中的 LEFT JOIN、RIGHT JOIN、FULL JOIN、SEMI JOIN、ANTI-SEMI JOIN，也包括时序库中特色的 ASOF JOIN、WINDOW JOIN。JOIN 操作支持在子表、普通表、超级表以及子查询间进行。
 
 ### 示例
 
@@ -496,13 +497,13 @@ FROM temp_ctable t1 LEFT ASOF JOIN temp_stable t2
 ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid;
 ```
 
-更多 JOIN 操作相关介绍参见页面 [TDengine 关联查询](../join)
+更多 JOIN 操作相关介绍参见页面 [TDengine TSDB 关联查询](../join)
 
 ## 嵌套查询
 
 “嵌套查询”又称为“子查询”，也即在一条 SQL 语句中，“内层查询”的计算结果可以作为“外层查询”的计算对象来使用。
 
-从 2.2.0.0 版本开始，TDengine 的查询引擎开始支持在 FROM 子句中使用非关联子查询（“非关联”的意思是，子查询不会用到父查询中的参数）。也即在普通 SELECT 语句的 tb_name_list 位置，用一个独立的 SELECT 语句来代替（这一 SELECT 语句被包含在英文圆括号内），于是完整的嵌套查询 SQL 语句形如：
+从 2.2.0.0 版本开始，TDengine TSDB 的查询引擎开始支持在 FROM 子句中使用非关联子查询（“非关联”的意思是，子查询不会用到父查询中的参数）。也即在普通 SELECT 语句的 tb_name_list 位置，用一个独立的 SELECT 语句来代替（这一 SELECT 语句被包含在英文圆括号内），于是完整的嵌套查询 SQL 语句形如：
 
 ```
 SELECT ... FROM (SELECT ... FROM ...) ...;
@@ -531,7 +532,7 @@ UNION [ALL] SELECT ...
 [UNION [ALL] SELECT ...]
 ```
 
-TDengine 支持 UNION [ALL] 操作符。也就是说，如果多个 SELECT 子句返回结果集的结构完全相同（列名、列类型、列数、顺序），那么可以通过 UNION [ALL] 把这些结果集合并到一起。
+TDengine TSDB 支持 UNION [ALL] 操作符。也就是说，如果多个 SELECT 子句返回结果集的结构完全相同（列名、列类型、列数、顺序），那么可以通过 UNION [ALL] 把这些结果集合并到一起。
 
 ## SQL 示例
 

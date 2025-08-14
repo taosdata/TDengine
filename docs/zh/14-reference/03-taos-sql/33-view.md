@@ -4,12 +4,12 @@ title: "视图"
 sidebar_label: "视图"
 ---
 
-从 v3.2.1.0 开始，TDengine 企业版提供视图功能，便于用户简化操作，提升用户间的分享能力。 
+从 v3.2.1.0 开始，TDengine TSDB 企业版提供视图功能，便于用户简化操作，提升用户间的分享能力。
 
 视图（View）本质上是一个存储在数据库中的查询语句。视图（非物化视图）本身不包含数据，只有在从视图读取数据时才动态执行视图所指定的查询语句。我们在创建视图时指定一个名称，然后可以像使用普通表一样对其进行查询等操作。视图的使用需遵循以下规则：
+
 - 视图可以嵌套定义和使用，视图与创建时指定的或当前数据库绑定使用。
 - 在同一个数据库内，视图名称不允许重名，视图名跟表名也推荐不重名（不强制）。当出现视图与表名重名时，写入、查询、授权、回收权限等操作优先使用同名表。
-
 
 ## 语法
 
@@ -20,31 +20,38 @@ CREATE [ OR REPLACE ] VIEW [db_name.]view_name AS query
 ```
 
 说明：
+
 - 创建视图时可以指定视图绑定的数据库名（db_name），未明确指定时默认为当前连接绑定的数据库；
 - 查询语句（query）中推荐指定数据库名，支持跨库视图，未指定时默认为与视图绑定的数据库 (有可能非当前连接指定的数据库)；
 
 ### 查看视图
+
 1. 查看某个数据库下的所有视图
+
   ```sql
   SHOW [db_name.]VIEWS;
   ```
 
 2. 查看视图的创建语句
+
   ```sql
   SHOW CREATE VIEW [db_name.]view_name;
   ```
 
 3. 查看视图列信息
+
   ```sql
   DESCRIBE [db_name.]view_name;
   ```
 
 4. 查看所有视图信息
+
   ```sql
   SELECT ... FROM information_schema.ins_views;
   ```
 
 ### 删除视图
+
 ```sql
 DROP VIEW [IF EXISTS] [db_name.]view_name;
 ```
@@ -52,9 +59,11 @@ DROP VIEW [IF EXISTS] [db_name.]view_name;
 ## 权限
 
 ### 说明
+
 视图的权限分为 READ、WRITE、ALTER 三种，查询操作需要具备 READ 权限，写入操作需要具备 WRITE 权限，对视图本身的删改操作需要具备 ALTER 权限。
 
 ### 规则
+
 - 视图的创建者和 root 用户默认具备所有权限。
 - 对其他用户进行授权与回收权限可以通过 GRANT 和 REVOKE 语句进行，该操作只能由 root 用户进行。
 - 视图权限需单独授权与回收，通过 db.* 进行的授权与回收不含视图权限。
@@ -114,7 +123,6 @@ priv_type: {
 | -------- | -------- | --------- | --------- | ---- | -------- |
 | 支持     | 暂不支持 | 暂不支持  | 暂不支持  | 支持 | 暂不支持 |
 
-
 ## 举例
 
 - 创建视图
@@ -124,11 +132,13 @@ priv_type: {
   CREATE VIEW view2 AS SELECT ts, col2 FROM table1;
   CREATE VIEW view3 AS SELECT * from view1;
   ```
+
 - 查询数据
   
   ```sql
   SELECT * from view1;
   ```
+
 - 删除视图
   
   ```sql

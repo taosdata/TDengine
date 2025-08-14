@@ -1219,10 +1219,15 @@ static int32_t doMergeAlignExtWindowAgg(SOperatorInfo* pOperator, SResultRowInfo
   int64_t* tsCols = extractTsCol(pBlock, pExtW->primaryTsIndex, pTaskInfo);
   TSKEY ts = getStartTsKey(&pBlock->info.window, tsCols);
 
-  const STimeWindow *pWin = getExtWindow(pOperator, pExtW, ts);
+  const STimeWindow* pWin = getExtWindow(pOperator, pExtW, ts);
   if (pWin == NULL) {
-    qError("failed to get time window for ts:%" PRId64 ", index:%d, error:%s", ts, pExtW->primaryTsIndex, tstrerror(terrno));
+    qError("failed to get time window for ts:%" PRId64 ", index:%d, error:%s", ts, pExtW->primaryTsIndex,
+           tstrerror(terrno));
     T_LONG_JMP(pTaskInfo->env, TSDB_CODE_INVALID_PARA);
+  }
+  if (pMlExtInfo->curTs != INT64_MIN && pMlExtInfo->curTs != pWin->skey) {
+    finalizeResultRows(pExtW->aggSup.pResultBuf, &pExtW->binfo.resultRowInfo.cur, pSup, pExtW->binfo.pRes, pTaskInfo);
+    resetResultRow(pMlExtInfo->pResultRow, pExtW->aggSup.resultRowSize - sizeof(SResultRow));
   }
   code = setSingleOutputTupleBuf(pResultRowInfo, pWin, &pMlExtInfo->pResultRow, pSup, &pExtW->aggSup);
   if (code != 0 || pMlExtInfo->pResultRow == NULL) {
