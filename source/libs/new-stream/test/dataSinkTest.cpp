@@ -1201,6 +1201,7 @@ TEST(dataSinkTest, dataUnsortedCacheTest) {
   taosArrayPush(pWindws, &pRange);
   pRange.startTime = wstart0 + 80;
   pRange.endTime = wstart0 + 99;
+  taosArrayPush(pWindws, &pRange);
 
   code = declareStreamDataWindows(pCache, groupID, pWindws);
   code = putStreamMultiWinDataCache(pCache, groupID, pBlockS0);
@@ -1219,7 +1220,7 @@ TEST(dataSinkTest, dataUnsortedCacheTest) {
   ASSERT_NE(pBlockR0, nullptr);
   ASSERT_NE(pIter, nullptr);
   bool equal = false;
-  for(int i = 0; i < 29; ++i) {
+  for(int i = 0; i < 30; ++i) {
     equal = compareBlockRow(pBlockR0, pBlockS0, i, i);
     ASSERT_EQ(equal, true);
   }
