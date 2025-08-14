@@ -2372,15 +2372,15 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
   if (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) {
     // create data cache handle
     if (pContext->pCalcDataCache == NULL) {
-      int32_t cleanMode = DATA_CLEAN_IMMEDIATE;
+      int32_t cleanMode = DATA_CLEAN_IMMEDIATE | DATA_ALLOC_MODE_ALIGN;
       if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
         SInterval *pInterval = &pTask->interval;
         if ((pInterval->sliding > 0) && (pInterval->sliding < pInterval->interval)) {
-          cleanMode = DATA_CLEAN_EXPIRED;
+          cleanMode = DATA_CLEAN_EXPIRED | DATA_ALLOC_MODE_SLIDING;
         }
       } else if (pTask->triggerType == STREAM_TRIGGER_COUNT) {
         if ((pTask->windowSliding > 0) && (pTask->windowSliding < pTask->windowCount)) {
-          cleanMode = DATA_CLEAN_EXPIRED;
+          cleanMode = DATA_CLEAN_EXPIRED |  DATA_ALLOC_MODE_SLIDING;
         }
       }
       code = initStreamDataCache(pTask->task.streamId, pTask->task.taskId, pContext->sessionId, cleanMode,
@@ -4218,15 +4218,15 @@ static int32_t stHistoryContextSendCalcReq(SSTriggerHistoryContext *pContext) {
   if (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) {
     // create data cache handle
     if (pContext->pCalcDataCache == NULL) {
-      int32_t cleanMode = DATA_CLEAN_IMMEDIATE;
+      int32_t cleanMode = DATA_CLEAN_IMMEDIATE | DATA_ALLOC_MODE_ALIGN;
       if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
         SInterval *pInterval = &pTask->interval;
         if ((pInterval->sliding > 0) && (pInterval->sliding < pInterval->interval)) {
-          cleanMode = DATA_CLEAN_EXPIRED;
+          cleanMode = DATA_CLEAN_EXPIRED | DATA_ALLOC_MODE_SLIDING;
         }
       } else if (pTask->triggerType == STREAM_TRIGGER_COUNT) {
         if ((pTask->windowSliding > 0) && (pTask->windowSliding < pTask->windowCount)) {
-          cleanMode = DATA_CLEAN_EXPIRED;
+          cleanMode = DATA_CLEAN_EXPIRED | DATA_ALLOC_MODE_SLIDING;
         }
       }
       code = initStreamDataCache(pTask->task.streamId, pTask->task.taskId, pContext->sessionId, cleanMode,
