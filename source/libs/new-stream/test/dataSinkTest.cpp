@@ -1185,7 +1185,7 @@ TEST(dataSinkTest, dataUnsortedCacheTest) {
   int64_t streamId = 1;
   int64_t taskId = 1;
   int64_t groupID = 1;
-  int32_t cleanMode = DATA_ALLOC_MODE_UNSORTED | DATA_CLEAN_PASSIVE;
+  int32_t cleanMode = DATA_ALLOC_MODE_REORDER | DATA_CLEAN_PASSIVE;
   TSKEY   wstart0 = baseTestTime1 + 0;
   TSKEY   wend0 = baseTestTime1 + 99;
   void*   pCache = NULL;

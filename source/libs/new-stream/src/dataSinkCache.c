@@ -216,7 +216,7 @@ static int32_t getSlidingDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock
   return code;
 }
 
-static int32_t getUnsortedDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, bool* finished) {
+static int32_t getReorderDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, bool* finished) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   *ppBlock = taosMemCalloc(1, sizeof(SSDataBlock));
@@ -224,7 +224,7 @@ static int32_t getUnsortedDataFromMem(SResultIter* pResult, SSDataBlock** ppBloc
     return terrno;
   }
 
-  SUnsortedGrpMgr*   pUnsortedGrpMgr = (SUnsortedGrpMgr*)pResult->groupData;
+  SReorderGrpMgr*   pReorderGrpMgr = (SReorderGrpMgr*)pResult->groupData;
   SDataInMemWindows* pWindowData = NULL;
 
   SListNode *pNode = (SListNode*)pResult->winIndex;
@@ -262,8 +262,8 @@ int32_t readDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, bool* finis
     return getAlignDataFromMem(pResult, ppBlock, finished);
   } else if (pResult->dataMode & DATA_ALLOC_MODE_SLIDING) {
     return getSlidingDataFromMem(pResult, ppBlock, finished);
-  } else {  // DATA_ALLOC_MODE_UNSORTED
-    return getUnsortedDataFromMem(pResult, ppBlock, finished);
+  } else {  // DATA_ALLOC_MODE_REORDER
+    return getReorderDataFromMem(pResult, ppBlock, finished);
   }
 }
 
@@ -272,9 +272,9 @@ void slidingGrpMgrUsedMemAdd(SSlidingGrpMgr* pGrpCacheMgr, int64_t size) {
   atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, size);
 }
 
-bool setNextIteratorFromMemUnsorted(SResultIter** ppResult) {
+bool setNextIteratorFromMemReorder(SResultIter** ppResult) {
   SResultIter*       pResult = *ppResult;
-  SUnsortedGrpMgr*   pUnsortedGrpMgr = (SUnsortedGrpMgr*)pResult->groupData;
+  SReorderGrpMgr*   pReorderGrpMgr = (SReorderGrpMgr*)pResult->groupData;
   SDataInMemWindows* pWindowData = NULL;
 
   ++pResult->offset;
@@ -315,8 +315,8 @@ bool setNextIteratorFromMem(SResultIter** ppResult) {
     // 在读取数据时已完成指针移动
     SAlignGrpMgr* pAlignGrpMgr = (SAlignGrpMgr*)pResult->groupData;
     return pAlignGrpMgr->blocksInMem->size == 0;
-  } else {  // DATA_ALLOC_MODE_UNSORTED
-    return setNextIteratorFromMemUnsorted(ppResult);
+  } else {  // DATA_ALLOC_MODE_REORDER
+    return setNextIteratorFromMemReorder(ppResult);
   }
   return true;
 }
@@ -624,7 +624,7 @@ _end:
   return code;
 }
 
-void destroyUnsortedDataInMem(SDataInMemWindows* pWinData) {
+void destroyReorderDataInMem(SDataInMemWindows* pWinData) {
   if (pWinData) {
     if (pWinData->datas) {
       taosArrayDestroyP(pWinData->datas, NULL);
@@ -632,19 +632,19 @@ void destroyUnsortedDataInMem(SDataInMemWindows* pWinData) {
   }
 }
 
-int32_t clearUnsortedDataInMem(SUnsortedGrpMgr* pUnsortedGrpMgr, TSKEY start, TSKEY end) {
+int32_t clearReorderDataInMem(SReorderGrpMgr* pReorderGrpMgr, TSKEY start, TSKEY end) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
   SListIter  foundDataIter = {0};
   SListNode* pNode = NULL;
 
-  tdListInitIter(&pUnsortedGrpMgr->winDataInMem, &foundDataIter, TD_LIST_FORWARD);
+  tdListInitIter(&pReorderGrpMgr->winDataInMem, &foundDataIter, TD_LIST_FORWARD);
   while ((pNode = tdListNext(&foundDataIter)) != NULL) {
     SDataInMemWindows* pWinData = (SDataInMemWindows*)pNode->data;
     if (pWinData->timeRange.startTime >= start && pWinData->timeRange.endTime <= end) {
-      TD_DLIST_POP(&pUnsortedGrpMgr->winDataInMem, pNode);
-      destroyUnsortedDataInMem(pWinData);
+      TD_DLIST_POP(&pReorderGrpMgr->winDataInMem, pNode);
+      destroyReorderDataInMem(pWinData);
       taosMemFree(pNode);
       // remove the whole window
       continue;
