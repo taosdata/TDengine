@@ -61,9 +61,13 @@ typedef struct {
   BIO* writeBio;  // BIO for reading and writing data
 
   void* pStream;
+  void *pConn;
 
   SSslBuffer readBuf;  // buffer for reading data
 
+  void (*connCb)(uv_connect_t* pStream, int32_t status);                        // callback for connection events
+  void (*readCb)(uv_stream_t* pStream, ssize_t nread, const uv_buf_t* buffer);  // callback for write events
+  void (*writeCb)(uv_write_t* pReq, int32_t status);                            // callback for write events
 } STransTLS;
 
 int32_t initSSL(SSslCtx* pCtx, STransTLS** ppTLs);
@@ -71,15 +75,16 @@ void    destroySSL(STransTLS* pTLs);
 
 void setSSLMode(STransTLS* pTls, int8_t cliMode);
 
-int32_t sslDoConnect(STransTLS* pTls);
+int32_t sslDoConnect(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req);
 
 int32_t sslDoWrite(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req, uv_buf_t* pBuf, int32_t nBuf,
                    void (*cb)(uv_write_t*, int));
 
-int32_t sslDoRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread);
+int32_t sslDoRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t cliMode);
 
 int32_t transTLSInit(void);
 
+int8_t sslIsInited(STransTLS* pTls); 
 #ifdef __cplusplus
 }
 #endif

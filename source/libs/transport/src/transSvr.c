@@ -731,7 +731,7 @@ void uvOnRecvCbSSL(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
 
   SConnBuffer* pBuf = &conn->readBuf;
   if (nread > 0) {
-    code = sslDoRead(conn->pTls, pBuf, nread);
+    code = sslDoRead(conn->pTls, pBuf, nread, 0);
     TAOS_CHECK_GOTO(code, &lino, _error);
 
     if (pBuf->len <= TRANS_PACKET_LIMIT) {
@@ -1508,6 +1508,9 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   if (pInst->enableSSL) {
     code = initSSL(pInst->pSSLContext, &pConn->pTls);
     TAOS_CHECK_GOTO(code, &lino, _end);
+
+    pConn->enableSSL = 1;
+    pConn->pTls->pConn = pConn;
   }
   // init client handle
   pConn->pTcp = (uv_tcp_t*)taosMemoryMalloc(sizeof(uv_tcp_t));
@@ -1617,10 +1620,10 @@ static void uvDestroyConn(uv_handle_t* handle) {
   transDestroyBuffer(&conn->readBuf);
 
   destroyWQ(&conn->wq);
+  destroySSL(conn->pTls);
+
   taosMemoryFree(conn->buf);
   taosMemoryFree(conn);
-
-  destroySSL(conn->pTls);
 
   if (thrd->quit && QUEUE_IS_EMPTY(&thrd->conn)) {
     tTrace("work thread quit");

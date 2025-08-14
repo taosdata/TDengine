@@ -24,6 +24,7 @@
 static int32_t sslReadDecryptedData(STransTLS* pTls, char* data, size_t ndata);
 static int32_t sslWriteEncyptedData(STransTLS* pTls, const char* data, size_t ndata);
 
+static int32_t sslDoWriteHandshake(STransTLS* pTls);
 static void destroySSLCtx(SSL_CTX* ctx);
 
 SSL_CTX* initSSLCtx(const char* cert_path, const char* key_path, const char* ca_path) {
@@ -81,10 +82,11 @@ void handleSSLError(SSL* ssl, int ret) {
   int err = SSL_get_error(ssl, ret);
   switch (err) {
     case SSL_ERROR_WANT_READ:
+      tInfo("SSL should read");
       // read
       break;
     case SSL_ERROR_WANT_WRITE:
-      // write
+      tInfo("SSL should write%s");
       break;
     case SSL_ERROR_SSL:
       tError("SSL error: %s", ERR_reason_error_string(ERR_get_error()));
@@ -105,9 +107,9 @@ int32_t transTlsCtxCreate(const char* certPath, const char* keyPath, const char*
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pCtx->certfile = taosStrdupi(certPath);
-  pCtx->keyfile = taosStrdupi(keyPath);
-  pCtx->cafile = taosStrdupi(caPath);
+  pCtx->certfile = taosStrdupi("test");
+  pCtx->keyfile = taosStrdupi("test");
+  pCtx->cafile = taosStrdupi("tes");
   if (pCtx->certfile == NULL || pCtx->keyfile == NULL || pCtx->cafile == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     tError("Failed to duplicate TLS context file paths since %s", tstrerror(code));
@@ -181,7 +183,7 @@ int32_t sslBufferDestroy(SSslBuffer* buf) {
 int32_t sslBufferRealloc(SSslBuffer* buf, int32_t newCap, uv_buf_t* uvbuf) {
   int32_t code = 0;
   int32_t lino = 0;
-  if (buf == NULL || newCap <= 0) {
+  if (buf == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -257,17 +259,107 @@ void setSSLMode(STransTLS* pTls, int8_t cliMode) {
   }
 }
 
-int32_t sslDoConnect(STransTLS* pTls) {
+static int32_t sslDoHandShake(STransTLS* pTls) {
   int32_t code = 0;
-  SSL*    ssl = pTls->ssl;
+  int32_t lino = 0;
 
-  setSSLMode(pTls, 1);  // Set to client mode  
-
-  int32_t r = SSL_connect(ssl);
-  if (r == -1 && SSL_get_error(ssl, r) != SSL_ERROR_WANT_READ) {
-    tError("failed to do ssl connect");
-    code = TSDB_CODE_THIRDPARTY_ERROR;
+  if (pTls == NULL || pTls->ssl == NULL) {
+    tError("SSL is not initialized");
+    return TSDB_CODE_INVALID_CFG;
   }
+
+  int ret = SSL_connect(pTls->ssl);
+
+  if (ret <= 0) {
+    int err = SSL_get_error(pTls->ssl, ret);
+    if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
+      // Handehake is in progress, continue later
+      return TSDB_CODE_SUCCESS;
+    } else {
+      tError("SSL handshake failed: %s", ERR_reason_error_string(ERR_get_error()));
+      code = TSDB_CODE_THIRDPARTY_ERROR;
+      TAOS_CHECK_GOTO(code, &lino, _error);
+    }
+  }
+
+_error:
+  if (code != 0) {
+    tError("SSL handshake failed since %s", tstrerror(code));
+    return code;
+  }
+
+  return code;
+}
+int32_t sslDoConnect(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  setSSLMode(pTls, 1);
+
+  code = sslDoHandShake(pTls);
+  TAOS_CHECK_GOTO(code, NULL, _error);
+
+  code = sslDoWriteHandshake(pTls);
+  TAOS_CHECK_GOTO(code, NULL, _error);
+_error:
+  if (code != 0) {
+    tError("SSL connect failed since %s", tstrerror(code));
+    return code;
+  }
+  return code;
+}
+
+static int32_t sslFlushBioToSocket(STransTLS* pTls) {
+  if (pTls == NULL || pTls->ssl == NULL) {
+    tError("SSL is not initialized");
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  char buf[4096];
+  int  n;
+  while ((n = BIO_read(pTls->writeBio, buf, sizeof(buf))) > 0) {
+    uv_buf_t b = uv_buf_init(buf, n);
+
+    uv_write_t* req = taosMemCalloc(1, sizeof(uv_write_t));
+    if (req == NULL) {
+      return terrno;
+    }
+
+    req->data = pTls->pConn;
+    int status = uv_write(req, (uv_stream_t*)pTls->pStream, &b, 1, pTls->writeCb);
+    if (status != 0) {
+      tError("Failed to write SSL data: %s", uv_err_name(status));
+      return status;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t sslDoWriteHandshake(STransTLS* pTls) {
+  int32_t code = 0;
+  if (pTls == NULL || pTls->ssl == NULL) {
+    tError("SSL is not initialized");
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  char buf[1024] = {0};
+  int  n = 0;
+
+  while ((n = BIO_read(pTls->writeBio, buf, sizeof(buf))) > 0) {
+    uv_buf_t    b = uv_buf_init(buf, n);
+    uv_write_t* req = taosMemoryCalloc(1, sizeof(uv_write_t));
+    if (req == NULL) {
+      return terrno;
+    }
+
+    req->data = pTls->pConn;
+    code = uv_write(req, pTls->pStream, &b, 1, pTls->writeCb);
+    if (code != 0) {
+      tError("Failed to write SSL handshake data: %s", uv_err_name(code));
+      return code;
+    }
+  }
+
   return code;
 }
 
@@ -285,7 +377,7 @@ int32_t sslDoWrite(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req, uv_buf
   }
 
   if (code != 0) {
-    tError("SSL write error: %s", ERR_reason_error_string(ERR_get_error()));
+    tError("SSL write error since %s", tstrerror(code));
     return code;
   }
 
@@ -299,14 +391,58 @@ int32_t sslDoWrite(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req, uv_buf
 
 // netcore --> BIO ---> SSL ---> user
 
-int32_t sslDoRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread) {
+static int32_t sslDoHandsShakeOrRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t* waitRead) {
+  int32_t code = 0;
+  int     ret = SSL_connect(pTls->ssl);
+  if (ret == 1) {
+    tDebug("SSL handshake completed successfully");
+    sslFlushBioToSocket(pTls);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int err = SSL_get_error(pTls->ssl, ret);
+  if (err == SSL_ERROR_WANT_READ) {
+    *waitRead = 1;            // 等待对端
+    return TSDB_CODE_SUCCESS; /* 等待对端 */
+  } else if (err == SSL_ERROR_WANT_WRITE) {
+    code = sslFlushBioToSocket(pTls);
+    if (code != 0) {
+      tError("Failed to flush SSL write BIO");
+      return code;
+    }
+  } else {
+    tError("SSL handshake failed: %s", ERR_reason_error_string(ERR_get_error()));
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
+  return code;
+}
+
+int8_t sslIsInited(STransTLS* pTls) {
+  if (pTls == NULL || pTls->ssl == NULL) {
+    tError("SSL is not initialized");
+    return 0;
+  }
+  return SSL_is_init_finished(pTls->ssl) ? 1 : 0;
+}
+int32_t sslDoRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t cliMode) {
   int32_t     code = 0;
+  int8_t      waitRead = 0;  // 等待对端
   SSslBuffer* sslBuf = &pTls->readBuf;
 
   sslBuf->len += nread;
   int32_t nwrite = BIO_write(pTls->readBio, sslBuf->buf, sslBuf->len);
-
   sslBuf->len = 0;
+
+  if (cliMode && !SSL_is_init_finished(pTls->ssl)) {
+    code = sslDoHandsShakeOrRead(pTls, pBuf, nread, &waitRead);
+    if (code != 0) {
+      tError("SSL handshake failed since %s", tstrerror(code));
+      return code;
+    }
+    if (!waitRead) {
+      return TSDB_CODE_SUCCESS;  // 等待对端
+    }
+  }
 
   char buf[4096] = {0};
   while ((nwrite = SSL_read(pTls->ssl, buf, sizeof(buf))) > 0) {
@@ -316,120 +452,17 @@ int32_t sslDoRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread) {
       return code;
     }
   }
-  return code;
-}
-
-int32_t sslFlushWbio(STransTLS* pTls) {
-  if (pTls == NULL || pTls->ssl == NULL) {
-    tError("SSL is not initialized");
-    return TSDB_CODE_INVALID_CFG;
-  }
-
-  char buf[4096];
-  int  n;
-  while ((n = BIO_read(pTls->writeBio, buf, sizeof(buf))) > 0) {
-    uv_buf_t b = uv_buf_init(buf, n);
-    // uv_try_write((uv_stream_t*)&pTls->handle, &b, 1);
-  }
-  return TSDB_CODE_SUCCESS;
-}
-void sslOnConnect(STransTLS* pTls) {
-  if (pTls == NULL || pTls->ssl == NULL) {
-    tError("SSL is not initialized");
-    return;
-  }
-
-  int32_t r = SSL_connect(pTls->ssl);
-  if (r == -1 && SSL_get_error(pTls->ssl, r) != SSL_ERROR_WANT_READ) {
-    tError("SSL connect error: %s", ERR_reason_error_string(ERR_get_error()));
-    return;
-  }
-
-  r = sslFlushWbio(pTls);
-  if (r != TSDB_CODE_SUCCESS) {
-    tError("Failed to flush SSL write BIO");
-    return;
-  }
-
-  // uv_read_start((uv_stream_t*)&pTls->handle, alloc_cb, read_cb);
-  // printf("SSL handshake ok\n");
-}
-
-void sslOnRead(STransTLS* pTls, size_t nread, const uv_buf_t* buf) {
-  int32_t code = 0;
-  int32_t nwrite = 0;
-  if (nread <= 0) {
-    return;
-  }
-  nwrite = BIO_write(pTls->readBio, buf->base, nread);
-
-  if (!SSL_is_init_finished(pTls->ssl)) {
-    int ret = SSL_connect(pTls->ssl);
-    if (ret <= 0 && SSL_get_error(pTls->ssl, ret) != SSL_ERROR_WANT_READ) {
-      // handle error
-      return;
+  if (nwrite < 0) {
+    int err = SSL_get_error(pTls->ssl, nwrite);
+    if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
+      return TSDB_CODE_SUCCESS;  // 等待对端
+    } else {
+      tError("SSL read failed: %s", ERR_reason_error_string(ERR_get_error()));
+      return TSDB_CODE_THIRDPARTY_ERROR;
     }
-    code = sslFlushWbio(pTls);
-    if (code != TSDB_CODE_SUCCESS) {
-      tError("Failed to flush SSL write BIO");
-      return;
-    }
-
-    if (!SSL_is_init_finished(pTls->ssl)) {
-      return;  // continue handshake
-    }
-    nwrite = SSL_write(pTls->ssl, buf->base, nread);
-
-  } else {
-    code = sslReadDecryptedData(pTls, NULL, 0);
-  }
-  return;
-}
-
-int32_t sslReadDecryptedData(STransTLS* pTls, char* data, size_t ndata) {
-  if (pTls == NULL || pTls->ssl == NULL) {
-    tError("SSL is not initialized");
-    return TSDB_CODE_INVALID_CFG;
-  }
-
-  int n = SSL_read(pTls->ssl, data, ndata);
-  if (n <= 0) {
-    handleSSLError(pTls->ssl, n);
-    return TSDB_CODE_THIRDPARTY_ERROR;
-  }
-  return n;  // Return number of bytes read
-}
-int32_t sslWriteEncyptedData(STransTLS* pTls, const char* data, size_t ndata) {
-  char    buf[4096] = {0};
-  int32_t code = 0;
-  int32_t total = 0;
-  while (1) {
-    int n = BIO_read(pTls->writeBio, (void*)data, ndata);
-    if (n <= 0) {
-      break;
-    }
-    total += n;
-  }
-
-  if (total > 0) {
-    // uv_write
   }
   return code;
 }
-void sslOnWrite(STransTLS* pTls, const char* data, size_t ndata) {
-  if (pTls == NULL || pTls->ssl == NULL) {
-    tError("SSL is not initialized");
-    return;
-  }
-  SSL_write(pTls->ssl, data, ndata);
-}
-
-void sslOnNewConn(STransTLS* pTls) {
-  SSL_set_accept_state(pTls->ssl);  // Set SSL to accept state for server mode
-  return;
-}
-
-void sslOnConn(STransTLS* pTls) {}
 
 void destroySSL(STransTLS* pTls) {
   if (pTls) {

@@ -461,6 +461,7 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.startReadTimer = 1;
   rpcInit.readTimeout = tsReadTimeout;
   rpcInit.ipv6 = tsEnableIpv6;
+  rpcInit.enableSSL = 1;
 
   if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
     dError("failed to convert version string:%s to int", td_version);
@@ -512,6 +513,8 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   rpcInit.readTimeout = 0;
   rpcInit.ipv6 = tsEnableIpv6;
 
+  rpcInit.enableSSL = 1;
+
   if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
     dError("failed to convert version string:%s to int", td_version);
   }
@@ -562,7 +565,7 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   rpcInit.startReadTimer = 1;
   rpcInit.readTimeout = tsReadTimeout;
   rpcInit.ipv6 = tsEnableIpv6;
-
+  rpcInit.enableSSL = 1;
   if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
     dError("failed to convert version string:%s to int", td_version);
   }
@@ -620,6 +623,7 @@ int32_t dmInitServer(SDnode *pDnode) {
   rpcInit.compressSize = tsCompressMsgSize;
   rpcInit.shareConnLimit = tsShareConnLimit * 16;
   rpcInit.ipv6 = tsEnableIpv6;
+  rpcInit.enableSSL = 1;
 
   if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
     dError("failed to convert version string:%s to int", td_version);

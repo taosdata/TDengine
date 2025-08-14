@@ -91,6 +91,7 @@ typedef struct SCliConn {
 
   STransTLS* pTls;
   int8_t     enableSSL;  // enable SSL or not
+  int8_t     sslConnected;
 
 } SCliConn;
 
@@ -182,6 +183,7 @@ void           cliBatchSendImpl(SCliConn* pConn);
 static int32_t cliBatchSend(SCliConn* conn, int8_t direct);
 void           cliConnCheckTimoutMsg(SCliConn* conn);
 bool           cliConnRmReleaseReq(SCliConn* conn, STransMsgHead* pHead);
+static int32_t cliConnStartRead(SCliConn* conn);
 // register conn timer
 static void cliConnTimeout(uv_timer_t* handle);
 
@@ -1015,7 +1017,7 @@ static void cliRecvCbSSL(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf
   }
   SConnBuffer* pBuf = &conn->readBuf;
   if (nread > 0) {
-    code = sslDoRead(conn->pTls, pBuf, nread);
+    code = sslDoRead(conn->pTls, pBuf, nread, 1);
     TAOS_CHECK_GOTO(code, &lino, _error);
 
     while (transReadComplete(pBuf)) {
@@ -1365,6 +1367,66 @@ static void cliConnRmReqs(SCliConn* conn) {
   return;
 }
 
+static void cliSendCbSSL(uv_write_t* req, int status) {
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  SCliConn* pConn = req->data;
+  SCliThrd* pThrd = pConn->hostThrd;
+  STrans*   pInst = pThrd->pInst;
+
+  if (status != 0) {
+    tDebug("%s conn:%p, failed to send msg since %s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(status));
+    code = TSDB_CODE_THIRDPARTY_ERROR;
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  if (sslIsInited(pConn->pTls) == 0) {
+    tDebug("%s conn:%p, ssl not inited, skip send msg", CONN_GET_INST_LABEL(pConn), pConn);
+    return;
+  }
+  // if (!SSL_is_init_finished(pTls->ssl)) {
+  //   tDebug("%s conn:%p, ssl not init finished, skip send msg", CONN_GET_INST_LABEL(pConn), pConn);
+  //   return;
+  // }
+
+  code = cliBatchSend(pConn, 1);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
+_error:
+  if (code != 0) {
+    tDebug("%s conn:%p, failed to send msg since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
+    TAOS_UNUSED(transUnrefCliHandle(pConn));
+  }
+  taosMemFree(req);
+
+  return;
+}
+static int32_t cliConnStartRead(SCliConn* conn) {
+  int32_t code = 0;
+  if (conn->readerStart == 1) {
+    return code;
+  }
+
+  void (*pRecvAllocCb)(uv_handle_t * handle, size_t suggested_size, uv_buf_t * buf) = NULL;
+  void (*pRecvCb)(uv_stream_t * handle, ssize_t nread, const uv_buf_t* buf) = NULL;
+
+  if (conn->enableSSL) {
+    pRecvAllocCb = cliAllocRecvBufferCbSSL;
+    pRecvCb = cliRecvCbSSL;
+  } else {
+    pRecvAllocCb = cliAllocRecvBufferCb;
+    pRecvCb = cliRecvCb;
+  }
+
+  code = uv_read_start((uv_stream_t*)conn->stream, pRecvAllocCb, pRecvCb);
+  if (code != 0) {
+    tDebug("%s conn:%p, failed to start read since %s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));
+    return code;
+  }
+  conn->readerStart = 1;
+
+  return code;
+}
 static void cliBatchSendCb(uv_write_t* req, int status) {
   int32_t        code = 0;
   SWReqsWrapper* wrapper = (SWReqsWrapper*)req->data;
@@ -1393,25 +1455,10 @@ static void cliBatchSendCb(uv_write_t* req, int status) {
   }
 
   cliConnMayUpdateTimer(conn, pInst->readTimeout * 1000);
-  if (conn->readerStart == 0) {
-    void (*pRecvAllocCb)(uv_handle_t * handle, size_t suggested_size, uv_buf_t * buf) = NULL;
-    void (*pRecvCb)(uv_stream_t * handle, ssize_t nread, const uv_buf_t* buf) = NULL;
-
-    if (conn->enableSSL) {
-      pRecvAllocCb = cliAllocRecvBufferCbSSL;
-      pRecvCb = cliRecvCbSSL;
-    } else {
-      pRecvAllocCb = cliAllocRecvBufferCb;
-      pRecvCb = cliRecvCb;
-    }
-
-    code = uv_read_start((uv_stream_t*)conn->stream, pRecvAllocCb, pRecvCb);
-    if (code != 0) {
-      tDebug("%s conn:%p, failed to start read since%s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));
-      TAOS_UNUSED(transUnrefCliHandle(conn));
-      return;
-    }
-    conn->readerStart = 1;
+  code = cliConnStartRead(conn);
+  if (code != 0) {
+    tDebug("%s conn:%p, failed to start read since %s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));
+    TAOS_UNUSED(transUnrefCliHandle(conn));
   }
 
   if (!cliMayRecycleConn(conn)) {
@@ -1480,6 +1527,14 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
 
   if (pConn->connnected != 1) {
     return 0;
+  }
+
+  if (pConn->sslConnected == 0 && pConn->enableSSL) {
+    pConn->sslConnected = sslIsInited(pConn->pTls);
+    if (pConn->sslConnected == 0) {
+      tDebug("%s conn:%p, ssl not inited, skip send msg", CONN_GET_INST_LABEL(pConn), pConn);
+      return 0;
+    }
   }
 
   if (!direct) {
@@ -1699,6 +1754,12 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
 
   if (pThrd->pInst->enableSSL) {
     code = initSSL(pThrd->pInst->pSSLContext, &conn->pTls);
+
+    conn->pTls->writeCb = cliSendCbSSL;
+    conn->pTls->readCb = cliRecvCbSSL;
+    conn->pTls->pStream = conn->stream;
+    conn->pTls->pConn = conn;
+
     TAOS_CHECK_GOTO(code, &lino, _exception1);
 
     conn->enableSSL = 1;
@@ -1792,11 +1853,18 @@ void cliConnCb(uv_connect_t* req, int status) {
 
   tTrace("%s conn:%p, connect to server successfully", CONN_GET_INST_LABEL(pConn), pConn);
   if (pConn->enableSSL) {
-    code = sslDoConnect(pConn->pTls);
+    code = sslDoConnect(pConn->pTls, NULL, NULL);
     if (code != 0) {
       tDebug("%s conn:%p, failed to do ssl_connect since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
       TAOS_CHECK_GOTO(code, &lino, _error);
     }
+
+    code = cliConnStartRead(pConn);
+    if (code != 0) {
+      tDebug("%s conn:%p, failed to start read since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
+      TAOS_CHECK_GOTO(code, &lino, _error);
+    }
+    return;
   }
 
   code = cliBatchSend(pConn, 1);
