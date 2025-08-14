@@ -270,7 +270,9 @@ This indicates that the client and server versions are incompatible. Here, the c
 
 ### 27 After changing the root password of the database, starting taos encounters the error "failed to connect to server, reason: Authentication failure"
 
-By default, starting the taos service will use the system's default username (root) and password to attempt to connect to taosd. After changing the root password, starting a taos connection will require specifying the username and password, for example: `taos -h xxx.xxx.xxx.xxx -u root -p`, then enter the new password to connect.
+By default, starting the taos service will use the system's default username (root) and password to attempt to connect to taosd. After changing the root password, starting a taos connection will require specifying the username and password, for example: `taos -h xxx.xxx.xxx.xxx -u root -p`, then enter the new password to establish the connection. For taosKeeper and taosAdapter, you need to modify the corresponding password in the configuration file and restart them to connect normally.
+
+Starting from version V3.3.6.6, Docker introduced the TAOS_ROOT_PASSWORDenvironment variable for custom password setting. By executing a command like docker run -d --privileged -e TAOS_ROOT_PASSWORD=******, the container will use the specified password upon startup, eliminating the need to manually update the password in the configuration files of taosKeeper and taosAdapter for normal connections.
 
 ### 28 After changing the root password of the database, the Grafana monitoring plugin TDinsight shows no data
 
