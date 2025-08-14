@@ -22,6 +22,7 @@ tracing.workspace = true
 futures-util.workspace = true
 flume.workspace = true
 uuid.workspace = true
+pin-project-lite.workspace = true
 
 taosx-core.workspace = true
 taosx-ipc.workspace = true
@@ -34,6 +35,7 @@ rdkafka = { version = "0.37.0", features = [
     "ssl",
     "gssapi-vendored",
 ] }
+
 
 [lints]
 workspace = true

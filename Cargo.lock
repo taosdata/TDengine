@@ -7935,6 +7935,7 @@ dependencies = [
  "futures-util",
  "itertools 0.14.0",
  "linked-hash-map",
+ "pin-project-lite",
  "rdkafka",
  "scc",
  "serde",

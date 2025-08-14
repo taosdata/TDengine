@@ -150,17 +150,11 @@ impl MessageMetadata {
 async fn ipc_tcp_forward(
     stream: std::net::TcpStream, // socket2::Socket,
     cancel: CancellationToken,
-    remote: String, // "http://127.0.0.1:6051"
-    token: String,
-    task_id: i64,
+    with_agent: (i64, String, String),
     batch_counter: BatchCounter,
     config: Option<OpcModelConfig>,
     persist_components: Option<PersistComponents>,
 ) -> anyhow::Result<()> {
-    use md5;
-    tracing::info!("token: {}", format!("{:x}", md5::compute(token.clone())));
-    use arrow_flight::{encode::FlightDataEncoderBuilder, error::FlightError};
-    use futures::StreamExt;
     let reader_stream = stream
         .try_clone()
         .context("Try clone IPC stream as reader error")?;
@@ -178,6 +172,7 @@ async fn ipc_tcp_forward(
         }
     }
     let ipc_reader = ipc_reader.unwrap();
+    let schema = ipc_reader.schema();
     let ack = ipc_reader.ack();
     let mut ipc_ack_writer =
         tokio::task::spawn_blocking(move || AckWriterBuilder::new(ack).open(stream))
@@ -186,7 +181,6 @@ async fn ipc_tcp_forward(
             .context("Spawn AckWriter error")?
             .context("Create AckWriter error")?;
 
-    let schema = ipc_reader.schema.clone();
     let persist_component = match persist_components {
         Some(components) => match components.components.get(&schema) {
             Some(component) => Some(component.clone()),
@@ -197,6 +191,51 @@ async fn ipc_tcp_forward(
         },
         None => None,
     };
+    let (input_stream, ack_tx) = if let Some(component) = persist_component.as_ref() {
+        let batch_chunk_size = component.config.batch_chunk_size.unwrap_or(100);
+        let (ack_tx, ack_rx) = flume::bounded(batch_chunk_size);
+        tokio::task::spawn_blocking(move || {
+            while let Ok(ack) = ack_rx.recv() {
+                ipc_ack_writer.ack(ack).inspect_err(|err| {
+                    tracing::error!("Write ack error: {err:#}");
+                })?;
+            }
+            anyhow::Ok(())
+        });
+        (ipc_reader.into_raw_stream(), Some(ack_tx))
+    } else {
+        (ipc_reader.into_raw_stream_qos_0(ipc_ack_writer), None)
+    };
+
+    ipc_forward(
+        input_stream,
+        ack_tx,
+        schema,
+        cancel,
+        with_agent,
+        batch_counter,
+        config,
+        persist_component,
+    )
+    .await
+}
+
+pub async fn ipc_forward(
+    input_stream: flume::r#async::RecvStream<'static, Result<RecordBatch, ArrowError>>,
+    ack_tx: Option<flume::Sender<LushAck>>,
+    schema: Arc<Schema>,
+    cancel: CancellationToken,
+    with_agent: (i64, String, String),
+    batch_counter: BatchCounter,
+    config: Option<OpcModelConfig>,
+    persist_component: Option<PersistComponent>,
+) -> anyhow::Result<()> {
+    let (task_id, remote, token) = with_agent;
+    use md5;
+    tracing::info!("token: {}", format!("{:x}", md5::compute(token.clone())));
+    use arrow_flight::{encode::FlightDataEncoderBuilder, error::FlightError};
+    use futures::StreamExt;
+
     let mut schema = schema.as_ref().clone();
     if let Some(config) = config.as_ref() {
         schema.metadata.insert(
@@ -240,22 +279,8 @@ async fn ipc_tcp_forward(
         }
         vec
     }
+
     let retry_forever = persist_component.is_some();
-    let (input_stream, ack_tx) = if let Some(component) = persist_component.as_ref() {
-        let batch_chunk_size = component.config.batch_chunk_size.unwrap_or(100);
-        let (ack_tx, ack_rx) = flume::bounded(batch_chunk_size);
-        tokio::task::spawn_blocking(move || {
-            while let Ok(ack) = ack_rx.recv() {
-                ipc_ack_writer.ack(ack).inspect_err(|err| {
-                    tracing::error!("Write ack error: {err:#}");
-                })?;
-            }
-            anyhow::Ok(())
-        });
-        (ipc_reader.into_raw_stream(), Some(ack_tx))
-    } else {
-        (ipc_reader.into_raw_stream_qos_0(ipc_ack_writer), None)
-    };
 
     let task_token = cancel.child_token();
     let mut persist_tasks = None;
@@ -304,7 +329,43 @@ async fn ipc_tcp_forward(
         let ipc_stream = match persist_component.clone() {
             None => {
                 // 默认行为，直接返回 ack = success 给上游数据源
-                Either::Left(input_stream.clone())
+                let (tx, rx) = flume::bounded(64);
+                let ack_tx = ack_tx.clone();
+                let mut input_stream = input_stream.clone();
+                tokio::spawn(async move {
+                    let mut max_elapsed = Duration::ZERO;
+                    while let Some(batch) = input_stream.next().await {
+                        if let Some(ack_tx) = ack_tx.as_ref() {
+                            let meta = batch
+                                .as_ref()
+                                .map(|b| {
+                                    serde_json::Map::from_iter(
+                                        b.schema_ref()
+                                            .metadata()
+                                            .iter()
+                                            .map(|(k, v)| (k.clone(), json!(v))),
+                                    )
+                                })
+                                .map(serde_json::Value::from)
+                                .ok();
+                            let mut ack = LushAck::ok();
+                            ack.context = meta.map(|v| v.to_string());
+                            if ack_tx.send_async(ack).await.is_err() {
+                                return;
+                            }
+                        }
+                        let start = tokio::time::Instant::now();
+                        if tx.send_async(batch).await.is_err() {
+                            return;
+                        }
+                        let elapsed = start.elapsed();
+                        if elapsed > max_elapsed {
+                            max_elapsed = elapsed;
+                            tracing::info!("agent input stream send batch cost: {elapsed:?}");
+                        }
+                    }
+                });
+                Either::Left(rx.into_stream())
             }
             Some(component) => {
                 let input_stream = input_stream.clone();
@@ -336,19 +397,19 @@ async fn ipc_tcp_forward(
                     }
                 })
                 .map(move |(batch, mut ack_wait_tx)| {
-                    let meta = batch
-                        .as_ref()
-                        .map(|b| {
-                            serde_json::Map::from_iter(
-                                b.schema_ref()
-                                    .metadata()
-                                    .iter()
-                                    .map(|(k, v)| (k.clone(), json!(v))),
-                            )
-                        })
-                        .map(serde_json::Value::from)
-                        .ok();
                     if let Some(ack_tx) = ack_wait_tx.take() {
+                        let meta = batch
+                            .as_ref()
+                            .map(|b| {
+                                serde_json::Map::from_iter(
+                                    b.schema_ref()
+                                        .metadata()
+                                        .iter()
+                                        .map(|(k, v)| (k.clone(), json!(v))),
+                                )
+                            })
+                            .map(serde_json::Value::from)
+                            .ok();
                         let mut ack = LushAck::ok();
                         ack.context = meta.map(|v| v.to_string());
                         ack_tx.send(ack).ok();
@@ -3343,7 +3404,7 @@ pub async fn listen_tcp_socket_with_agent(
                 // let client = addr.as_socket_ipv4().unwrap().to_string();
                 let se = sender.clone();
                 let cancel = cancel.clone();
-                let (id, remote, token) = with_agent.clone();
+                let with_agent = with_agent.clone();
                 let config = config.clone();
                 let notify = notified.clone();
                 let batch_counter = batch_counter.clone();
@@ -3353,7 +3414,7 @@ pub async fn listen_tcp_socket_with_agent(
                     info!("Spawned IPC reader in Agent");
                     let cancel2 = cancel.clone();
                     let res =
-                        ipc_tcp_forward(stream, cancel, remote, token, id, batch_counter, config, persist_component).in_current_span().await;
+                        ipc_tcp_forward(stream, cancel, with_agent, batch_counter, config, persist_component).in_current_span().await;
                     if let Err(err) = res {
                         let error_msg = format!("{:?}", err);
                         // 如果不以"transport error"开头，且包含"os error 10060"
@@ -3567,64 +3628,51 @@ pub async fn listen_tcp_socket(
                 let se = sender.clone();
                 let cancel = cancel.clone();
 
-                if let Some((id, server, token)) = with_agent.clone() {
-                    let opc_model_config = opc_model_config.clone();
-                    let batch_counter = batch_counter.clone().unwrap();
-                    let persist_component = persist_component.clone();
-                    set.spawn(async move {
-                        let res = ipc_tcp_forward(stream, cancel, server, token, id, batch_counter, opc_model_config, persist_component).in_current_span().await;
-                        if let Err(err) = res {
-                            tracing::error!("ipc read err: {:#}", err);
-                            let _ = se.send(format!("{:#}", err)).await;
-                        }
-                    })
-                } else {
-                    let pool = target.clone();
-                    let opc_model_config = opc_model_config.clone();
-                    let lush_model_config = lush_model_config.clone();
-                    let parser = parser.clone();
-                    let notifier = notifier.clone();
-                    let notify = notified.clone();
-                    let batch_counter = batch_counter.clone();
-                    let persist_components = persist_component.clone();
-                    set.spawn(async move {
-                        // let dsn: Dsn = "taos:///db2".parse().unwrap();
-                        // let pool = TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
-                        info!("Spawned IPC reader");
-                        let cancel2 = cancel.clone();
-                        let res = ipc_tcp_read(
-                            pool,
-                            stream,
-                            opc_model_config,
-                            lush_model_config,
-                            cancel,
-                            parser,
-                            connector,
-                            task_id,
-                            batch_counter,
-                            notifier,
-                            persist_components,
-                        )
-                            .in_current_span()
-                            .await;
-                        if let Err(err) = res {
-                            // panic!("{err:?}");
-                            println!("{err:?}");
-                            tracing::error!("ipc read err: {:#}", err);
-                            if cancel2.is_cancelled() {
-                                tracing::debug!("IPC handler completed");
-                                return;
-                            }
-                            // notify the listener to stop
-                            notify.notify_waiters();
-                            // Found error, now cancel all IPC runners.
-                            cancel2.cancel();
-                            let _ = se.send(format!("{:#}", err)).await;
-                        } else {
+                let pool = target.clone();
+                let opc_model_config = opc_model_config.clone();
+                let lush_model_config = lush_model_config.clone();
+                let parser = parser.clone();
+                let notifier = notifier.clone();
+                let notify = notified.clone();
+                let batch_counter = batch_counter.clone();
+                let persist_components = persist_component.clone();
+                set.spawn(async move {
+                    // let dsn: Dsn = "taos:///db2".parse().unwrap();
+                    // let pool = TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
+                    info!("Spawned IPC reader");
+                    let cancel2 = cancel.clone();
+                    let res = ipc_tcp_read(
+                        pool,
+                        stream,
+                        opc_model_config,
+                        lush_model_config,
+                        cancel,
+                        parser,
+                        connector,
+                        task_id,
+                        batch_counter,
+                        notifier,
+                        persist_components,
+                    )
+                        .in_current_span()
+                        .await;
+                    if let Err(err) = res {
+                        // panic!("{err:?}");
+                        println!("{err:?}");
+                        tracing::error!("ipc read err: {:#}", err);
+                        if cancel2.is_cancelled() {
                             tracing::debug!("IPC handler completed");
+                            return;
                         }
-                    }.instrument(span))
-                }
+                        // notify the listener to stop
+                        notify.notify_waiters();
+                        // Found error, now cancel all IPC runners.
+                        cancel2.cancel();
+                        let _ = se.send(format!("{:#}", err)).await;
+                    } else {
+                        tracing::debug!("IPC handler completed");
+                    }
+                }.instrument(span))
             };
             let mut backoff = 1;
             let mut ipc_id = 0;
@@ -3876,7 +3924,7 @@ pub async fn channel_based_transformer(
                 _ = cancel.cancelled() => {
                     tracing::info!("IPC stream cancelled");
                 },
-                _ = async {
+                res = async {
                     ipc_flat_stream_worker(
                         &target,
                         stream,
@@ -3893,7 +3941,11 @@ pub async fn channel_based_transformer(
                     )
                     .in_current_span()
                     .await
-                } => {},
+                } => {
+                    if let Err(e) = res {
+                        tracing::error!("ipc flat stream worker error: {e}");
+                    }
+                },
                 status = future_process_archive => {
                     if let Err(e) = status {
                         tracing::error!("archive consumer error: {e:#}");

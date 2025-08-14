@@ -280,13 +280,9 @@ impl TaskOpts {
                     kafka_to_taos(
                         dsn,
                         parser.clone(),
-                        transform.clone(),
                         to.clone(),
-                        0,
-                        port_pool,
                         cancel.clone(),
                         with_agent.clone(),
-                        None,
                         task_id_number,
                         notify.clone(),
                     )
