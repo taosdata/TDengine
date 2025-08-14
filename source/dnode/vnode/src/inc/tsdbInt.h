@@ -33,9 +33,19 @@ typedef struct {
 } SRTNer;
 
 
-int32_t tsdbDoSsMigrate(SRTNer *rtner);
-int32_t tsdbSsFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int32_t ssKeepLocal, int64_t nowSec);
+typedef struct {
+  STsdb  *tsdb;
+  int64_t now;
+  TSKEY   lastCommit;
+  int32_t nodeId; // node id of leader vnode in ss migration
+  int32_t fid;
+  bool    ssMigrate;
+} SRtnArg;
 
+
+int32_t tsdbDoSsMigrate(SRTNer *rtner);
+void tsdbRetentionCancel(void *arg);
+int32_t tsdbRetention(void *arg);
 
 #ifdef __cplusplus
 }
