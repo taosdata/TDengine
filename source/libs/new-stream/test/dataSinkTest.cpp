@@ -25,6 +25,7 @@
 
 #include "dataSink.h"
 #include "osSleep.h"
+#include "tarray.h"
 #include "tdatablock.h"
 
 // Macro to initialize DataSink at the beginning of each test
@@ -1174,6 +1175,93 @@ TEST(dataSinkTest, cleanDataPassiveTest2) {
   blockDataDestroy(pBlockS1);
   destroyDataSinkMgr();
 }
+
+
+TEST(dataSinkTest, dataUnsortedCacheTest) {
+  INIT_DATA_SINK();
+  
+  SSDataBlock* pBlockS0 = createTestBlock(baseTestTime1, 0);
+  ASSERT_NE(pBlockS0, nullptr);
+  int64_t streamId = 1;
+  int64_t taskId = 1;
+  int64_t groupID = 1;
+  int32_t cleanMode = DATA_ALLOC_MODE_UNSORTED | DATA_CLEAN_PASSIVE;
+  TSKEY   wstart0 = baseTestTime1 + 0;
+  TSKEY   wend0 = baseTestTime1 + 99;
+  void*   pCache = NULL;
+
+  int32_t code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
+  ASSERT_EQ(code, 0);
+
+  SArray* pWindws = taosArrayInit(3, sizeof(STimeRange));
+  STimeRange pRange = {wstart0, wstart0+29};
+  taosArrayPush(pWindws, &pRange);
+  pRange.startTime = wstart0 + 30;
+  pRange.endTime = wstart0 + 79;
+  taosArrayPush(pWindws, &pRange);
+  pRange.startTime = wstart0 + 80;
+  pRange.endTime = wstart0 + 99;
+
+  code = declareStreamDataWindows(pCache, groupID, pWindws);
+  code = putStreamMultiWinDataCache(pCache, groupID, pBlockS0);
+  ASSERT_EQ(code, 0);
+
+  code = putStreamMultiWinDataCache(pCache, groupID, pBlockS0);
+  ASSERT_EQ(code, 0);
+
+  void* pIter = NULL;
+
+  code = getStreamDataCache(pCache, groupID, wstart0, wstart0 + 79, &pIter);
+  ASSERT_EQ(code, 0);
+  SSDataBlock* pBlockR0 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlockR0);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlockR0, nullptr);
+  ASSERT_NE(pIter, nullptr);
+  bool equal = false;
+  for(int i = 0; i < 29; ++i) {
+    equal = compareBlockRow(pBlockR0, pBlockS0, i, i);
+    ASSERT_EQ(equal, true);
+  }
+  blockDataDestroy(pBlockR0);
+
+  pBlockR0 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlockR0);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlockR0, nullptr);
+  ASSERT_NE(pIter, nullptr);
+  for(int i = 0; i < 30; ++i) {
+    equal = compareBlockRow(pBlockR0, pBlockS0, i, i);
+    ASSERT_EQ(equal, true);
+  }
+  blockDataDestroy(pBlockR0);
+
+  pBlockR0 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlockR0);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlockR0, nullptr);
+  ASSERT_NE(pIter, nullptr);
+  for(int i = 0; i < 50; ++i) {
+    equal = compareBlockRow(pBlockR0, pBlockS0, i, i + 30);
+    ASSERT_EQ(equal, true);
+  }
+  blockDataDestroy(pBlockR0);
+
+  pBlockR0 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlockR0);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlockR0, nullptr);
+  ASSERT_EQ(pIter, nullptr);
+  for(int i = 0; i < 50; ++i) {
+    equal = compareBlockRow(pBlockR0, pBlockS0, i, i + 30);
+    ASSERT_EQ(equal, true);
+  }
+  blockDataDestroy(pBlockR0);
+
+  blockDataDestroy(pBlockS0);
+  destroyDataSinkMgr();
+}
+
 
 int main(int argc, char** argv) {
   taos_init();

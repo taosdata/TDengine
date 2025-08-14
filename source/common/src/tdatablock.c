@@ -3878,7 +3878,7 @@ int32_t blockDataCheck(const SSDataBlock* pDataBlock) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getFirstNotSmallerThanTSRowNum(const char* pts, int32_t startRow, int32_t numOfRows, TSKEY ts) {
+int32_t getFirstNotLessThanTSRowNum(const char* pts, int32_t startRow, int32_t numOfRows, TSKEY ts) {
   int32_t rowNum = -1;
   if (numOfRows < 7) {
     for (int32_t i = startRow; i < numOfRows; ++i) {
@@ -4270,7 +4270,7 @@ int32_t blockSpecialDecodeLaterPart(SSDataBlock* pBlock, const char* pData, int3
     return code;
   }
   const char* pts = pStart + tsColOffset;
-  int32_t     firstRowNum = getFirstNotSmallerThanTSRowNum(pts, 0, numOfRows, start);
+  int32_t     firstRowNum = getFirstNotLessThanTSRowNum(pts, 0, numOfRows, start);
   if (firstRowNum < 0) {
     pBlock->info.rows = 0;
     return TSDB_CODE_SUCCESS;
@@ -4406,4 +4406,65 @@ int32_t getStreamBlockTS(SSDataBlock* pBlock, int32_t tsColSlotId, int32_t row, 
 
   *ts = *(TSKEY*)(pColInfoData->pData + row * sizeof(TSKEY));
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t getBlockRowFirstNotLessThanTS(SSDataBlock* pBlock, int32_t tsColSlotId, TSKEY ts, int32_t* row) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  if (pBlock == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  }
+  if (pBlock->info.rows <= 0) {
+    return -1;
+  }
+  int32_t cols = taosArrayGetSize(pBlock->pDataBlock);
+  if (tsColSlotId < 0 || tsColSlotId >= cols) {
+    uError("Invalid tsColSlotId %d, block has %d columns", tsColSlotId, cols);
+    TAOS_CHECK_EXIT(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  }
+  SColumnInfoData* pTsInfoData = taosArrayGet(pBlock->pDataBlock, tsColSlotId);
+  if (pTsInfoData == NULL || pTsInfoData->pData == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  }
+  *row = getFirstNotLessThanTSRowNum(pTsInfoData->pData, 0, pBlock->info.rows, ts);
+
+_exit:
+
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("getBlockRowsNotLessThanTS failed, code:%d, lineno:%d", code, lino);
+  }
+  return code;
+}
+
+int32_t getBlockRowLastNotLessThanTS(SSDataBlock* pBlock, int32_t tsColSlotId, TSKEY ts, int32_t* row) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  if (pBlock == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  }
+  if (pBlock->info.rows <= 0) {
+    return -1;
+  }
+  int32_t cols = taosArrayGetSize(pBlock->pDataBlock);
+  if (tsColSlotId < 0 || tsColSlotId >= cols) {
+    uError("Invalid tsColSlotId %d, block has %d columns", tsColSlotId, cols);
+    TAOS_CHECK_EXIT(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  }
+  SColumnInfoData* pTsInfoData = taosArrayGet(pBlock->pDataBlock, tsColSlotId);
+  if (pTsInfoData == NULL || pTsInfoData->pData == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  }
+  int32_t tmp = getFirstBiggerThanTSRowNum(pTsInfoData->pData, 0, pBlock->info.rows, ts);
+  if (tmp < 0) {
+    *row = pBlock->info.rows - 1;
+  } else {
+    *row = tmp - 1;
+  }
+
+_exit:
+
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("getBlockRowsBiggerThanTS failed, code:%d, lineno:%d", code, lino);
+  }
+  return code;
 }

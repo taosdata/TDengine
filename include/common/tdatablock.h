@@ -311,6 +311,9 @@ int32_t blockEncodeAsRows(const SSDataBlock* pBlock, char* data, size_t dataLen,
 int32_t blockSpecialDecodeLaterPart(SSDataBlock* pBlock, const char* pData, int32_t tsColSlotId, TSKEY start, TSKEY end);
 int32_t getStreamBlockTS(SSDataBlock* pBlock, int32_t tsColSlotId, int32_t row, TSKEY* ts);
 
+int32_t getBlockRowFirstNotLessThanTS(SSDataBlock* pBlock, int32_t tsColSlotId, TSKEY ts, int32_t* row);
+int32_t getBlockRowLastNotLessThanTS(SSDataBlock* pBlock, int32_t tsColSlotId, TSKEY ts, int32_t* row);
+
 #ifdef __cplusplus
 }
 #endif

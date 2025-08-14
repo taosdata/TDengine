@@ -95,7 +95,7 @@ static void destroyAlignTaskDSMgr(SAlignTaskDSMgr** pData) {
     destroyStreamDataSinkFile(&pAlignTaskDSMgr->pFileMgr);
     pAlignTaskDSMgr->pFileMgr = NULL;
   }
-  if(pAlignTaskDSMgr->pAlignGrpList) {
+  if (pAlignTaskDSMgr->pAlignGrpList) {
     taosHashCleanup(pAlignTaskDSMgr->pAlignGrpList);
     pAlignTaskDSMgr->pAlignGrpList = NULL;
   }
@@ -150,7 +150,8 @@ static void destroyAlignGrpMgr(void* pData) {
   taosMemoryFreeClear(pGroupData);
 }
 
-static int32_t createAlignTaskMgr(int32_t dataMode, int64_t streamId, int64_t taskId, int64_t sessionId, int32_t tsSlotId, void** ppCache) {
+static int32_t createAlignTaskMgr(int32_t dataMode, int64_t streamId, int64_t taskId, int64_t sessionId,
+                                  int32_t tsSlotId, void** ppCache) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
   SAlignTaskDSMgr* pAlignTaskDSMgr = taosMemCalloc(1, sizeof(SAlignTaskDSMgr));
@@ -197,6 +198,20 @@ int32_t createSlidingGrpMgr(int64_t groupId, SSlidingGrpMgr** ppSlidingGrpMgr) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t createUnsortedGrpMgr(int64_t groupId, SUnsortedGrpMgr** ppUnsortedGrpMgr) {
+  *ppUnsortedGrpMgr = (SUnsortedGrpMgr*)taosMemoryCalloc(1, sizeof(SUnsortedGrpMgr));
+  if (*ppUnsortedGrpMgr == NULL) {
+    return terrno;
+  }
+  (*ppUnsortedGrpMgr)->groupId = groupId;
+  (*ppUnsortedGrpMgr)->usedMemSize = 0;
+  (*ppUnsortedGrpMgr)->winDataInMem = NULL;
+  (*ppUnsortedGrpMgr)->blocksInFile = NULL;  // delay init
+  (*ppUnsortedGrpMgr)->status = GRP_DATA_WRITING;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static void destroySSlidingGrpMgr(void* pData) {
   SSlidingGrpMgr* pGroupData = *(SSlidingGrpMgr**)pData;
   if (pGroupData->winDataInMem) {
@@ -211,7 +226,8 @@ static void destroySSlidingGrpMgr(void* pData) {
   taosMemoryFreeClear(pGroupData);
 }
 
-static int32_t createSlidingTaskMgr(int32_t dataMode, int64_t streamId, int64_t taskId, int64_t sessionId, int32_t tsSlotId, void** ppCache) {
+static int32_t createSlidingTaskMgr(int32_t dataMode, int64_t streamId, int64_t taskId, int64_t sessionId,
+                                    int32_t tsSlotId, void** ppCache) {
   SSlidingTaskDSMgr* pSlidingTaskDSMgr = taosMemCalloc(1, sizeof(SSlidingTaskDSMgr));
   if (pSlidingTaskDSMgr == NULL) {
     return terrno;
@@ -238,10 +254,10 @@ static int32_t createSlidingTaskMgr(int32_t dataMode, int64_t streamId, int64_t 
 // @brief 初始化数据缓存
 int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int32_t dataMode, int32_t tsSlotId,
                             void** ppCache) {
-  int32_t code = 0;                            
+  int32_t code = 0;
   *ppCache = NULL;
   char key[64] = {0};
-  snprintf(key, sizeof(key), "%" PRId64 "_%" PRId64 "_%"PRId64, streamId, taskId, sessionId);
+  snprintf(key, sizeof(key), "%" PRId64 "_%" PRId64 "_%" PRId64, streamId, taskId, sessionId);
 
   void** ppStreamTaskDSManager = (void**)taosHashGet(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
   if (ppStreamTaskDSManager == NULL) {
@@ -326,6 +342,33 @@ static int32_t getOrCreateSSlidingGrpMgr(SSlidingTaskDSMgr* pSlidingTaskMgr, int
   return code;
 }
 
+static int32_t getOrCreateSUnsortedGrpMgr(SSlidingTaskDSMgr* pSlidingTaskMgr, int64_t groupId,
+                                          SUnsortedGrpMgr** ppSlidingGrpMgr) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  SUnsortedGrpMgr*  pGrpMgr = NULL;
+  SUnsortedGrpMgr** ppExistGrpMgr =
+      (SUnsortedGrpMgr**)taosHashGet(pSlidingTaskMgr->pSlidingGrpList, &groupId, sizeof(groupId));
+  if (ppExistGrpMgr == NULL) {
+    code = createUnsortedGrpMgr(groupId, &pGrpMgr);
+    if (code != 0) {
+      stError("failed to create group data sink manager, err: 0x%0x", code);
+      return code;
+    }
+
+    code = taosHashPut(pSlidingTaskMgr->pSlidingGrpList, &groupId, sizeof(groupId), &pGrpMgr, sizeof(SSlidingGrpMgr*));
+    if (code != 0) {
+      destroySSlidingGrpMgr(&pGrpMgr);
+      stError("failed to put group data sink manager, err: 0x%0x", code);
+      return code;
+    }
+    *ppSlidingGrpMgr = pGrpMgr;
+  } else {
+    *ppSlidingGrpMgr = *ppExistGrpMgr;
+  }
+  return code;
+}
+
 static int32_t getOrCreateAlignGrpMgr(SAlignTaskDSMgr* pStreamTaskMgr, int64_t groupId, SAlignGrpMgr** ppAlignGrpMgr) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -356,8 +399,8 @@ int32_t putDataToSlidingTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t group
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   SSlidingGrpMgr* pSlidingGrpMgr = NULL;
-  stDebug("[put data cache] slding, groupId: %" PRId64 " block rows: %" PRId64 " startIndex: %d endIndex: %d",
-          groupId, pBlock->info.rows, startIndex, endIndex);
+  stDebug("[put data cache] slding, groupId: %" PRId64 " block rows: %" PRId64 " startIndex: %d endIndex: %d", groupId,
+          pBlock->info.rows, startIndex, endIndex);
   code = getOrCreateSSlidingGrpMgr(pStreamTaskMgr, groupId, &pSlidingGrpMgr);
   if (code != 0) {
     stError("failed to get or create group data sink manager, err: 0x%0x", code);
@@ -370,7 +413,7 @@ int32_t putDataToSlidingTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t group
   }
 
   SWindowDataInMem* pSlidingWinInMem = NULL;
-  code = buildSlidingWindowInMem(pBlock, pStreamTaskMgr->tsSlotId, startIndex, endIndex, &pSlidingWinInMem);
+  code = buildSingleWindowInMem(pBlock, pStreamTaskMgr->tsSlotId, startIndex, endIndex, &pSlidingWinInMem);
   QUERY_CHECK_CODE(code, lino, _end);
 
   void* p = taosArrayPush(pSlidingGrpMgr->winDataInMem, &pSlidingWinInMem);
@@ -396,14 +439,172 @@ _end:
   return code;
 }
 
+int32_t declareStreamDataWindows(void* pCache, int64_t groupId, SArray* pWindows) {
+  if (pCache == NULL || pWindows == NULL || pWindows->size <= 0) {
+    stError("invalid parameters, pCache: %p, pWindows: %p", pCache, pWindows);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t nWindows = 0;
+  int32_t nNewWindows = pWindows->size;
+  int64_t lastWinStart = 0;
+
+  SSlidingTaskDSMgr* pStreamTaskMgr = (SSlidingTaskDSMgr*)pCache;
+  SUnsortedGrpMgr*   pUnsortedGrpMgr = NULL;
+  code = getOrCreateSUnsortedGrpMgr(pStreamTaskMgr, groupId, &pUnsortedGrpMgr);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  if (pUnsortedGrpMgr->winDataInMem == NULL) {
+    pUnsortedGrpMgr->winDataInMem = taosArrayInit_s(sizeof(SDataInMemWindows), nNewWindows);
+    if (pUnsortedGrpMgr->winDataInMem == NULL) {
+      code = terrno;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+  } else {
+    nWindows = pUnsortedGrpMgr->winDataInMem->size;
+    lastWinStart = ((SDataInMemWindows*)taosArrayGet(pUnsortedGrpMgr->winDataInMem, nWindows - 1))->timeRange.startTime;
+    taosArrayReserve(pUnsortedGrpMgr->winDataInMem, nWindows);
+  }
+
+  for (int32_t i = 0; i < nNewWindows; ++i) {
+    STimeRange* pWin = (STimeRange*)taosArrayGet(pWindows, i);
+    TSDB_CHECK_NULL(pWin, code, lino, _end, terrno);
+
+    SDataInMemWindows* dataWindows = (SDataInMemWindows*)taosArrayGet(pUnsortedGrpMgr->winDataInMem, nWindows + i);
+    dataWindows->timeRange.startTime = pWin->startTime;
+    dataWindows->timeRange.endTime = pWin->endTime;
+    dataWindows->datas = taosArrayInit(4, sizeof(SWindowDataInMem*));
+    TSDB_CHECK_NULL(dataWindows->datas, code, lino, _end, terrno);
+  }
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("failed to declare stream data windows, lino:%d err: %0x  ", lino, code);
+  }
+  return code;
+}
+
+int32_t putDataToUnsortedTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t groupId, SSDataBlock* pBlock) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SUnsortedGrpMgr* pUnsortedGrpMgr = NULL;
+  stDebug("[put data cache] multiwins data, groupId: %" PRId64 " block rows: %" PRId64, groupId, pBlock->info.rows);
+  code = getOrCreateSUnsortedGrpMgr(pStreamTaskMgr, groupId, &pUnsortedGrpMgr);
+  if (code != 0) {
+    stError("failed to get or create group data sink manager, err: 0x%0x", code);
+    return code;
+  }
+  bool canPut = changeMgrStatus(&pUnsortedGrpMgr->status, GRP_DATA_WRITING);
+  if (!canPut) {
+    stError("failed to change group data sink manager status when put data, status: %d", pUnsortedGrpMgr->status);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+
+  splitBlockToWindows(pUnsortedGrpMgr->winDataInMem, pStreamTaskMgr->tsSlotId, pBlock);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("failed to put data to align task manager, lino:%d err: %0x", lino, code);
+    if (pUnsortedGrpMgr) {
+      (void)changeMgrStatus(&pUnsortedGrpMgr->status, GRP_DATA_IDLE);
+    }
+  } else {
+    (void)changeMgrStatus(&pUnsortedGrpMgr->status, GRP_DATA_WIAT_READ);
+  }
+
+  return code;
+}
+
+int32_t getUnsortedDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY end, void** pIter) {
+  int32_t            code = TSDB_CODE_SUCCESS;
+  int32_t            lino = 0;
+  SSlidingTaskDSMgr* pStreamTaskMgr = (SSlidingTaskDSMgr*)pCache;
+  SResultIter*       pResultIter = NULL;
+  *pIter = NULL;
+
+  stDebug("[get data cache] init groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 " STREAMID:%" PRIx64, groupId,
+          start, end, pStreamTaskMgr->streamId);
+
+  SUnsortedGrpMgr** ppExistGrpMgr =
+      (SUnsortedGrpMgr**)taosHashGet(pStreamTaskMgr->pSlidingGrpList, &groupId, sizeof(groupId));
+  if (ppExistGrpMgr == NULL) {
+    stDebug("[get data cache] init nogroup groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 "STREAMID:%" PRIx64,
+            groupId, start, end, pStreamTaskMgr->streamId);
+    return TSDB_CODE_SUCCESS;
+  }
+  SUnsortedGrpMgr* pExistGrpMgr = *ppExistGrpMgr;
+  bool             canRead = changeMgrStatus(&pExistGrpMgr->status, GRP_DATA_READING);
+  if (!canRead) {
+    stError("failed to change group data sink manager status when get data, status: %d", pExistGrpMgr->status);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+
+  if (pExistGrpMgr->winDataInMem->size == 0 && (!pExistGrpMgr->blocksInFile || pExistGrpMgr->blocksInFile->size == 0)) {
+    (void)changeMgrStatus(&pExistGrpMgr->status, GRP_DATA_IDLE);
+    stDebug("[get data cache] init nodata 1 groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 "STREAMID:%" PRIx64,
+            groupId, start, end, pStreamTaskMgr->streamId);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t startIndex = -1;
+  for (int32_t i = 0; i < pExistGrpMgr->winDataInMem->size; ++i) {
+    SDataInMemWindows* pWinData = (SDataInMemWindows*)taosArrayGet(pExistGrpMgr->winDataInMem, i);
+    if (pWinData->timeRange.startTime >= start && pWinData->timeRange.startTime <= end && pWinData->datas->size > 0) {
+      startIndex = i;
+      break;
+    }
+    if (pWinData->timeRange.startTime > end) {
+      break;
+    }
+  }
+  if (startIndex < 0) {
+    stDebug("[get data cache] init nodata 2 groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 "STREAMID:%" PRIx64,
+            groupId, start, end, pStreamTaskMgr->streamId);
+    (void)changeMgrStatus(&pExistGrpMgr->status, GRP_DATA_IDLE);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  code = createDataResult((void**)(&pResultIter));
+  QUERY_CHECK_CODE(code, lino, _end);
+  *pIter = pResultIter;
+
+  pResultIter->dataMode = pStreamTaskMgr->dataMode;
+  pResultIter->groupData = pExistGrpMgr;
+  pResultIter->pFileMgr = pStreamTaskMgr->pFileMgr;
+  pResultIter->tsColSlotId = pStreamTaskMgr->tsSlotId;
+  pResultIter->winIndex = startIndex;
+  pResultIter->offset = 0;
+  pResultIter->groupId = groupId;
+  pResultIter->reqStartTime = start;
+  pResultIter->reqEndTime = end;
+
+  if (pExistGrpMgr->blocksInFile && pExistGrpMgr->blocksInFile->size > 0) {  // read from file first
+    pResultIter->dataPos = DATA_SINK_FILE;
+    return code;
+  }
+  if (pExistGrpMgr->winDataInMem && pExistGrpMgr->winDataInMem->size > 0) {
+    pResultIter->dataPos = DATA_SINK_MEM;
+    return code;
+  }
+_end:
+  changeMgrStatus(&pExistGrpMgr->status, GRP_DATA_READING);
+  if (code != TSDB_CODE_SUCCESS) {
+    releaseDataResultAndResetMgrStatus((void**)&pResultIter);
+    *pIter = NULL;
+    stError("failed to get sliding data cache, err: %s, lineno:%d", terrMsg, lino);
+  }
+  return code;
+}
+
 int32_t putDataToAlignTaskMgr(SAlignTaskDSMgr* pStreamTaskMgr, int64_t groupId, TSKEY wstart, TSKEY wend,
                               SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex) {
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       lino = 0;
   SAlignGrpMgr* pAlignGrpMgr = NULL;
-  stDebug("[put data cache] align, groupId: %" PRId64 " wstart: %" PRId64 " wend: %" PRId64
-          " block rows: %" PRId64 " startIndex: %d endIndex: %d", groupId, wstart, wend, pBlock->info.rows, startIndex,
-          endIndex);
+  stDebug("[put data cache] align, groupId: %" PRId64 " wstart: %" PRId64 " wend: %" PRId64 " block rows: %" PRId64
+          " startIndex: %d endIndex: %d",
+          groupId, wstart, wend, pBlock->info.rows, startIndex, endIndex);
   code = getOrCreateAlignGrpMgr(pStreamTaskMgr, groupId, &pAlignGrpMgr);
   if (code != 0) {
     stError("failed to get or create group data sink manager, err: 0x%0x", code);
@@ -492,9 +693,12 @@ int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY we
   if (getDataModeFromDSMgr(pCache) & DATA_ALLOC_MODE_ALIGN) {
     SAlignTaskDSMgr* pStreamTaskMgr = (SAlignTaskDSMgr*)pCache;
     code = putDataToAlignTaskMgr(pStreamTaskMgr, groupId, wstart, wend, pBlock, startIndex, endIndex);
-  } else {
+  } else if (getDataModeFromDSMgr(pCache) & DATA_ALLOC_MODE_SLIDING) {
     SSlidingTaskDSMgr* pStreamTaskMgr = (SSlidingTaskDSMgr*)pCache;
     code = putDataToSlidingTaskMgr(pStreamTaskMgr, groupId, pBlock, startIndex, endIndex);
+  } else {
+    stError("putStreamDataCache failed, unknown data allocation mode");
+    code = TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
   (void)checkAndMoveMemCache(false);
 
@@ -503,8 +707,35 @@ _exit:
   if (code) {
     stError("%s failed at line %d since %s", __FUNCTION__, lino, tstrerror(code));
   } else {
-    stDebug("group %" PRId64 " time range [%" PRId64 ", %" PRId64 "] rows range [%d, %d] added to cache", 
-        groupId, wstart, wend, startIndex, endIndex);
+    stDebug("group %" PRId64 " time range [%" PRId64 ", %" PRId64 "] rows range [%d, %d] added to cache", groupId,
+            wstart, wend, startIndex, endIndex);
+  }
+  return code;
+}
+
+int32_t putStreamMultiWinDataCache(void* pCache, int64_t groupId, SSDataBlock* pBlock) {
+  int32_t code = TSDB_CODE_SUCCESS, lino = 0;
+  if (pCache == NULL) {
+    stError("putStreamDataCache param invalid, pCache is NULL");
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  if (!isManagerReady()) {
+    stError("DataSinkManager is not ready");
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  code = checkAndMoveMemCache(true);
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("failed to check and move mem cache for write, code: %d err: %s", code, terrMsg);
+    TAOS_CHECK_EXIT(code);
+  }
+    SSlidingTaskDSMgr* pStreamTaskMgr = (SSlidingTaskDSMgr*)pCache;
+    code = putDataToUnsortedTaskMgr(pStreamTaskMgr, groupId, pBlock);
+  (void)checkAndMoveMemCache(false);
+
+_exit:
+
+  if (code) {
+    stError("%s failed at line %d since %s", __FUNCTION__, lino, tstrerror(code));
   }
   return code;
 }
@@ -587,8 +818,8 @@ int32_t getSlidingDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY en
   SResultIter*       pResultIter = NULL;
   *pIter = NULL;
 
-  stDebug("[get data cache] init groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 " STREAMID:%" PRIx64 ,
-          groupId, start, end, pStreamTaskMgr->streamId);
+  stDebug("[get data cache] init groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 " STREAMID:%" PRIx64, groupId,
+          start, end, pStreamTaskMgr->streamId);
 
   SSlidingGrpMgr** ppExistGrpMgr =
       (SSlidingGrpMgr**)taosHashGet(pStreamTaskMgr->pSlidingGrpList, &groupId, sizeof(groupId));
@@ -662,9 +893,9 @@ int32_t getStreamDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY end
   } else if (getDataModeFromDSMgr(pCache) & DATA_ALLOC_MODE_SLIDING) {
     SSlidingTaskDSMgr* pStreamTaskMgr = (SSlidingTaskDSMgr*)pCache;
     return getSlidingDataCache(pStreamTaskMgr, groupId, start, end, pIter);
-  } else {
-    stError("invalid data mode: %d", getDataModeFromDSMgr(pCache));
-    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  } else { // DATA_ALLOC_MODE_UNSORTED
+    SSlidingTaskDSMgr* pStreamTaskMgr = (SSlidingTaskDSMgr*)pCache;
+    return getUnsortedDataCache(pStreamTaskMgr, groupId, start, end, pIter);
   }
 }
 
@@ -953,9 +1184,11 @@ static void disableSlidingGrpMemList() {
 
 int32_t checkAndMoveMemCache(bool forWrite) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (!g_slidigGrpMemList.enabled && g_pDataSinkManager.usedMemSize > tsStreamBufferSizeBytes - g_pDataSinkManager.memAlterSize) {
+  if (!g_slidigGrpMemList.enabled &&
+      g_pDataSinkManager.usedMemSize > tsStreamBufferSizeBytes - g_pDataSinkManager.memAlterSize) {
     return enableSlidingGrpMemList();
-  } else if (g_slidigGrpMemList.enabled && g_pDataSinkManager.usedMemSize < tsStreamBufferSizeBytes - DS_MEM_SIZE_ALTER_QUIT) {
+  } else if (g_slidigGrpMemList.enabled &&
+             g_pDataSinkManager.usedMemSize < tsStreamBufferSizeBytes - DS_MEM_SIZE_ALTER_QUIT) {
     disableSlidingGrpMemList();
     return TSDB_CODE_SUCCESS;
   }
@@ -1045,4 +1278,8 @@ bool changeMgrStatusToMoving(int8_t* pStatus, int8_t mode) {
     }
     return false;
   }
+}
+
+int32_t clearStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend) {
+  return TSDB_CODE_SUCCESS;
 }

@@ -87,6 +87,7 @@ typedef enum {
   DATA_CLEAN_PASSIVE = 0x04,
   DATA_ALLOC_MODE_ALIGN = 0x10,
   DATA_ALLOC_MODE_SLIDING = 0x20,
+  DATA_ALLOC_MODE_UNSORTED = 0x40,
 } SDataMgrMode;
 
 typedef struct SDataSinkManager2 {
@@ -104,12 +105,22 @@ typedef struct SMoveWindowInfo {
   SSDataBlock* pData;  // data block to move
 } SMoveWindowInfo;
 
+typedef struct STimeRange {
+  int64_t startTime;
+  int64_t endTime;
+} STimeRange;
+
 typedef struct SWindowDataInMem {
   int64_t startTime;
   int64_t endTime;
   int64_t dataLen;
   // char*   realDataBuf;    // realDataBuf == &pData + sizeof(SWindowDataInMem)
 } SWindowDataInMem;
+
+typedef struct SDataInMemWindows {
+  STimeRange timeRange;  // startTime, endTime
+  SArray*    datas;      // data buffer
+} SDataInMemWindows;
 
 typedef struct SAlignBlocksInMem {
   int64_t capacity;
@@ -170,6 +181,14 @@ typedef struct SSlidingGrpMgr {
   SArray* blocksInFile;  // array SBlocksInfoFile
 } SSlidingGrpMgr;
 
+typedef struct SUnsortedGrpMgr {
+  int64_t groupId;
+  int8_t  status;  // EGroupStatus
+  int64_t usedMemSize;
+  SArray* winDataInMem;  // array SDataInMemWindows
+  SArray* blocksInFile;  // array SBlocksInfoFile
+} SUnsortedGrpMgr;
+
 typedef struct SAlignGrpMgr {
   int64_t groupId;
   int8_t  status;        // EGroupStatus
@@ -221,6 +240,20 @@ extern SSlidingGrpMemList g_slidigGrpMemList;
 //        1. 一行数据只会被读取一次，所以读取结束后可以立刻被清理
 //        2. 一行数据可能被读取多次，所以等到下次读取时，才清理时间范围之前的数据
 int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int32_t cleanMode, int32_t tsSlotId, void** ppCache);
+
+// @brief 声明数据窗口
+// @param pCache 数据缓存,使用 StreamDataCacheInit 创建
+// @param groupId 数据的分组ID
+// @param pWindows 窗口信息，包含每个窗口的起始时间戳和结束时间戳
+int32_t declareStreamDataWindows(void* pCache, int64_t groupId, SArray* pWindows);
+
+
+// @brief 向数据缓存中添加数据
+// @param pCache 数据缓存,使用 StreamDataCacheInit 创建
+// @param groupId 数据的分组ID
+// @param pBlock 数据块, 包含多个窗口数据，根据 declareStreamDataWindows 声明的窗口进行切分
+int32_t putStreamMultiWinDataCache(void* pCache, int64_t groupId, SSDataBlock* pBlock);
+
 
 // @brief 清理数据缓存，包括缓存的数据文件和内存
 void destroyStreamDataCache(void* pCache);
@@ -300,7 +333,7 @@ int32_t moveMemFromWaitList(int8_t mode);
 
 void* getWindowDataBuf(SWindowDataInMem* pWindowData);
 
-int32_t buildSlidingWindowInMem(SSDataBlock* pBlock, int32_t tsColSlotId, int32_t startIndex, int32_t endIndex,
+int32_t buildSingleWindowInMem(SSDataBlock* pBlock, int32_t tsColSlotId, int32_t startIndex, int32_t endIndex,
                                 SWindowDataInMem** ppSlidingWinInMem);
 void    destroySlidingWindowInMem(void* pSlidingWinInMem);
 void    destroySlidingWindowInMemPP(void* ppSlidingWinInMem);
@@ -334,6 +367,8 @@ void destroyStreamDataSinkFile(SDataSinkFileMgr** ppDaSinkFileMgr);
 
 bool changeMgrStatus(int8_t* pStatus, int8_t status);
 bool changeMgrStatusToMoving(int8_t* pStatus, int8_t mode);
+
+int32_t splitBlockToWindows(SArray* pSlidingWinInMem, int32_t tsColSlotId, SSDataBlock* pBlock);
 
 #ifdef __cplusplus
 }
