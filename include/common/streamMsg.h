@@ -946,7 +946,7 @@ typedef struct SStreamRuntimeFuncInfo {
 
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo);
 int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo);
-int32_t tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo);
+void    tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo);
 typedef struct STsInfo {
   int64_t gId;
   int64_t  ts;
