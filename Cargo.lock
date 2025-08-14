@@ -6367,9 +6367,9 @@ dependencies = [
 
 [[package]]
 name = "rdkafka"
-version = "0.37.0"
+version = "0.38.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14b52c81ac3cac39c9639b95c20452076e74b8d9a71bc6fc4d83407af2ea6fff"
+checksum = "5f1856d72dbbbea0d2a5b2eaf6af7fb3847ef2746e883b11781446a51dbc85c0"
 dependencies = [
  "futures-channel",
  "futures-util",
@@ -7935,6 +7935,7 @@ dependencies = [
  "futures-util",
  "itertools 0.14.0",
  "linked-hash-map",
+ "parking_lot 0.12.4",
  "pin-project-lite",
  "rdkafka",
  "scc",

@@ -11,6 +11,7 @@ use arrow::array::{
 use arrow_schema::SchemaRef;
 use futures_ext::TryReadyChunksError;
 use futures_util::{StreamExt, stream::FuturesOrdered};
+use parking_lot::RwLock;
 use rdkafka::{consumer::Consumer, error::KafkaError, types::RDKafkaErrorCode};
 use taosx_core::{
     TaskNotify, TaskNotifySender, core_metrics::CoreMetrics, utils::codec::StringDecoder,
@@ -34,9 +35,10 @@ pub async fn poll_message(
     batch_timeout_ms: i64,
     notify: &TaskNotifySender,
     codec_processor: Option<StringDecoder>,
-    pending_batches: PendingBatches,
-    permits: Arc<tokio::sync::Semaphore>,
-    metrics: Arc<CoreMetrics>,
+    pending_batches: &PendingBatches,
+    permits: &Arc<tokio::sync::Semaphore>,
+    metrics: &Arc<CoreMetrics>,
+    global_last_message: &Arc<RwLock<Instant>>,
 ) -> anyhow::Result<ExitStatus> {
     const MAX_READY_CHUNK_SIZE: usize = 100;
 
@@ -48,7 +50,7 @@ pub async fn poll_message(
     } else {
         Duration::MAX
     };
-    // let batch_timeout = Duration::from_millis(batch_timeout_ms as u64);
+    let batch_timeout = Duration::from_millis(batch_timeout_ms as u64);
 
     let timestamp = TimestampNanosecondBuilder::new();
     let topic = StringBuilder::new();
@@ -63,7 +65,7 @@ pub async fn poll_message(
         tx,
         bid: 0,
         batch_size,
-        batch_timeout_ms,
+        batch_timeout,
         polling_timeout_ms: timeout,
         last_polling: Instant::now(),
         new_polling: None,
@@ -77,18 +79,20 @@ pub async fn poll_message(
         value,
         schema,
         pending_batches,
-        permits: permits.clone(),
+        permits,
         max_acquire_elapsed: Duration::ZERO,
-        metrics: metrics.clone(),
+        metrics,
     };
 
     // static RANDOM_ERROR_ATOMIC: AtomicUsize = AtomicUsize::new(1);
 
     let mut backoff = 1;
     let mut last_message = Instant::now();
+
     const INITIAL_NON_MESSAGE_WARNING_INTERVAL: u64 = 30;
     const MAX_NON_MESSAGE_WARNING_INTERVAL: u64 = 480;
     const MAX_BACKOFF: u64 = 16;
+    const TIMEOUT_MAX_BACKOFF: u64 = 50;
     let mut last_warning_interval = INITIAL_NON_MESSAGE_WARNING_INTERVAL;
 
     let mut seek_to = consumer.context().seek_to;
@@ -177,7 +181,9 @@ pub async fn poll_message(
             }
             _ = tokio::time::sleep(timeout_duration) => {
                 tracing::info!("Kafka consumer-{} polling timeout", index);
-                return Ok(ExitStatus::Timeout);
+                if global_last_message.read().elapsed() >= timeout_duration {
+                    return Ok(ExitStatus::Timeout)
+                }
             }
             chunk = ready_chunks.next() => {
                 match chunk {
@@ -201,10 +207,18 @@ pub async fn poll_message(
 
                         backoff = 1;
                         last_message = Instant::now();
+                        {
+                            *global_last_message.write() = Instant::now();
+                        }
                         last_warning_interval = INITIAL_NON_MESSAGE_WARNING_INTERVAL;
+                        if chunk.is_empty() {
+                            tracing::trace!("Empty chunk, go next polling");
+                            tokio::time::sleep(Duration::from_millis(100)).await;
+                            continue;
+                        }
                         match sender.send_chunk(&chunk, &mut pending_futs, aborted).in_current_span().await? {
                             ExitStatus::None => {
-                                tokio::time::sleep(Duration::from_millis(100)).await;
+                                continue;
                             }
                             ExitStatus::Timeout => {
                                 tracing::warn!("Ready chunks should never exit by polling timeout");
@@ -254,15 +268,25 @@ pub async fn poll_message(
                                     if last_warning_interval < MAX_NON_MESSAGE_WARNING_INTERVAL {
                                         last_warning_interval *= 2;
                                         last_message = Instant::now();
+                                        *global_last_message.write() = Instant::now();
                                     } else {
-                                        anyhow::bail!("Consumer {index} has no messages received in {:?}", elapsed);
+                                        tracing::error!("Consumer {index} has no messages received in {elapsed:?}");
+                                        anyhow::bail!("Consumer {index} has no messages received in {elapsed:?}");
                                     }
                                 }
                                 tokio::time::sleep(Duration::from_millis(backoff * 100)).await;
                             }
                             ExitStatus::Timeout => {
-                                tracing::info!("None messages received, exit with consumer polling timeout");
-                                return Ok(ExitStatus::Timeout);
+                                tracing::info!("None messages received, consumer polling timeout");
+                                if global_last_message.read().elapsed() >= timeout_duration {
+                                    return Ok(ExitStatus::Timeout)
+                                }
+                                if backoff < TIMEOUT_MAX_BACKOFF {
+                                    backoff *= 2;
+                                } else {
+                                    backoff = TIMEOUT_MAX_BACKOFF;
+                                }
+                                tokio::time::sleep(Duration::from_millis(backoff * 100)).await;
                             }
                             ExitStatus::Aborted => {
                                 tracing::info!("None messages received, exiting with consumer aborted");

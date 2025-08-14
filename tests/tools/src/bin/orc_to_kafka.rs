@@ -33,6 +33,8 @@ struct Args {
     projection: Option<String>,
     #[arg(long, short = 'l')]
     parallel: Option<usize>,
+    #[arg(long, short)]
+    producers: Option<usize>,
 }
 
 #[tokio::main]
@@ -43,6 +45,7 @@ async fn main() -> anyhow::Result<()> {
     let parallel = args
         .parallel
         .unwrap_or_else(|| std::thread::available_parallelism().unwrap().get());
+    let producers = args.producers.unwrap_or(parallel * 10);
 
     let (message_tx, message_rx) = flume::bounded(parallel * 10000);
 
@@ -113,7 +116,7 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    for idx in 0..(parallel * 2) {
+    for idx in 0..producers {
         let count = count.clone();
         let broker = args.broker.clone();
         let topic = args.topic.clone();

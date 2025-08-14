@@ -1,13 +1,14 @@
 use std::collections::HashMap;
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, LazyLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::Context;
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 use arrow_schema::ArrowError;
 use faststr::FastStr;
+use parking_lot::RwLock;
 use rdkafka::consumer::Consumer;
 use rdkafka::consumer::stream_consumer::StreamConsumer;
 use taos::{AsyncTBuilder, Dsn};
@@ -296,6 +297,8 @@ async fn execute(
 
     let pending_batches: PendingBatches = Arc::new(scc::HashMap::new());
 
+    let global_last_message = Arc::new(RwLock::new(Instant::now()));
+
     for (idx, task) in sub_tasks.into_iter().enumerate() {
         // let tx = tx.clone();
         let aborted = aborted.clone();
@@ -306,8 +309,6 @@ async fn execute(
         let (tx, rx) = flume::bounded::<RecordBatch>(parallel);
 
         let ack_span = tracing::info_span!("kafka_ack_reader", kafka.consumer.id = idx);
-        let ack_num = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-        let ack_num_clone = ack_num.clone();
 
         if unsafe { taosx_core::global::DRY_RUN } {
             let pending_batches = pending_batches.clone();
@@ -328,7 +329,7 @@ async fn execute(
                         };
                         let Some(batch_id) = metadata
                             .get("batch_id")
-                            .map(|v| v.parse::<u64>())
+                            .map(|v| v.parse::<u64>().context("desirialize ack batch id error"))
                             .transpose()?
                         else {
                             continue;
@@ -352,7 +353,6 @@ async fn execute(
             // receive ACK from IPC
             consumers.spawn( async move {
                 while let Some(Ok(ack)) = cancel.run_until_cancelled(ack_receiver.recv_async()).await {
-                    ack_num_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
                     if !ack.success() {
                         tracing::error!(ack.code = %ack.code(), ack.message = ack.message(), ack.context = ack.context(), "Kafka ack found error");
@@ -366,26 +366,26 @@ async fn execute(
                         continue;
                     };
                     let Some(offsets) = metadata
-                            .get("offsets")
-                            .map(|v| {
-                                let v = v.as_str().context("ack metadata offsets not string")?;
-                                serde_json::from_str::<Vec<PendingState>>(v)
-                                    .context("deserialize offsets error")
-                            })
-                            .transpose()?
-                        else {
-                            continue;
-                        };
-                        let Some(batch_id) = metadata
-                            .get("batch_id")
-                            .map(|v| {
-                                let v = v.as_str().context("ack metadata batch_id not string")?;
-                                v.parse::<u64>().context("desirialize ack batch id error")
-                            })
-                            .transpose()?
-                        else {
-                            continue;
-                        };
+                        .get("offsets")
+                        .map(|v| {
+                            let v = v.as_str().context("ack metadata offsets not string")?;
+                            serde_json::from_str::<Vec<PendingState>>(v)
+                                .context("deserialize offsets error")
+                        })
+                        .transpose()?
+                    else {
+                        continue;
+                    };
+                    let Some(batch_id) = metadata
+                        .get("batch_id")
+                        .map(|v| {
+                            let v = v.as_str().context("ack metadata batch_id not string")?;
+                            v.parse::<u64>().context("desirialize ack batch id error")
+                        })
+                        .transpose()?
+                    else {
+                        continue;
+                    };
                     if let Some((_, (ack, permit))) = pending_batches.remove_async(&batch_id).await {
                         ack.send(offsets).ok();
                         drop(permit);
@@ -416,6 +416,7 @@ async fn execute(
         let metrics = metrics_arc.clone();
         let pending_batches = pending_batches.clone();
         let permits = permits.clone();
+        let global_last_message = global_last_message.clone();
         consumers.spawn(
             async move {
                 let SubTask {
@@ -441,9 +442,10 @@ async fn execute(
                         batch_timeout_ms,
                         &notify,
                         config.codec_processor,
-                        pending_batches.clone(),
-                        permits.clone(),
-                        metrics.clone(),
+                        &pending_batches,
+                        &permits,
+                        &metrics,
+                        &global_last_message,
                     )
                     .in_current_span()
                     .await

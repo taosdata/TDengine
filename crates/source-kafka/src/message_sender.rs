@@ -36,7 +36,7 @@ pub struct MessagesSender<'a> {
     pub bid: u64,
     // Send options
     pub batch_size: usize,
-    pub batch_timeout_ms: i64,
+    pub batch_timeout: Duration,
     pub polling_timeout_ms: i64,
     pub last_polling: Instant,
     pub new_polling: Option<Instant>,
@@ -54,11 +54,11 @@ pub struct MessagesSender<'a> {
     pub value: BinaryBuilder,
     pub schema: &'a SchemaRef,
 
-    pub pending_batches: PendingBatches,
-    pub permits: Arc<tokio::sync::Semaphore>,
+    pub pending_batches: &'a PendingBatches,
+    pub permits: &'a Arc<tokio::sync::Semaphore>,
     pub max_acquire_elapsed: Duration,
 
-    pub metrics: Arc<CoreMetrics>,
+    pub metrics: &'a Arc<CoreMetrics>,
 }
 
 impl<'a> MessagesSender<'a> {
@@ -68,11 +68,6 @@ impl<'a> MessagesSender<'a> {
         pending_futs: &mut FuturesOrdered<InspectTimeoutFuture<PendingAckFuture>>,
         cancel: &CancellationToken,
     ) -> anyhow::Result<ExitStatus> {
-        if chunk.is_empty() {
-            tracing::trace!("Empty chunk, go next polling");
-            return Ok(ExitStatus::None);
-        }
-
         let now = std::time::Instant::now();
         let context = self.consumer.context();
         context
@@ -166,7 +161,7 @@ impl<'a> MessagesSender<'a> {
 
         if self
             .new_polling
-            .is_some_and(|v| v.elapsed().as_millis() as i64 > self.batch_timeout_ms)
+            .is_some_and(|v| v.elapsed() > self.batch_timeout)
         {
             tracing::debug!(
                 cache.len = self.value.len(),
@@ -264,20 +259,20 @@ impl<'a> MessagesSender<'a> {
         batch: RecordBatch,
         pending_futs: &mut FuturesOrdered<InspectTimeoutFuture<PendingAckFuture>>,
     ) -> anyhow::Result<()> {
-        self.tx
-            .send_async(batch.clone())
-            .await
-            .context("Writer seems closed")?;
         let (tx, rx) = oneshot::channel();
         self.pending_batches
             .insert_async(batch_id, (tx, permit))
             .await
             .ok();
+        self.tx
+            .send_async(batch.clone())
+            .await
+            .context("Writer seems closed")?;
         let fut = InspectTimeoutFuture::new(
             PENDING_ACK_TIMEOUT,
             PendingAckFuture::new(rx),
-            Box::new(|elapsed| {
-                tracing::warn!("pending ack has been waiting for {elapsed:?}");
+            Box::new(move |elapsed| {
+                tracing::warn!("pending ack {batch_id} has been waiting for {elapsed:?}");
             }),
         );
         pending_futs.push_back(fut);

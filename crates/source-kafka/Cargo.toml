@@ -23,14 +23,15 @@ futures-util.workspace = true
 flume.workspace = true
 uuid.workspace = true
 pin-project-lite.workspace = true
+parking_lot.workspace = true
 
 taosx-core.workspace = true
 taosx-ipc.workspace = true
 futures-ext.workspace = true
 
-rdkafka = { version = "0.37.0", features = ["cmake-build", "ssl", "tracing"] }
+rdkafka = { version = "0.38.0", features = ["cmake-build", "ssl", "tracing"] }
 [target.'cfg(not(windows))'.dependencies]
-rdkafka = { version = "0.37.0", features = [
+rdkafka = { version = "0.38.0", features = [
     "cmake-build",
     "ssl",
     "gssapi-vendored",
