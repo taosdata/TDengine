@@ -510,7 +510,7 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
   code = qwProcessQuery(QW_FPARAMS(), &qwMsg, msg.sql);
   msg.sql = NULL;
   int64_t end = taosGetTimestampUs();
-  QW_SCH_TASK_PERF("processQuery time: %lld us", end - start);
+  QW_SCH_TASK_PERF("processQuery time:%", PRId64, "us", end - start);
   QW_SCH_TASK_DLOG("processQuery end, node:%p, code:%x", node, code);
   tFreeSSubQueryMsg(&msg);
 
