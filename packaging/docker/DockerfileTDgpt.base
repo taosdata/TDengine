@@ -21,11 +21,15 @@ RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false upd
                     pmdarima \
                     flask \
                     matplotlib \
+                    taospy \
                     uwsgi \
                     transformers==4.40.0 \
                     accelerate \
+                    tensorflow \
                     -i https://pypi.tuna.tsinghua.edu.cn/simple && \
-    pip install --upgrade keras -i https://pypi.tuna.tsinghua.edu.cn/simple
+    pip install --upgrade keras -i https://pypi.tuna.tsinghua.edu.cn/simple && \
+    find $VIRTUAL_ENV -type d -name '__pycache__' -exec rm -rf {} + && \
+    find $VIRTUAL_ENV -type d -name 'tests' -exec rm -rf {} +
 
 FROM python:3.10-slim
 COPY --from=builder /var/lib/taos/taosanode/venv /var/lib/taos/taosanode/venv

@@ -1,17 +1,11 @@
-FROM tdgpt_env:1.0
+FROM tdgpt_env:1.1 AS tdgpt_lite
 WORKDIR /root
 ENV DEBIAN_FRONTEND=noninteractive
 ARG pkgFile
 ARG dirName
 ARG modelDlUrl
 
-# for time-moe
-# ADD ${modelDlUrl}/time-moe.tar.gz /root/
-# RUN tar -xzf time-moe.tar.gz && rm -rf time-moe.tar.gz
-
 ADD ${pkgFile} \
-    ${modelDlUrl}/taos.pth \
-    ${modelDlUrl}/taos_ts_server.py \
     ${modelDlUrl}/fc_australia.sql \
     /root/
 
@@ -20,7 +14,16 @@ RUN cd ${dirName}/ && \
     cd .. && \
     rm -rf ${dirName}
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh /root/taos_ts_server.py
+RUN chmod +x /usr/local/bin/entrypoint.sh
 EXPOSE 6090 8387 5000
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
+FROM tdgpt_lite AS tdgpt
+
+ADD ${modelDlUrl}/taos.pth \
+    ${modelDlUrl}/taos_ts_server.py \
+    /root/
+
+FROM tdgpt AS tdgpt_full
+ADD ${modelDlUrl}/time-moe/models /root/time-moe
+ADD ${modelDlUrl}/time-moe/time-moe_server.py /root/time-moe
