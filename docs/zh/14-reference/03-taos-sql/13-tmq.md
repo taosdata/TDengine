@@ -109,4 +109,3 @@ SHOW SUBSCRIPTIONS;
 ## MQTT 数据订阅
 
 TDengine TSDB v3.3.7.0 版本提供了 MQTT 订阅功能，可以通过 MQTT 客户端直接订阅数据，具体内容请参考 MQTT 数据订阅部分。
-

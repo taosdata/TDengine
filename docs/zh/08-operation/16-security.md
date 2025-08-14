@@ -11,31 +11,36 @@ toc_max_heading_level: 4
 IP 白名单是一种网络安全技术，它使 IT 管理员能够控制“谁”可以访问系统和资源，提升数据库的访问安全性，避免外部的恶意攻击。IP 白名单通过创建可信的 IP 地址列表，将它们作为唯一标识符分配给用户，并且只允许这些 IP 地址访问目标服务器。请注意，用户权限与 IP 白名单是不相关的，两者分开管理。下面是配置 IP 白名单的具体方法。
 
 增加 IP 白名单的 SQL 如下。
+
 ```sql
 create user test pass password [sysinfo value] [host host_name1[,host_name2]] 
 alter user test add host host_name1
 ```
 
 查询 IP 白名单的 SQL 如下。
+
 ```sql
 SELECT TEST, ALLOWED_HOST FROM INS_USERS;
 SHOW USERS;
 ```
 
 删除 IP 白名单的命令如下。
+
 ```sql
 ALTER USER TEST DROP HOST HOST_NAME1
 ```
-说明 
+
+说明
+
 - 开源版和企业版本都能添加成功，且可以查询到，但是开源版本不会对 IP 做任何限制。
 - `create user u_write pass 'taosdata1' host 'iprange1','iprange2'`，可以一次添加多个 ip range，服务端会做去重，去重的逻辑是需要 ip range 完全一样
 - 默认会把 `127.0.0.1` 添加到白名单列表，且在白名单列表可以查询
-- 集群的节点 IP 集合会自动添加到白名单列表，但是查询不到。 
+- 集群的节点 IP 集合会自动添加到白名单列表，但是查询不到。
 - taosadaper 和 taosd 不在一个机器的时候，需要把 taosadaper IP 手动添加到 taosd 白名单列表中
 - 集群情况下，各个节点 enableWhiteList 成一样，或者全为 false，或者全为 true，要不然集群无法启动
 - 白名单变更生效时间 1s，不超过 2s，每次变更对收发性能有些微影响（多一次判断，可以忽略），变更完之后、影响忽略不计，变更过程中对集群没有影响，对正在访问客户端也没有影响（假设这些客户端的 IP 包含在 white list 内）
 - 如果添加两个 ip range，192.168.1.1/16(假设为 A)，192.168.1.1/24(假设为 B)，严格来说，A 包含了 B，但是考虑情况太复杂，并不会对 A 和 B 做合并
-- 要删除的时候，必须严格匹配。也就是如果添加的是 192.168.1.1/24，要删除也是 192.168.1.1/24 
+- 要删除的时候，必须严格匹配。也就是如果添加的是 192.168.1.1/24，要删除也是 192.168.1.1/24
 - 只有 root 才有权限对其他用户增删 ip white list
 - 兼容之前的版本，但是不支持从当前版本回退到之前版本
 - x.x.x.x/32 和 x.x.x.x 属于同一个 iprange，显示为 x.x.x.x
@@ -54,7 +59,7 @@ TDengine TSDB 先对用户操作进行记录和管理，然后将这些作为审
 | 参数名称       | 参数含义                                                  |
 |:-------------:|:--------------------------------------------------------:|
 |audit       | 是否打开审计日志，1 为开启，0 为关闭，默认值为 0。 |
-|monitorFqdn | 接收审计日志的 taosKeeper 所在服务器的 FQDN | 
+|monitorFqdn | 接收审计日志的 taosKeeper 所在服务器的 FQDN |
 |monitorPort | 接收审计日志的 taosKeeper 服务所用端口 |
 |monitorCompaction | 上报数据时是否进行压缩 |
 
@@ -92,6 +97,7 @@ create stable operations(ts timestamp, details varchar(64000)， user varchar(25
 ```
 
 其中
+
 1. db 为操作涉及的 database，resource 为操作涉及的资源。
 2. user 和 operation 为数据列，表示哪个用户在该对象上进行了什么操作
 3. timestamp 为时间戳列，表示操作发生时的时间
@@ -125,8 +131,8 @@ create stable operations(ts timestamp, details varchar(64000)， user varchar(25
 | login           | login  | NULL | NULL | appName |
 | create stream   | createStream | NULL | 所创建的 stream 名 | SQL |
 | drop stream     | dropStream | NULL | 所删除的 stream 名 | SQL |
-| grant privileges| grantPrivileges | NULL | 所授予的用户 | SQL | 
-| remove privileges | revokePrivileges | NULL | 被收回权限的用户 | SQL | 
+| grant privileges| grantPrivileges | NULL | 所授予的用户 | SQL |
+| remove privileges | revokePrivileges | NULL | 被收回权限的用户 | SQL |
 | compact database| compact | database name  | NULL | SQL |
 | balance vgroup leader | balanceVgroupLead | NULL | NULL | SQL |
 | restore dnode | restoreDnode | NULL | dnodeId | SQL |
@@ -148,19 +154,23 @@ TDengine TSDB 支持透明数据加密（Transparent Data Encryption，TDE），
 密钥配置分离线设置和在线设置两种方式。
 
 方式一，离线设置。通过离线设置可为每个节点分别配置密钥，命令如下。
+
 ```shell
 taosd -y {encryptKey}
 ```
 
 方式二，在线设置。当集群所有节点都在线时，可以使用 SQL 配置密钥，SQL 如下。
+
 ```sql
 create encrypt_key {encryptKey};
 ```
+
 在线设置方式要求所有已经加入集群的节点都没有使用过离线设置方式生成密钥，否则在线设置方式会失败，在线设置密钥成功的同时也自动加载和使用了密钥。
 
 ### 创建加密数据库
 
 TDengine TSDB 支持通过 SQL 创建加密数据库，SQL 如下。
+
 ```sql
 create database [if not exists] db_name [database_options]
 database_options:
@@ -171,11 +181,13 @@ database_option: {
 ```
 
 主要参数说明如下。
+
 - encrypt_algorithm：指定数据采用的加密算法。默认是 none，即不采用加密。sm4 表示采用 SM4 加密算法
 
 ### 查看加密配置
 
 用户可通过查询系统数据库 ins_databases 获取数据库当前加密配置，SQL 如下。
+
 ```sql
 select name, `encrypt_algorithm` from ins_databases;
               name              | encrypt_algorithm |
@@ -198,7 +210,9 @@ select * from information_schema.ins_encryptions;
            2 | unset                          |
            3 | unknown                        |
 ```
+
 key_status 有三种取值：
+
 - 当节点未设置密钥时，状态列显示 unset。
 - 当密钥被检验成功并且加载后，状态列显示 loaded。
 - 当节点未启动，key 的状态无法被探知时，状态列显示 unknown。
@@ -210,7 +224,9 @@ key_status 有三种取值：
 ```shell
 taosd -y  {encryptKey}
 ```
+
 更新密钥配置，需要先停止 taosd，并且使用完全相同的密钥，也即密钥在数据库创建后不能修改。
 
 ### 加密用户密码
+
 默认的情况下，用户的密码会以 MD5 的形式进行存储。可以通过参数 encryptPassAlgorithm 将用户密码进行加密储存。encryptPassAlgorithm 默认是未设置的状态，在未设置时，不对用户密码进行加密，也即只以 MD5 的形式存储。当 encryptPassAlgorithm 设置为 sm4 时（目前只支持 sm4 加密算法），对用户密码进行加密存储。设置 encryptPassAlgorithm 参数前，同样按照前面的步骤配置密钥。

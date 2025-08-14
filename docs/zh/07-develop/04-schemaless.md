@@ -15,7 +15,7 @@ import TabItem from "@theme/TabItem";
 
 **采用无模式写入方式时会自动创建表，无须手动创建表。手动建表的话可能会出现未知的错误。**
 
-## 无模式写入行协议 
+## 无模式写入行协议
 
 TDengine TSDB 的无模式写入行协议兼容 InfluxDB 的行协议、OpenTSDB 的 TELNET 行协议和 OpenTSDB 的 JSON 格式协议。InfluxDB、OpenTSDB 的标准写入协议请参考各自的官方文档。
 
@@ -26,6 +26,7 @@ measurement,tag_set field_set timestamp
 ```
 
 各参数说明如下。
+
 - measurement 为数据表名，与 tag_set 之间使用一个英文逗号来分隔。
 - tag_set 格式形如 `<tag_key>=<tag_value>, <tag_key>=<tag_value>`，表示标签列数据，使用英文逗号分隔，与 field_set 之间使用一个半角空格分隔。
 - field_set 格式形如 `<field_key>=<field_value>, <field_key>=<field_value>`，表示普通列，同样使用英文逗号来分隔，与 timestamp 之间使用一个半角空格分隔。
@@ -34,6 +35,7 @@ measurement,tag_set field_set timestamp
 
 tag_set 中的所有的数据自动转化为 nchar 数据类型，并不需要使用双引号。
 在无模式写入数据行协议中，field_set 中的每个数据项都需要对自身的数据类型进行描述，具体要求如下。
+
 - 如果两边有英文双引号，表示 varchar 类型，例如 "abc"。
 - 如果两边有英文双引号而且带有 L 或 l 前缀，表示 nchar 类型，例如 L" 报错信息 "。
 - 如果两边有英文双引号而且带有 G 或 g 前缀，表示 geometry 类型，例如 G"Point(4.343 89.342)"。
@@ -180,11 +182,13 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c6="passit"   1626006833640000000
 第二行数据相对于第一行来说增加了一个列 c6，类型为 binary(6)。那么此时会自动增加一个列 c6，类型为 binary(6)。
 
 ## 无模式写入示例
+
 下面以智能电表为例，介绍各语言连接器使用无模式写入接口写入数据的代码样例，包含了三种协议：InfluxDB 的行协议、OpenTSDB 的 TELNET 行协议和 OpenTSDB 的 JSON 格式协议。  
 
 :::note
-- 因为无模式写入自动建表规则与之前执行 SQL 样例中不同，因此运行代码样例前请确保 `meters`、`metric_telnet` 和 `metric_json` 表不存在。 
-- OpenTSDB 的 TELNET 行协议和 OpenTSDB 的 JSON 格式协议只支持一个数据列，因此我们采用了其他示例。   
+
+- 因为无模式写入自动建表规则与之前执行 SQL 样例中不同，因此运行代码样例前请确保 `meters`、`metric_telnet` 和 `metric_json` 表不存在。
+- OpenTSDB 的 TELNET 行协议和 OpenTSDB 的 JSON 格式协议只支持一个数据列，因此我们采用了其他示例。
 
 :::
 
@@ -196,7 +200,6 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c6="passit"   1626006833640000000
 ```java
 {{#include docs/examples/java/src/main/java/com/taos/example/SchemalessWsTest.java:schemaless}}
 ```
-
 
 执行带有 reqId 的无模式写入，最后一个参数 reqId 可用于请求链路追踪。
 
@@ -210,6 +213,7 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 ```python
 {{#include docs/examples/python/schemaless_ws.py}}
 ```
+
 </TabItem>
 <TabItem label="Go" value="go">
 ```go
@@ -238,13 +242,15 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 ```c
 {{#include docs/examples/c-ws-new/sml_insert_demo.c:schemaless}}
 ```
+
 </TabItem>
 <TabItem label="REST API" value="rest">
 不支持
-</TabItem>   
+</TabItem>
 </Tabs>
 
 ### 原生连接
+
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
 ```java
@@ -263,6 +269,7 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 ```python
 {{#include docs/examples/python/schemaless_native.py}}
 ```
+
 </TabItem>
 <TabItem label="Go" value="go">
 ```go
@@ -291,7 +298,7 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 </TabItem>
 <TabItem label="REST API" value="rest">
 不支持
-</TabItem>   
+</TabItem>
 </Tabs>
 
 ## 查询写入的数据

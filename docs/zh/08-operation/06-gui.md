@@ -161,7 +161,7 @@ toc_max_heading_level: 4
 ![topic-02-addTopic.jpeg](./pic/topic-02-addTopic.jpeg "添加新主题入口")
 
 1. Wizard 方式
-   
+
 第一步 填写添加新主题需要的信息，点击**创建**按钮；
 ![topic-03-addTopicWizard.jpeg](./pic/topic-03-addTopicWizard.jpeg "添加新主题 Wizard 页面")
 
@@ -187,13 +187,14 @@ toc_max_heading_level: 4
 
 ![topic-08-shareTopic.jpeg](./pic/topic-08-shareTopic.jpeg "共享主题")
 
-
 ### 查看消费者信息
+
 通过执行下一节“示例代码”所述的“完整实例”，即可消费共享主题
 在“消费者”标签页，可查看到消费者的有关信息
 ![topic-10-consumer.jpeg](./pic/topic-10-consumer.jpeg "消费者")
 
 ### 示例代码
+
 在“示例代码”标签页，在“主题“下拉列表中，选择相应的主题；
 选择您熟悉的语言，然后您可以阅读以及使用这部分示例代码用来”创建消费“，”订阅主题“，通过执行“完整实例”中的程序即可消费共享主题
 ![topic-09-sample.jpeg](./pic/topic-09-sample.jpeg "示例代码")
@@ -201,6 +202,7 @@ toc_max_heading_level: 4
 ## 工具
 
 通过“工具”页面，用户可以了解如下 TDengine TSDB 周边工具的使用方法。
+
 - TDengine TSDB CLI
 - taosBenchmark
 - taosdump
@@ -224,9 +226,10 @@ toc_max_heading_level: 4
 ![management-03-addUserSucc.jpeg](./pic/management-02-addUserSucc.jpeg "新增用户成功")
 
 ### 导入用户/权限
+
 点击 导入按钮，弹出导入用户/权限表单填写信息，点击确定提交表单
 
-- 服务地址：从指定集群导入（taosAdapter 访问地址，如 http://127.0.0.1:6041)
+- 服务地址：从指定集群导入（taosAdapter 访问地址，如 <http://127.0.0.1:6041>)
 - 密码：源集群 root 密码
 - 导入内容：
   - 用户名和密码：（实际包含 sysinfo/super 等用户基本信息）
@@ -236,6 +239,7 @@ toc_max_heading_level: 4
 ![management-01-importInfo.jpeg](./pic/management-01-importInfo.jpeg)
 
 ### 慢 SQL
+
 点击“系统管理”后，点击“慢 SQL”标签页，可以查看慢 SQL 执行语句日志统计与明细。
 
 - 慢 SQL 明细：默认展示的是开始执行时间是一天内和执行耗时大于等于 10 秒的数据

@@ -60,5 +60,5 @@ SELECT _frowts, FORECAST(i32, "algo=arima,alpha=95,period=10,start_p=1,max_p=5,s
 
 ### 参考文献
 
-- https://en.wikipedia.org/wiki/Autoregressive_moving-average_model
+- <https://en.wikipedia.org/wiki/Autoregressive_moving-average_model>
 - [https://baike.baidu.com/item/自回归滑动平均模型/5023931](https://baike.baidu.com/item/%E8%87%AA%E5%9B%9E%E5%BD%92%E6%BB%91%E5%8A%A8%E5%B9%B3%E5%9D%87%E6%A8%A1%E5%9E%8B/5023931)

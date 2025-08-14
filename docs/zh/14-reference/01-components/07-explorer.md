@@ -144,7 +144,6 @@ cors = true
 - `log.reservedDiskSize`：日志所在磁盘停止写入日志的阈值（单位为字节），当磁盘剩余空间达到此大小后停止写入日志。
 - `log.keepDays`：日志文件保存的天数，超过此天数的旧日志文件会被删除。
 
-
 ## 启动停止
 
 然后启动 taosExplorer，可以直接在命令行执行 taos-explorer 或者使用 systemctl 命令：
@@ -155,6 +154,7 @@ sc.exe start taos-explorer # Windows
 ```
 
 相应地，用如下命令停止
+
 ```shell
 systemctl stop taos-explorer  # Linux
 sc.exe stop taos-explorer # Windows

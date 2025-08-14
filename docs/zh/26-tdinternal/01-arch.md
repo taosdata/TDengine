@@ -19,15 +19,15 @@ TDengine TSDB 分布式架构的逻辑结构图如下：
 
 一个完整的 TDengine TSDB 系统是运行在一到多个物理节点上的，逻辑上，它包含数据节点（dnode）、TDengine TSDB 应用驱动（taosc）以及应用（app）。系统中存在一到多个数据节点，这些数据节点组成一个集群（cluster）。应用通过 taosc 的 API 与 TDengine TSDB 集群进行互动。下面对每个逻辑单元进行简要介绍。
 
-**物理节点（pnode）：** 
+**物理节点（pnode）：**
 pnode 是一独立运行、拥有自己的计算、存储和网络能力的计算机，可以是安装有 OS 的物理机、虚拟机或 Docker 容器。物理节点由其配置的 FQDN（Fully Qualified Domain Name）来标识。TDengine TSDB 完全依赖 FQDN 来进行网络通讯。
 
-**数据节点（dnode）：** 
+**数据节点（dnode）：**
 dnode 是 TDengine TSDB 服务器侧执行代码 taosd 在物理节点上的一个运行实例。在一个 TDengine TSDB 系统中，至少需要一个 dnode 来确保系统的正常运行。每个 dnode 包含零到多个逻辑的虚拟节点（vnode），但管理节点、弹性计算节点和流计算节点各有 0 个或 1 个逻辑实例。
 
 dnode 在 TDengine TSDB 集群中的唯一标识由其实例的 endpoint（EP）决定。endpoint 是由 dnode 所在物理节点的 FQDN 和配置的网络端口组合而成。通过配置不同的端口，一个 pnode（无论是物理机、虚拟机还是 Docker 容器）可以运行多个实例，即拥有多个 dnode。
 
-**虚拟节点（vnode）：** 
+**虚拟节点（vnode）：**
 为了更好地支持数据分片、负载均衡以及防止数据过热或倾斜，TDengine TSDB 引入了 vnode（虚拟节点）的概念。虚拟节点被虚拟化为多个独立的 vnode 实例（如上面架构图中的 V2、V3、V4 等），每个 vnode 都是一个相对独立的工作单元，负责存储和管理一部分时序数据。
 
 每个 vnode 都拥有独立的运行线程、内存空间和持久化存储路径，确保数据的隔离性和高效访问。一个 vnode 可以包含多张表（即数据采集点），这些表在物理上分布在不
@@ -39,7 +39,7 @@ dnode 在 TDengine TSDB 集群中的唯一标识由其实例的 endpoint（EP）
 
 在集群内部，一个 vnode 由其所归属的 dnode 的 endpoint 和所属的 vgroup ID 唯一标识。管理节点负责创建和管理这些 vnode，确保它们能够正常运行并协同工作。
 
-**管理节点（mnode）：** 
+**管理节点（mnode）：**
 mnode（管理节点）是 TDengine TSDB 集群中的核心逻辑单元，负责监控和维护所有 dnode 的运行状态，并在节点之间实现负载均衡（如图 1 中的 M1、M2、M3 所示）。作为元数据（包括用户、数据库、超级表等）的存储和管理中心，mnode 也被称为 MetaNode。
 
 为了提高集群的高可用性和可靠性，TDengine TSDB 集群允许有多个（最多不超过 3 个）mnode。这些 mnode 自动组成一个虚拟的 mnode 组，共同承担管理职责。mnode 支持多副本，并采用 Raft 一致性协议来确保数据的一致性和操作的可靠性。在 mnode 集群中，任何数据更新操作都必须在 leader 节点上执行。
@@ -48,7 +48,7 @@ mnode 集群的第 1 个节点在集群部署时自动创建，而其他节点�
 
 为了实现集群内部的信息共享和通信，每个 dnode 通过内部消息交互机制自动获取整个集群中所有 mnode 所在的 dnode 的 endpoint。
 
-**计算节点（qnode）：** 
+**计算节点（qnode）：**
 qnode（计算节点）是 TDengine TSDB 集群中负责执行查询计算任务的虚拟逻辑单元，同时也处理基于系统表的 show 命令。为了提高查询性能和并行处理能力，集群中可以配置多个 qnode，这些 qnode 在整个集群范围内共享使用（如图 1 中的 Q1、Q2、Q3 所示）。
 
 与 dnode 不同，qnode 并不与特定的数据库绑定，这意味着一个 qnode 可以同时处理来自多个数据库的查询任务。每个 dnode 上最多有一个 qnode，并由其所归属的 dnode 的 endpoint 唯一标识。
@@ -57,7 +57,7 @@ qnode（计算节点）是 TDengine TSDB 集群中负责执行查询计算任务
 
 通过引入独立的 qnode，TDengine TSDB 实现了存储和计算的分离。
 
-**流计算节点（snode）：** 
+**流计算节点（snode）：**
 snode（流计算节点）是 TDengine TSDB 集群中专门负责处理流计算任务的虚拟逻辑单元（如上架构图 中的 S1、S2、S3 所示）。为了满足实时数据处理的需求，集群中可以配置多个 snode，这些 snode 在整个集群范围内共享使用。
 
 与 dnode 类似，snode 并不与特定的流绑定，这意味着一个 snode 可以同时处理多个流的计算任务。每个 dnode 上最多有一个 snode，并由其所归属的 dnode 的 endpoint 唯一标识。
@@ -66,7 +66,7 @@ snode（流计算节点）是 TDengine TSDB 集群中专门负责处理流计算
 
 通过将流计算任务集中在 snode 中处理，TDengine TSDB 实现了流计算与批量计算的分离，从而提高了系统对实时数据的处理能力。
 
-**虚拟节点组（VGroup）：** 
+**虚拟节点组（VGroup）：**
 
 vgroup（虚拟节点组）是由不同 dnode 上的 vnode 组成的一个逻辑单元。这些 vnode 之间采用 Raft 一致性协议，确保集群的高可用性和高可靠性。在 vgroup 中，写操作只能在 leader vnode 上执行，而数据则以异步复制的方式同步到其他 follower vnode，从而在多个物理节点上保留数据副本。
 
@@ -76,7 +76,7 @@ vgroup 由 mnode 负责创建和管理，并为其分配一个集群唯一的 ID
 
 通过这种设计，TDengine TSDB 在保证数据安全性的同时，实现了灵活的副本管理和动态扩展能力
 
-**Taosc** 
+**Taosc**
 
 taosc（应用驱动）是 TDengine TSDB 为应用程序提供的驱动程序，负责处理应用程序与集群之间的接口交互。taosc 提供了 C/C++ 语言的原生接口，并被内嵌于 JDBC、C#、Python、Go、Node.js 等多种编程语言的连接库中，从而支持这些编程语言与数据库交互。
 
@@ -104,9 +104,10 @@ TDengine TSDB 集群内部的各个 dnode 之间以及应用驱动程序与各�
 
 **集群对外连接：**
 
-TDengine TSDB 集群可以容纳单个、多个甚至几千个数据节点。应用只需要向集群中任何一个数据节点发起连接即可。这种设计简化了应用程序与集群之间的交互过程，提高了系统的可扩展性和易用性。 
+TDengine TSDB 集群可以容纳单个、多个甚至几千个数据节点。应用只需要向集群中任何一个数据节点发起连接即可。这种设计简化了应用程序与集群之间的交互过程，提高了系统的可扩展性和易用性。
 
 当使用 TDengine TSDB CLI 启动 taos 时，可以通过以下选项来指定 dnode 的连接信息。
+
 - -h：用于指定 dnode 的 FQDN。这是一个必需项，用于告知应用程序连接到哪个 dnode。
 - -P：用于指定 dnode 的端口。这是一个可选项，如果不指定，将使用 TDengine TSDB 的配置参数 serverPort 作为默认值。
 
@@ -119,6 +120,7 @@ TDengine TSDB 集群可以容纳单个、多个甚至几千个数据节点。应
 这一过程确保了 dnode 能够及时加入集群，并与 mnode 保持同步，从而能够接收和执行集群层面的命令和任务。通过 TCP 连接，dnode 之间以及 dnode 与 mnode 之间能够可靠地传输数据，保障集群的稳定运行和高效的数据处理能力。
 
 获取 mnode 的 endpoint 信息的步骤如下：
+
 - 第 1 步：检查自己的 dnode.json 文件是否存在，如果不存在或不能正常打开以获得 mnode endpoint 信息，进入第 2 步。
 - 第 2 步，检查配置文件 taos.cfg，获取节点配置参数 firstEp、secondEp（这两个参数指定的节点可以是不带 mnode 的普通节点，这样的话，节点被连接时会尝试重定向到 mnode 节点），如果不存在 firstEP、secondEP，或者 taos.cfg 中没有这两个配置参数，或者参数无效，进入第 3 步。
 - 第 3 步，将自己的 endpoint 设为 mnode endpoint，并独立运行。
@@ -134,6 +136,7 @@ TDengine TSDB 集群可以容纳单个、多个甚至几千个数据节点。应
 **新数据节点的加入：**
 
 一旦 TDengine TSDB 集群中有一个 dnode 启动并运行，该集群便具备了基本的工作能力。为了扩展集群的规模，可以按照以下两个步骤添加新节点。
+
 - 第 1 步，首先使用 TDengine TSDB CLI 连接现有的 dnode。其次，执行 create dnode 命令来 添加新的 dnode。这个过程将引导用户完成新 dnode 的配置和注册过程 - 。
 - 第 2 步，在新加入的 dnode 的配置文件 taos.cfg 中设置 firstEp 和 secondEp 参数。这两个参数应分别指向现有集群中任意两个活跃 dnode 的 endpoint。这样做可以确保新 dnode 能够正确加入集群，并与现有节点进行通信。
 
@@ -360,6 +363,7 @@ dataDir /mnt/data6 2 0 0
 ```
 
 您可以使用以下命令动态修改 dataDir 的 disable 来控制当前目录是否开启 disable_create_new_file。
+
 ```
 alter dnode 1 "/mnt/disk2/taos 1";
 ```

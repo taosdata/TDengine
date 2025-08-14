@@ -13,6 +13,7 @@ TDengine TSDB 支持用 C 和 Python 两种编程语言编写 UDF。C 语言编�
 ## 用 C 语言开发 UDF
 
 使用 C 语言实现 UDF 时，需要实现规定的接口函数
+
 - 标量函数需要实现标量接口函数 scalarfn。
 - 聚合函数需要实现聚合接口函数 aggfn_start、aggfn、aggfn_finish。
 - 如果需要初始化，实现 udf_init。
@@ -29,13 +30,16 @@ TDengine TSDB 支持用 C 和 Python 两种编程语言编写 UDF。C 语言编�
 ```c
 int32_t scalarfn(SUdfDataBlock* inputDataBlock, SUdfColumn *resultColumn);
 ```
+
 主要参数说明如下。
+
 - inputDataBlock：输入的数据块。
 - resultColumn：输出列。
 
 #### 聚合函数接口
 
 聚合函数是一种特殊的函数，用于对数据进行分组和计算，从而生成汇总信息。聚合函数的工作原理如下。
+
 - 初始化结果缓冲区：首先调用 aggfn_start 函数，生成一个结果缓冲区（result buffer），用于存储中间结果。
 - 分组数据：相关数据会被分为多个行数据块（row data block），每个行数据块包含一组具有相同分组键（grouping key）的数据。
 - 更新中间结果：对于每个数据块，调用 aggfn 函数更新中间结果。aggfn 函数会根据聚合函数的类型（如 sum、avg、count 等）对数据进行相应的计算，并将计算结
@@ -54,6 +58,7 @@ int32_t aggfn_finish(SUdfInterBuf* interBuf, SUdfInterBuf *result);
 其中 aggfn 是函数名的占位符。首先调用 aggfn_start 生成结果 buffer，然后相关的数据会被分为多个行数据块，对每个数据块调用 aggfn 用数据块更新中间结果，最后再调用 aggfn_finish 从中间结果产生最终结果，最终结果只能含 0 或 1 条结果数据。
 
 主要参数说明如下。
+
 - interBuf：中间结果缓存区。
 - inputBlock：输入的数据块。
 - newInterBuf：新的中间结果缓冲区。
@@ -73,6 +78,7 @@ int32_t udf_destroy()
 ### 标量函数模板
 
 用 C 语言开发标量函数的模板如下。
+
 ```c
 #include "taos.h"
 #include "taoserror.h"
@@ -105,9 +111,11 @@ int32_t scalarfn_destroy() {
     return TSDB_CODE_SUCCESS;
 }
 ```
+
 ### 聚合函数模板
 
 用 C 语言开发聚合函数的模板如下。
+
 ```c
 #include "taos.h"
 #include "taoserror.h"
@@ -168,6 +176,7 @@ int32_t aggfn_destroy() {
 
 在 TDengine TSDB 中，为了实现 UDF，需要编写 C 语言源代码，并按照 TDengine TSDB 的规范编译为动态链接库文件。
 按照前面描述的规则，准备 UDF 的源代码 bit_and.c。以 Linux 操作系统为例，执行如下指令，编译得到动态链接库文件。
+
 ```shell
 gcc -g -O0 -fPIC -shared bit_and.c -o libbitand.so
 ```
@@ -175,6 +184,7 @@ gcc -g -O0 -fPIC -shared bit_and.c -o libbitand.so
 为了保证可靠运行，推荐使用 7.5 及以上版本的 GCC。
 
 ### C UDF 数据结构
+
 ```c
 typedef struct SUdfColumnMeta {
   int16_t type;
@@ -222,16 +232,16 @@ typedef struct SUdfInterBuf {
   int8_t  numOfResult; //zero or one
 } SUdfInterBuf;
 ```
+
 数据结构说明如下：
 
 - SUdfDataBlock 数据块包含行数 numOfRows 和列数 numCols。udfCols[i] (0 \<= i \<= numCols-1) 表示每一列数据，类型为 SUdfColumn*。
 - SUdfColumn 包含列的数据类型定义 colMeta 和列的数据 colData。
 - SUdfColumnMeta 成员定义同 taos.h 数据类型定义。
-- SUdfColumnData 数据可以变长，varLenCol 定义变长数据，fixLenCol 定义定长数据。 
+- SUdfColumnData 数据可以变长，varLenCol 定义变长数据，fixLenCol 定义定长数据。
 - SUdfInterBuf 定义中间结构 buffer，以及 buffer 中结果个数 numOfResult
 
 为了更好的操作以上数据结构，提供了一些便利函数，定义在 taosudf.h。
-
 
 ### C UDF 示例代码
 
@@ -266,14 +276,19 @@ l2norm 实现了输入列的所有数据的二阶范数，即对每个数据先�
 max_vol 实现了从多个输入的电压列中找到最大电压，返回由设备 ID + 最大电压所在（行，列）+ 最大电压值 组成的组合字符串值
 
 创建表：
+
 ```bash
 create table battery(ts timestamp, vol1 float, vol2 float, vol3 float, deviceId varchar(16));
 ```
+
 创建自定义函数：
+
 ```bash
 create aggregate function max_vol as '/root/udf/libmaxvol.so' outputtype binary(64) bufsize 10240 language 'C'; 
 ```
+
 使用自定义函数：
+
 ```bash
 select max_vol(vol1, vol2, vol3, deviceid) from battery;
 ```
@@ -290,24 +305,31 @@ select max_vol(vol1, vol2, vol3, deviceid) from battery;
 #### 聚合函数示例 3 切分字符串求平均值 [extract_avg](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/extract_avg.c)
 
 `extract_avg` 函数是将一个逗号分隔的字符串数列转为一组数值，统计所有行的结果，计算最终平均值。实现时需注意：
+
 - `interBuf->numOfResult` 需要返回 1 或者 0，不能用于 count 计数。
 - count 计数可使用额外的缓存，例如 `SumCount` 结构体。
 - 字符串的获取需使用`varDataVal`。
 
 创建表：
+
 ```bash
 create table scores(ts timestamp, varStr varchar(128));
 ```
+
 创建自定义函数：
+
 ```bash
 create aggregate function extract_avg as '/root/udf/libextract_avg.so' outputtype double bufsize 16 language 'C'; 
 ```
+
 使用自定义函数：
+
 ```bash
 select extract_avg(valStr) from scores;
 ```
 
 生成 `.so` 文件
+
 ```bash
 gcc -g -O0 -fPIC -shared extract_vag.c -o libextract_avg.so
 ```
@@ -326,11 +348,14 @@ gcc -g -O0 -fPIC -shared extract_vag.c -o libextract_avg.so
 ### 准备环境
   
 准备环境的具体步骤如下：
+
 - 第 1 步，准备好 Python 运行环境。本地编译安装 python 注意打开 `--enable-shared` 选项，不然后续安装 taospyudf 会因无法生成共享库而导致失败。
 - 第 2 步，安装 Python 包 taospyudf。命令如下。
+
     ```shell
     pip3 install taospyudf
     ```
+
 - 第 3 步，执行命令 ldconfig。
 - 第 4 步，启动 taosd 服务。
 
@@ -344,6 +369,7 @@ root@slave11 ~/udf $ ls -l /usr/local/lib/libtaos*
 ### 接口定义
 
 当使用 Python 语言开发 UDF 时，需要实现规定的接口函数。具体要求如下。
+
 - 标量函数需要实现标量接口函数 process。
 - 聚合函数需要实现聚合接口函数 start、reduce、finish。
 - 如果需要初始化，则应实现函数 init。
@@ -352,17 +378,20 @@ root@slave11 ~/udf $ ls -l /usr/local/lib/libtaos*
 #### 标量函数接口
 
 标量函数的接口如下。
+
 ```Python
 def process(input: datablock) -> tuple[output_type]:
 ```
 
 主要参数说明如下：
+
 - input:datablock 类似二维矩阵，通过成员方法 data(row, col) 读取位于 row 行、col 列的 Python 对象
 - 返回值是一个 Python 对象元组，每个元素类型为输出类型。
 
 #### 聚合函数接口
 
 聚合函数的接口如下。
+
 ```Python
 def start() -> bytes:
 def reduce(inputs: datablock, buf: bytes) -> bytes
@@ -380,12 +409,14 @@ def finish(buf: bytes) -> output_type:
 #### 初始化和销毁接口
 
 初始化和销毁的接口如下。
+
 ```Python
 def init()
 def destroy()
 ```
 
 参数说明：
+
 - init 完成初始化工作
 - destroy 完成清理工作
 
@@ -394,6 +425,7 @@ def destroy()
 ### 标量函数模板
 
 用 Python 语言开发标量函数的模板如下。
+
 ```Python
 def init():
     # initialization
@@ -401,9 +433,11 @@ def destroy():
     # destroy
 def process(input: datablock) -> tuple[output_type]:  
 ```
+
 ### 聚合函数模板
 
 用 Python 语言开发聚合函数的模板如下。
+
 ```Python
 def init():
     #initialization
@@ -461,6 +495,7 @@ def process(block):
 ```
 
 这个文件包含 3 个函数，init 和 destroy 都是空函数，它们是 UDF 的生命周期函数，即使什么都不做也要定义。最关键的是 process 函数，它接受一个数据块，这个数据块对象有两个方法。
+
 1. shape() 返回数据块的行数和列数
 2. data(i, j) 返回 i 行 j 列的数据
 
@@ -471,6 +506,7 @@ def process(block):
 ```sql
 create function myfun as '/root/udf/myfun.py' outputtype double language 'Python'
 ```
+
 其输出如下。
 
 ```shell
@@ -588,7 +624,7 @@ At:
 
 #### 示例三
 
-输入（x1, x2, ..., xn）, 输出每个值和它们的序号的乘积的和：1 *  x1 + 2 * x2 + ... + n * xn。如果 x1 至 xn 中包含 null，则结果为 null。
+输入（x1, x2, ..., xn）, 输出每个值和它们的序号的乘积的和：1 *x1 + 2* x2 + ... + n * xn。如果 x1 至 xn 中包含 null，则结果为 null。
 
 本例与示例一的区别是，可以接受任意多列作为输入，且要处理每一列的值。编写 UDF 文件 /root/udf/nsum.py。
 
@@ -773,12 +809,13 @@ def finish(buf):
 ```
 
 在这个示例中，我们不但定义了一个聚合函数，还增加了记录执行日志的功能。
+
 1. init 函数打开一个文件用于记录日志
 2. log 函数记录日志，自动将传入的对象转成字符串，加换行符输出
 3. destroy 函数在执行结束后关闭日志文件
 4. start 函数返回初始的 buffer，用来存聚合函数的中间结果，把最大值初始化为负无穷大，最小值初始化为正无穷大
 5. reduce 函数处理每个数据块并聚合结果
-6. finish 函数将 buffer 转换成最终的输出 
+6. finish 函数将 buffer 转换成最终的输出
 
 执行下面 SQL 语句创建对应的 UDF。
 
@@ -787,6 +824,7 @@ create or replace aggregate function myspread as '/root/udf/myspread.py' outputt
 ```
 
 这个 SQL 语句与创建标量函数的 SQL 语句有两个重要区别。
+
 1. 增加了 aggregate 关键字
 2. 增加了 bufsize 关键字，用来指定存储中间结果的内存大小，这个数值可以大于实际使用的数值。本例中间结果是两个浮点数组成的 tuple，序列化后实际占用大小只有 32 个字节，但指定的 bufsize 是 128，可以用 Python 命令行打印实际占用的字节数
 
@@ -830,6 +868,7 @@ close log file: spread.log
 通过这个示例，我们学会了如何定义聚合函数，并打印自定义的日志信息。
 
 ### 更多 Python UDF 示例代码
+
 #### 标量函数示例 [pybitand](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/pybitand.py)
 
 pybitand 实现多列的按位与功能。如果只有一列，返回这一列。pybitand 忽略空值。
@@ -868,7 +907,7 @@ pycumsum 使用 numpy 计算输入列所有数据的累积和。
 
 </details>
 
-## 管理 UDF 
+## 管理 UDF
 
 在集群中管理 UDF 的过程涉及创建、使用和维护这些函数。用户可以通过 SQL 在集群中创建和管理 UDF，一旦创建成功，集群的所有用户都可以在 SQL 中使用这些函数。由于 UDF 存储在集群的 mnode 上，因此即使重启集群，已经创建的 UDF 也仍然可用。
 
@@ -879,10 +918,13 @@ pycumsum 使用 numpy 计算输入列所有数据的累积和。
 ### 创建标量函数
 
 创建标量函数的 SQL 语法如下。
+
 ```sql
 CREATE [OR REPLACE] FUNCTION function_name AS library_path OUTPUTTYPE output_type LANGUAGE 'Python';
 ```
+
 各参数说明如下。
+
 - or replace：如果函数已经存在，则会修改已有的函数属性。
 - function_name：标量函数在 SQL 中被调用时的函数名。
 - language：支持 C 语言和 Python 语言（3.7 及以上版本），默认为 C。
@@ -901,6 +943,7 @@ CREATE [OR REPLACE] AGGREGATE FUNCTION function_name library_path OUTPUTTYPE out
 其中，buffer_size 表示中间计算结果的缓冲区大小，单位是字节。其他参数的含义与标量函数相同。
 
 如下 SQL 创建一个名为 l2norm 的 UDF。
+
 ```sql
 CREATE AGGREGATE FUNCTION l2norm AS "/home/taos/udf_example/libl2norm.so" OUTPUTTYPE DOUBLE bufsize 8;
 ```
@@ -908,6 +951,7 @@ CREATE AGGREGATE FUNCTION l2norm AS "/home/taos/udf_example/libl2norm.so" OUTPUT
 ### 删除 UDF
 
 删除指定名称的 UDF 的 SQL 语法如下。
+
 ```sql
 DROP FUNCTION function_name;
 ```
@@ -915,14 +959,15 @@ DROP FUNCTION function_name;
 ### 查看 UDF
 
 显示集群中当前可用的所有 UDF 的 SQL 如下。
+
 ```sql
 show functions;
 ```
 
 ### 查看函数信息
   
-同名的 UDF 每更新一次，版本号会增加 1。   
+同名的 UDF 每更新一次，版本号会增加 1。
+
 ```sql
 select * from ins_functions \G;     
 ```
-

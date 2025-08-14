@@ -41,6 +41,7 @@ TDengine TSDB Source Connector 用于把数据实时地从 TDengine TSDB 读出�
     export KAFKA_HOME=/opt/kafka
     export PATH=$PATH:$KAFKA_HOME/bin
     ```
+
     以上脚本可以追加到当前用户的 profile 文件（~/.profile 或 ~/.bash_profile）
 
 ## 安装 TDengine TSDB Connector 插件
@@ -332,6 +333,7 @@ curl -X DELETE http://localhost:8083/connectors/TDengineSourceConnector
 
 1. 打开 KAFKA_HOME/config/producer.properties 配置文件。
 2. 参数说明及配置建议如下：
+
     | **参数**              | **参数说明**                                                                                                                                                                                                                                                                                                    | **设置建议** |
     | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
     | producer.type         | 此参数用于设置消息的发送方式，默认值为 `sync` 表示同步发送，`async` 表示异步发送。采用异步发送能够提升消息发送的吞吐量。                                                                                                                                                                                        | async        |

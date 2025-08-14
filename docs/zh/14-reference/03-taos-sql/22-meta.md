@@ -16,9 +16,10 @@ TDengine TSDB 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供�
 
 - 由于 SHOW 语句已经被开发者熟悉和广泛使用，所以它们仍然被保留。
 - 系统表中的一些列可能是关键字，在查询时需要使用转义符 '\`'，例如查询数据库 test 有几个 VGROUP。
-```sql 
+
+```sql
    select `vgroups` from ins_databases where name = 'test';
-``` 
+```
 
 :::
 
@@ -69,7 +70,6 @@ TDengine TSDB 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供�
 | 1   |     id      | SMALLINT     | snode id     |
 | 2   |  endpoint   | VARCHAR(134)  | snode 的地址 |
 | 3   | create_time | TIMESTAMP    | 创建时间     |
-
 
 ## INS_CLUSTER
 
@@ -132,7 +132,6 @@ TDengine TSDB 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供�
 | 8   | func_language | VARCHAR(31)    | 自定义函数编程语言                                                                            |
 | 9   |   func_body   | VARCHAR(16384) | 函数体定义                                                                                    |
 | 10  | func_version  | INT           | 函数版本号。初始版本为 0，每次替换更新，版本号加 1。                                           |
-
 
 ## INS_INDEXES
 
@@ -342,8 +341,7 @@ TDengine TSDB 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供�
 | 7   | cache_rdb  | BIGINT      | last/last_row 文件的大小，单位为 KB |
 | 8   | table_meta | BIGINT      | meta 文件的大小，单位为 KB         |
 | 9   | ss         | BIGINT      | 共享存储上占用的大小，单位为 KB          |
-| 10  | raw_data   | BIGINT      | 预估的原始数据的大小，单位为 KB      | 
-
+| 10  | raw_data   | BIGINT      | 预估的原始数据的大小，单位为 KB      |
 
 ## INS_FILESETS
 

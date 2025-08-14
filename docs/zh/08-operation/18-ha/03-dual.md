@@ -18,7 +18,6 @@ TDengine TSDB 双活系统的部署架构图如下，其中涉及到三个关键
 
 ![Active-Standby.png](../pic/Active-Standby.png)
 
-
 ## 集群配置
 
 双活对 TDengine TSDB 集群本身的配置没有任何要求，但对要在双活系统之间同步的数据库的 WAL 保留时长有一定要求，WAL 保留时长越大双活系统的容错率越高；如果备节点宕机时长超过主节点上的 WAL 保留时长，必定会导致备节点上有数据缺失；如果备节点宕机时长虽未超过主节点上的 WAL 保留时长，也有一定概率丢失数据，取决于接近的程度以及数据同步的速度。
@@ -97,6 +96,7 @@ taosx replica start -i id [database...]
 使用上面已经创建的 Replica ID (id) 以在该同步任务中增加其它数据库。
 
 注意：
+
 1. 多次使用该命令，不会创建重复任务，仅将所指定的数据库增加到相应任务中。
 2. replica id 在一个 taosX 实例内是全局唯一的，与 source/sink 的组合无关
 3. 为便于记忆，replica id 为一个随机常用单词，系统自动将 source/sink 组合对应到一个词库中取得一个唯一可用单词。
@@ -124,6 +124,7 @@ taosx replica stop id [db...]
 ```
 
 该命令作用如下：
+
 1. 停止指定 Replica ID 下所有或指定数据库的双副本同步任务。
 2. 使用 `taosx replica stop id1 db1` 表示停止 id1 replica 下 db1 的同步任务。
 3. `--no-new-databases` 选项启用时，不停止新增数据库监听任务，仅停止当前同步中的数据库。
@@ -135,6 +136,7 @@ taosx replica restart id [db...]
 ```
 
 该命令作用如下：
+
 1. 重启指定 Replica ID 下所有或指定数据库的双副本同步任务。
 2. 使用 `taosx replica start id1 db1` 仅重启指定数据库 db1 的同步任务。
 

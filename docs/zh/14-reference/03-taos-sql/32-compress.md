@@ -39,7 +39,6 @@ description: 可配置压缩算法
 | bool                                 | disabled/bit-packing      | bit-packing | lz4/zlib/zstd/xz     | zstd | medium |
 | decimal                              | disabled                  | disabled    | lz4/zlib/zstd/xz     | zstd | medium |
 
-
 ## SQL 语法
 
 ### 建表时指定压缩

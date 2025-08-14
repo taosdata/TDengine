@@ -18,8 +18,8 @@ REST API：直接调用 `taosadapter` 提供的 REST API 接口，进行数据�
 
 :::
 
-
 ## 建库和表
+
 下面以智能电表为例，展示使用各语言连接器如何执行 SQL 命令创建一个名为 `power` 的数据库，然后使用 `power` 数据库为默认数据库。
 接着创建一个名为 `meters` 的超级表（STABLE），其表结构包含时间戳、电流、电压、相位等列，以及分组 ID 和位置作为标签。
 
@@ -44,6 +44,7 @@ REST API：直接调用 `taosadapter` 提供的 REST API 接口，进行数据�
 ```python title="Rest 连接"
 {{#include docs/examples/python/create_db_rest.py}}
 ```
+
 </TabItem>
 <TabItem label="Go" value="go">
 ```go
@@ -99,6 +100,7 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql/power' \
 > **注意**：建议采用 `<dbName>.<tableName>` 的格式构造 SQL 语句，不推荐在应用中采用 `USE DBName` 方式访问。
 
 ## 插入数据
+
 下面以智能电表为例，展示如何使用连接器执行 SQL 来插入数据到 `power` 数据库的 `meters` 超级表。样例使用 TDengine TSDB 自动建表 SQL 语法，写入 d1001 子表中 3 条数据，写入 d1002 子表中 1 条数据，然后打印出实际插入数据条数。
 
 <Tabs defaultValue="java" groupId="lang">
@@ -109,7 +111,6 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql/power' \
 
 **Note**
 NOW 为系统内部函数，默认为客户端所在计算机当前时间。NOW + 1s 代表客户端当前时间往后加 1 秒，数字后面代表时间单位：a（毫秒），s（秒），m（分），h（小时），d（天），w（周），n（月），y（年）。
-
 
 </TabItem>
 <TabItem label="Python" value="python">
@@ -175,6 +176,7 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql' \
 </Tabs>
 
 ## 查询数据
+
 下面以智能电表为例，展示如何使用各语言连接器执行 SQL 来查询数据，从 `power` 数据库 `meters` 超级表中查询最多 100 行数据，并将获取到的结果按行打印出来。  
 
 <Tabs defaultValue="java" groupId="lang">
@@ -200,6 +202,7 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql' \
 ```python title="Rest 连接"
 {{#include docs/examples/python/query_rest.py}}
 ```
+
 </TabItem>
 <TabItem label="Go" value="go">
 ```go
@@ -213,6 +216,7 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql' \
 ```
 
 rust 连接器还支持使用 **serde** 进行反序列化行为结构体的结果获取方式：
+
 ```rust
 {{#include docs/examples/rust/nativeexample/examples/query.rs:query_data_2}}
 ```
@@ -237,6 +241,7 @@ rust 连接器还支持使用 **serde** 进行反序列化行为结构体的结�
 ```c  title="原生连接"
 {{#include docs/examples/c/query_data_demo.c:query_data}}
 ```
+
 </TabItem>
 <TabItem label="REST API" value="rest">
 
@@ -255,6 +260,7 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql' \
 reqId 可用于请求链路追踪，reqId 就像分布式系统中的 traceId 作用一样。一个请求可能需要经过多个服务或者模块才能完成。reqId 用于标识和关联这个请求的所有相关操作，以便于我们可以追踪和分析请求的完整路径。
 
 使用 reqId 有下面好处：
+
 - 请求追踪：通过将同一个 reqId 关联到一个请求的所有相关操作，可以追踪请求在系统中的完整路径
 - 性能分析：通过分析一个请求的 reqId，可以了解请求在各个服务和模块中的处理时间，从而找出性能瓶颈
 - 故障诊断：当一个请求失败时，可以通过查看与该请求关联的 reqId 来找出问题发生的位置

@@ -249,6 +249,7 @@ taosAdapter 将监测自身运行过程中内存使用率并通过两个阈值�
 **状态检查接口：**
 
 可以通过以下接口检查 taosAdapter 的内存状态：
+
 - **正常状态**：`http://<fqdn>:6041/-/ping` 返回 `code 200`。
 - **内存超过阈值**：
   - 如果内存超过 `pauseAllMemoryThreshold`，返回 `code 503`。

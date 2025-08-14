@@ -33,6 +33,7 @@ taosAdapter 能够与各种数据收集代理工具（如 Telegraf、StatsD、co
 通过 taosAdapter，用户可以灵活地将 TDengine TSDB 集成到现有的应用系统中，实现数据的实时存储、查询和分析。
 
 taosAdapter 提供了以下功能：
+
 - RESTful 接口；
 - WebSocket 连接；
 - 兼容 InfluxDB v1 格式写入；
@@ -75,6 +76,7 @@ taosX Agent 是 TDengine TSDB Enterprise 数据管道功能的重要组成部分
 1. 应用程序
 
 这些应用程序负责向业务集群写入、查询业务数据以及订阅数据。应用程序可以通过以下 3 种方式与业务集群进行交互。
+
 - 基于 taosc 的应用程序：采用原生连接的应用程序，直接连接到业务集群，默认端口为 6030。
 - 基于 RESTful 连接的应用程序：使用 RESTful 接口访问业务集群的应用程序，需要通过 taosAdapter 进行连接，默认端口为 6041。
 - 基于 WebSocket 连接的应用程序：采用 WebSocket 连接的应用程序，同样需要通过 taosAdapter 进行连接，默认端口为 6041。

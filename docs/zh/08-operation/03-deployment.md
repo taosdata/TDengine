@@ -86,6 +86,7 @@ show dnodes;
 在日志中，请确认输出的 dnode 的 fqdn 和端口是否与你刚刚尝试添加的 endpoint 一致。如果不一致，请修正为正确的 endpoint。遵循上述步骤，你可以持续地将新的 dnode 逐个加入集群，从而扩展集群规模并提高整体性能。确保在添加新节点时遵循正确的流程，这有助于维持集群的稳定性和可靠性。
 
 **Tips**
+
 - 任何已经加入集群的 dnode 都可以作为后续待加入节点的 firstEp。firstEp 参数仅仅在该 dnode 首次加入集群时起作用，加入集群后，该 dnode 会保存最新的 mnode 的 endpoint 列表，后续不再依赖这个参数。之后配置文件中的 firstEp 参数主要用于客户端连接，如果没有为 TDengine TSDB CLI 设置参数，则默认连接由 firstEp 指定的节点。
 - 两个没有配置 firstEp 参数的 dnode 在启动后会独立运行。这时无法将其中一个 dnode 加入另外一个 dnode，形成集群。
 - TDengine TSDB 不允许将两个独立的集群合并成新的集群。
@@ -99,7 +100,6 @@ create mnode on dnode <dnodeId>
 ```
 
 请注意将上面示例中的 dnodeId 替换为刚创建 dnode 的序号（可以通过执行 `show dnodes` 命令获得）。最后执行如下 `show mnodes`，查看新创建的 mnode 是否成功加入集群。
-
 
 **Tips**
 
@@ -124,6 +124,7 @@ TDengine TSDB 安装完成后，即可使用 taosAdapter。如果想在不同的
 3. 多实例部署
 
 部署 taosAdapter 的多个实例的主要目的如下：
+
 - 提升集群的吞吐量，避免 taosAdapter 成为系统瓶颈。
 - 提升集群的健壮性和高可用能力，当有一个实例因某种故障而不再提供服务时，可以将进入业务系统的请求自动路由到其他实例。
 
@@ -216,7 +217,6 @@ http {
 
 TDengine TSDB 提供了可视化管理 TDengine TSDB 集群的能力，要想使用图形化界面需要部署 taos-Explorer 服务，关于它的详细说明和部署请参考 [taos-Explorer 参考手册](../../reference/components/explorer)
 
-
 ## Docker 部署
 
 本节将介绍如何在 Docker 容器中启动 TDengine TSDB 服务并对其进行访问。你可以在 docker run 命令行或者 docker-compose 文件中使用环境变量来控制容器中服务的行为。
@@ -224,6 +224,7 @@ TDengine TSDB 提供了可视化管理 TDengine TSDB 集群的能力，要想使
 ### 启动 TDengine TSDB
 
 TDengine TSDB 镜像启动时默认激活 HTTP 服务，使用下列命令便可创建一个带有 HTTP 服务的容器化 TDengine TSDB 环境。
+
 ```shell
 docker run -d --name tdengine \
 -v ~/data/taos/dnode/data:/var/lib/taos \
@@ -232,6 +233,7 @@ docker run -d --name tdengine \
 ```
 
 详细的参数说明如下。
+
 - /var/lib/taos：TDengine TSDB 默认数据文件目录，可通过配置文件修改位置。
 - /var/log/taos：TDengine TSDB 默认日志文件目录，可通过配置文件修改位置。
 
@@ -242,6 +244,7 @@ curl -u root:taosdata -d "show databases" localhost:6041/rest/sql
 ```
 
 运行如下命令可在容器中访问 TDengine TSDB。
+
 ```shell
 $ docker exec -it tdengine taos
 
@@ -258,11 +261,13 @@ Query OK, 2 rows in database (0.033802s)
 ### 在 host 网络模式下启动 TDengine TSDB
 
 运行以下命令可以在 host 网络模式下启动 TDengine TSDB，这样可以使用主机的 FQDN 建立连接，而不是使用容器的 hostname。
+
 ```shell
 docker run -d --name tdengine --network host tdengine/tdengine
 ```
 
 这种方式与在主机上使用 systemctl 命令启动 TDengine TSDB 的效果相同。在主机上已安装 TDengine TSDB 客户端的情况下，可以直接使用下面的命令访问 TDengine TSDB 服务。
+
 ```shell
 $ taos
 
@@ -281,7 +286,6 @@ Query OK, 1 rows in database (0.010654s)
   
 :::
 
-
 使用如下命令可以利用 TAOS_FQDN 环境变量或者 taos.cfg 中的 fqdn 配置项使 TDengine TSDB 在指定的 hostname 上建立连接。这种方式为部署 TDengine TSDB 提供了更大的灵活性。
 
 ```shell
@@ -297,11 +301,13 @@ docker run -d \
 首先，上面的命令在容器中启动一个 TDengine TSDB 服务，其所监听的 hostname 为 tdengine，并将容器的端口 6030 映射到主机的端口 6030，将容器的端口段 [6041, 6049] 映射到主机的端口段 [6041, 6049]。如果主机上该端口段已经被占用，可以修改上述命令以指定一个主机上空闲的端口段。
 
 其次，要确保 tdengine 这个 hostname 在 /etc/hosts 中可解析。通过如下命令可将正确的配置信息保存到 hosts 文件中。
+
 ```shell
 echo 127.0.0.1 tdengine |sudo tee -a /etc/hosts
 ```
 
 最后，可以通过 TDengine TSDB CLI 以 tdengine 为服务器地址访问 TDengine TSDB 服务，命令如下。
+
 ```shell
 taos -h tdengine -P 6030
 ```
@@ -312,6 +318,7 @@ taos -h tdengine -P 6030
 
 作为面向云原生架构设计的时序数据库，TDengine TSDB 本身就支持 Kubernetes 部署。这里介绍如何使用 YAML 文件从头一步一步创建一个可用于生产使用的高可用 TDengine TSDB 集群，并重点介绍 Kubernetes 环境下 TDengine TSDB 的常用操作。本小节要求读者对 Kubernetes 有一定的了解，可以熟练运行常见的 kubectl 命令，了解 statefulset、service、pvc 等概念，对这些概念不熟悉的读者，可以先参考 Kubernetes 的官网进行学习。
 为了满足高可用的需求，集群需要满足如下要求：
+
 - 3 个及以上 dnode：TDengine TSDB 的同一个 vgroup 中的多个 vnode，不允许同时分布在一个 dnode，所以如果创建 3 副本的数据库，则 dnode 数大于等于 3
 - 3 个 mnode：mnode 负责整个集群的管理工作，TDengine TSDB 默认是一个 mnode。如果这个 mnode 所在的 dnode 掉线，则整个集群不可用。
 - 数据库的 3 副本：TDengine TSDB 的副本配置是数据库级别，所以数据库 3 副本可满足在 3 个 dnode 的集群中，任意一个 dnode 下线，都不影响集群的正常使用。如果下线 dnode 个数为 2 时，此时集群不可用，因为 RAFT 无法完成选举。（企业版：在灾难恢复场景，任一节点数据文件损坏，都可以通过重新拉起 dnode 进行恢复）
@@ -319,6 +326,7 @@ taos -h tdengine -P 6030
 ### 前置条件
 
 要使用 Kubernetes 部署管理 TDengine TSDB 集群，需要做好如下准备工作。
+
 - 本文适用 Kubernetes v1.19 以上版本
 - 本文使用 kubectl 工具进行安装部署，请提前安装好相应软件
 - Kubernetes 已经安装部署并能正常访问使用或更新必要的容器仓库或其他服务
@@ -461,11 +469,13 @@ spec:
 ### 使用 kubectl 命令部署 TDengine TSDB 集群
 
 首先创建对应的 namespace dengine-test，以及 pvc，并保证 storageClassName 是 standard 的剩余空间足够。然后顺序执行以下命令：
+
 ```shell
 kubectl apply -f taosd-service.yaml -n tdengine-test
 ```
 
 上面的配置将生成一个三节点的 TDengine TSDB 集群，dnode 为自动配置，可以使用 show dnodes 命令查看当前集群的节点：
+
 ```shell
 kubectl exec -it tdengine-0 -n tdengine-test -- taos -s "show dnodes"
 kubectl exec -it tdengine-1 -n tdengine-test -- taos -s "show dnodes"
@@ -473,6 +483,7 @@ kubectl exec -it tdengine-2 -n tdengine-test -- taos -s "show dnodes"
 ```
 
 输出如下：
+
 ```shell
 taos show dnodes
      id      | endpoint         | vnodes | support_vnodes |   status   |       create_time       |       reboot_time       |              note              |          active_code           |         c_active_code          |
@@ -484,6 +495,7 @@ Query OK, 3 row(s) in set (0.001853s)
 ```
 
 查看当前 mnode
+
 ```shell
 kubectl exec -it tdengine-1 -n tdengine-test -- taos -s "show mnodes\G"
 taos> show mnodes\G
@@ -498,12 +510,14 @@ Query OK, 1 row(s) in set (0.001282s)
 ```
 
 创建 mnode
+
 ```shell
 kubectl exec -it tdengine-0 -n tdengine-test -- taos -s "create mnode on dnode 2"
 kubectl exec -it tdengine-0 -n tdengine-test -- taos -s "create mnode on dnode 3"
 ```
 
 查看 mnode
+
 ```shell
 kubectl exec -it tdengine-1 -n tdengine-test -- taos -s "show mnodes\G"
 
@@ -541,6 +555,7 @@ kubectl port-forward -n tdengine-test tdengine-0 6041:6041 &
 ```
 
 使用 curl 命令验证 TDengine TSDB REST API 使用的 6041 接口。
+
 ```shell
 curl -u root:taosdata -d "show databases" 127.0.0.1:6041/rest/sql
 {"code":0,"column_meta":[["name","VARCHAR",64]],"data":[["information_schema"],["performance_schema"],["test"],["test1"]],"rows":4}
@@ -549,16 +564,19 @@ curl -u root:taosdata -d "show databases" 127.0.0.1:6041/rest/sql
 ### 集群扩容
 
 TDengine TSDB 支持集群扩容：
+
 ```shell
 kubectl scale statefulsets tdengine  -n tdengine-test --replicas=4
 ```
 
 上面命令行中参数 `--replica=4` 表示要将 TDengine TSDB 集群扩容到 4 个节点，执行后首先检查 POD 的状态：
+
 ```shell
 kubectl get pod -l app=tdengine -n tdengine-test  -o wide
 ```
 
 输出如下：
+
 ```text
 NAME                       READY   STATUS    RESTARTS        AGE     IP             NODE     NOMINATED NODE   READINESS GATES
 tdengine-0   1/1     Running   4 (6h26m ago)   6h53m   10.244.2.75    node86   <none>           <none>
@@ -568,11 +586,13 @@ tdengine-3   1/1     Running   0               3m24s   10.244.2.76    node86   <
 ```
 
 此时 Pod 的状态仍然是 Running，TDengine TSDB 集群中的 dnode 状态要等 Pod 状态为 ready 之后才能看到：
+
 ```shell
 kubectl exec -it tdengine-3 -n tdengine-test -- taos -s "show dnodes"
 ```
 
 扩容后的四节点 TDengine TSDB 集群的 dnode 列表：
+
 ```text
 taos> show dnodes
      id      | endpoint         | vnodes | support_vnodes |   status   |       create_time       |       reboot_time       |              note              |          active_code           |         c_active_code          |
@@ -601,6 +621,7 @@ kubectl delete namespace tdengine-test
 ### 集群灾备能力
 
 对于在 Kubernetes 环境下 TDengine TSDB 的高可用和高可靠来说，对于硬件损坏、灾难恢复，分为两个层面来讲：
+
 - 底层的分布式块存储具备的灾难恢复能力，块存储的多副本，当下流行的分布式块存储如 Ceph，就具备多副本能力，将存储副本扩展到不同的机架、机柜、机房、数据中心（或者直接使用公有云厂商提供的块存储服务）
 - TDengine TSDB 的灾难恢复，在 TDengine TSDB Enterprise 中，本身具备了当一个 dnode 永久下线（物理机磁盘损坏，数据分拣丢失）后，重新拉起一个空白的 dnode 来恢复原 dnode 的工作。
 
@@ -623,16 +644,19 @@ Helm 会使用 kubectl 和 kubeconfig 的配置来操作 Kubernetes，可以参�
 ### 安装 TDengine TSDB Chart
 
 TDengine TSDB Chart 尚未发布到 Helm 仓库，当前可以从 GitHub 直接下载：
+
 ```shell
 wget https://github.com/taosdata/TDengine-Operator/raw/3.0/helm/tdengine-3.0.2.tgz
 ```
 
 获取当前 Kubernetes 的存储类：
+
 ```shell
 kubectl get storageclass
 ```
 
 在 minikube 默认为 standard。之后，使用 helm 命令安装：
+
 ```shell
 helm install tdengine tdengine-3.0.2.tgz \
   --set storage.className=<your storage class name> \
@@ -641,6 +665,7 @@ helm install tdengine tdengine-3.0.2.tgz \
 ```
 
 在 minikube 环境下，可以设置一个较小的容量避免超出磁盘可用空间：
+
 ```shell
 helm install tdengine tdengine-3.0.2.tgz \
   --set storage.className=standard \
@@ -650,6 +675,7 @@ helm install tdengine tdengine-3.0.2.tgz \
 ```
 
 部署成功后，TDengine TSDB Chart 将会输出操作 TDengine TSDB 的说明：
+
 ```shell
 export POD_NAME=$(kubectl get pods --namespace default \
   -l "app.kubernetes.io/name=tdengine,app.kubernetes.io/instance=tdengine" \
@@ -659,6 +685,7 @@ kubectl --namespace default exec -it $POD_NAME -- taos
 ```
 
 可以创建一个表进行测试：
+
 ```shell
 kubectl --namespace default exec $POD_NAME -- \
   taos -s "create database test;
@@ -672,16 +699,19 @@ kubectl --namespace default exec $POD_NAME -- \
 
 TDengine TSDB 支持 `values.yaml` 自定义。
 通过 helm show values 可以获取 TDengine TSDB Chart 支持的全部 values 列表：
+
 ```shell
 helm show values tdengine-3.0.2.tgz
 ```
 
 你可以将结果保存为 values.yaml，之后可以修改其中的各项参数，如 replica 数量，存储类名称，容量大小，TDengine TSDB 配置等，然后使用如下命令安装 TDengine TSDB 集群：
+
 ```shell
 helm install tdengine tdengine-3.0.2.tgz -f values.yaml
 ```
 
 全部参数如下：
+
 ```yaml
 # Default values for tdengine.
 # This is a YAML-formatted file.
@@ -835,6 +865,7 @@ taoscfg:
 
 关于扩容可参考上一节的说明，有一些额外的操作需要从 helm 的部署中获取。
 首先，从部署中获取 StatefulSet 的名称。
+
 ```shell
 export STS_NAME=$(kubectl get statefulset \
   -l "app.kubernetes.io/name=tdengine" \
@@ -842,6 +873,7 @@ export STS_NAME=$(kubectl get statefulset \
 ```
 
 扩容操作极其简单，增加 replica 即可。以下命令将 TDengine TSDB 扩充到三节点：
+
 ```shell
 kubectl scale --replicas 3 statefulset/$STS_NAME
 ```

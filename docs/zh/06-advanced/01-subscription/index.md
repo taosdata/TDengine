@@ -148,8 +148,6 @@ TDengine TSDB 的数据订阅功能支持回放（replay）功能，允许用户
 
 - 因为数据回放本身需要处理时间，所以回放的精度存在几十毫秒的误差。
 
-  
-
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';
 import {useCurrentSidebarCategory} from '@docusaurus/theme-common';

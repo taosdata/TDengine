@@ -123,4 +123,3 @@ topic_meters 1 b'{"topic":"topic_meters","db":"db","vid":2,"rows":[{"ts":1753086
 ```
 
 其中第三行 `topic_meters` 是我们订阅的主题，1 是这一条消息的 QoS 值，后面是一个 utf-8 编码的 JSON 消息，其中 `rows` 是数据行的数组。
-

@@ -18,9 +18,10 @@ TDengine TSDB 连接器兼容 TDengine TSDB Cloud 和 TDengine TSDB Server 两�
 在 Looker Studio 中使用 TDengine TSDB 连接器的步骤如下。
 
 第 1 步，进入 TDengine TSDB 连接器的详情页面后，在 Data Source 下拉列表中选择 TDengine TSDB Cloud，然后点击 Next 按钮，即可进入数据源配置页面。在该页面中填写以下信息，然后点击 Connect 按钮。
-   - URL 和 TDengine TSDB Cloud Token，可以从 TDengine TSDB Cloud 的实例列表中获取。
-   - 数据库名称和超级表名称。
-   - 查询数据的开始时间和结束时间。
+
+- URL 和 TDengine TSDB Cloud Token，可以从 TDengine TSDB Cloud 的实例列表中获取。
+- 数据库名称和超级表名称。
+- 查询数据的开始时间和结束时间。
 
 第 2 步，Looker Studio 会根据配置自动加载所配置的 TDengine TSDB 数据库下的超级表的字段和标签。
 

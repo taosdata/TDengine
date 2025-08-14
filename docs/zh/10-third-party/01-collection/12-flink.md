@@ -10,9 +10,10 @@ Apache Flink 是一款由 Apache 软件基金会支持的开源分布式流批�
 
 借助 TDengine TSDB 的 Flink 连接器，Apache Flink 得以与 TDengine TSDB 数据库无缝对接，能够将来自不同数据源的数据经过复杂运算和深度分析后所得到的结果精准存入 TDengine TSDB 数据库，实现数据的高效存储与管理；为后续进行全面、深入的分析处理，充分挖掘数据的潜在价值，为企业的决策制定提供有力的数据支持和科学依据，极大地提升数据处理的效率和质量，增强企业在数字化时代的竞争力和创新能力。
 
-## 前置条件 
+## 前置条件
 
 准备以下环境：
+
 - TDengine TSDB 服务已部署并正常运行（企业及社区版均可）
 - taosAdapter 能够正常运行。详细参考 [taosAdapter 使用手册](../../../reference/components/taosadapter)
 - Apache Flink v1.19.0 或以上版本已安装。安装 Apache Flink 请参考 [官方文档](https://flink.apache.org/)
@@ -22,6 +23,7 @@ Apache Flink 是一款由 Apache 软件基金会支持的开源分布式流批�
 Flink Connector 支持所有能运行 Flink 1.19 及以上版本的平台。
 
 ## 版本历史
+
 | Flink Connector 版本 |                   主要变化         |   TDengine TSDB 版本   |
 | ------------------| ------------------------------------ | ---------------- |
 |        2.1.3      | 增加数据转换异常信息输出 | - |
@@ -41,7 +43,7 @@ Flink Connector 支持所有能运行 Flink 1.19 及以上版本的平台。
 
 | Error Code       | Description                                              | Suggested Actions    |
 | ---------------- |-------------------------------------------------------   | -------------------- |
-| 0xa000     |connection param error                                          |连接器参数错误。                                                                   
+| 0xa000     |connection param error                                          |连接器参数错误。
 | 0xa010     |database name configuration error                               |数据库名配置错误。|
 | 0xa011     |table name configuration error                                  |表名配置错误。|
 | 0xa013     |value.deserializer parameter not set                            |未设置序列化方式。|
@@ -66,6 +68,7 @@ Flink Connector 支持所有能运行 Flink 1.19 及以上版本的平台。
 | 0x2356     |invalid num of fields                                           |本地连接获取结果集的 meta 信息不匹配。|
 
 ## 数据类型映射
+
 TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 Flink RowData Type 对应类型转换如下：
 
 | TDengine TSDB DataType | Flink RowDataType |
@@ -90,9 +93,10 @@ TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 Flink
 ### Flink 语义选择说明
 
 采用 At-Least-Once（至少一次）语义原因：
-  - TDengine TSDB 目前不支持事务，不能进行频繁的检查点操作和复杂的事务协调。
-  - 由于 TDengine TSDB 采用时间戳作为主键，重复数据下游算子可以进行过滤操作，避免重复计算。
-  - 采用 At-Least-Once（至少一次）确保达到较高的数据处理的性能和较低的数据延时，设置方式如下：
+
+- TDengine TSDB 目前不支持事务，不能进行频繁的检查点操作和复杂的事务协调。
+- 由于 TDengine TSDB 采用时间戳作为主键，重复数据下游算子可以进行过滤操作，避免重复计算。
+- 采用 At-Least-Once（至少一次）确保达到较高的数据处理的性能和较低的数据延时，设置方式如下：
 
 使用方式：
 
@@ -125,16 +129,18 @@ URL 规范格式为：
 - database_name: 数据库名称。
 - timezone: 时区设置。
 - httpConnectTimeout: 连接超时时间，单位 ms，默认值为 60000。
-- messageWaitTimeout: 消息超时时间，单位 ms，默认值为 60000。 
+- messageWaitTimeout: 消息超时时间，单位 ms，默认值为 60000。
 - useSSL: 连接中是否使用 SSL。
 
-### Sink 
+### Sink
 
 Sink 的核心功能在于高效且精准地将经过 Flink 处理的、源自不同数据源或算子的数据写入 TDengine TSDB。在这一过程中 TDengine TSDB 所具备的高效写入机制发挥了至关重要的作用，有力保障了数据的快速和稳定存储。
 
 :::note
+
 - 写入的数据库必须已经创建。
 - 写入的超级表/普通表必须已经创建。
+
 :::
 
 Properties 中配置参数如下：
@@ -162,7 +168,7 @@ Properties 中配置参数如下：
 ```java
 {{#include docs/examples/flink/Main.java:RowDataToSuperTable}}
 ```
-</details> 
+</details>
 
 使用示例
 
@@ -187,21 +193,22 @@ Properties 中配置参数如下：
 </details>
 
 :::note
+
 - [ResultBean](https://github.com/taosdata/flink-connector-tdengine/blob/main/src/test/java/com/taosdata/flink/entity/ResultBean.java) 自定义的一个内部类，用于定义写入字段的数据类型。
 - [ResultBeanSinkSerializer](https://github.com/taosdata/flink-connector-tdengine/blob/main/src/test/java/com/taosdata/flink/entity/ResultBeanSinkSerializer.java) 是自定义的一个内部类，通过继承 TDengineRecordDeserialization 并实现 serialize 方法完成序列化。
+
 :::
 
 ### Table Sink
 
 使用 Flink Table 的方式从多个不同的数据源数据库（如 MySQL、Oracle, Kafka 等）中提取数据后，再进行自定义的算子操作（如数据清洗、格式转换、关联不同表的数据等），然后将处理后的结果写入到 TDengine TSDB 中。
 
-
 参数配置说明：
 
-|         参数名称          |  类型   | 参数说明      | 
+|         参数名称          |  类型   | 参数说明      |
 | ----------------------- | :-----: | ------------ |
 | connector  | string | 连接器标识，设置 `tdengine-connector` 。|
-| td.jdbc.url| string | 连接的 url。| 
+| td.jdbc.url| string | 连接的 url。|
 | td.jdbc.mode | string | 连接器类型，设置 `sink`。|
 | sink.db.name|string| 目标数据库名称。|
 | sink.batch.size | integer | 写入的批大小。|

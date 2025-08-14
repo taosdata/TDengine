@@ -49,5 +49,5 @@ SELECT _frowts, FORECAST(i32, "algo=holtwinters, period=10,trend=mul,seasonal=mu
 
 ### 参考文献
 
-- https://en.wikipedia.org/wiki/Exponential_smoothing
-- https://orangematter.solarwinds.com/2019/12/15/holt-winters-forecasting-simplified/
+- <https://en.wikipedia.org/wiki/Exponential_smoothing>
+- <https://orangematter.solarwinds.com/2019/12/15/holt-winters-forecasting-simplified/>

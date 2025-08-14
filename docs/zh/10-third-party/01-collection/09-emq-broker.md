@@ -38,7 +38,7 @@ CREATE TABLE sensor_data (ts TIMESTAMP, temperature FLOAT, humidity FLOAT, volum
 
 ### 登录 EMQX Dashboard
 
-使用浏览器打开网址 http://IP:18083 并登录 EMQX Dashboard。初次安装用户名为 `admin` 密码为：`public`。
+使用浏览器打开网址 <http://IP:18083> 并登录 EMQX Dashboard。初次安装用户名为 `admin` 密码为：`public`。
 
 ![TDengine TSDB Database EMQX login dashboard](./emqx/login-dashboard.webp)
 
@@ -88,10 +88,12 @@ http://127.0.0.1:6041/rest/sql
 ### 编辑“动作（action）”
 
 编辑资源配置，增加 Authorization 认证的键/值配对项。默认用户名和密码对应的 Authorization 值为：
+
 ```
 Basic cm9vdDp0YW9zZGF0YQ==
 ```
-相关文档请参考[ TDengine TSDB REST API 文档](../../../reference/connector/rest-api/)。
+
+相关文档请参考[TDengine TSDB REST API 文档](../../../reference/connector/rest-api/)。
 
 在消息体中输入规则引擎替换模板：
 
@@ -115,6 +117,7 @@ INSERT INTO test.sensor_data VALUES(
 ![TDengine TSDB Database EMQX edit action](./emqx/edit-action.webp)
 
 最后点击左下方的“Create”按钮，保存规则。
+
 ## 编写模拟测试程序
 
 ```javascript

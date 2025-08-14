@@ -8,6 +8,7 @@ title: 与 Excel 集成
 ## 前置条件
 
 准备以下环境：
+
 - TDengine TSDB 3.3.5.8 以上版本集群已部署并正常运行（企业及社区版均可）。
 - taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../../reference/components/taosadapter)。
 - Excel 安装并运行，如未安装，请下载并安装，具体操作请参考 Microsoft 官方文档。
@@ -16,18 +17,18 @@ title: 与 Excel 集成
 ## 配置数据源
 
 **第 1 步**，在 Windows 操作系统的开始菜单中搜索并打开【ODBC 数据源（64 位）】管理工具并进行配置。详细参考 [配置 ODBC 数据源](../../../reference/connector/odbc/#配置数据源)。
-   
-**第 2 步**，在 Windows 系统环境下启动 Excel，之后选择【数据】->【获取数据】->【自其他源】->【从 ODBC】。 
 
-![excel-odbc](./excel/odbc-menu.webp) 
+**第 2 步**，在 Windows 系统环境下启动 Excel，之后选择【数据】->【获取数据】->【自其他源】->【从 ODBC】。
+
+![excel-odbc](./excel/odbc-menu.webp)
 
 **第 3 步**，在弹出窗口的【数据源名称 (DSN)】下拉列表中选择需要连接的数据源后，点击【确定】按钮。
 
-![excel-odbc](./excel/odbc-select.webp) 
+![excel-odbc](./excel/odbc-select.webp)
 
 **第 4 步**，输入 TDengine TSDB 的用户名密码。
 
-![excel-odbc](./excel/odbc-config.webp) 
+![excel-odbc](./excel/odbc-config.webp)
 
 **第 5 步**，在弹出的【导航器】对话框中，选择要加载的库表，并点击【加载】完成数据加载。
 

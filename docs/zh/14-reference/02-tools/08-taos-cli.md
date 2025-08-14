@@ -4,7 +4,7 @@ sidebar_label: TDengine TSDB CLI
 toc_max_heading_level: 4
 ---
 
-TDengine TSDB 命令行程序（以下简称 TDengine TSDB CLI）是用户操作 TDengine TSDB 实例并与之交互最简洁常用工具。 
+TDengine TSDB 命令行程序（以下简称 TDengine TSDB CLI）是用户操作 TDengine TSDB 实例并与之交互最简洁常用工具。
 
 ## 工具获取
 
@@ -28,6 +28,7 @@ taos>
 
 进入 TDengine TSDB CLI 后，可执行各种 SQL 语句，包括插入、查询以及各种管理命令。
 退出 TDengine TSDB CLI，执行 `q` 或 `quit` 或 `exit` 回车即可。
+
 ```shell
 taos> quit
 ```
@@ -35,6 +36,7 @@ taos> quit
 ## 命令行参数
 
 ### 基础参数
+
 可通过配置命令行参数来改变 TDengine TSDB CLI 的行为。以下为常用的几个命令行参数：
 
 - -h HOST：要连接的 TDengine TSDB 服务端所在服务器的 FQDN, 默认值：127.0.0.1。
@@ -46,15 +48,17 @@ taos> quit
 
     使用 `-s` 参数可进行非交互式执行 SQL，执行完成后退出，此模式适合在自动化脚本中使用。  
     如以下命令连接到服务器 h1.taos.com, 执行 -s 指定的 SQL：
+
     ```bash
     taos -h my-server -s "use db; show tables;"
     ```
 
 - -c CONFIGDIR：指定配置文件目录。
- 
+
     Linux 环境下默认为 `/etc/taos`，该目录下的配置文件默认名称为 `taos.cfg`。
     使用 `-c` 参数改变 `taosc` 客户端加载配置文件的位置，客户端配置参数参考 [客户端配置](../../components/taosc)。  
     以下命令指定了 `taosc` 客户端加载 `/root/cfg/` 下的 `taos.cfg` 配置文件。
+
     ```bash
     taos -c /root/cfg/
     ```
@@ -81,7 +85,6 @@ taos> quit
 - -z TIMEZONE：指定时区，默认为本地时区。
 - -V：打印出当前版本号。
 
-
 ## 数据导出/导入
 
 ### 数据导出
@@ -95,10 +98,10 @@ taos> quit
 ## 执行 SQL 脚本
 
 在 TDengine TSDB CLI 里可以通过 `source` 命令来运行脚本文件中的多条 SQL 命令，脚本文件中多条 SQL 按行书写即可
+
 ```sql
 taos> source <filename>;
 ```
-
 
 ## 使用小技巧
 
@@ -113,6 +116,7 @@ taos> source <filename>;
 
 可以在 TDengine TSDB CLI 里使用如下命令调整字符串类型字段列显示宽度，默认显示宽度为 30 个字符。  
 以下命令设置了显示宽度为 120 个字符：
+
 ```sql
 taos> SET MAX_BINARY_DISPLAY_WIDTH 120;
 ```
@@ -128,4 +132,5 @@ taos> SET MAX_BINARY_DISPLAY_WIDTH 120;
 - 批量执行 SQL 语句。可以将一系列的 TDengine TSDB CLI 命令（以英文 `;` 结尾，每个 SQL 语句为一行）按行存放在文件里，在 TDengine TSDB CLI 里执行命令 `source <file-name>` 自动执行该文件里所有的 SQL 语句。
 
 ## 错误代码表
+
 在 TDengine TSDB 3.3.4.8 版本后 TDengine TSDB CLI 在返回错误信息中返回了具体错误码，用户可到 TDengine TSDB 官网错误码页面查找具体原因及解决措施，见：[错误码参考表](https://docs.taosdata.com/reference/error-code/)

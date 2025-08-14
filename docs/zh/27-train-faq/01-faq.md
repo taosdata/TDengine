@@ -48,9 +48,9 @@ description: 一些常见问题的解决方法汇总
 
 1. 检查网络环境
 
- - 云服务器：检查云服务器的安全组是否打开 TCP/UDP 端口 6030/6041 的访问权限
- - 本地虚拟机：检查网络能否 ping 通，尽量避免使用 `localhost` 作为 hostname
- - 公司服务器：如果为 NAT 网络环境，请务必检查服务器能否将消息返回值客户端
+- 云服务器：检查云服务器的安全组是否打开 TCP/UDP 端口 6030/6041 的访问权限
+- 本地虚拟机：检查网络能否 ping 通，尽量避免使用 `localhost` 作为 hostname
+- 公司服务器：如果为 NAT 网络环境，请务必检查服务器能否将消息返回值客户端
 
 2. 确保客户端与服务端版本号是完全一致的，开源社区版和企业版也不能混用
 
@@ -66,16 +66,16 @@ description: 一些常见问题的解决方法汇总
 
 8. 对于 macOS 上的 JDBC（ODBC、Python、Go 等接口类似）连接，确保 *libtaos.dylib* 在目录 */usr/local/lib* 里，并且 */usr/local/lib* 在系统库函数搜索路径 *LD_LIBRARY_PATH* 里
 
-9. 对于 Windows 上的 JDBC、ODBC、Python、Go 等连接，确保 *C:\TDengine TSDB\driver\taos.dll* 在你的系统库函数搜索目录里 (建议 *taos.dll* 放在目录 _C:\Windows\System32_)
+9. 对于 Windows 上的 JDBC、ODBC、Python、Go 等连接，确保 *C:\TDengine TSDB\driver\taos.dll* 在你的系统库函数搜索目录里 (建议 *taos.dll* 放在目录 *C:\Windows\System32*)
 
 10. 如果仍不能排除连接故障
 
- - Linux/macOS 系统请使用命令行工具 nc 来分别判断指定端口的 TCP 和 UDP 连接是否通畅
-   检查 UDP 端口连接是否工作：`nc -vuz {hostIP} {port} `
+- Linux/macOS 系统请使用命令行工具 nc 来分别判断指定端口的 TCP 和 UDP 连接是否通畅
+   检查 UDP 端口连接是否工作：`nc -vuz {hostIP} {port}`
    检查服务器侧 TCP 端口连接是否工作：`nc -l {port}`
    检查客户端侧 TCP 端口连接是否工作：`nc {hostIP} {port}`
 
- - Windows 系统请使用 PowerShell 命令 `Test-NetConnection -ComputerName \{fqdn} -Port \{port}` 检测服务段端口是否访问
+- Windows 系统请使用 PowerShell 命令 `Test-NetConnection -ComputerName \{fqdn} -Port \{port}` 检测服务段端口是否访问
 
 11. 也可以使用 taos 程序内嵌的网络连通检测功能，来验证服务器和客户端之间指定的端口连接是否通畅：[运维指南](../../operation)。
 
@@ -145,7 +145,7 @@ local_option: {
 
 其含义是，在当前的命令行程序下，清空本机所有客户端生成的日志文件 (resetLog)，或修改一个特定模块的日志记录级别（只对当前命令行程序有效，如果 taos 命令行程序重启，则需要重新设置）：
 
- - value 的取值可以是：131（输出错误和警告日志）、135（输出错误、警告和调试日志）、143（输出错误、警告、调试和跟踪日志）。
+- value 的取值可以是：131（输出错误和警告日志）、135（输出错误、警告和调试日志）、143（输出错误、警告、调试和跟踪日志）。
 
 ### 12. go 语言编写组件编译失败怎样解决？
 
@@ -206,7 +206,9 @@ TDengine TSDB 会预先为每个 VNode 分配好内存，每个 Database 的 VNo
 
 taosd 日志文件报错 Too many open file，是由于 taosd 打开文件数超过系统设置的上限所致。
 解决方案如下：
+
 1. 新建文件 /Library/LaunchDaemons/limit.maxfiles.plist，写入以下内容(以下示例将 limit 和 maxfiles 改为 10 万，可按需修改)：
+
 ```
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
@@ -230,51 +232,69 @@ taosd 日志文件报错 Too many open file，是由于 taosd 打开文件数超
 </dict>
 </plist>
 ```
+
 2. 修改文件权限
+
 ```
 sudo chown root:wheel /Library/LaunchDaemons/limit.maxfiles.plist
 sudo chmod 644 /Library/LaunchDaemons/limit.maxfiles.plist
 ```
+
 3. 加载 plist 文件 (或重启系统后生效。launchd 在启动时会自动加载该目录的 plist)
+
 ```
 sudo launchctl load -w /Library/LaunchDaemons/limit.maxfiles.plist
 ```
+
 4.确认更改后的限制
+
 ```
 launchctl limit maxfiles
 ```
+
 ### 20 建库时提示 Out of dnodes 或者建表时提示 Vnodes exhausted
+
 该提示是创建 db 的 vnode 数量不够了，需要的 vnode 不能超过了 dnode 中 vnode 的上限。因为系统默认是一个 dnode 中有 CPU 核数两倍的 vnode，也可以通过配置文件中的参数 supportVnodes 控制。
 正常调大 taos.cfg 中 supportVnodes 参数即可。
 
 ### 21 在服务器上的使用 TDengine TSDB CLI 能查到指定时间段的数据，但在客户端机器上查不到？
+
 这种情况是因为客户端与服务器上设置的时区不一致导致的，调整客户端与服务器的时区一致即可解决。
 
-### 22 表名确认是存在的，但在写入或查询时返回表名不存在，什么原因？ 
+### 22 表名确认是存在的，但在写入或查询时返回表名不存在，什么原因？
+
 TDengine TSDB 中的所有名称，包括数据库名、表名等都是区分大小写的，如果这些名称在程序或 TDengine TSDB CLI 中没有使用反引号（`）括起来使用，即使你输入的是大写的，引擎也会转化成小写来使用，如果名称前后加上了反引号，引擎就不会再转化成小写，会保持原样来使用。
 
 ### 23 在 TDengine TSDB CLI 中查询，字段内容不能完全显示出来怎么办？
+
 可以使用 `\G` 参数来竖式显示，如 `show databases\G;` （为了输入方便，在"\"后加 TAB 键，会自动补全后面的内容）
 
 ### 24 使用 taosBenchmark 测试工具写入数据查询很快，为什么我写入的数据查询非常慢？
+
 TDengine TSDB 在写入数据时如果有很严重的乱序写入问题，会严重影响查询性能，所以需要在写入前解决乱序的问题。如果业务是从 Kafka 消费写入，请合理设计消费者，尽可能的一个子表数据由一个消费者去消费并写入，避免由设计产生的乱序。
 
 ### 25 我想统计下前后两条写入记录之间的时间差值是多少？
+
 使用 DIFF 函数，可以查看时间列或数值列前后两条记录的差值，非常方便，详细说明见 SQL 手册->函数->DIFF
 
 ### 26 遇到报错 "DND ERROR Version not compatible, client: 3000700, server: 3020300"
+
 说明客户端和服务端版本不兼容，这里 client 的版本是 3.0.7.0，server 版本是 3.2.3.0。目前的兼容策略是前三位一致，client 和 sever 才能兼容。
 
 ### 27 修改 database 的 root 密码后，启动 taos 遇到报错 "failed to connect to server, reason: Authentication failure"
+
 默认情况，启动 taos 服务会使用系统默认的用户名（root）和密码尝试连接 taosd，在 root 密码修改后，启用 taos 连接就需要指明用户名和密码，例如 `taos -h xxx.xxx.xxx.xxx -u root -p`，然后输入新密码进行连接。
 
 ### 28 修改 database 的 root 密码后，Grafana 监控插件 TDinsight 无数据展示
+
 TDinsight 插件中展示的数据是通过 taosKeeper 和 taosAdapter 服务收集并存储于 TD 的 log 库中，在 root 密码修改后，需要同步更新 taosKeeper 和 taosAdapter 配置文件中对应的密码信息，然后重启 taosKeeper 和 taosAdapter 服务（注：若是集群需要重启每个节点上的对应服务）。
 
 ### 29 遇到报错 "some vnode/qnode/mnode(s) out of service" 怎么办？
+
 客户端未配置所有服务端的 FQDN 解析。比如服务端有 3 个节点，客户端只配置了 1 个节点的 FQDN 解析。FQDN 配置参考：[一篇文章说清楚 TDengine 的 FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)
 
 ### 30 为什么开源版 TDengine TSDB 的主进程会建立一个与公网的连接？
+
 这个连接只会上报不涉及任何用户数据的最基本信息，用于官方了解产品在世界范围内的分布情况，进而优化产品，提升用户体验，具体采集项目为：集群名、操作系统版本、cpu 信息等。
 
 该特性为可选配置项，在开源版中默认开启，具体参数为 telemetryReporting，在官方文档中有做说明，链接如下：[参数简介](https://docs.taosdata.com/reference/components/taosd/#%E7%9B%91%E6%8E%A7%E7%9B%B8%E5%85%B3)
@@ -286,6 +306,7 @@ TDinsight 插件中展示的数据是通过 taosKeeper 和 taosAdapter 服务收
 此外，对于安全性要求极高的企业版 TDengine TSDB Enterprise 来说，此参数不会工作。
 
 ### 31 第一次连接集群时遇到 "Sync leader is unreachable" 怎么办？
+
 报这个错，说明第一次向集群的连接是成功的，但第一次访问的 IP 不是 mnode 的 leader 节点，客户端试图与 leader 建立连接时发生错误。客户端通过 EP，也就是指定的 fqdn 与端口号寻找 leader 节点，常见的报错原因有两个：  
 
 - 集群中其他节点的端口没有打开
@@ -295,6 +316,7 @@ TDinsight 插件中展示的数据是通过 taosKeeper 和 taosAdapter 服务收
 如仍无法解决，则需要联系涛思技术人员支持。
 
 ### 32 同一台服务器，数据库的数据目录 dataDir 不变，为什么原有数据库丢失且集群 ID 发生了变化？
+
 背景知识：TDengine TSDB 服务端进程（taosd）在启动时，若数据目录（dataDir，该目录在配置文件 taos.cfg 中指定）下不存在有效的数据文件子目录（如 mnode、dnode 和 vnode 等），则会自动创建这些目录。在创建新的 mnode 目录的同时，会分配一个新的集群 ID，从而产生一个新的集群。
 
 原因分析：taosd 的数据目录 dataDir 可以指向多个不同的挂载点。如果这些挂载点未在 fstab 文件中配置自动挂载，服务器重启后，dataDir 将仅作为一个本地磁盘的普通目录存在，而未能按预期指向挂载的磁盘。此时，若 taosd 服务启动，它将在 dataDir 下新建目录，从而产生一个新的集群。
@@ -304,18 +326,22 @@ TDinsight 插件中展示的数据是通过 taosKeeper 和 taosAdapter 服务收
 问题解决：应在 fstab 文件中配置 dataDir 目录的自动挂载，确保 dataDir 始终指向预期的挂载点和目录，此时，再重启服务器，会找回原有的数据库和集群。在后续的版本中，我们将开发一个功能，使 taosd 在检测到启动前后 dataDir 发生变化时，在启动阶段退出，同时提供相应的错误提示。
 
 ### 33 Windows 平台运行 TDengine TSDB 出现丢失 MVCP1400.DLL 解决方法？
+
 1. 重新安装 Microsoft Visual C++ Redistributable‌：由于 msvcp140.dll 是 Microsoft Visual C++ Redistributable 的一部分，重新安装这个包通常可以解决大部分问题。可以从 Microsoft 官方网站下载相应的版本进行安装‌
 2. 手动上网下载并替换 msvcp140.dll 文件‌：可以从可靠的源下载 msvcp140.dll 文件，并将其复制到系统的相应目录下。确保下载的文件与您的系统架构（32 位或 64 位）相匹配，并确保来源的安全性‌
 
 ### 34 超级表带 TAG 过滤查子查数据与直接查子表哪个块？
+
 直接查子表更快。超级表带 TAG 过滤查询子查数据是为满足查询方便性，同时可对多个子表中数据进行过滤，如果目的是追求性能并已明确查询子表，直接从子表查性能更高
 
 ### 35 如何查看数据库的数据压缩率和磁盘占用指标？
+
 TDengine TSDB 3.3.5.0 之前的版本，只提供以表为统计单位的压缩率，数据库及整体还未提供，查看命令是在客户端 TDengine TSDB CLI 中执行 `SHOW TABLE DISTRIBUTED table_name;` 命令，table_name 为要查看压缩率的表，可以为超级表、普通表及子表，详细可 [查看此处](https://docs.taosdata.com/reference/taos-sql/show/#show-table-distributed)
 
 TDengine TSDB 3.3.5.0 及以上的版本，还提供了数据库整体压缩率和磁盘空间占用统计。查看数据库整体的数据压缩率和磁盘空间占用的命令为 `SHOW db_name.disk_info;`，查看数据库各个模块的磁盘空间占用的命令为 `SELECT * FROM INFORMATION_SCHEMA.INS_DISK_USAGE WHERE db_name='db_name';`，db_name 为要查看的数据库名称。详细可 [查看此处](https://docs.taosdata.com/reference/taos-sql/database/#%E6%9F%A5%E7%9C%8B-db-%E7%9A%84%E7%A3%81%E7%9B%98%E7%A9%BA%E9%97%B4%E5%8D%A0%E7%94%A8)
 
-### 36 短时间内，通过 systemd 重启 taosd 超过一定次数后重启失败，报错：start-limit-hit。
+### 36 短时间内，通过 systemd 重启 taosd 超过一定次数后重启失败，报错：start-limit-hit
+
 问题描述：
 TDengine TSDB 3.3.5.1 及以上的版本，taosd.service 的 systemd 配置文件中，StartLimitInterval 参数从 60 秒调整为 900 秒。若在 900 秒内 taosd 服务重启达到 3 次，后续通过 systemd 启动 taosd 服务时会失败，执行 `systemctl status taosd.service` 显示错误：Failed with result 'start-limit-hit'。
 
@@ -326,6 +352,7 @@ TDengine TSDB 3.3.5.1 之前的版本，StartLimitInterval 为 60 秒。若在 6
 1）通过 systemd 重启 taosd 服务：推荐方法是先执行命令 `systemctl reset-failed taosd.service` 重置失败计数器，然后再通过 `systemctl restart taosd.service` 重启；若需长期调整，可手动修改 /etc/systemd/system/taosd.service 文件，将 StartLimitInterval 调小或将 StartLimitBurst 调大 (注：重新安装 taosd 会重置该参数，需要重新修改)，执行 `systemctl daemon-reload` 重新加载配置，然后再重启。2）也可以不通过 systemd 而是通过 taosd 命令直接重启 taosd 服务，此时不受 StartLimitInterval 和 StartLimitBurst 参数限制。
 
 ### 37 我明明修改了配置文件但是配置参数并没有生效？
+
 问题描述：
 TDengine TSDB 3.3.5.0 及以上的版本，有些用户可能会遇到一个问题：明明我在 `taos.cfg` 中修改了某个配置参数，但是重启后发现并没有生效，查看日志也找不到任何报错。
 
@@ -336,6 +363,7 @@ TDengine TSDB 3.3.5.0 及以上的版本，有些用户可能会遇到一个问�
 如果您了解了配置参数持久化的功能，仍然希望重启后从配置文件中加载配置参数，可以通过在配置文件中增加 `forceReadConfig 1` 这将会使 TDengine TSDB 强制从配置文件中读取配置参数。
 
 ### 38 数据库升级，从 2.6 升到 3.3，数据迁移同时业务还有数据在写入，会产生严重乱序吗？
+
 这种情况通常不会产生乱序，首先我们来解释下 TDengine TSDB 中乱序是指什么？TDengine TSDB 中的乱序是指从时间戳为 0 开始按数据库设置的 Duration 参数（默认是 10 天）切割成时间窗口，在每个时间窗口中写入的数据不按顺序时间写入导致的现象为乱序现象，只要保证同一窗口是顺序写入的，即使窗口之间写入并非顺序，也不会产生乱序。
 
 再看上面场景，补旧数据和新数据同时写入，新旧数据之间一般会存在较大距离，不会落在同一窗口中，只要保证新老数据都是顺序写的，即不会产生乱序现象。

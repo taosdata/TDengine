@@ -4,7 +4,7 @@ title: 运行监控
 toc_max_heading_level: 4
 ---
 
-为了确保集群稳定运行，TDengine TSDB 集成了多种监控指标收集机制，并通过 taosKeeper 进行汇总。taosKeeper 负责接收这些数据，并将其写入一个独立的 TDengine TSDB 实例中，该实例可以与被监控的 TDengine TSDB 集群保持独立。TDengine TSDB 中的两个核心组件 taosd（数据库引擎）和 taosX（数据接入平台）都通过相同的监控架构来实现对其运行时的监控，但各自的监控指标设计有所不同。 
+为了确保集群稳定运行，TDengine TSDB 集成了多种监控指标收集机制，并通过 taosKeeper 进行汇总。taosKeeper 负责接收这些数据，并将其写入一个独立的 TDengine TSDB 实例中，该实例可以与被监控的 TDengine TSDB 集群保持独立。TDengine TSDB 中的两个核心组件 taosd（数据库引擎）和 taosX（数据接入平台）都通过相同的监控架构来实现对其运行时的监控，但各自的监控指标设计有所不同。
 
 至于如何获取和使用这些监控数据，用户可以使用第三方的监测工具比如 Zabbix 来获取这些保存的系统监测数据，进而将 TDengine TSDB 的运行状况无缝集成到现有的 IT 监控系统中。也可以使用 TDengine TSDB 提供的 TDinsight 插件，使用该插件用户可以通过 Grafana 平台直观地展示和管理这些监控信息，如下图所示。这为用户提供了灵活的监控选项，以满足不同场景下的运维需求。
 
@@ -29,12 +29,14 @@ taosKeeper 的配置文件默认位于 `/etc/taos/taoskeeper.toml`。详细配�
 #### 前置条件
 
 若要顺利使用 TDinsight，应满足如下条件。
+
 - TDengine TSDB 已安装并正常运行。
 - taosAdapter 已经安装并正常运行。
 - taosKeeper 已经安装并正常运行。
 - Grafana 已安装并正常运行，以下介绍以 Grafna 11.0.0 为例。
 
 同时记录以下信息。
+
 - taosAdapter 的 RESTful 接口地址，如 `http://www.example.com:6041`。
 - TDengine TSDB 集群的认证信息，包括用户名及密码。
 
@@ -43,8 +45,9 @@ taosKeeper 的配置文件默认位于 `/etc/taos/taoskeeper.toml`。详细配�
 TDengine TSDB 数据源插件已提交至 Grafana 官网，如何安装 TDengine TSDB 数据源插件和配置数据源请参考 [安装 Grafana Plugin 并配置数据源](../../third-party/visual/grafana/#安装-grafana-plugin-并配置数据源)。完成插件的安装和数据源的创建后，可以进行 TDinsight 仪表盘的导入。
 
 在 Grafana 的“Home” -> “Dashboards”页面，点击位于右上角的“New” -> “import”按钮，即可进入 Dashboard 的导入页面，它支持以下两种导入方式。
+
 - Dashboard ID：18180。
-- Dashboard URL：https://grafana.com/grafana/dashboards/18180-tdinsight-for-3-x/
+- Dashboard URL：<https://grafana.com/grafana/dashboards/18180-tdinsight-for-3-x/>
 
 填写以上 Dashboard ID 或 Dashboard URL 以后，点击“Load”按钮，按照向导操作，即可完成导入。导入成功后，Dashboards 列表页面会出现“TDinsight for 3.x”仪表盘，点击进入后，就可以看到 TDinsight 中已创建的各个指标的面板，如下图所示：
 
@@ -55,12 +58,14 @@ TDengine TSDB 数据源插件已提交至 Grafana 官网，如何安装 TDengine
 ### TDengine TSDB V3 监控数据
 
 TDinsight dashboard 数据来源于 `log` 库（存放监控数据的默认数据库，可以在 taoskeeper 配置文件中修改）。“TDinsight for 3.x”仪表盘查询了 taosd 和 TaosAdapter 的监控指标。
+
 - taosd 的监控指标请参考 [taosd 监控指标](../../reference/components/taosd/#taosd-监控指标)
 - taosAdapter 的监控指标请参考 [taosAdapter 监控指标](../../reference/components/taosadapter/#taosadapter-监控指标)
 
 ## 监控 taosX
 
 taosX 是 TDengine TSDB 中提供零代码数据接入能力的核心组件，对它的监控也十分重要。taosX 监控与 TDengine TSDB 监控类似，都是通过 taosKeeper 将服务搜集的 metrics 写入指定数据库，然后借助 Grafana 面板做可视化和报警。这个功能可监控的对象包括：
+
 1. taosX 进程
 2. 所有运行中的 taosx-agent 进程
 3. 运行在 taosX 端或 taosx-agent 端的各个连接器子进程
@@ -104,15 +109,14 @@ toasX 的配置文件 (默认 /etc/taos/taosx.toml) 中与 monitor 相关的配�
 
 1. 在 Grafana 界面菜单中点击“Data sources”，然后选择已经配置好的 TDengine TSDB 数据源。
 2. 在数据源配置界面选择“Dashboard”Tab, 然后导入“TDinsight for taosX”面板（第一次使用需要先导入）。下面是一个示例图：
-   
+
    ![monitor rows](./pic/monitor-04.jpg)
-    
+
    该面板每一行代表一个或一类监控对象。最上面是 taosX 监控行，然后是 Agent 监控行，最后是各类数据写入任务的监控。
    :::note
    - 如果打开这个面板后看不到任何数据，你很可能需要点击左上角的数据库列表（即“Log from”下拉菜单），切换到监控数据所在的数据库。
    - 数据库包含多少个 Agent 的数据就会自动创建多少个 Agent 行。(如上图)
    :::
-
 
 #### 监控示例
 
@@ -137,10 +141,8 @@ toasX 的配置文件 (默认 /etc/taos/taosx.toml) 中与 monitor 相关的配�
 
    ![monitor tdengine3](./pic/monitor-06.jpg)
 
-
 5. 其它数据源监控示例图
    ![monitor task](./pic/monitor-10.jpg)
-
 
 #### 限制
 

@@ -46,15 +46,16 @@ column_name = val, _c0
 
 ### 评估预测分析模型
 
-
 1. 准备数据
 
 在 TDgpt 安装目录下的 `resource` 文件夹中准备了样例数据 `sample-fc.sql`, 执行以下命令即可将示例数据写入数据库，用于执行评估
+
 ```shell
 taos -f sample-fc.sql
 ```
 
 2. 设置参数
+
 ```ini
 [forecast]
 # 评估用数据每个周期包含的数据点数量
@@ -82,12 +83,12 @@ arima={"time_step": 3600000, "start_p": 0, "max_p": 5, "start_q": 0, "max_q": 5}
 ```
 
 3. 调用评估工具
+
 ```shell
 python3 ./analytics_compare.py forecast
 ```
 
 > 需确保激活虚拟环境并调用该虚拟环境的 Python，否则启动的时候 Python 会提示找不到所需要的依赖库。
-
 
 4. 检查结果
 
@@ -105,16 +106,15 @@ python3 ./analytics_compare.py forecast
 <img src={fc_result} alt="预测对比结果"/>
 </figure>
 
-
 ### 评估异常检测模型
 
 针对异常检测模型提供查全率（recall）和查准率（precision）两个指标衡量模型有效性。
 通过在配置文件中`analysis.ini`设置以下的选项可以调用需要使用的异常检测模型，异常检测模型测试用数据的时间范围、是否生成标注结果的图片、调用的异常检测模型以及相应的参数。
 
-
 1. 准备数据
 
 在 TDgpt 安装目录下的 `resource` 文件夹中准备了样例数据 `sample-ad.sql`, 执行以下命令即可将示例数据写入数据库
+
 ```shell
 taos -f sample-ad.sql
 ```
@@ -148,11 +148,12 @@ lof={"algorithm":"auto", "n_neighbor": 3}
    例如：在 sample-ad 测试数据集中第 9 个点是异常点。需要在 [anno_res] 下异常标注 [9]。如果第 0 个点和第 9 个点是异常点，则
    设置为 [0, 9]
 
-
 4. 调用评估工具
+
 ```shell
 python3 ./analytics_compare.py anomaly-detection
 ```
+
 5. 检查结果
 
 对比程序执行完成以后，会自动生成名称为 `ad_result.xlsx` 的文件，第一个卡片是模型运行结果（如下表所示），分别是模型名称、执行调用参数、查全率、查准率、执行时间 5 个指标。

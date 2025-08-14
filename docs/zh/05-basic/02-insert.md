@@ -19,9 +19,11 @@ toc_max_heading_level: 4
 ```sql
 insert into d1001 (ts, current, voltage, phase) values ( "2018-10-03 14:38:05", 10.3, 219, 0.31)
 ```
+
 上面的 SQL 向子表 `d1001` 的 `ts`, `current`, `voltage`, `phase` 这 4 列分别写入 `2018-10-03 14:38:05`, `10.3`, `219`, `0.31`。
 
 2. 当 `INSERT` 语句中的 `VALUES` 部分包含了表的所有列时，可以省略 `VALUES` 前的字段列表，如下面的 SQL 语句所示，其与前面指定列的 INSERT 语句，效果完全一样。
+
 ```sql
 insert into d1001 values("2018-10-03 14:38:05", 10.3, 219, 0.31)
 ```
@@ -87,6 +89,7 @@ using meters (location)
 tags ( "beijing.chaoyang")
 values ( "2018-10-04 14:38:07", 10.15, 217, 0.33)
 ```
+
 自动建表的 insert 语句也支持在一条语句中向多张表写入数据。如下 SQL 使用自动建表的 insert 语句共写入 9 条数据。
 
 ```sql
@@ -113,6 +116,7 @@ TDengine TSDB 还支持直接向超级表写入数据。需要注意的是，超
 insert into meters (tbname, ts, current, voltage, phase, location, group_id)
 values("d1001", "2018-10-03 14:38:05", 10.2, 220, 0.23, "California.SanFrancisco", 2)
 ```
+
 ### 通过虚拟表写入
 
 TDengine TSDB 不支持向虚拟表或虚拟超级表写入，因为虚拟表或虚拟超级表是动态生成的，本身不存储数据。

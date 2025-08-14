@@ -9,6 +9,7 @@ Power BI 是由 Microsoft 提供的一种商业分析工具。通过配置使用
 ## 前置条件
 
 准备以下环境：
+
 - TDengine TSDB 3.3.4.0 以上版本集群已部署并正常运行（企业及社区版均可）。
 - taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../../reference/components/taosadapter)。
 - 从 TDengine TSDB 官网下载最新的 Windows 操作系统 X64 客户端驱动程序并进行安装，详细参考 [安装 ODBC 驱动](../../../reference/connector/odbc/#安装)。
@@ -29,6 +30,7 @@ Power BI 是由 Microsoft 提供的一种商业分析工具。通过配置使用
 ### 使用说明
 
 为了充分发挥 Power BI 在分析 TDengine TSDB 中 数据方面的优势，用户需要先理解维度、度量、窗口切分查询、数据切分查询、时序和相关性等核心概念，之后通过自定义的 SQL 导入数据。
+
 - 维度：通常是分类（文本）数据，描述设备、测点、型号等类别信息。在 TDengine TSDB 的超级表中，使用标签列存储数据的维度信息，可以通过形如 `select distinct tbname, tag1, tag2 from supertable` 的 SQL 语法快速获得维度信息。
 - 度量：可以用于进行计算的定量（数值）字段，常见计算有求和、取平均值和最小值等。如果测点的采集周期为 1s，那么一年就有 3000 多万条记录，把这些数据全部导入 Power BI 会严重影响其执行效率。在 TDengine TSDB 中，用户可以使用数据切分查询、窗口切分查询等语法，结合与窗口相关的伪列，把降采样后的数据导入 Power BI 中，具体语法请参阅 TDengine TSDB 官方文档的特色查询功能部分。
 - 窗口切分查询：比如温度传感器每秒采集一次数据，但须查询每隔 10min 的温度平均值，在这种场景下可以使用窗口子句来获得需要的降采样查询结果，对应的 SQL 形如 `select tbname, _wstart date，avg(temperature) temp from table interval(10m)`，其中，`_wstart` 是伪列，表示时间窗口起始时间，10m 表示时间窗口的持续时间，`avg(temperature)` 表示时间窗口内的聚合值。

@@ -66,6 +66,7 @@ CREATE DATABASE db_name PRECISION 'ns';
 :::
 
 ### DECIMAL 数据类型
+
 `DECIMAL` 数据类型用于高精度数值存储，自 v3.3.6.0 开始支持，定义语法：`DECIMAL(18, 2)`、`DECIMAL(38, 10)`，其中需要指定两个参数，分别为 `precision` 和 `scale`。`precision` 是指最大支持的有效数字个数，`scale` 是指最大支持的小数位数。如 `DECIMAL(8, 4)`，可表示范围即 `[-9999.9999, 9999.9999]`。定义 DECIMAL 数据类型时，`precision` 范围为：`[1, 38]`，scale 的范围为：`[0, precision]`，scale 为 0 时，仅表示整数。也可以不指定 scale，默认为 0，例如 `DECIMAL(18)`，与 `DECIMAL(18, 0)` 相同。
 
 当 `precision` 值不大于 18 时，内部使用 8 字节存储 (DECIMAL64)，当 `precision` 范围为 `(18, 38]` 时，使用 16 字节存储 (DECIMAL)。SQL 中写入 DECIMAL 类型数据时，可直接使用数值写入，当写入值大于类型可表示的最大值时会报 DECIMAL_OVERFLOW 错误，当未大于类型表示的最大值，但小数位数超过 SCALE 时，会自动四舍五入处理。如定义类型 DECIMAL(10, 2)，写入 10.987，则实际存储值为 10.99。
@@ -77,15 +78,18 @@ DECIMAL 类型仅支持普通列，暂不支持 tag 列。DECIMAL 类型只支�
 查询 DECIMAL 类型表达式时，若计算的中间结果超出当前类型可表示的最大值时，报 DECIMAL OVERFLOW 错误。
 
 ### BLOB 数据类型
+
 `BLOB`是一种存储二进制数据的数据类型，最大长度为 4,194,304 字节，可以通过 SQL 或 STMT2 方式写入二进制数据（也可以转换为 `\x` 开头的字符串写入）。
 
 通过 SHELL 查询数据时，显示为 16 进制的字符串，以 `\x` 开头。
 
 限制：
+
 - 仅支持在普通数据列中使用 BLOB 类型，BLOB 列数目不能超过 1 个。
 - 不支持 BLOB 列的条件过滤
 
 短期限制：
+
 - 不支持虚拟表/流计算等功能
 
 ## 常量

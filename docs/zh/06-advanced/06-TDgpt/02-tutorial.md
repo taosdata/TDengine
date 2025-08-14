@@ -6,7 +6,6 @@ description: 使用 docker、云服务、安装包体验 TDgpt
 
 import PkgListV3 from "/components/PkgListV3";
 
-
 本节介绍如何通过 Docker，云服务或安装包来部署 TDgpt
 
 ### 镜像版本说明
@@ -15,7 +14,6 @@ import PkgListV3 from "/components/PkgListV3";
 |-----------------------------------|-----------------------|
 | `tdengine/tdengine-tdgpt`         | 涛思时序数据基础模型（TDtsfm v1.0）       |
 | `tdengine/tdengine-tdgpt-full`    | 涛思时序数据基础模型（TDtsfm v1.0）+ Time-MoE 时序数据基础模型   |
-
 
 ### 快速启动指南
 
@@ -62,7 +60,6 @@ docker run -d --name tdgpt -p 6090:6090 -p 5000:5000 -p 5001:5001 tdengine/tdeng
 ```
 
 **注意**：TDgpt 服务端使用 6090 TCP 端口。5000 和 5001 端口分别是时序基础模型 TDtsfm 的服务端口和 Time-MoE 的服务端口；
-
 
 确定该容器已经启动并且在正常运行。
 
@@ -130,6 +127,7 @@ sudo apt install build-essential
 ```
 
 ### 获取安装包
+
 1. 从列表中下载获得 tar.gz 安装包
 
    <PkgListV3 type={9}/>
@@ -137,7 +135,7 @@ sudo apt install build-essential
    安装包中包含两个时序基础模型：涛思时序基础模型（TDtsfm v1.0）和 Time-MoE 时序基础模型。两个基础时序模型启动时候需要一定的内存空间，请确保安装机器至少有 16GiB 可用内存。
   
 2. 进入到安装包所在目录，使用 tar 解压安装包；
-   
+
 > 请将 `<version>` 替换为下载的安装包版本
 
 ```bash
@@ -169,6 +167,6 @@ cd tdengine-tdgpt-<version>
 
 ### 卸载
 
-卸载 TDgpt，执行 `rmtaosanode` 即可。 
+卸载 TDgpt，执行 `rmtaosanode` 即可。
 
 > 安装过程中自动安装的虚拟环境不会被自动删除，用户确认不再需要的时候，需要手动删除该虚拟环境。

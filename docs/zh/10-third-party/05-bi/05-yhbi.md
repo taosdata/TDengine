@@ -13,6 +13,7 @@ toc_max_heading_level: 4
 ## 前置条件
 
 准备以下环境：
+
 - TDengine TSDB 3.3.2.0 以上版本集群已部署并正常运行（企业及社区版均可）。
 - taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../../reference/components/taosadapter)。
 - 确保永洪 BI 已经安装并运行（如果未安装，请到永洪科技官方下载页面下载）。  
@@ -22,7 +23,7 @@ toc_max_heading_level: 4
 
 配置 JDBC 数据源的步骤如下：
 
-**第 1 步**，在打开的永洪 BI 中点击【添加数据源】按钮，选择 SQL 数据源中的“GENERIC”类型。 
+**第 1 步**，在打开的永洪 BI 中点击【添加数据源】按钮，选择 SQL 数据源中的“GENERIC”类型。
 
 **第 2 步**，点击【选择自定义驱动】按钮，在【驱动管理】对话框中点击【驱动列表】旁边的“+”，输入名称“MyTDengine”。然后点击【上传文件】按钮，上传刚刚下载的 TDengine TSDB JDBC 连接器文件 `taos-jdbcdriver-3.2.7-dist.jar`，并选择 `com.taosdata.jdbc.rs.RestfulDriver` 驱动，最后点击“确定”按钮，完成驱动添加步骤。  
 
@@ -55,6 +56,7 @@ select _wstart ws, count(*) cnt from supertable where tbname=?{metric} and ts = 
 ```
 
 其中：
+
 1. `_wstart`：表示时间窗口起始时间。
 2. `count（*）`：表示时间窗口内的聚合值。
 3. `?{interval}`：表示在 SQL 语句中引入名称为 `interval` 的参数，当 BI 工具查询数据时，会给 `interval` 参数赋值，如果取值为 1m，则表示按照 1 分钟的时间窗口降采样数据。
@@ -69,4 +71,3 @@ select _wstart ws, count(*) cnt from supertable where tbname=?{metric} and ts = 
 3. 在【数据集】侧边栏中选择待绑定的数据集，将数据列中的“维度”和“度量”按需绑定到“表格组件”。
 4. 点击【保存】后，即可查看报告。
 5. 更多有关永洪 BI 工具的信息，请查询永洪科技官方帮助文档。
-

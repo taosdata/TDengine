@@ -17,10 +17,10 @@ PARTITION BY part_list
 ```
 
 part_list 可以是任意的标量表达式，包括列、常量、标量函数和它们的组合。例如，将数据按标签 location 进行分组，取每个分组内的电压平均值：
+
 ```sql
 select location, avg(voltage) from meters partition by location
 ```
-
 
 TDengine TSDB 按如下方式处理数据切分子句：
 
@@ -31,11 +31,12 @@ TDengine TSDB 按如下方式处理数据切分子句：
 ```sql
 select _wstart, location, max(current) from meters partition by location interval(10m)
 ```
+
 数据切分子句最常见的用法就是在超级表查询中，按标签将子表数据进行切分，然后分别进行计算。特别是 PARTITION BY TBNAME 用法，它将每个子表的数据独立出来，形成一条条独立的时间序列，极大的方便了各种时序场景的统计分析。例如，统计每个电表每 10 分钟内的电压平均值：
+
 ```sql
 select _wstart, tbname, avg(voltage) from meters partition by tbname interval(10m)
 ```
-
 
 ## 窗口切分查询
 
@@ -54,10 +55,10 @@ window_clause: {
 ```
 
 其中，interval_val 和 sliding_val 都表示时间段，interval_offset 表示窗口偏移量，interval_offset 必须小于 interval_val，语法上支持三种方式，举例说明如下：
- - `INTERVAL(1s, 500a) SLIDING(1s)` 自带时间单位的形式，其中的时间单位是单字符表示，分别为：a (毫秒)、b (纳秒)、d (天)、h (小时)、m (分钟)、n (月)、s (秒)、u (微秒)、w (周)、y (年)。
- - `INTERVAL(1000, 500) SLIDING(1000)` 不带时间单位的形式，将使用查询库的时间精度作为默认时间单位，当存在多个库时默认采用精度更高的库。
- - `INTERVAL('1s', '500a') SLIDING('1s')` 自带时间单位的字符串形式，字符串内部不能有任何空格等其它字符。
 
+- `INTERVAL(1s, 500a) SLIDING(1s)` 自带时间单位的形式，其中的时间单位是单字符表示，分别为：a (毫秒)、b (纳秒)、d (天)、h (小时)、m (分钟)、n (月)、s (秒)、u (微秒)、w (周)、y (年)。
+- `INTERVAL(1000, 500) SLIDING(1000)` 不带时间单位的形式，将使用查询库的时间精度作为默认时间单位，当存在多个库时默认采用精度更高的库。
+- `INTERVAL('1s', '500a') SLIDING('1s')` 自带时间单位的字符串形式，字符串内部不能有任何空格等其它字符。
 
 ### 窗口子句的规则
 
@@ -84,10 +85,11 @@ FILL 语句指定某一窗口区间数据缺失的情况下的填充模式。填
 
 以上填充模式中，除了 NONE 模式默认不填充值之外，其他模式在查询的整个时间范围内如果没有数据 FILL 子句将被忽略，即不产生填充数据，查询结果为空。这种行为在部分模式（PREV、NEXT、LINEAR）下具有合理性，因为在这些模式下没有数据意味着无法产生填充数值。而对另外一些模式（NULL、VALUE）来说，理论上是可以产生填充数值的，至于需不需要输出填充数值，取决于应用的需求。所以为了满足这类需要强制填充数据或 NULL 的应用的需求，同时不破坏现有填充模式的行为兼容性，从 v3.0.3.0 开始，增加了两种新的填充模式：
 
-7. NULL_F：强制填充 NULL 值 
+7. NULL_F：强制填充 NULL 值
 8. VALUE_F：强制填充 VALUE 值
 
 NULL、NULL_F、VALUE、VALUE_F 这几种填充模式针对不同场景区别如下：
+
 - INTERVAL 子句：NULL_F、VALUE_F 为强制填充模式；NULL、VALUE 为非强制模式。在这种模式下下各自的语义与名称相符
 - 流计算中的 INTERVAL 子句：NULL_F 与 NULL 行为相同，均为非强制模式；VALUE_F 与 VALUE 行为相同，均为非强制模式。即流计算中的 INTERVAL 没有强制模式
 - INTERP 子句：NULL 与 NULL_F 行为相同，均为强制模式；VALUE 与 VALUE_F 行为相同，均为强制模式。即 INTERP 中没有非强制模式。
@@ -147,13 +149,13 @@ SELECT COUNT(*) FROM meters WHERE _rowts - voltage > 1000000;
 
 ![TDengine TSDB Database 状态窗口示意图](./pic/state_window.png)
 
-使用 STATE_WINDOW 来确定状态窗口划分的列。例如 
+使用 STATE_WINDOW 来确定状态窗口划分的列。例如
 
 ```
 SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status);
 ```
 
-仅关心 status 为 2 时的状态窗口的信息。例如 
+仅关心 status 为 2 时的状态窗口的信息。例如
 
 ```
 SELECT * FROM (SELECT COUNT(*) AS cnt, FIRST(ts) AS fst, status FROM temp_tb_1 STATE_WINDOW(status)) t WHERE status = 2;
@@ -196,6 +198,7 @@ SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION(ts, tol_val);
 如果需要对子查询的结果集进行事件窗口查询，那么子查询的结果集需要满足按时间线输出的要求，且可以输出有效的时间戳列。
 
 以下面的 SQL 语句为例，事件窗口切分如图所示：
+
 ```sql
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 
 ```
@@ -213,6 +216,7 @@ select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c
 计数窗口按固定的数据行数来划分窗口。默认将数据按时间戳排序，再按照 count_val 的值，将数据划分为多个窗口，然后做聚合计算。count_val 表示每个 count window 包含的最大数据行数，总数据行数不能整除 count_val 时，最后一个窗口的行数会小于 count_val。sliding_val 是常量，表示窗口滑动的数量，类似于 interval 的 SLIDING。col_name 参数，在 v3.3.7.0 之后开始支持，col_name, 指定一列或者多列，在 count_window 窗口计数时，窗口中的每行数据，指定列中至少有一列非空，否则该行数据不包含在计数窗口内。如果没有指定 col_name，表示没有非空限制。
 
 以下面的 SQL 语句为例，计数窗口切分如图所示：
+
 ```sql
 select _wstart, _wend, count(*) from t count_window(4);
 ```
@@ -239,5 +243,3 @@ SELECT _WSTART, _WEND, AVG(current), MAX(current), APERCENTILE(current, 50) FROM
   INTERVAL(10m)
   FILL(PREV);
 ```
-
-

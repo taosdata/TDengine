@@ -106,7 +106,7 @@ Anode 运行配置主要是以下：
 
 ### Anode 基本操作
 
-用户可通过 TDengine TSDB 的命令行工具 taos 进行 Anode 的管理。执行下述命令都需要确保命令行工具 taos 工作正常。 
+用户可通过 TDengine TSDB 的命令行工具 taos 进行 Anode 的管理。执行下述命令都需要确保命令行工具 taos 工作正常。
 
 #### 创建 Anode
 

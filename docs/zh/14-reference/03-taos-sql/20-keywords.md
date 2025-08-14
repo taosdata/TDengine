@@ -11,6 +11,7 @@ description: TDengine TSDB 保留关键字的详细列表
 关键字列表如下：
 
 ### A
+
 |关键字 | 说明|
 |----------------------|-|
 | ABORT                | |
@@ -42,6 +43,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | ASSIGN               | 3.3.6.0+ |
 
 ### B
+
 |关键字 | 说明|
 |----------------------|-|
 | BALANCE              | |
@@ -67,6 +69,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | BY                   | |
 
 ### C
+
 |关键字 | 说明|
 |----------------------|-|
 | CACHE                | |
@@ -106,6 +109,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | CURRENT_USER         | |
 
 ### D
+
 |关键字 | 说明|
 |----------------------|-|
 | DATABASE             | |
@@ -131,6 +135,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | DURATION             | |
 
 ### E
+
 |关键字 | 说明|
 |----------------------|-|
 | EACH                 | |
@@ -149,6 +154,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | EXPLAIN              | |
 
 ### F
+
 |关键字 | 说明|
 |----------------------|-|
 | FAIL                 | |
@@ -170,6 +176,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | FUNCTIONS            | |
 
 ### G
+
 |关键字 | 说明|
 |----------------------|-|
 | GE                   | |
@@ -181,6 +188,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | GT                   | |
 
 ### H
+
 |关键字 | 说明|
 |----------------------|-|
 | HAVING               | |
@@ -188,6 +196,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | HOST                 | |
 
 ### I
+
 |关键字 | 说明|
 |----------------------|-|
 | ID                   | |
@@ -217,6 +226,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | ISNULL               | |
 
 ### J
+
 |关键字 | 说明|
 |----------------------|-|
 | JLIMIT               | |
@@ -224,6 +234,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | JSON                 | |
 
 ### K
+
 |关键字 | 说明|
 |----------------------|-|
 | KEEP                 | |
@@ -232,6 +243,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | KILL                 | |
 
 ### L
+
 |关键字 | 说明|
 |----------------------|-|
 | LANGUAGE             | |
@@ -253,6 +265,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | LT                   | |
 
 ### M
+
 |关键字 | 说明|
 |----------------------|-|
 | MACHINES             | |
@@ -271,6 +284,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | MODULES              | |
 
 ### N
+
 |关键字 | 说明|
 |----------------------|-|
 | NCHAR                | |
@@ -289,6 +303,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | NULLS                | |
 
 ### O
+
 |关键字 | 说明|
 |----------------------|-|
 | OF                   | |
@@ -302,6 +317,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | OUTPUTTYPE           | |
 
 ### P
+
 |关键字 | 说明|
 |----------------------|-|
 | PAGES                | |
@@ -321,6 +337,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | PRIVILEGES           | |
 
 ### Q
+
 |关键字 | 说明|
 |----------------------|-|
 | QDURATION            | |
@@ -335,6 +352,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | QUESTION             | |
 
 ### R
+
 |关键字 | 说明|
 |----------------------|-|
 | RAISE                | |
@@ -362,6 +380,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | RSHIFT               | |
 
 ### S
+
 |关键字 | 说明|
 |----------------------|-|
 | SCHEMALESS           | |
@@ -410,6 +429,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | SYSTEM               | |
 
 ### T
+
 |关键字 | 说明|
 |----------------------|-|
 | TABLE                | |
@@ -441,6 +461,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | TTL                  | |
 
 ### U
+
 |关键字 | 说明|
 |----------------------|-|
 | UNION                | |
@@ -454,6 +475,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | USING                | |
 
 ### V
+
 |关键字 | 说明|
 |----------------------|-|
 | VALUE                | |
@@ -471,8 +493,8 @@ description: TDengine TSDB 保留关键字的详细列表
 | VNODE                | |
 | VNODES               | |
 
-
 ### W
+
 |关键字 | 说明|
 |----------------------|-|
 | WAL                  | |

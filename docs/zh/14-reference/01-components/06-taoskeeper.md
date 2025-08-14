@@ -285,7 +285,7 @@ taoskeeper 提供了 `/metrics` 接口，返回了 Prometheus 格式的监控数
 下面通过 `curl` 命令展示 `/metrics` 接口返回的数据格式：
 
 ```shell
-$ curl http://127.0.0.1:6043/metrics
+curl http://127.0.0.1:6043/metrics
 ```
 
 部分结果集：

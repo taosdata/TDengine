@@ -97,48 +97,61 @@ TDengine TSDB 提供了丰富的应用程序开发接口，为了便于用户快
 <TabItem label="Python" value="python">
 
 - **安装前准备**
-    - 安装 Python。新近版本 taospy 包要求 Python 3.6.2+。早期版本 taospy 包要求 Python 3.7+。taos-ws-py 包要求 Python 3.7+。如果系统上还没有 Python 可参考 [Python BeginnersGuide](https://wiki.python.org/moin/BeginnersGuide/Download) 安装。
-    - 安装 [pip](https://pypi.org/project/pip/)。大部分情况下 Python 的安装包都自带了 pip 工具，如果没有请参考 [pip documentation](https://pip.pypa.io/en/stable/installation/) 安装。
-    - 如果使用原生连接，还需 [安装客户端驱动](../connect/#安装客户端驱动-taosc)。客户端软件包含了 TDengine TSDB 客户端动态链接库 (libtaos.so 或 taos.dll) 和 TDengine TSDB CLI。
+  - 安装 Python。新近版本 taospy 包要求 Python 3.6.2+。早期版本 taospy 包要求 Python 3.7+。taos-ws-py 包要求 Python 3.7+。如果系统上还没有 Python 可参考 [Python BeginnersGuide](https://wiki.python.org/moin/BeginnersGuide/Download) 安装。
+  - 安装 [pip](https://pypi.org/project/pip/)。大部分情况下 Python 的安装包都自带了 pip 工具，如果没有请参考 [pip documentation](https://pip.pypa.io/en/stable/installation/) 安装。
+  - 如果使用原生连接，还需 [安装客户端驱动](../connect/#安装客户端驱动-taosc)。客户端软件包含了 TDengine TSDB 客户端动态链接库 (libtaos.so 或 taos.dll) 和 TDengine TSDB CLI。
 
 - **使用 pip 安装**
-    - 卸载旧版本
+  - 卸载旧版本
         如果以前安装过旧版本的 Python 连接器，请提前卸载。
+
         ```
         pip3 uninstall taos taospy
         pip3 uninstall taos  taos-ws-py
         ```
-    - 安装 `taospy`
-        - 最新版本
+
+  - 安装 `taospy`
+    - 最新版本
+
             ```
             pip3 install taospy
             ```
-        - 指定某个特定版本安装
+
+    - 指定某个特定版本安装
+
             ```
             pip3 install taospy==2.8.3
             ```
-        - 从 GitHub 安装
+
+    - 从 GitHub 安装
+
             ```
             pip3 install git+https://github.com/taosdata/taos-connector-python.git
             ```
-        :::note 此安装包为原生连接器    
-    - 安装 `taos-ws-py`
+
+        :::note 此安装包为原生连接器
+  - 安装 `taos-ws-py`
+
         ```bash
         pip3 install taos-ws-py
         ```
+
         :::note 此安装包为 WebSocket 连接器
-    - 同时安装 `taospy` 和 `taos-ws-py`
+  - 同时安装 `taospy` 和 `taos-ws-py`
+
         ```bash
         pip3 install taospy[ws]
-        ```                     
+        ```
 
 - **安装验证**
     <Tabs defaultValue="rest">
     <TabItem value="native" label="原生连接">
     对于原生连接，需要验证客户端驱动和 Python 连接器本身是否都正确安装。如果能成功导入 `taos` 模块，则说明已经正确安装了客户端驱动和 Python 连接器。可在 Python 交互式 Shell 中输入：
+
     ```python
     import taos
     ```
+
     </TabItem>
     <TabItem  value="rest" label="REST 连接">
     对于 REST 连接，只需验证是否能成功导入 `taosrest` 模块。可在 Python 交互式 Shell 中输入：
@@ -151,8 +164,9 @@ TDengine TSDB 提供了丰富的应用程序开发接口，为了便于用户快
     ```python
     import taosws
     ```
-    </TabItem> 
+    </TabItem>
     </Tabs>
+
 </TabItem>
 <TabItem label="Go" value="go">
 
@@ -194,25 +208,27 @@ taos = { version = "*", default-features = false, features = ["ws"] }
 <TabItem label="Node.js" value="node">
 
 - **安装前准备**
-    - 安装 Node.js 开发环境，使用 14 以上版本。下载链接：[Download Node.js](https://nodejs.org/en/download)
+  - 安装 Node.js 开发环境，使用 14 以上版本。下载链接：[Download Node.js](https://nodejs.org/en/download)
 
 - **安装**
-    - 使用 npm 安装 Node.js 连接器
+  - 使用 npm 安装 Node.js 连接器
+
         ```
         npm install @tdengine/websocket
         ```
+
     :::note Node.js 目前只支持 WebSocket 连接
 - **安装验证**
-    - 新建安装验证目录，例如：`~/tdengine-test`，下载 GitHub 上 [nodejsChecker.js 源代码](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/nodejsChecker.js) 到本地。
-    - 在命令行中执行以下命令。
+  - 新建安装验证目录，例如：`~/tdengine-test`，下载 GitHub 上 [nodejsChecker.js 源代码](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/nodejsChecker.js) 到本地。
+  - 在命令行中执行以下命令。
+
         ```bash
         npm init -y
         npm install @tdengine/websocket
         node nodejsChecker.js
         ```
-    - 执行以上步骤后，在命令行会输出 nodeChecker.js 连接 TDengine TSDB 实例，并执行简单插入和查询的结果。
 
-
+  - 执行以上步骤后，在命令行会输出 nodeChecker.js 连接 TDengine TSDB 实例，并执行简单插入和查询的结果。
 
 </TabItem>
 <TabItem label="C#" value="csharp">
@@ -265,6 +281,7 @@ dotnet add package TDengine.Connector
 在执行这一步之前，请确保有一个正在运行的，且可以访问到的 TDengine TSDB，而且服务端的 FQDN 配置正确。以下示例代码，都假设 TDengine TSDB 安装在本机，且 FQDN（默认 localhost）和 serverPort（默认 6030）都使用默认配置。
 
 ### 连接参数
+
 连接的配置项较多，因此在建立连接之前，我们能先介绍一下各语言连接器建立连接使用的参数。
 
 <Tabs defaultValue="java" groupId="lang">
@@ -420,6 +437,7 @@ WebSocket 连接需要先调用 `taos_options(TSDB_OPTION_DRIVER, "websocket")` 
 </Tabs>
 
 ### WebSocket 连接
+
 下面是各语言连接器建立 WebSocket 连接代码样例。演示了如何使用 WebSocket 连接方式连接到 TDengine TSDB 数据库，并对连接设定一些参数。整个过程主要涉及到数据库连接的建立和异常处理。
 
 <Tabs defaultValue="java" groupId="lang">
@@ -458,16 +476,17 @@ WebSocket 连接需要先调用 `taos_options(TSDB_OPTION_DRIVER, "websocket")` 
 {{#include docs/examples/c-ws-new/connect_example.c}}
 ```
 
-</TabItem>    
+</TabItem>
 <TabItem label="REST API" value="rest">
 不支持
 
-</TabItem>    
+</TabItem>
 </Tabs>
 
 ### 原生连接
+
 下面是各语言连接器建立原生连接代码样例。演示了如何使用原生连接方式连接到 TDengine TSDB 数据库，并对连接设定一些参数。整个过程主要涉及到数据库连接的建立和异常处理。
- 
+
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
 ```java
@@ -483,7 +502,7 @@ WebSocket 连接需要先调用 `taos_options(TSDB_OPTION_DRIVER, "websocket")` 
 ```
 </TabItem>
 <TabItem label="Rust" value="rust">
-```rust 
+```rust
 {{#include docs/examples/rust/nativeexample/examples/connect.rs}}
 ```
 </TabItem>
@@ -491,7 +510,7 @@ WebSocket 连接需要先调用 `taos_options(TSDB_OPTION_DRIVER, "websocket")` 
 不支持
 </TabItem>
 <TabItem label="C#" value="csharp">
-```csharp 
+```csharp
 {{#include docs/examples/csharp/connect/Program.cs:main}}
 ```
 </TabItem>
@@ -502,12 +521,13 @@ WebSocket 连接需要先调用 `taos_options(TSDB_OPTION_DRIVER, "websocket")` 
 <TabItem label="REST API" value="rest">
 不支持
 
-</TabItem>   
+</TabItem>
 </Tabs>
 
 ### REST 连接
+
 下面是各语言连接器建立 REST 连接代码样例。演示了如何使用 REST 连接方式连接到 TDengine TSDB 数据库。整个过程主要涉及到数据库连接的建立和异常处理。
- 
+
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
 ```java
@@ -540,17 +560,16 @@ WebSocket 连接需要先调用 `taos_options(TSDB_OPTION_DRIVER, "websocket")` 
 <TabItem label="REST API" value="rest">
 使用 REST API 方式访问 TDengine TSDB，由应用程序自主去建立 HTTP 连接。
 
-</TabItem>       
+</TabItem>
 </Tabs>
-
 
 :::tip
 如果建立连接失败，大部分情况下是 FQDN 或防火墙的配置不正确，详细的排查方法请看[《常见问题及反馈》](https://docs.taosdata.com/train-faq/faq)中的“遇到错误 Unable to establish connection, 我怎么办？”
 
 :::
 
-
 ## 连接池
+
 有些连接器提供了连接池，或者可以与已有的连接池组件配合使用。使用连接池，应用程序可以快速地从连接池中获取可用连接，避免了每次操作时创建和销毁连接的开销。这不仅减少了资源消耗，还提高了响应速度。此外，连接池还支持对连接的管理，如最大连接数限制、连接的有效性检查，确保了连接的高效和可靠使用。我们**推荐使用连接池管理连接**。  
 下面是各语言连接器的连接池支持代码样例。  
 
@@ -620,6 +639,5 @@ let taos = pool.get().await?;
 ```
 
     </TabItem>
-
 
 </Tabs>

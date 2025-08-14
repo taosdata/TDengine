@@ -84,6 +84,7 @@ order_expr:
 ```
 
 ### 部分字段语法说明
+
 - select_expr: 选择列表达式，可以为常量、列、运算、函数以及它们的混合运算，不支持聚合函数的嵌套。
 - from_clause: 指定查询的数据源，可以是单个表（超级表、子表、普通表、虚拟表），也可以是视图，也支持多表关联查询。
 - table_reference: 指定单个表（含视图）的名称，可选指定表的别名。
@@ -128,7 +129,7 @@ Hints 是用户控制单个语句查询优化的一种手段，当 Hint 不适�
 | SMALLDATA_TS_SORT| 无          | 超级表的数据按时间戳排序时，查询列长度大于等于 256，但是行数不多，使用这个提示，可以提高性能 | 超级表的数据按时间戳排序时  |
 | SKIP_TSMA        | 无          | 用于显示的禁用 TSMA 查询优化 | 带 Agg 函数的查询语句 |
 
-举例： 
+举例：
 
 ```sql
 SELECT /*+ BATCH_SCAN() */ a.ts FROM stable1 a, stable2 b where a.tag0 = b.tag0 and a.ts = b.ts;
@@ -178,6 +179,7 @@ SELECT location, groupid, current FROM d1001 LIMIT 2;
 ```
 
 ### 别名
+
 别名的命名规则与列相同，支持直接指定 UTF-8 编码格式的中文别名。
 
 ### 结果去重
@@ -211,7 +213,7 @@ SELECT DISTINCT col_name [, col_name ...] FROM tb_name;
 
 ```sql
 SELECT TAGS tag_name [, tag_name ...] FROM stb_name
-``` 
+```
 
 ### 结果集列名
 
@@ -302,6 +304,7 @@ TDengine TSDB 支持基于时间戳主键的 INNER JOIN，规则如下：
 ## INTERP
 
 interp 子句是 INTERP 函数 (../function/#interp) 的专用语法，当 SQL 语句中存在 interp 子句时，只能查询 INTERP 函数而不能与其他函数一起查询，同时 interp 子句与窗口子句 (window_clause)、分组子句 (group_by_clause) 也不能同时使用。INTERP 函数在使用时需要与 RANGE、EVERY 和 FILL 子句一起使用；流计算不支持使用 RANGE，但需要与 EVERY 和 FILL 关键字一起使用。
+
 - INTERP 的输出时间范围根据 RANGE(timestamp1, timestamp2) 字段来指定，需满足 timestamp1 \<= timestamp2。其中 timestamp1 为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2 为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
 - INTERP 根据 EVERY(time_unit) 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（time_unit 值）进行插值，time_unit 可取值时间单位：1a(毫秒)、1s(秒)、1m(分)、1h(小时)、1d(天)、1w(周)。例如 EVERY(500a) 将对于指定数据每 500 毫秒间隔进行一次插值。
 - INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值。关于 FILL 子句如何使用请参考 [FILL 子句](../distinguished#fill-子句)
@@ -330,7 +333,6 @@ GROUP BY 子句中在使用位置语法和结果集列名进行分组时，其�
 
 该子句对行进行分组，但不保证结果集的顺序。若要对分组进行排序，请使用 ORDER BY 子句
 
-
 ## PARTITION BY
 
 PARTITION BY 子句是 TDengine TSDB 3.0 版本引入的特色语法，用于根据 part_list 对数据进行切分，在每个切分的分片中可以进行各种计算。
@@ -338,7 +340,6 @@ PARTITION BY 子句是 TDengine TSDB 3.0 版本引入的特色语法，用于根
 PARTITION BY 与 GROUP BY 基本含义相似，都是按照指定列表进行数据分组然后进行计算，不同点在于 PARTITION BY 没有 GROUP BY 子句的 SELECT 列表的各种限制，组内可以进行任意运算（常量、聚合、标量、表达式等），因此在使用上 PARTITION BY 完全兼容 GROUP BY，所有使用 GROUP BY 子句的地方都可以替换为 PARTITION BY, 需要注意的是在没有聚合查询时两者的查询结果可能存在差异。
 
 因为 PARTITION BY 没有返回一行聚合数据的要求，因此还可以支持在分组切片后的各种窗口运算，所有需要分组进行的窗口运算都只能使用 PARTITION BY 子句。
-
 
 详见 [TDengine TSDB 特色查询](../distinguished)
 

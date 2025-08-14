@@ -18,6 +18,7 @@ toc_max_heading_level: 4
 ## TDengine TSDB 的边云协同解决方案
 
 TDengine TSDB Enterprise 致力于提供强大的边云协同能力，具备以下显著特性：
+
 - 高效数据同步：支持每秒百万条数据的同步效率，确保数据在边缘侧和云端之间
 快速、稳定地传输。
 - 多数据源对接：兼容多种外部数据源，如 AVEVA PI System、OPC-UA、OPC-DA、MQTT 等，实现数据的广泛接入和整合。
