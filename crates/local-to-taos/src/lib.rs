@@ -284,6 +284,31 @@ async fn open_file_with_retry(
     retry_interval: Duration,
 ) -> anyhow::Result<tokio::fs::File> {
     let path = path.as_ref();
+    // Fast path: attempt open once; if NotFound re-check metadata quickly then bail early
+    match tokio::fs::File::open(path).await {
+        Ok(f) => {
+            tracing::debug!("Opened file (fast path): {:?}", path.display());
+            return Ok(f);
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            // short double-check: if metadata also missing, return immediately
+            if tokio::fs::metadata(path).await.is_err() {
+                tracing::debug!(
+                    "File not found on fast path (confirmed missing): {:?}",
+                    path.display()
+                );
+                return Err(e.into());
+            }
+            // fall through to retry loop if metadata exists (race with creator)
+        }
+        Err(e) => {
+            if retry_max == 0 {
+                return Err(e.into());
+            }
+            // proceed to retry loop below with one fewer remaining attempts counted later
+        }
+    }
+
     let mut retry = retry_max;
     loop {
         match tokio::fs::File::open(path).await {
@@ -292,9 +317,16 @@ async fn open_file_with_retry(
                 return Ok(file);
             }
             Err(err) => {
+                if err.kind() == std::io::ErrorKind::NotFound {
+                    // Re-check quickly; if gone then exit early
+                    if tokio::fs::metadata(path).await.is_err() {
+                        tracing::debug!("File vanished during retry loop: {:?}", path.display());
+                        return Err(err.into());
+                    }
+                }
                 if retry == 0 {
                     tracing::error!(
-                        "Failed to open file: {:?}, error: {:#}",
+                        "Failed to open file after retries: {:?}, error: {:#}",
                         path.display(),
                         err
                     );
@@ -325,7 +357,35 @@ async fn restore(
     let path = path.as_ref();
     tracing::info!("[{idx}] restore with file: {:?}", path.display());
 
-    let reader = open_file_with_retry(path, retry_max, retry_interval).await?;
+    // 如果文件在调度与真正打开之间被删除 / 移走，直接跳过
+    if tokio::fs::metadata(path).await.is_err() {
+        tracing::warn!(
+            "[{idx}] file disappeared before open, skip: {:?}",
+            path.display()
+        );
+        return Ok(());
+    }
+
+    let reader = match open_file_with_retry(path, retry_max, retry_interval).await {
+        Ok(r) => r,
+        Err(e) => {
+            if let Some(ioe) = e.downcast_ref::<std::io::Error>() {
+                if ioe.kind() == std::io::ErrorKind::NotFound {
+                    tracing::warn!(
+                        "[{idx}] file vanished during retry, skip: {:?}",
+                        path.display()
+                    );
+                    return Ok(());
+                }
+            }
+            tracing::warn!(
+                "[{idx}] failed to open file: {:?}, error: {:#}, skip",
+                path.display(),
+                e
+            );
+            return Ok(());
+        }
+    };
     let reader = tokio::io::BufReader::new(reader);
     let reader = async_compression::tokio::bufread::ZstdDecoder::new(reader);
     let mut reader = ZCodec::new(reader);

@@ -1,12 +1,12 @@
 use crate::conf::LocalRestoreConfig;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use taosx_core::taoz::ZFile;
 use tokio::sync::Mutex;
 use tokio_stream::wrappers::IntervalStream;
@@ -25,10 +25,14 @@ pub struct FileWatcher {
     /// 文件名的排序规则
     sorter: Arc<Option<FileSorter>>,
 
-    /// 已经看到的文件
+    /// 已经确认稳定并发送过的文件 (hash of path)
     seen_files: Arc<Mutex<HashSet<u64>>>,
+    /// 正在观察稳定性的文件: hash -> (size, modified_time)
+    pending_files: Arc<Mutex<HashMap<u64, (u64, SystemTime)>>>,
     /// 停止标志
     stop_flag: Arc<AtomicBool>,
+    /// 首次扫描标志：首次扫描时直接返回已有文件
+    initial_bootstrap: Arc<AtomicBool>,
 }
 
 /// 使用 LocalRestoreConfig 创建 FileWatcher，默认使用 500 ms 的间隔
@@ -98,6 +102,8 @@ impl FileWatcher {
             name_filter: Arc::new(name_filter),
             sorter: Arc::new(sorter),
             stop_flag: Arc::new(AtomicBool::new(false)),
+            pending_files: Arc::new(Mutex::new(HashMap::new())),
+            initial_bootstrap: Arc::new(AtomicBool::new(true)),
         }
     }
 
@@ -109,11 +115,14 @@ impl FileWatcher {
         IntervalStream::new(tokio::time::interval(self.interval))
             .then(move |_| {
                 let dir = self.dir.clone();
-                tracing::info!("file watcher started: {:?}", dir);
+                // Downgraded to debug to reduce noise (was info)
+                tracing::debug!("file watcher started: {:?}", dir);
                 let seen_files = self.seen_files.clone();
+                let pending_files = self.pending_files.clone();
                 let stop_flag = self.stop_flag.clone();
                 let name_filter = self.name_filter.clone();
                 let sorter = self.sorter.clone();
+                let initial_bootstrap = self.initial_bootstrap.clone();
 
                 async move {
                     if stop_flag.load(Ordering::Relaxed) {
@@ -123,6 +132,8 @@ impl FileWatcher {
 
                     let mut new_files = vec![];
                     let mut seen_files = seen_files.lock().await;
+                    let mut pending_files = pending_files.lock().await;
+                    let first_scan = initial_bootstrap.load(Ordering::Relaxed);
 
                     // 读取目录下的所有文件
                     let mut dir_entries = tokio::fs::read_dir(&dir)
@@ -132,15 +143,13 @@ impl FileWatcher {
                         })
                         .ok()?;
                     tracing::trace!("read dir: {:?}", dir);
-                    let mut hasher = std::collections::hash_map::DefaultHasher::new();
                     while let Some(entry) = dir_entries
                         .next_entry()
                         .await
                         .inspect_err(|err| {
                             tracing::error!("failed to read entry, err: {:?}", err);
                         })
-                        .ok()?
-                    {
+                        .ok()? {
                         // 过滤文件
                         if let Some(ref name_filter) = *name_filter {
                             let file_name = entry.file_name();
@@ -149,18 +158,52 @@ impl FileWatcher {
                             }
                         }
                         let path = entry.path();
+                        // 为每个文件单独创建 hasher，避免多个文件累加 hash 状态导致冲突
+                        let mut hasher = std::collections::hash_map::DefaultHasher::new();
                         path.as_path().hash(&mut hasher);
                         let path_hash = hasher.finish();
-                        // 如果是文件，且没有看到过，那么，加入到新文件列表中
+                        // 如果是文件，且没有看到过，那么，处理
                         if path.is_file() && !seen_files.contains(&path_hash) {
-                            let existed = tokio::fs::metadata(&path).await.is_ok();
-                            if existed {
+                            if first_scan {
+                                // 首次扫描：直接返回
                                 new_files.push(path.clone());
                                 seen_files.insert(path_hash);
+                                continue;
+                            }
+                            match tokio::fs::metadata(&path).await {
+                                Ok(meta) => {
+                                    let size = meta.len();
+                                    let modified = meta.modified().unwrap_or(SystemTime::UNIX_EPOCH);
+                                    match pending_files.get(&path_hash) {
+                                        None => {
+                                            // 第一次看到：记录，等待下次确认稳定
+                                            pending_files.insert(path_hash, (size, modified));
+                                        }
+                                        Some((prev_size, prev_mod)) => {
+                                            if *prev_size == size && *prev_mod == modified {
+                                                // 稳定：接受
+                                                new_files.push(path.clone());
+                                                seen_files.insert(path_hash);
+                                                pending_files.remove(&path_hash);
+                                            } else {
+                                                // 还在变化：刷新基线
+                                                pending_files.insert(path_hash, (size, modified));
+                                            }
+                                        }
+                                    }
+                                }
+                                Err(err) => {
+                                    tracing::debug!("file metadata not available (may have vanished): {:?}, err: {:?}", path, err);
+                                    pending_files.remove(&path_hash);
+                                }
                             }
                         }
                     }
+                    if first_scan {
+                        initial_bootstrap.store(false, Ordering::Relaxed);
+                    }
                     drop(seen_files);
+                    drop(pending_files);
 
                     // 排序
                     if let Some(sorter) = sorter.deref() {
