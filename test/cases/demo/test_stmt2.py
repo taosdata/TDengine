@@ -91,10 +91,8 @@ class TestStmt2:
         tdLog.debug(f"Batch insert: {affected_rows} rows affected")
                     
         # Verify the data if needed
-        result = conn.query("SELECT COUNT(*) FROM batch_test")
-        count = result.fetch_all()[0][0]
-        assert count == batch_size, f"Should insert {batch_size} records, got {count}"
-        
+        tdSql.query("SELECT COUNT(*) FROM batch_test")
+        tdSql.checkData(0, 0, batch_size)
 
     def test_stmt2(self):
         """summary: example of using stmt2 API
