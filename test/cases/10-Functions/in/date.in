@@ -1,0 +1,7 @@
+select date(0)
+select date(cast(timestamp"2025-08-11 23:03:39" as bigint))
+select date("2025-08-11 12:00:02.000")
+select date("9999-12-31")
+select date("01/01/2026")
+select date("01-JAN-25")
+select groupid, date(last(ts)) from ts_4893.meters group by groupid
