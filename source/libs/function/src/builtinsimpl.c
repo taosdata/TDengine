@@ -7317,8 +7317,9 @@ int32_t valueChangeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pRes
   pValueChangeInfo->isFirstRow = true;
   pValueChangeInfo->prev.i64 = 0;
   pValueChangeInfo->prevTs = -1;
+
   if (pCtx->numOfParams > 2) {
-    pValueChangeInfo->ignoreOption = pCtx->param[2].param.i;
+    pValueChangeInfo->ignoreOption = pCtx->param[1].param.i;
   } else {
     pValueChangeInfo->ignoreOption = 1;
   }
@@ -7362,8 +7363,9 @@ static int32_t setValue(SValueChangeInfo* pValueChangeInfo, int32_t type, const 
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_BLOB: {
-      int32_t hashVal = MurmurHash3_32(pv,pvLen);
-      pValueChangeInfo->prev.i64 = hashVal;
+      int64_t v = MurmurHash3_64(pv,pvLen);
+      pValueChangeInfo->prev.i64 = v;
+      qError("set value %s, len %d, hash %ld",pv,pvLen, v);
       break;
     }
     default:
@@ -7454,10 +7456,12 @@ static int32_t setValueChange(SValueChangeInfo* pValueInfo, int32_t type, const 
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_BLOB: {
-      int32_t hashVal = MurmurHash3_32(pv,pvLen);
-      int64_t v = hashVal;
+      int64_t v = MurmurHash3_64(pv,pvLen);
+      qError("compare value %s, len %d, hash %ld",pv,pvLen, v);
       if(compareInt64Val(&pValueInfo->prev.i64, &v) != 0) {
           pValueInfo->total += 1;
+      } else {
+        qError("equal value %s, len %d, hash %ld, pre hash %ld, total %ld",pv,pvLen, v,pValueInfo->prev.i64,pValueInfo->total);
       }
       break;
     }
@@ -7478,6 +7482,7 @@ int32_t setValueChangeResult(SqlFunctionCtx* pCtx, SFuncInputRow* pRow) {
 
   int32_t               code = TSDB_CODE_SUCCESS;
 
+  char* pv = pRow->pData;
   if (pRow->isDataNull) {
     char* pv = pRow->pData;
     if(!valueChangeIgnoreNull(pValueInfo->ignoreOption) && !pValueInfo->preIsNull) {
