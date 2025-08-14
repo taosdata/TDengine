@@ -13,9 +13,8 @@ class TestStmt2:
     """Test case demonstrating stmt2 API usage"""
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        cls._conn = cls.conn
 
-    def run_basic_stmt2(self, conn):
+    def run_basic_stmt2(self):
         """Test basic stmt2 operations """
         
         dbname = "stmt2_test"
@@ -30,7 +29,7 @@ class TestStmt2:
         affected_rows = tdStmt2.execute_single(sql, params, check_affected=True, expected_rows=1)
         tdLog.debug(f"Single insert: {affected_rows} rows affected")
     
-    def run_super_table(self, conn):
+    def run_super_table(self):
         """Test super table operations with stmt2 API"""
         
         dbname = "stmt2_stable_test"
@@ -72,7 +71,7 @@ class TestStmt2:
         tdLog.debug(f"Super table insert: {affected_rows} rows affected")
 
 
-    def run_batch_insert(self, conn):
+    def run_batch_insert(self):
         """Test stmt2 API"""
         
         dbname = "stmt2_batch_test"
@@ -113,8 +112,8 @@ class TestStmt2:
         - xxx
 
         """   
-        self.run_basic_stmt2(self._conn)
-        self.run_super_table(self._conn)
-        self.run_batch_insert(self._conn)
+        self.run_basic_stmt2()
+        self.run_super_table()
+        self.run_batch_insert()
         
         tdLog.success(f"{__file__} successfully executed")
