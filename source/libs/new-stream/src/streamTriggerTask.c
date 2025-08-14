@@ -3679,6 +3679,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       }
 
       if (pContext->walMode == STRIGGER_WAL_META_ONLY) {
+        pContext->getWalMetaThisRound = TD_DLIST_NELES(&pContext->groupsToCheck) > 0;
         code = stRealtimeContextCheck(pContext);
         QUERY_CHECK_CODE(code, lino, _end);
       } else {
@@ -3765,6 +3766,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         QUERY_CHECK_CODE(code, lino, _end);
       }
 
+      pContext->getWalMetaThisRound = TD_DLIST_NELES(&pContext->groupsToCheck) > 0;
       code = stRealtimeContextCheck(pContext);
       QUERY_CHECK_CODE(code, lino, _end);
 
