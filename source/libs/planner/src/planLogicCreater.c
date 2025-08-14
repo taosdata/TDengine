@@ -380,13 +380,9 @@ static int32_t addVtbPrimaryTsCol(SVirtualTableNode* pTable, SNodeList** pCols) 
 }
 
 static int32_t addInsColumnScanCol(SRealTableNode* pTable, SNodeList** pCols) {
-  nodesListMakeStrictAppend(pCols, createInsColsScanCol(pTable, &pTable->pMeta->schema[1]));
-  nodesListMakeStrictAppend(pCols, createInsColsScanCol(pTable, &pTable->pMeta->schema[2]));
-  nodesListMakeStrictAppend(pCols, createInsColsScanCol(pTable, &pTable->pMeta->schema[3]));
-  nodesListMakeStrictAppend(pCols, createInsColsScanCol(pTable, &pTable->pMeta->schema[4]));
-  nodesListMakeStrictAppend(pCols, createInsColsScanCol(pTable, &pTable->pMeta->schema[5]));
-  nodesListMakeStrictAppend(pCols, createInsColsScanCol(pTable, &pTable->pMeta->schema[6]));
-  nodesListMakeStrictAppend(pCols, createInsColsScanCol(pTable, &pTable->pMeta->schema[7]));
+  for (int32_t i = 1; i < 8; ++i) {
+    PLAN_ERR_RET(nodesListMakeStrictAppend(pCols, createInsColsScanCol(pTable, &pTable->pMeta->schema[i])));
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1023,7 +1019,7 @@ static int32_t createTagScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
 
   PAR_ERR_RET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN, (SNode**)&pScan));
 
-  cloneVgroups(&pScan->pVgroupList, pVirtualScan->pVgroupList);
+  PAR_ERR_RET(cloneVgroups(&pScan->pVgroupList, pVirtualScan->pVgroupList));
   pScan->tableId = pVirtualScan->tableId;
   pScan->stableId = pVirtualScan->stableId;
   pScan->tableType = pVirtualScan->tableType;
@@ -1039,11 +1035,11 @@ static int32_t createTagScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
   pScan->node.groupAction = GROUP_ACTION_NONE;
   pScan->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
 
-  nodesCloneList(pVirtualScan->pScanPseudoCols, &pScan->pScanPseudoCols);
+  PAR_ERR_RET(nodesCloneList(pVirtualScan->pScanPseudoCols, &pScan->pScanPseudoCols));
 
   pScan->scanType = SCAN_TYPE_TAG;
 
-  createColumnByRewriteExprs(pScan->pScanPseudoCols, &pScan->node.pTargets);
+  PAR_ERR_RET(createColumnByRewriteExprs(pScan->pScanPseudoCols, &pScan->node.pTargets));
 
   pScan->onlyMetaCtbIdx = false;
   pCxt->hasScan = true;
@@ -1092,7 +1088,7 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   }
 
   if (pVtableScan->pScanPseudoCols) {
-    createTagScanLogicNode(pCxt, pSelect, pVtableScan, (SLogicNode**)&pTagScan);
+    PLAN_ERR_JRET(createTagScanLogicNode(pCxt, pSelect, pVtableScan, (SLogicNode**)&pTagScan));
   }
 
   ((SScanLogicNode *)pRealTableScan)->node.dynamicOp = true;
@@ -1184,7 +1180,7 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
   }
 
   if (pVtableScan->pScanPseudoCols) {
-    createTagScanLogicNode(pCxt, pSelect, pVtableScan, (SLogicNode**)&pTagScan);
+    PLAN_ERR_JRET(createTagScanLogicNode(pCxt, pSelect, pVtableScan, (SLogicNode**)&pTagScan));
   }
 
   if (scanAllCols) {
@@ -1856,10 +1852,9 @@ static int32_t createWindowLogicNodeByEvent(SLogicPlanContext* pCxt, SEventWindo
 static int32_t createWindowLogicNodeByCount(SLogicPlanContext* pCxt, SCountWindowNode* pCount, SSelectStmt* pSelect,
                                             SLogicNode** pLogicNode) {
   SWindowLogicNode* pWindow = NULL;
-  int32_t           code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, (SNode**)&pWindow);
-  if (NULL == pWindow) {
-    return code;
-  }
+  int32_t           code = TSDB_CODE_SUCCESS;
+
+  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, (SNode**)&pWindow));
 
   pWindow->winType = WINDOW_TYPE_COUNT;
   pWindow->node.groupAction = getGroupAction(pCxt, pSelect);
@@ -1868,20 +1863,18 @@ static int32_t createWindowLogicNodeByCount(SLogicPlanContext* pCxt, SCountWindo
   pWindow->windowCount = pCount->windowCount;
   pWindow->windowSliding = pCount->windowSliding;
   pWindow->pTspk = NULL;
-  code = nodesCloneNode(pCount->pCol, &pWindow->pTspk);
-  if (NULL == pWindow->pTspk) {
-    nodesDestroyNode((SNode*)pWindow);
-    return code;
-  }
+  PLAN_ERR_JRET(nodesCloneNode(pCount->pCol, &pWindow->pTspk));
   if (pCount->pColList != NULL) {
-    nodesCloneList(pCount->pColList, &pWindow->pColList);
-    if (NULL == pWindow->pColList) {
-      nodesDestroyNode((SNode*)pWindow);
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
+    PLAN_ERR_JRET(nodesCloneList(pCount->pColList, &pWindow->pColList));
   }
 
-  return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
+  PLAN_ERR_JRET(createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode));
+  return code;
+
+_return:
+  planError("%s failed, code %d", __func__ , code);
+  nodesDestroyNode((SNode*)pWindow);
+  return code;
 }
 
 static int32_t createWindowLogicNodeByAnomaly(SLogicPlanContext* pCxt, SAnomalyWindowNode* pAnomaly,

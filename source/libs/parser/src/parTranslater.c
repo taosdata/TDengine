@@ -14901,6 +14901,11 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
       LIST_LENGTH(calcCxt.streamTriggerScanList) > 0) {
     // need collect scan cols and put into trigger's scan list
     PAR_ERR_JRET(nodesListAppendList(pTriggerSelect->pProjectionList, calcCxt.streamTriggerScanList));
+    SNode *pCol = NULL;
+    FOREACH(pCol, pTriggerSelect->pProjectionList) {
+      SColumnNode* pColumn = (SColumnNode*)pCol;
+      tstrncpy(pColumn->tableAlias, pColumn->tableName, TSDB_TABLE_NAME_LEN);
+    }
   }
 
   PAR_ERR_JRET(createStreamReqBuildCalcDb(pCxt, pDbs, pReq));
