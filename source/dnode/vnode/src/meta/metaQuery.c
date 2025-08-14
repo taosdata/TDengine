@@ -643,8 +643,8 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) {
 
   pTSchema = tBuildTSchema(pSW->pSchema, pSW->nCols, pSW->version);
 
-  taosMemoryFree(pSW->pSchema);
-  taosMemoryFree(pSW);
+  taosMemoryFreeClear(pSW->pSchema);
+  taosMemoryFreeClear(pSW);
   return pTSchema;
 }
 

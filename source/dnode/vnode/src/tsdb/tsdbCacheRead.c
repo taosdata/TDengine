@@ -174,12 +174,18 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
           if (IS_STR_DATA_BLOB(pColVal->colVal.value.type)) {
             blobDataSetLen(p->buf, pColVal->colVal.value.nData);
 
-            memcpy(blobDataVal(p->buf), pColVal->colVal.value.pData, pColVal->colVal.value.nData);
+            // Fix null pointer error: check if pData is NULL before memcpy
+            if (pColVal->colVal.value.pData != NULL && pColVal->colVal.value.nData > 0) {
+              memcpy(blobDataVal(p->buf), pColVal->colVal.value.pData, pColVal->colVal.value.nData);
+            }
             p->bytes = pColVal->colVal.value.nData + BLOBSTR_HEADER_SIZE;  // binary needs to plus the header size
           } else {
             varDataSetLen(p->buf, pColVal->colVal.value.nData);
 
-            memcpy(varDataVal(p->buf), pColVal->colVal.value.pData, pColVal->colVal.value.nData);
+            // Fix null pointer error: check if pData is NULL before memcpy
+            if (pColVal->colVal.value.pData != NULL && pColVal->colVal.value.nData > 0) {
+              memcpy(varDataVal(p->buf), pColVal->colVal.value.pData, pColVal->colVal.value.nData);
+            }
             p->bytes = pColVal->colVal.value.nData + VARSTR_HEADER_SIZE;  // binary needs to plus the header size
           }
         } else {

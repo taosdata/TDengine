@@ -3234,7 +3234,14 @@ void tableListClear(STableListInfo* pTableListInfo) {
   taosArrayClear(pTableListInfo->pTableList);
   taosHashClear(pTableListInfo->map);
   taosHashClear(pTableListInfo->remainGroups);
-  taosMemoryFree(pTableListInfo->groupOffset);
+
+  // Fix double-free issue: Set pointer to NULL after freeing
+  // This prevents double-free when tableListDestroy is called later
+  if (pTableListInfo->groupOffset != NULL) {
+    taosMemoryFree(pTableListInfo->groupOffset);
+    pTableListInfo->groupOffset = NULL;
+  }
+
   pTableListInfo->numOfOuputGroups = 1;
   pTableListInfo->oneTableForEachGroup = false;
 }
