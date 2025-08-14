@@ -4054,8 +4054,8 @@ _exit:
   return code;
 }
 
-int32_t tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo){
-  if (pInfo == NULL) return TSDB_CODE_SUCCESS;
+void tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo){
+  if (pInfo == NULL) return;
   if (pInfo->pStreamPesudoFuncVals != NULL) {
     taosArrayDestroyEx(pInfo->pStreamPesudoFuncVals, tDestroySSTriggerCalcParam);
     pInfo->pStreamPesudoFuncVals = NULL;
@@ -4064,7 +4064,6 @@ int32_t tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo){
     taosArrayDestroyEx(pInfo->pStreamPartColVals, tDestroySStreamGroupValue);
     pInfo->pStreamPartColVals = NULL;
   }
-  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tSerializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, const SStreamMsgVTableInfo* pRsp){
