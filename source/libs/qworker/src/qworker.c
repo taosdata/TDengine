@@ -858,7 +858,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
   code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, qwMsg->msgInfo.compressMsg, sql,
                          OPTR_EXEC_MODEL_BATCH);
   end = taosGetTimestampUs();
-  QW_SCH_TASK_PERF("qCreateExecTask time: %ld us", end - start);
+  QW_SCH_TASK_PERF("qCreateExecTask time: %lld us", end - start);
   taosDisableMemPoolUsage();
 
   if (code) {
