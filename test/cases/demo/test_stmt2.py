@@ -6,6 +6,7 @@ Example showing how to use the stmt2 API
 
 from new_test_framework.utils import tdLog
 from new_test_framework.utils.stmt2 import tdStmt2
+from new_test_framework.utils.sql import tdSql
 import time
 
 class TestStmt2:
@@ -18,10 +19,8 @@ class TestStmt2:
         """Test basic stmt2 operations """
         
         dbname = "stmt2_test"
-        conn.execute(f"DROP DATABASE IF EXISTS {dbname}")
-        conn.execute(f"CREATE DATABASE {dbname}")
-        conn.select_db(dbname)
-        conn.execute("CREATE TABLE sensor_data (ts TIMESTAMP, temperature FLOAT, humidity INT, location BINARY(50))")
+        tdSql.prepare(dbname=dbname)
+        tdSql.execute("CREATE TABLE sensor_data (ts TIMESTAMP, temperature FLOAT, humidity INT, location BINARY(50))")
         
         # Single record insert using stmt2
         sql = "INSERT INTO sensor_data VALUES (?, ?, ?, ?)"
@@ -35,10 +34,8 @@ class TestStmt2:
         """Test super table operations with stmt2 API"""
         
         dbname = "stmt2_stable_test"
-        conn.execute(f"DROP DATABASE IF EXISTS {dbname}")
-        conn.execute(f"CREATE DATABASE {dbname}")
-        conn.select_db(dbname)
-        conn.execute("CREATE TABLE device_metrics (ts TIMESTAMP,val DOUBLE,status INT) TAGS (device_id BINARY(50),type INT,location BINARY(100))")
+        tdSql.prepare(dbname=dbname)
+        tdSql.execute("CREATE TABLE device_metrics (ts TIMESTAMP,val DOUBLE,status INT) TAGS (device_id BINARY(50),type INT,location BINARY(100))")
         
         sql = "INSERT INTO ? USING device_metrics TAGS(?, ?, ?) VALUES (?, ?, ?)"
         current_ts = int(time.time() * 1000)
@@ -79,10 +76,8 @@ class TestStmt2:
         """Test stmt2 API"""
         
         dbname = "stmt2_batch_test"
-        conn.execute(f"DROP DATABASE IF EXISTS {dbname}")
-        conn.execute(f"CREATE DATABASE {dbname}")
-        conn.select_db(dbname)
-        conn.execute("CREATE TABLE batch_test (ts TIMESTAMP, val1 INT, val2 DOUBLE, val3 BINARY(50))")
+        tdSql.prepare(dbname=dbname)
+        tdSql.execute("CREATE TABLE batch_test (ts TIMESTAMP, val1 INT, val2 DOUBLE, val3 BINARY(50))")
         
         batch_size = 1000
         base_ts = int(time.time() * 1000)  
