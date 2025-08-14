@@ -166,6 +166,10 @@ class Test_IDMP_Meters:
 
             # stream9
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream9` INTERVAL(1a) SLIDING(1a) FROM `tdasset`.`vt_em-9` STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream9` AS SELECT _twstart as ts,COUNT(*) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-9` WHERE ts >=_twstart AND ts <=_twend AND ts >= 1752574200000",
+
+            # stream10 sliding
+            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream10`      sliding(10s, 0s) FROM `tdasset`.`vt_em-10`                                        NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream10`      AS SELECT CAST(_tlocaltime/1000000 as timestamp) AS ts, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
+            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream10_sub1` sliding(10s, 0s) FROM `tdasset`.`vt_em-10` STREAM_OPTIONS(IGNORE_NODATA_TRIGGER)  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream10_sub1` AS SELECT CAST(_tlocaltime/1000000 as timestamp) AS ts, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
         ]
 
         tdSql.executes(sqls)
@@ -201,6 +205,8 @@ class Test_IDMP_Meters:
         self.trigger_stream8()
         # stream9
         self.trigger_stream9()
+        # stream10
+        self.trigger_stream10()
 
 
     # 
@@ -217,6 +223,7 @@ class Test_IDMP_Meters:
         self.verify_stream7()
         self.verify_stream8()
         self.verify_stream9()
+        self.verify_stream10()
 
 
     # 
@@ -596,6 +603,20 @@ class Test_IDMP_Meters:
         count = 120
         cols = "ts,voltage,power"
         vals = "400,200"
+        tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+
+
+    #
+    #  stream10 trigger 
+    #
+    def trigger_stream10(self):
+        ts = self.start2
+        table = "asset01.`em-10`"
+        cols = "ts,voltage,power"
+        vals = "100,200"
+
+        step  = 1000
+        count = 21
         tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
 
@@ -1036,6 +1057,22 @@ class Test_IDMP_Meters:
             exp_sql = f"select ts,1,voltage,power from asset01.`em-9` where ts >= 1752574200000;"
         )
         tdLog.info("verify stream9 .................................. successfully.")
+
+
+    #
+    # verify stream10
+    #
+    def verify_stream10(self):
+        # result_stream10
+        tdSql.checkResultsByFunc(
+            sql  = f"select * from tdasset.`result_stream10` ", 
+            func = lambda: tdSql.getRows() == 2
+            # row1
+            and tdSql.compareData(0, 1, 10)
+            and tdSql.compareData(1, 1, 10)
+        )
+        tdLog.info("verify stream10 ................................. successfully.")
+
 
     #
     # ---------------------   find other bugs   ----------------------
