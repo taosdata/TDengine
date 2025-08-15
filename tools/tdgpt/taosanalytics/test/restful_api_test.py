@@ -24,7 +24,7 @@ class RestfulTest(TestCase):
         response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content_length,
-                         len("TDgpt - TDengine© Time-Series Data Analytics Platform (ver 3.3.6.0)") + 1)
+                         len("TDgpt - TDengine TSDB© Time-Series Data Analytics Platform (ver 3.3.7.1)") + 1)
 
     def test_load_status(self):
         """ test load the server status """

@@ -768,6 +768,12 @@ static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id) {
     goto _end;
   }
 
+  if (pSupp->forecastRows <= 0) {
+    qError("%s output rows should be greater than 0, input:%" PRId64, id, pSupp->forecastRows);
+    code = TSDB_CODE_INVALID_PARA;
+    goto _end;
+  }
+
   // extract the confidence interval value
   char* pConf = taosHashGet(pHashMap, ALGO_OPT_CONF_NAME, strlen(ALGO_OPT_CONF_NAME));
   if (pConf != NULL) {
@@ -804,6 +810,12 @@ static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id) {
     pSupp->every = v;
     pSupp->setEvery = 1;
     qDebug("%s forecast set every ts:%"PRId64, id, pSupp->every);
+  }
+
+  if (pSupp->setEvery && pSupp->every <= 0) {
+    qError("%s period should be greater than 0, user specified:%"PRId64, id, pSupp->every);
+    code = TSDB_CODE_INVALID_PARA;
+    goto _end;
   }
 
   // extract the dynamic real feature for covariate forecasting

@@ -11,7 +11,7 @@ class _GPTService(TsfmBaseService):
         super().__init__()
 
         if  self.service_host is None:
-            self.service_host = 'http://127.0.0.1:5000/tdtsfm'
+            self.service_host = 'http://127.0.0.1:6071/tdtsfm'
 
 
     def execute(self):
