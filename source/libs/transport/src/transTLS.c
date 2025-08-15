@@ -21,8 +21,6 @@
 // clang-format on
 
 #define DEFALUT_SSL_DIR "/etc/ssl/"
-static int32_t sslReadDecryptedData(STransTLS* pTls, char* data, size_t ndata);
-static int32_t sslWriteEncyptedData(STransTLS* pTls, const char* data, size_t ndata);
 
 static int32_t sslDoConn(STransTLS* pTls);
 
