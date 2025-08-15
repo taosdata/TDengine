@@ -1130,6 +1130,19 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
   nodesWalkExpr(pTask->triggerFilter, nodeRewriteSlotid, &cxt);
   code = cxt.errCode;
   QUERY_CHECK_CODE(code, lino, _end);
+
+  if (pTask->trigTsIndex < taosArrayGetSize(pTrigSlotids)) {
+    void *px = taosArrayGet(pTrigSlotids, pTask->trigTsIndex);
+    QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+    pTask->trigTsIndex = *(int32_t *)px;
+  }
+  
+  if (pTask->calcTsIndex < taosArrayGetSize(pCalcSlotids)) {
+    void *px = taosArrayGet(pCalcSlotids, pTask->calcTsIndex);
+    QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+    pTask->calcTsIndex = *(int32_t *)px;
+  }
+
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
     void *px = taosArrayGet(pTrigSlotids, pTask->stateSlotId);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);

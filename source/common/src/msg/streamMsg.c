@@ -2600,7 +2600,9 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
       }
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &calcScan.readFromCache));
       TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&calcScan.scanPlan, NULL));
-      taosArrayPush(pReq->calcScanPlanList, &calcScan);
+      if (taosArrayPush(pReq->calcScanPlanList, &calcScan) == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
     }
   }
 
@@ -4054,8 +4056,8 @@ _exit:
   return code;
 }
 
-int32_t tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo){
-  if (pInfo == NULL) return TSDB_CODE_SUCCESS;
+void tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo){
+  if (pInfo == NULL) return;
   if (pInfo->pStreamPesudoFuncVals != NULL) {
     taosArrayDestroyEx(pInfo->pStreamPesudoFuncVals, tDestroySSTriggerCalcParam);
     pInfo->pStreamPesudoFuncVals = NULL;
@@ -4064,7 +4066,6 @@ int32_t tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo){
     taosArrayDestroyEx(pInfo->pStreamPartColVals, tDestroySStreamGroupValue);
     pInfo->pStreamPartColVals = NULL;
   }
-  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tSerializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, const SStreamMsgVTableInfo* pRsp){
