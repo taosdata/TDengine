@@ -6,6 +6,8 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.Resource;
+
 /**
  * 性能配置
  *
@@ -27,5 +29,6 @@ public class PerformanceConfig {
     private int maxThread = 50;
     private long queueSizeT = 1000;
     private long queueSizeD = 200000;
+    @Resource
     private ThreadConfig thread;
 }

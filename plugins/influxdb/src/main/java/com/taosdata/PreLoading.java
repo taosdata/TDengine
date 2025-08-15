@@ -160,6 +160,10 @@ public class PreLoading implements CommandLineRunner {
                 // 加载toml配置文件，覆盖默认配置，第一个参数是外部配置文件路径，配置不正确则默认退出
                 loadToml(args[0].trim());
             }
+            // 打印主要性能参数, 遇到大列场景主要调整这3个参数，比如689列的
+            logger.info("send batch: PERFORMANCE_LIMIT_BATCH={}", this.performanceConfig.getLimitBatch());
+            logger.info("data queue: PERFORMANCE_QUEUE_SIZE_D={}", this.performanceConfig.getQueueSizeD());
+            logger.info("query limit: PERFORMANCE_THREAD_READ_BUCKET_BATCH={}", this.performanceConfig.getThread().getReadBucketBatch());
             // 创建influxdb连接池
             if (StringUtils.isEmpty(this.influxdbConfig.getVersion()) ||
                     this.influxdbConfig.getVersion().matches("2.*")) {
@@ -291,7 +295,8 @@ public class PreLoading implements CommandLineRunner {
                 this.performanceConfig.setQueueSizeT(tomlParseResult.getLong("performance.queueSizeT").longValue());
             }
             if (tomlParseResult.getLong("performance.queueSizeD") != null) {
-                this.performanceConfig.setQueueSizeD(tomlParseResult.getLong("performance.queueSizeD").longValue());
+                // 注释掉才可通过环境变量设置. 目前先注释掉，后续需要页面传递再打开
+//                this.performanceConfig.setQueueSizeD(tomlParseResult.getLong("performance.queueSizeD").longValue());
             }
             if (tomlParseResult.getLong("performance.limitSpeed") != null) {
                 this.performanceConfig.setLimitSpeed(tomlParseResult.getLong("performance.limitSpeed").intValue());

@@ -62,7 +62,8 @@ public class MonitorThread implements Runnable {
                 StatusCache.noteQueue("Measurement", -1, BucketCache.measurementMap.size());
                 StatusCache.noteQueue("ThreadQueue", performanceConfig.getQueueSizeT(), BucketCache.getBucketDataThreadQueueTotal());
                 StatusCache.noteQueue("ThreadQueueBlocked", performanceConfig.getQueueSizeT(), BucketCache.getBucketDataThreadQueueBlocked());
-                StatusCache.noteQueue("DataQueue", performanceConfig.getQueueSizeD(), BucketDataCache.getBucketDataQueueTotalSize());
+                StatusCache.noteQueue("BucketDataQueue", performanceConfig.getQueueSizeD(), BucketDataCache.getBucketDataQueueSize());
+                StatusCache.noteQueue("BucketDataQueueTotal", performanceConfig.getQueueSizeD(), BucketDataCache.getBucketDataQueueTotalSize());
                 StatusCache.noteQueue("ReqMessage", -1, MessageCache.getReqMessageQueueSize());
                 StatusCache.noteQueue("ResMessage", -1, MessageCache.getResMessageQueueSize());
                 /* 更新Influxdb连接信息 */
@@ -84,7 +85,7 @@ public class MonitorThread implements Runnable {
 
                 // TODO 输出监控信息
 
-                // 判断上次输出时间，每隔一分钟输出一次完整信息
+                // 判断上次输出时间，每隔 10s 输出一次完整信息
                 if (this.lastTime == null || (System.currentTimeMillis() - this.lastTime.getTime()) > 10000) {
                     logger.info(StatusCache.toPrintString());
                     // 更新lastTime

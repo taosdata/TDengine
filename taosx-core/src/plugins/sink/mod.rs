@@ -2417,7 +2417,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         metrics.add_processed_messages(raw_rows as u64);
         drop(taos);
     }
-    println!("finished, totally {count} rows");
+    tracing::info!("task {task_id:?} finished, totally {count} rows");
     Ok(())
 }
 
