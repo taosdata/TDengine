@@ -221,3 +221,119 @@ cases/uncatalog/system-test/2-query/test_nestedQueryInterval.py -Q 4
 cases/uncatalog/system-test/2-query/test_stablity.py -Q 4
 cases/uncatalog/system-test/2-query/test_sml.py -Q 4
 cases/uncatalog/system-test/2-query/test_odbc.py
+cases/uncatalog/system-test/1-insert/test_mutil_stage.py
+cases/uncatalog/system-test/1-insert/test_insert_column_value.py
+cases/uncatalog/system-test/1-insert/test_insert_from_csv.py
+cases/uncatalog/system-test/3-enterprise/restore/test_kill_restore_dnode.py -N 5
+cases/uncatalog/system-test/0-others/test_mounts.py
+cases/uncatalog/system-test/0-others/test_taos_shell.py
+cases/uncatalog/system-test/0-others/test_taos_shell_error.py
+cases/uncatalog/system-test/0-others/test_taos_shell_net_chk.py
+cases/uncatalog/system-test/0-others/test_telemetry.py
+cases/uncatalog/system-test/0-others/test_taosd_monitor.py
+cases/uncatalog/system-test/0-others/test_taosdlog.py
+cases/uncatalog/system-test/0-others/test_udf_test.py
+cases/uncatalog/system-test/0-others/test_udf_create.py
+cases/uncatalog/system-test/0-others/test_udf_restart_taosd.py
+cases/uncatalog/system-test/0-others/test_udf_cfg1.py
+cases/uncatalog/system-test/0-others/test_udf_cfg2.py
+cases/uncatalog/system-test/0-others/test_sysinfo.py
+cases/uncatalog/system-test/0-others/test_multilevel.py
+cases/uncatalog/system-test/0-others/test_retention.py
+cases/uncatalog/system-test/0-others/test_retention2.py
+cases/uncatalog/system-test/0-others/test_multilevel_createdb.py
+cases/uncatalog/system-test/0-others/test_show_disk_usage_multilevel.py
+cases/uncatalog/system-test/0-others/test_dismatch_config.py
+cases/uncatalog/system-test/0-others/test_sml_restart.py
+cases/uncatalog/system-test/0-others/test_udfpy_main.py
+cases/uncatalog/system-test/0-others/test_hot_refresh_configurations.py
+cases/uncatalog/system-test/0-others/test_kill_balance_leader.py -N 3
+cases/uncatalog/system-test/0-others/test_persisit_config.py
+cases/uncatalog/system-test/0-others/test_information_schema.py
+cases/uncatalog/system-test/0-others/test_ins_filesets.py
+cases/uncatalog/system-test/0-others/view/non_marterial_view/test_view.py
+cases/uncatalog/system-test/7-tmq/test_tmqShow.py
+cases/uncatalog/system-test/7-tmq/test_tmqDropStb.py
+cases/uncatalog/system-test/7-tmq/test_subscribeStb0.py
+cases/uncatalog/system-test/7-tmq/test_subscribeStb1.py
+cases/uncatalog/system-test/7-tmq/test_subscribeStb2.py
+cases/uncatalog/system-test/7-tmq/test_subscribeStb3.py
+cases/uncatalog/system-test/7-tmq/test_subscribeDb0.py -N 3 --replica 3
+cases/uncatalog/system-test/7-tmq/test_ins_topics_test.py
+cases/uncatalog/system-test/7-tmq/test_basic5.py
+cases/uncatalog/system-test/7-tmq/test_subscribeDb.py -N 3 --replica 3
+cases/uncatalog/system-test/7-tmq/test_subscribeDb1.py
+cases/uncatalog/system-test/7-tmq/test_subscribeDb2.py
+cases/uncatalog/system-test/7-tmq/test_subscribeDb3.py
+cases/uncatalog/system-test/7-tmq/test_subscribeDb4.py
+cases/uncatalog/system-test/7-tmq/test_subscribeStb.py
+cases/uncatalog/system-test/7-tmq/test_subscribeStb4.py
+cases/uncatalog/system-test/7-tmq/test_db.py
+cases/uncatalog/system-test/7-tmq/test_tmqError.py
+cases/uncatalog/system-test/7-tmq/test_schema.py
+cases/uncatalog/system-test/7-tmq/test_stbFilterWhere.py
+cases/uncatalog/system-test/7-tmq/test_stbFilter.py
+cases/uncatalog/system-test/7-tmq/test_tmqCheckData.py
+cases/uncatalog/system-test/7-tmq/test_tmqCheckData1.py
+cases/uncatalog/system-test/7-tmq/test_tmqConsumerGroup.py
+cases/uncatalog/system-test/7-tmq/test_tmqAlterSchema.py
+cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb.py -N 3 --replica 3
+cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1.py -N 3 --replica 3
+cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb_mutilVg.py
+cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1_mutilVg.py
+cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb_1ctb.py
+cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1_1ctb.py
+cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb_1ctb_funcNFilter.py
+cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb_mutilVg_mutilCtb_funcNFilter.py
+cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb_mutilVg_mutilCtb.py
+cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1_1ctb_funcNFilter.py
+cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1_mutilVg_mutilCtb_funcNFilter.py
+cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1_mutilVg_mutilCtb.py
+cases/uncatalog/system-test/7-tmq/test_tmqAutoCreateTbl.py
+cases/uncatalog/system-test/7-tmq/test_tmqDnodeRestart.py
+cases/uncatalog/system-test/7-tmq/test_tmqDnodeRestart1.py
+cases/uncatalog/system-test/7-tmq/test_tmqUpdate_1ctb.py
+cases/uncatalog/system-test/7-tmq/test_tmqUpdateWithConsume.py -N 3 --replica 3
+cases/uncatalog/system-test/7-tmq/test_tmqUpdate_multiCtb_snapshot0.py
+cases/uncatalog/system-test/7-tmq/test_tmqUpdate_multiCtb_snapshot1.py
+cases/uncatalog/system-test/7-tmq/test_tmqDelete_1ctb.py
+cases/uncatalog/system-test/7-tmq/test_tmqDelete_multiCtb.py -N 3 --replica 3
+cases/uncatalog/system-test/7-tmq/test_tmqDropStbCtb.py
+cases/uncatalog/system-test/7-tmq/test_tmqDropNtb_snapshot0.py
+cases/uncatalog/system-test/7-tmq/test_tmqDropNtb_snapshot1.py
+cases/uncatalog/system-test/7-tmq/test_tmqUdf.py
+cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot0.py
+cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot1.py
+cases/uncatalog/system-test/7-tmq/test_stbTagFilter_1ctb.py
+cases/uncatalog/system-test/7-tmq/test_dataFromTsdbNWal.py
+cases/uncatalog/system-test/7-tmq/test_dataFromTsdbNWal_multiCtb.py
+cases/uncatalog/system-test/7-tmq/test_tmq_taosx.py
+cases/uncatalog/system-test/7-tmq/test_tmq_td32526.py
+cases/uncatalog/system-test/7-tmq/test_tmq_td32471.py
+cases/uncatalog/system-test/7-tmq/test_tmq_ts6115.py
+cases/uncatalog/system-test/7-tmq/test_tmq_tx484.py
+cases/uncatalog/system-test/7-tmq/test_tmq_replay.py
+cases/uncatalog/system-test/7-tmq/test_tmq_offset.py
+cases/uncatalog/system-test/7-tmq/test_tmqDataPrecisionUnit.py
+cases/uncatalog/system-test/7-tmq/test_raw_block_interface_test.py
+cases/uncatalog/system-test/7-tmq/test_stbTagFilter_multiCtb.py
+cases/uncatalog/system-test/7-tmq/test_tmqSubscribeStb_r3.py -N 5
+cases/uncatalog/system-test/7-tmq/test_tmq3mnodeSwitch.py -N 6 -M 3 -I True
+cases/uncatalog/system-test/7-tmq/test_tmq3mnodeSwitch.py -N 6 -M 3 --replica 3 -I True
+cases/uncatalog/system-test/7-tmq/test_tmqVnodeTransform_db_removewal.py -N 2 --replica 1
+cases/uncatalog/system-test/7-tmq/test_tmqVnodeTransform_stb_removewal.py -N 6 --replica 3
+cases/uncatalog/system-test/7-tmq/test_tmqVnodeTransform_stb.py -N 2 --replica 1
+cases/uncatalog/system-test/7-tmq/test_tmqVnodeTransform_stb.py -N 6 --replica 3
+cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_select.py -N 2 --replica 1
+cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_select_duplicatedata.py -N 3 --replica 3
+cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_select_duplicatedata_false.py -N 3 --replica 3   
+cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_select.py -N 3 --replica 3
+cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_ntb_select.py -N 3 --replica 3
+cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_select_false.py -N 3 --replica 3
+cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb.py -N 3 --replica 3
+cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_false.py -N 3 --replica 3
+cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_column.py -N 3 --replica 3
+cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_column_false.py -N 3 --replica 3
+cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_db.py -N 3 --replica 3
+cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_db_false.py -N 3 --replica 3
+cases/uncatalog/system-test/7-tmq/test_tmqVnodeReplicate.py -M 3 -N 3 --replica 3
