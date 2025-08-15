@@ -599,3 +599,13 @@ description: TDengine TSDB 服务端的错误码列表和详细说明
 | 0x80000448 | Analysis internal error, not processed              | anode 出现内部错误   | 具体查看 server 端的日志 (taosanode.app.log) |
 | 0x80000449 | Analysis failed since not enough rows               | 预测分析输入数据行数太少   | 增加输入数据规模（预测至少 10 行记录）                |
 | 0x8000044A | Not support co-variate/multi-variate forecast       | 不支持协变量/多变量预测   | 更换使用的预测模型                            |
+
+
+## STREAM
+
+| 错误码        | 错误描述                                                | 可能的出错场景或者可能的原因 | 建议用户采取的措施                        |
+|------------|-----------------------------------------------------|----------------|--------------------------------------|
+| 0x80007007 | Snode still in use with streams                     | SNode 正在使用，无法删除       | 检查 SNode 的流使用情况，确认是否继续删除      |
+| 0x8000700E | Db used by stream                                   | DB 正被某个流使用，不能删除        | 检查流对 DB 的使用情况    |
+| 0x80007014 | Stream output table name too long                   | 输出表名超长        | 检查建流语句中输出表名规则是否正确，是否结果超长            |
+| 0x80007016 | Stream output table name calc failed                | 输出表名计算失败       | 检查建流语句中输出表名规则是否正确，是否有 NULL 值存在   |
