@@ -15,6 +15,7 @@ import sys
 import os
 import threading as thd
 import multiprocessing as mp
+import itertools
 import taos
 from taos import *
 from util.log import *
