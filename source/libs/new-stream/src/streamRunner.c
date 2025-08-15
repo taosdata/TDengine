@@ -124,7 +124,11 @@ static void stRunnerTaskExecMgrReleaseExec(SStreamRunnerTask* pTask, SStreamRunn
 }
 
 static void stSetRunnerOutputInfo(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMsg) {
-  strncpy(pTask->output.outDbFName, pMsg->outDBFName, TSDB_DB_FNAME_LEN);
+  if (pMsg->outDBFName) {
+    strncpy(pTask->output.outDbFName, pMsg->outDBFName, TSDB_DB_FNAME_LEN);
+  } else {
+    pTask->output.outDbFName[0] = '\0';
+  }
   TSWAP(pTask->output.outCols, pMsg->outCols);
   pTask->output.outTblType = pMsg->outTblType;
   pTask->output.outStbUid = pMsg->outStbUid;
