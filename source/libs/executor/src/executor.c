@@ -13,10 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "executor.h"
 #include <stdint.h>
 #include "cmdnodes.h"
 #include "dataSinkInt.h"
+#include "executil.h"
+#include "executor.h"
 #include "executorInt.h"
 #include "libs/new-stream/stream.h"
 #include "operator.h"
@@ -56,6 +57,8 @@ int32_t getCurrentMnodeEpset(SEpSet* pEpSet) {
 static void cleanupRefPool() {
   int32_t ref = atomic_val_compare_exchange_32(&exchangeObjRefPool, exchangeObjRefPool, 0);
   taosCloseRef(ref);
+  // Also cleanup global TableListInfo pool
+  destroyGlobalTableListPool();
 }
 
 static void initRefPool() {
@@ -1828,7 +1831,11 @@ int32_t streamCalcOneScalarExprInRange(SNode* pExpr, SScalarParam* pDst, int32_t
     SSDataBlock block = {0};
     block.info.rows = 1;
     SSDataBlock* pBlock = &block;
-    taosArrayPush(pBlockList, &pBlock);
+    if (NULL == taosArrayPush(pBlockList, &pBlock)) {
+      code = terrno;
+      qError("failed to push block to block list at: %s, %d, code:%s", __func__, __LINE__, tstrerror(code));
+      return code;
+    }
     if (code == 0) code = scalarCalculateInRange(pSclNode, pBlockList, pDst, rowStartIdx, rowEndIdx, pExtraParams, NULL);
     taosArrayDestroy(pBlockList);
   }
@@ -1860,7 +1867,11 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes, int32_t winIdx)
     }
   }
 
-  blockDataEnsureCapacity(*pRes, (*pRes)->info.rows + 1);
+  code = blockDataEnsureCapacity(*pRes, (*pRes)->info.rows + 1);
+  if (code != 0) {
+    qError("failed to ensure capacity for block at: %s, %d, code:%s", __func__, __LINE__, tstrerror(code));
+    return code;
+  }
 
   // loop all exprs for force output, execute all exprs
   int32_t idx = 0;
@@ -1936,7 +1947,11 @@ int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, const SStreamRuntimeF
       pCol->info.bytes = ((SExprNode*)pExpr)->resType.bytes;
       pCol->info.precision = ((SExprNode*)pExpr)->resType.precision;
       pCol->info.scale = ((SExprNode*)pExpr)->resType.scale;
-      colInfoDataEnsureCapacity(pCol, 1, true);
+      code = colInfoDataEnsureCapacity(pCol, 1, true);
+      if (code != 0) {
+        qError("failed to ensure capacity for col info data at: %s, %d, code:%s", __func__, __LINE__, tstrerror(code));
+        break;
+      }
       dst.columnData = pCol;
       dst.numOfRows = 1;
       dst.colAlloced = true;

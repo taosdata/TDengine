@@ -1146,11 +1146,13 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
   }
 
   if (initRemainGroups) {
-    pTableListInfo->remainGroups =
-        taosHashInit(rows, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
     if (pTableListInfo->remainGroups == NULL) {
-      code = terrno;
-      goto end;
+      pTableListInfo->remainGroups =
+          taosHashInit(rows, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+      if (pTableListInfo->remainGroups == NULL) {
+        code = terrno;
+        goto end;
+      }
     }
   }
 
@@ -1419,8 +1421,8 @@ static int32_t optimizeTbnameInCondImpl(void* pVnode, SArray* pExistedUidList, S
     return -1;
   }
 
-  if ((pNode->pLeft != NULL && nodeType(pNode->pLeft) == QUERY_NODE_COLUMN &&
-       ((SColumnNode*)pNode->pLeft)->colType == COLUMN_TYPE_TBNAME) &&
+  if ((pNode->pLeft != NULL &&
+       (nodeType(pNode->pLeft) == QUERY_NODE_COLUMN || nodeType(pNode->pLeft) == QUERY_NODE_FUNCTION)) &&
       (pNode->pRight != NULL && nodeType(pNode->pRight) == QUERY_NODE_NODE_LIST)) {
     SNodeListNode* pList = (SNodeListNode*)pNode->pRight;
 
@@ -1893,7 +1895,7 @@ int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray** tableList
   pNode.uid = suid;
   pNode.tableType = TSDB_SUPER_TABLE;
 
-  STableListInfo* pTableListInfo = tableListCreate();
+  STableListInfo* pTableListInfo = tableListGetFromPool(pTaskInfo);
   QUERY_CHECK_NULL(pTableListInfo, code, lino, _end, terrno);
   uint8_t digest[17] = {0};
   code = getTableList(pVnode, &pNode, pSubplan ? pSubplan->pTagCond : NULL, pSubplan ? pSubplan->pTagIndexCond : NULL,
@@ -3079,6 +3081,153 @@ void tableListDestroy(STableListInfo* pTableListInfo) {
   taosMemoryFree(pTableListInfo);
 }
 
+// Global TableListInfo pool for performance optimization
+static SArray*        g_tableListPool = NULL;
+static TdThreadRwlock g_tableListPoolLock;
+static volatile bool  g_tableListPoolInitialized = false;
+
+// Initialize global TableListInfo pool
+static int32_t initGlobalTableListPool() {
+  if (g_tableListPoolInitialized) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (taosThreadRwlockInit(&g_tableListPoolLock, NULL) != 0) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  g_tableListPool = taosArrayInit(32, POINTER_BYTES);  // Larger global pool
+  if (g_tableListPool == NULL) {
+    (void)taosThreadRwlockDestroy(&g_tableListPoolLock);
+    return terrno;
+  }
+
+  g_tableListPoolInitialized = true;
+  qDebug("Global TableListInfo pool initialized with capacity 32");
+  return TSDB_CODE_SUCCESS;
+}
+
+// Cleanup global pool (called on shutdown)
+void destroyGlobalTableListPool() {
+  if (!g_tableListPoolInitialized) {
+    return;
+  }
+
+  (void)taosThreadRwlockWrlock(&g_tableListPoolLock);
+
+  if (g_tableListPool) {
+    size_t size = taosArrayGetSize(g_tableListPool);
+    for (size_t i = 0; i < size; ++i) {
+      STableListInfo* pListInfo = *(STableListInfo**)taosArrayGet(g_tableListPool, i);
+      if (pListInfo) {
+        tableListDestroy(pListInfo);
+      }
+    }
+    taosArrayDestroy(g_tableListPool);
+    g_tableListPool = NULL;
+  }
+
+  (void)taosThreadRwlockUnlock(&g_tableListPoolLock);
+  (void)taosThreadRwlockDestroy(&g_tableListPoolLock);
+  g_tableListPoolInitialized = false;
+  qDebug("Global TableListInfo pool destroyed");
+}
+
+// Legacy function for backward compatibility
+int32_t initTableListPool(SExecTaskInfo* pTaskInfo) {
+  // Just ensure global pool is initialized
+  return initGlobalTableListPool();
+}
+
+void destroyTableListPool(SExecTaskInfo* pTaskInfo) {
+  if (pTaskInfo == NULL || pTaskInfo->pTableListPool == NULL) {
+    return;
+  }
+
+  taosWLockLatch(&pTaskInfo->tableListPoolLock);
+
+  size_t size = taosArrayGetSize(pTaskInfo->pTableListPool);
+  for (size_t i = 0; i < size; ++i) {
+    STableListInfo* pListInfo = *(STableListInfo**)taosArrayGet(pTaskInfo->pTableListPool, i);
+    tableListDestroy(pListInfo);
+  }
+
+  taosArrayDestroy(pTaskInfo->pTableListPool);
+  pTaskInfo->pTableListPool = NULL;
+
+  taosWUnLockLatch(&pTaskInfo->tableListPoolLock);
+}
+
+STableListInfo* tableListGetFromPool(SExecTaskInfo* pTaskInfo) {
+  // Initialize global pool if needed
+  if (initGlobalTableListPool() != TSDB_CODE_SUCCESS) {
+    qError("Failed to initialize global TableListInfo pool, falling back to direct creation");
+    return tableListCreate();
+  }
+
+  // Try to get from global pool
+  (void)taosThreadRwlockRdlock(&g_tableListPoolLock);
+
+  size_t poolSize = taosArrayGetSize(g_tableListPool);
+  if (poolSize > 0) {
+    (void)taosThreadRwlockUnlock(&g_tableListPoolLock);
+
+    // Get write lock and try again (double-check pattern)
+    (void)taosThreadRwlockWrlock(&g_tableListPoolLock);
+    poolSize = taosArrayGetSize(g_tableListPool);
+    if (poolSize > 0) {
+      STableListInfo* pListInfo = *(STableListInfo**)taosArrayPop(g_tableListPool);
+      (void)taosThreadRwlockUnlock(&g_tableListPoolLock);
+
+      if (pListInfo) {
+        return pListInfo;
+      }
+    }
+    (void)taosThreadRwlockUnlock(&g_tableListPoolLock);
+  } else {
+    (void)taosThreadRwlockUnlock(&g_tableListPoolLock);
+  }
+
+  // Pool is empty or failed, create new instance
+  qDebug("Global pool empty, creating new TableListInfo instance");
+  return tableListCreate();
+}
+
+void tableListReturnToPool(STableListInfo* pListInfo) {
+  if (pListInfo == NULL) {
+    return;
+  }
+
+  // Try to return to global pool
+  if (!g_tableListPoolInitialized) {
+    qDebug("Global pool not initialized, destroying TableListInfo instance");
+    tableListDestroy(pListInfo);
+    return;
+  }
+
+  (void)taosThreadRwlockWrlock(&g_tableListPoolLock);
+
+  // Limit global pool size to avoid memory bloat (max 32 instances globally)
+  size_t poolSize = taosArrayGetSize(g_tableListPool);
+  if (poolSize < 32) {
+    tableListClear(pListInfo);  // Clear data but keep structure
+    if (taosArrayPush(g_tableListPool, &pListInfo) == NULL) {
+      // Failed to add to pool, destroy instead
+      (void)taosThreadRwlockUnlock(&g_tableListPoolLock);
+      tableListDestroy(pListInfo);
+      qError("Failed to return TableListInfo to global pool, destroying instance");
+      return;
+    }
+    qDebug("TableListInfo returned to global pool, pool size: %zu", poolSize + 1);
+  } else {
+    // Pool is full, destroy the instance
+    tableListDestroy(pListInfo);
+    qDebug("Global TableListInfo pool full (%zu instances), destroying instance", poolSize);
+  }
+
+  (void)taosThreadRwlockUnlock(&g_tableListPoolLock);
+}
+
 void tableListClear(STableListInfo* pTableListInfo) {
   if (pTableListInfo == NULL) {
     return;
@@ -3087,7 +3236,14 @@ void tableListClear(STableListInfo* pTableListInfo) {
   taosArrayClear(pTableListInfo->pTableList);
   taosHashClear(pTableListInfo->map);
   taosHashClear(pTableListInfo->remainGroups);
-  taosMemoryFree(pTableListInfo->groupOffset);
+
+  // Fix double-free issue: Set pointer to NULL after freeing
+  // This prevents double-free when tableListDestroy is called later
+  if (pTableListInfo->groupOffset != NULL) {
+    taosMemoryFree(pTableListInfo->groupOffset);
+    pTableListInfo->groupOffset = NULL;
+  }
+
   pTableListInfo->numOfOuputGroups = 1;
   pTableListInfo->oneTableForEachGroup = false;
 }
@@ -3167,10 +3323,12 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
   if (group == NULL || groupByTbname) {
     if (tsCountAlwaysReturnValue && QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pScanNode) &&
         ((STableScanPhysiNode*)pScanNode)->needCountEmptyTable) {
-      pTableListInfo->remainGroups =
-          taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
       if (pTableListInfo->remainGroups == NULL) {
-        return terrno;
+        pTableListInfo->remainGroups =
+            taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+        if (pTableListInfo->remainGroups == NULL) {
+          return terrno;
+        }
       }
 
       for (int i = 0; i < numOfTables; i++) {

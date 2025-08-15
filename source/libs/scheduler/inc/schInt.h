@@ -465,6 +465,7 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_JOB_ELOG(param, ...) qError("QID:0x%" PRIx64 ", SID:%" PRId64 ", " param, pJob->queryId, pJob->seriousId, __VA_ARGS__)
 #define SCH_JOB_DLOG(param, ...) qDebug("QID:0x%" PRIx64 ", SID:%" PRId64 ", " param, pJob->queryId, pJob->seriousId, __VA_ARGS__)
 #define SCH_JOB_TLOG(param, ...) qTrace("QID:0x%" PRIx64 ", SID:%" PRId64 ", " param, pJob->queryId, pJob->seriousId, __VA_ARGS__)
+#define SCH_JOB_PERF(param, ...) qPerf("QID:0x%" PRIx64 ", SID:%" PRId64 ", " param, pJob->queryId, pJob->seriousId, __VA_ARGS__)
 
 #define SCH_TASK_ELOG(param, ...)                                                                                    \
   qError("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriousId, SCH_CLIENT_ID(pTask), \

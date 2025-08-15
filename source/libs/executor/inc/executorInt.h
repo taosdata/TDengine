@@ -278,6 +278,8 @@ typedef struct STableScanBase {
   // there are more than one table list exists in one task, if only one vnode exists.
   STableListInfo* pTableListInfo;
   TsdReader       readerAPI;
+  // Reference to task info for pool management
+  SExecTaskInfo* pTaskInfo;
 } STableScanBase;
 
 typedef struct STableScanInfo {
@@ -401,6 +403,8 @@ typedef struct STagScanInfo {
   SArray*               aFilterIdxs;  // SArray<int32_t>
   SStorageAPI*          pStorageAPI;
   SLimitInfo            limitInfo;
+  // Reference to task info for pool management
+  SExecTaskInfo* pTaskInfo;
 } STagScanInfo;
 
 typedef enum EStreamScanMode {
@@ -543,6 +547,8 @@ typedef struct SStreamScanInfo {
   SDiskbasedBuf*  pVtableMergeBuf;      // page buffer used by vtable merge
   SArray*         pVtableReadyHandles;
   STableListInfo* pTableListInfo;
+  // Reference to task info for pool management
+  SExecTaskInfo* pTaskInfo;
 
   uint64_t            groupId;
   bool                igCheckGroupId;
@@ -603,6 +609,8 @@ typedef struct {
   struct SSnapContext* sContext;
   SStorageAPI*         pAPI;
   STableListInfo*      pTableListInfo;
+  // Reference to task info for pool management
+  SExecTaskInfo* pTaskInfo;
 } SStreamRawScanInfo;
 
 typedef struct STableCountScanSupp {

@@ -448,7 +448,7 @@ void destroyCacheScanOperator(void* param) {
   taosArrayDestroy(pInfo->pFuncTypeList);
   taosArrayDestroy(pInfo->pUidList);
   taosArrayDestroy(pInfo->matchInfo.pList);
-  tableListDestroy(pInfo->pTableList);
+  tableListReturnToPool(pInfo->pTableList);
 
   if (pInfo->pLastrowReader != NULL && pInfo->readHandle.api.cacheFn.closeReader != NULL) {
     pInfo->readHandle.api.cacheFn.closeReader(pInfo->pLastrowReader);

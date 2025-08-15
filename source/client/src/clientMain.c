@@ -1349,7 +1349,7 @@ static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t
   SRequestObj         *pRequest = pWrapper->pRequest;
   SQuery              *pQuery = pRequest->pQuery;
 
-  qDebug("req:0x%" PRIx64 ", start to semantic analysis, QID:0x%" PRIx64, pRequest->self, pRequest->requestId);
+  qPerf("req:0x%" PRIx64 ", start to semantic analysis, QID:0x%" PRIx64, pRequest->self, pRequest->requestId);
 
   int64_t analyseStart = taosGetTimestampUs();
   pRequest->metric.ctgCostUs = analyseStart - pRequest->metric.ctgStart;
@@ -1359,7 +1359,7 @@ static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t
     code = qAnalyseSqlSemantic(pWrapper->pParseCtx, pWrapper->pCatalogReq, pResultMeta, pQuery);
   }
 
-  pRequest->metric.analyseCostUs += taosGetTimestampUs() - analyseStart;
+  qPerf("req:0x%" PRIx64 ", semantic analysis completed, QID:0x%" PRIx64, pRequest->self, pRequest->requestId);
 
   if (pRequest->parseOnly) {
     (void)memcpy(&pRequest->parseMeta, pResultMeta, sizeof(*pResultMeta));

@@ -500,6 +500,7 @@ void* getTaskPoolWorkerCb();
 #define qTrace(...) do { if (qDebugFlag & DEBUG_TRACE) { taosPrintLog("QRY TRACE ", DEBUG_TRACE, qDebugFlag,                       __VA_ARGS__); }} while(0)
 #define qDebugL(...)do { if (qDebugFlag & DEBUG_DEBUG) { taosPrintLongString("QRY DEBUG ", DEBUG_DEBUG, qDebugFlag,                       __VA_ARGS__); }} while(0)
 #define qInfoL(...) do { if (qDebugFlag & DEBUG_INFO)  { taosPrintLongString("QRY INFO  ", DEBUG_INFO,  tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); }} while(0)
+#define qPerf(...) do  {if (perfDebugFlag) {taosPrintLog("QRY PERF  ", DEBUG_INFO,  tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
 #define QRY_ERR_RET(c)                \

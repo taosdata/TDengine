@@ -31,11 +31,13 @@ static int32_t debugPrintNode(SNode* pNode) {
 
 static int32_t dumpQueryPlan(SQueryPlan* pPlan) {
   int32_t code = 0;
-  char* pStr = NULL;
-  code = nodesNodeToString((SNode*)pPlan, false, &pStr, NULL);
-  if (TSDB_CODE_SUCCESS == code) {
-    planDebugL("QID:0x%" PRIx64 ", Query Plan, JsonPlan: %s", pPlan->queryId, pStr);
-    taosMemoryFree(pStr);
+  if (qDebugFlag & DEBUG_DEBUG) {
+    char* pStr = NULL;
+    code = nodesNodeToString((SNode*)pPlan, false, &pStr, NULL);
+    if (TSDB_CODE_SUCCESS == code) {
+      planDebugL("QID:0x%" PRIx64 ", Query Plan, JsonPlan: %s", pPlan->queryId, pStr);
+      taosMemoryFree(pStr);
+    }
   }
   return code;
 }
