@@ -183,15 +183,15 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
       SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, idx);
       TSDB_CHECK_NULL(pCol, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
-      if (idx < funcTypeBlockArray->size) {
-        void* pVal = taosArrayGet(funcTypeBlockArray, idx);
-        TSDB_CHECK_NULL(pVal, code, lino, _end, TSDB_CODE_INVALID_PARA);
+      // if (idx < funcTypeBlockArray->size) {
+      //   void* pVal = taosArrayGet(funcTypeBlockArray, idx);
+      //   TSDB_CHECK_NULL(pVal, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
-        int32_t funcType = *(int32_t*)pVal;
-        if (FUNCTION_TYPE_CACHE_LAST_ROW == funcType) {
-          continue;
-        }
-      }
+      //   int32_t funcType = *(int32_t*)pVal;
+      //   if (FUNCTION_TYPE_CACHE_LAST_ROW == funcType) {
+      //     continue;
+      //   }
+      // }
 
       if (pCol->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID && pCol->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
         SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, pTargetSlotBindIds[idx]);
@@ -230,6 +230,22 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
 
       code = saveOneRowForLastRaw(pColVal, pReader, slotId, pColInfoData, numOfRows);
       TSDB_CHECK_CODE(code, lino, _end);
+    }
+
+    // fill ts columns
+    for (int32_t idx = 0; idx < taosArrayGetSize(pBlock->pDataBlock); ++idx) {
+      SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, idx);
+      TSDB_CHECK_NULL(pCol, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+      if (pCol->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID && pCol->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
+        SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, pTargetSlotBindIds[idx]);
+        if (pColVal != NULL) {
+          code = colDataSetVal(pCol, numOfRows, (const char*)&pColVal->rowKey.ts, false);
+          TSDB_CHECK_CODE(code, lino, _end);
+        } else {
+          colDataSetNULL(pCol, numOfRows);
+        }
+      }  
     }
 
     // pBlock->info.rows += allNullRow ? 0 : 1;
