@@ -1971,6 +1971,15 @@ static void stRealtimeContextDestroyWalProgress(void *ptr) {
   }
 }
 
+static void stRealtimeContextDestroyDataBlock(void *ptr) {
+  SSDataBlock **ppBlock = ptr;
+  if (ppBlock == NULL) {
+    return;
+  }
+  blockDataDestroy(*ppBlock);
+  *ppBlock = NULL;
+}
+
 static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStreamTriggerTask *pTask) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
@@ -2025,7 +2034,7 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
   QUERY_CHECK_NULL(pContext->pRanges, code, lino, _end, terrno);
   pContext->pDataBlocks = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
   QUERY_CHECK_NULL(pContext->pDataBlocks, code, lino, _end, terrno);
-  tSimpleHashSetFreeFp(pContext->pDataBlocks, (FDelete)blockDataDestroy);
+  tSimpleHashSetFreeFp(pContext->pDataBlocks, stRealtimeContextDestroyDataBlock);
 
   pContext->pGroups = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   QUERY_CHECK_NULL(pContext->pGroups, code, lino, _end, terrno);
@@ -2945,11 +2954,11 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
         pContext->reenterCheck = true;
 #ifdef BOOST_TRIGGER_PULL_DATA
         if (pContext->pMetaToFetch != NULL) {
-          int64_t      key[2] = {pContext->pCurTableMeta->vgId, pContext->pMetaToFetch->ver};
-          SSDataBlock *pDataBlock = tSimpleHashGet(pContext->pDataBlocks, key, sizeof(key));
-          QUERY_CHECK_NULL(pDataBlock, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+          int64_t       key[3] = {pContext->pMetaToFetch->ver, pContext->pCurTableMeta->tbUid, pGroup->gid};
+          SSDataBlock **ppDataBlock = tSimpleHashGet(pContext->pDataBlocks, key, sizeof(key));
+          QUERY_CHECK_NULL(ppDataBlock, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
           SSDataBlock *pNewDataBlock = NULL;
-          code = createOneDataBlock(pDataBlock, true, &pNewDataBlock);
+          code = createOneDataBlock(*ppDataBlock, true, &pNewDataBlock);
           QUERY_CHECK_CODE(code, lino, _end);
           code = stTimestampSorterBindDataBlock(pContext->pSorter, &pNewDataBlock);
           if (pNewDataBlock != NULL) {
@@ -2999,18 +3008,18 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
         } else {
 #ifdef BOOST_TRIGGER_PULL_DATA
           SSTriggerCalcRequest *pCalcReq = pContext->pCalcReq;
-          for (int32_t i = 0; i < TARRAY_SIZE(pGroup->pPendingCalcParams); i++) {
-            SSTriggerCalcParam *pParam = taosArrayGet(pGroup->pPendingCalcParams, i);
+          if (TARRAY_SIZE(pGroup->pPendingCalcParams) > 0) {
+            SSTriggerCalcParam *pParam = taosArrayGetLast(pGroup->pPendingCalcParams);
             if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
               pParam->wend++;
               pParam->wduration++;
             }
-            ST_TASK_ILOG("[calc param %d]: gid=%" PRId64 ", wstart=%" PRId64 ", wend=%" PRId64 ", nrows=%" PRId64
-                         ", prevTs=%" PRId64 ", currentTs=%" PRId64 ", nextTs=%" PRId64 ", prevLocalTime=%" PRId64
-                         ", nextLocalTime=%" PRId64 ", localTime=%" PRId64 ", create=%d",
-                         i, pCalcReq->gid, pParam->wstart, pParam->wend, pParam->wrownum, pParam->prevTs,
-                         pParam->currentTs, pParam->nextTs, pParam->prevLocalTime, pParam->nextLocalTime,
-                         pParam->triggerTime, pCalcReq->createTable);
+            ST_TASK_ILOG("[calc param %" PRId64 "]: gid=%" PRId64 ", wstart=%" PRId64 ", wend=%" PRId64
+                         ", nrows=%" PRId64 ", prevTs=%" PRId64 ", currentTs=%" PRId64 ", nextTs=%" PRId64
+                         ", prevLocalTime=%" PRId64 ", nextLocalTime=%" PRId64 ", localTime=%" PRId64 ", create=%d",
+                         TARRAY_SIZE(pGroup->pPendingCalcParams) - 1, pCalcReq->gid, pParam->wstart, pParam->wend,
+                         pParam->wrownum, pParam->prevTs, pParam->currentTs, pParam->nextTs, pParam->prevLocalTime,
+                         pParam->nextLocalTime, pParam->triggerTime, pCalcReq->createTable);
           }
           taosArrayClear(pGroup->pPendingCalcParams);
 #else
@@ -3747,10 +3756,9 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           if (TD_DLIST_NODE_NEXT(pGroup) == NULL && TD_DLIST_TAIL(&pContext->groupsToCheck) != pGroup) {
             TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
           }
-          int64_t key[2] = {pProgress->pTaskAddr->nodeId, pDataBlock->info.version};
-          code = tSimpleHashPut(pContext->pDataBlocks, key, sizeof(key), pDataBlock, sizeof(SSDataBlock));
+          int64_t key[3] = {pDataBlock->info.version, pDataBlock->info.id.uid, pDataBlock->info.id.groupId};
+          code = tSimpleHashPut(pContext->pDataBlocks, key, sizeof(key), &pDataBlock, POINTER_BYTES);
           QUERY_CHECK_CODE(code, lino, _end);
-          taosMemoryFreeClear(pDataBlock);
           *(SSDataBlock **)TARRAY_GET_ELEM(pWalDataBlocks, i) = NULL;
         }
       }

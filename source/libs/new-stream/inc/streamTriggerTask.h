@@ -123,7 +123,7 @@ typedef struct SSTriggerRealtimeContext {
   bool       getWalMetaThisRound;
 
   SSHashObj *pRanges;
-  SSHashObj *pDataBlocks;  // SSHashObj<{vgId, uid, ver}, SSDataBlock>
+  SSHashObj *pDataBlocks;  // SSHashObj<{vgId, uid, ver}, SSDataBlock*>
 
   SSHashObj *pGroups;
   TD_DLIST(SSTriggerRealtimeGroup) groupsToCheck;
