@@ -87,11 +87,11 @@ void sslHandleError(STransTLS* pTls, int ret) {
   int err = SSL_get_error(pTls->ssl, ret);
   switch (err) {
     case SSL_ERROR_WANT_READ:
-      tInfo("conn %p SSL should read ", pTls->pConn);
+      tDebug("conn %p SSL should read ", pTls->pConn);
       // read
       break;
     case SSL_ERROR_WANT_WRITE:
-      tInfo("conn %p SSL should write", pTls->pConn);
+      tDebug("conn %p SSL should write", pTls->pConn);
       break;
     case SSL_ERROR_SSL:
       tError("conn %p SSL error: %s", pTls->pConn, ERR_reason_error_string(ERR_get_error()));
@@ -418,14 +418,9 @@ int32_t sslBufferInit(SSslBuffer* buf, int32_t cap) {
   return 0;
 }
 
-int32_t sslBufferClear(SSslBuffer* buf) {
-  if (buf == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-
+void sslBufferClear(SSslBuffer* buf) {
   buf->len = 0;
   memset(buf->buf, 0, buf->cap);
-  return 0;
 }
 
 int32_t sslBufferDestroy(SSslBuffer* buf) {

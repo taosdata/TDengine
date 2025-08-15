@@ -81,7 +81,7 @@ int8_t sslIsInited(STransTLS* pTls);
 
 int32_t sslBufferInit(SSslBuffer* buf, int32_t cap);
 int32_t sslBufferDestroy(SSslBuffer* buf);
-int32_t sslBufferClear(SSslBuffer* buf);
+void    sslBufferClear(SSslBuffer* buf);
 int32_t sslBufferAppend(SSslBuffer* buf, int32_t len);
 int32_t sslBufferRealloc(SSslBuffer* buf, int32_t newCap, uv_buf_t* uvbuf);
 #ifdef __cplusplus
