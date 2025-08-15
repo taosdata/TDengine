@@ -492,7 +492,10 @@ impl Args {
         }
         args.global.jobs = Some(executor_worker_threads(args.global.jobs.unwrap_or(0)));
 
-        if let Some(Commands::Serve(cli)) = &mut args.commands {
+        if let Commands::Serve(cli) = args
+            .commands
+            .get_or_insert(Commands::Serve(Default::default()))
+        {
             let mut serve = configurable_opts.serve.unwrap_or_default();
 
             if let Some(matches) = matches.subcommand_matches("serve") {
