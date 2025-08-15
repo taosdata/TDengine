@@ -457,8 +457,8 @@ class TestStreamOldCaseContinueWindowClose:
                 and tdSql.compareData(0, 1, 1)
                 and tdSql.compareData(0, 2, 1)
                 and tdSql.compareData(11, 0, "2022-04-01 13:33:40.000")
-                and tdSql.compareData(11, 1, 1)
-                and tdSql.compareData(11, 2, 5)
+                and tdSql.compareData(11, 1, 2)
+                and tdSql.compareData(11, 2, 7)
                 and tdSql.compareData(12, 0, "2022-04-01 13:33:50.000")
                 and tdSql.compareData(12, 1, 0)
                 and tdSql.compareData(12, 2, None),
@@ -619,6 +619,6 @@ class TestStreamOldCaseContinueWindowClose:
                 lambda: tdSql.getRows() == 2
                 and tdSql.getData(0, 1) == 2
                 and tdSql.getData(0, 2) == 4
-                and tdSql.getData(1, 1) == 1
-                and tdSql.getData(1, 2) == 5,
+                and tdSql.getData(1, 1) == 3
+                and tdSql.getData(1, 2) == 11,
             )

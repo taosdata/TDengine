@@ -3257,4 +3257,56 @@ TEST(stmt2Case, rowformat_bind) {
   taos_close(taos);
 }
 
+// TS-7047
+void stmtAsyncQueryCb3(void* param, TAOS_RES* pRes, int code) {
+  ASSERT_EQ(code, TSDB_CODE_TDB_TABLE_NOT_EXIST);
+  return;
+}
+
+TEST(stmt2Case, exec_retry) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
+  ASSERT_NE(taos, nullptr);
+  TAOS_STMT2_OPTION option = {0, true, true, stmtAsyncQueryCb3, NULL};
+  do_query(taos, "drop database if exists stmt2_testdb_21");
+  do_query(taos, "create database stmt2_testdb_21");
+  do_query(taos, "create stable stmt2_testdb_21.stb (ts timestamp, b binary(10)) tags(t1 int, t2 binary(10))");
+  // do_query(taos, "create stable stmt2_testdb_21.stb2 (ts timestamp, b binary(10)) tags(t1 int, t2 binary(10))");
+  do_query(taos,
+           "insert into stmt2_testdb_21.tb1 using stmt2_testdb_21.stb tags(1, 'after') "
+           "values(1591060628000, 'abcde')");
+  // do_query(taos, "create table stmt2_testdb_8.ntb(ts timestamp, b binary(10))");
+  do_query(taos, "use stmt2_testdb_21");
+  TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+
+  // test fixed tbname and bind per col
+  {
+    int         total_affected_rows = 0;
+    const char* sql = "insert into stmt2_testdb_21.stb (tbname,ts,b)values(?,?,?)";
+    int         code = taos_stmt2_prepare(stmt, sql, 0);
+    checkError(stmt, code, __FILE__, __LINE__);
+    int64_t          ts[3] = {1591060628000, 1591060628001, 1591060628002};
+    int              t64_len[3] = {sizeof(int64_t), sizeof(int64_t), sizeof(int64_t)};
+    int              b_len[3] = {5, 5, 5};
+    char*            tbname = "tb1";
+    TAOS_STMT2_BIND  params1[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts[0], &t64_len[0], NULL, 3},
+                                   {TSDB_DATA_TYPE_BINARY, (void*)"abcdefghijklmnopqrstuvwxyz", &b_len[0], NULL, 3}};
+    TAOS_STMT2_BIND* paramv1 = &params1[0];
+
+    TAOS_STMT2_BINDV bindv1 = {1, &tbname, NULL, &paramv1};
+
+    code = taos_stmt2_bind_param(stmt, &bindv1, -1);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    do_query(taos, "drop table if exists stmt2_testdb_21.tb1");
+
+    code = taos_stmt2_exec(stmt, NULL);
+    checkError(stmt, code, __FILE__, __LINE__);
+  }
+
+  taos_stmt2_close(stmt);
+  do_query(taos, "drop database if exists stmt2_testdb_21");
+  taos_close(taos);
+}
+
 #pragma GCC diagnostic pop

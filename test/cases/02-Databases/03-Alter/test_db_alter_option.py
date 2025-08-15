@@ -7,9 +7,11 @@ class TestDatabaseAlterOption:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_alter_option(self):
-        """alter database option
+        """Alter all options
 
-        1. -
+        1. Create database and inspect all option values.
+        2. Attempt to alter database with invalid options (expect failure).
+        3. Alter database with valid options and verify the changes.
 
         Catalog:
             - Database:Alter

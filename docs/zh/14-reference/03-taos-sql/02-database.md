@@ -305,7 +305,9 @@ SELECT * FROM INFORMATION_SCHEMA.INS_DATABASES WHERE NAME='db_name' \G;
 
 会列出指定数据库的配置参数，并且每行只显示一个参数。
 
-## 删除过期数据
+## 运维操作
+
+### 删除过期数据
 
 ```sql
 TRIM DATABASE db_name;
@@ -313,7 +315,7 @@ TRIM DATABASE db_name;
 
 删除过期数据，并根据多级存储的配置归整数据。
 
-## 落盘内存数据
+### 落盘内存数据
 
 ```sql
 FLUSH DATABASE db_name;
@@ -321,7 +323,7 @@ FLUSH DATABASE db_name;
 
 落盘内存中的数据。在关闭节点之前，执行这条命令可以避免重启后的预写数据日志回放，加速启动过程。
 
-## 调整 VGROUP 中 VNODE 的分布
+### 调整 VGROUP 中 VNODE 的分布
 
 ```sql
 REDISTRIBUTE VGROUP vgroup_no DNODE dnode_id1 [DNODE dnode_id2] [DNODE dnode_id3];
@@ -329,7 +331,7 @@ REDISTRIBUTE VGROUP vgroup_no DNODE dnode_id1 [DNODE dnode_id2] [DNODE dnode_id3
 
 按照给定的 dnode 列表，调整 vgroup 中的 vnode 分布。因为副本数目最大为 3，所以最多输入 3 个 dnode。
 
-## 自动调整 VGROUP 中 LEADER 的分布
+### 自动调整 VGROUP 中 LEADER 的分布
 
 ```sql
 BALANCE VGROUP LEADER;
@@ -337,28 +339,30 @@ BALANCE VGROUP LEADER;
 
 触发集群所有 vgroup 中的 leader 重新选主，对集群各节点进行负载均衡操作。（**仅企业版支持**）
 
-## 查看数据库工作状态
+### 查看数据库工作状态
 
 ```sql
 SHOW db_name.ALIVE;
 ```
 
 查询数据库 db_name 的可用状态（返回值）：
+
 - 0：不可用；
 - 1：完全可用；
 - 2：部分可用（即数据库包含的 VNODE 部分节点可用，部分节点不可用）。
 
-## 查看 DB 的磁盘空间占用
+### 查看 DB 的磁盘空间占用
 
-```sql 
+```sql
 select * from  INFORMATION_SCHEMA.INS_DISK_USAGE where db_name = 'db_name';
 ```  
+
 查看 DB 各个模块所占用磁盘的大小。
 
 ```sql
 SHOW db_name.disk_info;
 ```
+
 查看数据库 db_name 的数据压缩压缩率和数据在磁盘上所占用的大小。
 
 该命令本质上等同于： `select sum(data1 + data2 + data3)/sum(raw_data), sum(data1 + data2 + data3) from information_schema.ins_disk_usage where db_name="dbname";`。
-

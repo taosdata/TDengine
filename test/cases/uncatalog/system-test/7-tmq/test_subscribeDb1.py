@@ -93,8 +93,24 @@ class TestCase:
         tdLog.info(shellCmd)
         os.system(shellCmd)
 
+    def waitTransactionZero(self, seconds = 300, interval = 1):
+        # wait end
+        for i in range(seconds):
+            sql ="show transactions;"
+            rows = tdSql.query(sql)
+            if rows == 0:
+                tdLog.info("transaction count became zero.")
+                return True
+            #tdLog.info(f"i={i} wait ...")
+            time.sleep(interval)
+        
+        return False
+    
     def create_tables(self,tsql, dbName,vgroups,stbName,ctbNum):
         tsql.execute("create database if not exists %s vgroups %d wal_retention_period 3600"%(dbName, vgroups))
+        if self.waitTransactionZero() is False:
+            tdLog.exit(f"transaction not finished")
+            return False
         tsql.execute("use %s" %dbName)
         tsql.execute("create table  if not exists %s (ts timestamp, c1 bigint, c2 binary(16)) tags(t1 int)"%stbName)
         pre_create = "create table"

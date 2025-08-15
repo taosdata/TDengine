@@ -59,6 +59,7 @@ typedef struct SSTriggerRealtimeGroup {
   STimeWindow      nextWindow;  // for period trigger and sliding window trigger
   SValue           stateVal;    // for state window trigger
 
+  bool    recalcNextWindow;
   int64_t prevCalcTime;        // only used in batch window mode (lowLatencyCalc is false)
   SArray *pPendingCalcParams;  // SArray<SSTriggerCalcParam>
 } SSTriggerRealtimeGroup;
