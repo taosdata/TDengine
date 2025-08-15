@@ -13,14 +13,14 @@ class TestStreamOldCaseCount:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_count(self):
-        """Stream count
+        """Stream count window
 
         Basic use cases of count window, include expired-data, out-of-order data, and data-deletion
 
         Catalog:
             - Streams:OldTsimCases
 
-        Since: v3.0.0.0
+        Since: v3.3.7.0
 
         Labels: common, ci
 
@@ -49,8 +49,8 @@ class TestStreamOldCaseCount:
         # streams.append(self.Count31()) pass
         # streams.append(self.Sliding01()) pass
         # streams.append(self.Sliding02()) pass
-        streams.append(self.Sliding11())
-        # streams.append(self.Sliding21())
+        # streams.append(self.Sliding11()) pass
+        streams.append(self.Sliding21())
         tdStream.checkAll(streams)
 
     class Count01(StreamCheckItem):
@@ -555,7 +555,7 @@ class TestStreamOldCaseCount:
                 f"create table t1(ts timestamp, a int, b int, c int, d double);"
             )
             tdSql.execute(
-                f"create stream streams1 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt as select _wstart as s, count(*) c1, sum(b), max(c) from t1 count_window(4, 2);"
+                f"create stream streams1 count_window(4, 2) from t1 stream_options(max_delay(3s)) into streamt as select _twstart as s, count(*) c1, sum(b), max(c) from %%trows;"
             )
 
         def insert1(self):
@@ -616,7 +616,7 @@ class TestStreamOldCaseCount:
                 f"create table t1(ts timestamp, a int, b int, c int, d double);"
             )
             tdSql.execute(
-                f"create stream streams1 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt as select _wstart as s, count(*) c1, sum(b), max(c) from t1 count_window(4, 2);"
+                f"create stream streams1 count_window(4, 2) from t1 stream_options(max_delay(3s)) into streamt as select _twstart as s, _twend e, count(*) c1, sum(b), max(c) from %%trows;"
             )
 
         def insert1(self):
@@ -633,10 +633,10 @@ class TestStreamOldCaseCount:
             tdSql.checkResultsByFunc(
                 f"select * from streamt;",
                 lambda: tdSql.getRows() == 4
-                and tdSql.getData(0, 1) == 4
-                and tdSql.getData(1, 1) == 4
-                and tdSql.getData(2, 1) == 4
-                and tdSql.getData(3, 1) == 2,
+                and tdSql.getData(0, 2) == 4
+                and tdSql.getData(1, 2) == 4
+                and tdSql.getData(2, 2) == 4
+                and tdSql.getData(3, 2) == 2,
             )
 
         def insert2(self):
@@ -646,20 +646,48 @@ class TestStreamOldCaseCount:
             tdSql.checkResultsByFunc(
                 f"select * from streamt;",
                 lambda: tdSql.getRows() == 4
-                and tdSql.getData(0, 1) == 4
-                and tdSql.getData(1, 1) == 4
-                and tdSql.getData(2, 1) == 3
-                and tdSql.getData(3, 1) == 1,
+                and tdSql.getData(0, 2) == 4
+                and tdSql.getData(1, 2) == 4
+                and tdSql.getData(2, 2) == 4
+                and tdSql.getData(3, 2) == 2,
             )
-
+            
         def insert3(self):
-            tdSql.execute(f"delete from t1 where ts = 1648791223002;")
+            # tdSql.pause()
+            tdSql.execute("delete from streamt where s > '2022-03-01 13:33:33.000'")
+            # tdSql.pause()
+            tdSql.execute(f"RECALCULATE STREAM streams1 from '2022-03-01 13:33:33.000';")
 
         def check3(self):
             tdSql.checkResultsByFunc(
                 f"select * from streamt;",
-                lambda: tdSql.getRows() == 3
-                and tdSql.getData(0, 1) == 4
-                and tdSql.getData(1, 1) == 4
-                and tdSql.getData(2, 1) == 2,
+                lambda: tdSql.getRows() == 4
+                and tdSql.getData(0, 2) == 4
+                and tdSql.getData(1, 2) == 4
+                and tdSql.getData(2, 2) == 3
+                and tdSql.getData(3, 2) == 1,
             )
+
+        # def insert4(self):
+        #     tdSql.execute(f"delete from t1 where ts = 1648791223002;")
+
+        # def check4(self):
+        #     tdSql.checkResultsByFunc(
+        #         f"select * from streamt;",
+        #         lambda: tdSql.getRows() == 3
+        #         and tdSql.getData(0, 1) == 4
+        #         and tdSql.getData(1, 1) == 4
+        #         and tdSql.getData(2, 1) == 2,
+        #     )
+
+        # def insert5(self):
+        #     tdSql.execute(f"RECALCULATE STREAM streams1 from '2022-03-01 13:33:33.000';")
+
+        # def check5(self):
+        #     tdSql.checkResultsByFunc(
+        #         f"select * from streamt;",
+        #         lambda: tdSql.getRows() == 3
+        #         and tdSql.getData(0, 1) == 4
+        #         and tdSql.getData(1, 1) == 4
+        #         and tdSql.getData(2, 1) == 2,
+        #     )

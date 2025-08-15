@@ -1,5 +1,5 @@
 ---
-title: TDengine 2.x
+title: TDengine Query
 slug: /advanced-features/data-connectors/tdengine-2
 ---
 
@@ -13,7 +13,7 @@ import Enterprise from '../../assets/resources/_enterprise.mdx';
 
 <Enterprise/>
 
-This section describes how to create a data migration task through the Explorer interface to migrate data from the old version of TDengine2 to the current cluster.
+This section describes how to create a data migration task through the Explorer interface to migrate data from the old version of TDengine(2.4+, 3.0+) to the current cluster.
 
 ## Feature Overview
 
@@ -40,7 +40,7 @@ First, click on the "Data Writing" menu on the left, then click the "Add Data So
 <figcaption>Figure 1. Add a data source</figcaption>
 </figure>
 
-Then enter the task name, such as "migrate-test", and finally select the type "TDengine2". At this point, the form switches to a form dedicated to migrating data from TDengine2, containing a large number of options, each with detailed explanations, as shown in the images below.
+Then enter the task name, such as "migrate-test", and finally select the type "TDengine Query". At this point, the form switches to a form dedicated to migrating data from "TDengine Query", containing a large number of options, each with detailed explanations, as shown in the images below.
 
 <figure>
 <Image img={imgStep2} alt="Add data source"/>

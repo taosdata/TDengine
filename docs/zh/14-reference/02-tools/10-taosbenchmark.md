@@ -119,8 +119,11 @@ taosBenchmark -f <json file>
 - **keep_trying**：失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本。
 
 - **trying_interval**：失败重试间隔时间，单位为毫秒，仅在 keep_trying 指定重试后有效。需使用 v3.0.9 以上版本。
+
 - **childtable_from 和 childtable_to**：指定写入子表范围，开闭区间为 [childtable_from, childtable_to] 。
  
+- **escape_character**：超级表和子表名称中是否包含转义字符，默认值为 "no"，可选值为 "yes" 或 "no" 。
+
 - **continue_if_fail**：允许用户定义失败后行为。
 
   “continue_if_fail”：“no”，失败 taosBenchmark 自动退出，默认行为。
@@ -146,8 +149,6 @@ taosBenchmark -f <json file>
 - **childtable_count**：子表的数量，默认值为 10。
 
 - **childtable_prefix**：子表名称的前缀，必选配置项，没有默认值。
-
-- **escape_character**：超级表和子表名称中是否包含转义字符，默认值为 "no"，可选值为 "yes" 或 "no" 。
 
 - **auto_create_table**：仅当 insert_mode 为 taosc、rest、stmt 并且 child_table_exists 为 "no" 时生效，该参数为 "yes" 表示 taosBenchmark 在插入数据时会自动创建不存在的表；为 "no" 则表示先提前建好所有表再进行插入。
 
