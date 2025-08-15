@@ -331,7 +331,7 @@ static int32_t doBuildAndSendCreateTableMsg(SVnode* pVnode, char* stbFullName, S
 
     if (size == 2) {
       STagVal tagVal = {
-          .cid = pTSchema->numOfCols + 1, .type = TSDB_DATA_TYPE_UBIGINT, .i64 = pDataBlock->info.id.groupId};
+          .cid = pTagSchema->pSchema[0].colId, .type = TSDB_DATA_TYPE_UBIGINT, .i64 = pDataBlock->info.id.groupId};
 
       void* p = taosArrayPush(tagArray, &tagVal);
       if (p == NULL) {
