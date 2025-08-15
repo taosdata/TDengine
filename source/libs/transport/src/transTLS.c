@@ -30,21 +30,27 @@ static int32_t sslWriteToBIO(STransTLS* pTls, int32_t nread);
 
 static void destroySSLCtx(SSL_CTX* ctx);
 
-SSL_CTX* initSSLCtx(const char* cert_path, const char* key_path, const char* ca_path) {
+SSL_CTX* initSSLCtx(const char* cert_path, const char* key_path, const char* ca_path, int8_t cliMode) {
   SSL_load_error_strings();
   SSL_library_init();
   OpenSSL_add_all_algorithms();
   int32_t code = 0;
 
-  SSL_CTX* ctx = SSL_CTX_new(TLS_method());
-  SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
-
-  X509_STORE* store = X509_STORE_new();
-
-  if (X509_STORE_load_locations(store, NULL, DEFALUT_SSL_DIR) <= 0) {
-    code = TSDB_CODE_THIRDPARTY_ERROR;
-    tError("failed to load CA file from %s since %s", ca_path, tstrerror(code));
+  SSL_CTX* ctx = NULL;
+  if (cliMode) {
+    ctx = SSL_CTX_new(TLS_client_method());
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
+  } else {
+    ctx = SSL_CTX_new(TLS_server_method());
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
   }
+
+  // X509_STORE* store = X509_STORE_new();
+
+  // if (X509_STORE_load_locations(store, NULL, DEFALUT_SSL_DIR) <= 0) {
+  //   code = TSDB_CODE_THIRDPARTY_ERROR;
+  //   tError("failed to load CA file from %s since %s", ca_path, tstrerror(code));
+  // }
 
   // if (SSL_CTX_use_certificate_file(ctx, cert_path, SSL_FILETYPE_PEM) <= 0) {
   //   tError("failed to load certificate file: %s", cert_path);
