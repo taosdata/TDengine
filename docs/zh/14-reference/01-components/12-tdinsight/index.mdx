@@ -7,14 +7,14 @@ toc_max_heading_level: 4
 import Tabs from '@theme/Tabs'
 import TabItem from '@theme/TabItem'
 
-TDinsight 是使用 [Grafana] 对 TDengine 进行监控的解决方案。
+TDinsight 是使用 [Grafana] 对 TDengine TSDB 进行监控的解决方案。
 
-TDengine 通过 taosKeeper 将服务器的 CPU、内存、硬盘空间、带宽、请求数、磁盘读写速度、慢查询等信息定时写入指定数据库。通过 Grafana 和 TDengine 数据源插件，TDinsight 将集群状态、节点信息、插入及查询请求、资源使用情况等进行可视化展示，为开发者实时监控 TDengine 集群运行状态提供了便利。本文将指导用户安装 TDengine 数据源插件及部署 TDinsight 可视化面板。
+TDengine TSDB 通过 taosKeeper 将服务器的 CPU、内存、硬盘空间、带宽、请求数、磁盘读写速度、慢查询等信息定时写入指定数据库。通过 Grafana 和 TDengine TSDB 数据源插件，TDinsight 将集群状态、节点信息、插入及查询请求、资源使用情况等进行可视化展示，为开发者实时监控 TDengine TSDB 集群运行状态提供了便利。本文将指导用户安装 TDengine TSDB 数据源插件及部署 TDinsight 可视化面板。
 
 ## 前置条件
 
 首先检查下面服务：
-- TDengine 已经安装并正常运行，此仪表盘需要 TDengine 3.0.0.0 及以上，并开启监控上报配置，具体配置请参考：[TDengine 监控配置](../taosd/#监控相关)。
+- TDengine TSDB 已经安装并正常运行，此仪表盘需要 TDengine TSDB 3.0.0.0 及以上，并开启监控上报配置，具体配置请参考：[TDengine TSDB 监控配置](../taosd/#监控相关)。
 - taosAdapter 已经安装并正常运行。具体细节请参考：[taosAdapter 参考手册](../taosadapter)
 - taosKeeper 已安装并正常运行。具体细节请参考：[taosKeeper 参考手册](../taoskeeper)
 - Grafana 服务已安装并正常运行。我们建议您使用最新的 Grafana 版本，TDInsight 支持 Grafana 7.5 及以上版本。
@@ -32,29 +32,29 @@ TDengine 通过 taosKeeper 将服务器的 CPU、内存、硬盘空间、带宽�
 
 
 
-## 安装 TDengine 数据源插件和配置数据源
-安装 Grafana TDengine 数据源插件和配置数据源的步骤请参考：[与  Grafana 集成](../../../third-party/visual/grafana/#安装-grafana-plugin-并配置数据源)
+## 安装 TDengine TSDB 数据源插件和配置数据源
+安装 Grafana TDengine TSDB 数据源插件和配置数据源的步骤请参考：[与  Grafana 集成](../../../third-party/visual/grafana/#安装-grafana-plugin-并配置数据源)
 
 ## 导入 TDinsightV3 仪表盘
 
-在配置 TDengine 数据源界面，点击“Dashboards”tab，再点击”import”导入”TDengine for 3.x”仪表盘。
+在配置 TDengine TSDB 数据源界面，点击“Dashboards”tab，再点击”import”导入”TDengine for 3.x”仪表盘。
 导入成功后可以进入这个 dashboard，在左上角”Log from“选项中选择 taosKeeper 中设置的记录监控指标的数据库就可以看到监控结果。
 
 
 ##  TDinsightV3 仪表盘详情
 
-TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，比如 dnodes、mnodes、vnodes 和数据库等。
+TDinsight 仪表盘旨在提供 TDengine TSDB 相关资源的使用情况和状态，比如 dnodes、mnodes、vnodes 和数据库等。
 主要分为集群状态、DNodes 概述、MNode 概述、请求、数据库、DNode 资源使用情况和 taosAdapter 监控信息。下面我们分别详细介绍。  
 
 ### 集群状态
 这部分指标包括集群当前信息和状态。
 
-![TDengine Database TDinsight mnodes overview](./assets/TDinsight-1-cluster-status.webp)
+![TDengine TSDB Database TDinsight mnodes overview](./assets/TDinsight-1-cluster-status.webp)
 
 指标详情（从上到下，从左到右）：
 
-- **First EP**：当前 TDengine 集群中的`firstEp`设置。
-- **Version**：TDengine 服务器版本（master mnode）。
+- **First EP**：当前 TDengine TSDB 集群中的`firstEp`设置。
+- **Version**：TDengine TSDB 服务器版本（master mnode）。
 - **Expire Time** - 企业版过期时间。
 - **Used Measuring Points** - 企业版已使用的测点数。
 - **Databases** - 数据库个数。
@@ -67,7 +67,7 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 ### DNodes 概述
 这部分指标包括集群 dnode 基本信息。
 
-![TDengine Database TDinsight mnodes overview](./assets/TDinsight-2-dnodes.webp)
+![TDengine TSDB Database TDinsight mnodes overview](./assets/TDinsight-2-dnodes.webp)
 
 指标详情：
 - **DNodes Status**：`show dnodes` 的简单表格视图。
@@ -76,7 +76,7 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 ### MNode 概述
 这部分指标包括集群 mnode 基本信息。
 
-![TDengine Database TDinsight mnodes overview](./assets/TDinsight-3-mnodes.webp)
+![TDengine TSDB Database TDinsight mnodes overview](./assets/TDinsight-3-mnodes.webp)
 
 指标详情：
 1. **MNodes Status**：`show mnodes` 的简单表格视图。
@@ -85,7 +85,7 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 ### 请求统计
 这部分指标包括集群执行 sql 的统计指标。
 
-![TDengine Database TDinsight requests](./assets/TDinsight-4-requests.webp)
+![TDengine TSDB Database TDinsight requests](./assets/TDinsight-4-requests.webp)
 
 指标详情：
 1. **Select Request**：select 请求数。
@@ -98,7 +98,7 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 
 这部分指标包括集群中表的统计指标。
 
-![TDengine Database TDinsight database](./assets/TDinsight-5-database.webp)
+![TDengine TSDB Database TDinsight database](./assets/TDinsight-5-database.webp)
 
 指标详情：
 1. **STables**：超级表数量。
@@ -110,7 +110,7 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 
 这部分指标包括集群所有数据节点资源使用情况展示，每个数据节点为一个 Row 进行展示。。
 
-![TDengine Database TDinsight dnode-usage](./assets/TDinsight-6-dnode-usage.webp)
+![TDengine TSDB Database TDinsight dnode-usage](./assets/TDinsight-6-dnode-usage.webp)
 
 指标详情（从上到下，从左到右）：
 
@@ -133,7 +133,7 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 
 这部分指标包括 taosAdapter rest 和 websocket 请求统计详情。
 
-![TDengine Database TDinsight monitor taosadapter](./assets/TDinsight-8-taosadapter.webp)
+![TDengine TSDB Database TDinsight monitor taosadapter](./assets/TDinsight-8-taosadapter.webp)
 
 指标详情：
 
@@ -149,10 +149,10 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 ### 预配置告警规则自动导入
 
 涛思总结用户使用经验，整理出 14 个常用的告警规则（alert rule），能够对集群关键指标进行监测并及时上报指标异常、超限等告警信息。  
-从 TDengine-server 3.3.4.3 版本（tdengine-datasource 3.6.3）开始，TDengine Datasource 支持预配置告警规则自动导入功能，用户可将 14 个告警规则一键导入 Grafana（11 及以上版本），直接使用。  
+从 TDengine TSDB server 3.3.4.3 版本（tdengine-datasource 3.6.3）开始，TDengine TSDB Datasource 支持预配置告警规则自动导入功能，用户可将 14 个告警规则一键导入 Grafana（11 及以上版本），直接使用。  
 预配置告警规则导入方法如下图所示，在 tdengine-datasource setting 界面，打开“Load Tengine Alert”开关，点击“Save & test”按钮后，插件会自动加载上述告警规则，规则会放入以数据源名称 + “-alert”的 grafana 告警目录中。如不需要，关闭“Load TDengine Alert”开关，点击“Clear TDengine Alert”旁边的按钮则会清除此数据源已导入的所有告警规则。 
 
-![TDengine Alert](./assets/TDengine-Alert.webp)  
+![TDengine TSDB Alert](./assets/TDengine-Alert.webp)  
 
 导入后，点击 Grafana 左侧“Alert rules” ，可查看当前所有告警规则。 
 用户只需配置联络点（Contact points），即可获取告警通知。联络点配置方法见[告警配置](https://docs.taosdata.com/third-party/visual/grafana/#%E5%91%8A%E8%AD%A6%E9%85%8D%E7%BD%AE)。
@@ -186,13 +186,13 @@ Grafana7.5 及以下版本，Dashboards 与 Alert rules 功能合在一起，而
 
 ## 升级
 下面三种方式都可以进行升级：
-- 用图形界面，若有新版本，可以在”TDengine Datasource“插件页面点击 update 升级。
+- 用图形界面，若有新版本，可以在”TDengine TSDB Datasource“插件页面点击 update 升级。
 - 按照手动安装步骤自行安装新的 Grafana 插件和 Dashboard。
 - 通过重新运行 `TDinsight.sh` 脚本升级到最新的 Grafana 插件和 TDinsight Dashboard。  
 
 ## 卸载
 针对不同的安装方式，卸载时：
-- 用图形界面，在”TDengine Datasource“插件页面点击”Uninstall“卸载。
+- 用图形界面，在”TDengine TSDB Datasource“插件页面点击”Uninstall“卸载。
 - 通过 `TDinsight.sh` 脚本安装的 TDinsight，可以使用命令行 `TDinsight.sh -R` 清理相关资源。
 - 手动安装的 TDinsight，要完全卸载，需要按照顺序清理以下内容：
   1. Grafana 中的 TDinsight Dashboard。
@@ -217,16 +217,16 @@ Install and configure TDinsight dashboard in Grafana on Ubuntu 18.04/20.04 syste
 
 -V, -verbose,       --verbose               Run script in verbose mode. Will print out each step of execution.
 
--v, --plugin-version <version>              TDengine datasource plugin version, [default: latest]
+-v, --plugin-version <version>              TDengine TSDB datasource plugin version, [default: latest]
 
 -P, --grafana-provisioning-dir <dir>        Grafana provisioning directory, [default: /etc/grafana/provisioning/]
 -G, --grafana-plugins-dir <dir>             Grafana plugins directory, [default: /var/lib/grafana/plugins]
 -O, --grafana-org-id <number>               Grafana organization id. [default: 1]
 
--n, --tdengine-ds-name <string>             TDengine datasource name, no space. [default: TDengine]
--a, --tdengine-api <url>                    TDengine REST API endpoint. [default: http://127.0.0.1:6041]
--u, --tdengine-user <string>                TDengine user name. [default: root]
--p, --tdengine-password <string>            TDengine password. [default: taosdata]
+-n, --tdengine-ds-name <string>             TDengine TSDB datasource name, no space. [default: TDengine TSDB]
+-a, --tdengine-api <url>                    TDengine TSDB REST API endpoint. [default: http://127.0.0.1:6041]
+-u, --tdengine-user <string>                TDengine TSDB user name. [default: root]
+-p, --tdengine-password <string>            TDengine TSDB password. [default: taosdata]
 
 -i, --tdinsight-uid <string>                Replace with a non-space ASCII code as the dashboard id. [default: tdinsight]
 -t, --tdinsight-title <string>              Dashboard title. [default: TDinsight]
@@ -237,14 +237,14 @@ Install and configure TDinsight dashboard in Grafana on Ubuntu 18.04/20.04 syste
 
 | 短选项 | 长选项                     | 环境变量                     | 说明                                                    |
 | ------ | -------------------------- | ---------------------------- | ------------------------------------------------------- |
-| -v     | --plugin-version           | TDENGINE_PLUGIN_VERSION      | TDengine 数据源插件版本，默认使用最新版。               |
+| -v     | --plugin-version           | TDENGINE_PLUGIN_VERSION      | TDengine TSDB 数据源插件版本，默认使用最新版。               |
 | -P     | --grafana-provisioning-dir | GF_PROVISIONING_DIR          | Grafana 配置目录，默认为`/etc/grafana/provisioning/`    |
 | -G     | --grafana-plugins-dir      | GF_PLUGINS_DIR               | Grafana 插件目录，默认为`/var/lib/grafana/plugins`。    |
 | -O     | --grafana-org-id           | GF_ORG_ID                    | Grafana 组织 ID，默认为 1。                             |
-| -n     | --tdengine-ds-name         | TDENGINE_DS_NAME             | TDengine 数据源名称，默认为 TDengine。                  |
-| -a     | --tdengine-api             | TDENGINE_API                 | TDengine REST API 端点。默认为`http://127.0.0.1:6041`。 |
-| -u     | --tdengine-user            | TDENGINE_USER                | TDengine 用户名。 [默认值：root]                        |
-| -p     | --tdengine-password        | TDENGINE_PASSWORD            | TDengine 密码。 [默认：taosdata]                        |
+| -n     | --tdengine-ds-name         | TDENGINE_DS_NAME             | TDengine TSDB 数据源名称，默认为 TDengine。                  |
+| -a     | --tdengine-api             | TDENGINE_API                 | TDengine TSDB REST API 端点。默认为`http://127.0.0.1:6041`。 |
+| -u     | --tdengine-user            | TDENGINE_USER                | TDengine TSDB 用户名。 [默认值：root]                        |
+| -p     | --tdengine-password        | TDENGINE_PASSWORD            | TDengine TSDB 密码。 [默认：taosdata]                        |
 | -i     | --tdinsight-uid            | TDINSIGHT_DASHBOARD_UID      | TDinsight 仪表盘`uid`。 [默认值：tdinsight]             |
 | -t     | --tdinsight-title          | TDINSIGHT_DASHBOARD_TITLE    | TDinsight 仪表盘标题。 [默认：TDinsight]                |
 | -e     | --tdinsight-editable       | TDINSIGHT_DASHBOARD_EDITABLE | 如果配置仪表盘可以编辑。 [默认值：false]                |
@@ -253,13 +253,13 @@ Install and configure TDinsight dashboard in Grafana on Ubuntu 18.04/20.04 syste
 新版本插件使用 Grafana unified alerting 功能，`-E` 选项不再支持。
 :::
 
-假设您在主机 `tdengine` 上启动 TDengine 数据库，HTTP API 端口为 `6041`，用户为 `root1`，密码为 `pass5ord`。执行脚本：
+假设您在主机 `tdengine` 上启动 TDengine TSDB 数据库，HTTP API 端口为 `6041`，用户为 `root1`，密码为 `pass5ord`。执行脚本：
 
 ```bash
 ./TDinsight.sh -a http://tdengine:6041 -u root1 -p pass5ord
 ```
 
-如果要监控多个 TDengine 集群，则需要设置多个 TDinsight 仪表盘。设置非默认 TDinsight 需要进行一些更改： `-n` `-i` `-t` 选项需要更改为非默认名称，如果使用 内置短信告警功能，`-N` 和 `-L` 也应该改变。
+如果要监控多个 TDengine TSDB 集群，则需要设置多个 TDinsight 仪表盘。设置非默认 TDinsight 需要进行一些更改： `-n` `-i` `-t` 选项需要更改为非默认名称，如果使用 内置短信告警功能，`-N` 和 `-L` 也应该改变。
 
 ```bash
 sudo ./TDengine.sh -n TDengine-Env1 -a http://another:6041 -u root -p taosdata -i tdinsight-env1 -t 'TDinsight Env1'
