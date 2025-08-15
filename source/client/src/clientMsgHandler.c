@@ -872,23 +872,28 @@ static int32_t setCreateStreamFailedRsp(void* param, SDataBuf* pMsg, int32_t cod
 }
 
 void sendCreateStreamFailedMsg(SRequestObj* pRequest, char* streamName){
-  int32_t code  = 0;
-  tscInfo("send failed stream name to mgmt: %s", streamName);
+  int32_t code = 0;
+  tscDebug("QID:0x%" PRIx64 " send create stream failed msg to mgmt:%s, code:%s", pRequest->requestId, streamName,
+          tstrerror(pRequest->code));
+
   int32_t size = INT_BYTES + strlen(streamName);
+
   void *buf = taosMemoryMalloc(size);
   if (buf == NULL) {
-    tscError("failed to strdup stream name: %s", terrstr());
+    tscError("QID:0x%" PRIx64 " failed to strdup stream name: %s", pRequest->requestId, terrstr());
     return;
   }
+
   *(int32_t*)buf = pRequest->code;
   memcpy(POINTER_SHIFT(buf, INT_BYTES), streamName, strlen(streamName));
 
   SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (sendInfo == NULL) {
     taosMemoryFree(buf);
-    tscError("failed to calloc msgSendInfo: %s", terrstr());
+    tscError("QID:0x%" PRIx64 " failed to calloc msgSendInfo: %s", pRequest->requestId, terrstr());
     return;
   }
+
   sendInfo->msgInfo = (SDataBuf){.pData = buf, .len = size, .handle = NULL};
   sendInfo->requestId = generateRequestId();
   sendInfo->requestObjRefId = 0;
@@ -907,6 +912,7 @@ static void processCreateStreamSecondPhaseRsp(void* param, void* res, int32_t co
   if (code != 0 && param != NULL){
     sendCreateStreamFailedMsg(pRequest, param);
   }
+
   taosMemoryFree(param);
   destroyRequest(pRequest);
 }

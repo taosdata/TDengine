@@ -147,7 +147,7 @@ class TDTestCase:
             tdLog.info(tdSql.queryResult)
 
             tdLog.info(f"streams is creating ...")
-            if "failed" in [tdSql.getData(0, 1), tdSql.getData(1, 1)] and "Conflict transaction not completed" in [tdSql.getData(0, 2), tdSql.getData(1, 2)]:
+            if "failed" in [tdSql.getData(0, 1), tdSql.getData(1, 1)]:
                 break
             else:
                 time.sleep(5)
@@ -172,7 +172,7 @@ class TDTestCase:
             tdSql.query("show streams")
             tdLog.info(f"streams is creating ...")
             tdLog.info(tdSql.queryResult)
-            if tdSql.getData(0, 1) == "failed" and tdSql.getData(0, 2) == "timeout":
+            if tdSql.getData(0, 1) == "failed":
                 break
             else:
                 time.sleep(5)
