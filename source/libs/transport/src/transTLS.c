@@ -24,9 +24,11 @@
 static int32_t sslReadDecryptedData(STransTLS* pTls, char* data, size_t ndata);
 static int32_t sslWriteEncyptedData(STransTLS* pTls, const char* data, size_t ndata);
 
-static int32_t sslSendConn(STransTLS* pTls);
+static int32_t sslDoConn(STransTLS* pTls);
 
 static void sslHandleError(STransTLS* pTls, int ret);
+
+static int32_t sslWriteToBIO(STransTLS* pTls, int32_t nread);
 
 static void destroySSLCtx(SSL_CTX* ctx);
 
@@ -195,7 +197,7 @@ void sslSetMode(STransTLS* pTls, int8_t cliMode) {
   }
 }
 
-static int32_t sslConnImpl(STransTLS* pTls) {
+static int32_t sslInitConn(STransTLS* pTls) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -232,10 +234,10 @@ int32_t sslConnect(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req) {
 
   sslSetMode(pTls, 1);
 
-  code = sslConnImpl(pTls);
+  code = sslInitConn(pTls);
   TAOS_CHECK_GOTO(code, NULL, _error);
 
-  code = sslSendConn(pTls);
+  code = sslDoConn(pTls);
   TAOS_CHECK_GOTO(code, NULL, _error);
 _error:
   if (code != 0) {
@@ -271,33 +273,7 @@ static int32_t sslFlushBioToSocket(STransTLS* pTls) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t sslSendConn(STransTLS* pTls) {
-  int32_t code = 0;
-  if (pTls == NULL || pTls->ssl == NULL) {
-    tError("SSL is not initialized");
-    return TSDB_CODE_INVALID_CFG;
-  }
-
-  char buf[1024] = {0};
-  int  n = 0;
-
-  while ((n = BIO_read(pTls->writeBio, buf, sizeof(buf))) > 0) {
-    uv_buf_t    b = uv_buf_init(buf, n);
-    uv_write_t* req = taosMemoryCalloc(1, sizeof(uv_write_t));
-    if (req == NULL) {
-      return terrno;
-    }
-
-    req->data = pTls->pConn;
-    code = uv_write(req, pTls->pStream, &b, 1, pTls->writeCb);
-    if (code != 0) {
-      tError("Failed to write SSL handshake data: %s", uv_err_name(code));
-      return code;
-    }
-  }
-
-  return code;
-}
+int32_t sslDoConn(STransTLS* pTls) { return sslFlushBioToSocket(pTls); }
 
 int32_t sslWrite(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req, uv_buf_t* pBuf, int32_t nBuf,
                  void (*cb)(uv_write_t*, int)) {
@@ -321,6 +297,10 @@ int32_t sslWrite(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req, uv_buf_t
   while ((nread = BIO_read(pTls->writeBio, buf, sizeof(buf))) > 0) {
     uv_buf_t b = uv_buf_init(buf, nread);
     code = uv_write(req, stream, &b, 1, cb);
+    if (code != 0) {
+      tError("Failed to write SSL data: %s", uv_err_name(code));
+      return code;
+    }
   }
   return code;
 }
@@ -360,14 +340,29 @@ int8_t sslIsInited(STransTLS* pTls) {
   }
   return SSL_is_init_finished(pTls->ssl) ? 1 : 0;
 }
-int32_t sslRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t cliMode) {
+
+static int32_t sslWriteToBIO(STransTLS* pTls, int32_t nread) {
   int32_t     code = 0;
-  int8_t      waitRead = 0;  // 等待对端
   SSslBuffer* sslBuf = &pTls->readBuf;
 
   sslBuf->len += nread;
   int32_t nwrite = BIO_write(pTls->readBio, sslBuf->buf, sslBuf->len);
+
   sslBuf->len = 0;
+  return code;
+}
+
+int32_t sslRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t cliMode) {
+  int32_t     code = 0;
+  int8_t      waitRead = 0;  // 等待对端
+  SSslBuffer* sslBuf = &pTls->readBuf;
+  int32_t     nwrite = 0;
+
+  code = sslWriteToBIO(pTls, nread);
+  if (code != 0) {
+    tError("conn %p failed to write data to SSL BIO since %s", pTls->pConn, tstrerror(code));
+    return code;
+  }
 
   if (cliMode && !SSL_is_init_finished(pTls->ssl)) {
     code = sslDoConnOrRead(pTls, pBuf, nread, &waitRead);
@@ -443,6 +438,15 @@ int32_t sslBufferDestroy(SSslBuffer* buf) {
   buf->cap = 0;
   buf->len = 0;
   return 0;
+}
+
+int32_t sslBufferAppend(SSslBuffer* buf, int32_t len) {
+  int32_t code = 0;
+  if (buf == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  buf->len += len;
+  return code;
 }
 
 int32_t sslBufferRealloc(SSslBuffer* buf, int32_t newCap, uv_buf_t* uvbuf) {
