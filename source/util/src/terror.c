@@ -458,7 +458,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_TTL_CHG_ON_WR,  "ttlChangeOnWrite not 
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_EN_WHITELIST,   "enableWhiteList not match")
 TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_STOPPED,                "Mnode stopped")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_COMPACT_TASKS,  "Invalid max compact tasks")
-TAOS_DEFINE_ERROR(TSDB_CODE_SNODE_NO_AVAILABLE_NODE,      "No stream available snode now")
+TAOS_DEFINE_ERROR(TSDB_CODE_SNODE_NO_AVAILABLE_NODE,      "No Snode is available")
 
 // vnode
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VGROUP_ID,        "Vnode is closed or removed")
@@ -1004,6 +1004,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_DROPPING,            "Stream is dropping"
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_NOT_STOPPED,         "Stream was not stopped")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TBNAME_TOO_LONG,     "Stream output table name too long")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE,    "Stream output table not created")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TBNAME_CALC_FAILED,  "Stream output table name calc failed")
 
 #ifdef TAOS_ERROR_C
 };

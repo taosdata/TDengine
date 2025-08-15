@@ -19,6 +19,7 @@ taosBenchmark -y
 执行该命令后，系统将迅速完成 1 亿条记录的写入过程。实际所需时间取决于硬件性能，但即便在普通 PC 服务器上，这个过程通常也只需要十几秒。
 
 taosBenchmark 提供了丰富的选项，允许用户自定义测试参数，如表的数目、记录条数等。要查看详细的参数列表，请在终端中输入如下命令
+
 ```shell
 taosBenchmark --help
 ```
@@ -30,26 +31,31 @@ taosBenchmark --help
 使用上述 taosBenchmark 插入数据后，可以在 TDengine CLI（taos）输入查询命令，体验查询速度。
 
 1. 查询超级表 meters 下的记录总条数
+
 ```shell
 SELECT COUNT(*) FROM test.meters;
 ```
 
 2. 查询 1 亿条记录的平均值、最大值、最小值
+
 ```shell
 SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters;
 ```
 
 3. 查询 location = "California.SanFrancisco" 的记录总条数
+
 ```shell
 SELECT COUNT(*) FROM test.meters WHERE location = "California.SanFrancisco";
 ```
 
 4. 查询 groupId = 10 的所有记录的平均值、最大值、最小值
+
 ```shell
 SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters WHERE groupId = 10;
 ```
 
 5. 对表 d1001 按每 10 秒进行平均值、最大值和最小值聚合统计
+
 ```shell
 SELECT _wstart, AVG(current), MAX(voltage), MIN(phase) FROM test.d1001 INTERVAL(10s);
 ```

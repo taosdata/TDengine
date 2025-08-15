@@ -9,9 +9,9 @@ anode 采用类动态加载模式，在启动的时候扫描特定目录内满�
 
 1. 开发完成符合要求的分析算法类
 2. 将代码文件放入对应目录，然后重启 anode
-3. 使用 SQL 命令 `CREATE ANODE`，将 anode 添加到 TDengine
+3. 使用 SQL 命令 `CREATE ANODE`，将 anode 添加到 TDengine TSDB
 
-完成新算法添加工作后，就可以直接使用 SQL 语句调用新算法。得益于 TDgpt 与 TDengine 主进程 `taosd` 的松散耦合，anode 算法升级对 `taosd` 完全没有影响。应用系统只需要调整对应的 SQL 语句调用新（升级的）算法，就能够快速完成分析功能和分析算法的升级。
+完成新算法添加工作后，就可以直接使用 SQL 语句调用新算法。得益于 TDgpt 与 TDengine TSDB 主进程 `taosd` 的松散耦合，anode 算法升级对 `taosd` 完全没有影响。应用系统只需要调整对应的 SQL 语句调用新（升级的）算法，就能够快速完成分析功能和分析算法的升级。
 
 这种方式能够按需扩展分析算法，极大地拓展 TDgpt 的适应范围，用户可以按需将更契合业务场景的、更准确的（预测、异常检测）分析算法动态嵌入到 TDgpt，并通过 SQL 语句调用。在基本不用更改应用系统代码的前提下，就能够快速完成分析功能的平滑升级。
 
@@ -19,7 +19,7 @@ anode 采用类动态加载模式，在启动的时候扫描特定目录内满�
 
 ## 环境准备
 
-建议进行进行分析模型开发的研发人员首先从 github 上克隆 [TDengine 社区版本](https://github.com/taosdata/tdengine) 源代码。
+建议进行进行分析模型开发的研发人员首先从 github 上克隆 [TDengine TSDB 社区版本](https://github.com/taosdata/tdengine) 源代码。
 在克隆到本地的源代码目录中，TDgpt 的源代码位于 `./tools/tdgpt` 。[PyCharm 社区版](https://www.jetbrains.com/pycharm/download)
 直接打开该目录即可以进行开发。
 

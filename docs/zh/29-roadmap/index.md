@@ -2,7 +2,7 @@
 title: 产品路线图
 ---
 
-TDengine OSS 之 2025 年年度路线图如下表所示。
+TDengine TSDB OSS 之 2025 年年度路线图如下表所示。
 
 |  季度   |  功能  |
 | :----- | :----- |
@@ -11,4 +11,4 @@ TDengine OSS 之 2025 年年度路线图如下表所示。
 | 2025Q3 | <ol><li>查询能力：支持更多子查询类型、支持 MySQL 运算符、支持 MySQL 所有时间函数、窗口计算逻辑优化、查询性能抖动、计数窗口允许指定列</li><li>存储能力：提高 SQL 模式写入速度</li><li>可观测性：查询诊断工具、优化 <code>EXPLAIN</code> 输出、长任务观测</li></ol> |
 | 2025Q4 | <ol><li>查询能力：窗口函数（<code>OVER</code> 子句）、支持 MySQL 所有字符串/聚合/条件函数、Partition 支持组内排序、控制查询资源占用、提高子表聚合查询性能、<code>INTERVAL</code> 窗口支持插值时间范围</li><li>数据类型：支持不定长度字符串数据类型</li><li>数据缓存：提升按行缓存性能</li><li>可观测性：增强运维可观测性</li></ol> |
 
-欲了解更多信息，请参见 [TDengine Public Roadmap](https://github.com/orgs/taosdata/projects/4) 。
+欲了解更多信息，请参见 [TDengine TSDB Public Roadmap](https://github.com/orgs/taosdata/projects/4) 。

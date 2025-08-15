@@ -1115,48 +1115,61 @@ int32_t compareJsonValDesc(const void *pLeft, const void *pRight) { return compa
 int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t ssize,
                      const SPatternCompareInfo *pInfo) {
   char c, c1;
-
   int32_t i = 0;
   int32_t j = 0;
   int32_t nMatchChar = 0;
 
   while ((i < psize) && ((c = pattern[i++]) != 0)) {
-    if (c == pInfo->matchAll) { /* Match "*" */
+    bool escaped = false;
 
+    // handle escaped characters
+    if (c == '\\' && i < psize && 
+        (pattern[i] == pInfo->matchOne || pattern[i] == pInfo->matchAll || pattern[i] == '\\')) {
+      c = pattern[i++];
+      escaped = true;
+    }
+
+    // handle matchAll wildcard '%' or '*'
+    if (!escaped && c == pInfo->matchAll) {
+      // skip continues matchAll and matchOne
       while ((i < psize) && ((c = pattern[i++]) == pInfo->matchAll || c == pInfo->matchOne)) {
         if (c == pInfo->matchOne) {
-          if (j >= ssize || str[j++] == 0) {  // empty string, return not match
+          if (j >= ssize || str[j++] == 0) {
             return TSDB_PATTERN_NOWILDCARDMATCH;
-          } else {
-            ++nMatchChar;
           }
+          ++nMatchChar;
         }
       }
 
-      if (i >= psize && (c == pInfo->umatchOne || c == pInfo->umatchAll)) {
-        return TSDB_PATTERN_MATCH; /* "*" at the end of the pattern matches */
+      // handle wildcard at the end of the pattern
+      if (i >= psize && (c == pInfo->matchOne || c == pInfo->matchAll)) {
+        return TSDB_PATTERN_MATCH;
       }
 
-      if (c == '\\' && (pattern[i] == '_' || pattern[i] == '%')) {
-        c = pattern[i];
-        i++;
+      // now c is the next character after matchAll
+      // handle escaped characters (if after wildcard)
+      if (c == '\\' && i < psize && 
+          (pattern[i] == pInfo->matchOne || pattern[i] == pInfo->matchAll || pattern[i] == '\\')) {
+        c = pattern[i++];
       }
 
       char rejectList[2] = {toupper(c), tolower(c)};
+      const char *remainStr = str + nMatchChar;
+      int32_t remainSize = ssize - nMatchChar;
 
-      str += nMatchChar;
-      int32_t remain = ssize - nMatchChar;
+      // greedily match the rest of the pattern
       while (1) {
-        size_t n = tstrncspn(str, remain, rejectList, 2);
+        // find the first occurrence of the reject character in the remaining string
+        // this segments the string for potential recursive matching
+        size_t n = tstrncspn(remainStr, remainSize, rejectList, 2);
+        remainStr += n;
+        remainSize -= n;
 
-        str += n;
-        remain -= n;
-
-        if ((remain <= 0) || str[0] == 0) {
+        if (remainSize <= 0 || remainStr[0] == 0) {
           break;
         }
 
-        int32_t ret = patternMatch(&pattern[i], psize - i, ++str, --remain, pInfo);
+        int32_t ret = patternMatch(&pattern[i], psize - i, ++remainStr, --remainSize, pInfo);
         if (ret != TSDB_PATTERN_NOMATCH) {
           return ret;
         }
@@ -1165,20 +1178,13 @@ int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t 
       return TSDB_PATTERN_NOWILDCARDMATCH;
     }
 
+    // handle normal character or matchOne wildcard '_'
     if (j < ssize) {
       c1 = str[j++];
       ++nMatchChar;
 
-      if (c == '\\' && (pattern[i] == '_' || pattern[i] == '%')) {
-        if (c1 != pattern[i]) {
-          return TSDB_PATTERN_NOMATCH;
-        } else {
-          i++;
-          continue;
-        }
-      }
-
-      if (c == c1 || tolower(c) == tolower(c1) || (c == pInfo->matchOne && c1 != 0)) {
+      if ((c == c1 || tolower(c) == tolower(c1)) || 
+          (!escaped && c == pInfo->matchOne && c1 != 0)) {
         continue;
       }
     }
@@ -1202,51 +1208,56 @@ int32_t rawStrPatternMatch(const char *str, const char *pattern) {
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
 
+// same logic with patternMatch, but for UCS4 strings
 int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, size_t ssize,
                         const SPatternCompareInfo *pInfo) {
   TdUcs4 c, c1;
-
   int32_t i = 0;
   int32_t j = 0;
   int32_t nMatchChar = 0;
 
   while ((i < psize) && ((c = pattern[i++]) != 0)) {
-    if (c == pInfo->umatchAll) { /* Match "%" */
+    bool escaped = false;
 
+    if (c == '\\' && i < psize && 
+        (pattern[i] == pInfo->umatchOne || pattern[i] == pInfo->umatchAll || pattern[i] == '\\')) {
+      c = pattern[i++];
+      escaped = true;
+    }
+
+    if (!escaped && c == pInfo->umatchAll) {
       while ((i < psize) && ((c = pattern[i++]) == pInfo->umatchAll || c == pInfo->umatchOne)) {
         if (c == pInfo->umatchOne) {
           if (j >= ssize || str[j++] == 0) {
             return TSDB_PATTERN_NOWILDCARDMATCH;
-          } else {
-            ++nMatchChar;
           }
+          ++nMatchChar;
         }
       }
 
-      if (i >= psize && (c == pInfo->umatchOne || c == pInfo->umatchAll)) {
+      if (i >= psize && (c == pInfo->matchOne || c == pInfo->matchAll)) {
         return TSDB_PATTERN_MATCH;
       }
 
-      if (c == '\\' && (pattern[i] == '_' || pattern[i] == '%')) {
-        c = pattern[i];
-        i++;
+      if (c == '\\' && i < psize && 
+          (pattern[i] == pInfo->umatchOne || pattern[i] == pInfo->umatchAll || pattern[i] == '\\')) {
+        c = pattern[i++];
       }
 
-      TdUcs4 rejectList[2] = {towupper(c), towlower(c)};
+      TdUcs4 rejectList[2] = {toupper(c), tolower(c)};
+      const TdUcs4 *remainStr = str + nMatchChar;
+      int32_t remainSize = ssize - nMatchChar;
 
-      str += nMatchChar;
-      int32_t remain = ssize - nMatchChar;
       while (1) {
-        size_t n = twcsncspn(str, remain, rejectList, 2);
+        size_t n = twcsncspn(remainStr, remainSize, rejectList, 2);
+        remainStr += n;
+        remainSize -= n;
 
-        str += n;
-        remain -= n;
-
-        if ((remain <= 0) || str[0] == 0) {
+        if (remainSize <= 0 || remainStr[0] == 0) {
           break;
         }
 
-        int32_t ret = wcsPatternMatch(&pattern[i], psize - i, ++str, --remain, pInfo);
+        int32_t ret = wcsPatternMatch(&pattern[i], psize - i, ++remainStr, --remainSize, pInfo);
         if (ret != TSDB_PATTERN_NOMATCH) {
           return ret;
         }
@@ -1257,18 +1268,10 @@ int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, 
 
     if (j < ssize) {
       c1 = str[j++];
-      nMatchChar++;
+      ++nMatchChar;
 
-      if (c == '\\' && (pattern[i] == '_' || pattern[i] == '%')) {
-        if (c1 != pattern[i]) {
-          return TSDB_PATTERN_NOMATCH;
-        } else {
-          i++;
-          continue;
-        }
-      }
-
-      if (c == c1 || towlower(c) == towlower(c1) || (c == pInfo->umatchOne && c1 != 0)) {
+      if ((c == c1 || tolower(c) == tolower(c1)) || 
+          (!escaped && c == pInfo->umatchOne && c1 != 0)) {
         continue;
       }
     }

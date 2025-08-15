@@ -13,14 +13,14 @@ class TestStreamOldCaseCount:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_count(self):
-        """Stream count
+        """Stream count window
 
         Basic use cases of count window, include expired-data, out-of-order data, and data-deletion
 
         Catalog:
             - Streams:OldTsimCases
 
-        Since: v3.0.0.0
+        Since: v3.3.7.0
 
         Labels: common, ci
 
