@@ -2394,6 +2394,25 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
       pContext->pParamToFetch = TARRAY_DATA(pCalcReq->params);
     }
 
+    bool batchFetch = false;
+    if (pTask->isVirtualTable && taosArrayGetSize(pGroup->pVirTableInfos) == 1 ||
+        !pTask->isVirtualTable && tSimpleHashGetSize(pGroup->pTableMetas) == 1) {
+      switch (pTask->triggerType) {
+        case STREAM_TRIGGER_SLIDING: {
+          batchFetch = pTask->interval.interval <= pTask->interval.sliding;
+          break;
+        }
+        case STREAM_TRIGGER_COUNT: {
+          batchFetch = pTask->windowCount <= pTask->windowSliding;
+          break;
+        }
+        default: {
+          batchFetch = (pTask->triggerType != STREAM_TRIGGER_PERIOD);
+          break;
+        }
+      }
+    }
+
     while (TARRAY_ELEM_IDX(pCalcReq->params, pContext->pParamToFetch) < TARRAY_SIZE(pCalcReq->params)) {
       bool allTableProcessed = false;
       bool needFetchData = false;
@@ -2408,28 +2427,48 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
         if (allTableProcessed || needFetchData) {
           break;
         }
-        if (!pTask->isVirtualTable) {
-          code = putStreamDataCache(pContext->pCalcDataCache, pGroup->gid, pContext->pParamToFetch->wstart,
-                                    pContext->pParamToFetch->wend, pDataBlock, startIdx, endIdx - 1);
-          QUERY_CHECK_CODE(code, lino, _end);
+        if (batchFetch) {
+          SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, pTask->calcTsIndex);
+          QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
+          int64_t *pTsData = (int64_t *)pTsCol->pData;
+          int32_t  r = startIdx;
+          while (r < endIdx) {
+            int64_t ts = pTsData[r];
+            while (ts > pContext->pParamToFetch->wend) {
+              pContext->pParamToFetch++;
+            }
+            void   *px = taosbsearch(&pContext->pParamToFetch->wend, &pTsData[r], endIdx - r, sizeof(int64_t),
+                                     compareInt64Val, TD_GT);
+            int32_t nrows = (px != NULL) ? (POINTER_DISTANCE(px, &pTsData[r]) / sizeof(int64_t)) : (endIdx - r);
+            code = putStreamDataCache(pContext->pCalcDataCache, pGroup->gid, pContext->pParamToFetch->wstart,
+                                      pContext->pParamToFetch->wend, pDataBlock, r, r + nrows - 1);
+            QUERY_CHECK_CODE(code, lino, _end);
+            r += nrows;
+          }
         } else {
-          if (pCalcDataBlock == NULL) {
-            code = createDataBlock(&pCalcDataBlock);
+          if (!pTask->isVirtualTable) {
+            code = putStreamDataCache(pContext->pCalcDataCache, pGroup->gid, pContext->pParamToFetch->wstart,
+                                      pContext->pParamToFetch->wend, pDataBlock, startIdx, endIdx - 1);
+            QUERY_CHECK_CODE(code, lino, _end);
+          } else {
+            if (pCalcDataBlock == NULL) {
+              code = createDataBlock(&pCalcDataBlock);
+              QUERY_CHECK_CODE(code, lino, _end);
+            }
+            taosArrayClear(pCalcDataBlock->pDataBlock);
+            pCalcDataBlock->info.rowSize = 0;
+            int32_t nCols = TARRAY_SIZE(pTask->pVirCalcSlots);
+            for (int32_t i = 0; i < nCols; i++) {
+              int32_t          slotId = *(int32_t *)TARRAY_GET_ELEM(pTask->pVirCalcSlots, i);
+              SColumnInfoData *pCol = TARRAY_GET_ELEM(pDataBlock->pDataBlock, slotId);
+              code = blockDataAppendColInfo(pCalcDataBlock, pCol);
+              QUERY_CHECK_CODE(code, lino, _end);
+            }
+            pCalcDataBlock->info.rows = pDataBlock->info.rows;
+            code = putStreamDataCache(pContext->pCalcDataCache, pGroup->gid, pContext->pParamToFetch->wstart,
+                                      pContext->pParamToFetch->wend, pCalcDataBlock, startIdx, endIdx - 1);
             QUERY_CHECK_CODE(code, lino, _end);
           }
-          taosArrayClear(pCalcDataBlock->pDataBlock);
-          pCalcDataBlock->info.rowSize = 0;
-          int32_t nCols = TARRAY_SIZE(pTask->pVirCalcSlots);
-          for (int32_t i = 0; i < nCols; i++) {
-            int32_t          slotId = *(int32_t *)TARRAY_GET_ELEM(pTask->pVirCalcSlots, i);
-            SColumnInfoData *pCol = TARRAY_GET_ELEM(pDataBlock->pDataBlock, slotId);
-            code = blockDataAppendColInfo(pCalcDataBlock, pCol);
-            QUERY_CHECK_CODE(code, lino, _end);
-          }
-          pCalcDataBlock->info.rows = pDataBlock->info.rows;
-          code = putStreamDataCache(pContext->pCalcDataCache, pGroup->gid, pContext->pParamToFetch->wstart,
-                                    pContext->pParamToFetch->wend, pCalcDataBlock, startIdx, endIdx - 1);
-          QUERY_CHECK_CODE(code, lino, _end);
         }
       }
 
@@ -2448,6 +2487,9 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
           QUERY_CHECK_CODE(code, lino, _end);
           goto _end;
         }
+      }
+      if (batchFetch) {
+        break;
       }
       SSTriggerCalcParam *pNextParam = pContext->pParamToFetch + 1;
       stRealtimeGroupClearTempState(pGroup);
@@ -6286,12 +6328,37 @@ static int32_t stRealtimeGroupGetDataBlock(SSTriggerRealtimeGroup *pGroup, bool 
           range.skey = pGroup->oldThreshold + 1;
           range.ekey = pGroup->newThreshold;
         } else if (pContext->status == STRIGGER_CONTEXT_SEND_CALC_REQ) {
+          bool batchFetch = false;
+          if (pTask->isVirtualTable && taosArrayGetSize(pGroup->pVirTableInfos) == 1 ||
+              !pTask->isVirtualTable && tSimpleHashGetSize(pGroup->pTableMetas) == 1) {
+            switch (pTask->triggerType) {
+              case STREAM_TRIGGER_SLIDING: {
+                batchFetch = pTask->interval.interval <= pTask->interval.sliding;
+                break;
+              }
+              case STREAM_TRIGGER_COUNT: {
+                batchFetch = pTask->windowCount <= pTask->windowSliding;
+                break;
+              }
+              default: {
+                batchFetch = (pTask->triggerType != STREAM_TRIGGER_PERIOD);
+                break;
+              }
+            }
+          }
           if (pTask->triggerType != STREAM_TRIGGER_PERIOD) {
-            range.skey = pContext->pParamToFetch->wstart;
-            range.ekey = pContext->pParamToFetch->wend;
-            if (TARRAY_ELEM_IDX(pContext->pCalcReq->params, pContext->pParamToFetch) > 0) {
-              SSTriggerCalcParam *pPrevParam = pContext->pParamToFetch - 1;
-              range.skey = TMAX(range.skey, pPrevParam->wend + 1);
+            if (batchFetch) {
+              SSTriggerCalcParam *pFirstWin = TARRAY_DATA(pContext->pCalcReq->params);
+              SSTriggerCalcParam *pLastWin = taosArrayGetLast(pContext->pCalcReq->params);
+              range.skey = pFirstWin->wstart;
+              range.ekey = pLastWin->wend;
+            } else {
+              range.skey = pContext->pParamToFetch->wstart;
+              range.ekey = pContext->pParamToFetch->wend;
+              if (TARRAY_ELEM_IDX(pContext->pCalcReq->params, pContext->pParamToFetch) > 0) {
+                SSTriggerCalcParam *pPrevParam = pContext->pParamToFetch - 1;
+                range.skey = TMAX(range.skey, pPrevParam->wend + 1);
+              }
             }
           }
         } else {

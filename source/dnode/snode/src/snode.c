@@ -261,9 +261,9 @@ static int32_t handleStreamFetchFromCache(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   readInfo.taskInfo.taskId = req.taskId;
   readInfo.taskInfo.sessionId = req.pStRtFuncInfo->sessionId;
   readInfo.gid = req.pStRtFuncInfo->groupId;
-  SSTriggerCalcParam* pParam = taosArrayGet(req.pStRtFuncInfo->pStreamPesudoFuncVals, req.pStRtFuncInfo->curIdx);
-  readInfo.start = pParam->wstart;
-  readInfo.end = pParam->wend;
+  //SSTriggerCalcParam* pParam = taosArrayGet(req.pStRtFuncInfo->pStreamPesudoFuncVals, req.pStRtFuncInfo->curIdx);
+  readInfo.start = req.pStRtFuncInfo->curWindow.skey;
+  readInfo.end = req.pStRtFuncInfo->curWindow.ekey;
   bool finished;
   TAOS_CHECK_EXIT(stRunnerFetchDataFromCache(&readInfo,&finished));
 

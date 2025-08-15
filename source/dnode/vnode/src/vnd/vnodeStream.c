@@ -822,6 +822,7 @@ end:
   return code;
 }
 
+/*
 static int32_t createExternalConditions(SStreamRuntimeFuncInfo* data, SLogicConditionNode** pCond, STargetNode* pTargetNodeTs, STimeRangeNode* node) {
   int32_t              code = 0;
   int32_t              lino = 0;
@@ -865,6 +866,7 @@ end:
 
   return code;
 }
+*/
 
 static int32_t processCalaTimeRange(SStreamTriggerReaderCalcInfo* sStreamReaderCalcInfo, SResFetchReq* req,
                                     STimeRangeNode* node, SReadHandle* handle) {
@@ -872,6 +874,7 @@ static int32_t processCalaTimeRange(SStreamTriggerReaderCalcInfo* sStreamReaderC
   int32_t lino = 0;
   SArray* funcVals = NULL;
   if (req->pStRtFuncInfo->withExternalWindow) {
+/*
     nodesDestroyNode(sStreamReaderCalcInfo->tsConditions);
     filterFreeInfo(sStreamReaderCalcInfo->pFilterInfo);
     sStreamReaderCalcInfo->pFilterInfo = NULL;
@@ -883,6 +886,7 @@ static int32_t processCalaTimeRange(SStreamTriggerReaderCalcInfo* sStreamReaderC
     STREAM_CHECK_RET_GOTO(filterInitFromNode((SNode*)sStreamReaderCalcInfo->tsConditions,
                                              (SFilterInfo**)&sStreamReaderCalcInfo->pFilterInfo,
                                              FLT_OPTION_NO_REWRITE | FLT_OPTION_SCALAR_MODE, NULL));
+*/                                             
     SSTriggerCalcParam* pFirst = taosArrayGet(req->pStRtFuncInfo->pStreamPesudoFuncVals, 0);
     SSTriggerCalcParam* pLast = taosArrayGetLast(req->pStRtFuncInfo->pStreamPesudoFuncVals);
     STREAM_CHECK_NULL_GOTO(pFirst, terrno);
@@ -2097,12 +2101,15 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
     SSDataBlock* pBlock = taosArrayGetP(pResList, i);
     if (pBlock == NULL) continue;
     printDataBlock(pBlock, __func__, "fetch");
+/*    
     if (sStreamReaderCalcInfo->rtInfo.funcInfo.withExternalWindow) {
       STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock, sStreamReaderCalcInfo->pFilterInfo));
       printDataBlock(pBlock, __func__, "fetch filter");
     }
+*/    
   }
 
+  ST_TASK_DLOG("vgId:%d %s start to build rsp", TD_VID(pVnode), __func__);
   STREAM_CHECK_RET_GOTO(streamBuildFetchRsp(pResList, hasNext, &buf, &size, pVnode->config.tsdbCfg.precision));
   ST_TASK_DLOG("vgId:%d %s end:", TD_VID(pVnode), __func__);
 

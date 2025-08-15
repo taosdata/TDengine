@@ -42,7 +42,7 @@ extern "C" {
 
 #define STREAM_CLR_FLAG(st, f) (st) &= (~f)
 
-#define STREAM_CALC_REQ_MAX_WIN_NUM 4096
+#define STREAM_CALC_REQ_MAX_WIN_NUM 40960
 
 
 typedef enum EStreamTriggerType {
@@ -78,10 +78,10 @@ typedef struct SStreamRunnerTaskExecution {
   SStreamRuntimeInfo runtimeInfo;
   char               tbname[TSDB_TABLE_NAME_LEN];
   void              *pSinkHandle;
+  SSDataBlock       *pOutBlock;
 } SStreamRunnerTaskExecution;
 
 typedef struct SStreamRunnerTaskOutput {
-  struct SSDataBlock *pBlock;
   char                outDbFName[TSDB_DB_FNAME_LEN];
   char                outSTbName[TSDB_TABLE_NAME_LEN];
   int8_t              outTblType;
@@ -89,7 +89,7 @@ typedef struct SStreamRunnerTaskOutput {
   SArray             *outTags;  // array of SFieldWithOptions
   uint64_t            outStbUid;
   int32_t             outStbVersion;
-  SNodeList           *pTagValExprs;
+  SNodeList          *pTagValExprs;
 } SStreamRunnerTaskOutput;
 
 typedef struct SStreamRunnerTaskNotification {

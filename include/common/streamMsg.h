@@ -717,6 +717,9 @@ typedef enum ESTriggerPullType {
   STRIGGER_PULL_WAL_TRIGGER_DATA,
   STRIGGER_PULL_WAL_CALC_DATA,
   STRIGGER_PULL_WAL_DATA,
+  STRIGGER_PULL_WAL_META_NEW,
+  STRIGGER_PULL_WAL_DATA_NEW,
+  STRIGGER_PULL_WAL_META_DATA_NEW,
   STRIGGER_PULL_GROUP_COL_VALUE,
   STRIGGER_PULL_VTABLE_INFO,
   STRIGGER_PULL_VTABLE_PSEUDO_COL,
@@ -807,6 +810,28 @@ typedef struct SSTriggerWalDataRequest {
   SArray*              cids;  // SArray<col_id_t>, col_id starts from 0
 } SSTriggerWalDataRequest;
 
+typedef struct SSTriggerWalMetaNewRequest {
+  SSTriggerPullRequest base;
+  int64_t              lastVer;
+} SSTriggerWalMetaNewRequest;
+
+typedef struct SSTriggerWalDataRange {
+  int64_t gid;
+  int64_t skey;
+  int64_t ekey;
+} SSTriggerWalDataRange;
+
+typedef struct SSTriggerWalDataNewRequest {
+  SSTriggerPullRequest base;
+  SArray*              versions;  // SArray<int64_t>
+  SArray*              ranges;    // SArray<SSTriggerWalDataRange>
+} SSTriggerWalDataNewRequest;
+
+typedef struct SSTriggerWalMetaDataNewRequest {
+  SSTriggerPullRequest base;
+  int64_t              lastVer;
+} SSTriggerWalMetaDataNewRequest;
+
 typedef struct SSTriggerGroupColValueRequest {
   SSTriggerPullRequest base;
   int64_t              gid;
@@ -858,6 +883,9 @@ typedef union SSTriggerPullRequestUnion {
   SSTriggerTsdbDataRequest            tsdbDataReq;
   SSTriggerWalMetaRequest             walMetaReq;
   SSTriggerWalDataRequest             walDataReq;
+  SSTriggerWalMetaNewRequest          walMetaNewReq;
+  SSTriggerWalDataNewRequest          walDataNewReq;
+  SSTriggerWalMetaDataNewRequest      walMetaDataNewReq;
   SSTriggerGroupColValueRequest       groupColValueReq;
   SSTriggerVirTableInfoRequest        virTableInfoReq;
   SSTriggerVirTablePseudoColRequest   virTablePseudoColReq;
@@ -935,6 +963,8 @@ int32_t tDeserializeSTriggerCtrlRequest(void* buf, int32_t bufLen, SSTriggerCtrl
 typedef struct SStreamRuntimeFuncInfo {
   SArray* pStreamPesudoFuncVals;
   SArray* pStreamPartColVals;
+  STimeWindow curWindow;
+//  STimeWindow wholeWindow;
   int64_t groupId;
   int32_t curIdx; // for pesudo func calculation
   int64_t sessionId;
@@ -944,7 +974,7 @@ typedef struct SStreamRuntimeFuncInfo {
   int32_t triggerType;
 } SStreamRuntimeFuncInfo;
 
-int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo);
+int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo, bool full);
 int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo);
 int32_t tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo);
 typedef struct STsInfo {
@@ -976,8 +1006,8 @@ typedef struct SStreamTsResponse {
 int32_t tSerializeSStreamTsResponse(void* buf, int32_t bufLen, const SStreamTsResponse* pRsp);
 int32_t tDeserializeSStreamTsResponse(void* buf, int32_t bufLen, void *pBlock);
 
-
-
+int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, const SArray* pRsp);
+int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, SArray* pRsp);
 
 typedef struct SStreamGroupValue {
   SValue        data;

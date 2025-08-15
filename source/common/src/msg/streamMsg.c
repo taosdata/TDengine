@@ -3476,6 +3476,34 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       TAOS_CHECK_EXIT(encodeColsArray(&encoder, pRequest->cids));
       break;
     }
+    case STRIGGER_PULL_WAL_META_NEW: {
+      SSTriggerWalMetaNewRequest* pRequest = (SSTriggerWalMetaNewRequest*)pReq;
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->lastVer));
+      break;
+    }
+    case STRIGGER_PULL_WAL_DATA_NEW: {
+      SSTriggerWalDataNewRequest* pRequest = (SSTriggerWalDataNewRequest*)pReq;
+      int32_t                     nVersion = taosArrayGetSize(pRequest->versions);
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, nVersion));
+      for (int32_t i = 0; i < nVersion; i++) {
+        int64_t ver = *(int64_t*)TARRAY_GET_ELEM(pRequest->versions, i);
+        TAOS_CHECK_EXIT(tEncodeI64(&encoder, ver));
+      }
+      int32_t nRanges = taosArrayGetSize(pRequest->ranges);
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, nRanges));
+      for (int32_t i = 0; i < nRanges; i++) {
+        SSTriggerWalDataRange* pRange = TARRAY_GET_ELEM(pRequest->ranges, i);
+        TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRange->gid));
+        TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRange->skey));
+        TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRange->ekey));
+      }
+      break;
+    }
+    case STRIGGER_PULL_WAL_META_DATA_NEW: {
+      SSTriggerWalMetaDataNewRequest* pRequest = (SSTriggerWalMetaDataNewRequest*)pReq;
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->lastVer));
+      break;
+    }
     case STRIGGER_PULL_GROUP_COL_VALUE: {
       SSTriggerGroupColValueRequest* pRequest = (SSTriggerGroupColValueRequest*)pReq;
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->gid));
@@ -3651,6 +3679,36 @@ int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPull
       TAOS_CHECK_EXIT(decodeColsArray(&decoder, &pRequest->cids));
       break;
     }
+    case STRIGGER_PULL_WAL_META_NEW: {
+      SSTriggerWalMetaNewRequest* pRequest = &(pReq->walMetaNewReq);
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->lastVer));
+      break;
+    }
+    case STRIGGER_PULL_WAL_DATA_NEW: {
+      SSTriggerWalDataNewRequest* pRequest = &(pReq->walDataNewReq);
+      int32_t                     nVersion = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nVersion));
+      pRequest->versions = taosArrayInit_s(nVersion, sizeof(int64_t));
+      for (int32_t i = 0; i < nVersion; i++) {
+        int64_t* pVer = TARRAY_GET_ELEM(pRequest->versions, i);
+        TAOS_CHECK_EXIT(tDecodeI64(&decoder, pVer));
+      }
+      int32_t nRanges = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nRanges));
+      pRequest->ranges = taosArrayInit_s(nRanges, sizeof(SSTriggerWalDataRange));
+      for (int32_t i = 0; i < nRanges; i++) {
+        SSTriggerWalDataRange* pRange = TARRAY_GET_ELEM(pRequest->ranges, i);
+        TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRange->gid));
+        TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRange->skey));
+        TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRange->ekey));
+      }
+      break;
+    }
+    case STRIGGER_PULL_WAL_META_DATA_NEW: {
+      SSTriggerWalMetaDataNewRequest* pRequest = &(pReq->walMetaDataNewReq);
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->lastVer));
+      break;
+    }
     case STRIGGER_PULL_GROUP_COL_VALUE: {
       SSTriggerGroupColValueRequest* pRequest = &(pReq->groupColValueReq);
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->gid));
@@ -3703,8 +3761,8 @@ _exit:
   return code;
 }
 
-static int32_t tSerializeSTriggerCalcParam(SEncoder* pEncoder, SArray* pParams, bool ignoreNotificationInfo) {
-  int32_t size = taosArrayGetSize(pParams);
+static int32_t tSerializeSTriggerCalcParam(SEncoder* pEncoder, SArray* pParams, bool ignoreNotificationInfo, bool full) {
+  int32_t size = full ? taosArrayGetSize(pParams) : 0;
   int32_t code = 0;
   int32_t lino = 0;
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, size));
@@ -3924,7 +3982,7 @@ int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTrigger
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->triggerType));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->gid));
 
-  TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(&encoder, pReq->params, false));
+  TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(&encoder, pReq->params, false, true));
   TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(&encoder, pReq->groupColVals, -1));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->createTable));
 
@@ -4027,10 +4085,12 @@ _exit:
   return code;
 }
 
-int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo) {
+int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo, bool full) {
   int32_t code = 0, lino = 0;
-  TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(pEncoder, pInfo->pStreamPesudoFuncVals, true));
+  TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(pEncoder, pInfo->pStreamPesudoFuncVals, true, full));
   TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(pEncoder, pInfo->pStreamPartColVals, -1));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pInfo->curWindow.skey));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pInfo->curWindow.ekey));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pInfo->groupId));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pInfo->curIdx));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pInfo->sessionId));
@@ -4045,6 +4105,8 @@ int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pIn
   int32_t size = 0;
   TAOS_CHECK_EXIT(tDeserializeSTriggerCalcParam(pDecoder, &pInfo->pStreamPesudoFuncVals, true));
   TAOS_CHECK_EXIT(tDeserializeStriggerGroupColVals(pDecoder, &pInfo->pStreamPartColVals));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pInfo->curWindow.skey));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pInfo->curWindow.ekey));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pInfo->groupId));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pInfo->curIdx));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pInfo->sessionId));
@@ -4218,6 +4280,70 @@ int32_t tDeserializeSStreamTsResponse(void* buf, int32_t bufLen, void *pBlock) {
 
   pResBlock->info.dataLoad = 1;
   pResBlock->info.rows = numOfRows;
+
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, const SArray* pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t tlen = 0;
+
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+
+  int32_t nBlocks = taosArrayGetSize(pRsp);
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, nBlocks));
+  for (int32_t i = 0; i < nBlocks; i++) {
+    SSDataBlock* pBlock = *(SSDataBlock**)TARRAY_GET_ELEM(pRsp, i);
+    uint8_t* data = encoder.data ? (encoder.data + encoder.pos) : NULL;
+    int32_t  len = blockEncode(pBlock, (char*)data, encoder.size - encoder.pos, blockDataGetNumOfCols(pBlock));
+    if (len < 0) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    encoder.pos += len;
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, pBlock->info.version));
+    TAOS_CHECK_EXIT(tEncodeU64(&encoder, pBlock->info.id.uid));
+  }
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSStreamWalDataResponse(void *buf, int32_t bufLen, SArray *pRsp) {
+  SDecoder decoder = {0};
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+
+  int32_t nBlocks = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nBlocks));
+  taosArrayClearP(pRsp, (void (*)(void*))blockDataDestroy);
+  TAOS_CHECK_EXIT(taosArrayEnsureCap(pRsp, nBlocks));
+  for (int32_t i = 0; i < nBlocks; i++) {
+    SSDataBlock* pBlock = NULL;
+    TAOS_CHECK_EXIT(createDataBlock(&pBlock));
+    const char* pEndPos = NULL;
+    TAOS_CHECK_EXIT(blockDecode(pBlock, (char*)decoder.data + decoder.pos, &pEndPos));
+    decoder.pos = (uint8_t*)pEndPos - decoder.data;
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pBlock->info.version));
+    TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pBlock->info.id.uid));
+  }
 
   tEndDecode(&decoder);
 
