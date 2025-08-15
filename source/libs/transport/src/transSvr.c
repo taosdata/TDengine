@@ -731,7 +731,7 @@ void uvOnRecvCbSSL(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
 
   SConnBuffer* pBuf = &conn->readBuf;
   if (nread > 0) {
-    code = sslDoRead(conn->pTls, pBuf, nread, 0);
+    code = sslRead(conn->pTls, pBuf, nread, 0);
     TAOS_CHECK_GOTO(code, &lino, _error);
 
     if (pBuf->len <= TRANS_PACKET_LIMIT) {
@@ -965,7 +965,7 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrRespMsg* smsg) {
   if (pConn->enableSSL == 0) {
     ret = uv_write(req, (uv_stream_t*)pConn->pTcp, pBuf, bufNum, uvOnSendCb);
   } else {
-    ret = sslDoWrite(pConn->pTls, (uv_stream_t*)pConn->pTcp, req, pBuf, bufNum, uvOnSendCb);
+    ret = sslWrite(pConn->pTls, (uv_stream_t*)pConn->pTcp, req, pBuf, bufNum, uvOnSendCb);
   }
 
   if (ret != 0) {
@@ -1290,7 +1290,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       pRecvCb = uvOnRecvCbSSL;
     }
 
-    setSSLMode(pConn->pTls, 0);
+    sslSetMode(pConn->pTls, 0);
 
     code = uv_read_start((uv_stream_t*)(pConn->pTcp), pAllocCb, pRecvCb);
     if (code != 0) {
@@ -1506,7 +1506,7 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   wqInited = 1;
 
   if (pInst->enableSSL) {
-    code = initSSL(pInst->pSSLContext, &pConn->pTls);
+    code = sslInit(pInst->pSSLContext, &pConn->pTls);
     TAOS_CHECK_GOTO(code, &lino, _end);
 
     pConn->enableSSL = 1;
@@ -1553,7 +1553,7 @@ _end:
     taosMemoryFree(pConn->buf);
 
     if (pConn->pTls) {
-      destroySSL(pConn->pTls);
+      sslDestroy(pConn->pTls);
       pConn->pTls = NULL;
     }
 
@@ -1620,7 +1620,7 @@ static void uvDestroyConn(uv_handle_t* handle) {
   transDestroyBuffer(&conn->readBuf);
 
   destroyWQ(&conn->wq);
-  destroySSL(conn->pTls);
+  sslDestroy(conn->pTls);
 
   taosMemoryFree(conn->buf);
   taosMemoryFree(conn);

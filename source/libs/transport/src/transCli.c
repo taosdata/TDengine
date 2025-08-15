@@ -1017,7 +1017,7 @@ static void cliRecvCbSSL(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf
   }
   SConnBuffer* pBuf = &conn->readBuf;
   if (nread > 0) {
-    code = sslDoRead(conn->pTls, pBuf, nread, 1);
+    code = sslRead(conn->pTls, pBuf, nread, 1);
     TAOS_CHECK_GOTO(code, &lino, _error);
 
     while (transReadComplete(pBuf)) {
@@ -1227,7 +1227,7 @@ static void cliDestroy(uv_handle_t* handle) {
     conn->pInitUserReq = NULL;
   }
 
-  if (conn->pTls) destroySSL(conn->pTls);
+  if (conn->pTls) sslDestroy(conn->pTls);
 
   taosMemoryFree(conn->buf);
   destroyWQ(&conn->wq);
@@ -1664,7 +1664,7 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
   if (pConn->enableSSL == 0) {
     ret = uv_write(req, (uv_stream_t*)pConn->stream, wb, j, cliBatchSendCb);
   } else {
-    ret = sslDoWrite(pConn->pTls, pConn->stream, req, wb, j, cliBatchSendCb);
+    ret = sslWrite(pConn->pTls, pConn->stream, req, wb, j, cliBatchSendCb);
   }
   if (ret != 0) {
     tError("%s conn:%p, failed to send msg since %s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(ret));
@@ -1753,7 +1753,7 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
   }
 
   if (pThrd->pInst->enableSSL) {
-    code = initSSL(pThrd->pInst->pSSLContext, &conn->pTls);
+    code = sslInit(pThrd->pInst->pSSLContext, &conn->pTls);
 
     conn->pTls->writeCb = cliSendCbSSL;
     conn->pTls->readCb = cliRecvCbSSL;
@@ -1853,7 +1853,7 @@ void cliConnCb(uv_connect_t* req, int status) {
 
   tTrace("%s conn:%p, connect to server successfully", CONN_GET_INST_LABEL(pConn), pConn);
   if (pConn->enableSSL) {
-    code = sslDoConnect(pConn->pTls, NULL, NULL);
+    code = sslConnect(pConn->pTls, NULL, NULL);
     if (code != 0) {
       tDebug("%s conn:%p, failed to do ssl_connect since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
       TAOS_CHECK_GOTO(code, &lino, _error);

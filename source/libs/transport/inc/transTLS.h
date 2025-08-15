@@ -45,11 +45,6 @@ typedef struct {
   uint8_t* buf;      // buffer for encrypted data
 } SSslBuffer;
 
-int32_t sslBufferInit(SSslBuffer* buf, int32_t cap);
-int32_t sslBufferDestroy(SSslBuffer* buf);
-int32_t sslBufferClear(SSslBuffer* buf);
-int32_t sslBufferRealloc(SSslBuffer* buf, int32_t newCap, uv_buf_t* uvbuf);
-
 typedef struct {
   SSslCtx* pTlsCtx;  // pointer to TLS context
 
@@ -70,21 +65,24 @@ typedef struct {
   void (*writeCb)(uv_write_t* pReq, int32_t status);                            // callback for write events
 } STransTLS;
 
-int32_t initSSL(SSslCtx* pCtx, STransTLS** ppTLs);
-void    destroySSL(STransTLS* pTLs);
+int32_t sslInit(SSslCtx* pCtx, STransTLS** ppTLs);
+void    sslDestroy(STransTLS* pTLs);
 
-void setSSLMode(STransTLS* pTls, int8_t cliMode);
+void sslSetMode(STransTLS* pTls, int8_t cliMode);
 
-int32_t sslDoConnect(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req);
+int32_t sslConnect(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req);
 
-int32_t sslDoWrite(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req, uv_buf_t* pBuf, int32_t nBuf,
-                   void (*cb)(uv_write_t*, int));
+int32_t sslWrite(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req, uv_buf_t* pBuf, int32_t nBuf,
+                 void (*cb)(uv_write_t*, int));
 
-int32_t sslDoRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t cliMode);
+int32_t sslRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t cliMode);
 
-int32_t transTLSInit(void);
+int8_t sslIsInited(STransTLS* pTls);
 
-int8_t sslIsInited(STransTLS* pTls); 
+int32_t sslBufferInit(SSslBuffer* buf, int32_t cap);
+int32_t sslBufferDestroy(SSslBuffer* buf);
+int32_t sslBufferClear(SSslBuffer* buf);
+int32_t sslBufferRealloc(SSslBuffer* buf, int32_t newCap, uv_buf_t* uvbuf);
 #ifdef __cplusplus
 }
 #endif
