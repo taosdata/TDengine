@@ -240,8 +240,8 @@ static int32_t getReorderDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock
   }
 
   if (pResult->offset < pWindowData->datas->size) {
-    char** data = taosArrayGet(pWindowData->datas, pResult->offset);
-    code = blockDecode(*ppBlock, *data, NULL);
+    SBlockBuffer* data = taosArrayGet(pWindowData->datas, pResult->offset);
+    code = blockDecode(*ppBlock, data->data, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -268,6 +268,12 @@ int32_t readDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, bool* finis
 }
 
 void slidingGrpMgrUsedMemAdd(SSlidingGrpMgr* pGrpCacheMgr, int64_t size) {
+  atomic_add_fetch_64(&pGrpCacheMgr->usedMemSize, size);
+  atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, size);
+}
+
+void reorderGrpMgrUsedMemAdd(SReorderGrpMgr* pGrpCacheMgr, SDataInMemWindows* pWin, int64_t size) {
+  atomic_add_fetch_64(&pWin->dataLen, size);
   atomic_add_fetch_64(&pGrpCacheMgr->usedMemSize, size);
   atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, size);
 }
@@ -569,9 +575,10 @@ int32_t moveSlidingTaskMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr) {
   return code;
 }
 
-int32_t splitBlockToWindows(SList* pWindows, int32_t tsColSlotId, SSDataBlock* pBlock) {
+int32_t splitBlockToWindows(SReorderGrpMgr* pReorderGrpMgr, int32_t tsColSlotId, SSDataBlock* pBlock) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  SList* pWindows = &pReorderGrpMgr->winDataInMem;
 
   int64_t firstTs = 0;
   int64_t lastTs = 0;
@@ -600,16 +607,20 @@ int32_t splitBlockToWindows(SList* pWindows, int32_t tsColSlotId, SSDataBlock* p
 
       // todo dataEncodeBufSize > real len
       size_t dataEncodeBufSize = blockGetEncodeSizeOfRows(pBlock, startIndex, endIndex);
-      char*  buf = taosMemoryCalloc(1, dataEncodeBufSize);
-      if (buf == NULL) {
+      SBlockBuffer data = {};
+      data.len = dataEncodeBufSize;
+      data.data = taosMemoryCalloc(1, dataEncodeBufSize);
+      if (data.data == NULL) {
         return terrno;
       }
 
       int32_t len = 0;
-      code = blockEncodeAsRows(pBlock, buf, dataEncodeBufSize, numOfCols, startIndex, endIndex, &len);
+      code = blockEncodeAsRows(pBlock, data.data, dataEncodeBufSize, numOfCols, startIndex, endIndex, &len);
       QUERY_CHECK_CODE(code, lino, _end);
-      void* tmp = taosArrayPush(pWin->datas, &buf);
+      void* tmp = taosArrayPush(pWin->datas, &data);
       TSDB_CHECK_NULL(tmp, code, lino, _end, terrno);
+
+      reorderGrpMgrUsedMemAdd(pReorderGrpMgr, pWin, dataEncodeBufSize);
     }
     if (lastTs < pWin->timeRange.startTime) {
       // the block is before the window, so no need to check next windows
@@ -624,10 +635,21 @@ _end:
   return code;
 }
 
+void destroyBlockBuffer(void* data) {
+  SBlockBuffer* pBlockBuf = (SBlockBuffer*)data;
+  if (pBlockBuf) {
+    if (pBlockBuf->data) {
+      taosMemoryFree(pBlockBuf->data);
+      pBlockBuf->data = NULL;
+      atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, -pBlockBuf->len);
+    }
+  }
+}
+
 void destroyReorderDataInMem(SDataInMemWindows* pWinData) {
   if (pWinData) {
     if (pWinData->datas) {
-      taosArrayDestroyP(pWinData->datas, NULL);
+      taosArrayDestroyEx(pWinData->datas, destroyBlockBuffer);
     }
   }
 }
@@ -645,6 +667,8 @@ int32_t clearReorderDataInMem(SReorderGrpMgr* pReorderGrpMgr, TSKEY start, TSKEY
     if (pWinData->timeRange.startTime >= start && pWinData->timeRange.endTime <= end) {
       TD_DLIST_POP(&pReorderGrpMgr->winDataInMem, pNode);
       destroyReorderDataInMem(pWinData);
+      atomic_sub_fetch_64(&pReorderGrpMgr->usedMemSize, pWinData->dataLen);
+      atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pWinData->dataLen);
       taosMemFree(pNode);
       // remove the whole window
       continue;

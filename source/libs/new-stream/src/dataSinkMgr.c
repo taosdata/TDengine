@@ -461,7 +461,7 @@ int32_t declareStreamDataWindows(void* pCache, int64_t groupId, SArray* pWindows
     SDataInMemWindows dataWindows = {0};
     dataWindows.timeRange.startTime = pWin->startTime;
     dataWindows.timeRange.endTime = pWin->endTime;
-    dataWindows.datas = taosArrayInit(4, sizeof(SWindowDataInMem*));
+    dataWindows.datas = taosArrayInit(4, sizeof(SBlockBuffer));
     TSDB_CHECK_NULL(dataWindows.datas, code, lino, _end, terrno);
     code = tdListAppend(&pReorderGrpMgr->winDataInMem, &dataWindows);
     TSDB_CHECK_CODE(code, lino, _end);
@@ -489,7 +489,7 @@ int32_t putDataToReorderTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t group
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
 
-  splitBlockToWindows(&pReorderGrpMgr->winDataInMem, pStreamTaskMgr->tsSlotId, pBlock);
+  splitBlockToWindows(pReorderGrpMgr, pStreamTaskMgr->tsSlotId, pBlock);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -709,8 +709,8 @@ int32_t putStreamMultiWinDataCache(void* pCache, int64_t groupId, SSDataBlock* p
     stError("failed to check and move mem cache for write, code: %d err: %s", code, terrMsg);
     TAOS_CHECK_EXIT(code);
   }
-    SSlidingTaskDSMgr* pStreamTaskMgr = (SSlidingTaskDSMgr*)pCache;
-    code = putDataToReorderTaskMgr(pStreamTaskMgr, groupId, pBlock);
+  SSlidingTaskDSMgr* pStreamTaskMgr = (SSlidingTaskDSMgr*)pCache;
+  code = putDataToReorderTaskMgr(pStreamTaskMgr, groupId, pBlock);
   (void)checkAndMoveMemCache(false);
 
 _exit:
@@ -1053,10 +1053,6 @@ void destroyDataSinkMgr() {
     g_pDataSinkManager.dsStreamTaskList = NULL;
   }
 }
-
-void useMemSizeAdd(int64_t size) { atomic_fetch_add_64(&g_pDataSinkManager.usedMemSize, size); }
-
-void useMemSizeSub(int64_t size) { atomic_fetch_sub_64(&g_pDataSinkManager.usedMemSize, size); }
 
 bool hasEnoughMemSize() {
   int64_t usedMemSize = atomic_load_64(&g_pDataSinkManager.usedMemSize);
