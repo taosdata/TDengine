@@ -179,4 +179,4 @@ def handle_forecast_req():
 
 
 if __name__ == '__main__':
-    app.run(port=6090)
+    app.run(port=6070)

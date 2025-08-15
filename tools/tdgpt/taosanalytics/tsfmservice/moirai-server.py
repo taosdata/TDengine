@@ -74,7 +74,7 @@ def uni2ts():
 def main():
     app.run(
         host='0.0.0.0',
-        port=5004,
+        port=6074,
         threaded=True,
         debug=False
     )
