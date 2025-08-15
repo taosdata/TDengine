@@ -4518,7 +4518,7 @@ checksum = "ae960838283323069879657ca3de837e9f7bbb4c7bf6ea7f1b290d5e9476d2e0"
 [[package]]
 name = "mdsn"
 version = "0.2.25"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=b49f50d7#b49f50d7c368c130eb33f5fc3481a5e9087861e8"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=5d3e99c#5d3e99ce66c959695825e96e6b17efe1e12ec482"
 dependencies = [
  "itertools 0.13.0",
  "lazy_static",
@@ -6367,9 +6367,9 @@ dependencies = [
 
 [[package]]
 name = "rdkafka"
-version = "0.37.0"
+version = "0.38.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14b52c81ac3cac39c9639b95c20452076e74b8d9a71bc6fc4d83407af2ea6fff"
+checksum = "5f1856d72dbbbea0d2a5b2eaf6af7fb3847ef2746e883b11781446a51dbc85c0"
 dependencies = [
  "futures-channel",
  "futures-util",
@@ -7753,9 +7753,9 @@ checksum = "c1e9a774a6c28142ac54bb25d25562e6bcf957493a184f15ad4eebccb23e410a"
 
 [[package]]
 name = "slab"
-version = "0.4.10"
+version = "0.4.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04dc19736151f35336d325007ac991178d504a119863a2fcb3758cdb5e52c50d"
+checksum = "7a2ae44ef20feb57a68b23d846850f861394c2e02dc425a50098ae8c90267589"
 
 [[package]]
 name = "sled"
@@ -7935,6 +7935,8 @@ dependencies = [
  "futures-util",
  "itertools 0.14.0",
  "linked-hash-map",
+ "parking_lot 0.12.4",
+ "pin-project-lite",
  "rdkafka",
  "scc",
  "serde",
@@ -8616,10 +8618,11 @@ checksum = "f764005d11ee5f36500a149ace24e00e3da98b0158b3e2d53a7495660d3f4d60"
 [[package]]
 name = "taos"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=b49f50d7#b49f50d7c368c130eb33f5fc3481a5e9087861e8"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=5d3e99c#5d3e99ce66c959695825e96e6b17efe1e12ec482"
 dependencies = [
  "async-trait",
  "bytes",
+ "chrono-tz",
  "futures",
  "shadow-rs 0.33.0",
  "taos-optin",
@@ -8631,7 +8634,7 @@ dependencies = [
 [[package]]
 name = "taos-error"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=b49f50d7#b49f50d7c368c130eb33f5fc3481a5e9087861e8"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=5d3e99c#5d3e99ce66c959695825e96e6b17efe1e12ec482"
 dependencies = [
  "anyhow",
  "derive_more 1.0.0",
@@ -8700,7 +8703,7 @@ dependencies = [
 [[package]]
 name = "taos-macros"
 version = "0.2.16"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=b49f50d7#b49f50d7c368c130eb33f5fc3481a5e9087861e8"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=5d3e99c#5d3e99ce66c959695825e96e6b17efe1e12ec482"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -8710,7 +8713,7 @@ dependencies = [
 [[package]]
 name = "taos-optin"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=b49f50d7#b49f50d7c368c130eb33f5fc3481a5e9087861e8"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=5d3e99c#5d3e99ce66c959695825e96e6b17efe1e12ec482"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8736,7 +8739,7 @@ dependencies = [
 [[package]]
 name = "taos-query"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=b49f50d7#b49f50d7c368c130eb33f5fc3481a5e9087861e8"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=5d3e99c#5d3e99ce66c959695825e96e6b17efe1e12ec482"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8746,6 +8749,7 @@ dependencies = [
  "byteorder",
  "bytes",
  "chrono",
+ "chrono-tz",
  "deadpool",
  "derive_builder",
  "derive_more 1.0.0",
@@ -8779,13 +8783,14 @@ dependencies = [
 [[package]]
 name = "taos-ws"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=b49f50d7#b49f50d7c368c130eb33f5fc3481a5e9087861e8"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=5d3e99c#5d3e99ce66c959695825e96e6b17efe1e12ec482"
 dependencies = [
  "anyhow",
  "async-trait",
  "byteorder",
  "bytes",
  "cfg-if",
+ "chrono-tz",
  "crossbeam",
  "dashmap 6.1.0",
  "faststr",

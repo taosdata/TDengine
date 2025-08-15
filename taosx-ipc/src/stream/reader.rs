@@ -1973,12 +1973,6 @@ impl<R: Read> Iterator for IpcReader<R> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let res = self.reader.next()?;
-        // let res = loop {
-        //     debug!("Getting next");
-        //     if let Some(res) = self.reader.next() {
-        //         break res;
-        //     }
-        // };
         match res {
             Ok(record) => Some(self.parse(record)),
             Err(err) => {

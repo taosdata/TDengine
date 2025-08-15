@@ -113,18 +113,21 @@ export default ({ mode }: { mode: any }) => {
          */
         inject: {
           data: {
-            VITE_APP_CUS_NAME: env.VITE_APP_CUS_NAME
+            VITE_APP_CUS_NAME: env.VITE_APP_CUS_NAME,
+            VITE_APP_CUS_PROMPT: env.VITE_APP_CUS_PROMPT,
+            VITE_APP_CUS_COMMUNITY: env.VITE_APP_CUS_COMMUNITY,
+            VITE_APP_INDUSTRY: env.VITE_APP_INDUSTRY
           }
         }
       }),
 
       lifecycle === 'report'
         ? visualizer({
-            open: true,
-            gzipSize: true,
-            brotliSize: true,
-            filename: 'report.html'
-          })
+          open: true,
+          gzipSize: true,
+          brotliSize: true,
+          filename: 'report.html'
+        })
         : null,
       // viteCompression({
       //   algorithm: 'gzip',

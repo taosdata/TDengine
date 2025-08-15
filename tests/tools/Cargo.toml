@@ -21,7 +21,7 @@ faststr.workspace = true
 lz4.workspace = true
 rand.workspace = true
 rayon.workspace = true
-rdkafka = { version = "0.37.0", features = ["cmake-build"] }
+rdkafka = { version = "0.38.0", features = ["cmake-build"] }
 serde = { workspace = true, features = ["derive"] }
 rumqttc.workspace = true
 serde_json = { version = "1.0.132", features = ["raw_value"] }
