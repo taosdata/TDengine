@@ -351,6 +351,7 @@ bool changeMgrStatusToMoving(int8_t* pStatus, int8_t mode);
 
 int32_t splitBlockToWindows(SReorderGrpMgr* pReorderGrpMgr, int32_t tsColSlotId, SSDataBlock* pBlock);
 int32_t clearReorderDataInMem(SReorderGrpMgr* pReorderGrpMgr, int64_t startTime, int64_t endTime);
+void    destroyReorderGrpMgr(void* pData);
 
 #ifdef __cplusplus
 }
