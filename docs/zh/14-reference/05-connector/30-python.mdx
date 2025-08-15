@@ -81,6 +81,7 @@ WebSocket Connector 历史版本：
 
 | WebSocket Connector 版本 | 主要变化                                                                              |   TDengine TSDB 版本    |
 | ----------------------- | ------------------------------------------------------------------------------------ | ----------------- |
+|          0.6.1           | 1. 支持 BLOB 数据类型 <br/> 2. 支持 timezone                                           | - |
 |          0.5.3           | 支持 ipv6 地址格式                                                                       | - |
 |          0.5.2           | 升级 rust 连接器版本，修复了云服务连接的 token 问题                                       | - |
 |          0.5.1           | 支持 stmt2 参数绑定写入和查询                                                          | - |
@@ -206,6 +207,7 @@ TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 Pytho
             - `host`：主机地址
             - `port`：端口号
             - `database`：数据库名称
+            - `timezone`：时区
     - **返回值**：连接对象。
     - **异常**：操作失败抛出 `ConnectionError` 异常。
 - `fn cursor(&self) -> PyResult<Cursor>`
