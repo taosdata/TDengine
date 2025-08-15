@@ -424,7 +424,8 @@ extern SSchedulerMgmt schMgmt;
    (NEED_SCHEDULER_REDIRECT_ERROR(_code) || SCH_LOW_LEVEL_NETWORK_ERR((_job), (_task), (_code)) || \
     SCH_TASK_RETRY_NETWORK_ERR((_task), (_code))))
 #define SCH_TASK_NEED_RETRY(_msgType, _code) \
-  ((SCH_REDIRECT_MSGTYPE(_msgType) && SCH_NETWORK_ERR(_code)) || (_code) == TSDB_CODE_SCH_TIMEOUT_ERROR)
+  ((SCH_REDIRECT_MSGTYPE(_msgType) && (SCH_NETWORK_ERR(_code) || (_code) == TSDB_CODE_SYN_NOT_LEADER || \
+   (_code) == TSDB_CODE_VND_STOPPED) || (_code) == TSDB_CODE_SCH_TIMEOUT_ERROR))
 
 #define SCH_IS_LEVEL_UNFINISHED(_level) ((_level)->taskLaunchedNum < (_level)->taskNum)
 #define SCH_GET_CUR_EP(_addr)           (&(_addr)->epSet.eps[(_addr)->epSet.inUse])
