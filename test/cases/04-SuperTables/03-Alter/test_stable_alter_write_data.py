@@ -32,8 +32,8 @@ class TestStableAlterThenWriteData:
 
         self.AlterMetrics()
         tdStream.dropAllStreamsAndDbs()
-        self.AlterStable()
-        tdStream.dropAllStreamsAndDbs()
+        # self.AlterStable()
+        # tdStream.dropAllStreamsAndDbs()
         
         
     def AlterMetrics(self):

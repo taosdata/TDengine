@@ -39,7 +39,7 @@ class TestDistinct:
         stb = stbPrefix
 
         tdSql.execute(f"drop database if exists {db}")
-        tdSql.execute(f"create database {db}")
+        tdSql.execute(f"create database {db} keep 36500")
         tdSql.execute(f"use {db}")
         tdLog.info(f"====== create tables")
         tdSql.execute(f"create table {stb} (ts timestamp, c1 int) tags(t1 int, t2 int)")
