@@ -1146,11 +1146,13 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
   }
 
   if (initRemainGroups) {
-    pTableListInfo->remainGroups =
-        taosHashInit(rows, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
     if (pTableListInfo->remainGroups == NULL) {
-      code = terrno;
-      goto end;
+      pTableListInfo->remainGroups =
+          taosHashInit(rows, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+      if (pTableListInfo->remainGroups == NULL) {
+        code = terrno;
+        goto end;
+      }
     }
   }
 
