@@ -394,11 +394,7 @@ SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int
   if (code) {
     goto _err;
   }
-  if (info.suid == info.uid) {
-    key = (SSkmDbKey){.uid = uid, .sver = info.version};
-  } else {
-    key = (SSkmDbKey){.uid = uid, .sver = info.skmVer};
-  }
+  key = (SSkmDbKey){.uid = uid, .sver = info.skmVer};
   // query from skm db
   if (tdbTbGet(pMeta->pSkmDb, &key, sizeof(SSkmDbKey), &pData, &nData) < 0) {
     goto _err;
