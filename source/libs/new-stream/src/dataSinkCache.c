@@ -680,3 +680,22 @@ int32_t clearReorderDataInMem(SReorderGrpMgr* pReorderGrpMgr, TSKEY start, TSKEY
 
   return code;
 }
+
+void destroyReorderGrpMgr(void* pData) {
+  SReorderGrpMgr* pGroupData = *(SReorderGrpMgr**)pData;
+
+  SListIter  foundDataIter = {0};
+  SListNode* pNode = NULL;
+
+  tdListInitIter(&pGroupData->winDataInMem, &foundDataIter, TD_LIST_FORWARD);
+  while ((pNode = tdListNext(&foundDataIter)) != NULL) {
+    SDataInMemWindows* pWinData = (SDataInMemWindows*)pNode->data;
+    TD_DLIST_POP(&pGroupData->winDataInMem, pNode);
+    destroyReorderDataInMem(pWinData);
+    atomic_sub_fetch_64(&pGroupData->usedMemSize, pWinData->dataLen);
+    atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pWinData->dataLen);
+    taosMemFree(pNode);
+  }
+
+  taosMemoryFreeClear(pGroupData);
+}

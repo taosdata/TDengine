@@ -246,7 +246,11 @@ static int32_t createSlidingTaskMgr(int32_t dataMode, int64_t streamId, int64_t 
     stError("failed to create sliding group list, err: %s", terrMsg);
     return terrno;
   }
-  taosHashSetFreeFp(pSlidingTaskDSMgr->pSlidingGrpList, destroySSlidingGrpMgr);
+  if (dataMode & DATA_ALLOC_MODE_SLIDING) {
+    taosHashSetFreeFp(pSlidingTaskDSMgr->pSlidingGrpList, destroySSlidingGrpMgr);
+  } else {
+    taosHashSetFreeFp(pSlidingTaskDSMgr->pSlidingGrpList, destroyReorderGrpMgr);
+  }
   *ppCache = pSlidingTaskDSMgr;
   return TSDB_CODE_SUCCESS;
 }
