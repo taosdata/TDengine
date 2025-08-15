@@ -85,6 +85,10 @@ typedef struct STimeRange {
   int64_t startTime;
   int64_t endTime;
 } STimeRange;
+typedef struct SBlockBuffer {
+  int32_t len;
+  char*   data;
+} SBlockBuffer;
 
 typedef struct SWindowDataInMem {
   int64_t startTime;
@@ -95,7 +99,8 @@ typedef struct SWindowDataInMem {
 
 typedef struct SDataInMemWindows {
   STimeRange timeRange;  // startTime, endTime
-  SArray*    datas;      // data buffer
+  int64_t    dataLen;    // total data length in bytes
+  SArray*    datas;      // SBlockBuffer
 } SDataInMemWindows;
 
 typedef struct SAlignBlocksInMem {
@@ -344,7 +349,7 @@ void destroyStreamDataSinkFile(SDataSinkFileMgr** ppDaSinkFileMgr);
 bool changeMgrStatus(int8_t* pStatus, int8_t status);
 bool changeMgrStatusToMoving(int8_t* pStatus, int8_t mode);
 
-int32_t splitBlockToWindows(SList* pSlidingWinInMem, int32_t tsColSlotId, SSDataBlock* pBlock);
+int32_t splitBlockToWindows(SReorderGrpMgr* pReorderGrpMgr, int32_t tsColSlotId, SSDataBlock* pBlock);
 int32_t clearReorderDataInMem(SReorderGrpMgr* pReorderGrpMgr, int64_t startTime, int64_t endTime);
 
 #ifdef __cplusplus
