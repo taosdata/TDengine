@@ -512,14 +512,6 @@ impl Args {
             }
 
             cli.merge_from(serve);
-            if let Some(ref addrs) = cli.listen {
-                check_address_format(addrs)
-                    .map_err(|e| ArgsError::AddressParseError(e.to_string()))?;
-            }
-            if let Some(ref addrs) = cli.grpc {
-                check_address_format(addrs)
-                    .map_err(|e| ArgsError::AddressParseError(e.to_string()))?;
-            }
             cli.rest_api_threads = Some(executor_worker_threads(cli.rest_api_threads.unwrap_or(0)));
             cli.grpc_threads = Some(executor_worker_threads(cli.grpc_threads.unwrap_or(0)));
             cli.scheduler_threads =
