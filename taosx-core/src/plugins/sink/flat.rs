@@ -2234,13 +2234,20 @@ impl FlatSink {
                                         )
                                         .in_current_span()
                                         .await?;
-                                        tracing::debug!("Minimus timestamp: {}", min.to_rfc3339());
+                                        tracing::debug!(
+                                            "Minimus timestamp: {:?}",
+                                            min.map(|v| v.to_rfc3339())
+                                        );
                                         let rows: usize =
                                             messages.iter().map(|m| m.records.num_rows()).sum();
-                                        messages = messages
-                                            .into_iter()
-                                            .flat_map(|item| item.filter_by_primary_timestamp(&min))
-                                            .collect();
+                                        if let Some(min) = min {
+                                            messages = messages
+                                                .into_iter()
+                                                .flat_map(|item| {
+                                                    item.filter_by_primary_timestamp(&min)
+                                                })
+                                                .collect();
+                                        }
 
                                         let rows_after: usize =
                                             messages.iter().map(|m| m.records.num_rows()).sum();

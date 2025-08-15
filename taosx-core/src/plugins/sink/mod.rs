@@ -2165,12 +2165,14 @@ async fn consume_flat_record(
                         )
                         .in_current_span()
                         .await?;
-                        tracing::debug!("Minimus timestamp: {}", min.to_rfc3339());
+                        tracing::debug!("Minimus timestamp: {:?}", min.map(|v| v.to_rfc3339()));
                         let rows: usize = message.iter().map(|m| m.records.num_rows()).sum();
-                        message = message
-                            .into_iter()
-                            .flat_map(|item| item.filter_by_primary_timestamp(&min))
-                            .collect();
+                        if let Some(min) = min {
+                            message = message
+                                .into_iter()
+                                .flat_map(|item| item.filter_by_primary_timestamp(&min))
+                                .collect();
+                        }
 
                         let rows_after: usize = message.iter().map(|m| m.records.num_rows()).sum();
 
