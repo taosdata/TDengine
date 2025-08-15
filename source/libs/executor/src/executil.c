@@ -3098,7 +3098,7 @@ static int32_t initGlobalTableListPool() {
 
   g_tableListPool = taosArrayInit(32, POINTER_BYTES);  // Larger global pool
   if (g_tableListPool == NULL) {
-    taosThreadRwlockDestroy(&g_tableListPoolLock);
+    (void)taosThreadRwlockDestroy(&g_tableListPoolLock);
     return terrno;
   }
 
@@ -3113,7 +3113,7 @@ void destroyGlobalTableListPool() {
     return;
   }
 
-  taosThreadRwlockWrlock(&g_tableListPoolLock);
+  (void)taosThreadRwlockWrlock(&g_tableListPoolLock);
 
   if (g_tableListPool) {
     size_t size = taosArrayGetSize(g_tableListPool);
@@ -3127,8 +3127,8 @@ void destroyGlobalTableListPool() {
     g_tableListPool = NULL;
   }
 
-  taosThreadRwlockUnlock(&g_tableListPoolLock);
-  taosThreadRwlockDestroy(&g_tableListPoolLock);
+  (void)taosThreadRwlockUnlock(&g_tableListPoolLock);
+  (void)taosThreadRwlockDestroy(&g_tableListPoolLock);
   g_tableListPoolInitialized = false;
   qDebug("Global TableListInfo pool destroyed");
 }
@@ -3166,26 +3166,26 @@ STableListInfo* tableListGetFromPool(SExecTaskInfo* pTaskInfo) {
   }
 
   // Try to get from global pool
-  taosThreadRwlockRdlock(&g_tableListPoolLock);
+  (void)taosThreadRwlockRdlock(&g_tableListPoolLock);
 
   size_t poolSize = taosArrayGetSize(g_tableListPool);
   if (poolSize > 0) {
-    taosThreadRwlockUnlock(&g_tableListPoolLock);
+    (void)taosThreadRwlockUnlock(&g_tableListPoolLock);
 
     // Get write lock and try again (double-check pattern)
-    taosThreadRwlockWrlock(&g_tableListPoolLock);
+    (void)taosThreadRwlockWrlock(&g_tableListPoolLock);
     poolSize = taosArrayGetSize(g_tableListPool);
     if (poolSize > 0) {
       STableListInfo* pListInfo = *(STableListInfo**)taosArrayPop(g_tableListPool);
-      taosThreadRwlockUnlock(&g_tableListPoolLock);
+      (void)taosThreadRwlockUnlock(&g_tableListPoolLock);
 
       if (pListInfo) {
         return pListInfo;
       }
     }
-    taosThreadRwlockUnlock(&g_tableListPoolLock);
+    (void)taosThreadRwlockUnlock(&g_tableListPoolLock);
   } else {
-    taosThreadRwlockUnlock(&g_tableListPoolLock);
+    (void)taosThreadRwlockUnlock(&g_tableListPoolLock);
   }
 
   // Pool is empty or failed, create new instance
@@ -3205,7 +3205,7 @@ void tableListReturnToPool(STableListInfo* pListInfo) {
     return;
   }
 
-  taosThreadRwlockWrlock(&g_tableListPoolLock);
+  (void)taosThreadRwlockWrlock(&g_tableListPoolLock);
 
   // Limit global pool size to avoid memory bloat (max 32 instances globally)
   size_t poolSize = taosArrayGetSize(g_tableListPool);
@@ -3213,7 +3213,7 @@ void tableListReturnToPool(STableListInfo* pListInfo) {
     tableListClear(pListInfo);  // Clear data but keep structure
     if (taosArrayPush(g_tableListPool, &pListInfo) == NULL) {
       // Failed to add to pool, destroy instead
-      taosThreadRwlockUnlock(&g_tableListPoolLock);
+      (void)taosThreadRwlockUnlock(&g_tableListPoolLock);
       tableListDestroy(pListInfo);
       qError("Failed to return TableListInfo to global pool, destroying instance");
       return;
@@ -3225,7 +3225,7 @@ void tableListReturnToPool(STableListInfo* pListInfo) {
     qDebug("Global TableListInfo pool full (%zu instances), destroying instance", poolSize);
   }
 
-  taosThreadRwlockUnlock(&g_tableListPoolLock);
+  (void)taosThreadRwlockUnlock(&g_tableListPoolLock);
 }
 
 void tableListClear(STableListInfo* pTableListInfo) {
