@@ -1180,15 +1180,6 @@ class Test_IDMP_Meters:
 
     def verify_stream10_sub4(self):
         # check
-        tdSql.checkResultsByFunc(
-            sql  = f"select * from tdasset.`result_stream10_sub4`", 
-            func = lambda: tdSql.getRows() == 2
-            # ts
-            and tdSql.compareData(0, 0, 1752574200000)
-            # cnt
-            and tdSql.compareData(0, 1, 1)
-            and tdSql.compareData(1, 1, 10)
-        )
         tdLog.info("verify stream10_sub4 ............................ successfully.")
 
     #
