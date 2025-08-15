@@ -65,220 +65,373 @@ namespace TDengine.Driver
             {
                 var array = arrays[colIndex];
                 var elementType = array.GetType().GetElementType();
-                if ((TDengineDataType)fields[colIndex].type == TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP)
+                switch ((TDengineDataType)fields[colIndex].type)
                 {
-                    if (elementType == typeof(long))
+                    // timestamp
+                    case TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP:
                     {
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, (long[])array,
-                            TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP);
-                    }
-                    else if (elementType == typeof(long?))
-                    {
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, (long[])array,
-                            TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP);
-                    }
-                    else if (elementType == typeof(DateTime))
-                    {
-                        var vv = new long[rows];
-                        var v = (DateTime[])array;
-                        for (int i = 0; i < rows; i++)
+                        if (elementType == typeof(long))
                         {
-                            vv[i] = TDengineConstant.ConvertDateTimeToTimestamp(v[i],
-                                (TDenginePrecision)fields[colIndex].precision);
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, (long[])array,
+                                TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP);
                         }
-
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, vv,
-                            TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP);
-                    }
-                    else if (elementType == typeof(DateTime?))
-                    {
-                        var vv = new long?[rows];
-                        var v = (DateTime?[])array;
-                        for (int i = 0; i < rows; i++)
+                        else if (elementType == typeof(long?))
                         {
-                            if (v[i] == null)
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, (long?[])array,
+                                TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP);
+                        }
+                        else if (elementType == typeof(DateTime))
+                        {
+                            var vv = new long[rows];
+                            var v = (DateTime[])array;
+                            for (int i = 0; i < rows; i++)
                             {
-                                vv[i] = null;
-                            }
-                            else
-                            {
-                                vv[i] = TDengineConstant.ConvertDateTimeToTimestamp(v[i].Value,
+                                vv[i] = TDengineConstant.ConvertDateTimeToTimestamp(v[i],
                                     (TDenginePrecision)fields[colIndex].precision);
                             }
-                        }
 
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, vv,
-                            TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP);
-                    }
-                    else if (elementType == typeof(DateTimeOffset))
-                    {
-                        var vv = new long[rows];
-                        var v = (DateTimeOffset[])array;
-                        for (int i = 0; i < rows; i++)
-                        {
-                            vv[i] = TDengineConstant.ConvertDateTimeOffsetToTimestamp(v[i],
-                                (TDenginePrecision)fields[colIndex].precision);
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, vv,
+                                TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP);
                         }
-
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, vv,
-                            TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP);
-                    }
-                    else if (elementType == typeof(DateTimeOffset?))
-                    {
-                        var vv = new long?[rows];
-                        var v = (DateTimeOffset?[])array;
-                        for (int i = 0; i < rows; i++)
+                        else if (elementType == typeof(DateTime?))
                         {
-                            if (v[i] == null)
+                            var vv = new long?[rows];
+                            var v = (DateTime?[])array;
+                            for (int i = 0; i < rows; i++)
                             {
-                                vv[i] = null;
+                                if (v[i] == null)
+                                {
+                                    vv[i] = null;
+                                }
+                                else
+                                {
+                                    vv[i] = TDengineConstant.ConvertDateTimeToTimestamp(v[i].Value,
+                                        (TDenginePrecision)fields[colIndex].precision);
+                                }
                             }
-                            else
+
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, vv,
+                                TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP);
+                        }
+                        else if (elementType == typeof(DateTimeOffset))
+                        {
+                            var vv = new long[rows];
+                            var v = (DateTimeOffset[])array;
+                            for (int i = 0; i < rows; i++)
                             {
-                                vv[i] = TDengineConstant.ConvertDateTimeOffsetToTimestamp(v[i].Value,
+                                vv[i] = TDengineConstant.ConvertDateTimeOffsetToTimestamp(v[i],
                                     (TDenginePrecision)fields[colIndex].precision);
                             }
+
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, vv,
+                                TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP);
+                        }
+                        else if (elementType == typeof(DateTimeOffset?))
+                        {
+                            var vv = new long?[rows];
+                            var v = (DateTimeOffset?[])array;
+                            for (int i = 0; i < rows; i++)
+                            {
+                                if (v[i] == null)
+                                {
+                                    vv[i] = null;
+                                }
+                                else
+                                {
+                                    vv[i] = TDengineConstant.ConvertDateTimeOffsetToTimestamp(v[i].Value,
+                                        (TDenginePrecision)fields[colIndex].precision);
+                                }
+                            }
+
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, vv,
+                                TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP);
+                        }
+                        else
+                        {
+                            throw new ArgumentException(
+                                $"BindIndex: {colIndex}, field name: {fields[colIndex].name}, TIMESTAMP database type requires one of the following types: DateTime, DateTime?, long, long?, DateTimeOffset, DateTimeOffset?, but got {elementType.Name}");
                         }
 
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, vv,
-                            TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP);
+                        break;
                     }
-                    else
+                    // binary, json, varbinary
+                    case TDengineDataType.TSDB_DATA_TYPE_BINARY:
+                    case TDengineDataType.TSDB_DATA_TYPE_JSONTAG:
+                    case TDengineDataType.TSDB_DATA_TYPE_VARBINARY:
                     {
-                        throw new ArgumentException($"Unsupported timestamp type: {elementType}");
-                    }
+                        if (elementType == typeof(byte[]))
+                        {
+                            WriteUTF8(data, colInfoData, lengthData, rows, (byte[][])array,
+                                (TDengineDataType)fields[colIndex].type);
+                        }
+                        else if (elementType == typeof(string))
+                        {
+                            WriteUTF8(data, colInfoData, lengthData, rows, (string[])array,
+                                (TDengineDataType)fields[colIndex].type);
+                        }
+                        else
+                        {
+                            throw new ArgumentException(
+                                $"BindIndex: {colIndex}, field name: {fields[colIndex].name}, {(TDengineDataType)fields[colIndex].type} database type requires byte[] or string, but got {elementType.Name}");
+                        }
 
-                    continue;
-                }
+                        break;
+                    }
+                    // geometry
+                    case TDengineDataType.TSDB_DATA_TYPE_GEOMETRY:
+                    {
+                        if (elementType == typeof(byte[]))
+                        {
+                            WriteUTF8(data, colInfoData, lengthData, rows, (byte[][])array,
+                                (TDengineDataType)fields[colIndex].type);
+                        }
+                        else
+                        {
+                            throw new ArgumentException(
+                                $"BindIndex: {colIndex}, field name: {fields[colIndex].name}, GEOMETRY database type requires byte[], but got {elementType.Name}");
+                        }
 
-                if ((TDengineDataType)fields[colIndex].type == TDengineDataType.TSDB_DATA_TYPE_BINARY ||
-                    (TDengineDataType)fields[colIndex].type == TDengineDataType.TSDB_DATA_TYPE_JSONTAG)
-                {
-                    if (elementType == typeof(byte[]))
-                    {
-                        WriteUTF8(data, colInfoData, lengthData, rows, (byte[][])array,
-                            (TDengineDataType)fields[colIndex].type);
+                        break;
                     }
-                    else if (elementType == typeof(string))
+                    // nchar
+                    case TDengineDataType.TSDB_DATA_TYPE_NCHAR:
                     {
-                        WriteUTF8(data, colInfoData, lengthData, rows, (string[])array,
-                            (TDengineDataType)fields[colIndex].type);
-                    }
-                    else
-                    {
-                        throw new ArgumentException(
-                            $"Unsupported binary type: {elementType},db type {(TDengineDataType)fields[colIndex].type}");
-                    }
+                        if (elementType == typeof(string))
+                        {
+                            WriteUTF32(data, colInfoData, lengthData, rows, (string[])array,
+                                (TDengineDataType)fields[colIndex].type);
+                        }
+                        else
+                        {
+                            throw new ArgumentException(
+                                $"BindIndex: {colIndex}, field name: {fields[colIndex].name}, NCHAR database type requires string, but got {elementType.Name}");
+                        }
 
-                    continue;
-                }
-
-                if ((TDengineDataType)fields[colIndex].type == TDengineDataType.TSDB_DATA_TYPE_VARBINARY ||
-                    (TDengineDataType)fields[colIndex].type == TDengineDataType.TSDB_DATA_TYPE_GEOMETRY)
-                {
-                    if (elementType == typeof(byte[]))
-                    {
-                        WriteUTF8(data, colInfoData, lengthData, rows, (byte[][])array,
-                            (TDengineDataType)fields[colIndex].type);
+                        break;
                     }
-                    else
+                    // bool
+                    case TDengineDataType.TSDB_DATA_TYPE_BOOL:
                     {
-                        throw new ArgumentException(
-                            $"Unsupported varbinary/geometry type: {elementType},db type {(TDengineDataType)fields[colIndex].type}");
+                        if (elementType == typeof(bool?))
+                        {
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, (bool?[])array,
+                                TDengineDataType.TSDB_DATA_TYPE_BOOL);
+                        }
+                        else if (elementType == typeof(bool))
+                        {
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, (bool[])array,
+                                TDengineDataType.TSDB_DATA_TYPE_BOOL);
+                        }
+                        else
+                        {
+                            throw new ArgumentException(
+                                $"BindIndex: {colIndex}, field name: {fields[colIndex].name}, BOOL database type requires bool or bool?, but got {elementType.Name}");
+                        }
+
+                        break;
                     }
-
-                    continue;
-                }
-
-                if ((TDengineDataType)fields[colIndex].type == TDengineDataType.TSDB_DATA_TYPE_NCHAR)
-                {
-                    if (elementType == typeof(byte[]))
+                    // tinyint
+                    case TDengineDataType.TSDB_DATA_TYPE_TINYINT:
                     {
-                        WriteUTF32(data, colInfoData, lengthData, rows, (byte[][])array,
-                            (TDengineDataType)fields[colIndex].type);
+                        if (elementType == typeof(sbyte?))
+                        {
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, (sbyte?[])array,
+                                TDengineDataType.TSDB_DATA_TYPE_TINYINT);
+                        }
+                        else if (elementType == typeof(sbyte))
+                        {
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, (sbyte[])array,
+                                TDengineDataType.TSDB_DATA_TYPE_TINYINT);
+                        }
+                        else
+                        {
+                            throw new ArgumentException(
+                                $"BindIndex: {colIndex}, field name: {fields[colIndex].name}, TINYINT database type requires sbyte or sbyte?, but got {elementType.Name}");
+                        }
+                        break;
                     }
-                    else if (elementType == typeof(string))
+                    // smallint
+                    case TDengineDataType.TSDB_DATA_TYPE_SMALLINT:
                     {
-                        WriteUTF32(data, colInfoData, lengthData, rows, (string[])array,
-                            (TDengineDataType)fields[colIndex].type);
+                        if (elementType == typeof(short?))
+                        {
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, (short?[])array,
+                                TDengineDataType.TSDB_DATA_TYPE_SMALLINT);
+                        }
+                        else if (elementType == typeof(short))
+                        {
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, (short[])array,
+                                TDengineDataType.TSDB_DATA_TYPE_SMALLINT);
+                        }
+                        else
+                        {
+                            throw new ArgumentException(
+                                $"BindIndex: {colIndex}, field name: {fields[colIndex].name}, SMALLINT database type requires short or short?, but got {elementType.Name}");
+                        }
+                        break;
                     }
-                    else
+                    // int
+                    case TDengineDataType.TSDB_DATA_TYPE_INT:
                     {
-                        throw new ArgumentException(
-                            $"Unsupported nchar type: {elementType}");
+                        if (elementType == typeof(int?))
+                        {
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, (int?[])array,
+                                TDengineDataType.TSDB_DATA_TYPE_INT);
+                        }
+                        else if (elementType == typeof(int))
+                        {
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, (int[])array,
+                                TDengineDataType.TSDB_DATA_TYPE_INT);
+                        }
+                        else
+                        {
+                            throw new ArgumentException(
+                                $"BindIndex: {colIndex}, field name: {fields[colIndex].name}, INT database type requires int or int?, but got {elementType.Name}");
+                        }
+                        break;
                     }
-
-                    continue;
-                }
-
-                switch (elementType)
-                {
-                    case Type byteType when byteType == typeof(bool?):
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, (bool?[])array);
+                    // bigint
+                    case TDengineDataType.TSDB_DATA_TYPE_BIGINT:
+                    {
+                        if (elementType == typeof(long?))
+                        {
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, (long?[])array,
+                                TDengineDataType.TSDB_DATA_TYPE_BIGINT);
+                        }
+                        else if (elementType == typeof(long))
+                        {
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, (long[])array,
+                                TDengineDataType.TSDB_DATA_TYPE_BIGINT);
+                        }
+                        else
+                        {
+                            throw new ArgumentException(
+                                $"BindIndex: {colIndex}, field name: {fields[colIndex].name}, BIGINT database type requires long or long?, but got {elementType.Name}");
+                        }
                         break;
-                    case Type byteType when byteType == typeof(bool):
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, (bool[])array);
+                    }
+                    // utinyint
+                    case TDengineDataType.TSDB_DATA_TYPE_UTINYINT:
+                    {
+                        if (elementType == typeof(byte?))
+                        {
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, (byte?[])array,
+                                TDengineDataType.TSDB_DATA_TYPE_UTINYINT);
+                        }
+                        else if (elementType == typeof(byte))
+                        {
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, (byte[])array,
+                                TDengineDataType.TSDB_DATA_TYPE_UTINYINT);
+                        }
+                        else
+                        {
+                            throw new ArgumentException(
+                            $"BindIndex: {colIndex}, field name: {fields[colIndex].name}, TINYINT UNSIGNED database type requires byte or byte?, but got {elementType.Name}");
+                        }
                         break;
-                    case Type byteType when byteType == typeof(sbyte?):
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, (sbyte?[])array);
+                    }
+                    // usmallint
+                    case TDengineDataType.TSDB_DATA_TYPE_USMALLINT:
+                    {
+                        if (elementType == typeof(ushort?))
+                        {
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, (ushort?[])array,
+                                TDengineDataType.TSDB_DATA_TYPE_USMALLINT);
+                        }
+                        else if (elementType == typeof(ushort))
+                        {
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, (ushort[])array,
+                                TDengineDataType.TSDB_DATA_TYPE_USMALLINT);
+                        }
+                        else
+                        {
+                            throw new ArgumentException(
+                                $"BindIndex: {colIndex}, field name: {fields[colIndex].name}, SMALLINT UNSIGNED database type requires ushort or ushort?, but got {elementType.Name}");
+                        }
                         break;
-                    case Type byteType when byteType == typeof(sbyte):
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, (sbyte[])array);
+                    }
+                    // uint
+                    case TDengineDataType.TSDB_DATA_TYPE_UINT:
+                    {
+                        if (elementType == typeof(uint?))
+                        {
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, (uint?[])array,
+                                TDengineDataType.TSDB_DATA_TYPE_UINT);
+                        }
+                        else if (elementType == typeof(uint))
+                        {
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, (uint[])array,
+                                TDengineDataType.TSDB_DATA_TYPE_UINT);
+                        }
+                        else
+                        {
+                            throw new ArgumentException(
+                                $"BindIndex: {colIndex}, field name: {fields[colIndex].name}, INT UNSIGNED database type requires uint or uint?, but got {elementType.Name}");
+                        }
                         break;
-                    case Type byteType when byteType == typeof(short):
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, (short[])array);
+                    }
+                    // ubigint
+                    case TDengineDataType.TSDB_DATA_TYPE_UBIGINT:
+                    {
+                        if (elementType == typeof(ulong?))
+                        {
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, (ulong?[])array,
+                                TDengineDataType.TSDB_DATA_TYPE_UBIGINT);
+                        }
+                        else if (elementType == typeof(ulong))
+                        {
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, (ulong[])array,
+                                TDengineDataType.TSDB_DATA_TYPE_UBIGINT);
+                        }
+                        else
+                        {
+                            throw new ArgumentException(
+                                $"BindIndex: {colIndex}, field name: {fields[colIndex].name}, BIGINT UNSIGNED database type requires uint or uint?, but got {elementType.Name}");
+                        }
                         break;
-                    case Type byteType when byteType == typeof(short?):
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, (short?[])array);
+                    }
+                    // float
+                    case TDengineDataType.TSDB_DATA_TYPE_FLOAT:
+                    {
+                        if (elementType == typeof(float?))
+                        {
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, (float?[])array,
+                                TDengineDataType.TSDB_DATA_TYPE_FLOAT);
+                        }
+                        else if (elementType == typeof(float))
+                        {
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, (float[])array,
+                                TDengineDataType.TSDB_DATA_TYPE_FLOAT);
+                        }
+                        else
+                        {
+                            throw new ArgumentException(
+                                $"BindIndex: {colIndex}, field name: {fields[colIndex].name}, FLOAT database type requires float or float?, but got {elementType.Name}");
+                        }
                         break;
-                    case Type byteType when byteType == typeof(int):
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, (int[])array);
+                    }
+                    // double
+                    case TDengineDataType.TSDB_DATA_TYPE_DOUBLE:
+                    {
+                        if (elementType == typeof(double?))
+                        {
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, (double?[])array,
+                                TDengineDataType.TSDB_DATA_TYPE_DOUBLE);
+                        }
+                        else if (elementType == typeof(double))
+                        {
+                            WriteData(data, colInfoData, lengthData, rows, bitMapLen, (double[])array,
+                                TDengineDataType.TSDB_DATA_TYPE_DOUBLE);
+                        }
+                        else
+                        {
+                            throw new ArgumentException(
+                                $"BindIndex: {colIndex}, field name: {fields[colIndex].name}, DOUBLE database type requires double or double?, but got {elementType.Name}");
+                        }
                         break;
-                    case Type byteType when byteType == typeof(int?):
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, (int?[])array);
-                        break;
-                    case Type byteType when byteType == typeof(long):
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, (long[])array);
-                        break;
-                    case Type byteType when byteType == typeof(long?):
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, (long?[])array);
-                        break;
-                    case Type byteType when byteType == typeof(byte):
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, (byte[])array);
-                        break;
-                    case Type byteType when byteType == typeof(byte?):
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, (byte?[])array);
-                        break;
-                    case Type byteType when byteType == typeof(ushort):
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, (ushort[])array);
-                        break;
-                    case Type byteType when byteType == typeof(ushort?):
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, (ushort?[])array);
-                        break;
-                    case Type byteType when byteType == typeof(uint):
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, (uint[])array);
-                        break;
-                    case Type byteType when byteType == typeof(uint?):
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, (uint?[])array);
-                        break;
-                    case Type byteType when byteType == typeof(ulong):
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, (ulong[])array);
-                        break;
-                    case Type byteType when byteType == typeof(ulong?):
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, (ulong?[])array);
-                        break;
-                    case Type byteType when byteType == typeof(float):
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, (float[])array);
-                        break;
-                    case Type byteType when byteType == typeof(float?):
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, (float?[])array);
-                        break;
-                    case Type byteType when byteType == typeof(double):
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, (double[])array);
-                        break;
-                    case Type byteType when byteType == typeof(double?):
-                        WriteData(data, colInfoData, lengthData, rows, bitMapLen, (double?[])array);
-                        break;
+                    }
+                    default:
+                        throw new ArgumentException($"Can not bind data for database type: {TDengineConstant.GetFieldTypeName(fields[colIndex].type)}");
                 }
             }
 
@@ -369,22 +522,6 @@ namespace TDengine.Driver
             bytes.AddRange(dataTmp);
         }
 
-        private static void WriteData<T>(List<byte> bytes, List<byte> colInfoData, List<byte> lengthData, int rows,
-            int bitMapLen, T?[] value)
-            where T : struct
-        {
-            var type = GetDataType<T>();
-            WriteData(bytes, colInfoData, lengthData, rows, bitMapLen, value, type);
-        }
-
-        private static void WriteData<T>(List<byte> bytes, List<byte> colInfoData, List<byte> lengthData, int rows,
-            int bitMapLen, T[] value)
-            where T : struct
-        {
-            var type = GetDataType<T>();
-            WriteData(bytes, colInfoData, lengthData, rows, bitMapLen, value, type);
-        }
-
         private static void WriteUTF8(List<byte> bytes, List<byte> colInfoData, List<byte> lengthData, int rows,
             string[] value, TDengineDataType type)
         {
@@ -401,13 +538,6 @@ namespace TDengine.Driver
             string[] value, TDengineDataType type)
         {
             WriteVarBinary(bytes, colInfoData, lengthData, rows, value, type, v => Encoding.UTF32.GetBytes(v));
-        }
-
-        private static void WriteUTF32(List<byte> bytes, List<byte> colInfoData, List<byte> lengthData, int rows,
-            byte[][] value, TDengineDataType type)
-        {
-            WriteVarBinary(bytes, colInfoData, lengthData, rows, value, type,
-                v => Encoding.Convert(Encoding.UTF32, Encoding.UTF8, v));
         }
 
         private static void WriteVarBinary<T>(List<byte> bytes, List<byte> colInfoData, List<byte> lengthData, int rows,
@@ -444,22 +574,6 @@ namespace TDengine.Driver
 
             AppendUint32(lengthData, (uint)(length));
             bytes.AddRange(dataTmp);
-        }
-
-        private static TDengineDataType GetDataType<T>()
-        {
-            if (typeof(T) == typeof(bool)) return TDengineDataType.TSDB_DATA_TYPE_BOOL;
-            if (typeof(T) == typeof(sbyte)) return TDengineDataType.TSDB_DATA_TYPE_TINYINT;
-            if (typeof(T) == typeof(short)) return TDengineDataType.TSDB_DATA_TYPE_SMALLINT;
-            if (typeof(T) == typeof(int)) return TDengineDataType.TSDB_DATA_TYPE_INT;
-            if (typeof(T) == typeof(long)) return TDengineDataType.TSDB_DATA_TYPE_BIGINT;
-            if (typeof(T) == typeof(byte)) return TDengineDataType.TSDB_DATA_TYPE_UTINYINT;
-            if (typeof(T) == typeof(ushort)) return TDengineDataType.TSDB_DATA_TYPE_USMALLINT;
-            if (typeof(T) == typeof(uint)) return TDengineDataType.TSDB_DATA_TYPE_UINT;
-            if (typeof(T) == typeof(ulong)) return TDengineDataType.TSDB_DATA_TYPE_UBIGINT;
-            if (typeof(T) == typeof(float)) return TDengineDataType.TSDB_DATA_TYPE_FLOAT;
-            if (typeof(T) == typeof(double)) return TDengineDataType.TSDB_DATA_TYPE_DOUBLE;
-            throw new ArgumentException($"Unsupported data type: {typeof(T)}");
         }
 
         private static byte[] ConvertToBytes<T>(T value, int size)

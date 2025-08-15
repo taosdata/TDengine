@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data.SqlTypes;
 using System.Text;
 using System.Threading.Tasks;
 using TDengine.Driver;
@@ -570,6 +571,1092 @@ namespace Driver.Test.Client.Query
                         client.Exec($"drop database if exists {db}");
                     }
                 }
+            }
+        }
+
+        private void StmtTestWrongType(string connectString, string db, TDenginePrecision precision)
+        {
+            var builder = new ConnectionStringBuilder(connectString);
+            using (var client = DbDriver.Open(builder))
+            {
+                var now = DateTime.Now;
+                try
+                {
+                    client.Exec($"drop database if exists {db}");
+                    client.Exec($"create database {db} precision '{PrecisionString(precision)}'");
+
+                    client.Exec($"use {db}");
+                    // timestamp
+                    client.Exec($"create table if not exists test_ts (ts timestamp, c1 timestamp)");
+                    // bool
+                    client.Exec($"create table if not exists test_bool (ts timestamp, c1 bool)");
+                    // tinyint
+                    client.Exec($"create table if not exists test_i8 (ts timestamp, ci tinyint)");
+                    // smallint
+                    client.Exec($"create table if not exists test_i16 (ts timestamp, ci smallint)");
+                    // int
+                    client.Exec($"create table if not exists test_i32 (ts timestamp, ci int)");
+                    // bigint
+                    client.Exec($"create table if not exists test_i64 (ts timestamp, ci bigint)");
+                    // tinyint unsigned
+                    client.Exec($"create table if not exists test_u8 (ts timestamp, ci tinyint unsigned)");
+                    // smallint unsigned
+                    client.Exec($"create table if not exists test_u16 (ts timestamp, ci smallint unsigned)");
+                    // int unsigned
+                    client.Exec($"create table if not exists test_u32 (ts timestamp, ci int unsigned)");
+                    // bigint unsigned
+                    client.Exec($"create table if not exists test_u64 (ts timestamp, ci bigint unsigned)");
+                    // float
+                    client.Exec($"create table if not exists test_f32 (ts timestamp, c1 float)");
+                    // double
+                    client.Exec($"create table if not exists test_f64 (ts timestamp, c1 double)");
+                    // binary
+                    client.Exec($"create table if not exists test_binary (ts timestamp, c1 binary(100))");
+                    // nchar
+                    client.Exec($"create table if not exists test_nchar (ts timestamp, c1 nchar(100))");
+                    // varbinary
+                    client.Exec($"create table if not exists test_varbinary (ts timestamp, c1 varbinary(100))");
+                    // geometry
+                    client.Exec($"create table if not exists test_geometry (ts timestamp, c1 geometry(100))");
+                    // json
+                    client.Exec($"create table if not exists test_json_stb (ts timestamp, c1 int) tags(t json)");
+                    using (var stmt = client.StmtInit())
+                    {
+                        // json
+                        var sql = $"insert into ? using test_json_stb tags(?) values(?,?)";
+                        _output.WriteLine($"{sql}");
+                        stmt.Prepare(sql);
+                        stmt.SetTableName("test_json");
+                        stmt.SetTags(new object[] { "{\"a\":\"b\"}" });
+                        stmt.BindRow(new object[] { DateTime.Now, 1 });
+                        stmt.AddBatch();
+                        stmt.Exec();
+                        var affected = stmt.Affected();
+                        Assert.Equal(1, affected);
+                        using (var rows = client.Query("select count(*) from test_json_stb"))
+                        {
+                            Assert.True(rows.Read());
+                            Assert.Equal(1, rows.GetInt32(0));
+                        }
+                        stmt.SetTableName("test_json_null");
+                        stmt.SetTags(new object[] { null });
+                        stmt.BindRow(new object[] { DateTime.Now, 1 });
+                        stmt.AddBatch();
+                        stmt.Exec();
+                        affected = stmt.Affected();
+                        Assert.Equal(1, affected);
+                        using (var rows = client.Query("select count(*) from test_json_stb"))
+                        {
+                            Assert.True(rows.Read());
+                            Assert.Equal(2, rows.GetInt32(0));
+                        }
+                        // ts
+                        sql = $"insert into test_ts values(?,?)";
+                        _output.WriteLine($"{sql}");
+                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP);
+                        using (var rows = client.Query("select count(*) from test_ts"))
+                        {
+                            Assert.True(rows.Read());
+                            // null + DateTime * 3 + long * 3 + DateTimeOffset * 3
+                            Assert.Equal(10, rows.GetInt32(0));
+                        }
+                        // bool
+                        sql = $"insert into test_bool values(?,?)";
+                        _output.WriteLine($"{sql}");
+                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_BOOL);
+                        using (var rows = client.Query("select count(*) from test_bool"))
+                        {
+                            Assert.True(rows.Read());
+                            Assert.Equal(4, rows.GetInt32(0));
+                        }
+                        // tinyint
+                        sql = $"insert into test_i8 values(?,?)";
+                        _output.WriteLine($"{sql}");
+                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_TINYINT);
+                        using (var rows = client.Query("select count(*) from test_i8"))
+                        {
+                            Assert.True(rows.Read());
+                            Assert.Equal(4, rows.GetInt32(0));
+                        }
+                        // smallint
+                        sql = $"insert into test_i16 values(?,?)";
+                        _output.WriteLine($"{sql}");
+                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_SMALLINT);
+                        using (var rows = client.Query("select count(*) from test_i16"))
+                        {
+                            Assert.True(rows.Read());
+                            Assert.Equal(4, rows.GetInt32(0));
+                        }
+                        // int
+                        sql = $"insert into test_i32 values(?,?)";
+                        _output.WriteLine($"{sql}");
+                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_INT);
+                        using (var rows = client.Query("select count(*) from test_i32"))
+                        {
+                            Assert.True(rows.Read());
+                            Assert.Equal(4, rows.GetInt32(0));
+                        }
+                        // bigint
+                        sql = $"insert into test_i64 values(?,?)";
+                        _output.WriteLine($"{sql}");
+                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_BIGINT);
+                        using (var rows = client.Query("select count(*) from test_i64"))
+                        {
+                            Assert.True(rows.Read());
+                            Assert.Equal(4, rows.GetInt32(0));
+                        }
+                        // tinyint unsigned
+                        sql = $"insert into test_u8 values(?,?)";
+                        _output.WriteLine($"{sql}");
+                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_UTINYINT);
+                        using (var rows = client.Query("select count(*) from test_u8"))
+                        {
+                            Assert.True(rows.Read());
+                            Assert.Equal(4, rows.GetInt32(0));
+                        }
+                        // smallint unsigned
+                        sql = $"insert into test_u16 values(?,?)";
+                        _output.WriteLine($"{sql}");
+                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_USMALLINT);
+                        using (var rows = client.Query("select count(*) from test_u16"))
+                        {
+                            Assert.True(rows.Read());
+                            Assert.Equal(4, rows.GetInt32(0));
+                        }
+                        // int unsigned
+                        sql = $"insert into test_u32 values(?,?)";
+                        _output.WriteLine($"{sql}");
+                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_UINT);
+                        using (var rows = client.Query("select count(*) from test_u32"))
+                        {
+                            Assert.True(rows.Read());
+                            Assert.Equal(4, rows.GetInt32(0));
+                        }
+                        // bigint unsigned
+                        sql = $"insert into test_u64 values(?,?)";
+                        _output.WriteLine($"{sql}");
+                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_UBIGINT);
+                        using (var rows = client.Query("select count(*) from test_u64"))
+                        {
+                            Assert.True(rows.Read());
+                            Assert.Equal(4, rows.GetInt32(0));
+                        }
+                        // float
+                        sql = $"insert into test_f32 values(?,?)";
+                        _output.WriteLine($"{sql}");
+                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_FLOAT);
+                        using (var rows = client.Query("select count(*) from test_f32"))
+                        {
+                            Assert.True(rows.Read());
+                            Assert.Equal(4, rows.GetInt32(0));
+                        }
+                        // double
+                        sql = $"insert into test_f64 values(?,?)";
+                        _output.WriteLine($"{sql}");
+                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_DOUBLE);
+                        using (var rows = client.Query("select count(*) from test_f64"))
+                        {
+                            Assert.True(rows.Read());
+                            Assert.Equal(4, rows.GetInt32(0));
+                        }
+                        // binary
+                        sql = $"insert into test_binary values(?,?)";
+                        _output.WriteLine($"{sql}");
+                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_BINARY);
+                        using (var rows = client.Query("select count(*) from test_binary"))
+                        {
+                            Assert.True(rows.Read());
+                            // null + byte[] * 3 + string * 3
+                            Assert.Equal(7, rows.GetInt32(0));
+                        }
+                        // nchar
+                        sql = $"insert into test_nchar values(?,?)";
+                        _output.WriteLine($"{sql}");
+                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_NCHAR);
+                        using (var rows = client.Query("select count(*) from test_nchar"))
+                        {
+                            Assert.True(rows.Read());
+                            // null + string * 3
+                            Assert.Equal(4, rows.GetInt32(0));
+                        }
+                        // varbinary
+                        sql = $"insert into test_varbinary values(?,?)";
+                        _output.WriteLine($"{sql}");
+                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_VARBINARY);
+                        using (var rows = client.Query("select count(*) from test_varbinary"))
+                        {
+                            Assert.True(rows.Read());
+                            // null + byte[] * 3 + string * 3
+                            Assert.Equal(7, rows.GetInt32(0));
+                        }
+                        // geometry
+                        sql = $"insert into test_geometry values(?,?)";
+                        _output.WriteLine($"{sql}");
+                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_GEOMETRY);
+                        using (var rows = client.Query("select count(*) from test_geometry"))
+                        {
+                            Assert.True(rows.Read());
+                            // null + byte[] * 3
+                            Assert.Equal(4, rows.GetInt32(0));
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    _output.WriteLine(e.ToString());
+                    throw;
+                }
+                finally
+                {
+                    client.Exec($"drop database if exists {db}");
+                }
+            }
+        }
+
+        private void doStmtTest(ITDengineClient client, IStmt stmt, string sql, TDengineDataType dataType)
+        {
+            var now = DateTime.UtcNow;
+            stmt.Prepare(sql);
+            var isInsert = stmt.IsInsert();
+            Assert.True(isInsert);
+            var colFields = stmt.GetColFields();
+            now = now.AddSeconds(1);
+            var rowData = new List<object>
+            {
+                now,
+                null
+            };
+            stmt.BindRow(rowData.ToArray());
+            stmt.AddBatch();
+            stmt.Exec();
+            Assert.Equal((long)1, stmt.Affected());
+            
+            // DateTime
+            now = now.AddSeconds(1);
+            rowData = new List<object>
+            {
+                now,
+                now
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP)
+            {
+                stmt.BindRow(rowData.ToArray());
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
+            }
+            now = now.AddSeconds(1);
+            var colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new DateTime[] { now },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new DateTime?[] { null },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+
+            // DateTimeOffset
+            now = now.AddSeconds(1);
+            rowData = new List<object>
+            {
+                now,
+                DateTimeOffset.UtcNow,
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP)
+            {
+                stmt.BindRow(rowData.ToArray());
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
+            }
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new DateTimeOffset[] { DateTimeOffset.UtcNow },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new DateTimeOffset?[] { null },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+
+            // bool 
+            now = now.AddSeconds(1);
+            rowData = new List<object>
+            {
+                now,
+                true
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_BOOL)
+            {
+                stmt.BindRow(rowData.ToArray());
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
+            }
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new bool[] { false },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_BOOL)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new bool?[] { null },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_BOOL)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+            // sbyte
+            now = now.AddSeconds(1);
+            rowData = new List<object>
+            {
+                now,
+                (sbyte)2
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_TINYINT)
+            {
+                stmt.BindRow(rowData.ToArray());
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
+            }
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new sbyte[] { 2 },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_TINYINT)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new sbyte?[] { null },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_TINYINT)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+
+            // short
+            now = now.AddSeconds(1);
+            rowData = new List<object>
+            {
+                now,
+                (short)2
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_SMALLINT)
+            {
+                stmt.BindRow(rowData.ToArray());
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
+            }
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new short[] { 2 },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_SMALLINT)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new short?[] { null },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_SMALLINT)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+
+            // int
+            now = now.AddSeconds(1);
+            rowData = new List<object>
+            {
+                now,
+                (int)2
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_INT)
+            {
+                stmt.BindRow(rowData.ToArray());
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
+            }
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new int[] { 2 },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_INT)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new int?[] { null },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_INT)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+
+            // long
+            now = now.AddSeconds(1);
+            rowData = new List<object>
+            {
+                now,
+                (long)2
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP ||
+                dataType == TDengineDataType.TSDB_DATA_TYPE_BIGINT)
+            {
+                stmt.BindRow(rowData.ToArray());
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
+            }
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new long[] { 2 },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP ||
+                dataType == TDengineDataType.TSDB_DATA_TYPE_BIGINT)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+            
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new long?[] { null },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP ||
+                dataType == TDengineDataType.TSDB_DATA_TYPE_BIGINT)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+
+            // float
+            now = now.AddSeconds(1);
+            rowData = new List<object>
+            {
+                now,
+                (float)2
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_FLOAT)
+            {
+                stmt.BindRow(rowData.ToArray());
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
+            }
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new float[] { 2 },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_FLOAT)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+            
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new float?[] { null },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_FLOAT)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+
+            // double
+            now = now.AddSeconds(1);
+            rowData = new List<object>
+            {
+                now,
+                (double)2
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_DOUBLE)
+            {
+                stmt.BindRow(rowData.ToArray());
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
+            }
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new double[] { 2 },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_DOUBLE)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+            
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new double?[] { null },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_DOUBLE)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+
+            // byte
+            now = now.AddSeconds(1);
+            rowData = new List<object>
+            {
+                now,
+                (byte)2
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_UTINYINT)
+            {
+                stmt.BindRow(rowData.ToArray());
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
+            }
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new byte[] { 2 },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_UTINYINT)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new byte?[] { null },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_UTINYINT)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+
+            // ushort
+            now = now.AddSeconds(1);
+            rowData = new List<object>
+            {
+                now,
+                (ushort)2
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_USMALLINT)
+            {
+                stmt.BindRow(rowData.ToArray());
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
+            }
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new ushort[] { 2 },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_USMALLINT)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new ushort?[] { null },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_USMALLINT)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+
+
+            // uint
+            now = now.AddSeconds(1);
+            rowData = new List<object>
+            {
+                now,
+                (uint)2
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_UINT)
+            {
+                stmt.BindRow(rowData.ToArray());
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
+            }
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new uint[] { 2 },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_UINT)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new uint?[] { null },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_UINT)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+
+            // ulong
+            now = now.AddSeconds(1);
+            rowData = new List<object>
+            {
+                now,
+                (ulong)2
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_UBIGINT)
+            {
+                stmt.BindRow(rowData.ToArray());
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
+            }
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new ulong[] { 2 },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_UBIGINT)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new ulong?[] { null },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_UBIGINT)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+
+            // string
+            now = now.AddSeconds(1);
+            rowData = new List<object>
+            {
+                now,
+                "abc",
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_BINARY ||
+                dataType == TDengineDataType.TSDB_DATA_TYPE_NCHAR ||
+                dataType == TDengineDataType.TSDB_DATA_TYPE_VARBINARY)
+            {
+                stmt.BindRow(rowData.ToArray());
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
+            }
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new string[] { "abc" },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_BINARY ||
+                dataType == TDengineDataType.TSDB_DATA_TYPE_NCHAR ||
+                dataType == TDengineDataType.TSDB_DATA_TYPE_VARBINARY)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new string[] { null },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_BINARY ||
+                dataType == TDengineDataType.TSDB_DATA_TYPE_NCHAR ||
+                dataType == TDengineDataType.TSDB_DATA_TYPE_VARBINARY)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+
+            // byte[]
+            now = now.AddSeconds(1);
+            rowData = new List<object>
+            {
+                now,
+                new byte[]
+                {
+                    0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x59, 0x40
+                },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_BINARY ||
+                dataType == TDengineDataType.TSDB_DATA_TYPE_GEOMETRY ||
+                dataType == TDengineDataType.TSDB_DATA_TYPE_VARBINARY)
+            {
+                stmt.BindRow(rowData.ToArray());
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
+            }
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new byte[][]
+                {
+                    new byte[]
+                    {
+                        0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00, 0x00,
+                        0x00, 0x00, 0x00, 0x00, 0x59, 0x40
+                    },
+                },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_BINARY ||
+                dataType == TDengineDataType.TSDB_DATA_TYPE_GEOMETRY ||
+                dataType == TDengineDataType.TSDB_DATA_TYPE_VARBINARY)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+            now = now.AddSeconds(1);
+            colData = new Array[2]
+            {
+                new DateTime[] { now },
+                new byte[][]
+                {
+                    null,
+                },
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_BINARY ||
+                dataType == TDengineDataType.TSDB_DATA_TYPE_GEOMETRY ||
+                dataType == TDengineDataType.TSDB_DATA_TYPE_VARBINARY)
+            {
+                stmt.BindColumn(colFields, colData);
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
             }
         }
 
@@ -1463,8 +2550,8 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                             precision), next2SecondTs);
                         CheckValue(rows.GetInt64(0), next2SecondTs);
                     }
-                    
-                                        
+
+
                     // bind row with long
                     stmt.Prepare($"insert into ? using {superTableName} tags(?) values(?,?)");
                     isInsert = stmt.IsInsert();
@@ -1472,7 +2559,7 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                     stmt.SetTableName(subTableName);
                     stmt.SetTags(new object[]
                         { TDengineConstant.ConvertTimestampToDateTimeOffset(ts, precision, TimeZoneInfo.Utc) });
-                    stmt.BindRow(new object[]{next3SecondTs,1});
+                    stmt.BindRow(new object[] { next3SecondTs, 1 });
                     stmt.AddBatch();
                     stmt.Exec();
                     affected = stmt.Affected();

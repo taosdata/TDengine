@@ -216,7 +216,7 @@ namespace Data.Tests
                 Assert.Equal(1, affected);
                 parameters.Clear();
                 cmd.CommandText =
-                    "select * from test_types where ts <= ? order by ts desc limit 2";
+                    "select * from test_stb where ts <= ? order by ts desc limit 2";
                 parameters.Add(new TDengineParameter("@0", nextSecond.AddSeconds(1)));
                 var reader = cmd.ExecuteReader();
                 parameters.Clear();
@@ -227,13 +227,16 @@ namespace Data.Tests
                     Assert.True(reader.IsDBNull(i));
                     Assert.Null(reader.GetValue(i));
                 }
+                                
+                Assert.Equal((int)123,reader.GetValue(14));
+                Assert.Equal((int)123, reader.GetInt32(14));
 
                 reader.Read();
                 Assert.False(reader.IsDBNull(0));
                 var expectTs = TDengineConstant.ConvertDateTimeToTimestamp(now, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
                 Assert.Equal(expectTs,TDengineConstant.ConvertDateTimeToTimestamp(reader.GetDateTime(0), TDenginePrecision.TSDB_TIME_PRECISION_MILLI));
                 Assert.Equal(expectTs,reader.GetInt64(0));
-                Assert.Equal(14, reader.FieldCount);
+                Assert.Equal(15, reader.FieldCount);
                 Assert.Equal((int)1, reader.GetValue(1));
                 Assert.Equal((int)1, reader.GetInt32(1));
 
@@ -272,6 +275,9 @@ namespace Data.Tests
 
                 Assert.Equal((byte)13, reader.GetValue(13));
                 Assert.Equal((byte)13, reader.GetByte(13));
+                
+                Assert.Equal((int)123,reader.GetValue(14));
+                Assert.Equal((int)123, reader.GetInt32(14));
 
                 reader.Close();
                 cmd.CommandText = "drop database if exists test_stmt";
@@ -346,7 +352,7 @@ namespace Data.Tests
                 Assert.Equal(1, affected);
                 parameters.Clear();
                 cmd.CommandText =
-                    "select * from test_types where ts <= ? order by ts desc limit 2";
+                    "select * from test_stb where ts <= ? order by ts desc limit 2";
                 parameters.Add(new TDengineParameter("@0", nextSecond.AddSeconds(1)));
                 var reader = cmd.ExecuteReader();
                 parameters.Clear();
@@ -357,13 +363,16 @@ namespace Data.Tests
                     Assert.True(reader.IsDBNull(i));
                     Assert.Null(reader.GetValue(i));
                 }
+                                
+                Assert.Equal((int)123,reader.GetValue(14));
+                Assert.Equal((int)123, reader.GetInt32(14));
 
                 reader.Read();
                 Assert.False(reader.IsDBNull(0));
                 Assert.Equal((now.ToUniversalTime().Ticks - TDengineConstant.TimeZero.Ticks) * 100,
                     (reader.GetDateTime(0).ToUniversalTime().Ticks - TDengineConstant.TimeZero.Ticks) * 100);
                 Assert.Equal(now, reader.GetDateTime(0));
-                Assert.Equal(14, reader.FieldCount);
+                Assert.Equal(15, reader.FieldCount);
                 Assert.Equal((int)1, reader.GetValue(1));
                 Assert.Equal((int)1, reader.GetInt32(1));
 
@@ -402,6 +411,10 @@ namespace Data.Tests
 
                 Assert.Equal((byte)13, reader.GetValue(13));
                 Assert.Equal((byte)13, reader.GetByte(13));
+                
+                                
+                Assert.Equal((int)123,reader.GetValue(14));
+                Assert.Equal((int)123, reader.GetInt32(14));
 
                 reader.Close();
                 cmd.CommandText = "drop database if exists test_nano";
@@ -521,7 +534,7 @@ namespace Data.Tests
                 // table name;
                 parameters.Add(new TDengineParameter("#table", "test_types"));
                 // tag name;
-                parameters.Add(new TDengineParameter("$0", "123"));
+                parameters.Add(new TDengineParameter("$0", (int)123));
                 // value
                 parameters.Add(new TDengineParameter("@0", now));
                 parameters.Add(new TDengineParameter("@1", (int)1));
@@ -541,7 +554,7 @@ namespace Data.Tests
                 Assert.Equal(1, affected);
                 parameters.Clear();
                 parameters.Add(new TDengineParameter("#table", "test_types"));
-                parameters.Add(new TDengineParameter("$0", "123"));
+                parameters.Add(new TDengineParameter("$0", (int)123));
                 parameters.Add(new TDengineParameter("@0", nextSecond));
                 parameters.Add(new TDengineParameter("@1", null));
                 parameters.Add(new TDengineParameter("@2", null));
@@ -560,7 +573,7 @@ namespace Data.Tests
                 Assert.Equal(1, affected);
                 parameters.Clear();
                 cmd.CommandText =
-                    "select * from test_types where ts <= ? order by ts desc limit 2";
+                    "select * from test_stb where ts <= ? order by ts desc limit 2";
                 parameters.Add(new TDengineParameter("@0", nextSecond.AddSeconds(1)));
                 var reader = cmd.ExecuteReader();
                 parameters.Clear();
@@ -571,12 +584,15 @@ namespace Data.Tests
                     Assert.True(reader.IsDBNull(i));
                     Assert.Null(reader.GetValue(i));
                 }
-
+                
+                                
+                Assert.Equal((int)123,reader.GetValue(14));
+                Assert.Equal((int)123, reader.GetInt32(14));
                 reader.Read();
                 Assert.False(reader.IsDBNull(0));
                 Assert.Equal((now.ToUniversalTime().Ticks - TDengineConstant.TimeZero.Ticks) / 10000,
                     (reader.GetDateTime(0).ToUniversalTime().Ticks - TDengineConstant.TimeZero.Ticks) / 10000);
-                Assert.Equal(14, reader.FieldCount);
+                Assert.Equal(15, reader.FieldCount);
                 Assert.Equal((int)1, reader.GetValue(1));
                 Assert.Equal((int)1, reader.GetInt32(1));
 
@@ -615,6 +631,9 @@ namespace Data.Tests
 
                 Assert.Equal((byte)13, reader.GetValue(13));
                 Assert.Equal((byte)13, reader.GetByte(13));
+                                
+                Assert.Equal((int)123,reader.GetValue(14));
+                Assert.Equal((int)123, reader.GetInt32(14));
 
                 reader.Close();
                 cmd.CommandText = "drop database if exists ws_test_stmt";
@@ -650,7 +669,7 @@ namespace Data.Tests
                 // table name;
                 parameters.Add(new TDengineParameter("#table", "test_types"));
                 // tag name;
-                parameters.Add(new TDengineParameter("$0", "123"));
+                parameters.Add(new TDengineParameter("$0", (int)123));
                 // value
                 parameters.Add(new TDengineParameter("@0", now));
                 parameters.Add(new TDengineParameter("@1", (int)1));
@@ -670,7 +689,7 @@ namespace Data.Tests
                 Assert.Equal(1, affected);
                 parameters.Clear();
                 parameters.Add(new TDengineParameter("#table", "test_types"));
-                parameters.Add(new TDengineParameter("$0", "123"));
+                parameters.Add(new TDengineParameter("$0", (int)123));
                 parameters.Add(new TDengineParameter("@0", nextSecond));
                 parameters.Add(new TDengineParameter("@1", null));
                 parameters.Add(new TDengineParameter("@2", null));
@@ -689,7 +708,7 @@ namespace Data.Tests
                 Assert.Equal(1, affected);
                 parameters.Clear();
                 cmd.CommandText =
-                    "select * from test_types where ts <= ? order by ts desc limit 2";
+                    "select * from test_stb where ts <= ? order by ts desc limit 2";
                 parameters.Add(new TDengineParameter("@0", nextSecond.AddSeconds(1)));
                 var reader = cmd.ExecuteReader();
                 parameters.Clear();
@@ -700,13 +719,15 @@ namespace Data.Tests
                     Assert.True(reader.IsDBNull(i));
                     Assert.Null(reader.GetValue(i));
                 }
-
+                                
+                Assert.Equal((int)123,reader.GetValue(14));
+                Assert.Equal((int)123, reader.GetInt32(14));
                 reader.Read();
                 Assert.False(reader.IsDBNull(0));
                 Assert.Equal((now.ToUniversalTime().Ticks - TDengineConstant.TimeZero.Ticks) * 100,
                     (reader.GetDateTime(0).ToUniversalTime().Ticks - TDengineConstant.TimeZero.Ticks) * 100);
                 Assert.Equal(now, reader.GetDateTime(0));
-                Assert.Equal(14, reader.FieldCount);
+                Assert.Equal(15, reader.FieldCount);
                 Assert.Equal((int)1, reader.GetValue(1));
                 Assert.Equal((int)1, reader.GetInt32(1));
 
@@ -745,6 +766,9 @@ namespace Data.Tests
 
                 Assert.Equal((byte)13, reader.GetValue(13));
                 Assert.Equal((byte)13, reader.GetByte(13));
+                
+                Assert.Equal((int)123,reader.GetValue(14));
+                Assert.Equal((int)123, reader.GetInt32(14));
 
                 reader.Close();
                 cmd.CommandText = "drop database if exists ws_test_nano";

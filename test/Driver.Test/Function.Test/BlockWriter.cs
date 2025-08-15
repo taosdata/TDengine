@@ -271,5 +271,543 @@ namespace Driver.Test.Function.Test
             };
             Assert.Equal(expect, block);
         }
+
+        [Fact]
+        public void TestInvalidDataType()
+        {
+            // bool
+            var boolField = new TaosFieldE { type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_BOOL };
+            var boolData = BlockWriter.Serialize(1, new[] { boolField }, new bool[] { true });
+            var expectedBoolData = new byte[]
+            {
+                0x01, 0x00, 0x00, 0x00,
+                0x27, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                0x01, 0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00,
+                0x01
+            };
+            Assert.Equal(expectedBoolData, boolData);
+            boolData = BlockWriter.Serialize(1, new[] { boolField }, new bool[] { false });
+            expectedBoolData = new byte[]
+            {
+                0x01, 0x00, 0x00, 0x00,
+                0x27, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                0x01, 0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00,
+                0x00
+            };
+            Assert.Equal(expectedBoolData, boolData);
+            boolData = BlockWriter.Serialize(1, new[] { boolField }, new bool?[] { true });
+            expectedBoolData = new byte[]
+            {
+                0x01, 0x00, 0x00, 0x00,
+                0x27, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                0x01, 0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00,
+                0x01
+            };
+            Assert.Equal(expectedBoolData, boolData);
+            boolData = BlockWriter.Serialize(1, new[] { boolField }, new bool?[] { false });
+            expectedBoolData = new byte[]
+            {
+                0x01, 0x00, 0x00, 0x00,
+                0x27, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                0x01, 0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00,
+                0x00
+            };
+            Assert.Equal(expectedBoolData, boolData);
+            Assert.Throws<ArgumentException>(() => BlockWriter.Serialize(1, new[] { boolField }, new int[] { 1 }));
+            Assert.Throws<ArgumentException>(() =>
+                BlockWriter.Serialize(1, new[] { boolField }, new string[] { "abc" }));
+            // tinyint
+            var tinyIntType = new TaosFieldE { type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_TINYINT };
+            var tinyIntData = BlockWriter.Serialize(1, new[] { tinyIntType }, new sbyte[] { 8 });
+            var expectedTinyintData = new byte[]
+            {
+                0x01, 0x00, 0x00, 0x00,
+                0x27, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                0x02, 0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00,
+                0x08
+            };
+            Assert.Equal(expectedTinyintData, tinyIntData);
+            tinyIntData = BlockWriter.Serialize(1, new[] { tinyIntType }, new sbyte?[] { 8 });
+            expectedTinyintData = new byte[]
+            {
+                0x01, 0x00, 0x00, 0x00,
+                0x27, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                0x02, 0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00,
+                0x08
+            };
+            Assert.Equal(expectedTinyintData, tinyIntData);
+            Assert.Throws<ArgumentException>(() => BlockWriter.Serialize(1, new[] { tinyIntType }, new int[] { 1 }));
+            Assert.Throws<ArgumentException>(() =>
+                BlockWriter.Serialize(1, new[] { tinyIntType }, new string[] { "abc" }));
+
+            // smallint
+            var smallIntType = new TaosFieldE { type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_SMALLINT };
+            var smallIntData = BlockWriter.Serialize(1, new[] { smallIntType }, new short[] { 8 });
+            var expectedSmallintData = new byte[]
+            {
+                0x01, 0x00, 0x00, 0x00,
+                0x28, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                0x03, 0x02, 0x00, 0x00, 0x00,
+                0x02, 0x00, 0x00, 0x00,
+                0x00,
+                0x08, 0x00
+            };
+            Assert.Equal(expectedSmallintData, smallIntData);
+            smallIntData = BlockWriter.Serialize(1, new[] { smallIntType }, new short?[] { 8 });
+            expectedSmallintData = new byte[]
+            {
+                0x01, 0x00, 0x00, 0x00,
+                0x28, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                0x03, 0x02, 0x00, 0x00, 0x00,
+                0x02, 0x00, 0x00, 0x00,
+                0x00,
+                0x08, 0x00
+            };
+            Assert.Equal(expectedSmallintData, smallIntData);
+            Assert.Throws<ArgumentException>(() => BlockWriter.Serialize(1, new[] { smallIntType }, new int[] { 1 }));
+            Assert.Throws<ArgumentException>(() =>
+                BlockWriter.Serialize(1, new[] { smallIntType }, new string[] { "abc" }));
+
+            // int
+            var intType = new TaosFieldE { type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_INT };
+            var intData = BlockWriter.Serialize(1, new[] { intType }, new int[] { 8 });
+            var expectedIntData = new byte[]
+            {
+                0x01, 0x00, 0x00, 0x00,
+                0x2a, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                0x04, 0x04, 0x00, 0x00, 0x00,
+                0x04, 0x00, 0x00, 0x00,
+                0x00,
+                0x08, 0x00, 0x00, 0x00
+            };
+            Assert.Equal(expectedIntData, intData);
+            intData = BlockWriter.Serialize(1, new[] { intType }, new int?[] { 8 });
+            expectedIntData = new byte[]
+            {
+                0x01, 0x00, 0x00, 0x00,
+                0x2a, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                0x04, 0x04, 0x00, 0x00, 0x00,
+                0x04, 0x00, 0x00, 0x00,
+                0x00,
+                0x08, 0x00, 0x00, 0x00
+            };
+            Assert.Equal(expectedIntData, intData);
+            Assert.Throws<ArgumentException>(() => BlockWriter.Serialize(1, new[] { intType }, new sbyte[] { 1 }));
+            Assert.Throws<ArgumentException>(() => BlockWriter.Serialize(1, new[] { intType }, new string[] { "abc" }));
+
+            // bigint
+            var bigIntType = new TaosFieldE { type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_BIGINT };
+            var bigIntData = BlockWriter.Serialize(1, new[] { bigIntType }, new long[] { 8 });
+            var expectedBigintData = new byte[]
+            {
+                0x01, 0x00, 0x00, 0x00,
+                0x2e, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                0x05, 0x08, 0x00, 0x00, 0x00,
+                0x08, 0x00, 0x00, 0x00,
+                0x00,
+                0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+            };
+            Assert.Equal(expectedBigintData, bigIntData);
+            bigIntData = BlockWriter.Serialize(1, new[] { bigIntType }, new long?[] { 8 });
+            Assert.Equal(expectedBigintData, bigIntData);
+            Assert.Throws<ArgumentException>(() => BlockWriter.Serialize(1, new[] { bigIntType }, new int[] { 1 }));
+            Assert.Throws<ArgumentException>(() =>
+                BlockWriter.Serialize(1, new[] { bigIntType }, new string[] { "abc" }));
+
+            // tinyint unsigned
+            var uTinyIntType = new TaosFieldE { type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_UTINYINT };
+            var uTinyIntData = BlockWriter.Serialize(1, new[] { uTinyIntType }, new byte[] { 8 });
+            var expectedUtinyintData = new byte[]
+            {
+                0x01, 0x00, 0x00, 0x00,
+                0x27, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                0x0b, 0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00,
+                0x08
+            };
+            Assert.Equal(expectedUtinyintData, uTinyIntData);
+            uTinyIntData = BlockWriter.Serialize(1, new[] { uTinyIntType }, new byte?[] { 8 });
+            Assert.Equal(expectedUtinyintData, uTinyIntData);
+            Assert.Throws<ArgumentException>(() => BlockWriter.Serialize(1, new[] { uTinyIntType }, new int[] { 1 }));
+            Assert.Throws<ArgumentException>(() =>
+                BlockWriter.Serialize(1, new[] { uTinyIntType }, new string[] { "abc" }));
+
+            // smallint unsigned
+            var uSmallIntType = new TaosFieldE { type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_USMALLINT };
+            var uSmallIntData = BlockWriter.Serialize(1, new[] { uSmallIntType }, new ushort[] { 8 });
+            var expectedUsmallintData = new byte[]
+            {
+                0x01, 0x00, 0x00, 0x00,
+                0x28, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                0x0c, 0x02, 0x00, 0x00, 0x00,
+                0x02, 0x00, 0x00, 0x00,
+                0x00,
+                0x08, 0x00
+            };
+            Assert.Equal(expectedUsmallintData, uSmallIntData);
+            uSmallIntData = BlockWriter.Serialize(1, new[] { uSmallIntType }, new ushort?[] { 8 });
+            Assert.Equal(expectedUsmallintData, uSmallIntData);
+            Assert.Throws<ArgumentException>(() => BlockWriter.Serialize(1, new[] { uSmallIntType }, new int[] { 1 }));
+            Assert.Throws<ArgumentException>(() =>
+                BlockWriter.Serialize(1, new[] { uSmallIntType }, new string[] { "abc" }));
+
+            // int unsigned
+            var uIntType = new TaosFieldE { type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_UINT };
+            var uIntData = BlockWriter.Serialize(1, new[] { uIntType }, new uint[] { 8 });
+            var expectedUintData = new byte[]
+            {
+                0x01, 0x00, 0x00, 0x00,
+                0x2a, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                0x0d, 0x04, 0x00, 0x00, 0x00,
+                0x04, 0x00, 0x00, 0x00,
+                0x00,
+                0x08, 0x00, 0x00, 0x00
+            };
+            Assert.Equal(expectedUintData, uIntData);
+            uIntData = BlockWriter.Serialize(1, new[] { uIntType }, new uint?[] { 8 });
+            Assert.Equal(expectedUintData, uIntData);
+            Assert.Throws<ArgumentException>(() => BlockWriter.Serialize(1, new[] { uIntType }, new sbyte[] { 1 }));
+            Assert.Throws<ArgumentException>(() =>
+                BlockWriter.Serialize(1, new[] { uIntType }, new string[] { "abc" }));
+
+            // bigint unsigned
+            var uBigIntType = new TaosFieldE { type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_UBIGINT };
+            var uBigIntData = BlockWriter.Serialize(1, new[] { uBigIntType }, new ulong[] { 8 });
+            var expectedUbigintData = new byte[]
+            {
+                0x01, 0x00, 0x00, 0x00,
+                0x2e, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                0x0e, 0x08, 0x00, 0x00, 0x00,
+                0x08, 0x00, 0x00, 0x00,
+                0x00,
+                0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+            };
+            Assert.Equal(expectedUbigintData, uBigIntData);
+            uBigIntData = BlockWriter.Serialize(1, new[] { uBigIntType }, new ulong?[] { 8 });
+            Assert.Equal(expectedUbigintData, uBigIntData);
+            Assert.Throws<ArgumentException>(() => BlockWriter.Serialize(1, new[] { uBigIntType }, new int[] { 1 }));
+            Assert.Throws<ArgumentException>(() =>
+                BlockWriter.Serialize(1, new[] { uBigIntType }, new string[] { "abc" }));
+
+            // float
+            var floatType = new TaosFieldE { type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_FLOAT };
+            var floatData = BlockWriter.Serialize(1, new[] { floatType }, new float[] { 8 });
+
+            var expectedFloatData = new byte[]
+            {
+                0x01, 0x00, 0x00, 0x00,
+                0x2a, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                0x06, 0x04, 0x00, 0x00, 0x00,
+                0x04, 0x00, 0x00, 0x00,
+                0x00,
+                0x00, 0x00, 0x00, 0x41
+            };
+            Assert.Equal(expectedFloatData, floatData);
+            floatData = BlockWriter.Serialize(1, new[] { floatType }, new float?[] { 8 });
+            Assert.Equal(expectedFloatData, floatData);
+            Assert.Throws<ArgumentException>(() => BlockWriter.Serialize(1, new[] { floatType }, new sbyte[] { 1 }));
+            Assert.Throws<ArgumentException>(() =>
+                BlockWriter.Serialize(1, new[] { floatType }, new string[] { "abc" }));
+
+            // double
+            var doubleType = new TaosFieldE { type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_DOUBLE };
+            var doubleData = BlockWriter.Serialize(1, new[] { doubleType }, new double[] { 8 });
+            var expectedDoubleData = new byte[]
+            {
+                0x01, 0x00, 0x00, 0x00,
+                0x2e, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                0x07, 0x08, 0x00, 0x00, 0x00,
+                0x08, 0x00, 0x00, 0x00,
+                0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x40
+            };
+            Assert.Equal(expectedDoubleData, doubleData);
+            doubleData = BlockWriter.Serialize(1, new[] { doubleType }, new double?[] { 8 });
+            Assert.Equal(expectedDoubleData, doubleData);
+            Assert.Throws<ArgumentException>(() => BlockWriter.Serialize(1, new[] { doubleType }, new int[] { 1 }));
+            Assert.Throws<ArgumentException>(() =>
+                BlockWriter.Serialize(1, new[] { doubleType }, new string[] { "abc" }));
+
+            // timestamp
+            var timestampType = new TaosFieldE
+            {
+                type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP,
+                precision = (byte)TDenginePrecision.TSDB_TIME_PRECISION_MILLI
+            };
+            var timestampData = BlockWriter.Serialize(1, new[] { timestampType }, new long[] { 8 });
+            var expectedTimestampData = new byte[]
+            {
+                0x01, 0x00, 0x00, 0x00,
+                0x2e, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                0x09, 0x08, 0x00, 0x00, 0x00,
+                0x08, 0x00, 0x00, 0x00,
+                0x00,
+                0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+            };
+            Assert.Equal(expectedTimestampData, timestampData);
+            timestampData = BlockWriter.Serialize(1, new[] { timestampType }, new long?[] { 8 });
+            Assert.Equal(expectedTimestampData, timestampData);
+            var dateTime = TDengineConstant.ConvertTimestampToDateTime(8, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+            timestampData = BlockWriter.Serialize(1, new[] { timestampType }, new DateTime[] { dateTime });
+            Assert.Equal(expectedTimestampData, timestampData);
+            timestampData = BlockWriter.Serialize(1, new[] { timestampType }, new DateTime?[] { dateTime });
+            Assert.Equal(expectedTimestampData, timestampData);
+            var dateTimeOffset = TDengineConstant.ConvertTimestampToDateTimeOffset(8,
+                TDenginePrecision.TSDB_TIME_PRECISION_MILLI, TimeZoneInfo.Utc);
+            timestampData = BlockWriter.Serialize(1, new[] { timestampType }, new DateTimeOffset[] { dateTimeOffset });
+            Assert.Equal(expectedTimestampData, timestampData);
+            timestampData = BlockWriter.Serialize(1, new[] { timestampType }, new DateTimeOffset?[] { dateTimeOffset });
+            Assert.Equal(expectedTimestampData, timestampData);
+            Assert.Throws<ArgumentException>(() => BlockWriter.Serialize(1, new[] { timestampType }, new int[] { 1 }));
+            Assert.Throws<ArgumentException>(() =>
+                BlockWriter.Serialize(1, new[] { timestampType }, new string[] { "abc" }));
+
+            // binary
+            var binaryType = new TaosFieldE { type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_BINARY };
+            var binaryData = BlockWriter.Serialize(1, new[] { binaryType }, new string[] { "abc" });
+
+            var expectedBinaryData = new byte[]
+            {
+                0x01, 0x00, 0x00, 0x00,
+                0x2e, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                0x08, 0x00, 0x00, 0x00, 0x00,
+                0x05, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x03, 0x00,
+                0x61, 0x62, 0x63
+            };
+            Assert.Equal(expectedBinaryData, binaryData);
+            var data = new Array[]
+            {
+                new byte[][] { Encoding.UTF8.GetBytes("abc") }
+            };
+            binaryData = BlockWriter.Serialize(1, new[] { binaryType }, data);
+            Assert.Equal(expectedBinaryData, binaryData);
+            Assert.Throws<ArgumentException>(() => BlockWriter.Serialize(1, new[] { binaryType }, new int[] { 1 }));
+
+            // json
+            var jsonType = new TaosFieldE { type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_JSONTAG };
+            var jsonData = BlockWriter.Serialize(1, new[] { jsonType }, new string[] { "{\"a\":\"b\"}" });
+
+            var expectedJsonData = new byte[]
+            {
+                0x01, 0x00, 0x00, 0x00,
+                0x34, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                0x0f, 0x00, 0x00, 0x00, 0x00,
+                0x0b, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x09, 0x00,
+                0x7b, 0x22, 0x61, 0x22, 0x3a, 0x22, 0x62, 0x22, 0x7d
+            };
+            Assert.Equal(expectedJsonData, jsonData);
+            data = new Array[]
+            {
+                new byte[][] { Encoding.UTF8.GetBytes("{\"a\":\"b\"}") }
+            };
+            jsonData = BlockWriter.Serialize(1, new[] { jsonType }, data);
+            Assert.Equal(expectedJsonData, jsonData);
+            Assert.Throws<ArgumentException>(() => BlockWriter.Serialize(1, new[] { jsonType }, new int[] { 1 }));
+            // nchar
+            var ncharType = new TaosFieldE { type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_NCHAR };
+            var ncharData = BlockWriter.Serialize(1, new[] { ncharType }, new string[] { "abc" });
+            var expectedNcharData = new byte[]
+            {
+                0x01, 0x00, 0x00, 0x00,
+                0x37, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                0x0a, 0x00, 0x00, 0x00, 0x00,
+                0x0e, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x0c, 0x00,
+                0x61, 0x00, 0x00, 0x00, 0x62, 0x00, 0x00, 0x00, 0x63, 0x00, 0x00, 0x00,
+            };
+            Assert.Equal(expectedNcharData, ncharData);
+            Assert.Throws<ArgumentException>(() => BlockWriter.Serialize(1, new[] { ncharType }, new int[] { 1 }));
+            data = new Array[]
+            {
+                new byte[][] { Encoding.UTF8.GetBytes("abc") }
+            };
+            Assert.Throws<ArgumentException>(() => BlockWriter.Serialize(1, new[] { ncharType }, data));
+            // varbinary
+            var varBinaryType = new TaosFieldE { type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_VARBINARY };
+            data = new Array[]
+            {
+                new byte[][] { Encoding.UTF8.GetBytes("abc") }
+            };
+            var varBinaryData = BlockWriter.Serialize(1, new[] { varBinaryType }, data);
+            var expectedVarbinaryData = new byte[]
+            {
+                0x01, 0x00, 0x00, 0x00,
+                0x2e, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                0x10, 0x00, 0x00, 0x00, 0x00,
+                0x05, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x03, 0x00,
+                0x61, 0x62, 0x63
+            };
+            Assert.Equal(expectedVarbinaryData, varBinaryData);
+            varBinaryData = BlockWriter.Serialize(1, new[] { varBinaryType }, data);
+            Assert.Equal(expectedVarbinaryData, varBinaryData);
+            Assert.Throws<ArgumentException>(() => BlockWriter.Serialize(1, new[] { varBinaryType }, new int[] { 1 }));
+            varBinaryData = BlockWriter.Serialize(1, new[] { varBinaryType }, new String[] { "abc" });
+            Assert.Equal(expectedVarbinaryData, varBinaryData);
+
+            // geometry
+            var geometryType = new TaosFieldE { type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_GEOMETRY };
+            data = new Array[]
+            {
+                new byte[][]
+                {
+                    new byte[]
+                    {
+                        0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00, 0x00,
+                        0x00, 0x00, 0x00, 0x00, 0x59, 0x40
+                    }
+                }
+            };
+            var geometryData = BlockWriter.Serialize(1, new[] { geometryType }, data);
+            var expectedGeometryData = new byte[]
+            {
+                0x01, 0x00, 0x00, 0x00,
+                0x40, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                0x14, 0x00, 0x00, 0x00, 0x00,
+                0x17, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x15, 0x00,
+                0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x59, 0x40
+            };
+            Assert.Equal(expectedGeometryData, geometryData);
+            Assert.Throws<ArgumentException>(() => BlockWriter.Serialize(1, new[] { geometryType }, new int[] { 1 }));
+            Assert.Throws<ArgumentException>(() =>
+                BlockWriter.Serialize(1, new[] { geometryType }, new String[] { "abc" }));
+        }
     }
 }

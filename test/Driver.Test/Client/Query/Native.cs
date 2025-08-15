@@ -186,5 +186,23 @@ namespace Driver.Test.Client.Query
             var db = "stmt_bind_stmt_test_ns";
             this.StmtBindTimestampTest(this._nativeConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_NANO);
         }
+        [Fact]
+        public void NativeStmtTestWrongTypeMSTest()
+        {
+            var db = "stmt_wrong_test_ms";
+            this.StmtTestWrongType(this._nativeConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+        }
+        [Fact]
+        public void NativeStmtTestWrongTypeUSTest()
+        {
+            var db = "stmt_wrong_test_us";
+            this.StmtTestWrongType(this._nativeConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_MICRO);
+        }
+        [Fact]
+        public void NativeStmtTestWrongTypeNSTest()
+        {
+            var db = "stmt_wrong_test_ns";
+            this.StmtTestWrongType(this._nativeConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_NANO);
+        }
     }
 }

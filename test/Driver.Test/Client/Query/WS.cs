@@ -343,5 +343,23 @@ namespace Driver.Test.Client.Query
             // Act & Assert
             Assert.Throws<NullReferenceException>(() => WSClient.GetUrl(builder));
         }
+        [Fact]
+        public void WebSocketStmtTestWrongTypeMSTest()
+        {
+            var db = "ws_stmt_wrong_test_ms";
+            this.StmtTestWrongType(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+        }
+        [Fact]
+        public void WebSocketStmtTestWrongTypeUSTest()
+        {
+            var db = "ws_stmt_wrong_test_us";
+            this.StmtTestWrongType(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_MICRO);
+        }
+        [Fact]
+        public void WebSocketStmtTestWrongTypeNSTest()
+        {
+            var db = "ws_stmt_wrong_test_ns";
+            this.StmtTestWrongType(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_NANO);
+        }
     }
 }
