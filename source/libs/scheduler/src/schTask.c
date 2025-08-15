@@ -701,7 +701,8 @@ int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bo
     return TSDB_CODE_SUCCESS;
   }
 
-  if (TSDB_CODE_SCH_TIMEOUT_ERROR == errCode) {
+  if (TSDB_CODE_SCH_TIMEOUT_ERROR == errCode || TSDB_CODE_SYN_NOT_LEADER == errCode || 
+    TSDB_CODE_VND_STOPPED == errCode || TSDB_CODE_RPC_NETWORK_UNAVAIL == errCode) {
     pTask->maxExecTimes++;
     pTask->maxRetryTimes++;
     if (pTask->timeoutUsec < SCH_MAX_TASK_TIMEOUT_USEC) {
