@@ -231,6 +231,7 @@ public class ArrowUtils {
                 return out.toByteArray();
             }
         } catch (Exception e) {
+            logger.error("Failed to transformSubtable data to Arrow format", e);
             throw e;
         } finally {
             outputStream.close();
@@ -247,30 +248,26 @@ public class ArrowUtils {
      * @throws IOException
      */
     public byte[] transformData(List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList) throws IOException {
-        // 分配1G内存
-        RootAllocator rootAllocator = new RootAllocator(1_000_000_000);
-        // 创建arrow数据结构体
-        VectorSchemaRoot vectorSchemaRoot = VectorSchemaRoot.create(this.schema, rootAllocator);
-        // 输出字节流，完整结构体的字节流
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        try {
-            // 创建字典
-            DictionaryProvider.MapDictionaryProvider dictProvider = new DictionaryProvider.MapDictionaryProvider();
-            // 用于将数据写入Arrow格式的二进制流中，它接受一个VectorSchemaRoot对象作为输入，该对象包含要写入流中的Schema和矢量数据。在向这些矢量添加数据后，可以调用ArrowStreamWriter的writeBatch方法来刷新数据到输出流中
-            ArrowStreamWriter writer = new ArrowStreamWriter(vectorSchemaRoot, dictProvider, outputStream);
-            // 开始写入
+        // 分配1G内存; 创建arrow数据结构体; 输出字节流，完整结构体的字节流
+        try (
+                RootAllocator rootAllocator = new RootAllocator(1_000_000_000);
+                VectorSchemaRoot vectorSchemaRoot = VectorSchemaRoot.create(this.schema, rootAllocator);
+                ByteArrayOutputStream outputStream = new ByteArrayOutputStream(); // 虽然是Java IO，但一起管理更清晰
+                // Writer 也需要关闭，以释放它可能持有的资源
+                ArrowStreamWriter writer = new ArrowStreamWriter(vectorSchemaRoot, new DictionaryProvider.MapDictionaryProvider(), outputStream)
+        ) {
             writer.start();
             // 获取各值域
             UInt1Vector typeVector = (UInt1Vector) vectorSchemaRoot.getVector("__type__");
             ListVector tableVector = (ListVector) vectorSchemaRoot.getVector("__tables__");
             StructVector attrVector = (StructVector) vectorSchemaRoot.getVector("__attrs__");
             ListVector recordVector = (ListVector) vectorSchemaRoot.getVector("__records__");
-            /** 提交type=3与attrVector&recordVector数据 */
+            // 提交type=3与attrVector&recordVector数据
             typeVector.reset();
             tableVector.reset();
             attrVector.reset();
             recordVector.reset();
-            /* __type__ */
+            // __type__
             typeVector.setSafe(0, 3);
             // 2023.04.04 使用startNewValue与endValue解决了valueCount=0的问题！！！
             // 2023.04.20 将startNewValue放到循环外解决了批量的问题！！！
@@ -306,21 +303,16 @@ public class ArrowUtils {
             // writer.end();
             // 2023.04.21 使用ArrowRecordBatch解决了后续数据无法传输的问题！！！
             // 创建新的输出流
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            // 获取RecordBatch
-            ArrowRecordBatch arrowRecordBatch = new VectorUnloader(vectorSchemaRoot).getRecordBatch();
-            // 序列化到输出流中
-            MessageSerializer.serialize(new WriteChannel(Channels.newChannel(out)), arrowRecordBatch, IpcOption.DEFAULT);
-            // 关闭RecordBatch，否则执行rootAllocator.close()时会内存溢出
-            arrowRecordBatch.close();
-            // 返回字节流
-            return out.toByteArray();
+            try (ArrowRecordBatch arrowRecordBatch = new VectorUnloader(vectorSchemaRoot).getRecordBatch()) {
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                // 可能会抛异常，导致内存 leak, 所以使用 try () {}
+                MessageSerializer.serialize(new WriteChannel(Channels.newChannel(out)), arrowRecordBatch, IpcOption.DEFAULT);
+                // 返回字节流
+                return out.toByteArray();
+            }
         } catch (Exception e) {
+            logger.error("Failed to transform data to Arrow format", e);
             throw e;
-        } finally {
-            outputStream.close();
-            vectorSchemaRoot.close();
-            rootAllocator.close();
         }
     }
 
@@ -387,7 +379,12 @@ public class ArrowUtils {
             case "boolean":
             case "bool": {
                 BitVector bitVector = (BitVector) structVector.getChild(dataName);
-                bitVector.setSafe(index, ((Boolean) dataValue).booleanValue() ? 1 : 0);
+                if (dataValue == null) {
+                    bitVector.setNull(index);
+                } else {
+                    bitVector.setSafe(index, ((Boolean) dataValue).booleanValue() ? 1 : 0);
+                }
+
                 break;
             }
             case "integer":
@@ -395,26 +392,42 @@ public class ArrowUtils {
             case "long":
             case "bigint": {
                 BigIntVector bigIntVector = (BigIntVector) structVector.getChild(dataName);
-                bigIntVector.setSafe(index, ((Number) dataValue).longValue());
+                if (dataValue == null) {
+                    bigIntVector.setNull(index);
+                } else {
+                    bigIntVector.setSafe(index, ((Number) dataValue).longValue());
+                }
                 break;
             }
             case "float":
             case "double": {
                 Float8Vector float8Vector = (Float8Vector) structVector.getChild(dataName);
-                float8Vector.setSafe(index, ((Number) dataValue).doubleValue());
+                if (dataValue == null) {
+                    float8Vector.setNull(index);
+                } else {
+                    float8Vector.setSafe(index, ((Number) dataValue).doubleValue());
+                }
                 break;
             }
             case "date":
             case "timestamp": {
                 TimeStampNanoVector timeStampNanoVector = (TimeStampNanoVector) structVector.getChild(dataName);
-                timeStampNanoVector.setSafe(index, ((Instant) dataValue).getEpochSecond() * 1_000_000_000 + ((Instant) dataValue).getNano());
+                if (dataValue == null) {
+                    timeStampNanoVector.setNull(index);
+                } else {
+                    timeStampNanoVector.setSafe(index, ((Instant) dataValue).getEpochSecond() * 1_000_000_000 + ((Instant) dataValue).getNano());
+                }
                 break;
             }
             case "string":
             case "binary(256)":
             default: {
                 VarBinaryVector varBinaryVector = (VarBinaryVector) structVector.getChild(dataName);
-                varBinaryVector.setSafe(index, dataValue.toString().getBytes());
+                if (dataValue == null) {
+                    varBinaryVector.setNull(index);
+                } else {
+                    varBinaryVector.setSafe(index, dataValue.toString().getBytes());
+                }
                 break;
             }
         }

@@ -222,7 +222,7 @@ public class PushThread implements Runnable {
             // 记录统计信息
             StatisticCache.totalPush.addAndGet(influxdbBucketDataEntityList.size());
         } catch (Exception e) {
-            this.logger.error("Push data failed, write back to queue.", e);
+            this.logger.error("Push data failed, write back to queue. exception: ", e);
             // 写回
             BucketDataCache.addBucketData(influxdbBucketDataEntityList);
         }

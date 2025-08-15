@@ -35,7 +35,7 @@ task:
 performance:
   delay: 10000
   limitConnect: 500
-  limitBatch: 5000
+  limitBatch: 500
   limitSpeed: 100000
   retryTimes: 3
   # millisecond
@@ -43,7 +43,7 @@ performance:
   readWindow: 1
   maxThread: 50
   queueSizeT: 1000
-  queueSizeD: 500000
+  queueSizeD: 200000
   thread:
     # MessageThread线程
     processMessageInterval: 1

@@ -16,9 +16,11 @@ import com.taosdata.utils.flux.FluxEnums;
 import com.taosdata.utils.flux.FluxManager;
 import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -100,7 +102,7 @@ public class BucketDataThread implements Runnable {
                 }
                 logger.debug(this.name + "#Thread Start#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
                 // 判断内存中数据队列大小
-                if (BucketDataCache.getBucketDataQueueTotalSize() + BucketDataCache.getBucketDataQueueSize() >= performanceConfig.getQueueSizeD()) {
+                if (BucketDataCache.getBucketDataQueueTotalSize() >= performanceConfig.getQueueSizeD()) {
                     // 睡眠后继续
                     sleep(performanceConfig.getThread().getReadBucketFullInterval(), start, StatusEnums.NORMAL);
                     continue;
@@ -111,26 +113,38 @@ public class BucketDataThread implements Runnable {
                 Map<String, String> fieldMap = influxdbService.selectAllFields(this.bucket, this.measurement);
                 // 数据量
                 AtomicLong amount = new AtomicLong();
-                // 遍历字段，使查询条件更精细化，提高整体响应速度
-                fieldMap.keySet().forEach(field -> {
-                    try {
-                        // 读取数据
-                        List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = influxdbService.selectBucketData(this.orgId, this.bucket, this.measurement, field, this.startTime, this.stopTime, queryLimit, this.offset);
-                        // 判断数据长度
-                        if (influxdbBucketDataEntityList != null && influxdbBucketDataEntityList.size() > 0) {
-                            // 写入数据队列
-                            BucketDataCache.addBucketData(influxdbBucketDataEntityList);
-                            // 更新速度
-                            FluxManager.getInstance().getFluxControl(FluxEnums.ReadData.getCode()).cycleCheck(influxdbBucketDataEntityList.size(), -1);
-                            // 记录统计信息
-                            StatisticCache.totalRead.addAndGet(influxdbBucketDataEntityList.size());
-                            // 累加本次数据量
-                            amount.addAndGet(influxdbBucketDataEntityList.size());
+
+                if (influxdbService.getInfluxdbVersion().startsWith("1")) {
+                    List<List<Pair<String, String>>> tagSet = influxdbService.getTagSet(bucket, measurement);
+                    // 按 tag set 去查询
+                    for (List<Pair<String, String>> tagkv : tagSet) {
+                        StringBuilder sb = new StringBuilder();
+                        for (Pair<String, String> p : tagkv) {
+                            String tag = p.getLeft();
+                            String v = p.getRight();
+                            sb.append(" and ");
+                            sb.append(String.format("\"%s\"='%s'", tag, v));
                         }
-                    } catch (ArtificialException ae) {
-                        logger.error("querying data from InfluxDB occurred error, {}:{}:{}:{}-{}", this.bucket, this.measurement, field, this.startTime, this.stopTime, ae);
+                        String tagCondition = sb.substring(5);
+                        try {
+                            List<InfluxdbBucketDataEntity> entityList = influxdbService.selectBucketDataV1(this.bucket, this.measurement, tagCondition, this.startTime, this.stopTime, queryLimit, this.offset);
+                            addToBucketDataCache(entityList, amount, start);
+                        } catch (ArtificialException ae) {
+                            logger.error("querying data from InfluxDB v1.x occurred error, {}:{}:{}:{}-{}", this.bucket, this.measurement, tagCondition, this.startTime, this.stopTime, ae);
+                        }
                     }
-                });
+                } else {
+                    // 遍历字段，使查询条件更精细化，提高整体响应速度
+                    for (String field : fieldMap.keySet()) {
+                        try {
+                            // 读取数据
+                            List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = influxdbService.selectBucketData(this.orgId, this.bucket, this.measurement, field, this.startTime, this.stopTime, queryLimit, this.offset);
+                            addToBucketDataCache(influxdbBucketDataEntityList, amount, start);
+                        } catch (ArtificialException ae) {
+                            logger.error("querying data from InfluxDB v2.x occurred error, {}:{}:{}:{}-{}", this.bucket, this.measurement, field, this.startTime, this.stopTime, ae);
+                        }
+                    }
+                }
                 if (amount.get() > 0) {
                     // 更新offset
                     this.offset += queryLimit;
@@ -155,6 +169,33 @@ public class BucketDataThread implements Runnable {
             }
         }
         exit();
+    }
+
+    /**
+     * 放入数据队列，并判断是否需要降速
+     * @param influxdbBucketDataEntityList
+     * @param amount
+     * @param start
+     * @throws InterruptedException
+     */
+    private void addToBucketDataCache(List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList, AtomicLong amount, long start) throws InterruptedException  {
+        // 判断数据长度
+        if (influxdbBucketDataEntityList != null && !influxdbBucketDataEntityList.isEmpty()) {
+            // 写入数据队列
+            BucketDataCache.addBucketData(influxdbBucketDataEntityList);
+            // 判断内存中数据队列大小
+            while (BucketDataCache.getBucketDataQueueTotalSize() >= performanceConfig.getQueueSizeD()) {
+                logger.debug("BucketDatacache full sleep, total size:{}, queueSizeD: {}", BucketDataCache.getBucketDataQueueTotalSize(), performanceConfig.getQueueSizeD());
+                // 睡眠后继续
+                sleep(performanceConfig.getThread().getReadBucketFullInterval(), start, StatusEnums.NORMAL);
+            }
+            // 更新速度
+            FluxManager.getInstance().getFluxControl(FluxEnums.ReadData.getCode()).cycleCheck(influxdbBucketDataEntityList.size(), -1);
+            // 记录统计信息
+            StatisticCache.totalRead.addAndGet(influxdbBucketDataEntityList.size());
+            // 累加本次数据量
+            amount.addAndGet(influxdbBucketDataEntityList.size());
+        }
     }
 
     /**
