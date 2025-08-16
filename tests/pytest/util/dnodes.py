@@ -48,6 +48,7 @@ class TDSimClient:
             "telemetryReporting": "0",
             "tqDebugflag": "135",
             "stDebugflag":"135",
+            "maxRetryWaitTime": 10000,
             "safetyCheckLevel":"2",
             "minReservedMemorySize":"1024"
         }
@@ -147,6 +148,7 @@ class TDDnode:
             "uDebugFlag": "131",
             "sDebugFlag": "131",
             "wDebugFlag": "131",
+            "maxRetryWaitTime": 10000,
             "numOfLogLines": "100000000",
             "statusInterval": "1",
             "enableQueryHb": "1",
