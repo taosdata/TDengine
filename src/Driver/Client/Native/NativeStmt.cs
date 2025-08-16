@@ -631,7 +631,7 @@ namespace TDengine.Driver.Client.Native
                     }
 
                     throw new ArgumentException(
-                        $"BindIndex: {bindIndex}, field name: {field.name}, BIGINT database type requires int[] or int?[], but got an array of {elementType.Name}");
+                        $"BindIndex: {bindIndex}, field name: {field.name}, BIGINT database type requires long[] or long?[], but got an array of {elementType.Name}");
                 case TDengineDataType.TSDB_DATA_TYPE_FLOAT:
                     if (elementType == typeof(float?))
                     {
