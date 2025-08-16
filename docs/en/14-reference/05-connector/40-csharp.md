@@ -23,16 +23,17 @@ import RequestId from "../../assets/resources/_request_id.mdx";
 
 ## Version History
 
-| Connector Version | Major Changes                                              | TDengine Version   |
-|-------------------|------------------------------------------------------------|--------------------|
-| 3.1.7             | Support IPv6 connections and DECIMAL data type.            | 3.3.6.0 and higher |
-| 3.1.6             | Optimize WebSocket connection message handling.            | -                  |
-| 3.1.5             | Fix WebSocket encoding error for Chinese character length. | -                  |
-| 3.1.4             | Improved WebSocket query and insert performance.           | 3.3.2.0 and higher |
-| 3.1.3             | Supported WebSocket auto-reconnect.                        | -                  |
-| 3.1.2             | Fixed schemaless resource release.                         | -                  |
-| 3.1.1             | Supported varbinary and geometry types.                    | -                  |
-| 3.1.0             | WebSocket uses a native C# implementation.                 | 3.2.1.0 and higher |
+| Connector Version | Major Changes                                                                                                            | TDengine Version   |
+|-------------------|--------------------------------------------------------------------------------------------------------------------------|--------------------|
+| 3.1.8             | Support connection-level timezone settings and strictly validate the binding types of statements against database types. | -                  |
+| 3.1.7             | Support IPv6 connections and DECIMAL data type.                                                                          | 3.3.6.0 and higher |
+| 3.1.6             | Optimize WebSocket connection message handling.                                                                          | -                  |
+| 3.1.5             | Fix WebSocket encoding error for Chinese character length.                                                               | -                  |
+| 3.1.4             | Improved WebSocket query and insert performance.                                                                         | 3.3.2.0 and higher |
+| 3.1.3             | Supported WebSocket auto-reconnect.                                                                                      | -                  |
+| 3.1.2             | Fixed schemaless resource release.                                                                                       | -                  |
+| 3.1.1             | Supported varbinary and geometry types.                                                                                  | -                  |
+| 3.1.0             | WebSocket uses a native C# implementation.                                                                               | 3.2.1.0 and higher |
 
 ## Exceptions and Error Codes
 
