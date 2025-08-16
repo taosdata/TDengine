@@ -157,6 +157,7 @@ bool nodeListNodeEqual(const SNodeList* a, const SNode* b);
 bool nodesMatchNode(const SNode* pSub, const SNode* pNode);
 
 int32_t nodesCloneNode(const SNode* pNode, SNode** ppNodeOut);
+int32_t nodesCloneNodeWithSysMem(const SNode* pNode, SNode** ppNode);
 int32_t nodesCloneList(const SNodeList* pList, SNodeList** ppList);
 
 const char* nodesNodeName(ENodeType type);

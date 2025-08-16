@@ -3511,4 +3511,18 @@ void tFreeStreamVtbDbVgInfo(void* param) {
   tSimpleHashCleanup(*ppHash);
 }
 
+int32_t nodesCloneNodeWithSysMem(const SNode* pNode, SNode** ppNode) {
+  if (NULL == pNode || NULL == ppNode) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
+  SNodeAllocator* pBackupAllocator = g_pNodeAllocator;
+
+  g_pNodeAllocator = NULL;
+
+  int32_t code = nodesCloneNode(pNode, ppNode);
+
+  g_pNodeAllocator = pBackupAllocator;
+
+  return code;
+}

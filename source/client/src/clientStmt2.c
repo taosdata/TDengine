@@ -321,7 +321,13 @@ static int32_t stmtParseSql(STscStmt2* pStmt) {
     } else if (pStmt->sql.pQuery->pPrepareRoot && LEGAL_SELECT(nodeType(pStmt->sql.pQuery->pPrepareRoot))) {
       pStmt->sql.type = STMT_TYPE_QUERY;
       pStmt->sql.stbInterlaceMode = false;
-
+      if (pStmt->sql.pQuery && pStmt->sql.pQuery->pPrepareRoot) {
+        SNode*  pBackupRoot = NULL;
+        int32_t code = nodesCloneNodeWithSysMem(pStmt->sql.pQuery->pPrepareRoot, &pBackupRoot);
+        if (TSDB_CODE_SUCCESS == code) {
+          pStmt->sql.pQuery->pPrepareRoot = pBackupRoot;
+        }
+      }
       return TSDB_CODE_SUCCESS;
     } else {
       pStmt->bInfo.needParse = true;
@@ -333,6 +339,13 @@ static int32_t stmtParseSql(STscStmt2* pStmt) {
     }
   } else if (pStmt->sql.type == STMT_TYPE_QUERY) {
     pStmt->sql.stbInterlaceMode = false;
+    if (pStmt->sql.pQuery && pStmt->sql.pQuery->pPrepareRoot) {
+      SNode*  pBackupRoot = NULL;
+      int32_t code = nodesCloneNodeWithSysMem(pStmt->sql.pQuery->pPrepareRoot, &pBackupRoot);
+      if (TSDB_CODE_SUCCESS == code) {
+        pStmt->sql.pQuery->pPrepareRoot = pBackupRoot;
+      }
+    }
     return TSDB_CODE_SUCCESS;
   } else if (pStmt->sql.type == STMT_TYPE_INSERT) {
     pStmt->sql.stbInterlaceMode = false;
@@ -1795,7 +1808,6 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
     taos_free_result(pStmt->exec.pRequest);
     pStmt->exec.pRequest = NULL;
   }
-
   STMT_ERR_RET(stmtCreateRequest(pStmt));
   if (pStmt->bInfo.needParse) {
     code = stmtParseSql(pStmt);
