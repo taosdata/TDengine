@@ -1133,9 +1133,13 @@ class Test_IDMP_Meters:
         # sub
         self.verify_stream10_sub1()
         self.verify_stream10_sub2()
-        self.verify_stream10_sub4()
         # ***** bug4 *****
         #self.verify_stream10_sub3()
+        # ***** bug6 *****
+        #self.verify_stream10_sub4()
+        # ***** bug7 *****
+        #self.verify_stream10_sub5()
+
 
     def verify_stream10_sub1(self):
         # check
@@ -1180,7 +1184,39 @@ class Test_IDMP_Meters:
 
     def verify_stream10_sub4(self):
         # check
+        tdSql.checkResultsByFunc(
+            sql  = f"select * from tdasset.`result_stream10_sub4` ", 
+            func = lambda: tdSql.getRows() == 1
+            # row1
+            and tdSql.compareData(0, 0, 1752574200000) # ts
+            and tdSql.compareData(0, 1, 10)            # cnt
+            and tdSql.compareData(0, 2, 100)           # avg
+            and tdSql.compareData(0, 3, 2000)          # sum
+        )
         tdLog.info("verify stream10_sub4 ............................ successfully.")
+
+    def verify_stream10_sub5(self):
+        # check
+        tdSql.checkResultsByFunc(
+            sql  = f"select * from tdasset.`result_stream10_sub5` ",
+            func = lambda: tdSql.getRows() == 3
+            # row1
+            and tdSql.compareData(0, 0, 1752574200000) # ts
+            and tdSql.compareData(0, 1, 10)            # cnt
+            and tdSql.compareData(0, 2, 100)           # avg
+            and tdSql.compareData(0, 3, 2000)          # sum
+            # row2
+            and tdSql.compareData(0, 0, 1752574210000) # ts
+            and tdSql.compareData(0, 1, 1)             # cnt
+            and tdSql.compareData(0, 2, 100)           # avg
+            and tdSql.compareData(0, 3, 200)           # sum
+            # row1
+            and tdSql.compareData(0, 0, 1752574220000) # ts
+            and tdSql.compareData(0, 1, 9)             # cnt
+            and tdSql.compareData(0, 2, 100)           # avg
+            and tdSql.compareData(0, 3, 1800)          # sum
+        )
+        tdLog.info("verify stream10_sub5 ............................ successfully.")        
 
     #
     # ---------------------   find other bugs   ----------------------
