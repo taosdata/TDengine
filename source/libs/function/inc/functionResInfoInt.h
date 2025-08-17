@@ -350,6 +350,7 @@ typedef struct SDiffInfo {
 } SDiffInfo;
 
 typedef struct SValueChangeInfo {
+  int64_t total;
   bool   preIsNull;
   bool   isFirstRow;
   int8_t ignoreOption;  // replace the ignore with case when
@@ -360,8 +361,6 @@ typedef struct SValueChangeInfo {
   } prev;
 
   int64_t prevTs;
-  
-  int64_t total;
 } SValueChangeInfo;
 
 typedef struct SElapsedInfo {
