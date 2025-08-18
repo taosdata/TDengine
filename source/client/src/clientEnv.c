@@ -335,7 +335,8 @@ static bool clientRpcRfp(int32_t code, tmsg_t msgType) {
       return false;
     }
     return true;
-  } else if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY || code == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE) {
+  } else if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY || code == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE ||
+             code == TSDB_CODE_SYN_WRITE_STALL) {
     tscDebug("client msg type %s should retry since %s", TMSG_INFO(msgType), tstrerror(code));
     return true;
   } else {

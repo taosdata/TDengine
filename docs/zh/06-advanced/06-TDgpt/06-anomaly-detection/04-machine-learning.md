@@ -32,4 +32,4 @@ FROM foo anomaly_window(val, 'algo=sample_ad_model,model=sample-ad-autoencoder')
 
 ### 参考文献
 
-1. https://en.wikipedia.org/wiki/Autoencoder
+1. [Autoencoder - Wikipedia](https://en.wikipedia.org/wiki/Autoencoder)

@@ -530,7 +530,7 @@ class StreamUtil:
                 f"select * from information_schema.ins_streams where stream_name = '{stream_name}'"
             )
         streamNum = tdSql.getRows()
-        for loop in range(60):
+        for loop in range(120):
             if stream_name == "":
                 tdSql.query(
                     f"select * from information_schema.ins_stream_tasks where type = 'Trigger' and status = 'Running'"
