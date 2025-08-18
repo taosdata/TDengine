@@ -31,6 +31,8 @@ int32_t vnodeAsyncRetention(SVnode *pVnode, int64_t now) {
 
 
 int32_t vnodeQuerySsMigrateProgress(SVnode *pVnode, SRpcMsg *pMsg) {
+#ifdef USE_SHARED_STORAGE
+
   int32_t code = 0;
 
   SSsMigrateProgress req = {0};
@@ -72,11 +74,17 @@ _exit:
 
   tmsgSendRsp(&rspMsg);
   return 0;
+
+#else
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
 }
 
 
 
 int32_t vnodeListSsMigrateFileSets(SVnode *pVnode, SRpcMsg *pMsg) {
+#ifdef USE_SHARED_STORAGE
+
   int32_t code = 0, vgId = TD_VID(pVnode);
   SListSsMigrateFileSetsReq req = {0};
   SArray* fidArr = NULL;
@@ -131,6 +139,10 @@ _exit:
 
   tmsgSendRsp(&rspMsg);
   return 0;
+
+#else
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
 }
 
 

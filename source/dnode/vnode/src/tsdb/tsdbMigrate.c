@@ -105,7 +105,7 @@ int32_t tsdbUpdateSsMigrateProgress(STsdb* tsdb, SSsMigrateProgress* pProgress) 
     return 0;
   }
 
-  TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
+  (void)taosThreadMutexLock(&tsdb->mutex);
 
   if (pmm->ssMigrateId != pProgress->ssMigrateId) {
     tsdbError("vgId:%d, ssMigrateId:%d, fid:%d, migrate id mismatch in update progress, actual %d",
@@ -120,10 +120,10 @@ int32_t tsdbUpdateSsMigrateProgress(STsdb* tsdb, SSsMigrateProgress* pProgress) 
     // the waiting thread, we should always broadcast the message even if the state
     // is not changed actually.
     pmm->state = pProgress->state;
-    TAOS_UNUSED(taosThreadCondBroadcast(&pmm->stateChanged));
+    (void)taosThreadCondBroadcast(&pmm->stateChanged);
   }
 
-  TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
 
   return code;
 }
