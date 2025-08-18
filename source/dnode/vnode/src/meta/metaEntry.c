@@ -84,6 +84,8 @@ static int32_t metaDecodeExtSchemas(SDecoder* pDecoder, SMetaEntry* pME) {
     for (int32_t i = 0; i < pSchWrapper->nCols && hasExtSchema; i++) {
       TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pME->pExtSchemas[i].typeMod));
     }
+  } else {
+    pME->pExtSchemas = NULL;
   }
 
   return 0;
@@ -386,6 +388,8 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
     }
     if (!tDecodeIsEnd(pCoder)) {
       TAOS_CHECK_RETURN(metaDecodeExtSchemas(pCoder, pME));
+    } else {
+      pME->pExtSchemas = NULL;
     }
   }
   if (pME->type == TSDB_SUPER_TABLE) {
