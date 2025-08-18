@@ -1,15 +1,21 @@
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
 
 
-class TestDelete:
+class TestWriteDelete:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_delete(self):
-        """delete
-
-        1. -
+    def test_write_delete(self):
+        """Write: delete data
+        
+        1. Insert data
+        2. Flush the database
+        3.Delete data by specific timestamp
+        4. Delete data by timestamp range
+        5. Delete data using timestamp condition comparisons
+        6. Restart the dnode
+        7. Check data integrity
 
         Catalog:
             - DataIngestion:Delete
@@ -21,10 +27,20 @@ class TestDelete:
         Jira: None
 
         History:
-            - 2025-5-8 Simon Guan Migrated from tsim/parser/regressiontest.sim
+            - 2025-8-12 Simon Guan Migrated from tsim/parser/regressiontest.sim
+            - 2025-8-12 Simon Guan Migrated from tsim/query/delete_and_query.sim
+            - 2025-8-12 Simon Guan Migrated from tsim/insert/insert_drop.sim
 
         """
 
+        self.RegressionTest()
+        tdStream.dropAllStreamsAndDbs()
+        self.DeleteAndQuery()
+        tdStream.dropAllStreamsAndDbs()
+        self.InsertDrop()
+        tdStream.dropAllStreamsAndDbs()
+
+    def RegressionTest(self):
         dbPrefix = "reg_db"
         tb = "tb"
         rowNum = 8200
@@ -208,3 +224,86 @@ class TestDelete:
         tdLog.info(f"===============================================> TS-2613")
         tdSql.query(f"select * from information_schema.ins_databases limit 1 offset 1;")
         tdSql.checkRows(1)
+
+    def DeleteAndQuery(self):
+        tdSql.execute(f"create database if not exists test")
+        tdSql.execute(f"use test")
+        tdSql.execute(f"create table t1 (ts timestamp, c2 int)")
+        tdSql.execute(f"insert into t1 values(now, 1)")
+
+        tdSql.execute(f"delete from t1 where ts is null")
+        tdSql.execute(f"delete from t1 where ts < now")
+        tdSql.query(f"select ts from t1 order by ts asc")
+
+        tdLog.info(f"----------rows:  {tdSql.getRows()})")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select ts from t1 order by ts desc")
+        tdLog.info(f"----------rows:  {tdSql.getRows()})")
+        tdSql.checkRows(0)
+
+    def InsertDrop(self):
+        tbNum = 10
+        rowNum = 10
+        totalNum = tbNum * rowNum
+        ts0 = 1537146000000
+        delta = 600000
+        tdLog.info(f"========== insert_drop.sim")
+        i = 0
+        db = "iddb"
+        stb = "stb"
+
+        tdSql.prepare(dbname=db)
+        tdLog.info(f"====== create tables")
+        tdSql.execute(f"use {db}")
+        tdSql.execute(f"create table {stb} (ts timestamp, c1 int) tags(t1 int)")
+
+        i = 0
+        ts = ts0
+        while i < 10:
+            tb = "tb" + str(i)
+            tdSql.execute(f"create table {tb} using {stb} tags( {i} )")
+
+            x = 0
+            while x < rowNum:
+                xs = x * delta
+                ts = ts0 + xs
+                tdSql.execute(f"insert into {tb} values ( {ts} , {x} )")
+                x = x + 1
+            i = i + 1
+
+        tdLog.info(f"====== tables created")
+
+        tdLog.info(f"================== restart server to commit data into disk")
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
+
+        tdLog.info(f"================== server restart completed")
+
+        tdSql.execute(f"use {db}")
+        tdSql.execute(f"drop table tb5")
+        i = 0
+        while i < 4:
+            tb = "tb" + str(i)
+            x = 0
+            while x < rowNum:
+                xs = x * delta
+                ts = ts0 + xs
+                tdSql.execute(f"insert into {tb} values ( {ts} , {x} )")
+                x = x + 1
+            i = i + 1
+
+        tdLog.info(f"================== restart server to commit data into disk")
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
+
+        tdLog.info(f"================== server restart completed")
+
+        tdSql.execute(f"use {db}")
+
+        tdSql.execute(f"create table tb5 using {stb} tags(5)")
+        tdSql.query(f"select * from tb5")
+        tdLog.info(f"{tdSql.getRows()}) should be 0")
+        tdSql.checkRows(0)

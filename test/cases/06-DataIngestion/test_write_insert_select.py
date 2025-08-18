@@ -1,18 +1,18 @@
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
 
 
-class TestInsertSelect:
+class TestWriteInsertSelect:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_insert_select(self):
-        """insert sub table (select)
+    def test_write_insert_select(self):
+        """Write: insert into select
 
-        1. create table
-        2. insert data
-        3. query data
-
+        1. Insert into select from child table
+        2. Insert into select from normal table
+        3. Insert into select from super table
+        
         Catalog:
             - DataIngestion
 
@@ -27,6 +27,12 @@ class TestInsertSelect:
 
         """
 
+        self.Test1()
+        tdStream.dropAllStreamsAndDbs()
+        self.Test2()
+        tdStream.dropAllStreamsAndDbs()
+        
+    def Test1(self):
         tdLog.info(f"======== step1")
         tdSql.prepare(dbname="db1", vgroups=3)
         tdSql.execute(f"use db1;")
@@ -84,33 +90,12 @@ class TestInsertSelect:
         tdSql.execute(f"insert into t2 (ts, b, a) select ts + 1, 11, 12 from t1;")
         tdSql.query(f"select * from t2;")
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 1, 2)
-
         tdSql.checkData(0, 2, 1)
-
         tdSql.checkData(1, 1, 12)
-
         tdSql.checkData(1, 2, 11)
 
-    def test_insert_stb_select(self):
-        """insert super table (select)
-
-        1. create table
-        2. insert data
-        3. query data
-
-        Catalog:
-            - DataIngestion
-
-        Since: v3.3.6
-
-        Labels: common,ci
-
-        Jira: TS-6150
-
-        """
-
+    def Test2(self):
         tdLog.info(f"======== ctb not exists")
         tdSql.prepare(dbname="db2", vgroups=3)
         tdSql.execute(f"use db2;")
