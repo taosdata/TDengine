@@ -742,7 +742,7 @@ static int32_t stmtStartBindThread(STscStmt2* pStmt) {
   if (taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE) != 0) {
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
-  taosThreadAttrSetName(&thAttr, "stmtBind");
+  taosThreadAttrSetName(&thAttr, "stmtBind2");
   if (taosThreadCreate(&pStmt->bindThread, &thAttr, stmtBindThreadFunc, pStmt) != 0) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
     STMT_ERR_RET(terrno);

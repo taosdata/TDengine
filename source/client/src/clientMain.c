@@ -2274,7 +2274,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 out:
   tSimpleHashCleanup(hashTbnames);
 
-  return code;
+  TAOS_RETURN(code);
 }
 
 int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx, __taos_async_fn_t fp,

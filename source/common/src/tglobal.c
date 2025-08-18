@@ -875,8 +875,9 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsApplyMemoryAllowed = TRANGE(tsApplyMemoryAllowed, TSDB_MAX_MSG_SIZE * (1 - QUEUE_MEMORY_USAGE_RATIO) * 10LL,
                                 TSDB_MAX_MSG_SIZE * (1 - QUEUE_MEMORY_USAGE_RATIO) * 10000LL);
 
-  tsLogBufferMemoryAllowed = tsTotalMemoryKB * 1024 * 0.1;
-  tsLogBufferMemoryAllowed = TRANGE(tsLogBufferMemoryAllowed, TSDB_MAX_MSG_SIZE * 10LL, TSDB_MAX_MSG_SIZE * 10000LL);
+  tsLogBufferMemoryAllowed = tsTotalMemoryKB * 1024 * TSDB_SYNC_LOG_BUFF_MEM_RATIO;
+  tsLogBufferMemoryAllowed =
+      TRANGE(tsLogBufferMemoryAllowed, TSDB_MAX_MSG_SIZE * TSDB_SYNC_LOG_BUFF_MIN_MSG, TSDB_MAX_MSG_SIZE * 10000LL);
 
   // clang-format off
   TAOS_CHECK_RETURN(cfgAddDir(pCfg, "dataDir", tsDataDir, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
@@ -917,7 +918,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncHeartbeatInterval", tsHeartbeatInterval, 10, 1000 * 60 * 24 * 2, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncHeartbeatTimeout", tsHeartbeatTimeout, 10, 1000 * 60 * 24 * 2, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncSnapReplMaxWaitN", tsSnapReplMaxWaitN, 16, (TSDB_SYNC_SNAP_BUFFER_SIZE >> 2), CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
-  TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "syncLogBufferMemoryAllowed", tsLogBufferMemoryAllowed, TSDB_MAX_MSG_SIZE * 10L, INT64_MAX, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "syncLogBufferMemoryAllowed", tsLogBufferMemoryAllowed, TSDB_MAX_MSG_SIZE * TSDB_SYNC_LOG_BUFF_MIN_MSG, INT64_MAX, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_LOCAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "arbHeartBeatIntervalSec", tsArbHeartBeatIntervalSec, 1, 60 * 24 * 2, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "arbCheckSyncIntervalSec", tsArbCheckSyncIntervalSec, 1, 60 * 24 * 2, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
@@ -1184,8 +1185,9 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
 
   pItem = cfgGetItem(tsCfg, "syncLogBufferMemoryAllowed");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsLogBufferMemoryAllowed = totalMemoryKB * 1024 * 0.1;
-    tsLogBufferMemoryAllowed = TRANGE(tsLogBufferMemoryAllowed, TSDB_MAX_MSG_SIZE * 10LL, TSDB_MAX_MSG_SIZE * 10000LL);
+    tsLogBufferMemoryAllowed = totalMemoryKB * 1024 * TSDB_SYNC_LOG_BUFF_MEM_RATIO;
+    tsLogBufferMemoryAllowed =
+        TRANGE(tsLogBufferMemoryAllowed, TSDB_MAX_MSG_SIZE * TSDB_SYNC_LOG_BUFF_MIN_MSG, TSDB_MAX_MSG_SIZE * 10000LL);
     pItem->i64 = tsLogBufferMemoryAllowed;
     pItem->stype = stype;
   }

@@ -197,7 +197,7 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
 
 _exit:
   if (code) {
-    vError("vgId:%d %s failed at %s:%d since %s", pInfo->config.vgId, __func__, __FILE__, lino, tstrerror(code));
+    vError("vgId:%d %s failed at %d since %s, fname:%s", pInfo->config.vgId, __func__, lino, tstrerror(code), fname);
   } else {
     vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d selfIndex:%d changeVersion:%d", pInfo->config.vgId, fname,
           pInfo->config.syncCfg.replicaNum, pInfo->config.syncCfg.myIndex, pInfo->config.syncCfg.changeVersion);
