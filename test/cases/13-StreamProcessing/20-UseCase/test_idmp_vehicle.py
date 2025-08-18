@@ -103,8 +103,8 @@ class Test_IDMP_Vehicle:
     #
     def createVtables(self):
         sqls = [
-            f"create database {self.vdb};",
-            f"use {self.vdb};",
+            f"create database idmp;",
+            f"use idmp;",
             "CREATE STABLE `vst_车辆_652220` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `经度` FLOAT ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `纬度` FLOAT ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `高程` SMALLINT ENCODE 'simple8b' COMPRESS 'zlib' LEVEL 'medium', `速度` SMALLINT ENCODE 'simple8b' COMPRESS 'zlib' LEVEL 'medium', `方向` SMALLINT ENCODE 'simple8b' COMPRESS 'zlib' LEVEL 'medium', `报警标志` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', `里程` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium') TAGS (`_ignore_path` VARCHAR(20), `车辆资产模型` VARCHAR(128), `车辆ID` VARCHAR(32), `车牌号` VARCHAR(17), `车牌颜色` TINYINT, `终端制造商` VARCHAR(11), `终端ID` VARCHAR(15), `path2` VARCHAR(512)) SMA(`ts`,`经度`) VIRTUAL 1",
             "CREATE VTABLE `vt_1`   (`经度` FROM `idmp_sample_vehicle`.`vehicle_110100_001`.`longitude`, `纬度` FROM `idmp_sample_vehicle`.`vehicle_110100_001`.`latitude`, `高程` FROM `idmp_sample_vehicle`.`vehicle_110100_001`.`elevation`, `速度` FROM `idmp_sample_vehicle`.`vehicle_110100_001`.`speed`, `方向` FROM `idmp_sample_vehicle`.`vehicle_110100_001`.`direction`, `报警标志` FROM `idmp_sample_vehicle`.`vehicle_110100_001`.`alarm`, `里程` FROM `idmp_sample_vehicle`.`vehicle_110100_001`.`mileage`) USING `vst_车辆_652220` (`_ignore_path`, `车辆资产模型`, `车辆ID`, `车牌号`, `车牌颜色`, `终端制造商`, `终端ID`, `path2`) TAGS (NULL, 'XX物流公司.华北分公司.北京车队', '110100_001', '京Z1NW34', 2, 'zd', '2551765954', '车辆场景.XX物流公司.华北分公司.北京车队')",
             "CREATE VTABLE `vt_2`   (`经度` FROM `idmp_sample_vehicle`.`vehicle_110100_002`.`longitude`, `纬度` FROM `idmp_sample_vehicle`.`vehicle_110100_002`.`latitude`, `高程` FROM `idmp_sample_vehicle`.`vehicle_110100_002`.`elevation`, `速度` FROM `idmp_sample_vehicle`.`vehicle_110100_002`.`speed`, `方向` FROM `idmp_sample_vehicle`.`vehicle_110100_002`.`direction`, `报警标志` FROM `idmp_sample_vehicle`.`vehicle_110100_002`.`alarm`, `里程` FROM `idmp_sample_vehicle`.`vehicle_110100_002`.`mileage`) USING `vst_车辆_652220` (`_ignore_path`, `车辆资产模型`, `车辆ID`, `车牌号`, `车牌颜色`, `终端制造商`, `终端ID`, `path2`) TAGS (NULL, 'XX物流公司.华北分公司.北京车队', '110100_002', '京Z1NW84', 2, 'zd', '1819625826', '车辆场景.XX物流公司.华北分公司.北京车队')",
@@ -800,7 +800,7 @@ class Test_IDMP_Vehicle:
     #
     def verify_stream_stb1(self):
         # check data
-        result_sql = f"select * from {self.vdb}.`result_stream_stb1` where `车辆ID`= '110100_011'"
+        result_sql = f"select * from idmp.`result_stream_stb1` where `车辆ID`= '110100_011'"
         tdSql.checkResultsByFunc (
             sql = result_sql, 
             func = lambda: tdSql.getRows() == 2
@@ -824,7 +824,7 @@ class Test_IDMP_Vehicle:
     #
     def verify_stream1(self):
         # check
-        result_sql = f"select * from {self.vdb}.`result_stream1` "
+        result_sql = f"select * from idmp.`result_stream1` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
             func = lambda: tdSql.getRows() == 1
@@ -840,7 +840,7 @@ class Test_IDMP_Vehicle:
     # stream1 sub1
     def verify_stream1_sub1(self):
         # check
-        result_sql = f"select * from {self.vdb}.`result_stream1_sub1` "
+        result_sql = f"select * from idmp.`result_stream1_sub1` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
             func = lambda: tdSql.checkRows(1, show=True)
@@ -857,7 +857,7 @@ class Test_IDMP_Vehicle:
     #
     def verify_stream2(self):
         # check
-        result_sql = f"select * from {self.vdb}.`result_stream2` "
+        result_sql = f"select * from idmp.`result_stream2` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
             func = lambda: tdSql.getRows() == 2
@@ -874,7 +874,7 @@ class Test_IDMP_Vehicle:
     # verify stream2 sub1
     def verify_stream2_sub1(self):
         # check
-        result_sql = f"select * from {self.vdb}.`result_stream2_sub1` "
+        result_sql = f"select * from idmp.`result_stream2_sub1` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
             func = lambda: tdSql.checkRows(2, show=True)
@@ -889,7 +889,7 @@ class Test_IDMP_Vehicle:
     #
     def verify_stream3(self):
         # check
-        result_sql = f"select * from {self.vdb}.`result_stream3` "
+        result_sql = f"select * from idmp.`result_stream3` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
             func = lambda: tdSql.getRows() == 2
@@ -905,7 +905,7 @@ class Test_IDMP_Vehicle:
         
     def verify_stream3_sub1(self, tables=None):
         # check
-        result_sql = f"select * from {self.vdb}.`result_stream3_sub1` "
+        result_sql = f"select * from idmp.`result_stream3_sub1` "
         # same with stream3
         tdSql.checkResultsByFunc (
             sql = result_sql, 
@@ -932,7 +932,7 @@ class Test_IDMP_Vehicle:
 
     def verify_stream3_sub1_again(self, tables=None):
         # check
-        result_sql = f"select * from {self.vdb}.`result_stream3_sub1` "
+        result_sql = f"select * from idmp.`result_stream3_sub1` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
             func = lambda: tdSql.getRows() == 4
@@ -966,7 +966,7 @@ class Test_IDMP_Vehicle:
     #
     def verify_stream4(self, tables=None):
         # check
-        result_sql = f"select * from {self.vdb}.`result_stream4` "
+        result_sql = f"select * from idmp.`result_stream4` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
             func = lambda: tdSql.getRows() == 3
@@ -988,7 +988,7 @@ class Test_IDMP_Vehicle:
 
     def verify_stream4_sub1(self, tables=None):
         # check
-        result_sql = f"select * from {self.vdb}.`result_stream4_sub1` "
+        result_sql = f"select * from idmp.`result_stream4_sub1` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
             func = lambda: tdSql.getRows() == 2
@@ -1032,7 +1032,7 @@ class Test_IDMP_Vehicle:
 
     def verify_stream5(self):
         # check data
-        result_sql = f"select * from {self.vdb}.`result_stream5` "
+        result_sql = f"select * from idmp.`result_stream5` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
             func = lambda: tdSql.getRows() == 13
@@ -1052,19 +1052,19 @@ class Test_IDMP_Vehicle:
 
         # ts diff is 30000
         tdSql.checkResultsByFunc (
-            sql = f"select * from (select diff(_c0) as dif from {self.vdb}.`result_stream5`) where dif = 300000", 
+            sql = f"select * from (select diff(_c0) as dif from idmp.`result_stream5`) where dif = 300000", 
             func = lambda: tdSql.getRows() == 12
         )
         # cnt is zero
         tdSql.checkResultsByFunc (
-            sql = f"select * from {self.vdb}.`result_stream5` where cnt = 0", 
+            sql = f"select * from idmp.`result_stream5` where cnt = 0", 
             func = lambda: tdSql.getRows() == 13 - 4
         )
 
         # sub1
         tdSql.checkResultsBySql (
-            sql     = f"select * from {self.vdb}.`result_stream5_sub1` ",
-            exp_sql = f"select * from {self.vdb}.`result_stream5`      where cnt > 0",
+            sql     = f"select * from idmp.`result_stream5_sub1` ",
+            exp_sql = f"select * from idmp.`result_stream5`      where cnt > 0",
         )
         
         tdLog.info(f"verify stream5 ................................. successfully.")
@@ -1075,7 +1075,7 @@ class Test_IDMP_Vehicle:
 
     def verify_stream6(self):
         # check data
-        sql = f"select * from {self.vdb}.`result_stream6_sub1` "
+        sql = "select * from idmp.`result_stream6_sub1` "
         data = [
             [1752899700000,   5,100],
             [1752900000000,  10,100],
@@ -1093,13 +1093,13 @@ class Test_IDMP_Vehicle:
         # not no data
         tdSql.checkResultsBySql (
             sql     = sql,
-            exp_sql = f"select * from {self.vdb}.`result_stream6` where cnt > 0"
+            exp_sql = "select * from idmp.`result_stream6` where cnt > 0"
         )
 
-        tdLog.info(f"verify stream6 ................................. successfully.")
+        tdLog.info("verify stream6 ................................. successfully.")
 
     def verify_stream6_again(self):
-        tdLog.info(f"verify stream6 ................................. successfully.")
+        tdLog.info("verify stream6 ................................. successfully.")
         
 
     #
@@ -1107,7 +1107,7 @@ class Test_IDMP_Vehicle:
     #
     def verify_stream7(self):
         # check data
-        sql = f"select * from {self.vdb}.`result_stream7_sub1` "
+        sql = f"select * from idmp.`result_stream7_sub1` "
         data = [
             [1752900000000,   5,100],
             [1752901800000,   5,110],
@@ -1120,7 +1120,7 @@ class Test_IDMP_Vehicle:
         # not no data
         tdSql.checkResultsBySql (
             sql     = sql,
-            exp_sql = f"select * from {self.vdb}.`result_stream7` where cnt > 0"
+            exp_sql = f"select * from idmp.`result_stream7` where cnt > 0"
         )        
         tdLog.info(f"verify stream7 ................................. successfully.")
 
@@ -1130,7 +1130,7 @@ class Test_IDMP_Vehicle:
     #
     def verify_stream8(self):
         # check data
-        result_sql = f"select * from {self.vdb}.`result_stream8` "
+        result_sql = f"select * from idmp.`result_stream8` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
             func = lambda: tdSql.checkRows(1)
@@ -1149,7 +1149,7 @@ class Test_IDMP_Vehicle:
     # verify stream8_sub1
     def verify_stream8_sub1(self):
         # check data
-        result_sql = f"select * from {self.vdb}.`result_stream8_sub1` "
+        result_sql = f"select * from idmp.`result_stream8_sub1` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
             func = lambda: tdSql.checkRows(1)
@@ -1171,7 +1171,7 @@ class Test_IDMP_Vehicle:
         return 
 
         # check data
-        result_sql = f"select * from {self.vdb}.`result_stream9` "
+        result_sql = f"select * from idmp.`result_stream9` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
             func = lambda: tdSql.checkRows(1)
@@ -1187,7 +1187,7 @@ class Test_IDMP_Vehicle:
     # verify stream9_sub1
     def verify_stream9_sub1(self):
         # check data
-        result_sql = f"select * from {self.vdb}.`result_stream9_sub1` "
+        result_sql = f"select * from idmp.`result_stream9_sub1` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
             func = lambda: tdSql.checkRows(1)
@@ -1209,7 +1209,7 @@ class Test_IDMP_Vehicle:
         return 
 
         # check data
-        result_sql = f"select * from {self.vdb}.`result_stream10` "
+        result_sql = f"select * from idmp.`result_stream10` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
             func = lambda: tdSql.checkRows(7)
@@ -1237,7 +1237,7 @@ class Test_IDMP_Vehicle:
     # verify stream10_sub1
     def verify_stream10_sub1(self):
         # check data
-        result_sql = f"select * from {self.vdb}.`result_stream10_sub1` "
+        result_sql = f"select * from idmp.`result_stream10_sub1` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
             func = lambda: tdSql.checkRows(8)
