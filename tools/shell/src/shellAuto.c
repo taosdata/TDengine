@@ -177,6 +177,7 @@ SWords shellCommands[] = {
     {"show create view <all_table> \\G;", 0, 0, NULL},
     {"show compact", 0, 0, NULL},
     {"show compacts;", 0, 0, NULL},
+    {"show ssmigrates;", 0, 0, NULL},
 
 #endif
     {"show connections;", 0, 0, NULL},
@@ -654,6 +655,7 @@ void showHelp() {
     ssmigrate database <db_name>;\n\
     show compacts;\n\
     show compact \n\
+    show ssmigrates;\n\
     show arbgroups;\n\
     show mounts;\n\
     show views;\n\
