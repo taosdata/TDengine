@@ -176,6 +176,34 @@ bool setNextIteratorFromFile(SResultIter** ppResult) {
     } else {
       return true;
     }
+  } else if (pResult->dataMode & DATA_ALLOC_MODE_REORDER) {
+    SReorderGrpMgr* pReorderGrpMgr = (SReorderGrpMgr*)pResult->groupData;
+    SDatasInWindow* pWindowData = NULL;
+
+    SListNode* pNode = (SListNode*)pResult->winIndex;
+    SListIter  iter = {pNode->dl_next_, TD_LIST_FORWARD};
+
+    pWindowData = (SDatasInWindow*)pNode->data;
+    if (++pResult->offset < pWindowData->pBlockFileBuffer->size) {
+      return false;
+    } else {
+      pResult->offset = 0;
+      while ((pNode = tdListNext(&iter)) != NULL) {
+        pWindowData = (SDatasInWindow*)pNode->data;
+        if (pWindowData->timeRange.startTime >= pResult->reqStartTime &&
+            pWindowData->timeRange.startTime <= pResult->reqEndTime) {
+          if (!pWindowData->pBlockFileBuffer || pWindowData->pBlockFileBuffer->size <= 0) {
+            continue;
+          }
+          pResult->winIndex = (int64_t)pNode;
+          return false;
+        }
+        if (pWindowData->timeRange.startTime > pResult->reqEndTime) {
+          pResult->winIndex = 0;
+          return true;
+        }
+      }
+    }
   } else {
     // 在读取数据时已完成指针移动
     SAlignGrpMgr* pAlignGrpMgr = (SAlignGrpMgr*)pResult->groupData;
@@ -199,6 +227,56 @@ static int32_t appendTmpSBlocksInMem(SResultIter* pResult, SSDataBlock* pBlock) 
   if (p == NULL) {
     return terrno;
   }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t readFileDataToReorderWindows(SResultIter* pResult, SSDataBlock** ppBlock, SReorderGrpMgr* pReorderGrpMgr,
+                                            int32_t tsColSlotId, SBlockFileBuffer* pFileBuffer) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  char* buf = taosMemoryCalloc(1, pFileBuffer->len);
+  if (buf == NULL) {
+    code = terrno;
+    QUERY_CHECK_CODE(code, lino, _exit);
+  }
+
+  if (!pResult->pFileMgr->readFilePtr) {
+    code = openFileForRead(pResult->pFileMgr);
+    if (code != 0) {
+      stError("failed to open file for read, err: %s", terrMsg);
+      return code;
+    }
+  }
+
+  int64_t readLen = taosPReadFile(pResult->pFileMgr->readFilePtr, buf, pFileBuffer->len, pFileBuffer->fileOffset);
+  if (readLen < 0 || readLen != pFileBuffer->len) {
+    code = terrno;
+    QUERY_CHECK_CODE(code, lino, _exit);
+  }
+
+  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  if (pBlock == NULL) {
+    return terrno;
+  }
+  QUERY_CHECK_CODE(code, lino, _exit);
+  code = blockDecode(pBlock, buf, NULL);
+  QUERY_CHECK_CODE(code, lino, _exit);
+  if (pBlock->info.rows == 0) {
+    blockDataDestroy(pBlock);
+  }
+  *ppBlock = pBlock;
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("failed to read data from file, err: %s, lineno:%d", terrMsg, lino);
+    if (buf) {
+      taosMemoryFreeClear(buf);
+    }
+
+    return code;
+  }
+  taosMemoryFree(buf);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -324,10 +402,10 @@ int32_t readReorderDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock, int
   int32_t           lino = 0;
   SDataSinkFileMgr* pFileMgr = pResult->pFileMgr;
 
-  SReorderGrpMgr*   pReorderGrpMgr = (SReorderGrpMgr*)pResult->groupData;
+  SReorderGrpMgr* pReorderGrpMgr = (SReorderGrpMgr*)pResult->groupData;
   SDatasInWindow* pWindowData = NULL;
 
-  SListNode *pNode = (SListNode*)pResult->winIndex;
+  SListNode* pNode = (SListNode*)pResult->winIndex;
   SListIter  iter = {(void*)pResult->winIndex, TD_LIST_FORWARD};
 
   pWindowData = (SDatasInWindow*)pNode->data;
@@ -339,67 +417,18 @@ int32_t readReorderDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock, int
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
 
-    if (pResult->offset < pWindowData->pBlockFileBuffer->size) {
-    SBlockBuffer* data = taosArrayGet(pWindowData->pBlockFileBuffer, pResult->offset);
-    code = blockDecode(*ppBlock, data->data, NULL);
+  if (pResult->offset < pWindowData->pBlockFileBuffer->size) {
+    SBlockFileBuffer* pFileBuffer = taosArrayGet(pWindowData->pBlockFileBuffer, pResult->offset);
+    code = readFileDataToReorderWindows(pResult, ppBlock, pReorderGrpMgr, tsColSlotId, pFileBuffer);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-    tdListInitIter(&pExistGrpMgr->winAllData, &foundDataIter, TD_LIST_FORWARD);
-  while ((pNode = tdListNext(&foundDataIter)) != NULL) {
-    SDatasInWindow* pWinData = (SDatasInWindow*)pNode->data;
-    if (pWinData->timeRange.startTime >= start && pWinData->timeRange.startTime <= end) {
-      if (pWinData->pBlockFileBuffer->size > 0) {
-        dataPos = DATA_SINK_FILE;
-        break;
-      }
-      if (pWinData->datas->size > 0) {
-         dataPos = DATA_SINK_MEM;
-        break;
-      }
-    }
-    if (pWinData->timeRange.startTime > end) {
-      pNode = NULL;
-      break;
-    }
-  }
-
-  while (pResult->offset < taosArrayGetSize(pReorderGrpMgr->blocksInFile)) {
-    SBlocksInfoFile* pBlockInfo = (SBlocksInfoFile*)taosArrayGet(pReorderGrpMgr->blocksInFile, pResult->offset);
-    if (pBlockInfo == NULL || pBlockInfo->dataLen <= 0) {
-      stError("invalid block info at offset:%" PRId64 ", pBlockInfo:%p", pResult->offset, pBlockInfo);
-      return TSDB_CODE_STREAM_INTERNAL_ERROR;
-    }
-
-    bool finished = false;
-    code = readFileDataToSlidingWindows(pResult, pSlidingGrpMgr, tsColSlotId, pBlockInfo, &finished);
-    if (code != TSDB_CODE_SUCCESS) {
-      stError("failed to read file data to sliding windows, err: %s, lineno:%d", terrMsg, lino);
-      return code;
-    }
-    if ((pResult->tmpBlocksInMem == NULL || pResult->tmpBlocksInMem->size == 0) && !finished) {
-      SFileBlockInfo fileBlockInfo = {.offset = pBlockInfo->groupOffset, .size = pBlockInfo->capacity};
-      addToFreeBlock(pFileMgr, &fileBlockInfo);
-    }
-    if (finished) {
-      pResult->dataPos = DATA_SINK_ALL_TMP;
-    }
-    if (pResult->tmpBlocksInMem != NULL && pResult->tmpBlocksInMem->size > 0) {
-      pResult->dataPos = (pResult->dataPos == DATA_SINK_ALL_TMP ? DATA_SINK_ALL_TMP : DATA_SINK_PART_TMP);
-      pResult->winIndex = 0;
-      *ppBlock = *(SSDataBlock**)taosArrayGet(pResult->tmpBlocksInMem, pResult->winIndex);
-      break;
-    }
-    pResult->offset++;
-  }
-
-_exit:
+_end:
   if (code != TSDB_CODE_SUCCESS) {
     stError("failed to read data from file, err: %s, lineno:%d", terrMsg, lino);
   }
   return code;
 }
-
 
 int32_t readAlignDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock, int32_t tsColSlotId) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -522,7 +551,7 @@ _exit:
 }
 
 int32_t writeReorderDataToFile(SDataSinkFileMgr* pFileMgr, SReorderGrpMgr* pReorderGrp, TaosIOVec* iov, int32_t iovNum,
-                    int32_t needSize) {
+                    int32_t needSize, int64_t* pGroupOffset) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -534,6 +563,7 @@ int32_t writeReorderDataToFile(SDataSinkFileMgr* pFileMgr, SReorderGrpMgr* pReor
   int64_t dataLen;
   int64_t capacity;  // size in file
   fileBlockInfo.groupOffset = groupBlockOffset.offset;
+  *pGroupOffset = groupBlockOffset.offset;
   fileBlockInfo.capacity = groupBlockOffset.size;
   fileBlockInfo.dataLen = needSize;
   stDebug("move sliding group memory cache, groupId:%" PRId64
@@ -606,7 +636,7 @@ int32_t moveReorderGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SReorderGrpMg
       void* tmp = taosArrayReserve(pWinData->pBlockFileBuffer, moveWinCount);
       QUERY_CHECK_NULL(tmp, code, lino, _exit, terrno);
     } else {
-      pWinData->pBlockFileBuffer = taosArrayInit_s(moveWinCount, sizeof(SBlockFileBuffer));
+      pWinData->pBlockFileBuffer = taosArrayInit_s(sizeof(SBlockFileBuffer), moveWinCount);
       QUERY_CHECK_NULL(pWinData->pBlockFileBuffer, code, lino, _exit, terrno);
     }
 
@@ -618,18 +648,24 @@ int32_t moveReorderGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SReorderGrpMg
         QUERY_CHECK_CODE(code, lino, _exit);
       }
 
-      iov[i].iov_base = pBlockBuffer;
+      iov[i].iov_base = pBlockBuffer->data;
       iov[i].iov_len = pBlockBuffer->len;
       needSize += pBlockBuffer->len;
 
       SBlockFileBuffer* pFileBuffer = TARRAY_GET_ELEM(pWinData->pBlockFileBuffer, existFileBlockCount + i);
       pFileBuffer->len = pBlockBuffer->len;
-      pFileBuffer->fileOffset = pBlockBuffer->data;
       QUERY_CHECK_CODE(code, lino, _exit);
     }
 
-    code = writeReorderDataToFile(pFileMgr, pReorderGrp, iov, moveWinCount, needSize);
+    int64_t groupOffset = 0;
+    code = writeReorderDataToFile(pFileMgr, pReorderGrp, iov, moveWinCount, needSize, &groupOffset);
     QUERY_CHECK_CODE(code, lino, _exit);
+
+    for (int i = 0; i < moveWinCount; ++i) {
+      SBlockFileBuffer* pFileBuffer = TARRAY_GET_ELEM(pWinData->pBlockFileBuffer, existFileBlockCount + i);
+      pFileBuffer->fileOffset = groupOffset;
+      groupOffset += pFileBuffer->len;
+    }
 
     cleanReorderDataInMem(pWinData);
   }

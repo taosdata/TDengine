@@ -171,7 +171,7 @@ typedef struct SReorderGrpMgr {
   int64_t groupId;
   int8_t  status;  // EGroupStatus
   int64_t usedMemSize;
-  SList   winAllData;  // array SDataInMemWindows
+  SList   winAllData;  // List SDataInMemWindows
 } SReorderGrpMgr;
 
 typedef struct SAlignGrpMgr {

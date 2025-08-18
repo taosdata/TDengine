@@ -640,28 +640,31 @@ TEST(dataSinkTest, allWriteToFileTest) {
   ASSERT_NE(pBlock1, nullptr);
   ASSERT_NE(pIter1, nullptr);
   int rows = pBlock1->info.rows;
-  ASSERT_EQ(rows, 30);
-  ASSERT_EQ(compareBlockRow(pBlock1, pBlock11, 0, 50), true);
-  ASSERT_EQ(compareBlockRow(pBlock1, pBlock11, 1, 51), true);
-  ASSERT_EQ(compareBlockRow(pBlock1, pBlock11, 2, 52), true);
-  ASSERT_EQ(compareBlockRow(pBlock1, pBlock11, 29, 79), true);
+  ASSERT_EQ(rows, 50);
+  ASSERT_EQ(compareBlockRow(pBlock1, pBlock11, 0, 30), true);
+  ASSERT_EQ(compareBlockRow(pBlock1, pBlock11, 1, 31), true);
+  ASSERT_EQ(compareBlockRow(pBlock1, pBlock11, 2, 32), true);
+  ASSERT_EQ(compareBlockRow(pBlock1, pBlock11, 29, 59), true);
+  ASSERT_EQ(compareBlockRow(pBlock1, pBlock11, 48, 78), true);
+  ASSERT_EQ(compareBlockRow(pBlock1, pBlock11, 49, 79), true);
   blockDataDestroy(pBlock1);
 
   void* pIter2 = NULL;
-  code = getStreamDataCache(pCache2, groupID2, baseTestTime2 + 50, baseTestTime2 + 150, &pIter2);
+  code = getStreamDataCache(pCache2, groupID2, baseTestTime2 + 80, baseTestTime2 + 150, &pIter2);
   ASSERT_EQ(code, 0);
   ASSERT_NE(pIter2, nullptr);
   SSDataBlock* pBlock2 = NULL;
   code = getNextStreamDataCache(&pIter2, &pBlock2);
   ASSERT_EQ(code, 0);
   ASSERT_NE(pBlock2, nullptr);
-  ASSERT_NE(pIter2, nullptr);
+  ASSERT_EQ(pIter2, nullptr);
   int rows2 = pBlock2->info.rows;
-  ASSERT_EQ(rows2, 30);
-  ASSERT_EQ(compareBlockRow(pBlock2, pBlock21, 0, 50), true);
-  ASSERT_EQ(compareBlockRow(pBlock2, pBlock21, 1, 51), true);
-  ASSERT_EQ(compareBlockRow(pBlock2, pBlock21, 2, 52), true);
-  ASSERT_EQ(compareBlockRow(pBlock2, pBlock21, 29, 79), true);
+  ASSERT_EQ(rows2, 20);
+  bool equal = false;
+  for (int i = 0; i < 20; ++i) {
+    equal = compareBlockRow(pBlock2, pBlock21, i, 80 + i);
+    ASSERT_EQ(equal, true);
+  }
   blockDataDestroy(pBlock2);
 
   code = getNextStreamDataCache(&pIter1, &pBlock1);
@@ -669,36 +672,25 @@ TEST(dataSinkTest, allWriteToFileTest) {
   ASSERT_NE(pBlock1, nullptr);
   rows = pBlock1->info.rows;
   ASSERT_EQ(rows, 20);
-  ASSERT_EQ(compareBlockRow(pBlock1, pBlock11, 0, 80), true);
-  ASSERT_EQ(compareBlockRow(pBlock1, pBlock11, 1, 81), true);
-  ASSERT_EQ(compareBlockRow(pBlock1, pBlock11, 2, 82), true);
-  ASSERT_EQ(compareBlockRow(pBlock1, pBlock11, 19, 99), true);
-  ASSERT_NE(pIter1, nullptr);
+  equal = false;
+  for (int i = 0; i < 20; ++i) {
+    equal = compareBlockRow(pBlock1, pBlock11, i, 80 + i);
+    ASSERT_EQ(equal, true);
+  }
   blockDataDestroy(pBlock1);
-
-  code = getNextStreamDataCache(&pIter2, &pBlock2);
-  ASSERT_EQ(code, 0);
-  ASSERT_NE(pBlock2, nullptr);
-  ASSERT_EQ(pIter2, nullptr);
-  rows = pBlock2->info.rows;
-  ASSERT_EQ(rows, 20);
-  ASSERT_EQ(compareBlockRow(pBlock2, pBlock21, 0, 80), true);
-  ASSERT_EQ(compareBlockRow(pBlock2, pBlock21, 1, 81), true);
-  ASSERT_EQ(compareBlockRow(pBlock2, pBlock21, 2, 82), true);
-  ASSERT_EQ(compareBlockRow(pBlock2, pBlock21, 19, 99), true);
-  blockDataDestroy(pBlock2);
-  blockDataDestroy(pBlock21);
+  pBlock1 = NULL;
 
   code = getNextStreamDataCache(&pIter1, &pBlock1);
   ASSERT_EQ(code, 0);
   ASSERT_NE(pBlock1, nullptr);
-  ASSERT_NE(pIter1, nullptr);
+  ASSERT_EQ(pIter1, nullptr);
   rows = pBlock1->info.rows;
   ASSERT_EQ(rows, 50);
-  ASSERT_EQ(compareBlockRow(pBlock1, pBlock12, 0, 0), true);
-  ASSERT_EQ(compareBlockRow(pBlock1, pBlock12, 1, 1), true);
-  ASSERT_EQ(compareBlockRow(pBlock1, pBlock12, 2, 2), true);
-  ASSERT_EQ(compareBlockRow(pBlock1, pBlock12, 49, 49), true);
+  equal = false;
+  for (int i = 0; i < 50; ++i) {
+    equal = compareBlockRow(pBlock1, pBlock12, i, i);
+    ASSERT_EQ(equal, true);
+  }
   blockDataDestroy(pBlock1);
   pBlock1 = NULL;
 

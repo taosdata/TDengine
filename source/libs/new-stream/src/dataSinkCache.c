@@ -283,7 +283,15 @@ bool setNextIteratorFromMemReorder(SResultIter** ppResult) {
 
   ++pResult->offset;
   SListNode* pNode = (SListNode*)pResult->winIndex;
-  SListIter  iter = {pNode->dl_next_, TD_LIST_FORWARD};
+
+  SListIter iter = {0};
+  if (pNode == NULL) {
+    tdListInitIter(&pReorderGrpMgr->winAllData, &iter, TD_LIST_FORWARD);
+    pNode = tdListNext(&iter);
+  } else {
+    iter.next = pNode->dl_next_;
+    pNode = tdListNext((SListIter*)&pNode->dl_next_);
+  }
 
   while (pNode != NULL) {
     SDatasInWindow* pWinData = (SDatasInWindow*)pNode->data;
