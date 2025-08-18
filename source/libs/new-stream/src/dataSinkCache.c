@@ -28,7 +28,7 @@
 #include "thash.h"
 
 extern SDataSinkManager2 g_pDataSinkManager;
-SSlidingGrpMemList g_slidigGrpMemList = {0};
+SSlidingGrpMemList g_reorderGrpMemList = {0};
 
 void* getNextBuffStart(SAlignBlocksInMem* pAlignBlockInfo) {
   return (char*)pAlignBlockInfo + sizeof(SAlignBlocksInMem) + pAlignBlockInfo->dataLen;
@@ -144,43 +144,43 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
   return code;
 }
 
-bool shouldWriteSlidingGrpMemList(SSlidingGrpMgr* pSlidingGrpMgr) {
-  if (pSlidingGrpMgr->usedMemSize < (1 * 1024 * 1024) && g_slidigGrpMemList.waitMoveMemSize < DS_MEM_SIZE_RESERVED) {
+bool shouldWriteSlidingGrpMemList(SReorderGrpMgr* pSlidingGrpMgr) {
+  if (pSlidingGrpMgr->usedMemSize < (1 * 1024 * 1024) && g_reorderGrpMemList.waitMoveMemSize < DS_MEM_SIZE_RESERVED) {
     return false;
   }
-  int64_t size = taosHashGetSize(g_slidigGrpMemList.pSlidingGrpList);
+  int64_t size = taosHashGetSize(g_reorderGrpMemList.pReorderGrpList);
   if (size == 0) {
     return true;
   }
-  if (g_slidigGrpMemList.waitMoveMemSize > DS_MEM_SIZE_RESERVED) {
+  if (g_reorderGrpMemList.waitMoveMemSize > DS_MEM_SIZE_RESERVED) {
     return true;
   }
 
-  if (g_slidigGrpMemList.waitMoveMemSize < g_pDataSinkManager.memAlterSize ||
+  if (g_reorderGrpMemList.waitMoveMemSize < g_pDataSinkManager.memAlterSize ||
       (pSlidingGrpMgr->usedMemSize >
-       g_slidigGrpMemList.waitMoveMemSize / taosHashGetSize(g_slidigGrpMemList.pSlidingGrpList))) {
+       g_reorderGrpMemList.waitMoveMemSize / taosHashGetSize(g_reorderGrpMemList.pReorderGrpList))) {
     return true;
   }
   return false;
 }
 
-static void updateSlidingGrpUsedMemSize(SSlidingGrpMgr* pSlidingGrpMgr) {
-  if (!g_slidigGrpMemList.enabled) {
+void updateReorderGrpUsedMemSize(SReorderGrpMgr* pReorderGrpMgr) {
+  if (!g_reorderGrpMemList.enabled) {
     return;
   }
   int32_t code = TSDB_CODE_SUCCESS;
 
-  if (shouldWriteSlidingGrpMemList(pSlidingGrpMgr)) {
-    int64_t* oldSize = taosHashGet(g_slidigGrpMemList.pSlidingGrpList, &pSlidingGrpMgr, sizeof(SSlidingGrpMgr*));
+  if (shouldWriteSlidingGrpMemList(pReorderGrpMgr)) {
+    int64_t* oldSize = taosHashGet(g_reorderGrpMemList.pReorderGrpList, &pReorderGrpMgr, sizeof(SReorderGrpMgr*));
     if (oldSize == NULL) {
-      code = taosHashPut(g_slidigGrpMemList.pSlidingGrpList, &pSlidingGrpMgr, sizeof(SSlidingGrpMgr*),
-                         &pSlidingGrpMgr->usedMemSize, sizeof(int64_t));
+      code = taosHashPut(g_reorderGrpMemList.pReorderGrpList, &pReorderGrpMgr, sizeof(SReorderGrpMgr*),
+                         &pReorderGrpMgr->usedMemSize, sizeof(int64_t));
       if (code == TSDB_CODE_SUCCESS) {
-        atomic_add_fetch_64(&g_slidigGrpMemList.waitMoveMemSize, pSlidingGrpMgr->usedMemSize);
+        atomic_add_fetch_64(&g_reorderGrpMemList.waitMoveMemSize, pReorderGrpMgr->usedMemSize);
       }
     } else {
-      atomic_add_fetch_64(&g_slidigGrpMemList.waitMoveMemSize, pSlidingGrpMgr->usedMemSize);
-      atomic_sub_fetch_64(&g_slidigGrpMemList.waitMoveMemSize, *oldSize);
+      atomic_add_fetch_64(&g_reorderGrpMemList.waitMoveMemSize, pReorderGrpMgr->usedMemSize);
+      atomic_sub_fetch_64(&g_reorderGrpMemList.waitMoveMemSize, *oldSize);
     }
   }
 }
@@ -204,7 +204,6 @@ static int32_t getSlidingDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock
       continue;           // to check next window
     } else if (pWindowData->startTime > pResult->reqEndTime) {
       *finished = true;
-      updateSlidingGrpUsedMemSize(pSlidingGrpMgr);
       return code;
     } else {
       return getRangeInWindowBlock(pWindowData, pResult->tsColSlotId, pResult->reqStartTime, pResult->reqEndTime,
@@ -212,7 +211,6 @@ static int32_t getSlidingDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock
     }
   }
   *finished = true;
-  updateSlidingGrpUsedMemSize(pSlidingGrpMgr);
   return code;
 }
 
@@ -225,12 +223,12 @@ static int32_t getReorderDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock
   }
 
   SReorderGrpMgr*   pReorderGrpMgr = (SReorderGrpMgr*)pResult->groupData;
-  SDataInMemWindows* pWindowData = NULL;
+  SDatasInWindow* pWindowData = NULL;
 
   SListNode *pNode = (SListNode*)pResult->winIndex;
   SListIter  iter = {(void*)pResult->winIndex, TD_LIST_FORWARD};
 
-  pWindowData = (SDataInMemWindows*)pNode->data;
+  pWindowData = (SDatasInWindow*)pNode->data;
   if (pWindowData == NULL) {
     stError("getNextStreamDataCache failed, groupId: %" PRId64 " start:%" PRId64 " end:%" PRId64
             " dataPos: %d, winIndex: %" PRId64 ", offset: %" PRId64,
@@ -272,7 +270,7 @@ void slidingGrpMgrUsedMemAdd(SSlidingGrpMgr* pGrpCacheMgr, int64_t size) {
   atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, size);
 }
 
-void reorderGrpMgrUsedMemAdd(SReorderGrpMgr* pGrpCacheMgr, SDataInMemWindows* pWin, int64_t size) {
+void reorderGrpMgrUsedMemAdd(SReorderGrpMgr* pGrpCacheMgr, SDatasInWindow* pWin, int64_t size) {
   atomic_add_fetch_64(&pWin->dataLen, size);
   atomic_add_fetch_64(&pGrpCacheMgr->usedMemSize, size);
   atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, size);
@@ -281,14 +279,14 @@ void reorderGrpMgrUsedMemAdd(SReorderGrpMgr* pGrpCacheMgr, SDataInMemWindows* pW
 bool setNextIteratorFromMemReorder(SResultIter** ppResult) {
   SResultIter*       pResult = *ppResult;
   SReorderGrpMgr*   pReorderGrpMgr = (SReorderGrpMgr*)pResult->groupData;
-  SDataInMemWindows* pWindowData = NULL;
+  SDatasInWindow* pWindowData = NULL;
 
   ++pResult->offset;
   SListNode* pNode = (SListNode*)pResult->winIndex;
   SListIter  iter = {pNode->dl_next_, TD_LIST_FORWARD};
 
   while (pNode != NULL) {
-    SDataInMemWindows* pWinData = (SDataInMemWindows*)pNode->data;
+    SDatasInWindow* pWinData = (SDatasInWindow*)pNode->data;
     if (pResult->offset >= pWinData->datas->size) {
       pResult->offset = 0;
       pNode = tdListNext(&iter);
@@ -502,42 +500,42 @@ _end:
 int32_t moveMemFromWaitList(int8_t mode) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  if (!g_slidigGrpMemList.enabled) {
+  if (!g_reorderGrpMemList.enabled) {
     return TSDB_CODE_SUCCESS;
   }
   stInfo("start to move sliding group mem cache, waitMoveMemSize:%" PRId64 ", usedMemSize:%" PRId64,
-         g_slidigGrpMemList.waitMoveMemSize, g_pDataSinkManager.usedMemSize);
+         g_reorderGrpMemList.waitMoveMemSize, g_pDataSinkManager.usedMemSize);
 
-  int64_t size = taosHashGetSize(g_slidigGrpMemList.pSlidingGrpList);
+  int64_t size = taosHashGetSize(g_reorderGrpMemList.pReorderGrpList);
   if (size == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SSlidingGrpMgr** ppSlidingGrpMgr = (SSlidingGrpMgr**)taosHashIterate(g_slidigGrpMemList.pSlidingGrpList, NULL);
-  while (ppSlidingGrpMgr != NULL) {
-    SSlidingGrpMgr* pSlidingGrp = *ppSlidingGrpMgr;
-    if (pSlidingGrp == NULL) {
-      ppSlidingGrpMgr = taosHashIterate(g_slidigGrpMemList.pSlidingGrpList, ppSlidingGrpMgr);
+  SReorderGrpMgr** ppReorderGrpMgr = (SReorderGrpMgr**)taosHashIterate(g_reorderGrpMemList.pReorderGrpList, NULL);
+  while (ppReorderGrpMgr != NULL) {
+    SReorderGrpMgr* pReorderGrp = *ppReorderGrpMgr;
+    if (pReorderGrp == NULL) {
+      ppReorderGrpMgr = taosHashIterate(g_reorderGrpMemList.pReorderGrpList, ppReorderGrpMgr);
       continue;
     }
     if (hasEnoughMemSize()) {
       break;  // no need to move more mem
     }
-    bool canMove = changeMgrStatusToMoving(&pSlidingGrp->status, mode);
+    bool canMove = changeMgrStatusToMoving(&pReorderGrp->status, mode);
     if (!canMove) {
-      ppSlidingGrpMgr = taosHashIterate(g_slidigGrpMemList.pSlidingGrpList, ppSlidingGrpMgr);
+      ppReorderGrpMgr = taosHashIterate(g_reorderGrpMemList.pReorderGrpList, ppReorderGrpMgr);
       continue;  // another thread is using this group, skip it
     }
 
-    code = moveSlidingGrpMemCache(NULL, pSlidingGrp);
-    changeMgrStatus(&pSlidingGrp->status, GRP_DATA_IDLE);
+    code = moveReorderGrpMemCache(NULL, pReorderGrp);
+    changeMgrStatus(&pReorderGrp->status, GRP_DATA_IDLE);
     if (code != TSDB_CODE_SUCCESS) {
-      stError("failed to move sliding group mem cache, code: %d err: %s", code, terrMsg);
+      stError("failed to move reorder group mem cache, code: %d err: %s", code, terrMsg);
     }
-    ppSlidingGrpMgr = taosHashIterate(g_slidigGrpMemList.pSlidingGrpList, ppSlidingGrpMgr);
+    ppReorderGrpMgr = taosHashIterate(g_reorderGrpMemList.pReorderGrpList, ppReorderGrpMgr);
   }
-  if (ppSlidingGrpMgr != NULL) {
-    taosHashCancelIterate(g_slidigGrpMemList.pSlidingGrpList, ppSlidingGrpMgr);
+  if (ppReorderGrpMgr != NULL) {
+    taosHashCancelIterate(g_reorderGrpMemList.pReorderGrpList, ppReorderGrpMgr);
   }
   stInfo("move sliding group mem cache finished, used mem size: %" PRId64 ", max mem size: %" PRId64,
          g_pDataSinkManager.usedMemSize, tsStreamBufferSizeBytes);
@@ -547,30 +545,30 @@ int32_t moveMemFromWaitList(int8_t mode) {
 int32_t moveSlidingTaskMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  SSlidingGrpMgr** ppSlidingGrpMgr = (SSlidingGrpMgr**)taosHashIterate(pSlidingTaskMgr->pSlidingGrpList, NULL);
-  while (ppSlidingGrpMgr != NULL) {
-    SSlidingGrpMgr* pSlidingGrp = *ppSlidingGrpMgr;
-    if (pSlidingGrp == NULL) {
-      ppSlidingGrpMgr = taosHashIterate(pSlidingTaskMgr->pSlidingGrpList, ppSlidingGrpMgr);
+  SReorderGrpMgr** ppReorderGrpMgr = (SReorderGrpMgr**)taosHashIterate(pSlidingTaskMgr->pSlidingGrpList, NULL);
+  while (ppReorderGrpMgr != NULL) {
+    SReorderGrpMgr* pReorderGrp = *ppReorderGrpMgr;
+    if (pReorderGrp == NULL) {
+      ppReorderGrpMgr = taosHashIterate(pSlidingTaskMgr->pSlidingGrpList, ppReorderGrpMgr);
       continue;
     }
-    bool canMove = changeMgrStatusToMoving(&pSlidingGrp->status, GRP_DATA_WAITREAD_MOVING);
+    bool canMove = changeMgrStatusToMoving(&pReorderGrp->status, GRP_DATA_WAITREAD_MOVING);
     if (!canMove) {
-      ppSlidingGrpMgr = taosHashIterate(pSlidingTaskMgr->pSlidingGrpList, ppSlidingGrpMgr);
+      ppReorderGrpMgr = taosHashIterate(pSlidingTaskMgr->pSlidingGrpList, ppReorderGrpMgr);
       continue;  // another thread is using this group, skip it
     }
-    code = moveSlidingGrpMemCache(pSlidingTaskMgr, pSlidingGrp);
-    changeMgrStatus(&pSlidingGrp->status, GRP_DATA_IDLE);
+    code = moveReorderGrpMemCache(pSlidingTaskMgr, pReorderGrp);
+    changeMgrStatus(&pReorderGrp->status, GRP_DATA_IDLE);
     if (code != TSDB_CODE_SUCCESS) {
-      stError("failed to move sliding group mem cache, code: %d err: %s", code, terrMsg);
+      stError("failed to move reorder group mem cache, code: %d err: %s", code, terrMsg);
     }
     if (hasEnoughMemSize()) {
       break;
     }
-    ppSlidingGrpMgr = taosHashIterate(pSlidingTaskMgr->pSlidingGrpList, ppSlidingGrpMgr);
+    ppReorderGrpMgr = taosHashIterate(pSlidingTaskMgr->pSlidingGrpList, ppReorderGrpMgr);
   }
-  if (ppSlidingGrpMgr != NULL) {
-    taosHashCancelIterate(pSlidingTaskMgr->pSlidingGrpList, ppSlidingGrpMgr);
+  if (ppReorderGrpMgr != NULL) {
+    taosHashCancelIterate(pSlidingTaskMgr->pSlidingGrpList, ppReorderGrpMgr);
   }
   return code;
 }
@@ -578,7 +576,7 @@ int32_t moveSlidingTaskMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr) {
 int32_t splitBlockToWindows(SReorderGrpMgr* pReorderGrpMgr, int32_t tsColSlotId, SSDataBlock* pBlock) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  SList* pWindows = &pReorderGrpMgr->winDataInMem;
+  SList* pWindows = &pReorderGrpMgr->winAllData;
 
   int64_t firstTs = 0;
   int64_t lastTs = 0;
@@ -593,7 +591,7 @@ int32_t splitBlockToWindows(SReorderGrpMgr* pReorderGrpMgr, int32_t tsColSlotId,
 
   tdListInitIter(pWindows, &iter, TD_LIST_FORWARD);
   while ((pNode = tdListNext(&iter)) != NULL) {
-    SDataInMemWindows* pWin = (SDataInMemWindows*)pNode->data;
+    SDatasInWindow* pWin = (SDatasInWindow*)pNode->data;
     if ((pWin->timeRange.startTime >= firstTs && pWin->timeRange.startTime <= lastTs) ||
         (pWin->timeRange.endTime >= firstTs && pWin->timeRange.endTime <= lastTs)) {
       int32_t startIndex = 0, endIndex = 0;
@@ -646,10 +644,18 @@ void destroyBlockBuffer(void* data) {
   }
 }
 
-void destroyReorderDataInMem(SDataInMemWindows* pWinData) {
+void destroyReorderDataInMem(SDatasInWindow* pWinData) {
   if (pWinData) {
     if (pWinData->datas) {
       taosArrayDestroyEx(pWinData->datas, destroyBlockBuffer);
+    }
+  }
+}
+
+void cleanReorderDataInMem(SDatasInWindow* pWinData) {
+  if (pWinData) {
+    if (pWinData->datas) {
+      taosArrayClearEx(pWinData->datas, destroyBlockBuffer);
     }
   }
 }
@@ -661,11 +667,11 @@ int32_t clearReorderDataInMem(SReorderGrpMgr* pReorderGrpMgr, TSKEY start, TSKEY
   SListIter  foundDataIter = {0};
   SListNode* pNode = NULL;
 
-  tdListInitIter(&pReorderGrpMgr->winDataInMem, &foundDataIter, TD_LIST_FORWARD);
+  tdListInitIter(&pReorderGrpMgr->winAllData, &foundDataIter, TD_LIST_FORWARD);
   while ((pNode = tdListNext(&foundDataIter)) != NULL) {
-    SDataInMemWindows* pWinData = (SDataInMemWindows*)pNode->data;
+    SDatasInWindow* pWinData = (SDatasInWindow*)pNode->data;
     if (pWinData->timeRange.startTime >= start && pWinData->timeRange.endTime <= end) {
-      TD_DLIST_POP(&pReorderGrpMgr->winDataInMem, pNode);
+      TD_DLIST_POP(&pReorderGrpMgr->winAllData, pNode);
       destroyReorderDataInMem(pWinData);
       atomic_sub_fetch_64(&pReorderGrpMgr->usedMemSize, pWinData->dataLen);
       atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pWinData->dataLen);
@@ -687,10 +693,10 @@ void destroyReorderGrpMgr(void* pData) {
   SListIter  foundDataIter = {0};
   SListNode* pNode = NULL;
 
-  tdListInitIter(&pGroupData->winDataInMem, &foundDataIter, TD_LIST_FORWARD);
+  tdListInitIter(&pGroupData->winAllData, &foundDataIter, TD_LIST_FORWARD);
   while ((pNode = tdListNext(&foundDataIter)) != NULL) {
-    SDataInMemWindows* pWinData = (SDataInMemWindows*)pNode->data;
-    TD_DLIST_POP(&pGroupData->winDataInMem, pNode);
+    SDatasInWindow* pWinData = (SDatasInWindow*)pNode->data;
+    TD_DLIST_POP(&pGroupData->winAllData, pNode);
     destroyReorderDataInMem(pWinData);
     atomic_sub_fetch_64(&pGroupData->usedMemSize, pWinData->dataLen);
     atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pWinData->dataLen);
