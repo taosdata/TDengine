@@ -1724,6 +1724,27 @@ static int32_t mndUserActionDelete(SSdb *pSdb, SUserObj *pUser) {
   return 0;
 }
 
+static int32_t mndUserMergeHashTable(SHashObj* old, SHashObj* new){
+  int32_t code = 0;
+
+  void    *pIter = NULL;
+  while ((pIter = taosHashIterate(new, pIter))) {
+    char *db = pIter;
+    int32_t   len = strlen(db);
+
+    bool inOldDb = (taosHashGet(old, db, len + 1) != NULL);
+
+    if(!inOldDb){
+      if ((code = taosHashPut(old, db, len, db, TSDB_DB_FNAME_LEN)) != 0) {
+        taosHashCancelIterate(new, pIter);
+        return code;
+      }
+    }
+  }
+
+  return code;
+}
+
 static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   mTrace("user:%s, perform update action, old row:%p new row:%p", pOld->user, pOld, pNew);
   taosWLockLatch(&pOld->lock);
@@ -1734,8 +1755,8 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   pOld->enable = pNew->enable;
   pOld->flag = pNew->flag;
   (void)memcpy(pOld->pass, pNew->pass, TSDB_PASSWORD_LEN);
-  TSWAP(pOld->readDbs, pNew->readDbs);
-  TSWAP(pOld->writeDbs, pNew->writeDbs);
+  mndUserMergeHashTable(pOld->readDbs, pNew->readDbs);
+  mndUserMergeHashTable(pOld->writeDbs, pNew->writeDbs);
   TSWAP(pOld->topics, pNew->topics);
   TSWAP(pOld->readTbs, pNew->readTbs);
   TSWAP(pOld->writeTbs, pNew->writeTbs);
