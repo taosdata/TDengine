@@ -78,6 +78,7 @@ impl<'a> MessagesSender<'a> {
             .add_extra_metric(&METRIC_TOTAL_CONSUMED_MESSAGES, chunk.len() as _);
         let chunks = chunk.iter().chunk_by(|msg| (msg.topic(), msg.partition()));
 
+        let mut error = None;
         for ((topic, partition), iter) in &chunks {
             let mut offset = None;
             for msg in iter {
@@ -92,6 +93,7 @@ impl<'a> MessagesSender<'a> {
                             tracing::error!("codec process message error: {e:#}");
                             self.codec_err_count += 1;
                             if self.codec_err_count < 3 {
+                                error = Some(e);
                                 continue;
                             }
 
@@ -126,6 +128,11 @@ impl<'a> MessagesSender<'a> {
                             "Push offset error for topic `{topic}`"
                         )
                     });
+            }
+        }
+        if self.value.is_empty() {
+            if let Some(e) = error {
+                return Err(e);
             }
         }
 
