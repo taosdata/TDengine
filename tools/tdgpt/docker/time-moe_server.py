@@ -132,7 +132,7 @@ def ds_predict():
 def main():
     app.run(
         host='0.0.0.0',
-        port=5001,
+        port=6072,
         threaded=True,  # 支持多线程处理并发请求
         debug=False     # 生产环境建议设为False
     )
