@@ -355,7 +355,6 @@ static void setInputRowInfo(SFuncInputRow* pRow, SFuncInputRowIter* pIter, int32
   pRow->ts = pIter->tsList[rowIndex];
   pRow->isDataNull = colDataIsNull_f(pIter->pDataCol, rowIndex);
   pRow->pData = colDataGetData(pIter->pDataCol, rowIndex);
-  pRow->dataLen = colDataGetRowLength(pIter->pDataCol, rowIndex);
   pRow->pPk = setPk ? colDataGetData(pIter->pPkCol, rowIndex) : NULL;
   pRow->block = pIter->pSrcBlock;
   pRow->rowIndex = rowIndex;
