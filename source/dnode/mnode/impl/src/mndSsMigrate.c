@@ -432,10 +432,11 @@ int32_t mndRetrieveSsMigrate(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
 
     char tmpBuf[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
 
+    // ssmigrate_id
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    RETRIEVE_CHECK_GOTO(
-        colDataSetVal(pColInfo, numOfRows, (const char *)&pSsMigrate->id, false), pSsMigrate, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pSsMigrate->id, false), pSsMigrate, &lino, _OVER);
 
+    // db_name
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (pDb != NULL || !IS_SYS_DBNAME(pSsMigrate->dbname)) {
       SName name = {0};
@@ -447,9 +448,66 @@ int32_t mndRetrieveSsMigrate(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), pSsMigrate, &lino, _OVER);
 
+    // start_time
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pSsMigrate->startTime, false), pSsMigrate, &lino,
-                        _OVER);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pSsMigrate->startTime, false), pSsMigrate, &lino, _OVER);
+
+    // number_vgroup
+    int32_t numVg = taosArrayGetSize(pSsMigrate->vgroups);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&numVg, false), pSsMigrate, &lino, _OVER);
+
+    // migrated_vgroup
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pSsMigrate->vgIdx, false), pSsMigrate, &lino, _OVER);
+
+    if (pSsMigrate->vgIdx < numVg) {
+      // vgroup_id
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      int32_t vgId = *(int32_t*)taosArrayGet(pSsMigrate->vgroups, pSsMigrate->vgIdx);
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&vgId, false), pSsMigrate, &lino, _OVER);
+      
+      // number_fileset
+      int32_t numFset = taosArrayGetSize(pSsMigrate->fileSets);
+      if (pSsMigrate->vgState < SSMIGRATE_VGSTATE_FSET_LIST_RECEIVED) {
+        numFset = 0;
+      }
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&numFset, false), pSsMigrate, &lino, _OVER);
+
+      // migrated_fileset
+      int32_t fsetIdx = pSsMigrate->fsetIdx;
+      if (pSsMigrate->vgState < SSMIGRATE_VGSTATE_FSET_LIST_RECEIVED) {
+        fsetIdx = 0;
+      }
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&fsetIdx, false), pSsMigrate, &lino, _OVER);
+
+      // fileset_id
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      if (fsetIdx < numFset) {
+        int32_t fid = *(int32_t*)taosArrayGet(pSsMigrate->fileSets, fsetIdx);
+        RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&fid, false), pSsMigrate, &lino, _OVER);
+      } else {
+        RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, NULL, true), pSsMigrate, &lino, _OVER);
+      }
+    } else {
+      // vgroup_id
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, NULL, true), pSsMigrate, &lino, _OVER);
+
+      // number_fileset
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, NULL, true), pSsMigrate, &lino, _OVER);
+
+      // migrated_fileset
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, NULL, true), pSsMigrate, &lino, _OVER);
+
+      // fileset_id
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, NULL, true), pSsMigrate, &lino, _OVER);
+    }
 
     numOfRows++;
     sdbRelease(pSdb, pSsMigrate);
