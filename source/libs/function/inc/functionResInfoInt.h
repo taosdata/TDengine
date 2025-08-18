@@ -349,20 +349,6 @@ typedef struct SDiffInfo {
   int64_t prevTs;
 } SDiffInfo;
 
-typedef struct SValueChangeInfo {
-  int64_t total;
-  bool   preIsNull;
-  bool   isFirstRow;
-  int8_t ignoreOption;  // replace the ignore with case when
-
-  union {
-    int64_t i64; // 其他类型转为hash值
-    double  d64;
-  } prev;
-
-  int64_t prevTs;
-} SValueChangeInfo;
-
 typedef struct SElapsedInfo {
   double  result;
   TSKEY   min;
@@ -493,6 +479,20 @@ typedef struct SRateInfo {
   int32_t pkBytes;
   char pkData[];
 } SRateInfo;
+
+typedef struct SValueChangeInfo {
+  int64_t total;
+  bool   preIsNull;
+  bool   isFirstRow;
+  int8_t ignoreOption;  // replace the ignore with case when
+
+  union {
+    int64_t i64; // 其他类型转为hash值
+    double  d64;
+  } prev;
+
+  int64_t prevTs;
+} SValueChangeInfo;
 
 #ifdef __cplusplus
 }

@@ -4186,16 +4186,13 @@ int32_t diffScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
   return nonCalcScalarFunction(pInput, inputNum, pOutput);
 }
 
-int32_t valueChangeScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  return nonCalcScalarFunction(pInput, inputNum, pOutput);
-}
 int32_t forecastScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return nonCalcScalarFunction(pInput, inputNum, pOutput);
 }
 
 int32_t twaScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  return avgScalarFunction(pInput, inputNum, pOutput);
-}
+  return (pInput, inputNum, pOutput);
+}avgScalarFunction
 
 int32_t mavgScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return avgScalarFunction(pInput, inputNum, pOutput);
@@ -4282,6 +4279,37 @@ int32_t csumScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
 
   // pOutput->numOfRows = pInput->numOfRows;
   // return TSDB_CODE_SUCCESS;
+}
+
+int32_t valueChangeScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+
+  int8_t inputType = pInputCol->info.type;
+  int32_t inputBytes = pInputCol->info.bytes;
+
+  //int32_t type = GET_PARAM_TYPE(pInput);
+
+  double val;
+  bool   hasNull = false;
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      hasNull = true;
+      break;
+    }
+    char *in = pInputData->pData;
+    GET_TYPED_DATA(val, double, type, in, typeGetTypeModFromColInfo(&pInputData->info));
+  }
+
+  if (hasNull) {
+    colDataSetNULL(pOutputData, 0);
+  } else {
+    SCL_ERR_RET(colDataSetVal(pOutputData, 0, (char *)&val, false));
+  }
+
+  pOutput->numOfRows = 1;
+  return TSDB_CODE_SUCCESS;
 }
 
 typedef enum {
