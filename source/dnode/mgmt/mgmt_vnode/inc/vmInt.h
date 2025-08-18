@@ -45,8 +45,7 @@ typedef struct SVnodeMgmt {
   TdThread              thread;
   bool                  stop;
   TdThreadMutex         fileLock;
-  SWWorkerPool          streamReaderPool;
-  SSingleWorker         streamRunnerWorker;
+  SQueryAutoQWorkerPool streamReaderPool;
 } SVnodeMgmt;
 
 typedef struct {

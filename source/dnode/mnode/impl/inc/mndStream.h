@@ -501,7 +501,7 @@ int32_t msmHandleGrantExpired(SMnode *pMnode, int32_t errCode);
 bool mndStreamActionDequeue(SStmActionQ* pQueue, SStmQNode **param);
 void msmHandleBecomeLeader(SMnode *pMnode);
 void msmHandleBecomeNotLeader(SMnode *pMnode);
-int32_t msmUndeployStream(SMnode* pMnode, int64_t streamId, char* streamName);
+void msmUndeployStream(SMnode* pMnode, int64_t streamId, char* streamName);
 int32_t msmRecalcStream(SMnode* pMnode, int64_t streamId, STimeWindow* timeRange);
 int32_t mstIsStreamDropped(SMnode *pMnode, int64_t streamId, bool* dropped);
 bool mstWaitLock(SRWLatch* pLock, bool readLock);
