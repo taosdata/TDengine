@@ -118,7 +118,7 @@ class Test_IDMP_Meters:
 
         sqls = [
             # stream10 sliding
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream10_sub4` INTERVAL(10s) SLIDING(10s) FROM `tdasset`.`vt_em-10`                      STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|PRE_FILTER(`电压`=100)) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream10_sub4` AS SELECT _twstart AS ts,                                                 COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows;"
+            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream10_sub4` INTERVAL(10s) SLIDING(10s) FROM `tdasset`.`vt_em-10`                      STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|PRE_FILTER(`电压`=100)) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream10_sub4` AS SELECT _twstart AS ts,                                                 COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows;",
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream10_sub5` INTERVAL(10s) SLIDING(10s) FROM `tdasset`.`vt_em-10`                      STREAM_OPTIONS(IGNORE_NODATA_TRIGGER)                       NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream10_sub5` AS SELECT _twstart AS ts,                                                 COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows;"
         ]
 
@@ -202,7 +202,7 @@ class Test_IDMP_Meters:
             # row1
             and tdSql.compareData(0, 0, 1752574220000) # ts
             and tdSql.compareData(0, 1, 9)             # cnt
-            and tdSql.compareData(0, 2, 100)           # avg
+            and tdSql.compareData(0, 2, 200)           # avg
             and tdSql.compareData(0, 3, 1800)          # sum
         )
 
