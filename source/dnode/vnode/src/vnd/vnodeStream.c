@@ -13,9 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stdbool.h>
+#include <stdint.h>
 #include "scalar.h"
 #include "streamReader.h"
 #include "tarray.h"
+#include "tcommon.h"
 #include "tdb.h"
 #include "tdef.h"
 #include "tencode.h"
@@ -492,7 +495,7 @@ end:
   return code;
 }
 
-static int32_t preProcessSubmitTbData(SDecoder *pCoder, void* pTableList, bool isVTable, int64_t suid, SSHashObj* gidHash) {
+static int32_t processSubmitTbDataForMeta(SDecoder *pCoder, void* pTableList, bool isVTable, int64_t suid, SSHashObj* gidHash) {
   int32_t code = 0;
   int32_t lino = 0;
   WalMetaResult walMeta = {0};
@@ -548,7 +551,7 @@ static int32_t preProcessSubmitTbData(SDecoder *pCoder, void* pTableList, bool i
     }
 
     SColData colData = {0};
-    code = tDecodeColData(version, pCoder, &colData);
+    code = tDecodeColData(version, pCoder, &colData, false);
     if (code) {
       code = TSDB_CODE_INVALID_MSG;
       TSDB_CHECK_CODE(code, lino, end);
@@ -562,7 +565,7 @@ static int32_t preProcessSubmitTbData(SDecoder *pCoder, void* pTableList, bool i
     walMeta.ekey = ((TSKEY *)colData.pData)[colData.nVal - 1];
 
     for (uint64_t i = 1; i < nColData; i++) {
-      code = tDecodeColData(version, pCoder, &colData);
+      code = tDecodeColData(version, pCoder, &colData, true);
       if (code) {
         code = TSDB_CODE_INVALID_MSG;
         TSDB_CHECK_CODE(code, lino, end);
@@ -592,11 +595,6 @@ static int32_t preProcessSubmitTbData(SDecoder *pCoder, void* pTableList, bool i
         walMeta.ekey = taosGetInt64Aligned(&pRow->ts);
 #endif
       }
-      // Check pRow->sver
-      if (pRow->sver != submitTbData.sver) {
-        code = TSDB_CODE_INVALID_DATA_FMT;
-        TSDB_CHECK_CODE(code, lino, end);
-      }
     }
   }
 
@@ -618,7 +616,7 @@ end:
   return code;
 }
 
-static int32_t scanSubmitDataNew(void* pTableList, bool isVTable, SSDataBlock* pBlock, void* data, int32_t len,
+static int32_t scanSubmitDataForMeta(void* pTableList, bool isVTable, SSDataBlock* pBlock, void* data, int32_t len,
                               int64_t ver, int64_t suid) {
   int32_t  code = 0;
   int32_t  lino = 0;
@@ -637,15 +635,15 @@ static int32_t scanSubmitDataNew(void* pTableList, bool isVTable, SSDataBlock* p
     TSDB_CHECK_CODE(code, lino, end);
   }
 
-  STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pBlock, pBlock->info.rows + nSubmitTbData));
   gidHash = tSimpleHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   STREAM_CHECK_NULL_GOTO(gidHash, terrno);
 
   for (int32_t i = 0; i < nSubmitTbData; i++) {
-    STREAM_CHECK_RET_GOTO(preProcessSubmitTbData(&decoder, pTableList, isVTable, suid, gidHash));
+    STREAM_CHECK_RET_GOTO(processSubmitTbDataForMeta(&decoder, pTableList, isVTable, suid, gidHash));
   }
   tEndDecode(&decoder);
 
+  STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pBlock, pBlock->info.rows + tSimpleHashGetSize(gidHash)));
   int32_t iter = 0;
   void*   px = tSimpleHashIterate(gidHash, NULL, &iter);
   while (px != NULL) {
@@ -715,6 +713,7 @@ static int32_t scanWalNew(SVnode* pVnode, void* pTableList, bool isVTable, SSDat
   *retVer = walGetAppliedVer(pWalReader->pWal);
   STREAM_CHECK_CONDITION_GOTO(walReaderSeekVer(pWalReader, lastVer + 1) != 0, TSDB_CODE_SUCCESS);
 
+  STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pBlock, STREAM_RETURN_ROWS_NUM));
   while (1) {
     *retVer = walGetAppliedVer(pWalReader->pWal);
     STREAM_CHECK_CONDITION_GOTO(walNextValidMsg(pWalReader, true) < 0, TSDB_CODE_SUCCESS);
@@ -734,7 +733,7 @@ static int32_t scanWalNew(SVnode* pVnode, void* pTableList, bool isVTable, SSDat
     } else if (wCont->msgType == TDMT_VND_SUBMIT) {
       data = POINTER_SHIFT(wCont->body, sizeof(SSubmitReq2Msg));
       len = wCont->bodyLen - sizeof(SSubmitReq2Msg);
-      STREAM_CHECK_RET_GOTO(scanSubmitDataNew(pTableList, isVTable, pBlock, data, len, ver, suid));
+      STREAM_CHECK_RET_GOTO(scanSubmitDataForMeta(pTableList, isVTable, pBlock, data, len, ver, suid));
     }
 
     if (pBlock->info.rows >= STREAM_RETURN_ROWS_NUM) {
@@ -898,15 +897,280 @@ end:
   return code;
 }
 
+int32_t getRowRange(SColData* pCol, STimeWindow* window, int32_t* rowStart, int32_t* rowEnd, int32_t* nRows) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  *nRows = 0;
+  *rowStart = 0;
+  *rowEnd = pCol->nVal;
+  if (window != NULL) {
+    SColVal colVal = {0};
+    *rowStart = -1;
+    *rowEnd = -1;
+    for (int32_t k = 0; k < pCol->nVal; k++) {
+      STREAM_CHECK_RET_GOTO(tColDataGetValue(pCol, k, &colVal));
+      int64_t ts = VALUE_GET_TRIVIAL_DATUM(&colVal.value);
+      if (ts >= window->skey && *rowStart == -1) {
+        *rowStart = k;
+      }
+      if (ts > window->ekey && *rowEnd == -1) {
+        *rowEnd = k;
+      }
+    }
+    STREAM_CHECK_CONDITION_GOTO(*rowStart == -1 || *rowStart == *rowEnd, TDB_CODE_SUCCESS);
+
+    if (*rowStart != -1 && *rowEnd == -1) {
+      *rowEnd = pCol->nVal;
+    }
+  }
+  *nRows = *rowEnd - *rowStart;
+
+end:
+  return code;
+}
+
+static int32_t setColData(int64_t rows, int32_t rowStart, int32_t rowEnd, SColData* colData, SColumnInfoData* pColData) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  for (int32_t k = rowStart; k < rowEnd; k++) {
+    SColVal colVal = {0};
+    STREAM_CHECK_RET_GOTO(tColDataGetValue(colData, k, &colVal));
+    STREAM_CHECK_RET_GOTO(colDataSetVal(pColData, rows + k, VALUE_GET_DATUM(&colVal.value, colVal.value.type),
+                                        !COL_VAL_IS_VALUE(&colVal)));
+  }
+  end:
+  return code;
+}
+
+static int32_t processSubmitTbDataForMetaData(SVnode* pVnode, SDecoder *pCoder, void* pTableList, bool isVTable, int64_t suid, 
+  SSDataBlock* pBlock, STSchema** schemas, SSHashObj* ranges) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  uint64_t gid = 0;
+  
+  if (tStartDecode(pCoder) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    TSDB_CHECK_CODE(code, lino, end);
+  }
+
+  SSubmitTbData submitTbData = {0};
+  uint8_t       version = 0;
+  if (tDecodeI32v(pCoder, &submitTbData.flags) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    TSDB_CHECK_CODE(code, lino, end);
+  }
+  version = (submitTbData.flags >> 8) & 0xff;
+  submitTbData.flags = submitTbData.flags & 0xff;
+
+  if (submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
+    if (tStartDecode(pCoder) < 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      TSDB_CHECK_CODE(code, lino, end);
+    }
+    tEndDecode(pCoder);
+  }
+
+  // submit data
+  if (tDecodeI64(pCoder, &submitTbData.suid) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    TSDB_CHECK_CODE(code, lino, end);
+  }
+  if (suid != 0 && submitTbData.suid != suid) {
+    goto end;
+  }
+  if (tDecodeI64(pCoder, &submitTbData.uid) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    TSDB_CHECK_CODE(code, lino, end);
+  }
+
+  STREAM_CHECK_CONDITION_GOTO(!uidInTableList(pTableList, isVTable, submitTbData.uid, &gid), TDB_CODE_SUCCESS);
+
+  STimeWindow window = {.skey = INT64_MIN, .ekey = INT64_MAX};
+
+  if (ranges != NULL){
+    void* timerange = tSimpleHashGet(ranges, &gid, sizeof(gid));
+    if (timerange == NULL) goto end;;
+    int64_t* pRange = (int64_t*)timerange;
+    window.skey = pRange[0];
+    window.ekey = pRange[1];
+  }
+  
+  if (tDecodeI32v(pCoder, &submitTbData.sver) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    TSDB_CHECK_CODE(code, lino, end);
+  }
+
+  if (*schemas == NULL) {
+    *schemas = metaGetTbTSchema(pVnode->pMeta, submitTbData.suid != 0 ? submitTbData.suid : submitTbData.uid, submitTbData.sver, 1);
+    STREAM_CHECK_NULL_GOTO(*schemas, TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND);
+  }
+
+  int32_t numOfRows = 0;
+  if (submitTbData.flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+    uint64_t nColData = 0;
+    if (tDecodeU64v(pCoder, &nColData) < 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      TSDB_CHECK_CODE(code, lino, end);
+    }
+
+    SColData colData = {0};
+    code = tDecodeColData(version, pCoder, &colData, false);
+    if (code) {
+      code = TSDB_CODE_INVALID_MSG;
+      TSDB_CHECK_CODE(code, lino, end);
+    }
+
+    if (colData.flag != HAS_VALUE) {
+      code = TSDB_CODE_INVALID_MSG;
+      TSDB_CHECK_CODE(code, lino, end);
+    }
+    int32_t rowStart = 0;
+    int32_t rowEnd = 0;
+    STREAM_CHECK_RET_GOTO(getRowRange(&colData, &window, &rowStart, &rowEnd, &numOfRows));
+    STREAM_CHECK_CONDITION_GOTO(numOfRows <= 0, TDB_CODE_SUCCESS);
+    STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pBlock, pBlock->info.rows + numOfRows));
+
+    int32_t pos = pCoder->pos;
+    for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {
+      SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
+      STREAM_CHECK_NULL_GOTO(pColData, terrno);
+      if (pColData->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        STREAM_CHECK_RET_GOTO(setColData(pBlock->info.rows, rowStart, rowEnd, &colData, pColData));
+        continue;
+      }
+      pCoder->pos = pos;
+      uint64_t j = 1;
+      for (; j < nColData; j++) {
+        int16_t cid = 0;
+        int32_t posTmp = pCoder->pos;
+        if ((code = tDecodeI16v(pCoder, &cid))) return code;
+        if (cid == pColData->info.colId) {
+          SColData colDataTmp = {0};
+          code = tDecodeColData(version, pCoder, &colDataTmp, false);
+          if (code) {
+            code = TSDB_CODE_INVALID_MSG;
+            TSDB_CHECK_CODE(code, lino, end);
+          }
+          STREAM_CHECK_RET_GOTO(setColData(pBlock->info.rows, rowStart, rowEnd, &colDataTmp, pColData));
+          break;
+        }
+        pCoder->pos = posTmp;
+        code = tDecodeColData(version, pCoder, &colData, true);
+        if (code) {
+          code = TSDB_CODE_INVALID_MSG;
+          TSDB_CHECK_CODE(code, lino, end);
+        }
+      }
+      if (j == nColData) {
+        colDataSetNNULL(pColData, pBlock->info.rows, numOfRows);
+      }
+    }
+  } else {
+    uint64_t nRow = 0;
+    if (tDecodeU64v(pCoder, &nRow) < 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      TSDB_CHECK_CODE(code, lino, end);
+    }
+
+    STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pBlock, pBlock->info.rows + nRow));
+    for (int32_t iRow = 0; iRow < nRow; ++iRow) {
+      SRow *pRow = (SRow *)(pCoder->data + pCoder->pos);
+      pCoder->pos += pRow->len;
+      SColVal colVal = {0};
+      STREAM_CHECK_RET_GOTO(tRowGet(pRow, *schemas, 0, &colVal));
+      int64_t ts = VALUE_GET_TRIVIAL_DATUM(&colVal.value);
+      if (ts < window.skey || ts > window.ekey) {
+        continue;
+      }
+     
+      for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {  // reader todo test null
+        SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
+        STREAM_CHECK_NULL_GOTO(pColData, terrno);
+        SColVal colVal = {0};
+        int32_t sourceIdx = 0;
+        while (1) {
+          if (sourceIdx >= (*schemas)->numOfCols) {
+            break;
+          }
+          STREAM_CHECK_RET_GOTO(tRowGet(pRow, *schemas, sourceIdx, &colVal));
+          if (colVal.cid == pColData->info.colId) {
+            break;
+          }
+          sourceIdx++;
+        }
+        if (colVal.cid == pColData->info.colId && COL_VAL_IS_VALUE(&colVal)) {
+          if (IS_VAR_DATA_TYPE(colVal.value.type) || colVal.value.type == TSDB_DATA_TYPE_DECIMAL){
+            STREAM_CHECK_RET_GOTO(varColSetVarData(pColData, pBlock->info.rows + numOfRows, (const char*)colVal.value.pData, colVal.value.nData, !COL_VAL_IS_VALUE(&colVal)));
+          } else {
+            STREAM_CHECK_RET_GOTO(colDataSetVal(pColData, pBlock->info.rows + numOfRows, (const char*)(&(colVal.value.val)), !COL_VAL_IS_VALUE(&colVal)));
+          }
+        } else {
+          colDataSetNULL(pColData, pBlock->info.rows + numOfRows);
+        }
+      }
+      numOfRows++;
+    }
+  }
+
+  SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, LONG_BYTES, -1); // uid
+  STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(pBlock, &idata));
+  SColumnInfoData* pColData = taosArrayGetLast(pBlock->pDataBlock);
+  STREAM_CHECK_NULL_GOTO(pColData, terrno);
+  STREAM_CHECK_RET_GOTO(colDataSetNItems(pColData, pBlock->info.rows, (const char*)&submitTbData.uid, numOfRows, false));
+
+  idata = createColumnInfoData(TSDB_DATA_TYPE_UBIGINT, LONG_BYTES, -1); // gid
+  STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(pBlock, &idata));
+  pColData = taosArrayGetLast(pBlock->pDataBlock);
+  STREAM_CHECK_NULL_GOTO(pColData, terrno);
+  STREAM_CHECK_RET_GOTO(colDataSetNItems(pColData, pBlock->info.rows, (const char*)&gid, numOfRows, false));
+  
+  pBlock->info.rows += numOfRows;
+
+  tEndDecode(pCoder);
+  
+end:
+  STREAM_PRINT_LOG_END(code, lino);
+  return code;
+}
+
+static int32_t scanSubmitDataForMetaData(SVnode* pVnode, void* pTableList, bool isVTable, SSDataBlock* pBlock, void* data, int32_t len,
+                              int64_t suid, SSHashObj* ranges) {
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  STSchema* schemas = NULL;
+  SDecoder decoder = {0};
+
+  tDecoderInit(&decoder, data, len);
+  if (tStartDecode(&decoder) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    TSDB_CHECK_CODE(code, lino, end);
+  }
+
+  uint64_t nSubmitTbData = 0;
+  if (tDecodeU64v(&decoder, &nSubmitTbData) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    TSDB_CHECK_CODE(code, lino, end);
+  }
+
+  for (int32_t i = 0; i < nSubmitTbData; i++) {
+    STREAM_CHECK_RET_GOTO(processSubmitTbDataForMetaData(pVnode, &decoder, pTableList, isVTable, suid, pBlock, &schemas, ranges));
+  }
+  tEndDecode(&decoder);
+
+end:
+  taosMemoryFree(schemas);
+  tDecoderClear(&decoder);
+  STREAM_PRINT_LOG_END(code, lino);
+  return code;
+}
+
 static int32_t processWalVerDataNew(SVnode* pVnode, void* pTableList, SStreamTriggerReaderInfo* sStreamInfo, 
                                     int64_t lastVer, SArray* pBlockList, int64_t* retVer) {
   int32_t      code = 0;
   int32_t      lino = 0;
-  SSubmitReq2 submit = {0};
-  SDecoder    decoder = {0};
 
   SFilterInfo* pFilterInfo = NULL;
-  SSDataBlock* pBlock2 = NULL;
+  SSDataBlock* pBlock = NULL;
 
   SExprInfo*   pExpr = sStreamInfo->pExprInfo;
   int32_t      numOfExpr = sStreamInfo->numOfExpr;
@@ -927,40 +1191,24 @@ static int32_t processWalVerDataNew(SVnode* pVnode, void* pTableList, SStreamTri
     void*   pBody = POINTER_SHIFT(wCont->body, sizeof(SSubmitReq2Msg));
     int32_t bodyLen = wCont->bodyLen - sizeof(SSubmitReq2Msg);
 
-    int32_t nextBlk = -1;
-    tDecoderInit(&decoder, pBody, bodyLen);
-    STREAM_CHECK_RET_GOTO(tDecodeSubmitReq(&decoder, &submit, NULL));
+    STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamInfo->triggerResBlock, false, &pBlock));
+    STREAM_CHECK_RET_GOTO(scanSubmitDataForMetaData(pVnode, pTableList, sStreamInfo->uidList != NULL, pBlock, pBody, bodyLen, sStreamInfo->suid, NULL));
+    pBlock->info.version = wCont->version;
 
-    int32_t numOfBlocks = taosArrayGetSize(submit.aSubmitTbData);
-    while (++nextBlk < numOfBlocks) {
-      stDebug("stream reader next data block %d/%d", nextBlk, numOfBlocks);
-      SSubmitTbData* pSubmitTbData = taosArrayGet(submit.aSubmitTbData, nextBlk);
-      STREAM_CHECK_NULL_GOTO(pSubmitTbData, terrno);
-      
-      uint64_t gid = qStreamGetGroupId(pTableList, pSubmitTbData->uid);
-      if(gid == -1) continue;
+    SStorageAPI  api = {0};
+    initStorageAPI(&api);
+    STREAM_CHECK_RET_GOTO(processTag(pVnode, pExpr, numOfExpr, &api, pBlock));
+    STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock, pFilterInfo));
+    if (pBlock->info.rows <= 0) {
+      blockDataDestroy(pBlock);
+      pBlock = NULL; 
+      continue;
+    }  
+    stDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock->info.rows);
+    printDataBlock(pBlock, __func__, "");
+    STREAM_CHECK_NULL_GOTO(taosArrayPush(pBlockList, &pBlock), terrno);
+    pBlock = NULL; 
 
-      STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamInfo->triggerResBlock, false, &pBlock2));
-      STREAM_CHECK_RET_GOTO(retrieveWalData(pVnode, pSubmitTbData, pBlock2, NULL));
-      pBlock2->info.id.uid = pSubmitTbData->uid;
-      pBlock2->info.id.groupId = gid;
-      pBlock2->info.version = wCont->version;
-    
-      SStorageAPI  api = {0};
-      initStorageAPI(&api);
-      STREAM_CHECK_RET_GOTO(processTag(pVnode, pExpr, numOfExpr, &api, pBlock2));
-      STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock2, pFilterInfo));
-      if (pBlock2->info.rows <= 0) {
-        continue;
-      }  
-      stDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock2->info.rows);
-      printDataBlock(pBlock2, __func__, "");
-      STREAM_CHECK_NULL_GOTO(taosArrayPush(pBlockList, &pBlock2), terrno);
-      pBlock2 = NULL;  // pBlock2 is pushed to pBlockList, so set it to NULL to avoid double free
-    }
-    tDestroySubmitReq(&submit, TSDB_MSG_FLG_DECODE);
-    tDecoderClear(&decoder);
-    submit = (SSubmitReq2){0};
     if (taosArrayGetSize(pBlockList) >= STREAM_RETURN_ROWS_NUM) {
       stDebug("vgId:%d %s reached max rows:%d", TD_VID(pVnode), __func__, STREAM_RETURN_ROWS_NUM);
       break;
@@ -968,12 +1216,10 @@ static int32_t processWalVerDataNew(SVnode* pVnode, void* pTableList, SStreamTri
   }
 
 end:
-  tDestroySubmitReq(&submit, TSDB_MSG_FLG_DECODE);
   walCloseReader(pWalReader);
-  tDecoderClear(&decoder);
   STREAM_PRINT_LOG_END(code, lino);
   filterFreeInfo(pFilterInfo);
-  blockDataDestroy(pBlock2);
+  blockDataDestroy(pBlock);
   return code;
 }
 
@@ -981,11 +1227,9 @@ static int32_t processWalVerDataNew2(SVnode* pVnode, void* pTableList, SStreamTr
                                     SArray* versions, SSHashObj* ranges, SArray* pBlockList, int64_t* retVer) {
   int32_t      code = 0;
   int32_t      lino = 0;
-  SSubmitReq2 submit = {0};
-  SDecoder    decoder = {0};
 
   SFilterInfo* pFilterInfo = NULL;
-  SSDataBlock* pBlock2 = NULL;
+  SSDataBlock* pBlock = NULL;
 
   SExprInfo*   pExpr = sStreamInfo->pExprInfo;
   int32_t      numOfExpr = sStreamInfo->numOfExpr;
@@ -1003,57 +1247,39 @@ static int32_t processWalVerDataNew2(SVnode* pVnode, void* pTableList, SStreamTr
     STREAM_CHECK_RET_GOTO(walFetchHead(pWalReader, *ver));
     if(pWalReader->pHead->head.msgType != TDMT_VND_SUBMIT) continue;
     STREAM_CHECK_RET_GOTO(walFetchBody(pWalReader));
-
     SWalCont* wCont = &pWalReader->pHead->head;
     void*   pBody = POINTER_SHIFT(wCont->body, sizeof(SSubmitReq2Msg));
     int32_t bodyLen = wCont->bodyLen - sizeof(SSubmitReq2Msg);
 
-    int32_t nextBlk = -1;
-    tDecoderInit(&decoder, pBody, bodyLen);
-    STREAM_CHECK_RET_GOTO(tDecodeSubmitReq(&decoder, &submit, NULL));
+    STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamInfo->triggerResBlock, false, &pBlock));
+    STREAM_CHECK_RET_GOTO(scanSubmitDataForMetaData(pVnode, pTableList, sStreamInfo->uidList != NULL, pBlock, pBody, bodyLen, sStreamInfo->suid, ranges));
+    pBlock->info.version = wCont->version;
 
-    int32_t numOfBlocks = taosArrayGetSize(submit.aSubmitTbData);
-    while (++nextBlk < numOfBlocks) {
-      stDebug("stream reader next data block %d/%d", nextBlk, numOfBlocks);
-      SSubmitTbData* pSubmitTbData = taosArrayGet(submit.aSubmitTbData, nextBlk);
-      STREAM_CHECK_NULL_GOTO(pSubmitTbData, terrno);
-    
-      uint64_t gid = qStreamGetGroupId(pTableList, pSubmitTbData->uid);
-      if (gid == -1) continue;
-      void* timerange = tSimpleHashGet(ranges, &gid, sizeof(gid));
-      if (timerange == NULL) continue;
-      int64_t* pRange = (int64_t*)timerange;
-      STimeWindow window = {.skey = pRange[0], .ekey = pRange[1]};
-      STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamInfo->triggerResBlock, false, &pBlock2));
-      STREAM_CHECK_RET_GOTO(retrieveWalData(pVnode, pSubmitTbData, pBlock2, &window));
-      pBlock2->info.id.uid = pSubmitTbData->uid;
-      pBlock2->info.id.groupId = gid;
-      pBlock2->info.version = wCont->version;
-    
-      SStorageAPI  api = {0};
-      initStorageAPI(&api);
-      STREAM_CHECK_RET_GOTO(processTag(pVnode, pExpr, numOfExpr, &api, pBlock2));
-      STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock2, pFilterInfo));
-      if (pBlock2->info.rows <= 0) {
-        continue;
-      }  
-      stDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock2->info.rows);
-      printDataBlock(pBlock2, __func__, "");
-      STREAM_CHECK_NULL_GOTO(taosArrayPush(pBlockList, &pBlock2), terrno);
-      pBlock2 = NULL;  // pBlock2 is pushed to pBlockList, so set it to NULL to avoid double free
+    SStorageAPI  api = {0};
+    initStorageAPI(&api);
+    STREAM_CHECK_RET_GOTO(processTag(pVnode, pExpr, numOfExpr, &api, pBlock));
+    STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock, pFilterInfo));
+    if (pBlock->info.rows <= 0) {
+      blockDataDestroy(pBlock);
+      pBlock = NULL; 
+      continue;
+    }  
+    stDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock->info.rows);
+    printDataBlock(pBlock, __func__, "");
+    STREAM_CHECK_NULL_GOTO(taosArrayPush(pBlockList, &pBlock), terrno);
+    pBlock = NULL; 
+
+    if (taosArrayGetSize(pBlockList) >= STREAM_RETURN_ROWS_NUM) {
+      stDebug("vgId:%d %s reached max rows:%d", TD_VID(pVnode), __func__, STREAM_RETURN_ROWS_NUM);
+      break;
     }
-    tDestroySubmitReq(&submit, TSDB_MSG_FLG_DECODE);
-    tDecoderClear(&decoder);
-    submit = (SSubmitReq2){0};
   }
 
 end:
-  tDestroySubmitReq(&submit, TSDB_MSG_FLG_DECODE);
   walCloseReader(pWalReader);
-  tDecoderClear(&decoder);
   STREAM_PRINT_LOG_END(code, lino);
   filterFreeInfo(pFilterInfo);
-  blockDataDestroy(pBlock2);
+  blockDataDestroy(pBlock);
   return code;
 }
 

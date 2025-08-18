@@ -5705,16 +5705,38 @@ int32_t tEncodeColData(uint8_t version, SEncoder *pEncoder, SColData *pColData) 
     return tEncodeColDataVersion0(pEncoder, pColData);
   } else if (version == 1) {
     return tEncodeColDataVersion1(pEncoder, pColData);
+  } else if (version == 2) {
+    int32_t posStart = pEncoder->pos;
+    pEncoder->pos += INT_BYTES;
+    int32_t code = tEncodeColDataVersion1(pEncoder, pColData);
+    if (code) return code;
+    int32_t posEnd = pEncoder->pos;
+    int32_t pos = posEnd - posStart;
+    pEncoder->pos = posStart;
+    code = tEncodeI32(pEncoder, pos);
+    pEncoder->pos = posEnd;
+    return code;
   } else {
     return TSDB_CODE_INVALID_PARA;
   }
 }
 
-int32_t tDecodeColData(uint8_t version, SDecoder *pDecoder, SColData *pColData) {
+int32_t tDecodeColData(uint8_t version, SDecoder *pDecoder, SColData *pColData, bool jump) {
   if (version == 0) {
     return tDecodeColDataVersion0(pDecoder, pColData);
   } else if (version == 1) {
     return tDecodeColDataVersion1(pDecoder, pColData);
+  } else if (version == 2) {
+    if (jump) {
+      int32_t len = 0;
+      int32_t code = tDecodeI32(pDecoder, &len);
+      if (code) return code;
+      pDecoder->pos += (len - INT_BYTES);
+      return TSDB_CODE_SUCCESS;
+    } else {
+      pDecoder->pos += INT_BYTES;
+      return tDecodeColDataVersion1(pDecoder, pColData);
+    }    
   } else {
     return TSDB_CODE_INVALID_PARA;
   }
