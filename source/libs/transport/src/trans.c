@@ -126,9 +126,9 @@ void* rpcOpen(const SRpcInit* pInit) {
   }
 
   pRpc->enableSSL = pInit->enableSSL;
-
   if (pRpc->enableSSL) {
-    code = transTlsCtxCreate(NULL, NULL, NULL, (SSslCtx**)&pRpc->pSSLContext);
+    int8_t cliMode = pRpc->connType == TAOS_CONN_CLIENT ? 1 : 0;
+    code = transTlsCtxCreate(NULL, NULL, NULL, cliMode, (SSslCtx**)&pRpc->pSSLContext);
     TAOS_CHECK_GOTO(code, NULL, _end);
   }
 

@@ -35,7 +35,8 @@ typedef struct {
   SSL_CTX* ssl_ctx;   // SSL context
 } SSslCtx;
 
-int32_t transTlsCtxCreate(const char* certPath, const char* keyPath, const char* caPath, SSslCtx** ppCtx);
+int32_t transTlsCtxCreate(const char* certPath, const char* keyPath, const char* caPath, int8_t cliMode,
+                          SSslCtx** ppCtx);
 void    transTlsCtxDestroy(SSslCtx* pCtx);
 
 typedef struct {

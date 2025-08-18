@@ -1380,6 +1380,7 @@ static void cliSendCbSSL(uv_write_t* req, int status) {
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
+  tDebug("%s conn:%p, send ssl msg successfully", CONN_GET_INST_LABEL(pConn), pConn);
   if (sslIsInited(pConn->pTls) == 0) {
     tDebug("%s conn:%p, ssl not inited, skip send msg", CONN_GET_INST_LABEL(pConn), pConn);
     return;

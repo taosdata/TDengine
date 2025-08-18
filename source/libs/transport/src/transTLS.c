@@ -20,7 +20,7 @@
 #include "transLog.h"
 // clang-format on
 
-#define DEFALUT_SSL_DIR "/etc/ssl/"
+#define DEFALUT_SSL_DIR "/etc/ssl/ssls"
 
 static int32_t sslDoConn(STransTLS* pTls);
 
@@ -31,55 +31,67 @@ static int32_t sslWriteToBIO(STransTLS* pTls, int32_t nread);
 static void destroySSLCtx(SSL_CTX* ctx);
 
 SSL_CTX* initSSLCtx(const char* cert_path, const char* key_path, const char* ca_path, int8_t cliMode) {
+  int32_t lino = 0;
+  int32_t code = 0;
+  int     ret = 1;
+
   SSL_load_error_strings();
   SSL_library_init();
   OpenSSL_add_all_algorithms();
-  int32_t code = 0;
 
-  SSL_CTX* ctx = NULL;
-  if (cliMode) {
-    ctx = SSL_CTX_new(TLS_client_method());
-    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
-  } else {
-    ctx = SSL_CTX_new(TLS_server_method());
-    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
+  const SSL_METHOD* sslMode = cliMode ? TLS_client_method() : TLS_server_method();
+
+  SSL_CTX* ctx = SSL_CTX_new(sslMode);
+  if (ctx == NULL) {
+    tError("failed to create ssl ctx");
+    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
   }
 
-  // X509_STORE* store = X509_STORE_new();
+  if (cliMode) {
+    char buf[512] = {0};
+    sprintf(buf, "%s%s%s", DEFALUT_SSL_DIR, "/", "certs/ca.crt");
 
-  // if (X509_STORE_load_locations(store, NULL, DEFALUT_SSL_DIR) <= 0) {
-  //   code = TSDB_CODE_THIRDPARTY_ERROR;
-  //   tError("failed to load CA file from %s since %s", ca_path, tstrerror(code));
-  // }
+    ret = SSL_CTX_load_verify_locations(ctx, buf, NULL);
+    if (ret == 1) {
+      sprintf(buf, "%s%s%s", DEFALUT_SSL_DIR, "/", "certs/client.crt");
+      ret = SSL_CTX_use_certificate_chain_file(ctx, buf);
+    }
+    if (ret == 1) {
+      sprintf(buf, "%s%s%s", DEFALUT_SSL_DIR, "/", "certs/client.key");
+      ret = SSL_CTX_use_PrivateKey_file(ctx, buf, SSL_FILETYPE_PEM);
+    }
 
-  // if (SSL_CTX_use_certificate_file(ctx, cert_path, SSL_FILETYPE_PEM) <= 0) {
-  //   tError("failed to load certificate file: %s", cert_path);
-  //   SSL_CTX_free(ctx);
-  //   return NULL;
-  // }
+  } else {
+    char buf[512] = {0};
+    sprintf(buf, "%s%s%s", DEFALUT_SSL_DIR, "/", "certs/ca.crt");
 
-  // if (SSL_CTX_use_PrivateKey_file(ctx, key_path, SSL_FILETYPE_PEM) <= 0) {
-  //   tError("failed to load private key file: %s", key_path);
-  //   SSL_CTX_free(ctx);
-  //   return NULL;
-  // }
+    ret = SSL_CTX_load_verify_locations(ctx, buf, NULL);
+    if (ret == 1) {
+      sprintf(buf, "%s%s%s", DEFALUT_SSL_DIR, "/", "certs/server.crt");
+      ret = SSL_CTX_use_certificate_chain_file(ctx, buf);
+    }
+    if (ret == 1) {
+      sprintf(buf, "%s%s%s", DEFALUT_SSL_DIR, "/", "certs/server.key");
+      ret = SSL_CTX_use_PrivateKey_file(ctx, buf, SSL_FILETYPE_PEM);
+    }
+  }
 
-  // if (SSL_CTX_check_private_key(ctx) <= 0) {
-  //   tError("private key does not match the public certificate");
-  //   SSL_CTX_free(ctx);
-  //   return NULL;
-  // }
-
-  //     if (SSL_CTX_load_verify_locations(ctx, ca_path, NULL) <= 0) {
-  //   tError("failed to load CA file: %s", ca_path);
-  //   SSL_CTX_free(ctx);
-  //   return NULL;
-  // }
 _error:
+
+  if (ret != 1) {
+    unsigned long err;
+    while ((err = ERR_get_error()) != 0) {
+      char buf[256] = {0};
+      ERR_error_string_n(err, buf, sizeof(buf));
+      tError("failed to init ssl ctx since:%s", buf);
+    }
+
+    code = TSDB_CODE_THIRDPARTY_ERROR;
+  }
   if (code != 0) {
     tError("failed to init ssl ctx since %s", tstrerror(code));
     destroySSLCtx(ctx);
-    return NULL;
+    ctx = NULL;
   }
   return ctx;
 }
@@ -106,7 +118,8 @@ void sslHandleError(STransTLS* pTls, int ret) {
   }
 }
 
-int32_t transTlsCtxCreate(const char* certPath, const char* keyPath, const char* caPath, SSslCtx** ppCtx) {
+int32_t transTlsCtxCreate(const char* certPath, const char* keyPath, const char* caPath, int8_t cliMode,
+                          SSslCtx** ppCtx) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -125,7 +138,7 @@ int32_t transTlsCtxCreate(const char* certPath, const char* keyPath, const char*
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
-  pCtx->ssl_ctx = initSSLCtx(certPath, keyPath, caPath);
+  pCtx->ssl_ctx = initSSLCtx(certPath, keyPath, caPath, cliMode);
   if (pCtx->ssl_ctx == NULL) {
     tError("Failed to initialize SSL context");
     TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
@@ -179,6 +192,9 @@ int32_t sslInit(SSslCtx* pCtx, STransTLS** ppTLs) {
     TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
   }
 
+  BIO_set_nbio(pTls->readBio, 1);
+  BIO_set_nbio(pTls->writeBio, 1);
+
   SSL_set_bio(pTls->ssl, pTls->readBio, pTls->writeBio);
 
   code = sslBufferInit(&pTls->readBuf, 4096);
@@ -215,6 +231,11 @@ static int32_t sslInitConn(STransTLS* pTls) {
   if (ret <= 0) {
     int err = SSL_get_error(pTls->ssl, ret);
     if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
+      if (err == SSL_ERROR_WANT_READ) {
+        tDebug("conn %p read more data to complete ssl", pTls->pConn);
+      } else {
+        tDebug("conn %p write more data to complete ssl", pTls->pConn);
+      }
       // Handehake is in progress, continue later
       return TSDB_CODE_SUCCESS;
     } else {
@@ -271,8 +292,11 @@ static int32_t sslFlushBioToSocket(STransTLS* pTls) {
     int status = uv_write(req, (uv_stream_t*)pTls->pStream, &b, 1, pTls->writeCb);
     if (status != 0) {
       tError("Failed to write SSL data: %s", uv_err_name(status));
-      return status;
+      return TSDB_CODE_THIRDPARTY_ERROR;
+    } else {
+      tDebug("conn %p write %d bytes to socket", pTls->pConn, n);
     }
+
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -316,7 +340,7 @@ static int32_t sslDoConnOrRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread
   int     ret = SSL_connect(pTls->ssl);
   if (ret == 1) {
     tDebug("SSL handshake completed successfully");
-    sslFlushBioToSocket(pTls);
+    return sslFlushBioToSocket(pTls);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -368,14 +392,38 @@ int32_t sslRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t cliMod
     return code;
   }
 
-  if (cliMode && !SSL_is_init_finished(pTls->ssl)) {
-    code = sslDoConnOrRead(pTls, pBuf, nread, &waitRead);
-    if (code != 0) {
-      tError("SSL handshake failed since %s", tstrerror(code));
-      return code;
+  if (cliMode == 1) {
+    if (!SSL_is_init_finished(pTls->ssl)) {
+      code = sslDoConnOrRead(pTls, pBuf, nread, &waitRead);
+      if (code != 0) {
+        tError("SSL handshake failed since %s", tstrerror(code));
+        return code;
+      }
+      if (!waitRead) {
+        return TSDB_CODE_SUCCESS;  // 等待对端
+      }
     }
-    if (!waitRead) {
-      return TSDB_CODE_SUCCESS;  // 等待对端
+  } else if (cliMode == 0) {
+    if (!SSL_is_init_finished(pTls->ssl)) {
+      int ret = SSL_accept(pTls->ssl);
+      if (ret > 0) {
+        tDebug("conn %p SSL completed successfully", pTls->pConn);
+        return TSDB_CODE_SUCCESS;  // 等待对端
+      } else {
+        int err = SSL_get_error(pTls->ssl, ret);
+        if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
+          if (err == SSL_ERROR_WANT_READ) {
+            tDebug("conn %p SSL wait more data to complet", pTls->pConn);
+            return TSDB_CODE_SUCCESS;  // 等待对端
+          } else {
+            tDebug("conn %p SSL should write data out", pTls->pConn);
+            return TSDB_CODE_SUCCESS;  // 等待对端
+          }
+        } else {
+          tError("SSL accept failed: %s", ERR_reason_error_string(ERR_get_error()));
+          return TSDB_CODE_THIRDPARTY_ERROR;
+        }
+      }
     }
   }
 
