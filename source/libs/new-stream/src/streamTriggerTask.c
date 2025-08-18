@@ -626,7 +626,7 @@ int32_t stTriggerTaskAcquireRequest(SStreamTriggerTask *pTask, int64_t sessionId
     pRunningFlag = tSimpleHashGet(pTask->pGroupRunning, p, sizeof(p));
     QUERY_CHECK_NULL(pRunningFlag, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   }
-  if (pRunningFlag[0] == true) {
+  if (pRunningFlag[0] == true && (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS)) {
     goto _end;
   }
 
