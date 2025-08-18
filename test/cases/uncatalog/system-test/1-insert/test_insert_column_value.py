@@ -2,6 +2,7 @@ from new_test_framework.utils import tdLog, tdSql
 import datetime, time
 from enum import Enum
 import binascii
+import calendar
 DBNAME = "db"
 
 class TDDataType(Enum):
@@ -162,7 +163,9 @@ class TestInsertColumnValue:
                     if nv.lower().find(check_item) != -1:
                         check_result = True
                 else:
-                    check_item = int(result[i][j].timestamp())
+                    tdLog.info(f"result[i][j]: {result[i][j]}, type: {type(result[i][j])}")
+                    #check_item = int(result[i][j].timestamp())
+                    check_item = int(calendar.timegm(result[i][j].timetuple()))
                 if check_result == False and nv.lower().find("now") != -1 or nv.lower().find("today") != -1 or nv.lower().find("now") != -1 or nv.lower().find("today") != -1: 
                     if check_item > self.TIMESTAMP_BASE:
                         check_result = True

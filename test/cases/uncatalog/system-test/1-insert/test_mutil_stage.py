@@ -58,7 +58,8 @@ class TestMutilStage:
         tdLog.debug(f"start to excute {__file__}")
         #tdSql.init(conn.cursor(), logSql), True)
         cls.taos_cfg_path = tdDnodes.dnodes[0].cfgPath
-        cls.taos_data_dir = tdDnodes.dnodes[0].dataDir
+        cls.taos_data_dir = tdDnodes.dnodes[0].dataDir[0]
+        tdLog.info(f"cls.taos_data_dir: {cls.taos_data_dir}")
 
 
     def cfg(self, filename, **update_dict):

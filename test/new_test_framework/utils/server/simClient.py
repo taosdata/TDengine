@@ -22,7 +22,7 @@ import base64
 import json
 import copy
 from fabric2 import Connection
-from shutil import which
+import shutil
 
 # self
 from ..log import *
@@ -75,27 +75,21 @@ class TDSimClient:
         self.cfgDir = os.path.join(self.path,"psim","cfg")
         self.cfgPath = os.path.join(self.path,"psim","cfg","taos.cfg")
 
-        cmd = "rm -rf " + self.logDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        if os.path.exists(self.logDir):
+            shutil.rmtree(self.logDir)
 
-        # cmd = "mkdir -p " + self.logDir
-        # if os.system(cmd) != 0:
-        #     tdLog.exit(cmd)
         os.makedirs(self.logDir)
 
-        cmd = "rm -rf " + self.cfgDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        if os.path.exists(self.cfgDir):
+            shutil.rmtree(self.cfgDir)
 
         # cmd = "mkdir -p " + self.cfgDir
         # if os.system(cmd) != 0:
         #     tdLog.exit(cmd)
         os.makedirs(self.cfgDir)
 
-        cmd = "touch " + self.cfgPath
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        with open(self.cfgPath, "a"):
+            os.utime(self.cfgPath, None)
 
         if self.testCluster:
             self.cfg("masterIp", "192.168.0.1")

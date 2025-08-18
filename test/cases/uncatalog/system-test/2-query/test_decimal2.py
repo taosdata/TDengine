@@ -6,6 +6,7 @@ import threading
 import secrets
 import numpy
 import subprocess
+import os
 from typing import List
 from datetime import datetime, timedelta
 import re
@@ -208,7 +209,7 @@ class TaosShell:
     def __init__(self):
         self.counter_ = atomic_counter.fetch_add()
         self.queryResult = []
-        self.tmp_file_path = "/tmp/taos_shell_result"
+        self.tmp_file_path = os.path.join(os.path.dirname(__file__), "taos_shell_result")
     
     def get_file_path(self):
         return f"{self.tmp_file_path}_{self.counter_}"

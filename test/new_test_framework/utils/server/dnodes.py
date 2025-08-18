@@ -49,6 +49,7 @@ class TDDnodes:
         self.asan = False
         self.killValgrind = 0
         self.model = "single"
+        self.binPath = ""
 
     def init(self, path, binPath, remoteIP=""):
         self.binPath = binPath

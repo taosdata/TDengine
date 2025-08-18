@@ -251,7 +251,7 @@ class BeforeTest:
             }
             servers.append(server)
         request.session.servers = servers
-        tdLog.info(f"request.session.start_taosadapter: {request.session.start_taosadapter}")
+        tdLog.debug(f"request.session.start_taosadapter: {request.session.start_taosadapter}")
         if request.session.start_taosadapter:
             # TODO: 增加taosAdapter的配置
             adapter_config_dir = os.path.join(work_dir, "dnode1", "cfg")
@@ -523,7 +523,6 @@ class BeforeTest:
                 if ("packaging" not in rootRealPath):
                     paths.append(os.path.join(root, binary_file))
                     break
-        tdLog.info(f"getPath: {paths}")
         if (len(paths) == 0):
             if sys.platform == "win32":
                 return f"C:\\TDengine\\bin\\{binary}.exe"

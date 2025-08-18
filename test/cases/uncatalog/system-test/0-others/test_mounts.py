@@ -3,6 +3,7 @@
 from new_test_framework.utils import tdLog, tdSql, tdDnodes
 from new_test_framework.utils.sqlset import TDSetSql
 import os
+import time
 import shutil
 
 class TestCase:
@@ -95,6 +96,7 @@ class TestCase:
         tdSql.execute(f"delete from db1.stb0 where ts >= '{tdSql.queryResult[0][0]}'")
         tdSql.execute("flush database db1")
         tdDnodes.stop(1)
+        time.sleep(1)
         try:
             if(os.path.exists(self.mountPath)):
                 shutil.rmtree(self.mountPath)
