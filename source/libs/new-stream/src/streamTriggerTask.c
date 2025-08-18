@@ -1972,12 +1972,15 @@ static void stRealtimeContextDestroyWalProgress(void *ptr) {
 }
 
 static void stRealtimeContextDestroyDataBlock(void *ptr) {
-  SSDataBlock **ppBlock = ptr;
-  if (ppBlock == NULL) {
+  int64_t *value = ptr;
+  if (value == NULL || value[0] == 0) {
     return;
   }
-  blockDataDestroy(*ppBlock);
-  *ppBlock = NULL;
+  SSDataBlock *pBlock = (SSDataBlock *)value[0];
+  if (value[1] == 0) {
+    blockDataDestroy(pBlock);
+  }
+  value[0] = 0;
 }
 
 static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStreamTriggerTask *pTask) {
@@ -2954,12 +2957,24 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
         pContext->reenterCheck = true;
 #ifdef BOOST_TRIGGER_PULL_DATA
         if (pContext->pMetaToFetch != NULL) {
-          int64_t       key[3] = {pContext->pMetaToFetch->ver, pContext->pCurTableMeta->tbUid, pGroup->gid};
-          SSDataBlock **ppDataBlock = tSimpleHashGet(pContext->pDataBlocks, key, sizeof(key));
-          QUERY_CHECK_NULL(ppDataBlock, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+          int64_t  key[3] = {pContext->pMetaToFetch->ver, pContext->pCurTableMeta->tbUid, pGroup->gid};
+          int64_t *value = tSimpleHashGet(pContext->pDataBlocks, key, sizeof(key));
+          QUERY_CHECK_NULL(value, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+          SSDataBlock *pBlock = (SSDataBlock *)value[0];
           SSDataBlock *pNewDataBlock = NULL;
-          code = createOneDataBlock(*ppDataBlock, true, &pNewDataBlock);
+          code = createOneDataBlock(pBlock, false, &pNewDataBlock);
           QUERY_CHECK_CODE(code, lino, _end);
+          TARRAY_SIZE(pNewDataBlock->pDataBlock) -= 2;
+          pNewDataBlock->info.rowSize -= 2 * sizeof(int64_t);
+          code = blockDataEnsureCapacity(pNewDataBlock, value[2] - value[1]);
+          QUERY_CHECK_CODE(code, lino, _end);
+          int32_t numOfCols = blockDataGetNumOfCols(pNewDataBlock);
+          for (int32_t i = 0; i < numOfCols; i++) {
+            SColumnInfoData *pDst = taosArrayGet(pNewDataBlock->pDataBlock, i);
+            SColumnInfoData *pSrc = taosArrayGet(pBlock->pDataBlock, i);
+            code = colDataAssignNRows(pDst, 0, pSrc, value[1], value[2] - value[1]);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
           code = stTimestampSorterBindDataBlock(pContext->pSorter, &pNewDataBlock);
           if (pNewDataBlock != NULL) {
             blockDataDestroy(pNewDataBlock);
@@ -3728,37 +3743,51 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           pProgress->lastScanVer = pLastBlock->info.version;
         }
         for (int32_t i = 0; i < TARRAY_SIZE(pWalDataBlocks); i++) {
-          SSDataBlock            *pDataBlock = *(SSDataBlock **)TARRAY_GET_ELEM(pWalDataBlocks, i);
-          int64_t                 gid = pDataBlock->info.id.groupId;
-          void                   *px2 = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
-          SSTriggerRealtimeGroup *pGroup = NULL;
-          if (px2 == NULL) {
-            pGroup = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeGroup));
-            QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
-            code = tSimpleHashPut(pContext->pGroups, &gid, sizeof(int64_t), &pGroup, POINTER_BYTES);
-            if (code != TSDB_CODE_SUCCESS) {
-              taosMemoryFreeClear(pGroup);
-              QUERY_CHECK_CODE(code, lino, _end);
-            }
-            code = stRealtimeGroupInit(pGroup, pContext, gid);
-            QUERY_CHECK_CODE(code, lino, _end);
-          } else {
-            pGroup = *(SSTriggerRealtimeGroup **)px2;
-          }
-          int32_t          nrows = blockDataGetNumOfRows(pDataBlock);
+          SSDataBlock     *pDataBlock = *(SSDataBlock **)TARRAY_GET_ELEM(pWalDataBlocks, i);
+          SColumnInfoData *pGidCol = taosArrayGetLast(pDataBlock->pDataBlock);
+          QUERY_CHECK_NULL(pGidCol, code, lino, _end, terrno);
+          int64_t         *pGids = (int64_t *)pGidCol->pData;
+          SColumnInfoData *pUidCol = pGidCol - 1;
+          int64_t         *pUids = (int64_t *)pUidCol->pData;
           SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, pTask->trigTsIndex);
           QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
-          int64_t          *pTsData = (int64_t *)pTsCol->pData;
-          SSTriggerMetaData meta = {
-              .skey = pTsData[0], .ekey = pTsData[nrows - 1], .nrows = nrows, .ver = pDataBlock->info.version};
-          code = stRealtimeGroupAddSingleMeta(pGroup, pProgress->pTaskAddr->nodeId, pDataBlock->info.id.uid, &meta);
-          QUERY_CHECK_CODE(code, lino, _end);
-          if (TD_DLIST_NODE_NEXT(pGroup) == NULL && TD_DLIST_TAIL(&pContext->groupsToCheck) != pGroup) {
-            TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+          int64_t *pTsData = (int64_t *)pTsCol->pData;
+          int32_t  nrows = blockDataGetNumOfRows(pDataBlock);
+          for (int32_t j = 0; j < nrows;) {
+            int64_t                 uid = pUids[j];
+            int64_t                 gid = pGids[j];
+            void                   *px2 = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
+            SSTriggerRealtimeGroup *pGroup = NULL;
+            if (px2 == NULL) {
+              pGroup = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeGroup));
+              QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
+              code = tSimpleHashPut(pContext->pGroups, &gid, sizeof(int64_t), &pGroup, POINTER_BYTES);
+              if (code != TSDB_CODE_SUCCESS) {
+                taosMemoryFreeClear(pGroup);
+                QUERY_CHECK_CODE(code, lino, _end);
+              }
+              code = stRealtimeGroupInit(pGroup, pContext, gid);
+              QUERY_CHECK_CODE(code, lino, _end);
+            } else {
+              pGroup = *(SSTriggerRealtimeGroup **)px2;
+            }
+            int32_t end = j + 1;
+            while (end < nrows && pUids[end] == pUids[j]) {
+              end++;
+            }
+            SSTriggerMetaData meta = {
+                .skey = pTsData[j], .ekey = pTsData[end - 1], .nrows = end - j, .ver = pDataBlock->info.version};
+            code = stRealtimeGroupAddSingleMeta(pGroup, pProgress->pTaskAddr->nodeId, pDataBlock->info.id.uid, &meta);
+            QUERY_CHECK_CODE(code, lino, _end);
+            if (TD_DLIST_NODE_NEXT(pGroup) == NULL && TD_DLIST_TAIL(&pContext->groupsToCheck) != pGroup) {
+              TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+            }
+            int64_t key[3] = {pDataBlock->info.version, uid, gid};
+            int64_t value[3] = {(int64_t)pDataBlock, j, end};
+            code = tSimpleHashPut(pContext->pDataBlocks, key, sizeof(key), value, sizeof(value));
+            QUERY_CHECK_CODE(code, lino, _end);
+            j = end;
           }
-          int64_t key[3] = {pDataBlock->info.version, pDataBlock->info.id.uid, pDataBlock->info.id.groupId};
-          code = tSimpleHashPut(pContext->pDataBlocks, key, sizeof(key), &pDataBlock, POINTER_BYTES);
-          QUERY_CHECK_CODE(code, lino, _end);
           *(SSDataBlock **)TARRAY_GET_ELEM(pWalDataBlocks, i) = NULL;
         }
       }
