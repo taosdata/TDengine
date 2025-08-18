@@ -3111,7 +3111,6 @@ TEST(stmt2Case, core) {
   TAOS* taos = taos_connect("127.0.0.1", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
 
-  // 创建测试数据库和表
   do_query(taos, "drop database if exists ivs");
   do_query(taos, "create database ivs");
   do_query(taos, "use ivs");
@@ -3125,7 +3124,6 @@ TEST(stmt2Case, core) {
            "operator_status int, "
            "device_id int)");
 
-  // 插入测试数据
   do_query(taos,
            "insert into alarm_operate_info values"
            "(1591060628000, 1, 100, '张三', 'info1', 0, 10),"
@@ -3136,7 +3134,6 @@ TEST(stmt2Case, core) {
   TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
   ASSERT_NE(stmt, nullptr);
 
-  // 查询SQL，带2个参数
   const char* sql =
       "select COUNT(1) from ("
       " select LAST(operate_time) as operate_time, alarm_id, operator_id, operator_name, operator_info, "
@@ -3154,12 +3151,11 @@ TEST(stmt2Case, core) {
   TAOS_FIELD_ALL* pFields = NULL;
   code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
   checkError(stmt, code);
-  ASSERT_EQ(fieldNum, 2);  // 应该返回1个字段
+  ASSERT_EQ(fieldNum, 2);
 
-  // 绑定参数
-  int64_t ts_begin[2] = {1591060628000, 1591060628000};
-  int64_t ts_end[2] = {1591060630000, 1591060630000};
-  int32_t len[2] = {sizeof(int64_t), sizeof(int64_t)};
+  int64_t ts_begin[1] = {1591060628000};
+  int64_t ts_end[1] = {1591060630000};
+  int32_t len[1] = {sizeof(int64_t)};
 
   TAOS_STMT2_BIND params[2] = {0};
   params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
