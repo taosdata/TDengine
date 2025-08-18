@@ -257,6 +257,10 @@ static int32_t stmtUpdateBindInfo(TAOS_STMT2* stmt, STableMeta* pTableMeta, void
   pStmt->bInfo.tbNameFlag = tbNameFlag;
   tstrncpy(pStmt->bInfo.stbFName, sTableName, sizeof(pStmt->bInfo.stbFName));
 
+  if (pTableMeta->tableType != TSDB_CHILD_TABLE && pTableMeta->tableType != TSDB_SUPER_TABLE) {
+    pStmt->sql.stbInterlaceMode = false;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
