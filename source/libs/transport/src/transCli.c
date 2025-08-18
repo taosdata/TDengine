@@ -1383,7 +1383,7 @@ static void cliSendCbSSL(uv_write_t* req, int status) {
   tDebug("%s conn:%p, send ssl msg successfully", CONN_GET_INST_LABEL(pConn), pConn);
   if (sslIsInited(pConn->pTls) == 0) {
     tDebug("%s conn:%p, ssl not inited, skip send msg", CONN_GET_INST_LABEL(pConn), pConn);
-    return;
+    goto _error;
   }
   // if (!SSL_is_init_finished(pTls->ssl)) {
   //   tDebug("%s conn:%p, ssl not init finished, skip send msg", CONN_GET_INST_LABEL(pConn), pConn);

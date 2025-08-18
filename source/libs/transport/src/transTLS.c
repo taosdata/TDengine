@@ -376,6 +376,8 @@ static int32_t sslWriteToBIO(STransTLS* pTls, int32_t nread) {
   sslBuf->len += nread;
   int32_t nwrite = BIO_write(pTls->readBio, sslBuf->buf, sslBuf->len);
 
+  tDebug("conn %p read %d bytes from socket", pTls->pConn, nread);
+
   sslBuf->len = 0;
   return code;
 }
@@ -525,5 +527,7 @@ _error:
 
   uvbuf->base = (char*)buf->buf + buf->len;
   uvbuf->len = buf->cap - buf->len;
+
+  uDebug("alloc recv buffer, base:%p, len:%d", uvbuf->base, uvbuf->len);
   return 0;
 }
