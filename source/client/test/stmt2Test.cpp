@@ -296,7 +296,7 @@ TEST(stmt2Case, timezone) {
     TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
     ASSERT_NE(stmt, nullptr);
     int code = taos_stmt2_prepare(stmt, sql, 0);
-    checkError(stmt, code);
+    checkError(stmt, code, __FILE__, __LINE__);
 
     // stmt2 with timestamp
     int64_t ts = 1754611688000;  // '2025-08-08 08:08:08' in Asia/Shanghai timezone
@@ -305,9 +305,9 @@ TEST(stmt2Case, timezone) {
     TAOS_STMT2_BIND* paramv = &params;
     TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &paramv};
     code = taos_stmt2_bind_param(stmt, &bindv, -1);
-    checkError(stmt, code);
+    checkError(stmt, code, __FILE__, __LINE__);
     code = taos_stmt2_exec(stmt, NULL);
-    checkError(stmt, code);
+    checkError(stmt, code, __FILE__, __LINE__);
 
     TAOS_RES* pRes = taos_stmt2_result(stmt);
     ASSERT_NE(pRes, nullptr);
@@ -329,7 +329,7 @@ TEST(stmt2Case, timezone) {
     TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
     ASSERT_NE(stmt, nullptr);
     int code = taos_stmt2_prepare(stmt, sql, 0);
-    checkError(stmt, code);
+    checkError(stmt, code, __FILE__, __LINE__);
 
     ASSERT_NE(stmt, nullptr);
     char* timeStrShanghai = "2025-08-08 08:08:08";
@@ -338,9 +338,9 @@ TEST(stmt2Case, timezone) {
     TAOS_STMT2_BIND* paramvCST = &paramsCST;
     TAOS_STMT2_BINDV bindvCST = {1, NULL, NULL, &paramvCST};
     code = taos_stmt2_bind_param(stmt, &bindvCST, -1);
-    checkError(stmt, code);
+    checkError(stmt, code, __FILE__, __LINE__);
     code = taos_stmt2_exec(stmt, NULL);
-    checkError(stmt, code);
+    checkError(stmt, code, __FILE__, __LINE__);
 
     TAOS_RES* pRes = taos_stmt2_result(stmt);
     ASSERT_NE(pRes, nullptr);
@@ -360,7 +360,7 @@ TEST(stmt2Case, timezone) {
     TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
     ASSERT_NE(stmt, nullptr);
     int code = taos_stmt2_prepare(stmt, sql, 0);
-    checkError(stmt, code);
+    checkError(stmt, code, __FILE__, __LINE__);
 
     char* timeStrUTC = "2025-08-08 00:08:08";  // '2025-08-08 08:08:08+8' in UTC timezone
     int32_t timeStrUTCLen = strlen(timeStrUTC);
@@ -368,9 +368,9 @@ TEST(stmt2Case, timezone) {
     TAOS_STMT2_BIND* paramvUTC = &paramsUTC;
     TAOS_STMT2_BINDV bindvUTC = {1, NULL, NULL, &paramvUTC};
     code = taos_stmt2_bind_param(stmt, &bindvUTC, -1);
-    checkError(stmt, code);
+    checkError(stmt, code, __FILE__, __LINE__);
     code = taos_stmt2_exec(stmt, NULL);
-    checkError(stmt, code); 
+    checkError(stmt, code, __FILE__, __LINE__);
 
     TAOS_RES* pRes = taos_stmt2_result(stmt);
     ASSERT_NE(pRes, nullptr);
