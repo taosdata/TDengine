@@ -7478,28 +7478,6 @@ int32_t setValueChangeResult(SqlFunctionCtx* pCtx, int32_t rowIndex) {
 
   int32_t               code = TSDB_CODE_SUCCESS;
 
-  #if 0
-  if (colDataIsNull_s(pInputCol, rowIndex)) {
-    pValueInfo->preIsNull = true;
-    return TSDB_CODE_SUCCESS;
-  }
-
-  int8_t inputType = pInputCol->info.type;
-  int32_t inputBytes = pInputCol->info.bytes;
-
-  char* data = colDataGetData(pInputCol, rowIndex);
-  if (IS_VAR_DATA_TYPE(inputType)) {
-    if (IS_STR_DATA_BLOB(inputType)) {
-      inputBytes = blobDataLen(data);
-      data = blobDataVal(data);
-    } else {
-      inputBytes = varDataLen(data);
-      data = varDataVal(data);
-    }
-  }
-
-  TSKEY ts = getRowPTs(pInput->pPTS, rowIndex);
-#endif
   TSKEY ts = getRowPTs(pInput->pPTS, rowIndex);
   if (colDataIsNull_s(pInputCol, rowIndex)) {
     if(!valueChangeIgnoreNull(pValueInfo->ignoreOption) && !pValueInfo->preIsNull) {
@@ -7582,21 +7560,6 @@ int32_t valueChangeFunction(SqlFunctionCtx* pCtx) {
   if(numOfElems <= 0) {
     return TSDB_CODE_SUCCESS;
   }
-
-  #if 0
-  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
-      bool  isNull = colDataIsNull(pInputCol, pInput->numOfRows, i, NULL);
-      char* data = isNull ? NULL : colDataGetData(pInputCol, i);
-      TSKEY cts = getRowPTs(pInput->pPTS, i);
-      numOfElems++;
-
-      if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
-        int32_t code = doSaveLastrow(pCtx, data, i, cts, pInfo);
-        if (code != TSDB_CODE_SUCCESS) return code;
-      }
-      break;
-    }
-  #endif
 
   int32_t       type = pInputCol->info.type;
 
