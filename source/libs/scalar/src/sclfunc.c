@@ -4186,9 +4186,6 @@ int32_t diffScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
   return nonCalcScalarFunction(pInput, inputNum, pOutput);
 }
 
-int32_t valueChangeScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  return nonCalcScalarFunction(pInput, inputNum, pOutput);
-}
 int32_t forecastScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return nonCalcScalarFunction(pInput, inputNum, pOutput);
 }
