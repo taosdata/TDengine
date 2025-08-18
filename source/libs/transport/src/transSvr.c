@@ -777,6 +777,30 @@ void uvOnTimeoutCb(uv_timer_t* handle) {
   tError("conn:%p, time out", pConn);
 }
 
+void uvOnSendCbSSL(uv_write_t* req, int status) {
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  SSvrConn* pConn = req->data;
+  STrans*   pInst = pConn->pInst;
+
+  if (status != 0) {
+    tDebug("%s conn:%p, failed to send msg since %s", transLabel(pConn), pConn, uv_err_name(status));
+    code = TSDB_CODE_THIRDPARTY_ERROR;
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  tDebug("%s conn:%p, send ssl msg successfully", transLabel(pConn), pConn);
+  if (!sslIsInited(pConn->pTls)) {
+    tDebug("%s conn:%p, ssl not inited, skip send msg", transLabel(pConn), pConn);
+    goto _error;
+  }
+  // if (!SSL_is_init_finished(pTls->ssl)) {
+  //   tDebug("%s conn:%p, ssl not init finished, skip send msg", CONN_GET_INST_LABEL(pConn), pConn);
+  //   return;
+  // }
+_error:
+  return;
+}
 void uvOnSendCb(uv_write_t* req, int status) {
   STUB_RAND_NETWORK_ERR(status);
 
@@ -1505,13 +1529,6 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   TAOS_CHECK_GOTO(code, &lino, _end);
   wqInited = 1;
 
-  if (pInst->enableSSL) {
-    code = sslInit(pInst->pSSLContext, &pConn->pTls);
-    TAOS_CHECK_GOTO(code, &lino, _end);
-
-    pConn->enableSSL = 1;
-    pConn->pTls->pConn = pConn;
-  }
   // init client handle
   pConn->pTcp = (uv_tcp_t*)taosMemoryMalloc(sizeof(uv_tcp_t));
   if (pConn->pTcp == NULL) {
@@ -1534,6 +1551,16 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
 
   pConn->pInst = pThrd->pInst;
   pConn->hostThrd = pThrd;
+
+  if (pInst->enableSSL) {
+    code = sslInit(pInst->pSSLContext, &pConn->pTls);
+    TAOS_CHECK_GOTO(code, &lino, _end);
+
+    pConn->pTls->writeCb = uvOnSendCbSSL;
+    pConn->enableSSL = 1;
+    pConn->pTls->pConn = pConn;
+    pConn->pTls->pStream = pConn->pTcp;
+  }
 
   transRefSrvHandle(pConn);
   return pConn;

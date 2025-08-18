@@ -381,6 +381,7 @@ int32_t openTransporter(const char *user, const char *auth, int32_t numOfThread,
   rpcInit.startReadTimer = 1;
   rpcInit.readTimeout = tsReadTimeout;
   rpcInit.ipv6 = tsEnableIpv6;
+  rpcInit.enableSSL = 1;
 
   int32_t code = taosVersionStrToInt(td_version, &rpcInit.compatibilityVer);
   if (TSDB_CODE_SUCCESS != code) {

@@ -1381,7 +1381,7 @@ static void cliSendCbSSL(uv_write_t* req, int status) {
   }
 
   tDebug("%s conn:%p, send ssl msg successfully", CONN_GET_INST_LABEL(pConn), pConn);
-  if (sslIsInited(pConn->pTls) == 0) {
+  if (!sslIsInited(pConn->pTls)) {
     tDebug("%s conn:%p, ssl not inited, skip send msg", CONN_GET_INST_LABEL(pConn), pConn);
     goto _error;
   }
@@ -1854,17 +1854,18 @@ void cliConnCb(uv_connect_t* req, int status) {
 
   tTrace("%s conn:%p, connect to server successfully", CONN_GET_INST_LABEL(pConn), pConn);
   if (pConn->enableSSL) {
+    code = cliConnStartRead(pConn);
+    if (code != 0) {
+      tDebug("%s conn:%p, failed to start read since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
+      TAOS_CHECK_GOTO(code, &lino, _error);
+    }
+
     code = sslConnect(pConn->pTls, NULL, NULL);
     if (code != 0) {
       tDebug("%s conn:%p, failed to do ssl_connect since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
       TAOS_CHECK_GOTO(code, &lino, _error);
     }
 
-    code = cliConnStartRead(pConn);
-    if (code != 0) {
-      tDebug("%s conn:%p, failed to start read since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
-      TAOS_CHECK_GOTO(code, &lino, _error);
-    }
     return;
   }
 

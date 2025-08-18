@@ -319,11 +319,13 @@ int32_t transConnBufferAppend(SConnBuffer* connBuf, char* buf, int32_t len) {
 }
 
 int32_t transSetConnOption(uv_tcp_t* stream, int keepalive) {
+  int32_t ret = 0;
 #if defined(WINDOWS) || defined(DARWIN)
 #else
-  return uv_tcp_keepalive(stream, 1, keepalive);
+  ret = uv_tcp_keepalive(stream, 1, keepalive);
 #endif
-  return uv_tcp_nodelay(stream, 1);
+  ret = uv_tcp_nodelay(stream, 1);
+  return ret;
   // int ret = uv_tcp_keepalive(stream, 5, 60);
 }
 
