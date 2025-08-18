@@ -137,7 +137,7 @@ class TaosD:
             if index == 0:
                 key = 'from offline to online'
                 bkey = bytes(key, encoding="utf8")
-                logFile = self._run_log_dir + "/taosdlog.0"
+                logFile = os.path.join(self._run_log_dir, "taosdlog.0")
                 i = 0
                 while not os.path.exists(logFile):
                     time.sleep(0.1)

@@ -13,6 +13,8 @@
 
 import time
 from datetime import datetime
+from .log import tdLog
+import calendar
 
 class GetTime:
 
@@ -30,7 +32,7 @@ class GetTime:
             date_time = int(int(time.mktime(timestamp.timetuple()))*1000 + timestamp.microsecond/1000)
         elif ':' in _ts_str and '.' not in _ts_str:
             timestamp = datetime.strptime(_ts_str, "%Y-%m-%d %H:%M:%S")
-            date_time = int(int(time.mktime(timestamp.timetuple()))*1000 + timestamp.microsecond/1000)
+            date_time = int(int(calendar.timegm(timestamp.timetuple()))*1000 + timestamp.microsecond/1000)
         else:
             timestamp = datetime.strptime(_ts_str, "%Y-%m-%d")
             date_time = int(int(time.mktime(timestamp.timetuple()))*1000 + timestamp.microsecond/1000)
