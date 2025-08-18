@@ -3037,6 +3037,8 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
                          pParam->nextLocalTime, pParam->triggerTime, pCalcReq->createTable);
           }
           taosArrayClear(pGroup->pPendingCalcParams);
+          code = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq);
+          QUERY_CHECK_CODE(code, lino, _end);
 #else
           if (TARRAY_SIZE(pContext->pCalcReq->params) == 0) {
             if (pGroup->recalcNextWindow && taosArrayGetSize(pGroup->pPendingCalcParams) > 0) {
