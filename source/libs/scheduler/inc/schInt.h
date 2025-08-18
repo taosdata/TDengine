@@ -425,10 +425,10 @@ extern SSchedulerMgmt schMgmt;
     SCH_TASK_RETRY_NETWORK_ERR((_task), (_code))))
 
 #define SCH_TASK_NEED_RETRY(_msgType, _code) \
-  ((SCH_REDIRECT_MSGTYPE(_msgType) && (SCH_NETWORK_ERR(_code) || NEED_SCHEDULER_REDIRECT_ERROR(_code)) || (_code) == TSDB_CODE_SCH_TIMEOUT_ERROR))
+  ((SCH_REDIRECT_MSGTYPE(_msgType) && (SCH_NETWORK_ERR(_code) || NEED_SCHEDULER_REDIRECT_ERROR(_code))) || (_code) == TSDB_CODE_SCH_TIMEOUT_ERROR)
 
 #define SCH_DATA_BIND_TASK_NEED_RETRY(_job, _task, _msgType, _code) \
-  (SCH_REDIRECT_MSGTYPE(_msgType) && SCH_IS_DATA_BIND_TASK(_task) && (SCH_NETWORK_ERR(_code) || NEED_SCHEDULER_REDIRECT_ERROR(_code)))
+  ((SCH_REDIRECT_MSGTYPE(_msgType) && SCH_IS_DATA_BIND_TASK(_task) && (SCH_NETWORK_ERR(_code) || NEED_SCHEDULER_REDIRECT_ERROR(_code))) || (_code) == TSDB_CODE_SCH_TIMEOUT_ERROR)
    
 #define SCH_IS_LEVEL_UNFINISHED(_level) ((_level)->taskLaunchedNum < (_level)->taskNum)
 #define SCH_GET_CUR_EP(_addr)           (&(_addr)->epSet.eps[(_addr)->epSet.inUse])
