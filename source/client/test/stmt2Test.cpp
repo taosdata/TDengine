@@ -1461,7 +1461,7 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
     char*            tbname = "stmt2_testdb_6.中文表名";
     TAOS_STMT2_BINDV bindv = {1, &tbname, NULL, NULL};
     code = taos_stmt2_bind_param(stmt, &bindv, -1);
-    ASSERT_EQ(code, TSDB_CODE_INVALID_PARA);
+    ASSERT_EQ(code, TSDB_CODE_TSC_STMT_TBNAME_ERROR);
 
     taos_stmt2_close(stmt);
   }
