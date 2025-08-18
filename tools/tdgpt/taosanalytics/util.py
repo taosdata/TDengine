@@ -150,10 +150,12 @@ def download_model(model_name, model_dir, enable_ep = False):
     ep = 'https://hf-mirror.com' if enable_ep else None
     model_list = [model_name]
 
-    # root_dir = '/var/lib/taos/taosanode/model/'
-    # model_dir = '/moirai/'
     if not os.path.exists(model_dir):
+        print(f"create model directory: {model_dir}")
         os.mkdir(model_dir)
+
+    if ep:
+        print(f"set the download ep:{ep}")
 
     for item in tqdm(model_list):
         snapshot_download(

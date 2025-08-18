@@ -253,19 +253,21 @@ def main():
         'Salesforce/moirai-moe-1.0-R-base',  # base model with 205M parameters
     ]
 
-    if len(sys.argv) < 2:
+    if len(sys.argv) < 4:
         # use the implicit download capability
         pretrained_model = MoiraiMoEModule.from_pretrained(
             model_list[1]
         ).to(device)
     else:
         # let's load the model file from the user specified directory
-        model_folder = sys.argv[1]
+        model_folder = sys.argv[1].strip('\'"')
+        model_name = sys.argv[2].strip('\'"')
+        enable_ep = bool(sys.argv[3])
 
         if not os.path.exists(model_folder):
             print(f"the specified folder: {model_folder} not exists, start to create it")
 
-        download_model(model_list[0], model_folder, enable_ep=True)
+        download_model(model_name, model_folder, enable_ep=enable_ep)
 
         """load the model from local folder"""
         pretrained_model = MoiraiMoEModule.from_pretrained(
