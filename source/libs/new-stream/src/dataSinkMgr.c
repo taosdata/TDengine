@@ -543,7 +543,7 @@ int32_t getReorderDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY en
   while ((pNode = tdListNext(&foundDataIter)) != NULL) {
     SDatasInWindow* pWinData = (SDatasInWindow*)pNode->data;
     if (pWinData->timeRange.startTime >= start && pWinData->timeRange.startTime <= end) {
-      if (pWinData->pBlockFileBuffer->size > 0) {
+      if (pWinData->pBlockFileBuffer && pWinData->pBlockFileBuffer->size > 0) {
         dataPos = DATA_SINK_FILE;
         break;
       }
