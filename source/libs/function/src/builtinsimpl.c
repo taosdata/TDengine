@@ -7361,6 +7361,7 @@ static int32_t setValue(SValueChangeInfo* pValueChangeInfo, int32_t type, const 
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_GEOMETRY:
     case TSDB_DATA_TYPE_BLOB: {
       int64_t v = MurmurHash3_64(pv,pvLen);
       pValueChangeInfo->prev.i64 = v;
