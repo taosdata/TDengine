@@ -558,8 +558,8 @@ static int32_t vnodeSnapshotStopWrite(const SSyncFSM *pFsm, void *pWriter, bool 
 
   int32_t code = vnodeSnapWriterClose(pWriter, !isApply, pSnapshot);
   if (code != 0) {
-    vError("vgId:%d, failed to finish applying vnode snapshot since %s, code:0x%x", pVnode->config.vgId, terrstr(),
-           code);
+    vError("vgId:%d, failed to finish applying vnode snapshot since %s, code:0x%x", pVnode->config.vgId,
+           tstrerror(code), code);
   }
   return code;
 }

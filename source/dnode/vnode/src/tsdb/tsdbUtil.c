@@ -1283,12 +1283,17 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
   int32_t code = 0;
 
   if (!(pBlockData->suid || pBlockData->uid)) {
-    return TSDB_CODE_INVALID_PARA;
+    code = TSDB_CODE_INVALID_PARA;
+    uWarn("%s failed at %s:%d since %s, suid:%" PRId64 ", uid:%" PRId64, __func__, __FILE__, __LINE__, tstrerror(code),
+          pBlockData->suid, pBlockData->uid);
+    return code;
   }
 
   // uid
   if (pBlockData->uid == 0) {
     if (!uid) {
+      uWarn("%s failed at %s:%d since %s, suid:%" PRId64 ", uid:%" PRId64, __func__, __FILE__, __LINE__,
+            tstrerror(code), pBlockData->suid, pBlockData->uid);
       return TSDB_CODE_INVALID_PARA;
     }
     code = tRealloc((uint8_t **)&pBlockData->aUid, sizeof(int64_t) * (pBlockData->nRow + 1));
@@ -1311,6 +1316,8 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
     code = tBlockDataUpsertBlockRow(pBlockData, pRow->pBlockData, pRow->iRow, 0 /* append */);
     if (code) goto _exit;
   } else {
+    uWarn("%s failed at %s:%d since %s, suid:%" PRId64 ", uid:%" PRId64, __func__, __FILE__, __LINE__,
+          tstrerror(TSDB_CODE_INVALID_PARA), pBlockData->suid, pBlockData->uid);
     return TSDB_CODE_INVALID_PARA;
   }
   pBlockData->nRow++;
