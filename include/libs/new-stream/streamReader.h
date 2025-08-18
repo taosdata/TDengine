@@ -8,11 +8,16 @@
 #include "stream.h"
 #include "streamMsg.h"
 #include "tdatablock.h"
+#include "thash.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+typedef struct STagCache {
+  char* tbname;
+  void* pTag;
+} STagCache;
 typedef struct SStreamTriggerReaderInfo {
   void*        pTask;
   int32_t      order;
@@ -43,6 +48,7 @@ typedef struct SStreamTriggerReaderInfo {
   SHashObj*    uidHash;
   void*        tableList;
   SFilterInfo* pFilterInfo;
+  SHashObj*    pTableMetaCache;
 } SStreamTriggerReaderInfo;
 
 typedef struct SStreamTriggerReaderCalcInfo {
