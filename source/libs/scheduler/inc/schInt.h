@@ -423,8 +423,9 @@ extern SSchedulerMgmt schMgmt;
   (SCH_REDIRECT_MSGTYPE(_msgType) &&                                                               \
    (NEED_SCHEDULER_REDIRECT_ERROR(_code) || SCH_LOW_LEVEL_NETWORK_ERR((_job), (_task), (_code)) || \
     SCH_TASK_RETRY_NETWORK_ERR((_task), (_code))))
+
 #define SCH_TASK_NEED_RETRY(_msgType, _code) \
-  (SCH_REDIRECT_MSGTYPE(_msgType) && (SCH_NETWORK_ERR(_code) || NEED_SCHEDULER_REDIRECT_ERROR(_code)))
+  ((SCH_REDIRECT_MSGTYPE(_msgType) && (SCH_NETWORK_ERR(_code) || NEED_SCHEDULER_REDIRECT_ERROR(_code)) || (_code) == TSDB_CODE_SCH_TIMEOUT_ERROR))
 
 #define SCH_DATA_BIND_TASK_NEED_RETRY(_job, _task, _msgType, _code) \
   (SCH_REDIRECT_MSGTYPE(_msgType) && SCH_IS_DATA_BIND_TASK(_task) && (SCH_NETWORK_ERR(_code) || NEED_SCHEDULER_REDIRECT_ERROR(_code)))
