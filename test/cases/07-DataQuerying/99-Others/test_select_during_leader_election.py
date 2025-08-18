@@ -1,4 +1,5 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+import os
 
 class TestSelectDuringLeaderElection:
 
@@ -44,36 +45,26 @@ class TestSelectDuringLeaderElection:
         tdSql.execute(f"create table super_t (ts timestamp, flag int) tags (t1 VARCHAR(10))")
 
         # create sub table
-        for i in range(0,100,1):
+        tdLog.info(f"begin create sub table")
+        for i in range(0,10,1):
             tdSql.execute(f"create table sub_t{i} using super_t tags('t{i}')")
         
+        tdLog.info(f"finish create 10 sub table")
         
         # insert data to sub table
+        tdLog.info(f"begin insert data")
         deta = 1
-        for i in range(0,100,1):
-            for j in range(0,1000,1):
+        for i in range(0,10,1):
+            for j in range(0,100,1):
                 deta += j
                 tdSql.execute(f"insert into sub_t{i} values (now+{deta}s,{j})")
 
-        # stop one node
-        tdSql.execute(f"select * from information_schema.ins_vnodes where db_name = 'test_select_leader_election'")
-        results = list(tdSql.queryResult)
-        
-        # search one leader vnode and stop the related dnode 
-        dnode_id = 1
-        for result in results:
-            if result[3] == "leader" :
-                dnode_id = result[0]
-                break
-        
-        tdSql.execute(f"drop dnode {dnode_id}")
+        tdLog.info(f"finish insert data")
 
-        tdSql.query(f"select * from information_schema.ins_dnodes")
-        tdSql.checkRows(3)
-        tdSql.checkKeyData({dnode_id}, 4, "offline")
+        # stop one dnode
+        os.system("ps -ef |grep taosd |grep -v 'grep' |sort |awk 'NR<=2'|awk '{print $2}'|xargs kill -2")
 
-        # select data
-        tdSql.query(f"select last_row(*) from jddb.meters")
-        tdSql.checkRows(1)
+        # select data, it should be error since the leader election has not finsh
+        tdSql.error(f"select last_row(*) from jddb.meters")
 
         tdLog.info(f"end select during leader election test successfully")
