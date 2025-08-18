@@ -24,7 +24,7 @@
 
 static int32_t sslDoConn(STransTLS* pTls);
 
-static void sslHandleError(STransTLS* pTls, int ret);
+static int32_t sslHandleError(STransTLS* pTls, int ret);
 
 static int32_t sslWriteToBIO(STransTLS* pTls, int32_t nread);
 
@@ -99,7 +99,8 @@ void destroySSLCtx(SSL_CTX* ctx) {
   if (ctx) SSL_CTX_free(ctx);
 }
 
-void sslHandleError(STransTLS* pTls, int ret) {
+int32_t sslHandleError(STransTLS* pTls, int ret) {
+  int32_t code = 0;
   int err = SSL_get_error(pTls->ssl, ret);
   switch (err) {
     case SSL_ERROR_WANT_READ:
@@ -111,11 +112,14 @@ void sslHandleError(STransTLS* pTls, int ret) {
       break;
     case SSL_ERROR_SSL:
       tError("conn %p SSL error: %s", pTls->pConn, ERR_reason_error_string(ERR_get_error()));
+      code = TSDB_CODE_THIRDPARTY_ERROR;
       break;
     default:
       tError("conn %p Unknown SSL error: %s", pTls->pConn, ERR_reason_error_string(ERR_get_error()));
+      code = TSDB_CODE_THIRDPARTY_ERROR;
       break;
   }
+  return code;
 }
 
 int32_t transTlsCtxCreate(const char* certPath, const char* keyPath, const char* caPath, int8_t cliMode,
@@ -297,7 +301,6 @@ static int32_t sslFlushBioToSocket(STransTLS* pTls) {
     } else {
       tDebug("conn %p write %d bytes to socket", pTls->pConn, n);
     }
-
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -306,58 +309,51 @@ int32_t sslDoConn(STransTLS* pTls) { return sslFlushBioToSocket(pTls); }
 
 int32_t sslWrite(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req, uv_buf_t* pBuf, int32_t nBuf,
                  void (*cb)(uv_write_t*, int)) {
+  int32_t lino = 0;
   int32_t code = 0;
   int32_t nread = 0;
   for (int i = 0; i < nBuf; i++) {
     int n = SSL_write(pTls->ssl, pBuf[i].base, pBuf[i].len);
     if (n <= 0) {
-      sslHandleError(pTls, n);
-      code = TSDB_CODE_THIRDPARTY_ERROR;
-      break;
+      code = sslHandleError(pTls, n);
+      TAOS_CHECK_GOTO(code, &lino, _error);
     }
   }
 
-  if (code != 0) {
-    tError("SSL write error since %s", tstrerror(code));
-    return code;
-  }
-
-  char buf[4096] = {0};
+  char buf[64 * 1024] = {0};
   while ((nread = BIO_read(pTls->writeBio, buf, sizeof(buf))) > 0) {
     uv_buf_t b = uv_buf_init(buf, nread);
     code = uv_write(req, stream, &b, 1, cb);
     if (code != 0) {
       tError("Failed to write SSL data: %s", uv_err_name(code));
       return code;
+    } else {
+      tDebug("conn %p write %d bytes to socket", pTls->pConn, nread);
     }
+  }
+_error:
+  if (code != 0) {
+    tError("SSL write error since %s", tstrerror(code));
   }
   return code;
 }
 
 // netcore --> BIO ---> SSL ---> user
 
-static int32_t sslDoConnOrRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t* waitRead) {
+static int32_t sslDoConnOrRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread) {
   int32_t code = 0;
+  int32_t lino = 0;
+
   int     ret = SSL_do_handshake(pTls->ssl);
   if (ret == 1) {
     tDebug("SSL handshake completed successfully");
-    return sslFlushBioToSocket(pTls);
+  } else {
+    code = sslHandleError(pTls, ret);
+    TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
-  int err = SSL_get_error(pTls->ssl, ret);
-  if (err == SSL_ERROR_WANT_READ) {
-    *waitRead = 1;            // 等待对端
-    // return TSDB_CODE_SUCCESS; /* 等待对端 */
-  } else if (err == SSL_ERROR_WANT_WRITE) {
-    if (code != 0) {
-      tError("Failed to flush SSL write BIO");
-      return code;
-    }
-  } else {
-    tError("SSL handshake failed: %s", ERR_reason_error_string(ERR_get_error()));
-    return TSDB_CODE_THIRDPARTY_ERROR;
-  }
   code = sslFlushBioToSocket(pTls);
+_error:
   return code;
 }
 
@@ -385,7 +381,7 @@ static int32_t sslWriteToBIO(STransTLS* pTls, int32_t nread) {
 
 int32_t sslRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t cliMode) {
   int32_t     code = 0;
-  int8_t      waitRead = 0;  // 等待对端
+  int32_t     lino = 0;
   SSslBuffer* sslBuf = &pTls->readBuf;
   int32_t     nwrite = 0;
 
@@ -395,40 +391,9 @@ int32_t sslRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t cliMod
     return code;
   }
 
-  if (cliMode == 1) {
-    if (!SSL_is_init_finished(pTls->ssl)) {
-      code = sslDoConnOrRead(pTls, pBuf, nread, &waitRead);
-      if (code != 0) {
-        tError("SSL handshake failed since %s", tstrerror(code));
-        return code;
-      }
-      if (!waitRead) {
-        return TSDB_CODE_SUCCESS;  // 等待对端
-      }
-    }
-  } else if (cliMode == 0) {
-    if (!SSL_is_init_finished(pTls->ssl)) {
-      int ret = SSL_do_handshake(pTls->ssl);
-      if (ret > 0) {
-        tDebug("conn %p SSL completed successfully", pTls->pConn);
-        return TSDB_CODE_SUCCESS;  // 等待对端
-      } else {
-        int err = SSL_get_error(pTls->ssl, ret);
-        if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
-          if (err == SSL_ERROR_WANT_READ) {
-            tDebug("conn %p SSL wait more data to complet", pTls->pConn);
-            // return TSDB_CODE_SUCCESS;  // 等待对端
-          } else {
-            tDebug("conn %p SSL should write data out", pTls->pConn);
-            // return TSDB_CODE_SUCCESS;  // 等待对端
-          }
-        } else {
-          tError("SSL accept failed: %s", ERR_reason_error_string(ERR_get_error()));
-          return TSDB_CODE_THIRDPARTY_ERROR;
-        }
-        sslFlushBioToSocket(pTls);
-      }
-    }
+  if (!SSL_is_init_finished(pTls->ssl)) {
+    code = sslDoConnOrRead(pTls, pBuf, nread);
+    TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
   char buf[4096] = {0};
@@ -439,15 +404,11 @@ int32_t sslRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t cliMod
       return code;
     }
   }
+
   if (nwrite < 0) {
-    int err = SSL_get_error(pTls->ssl, nwrite);
-    if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
-      return TSDB_CODE_SUCCESS;  // 等待对端
-    } else {
-      tError("SSL read failed: %s", ERR_reason_error_string(ERR_get_error()));
-      return TSDB_CODE_THIRDPARTY_ERROR;
-    }
+    code = sslHandleError(pTls, nwrite);
   }
+_error:
   return code;
 }
 
