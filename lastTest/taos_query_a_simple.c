@@ -189,13 +189,19 @@ int main(int argc, char* argv[]) {
   const char* user = "root";
   const char* pass = "taosdata";
   const char* db = "test";
-  int         thread_count = 16;
-  int         queries_per_thread = 10000;
-  int         max_query_nums = 5;
-  int         qps_rate = 1;
-  const char* sql = "SELECT last(ts,r32) FROM test.d1;";
+  int         thread_count = 0;
+  int         queries_per_thread = 0;
+  int         max_query_nums = 0;
+  int         qps_rate = 0;
+  const char* sql = "";
 
-  if (query_mode == 1) {
+  if (query_mode == 0) {
+    sql = "SELECT last(ts,r32) FROM test.d1;";
+    thread_count = 16;
+    queries_per_thread = 10000;
+    max_query_nums = 5;
+    qps_rate = 1;
+  } else if (query_mode == 1) {
     sql =
         "select tbname,last(*) from test.meters where tbname in "
         "('d1','d2','d3','d4','d5','d6','d7','d8','d9','d10','d11','d12','d13','d14','d15','d16','d17','d18','d19','"
@@ -211,13 +217,12 @@ int main(int argc, char* argv[]) {
     max_query_nums = 5;
     qps_rate = 100;
   } else if (query_mode == 2) {
-  } else if (query_mode == 3) {
     generate_sql_statements();
     thread_count = 16;
     queries_per_thread = 100;
     max_query_nums = 5;
     qps_rate = 625;
-  } else if (query_mode == 4) {
+  } else if (query_mode == 3) {
     sql = "select tbname,last(*) from test.meters partition by tbname;";
     thread_count = 16;
     queries_per_thread = 2;
@@ -239,7 +244,7 @@ int main(int argc, char* argv[]) {
   pthread_t*   threads = malloc(thread_count * sizeof(pthread_t));
   double*      thread_qps = malloc(thread_count * sizeof(double));
 
-  if (query_mode == 3) {
+  if (query_mode == 2) {
     printf("Starting %d threads, each executing %d queries, max_query_nums: %d\n sql: %s\n", thread_count,
            queries_per_thread, max_query_nums, g_sql_statements[0]);
   } else {
@@ -257,7 +262,7 @@ int main(int argc, char* argv[]) {
     }
     params[i].thread_id = i;
     params[i].taos = taos;
-    if (query_mode == 3) {
+    if (query_mode == 2) {
       params[i].sql = g_sql_statements[i];
     } else {
       params[i].sql = (const char*)sql;
