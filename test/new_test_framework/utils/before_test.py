@@ -523,7 +523,6 @@ class BeforeTest:
                 if ("packaging" not in rootRealPath):
                     paths.append(os.path.join(root, binary_file))
                     break
-        tdLog.info(f"getPath: {paths}")
         if (len(paths) == 0):
             if sys.platform == "win32":
                 return f"C:\\TDengine\\{binary}.exe"
