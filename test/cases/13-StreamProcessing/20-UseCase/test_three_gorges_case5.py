@@ -109,7 +109,7 @@ class Test_ThreeGorges:
         yesterday = today - datetime.timedelta(days=1)
         base_ts = int(time.mktime(datetime.datetime.combine(yesterday, datetime.time.min).timetuple())) * 1000
 
-        interval_ms = 3 * 1000  
+        interval_ms = 500
         total_rows = 10
 
         for i in range(total_rows):

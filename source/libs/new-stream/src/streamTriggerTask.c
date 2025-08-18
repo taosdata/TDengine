@@ -3979,6 +3979,9 @@ static void stHistoryContextDestroy(void *ptr) {
     pContext->pCalcDataCacheIters = NULL;
   }
 
+  tdListEmpty(&pContext->retryPullReqs);
+  tdListEmpty(&pContext->retryCalcReqs);
+
   taosMemFreeClear(*ppContext);
 }
 
