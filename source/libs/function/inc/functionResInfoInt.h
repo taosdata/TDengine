@@ -480,6 +480,20 @@ typedef struct SRateInfo {
   char pkData[];
 } SRateInfo;
 
+typedef struct SValueChangeInfo {
+  int64_t total;
+  bool   preIsNull;
+  bool   isFirstRow;
+  int8_t ignoreOption;
+
+  union {
+    int64_t i64;
+    double  d64;
+  } prev;
+
+  int64_t prevTs;
+} SValueChangeInfo;
+
 #ifdef __cplusplus
 }
 #endif

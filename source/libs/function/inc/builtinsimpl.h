@@ -252,6 +252,10 @@ int32_t blockDBUsageSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo
 int32_t blockDBUsageFunction(SqlFunctionCtx* pCtx);
 int32_t blockDBUsageFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
+bool   getValueChangeFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
+int32_t valueChangeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
+int32_t valueChangeFunction(SqlFunctionCtx* pCtx);
+int32_t valueChangeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 #ifdef __cplusplus
 }

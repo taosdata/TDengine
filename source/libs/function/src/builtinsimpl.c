@@ -31,6 +31,7 @@
 
 bool ignoreNegative(int8_t ignoreOption) { return (ignoreOption & 0x1) == 0x1; }
 bool ignoreNull(int8_t ignoreOption) { return (ignoreOption & 0x2) == 0x2; }
+bool valueChangeIgnoreNull(int8_t ignoreOption) { return (ignoreOption == 1); }
 
 typedef enum {
   APERCT_ALGO_UNKNOWN = 0,
@@ -3531,7 +3532,9 @@ int32_t setDoDiffResult(SqlFunctionCtx* pCtx, SFuncInputRow* pRow, int32_t pos) 
 int32_t diffFunction(SqlFunctionCtx* pCtx) { return TSDB_CODE_SUCCESS; }
 
 int32_t diffFunctionByRow(SArray* pCtxArray) {
+
   int32_t code = TSDB_CODE_SUCCESS;
+
   int     diffColNum = pCtxArray->size;
   if (diffColNum == 0) {
     return TSDB_CODE_SUCCESS;
@@ -3636,6 +3639,7 @@ _exit:
     taosArrayDestroy(pRows);
     pRows = NULL;
   }
+
   return code;
 }
 
@@ -7272,6 +7276,308 @@ int32_t cachedLastRowFunction(SqlFunctionCtx* pCtx) {
         return code;
       }
       pResInfo->numOfRes = 1;
+    }
+  }
+
+  SET_VAL(pResInfo, numOfElems, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+bool getValueChangeFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SValueChangeInfo);
+  return true;
+}
+
+int32_t valueChangeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+  if (NULL == pCol) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  pResInfo->isNullRes = (pResInfo->numOfRes == 0) ? 1 : 0;
+
+  SValueChangeInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+ 
+  int32_t    code = colDataSetVal(pCol, pBlock->info.rows, (const char*)&pInfo->total, pResInfo->isNullRes);
+
+  return code;
+}
+
+int32_t valueChangeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
+  if (pResInfo->initialized) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (TSDB_CODE_SUCCESS != functionSetup(pCtx, pResInfo)) {
+    return TSDB_CODE_FUNC_SETUP_ERROR;
+  }
+  SValueChangeInfo* pValueChangeInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  pValueChangeInfo->isFirstRow = true;
+  pValueChangeInfo->prev.i64 = 0;
+  pValueChangeInfo->prevTs = -1;
+
+  if (pCtx->numOfParams > 2) {
+    pValueChangeInfo->ignoreOption = pCtx->param[1].param.i;
+  } else {
+    pValueChangeInfo->ignoreOption = 1;
+  }
+
+  pValueChangeInfo->preIsNull = false;
+  pValueChangeInfo->total = 0;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t setValue(SValueChangeInfo* pValueChangeInfo, int32_t type, const char* pv, int32_t pvLen, int64_t ts) {
+  switch (type) {
+    case TSDB_DATA_TYPE_BOOL:
+      pValueChangeInfo->prev.i64 = *(bool*)pv ? 1 : 0;
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_TINYINT:
+      pValueChangeInfo->prev.i64 = *(int8_t*)pv;
+      break;
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_INT:
+      pValueChangeInfo->prev.i64 = *(int32_t*)pv;
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+      pValueChangeInfo->prev.i64 = *(int16_t*)pv;
+      break;
+    case TSDB_DATA_TYPE_TIMESTAMP:
+    case TSDB_DATA_TYPE_UBIGINT:
+    case TSDB_DATA_TYPE_BIGINT:
+      pValueChangeInfo->prev.i64 = *(int64_t*)pv;
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      pValueChangeInfo->prev.d64 = *(float*)pv;
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      pValueChangeInfo->prev.d64 = *(double*)pv;
+      break;
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_GEOMETRY:
+    case TSDB_DATA_TYPE_BLOB: {
+      int64_t v = MurmurHash3_64(pv,pvLen);
+      pValueChangeInfo->prev.i64 = v;
+      break;
+    }
+    default:
+      return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
+
+  pValueChangeInfo->prevTs = ts;
+  pValueChangeInfo->preIsNull = false;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t setValueChange(SValueChangeInfo* pValueInfo, int32_t type, const char* pv, int32_t pvLen, int64_t ts) {
+  switch (type) {
+    case TSDB_DATA_TYPE_UINT: {
+      int64_t v = *(uint32_t*)pv;
+      if(compareInt64Val(&pValueInfo->prev.i64, &v) != 0) {
+        pValueInfo->total += 1;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_INT: {
+      int64_t v = *(int32_t*)pv;
+      if(compareInt64Val(&pValueInfo->prev.i64, &v) != 0) {
+        pValueInfo->total += 1;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_BOOL: {
+      int64_t v = *(bool*)pv;
+      if(compareInt64Val(&pValueInfo->prev.i64, &v) != 0) {
+        pValueInfo->total += 1;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      int64_t v = *(uint8_t*)pv;
+     if(compareInt64Val(&pValueInfo->prev.i64, &v) != 0) {
+        pValueInfo->total += 1;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_TINYINT: {
+      int64_t v = *(int8_t*)pv;
+      if(compareInt64Val(&pValueInfo->prev.i64, &v) != 0) {
+        pValueInfo->total += 1;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT: {
+      int64_t v = *(uint16_t*)pv;
+      if(compareInt64Val(&pValueInfo->prev.i64, &v) != 0) {
+        pValueInfo->total += 1;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      int64_t v = *(int16_t*)pv;
+      if(compareInt64Val(&pValueInfo->prev.i64, &v) != 0) {
+        pValueInfo->total += 1;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_TIMESTAMP:
+    case TSDB_DATA_TYPE_UBIGINT:
+    case TSDB_DATA_TYPE_BIGINT: {
+      int64_t v = *(int64_t*)pv;
+      if(compareInt64Val(&pValueInfo->prev.i64, &v) != 0) {
+        pValueInfo->total += 1;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      double v = *(float*)pv;
+      if(compareDoubleVal(&pValueInfo->prev.d64, &v) != 0) {
+        pValueInfo->total += 1;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double v = *(double*)pv;
+      if(compareDoubleVal(&pValueInfo->prev.d64, &v) != 0) {
+        pValueInfo->total += 1;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_GEOMETRY:
+    case TSDB_DATA_TYPE_BLOB: {
+      int64_t v = MurmurHash3_64(pv,pvLen);
+      if(compareInt64Val(&pValueInfo->prev.i64, &v) != 0) {
+          pValueInfo->total += 1;
+      }
+      break;
+    }
+    default:
+      return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
+
+  return setValue(pValueInfo, type, pv, pvLen, ts);
+}
+
+int32_t setValueChangeResult(SqlFunctionCtx* pCtx, int32_t rowIndex) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SValueChangeInfo*           pValueInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pInputCol = pInput->pData[0];
+  int8_t                inputType = pInputCol->info.type;
+  int32_t inputBytes = pInputCol->info.bytes;
+
+  int32_t               code = TSDB_CODE_SUCCESS;
+
+  TSKEY ts = getRowPTs(pInput->pPTS, rowIndex);
+  if (colDataIsNull_s(pInputCol, rowIndex)) {
+    if(!valueChangeIgnoreNull(pValueInfo->ignoreOption) && !pValueInfo->preIsNull) {
+      pValueInfo->total += 1;
+    }
+
+    pValueInfo->preIsNull = true;
+    
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if(pValueInfo->preIsNull && !valueChangeIgnoreNull(pValueInfo->ignoreOption)) {
+    pValueInfo->total += 1;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (ts == pValueInfo->prevTs) {
+    return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+  }
+
+  char* data = colDataGetData(pInputCol, rowIndex);
+  if (IS_VAR_DATA_TYPE(inputType)) {
+    if (IS_STR_DATA_BLOB(inputType)) {
+      inputBytes = blobDataLen(data);
+      data = blobDataVal(data);
+    } else {
+      inputBytes = varDataLen(data);
+      data = varDataVal(data);
+    }
+  }
+
+  if(pValueInfo->preIsNull) {
+    return setValue(pValueInfo, inputType, data, inputBytes, ts);
+  }
+
+  return setValueChange(pValueInfo, inputType, data, inputBytes, ts);
+}
+
+int32_t setPreVal(SqlFunctionCtx* pCtx, int32_t rowIndex) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SValueChangeInfo*    pValueInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pInputCol = pInput->pData[0];
+  pValueInfo->isFirstRow = false;
+
+  if (colDataIsNull_s(pInputCol, rowIndex)) {
+    pValueInfo->preIsNull = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int8_t inputType = pInputCol->info.type;
+  int32_t inputBytes = pInputCol->info.bytes;
+
+  char* data = colDataGetData(pInputCol, rowIndex);
+  if (IS_VAR_DATA_TYPE(inputType)) {
+    if (IS_STR_DATA_BLOB(inputType)) {
+      inputBytes = blobDataLen(data);
+      data = blobDataVal(data);
+    } else {
+      inputBytes = varDataLen(data);
+      data = varDataVal(data);
+    }
+  }
+
+  TSKEY ts = getRowPTs(pInput->pPTS, rowIndex);
+  return setValue(pValueInfo, inputType, data, inputBytes, ts);
+}
+
+int32_t valueChangeFunction(SqlFunctionCtx* pCtx) { 
+  int32_t              code = TSDB_CODE_SUCCESS;
+
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SValueChangeInfo* pValueInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pInputCol = pInput->pData[0];
+
+  int32_t start = pInput->startRowIndex;
+  int32_t numOfElems = pInput->numOfRows;
+  if(numOfElems <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t       type = pInputCol->info.type;
+
+  for (int32_t i = start; i < numOfElems + start; ++i) {
+    bool isFirstRow = pValueInfo->isFirstRow;
+    
+    if(isFirstRow) {
+      code = setPreVal(pCtx, i);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    } else {
+      code = setValueChangeResult(pCtx, i);
+      if(code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
     }
   }
 

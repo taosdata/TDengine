@@ -4281,6 +4281,7 @@ int32_t csumScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
   // return TSDB_CODE_SUCCESS;
 }
 
+
 typedef enum {
   STATE_OPER_INVALID = 0,
   STATE_OPER_LT,
@@ -4930,4 +4931,8 @@ void calcTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, STimeWindow *pWinR
   }
   qDebug("%s, skey:%" PRId64 ", ekey:%" PRId64, __func__, pWinRange->skey, pWinRange->ekey);
   *winRangeValid = true;
+}
+
+int32_t valueChangeScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return nonCalcScalarFunction(pInput, inputNum, pOutput);
 }
