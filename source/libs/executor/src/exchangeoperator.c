@@ -1012,12 +1012,14 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       req.pStRtFuncInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
 
       if (pSource->fetchMsgType == TDMT_STREAM_FETCH_FROM_RUNNER) {
-        qDebug("doSendFetchDataRequest to execId:%d, %p", req.execId, pTaskInfo->pStreamRuntimeInfo);
+        qDebug("%s stream fetch from runner, execId:%d, %p", GET_TASKID(pTaskInfo), req.execId, pTaskInfo->pStreamRuntimeInfo);
       } else if (pSource->fetchMsgType == TDMT_STREAM_FETCH_FROM_CACHE) {
         SSTriggerCalcParam* pParam = taosArrayGet(req.pStRtFuncInfo->pStreamPesudoFuncVals, req.pStRtFuncInfo->curIdx);
         req.pStRtFuncInfo->curWindow.skey = pParam->wstart;
         req.pStRtFuncInfo->curWindow.ekey = pParam->wend;
         needStreamPesudoFuncVals = false;
+        qDebug("%s stream fetch from cache, execId:%d, curWinIdx:%d, time range:[%" PRId64 ", %" PRId64 "]", 
+            GET_TASKID(pTaskInfo), req.execId, req.pStRtFuncInfo->curIdx, pParam->wstart, pParam->wend);
       }
       if (!pDataInfo->fetchSent) {
         req.reset = pDataInfo->fetchSent = true;

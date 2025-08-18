@@ -271,7 +271,11 @@ static int32_t handleStreamFetchFromCache(SSnode* pSnode, SRpcMsg* pRpcMsg) {
 
 _exit:
 
-  stsDebug("task %" PRIx64 " TDMT_STREAM_FETCH_FROM_CACHE_RSP with code:%d rows:%" PRId64 ", size:%d", req.taskId, code, readInfo.pBlock ? readInfo.pBlock->info.rows : 0, (int32_t)size);  
+  printDataBlock(readInfo.pBlock, __func__, "fetchFromCache");
+
+  stsDebug("task %" PRIx64 " TDMT_STREAM_FETCH_FROM_CACHE_RSP with code:%d rows:%" PRId64 ", size:%d, time range:[%" PRId64 ", %" PRId64 "]", 
+      req.taskId, code, readInfo.pBlock ? readInfo.pBlock->info.rows : 0, (int32_t)size, readInfo.start, readInfo.end);  
+      
   SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_FETCH_FROM_CACHE_RSP, .contLen = size, .pCont = buf, .info = pRpcMsg->info};
   tmsgSendRsp(&rsp);
 
