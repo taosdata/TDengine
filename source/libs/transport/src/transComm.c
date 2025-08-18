@@ -1317,13 +1317,17 @@ static void transInitEnv() {
     taosAddIntoQset(multiQ[0]->qset[i], multiQ[0]->qhandle[i], NULL);
   }
   {
-    TThread* threads = taosMemoryMalloc(sizeof(TThread) * numOfAthread);
+    TThread*     threads = taosMemoryMalloc(sizeof(TThread) * numOfAthread);
+    TdThreadAttr thAttr;
+    (void)taosThreadAttrInit(&thAttr);
+    (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+    taosThreadAttrSetName(&thAttr, "transProcClientMsg");
     for (int i = 0; i < numOfAthread; i++) {
       threads[i].idx = i;
-      taosThreadCreate(&(threads[i].thread), NULL, procClientMsg, (void*)&threads[i]);
+      taosThreadCreate(&(threads[i].thread), &thAttr, procClientMsg, (void*)&threads[i]);
     }
+    (void)taosThreadAttrDestroy(&thAttr);
   }
-
   multiQ[1] = taosMemoryMalloc(sizeof(MultiThreadQhandle));
   multiQ[1]->numOfThread = numOfAthread;
   multiQ[1]->qhandle = (STaosQueue**)taosMemoryMalloc(sizeof(STaosQueue*) * numOfAthread);
@@ -1337,10 +1341,15 @@ static void transInitEnv() {
   }
   {
     TThread* threads = taosMemoryMalloc(sizeof(TThread) * numOfAthread);
+    TdThreadAttr thAttr;
+    (void)taosThreadAttrInit(&thAttr);
+    (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+    taosThreadAttrSetName(&thAttr, "transProcSvrMsg");    
     for (int i = 0; i < numOfAthread; i++) {
       threads[i].idx = i;
-      taosThreadCreate(&(threads[i].thread), NULL, processSvrMsg, (void*)&threads[i]);
+      taosThreadCreate(&(threads[i].thread), &thAttr, processSvrMsg, (void*)&threads[i]);
     }
+    (void)taosThreadAttrDestroy(&thAttr);
   }
 }
 static void transDestroyEnv() {

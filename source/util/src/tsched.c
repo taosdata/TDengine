@@ -103,6 +103,9 @@ void *taosInitScheduler(int32_t queueSize, int32_t numOfThreads, const char *lab
     code = taosThreadAttrSetDetachState(&attr, PTHREAD_CREATE_JOINABLE);
     QUERY_CHECK_CODE(code, lino, _end);
 
+    code = taosThreadAttrSetName(&attr, "tScheduler");
+    QUERY_CHECK_CODE(code, lino, _end);
+
     code = taosThreadCreate(pSched->qthread + i, &attr, taosProcessSchedQueue, (void *)pSched);
     QUERY_CHECK_CODE(code, lino, _end);
 

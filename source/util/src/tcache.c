@@ -164,7 +164,7 @@ static void doInitRefreshThread(void) {
   TdThreadAttr thattr;
   (void)taosThreadAttrInit(&thattr);
   (void)taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
-
+  (void)taosThreadAttrSetName(&thattr, "taosCacheRefresh");
   (void)taosThreadCreate(&cacheRefreshWorker, &thattr, taosCacheTimedRefresh, NULL);
   (void)taosThreadAttrDestroy(&thattr);
 }

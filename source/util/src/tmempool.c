@@ -1087,6 +1087,7 @@ int32_t mpCreateMgmtThread() {
   int32_t code = TSDB_CODE_SUCCESS;
   TdThreadAttr thAttr;
   MP_ERR_RET(taosThreadAttrInit(&thAttr));
+  MP_ERR_RET(taosThreadAttrSetName(&thAttr, "mpMgmtThread"));
   MP_ERR_JRET(taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE));
   code = taosThreadCreate(&gMPMgmt.poolMgmtThread, &thAttr, mpMgmtThreadFunc, NULL);
   if (code != 0) {

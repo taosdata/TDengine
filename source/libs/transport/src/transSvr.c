@@ -1609,6 +1609,10 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   }
 #else
 
+  TdThreadAttr thAttr;
+  (void)taosThreadAttrInit(&thAttr);
+  (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  taosThreadAttrSetName(&thAttr, "trans-svr-work");
   for (int i = 0; i < srv->numOfThreads; i++) {
     SWorkThrd* thrd = (SWorkThrd*)taosMemoryCalloc(1, sizeof(SWorkThrd));
     if (thrd == NULL) {
@@ -1668,7 +1672,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
       goto End;
     }
 
-    int err = taosThreadCreate(&(thrd->thread), NULL, transWorkerThread, (void*)(thrd));
+    int err = taosThreadCreate(&(thrd->thread), &thAttr, transWorkerThread, (void*)(thrd));
     if (err == 0) {
       tDebug("success to create worker-thread:%d", i);
     } else {
@@ -1677,13 +1681,18 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
       goto End;
     }
   }
+  (void)taosThreadAttrDestroy(&thAttr);
 #endif
 
   if ((code = addHandleToAcceptloop(srv)) != 0) {
     goto End;
   }
-
-  code = taosThreadCreate(&srv->thread, NULL, transAcceptThread, (void*)srv);
+  TdThreadAttr thAttr1;
+  (void)taosThreadAttrInit(&thAttr1);
+  (void)taosThreadAttrSetDetachState(&thAttr1, PTHREAD_CREATE_JOINABLE);
+  taosThreadAttrSetName(&thAttr1, "trans-accept");
+  code = taosThreadCreate(&srv->thread, &thAttr1, transAcceptThread, (void*)srv);
+  (void)taosThreadAttrDestroy(&thAttr1);
   if (code == 0) {
     tDebug("success to create accept-thread");
   } else {

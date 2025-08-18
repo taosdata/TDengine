@@ -23,6 +23,7 @@ int32_t taosThreadCreate(TdThread *tid, const TdThreadAttr *attr, void *(*start)
 #ifdef TD_ASTRA
   int32_t code = 0;
   if (!attr) {
+    __asm("bkpt #0");
     pthread_attr_t threadAttr;
     pthread_attr_init(&threadAttr);
     pthread_attr_setstacksize(&threadAttr, STACK_SIZE_DEFAULT);
@@ -34,6 +35,17 @@ int32_t taosThreadCreate(TdThread *tid, const TdThreadAttr *attr, void *(*start)
     if (stackSize == 0) {
       pthread_attr_setstacksize(attr, STACK_SIZE_DEFAULT);
     }
+  #if 0
+    char *name = NULL;
+    if(0 == pthread_attr_getname(attr, &name)) {
+      if (name == NULL || name[0] == 0) {
+        __asm("bkpt #0");
+      }
+    } else {
+      __asm("bkpt #0");
+    }
+    if(name) free(name);
+  #endif
     code = pthread_create(tid, attr, start, arg);
   }
 #else
