@@ -1,8 +1,12 @@
 # encoding:utf-8
 """utility methods to helper query processing"""
+import os
+
 import numpy as np
+from huggingface_hub import snapshot_download
 from statsmodels.stats.diagnostic import acorr_ljungbox
 from statsmodels.tsa.stattools import adfuller
+from tqdm import tqdm
 
 from taosanalytics.conf import app_logger
 
@@ -139,3 +143,27 @@ def create_sequences(values, time_steps):
     for i in range(len(values) - time_steps + 1):
         output.append(values[i: (i + time_steps)])
     return np.stack(output)
+
+
+def download_model(model_name, root_dir, model_dir, enable_ep = False):
+    # model_list = ['Salesforce/moirai-1.0-R-small']
+    ep = 'https://hf-mirror.com' if enable_ep else None
+    model_list = [model_name]
+
+    # root_dir = '/var/lib/taos/taosanode/model/'
+    # model_dir = '/moirai/'
+    if not os.path.exists(root_dir):
+        os.mkdir(root_dir)
+
+    dst_folder = root_dir + '/' + model_dir
+    if not os.path.exists(dst_folder):
+        os.mkdir(dst_folder)
+
+    for item in tqdm(model_list):
+        snapshot_download(
+            repo_id=item,
+            local_dir=dst_folder,  # storage directory
+            local_dir_use_symlinks=False,   # disable the link
+            resume_download=True,
+            endpoint=ep
+        )

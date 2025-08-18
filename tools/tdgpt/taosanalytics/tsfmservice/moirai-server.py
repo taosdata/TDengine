@@ -1,7 +1,12 @@
+import os.path
+import sys
+
 import torch
 from flask import Flask, request, jsonify
 from gluonts.dataset.pandas import PandasDataset
 from gluonts.dataset.split import split
+from huggingface_hub import snapshot_download
+from tqdm import tqdm
 
 from uni2ts.model.moirai_moe import MoiraiMoEForecast, MoiraiMoEModule
 from einops import rearrange
@@ -12,22 +17,9 @@ import pandas as pd
 app = Flask(__name__)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-_model_list = [
-    'Salesforce/moirai-moe-1.0-R-small',  # small model with 117M parameters
-    'Salesforce/moirai-moe-1.0-R-base',  # base model with 205M parameters
-]
-
 # maximum allowed input data for forecasting
 _max_input_length = 2880
-
-pretrained_model = MoiraiMoEModule.from_pretrained(
-    _model_list[0]
-).to(device)
-
-# if load the safetensor from local directory
-# pretrained_model = MoiraiModule.from_pretrained(
-#     '/var/lib/taos/taosanode/model/moirai/'
-# )
+pretrained_model = None
 
 @app.route('/ds_predict', methods=['POST'])
 def uni2ts():
@@ -69,16 +61,6 @@ def uni2ts():
         return jsonify({
             'error': f'Prediction failed: {str(e)}'
         }), 500
-
-
-def main():
-    app.run(
-        host='0.0.0.0',
-        port=6074,
-        threaded=True,
-        debug=False
-    )
-
 
 def handle_singlevariate_forecast(input_data, prediction_length, interval):
     """uni-variate forecasting processing"""
@@ -237,7 +219,66 @@ def handle_future_covariate_forecast(input_data, prediction_length, interval, pa
         'upper': forecasts_list[0].quantile(0.5 + interval / 2).tolist(),
         'conf_interval': interval
     }
-    
-    
+
+
+def download_model(model_name, root_dir, enable_ep = False):
+    # model_list = ['Salesforce/moirai-1.0-R-small']
+    ep = 'https://hf-mirror.com' if enable_ep else None
+    model_list = [model_name]
+
+    # root_dir = '/var/lib/taos/taosanode/model/'
+    # model_dir = '/moirai/'
+    if not os.path.exists(root_dir):
+        os.mkdir(root_dir)
+
+    dst_folder = root_dir + '/'
+    if not os.path.exists(dst_folder):
+        os.mkdir(dst_folder)
+
+    for item in tqdm(model_list):
+        snapshot_download(
+            repo_id=item,
+            local_dir=dst_folder,  # storage directory
+            local_dir_use_symlinks=False,   # disable the link
+            resume_download=True,
+            endpoint=ep
+        )
+
+def main():
+    # load the safetensor from local directory
+    global pretrained_model
+
+    model_list = [
+        'Salesforce/moirai-moe-1.0-R-small',  # small model with 117M parameters
+        'Salesforce/moirai-moe-1.0-R-base',  # base model with 205M parameters
+    ]
+
+    if len(sys.argv) < 2:
+        # use the implicit download capability
+        pretrained_model = MoiraiMoEModule.from_pretrained(
+            model_list[1]
+        ).to(device)
+    else:
+        # let's load the model file from the user specified directory
+        model_folder = sys.argv[1]
+
+        if not os.path.exists(model_folder):
+            print(f"the specified folder: {model_folder} not exists, start to create it")
+
+        download_model(model_list[0], model_folder, enable_ep=True)
+
+        """load the model from local folder"""
+        pretrained_model = MoiraiMoEModule.from_pretrained(
+            model_folder
+        ).to(device)
+
+    app.run(
+        host='0.0.0.0',
+        port=6074,
+        threaded=True,
+        debug=False
+    )
+
+
 if __name__ == "__main__":
     main()
