@@ -1,0 +1,18 @@
+[08/18 13:48:37.387304] SUCC: host:127.0.0.1 port:0 dbname:(null) connect successfully.
+[08/18 13:48:37.396148] ERROR: Call engine failed. error code: 0x80000334, reason: Out of dnodes command CREATE DATABASE IF NOT EXISTS test PRECISION 'ms';
+[08/18 13:48:37.396452] ERROR: 
+create database test failed!
+
+[08/18 13:48:37.396502] ERROR: failed to create database (test)
+[08/18 13:48:37.396552] ERROR: insert test process failed
+[08/18 13:49:05.585845] SUCC: host:127.0.0.1 port:0 dbname:(null) connect successfully.
+[08/18 13:49:05.808980] SUCC: created database (test)
+[08/18 13:49:05.810616] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/18 13:49:05.819295] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/18 13:49:05.829709] INFO: start creating 1 table(s) with 8 thread(s)
+[08/18 13:49:05.831111] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/18 13:49:05.837604] SUCC: Spent 0.0080 seconds to create 1 table(s) with 8 thread(s) speed: 125 tables/s, already exist 0 table(s), actual 1 table(s) pre created, 0 table(s) will be auto created
+[08/18 13:49:05.839205] SUCC: host:127.0.0.1 port:0 dbname:test connect successfully.
+[08/18 13:49:15.863229] SUCC: thread[0] progressive mode, completed total inserted rows: 10, 492.54 records/second
+[08/18 13:49:15.863727] SUCC: Spent 10.022474 (real 0.020303) seconds to insert rows: 10 with 1 thread(s) into test 1.00 (real 492.54) records/second
+[08/18 13:49:15.863804] SUCC: insert delay, min: 1.7980ms, avg: 2.0303ms, p90: 2.2930ms, p95: 2.2930ms, p99: 2.2930ms, max: 2.2930ms

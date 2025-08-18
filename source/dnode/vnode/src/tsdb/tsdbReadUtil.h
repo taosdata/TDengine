@@ -396,6 +396,12 @@ typedef struct SCacheRowsReader {
   SArray*                 pFuncTypeList;
   SRowKey                 rowKey;
   SColumnInfo             pkColumn;
+
+  // Batch processing context for RocksDB access optimization
+  struct {
+    SArray* pKeyList;      // Collected key list for batch processing
+    SArray* pMappingList;  // Key to request mapping info
+  } batchCtx;
 } SCacheRowsReader;
 
 int32_t tsdbCacheGetBatch(STsdb* pTsdb, tb_uid_t uid, SArray* pLastArray, SCacheRowsReader* pr, int8_t ltype);

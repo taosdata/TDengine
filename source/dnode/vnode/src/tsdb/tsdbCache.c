@@ -21,6 +21,17 @@
 #include "vnd.h"
 
 #define ROCKS_BATCH_SIZE (4096)
+#define TSDB_CACHE_BATCH_SIZE (1024)  // Batch size for key collection before RocksDB read
+
+// Mapping structure for batch processing
+typedef struct {
+  SArray  *pLastArray;        // Target array for results
+  int32_t  keyStartIdx;       // Starting index in batch key list
+  int32_t  keyCount;          // Number of keys for this request
+  int32_t *remainColIndices;  // Indices of remaining columns (copied from remainCols)
+  bool    *ignoreFlags;       // Flags for ignoring RocksDB read (copied from ignoreFromRocks)
+  int32_t  remainColCount;    // Number of remaining columns
+} SBatchMapping;
 
 void tsdbLRUCacheRelease(SLRUCache *cache, LRUHandle *handle, bool eraseIfLastRef) {
   if (!taosLRUCacheRelease(cache, handle, eraseIfLastRef)) {
@@ -1968,101 +1979,179 @@ _exit:
   TAOS_RETURN(code);
 }
 
+// Initialize batch context for cache reader
+static int32_t tsdbCacheInitBatchCtx(SCacheRowsReader *pr) {
+  if (pr->batchCtx.pKeyList == NULL) {
+    pr->batchCtx.pKeyList = taosArrayInit(TSDB_CACHE_BATCH_SIZE * 16, ROCKS_KEY_LEN);
+    if (pr->batchCtx.pKeyList == NULL) return terrno;
+  }
+
+  if (pr->batchCtx.pMappingList == NULL) {
+    pr->batchCtx.pMappingList = taosArrayInit(TSDB_CACHE_BATCH_SIZE, sizeof(SBatchMapping));
+    if (pr->batchCtx.pMappingList == NULL) return terrno;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+// Execute batch read from RocksDB when batch is full
+int32_t tsdbCacheExecuteBatch(STsdb *pTsdb, SCacheRowsReader *pr) {
+  int32_t code = 0;
+  int32_t num_keys = taosArrayGetSize(pr->batchCtx.pKeyList);
+
+  if (num_keys == 0) return TSDB_CODE_SUCCESS;
+
+  // Prepare batch read parameters
+  char  **keys_list = taosMemoryMalloc(num_keys * sizeof(char *));
+  size_t *keys_list_sizes = taosMemoryMalloc(num_keys * sizeof(size_t));
+
+  if (!keys_list || !keys_list_sizes) {
+    taosMemoryFree(keys_list);
+    taosMemoryFree(keys_list_sizes);
+    return terrno;
+  }
+
+  // Set key list
+  for (int32_t i = 0; i < num_keys; i++) {
+    keys_list[i] = (char *)taosArrayGet(pr->batchCtx.pKeyList, i);
+    keys_list_sizes[i] = ROCKS_KEY_LEN;
+  }
+
+  // Batch read from RocksDB
+  char  **values_list = NULL;
+  size_t *values_list_sizes = NULL;
+
+  rocksMayWrite(pTsdb, true);
+  code = tsdbCacheGetValuesFromRocks(pTsdb, num_keys, (const char *const *)keys_list, keys_list_sizes, &values_list,
+                                     &values_list_sizes);
+
+  if (code == 0) {
+    // Process batch results and distribute to corresponding requests
+    SLRUCache *pCache = pTsdb->lruCache;
+    int32_t    keyIdx = 0;
+
+    for (int32_t i = 0; i < taosArrayGetSize(pr->batchCtx.pMappingList); i++) {
+      SBatchMapping *pMapping = (SBatchMapping *)taosArrayGet(pr->batchCtx.pMappingList, i);
+
+      for (int32_t j = 0; j < pMapping->keyCount && keyIdx < num_keys; j++, keyIdx++) {
+        if (values_list[keyIdx] != NULL) {
+          SLastCol *pLastCol = NULL;
+          int32_t   deserCode = tsdbCacheDeserialize(values_list[keyIdx], values_list_sizes[keyIdx], &pLastCol);
+
+          if (deserCode == TSDB_CODE_SUCCESS && pLastCol && pLastCol->cacheStatus != TSDB_LAST_CACHE_NO_CACHE) {
+            // Update LRU cache and result array
+            char *keyPtr = (char *)taosArrayGet(pr->batchCtx.pKeyList, keyIdx);
+            tsdbCachePutToLRU(pTsdb, (SLastKey *)keyPtr, pLastCol, 0);
+
+            SLastCol lastCol = *pLastCol;
+            tsdbCacheReallocSLastCol(&lastCol, NULL);
+
+            // Find corresponding position in remainColIndices and update result
+            if (j < pMapping->remainColCount) {
+              int32_t colIdx = pMapping->remainColIndices[j];
+              taosArraySet(pMapping->pLastArray, colIdx, &lastCol);
+            }
+
+            taosMemoryFreeClear(pLastCol);
+          }
+        }
+      }
+    }
+
+    // Clean up values
+    if (values_list) {
+#ifdef USE_ROCKSDB
+      for (int32_t i = 0; i < num_keys; ++i) {
+        rocksdb_free(values_list[i]);
+      }
+#endif
+      taosMemoryFree(values_list);
+    }
+    taosMemoryFree(values_list_sizes);
+  }
+
+  // Clear batch context and free allocated memory
+  taosArrayClear(pr->batchCtx.pKeyList);
+
+  // Free memory allocated for mappings
+  for (int32_t i = 0; i < taosArrayGetSize(pr->batchCtx.pMappingList); i++) {
+    SBatchMapping *pMapping = (SBatchMapping *)taosArrayGet(pr->batchCtx.pMappingList, i);
+    taosMemoryFree(pMapping->remainColIndices);
+    taosMemoryFree(pMapping->ignoreFlags);
+  }
+  taosArrayClear(pr->batchCtx.pMappingList);
+
+  taosMemoryFree(keys_list);
+  taosMemoryFree(keys_list_sizes);
+
+  return code;
+}
+
 static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SArray *remainCols,
                                       SArray *ignoreFromRocks, SCacheRowsReader *pr, int8_t ltype) {
   int32_t code = 0, lino = 0;
   int     num_keys = TARRAY_SIZE(remainCols);
-  char  **keys_list = taosMemoryMalloc(num_keys * sizeof(char *));
-  size_t *keys_list_sizes = taosMemoryMalloc(num_keys * sizeof(size_t));
-  char   *key_list = taosMemoryMalloc(num_keys * ROCKS_KEY_LEN);
-  if (!keys_list || !keys_list_sizes || !key_list) {
-    taosMemoryFree(keys_list);
-    taosMemoryFree(keys_list_sizes);
-    TAOS_RETURN(terrno);
+
+  // Initialize batch context if needed
+  code = tsdbCacheInitBatchCtx(pr);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  // Check if adding current keys would exceed batch size
+  int32_t currentBatchSize = taosArrayGetSize(pr->batchCtx.pKeyList);
+  bool    shouldExecuteBatch = (currentBatchSize + num_keys >= TSDB_CACHE_BATCH_SIZE);
+
+  // If batch would be full, execute current batch first
+  if (shouldExecuteBatch && currentBatchSize > 0) {
+    code = tsdbCacheExecuteBatch(pTsdb, pr);
+    if (code != TSDB_CODE_SUCCESS) return code;
   }
-  char  **values_list = NULL;
-  size_t *values_list_sizes = NULL;
+
+  // Add current keys to batch
+  int32_t keyStartIdx = taosArrayGetSize(pr->batchCtx.pKeyList);
   for (int i = 0; i < num_keys; ++i) {
-    memcpy(key_list + i * ROCKS_KEY_LEN, &((SIdxKey *)taosArrayGet(remainCols, i))->key, ROCKS_KEY_LEN);
-    keys_list[i] = key_list + i * ROCKS_KEY_LEN;
-    keys_list_sizes[i] = ROCKS_KEY_LEN;
+    bool ignore = ((bool *)taosArrayGet(ignoreFromRocks, i))[0];
+    if (ignore) continue;
+
+    SIdxKey *idxKey = (SIdxKey *)taosArrayGet(remainCols, i);
+    taosArrayPush(pr->batchCtx.pKeyList, &idxKey->key);
   }
 
-  rocksMayWrite(pTsdb, true);  // flush writebatch cache
+  // Add mapping info for this request - copy data to avoid use-after-free
+  int32_t actualKeyCount = taosArrayGetSize(pr->batchCtx.pKeyList) - keyStartIdx;
+  int32_t remainColCount = taosArrayGetSize(remainCols);
 
-  code = tsdbCacheGetValuesFromRocks(pTsdb, num_keys, (const char *const *)keys_list, keys_list_sizes, &values_list,
-                                     &values_list_sizes);
-  if (code) {
-    taosMemoryFree(key_list);
-    taosMemoryFree(keys_list);
-    taosMemoryFree(keys_list_sizes);
-    TAOS_RETURN(code);
+  // Allocate memory for copied data
+  int32_t *remainColIndices = taosMemoryMalloc(remainColCount * sizeof(int32_t));
+  bool    *ignoreFlags = taosMemoryMalloc(remainColCount * sizeof(bool));
+
+  if (!remainColIndices || !ignoreFlags) {
+    taosMemoryFree(remainColIndices);
+    taosMemoryFree(ignoreFlags);
+    return terrno;
   }
 
-  SLRUCache *pCache = pTsdb->lruCache;
-  for (int i = 0, j = 0; i < num_keys && j < TARRAY_SIZE(remainCols); ++i) {
-    SLastCol *pLastCol = NULL;
-    bool      ignore = ((bool *)TARRAY_DATA(ignoreFromRocks))[i];
-    if (ignore) {
-      ++j;
-      continue;
-    }
-
-    if (values_list[i] != NULL) {
-      code = tsdbCacheDeserialize(values_list[i], values_list_sizes[i], &pLastCol);
-      if (code != TSDB_CODE_SUCCESS) {
-        tsdbError("vgId:%d, %s deserialize failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
-                  tstrerror(code));
-        goto _exit;
-      }
-    }
-    SLastCol *pToFree = pLastCol;
-    SIdxKey  *idxKey = &((SIdxKey *)TARRAY_DATA(remainCols))[j];
-    if (pLastCol && pLastCol->cacheStatus != TSDB_LAST_CACHE_NO_CACHE) {
-      code = tsdbCachePutToLRU(pTsdb, &idxKey->key, pLastCol, 0);
-      if (code) {
-        tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, tstrerror(code));
-        taosMemoryFreeClear(pToFree);
-        TAOS_CHECK_EXIT(code);
-      }
-
-      SLastCol lastCol = *pLastCol;
-      code = tsdbCacheReallocSLastCol(&lastCol, NULL);
-      if (TSDB_CODE_SUCCESS != code) {
-        taosMemoryFreeClear(pToFree);
-        TAOS_CHECK_EXIT(code);
-      }
-
-      taosArraySet(pLastArray, idxKey->idx, &lastCol);
-      taosArrayRemove(remainCols, j);
-      taosArrayRemove(ignoreFromRocks, j);
-    } else {
-      ++j;
-    }
-
-    taosMemoryFreeClear(pToFree);
+  // Copy remainCols indices and ignore flags
+  for (int32_t i = 0; i < remainColCount; i++) {
+    SIdxKey *idxKey = (SIdxKey *)taosArrayGet(remainCols, i);
+    remainColIndices[i] = idxKey->idx;
+    ignoreFlags[i] = ((bool *)taosArrayGet(ignoreFromRocks, i))[0];
   }
 
-  if (TARRAY_SIZE(remainCols) > 0) {
-    // tsdbTrace("tsdb/cache: vgId: %d, load %" PRId64 " from raw", TD_VID(pTsdb->pVnode), uid);
-    code = tsdbCacheLoadFromRaw(pTsdb, uid, pLastArray, remainCols, pr, ltype);
+  SBatchMapping mapping = {.pLastArray = pLastArray,
+                           .keyStartIdx = keyStartIdx,
+                           .keyCount = actualKeyCount,
+                           .remainColIndices = remainColIndices,
+                           .ignoreFlags = ignoreFlags,
+                           .remainColCount = remainColCount};
+  taosArrayPush(pr->batchCtx.pMappingList, &mapping);
+
+  // Check if batch is now full and should be executed
+  if (taosArrayGetSize(pr->batchCtx.pKeyList) >= TSDB_CACHE_BATCH_SIZE) {
+    code = tsdbCacheExecuteBatch(pTsdb, pr);
+    if (code != TSDB_CODE_SUCCESS) return code;
   }
 
-_exit:
-  taosMemoryFree(key_list);
-  taosMemoryFree(keys_list);
-  taosMemoryFree(keys_list_sizes);
-  if (values_list) {
-#ifdef USE_ROCKSDB
-    for (int i = 0; i < num_keys; ++i) {
-      rocksdb_free(values_list[i]);
-    }
-#endif
-    taosMemoryFree(values_list);
-  }
-  taosMemoryFree(values_list_sizes);
-
-  TAOS_RETURN(code);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t tsdbCacheGetBatchFromLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsReader *pr,

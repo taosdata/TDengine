@@ -224,8 +224,8 @@ int main(int argc, char* argv[]) {
     qps_rate = 625;
   } else if (query_mode == 3) {
     sql = "select tbname,last(*) from test.meters partition by tbname;";
-    thread_count = 16;
-    queries_per_thread = 2;
+    thread_count = 4;
+    queries_per_thread = 1;
     max_query_nums = 1;
     qps_rate = 1000000;
   } else {

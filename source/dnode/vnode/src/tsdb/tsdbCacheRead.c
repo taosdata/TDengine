@@ -23,6 +23,56 @@
 #include "tsdbReadUtil.h"
 
 #define HASTYPE(_type, _t) (((_type) & (_t)) == (_t))
+#define TSDB_CACHE_BATCH_SIZE (1024)  // Batch size for table processing
+
+// Batch cache processing context
+typedef struct {
+  STsdb*            pTsdb;
+  SArray**          ppRowArrays;  // SArray* array, each element corresponds to a table's SLastCol array
+  SCacheRowsReader* pr;
+  int8_t            ltype;
+  STableKeyInfo*    pTableList;
+  int32_t           numTables;
+  int32_t           batchStart;
+  int32_t           batchEnd;
+} SBatchCacheContext;
+
+// Batch cache retrieval to optimize RocksDB access during multi-table queries
+static int32_t processBatchCacheGet(SBatchCacheContext* pCtx) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  // Call original cache retrieval function for each table in the batch
+  for (int32_t i = pCtx->batchStart; i < pCtx->batchEnd; i++) {
+    tb_uid_t uid = pCtx->pTableList[i].uid;
+    SArray*  pRow = pCtx->ppRowArrays[i];
+
+    code = tsdbCacheGetBatch(pCtx->pTsdb, uid, pRow, pCtx->pr, pCtx->ltype);
+    if (code == -1) {  // fix the invalid return code
+      code = 0;
+    }
+    TSDB_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+// Forward declaration for batch execution function
+extern int32_t tsdbCacheExecuteBatch(STsdb* pTsdb, SCacheRowsReader* pr);
+
+// Forward declaration for batch mapping structure
+typedef struct {
+  SArray*  pLastArray;        // Target array for results
+  int32_t  keyStartIdx;       // Starting index in batch key list
+  int32_t  keyCount;          // Number of keys for this request
+  int32_t* remainColIndices;  // Indices of remaining columns (copied from remainCols)
+  bool*    ignoreFlags;       // Flags for ignoring RocksDB read (copied from ignoreFromRocks)
+  int32_t  remainColCount;    // Number of remaining columns
+} SBatchMapping;
 
 static int32_t setFirstLastResColToNull(SColumnInfoData* pCol, int32_t row) {
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -174,18 +224,12 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
           if (IS_STR_DATA_BLOB(pColVal->colVal.value.type)) {
             blobDataSetLen(p->buf, pColVal->colVal.value.nData);
 
-            // Fix null pointer error: check if pData is NULL before memcpy
-            if (pColVal->colVal.value.pData != NULL && pColVal->colVal.value.nData > 0) {
-              memcpy(blobDataVal(p->buf), pColVal->colVal.value.pData, pColVal->colVal.value.nData);
-            }
+            memcpy(blobDataVal(p->buf), pColVal->colVal.value.pData, pColVal->colVal.value.nData);
             p->bytes = pColVal->colVal.value.nData + BLOBSTR_HEADER_SIZE;  // binary needs to plus the header size
           } else {
             varDataSetLen(p->buf, pColVal->colVal.value.nData);
 
-            // Fix null pointer error: check if pData is NULL before memcpy
-            if (pColVal->colVal.value.pData != NULL && pColVal->colVal.value.nData > 0) {
-              memcpy(varDataVal(p->buf), pColVal->colVal.value.pData, pColVal->colVal.value.nData);
-            }
+            memcpy(varDataVal(p->buf), pColVal->colVal.value.pData, pColVal->colVal.value.nData);
             p->bytes = pColVal->colVal.value.nData + VARSTR_HEADER_SIZE;  // binary needs to plus the header size
           }
         } else {
@@ -409,6 +453,10 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
 
   p->lastTs = INT64_MIN;
 
+  // Initialize batch context
+  p->batchCtx.pKeyList = NULL;
+  p->batchCtx.pMappingList = NULL;
+
   *pReader = p;
   p = NULL;
 
@@ -460,6 +508,20 @@ void tsdbCacherowsReaderClose(void* pReader) {
 
   taosMemoryFree((void*)p->idstr);
   (void)taosThreadMutexDestroy(&p->readerMutex);
+
+  // Clean up batch context
+  if (p->batchCtx.pKeyList) {
+    taosArrayDestroy(p->batchCtx.pKeyList);
+  }
+  if (p->batchCtx.pMappingList) {
+    // Free memory allocated for mappings
+    for (int32_t i = 0; i < taosArrayGetSize(p->batchCtx.pMappingList); i++) {
+      SBatchMapping* pMapping = (SBatchMapping*)taosArrayGet(p->batchCtx.pMappingList, i);
+      taosMemoryFree(pMapping->remainColIndices);
+      taosMemoryFree(pMapping->ignoreFlags);
+    }
+    taosArrayDestroy(p->batchCtx.pMappingList);
+  }
 
   if (p->pTableMap) {
     void*   pe = NULL;
@@ -578,6 +640,9 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
     int64_t st = taosGetTimestampUs();
     int64_t totalLastTs = INT64_MAX;
+
+    // Batch processing is now handled automatically in tsdbCacheLoadFromRocks
+
     for (int32_t i = 0; i < pr->numOfTables; ++i) {
       tb_uid_t uid = pTableList[i].uid;
 
@@ -681,6 +746,12 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
       taosArrayClearEx(pRow, tsdbCacheFreeSLastColItem);
     }
 
+    // Flush any remaining batch
+    if (pr->batchCtx.pKeyList && taosArrayGetSize(pr->batchCtx.pKeyList) > 0) {
+      code = tsdbCacheExecuteBatch(pr->pTsdb, pr);
+      TSDB_CHECK_CODE(code, lino, _end);
+    }
+
     if (hasRes) {
       code = saveOneRow(pLastCols, pResBlock, pr, slotIds, dstSlotIds, pRes, pr->idstr);
       TSDB_CHECK_CODE(code, lino, _end);
@@ -688,6 +759,8 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
     taosArrayDestroyEx(pLastCols, tsdbCacheFreeSLastColItem);
   } else if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_ALL)) {
+    // Batch processing is now handled automatically in tsdbCacheLoadFromRocks
+
     int32_t i = pr->tableIndex;
     for (; i < pr->numOfTables; ++i) {
       tb_uid_t uid = pTableList[i].uid;
@@ -716,6 +789,12 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
       if (pResBlock->info.rows >= pResBlock->info.capacity) {
         break;
       }
+    }
+
+    // Flush any remaining batch
+    if (pr->batchCtx.pKeyList && taosArrayGetSize(pr->batchCtx.pKeyList) > 0) {
+      code = tsdbCacheExecuteBatch(pr->pTsdb, pr);
+      TSDB_CHECK_CODE(code, lino, _end);
     }
 
     if (pGotAll && i == pr->numOfTables) {
