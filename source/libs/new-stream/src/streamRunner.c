@@ -67,6 +67,7 @@ static void stRunnerDestroyTaskExecution(void* pExec) {
   streamDestroyExecTask(pExecution->pExecutor);  
   dsDestroyDataSinker(pExecution->pSinkHandle);
   stRunnerDestroyRuntimeInfo(&pExecution->runtimeInfo);
+  blockDataDestroy(pExecution->pOutBlock);
 }
 
 static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, int32_t execId,
