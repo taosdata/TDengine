@@ -27,6 +27,7 @@
 #include "tdatablock.h"
 #include "tdef.h"
 #include "thash.h"
+#include "tutil.h"
 
 char      gDataSinkFilePath[PATH_MAX] = {0};
 const int gFileGroupBlockMaxSize = 64 * 1024;  // 64K
@@ -318,6 +319,88 @@ _exit:
   return code;
 }
 
+int32_t readReorderDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock, int32_t tsColSlotId) {
+  int32_t           code = TSDB_CODE_SUCCESS;
+  int32_t           lino = 0;
+  SDataSinkFileMgr* pFileMgr = pResult->pFileMgr;
+
+  SReorderGrpMgr*   pReorderGrpMgr = (SReorderGrpMgr*)pResult->groupData;
+  SDatasInWindow* pWindowData = NULL;
+
+  SListNode *pNode = (SListNode*)pResult->winIndex;
+  SListIter  iter = {(void*)pResult->winIndex, TD_LIST_FORWARD};
+
+  pWindowData = (SDatasInWindow*)pNode->data;
+  if (pWindowData == NULL) {
+    stError("getNextStreamDataCache failed, groupId: %" PRId64 " start:%" PRId64 " end:%" PRId64
+            " dataPos: %d, winIndex: %" PRId64 ", offset: %" PRId64,
+            pResult->groupId, pResult->reqStartTime, pResult->reqEndTime, pResult->dataPos, pResult->winIndex,
+            pResult->offset);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+
+    if (pResult->offset < pWindowData->pBlockFileBuffer->size) {
+    SBlockBuffer* data = taosArrayGet(pWindowData->pBlockFileBuffer, pResult->offset);
+    code = blockDecode(*ppBlock, data->data, NULL);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+    tdListInitIter(&pExistGrpMgr->winAllData, &foundDataIter, TD_LIST_FORWARD);
+  while ((pNode = tdListNext(&foundDataIter)) != NULL) {
+    SDatasInWindow* pWinData = (SDatasInWindow*)pNode->data;
+    if (pWinData->timeRange.startTime >= start && pWinData->timeRange.startTime <= end) {
+      if (pWinData->pBlockFileBuffer->size > 0) {
+        dataPos = DATA_SINK_FILE;
+        break;
+      }
+      if (pWinData->datas->size > 0) {
+         dataPos = DATA_SINK_MEM;
+        break;
+      }
+    }
+    if (pWinData->timeRange.startTime > end) {
+      pNode = NULL;
+      break;
+    }
+  }
+
+  while (pResult->offset < taosArrayGetSize(pReorderGrpMgr->blocksInFile)) {
+    SBlocksInfoFile* pBlockInfo = (SBlocksInfoFile*)taosArrayGet(pReorderGrpMgr->blocksInFile, pResult->offset);
+    if (pBlockInfo == NULL || pBlockInfo->dataLen <= 0) {
+      stError("invalid block info at offset:%" PRId64 ", pBlockInfo:%p", pResult->offset, pBlockInfo);
+      return TSDB_CODE_STREAM_INTERNAL_ERROR;
+    }
+
+    bool finished = false;
+    code = readFileDataToSlidingWindows(pResult, pSlidingGrpMgr, tsColSlotId, pBlockInfo, &finished);
+    if (code != TSDB_CODE_SUCCESS) {
+      stError("failed to read file data to sliding windows, err: %s, lineno:%d", terrMsg, lino);
+      return code;
+    }
+    if ((pResult->tmpBlocksInMem == NULL || pResult->tmpBlocksInMem->size == 0) && !finished) {
+      SFileBlockInfo fileBlockInfo = {.offset = pBlockInfo->groupOffset, .size = pBlockInfo->capacity};
+      addToFreeBlock(pFileMgr, &fileBlockInfo);
+    }
+    if (finished) {
+      pResult->dataPos = DATA_SINK_ALL_TMP;
+    }
+    if (pResult->tmpBlocksInMem != NULL && pResult->tmpBlocksInMem->size > 0) {
+      pResult->dataPos = (pResult->dataPos == DATA_SINK_ALL_TMP ? DATA_SINK_ALL_TMP : DATA_SINK_PART_TMP);
+      pResult->winIndex = 0;
+      *ppBlock = *(SSDataBlock**)taosArrayGet(pResult->tmpBlocksInMem, pResult->winIndex);
+      break;
+    }
+    pResult->offset++;
+  }
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("failed to read data from file, err: %s, lineno:%d", terrMsg, lino);
+  }
+  return code;
+}
+
+
 int32_t readAlignDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock, int32_t tsColSlotId) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -327,6 +410,8 @@ int32_t readAlignDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock, int32
 int32_t readDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock, int32_t tsColSlotId) {
   if (pResult->dataMode & DATA_ALLOC_MODE_SLIDING) {
     return readSlidingDataFromFile(pResult, ppBlock, tsColSlotId);
+  } else if (pResult->dataMode & DATA_ALLOC_MODE_REORDER) {
+    return readReorderDataFromFile(pResult, ppBlock, tsColSlotId);
   } else {
     return readAlignDataFromFile(pResult, ppBlock, tsColSlotId);
   }
@@ -431,6 +516,127 @@ _exit:
   if (code != TSDB_CODE_SUCCESS) {
     stError("failed to move sliding group memory cache, code: %d, lineno:%d", code, lino);
     addToFreeBlock(pFileMgr, &groupBlockOffset);
+  }
+  taosMemoryFree(iov);
+  return code;
+}
+
+int32_t writeReorderDataToFile(SDataSinkFileMgr* pFileMgr, SReorderGrpMgr* pReorderGrp, TaosIOVec* iov, int32_t iovNum,
+                    int32_t needSize) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  SBlocksInfoFile fileBlockInfo = {0};
+  SFileBlockInfo  groupBlockOffset = {0};
+  getFreeBlock(pFileMgr, needSize, &groupBlockOffset);
+  int64_t groupOffset;  // offset in file
+  int64_t dataStartOffset;
+  int64_t dataLen;
+  int64_t capacity;  // size in file
+  fileBlockInfo.groupOffset = groupBlockOffset.offset;
+  fileBlockInfo.capacity = groupBlockOffset.size;
+  fileBlockInfo.dataLen = needSize;
+  stDebug("move sliding group memory cache, groupId:%" PRId64
+          ", moveWinCount:%d, needSize:%d, "
+          "groupOffset:%" PRId64 ", capacity:%" PRId64 ", dataLen:%" PRId64,
+          pReorderGrp->groupId, iovNum, needSize, fileBlockInfo.groupOffset, fileBlockInfo.capacity,
+          fileBlockInfo.dataLen);
+
+  int64_t ret = taosLSeekFile(pFileMgr->writeFilePtr, fileBlockInfo.groupOffset, SEEK_SET);
+  if (ret < 0) {
+    code = terrno;
+    QUERY_CHECK_CODE(code, lino, _exit);
+  }
+
+  int64_t writeLen = taosWritevFile(pFileMgr->writeFilePtr, iov, iovNum);
+  if (writeLen != needSize) {
+    code = terrno;
+    QUERY_CHECK_CODE(code, lino, _exit);
+  }
+  QUERY_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("failed to move sliding group memory cache, code: %d, lineno:%d", code, lino);
+    addToFreeBlock(pFileMgr, &groupBlockOffset);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t moveReorderGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SReorderGrpMgr* pReorderGrp) {
+  if (tdListGetTail(&pReorderGrp->winAllData) == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t    code = 0;
+  int32_t    lino = 0;
+  TaosIOVec* iov = NULL;
+
+  if (!pSlidingTaskMgr->pFileMgr) {
+    code = initStreamDataSinkFile(pSlidingTaskMgr);
+    if (code != 0) {
+      stError("failed to init stream data sink file, err: %s", terrMsg);
+    }
+    code = openFileForWrite(pSlidingTaskMgr->pFileMgr);
+    if (code != 0) {
+      destroyStreamDataSinkFile(&pSlidingTaskMgr->pFileMgr);
+    }
+  }
+  SDataSinkFileMgr* pFileMgr = pSlidingTaskMgr->pFileMgr;
+
+  SListIter  foundDataIter = {0};
+  SListNode* pNode = NULL;
+  int32_t moveWinCount = 0;
+  int32_t needSize = 0;
+  int32_t existFileBlockCount = 0;
+  tdListInitIter(&pReorderGrp->winAllData, &foundDataIter, TD_LIST_FORWARD);
+  while ((pNode = tdListNext(&foundDataIter)) != NULL) {
+    SDatasInWindow* pWinData = (SDatasInWindow*)pNode->data;
+    moveWinCount = pWinData->datas->size;
+    if (moveWinCount <= 0) continue;
+
+    iov = taosMemCalloc(moveWinCount, sizeof(TaosIOVec));
+    if (iov == NULL) {
+      code = terrno;
+      QUERY_CHECK_CODE(code, lino, _exit);
+    }
+
+    existFileBlockCount = taosArrayGetSize(pWinData->pBlockFileBuffer);
+
+    if (pWinData->pBlockFileBuffer) {
+      void* tmp = taosArrayReserve(pWinData->pBlockFileBuffer, moveWinCount);
+      QUERY_CHECK_NULL(tmp, code, lino, _exit, terrno);
+    } else {
+      pWinData->pBlockFileBuffer = taosArrayInit_s(moveWinCount, sizeof(SBlockFileBuffer));
+      QUERY_CHECK_NULL(pWinData->pBlockFileBuffer, code, lino, _exit, terrno);
+    }
+
+    for (int i = 0; i < moveWinCount; ++i) {
+      SBlockBuffer* pBlockBuffer = taosArrayGet(pWinData->datas, i);
+      if (pBlockBuffer == NULL || pBlockBuffer->len < 0) {
+        stError("sliding window in mem is NULL or dataLen < 0, i:%d, pSlidingWin:%p", i, pBlockBuffer);
+        code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+        QUERY_CHECK_CODE(code, lino, _exit);
+      }
+
+      iov[i].iov_base = pBlockBuffer;
+      iov[i].iov_len = pBlockBuffer->len;
+      needSize += pBlockBuffer->len;
+
+      SBlockFileBuffer* pFileBuffer = TARRAY_GET_ELEM(pWinData->pBlockFileBuffer, existFileBlockCount + i);
+      pFileBuffer->len = pBlockBuffer->len;
+      pFileBuffer->fileOffset = pBlockBuffer->data;
+      QUERY_CHECK_CODE(code, lino, _exit);
+    }
+
+    code = writeReorderDataToFile(pFileMgr, pReorderGrp, iov, moveWinCount, needSize);
+    QUERY_CHECK_CODE(code, lino, _exit);
+
+    cleanReorderDataInMem(pWinData);
+  }
+  
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("failed to move sliding group memory cache, code: %d, lineno:%d", code, lino);
   }
   taosMemoryFree(iov);
   return code;

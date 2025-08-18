@@ -89,6 +89,10 @@ typedef struct SBlockBuffer {
   int32_t len;
   char*   data;
 } SBlockBuffer;
+typedef struct SBlockFileBuffer {
+  int32_t len;
+  int64_t fileOffset;
+} SBlockFileBuffer;
 
 typedef struct SWindowDataInMem {
   int64_t startTime;
@@ -97,11 +101,12 @@ typedef struct SWindowDataInMem {
   // char*   realDataBuf;    // realDataBuf == &pData + sizeof(SWindowDataInMem)
 } SWindowDataInMem;
 
-typedef struct SDataInMemWindows {
-  STimeRange timeRange;  // startTime, endTime
-  int64_t    dataLen;    // total data length in bytes
-  SArray*    datas;      // SBlockBuffer
-} SDataInMemWindows;
+typedef struct SDatasInWindow {
+  STimeRange timeRange;         // startTime, endTime
+  int64_t    dataLen;           // total data length in bytes
+  SArray*    datas;             // SBlockBuffer
+  SArray*    pBlockFileBuffer;  // offset in file, used when data is moved to file
+} SDatasInWindow;
 
 typedef struct SAlignBlocksInMem {
   int64_t capacity;
@@ -166,8 +171,7 @@ typedef struct SReorderGrpMgr {
   int64_t groupId;
   int8_t  status;  // EGroupStatus
   int64_t usedMemSize;
-  SList   winDataInMem;  // array SDataInMemWindows
-  SArray* blocksInFile;  // array SBlocksInfoFile
+  SList   winAllData;  // array SDataInMemWindows
 } SReorderGrpMgr;
 
 typedef struct SAlignGrpMgr {
@@ -207,10 +211,10 @@ typedef enum {
 typedef struct SSlidingGrpMemList {
   bool      enabled;
   int8_t    status;
-  SHashObj* pSlidingGrpList;  // hash <SSlidingGrpMgr*, size>
+  SHashObj* pReorderGrpList;  // hash <SSlidingGrpMgr*, size>
   int64_t   waitMoveMemSize;  // used memory size in bytes
 } SSlidingGrpMemList;
-extern SSlidingGrpMemList g_slidigGrpMemList;
+extern SSlidingGrpMemList g_reorderGrpMemList;
 
 //----------------- **************************************   -----------------//
 //----------------- 以下函数 DataSink 对外提供接口   -----------------//
@@ -309,7 +313,7 @@ int32_t initStreamDataSink();
 int32_t checkAndMoveMemCache(bool forWrite);
 int32_t moveSlidingTaskMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr);
 bool    hasEnoughMemSize();
-int32_t moveSlidingGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SSlidingGrpMgr* pSlidingGrp);
+int32_t moveReorderGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SReorderGrpMgr* pReorderGrp);
 int32_t moveMemFromWaitList(int8_t mode);
 
 void* getWindowDataBuf(SWindowDataInMem* pWindowData);
@@ -350,8 +354,11 @@ bool changeMgrStatus(int8_t* pStatus, int8_t status);
 bool changeMgrStatusToMoving(int8_t* pStatus, int8_t mode);
 
 int32_t splitBlockToWindows(SReorderGrpMgr* pReorderGrpMgr, int32_t tsColSlotId, SSDataBlock* pBlock);
+void    updateReorderGrpUsedMemSize(SReorderGrpMgr* pReorderGrpMgr);
 int32_t clearReorderDataInMem(SReorderGrpMgr* pReorderGrpMgr, int64_t startTime, int64_t endTime);
 void    destroyReorderGrpMgr(void* pData);
+void    destroyReorderDataInMem(SDatasInWindow* pWinData);
+void    cleanReorderDataInMem(SDatasInWindow* pWinData);
 
 #ifdef __cplusplus
 }

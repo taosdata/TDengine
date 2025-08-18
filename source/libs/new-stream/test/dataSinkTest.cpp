@@ -564,17 +564,24 @@ TEST(dataSinkTest, allWriteToFileTest) {
   int64_t streamId = 1;
   int64_t taskId = 1;
   int64_t groupID = 1;
-  int32_t cleanMode = DATA_ALLOC_MODE_SLIDING | DATA_CLEAN_EXPIRED;
+  int32_t cleanMode = DATA_ALLOC_MODE_REORDER | DATA_CLEAN_PASSIVE;
   TSKEY   wstart = baseTestTime1 + 0;
   TSKEY   wend = baseTestTime1 + 100;
   void*   pCache1 = NULL;
   int32_t code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache1);
   ASSERT_EQ(code, 0);
-  code = putStreamDataCache(pCache1, groupID, wstart, wend, pBlock11, 0, 29);
-  ASSERT_EQ(code, 0);
-  code = putStreamDataCache(pCache1, groupID, wstart, wend, pBlock11, 30, 79);
-  ASSERT_EQ(code, 0);
-  code = putStreamDataCache(pCache1, groupID, wstart, wend, pBlock11, 80, 99);
+  SArray*    pWindws = taosArrayInit(3, sizeof(STimeRange));
+  STimeRange pRange = {wstart, wstart + 29};
+  taosArrayPush(pWindws, &pRange);
+  pRange.startTime = wstart + 30;
+  pRange.endTime = wstart + 79;
+  taosArrayPush(pWindws, &pRange);
+  pRange.startTime = wstart + 80;
+  pRange.endTime = wstart + 99;
+  taosArrayPush(pWindws, &pRange);
+  declareStreamDataWindows(pCache1, groupID, pWindws);
+  taosArrayDestroy(pWindws);
+  code = putStreamMultiWinDataCache(pCache1, groupID, pBlock11);
   ASSERT_EQ(code, 0);
 
   SSDataBlock* pBlock21 = createTestBlock(baseTestTime2, 0);
@@ -582,34 +589,49 @@ TEST(dataSinkTest, allWriteToFileTest) {
   int64_t streamId2 = 1;
   int64_t taskId2 = 1;
   int64_t groupID2 = 2;
-  int32_t cleanMode2 = DATA_ALLOC_MODE_SLIDING | DATA_CLEAN_EXPIRED;
+  int32_t cleanMode2 = DATA_ALLOC_MODE_REORDER | DATA_CLEAN_PASSIVE;
   TSKEY   wstart2 = baseTestTime2 + 0;
   TSKEY   wend2 = baseTestTime2 + 100;
   void*   pCache2 = NULL;
   code = initStreamDataCache(streamId2, taskId2, 0, cleanMode2, 0, &pCache2);
   ASSERT_EQ(code, 0);
-  code = putStreamDataCache(pCache2, groupID2, wstart2, wend2, pBlock21, 0, 29);
-  ASSERT_EQ(code, 0);
-  code = putStreamDataCache(pCache2, groupID2, wstart2, wend2, pBlock21, 30, 79);
-  ASSERT_EQ(code, 0);
-  code = putStreamDataCache(pCache2, groupID2, wstart2, wend2, pBlock21, 80, 99);
+  pWindws = taosArrayInit(3, sizeof(STimeRange));
+  pRange = {wstart2, wstart2 + 29};
+  taosArrayPush(pWindws, &pRange);
+  pRange.startTime = wstart2 + 30;
+  pRange.endTime = wstart2 + 79;
+  taosArrayPush(pWindws, &pRange);
+  pRange.startTime = wstart2 + 80;
+  pRange.endTime = wstart2 + 99;
+  taosArrayPush(pWindws, &pRange);
+  declareStreamDataWindows(pCache2, groupID2, pWindws);
+  taosArrayDestroy(pWindws);
+
+  code = putStreamMultiWinDataCache(pCache2, groupID2, pBlock21);
   ASSERT_EQ(code, 0);
 
   SSDataBlock* pBlock12 = createTestBlock(baseTestTime1, 100);
-  cleanMode = DATA_ALLOC_MODE_SLIDING | DATA_CLEAN_EXPIRED;
+  cleanMode = DATA_ALLOC_MODE_REORDER | DATA_CLEAN_PASSIVE;
   wstart = baseTestTime1 + 100;
   wend = baseTestTime1 + 200;
-  code = putStreamDataCache(pCache1, groupID, wstart, wend, pBlock12, 0, 49);
-  ASSERT_EQ(code, 0);
-  code = putStreamDataCache(pCache1, groupID, wstart, wend, pBlock12, 50, 99);
+
+  pWindws = taosArrayInit(2, sizeof(STimeRange));
+  pRange = {wstart, wstart + 49};
+  taosArrayPush(pWindws, &pRange);
+  pRange.startTime = wstart + 50;
+  pRange.endTime = wstart + 99;
+  taosArrayPush(pWindws, &pRange);
+  declareStreamDataWindows(pCache1, groupID, pWindws);
+  taosArrayDestroy(pWindws);
+  code = putStreamMultiWinDataCache(pCache1, groupID, pBlock12);
   ASSERT_EQ(code, 0);
 
   void*   pIter1 = NULL;
   int64_t notExistGroupID = groupID + 100;
-  code = getStreamDataCache(pCache1, notExistGroupID, baseTestTime1 + 50, baseTestTime1 + 150, &pIter1);
+  code = getStreamDataCache(pCache1, notExistGroupID, baseTestTime1 + 30, baseTestTime1 + 149, &pIter1);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(pIter1, nullptr);
-  code = getStreamDataCache(pCache1, groupID, baseTestTime1 + 50, baseTestTime1 + 149, &pIter1);
+  code = getStreamDataCache(pCache1, groupID, baseTestTime1 + 30, baseTestTime1 + 149, &pIter1);
   ASSERT_EQ(code, 0);
   ASSERT_NE(pIter1, nullptr);
   SSDataBlock* pBlock1 = NULL;
@@ -699,7 +721,7 @@ TEST(dataSinkTest, allWriteMultiStreamToFileTest) {
   int64_t streamId = 1;
   int64_t taskId = 1;
   int64_t groupID = 1;
-  int32_t cleanMode = DATA_ALLOC_MODE_SLIDING | DATA_CLEAN_EXPIRED;
+  int32_t cleanMode = DATA_ALLOC_MODE_REORDER | DATA_CLEAN_PASSIVE;
   TSKEY   wstart = baseTestTime1 + 0;
   TSKEY   wend = baseTestTime1 + 100;
   void*   pCache1 = NULL;
@@ -717,7 +739,7 @@ TEST(dataSinkTest, allWriteMultiStreamToFileTest) {
   int64_t streamId2 = 2;
   int64_t taskId2 = 1;
   int64_t groupID2 = 2;
-  int32_t cleanMode2 = DATA_ALLOC_MODE_SLIDING | DATA_CLEAN_EXPIRED;
+  int32_t cleanMode2 = DATA_ALLOC_MODE_REORDER | DATA_CLEAN_PASSIVE;
   TSKEY   wstart2 = baseTestTime2 + 0;
   TSKEY   wend2 = baseTestTime2 + 100;
   void*   pCache2 = NULL;
@@ -731,7 +753,7 @@ TEST(dataSinkTest, allWriteMultiStreamToFileTest) {
   ASSERT_EQ(code, 0);
 
   SSDataBlock* pBlock12 = createTestBlock(baseTestTime1, 100);
-  cleanMode = DATA_ALLOC_MODE_SLIDING | DATA_CLEAN_EXPIRED;
+  cleanMode = DATA_ALLOC_MODE_REORDER | DATA_CLEAN_PASSIVE;
   wstart = baseTestTime1 + 100;
   wend = baseTestTime1 + 200;
   code = putStreamDataCache(pCache1, groupID, wstart, wend, pBlock12, 0, 49);
@@ -836,7 +858,7 @@ TEST(dataSinkTest, testWriteFileSize) {
   int64_t streamId = 3;
   void*   pCache = NULL;
   int64_t taskId = 1;
-  int32_t cleanMode = DATA_ALLOC_MODE_SLIDING | DATA_CLEAN_EXPIRED;
+  int32_t cleanMode = DATA_ALLOC_MODE_REORDER | DATA_CLEAN_PASSIVE;
   int32_t code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
   ASSERT_NE(pBlock, nullptr);
   for (int32_t i = 0; i < 100000; i++) {
@@ -903,7 +925,7 @@ TEST(dataSinkTest, multiThreadGet) {
   setDataSinkMaxMemSize(DS_MEM_SIZE_RESERVED + 1024 * 1024);
   int64_t streamId = 100;
   int64_t taskId = 100;
-  int32_t cleanMode = DATA_ALLOC_MODE_SLIDING | DATA_CLEAN_EXPIRED;
+  int32_t cleanMode = DATA_ALLOC_MODE_REORDER | DATA_CLEAN_PASSIVE;
   void*   pCache = NULL;
   int32_t code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
   ASSERT_EQ(code, 0);
@@ -1204,6 +1226,7 @@ TEST(dataSinkTest, dataUnsortedCacheTest) {
   taosArrayPush(pWindws, &pRange);
 
   code = declareStreamDataWindows(pCache, groupID, pWindws);
+  taosArrayDestroy(pWindws);
   code = putStreamMultiWinDataCache(pCache, groupID, pBlockS0);
   ASSERT_EQ(code, 0);
 

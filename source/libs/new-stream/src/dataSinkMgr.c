@@ -205,8 +205,7 @@ int32_t createReorderGrpMgr(int64_t groupId, SReorderGrpMgr** ppReorderGrpMgr) {
   }
   (*ppReorderGrpMgr)->groupId = groupId;
   (*ppReorderGrpMgr)->usedMemSize = 0;
-  tdListInit(&(*ppReorderGrpMgr)->winDataInMem,  sizeof(SDataInMemWindows));
-  (*ppReorderGrpMgr)->blocksInFile = NULL;  // delay init
+  tdListInit(&(*ppReorderGrpMgr)->winAllData,  sizeof(SDatasInWindow));
   (*ppReorderGrpMgr)->status = GRP_DATA_WRITING;
 
   return TSDB_CODE_SUCCESS;
@@ -466,12 +465,12 @@ int32_t declareStreamDataWindows(void* pCache, int64_t groupId, SArray* pWindows
     STimeRange* pWin = (STimeRange*)taosArrayGet(pWindows, i);
     TSDB_CHECK_NULL(pWin, code, lino, _end, terrno);
 
-    SDataInMemWindows dataWindows = {0};
+    SDatasInWindow dataWindows = {0};
     dataWindows.timeRange.startTime = pWin->startTime;
     dataWindows.timeRange.endTime = pWin->endTime;
     dataWindows.datas = taosArrayInit(4, sizeof(SBlockBuffer));
     TSDB_CHECK_NULL(dataWindows.datas, code, lino, _end, terrno);
-    code = tdListAppend(&pReorderGrpMgr->winDataInMem, &dataWindows);
+    code = tdListAppend(&pReorderGrpMgr->winAllData, &dataWindows);
     TSDB_CHECK_CODE(code, lino, _end);
   }
 _end:
@@ -497,7 +496,10 @@ int32_t putDataToReorderTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t group
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
 
-  splitBlockToWindows(pReorderGrpMgr, pStreamTaskMgr->tsSlotId, pBlock);
+  code = splitBlockToWindows(pReorderGrpMgr, pStreamTaskMgr->tsSlotId, pBlock);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  updateReorderGrpUsedMemSize(pReorderGrpMgr);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -538,12 +540,21 @@ int32_t getReorderDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY en
 
   SListIter  foundDataIter = {0};
   SListNode* pNode = NULL;
+  SDataSinkPos dataPos = DATA_SINK_MEM;
 
-  tdListInitIter(&pExistGrpMgr->winDataInMem, &foundDataIter, TD_LIST_FORWARD);
+
+  tdListInitIter(&pExistGrpMgr->winAllData, &foundDataIter, TD_LIST_FORWARD);
   while ((pNode = tdListNext(&foundDataIter)) != NULL) {
-    SDataInMemWindows* pWinData = (SDataInMemWindows*)pNode->data;
-    if (pWinData->timeRange.startTime >= start && pWinData->timeRange.startTime <= end && pWinData->datas->size > 0) {
-      break;
+    SDatasInWindow* pWinData = (SDatasInWindow*)pNode->data;
+    if (pWinData->timeRange.startTime >= start && pWinData->timeRange.startTime <= end) {
+      if (pWinData->pBlockFileBuffer->size > 0) {
+        dataPos = DATA_SINK_FILE;
+        break;
+      }
+      if (pWinData->datas->size > 0) {
+         dataPos = DATA_SINK_MEM;
+        break;
+      }
     }
     if (pWinData->timeRange.startTime > end) {
       pNode = NULL;
@@ -564,6 +575,7 @@ int32_t getReorderDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY en
 
   pResultIter->dataMode = pStreamTaskMgr->dataMode;
   pResultIter->groupData = pExistGrpMgr;
+  pResultIter->dataPos = dataPos;
   pResultIter->pFileMgr = pStreamTaskMgr->pFileMgr;
   pResultIter->tsColSlotId = pStreamTaskMgr->tsSlotId;
   pResultIter->winIndex = (int64_t)pNode;
@@ -572,10 +584,6 @@ int32_t getReorderDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY en
   pResultIter->reqStartTime = start;
   pResultIter->reqEndTime = end;
 
-  if (pExistGrpMgr->blocksInFile && pExistGrpMgr->blocksInFile->size > 0) {  // read from file first
-    pResultIter->dataPos = DATA_SINK_FILE;
-    return code;
-  }
 _end:
   changeMgrStatus(&pExistGrpMgr->status, GRP_DATA_READING);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1077,7 +1085,7 @@ int32_t moveMemCacheAllList() {
   while (ppTaskMgr != NULL) {
     STaskDSMgr* pTaskMgr = *ppTaskMgr;
     if (pTaskMgr == NULL) continue;
-    if (pTaskMgr->dataMode & DATA_ALLOC_MODE_SLIDING) {
+    if (pTaskMgr->dataMode & DATA_ALLOC_MODE_REORDER) {
       SSlidingTaskDSMgr* pSlidingTaskMgr = (SSlidingTaskDSMgr*)pTaskMgr;
       int32_t            code = moveSlidingTaskMemCache(pSlidingTaskMgr);
       if (code != TSDB_CODE_SUCCESS) {
@@ -1104,7 +1112,7 @@ int32_t moveMemCache() {
     return TSDB_CODE_SUCCESS;
   }
 
-  int8_t status = atomic_val_compare_exchange_8(&g_slidigGrpMemList.status, DATA_NORMAL, DATA_MOVING);
+  int8_t status = atomic_val_compare_exchange_8(&g_reorderGrpMemList.status, DATA_NORMAL, DATA_MOVING);
   if (status != DATA_NORMAL) {
     return TSDB_CODE_SUCCESS;
   }
@@ -1131,28 +1139,24 @@ int32_t moveMemCache() {
   }
   stInfo("moveMemCache finished, used mem size: %" PRId64 ", max mem size: %" PRId64, g_pDataSinkManager.usedMemSize,
          tsStreamBufferSizeBytes);
-  status = atomic_val_compare_exchange_8(&g_slidigGrpMemList.status, DATA_MOVING, DATA_NORMAL);
-  if(status != DATA_MOVING) {
-    stError("moveMemCache status not changed, expected: %d, actual: %d", DATA_MOVING, status);
-    return TSDB_CODE_STREAM_INTERNAL_ERROR;
-  }
+  atomic_val_compare_exchange_8(&g_reorderGrpMemList.status, DATA_MOVING, DATA_NORMAL);
 
   return code;
 }
 
 static int32_t enableSlidingGrpMemList() {
-  if (!g_slidigGrpMemList.enabled) {
-    g_slidigGrpMemList.enabled = true;
+  if (!g_reorderGrpMemList.enabled) {
+    g_reorderGrpMemList.enabled = true;
     static int8_t slidingGrpMemListInit = 0;
     int8_t        init = atomic_val_compare_exchange_8(&slidingGrpMemListInit, 0, 1);
     if (init != 0) {
       return TSDB_CODE_SUCCESS;
     }
 
-    if (g_slidigGrpMemList.pSlidingGrpList == NULL) {
-      g_slidigGrpMemList.pSlidingGrpList =
+    if (g_reorderGrpMemList.pReorderGrpList == NULL) {
+      g_reorderGrpMemList.pReorderGrpList =
           taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
-      if (g_slidigGrpMemList.pSlidingGrpList == NULL) {
+      if (g_reorderGrpMemList.pReorderGrpList == NULL) {
         stError("failed to create sliding group mem list, err: %s", terrMsg);
         return terrno;
       }
@@ -1163,10 +1167,10 @@ static int32_t enableSlidingGrpMemList() {
 }
 
 static void disableSlidingGrpMemList() {
-  if (g_slidigGrpMemList.enabled) {
-    g_slidigGrpMemList.enabled = false;
-    if (g_slidigGrpMemList.pSlidingGrpList) {
-      taosHashClear(g_slidigGrpMemList.pSlidingGrpList);
+  if (g_reorderGrpMemList.enabled) {
+    g_reorderGrpMemList.enabled = false;
+    if (g_reorderGrpMemList.pReorderGrpList) {
+      taosHashClear(g_reorderGrpMemList.pReorderGrpList);
     }
     stInfo("disableSlidingGrpMemList, sliding group mem list set disabled");
   }
@@ -1174,10 +1178,10 @@ static void disableSlidingGrpMemList() {
 
 int32_t checkAndMoveMemCache(bool forWrite) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (!g_slidigGrpMemList.enabled &&
+  if (!g_reorderGrpMemList.enabled &&
       g_pDataSinkManager.usedMemSize > tsStreamBufferSizeBytes - g_pDataSinkManager.memAlterSize) {
     return enableSlidingGrpMemList();
-  } else if (g_slidigGrpMemList.enabled &&
+  } else if (g_reorderGrpMemList.enabled &&
              g_pDataSinkManager.usedMemSize < tsStreamBufferSizeBytes - DS_MEM_SIZE_ALTER_QUIT) {
     disableSlidingGrpMemList();
     return TSDB_CODE_SUCCESS;
