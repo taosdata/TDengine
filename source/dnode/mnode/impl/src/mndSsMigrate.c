@@ -529,7 +529,7 @@ _exit:
 }
 
 
-static int32_t mndUpdateSsMigrate(SMnode *pMnode, SSsMigrateObj *pSsMigrate) {
+static void mndUpdateSsMigrate(SMnode *pMnode, SSsMigrateObj *pSsMigrate) {
   int32_t code = 0, lino = 0;
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, NULL, "update-ssmigrate");
@@ -557,7 +557,6 @@ _exit:
   } else {
     mError("ssmigrate:%d, failed to update at lino %d since %s", pSsMigrate->id, lino, tstrerror(code));
   }
-  return code;
 }
 
 
