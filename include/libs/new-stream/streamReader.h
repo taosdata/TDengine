@@ -41,6 +41,8 @@ typedef struct SStreamTriggerReaderInfo {
   SArray*      uidList;       // for virtual table stream, uid list
   SArray*      uidListIndex;
   SHashObj*    uidHash;
+  void*        tableList;
+  SFilterInfo* pFilterInfo;
 } SStreamTriggerReaderInfo;
 
 typedef struct SStreamTriggerReaderCalcInfo {
@@ -68,14 +70,10 @@ typedef struct SStreamTriggerReaderTaskInnerOptions {
   int64_t     ver;
   uint64_t    gid;
   int8_t      tableType;
-  bool        groupSort;
   EScanMode   scanMode;
-  SNode*      pTagCond;
-  SNode*      pTagIndexCond;
-  SNode*      pConditions;
-  SNodeList*  partitionCols;
   bool        initReader;  // whether to init the reader
   SArray*     uidList;
+  SStreamTriggerReaderInfo* sStreamReaderInfo;
 } SStreamTriggerReaderTaskInnerOptions;
 
 typedef struct SStreamReaderTaskInner {
@@ -99,7 +97,7 @@ int32_t createDataBlockForStream(SArray* schemas, SSDataBlock** pBlockRet);
 int32_t qStreamBuildSchema(SArray* schemas, int8_t type, int32_t bytes, col_id_t colId);
 void    releaseStreamTask(void* p);
 int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* options, SStreamReaderTaskInner** ppTask,
-                         SSDataBlock* pResBlock, SHashObj* groupIdMap, SStorageAPI*  api);
+                         SSDataBlock* pResBlock, SStorageAPI*  api);
 void*   qStreamGetReaderInfo(int64_t streamId, int64_t taskId, void** taskAddr);
 void    qStreamSetTaskRunning(int64_t streamId, int64_t taskId);
 int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t* size, int8_t precision);
