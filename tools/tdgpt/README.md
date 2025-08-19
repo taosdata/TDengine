@@ -63,7 +63,7 @@ There is no need to build the taosanode, since it is implemented in Python, whic
 
 # 5. Packaging
 
-In the base directory, you can use the following command to package to build an tarball.
+In the base directory, you can use the following command to package to build an tarball. The edition and version parameters should be specified when building the tarball.
 
 ```bash
 cd script && ./release.sh -e community -v 3.3.7.0
@@ -81,9 +81,16 @@ ls -lht release
 
 ## 6.1 Install taosanode
 
-Please use the following command to install taosanode in your system.
+Please use the following commands to install taosanode in your system.
 
 ```bash
+# enter the release directory and then unpack the tarball
+tar -zxvf ./tdengine-tdgpt-oss-3.3.7.0.alpha-linux-x64.tar.gz
+
+# enter into the package
+cd tdengine-tdgpt-oss-3.3.7.0.alpha-linux-x64
+
+# execute the install script
 ./install.sh
 ```
 
