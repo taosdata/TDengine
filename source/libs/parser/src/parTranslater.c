@@ -14431,8 +14431,9 @@ _return:
   return code;
 }
 
-static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SSelectStmt** pTriggerSelect,
-                                           SHashObj **pTriggerSlotHash, SNode** pTriggerFilter, SCMCreateStreamReq* pReq) {
+static int32_t createStreamReqBuildTriggerAst(STranslateContext* pCxt, SCreateStreamStmt* pStmt, 
+                                              SSelectStmt** pTriggerSelect, SHashObj **pTriggerSlotHash,
+                                              SNode** pTriggerFilter, SCMCreateStreamReq* pReq) {
   int32_t              code = TSDB_CODE_SUCCESS;
   SStreamTriggerNode*  pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
   SNode**              pTriggerWindow = &pTrigger->pTriggerWindow;
@@ -14512,9 +14513,9 @@ _return:
   return code;
 }
 
-static int32_t createStreamReqBuildTriggerPart2(STranslateContext* pCxt, SCreateStreamStmt* pStmt,
-                                                SSelectStmt** pTriggerSelect, SHashObj **pTriggerSlotHash,
-                                                SNode* pTriggerFilter, SCMCreateStreamReq* pReq) {
+static int32_t createStreamReqBuildTriggerPlan(STranslateContext* pCxt, SCreateStreamStmt* pStmt,
+                                               SSelectStmt** pTriggerSelect, SHashObj **pTriggerSlotHash,
+                                               SNode* pTriggerFilter, SCMCreateStreamReq* pReq) {
   int32_t              code = TSDB_CODE_SUCCESS;
   SStreamTriggerNode*  pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
   SNode*               pTriggerWindow = pTrigger->pTriggerWindow;
@@ -14867,9 +14868,6 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
   PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerPartition, pTriggerSelect ? pTriggerSelect->pFromTable : NULL, pStmt->pQuery, pNotifyCond, pTriggerWindow, &withExtWindow));
 
   pReq->placeHolderBitmap = pCxt->placeHolderBitmap;
-
-  PAR_ERR_JRET(createStreamReqCheckPlaceHolder(pCxt, pReq, pReq->placeHolderBitmap, pTriggerPartition));
-
   pProjectionList = nodeType(pStmt->pQuery) == QUERY_NODE_SELECT_STMT ?
                                                                       ((SSelectStmt*)pStmt->pQuery)->pProjectionList :
                                                                       ((SSetOperator*)pStmt->pQuery)->pProjectionList;
@@ -14886,13 +14884,7 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
                           .pAstRoot = pStmt->pQuery,
                           .streamCalcQuery = true,
                           .pStreamCalcVgArray = pVgArray,
-<<<<<<< HEAD
-                          .withExtWindow = withExtWindow};
-=======
-                          .pStreamCalcDbs = pDbs,
-                          .withExtWindow = withExtWindow,
                           .streamTriggerScanList = NULL};
->>>>>>> 13529ae435 (feat: [TD-37210] Trigger scan plan optimize.)
 
   PAR_ERR_JRET(qCreateQueryPlan(&calcCxt, &calcPlan, NULL));
   pReq->vtableCalc = (int8_t)calcCxt.streamVtableCalc;
@@ -14903,8 +14895,10 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
     PAR_ERR_JRET(nodesListAppendList(pTriggerSelect->pProjectionList, calcCxt.streamTriggerScanList));
     SNode *pCol = NULL;
     FOREACH(pCol, pTriggerSelect->pProjectionList) {
-      SColumnNode* pColumn = (SColumnNode*)pCol;
-      tstrncpy(pColumn->tableAlias, pColumn->tableName, TSDB_TABLE_NAME_LEN);
+      if (nodeType(pCol) == QUERY_NODE_COLUMN) {
+        SColumnNode* pColumn = (SColumnNode*)pCol;
+        tstrncpy(pColumn->tableAlias, pColumn->tableName, TSDB_TABLE_NAME_LEN);
+      }
     }
   }
 
@@ -14988,10 +14982,10 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
   PAR_ERR_JRET(createStreamReqBuildDefaultReq(pCxt, pStmt, pReq));
   PAR_ERR_JRET(createStreamReqBuildNameAndId(pCxt, pStmt, pReq));
   PAR_ERR_JRET(createStreamReqBuildNotifyOptions(pCxt, pNotifyOptions, &pNotifyCond, pReq));
-  PAR_ERR_JRET(createStreamReqBuildTrigger(pCxt, pStmt, &pTriggerSelect, &pTriggerSlotHash, &pTriggerFilter, pReq));
+  PAR_ERR_JRET(createStreamReqBuildTriggerAst(pCxt, pStmt, &pTriggerSelect, &pTriggerSlotHash, &pTriggerFilter, pReq));
   PAR_ERR_JRET(createStreamReqBuildTriggerOptions(pCxt, pStmt, pTriggerOptions, pReq));
   PAR_ERR_JRET(createStreamReqBuildCalc(pCxt, pStmt, pTrigger->pPartitionList, pTriggerSelect, pTriggerWindow, pNotifyCond, pReq));
-  PAR_ERR_JRET(createStreamReqBuildTriggerPart2(pCxt, pStmt, &pTriggerSelect, &pTriggerSlotHash, pTriggerFilter, pReq));
+  PAR_ERR_JRET(createStreamReqBuildTriggerPlan(pCxt, pStmt, &pTriggerSelect, &pTriggerSlotHash, pTriggerFilter, pReq));
   PAR_ERR_JRET(createStreamReqBuildOutTable(pCxt, pStmt, pTriggerSlotHash, pReq));
 
 _return:
