@@ -667,7 +667,6 @@ void blob_tmq_test() {
 
 int main(int argc, char *argv[]) {
   int ret = 0;
-
   blob_tmq_test();
   blob_stmt2_test();
   blob_sql_test();
