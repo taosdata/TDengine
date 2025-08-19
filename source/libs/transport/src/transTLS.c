@@ -331,16 +331,14 @@ int32_t sslWrite(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req, uv_buf_t
     TAOS_CHECK_GOTO(code, &lino, _error);
     total += nread;
   }
-
-  // if (nread < 0) {
-  //   code = sslHandleError(pTls, nread);
-  //   TAOS_CHECK_GOTO(code, &lino, _error);
-  // }
+  if (total <= 0) {
+    tError("conn %p, failed to write data to SSL BIO since %s", pTls->pConn, tstrerror(code));
+    return code;
+  }
 
   sslBufferRef(&pTls->sendBuf);
 
-  uv_buf_t b =
-      uv_buf_init((char*)(SSL_BUFFER_OFFSET_DATA(&(pTls->sendBuf), start)), SSL_BUFFER_LEN(&pTls->sendBuf) - start);
+  uv_buf_t b = uv_buf_init((char*)(SSL_BUFFER_OFFSET_DATA(&(pTls->sendBuf), start)), total);
   int32_t status = uv_write(req, stream, &b, 1, cb);
   if (status == 0) {
     tDebug("conn %p write %d bytes to socket", pTls->pConn, total);
