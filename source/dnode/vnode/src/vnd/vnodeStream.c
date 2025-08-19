@@ -1514,6 +1514,7 @@ static int32_t processCalaTimeRange(SStreamTriggerReaderCalcInfo* sStreamReaderC
     stDebug("%s withExternalWindow is true, skey:%" PRId64 ", ekey:%" PRId64, __func__, pFirst->wstart, pLast->wend);
   } else {
     calcTimeRange(node, req->pStRtFuncInfo, &handle->winRange, &handle->winRangeValid);
+    stDebug("%s withExternalWindow is false, skey:%" PRId64 ", ekey:%" PRId64, __func__, handle->winRange.skey, handle->winRange.ekey);
   }
 
 end:
@@ -2878,6 +2879,8 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
       STimeRangeNode* node = (STimeRangeNode*)((STableScanPhysiNode*)(sStreamReaderCalcInfo->calcAst->pNode))->pTimeRange;
       if (node != NULL) {
         STREAM_CHECK_RET_GOTO(processCalaTimeRange(sStreamReaderCalcInfo, &req, node, &handle));
+      } else {
+        ST_TASK_DLOG("vgId:%d %s no time range node", TD_VID(pVnode), __func__);
       }
     }
 

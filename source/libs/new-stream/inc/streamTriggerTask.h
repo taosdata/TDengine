@@ -27,7 +27,7 @@ extern "C" {
 
 #define TRIGGER_USE_HISTORY_META 0  // todo(kjq): remove the flag
 
-#define BOOST_TRIGGER_PULL_DATA
+//#define BOOST_TRIGGER_PULL_DATA
 
 typedef struct SSTriggerVirTableInfo {
   int64_t tbGid;

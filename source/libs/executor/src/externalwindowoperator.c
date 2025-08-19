@@ -479,7 +479,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     code = initAggSup(&pOperator->exprSupp, &pExtW->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str, 0, 0);
     QUERY_CHECK_CODE(code, lino, _error);
 
-    pExtW->pResultRow = taosMemoryCalloc(100000, pExtW->aggSup.resultRowSize);
+    pExtW->pResultRow = taosMemoryCalloc(STREAM_CALC_REQ_MAX_WIN_NUM, pExtW->aggSup.resultRowSize);
     QUERY_CHECK_NULL(pExtW->pResultRow, code, lino, _error, terrno);
 
     nodesWalkExprs(pPhynode->window.pFuncs, extWindowHasCountLikeFunc, &pExtW->hasCountFunc);
@@ -508,7 +508,9 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
       }
     }
     
-    initResultSizeInfo(&pOperator->resultInfo, 100000);
+    pOperator->resultInfo.capacity = STREAM_CALC_REQ_MAX_WIN_NUM;
+    pOperator->resultInfo.threshold = STREAM_CALC_REQ_MAX_WIN_NUM;
+    pOperator->resultInfo.totalRows = 0;
     code = blockDataEnsureCapacity(pExtW->binfo.pRes, pOperator->resultInfo.capacity);
     TSDB_CHECK_CODE(code, lino, _error);
     
