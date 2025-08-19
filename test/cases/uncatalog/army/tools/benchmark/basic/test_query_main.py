@@ -14,7 +14,7 @@ from new_test_framework.utils import tdLog, tdSql, etool
 import os
 import json
 import subprocess
-
+import re
 
 class TestQueryMain:
     def caseDescription(self):
@@ -69,15 +69,28 @@ class TestQueryMain:
         tdSql.waitedQuery(sql, 1, times)
         dbRows = tdSql.getData(0, 0)
         return dbRows
-    
+
+
+        match = re.match(r'^[+-]?\d*\.?\d+', text)
+        if match:
+            try:
+                return float(match.group())
+            except ValueError:
+                return None
+        return None
+
     def checkItem(self, output, key, end, expect, equal):
         ret, value = self.getKeyValue(output, key, end)
         if ret == False:
             tdLog.exit(f"not found key:{key}. end:{end} output:\n{output}")
 
         tdLog.info(f"get key:{key} value:{value} end:{end}, output:\n{output}")
-        cleaned_value = value.split("\n")[0]
-        fval = float(cleaned_value)
+   
+        fval = None
+        match = re.match(r'^[+-]?\d*\.?\d+', value)
+        if match:
+            fval = float(match.group())
+            
         # compare
         if equal and fval != expect:
             tdLog.exit(f"check not expect. expect:{expect} real:{fval}, key:'{key}' end:'{end}' output:\n{output}")
