@@ -2050,7 +2050,8 @@ async fn consume_flat_record(
                                 ),
                                 batch,
                                 archive_tx.clone(),
-                            )?;
+                            )
+                            .await?;
                             tokio::time::sleep(Duration::from_millis(sleep)).await;
                             continue;
                         }
@@ -2073,7 +2074,8 @@ async fn consume_flat_record(
                             ),
                             batch,
                             archive_tx.clone(),
-                        )?;
+                        )
+                        .await?;
                     }
                     tokio::time::sleep(Duration::from_millis(sleep)).await;
                 }
@@ -2233,7 +2235,7 @@ async fn consume_flat_record(
     Ok(())
 }
 
-fn handle_flat_abnormal<'a>(
+async fn handle_flat_abnormal<'a>(
     abnormal_stragy: ProcessOnAbnormalEnum<'a>,
     batch: &RecordBatch,
     archive_tx: Sender<ArchiveType>,
@@ -2245,7 +2247,7 @@ fn handle_flat_abnormal<'a>(
             {
                 Ok((HandlingResult::Skip, _)) => Ok(()),
                 Ok((HandlingResult::Archive, err)) => {
-                    if let Err(e) = process_archive(&err, batch, archive_tx.clone()) {
+                    if let Err(e) = process_archive(&err, batch, archive_tx.clone()).await {
                         tracing::error!("archive error: {e:#}");
                     }
                     Ok(())
@@ -2264,7 +2266,7 @@ fn handle_flat_abnormal<'a>(
         ProcessOnAbnormalEnum::DatabaseNotExist(handling_strategy) => {
             match handling_strategy.handle("Database not exist".to_string()) {
                 Ok((HandlingResult::Archive, err)) => {
-                    if let Err(e) = process_archive(&err, batch, archive_tx.clone()) {
+                    if let Err(e) = process_archive(&err, batch, archive_tx.clone()).await {
                         tracing::error!("archive error: {e:#}");
                     }
                     Ok(())
@@ -2289,7 +2291,7 @@ fn process_cache(batch: &RecordBatch, archive_tx: Sender<ArchiveType>) -> anyhow
     Ok(())
 }
 
-fn process_archive(
+async fn process_archive(
     err: &str,
     batch: &RecordBatch,
     archive_tx: Sender<ArchiveType>,
@@ -2303,6 +2305,7 @@ fn process_archive(
         err_timestamp_vec.clone(),
         archive_tx.clone(),
     )
+    .await
 }
 
 #[instrument(skip_all)]
@@ -4209,7 +4212,8 @@ mod tests {
             ),
             &batch,
             archive_tx.clone(),
-        )?;
+        )
+        .await?;
         let rs = rx.recv();
         dbg!(&rs);
         assert!(rs.is_ok());
@@ -4228,7 +4232,8 @@ mod tests {
             ),
             &batch,
             archive_tx.clone(),
-        );
+        )
+        .await;
         assert!(rs.is_err());
         Ok(())
     }
@@ -4257,7 +4262,8 @@ mod tests {
             ),
             &batch,
             cache_tx.clone(),
-        )?;
+        )
+        .await?;
         let rs = rx.recv();
         dbg!(&rs);
         assert!(rs.is_ok());
@@ -4279,7 +4285,8 @@ mod tests {
             ),
             &batch,
             cache_tx.clone(),
-        );
+        )
+        .await;
         dbg!(&rs);
         assert!(rs.is_err());
         Ok(())

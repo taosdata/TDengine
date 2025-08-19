@@ -532,6 +532,7 @@ pub async fn flat_write_with_sql(
                                         for batch in records.batches {
                                             if let Err(e) =
                                                 process_archive(&err, &batch, archive_tx.clone())
+                                                    .await
                                             {
                                                 tracing::error!("archive error: {e:#}");
                                             }
@@ -620,6 +621,7 @@ pub async fn flat_write_with_sql(
                                         for batch in records.batches {
                                             if let Err(e) =
                                                 process_archive(&err, &batch, archive_tx.clone())
+                                                    .await
                                             {
                                                 tracing::error!("archive error: {e:#}");
                                             }
@@ -840,6 +842,7 @@ pub async fn flat_write_with_sql(
                                         for batch in records.batches {
                                             if let Err(e) =
                                                 process_archive(&err, &batch, archive_tx.clone())
+                                                    .await
                                             {
                                                 tracing::error!("archive error: {e:#}");
                                             }
@@ -916,7 +919,7 @@ async fn handle_primary_timestamp_null_and_rewrite(
                 success = false;
             }
             Ok((HandlingResult::Archive, err)) => {
-                let res = process_archive(&err, batch, archive_tx.clone());
+                let res = process_archive(&err, batch, archive_tx.clone()).await;
                 if let Err(e) = res {
                     tracing::error!("archive error: {e:#}");
                 }
@@ -1013,7 +1016,7 @@ async fn handle_field_length_overflow_and_rewrite(
             }
             Ok((HandlingResult::Archive, err)) => {
                 for batch in batches {
-                    let res = process_archive(&err, batch, archive_tx.clone());
+                    let res = process_archive(&err, batch, archive_tx.clone()).await;
                     if let Err(e) = res {
                         tracing::error!("archive error: {e:#}");
                     }
@@ -1069,7 +1072,7 @@ async fn handle_field_length_overflow_and_rewrite(
                 }
                 // archive
                 for batch in batches {
-                    if let Err(e) = process_archive(&err, batch, archive_tx.clone()) {
+                    if let Err(e) = process_archive(&err, batch, archive_tx.clone()).await {
                         tracing::error!("archive error: {e:#}");
                     }
                 }
@@ -1109,7 +1112,7 @@ async fn handle_field_length_overflow_and_rewrite(
                     success = false;
                 }
                 Ok((HandlingResult::Archive, err)) => {
-                    let res = process_archive(&err, batch, archive_tx.clone());
+                    let res = process_archive(&err, batch, archive_tx.clone()).await;
                     if let Err(e) = res {
                         tracing::error!("archive error: {e:#}");
                     }
@@ -1165,7 +1168,7 @@ async fn handle_field_length_overflow_and_rewrite(
                         success = false;
                     }
                     // archive
-                    if let Err(e) = process_archive(&err, batch, archive_tx.clone()) {
+                    if let Err(e) = process_archive(&err, batch, archive_tx.clone()).await {
                         tracing::error!("archive error: {e:#}");
                     }
                 }
@@ -1306,7 +1309,7 @@ async fn handle_ingesting_error(
         }
         Ok((HandlingResult::Archive, err)) => {
             for batch in batches {
-                if let Err(e) = process_archive(&err, batch, archive_tx.clone()) {
+                if let Err(e) = process_archive(&err, batch, archive_tx.clone()).await {
                     tracing::error!("archive error: {e:#}");
                 }
             }
@@ -1696,7 +1699,7 @@ pub async fn flat_write_with_raw_block(
                         }
                         Ok((HandlingResult::Archive, err)) => {
                             if let Err(e) =
-                                process_archive(&err, &records.records, archive_tx.clone())
+                                process_archive(&err, &records.records, archive_tx.clone()).await
                             {
                                 tracing::error!("archive error: {e:#}");
                             }
@@ -1732,7 +1735,7 @@ pub async fn flat_write_with_raw_block(
                         }
                         Ok((HandlingResult::Archive, err)) => {
                             if let Err(e) =
-                                process_archive(&err, &records.records, archive_tx.clone())
+                                process_archive(&err, &records.records, archive_tx.clone()).await
                             {
                                 tracing::error!("archive error: {e:#}");
                             }
@@ -1878,7 +1881,7 @@ pub async fn flat_write_with_raw_block(
                         }
                         Ok((HandlingResult::Archive, err)) => {
                             if let Err(e) =
-                                process_archive(&err, &records.records, archive_tx.clone())
+                                process_archive(&err, &records.records, archive_tx.clone()).await
                             {
                                 tracing::error!("archive error: {e:#}");
                             }
@@ -1953,7 +1956,7 @@ pub async fn flat_write_with_raw_block(
                         }
                         Ok((HandlingResult::Archive, err)) => {
                             if let Err(e) =
-                                process_archive(&err, &records.records, archive_tx.clone())
+                                process_archive(&err, &records.records, archive_tx.clone()).await
                             {
                                 tracing::error!("archive error: {e:#}");
                             }
@@ -2045,7 +2048,7 @@ pub async fn flat_write_with_raw_block(
                         }
                         Ok((HandlingResult::Archive, err)) => {
                             if let Err(e) =
-                                process_archive(&err, &records.records, archive_tx.clone())
+                                process_archive(&err, &records.records, archive_tx.clone()).await
                             {
                                 tracing::error!("archive error: {e:#}");
                             }
@@ -2091,7 +2094,7 @@ pub async fn handling_database_not_exist(
                 .iter()
                 .map(|m: &MessageArrowRecords| m.records.clone())
             {
-                if let Err(e) = process_archive(&err, &batch, archive_tx.clone()) {
+                if let Err(e) = process_archive(&err, &batch, archive_tx.clone()).await {
                     tracing::error!("archive error: {e:#}");
                 }
             }
@@ -2324,15 +2327,17 @@ impl FlatSink {
                                                 continue;
                                             }
                                             Ok((HandlingResult::Archive, err)) => {
-                                                messages.iter().for_each(|m| {
+                                                for m in messages {
                                                     if let Err(e) = process_archive(
                                                         &err,
                                                         &m.records,
                                                         archive_tx.clone(),
-                                                    ) {
+                                                    )
+                                                    .await
+                                                    {
                                                         tracing::error!("archive error: {e:#}");
                                                     }
-                                                });
+                                                }
                                                 continue;
                                             }
                                             Ok((HandlingResult::Modify(_), _)) => unreachable!(),
