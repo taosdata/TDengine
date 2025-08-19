@@ -1,5 +1,5 @@
 
-taos> select * from test1.`s0-0-0-10-39_out` 
+taos> select * from test1.`s0-0-0-10-39_out` order by tag_tbname
         last(cts)        |         avg(cint)         |       sum(cint)       |           tag_tbname           |
 ===============================================================================================================
  2025-01-01 00:19:30.000 |                      19.5 |                   780 | st1_0                          |
