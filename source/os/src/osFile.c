@@ -1769,7 +1769,7 @@ int taosSetAutoDelFile(char *path) {
 #endif
 }
 
-int64_t taosWritevFile(TdFilePtr pFile, const TaosIOVec *iov, int iovcnt) {
+int64_t taosWritevFileHelp(TdFilePtr pFile, const TaosIOVec *iov, int iovcnt, int64_t offset, int32_t whence) {
   if (pFile == NULL || iov == NULL || iovcnt <= 0) {
     terrno = TSDB_CODE_INVALID_PARA;
     return -1;
@@ -1777,6 +1777,17 @@ int64_t taosWritevFile(TdFilePtr pFile, const TaosIOVec *iov, int iovcnt) {
 #if FILE_WITH_LOCK
   (void)taosThreadRwlockWrlock(&(pFile->rwlock));
 #endif
+
+  if (whence > 0) {
+    int64_t ret = lseek(pFile->fd, offset, whence);
+    if (-1 == ret) {
+      terrno = TAOS_SYSTEM_ERROR(ERRNO);
+#if FILE_WITH_LOCK
+      (void)taosThreadRwlockUnlock(&(pFile->rwlock));
+#endif
+      return ret;
+    }
+  }
 
 #ifdef __linux__
   if (pFile->fd < 0) {
@@ -1854,4 +1865,12 @@ int64_t taosWritevFile(TdFilePtr pFile, const TaosIOVec *iov, int iovcnt) {
   }
   return (int64_t)totalWritten;
 #endif
+}
+
+int64_t taosWritevFile(TdFilePtr pFile, const TaosIOVec *iov, int iovcnt) {
+  return taosWritevFileHelp(pFile, iov, iovcnt, 0, -1);
+}
+
+int64_t taosPWritevFile(TdFilePtr pFile, int64_t offset, int32_t whence, const TaosIOVec *iov, int iovcnt) {
+  return taosWritevFileHelp(pFile, iov, iovcnt, offset, whence);
 }

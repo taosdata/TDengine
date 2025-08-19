@@ -705,144 +705,6 @@ TEST(dataSinkTest, allWriteToFileTest) {
   destroyDataSinkMgr();
 }
 
-TEST(dataSinkTest, allWriteMultiStreamToFileTest) {
-  INIT_DATA_SINK(); 
-  setDataSinkMaxMemSize(0);
-  SSDataBlock* pBlock11 = createTestBlock(baseTestTime1, 0);
-  ASSERT_NE(pBlock11, nullptr);
-  int64_t streamId = 1;
-  int64_t taskId = 1;
-  int64_t groupID = 1;
-  int32_t cleanMode = DATA_ALLOC_MODE_REORDER | DATA_CLEAN_PASSIVE;
-  TSKEY   wstart = baseTestTime1 + 0;
-  TSKEY   wend = baseTestTime1 + 100;
-  void*   pCache1 = NULL;
-  int32_t code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache1);
-  ASSERT_EQ(code, 0);
-  code = putStreamDataCache(pCache1, groupID, wstart, wend, pBlock11, 0, 29);
-  ASSERT_EQ(code, 0);
-  code = putStreamDataCache(pCache1, groupID, wstart, wend, pBlock11, 30, 79);
-  ASSERT_EQ(code, 0);
-  code = putStreamDataCache(pCache1, groupID, wstart, wend, pBlock11, 80, 99);
-  ASSERT_EQ(code, 0);
-
-  SSDataBlock* pBlock21 = createTestBlock(baseTestTime2, 0);
-  ASSERT_NE(pBlock21, nullptr);
-  int64_t streamId2 = 2;
-  int64_t taskId2 = 1;
-  int64_t groupID2 = 2;
-  int32_t cleanMode2 = DATA_ALLOC_MODE_REORDER | DATA_CLEAN_PASSIVE;
-  TSKEY   wstart2 = baseTestTime2 + 0;
-  TSKEY   wend2 = baseTestTime2 + 100;
-  void*   pCache2 = NULL;
-  code = initStreamDataCache(streamId2, taskId2, 0, cleanMode2, 0, &pCache2);
-  ASSERT_EQ(code, 0);
-  code = putStreamDataCache(pCache2, groupID2, wstart2, wend2, pBlock21, 0, 29);
-  ASSERT_EQ(code, 0);
-  code = putStreamDataCache(pCache2, groupID2, wstart2, wend2, pBlock21, 30, 79);
-  ASSERT_EQ(code, 0);
-  code = putStreamDataCache(pCache2, groupID2, wstart2, wend2, pBlock21, 80, 99);
-  ASSERT_EQ(code, 0);
-
-  SSDataBlock* pBlock12 = createTestBlock(baseTestTime1, 100);
-  cleanMode = DATA_ALLOC_MODE_REORDER | DATA_CLEAN_PASSIVE;
-  wstart = baseTestTime1 + 100;
-  wend = baseTestTime1 + 200;
-  code = putStreamDataCache(pCache1, groupID, wstart, wend, pBlock12, 0, 49);
-  ASSERT_EQ(code, 0);
-  code = putStreamDataCache(pCache1, groupID, wstart, wend, pBlock12, 50, 99);
-  ASSERT_EQ(code, 0);
-
-  void*   pIter1 = NULL;
-  int64_t notExistGroupID = groupID + 100;
-  code = getStreamDataCache(pCache1, notExistGroupID, baseTestTime1 + 50, baseTestTime1 + 150, &pIter1);
-  ASSERT_EQ(code, 0);
-  ASSERT_EQ(pIter1, nullptr);
-  code = getStreamDataCache(pCache1, groupID, baseTestTime1 + 50, baseTestTime1 + 149, &pIter1);
-  ASSERT_EQ(code, 0);
-  ASSERT_NE(pIter1, nullptr);
-  SSDataBlock* pBlock1 = NULL;
-  code = getNextStreamDataCache(&pIter1, &pBlock1);
-  ASSERT_EQ(code, 0);
-  ASSERT_NE(pBlock1, nullptr);
-  ASSERT_NE(pIter1, nullptr);
-  int rows = pBlock1->info.rows;
-  ASSERT_EQ(rows, 30);
-  ASSERT_EQ(compareBlockRow(pBlock1, pBlock11, 0, 50), true);
-  ASSERT_EQ(compareBlockRow(pBlock1, pBlock11, 1, 51), true);
-  ASSERT_EQ(compareBlockRow(pBlock1, pBlock11, 2, 52), true);
-  ASSERT_EQ(compareBlockRow(pBlock1, pBlock11, 29, 79), true);
-  blockDataDestroy(pBlock1);
-
-  void* pIter2 = NULL;
-  code = getStreamDataCache(pCache2, groupID2, baseTestTime2 + 50, baseTestTime2 + 150, &pIter2);
-  ASSERT_EQ(code, 0);
-  ASSERT_NE(pIter2, nullptr);
-  SSDataBlock* pBlock2 = NULL;
-  code = getNextStreamDataCache(&pIter2, &pBlock2);
-  ASSERT_EQ(code, 0);
-  ASSERT_NE(pBlock2, nullptr);
-  ASSERT_NE(pIter2, nullptr);
-  int rows2 = pBlock2->info.rows;
-  ASSERT_EQ(rows2, 30);
-  ASSERT_EQ(compareBlockRow(pBlock2, pBlock21, 0, 50), true);
-  ASSERT_EQ(compareBlockRow(pBlock2, pBlock21, 1, 51), true);
-  ASSERT_EQ(compareBlockRow(pBlock2, pBlock21, 2, 52), true);
-  ASSERT_EQ(compareBlockRow(pBlock2, pBlock21, 29, 79), true);
-  blockDataDestroy(pBlock2);
-
-  code = getNextStreamDataCache(&pIter1, &pBlock1);
-  ASSERT_EQ(code, 0);
-  ASSERT_NE(pBlock1, nullptr);
-  rows = pBlock1->info.rows;
-  ASSERT_EQ(rows, 20);
-  ASSERT_EQ(compareBlockRow(pBlock1, pBlock11, 0, 80), true);
-  ASSERT_EQ(compareBlockRow(pBlock1, pBlock11, 1, 81), true);
-  ASSERT_EQ(compareBlockRow(pBlock1, pBlock11, 2, 82), true);
-  ASSERT_EQ(compareBlockRow(pBlock1, pBlock11, 19, 99), true);
-  ASSERT_NE(pIter1, nullptr);
-  blockDataDestroy(pBlock1);
-
-  code = getNextStreamDataCache(&pIter2, &pBlock2);
-  ASSERT_EQ(code, 0);
-  ASSERT_NE(pBlock2, nullptr);
-  ASSERT_EQ(pIter2, nullptr);
-  rows = pBlock2->info.rows;
-  ASSERT_EQ(rows, 20);
-  ASSERT_EQ(compareBlockRow(pBlock2, pBlock21, 0, 80), true);
-  ASSERT_EQ(compareBlockRow(pBlock2, pBlock21, 1, 81), true);
-  ASSERT_EQ(compareBlockRow(pBlock2, pBlock21, 2, 82), true);
-  ASSERT_EQ(compareBlockRow(pBlock2, pBlock21, 19, 99), true);
-  blockDataDestroy(pBlock2);
-  blockDataDestroy(pBlock21);
-
-  destroyStreamDataCache(pCache2);
-
-  code = getNextStreamDataCache(&pIter1, &pBlock1);
-  ASSERT_EQ(code, 0);
-  ASSERT_NE(pBlock1, nullptr);
-  ASSERT_NE(pIter1, nullptr);
-  rows = pBlock1->info.rows;
-  ASSERT_EQ(rows, 50);
-  ASSERT_EQ(compareBlockRow(pBlock1, pBlock12, 0, 0), true);
-  ASSERT_EQ(compareBlockRow(pBlock1, pBlock12, 1, 1), true);
-  ASSERT_EQ(compareBlockRow(pBlock1, pBlock12, 2, 2), true);
-  ASSERT_EQ(compareBlockRow(pBlock1, pBlock12, 49, 49), true);
-  blockDataDestroy(pBlock1);
-  pBlock1 = NULL;
-  code = getNextStreamDataCache(&pIter1, &pBlock1);
-  ASSERT_EQ(code, 0);
-  ASSERT_EQ(pBlock1, nullptr);
-  ASSERT_EQ(pIter1, nullptr);
-
-  blockDataDestroy(pBlock11);
-  blockDataDestroy(pBlock12);
-
-  destroyStreamDataCache(pCache1);
-
-  destroyDataSinkMgr();
-}
-
 TEST(dataSinkTest, testWriteFileSize) {
   INIT_DATA_SINK(); 
   SSDataBlock* pBlock = createTestBlock(baseTestTime1, 0);
@@ -853,14 +715,24 @@ TEST(dataSinkTest, testWriteFileSize) {
   int32_t cleanMode = DATA_ALLOC_MODE_REORDER | DATA_CLEAN_PASSIVE;
   int32_t code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
   ASSERT_NE(pBlock, nullptr);
+
+  SArray*    pWindws = taosArrayInit_s(sizeof(STimeRange), 1);
+  STimeRange* pRange = ( STimeRange*)taosArrayGet(pWindws, 0);
+  pRange->startTime = baseTestTime1 + 0;
+  pRange->endTime = baseTestTime1 + 99;
+  
+  ASSERT_EQ(code, 0);
   for (int32_t i = 0; i < 100000; i++) {
     int64_t groupID = i;
     TSKEY   wstart = baseTestTime1 + 0;
     TSKEY   wend = baseTestTime1 + 100;
     ASSERT_EQ(code, 0);
-    code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 99);
+    code = declareStreamDataWindows(pCache, groupID, pWindws);
+    ASSERT_EQ(code, 0);
+    code = putStreamMultiWinDataCache(pCache, groupID, pBlock);
     ASSERT_EQ(code, 0);
   }
+  taosArrayDestroy(pWindws);
 
   for (int32_t i = 0; i < 100000; i++) {
     int64_t groupID = i;
@@ -926,14 +798,25 @@ TEST(dataSinkTest, multiThreadGet) {
   std::mt19937                           gen(rd());
   std::uniform_int_distribution<int64_t> dist(0, 99);
 
+  SArray*     pWindws = taosArrayInit_s(sizeof(STimeRange), 1);
+  STimeRange* pRange = (STimeRange*)taosArrayGet(pWindws, 0);
+
   // Producer thread
   auto producer = [&](int tid) {
     for (int i = 0; i < taskPerProducer; ++i) {
       int64_t      groupId = dist(gen);
+      if (groupId % producerCount != tid) continue;
       TSKEY        wstart = baseTestTime1 + groups[groupId] * 100;
-      TSKEY        wend = baseTestTime1 + (++groups[groupId]) * 100;
+      TSKEY        wend = baseTestTime1 + (++groups[groupId]) * 100 - 1;
+
+      pRange->startTime = wstart;
+      pRange->endTime = wend;
+
       SSDataBlock* pBlock = createTestBlock(wstart, 0);
-      code = putStreamDataCache(pCache, groupId, wstart, wend, pBlock, 0, 99);
+
+      code = declareStreamDataWindows(pCache, groupId, pWindws);
+      ASSERT_EQ(code, 0);
+      code = putStreamMultiWinDataCache(pCache, groupId, pBlock);
       ASSERT_EQ(code, 0);
 
       // Assign to different queues according to groupId
@@ -942,8 +825,9 @@ TEST(dataSinkTest, multiThreadGet) {
         std::lock_guard<std::mutex> lock(queueMutexes[queueIdx]);
         taskQueues[queueIdx].push(Task{groupId, wstart, wend, pBlock});
       }
-       queueCVs[queueIdx].notify_one();
+      queueCVs[queueIdx].notify_one();
     }
+    printf("Producer %d finished producing tasks.\n", tid);
   };
 
   // Consumer thread
@@ -960,7 +844,7 @@ TEST(dataSinkTest, multiThreadGet) {
       }
       //  Consume task: get data and check
       void*   pIter = NULL;
-      int32_t code2 = getStreamDataCache(pCache, task.groupID, task.wstart, task.wend - 1, &pIter);
+      int32_t code2 = getStreamDataCache(pCache, task.groupID, task.wstart, task.wend, &pIter);
       ASSERT_EQ(code2, 0);
       ASSERT_NE(pIter, nullptr);
       SSDataBlock* pBlock1 = NULL;

@@ -18,11 +18,13 @@
 #include "dataSink.h"
 #include "osAtomic.h"
 #include "osMemory.h"
+#include "osThread.h"
 #include "stream.h"
 #include "taoserror.h"
 #include "tarray.h"
 #include "tdef.h"
 #include "thash.h"
+#include "tutil.h"
 
 SDataSinkManager2 g_pDataSinkManager = {0};
 
@@ -112,11 +114,11 @@ static void destroySStreamDSTaskMgr(void* pData) {
   if (cleanMode & DATA_ALLOC_MODE_ALIGN) {
     destroyAlignTaskDSMgr((SAlignTaskDSMgr**)pData);
     return;
-  } else if (cleanMode & DATA_ALLOC_MODE_SLIDING) {
+  } else if (cleanMode & (DATA_ALLOC_MODE_SLIDING | DATA_ALLOC_MODE_REORDER)) {
     destroySlidingTaskDSMgr((SSlidingTaskDSMgr**)pData);
     return;
   } else {
-    stError("invalid clean mode: %d", cleanMode);
+    stError("destroySStreamDSTaskMgr invalid clean mode: %d", cleanMode);
   }
 }
 
@@ -206,7 +208,7 @@ int32_t createReorderGrpMgr(int64_t groupId, SReorderGrpMgr** ppReorderGrpMgr) {
   (*ppReorderGrpMgr)->groupId = groupId;
   (*ppReorderGrpMgr)->usedMemSize = 0;
   tdListInit(&(*ppReorderGrpMgr)->winAllData,  sizeof(SDatasInWindow));
-  (*ppReorderGrpMgr)->status = GRP_DATA_WRITING;
+  taosThreadRwlockInit(&(*ppReorderGrpMgr)->rwlock, NULL);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -304,7 +306,7 @@ void destroyStreamDataCache(void* pCache) {
     if (ppStreamTaskDSManager != NULL) {
       code = taosHashRemove(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
     }
-  } else if (getDataModeFromDSMgr(pCache) & DATA_ALLOC_MODE_SLIDING) {
+  } else if (getDataModeFromDSMgr(pCache) & (DATA_ALLOC_MODE_SLIDING | DATA_ALLOC_MODE_REORDER)) {
     SSlidingTaskDSMgr* pStreamDataSink = (SSlidingTaskDSMgr*)pCache;
     char               key[64] = {0};
     snprintf(key, sizeof(key), "%" PRId64 "_%" PRId64 "_%" PRId64, pStreamDataSink->streamId, pStreamDataSink->taskId,
@@ -461,6 +463,7 @@ int32_t declareStreamDataWindows(void* pCache, int64_t groupId, SArray* pWindows
   code = getOrCreateSReorderGrpMgr(pStreamTaskMgr, groupId, &pReorderGrpMgr);
   QUERY_CHECK_CODE(code, lino, _end);
 
+  TAOS_UNUSED(taosThreadRwlockRdlock(&pReorderGrpMgr->rwlock));
   for (int32_t i = 0; i < nWindows; ++i) {
     STimeRange* pWin = (STimeRange*)taosArrayGet(pWindows, i);
     TSDB_CHECK_NULL(pWin, code, lino, _end, terrno);
@@ -474,6 +477,9 @@ int32_t declareStreamDataWindows(void* pCache, int64_t groupId, SArray* pWindows
     TSDB_CHECK_CODE(code, lino, _end);
   }
 _end:
+  if (pReorderGrpMgr) {
+    TAOS_UNUSED(taosThreadRwlockUnlock(&pReorderGrpMgr->rwlock));
+  }
   if (code != TSDB_CODE_SUCCESS) {
     stError("failed to declare stream data windows, lino:%d err: %0x  ", lino, code);
   }
@@ -481,8 +487,8 @@ _end:
 }
 
 int32_t putDataToReorderTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t groupId, SSDataBlock* pBlock) {
-  int32_t          code = TSDB_CODE_SUCCESS;
-  int32_t          lino = 0;
+  int32_t         code = TSDB_CODE_SUCCESS;
+  int32_t         lino = 0;
   SReorderGrpMgr* pReorderGrpMgr = NULL;
   stDebug("[put data cache] multiwins data, groupId: %" PRId64 " block rows: %" PRId64, groupId, pBlock->info.rows);
   code = getOrCreateSReorderGrpMgr(pStreamTaskMgr, groupId, &pReorderGrpMgr);
@@ -490,11 +496,7 @@ int32_t putDataToReorderTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t group
     stError("failed to get or create group data sink manager, err: 0x%0x", code);
     return code;
   }
-  bool canPut = changeMgrStatus(&pReorderGrpMgr->status, GRP_DATA_WRITING);
-  if (!canPut) {
-    stError("failed to change group data sink manager status when put data, status: %d", pReorderGrpMgr->status);
-    return TSDB_CODE_STREAM_INTERNAL_ERROR;
-  }
+  TAOS_UNUSED(taosThreadRwlockRdlock(&pReorderGrpMgr->rwlock));
 
   code = splitBlockToWindows(pReorderGrpMgr, pStreamTaskMgr->tsSlotId, pBlock);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -504,12 +506,8 @@ int32_t putDataToReorderTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t group
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     stError("failed to put data to align task manager, lino:%d err: %0x", lino, code);
-    if (pReorderGrpMgr) {
-      (void)changeMgrStatus(&pReorderGrpMgr->status, GRP_DATA_IDLE);
-    }
-  } else {
-    (void)changeMgrStatus(&pReorderGrpMgr->status, GRP_DATA_WIAT_READ);
   }
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pReorderGrpMgr->rwlock));
 
   return code;
 }
@@ -532,11 +530,7 @@ int32_t getReorderDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY en
     return TSDB_CODE_SUCCESS;
   }
   SReorderGrpMgr* pExistGrpMgr = *ppExistGrpMgr;
-  bool             canRead = changeMgrStatus(&pExistGrpMgr->status, GRP_DATA_READING);
-  if (!canRead) {
-    stError("failed to change group data sink manager status when get data, status: %d", pExistGrpMgr->status);
-    return TSDB_CODE_STREAM_INTERNAL_ERROR;
-  }
+  taosThreadRwlockRdlock(&pExistGrpMgr->rwlock);
 
   SListIter  foundDataIter = {0};
   SListNode* pNode = NULL;
@@ -547,7 +541,7 @@ int32_t getReorderDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY en
   while ((pNode = tdListNext(&foundDataIter)) != NULL) {
     SDatasInWindow* pWinData = (SDatasInWindow*)pNode->data;
     if (pWinData->timeRange.startTime >= start && pWinData->timeRange.startTime <= end) {
-      if (pWinData->pBlockFileBuffer && pWinData->pBlockFileBuffer->size > 0) {
+      if (pWinData->pBlockFileBuffer->size > 0) {
         dataPos = DATA_SINK_FILE;
         break;
       }
@@ -563,7 +557,7 @@ int32_t getReorderDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY en
   }
 
   if (pNode == NULL) {
-    (void)changeMgrStatus(&pExistGrpMgr->status, GRP_DATA_IDLE);
+    TAOS_UNUSED(taosThreadRwlockUnlock(&pExistGrpMgr->rwlock));
     stDebug("[get data cache] init nodata 1 groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 "STREAMID:%" PRIx64,
             groupId, start, end, pStreamTaskMgr->streamId);
     return TSDB_CODE_SUCCESS;
@@ -585,8 +579,8 @@ int32_t getReorderDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY en
   pResultIter->reqEndTime = end;
 
 _end:
-  changeMgrStatus(&pExistGrpMgr->status, GRP_DATA_READING);
   if (code != TSDB_CODE_SUCCESS) {
+    TAOS_UNUSED(taosThreadRwlockUnlock(&pExistGrpMgr->rwlock));
     releaseDataResultAndResetMgrStatus((void**)&pResultIter);
     *pIter = NULL;
     stError("failed to get sliding data cache, err: %s, lineno:%d", terrMsg, lino);
@@ -925,6 +919,10 @@ void releaseDataResult(void** pIter) {
     taosArrayDestroy(pResult->tmpBlocksInMem);
     pResult->tmpBlocksInMem = NULL;
   }
+  if (pResult->dataMode & DATA_ALLOC_MODE_REORDER) {
+    SReorderGrpMgr* pReorderGrpMgr = (SReorderGrpMgr*)pResult->groupData;
+    TAOS_UNUSED(taosThreadRwlockUnlock(&pReorderGrpMgr->rwlock));
+  }
 
   if (pResult != NULL) {
     taosMemoryFree(pResult);
@@ -942,6 +940,8 @@ void releaseDataResultAndResetMgrStatus(void** pIter) {
     SSlidingGrpMgr* pSlidingGrpMgr = (SSlidingGrpMgr*)pResult->groupData;
     (void)changeMgrStatus(&pSlidingGrpMgr->status, GRP_DATA_IDLE);
   } else {
+    changeMgrStatus(&pSlidingGrpMgr->status, GRP_DATA_IDLE);
+  } else if (pResult->dataMode & DATA_ALLOC_MODE_ALIGN) {
     SAlignGrpMgr* pAlignGrpMgr = (SAlignGrpMgr*)pResult->groupData;
     (void)changeMgrStatus(&pAlignGrpMgr->status, GRP_DATA_IDLE);
   }

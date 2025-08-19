@@ -169,7 +169,7 @@ typedef struct SSlidingGrpMgr {
 
 typedef struct SReorderGrpMgr {
   int64_t groupId;
-  int8_t  status;  // EGroupStatus
+  TdThreadRwlock rwlock;
   int64_t usedMemSize;
   SList   winAllData;  // List SDataInMemWindows
 } SReorderGrpMgr;

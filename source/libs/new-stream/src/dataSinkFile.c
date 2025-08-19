@@ -543,7 +543,7 @@ int32_t moveSlidingGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SSlidingGrpMg
 
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
-    stError("failed to move sliding group memory cache, code: %d, lineno:%d", code, lino);
+    stError("failed to move sliding group memory cache, code: 0x%0x, lineno:%d", code, lino);
     addToFreeBlock(pFileMgr, &groupBlockOffset);
   }
   taosMemoryFree(iov);
@@ -572,22 +572,15 @@ int32_t writeReorderDataToFile(SDataSinkFileMgr* pFileMgr, SReorderGrpMgr* pReor
           pReorderGrp->groupId, iovNum, needSize, fileBlockInfo.groupOffset, fileBlockInfo.capacity,
           fileBlockInfo.dataLen);
 
-  int64_t ret = taosLSeekFile(pFileMgr->writeFilePtr, fileBlockInfo.groupOffset, SEEK_SET);
-  if (ret < 0) {
-    code = terrno;
-    QUERY_CHECK_CODE(code, lino, _exit);
-  }
-
-  int64_t writeLen = taosWritevFile(pFileMgr->writeFilePtr, iov, iovNum);
+  int64_t writeLen = taosPWritevFile(pFileMgr->writeFilePtr, fileBlockInfo.groupOffset, SEEK_SET, iov, iovNum);
   if (writeLen != needSize) {
     code = terrno;
     QUERY_CHECK_CODE(code, lino, _exit);
   }
-  QUERY_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
-    stError("failed to move sliding group memory cache, code: %d, lineno:%d", code, lino);
+    stError("failed to move sliding group memory cache, code: 0x%0x, lineno:%d", code, lino);
     addToFreeBlock(pFileMgr, &groupBlockOffset);
   }
   return TSDB_CODE_SUCCESS;
@@ -620,6 +613,7 @@ int32_t moveReorderGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SReorderGrpMg
   int32_t existFileBlockCount = 0;
   tdListInitIter(&pReorderGrp->winAllData, &foundDataIter, TD_LIST_FORWARD);
   while ((pNode = tdListNext(&foundDataIter)) != NULL) {
+    needSize = 0;
     SDatasInWindow* pWinData = (SDatasInWindow*)pNode->data;
     moveWinCount = pWinData->datas->size;
     if (moveWinCount <= 0) continue;
@@ -672,7 +666,7 @@ int32_t moveReorderGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SReorderGrpMg
   
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
-    stError("failed to move sliding group memory cache, code: %d, lineno:%d", code, lino);
+    stError("failed to move sliding group memory cache, code: 0x%0x, lineno:%d", code, lino);
   }
   taosMemoryFree(iov);
   return code;
