@@ -1746,6 +1746,7 @@ static int32_t mndUserMergeHashTable(SHashObj* old, SHashObj* new){
 }
 
 static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
+  int32_t code = 0;
   mTrace("user:%s, perform update action, old row:%p new row:%p", pOld->user, pOld, pNew);
   taosWLockLatch(&pOld->lock);
   pOld->updateTime = pNew->updateTime;
@@ -1755,8 +1756,12 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   pOld->enable = pNew->enable;
   pOld->flag = pNew->flag;
   (void)memcpy(pOld->pass, pNew->pass, TSDB_PASSWORD_LEN);
-  mndUserMergeHashTable(pOld->readDbs, pNew->readDbs);
-  mndUserMergeHashTable(pOld->writeDbs, pNew->writeDbs);
+  if ((code = mndUserMergeHashTable(pOld->readDbs, pNew->readDbs)) != 0) {
+    return code;
+  }
+  if ((code = mndUserMergeHashTable(pOld->writeDbs, pNew->writeDbs)) != 0) {
+    return code;
+  }
   TSWAP(pOld->topics, pNew->topics);
   TSWAP(pOld->readTbs, pNew->readTbs);
   TSWAP(pOld->writeTbs, pNew->writeTbs);
