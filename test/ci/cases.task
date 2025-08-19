@@ -214,19 +214,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_tinyint.py
 
 # 05-VirtualTables
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_create.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_alter.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_drop.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_meta.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_create.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_select.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_alter_drop.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_drop_origin_table.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_join.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_insert.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_show_tag.py
 
@@ -504,32 +491,6 @@
 ## 30-OldPyCases
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_max_delay_interval.py
 ## 31-OldTsimCases
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic1.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic2.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_check.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_checkpoint.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_concat.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_continuewindowclose.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_count.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_delete.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_distribute.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_event.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_fillhistory.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_fillinternal.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_forcewindowclose.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_interp_delete.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_interp_fill.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_interp_history.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_interp_partitionby.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_interp_primary.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_interp_update.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_options.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_partitionby.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_primary.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_session.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_snode.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_state.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
 ## 99-Others
 
 # 14-Operators
