@@ -61,7 +61,6 @@ export PATH=$PATH:~/.local/bin
 
 There is no need to build the taosanode, since it is implemented in Python, which is an interpreted language.
 
-
 # 5. Packaging
 
 In the base directory, you can use the following command to package to build an tarball.
@@ -97,8 +96,7 @@ systemctl start taosanoded
 
 ## 6.2 Configure the Service
 
-taosanode provides the RESTFul service powered by `uWSGI`. You can config the options to tune the 
-performance by changing the default configuration file `taosanode.ini` located in `/etc/taos`, which is also the configuration directory for `taosd` service.
+taosanode provides the RESTFul service powered by `uWSGI`. You can config the options to tune the performance by changing the default configuration file `taosanode.ini` located in `/etc/taos`, which is also the configuration directory for `taosd` service.
 
 ```ini
 # taosanode service ip:port
@@ -110,7 +108,6 @@ http = 127.0.0.1:6090
 ## 7.1 Start/Stop Service
 
 `systemctl start/stop/restart taosanoded.service` will start/stop/restart the service of taosanode.
-
 
 ## 7.2 Uninstall
 
