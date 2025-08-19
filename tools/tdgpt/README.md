@@ -29,11 +29,12 @@ List the software and tools required to work on the project.
 Step-by-step instructions to set up the prerequisites software.
 
 ## 3.1 Install Python3.10
+
 Make sure Python3.10 or above is available before installing anode in your system.
 
 In case of Ubuntu, use the following instructions to install Python 3.10.
 
-```
+```shell
 sudo apt-get install software-properties-common
 sudo add-apt-repository ppa:deadsnakes/ppa
 sudo apt update
@@ -57,10 +58,12 @@ export PATH=$PATH:~/.local/bin
 ```
 
 # 4. Building
+
 There is no need to build the taosanode, since it is implemented in Python, which is an interpreted language.
 
 
 # 5. Packaging
+
 In the base directory, you can use the following command to package to build an tarball.
 
 ```bash
@@ -93,6 +96,7 @@ systemctl start taosanoded
 ```
 
 ## 6.2 Configure the Service
+
 taosanode provides the RESTFul service powered by `uWSGI`. You can config the options to tune the 
 performance by changing the default configuration file `taosanode.ini` located in `/etc/taos`, which is also the configuration directory for `taosd` service.
 
@@ -102,11 +106,14 @@ http = 127.0.0.1:6090
 ```
 
 # 7. Running
+
 ## 7.1 Start/Stop Service
+
 `systemctl start/stop/restart taosanoded.service` will start/stop/restart the service of taosanode.
 
 
 ## 7.2 Uninstall
+
 The command `rmtaosanode` will remove the installed taosanode from your system. Note that the python environment won't removed by this script, you need to remove it mannually.
 
 # 8. Testing
@@ -128,4 +135,3 @@ Guidelines for contributing to the project:
 - Fork the repository
 - Create a feature branch
 - Submit a pull request
-
