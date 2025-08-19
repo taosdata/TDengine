@@ -149,7 +149,7 @@ void check_sql_result_integer(TAOS* pConn, const char *sql, int64_t result){
 
 void check_set_timezone(TAOS* optionFunc(const char *tz)){
   {
-    TAOS* pConn = optionFunc("UTC-8");
+    TAOS* pConn = optionFunc("UTC-8");  // Asia/Shanghai timezone
     check_timezone(pConn, "show local variables", "UTC-8");
 
     execQuery(pConn, "drop database if exists db1");
