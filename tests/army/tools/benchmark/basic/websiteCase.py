@@ -27,7 +27,7 @@ from frame.cases import *
 from frame.sql import *
 from frame.caseBase import *
 from frame import *
-
+import re
 
 # reomve single and double quotation
 def removeQuotation(origin):
@@ -97,7 +97,11 @@ class TDTestCase(TBase):
         if ret == False:
             tdLog.exit(f"not found key:{key}. end:{end} output:\n{output}")
 
-        fval = float(value)
+        fval = None
+        match = re.match(r'^[+-]?\d*\.?\d+', value)
+        if match:
+            fval = float(match.group())
+
         # compare
         if equal and fval != expect:
             tdLog.exit(f"check not expect. expect:{expect} real:{fval}, key:'{key}' end:'{end}' output:\n{output}")
