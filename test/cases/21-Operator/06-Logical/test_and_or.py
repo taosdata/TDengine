@@ -7,14 +7,12 @@ class TestAndOr:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_and_or(self):
-        """And、Or 运算符
+        """And Or
 
-        1. 创建多种数据类型的超级表和子表
-        2. 写入数据
-        3. 对普通数据列的 timestamp、int 等类型执行 and+or 混合筛选
+        1. Mixed usage of AND and OR operators
 
         Catalog:
-            - Query:Operator
+            - Operator
 
         Since: v3.0.0.0
 

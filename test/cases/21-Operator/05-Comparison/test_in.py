@@ -7,12 +7,11 @@ class TestIn:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_in(self):
-        """In 运算符
+        """In
 
-        1. 创建多种数据类型的超级表和子表
-        2. 写入数据
-        3. 对普通数据列的 timestamp、int 等类型执行 in 查询
-        4. 对标签数据列的 bool、int 等类型执行 in 查询
+        1. Using IN operator with numeric types
+        2. Using IN operator with timestamp types
+        3. Using IN operator in an EXPLAIN statement
 
         Catalog:
             - Query:Operator

@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
 
 
 class TestCaseWhen:
@@ -7,15 +7,16 @@ class TestCaseWhen:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_case_when(self):
-        """And Or 运算符
+        """Case when
 
-        1. 创建多种数据类型的超级表和子表
-        2. 写入数据
-        3. case when 结果中包含数据列
-        4. case when 结果中包含聚合函数
+        1. Using in data columns and scalar functions within SELECT statements
+        2. Using in data columns within WHERE conditions
+        3. Using in data columns within GROUP BY statements
+        4. Using in data columns within STATE WINDOW
+        5. Using in aggregate functions while including the IS NULL operator
 
         Catalog:
-            - Query:Operator
+            - Operator
 
         Since: v3.0.0.0
 
@@ -25,9 +26,16 @@ class TestCaseWhen:
 
         History:
             - 2025-4-28 Simon Guan Migrated from tsim/scalar/caseWhen.sim
+            - 2025-5-8 Simon Guan Migrated from tsim/query/bug3398.sim
 
         """
 
+        self.CaseWhen()
+        tdStream.dropAllStreamsAndDbs()
+        self.Bug3398()
+        tdStream.dropAllStreamsAndDbs()
+        
+    def CaseWhen(self):
         tdLog.info(f"======== prepare data")
 
         tdSql.prepare("db1", drop=True, vgroups=5)
@@ -716,3 +724,23 @@ class TestCaseWhen:
         tdSql.error(
             f"select case when c_bool then c_double else c_varbinary end as result from t_test;"
         )
+
+    def Bug3398(self):
+        tdLog.info(f'=============== create database')
+        tdSql.execute(f"create database test")
+
+        tdLog.info(f'=============== create super table and child table')
+        tdSql.execute(f"use test")
+
+        tdSql.execute(f"CREATE STABLE st (day timestamp, c2 int) TAGS (vin binary(32))")
+
+        tdSql.execute(f'insert into test.g using st TAGS ("TAG1") values("2023-05-03 00:00:00.000", 1)')
+        tdSql.execute(f'insert into test.t using st TAGS ("TAG1") values("2023-05-03 00:00:00.000", 1)')
+        tdSql.execute(f'insert into test.tg using st TAGS ("TAG1") values("2023-05-03 00:00:00.000", 1)')
+
+        tdSql.query(f"select sum(case when t.c2 is NULL then 0 else 1 end + case when t.c2 is NULL then 0 else 1 end), sum(case when t.c2 is NULL then 0 else 1 end + case when t.c2 is NULL then 0 else 1 end + case when t.c2 is NULL then 0 else 1 end) from test.t t, test.g g, test.tg tg where t.day = g.day and t.day = tg.day and t.day between '2021-05-03' and '2023-05-04' and t.vin = 'TAG1' and t.vin = g.vin and t.vin = tg.vin group by t.day;")
+
+        tdLog.info(f'{tdSql.getRows()}) {tdSql.getData(0,0)} {tdSql.getData(0,1)}')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 2.000000000)
+        tdSql.checkData(0, 1, 3.000000000)

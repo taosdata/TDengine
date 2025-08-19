@@ -167,26 +167,34 @@
 ,,n,.,pytest cases/05-VirtualTables/test_vtable_query.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_show_tag.py
 
-# 06-DataIngestion
-,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/test_write_basic.py
-,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/test_write_commit.py
-,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/test_write_datatypes.py
-,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/test_write_delete.py
-,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/test_write_insert_select.py
-,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/test_write_out_of_order_data.py
-,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/test_write_update.py
+# 10-DataIngestion
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_basic.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_commit.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_datatypes.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_delete.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_insert_select.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_out_of_order_data.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_update.py
+
+
+# 21-Operator
+## 01-Arithmetic
+,,y,.,./ci/pytest.sh pytest cases/21-Operator/01-Arithmetic/test_arithmetic.py
+
+## 02-Bit
+## 03-JSON
+## 04-Set
+
+## 05-Comparison
+,,y,.,./ci/pytest.sh pytest cases/21-Operator/test_between_and.py
+,,y,.,./ci/pytest.sh pytest cases/21-Operator/test_in.py 
+,,y,.,./ci/pytest.sh pytest cases/21-Operator/test_like.py 
+
+## 06-Logical
+,,y,.,./ci/pytest.sh pytest cases/21-Operator/test_and_or.py
+,,y,.,./ci/pytest.sh pytest cases/21-Operator/test_case_when.py 
 
 # 07-DataQuerying
-## 01-Operator
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_and_or.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_arithmetic_basic.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_arithmetic.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_between_and.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_case_when_sum.py 
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_case_when.py 
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_in.py 
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_like_tag.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_like.py 
 
 ## 02-Filter
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_condition_scl.py
