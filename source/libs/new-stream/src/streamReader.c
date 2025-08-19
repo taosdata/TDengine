@@ -2,6 +2,8 @@
 #include "osMemPool.h"
 #include "streamInt.h"
 #include "executor.h"
+#include "tdatablock.h"
+#include "tdef.h"
 
 void destroyOptions(SStreamTriggerReaderTaskInnerOptions* options) {
   if (options == NULL) return;
@@ -200,6 +202,11 @@ static void destroyCondition(SNode* pCond) {
   nodesDestroyNode(pCond);
 }
 
+static void destroyBlock(void* data) {
+  if (data == NULL) return;
+  blockDataDestroy(*(SSDataBlock**)data);
+}
+
 static void releaseStreamReaderInfo(void* p) {
   if (p == NULL) return;
   SStreamTriggerReaderInfo* pInfo = (SStreamTriggerReaderInfo*)p;
@@ -213,6 +220,7 @@ static void releaseStreamReaderInfo(void* p) {
   
   nodesDestroyList(pInfo->partitionCols);
   blockDataDestroy(pInfo->triggerResBlock);
+  blockDataDestroy(pInfo->triggerResBlockNew);
   blockDataDestroy(pInfo->calcResBlock);
   blockDataDestroy(pInfo->tsBlock);
   destroyExprInfo(pInfo->pExprInfo, pInfo->numOfExpr);
@@ -222,6 +230,9 @@ static void releaseStreamReaderInfo(void* p) {
   taosHashCleanup(pInfo->uidHash);
   qStreamDestroyTableList(pInfo->tableList);
   filterFreeInfo(pInfo->pFilterInfo);
+  tdListFreeP(pInfo->pBlockListUsed, destroyBlock);
+  tdListFreeP(pInfo->pBlockListFree, destroyBlock);
+
   taosMemoryFree(pInfo);
 }
 
@@ -323,6 +334,14 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
         ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scan.node.pOutputDataBlockDesc;
     sStreamReaderInfo->triggerResBlock = createDataBlockFromDescNode(pDescNode);
     STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->triggerResBlock, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
+
+    sStreamReaderInfo->triggerResBlockNew = createDataBlockFromDescNode(pDescNode);
+    STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->triggerResBlockNew, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
+    SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, LONG_BYTES, -1); // uid
+    STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(sStreamReaderInfo->triggerResBlockNew, &idata));
+    idata = createColumnInfoData(TSDB_DATA_TYPE_UBIGINT, LONG_BYTES, -1); // gid
+    STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(sStreamReaderInfo->triggerResBlockNew, &idata));
+
     // STREAM_CHECK_RET_GOTO(buildSTSchemaForScanData(&sStreamReaderInfo->triggerSchema, sStreamReaderInfo->triggerCols));
     sStreamReaderInfo->triggerPseudoCols = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scan.pScanPseudoCols;
     if (sStreamReaderInfo->triggerPseudoCols != NULL) {
@@ -331,6 +350,8 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
     }
     setColIdForCalcResBlock(sStreamReaderInfo->triggerPseudoCols, sStreamReaderInfo->triggerResBlock->pDataBlock);
     setColIdForCalcResBlock(sStreamReaderInfo->triggerCols, sStreamReaderInfo->triggerResBlock->pDataBlock);
+    setColIdForCalcResBlock(sStreamReaderInfo->triggerPseudoCols, sStreamReaderInfo->triggerResBlockNew->pDataBlock);
+    setColIdForCalcResBlock(sStreamReaderInfo->triggerCols, sStreamReaderInfo->triggerResBlockNew->pDataBlock);
   }
 
   // process calcCacheScanPlan
@@ -364,6 +385,10 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->streamTaskMap, terrno);
   taosHashSetFreeFp(sStreamReaderInfo->streamTaskMap, releaseStreamTask);
 
+  sStreamReaderInfo->pBlockListFree = tdListNew(POINTER_BYTES);
+  STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->pBlockListFree, terrno);
+  sStreamReaderInfo->pBlockListUsed = tdListNew(POINTER_BYTES);
+  STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->pBlockListUsed, terrno);
 end:
   STREAM_PRINT_LOG_END(code, lino);
 

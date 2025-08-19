@@ -14,10 +14,6 @@
 extern "C" {
 #endif
 
-typedef struct STagCache {
-  char* tbname;
-  void* pTag;
-} STagCache;
 typedef struct SStreamTriggerReaderInfo {
   void*        pTask;
   int32_t      order;
@@ -39,6 +35,7 @@ typedef struct SStreamTriggerReaderInfo {
   SSubplan*    triggerAst;
   SSubplan*    calcAst;
   SSDataBlock* triggerResBlock;
+  SSDataBlock* triggerResBlockNew;
   SSDataBlock* calcResBlock;
   SSDataBlock* tsBlock;
   SExprInfo*   pExprInfo;
@@ -49,6 +46,8 @@ typedef struct SStreamTriggerReaderInfo {
   void*        tableList;
   SFilterInfo* pFilterInfo;
   SHashObj*    pTableMetaCache;
+  SList*       pBlockListUsed;
+  SList*       pBlockListFree;
 } SStreamTriggerReaderInfo;
 
 typedef struct SStreamTriggerReaderCalcInfo {

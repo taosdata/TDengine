@@ -15,6 +15,7 @@
 
 #include "streamMsg.h"
 #include "tdatablock.h"
+#include "tlist.h"
 #include "tmsg.h"
 #include "os.h"
 #include "tcommon.h"
@@ -4373,7 +4374,7 @@ _exit:
   return code;
 }
 
-int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, const SArray* pRsp) {
+int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SList* used, SList* freed) {
   SEncoder encoder = {0};
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -4382,24 +4383,37 @@ int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, const SArray
   tEncoderInit(&encoder, buf, bufLen);
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
 
-  int32_t nBlocks = taosArrayGetSize(pRsp);
+  int32_t nBlocks = TD_DLIST_NELES(used);
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, nBlocks));
-  for (int32_t i = 0; i < nBlocks; i++) {
-    SSDataBlock* pBlock = *(SSDataBlock**)TARRAY_GET_ELEM(pRsp, i);
-    int32_t len = 0;
-    if (encoder.data) {
-      len = blockEncode(pBlock, (char*)(encoder.data + encoder.pos), encoder.size - encoder.pos, blockDataGetNumOfCols(pBlock));
+
+  if (buf == NULL) {
+    SListNode* pNode = tdListGetHead(used);
+    while (pNode) {
+      SSDataBlock* pBlock = *(SSDataBlock**)(pNode->data);
+      int32_t len = blockGetEncodeSize(pBlock);
+      encoder.pos += len;
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pBlock->info.version));
+      TAOS_CHECK_EXIT(tEncodeU64(&encoder, pBlock->info.id.uid));
+
+      pNode = pNode->dl_next_;
+    }
+  } else {
+    for (int32_t i = 0; i < nBlocks; i++) {
+      SListNode *pNode = tdListPopHead(used);
+      if (pNode == NULL || pNode->data == NULL) continue;
+      tdListAppendNode(freed, pNode);
+      
+      SSDataBlock* pBlock = *(SSDataBlock**)(pNode->data);
+      int32_t len = blockEncode(pBlock, (char*)(encoder.data + encoder.pos), encoder.size - encoder.pos, blockDataGetNumOfCols(pBlock));
       if (len < 0) {
         TAOS_CHECK_EXIT(terrno);
       }
-    } else {
-      len = blockGetEncodeSize(pBlock);
-    }
-    encoder.pos += len;
-    TAOS_CHECK_EXIT(tEncodeI64(&encoder, pBlock->info.version));
-    TAOS_CHECK_EXIT(tEncodeU64(&encoder, pBlock->info.id.uid));
-  }
 
+      encoder.pos += len;
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pBlock->info.version));
+      TAOS_CHECK_EXIT(tEncodeU64(&encoder, pBlock->info.id.uid));
+    }
+  }
   tEndEncode(&encoder);
 
 _exit:

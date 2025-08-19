@@ -3223,7 +3223,7 @@ static void sysTableScanFillTbName(SOperatorInfo* pOperator, const SSysTableScan
     char varTbName[TSDB_TABLE_FNAME_LEN - 1 + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(varTbName, name);
 
-    code = colDataSetNItems(pColumnInfoData, 0, varTbName, pBlock->info.rows, true);
+    code = colDataSetNItems(pColumnInfoData, 0, varTbName, pBlock->info.rows, 1, true);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
