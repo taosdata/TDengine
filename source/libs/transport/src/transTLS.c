@@ -332,7 +332,7 @@ int32_t sslWrite(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req, uv_buf_t
     total += nread;
   }
   if (total <= 0) {
-    tError("conn %p, failed to write data to SSL BIO since %s", pTls->pConn, tstrerror(code));
+    tDebug("conn %p not read data from bio", pTls->pConn);
     return code;
   }
 
