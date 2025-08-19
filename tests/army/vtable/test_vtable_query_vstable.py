@@ -220,37 +220,6 @@ class TDTestCase(TBase):
 
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 
-
-    def test_select_virtual_normal_table(self):
-        self.test_normal_query("test_vtable_select_test_projection")
-        self.test_normal_query("test_vtable_select_test_projection_filter")
-        self.test_normal_query("test_vtable_select_test_function")
-
-        self.test_normal_query("test_vtable_select_test_interval")
-        self.test_normal_query("test_vtable_select_test_state")
-        self.test_normal_query("test_vtable_select_test_session")
-        self.test_normal_query("test_vtable_select_test_event")
-        self.test_normal_query("test_vtable_select_test_count")
-
-        self.test_normal_query("test_vtable_select_test_partition")
-        self.test_normal_query("test_vtable_select_test_group")
-        self.test_normal_query("test_vtable_select_test_orderby")
-
-    def test_select_virtual_child_table(self):
-        self.test_normal_query("test_vctable_select_test_projection")
-        self.test_normal_query("test_vctable_select_test_projection_filter")
-        self.test_normal_query("test_vctable_select_test_function")
-
-        self.test_normal_query("test_vctable_select_test_interval")
-        self.test_normal_query("test_vctable_select_test_state")
-        self.test_normal_query("test_vctable_select_test_session")
-        self.test_normal_query("test_vctable_select_test_event")
-        self.test_normal_query("test_vctable_select_test_count")
-
-        self.test_normal_query("test_vctable_select_test_partition")
-        self.test_normal_query("test_vctable_select_test_group")
-        self.test_normal_query("test_vctable_select_test_orderby")
-
     def test_select_virtual_super_table(self):
         self.test_normal_query("test_vstable_select_test_projection")
         self.test_normal_query("test_vstable_select_test_projection_filter")
@@ -270,8 +239,7 @@ class TDTestCase(TBase):
         tdLog.debug(f"start to excute {__file__}")
 
         self.prepare_org_tables()
-        self.test_select_virtual_normal_table()
-        self.test_select_virtual_child_table()
+        self.test_select_virtual_super_table()
 
 
         tdLog.success(f"{__file__} successfully executed")
