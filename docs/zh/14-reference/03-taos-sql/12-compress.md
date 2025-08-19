@@ -1,5 +1,5 @@
 ---
-title: 可配置压缩算法
+title: 数据压缩
 sidebar_label: 可配置压缩
 description: 可配置压缩算法
 ---
