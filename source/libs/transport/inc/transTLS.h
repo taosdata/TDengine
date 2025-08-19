@@ -43,6 +43,7 @@ typedef struct {
   int32_t  cap;
   int32_t  len;
   int8_t   invalid;  // whether the buffer is invalid
+  int8_t   ref;
   uint8_t* buf;      // buffer for encrypted data
 } SSslBuffer;
 
@@ -60,6 +61,7 @@ typedef struct {
   void *pConn;
 
   SSslBuffer readBuf;  // buffer for reading data
+  SSslBuffer sendBuf;  // buffer for sending data
 
   void (*connCb)(uv_connect_t* pStream, int32_t status);                        // callback for connection events
   void (*readCb)(uv_stream_t* pStream, ssize_t nread, const uv_buf_t* buffer);  // callback for write events
@@ -83,8 +85,18 @@ int8_t sslIsInited(STransTLS* pTls);
 int32_t sslBufferInit(SSslBuffer* buf, int32_t cap);
 int32_t sslBufferDestroy(SSslBuffer* buf);
 void    sslBufferClear(SSslBuffer* buf);
-int32_t sslBufferAppend(SSslBuffer* buf, int32_t len);
+int32_t sslBufferAppend(SSslBuffer* buf, uint8_t* data, int32_t len);
 int32_t sslBufferRealloc(SSslBuffer* buf, int32_t newCap, uv_buf_t* uvbuf);
+int32_t sslBufferGetAvailable(SSslBuffer* buf, int32_t* available);
+
+void sslBufferRef(SSslBuffer* buf);
+void sslBufferUnref(SSslBuffer* buf);
+
+#define SSL_BUFFER_LEN(buf)               ((buf)->len)
+#define SSL_BUFFER_CAP(buf)               ((buf)->cap)
+#define SSL_BUFFER_DATA(buf)              ((buf)->buf)
+#define SSL_BUFFER_OFFSET_DATA(b, offset) ((b)->buf + (offset))
+
 #ifdef __cplusplus
 }
 #endif

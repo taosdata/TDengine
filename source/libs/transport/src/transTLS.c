@@ -204,6 +204,9 @@ int32_t sslInit(SSslCtx* pCtx, STransTLS** ppTLs) {
   code = sslBufferInit(&pTls->readBuf, 4096);
   TAOS_CHECK_GOTO(code, &lino, _error);
 
+  code = sslBufferInit(&pTls->sendBuf, 4096);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
   *ppTLs = pTls;
 
 _error:
@@ -311,7 +314,7 @@ int32_t sslWrite(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req, uv_buf_t
                  void (*cb)(uv_write_t*, int)) {
   int32_t lino = 0;
   int32_t code = 0;
-  int32_t nread = 0;
+  int32_t nread = 0, total = 0;
   for (int i = 0; i < nBuf; i++) {
     int n = SSL_write(pTls->ssl, pBuf[i].base, pBuf[i].len);
     if (n <= 0) {
@@ -320,17 +323,33 @@ int32_t sslWrite(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req, uv_buf_t
     }
   }
 
-  char buf[64 * 1024] = {0};
+  int32_t start = SSL_BUFFER_LEN(&pTls->sendBuf);
+
+  uint8_t buf[4096] = {0};
   while ((nread = BIO_read(pTls->writeBio, buf, sizeof(buf))) > 0) {
-    uv_buf_t b = uv_buf_init(buf, nread);
-    code = uv_write(req, stream, &b, 1, cb);
-    if (code != 0) {
-      tError("Failed to write SSL data: %s", uv_err_name(code));
-      return code;
-    } else {
-      tDebug("conn %p write %d bytes to socket", pTls->pConn, nread);
-    }
+    code = sslBufferAppend(&pTls->sendBuf, buf, nread);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+    total += nread;
   }
+
+  // if (nread < 0) {
+  //   code = sslHandleError(pTls, nread);
+  //   TAOS_CHECK_GOTO(code, &lino, _error);
+  // }
+
+  sslBufferRef(&pTls->sendBuf);
+
+  uv_buf_t b =
+      uv_buf_init((char*)(SSL_BUFFER_OFFSET_DATA(&(pTls->sendBuf), start)), SSL_BUFFER_LEN(&pTls->sendBuf) - start);
+  int32_t status = uv_write(req, stream, &b, 1, cb);
+  if (status == 0) {
+    tDebug("conn %p write %d bytes to socket", pTls->pConn, total);
+  } else {
+    sslBufferUnref(&pTls->sendBuf);
+    tError("Failed to write SSL data: %s", uv_err_name(status));
+    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
+  }
+
 _error:
   if (code != 0) {
     tError("SSL write error since %s", tstrerror(code));
@@ -417,6 +436,8 @@ void sslDestroy(STransTLS* pTls) {
     SSL_free(pTls->ssl);
 
     sslBufferDestroy(&pTls->readBuf);
+    sslBufferDestroy(&pTls->sendBuf);
+
     taosMemoryFree(pTls);
   }
 }
@@ -432,6 +453,8 @@ int32_t sslBufferInit(SSslBuffer* buf, int32_t cap) {
   if (buf->buf == NULL) {
     return terrno;
   }
+
+  buf->ref = 0;
   return 0;
 }
 
@@ -452,13 +475,38 @@ int32_t sslBufferDestroy(SSslBuffer* buf) {
   return 0;
 }
 
-int32_t sslBufferAppend(SSslBuffer* buf, int32_t len) {
+int32_t sslBufferAppend(SSslBuffer* buf, uint8_t* data, int32_t len) {
   int32_t code = 0;
   if (buf == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
+
+  if (buf->len + len > buf->cap) {
+    int32_t newCap = buf->cap * 2;
+    while (newCap < buf->len + len) {
+      newCap *= 2;
+    }
+
+    uint8_t* newBuf = taosMemoryRealloc(buf->buf, newCap);
+    if (newBuf == NULL) {
+      return terrno;
+    }
+
+    buf->buf = newBuf;
+    buf->cap = newCap;
+  }
+  memcpy(buf->buf + buf->len, data, len);
+
   buf->len += len;
   return code;
+}
+
+int32_t sslBufferGetAvailable(SSslBuffer* buf, int32_t* available) {
+  if (buf == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *available = buf->cap - buf->len;
+  return 0;
 }
 
 int32_t sslBufferRealloc(SSslBuffer* buf, int32_t newCap, uv_buf_t* uvbuf) {
@@ -493,4 +541,19 @@ _error:
 
   uDebug("alloc recv buffer, base:%p, len:%d", uvbuf->base, uvbuf->len);
   return 0;
+}
+
+void sslBufferRef(SSslBuffer* buf) {
+  if (buf == NULL) {
+  }
+  buf->ref++;
+}
+
+void sslBufferUnref(SSslBuffer* buf) {
+  if (buf->ref > 0) {
+    buf->ref--;
+  }
+  if (buf->ref == 0) {
+    sslBufferClear(buf);
+  }
 }

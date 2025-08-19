@@ -799,6 +799,7 @@ void uvOnSendCbSSL(uv_write_t* req, int status) {
   //   return;
   // }
 _error:
+  taosMemoryFree(req);
   return;
 }
 void uvOnSendCb(uv_write_t* req, int status) {
@@ -812,6 +813,9 @@ void uvOnSendCb(uv_write_t* req, int status) {
   QUEUE_MOVE(&wrapper->node, &src);
 
   freeWReqToWQ(&conn->wq, wrapper);
+  if (conn->enableSSL) {
+    sslBufferUnref(&conn->pTls->sendBuf);
+  }
 
   tTrace("%s conn:%p, send data out", transLabel(conn->pInst), conn);
 

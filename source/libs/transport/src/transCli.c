@@ -1231,6 +1231,7 @@ static void cliDestroy(uv_handle_t* handle) {
 
   taosMemoryFree(conn->buf);
   destroyWQ(&conn->wq);
+
   transDestroyBuffer(&conn->readBuf);
 
   tTrace("%s conn:%p, destroy successfully", CONN_GET_INST_LABEL(conn), conn);
@@ -1436,6 +1437,9 @@ static void cliBatchSendCb(uv_write_t* req, int status) {
   SCliThrd* pThrd = conn->hostThrd;
   STrans*   pInst = pThrd->pInst;
 
+  if (conn->enableSSL) {
+    sslBufferUnref(&conn->pTls->sendBuf);
+  }
   while (!QUEUE_IS_EMPTY(&wrapper->node)) {
     queue*   h = QUEUE_HEAD(&wrapper->node);
     SCliReq* pReq = QUEUE_DATA(h, SCliReq, sendQ);
@@ -1668,7 +1672,7 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
     ret = sslWrite(pConn->pTls, pConn->stream, req, wb, j, cliBatchSendCb);
   }
   if (ret != 0) {
-    tError("%s conn:%p, failed to send msg since %s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(ret));
+    tError("%s conn:%p, failed to send msg since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
     while (!QUEUE_IS_EMPTY(&pWreq->node)) {
       queue*   h = QUEUE_HEAD(&pWreq->node);
       SCliReq* pCliMsg = QUEUE_DATA(h, SCliReq, sendQ);
