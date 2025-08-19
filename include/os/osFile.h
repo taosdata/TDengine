@@ -145,6 +145,7 @@ FILE   *taosOpenFileForStream(const char *path, int32_t tdFileOptions);
 bool    lastErrorIsFileNotExist();
 
 int64_t taosWritevFile(TdFilePtr pFile, const TaosIOVec *iov, int iovcnt);
+int64_t taosPWritevFile(TdFilePtr pFile, int64_t offset, int32_t whence, const TaosIOVec *iov, int iovcnt);
 
 #ifdef BUILD_WITH_RAND_ERR
 #define STUB_RAND_NETWORK_ERR(ret)                                        \

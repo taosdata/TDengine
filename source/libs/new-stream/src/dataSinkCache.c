@@ -290,7 +290,6 @@ bool setNextIteratorFromMemReorder(SResultIter** ppResult) {
     pNode = tdListNext(&iter);
   } else {
     iter.next = pNode->dl_next_;
-    pNode = tdListNext((SListIter*)&pNode->dl_next_);
   }
 
   while (pNode != NULL) {
@@ -529,14 +528,14 @@ int32_t moveMemFromWaitList(int8_t mode) {
     if (hasEnoughMemSize()) {
       break;  // no need to move more mem
     }
-    bool canMove = changeMgrStatusToMoving(&pReorderGrp->status, mode);
-    if (!canMove) {
+
+    if (taosThreadRwlockTryWrlock(&pReorderGrp->rwlock) != 0) {
       ppReorderGrpMgr = taosHashIterate(g_reorderGrpMemList.pReorderGrpList, ppReorderGrpMgr);
       continue;  // another thread is using this group, skip it
     }
 
     code = moveReorderGrpMemCache(NULL, pReorderGrp);
-    changeMgrStatus(&pReorderGrp->status, GRP_DATA_IDLE);
+    TAOS_UNUSED(taosThreadRwlockUnlock(&pReorderGrp->rwlock));
     if (code != TSDB_CODE_SUCCESS) {
       stError("failed to move reorder group mem cache, code: %d err: %s", code, terrMsg);
     }
@@ -560,13 +559,12 @@ int32_t moveSlidingTaskMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr) {
       ppReorderGrpMgr = taosHashIterate(pSlidingTaskMgr->pSlidingGrpList, ppReorderGrpMgr);
       continue;
     }
-    bool canMove = changeMgrStatusToMoving(&pReorderGrp->status, GRP_DATA_WAITREAD_MOVING);
-    if (!canMove) {
+    if (taosThreadRwlockTryWrlock(&pReorderGrp->rwlock) != 0) {
       ppReorderGrpMgr = taosHashIterate(pSlidingTaskMgr->pSlidingGrpList, ppReorderGrpMgr);
       continue;  // another thread is using this group, skip it
     }
     code = moveReorderGrpMemCache(pSlidingTaskMgr, pReorderGrp);
-    changeMgrStatus(&pReorderGrp->status, GRP_DATA_IDLE);
+    TAOS_UNUSED(taosThreadRwlockUnlock(&pReorderGrp->rwlock));
     if (code != TSDB_CODE_SUCCESS) {
       stError("failed to move reorder group mem cache, code: %d err: %s", code, terrMsg);
     }
