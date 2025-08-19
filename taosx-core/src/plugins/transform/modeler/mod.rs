@@ -148,11 +148,11 @@ impl ModeledRecordBatch {
         &self.records
     }
 
-    pub fn to_modeled_json(&self) -> ModeledJsonOutput {
-        self.inner().into()
+    pub fn to_modeled_json(&self) -> anyhow::Result<ModeledJsonOutput> {
+        Ok(self.inner().into())
     }
 
-    pub fn to_modeled_json_with_tz(&self, tz: &str) -> ModeledJsonOutput {
+    pub fn to_modeled_json_with_tz(&self, tz: &str) -> anyhow::Result<ModeledJsonOutput> {
         let schema = self.records.schema();
         let (fields, columns): (Vec<_>, Vec<_>) = (0..self.records.num_columns())
             .map(|i| {
@@ -182,9 +182,10 @@ impl ModeledRecordBatch {
             })
             .unzip();
 
-        let records = RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).unwrap();
+        let records = RecordBatch::try_new(Arc::new(Schema::new(fields)), columns)
+            .context("build modeled batch error")?;
 
-        (&records).into()
+        Ok((&records).into())
     }
 }
 
@@ -602,7 +603,7 @@ mod tests {
         .unwrap();
 
         let modeled = ModeledRecordBatch::new(records);
-        let output = modeled.to_modeled_json_with_tz("UTC");
+        let output = modeled.to_modeled_json_with_tz("UTC").unwrap();
         assert_eq!(
             output.columns,
             vec![
@@ -616,7 +617,7 @@ mod tests {
                 ]
             ]
         );
-        let output = modeled.to_modeled_json_with_tz("Asia/Shanghai");
+        let output = modeled.to_modeled_json_with_tz("Asia/Shanghai").unwrap();
         assert_eq!(
             output.columns,
             vec![

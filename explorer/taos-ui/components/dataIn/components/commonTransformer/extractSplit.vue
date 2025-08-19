@@ -370,6 +370,10 @@ function getInputList(resultMsgbody: string[], isall?: boolean): Recordable[] {
 
   inputList = resultMsgbody.map(msg => {
     const inputobj: Recordable = {};
+    let jsonValue = {};
+    if (isJson.value) {
+      jsonValue = JSON.parse(msg)[props.itemData.columnname];
+    }
     props.indentifiedColumns
       .filter((val: Recordable) => !hiddenCols.includes(val.name))
       .forEach((item: Recordable) => {
@@ -377,9 +381,9 @@ function getInputList(resultMsgbody: string[], isall?: boolean): Recordable[] {
           if (item.name == 'payload') {
             inputobj['payload'] = isall
               ? msg
-              : isJson.value
+              : isJson.value && jsonValue
                 ? JSON.stringify({
-                  [`${props.itemData.columnname}`]: JSON.parse(msg.replace(/\n/g, '\\n'))[props.itemData.columnname]
+                  [`${props.itemData.columnname}`]: jsonValue
                 })
                 : msg;
           } else {
@@ -389,9 +393,9 @@ function getInputList(resultMsgbody: string[], isall?: boolean): Recordable[] {
           if (item.name == 'value') {
             inputobj['value'] = isall
               ? msg
-              : isJson.value
+              : isJson.value && jsonValue
                 ? JSON.stringify({
-                  [`${props.itemData.columnname}`]: JSON.parse(msg)[props.itemData.columnname]
+                  [`${props.itemData.columnname}`]: jsonValue
                 })
                 : msg;
           } else {
@@ -401,9 +405,9 @@ function getInputList(resultMsgbody: string[], isall?: boolean): Recordable[] {
           if (item.name == 'value') {
             inputobj['value'] = isall
               ? msg
-              : isJson.value
+              : isJson.value && jsonValue
                 ? JSON.stringify({
-                  [`${props.itemData.columnname}`]: JSON.parse(msg)[props.itemData.columnname]
+                  [`${props.itemData.columnname}`]: jsonValue
                 })
                 : msg;
           } else {
@@ -413,6 +417,7 @@ function getInputList(resultMsgbody: string[], isall?: boolean): Recordable[] {
       });
     return inputobj;
   });
+
 
   if (props.datasourceType == 'mqtt') {
     inputList = inputList.map((msg: any, index: string | number) => {

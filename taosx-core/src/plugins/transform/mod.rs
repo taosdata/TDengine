@@ -210,7 +210,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -231,7 +235,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         assert_eq!(
             output[0]
                 .fields
@@ -265,7 +273,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -285,7 +297,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         assert_eq!(
             output[0]
                 .fields
@@ -333,7 +349,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output_over_written = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output_over_written = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         assert_eq!(
             output_over_written[0]
                 .fields
@@ -374,7 +394,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
     }
@@ -392,7 +416,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -413,7 +441,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         assert_eq!(
             output[0]
                 .fields
@@ -462,7 +494,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output_over_written = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output_over_written = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         assert_eq!(
             output_over_written[0]
                 .fields
@@ -503,7 +539,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
     }
@@ -521,7 +561,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -535,7 +579,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -555,7 +603,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
     }
@@ -572,7 +624,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -586,7 +642,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -606,7 +666,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
     }
@@ -625,7 +689,11 @@ mod pipeline_tests {
         dbg!(&pipeline);
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
 
         assert_eq!(
             output[0]
@@ -654,7 +722,11 @@ mod pipeline_tests {
         dbg!(&pipeline);
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
 
         assert_eq!(
             output[0]
@@ -688,7 +760,11 @@ mod pipeline_tests {
         dbg!(&pipeline);
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
 
         assert_eq!(
             output[0]
@@ -714,7 +790,11 @@ mod pipeline_tests {
         dbg!(&pipeline);
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
 
         assert_eq!(
             output[0]
@@ -745,7 +825,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -759,7 +843,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -779,7 +867,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
     }
@@ -798,7 +890,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -821,7 +917,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
 
         assert_eq!(
@@ -869,7 +969,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
 
         assert_eq!(
             output[0]
