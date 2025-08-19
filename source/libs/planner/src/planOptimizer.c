@@ -4827,6 +4827,36 @@ static int32_t rewriteLastScanTargets(SNodeList* pAggFuncs, SNodeList** ppLastSc
   return TSDB_CODE_SUCCESS;
 }
 
+static void rewriteLastScanParams(SNodeList* pAggFuncs, SNodeList* pLastScanTargets) {
+  int32_t code = 0;
+  SNode*  pNode;
+  FOREACH(pNode, pAggFuncs) {
+    if (nodeType(pNode) != QUERY_NODE_FUNCTION) {
+      continue;
+    }
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    SNode*         pParam = NULL;
+    FOREACH(pParam, pFunc->pParameterList) {
+      if (nodeType(pParam) != QUERY_NODE_COLUMN) {
+        continue;
+      }
+      SNode* pTarget = NULL;
+      FOREACH(pTarget, pLastScanTargets) {
+        if (nodesEqualNode(pTarget, pParam)) {
+          SColumnNode* pColTarget = (SColumnNode*)pTarget;
+          SColumnNode* pColParam = (SColumnNode*)pParam;
+          // double check if the target is related to the param
+          if (pColTarget->node.relatedTo == pColParam->node.relatedTo || 
+              pColTarget->node.relatedTo == pColParam->node.bindExprID) {
+            memcpy(((SColumnNode*)pParam)->colName, ((SColumnNode*)pTarget)->colName, TSDB_COL_NAME_LEN);
+          }
+          continue;
+        }
+      }
+    }
+  }
+}
+
 static void rewriteLastScanCols(SNodeList* pAggFuncs, SNodeList* pLastScanCols) {
   SNode* pNode;
   FOREACH(pNode, pAggFuncs) {
@@ -5081,6 +5111,7 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   }
 
   rewriteLastScanTargets(pAgg->pAggFuncs, &pScan->node.pTargets);
+  rewriteLastScanParams(pAgg->pAggFuncs, pScan->node.pTargets);
   rewriteLastScanCols(pAgg->pAggFuncs, pScan->pScanCols);
 
   nodesClearList(cxt.pOtherCols);

@@ -82,7 +82,8 @@ static bool dataTypeEqual(SDataType a, SDataType b) {
 static bool columnNodeEqual(const SColumnNode* a, const SColumnNode* b) {
   COMPARE_STRING_FIELD(dbName);
   COMPARE_STRING_FIELD(tableName);
-  COMPARE_STRING_FIELD(colName);
+  // COMPARE_STRING_FIELD(colName);
+  COMPARE_SCALAR_FIELD(colId);
   COMPARE_STRING_FIELD(tableAlias);
   return true;
 }
