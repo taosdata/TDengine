@@ -1,17 +1,20 @@
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
 
 
-class TestInsertUpdate1:
+class TestWriteUpdate:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_insert_update1(self):
-        """update sub table data
+    def test_write_update(self):
+        """Write: update data
 
-        1. create table
-        2. insert data
-        3. query data
+        1. Update data in memory
+        2. Update data in files
+        3. Write to update multiple records at once
+        4. Update data using NULL values
+        5. Restart the dnode
+        6. Check data integrity
 
         Catalog:
             - DataIngestion
@@ -23,10 +26,122 @@ class TestInsertUpdate1:
         Jira: None
 
         History:
-            - 2025-4-29 Simon Guan Migrated from tsim/insert/update1_sort_merge.sim
+            - 2025-8-12 Simon Guan Migrated from tsim/insert/update0.sim
+            - 2025-8-12 Simon Guan Migrated from tsim/insert/update1_sort_merge.sim
+            - 2025-8-12 Simon Guan Migrated from tsim/insert/update2.sim
 
         """
+        
+        self.Update0()
+        tdStream.dropAllStreamsAndDbs()
+        self.Update1()
+        tdStream.dropAllStreamsAndDbs()
+        self.Update2()
+        tdStream.dropAllStreamsAndDbs()
 
+    def Update0(self):
+        tdLog.info(f"=============== create database")
+        tdSql.execute(f"create database d0 keep 365000d,365000d,365000d")
+        tdSql.execute(f"use d0")
+
+        tdLog.info(f"=============== create super table")
+        tdSql.execute(
+            f"create table if not exists stb (ts timestamp, c1 int) tags (city binary(20),district binary(20));"
+        )
+
+        tdSql.query(f"show stables")
+        tdSql.checkRows(1)
+
+        tdLog.info(f"=============== create child table")
+        tdSql.execute(f'create table ct1 using stb tags("BeiJing", "ChaoYang")')
+        tdSql.execute(f'create table ct2 using stb tags("BeiJing", "HaiDian")')
+
+        tdSql.query(f"show tables")
+        tdSql.checkRows(2)
+
+        tdLog.info(f"=============== step3-1 insert records into ct1")
+        tdSql.execute(f"insert into ct1 values('2022-05-03 16:59:00.010', 10);")
+        tdSql.execute(f"insert into ct1 values('2022-05-03 16:59:00.011', 11);")
+        tdSql.execute(f"insert into ct1 values('2022-05-03 16:59:00.016', 16);")
+        tdSql.execute(f"insert into ct1 values('2022-05-03 16:59:00.016', 17);")
+        tdSql.execute(f"insert into ct1 values('2022-05-03 16:59:00.020', 20);")
+        tdSql.execute(f"insert into ct1 values('2022-05-03 16:59:00.016', 18);")
+        tdSql.execute(f"insert into ct1 values('2022-05-03 16:59:00.021', 21);")
+        tdSql.execute(f"insert into ct1 values('2022-05-03 16:59:00.022', 22);")
+
+        tdLog.info(f"=============== step3-1 query records of ct1 from memory")
+        tdSql.query(f"select * from ct1;")
+        tdSql.checkRows(6)
+        tdSql.checkData(0, 1, 10)
+        tdSql.checkData(2, 1, 18)
+        tdSql.checkData(5, 1, 22)
+
+        tdLog.info(f"=============== step3-1 insert records into ct2")
+        tdSql.execute(
+            f"insert into ct2 values('2022-03-02 16:59:00.010', 1),('2022-03-02 16:59:00.010',11),('2022-04-01 16:59:00.011',2),('2022-04-01 16:59:00.011',5),('2022-03-06 16:59:00.013',7);"
+        )
+        tdSql.execute(
+            f"insert into ct2 values('2022-03-02 16:59:00.010', 3),('2022-03-02 16:59:00.010',33),('2022-04-01 16:59:00.011',4),('2022-04-01 16:59:00.011',6),('2022-03-06 16:59:00.013',8);"
+        )
+        tdSql.execute(
+            f"insert into ct2 values('2022-03-02 16:59:00.010', 103),('2022-03-02 16:59:00.010',303),('2022-04-01 16:59:00.011',40),('2022-04-01 16:59:00.011',60),('2022-03-06 16:59:00.013',80);"
+        )
+
+        tdLog.info(f"=============== step3-1 query records of ct2 from memory")
+        tdSql.query(f"select * from ct2;")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, 303)
+        tdSql.checkData(1, 1, 80)
+        tdSql.checkData(2, 1, 60)
+
+        # ==================== reboot to trigger commit data to file
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
+
+        tdLog.info(f"=============== step3-2 query records of ct1 from file")
+        tdSql.query(f"select * from ct1;")
+        tdSql.checkRows(6)
+        tdSql.checkData(0, 1, 10)
+        tdSql.checkData(2, 1, 18)
+        tdSql.checkData(5, 1, 22)
+
+        tdLog.info(f"=============== step3-2 query records of ct2 from file")
+        tdSql.query(f"select * from ct2;")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, 303)
+        tdSql.checkData(1, 1, 80)
+        tdSql.checkData(2, 1, 60)
+
+        tdLog.info(
+            f"=============== step3-3 query records of ct1 from memory and file(merge)"
+        )
+        tdSql.execute(f"insert into ct1 values('2022-05-03 16:59:00.010', 100);")
+        tdSql.execute(f"insert into ct1 values('2022-05-03 16:59:00.022', 200);")
+        tdSql.execute(f"insert into ct1 values('2022-05-03 16:59:00.016', 160);")
+
+        tdSql.query(f"select * from ct1;")
+        tdSql.checkRows(6)
+        tdSql.checkData(0, 1, 100)
+        tdSql.checkData(2, 1, 160)
+        tdSql.checkData(5, 1, 200)
+
+        tdLog.info(
+            f"=============== step3-3 query records of ct2 from memory and file(merge)"
+        )
+        tdSql.execute(f"insert into ct2(ts) values('2022-04-02 16:59:00.016');")
+        tdSql.execute(f"insert into ct2 values('2022-03-06 16:59:00.013', NULL);")
+        tdSql.execute(f"insert into ct2 values('2022-03-01 16:59:00.016', 10);")
+        tdSql.execute(f"insert into ct2(ts) values('2022-04-01 16:59:00.011');")
+        tdSql.query(f"select * from ct2;")
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 1, 10)
+        tdSql.checkData(1, 1, 303)
+        tdSql.checkData(2, 1, None)
+        tdSql.checkData(3, 1, 60)
+        tdSql.checkData(4, 1, None)
+
+    def Update1(self):
         tdLog.info(
             f"=============== test case: merge duplicated rows in taosc and taosd"
         )
@@ -129,25 +244,6 @@ class TestInsertUpdate1:
             f"=============== step 5 query records of ct1 from memory(taosc and taosd merge)"
         )
         tdSql.query(f"select * from ct1;")
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(1,0)} {tdSql.getData(1,1)} {tdSql.getData(1,2)} {tdSql.getData(1,3)} {tdSql.getData(1,4)} {tdSql.getData(1,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(2,0)} {tdSql.getData(2,1)} {tdSql.getData(2,2)} {tdSql.getData(2,3)} {tdSql.getData(2,4)} {tdSql.getData(2,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(3,0)} {tdSql.getData(3,1)} {tdSql.getData(3,2)} {tdSql.getData(3,3)} {tdSql.getData(3,4)} {tdSql.getData(3,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(4,0)} {tdSql.getData(4,1)} {tdSql.getData(4,2)} {tdSql.getData(4,3)} {tdSql.getData(4,4)} {tdSql.getData(4,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(5,0)} {tdSql.getData(5,1)} {tdSql.getData(5,2)} {tdSql.getData(5,3)} {tdSql.getData(5,4)} {tdSql.getData(5,5)}"
-        )
-
         tdSql.checkRows(6)
         tdSql.checkData(0, 1, 30)
         tdSql.checkData(0, 2, 100.000000000)
@@ -183,37 +279,6 @@ class TestInsertUpdate1:
 
         tdLog.info(f"=============== step 7 query records of ct3 from memory")
         tdSql.query(f"select * from ct3;")
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(1,0)} {tdSql.getData(1,1)} {tdSql.getData(1,2)} {tdSql.getData(1,3)} {tdSql.getData(1,4)} {tdSql.getData(1,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(2,0)} {tdSql.getData(2,1)} {tdSql.getData(2,2)} {tdSql.getData(2,3)} {tdSql.getData(2,4)} {tdSql.getData(2,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(3,0)} {tdSql.getData(3,1)} {tdSql.getData(3,2)} {tdSql.getData(3,3)} {tdSql.getData(3,4)} {tdSql.getData(3,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(4,0)} {tdSql.getData(4,1)} {tdSql.getData(4,2)} {tdSql.getData(4,3)} {tdSql.getData(4,4)} {tdSql.getData(4,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(5,0)} {tdSql.getData(5,1)} {tdSql.getData(5,2)} {tdSql.getData(5,3)} {tdSql.getData(5,4)} {tdSql.getData(5,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(6,0)} {tdSql.getData(6,1)} {tdSql.getData(6,2)} {tdSql.getData(6,3)} {tdSql.getData(6,4)} {tdSql.getData(6,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(7,0)} {tdSql.getData(7,1)} {tdSql.getData(7,2)} {tdSql.getData(7,3)} {tdSql.getData(7,4)} {tdSql.getData(7,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(8,0)} {tdSql.getData(8,1)} {tdSql.getData(8,2)} {tdSql.getData(8,3)} {tdSql.getData(8,4)} {tdSql.getData(8,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(9,0)} {tdSql.getData(9,1)} {tdSql.getData(9,2)} {tdSql.getData(9,3)} {tdSql.getData(9,4)} {tdSql.getData(9,5)}"
-        )
-
         tdSql.checkRows(14)
         tdSql.checkData(0, 1, 10)
         tdSql.checkData(1, 1, 20)
@@ -248,22 +313,6 @@ class TestInsertUpdate1:
 
         tdLog.info(f"=============== step 8 query records of ct4 from memory")
         tdSql.query(f"select * from ct4;")
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(1,0)} {tdSql.getData(1,1)} {tdSql.getData(1,2)} {tdSql.getData(1,3)} {tdSql.getData(1,4)} {tdSql.getData(1,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(2,0)} {tdSql.getData(2,1)} {tdSql.getData(2,2)} {tdSql.getData(2,3)} {tdSql.getData(2,4)} {tdSql.getData(2,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(3,0)} {tdSql.getData(3,1)} {tdSql.getData(3,2)} {tdSql.getData(3,3)} {tdSql.getData(3,4)} {tdSql.getData(3,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(4,0)} {tdSql.getData(4,1)} {tdSql.getData(4,2)} {tdSql.getData(4,3)} {tdSql.getData(4,4)} {tdSql.getData(4,5)}"
-        )
-
         tdSql.checkRows(5)
         tdSql.checkData(0, 1, 10)
         tdSql.checkData(1, 1, 30)
@@ -288,25 +337,6 @@ class TestInsertUpdate1:
 
         tdLog.info(f"=============== step 9 query records of ct1 from file")
         tdSql.query(f"select * from ct1;")
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(1,0)} {tdSql.getData(1,1)} {tdSql.getData(1,2)} {tdSql.getData(1,3)} {tdSql.getData(1,4)} {tdSql.getData(1,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(2,0)} {tdSql.getData(2,1)} {tdSql.getData(2,2)} {tdSql.getData(2,3)} {tdSql.getData(2,4)} {tdSql.getData(2,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(3,0)} {tdSql.getData(3,1)} {tdSql.getData(3,2)} {tdSql.getData(3,3)} {tdSql.getData(3,4)} {tdSql.getData(3,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(4,0)} {tdSql.getData(4,1)} {tdSql.getData(4,2)} {tdSql.getData(4,3)} {tdSql.getData(4,4)} {tdSql.getData(4,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(5,0)} {tdSql.getData(5,1)} {tdSql.getData(5,2)} {tdSql.getData(5,3)} {tdSql.getData(5,4)} {tdSql.getData(5,5)}"
-        )
-
         tdSql.checkRows(6)
         tdSql.checkData(0, 1, 30)
         tdSql.checkData(0, 2, 100.000000000)
@@ -339,37 +369,6 @@ class TestInsertUpdate1:
 
         tdLog.info(f"=============== step 11 query records of ct3 from file")
         tdSql.query(f"select * from ct3;")
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(1,0)} {tdSql.getData(1,1)} {tdSql.getData(1,2)} {tdSql.getData(1,3)} {tdSql.getData(1,4)} {tdSql.getData(1,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(2,0)} {tdSql.getData(2,1)} {tdSql.getData(2,2)} {tdSql.getData(2,3)} {tdSql.getData(2,4)} {tdSql.getData(2,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(3,0)} {tdSql.getData(3,1)} {tdSql.getData(3,2)} {tdSql.getData(3,3)} {tdSql.getData(3,4)} {tdSql.getData(3,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(4,0)} {tdSql.getData(4,1)} {tdSql.getData(4,2)} {tdSql.getData(4,3)} {tdSql.getData(4,4)} {tdSql.getData(4,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(5,0)} {tdSql.getData(5,1)} {tdSql.getData(5,2)} {tdSql.getData(5,3)} {tdSql.getData(5,4)} {tdSql.getData(5,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(6,0)} {tdSql.getData(6,1)} {tdSql.getData(6,2)} {tdSql.getData(6,3)} {tdSql.getData(6,4)} {tdSql.getData(6,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(7,0)} {tdSql.getData(7,1)} {tdSql.getData(7,2)} {tdSql.getData(7,3)} {tdSql.getData(7,4)} {tdSql.getData(7,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(8,0)} {tdSql.getData(8,1)} {tdSql.getData(8,2)} {tdSql.getData(8,3)} {tdSql.getData(8,4)} {tdSql.getData(8,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(9,0)} {tdSql.getData(9,1)} {tdSql.getData(9,2)} {tdSql.getData(9,3)} {tdSql.getData(9,4)} {tdSql.getData(9,5)}"
-        )
-
         tdSql.checkRows(14)
         tdSql.checkData(0, 1, 10)
         tdSql.checkData(1, 1, 20)
@@ -403,22 +402,6 @@ class TestInsertUpdate1:
 
         tdLog.info(f"=============== step 12 query records of ct4 from file")
         tdSql.query(f"select * from ct4;")
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(1,0)} {tdSql.getData(1,1)} {tdSql.getData(1,2)} {tdSql.getData(1,3)} {tdSql.getData(1,4)} {tdSql.getData(1,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(2,0)} {tdSql.getData(2,1)} {tdSql.getData(2,2)} {tdSql.getData(2,3)} {tdSql.getData(2,4)} {tdSql.getData(2,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(3,0)} {tdSql.getData(3,1)} {tdSql.getData(3,2)} {tdSql.getData(3,3)} {tdSql.getData(3,4)} {tdSql.getData(3,5)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(4,0)} {tdSql.getData(4,1)} {tdSql.getData(4,2)} {tdSql.getData(4,3)} {tdSql.getData(4,4)} {tdSql.getData(4,5)}"
-        )
-
         tdSql.checkRows(5)
         tdSql.checkData(0, 1, 10)
         tdSql.checkData(1, 1, 30)
@@ -435,3 +418,155 @@ class TestInsertUpdate1:
         tdSql.checkData(2, 4, "n5")
         tdSql.checkData(3, 4, "n9")
         tdSql.checkData(4, 4, "n8")
+
+    def Update2(self):
+        ### 4096*0.8 - 1 = 3275
+        rowSuperBlk = 3275
+        ### 4096 - 3275 -1 - 1 = 819
+        rowSubBlk = 819
+        ts0 = 1672372800000
+        ts1 = 1672372900000
+        ts2 = 1672686800000
+
+        i = 0
+        db = "db0"
+        stb1 = "stb1"
+        tb1 = "tb1"
+        stb2 = "stb2"
+        tb2 = "tb2"
+
+        tdLog.info(f"====== create database")
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} keep 1000 duration 10")
+        tdLog.info(f"====== create tables")
+        tdSql.execute(f"use {db}")
+        tdSql.execute(
+            f"create table {stb1} (ts timestamp, c1 bigint, c2 bigint, c3 bigint) tags(t1 int)"
+        )
+        tdSql.execute(
+            f"create table {stb2} (ts timestamp, c1 bigint, c2 bigint, c3 bigint, c4 bigint, c5 bigint, c6 bigint, c7 bigint, c8 bigint, c9 bigint, c10 bigint, c11 bigint, c12 bigint, c13 bigint, c14 bigint, c15 bigint, c16 bigint, c17 bigint, c18 bigint, c19 bigint, c20 bigint, c21 bigint, c22 bigint, c23 bigint, c24 bigint, c25 bigint, c26 bigint, c27 bigint, c28 bigint, c29 bigint, c30 bigint) tags(t1 int)"
+        )
+        tdSql.execute(f"create table {tb1} using {stb1} tags(1)")
+        tdSql.execute(f"create table {tb2} using {stb2} tags(2)")
+        tdLog.info(f"====== tables created")
+
+        tdLog.info(f"========== step 1: merge dataRow in mem")
+
+        i = 0
+        while i < rowSuperBlk:
+            xs = i * 10
+            ts = ts2 + xs
+            tdSql.execute(f"insert into {tb1} (ts,c1) values ( {ts} , {i} )")
+            i = i + 1
+
+        tdSql.execute(f"insert into {tb1} values ( {ts0} , 1,NULL,0)")
+        tdSql.execute(f"insert into {tb1} (ts,c2,c3) values ( {ts0} , 1,1)")
+
+        tdSql.query(f"select * from {tb1} where ts = {ts0}")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, 1)
+
+        tdLog.info(f"========== step 2: merge kvRow in mem")
+        i = 0
+        while i < rowSuperBlk:
+            xs = i * 10
+            ts = ts2 + xs
+            tdSql.execute(f"insert into {tb2} (ts,c1) values ( {ts} , {i} )")
+            i = i + 1
+
+        tdSql.execute(f"insert into {tb2} (ts,c3,c8,c10) values ( {ts0} , 1,NULL,0)")
+        tdSql.execute(f"insert into {tb2} (ts,c8,c10) values ( {ts0} , 1,1)")
+
+        tdSql.query(f"select ts,c1,c3,c8,c10 from {tb2} where ts = {ts0}")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, 1)
+
+        tdLog.info(f"================== restart server to commit data into disk")
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
+
+        tdLog.info(f"================== server restart completed")
+
+        tdLog.info(f"========== step 3: merge dataRow in file")
+        tdSql.execute(f"insert into {tb1} (ts,c1) values ( {ts0} , 2)")
+        tdLog.info(f"========== step 4: merge kvRow in file")
+        tdSql.execute(f"insert into {tb2} (ts,c3) values ( {ts0} , 2)")
+
+        tdLog.info(f"================== restart server to commit data into disk")
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
+
+        tdLog.info(f"================== server restart completed")
+
+        tdSql.query(f"select * from {tb1} where ts = {ts0}")
+        tdSql.checkRows(1)
+
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, 1)
+
+        tdSql.query(f"select ts,c1,c3,c8,c10 from {tb2} where ts = {ts0}")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, 1)
+
+        tdLog.info(f"========== step 5: merge dataRow in file/mem")
+        i = 0
+        while i < rowSubBlk:
+            xs = i * 1
+            ts = ts1 + xs
+            tdSql.execute(f"insert into {tb1} (ts,c1) values ( {ts} , {i} )")
+            i = i + 1
+
+        tdLog.info(f"========== step 6: merge kvRow in file/mem")
+        i = 0
+        while i < rowSubBlk:
+            xs = i * 1
+            ts = ts1 + xs
+            tdSql.execute(f"insert into {tb2} (ts,c1) values ( {ts} , {i} )")
+            i = i + 1
+
+        tdLog.info(f"================== restart server to commit data into disk")
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
+
+        tdLog.info(f"================== server restart completed")
+
+        tdSql.execute(f"insert into {tb1} (ts,c3) values ( {ts0} , 3)")
+        tdSql.execute(f"insert into {tb2} (ts,c3) values ( {ts0} , 3)")
+        tsN = ts0 + 1
+        tdSql.execute(f"insert into {tb1} (ts,c1,c3) values ( {tsN} , 1,0)")
+        tdSql.execute(f"insert into {tb2} (ts,c3,c8) values ( {tsN} , 100,200)")
+        tsN = ts0 + 2
+        tdSql.execute(f"insert into {tb1} (ts,c1,c3) values ( {tsN} , 1,0)")
+        tdSql.execute(f"insert into {tb2} (ts,c3,c8) values ( {tsN} , 100,200)")
+
+        tdLog.info(f"================== restart server to commit data into disk")
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
+
+        tdLog.info(f"================== server restart completed")
+
+        tdSql.query(f"select * from {tb1} where ts = {ts0}")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, 3)
+
+        tdSql.query(f"select ts,c1,c3,c8,c10 from {tb2} where ts = {ts0}")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, 3)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, 1)

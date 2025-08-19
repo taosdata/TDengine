@@ -42,6 +42,16 @@ This makes it easy to integrate `taospy` with many third-party tools, such as [S
 The method of establishing a connection directly with the server using the native interface provided by the client driver is referred to as "Native Connection" in the following text;
 The method of establishing a connection with the server using the REST interface or WebSocket interface provided by the taosAdapter is referred to as a "REST Connection" or "WebSocket connection" in the following text.
 
+:::note
+
+For performance-critical applications, it is recommended to adopt the WebSocket connection method for the following reasons:
+
+- Due to the limitations of Python's Global Interpreter Lock (GIL), multithreading cannot leverage multi-core advantages and essentially executes serially. With native connections, Python-based data conversion and parsing operations are constrained by the GIL, reducing efficiency. In contrast, WebSocket connections release the GIL during I/O operations (e.g., network requests, file I/O), allowing other threads to acquire the lock and execute. This significantly improves throughput in I/O-intensive scenarios.
+
+- Native connections require extensive data type conversions between C and Python. The WebSocket approach only requires interface-level data conversion, while data processing and parsing are handled by the WebSocket connector (Rust) and taosAdapter (Go). This effectively bypasses Python's performance bottlenecks.
+:::
+
+
 ## Python Version Compatibility
 
 Supports Python 3.0 and above.
@@ -57,6 +67,7 @@ Python Connector historical versions (it is recommended to use the latest versio
 
 |Python Connector Version | Major Changes                                                                           | TDengine Version|
 | --------- | ----------------------------------------------------------------------------------------------------- | ----------------- |
+|2.8.4 | Support DBUtils connection pool.                                                                            | - |
 |2.8.3 | Support BLOB data type.                                                                                     | - |
 |2.8.2 | The connection parameter settings support cross-platform compatibility.                                     | - |
 |2.8.1 | Add two functions to set the connect property                                                               | - |
@@ -78,6 +89,7 @@ WebSocket Connector Historical Versions:
 
 |WebSocket Connector Version | Major Changes                                                                                    | TDengine Version|
 | ----------------------- | -------------------------------------------------------------------------------------------------- | ----------------- |
+|0.6.1 | 1. Support BLOB data type <br/> 2. Support timezone | - |
 |0.5.3 | Support IPv6 address format | - |
 |0.5.2 | Upgrade Rust connector to fix dsn token param issue                                                                     | - |
 |0.5.1 | Support WebSocket STMT2 writing and querying                                                                            | - |
@@ -199,6 +211,7 @@ Feel free to [ask questions or report issues](https://github.com/taosdata/taos-c
       - `host`: Host address
       - `port`: Port number
       - `database`: Database name
+      - `timezone`: Time zone
   - **Return Value**: Connection object.
   - **Exception**: Throws `ConnectionError` exception on operation failure.
 - `fn cursor(&self) -> PyResult<Cursor>`

@@ -106,6 +106,22 @@ class UtilTest(unittest.TestCase):
             if val[0] == "val":
                 return index
 
+    def test_download_tsfmmodel(self):
+        # from huggingface_hub import snapshot_download
+        # from tqdm import tqdm
+
+        # export HF_ENDPOINT=https://hf-mirror.com
+        # model_list = ['Salesforce/moirai-1.0-R-small']
+        # for item in tqdm(model_list):
+        #     snapshot_download(
+        #         repo_id=item,
+        #         local_dir="/var/lib/taos/taosanode/model/moirai",  # storage directory
+        #         local_dir_use_symlinks=False,   # disable the link
+        #         resume_download=True,
+        #         endpoint='https://hf-mirror.com'
+        #     )
+        #
+        print("download moirai-moe-1.0-small success")
 
 class ServiceTest(unittest.TestCase):
     def setUp(self):

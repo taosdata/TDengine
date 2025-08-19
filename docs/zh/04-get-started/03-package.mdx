@@ -4,54 +4,13 @@ title: 使用安装包快速体验 TDengine TSDB
 description: 使用安装包快速体验 TDengine TSDB
 ---
 
-为了能够快速体验 TDengine TSDB 的完整功能，推荐您使用 TDengine TSDB-Enterprise. 本节首先介绍如何通过安装包快速安装 TDengine TSDB-Enterprise, 然后介绍如何在 Linux 环境下体验 TDengine TSDB 的写入、查询、可视化管理、与 Grafana 集成和零代码数据写入等功能。如果您希望为 TDengine TSDB 贡献代码或对内部技术实现感兴趣，请参考 [TDengine GitHub 主页](https://github.com/taosdata/TDengine).
+为了能够快速体验 TDengine TSDB 的完整功能，推荐您使用 TDengine TSDB-Enterprise. 本节首先介绍如何通过安装包快速安装 TDengine TSDB-Enterprise, 然后介绍如何在 Linux 环境下体验 TDengine TSDB 的写入、查询、可视化管理、与 Grafana 集成和零代码数据写入等功能。如果您希望为 TDengine TSDB 贡献代码或对内部技术实现感兴趣，请参考 [TDengine TSDB GitHub 主页](https://github.com/taosdata/TDengine).
 
 ## 安装
 
-1. 前往 TDengine 下载中心的 [TDengine TSDB-Enterprise](https://www.taosdata.com/download-center?product=TDengine+TSDB-Enterprise) 页面。
-2. 根据您的架构，选择最新版本的 .tar.gz 类型 (Linux-Generic) 的服务端 (Server) 安装包进行下载。
-3. 执行以下命令，以完成安装：
-  ```shell
-  mkdir tdengine-tsdb-enterprise
-  tar xvf tdengine-tsdb-enterprise-*.tar.gz \
-    --strip-components=1 \
-    -C tdengine-tsdb-enterprise
-  cd tdengine-tsdb-enterprise
-  sudo ./install.sh
-  ```
-4. 执行以下命令，以启动服务：
-  ```shell
-  sudo ./start-all.sh
-  ```
-  以上脚本，使用 `systemctl` 命令，启动 TDengine TSDB-Enterprise 的所有组件及其服务。
-
-## TDengine TSDB 命令行
-
-为便于检查 TDengine 的状态，执行数据库（Database）的各种即席（Ad Hoc）查询，TDengine TSDB 提供一命令行应用程序（以下简称为 TDengine TSDB CLI）taos。要进入 TDengine 命令行，您只要在终端执行 `taos` (Linux/Mac) 或 `taos.exe` (Windows) 即可。TDengine CLI 的提示符号如下：
-
-```cmd
-taos>
-```
-
-在 TDengine TSDB CLI 中，用户可以通过 SQL 命令来创建/删除数据库、表等，并进行数据库（Database）插入查询操作。在终端中运行的 SQL 语句需要以分号（;）结束来运行。示例：
-
-```sql
-CREATE DATABASE demo;
-USE demo;
-CREATE TABLE t (ts TIMESTAMP, speed INT);
-INSERT INTO t VALUES ('2019-07-15 00:00:00', 10);
-INSERT INTO t VALUES ('2019-07-15 01:00:00', 20);
-SELECT * FROM t;
-
-           ts            |    speed    |
-========================================
- 2019-07-15 00:00:00.000 |          10 |
- 2019-07-15 01:00:00.000 |          20 |
-
-Query OK, 2 row(s) in set (0.003128s)
-```
-
-除执行 SQL 语句外，系统管理员还可以从 TDengine TSDB CLI 进行检查系统运行状态、添加删除用户账号等操作。TDengine TSDB CLI 连同应用驱动也可以独立安装在机器上运行，更多细节请参考 [TDengine TSDB 命令行](../../reference/tools/taos-cli/)。
+1. 前往 TDengine 产品下载中心的 [TDengine TSDB-Enterprise](https://www.taosdata.com/download-center?product=TDengine+TSDB-Enterprise&platform=Linux-Generic&type=Server) 页面。
+2. 选择版本（建议使用最新的版本）和架构等信息，然后点击“下载”按钮，根据页面上的提示，输入您的邮箱地址，并再次点击“下载”按钮。系统会将下载链接发送至您填写的邮箱中，请您点击邮件中的下载链接完成下载。
+3. 在 TDengine 产品下载中心，会根据您选择的平台、架构等信息，给出具体的安装和启动命令。下载完成后，请根据页面上的提示，完成 TDengine TSDB-Enterprise 的安装和启动。
 
 import Getstarted from './_get_started.mdx'
 
