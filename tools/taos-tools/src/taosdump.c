@@ -484,7 +484,7 @@ static struct argp_option options[] = {
     {0}
 };
 
-#define HUMAN_TIME_LEN      28
+#define HUMAN_TIME_LEN      60
 #define DUMP_DIR_LEN        (MAX_DIR_LEN - (TSDB_DB_NAME_LEN + 10))
 
 // rename db 
