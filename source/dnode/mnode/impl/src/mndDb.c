@@ -909,6 +909,23 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   mndTransSetDbName(pTrans, dbObj.name, NULL);
   TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
 
+  void   *pIter = NULL;
+  STrans *exitTrans = NULL;
+
+  while (1) {
+    pIter = sdbFetch(pMnode->pSdb, SDB_TRANS, pIter, (void **)&exitTrans);
+    if (pIter == NULL) break;
+
+    if (exitTrans->conflict == TRN_CONFLICT_DB && strncmp(exitTrans->opername, "create-db", TSDB_TRANS_OPER_LEN) == 0) {
+      code = TSDB_CODE_MND_TRANS_CONFLICT;
+      sdbRelease(pMnode->pSdb, exitTrans);
+      sdbCancelFetch(pMnode->pSdb, pIter);
+      goto _OVER;
+    }
+
+    sdbRelease(pMnode->pSdb, exitTrans);
+  }
+
   mndTransSetOper(pTrans, MND_OPER_CREATE_DB);
   TAOS_CHECK_GOTO(mndSetCreateDbPrepareAction(pMnode, pTrans, &dbObj), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateDbRedoActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
