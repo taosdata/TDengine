@@ -3779,7 +3779,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
             }
             SSTriggerMetaData meta = {
                 .skey = pTsData[j], .ekey = pTsData[end - 1], .nrows = end - j, .ver = pDataBlock->info.version};
-            code = stRealtimeGroupAddSingleMeta(pGroup, pProgress->pTaskAddr->nodeId, pDataBlock->info.id.uid, &meta);
+            code = stRealtimeGroupAddSingleMeta(pGroup, pProgress->pTaskAddr->nodeId, uid, &meta);
             QUERY_CHECK_CODE(code, lino, _end);
             if (TD_DLIST_NODE_NEXT(pGroup) == NULL && TD_DLIST_TAIL(&pContext->groupsToCheck) != pGroup) {
               TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
