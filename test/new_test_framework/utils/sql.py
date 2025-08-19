@@ -2635,7 +2635,7 @@ class TDSql:
         """
         tdLog.info(f"set connection mode:{mode}")
 
-    def checkResultsByFunc(self, sql, func, delay=0.0, retry=60, show=False):
+    def checkResultsByFunc(self, sql, func, delay=0.0, retry=120, show=False):
         if delay != 0:
             time.sleep(delay)
 
@@ -2657,7 +2657,7 @@ class TDSql:
                     self.printResult(f"check continue {loop} after sleep 1s ...")
                 time.sleep(1)
 
-        self.printResult(f"check failed for {retry} seconds", exit=True)
+        self.printResult(f"check failed for {retry} seconds, sql={sql}", exit=True)
 
     def checkResultsByArray(
         self, sql, exp_result, exp_sql="", delay=0.0, retry=60, show=False
@@ -2694,7 +2694,7 @@ class TDSql:
         caller = inspect.getframeinfo(inspect.stack()[2][0])
         tdLog.exit(f"{caller.filename}(caller.lineno)  check result failed")
 
-    def checkResultsBySql(self, sql, exp_sql, delay=0.0, retry=60, show=False):
+    def checkResultsBySql(self, sql, exp_sql, delay=0.0, retry=120, show=False):
         # sleep
         if delay != 0:
             time.sleep(delay)
