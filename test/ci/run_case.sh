@@ -83,8 +83,8 @@ ulimit -c unlimited
 md5sum /usr/lib/libtaos.so.1
 md5sum /home/TDinternal/debug/build/lib/libtaos.so
 
-#get python connector and update: taospy 2.8.3 taos-ws-py 0.5.3
-pip3 install taospy==2.8.3
+#get python connector and update: taospy 2.8.4 taos-ws-py 0.5.3
+pip3 install taospy==2.8.4
 pip3 install taos-ws-py==0.5.3
 $TIMEOUT_CMD $cmd
 RET=$?

@@ -4,7 +4,7 @@ sidebar_label: 可配置压缩
 description: 可配置压缩算法
 ---
 
-从 v3.3.0.0 开始，TDengine 提供了更高级的压缩功能，用户可以在建表时针对每一列配置是否进行压缩、以及使用的压缩算法和压缩级别。
+从 v3.3.0.0 开始，TDengine TSDB 提供了更高级的压缩功能，用户可以在建表时针对每一列配置是否进行压缩、以及使用的压缩算法和压缩级别。
 
 ## 压缩术语定义
 
@@ -38,7 +38,6 @@ description: 可配置压缩算法
 | binary/nchar                         | disabled                  | disabled       | lz4/zlib/zstd/xz     | zstd           | medium         |
 | bool                                 | disabled/bit-packing      | bit-packing    | lz4/zlib/zstd/xz     | zstd           | medium         |
 | decimal                              | disabled                  | disabled       | lz4/zlib/zstd/xz     | zstd           | medium         |
-
 
 ## SQL 语法
 
