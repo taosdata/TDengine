@@ -64,7 +64,7 @@ There is no need to build the taosanode, since it is implemented in Python, whic
 In the base directory, you can use the following command to package to build an tarball.
 
 ```bash
-cd script && ./release.sh
+cd script && ./release.sh -e community -v 3.3.7.0
 ```
 
 After the packaging is completed, you will find the tarball in the `release` directory.
@@ -72,7 +72,7 @@ After the packaging is completed, you will find the tarball in the `release` dir
 ```bash
 ls -lht release
 
--rw-rw-r-- 1 root root 74K Feb 21 17:04 TDengine-enterprise-anode-1.0.1.tar.gz
+-rw-rw-r-- 1 root root 74K Feb 21 17:04 tdengine-tdgpt-oss-3.3.7.0-linux-x64.tar.gz
 ```
 
 # 6. Installing
