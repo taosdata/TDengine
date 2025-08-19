@@ -23,6 +23,7 @@ The TDengine client driver provides all the APIs needed for application programm
 |useAdapter            |          |Supported, effective immediately  |Internal parameter, whether to use taosadapter, affects CSV file import|
 |shareConnLimit        |Added in 3.3.4.0|Not supported                     |Internal parameter, the number of queries a link can share, range 1-256, default value 10|
 |readTimeout           |Added in 3.3.4.0|Not supported                     |Internal parameter, minimum timeout, range 64-604800, in seconds, default value 900|
+| maxRetryWaitTime     | v3.3.4.0                        | Supported, effective after restart                           | Maximum timeout for reconnection,calculated from the time of retry,range is 3000-86400000,in milliseconds, default value 20000 |
 
 ### Query Related
 
