@@ -155,7 +155,7 @@ class TDTestCase(TBase):
 
         totalQueries  = 0
         threadQueries = 0
-        QPS           = 10
+        QPS           = 1
 
         if continueIfFail.lower() == "yes":
             allEnd = " "
@@ -179,7 +179,7 @@ class TDTestCase(TBase):
                 if batchQuery.lower() == "yes":
                     # batch
                     threadQueries = len(sqls)
-                    QPS           = 2
+                    QPS           = 1
                 else:
                     threadQueries = totalQueries
             else:
