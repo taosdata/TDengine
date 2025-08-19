@@ -1579,11 +1579,12 @@ int32_t hbMgrInit() {
   hbMgrInitHandle();
 
   // init backgroud thread
+#ifndef TD_ASTRA
   ret = hbCreateThread();
   if (ret != 0) {
     uError("hbMgrInit:hbCreateThread error") return ret;
   }
-
+#endif
   return 0;
 }
 
