@@ -70,15 +70,6 @@ class TestQueryMain:
         dbRows = tdSql.getData(0, 0)
         return dbRows
 
-
-        match = re.match(r'^[+-]?\d*\.?\d+', text)
-        if match:
-            try:
-                return float(match.group())
-            except ValueError:
-                return None
-        return None
-
     def checkItem(self, output, key, end, expect, equal):
         ret, value = self.getKeyValue(output, key, end)
         if ret == False:
