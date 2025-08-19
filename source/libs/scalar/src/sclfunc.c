@@ -3408,7 +3408,7 @@ int32_t isWinFilledFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
 
 int32_t qPseudoTagFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   char   *p = colDataGetData(pInput->columnData, 0);
-  int32_t code = colDataSetNItems(pOutput->columnData, pOutput->numOfRows, p, pInput->numOfRows, true);
+  int32_t code = colDataSetNItems(pOutput->columnData, pOutput->numOfRows, p, pInput->numOfRows, 1, true);
   if (code) {
     return code;
   }

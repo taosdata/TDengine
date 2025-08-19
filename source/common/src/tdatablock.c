@@ -249,6 +249,16 @@ static int32_t colDataReserve(SColumnInfoData* pColumnInfoData, size_t newSize) 
     return TSDB_CODE_SUCCESS;
   }
 
+  uint32_t sizeTmp = pColumnInfoData->varmeta.allocLen;
+  if (sizeTmp <= 1) {
+    sizeTmp = 8;
+  }
+  while (sizeTmp < newSize) {
+    sizeTmp = sizeTmp * 1.5;
+    if (sizeTmp > UINT32_MAX) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
   if (pColumnInfoData->varmeta.allocLen < newSize) {
     char* buf = taosMemoryRealloc(pColumnInfoData->pData, newSize);
     if (buf == NULL) {
@@ -308,7 +318,7 @@ static int32_t doCopyNItems(struct SColumnInfoData* pColumnInfoData, int32_t cur
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, uint32_t numOfRows,
+int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, uint32_t numOfRows, uint32_t capacity,
                          bool trimValue) {
   int32_t len = pColumnInfoData->info.bytes;
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
@@ -321,7 +331,7 @@ int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, 
     //   len = varDataTLen(pData);
     // }
     if (pColumnInfoData->varmeta.allocLen < (numOfRows * len + pColumnInfoData->varmeta.length)) {
-      int32_t code = colDataReserve(pColumnInfoData, (numOfRows * len + pColumnInfoData->varmeta.length));
+      int32_t code = colDataReserve(pColumnInfoData, (capacity * numOfRows * len + pColumnInfoData->varmeta.length));
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }

@@ -603,7 +603,7 @@ int32_t vtableAddTagPseudoColumnData(SVirtualTableScanInfo *pInfo, const SExprIn
     char* data = colDataGetData(pTagInfoData, 0);
 
     if (pColInfoData->info.type != TSDB_DATA_TYPE_JSON) {
-      code = colDataSetNItems(pColInfoData, 0, data, pBlock->info.rows, false);
+      code = colDataSetNItems(pColInfoData, 0, data, pBlock->info.rows, 1, false);
       QUERY_CHECK_CODE(code, lino, _return);
     } else {  // todo opt for json tag
       for (int32_t i = 0; i < pBlock->info.rows; ++i) {

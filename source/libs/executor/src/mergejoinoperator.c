@@ -606,7 +606,7 @@ int32_t mJoinMergeGrpCart(SMJoinOperatorInfo* pJoin, SSDataBlock* pRes, bool app
           MJ_ERR_RET(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
         }
         MJ_ERR_RET(colDataSetNItems(pOutCol, currRows + r * secondRows, colDataGetData(pInCol, pFirst->readIdx + r),
-                                    secondRows, true));
+                                    secondRows, 1, true));
       }
     }
   }
@@ -664,7 +664,7 @@ int32_t mJoinHashGrpCart(SSDataBlock* pBlk, SMJoinGrpRows* probeGrp, bool append
     if (colDataIsNull_s(pInCol, probeGrp->readIdx)) {
       colDataSetNItemsNull(pOutCol, currRows, actRows);
     } else {
-      MJ_ERR_RET(colDataSetNItems(pOutCol, currRows, colDataGetData(pInCol, probeGrp->readIdx), actRows, true));
+      MJ_ERR_RET(colDataSetNItems(pOutCol, currRows, colDataGetData(pInCol, probeGrp->readIdx), actRows, 1, true));
     }
   }
 
@@ -1118,7 +1118,7 @@ int32_t mJoinLaunchPrimExpr(SSDataBlock* pBlock, SMJoinTableCtx* pTable) {
       break;
     }
     case E_PRIM_VALUE: {
-      MJ_ERR_RET(colDataSetNItems(pPrimOut, 0, (char*)&pCtx->constTs, pBlock->info.rows, false));
+      MJ_ERR_RET(colDataSetNItems(pPrimOut, 0, (char*)&pCtx->constTs, pBlock->info.rows, 1, false));
       break;
     }
     default:
