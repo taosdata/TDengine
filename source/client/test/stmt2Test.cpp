@@ -2812,7 +2812,7 @@ TEST(stmt2Case, mixed_bind) {
     int             fieldNum = 0;
     TAOS_FIELD_ALL* pFields = NULL;
     // code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
-    // checkError(stmt, code);
+    // checkError(stmt, code, __FILE__, __LINE__);
     // ASSERT_EQ(fieldNum, 19);
 
     TAOS_STMT2_BIND* tags[2] = {&params_tags[0], &params_tags[0]};
@@ -3467,12 +3467,12 @@ TEST(stmt2Case, core) {
       ")";
 
   int code = taos_stmt2_prepare(stmt, sql, 0);
-  checkError(stmt, code);
+  checkError(stmt, code, __FILE__, __LINE__);
 
   int             fieldNum = 0;
   TAOS_FIELD_ALL* pFields = NULL;
   code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
-  checkError(stmt, code);
+  checkError(stmt, code, __FILE__, __LINE__);
   ASSERT_EQ(fieldNum, 2);
 
   int64_t ts_begin[1] = {1591060628000};
@@ -3496,16 +3496,16 @@ TEST(stmt2Case, core) {
 
   TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &c};
   code = taos_stmt2_bind_param(stmt, &bindv, -1);
-  checkError(stmt, code);
+  checkError(stmt, code, __FILE__, __LINE__);
 
   code = taos_stmt2_exec(stmt, NULL);
-  checkError(stmt, code);
+  checkError(stmt, code, __FILE__, __LINE__);
 
   code = taos_stmt2_bind_param(stmt, &bindv, -1);
-  checkError(stmt, code);
+  checkError(stmt, code, __FILE__, __LINE__);
 
   code = taos_stmt2_exec(stmt, NULL);
-  checkError(stmt, code);
+  checkError(stmt, code, __FILE__, __LINE__);
 
   taos_stmt2_close(stmt);
 
