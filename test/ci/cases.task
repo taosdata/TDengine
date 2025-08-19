@@ -178,19 +178,19 @@
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_update.py
 
 # 20-DataQuerying
-## 01-Filter
-,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/01-Filter/test_filter_column.py
-,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/01-Filter/test_filter_operator.py
-,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/01-Filter/test_filter_sma.py
-,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/01-Filter/test_filter_tag.py
-,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/01-Filter/test_filter_timestamp.py
+## 02-Filter
+,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/02-Filter/test_filter_column.py
+,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/02-Filter/test_filter_operator.py
+,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/02-Filter/test_filter_sma.py
+,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/02-Filter/test_filter_tag.py
+,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/02-Filter/test_filter_timestamp.py
 
-## 02-GroupBy
-,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/02-GroupBy/test_groupby_basic.py
+## 03-GroupBy
+,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/03-GroupBy/test_groupby_basic.py
 
-## 03-OrderBy
-,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/03-OrderBy/test_orderby_basic.py
-,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/03-OrderBy/test_orderby_double.py
+## 04-OrderBy
+,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/04-OrderBy/test_orderby_basic.py
+,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/04-OrderBy/test_orderby_double.py
 
 ## 05-Aliase
 

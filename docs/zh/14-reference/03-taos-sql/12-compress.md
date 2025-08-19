@@ -1,7 +1,7 @@
 ---
 title: 数据压缩
 sidebar_label: 数据压缩
-description: 可配置的数据压缩算法
+description: 可配置压缩算法
 ---
 
 从 v3.3.0.0 开始，TDengine TSDB 提供了更高级的压缩功能，用户可以在建表时针对每一列配置是否进行压缩、以及使用的压缩算法和压缩级别。
