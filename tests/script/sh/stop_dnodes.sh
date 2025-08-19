@@ -35,19 +35,19 @@ while [ -n "$PID" ]; do
   PID=`psby taosd | grep -w "[t]aosd" | awk '{print $1}' | head -n 1`
 done
 
-PID=`psby taos | grep -w "[t]aos" | awk '{print $1}' | head -n 1`
-while [ -n "$PID" ]; do
-  echo kill -9 $PID
-  #pkill -9 taos
-  kill -9 $PID
-  echo "Killing taos processes"
-  if [ "$OS_TYPE" != "Darwin" ]; then
-    fuser -k -n tcp 6030
-  else
-    lsof -nti:6030 | xargs kill -9
-  fi
-  PID=`psby taos | grep -w "[t]aos" | awk '{print $1}' | head -n 1`
-done
+# PID=`psby taos | grep -w "[t]aos" | awk '{print $1}' | head -n 1`
+# while [ -n "$PID" ]; do
+#   echo kill -9 $PID
+#   #pkill -9 taos
+#   kill -9 $PID
+#   echo "Killing taos processes"
+#   if [ "$OS_TYPE" != "Darwin" ]; then
+#     fuser -k -n tcp 6030
+#   else
+#     lsof -nti:6030 | xargs kill -9
+#   fi
+#   PID=`psby taos | grep -w "[t]aos" | awk '{print $1}' | head -n 1`
+# done
 
 PID=`psby tmq_sim | grep -w "[t]mq_sim" | awk '{print $1}' | head -n 1`
 while [ -n "$PID" ]; do
