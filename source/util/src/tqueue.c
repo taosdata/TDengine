@@ -552,6 +552,7 @@ int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, SQueueInfo *
 
       STaosQnode *pNode = qall->start->next;
       // skip the first node, tsem_wait has been called once at the beginning of this function
+      // queue->numOfItems is not entirely reliable and may be larger than the actual value due to concurrency issues.
       while (pNode) {
         if (tsem_wait(&qset->sem) != 0) {
           uError("failed to wait semaphore for qset:%p", qset);
