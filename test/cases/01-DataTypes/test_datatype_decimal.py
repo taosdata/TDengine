@@ -13,23 +13,28 @@
 
 from new_test_framework.utils import tdLog, tdSql
 
-class TestTs6333:
+
+class TestDatatypeDecimal:
     updatecfgDict = {
         "keepColumnName": "1",
         "ttlChangeOnWrite": "1",
         "querySmaOptimize": "1",
         "slowLogScope": "none",
-        "queryBufferSize": 10240
+        "queryBufferSize": 10240,
     }
 
-    def test_ts6333(self):
-        """test decimal types filtering with tag conditions crash fix
+    def test_datatype_decimal(self):
+        """DataTypes: decimal
 
         test decimal types filtering with tag conditions crash fix
 
+        Catalog:
+            - DataTypes
+            - Tables:SubTables:Create
+
         Since: v3.3.6.4
 
-        Labels: decimal
+        Labels: common,ci
 
         Jira: TS-6333
 
@@ -38,23 +43,30 @@ class TestTs6333:
             - 2025-5-08 Huo Hong Migrated to new test framework
 
         """
+
         tdLog.debug(f"start to excute {__file__}")
         tdSql.execute("create database ts_6333;")
         tdSql.execute("use ts_6333;")
         tdSql.execute("select database();")
-        tdSql.execute("create stable prop_statistics_equity_stable("
-                      "ts timestamp, "
-                      "uid int, "
-                      "balance_equity decimal(38,16), "
-                      "daily_begin_balance decimal(38,16), "
-                      "update_time timestamp) "
-                      "tags"
-                      "(trade_account varchar(20))")
-        tdSql.execute("create table prop_1 using prop_statistics_equity_stable tags ('1000000000600');")
-        tdSql.execute("create table prop_2 using prop_statistics_equity_stable tags ('1000000000601');")
-        tdSql.query("select * from prop_statistics_equity_stable where trade_account = '1000000000601';")
-        tdSql.checkRows(0);
-
+        tdSql.execute(
+            "create stable prop_statistics_equity_stable("
+            "ts timestamp, "
+            "uid int, "
+            "balance_equity decimal(38,16), "
+            "daily_begin_balance decimal(38,16), "
+            "update_time timestamp) "
+            "tags"
+            "(trade_account varchar(20))"
+        )
+        tdSql.execute(
+            "create table prop_1 using prop_statistics_equity_stable tags ('1000000000600');"
+        )
+        tdSql.execute(
+            "create table prop_2 using prop_statistics_equity_stable tags ('1000000000601');"
+        )
+        tdSql.query(
+            "select * from prop_statistics_equity_stable where trade_account = '1000000000601';"
+        )
+        tdSql.checkRows(0)
 
         tdLog.success(f"{__file__} successfully executed")
-

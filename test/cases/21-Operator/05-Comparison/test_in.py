@@ -14,7 +14,7 @@ class TestIn:
         3. Using IN operator in an EXPLAIN statement
 
         Catalog:
-            - Query:Operator
+            - Operator
 
         Since: v3.0.0.0
 

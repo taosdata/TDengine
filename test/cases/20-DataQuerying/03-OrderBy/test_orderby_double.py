@@ -1,20 +1,20 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestSortDoubleCol:
+class TestOrderByDouble:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_sort_double_col(self):
-        """Order By
+    def test_orderby_double(self):
+        """Sort double
 
         1. Create a database and table
         2. Insert double values into the table
         3. Query the table with order by double values; without the fix for TS-6772, it should be failed
 
         Catalog:
-            - Query:OrderBy Double
+            - Query:OrderBy
 
         Since: v3.0.0.0
 
