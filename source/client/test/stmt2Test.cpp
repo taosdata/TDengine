@@ -3421,6 +3421,95 @@ TEST(stmt2Case, exec_retry) {
 
   taos_stmt2_close(stmt);
   do_query(taos, "drop database if exists stmt2_testdb_21");
+}
+
+void stmtAsyncQueryCb4(void* param, TAOS_RES* pRes, int code) {
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+}
+
+TEST(stmt2Case, core) {
+  printf("stmt2Test: select COUNT(1) from (select LAST(operate_time) ...) with params\n");
+
+  TAOS* taos = taos_connect("127.0.0.1", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  do_query(taos, "drop database if exists ivs");
+  do_query(taos, "create database ivs");
+  do_query(taos, "use ivs");
+  do_query(taos,
+           "create table alarm_operate_info ("
+           "operate_time timestamp, "
+           "alarm_id int, "
+           "operator_id int, "
+           "operator_name binary(32), "
+           "operator_info binary(64), "
+           "operator_status int, "
+           "device_id int)");
+
+  do_query(taos,
+           "insert into alarm_operate_info values"
+           "(1591060628000, 1, 100, '张三', 'info1', 0, 10),"
+           "(1591060629000, 1, 101, '李四', 'info2', 1, 10),"
+           "(1591060630000, 2, 102, '王五', 'info3', 0, 11)");
+
+  TAOS_STMT2_OPTION option = {0, true, true, stmtAsyncQueryCb4, NULL};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+
+  const char* sql =
+      "select COUNT(1) from ("
+      " select LAST(operate_time) as operate_time, alarm_id, operator_id, operator_name, operator_info, "
+      "operator_status, device_id"
+      " from ivs.alarm_operate_info"
+      " WHERE operate_time >= ? and operate_time <= ?"
+      " PARTITION BY alarm_id"
+      " ORDER BY operate_time desc"
+      ")";
+
+  int code = taos_stmt2_prepare(stmt, sql, 0);
+  checkError(stmt, code);
+
+  int             fieldNum = 0;
+  TAOS_FIELD_ALL* pFields = NULL;
+  code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+  checkError(stmt, code);
+  ASSERT_EQ(fieldNum, 2);
+
+  int64_t ts_begin[1] = {1591060628000};
+  int64_t ts_end[1] = {1591060630000};
+  int32_t len[1] = {sizeof(int64_t)};
+
+  TAOS_STMT2_BIND params[2] = {0};
+  params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+  params[0].buffer = &ts_begin[0];
+  params[0].length = &len[0];
+  params[0].is_null = NULL;
+  params[0].num = 1;
+
+  params[1].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+  params[1].buffer = &ts_end[0];
+  params[1].length = &len[0];
+  params[1].is_null = NULL;
+  params[1].num = 1;
+
+  TAOS_STMT2_BIND* c = &params[0];
+
+  TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &c};
+  code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  checkError(stmt, code);
+
+  code = taos_stmt2_exec(stmt, NULL);
+  checkError(stmt, code);
+
+  code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  checkError(stmt, code);
+
+  code = taos_stmt2_exec(stmt, NULL);
+  checkError(stmt, code);
+
+  taos_stmt2_close(stmt);
+
+  do_query(taos, "drop database if exists ivs");
   taos_close(taos);
 }
 

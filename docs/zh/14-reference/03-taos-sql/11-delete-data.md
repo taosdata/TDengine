@@ -1,7 +1,7 @@
 ---
-sidebar_label: 删除数据
-description: "删除指定表或超级表中的数据记录"
-title: "删除数据"
+sidebar_label: 数据删除
+description: 删除指定表或超级表中的数据记录
+title: 数据删除
 ---
 
 删除数据是 TDengine TSDB 提供的根据指定时间段删除指定表或超级表中数据记录的功能，方便用户清理由于设备故障等原因产生的异常数据。
