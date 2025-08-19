@@ -4516,18 +4516,32 @@ static bool lastRowScanOptCheckColNum(int32_t lastColNum, col_id_t lastColId, in
   return true;
 }
 
-static bool isNeedSplitCacheLastFunc(SFunctionNode* pFunc, SScanLogicNode* pScan) {
+static bool isNeedSplitCacheLastFunc(SFunctionNode* pFunc, SScanLogicNode* pScan, SNodeList* pSplitAggFuncList) {
   int32_t funcType = pFunc->funcType;
-  if ((FUNCTION_TYPE_LAST_ROW != funcType ||
-       (FUNCTION_TYPE_LAST_ROW == funcType && TSDB_CACHE_MODEL_LAST_VALUE == pScan->cacheLastMode)) &&
-      (FUNCTION_TYPE_LAST != funcType ||
-       (FUNCTION_TYPE_LAST == funcType &&
+  // return true if all these conditions are matched
+  // 1. func is not last_row, or func is last_row bug cache model is last_value
+  // 2. func is not last, or func is last and cache model is last_row or param is not a normal column
+  // 3. func is not select_value or group_key
+  // TODO(tianyi): simplify the condition
+  if ((FUNCTION_TYPE_LAST_ROW != funcType || 
+        (FUNCTION_TYPE_LAST_ROW == funcType && TSDB_CACHE_MODEL_LAST_VALUE == pScan->cacheLastMode)) &&
+      (FUNCTION_TYPE_LAST != funcType || (FUNCTION_TYPE_LAST == funcType &&
         (TSDB_CACHE_MODEL_LAST_ROW == pScan->cacheLastMode ||
          QUERY_NODE_OPERATOR == nodeType(nodesListGetNode(pFunc->pParameterList, 0)) ||
          QUERY_NODE_VALUE == nodeType(nodesListGetNode(pFunc->pParameterList, 0)) ||
          COLUMN_TYPE_COLUMN != ((SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0))->colType))) &&
       FUNCTION_TYPE_SELECT_VALUE != funcType && FUNCTION_TYPE_GROUP_KEY != funcType) {
     return true;
+  }
+  // return true if this func is related to a split func
+  if (pFunc->node.relatedTo > 0 && pSplitAggFuncList != NULL) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, pSplitAggFuncList) {
+      SFunctionNode* pSplitFunc = (SFunctionNode*)pNode;
+      if (pFunc->node.relatedTo == pSplitFunc->node.bindExprID) {
+        return true;
+      }
+    }
   }
   return false;
 }
@@ -4548,10 +4562,13 @@ static bool lastRowScanOptCheckFuncList(SLogicNode* pNode, int8_t cacheLastModel
   }
 
   WHERE_EACH(pFunc, ((SAggLogicNode*)pNode)->pAggFuncs) {
-    bool curNeedSplit = false;
     SFunctionNode* pAggFunc = (SFunctionNode*)pFunc;
     SNode*         pParam = nodesListGetNode(pAggFunc->pParameterList, 0);
-    if (FUNCTION_TYPE_LAST == pAggFunc->funcType) {
+    bool           curNeedSplit = false;
+    if (pAggFunc->node.relatedTo > 0 && 
+      taosHashGet(pSplitExprId, (void*)&pAggFunc->node.relatedTo, sizeof(int32_t)) != NULL) {
+      curNeedSplit = true;
+    } else if (FUNCTION_TYPE_LAST == pAggFunc->funcType) {
       if (QUERY_NODE_COLUMN == nodeType(pParam)) {
         SColumnNode* pCol = (SColumnNode*)pParam;
         if (pCol->colType != COLUMN_TYPE_COLUMN && TSDB_CACHE_MODEL_LAST_ROW != cacheLastModel) {
@@ -4579,8 +4596,6 @@ static bool lastRowScanOptCheckFuncList(SLogicNode* pNode, int8_t cacheLastModel
             selectNonPKColId = pCol->colId;
             selectNonPKColNum++;
           }
-        } else {
-          continue;
         }
       } else if (lastColNum > 0) {
         canOptimize = false;
@@ -5053,7 +5068,7 @@ static int32_t splitCacheLastFuncOptimize(SOptimizeContext* pCxt, SLogicSubplan*
   }
   SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
   SNode*          pNode = NULL;
-  SNodeList*      pAggFuncList = NULL;
+  SNodeList*      pSplitAggFuncList = NULL;
   int32_t         code = 0;
 
   {
@@ -5063,16 +5078,20 @@ static int32_t splitCacheLastFuncOptimize(SOptimizeContext* pCxt, SLogicSubplan*
       SFunctionNode* pFunc = (SFunctionNode*)pNode;
       int32_t        funcType = pFunc->funcType;
 
-      if (isNeedSplitCacheLastFunc(pFunc, pScan)) {
+      if (isNeedSplitCacheLastFunc(pFunc, pScan, pSplitAggFuncList)) {
         SNode* pNew = NULL;
         code = nodesCloneNode(pNode, &pNew);
         if (TSDB_CODE_SUCCESS == code) {
-          code = nodesListMakeStrictAppend(&pAggFuncList, pNew);
+          code = nodesListMakeStrictAppend(&pSplitAggFuncList, pNew);
         }
         if (TSDB_CODE_SUCCESS != code) {
           break;
         }
         ERASE_NODE(pAgg->pAggFuncs);
+        // when a basic function needs to be split, 
+        // all functions related to it should be split too
+        // thus we need to re-evaluate the remaining funcs
+        WHERE_FIRST(pAgg->pAggFuncs);
         continue;
       }
       if (FUNCTION_TYPE_LAST_ROW == funcType) {
@@ -5086,11 +5105,11 @@ static int32_t splitCacheLastFuncOptimize(SOptimizeContext* pCxt, SLogicSubplan*
     pAgg->hasLastRow = hasLastRow;
   }
   if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyList(pAggFuncList);
+    nodesDestroyList(pSplitAggFuncList);
     return code;
   }
 
-  if (NULL == pAggFuncList) {
+  if (NULL == pSplitAggFuncList) {
     planError("empty agg func list while splite projections, funcNum:%d", pAgg->pAggFuncs->length);
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
@@ -5101,7 +5120,7 @@ static int32_t splitCacheLastFuncOptimize(SOptimizeContext* pCxt, SLogicSubplan*
       SColumnNode* pCol = (SColumnNode*)pNode;
       SNode*       pFuncNode = NULL;
       bool         found = false;
-      FOREACH(pFuncNode, pAggFuncList) {
+      FOREACH(pFuncNode, pSplitAggFuncList) {
         SFunctionNode* pFunc = (SFunctionNode*)pFuncNode;
         if (0 == strcmp(pFunc->node.aliasName, pCol->colName)) {
           SNode* pNew = NULL;
@@ -5130,13 +5149,13 @@ static int32_t splitCacheLastFuncOptimize(SOptimizeContext* pCxt, SLogicSubplan*
 
   if (NULL == pTargets) {
     planError("empty target func list while splite projections, targetsNum:%d", pAgg->node.pTargets->length);
-    nodesDestroyList(pAggFuncList);
+    nodesDestroyList(pSplitAggFuncList);
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
 
   SMergeLogicNode* pMerge = NULL;
   SAggLogicNode*   pNewAgg = NULL;
-  code = splitCacheLastFuncOptCreateAggLogicNode(&pNewAgg, pAgg, pAggFuncList, pTargets);
+  code = splitCacheLastFuncOptCreateAggLogicNode(&pNewAgg, pAgg, pSplitAggFuncList, pTargets);
   if (TSDB_CODE_SUCCESS == code) {
     code = splitCacheLastFuncOptModifyAggLogicNode(pAgg);
   }
