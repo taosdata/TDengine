@@ -2296,6 +2296,7 @@ int32_t nodesListPushFront(SNodeList* pList, SNode* pNode) {
   return TSDB_CODE_SUCCESS;
 }
 
+// remove current node from the list and return next node
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell) {
   if (NULL == pCell->pPrev) {
     pList->pHead = pCell->pNext;
@@ -2312,6 +2313,25 @@ SListCell* nodesListErase(SNodeList* pList, SListCell* pCell) {
   nodesFree(pCell);
   --(pList->length);
   return pNext;
+}
+
+// remove current node from the list and return previous node
+SListCell* nodesListEraseRev(SNodeList* pList, SListCell* pCell) {
+  if (NULL == pCell->pPrev) {
+    pList->pHead = pCell->pNext;
+  } else {
+    pCell->pPrev->pNext = pCell->pNext;
+  }
+  if (NULL == pCell->pNext) {
+    pList->pTail = pCell->pPrev;
+  } else {
+    pCell->pNext->pPrev = pCell->pPrev;
+  }
+  SListCell* pPrev = pCell->pPrev;
+  nodesDestroyNode(pCell->pNode);
+  nodesFree(pCell);
+  --(pList->length);
+  return pPrev;
 }
 
 void nodesListInsertList(SNodeList* pTarget, SListCell* pPos, SNodeList* pSrc) {

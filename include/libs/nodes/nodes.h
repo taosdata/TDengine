@@ -46,6 +46,15 @@ extern "C" {
 // only be use in WHERE_EACH
 #define ERASE_NODE(list) cell = nodesListErase((list), cell)
 
+#define WHERE_EACH_REV(node, list)                           \
+  SListCell* cell = (NULL != (list) ? (list)->pTail : NULL); \
+  while (NULL != cell ? (node = cell->pNode, true) : (node = NULL, false))
+  
+#define WHERE_PREV cell = cell->pPrev
+
+// only be use in WHERE_EACH_REV
+#define ERASE_NODE_REV(list) cell = nodesListEraseRev((list), cell)
+
 #define FORBOTH(node1, list1, node2, list2)                                               \
   for (SListCell* cell1 = (NULL != (list1) ? (list1)->pHead : NULL),                      \
                   *cell2 = (NULL != (list2) ? (list2)->pHead : NULL);                     \
@@ -127,6 +136,7 @@ int32_t    nodesListMakeStrictAppendList(SNodeList** pTarget, SNodeList* pSrc);
 int32_t    nodesListPushFront(SNodeList* pList, SNode* pNode);
 int32_t    nodesListMakePushFront(SNodeList** pList, SNode* pNode);
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell);
+SListCell* nodesListEraseRev(SNodeList* pList, SListCell* pCell);
 void       nodesListInsertList(SNodeList* pTarget, SListCell* pPos, SNodeList* pSrc);
 void       nodesListInsertListAfterPos(SNodeList* pTarget, SListCell* pPos, SNodeList* pSrc);
 SNode*     nodesListGetNode(SNodeList* pList, int32_t index);
