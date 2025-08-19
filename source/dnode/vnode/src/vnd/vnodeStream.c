@@ -684,24 +684,25 @@ end:
 static int32_t shrinkScheams(SArray* cols, SArray* schemas) {
   int32_t code = 0;
   int32_t lino = 0;
-  for (size_t i = 0; i < taosArrayGetSize(schemas); i++) {
-    SSchema* s = taosArrayGet(schemas, i);
-    STREAM_CHECK_NULL_GOTO(s, terrno);
-
-    size_t j = 0;
-    for (; j < taosArrayGetSize(cols); j++) {
-      col_id_t* id = taosArrayGet(cols, j);
-      STREAM_CHECK_NULL_GOTO(id, terrno);
-      if (*id == s->colId) {
+  STREAM_CHECK_CONDITION_GOTO(taosArrayGetSize(schemas) < taosArrayGetSize(cols), TSDB_CODE_INTERNAL_ERROR);
+  for (int32_t i = 0; i < taosArrayGetSize(cols); i++) {
+    col_id_t* id = taosArrayGet(cols, i);
+    STREAM_CHECK_NULL_GOTO(id, terrno);
+    SSchema* pColSchema = NULL;
+    for (int32_t j = 0; j < taosArrayGetSize(schemas); j++) {
+      SSchema* s = taosArrayGet(schemas, j);
+      STREAM_CHECK_NULL_GOTO(s, terrno);
+      if (s->colId == *id) {
+        pColSchema = s;
         break;
       }
     }
-    if (j == taosArrayGetSize(cols)) {
-      // not found, remove it
-      taosArrayRemove(schemas, i);
-      i--;
-    }
+    STREAM_CHECK_NULL_GOTO(pColSchema, TSDB_CODE_INTERNAL_ERROR);
+    SSchema temp = *(SSchema*)taosArrayGet(schemas, i);
+    *(SSchema*)taosArrayGet(schemas, i) = *pColSchema;
+    *pColSchema = temp;
   }
+  taosArrayPopTailBatch(schemas, taosArrayGetSize(schemas) - taosArrayGetSize(cols));
 
 end:
   return code;

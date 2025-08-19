@@ -1019,7 +1019,7 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
   }
   int32_t nPseudoCols = TARRAY_SIZE(pVirColIds) - nDataCols;
   if (nPseudoCols > 0) {
-    taosSort((char *)TARRAY_DATA(pVirColIds) + nDataCols, nPseudoCols, sizeof(col_id_t), compareUint16Val);
+    taosSort((char *)TARRAY_DATA(pVirColIds) + nDataCols * sizeof(col_id_t), nPseudoCols, sizeof(col_id_t), compareUint16Val);
     col_id_t *pColIds = pVirColIds->pData;
     int32_t   j = nDataCols;
     for (int32_t i = nDataCols + 1; i < TARRAY_SIZE(pVirColIds); i++) {
