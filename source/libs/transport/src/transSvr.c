@@ -989,15 +989,17 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrRespMsg* smsg) {
   }
 
   transRefSrvHandle(pConn);
-  int32_t ret = 0;
   if (pConn->enableSSL == 0) {
-    ret = uv_write(req, (uv_stream_t*)pConn->pTcp, pBuf, bufNum, uvOnSendCb);
+    int32_t ret = uv_write(req, (uv_stream_t*)pConn->pTcp, pBuf, bufNum, uvOnSendCb);
+    if (ret != 0) {
+      tError("conn:%p, failed to write data since %s", pConn, uv_err_name(ret));
+    }
+    code = TSDB_CODE_THIRDPARTY_ERROR;
   } else {
-    ret = sslWrite(pConn->pTls, (uv_stream_t*)pConn->pTcp, req, pBuf, bufNum, uvOnSendCb);
+    code = sslWrite(pConn->pTls, (uv_stream_t*)pConn->pTcp, req, pBuf, bufNum, uvOnSendCb);
   }
 
-  if (ret != 0) {
-    tError("conn:%p, failed to write data since %s", pConn, uv_err_name(ret));
+  if (code != 0) {
     pConn->broken = true;
     while (!QUEUE_IS_EMPTY(&pWreq->node)) {
       queue* head = QUEUE_HEAD(&pWreq->node);
