@@ -549,11 +549,17 @@ int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, SQueueInfo *
       uTrace("read %d items from queue:%p, items:0 mem:%" PRId64, code, queue, queue->memOfItems);
 
       (void)atomic_sub_fetch_32(&qset->numOfItems, qall->numOfItems);
-      for (int32_t j = 1; j < qall->numOfItems; ++j) {
+
+      STaosQnode *pNode = qall->start->next;
+      int tmp = 1;
+      while(pNode) {
+        ++tmp;
         if (tsem_wait(&qset->sem) != 0) {
           uError("failed to wait semaphore for qset:%p", qset);
         }
+        pNode = pNode->next;
       }
+      assert(tmp == qall->numOfItems);
     }
 
     (void)taosThreadMutexUnlock(&queue->mutex);
