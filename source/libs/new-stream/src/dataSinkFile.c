@@ -475,6 +475,7 @@ int32_t moveSlidingGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SSlidingGrpMg
   int32_t moveWinCount = 0;
   int32_t needSize = 0;
   for (int i = 0; i < nWin; ++i) {
+    needSize = 0;
     SWindowDataInMem* pSlidingWin = *(SWindowDataInMem**)taosArrayGet(pSlidingGrp->winDataInMem, i);
     if (pSlidingWin == NULL || pSlidingWin->dataLen < 0) {
       stError("sliding window in mem is NULL or dataLen < 0, i:%d, pSlidingWin:%p", i, pSlidingWin);
