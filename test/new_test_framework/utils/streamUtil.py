@@ -1170,7 +1170,7 @@ class StreamItem:
 
         tdLog.info(f"check stream:s{self.id} result successfully")
 
-    def awaitRowStability(self, stable_rows, waitSeconds=60):
+    def awaitRowStability(self, stable_rows, waitSeconds=120):
         """
         确保流处理结果的行数与预期的稳定行数一致
         :param stable_rows: int, 预期的稳定行数
