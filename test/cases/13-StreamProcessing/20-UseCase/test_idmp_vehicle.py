@@ -211,7 +211,11 @@ class Test_IDMP_Vehicle:
     # 5. verify results
     #
     def verifyResults(self):
+        
+        print("wait 10s ...")
+        time.sleep(10)
         print("verify results ...")
+        
         self.verify_stream_stb1()
         self.verify_stream1()
         self.verify_stream2()
