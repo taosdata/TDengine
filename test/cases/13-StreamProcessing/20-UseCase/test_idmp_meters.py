@@ -508,10 +508,17 @@ class Test_IDMP_Meters:
 
         # disorder write 2 rows from spanTs
         count = 2
-        disTs = spanTs + 5 * step
+        disTs = spanTs + 3 * step
         orderVals = [36, 406, 206]
         disTs = tdSql.insertOrderVal(table, disTs, step, count, cols, orderVals)
 
+        # blank 12
+        disTs +=  12 * step
+
+        # disorder write 1 rows
+        count = 2
+        vals = "39,200,200"
+        disTs = tdSql.insertFixedVal(table, disTs, step, count, cols, vals)
 
     #
     #  stream6 trigger 
@@ -946,10 +953,15 @@ class Test_IDMP_Meters:
         result_sql = f"select * from tdasset.`result_stream5_sub1` "
         tdSql.checkResultsByFunc (
             sql  = result_sql, 
-            func = lambda: tdSql.getRows() == 1
+            func = lambda: tdSql.getRows() == 2
+            # row1
             and tdSql.compareData(0, 0, self.start2)   # ts
             and tdSql.compareData(0, 1, 3 + 1 + 2 + 2) # cnt
             and tdSql.compareData(0, 2, 37)            # last current
+            # row2
+            and tdSql.compareData(1, 0, 1752576120000) # ts
+            and tdSql.compareData(1, 1, 2)             # cnt
+            and tdSql.compareData(1, 2, 39)            # last current
         )
 
         tdLog.info(f"verify stream5 sub1 ............................ successfully.")
