@@ -1,7 +1,7 @@
 import time
 import math
 import random
-from new_test_framework.utils import tdLog, tdSql, tdStream, etool
+from new_test_framework.utils import tdLog, tdSql, tdStream, etool, sc
 from datetime import datetime
 from datetime import date
 
