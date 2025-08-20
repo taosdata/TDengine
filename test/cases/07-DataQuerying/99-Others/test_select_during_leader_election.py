@@ -1,5 +1,12 @@
+import time
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 import os
+
+from new_test_framework.utils import (
+    tdLog,
+    tdSql,
+    cluster,
+)
 
 class TestSelectDuringLeaderElection:
 
@@ -37,17 +44,17 @@ class TestSelectDuringLeaderElection:
         tdSql.checkKeyData(2, 4, "ready")
         tdSql.checkKeyData(3, 4, "ready")
 
-        tdSql.execute(f"drop database if exists test_select_leader_election")
-        tdSql.execute(f"create database test_select_leader_election vgroups 10 replica 3")
-        tdSql.execute(f"use test_select_leader_election")
+        tdSql.execute(f"drop database if exists test")
+        tdSql.execute(f"create database test vgroups 10 replica 3")
+        tdSql.execute(f"use test")
 
         # create super table and sub table
-        tdSql.execute(f"create table super_t (ts timestamp, flag int) tags (t1 VARCHAR(10))")
+        tdSql.execute(f"create table stb (ts timestamp, flag int) tags (t1 VARCHAR(10))")
 
         # create sub table
         tdLog.info(f"begin create sub table")
         for i in range(0,10,1):
-            tdSql.execute(f"create table sub_t{i} using super_t tags('t{i}')")
+            tdSql.execute(f"create table sub_t{i} using stb tags('t{i}')")
         
         tdLog.info(f"finish create 10 sub table")
         
@@ -61,10 +68,17 @@ class TestSelectDuringLeaderElection:
 
         tdLog.info(f"finish insert data")
 
+        tdSql.query(f"select last_row(*) from test.stb")
+        tdLog.info(f"select last row from stb successfully(before leader stopped)")
         # stop one dnode
-        os.system("ps -ef |grep taosd |grep -v 'grep' |sort |awk 'NR<=2'|awk '{print $2}'|xargs kill -2")
+        tdDnodes = cluster.dnodes
+        tdDnodes[0].stoptaosd()
 
-        # select data, it should be error since the leader election has not finsh
-        tdSql.error(f"select last_row(*) from jddb.meters")
+        for i in range(0, 10):
+            tdSql.query(f"select last_row(*) from test.stb")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, 99)
+            tdLog.info(f"select last row from stb successfully(after leader stopped), {i} times.")
+            time.sleep(1)
 
         tdLog.info(f"end select during leader election test successfully")
