@@ -951,15 +951,22 @@ int32_t bseUpdateCommitInfo(SBse *pBse, SBseLiveFileInfo *pInfo, SArray **ppResu
   int32_t lino = 0;
 
   (void)taosThreadMutexLock(&pBse->mutex);
+
   SBseCommitInfo *pCommit = &pBse->commitInfo;
-  if (taosArrayGetSize(pCommit->pFileList) == 0) {
+
+  int32_t fileListSize = taosArrayGetSize(pCommit->pFileList);
+  if (fileListSize == 0) {
     if (taosArrayPush(pCommit->pFileList, pInfo) == NULL) {
       TSDB_CHECK_CODE(code = terrno, lino, _error);
     }
   } else {
     SBseLiveFileInfo *pLast = taosArrayGetLast(pCommit->pFileList);
     if (pLast->timestamp == pInfo->timestamp) {
-      memcpy(pLast, pInfo, sizeof(SBseLiveFileInfo));
+      *pLast = *pInfo;
+    } else {
+      if (taosArrayPush(pCommit->pFileList, pInfo) == NULL) {
+        TSDB_CHECK_CODE(code = terrno, lino, _error);
+      }
     }
   }
 
