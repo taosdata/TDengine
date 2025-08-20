@@ -813,6 +813,7 @@ typedef struct SSTriggerWalDataRequest {
 typedef struct SSTriggerWalMetaNewRequest {
   SSTriggerPullRequest base;
   int64_t              lastVer;
+  int64_t              ctime;
 } SSTriggerWalMetaNewRequest;
 
 typedef struct SSTriggerWalDataRange {
@@ -895,10 +896,6 @@ typedef union SSTriggerPullRequestUnion {
 int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTriggerPullRequest* pReq);
 int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullRequestUnion* pReq);
 void    tDestroySTriggerPullRequest(SSTriggerPullRequestUnion* pReq);
-
-int32_t tSerializeBlockList(void* buf, int32_t bufLen, const SArray* blockList);
-int32_t tDeserializeBlockList(void* buf, int32_t bufLen, SArray* blockList);
-void    tDestroyBlockList(SArray* blockList);
 
 typedef struct SSTriggerCalcParam {
   // These fields only have values when used in the statement, otherwise they are 0
@@ -1010,7 +1007,7 @@ typedef struct SStreamTsResponse {
 int32_t tSerializeSStreamTsResponse(void* buf, int32_t bufLen, const SStreamTsResponse* pRsp);
 int32_t tDeserializeSStreamTsResponse(void* buf, int32_t bufLen, void *pBlock);
 
-int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SList* used, SList* freed);
+int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SList* used);
 int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, SArray* pRsp);
 
 typedef struct SStreamGroupValue {
