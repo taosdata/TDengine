@@ -1004,8 +1004,6 @@ void releaseDataResultAndResetMgrStatus(void** pIter) {
   if (pResult->dataMode & DATA_ALLOC_MODE_SLIDING) {
     SSlidingGrpMgr* pSlidingGrpMgr = (SSlidingGrpMgr*)pResult->groupData;
     (void)changeMgrStatus(&pSlidingGrpMgr->status, GRP_DATA_IDLE);
-  } else {
-    changeMgrStatus(&pSlidingGrpMgr->status, GRP_DATA_IDLE);
   } else if (pResult->dataMode & DATA_ALLOC_MODE_ALIGN) {
     SAlignGrpMgr* pAlignGrpMgr = (SAlignGrpMgr*)pResult->groupData;
     (void)changeMgrStatus(&pAlignGrpMgr->status, GRP_DATA_IDLE);
