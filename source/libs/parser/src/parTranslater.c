@@ -6809,8 +6809,12 @@ EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
         } else if (filterExtractTsNeedCollect(pOperator->pRight, pOperator->pLeft)) {
           SValueNode *pVal = NULL;
           if (pOperator->opType == OP_TYPE_LOWER_EQUAL || pOperator->opType == OP_TYPE_LOWER_THAN) {
+            TSWAP(pOperator->pLeft, pOperator->pRight);
+            pOperator->opType = (pOperator->opType == OP_TYPE_LOWER_EQUAL ? OP_TYPE_GREATER_EQUAL : OP_TYPE_GREATER_THAN);
             PAR_ERR_JRET(nodesListMakeAppend(&pCxt->pStart, *pNode));
           } else {
+            TSWAP(pOperator->pLeft, pOperator->pRight);
+            pOperator->opType = (pOperator->opType == OP_TYPE_GREATER_EQUAL ? OP_TYPE_LOWER_EQUAL : OP_TYPE_LOWER_THAN);
             PAR_ERR_JRET(nodesListMakeAppend(&pCxt->pEnd, *pNode));
           }
           PAR_ERR_JRET(nodesMakeValueNodeFromBool(true, &pVal));
@@ -6820,8 +6824,7 @@ EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
           return DEAL_RES_CONTINUE;
         }
       } else if (pOperator->opType == OP_TYPE_EQUAL) {
-        if (filterExtractTsNeedCollect(pOperator->pLeft, pOperator->pRight) ||
-            filterExtractTsNeedCollect(pOperator->pRight, pOperator->pLeft)) {
+        if (filterExtractTsNeedCollect(pOperator->pLeft, pOperator->pRight)) {
           SNode*      startNode = NULL;
           SNode*      endNode = NULL;
           SValueNode* pVal = NULL;
@@ -6829,6 +6832,21 @@ EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
           PAR_ERR_JRET(nodesCloneNode(*pNode, &endNode));
           ((SOperatorNode*)startNode)->opType = OP_TYPE_GREATER_EQUAL;
           ((SOperatorNode*)endNode)->opType = OP_TYPE_LOWER_EQUAL;
+          PAR_ERR_JRET(nodesListMakeAppend(&pCxt->pStart, startNode));
+          PAR_ERR_JRET(nodesListMakeAppend(&pCxt->pEnd, endNode));
+          PAR_ERR_JRET(nodesMakeValueNodeFromBool(true, &pVal));
+          *pNode = (SNode*)pVal;
+          return DEAL_RES_IGNORE_CHILD;
+        } else if (filterExtractTsNeedCollect(pOperator->pRight, pOperator->pLeft)) {
+          SNode*      startNode = NULL;
+          SNode*      endNode = NULL;
+          SValueNode* pVal = NULL;
+          PAR_ERR_JRET(nodesCloneNode(*pNode, &startNode));
+          PAR_ERR_JRET(nodesCloneNode(*pNode, &endNode));
+          ((SOperatorNode*)startNode)->opType = OP_TYPE_GREATER_EQUAL;
+          ((SOperatorNode*)endNode)->opType = OP_TYPE_LOWER_EQUAL;
+          TSWAP(((SOperatorNode*)startNode)->pLeft, ((SOperatorNode*)startNode)->pRight);
+          TSWAP(((SOperatorNode*)endNode)->pLeft, ((SOperatorNode*)endNode)->pRight);
           PAR_ERR_JRET(nodesListMakeAppend(&pCxt->pStart, startNode));
           PAR_ERR_JRET(nodesListMakeAppend(&pCxt->pEnd, endNode));
           PAR_ERR_JRET(nodesMakeValueNodeFromBool(true, &pVal));
@@ -6878,115 +6896,6 @@ _return:
   return code;
 }
 
-static bool filterHasPlaceHolderRangeStart(SOperatorNode *pOperator, bool equal) {
-  SNode* pLeft = pOperator->pLeft;
-  SNode* pRight = pOperator->pRight;
-
-  if (pLeft == NULL || pRight == NULL) {
-    return false;
-  }
-
-  if (nodeType(pLeft) == QUERY_NODE_COLUMN) {
-    SColumnNode* pCol = (SColumnNode*)pLeft;
-    if (pCol->colType != COLUMN_TYPE_COLUMN || pCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID || nodeType(pRight) != QUERY_NODE_FUNCTION) {
-      return false;
-    }
-    SFunctionNode *pFunc = (SFunctionNode*)pRight;
-    if (pFunc->funcType != FUNCTION_TYPE_TWSTART) {
-      return false;
-    }
-    if (pFunc->funcType == FUNCTION_TYPE_TWSTART) {
-      if (equal) {
-        if (pOperator->opType == OP_TYPE_GREATER_EQUAL || pOperator->opType == OP_TYPE_GREATER_THAN) {
-          return true;
-        }
-      } else {
-        if (pOperator->opType == OP_TYPE_GREATER_THAN) {
-          return true;
-        }
-      }
-    }
-    return false;
-  } else if (nodeType(pRight) == QUERY_NODE_COLUMN) {
-    SColumnNode* pCol = (SColumnNode*)pRight;
-    if (pCol->colType != COLUMN_TYPE_COLUMN || pCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID || nodeType(pLeft) != QUERY_NODE_FUNCTION) {
-      return false;
-    }
-    SFunctionNode *pFunc = (SFunctionNode*)pLeft;
-    if (pFunc->funcType != FUNCTION_TYPE_TWSTART) {
-      return false;
-    }
-    if (pFunc->funcType == FUNCTION_TYPE_TWSTART) {
-      if (equal) {
-        if (pOperator->opType == OP_TYPE_LOWER_EQUAL || pOperator->opType == OP_TYPE_LOWER_THAN) {
-          return true;
-        }
-      } else {
-        if (pOperator->opType == OP_TYPE_LOWER_THAN) {
-          return true;
-        }
-      }
-      return true;
-    }
-    return false;
-  }
-  return false;
-}
-
-static bool filterHasPlaceHolderRangeEnd(SOperatorNode *pOperator, bool equal) {
-  SNode* pLeft = pOperator->pLeft;
-  SNode* pRight = pOperator->pRight;
-
-  if (pLeft == NULL || pRight == NULL) {
-    return false;
-  }
-
-  if (nodeType(pLeft) == QUERY_NODE_COLUMN) {
-    SColumnNode* pCol = (SColumnNode*)pLeft;
-    if (pCol->colType != COLUMN_TYPE_COLUMN || pCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID || nodeType(pRight) != QUERY_NODE_FUNCTION) {
-      return false;
-    }
-    SFunctionNode *pFunc = (SFunctionNode*)pRight;
-    if (pFunc->funcType != FUNCTION_TYPE_TWEND) {
-      return false;
-    }
-    if (pFunc->funcType == FUNCTION_TYPE_TWEND) {
-      if (equal) {
-        if (pOperator->opType == OP_TYPE_LOWER_EQUAL || pOperator->opType == OP_TYPE_LOWER_THAN) {
-          return true;
-        }
-      } else {
-        if (pOperator->opType == OP_TYPE_LOWER_THAN) {
-          return true;
-        }
-      }
-    }
-    return false;
-  } else if (nodeType(pRight) == QUERY_NODE_COLUMN) {
-    SColumnNode* pCol = (SColumnNode*)pRight;
-    if (pCol->colType != COLUMN_TYPE_COLUMN || pCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID || nodeType(pLeft) != QUERY_NODE_FUNCTION) {
-      return false;
-    }
-    SFunctionNode *pFunc = (SFunctionNode*)pLeft;
-    if (pFunc->funcType != FUNCTION_TYPE_TWEND) {
-      return false;
-    }
-    if (pFunc->funcType == FUNCTION_TYPE_TWEND) {
-      if (equal) {
-        if (pOperator->opType == OP_TYPE_GREATER_EQUAL || pOperator->opType == OP_TYPE_GREATER_THAN) {
-          return true;
-        }
-      } else {
-        if (pOperator->opType == OP_TYPE_GREATER_THAN) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-  return false;
-}
-
 static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode** pWhere, STimeWindow* pTimeRange,
                                  SNode** pTimeRangeExpr, SNode* pFromTable) {
   if (NULL == *pWhere) {
@@ -6998,20 +6907,6 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode** pWhere, STimeW
   SNode*  pPrimaryKeyCond = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
   PAR_ERR_JRET(nodesCloneNode(*pWhere, &pCond));
-
-  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pCond) &&
-      LOGIC_COND_TYPE_AND == ((SLogicConditionNode *)pCond)->condType &&
-      LIST_LENGTH(((SLogicConditionNode *)pCond)->pParameterList) == 2 &&
-      pCxt->createStreamCalc) {
-    SLogicConditionNode *pLogicCond = (SLogicConditionNode *)pCond;
-    SNode *pLeft = nodesListGetNode(pLogicCond->pParameterList, 0);
-    SNode *pRight = nodesListGetNode(pLogicCond->pParameterList, 1);
-    bool hasStart = pLeft && (filterHasPlaceHolderRangeStart((SOperatorNode *)pLeft, pCxt->extLeftEq) || filterHasPlaceHolderRangeStart((SOperatorNode *)pRight, pCxt->extLeftEq));
-    bool hasEnd = pRight && (filterHasPlaceHolderRangeEnd((SOperatorNode *)pLeft, pCxt->extRightEq) || filterHasPlaceHolderRangeEnd((SOperatorNode *)pRight, pCxt->extRightEq));
-    if (hasStart && hasEnd) {
-      pCxt->createStreamCalcWithExtWindow = true;
-    }
-  }
 
   bool extractJoinCond = true;
   if (nodeType(pFromTable) == QUERY_NODE_JOIN_TABLE) {
@@ -14515,7 +14410,7 @@ static int32_t getExtWindowBorder(STranslateContext* pCxt, SNode* pTriggerWindow
       uint8_t              precision = ((SColumnNode*)pInterval->pCol)->node.resType.precision;
       SValueNode*          pInter = (SValueNode*)pInterval->pInterval;
       SValueNode*          pSliding = (SValueNode*)pInterval->pSliding;
-      if (pInter && pSliding && TSDB_CODE_SUCCESS == checkTimeGreater(pSliding, pInter, precision, true)) {
+      if (pInter && pSliding) {
         *withExtwindow = true;
         *eqLeft = true;
         *eqRight = false;
@@ -14551,7 +14446,7 @@ static int32_t getExtWindowBorder(STranslateContext* pCxt, SNode* pTriggerWindow
 }
 
 static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNodeList* pTriggerPartition, SNode* pTriggerTbl,
-                                        SNode* pStreamCalcQuery, SNode* pNotifyCond, SNode* pTriggerWindow, bool* withExtWindow) {
+                                        SNode* pStreamCalcQuery, SNode* pNotifyCond, SNode* pTriggerWindow) {
   int32_t    code = TSDB_CODE_SUCCESS;
   ESqlClause currClause = pCxt->currClause;
   SNode*     pCurrStmt = pCxt->pCurrStmt;
@@ -14559,11 +14454,10 @@ static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNodeList* pTri
 
   parserDebug("translate create stream req start translate calculate query");
 
-  PAR_ERR_JRET(getExtWindowBorder(pCxt, pTriggerWindow, withExtWindow, &pCxt->extLeftEq, &pCxt->extRightEq));
+  //PAR_ERR_JRET(getExtWindowBorder(pCxt, pTriggerWindow, withExtWindow, &pCxt->extLeftEq, &pCxt->extRightEq));
 
   pCxt->currLevel = ++(pCxt->levelNo);
   pCxt->currClause = SQL_CLAUSE_SELECT;
-  pCxt->createStreamCalcWithExtWindow = false;
   pCxt->createStreamTriggerTbl = pTriggerTbl;
   pCxt->createStreamTriggerPartitionList = pTriggerPartition;
   pCxt->createStreamCalc = true;
@@ -14596,7 +14490,6 @@ static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNodeList* pTri
   pCxt->createStreamCalc = false;
   pCxt->createStreamTriggerTbl = NULL;
   pCxt->createStreamTriggerPartitionList = NULL;
-  *withExtWindow &= pCxt->createStreamCalcWithExtWindow;
 
   pCxt->currClause = currClause;
   pCxt->pCurrStmt = pCurrStmt;
@@ -14796,7 +14689,6 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
   SQueryPlan*  calcPlan = NULL;
   SArray*      pVgArray = NULL;
   SHashObj*    pDbs = NULL;
-  bool         withExtWindow = false;
   SNodeList*   pProjectionList = NULL;
 
   parserDebug("translate create stream req start build calculate part, streamId:%"PRId64, pReq->streamId);
@@ -14806,7 +14698,7 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
     return code;
   }
 
-  PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerPartition, pTriggerSelect ? pTriggerSelect->pFromTable : NULL, pStmt->pQuery, pNotifyCond, pTriggerWindow, &withExtWindow));
+  PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerPartition, pTriggerSelect ? pTriggerSelect->pFromTable : NULL, pStmt->pQuery, pNotifyCond, pTriggerWindow));
 
   pReq->placeHolderBitmap = pCxt->placeHolderBitmap;
 
@@ -14834,8 +14726,7 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
                           .pAstRoot = pStmt->pQuery,
                           .streamCalcQuery = true,
                           .pStreamCalcVgArray = pVgArray,
-                          .pStreamCalcDbs = pDbs,
-                          .withExtWindow = withExtWindow};
+                          .pStreamCalcDbs = pDbs};
 
   PAR_ERR_JRET(qCreateQueryPlan(&calcCxt, &calcPlan, NULL));
   pReq->vtableCalc = (int8_t)calcCxt.streamVtableCalc;

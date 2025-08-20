@@ -2701,6 +2701,19 @@ bool nodesIsArithmeticOp(const SOperatorNode* pOp) {
   return false;
 }
 
+bool nodesIsBasicArithmeticOp(const SOperatorNode* pOp) {
+  switch (pOp->opType) {
+    case OP_TYPE_ADD:
+    case OP_TYPE_SUB:
+    case OP_TYPE_MULTI:
+    case OP_TYPE_DIV:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
 bool nodesIsComparisonOp(const SOperatorNode* pOp) {
   switch (pOp->opType) {
     case OP_TYPE_GREATER_THAN:
