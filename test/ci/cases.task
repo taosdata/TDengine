@@ -152,7 +152,7 @@
 # 05-VirtualTables
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_alter.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_alter_normaltable.py
-# ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_alter_subtable.py
+,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_alter_subtable.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_create.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_select.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_create.py

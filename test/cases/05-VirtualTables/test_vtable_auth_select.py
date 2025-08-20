@@ -69,7 +69,7 @@ class TestVtableAuthSelect:
                 if (priv_vtb != "none"):
                     tdSql.execute(f"grant {priv_vtb} on test_vtable_auth_select.test_vtable_auth_vtb_0 to test_vtable_user_select;")
 
-                sleep(2)
+                tdSql.execute(f"reset query cache")
 
                 tdLog.info(f"priv_db: {priv_db}, priv_vtb: {priv_vtb}")
                 testSql.execute("use test_vtable_auth_select;")
@@ -144,7 +144,7 @@ class TestVtableAuthSelect:
                 if (priv_vtb != "none"):
                     tdSql.execute(f"grant {priv_vtb} on test_vctable_auth_select.test_vtable_auth_stb_1 with int_tag = 1 to test_vct_user_select;")
 
-                sleep(2)
+                tdSql.execute(f"reset query cache")
 
                 tdLog.info(f"priv_db: {priv_db}, priv_vtb: {priv_vtb}")
                 testSql.execute("use test_vctable_auth_select;")
