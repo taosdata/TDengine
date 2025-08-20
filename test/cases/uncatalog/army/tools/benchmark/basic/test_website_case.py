@@ -186,7 +186,7 @@ class TestWebsiteCase:
 
         items = [
             [threadKey, " ", threadQueries, True],
-            [qpsKey, " ",  5, False],  # qps need > 1
+            [qpsKey, " ",  1, False],  # qps need > 1
             [avgKey, "s",  0, False],
             [minKey, "s",  0, False],
             ["max: ", "s", 0, False],

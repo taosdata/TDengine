@@ -5461,7 +5461,7 @@ static int32_t tColDataMergeSortMerge(SColData *aColData, int32_t start, int32_t
       tColDataArrGetRowKey(aColData, nColData, i, &keyi);
     } else {
       TAOS_CHECK_RETURN(tColDataCopyRowAppend(aColData, j++, aDstColData, nColData));
-      tColDataArrGetRowKey(aColData, nColData, j, &keyj);
+      if (j <= end) tColDataArrGetRowKey(aColData, nColData, j, &keyj);
     }
   }
 
@@ -5632,7 +5632,7 @@ int32_t tColDataSortMerge(SArray **arr) {
     TAOS_CHECK_RETURN(tColDataSort(aColData, nColData));
   }
 
-  if (doMerge != 1) {
+  if ((doMerge != 1) && (doSort == 1)) {
     tColDataArrGetRowKey(aColData, nColData, 0, &lastKey);
     for (int32_t iVal = 1; iVal < aColData[0].nVal; ++iVal) {
       SRowKey key;
@@ -5702,7 +5702,7 @@ int32_t tColDataSortMergeWithBlob(SArray **arr, SBlobSet *pBlob) {
     TAOS_CHECK_RETURN(tColDataSort(aColData, nColData));
   }
 
-  if (doMerge != 1) {
+  if ((doMerge != 1) && (doSort == 1)) {
     tColDataArrGetRowKey(aColData, nColData, 0, &lastKey);
     for (int32_t iVal = 1; iVal < aColData[0].nVal; ++iVal) {
       SRowKey key;

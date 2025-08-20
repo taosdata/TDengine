@@ -4,7 +4,7 @@ sidebar_label: 用户管理
 description: 本节讲述基本的用户管理功能
 ---
 
-用户和权限管理是 TDengine 企业版的功能，本节只讲述基本的用户管理部分。要想了解和获取全面的权限管理功能，请联系 TDengine 销售团队。
+用户和权限管理是 TDengine TSDB 企业版的功能，本节只讲述基本的用户管理部分。要想了解和获取全面的权限管理功能，请联系 TDengine TSDB 销售团队。
 
 ## 创建用户
 
@@ -15,6 +15,7 @@ CREATE USER user_name PASS 'password' [SYSINFO {1|0}] [CREATEDB {1|0}];
 用户名最长不超过 23 个字节。
 
 密码长度必须为 8 到 255 位，并且至少包含大写字母、小写字母、数字、特殊字符中的三类。特殊字符包括 `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? | ~ , .`。可以通过在 taos.cfg 中添加参数 `enableStrongPassword 0` 关闭此强制要求，或者通过如下 SQL 关闭。
+
 ```sql
 alter all dnodes 'EnableStrongPassword' '0'
 ```
@@ -23,7 +24,7 @@ alter all dnodes 'EnableStrongPassword' '0'
 
 `CREATEDB` 表示该用户是否能够创建数据库。`1` 表示可以创建，`0` 表示无权创建。缺省值为 `0`。从企业版 v3.3.2.0 开始支持。
 
-在下面的示例中，我们创建一个密码为 `abc123!@#` 且可以查看系统信息的用户。 
+在下面的示例中，我们创建一个密码为 `abc123!@#` 且可以查看系统信息的用户。
 
 ```sql
 taos> create user test pass 'abc123!@#' sysinfo 1;
@@ -93,4 +94,4 @@ Query OK, 0 of 0 rows affected (0.001160s)
 
 ## 授权管理
 
-授权管理仅在 TDengine 企业版中可用，请联系 TDengine 销售团队。
+授权管理仅在 TDengine TSDB 企业版中可用，请联系 TDengine TSDB 销售团队。
