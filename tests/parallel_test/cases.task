@@ -370,16 +370,16 @@
 #,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 3
 #,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 2
 #,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 1
-,,n,system-test,.python3 ./test.py -f 2-query/decimal.py
-,,n,system-test,.python3 ./test.py -f 2-query/decimal.py -Q 4
-,,n,system-test,.python3 ./test.py -f 2-query/decimal.py -Q 3
-,,n,system-test,.python3 ./test.py -f 2-query/decimal.py -Q 2
-,,n,system-test,.python3 ./test.py -f 2-query/decimal.py -Q 1
-,,n,system-test,.python3 ./test.py -f 2-query/decimal2.py
-,,n,system-test,.python3 ./test.py -f 2-query/decimal2.py -Q 4
-,,n,system-test,.python3 ./test.py -f 2-query/decimal2.py -Q 3
-,,n,system-test,.python3 ./test.py -f 2-query/decimal2.py -Q 2
-,,n,system-test,.python3 ./test.py -f 2-query/decimal2.py -Q 1
+,,n,system-test,python3 ./test.py -f 2-query/decimal.py
+,,n,system-test,python3 ./test.py -f 2-query/decimal.py -Q 4
+,,n,system-test,python3 ./test.py -f 2-query/decimal.py -Q 3
+,,n,system-test,python3 ./test.py -f 2-query/decimal.py -Q 2
+,,n,system-test,python3 ./test.py -f 2-query/decimal.py -Q 1
+,,n,system-test,python3 ./test.py -f 2-query/decimal2.py
+,,n,system-test,python3 ./test.py -f 2-query/decimal2.py -Q 4
+,,n,system-test,python3 ./test.py -f 2-query/decimal2.py -Q 3
+,,n,system-test,python3 ./test.py -f 2-query/decimal2.py -Q 2
+,,n,system-test,python3 ./test.py -f 2-query/decimal2.py -Q 1
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 3
