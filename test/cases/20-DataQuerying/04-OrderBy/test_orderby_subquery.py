@@ -22,8 +22,8 @@ class TestOrderByBasic:
         Jira: None
 
         History:
-            - 2025-5-6 Simon Guan Migrated from tsim/query/multi_order_by.sim
-            - 2025-5-6 Simon Guan Migrated from tsim/query/sort-pre-cols.sim
+            - 2025-8-19 Simon Guan Migrated from tsim/query/multi_order_by.sim
+            - 2025-8-19 Simon Guan Migrated from tsim/query/sort-pre-cols.sim
 
         """
 
