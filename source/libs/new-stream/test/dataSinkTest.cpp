@@ -767,7 +767,7 @@ TEST(dataSinkTest, testWriteFileSize) {
 
 TEST(dataSinkTest, multiThreadGet) {
   INIT_DATA_SINK(); 
-  const int producerCount = 1;
+  const int producerCount = 4;
   const int consumerCount = 16;
   const int taskPerProducer = 10000;
 
@@ -798,23 +798,22 @@ TEST(dataSinkTest, multiThreadGet) {
   std::mt19937                           gen(rd());
   std::uniform_int_distribution<int64_t> dist(0, 99);
 
-  SArray*     pWindws = taosArrayInit_s(sizeof(STimeRange), 1);
-  STimeRange* pRange = (STimeRange*)taosArrayGet(pWindws, 0);
-
   // Producer thread
   auto producer = [&](int tid) {
+    SArray* pWindows = taosArrayInit_s(sizeof(STimeRange), 1);
     for (int i = 0; i < taskPerProducer; ++i) {
-      int64_t      groupId = dist(gen);
+      STimeRange* pRange = (STimeRange*)taosArrayGet(pWindows, 0);
+      int64_t     groupId = dist(gen);
       if (groupId % producerCount != tid) continue;
-      TSKEY        wstart = baseTestTime1 + groups[groupId] * 100;
-      TSKEY        wend = baseTestTime1 + (++groups[groupId]) * 100 - 1;
+      TSKEY wstart = baseTestTime1 + groups[groupId] * 100;
+      TSKEY wend = baseTestTime1 + (++groups[groupId]) * 100 - 1;
 
       pRange->startTime = wstart;
       pRange->endTime = wend;
 
       SSDataBlock* pBlock = createTestBlock(wstart, 0);
 
-      code = declareStreamDataWindows(pCache, groupId, pWindws);
+      code = declareStreamDataWindows(pCache, groupId, pWindows);
       ASSERT_EQ(code, 0);
       code = putStreamMultiWinDataCache(pCache, groupId, pBlock);
       ASSERT_EQ(code, 0);
