@@ -54,15 +54,13 @@ static int32_t bseRawFileWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBse
     return TSDB_CODE_INVALID_MSG;
   }
 
+  p->fileType = pMeta->fileType;
+  p->range = *range;
+  p->pBse = pBse;
   p->pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND | TD_FILE_TRUNC);
   if (p->pFile == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
-
-  p->fileType = pMeta->fileType;
-  p->range = *range;
-
-  p->pBse = pBse;
 
   *pWriter = p;
 _error:
@@ -155,6 +153,7 @@ int32_t bseSnapWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapWriter
   p->pBse = pBse;
 
   *pWriter = p;
+
 _error:
   if (code) {
     if (p != NULL) {

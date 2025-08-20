@@ -1727,8 +1727,8 @@ _error:
 
 static int32_t tRowMergeAndRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlob) {
   int32_t code = 0;
+  int32_t lino = 0;
 
-  int32_t   lino = 0;
   SBlobSet *pTempBlobSet = NULL;
   int32_t   size = taosArrayGetSize(aRowP);
   if (size <= 1) {
@@ -1743,6 +1743,8 @@ static int32_t tRowMergeAndRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobS
   }
 
   code = tBlobSetCreate(pBlob->cap, pBlob->type, &pTempBlobSet);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
   int32_t iStart = 0;
   while (iStart < aRowP->size) {
     SRowKey key1;
@@ -1775,8 +1777,12 @@ static int32_t tRowMergeAndRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobS
     // the array is also changing, so the iStart just ++ instead of iEnd
     iStart++;
   }
+
 _error:
-  tBlobSetSwap(pBlob, pTempBlobSet);
+  if (pBlob && pTempBlobSet) {
+    tBlobSetSwap(pBlob, pTempBlobSet);
+  }
+
   tBlobSetDestroy(pTempBlobSet);
   return code;
 }

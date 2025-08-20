@@ -707,10 +707,10 @@ int32_t bseBatchCreate(SBseBatch **pBatch, int32_t nKeys) {
   }
 
   p->pSeq = taosArrayInit(nKeys, sizeof(SBlockItemInfo));
-
   if (p->pSeq == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
+
   BSE_QUEUE_INIT(&p->node);
 
   *pBatch = p;
