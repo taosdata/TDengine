@@ -394,7 +394,7 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
                 errorPrintReqArg2(CUS_PROMPT"Benchmark", "s");
             }
 
-            g_arguments->startTimestamp = strtoll(arg);
+            g_arguments->startTimestamp = strtoll(arg, NULL, 10);
             break;
 
         case 'U':
