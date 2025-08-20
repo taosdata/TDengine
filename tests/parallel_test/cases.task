@@ -36,7 +36,9 @@
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_vstable.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db.py
-# ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db_stb.py
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db_stb.py
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db_stb_window.py
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db_stb_group.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_after_alter.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_after_drop_origin_table.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_schema_is_old.py
