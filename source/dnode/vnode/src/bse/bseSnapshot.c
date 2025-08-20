@@ -220,6 +220,7 @@ int32_t bseSnapReaderOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapReader
   TSDB_CHECK_CODE(code, lino, _error);
 
   p->pBse = pBse;
+
   *ppReader = p;
 _error:
   if (code) {
@@ -262,8 +263,7 @@ int32_t bseSnapReaderReadImpl(SBseSnapReader *p, uint8_t **data, int32_t *len) {
   SSnapDataHdr *pHdr = (SSnapDataHdr *)(*data);
   pHdr->type = SNAP_DATA_BSE;
   pHdr->size = bufLen;
-  uint8_t *tdata = pHdr->data;
-  memcpy(tdata, pBuf, bufLen);
+  memcpy(pHdr->data, pBuf, bufLen);
 
   if (len != NULL) {
     *len = sizeof(SSnapDataHdr) + bufLen;
@@ -310,7 +310,6 @@ int32_t bseOpenIter(SBse *pBse, SBseIter **ppIter) {
   if (pIter == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  pIter->pBse = pBse;
 
   SArray *pAliveFile = NULL;
   code = bseGetAliveFileList(pBse, &pAliveFile, 1);
@@ -319,6 +318,7 @@ int32_t bseOpenIter(SBse *pBse, SBseIter **ppIter) {
   pIter->index = 0;
   pIter->pFileSet = pAliveFile;
   pIter->fileType = BSE_TABLE_SNAP;
+  pIter->pBse = pBse;
 
   *ppIter = pIter;
 
