@@ -219,7 +219,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/21-Operator/01-Arithmetic/test_arithmetic.py
 ## 02-Bit
 ## 03-JSON
-
 ## 04-Set
 ,,y,.,./ci/pytest.sh pytest cases/21-Operator/04-Set/test_union.py
 ,,y,.,./ci/pytest.sh pytest cases/21-Operator/04-Set/test_unionall.py
