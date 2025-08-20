@@ -1,6 +1,6 @@
 ---
-title: "TDengine3"
-sidebar_label: "TDengine3"
+title: "TDengine 数据订阅"
+sidebar_label: "TDengine 数据订阅"
 ---
 
 本文讲述如何使用 Explorer 订阅另一个集群的数据到本集群。
@@ -10,11 +10,13 @@ sidebar_label: "TDengine3"
 在源集群创建订阅所需的 Topic，可以订阅整个库、超级表 或子表。本示例中我们演示订阅一个名为 test 的数据库。
 
 ### 第一步：进入“数据订阅”页面
+
 打开源集群的 Explorer 界面，点击左侧“数据订阅”菜单，然后点击“添加新主题”。
 
 ![准备一](./tmq-pre1.png)
 
 ### 第二步：添加新主题
+
 输入主题名称，选择要订阅的数据库。
 
 ![准备二](./tmq-pre2.png)
@@ -32,13 +34,15 @@ sidebar_label: "TDengine3"
 ## 创建订阅任务
 
 ### 第一步：进入“新增数据源”页面
+
 1. 点击左侧“数据写入”菜单
 2. 点击“新增数据源”
 ![步骤一](./tmq-step1.png)
 
 ### 第二步：输入数据源信息
+
 1. 输入任务名称
-2. 选择任务类型“TDengine3”
+2. 选择任务类型“TDengine 数据订阅”
 3. 选择目标数据库
 4. 粘贴准备步骤复制的 DSN 到 **Topic DSN** 一栏。例如：tmq+ws://root:taosdata@localhost:6041/topic
 5. 完成以上步骤点击“连通性检查”按钮，测试与源端的连通性
@@ -56,7 +60,6 @@ sidebar_label: "TDengine3"
 8. 压缩。启用 WebSocket 压缩支持，以降低网络带宽占用。
 9. 点击“提交按钮”，提交任务
 ![步骤三](./tmq-step3.png)
-
 
 ## 监控任务运行情况
 

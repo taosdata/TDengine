@@ -675,7 +675,10 @@ static int32_t snapshotReceiverGotData(SSyncSnapshotReceiver *pReceiver, SyncSna
     TAOS_RETURN(TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG);
   }
 
+  (void)taosThreadMutexLock(&pReceiver->writerMutex);
+
   if (pReceiver->pWriter == NULL) {
+    (void)taosThreadMutexUnlock(&pReceiver->writerMutex);
     sRError(pReceiver, "snapshot receiver failed to write data since writer is null");
     TAOS_RETURN(TSDB_CODE_SYN_INTERNAL_ERROR);
   }
@@ -687,10 +690,13 @@ static int32_t snapshotReceiverGotData(SSyncSnapshotReceiver *pReceiver, SyncSna
     int32_t code = pReceiver->pSyncNode->pFsm->FpSnapshotDoWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter,
                                                                  pMsg->data, pMsg->dataLen);
     if (code != 0) {
+      (void)taosThreadMutexUnlock(&pReceiver->writerMutex);
       sRError(pReceiver, "snapshot receiver continue write failed since %s", tstrerror(code));
       TAOS_RETURN(code);
     }
   }
+
+  (void)taosThreadMutexUnlock(&pReceiver->writerMutex);
 
   // update progress
   pReceiver->ack = pMsg->seq;

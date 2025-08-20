@@ -3,13 +3,13 @@ title: "MQTT"
 sidebar_label: "MQTT"
 ---
 
-本节讲述如何通过 Explorer 界面创建数据迁移任务，从 MQTT 迁移数据到当前 TDengine 集群。
+本节讲述如何通过 Explorer 界面创建数据迁移任务，从 MQTT 迁移数据到当前 TDengine TSDB 集群。
 
 ## 功能概述
 
 MQTT 表示 Message Queuing Telemetry Transport（消息队列遥测传输）。它是一种轻量级的消息协议，易于实现和使用。
 
-TDengine 可以通过 MQTT 连接器从 MQTT 代理订阅数据并将其写入 TDengine，以实现实时数据流入库。
+TDengine TSDB 可以通过 MQTT 连接器从 MQTT 代理订阅数据并将其写入 TDengine TSDB，以实现实时数据流入库。
 
 ## 创建任务
 
@@ -130,7 +130,7 @@ json 数据支持 JSONObject 或者 JSONArray，使用 json 解析器可以解�
 
 #### 5.3 数据过滤
 
-在 **过滤** 中，填写过滤条件，例如：填写`id != 1`，则只有 id 不为 1 的数据才会被写入 TDengine。
+在 **过滤** 中，填写过滤条件，例如：填写`id != 1`，则只有 id 不为 1 的数据才会被写入 TDengine TSDB。
 
 ![mqtt-10.png](./mqtt-10.png)
 
@@ -196,4 +196,4 @@ import Contributing from './_03-exception-handling-strategy.mdx'
 
 ### 8. 创建完成
 
-点击 **提交** 按钮，完成创建 MQTT 到 TDengine 的数据同步任务，回到**数据源列表**页面可查看任务执行情况。
+点击 **提交** 按钮，完成创建 MQTT 到 TDengine TSDB 的数据同步任务，回到**数据源列表**页面可查看任务执行情况。

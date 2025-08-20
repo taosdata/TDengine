@@ -13,7 +13,7 @@ class _TimeMOEService(TsfmBaseService):
         super().__init__()
 
         if  self.service_host is None:
-            self.service_host = 'http://127.0.0.1:5001/ds_predict'
+            self.service_host = 'http://127.0.0.1:6072/ds_predict'
 
     def execute(self):
         if len(self.past_dynamic_real):

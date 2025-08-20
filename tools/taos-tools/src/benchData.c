@@ -2067,6 +2067,10 @@ static BArray *initChildCols(int colsSize) {
 int prepareSampleData(SDataBase* database, SSuperTable* stbInfo) {
     stbInfo->lenOfCols = accumulateRowLen(stbInfo->cols, stbInfo->iface);
     stbInfo->lenOfTags = accumulateRowLen(stbInfo->tags, stbInfo->iface);
+    if (stbInfo->useTagTableName) {
+        // add tag table name length
+        stbInfo->lenOfTags += TSDB_TABLE_NAME_LEN + 1; // +1 for comma
+    }
     if (stbInfo->partialColNum != 0
             && ((stbInfo->iface == TAOSC_IFACE
                 || stbInfo->iface == REST_IFACE))) {

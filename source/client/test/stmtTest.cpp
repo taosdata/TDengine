@@ -606,5 +606,420 @@ TEST(stmtCase, errcode) {
   sql = "nsert into ? (ts, name) values (?, ?)";
   code = taos_stmt_prepare(stmt, sql, 0);
   checkError(stmt, code);
+
+  taos_stmt_close(stmt);
+  do_query(taos, "DROP DATABASE IF EXISTS stmt_testdb_4");
+  taos_close(taos);
 }
+
+// TS-6870
+TEST(stmtCase, update) {
+  int   code = 0;
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  do_query(taos, "DROP DATABASE IF EXISTS stmt_testdb_6");
+  do_query(taos, "CREATE DATABASE IF NOT EXISTS stmt_testdb_6");
+  do_query(taos, "USE stmt_testdb_6");
+  do_query(taos,
+           "create table stmt_testdb_6.devices(ts timestamp,device_id int,status binary(10),temperature float,humidity "
+           "float);");
+  do_query(taos,
+           "insert into stmt_testdb_6.devices (ts,device_id,status,temperature,humidity) "
+           "values(1591060628000,1,'abc',1.0,1.1);");
+
+  float   temperature = 10.0;
+  float   humidity = 10.1;
+  int32_t device_id = 2;
+  int64_t ts = 1591060628000;
+
+  int32_t c1_len = sizeof(float);
+  int32_t c2_len = sizeof(float);
+  int32_t c3_len = sizeof(int32_t);
+  int32_t c4_len = sizeof(int64_t);
+
+  TAOS_MULTI_BIND params[5];
+  params[0].buffer_type = TSDB_DATA_TYPE_FLOAT;
+  params[0].buffer = &temperature;
+  params[0].buffer_length = sizeof(float);
+  params[0].length = &c1_len;
+  params[0].is_null = NULL;
+  params[0].num = 1;
+
+  params[1].buffer_type = TSDB_DATA_TYPE_FLOAT;
+  params[1].buffer = &humidity;
+  params[0].buffer_length = sizeof(float);
+  params[1].length = &c2_len;
+  params[1].is_null = NULL;
+  params[1].num = 1;
+
+  params[2].buffer_type = TSDB_DATA_TYPE_INT;
+  params[2].buffer = &device_id;
+  params[2].buffer_length = sizeof(int32_t);
+  params[2].length = &c3_len;
+  params[2].is_null = NULL;
+  params[2].num = 1;
+
+  params[3].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+  params[3].buffer = &ts;
+  params[3].buffer_length = sizeof(int64_t);
+  params[3].length = &c4_len;
+  params[3].is_null = NULL;
+  params[3].num = 1;
+
+  params[4].buffer_type = TSDB_DATA_TYPE_INT;
+  params[4].buffer = &device_id;
+  params[4].buffer_length = sizeof(int32_t);
+  params[4].length = &c3_len;
+  params[4].is_null = NULL;
+  params[4].num = 1;
+  // standard case
+  {
+    printf("case 1 : standard case\n");
+    TAOS_STMT *stmt = taos_stmt_init(taos);
+    ASSERT_NE(stmt, nullptr);
+    char *sql =
+        "update stmt_testdb_6.devices set temperature = ?,humidity = ?,device_id=? where ts=? and device_id=? and "
+        "status IS NOT NULL";
+    int code = taos_stmt_prepare(stmt, sql, 0);
+    checkError(stmt, code);
+
+    int           fieldNum = 0;
+    TAOS_FIELD_E *pFields = NULL;
+
+    code = taos_stmt_get_col_fields(stmt, &fieldNum, &pFields);
+    checkError(stmt, code);
+    ASSERT_EQ(fieldNum, 5);
+    ASSERT_STREQ(pFields[0].name, "temperature");
+    ASSERT_STREQ(pFields[1].name, "humidity");
+    ASSERT_STREQ(pFields[2].name, "device_id");
+    ASSERT_STREQ(pFields[3].name, "ts");
+    ASSERT_STREQ(pFields[4].name, "device_id");
+
+    taosMemoryFree(pFields);
+
+    code = taos_stmt_bind_param_batch(stmt, params);
+    checkError(stmt, code);
+
+    code = taos_stmt_add_batch(stmt);
+    checkError(stmt, code);
+
+    code = taos_stmt_execute(stmt);
+    checkError(stmt, code);
+
+    TAOS_RES *result =
+        taos_query(taos, "select temperature,humidity,device_id from stmt_testdb_6.devices where ts=1591060628000");
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(taos_errno(result), 0);
+
+    TAOS_ROW row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+
+    int32_t actual_temperature = *(float *)row[0];
+    ASSERT_EQ(actual_temperature, 10);
+
+    float actual_humidity = *(float *)row[1];
+    ASSERT_EQ(static_cast<int>(actual_humidity * 10), static_cast<int>(10.1 * 10));
+
+    int32_t actual_device_id = *(int32_t *)row[2];
+    ASSERT_EQ(actual_device_id, 2);
+
+    taos_free_result(result);
+
+    sql =
+        "update stmt_testdb_6.devices set temperature = ?,humidity = ?,device_id=? where (ts=? and device_id=? and "
+        "status IS NOT NULL)";
+    code = taos_stmt_prepare(stmt, sql, 0);
+    checkError(stmt, code);
+
+    code = taos_stmt_get_col_fields(stmt, &fieldNum, &pFields);
+    checkError(stmt, code);
+    ASSERT_EQ(fieldNum, 5);
+    ASSERT_STREQ(pFields[0].name, "temperature");
+    ASSERT_STREQ(pFields[1].name, "humidity");
+    ASSERT_STREQ(pFields[2].name, "device_id");
+    ASSERT_STREQ(pFields[3].name, "ts");
+    ASSERT_STREQ(pFields[4].name, "device_id");
+
+    taosMemoryFree(pFields);
+
+    code = taos_stmt_bind_param_batch(stmt, params);
+    checkError(stmt, code);
+
+    code = taos_stmt_add_batch(stmt);
+    checkError(stmt, code);
+
+    params[4].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+    params[4].buffer = &ts;
+    params[4].buffer_length = sizeof(int64_t);
+    params[4].length = &c4_len;
+    params[4].is_null = NULL;
+    params[4].num = 1;
+
+    params[3].buffer_type = TSDB_DATA_TYPE_INT;
+    params[3].buffer = &device_id;
+    params[3].buffer_length = sizeof(int32_t);
+    params[3].length = &c3_len;
+    params[3].is_null = NULL;
+    params[3].num = 1;
+
+    sql =
+        "UPDATE stmt_testdb_6.devices SET temperature=?, humidity=?, device_id=? WHERE device_id=? AND ts=? AND  "
+        "status "
+        "IN ('active', 'online') )";
+    code = taos_stmt_prepare(stmt, sql, 0);
+    checkError(stmt, code);
+    code = taos_stmt_get_col_fields(stmt, &fieldNum, &pFields);
+    checkError(stmt, code);
+    ASSERT_EQ(fieldNum, 5);
+    ASSERT_STREQ(pFields[0].name, "temperature");
+    ASSERT_STREQ(pFields[1].name, "humidity");
+    ASSERT_STREQ(pFields[2].name, "device_id");
+    ASSERT_STREQ(pFields[3].name, "device_id");
+    ASSERT_STREQ(pFields[4].name, "ts");
+
+    taosMemoryFree(pFields);
+
+    code = taos_stmt_bind_param_batch(stmt, params);
+    checkError(stmt, code);
+
+    code = taos_stmt_add_batch(stmt);
+    checkError(stmt, code);
+
+    sql =
+        "UPDATE stmt_testdb_6.devices SET temperature=?, humidity=?, device_id=? WHERE device_id=? AND ts=? AND EXISTS "
+        "(SELECT 1 FROM test.device_logs WHERE device_id = test.devices.device_id)";
+    code = taos_stmt_prepare(stmt, sql, 0);
+    checkError(stmt, code);
+
+    code = taos_stmt_get_col_fields(stmt, &fieldNum, &pFields);
+    checkError(stmt, code);
+    ASSERT_EQ(fieldNum, 5);
+    ASSERT_STREQ(pFields[0].name, "temperature");
+    ASSERT_STREQ(pFields[1].name, "humidity");
+    ASSERT_STREQ(pFields[2].name, "device_id");
+    ASSERT_STREQ(pFields[3].name, "device_id");
+    ASSERT_STREQ(pFields[4].name, "ts");
+
+    taosMemoryFree(pFields);
+
+    code = taos_stmt_bind_param_batch(stmt, params);
+    checkError(stmt, code);
+
+    code = taos_stmt_add_batch(stmt);
+    checkError(stmt, code);
+
+    taos_stmt_close(stmt);
+  }
+
+  // pk error
+  {
+    printf("case 2 : pk error\n");
+    TAOS_STMT *stmt = taos_stmt_init(taos);
+    ASSERT_NE(stmt, nullptr);
+    char *sql =
+        "update stmt_testdb_6.devices set ts = ?,humidity = ?,device_id=? where ts=? and device_id=? and "
+        "status IS NOT NULL";
+    int code = taos_stmt_prepare(stmt, sql, 0);
+    ASSERT_EQ(TSDB_CODE_PAR_SYNTAX_ERROR, code);
+    ASSERT_STREQ("Cannot update primary key column 'ts'", taos_stmt_errstr(stmt));
+    taos_stmt_close(stmt);
+  }
+  // sql error
+  {
+    printf("case 3 : sql error\n");
+    TAOS_STMT *stmt = taos_stmt_init(taos);
+    ASSERT_NE(stmt, nullptr);
+    char *sql =
+        "update stmt_testdb_6.devices temperature = ?,humidity = ?,device_id=? where ts=? and device_id=? and "
+        "status IS not null";
+    code = taos_stmt_prepare(stmt, sql, 0);
+    code = taos_stmt_bind_param_batch(stmt, params);
+    ASSERT_EQ(TSDB_CODE_PAR_SYNTAX_ERROR, code);
+    ASSERT_STREQ(
+        "syntax error near \"stmt_testdb_6.devices temperature = ?,humidity = ?,device_id=? where ts=? and device_id=? "
+        "and status is not null\"",
+        taos_stmt_errstr(stmt));
+
+    taos_stmt_close(stmt);
+  }
+  // no where pk
+  {
+    printf("case 4 : no where pk\n");
+    TAOS_STMT *stmt = taos_stmt_init(taos);
+    ASSERT_NE(stmt, nullptr);
+    char *sql = "update stmt_testdb_6.devices set temperature = ?,humidity = ?,device_id=?";
+    code = taos_stmt_prepare(stmt, sql, 0);
+    code = taos_stmt_bind_param_batch(stmt, params);
+    ASSERT_EQ(TSDB_CODE_TSC_INVALID_OPERATION, code);
+    ASSERT_STREQ("Primary timestamp column should not be null", taos_stmt_errstr(stmt));
+
+    taos_stmt_close(stmt);
+  }
+  // table not exist
+  {
+    printf("case 5 : tb not exist\n");
+    TAOS_STMT *stmt = taos_stmt_init(taos);
+    ASSERT_NE(stmt, nullptr);
+    char *sql =
+        "update stmt_testdb_6.t1 set temperature = ?,humidity = ?,device_id=? where ts=? and device_id=? and "
+        "status IS NOT NULL";
+    code = taos_stmt_prepare(stmt, sql, 0);
+    ASSERT_EQ(TSDB_CODE_PAR_TABLE_NOT_EXIST, code);
+    ASSERT_STREQ("Table does not exist", taos_stmt_errstr(stmt));
+
+    taos_stmt_close(stmt);
+  }
+  // wrong tbname
+  {
+    printf("case 6 : wrong tbname\n");
+    TAOS_STMT *stmt = taos_stmt_init(taos);
+    ASSERT_NE(stmt, nullptr);
+    char *sql =
+        "update stmt_testdb_6.中文表名 set temperature = ?,humidity = ?,device_id=? where ts=? and device_id=? and "
+        "status IS NOT NULL";
+    code = taos_stmt_prepare(stmt, sql, 0);
+    ASSERT_EQ(TSDB_CODE_TSC_STMT_TBNAME_ERROR, code);
+    ASSERT_STREQ("Invalid table name", taos_stmt_errstr(stmt));
+
+    taos_stmt_close(stmt);
+  }
+
+  // wrong sql
+  {
+    printf("case 7 : wrong sql\n");
+    TAOS_STMT *stmt = taos_stmt_init(taos);
+    ASSERT_NE(stmt, nullptr);
+    char *sql =
+        "update stmt_testdb_6.devices temperature = ?,humidity = ?,device_id=? set ts=? where device_id=? and "
+        "status IS NOT NULL";
+    code = taos_stmt_prepare(stmt, sql, 0);
+    ASSERT_EQ(TSDB_CODE_PAR_SYNTAX_ERROR, code);
+    ASSERT_STREQ("Expected SET keyword", taos_stmt_errstr(stmt));
+
+    taos_stmt_close(stmt);
+  }
+
+  // not ?
+  {
+    printf("case 8 : not ?\n");
+    TAOS_STMT *stmt = taos_stmt_init(taos);
+    ASSERT_NE(stmt, nullptr);
+    char *sql =
+        "update stmt_testdb_6.devices set temperature=2.1,humidity=2.2,device_id=3 where ts=? and device_id=? and "
+        "status IS NOT NULL";
+    code = taos_stmt_prepare(stmt, sql, 0);
+    ASSERT_EQ(TSDB_CODE_PAR_SYNTAX_ERROR, code);
+    ASSERT_STREQ("Expected '?' placeholder", taos_stmt_errstr(stmt));
+
+    taos_stmt_close(stmt);
+  }
+
+  TAOS_MULTI_BIND params2[4];
+  params2[0].buffer_type = TSDB_DATA_TYPE_FLOAT;
+  params2[0].buffer = &temperature;
+  params2[0].buffer_length = sizeof(float);
+  params2[0].length = &c1_len;
+  params2[0].is_null = NULL;
+  params2[0].num = 1;
+
+  params2[1].buffer_type = TSDB_DATA_TYPE_FLOAT;
+  params2[1].buffer = &humidity;
+  params2[1].buffer_length = sizeof(float);
+  params2[1].length = &c2_len;
+  params2[1].is_null = NULL;
+  params2[1].num = 1;
+
+  params2[2].buffer_type = TSDB_DATA_TYPE_INT;
+  params2[2].buffer = &device_id;
+  params2[2].buffer_length = sizeof(int32_t);
+  params2[2].length = &c3_len;
+  params2[2].is_null = NULL;
+  params2[2].num = 1;
+
+  params2[3].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+  params2[3].buffer = &ts;
+  params2[3].buffer_length = sizeof(int64_t);
+  params2[3].length = &c4_len;
+  params2[3].is_null = NULL;
+  params2[3].num = 1;
+
+  // composite key
+  do_query(taos,
+           "create table stmt_testdb_6.devices2(ts timestamp,device_id int COMPOSITE KEY,status binary(10),temperature "
+           "float,humidity float);");
+  do_query(taos,
+           "insert into stmt_testdb_6.devices2 (ts,device_id,status,temperature,humidity) "
+           "values(1591060628000,1,'abc',1.0,1.1);");
+  {
+    printf("case 9 : composite key\n");
+    TAOS_STMT *stmt = taos_stmt_init(taos);
+    ASSERT_NE(stmt, nullptr);
+    char *sql =
+        "update stmt_testdb_6.devices2 set temperature = ?,humidity = ? where device_id=? and ts=?"
+        " and status IS NOT NULL";
+    int code = taos_stmt_prepare(stmt, sql, 0);
+    checkError(stmt, code);
+
+    int           fieldNum = 0;
+    TAOS_FIELD_E *pFields = NULL;
+
+    code = taos_stmt_get_col_fields(stmt, &fieldNum, &pFields);
+    checkError(stmt, code);
+    ASSERT_EQ(fieldNum, 4);
+    ASSERT_STREQ(pFields[0].name, "temperature");
+    ASSERT_STREQ(pFields[1].name, "humidity");
+    ASSERT_STREQ(pFields[2].name, "device_id");
+    ASSERT_STREQ(pFields[3].name, "ts");
+    taosMemoryFree(pFields);
+
+    device_id = 1;
+    code = taos_stmt_bind_param_batch(stmt, params2);
+    checkError(stmt, code);
+
+    code = taos_stmt_add_batch(stmt);
+    checkError(stmt, code);
+
+    code = taos_stmt_execute(stmt);
+    checkError(stmt, code);
+
+    TAOS_RES *result =
+        taos_query(taos, "select temperature,humidity,device_id from stmt_testdb_6.devices2 where ts=1591060628000");
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(taos_errno(result), 0);
+
+    TAOS_ROW row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+
+    int32_t actual_temperature = *(float *)row[0];
+    ASSERT_EQ(actual_temperature, 10);
+
+    float actual_humidity = *(float *)row[1];
+    ASSERT_EQ(static_cast<int>(actual_humidity * 10), static_cast<int>(10.1 * 10));
+
+    int32_t actual_device_id = *(int32_t *)row[2];
+    ASSERT_EQ(actual_device_id, 1);
+
+    taos_free_result(result);
+
+    taos_stmt_close(stmt);
+  }
+
+  // no where composite pk
+  {
+    printf("case 10 : no where composite pk\n");
+    TAOS_STMT *stmt = taos_stmt_init(taos);
+    ASSERT_NE(stmt, nullptr);
+    char *sql = "update stmt_testdb_6.devices2 set temperature = ?,humidity = ?,device_id=? where ts=?";
+    code = taos_stmt_prepare(stmt, sql, 0);
+    ASSERT_EQ(TSDB_CODE_PAR_SYNTAX_ERROR, code);
+    ASSERT_STREQ("Cannot update primary key column 'device_id'", taos_stmt_errstr(stmt));
+
+    taos_stmt_close(stmt);
+  }
+
+  do_query(taos, "DROP DATABASE IF EXISTS stmt_testdb_6");
+  taos_close(taos);
+}
+
 #pragma GCC diagnostic pop

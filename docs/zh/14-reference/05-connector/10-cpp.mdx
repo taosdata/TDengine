@@ -4,11 +4,11 @@ title: C/C++ Connector
 toc_max_heading_level: 4
 ---
 
-C/C++ 开发人员可以使用 TDengine 客户端驱动（即 C/C++ 连接器）开发自己的应用来连接 TDengine 集群，完成数据存储、查询以及其他功能。TDengine 客户端驱动的 API 类似于 MySQL 的 C API。应用程序使用时，需要包含 TDengine 头文件，里面列出了提供的 API 的函数原型；应用程序还要链接到所在平台上对应的动态库。
+C/C++ 开发人员可以使用 TDengine TSDB 客户端驱动（即 C/C++ 连接器）开发自己的应用来连接 TDengine TSDB 集群，完成数据存储、查询以及其他功能。TDengine TSDB 客户端驱动的 API 类似于 MySQL 的 C API。应用程序使用时，需要包含 TDengine TSDB 头文件，里面列出了提供的 API 的函数原型；应用程序还要链接到所在平台上对应的动态库。
 
 ## 连接方式
 
-TDengine 客户端驱动提供了 taos 动态库，支持两种连接方式：WebSocket 连接和原生连接。两种连接方式的区别在于：WebSocket 连接不要求客户端和服务端版本完全匹配，而原生连接要求版本匹配；在性能上，WebSocket 连接方式接近于原生连接。**一般推荐使用 WebSocket 连接方式。**
+TDengine TSDB 客户端驱动提供了 taos 动态库，支持两种连接方式：WebSocket 连接和原生连接。两种连接方式的区别在于：WebSocket 连接不要求客户端和服务端版本完全匹配，而原生连接要求版本匹配；在性能上，WebSocket 连接方式接近于原生连接。**一般推荐使用 WebSocket 连接方式。**
 
 ### 头文件和动态库
 
@@ -18,13 +18,13 @@ TDengine 客户端驱动提供了 taos 动态库，支持两种连接方式：We
 #include "taos.h"
 ```
 
-安装 TDengine 客户端或服务端后，`taos.h` 头文件位于：
+安装 TDengine TSDB 客户端或服务端后，`taos.h` 头文件位于：
 
 - **Linux**：`/usr/local/taos/include`
 - **Windows**：`C:\TDengine\include`
 - **macOS**：`/usr/local/include`
 
-TDengine 客户端驱动的动态库位于：
+TDengine TSDB 客户端驱动的动态库位于：
 
 - **Linux**：`/usr/local/taos/driver/libtaos.so`
 - **Windows**：`C:\TDengine\driver\taos.dll`
@@ -32,9 +32,9 @@ TDengine 客户端驱动的动态库位于：
 
 ### 连接方式示例
 
-TDengine 客户端驱动支持两种连接方式，开发者可以根据需求灵活选择。
+TDengine TSDB 客户端驱动支持两种连接方式，开发者可以根据需求灵活选择。
 
-原生连接是 TDengine 的默认连接方式，直接调用 `taos_connect()` 即可建立连接：
+原生连接是 TDengine TSDB 的默认连接方式，直接调用 `taos_connect()` 即可建立连接：
 
 ```c
 // 原生连接示例
@@ -55,19 +55,19 @@ TAOS *taos = taos_connect(ip, user, password, database, port);
 
 ## 支持的平台
 
-TDengine 客户端驱动支持多种平台，具体支持的平台列表请参考：[支持的平台列表](../#支持的平台)
+TDengine TSDB 客户端驱动支持多种平台，具体支持的平台列表请参考：[支持的平台列表](../#支持的平台)
 
 ## 版本说明
 
 ### WebSocket 连接
 
-| TDengine 客户端版本 | 主要变化                                                        | TDengine 版本      |
+| TDengine TSDB 客户端版本 | 主要变化                                                        | TDengine TSDB 版本      |
 | ------------------- | --------------------------------------------------------------- | ------------------ |
 | 3.3.6.0             | 提供了 SQL 执行、参数绑定、无模式写入和数据订阅等全面功能支持。 | 3.3.2.0 及更高版本 |
 
 ### 原生连接
 
-TDengine 客户端驱动的版本号与 TDengine 服务端的版本号严格对应，**强烈建议使用与 TDengine 服务端完全相同版本的客户端驱动**。虽然低版本的客户端驱动在前三段版本号一致（即仅第四段版本号不同）的情况下也能与高版本的服务端兼容，但这并非推荐用法。**强烈不建议使用高版本的客户端驱动访问低版本的服务端。**
+TDengine TSDB 客户端驱动的版本号与 TDengine TSDB 服务端的版本号严格对应，**强烈建议使用与 TDengine TSDB 服务端完全相同版本的客户端驱动**。虽然低版本的客户端驱动在前三段版本号一致（即仅第四段版本号不同）的情况下也能与高版本的服务端兼容，但这并非推荐用法。**强烈不建议使用高版本的客户端驱动访问低版本的服务端。**
 
 ## 错误码
 
@@ -96,7 +96,7 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号严格对�
 
 ## 示例程序
 
-本节展示了使用客户端驱动访问 TDengine 集群的常见访问方式的示例代码。
+本节展示了使用客户端驱动访问 TDengine TSDB 集群的常见访问方式的示例代码。
 
 ### WebSocket 连接示例
 
@@ -132,10 +132,10 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号严格对�
 
 ## API 参考
 
-以下分别介绍 TDengine 客户端驱动的基础 API、同步查询 API、异步查询 API、参数绑定 API、无模式写入 API 和数据订阅 API。
+以下分别介绍 TDengine TSDB 客户端驱动的基础 API、同步查询 API、异步查询 API、参数绑定 API、无模式写入 API 和数据订阅 API。
 
 :::info **连接方式兼容性说明**
-TDengine 客户端驱动支持 WebSocket 连接和原生连接两种方式。大部分 API 在两种连接方式下功能完全一致，但有少数 API 存在功能差异：
+TDengine TSDB 客户端驱动支持 WebSocket 连接和原生连接两种方式。大部分 API 在两种连接方式下功能完全一致，但有少数 API 存在功能差异：
 
 **原生连接**：所有 API 都提供完整功能支持。
 
@@ -148,12 +148,12 @@ TDengine 客户端驱动支持 WebSocket 连接和原生连接两种方式。大
 
 **WebSocket 连接功能差异说明：**
 
-以下 API 在 WebSocket 连接方式下暂时只返回成功状态，但不执行实际操作：
-
-- `taos_options_connection` - 连接选项设置
-- `taos_connect_auth` - MD5 加密密码连接
-- `taos_set_notify_cb` - 事件回调函数设置
-- `tmq_get_connect` - 获取 TMQ 连接句柄
+| API                     | 支持状态 | 接口说明           | 使用限制                                |
+| ----------------------- | -------- | ------------------ | --------------------------------------- |
+| taos_connect_auth       | 不支持   | MD5 加密密码连接   | 只返回成功状态，不执行实际操作          |
+| taos_set_notify_cb      | 不支持   | 设置事件回调函数   | 只返回成功状态，不执行实际操作          |
+| tmq_get_connect         | 不支持   | 获取 TMQ 连接句柄  | 只返回成功状态，不执行实际操作          |
+| taos_options_connection | 部分支持 | 设置客户端连接选项 | 不支持字符集设置，固定使用 UTF-8 字符集 |
 
 这些 API 在原生连接方式下功能完整。如需使用上述功能，建议选择原生连接方式。未来版本将逐步完善 WebSocket 连接的功能支持。
 
@@ -211,21 +211,21 @@ TDengine 客户端驱动支持 WebSocket 连接和原生连接两种方式。大
 
   - **接口说明**：创建数据库连接，初始化连接上下文。
   - **参数说明**：
-    - ip：[入参] TDengine 集群中任一节点的 FQDN。
+    - ip：[入参] TDengine TSDB 集群中任一节点的 FQDN。
     - user：[入参] 用户名。
     - pass：[入参] 密码。
     - db：[入参] 数据库名字，如果用户没有提供，也可以正常连接，用户可以通过该连接创建新的数据库，如果用户提供了数据库名字，则说明该数据库用户已经创建好，缺省使用该数据库。
     - port：[入参] taosd 程序监听的端口。
   - **返回值**：返回数据库连接，返回值为空表示失败。应用程序需要保存返回的参数，以便后续使用。
     :::info
-    同一进程可以根据不同的 host/port 连接多个 TDengine 集群
+    同一进程可以根据不同的 host/port 连接多个 TDengine TSDB 集群
     :::
 
 - `TAOS *taos_connect_auth(const char *host, const char *user, const char *auth, const char *db, uint16_t port)`
 
   - **接口说明**：功能同 taos_connect。除 pass 参数替换为 auth 外，其他参数同 taos_connect。
   - **参数说明**：
-    - ip：[入参] TDengine 集群中任一节点的 FQDN。
+    - ip：[入参] TDengine TSDB 集群中任一节点的 FQDN。
     - user：[入参] 用户名。
     - auth：[入参] 原始密码取 32 位小写 md5。
     - db：[入参] 数据库名称，如果用户没有提供，也可以正常连接，用户可以通过该连接创建新的数据库，如果用户提供了数据库名字，则说明该数据库用户已经创建好，缺省使用该数据库。
@@ -371,13 +371,13 @@ TDengine 客户端驱动支持 WebSocket 连接和原生连接两种方式。大
   - **返回值**：字符串标识的错误提示信息。
 
 :::note
-2.0 及以上版本 TDengine 推荐数据库应用的每个线程都建立一个独立的连接，或基于线程建立连接池。而不推荐在应用中将该连接 (TAOS\*) 结构体传递到不同的线程共享使用。基于 TAOS 结构体发出的查询、写入等操作具有多线程安全性，但“USE statement”等状态量有可能在线程之间相互干扰。此外，C 语言的连接器可以按照需求动态建立面向数据库的新连接（该过程对用户不可见），同时建议只有在程序最后退出的时候才调用 `taos_close()` 关闭连接。
+2.0 及以上版本 TDengine TSDB 推荐数据库应用的每个线程都建立一个独立的连接，或基于线程建立连接池。而不推荐在应用中将该连接 (TAOS\*) 结构体传递到不同的线程共享使用。基于 TAOS 结构体发出的查询、写入等操作具有多线程安全性，但“USE statement”等状态量有可能在线程之间相互干扰。此外，C 语言的连接器可以按照需求动态建立面向数据库的新连接（该过程对用户不可见），同时建议只有在程序最后退出的时候才调用 `taos_close()` 关闭连接。
 另一个需要注意的是，在上述同步 API 执行过程中，不能调用类似 pthread_cancel 之类的 API 来强制结束线程，因为涉及一些模块的同步操作，如果强制结束线程有可能造成包括但不限于死锁等异常状况。
 :::
 
 ### 异步查询
 
-TDengine 还提供性能更高的异步 API 处理数据插入、查询操作。在软硬件环境相同的情况下，异步 API 处理数据插入的速度比同步 API 快 2 ～ 4 倍。异步 API 采用非阻塞式的调用方式，在系统真正完成某个具体数据库操作前，立即返回。调用的线程可以去处理其他工作，从而可以提升整个应用的性能。异步 API 在网络延迟严重的情况下，优势尤为突出。
+TDengine TSDB 还提供性能更高的异步 API 处理数据插入、查询操作。在软硬件环境相同的情况下，异步 API 处理数据插入的速度比同步 API 快 2 ～ 4 倍。异步 API 采用非阻塞式的调用方式，在系统真正完成某个具体数据库操作前，立即返回。调用的线程可以去处理其他工作，从而可以提升整个应用的性能。异步 API 在网络延迟严重的情况下，优势尤为突出。
 
 异步 API 都需要应用提供相应的回调函数，回调函数参数设置如下：前两个参数都是一致的，第三个参数依不同的 API 而定。第一个参数 param 是应用调用异步 API 时提供给系统的，用于回调时，应用能够找回具体操作的上下文，依具体实现而定。第二个参数是 SQL 操作的结果集，如果为空，比如 insert 操作，表示没有记录返回，如果不为空，比如 select 操作，表示有记录返回。
 
@@ -398,13 +398,13 @@ TDengine 还提供性能更高的异步 API 处理数据插入、查询操作。
     - res：`taos_query_a()` 回调时返回的结果集。
     - fp：回调函数。其参数 `param` 是用户可定义的传递给回调函数的参数结构体；`numOfRows` 是获取到的数据的行数（不是整个查询结果集的函数）。在回调函数中，应用可以通过调用 `taos_fetch_row()` 前向迭代获取批量记录中每一行记录。读完一块内的所有记录后，应用需要在回调函数中继续调用 `taos_fetch_rows_a()` 获取下一批记录进行处理，直到返回的记录数 `numOfRows` 为零（结果返回完成）或记录数为负值（查询出错）。
 
-TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多线程同时打开多张表，并可以同时对每张打开的表进行查询或者插入操作。需要指出的是，**客户端应用必须确保对同一张表的操作完全串行化**，即对同一个表的插入或查询操作未完成时（未返回时），不能够执行第二个插入或查询操作。
+TDengine TSDB 的异步 API 均采用非阻塞调用模式。应用程序可以用多线程同时打开多张表，并可以同时对每张打开的表进行查询或者插入操作。需要指出的是，**客户端应用必须确保对同一张表的操作完全串行化**，即对同一个表的插入或查询操作未完成时（未返回时），不能够执行第二个插入或查询操作。
 
 ### 参数绑定
 
-除了直接调用 `taos_query()` 进行查询，TDengine 也提供了支持参数绑定的 Prepare API，风格与 MySQL 类似，目前也仅支持用问号 `?` 来代表待绑定的参数。
+除了直接调用 `taos_query()` 进行查询，TDengine TSDB 也提供了支持参数绑定的 Prepare API，风格与 MySQL 类似，目前也仅支持用问号 `?` 来代表待绑定的参数。
 
-从 3.3.5.0 版本开始，TDengine 大幅简化了旧版参数绑定的使用接口。这样在通过参数绑定接口写入数据时，可以避免了 SQL 语法解析的资源消耗，通过批量绑定的方式，在绝大多数情况下显著提升写入性能。此时的典型操作步骤如下：
+从 3.3.5.0 版本开始，TDengine TSDB 大幅简化了旧版参数绑定的使用接口。这样在通过参数绑定接口写入数据时，可以避免了 SQL 语法解析的资源消耗，通过批量绑定的方式，在绝大多数情况下显著提升写入性能。此时的典型操作步骤如下：
 
 1. 调用 `taos_stmt2_init()` 创建参数绑定对象；
 2. 调用 `taos_stmt2_prepare()` 解析 INSERT 或者 SELECT 语句；
@@ -508,7 +508,7 @@ stmt 升级到 stmt2 的改动：
 <details>
 <summary>参数绑定（旧）</summary>
 
-从 2.1.1.0 和 2.1.2.0 版本开始，TDengine 大幅改进了参数绑定接口对数据写入（INSERT）场景的支持。这样在通过参数绑定接口写入数据时，就避免了 SQL 语法解析的资源消耗，从而在绝大多数情况下显著提升写入性能。此时的典型操作步骤如下：
+从 2.1.1.0 和 2.1.2.0 版本开始，TDengine TSDB 大幅改进了参数绑定接口对数据写入（INSERT）场景的支持。这样在通过参数绑定接口写入数据时，就避免了 SQL 语法解析的资源消耗，从而在绝大多数情况下显著提升写入性能。此时的典型操作步骤如下：
 
 1. 调用 `taos_stmt_init()` 创建参数绑定对象；
 2. 调用 `taos_stmt_prepare()` 解析 INSERT 语句；
@@ -618,11 +618,11 @@ stmt 升级到 stmt2 的改动：
 
 ### 无模式写入
 
-除了使用 SQL 方式或者使用参数绑定 API 写入数据外，还可以使用 Schemaless 的方式完成写入。Schemaless 可以免于预先创建超级表/数据子表的数据结构，而是可以直接写入数据，TDengine 系统会根据写入的数据内容自动创建和维护所需要的表结构。Schemaless 的使用方式详见 [Schemaless 写入](../../../develop/schemaless/) 章节，这里介绍与之配套使用的 C/C++ API。
+除了使用 SQL 方式或者使用参数绑定 API 写入数据外，还可以使用 Schemaless 的方式完成写入。Schemaless 可以免于预先创建超级表/数据子表的数据结构，而是可以直接写入数据，TDengine TSDB 系统会根据写入的数据内容自动创建和维护所需要的表结构。Schemaless 的使用方式详见 [Schemaless 写入](../../../develop/schemaless/) 章节，这里介绍与之配套使用的 C/C++ API。
 
 - `TAOS_RES* taos_schemaless_insert(TAOS* taos, const char* lines[], int numLines, int protocol, int precision)`
 
-  - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine 中。
+  - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine TSDB 中。
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
     - lines：[入参] 文本数据。满足解析格式要求的无模式文本字符串。
     - numLines：[入参] 文本数据的行数，不能为 0。
@@ -656,7 +656,7 @@ stmt 升级到 stmt2 的改动：
 
 - `TAOS_RES *taos_schemaless_insert_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int64_t reqid)`
 
-  - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine 中。通过传递参数 reqid 来跟踪整个的函数调用链情况。
+  - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine TSDB 中。通过传递参数 reqid 来跟踪整个的函数调用链情况。
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
     - lines：[入参] 文本数据。满足解析格式要求的无模式文本字符串。
     - numLines：[入参] 文本数据的行数，不能为 0。
@@ -668,7 +668,7 @@ stmt 升级到 stmt2 的改动：
 
 - `TAOS_RES *taos_schemaless_insert_raw(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision)`
 
-  - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine 中。通过传递的参数 lines 指针和长度 len 来表示数据，为了解决原始接口数据包含'\0'而被截断的问题。
+  - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine TSDB 中。通过传递的参数 lines 指针和长度 len 来表示数据，为了解决原始接口数据包含'\0'而被截断的问题。
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
     - lines：[入参] 文本数据。满足解析格式要求的无模式文本字符串。
     - len：[入参] 数据缓冲区 lines 的总长度（字节数）。
@@ -680,7 +680,7 @@ stmt 升级到 stmt2 的改动：
 
 - `TAOS_RES *taos_schemaless_insert_raw_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision, int64_t reqid)`
 
-  - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine 中。通过传递的参数 lines 指针和长度 len 来表示数据，为了解决原始接口数据包含'\0'而被截断的问题。通过传递参数 reqid 来跟踪整个的函数调用链情况。
+  - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine TSDB 中。通过传递的参数 lines 指针和长度 len 来表示数据，为了解决原始接口数据包含'\0'而被截断的问题。通过传递参数 reqid 来跟踪整个的函数调用链情况。
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
     - lines：[入参] 文本数据。满足解析格式要求的无模式文本字符串。
     - len：[入参] 数据缓冲区 lines 的总长度（字节数）。
@@ -693,7 +693,7 @@ stmt 升级到 stmt2 的改动：
 
 - `TAOS_RES *taos_schemaless_insert_ttl(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int32_t ttl)`
 
-  - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine 中。通过传递 ttl 参数来控制建表的 ttl 到期时间。
+  - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine TSDB 中。通过传递 ttl 参数来控制建表的 ttl 到期时间。
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
     - lines：[入参] 文本数据。满足解析格式要求的无模式文本字符串。
     - numLines：[入参] 文本数据的行数，不能为 0。
@@ -705,7 +705,7 @@ stmt 升级到 stmt2 的改动：
 
 - `TAOS_RES *taos_schemaless_insert_ttl_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int32_t ttl, int64_t reqid)`
 
-  - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine 中。通过传递 ttl 参数来控制建表的 ttl 到期时间。通过传递参数 reqid 来跟踪整个的函数调用链情况。
+  - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine TSDB 中。通过传递 ttl 参数来控制建表的 ttl 到期时间。通过传递参数 reqid 来跟踪整个的函数调用链情况。
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
     - lines：[入参] 文本数据。满足解析格式要求的无模式文本字符串。
     - numLines：[入参] 文本数据的行数，不能为 0。
@@ -718,7 +718,7 @@ stmt 升级到 stmt2 的改动：
 
 - `TAOS_RES *taos_schemaless_insert_raw_ttl(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision, int32_t ttl)`
 
-  - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine 中。通过传递的参数 lines 指针和长度 len 来表示数据，为了解决原始接口数据包含'\0'而被截断的问题。通过传递 ttl 参数来控制建表的 ttl 到期时间。
+  - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine TSDB 中。通过传递的参数 lines 指针和长度 len 来表示数据，为了解决原始接口数据包含'\0'而被截断的问题。通过传递 ttl 参数来控制建表的 ttl 到期时间。
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
     - lines：[入参] 文本数据。满足解析格式要求的无模式文本字符串。
     - len：[入参] 数据缓冲区 lines 的总长度（字节数）。
@@ -731,7 +731,7 @@ stmt 升级到 stmt2 的改动：
 
 - `TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision, int32_t ttl, int64_t reqid)`
 
-  - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine 中。通过传递的参数 lines 指针和长度 len 来表示数据，为了解决原始接口数据包含'\0'而被截断的问题。通过传递 ttl 参数来控制建表的 ttl 到期时间。通过传递参数 reqid 来跟踪整个的函数调用链情况。
+  - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine TSDB 中。通过传递的参数 lines 指针和长度 len 来表示数据，为了解决原始接口数据包含'\0'而被截断的问题。通过传递 ttl 参数来控制建表的 ttl 到期时间。通过传递参数 reqid 来跟踪整个的函数调用链情况。
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
     - lines：[入参] 文本数据。满足解析格式要求的无模式文本字符串。
     - len：[入参] 数据缓冲区 lines 的总长度（字节数）。
@@ -947,9 +947,9 @@ stmt 升级到 stmt2 的改动：
 
 - `TAOS *tmq_get_connect(tmq_t *tmq)`
 
-  - **接口说明**：从 TMQ 消费者对象中获取与 TDengine 数据库的连接句柄。
+  - **接口说明**：从 TMQ 消费者对象中获取与 TDengine TSDB 数据库的连接句柄。
     - tmq：[入参] 指向一个有效的 tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
-  - **返回值**：非 `NULL`：成功，返回一个 TAOS \* 类型的指针，指向与 TDengine 数据库的连接句柄。`NULL`：失败，非法的输入参数。
+  - **返回值**：非 `NULL`：成功，返回一个 TAOS \* 类型的指针，指向与 TDengine TSDB 数据库的连接句柄。`NULL`：失败，非法的输入参数。
 
 - `const char *tmq_get_table_name(TAOS_RES *res)`
 

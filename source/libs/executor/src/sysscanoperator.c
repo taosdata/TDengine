@@ -20,6 +20,7 @@
 #include "nodes.h"
 #include "querynodes.h"
 #include "systable.h"
+#include "tcommon.h"
 #include "tname.h"
 
 #include "tdatablock.h"
@@ -80,6 +81,7 @@ typedef struct SSysTableScanInfo {
 
   // file set iterate
   struct SFileSetReader* pFileSetReader;
+  SHashObj*              pExtSchema;
 } SSysTableScanInfo;
 
 typedef struct {
@@ -155,9 +157,9 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
                                                 SMetaReader* smrChildTable, const char* dbname, const char* tableName,
                                                 int32_t* pNumOfRows, const SSDataBlock* dataBlock);
 
-static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, const char* dbname, int32_t* pNumOfRows,
-                                                const SSDataBlock* dataBlock, char* tName,
-                                                SSchemaWrapper* schemaRow, char* tableType, SColRefWrapper *colRef);
+static int32_t sysTableUserColsFillOneTableCols(const char* dbname, int32_t* pNumOfRows,
+                                                const SSDataBlock* dataBlock, char* tName, SSchemaWrapper* schemaRow,
+                                                SExtSchema* extSchemaRow, char* tableType, SColRefWrapper* colRef);
 
 static int32_t sysTableUserColsFillOneVirtualChildTableCols(const SSysTableScanInfo* pInfo, const char* dbname, int32_t* pNumOfRows,
                                                             const SSDataBlock* dataBlock, char* tName, char* stName,
@@ -514,6 +516,7 @@ static SSDataBlock* doOptimizeTableNameFilter(SOperatorInfo* pOperator, SSDataBl
 
   char            typeName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
   SSchemaWrapper* schemaRow = NULL;
+  SExtSchema* extSchemaRow = smrTable.me.pExtSchemas;
   SColRefWrapper* colRef = NULL;
   if (smrTable.me.type == TSDB_SUPER_TABLE) {
     schemaRow = &smrTable.me.stbEntry.schemaRow;
@@ -530,7 +533,7 @@ static SSDataBlock* doOptimizeTableNameFilter(SOperatorInfo* pOperator, SSDataBl
     STR_TO_VARSTR(typeName, "VIRTUAL_CHILD_TABLE");
   }
 
-  code = sysTableUserColsFillOneTableCols(pInfo, dbname, &numOfRows, dataBlock, tableName, schemaRow, typeName, colRef);
+  code = sysTableUserColsFillOneTableCols(dbname, &numOfRows, dataBlock, tableName, schemaRow, extSchemaRow, typeName, colRef);
   if (code != TSDB_CODE_SUCCESS) {
     pAPI->metaReaderFn.clearReader(&smrTable);
     pInfo->loadInfo.totalRows = 0;
@@ -623,8 +626,11 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
     pInfo->pSchema = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
     taosHashSetFreeFp(pInfo->pSchema, tDeleteSSchemaWrapperForHash);
   }
+  if (pInfo->pExtSchema == NULL) {
+    pInfo->pExtSchema = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+  }
 
-  if (!pInfo->pCur || !pInfo->pSchema) {
+  if (!pInfo->pCur || !pInfo->pSchema || !pInfo->pExtSchema) {
     qError("sysTableScanUserCols failed since %s", terrstr());
     blockDataDestroy(pDataBlock);
     pInfo->loadInfo.totalRows = 0;
@@ -636,6 +642,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
     char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
 
     SSchemaWrapper* schemaRow = NULL;
+    SExtSchema*     extSchemaRow = NULL;
     SColRefWrapper* colRef = NULL;
 
     if (pInfo->pCur->mr.me.type == TSDB_SUPER_TABLE) {
@@ -652,6 +659,18 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
         }
         QUERY_CHECK_CODE(code, lino, _end);
       }
+
+      void *pExtSchema = taosHashGet(pInfo->pExtSchema, &pInfo->pCur->mr.me.uid, sizeof(int64_t));
+      if (pExtSchema == NULL) {
+        SExtSchema *pExtSchema = pInfo->pCur->mr.me.pExtSchemas;
+        code = taosHashPut(pInfo->pExtSchema, &pInfo->pCur->mr.me.uid, sizeof(int64_t), pExtSchema,
+          pInfo->pCur->mr.me.stbEntry.schemaRow.nCols * sizeof(SExtSchema));
+        if (code == TSDB_CODE_DUP_KEY) {
+          code = TSDB_CODE_SUCCESS;
+        }
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+
       continue;
     } else if (pInfo->pCur->mr.me.type == TSDB_CHILD_TABLE) {
       qDebug("sysTableScanUserCols cursor get child table, %s", GET_TASKID(pTaskInfo));
@@ -659,9 +678,11 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
       STR_TO_VARSTR(typeName, "CHILD_TABLE");
       STR_TO_VARSTR(tableName, pInfo->pCur->mr.me.name);
       int64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
-      void*   schema = taosHashGet(pInfo->pSchema, &pInfo->pCur->mr.me.ctbEntry.suid, sizeof(int64_t));
-      if (schema != NULL) {
+      void*   schema = taosHashGet(pInfo->pSchema, &suid, sizeof(int64_t));
+      void*   pExtSchema = taosHashGet(pInfo->pExtSchema, &suid, sizeof(int64_t));
+      if (schema != NULL && pExtSchema != NULL) {
         schemaRow = *(SSchemaWrapper**)schema;
+        extSchemaRow = (SExtSchema*)pExtSchema;
       } else {
         SMetaReader smrSuperTable = {0};
         pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
@@ -689,18 +710,27 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
         if (code == TSDB_CODE_DUP_KEY) {
           code = TSDB_CODE_SUCCESS;
         }
+        SExtSchema *pExtSchema = smrSuperTable.me.pExtSchemas;
+        code = taosHashPut(pInfo->pExtSchema, &suid, sizeof(int64_t), pExtSchema,
+          smrSuperTable.me.stbEntry.schemaRow.nCols * sizeof(SExtSchema));
+        if (code == TSDB_CODE_DUP_KEY) {
+          code = TSDB_CODE_SUCCESS;
+        }
         schemaRow = schemaWrapper;
+        extSchemaRow = taosHashGet(pInfo->pExtSchema, &suid, sizeof(int64_t));
         pAPI->metaReaderFn.clearReader(&smrSuperTable);
         QUERY_CHECK_CODE(code, lino, _end);
       }
     } else if (pInfo->pCur->mr.me.type == TSDB_NORMAL_TABLE) {
       qDebug("sysTableScanUserCols cursor get normal table, %s", GET_TASKID(pTaskInfo));
       schemaRow = &pInfo->pCur->mr.me.ntbEntry.schemaRow;
+      extSchemaRow = pInfo->pCur->mr.me.pExtSchemas;
       STR_TO_VARSTR(typeName, "NORMAL_TABLE");
       STR_TO_VARSTR(tableName, pInfo->pCur->mr.me.name);
     } else if (pInfo->pCur->mr.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
       qDebug("sysTableScanUserCols cursor get virtual normal table, %s", GET_TASKID(pTaskInfo));
       schemaRow = &pInfo->pCur->mr.me.ntbEntry.schemaRow;
+      extSchemaRow = pInfo->pCur->mr.me.pExtSchemas;
       STR_TO_VARSTR(typeName, "VIRTUAL_NORMAL_TABLE");
       STR_TO_VARSTR(tableName, pInfo->pCur->mr.me.name);
       colRef = &pInfo->pCur->mr.me.colRef;
@@ -712,9 +742,11 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
 
       colRef = &pInfo->pCur->mr.me.colRef;
       int64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
-      void*   schema = taosHashGet(pInfo->pSchema, &pInfo->pCur->mr.me.ctbEntry.suid, sizeof(int64_t));
-      if (schema != NULL) {
+      void*   schema = taosHashGet(pInfo->pSchema, &suid, sizeof(int64_t));
+      void*   pExtSchema = taosHashGet(pInfo->pExtSchema, &suid, sizeof(int64_t));
+      if (schema != NULL && pExtSchema != NULL) {
         schemaRow = *(SSchemaWrapper**)schema;
+        extSchemaRow = (SExtSchema*)pExtSchema;
       } else {
         SMetaReader smrSuperTable = {0};
         pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
@@ -742,7 +774,14 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
         if (code == TSDB_CODE_DUP_KEY) {
           code = TSDB_CODE_SUCCESS;
         }
+        SExtSchema *pExtSchema = smrSuperTable.me.pExtSchemas;
+        code = taosHashPut(pInfo->pExtSchema, &suid, sizeof(int64_t), pExtSchema,
+          smrSuperTable.me.stbEntry.schemaRow.nCols * sizeof(SExtSchema));
+        if (code == TSDB_CODE_DUP_KEY) {
+          code = TSDB_CODE_SUCCESS;
+        }
         schemaRow = schemaWrapper;
+        extSchemaRow = taosHashGet(pInfo->pExtSchema, &suid, sizeof(int64_t));
         pAPI->metaReaderFn.clearReader(&smrSuperTable);
         QUERY_CHECK_CODE(code, lino, _end);
       }
@@ -762,7 +801,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
     }
     // if pInfo->pRes->info.rows == 0, also need to add the meta to pDataBlock
     code =
-        sysTableUserColsFillOneTableCols(pInfo, dbname, &numOfRows, pDataBlock, tableName, schemaRow, typeName, colRef);
+        sysTableUserColsFillOneTableCols(dbname, &numOfRows, pDataBlock, tableName, schemaRow, extSchemaRow, typeName, colRef);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -1429,9 +1468,9 @@ _end:
   return code;
 }
 
-static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, const char* dbname, int32_t* pNumOfRows,
+static int32_t sysTableUserColsFillOneTableCols(const char* dbname, int32_t* pNumOfRows,
                                                 const SSDataBlock* dataBlock, char* tName, SSchemaWrapper* schemaRow,
-                                                char* tableType, SColRefWrapper* colRef) {
+                                                SExtSchema* extSchemaRow, char* tableType, SColRefWrapper* colRef) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (schemaRow == NULL) {
@@ -1487,16 +1526,24 @@ static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, 
     } else if (colType == TSDB_DATA_TYPE_NCHAR) {
       colTypeLen += tsnprintf(varDataVal(colTypeStr) + colTypeLen, colStrBufflen, "(%d)",
                               (int32_t)((schemaRow->pSchema[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+    } else if (IS_DECIMAL_TYPE(colType)) {
+      QUERY_CHECK_NULL(extSchemaRow, code, lino, _end, TSDB_CODE_INVALID_PARA);
+      STypeMod typeMod = extSchemaRow[i].typeMod;
+      uint8_t prec = 0, scale = 0;
+      decimalFromTypeMod(typeMod, &prec, &scale);
+      colTypeLen += sprintf(varDataVal(colTypeStr) + colTypeLen, "(%d,%d)", prec, scale);
     }
     varDataSetLen(colTypeStr, colTypeLen);
     code = colDataSetVal(pColInfoData, numOfRows, (char*)colTypeStr, false);
     QUERY_CHECK_CODE(code, lino, _end);
 
+    // col length
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 5);
     QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
     code = colDataSetVal(pColInfoData, numOfRows, (const char*)&schemaRow->pSchema[i].bytes, false);
     QUERY_CHECK_CODE(code, lino, _end);
 
+    // col precision, col scale, col nullable
     for (int32_t j = 6; j <= 8; ++j) {
       pColInfoData = taosArrayGet(dataBlock->pDataBlock, j);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
@@ -1521,6 +1568,13 @@ static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, 
       code = colDataSetVal(pColInfoData, numOfRows, (char*)refColName, false);
       QUERY_CHECK_CODE(code, lino, _end);
     }
+
+    // col id
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 10);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    code = colDataSetVal(pColInfoData, numOfRows, (const char*)&schemaRow->pSchema[i].colId, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     ++numOfRows;
   }
 
@@ -2520,13 +2574,46 @@ static int32_t buildVgDiskUsage(SOperatorInfo* pOperator, SDbSizeStatisInfo* pSt
 _end:
   return code;
 }
+
+static int8_t shouldEstimateRawDataSize(SOperatorInfo* pOperator) {
+  int32_t lino = 0;
+  size_t  size = 0;
+  int32_t index = 0;
+
+  const SSysTableMeta* pMeta = NULL;
+  SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
+
+  SSysTableScanInfo* pInfo = pOperator->info;
+  getInfosDbMeta(&pMeta, &size);
+
+  for (int32_t i = 0; i < size; ++i) {
+    if (strcmp(pMeta[i].name, TSDB_INS_DISK_USAGE) == 0) {
+      index = i;
+      break;
+    }
+  }
+  if (index >= size) {
+    return 1;
+  }
+  const SSysTableMeta* pTgtMeta = &pMeta[index];
+  int32_t              colNum = pTgtMeta->colNum;
+  SColumnInfoData      colInfoData =
+      createColumnInfoData(pTgtMeta->schema[colNum - 1].type, pTgtMeta->schema[colNum - 1].bytes, colNum);
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->matchInfo.pList); i++) {
+    SColMatchItem* pItem = taosArrayGet(pInfo->matchInfo.pList, i);
+    if (pItem->colId == colInfoData.info.colId) {
+      return 1;
+    }
+  }
+  return 0;
+}
 static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*       pAPI = &pTaskInfo->storageAPI;
   SSysTableScanInfo* pInfo = pOperator->info;
-  SDbSizeStatisInfo  staticsInfo = {0};
+  SDbSizeStatisInfo  staticsInfo = {.estimateRawData = 1};
 
   char*        buf = NULL;
   SSDataBlock* p = NULL;
@@ -2549,6 +2636,10 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   }
 
   SSDataBlock* pBlock = pInfo->pRes;
+
+  if (!pInfo->showRewrite) {
+    staticsInfo.estimateRawData = shouldEstimateRawDataSize(pOperator);
+  }
 
   code = buildVgDiskUsage(pOperator, &staticsInfo);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -3482,6 +3573,10 @@ void destroySysScanOperator(void* param) {
     taosHashCleanup(pInfo->pSchema);
     pInfo->pSchema = NULL;
   }
+  if (pInfo->pExtSchema) {
+    taosHashCleanup(pInfo->pExtSchema);
+    pInfo->pExtSchema = NULL;
+  }
 
   taosArrayDestroy(pInfo->matchInfo.pList);
   taosMemoryFreeClear(pInfo->pUser);
@@ -4187,6 +4282,15 @@ static int32_t vnodeEstimateRawDataSize(SOperatorInfo* pOperator, SDbSizeStatisI
   SSysTableScanInfo* pInfo = pOperator->info;
   int32_t            numOfRows = 0;
   int32_t            ret = 0;
+  if (pStaticInfo->estimateRawData == 0) {
+    pStaticInfo->rawDataSize = 0;
+    return code;
+  }
+
+  if (pStaticInfo->estimateRawData == 0) {
+    pStaticInfo->rawDataSize = 0;
+    return code;
+  }
 
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);

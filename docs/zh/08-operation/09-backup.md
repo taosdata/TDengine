@@ -4,11 +4,11 @@ title: 数据备份和恢复
 toc_max_heading_level: 4
 ---
 
-为了防止数据丢失、误删操作，TDengine 提供全面的数据备份、恢复、容错、异地数据实时同步等功能，以保证数据存储的安全。本节简要说明备份和恢复功能。
+为了防止数据丢失、误删操作，TDengine TSDB 提供全面的数据备份、恢复、容错、异地数据实时同步等功能，以保证数据存储的安全。本节简要说明备份和恢复功能。
 
 # 1. 基于 taosdump 进行数据备份恢复
 
-taosdump 是一个开源工具，用于支持从运行中的 TDengine 集群备份数据并将备份的数据恢复到相同或另一个正在运行的 TDengine 集群中。taosdump 可以将数据库作为逻辑数据单元进行备份，也可以对数据库中指定时间段内的数据记录进行备份。在使用 taosdump 时，可以指定数据备份的目录路径。如果不指定目录路径，taosdump 将默认将数据备份到当前目录。
+taosdump 是一个开源工具，用于支持从运行中的 TDengine TSDB 集群备份数据并将备份的数据恢复到相同或另一个正在运行的 TDengine TSDB 集群中。taosdump 可以将数据库作为逻辑数据单元进行备份，也可以对数据库中指定时间段内的数据记录进行备份。在使用 taosdump 时，可以指定数据备份的目录路径。如果不指定目录路径，taosdump 将默认将数据备份到当前目录。
 
 以下为 taosdump 执行数据备份的使用示例。
 
@@ -16,28 +16,28 @@ taosdump 是一个开源工具，用于支持从运行中的 TDengine 集群备�
 taosdump -h localhost -P 6030 -D dbname -o /file/path
 ```
 
-执行上述命令后，taosdump 会连接 localhost:6030 所在的 TDengine 集群，查询数据库 dbname 中的所有数据，并将数据备份到 /file/path 下。
+执行上述命令后，taosdump 会连接 localhost:6030 所在的 TDengine TSDB 集群，查询数据库 dbname 中的所有数据，并将数据备份到 /file/path 下。
 
 在使用 taosdump 时，如果指定的存储路径已经包含数据文件，taosdump 会提示用户并立即退出，以避免数据被覆盖。这意味着同一存储路径只能用于一次备份。如果你看到相关提示，请谨慎操作，以免误操作导致数据丢失。
 
-要将本地指定文件路径中的数据文件恢复到正在运行的 TDengine 集群中，可以通过指定命令行参数和数据文件所在路径来执行 taosdump 命令。以下为 taosdump 执行数据恢复的示例代码。
+要将本地指定文件路径中的数据文件恢复到正在运行的 TDengine TSDB 集群中，可以通过指定命令行参数和数据文件所在路径来执行 taosdump 命令。以下为 taosdump 执行数据恢复的示例代码。
 
 ```shell
 taosdump -i /file/path -h localhost -P 6030
 ```
 
-执行上述命令后，taosdump 会连接 localhost:6030 所在的 TDengine 集群，并将 /file/path 下的数据文件恢复到 TDengine 集群中。
+执行上述命令后，taosdump 会连接 localhost:6030 所在的 TDengine TSDB 集群，并将 /file/path 下的数据文件恢复到 TDengine TSDB 集群中。
 
-# 2. 基于 TDengine Enterprise 进行数据备份恢复
+# 2. 基于 TDengine TSDB Enterprise 进行数据备份恢复
 
 ## 2.1. 概述
 
-基于 TDengine 的数据订阅功能，TDengine Enterprise 实现了数据的增量备份和恢复。用户可以通过 taosExplorer 对 TDengine
+基于 TDengine TSDB 的数据订阅功能，TDengine TSDB Enterprise 实现了数据的增量备份和恢复。用户可以通过 taosExplorer 对 TDengine TSDB
 集群进行备份和恢复。
 
-TDengine Enterprise 的备份和恢复功能包括以下几个概念：
+TDengine TSDB Enterprise 的备份和恢复功能包括以下几个概念：
 
-1. 增量数据备份：基于 TDengine 的数据订阅功能，将**备份对象**的所有数据变更（包括：新增、修改、删除、元数据变更等）记录下来，生成备份文件。
+1. 增量数据备份：基于 TDengine TSDB 的数据订阅功能，将**备份对象**的所有数据变更（包括：新增、修改、删除、元数据变更等）记录下来，生成备份文件。
 2. 数据恢复：使用增量数据备份生成的备份文件，将**备份对象**恢复到指定的时间点。
 3. 备份对象：用户备份的对象，可以是一个**数据库**，也可以是一个**超级表**。
 4. 备份计划：用户为备份对象创建一个周期性执行的备份任务。备份计划从指定的时间点开始，以**备份周期**为间隔，周期性地执行备份任务。备份任务每次生成一个**备份点**。
@@ -56,7 +56,7 @@ TDengine Enterprise 的备份和恢复功能包括以下几个概念：
 
 ## 2.2. 数据备份
 
-通过浏览器访问 taosExplorer 服务，访问地址通常为 TDengine 集群所在 IP 地址的端口 6060，如 `http://localhost:6060`。在
+通过浏览器访问 taosExplorer 服务，访问地址通常为 TDengine TSDB 集群所在 IP 地址的端口 6060，如 `http://localhost:6060`。在
 taosExplorer 服务页面中，进入“系统管理 - 备份”页面，在“备份计划”标签页下，点击“创建备份计划”，填写备份计划的相关信息。
 
 需要填写的信息包括：
