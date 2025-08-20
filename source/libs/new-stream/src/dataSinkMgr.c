@@ -512,6 +512,33 @@ _end:
   return code;
 }
 
+int32_t putWinDataToReorderTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t groupId, int64_t start, int64_t end,
+                                   SSDataBlock* pBlock) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  int32_t         lino = 0;
+  SReorderGrpMgr* pReorderGrpMgr = NULL;
+  stDebug("[put data cache] multiwins data, groupId: %" PRId64 " block rows: %" PRId64, groupId, pBlock->info.rows);
+  code = getOrCreateSReorderGrpMgr(pStreamTaskMgr, groupId, &pReorderGrpMgr);
+  if (code != 0) {
+    stError("failed to get or create group data sink manager, err: 0x%0x", code);
+    return code;
+  }
+  TAOS_UNUSED(taosThreadRwlockRdlock(&pReorderGrpMgr->rwlock));
+
+  code = writeBlockToWindow(pReorderGrpMgr, start, end, pBlock);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  updateReorderGrpUsedMemSize(pReorderGrpMgr);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("failed to put data to align task manager, lino:%d err: %0x", lino, code);
+  }
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pReorderGrpMgr->rwlock));
+
+  return code;
+}
+
 int32_t getReorderDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY end, void** pIter) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
@@ -700,6 +727,44 @@ _exit:
   } else {
     stDebug("group %" PRId64 " time range [%" PRId64 ", %" PRId64 "] rows range [%d, %d] added to cache", groupId,
             wstart, wend, startIndex, endIndex);
+  }
+  return code;
+}
+
+int32_t putStreamWinDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock) {
+  int32_t code = TSDB_CODE_SUCCESS, lino = 0;
+  if (pCache == NULL) {
+    stError("putStreamDataCache param invalid, pCache is NULL");
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  if (wstart < 0 || wstart > wend) {
+    stError("putStreamDataCache param invalid, wstart:%" PRId64 "wend:%" PRId64, wstart, wend);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  if (!isManagerReady()) {
+    stError("DataSinkManager is not ready");
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  code = checkAndMoveMemCache(true);
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("failed to check and move mem cache for write, code: %d err: %s", code, terrMsg);
+    TAOS_CHECK_EXIT(code);
+  }
+  if (getDataModeFromDSMgr(pCache) & DATA_ALLOC_MODE_REORDER) {
+    SSlidingTaskDSMgr* pStreamTaskMgr = (SSlidingTaskDSMgr*)pCache;
+    code = putWinDataToReorderTaskMgr(pStreamTaskMgr, groupId, wstart, wend, pBlock);
+  } else {
+    stError("putStreamWinDataCache failed, unknown data allocation mode");
+    code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  (void)checkAndMoveMemCache(false);
+
+_exit:
+
+  if (code) {
+    stError("%s failed at line %d since %s", __FUNCTION__, lino, tstrerror(code));
+  } else {
+    stDebug("group %" PRId64 " time range [%" PRId64 ", %" PRId64 "] added to cache", groupId, wstart, wend);
   }
   return code;
 }
