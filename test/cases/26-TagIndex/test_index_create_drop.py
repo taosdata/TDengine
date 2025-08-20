@@ -1,19 +1,19 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, cluster, sc, clusterComCheck
 
 
-class TestIndexPerf:
+class TestIndexCreateDrop:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_index_perf(self):
-        """索引性能
+    def test_index_create_drop(self):
+        """Tagindex: create and drop
 
-        1. 创建超级表
-        2. 创建大量子表（本例使用 10 个，但应使用 100000 个，待预先准备数据的功能完成后调整此数目）
-        3. 每个子表写入一条记录
-        4. 创建索引
-        5. 使用标签过滤方式查询每个子表
+        1. Create a super table
+        2. Create an index on a specific tag column
+        3. Query using the indexed tag
+        4. Drop the existing index
+        5. Query using the tag whose index was just dropped
 
         Catalog:
             - Index
@@ -25,7 +25,7 @@ class TestIndexPerf:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated from tsim/tagindex/perf.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/tagindex/add_index.sim
 
         """
 
@@ -33,7 +33,7 @@ class TestIndexPerf:
         dbPrefix = "ta_3_db"
         tbPrefix = "ta_3_tb"
         mtPrefix = "ta_3_mt"
-        tbNum = 100
+        tbNum = 50
         rowNum = 20
         totalNum = 200
 
@@ -46,16 +46,24 @@ class TestIndexPerf:
             f"create table if not exists {mtPrefix} (ts timestamp, c1 int) tags (t1 int, t2 int, t3 int, t4 int, t5 int)"
         )
 
+        tdSql.execute(f"use information_schema;")
+        tdSql.execute(f"create index t2i on ta_3_db.ta_3_mt(t2)")
+        tdSql.error(f"create index t3i on ta_3_mt(t3)")
+        tdSql.error(f"drop index t2i")
+        tdSql.execute(f"drop index ta_3_db.t2i")
+        tdSql.execute(f"use {dbPrefix}")
+
         tdSql.query(f"show stables")
         tdSql.checkRows(1)
 
         tdLog.info(f"=============== create child table")
 
         i = 0
+        val = 1
         while i < tbNum:
             tb = tbPrefix + str(i)
             tdSql.execute(
-                f"create table {tb} using {mtPrefix} tags( {i} , {i} , {i} , {i} , {i} );"
+                f"create table {tb} using {mtPrefix} tags( {i} , {i} , {i} , {i} , {val} );"
             )
             i = i + 1
 
@@ -69,10 +77,14 @@ class TestIndexPerf:
             tdSql.execute(f"insert into {tb} values(now, {i} );")
             i = i + 1
 
+        tdSql.error(f"create index ti1 on {mtPrefix} (t1)")
         tdSql.execute(f"create index ti2 on {mtPrefix} (t2)")
+        tdSql.execute(f"create index ti5 on {mtPrefix} (t5)")
 
         tdLog.info(f"==== test name conflict")
-        #
+
+        tdSql.error(f"create index ti1 on {mtPrefix}(t1)")
+        tdSql.error(f"create index ti11 on {mtPrefix}(t1)")
         tdSql.error(f"create index ti3 on {mtPrefix}(t2)")
         tdSql.error(f"create index ti2 on {mtPrefix}(t2)")
         tdSql.error(f"create index ti2 on {mtPrefix}(t1)")
@@ -87,8 +99,13 @@ class TestIndexPerf:
             tdSql.checkRows(1)
             i = i + 1
 
+        i = 0
+        while i < tbNum:
+            tdSql.query(f"select * from {mtPrefix} where t1= {i} ;")
+            tdSql.checkRows(1)
+            i = i + 1
+
         tdLog.info(f"===== test operator great equal")
-        # great equal than
         i = 0
         while i < tbNum:
             tdSql.query(f"select * from {mtPrefix} where t2 >= {i} ;")
@@ -114,13 +131,45 @@ class TestIndexPerf:
             i = i + 1
 
         tdLog.info(f"===== test operator lower than")
-        # lower equal than
         i = 0
         while i < tbNum:
             tdSql.query(f"select * from {mtPrefix} where t2 < {i} ;")
             tmp = i
             tdSql.checkRows(tmp)
             i = i + 1
+
+        # test special boundary condtion
+        tdLog.info(f"===== test operator low on ti5")
+        # great equal than
+        tdSql.query(f"select * from {mtPrefix} where t5 < 0 ;")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"===== test operator lower equal on ti5")
+        # great equal than
+        tdSql.query(f"select * from {mtPrefix} where t5 <= {val} ;")
+        tdSql.checkRows(tbNum)
+
+        tdLog.info(f"===== test operator equal on ti5")
+        # great equal than
+        tdSql.query(f"select * from {mtPrefix} where t5 = {val} ;")
+        tdSql.checkRows(tbNum)
+
+        tdLog.info(f"===== test operator great equal on ti5")
+        # great equal than
+        tdSql.query(f"select * from {mtPrefix} where t5 >= {val} ;")
+        tdSql.checkRows(tbNum)
+
+        tdLog.info(f"===== test operator great than on ti5")
+        # great equal than
+        tdSql.query(f"select * from {mtPrefix} where t5 > {val} ;")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"===== test operator great on ti5")
+        # great equal than
+        tdSql.query(f"select * from {mtPrefix} where t5 > {val} + 1 ;")
+        tdSql.checkRows(0)
+
+        tdSql.execute(f"drop index ti5")
 
         tdLog.info(f"===== add table after index created")
         interval = tbNum + tbNum
@@ -193,8 +242,22 @@ class TestIndexPerf:
         tdSql.execute(f"drop index ti2")
 
         tdLog.info(f"=== drop not exist index")
+        tdSql.query(f"select * from information_schema.ins_indexes")
+        tdSql.checkRows(1)
+
         tdSql.error(f"drop index t2")
         tdSql.error(f"drop index t3")
 
+        # sql create index ti0 on $mtPrefix (t1)
+
+        i = interval
+        while i < limit:
+            tdSql.query(f"select * from {mtPrefix} where t1 <= {i} ;")
+            tmp = i - interval
+            tmp = tmp + 1
+            tdSql.checkRows(tmp)
+            i = i + 1
+
         tdSql.error(f"create index ti0 on {mtPrefix} (t1)")
+        tdSql.error(f"create index ti2 on {mtPrefix} (t1)")
         tdSql.error(f"create index t2i on ta_3_tb17 (t2)")

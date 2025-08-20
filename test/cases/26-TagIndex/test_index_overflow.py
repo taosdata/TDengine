@@ -7,12 +7,12 @@ class TestIndexOverflow:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_index_overflow(self):
-        """索引边界
+        """Tagindex: overflow
 
-        1. 创建超级表
-        2. 让某个标签的取值范围较大
-        3. 在该标签上创建索引
-        4. 使用带有索引的标签查询
+        1. Create a super table
+        2. Set a wide value range for a specific tag column
+        3. Create an index on that tag column
+        4. Query using the indexed tag
 
         Catalog:
             - Index
