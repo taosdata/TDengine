@@ -3362,81 +3362,6 @@ _exit:
   return code;
 }
 
-int32_t tSerializeBlockList(void* buf, int32_t bufLen, const SArray* blockList){
-  SEncoder encoder = {0};
-  int32_t  code = TSDB_CODE_SUCCESS;
-  int32_t  lino = 0;
-  int32_t  tlen = 0;
-  void*    data = NULL;
-  tEncoderInit(&encoder, buf, bufLen);
-  TAOS_CHECK_EXIT(tStartEncode(&encoder));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, taosArrayGetSize(blockList)));
-
-  for(int32_t i = 0; i < taosArrayGetSize(blockList); ++i) {
-    SSDataBlock* pBlock = taosArrayGetP(blockList, i);
-    size_t dataEncodeSize = blockGetEncodeSize(pBlock);
-    if (buf != NULL) {
-      data = taosMemoryMalloc(dataEncodeSize);
-      if (data == NULL) {
-        TAOS_CHECK_EXIT(terrno);
-      }
-      int32_t actualLen = blockEncode(pBlock, data, dataEncodeSize, taosArrayGetSize(pBlock->pDataBlock));
-    }
-    
-    TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)data, dataEncodeSize));
-  }
-  tEndEncode(&encoder);
-
-_exit:
-  if (code != TSDB_CODE_SUCCESS) {
-    tlen = code;
-  } else {
-    tlen = encoder.pos;
-  }
-  taosMemoryFree(data);
-  tEncoderClear(&encoder);
-  return tlen;    
-}
-
-int32_t tDeserializeBlockList(void* buf, int32_t bufLen, SArray* blockList){
-  SDecoder decoder = {0};
-  int32_t  code = TSDB_CODE_SUCCESS;
-  int32_t  lino = 0;
-  SSDataBlock* pBlock =  NULL;
-
-  tDecoderInit(&decoder, buf, bufLen);
-  TAOS_CHECK_EXIT(tStartDecode(&decoder));
-
-  int32_t size = 0;
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &size));
-
-  for (int32_t i = 0; i < size; i++) {
-      void    *data = NULL;
-      TAOS_CHECK_EXIT(tDecodeBinary(&decoder, (uint8_t **)&data, NULL));
-
-      pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-      if (pBlock == NULL) {
-        TAOS_CHECK_EXIT(terrno);
-      }
-      TAOS_CHECK_EXIT(blockDecode(pBlock, data, NULL));
-      
-      if (taosArrayPush(blockList, &pBlock) == NULL) {
-        TAOS_CHECK_EXIT(terrno);
-      }
-      pBlock = NULL;  // Reset pBlock to avoid double free
-  }
-  tEndDecode(&decoder);
-
-_exit:
-  blockDataDestroy(pBlock);
-  tDecoderClear(&decoder);
-  return code;
-}
-
-void    tDestroyBlockList(SArray* blockList) {
-  taosArrayDestroyP(blockList, (void (*)(void *))blockDataDestroy);
-}
-
 int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTriggerPullRequest* pReq) {
   SEncoder encoder = {0};
   int32_t  code = TSDB_CODE_SUCCESS;
@@ -3555,6 +3480,7 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
     case STRIGGER_PULL_WAL_META_NEW: {
       SSTriggerWalMetaNewRequest* pRequest = (SSTriggerWalMetaNewRequest*)pReq;
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->lastVer));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ctime));
       break;
     }
     case STRIGGER_PULL_WAL_DATA_NEW: {
@@ -3763,6 +3689,7 @@ int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPull
     case STRIGGER_PULL_WAL_META_NEW: {
       SSTriggerWalMetaNewRequest* pRequest = &(pReq->walMetaNewReq);
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->lastVer));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ctime));
       break;
     }
     case STRIGGER_PULL_WAL_DATA_NEW: {
@@ -4374,7 +4301,7 @@ _exit:
   return code;
 }
 
-int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SList* used, SList* freed) {
+int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SList* used) {
   SEncoder encoder = {0};
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -4386,33 +4313,23 @@ int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SList* used,
   int32_t nBlocks = TD_DLIST_NELES(used);
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, nBlocks));
 
-  if (buf == NULL) {
-    SListNode* pNode = tdListGetHead(used);
-    while (pNode) {
-      SSDataBlock* pBlock = *(SSDataBlock**)(pNode->data);
-      int32_t len = blockGetEncodeSize(pBlock);
-      encoder.pos += len;
-      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pBlock->info.version));
-      TAOS_CHECK_EXIT(tEncodeU64(&encoder, pBlock->info.id.uid));
-
-      pNode = pNode->dl_next_;
-    }
-  } else {
-    for (int32_t i = 0; i < nBlocks; i++) {
-      SListNode *pNode = tdListPopHead(used);
-      if (pNode == NULL || pNode->data == NULL) continue;
-      tdListAppendNode(freed, pNode);
-      
-      SSDataBlock* pBlock = *(SSDataBlock**)(pNode->data);
-      int32_t len = blockEncode(pBlock, (char*)(encoder.data + encoder.pos), encoder.size - encoder.pos, blockDataGetNumOfCols(pBlock));
+  SListNode* pNode = tdListGetHead(used);
+  while (pNode) {
+    SSDataBlock* pBlock = *(SSDataBlock**)(pNode->data);
+    int32_t len = 0;
+    if (buf == NULL){
+      len = blockGetEncodeSize(pBlock);
+    } else {
+      len = blockEncode(pBlock, (char*)(encoder.data + encoder.pos), encoder.size - encoder.pos, blockDataGetNumOfCols(pBlock));
       if (len < 0) {
         TAOS_CHECK_EXIT(terrno);
       }
-
-      encoder.pos += len;
-      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pBlock->info.version));
-      TAOS_CHECK_EXIT(tEncodeU64(&encoder, pBlock->info.id.uid));
     }
+    encoder.pos += len;
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, pBlock->info.version));
+    TAOS_CHECK_EXIT(tEncodeU64(&encoder, pBlock->info.id.uid));
+
+    pNode = pNode->dl_next_;
   }
   tEndEncode(&encoder);
 
