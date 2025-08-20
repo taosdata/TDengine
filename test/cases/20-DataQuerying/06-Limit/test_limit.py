@@ -27,12 +27,12 @@ class TestLimit:
         Jira: None
 
         History:
-            - 2025-5-6 Simon Guan Migrated from tsim/parser/limit.sim
-            - 2025-5-6 Simon Guan Migrated from tsim/parser/limit1.sim
-            - 2025-5-6 Simon Guan Migrated from tsim/parser/limit2.sim
-            - 2025-5-8 Simon Guan Migrated from tsim/parser/table_merge_limit.sim
-            - 2025-5-6 Simon Guan Migrated from tsim/parser/projection_limit_offset.sim
-            - 2025-5-6 Simon Guan Migrated from tsim/query/complex_limit.sim
+            - 2025-8-19 Simon Guan Migrated from tsim/parser/limit.sim
+            - 2025-8-19 Simon Guan Migrated from tsim/parser/limit1.sim
+            - 2025-8-19 Simon Guan Migrated from tsim/parser/limit2.sim
+            - 2025-8-19 Simon Guan Migrated from tsim/parser/table_merge_limit.sim
+            - 2025-8-19 Simon Guan Migrated from tsim/parser/projection_limit_offset.sim
+            - 2025-8-19 Simon Guan Migrated from tsim/query/complex_limit.sim
 
         """
 
