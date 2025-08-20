@@ -946,7 +946,7 @@ _error:
   return code;
 }
 
-int32_t bseUpdateCommitInfo(SBse *pBse, SBseLiveFileInfo *pInfo) {
+int32_t bseUpdateCommitInfo(SBse *pBse, SBseLiveFileInfo *pInfo, SArray **ppResult) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -962,6 +962,10 @@ int32_t bseUpdateCommitInfo(SBse *pBse, SBseLiveFileInfo *pInfo) {
       memcpy(pLast, pInfo, sizeof(SBseLiveFileInfo));
     }
   }
+
+  code = bseGetAliveFileList(pBse, ppResult, 0);
+  TSDB_CHECK_CODE(code, lino, _error);
+
 _error:
   if (code != 0) {
     bseError("vgId:%d failed to update commit info since %s", BSE_VGID(pBse), tstrerror(code));
@@ -971,11 +975,19 @@ _error:
   return code;
 }
 
-int32_t bseGetAliveFileList(SBse *pBse, SArray **pFileList) {
+int32_t bseGetAliveFileList(SBse *pBse, SArray **pFileList, int8_t lock) {
   int32_t code = 0;
   int32_t lino = 0;
+
   SArray *p = taosArrayInit(4, sizeof(SBseLiveFileInfo));
-  (void)taosThreadMutexLock(&pBse->mutex);
+  if (p == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
+
+  if (lock) {
+    (void)taosThreadMutexLock(&pBse->mutex);
+  }
+
   if (taosArrayAddAll(p, pBse->commitInfo.pFileList) == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
@@ -985,9 +997,20 @@ _error:
   if (code != 0) {
     bseError("vgId:%d failed to get alive file list since %s", BSE_VGID(pBse), tstrerror(code));
   }
-  (void)taosThreadMutexUnlock(&pBse->mutex);
+  if (lock) {
+    (void)taosThreadMutexUnlock(&pBse->mutex);
+  }
   return code;
 }
+
+int8_t bseSkipCommit(SBse *pBse, SBseLiveFileInfo *info) {
+  if (info->size == 0) {
+    bseInfo("vgId:%d no data to commit", BSE_VGID(pBse));
+    return 1;
+  }
+  return 0;
+}
+
 int32_t bseCommit(SBse *pBse) {
   // Generate static info and footer info;
   int64_t cost = 0;
@@ -1000,22 +1023,12 @@ int32_t bseCommit(SBse *pBse) {
   code = bseTableMgtCommit(pBse->pTableMgt, &info);
   TSDB_CHECK_CODE(code, line, _error);
 
-  if (info.size == 0) {
-    bseInfo("vgId:%d no data to commit", BSE_VGID(pBse));
-    return 0;
+  if (bseSkipCommit(pBse, &info)) {
+    goto _error;
   }
 
-  code = bseUpdateCommitInfo(pBse, &info);
+  code = bseUpdateCommitInfo(pBse, &info, &pLiveFile);
   TSDB_CHECK_CODE(code, line, _error);
-
-  code = bseGetAliveFileList(pBse, &pLiveFile);
-  TSDB_CHECK_CODE(code, line, _error);
-
-  if (taosArrayGetSize(pLiveFile) == 0) {
-    bseInfo("vgId:%d no alive file to commit", BSE_VGID(pBse));
-    taosArrayDestroy(pLiveFile);
-    return 0;
-  }
 
   code = bseCommitDo(pBse, pLiveFile);
   TSDB_CHECK_CODE(code, line, _error);

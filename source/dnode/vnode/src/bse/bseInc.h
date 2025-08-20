@@ -129,7 +129,7 @@ int32_t bseMemTablePush(STableMemTable *pMemTable, void *pHandle);
 
 int32_t bseMemTablGetMetaBlock(STableMemTable *pMetaTable, SArray **pMetaBlock);
 
-int32_t bseGetAliveFileList(SBse *pBse, SArray **pFileList);
+int32_t bseGetAliveFileList(SBse *pBse, SArray **pFileList, int8_t lock);
 #ifdef __cplusplus
 }
 #endif

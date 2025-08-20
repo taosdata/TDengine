@@ -26,17 +26,20 @@ static int32_t bseRawFileWriterDoWrite(SBseRawFileWriter *p, uint8_t *data, int3
 static void    bseRawFileWriterClose(SBseRawFileWriter *p, int8_t rollback);
 static void    bseRawFileGenLiveInfo(SBseRawFileWriter *p, SBseLiveFileInfo *pInfo);
 
+static int32_t bseSnapReaderReadImpl(SBseSnapReader *p, uint8_t **data, int32_t *len);
+
 static int32_t bseRawFileWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapMeta *pMeta,
                                     SBseRawFileWriter **pWriter) {
   int32_t code = 0;
   int32_t lino = 0;
 
+  char name[TSDB_FILENAME_LEN] = {0};
+  char path[TSDB_FILENAME_LEN] = {0};
+
   SBseRawFileWriter *p = taosMemoryCalloc(1, sizeof(SBseRawFileWriter));
   if (p == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
-  char name[TSDB_FILENAME_LEN] = {0};
-  char path[TSDB_FILENAME_LEN] = {0};
 
   SSeqRange *range = &pMeta->range;
   if (pMeta->fileType == BSE_TABLE_SNAP) {
@@ -75,7 +78,7 @@ _error:
   return code;
 }
 
-static int32_t bseRawFileWriterDoWrite(SBseRawFileWriter *p, uint8_t *data, int32_t len) {
+int32_t bseRawFileWriterDoWrite(SBseRawFileWriter *p, uint8_t *data, int32_t len) {
   int32_t code = 0;
   int32_t nwrite = taosWriteFile(p->pFile, data, len);
   if (nwrite != len) {
@@ -85,7 +88,8 @@ static int32_t bseRawFileWriterDoWrite(SBseRawFileWriter *p, uint8_t *data, int3
 
   return code;
 }
-static void bseRawFileWriterClose(SBseRawFileWriter *p, int8_t rollback) {
+
+void bseRawFileWriterClose(SBseRawFileWriter *p, int8_t rollback) {
   if (p == NULL) return;
 
   int32_t code = 0;
@@ -103,7 +107,7 @@ void bseRawFileGenLiveInfo(SBseRawFileWriter *p, SBseLiveFileInfo *pInfo) {
   memcpy(pInfo->name, p->name, sizeof(p->name));
 }
 
-static int32_t bseSnapMayOpenNewFile(SBseSnapWriter *pWriter, SBseSnapMeta *pMeta) {
+int32_t bseSnapMayOpenNewFile(SBseSnapWriter *pWriter, SBseSnapMeta *pMeta) {
   int32_t code = 0;
 
   SBse *pBse = pWriter->pBse;
@@ -229,7 +233,7 @@ _error:
   return code;
 }
 
-static int32_t bseSnapReaderReadImpl(SBseSnapReader *p, uint8_t **data, int32_t *len) {
+int32_t bseSnapReaderReadImpl(SBseSnapReader *p, uint8_t **data, int32_t *len) {
   int32_t code = 0;
   int32_t line = 0;
   int32_t size = 0;
@@ -309,7 +313,7 @@ int32_t bseOpenIter(SBse *pBse, SBseIter **ppIter) {
   pIter->pBse = pBse;
 
   SArray *pAliveFile = NULL;
-  code = bseGetAliveFileList(pBse, &pAliveFile);
+  code = bseGetAliveFileList(pBse, &pAliveFile, 1);
   TSDB_CHECK_CODE(code, line, _error);
 
   pIter->index = 0;

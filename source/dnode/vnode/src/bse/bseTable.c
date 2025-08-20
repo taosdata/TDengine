@@ -2181,12 +2181,18 @@ _error:
 int32_t tableMetaReaderLoadAllDataHandle(SBtableMetaReader *p, SArray *dataHandle) {
   int32_t lino = 0;
   int32_t code = 0;
+
   SArray *pMeta = taosArrayInit(8, sizeof(SMetaBlock));
+  if (pMeta == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
+  }
+
   for (int32_t i = 0; i < taosArrayGetSize(p->pBlkHandle); i++) {
     SBlkHandle *pHandle = taosArrayGet(p->pBlkHandle, i);
     if (pHandle == NULL) {
       TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
     }
+
     code = tableLoadBlock(p->pFile, pHandle, &p->blockWrapper);
     TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -2196,6 +2202,7 @@ int32_t tableMetaReaderLoadAllDataHandle(SBtableMetaReader *p, SArray *dataHandl
     if (taosArrayGetSize(pMeta) == 0) {
       TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
     }
+
     for (int32_t j = 0; j < taosArrayGetSize(pMeta); j++) {
       SMetaBlock *pBlk = taosArrayGet(pMeta, j);
       SBlkHandle  handle = {.offset = pBlk->offset, .size = pBlk->size, .range = pBlk->range};
@@ -2234,22 +2241,24 @@ int32_t tableMetaReaderLoadIndex(SBtableMetaReader *p) {
   int32_t code = 0;
   int32_t lino = 0;
   int32_t offset = 0;
+  SBtableMetaReader *pMeta = p;
 
-  if (p->pFile == NULL) {
+  if (pMeta->pFile == NULL) {
     return 0;
   }
-  SBtableMetaReader *pMeta = p;
-  p->blockWrapper.type = BSE_TABLE_META_TYPE;
 
-  code = tableLoadBlock(pMeta->pFile, pMeta->footer.metaHandle, &p->blockWrapper);
+  pMeta->blockWrapper.type = BSE_TABLE_META_TYPE;
+
+  code = tableLoadBlock(pMeta->pFile, pMeta->footer.metaHandle, &pMeta->blockWrapper);
   TSDB_CHECK_CODE(code, lino, _error);
 
   if (blockGetType(p->blockWrapper.data) != BSE_TABLE_META_INDEX_TYPE) {
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _error);
   }
 
-  SBlock  *pBlk = (SBlock *)p->blockWrapper.data;
+  SBlock  *pBlk = (SBlock *)pMeta->blockWrapper.data;
   uint8_t *data = (uint8_t *)pBlk->data;
+
   do {
     SBlkHandle handle = {0};
     offset += blkHandleDecode(&handle, (char *)data + offset);
@@ -2346,14 +2355,14 @@ int32_t bseMemTableCreate(STableMemTable **pMemTable, int32_t cap) {
 
   p->pMetaHandle = taosArrayInit(8, sizeof(SBlkHandle));
   if (p->pMetaHandle == NULL) {
-    code = terrno;
-    TAOS_CHECK_GOTO(code, &lino, _error);
+    TAOS_CHECK_GOTO(terrno, &lino, _error);
   }
 
   code = blockWrapperInit(&p->pBlockWrapper, cap);
   TAOS_CHECK_GOTO(code, &lino, _error);
 
   taosInitRWLatch(&p->latch);
+
   seqRangeReset(&p->range);
   seqRangeReset(&p->tableRange);
   p->ref = 1;
@@ -2373,8 +2382,10 @@ int32_t bseMemTableRef(STableMemTable *pMemTable) {
   if (pMemTable == NULL) {
     return TSDB_CODE_INVALID_CFG;
   }
+
   SBse *pBse = (SBse *)pMemTable->pBse;
   bseTrace("ref mem table %p", pMemTable);
+
   int32_t nRef = atomic_fetch_add_32(&pMemTable->ref, 1);
   if (nRef <= 0) {
     bseError("vgId:%d, memtable ref count is invalid, ref:%d", BSE_VGID(pBse), nRef);

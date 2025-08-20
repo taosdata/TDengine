@@ -276,8 +276,10 @@ static int32_t bseTableMgtGetTable(STableMgt *pMgt, SSubTableMgt **ppSubGgt) {
         startTs = pMgt->timestamp;
       }
     }
+
     code = createSubTableMgt(startTs, 0, pMgt, &pMgt->pCurrTableMgt);
     TSDB_CHECK_CODE(code, lino, _error);
+
     pSubMgt = pMgt->pCurrTableMgt;
   } else {
     if (bseShouldSwitchToTable(startTs, pSubMgt->pBuilderMgt->timestamp, BSE_TIME_PRECISION(pBse),
@@ -330,7 +332,6 @@ int32_t bseTableMgtGetLiveFileSet(STableMgt *pMgt, SArray **pList) {
 int32_t bseTableMgtCommit(STableMgt *pMgt, SBseLiveFileInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
-  int8_t  flushIdx = -1;
 
   SSubTableMgt *pSubMgt = pMgt->pCurrTableMgt;
   if (pSubMgt == NULL) {
