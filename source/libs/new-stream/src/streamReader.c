@@ -296,6 +296,12 @@ end:
   return code;
 }
 
+static void freeTagCache(void* pData){
+  if (pData == NULL) return;
+  SArray* tagCache = *(SArray**)pData;
+  taosArrayDestroyP(tagCache, taosMemFree);
+}
+
 static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStreamReaderDeployMsg* pMsg) {
   int32_t    code = 0;
   int32_t    lino = 0;
@@ -389,6 +395,12 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->pBlockListFree, terrno);
   sStreamReaderInfo->pBlockListUsed = tdListNew(POINTER_BYTES);
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->pBlockListUsed, terrno);
+
+  if (sStreamReaderInfo->pTableMetaCache == NULL) {
+    sStreamReaderInfo->pTableMetaCache = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+    STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->pTableMetaCache, TSDB_CODE_INVALID_PARA);
+    taosHashSetFreeFp(sStreamReaderInfo->pTableMetaCache, freeTagCache);
+  }
 end:
   STREAM_PRINT_LOG_END(code, lino);
 

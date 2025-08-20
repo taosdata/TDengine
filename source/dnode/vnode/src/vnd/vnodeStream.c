@@ -1174,11 +1174,6 @@ end:
   return code;
 }
 
-static void freeTagCache(void* pData){
-  if (pData == NULL) return;
-  SArray* tagCache = *(SArray**)pData;
-  taosArrayDestroyP(tagCache, taosMemFree);
-}
 static int32_t scanSubmitDataForMetaData(SVnode* pVnode, void* pTableList, SStreamTriggerReaderInfo* info, 
   int64_t ver, void* data, int32_t len, SSHashObj* ranges) {
   int32_t  code = 0;
@@ -1197,12 +1192,6 @@ static int32_t scanSubmitDataForMetaData(SVnode* pVnode, void* pTableList, SStre
   if (tDecodeU64v(&decoder, &nSubmitTbData) < 0) {
     code = TSDB_CODE_INVALID_MSG;
     TSDB_CHECK_CODE(code, lino, end);
-  }
-
-  if (info->pTableMetaCache == NULL) {
-    info->pTableMetaCache = taosHashInit(nSubmitTbData, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
-    STREAM_CHECK_NULL_GOTO(info->pTableMetaCache, TSDB_CODE_INVALID_PARA);
-    taosHashSetFreeFp(info->pTableMetaCache, freeTagCache);
   }
 
   SListNode* pNode = tdListGetHead(info->pBlockListFree);
