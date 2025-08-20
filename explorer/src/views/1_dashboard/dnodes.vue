@@ -71,7 +71,9 @@
 import { sendSQLReq } from '@/api/explorer';
 import { getClusterID } from '@/utils';
 import { t } from '@/lang/index';
+const { $IS_COMMUNITY} = inject('globalCustomProperties') as GlobalCustomProperties;
 
+const isCommunity = $IS_COMMUNITY;
 const grafanaDashboard = ref(null);
 const grafana_dashboards = localStorage.getItem('local_grafana');
 if (grafana_dashboards) {
@@ -87,7 +89,7 @@ const statisticData = ref({
 
 const clusterID = getClusterID();
 
-const dnodeList = ref([]);
+const dnodeList = ref<any>([]);
 
 function checkStatusByTime(ts: string, error_limit: string, warn_limit: string) {
   if (ts < error_limit) {
@@ -129,10 +131,14 @@ async function loadDnodes() {
   const cluster_res = await sendSQLReq(
     `select last_row(dnodes_total, dnodes_alive) from log.taosd_cluster_info where cluster_id = '${getClusterID()}';`
   );
-  if (!cluster_res && cluster_res.code !== 0) {
+  if (!cluster_res || cluster_res.code !== 0) {
     return;
   }
-  const [dnodes_total, dnodes_alive] = cluster_res.data[0];
+  if (Array.isArray(cluster_res.data) && cluster_res.data.length === 0) {
+    ElMessage.warning("taosd cluster info empty");
+    return
+  }
+  const [dnodes_total, _] = cluster_res.data[0];
   statisticData.value.taosd = dnodes_total;
 
   const dnode_res =
@@ -154,7 +160,7 @@ async function loadDnodes() {
   let taosx_res;
   try {
     taosx_res = await sendSQLReq(
-      `select last_row(_ts, taosx_id) from log.taosx_sys where _ts > '${offline_limit}' partition by taosx_id;`
+      `select last_row(_ts, taosx_id) from log.taosx_sys where _ts > '${offline_limit}' partition by taosx_id;`, false, !isCommunity 
     );
   } catch (e) {
     console.log(e);
