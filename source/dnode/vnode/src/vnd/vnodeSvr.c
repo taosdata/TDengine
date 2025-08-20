@@ -68,6 +68,7 @@ extern int32_t vnodeListSsMigrateFileSets(SVnode *pVnode, SRpcMsg *pMsg);
 static int32_t vnodeProcessSsMigrateFileSetReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 extern int32_t vnodeQuerySsMigrateProgress(SVnode *pVnode, SRpcMsg *pMsg);
 static int32_t vnodeProcessFollowerSsMigrateReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int32_t vnodeProcessKillSsMigrateReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 
 static int32_t vnodePreprocessCreateTableReq(SVnode *pVnode, SDecoder *pCoder, int64_t btime, int64_t *pUid) {
   int32_t code = 0;
@@ -867,7 +868,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       if (vnodeProcessFollowerSsMigrateReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
     case TDMT_VND_KILL_SSMIGRATE:
-      //if (vnodeProcessKillSsMigrateReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
+      if (vnodeProcessKillSsMigrateReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
 #endif
     /* TSDB */
@@ -1197,9 +1198,7 @@ static int32_t vnodeProcessSsMigrateFileSetReq(SVnode *pVnode, int64_t ver, void
   TAOS_UNUSED(tSerializeSSsMigrateFileSetRsp(pRsp->pCont, pRsp->contLen, &rsp));
 
 _exit:
-  if (code != TSDB_CODE_SUCCESS) {
-    pRsp->code = code;
-  }
+  pRsp->code = code;
   return code;
 }
 
@@ -1216,6 +1215,25 @@ static int32_t vnodeProcessFollowerSsMigrateReq(SVnode *pVnode, int64_t ver, voi
   }
 
   code = vnodeFollowerSsMigrate(pVnode, &req);
+
+_exit:
+  pRsp->code = code;
+  return code;
+}
+
+extern int32_t vnodeKillSsMigrate(SVnode *pVnode, SVnodeKillSsMigrateReq *pReq);
+
+static int32_t vnodeProcessKillSsMigrateReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  int32_t          code = 0;
+  SVnodeKillSsMigrateReq req = {0};
+
+  // decode
+  if (tDeserializeSVnodeKillSsMigrateReq(pReq, len, &req) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  code = vnodeKillSsMigrate(pVnode, &req);
 
 _exit:
   pRsp->code = code;
