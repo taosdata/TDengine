@@ -93,14 +93,6 @@ int32_t walNextValidMsg(SWalReader *pReader, bool scanMeta) {
 
 int64_t walReaderGetCurrentVer(const SWalReader *pReader) { return pReader->curVersion; }
 int64_t walReaderGetValidFirstVer(const SWalReader *pReader) { return walGetFirstVer(pReader->pWal); }
-void    walReaderSetSkipToVersion(SWalReader *pReader, int64_t ver) { atomic_store_64(&pReader->skipToVersion, ver); }
-
-// this function is NOT multi-thread safe, and no need to be.
-int64_t walReaderGetSkipToVersion(SWalReader *pReader) {
-  int64_t newVersion = pReader->skipToVersion;
-  pReader->skipToVersion = 0;
-  return newVersion;
-}
 
 void walReaderValidVersionRange(SWalReader *pReader, int64_t *sver, int64_t *ever) {
   *sver = walGetFirstVer(pReader->pWal);
