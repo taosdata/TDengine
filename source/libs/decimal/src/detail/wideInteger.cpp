@@ -260,3 +260,4 @@ Int256 int256RightShift(const Int256* pLeft, int32_t shift) {
 const Int256 int256One = {uInt128One, int128Zero};
 const Int256 int256Zero = {uInt128Zero, int128Zero};
 const Int256 int256Two = {uInt128Two, int128Zero};
+
