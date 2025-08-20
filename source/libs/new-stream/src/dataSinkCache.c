@@ -639,6 +639,52 @@ _end:
   return code;
 }
 
+int32_t writeBlockToWindow(SReorderGrpMgr* pReorderGrpMgr, int64_t start, int64_t end, SSDataBlock* pBlock) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SList*  pWindows = &pReorderGrpMgr->winAllData;
+
+  int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+
+  SListIter  iter = {0};
+  SListNode* pNode = NULL;
+
+  tdListInitIter(pWindows, &iter, TD_LIST_FORWARD);
+  while ((pNode = tdListNext(&iter)) != NULL) {
+    SDatasInWindow* pWin = (SDatasInWindow*)pNode->data;
+    if ((pWin->timeRange.startTime <= start && pWin->timeRange.endTime >= end)) {
+      int32_t startIndex = 0, endIndex = pBlock->info.rows - 1;
+
+      size_t       dataEncodeBufSize = blockGetEncodeSizeOfRows(pBlock, startIndex, endIndex);
+      SBlockBuffer data = {};
+      data.len = dataEncodeBufSize;
+      data.data = taosMemoryCalloc(1, dataEncodeBufSize);
+      if (data.data == NULL) {
+        return terrno;
+      }
+
+      int32_t len = 0;
+      code = blockEncodeAsRows(pBlock, data.data, dataEncodeBufSize, numOfCols, startIndex, endIndex, &len);
+      QUERY_CHECK_CODE(code, lino, _end);
+      void* tmp = taosArrayPush(pWin->datas, &data);
+      TSDB_CHECK_NULL(tmp, code, lino, _end, terrno);
+
+      reorderGrpMgrUsedMemAdd(pReorderGrpMgr, pWin, dataEncodeBufSize);
+      break;
+    }
+    if (end < pWin->timeRange.startTime) {
+      // the block is before the window, so no need to check next windows
+      break;
+    }
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("failed to split block to windows since %s, lineno:%d", tstrerror(code), lino);
+  }
+  return code;
+}
+
 void destroyBlockBuffer(void* data) {
   SBlockBuffer* pBlockBuf = (SBlockBuffer*)data;
   if (pBlockBuf) {

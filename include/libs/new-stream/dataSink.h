@@ -256,6 +256,16 @@ void destroyStreamDataCache(void* pCache);
 int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock,
                            int32_t startIndex, int32_t endIndex);
 
+// @brief 向数据缓存中添加一个窗口数据
+// @param pCache 数据缓存,使用 StreamDataCacheInit 创建
+// @param wstart 当前数据集的起始时间戳
+// @param wend 当前数据集的结束时间戳
+// @param pBlock 数据块
+// @note
+//      1. 起始索引和结束索引是数据块数据的索引范围,从0开始计数
+//      2. 可能会对同一个 {groupId, tableId, wstart} 进行多次调用,添加多个数据块,调用者保证这些数据是严格时间有序的
+int32_t putStreamWinDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock);
+
 // @brief 向数据缓存中添加数据
 // @note 和 putStreamDataCache 区别是：
 //        1. 会移交 pBlock 的所有权
@@ -354,6 +364,7 @@ bool changeMgrStatus(int8_t* pStatus, int8_t status);
 bool changeMgrStatusToMoving(int8_t* pStatus, int8_t mode);
 
 int32_t splitBlockToWindows(SReorderGrpMgr* pReorderGrpMgr, int32_t tsColSlotId, SSDataBlock* pBlock);
+int32_t writeBlockToWindow(SReorderGrpMgr* pReorderGrpMgr, int64_t start, int64_t end, SSDataBlock* pBlock);
 void    updateReorderGrpUsedMemSize(SReorderGrpMgr* pReorderGrpMgr);
 int32_t clearReorderDataInMem(SReorderGrpMgr* pReorderGrpMgr, int64_t startTime, int64_t endTime);
 void    destroyReorderGrpMgr(void* pData);

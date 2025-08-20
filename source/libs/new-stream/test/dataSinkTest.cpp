@@ -1210,6 +1210,114 @@ TEST(dataSinkTest, dataUnsortedCacheTest) {
   destroyDataSinkMgr();
 }
 
+TEST(dataSinkTest, periodTest) {
+  INIT_DATA_SINK();
+
+  SArray* pWindows = taosArrayInit_s(sizeof(STimeRange), 1);
+  STimeRange* pRange = (STimeRange*)taosArrayGet(pWindows, 0);
+
+  SSDataBlock* pBlock = createTestBlock(baseTestTime1, 0);
+  ASSERT_NE(pBlock, nullptr);
+  int64_t streamId = 1;
+  int64_t taskId = 1;
+  int64_t groupID = 1;
+  int32_t cleanMode = DATA_ALLOC_MODE_REORDER | DATA_CLEAN_PASSIVE;
+  TSKEY   wstart = baseTestTime1 - 100;
+  TSKEY   wend = baseTestTime1 + 50;
+  void*   pCache = NULL;
+
+  int32_t code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
+  ASSERT_EQ(code, 0);
+  pRange->startTime = wstart;
+  pRange->endTime = wend;
+  code = declareStreamDataWindows(pCache, groupID, pWindows);
+  ASSERT_EQ(code, 0);
+  code = putStreamWinDataCache(pCache, groupID, wstart, wend, pBlock);
+  ASSERT_EQ(code, 0);
+  void* pIter = NULL;
+
+  code = getStreamDataCache(pCache, groupID, wstart, wend, &pIter);
+  ASSERT_EQ(code, 0);
+  SSDataBlock* pBlock1 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlock1);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlock1, nullptr);
+  ASSERT_EQ(pIter, nullptr);
+  bool equal = compareBlock(pBlock, pBlock1);
+  ASSERT_EQ(equal, true);
+  blockDataDestroy(pBlock1);
+
+  // get data repeatly, should not clean data
+  code = getStreamDataCache(pCache, groupID, wstart, wend, &pIter);
+  ASSERT_EQ(code, 0);
+  pBlock1 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlock1);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlock1, nullptr);
+  ASSERT_EQ(pIter, nullptr);
+  equal = compareBlock(pBlock, pBlock1);
+  ASSERT_EQ(equal, true);
+  blockDataDestroy(pBlock1);
+  blockDataDestroy(pBlock);
+
+  pBlock = createTestBlock(baseTestTime1, 100);
+  streamId = 1;
+  taskId = 1;
+  groupID = 2;
+  cleanMode = DATA_ALLOC_MODE_REORDER | DATA_CLEAN_PASSIVE;
+  wstart = baseTestTime1 + 200;
+  wend = baseTestTime1 + 300;
+  pCache = NULL;
+  code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
+  ASSERT_EQ(code, 0);
+  pRange->startTime = wstart;
+  pRange->endTime = wend;
+  code = declareStreamDataWindows(pCache, groupID, pWindows);
+  ASSERT_EQ(code, 0);
+  code = putStreamWinDataCache(pCache, groupID, wstart, wend, pBlock);
+  ASSERT_EQ(code, 0);
+  pIter = NULL;
+  code = getStreamDataCache(pCache, groupID, wstart, wend, &pIter);
+  ASSERT_EQ(code, 0);
+  pBlock1 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlock1);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlock1, nullptr);
+  ASSERT_EQ(pIter, nullptr);
+  equal = compareBlock(pBlock, pBlock1);
+  ASSERT_EQ(equal, true);
+  blockDataDestroy(pBlock1);
+  blockDataDestroy(pBlock);
+  pBlock = createTestBlock(baseTestTime1, 0);
+  streamId = 2;
+  taskId = 1;
+  groupID = 2;
+  cleanMode = DATA_ALLOC_MODE_REORDER | DATA_CLEAN_PASSIVE;
+  wstart = baseTestTime1 + 10;
+  wend = baseTestTime1 + 200;
+  pCache = NULL;
+  code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
+  ASSERT_EQ(code, 0);
+  pRange->startTime = wstart;
+  pRange->endTime = wend;
+  code = declareStreamDataWindows(pCache, groupID, pWindows);
+  ASSERT_EQ(code, 0);
+  code = putStreamWinDataCache(pCache, groupID, wstart, wend, pBlock);
+  ASSERT_EQ(code, 0);
+  pIter = NULL;
+  code = getStreamDataCache(pCache, groupID, wstart, wend, &pIter);
+  ASSERT_EQ(code, 0);
+  pBlock1 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlock1);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlock1, nullptr);
+  ASSERT_EQ(pIter, nullptr);
+  equal = compareBlock(pBlock, pBlock1);
+  ASSERT_EQ(equal, true);
+  blockDataDestroy(pBlock1);
+  destroyDataSinkMgr();
+  blockDataDestroy(pBlock);
+}
 
 int main(int argc, char** argv) {
   taos_init();
