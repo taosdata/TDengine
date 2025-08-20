@@ -146,7 +146,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool proces
         QW_ERR_JRET(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
       }
 
-      SInputData inputData = {.pData = pRes};
+      SInputData inputData = {.pData = pRes, .pStreamDataInserterInfo = NULL};
       QW_SINK_ENABLE_MEMPOOL(ctx);
       code = dsPutDataBlock(sinkHandle, &inputData, &qcontinue);
       QW_SINK_DISABLE_MEMPOOL();
@@ -843,6 +843,11 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
   if (TSDB_CODE_SUCCESS != code) {
     QW_TASK_ELOG("task physical plan to subplan failed, code:%x - %s", code, tstrerror(code));
     QW_ERR_JRET(code);
+  }
+
+  if (NULL == plan) {
+    QW_TASK_ELOG("empty task physical plan to subplan, msg:%p, len:%d", qwMsg->msg, qwMsg->msgLen);
+    QW_ERR_JRET(TSDB_CODE_QRY_INVALID_MSG);
   }
 
   taosEnableMemPoolUsage(ctx->memPoolSession);

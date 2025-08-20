@@ -99,6 +99,7 @@ else
       ${build_dir}/bin/${clientName}adapter \
       ${build_dir}/bin/${clientName}keeper \
       ${build_dir}/bin/taosudf \
+      ${build_dir}/bin/taosmqtt \
       ${script_dir}/remove.sh \
       ${script_dir}/set_core.sh \
       ${script_dir}/startPre.sh \

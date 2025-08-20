@@ -43,10 +43,9 @@ After modifying configuration file parameters, you need to restart the *taosd* s
 | resolveFQDNRetryTime   | Cancelled after 3.x     | Not supported                                                | Number of retries when FQDN resolution fails                 |
 | timeToGetAvailableConn | Cancelled after 3.3.4.x | Maximum waiting time to get an available connection, range 10-50000000, in milliseconds, default value 500000 |                                                              |
 | maxShellConns          | Cancelled after 3.x     | Supported, effective after restart                           | Maximum number of connections allowed                        |
-| maxRetryWaitTime       |                         | Supported, effective after restart                           | Maximum timeout for reconnection,calculated from the time of retry,range is 3000-86400000,in milliseconds, default value 10000 |
+| maxRetryWaitTime       |                         | Supported, effective after restart                           | Maximum timeout for reconnection,calculated from the time of retry,range is 3000-86400000,in milliseconds, default value 20000 |
 | shareConnLimit         | Added in 3.3.4.0        | Supported, effective after restart                           | Number of requests a connection can share, range 1-512, default value 10 |
 | readTimeout            | Added in 3.3.4.0        | Supported, effective after restart                           | Minimum timeout for a single request, range 64-604800, in seconds, default value 900 |
-
 ### Monitoring Related
 
 | Parameter Name     | Supported Version | Dynamic Modification               | Description                                                  |
@@ -102,7 +101,7 @@ timezone GMT-8
 timezone Asia/Shanghai
 ```
 
-All are valid settings for the GMT+8 time zone. However, note that on Windows, the format `timezone Asia/Shanghai` is not supported, and must be written as `timezone UTC-8`.
+All are valid settings for the GMT+8 time zone. However, note that on Windows, the format `timezone UTC-8` is not supported, and must be written as `timezone Asia/Shanghai`.
 
 The setting of the time zone affects the querying and writing of SQL statements involving non-Unix timestamp content (timestamp strings, interpretation of the keyword now). For example:
 
@@ -225,6 +224,7 @@ The effective value of charset is UTF-8.
 | ttlFlushThreshold          |                   | Supported, effective immediately   | Internal parameter, frequency of ttl timer                   |
 | compactPullupInterval      |                   | Supported, effective immediately   | Internal parameter, frequency of data reorganization timer   |
 | walFsyncDataSizeLimit      |                   | Supported, effective immediately   | Internal parameter, threshold for WAL to perform FSYNC       |
+| walForceRepair             |                   | Not supported                      | Internal parameter, repair WAL file forcibly, range 0-1; default value 0, 0 means not repair, 1 means repair |
 | transPullupInterval        |                   | Supported, effective immediately   | Internal parameter, retry interval for mnode to execute transactions |
 | mqRebalanceInterval        |                   | Supported, effective immediately   | Internal parameter, interval for consumer rebalancing        |
 | uptimeInterval             |                   | Supported, effective immediately   | Internal parameter, for recording system uptime              |
@@ -376,7 +376,7 @@ taosd reports monitoring metrics to taosKeeper, which are written into the monit
 | connections\_total       | DOUBLE    |         | total number of connections in the current cluster           |
 | topics\_total            | DOUBLE    |         | total number of topics in the current cluster                |
 | streams\_total           | DOUBLE    |         | total number of streams in the current cluster               |
-| grants_expire\_time      | DOUBLE    |         | authentication expiration time, valid in enterprise edition, maximum DOUBLE value in community edition |
+| grants_expire\_time      | DOUBLE    |         | authentication expiration time, valid in TSDB-Enterprise, maximum DOUBLE value in TSDB-OSS |
 | grants_timeseries\_used  | DOUBLE    |         | number of used timeseries                                    |
 | grants_timeseries\_total | DOUBLE    |         | total number of timeseries, maximum DOUBLE value in open source version |
 | cluster\_id              | VARCHAR   | tag     | cluster id                                                   |

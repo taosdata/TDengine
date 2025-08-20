@@ -12,7 +12,7 @@ class TestNestquery:
         1.
 
         Catalog:
-            - DataTypes
+            - Query
 
         Since: v3.0.0.0
 

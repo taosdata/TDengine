@@ -4,7 +4,7 @@ title: 节点管理
 description: 管理集群节点的 SQL 命令的详细解析
 ---
 
-组成 TDengine 集群的物理实体是 dnode (data node 的缩写)，它是一个运行在操作系统之上的进程。在 dnode 中可以建立负责时序数据存储的 vnode (virtual node)，在多节点集群环境下当某个数据库的 replica 为 3 时，该数据库中的每个 vgroup 由 3 个 vnode 组成；当数据库的 replica 为 1 时，该数据库中的每个 vgroup 由 1 个 vnode 组成。如果要想配置某个数据库为多副本，则集群中的 dnode 数量至少为 3。在 dnode 还可以创建 mnode (management node)，单个集群中最多可以创建三个 mnode。在 TDengine 3.0.0.0 中为了支持存算分离，引入了一种新的逻辑节点 qnode (query node)，qnode 和 vnode 既可以共存在一个 dnode 中，也可以完全分离在不同的 dnode 上。
+组成 TDengine TSDB 集群的物理实体是 dnode (data node 的缩写)，它是一个运行在操作系统之上的进程。在 dnode 中可以建立负责时序数据存储的 vnode (virtual node)，在多节点集群环境下当某个数据库的 replica 为 3 时，该数据库中的每个 vgroup 由 3 个 vnode 组成；当数据库的 replica 为 1 时，该数据库中的每个 vgroup 由 1 个 vnode 组成。如果要想配置某个数据库为多副本，则集群中的 dnode 数量至少为 3。在 dnode 还可以创建 mnode (management node)，单个集群中最多可以创建三个 mnode。在 TDengine TSDB 3.0.0.0 中为了支持存算分离，引入了一种新的逻辑节点 qnode (query node)，qnode 和 vnode 既可以共存在一个 dnode 中，也可以完全分离在不同的 dnode 上。
 
 ## 创建数据节点
 
@@ -54,13 +54,16 @@ value 是参数的值，需要是字符格式。如修改 dnode 1 的日志输�
 ALTER DNODE 1 'debugFlag' '143';
 ```
 
-### 补充说明：
+### 补充说明
+
 配置参数在 dnode 中被分为全局配置参数与局部配置参数，您可以查看 SHOW VARIABLES 或 SHOW DNODE dnode_id VARIABLES 中的 category 字段来确认配置参数属于全局配置参数还是局部配置参数。
+
 1. 局部配置参数：您可以使用 ALTER DNODE 或 ALTER ALL DNODES 来更新某一个 dnode 或全部 dnodes 的局部配置参数。
 2. 全局配置参数：全局配置参数要求各个 dnode 保持一致，所以您只可以使用 ALTER ALL DNODES 来更新全部 dnodes 的全局配置参数。
 
 配置参数是否可以动态修改，有以下三种情况：
-1. 支持动态修改，立即生效 
+
+1. 支持动态修改，立即生效
 2. 支持动态修改，重启生效
 3. 不支持动态修改
 
@@ -114,6 +117,30 @@ DROP QNODE ON DNODE dnode_id;
 
 删除 ID 为 dnode_id 的 dnode 上的 qnode，但并不会影响该 dnode 的状态。
 
+## 创建订阅节点
+
+```sql
+CREATE BNODE ON DNODE dnode_id [PROTOCOL protocol];
+```
+
+系统启动默认没有 BNODE，用户可以创建 BNODE 来启动订阅服务。一个 dnode 上只能创建一个 BNODE。protocol 为可选配置项，不提供时，默认为“mqtt”，后续会扩展其它协议。bnode 创建成功后，dnode 会启动子进程 taosmqtt，对外提供订阅服务。
+
+## 查看订阅节点
+
+```sql
+SHOW BNODES;
+```
+
+列出集群中所有订阅节点，包括 ID，protocol，创建时间，及所在 dnode。
+
+## 删除订阅节点
+
+```sql
+DROP BNODE ON DNODE dnode_id;
+```
+
+删除 ID 为 dnode_id 的 dnode 上的 bnode，此 dnode 上的 taosmqtt 子进程会退出，停止订阅服务。
+
 ## 查询集群状态
 
 ```sql
@@ -121,9 +148,10 @@ SHOW CLUSTER ALIVE;
 ```
 
 查询当前集群的状态是否可用，返回值
+
 - 0：不可用
 - 1：完全可用
-- 2：部分可用（集群中部分节点下线，但其它节点仍可以正常使用） 
+- 2：部分可用（集群中部分节点下线，但其它节点仍可以正常使用）
 
 ## 修改客户端配置
 
@@ -136,7 +164,6 @@ ALTER LOCAL local_option
 您可以使用以上语法更该客户端的配置参数，并且不需要重启客户端，修改后立即生效。
 
 对于一个配置参数是否支持动态修改，请您参考以下页面：[taosc 参考手册](https://docs.taosdata.com/reference/components/taosc/)
-
 
 ## 查看客户端配置
 

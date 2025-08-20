@@ -4,15 +4,19 @@ title: 流计算
 toc_max_heading_level: 4
 ---
 
-在时序数据的处理中，经常要对原始数据进行清洗、预处理，再使用时序数据库进行长久的储存，而且经常还需要使用原始的时序数据通过计算生成新的时序数据。在传统的时序数据解决方案中，常常需要部署 Kafka、Flink 等流处理系统，而流处理系统的复杂性，带来了高昂的开发与运维成本。
+在时序数据的处理中，存在大量的流计算需求，例如：
 
-TDengine 的流计算引擎提供了实时处理写入的数据流的能力，使用 SQL 定义实时流变换，当数据被写入流的源表后，数据会被以定义的方式自动处理，并根据定义的触发模式向目的表推送结果。它提供了替代复杂流处理系统的轻量级解决方案，并能够在高吞吐的数据写入的情况下，提供毫秒级的计算结果延迟。与传统的流计算相比，TDengine 的流计算采用的是触发与计算分离的策略，处理的依然是持续的无界的数据流，但是进行了以下几个方面的扩展：
+- **数据分级存储与智能降采样**​​：工业设备每秒生成数万条原始数据，若全量存储，则​存储成本激增，​查询效率低下，历史趋势分析响应时间长
+- **预计算加速实时决策​**：用户查询全量数据时，可能需扫描百亿级别数据，很难实时获取查询结果，大屏/报表产生卡顿
+- **异常检测和低延迟告警**：异常检测、监控报警，需要根据规则低延迟地获取特定数据，传统批处理的延迟通常在分钟级别
 
-- **处理对象的扩展**：传统流计算的事件驱动对象与计算对象往往是统一的，根据同一份数据产生事件和计算。TDengine 的流计算支持触发（事件驱动）与计算的分离，也就意味着触发对象可以与计算对象进行分离。触发表与计算的数据源表可以不相同，甚至可以不需要触发表，处理的数据集合无论是列、时间范围都可以不相同。
-- **触发方式的扩展**：除了数据写入触发方式外，TDengine 的流计算支持更多触发方式的扩展。通过支持窗口触发，用户可以灵活的定义和使用各种方式的窗口来产生触发事件，可以选择在开窗、关窗以及开关窗同时进行触发。除了与触发表关联的事件时间驱动外，还支持与事件时间无关的驱动，即定时触发。在事件触发之前，还支持对触发数据进行预先过滤处理，只有符合条件的数据才会进入触发判断。
+在传统的时序数据解决方案中，常常需要部署 Kafka、Flink 等流处理系统，而流处理系统的复杂性，带来了高昂的开发与运维成本。TDengine TSDB 的流计算引擎提供了实时处理写入的数据流的能力，使用 SQL 定义实时流变换，当数据被写入流的源表后，数据会被以定义的方式自动处理，并根据定义的触发模式向目的表推送结果。它提供了替代复杂流处理系统的轻量级解决方案，并能够在高吞吐的数据写入的情况下，提供毫秒级的计算结果延迟。与传统的流计算相比，TDengine TSDB 的流计算采用的是触发与计算分离的策略，处理的依然是持续的无界的数据流，但是进行了以下几个方面的扩展：
+
+- **处理对象的扩展**：传统流计算的事件驱动对象与计算对象往往是统一的，根据同一份数据产生事件和计算。TDengine TSDB 的流计算支持触发（事件驱动）与计算的分离，也就意味着触发对象可以与计算对象进行分离。触发表与计算的数据源表可以不相同，甚至可以不需要触发表，处理的数据集合无论是列、时间范围都可以不相同。
+- **触发方式的扩展**：除了数据写入触发方式外，TDengine TSDB 的流计算支持更多触发方式的扩展。通过支持窗口触发，用户可以灵活的定义和使用各种方式的窗口来产生触发事件，可以选择在开窗、关窗以及开关窗同时进行触发。除了与触发表关联的事件时间驱动外，还支持与事件时间无关的驱动，即定时触发。在事件触发之前，还支持对触发数据进行预先过滤处理，只有符合条件的数据才会进入触发判断。
 - **计算的扩展**：既可以对触发表进行计算，也可以对其他库、表进行计算。计算类型不受限制，支持任何查询语句。计算结果的应用可根据需要进行选择，支持发送通知、写入输出表，也可以两者同时使用。
 
-TDengine 的流计算引擎还提供了其他使用上的便利。针对结果延迟的不同需求，支持用户在结果时效性与资源负载之间进行平衡。针对非正常顺序写入场景的不同需求，支持用户灵活选择适合的处理方式与策略。它提供了替代复杂流处理系统的轻量级解决方案，并能够在高吞吐的数据写入的情况下，提供毫秒级的计算结果延迟。
+TDengine TSDB 的流计算引擎还提供了其他使用上的便利。针对结果延迟的不同需求，支持用户在结果时效性与资源负载之间进行平衡。针对非正常顺序写入场景的不同需求，支持用户灵活选择适合的处理方式与策略。它提供了替代复杂流处理系统的轻量级解决方案，并能够在高吞吐的数据写入的情况下，提供毫秒级的计算结果延迟。
 
 流计算的使用方法如下，详细内容参见 [SQL 手册](../../reference/taos-sql/stream)。
 
@@ -69,7 +73,7 @@ tag_definition:
 
 ### 触发表与分组
 
-通常意义来说，一个流计算只对应一个计算，比如根据一个子表触发和产生一个计算，结果保存到一张表中。根据 TDengine **一个设备一张表**的设计理念，如果需要对所有设备分别计算，那就需要为每个子表创建一个流计算，这会造成使用的不便和处理效率的降低。为了解决这个问题，TDengine 的流计算支持触发分组，分组是流计算的最小执行单元，从逻辑上可以认为每个分组对应一个单独的流计算，每个分组对应一个输出表和单独的事件通知。
+通常意义来说，一个流计算只对应一个计算，比如根据一个子表触发和产生一个计算，结果保存到一张表中。根据 TDengine TSDB **一个设备一张表**的设计理念，如果需要对所有设备分别计算，那就需要为每个子表创建一个流计算，这会造成使用的不便和处理效率的降低。为了解决这个问题，TDengine TSDB 的流计算支持触发分组，分组是流计算的最小执行单元，从逻辑上可以认为每个分组对应一个单独的流计算，每个分组对应一个输出表和单独的事件通知。
 
 **总结来说，一个流计算输出表（子表或普通表）的个数与触发表的分组个数相同，未指定分组时只产生一个输出表（普通表）。**
 
@@ -103,7 +107,7 @@ tag_definition:
 - 表 tb1 每写入 1 行数据时，计算表 tb2 在同一时刻前 5 分钟内 col1 的平均值，计算结果写入表 tb3。
 
 ```SQL
-CREATE stream sm1 count_window(1) FROM tb1 
+CREATE STREAM sm1 COUNT_WINDOW(1) FROM tb1 
   INTO tb3 AS
     SELECT _twstart, avg(col1) FROM tb2 
     WHERE _c0 >= _twend - 5m AND _c0 <= _twend;
@@ -112,11 +116,23 @@ CREATE stream sm1 count_window(1) FROM tb1
 - 表 tb1 每写入 10 行大于 0 的 col1 列数据时，计算这 10 条数据 col1 列的平均值，计算结果不需要保存，需要通知到 `ws://localhost:8080/notify`。
 
 ```SQL
-CREATE stream sm2 count_window(10, 1, col1) FROM tb1 
+CREATE STREAM sm2 COUNT_WINDOW(10, 1, col1) FROM tb1 
   STREAM_OPTIONS(CALC_ONTIFY_ONLY | PRE_FILTER(col1 > 0)) 
   NOTIFY("ws://localhost:8080/notify") ON (WINDOW_CLOSE) 
   AS 
     SELECT avg(col1) FROM %%trows;
+```
+
+### 事件窗口触发
+
+- 当环境温度超过 80 度持续超过 10 分钟时，计算环境温度的平均值。
+
+```SQL
+CREATE STREAM `idmp`.`ana_temp` EVENT_WINDOW(start with `环境温度` > 80 end with `环境温度` <= 80 ) TRUE_FOR(10m) FROM `idmp`.`vt_气象传感器02_471544` 
+  STREAM_OPTIONS( IGNORE_DISORDER)
+  INTO `idmp`.`ana_temp` 
+  AS 
+    SELECT _twstart+0s as output_timestamp, avg(`环境温度`) as `平均环境温度` FROM idmp.`vt_气象传感器02_471544` where ts >= _twstart and ts <= _twend;
 ```
 
 ### 滑动触发
@@ -124,8 +140,9 @@ CREATE stream sm2 count_window(10, 1, col1) FROM tb1
 - 超级表 stb1 的每个子表在每 5 分钟的时间窗口结束后，计算这 5 分钟的 col1 的平均值，每个子表的计算结果分别写入超级表 stb2 的不同子表中。
 
 ```SQL
-CREATE stream sm1 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname 
-  INTO stb2 AS 
+CREATE STREAM sm1 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname 
+  INTO stb2 
+  AS 
     SELECT _twstart, avg(col1) FROM %%tbname 
     WHERE _c0 >= _twstart AND _c0 <= _twend;
 ```
@@ -135,9 +152,10 @@ CREATE stream sm1 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname
 - 超级表 stb1 的每个子表从最早的数据开始，在每 5 分钟的时间窗口结束后或从窗口启动 1 分钟后窗口仍然未关闭时，计算窗口内的 col1 的平均值，每个子表的计算结果分别写入超级表 stb2 的不同子表中。
 
 ```SQL
-CREATE stream sm2 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname 
+CREATE STREAM sm2 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname 
   STREAM_OPTIONS(MAX_DELAY(1m) | FILL_HISTORY_FIRST) 
-  INTO stb2 AS 
+  INTO stb2 
+  AS 
     SELECT _twstart, avg(col1) FROM %%tbname WHERE _c0 >= _twstart AND _c0 <= _twend;
 ```
 
@@ -147,7 +165,8 @@ CREATE stream sm2 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname
 CREATE STREAM avg_stream INTERVAL(1m) SLIDING(1m) FROM meters 
   NOTIFY ('ws://localhost:8080/notify', 'wss://192.168.1.1:8080/notify?key=foo') ON ('WINDOW_OPEN', 'WINDOW_CLOSE') NOTIFY_OPTIONS(NOTIFY_HISTORY | ON_FAILURE_PAUSE)
   INTO avg_stb
-    AS SELECT _twstart, _twend, AVG(current) FROM %%trows;
+  AS 
+    SELECT _twstart, _twend, AVG(current) FROM %%trows;
 ```
 
 ### 定时触发
@@ -155,15 +174,16 @@ CREATE STREAM avg_stream INTERVAL(1m) SLIDING(1m) FROM meters
 - 每过 1 小时计算表 tb1 中总的数据量，计算结果写入表 tb2 (毫秒库)。
 
 ```SQL
-CREATE stream sm1 PERIOD(1h) 
-  INTO tb2 AS
+CREATE STREAM sm1 PERIOD(1h) 
+  INTO tb2 
+  AS
     SELECT cast(_tlocaltime/1000000 AS TIMESTAMP), count(*) FROM tb1;
 ```
 
 - 每过 1 小时通知 `ws://localhost:8080/notify` 当前系统时间。
 
 ```SQL
-CREATE stream sm1 PERIOD(1h) 
+CREATE STREAM sm1 PERIOD(1h) 
   NOTIFY("ws://localhost:8080/notify");
 ```
 

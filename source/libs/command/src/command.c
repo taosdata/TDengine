@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "catalog.h"
 #include "command.h"
+#include "catalog.h"
 #include "commandInt.h"
 #include "decimal.h"
 #include "scheduler.h"
@@ -595,7 +595,9 @@ static void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
   for (int32_t i = 0; i < pCfg->numOfColumns; ++i) {
     SSchema* pSchema = pCfg->pSchemas + i;
     SColRef* pRef = pCfg->pColRefs + i;
-#define LTYPE_LEN (32 + 60 + TSDB_COL_FNAME_LEN + TSDB_DB_NAME_LEN + 10)  // 60 byte for compress info, TSDB_COL_FNAME_LEN + TSDB_DB_NAME_LEN for column ref
+#define LTYPE_LEN                                    \
+  (32 + 60 + TSDB_COL_FNAME_LEN + TSDB_DB_NAME_LEN + \
+   10)  // 60 byte for compress info, TSDB_COL_FNAME_LEN + TSDB_DB_NAME_LEN for column ref
     char type[LTYPE_LEN];
     snprintf(type, LTYPE_LEN, "%s", tDataTypes[pSchema->type].name);
     int typeLen = strlen(type);
@@ -611,7 +613,7 @@ static void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
       typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, "(%d,%d)", precision, scale);
     }
 
-    if (withExtSchema(pCfg->tableType) && pCfg->pSchemaExt) {
+    if (withExtSchema(pCfg->tableType) && pCfg->pSchemaExt && tsShowFullCreateTableColumn) {
       typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, " ENCODE \'%s\'",
                            columnEncodeStr(COMPRESS_L1_TYPE_U32(pCfg->pSchemaExt[i].compress)));
       typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, " COMPRESS \'%s\'",
@@ -645,8 +647,8 @@ static void appendColRefFields(char* buf, int32_t* len, STableCfg* pCfg) {
   for (int32_t i = 1; i < pCfg->numOfColumns; ++i) {
     SSchema* pSchema = pCfg->pSchemas + i;
     SColRef* pRef = pCfg->pColRefs + i;
-    char type[TSDB_COL_NAME_LEN + 10 + TSDB_COL_FNAME_LEN + TSDB_DB_NAME_LEN];
-    int typeLen = 0;
+    char     type[TSDB_COL_NAME_LEN + 10 + TSDB_COL_FNAME_LEN + TSDB_DB_NAME_LEN];
+    int      typeLen = 0;
 
     if (hasRefCol(pCfg->tableType) && pCfg->pColRefs && pRef->hasRef) {
       typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, "FROM `%s`", pRef->refDbName);
@@ -813,7 +815,7 @@ static void appendTableOptions(char* buf, int32_t* len, SDbCfgInfo* pDbCfg, STab
   if (pCfg->ttl > 0) {
     *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
                       " TTL %d", pCfg->ttl);
-    }
+  }
 
   if (pCfg->keep > 0) {
     *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),

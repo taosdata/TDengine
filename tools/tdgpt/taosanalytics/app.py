@@ -13,7 +13,7 @@ from taosanalytics.conf import conf
 from taosanalytics.model import get_avail_model
 from taosanalytics.servicemgmt import loader
 from taosanalytics.util import app_logger, validate_pay_load, get_data_index, get_ts_index, is_white_noise, \
-    parse_options, convert_results_to_windows, get_past_dynamic_data, get_dynamic_data
+    parse_options, get_past_dynamic_data, get_dynamic_data
 
 app = Flask(__name__)
 
@@ -22,7 +22,7 @@ app_logger.set_handler(conf.get_log_path())
 app_logger.set_log_level(conf.get_log_level())
 loader.load_all_service()
 
-_ANODE_VER = 'TDgpt - TDengine© Time-Series Data Analytics Platform (ver 3.3.6.1)'
+_ANODE_VER = 'TDgpt - TDengine TSDB© Time-Series Data Analytics Platform (ver 3.3.7.1)'
 
 @app.route("/")
 def start():
@@ -179,4 +179,4 @@ def handle_forecast_req():
 
 
 if __name__ == '__main__':
-    app.run(port=6090)
+    app.run(port=6070)

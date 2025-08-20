@@ -88,7 +88,7 @@ struct SVBufPoolNode {
   SVBufPoolNode*  prev;
   SVBufPoolNode** pnext;
   int64_t         size;
-  uint8_t         data[];
+  uint8_t*        data;
 };
 
 struct SVBufPool {
@@ -130,7 +130,6 @@ int     vnodeGetTableCfg(SVnode* pVnode, SRpcMsg* pMsg, bool direct);
 int32_t vnodeGetBatchMeta(SVnode* pVnode, SRpcMsg* pMsg);
 int32_t vnodeGetVSubtablesMeta(SVnode *pVnode, SRpcMsg *pMsg);
 int32_t vnodeGetVStbRefDbs(SVnode *pVnode, SRpcMsg *pMsg);
-int32_t vnodeGetStreamProgress(SVnode* pVnode, SRpcMsg* pMsg, bool direct);
 
 // vnodeCommit.c
 int32_t vnodeBegin(SVnode* pVnode);

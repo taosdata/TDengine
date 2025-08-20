@@ -110,18 +110,20 @@ extern int32_t tsNumOfMnodeQueryThreads;
 extern int32_t tsNumOfMnodeFetchThreads;
 extern int32_t tsNumOfMnodeReadThreads;
 extern int32_t tsNumOfVnodeQueryThreads;
-extern float   tsRatioOfVnodeStreamThreads;
 extern int32_t tsNumOfVnodeFetchThreads;
 extern int32_t tsNumOfVnodeRsmaThreads;
 extern int32_t tsNumOfQnodeQueryThreads;
 extern int32_t tsNumOfQnodeFetchThreads;
-extern int32_t tsNumOfSnodeStreamThreads;
-extern int32_t tsNumOfSnodeWriteThreads;
 extern int64_t tsQueueMemoryAllowed;
 extern int64_t tsQueueMemoryUsed;
 extern int64_t tsApplyMemoryAllowed;
 extern int64_t tsApplyMemoryUsed;
 extern int32_t tsRetentionSpeedLimitMB;
+extern int32_t tsNumOfMnodeStreamMgmtThreads;
+extern int32_t tsNumOfStreamMgmtThreads;
+extern int32_t tsNumOfVnodeStreamReaderThreads;
+extern int32_t tsNumOfStreamTriggerThreads;
+extern int32_t tsNumOfStreamRunnerThreads;
 
 extern int32_t tsNumOfCompactThreads;
 extern int32_t tsNumOfRetentionThreads;
@@ -289,12 +291,6 @@ extern bool    tsDiskIDCheckEnabled;
 extern int32_t tsTransPullupInterval;
 extern int32_t tsCompactPullupInterval;
 extern int32_t tsMqRebalanceInterval;
-extern int32_t tsStreamCheckpointInterval;
-extern int32_t tsThresholdItemsInWriteQueue;
-extern int32_t tsThresholdItemsInStreamQueue;
-extern float   tsSinkDataRate;
-extern int32_t tsStreamNodeCheckInterval;
-extern int32_t tsMaxConcurrentCheckpoint;
 extern int32_t tsTtlUnit;
 extern int32_t tsTtlPushIntervalSec;
 extern int32_t tsTtlBatchDropNum;
@@ -303,19 +299,14 @@ extern int32_t tsGrantHBInterval;
 extern int32_t tsUptimeInterval;
 extern bool    tsUpdateCacheBatch;
 extern bool    tsDisableStream;
-extern int64_t tsStreamBufferSize;
-extern int64_t tsStreamFailedTimeout;
-extern int     tsStreamAggCnt;
+extern int32_t tsStreamBufferSize;
+extern int64_t tsStreamBufferSizeBytes;
 extern bool    tsFilterScalarMode;
-extern int32_t tsMaxStreamBackendCache;
 extern int32_t tsPQSortMemThreshold;
-extern bool    tsStreamCoverage;
 extern int32_t tsStreamNotifyMessageSize;
 extern int32_t tsStreamNotifyFrameSize;
 extern bool    tsCompareAsStrInGreatest;
-extern int32_t tsStreamVirtualMergeMaxDelayMs;
-extern int32_t tsStreamVirtualMergeMaxMemKb;
-extern int32_t tsStreamVirtualMergeWaitMode;
+extern bool    tsShowFullCreateTableColumn;  // 0: show create table, and not include column compress info
 
 // shared storage
 extern int32_t tsSsEnabled;
@@ -325,10 +316,6 @@ extern int32_t tsSsUploadDelaySec;
 extern int32_t tsSsBlockSize;
 extern int32_t tsSsBlockCacheSize;
 extern int32_t tsSsPageCacheSize;
-
-extern char     tsAdapterFqdn[];
-extern uint16_t tsAdapterPort;
-extern char     tsAdapterToken[];
 
 // insert performance
 extern bool tsInsertPerfEnabled;

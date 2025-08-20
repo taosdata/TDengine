@@ -67,7 +67,7 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   }
 
   (void)taosThreadMutexInit(&(pData->mutex), NULL);
-  pData->pWalHandle = walOpenReader(pData->pWal, NULL, 0);
+  pData->pWalHandle = walOpenReader(pData->pWal, 0);
   if (!pData->pWalHandle) {
     taosMemoryFree(pLogStore);
     taosLRUCacheCleanup(pLogStore->pCache);
@@ -122,6 +122,9 @@ static int32_t raftLogRestoreFromSnapshot(struct SSyncLogStore* pLogStore, SyncI
 
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
+
+  sInfo("vgId:%d, before restore from snapshot, commitIndex:%" PRId64, pData->pSyncNode->vgId, pWal->vers.commitVer);
+
   int32_t            code = walRestoreFromSnapshot(pWal, snapshotIndex);
   if (code != 0) {
     int32_t     err = code;
@@ -134,6 +137,8 @@ static int32_t raftLogRestoreFromSnapshot(struct SSyncLogStore* pLogStore, SyncI
             err, errStr, sysErr, sysErrStr);
     TAOS_RETURN(err);
   }
+
+  sInfo("vgId:%d, after restore from snapshot, commitIndex:%" PRId64, pData->pSyncNode->vgId, pWal->vers.commitVer);
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -216,6 +221,37 @@ SyncTerm raftLogLastTerm(struct SSyncLogStore* pLogStore) {
   return SYNC_TERM_INVALID;
 }
 
+static int32_t rafeLogReBuildEntry(SSyncRaftEntry* pEntry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  int32_t flags = 0;
+  if (pEntry == NULL) {
+    TAOS_RETURN(TSDB_CODE_SYN_INTERNAL_ERROR);
+  }
+  uint64_t nSubmitTbData = 0;
+
+  if (pEntry->originalRpcType != TDMT_VND_SUBMIT) {
+    return code;
+  }
+  int32_t len = pEntry->dataLen;
+
+  SSubmitReq2Msg* pMsg = (SSubmitReq2Msg*)pEntry->data;
+
+  void* pReq = POINTER_SHIFT(pReq, sizeof(SSubmitReq2Msg));
+  len -= sizeof(SSubmitReq2Msg);
+
+  SSubmitReq2* pSubmitReq = &(SSubmitReq2){0};
+  SDecoder     dc = {0};
+  tDecoderInit(&dc, pReq, len);
+  if (tStartDecode(&dc) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+_exit:
+
+  return code;
+}
 static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, bool forceSync) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;

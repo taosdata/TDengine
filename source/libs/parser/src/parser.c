@@ -16,8 +16,12 @@
 #include "parser.h"
 #include "os.h"
 
+#include <stdio.h>
+#include <string.h>
+#include "parInsertUtil.h"
 #include "parInt.h"
 #include "parToken.h"
+#include "tname.h"
 
 bool qIsInsertValuesSql(const char* pStr, size_t length) {
   if (NULL == pStr) {
@@ -46,6 +50,280 @@ bool qIsInsertValuesSql(const char* pStr, size_t length) {
     }
   } while (pStr - pSql < length);
   return false;
+}
+
+bool qIsUpdateSetSql(const char* pStr, size_t length, SName* pTableName, int32_t acctId, const char* dbName,
+                     char* msgBuf, int32_t msgBufLen, int* pCode) {
+  if (NULL == pStr) {
+    return false;
+  }
+
+  const char* pSql = pStr;
+
+  int32_t index = 0;
+  SToken  t = tStrGetToken((char*)pStr, &index, false, NULL);
+  if (TK_UPDATE != t.type) {
+    return false;
+  }
+  SMsgBuf pMsgBuf = {.len = msgBufLen, .buf = msgBuf};
+  pStr += index;
+  index = 0;
+  t = tStrGetToken((char*)pStr, &index, false, NULL);
+  if (t.n == 0 || t.z == NULL) {
+    *pCode = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_TSC_STMT_TBNAME_ERROR, "Invalid table name");
+    return false;
+  }
+
+  if (pTableName != NULL) {
+    *pCode = insCreateSName(pTableName, &t, acctId, dbName, &pMsgBuf);
+    if ((*pCode) != TSDB_CODE_SUCCESS) {
+      return false;
+    }
+  }
+
+  do {
+    pStr += index;
+    index = 0;
+    t = tStrGetToken((char*)pStr, &index, false, NULL);
+    if (TK_SET == t.type) {
+      return true;
+    }
+    if (0 == t.type || 0 == t.n) {
+      break;
+    }
+  } while (pStr - pSql < length);
+  return false;
+}
+
+static bool isColumnPrimaryKey(const STableMeta* pTableMeta, const char* colName, int32_t colNameLen, int32_t* colId) {
+  if (pTableMeta == NULL || colName == NULL) {
+    return false;
+  }
+
+  for (int32_t i = 0; i < pTableMeta->tableInfo.numOfColumns; i++) {
+    const SSchema* pSchema = &pTableMeta->schema[i];
+    if (strncmp(pSchema->name, colName, colNameLen) == 0 && strlen(pSchema->name) == colNameLen) {
+      if (colId) {
+        *colId = i;
+      }
+      if ((pSchema->flags & COL_IS_KEY || pSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID)) {
+        return true;
+      }
+      return false;
+    }
+  }
+  return false;
+}
+
+int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTableMeta, SSHashObj* predicateCols,
+                              char* msgBuf, int32_t msgBufLen) {
+  if (NULL == pSql || NULL == pNewSql) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  const char* pEnd = pSql + strlen(pSql);
+  size_t      maxSqlLen = strlen(pSql) * 2;
+  char*  newSql = taosMemoryMalloc(maxSqlLen);
+  if (newSql == NULL) {
+    return terrno;
+  }
+  char*   p = newSql;
+  int32_t index = 0;
+  SToken  t;
+  int32_t code = TSDB_CODE_SUCCESS;
+  SMsgBuf pMsgBuf = {msgBufLen, msgBuf};
+
+  // UPDATE
+  t = tStrGetToken((char*)pSql, &index, false, NULL);
+  if (TK_UPDATE != t.type) {
+    taosMemoryFree(newSql);
+    code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Expected UPDATE keyword");
+    return code;
+  }
+  pSql += index;
+
+  // tbname
+  index = 0;
+  t = tStrGetToken((char*)pSql, &index, false, NULL);
+  if (t.n == 0 || t.z == NULL) {
+    taosMemoryFree(newSql);
+    code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid table name");
+    return code;
+  }
+
+  p += sprintf(p, "INSERT INTO ");
+  memcpy(p, t.z, t.n);
+  p += t.n;
+  p += sprintf(p, " (");
+  pSql += index;
+
+  // SET
+  index = 0;
+  t = tStrGetToken((char*)pSql, &index, false, NULL);
+  if (TK_SET != t.type) {
+    taosMemoryFree(newSql);
+    code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Expected SET keyword");
+    return code;
+  }
+  pSql += index;
+
+  bool    firstColumn = true;
+  int32_t columnCount = 0;
+  bool inSetClause = true;
+  int32_t numOfCols = 0;
+
+  // col name
+  while (inSetClause && pSql < pEnd) {
+    index = 0;
+    t = tStrGetToken((char*)pSql, &index, false, NULL);
+    if (t.n == 0 || t.z == NULL) {
+      break;
+    }
+
+    // pk can't set
+    if (pTableMeta != NULL && isColumnPrimaryKey(pTableMeta, t.z, t.n, NULL)) {
+      taosMemoryFree(newSql);
+      code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Cannot update primary key column '%.*s'",
+                                     t.n, t.z);
+      return code;
+    }
+
+    if (!firstColumn) {
+      *p++ = ',';
+    }
+    numOfCols++;
+    memcpy(p, t.z, t.n);
+    p += t.n;
+    firstColumn = false;
+    columnCount++;
+    pSql += index;
+
+    index = 0;
+    t = tStrGetToken((char*)pSql, &index, false, NULL);
+    if (t.type != TK_NK_EQ) {
+      taosMemoryFree(newSql);
+      code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Expected '=' after column name");
+      return code;
+    }
+    pSql += index;
+
+    // value must be ?
+    index = 0;
+    t = tStrGetToken((char*)pSql, &index, false, NULL);
+    if (t.n == 0 || t.z == NULL) {
+      break;
+    }
+    if (t.type != TK_NK_QUESTION) {
+      taosMemoryFree(newSql);
+      code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Expected '?' placeholder");
+      return code;
+    }
+    pSql += index;
+
+    index = 0;
+    t = tStrGetToken((char*)pSql, &index, false, NULL);
+    if (t.type == TK_WHERE) {
+      inSetClause = false;
+      pSql += index;
+    }
+  }
+
+  // where clause
+  if (pSql < pEnd) {
+    bool inWhereClause = true;
+    int32_t bracketLevel = 0;
+
+    while (inWhereClause && pSql < pEnd) {
+      index = 0;
+      t = tStrGetToken((char*)pSql, &index, false, NULL);
+      if (t.n == 0 || t.z == NULL) {
+        break;
+      }
+
+      if (t.type == TK_NK_LP) {
+        bracketLevel++;
+        pSql += index;
+        continue;
+      } else if (t.type == TK_NK_RP) {
+        bracketLevel--;
+        pSql += index;
+        continue;
+      } else if (t.type == TK_IN || t.type == TK_EXISTS) {
+        while (pSql < pEnd) {
+          pSql += index;
+          index = 0;
+          t = tStrGetToken((char*)pSql, &index, false, NULL);
+          if (t.type == TK_AND || t.type == TK_OR || t.n == 0 || t.z == NULL) {
+            break;
+          }
+        }
+        continue;
+      }
+
+      const char* colName = t.z;
+      int32_t     colNameLen = t.n;
+      pSql += index;
+
+      index = 0;
+      t = tStrGetToken((char*)pSql, &index, false, NULL);
+      if (t.n == 0 || t.z == NULL) {
+        break;
+      }
+      pSql += index;
+
+      index = 0;
+      t = tStrGetToken((char*)pSql, &index, false, NULL);
+      if (t.n == 0 || t.z == NULL) {
+        break;
+      }
+
+      // where cols muset be pk, ignore others
+      int32_t colId = -1;
+      if (t.type == TK_NK_QUESTION) {
+        if (pTableMeta != NULL && isColumnPrimaryKey(pTableMeta, colName, colNameLen, &colId)) {
+          if (!firstColumn) {
+            *p++ = ',';
+          }
+          memcpy(p, colName, colNameLen);
+          p += colNameLen;
+          firstColumn = false;
+          columnCount++;
+        } else {
+          if (tSimpleHashPut(predicateCols, &numOfCols, sizeof(int32_t), &colId, sizeof(int32_t))) {
+            taosMemoryFree(newSql);
+            code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Expected '?' placeholder");
+            return code;
+          }
+        }
+        numOfCols++;
+      }
+      pSql += index;
+
+      index = 0;
+      t = tStrGetToken((char*)pSql, &index, false, NULL);
+      if (t.type == TK_AND || t.type == TK_OR) {
+        pSql += index;
+      } else {
+        if (bracketLevel == 0) {
+          break;
+        }
+        pSql += index;
+      }
+    }
+  }
+
+  p += sprintf(p, ") VALUES (");
+  for (int32_t i = 0; i < columnCount; i++) {
+    if (i > 0) {
+      *p++ = ',';
+    }
+    *p++ = '?';
+  }
+  *p++ = ')';
+  *p = '\0';
+
+  *pNewSql = newSql;
+  return code;
 }
 
 bool qIsCreateTbFromFileSql(const char* pStr, size_t length) {
@@ -315,18 +593,6 @@ int32_t qContinueParseSql(SParseContext* pCxt, struct SCatalogReq* pCatalogReq, 
 int32_t qContinueParsePostQuery(SParseContext* pCxt, SQuery* pQuery, SSDataBlock* pBlock) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pQuery->pRoot)) {
-    case QUERY_NODE_CREATE_STREAM_STMT: {
-      code = translatePostCreateStream(pCxt, pQuery, pBlock);
-      break;
-    }
-    case QUERY_NODE_CREATE_INDEX_STMT: {
-      code = translatePostCreateSmaIndex(pCxt, pQuery, pBlock);
-      break;
-    }
-    case QUERY_NODE_CREATE_TSMA_STMT: {
-      code = translatePostCreateTSMA(pCxt, pQuery, pBlock);
-      break;
-    }
     default:
       break;
   }
@@ -371,7 +637,6 @@ void destoryCatalogReq(SCatalogReq* pCatalogReq) {
   taosArrayDestroy(pCatalogReq->pTableIndex);
   taosArrayDestroy(pCatalogReq->pTableCfg);
   taosArrayDestroy(pCatalogReq->pTableTag);
-  taosArrayDestroy(pCatalogReq->pVSubTable);
   taosArrayDestroy(pCatalogReq->pVStbRefDbs);
 }
 
@@ -499,6 +764,9 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
       pVal->node.resType.bytes = output + VARSTR_HEADER_SIZE;
       break;
     }
+    case TSDB_DATA_TYPE_BLOB:
+    case TSDB_DATA_TYPE_MEDIUMBLOB:
+      return TSDB_CODE_BLOB_NOT_SUPPORT;  // BLOB data type is not supported in stmt2
     default: {
       int32_t code = nodesSetValueNodeValue(pVal, pParam->buffer);
       if (code) {

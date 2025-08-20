@@ -163,6 +163,19 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_IROWTS_ORIGIN,
   FUNCTION_TYPE_GROUP_ID,
   FUNCTION_TYPE_IS_WINDOW_FILLED,
+  FUNCTION_TYPE_TPREV_TS,           // _tprev_ts
+  FUNCTION_TYPE_TCURRENT_TS,        // _tcurrent_ts
+  FUNCTION_TYPE_TNEXT_TS,           // _tnext_ts
+  FUNCTION_TYPE_TWSTART,            // _twstart
+  FUNCTION_TYPE_TWEND,              // _twend
+  FUNCTION_TYPE_TWDURATION,         // _twduration
+  FUNCTION_TYPE_TWROWNUM,           // _twrownum
+  FUNCTION_TYPE_TPREV_LOCALTIME,    // _tprev_localtime
+  FUNCTION_TYPE_TNEXT_LOCALTIME,    // _tnext_localtime
+  FUNCTION_TYPE_TLOCALTIME,         // _tlocaltime
+  FUNCTION_TYPE_TGRPID,             // _tgrpid
+  FUNCTION_TYPE_PLACEHOLDER_COLUMN, // %%n
+  FUNCTION_TYPE_PLACEHOLDER_TBNAME, // %%tbname
 
   // internal function
   FUNCTION_TYPE_SELECT_VALUE = 3750,
@@ -259,6 +272,7 @@ EFunctionType fmGetFuncType(const char* pFunc);
 bool fmIsAggFunc(int32_t funcId);
 bool fmIsScalarFunc(int32_t funcId);
 bool fmIsVectorFunc(int32_t funcId);
+bool fmIsStreamVectorFunc(int32_t funcId);
 bool fmIsIndefiniteRowsFunc(int32_t funcId);
 bool fmIsStringFunc(int32_t funcId);
 bool fmIsDateTimeFunc(int32_t funcId);
@@ -269,6 +283,7 @@ bool fmIsPseudoColumnFunc(int32_t funcId);
 bool fmIsScanPseudoColumnFunc(int32_t funcId);
 bool fmIsWindowPseudoColumnFunc(int32_t funcId);
 bool fmIsWindowClauseFunc(int32_t funcId);
+bool fmIsStreamWindowClauseFunc(int32_t funcId);
 bool fmIsSpecialDataRequiredFunc(int32_t funcId);
 bool fmIsDynamicScanOptimizedFunc(int32_t funcId);
 bool fmIsMultiResFunc(int32_t funcId);
@@ -276,7 +291,6 @@ bool fmIsRepeatScanFunc(int32_t funcId);
 bool fmIsUserDefinedFunc(int32_t funcId);
 bool fmIsDistExecFunc(int32_t funcId);
 bool fmIsForbidFillFunc(int32_t funcId);
-bool fmIsForbidStreamFunc(int32_t funcId);
 bool fmIsForbidSysTableFunc(int32_t funcId);
 bool fmIsIntervalInterpoFunc(int32_t funcId);
 bool fmIsInterpFunc(int32_t funcId);
@@ -306,6 +320,7 @@ bool fmIsDBUsageFunc(int32_t funcId);
 bool fmIsRowTsOriginFunc(int32_t funcId);
 bool fmIsSelectColsFunc(int32_t funcId);
 bool fmIsGroupIdFunc(int32_t funcId);
+bool fmIsPlaceHolderFunc(int32_t funcId);
 
 void    getLastCacheDataType(SDataType* pType, int32_t pkBytes);
 int32_t createFunction(const char* pName, SNodeList* pParameterList, SFunctionNode** pFunc);
@@ -344,6 +359,26 @@ int32_t fmGetFuncId(const char* name);
 bool    fmIsMyStateFunc(int32_t funcId, int32_t stateFuncId);
 bool    fmIsCountLikeFunc(int32_t funcId);
 
+// typedef enum SStreamPseudoFuncType {
+//   STREAM_PSEUDO_FUNC_CURRENT_TS = 0,
+//   STREAM_PSEUDO_FUNC_TWSTART = 1,
+//   STREAM_PSEUDO_FUNC_TWEND = 2,
+//   STREAM_PSEUDO_FUNC_TWDURATION = 3,
+//   STREAM_PSEUDO_FUNC_TWROWNUM = 4,
+//   STREAM_PSEUDO_FUNC_TLOCALTIME = 5,
+//   STREAM_PSEUDO_FUNC_TGRPID = 6,
+//   STREAM_PSEUDO_FUNC_PLACEHOLDER_COLUMN = 7,
+//   STREAM_PSEUDO_FUNC_PLACEHOLDER_TBNAME = 8,
+
+// } SStreamPseudoFuncType;
+
+int32_t fmGetStreamPesudoFuncEnv(int32_t funcId, SNodeList* pParamNodes, SFuncExecEnv *pEnv);
+
+int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, const SStreamRuntimeFuncInfo* pStreamRuntimeInfo);
+
+const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo);
+
+void fmGetStreamPesudoFuncValTbname(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo, void** data, int32_t* dataLen);
 #ifdef __cplusplus
 }
 #endif

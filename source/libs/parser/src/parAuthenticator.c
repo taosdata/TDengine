@@ -176,8 +176,7 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
     toName(pAuthCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name);
     STableMeta* pTableMeta = NULL;
     toName(pAuthCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name);
-    int32_t code = getTargetMetaImpl(
-        pAuthCxt->pParseCxt, pAuthCxt->pMetaCache, &name, &pTableMeta, true);
+    int32_t code = getTargetMetaImpl(pAuthCxt->pParseCxt, pAuthCxt->pMetaCache, &name, &pTableMeta, true);
     if (TSDB_CODE_SUCCESS == code && TSDB_VIEW_TABLE == pTableMeta->tableType) {
       isView = true;
     }
@@ -250,9 +249,7 @@ static int32_t authShowTables(SAuthCxt* pCxt, SShowStmt* pStmt) {
   return checkAuth(pCxt, ((SValueNode*)pStmt->pDbName)->literal, NULL, AUTH_TYPE_READ_OR_WRITE, NULL);
 }
 
-static int32_t authShowVtables(SAuthCxt* pCxt, SShowStmt* pStmt) {
-  return authShowTables(pCxt, pStmt);
-}
+static int32_t authShowVtables(SAuthCxt* pCxt, SShowStmt* pStmt) { return authShowTables(pCxt, pStmt); }
 
 static int32_t authShowUsage(SAuthCxt* pCxt, SShowStmt* pStmt) {
   return checkAuth(pCxt, ((SValueNode*)pStmt->pDbName)->literal, NULL, AUTH_TYPE_READ_OR_WRITE, NULL);
@@ -280,13 +277,13 @@ static int32_t authCreateTable(SAuthCxt* pCxt, SCreateTableStmt* pStmt) {
 
 static int32_t authCreateVTable(SAuthCxt* pCxt, SCreateVTableStmt* pStmt) {
   PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, NULL, AUTH_TYPE_WRITE, NULL));
-  SNode  *pCol = NULL;
+  SNode* pCol = NULL;
   FOREACH(pCol, pStmt->pCols) {
-    SColumnDefNode *pColDef = (SColumnDefNode*)pCol;
+    SColumnDefNode* pColDef = (SColumnDefNode*)pCol;
     if (NULL == pColDef) {
       PAR_ERR_RET(TSDB_CODE_PAR_INVALID_COLUMN);
     }
-    SColumnOptions *pOptions = (SColumnOptions*)pColDef->pOptions;
+    SColumnOptions* pOptions = (SColumnOptions*)pColDef->pOptions;
     if (pOptions && pOptions->hasRef) {
       PAR_ERR_RET(checkAuth(pCxt, pOptions->refDb, pOptions->refTable, AUTH_TYPE_READ, NULL));
     }
@@ -295,8 +292,8 @@ static int32_t authCreateVTable(SAuthCxt* pCxt, SCreateVTableStmt* pStmt) {
 }
 
 static int32_t authCreateVSubTable(SAuthCxt* pCxt, SCreateVSubTableStmt* pStmt) {
-  int32_t   code = TSDB_CODE_SUCCESS;
-  SNode     *pNode = NULL;
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SNode*     pNode = NULL;
   SNodeList* pTmpList = pStmt->pSpecificColRefs ? pStmt->pSpecificColRefs : pStmt->pColRefs;
   PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, NULL, AUTH_TYPE_WRITE, NULL));
   if (NULL == pTmpList) {
@@ -305,11 +302,30 @@ static int32_t authCreateVSubTable(SAuthCxt* pCxt, SCreateVSubTableStmt* pStmt) 
   }
 
   FOREACH(pNode, pTmpList) {
-    SColumnRefNode *pColRef = (SColumnRefNode*)pNode;
+    SColumnRefNode* pColRef = (SColumnRefNode*)pNode;
     if (NULL == pColRef) {
       PAR_ERR_RET(TSDB_CODE_PAR_INVALID_COLUMN);
     }
     PAR_ERR_RET(checkAuth(pCxt, pColRef->refDbName, pColRef->refTableName, AUTH_TYPE_READ, NULL));
+  }
+  return code;
+}
+
+static int32_t authCreateStream(SAuthCxt* pCxt, SCreateStreamStmt* pStmt) {
+  int32_t   code = TSDB_CODE_SUCCESS;
+
+  if (IS_SYS_DBNAME(pStmt->streamDbName)) {
+    return TSDB_CODE_PAR_PERMISSION_DENIED;
+  }
+  if (IS_SYS_DBNAME(pStmt->targetDbName)) {
+    return TSDB_CODE_PAR_PERMISSION_DENIED;
+  }
+  if (pStmt->pTrigger) {
+    SStreamTriggerNode *pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
+    STableNode* pTriggerTable = (STableNode*)pTrigger->pTrigerTable;
+    if (pTriggerTable && IS_SYS_DBNAME(pTriggerTable->dbName)) {
+      return TSDB_CODE_PAR_PERMISSION_DENIED;
+    }
   }
   return code;
 }
@@ -414,6 +430,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authCreateVSubTable(pCxt, (SCreateVSubTableStmt*)pStmt);
     case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
       return authCreateMultiTable(pCxt, (SCreateMultiTablesStmt*)pStmt);
+    case QUERY_NODE_CREATE_STREAM_STMT:
+      return authCreateStream(pCxt, (SCreateStreamStmt*)pStmt);
     case QUERY_NODE_DROP_TABLE_STMT:
       return authDropTable(pCxt, (SDropTableStmt*)pStmt);
     case QUERY_NODE_DROP_SUPER_TABLE_STMT:

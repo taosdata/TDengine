@@ -18,12 +18,12 @@ class TestVtableAlter():
 
     @staticmethod
     def prepare_vtables():
-        tdSql.execute("drop table if exists vtb_virtual_stb;")
-        tdSql.execute("drop table if exists vtb_virtual_stb_1;")
-        tdSql.execute("drop table if exists vtb_virtual_ctb0;")
-        tdSql.execute("drop table if exists vtb_virtual_ctb_after_modified_1;")
-        tdSql.execute("drop table if exists vtb_virtual_ctb_after_modified_2;")
-        tdSql.execute("drop table if exists vtb_virtual_ntb0;")
+        tdSql.execute("drop stable if exists vtb_virtual_stb;")
+        tdSql.execute("drop stable if exists vtb_virtual_stb_1;")
+        tdSql.execute("drop vtable if exists vtb_virtual_ctb0;")
+        tdSql.execute("drop vtable if exists vtb_virtual_ctb_after_modified_1;")
+        tdSql.execute("drop vtable if exists vtb_virtual_ctb_after_modified_2;")
+        tdSql.execute("drop vtable if exists vtb_virtual_ntb0;")
         tdLog.info(f"prepare virtual super tables.")
         tdSql.execute(f"CREATE STABLE `vtb_virtual_stb` ("
                       "ts timestamp, "
@@ -207,13 +207,16 @@ class TestVtableAlter():
         self.check_col_ref(isnormal, col_name, col_ref)
 
     def test_alter_virtual_normal_table(self):
-        """test alter virtual normal tables.
+        """Alter: virtual normal table
 
         1. add column
         2. drop column
         3. change column reference
         4. change column type length
         5. change column name
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 
@@ -278,10 +281,13 @@ class TestVtableAlter():
         self.check_col(True, "u_smallint_col_rename", "SMALLINT UNSIGNED", "test_vtable_alter.vtb_org_normal_1.u_smallint_col")
 
     def test_alter_virtual_child_table(self):
-        """test alter virtual child tables.
+        """Alter: virtual child table
 
         1. change column reference
         2. change tag value
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 
@@ -317,7 +323,7 @@ class TestVtableAlter():
 
 
     def test_alter_virtual_super_table(self):
-        """test alter virtual super tables.
+        """Alter: virtual super table
 
         1. add column
         2. drop column
@@ -327,6 +333,9 @@ class TestVtableAlter():
         6. change tag name
         7. change tag length
 
+        Catalog:
+            - VirtualTable
+  
         Since: v3.3.6.0
 
         Labels: virtual, alter
@@ -389,10 +398,13 @@ class TestVtableAlter():
         tdSql.checkData(0, 0, "NCHAR(64)")
 
     def test_alter_virtual_super_table_and_create_child(self):
-        """test alter virtual super tables and create child.
+        """Alter virtual super table then create child table
 
         1. add column
         2. drop column
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 
@@ -427,12 +439,14 @@ class TestVtableAlter():
 
 
     def test_error_cases(self):
-        """test alter virtual super tables.
+        """Alter: virtual table errors
 
         1. normal table
         2. child table
         3. super table
 
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 

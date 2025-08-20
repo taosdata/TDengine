@@ -148,7 +148,7 @@ class BeforeTest:
         if request.session.restful:
             return taosrest.connect(url=f"http://{request.session.host}:6041", timezone="utc")
         else:
-            return taos.connect(host=request.session.host, port=request.session.port, config=tdDnodes.sim.cfgPath)
+            return taos.connect(host=request.session.host, config=tdDnodes.sim.cfgPath)
 
     def get_tdsql(self, conn):
         tdSql.init(conn.cursor())
@@ -202,6 +202,7 @@ class BeforeTest:
         taoskeeper_config_template = load_yaml_config(os.path.join(self.root_dir, 'env', 'taoskeeper_config.yaml'))
         servers = []
         port_base = dnode_config_template["port"] if "port" in dnode_config_template else 6030
+        yaml_data["settings"][0]["spec"]["config"]["firstEP"] = f"localhost:{port_base}"
         mqttport_base = dnode_config_template["mqttPort"] if "mqttPort" in dnode_config_template else 6083
         for i in range(request.session.denodes_num):
             dnode_cfg_path = os.path.join(work_dir, f"dnode{i+1}", "cfg")
@@ -216,7 +217,7 @@ class BeforeTest:
                         if primary == 1:
                             primary = 0
             else:
-                data_path = os.path.join(work_dir, f"dnode{i+1}", "data")
+                data_path = [os.path.join(work_dir, f"dnode{i+1}", "data")]
             dnode_config = copy.deepcopy(dnode_config_template)
             dnode_config.pop("port", None)
             dnode_config["mqttPort"] = mqttport_base + i * 100
@@ -231,8 +232,6 @@ class BeforeTest:
                 "mqttPort": dnode_config["mqttPort"],
             }
             tdLog.debug(f"[BeforeTest.ci_init_config] dnode: {dnode}")
-            if request.session.query_policy > 1:
-                dnode["config"]["queryPolicy"] = request.session.query_policy
             if request.session.independentMnode and i < request.session.mnodes_num:
                 dnode["config"]["supportVnodes"] = 0
             if request.session.asan:
@@ -252,7 +251,8 @@ class BeforeTest:
             }
             servers.append(server)
         request.session.servers = servers
-        if request.session.restful:
+        tdLog.info(f"request.session.start_taosadapter: {request.session.start_taosadapter}")
+        if request.session.start_taosadapter:
             # TODO: 增加taosAdapter的配置
             adapter_config_dir = os.path.join(work_dir, "dnode1", "cfg")
             adapter_config_file = os.path.join(adapter_config_dir, "taosadapter.toml")
@@ -271,7 +271,7 @@ class BeforeTest:
                     "config_file": adapter_config_file,
                     "adapter_config": adapter_config,
                     "taos_config": {
-                        "firstEP": "localhost:6030",
+                        "firstEP": f"localhost:{port_base}",
                         "logDir": taos_log_dir
                     },
                     "taosadapterPath": os.path.join(request.session.taos_bin_path, "taosadapter")
@@ -287,7 +287,7 @@ class BeforeTest:
             adapter["port"] = 6041
             adapter["logLevel"] = "info"
             adapter["log_path"] = adapter_log_dir
-            adapter["taos_firstEP"] = "localhost:6030"
+            adapter["taos_firstEP"] = f"localhost:{port_base}"
             adapter["taos_logDir"] = taos_log_dir
             request.session.adapter = adapter
         if request.session.set_taoskeeper:
@@ -308,7 +308,7 @@ class BeforeTest:
                     "config_file": taoskeeper_config_file,
                     "taoskeeper_config": taoskeeper_config,
                     "taos_config": {
-                        "firstEP": "localhost:6030",
+                        "firstEP": f"localhost:{port_base}",
                         "logDir": taos_log_dir
                     },
                     "taoskeeperPath": os.path.join(request.session.taos_bin_path, "taoskeeper")
@@ -356,7 +356,7 @@ class BeforeTest:
 
         # 解析settings中name=taosd的配置
         servers = []
-        request.session.restful = False
+        request.session.start_taosadapter = False
         request.session.set_taoskeeper = False
         for setting in yaml_data.get("settings", []):
             if setting.get("name") == "taosd":
@@ -376,7 +376,7 @@ class BeforeTest:
                     servers.append(server)
             if setting.get("name") == "taosAdapter":
                 # TODO: 解析taosAdapter的配置
-                request.session.restful = True
+                request.session.start_taosadapter = True
                 adapter = {}
                 adapter["host"] = setting["fqdn"][0]
                 adapter["cfg_dir"] = os.path.dirname(setting["spec"]["config_file"])
@@ -435,11 +435,11 @@ class BeforeTest:
             master_ip = request.session.host
         #logger.info(f"tdDnodes_pytest in init_dnode_cluster: {tdDnodes_pytest}")
         if dnode_nums > 1:
-            dnodes_list = cluster.configure_cluster(dnodeNums=dnode_nums, mnodeNums=mnode_nums, independentMnode=independentMnode)
-            #clusterDnodes.init(dnodes_list, request.session.work_dir, os.path.join(request.session.taos_bin_path, "taosd"), master_ip)
-            #clusterDnodes.setTestCluster(False)
-            #clusterDnodes.setValgrind(0)
-            #clusterDnodes.setAsan(request.session.asan)
+            dnodes_list = cluster.configure_cluster(dnodeNums=dnode_nums, mnodeNums=mnode_nums, independentMnode=independentMnode, hostname=request.session.host, level=level, disk=disk)
+            clusterDnodes.init(dnodes_list, request.session.work_dir, os.path.join(request.session.taos_bin_path, "taosd"), master_ip)
+            clusterDnodes.setTestCluster(False)
+            clusterDnodes.setValgrind(0)
+            clusterDnodes.setAsan(request.session.asan)
             tdDnodes.dnodes = dnodes_list #clusterDnodes.dnodes
             tdDnodes.init(request.session.work_dir, os.path.join(request.session.taos_bin_path, "taosd"), master_ip)
         else:
@@ -468,7 +468,7 @@ class BeforeTest:
             tdDnodes.dnodes[i].deployed = 1
             tdDnodes.dnodes[i].running = 1
         
-        if request.session.restful:
+        if request.session.start_taosadapter:
             tAdapter.init(request.session.work_dir, master_ip)
             tAdapter.log_dir = request.session.adapter["log_path"]
             tAdapter.cfg_dir = request.session.adapter["cfg_dir"]

@@ -362,7 +362,12 @@ void vnodeDestroy(int32_t vgId, const char *path, STfs *pTfs, int32_t nodeId) {
     // we should only do this on the leader node, but it is ok to do this on all nodes
     char prefix[TSDB_FILENAME_LEN];
     snprintf(prefix, TSDB_FILENAME_LEN, "vnode%d/", vgId);
-    tssDeleteFileByPrefixFromDefault(prefix);
+    int32_t code = tssDeleteFileByPrefixFromDefault(prefix);
+    if (code < 0) {
+      vError("vgId:%d, failed to remove vnode files from shared storage since %s", vgId, tstrerror(code));
+    } else {
+      vInfo("vgId:%d, removed vnode files from shared storage", vgId);
+    }
   }
 #endif
 }
@@ -461,6 +466,9 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   (void)taosThreadMutexInit(&pVnode->mutex, NULL);
   (void)taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
 
+  vInfo("vgId:%d, finished vnode load info %s, vnode committed:%" PRId64, info.config.vgId, dir,
+        pVnode->state.committed);
+
   int8_t rollback = vnodeShouldRollback(pVnode);
 
   // open buffer pool
@@ -485,9 +493,20 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
 
   // open tsdb
   vInfo("vgId:%d, start to open vnode tsdb", TD_VID(pVnode));
-  if (!VND_IS_RSMA(pVnode) && (terrno = tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, NULL, rollback, force)) < 0) {
+  if (!VND_IS_RSMA(pVnode) &&
+      (terrno = tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, NULL, rollback, force)) < 0) {
     vError("vgId:%d, failed to open vnode tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
+  }
+
+  if (TSDB_CACHE_RESET(pVnode->config)) {
+    // flag vnode tsdb cache
+    vInfo("vgId:%d, start to flag vnode tsdb cache", TD_VID(pVnode));
+
+    if (metaFlagCache(pVnode) < 0) {
+      vError("vgId:%d, failed to flag tsdb cache since %s", TD_VID(pVnode), tstrerror(terrno));
+      goto _err;
+    }
   }
 
   // open wal
@@ -506,14 +525,6 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   (void)tsnprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_TQ_DIR);
   ret = taosRealPath(tdir, NULL, sizeof(tdir));
   TAOS_UNUSED(ret);
-
-  // init handle map for stream event notification
-  ret = tqInitNotifyHandleMap(&pVnode->pNotifyHandleMap);
-  if (ret != TSDB_CODE_SUCCESS) {
-    vError("vgId:%d, failed to init StreamNotifyHandleMap", TD_VID(pVnode));
-    terrno = ret;
-    goto _err;
-  }
 
   // open query
   vInfo("vgId:%d, start to open vnode query", TD_VID(pVnode));
@@ -534,6 +545,23 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   vInfo("vgId:%d, start to open vnode sma", TD_VID(pVnode));
   if (smaOpen(pVnode, rollback, force)) {
     vError("vgId:%d, failed to open vnode sma since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+  // open blob store engine
+  vInfo("vgId:%d, start to open blob store engine", TD_VID(pVnode));
+  (void)tsnprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_BSE_DIR);
+
+  SBseCfg cfg = {
+      .vgId = pVnode->config.vgId,
+      .keepDays = pVnode->config.tsdbCfg.days,
+      .keeps = pVnode->config.tsdbCfg.keep0,
+      .retention = pVnode->config.tsdbCfg.retentions[0],
+      .precision = pVnode->config.tsdbCfg.precision,
+  };
+  ret = bseOpen(tdir, &cfg, &pVnode->pBse);
+  if (ret != 0) {
+    vError("vgId:%d, failed to open blob store engine since %s", TD_VID(pVnode), tstrerror(ret));
+    terrno = ret;
     goto _err;
   }
 
@@ -577,6 +605,7 @@ _err:
 }
 
 void vnodePreClose(SVnode *pVnode) {
+  streamRemoveVnodeLeader(pVnode->config.vgId);
   vnodeSyncPreClose(pVnode);
   vnodeQueryPreClose(pVnode);
 }
@@ -585,16 +614,21 @@ void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
 
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
+    vInfo("start to close vnode");
+    vnodeAWait(&pVnode->commitTask2);
     vnodeAWait(&pVnode->commitTask);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
-    tqDestroyNotifyHandleMap(&pVnode->pNotifyHandleMap);
     tqClose(pVnode->pTq);
     walClose(pVnode->pWal);
     if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
     smaClose(pVnode->pSma);
     if (pVnode->pMeta) metaClose(&pVnode->pMeta);
     vnodeCloseBufPool(pVnode);
+
+    if (pVnode->pBse) {
+      bseClose(pVnode->pBse);
+    }
 
     // destroy handle
     if (tsem_destroy(&pVnode->syncSem) != 0) {

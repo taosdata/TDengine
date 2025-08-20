@@ -17,15 +17,15 @@
 #define _XOPEN_SOURCE
 #define _DEFAULT_SOURCE
 #include "tcompare.h"
+#include "decimal.h"
+#include "osString.h"
 #include "regex.h"
 #include "tdef.h"
 #include "thash.h"
 #include "tlog.h"
+#include "ttimer.h"
 #include "tutil.h"
 #include "types.h"
-#include "osString.h"
-#include "ttimer.h"
-#include "decimal.h"
 
 int32_t setChkInBytes1(const void *pLeft, const void *pRight) {
   return NULL != taosHashGet((SHashObj *)pRight, pLeft, 1) ? 1 : 0;
@@ -59,12 +59,12 @@ int32_t setChkNotInBytes8(const void *pLeft, const void *pRight) {
   return NULL == taosHashGet((SHashObj *)pRight, pLeft, 8) ? 1 : 0;
 }
 
-int32_t setChkInDecimalHash(const void* pLeft, const void* pRight) {
+int32_t setChkInDecimalHash(const void *pLeft, const void *pRight) {
   const SDecimalCompareCtx *pCtxL = pLeft, *pCtxR = pRight;
   return NULL != taosHashGet((SHashObj *)(pCtxR->pData), pCtxL->pData, tDataTypes[pCtxL->type].bytes) ? 1 : 0;
 }
 
-int32_t setChkNotInDecimalHash(const void* pLeft, const void* pRight) {
+int32_t setChkNotInDecimalHash(const void *pLeft, const void *pRight) {
   const SDecimalCompareCtx *pCtxL = pLeft, *pCtxR = pRight;
   return NULL == taosHashGet((SHashObj *)(pCtxR->pData), pCtxL->pData, tDataTypes[pCtxL->type].bytes) ? 1 : 0;
 }
@@ -221,11 +221,11 @@ int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight) {
   int32_t len1 = varDataLen(pLeft);
   int32_t len2 = varDataLen(pRight);
 
-  int32_t ret = taosUcs4Compare((TdUcs4 *)varDataVal(pLeft), (TdUcs4 *)varDataVal(pRight), len1>len2 ? len2:len1);
+  int32_t ret = taosUcs4Compare((TdUcs4 *)varDataVal(pLeft), (TdUcs4 *)varDataVal(pRight), len1 > len2 ? len2 : len1);
   if (ret == 0) {
     if (len1 > len2)
       return 1;
-    else if(len1 < len2)
+    else if (len1 < len2)
       return -1;
     else
       return 0;
@@ -253,10 +253,25 @@ int32_t compareLenBinaryVal(const void *pLeft, const void *pRight) {
     return ret > 0 ? 1 : -1;
   }
 }
+int32_t compareBlobVal(const void *pLeft, const void *pRight) {
+  int32_t len1 = blobDataLen(pLeft);
+  int32_t len2 = blobDataLen(pRight);
 
-int32_t compareLenBinaryValDesc(const void *pLeft, const void *pRight) {
-  return compareLenBinaryVal(pRight, pLeft);
+  int32_t minLen = TMIN(len1, len2);
+  int32_t ret = memcmp(blobDataVal(pLeft), blobDataVal(pRight), minLen);
+  if (ret == 0) {
+    if (len1 == len2) {
+      return 0;
+    } else {
+      return len1 > len2 ? 1 : -1;
+    }
+  } else {
+    return ret > 0 ? 1 : -1;
+  }
 }
+
+int32_t compareLenBinaryValDesc(const void *pLeft, const void *pRight) { return compareLenBinaryVal(pRight, pLeft); }
+int32_t compareBlobValDesc(const void *pLeft, const void *pRight) { return compareBlobVal(pRight, pLeft); }
 
 // string > number > bool > null
 // ref: https://dev.mysql.com/doc/refman/8.0/en/json.html#json-comparison
@@ -340,7 +355,7 @@ int32_t compareInt8Uint16(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt8Uint32(const void *pLeft, const void *pRight) {
-  int8_t   left = GET_INT8_VAL(pLeft);
+  int8_t left = GET_INT8_VAL(pLeft);
   if (left < 0) return -1;
   uint32_t right = GET_UINT32_VAL(pRight);
   if ((uint32_t)left > right) return 1;
@@ -349,7 +364,7 @@ int32_t compareInt8Uint32(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt8Uint64(const void *pLeft, const void *pRight) {
-  int8_t   left = GET_INT8_VAL(pLeft);
+  int8_t left = GET_INT8_VAL(pLeft);
   if (left < 0) return -1;
   uint64_t right = GET_UINT64_VAL(pRight);
   if ((uint64_t)left > right) return 1;
@@ -414,7 +429,7 @@ int32_t compareInt16Uint16(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt16Uint32(const void *pLeft, const void *pRight) {
-  int16_t  left = GET_INT16_VAL(pLeft);
+  int16_t left = GET_INT16_VAL(pLeft);
   if (left < 0) return -1;
   uint32_t right = GET_UINT32_VAL(pRight);
   if ((uint32_t)left > right) return 1;
@@ -423,7 +438,7 @@ int32_t compareInt16Uint32(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt16Uint64(const void *pLeft, const void *pRight) {
-  int16_t  left = GET_INT16_VAL(pLeft);
+  int16_t left = GET_INT16_VAL(pLeft);
   if (left < 0) return -1;
   uint64_t right = GET_UINT64_VAL(pRight);
   if ((uint64_t)left > right) return 1;
@@ -488,7 +503,7 @@ int32_t compareInt32Uint16(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt32Uint32(const void *pLeft, const void *pRight) {
-  int32_t  left = GET_INT32_VAL(pLeft);
+  int32_t left = GET_INT32_VAL(pLeft);
   if (left < 0) return -1;
   uint32_t right = GET_UINT32_VAL(pRight);
   if ((uint32_t)left > right) return 1;
@@ -497,7 +512,7 @@ int32_t compareInt32Uint32(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt32Uint64(const void *pLeft, const void *pRight) {
-  int32_t  left = GET_INT32_VAL(pLeft);
+  int32_t left = GET_INT32_VAL(pLeft);
   if (left < 0) return -1;
   uint64_t right = GET_UINT64_VAL(pRight);
   if ((uint64_t)left > right) return 1;
@@ -570,7 +585,7 @@ int32_t compareInt64Uint32(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt64Uint64(const void *pLeft, const void *pRight) {
-  int64_t  left = GET_INT64_VAL(pLeft);
+  int64_t left = GET_INT64_VAL(pLeft);
   if (left < 0) return -1;
   uint64_t right = GET_UINT64_VAL(pRight);
   if ((uint64_t)left > right) return 1;
@@ -1045,41 +1060,41 @@ int32_t compareUint64Uint32(const void *pLeft, const void *pRight) {
   return 0;
 }
 
-int32_t compareDecimal64(const void* pleft, const void* pright) {
+int32_t compareDecimal64(const void *pleft, const void *pright) {
   if (decimal64Compare(OP_TYPE_GREATER_THAN, pleft, pright)) return 1;
   if (decimal64Compare(OP_TYPE_LOWER_THAN, pleft, pright)) return -1;
   return 0;
 }
 
-int32_t compareDecimal128(const void* pleft, const void* pright) {
+int32_t compareDecimal128(const void *pleft, const void *pright) {
   if (decimalCompare(OP_TYPE_GREATER_THAN, pleft, pright)) return 1;
   if (decimalCompare(OP_TYPE_LOWER_THAN, pleft, pright)) return -1;
   return 0;
 }
 
-int32_t compareDecimal64SameScale(const void* pleft, const void* pright) {
-  const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
+int32_t compareDecimal64SameScale(const void *pleft, const void *pright) {
+  const SDecimalOps *pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
   if (pOps->gt(pleft, pright, DECIMAL_WORD_NUM(Decimal64))) return 1;
   if (pOps->lt(pleft, pright, DECIMAL_WORD_NUM(Decimal64))) return -1;
   return 0;
 }
 
-int32_t compareDecimal64SameScaleDesc(const void* pLeft, const void* pRight) {
-  const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
+int32_t compareDecimal64SameScaleDesc(const void *pLeft, const void *pRight) {
+  const SDecimalOps *pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
   if (pOps->lt(pLeft, pRight, DECIMAL_WORD_NUM(Decimal64))) return 1;
   if (pOps->gt(pLeft, pRight, DECIMAL_WORD_NUM(Decimal64))) return -1;
   return 0;
 }
 
-int32_t compareDecimal128SameScale(const void* pleft, const void* pright) {
-  const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
+int32_t compareDecimal128SameScale(const void *pleft, const void *pright) {
+  const SDecimalOps *pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
   if (pOps->gt(pleft, pright, DECIMAL_WORD_NUM(Decimal))) return 1;
   if (pOps->lt(pleft, pright, DECIMAL_WORD_NUM(Decimal))) return -1;
   return 0;
 }
 
-int32_t compareDecimal128SameScaleDesc(const void* pLeft, const void* pRight) {
-  const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
+int32_t compareDecimal128SameScaleDesc(const void *pLeft, const void *pRight) {
+  const SDecimalOps *pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
   if (pOps->lt(pLeft, pRight, DECIMAL_WORD_NUM(Decimal))) return 1;
   if (pOps->gt(pLeft, pRight, DECIMAL_WORD_NUM(Decimal))) return -1;
   return 0;
@@ -1100,48 +1115,61 @@ int32_t compareJsonValDesc(const void *pLeft, const void *pRight) { return compa
 int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t ssize,
                      const SPatternCompareInfo *pInfo) {
   char c, c1;
-
   int32_t i = 0;
   int32_t j = 0;
   int32_t nMatchChar = 0;
 
   while ((i < psize) && ((c = pattern[i++]) != 0)) {
-    if (c == pInfo->matchAll) { /* Match "*" */
+    bool escaped = false;
 
+    // handle escaped characters
+    if (c == '\\' && i < psize && 
+        (pattern[i] == pInfo->matchOne || pattern[i] == pInfo->matchAll || pattern[i] == '\\')) {
+      c = pattern[i++];
+      escaped = true;
+    }
+
+    // handle matchAll wildcard '%' or '*'
+    if (!escaped && c == pInfo->matchAll) {
+      // skip continues matchAll and matchOne
       while ((i < psize) && ((c = pattern[i++]) == pInfo->matchAll || c == pInfo->matchOne)) {
         if (c == pInfo->matchOne) {
-          if (j >= ssize || str[j++] == 0) {  // empty string, return not match
+          if (j >= ssize || str[j++] == 0) {
             return TSDB_PATTERN_NOWILDCARDMATCH;
-          } else {
-            ++nMatchChar;
           }
+          ++nMatchChar;
         }
       }
 
-      if (i >= psize && (c == pInfo->umatchOne || c == pInfo->umatchAll)) {
-        return TSDB_PATTERN_MATCH; /* "*" at the end of the pattern matches */
+      // handle wildcard at the end of the pattern
+      if (i >= psize && (c == pInfo->matchOne || c == pInfo->matchAll)) {
+        return TSDB_PATTERN_MATCH;
       }
 
-      if (c == '\\' && (pattern[i] == '_' || pattern[i] == '%')) {
-        c = pattern[i];
-        i++;
+      // now c is the next character after matchAll
+      // handle escaped characters (if after wildcard)
+      if (c == '\\' && i < psize && 
+          (pattern[i] == pInfo->matchOne || pattern[i] == pInfo->matchAll || pattern[i] == '\\')) {
+        c = pattern[i++];
       }
 
       char rejectList[2] = {toupper(c), tolower(c)};
+      const char *remainStr = str + nMatchChar;
+      int32_t remainSize = ssize - nMatchChar;
 
-      str += nMatchChar;
-      int32_t remain = ssize - nMatchChar;
+      // greedily match the rest of the pattern
       while (1) {
-        size_t n = tstrncspn(str, remain, rejectList, 2);
+        // find the first occurrence of the reject character in the remaining string
+        // this segments the string for potential recursive matching
+        size_t n = tstrncspn(remainStr, remainSize, rejectList, 2);
+        remainStr += n;
+        remainSize -= n;
 
-        str += n;
-        remain -= n;
-
-        if ((remain <= 0) || str[0] == 0) {
+        if (remainSize <= 0 || remainStr[0] == 0) {
           break;
         }
 
-        int32_t ret = patternMatch(&pattern[i], psize - i, ++str, --remain, pInfo);
+        int32_t ret = patternMatch(&pattern[i], psize - i, ++remainStr, --remainSize, pInfo);
         if (ret != TSDB_PATTERN_NOMATCH) {
           return ret;
         }
@@ -1150,20 +1178,13 @@ int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t 
       return TSDB_PATTERN_NOWILDCARDMATCH;
     }
 
+    // handle normal character or matchOne wildcard '_'
     if (j < ssize) {
       c1 = str[j++];
       ++nMatchChar;
 
-      if (c == '\\' && (pattern[i] == '_' || pattern[i] == '%')) {
-        if (c1 != pattern[i]) {
-          return TSDB_PATTERN_NOMATCH;
-        } else {
-          i++;
-          continue;
-        }
-      }
-
-      if (c == c1 || tolower(c) == tolower(c1) || (c == pInfo->matchOne && c1 != 0)) {
+      if ((c == c1 || tolower(c) == tolower(c1)) || 
+          (!escaped && c == pInfo->matchOne && c1 != 0)) {
         continue;
       }
     }
@@ -1187,51 +1208,56 @@ int32_t rawStrPatternMatch(const char *str, const char *pattern) {
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
 
+// same logic with patternMatch, but for UCS4 strings
 int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, size_t ssize,
                         const SPatternCompareInfo *pInfo) {
   TdUcs4 c, c1;
-
   int32_t i = 0;
   int32_t j = 0;
   int32_t nMatchChar = 0;
 
   while ((i < psize) && ((c = pattern[i++]) != 0)) {
-    if (c == pInfo->umatchAll) { /* Match "%" */
+    bool escaped = false;
 
+    if (c == '\\' && i < psize && 
+        (pattern[i] == pInfo->umatchOne || pattern[i] == pInfo->umatchAll || pattern[i] == '\\')) {
+      c = pattern[i++];
+      escaped = true;
+    }
+
+    if (!escaped && c == pInfo->umatchAll) {
       while ((i < psize) && ((c = pattern[i++]) == pInfo->umatchAll || c == pInfo->umatchOne)) {
         if (c == pInfo->umatchOne) {
           if (j >= ssize || str[j++] == 0) {
             return TSDB_PATTERN_NOWILDCARDMATCH;
-          } else {
-            ++nMatchChar;
           }
+          ++nMatchChar;
         }
       }
 
-      if (i >= psize && (c == pInfo->umatchOne || c == pInfo->umatchAll)) {
+      if (i >= psize && (c == pInfo->matchOne || c == pInfo->matchAll)) {
         return TSDB_PATTERN_MATCH;
       }
 
-      if (c == '\\' && (pattern[i] == '_' || pattern[i] == '%')) {
-        c = pattern[i];
-        i++;
+      if (c == '\\' && i < psize && 
+          (pattern[i] == pInfo->umatchOne || pattern[i] == pInfo->umatchAll || pattern[i] == '\\')) {
+        c = pattern[i++];
       }
 
-      TdUcs4 rejectList[2] = {towupper(c), towlower(c)};
+      TdUcs4 rejectList[2] = {toupper(c), tolower(c)};
+      const TdUcs4 *remainStr = str + nMatchChar;
+      int32_t remainSize = ssize - nMatchChar;
 
-      str += nMatchChar;
-      int32_t remain = ssize - nMatchChar;
       while (1) {
-        size_t n = twcsncspn(str, remain, rejectList, 2);
+        size_t n = twcsncspn(remainStr, remainSize, rejectList, 2);
+        remainStr += n;
+        remainSize -= n;
 
-        str += n;
-        remain -= n;
-
-        if ((remain <= 0) || str[0] == 0) {
+        if (remainSize <= 0 || remainStr[0] == 0) {
           break;
         }
 
-        int32_t ret = wcsPatternMatch(&pattern[i], psize - i, ++str, --remain, pInfo);
+        int32_t ret = wcsPatternMatch(&pattern[i], psize - i, ++remainStr, --remainSize, pInfo);
         if (ret != TSDB_PATTERN_NOMATCH) {
           return ret;
         }
@@ -1242,18 +1268,10 @@ int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, 
 
     if (j < ssize) {
       c1 = str[j++];
-      nMatchChar++;
+      ++nMatchChar;
 
-      if (c == '\\' && (pattern[i] == '_' || pattern[i] == '%')) {
-        if (c1 != pattern[i]) {
-          return TSDB_PATTERN_NOMATCH;
-        } else {
-          i++;
-          continue;
-        }
-      }
-
-      if (c == c1 || towlower(c) == towlower(c1) || (c == pInfo->umatchOne && c1 != 0)) {
+      if ((c == c1 || tolower(c) == tolower(c1)) || 
+          (!escaped && c == pInfo->umatchOne && c1 != 0)) {
         continue;
       }
     }
@@ -1272,7 +1290,7 @@ typedef struct UsingRegex {
   regex_t pRegex;
   int32_t lastUsedTime;
 } UsingRegex;
-typedef UsingRegex* HashRegexPtr;
+typedef UsingRegex *HashRegexPtr;
 
 typedef struct RegexCache {
   SHashObj *regexHash;
@@ -1286,10 +1304,10 @@ static RegexCache sRegexCache;
 #define MAX_REGEX_CACHE_SIZE   20
 #define REGEX_CACHE_CLEAR_TIME 30
 
-static void checkRegexCache(void* param, void* tmrId) {
-  int32_t  code = 0;
+static void checkRegexCache(void *param, void *tmrId) {
+  int32_t code = 0;
   taosRLockLatch(&sRegexCache.mutex);
-  if(sRegexCache.exit) {
+  if (sRegexCache.exit) {
     goto _exit;
   }
   bool stopped = taosTmrReset(checkRegexCache, REGEX_CACHE_CLEAR_TIME * 1000, param, sRegexCache.regexCacheTmr, &tmrId);
@@ -1306,7 +1324,7 @@ static void checkRegexCache(void* param, void* tmrId) {
     while ((ppUsingRegex != NULL)) {
       if (taosGetTimestampSec() - (*ppUsingRegex)->lastUsedTime > REGEX_CACHE_CLEAR_TIME) {
         size_t len = 0;
-        char* key = (char*)taosHashGetKey(ppUsingRegex, &len);
+        char  *key = (char *)taosHashGetKey(ppUsingRegex, &len);
         if (TSDB_CODE_SUCCESS != taosHashRemove(sRegexCache.regexHash, key, len)) {
           uError("failed to remove regex pattern %s from cache", key);
           goto _exit;
@@ -1325,9 +1343,9 @@ void regexCacheFree(void *ppUsingRegex) {
 }
 
 int32_t InitRegexCache() {
-  #ifdef WINDOWS
-    return 0;
-  #endif
+#ifdef WINDOWS
+  return 0;
+#endif
   if (atomic_val_compare_exchange_8(&sRegexCache.inited, 0, 1) != 0) return TSDB_CODE_SUCCESS;
   sRegexCache.regexHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (sRegexCache.regexHash == NULL) {
@@ -1352,12 +1370,12 @@ int32_t InitRegexCache() {
   return TSDB_CODE_SUCCESS;
 }
 
-void DestroyRegexCache(){
-  #ifdef WINDOWS
-    return;
-  #endif
+void DestroyRegexCache() {
+#ifdef WINDOWS
+  return;
+#endif
   int32_t code = 0;
-  uInfo("[regex cache] destory regex cache");
+  uInfo("[regex cache] destroy regex cache");
   bool ret = taosTmrStopA(&sRegexCache.timer);
   if (!ret) {
     uInfo("stop regex cache timer may be failed");
@@ -1390,7 +1408,7 @@ int32_t checkRegexPattern(const char *pPattern) {
 }
 
 int32_t getRegComp(const char *pPattern, HashRegexPtr **regexRet) {
-  HashRegexPtr* ppUsingRegex = (HashRegexPtr*)taosHashAcquire(sRegexCache.regexHash, pPattern, strlen(pPattern));
+  HashRegexPtr *ppUsingRegex = (HashRegexPtr *)taosHashAcquire(sRegexCache.regexHash, pPattern, strlen(pPattern));
   if (ppUsingRegex != NULL) {
     (*ppUsingRegex)->lastUsedTime = taosGetTimestampSec();
     *regexRet = ppUsingRegex;
@@ -1436,13 +1454,11 @@ int32_t getRegComp(const char *pPattern, HashRegexPtr **regexRet) {
   return TSDB_CODE_SUCCESS;
 }
 
-void releaseRegComp(UsingRegex  **regex){
-  taosHashRelease(sRegexCache.regexHash, regex);
-}
+void releaseRegComp(UsingRegex **regex) { taosHashRelease(sRegexCache.regexHash, regex); }
 
-static threadlocal UsingRegex ** ppUsingRegex;
-static threadlocal regex_t * pRegex;
-static threadlocal char    *pOldPattern = NULL;
+static threadlocal UsingRegex **ppUsingRegex;
+static threadlocal regex_t     *pRegex;
+static threadlocal char        *pOldPattern = NULL;
 
 #ifdef WINDOWS
 static threadlocal regex_t gRegex;
@@ -1504,7 +1520,7 @@ int32_t threadGetRegComp(regex_t **regex, const char *pPattern) {
   }
 
   HashRegexPtr *ppRegex = NULL;
-  int32_t code = getRegComp(pPattern, &ppRegex);
+  int32_t       code = getRegComp(pPattern, &ppRegex);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -1533,7 +1549,7 @@ static int32_t doExecRegexMatch(const char *pString, const char *pPattern) {
   regmatch_t pmatch[1];
   ret = regexec(regex, pString, 1, pmatch, 0);
   if (ret != 0 && ret != REG_NOMATCH) {
-    terrno =  TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR; 
+    terrno = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
     (void)regerror(ret, regex, msgbuf, sizeof(msgbuf));
     uDebug("Failed to match %s with pattern %s, reason %s", pString, pPattern, msgbuf)
   }
@@ -1579,7 +1595,7 @@ int32_t comparewcsRegexMatch(const void *pString, const void *pPattern) {
   int convertLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(pPattern), len, pattern, NULL);
   if (convertLen < 0) {
     taosMemoryFree(pattern);
-    return 1; // terrno has been set
+    return 1;  // terrno has been set
   }
 
   pattern[convertLen] = 0;
@@ -1588,14 +1604,14 @@ int32_t comparewcsRegexMatch(const void *pString, const void *pPattern) {
   char *str = taosMemoryMalloc(len + 1);
   if (NULL == str) {
     taosMemoryFree(pattern);
-    return 1; // terrno has been set
+    return 1;  // terrno has been set
   }
 
   convertLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(pString), len, str, NULL);
   if (convertLen < 0) {
     taosMemoryFree(str);
     taosMemoryFree(pattern);
-    return 1; // terrno has been set
+    return 1;  // terrno has been set
   }
 
   str[convertLen] = 0;
@@ -1833,6 +1849,9 @@ __compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order) {
       return (order == TSDB_ORDER_ASC) ? compareDecimal64SameScale : compareDecimal64SameScaleDesc;
     case TSDB_DATA_TYPE_DECIMAL:
       return (order == TSDB_ORDER_ASC) ? compareDecimal128SameScale : compareDecimal128SameScaleDesc;
+    case TSDB_DATA_TYPE_BLOB:
+    case TSDB_DATA_TYPE_MEDIUMBLOB:
+      return (order == TSDB_ORDER_ASC) ? compareBlobVal : compareBlobValDesc;
     default:
       return (order == TSDB_ORDER_ASC) ? compareInt32Val : compareInt32ValDesc;
   }

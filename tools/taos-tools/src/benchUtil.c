@@ -272,7 +272,7 @@ int64_t toolsGetTimestamp(int32_t precision) {
     }
 }
 
-SBenchConn* initBenchConnImpl() {
+SBenchConn* initBenchConnImpl(char *dbName) {
     SBenchConn* conn = benchCalloc(1, sizeof(SBenchConn), true);
     char     show[256] = "\0";
     char *   host = NULL;
@@ -327,11 +327,11 @@ SBenchConn* initBenchConnImpl() {
             port = defaultPort(g_arguments->connMode, g_arguments->dsn);
         }
 
-        sprintf(show, "host:%s port:%d ", host, port);
+        sprintf(show, "host:%s port:%d dbname:%s", host, port, dbName);
     }
 
     // connect main
-    conn->taos = taos_connect(host, user, pwd, NULL, port);
+    conn->taos = taos_connect(host, user, pwd, dbName, port);
     if (conn->taos == NULL) {
         errorPrint("failed to connect %s:%d, "
                     "code: 0x%08x, reason: %s\n",
@@ -346,7 +346,9 @@ SBenchConn* initBenchConnImpl() {
     succPrint("%s connect successfully.\n", show);
 
     // check write correct connect
-    conn->ctaos = taos_connect(host, user, pwd, NULL, port);
+    if (g_arguments->check_sql) {
+        conn->ctaos = taos_connect(host, user, pwd, NULL, port);
+    }
 
     if (dsnc) {
         tmfree(dsnc);
@@ -354,12 +356,12 @@ SBenchConn* initBenchConnImpl() {
     return conn;
 }
 
-SBenchConn* initBenchConn() {
+SBenchConn* initBenchConn(char *dbName) {
 
     SBenchConn* conn = NULL;
     int32_t keep_trying = 0;
     while(1) {
-        conn = initBenchConnImpl();
+        conn = initBenchConnImpl(dbName);
         if(conn || ++keep_trying > g_arguments->keep_trying  || g_arguments->terminate) {
             break;
         }
@@ -475,6 +477,8 @@ char *convertDatatypeToString(int type) {
         case TSDB_DATA_TYPE_DECIMAL:
         case TSDB_DATA_TYPE_DECIMAL64:
             return "decimal";
+        case TSDB_DATA_TYPE_BLOB:
+            return "blob";
         default:
             break;
     }
@@ -764,6 +768,8 @@ int convertStringToDatatype(char *type, int length, void* ctx) {
             return TSDB_DATA_TYPE_DECIMAL;
         else
             return TSDB_DATA_TYPE_DECIMAL64;
+    } else if (0 == strCompareN(type, "blob", length)) {
+        return TSDB_DATA_TYPE_BLOB;
     } else {
         errorPrint("unknown data type: %s\n", type);
         exit(EXIT_FAILURE);
@@ -872,9 +878,17 @@ bool searchBArray(BArray *pArray, const char *field_name, int32_t name_len, uint
     if (pArray == NULL || field_name == NULL) {
         return false;
     }
+
     for (int i = 0; i < pArray->size; i++) {
         Field *field = benchArrayGet(pArray, i);
-        if (strlen(field->name) == name_len && strncasecmp(field->name, field_name, name_len) == 0) {
+        char * field_name_ptr = field->name;
+        int32_t field_name_len = strlen(field_name_ptr);
+        if (field_name_ptr[0] == '`' && field_name_ptr[field_name_len - 1] == '`') {
+            // remove the back quote
+            field_name_ptr++;
+            field_name_len -= 2;
+        }
+        if (field_name_len == name_len && strncasecmp(field_name_ptr, field_name, name_len) == 0) {
             if (field->type == field_type) {
                 return true;
             }
@@ -1054,13 +1068,13 @@ char* genQMark( int32_t QCnt) {
 }
 
 // get colNames , first is tbname if tbName is true
-char *genColNames(BArray *cols, bool tbName) {
+char *genColNames(BArray *cols, bool tbName, char * primaryKeyName) {
     // reserve tbname,ts and "," space
     char * buf = benchCalloc(TSDB_TABLE_NAME_LEN + 1, cols->size + 1, false);
     if (tbName) {
-        strcpy(buf, "tbname,ts");
+        snprintf(buf, TSDB_TABLE_NAME_LEN, "tbname,%s", primaryKeyName);
     } else {
-        strcpy(buf, "ts");
+        strcpy(buf, primaryKeyName);
     }
    
     for (int32_t i = 0; i < cols->size; i++) {
@@ -1215,7 +1229,7 @@ int32_t initQueryConn(qThreadInfo * pThreadInfo, int iface) {
         }
         pThreadInfo->sockfd = sockfd;
     } else {
-        pThreadInfo->conn = initBenchConn();
+        pThreadInfo->conn = initBenchConn(pThreadInfo->dbName);
         if (pThreadInfo->conn == NULL) {
             return -1;
         }
@@ -1337,7 +1351,7 @@ int killSlowQuery() {
 
 // fetch super table child name from server
 int fetchChildTableName(char *dbName, char *stbName) {
-    SBenchConn* conn = initBenchConn();
+    SBenchConn* conn = initBenchConn(dbName);
     if (conn == NULL) {
         return -1;
     }

@@ -150,7 +150,7 @@ int32_t tssDeleteFileByPrefix(SSharedStorage* ss, const char* prefix) {
     for (int i = 0; i < taosArrayGetSize(paths); i++) {
         char* p = *(char**)taosArrayGet(paths, i);
         code = tssDeleteFile(ss, p);
-        taosMemFree(p);
+        taosMemoryFree(p);
         if (code != TSDB_CODE_SUCCESS) {
             tssWarn("failed to delete file %s, code: %d", p, code);
         }
@@ -167,7 +167,7 @@ int32_t tssGetFileSize(SSharedStorage* ss, const char* path, int64_t* size) {
 
 
 
-void tssPrintDefaultConfig(SSharedStorage* ss) {
+void tssPrintDefaultConfig() {
     g_default->type->printConfig(g_default);
 }
 
@@ -280,7 +280,7 @@ int32_t tssCheckInstance(SSharedStorage* ss, uint32_t largeFileSizeInMB) {
         if (strcmp(p, path) == 0) {
             found = true;
         }
-        taosMemFree(p);
+        taosMemoryFree(p);
     }
     taosArrayDestroy(paths);
     if (!found) {
@@ -391,7 +391,7 @@ int32_t tssCheckInstance(SSharedStorage* ss, uint32_t largeFileSizeInMB) {
             printf("test file was found in the list\n");
             code = TSDB_CODE_FAILED;
         }
-        taosMemFree(p);
+        taosMemoryFree(p);
     }
     taosArrayDestroy(paths);
 

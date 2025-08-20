@@ -249,10 +249,6 @@ void taos_cleanup(void) {
   fmFuncMgtDestroy();
   qCleanupKeywordsTable();
 
-  if (TSDB_CODE_SUCCESS != cleanupTaskQueue()) {
-    tscWarn("failed to cleanup task queue");
-  }
-
 #if !defined(WINDOWS) && !defined(TD_ASTRA)
   tzCleanup();
 #endif
@@ -270,6 +266,10 @@ void taos_cleanup(void) {
   cleanupAppInfo();
   rpcCleanup();
   tscDebug("rpc cleanup");
+
+  if (TSDB_CODE_SUCCESS != cleanupTaskQueue()) {
+    tscWarn("failed to cleanup task queue");
+  }
 
   taosConvDestroy();
   DestroyRegexCache();
@@ -911,6 +911,21 @@ int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD 
         (void)memcpy(str + len, row[i], copyLen);
         len += copyLen;
       } break;
+      case TSDB_DATA_TYPE_BLOB:
+      case TSDB_DATA_TYPE_MEDIUMBLOB: {
+        void    *data = NULL;
+        uint32_t tmp = 0;
+        int32_t  charLen = blobDataLen((char *)row[i] - BLOBSTR_HEADER_SIZE);
+        if (taosAscii2Hex(row[i], charLen, &data, &tmp) < 0) {
+          break;
+        }
+
+        uint32_t copyLen = TMIN(size - len - 1, tmp);
+        (void)memcpy(str + len, data, copyLen);
+        len += copyLen;
+
+        taosMemoryFree(data);
+      } break;
 
       case TSDB_DATA_TYPE_TIMESTAMP:
         len += tsnprintf(str + len, size - len, "%" PRId64, *((int64_t *)row[i]));
@@ -1104,7 +1119,7 @@ bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
   if (IS_VAR_DATA_TYPE(pResultInfo->fields[col].type)) {
     return (pCol->offset[row] == -1);
   } else {
-    return colDataIsNull_f(pCol->nullbitmap, row);
+    return colDataIsNull_f(pCol, row);
   }
 }
 
@@ -1243,7 +1258,7 @@ int taos_is_null_by_column(TAOS_RES *res, int columnIndex, bool result[], int *r
     }
   } else {
     for (int i = 0; i < *rows; i++) {
-      if (colDataIsNull_f(pCol->nullbitmap, i)) {
+      if (colDataIsNull_f(pCol, i)) {
         result[i] = true;
       } else {
         result[i] = false;
@@ -1374,6 +1389,7 @@ int32_t cloneCatalogReq(SCatalogReq **ppTarget, SCatalogReq *pSrc) {
     pTarget->pView = taosArrayDup(pSrc->pView, NULL);
     pTarget->pTableTSMAs = taosArrayDup(pSrc->pTableTSMAs, NULL);
     pTarget->pTSMAs = taosArrayDup(pSrc->pTSMAs, NULL);
+    pTarget->pVStbRefDbs = taosArrayDup(pSrc->pVStbRefDbs, NULL);
     pTarget->qNodeRequired = pSrc->qNodeRequired;
     pTarget->dNodeRequired = pSrc->dNodeRequired;
     pTarget->svrVerRequired = pSrc->svrVerRequired;
@@ -1435,7 +1451,8 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     }
 
     if (pQuery->haveResultSet) {
-      code = setResSchemaInfo(&pRequest->body.resInfo, pQuery->pResSchema, pQuery->numOfResCols, pQuery->pResExtSchema, pRequest->isStmtBind);
+      code = setResSchemaInfo(&pRequest->body.resInfo, pQuery->pResSchema, pQuery->numOfResCols, pQuery->pResExtSchema,
+                              pRequest->stmtBindVersion > 0);
       setResPrecision(&pRequest->body.resInfo, pQuery->precision);
     }
   }
@@ -1452,7 +1469,7 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     qDestroyQuery(pRequest->pQuery);
     pRequest->pQuery = NULL;
 
-    if (NEED_CLIENT_HANDLE_ERROR(code)) {
+    if (NEED_CLIENT_HANDLE_ERROR(code) && pRequest->stmtBindVersion == 0) {
       tscDebug("req:0x%" PRIx64 ", client retry to handle the error, code:%d - %s, tryCount:%d, QID:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
       restartAsyncQuery(pRequest, code);
@@ -1591,8 +1608,7 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
                            .parseSqlParam = pWrapper,
                            .setQueryFp = setQueryRequest,
                            .timezone = pTscObj->optionInfo.timezone,
-                           .charsetCxt = pTscObj->optionInfo.charsetCxt,
-                           .streamRunHistory = pRequest->streamRunHistory};
+                           .charsetCxt = pTscObj->optionInfo.charsetCxt};
   int8_t biMode = atomic_load_8(&((STscObj *)pTscObj)->biMode);
   (*pCxt)->biMode = biMode;
   return TSDB_CODE_SUCCESS;
@@ -1660,14 +1676,20 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   }
 
   if (TSDB_CODE_SUCCESS != code) {
-    tscError("req:0x%" PRIx64 ", error happens, code:%d - %s, QID:0x%" PRIx64, pRequest->self, code, tstrerror(code),
-             pRequest->requestId);
+    if (NULL != pRequest->msgBuf && strlen(pRequest->msgBuf) > 0) {
+      tscError("req:0x%" PRIx64 ", error happens, code:%d - %s, QID:0x%" PRIx64, pRequest->self, code, pRequest->msgBuf,
+               pRequest->requestId);
+    } else {
+      tscError("req:0x%" PRIx64 ", error happens, code:%d - %s, QID:0x%" PRIx64, pRequest->self, code, tstrerror(code),
+               pRequest->requestId);
+    }
+
     destorySqlCallbackWrapper(pWrapper);
     pRequest->pWrapper = NULL;
     qDestroyQuery(pRequest->pQuery);
     pRequest->pQuery = NULL;
 
-    if (NEED_CLIENT_HANDLE_ERROR(code)) {
+    if (NEED_CLIENT_HANDLE_ERROR(code) && pRequest->stmtBindVersion == 0) {
       tscDebug("req:0x%" PRIx64 ", client retry to handle the error, code:%d - %s, tryCount:%d, QID:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
       code = refreshMeta(pRequest->pTscObj, pRequest);

@@ -386,8 +386,6 @@ int vnodeAsyncCommit(SVnode *pVnode) {
   if (NULL == pInfo) {
     TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
-
-  // prepare to commit
   code = vnodePrepareCommit(pVnode, pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -457,7 +455,8 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     code = smaCommit(pVnode->pSma, pInfo);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-
+  // blob storage engine commit
+  code = bseCommit(pVnode->pBse);
   // commit info
   code = vnodeCommitInfo(dir);
   TSDB_CHECK_CODE(code, lino, _exit);

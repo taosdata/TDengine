@@ -19,7 +19,7 @@
         <dependency>
             <groupId>com.taosdata.jdbc</groupId>
             <artifactId>taos-jdbcdriver</artifactId>
-            <version>3.6.3</version>
+            <version>3.7.2</version>
         </dependency>
         <dependency>
             <groupId>commons-cli</groupId>
@@ -30,7 +30,7 @@
         <dependency>
             <groupId>org.apache.kafka</groupId>
             <artifactId>kafka-clients</artifactId>
-            <version>3.9.0</version>
+            <version>3.9.1</version>
         </dependency>
 
         <dependency>

@@ -16,6 +16,7 @@
 #ifndef _TD_COMMON_EP_H_
 #define _TD_COMMON_EP_H_
 
+#include <stdint.h>
 #include "tcommon.h"
 #include "tcompression.h"
 #include "tmsg.h"
@@ -39,16 +40,18 @@ typedef struct SBlockOrderInfo {
 #define BitPos(_n)               ((_n) & ((1 << NBIT) - 1))
 #define CharPos(r_)              ((r_) >> NBIT)
 #define BMCharPos(bm_, r_)       ((bm_)[(r_) >> NBIT])
-#define colDataIsNull_f(bm_, r_) ((BMCharPos(bm_, r_) & (1u << (7u - BitPos(r_)))) == (1u << (7u - BitPos(r_))))
+#define colDataIsNull_f(c_, r_) (((c_)->nullbitmap && (BMIsNull((c_)->nullbitmap, r_))) || (c_)->pData == NULL)
+#define BMIsNull(bm_, r_) ((BMCharPos(bm_, r_) & (1u << (7u - BitPos(r_)))) == (1u << (7u - BitPos(r_))))
 
-#define QRY_PARAM_CHECK(_o)           \
+
+#define QRY_PARAM_CHECK(_o)          \
   do {                               \
     if ((_o) == NULL) {              \
       return TSDB_CODE_INVALID_PARA; \
     } else {                         \
       *(_o) = NULL;                  \
     }                                \
-  } while(0)
+  } while (0)
 
 #define colDataSetNull_f(bm_, r_)                    \
   do {                                               \
@@ -66,7 +69,7 @@ typedef struct SBlockOrderInfo {
     BMCharPos(bm_, r_) &= ((char)(~(1u << (7u - BitPos(r_))))); \
   } while (0)
 
-#define colDataIsNull_var(pColumnInfoData, row)  (pColumnInfoData->varmeta.offset[row] == -1)
+#define colDataIsNull_var(pColumnInfoData, row)  (pColumnInfoData->varmeta.offset[row] == -1 || pColumnInfoData->pData == NULL)
 #define colDataSetNull_var(pColumnInfoData, row) (pColumnInfoData->varmeta.offset[row] = -1)
 
 #define BitmapLen(_n) (((_n) + ((1 << NBIT) - 1)) >> NBIT)
@@ -95,7 +98,7 @@ static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData,
       return false;
     }
 
-    return colDataIsNull_f(pColumnInfoData->nullbitmap, row);
+    return colDataIsNull_f(pColumnInfoData, row);
   }
 }
 
@@ -104,7 +107,7 @@ static FORCE_INLINE bool colDataIsNull_t(const SColumnInfoData* pColumnInfoData,
   if (isVarType) {
     return colDataIsNull_var(pColumnInfoData, row);
   } else {
-    return pColumnInfoData->nullbitmap ? colDataIsNull_f(pColumnInfoData->nullbitmap, row) : false;
+    return pColumnInfoData->nullbitmap ? colDataIsNull_f(pColumnInfoData, row) : false;
   }
 }
 
@@ -129,7 +132,7 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
       return false;
     }
 
-    return colDataIsNull_f(pColumnInfoData->nullbitmap, row);
+    return colDataIsNull_f(pColumnInfoData, row);
   }
 }
 
@@ -176,7 +179,7 @@ static FORCE_INLINE void colDataSetInt32(SColumnInfoData* pColumnInfoData, uint3
 
 static FORCE_INLINE void colDataSetInt64(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, int64_t* v) {
   int32_t type = pColumnInfoData->info.type;
-  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
+  char*   p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
   taosSetPInt64Aligned((int64_t*)p, v);
 }
 
@@ -223,6 +226,7 @@ void    colDataTrim(SColumnInfoData* pColumnInfoData);
 size_t blockDataGetNumOfCols(const SSDataBlock* pBlock);
 size_t blockDataGetNumOfRows(const SSDataBlock* pBlock);
 
+void blockDataTransform(SSDataBlock* pDest, const SSDataBlock* pSrc);
 int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc);
 int32_t blockDataMergeNRows(SSDataBlock* pDest, const SSDataBlock* pSrc, int32_t srcIdx, int32_t numOfRows);
 void    blockDataShrinkNRows(SSDataBlock* pBlock, int32_t numOfRows);
@@ -268,7 +272,8 @@ void    blockDataDestroy(SSDataBlock* pBlock);
 void    blockDataFreeRes(SSDataBlock* pBlock);
 int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataBlock** pResBlock);
 int32_t createOneDataBlockWithColArray(const SSDataBlock* pDataBlock, SArray* pColArray, SSDataBlock** pResBlock);
-int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pDataBlock, const SSDataBlock* pOrgBlock, SSDataBlock** pResBlock);
+int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pDataBlock, const SSDataBlock* pOrgBlock,
+                                       SSDataBlock** pResBlock);
 int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock);
 
 int32_t blockCopyOneRow(const SSDataBlock* pDataBlock, int32_t rowIdx, SSDataBlock** pResBlock);
@@ -298,6 +303,13 @@ int32_t buildSinkDestTableName(char* parTbName, const char* stbFullName, uint64_
 int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList);
 
 int32_t copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc);
+
+int32_t calcStrBytesByType(int8_t type, char* data);
+int32_t blockGetEncodeSizeOfRows(const SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex);
+int32_t blockEncodeAsRows(const SSDataBlock* pBlock, char* data, size_t dataLen, int32_t numOfCols, int32_t startIndex,
+                          int32_t endIndex, int32_t* pLen);
+int32_t blockSpecialDecodeLaterPart(SSDataBlock* pBlock, const char* pData, int32_t tsColSlotId, TSKEY start, TSKEY end);
+int32_t getStreamBlockTS(SSDataBlock* pBlock, int32_t tsColSlotId, int32_t row, TSKEY* ts);
 
 #ifdef __cplusplus
 }

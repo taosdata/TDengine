@@ -112,6 +112,7 @@ static void freeSGroupCacheFileInfo(void* p) {
 
 static void freeSGcFileCacheCtx(SGcFileCacheCtx* pFileCtx) {
   taosHashCleanup(pFileCtx->pCacheFile);
+  pFileCtx->pCacheFile = NULL;
 }
 
 static void freeSGcVgroupCtx(void* p) {
@@ -640,8 +641,8 @@ static int32_t retrieveBlkFromBufCache(SGroupCacheOperatorInfo* pGCache, SGroupC
 static FORCE_INLINE void initGcVgroupCtx(SOperatorInfo* pOperator, SGcVgroupCtx* pVgCtx, int32_t downstreamId, int32_t vgId, SArray* pTbList) {
   pVgCtx->pTbList = pTbList;
   pVgCtx->id = vgId;
-  (void)snprintf(pVgCtx->fileCtx.baseFilename, sizeof(pVgCtx->fileCtx.baseFilename) - 1, "%s/gc_%d_%" PRIx64 "_%" PRIu64 "_%d_%d", 
-     tsTempDir, taosGetPId(), pOperator->pTaskInfo->id.queryId, pOperator->pTaskInfo->id.taskId, downstreamId, vgId);
+  (void)snprintf(pVgCtx->fileCtx.baseFilename, sizeof(pVgCtx->fileCtx.baseFilename) - 1, "%s/gc_%d_%" PRIx64 "_%" PRIu64 "_%p_%d_%d", 
+     tsTempDir, taosGetPId(), pOperator->pTaskInfo->id.queryId, pOperator->pTaskInfo->id.taskId, pOperator, downstreamId, vgId);
   pVgCtx->fileCtx.baseFilename[sizeof(pVgCtx->fileCtx.baseFilename) - 1] = 0;
 
   pVgCtx->fileCtx.baseNameLen = strlen(pVgCtx->fileCtx.baseFilename);
@@ -1453,8 +1454,8 @@ static int32_t initGroupCacheDownstreamCtx(SOperatorInfo*          pOperator) {
       return terrno;
     }
 
-    (void)snprintf(pCtx->fileCtx.baseFilename, sizeof(pCtx->fileCtx.baseFilename) - 1, "%s/gc_%d_%" PRIx64 "_%" PRIu64 "_%d", 
-      tsTempDir, taosGetPId(), pOperator->pTaskInfo->id.queryId, pOperator->pTaskInfo->id.taskId, pCtx->id);
+    (void)snprintf(pCtx->fileCtx.baseFilename, sizeof(pCtx->fileCtx.baseFilename) - 1, "%s/gc_%d_%" PRIx64 "_%" PRIu64 "_%p_%d", 
+      tsTempDir, taosGetPId(), pOperator->pTaskInfo->id.queryId, pOperator->pTaskInfo->id.taskId, pOperator, pCtx->id);
     pCtx->fileCtx.baseFilename[sizeof(pCtx->fileCtx.baseFilename) - 1] = 0;
     pCtx->fileCtx.baseNameLen = strlen(pCtx->fileCtx.baseFilename);
   }
@@ -1502,6 +1503,84 @@ static int32_t groupCacheTableCacheEnd(SOperatorInfo* pOperator, SOperatorParam*
   return TSDB_CODE_SUCCESS;
 }
 
+static void resetGroupCacheBlockCache(SGcBlkCacheInfo* pCache) {
+  taosHashClear(pCache->pDirtyBlk);
+
+  void* p = NULL;
+  while (NULL != (p = taosHashIterate(pCache->pReadBlk, p))) {
+    blockDataDeepCleanup(*(SSDataBlock**)p);
+    freeGcBlockInList(p);
+  }
+
+  taosHashClear(pCache->pReadBlk);
+
+  pCache->dirtyLock = 0;
+  pCache->pDirtyHead = NULL;
+  pCache->pDirtyTail = NULL;
+  pCache->blkCacheSize = 0;
+  pCache->writeDownstreamId = -1;
+
+  return;
+}
+
+static int32_t resetGroupCacheDownstreamCtx(SOperatorInfo* pOper) {
+  SGroupCacheOperatorInfo* pInfo = pOper->info;
+  if (NULL == pInfo->pDownstreams) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  for (int32_t i = 0; i < pInfo->downstreamNum; ++i) {
+    SGcDownstreamCtx* pCtx = &pInfo->pDownstreams[i];
+    taosArrayClear(pCtx->pNewGrpList);
+    taosHashClear(pCtx->pGrpHash);
+
+    tSimpleHashClear(pCtx->pVgTbHash);
+    if (pInfo->batchFetch) {
+      int32_t defaultVg = 0;
+      SGcVgroupCtx vgCtx = {0};
+      initGcVgroupCtx(pOper, &vgCtx, pCtx->id, defaultVg, NULL);      
+      tSimpleHashPut(pCtx->pVgTbHash, &defaultVg, sizeof(defaultVg), &vgCtx, sizeof(vgCtx));
+    }
+    
+    taosArrayClearEx(pCtx->pFreeBlock, freeGcBlockInList);
+    taosHashClear(pCtx->pSessions);
+    taosHashClear(pCtx->pWaitSessions);
+    freeSGcFileCacheCtx(&pCtx->fileCtx);
+
+    pCtx->grpLock = 0;
+    pCtx->fetchSessionId = -1;
+    pCtx->blkLock = 0;
+    pCtx->lastBlkUid = 0;
+    pCtx->pBaseBlock = NULL;
+    pCtx->fetchDone = false;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t resetGroupCacheOperState(SOperatorInfo* pOper) {
+  int32_t code = 0, lino = 0;
+  SGroupCacheOperatorInfo* pInfo = pOper->info;
+
+  pOper->status = OP_NOT_OPENED;
+
+  resetGroupCacheBlockCache(&pInfo->blkCache);
+
+  taosHashClear(pInfo->pGrpHash);
+
+  resetGroupCacheDownstreamCtx(pOper);
+
+  memset(pInfo->execInfo.pDownstreamBlkNum, 0, pOper->numOfDownstream * sizeof(int64_t));
+  
+_exit:
+
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  return code;
+}
+
 int32_t createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                      SGroupCachePhysiNode* pPhyciNode, SExecTaskInfo* pTaskInfo,
                                      SOperatorInfo** pOptrInfo) {
@@ -1516,6 +1595,7 @@ int32_t createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfD
   }
 
   pOperator->transparent = true;
+  pOperator->pPhyNode = pPhyciNode;
   
   setOperatorInfo(pOperator, "GroupCacheOperator", QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE, false, OP_NOT_OPENED, pInfo, pTaskInfo);
 
@@ -1567,6 +1647,8 @@ int32_t createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfD
   }
 
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, NULL, NULL, destroyGroupCacheOperator, optrDefaultBufFn, NULL, groupCacheGetNext, groupCacheTableCacheEnd);
+
+  setOperatorResetStateFn(pOperator, resetGroupCacheOperState);
 
   qTrace("new group cache operator, maxCacheSize:%" PRId64 ", globalGrp:%d, batchFetch:%d", pInfo->maxCacheSize, pInfo->globalGrp, pInfo->batchFetch);
 

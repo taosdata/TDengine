@@ -4,15 +4,16 @@ title: 多级存储与对象存储
 toc_max_heading_level: 4
 ---
 
-本节介绍 TDengine Enterprise 特有的多级存储功能，其作用是将较近的热度较高的数据存储在高速介质上，而时间久远热度很低的数据存储在低成本介质上，达成了以下目标：
+本节介绍 TDengine TSDB Enterprise 特有的多级存储功能，其作用是将较近的热度较高的数据存储在高速介质上，而时间久远热度很低的数据存储在低成本介质上，达成了以下目标：
+
 - **降低存储成本**：将数据分级存储后，海量极冷数据存入廉价存储介质带来显著经济性
 - **提升写入性能**：得益于每级存储可支持多个挂载点，WAL 预写日志也支持 0 级的多挂载点并行写入，极大提升写入性能（实际场景测得支持持续写入每秒 3 亿测点以上），在机械硬盘上可获得极高磁盘 IO 吞吐（实测可达 2GB/s）
 - **方便维护**：配置好各级存储挂载点后，系统数据迁移等工作，无需人工干预；存储扩容更灵活、方便
 - **对 SQL 透明**：无论查询的数据是否跨级，一条 SQL 可返回所有数据，简单高效
 
-多级存储所涉及的各层存储介质都是本地存储设备。除了本地存储设备之外，TDengine Enterprise 还支持使用对象存储，将最冷的一批数据保存在最廉价的介质上，以进一步降低存储成本，并在必要时仍然可以进行查询，且数据存储在哪里也对 SQL 透明。
+多级存储所涉及的各层存储介质都是本地存储设备。除了本地存储设备之外，TDengine TSDB Enterprise 还支持使用对象存储，将最冷的一批数据保存在最廉价的介质上，以进一步降低存储成本，并在必要时仍然可以进行查询，且数据存储在哪里也对 SQL 透明。
 
-由于大多数对象存储本身已经是多副本，如果 TDengine 在其基础上再叠加一个多副本，无疑将会浪费大量的存储资源并增加存储成本，所以，TDengine 进一步将对象存储优化为了共享存储，共享存储中的数据在逻辑上只有一份，并在 TDengine 集群节点之间共享。
+由于大多数对象存储本身已经是多副本，如果 TDengine TSDB 在其基础上再叠加一个多副本，无疑将会浪费大量的存储资源并增加存储成本，所以，TDengine TSDB 进一步将对象存储优化为了共享存储，共享存储中的数据在逻辑上只有一份，并在 TDengine TSDB 集群节点之间共享。
 
 共享存储在 3.3.7.0 版本中首次发布，它是对 3.3.0.0 版本开始支持的对象存储（S3）功能的增强。但需要注意，二者并不兼容，如果已经使用了之前版本的对象存储功能，升级到 3.3.7.0 时需要进行一些手工处理。
 
@@ -24,7 +25,8 @@ toc_max_heading_level: 4
 
 **Tips** 典型的配置方案有：0 级配置多个挂载点，每个挂载点对应单块 SAS 硬盘；1 级配置多个挂载点，每个挂载点对应单块或多块 SATA 硬盘；2 级可配置 S3 存储或其他廉价网络存储。
 
-TDengine 多级存储配置方式如下（在配置文件/etc/taos/taos.cfg 中）：
+TDengine TSDB 多级存储配置方式如下（在配置文件/etc/taos/taos.cfg 中）：
+
 ```shell
 dataDir [path] <level> <primary>
 ```
@@ -44,7 +46,8 @@ dataDir /mnt/data5 2 0
 dataDir /mnt/data6 2 0
 ```
 
-**注意** 
+**注意**
+
 1. 多级存储不允许跨级配置，合法的配置方案有：仅 0 级、仅 0 级 + 1 级、以及 0 级 + 1 级 + 2 级。而不允许只配置 level=0 和 level=2，而不配置 level=1。
 2. 禁止手动移除使用中的挂载盘，挂载盘目前不支持非本地的网络盘。
 
@@ -52,56 +55,75 @@ dataDir /mnt/data6 2 0
 
 在多级存储中，有且只有一个主挂载点，主挂载点承担了系统中最重要的元数据存储，同时各个 vnode 的主目录均存在于当前 dnode 主挂载点上，从而导致该 dnode 的写入性能受限于单个磁盘的 IO 吞吐能力。
 
-从 TDengine 3.1.0.0 开始，如果一个 dnode 配置了多个 0 级挂载点，我们将该 dnode 上所有 vnode 的主目录均衡分布在所有的 0 级挂载点上，由这些 0 级挂载点共同承担写入负荷。
+从 TDengine TSDB 3.1.0.0 开始，如果一个 dnode 配置了多个 0 级挂载点，我们将该 dnode 上所有 vnode 的主目录均衡分布在所有的 0 级挂载点上，由这些 0 级挂载点共同承担写入负荷。
 
 在网络 I/O 及其它处理资源不成为瓶颈的情况下，通过优化集群配置，测试结果证明整个系统的写入能力和 0 级挂载点的数量呈现线性关系，即随着 0 级挂载点数量的增加，整个系统的写入能力也成倍增加。
 
 ### 同级挂载点选择策略
 
-一般情况下，当 TDengine 要从同级挂载点中选择一个用于生成新的数据文件时，采用 round robin 策略进行选择。但现实中有可能每个磁盘的容量不相同，或者容量相同但写入的数据量不相同，这就导致会出现每个磁盘上的可用空间不均衡，在实际进行选择时有可能会选择到一个剩余空间已经很小的磁盘。
+一般情况下，当 TDengine TSDB 要从同级挂载点中选择一个用于生成新的数据文件时，采用 round robin 策略进行选择。但现实中有可能每个磁盘的容量不相同，或者容量相同但写入的数据量不相同，这就导致会出现每个磁盘上的可用空间不均衡，在实际进行选择时有可能会选择到一个剩余空间已经很小的磁盘。
 
 为了解决这个问题，从 3.1.1.0 开始引入了一个新的配置 minDiskFreeSize，当某块磁盘上的可用空间小于等于这个阈值时，该磁盘将不再被选择用于生成新的数据文件。该配置项的单位为字节，若配置值大于 2GB，则会跳过可用空间小于 2GB 的挂载点。
 
 从 3.3.2.0 版本开始，引入了一个新的配置 disable_create_new_file，用于控制在某个挂载点上禁止生成新文件，其缺省值为 false，即每个挂载点上默认都可以生成新文件。
 
-
 ## 共享存储
 
-本节介绍在 TDengine Enterprise 版本中如何使用共享存储功能，如 Amazon S3、Azure Blob Storage、华为 OBS、腾讯云 COS、阿里云 OSS、MinIO 等对象存储服务。
+本节介绍在 TDengine TSDB Enterprise 版本中如何使用共享存储功能，TDengine 支持使用 Amazon S3、Azure Blob Storage、华为 OBS、腾讯云 COS、阿里云 OSS、MinIO 等对象存储服务或挂载到本地的 NAS、SAN 等作为共享存储设备。
 
 **注意** 在配合多级存储使用时，每一级存储介质上保存的数据都有可能被按规则备份到远程共享存储中并删除本地数据文件。
 
-### S3 对象存储
-
-本功能基于通用 S3 SDK 实现，对各个 S3 兼容平台的访问参数进行了兼容适配，通过适当的参数配置，可以把大部分较冷的时序数据存储到 S3 兼容服务中。
-
-#### 配置方式
-
-在配置文件 /etc/taos/taos.cfg 中，添加用于 S3 访问的参数：
+共享存储相关的配置参数保存在 /etc/taos/taos.cfg 中，如下表所示：
 
 | 参数名称 | 参数含义 |
 |:---------------------|:-----------------------------------------------|
 | ssEnabled            | 是否启用共享存储，默认值为 0，表示禁用共享存储。<br/>1 表示启用共享存储，但仅支持数据的手动迁移。<br/>2 表示启用共享存储且支持自动迁移。|
-| ssAccessString       | 一个包含各种共享存储访问选项的字符串，格式为 `<device-type>:<option-name>=<option-value>;<option-name>=<option-value>;...`<br/>当前版本仅支持 S3 兼容的对象存储服务，下表列出了具体选项的详细信息。|
+| ssAccessString       | 一个包含各种共享存储访问选项的字符串，格式为 `<device-type>:<option-name>=<option-value>;<option-name>=<option-value>;...`<br/>根据存储设备的不同，此参数的具体选项与存储设备类型相关，下一节会分别详细说明。|
 | ssUploadDelaySec     | data 文件持续多长时间不再变动后上传至共享存储，单位：秒。<br/>最小值：1；最大值：2592000（30 天），默认值 60 秒。|
 | ssPageCacheSize      | 共享存储 page cache 缓存页数目，单位：页。<br/>最小值：4；最大值：1024*1024*1024。 ，默认值 4096。|
 | ssAutoMigrateIntervalSec | 本地数据文件自动上传共享存储的触发周期，单位为秒。<br/>最小值：600；最大值：100000。默认值 3600。|
 
-`ssAccessString` 针对 S3 兼容的对象存储的选项如下：
+### 存储设备的连接参数
+
+配置参数 `ssAccessString` 中可使用的选项与具体存储设备类型相关。 
+
+#### S3 对象存储
+
+本功能基于通用 S3 SDK 实现，对各个 S3 兼容平台的访问参数进行了兼容适配，通过适当的参数配置，可以支持大部分 S3 兼容服务。
+
+当使用 S3 兼容服务作为存储设备时，`ssAccessString` 中的 `device-type` 必须是 `s3`，可以使用的选项如下：
+
+| 名称            |   含义 |
+| ----------------|----------------------------------------------|
+| endpoint        | 对象存储服务的机器名或 IP 地址，可以包含可选的端口号。|
+| bucket          | 存储桶的名字。|
+| protocol        | `https` 或 `http`，默认是 `https`。|
+| uriStyle        | `virtualHost` 或 `path`，默认是 `virtualHost`。注意，部分对象存储仅支持其中之一。|
+| region          | 对象存储服务所在区域，此参数可选。|
+| accessKeyId     | 用于访问对象存储的 `access key id`。|
+| secretAccessKey | 上述 `access key id` 对应的密钥。|
+| chunkSize       | 以 MB 为单位的数据片大小，默认值是 64，超过此大小的文件，将使用 multipart 方式上传。|
+| maxChunks       | 单个数据文件的最大分片数量，默认值为 10000。|
+| maxRetry        | 访问对象存储时出现可重试错误时的最大重试次数，默认值是 3，负值表示一直重试直到成功为止。|
+例如：
+
+```
+ssAccessString s3:endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protocol=https;accessKeyId=AKMYACCESSKEY;secretAccessKey=MYSECRETACCESSKEY;region=us-east-2;chunkSize=64;maxChunks=10000;maxRetry=3
+```
+
+#### 挂载到本地的存储设备
+
+对 TDengine 来说，网络存储设备挂载到本地后等同于本地磁盘，当使用此类设备作为共享存储时，`ssAccessString` 的 `device-type` 必须是 `fs`，可以使用的选项如下：
 
 | 名称            |   含义 | 
 | ----------------|----------------------------------------------| 
-| endpoint        | 对象存储服务的机器名或 IP 地址，可以包含可选的端口号。| 
-| bucket          | 存储桶的名字。| 
-| protocol        | `https` 或 `http`，默认是 `https`。| 
-| uriStyle        | `virtualHost` 或 `path`，默认是 `virtualHost`。注意，部分对象存储仅支持其中之一。| 
-| region          | 对象存储服务所在区域，此参数可选。| 
-| accessKeyId     | 用于访问对象存储的 `access key id`。|               
-| secretAccessKey | 上述 `access key id` 对应的密钥。| 
-| chunkSize       | 以 MB 为单位的数据片大小，默认值是 64，超过此大小的文件，将使用 multipart 方式上传。| 
-| maxChunks       | 单个数据文件的最大分片数量，默认值为 10000。| 
-| maxRetry        | 访问对象存储时出现可重试错误时的最大重试次数，默认值是 3，负值表示一直重试直到成功为止。| 
+| baseDir         | 一个路径，TDengine 将使用其对应的目录作为共享存储。| 
 
+例如：
+
+```
+ssAccessString fs:baseDir=/var/taos/ss
+```
 
 #### 检查配置参数可用性
 
@@ -113,9 +135,9 @@ taosd --checkss
 
 如果配置的共享存储服务无法访问，此命令会在运行过程中输出相应的错误信息。
 
-#### 创建使用共享存储的 DB
+### 创建使用共享存储的数据库
 
-完成配置后，即可启动 TDengine 集群，创建使用共享存储的数据库，比如：
+完成配置后，即可启动 TDengine TSDB 集群，创建使用共享存储的数据库，比如：
 
 ```sql
 create database demo_db duration 1d ss_keeplocal 3d;
@@ -175,11 +197,11 @@ ssmigrate database <db_name>;
 
 ### Azure Blob 存储
 
-共享存储对 Azure Blob 的支持将在后续版本提供，如果已经在 TDengine 3.3.7.0 之前的版本中使用了 Azure Blob，请暂缓升级。
+共享存储对 Azure Blob 的支持将在后续版本提供，如果已经在 TDengine TSDB 3.3.7.0 之前的版本中使用了 Azure Blob，请暂缓升级。
 
 <!--
 
-本节介绍在 TDengine Enterprise 版本中如何使用微软 Azure Blob 存储。本功能可以通过两个方式使用：利用 Flexify 服务提供的 S3 网关功能和不依赖 Flexify 服务。通过配置参数，可以把大部分较冷的时序数据存储到 Azure Blob 服务中。
+本节介绍在 TDengine TSDB Enterprise 版本中如何使用微软 Azure Blob 存储。本功能可以通过两个方式使用：利用 Flexify 服务提供的 S3 网关功能和不依赖 Flexify 服务。通过配置参数，可以把大部分较冷的时序数据存储到 Azure Blob 服务中。
 
 #### Flexify 服务
 Flexify 是 Azure Marketplace 中的一款应用程序，允许兼容 S3 的应用程序通过标准 S3 API 在 Azure Blob Storage 中存储数据。可使用多个 Flexify 服务对同一个 Blob 存储建立多个 S3 网关。

@@ -2,10 +2,10 @@
 title: REST API
 sidebar_label: REST API
 toc_max_heading_level: 4
-description: 详细介绍 TDengine 提供的 RESTful API.
+description: 详细介绍 TDengine TSDB 提供的 RESTful API.
 ---
 
-为支持各种不同类型平台的开发，TDengine 提供符合 RESTful 设计标准的 API，即 REST API。为最大程度降低学习成本，不同于其他数据库 REST API 的设计方法，TDengine 直接通过 HTTP POST 请求 BODY 中包含的 SQL 语句来操作数据库，仅需要一个 URL。REST API 的使用参见 [视频教程](https://www.taosdata.com/blog/2020/11/11/1965.html)。
+为支持各种不同类型平台的开发，TDengine TSDB 提供符合 RESTful 设计标准的 API，即 REST API。为最大程度降低学习成本，不同于其他数据库 REST API 的设计方法，TDengine 直接通过 HTTP POST 请求 BODY 中包含的 SQL 语句来操作数据库，仅需要一个 URL。REST API 的使用参见 [视频教程](https://www.taosdata.com/blog/2020/11/11/1965.html)。
 
 :::note
 与原生连接器的一个区别是，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，所有对表名、超级表名的引用都需要指定数据库名前缀。支持在 RESTful URL 中指定 db_name，这时如果 SQL 语句中没有指定数据库名前缀的话，会使用 URL 中指定的这个 db_name。
@@ -13,15 +13,15 @@ description: 详细介绍 TDengine 提供的 RESTful API.
 
 ## 安装
 
-RESTful 接口不依赖于任何 TDengine 的库，因此客户端不需要安装任何 TDengine 的库，只要客户端的开发语言支持 HTTP 协议即可。TDengine 的 RESTful API 由 [taosAdapter](../../components/taosadapter) 提供，在使用 RESTful API 之前需要确保 `taosAdapter` 正常运行。
+RESTful 接口不依赖于任何 TDengine TSDB 的库，因此客户端不需要安装任何 TDengine TSDB 的库，只要客户端的开发语言支持 HTTP 协议即可。TDengine TSDB 的 RESTful API 由 [taosAdapter](../../components/taosadapter) 提供，在使用 RESTful API 之前需要确保 `taosAdapter` 正常运行。
 
 ## 验证
 
-在已经安装 TDengine 服务器端的情况下，可以按照如下方式进行验证。
+在已经安装 TDengine TSDB 服务器端的情况下，可以按照如下方式进行验证。
 
 下面以 Ubuntu 环境中使用 `curl` 工具（请确认已经安装）来验证 RESTful 接口是否工作正常，验证前请确认 taosAdapter 服务已开启，在 Linux 系统上此服务默认由 systemd 管理，使用命令 `systemctl start taosadapter` 启动。
 
-下面示例是列出所有的数据库，请把 h1.taosdata.com 和 6041（缺省值）替换为实际运行的 TDengine 服务 FQDN 和端口号：
+下面示例是列出所有的数据库，请把 h1.taosdata.com 和 6041（缺省值）替换为实际运行的 TDengine TSDB 服务 FQDN 和端口号：
 
 ```bash
 curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" \
@@ -84,7 +84,7 @@ http://<fqdn>:<port>/rest/sql/[db_name][?tz=timezone[&req_id=req_id][&row_with_m
 
 例如：`http://h1.taos.com:6041/rest/sql/test` 是指向地址为 `h1.taos.com:6041` 的 URL，并将默认使用的数据库库名设置为 `test`。
 
-HTTP 请求的 Header 里需带有身份认证信息，TDengine 支持 Basic 认证与自定义认证两种机制，后续版本将提供标准安全的数字签名机制来做身份验证。
+HTTP 请求的 Header 里需带有身份认证信息，TDengine TSDB 支持 Basic 认证与自定义认证两种机制，后续版本将提供标准安全的数字签名机制来做身份验证。
 
 - [自定义身份认证信息](#自定义授权码)如下所示：
 
@@ -118,7 +118,7 @@ curl -L -u username:password -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name][?tz=timez
 
 ### HTTP 响应码
 
-默认情况下，`taosAdapter` 对大多数 C 接口调用出错时也会返回 200 响应码，但是 HTTP body 中包含错误信息。从 `TDengine 3.0.3.0` 开始 `taosAdapter` 提供配置参数 `httpCodeServerError` 用来设置当 C 接口返回错误时是否返回非 200 的 HTTP 响应码。无论是否设置此参数，响应 body 里都有详细的错误码和错误信息，具体请参考 [错误](../rest-api/#错误) 。
+默认情况下，`taosAdapter` 对大多数 C 接口调用出错时也会返回 200 响应码，但是 HTTP body 中包含错误信息。从 `TDengine TSDB 3.0.3.0` 开始 `taosAdapter` 提供配置参数 `httpCodeServerError` 用来设置当 C 接口返回错误时是否返回非 200 的 HTTP 响应码。无论是否设置此参数，响应 body 里都有详细的错误码和错误信息，具体请参考 [错误](../rest-api/#错误) 。
 
 **当 httpCodeServerError 为 false 时：**
 
@@ -275,16 +275,19 @@ C 接口网络不可用相关错误码：
 - "JSON"
 - "VARBINARY"
 - "GEOMETRY"
+- "DECIMAL(precision, scale)"
+- "BLOB"
 
-`VARBINARY` 和 `GEOMETRY` 类型返回数据为 Hex 字符串，样例：
+DECIMAL 类型的 precision 是指最大支持的有效数字个数，scale 是指最大支持的小数位数，例如 `DECIMAL(8, 4)` 可表示范围即 [-9999.9999, 9999.9999]。
+
+`VARBINARY` 、 `GEOMETRY` 和 `BLOB` 类型返回数据为 Hex 字符串，样例：
 
 准备数据
 
 ```bash
-create database demo
-use demo
-create table t(ts timestamp,c1 varbinary(20),c2 geometry(100))
-insert into t values(now,'\x7f8290','point(100 100)')
+create database demo;
+create table demo.t(ts timestamp,c1 varbinary(20),c2 geometry(100),c3 blob);
+insert into demo.t values(now,'\x7f8290','point(100 100)','\x010203ddff');
 ```
 
 执行查询
@@ -316,13 +319,19 @@ curl --location 'http://<fqdn>:<port>/rest/sql' \
             "c2",
             "GEOMETRY",
             100
+        ],
+        [
+            "c3",
+            "BLOB",
+            4194304
         ]
     ],
     "data": [
         [
-            "2023-11-01T06:28:15.210Z",
+            "2025-07-22T05:58:41.798Z",
             "7f8290",
-            "010100000000000000000059400000000000005940"
+            "010100000000000000000059400000000000005940",
+            "010203ddff"
         ]
     ],
     "rows": 1
@@ -433,7 +442,7 @@ HTTP 请求中需要带有授权码 `<TOKEN>`，用于身份识别。授权码�
 curl http://<fqnd>:<port>/rest/login/<username>/<password>
 ```
 
-其中，`fqdn` 是 TDengine 数据库的 FQDN 或 IP 地址，`port` 是 TDengine 服务的端口号，`username` 为数据库用户名，`password` 为数据库密码，返回值为 JSON 格式，各字段含义如下：
+其中，`fqdn` 是 TDengine TSDB 数据库的 FQDN 或 IP 地址，`port` 是 TDengine TSDB 服务的端口号，`username` 为数据库用户名，`password` 为数据库密码，返回值为 JSON 格式，各字段含义如下：
 
 - code：返回值代码。
 - desc：授权码。
@@ -535,11 +544,11 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
   }
   ```
 
-## TDengine 2.x 和 3.0 之间 REST API 的差异
+## TDengine TSDB 2.x 和 3.0 之间 REST API 的差异
 
 ### URI
 
-| URI                  | TDengine 2.x         | TDengine 3.0                                         |
+| URI                  | TDengine TSDB 2.x         | TDengine TSDB 3.0                                         |
 | :--------------------| :------------------: | :--------------------------------------------------: |
 | /rest/sql            | 支持                 | 支持（响应代码和消息体不同）                        |
 | /rest/sqlt           | 支持                 | 不再支持                                             |
@@ -548,7 +557,7 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
 
 ### HTTP code
 
-| HTTP code            | TDengine 2.x         | TDengine 3.0 | 备注                                  |
+| HTTP code            | TDengine TSDB 2.x         | TDengine TSDB 3.0 | 备注                                  |
 | :--------------------| :------------------: | :----------: | :-----------------------------------: |
 | 200                  | 支持                 | 支持         | 正确返回和 taosc 接口错误返回         |
 | 400                  | 不支持               | 支持         | 参数错误返回                          |
@@ -560,7 +569,7 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
 
 ### 响应代码和消息体
 
-#### TDengine 2.x 响应代码和消息体
+#### TDengine TSDB 2.x 响应代码和消息体
 
 ```JSON
 {
@@ -623,7 +632,7 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
     ],
 ```
 
-#### TDengine 3.0 响应代码和消息体
+#### TDengine TSDB 3.0 响应代码和消息体
 
 
 ```JSON

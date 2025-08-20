@@ -1,14 +1,14 @@
 ---
 toc_max_heading_level: 4
 sidebar_label: Node.js
-title: TDengine Node.js Connector
+title: TDengine TSDB Node.js Connector
 ---
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import RequestId from "./_request_id.mdx";
 
-`@tdengine/websocket` 是 TDengine 的官方 Node.js 语言连接器。Node.js 开发人员可以通过它开发存取 TDengine 数据库的应用软件。
+`@tdengine/websocket` 是 TDengine TSDB 的官方 Node.js 语言连接器。Node.js 开发人员可以通过它开发存取 TDengine TSDB 数据库的应用软件。
 Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-connector-node/tree/main)。
 
 ## Node.js 版本兼容性
@@ -22,8 +22,9 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 
 ## 版本历史
 
-| Node.js 连接器 版本 |          主要变化         |   TDengine 版本    |
+| Node.js 连接器 版本 |          主要变化         |   TDengine TSDB 版本    |
 | ------------------| ----------------------| ----------------|
+|        3.1.9       | 修复 WebSocket 连接的时区设置问题 | - | 
 |        3.1.8       | 修复当网络异常时，连接池返回的连接不可用 | - | 
 |        3.1.7       | 修复云服务 TMQ 连接参数问题 | - | 
 |        3.1.6       | 1. 检测连接器是否支持数据库的版本 <br/> 2. 连接器支持新增订阅参数 | - |  
@@ -38,7 +39,7 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 
 在调用连接器 api 报错后，通过 try catch 可以获取到错误的信息和错误码。
 
-错误说明：Node.js 连接器错误码在 100 到 110 之间，之外的错误为 TDengine 其他功能模块的报错。
+错误说明：Node.js 连接器错误码在 100 到 110 之间，之外的错误为 TDengine TSDB 其他功能模块的报错。
 
 具体的连接器错误码请参考：
 
@@ -51,20 +52,20 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 | 104     | connection creation failed                                      | 连接创建失败，请检查网络是否正常。                           |
 | 105     | websocket request timeout                                       | 请求超时                                          |
 | 106     | authentication fail                                             | 认证失败，请检查用户名，密码是否正确。                                 |
-| 107     | unknown sql type in tdengine                                    | 请检查 TDengine 支持的 Data Type 类型。                                 |
+| 107     | unknown sql type in tdengine                                    | 请检查 TDengine TSDB 支持的 Data Type 类型。                                 |
 | 108     | connection has been closed                                      | 连接已经关闭，请检查 Connection 是否关闭后再次使用，或是连接是否正常。  |
 | 109     | fetch block data parse fail                                     | 获取到的查询数据，解析失败。                    |
 | 110     | websocket connection has reached its maximum limit              | WebSocket 连接达到上限。                                                   |
 | 111     | topic partitions and positions are not equal in length          | 获取给定分区当前的偏移量的数据与主题分区不匹配。    |
-| 112     | version mismatch. The minimum required TDengine version is 3.3.2.0 | TDengine 的版本低于 3.3.2.0 连接器不支持，用户需要升级到 3.3.2.0 以上版本。    |
-- [TDengine Node.js Connector Error Code](https://github.com/taosdata/taos-connector-node/blob/main/nodejs/src/common/wsError.ts)
-- TDengine 其他功能模块的报错，请参考 [错误码](../../../reference/error-code)    
+| 112     | version mismatch. The minimum required TDengine TSDB version is 3.3.2.0 | TDengine TSDB 的版本低于 3.3.2.0 连接器不支持，用户需要升级到 3.3.2.0 以上版本。    |
+- [TDengine TSDB Node.js Connector Error Code](https://github.com/taosdata/taos-connector-node/blob/main/nodejs/src/common/wsError.ts)
+- TDengine TSDB 其他功能模块的报错，请参考 [错误码](../../../reference/error-code)    
 
 ## 数据类型映射
 
-下表为 TDengine DataType 和 Node.js DataType 之间的映射关系
+下表为 TDengine TSDB DataType 和 Node.js DataType 之间的映射关系
 
-| TDengine DataType | Node.js DataType|
+| TDengine TSDB DataType | Node.js DataType|
 |-------------------|-------------|
 | TIMESTAMP         | bigint      |
 | TINYINT           | number      |
@@ -109,11 +110,11 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 
 1. "Unable to establish connection" 或 "Unable to resolve FQDN"
 
-   **原因**：一般都是因为配置 FQDN 不正确。可以参考[如何彻底搞懂 TDengine 的 FQDN](https://www.taosdata.com/blog/2021/07/29/2741.html) 。
+   **原因**：一般都是因为配置 FQDN 不正确。可以参考[如何彻底搞懂 TDengine TSDB 的 FQDN](https://www.taosdata.com/blog/2021/07/29/2741.html) 。
 
 ## API 参考
 
-Node.js 连接器（`@tdengine/websocket`）, 其通过 taosAdapter 提供的 WebSocket 接口连接 TDengine 实例。
+Node.js 连接器（`@tdengine/websocket`）, 其通过 taosAdapter 提供的 WebSocket 接口连接 TDengine TSDB 实例。
 
 ### URL 规范
 

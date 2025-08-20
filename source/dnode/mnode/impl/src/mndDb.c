@@ -897,7 +897,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
     pNewUserDuped = &newUserObj;
   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "create-db");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq, "create-db");
   if (pTrans == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
@@ -1707,32 +1707,6 @@ static int32_t mndBuildDropDbRsp(SDbObj *pDb, int32_t *pRspLen, void **ppRsp, bo
   TAOS_RETURN(code);
 }
 
-int32_t mndRemoveAllStbUser(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
-  int32_t code = -1;
-  void   *pIter = NULL;
-  while (1) {
-    SStbObj   *pStb = NULL;
-    ESdbStatus status;
-    pIter = sdbFetchAll(pMnode->pSdb, SDB_STB, pIter, (void **)&pStb, &status, true);
-    if (pIter == NULL) break;
-
-    if (pStb->dbUid == pDb->uid) {
-      if ((code = mndUserRemoveStb(pMnode, pTrans, pStb->name)) != 0) {
-        sdbCancelFetch(pMnode->pSdb, pIter);
-        sdbRelease(pMnode->pSdb, pStb);
-        return code;
-      }
-    }
-
-    sdbRelease(pMnode->pSdb, pStb);
-  }
-
-  code = 0;
-
-_OVER:
-  return code;
-}
-
 static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   int32_t code = -1;
 
@@ -1759,12 +1733,11 @@ static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
 #ifdef TD_ENTERPRISE
   TAOS_CHECK_GOTO(mndDropViewByDb(pMnode, pTrans, pDb), NULL, _OVER);
 #endif
-  TAOS_CHECK_GOTO(mndDropSmasByDb(pMnode, pTrans, pDb), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDropTSMAsByDb(pMnode, pTrans, pDb), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDropIdxsByDb(pMnode, pTrans, pDb), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndStreamSetStopStreamTasksActions(pMnode, pTrans, pDb->uid), NULL, _OVER);
+  //TAOS_CHECK_GOTO(mndStreamSetStopStreamTasksActions(pMnode, pTrans, pDb->uid), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetDropDbRedoActions(pMnode, pTrans, pDb), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndUserRemoveDb(pMnode, pTrans, pDb->name), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndRemoveAllStbUser(pMnode, pTrans, pDb), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndUserRemoveDb(pMnode, pTrans, pDb, NULL), NULL, _OVER);
 
   int32_t rspLen = 0;
   void   *pRsp = NULL;
@@ -1833,6 +1806,21 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
     }
 
     sdbRelease(pSdb, pVgroup);
+  }
+
+  bool dbStream = false;
+  bool vtableStream = false;
+  mstCheckDbInUse(pMnode, dropReq.db, &dbStream, &vtableStream, true);
+  if (dbStream) {
+    code = TSDB_CODE_MND_STREAM_DB_IN_USE;
+    mError("db:%s used by streams, drop db not allowed", dropReq.db);
+    goto _OVER;
+  }
+
+  if (vtableStream && !dropReq.force) {
+    code = TSDB_CODE_MND_STREAM_VTABLE_EXITS;
+    mError("db:%s, vtable stream exists, drop db not allowed", dropReq.db);
+    goto _OVER;
   }
 
   code = mndDropDb(pMnode, pReq, pDb);

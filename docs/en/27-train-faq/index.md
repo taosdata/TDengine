@@ -44,7 +44,7 @@ If the client encounters a connection failure, please follow the steps below to 
 - Local virtual machine: Check if the network can ping through, try to avoid using `localhost` as the hostname
 - Company server: If it is a NAT network environment, be sure to check if the server can return messages to the client
 
-1. Ensure that the client and server version numbers are exactly the same, open source community edition and enterprise edition cannot be mixed
+1. Ensure that the client and server version numbers are exactly the same, open source TSDB-OSS edition and TSDB-Enterprise edition cannot be mixed
 
 1. On the server, execute `systemctl status taosd` to check the *taosd* running status. If it is not running, start *taosd*
 
@@ -270,7 +270,9 @@ This indicates that the client and server versions are incompatible. Here, the c
 
 ### 27 After changing the root password of the database, starting taos encounters the error "failed to connect to server, reason: Authentication failure"
 
-By default, starting the taos service will use the system's default username (root) and password to attempt to connect to taosd. After changing the root password, starting a taos connection will require specifying the username and password, for example: `taos -h xxx.xxx.xxx.xxx -u root -p`, then enter the new password to connect.
+By default, starting the taos service will use the system's default username (root) and password to attempt to connect to taosd. After changing the root password, starting a taos connection will require specifying the username and password, for example: `taos -h xxx.xxx.xxx.xxx -u root -p`, then enter the new password to connection. After changing the password, you also need to modify the password in the configuration file of the taosKeeper component (located at /etc/taos/taoskeeper.toml by default) and restart the service.
+
+Starting from version V3.3.6.6, a new environment variable `TAOS_ROOT_PASSWORD` is introduced for TDengine TSDB Docker image, to set the custom password. When starting a container with the `docker run` command, you can add the `-e TAOS_ROOT_PASSWORD=<password>` parameter to use the custom password to start the TDengine TSDB service, without the need to manually modify the password in the configuration files.
 
 ### 28 After changing the root password of the database, the Grafana monitoring plugin TDinsight shows no data
 
