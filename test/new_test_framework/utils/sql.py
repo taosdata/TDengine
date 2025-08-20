@@ -2627,7 +2627,7 @@ class TDSql:
         """
         tdLog.info(f"set connection mode:{mode}")
 
-    def checkResultsByFunc(self, sql, func, delay=0.0, retry=60, show=False):
+    def checkResultsByFunc(self, sql, func, delay=0.0, retry=120, show=False):
         if delay != 0:
             time.sleep(delay)
 
