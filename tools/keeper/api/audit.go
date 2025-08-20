@@ -320,17 +320,52 @@ func (a *Audit) createDBSql() string {
 }
 
 func (a *Audit) createSTables() error {
-	var createTableSql = "create stable if not exists operations " +
-		"(ts timestamp, user_name varchar(25), operation varchar(20), db varchar(65), resource varchar(193), client_address varchar(64), details varchar(50000)) " +
-		"tags (cluster_id varchar(64))"
-
 	if a.conn == nil {
 		return errNoConnection
 	}
+	createTableSql := "create stable if not exists operations " +
+		"(ts timestamp, user_name varchar(25), operation varchar(20), db varchar(65), resource varchar(193), client_address varchar(64), details varchar(50000)) " +
+		"tags (cluster_id varchar(64))"
 	_, err := a.conn.ExecWithRetryForever(context.Background(), createTableSql, util.GetQidOwn(config.Conf.InstanceID))
 	if err != nil {
-		auditLogger.Errorf("## create stable error, msg:%s", err)
+		auditLogger.Errorf("create stable error, msg:%s", err)
 		return err
 	}
+	return a.alterClientAddressColumn()
+}
+
+func (a *Audit) alterClientAddressColumn() error {
+	checkSql := "desc operations"
+	result, err := a.conn.QueryWithRetryForever(context.Background(), checkSql, util.GetQidOwn(config.Conf.InstanceID))
+	if err != nil {
+		auditLogger.Errorf("desc stable operations error, msg:%v", err)
+		return err
+	}
+
+	needAlter := false
+	for _, row := range result.Data {
+		if row[0] == "client_address" {
+			if len, ok := row[2].(int32); ok {
+				if len < 64 {
+					needAlter = true
+				}
+			} else {
+				auditLogger.Warnf("unexpected type for client_address length: %T", row[2])
+				return fmt.Errorf("failed to get client_address column length")
+			}
+			break
+		}
+	}
+
+	if needAlter {
+		auditLogger.Info("alter client_address column to varchar(64)")
+		alterSql := "alter stable operations modify column client_address varchar(64)"
+		_, err = a.conn.ExecWithRetryForever(context.Background(), alterSql, util.GetQidOwn(config.Conf.InstanceID))
+		if err != nil {
+			auditLogger.Errorf("alter stable operations error, msg:%s", err)
+			return err
+		}
+	}
+
 	return nil
 }
