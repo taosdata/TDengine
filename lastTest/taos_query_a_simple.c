@@ -228,6 +228,12 @@ int main(int argc, char* argv[]) {
     queries_per_thread = 1;
     max_query_nums = 1;
     qps_rate = 1000000;
+  } else if (query_mode == 4) {
+    sql = "select channel_id,last(*) from meters where channel_id in ('338068841') partition by channel_id;";
+    thread_count = 16;
+    queries_per_thread = 100;
+    max_query_nums = 5;
+    qps_rate = 1;
   } else {
     printf("Usage: %s <query_mode>\n", argv[0]);
     return 1;
