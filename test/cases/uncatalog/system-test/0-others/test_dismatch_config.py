@@ -24,6 +24,7 @@ class TestDismatchConfig:
     def update_cfg_success(self):
         tdLog.info("start to update cfg")
         tdDnodes.stop(1)
+        time.sleep(3)
         tdDnodes.cfg(1, 'timezone', 'UTC')
         tdDnodes.cfg(1, 'arbSetAssignedTimeoutSec', '17')
         tdDnodes.cfg(1, 'rpcQueueMemoryAllowed', '20971520')
