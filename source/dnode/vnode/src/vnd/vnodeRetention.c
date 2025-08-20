@@ -20,7 +20,7 @@ extern int32_t tsdbListSsMigrateFileSets(STsdb* tsdb, SArray* fidArr);
 extern int32_t tsdbAsyncSsMigrateFileSet(STsdb *tsdb, SSsMigrateFileSetReq *pReq);
 extern int32_t tsdbQuerySsMigrateProgress(STsdb *tsdb, SSsMigrateProgress *pProgress);
 extern int32_t tsdbUpdateSsMigrateProgress(STsdb* tsdb, SSsMigrateProgress* pProgress);
-
+extern void tsdbStopSsMigrateTask(STsdb* tsdb, int32_t ssMigrateId);
 
 
 int32_t vnodeAsyncRetention(SVnode *pVnode, int64_t now) {
@@ -161,6 +161,17 @@ int32_t vnodeAsyncSsMigrateFileSet(SVnode *pVnode, SSsMigrateFileSetReq *pReq) {
 int32_t vnodeFollowerSsMigrate(SVnode *pVnode, SSsMigrateProgress *pReq) {
 #ifdef USE_SHARED_STORAGE
   return tsdbUpdateSsMigrateProgress(pVnode->pTsdb, pReq);
+#else
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+}
+
+
+
+extern int32_t vnodeKillSsMigrate(SVnode *pVnode, SVnodeKillSsMigrateReq *pReq) {
+#ifdef USE_SHARED_STORAGE
+  tsdbStopSsMigrateTask(pVnode->pTsdb, pReq->ssMigrateId);
+  return TSDB_CODE_SUCCESS;
 #else
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
