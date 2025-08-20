@@ -1,0 +1,1645 @@
+n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_taosdShell.py|success|18
+n,.,pytest cases/uncatalog/system-test/2-query/test_ts_5761_scalemode.py|success|22
+n,.,pytest cases/uncatalog/system-test/2-query/test_ts_5761.py|success|22
+n,.,pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_phase1.py |success|27
+n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_taosjson_insert_alltypes_same_min_max.py|success|27
+n,.,pytest cases/uncatalog/system-test/2-query/test_queryQnode.py|success|27
+n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_insert_alltypes_json.py|success|28
+n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_interlace.py|success|28
+n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_taos_config_json.py|success|28
+n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_auto_create_table_json.py|success|29
+y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_show_tag.py|success|30
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_20582.py|success|30
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_5130.py|success|30
+n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_state_window.py|success|31
+n,.,pytest cases/uncatalog/army/cmdline/test_fullopt.py|success|31
+n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_json_alltypes_interlace.py|success|31
+y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_drop.py|success|31
+y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_drop_origin_table.py|success|31
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_case_when_sum.py |success|31
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_like.py |success|31
+y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_alter_dnode_debugflag.py |success|31
+y,.,./ci/pytest.sh pytest cases/20-Metadata/test_table_count.py|success|31
+y,.,./ci/pytest.sh pytest cases/23-Users/test_user_password.py |success|31
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_td_33225.py|success|31
+n,.,pytest cases/uncatalog/system-test/0-others/test_dumpsdb.py|success|32
+n,.,pytest cases/uncatalog/system-test/0-others/test_sml_restart.py|success|32
+y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normaltable_alter_3.py|success|32
+y,.,./ci/pytest.sh pytest cases/04-SuperTables/02-Drop/test_stable_drop_repeat.py|success|32
+y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_insert.py|success|32
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby_distinct.py|success|32
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby_top.py|success|32
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby2.py|success|32
+y,.,./ci/pytest.sh pytest cases/17-NameLimits/test_dbtbname_validate.py|success|32
+y,.,./ci/pytest.sh pytest cases/20-Metadata/test_keep_time_offset.py|success|32
+y,.,./ci/pytest.sh pytest cases/20-Metadata/test_show_db_table_kind.py|success|32
+y,.,./ci/pytest.sh pytest cases/22-Show/test_show_table_distributed_null.py|success|32
+y,.,./ci/pytest.sh pytest cases/23-Users/test_user_privilege_create_db.py |success|32
+y,.,./ci/pytest.sh pytest cases/23-Users/test_user_whitelist.py |success|32
+y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_basic4.py|success|32
+n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_create_table_from_csv.py|success|33
+n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_json.py -B|success|33
+n,.,pytest cases/uncatalog/system-test/1-insert/test_insertWithMoreVgroup.py|success|33
+y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normaltable_query_after_drop.py|success|33
+y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normaltable_query_filter.py|success|33
+y,.,./ci/pytest.sh pytest cases/04-SuperTables/02-Drop/test_stable_drop_basic.py|success|33
+y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_tbname_filter.py|success|33
+y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_alter.py|success|33
+y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_create.py|success|33
+y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_meta.py|success|33
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_between_and.py|success|33
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_in.py |success|33
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_like_tag.py|success|33
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_ts6333.py|success|33
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/04-OrderBy/test_multi_orderby.py|success|33
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/08-SubQuery/test_last_row.py|success|33
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/10-Union/test_union_precision.py|success|33
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/10-Union/test_union_sysinfo.py|success|33
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/12-Having/test_having_agg.py|success|33
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/17-Tags/test_select_with_json_tags.py|success|33
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_params_check_maxValue.py|success|33
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_window_close_state_window.py|success|33
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts5906.py|success|33
+n,.,pytest cases/02-Databases/02-Drop/test_db_writing.py|success|34
+n,.,pytest cases/uncatalog/system-test/0-others/test_udf_cfg1.py|success|34
+y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normaltable_delete_reuse1.py|success|34
+y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normaltable_delete_reuse2.py|success|34
+y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_query.py|success|34
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_and_or.py|success|34
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_tags_filter.py|success|34
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/04-OrderBy/test_sort_double_col.py|success|34
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/04-OrderBy/test_sort_pre_cols.py|success|34
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/07-SLimit/test_slimit_limit.py|success|34
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/08-SubQuery/test_timeline.py|success|34
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/10-Union/test_unionall_as_table.py|success|34
+y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_empty_range.py|success|34
+y,.,./ci/pytest.sh pytest cases/16-EscapeCharacters/test_binary_escape_character.py|success|34
+y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_qnode_snode.py -N 2|success|34
+n,.,pytest cases/uncatalog/system-test/0-others/test_tag_index_basic.py|success|35
+n,.,pytest cases/uncatalog/system-test/0-others/test_udf_cfg2.py|success|35
+y,.,./ci/pytest.sh pytest cases/02-Databases/04-Query/test_db_show_create_table.py|success|35
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby_basic.py|success|35
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_const_col.py|success|35
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_read.py|success|35
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/13-Distinct/test_distinct.py|success|35
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/14-Explain/test_explain.py|success|35
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/17-Tags/test_tags_scan.py|success|35
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/18-Regexp/test_regex.py|success|35
+y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_scalar_null.py|success|35
+y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_apercentile.py|success|35
+y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_percentile.py|success|35
+y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_empty_range_scl.py|success|35
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case19_bug1.py|success|35
+y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_basic3.py|success|35
+y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_checkerror2.py|success|35
+y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_checkerror4.py|success|35
+y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_checkerror5.py|success|35
+y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_checkerror7.py|success|35
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_concat.py|success|35
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_resinfo.py|success|35
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_ts4219.py|success|35
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pk_error.py|success|35
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbnameIn.py -Q 2|success|35
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbnameIn.py -Q 3|success|35
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbnameIn.py -Q 4|success|35
+n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_taosadapter_json.py -B|success|36
+n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_primary_key.py -B|success|36
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/17-Tags/test_select_distinct_tag.py|success|36
+y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_cast.py|success|36
+y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_cast.py|success|36
+y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_spread.py|success|36
+y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_groupby.py|success|36
+y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_multires.py|success|36
+y,.,./ci/pytest.sh pytest cases/10-Functions/04-TimeseriesSpecfic/test_func_diff3.py|success|36
+y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/02-Fill/test_fill_force.py|success|36
+y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_bug.py|success|36
+y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/07-CountWindow/test_count1.py|success|36
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_params_check_default.py|success|36
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py|success|36
+y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_create_dnode.py -N 2 -C 1|success|36
+y,.,./ci/pytest.sh pytest cases/23-Users/test_user_privilege_topic.py |success|36
+y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join_interval.py|success|36
+y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_checkerror8.py|success|36
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/whole/test_check_error_code.py|success|36
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_td27388.py|success|36
+n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_compatibility_rolling_upgrade_all.py -N 3|success|37
+y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normaltable_query_composite.py|success|37
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_table_filter_timestamp.py|success|37
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/06-Limit/test_table_merge_limit.py|success|37
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_column_1.py|success|37
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/11-Interp/test_interp2.py|success|37
+y,.,./ci/pytest.sh pytest cases/09-DataDeletion/test_insert_delete.py|success|37
+y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_truncate.py|success|37
+y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_avg.py|success|37
+y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_row2.py|success|37
+y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/01-PartitionBy/test_partitonby.py|success|37
+y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/02-Fill/test_fill_us.py|success|37
+y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/05-EventWindow/test_event.py|success|37
+y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/07-CountWindow/test_count_sliding.py|success|37
+y,.,./ci/pytest.sh pytest cases/23-Users/test_user_crypted_pass.py |success|37
+y,.,./ci/pytest.sh pytest cases/23-Users/test_user_privilege_db.py |success|37
+y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join_multitables.py|success|37
+y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join_ns_db.py|success|37
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_countAlwaysReturnValue.py -Q 3|success|37
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_countAlwaysReturnValue.py|success|37
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_projectionDesc.py|success|37
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_systable_func.py|success|37
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbnameIn.py|success|37
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_ts4403.py|success|37
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_ts4467.py|success|37
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_4348_td_27939.py|success|37
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_5712.py|success|37
+y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_repeat.py|success|38
+y,.,./ci/pytest.sh pytest cases/02-Databases/04-Query/test_db_show_create_db.py |success|38
+y,.,./ci/pytest.sh pytest cases/06-DataIngestion/test_write_insert_select.py|success|38
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_case_when.py |success|38
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_stable_filter_column_tag_timestamp.py|success|38
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_stable_filter_column.py|success|38
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_stable_filter_tag.py|success|38
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_stable_filter_timestamp.py|success|38
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_table_filter_column_timestamp.py|success|38
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_table_filter_column.py|success|38
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/12-Having/test_having_child.py|success|38
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/99-Others/test_select_across_vnodes.py|success|38
+y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_elapsed.py|success|38
+y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_stddev.py|success|38
+y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_sum.py|success|38
+y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_bottom.py|success|38
+y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_max.py|success|38
+y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_selection_function_with_json.py|success|38
+y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/02-Fill/test_fill_stb.py|success|38
+y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/07-CountWindow/test_count.py|success|38
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_empty_identifier.py|success|38
+y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_basic1.py|success|38
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_cast.py|success|38
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_percentile.py|success|38
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_json_insert_alltypes_same_min_max.py|success|38
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_td29157.py|success|38
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_backslash_g.py|success|38
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_row_interval.py -Q 4|success|38
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_mode.py -Q 4|success|38
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_mode.py|success|38
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_normal.py -Q 4|success|38
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sml-TD19291.py|success|38
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_td_28068.py -Q 2|success|38
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_To_unixtimestamp.py -Q 4|success|38
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_To_unixtimestamp.py|success|38
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_varchar.py -Q 2|success|38
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_varchar.py|success|38
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts4563.py|success|38
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_3404.py|success|38
+n,.,pytest cases/03-Tables/01-NormalTables/02-Drop/test_normaltable_delete_writing.py|success|39
+n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_state_new.py|success|39
+n,.,pytest cases/13-StreamProcessing/20-UseCase/test_idmp_meters_td36808.py|success|39
+n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_state.py |success|39
+n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_escaped_db.py -B|success|39
+n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_unsigned_big_int.py -B|success|39
+n,.,pytest cases/uncatalog/system-test/0-others/test_udf_create.py|success|39
+y,.,./ci/pytest.sh pytest  cases/13-StreamProcessing/07-SubQuery/test_subquery_limit.py|success|39
+y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_from_dnodes.py -N 3|success|39
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_table_filter_no.py|success|39
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_column_7.py|success|39
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/12-Having/test_having.py|success|39
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/14-Explain/test_explain_tsorder.py|success|39
+y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_leastsquares.py|success|39
+y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_percentile.py|success|39
+y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_sum.py|success|39
+y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_first.py|success|39
+y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_basic.py|success|39
+y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_lru.py|success|39
+y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_tag.py|success|39
+y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_min.py|success|39
+y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join2.py|success|39
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_query_json_with_sqlfile.py|success|39
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stmt2_insert.py|success|39
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_type_geometry.py|success|39
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taosd_monitor.py|success|39
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_insert_timestamp.py|success|39
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_stmt_set_tbname_tag.py|success|39
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_apercentile.py|success|39
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_min.py -Q 4|success|39
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_projectionDesc.py -Q 4|success|39
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_projectionDesc.py|success|39
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_td_28068.py -Q 3|success|39
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_td_28068.py -Q 4|success|39
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_td_28068.py|success|39
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_ins_topics_test.py|success|39
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_td_30270.py|success|39
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_td33504.py|success|39
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_3821.py|success|39
+n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_event_new.py|success|40
+n,.,pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_db_with_non_root.py|success|40
+y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normaltable_synatx.py |success|40
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_stable_filter_no.py|success|40
+y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_count.py|success|40
+y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_top.py|success|40
+y,.,./ci/pytest.sh pytest cases/10-Functions/04-TimeseriesSpecfic/test_func_diff.py|success|40
+y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/02-Fill/test_fill.py|success|40
+y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval.py|success|40
+y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_smoking.py|success|40
+y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join_pk.py|success|40
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_query_json_with_error_sqlfile.py|success|40
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_reuse_exist_stb.py|success|40
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stmt_auto_create_table_json.py|success|40
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stmt_sample_csv_json_subtable.py|success|40
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_type_varbinary.py|success|40
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_ts4479.py|success|40
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_between.py -Q 2|success|40
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count_partition.py|success|40
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_db.py|success|40
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_null.py|success|40
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_stateduration.py|success|40
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_row_interval.py|success|40
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_like.py -Q 2|success|40
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_like.py -Q 4|success|40
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_min.py|success|40
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbnameIn.py -R|success|40
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_td_32548.py|success|40
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_4233.py -Q 4|success|40
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ttl_comment.py -Q 4|success|40
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ttl_comment.py|success|40
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_create_wrong_topic.py|success|40
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_schema.py|success|40
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_3311.py|success|40
+n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_concat.py|success|41
+n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline_sml.py|success|41
+n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_insert_mix.py|success|41
+y,.,./ci/pytest.sh pytest cases/02-Databases/04-Query/test_db_show_vgroup.py|success|41
+y,.,./ci/pytest.sh pytest cases/02-Databases/06-Precision/test_db_precision_ns.py|success|41
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/12-Having/test_query_accuracy.py|success|41
+y,.,./ci/pytest.sh pytest cases/19-ManageNodes/02-Mnode/test_mnode_basic1.py -N 2|success|41
+y,.,./ci/pytest.sh pytest cases/23-Users/test_user_privilege_sysinfo.py |success|41
+y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join_order.py|success|41
+y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_basic2.py|success|41
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_auto_create_insert.py|success|41
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_telnet_insert_alltypes_same_min_max.py|success|41
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stmt_insert_alltypes_json.py|success|41
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stmt_insert_alltypes_same_min_max.py|success|41
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stmt_sample_csv_json_doesnt_use_ts.py|success|41
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_insert_alltypes_json_partial_col.py|success|41
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_multi_insert.py|success|41
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_stmt_muti_insert_query.py|success|41
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_td29793.py|success|41
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_apercentile.py -Q 4|success|41
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hyperloglog.py|success|41
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_like.py -Q 3|success|41
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_like.py|success|41
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_normal.py|success|41
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_To_iso8601.py|success|41
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_To_unixtimestamp.py -Q 3|success|41
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_4233.py -Q 2|success|41
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_4233.py -Q 3|success|41
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_unique.py -Q 4|success|41
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_unique.py|success|41
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts5466.py|success|41
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_3581.py|success|41
+n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_window_true_for.py|success|42
+y,.,./ci/pytest.sh pytest cases/02-Databases/06-Precision/test_db_precision_us.py|success|42
+y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_row1.py|success|42
+y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval2.py|success|42
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/02-Stream/stream_long_name.py|success|42
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options_abnormal.py|success|42
+y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_mnode.py -N 2|success|42
+y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_offline_reason.py -N 2 -C 1|success|42
+y,.,./ci/pytest.sh pytest cases/31-Views/test_view_nested_join.py|success|42
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_interp.py|success|42
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline_partial_col_numpy.py|success|42
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_rest_insert_alltypes_json.py -R|success|42
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_json_alltypes.py|success|42
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_taosjson_alltypes.py|success|42
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stmt_sample_csv_json.py|success|42
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_telemetry.py|success|42
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_insert_double.py|success|42
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_InsertFuturets.py|success|42
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_countAlwaysReturnValue.py -Q 4|success|42
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_geometry.py|success|42
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hint.py -Q 3|success|42
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_json_tag.py|success|42
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_logical_operators.py|success|42
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_projectionDesc.py -R|success|42
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_timezone.py -Q 4|success|42
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_4233.py|success|42
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ttl_comment.py -R|success|42
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_varchar.py -R|success|42
+n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_double.py -B|success|43
+y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normaltable_alter_5.py|success|43
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_arithmetic_basic.py|success|43
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_case4.py|success|43
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_create_stb_keep.py|success|43
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_countAlwaysReturnValue.py -R|success|43
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_apercentile.py -R|success|43
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_stddev.py|success|43
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_first.py|success|43
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_irate.py|success|43
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_leastsquares.py -Q 4|success|43
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_mode.py -R|success|43
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_odbc.py|success|43
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_percentile.py|success|43
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sin.py|success|43
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tan.py|success|43
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_timezone.py|success|43
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_To_unixtimestamp.py -R|success|43
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_varbinary.py|success|43
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_mnode_encrypt.py -N 3|success|43
+n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_backquote_check.py|success|44
+y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normaltable_alter_4.py|success|44
+y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_rb.py|success|44
+y,.,./ci/pytest.sh pytest cases/22-Show/test_show_diskinfo.py |success|44
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_having.py|success|44
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline_vgroups.py|success|44
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_telnet_alltypes.py|success|44
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stmt_offset_json.py|success|44
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stream.py|success|44
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_insert_alltypes_same_min_max.py|success|44
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_sample_csv_json_subtable.py|success|44
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_first.py -Q 3|success|44
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_null.py -R|success|44
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_partition.py -Q 4|success|44
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_partition.py|success|44
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_min.py -R|success|44
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sin.py -Q 4|success|44
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sqrt.py|success|44
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_statecount.py|success|44
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbname.py -Q 4|success|44
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_ts4382.py|success|44
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/vnode/test_4dnode1mnode_basic_create_db_replica1.py -N 4 -M 1|success|44
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_td32471.py|success|44
+n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_data.py|success|45
+n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmqDropConsumer.py|success|45
+y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normaltable_query_aggregate.py|success|45
+y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_drop.py|success|45
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/12-Having/test_having_complex.py|success|45
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options_abnormal_vtbl.py|success|45
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case19.py|success|45
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case22.py|success|45
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_drop.py|success|45
+y,.,./ci/pytest.sh pytest cases/23-Users/test_user_basic.py|success|45
+y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_checkerror3.py|success|45
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_selection_function_with_json.py|success|45
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_csv_export.py|success|45
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_json_csv.py|success|45
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taosd_audit.py|success|45
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_between.py -R|success|45
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_between.py|success|45
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count_partition.py -R|success|45
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_diff.py|success|45
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hyperloglog.py -Q 4|success|45
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hyperloglog.py -R|success|45
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_leastsquares.py|success|45
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_logical_operators.py -R|success|45
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_mode.py -Q 3|success|45
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_round.py|success|45
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sqrt.py -Q 4|success|45
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tan.py -Q 4|success|45
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tms_memleak.py|success|45
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_To_iso8601.py -Q 3|success|45
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_To_iso8601.py -Q 4|success|45
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_unique.py -Q 3|success|45
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_dropDbR3ConflictTransaction.py -N 3|success|45
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_19201.py|success|45
+y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normaltable_alter_1.py |success|46
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_filter_where_complex.py|success|46
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_select_complex.py|success|46
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_insert_basic.py -N 3|success|46
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline_supplement_insert.py|success|46
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_auto_create_table_json.py|success|46
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_sample_csv_json.py|success|46
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_stmt_error.py|success|46
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cos.py|success|46
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count_partition.py -Q 4|success|46
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_stateduration.py -R|success|46
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_json_tag.py -Q 4|success|46
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_min_last_interval.py|success|46
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_normal.py -R|success|46
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_percentile.py -Q 4|success|46
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_round.py -Q 4|success|46
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_To_iso8601.py -R|success|46
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_twa.py|success|46
+n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_insert_retry_json_global.py|success|47
+n,.,pytest cases/uncatalog/develop-test/2-query/test_ts_range.py|success|47
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby_complex.py|success|47
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/06-Limit/test_limit_complex.py|success|47
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/99-Others/test_select_from_cache_disk.py|success|47
+y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_char_scalar.py|success|47
+y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_single_row_in_tb.py|success|47
+y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_cache.py|success|47
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case17.py|success|47
+y,.,./ci/pytest.sh pytest cases/22-Show/test_show_table_distributed.py|success|47
+y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join_manyblocks.py|success|47
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_strong_password.py|success|47
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/sys/test_tb_perf_queries_exist.py -N 3|success|47
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_case_when.py|success|47
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_from_to.py|success|47
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_invalid_commandline.py|success|47
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_insert_alltypes_json.py|success|47
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_composite_primary_key_delete.py|success|47
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_insert_from_csv.py|success|47
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arctan.py -Q 4|success|47
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ceil.py|success|47
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cos.py -Q 4|success|47
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_count.py|success|47
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_spread.py|success|47
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_stddev.py -Q 3|success|47
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_floor.py|success|47
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hint.py -Q 2|success|47
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hint.py -Q 4|success|47
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_and_last_row.py -Q 4|success|47
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_varchar.py -Q 3|success|47
+n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_compatibility_rolling_upgrade.py -N 3|success|48
+n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_basic.py|success|48
+n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_big_int.py -B|success|48
+n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_binary.py -B|success|48
+n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_bool.py -B|success|48
+n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_float.py -B|success|48
+n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_small_int.py -B|success|48
+n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_unsigned_int.py -B|success|48
+y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_offset.py|success|48
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_event.py|success|48
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_basic.py|success|48
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_case4_bug1.py|success|48
+y,.,./ci/pytest.sh pytest cases/23-Users/test_user_privilege_table.py |success|48
+y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join_multivnode.py|success|48
+y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_checkerror1.py -N 3|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/accuracy/test_having.py|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/fill/test_fill_compare_asc_desc.py|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/subquery/test_subquery_bugs.py -N 3|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline_single_table.py|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_custom_col_tag.py|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_default_json.py|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_demo.py|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/ws/test_websocket.py -R|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_compa.py|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_ins_filesets.py|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_multilevel_createdb.py|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_user_privilege_show.py|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_composite_primary_key_create.py|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_keep_expired.py|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arccos.py -Q 4|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_avg.py -Q 4|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_between.py -Q 3|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count.py|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_db.py -N 3 --replica 3 -R|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_diff.py -Q 4|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distinct.py|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_avg.py|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_max.py|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_min.py|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_and_last_row.py -Q 2|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_and_last_row.py -Q 3|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_and_last_row.py|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_min_last_interval.py -Q 4|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_projectionDesc.py -Q 2|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbname.py -Q 2|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbname.py|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_timezone.py -R|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_unique.py -R|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_db.py|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_raw_block_interface_test.py|success|48
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqMaxTopic.py|success|48
+n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_check.py|success|49
+n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline_retry.py|success|49
+y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_stddev2.py|success|49
+y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/06-SessionWindow/test_session.py|success|49
+y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_checkerror6.py|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/fill/test_fill_null.py|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/last/test_last.py|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_escaped_db.py|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_unsigned_int.py|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_insert_stb.py|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_precisionUS.py|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arcsin.py -Q 4|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_compact_col.py|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_max.py -Q 4|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_min.py -Q 4|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_sum.py -Q 4|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_sum.py|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_first.py -Q 4|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_first.py -R|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_group_partition.py -Q 4|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hint.py|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_irate.py -R|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_partition.py -R|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery2.py|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_not.py -Q 4|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_not.py|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_percentile.py -R|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pow.py -Q 4|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pow.py|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_round.py -R|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sin.py -R|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tan.py -R|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_td28163.py|success|49
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_td32526.py|success|49
+n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_insert_retry_json_stb.py|success|50
+y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_create_basic.py|success|50
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_sma_filter.py|success|50
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/02-Stream/stream_nosnode.py|success|50
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case3.py|success|50
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case4.py|success|50
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case6.py|success|50
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_at_once.py|success|50
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_json_tag.py|success|50
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/cloud/test_cloud.py|success|50
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_db_ntb.py|success|50
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_basic.py|success|50
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_unsigned_small_int.py|success|50
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_spread.py -Q 4|success|50
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_log.py -Q 4|success|50
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_percentile.py -Q 3|success|50
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_spread.py|success|50
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbname.py -Q 3|success|50
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_unique.py -Q 2|success|50
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_21561.py -Q 4|success|50
+n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_period_1.py|success|51
+y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normaltable_alter_2.py|success|51
+y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_alter_basic.py|success|51
+y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_function.py|success|51
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_params_alter_normaluser.py|success|51
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case1_bug1.py|success|51
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_stream_basic.py|success|51
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/grant/test_grant_bugs.py -N 3|success|51
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_create_table_keywords.py|success|51
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_precision.py|success|51
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_telnet_tcp.py -R|success|51
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_unsigned_tiny_int.py|success|51
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_stt_blocks_check.py|success|51
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_table_comment.py|success|51
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_apercentile.py -Q 4|success|51
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arcsin.py|success|51
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arctan.py -Q 2|success|51
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ceil.py -Q 4|success|51
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_avg.py -Q 4|success|51
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_stddev.py -Q 4|success|51
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill.py -Q 2|success|51
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_group_partition.py -Q 2|success|51
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_log.py|success|51
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Now.py -Q 4|success|51
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sqrt.py -R|success|51
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_twa.py -Q 4|success|51
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/vnode/test_4dnode1mnode_basic_replica1_insertdatas.py -N 4 -M 1|success|51
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_dataFromTsdbNWal.py|success|51
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_21561.py -Q 2|success|51
+n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_continuewindowclose.py |success|52
+n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_int.py -B|success|52
+n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_tiny_int.py -B|success|52
+n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_unsigned_tiny_int.py -B|success|52
+n,.,pytest cases/uncatalog/develop-test/2-query/test_tag_scan.py|success|52
+n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmq_tx484.py|success|52
+y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_batchcreate.py|success|52
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_filter_timestamp.py|success|52
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/11-Interp/test_interp.py|success|52
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_params_alter.py|success|52
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_count.py|success|52
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tmq/test_tmq_bugs.py -N 3|success|52
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_update_data_muti_rows.py|success|52
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_apercentile.py -Q 3|success|52
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arccos.py|success|52
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arctan.py|success|52
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count.py -Q 4|success|52
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_diff.py -R|success|52
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distinct.py -Q 2|success|52
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_count.py -Q 4|success|52
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_stddev.py -R|success|52
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_floor.py -R|success|52
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_null.py -Q 4|success|52
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_group_partition.py|success|52
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_normal.py -Q 3|success|52
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Now.py|success|52
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_statecount.py -R|success|52
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Timediff.py|success|52
+n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_unsigned_small_int.py -B|success|53
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/07-SLimit/test_slimit_alter_tags.py|success|53
+y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_sliding.py|success|53
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_params_check.py|success|53
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_privileges_monitor_table.py|success|53
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case18.py|success|53
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_func_elapsed.py|success|53
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_stmt.py|success|53
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ceil.py -R|success|53
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_columnLenUpdated.py -Q 4|success|53
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill.py|success|53
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_floor.py -Q 4|success|53
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_leastsquares.py -R|success|53
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max.py -Q 4|success|53
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max.py|success|53
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pk_varchar.py|success|53
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sml_TS-3724.py|success|53
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sml.py|success|53
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_21561.py -Q 3|success|53
+n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_tmq_cancle.py|success|54
+y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_basic5.py|success|54
+y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_option_keep.py|success|54
+y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normaltable_datatypes.py |success|54
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/07-SLimit/test_slimit1.py|success|54
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_disorderUpdateDelete_vtbl.py|success|54
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/alter/test_alter_config.py -N 3|success|54
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_compare.py|success|54
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cos.py -R|success|54
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count.py -R|success|54
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_avg.py -Q 3|success|54
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_group_partition.py -Q 3|success|54
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_irate.py -Q 4|success|54
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_json_tag.py -Q 3|success|54
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_min.py -Q 3|success|54
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQueryInterval.py -Q 4|success|54
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_spread.py -Q 4|success|54
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stbJoin.py -Q 2|success|54
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stbJoin.py -Q 3|success|54
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stbJoin.py -Q 4|success|54
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_timetruncate.py|success|54
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts6115.py|success|54
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUpdate_multiCtb_snapshot1.py|success|54
+n,.,pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_count_1.py|success|55
+n,.,pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_state.py|success|55
+y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_varbinary.py|success|55
+y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_split_vgroup_replica3.py -N 4|success|55
+y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_replica3_vgroup.py -N 4|success|55
+y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_alter_write_data.py|success|55
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_arithmetic.py|success|55
+y,.,./ci/pytest.sh pytest cases/19-ManageNodes/04-Snode/test_snode_basic1.py -N 2|success|55
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/alter/test_alter_config_refresh.py -N 3|success|55
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_create_ctb_using_csv_file.py|success|55
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_int.py|success|55
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_avg.py|success|55
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_bottom.py|success|55
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ceil.py -Q 3|success|55
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count.py -Q 3|success|55
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_diff.py -Q 3|success|55
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_row_interval.py -Q 2|success|55
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_leastsquares.py -Q 3|success|55
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_not.py -R|success|55
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pk_func.py|success|55
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pow.py -R|success|55
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_project_group.py|success|55
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stbJoin.py|success|55
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbname_vgroup.py|success|55
+n,.,pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_session.py|success|56
+n,.,pytest cases/uncatalog/develop-test/2-query/test_pseudo_column.py|success|56
+n,.,pytest cases/uncatalog/develop-test/2-query/test_show_create_db.py|success|56
+y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_double.py|success|56
+y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_geometry.py|success|56
+y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_op_table_hash.py|success|56
+y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_catalog.py|success|56
+y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_topic.py|success|56
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options_vtbl.py|success|56
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_idmp_vehicle.py|success|56
+y,.,./ci/pytest.sh pytest cases/19-ManageNodes/03-Qnode/test_qnode_basic1.py -N 2|success|56
+y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join.py|success|56
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_create_ctb_using_csv_file.py -N 3|success|56
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_many_cols.py|success|56
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_tiny_int.py|success|56
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_persisit_config.py|success|56
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_columnLenUpdated.py -Q 3|success|56
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_limit.py|success|56
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_min_last_interval.py -Q 3|success|56
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_partition.py -Q 3|success|56
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_expr.py|success|56
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pk_func_group.py|success|56
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_spread.py -R|success|56
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Timediff.py -Q 4|success|56
+n,.,pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_count_2.py|success|57
+y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_unsign.py|success|57
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/06-Limit/test_limit3.py|success|57
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/10-Union/test_union.py|success|57
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/authorith/test_auth_basic.py -N 3|success|57
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/fill/test_fill_desc.py -N 3 -L 3 -D 2|success|57
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_query_json.py -B|success|57
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_in_diff_type.py|success|57
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_inspect.py|success|57
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_bool.py|success|57
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_show_table_distributed.py|success|57
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_apercentile.py|success|57
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQueryInterval.py|success|57
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_operator.py -Q 2|success|57
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sml.py -R|success|57
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Today.py|success|57
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeStb.py|success|57
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqSeekAndCommit.py|success|57
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUpdate_multiCtb_snapshot0.py|success|57
+n,.,pytest cases/uncatalog/system-test/eco-system/meta/database/test_keep_time_offset.py|success|58
+y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_basic4.py|success|58
+y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_stable_replica3_dnode6.py -N 6|success|58
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/99-Others/test_select_mixed_block.py|success|58
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_replicas.py -N 8|success|58
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_disorderUpdateDelete.py|success|58
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_apercentile.py -R|success|58
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_bottom.py -Q 4|success|58
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cast.py|success|58
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count_partition.py -Q 3|success|58
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_apercentile.py -Q 3|success|58
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_avg.py -R|success|58
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_group_partition.py -R|success|58
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_system_insert_select.py -Q 3|success|58
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_timetruncate.py -Q 4|success|58
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_timezone.py -Q 3|success|58
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_ts_4674.py -N 3 --replica 3|success|58
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_21561.py|success|58
+y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_blob.py|success|59
+y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_float.py|success|59
+y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_basic3.py|success|59
+y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_name_len.py|success|59
+y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 2|success|59
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_fill_history.py|success|59
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_meta.py|success|59
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_insert_csv_file_with_row_split.py |success|59
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/inspect-tools/test_taosinspect.py|success|59
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_from_to_continue.py|success|59
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arcsin.py -R|success|59
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cast.py -Q 2|success|59
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_count.py -R|success|59
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_min.py -R|success|59
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_spread.py -R|success|59
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_sum.py -R|success|59
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_log.py -R|success|59
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_operator.py -Q 4|success|59
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_operator.py|success|59
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_system_insert_select.py -R|success|59
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Today.py -Q 4|success|59
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_varchar.py -Q 4|success|59
+y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_tables.py|success|60
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby.py|success|60
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_sql.py|success|60
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_unsigned_big_int.py|success|60
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_show_tag_index.py|success|60
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_subscribe_stream_privilege.py|success|60
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_ddl_in_sysdb.py|success|60
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_and_or_for_byte.py|success|60
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arccos.py -Q 3|success|60
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cast.py -Q 4|success|60
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_columnLenUpdated.py -Q 2|success|60
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distinct.py -Q 3|success|60
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_max.py -R|success|60
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hyperloglog.py -Q 3|success|60
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_operator.py -Q 3|success|60
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqOffset.py|success|60
+y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_nchar1.py|success|61
+y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_varchar.py|success|61
+y,.,./ci/pytest.sh pytest cases/19-ManageNodes/02-Mnode/test_mnode_basic2.py -N 2|success|61
+y,.,./ci/pytest.sh pytest cases/22-Show/test_show_alive.py -N 4|success|61
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_create_stb_keep.py -N 3|success|61
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/accuracy/test_ts5400.py|success|61
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_bind_vgroup.py|success|61
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_double.py|success|61
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_show.py|success|61
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arctan.py -R|success|61
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_avg.py -Q 3|success|61
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_avg.py -R|success|61
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_null.py -Q 3|success|61
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_stateduration.py -Q 3|success|61
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_statecount.py -Q 3|success|61
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_system_insert_select.py|success|61
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_To_unixtimestamp.py -Q 2|success|61
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ttl_comment.py -Q 3|success|61
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_stbTagFilter_1ctb.py|success|61
+n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmq_offset.py|success|62
+y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bool.py|success|62
+y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_json.py|success|62
+y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_delete_reuse1.py|success|62
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/06-Limit/test_projection_limit_offset.py|success|62
+y,.,./ci/pytest.sh pytest cases/08-TagIndices/test_index_create_drop.py |success|62
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/02-Stream/stream_samename.py|success|62
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_db_stb.py|success|62
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_loose_mode.py|success|62
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_ttl.py|success|62
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_abs.py -Q 4|success|62
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arccos.py -R|success|62
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_countAlwaysReturnValue.py -Q 2|success|62
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distinct.py -R|success|62
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_row_interval.py -Q 3|success|62
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_mode.py -Q 2|success|62
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_projectionDesc.py -Q 3|success|62
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_system_insert_select.py -Q 4|success|62
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqMaxGroupIds.py|success|62
+n,.,pytest cases/uncatalog/system-test/0-others/test_udf_test.py|success|63
+y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_blob.py|success|63
+y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_nchar2.py|success|63
+y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null_column.py|success|63
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_idmp_meters.py|success|63
+y,.,./ci/pytest.sh pytest cases/19-ManageNodes/02-Mnode/test_mnode_basic4.py -N 3|success|63
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/window/test_window_base.py|success|63
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_stmt2.py|success|63
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill.py -Q 4|success|63
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_diff.py|success|63
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Now.py -R|success|63
+y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py|success|64
+y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_tinyint.py|success|64
+y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_basic6.py|success|64
+y,.,./ci/pytest.sh pytest cases/02-Databases/07-Flush/test_db_flush.py|success|64
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_second_case1_twostream.py|success|64
+y,.,./ci/pytest.sh pytest cases/22-Show/test_show_basic.py -N 2|success|64
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline_sml_rest.py -R|success|64
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_big_int.py|success|64
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_binary.py|success|64
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_float.py|success|64
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_small_int.py|success|64
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_between.py -Q 4|success|64
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_bottom.py -Q 3|success|64
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_diff.py -Q 4|success|64
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_not.py -Q 3|success|64
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/vnode/test_4dnode1mnode_basic_replica1_insertdatas_querys.py -N 4 -M 1|success|64
+n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_cancle.py|success|65
+y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_int.py|success|65
+y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_smallint.py|success|65
+y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null_tag.py|success|65
+y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_basic2.py|success|65
+y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_column_datatypes.py|success|65
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_sml.py|success|65
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taos_shell_net_chk.py|success|65
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_abs.py -Q 3|success|65
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_csum.py|success|65
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_apercentile.py -Q 2|success|65
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_mavg.py -Q 4|success|65
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_mavg.py|success|65
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max.py -R|success|65
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_percentile.py -Q 2|success|65
+y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_uint.py|success|66
+y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_op_table_prefix_suffix.py|success|66
+y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_option.py -N 3|success|66
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_show.py -N 3|success|66
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cast.py -R|success|66
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_columnLenUpdated.py|success|66
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_csum.py -Q 4|success|66
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill.py -Q 3|success|66
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_first.py -Q 2|success|66
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_and_last_row.py -R|success|66
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tan.py -Q 2|success|66
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Today.py -R|success|66
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_twa.py -Q 3|success|66
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqCheckData1.py|success|66
+n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_taosdemo_test_query_with_json_mixed_query.py -R|success|67
+y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_name_all.py|success|67
+y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_multi_vnode_replica1.py -N 3|success|67
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_user_privilege.py|success|67
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arcsin.py -Q 3|success|67
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cos.py -Q 3|success|67
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count_partition.py -Q 2|success|67
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_null.py -Q 2|success|67
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_partition.py -Q 2|success|67
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQueryInterval.py -Q 2|success|67
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_round.py -Q 2|success|67
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sin.py -Q 3|success|67
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_spread.py -Q 3|success|67
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stateduration.py|success|67
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_system_insert_select.py -Q 2|success|67
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tan.py -Q 3|success|67
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_To_iso8601.py -Q 2|success|67
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_basic5.py|success|67
+y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_timestamp.py|success|68
+y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_delete_reuse2.py|success|68
+y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 6|success|68
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_privileges_twodb.py|success|68
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_delete_recalc.py|success|68
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/accuracy/test_query_accuracy.py|success|68
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_alter_table.py|success|68
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cast.py -Q 3|success|68
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_spread.py -Q 3|success|68
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_floor.py -Q 2|success|68
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_irate.py -Q 2|success|68
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sin.py -Q 2|success|68
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sqrt.py -Q 2|success|68
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_timetruncate.py -R|success|68
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/vnode/test_4dnode1mnode_basic_replica3_insertdatas.py -N 4 -M 1|success|68
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeStb4.py|success|68
+n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_bugs.py -B|success|69
+n,.,pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_commandline.py -B|success|69
+n,.,pytest cases/uncatalog/system-test/0-others/test_ttl_change_on_write.py|success|69
+y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_replicas_31.py -N 4|success|69
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/07-SLimit/test_slimit2.py|success|69
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_select_res_num.py|success|69
+y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_scalar.py|success|69
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_privileges_recalc.py|success|69
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_show_disk_usage.py|success|69
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_boundary.py|success|69
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_abs.py|success|69
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_avg.py -Q 2|success|69
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sml.py -Q 4|success|69
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/vnode/test_4dnode1mnode_basic_replica3_insertdatas_querys.py -N 4 -M 1|success|69
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_dataFromTsdbNWal_multiCtb.py|success|69
+y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_autocreate.py|success|70
+y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_set_tag_vals.py|success|70
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_interval_diff_tz.py|success|70
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_start_end_time_long.py|success|70
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_and_or_for_byte.py -R|success|70
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arctan.py -Q 3|success|70
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_diff.py -Q 2|success|70
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_diff.py -Q 3|success|70
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_min_last_interval.py -Q 2|success|70
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_limit_interval.py -Q 4|success|70
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Timediff.py -R|success|70
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ttl_comment.py -Q 2|success|70
+y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_basic1.py|success|71
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_tmq_case.py|success|71
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_dismatch_config.py|success|71
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_sum.py -Q 3|success|71
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tail.py|success|71
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_timetruncate.py -Q 3|success|71
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_arbitrator.py -N 3|success|72
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stream_function_test.py|success|72
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compact.py -N 3|success|72
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_insert_wide_column.py|success|72
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cos.py -Q 2|success|72
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_diff.py -Q 2|success|72
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_stateduration.py -Q 2|success|72
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_json_tag.py -Q 2|success|72
+y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_column_filter.py|success|73
+y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_tag_filter.py|success|73
+y,.,./ci/pytest.sh pytest cases/06-DataIngestion/test_write_basic.py|success|73
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosdemo_test_insert_with_json_stmt_other_para.py|success|73
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test.py|success|73
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_apercentile.py -Q 2|success|73
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_csum.py -Q 2|success|73
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_count.py -Q 3|success|73
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_stddev.py -Q 2|success|73
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_irate.py -Q 3|success|73
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_mavg.py -Q 2|success|73
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_state_window.py -Q 3|success|73
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tail.py -Q 4|success|73
+y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_split_vgroup_replica1.py -N 3|success|74
+y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter.py|success|74
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/alter/test_alter_db_option.py -N 3|success|74
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_tmq_basic.py|success|74
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test2.py|success|74
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_opentsdb_telnet_line_taosc_insert.py|success|74
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_abs.py -R|success|74
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arccos.py -Q 2|success|74
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_arcsin.py -Q 2|success|74
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ceil.py -Q 2|success|74
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distinct.py -Q 4|success|74
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_avg.py -Q 2|success|74
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_max.py -Q 3|success|74
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_min.py -Q 3|success|74
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_log.py -Q 2|success|74
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pow.py -Q 2|success|74
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_twa.py -R|success|74
+n,.,pytest cases/uncatalog/develop-test/2-query/test_table_count_scan.py|success|75
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_stream_multi_agg.py|success|75
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count.py -Q 2|success|75
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last.py|success|75
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_mavg.py -Q 3|success|75
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max.py -Q 3|success|75
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sml.py -Q 3|success|75
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sqrt.py -Q 3|success|75
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stateduration.py -Q 2|success|75
+y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance_replica_1.py -N 3|success|76
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/alter/test_alter_config_refresh.py -N 3 -M 3|success|76
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_sysinfo.py|success|76
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_csum.py -Q 3|success|76
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_min.py -Q 2|success|76
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill_with_group.py|success|76
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Now.py -Q 3|success|76
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_query_cols_tags_and_or.py -Q 2|success|76
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_round.py -Q 3|success|76
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_select_null.py -Q 4|success|76
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_statecount.py -Q 2|success|76
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_twa.py -Q 2|success|76
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUpdate_1ctb.py|success|76
+y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_stable_dnode2.py -N 2|success|77
+y,.,./ci/pytest.sh pytest cases/08-TagIndices/test_index_overflow.py |success|77
+y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_both.py|success|77
+y,.,./ci/pytest.sh pytest cases/30-DataCompression/test_compress_alter_option.py|success|77
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_opentsdb_json_taosc_insert.py|success|77
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_case_when.py|success|77
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_spread.py -Q 2|success|77
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_floor.py -Q 3|success|77
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_limit_interval.py|success|77
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_stop_2follower.py -N 5 -M 3 -I False|success|77
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_stop_2follower.py -N 5 -M 3|success|77
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_stbFilterWhere.py|success|77
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsumeDiscontinuousData.py|success|77
+n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic2.py |success|78
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/06-Limit/test_limit1.py|success|78
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_json.py|success|78
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_influxdb_line_taosc_insert.py|success|78
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_blockSMA.py -Q 2|success|78
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_bottom.py -R|success|78
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_max.py -Q 2|success|78
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_sum.py -Q 2|success|78
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_mavg.py -R|success|78
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQueryInterval.py -Q 3|success|78
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqError.py|success|78
+n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmqConsumerGroup.py|success|79
+y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_commit.py -N 2|success|79
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_condition_scl.py|success|79
+y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 11|success|79
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp.py|success|79
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_log.py -Q 3|success|79
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pow.py -Q 3|success|79
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_3.py -Q 2|success|79
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sample.py|success|79
+n,.,pytest cases/uncatalog/army/tmq/test_drop_lost_comsumers.py|success|80
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_combined_options.py|success|80
+y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_vnode_replica3.py -N 5|success|80
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_elapsed.py -Q 4|success|80
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Timediff.py -Q 3|success|80
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode1mnode.py|success|80
+y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_op_all.py -N 3|success|81
+y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_select.py|success|81
+y,.,./ci/pytest.sh pytest cases/08-TagIndices/test_index_perf.py |success|81
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_drop_table_by_uid.py -N 3|success|81
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_count.py -Q 2|success|81
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join.py|success|81
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_query_cols_tags_and_or.py -Q 4|success|81
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_query_cols_tags_and_or.py|success|81
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Today.py -Q 3|success|81
+n,.,pytest cases/uncatalog/system-test/0-others/test_taosdlog.py|success|82
+n,.,pytest cases/uncatalog/system-test/0-others/test_time_range_wise.py -N 3|success|82
+y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_delete_reuse_vnode.py|success|82
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/17-Tags/test_select_with_tags.py|success|82
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/02-Stream/stream_checkname.py|success|82
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_auto_create_table_json.py|success|82
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count_interval.py|success|82
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_unit.py -Q 2|success|82
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_unit.py -Q 4|success|82
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_cache_scan.py -Q 4|success|82
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_hot_refresh_configurations.py|success|83
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_unit.py -Q 3|success|83
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stateduration.py -Q 3|success|83
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeTransform_stb.py -N 2 --replica 1|success|83
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options_ns.py|success|84
+y,.,./ci/pytest.sh pytest cases/19-ManageNodes/02-Mnode/test_mnode_basic3.py -N 4|success|84
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last.py -Q 4|success|84
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sample.py -Q 2|success|84
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options.py|success|85
+y,.,./ci/pytest.sh pytest cases/31-Views/test_view_mgmt.py|success|85
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_alter_database.py|success|85
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cols_function.py -Q 4|success|85
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_unit.py|success|85
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_cache_scan.py -Q 2|success|85
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_3405_3398_3423.py -N 3 --replica 3|success|85
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_stop_follower_leader.py -N 5 -M 3|success|85
+n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot1.py|success|86
+y,.,./ci/pytest.sh pytest cases/06-DataIngestion/test_write_datatypes.py|success|86
+y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_force_drop_topic.py|success|86
+y,.,./ci/pytest.sh pytest cases/30-DataCompression/test_compress_disable.py|success|86
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taos_shell.py|success|86
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_bottom.py -Q 2|success|86
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cols_function.py|success|86
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_func_to_char_timestamp.py -Q 4|success|86
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts6392.py|success|86
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_5580.py|success|86
+y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_qos.py|success|87
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options_us.py|success|87
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_arbitrator_restart.py -N 3|success|87
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_blockSMA.py|success|87
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join.py -Q 3|success|87
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_cache_scan.py -Q 3|success|87
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_cache_scan.py|success|87
+y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_tag_datatypes.py|success|88
+y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_special.py|success|88
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_ignore_disorder.py|success|88
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_func_to_char_timestamp.py -Q 3|success|88
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp.py -Q 2|success|88
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last.py -Q 3|success|88
+y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_alter_tag.py|success|89
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_meta_vtbl.py|success|89
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cols_function.py -Q 2|success|89
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_func_to_char_timestamp.py -Q 2|success|89
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_func_to_char_timestamp.py|success|89
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp.py -R|success|89
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_td_32187.py|success|89
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_schema_change.py|success|90
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_fsync.py|success|90
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_limit_interval.py  -Q 2|success|90
+n,.,pytest cases/uncatalog/system-test/0-others/test_delete_check.py|success|91
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_abs.py -Q 2|success|91
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_elapsed.py|success|91
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_histogram.py|success|91
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeStb1.py|success|91
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sml.py -Q 2|success|92
+y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_op_keep.py -N 2|success|93
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_condition.py|success|93
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cols_function.py -Q 3|success|93
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sample.py -Q 4|success|93
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Timediff.py -Q 2|success|93
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_timetruncate.py -Q 2|success|93
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_top.py|success|93
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1_mutilVg.py|success|93
+n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_sliding.py|success|94
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/06-ResultSaved/test_result_saved_comprehensive.py |success|94
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_alter_stable.py|success|94
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_elapsed.py -Q 2|success|94
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_limit_interval.py -Q 3|success|94
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stateduration.py -R|success|94
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode2mnode.py -N 5|success|94
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqCheckData.py|success|94
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDropStbCtb.py|success|94
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_filter_where.py|success|95
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_2.py|success|95
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join.py -Q 4|success|95
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_select_null.py -Q 3|success|95
+n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot0.py|success|96
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_udf_restart_taosd.py|success|96
+n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_retry.py -B|success|97
+y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_multi_vnode_replica3.py -N 5|success|97
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp.py -Q 3|success|97
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_row.py|success|97
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tail.py -R|success|97
+n,.,pytest cases/uncatalog/system-test/2-query/test_decimal3.py -Q 1|success|98
+y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_stable_balance_replica1.py -N 2|success|98
+y,.,./ci/pytest.sh pytest cases/30-DataCompression/test_compress_normal_table.py|success|98
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compact_vgroups.py|success|98
+n,.,pytest cases/uncatalog/system-test/2-query/test_decimal3.py -Q 2|success|99
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_information_schema.py|success|99
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_user_privilege_all.py|success|99
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp.py -Q 4|success|99
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_match.py -Q 4|success|99
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_slimit.py -Q 3|success|99
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_select.py -N 2 --replica 1|success|99
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/16-PsedoColumn/test_tbname_in.py|success|100
+y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_paramnum.py|success|100
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_expired_time.py|success|100
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_check_tsdb.py|success|100
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_3.py|success|100
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_slimit.py -Q 4|success|100
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_top.py -Q 4|success|100
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_2.py -Q 2|success|101
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_blockSMA.py -Q 4|success|101
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_match.py -Q 2|success|101
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tail.py -Q 3|success|101
+n,.,pytest cases/uncatalog/army/user/test_passwd.py|success|102
+y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_row3.py|success|102
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_2.py -Q 4|success|102
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tail.py -Q 2|success|102
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_select_duplicatedata_false.py -N 3 --replica 3|success|102
+n,.,pytest cases/uncatalog/system-test/3-enterprise/restore/test_kill_restore_dnode.py -N 5|success|103
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_2.py -Q 3|success|103
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_case_when.py -Q 4|success|103
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_stop.py -N 5 -M 3 -I False|success|103
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_stop.py -N 5 -M 3|success|103
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_case_when.py -Q 2|success|104
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_match.py|success|104
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_query_cols_tags_and_or.py -R|success|104
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqAlterSchema.py|success|104
+n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic1.py |success|106
+n,.,pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_checkpoint.py|success|106
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_inc_snapshot.py -N 3|success|106
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_table_param_ttl.py -R|success|106
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_4.py|success|106
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_slimit.py -Q 2|success|106
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_2.py -R|success|107
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_blockSMA.py -Q 3|success|107
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_case_when.py -Q 3|success|107
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_check_tsdb.py -R|success|107
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stddev_test.py -Q 3|success|107
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/db-encrypt/test_basic.py -N 3 -M 3|success|108
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_cachemodel.py|success|108
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_case_when.py -R|success|108
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sample.py -Q 3|success|108
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_select_null.py -Q 2|success|108
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stddev_test.py -Q 2|success|108
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stddev_test.py -Q 4|success|108
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_dnode_create_stb.py -N 6 -M 3|success|108
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb_mutilVg_mutilCtb_funcNFilter.py|success|108
+n,.,pytest cases/uncatalog/system-test/2-query/test_decimal3.py -Q 3|success|109
+n,.,pytest cases/uncatalog/system-test/2-query/test_decimal3.py|success|109
+n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmqDataPrecisionUnit.py|success|109
+y,.,./ci/pytest.sh pytest cases/06-DataIngestion/test_write_delete.py|success|109
+y,.,./ci/pytest.sh pytest cases/10-Functions/04-TimeseriesSpecfic/test_func_diff2.py|success|109
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_1.py -Q 2|success|109
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_1.py -Q 3|success|109
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_3.py -Q 4|success|109
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_query_cols_tags_and_or.py -Q 3|success|109
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stddev_test.py|success|109
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_walRemoveLog.py -N 3|success|109
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_3.py -Q 3|success|110
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_4.py -Q 3|success|110
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_top.py -Q 2|success|110
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_replay.py|success|110
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb_1ctb_funcNFilter.py|success|110
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_case5.py|success|111
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_check_tsdb.py -Q 4|success|111
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sum.py|success|111
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_top.py -Q 3|success|111
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_vnode_create_stb.py -N 6 -M 3|success|111
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_column_false.py -N 3 --replica 3|success|111
+y,.,./ci/pytest.sh pytest cases/06-DataIngestion/test_write_out_of_order_data.py|success|112
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/08-Recalc/test_recalc_watermark.py|success|112
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_1.py -Q 4|success|112
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_table_param_ttl.py|success|112
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_match.py -Q 3|success|112
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_slimit.py|success|112
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1_mutilVg_mutilCtb.py|success|113
+n,.,pytest cases/uncatalog/system-test/2-query/test_decimal3.py -Q 4|success|114
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_agg_null.py|success|114
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDnodeRestart1.py|success|114
+y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_replica3_basic.py -N 3|success|115
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_func_paramnum.py|success|115
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last.py -Q 2|success|115
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_stbTagFilter_multiCtb.py|success|115
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeDb3.py|success|115
+n,.,pytest cases/uncatalog/system-test/6-cluster/manually-test/test_6dnode3mnode_insert_less_data_alter_rep3to1to3.py -N 6 -M 3|success|116
+y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_replicas_13.py -N 4|success|116
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_1.py|success|116
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join.py -R|success|116
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb_mutilVg.py|success|116
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/08-SubQuery/test_nestquery.py|success|117
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_elapsed.py -Q 3|success|117
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeDb4.py|success|117
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_privileges.py|success|118
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_update_data.py|success|118
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_restart_dnode_insert_data_async.py -N 6 -M 3|success|118
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_dnode_create_stb.py -N 6 -M 3 --replica 3|success|118
+y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_replica3_import.py -N 4|success|119
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_start_end_time.py|success|119
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_kill_balance_leader.py -N 3|success|119
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_4.py -Q 4|success|119
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_restart_dnode_insert_data.py -N 6 -M 3|success|119
+y,.,./ci/pytest.sh pytest cases/06-DataIngestion/test_write_update.py|success|120
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_4.py -Q 2|success|120
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_slimit.py -R|success|120
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k.py -Q 4|success|122
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_4.py -R|success|122
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union1.py|success|122
+y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_op_dnodelist.py -N 5|success|123
+y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_topbot.py|success|123
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k.py -Q 2|success|123
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_histogram.py -R|success|123
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_5.py -Q 3|success|123
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_mnode_create_stb.py -N 6 -M 3|success|123
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_vnode_create_stb.py -N 6 -M 3 --replica 3|success|123
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDelete_1ctb.py|success|123
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sample.py -R|success|124
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeStb0.py|success|124
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb_mutilVg_mutilCtb.py|success|124
+y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance_replica_3.py -N 5|success|125
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_state.py|success|125
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k.py -Q 3|success|125
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_row.py -Q 2|success|125
+y,.,./ci/pytest.sh pytest cases/19-ManageNodes/02-Mnode/test_mnode_basic6.py -N 4|success|126
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_check_tsdb.py -Q 3|success|126
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_1.py -R|success|127
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_row.py -Q 3|success|127
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_select_null.py -R|success|127
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union1.py -Q 4|success|127
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_dnode_create_db.py -N 6 -M 3|success|127
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeDb.py -N 3 --replica 3|success|127
+y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normaltable_column_limit.py|success|128
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_split_vgroup_by_learner.py -N 3|success|128
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_row.py -R|success|128
+n,.,pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py -Q 4|success|129
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb_1ctb.py|success|129
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqSubscribeStb_r3.py -N 5|success|129
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k.py|success|130
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_stbFilter.py|success|130
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq3mnodeSwitch.py -N 6 -M 3 -I True|success|130
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq3mnodeSwitch.py -N 6 -M 3 --replica 3 -I True|success|131
+y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_alter_normaltable.py|success|132
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_row.py -Q 4|success|132
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_ntb_select.py -N 3 --replica 3|success|132
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_false.py -N 3 --replica 3|success|132
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_mnode_create_db.py -N 6 -M 3|success|133
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join2.py|success|134
+y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_first_last.py|success|135
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_mnode_create_db.py -N 6 -M 3 --replica 3|success|135
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_compact_db_conflict.py -N 3|success|135
+n,.,pytest cases/uncatalog/system-test/0-others/test_udfpy_main.py|success|136
+n,.,pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -Q 2|success|136
+n,.,pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py|success|136
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join2.py -Q 3|success|136
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taos_shell_error.py|success|137
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp_extension.py|success|137
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union1.py -Q 3|success|137
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDnodeRestart.py|success|137
+n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_snode_restart_with_checkpoint.py -N 4|success|138
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last.py -R|success|138
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_mgmt.py -N 8|success|139
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_query_main.py|success|139
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosdemo_test_query_with_json.py -R|success|139
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1_mutilVg_mutilCtb_funcNFilter.py|success|139
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_database_pre_suf.py|success|140
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp_extension.py -Q 3|success|140
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp_extension.py -Q 4|success|140
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeStb2.py|success|140
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compact_auto.py|success|141
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_explain.py|success|141
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp_extension.py -Q 2|success|141
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_restart_dnode_insert_data.py -N 6 -M 3 --replica 3|success|141
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_add_1dnode.py -N 7 -M 3 -C 6|success|143
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_recreate_mnode.py -N 6 -M 3|success|143
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_mnode_modify_meta.py  -N 6 -M 3|success|143
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUpdateWithConsume.py -N 3 --replica 3|success|143
+n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_string_func.py|success|144
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_mnode_create_stb.py -N 6 -M 3 --replica 3|success|144
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_select.py -N 3 --replica 3|success|144
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join2.py -Q 4|success|145
+n,.,pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py -Q 3|success|146
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_mounts.py|success|146
+y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance1.py -N 4 -C 1|success|147
+y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance_vnode_clean.py -N 4 -C 2|success|148
+n,.,pytest cases/uncatalog/system-test/2-query/test_large_data.py|success|149
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_nano_support.py|success|149
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_stop_loop.py -N 5 -M 3|success|149
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb.py -N 3 --replica 3|success|149
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1.py -N 3 --replica 3|success|150
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_retention.py|success|151
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp_extension.py -R|success|151
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeStb3.py|success|151
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_smaTest.py|success|152
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_top.py -R|success|152
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_select_false.py -N 3 --replica 3|success|152
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sum.py -R|success|153
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1_1ctb.py|success|153
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_explain.py -Q 4|success|154
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_5.py|success|154
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDropNtb_snapshot1.py|success|154
+n,.,pytest cases/uncatalog/system-test/0-others/test_wal_level_skip.py|success|155
+y,.,./ci/pytest.sh pytest cases/20-Metadata/test_metrics_idx.py|success|155
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_add_1dnode.py -N 7 -M 3 -C 6 --replica 3|success|155
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k.py -R|success|156
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDropNtb_snapshot0.py|success|156
+n,.,pytest cases/13-StreamProcessing/20-UseCase/test_nevados.py |success|157
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/cmdline/test_taos_cli.py -B|success|157
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_join.py|success|158
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeDb2.py|success|158
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_show_disk_usage_multilevel.py|success|159
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_user_manage.py|success|159
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_smaTest.py -R|success|160
+y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balancex.py -N 4 -C 1|success|161
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_limit_interval.py -R|success|162
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeReplicate.py -M 3 -N 3 --replica 3|success|163
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline.py|success|164
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_user_control.py|success|164
+y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_sync_3Replica1VgElect.py -N 5|success|166
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_by_col_agg.py -Q 4|success|166
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_checkpoint_info.py -N 4|success|167
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_min.py -Q 2|success|167
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_vnode_create_db.py -N 6 -M 3|success|167
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeTransform_db_removewal.py -N 2 --replica 1|success|167
+y,.,./ci/pytest.sh pytest cases/19-ManageNodes/02-Mnode/test_mnode_basic5.py -N 4|success|168
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf.py|success|168
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_vnode_create_db.py -N 6 -M 3 --replica 3|success|169
+n,.,pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_event.py|success|170
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_db.py -N 3 --replica 3|success|170
+n,.,pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding.py|success|172
+y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_mgmt_rep3.py -N 6 --replica 3|success|172
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/view/non_marterial_view/test_view.py|success|172
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_explain.py -Q 3|success|172
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_dnode_create_db.py -N 6 -M 3 --replica 3|success|172
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/storage/test_one_stage_comp.py -N 3 -L 3 -D 1|success|174
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_dnode_modify_meta.py  -N 6 -M 3|success|174
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/3-enterprise/restore/test_restore_qnode.py -N 5 -M 3 -I False|success|177
+n,.,pytest cases/13-StreamProcessing/20-UseCase/test_idmp_pv.py|success|178
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_4.py -Q 4|success|178
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_4.py -Q 2|success|180
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_4.py -Q 3|success|180
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/3-enterprise/restore/test_restore_vnode.py -N 5 -M 3 -I False|success|180
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDelete_multiCtb.py -N 3 --replica 3|success|180
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb.py -N 3 --replica 3|success|180
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_delete_stable.py|success|181
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_5.py -R|success|181
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1_1ctb_funcNFilter.py|success|181
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_select_duplicatedata.py -N 3 --replica 3|success|182
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_alter_replica.py -N 3|success|184
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_4.py|success|184
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/3-enterprise/restore/test_restore_mnode.py -N 5 -M 3 -I False|success|184
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_query_bugs.py -N 3|success|185
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_tb_100w_data_order.py|success|186
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/3-enterprise/restore/test_restore_dnode.py -N 5 -M 3 -I False|success|186
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_4.py -R|success|187
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqShow.py|success|187
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_join_const.py|success|188
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_db_tb_name_check.py|success|189
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_timezone.py -Q 2|success|190
+y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance3.py -N 6 -C 4|success|191
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_leastsquares.py -Q 2|success|193
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqParamsTest.py|success|193
+n,.,pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -Q 4|success|194
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_explain.py -Q 2|success|194
+n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_decimal.py|success|195
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_query_basic.py -N 3|success|195
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max.py -Q 2|success|195
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_5.py -Q 2|success|195
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/eco-system/manager/test_schema_change.py -N 3 -M 3|success|196
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_not.py -Q 2|success|197
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_select_null.py|success|197
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill2.py -Q 2|success|198
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hyperloglog.py -Q 2|success|199
+y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_redistribute_vgroup_replica1.py -N 4|success|200
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeTransform_stb.py -N 6 --replica 3|success|202
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_retention2.py|success|203
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_spread.py -Q 2|success|203
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_out_of_order.py -Q 2|success|204
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_precisionNS.py|success|205
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_check_tsdb.py -Q 2|success|205
+n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_oldcase_math_func.py|success|207
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_explain.py -R|success|209
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqAutoCreateTbl.py|success|209
+n,.,pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py|success|210
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Today.py -Q 2|success|210
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_function.py|success|212
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_normal.py -Q 2|success|212
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_3.py -R|success|213
+n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_error_exit.py|success|216
+n,.,pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -Q 3|success|216
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_split_vgroup.py -N 3 --replica 1|success|216
+y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance2.py -N 5 -C 3|success|218
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_by_col_agg.py -Q 2|success|218
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_by_col_agg.py -Q 3|success|218
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_by_col_agg.py|success|219
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union1.py -Q 2|success|219
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Now.py -Q 2|success|221
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_out_of_order.py -R|success|225
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_substr.py -Q 2|success|225
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_char_length.py|success|226
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_tsdb_snapshot.py -N 3 -M 3|success|227
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_limit_opt_2.py -Q 2|success|227
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_length.py|success|227
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/vnode/test_4dnode1mnode_basic_replica3_vgroups.py -N 4 -M 1|success|227
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_limit_opt_2.py -Q 4|success|228
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_lower.py -Q 3|success|228
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_char_length.py -Q 3|success|229
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_lower.py|success|229
+y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_create.py|success|230
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_split_vgroup_wal.py -N 3 --replica 1|success|230
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join2.py -Q 2|success|230
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_3.py -Q 4|success|231
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join.py -Q 2|success|232
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_upper.py -Q 3|success|232
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_db_false.py -N 3 --replica 3|success|232
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_3.py -Q 3|success|233
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_lower.py -Q 2|success|234
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_3.py -Q 2|success|235
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_limit_opt_2.py|success|235
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_rtrim.py|success|235
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill2.py -Q 4|success|236
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ltrim.py|success|237
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_5.py -Q 4|success|237
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_limit_opt_2.py -Q 3|success|238
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_length.py -Q 3|success|238
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_3.py|success|239
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_char_length.py -Q 2|success|239
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_length.py -Q 2|success|239
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_upper.py -Q 2|success|239
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_conn_mode.py -R|success|240
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_substr.py|success|240
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeTransform_stb_removewal.py -N 6 --replica 3|success|241
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_rtrim.py -Q 2|success|242
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_3.py -R|success|243
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_stb_keep_compact.py|success|244
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_mutil_stage.py|success|244
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ltrim.py -Q 2|success|244
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stablity_1.py -Q 4|success|244
+y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join_full.py|success|245
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_lower.py -Q 4|success|245
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_upper.py -Q 4|success|245
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_char_length.py -Q 4|success|246
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_substr.py -Q 4|success|246
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_stb_keep_compact.py -N 3 -M 3|success|248
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_multilevel.py|success|248
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union.py -Q 2|success|248
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_length.py -Q 4|success|250
+n,.,pytest cases/13-StreamProcessing/20-UseCase/test_idmp_tobacco.py|success|252
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_mix.py|success|253
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_substr.py -Q 3|success|253
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_stb_keep_compact.py -N 3|success|255
+n,.,pytest cases/uncatalog/system-test/0-others/test_wal_retention.py -N 3|success|256
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_char_length.py -R|success|257
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_column.py -N 3 --replica 3|success|259
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compress_tsz1.py|success|260
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_rtrim.py -Q 3|success|260
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_rtrim.py -Q 4|success|260
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compress_tsz2.py|success|262
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ltrim.py -Q 4|success|262
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_lower.py -R|success|263
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill2.py|success|265
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stablity.py -Q 4|success|265
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_length.py -R|success|266
+y,.,./ci/pytest.sh pytest cases/30-DataCompression/test_compress_basic.py -N 3|success|269
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ltrim.py -Q 3|success|270
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py -Q 2|success|270
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stablity_1.py -Q 2|success|270
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_composite_primary_key_insert.py|success|273
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/storage/test_compress_basic.py -N 3|success|274
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py -R|success|280
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tagFilter.py|success|280
+y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_redistribute_vgroup_replica3_v1_leader.py -N 5|success|282
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stablity_1.py -Q 3|success|282
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stablity.py -Q 2|success|282
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union.py -Q 3|success|282
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeDb0.py -N 3 --replica 3|success|285
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stablity_1.py|success|286
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat_ws2.py -Q 2|success|287
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stablity.py|success|287
+n,.,pytest cases/05-VirtualTables/test_vtable_query.py|success|288
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_column_tag_boundary.py|success|288
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill2.py -Q 3|success|288
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_orderBy.py -N 5|success|288
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union.py -Q 4|success|290
+y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_redistribute_vgroup_replica3_v1_follower.py -N 5|success|292
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat.py -Q 2|success|293
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_para_tms.py|success|296
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_rtrim.py -R|success|297
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_26.py -Q 3|success|298
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ltrim.py -R|success|299
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_26.py -Q 4|success|300
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_out_of_order.py -Q 4|success|305
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stablity.py -Q 3|success|305
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_delete_normaltable.py|success|306
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat_ws.py -Q 2|success|306
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_insert_null_none.py -Q 4|success|306
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_balance_vgroups_r1.py -N 6|success|308
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat2.py -Q 2|success|310
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_26.py -Q 2|success|312
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_blockSMA.py -R|success|316
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat_ws2.py|success|319
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_26.py|success|319
+y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_join.py|success|321
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqParamsTest.py -R|success|321
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_upper.py -R|success|323
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_insert_null_none.py|success|325
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_upper.py|success|325
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_insert_null_none.py -Q 2|success|328
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union.py -R|success|328
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union.py|success|328
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat2.py|success|329
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat.py|success|330
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat_ws2.py -Q 4|success|333
+y,.,./ci/pytest.sh pytest cases/30-DataCompression/test_mlevel_basic.py -N 3 -L 3 -D 2|success|334
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat.py -Q 4|success|335
+y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_redistribute_vgroup_replica3_v3.py -N 8|success|344
+y,.,./ci/pytest.sh pytest cases/06-DataIngestion/test_write_commit.py|success|344
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_snapshot.py -N 3 -L 3 -D 2|success|344
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_delete_childtable.py|success|347
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_para_tms2.py|success|350
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_taosx.py|success|350
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat_ws.py -Q 4|success|353
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_insert_null_none.py -Q 3|success|354
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery.py -Q 4|success|354
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_split_vgroup_wal.py -N 3 --replica 3|success|357
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat2.py -Q 4|success|358
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_str.py -Q 3|success|358
+n,.,pytest cases/uncatalog/system-test/2-query/test_decimal.py -Q 2|success|360
+n,.,pytest cases/uncatalog/system-test/2-query/test_decimal.py -Q 1|success|363
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_math.py -Q 4|success|363
+n,.,pytest cases/uncatalog/system-test/2-query/test_decimal.py -Q 3|success|364
+n,.,pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 1|success|364
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat_ws.py|success|364
+n,.,pytest cases/uncatalog/system-test/2-query/test_decimal.py -Q 4|success|365
+y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db.py|success|365
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsbsQuery.py -Q 2|success|365
+y,.,./ci/pytest.sh pytest cases/uncatalog/test_new/storage/compact/test_compact_meta.py|success|365
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsbsQuery.py -Q 3|success|366
+n,.,pytest cases/uncatalog/system-test/2-query/test_decimal.py|success|367
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery.py -Q 3|success|367
+n,.,pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb.py|success|368
+n,.,pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 4|success|368
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsbsQuery.py -R|success|368
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_str.py -Q 4|success|370
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery.py -Q 2|success|370
+n,.,pytest cases/uncatalog/system-test/2-query/test_decimal2.py|success|371
+n,.,pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 3|success|372
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat_ws2.py -Q 3|success|372
+n,.,pytest cases/uncatalog/system-test/2-query/test_decimal2.py -Q 2|success|374
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_math.py -Q 3|success|374
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_math.py|success|374
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsbsQuery.py|success|375
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_ts4295.py|success|376
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_out_of_order.py|success|376
+y,.,./ci/pytest.sh pytest cases/07-DataQuerying/06-Limit/test_limitx.py|success|377
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_math.py -Q 2|success|377
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_time.py -Q 3|success|377
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py -R|success|378
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_str.py|success|381
+n,.,pytest cases/13-StreamProcessing/23-Compatibility/stream_compatibility.py|success|384
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_time.py -Q 4|success|385
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_time.py|success|385
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_limit_opt.py -Q 4|success|386
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery.py|success|386
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat_ws.py -Q 3|success|387
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_time.py -Q 2|success|392
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_out_of_order.py -Q 3|success|393
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsbsQuery.py -Q 4|success|394
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_split_vgroup.py -N 3 --replica 3|success|395
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat2.py -Q 3|success|395
+y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stt.py|success|396
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last+last_row.py|success|401
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last+last_row.py -Q 2|success|402
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last+last_row.py -Q 4|success|405
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat_ws2.py -R|success|406
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_substr.py -R|success|406
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last+last_row.py -Q 3|success|407
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_str.py -Q 2|success|413
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat.py -R|success|415
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat.py -Q 3|success|417
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDropStb.py|success|418
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_agg_group_NotReturnValue.py -Q 4|success|423
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat_ws.py -R|success|426
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_ts_4272.py|success|436
+y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_redistribute_vgroup_replica3_v2.py -N 6|success|444
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill2.py -R|success|449
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_smaBasic.py -N 3|success|455
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_by_col.py -Q 4|success|475
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_by_col.py|success|477
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_by_col.py -Q 2|success|481
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_agg_group_NotReturnValue.py|success|488
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_agg_group_NotReturnValue.py -Q 2|success|493
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_by_col.py -Q 3|success|509
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_agg_group_AlwaysReturnValue.py -Q 4|success|549
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_insert_null_none.py -R|success|563
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_benchmark.py|success|584
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_agg_group_NotReturnValue.py -Q 3|success|594
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_agg_group_AlwaysReturnValue.py|success|622
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_agg_group_AlwaysReturnValue.py -Q 2|success|625
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_agg_group_AlwaysReturnValue.py -Q 3|success|719
+y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_insert_column_value.py|success|763
+n,.,pytest cases/13-StreamProcessing/30-OldPyCases/test_compatibility.py|success|1156
