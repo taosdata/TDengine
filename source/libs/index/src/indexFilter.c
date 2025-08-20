@@ -103,6 +103,8 @@ static FORCE_INLINE int32_t sifGetFuncFromSql(EOperatorType src, EIndexQueryType
     *dst = QUERY_LESS_EQUAL;
   } else if (src == OP_TYPE_EQUAL) {
     *dst = QUERY_TERM;
+  } else if (src == OP_TYPE_IN) {
+    *dst = QUERY_TERM;
   } else if (src == OP_TYPE_LIKE || src == OP_TYPE_MATCH || src == OP_TYPE_NMATCH) {
     *dst = QUERY_REGEX;
   } else if (src == OP_TYPE_JSON_CONTAINS) {
@@ -135,7 +137,7 @@ static FORCE_INLINE int32_t sifGetOperParamNum(EOperatorType ty) {
   return 2;
 }
 static FORCE_INLINE int32_t sifValidOp(EOperatorType ty) {
-  if ((ty >= OP_TYPE_ADD && ty <= OP_TYPE_BIT_OR) || (ty == OP_TYPE_IN || ty == OP_TYPE_NOT_IN) ||
+  if ((ty >= OP_TYPE_ADD && ty <= OP_TYPE_BIT_OR) ||
       (ty == OP_TYPE_LIKE || ty == OP_TYPE_NOT_LIKE || ty == OP_TYPE_MATCH || ty == OP_TYPE_NMATCH)) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -332,12 +334,8 @@ static int32_t sifInitParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
         SIF_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
       }
       SIF_ERR_RET(scalarGenerateSetFromList((void **)&param->pFilter, node, nl->node.resType.type, 0, 0));
-      if (taosHashPut(ctx->pRes, &node, POINTER_BYTES, param, sizeof(*param))) {
-        taosHashCleanup(param->pFilter);
-        param->pFilter = NULL;
-        indexError("taosHashPut nodeList failed, size:%d", (int32_t)sizeof(*param));
-        SIF_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
-      }
+      // Don't store NODE_LIST to context to avoid double free
+      // The pFilter will be managed by the caller (sifExecOper)
       break;
     }
     case QUERY_NODE_FUNCTION:
@@ -675,6 +673,52 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
   SIndexMetaArg  *arg = &output->arg;
   EIndexQueryType qtype = 0;
   SIF_ERR_RET(sifGetFuncFromSql(operType, &qtype));
+  // Handle IN operator with multiple values
+  if (operType == OP_TYPE_IN && right->pFilter != NULL) {
+    // For IN operator, we need to iterate through all values in the set
+    void *pIter = taosHashIterate(right->pFilter, NULL);
+    while (pIter != NULL) {
+      SDataTypeBuf typedata;
+      memset(&typedata, 0, sizeof(typedata));
+
+      bool       reverse = false, equal = true;  // IN operator is essentially multiple equality checks
+      FilterFunc filterFunc = sifEqual;
+
+      SMetaFltParam param = {.suid = arg->suid,
+                             .cid = left->colId,
+                             .type = left->colValType,
+                             .val = pIter,
+                             .reverse = reverse,
+                             .equal = equal,
+                             .filterFunc = filterFunc};
+
+      SArray *tempResult = taosArrayInit(8, sizeof(uint64_t));
+      if (tempResult == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+
+      ret = left->api.metaFilterTableIds(arg->metaEx, &param, tempResult);
+      if (ret == 0) {
+        // Add results to output array
+        if (taosArrayAddAll(output->result, tempResult) == NULL) {
+          taosArrayDestroy(tempResult);
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+      }
+
+      taosArrayDestroy(tempResult);
+      pIter = taosHashIterate(right->pFilter, pIter);
+    }
+
+    // Remove duplicates and sort
+    if (taosArrayGetSize(output->result) > 0) {
+      taosArraySort(output->result, uidCompare);
+      taosArrayRemoveDuplicate(output->result, uidCompare, NULL);
+    }
+
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (left->colValType == TSDB_DATA_TYPE_JSON) {
     SIndexTerm *tm = indexTermCreate(arg->suid, DEFAULT, right->colValType, left->colName, strlen(left->colName),
                                      right->condValue, strlen(right->condValue));
@@ -821,7 +865,7 @@ static FORCE_INLINE int32_t sifGetOperFn(int32_t funcId, sif_func_t *func, SIdxF
       *func = sifNotEqualFunc;
       return 0;
     case OP_TYPE_IN:
-      *status = SFLT_NOT_INDEX;
+      *status = SFLT_ACCURATE_INDEX;
       *func = sifInFunc;
       return 0;
     case OP_TYPE_NOT_IN:
