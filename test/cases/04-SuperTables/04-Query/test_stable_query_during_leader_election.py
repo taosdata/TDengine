@@ -14,13 +14,13 @@ class TestSelectDuringLeaderElection:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_select_during_leader_election(self):
-        """Leader Election Select Test
+        """Query: during leader election
 
-        1.Create 3 dnodes
-        2.Create db with 10 vgroups 3 replications
-        2.Create supper table and sub table
-        3.Stop one of the dnodes with leader vnode on it
-        4.Select data from super table, it should be success
+        1. Create 3 dnodes
+        2. Create db with 10 vgroups 3 replications
+        2. Create supper table and sub table
+        3. Stop one of the dnodes with leader vnode on it
+        4. Select data from super table, it should be success
     
         Catalog:
             - Select
