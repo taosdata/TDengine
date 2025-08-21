@@ -19,7 +19,7 @@ DBeaver 是一款流行的跨平台数据库管理工具，方便开发者、数
 
  ![DBeaver 连接 TDengine](./dbeaver/dbeaver-connect-tdengine-zh.webp)
 
-2. 配置 TDengine 连接，填入主机地址、端口号（6041）、用户名和密码。示例 TDengine 服务器主机地址 `www.taosdemo.com`，端口号 `6041`，建议选择 URL 连接，增加连接参数 `?varcharAsString&conMode=1` ，参数意义参考 [JDBC 文档](../../../reference/connector/java) 。点击“测试连接”可以对连接是否可用进行测试。如果本机没有安装 TDengine Java
+2. 配置 TDengine 连接，填入主机地址、端口号（6041）、用户名和密码。示例 TDengine 服务器主机地址 `www.taosdemo.com`，端口号 `6041`，建议选择 URL 连接，增加连接参数 `?varcharAsString=true&conmode=1` ，参数意义参考 [JDBC 文档](../../../reference/connector/java) 。点击“测试连接”可以对连接是否可用进行测试。如果本机没有安装 TDengine Java
  连接器，DBeaver 会提示下载安装。
 
  ![配置 TDengine 连接](./dbeaver/dbeaver-config-tdengine-zh.webp)
