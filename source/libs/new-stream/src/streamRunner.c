@@ -58,7 +58,7 @@ _exit:
 }
 
 static void stRunnerDestroyRuntimeInfo(SStreamRuntimeInfo* pRuntime) {
-  TAOS_UNUSED(tDestroyStRtFuncInfo(&pRuntime->funcInfo));
+  tDestroyStRtFuncInfo(&pRuntime->funcInfo);
 }
 
 static void stRunnerDestroyTaskExecution(void* pExec) {
