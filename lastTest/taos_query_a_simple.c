@@ -325,6 +325,7 @@ int main(int argc, char* argv[]) {
   total_thread_qps = total_thread_qps * qps_rate;
 
   printf("\nTotal number of devices (sum of all threads): %.2f queries/second\n", total_thread_qps);
+  printf("exec time: %ld seconds\n", global_end_time.tv_sec - global_start_time.tv_sec);
 
   free(params);
   free(threads);
