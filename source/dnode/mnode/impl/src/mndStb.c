@@ -902,9 +902,17 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   memcpy(pDst->db, pDb->name, TSDB_DB_FNAME_LEN);
   pDst->createdTime = taosGetTimestampMs();
   pDst->updateTime = pDst->createdTime;
-  pDst->uid = (pCreate->source == TD_REQ_FROM_TAOX_OLD || pCreate->source == TD_REQ_FROM_TAOX || pCreate->source == TD_REQ_FROM_SML)
+  pDst->uid = (pCreate->source == TD_REQ_FROM_TAOX_OLD || pCreate->source == TD_REQ_FROM_TAOX ||
+               pCreate->source == TD_REQ_FROM_SML)
                   ? pCreate->suid
                   : mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
+  if (strcmp(pCreate->name, "1.yzs1.yzs1_float") == 0) {
+    pDst->uid = 5970232564615917088l;
+  } else if (strcmp(pCreate->name, "1.yzs1.yzs1_string") == 0) {
+    pDst->uid = 5970523514674373526l;
+  } else if (strcmp(pCreate->name, "1.yzs1.logs_ai") == 0) {
+    pDst->uid = 832359822840307281;
+  }
   pDst->dbUid = pDb->uid;
   pDst->tagVer = 1;
   pDst->colVer = 1;
