@@ -912,7 +912,6 @@ _return:
   return code;
 }
 
-
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   SSyncState state = syncGetState(pVnode->sync);
   pLoad->syncAppliedIndex = pVnode->state.applied;
@@ -926,8 +925,8 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->startTimeMs = state.startTimeMs;
   pLoad->syncCanRead = state.canRead;
   pLoad->learnerProgress = state.progress;
-  pLoad->cacheUsage = tsdbCacheGetUsage(pVnode);
-  pLoad->numOfCachedTables = tsdbCacheGetElems(pVnode);
+  pLoad->cacheUsage = 0;         // tsdbCacheGetUsage(pVnode);
+  pLoad->numOfCachedTables = 0;  // tsdbCacheGetElems(pVnode);
   VNODE_DO_META_QUERY(pVnode, pLoad->numOfTables = metaGetTbNum(pVnode->pMeta));
   VNODE_DO_META_QUERY(pVnode, pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta, 1));
   pLoad->totalStorage = (int64_t)3 * 1073741824;

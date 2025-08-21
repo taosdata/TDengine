@@ -182,9 +182,9 @@ void    tColDataDestroy(void *ph);
 void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t cflag);
 void    tColDataClear(SColData *pColData);
 void    tColDataDeepClear(SColData *pColData);
-int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
+// int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
 int32_t tColDataUpdateValue(SColData *pColData, SColVal *pColVal, bool forward);
-int32_t tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
+// int32_t tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
 uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal);
 int32_t tColDataCopy(SColData *pColDataFrom, SColData *pColData, xMallocFn xMalloc, void *arg);
 void    tColDataArrGetRowKey(SColData *aColData, int32_t nColData, int32_t iRow, SRowKey *key);
@@ -260,7 +260,7 @@ struct SValue {
 };
 
 #define VALUE_GET_DATUM(pVal, type)  \
-  (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_DECIMAL) ? (pVal)->pData : (void*)&(pVal)->val
+  (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_DECIMAL) ? (pVal)->pData : (uint8_t*)&(pVal)->val
 
 #define VALUE_GET_TRIVIAL_DATUM(pVal) ((pVal)->val)
 #define VALUE_SET_TRIVIAL_DATUM(pVal, v) (pVal)->val = v
@@ -366,6 +366,17 @@ struct SValueColumn {
   SBuffer  offsets;
 };
 
+extern int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData);
+extern void (*tColDataGetValueImpl[8])(SColData *pColData, int32_t iVal, SColVal *pColVal);
+
+static FORCE_INLINE int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
+  return tColDataAppendValueImpl[pColData->flag][pColVal->flag](
+      pColData, VALUE_GET_DATUM(&pColVal->value, pColData->type), pColVal->value.nData);
+}
+static FORCE_INLINE int32_t tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
+  tColDataGetValueImpl[pColData->flag](pColData, iVal, pColVal);
+  return 0;
+}
 typedef struct {
   int32_t  dataType;      // filled by caller
   uint32_t cmprAlg;       // filled by caller

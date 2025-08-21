@@ -23,7 +23,6 @@ extern "C" {
 #endif
 
 static FORCE_INLINE int32_t tRealloc(uint8_t **ppBuf, int64_t size) {
-  int32_t  code = 0;
   int64_t  bsize = 0;
   uint8_t *pBuf = NULL;
 
@@ -32,7 +31,7 @@ static FORCE_INLINE int32_t tRealloc(uint8_t **ppBuf, int64_t size) {
     bsize = *(int64_t *)pBuf;
   }
 
-  if (bsize >= size) goto _exit;
+  if (bsize >= size) return 0;
 
   if (bsize == 0) bsize = 64;
   while (bsize < size) {
@@ -41,15 +40,13 @@ static FORCE_INLINE int32_t tRealloc(uint8_t **ppBuf, int64_t size) {
 
   pBuf = (uint8_t *)taosMemoryRealloc(pBuf, bsize + sizeof(int64_t));
   if (pBuf == NULL) {
-    code = terrno;
-    goto _exit;
+    return terrno;
   }
 
   *(int64_t *)pBuf = bsize;
   *ppBuf = pBuf + sizeof(int64_t);
 
-_exit:
-  return code;
+  return 0;
 }
 
 #define tFree(BUF)                                        \

@@ -303,14 +303,20 @@ DEFINE_TYPE_FROM_DECIMAL_FUNCS(extern, Decimal128);
 #define IS_MATHABLE_TYPE(_t) \
   (IS_NUMERIC_TYPE(_t) || (_t) == (TSDB_DATA_TYPE_BOOL) || (_t) == (TSDB_DATA_TYPE_TIMESTAMP))
 
+#if 0
 #define IS_VAR_DATA_TYPE(t)                                                                                 \
   (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR) || \
    ((t) == TSDB_DATA_TYPE_JSON) || ((t) == TSDB_DATA_TYPE_GEOMETRY))
+#else
+#define TSDB_DATA_TYPE_VAR_MASK                                                                          \
+  ((1UL << TSDB_DATA_TYPE_VARCHAR) | (1UL << TSDB_DATA_TYPE_VARBINARY) | (1UL << TSDB_DATA_TYPE_NCHAR) | \
+   (1UL << TSDB_DATA_TYPE_JSON) | (1UL << TSDB_DATA_TYPE_GEOMETRY))
+#define IS_VAR_DATA_TYPE(t) ((t) < TSDB_DATA_TYPE_MAX && ((1UL << (t)) & TSDB_DATA_TYPE_VAR_MASK))
+#endif
 #define IS_STR_DATA_TYPE(t) \
   (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR))
 
-#define IS_COMPARE_STR_DATA_TYPE(t) \
-  (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_NCHAR))
+#define IS_COMPARE_STR_DATA_TYPE(t) (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_NCHAR))
 
 #define IS_VALID_TINYINT(_t)   ((_t) >= INT8_MIN && (_t) <= INT8_MAX)
 #define IS_VALID_SMALLINT(_t)  ((_t) >= INT16_MIN && (_t) <= INT16_MAX)

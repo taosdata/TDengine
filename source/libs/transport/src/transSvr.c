@@ -1613,6 +1613,9 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   (void)taosThreadAttrInit(&thAttr);
   (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
   taosThreadAttrSetName(&thAttr, "trans-svr-work");
+#ifdef TD_COMPACT_OS
+  (void)taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL);
+#endif
   for (int i = 0; i < srv->numOfThreads; i++) {
     SWorkThrd* thrd = (SWorkThrd*)taosMemoryCalloc(1, sizeof(SWorkThrd));
     if (thrd == NULL) {
@@ -1691,6 +1694,9 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   (void)taosThreadAttrInit(&thAttr1);
   (void)taosThreadAttrSetDetachState(&thAttr1, PTHREAD_CREATE_JOINABLE);
   taosThreadAttrSetName(&thAttr1, "trans-accept");
+#ifdef TD_COMPACT_OS
+  (void)taosThreadAttrSetStackSize(&thAttr1, STACK_SIZE_SMALL);
+#endif
   code = taosThreadCreate(&srv->thread, &thAttr1, transAcceptThread, (void*)srv);
   (void)taosThreadAttrDestroy(&thAttr1);
   if (code == 0) {

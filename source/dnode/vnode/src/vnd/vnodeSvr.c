@@ -390,7 +390,7 @@ static int32_t vnodePreProcessSubmitMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   if (tsBypassFlag & TSDB_BYPASS_RA_RPC_RECV_SUBMIT) {
     return TSDB_CODE_MSG_PREPROCESSED;
   }
-
+#ifdef TD_ASTRA
   SDecoder *pCoder = &(SDecoder){0};
 
   if (taosHton64(((SSubmitReq2Msg *)pMsg->pCont)->version) != 1) {
@@ -426,6 +426,7 @@ _exit:
     vError("vgId:%d, %s:%d failed to preprocess submit request since %s, msg type:%s", TD_VID(pVnode), __func__, lino,
            tstrerror(code), TMSG_INFO(pMsg->msgType));
   }
+#endif
   return code;
 }
 
@@ -1934,31 +1935,16 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
 
   pRsp->code = TSDB_CODE_SUCCESS;
 
-  void           *pAllocMsg = NULL;
-  SSubmitReq2Msg *pMsg = (SSubmitReq2Msg *)pReq;
-  if (0 == pMsg->version) {
-    code = vnodeSubmitReqConvertToSubmitReq2(pVnode, (SSubmitReq *)pMsg, pSubmitReq);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = vnodeRebuildSubmitReqMsg(pSubmitReq, &pReq);
-    }
-    if (TSDB_CODE_SUCCESS == code) {
-      pAllocMsg = pReq;
-    }
-    if (TSDB_CODE_SUCCESS != code) {
-      goto _exit;
-    }
-  } else {
-    // decode
-    pReq = POINTER_SHIFT(pReq, sizeof(SSubmitReq2Msg));
-    len -= sizeof(SSubmitReq2Msg);
-    SDecoder dc = {0};
-    tDecoderInit(&dc, pReq, len);
-    if (tDecodeSubmitReq(&dc, pSubmitReq, NULL) < 0) {
-      code = TSDB_CODE_INVALID_MSG;
-      goto _exit;
-    }
-    tDecoderClear(&dc);
+  // decode
+  pReq = POINTER_SHIFT(pReq, sizeof(SSubmitReq2Msg));
+  len -= sizeof(SSubmitReq2Msg);
+  SDecoder dc = {0};
+  tDecoderInit(&dc, pReq, len);
+  if (tDecodeSubmitReq(&dc, pSubmitReq, NULL) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
   }
+  tDecoderClear(&dc);
 
   // scan
   TSKEY now = taosGetTimestamp(pVnode->config.tsdbCfg.precision);
@@ -2137,7 +2123,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
 
     pSubmitRsp->affectedRows += affectedRows;
   }
-
+#ifndef TD_ASTRA
   // update the affected table uid list
   if (taosArrayGetSize(newTbUids) > 0) {
     vDebug("vgId:%d, add %d table into query table list in handling submit", TD_VID(pVnode),
@@ -2146,7 +2132,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
       vError("vgId:%d, failed to update tbUid list", TD_VID(pVnode));
     }
   }
-
+#endif
 _exit:
   // message
   pRsp->code = code;
@@ -2177,7 +2163,7 @@ _exit:
 
   if (code == 0) {
     (void)atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, 1);
-    code = tdProcessRSmaSubmit(pVnode->pSma, ver, pSubmitReq, pReq, len);
+    // code = tdProcessRSmaSubmit(pVnode->pSma, ver, pSubmitReq, pReq, len);
   }
   /*
   if (code == 0) {
@@ -2199,12 +2185,10 @@ _exit:
 
   // clear
   taosArrayDestroy(newTbUids);
-  tDestroySubmitReq(pSubmitReq, 0 == pMsg->version ? TSDB_MSG_FLG_CMPT : TSDB_MSG_FLG_DECODE);
+  tDestroySubmitReq(pSubmitReq, TSDB_MSG_FLG_DECODE);
   tDestroySSubmitRsp2(pSubmitRsp, TSDB_MSG_FLG_ENCODE);
 
   if (code) terrno = code;
-
-  taosMemoryFree(pAllocMsg);
 
   return code;
 }

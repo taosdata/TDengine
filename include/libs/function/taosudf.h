@@ -117,9 +117,16 @@ typedef uint16_t VarDataLenT;  // maxVarDataLen: 65535
 #define varDataCopy(dst, v)    (void)memcpy((dst), (void *)(v), varDataTLen(v))
 #define varDataLenByData(v)    (*(VarDataLenT *)(((char *)(v)) - VARSTR_HEADER_SIZE))
 #define varDataSetLen(v, _len) (((VarDataLenT *)(v))[0] = (VarDataLenT)(_len))
+#if 0
 #define IS_VAR_DATA_TYPE(t)                                                                                 \
   (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR) || \
    ((t) == TSDB_DATA_TYPE_JSON) || ((t) == TSDB_DATA_TYPE_GEOMETRY))
+#else
+#define TSDB_DATA_TYPE_VAR_MASK                                                                          \
+  ((1UL << TSDB_DATA_TYPE_VARCHAR) | (1UL << TSDB_DATA_TYPE_VARBINARY) | (1UL << TSDB_DATA_TYPE_NCHAR) | \
+   (1UL << TSDB_DATA_TYPE_JSON) | (1UL << TSDB_DATA_TYPE_GEOMETRY))
+#define IS_VAR_DATA_TYPE(t) ((t) < TSDB_DATA_TYPE_MAX && ((1UL << (t)) & TSDB_DATA_TYPE_VAR_MASK))
+#endif
 #define IS_STR_DATA_TYPE(t) \
   (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR))
 

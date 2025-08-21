@@ -20,7 +20,7 @@
 #include "tlog.h"
 #include "decimal.h"
 
-static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData);
+// static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData);
 static int32_t (*tColDataUpdateValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData, bool forward);
 
 // ================================
@@ -2249,7 +2249,7 @@ static FORCE_INLINE int32_t tColDataAppendValue72(SColData *pColData, uint8_t *p
 
   return tColDataPutValue(pColData, NULL, 0);
 }
-static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData) = {
+int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData) = {
     {tColDataAppendValue00, tColDataAppendValue01, tColDataAppendValue02},  // 0
     {tColDataAppendValue10, tColDataAppendValue11, tColDataAppendValue12},  // HAS_NONE
     {tColDataAppendValue20, tColDataAppendValue21, tColDataAppendValue22},  // HAS_NULL
@@ -2261,6 +2261,7 @@ static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, uint8_t *pDa
 
     //       VALUE                  NONE                     NULL
 };
+#ifndef TD_ASTRA
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
   if (!(pColData->cid == pColVal->cid && pColData->type == pColVal->value.type)) {
     return TSDB_CODE_INVALID_PARA;
@@ -2268,7 +2269,7 @@ int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
   return tColDataAppendValueImpl[pColData->flag][pColVal->flag](
       pColData, VALUE_GET_DATUM(&pColVal->value, pColData->type), pColVal->value.nData);
 }
-
+#endif
 static FORCE_INLINE int32_t tColDataUpdateValue10(SColData *pColData, uint8_t *pData, uint32_t nData, bool forward) {
   pColData->numOfNone--;
   pColData->nVal--;
@@ -2611,8 +2612,12 @@ static FORCE_INLINE void tColDataGetValue4(SColData *pColData, int32_t iVal, SCo
     }
     value.pData = pColData->pData + pColData->aOffset[iVal];
   } else {
+#if 1
+    memcpy(&value.val, pColData->pData + tDataTypes[pColData->type].bytes * iVal, tDataTypes[pColData->type].bytes);
+#else
     valueSetDatum(&value, pColData->type, pColData->pData + tDataTypes[pColData->type].bytes * iVal,
                   tDataTypes[pColData->type].bytes);
+#endif
   }
   *pColVal = COL_VAL_VALUE(pColData->cid, value);
 }
@@ -2658,7 +2663,7 @@ static FORCE_INLINE void tColDataGetValue7(SColData *pColData, int32_t iVal,
       break;
   }
 }
-static void (*tColDataGetValueImpl[])(SColData *pColData, int32_t iVal, SColVal *pColVal) = {
+void (*tColDataGetValueImpl[8])(SColData *pColData, int32_t iVal, SColVal *pColVal) = {
     NULL,               // 0
     tColDataGetValue1,  // HAS_NONE
     tColDataGetValue2,  // HAS_NULL
@@ -2668,6 +2673,7 @@ static void (*tColDataGetValueImpl[])(SColData *pColData, int32_t iVal, SColVal 
     tColDataGetValue6,  // HAS_VALUE | HAS_NULL
     tColDataGetValue7   // HAS_VALUE | HAS_NULL | HAS_NONE
 };
+#ifndef TD_ASTRA
 int32_t tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
   if (iVal < 0 || iVal >= pColData->nVal ||
       (pColData->flag <= 0 || pColData->flag >= sizeof(tColDataGetValueImpl) / POINTER_BYTES)) {
@@ -2676,6 +2682,7 @@ int32_t tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
   tColDataGetValueImpl[pColData->flag](pColData, iVal, pColVal);
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal) {
   switch (pColData->flag) {

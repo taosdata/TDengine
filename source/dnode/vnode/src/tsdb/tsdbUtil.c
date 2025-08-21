@@ -1256,7 +1256,15 @@ static int32_t tBlockDataUpsertBlockRow(SBlockData *pBlockData, SBlockData *pBlo
     while (pColDataFrom && pColDataFrom->cid < pColDataTo->cid) {
       pColDataFrom = (++iColDataFrom < pBlockDataFrom->nColData) ? &pBlockDataFrom->aColData[iColDataFrom] : NULL;
     }
-
+#if 1
+    if (!pColDataTo->nData && pColDataFrom && pColDataFrom->nData > 0) {
+      code = tRealloc(&pColDataTo->pData, pColDataFrom->nData);
+      if (code) {
+        tsdbError("realloc col data failed, code:%d, cid:%d, nData:%d", code, pColDataTo->cid, pColDataFrom->nData);
+        goto _exit;
+      }
+    }
+#endif
     if (pColDataFrom == NULL || pColDataFrom->cid > pColDataTo->cid) {
       cv = COL_VAL_NONE(pColDataTo->cid, pColDataTo->type);
       if (flag == 0 && (code = tColDataAppendValue(pColDataTo, &cv))) goto _exit;

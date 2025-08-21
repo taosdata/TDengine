@@ -1322,6 +1322,9 @@ static void transInitEnv() {
     (void)taosThreadAttrInit(&thAttr);
     (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
     taosThreadAttrSetName(&thAttr, "transProcClientMsg");
+#ifdef TD_COMPACT_OS
+    (void)taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL);
+#endif
     for (int i = 0; i < numOfAthread; i++) {
       threads[i].idx = i;
       taosThreadCreate(&(threads[i].thread), &thAttr, procClientMsg, (void*)&threads[i]);
@@ -1344,7 +1347,10 @@ static void transInitEnv() {
     TdThreadAttr thAttr;
     (void)taosThreadAttrInit(&thAttr);
     (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
-    taosThreadAttrSetName(&thAttr, "transProcSvrMsg");    
+    taosThreadAttrSetName(&thAttr, "transProcSvrMsg");
+#ifdef TD_COMPACT_OS
+    (void)taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL);
+#endif
     for (int i = 0; i < numOfAthread; i++) {
       threads[i].idx = i;
       taosThreadCreate(&(threads[i].thread), &thAttr, processSvrMsg, (void*)&threads[i]);

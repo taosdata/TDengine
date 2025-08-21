@@ -32,7 +32,7 @@
 
 #define LOG_FILE_DAY_LEN 64
 
-#define LOG_DEFAULT_BUF_SIZE (20 * 1024 * 1024)  // 20MB
+#define LOG_DEFAULT_BUF_SIZE (5 * 1024 * 1024)   // 5MB
 #define LOG_SLOW_BUF_SIZE    (10 * 1024 * 1024)  // 10MB
 
 #define LOG_DEFAULT_INTERVAL 25
@@ -298,7 +298,9 @@ int32_t taosInitLog(const char *logName, int32_t maxFiles, bool tsc) {
 
   TAOS_CHECK_RETURN(taosInitNormalLog(logName, maxFiles));
   if (tsc) {
+#ifndef TD_ASTRA
     TAOS_CHECK_RETURN(taosInitSlowLog());
+#endif
   }
   TAOS_CHECK_RETURN(taosStartLog());
   return 0;
