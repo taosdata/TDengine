@@ -67,6 +67,7 @@ scan_changefile_temp_path="$WORKDIR/tmp/${branch_name_id}/"
 docker_can_changefile_temp_path="/home/tmp/${branch_name_id}/"
 mkdir -p $scan_changefile_temp_path
 scan_file_name="$docker_can_changefile_temp_path/docs_changed.txt"
+cat $scan_file_name
 
 #scan log file path
 scan_log_temp_path="$WORKDIR/log/scan_log/"
