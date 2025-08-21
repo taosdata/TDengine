@@ -51,7 +51,7 @@ class TestUdfpyMain:
         cls.setsql = TDSetSql()
 
         # udf path
-        cls.udf_path = os.path.dirname(os.path.realpath(__file__)) + "/udfpy"
+        cls.udf_path = os.path.join(os.path.dirname(__file__), "udfpy")
 
 
         cls.column_dict = {
@@ -123,7 +123,7 @@ class TestUdfpyMain:
     # create with dicts
     def create_sf_dicts(self, dicts, filename):
         for fun_name, out_type in dicts.items():
-            sql = f' create function {fun_name} as "{self.udf_path}/{filename}" outputtype {out_type} language "Python" '
+            sql = f' create function {fun_name} as "{os.path.join(self.udf_path, filename)}" outputtype {out_type} language "Python" '
             tdSql.execute(sql)
             tdLog.info(sql)
 
@@ -182,12 +182,12 @@ class TestUdfpyMain:
 
     # fun_name == fun_name.py
     def create_udf_sf(self, fun_name, file_name, out_type):
-        sql = f'create function {fun_name} as "{self.udf_path}/{file_name}" outputtype {out_type} language "Python" '
+        sql = f'create function {fun_name} as "{os.path.join(self.udf_path, file_name)}" outputtype {out_type} language "Python" '
         tdSql.execute(sql)
         tdLog.info(sql)
 
     def create_udf_af(self, fun_name, file_name, out_type, bufsize):
-        sql = f'create aggregate function {fun_name} as "{self.udf_path}/{file_name}" outputtype {out_type} bufsize {bufsize} language "Python" '
+        sql = f'create aggregate function {fun_name} as "{os.path.join(self.udf_path, file_name)}" outputtype {out_type} bufsize {bufsize} language "Python" '
         tdSql.execute(sql)
         tdLog.info(sql)
 
@@ -430,7 +430,7 @@ class TestUdfpyMain:
         tdLog.info("install taospyudf...")
         packs = ["taospyudf"]
         for pack in packs:
-            subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-i', 'https://pypi.org/simple', '-U', pack])
+            subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-i', 'https://pypi.org/simple', '-U', pack], shell=True)
         tdLog.info("call ldconfig...")
         os.system("ldconfig")
         tdLog.info("install taospyudf successfully.")
