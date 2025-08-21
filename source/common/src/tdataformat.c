@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#define ALLOW_FORBID_FUNC
 #include "tdataformat.h"
 #include "tRealloc.h"
 #include "tdatablock.h"

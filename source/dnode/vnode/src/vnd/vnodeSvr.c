@@ -383,10 +383,12 @@ _exit:
   }
   return code;
 }
+static int64_t tsPreProcessSubmitReq = 0;
+static int64_t tsPreProcessSubmitReqEnd = 0;
 static int32_t vnodePreProcessSubmitMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = 0;
   int32_t lino = 0;
-
+  tsPreProcessSubmitReq = taosGetTimestampUs();
   if (tsBypassFlag & TSDB_BYPASS_RA_RPC_RECV_SUBMIT) {
     return TSDB_CODE_MSG_PREPROCESSED;
   }
@@ -427,6 +429,7 @@ _exit:
            tstrerror(code), TMSG_INFO(pMsg->msgType));
   }
 #endif
+  tsPreProcessSubmitReqEnd = taosGetTimestampUs();
   return code;
 }
 
@@ -1921,12 +1924,31 @@ static int32_t vnodeRebuildSubmitReqMsg(SSubmitReq2 *pSubmitReq, void **ppMsg) {
   }
   return code;
 }
-
+extern int32_t syncLogBuffAppendPath;
+extern int64_t tsSyncLogBufferAppend;
+extern int64_t tsRaftLogTrunc;
+extern int64_t tsLastVer;
+extern int64_t tsEntryIndex;
+extern int64_t tsRaftLogStoreCost;
+extern int32_t raftEntryLen;
+extern int64_t tsLogStorePersit;
+extern int32_t tsForceSync;
+extern int64_t tsRaftLogFsync;
+extern int32_t nLogStore;
+extern int64_t totalRaftLogStore;
+extern int64_t tsCommitCbCost;
+extern int32_t tsCommitCbRetry;
+extern int64_t tsSyncNodeCfg;
+extern int64_t tsSyncNodeReplica;
+extern int64_t totalRaftLogStoreNoLock;
+extern int64_t tsSyncLogBufferTail;
+extern int64_t tsSyncLogBufferCommit;
 static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
                                      SRpcMsg *pOriginalMsg) {
   int32_t code = 0;
   terrno = 0;
-
+  int64_t      tsSubmitReqStart = taosGetTimestampUs();
+  int64_t      tsSubmitReqEnd = 0; 
   SSubmitReq2 *pSubmitReq = &(SSubmitReq2){0};
   SSubmitRsp2 *pSubmitRsp = &(SSubmitRsp2){0};
   SArray      *newTbUids = NULL;
@@ -2190,6 +2212,27 @@ _exit:
 
   if (code) terrno = code;
 
+  tsSubmitReqEnd = taosGetTimestampUs();
+
+  int64_t preSubmitCost = tsPreProcessSubmitReqEnd - tsPreProcessSubmitReq;
+  int64_t preSubmitToSubmit = tsSubmitReqStart - tsPreProcessSubmitReqEnd;
+  int64_t submitCost = tsSubmitReqEnd - tsSubmitReqStart;
+  // total cost
+  int64_t totalCost = tsSubmitReqEnd - tsPreProcessSubmitReq;
+
+#if 0
+  printf("vgId:%d, submit request cost: preProcess: %" PRId64 ", logBufferAppend[%d]:%" PRId64
+         ", raftEntryLen: %d bytes, raftLogStore: %" PRId64 ", forceSync:%d, raftLogFsyncCost:%" PRIi64
+         ", raftLogPersist:%" PRIi64 " ,  nLogStore:%d, syncNodeCfg:%" PRIi64 ", syncNodeReplica:%" PRIi64
+         ", raftLogTrunc: %" PRIi64 ", lastVer:%" PRIi64 ", entryIndex:%" PRIi64 ", totalRaftLogStoreNoLock:%" PRIi64
+         ", totalRaftLogStore:%" PRId64 ", nCommitCb:%d, commitCb:%" PRId64 ", syncLogBufferTail:%" PRId64
+         ", syncLogBufferCommit: %" PRId64 ", preProcess to submit: %" PRId64 ", submit: %" PRId64
+         ", total cost: %" PRId64 " us, configDir:%s\n",
+         TD_VID(pVnode), preSubmitCost, syncLogBuffAppendPath, tsSyncLogBufferAppend, raftEntryLen, tsRaftLogStoreCost,
+         tsForceSync, tsRaftLogFsync, tsLogStorePersit, nLogStore, tsSyncNodeCfg, tsSyncNodeReplica, tsRaftLogTrunc,
+         tsLastVer, tsEntryIndex, totalRaftLogStoreNoLock, totalRaftLogStore, tsCommitCbRetry, tsCommitCbCost,
+         tsSyncLogBufferTail, tsSyncLogBufferCommit, preSubmitToSubmit, submitCost, totalCost, configDir);
+#endif
   return code;
 }
 

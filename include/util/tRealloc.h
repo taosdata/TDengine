@@ -15,6 +15,7 @@
 
 #ifndef _TD_UTIL_TREALLOC_H_
 #define _TD_UTIL_TREALLOC_H_
+#define ALLOW_FORBID_FUNC
 
 #include "os.h"
 
@@ -43,7 +44,7 @@ static FORCE_INLINE int32_t tRealloc(uint8_t **ppBuf, int64_t size) {
     return terrno;
   }
 #else
-  uint8_t *pNewBuf = (uint8_t *)taosMemoryMalloc(bsize + sizeof(int64_t));
+  uint8_t *pNewBuf = (uint8_t *)malloc(bsize + sizeof(int64_t));
   if (pNewBuf == NULL) {
     taosMemoryFreeClear(pBuf);
     *ppBuf = NULL;
@@ -61,12 +62,12 @@ static FORCE_INLINE int32_t tRealloc(uint8_t **ppBuf, int64_t size) {
   return 0;
 }
 
-#define tFree(BUF)                                        \
-  do {                                                    \
-    if (BUF) {                                            \
-      taosMemoryFree((uint8_t *)(BUF) - sizeof(int64_t)); \
-      (BUF) = NULL;                                       \
-    }                                                     \
+#define tFree(BUF)                              \
+  do {                                          \
+    if (BUF) {                                  \
+      free((uint8_t *)(BUF) - sizeof(int64_t)); \
+      (BUF) = NULL;                             \
+    }                                           \
   } while (0)
 
 #ifdef __cplusplus

@@ -45,7 +45,7 @@ int64_t syncLogBufferGetEndIndex(SSyncLogBuffer* pBuf) {
   (void)taosThreadMutexUnlock(&pBuf->mutex);
   return index;
 }
-
+int32_t syncLogBuffAppendPath = 0;
 int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry) {
   int32_t code = 0;
   TAOS_CHECK_RETURN(syncLogBufferValidate(pBuf));
@@ -55,11 +55,13 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   if (index - pBuf->startIndex >= pBuf->size) {
     code = TSDB_CODE_SYN_BUFFER_FULL;
     sError("vgId:%d, failed to append since %s, index:%" PRId64, pNode->vgId, tstrerror(code), index);
+    syncLogBuffAppendPath = 1;
     goto _err;
   }
 
   if (pNode->restoreFinish && index - pBuf->commitIndex >= TSDB_SYNC_NEGOTIATION_WIN) {
     code = TSDB_CODE_SYN_NEGOTIATION_WIN_FULL;
+    syncLogBuffAppendPath = 2;
     sError("vgId:%d, failed to append since %s, index:%" PRId64 ", commit-index:%" PRId64, pNode->vgId, tstrerror(code),
            index, pBuf->commitIndex);
     goto _err;
@@ -68,18 +70,21 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   SyncIndex appliedIndex = pNode->pFsm->FpAppliedIndexCb(pNode->pFsm);
   if (pNode->restoreFinish && pBuf->commitIndex - appliedIndex >= TSDB_SYNC_APPLYQ_SIZE_LIMIT) {
     code = TSDB_CODE_SYN_WRITE_STALL;
+    syncLogBuffAppendPath = 3;
     sError("vgId:%d, failed to append since %s, index:%" PRId64 ", commit-index:%" PRId64 ", applied-index:%" PRId64,
            pNode->vgId, tstrerror(code), index, pBuf->commitIndex, appliedIndex);
     goto _err;
   }
 
   if (index != pBuf->endIndex) {
+    syncLogBuffAppendPath = 4;
     code = TSDB_CODE_SYN_INTERNAL_ERROR;
     goto _err;
   };
 
   SSyncRaftEntry* pExist = pBuf->entries[index % pBuf->size].pItem;
   if (pExist != NULL) {
+    syncLogBuffAppendPath = 5;
     code = TSDB_CODE_SYN_INTERNAL_ERROR;
     goto _err;
   }
@@ -87,15 +92,18 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   // initial log buffer with at least one item, e.g, commitIndex
   SSyncRaftEntry* pMatch = pBuf->entries[(index - 1 + pBuf->size) % pBuf->size].pItem;
   if (pMatch == NULL) {
+    syncLogBuffAppendPath = 6;
     sError("vgId:%d, no matched log entry", pNode->vgId);
     code = TSDB_CODE_SYN_INTERNAL_ERROR;
     goto _err;
   }
   if (pMatch->index + 1 != index) {
+    syncLogBuffAppendPath = 7;
     code = TSDB_CODE_SYN_INTERNAL_ERROR;
     goto _err;
   }
   if (!(pMatch->term <= pEntry->term)) {
+    syncLogBuffAppendPath = 8;
     code = TSDB_CODE_SYN_INTERNAL_ERROR;
     goto _err;
   }
@@ -512,22 +520,31 @@ _out:
 static inline bool syncLogStoreNeedFlush(SSyncRaftEntry* pEntry, int32_t replicaNum) {
   return (replicaNum > 1) && (pEntry->originalRpcType == TDMT_VND_COMMIT);
 }
-
+int64_t tsRaftLogTrunc = 0;
+int64_t tsLastVer = 0;
+int64_t tsEntryIndex = 0;
 int32_t syncLogStorePersist(SSyncLogStore* pLogStore, SSyncNode* pNode, SSyncRaftEntry* pEntry) {
   int32_t code = 0;
   if (pEntry->index < 0) return TSDB_CODE_SYN_INTERNAL_ERROR;
   SyncIndex lastVer = pLogStore->syncLogLastIndex(pLogStore);
-  if (lastVer >= pEntry->index && (code = pLogStore->syncLogTruncate(pLogStore, pEntry->index)) < 0) {
-    sError("failed to truncate log store since %s, from index:%" PRId64, tstrerror(code), pEntry->index);
-    TAOS_RETURN(code);
+  tsLastVer = lastVer;
+  tsEntryIndex = pEntry->index;
+  if (lastVer >= pEntry->index) {
+    int64_t tsStart = taosGetTimestampUs();
+    code = pLogStore->syncLogTruncate(pLogStore, pEntry->index);
+    tsRaftLogTrunc = taosGetTimestampUs() - tsStart;
+    if (code < 0) {
+      sError("failed to truncate log store since %s, from index:%" PRId64, tstrerror(code), pEntry->index);
+      TAOS_RETURN(code);
+    }
   }
   lastVer = pLogStore->syncLogLastIndex(pLogStore);
   if (pEntry->index != lastVer + 1) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   bool doFsync = syncLogStoreNeedFlush(pEntry, pNode->replicaNum);
   if ((code = pLogStore->syncLogAppendEntry(pLogStore, pEntry, doFsync)) < 0) {
-    sError("failed to persist raft entry since %s, index:%" PRId64 ", term:%" PRId64, tstrerror(code),
-           pEntry->index, pEntry->term);
+    sError("failed to persist raft entry since %s, index:%" PRId64 ", term:%" PRId64, tstrerror(code), pEntry->index,
+           pEntry->term);
     TAOS_RETURN(code);
   }
 
@@ -536,15 +553,24 @@ int32_t syncLogStorePersist(SSyncLogStore* pLogStore, SSyncNode* pNode, SSyncRaf
   return 0;
 }
 
+int32_t nLogStore = 0;
+int64_t totalRaftLogStore = 0;
+int64_t totalRaftLogStoreNoLock = 0;
+int64_t tsLogStorePersit = 0;
+int64_t tsSyncNodeCfg = 0;
+int64_t tsSyncNodeReplica = 0;
 int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* pMatchTerm, char* str, const SRpcMsg *pMsg) {
+  int64_t tsStart = taosGetTimestampUs();
   TAOS_CHECK_RETURN(syncLogBufferValidate(pBuf));
   (void)taosThreadMutexLock(&pBuf->mutex);
-
+  int64_t tsStartNoLock = taosGetTimestampUs();
   SSyncLogStore* pLogStore = pNode->pLogStore;
   int64_t        matchIndex = pBuf->matchIndex;
   int32_t        code = 0;
 
+  int32_t nRetry = 0;
   while (pBuf->matchIndex + 1 < pBuf->endIndex) {
+    ++nRetry;
     int64_t index = pBuf->matchIndex + 1;
     if (index < 0) {
       sError("vgId:%d, failed to proceed index:%" PRId64, pNode->vgId, index);
@@ -613,12 +639,14 @@ int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* p
             pNode->vgId, pMsg, pBuf->startIndex, pBuf->matchIndex, pBuf->endIndex);
 
     // persist
+    int64_t tsLogStorePersitStart = taosGetTimestampUs();
     if ((code = syncLogStorePersist(pLogStore, pNode, pEntry)) < 0) {
       sError("vgId:%d, msg:%p, failed to persist sync log entry from buffer since %s, index:%" PRId64, pNode->vgId,
              pMsg, tstrerror(code), pEntry->index);
       taosMsleep(1);
       goto _out;
     }
+    tsLogStorePersit = taosGetTimestampUs() - tsLogStorePersitStart;
 
     if (pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE) {
       if (pNode->pLogBuf->commitIndex == pEntry->index - 1) {
@@ -631,11 +659,13 @@ int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* p
             "cond: (pre entry index:%" PRId64 "== buf commit index:%" PRId64 ")",
             pNode->vgId, pMsg, str, pEntry->index, pEntry->term, pNode->restoreFinish, pNode->commitIndex,
             pEntry->index - 1, pNode->pLogBuf->commitIndex);
+        int64_t tsSyncNodeCfgStart = taosGetTimestampUs();
         if ((code = syncNodeChangeConfig(pNode, pEntry, str)) != 0) {
           sError("vgId:%d, failed to change config from Append since %s, index:%" PRId64, pNode->vgId, tstrerror(code),
                  pEntry->index);
           goto _out;
         }
+        tsSyncNodeCfg = taosGetTimestampUs() - tsSyncNodeCfgStart;
       } else {
         sInfo(
             "vgId:%d, msg:%p, delay change config from Node %s, "
@@ -651,11 +681,13 @@ int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* p
     }
 
     // replicate on demand
+    int64_t tsSyncNodeReplicaStart = taosGetTimestampUs();
     if ((code = syncNodeReplicateWithoutLock(pNode)) != 0) {
       sError("vgId:%d, msg:%p, failed to replicate since %s, index:%" PRId64, pNode->vgId, pMsg, tstrerror(code),
              pEntry->index);
       goto _out;
     }
+    tsSyncNodeReplica = taosGetTimestampUs() - tsSyncNodeReplicaStart;
 
     if (pEntry->index != pBuf->matchIndex) {
       sError("vgId:%d, msg:%p, failed to proceed, pEntry->index:%" PRId64 ", pBuf->matchIndex:%" PRId64, pNode->vgId,
@@ -668,6 +700,9 @@ int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* p
     matchIndex = pBuf->matchIndex;
     syncIndexMgrSetIndex(pNode->pMatchIndex, &pNode->myRaftId, pBuf->matchIndex);
   }  // end of while
+  nLogStore = nRetry;
+  totalRaftLogStore = taosGetTimestampUs() - tsStart;
+  totalRaftLogStoreNoLock = taosGetTimestampUs() - tsStartNoLock;
 
 _out:
   pBuf->matchIndex = matchIndex;
@@ -678,9 +713,14 @@ _out:
   TAOS_CHECK_RETURN(syncLogBufferValidate(pBuf));
   return matchIndex;
 }
-
+int64_t tsCommitCbCost = 0;
+int32_t tsCommitCbRetry = 0;
 int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTerm term, SSyncRaftEntry* pEntry,
                        int32_t applyCode, bool force) {
+  int64_t tsCommitStart = taosGetTimestampUs();
+  int32_t nRetry = 0;
+  tsCommitCbCost = 0;
+  tsCommitCbRetry = 0;  
   // learner need to execute fsm when it catch up entry log
   // if force is true, keep all contition check to execute fsm
   if (pNode->replicaNum == 1 && pNode->restoreFinish && pNode->vgId != 1 &&
@@ -702,7 +742,6 @@ int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTe
     sInfo("vgId:%d, index:%" PRId64 ", fsm execute vnode commit, term:%" PRId64, pNode->vgId, pEntry->index,
           pEntry->term);
   }
-
   int32_t code = 0, lino = 0;
   bool    retry = false;
   do {
@@ -750,8 +789,10 @@ int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTe
                 pEntry->index, tstrerror(code));
       }
     }
+    ++nRetry;
   } while (retry);
-
+  tsCommitCbRetry = nRetry;
+  tsCommitCbCost = taosGetTimestampUs() - tsCommitStart;
 _exit:
   if (code < 0) {
     sError("vgId:%d, index:%" PRId64 ", failed to execute fsm at line %d since %s, term:%" PRId64 ", type:%s",

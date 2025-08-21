@@ -216,6 +216,10 @@ SyncTerm raftLogLastTerm(struct SSyncLogStore* pLogStore) {
   return SYNC_TERM_INVALID;
 }
 
+int64_t        tsRaftLogStoreCost = 0;
+int32_t        raftEntryLen = 0;
+int32_t        tsForceSync = 0;
+int64_t        tsRaftLogFsync = 0;
 static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, bool forceSync) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
@@ -230,6 +234,8 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
                               &pEntry->originRpcTraceId);
   int64_t tsWriteEnd = taosGetTimestampNs();
   int64_t tsElapsed = tsWriteEnd - tsWriteBegin;
+  tsRaftLogStoreCost = tsElapsed / 1000;
+  raftEntryLen = pEntry->dataLen;
 
   if (TSDB_CODE_SUCCESS != code) {
     int32_t     err = terrno;
@@ -242,8 +248,10 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
 
     TAOS_RETURN(err);
   }
-
+  tsForceSync = forceSync;
+  int64_t tsFSyncBegin = taosGetTimestampUs();
   code = walFsync(pWal, forceSync);
+  tsRaftLogFsync = taosGetTimestampUs() - tsFSyncBegin;
   if (TSDB_CODE_SUCCESS != code) {
     sNError(pData->pSyncNode, "wal fsync failed since %s", tstrerror(code));
     TAOS_RETURN(code);

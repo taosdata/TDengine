@@ -3405,8 +3405,13 @@ int32_t syncNodeChangeConfig(SSyncNode* ths, SSyncRaftEntry* pEntry, char* str) 
 
   TAOS_RETURN(code);
 }
+int64_t tsSyncLogBufferAppend = 0;
+int64_t tsSyncLogBufferTail = 0;
+int64_t tsSyncLogBufferCommit = 0;
 
 int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry, SRpcMsg* pMsg) {
+  int64_t tsSyncNodeEntry = taosGetTimestampUs();
+  int64_t tsSyncNodeHalf = 0;
   int32_t code = -1;
   if (pEntry->dataLen < sizeof(SMsgHead)) {
     code = TSDB_CODE_SYN_INTERNAL_ERROR;
@@ -3428,13 +3433,13 @@ int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry, SRpcMsg* pMsg) {
     pEntry = NULL;
     goto _out;
   }
-
+  tsSyncLogBufferAppend = taosGetTimestampUs() - tsSyncNodeEntry;
   code = 0;
 _out:;
   // proceed match index, with replicating on needed
   SyncIndex matchIndex = syncLogBufferProceed(ths->pLogBuf, ths, NULL, "Append", pMsg);
   const STraceId* trace = pEntry ? &pEntry->originRpcTraceId : NULL;
-
+  tsSyncNodeHalf = taosGetTimestampUs();
   if (pEntry != NULL) {
     sGDebug(trace,
             "vgId:%d, index:%" PRId64 ", raft entry appended, msg:%p term:%" PRId64 " buf:[%" PRId64 " %" PRId64
@@ -3471,7 +3476,8 @@ _out:;
             "vgId:%d, index:%" PRId64 ", failed to commit, msg:%p commit index:%" PRId64 " return index:%" PRId64,
             ths->vgId, matchIndex, pMsg, ths->commitIndex, returnIndex);
   }
-
+  tsSyncLogBufferTail = taosGetTimestampUs() - tsSyncNodeHalf;
+  tsSyncLogBufferCommit = taosGetTimestampUs() - tsSyncNodeEntry;
   TAOS_RETURN(code);
 }
 

@@ -284,12 +284,19 @@ void *taosMemMalloc(int64_t size) {
 #endif
 #ifdef TD_ASTRA
   if (size == 0) size = 1;
-#endif
+  void *p = malloc(size+ sizeof(int64_t));
+  if (NULL == p) {
+    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+  }
+  *(int64_t *)p = size;
+  return (char *)p + sizeof(int64_t);
+#else
   void *p = malloc(size);
   if (NULL == p) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
   return p;
+#endif
 #endif
 }
 
@@ -320,13 +327,20 @@ void *taosMemCalloc(int64_t num, int64_t size) {
   }
 #endif
 #ifdef TD_ASTRA
-  if (0 == num || 0 == size) num = size = 1; 
-#endif
+  if (0 == num || 0 == size) num = size = 1;
+  void *p = calloc(1, size * num + sizeof(int64_t));
+  if (NULL == p) {
+    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+  }
+  *(int64_t *)p = size;
+  return (char *)p + sizeof(int64_t);
+#else  
   void *p = calloc(num, size);
   if (NULL == p) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
   return p;
+#endif
 #endif
 }
 
@@ -365,12 +379,24 @@ void *taosMemRealloc(void *ptr, int64_t size) {
 #endif
 #ifdef TD_ASTRA
   if (size == 0) size = 1;
-#endif
+  uint8_t *p = (uint8_t *)malloc(size + sizeof(int64_t));
+  if (p == NULL) {
+    taosMemoryFreeClear(ptr);
+    return NULL;
+  }
+  if(ptr) {
+    uint8_t *pBuf = (uint8_t *)ptr - sizeof(int64_t);
+    memcpy(p + sizeof(int64_t), ptr, *(int64_t *)pBuf);
+    free(pBuf);
+  }
+  return (p + sizeof(int64_t));
+#else
   void *p = realloc(ptr, size);
   if (size > 0 && NULL == p) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
   return p;
+#endif
 #endif
 }
 
@@ -404,7 +430,6 @@ char *taosStrdupi(const char *ptr) {
 #endif
 }
 
-
 void taosMemFree(void *ptr) {
   if (NULL == ptr) return;
 #ifdef USE_TD_MEMORY
@@ -416,8 +441,10 @@ void taosMemFree(void *ptr) {
   } else {
     free(ptr);
   }
+#elif defined(TD_ASTRA)
+  free((char *)ptr - sizeof(int64_t));
 #else
-  return free(ptr);
+  free(ptr);
 #endif
 }
 
@@ -437,7 +464,8 @@ int64_t taosMemSize(void *ptr) {
 #elif defined(_TD_DARWIN_64)
   return malloc_size(ptr);
 #elif defined(TD_ASTRA)
-  return 0;  // TD_ASTRA_TODO N/A
+  // return 0;  // TD_ASTRA_TODO N/A
+  return *(int64_t *)((char *)ptr - sizeof(int64_t));
 #else
   return malloc_usable_size(ptr);
 #endif
@@ -473,7 +501,18 @@ void *taosMemMallocAlign(uint32_t alignment, int64_t size) {
     }
   }
 #endif
-
+#ifdef TD_ASTRA
+  void *p = memalign(alignment, size + sizeof(int64_t));
+  if (NULL == p) {
+    if (ENOMEM == ERRNO) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    }
+  }
+  *(int64_t *)p = size;
+  return (void *)((char *)p + sizeof(int64_t));
+#else
   void *p = memalign(alignment, size);
   if (NULL == p) {
     if (ENOMEM == ERRNO) {
@@ -483,6 +522,7 @@ void *taosMemMallocAlign(uint32_t alignment, int64_t size) {
     }
   }
   return p;
+#endif  
 #else
   return taosMemMalloc(size);
 #endif

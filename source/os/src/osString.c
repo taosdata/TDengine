@@ -31,6 +31,19 @@ char *tstrdup(const char *str) {
   }
 #ifdef WINDOWS
   return _strdup(str);
+#elif defined(TD_ASTRA)
+  if (str == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+  int32_t len = strlen(str);
+  char   *p = taosMemMalloc(len + 1);
+  if (NULL == p) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  } else {
+    memcpy(p, str, len + 1);
+  }
+  return p;
 #else
   char *p = strdup(str);
   if (NULL == p) {
@@ -132,7 +145,7 @@ char *taosStrndupi(const char *s, int64_t size) {
   const char *end = (const char *)memchr(s, '\0', size);
   size_t      actual_len = (end != NULL) ? (size_t)(end - s) : (size_t)size;
 
-  char *p = (char *)malloc(actual_len + 1);
+  char *p = (char *)taosMemoryMalloc(actual_len + 1);
   if (p == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
