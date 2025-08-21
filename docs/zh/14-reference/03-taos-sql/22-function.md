@@ -6,6 +6,7 @@ toc_max_heading_level: 4
 ---
 
 ## 标量函数
+
 标量函数为查询结果中的每一行返回一个结果行。
 
 ### 数学函数
@@ -1283,7 +1284,6 @@ taos> select to_base64("你好 世界");
  5L2g5aW9IOS4lueVjA==        |
 ```
 
-
 ### 类型转换函数
 
 转换函数将值从一种数据类型转换为另一种数据类型。
@@ -1469,7 +1469,6 @@ return_timestamp: {
 - 输入的日期时间字符串须符合 ISO8601/RFC3339 标准，无法转换的字符串格式将返回 NULL。
 - 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
 - return_timestamp 指定函数返回值是否为时间戳类型，设置为 1 时返回 TIMESTAMP 类型，设置为 0 时返回 BIGINT 类型。如不指定缺省返回 BIGINT 类型。
-
 
 ### 时间和日期函数
 
@@ -1868,6 +1867,7 @@ STDDEV
 **适用于**：表和超级表。
 
 **说明**：
+
 - `STDDEV_POP` 函数等价于 `STDDEV` 函数，从 v3.3.3.0 开始支持。
 
 **举例**：
@@ -1890,7 +1890,7 @@ taos> select stddev_pop(id) from test_stddev;
 
 ### STDDEV_POP
 
-与 [STDDEV](#STDDEV)  函数的行为相同
+与 [STDDEV](#stddev)  函数的行为相同
 
 ### VAR_POP
 
@@ -1962,6 +1962,7 @@ algo_type: {
 **适用于**：表和超级表。
 
 **说明**：
+
 - p 值范围是 [0,100]，当为 0 时等同 于 MIN，为 100 时等同于 MAX。
 - algo_type 取值为 "default" 或 "t-digest"。输入为 "default" 时函数使用基于直方图算法进行计算。输入为 "t-digest" 时使用 t-digest 算法计算分位数的近似结果。如果不指定 algo_type 则使用 "default" 算法。
 - t-digest 算法的近似结果对于输入数据顺序敏感，对超级表查询时不同的输入排序结果可能会有微小的误差。
@@ -2003,6 +2004,7 @@ ELAPSED(ts_primary_key [, time_unit])
 **适用于**：表、超级表、嵌套查询的外层查询。
 
 **说明**：
+
 - `ts_primary_key` 参数只能是表的第一列，即 TIMESTAMP 类型的主键列。
 - 返回值的时间单位由 `time_unit` 参数指定，最小是数据库的时间分辨率。`time_unit` 参数未指定时，以数据库的时间分辨率为时间单位。支持的时间单位 `time_unit` 如下：1b(纳秒)、1u(微秒)、1a(毫秒)、1s(秒)、1m(分)、1h(小时)、1d(天)、1w(周)。
 - 可以和 interval 组合使用，返回每个时间窗口的时间戳差值。需要特别注意的是，除第一个时间窗口和最后一个时间窗口外，中间窗口的时间戳差值均为窗口长度。
@@ -2123,6 +2125,7 @@ ignore_option: {
 ```
 
 **功能说明**：统计表中特定列与之前行的当前列有效值之差。ignore_option 取值为 0|1|2|3，可以不填，默认值为 0。 
+
 - `0` 表示 diff 结果不忽略负值不忽略 null 值
 - `1` 表示 diff 结果的负值作为 null 值
 - `2` 表示 diff 结果不忽略负值但忽略 null 值
@@ -2271,7 +2274,8 @@ ignore_null_values: {
 **适用于**：表和超级表。
 
 **使用说明**
-- INTERP 用于在指定时间断面获取指定列的记录值，使用时有专用语法 (interp_clause)，语法介绍[参考链接](../select/#interp) 。
+
+- INTERP 用于在指定时间断面获取指定列的记录值，使用时有专用语法 (interp_clause)，语法介绍 [参考链接](../select/#interp) 。
 - 当指定时间断面不存在符合条件的行数据时，INTERP 函数会根据 [FILL](../distinguished/#fill-子句) 参数的设定进行插值。
 - INTERP 作用于超级表时，会将该超级表下的所有子表数据按照主键列排序后进行插值计算，也可以搭配 PARTITION BY tbname 使用，将结果强制规约到单个时间线。
 - INTERP 在 FILL PREV/NEXT/NEAR时, 行为与窗口查询有所区别，当截面存在数据时，不会进行 FILL, 即便当前值为 NULL.
