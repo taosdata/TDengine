@@ -361,7 +361,7 @@ char* udf_language[] = {"\'Python\'", "\'C\'"};
 char* field_options[] = {
     "encode ", "compress ", "level ", 
     "\'lz4\' ", "\'zlib\' ", "\'zstd\' ", "\'xz\' ", "\'tsz\' ", "\'disabled\' ", // compress
-    "\'simple8b\' ", "\'delta-i\' ", "\'delta-d\' ", "\'bit-packing\' ",
+    "\'simple8b\' ", "\'delta-i\' ", "\'delta-d\' ", "\'bit-packing\' ", "\'bss\' ",
     "\'high\' ", "\'medium\' ", "\'low\' ",
     "comment ",
     "primary key "

@@ -23,21 +23,21 @@ description: 可配置压缩算法
 
 ### 压缩算法列表
 
-- 编码算法列表（一级压缩）：simple8b、bit-packing、delta-i、delta-d、disabled  
+- 编码算法列表（一级压缩）：simple8b、bit-packing、delta-i、delta-d、disabled、bss(byte-stream-split) 
 
 - 压缩算法列表（二级压缩）：lz4、zlib、zstd、tsz、xz、disabled
 
 - 各个数据类型的默认压缩算法列表和适用范围
 
-| 数据类型 | 可选编码算法 | 编码算法默认值 | 可选压缩算法 | 压缩算法默认值 |压缩等级默认值|
-|:------------------------------------:|:-------------------------:|:-----------:|:--------------------:|:----:|:------:|
-| int/uint                             | disabled/simple8b         | simple8b    | lz4/zlib/zstd/xz     | lz4  | medium |
-| tinyint/untinyint/smallint/usmallint | disabled/simple8b         | simple8b    | lz4/zlib/zstd/xz     | zlib | medium |
-| bigint/ubigint/timestamp             | disabled/simple8b/delta-i | delta-i     | lz4/zlib/zstd/xz     | lz4  | medium |
-| float/double                         | disabled/delta-d          | delta-d     | lz4/zlib/zstd/xz/tsz | lz4  | medium |
-| binary/nchar                         | disabled                  | disabled    | lz4/zlib/zstd/xz     | zstd | medium |
-| bool                                 | disabled/bit-packing      | bit-packing | lz4/zlib/zstd/xz     | zstd | medium |
-| decimal                              | disabled                  | disabled    | lz4/zlib/zstd/xz     | zstd | medium |
+| 数据类型                             | 可选编码算法              | 编码算法默认值 | 可选压缩算法         | 压缩算法默认值 | 压缩等级默认值 |
+| :----------------------------------- | :------------------------ | :------------- | :------------------- | :------------- | :------------- |
+| int/uint                             | disabled/simple8b         | simple8b       | lz4/zlib/zstd/xz     | lz4            | medium         |
+| tinyint/untinyint/smallint/usmallint | disabled/simple8b         | simple8b       | lz4/zlib/zstd/xz     | zlib           | medium         |
+| bigint/ubigint/timestamp             | disabled/simple8b/delta-i | delta-i        | lz4/zlib/zstd/xz     | lz4            | medium         |
+| float/double                         | disabled/delta-d/bss      | delta-d        | lz4/zlib/zstd/xz/tsz | lz4            | medium         |
+| binary/nchar                         | disabled                  | disabled       | lz4/zlib/zstd/xz     | zstd           | medium         |
+| bool                                 | disabled/bit-packing      | bit-packing    | lz4/zlib/zstd/xz     | zstd           | medium         |
+| decimal                              | disabled                  | disabled       | lz4/zlib/zstd/xz     | zstd           | medium         |
 
 ## SQL 语法
 

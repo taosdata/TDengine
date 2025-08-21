@@ -18,8 +18,10 @@
 #include "tcompression.h"
 #include "tutil.h"
 
-const char* supportedEncode[5] = {TSDB_COLUMN_ENCODE_SIMPLE8B, TSDB_COLUMN_ENCODE_XOR, TSDB_COLUMN_ENCODE_RLE,
-                                  TSDB_COLUMN_ENCODE_DELTAD, TSDB_COLUMN_ENCODE_DISABLED};
+const char* supportedEncode[] = {
+    TSDB_COLUMN_ENCODE_SIMPLE8B, TSDB_COLUMN_ENCODE_XOR,      TSDB_COLUMN_ENCODE_RLE,
+    TSDB_COLUMN_ENCODE_DELTAD,   TSDB_COLUMN_ENCODE_DISABLED, TSDB_COLUMN_ENCODE_BYTE_STREAM_SPLIT,
+};
 
 const char* supportedCompress[6] = {TSDB_COLUMN_COMPRESS_LZ4,  TSDB_COLUMN_COMPRESS_TSZ,
                                     TSDB_COLUMN_COMPRESS_XZ,   TSDB_COLUMN_COMPRESS_ZLIB,
@@ -150,6 +152,9 @@ const char* columnEncodeStr(uint8_t type) {
     case TSDB_COLVAL_ENCODE_DISABLED:
       encode = TSDB_COLUMN_ENCODE_DISABLED;
       break;
+    case TSDB_COLVAL_ENCODE_BYTE_STREAM_SPLIT:
+      encode = TSDB_COLUMN_ENCODE_BYTE_STREAM_SPLIT;
+      break;
     default:
       encode = TSDB_COLUMN_ENCODE_UNKNOWN;
       break;
@@ -234,6 +239,8 @@ uint8_t columnEncodeVal(const char* encode) {
     e = TSDB_COLVAL_ENCODE_DELTAD;
   } else if (0 == strcmp(encode, TSDB_COLUMN_ENCODE_DISABLED)) {
     e = TSDB_COLVAL_ENCODE_DISABLED;
+  } else if (0 == strcmp(encode, TSDB_COLUMN_ENCODE_BYTE_STREAM_SPLIT)) {
+    e = TSDB_COLVAL_ENCODE_BYTE_STREAM_SPLIT;
   } else {
     e = TSDB_COLVAL_ENCODE_NOCHANGE;
   }
@@ -385,7 +392,7 @@ int8_t validColCompress(uint8_t type, uint8_t l2) {
 // |tinyint/smallint/int/bigint/utinyint/usmallinit/uint/ubiginint| simple8b |
 // | timestamp/bigint/ubigint | delta-i  |
 // | bool  |  bit-packing   |
-// | flout/double | delta-d |
+// | float/double | delta-d/byte-stream-split |
 //
 int8_t validColEncode(uint8_t type, uint8_t l1) {
   if (l1 == TSDB_COLVAL_ENCODE_NOCHANGE) {
@@ -400,8 +407,8 @@ int8_t validColEncode(uint8_t type, uint8_t l1) {
     return TSDB_COLVAL_ENCODE_SIMPLE8B == l1 ? 1 : 0;
   } else if (type == TSDB_DATA_TYPE_BIGINT) {
     return TSDB_COLVAL_ENCODE_SIMPLE8B == l1 || TSDB_COLVAL_ENCODE_XOR == l1 ? 1 : 0;
-  } else if (type >= TSDB_DATA_TYPE_FLOAT && type <= TSDB_DATA_TYPE_DOUBLE) {
-    return TSDB_COLVAL_ENCODE_DELTAD == l1 ? 1 : 0;
+  } else if (type == TSDB_DATA_TYPE_FLOAT || type == TSDB_DATA_TYPE_DOUBLE) {
+    return (l1 == TSDB_COLVAL_ENCODE_DELTAD || l1 == TSDB_COLVAL_ENCODE_BYTE_STREAM_SPLIT) ? 1 : 0;
   } else if ((type == TSDB_DATA_TYPE_VARCHAR || type == TSDB_DATA_TYPE_NCHAR) || type == TSDB_DATA_TYPE_JSON ||
              type == TSDB_DATA_TYPE_VARBINARY || type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_GEOMETRY ||
              type == TSDB_DATA_TYPE_BLOB || type == TSDB_DATA_TYPE_MEDIUMBLOB) {
