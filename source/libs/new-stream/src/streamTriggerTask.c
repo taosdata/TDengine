@@ -6464,7 +6464,7 @@ static int32_t stRealtimeGroupDoSlidingCheck(SSTriggerRealtimeGroup *pGroup) {
             QUERY_CHECK_CODE(code, lino, _end);
             r++;
           } else {
-            code = stRealtimeGroupOpenWindow(pGroup, ts, NULL, true, r > 0 && pTsData[r - 1] == nextStart);
+            code = stRealtimeGroupOpenWindow(pGroup, ts, NULL, true, r > 0 && pTsData[r - 1] >= nextStart);
             QUERY_CHECK_CODE(code, lino, _end);
           }
         }
