@@ -424,6 +424,7 @@ typedef struct SExternalWindowNode {
   SNodeList*  pProjectionList;
   SNodeList*  pAggFuncList;
   STimeWindow timeRange;
+  SNode*      pTimeRange;
   void*       timezone;
 } SExternalWindowNode;
 

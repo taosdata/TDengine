@@ -2833,6 +2833,7 @@ static int32_t createExternalWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList*
   if (NULL == pExternal) {
     return terrno;
   }
+  pExternal->isSingleTable = pWindowLogicNode->isSingleTable;
 
   int32_t code = createWindowPhysiNodeFinalize(pCxt, pChildren, &pExternal->window, pWindowLogicNode);
   if (TSDB_CODE_SUCCESS == code) {

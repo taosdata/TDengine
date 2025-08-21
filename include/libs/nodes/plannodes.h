@@ -341,6 +341,7 @@ typedef struct SWindowLogicNode {
   int8_t           intervalUnit;
   int8_t           slidingUnit;
   STimeWindow      timeRange;
+  SNode*           pTimeRange;
   int64_t          sessionGap;
   SNode*           pTspk;
   SNode*           pTsEnd;
@@ -364,6 +365,7 @@ typedef struct SWindowLogicNode {
   int64_t          recalculateInterval;
   SNodeList*       pColList;  // use for count window
   SNodeList*       pProjs;  // for external window
+  bool             isSingleTable; // for external window
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -794,6 +796,8 @@ typedef struct SAnomalyWindowPhysiNode {
 typedef struct SExternalWindowPhysiNode {
   SWindowPhysiNode window;
   STimeWindow      timeRange;
+  SNode*           pTimeRange;
+  bool             isSingleTable;
 } SExternalWindowPhysiNode;
 
 typedef struct SSortPhysiNode {
