@@ -164,7 +164,7 @@ class Test_IDMP_Meters:
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream5_sub1` SESSION(ts, 10m) FROM `tdasset`.`vt_em-5`                                       NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_sub1` AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, LAST(`电流`) AS `最后电流` FROM tdasset.`vt_em-5` WHERE ts >= _twstart AND ts <=_twend",
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream5_sub2` SESSION(ts, 10m) FROM `tdasset`.`vt_em-5` STREAM_OPTIONS(PRE_FILTER(`电压`>300)) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_sub2` AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, LAST(`电流`) AS `最后电流` FROM tdasset.`vt_em-5` WHERE ts >= _twstart AND ts <=_twend",
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream5_sub3` SESSION(ts, 10m) FROM `tdasset`.`vt_em-5` STREAM_OPTIONS(PRE_FILTER(`电压`>300)) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_sub3` AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, LAST(`电流`) AS `最后电流` FROM %%trows",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream5_sub4` SESSION(ts, 10m) FROM `tdasset`.`vst_智能电表_1` PARTITION BY tbname,`地址`        NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_sub4` AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, LAST(`电流`) AS `最后电流` FROM %%trows",
+            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream5_sub4` SESSION(ts, 10m) FROM `tdasset`.`vst_智能电表_1` PARTITION BY tbname,`地址`       NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_sub4` AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, LAST(`电流`) AS `最后电流` FROM %%trows",
 
             # stream6 count
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream6`      COUNT_WINDOW(5) FROM `tdasset`.`vt_em-6` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream6` AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压` FROM tdasset.`vt_em-6` WHERE ts >= _twstart AND ts <=_twend",
@@ -947,6 +947,10 @@ class Test_IDMP_Meters:
 
         # sub
         self.verify_stream5_sub1()
+        self.verify_stream5_sub2()
+        # ***** bug9 *****
+        #self.verify_stream5_sub3()
+        self.verify_stream5_sub4()
 
         tdLog.info(f"verify stream5 ................................. successfully.")
 
