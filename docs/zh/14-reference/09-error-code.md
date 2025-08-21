@@ -253,7 +253,7 @@ description: TDengine TSDB 服务端的错误码列表和详细说明
 | 0x8000040F | Snode already deployed | 已部署                       | 确认操作是否正确   |
 | 0x80000410 | Snode not found        | 内部错误                     | 上报 issue          |
 | 0x80000411 | Snode not deployed     | 已部署                       | 确认操作是否正确   |
-| 0x8000042C | Request is not matched with local dnode | taos.cfg 中的 FQDN 或者 port 被错误修改 | 取消修改 |
+| 0x8000042D | Request is not matched with local dnode | taos.cfg 中的 FQDN 或者 port 被错误修改 | 取消修改 |
 
 ## vnode
 
