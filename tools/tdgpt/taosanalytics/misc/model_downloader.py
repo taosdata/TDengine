@@ -1,5 +1,29 @@
+import os
 import sys
-from taosanalytics.util import download_model
+from huggingface_hub import snapshot_download
+from tqdm import tqdm
+
+
+def download_model(model_name, model_dir, enable_ep = False):
+    # model_list = ['Salesforce/moirai-1.0-R-small']
+    ep = 'https://hf-mirror.com' if enable_ep else None
+    model_list = [model_name]
+
+    if not os.path.exists(model_dir):
+        print(f"create model directory: {model_dir}")
+        os.mkdir(model_dir)
+
+    if ep:
+        print(f"set the download ep:{ep}")
+
+    for item in tqdm(model_list):
+        snapshot_download(
+            repo_id=item,
+            local_dir=model_dir,  # storage directory
+            local_dir_use_symlinks=False,   # disable the link
+            resume_download=True,
+            endpoint=ep
+        )
 
 
 def do_download_tsfm(path: str, model_name: str, enable_ep:bool=False):
