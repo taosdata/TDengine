@@ -1829,7 +1829,7 @@ static int32_t generateTablistForStreamReader(SVnode* pVnode, SStreamTriggerRead
   SStorageAPI api = {0};
   initStorageAPI(&api);
   return qStreamCreateTableListForReader(pVnode, sStreamReaderInfo->suid, sStreamReaderInfo->uid, sStreamReaderInfo->tableType, sStreamReaderInfo->partitionCols,
-                                         false, sStreamReaderInfo->pTagCond, sStreamReaderInfo->pTagIndexCond, &api, &sStreamReaderInfo->tableList,
+                                         true, sStreamReaderInfo->pTagCond, sStreamReaderInfo->pTagIndexCond, &api, &sStreamReaderInfo->tableList,
                                          sStreamReaderInfo->groupIdMap);
   end:
   nodesDestroyList(groupNew);
