@@ -134,6 +134,7 @@
 ## 04-Query
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_column_datatypes.py
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_column_filter.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_during_leader_election.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_from_dnodes.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_tag_datatypes.py
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_tag_filter.py

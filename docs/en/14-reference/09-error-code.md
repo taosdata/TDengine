@@ -253,6 +253,7 @@ This document details the server error codes that may be encountered when using 
 | 0x8000040F | Snode already deployed | Already deployed                    | Confirm if correct  |
 | 0x80000410 | Snode not found        | Internal error                      | Report issue        |
 | 0x80000411 | Snode not deployed     | Already deployed                    | Confirm if correct  |
+| 0x8000042C | Request is not matched with local dnode | FQDN or port in taos.cfg is changed. | Change it back  |
 
 ## vnode
 

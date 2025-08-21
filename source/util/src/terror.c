@@ -459,6 +459,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_EN_WHITELIST,   "enableWhiteList not m
 TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_STOPPED,                "Mnode stopped")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_COMPACT_TASKS,  "Invalid max compact tasks")
 TAOS_DEFINE_ERROR(TSDB_CODE_SNODE_NO_AVAILABLE_NODE,      "No Snode is available")
+TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_NOT_MATCH_WITH_LOCAL,   "Request is not matched with local dnode")
 
 // vnode
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VGROUP_ID,        "Vnode is closed or removed")
