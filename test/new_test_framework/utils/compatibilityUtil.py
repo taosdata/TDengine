@@ -119,23 +119,21 @@ class CompatibilityBase:
         
         return True
 
-    # Modified installTaosd to accept version parameter
     def installTaosd(self, bPath, cPath, base_version):
         packagePath = "/usr/local/src/"
         dataPath = cPath + "/../data/"
-        
-        # New download URL format
+        packageType = "server"
+
         if platform.system() == "Linux" and platform.machine() == "aarch64":
-            packageName = f"tdengine-tsdb-oss-{base_version}-linux-arm64.tar.gz"
-            download_url = f"https://downloads.taosdata.com/tdengine-tsdb-oss/{base_version}/{packageName}"
+            packageName = "TDengine-"+ packageType + "-" + base_version + "-Linux-arm64.tar.gz"
         else:
-            packageName = f"tdengine-tsdb-oss-{base_version}-linux-x64.tar.gz"
-            download_url = f"https://downloads.taosdata.com/tdengine-tsdb-oss/{base_version}/{packageName}"
+            packageName = "TDengine-"+ packageType + "-" + base_version + "-Linux-x64.tar.gz"
             
+        # Determine download URL
+        download_url = f"https://www.taosdata.com/assets-download/3.0/{packageName}"
         tdLog.info(f"wget {download_url}")
         
-        # Extract package name without extension for installation
-        packageTPath = packageName.replace(".tar.gz", "")
+        packageTPath = packageName.split("-Linux-")[0]
         my_file = Path(f"{packagePath}/{packageName}")
         if not my_file.exists():
             print(f"{packageName} is not exists")
