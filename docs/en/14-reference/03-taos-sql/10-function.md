@@ -1772,6 +1772,46 @@ taos> select dayofweek('2000-01-01');
                        7 |
 ```
 
+#### DATE
+
+```sql
+DATE(expr)
+```
+
+**Function Description**: Returns date of the input time expression.
+
+**Version**: ver-3.3.8.0
+
+**Return Type**: VARCHAR.
+
+**Applicable Data Types**: BIGINT, TIMESTAMP types representing timestamps, or VARCHAR, NCHAR types in ISO8601/RFC3339 date-time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- If `expr` is NULL, returns NULL.
+- If `expr` is of type VARCHAR or NCHAR but does not conform to the ISO8601/RFC3339 standard, returns NULL.
+- The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, the precision is milliseconds.
+- If no timezone is specified, the default timezone of input and output time is consistent with the client. To avoid using an unintended timezone during conversion, it is recommended to carry timezone information in the input.
+
+**Example**:
+
+(note: the following statements are executed in the UTC+0800 timezone, and the precision is milliseconds)
+```sql
+taos> select date(946656000000);
+       date(946656000000)       |
+=================================
+ 2000-01-01                     |
+
+taos> select date('2000-01-01');
+       date('2000-01-01')       |
+=================================
+ 2000-01-01                     |
+```
+
 ## Aggregate Functions
 
 Aggregate functions return a single result row for each group of the result set of a query. Groups can be specified by a GROUP BY or window partition clause; if none is specified, the entire result set is considered a single group.

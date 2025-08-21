@@ -37,10 +37,19 @@ class TestFunction:
         tdSql.execute("insert into n1 values(now, 1, null, '23')")
         tdSql.execute("insert into n1 values(now+1a, null, 3, '23')")
         tdSql.execute("insert into n1 values(now+2a, 5, 3, '23')")
+        tdSql.execute("create database msdb precision 'ms'")
+        tdSql.execute("create table msdb.mstb (ts timestamp, val int)")
+        tdSql.execute("insert into msdb.mstb values(\"2025-12-24\", 1)")
+        tdSql.execute("create database usdb precision 'us'")
+        tdSql.execute("create table usdb.ustb (ts timestamp, val int)")
+        tdSql.execute("insert into usdb.ustb values(\"2025-12-25\", 1)")
+        tdSql.execute("create database nsdb precision 'ns'")
+        tdSql.execute("create table nsdb.nstb (ts timestamp, val int)")
+        tdSql.execute("insert into nsdb.nstb values(\"2025-12-26\", 1)")
 
     def run_normal_query_new(self, testCase):
         # read sql from .sql file and execute
-        tdLog.info("test normal query.")
+        tdLog.info("test normal query: " + testCase)
         self.sqlFile = etool.curFile(__file__, f"in/{testCase}.in")
         self.ansFile = etool.curFile(__file__, f"ans/{testCase}.csv")
 
@@ -148,6 +157,16 @@ class TestFunction:
 
     def run_dayofweek(self):
         self.run_normal_query_new("dayofweek")
+
+    def run_date(self):
+        self.run_normal_query_new("date")
+        tdSql.error("select date()")                        # need 1 parameter
+        tdSql.error("select date(1000.0)")                  # don't support float
+        tdSql.error("select date(1000, \"yyyy-mm-dd\")")    # don't support format
+        tdSql.error("select date(1000, \"Asia/Shanghai\")") # don't support timezone
+        tdSql.error("select date(current) from ts_4893.meters limit 1;")
+        tdSql.error("select date(100*100);")
+        tdSql.error("select date(100+100);")
 
     def run_stddev_pop(self):
         self.run_normal_query_new("stddev")
@@ -496,6 +515,7 @@ class TestFunction:
         self.run_weekday()
         self.run_weekofyear()
         self.run_dayofweek()
+        self.run_date()
 
     def test_agg_function(self):
         """test aggregate function
@@ -535,6 +555,3 @@ class TestFunction:
         self.run_max()
         self.run_min()
         self.run_error()
-
-
-
