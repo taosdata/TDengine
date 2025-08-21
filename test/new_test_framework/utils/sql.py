@@ -2626,8 +2626,7 @@ class TDSql:
 
         """
         tdLog.info(f"set connection mode:{mode} value:{value}")
-        # 0 for TAOS_CONN_MODE_BI
-        self.cursor.set_mode(mode, value)
+        self.cursor._connection.set_mode(mode, value)
 
     def checkResultsByFunc(self, sql, func, delay=0.0, retry=120, show=False):
         if delay != 0:
