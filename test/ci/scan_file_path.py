@@ -54,7 +54,7 @@ if index_community != -1:
     if index_TDinternal != -1:
         work_path = TD_project_path[:index_TDinternal]
 else:
-    index_tests = self_path.find("tests")
+    index_tests = self_path.find("test")
     if index_tests != -1:
         TD_project_path = self_path[:index_tests]
     # Check if index_TDengine is valid and set work_path accordingly
