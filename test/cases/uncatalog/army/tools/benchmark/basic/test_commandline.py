@@ -14,6 +14,7 @@ from new_test_framework.utils import tdLog, tdSql, etool
 import os
 import time
 import subprocess
+import platform
 
 class TestCommandline:
     def caseDescription(self):
@@ -63,10 +64,17 @@ class TestCommandline:
 
         # command line
         binPath = etool.benchMarkFile()
-        cmd = (
-            "%s -F 7 -n 10 -t 2 -x -y -M -C -d newtest -l 5 -A binary,nchar\(31\) -b tinyint,binary\(23\),bool,nchar -w 29 -E -m $%%^*"
+        if platform.system().lower() == "windows":
+            cmd = (
+            "%s -F 7 -n 10 -t 2 -x -y -M -C -d newtest -l 5 -A binary,nchar(31) -b tinyint,binary(23),bool,nchar -w 29 -E -m $%%^*"
             % binPath
-        )
+            )
+        else:
+            # For Linux and MacOS
+            cmd = (
+                "%s -F 7 -n 10 -t 2 -x -y -M -C -d newtest -l 5 -A binary,nchar\(31\) -b tinyint,binary\(23\),bool,nchar -w 29 -E -m $%%^*"
+                % binPath
+            )
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("use newtest")

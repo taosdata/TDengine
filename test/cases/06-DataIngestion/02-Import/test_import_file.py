@@ -1,6 +1,6 @@
 import platform
 import os
-from new_test_framework.utils import tdLog, tdSql, tdCom
+from new_test_framework.utils import tdLog, tdSql, tdCom, etool
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
@@ -32,7 +32,7 @@ class TestImportFile:
         tdSql.execute(f"create database if not exists indb")
         tdSql.execute(f"use indb")
 
-        inFileName = os.path.join(os.path.dirname(__file__), "data.sql")
+        inFileName = etool.getFilePath(__file__, "data.sql")
 
         #os.system("tools/gendata.sh")
 
