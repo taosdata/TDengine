@@ -275,11 +275,10 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
   if (rows < 0 && code == 0) {
     code = TSDB_CODE_ANA_ANODE_RETURN_ERROR;
 
-    char pMsg[1024] = {0};
-    code = tjsonGetStringValue(pJson, "msg", pMsg);
-    if (code != 0) {
-      qError("%s failed to get msg from rsp, unknown error", pId);
-    } else {
+    char    pMsg[1024] = {0};
+    int32_t ret = tjsonGetStringValue(pJson, "msg", pMsg);
+    
+    if (ret == 0) {
       qError("%s failed to exec forecast, msg:%s", pId, pMsg);
       void* p = strstr(pMsg, "white noise");
       if (p != NULL) {
@@ -290,6 +289,8 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
           code = TSDB_CODE_ANA_ALGO_NOT_LOAD;
         }
       }
+    } else {
+      qError("%s failed to extract msg from server, unknown error", pId);
     }
 
     tjsonDelete(pJson);
