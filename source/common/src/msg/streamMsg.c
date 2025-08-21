@@ -4343,29 +4343,44 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeSStreamWalDataResponse(void *buf, int32_t bufLen, SArray *pRsp) {
-  SDecoder decoder = {0};
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
+int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, void* pDataBlock, SSHashObj* pSlices,
+                                           SArray* pUids) {
+  SDecoder     decoder = {0};
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  SSDataBlock* pBlock = (SSDataBlock*)pDataBlock;
 
   tDecoderInit(&decoder, buf, bufLen);
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
 
-  int32_t nBlocks = 0;
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nBlocks));
-  taosArrayClearP(pRsp, (FDelete)blockDataDestroy);
-  TAOS_CHECK_EXIT(taosArrayEnsureCap(pRsp, nBlocks));
-  for (int32_t i = 0; i < nBlocks; i++) {
-    SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-    const char* pEndPos = NULL;
-    TAOS_CHECK_EXIT(blockDecode(pBlock, (char*)decoder.data + decoder.pos, &pEndPos));
-    decoder.pos = (uint8_t*)pEndPos - decoder.data;
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pBlock->info.version));
-    TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pBlock->info.id.uid));
-    void *px = taosArrayPush(pRsp, &pBlock);
+  // decode data block
+  const char* pEndPos = NULL;
+  TAOS_CHECK_EXIT(blockDecode(pBlock, (char*)decoder.data + decoder.pos, &pEndPos));
+  decoder.pos = (uint8_t*)pEndPos - decoder.data;
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pBlock->info.version));
+
+  int32_t nSlices = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nSlices));
+  TAOS_CHECK_EXIT(taosArrayEnsureCap(pUids, nSlices));
+  taosArrayClear(pUids);
+
+  // decode slices
+  int64_t uid = 0;
+  int64_t gid = 0;
+  int32_t startRowIdx = 0;
+  int32_t numRows = 0;
+  for (int32_t i = 0; i < nSlices; i++) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &uid));
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &gid));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &startRowIdx));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &numRows));
+    int64_t value[2] = {(int64_t)pDataBlock, (int64_t)startRowIdx << 32 | numRows};
+    TAOS_CHECK_EXIT(tSimpleHashPut(pSlices, &uid, sizeof(uid), value, sizeof(value)));
+    value[0] = gid;
+    value[1] = uid;
+    void *px = taosArrayPush(pUids, value);
     if (px == NULL) {
       code = terrno;
-      blockDataDestroy(pBlock);
       goto _exit;
     }
   }

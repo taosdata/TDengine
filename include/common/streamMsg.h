@@ -1007,8 +1007,20 @@ typedef struct SStreamTsResponse {
 int32_t tSerializeSStreamTsResponse(void* buf, int32_t bufLen, const SStreamTsResponse* pRsp);
 int32_t tDeserializeSStreamTsResponse(void* buf, int32_t bufLen, void *pBlock);
 
+typedef struct SStreamWalDataSlice {
+  int64_t gId;
+  int32_t startRowIdx;  // start row index of current slice in DataBlock
+  int32_t numRows;      // number of rows in current slice
+} SStreamWalDataSlice;
+
+typedef struct SStreamWalDataResponse {
+  void*      pDataBlock;
+  SSHashObj* pSlices;  // SSHash<uid, SStreamWalDataSlice>
+} SStreamWalDataResponse;
+
 int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SList* used);
-int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, SArray* pRsp);
+int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, void* pDataBlock, SSHashObj* pSlices,
+                                           SArray* pUids);
 
 typedef struct SStreamGroupValue {
   SValue        data;
