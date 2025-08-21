@@ -499,6 +499,7 @@ static int32_t timeRangeNodeCopy(const STimeRangeNode* pSrc, STimeRangeNode* pDs
   COPY_SCALAR_FIELD(type);
   CLONE_NODE_FIELD(pStart);
   CLONE_NODE_FIELD(pEnd);
+  COPY_SCALAR_FIELD(needCalc);
   return TSDB_CODE_SUCCESS;
 }
 

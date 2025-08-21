@@ -6876,7 +6876,43 @@ _return:
   return DEAL_RES_ERROR;
 }
 
-static int32_t filterExtractTsCond(SNode** pCond, SNode** pTimeRangeExpr) {
+static bool tsRangeSameToWindowRange(SNode* pCond, bool start, bool equal) {
+  if (nodeType(pCond) != QUERY_NODE_LOGIC_CONDITION) {
+    return false;
+  }
+
+  SLogicConditionNode *pLogicCond = (SLogicConditionNode*)pCond;
+  if (pLogicCond->condType != LOGIC_COND_TYPE_AND || LIST_LENGTH(pLogicCond->pParameterList) != 1) {
+    return false;
+  }
+
+  SNode *pOp = nodesListGetNode(pLogicCond->pParameterList, 0);
+  if (!pOp || nodeType(pOp) != QUERY_NODE_OPERATOR) {
+    return false;
+  }
+
+  SOperatorNode *pOperator = (SOperatorNode*)pOp;
+
+  if(!pOperator->pRight || nodeType(pOperator->pRight) != QUERY_NODE_FUNCTION) {
+    return false;
+  }
+
+  SFunctionNode *pFunc = (SFunctionNode*)pOperator->pRight;
+
+  if (start) {
+    if (pFunc->funcType != FUNCTION_TYPE_TWSTART) {
+      return false;
+    }
+    return equal ? (pOperator->opType == OP_TYPE_GREATER_EQUAL) : (pOperator->opType == OP_TYPE_GREATER_THAN);
+  } else {
+    if (pFunc->funcType != FUNCTION_TYPE_TWEND) {
+      return false;
+    }
+    return equal ? (pOperator->opType == OP_TYPE_LOWER_EQUAL) : (pOperator->opType == OP_TYPE_LOWER_THAN);
+  }
+}
+
+static int32_t filterExtractTsCond(SNode** pCond, SNode** pTimeRangeExpr, bool leftEq, bool rightEq) {
   int32_t                 code = TSDB_CODE_SUCCESS;
   SNode*                  pNew = NULL;
   SFilterExtractTsContext pCxt = {0};
@@ -6884,11 +6920,22 @@ static int32_t filterExtractTsCond(SNode** pCond, SNode** pTimeRangeExpr) {
   nodesRewriteExpr(pCond, filterExtractTsCondImpl, &pCxt);
   PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_TIME_RANGE, pTimeRangeExpr));
   STimeRangeNode* pRange = (STimeRangeNode*)*pTimeRangeExpr;
+  bool leftSame = false;
+  bool rightSame = false;
   if (pCxt.pStart) {
     PAR_ERR_JRET(nodesMergeConds(&pRange->pStart, &pCxt.pStart));
+    leftSame = tsRangeSameToWindowRange(pRange->pStart, true, leftEq);
   }
   if (pCxt.pEnd) {
     PAR_ERR_JRET(nodesMergeConds(&pRange->pEnd, &pCxt.pEnd));
+    rightSame = tsRangeSameToWindowRange(pRange->pEnd, false, rightEq);
+  }
+  if (leftSame && rightSame) {
+    nodesDestroyNode(pRange->pStart);
+    nodesDestroyNode(pRange->pEnd);
+    pRange->needCalc = false;
+  } else {
+    pRange->needCalc = true;
   }
   return code;
 _return:
@@ -6916,7 +6963,7 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode** pWhere, STimeW
     }
   }
   if (pCxt->createStreamCalc && nodeType(pFromTable) != QUERY_NODE_TEMP_TABLE && extractJoinCond) {
-    PAR_ERR_JRET(filterExtractTsCond(&pCond, pTimeRangeExpr));
+    PAR_ERR_JRET(filterExtractTsCond(&pCond, pTimeRangeExpr, pCxt->extLeftEq, pCxt->extRightEq));
     // some node may be replaced
     TSWAP(*pWhere, pCond);
     goto _return;
@@ -14403,38 +14450,18 @@ static EDealRes doCheckNotifyCond(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static int32_t getExtWindowBorder(STranslateContext* pCxt, SNode* pTriggerWindow, bool* withExtwindow, bool* eqLeft, bool* eqRight) {
+static int32_t getExtWindowBorder(STranslateContext* pCxt, SNode* pTriggerWindow, bool* eqLeft, bool* eqRight) {
   switch(nodeType(pTriggerWindow)) {
     case QUERY_NODE_INTERVAL_WINDOW: {
-      SIntervalWindowNode *pInterval = (SIntervalWindowNode*)pTriggerWindow;
-      uint8_t              precision = ((SColumnNode*)pInterval->pCol)->node.resType.precision;
-      SValueNode*          pInter = (SValueNode*)pInterval->pInterval;
-      SValueNode*          pSliding = (SValueNode*)pInterval->pSliding;
-      if (pInter && pSliding) {
-        *withExtwindow = true;
-        *eqLeft = true;
-        *eqRight = false;
-      } else {
-        *withExtwindow = false;
-      }
+      *eqLeft = true;
+      *eqRight = false;
       break;
     }
-    case QUERY_NODE_COUNT_WINDOW: {
-      SCountWindowNode* pCountWindow = (SCountWindowNode*)pTriggerWindow;
-      if (pCountWindow->windowSliding != pCountWindow->windowCount) {
-        *withExtwindow = false;
-      } else {
-        *withExtwindow = true;
-        *eqLeft = true;
-        *eqRight = true;
-      }
-      break;
-    }
+    case QUERY_NODE_COUNT_WINDOW:
     case QUERY_NODE_EVENT_WINDOW:
     case QUERY_NODE_SESSION_WINDOW:
     case QUERY_NODE_PERIOD_WINDOW:
     case QUERY_NODE_STATE_WINDOW: {
-      *withExtwindow = true;
       *eqLeft = true;
       *eqRight = true;
       break;
@@ -14454,7 +14481,7 @@ static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNodeList* pTri
 
   parserDebug("translate create stream req start translate calculate query");
 
-  //PAR_ERR_JRET(getExtWindowBorder(pCxt, pTriggerWindow, withExtWindow, &pCxt->extLeftEq, &pCxt->extRightEq));
+  PAR_ERR_JRET(getExtWindowBorder(pCxt, pTriggerWindow, &pCxt->extLeftEq, &pCxt->extRightEq));
 
   pCxt->currLevel = ++(pCxt->levelNo);
   pCxt->currClause = SQL_CLAUSE_SELECT;

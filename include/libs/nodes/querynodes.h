@@ -533,6 +533,7 @@ typedef struct STimeRangeNode {
   ENodeType type; // QUERY_NODE_TIME_RANGE
   SNode*    pStart;
   SNode*    pEnd;
+  bool      needCalc;
 } STimeRangeNode;
 
 typedef struct SSelectStmt {

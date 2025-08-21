@@ -1550,7 +1550,8 @@ static int32_t msgToTargetNode(STlvDecoder* pDecoder, void* pObj) {
 }
 
 enum { TIME_RANGE_CODE_START = 1,
-       TIME_RANGE_CODE_END };
+       TIME_RANGE_CODE_END,
+       TIME_RANGE_CODE_NEED_CALC };
 
 static int32_t timeRangeNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const STimeRangeNode* pNode = (const STimeRangeNode*)pObj;
@@ -1558,6 +1559,9 @@ static int32_t timeRangeNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   int32_t code = tlvEncodeObj(pEncoder, TIME_RANGE_CODE_START, nodeToMsg, pNode->pStart);
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, TIME_RANGE_CODE_END, nodeToMsg, pNode->pEnd);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, TIME_RANGE_CODE_NEED_CALC, pNode->needCalc);
   }
 
   return code;
@@ -1575,6 +1579,9 @@ static int32_t msgToTimeRangeNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case TIME_RANGE_CODE_END:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pEnd);
+        break;
+      case TIME_RANGE_CODE_NEED_CALC:
+        code = tlvDecodeBool(pTlv, &pNode->needCalc);
         break;
       default:
         break;

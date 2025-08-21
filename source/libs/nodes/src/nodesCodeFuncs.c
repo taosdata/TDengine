@@ -7117,6 +7117,7 @@ static int32_t jsonToSetOperator(const SJson* pJson, void* pObj) {
 
 static const char* jkTimeRangeStart = "start";
 static const char* jkTimeRangeEnd = "end";
+static const char* jkTimeRangeNeedCalc = "NeedCalc";
 
 static int32_t timeRangeNodeToJson(const void* pObj, SJson* pJson) {
   const STimeRangeNode* pNode = (const STimeRangeNode*)pObj;
@@ -7125,7 +7126,9 @@ static int32_t timeRangeNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkTimeRangeEnd, nodeToJson, pNode->pEnd);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkTimeRangeNeedCalc, pNode->needCalc);
+  }
   return code;
 }
 
@@ -7135,6 +7138,9 @@ static int32_t jsonToTimeRangeNode(const SJson* pJson, void* pObj) {
   int32_t code = jsonToNodeObject(pJson, jkTimeRangeStart, &pNode->pStart);
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkTimeRangeEnd, &pNode->pEnd);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkTimeRangeNeedCalc, &pNode->needCalc);
   }
   return code;
 }
