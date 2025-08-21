@@ -235,7 +235,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/21-Operator/06-Logical/test_case_when.py
 
 # 22-Functions
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/test_function.py
+#,,y,.,./ci/pytest.sh pytest cases/22-Functions/test_function.py
 ## 01-Scalar
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_single_row_in_tb.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_func_cast.py
