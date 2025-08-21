@@ -54,6 +54,7 @@ typedef struct SStreamTriggerReaderCalcInfo {
   char*       calcScanPlan;
   qTaskInfo_t pTaskInfo;
   SStreamRuntimeInfo rtInfo;
+  SStreamRuntimeFuncInfo tmpRtFuncInfo;
 } SStreamTriggerReaderCalcInfo;
 
 typedef enum { STREAM_SCAN_GROUP_ONE_BY_ONE, STREAM_SCAN_ALL } EScanMode;

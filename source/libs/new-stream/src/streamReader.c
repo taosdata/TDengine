@@ -237,6 +237,7 @@ static void releaseStreamReaderCalcInfo(void* p) {
   filterFreeInfo(pInfo->pFilterInfo);
 
   tDestroyStRtFuncInfo(&pInfo->rtInfo.funcInfo);
+  taosArrayDestroy(pInfo->tmpRtFuncInfo.pStreamPesudoFuncVals);
   taosMemoryFree(pInfo);
 }
 
@@ -400,6 +401,9 @@ static SStreamTriggerReaderCalcInfo* createStreamReaderCalcInfo(void* pTask, con
   sStreamReaderCalcInfo->calcScanPlan = taosStrdup(pMsg->msg.calc.calcScanPlan);
   STREAM_CHECK_NULL_GOTO(sStreamReaderCalcInfo->calcScanPlan, terrno);
   sStreamReaderCalcInfo->pTaskInfo = NULL;
+
+  sStreamReaderCalcInfo->tmpRtFuncInfo.pStreamPesudoFuncVals = taosArrayInit_s(sizeof(SSTriggerCalcParam), 1);
+  STREAM_CHECK_NULL_GOTO(sStreamReaderCalcInfo->tmpRtFuncInfo.pStreamPesudoFuncVals, terrno);
 
 end:
   STREAM_PRINT_LOG_END(code, lino);

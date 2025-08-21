@@ -1503,15 +1503,36 @@ static int32_t processCalaTimeRange(SStreamTriggerReaderCalcInfo* sStreamReaderC
                                              (SFilterInfo**)&sStreamReaderCalcInfo->pFilterInfo,
                                              FLT_OPTION_NO_REWRITE | FLT_OPTION_SCALAR_MODE, NULL));
 */                                             
+    sStreamReaderCalcInfo->tmpRtFuncInfo.curIdx = 0;
+    sStreamReaderCalcInfo->tmpRtFuncInfo.triggerType = req->pStRtFuncInfo->triggerType;
+    
     SSTriggerCalcParam* pFirst = taosArrayGet(req->pStRtFuncInfo->pStreamPesudoFuncVals, 0);
     SSTriggerCalcParam* pLast = taosArrayGetLast(req->pStRtFuncInfo->pStreamPesudoFuncVals);
     STREAM_CHECK_NULL_GOTO(pFirst, terrno);
     STREAM_CHECK_NULL_GOTO(pLast, terrno);
 
-    handle->winRange.skey = pFirst->wstart;
-    handle->winRange.ekey = pLast->wend;
-    handle->winRangeValid = true;
-    stDebug("%s withExternalWindow is true, skey:%" PRId64 ", ekey:%" PRId64, __func__, pFirst->wstart, pLast->wend);
+    SSTriggerCalcParam* pTmp = taosArrayGet(sStreamReaderCalcInfo->tmpRtFuncInfo.pStreamPesudoFuncVals, 0);
+    memcpy(pTmp, pFirst, sizeof(*pTmp));
+    if (req->pStRtFuncInfo->triggerType == STREAM_TRIGGER_SLIDING) {
+      pTmp->wend--;
+    }
+
+    calcTimeRange(node, &sStreamReaderCalcInfo->tmpRtFuncInfo, &handle->winRange, &handle->winRangeValid);
+    if (handle->winRangeValid) {
+      int64_t skey = handle->winRange.skey;
+
+      memcpy(pTmp, pLast, sizeof(*pTmp));
+      if (req->pStRtFuncInfo->triggerType == STREAM_TRIGGER_SLIDING) {
+        pTmp->wend--;
+      }
+
+      calcTimeRange(node, &sStreamReaderCalcInfo->tmpRtFuncInfo, &handle->winRange, &handle->winRangeValid);
+
+      if (handle->winRangeValid) {
+        handle->winRange.skey = skey;
+        stDebug("%s withExternalWindow is true, skey:%" PRId64 ", ekey:%" PRId64, __func__, handle->winRange.skey, handle->winRange.ekey);
+      }
+    }
   } else {
     calcTimeRange(node, req->pStRtFuncInfo, &handle->winRange, &handle->winRangeValid);
     stDebug("%s withExternalWindow is false, skey:%" PRId64 ", ekey:%" PRId64, __func__, handle->winRange.skey, handle->winRange.ekey);
