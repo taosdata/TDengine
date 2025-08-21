@@ -54,7 +54,7 @@ if index_community != -1:
     if index_TDinternal != -1:
         work_path = TD_project_path[:index_TDinternal]
 else:
-    index_tests = self_path.find("tests")
+    index_tests = self_path.find("test")
     if index_tests != -1:
         TD_project_path = self_path[:index_tests]
     # Check if index_TDengine is valid and set work_path accordingly
@@ -144,7 +144,7 @@ def input_files(change_files):
         for line in file:
             for file_name in line.strip().split():
                 if any(dir_name in file_name for dir_name in scan_dir_list):
-                    if (file_name.endswith(".c")  or file_name.endswith(".cpp")) and all(dir_name not in file_name for dir_name in scan_skip_file_list):
+                    if (file_name.endswith(".c")  or file_name.endswith(".h")  or file_name.endswith(".cpp")) and all(dir_name not in file_name for dir_name in scan_skip_file_list):
                         if "enterprise" in file_name:
                             file_name = os.path.join(TD_project_path, file_name)
                         else: 
