@@ -525,7 +525,7 @@ class BeforeTest:
                     break
         if (len(paths) == 0):
             if sys.platform == "win32":
-                return f"C:\\TDengine\\bin\\{binary}.exe"
+                return f"C:\\TDengine\\{binary}.exe"
             elif sys.platform == "darwin":
                 if os.path.exists(f"/usr/local/bin/{binary}"):
                     return f"/usr/local/bin/{binary}"

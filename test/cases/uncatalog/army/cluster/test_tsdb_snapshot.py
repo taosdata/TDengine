@@ -18,6 +18,8 @@ import glob
 import shutil
 import subprocess
 from datetime import datetime, timedelta
+import platform
+import json
 
 
 class TestTsdbSnapshot:
@@ -114,9 +116,15 @@ class TestTsdbSnapshot:
     ]
 }}
 """
-        json_file = '/tmp/test.json'
-        with open(json_file, 'w') as f:
-            f.write(json_content)
+        if platform.system().lower() == "windows":
+            json_file = os.path.abspath("test.json")
+            safe_json_content = json_content.replace("\\", "\\\\")
+            with open(json_file, 'w', encoding='utf-8') as f:
+                json.dump(json.loads(safe_json_content), f, ensure_ascii=False, indent=2)
+        else:
+            json_file = '/tmp/test.json'
+            with open(json_file, 'w') as f:
+                f.write(json_content)
         # Use subprocess.run() to wait for the command to finish
         subprocess.run(f'taosBenchmark -f {json_file}', shell=True, check=True)
 
@@ -203,9 +211,15 @@ class TestTsdbSnapshot:
     ]
 }}
 """
-        json_file = '/tmp/test.json'
-        with open(json_file, 'w') as f:
-            f.write(json_content)
+        if platform.system().lower() == "windows":
+            json_file = os.path.abspath("test.json")
+            safe_json_content = json_content.replace("\\", "\\\\")
+            with open(json_file, 'w', encoding='utf-8') as f:
+                json.dump(json.loads(safe_json_content), f, ensure_ascii=False, indent=2)
+        else:
+            json_file = '/tmp/test.json'
+            with open(json_file, 'w') as f:
+                f.write(json_content)
         # Use subprocess.run() to wait for the command to finish
         subprocess.run(f'taosBenchmark -f {json_file}', shell=True, check=True)
 

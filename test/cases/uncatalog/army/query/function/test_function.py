@@ -25,8 +25,9 @@ class TestFunction:
 
     def insert_data(self):
         tdLog.info(f"insert data.")
-        datafile = etool.curFile(__file__, "data/d1001.data")
+        datafile = etool.getFilePath(__file__, "data", "d1001.data")
 
+        tdSql.execute("drop database if exists ts_4893;")
         tdSql.execute("create database ts_4893;")
         tdSql.execute("use ts_4893;")
         tdSql.execute("select database();")
