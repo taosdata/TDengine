@@ -1421,8 +1421,63 @@
         
   
     <li class="md-nav__item">
-      <a href="#20-DataQuerying.01-SelectList.test_selectlist_basic.TestSelectListBasic.test_selectlist" class="md-nav__link">
-        SelectList 
+      <a href="#07-DataQuerying.09-SelectList.test_column_1.TestProjectColumn1.test_project_column_1" class="md-nav__link">
+        1 个数据列的子表投影查询 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#07-DataQuerying.09-SelectList.test_column_7.TestProjectColumn7.test_project_column_7" class="md-nav__link">
+        7 个数据列的子表投影查询 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#07-DataQuerying.09-SelectList.test_const_col.TestConstCol.test_const_column" class="md-nav__link">
+        Const Column 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#07-DataQuerying.09-SelectList.test_read.TestSelectResNum.test_select_res_num" class="md-nav__link">
+        Select Res Num 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#07-DataQuerying.09-SelectList.test_select_complex.TestSelectResNum.test_select_res_num" class="md-nav__link">
+        Select Res Num 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#07-DataQuerying.09-SelectList.test_select_res_num.TestSelectResNum.test_select_res_num" class="md-nav__link">
+        Select Res Num 
       </a>
       
     </li>
@@ -2747,8 +2802,63 @@
         
   
     <li class="md-nav__item">
-      <a href="#20-DataQuerying.01-SelectList.test_selectlist_basic.TestSelectListBasic.test_selectlist" class="md-nav__link">
-        SelectList 
+      <a href="#07-DataQuerying.09-SelectList.test_column_1.TestProjectColumn1.test_project_column_1" class="md-nav__link">
+        1 个数据列的子表投影查询 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#07-DataQuerying.09-SelectList.test_column_7.TestProjectColumn7.test_project_column_7" class="md-nav__link">
+        7 个数据列的子表投影查询 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#07-DataQuerying.09-SelectList.test_const_col.TestConstCol.test_const_column" class="md-nav__link">
+        Const Column 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#07-DataQuerying.09-SelectList.test_read.TestSelectResNum.test_select_res_num" class="md-nav__link">
+        Select Res Num 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#07-DataQuerying.09-SelectList.test_select_complex.TestSelectResNum.test_select_res_num" class="md-nav__link">
+        Select Res Num 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#07-DataQuerying.09-SelectList.test_select_res_num.TestSelectResNum.test_select_res_num" class="md-nav__link">
+        Select Res Num 
       </a>
       
     </li>
@@ -2778,28 +2888,178 @@
   
   
   
-<h2 id="20-DataQuerying.01-SelectList.test_selectlist_basic.TestSelectListBasic.test_selectlist" class="doc doc-heading">
+<h2 id="07-DataQuerying.09-SelectList.test_column_1.TestProjectColumn1.test_project_column_1" class="doc doc-heading">
 
-<a href="#20-DataQuerying.01-SelectList.test_selectlist_basic.TestSelectListBasic.test_selectlist" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#07-DataQuerying.09-SelectList.test_column_1.TestProjectColumn1.test_project_column_1" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> SelectList
+                    <strong>Summary:</strong> 1 个数据列的子表投影查询
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Projection queries</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Aggregation queries</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Scalar functions</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Combining GROUP BY, ORDER BY, Limit, and WHERE clauses</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. 创建包含 1 个普通数据列和 1 个标签列的超级表</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. 创建子表并写入数据</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. 对子表进行投影查询、四则运算</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. 增加时间筛选条件</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. 增加排序</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     <strong>Path:</strong>
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/20-DataQuerying/01-SelectList/test_selectlist_basic.py" target="_blank">
-                      cases/20-DataQuerying/01-SelectList/test_selectlist_basic.py
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/07-DataQuerying/09-SelectList/test_column_1.py" target="_blank">
+                      cases/07-DataQuerying/09-SelectList/test_column_1.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h2 id="07-DataQuerying.09-SelectList.test_column_7.TestProjectColumn7.test_project_column_7" class="doc doc-heading">
+
+<a href="#07-DataQuerying.09-SelectList.test_column_7.TestProjectColumn7.test_project_column_7" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Summary:</strong> 7 个数据列的子表投影查询
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <strong>Description:</strong>
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. 创建包含 7 个普通数据列和 1 个标签列的超级表，数据列包括 bool、smallint、tinyint、float、double、int、binary</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. 创建子表并写入数据</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. 对子表进行投影查询、四则运算</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. 增加时间、普通列筛选条件</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. 增加排序</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    <strong>Path:</strong>
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/07-DataQuerying/09-SelectList/test_column_7.py" target="_blank">
+                      cases/07-DataQuerying/09-SelectList/test_column_7.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h2 id="07-DataQuerying.09-SelectList.test_const_col.TestConstCol.test_const_column" class="doc doc-heading">
+
+<a href="#07-DataQuerying.09-SelectList.test_const_col.TestConstCol.test_const_column" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Summary:</strong> Const Column
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <strong>Description:</strong>
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Execute query statement that contains only constants</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    <strong>Path:</strong>
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/07-DataQuerying/09-SelectList/test_const_col.py" target="_blank">
+                      cases/07-DataQuerying/09-SelectList/test_const_col.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h2 id="07-DataQuerying.09-SelectList.test_read.TestSelectResNum.test_select_res_num" class="doc doc-heading">
+
+<a href="#07-DataQuerying.09-SelectList.test_read.TestSelectResNum.test_select_res_num" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Summary:</strong> Select Res Num
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <strong>Description:</strong>
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. -</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    <strong>Path:</strong>
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/07-DataQuerying/09-SelectList/test_read.py" target="_blank">
+                      cases/07-DataQuerying/09-SelectList/test_read.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h2 id="07-DataQuerying.09-SelectList.test_select_complex.TestSelectResNum.test_select_res_num" class="doc doc-heading">
+
+<a href="#07-DataQuerying.09-SelectList.test_select_complex.TestSelectResNum.test_select_res_num" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Summary:</strong> Select Res Num
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <strong>Description:</strong>
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. -</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    <strong>Path:</strong>
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/07-DataQuerying/09-SelectList/test_select_complex.py" target="_blank">
+                      cases/07-DataQuerying/09-SelectList/test_select_complex.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h2 id="07-DataQuerying.09-SelectList.test_select_res_num.TestSelectResNum.test_select_res_num" class="doc doc-heading">
+
+<a href="#07-DataQuerying.09-SelectList.test_select_res_num.TestSelectResNum.test_select_res_num" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Summary:</strong> Select Res Num
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <strong>Description:</strong>
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. -</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    <strong>Path:</strong>
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/07-DataQuerying/09-SelectList/test_select_res_num.py" target="_blank">
+                      cases/07-DataQuerying/09-SelectList/test_select_res_num.py
                     </a>
                   </div>
         </div>

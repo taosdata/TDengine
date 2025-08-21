@@ -1026,17 +1026,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#04-SuperTables.04-Query.test_stable_query_during_leader_election.TestSelectDuringLeaderElection.test_select_during_leader_election" class="md-nav__link">
-        Query: during leader election 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#04-SuperTables.04-Query.test_stable_query_from_dnodes.TestStableQueryFromDnodes.test_stable_query_from_dnodes" class="md-nav__link">
         Query: from dnodes 
       </a>
@@ -2835,17 +2824,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#04-SuperTables.04-Query.test_stable_query_during_leader_election.TestSelectDuringLeaderElection.test_select_during_leader_election" class="md-nav__link">
-        Query: during leader election 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#04-SuperTables.04-Query.test_stable_query_from_dnodes.TestStableQueryFromDnodes.test_stable_query_from_dnodes" class="md-nav__link">
         Query: from dnodes 
       </a>
@@ -2977,39 +2955,6 @@
   
   
   
-<h2 id="04-SuperTables.04-Query.test_stable_query_during_leader_election.TestSelectDuringLeaderElection.test_select_during_leader_election" class="doc doc-heading">
-
-<a href="#04-SuperTables.04-Query.test_stable_query_during_leader_election.TestSelectDuringLeaderElection.test_select_during_leader_election" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> Query: during leader election
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <strong>Description:</strong>
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create 3 dnodes</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create db with 10 vgroups 3 replications</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create supper table and sub table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Stop one of the dnodes with leader vnode on it</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Select data from super table, it should be success</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    <strong>Path:</strong>
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/04-SuperTables/04-Query/test_stable_query_during_leader_election.py" target="_blank">
-                      cases/04-SuperTables/04-Query/test_stable_query_during_leader_election.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
 <h2 id="04-SuperTables.04-Query.test_stable_query_from_dnodes.TestStableQueryFromDnodes.test_stable_query_from_dnodes" class="doc doc-heading">
 
 <a href="#04-SuperTables.04-Query.test_stable_query_from_dnodes.TestStableQueryFromDnodes.test_stable_query_from_dnodes" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -3024,8 +2969,6 @@
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a super table distributed across multiple dnodes and vnodes</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data and query the results</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Perform partitioned queries using PARTITION BY</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Check query results when data is distributed across different vnodes, memory, and disk</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Restart all nodes and verify the computation results</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
