@@ -27,8 +27,7 @@ Using DBeaver to manage TDengine requires the following preparations.
    <Image img={imgStep01} alt=""/>
    </figure>
 
-2. Configure the TDengine connection by entering the host address, port number, username, and password. If TDengine is deployed on the local machine, you can just enter the username and password, with the default username being root and the default password being taosdata. Click "Test Connection" to test if the connection is available. If the TDengine Java
- connector is not installed on the local machine, DBeaver will prompt to download and install it.
+2. Configure the TDengine connection by entering the host address, port number (6041), username, and password. For example, use TDengine server host address `www.taosdemo.com and` port number `6041`. It is recommended to select URL connection and add connection parameters `?varcharAsString&conMode=1`. For parameter meanings, refer to the [JDBC documentation](../../../tdengine-reference/client-libraries/java). Click "Test Connection" to test whether the connection is available. If the TDengine Java connector is not installed on the local machine, DBeaver will prompt you to download and install it.
 
    <figure>
    <Image img={imgStep02} alt=""/>
