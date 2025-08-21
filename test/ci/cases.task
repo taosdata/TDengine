@@ -231,54 +231,52 @@
 ,,y,.,./ci/pytest.sh pytest cases/21-Operator/06-Logical/test_and_or.py
 ,,y,.,./ci/pytest.sh pytest cases/21-Operator/06-Logical/test_case_when.py
 
-# 10-Functions
-## 01-SingleRow
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_single_row_in_tb.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_cast.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_char_scalar.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_scalar_null.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_scalar.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_truncate.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_cast.py
-
+# 22-Functions
+## 01-Scalar
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_single_row_in_tb.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_func_cast.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_func_char_scalar.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_func_scalar_null.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_func_scalar.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_func_truncate.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_func_cast.py
 ## 02-Aggregate
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_apercentile.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_avg.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_count.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_leastsquares.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_percentile.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_spread.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_stddev.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_stddev2.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_sum.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_sum.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_elapsed.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_percentile.py
-
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_func_apercentile.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_func_avg.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_func_count.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_func_leastsquares.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_func_percentile.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_func_spread.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_func_stddev.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_func_stddev2.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_func_sum.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_func_sum.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_func_elapsed.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_percentile.py
 ## 03-Selection
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_bottom.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_first_last.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_first.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_basic.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_both.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_cache.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_groupby.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_lru.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_row1.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_row2.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_row3.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_tag.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_max.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_min.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_multires.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_top.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_topbot.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_paramnum.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_selection_function_with_json.py
-## 04-TimeseriesSpecfic
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/04-TimeseriesSpecfic/test_func_diff.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/04-TimeseriesSpecfic/test_func_diff2.py
-,,y,.,./ci/pytest.sh pytest cases/10-Functions/04-TimeseriesSpecfic/test_func_diff3.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_bottom.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_first_last.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_first.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_last_basic.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_last_both.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_last_cache.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_last_groupby.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_last_lru.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_last_row1.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_last_row2.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_last_row3.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_last_tag.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_max.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_min.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_multires.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_top.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_topbot.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_paramnum.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_selection_function_with_json.py
+## 04-Timeseries
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_func_diff.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_func_diff2.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_func_diff3.py
 
 # 11-TimeSeriesExtensions
 ## 01-PartitionBy
