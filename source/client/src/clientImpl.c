@@ -1444,7 +1444,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                         .pUser = pRequest->pTscObj->user,
                         .sysInfo = pRequest->pTscObj->sysInfo,
                         .timezone = pRequest->pTscObj->optionInfo.timezone,
-                        .allocatorId = pRequest->allocatorRefId};
+                        .allocatorId = pRequest->stmtBindVersion > 0 ? 0 : pRequest->allocatorRefId};
     if (TSDB_CODE_SUCCESS == code) {
       code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
     }

@@ -155,17 +155,11 @@ class TestStableQueryColumnDatatypes:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt}"
         )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
-        )
         tdSql.checkData(0, 0, 200)
 
         tdLog.info(f"=============== step5")
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tbcol = 1"
-        )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
         tdSql.checkData(0, 0, 100)
 
@@ -173,29 +167,17 @@ class TestStableQueryColumnDatatypes:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tbcol = 1 group by tgcol order by count(tbcol) desc"
         )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(1,0)} {tdSql.getData(1,1)} {tdSql.getData(1,2)} {tdSql.getData(1,3)} {tdSql.getData(1,4)} {tdSql.getData(1,5)} {tdSql.getData(1,6)}"
-        )
         tdSql.checkData(0, 0, 100)
 
         tdLog.info(f"=============== step7")
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < 1626739440001 and tbcol = 1 group by tgcol order by count(tbcol) desc"
         )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
-        )
         tdSql.checkData(0, 0, 25)
 
         tdLog.info(f"=============== step8")
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tbcol = 1 partition by tgcol interval(1d) order by tgcol desc"
-        )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
         tdSql.checkData(0, 0, 100)
 
@@ -501,17 +483,11 @@ class TestStableQueryColumnDatatypes:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt}"
         )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
-        )
         tdSql.checkData(0, 0, 200)
 
         tdLog.info(f"=============== step5")
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tbcol = 1"
-        )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
         tdSql.checkData(0, 0, 100)
 
@@ -519,26 +495,17 @@ class TestStableQueryColumnDatatypes:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tbcol = 1 group by tgcol order by count(tbcol) desc"
         )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
-        )
         tdSql.checkData(0, 0, 100)
 
         tdLog.info(f"=============== step7")
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < 1626739440001 and tbcol = 1 group by tgcol order by count(tbcol) desc"
         )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
-        )
         tdSql.checkData(0, 0, 25)
 
         tdLog.info(f"=============== step8")
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tbcol = 1 partition by tgcol interval(1d) order by tgcol desc"
-        )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
         tdSql.checkData(0, 0, 100)
 
@@ -647,17 +614,11 @@ class TestStableQueryColumnDatatypes:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt}"
         )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
-        )
         tdSql.checkData(0, 0, 200)
 
         tdLog.info(f"=============== step5")
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tbcol = 1"
-        )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
         tdSql.checkData(0, 0, 100)
 
@@ -665,26 +626,17 @@ class TestStableQueryColumnDatatypes:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tbcol = 1 group by tgcol"
         )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
-        )
         tdSql.checkData(0, 0, 100)
 
         tdLog.info(f"=============== step7")
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < 1626739440001 and tbcol = 1 group by tgcol"
         )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
-        )
         tdSql.checkData(0, 0, 25)
 
         tdLog.info(f"=============== step8")
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tbcol = 1 partition by tgcol interval(1d) order by tgcol desc"
-        )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
         tdSql.checkData(0, 0, 100)
 
@@ -791,17 +743,11 @@ class TestStableQueryColumnDatatypes:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt}"
         )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
-        )
         tdSql.checkData(0, 0, 200)
 
         tdLog.info(f"=============== step5")
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tbcol = 1"
-        )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
         tdSql.checkData(0, 0, 100)
 
@@ -809,26 +755,17 @@ class TestStableQueryColumnDatatypes:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tbcol = 1 group by tgcol"
         )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
-        )
         tdSql.checkData(0, 0, 100)
 
         tdLog.info(f"=============== step7")
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < 1626739440001 and tbcol = 1 group by tgcol"
         )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
-        )
         tdSql.checkData(0, 0, 25)
 
         tdLog.info(f"=============== step8")
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tbcol = 1 partition by tgcol interval(1d) order by tgcol desc"
-        )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
         tdSql.checkData(0, 0, 100)
 
@@ -937,17 +874,11 @@ class TestStableQueryColumnDatatypes:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt}"
         )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
-        )
         tdSql.checkData(0, 0, 200)
 
         tdLog.info(f"=============== step5")
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tbcol = 1"
-        )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
         tdSql.checkData(0, 0, 100)
 
@@ -955,26 +886,17 @@ class TestStableQueryColumnDatatypes:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tbcol = 1 group by tgcol order by count(tbcol) desc"
         )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
-        )
         tdSql.checkData(0, 0, 100)
 
         tdLog.info(f"=============== step7")
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < 1626739440001 and tbcol = 1 group by tgcol order by count(tbcol) desc"
         )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
-        )
         tdSql.checkData(0, 0, 25)
 
         tdLog.info(f"=============== step8")
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tbcol = 1 partition by tgcol interval(1d) order by tgcol desc"
-        )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
         tdSql.checkData(0, 0, 100)
 
@@ -1083,17 +1005,11 @@ class TestStableQueryColumnDatatypes:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt}"
         )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
-        )
         tdSql.checkData(0, 0, 200)
 
         tdLog.info(f"=============== step5")
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tbcol = 1"
-        )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
         tdSql.checkData(0, 0, 100)
 
@@ -1101,26 +1017,17 @@ class TestStableQueryColumnDatatypes:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tbcol = 1 group by tgcol"
         )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
-        )
         tdSql.checkData(0, 0, 100)
 
         tdLog.info(f"=============== step7")
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < 1626739440001 and tbcol = 1 group by tgcol"
         )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
-        )
         tdSql.checkData(0, 0, 25)
 
         tdLog.info(f"=============== step8")
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tbcol = 1 partition by tgcol interval(1d) order by tgcol desc"
-        )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
         tdSql.checkData(0, 0, 100)
 
@@ -1236,17 +1143,11 @@ class TestStableQueryColumnDatatypes:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt}"
         )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
-        )
         tdSql.checkData(0, 0, 200)
 
         tdLog.info(f"=============== step5")
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tbcol = 1"
-        )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
         tdSql.checkData(0, 0, 100)
 
@@ -1254,29 +1155,17 @@ class TestStableQueryColumnDatatypes:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tbcol = 1 group by tgcol order by count(tbcol) desc"
         )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(1,0)} {tdSql.getData(1,1)} {tdSql.getData(1,2)} {tdSql.getData(1,3)} {tdSql.getData(1,4)} {tdSql.getData(1,5)} {tdSql.getData(1,6)}"
-        )
         tdSql.checkData(0, 0, 100)
 
         tdLog.info(f"=============== step7")
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < 1626739440001 and tbcol = 1 group by tgcol order by count(tbcol) desc"
         )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
-        )
         tdSql.checkData(0, 0, 25)
 
         tdLog.info(f"=============== step8")
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tbcol = 1 partition by tgcol interval(1d) order by tgcol desc"
-        )
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
         tdSql.checkData(0, 0, 100)
 
