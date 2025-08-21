@@ -49,7 +49,7 @@ static int32_t bseRawFileWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBse
     bseBuildMetaName(pMeta->timestamp, name);
     bseBuildFullName(pBse, name, path);
   } else if (pMeta->fileType == BSE_CURRENT_SNAP) {
-    bseBuildCurrentName(pBse, path);
+    bseBuildCurrentFullName(pBse, path);
   } else {
     return TSDB_CODE_INVALID_MSG;
   }

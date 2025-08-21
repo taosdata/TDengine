@@ -47,11 +47,11 @@ static int32_t bseBatchMgtRecycle(SBatchMgt *pBatchMgt, SBseBatch *pBatch);
 static void    bseBatchMgtCleanup(SBatchMgt *pBatchMgt);
 
 static int32_t bseBatchCreate(SBseBatch **pBatch, int32_t nKeys);
-void           bseBatchClear(SBseBatch *pBatch);
+static void    bseBatchClear(SBseBatch *pBatch);
 static int32_t bseRecycleBatchImpl(SBatchMgt *pMgt, SBseBatch *pBatch);
 static int32_t bseBatchMayResize(SBseBatch *pBatch, int32_t alen);
 
-static int32_t bseSerailCommitInfo(SBse *pBse, SArray *fileSet, char **pBuf, int32_t *len) {
+int32_t bseSerailCommitInfo(SBse *pBse, SArray *fileSet, char **pBuf, int32_t *len) {
   int32_t code = 0;
   // int32_t code = 0;
   int32_t line = 0;
@@ -207,7 +207,7 @@ int32_t bseReadCurrentFile(SBse *pBse, char **p, int64_t *len) {
 
   char *pCurrent = NULL;
 
-  bseBuildCurrentName(pBse, name);
+  bseBuildCurrentFullName(pBse, name);
   if (taosCheckExistFile(name) == 0) {
     bseInfo("vgId:%d, no current meta file found, skip recover", BSE_VGID(pBse));
     return 0;
@@ -890,7 +890,7 @@ int32_t bseGenCommitInfo(SBse *pBse, SArray *pFileSet) {
   code = bseSerailCommitInfo(pBse, pFileSet, &pBuf, &len);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  bseBuildTempCurrentName(pBse, buf);
+  bseBuildTempCurrentFullName(pBse, buf);
 
   fd = taosOpenFile(buf, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (fd == NULL) {
@@ -924,8 +924,8 @@ int32_t bseCommitFinish(SBse *pBse) {
   char buf[TSDB_FILENAME_LEN] = {0};
   char tbuf[TSDB_FILENAME_LEN] = {0};
 
-  bseBuildCurrentName(pBse, buf);
-  bseBuildTempCurrentName(pBse, tbuf);
+  bseBuildCurrentFullName(pBse, buf);
+  bseBuildTempCurrentFullName(pBse, tbuf);
 
   code = taosRenameFile(tbuf, buf);
   return code;

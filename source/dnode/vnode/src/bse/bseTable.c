@@ -54,20 +54,21 @@ static int32_t blockSeekMeta(SBlock *p, int64_t seq, SMetaBlock *pMeta);
 static int32_t blockGetAllMeta(SBlock *p, SArray *pResult);
 static int32_t metaBlockAddIndex(SBlock *p, SBlkHandle *pInfo);
 
-int32_t tableMetaWriterInit(SBTableMeta *pMeta, char *name, SBtableMetaWriter **ppWriter);
-int32_t tableMetaWriterCommit(SBtableMetaWriter *pMeta);
-void    tableMetaWriterClose(SBtableMetaWriter *p);
-int32_t tableMetaWriteAppendRawBlock(SBtableMetaWriter *pMeta, SBlockWrapper *pBlock, SBlkHandle *pBlkHandle);
+static int32_t tableMetaWriterInit(SBTableMeta *pMeta, char *name, SBtableMetaWriter **ppWriter);
+static int32_t tableMetaWriterCommit(SBtableMetaWriter *pMeta);
+static void    tableMetaWriterClose(SBtableMetaWriter *p);
+static int32_t tableMetaWriteAppendRawBlock(SBtableMetaWriter *pMeta, SBlockWrapper *pBlock, SBlkHandle *pBlkHandle);
 
-int32_t tableMetaReaderInit(SBTableMeta *pMeta, char *name, SBtableMetaReader **ppReader);
-void    tableMetaReaderClose(SBtableMetaReader *p);
-int32_t tableMetaReaderLoadIndex(SBtableMetaReader *p);
+static int32_t tableMetaReaderInit(SBTableMeta *pMeta, char *name, SBtableMetaReader **ppReader);
+static void    tableMetaReaderClose(SBtableMetaReader *p);
+static int32_t tableMetaReaderLoadIndex(SBtableMetaReader *p);
 
-int32_t tableMetaOpenFile(SBtableMetaWriter *pMeta, int8_t read, char *name);
+static int32_t tableMetaOpenFile(SBtableMetaWriter *pMeta, int8_t read, char *name);
 
-int32_t tableMetaReaderOpenIter(SBtableMetaReader *pReader, SBtableMetaReaderIter **pIter);
-int32_t tableMetaReaderIterNext(SBtableMetaReaderIter *pIter, SBlockWrapper *pDataWrapper, SBlkHandle *dstHandle);
-void    tableMetaReaderIterClose(SBtableMetaReaderIter *p);
+static int32_t tableMetaReaderOpenIter(SBtableMetaReader *pReader, SBtableMetaReaderIter **pIter);
+static int32_t tableMetaReaderIterNext(SBtableMetaReaderIter *pIter, SBlockWrapper *pDataWrapper,
+                                       SBlkHandle *dstHandle);
+static void    tableMetaReaderIterClose(SBtableMetaReaderIter *p);
 
 // STable builder func
 static int32_t tableBuilderGetBlockSize(STableBuilder *p);
@@ -697,8 +698,7 @@ int32_t tableReaderLoadRawFooter(STableReader *p, SBlockWrapper *blkWrapper) {
   }
 
   if (taosReadFile(pReader->pFile, buf, sizeof(buf)) != len) {
-    code = terrno;
-    TSDB_CHECK_CODE(code, lino, _error);
+    TSDB_CHECK_CODE(terrno, lino, _error);
   }
 
   code = blockWrapperResize(blkWrapper, len + sizeof(SBseSnapMeta));
@@ -736,10 +736,12 @@ int32_t tableReaderOpen(int64_t timestamp, STableReader **pReader, void *pReader
   if (p == NULL) {
     TSDB_CHECK_CODE(terrno, lino, _error);
   }
+
+  bseBuildDataName(timestamp, data);
+
   p->timestamp = timestamp;
   p->blockCap = 1024;
   p->pReaderMgt = pReaderMgt;
-  bseBuildDataName(timestamp, data);
   memcpy(p->name, data, strlen(data));
 
   bseBuildFullName(pMgt->pBse, data, dataPath);
@@ -793,8 +795,7 @@ int32_t tableReaderGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *
       TSDB_CHECK_CODE(code, lino, _error);
     }
 
-    SBlock *pBlock = wrapper.data;
-    code = blockCachePut(pMgt->pBlockCache, &block.range, pBlock);
+    code = blockCachePut(pMgt->pBlockCache, &block.range, wrapper.data);
     TSDB_CHECK_CODE(code, lino, _error);
 
   } else {
@@ -1529,7 +1530,7 @@ int32_t bseReadCurrentSnap(SBse *pBse, uint8_t **pValue, int32_t *len) {
 
   uint8_t *pCurrent = NULL;
 
-  bseBuildCurrentName(pBse, name);
+  bseBuildCurrentFullName(pBse, name);
   if (taosCheckExistFile(name) == 0) {
     bseInfo("vgId:%d, no current meta file found, skip recover", BSE_VGID(pBse));
     return 0;

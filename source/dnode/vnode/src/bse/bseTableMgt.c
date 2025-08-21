@@ -123,11 +123,10 @@ int32_t bseTableMgtGet(STableMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *
   int32_t       lino = 0;
   int32_t       readOnly = 1;
   SSubTableMgt *pSubMgt = NULL;
-
   SBse *pBse = pMgt->pBse;
 
   int64_t timestamp = 0;
-  code = bseGetTableIdBySeq(pMgt->pBse, seq, &timestamp);
+  code = bseGetTableIdBySeq(pBse, seq, &timestamp);
   TSDB_CHECK_CODE(code, lino, _error);
 
   if (timestamp > 0) {
@@ -145,7 +144,7 @@ int32_t bseTableMgtGet(STableMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *
   } else {
     pSubMgt = pMgt->pCurrTableMgt;
     if (pSubMgt == NULL) {
-      return TSDB_CODE_BLOB_SEQ_NOT_FOUND;
+      TSDB_CHECK_CODE(TSDB_CODE_BLOB_SEQ_NOT_FOUND, lino, _error);
     }
     readOnly = 0;
   }
@@ -164,7 +163,7 @@ int32_t bseTableMgtGet(STableMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *
   }
 _error:
   if (code != 0) {
-    bseError("failed to get table at line %d since %s", lino, tstrerror(code));
+    bseError("vgId:%d failed to get table at line %d since %s", BSE_VGID(pBse), lino, tstrerror(code));
   }
   return code;
 }

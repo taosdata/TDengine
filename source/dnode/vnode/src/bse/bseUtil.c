@@ -128,11 +128,11 @@ void bseBuildLogFullName(SBse *pBse, int64_t ver, char *buf) {
   TAOS_UNUSED(snprintf(buf, BSE_FILE_FULL_LEN, "%s/%020" PRId64 "." BSE_LOG_SUFFIX, pBse->path, ver));
 }
 
-void bseBuildCurrentName(SBse *pBse, char *name) {
+void bseBuildCurrentFullName(SBse *pBse, char *name) {
   snprintf(name, BSE_FILE_FULL_LEN, "%s%sCURRENT", pBse->path, TD_DIRSEP);
 }
 
-void bseBuildTempCurrentName(SBse *pBse, char *name) {
+void bseBuildTempCurrentFullName(SBse *pBse, char *name) {
   snprintf(name, BSE_FILE_FULL_LEN, "%s%sCURRENT-temp", pBse->path, TD_DIRSEP);
 }
 
