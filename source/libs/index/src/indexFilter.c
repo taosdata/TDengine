@@ -213,6 +213,61 @@ static FORCE_INLINE int32_t sifGetValueFromNode(SNode *node, char **value) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t sifCreateHashFromNodeList(SNode *node, SHashObj **pFilter) {
+  SNodeListNode *nl = (SNodeListNode *)node;
+
+  if (LIST_LENGTH(nl->pNodeList) <= 0) {
+    indexError("invalid length for node:%p, length: %d", node, LIST_LENGTH(nl->pNodeList));
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  // Create hash table with appropriate hash function for the node list type
+  uint32_t  type = nl->node.resType.type;
+  SHashObj *pObj = taosHashInit(256, taosGetDefaultHashFunction(type), true, false);
+  if (NULL == pObj) {
+    indexError("taosHashInit failed, size:%d", 256);
+    return terrno;
+  }
+
+  taosHashSetEqualFp(pObj, taosGetDefaultEqualFunction(type));
+
+  // Iterate through each node in the list
+  SNode *nodeItem = NULL;
+  FOREACH(nodeItem, nl->pNodeList) {
+    if (nodeType(nodeItem) != QUERY_NODE_VALUE) {
+      indexError("Only value nodes are supported in node list");
+      taosHashCleanup(pObj);
+      return TSDB_CODE_QRY_INVALID_INPUT;
+    }
+
+    SValueNode *valueNode = (SValueNode *)nodeItem;
+    char       *pData = nodesGetValueFromNode(valueNode);
+    SDataType  *pType = &valueNode->node.resType;
+    int32_t     valLen = 0;
+
+    // Calculate value length
+    if (IS_VAR_DATA_TYPE(pType->type)) {
+      if (IS_STR_DATA_BLOB(pType->type)) {
+        valLen = blobDataTLen(pData);
+      } else {
+        valLen = varDataTLen(pData);
+      }
+    } else {
+      valLen = pType->bytes;
+    }
+
+    // Add to hash table (duplicates will be automatically handled)
+    if (taosHashPut(pObj, pData, (size_t)valLen, NULL, 0)) {
+      indexError("taosHashPut to set failed");
+      taosHashCleanup(pObj);
+      return terrno;
+    }
+  }
+
+  *pFilter = pObj;
+  return TSDB_CODE_SUCCESS;
+}
+
 static FORCE_INLINE int32_t sifInitJsonParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
   SOperatorNode *nd = (SOperatorNode *)node;
   if (nodeType(node) != QUERY_NODE_OPERATOR) {
@@ -328,12 +383,7 @@ static int32_t sifInitParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
       break;
     }
     case QUERY_NODE_NODE_LIST: {
-      SNodeListNode *nl = (SNodeListNode *)node;
-      if (LIST_LENGTH(nl->pNodeList) <= 0) {
-        indexError("invalid length for node:%p, length: %d", node, LIST_LENGTH(nl->pNodeList));
-        SIF_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
-      }
-      SIF_ERR_RET(scalarGenerateSetFromList((void **)&param->pFilter, node, nl->node.resType.type, 0, 0));
+      SIF_ERR_RET(sifCreateHashFromNodeList(node, &param->pFilter));
       // Don't store NODE_LIST to context to avoid double free
       // The pFilter will be managed by the caller (sifExecOper)
       break;
@@ -668,6 +718,7 @@ static int8_t sifShouldUseIndexBasedOnType(SIFParam *left, SIFParam *right) {
   }
   return 1;
 }
+
 static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFParam *output) {
   int             ret = 0;
   SIndexMetaArg  *arg = &output->arg;
