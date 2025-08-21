@@ -4900,10 +4900,10 @@ int32_t streamPseudoScalarFunction(SScalarParam *pInput, int32_t inputNum, SScal
   return 0;
 }
 
-void calcTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, STimeWindow *pWinRange, bool *winRangeValid) {
+void calcTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, STimeWindow *pWinRange, bool *winRangeValid, int32_t type) {
   SStreamTSRangeParas timeStartParas = {.eType = SCL_VALUE_TYPE_START, .timeValue = INT64_MIN};
   SStreamTSRangeParas timeEndParas = {.eType = SCL_VALUE_TYPE_END, .timeValue = INT64_MAX};
-  if (scalarCalculate(node->pStart, NULL, NULL, pStRtFuncInfo, &timeStartParas) == 0) {
+  if ((type & 0x1) && scalarCalculate(node->pStart, NULL, NULL, pStRtFuncInfo, &timeStartParas) == 0) {
     if (timeStartParas.opType == OP_TYPE_GREATER_THAN || timeStartParas.opType == OP_TYPE_LOWER_THAN) {
       // For greater than or lower than, used different param, rigth or left. 
       pWinRange->skey = timeStartParas.timeValue + 1;
@@ -4914,9 +4914,10 @@ void calcTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, STimeWindow *pWinR
       return;
     }
   } else {
-    pWinRange->skey = 0;
+    pWinRange->skey = INT64_MIN;
   }
-  if (scalarCalculate(node->pEnd, NULL, NULL, pStRtFuncInfo, &timeEndParas) == 0) {
+  
+  if ((type & 0x2) && scalarCalculate(node->pEnd, NULL, NULL, pStRtFuncInfo, &timeEndParas) == 0) {
     if (timeEndParas.opType == OP_TYPE_LOWER_THAN || timeEndParas.opType == OP_TYPE_GREATER_THAN) {
       pWinRange->ekey = timeEndParas.timeValue - 1;
     } else if (timeEndParas.opType == OP_TYPE_LOWER_EQUAL || timeEndParas.opType == OP_TYPE_GREATER_EQUAL) {
@@ -4928,6 +4929,7 @@ void calcTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, STimeWindow *pWinR
   } else {
     pWinRange->ekey = INT64_MAX;
   }
+  
   qDebug("%s, skey:%" PRId64 ", ekey:%" PRId64, __func__, pWinRange->skey, pWinRange->ekey);
   *winRangeValid = true;
 }

@@ -424,7 +424,7 @@ static int32_t doFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     STimeWindow pWinRange = {0};
     bool        isWinRangeValid = false;
     calcTimeRange((STimeRangeNode*)pInfo->pTimeRange, &pTaskInfo->pStreamRuntimeInfo->funcInfo, &pWinRange,
-                  &isWinRangeValid);
+                  &isWinRangeValid, 3);
 
     if (isWinRangeValid) {
       pInfo->win.skey = pWinRange.skey;

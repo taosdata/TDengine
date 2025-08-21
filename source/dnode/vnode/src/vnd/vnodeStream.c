@@ -1511,31 +1511,45 @@ static int32_t processCalaTimeRange(SStreamTriggerReaderCalcInfo* sStreamReaderC
     STREAM_CHECK_NULL_GOTO(pFirst, terrno);
     STREAM_CHECK_NULL_GOTO(pLast, terrno);
 
-    SSTriggerCalcParam* pTmp = taosArrayGet(sStreamReaderCalcInfo->tmpRtFuncInfo.pStreamPesudoFuncVals, 0);
-    memcpy(pTmp, pFirst, sizeof(*pTmp));
-    if (req->pStRtFuncInfo->triggerType == STREAM_TRIGGER_SLIDING) {
-      pTmp->wend--;
-    }
+    if (node->) {
+      handle->winRange.skey = pFirst->wstart;
+      handle->winRange.ekey = pLast->wend;
+      handle->winRangeValid = true;
+    } else {
+      SSTriggerCalcParam* pTmp = taosArrayGet(sStreamReaderCalcInfo->tmpRtFuncInfo.pStreamPesudoFuncVals, 0);
+      memcpy(pTmp, pFirst, sizeof(*pTmp));
 
-    calcTimeRange(node, &sStreamReaderCalcInfo->tmpRtFuncInfo, &handle->winRange, &handle->winRangeValid);
-    if (handle->winRangeValid) {
-      int64_t skey = handle->winRange.skey;
-
-      memcpy(pTmp, pLast, sizeof(*pTmp));
-      if (req->pStRtFuncInfo->triggerType == STREAM_TRIGGER_SLIDING) {
-        pTmp->wend--;
-      }
-
-      calcTimeRange(node, &sStreamReaderCalcInfo->tmpRtFuncInfo, &handle->winRange, &handle->winRangeValid);
-
+      calcTimeRange(node, &sStreamReaderCalcInfo->tmpRtFuncInfo, &handle->winRange, &handle->winRangeValid, 1);
       if (handle->winRangeValid) {
-        handle->winRange.skey = skey;
-        stDebug("%s withExternalWindow is true, skey:%" PRId64 ", ekey:%" PRId64, __func__, handle->winRange.skey, handle->winRange.ekey);
+        int64_t skey = handle->winRange.skey;
+
+        memcpy(pTmp, pLast, sizeof(*pTmp));
+        if (req->pStRtFuncInfo->triggerType == STREAM_TRIGGER_SLIDING) {
+          pTmp->wend--;
+        }
+
+        calcTimeRange(node, &sStreamReaderCalcInfo->tmpRtFuncInfo, &handle->winRange, &handle->winRangeValid, 2);
+
+        if (handle->winRangeValid) {
+          handle->winRange.skey = skey;
+        }
       }
     }
+
+    stDebug("%s withExternalWindow is true, skey:%" PRId64 ", ekey:%" PRId64 ", validRange:%d", 
+        __func__, handle->winRange.skey, handle->winRange.ekey, handle->winRangeValid);
   } else {
-    calcTimeRange(node, req->pStRtFuncInfo, &handle->winRange, &handle->winRangeValid);
-    stDebug("%s withExternalWindow is false, skey:%" PRId64 ", ekey:%" PRId64, __func__, handle->winRange.skey, handle->winRange.ekey);
+    if (node->) {
+      SSTriggerCalcParam* pCurr = taosArrayGet(req->pStRtFuncInfo->pStreamPesudoFuncVals, req->pStRtFuncInfo->curIdx);
+      handle->winRange.skey = pCurr->wstart;
+      handle->winRange.ekey = pCurr->wend;
+      handle->winRangeValid = true;
+    } else {
+      calcTimeRange(node, req->pStRtFuncInfo, &handle->winRange, &handle->winRangeValid, 3);
+    }
+    
+    stDebug("%s withExternalWindow is false, skey:%" PRId64 ", ekey:%" PRId64 ", validRange:%d", 
+        __func__, handle->winRange.skey, handle->winRange.ekey, handle->winRangeValid);
   }
 
 end:
