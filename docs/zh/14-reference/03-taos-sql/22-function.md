@@ -1,6 +1,6 @@
 ---
-sidebar_label: 函数
-title: 函数
+sidebar_label: 内置函数
+title: 内置函数
 description: TDengine TSDB 支持的函数列表
 toc_max_heading_level: 4
 ---

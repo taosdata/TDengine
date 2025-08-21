@@ -264,11 +264,126 @@ void do_stmt(const char* msg, TAOS* taos, TAOS_STMT2_OPTION* option, const char*
   taos_stmt2_close(stmt);
 }
 
+TAOS* getConnWithTz(const char *tz){
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT(pConn != nullptr);
+  if (tz != NULL){
+    int code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, tz);
+    ASSERT(code == 0);
+  }
+  return pConn;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
+}
+
+TEST(stmt2Case, timezone) {
+  const char* sql = "select * from stmt2_testdb_0.tt where ts = ?";
+  // prepare data and check
+  {
+    TAOS* taos = getConnWithTz("UTC-8");  // Asia/Shanghai timezone
+    do_query(taos, "drop database if exists stmt2_testdb_0");
+    do_query(taos, "create database IF NOT EXISTS stmt2_testdb_0");
+    do_query(taos, "create table stmt2_testdb_0.tt (ts timestamp, val int)");
+    do_query(taos, "insert into stmt2_testdb_0.tt values('2025-08-08 08:08:08', 88)");
+    do_query(taos, "use stmt2_testdb_0");
+
+    TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
+    ASSERT_NE(stmt, nullptr);
+    int code = taos_stmt2_prepare(stmt, sql, 0);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    // stmt2 with timestamp
+    int64_t ts = 1754611688000;  // '2025-08-08 08:08:08' in Asia/Shanghai timezone
+    int32_t t64_len = sizeof(int64_t);
+    TAOS_STMT2_BIND  params = {TSDB_DATA_TYPE_TIMESTAMP, &ts, &t64_len, NULL, 1};
+    TAOS_STMT2_BIND* paramv = &params;
+    TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &paramv};
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    checkError(stmt, code, __FILE__, __LINE__);
+    code = taos_stmt2_exec(stmt, NULL);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    TAOS_RES* pRes = taos_stmt2_result(stmt);
+    ASSERT_NE(pRes, nullptr);
+    int getRecordCounts = 0;
+    while ((taos_fetch_row(pRes))) {
+      getRecordCounts++;
+    }
+    ASSERT_EQ(getRecordCounts, 1);
+    taos_stmt2_close(stmt);
+    taos_close(taos);
+  }
+
+  // stmt2 with time str in Asia/Shanghai timezone
+  {
+    TAOS* taos = getConnWithTz("UTC-8");
+    do_query(taos, "use stmt2_testdb_0");
+
+    TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
+    ASSERT_NE(stmt, nullptr);
+    int code = taos_stmt2_prepare(stmt, sql, 0);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    ASSERT_NE(stmt, nullptr);
+    char* timeStrShanghai = "2025-08-08 08:08:08";
+    int32_t timeStrLen = strlen(timeStrShanghai);
+    TAOS_STMT2_BIND  paramsCST = {TSDB_DATA_TYPE_BINARY, timeStrShanghai, &timeStrLen, NULL, 1};
+    TAOS_STMT2_BIND* paramvCST = &paramsCST;
+    TAOS_STMT2_BINDV bindvCST = {1, NULL, NULL, &paramvCST};
+    code = taos_stmt2_bind_param(stmt, &bindvCST, -1);
+    checkError(stmt, code, __FILE__, __LINE__);
+    code = taos_stmt2_exec(stmt, NULL);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    TAOS_RES* pRes = taos_stmt2_result(stmt);
+    ASSERT_NE(pRes, nullptr);
+    int getRecordCounts = 0;
+    while ((taos_fetch_row(pRes))) {
+      getRecordCounts++;
+    }
+    ASSERT_EQ(getRecordCounts, 1);
+  }
+
+  // stmt2 wiht time str in UTC timezone
+  {
+    TAOS* taos = getConnWithTz("UTC+0");
+    do_query(taos, "use stmt2_testdb_0");
+
+    TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
+    ASSERT_NE(stmt, nullptr);
+    int code = taos_stmt2_prepare(stmt, sql, 0);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    char* timeStrUTC = "2025-08-08 00:08:08";  // '2025-08-08 08:08:08+8' in UTC timezone
+    int32_t timeStrUTCLen = strlen(timeStrUTC);
+    TAOS_STMT2_BIND  paramsUTC = {TSDB_DATA_TYPE_BINARY, timeStrUTC, &timeStrUTCLen, NULL, 1};
+    TAOS_STMT2_BIND* paramvUTC = &paramsUTC;
+    TAOS_STMT2_BINDV bindvUTC = {1, NULL, NULL, &paramvUTC};
+    code = taos_stmt2_bind_param(stmt, &bindvUTC, -1);
+    checkError(stmt, code, __FILE__, __LINE__);
+    code = taos_stmt2_exec(stmt, NULL);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    TAOS_RES* pRes = taos_stmt2_result(stmt);
+    ASSERT_NE(pRes, nullptr);
+    int getRecordCounts = 0;  
+    while ((taos_fetch_row(pRes))) {
+      getRecordCounts++;
+    }
+    ASSERT_EQ(getRecordCounts, 1);
+
+    taos_stmt2_close(stmt);
+    do_query(taos, "drop database if exists stmt2_testdb_0");
+    taos_close(taos);
+  }
 }
 
 TEST(stmt2Case, stmt2_test_limit) {
@@ -2697,7 +2812,7 @@ TEST(stmt2Case, mixed_bind) {
     int             fieldNum = 0;
     TAOS_FIELD_ALL* pFields = NULL;
     // code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
-    // checkError(stmt, code);
+    // checkError(stmt, code, __FILE__, __LINE__);
     // ASSERT_EQ(fieldNum, 19);
 
     TAOS_STMT2_BIND* tags[2] = {&params_tags[0], &params_tags[0]};
@@ -3306,6 +3421,95 @@ TEST(stmt2Case, exec_retry) {
 
   taos_stmt2_close(stmt);
   do_query(taos, "drop database if exists stmt2_testdb_21");
+}
+
+void stmtAsyncQueryCb4(void* param, TAOS_RES* pRes, int code) {
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+}
+
+TEST(stmt2Case, core) {
+  printf("stmt2Test: select COUNT(1) from (select LAST(operate_time) ...) with params\n");
+
+  TAOS* taos = taos_connect("127.0.0.1", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  do_query(taos, "drop database if exists ivs");
+  do_query(taos, "create database ivs");
+  do_query(taos, "use ivs");
+  do_query(taos,
+           "create table alarm_operate_info ("
+           "operate_time timestamp, "
+           "alarm_id int, "
+           "operator_id int, "
+           "operator_name binary(32), "
+           "operator_info binary(64), "
+           "operator_status int, "
+           "device_id int)");
+
+  do_query(taos,
+           "insert into alarm_operate_info values"
+           "(1591060628000, 1, 100, '张三', 'info1', 0, 10),"
+           "(1591060629000, 1, 101, '李四', 'info2', 1, 10),"
+           "(1591060630000, 2, 102, '王五', 'info3', 0, 11)");
+
+  TAOS_STMT2_OPTION option = {0, true, true, stmtAsyncQueryCb4, NULL};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+
+  const char* sql =
+      "select COUNT(1) from ("
+      " select LAST(operate_time) as operate_time, alarm_id, operator_id, operator_name, operator_info, "
+      "operator_status, device_id"
+      " from ivs.alarm_operate_info"
+      " WHERE operate_time >= ? and operate_time <= ?"
+      " PARTITION BY alarm_id"
+      " ORDER BY operate_time desc"
+      ")";
+
+  int code = taos_stmt2_prepare(stmt, sql, 0);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  int             fieldNum = 0;
+  TAOS_FIELD_ALL* pFields = NULL;
+  code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+  checkError(stmt, code, __FILE__, __LINE__);
+  ASSERT_EQ(fieldNum, 2);
+
+  int64_t ts_begin[1] = {1591060628000};
+  int64_t ts_end[1] = {1591060630000};
+  int32_t len[1] = {sizeof(int64_t)};
+
+  TAOS_STMT2_BIND params[2] = {0};
+  params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+  params[0].buffer = &ts_begin[0];
+  params[0].length = &len[0];
+  params[0].is_null = NULL;
+  params[0].num = 1;
+
+  params[1].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+  params[1].buffer = &ts_end[0];
+  params[1].length = &len[0];
+  params[1].is_null = NULL;
+  params[1].num = 1;
+
+  TAOS_STMT2_BIND* c = &params[0];
+
+  TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &c};
+  code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  code = taos_stmt2_exec(stmt, NULL);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  code = taos_stmt2_exec(stmt, NULL);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  taos_stmt2_close(stmt);
+
+  do_query(taos, "drop database if exists ivs");
   taos_close(taos);
 }
 

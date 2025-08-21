@@ -29,11 +29,12 @@ List the software and tools required to work on the project.
 Step-by-step instructions to set up the prerequisites software.
 
 ## 3.1 Install Python3.10
+
 Make sure Python3.10 or above is available before installing anode in your system.
 
 In case of Ubuntu, use the following instructions to install Python 3.10.
 
-```
+```shell
 sudo apt-get install software-properties-common
 sudo add-apt-repository ppa:deadsnakes/ppa
 sudo apt update
@@ -57,14 +58,15 @@ export PATH=$PATH:~/.local/bin
 ```
 
 # 4. Building
+
 There is no need to build the taosanode, since it is implemented in Python, which is an interpreted language.
 
-
 # 5. Packaging
-In the base directory, you can use the following command to package to build an tarball.
+
+In the base directory, you can use the following command to package to build an tarball. The edition and version parameters should be specified when building the tarball.
 
 ```bash
-cd script && ./release.sh
+cd script && ./release.sh -e community -v 3.3.7.0
 ```
 
 After the packaging is completed, you will find the tarball in the `release` directory.
@@ -72,16 +74,24 @@ After the packaging is completed, you will find the tarball in the `release` dir
 ```bash
 ls -lht release
 
--rw-rw-r-- 1 root root 74K Feb 21 17:04 TDengine-enterprise-anode-1.0.1.tar.gz
+-rw-rw-r-- 1 root root 74K Feb 21 17:04 tdengine-tdgpt-oss-3.3.7.0-linux-x64.tar.gz
 ```
 
 # 6. Installing
 
 ## 6.1 Install taosanode
 
-Please use the following command to install taosanode in your system.
+Please use the following commands to install taosanode in your system.
 
 ```bash
+# enter the release directory and then unpack the tarball
+cd ./release
+tar -zxvf ./tdengine-tdgpt-oss-3.3.7.0.alpha-linux-x64.tar.gz
+
+# enter into the package
+cd tdengine-tdgpt-oss-3.3.7.0.alpha-linux-x64
+
+# execute the install script
 ./install.sh
 ```
 
@@ -93,8 +103,8 @@ systemctl start taosanoded
 ```
 
 ## 6.2 Configure the Service
-taosanode provides the RESTFul service powered by `uWSGI`. You can config the options to tune the 
-performance by changing the default configuration file `taosanode.ini` located in `/etc/taos`, which is also the configuration directory for `taosd` service.
+
+taosanode provides the RESTFul service powered by `uWSGI`. You can config the options to tune the performance by changing the default configuration file `taosanode.ini` located in `/etc/taos`, which is also the configuration directory for `taosd` service.
 
 ```ini
 # taosanode service ip:port
@@ -102,11 +112,13 @@ http = 127.0.0.1:6090
 ```
 
 # 7. Running
+
 ## 7.1 Start/Stop Service
+
 `systemctl start/stop/restart taosanoded.service` will start/stop/restart the service of taosanode.
 
-
 ## 7.2 Uninstall
+
 The command `rmtaosanode` will remove the installed taosanode from your system. Note that the python environment won't removed by this script, you need to remove it mannually.
 
 # 8. Testing
@@ -128,4 +140,3 @@ Guidelines for contributing to the project:
 - Fork the repository
 - Create a feature branch
 - Submit a pull request
-
