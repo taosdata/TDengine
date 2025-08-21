@@ -522,9 +522,9 @@ class TDCom:
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root) - len("/build/bin")]
                     break
-        if platform.system().lower() == 'windows':
-            win_sep = "\\"
-            buildPath = buildPath.replace(win_sep,'/')
+        # if platform.system().lower() == 'windows':
+        #    win_sep = "\\"
+        #    buildPath = buildPath.replace(win_sep,'/')
 
         return buildPath
     def getTaosdPath(self, dnodeID="dnode1"):
