@@ -468,7 +468,9 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, uint64_t seriousId,
     SCH_RET(schHandleTaskSetRetry(pJob, pTask, (SDataBuf *)pMsg, rspCode));
   }
 #else 
-  if (SCH_JOB_NEED_RETRY(pJob, pTask, reqType, rspCode)) {
+  if (SCH_DATA_BIND_TASK_NEED_RETRY(pJob, pTask,reqType, rspCode)) {
+    SCH_RET(schProcessOnTaskFailure(pJob, pTask, rspCode));
+  } else if (SCH_JOB_NEED_RETRY(pJob, pTask, reqType, rspCode)) {
     SCH_RET(schHandleJobRetry(pJob, pTask, (SDataBuf *)pMsg, rspCode));
   }
 #endif
