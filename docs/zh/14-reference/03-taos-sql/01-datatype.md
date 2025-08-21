@@ -1,7 +1,7 @@
 ---
 sidebar_label: 数据类型
 title: 数据类型
-description: 'TDengine 支持的数据类型：时间戳、浮点型、JSON 类型等'
+description: 'TDengine TSDB 支持的数据类型：时间戳、浮点型、JSON 类型等'
 ---
 
 在 TDengine 中，普通表的数据模型中可使用以下数据类型。
@@ -49,7 +49,7 @@ description: 'TDengine 支持的数据类型：时间戳、浮点型、JSON 类�
 
 ## 时间戳
 
-使用 TDengine，最重要的是时间戳。创建并插入记录、查询历史记录的时候，均需要指定时间戳。时间戳有如下规则：
+使用 TDengine TSDB，最重要的是时间戳。创建并插入记录、查询历史记录的时候，均需要指定时间戳。时间戳有如下规则：
 
 - 时间格式为 `YYYY-MM-DD HH:mm:ss.MS`，默认时间分辨率为毫秒。比如：`2017-08-12 18:25:58.128`
 - 内部函数 NOW 是客户端的当前时间
@@ -57,11 +57,11 @@ description: 'TDengine 支持的数据类型：时间戳、浮点型、JSON 类�
 - Epoch Time：时间戳也可以是一个长整数，表示从 UTC 时间 1970-01-01 00:00:00 开始的毫秒数。相应地，如果所在 Database 的时间精度设置为“微秒”，则长整型格式的时间戳含义也就对应于从 UTC 时间 1970-01-01 00:00:00 开始的微秒数；纳秒精度逻辑相同。
 - 时间可以加减，比如 NOW-2h，表明查询时刻向前推 2 个小时（最近 2 小时）。数字后面的时间单位可以是 b（纳秒）、u（微秒）、a（毫秒）、s（秒）、m（分）、h（小时）、d（天）、w（周）。比如 `SELECT * FROM t1 WHERE ts > NOW-2w AND ts <= NOW-1w`，表示查询两周前整整一周的数据。在指定降采样操作（Down Sampling）的时间窗口（Interval）时，时间单位还可以使用 n（自然月）和 y（自然年）。
 
-TDengine 缺省的时间戳精度是毫秒，但通过在 `CREATE DATABASE` 时传递的 `PRECISION` 参数也可以支持微秒和纳秒。
+TDengine TSDB 缺省的时间戳精度是毫秒，但通过在 `CREATE DATABASE` 时传递的 `PRECISION` 参数也可以支持微秒和纳秒。
 
-```sql
-CREATE DATABASE db_name PRECISION 'ns';
-```
+    ```sql
+    CREATE DATABASE db_name PRECISION 'ns';
+    ```
 
 ## DECIMAL
 
@@ -90,9 +90,97 @@ DECIMAL 类型仅支持普通列，暂不支持 tag 列。DECIMAL 类型只支�
 
 - 不支持虚拟表/流计算等功能
 
+## JSON
+
+### 语法说明
+
+1. 创建 json 类型 tag
+
+   ```sql
+   create stable s1 (ts timestamp, v1 int) tags (info json)
+
+   create table s1_1 using s1 tags ('{"k1": "v1"}')
+   ```
+
+2. json 取值操作符 ->
+
+   ```sql
+   select * from s1 where info->'k1' = 'v1'
+
+   select info->'k1' from s1
+   ```
+
+3. json key 是否存在操作符 contains
+
+   ```sql
+   select * from s1 where info contains 'k2'
+
+   select * from s1 where info contains 'k1'
+   ```
+
+### 支持的操作
+
+1. 在 where 条件中时，支持函数 `match`、`nmatch`、`between and`、`like`、`and`、`or`、`is null`、`is not null`，不支持 `in`
+
+   ```sql
+   select * from s1 where info->'k1' match 'v*';
+
+   select * from s1 where info->'k1' like 'v%' and info contains 'k2';
+
+   select * from s1 where info is null;
+
+   select * from s1 where info->'k1' is not null
+   ```
+
+2. 支持 json tag 放在 group by、order by、join 子句、union all 以及子查询中，比如 group by json->'key'
+
+3. 支持 distinct 操作
+
+   ```sql
+   select distinct info->'k1' from s1
+   ```
+
+4. 标签操作
+
+   支持修改 json 标签值（全量覆盖）
+
+   支持修改 json 标签名
+
+   不支持添加 json 标签、删除 json 标签、修改 json 标签列宽
+
+### 其他约束条件
+
+1. 只有标签列可以使用 json 类型，如果用 json 标签，标签列只能有一个。
+
+2. 长度限制：json 中 key 的长度不能超过 256，并且 key 必须为可打印 ascii 字符；json 字符串总长度不超过 4096 个字节。
+
+3. json 格式限制：
+
+   1. json 输入字符串可以为空（""、"\t"、" " 或 null）或 object，不能为非空的字符串，布尔型和数组。
+   2. object 可为 {}，如果 object 为 {}，则整个 json 串记为空。key 可为 ""，若 key 为 ""，则 json 串中忽略该 k-v 对。
+   3. value 可以为数字 (int/double) 或字符串或 bool 或 null，暂不可以为数组。不允许嵌套。
+   4. 若 json 字符串中出现两个相同的 key，则第一个生效。
+   5. json 字符串里暂不支持转义。
+
+4. 当查询 json 中不存在的 key 时，返回 NULL
+
+5. 当 json tag 作为子查询结果时，不再支持上层查询继续对子查询中的 json 串做解析查询。
+
+   比如暂不支持
+
+   ```sql
+   select jtag->'key' from (select jtag from stable)
+   ```
+
+   不支持
+
+   ```sql
+   select jtag->'key' from (select jtag from stable) where jtag->'key'>0
+   ```
+
 ## 常量
 
-TDengine 支持多个类型的常量，细节如下表：
+TDengine TSDB 支持多个类型的常量，细节如下表：
 
 | #   |                     **语法**  | **类型**  | **说明**  |
 | --- | :--------------------------: | --------- | ---------------|
@@ -107,6 +195,6 @@ TDengine 支持多个类型的常量，细节如下表：
 
 :::note
 
-- TDengine 依据是否存在小数点，或使用科学计数法表示，来判断数值类型是否为整型或者浮点型，因此在使用时要注意相应类型越界的情况。例如，9999999999999999999 会认为超过长整型的上边界而溢出，而 9999999999999999999.0 会被认为是有效的浮点数。
+- TDengine TSDB 依据是否存在小数点，或使用科学计数法表示，来判断数值类型是否为整型或者浮点型，因此在使用时要注意相应类型越界的情况。例如，9999999999999999999 会认为超过长整型的上边界而溢出，而 9999999999999999999.0 会被认为是有效的浮点数。
 
 :::

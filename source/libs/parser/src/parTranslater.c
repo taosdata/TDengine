@@ -5904,6 +5904,11 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
     if (pCxt->refTable) {
       PAR_ERR_JRET(collectUseTable(&name, pCxt->pTargetTables));
     }
+    if (pCxt->createStreamCalc && !pCxt->refTable) {
+      char fullDbName[TSDB_DB_FNAME_LEN] = {0};
+      PAR_ERR_JRET(tNameGetFullDbName(&name, fullDbName));
+      PAR_ERR_JRET(taosHashPut(pCxt->createStreamCalcDbs, fullDbName, TSDB_DB_FNAME_LEN, NULL, 0));
+    }
     PAR_ERR_JRET(getTargetMeta(pCxt, &name, &(pRealTable->pMeta), true));
 
 #ifdef TD_ENTERPRISE
@@ -8704,6 +8709,22 @@ static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
         return DEAL_RES_CONTINUE;
       }
     }
+  } else if (pCxt->nameMatch && QUERY_NODE_VALUE != nodeType(*pNode)) {
+    FOREACH(pProject, pProjectionList) {
+      SExprNode* pExpr = (SExprNode*)pProject;
+      if (nodesEqualNode(*pNode, pProject)) {
+        SNode*  pNew = NULL;
+        int32_t code = nodesCloneNode(pProject, &pNew);
+        if (NULL == pNew) {
+          pCxt->pTranslateCxt->errCode = code;
+          return DEAL_RES_ERROR;
+        }
+        nodesDestroyNode(*pNode);
+        *pNode = pNew;
+        return DEAL_RES_CONTINUE;
+      }
+    }
+    pCxt->notFound = true;
   }
 
   return DEAL_RES_CONTINUE;
@@ -14806,17 +14827,19 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
     return code;
   }
 
+  pVgArray = taosArrayInit(1, sizeof(SStreamCalcScan));
+  pDbs = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (NULL == pDbs || NULL == pVgArray) {
+    PAR_ERR_JRET(terrno);
+  }
+
+  pCxt->createStreamCalcDbs = pDbs;
   PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerPartition, pTriggerSelect ? pTriggerSelect->pFromTable : NULL, pStmt->pQuery, pNotifyCond, pTriggerWindow, &withExtWindow));
 
   pReq->placeHolderBitmap = pCxt->placeHolderBitmap;
 
   PAR_ERR_JRET(createStreamReqCheckPlaceHolder(pCxt, pReq, pReq->placeHolderBitmap, pTriggerPartition));
 
-  pVgArray = taosArrayInit(1, sizeof(SStreamCalcScan));
-  pDbs = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  if (NULL == pDbs || NULL == pVgArray) {
-    PAR_ERR_JRET(terrno);
-  }
 
   pProjectionList = nodeType(pStmt->pQuery) == QUERY_NODE_SELECT_STMT ?
                     ((SSelectStmt*)pStmt->pQuery)->pProjectionList :
@@ -14834,7 +14857,6 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
                           .pAstRoot = pStmt->pQuery,
                           .streamCalcQuery = true,
                           .pStreamCalcVgArray = pVgArray,
-                          .pStreamCalcDbs = pDbs,
                           .withExtWindow = withExtWindow};
 
   PAR_ERR_JRET(qCreateQueryPlan(&calcCxt, &calcPlan, NULL));

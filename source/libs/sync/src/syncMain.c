@@ -980,7 +980,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_
   }
 
   if (!pSyncNode->restoreFinish) {
-    code = TSDB_CODE_SYN_PROPOSE_NOT_READY;
+    code = TSDB_CODE_SYN_RESTORING;
     sNWarn(pSyncNode, "failed to sync propose since not ready, type:%s, last:%" PRId64 ", cmt:%" PRId64,
            TMSG_INFO(pMsg->msgType), syncNodeGetLastIndex(pSyncNode), pSyncNode->commitIndex);
     TAOS_RETURN(code);

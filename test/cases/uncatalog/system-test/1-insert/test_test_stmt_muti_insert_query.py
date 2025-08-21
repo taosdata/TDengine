@@ -18,6 +18,7 @@ import threading as thd
 import itertools
 import logging
 import multiprocessing as mp
+import itertools
 import taos
 from taos import *
 import numpy as np

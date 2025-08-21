@@ -62,7 +62,7 @@ def chronos():
 def main():
     app.run(
             host='0.0.0.0',
-            port=5002,
+            port=6073,
             threaded=True,
             debug=False
         )

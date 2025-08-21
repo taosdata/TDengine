@@ -1,13 +1,10 @@
 ---
 sidebar_label: 错误码
-title: TDengine 错误码
-description: TDengine 服务端的错误码列表和详细说明
+title: TDengine TSDB 错误码
+description: TDengine TSDB 服务端的错误码列表和详细说明
 ---
 
-本文中详细列举了在使用 TDengine 客户端可能得到的服务端错误码以及所要采取的相应动作。所有语言的连接器在使用原生连接方式时也会将这些错误码返回给连接器的调用者。
-
-
-
+本文中详细列举了在使用 TDengine TSDB 客户端可能得到的服务端错误码以及所要采取的相应动作。所有语言的连接器在使用原生连接方式时也会将这些错误码返回给连接器的调用者。
 
 ## rpc
 
@@ -24,14 +21,13 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000022 | rpc open too many session                    | 1.并发太高导致占用链接已经到达上限 2.服务端的 BUG，导致连接一直不释放 | 1.调整配置参数 numOfRpcSessions 2.调整配置参数 timeToGetAvailableConn 3.分析服务端不释放的连接的原因 |
 | 0x80000023 | rpc network error                            | 1.网络问题，可能是闪断，2.服务端 crash | 1.检查网络 2.检查服务端是否重启|
 | 0x80000024 |rpc network bus                               | 1.集群间互相拉数据的时候，没有拿到可用链接，或者链接数目已经到上限  | 1.是否并发太高 2.检查集群各个节点是否有异常，是否出现了死锁等情况|
-| 0x80000025 |  http-report already quit                    | 1.http 上报出现的问题 | 内部问题，可以忽略 | 
+| 0x80000025 |  http-report already quit                    | 1.http 上报出现的问题 | 内部问题，可以忽略 |
 | 0x80000026 |  rpc module already quit                     | 1.客户端实例已经退出，依然用该实例做查询 | 检查业务代码，是否用错|
 | 0x80000027 | rpc async module already quit                | 1.引擎错误，可以忽略，该错误码不会返回到用户侧 | 如果返回到用户侧，需要引擎侧追查问题|
 | 0x80000028 | rpc async in process                         | 1.引擎错误，可以忽略，该错误码不会返回到用户侧 | 如果返回到用户侧，需要引擎侧追查问题|
 | 0x80000029 |  rpc no state                                | 1.引擎错误，可以忽略，该错误码不会返回到用户侧 | 如果返回到用户侧，需要引擎侧追查问题 |
 | 0x8000002A | rpc state already dropped                    | 1.引擎错误，可以忽略，该错误码不会返回到用户侧 | 如果返回到用户侧，需要引擎侧追查问题|
 | 0x8000002B | rpc msg exceed limit                         | 1.单个 rpc 消息超过上限，该错误码不会返回到用户侧 | 如果返回到用户侧，需要引擎侧追查问题|
-
 
 ## common  
 
@@ -81,8 +77,6 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x8000013D | Decimal value overflow            | Decimal 计算溢出                         | 检查计算表达式和参数值是否计算结果导致类型溢出 |
 | 0x8000013E | Division by zero error            | Division by zero                        | 检查除法操作是否除以 0 |
 
-
-
 ## tsc
 
 | 错误码     | 错误描述                          | 可能的出错场景或者可能的原因 | 建议用户采取的措施                                                               |
@@ -107,8 +101,6 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x8000022F | Table is not a super table        | 当前语句中的表名不是超级表   | 检查当前语句中所用表名是否是超级表                                               |
 | 0x80000230 | Stmt cache error                  | STMT/STMT2 内部缓存出错      | 保留现场和日志，github 上报 issue                                                |
 | 0x80000231 | Tsc internal error                | TSC 内部错误                 | 保留现场和日志，github 上报 issue                                                |
-
-
 
 ## mnode
 
@@ -235,7 +227,6 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000483 | index already exists                                                                         | 已存在                                        | 确认操作是否正确                                                                                |
 | 0x80000484 | index not exist                                                                              | 不存在                                        | 确认操作是否正确                                                                                |
 
-
 ## Bnode
 
 | 错误码     | 错误描述                   | 可能的出错场景或者可能的原因 | 建议用户采取的措施     |
@@ -247,7 +238,6 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000454 | Bnode not found            | 内部错误                     | 上报 issue             |
 | 0x80000455 | Bnode exec launch failed   | 内部错误                     | 上报 issue             |
 | 0x8000261C | Invalid Bnode option       | Bnode 选项值非法             | 检查并修正数据库选项值 |
-
 
 ## dnode
 
@@ -264,9 +254,7 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000410 | Snode not found        | 内部错误                     | 上报 issue          |
 | 0x80000411 | Snode not deployed     | 已部署                       | 确认操作是否正确   |
 
-
 ## vnode
-
 
 | 错误码     | 错误描述                                           | 可能的出错场景或者可能的原因   | 建议用户采取的措施 |
 | ---------- | -------------------------------------------------- | ------------------------------ | ------------------ |
@@ -283,7 +271,6 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000530 | Duplicate write request                            | 重复写入请求，内部错误         | 上报问题           |
 | 0x80000531 | Vnode query is busy                                | 查询忙碌                       | 上报问题           |
 | 0x80000540 | Vnode already exist but Dbid not match             | 内部错误                       | 上报问题           |
-
 
 ## tsdb
 
@@ -356,15 +343,12 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000918 | Sync negotiation win is full | 场景 1：客户端请求并发数特别大，超过了服务端处理能力，或者因为网络和 CPU 资源严重不足，或者网络连接问题等。    | 检查集群状态，系统资源使用率（例如磁盘 IO、CPU、网络通信等），以及节点之间网络连接状况。    |
 | 0x800009FF | Sync internal error          | 其它内部错误                                                                                                | 检查集群状态，例如：show vgroups                                                           |
 
-
-
 ## tq
 
 | 错误码     | 错误描述                  | 可能的出错场景或者可能的原因                                    | 建议用户采取的措施                     |
 | ---------- | ------------------------- | --------------------------------------------------------------- | -------------------------------------- |
 | 0x80000A0C | TQ table schema not found | 消费数据时表不存在                                              | 内部错误，不透传给用户                 |
 | 0x80000A0D | TQ no committed offset    | 消费时设置 offset reset = none，并且 server 端没有之前消费的 offset | 设置 offset reset 为 earliest 或者 latest |
-
 
 ## wal
 
@@ -387,8 +371,6 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80002205 | TFS no disk mount on tire        | 多级存储配置错误                    | 检查配置是否正确                         |
 | 0x80002208 | No disk available on a tier.     | TFS 内部错误，多发生在硬盘满的场景下 | 增加硬盘，扩充容量                       |
 
-
-
 ## catalog
 
 | 错误码     | 错误描述                         | 可能的出错场景或者可能的原因 | 建议用户采取的措施               |
@@ -404,8 +386,6 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80002502 | scheduler internal error         | scheduler 内部错误            | 保留现场和日志，github 上报 issue  |
 | 0x80002504 | Task timeout                     | 子任务超时                   | 保留现场和日志，github 上报 issue  |
 | 0x80002505 | Job is dropping                  | 任务正在或已经被取消         | 检查是否有手动或应用中断当前任务 |
-
-
 
 ## parser
 
@@ -466,7 +446,7 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80002643 | Invalid number of tag columns                                                                          | TAG 列个数错误                                   | 检查并修正 SQL 语句                     |
 | 0x80002644 | Permission denied                                                                                      | 权限错误                                        | 检查确认用户是否有相应操作权限        |
 | 0x80002645 | Invalid stream query                                                                                   | 非法流语句                                       | 检查并修正 SQL 语句                     |
-| 0x80002646 | Invalid _c0 or _rowts expression                                                                       | _c0 或 _rowts 非法使用                           | 检查并修正 SQL 语句                     |
+| 0x80002646 | Invalid _c0 or_rowts expression                                                                       | _c0 或_rowts 非法使用                           | 检查并修正 SQL 语句                     |
 | 0x80002647 | Invalid timeline function                                                                              | 函数依赖的主键时间戳不存在                    | 检查并修正 SQL 语句                     |
 | 0x80002648 | Invalid password                                                                                       | 密码不符合规范                                | 检查并修改密码                        |
 | 0x80002649 | Invalid alter table statement                                                                          | 修改表语句不合法                              | 检查并修正 SQL 语句                     |
@@ -526,8 +506,8 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80002804 | Not builtin function                         | 函数非内置函数。内置函数不在的哈希表中会报错，用户应该很少遇见这个问题，否则是内部内置函数哈希初始化的时候出错或者写坏。                                                                                                                                                              | 客户应该不会遇到，如果遇到，说明程序有 bug，咨询开发人员。                                                  |
 | 0x80002805 | Duplicate timestamps not allowed in function | 函数输入主键列有重复时间戳。对某些依赖时间线顺序函数做超级表查询时，所有子表数据会按照时间戳进行排序后合并为一条时间线进行计算，因此子表合并后的时间戳可能会出现重复，导致某些计算没有意义而报错。涉及到的函数有：CSUM、DERIVATIVE、DIFF、IRATE、MAVG、STATECOUNT、STATEDURATION、TWA | 如果需要对超级表查询并且使用这些依赖时间线顺序函数时，确保子表中不存在重复时间戳数据。                     |
 
-
 ## udf
+
 | 错误码     | 错误描述                           | 可能的出错场景或者可能的原因                                                          | 建议用户采取的措施                            |
 | ---------- | ---------------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------- |
 | 0x80002901 | udf is stopping                    | dnode 退出时，收到 udf 调用                                                              | 停止执行 udf 查询                               |
@@ -541,8 +521,8 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80002909 | udf program language not supported | udf 编程语言不支持                                                                     | 使用支持的语言，当前支持 c、python              |
 | 0x8000290A | udf function execution failure     | udf 函数执行错误，如返回错误的行数                                                     | 具体查看错误日志                              |
 
-
 ## sml
+
 | 错误码     | 错误描述                         | 可能的出错场景或者可能的原因                    | 建议用户采取的措施                                              |
 | ---------- | -------------------------------- | ----------------------------------------------- | --------------------------------------------------------------- |
 | 0x80003000 | Invalid line protocol type       | schemaless 接口传入的协议非法                    | 检查传入的协议是否为 taos.h 中定位的三种 TSDB_SML_PROTOCOL_TYPE  |
@@ -550,7 +530,6 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80003002 | Invalid data format              | schemaless 接口传入的数据格式非法                | 具体查看 client 端的错误日志提示                                  |
 | 0x80003004 | Not the same type as before      | schemaless 数据一批的多行数据里相同列类型不一致 | 检测数据里每行相同列的数据类型是否一致                          |
 | 0x80003005 | Internal error                   | schemaless 内部逻辑错误，一般不会出现           | 具体查看 client 端的错误日志提示                                  |
-
 
 ## sma
 
@@ -573,13 +552,12 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80003157 | Rsma fs sync error            | 算子文件同步失败                                           | 检查错误日志，联系开发处理 |
 | 0x80003158 | Rsma fs update error          | 算子文件更新失败                                           | 检查错误日志，联系开发处理 |
 
-
 ## index
+
 | 错误码     | 错误描述         | 可能的出错场景或者可能的原因                                          | 建议用户采取的措施         |
 | ---------- | ---------------- | --------------------------------------------------------------------- | -------------------------- |
 | 0x80003200 | INDEX 正在重建中 | 1.写入过快，导致 index 的合并线程处理不过来 2.索引文件损坏，正在重建 | 检查错误日志，联系开发处理 |
 | 0x80003201 | 索引文件损坏     | 文件损坏                                                              | 检查错误日志，联系开发处理 |
-
 
 ## tmq
 
@@ -593,7 +571,6 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80004017 | Invalid status, please subscribe topic first | 数据订阅状态不对                                                                 | 没有调用 subscribe，直接 poll 数据     |
 | 0x80004100 | Stream task not exist | 流计算任务不存在                                                                 | 具体查看 server 端的错误日志     |
 
-
 ## virtual table
 
 | 错误码        | 错误描述                                                    | 可能的出错场景或者可能的原因                                 | 建议用户采取的措施               |
@@ -606,7 +583,6 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80006205 | Virtual table not support in STMT query and STMT insert | 不支持在 stmt 写入和查询中使用虚拟表                          | 不在 stmt 写入和查询中使用虚拟表     |
 | 0x80006206 | Virtual table not support in Topic                      | 不支持在订阅中使用虚拟表                                   | 不在订阅中使用虚拟表              |
 | 0x80006207 | Virtual super table query not support origin table from different databases                      | 虚拟超级表不支持子表的数据源来自不同的数据库                         | 确保虚拟超级表的子表的数据源都来自同一个数据库 |
-
 
 ## TDgpt
 
@@ -623,3 +599,13 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000448 | Analysis internal error, not processed              | anode 出现内部错误   | 具体查看 server 端的日志 (taosanode.app.log) |
 | 0x80000449 | Analysis failed since not enough rows               | 预测分析输入数据行数太少   | 增加输入数据规模（预测至少 10 行记录）                |
 | 0x8000044A | Not support co-variate/multi-variate forecast       | 不支持协变量/多变量预测   | 更换使用的预测模型                            |
+
+
+## STREAM
+
+| 错误码        | 错误描述                                                | 可能的出错场景或者可能的原因 | 建议用户采取的措施                        |
+|------------|-----------------------------------------------------|----------------|--------------------------------------|
+| 0x80007007 | Snode still in use with streams                     | SNode 正在使用，无法删除       | 检查 SNode 的流使用情况，确认是否继续删除      |
+| 0x8000700E | Db used by stream                                   | DB 正被某个流使用，不能删除        | 检查流对 DB 的使用情况    |
+| 0x80007014 | Stream output table name too long                   | 输出表名超长        | 检查建流语句中输出表名规则是否正确，是否结果超长            |
+| 0x80007016 | Stream output table name calc failed                | 输出表名计算失败       | 检查建流语句中输出表名规则是否正确，是否有 NULL 值存在   |

@@ -33,6 +33,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_auth_select.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_auth_alter_drop.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query.py
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_vstable.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db_stb.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_after_alter.py
