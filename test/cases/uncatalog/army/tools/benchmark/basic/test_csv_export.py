@@ -16,6 +16,8 @@ import shutil
 import json
 import datetime
 import csv
+import gzip
+import platform
 
 
 class TestCsvExport:
@@ -267,6 +269,12 @@ class TestCsvExport:
         # gzip
         new_json_file = self.genNewJson(json_file, self.func_gzip)
         self.exec_benchmark(benchmark, new_json_file, options)
+        if platform.system().lower() == 'windows':
+            with gzip.open(r'./csv/data.csv.gz', 'rt', encoding='utf-8') as fin, open(r'./csv/data.csv', 'w', encoding='utf-8') as fout:
+                for line in fin:
+                    fout.write(line)
+        else:
+            eos.exe("gzip -f ./csv/data.csv")
         eos.exe("gunzip ./csv/data.csv.gz")
         self.check_file_line_count("./csv/data.csv", 10001)
         self.deleteFile(new_json_file)

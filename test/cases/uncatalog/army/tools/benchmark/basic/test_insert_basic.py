@@ -13,6 +13,7 @@
 from new_test_framework.utils import tdLog, tdSql, etool, eos
 import os
 import json
+import platform
 
 class TestInsertBasic:
     def caseDescription(self):
@@ -65,11 +66,19 @@ class TestInsertBasic:
 
         # only support 
         cmdVG = None
-        pos = options.find("=")
-        if pos != -1:
-            arr = options.split("=")
-            if arr[0] == "--vgroups":
-                cmdVG = arr[1]
+        if platform.system().lower() == "windows":
+            # Windows只支持短参数
+            if "-v" in options:
+                arr = options.split()
+                v_idx = arr.index("-v")
+                if v_idx + 1 < len(arr):
+                    cmdVG = arr[v_idx + 1]
+        else:
+            pos = options.find("=")
+            if pos != -1:
+                arr = options.split("=")
+                if arr[0] == "--vgroups":
+                    cmdVG = arr[1]
 
         # vgropus
         vgroups = None
@@ -109,9 +118,13 @@ class TestInsertBasic:
     # bugs ts
     def checkVGroups(self, benchmark):
         # vgroups with command line set
-        self.testBenchmarkJson(benchmark, f"{os.path.dirname(__file__)}/json/insertBasic.json", "--vgroups=3", True)
-        # vgroups with json file
-        self.testBenchmarkJson(benchmark, f"{os.path.dirname(__file__)}/json/insertBasic.json", "", True)
+        if platform.system().lower() == "windows":
+            self.testBenchmarkJson(benchmark, f"{os.path.dirname(__file__)}\json\insertBasic.json", "-v 3", True)
+            self.testBenchmarkJson(benchmark, f"{os.path.dirname(__file__)}\json\insertBasic.json", "", True)
+        else:
+            self.testBenchmarkJson(benchmark, f"{os.path.dirname(__file__)}/json/insertBasic.json", "--vgroups=3", True)
+            # vgroups with json file
+            self.testBenchmarkJson(benchmark, f"{os.path.dirname(__file__)}/json/insertBasic.json", "", True)
 
 
     def checkInsertManyStb(self):
