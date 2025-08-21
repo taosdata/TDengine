@@ -297,10 +297,14 @@ class CompatibilityBase:
                 found_pids = [pid for pid in output.strip().split('\n') if pid] 
             tdLog.info(f"Found PIDs: {found_pids} for 'upgrade all dnodes' scenario.")
 
-            pid_to_kill_for_this_dnode = found_pids[0]
-            tdLog.info(f"Killing taosd process, pid:{pid_to_kill_for_this_dnode} (for cPaths[{0}])")
-            os.system(f"kill -9 {pid_to_kill_for_this_dnode}")
-            self.checkProcessPid(pid_to_kill_for_this_dnode)
+            if len(found_pids) == 0:
+                tdLog.info("No taosd process found keep going")
+            else: 
+                pid_to_kill_for_this_dnode = found_pids[0]
+                tdLog.info(f"Killing taosd process, pid:{pid_to_kill_for_this_dnode} (for cPaths[{0}])")
+                os.system(f"kill -9 {pid_to_kill_for_this_dnode}")
+                self.checkProcessPid(pid_to_kill_for_this_dnode)
+
             tdLog.info(f"Starting taosd using cPath: {cPaths[0]}")
             tdLog.info(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")
             os.system(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")
