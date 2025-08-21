@@ -21,12 +21,12 @@ def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key
         tdLog.exit("taos test key is null!")
 
     if platform.system().lower() == 'windows':
-        taosCmd = buildPath + '\\build\\bin\\taos.exe '
-        taosCmd = taosCmd.replace('\\','\\\\')
+        taosCmd = os.path.join(buildPath, "build", "bin", "taos.exe")
+        # taosCmd = taosCmd.replace('\\','\\\\')
     else:
-        taosCmd = buildPath + '/build/bin/taos '
+        taosCmd = buildPath + '/build/bin/taos'
     if len(cfgDir) != 0:
-        taosCmd = taosCmd + '-c ' + cfgDir
+        taosCmd = taosCmd + ' -c ' + cfgDir
 
     taosCmd = taosCmd + ' -' + key
     if len(value) != 0:
@@ -43,7 +43,7 @@ def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key
             if len(value1) != 0:
                 taosCmd = taosCmd + ' ' + value1
 
-    tdLog.debug ("taos cmd: %s" % taosCmd)
+    tdLog.info ("taos cmd: %s" % taosCmd)
 
     child = taosExpect.spawn(taosCmd, timeout=20)
     #output = child.readline()
@@ -166,7 +166,7 @@ class TestTaosShell:
             tdLog.exit("taosd not found!")
         else:
             tdLog.info("taosd found in %s" % buildPath)
-        cfgPath = buildPath + "/../sim/psim/cfg"
+        cfgPath = os.path.join(os.path.dirname(buildPath), "sim", "psim","cfg")
         tdLog.info("cfgPath: %s" % cfgPath)
 
         checkNetworkStatus = ['0: unavailable', '1: network ok', '2: service ok', '3: service degraded', '4: exiting']
