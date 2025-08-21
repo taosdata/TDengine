@@ -2611,7 +2611,7 @@ class TDSql:
         else:  # Linux/macOS
             input("press enter to continue...")
 
-    def setConnMode(self, mode=1):
+    def setConnMode(self, mode=0, value=1):
         """
         Set Conn Mode
 
@@ -2625,7 +2625,9 @@ class TDSql:
             None
 
         """
-        tdLog.info(f"set connection mode:{mode}")
+        tdLog.info(f"set connection mode:{mode} value:{value}")
+        # 0 for TAOS_CONN_MODE_BI
+        self.cursor.set_mode(mode, value)
 
     def checkResultsByFunc(self, sql, func, delay=0.0, retry=120, show=False):
         if delay != 0:
