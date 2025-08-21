@@ -12,7 +12,7 @@
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 
-class TestVtableQueryCrossDbStb:
+class TestVtableQueryCrossDbStbWindow:
     updatecfgDict = {
         "supportVnodes":"1000",
     }
@@ -218,10 +218,13 @@ class TestVtableQueryCrossDbStb:
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 
     def test_select_virtual_super_table(self):
-        """test select virtual super table.
+        """test select virtual super table window.
 
-        1 test vstable select super table cross db projection
-        2 test vstable select super table cross db projection filter
+        1 test vstable select super table cross db interval
+        2 test vstable select super table cross db state
+        3 test vstable select super table cross db session
+        4 test vstable select super table cross db event
+        5 test vstable select super table cross db count
 
         Since: v3.3.6.0
 
@@ -234,7 +237,9 @@ class TestVtableQueryCrossDbStb:
             - 2025-5-6 Huo Hong Migrated to new test framework
 
         """
-        self.run_normal_query("test_vstable_select_test_projection")
-        self.run_normal_query("test_vstable_select_test_projection_filter")
-        #self.test_normal_query("test_vstable_select_test_function")
 
+        self.run_normal_query("test_vstable_select_test_interval")
+        self.run_normal_query("test_vstable_select_test_state")
+        self.run_normal_query("test_vstable_select_test_session")
+        self.run_normal_query("test_vstable_select_test_event")
+        self.run_normal_query("test_vstable_select_test_count")
