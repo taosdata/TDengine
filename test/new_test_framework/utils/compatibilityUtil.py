@@ -69,18 +69,19 @@ class CompatibilityBase:
     # Modified installTaosd to accept version parameter
     def installTaosdForRollingUpgrade(self, dnodePaths, base_version):
         packagePath = "/usr/local/src/"
-        packageType = "server"
-            
+        
+        # New download URL format
         if platform.system() == "Linux" and platform.machine() == "aarch64":
-            packageName = "TDengine-"+ packageType + "-" + base_version + "-Linux-arm64.tar.gz"
+            packageName = f"tdengine-tsdb-oss-{base_version}-linux-arm64.tar.gz"
+            download_url = f"https://downloads.taosdata.com/tdengine-tsdb-oss/{base_version}/{packageName}"
         else:
-            packageName = "TDengine-"+ packageType + "-" + base_version + "-Linux-x64.tar.gz"
+            packageName = f"tdengine-tsdb-oss-{base_version}-linux-x64.tar.gz"
+            download_url = f"https://downloads.taosdata.com/tdengine-tsdb-oss/{base_version}/{packageName}"
             
-        # Determine download URL
-        download_url = f"https://www.taosdata.com/assets-download/3.0/{packageName}"
         tdLog.info(f"wget {download_url}")
         
-        packageTPath = packageName.split("-Linux-")[0]
+        # Extract package name without extension for installation
+        packageTPath = packageName.replace("-linux-x64.tar.gz", "")
         my_file = Path(f"{packagePath}/{packageName}")
         if not my_file.exists():
             print(f"{packageName} is not exists")
@@ -122,18 +123,19 @@ class CompatibilityBase:
     def installTaosd(self, bPath, cPath, base_version):
         packagePath = "/usr/local/src/"
         dataPath = cPath + "/../data/"
-        packageType = "server"
-
+        
+        # New download URL format
         if platform.system() == "Linux" and platform.machine() == "aarch64":
-            packageName = "TDengine-"+ packageType + "-" + base_version + "-Linux-arm64.tar.gz"
+            packageName = f"tdengine-tsdb-oss-{base_version}-linux-arm64.tar.gz"
+            download_url = f"https://downloads.taosdata.com/tdengine-tsdb-oss/{base_version}/{packageName}"
         else:
-            packageName = "TDengine-"+ packageType + "-" + base_version + "-Linux-x64.tar.gz"
+            packageName = f"tdengine-tsdb-oss-{base_version}-linux-x64.tar.gz"
+            download_url = f"https://downloads.taosdata.com/tdengine-tsdb-oss/{base_version}/{packageName}"
             
-        # Determine download URL
-        download_url = f"https://www.taosdata.com/assets-download/3.0/{packageName}"
         tdLog.info(f"wget {download_url}")
         
-        packageTPath = packageName.split("-Linux-")[0]
+        # Extract package name without extension for installation
+        packageTPath = packageName.replace(".tar.gz", "")
         my_file = Path(f"{packagePath}/{packageName}")
         if not my_file.exists():
             print(f"{packageName} is not exists")
@@ -300,7 +302,7 @@ class CompatibilityBase:
             pid_to_kill_for_this_dnode = found_pids[0]
             tdLog.info(f"Killing taosd process, pid:{pid_to_kill_for_this_dnode} (for cPaths[{0}])")
             os.system(f"kill -9 {pid_to_kill_for_this_dnode}")
-            cb.checkProcessPid(pid_to_kill_for_this_dnode)
+            self.checkProcessPid(pid_to_kill_for_this_dnode)
             tdLog.info(f"Starting taosd using cPath: {cPaths[0]}")
             tdLog.info(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")
             os.system(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")
@@ -330,7 +332,7 @@ class CompatibilityBase:
                     os.system(f"kill -9 {pid_to_kill_for_this_dnode}")
                 else:
                     tdLog.info(f"No running taosd PID found to kill for cPaths[{i}] (or fewer PIDs found than cPaths entries).")
-                cb.checkProcessPid(pid_to_kill_for_this_dnode)
+                self.checkProcessPid(pid_to_kill_for_this_dnode)
                 tdLog.info(f"Starting taosd using cPath: {cPaths[i]}")
                 tdLog.info(f"{bPath}/build/bin/taosd -c {cPaths[i]}cfg/ > /dev/null 2>&1 &")
                 os.system(f"{bPath}/build/bin/taosd -c {cPaths[i]}cfg/ > /dev/null 2>&1 &")
