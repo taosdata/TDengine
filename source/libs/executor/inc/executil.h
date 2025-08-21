@@ -123,6 +123,13 @@ typedef struct SDBVgInfoMgr {
 } SDBVgInfoMgr;
 
 struct SqlFunctionCtx;
+typedef struct SInsertTableInfo {
+  int64_t                  uid;
+  int64_t                  vgid;
+  int32_t                  version;
+  STSchema*                pSchema;
+  char*                    tbname;
+} SInsertTableInfo;
 
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
                                 STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
@@ -236,5 +243,7 @@ int32_t extractKeysLen(const SArray* keys, int32_t* pLen);
 
 int32_t getDbVgInfoForExec(void* clientRpc, const char* dbFName, const char* tbName, SVgroupInfo* pVgInfo);
 void    rmDbVgInfoFromCache(const char* dbFName);
+
+int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq);
 
 #endif  // TDENGINE_EXECUTIL_H
