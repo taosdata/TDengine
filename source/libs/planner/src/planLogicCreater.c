@@ -1990,7 +1990,8 @@ static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStm
       !pCxt->pPlanCxt->streamCalcQuery || !pCxt->pPlanCxt->withExtWindow ||
       nodeType(pSelect->pFromTable) == QUERY_NODE_TEMP_TABLE ||
       nodeType(pSelect->pFromTable) == QUERY_NODE_JOIN_TABLE ||
-      pSelect->isSubquery || NULL != pSelect->pSlimit || NULL != pSelect->pLimit) {
+      pSelect->isSubquery || NULL != pSelect->pSlimit || NULL != pSelect->pLimit ||
+      pSelect->hasUniqueFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc) {
     return TSDB_CODE_SUCCESS;
   }
   int32_t code = nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, &pSelect->pWindow);
