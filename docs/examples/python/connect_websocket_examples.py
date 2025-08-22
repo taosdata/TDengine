@@ -23,7 +23,7 @@ def create_connection():
 def create_connection_with_sqlalchemy():
     from sqlalchemy import create_engine
 
-    engine = create_engine("taosws://root:taosdata?hosts=localhost:6041,127.0.0.1:6041")
+    engine = create_engine("taosws://root:taosdata@?hosts=localhost:6041,127.0.0.1:6041")
     conn = engine.connect()
     return conn
 # ANCHOR_END: connect_sqlalchemy
