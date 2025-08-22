@@ -237,23 +237,20 @@
 
 # 22-Functions
 ## 01-Scalar
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_cast.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_math.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_string.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_time.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_scalar_cast.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_scalar_math.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_scalar_string.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_scalar_time.py
 ## 02-Aggregate
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_func_apercentile.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_func_avg.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_func_count.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_func_leastsquares.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_func_percentile.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_func_spread.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_func_stddev.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_func_stddev2.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_func_sum.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_func_sum.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_func_elapsed.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_percentile.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_basic_avg.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_basic_count.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_basic_leastsquares.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_basic_spread.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_basic_stddev.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_basic_sum.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_stat_apercentile.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_stat_percentile.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_special_elapsed.py
 ## 03-Selection
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_bottom.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_first_last.py

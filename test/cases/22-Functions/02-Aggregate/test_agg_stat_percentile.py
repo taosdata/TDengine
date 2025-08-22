@@ -1,16 +1,5 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
-#
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
-#
-###################################################################
-
 # -*- coding: utf-8 -*-
-from new_test_framework.utils import tdLog, tdSql, etool
+from new_test_framework.utils import tdLog, tdSql, tdStream, etool
 
 class TestPercentile:
     updatecfgDict = {
@@ -169,8 +158,112 @@ class TestPercentile:
         tdSql.execute(f'INSERT INTO td32506.reg_table_159 using td32506.fs_table(geometry_type_tag_name,smallint_type_tag_name,bigint_type_tag_name,int_type_tag_name,utinyint_type_tag_name,f,uint_type_tag_name,tinyint_type_tag_name) TAGS("point(1.0 1.0)", 24091, 2578286530814614745, 1008675772, -8, 7.362335563770809e+37, 1819796668, 44) (ts,utinyint_type_col_name,bigint_type_col_name,tinyint_type_col_name,ubigint_type_col_name,smallint_type_col_name,varbinary_type_col_name,float_type_col_name,speed,varchar_type_col_name,bool_type_col_name,usmallint_type_col_name,color,geometry_type_col_name) VALUES ("2016-12-16 18:16:59", 93, -2924293332667446092, 18, -1926645562871095772, 25986, "xjlujcacaynnnmub", -9.456838052905681e+37, 529848418, "nxkirdhlqqloitkl", True, 4620, "acujdfhatzkugcrk", "point(1.0 1.0)");')
         tdSql.execute(f'INSERT INTO td32506.reg_table_159 using td32506.fs_table(tinyint_type_tag_name,usmallint_type_tag_name,b,f,varbinary_type_tag_name,bigint_type_tag_name,smallint_type_tag_name,geometry_type_tag_name,varchar_type_tag_name,extratag,utinyint_type_tag_name,uint_type_tag_name,ubigint_type_tag_name,double_type_tag_name,bool_type_tag_name,int_type_tag_name) TAGS(-98, 2946, "qgvkaujyrikpmgxp", 3.2784411370027565e+38, "dspxtsyqnqdyciab", -794888918858663169, -1378, "point(1.0 1.0)", "diaerlydilfkqveu", -1591170700, -9, 88084273, -8326438069324931384, -6.790019844508353e+307, False, 1326851510) (ts,speed,double_type_col_name,geometry_type_col_name,ubigint_type_col_name,bool_type_col_name,utinyint_type_col_name,bigint_type_col_name,usmallint_type_col_name,color,smallint_type_col_name,varchar_type_col_name,nchar_type_col_name,float_type_col_name,varbinary_type_col_name) VALUES ("2016-12-16 18:17:51", -1374792144, -1.149850424042433e+308, "point(1.0 1.0)", 8907011909602006795, False, 104, 1588514034331429385, -18984, "namrvnonxcrzziic", -26616, "ueddmjfyoclvjwfx", "mkkexxinfededdfr", -2.403953587086065e+38, "kadxrwlomevmukfr");')
 
+    def ComputePercentile(self):
+        dbPrefix = "m_pe_db"
+        tbPrefix = "m_pe_tb"
+        mtPrefix = "m_pe_mt"
+        tbNum = 10
+        rowNum = 20
+        totalNum = 200
+
+        tdLog.info(f"=============== step1")
+        i = 0
+        db = dbPrefix + str(i)
+        mt = mtPrefix + str(i)
+
+        tdSql.prepare(db, drop=True)
+        tdSql.execute(f"use {db}")
+        tdSql.execute(f"create table {mt} (ts timestamp, tbcol int) TAGS(tgcol int)")
+
+        i = 0
+        while i < tbNum:
+            tb = tbPrefix + str(i)
+            tdSql.execute(f"create table {tb} using {mt} tags( {i} )")
+            x = 0
+            while x < rowNum:
+                cc = x * 60000
+                ms = 1601481600000 + cc
+                tdSql.execute(f"insert into {tb} values ({ms} , {x} )")
+                x = x + 1
+            i = i + 1
+
+        tdLog.info(f"=============== step2")
+        i = 1
+        tb = tbPrefix + str(i)
+
+        tdSql.query(f"select percentile(tbcol, 10) from {tb}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 1.900000000)
+
+        tdSql.query(f"select percentile(tbcol, 20) from {tb}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 3.800000000)
+
+        tdSql.query(f"select percentile(tbcol, 100) from {tb}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 19.000000000)
+
+        tdSql.error(f"select percentile(tbcol, 110) from {tb}")
+
+        tdLog.info(f"=============== step3")
+        cc = 4 * 60000
+        ms = 1601481600000 + cc
+
+        tdSql.query(f"select percentile(tbcol, 1) from {tb} where ts > {ms}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 5.140000000)
+
+        cc = 4 * 60000
+        ms = 1601481600000 + cc
+
+        tdSql.query(f"select percentile(tbcol, 5) from {tb} where ts > {ms}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 5.700000000)
+
+        cc = 4 * 60000
+        ms = 1601481600000 + cc
+
+        tdSql.query(f"select percentile(tbcol, 0) from {tb} where ts > {ms}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 5.000000000)
+
+        tdLog.info(f"=============== step4")
+        cc = 4 * 60000
+        ms = 1601481600000 + cc
+
+        tdSql.query(f"select percentile(tbcol, 1) as c from {tb} where ts > {ms}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 5.140000000)
+
+        cc = 4 * 60000
+        ms = 1601481600000 + cc
+
+        tdSql.query(f"select percentile(tbcol, 5) as c from {tb} where ts > {ms}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 5.700000000)
+
+        cc = 4 * 60000
+        ms = 1601481600000 + cc
+
+        tdSql.query(f"select percentile(tbcol, 0) as c from {tb} where ts > {ms}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 5.000000000)
+
+        tdSql.query(
+            f"select _wstart, percentile(tbcol, 10) as c from {tb} interval(1d)"
+        )
+        tdSql.checkRows(1)
+
+        tdSql.checkData(0, 0, "2020-10-01 00:00:00")
+        tdSql.checkData(0, 1, 1.900000000)
+
+        tdLog.info(f"=============== clear")
+        tdSql.execute(f"drop database {db}")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(2)
+
     def test_percentile(self):
-        """test percentile function
+        """Agg-stat: Percentile
 
         test percentile function with SPREAD(),LEASTSQUARES(),COUNT(),HYPERLOGLOG(),AVG(), HYPERLOGLOG(),AVG(),SPREAD(),STDDEV(),SUM(),COUNT(),APERCENTILE(),LEASTSQUARES(), STDDEV(), COUNT(),HYPERLOGLOG(),HYPERLOGLOG(),SPREAD()
 
@@ -181,8 +274,12 @@ class TestPercentile:
         History:
             - 2024-11-1 Jing Sima Created
             - 2025-5-08 Huo Hong Migrated to new test framework
+            - 2025-4-28 Simon Guan Migrated from tsim/compute/percentile.sim
 
         """
         tdSql.error('SELECT SPREAD(bigint_type_tag_name),LEASTSQUARES(bigint_type_tag_name, 9, 2),COUNT(bigint_type_tag_name),HYPERLOGLOG(bigint_type_tag_name),PERCENTILE(bigint_type_tag_name,89,27,20,19,87,99,26,17,45),AVG(bigint_type_tag_name), HYPERLOGLOG(tinyint_type_tag_name),AVG(tinyint_type_tag_name),SPREAD(tinyint_type_tag_name),STDDEV(tinyint_type_tag_name),SUM(tinyint_type_tag_name),COUNT(tinyint_type_tag_name),APERCENTILE(tinyint_type_tag_name, 1, "t-digest"),LEASTSQUARES(tinyint_type_tag_name, 8, 1), STDDEV(usmallint_type_tag_name), COUNT(nchar_type_tag_name),HYPERLOGLOG(nchar_type_tag_name), PERCENTILE(double_type_col_name,6,23,52,24,1,53,95,51,38),HYPERLOGLOG(double_type_col_name),SPREAD(double_type_col_name) FROM td32506.reg_table_159   STATE_WINDOW(1);')
 
 
+        tdStream.dropAllStreamsAndDbs()
+        self.ComputePercentile()
+        tdStream.dropAllStreamsAndDbs()

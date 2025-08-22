@@ -7,7 +7,7 @@ class TestFuncAvg:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_func_avg(self):
-        """Avg 函数
+        """Agg-basic: Avg
 
         1. 创建包含一个 Int 普通数据列的超级表
         2. 创建子表并写入数据
