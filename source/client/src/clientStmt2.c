@@ -352,7 +352,7 @@ static int32_t stmtParseSql(STscStmt2* pStmt) {
       if (pStmt->exec.pRequest->msgBuf) {
         tstrncpy(pStmt->exec.pRequest->msgBuf, "stmt only support select or insert", pStmt->exec.pRequest->msgBufLen);
       }
-      return TSDB_CODE_TSC_STMT_API_ERROR;
+      return TSDB_CODE_PAR_SYNTAX_ERROR;
     }
   } else if (pStmt->sql.type == STMT_TYPE_QUERY) {
     pStmt->sql.stbInterlaceMode = false;
@@ -1303,18 +1303,22 @@ static int32_t stmtInitStbInterlaceTableInfo(STscStmt2* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-int stmtIsInsert2(TAOS_STMT2* stmt, int* insert) {
+bool stmt2IsInsert(TAOS_STMT2* stmt) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
-
-  // STMT_DLOG_E("start is insert");
-
   if (pStmt->sql.type) {
-    *insert = (STMT_TYPE_INSERT == pStmt->sql.type || STMT_TYPE_MULTI_INSERT == pStmt->sql.type);
-  } else {
-    *insert = qIsInsertValuesSql(pStmt->sql.sqlStr, pStmt->sql.sqlLen);
+    return (STMT_TYPE_INSERT == pStmt->sql.type || STMT_TYPE_MULTI_INSERT == pStmt->sql.type);
   }
 
-  return TSDB_CODE_SUCCESS;
+  return qIsInsertValuesSql(pStmt->sql.sqlStr, pStmt->sql.sqlLen);
+}
+
+bool stmt2IsSelect(TAOS_STMT2* stmt) {
+  STscStmt2* pStmt = (STscStmt2*)stmt;
+
+  if (pStmt->sql.type) {
+    return STMT_TYPE_QUERY == pStmt->sql.type;
+  }
+  return qIsSelectFromSql(pStmt->sql.sqlStr, pStmt->sql.sqlLen);
 }
 
 int stmtSetTbName2(TAOS_STMT2* stmt, const char* tbName) {
@@ -1331,17 +1335,16 @@ int stmtSetTbName2(TAOS_STMT2* stmt, const char* tbName) {
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_SETTBNAME));
 
   int32_t insert = 0;
-  STMT_ERR_RET(stmtIsInsert2(stmt, &insert));
-  if (0 == insert) {
-    STMT2_ELOG_E("set tb name not available for none insert statement");
+  if (!stmt2IsInsert(stmt)) {
+    STMT2_ELOG_E("set tb name not available for no-insert statement");
     STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
   }
 
   if (!pStmt->sql.stbInterlaceMode || NULL == pStmt->sql.siInfo.pDataCtx) {
     STMT_ERR_RET(stmtCreateRequest(pStmt));
 
-    STMT_ERR_RET(qCreateSName(&pStmt->bInfo.sname, tbName, pStmt->taos->acctId, pStmt->exec.pRequest->pDb,
-                              pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen));
+    STMT_ERR_RET(qCreateSName2(&pStmt->bInfo.sname, tbName, pStmt->taos->acctId, pStmt->exec.pRequest->pDb,
+                               pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen));
     STMT_ERR_RET(tNameExtractFullName(&pStmt->bInfo.sname, pStmt->bInfo.tbFName));
 
     STMT_ERR_RET(stmtGetFromCache(pStmt));
@@ -1399,8 +1402,8 @@ int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags, SVCreateTbReq** pCre
   //   return TSDB_CODE_SUCCESS;
   // }
   if (pStmt->sql.autoCreateTbl && pStmt->sql.stbInterlaceMode) {
-    STMT_ERR_RET(qCreateSName(&pStmt->bInfo.sname, pStmt->bInfo.tbName, pStmt->taos->acctId, pStmt->exec.pRequest->pDb,
-                              pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen));
+    STMT_ERR_RET(qCreateSName2(&pStmt->bInfo.sname, pStmt->bInfo.tbName, pStmt->taos->acctId, pStmt->exec.pRequest->pDb,
+                               pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen));
     STMT_ERR_RET(tNameExtractFullName(&pStmt->bInfo.sname, pStmt->bInfo.tbFName));
   }
 

@@ -200,6 +200,7 @@ static int32_t mndCreateSubscription(SMnode *pMnode, const SMqTopicObj *pTopic, 
 END:
   tDeleteSubscribeObj(*pSub);
   taosMemoryFree(*pSub);
+  *pSub = NULL;
   return code;
 }
 
@@ -1001,6 +1002,7 @@ static void clearRebOutput(SMqRebOutputObj *rebOutput) {
   taosArrayDestroy(rebOutput->rebVgs);
   tDeleteSubscribeObj(rebOutput->pSub);
   taosMemoryFree(rebOutput->pSub);
+  rebOutput->pSub = NULL;
 }
 
 static int32_t initRebOutput(SMqRebOutputObj *rebOutput) {
