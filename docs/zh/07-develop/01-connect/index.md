@@ -6,19 +6,19 @@ toc_max_heading_level: 4
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import ConnJava from "./_connect_java.mdx";
-import ConnGo from "./_connect_go.mdx";
-import ConnRust from "./_connect_rust.mdx";
-import ConnNode from "./_connect_node.mdx";
-import ConnPythonNative from "./_connect_python.mdx";
-import ConnCSNative from "./_connect_cs.mdx";
-import ConnC from "./_connect_c.mdx";
-import InstallOnLinux from "../../14-reference/05-connector/_linux_install.mdx";
-import InstallOnWindows from "../../14-reference/05-connector/_windows_install.mdx";
-import InstallOnMacOS from "../../14-reference/05-connector/_macos_install.mdx";
-import VerifyLinux from "../../14-reference/05-connector/_verify_linux.mdx";
-import VerifyMacOS from "../../14-reference/05-connector/_verify_macos.mdx";
-import VerifyWindows from "../../14-reference/05-connector/_verify_windows.mdx";
+import ConnJava from "./\_connect_java.mdx";
+import ConnGo from "./\_connect_go.mdx";
+import ConnRust from "./\_connect_rust.mdx";
+import ConnNode from "./\_connect_node.mdx";
+import ConnPythonNative from "./\_connect_python.mdx";
+import ConnCSNative from "./\_connect_cs.mdx";
+import ConnC from "./\_connect_c.mdx";
+import InstallOnLinux from "../../14-reference/05-connector/\_linux_install.mdx";
+import InstallOnWindows from "../../14-reference/05-connector/\_windows_install.mdx";
+import InstallOnMacOS from "../../14-reference/05-connector/\_macos_install.mdx";
+import VerifyLinux from "../../14-reference/05-connector/\_verify_linux.mdx";
+import VerifyMacOS from "../../14-reference/05-connector/\_verify_macos.mdx";
+import VerifyWindows from "../../14-reference/05-connector/\_verify_windows.mdx";
 
 TDengine TSDB 提供了丰富的应用程序开发接口，为了便于用户快速开发自己的应用，TDengine TSDB 支持了多种编程语言的连接器，其中官方连接器包括支持 C/C++、Java、Python、Go、Node.js、C#、Rust、Lua（社区贡献）和 PHP（社区贡献）的连接器。这些连接器支持使用原生接口（taosc）和 REST 接口（部分语言暂不支持）连接 TDengine TSDB 集群。社区开发者也贡献了多个非官方连接器，例如 ADO.NET 连接器、Lua 连接器和 PHP 连接器。另外 TDengine TSDB 还可以直接调用 taosAdapter 提供的 REST API 接口，进行数据写入和查询操作。
 
@@ -38,7 +38,7 @@ TDengine TSDB 提供了丰富的应用程序开发接口，为了便于用户快
 关键不同点在于：
 
 1. 使用 原生连接，需要保证客户端的驱动程序 taosc 和服务端的 TDengine TSDB 版本保持一致。
-2. 使用 REST 连接，用户无需安装客户端驱动程序 taosc，具有跨平台易用的优势，但是无法体验数据订阅和二进制数据类型等功能。另外与 原生连接 和 WebSocket 连接相比，REST 连接的性能最低。REST 接口是无状态的。在使用 REST 连接时，需要在 SQL 中指定表、超级表的数据库名称。  
+2. 使用 REST 连接，用户无需安装客户端驱动程序 taosc，具有跨平台易用的优势，但是无法体验数据订阅和二进制数据类型等功能。另外与 原生连接 和 WebSocket 连接相比，REST 连接的性能最低。REST 接口是无状态的。在使用 REST 连接时，需要在 SQL 中指定表、超级表的数据库名称。
 3. 使用 WebSocket 连接，用户也无需安装客户端驱动程序 taosc。
 4. 连接云服务实例，必须使用 REST 连接 或 WebSocket 连接。
 
@@ -97,13 +97,15 @@ TDengine TSDB 提供了丰富的应用程序开发接口，为了便于用户快
 <TabItem label="Python" value="python">
 
 - **安装前准备**
+
   - 安装 Python。新近版本 taospy 包要求 Python 3.6.2+。早期版本 taospy 包要求 Python 3.7+。taos-ws-py 包要求 Python 3.7+。如果系统上还没有 Python 可参考 [Python BeginnersGuide](https://wiki.python.org/moin/BeginnersGuide/Download) 安装。
   - 安装 [pip](https://pypi.org/project/pip/)。大部分情况下 Python 的安装包都自带了 pip 工具，如果没有请参考 [pip documentation](https://pip.pypa.io/en/stable/installation/) 安装。
   - 如果使用原生连接，还需 [安装客户端驱动](../connect/#安装客户端驱动-taosc)。客户端软件包含了 TDengine TSDB 客户端动态链接库 (libtaos.so 或 taos.dll) 和 TDengine TSDB CLI。
 
 - **使用 pip 安装**
+
   - 卸载旧版本
-        如果以前安装过旧版本的 Python 连接器，请提前卸载。
+    如果以前安装过旧版本的 Python 连接器，请提前卸载。
 
         ```
         pip3 uninstall taos taospy
@@ -111,6 +113,7 @@ TDengine TSDB 提供了丰富的应用程序开发接口，为了便于用户快
         ```
 
   - 安装 `taospy`
+
     - 最新版本
 
             ```
@@ -129,7 +132,8 @@ TDengine TSDB 提供了丰富的应用程序开发接口，为了便于用户快
             pip3 install git+https://github.com/taosdata/taos-connector-python.git
             ```
 
-        :::note 此安装包为原生连接器
+      :::note 此安装包为原生连接器
+
   - 安装 `taos-ws-py`
 
         ```bash
@@ -137,6 +141,7 @@ TDengine TSDB 提供了丰富的应用程序开发接口，为了便于用户快
         ```
 
         :::note 此安装包为 WebSocket 连接器
+
   - 同时安装 `taospy` 和 `taos-ws-py`
 
         ```bash
@@ -144,13 +149,13 @@ TDengine TSDB 提供了丰富的应用程序开发接口，为了便于用户快
         ```
 
 - **安装验证**
-    <Tabs defaultValue="rest">
-    <TabItem value="native" label="原生连接">
-    对于原生连接，需要验证客户端驱动和 Python 连接器本身是否都正确安装。如果能成功导入 `taos` 模块，则说明已经正确安装了客户端驱动和 Python 连接器。可在 Python 交互式 Shell 中输入：
+  <Tabs defaultValue="rest">
+  <TabItem value="native" label="原生连接">
+  对于原生连接，需要验证客户端驱动和 Python 连接器本身是否都正确安装。如果能成功导入 `taos` 模块，则说明已经正确安装了客户端驱动和 Python 连接器。可在 Python 交互式 Shell 中输入：
 
-    ```python
-    import taos
-    ```
+  ```python
+  import taos
+  ```
 
     </TabItem>
     <TabItem  value="rest" label="REST 连接">
@@ -208,9 +213,11 @@ taos = { version = "*", default-features = false, features = ["ws"] }
 <TabItem label="Node.js" value="node">
 
 - **安装前准备**
+
   - 安装 Node.js 开发环境，使用 14 以上版本。下载链接：[Download Node.js](https://nodejs.org/en/download)
 
 - **安装**
+
   - 使用 npm 安装 Node.js 连接器
 
         ```
@@ -218,7 +225,9 @@ taos = { version = "*", default-features = false, features = ["ws"] }
         ```
 
     :::note Node.js 目前只支持 WebSocket 连接
+
 - **安装验证**
+
   - 新建安装验证目录，例如：`~/tdengine-test`，下载 GitHub 上 [nodejsChecker.js 源代码](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/nodejsChecker.js) 到本地。
   - 在命令行中执行以下命令。
 
@@ -288,16 +297,16 @@ dotnet add package TDengine.Connector
     <TabItem label="Java" value="java">
     Java 连接器建立连接的参数有 URL 和 Properties。  
     TDengine TSDB 的 JDBC URL 规范格式为：
-    `jdbc:[TAOS|TAOS-WS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&batchfetch={batchfetch}]`  
+    `jdbc:[TAOS|TAOS-WS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&batchfetch={batchfetch}]`
 
     URL 和 Properties 的详细参数说明和如何使用详见 [url 规范](../../reference/connector/java/#url-规范)
 
     </TabItem>
     <TabItem label="Python" value="python">
-    Python 连接器使用 `connect()` 方法来建立连接，下面是连接参数的具体说明：    
-        - url： `taosAdapter` Websocket 服务的 URL。默认是 `localhost` 的 `6041` 端口。 
-        - user： TDengine TSDB 用户名。默认是 `root`。  
-        - password： TDengine TSDB 用户密码。默认是 `taosdata`。  
+    Python 连接器使用 `connect()` 方法来建立连接，下面是连接参数的具体说明：
+        - url： `taosAdapter` Websocket 服务的 URL。默认是 `localhost` 的 `6041` 端口。
+        - user： TDengine TSDB 用户名。默认是 `root`。
+        - password： TDengine TSDB 用户密码。默认是 `taosdata`。
         - timeout： HTTP 请求超时时间。单位为秒。默认为 `socket._GLOBAL_DEFAULT_TIMEOUT`。一般无需配置。
 
     URL 的详细参数说明和如何使用详见 [url 规范](../../reference/connector/python/#url-规范)
@@ -349,6 +358,7 @@ dotnet add package TDengine.Connector
 
     </TabItem>
     <TabItem label="Rust" value="rust">
+
 Rust 连接器使用 DSN 来创建连接，DSN 描述字符串基本结构如下：
 
 ```text
@@ -376,14 +386,14 @@ DSN 的详细说明和如何使用详见 [连接功能](../../reference/connecto
     - **params**: 其他参数。例如 token。
 
     - 完整 DSN 示例：
-    
+
     ```js
         // IPV4:
         ws://root:taosdata@localhost:6041
-    
+
         // IPV6:
         ws://root:taosdata@[::1]:6041
-    ``` 
+    ```
 
     </TabItem>
 
@@ -432,6 +442,7 @@ WebSocket 连接需要先调用 `taos_options(TSDB_OPTION_DRIVER, "websocket")` 
 原生连接还提供 `taos_connect_auth()` 函数，用于使用 MD5 加密的密码建立连接。该函数与 `taos_connect()` 功能相同，区别在于密码的处理方式，`taos_connect_auth()` 需要的是密码的 MD5 加密字符串。
 
     </TabItem>
+
 <TabItem label="REST API" value="rest">
 通过 REST API 方式访问 TDengine TSDB 时，应用程序直接与 taosAdapter 建立 HTTP 连接，建议使用连接池来管理连接。
 使用 REST API 的参数具体可以参考：[http-请求格式](../../reference/connector/rest-api/#http-请求格式)
@@ -574,12 +585,12 @@ WebSocket 连接需要先调用 `taos_options(TSDB_OPTION_DRIVER, "websocket")` 
 ## 连接池
 
 有些连接器提供了连接池，或者可以与已有的连接池组件配合使用。使用连接池，应用程序可以快速地从连接池中获取可用连接，避免了每次操作时创建和销毁连接的开销。这不仅减少了资源消耗，还提高了响应速度。此外，连接池还支持对连接的管理，如最大连接数限制、连接的有效性检查，确保了连接的高效和可靠使用。我们**推荐使用连接池管理连接**。  
-下面是各语言连接器的连接池支持代码样例。  
+下面是各语言连接器的连接池支持代码样例。
 
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
 
-**HikariCP**  
+**HikariCP**
 
 使用示例如下：
 
@@ -590,7 +601,7 @@ WebSocket 连接需要先调用 `taos_options(TSDB_OPTION_DRIVER, "websocket")` 
 > 通过 HikariDataSource.getConnection() 获取连接后，使用完成后需要调用 close() 方法，实际上它并不会关闭连接，只是放回连接池中。
 > 更多 HikariCP 使用问题请查看[官方说明](https://github.com/brettwooldridge/HikariCP)。
 
-**Druid**  
+**Druid**
 
 使用示例如下：
 
@@ -601,7 +612,7 @@ WebSocket 连接需要先调用 `taos_options(TSDB_OPTION_DRIVER, "websocket")` 
 > 更多 druid 使用问题请查看[官方说明](https://github.com/alibaba/druid)。
 
     </TabItem>
-    
+
     <TabItem label="Python" value="python">
 
 <details>
@@ -621,8 +632,6 @@ WebSocket 连接需要先调用 `taos_options(TSDB_OPTION_DRIVER, "websocket")` 
 ```
 
 </details>
-
-
 
     </TabItem>
     <TabItem label="Go" value="go">
