@@ -138,6 +138,7 @@ def input_files(change_files):
         "source/libs/parser/src/sql.c",
         "source/libs/azure",
         "source/client/jni/windows/win32/bridge/AccessBridgeCalls.c",
+        "source/libs/decimal/",
     ]
     with open(change_files, 'r') as file:
         for line in file:
