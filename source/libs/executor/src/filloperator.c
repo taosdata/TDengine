@@ -434,6 +434,9 @@ static int32_t doFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     if (isWinRangeValid) {
       pInfo->win.skey = pWinRange.skey;
       pInfo->win.ekey = pWinRange.ekey;
+      if (pTaskInfo->pStreamRuntimeInfo->funcInfo.triggerType == STREAM_TRIGGER_SLIDING) {
+        pInfo->win.ekey--;
+      }
     }
   }
 

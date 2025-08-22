@@ -520,8 +520,7 @@ static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
   pExtW->lastWinId = -1;
   //taosArrayDestroyEx(pExtW->pOutputBlocks, extWinDestroyBlockList);
   // taosArrayDestroy(pExtW->pOffsetList);
-  taosArrayDestroy(pExtW->pWins);
-  pExtW->pWins = NULL;
+  taosArrayClear(pExtW->pWins);
   pExtW->pOutputBlockListNode = NULL;
   //pExtW->pOutputBlocks = NULL;
   // pExtW->pOffsetList = NULL;

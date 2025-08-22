@@ -4924,9 +4924,9 @@ int32_t streamCalcCurrWinTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, ST
     TAOS_CHECK_EXIT(scalarCalculate(node->pEnd, NULL, NULL, pStRtFuncInfo, &timeEndParas));
     
     if (timeEndParas.opType == OP_TYPE_LOWER_THAN) {
-      pWinRange->ekey = timeEndParas.timeValue - 1;
-    } else if (timeEndParas.opType == OP_TYPE_LOWER_EQUAL) {
       pWinRange->ekey = timeEndParas.timeValue;
+    } else if (timeEndParas.opType == OP_TYPE_LOWER_EQUAL) {
+      pWinRange->ekey = timeEndParas.timeValue + 1;
     } else {
       qError("end time range error, opType:%d", timeEndParas.opType);
       TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);

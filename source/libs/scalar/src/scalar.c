@@ -606,8 +606,10 @@ static int32_t sclInitStreamPseudoFuncParamList(int32_t funcId, SScalarParam **p
 
   int32_t i = 0;
   if (pCtx->stream.pWins) {
-    SCL_ERR_JRET(sclSetStreamExtWinParam(funcId, pParamNodes, pParamsList, pCtx));
-    memcpy(pParamsList, (1 == pCtx->stream.extWinType) ? &pCtx->stream.twstart : &pCtx->stream.twend, sizeof(*pParamsList));
+    SScalarParam* pParam = (1 == pCtx->stream.extWinType) ? &pCtx->stream.twstart : &pCtx->stream.twend;
+    SCL_ERR_JRET(sclSetStreamExtWinParam(funcId, pParamNodes, pParam, pCtx));
+    memcpy(pParamsList, pParam, sizeof(*pParamsList));
+    *pRowNum = pParam->numOfRows;
   } else if (pCtx->stream.pStreamRuntimeFuncInfo) {
     code = fmSetStreamPseudoFuncParamVal(funcId, pParamNodes, pCtx->stream.pStreamRuntimeFuncInfo);
     if (code != 0) {
@@ -620,7 +622,6 @@ static int32_t sclInitStreamPseudoFuncParamList(int32_t funcId, SScalarParam **p
       ++i;
     }
   }
-
 
   *ppParams = pParamsList;
   return code;
@@ -1191,7 +1192,7 @@ static int32_t sclCalcStreamExtWinsTimeRange(SScalarCtx *ctx,          SOperator
   } else if (sclIsPrimTimeStampCol(node->pLeft)) {
     pNode = node->pRight;
   } else {
-    sclError("invalid stream timerange start expr, opType:%d, nodeType left:%d, nodeType right:%d", node->opType,
+    sclError("invalid stream ext win timerange expr, opType:%d, nodeType left:%d, nodeType right:%d", node->opType,
              nodeType(node->pLeft), nodeType(node->pRight));
     return TSDB_CODE_STREAM_INTERNAL_ERROR;         
   }
@@ -1228,7 +1229,8 @@ static int32_t sclCalcStreamExtWinsTimeRange(SScalarCtx *ctx,          SOperator
   }
   
   if (2 == ctx->stream.extWinType) {
-    if (ctx->stream.pStreamRuntimeFuncInfo->triggerType != STREAM_TRIGGER_SLIDING) {
+    //if (ctx->stream.pStreamRuntimeFuncInfo->triggerType != STREAM_TRIGGER_SLIDING) {
+      // consider triggerType and keep the ekey exclude
       if (node->opType == OP_TYPE_LOWER_THAN) {
         for (int32_t i = 0; i < res->numOfRows; ++i) {
           ctx->stream.pWins[i].tw.ekey = ((int64_t*)res->columnData->pData)[i];
@@ -1241,20 +1243,22 @@ static int32_t sclCalcStreamExtWinsTimeRange(SScalarCtx *ctx,          SOperator
         qError("invalid op type:%d in ext win range end expr", node->opType);
         return TSDB_CODE_STREAM_INTERNAL_ERROR;
       }
+    /*
     } else {
       if (node->opType == OP_TYPE_LOWER_THAN) {
         for (int32_t i = 0; i < res->numOfRows; ++i) {
-          ctx->stream.pWins[i].tw.ekey = ((int64_t*)res->columnData->pData)[i] - 1;
+          ctx->stream.pWins[i].tw.ekey = ((int64_t*)res->columnData->pData)[i];
         }
       } else if (node->opType == OP_TYPE_LOWER_EQUAL) {
         for (int32_t i = 0; i < res->numOfRows; ++i) {
-          ctx->stream.pWins[i].tw.ekey = ((int64_t*)res->columnData->pData)[i];
+          ctx->stream.pWins[i].tw.ekey = ((int64_t*)res->columnData->pData)[i] + 1;
         }
       } else {
         qError("invalid op type:%d in ext win range end expr", node->opType);
         return TSDB_CODE_STREAM_INTERNAL_ERROR;
       }
     }
+    */
   }
   
   return TSDB_CODE_SUCCESS;
@@ -1283,7 +1287,7 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
     goto _return;
   }
 
-  if (ctx->stream.pWins) {
+  if (ctx->stream.pWins && sclIsStreamRangeReq(node)) {
     code = sclCalcStreamExtWinsTimeRange(ctx, node);
     goto _return;
   }
