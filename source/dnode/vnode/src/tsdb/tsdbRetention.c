@@ -198,14 +198,6 @@ _exit:
   return code;
 }
 
-typedef struct {
-  STsdb  *tsdb;
-  int64_t now;
-  TSKEY   lastCommit;
-  int32_t nodeId; // node id of leader vnode in ss migration
-  int32_t fid;
-  bool    ssMigrate;
-} SRtnArg;
 
 static int32_t tsdbDoRetentionEnd(SRTNer *rtner, bool ssMigrate) {
   int32_t code = 0;
@@ -313,9 +305,9 @@ _exit:
   return code;
 }
 
-static void tsdbRetentionCancel(void *arg) { taosMemoryFree(arg); }
+void tsdbRetentionCancel(void *arg) { taosMemoryFree(arg); }
 
-static int32_t tsdbRetention(void *arg) {
+int32_t tsdbRetention(void *arg) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -379,7 +371,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now, bool ssMigrate, int32_t nodeId) {
+static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now) {
   int32_t tsdbSsMigrateMonitorAddFileSet(STsdb *tsdb, int32_t fid);
 
   int32_t code = 0;
@@ -387,23 +379,12 @@ static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now, bool ssMigrate, 
 
   // check if background task is disabled
   if (tsdb->bgTaskDisabled) {
-    if (ssMigrate) {
-      tsdbInfo("vgId:%d, background task is disabled, skip ss migration", TD_VID(tsdb->pVnode));
-    } else {
-      tsdbInfo("vgId:%d, background task is disabled, skip retention", TD_VID(tsdb->pVnode));
-    }
+    tsdbInfo("vgId:%d, background task is disabled, skip retention", TD_VID(tsdb->pVnode));
     return 0;
   }
 
   STFileSet *fset;
   TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
-    // TODO: when migrating to S3, skip fset that should not be migrated
-    
-    if (ssMigrate && fset->lastMigrate/1000 >= now) {
-      tsdbInfo("vgId:%d, fid:%d, skip migration as start time < last migration time", TD_VID(tsdb->pVnode), fset->fid);
-      continue;
-    }
-
     SRtnArg *arg = taosMemoryMalloc(sizeof(*arg));
     if (arg == NULL) {
       TAOS_CHECK_GOTO(terrno, &lino, _exit);
@@ -412,17 +393,10 @@ static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now, bool ssMigrate, 
     arg->tsdb = tsdb;
     arg->now = now;
     arg->fid = fset->fid;
-    arg->nodeId = nodeId;
-    arg->ssMigrate = ssMigrate;
+    arg->nodeId = 0;
+    arg->ssMigrate = false;
     arg->lastCommit = fset->lastCommit;
 
-    if (ssMigrate) {
-      code = tsdbSsMigrateMonitorAddFileSet(tsdb, fset->fid);
-      if (code) {
-        taosMemoryFree(arg);
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
-    }
     code = vnodeAsync(RETENTION_TASK_ASYNC, EVA_PRIORITY_LOW, tsdbRetention, tsdbRetentionCancel, arg,
                       &fset->retentionTask);
     if (code) {
@@ -441,32 +415,7 @@ _exit:
 int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now) {
   int32_t code = 0;
   (void)taosThreadMutexLock(&tsdb->mutex);
-  code = tsdbAsyncRetentionImpl(tsdb, now, false, 0);
+  code = tsdbAsyncRetentionImpl(tsdb, now);
   (void)taosThreadMutexUnlock(&tsdb->mutex);
   return code;
 }
-
-#ifdef USE_SHARED_STORAGE
-
-int32_t tsdbAsyncSsMigrate(STsdb *tsdb, SSsMigrateVgroupReq *pReq) {
-  int32_t code = 0;
-
-  bool tsdbResetSsMigrateMonitor(STsdb *tsdb, int32_t ssMigrateId);
-
-  (void)taosThreadMutexLock(&tsdb->mutex);
-  if (!tsdbResetSsMigrateMonitor(tsdb, pReq->ssMigrateId)) {
-    (void)taosThreadMutexUnlock(&tsdb->mutex);
-    tsdbInfo("vgId:%d, skip ss migration as there's an in progress one", TD_VID(tsdb->pVnode));
-    return 0;
-  }
-  code = tsdbAsyncRetentionImpl(tsdb, pReq->timestamp, true, pReq->nodeId);
-  (void)taosThreadMutexUnlock(&tsdb->mutex);
-
-  if (code) {
-    tsdbError("vgId:%d, %s failed, reason:%s", TD_VID(tsdb->pVnode), __func__, tstrerror(code));
-  }
-  return code;
-}
-
-#endif
-
