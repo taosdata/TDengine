@@ -180,7 +180,7 @@ TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 Pytho
 
 ### WebSocket 连接
 
-#### URL 规范
+#### DSN
 
 ```text
 [+<protocol>]://[<username>:<password>@][<host1>:<port1>[,...<hostN>:<portN>]][/<database>][?<key1>=<value1>[&...<keyN>=<valueN>]]
@@ -188,19 +188,27 @@ TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 Pytho
 |  protocol |   | username | password  |  addresses                          |   database |   params                             |
 ```
 
-- **protocol**：使用 WebSocket 协议建立连接。例如 `ws://localhost:6041`。
+- **protocol**：指定使用的协议，例如 `ws://localhost:6041` 表示通过 WebSocket 协议建立连接。
+  - **ws**：通过 WebSocket 协议建立连接。
+  - **wss**：通过 WebSocket 协议并启用 SSL/TLS 加密建立连接。
 - **username/password**：数据库的用户名和密码。
 - **addresses**：指定创建连接的服务器地址，多个地址间用英文逗号分隔。对于 IPv6 地址，必须使用中括号括起来（如 `[::1]` 或 `[2001:db8:1234:5678::1]`），以避免端口号解析冲突。
   - 示例：`ws://host1:6041,host2:6041` 或 `ws://`（等同于 `ws://localhost:6041`）。
 - **database**：数据库名称。
-- **params**：其他参数。例如 token。
+- **params**：
+  - `token`：用于 TDengine TSDB 云服务的身份验证。
+  - `timezone`：时区设置，格式为 IANA 时区名称（如 `Asia/Shanghai`），默认为本地时区。
+  - `compression`：是否启用数据压缩，默认为 `false`。
+  - `conn_retries`：连接失败时的最大重试次数，默认为 5 次。
+  - `retry_backoff_ms`：连接失败时的初始等待时间（毫秒），默认为 200。此值会随着连续失败而指数增长，直到达到最大等待时间。
+  - `retry_backoff_max_ms`：连接失败时的最大等待时间（毫秒），默认为 2000。
 
 #### 建立连接
 
 - `fn connect(dsn: Option<&str>, args: Option<&PyDict>) -> PyResult<Connection>`
     - **接口说明**：建立 taosAdapter 连接。
     - **参数说明**：
-        - `dsn`：类型 `Option<&str>` 可选，数据源名称（DSN），用于指定要连接的数据库的位置和认证信息。 
+        - `dsn`：类型 `Option<&str>` 可选，数据源名称（DSN），用于指定数据库的连接信息，包括协议、用户名、密码、主机、端口、数据库名及参数等。
         - `args`：类型 `Option<&PyDict>` 可选，以 Python 字典的形式提供，可用于设置
             - `user`：数据库的用户名
             - `password`：数据库的密码
