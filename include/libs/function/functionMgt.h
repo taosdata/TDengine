@@ -48,6 +48,9 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_HISTOGRAM,
   FUNCTION_TYPE_HYPERLOGLOG,
   FUNCTION_TYPE_STDVAR,
+  FUNCTION_TYPE_STDDEV_SAMP,
+  FUNCTION_TYPE_STDVAR_SAMP,
+  FUNCTION_TYPE_GROUP_CONCAT,
 
   // nonstandard SQL function
   FUNCTION_TYPE_BOTTOM = 500,
@@ -164,19 +167,19 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_IROWTS_ORIGIN,
   FUNCTION_TYPE_GROUP_ID,
   FUNCTION_TYPE_IS_WINDOW_FILLED,
-  FUNCTION_TYPE_TPREV_TS,           // _tprev_ts
-  FUNCTION_TYPE_TCURRENT_TS,        // _tcurrent_ts
-  FUNCTION_TYPE_TNEXT_TS,           // _tnext_ts
-  FUNCTION_TYPE_TWSTART,            // _twstart
-  FUNCTION_TYPE_TWEND,              // _twend
-  FUNCTION_TYPE_TWDURATION,         // _twduration
-  FUNCTION_TYPE_TWROWNUM,           // _twrownum
-  FUNCTION_TYPE_TPREV_LOCALTIME,    // _tprev_localtime
-  FUNCTION_TYPE_TNEXT_LOCALTIME,    // _tnext_localtime
-  FUNCTION_TYPE_TLOCALTIME,         // _tlocaltime
-  FUNCTION_TYPE_TGRPID,             // _tgrpid
-  FUNCTION_TYPE_PLACEHOLDER_COLUMN, // %%n
-  FUNCTION_TYPE_PLACEHOLDER_TBNAME, // %%tbname
+  FUNCTION_TYPE_TPREV_TS,            // _tprev_ts
+  FUNCTION_TYPE_TCURRENT_TS,         // _tcurrent_ts
+  FUNCTION_TYPE_TNEXT_TS,            // _tnext_ts
+  FUNCTION_TYPE_TWSTART,             // _twstart
+  FUNCTION_TYPE_TWEND,               // _twend
+  FUNCTION_TYPE_TWDURATION,          // _twduration
+  FUNCTION_TYPE_TWROWNUM,            // _twrownum
+  FUNCTION_TYPE_TPREV_LOCALTIME,     // _tprev_localtime
+  FUNCTION_TYPE_TNEXT_LOCALTIME,     // _tnext_localtime
+  FUNCTION_TYPE_TLOCALTIME,          // _tlocaltime
+  FUNCTION_TYPE_TGRPID,              // _tgrpid
+  FUNCTION_TYPE_PLACEHOLDER_COLUMN,  // %%n
+  FUNCTION_TYPE_PLACEHOLDER_TBNAME,  // %%tbname
 
   // internal function
   FUNCTION_TYPE_SELECT_VALUE = 3750,
@@ -214,6 +217,8 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_STD_PARTIAL,
   FUNCTION_TYPE_STDDEV_MERGE,
   FUNCTION_TYPE_STDVAR_MERGE,
+  FUNCTION_TYPE_STDDEV_SAMP_MERGE,
+  FUNCTION_TYPE_STDVAR_SAMP_MERGE,
   FUNCTION_TYPE_IRATE_PARTIAL,
   FUNCTION_TYPE_IRATE_MERGE,
   FUNCTION_TYPE_AVG_STATE,
@@ -228,7 +233,6 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_STD_STATE_MERGE,
   FUNCTION_TYPE_HYPERLOGLOG_STATE,
   FUNCTION_TYPE_HYPERLOGLOG_STATE_MERGE,
-
 
   // geometry functions
   FUNCTION_TYPE_GEOM_FROM_TEXT = 4250,
@@ -325,7 +329,8 @@ bool fmIsPlaceHolderFunc(int32_t funcId);
 
 void    getLastCacheDataType(SDataType* pType, int32_t pkBytes);
 int32_t createFunction(const char* pName, SNodeList* pParameterList, SFunctionNode** pFunc);
-int32_t createFunctionWithSrcFunc(const char* pName, const SFunctionNode* pSrcFunc, SNodeList* pParameterList, SFunctionNode** pFunc);
+int32_t createFunctionWithSrcFunc(const char* pName, const SFunctionNode* pSrcFunc, SNodeList* pParameterList,
+                                  SFunctionNode** pFunc);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMidFunc,
                         SFunctionNode** pMergeFunc);
@@ -373,13 +378,15 @@ bool    fmIsCountLikeFunc(int32_t funcId);
 
 // } SStreamPseudoFuncType;
 
-int32_t fmGetStreamPesudoFuncEnv(int32_t funcId, SNodeList* pParamNodes, SFuncExecEnv *pEnv);
+int32_t fmGetStreamPesudoFuncEnv(int32_t funcId, SNodeList* pParamNodes, SFuncExecEnv* pEnv);
 
-int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, const SStreamRuntimeFuncInfo* pStreamRuntimeInfo);
+int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes,
+                                      const SStreamRuntimeFuncInfo* pStreamRuntimeInfo);
 
 const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo);
 
-void fmGetStreamPesudoFuncValTbname(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo, void** data, int32_t* dataLen);
+void fmGetStreamPesudoFuncValTbname(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo, void** data,
+                                    int32_t* dataLen);
 #ifdef __cplusplus
 }
 #endif

@@ -1582,6 +1582,56 @@ int32_t stddevFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return functionFinalize(pCtx, pBlock);
 }
 
+int32_t stddevsampFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SStdRes*              pStddevRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  int32_t               type = pStddevRes->type;
+  double                avg;
+
+  if (pStddevRes->count == 0) {
+    GET_RES_INFO(pCtx)->numOfRes = 0;
+    return functionFinalize(pCtx, pBlock);
+  }
+
+  if (pStddevRes->count == 1) {
+    pStddevRes->result = 0.0;
+  } else {
+    pStddevRes->result = sqrt(pStddevRes->quadraticDSum / (pStddevRes->count - 1));
+  }
+
+  // check for overflow
+  if (isinf(pStddevRes->result) || isnan(pStddevRes->result)) {
+    GET_RES_INFO(pCtx)->numOfRes = 0;
+  }
+
+  return functionFinalize(pCtx, pBlock);
+}
+
+int32_t stdvarsampFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SStdRes*              pStddevRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  int32_t               type = pStddevRes->type;
+  double                avg;
+
+  if (pStddevRes->count == 0) {
+    GET_RES_INFO(pCtx)->numOfRes = 0;
+    return functionFinalize(pCtx, pBlock);
+  }
+
+  if (pStddevRes->count == 1) {
+    pStddevRes->result = 0.0;
+  } else {
+    pStddevRes->result = pStddevRes->quadraticDSum / (pStddevRes->count - 1);
+  }
+
+  // check for overflow
+  if (isinf(pStddevRes->result) || isnan(pStddevRes->result)) {
+    GET_RES_INFO(pCtx)->numOfRes = 0;
+  }
+
+  return functionFinalize(pCtx, pBlock);
+}
+
 int32_t stdvarFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SStdRes*              pStdvarRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
