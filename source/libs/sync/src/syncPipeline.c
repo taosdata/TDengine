@@ -66,7 +66,7 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   }
 
   SyncIndex appliedIndex = pNode->pFsm->FpAppliedIndexCb(pNode->pFsm);
-  if (pNode->restoreFinish && pBuf->commitIndex - appliedIndex >= TSDB_SYNC_APPLYQ_SIZE_LIMIT) {
+  if (pNode->restoreFinish && pBuf->commitIndex - appliedIndex >= tsSyncApplyQueueSize) {
     code = TSDB_CODE_SYN_WRITE_STALL;
     sError("vgId:%d, failed to append since %s, index:%" PRId64 ", commit-index:%" PRId64 ", applied-index:%" PRId64,
            pNode->vgId, tstrerror(code), index, pBuf->commitIndex, appliedIndex);
