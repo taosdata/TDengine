@@ -598,9 +598,9 @@ class Test_IDMP_Vehicle:
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
         # blank 20
+        ts   += 20 * self.step
 
         # data2
-        ts   += 20 * self.step
         vals  = "110"
         count = 10
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
