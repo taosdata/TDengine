@@ -89,7 +89,7 @@ TDengine TSDB 提供了丰富的应用程序开发接口，为了便于用户快
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.7.2</version>
+  <version>3.7.3</version>
 </dependency>
 ```
 

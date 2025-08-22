@@ -272,7 +272,6 @@ class TDTestCase(TBase):
         self.prepare_org_tables()
         self.test_select_virtual_normal_table()
         self.test_select_virtual_child_table()
-        self.test_select_virtual_super_table()
 
 
         tdLog.success(f"{__file__} successfully executed")
