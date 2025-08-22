@@ -1701,6 +1701,7 @@ static int32_t tRowRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlo
   for (int32_t i = 0; i < taosArrayGetSize(aColVal); i++) {
     uint64_t seq = 0;
     SColVal *pVal = taosArrayGet(aColVal, i);
+
     code = tBlobSetTransferTo(pBlob, pTempBlob, pVal);
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
