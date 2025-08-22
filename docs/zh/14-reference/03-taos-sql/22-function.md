@@ -5,9 +5,9 @@ description: TDengine TSDB 支持的函数列表
 toc_max_heading_level: 4
 ---
 
-## 单行函数
+## 标量函数
 
-单行函数为查询结果中的每一行返回一个结果行。
+标量函数为查询结果中的每一行返回一个结果行。
 
 ### 数学函数
 
@@ -636,6 +636,8 @@ taos> select truncate(8888.88, -1);
     8880.000000000000000 |
 ```
 
+### 位运算函数
+
 #### CRC32
 
 ```sql
@@ -1239,6 +1241,8 @@ UPPER(expr)
 
 **适用于**：表和超级表。
 
+### 编码函数
+
 #### TO_BASE64
 
 ```sql
@@ -1280,7 +1284,7 @@ taos> select to_base64("你好 世界");
  5L2g5aW9IOS4lueVjA==        |
 ```
 
-### 转换函数
+### 类型转换函数
 
 转换函数将值从一种数据类型转换为另一种数据类型。
 
@@ -1327,7 +1331,7 @@ TO_CHAR(ts, format_str_literal)
 
 **适用于**：表和超级表。
 
-**支持的格式**
+**支持的格式**：
 
 | **格式**            | **说明**                                  | **例子**                  |
 | ------------------- | ----------------------------------------- | ------------------------- |
@@ -1777,37 +1781,226 @@ taos> select weekofyear('2000-01-01');
                        52 |
 ```
 
-## 聚合函数
+## 选择函数
 
-聚合函数为查询结果集的每一个分组返回单个结果行。可以由 GROUP BY 或窗口切分子句指定分组，如果没有，则整个查询结果集视为一个分组。
+### ​基础选择
 
-TDengine TSDB 支持针对数据的聚合查询。提供如下聚合函数。
+选择函数根据语义在查询结果集中选择一行或多行结果返回。用户可以同时指定输出 ts 列或其他列（包括 tbname 和标签列），这样就可以方便地知道被选出的值是源于哪个数据行的。
 
-### APERCENTILE
+#### BOTTOM
 
 ```sql
-APERCENTILE(expr, p [, algo_type])
-
-algo_type: {
-    "default"
-  | "t-digest"
-}
+BOTTOM(expr, k)
 ```
 
-**功能说明**：统计表/超级表中指定列的值的近似百分比分位数，与 PERCENTILE 函数相似，但是返回近似结果。
+**功能说明**：统计表/超级表中某列的值最小 **k** 个非 NULL 值。如果多条数据取值一样，全部取用又会超出 k 条限制时，系统会从相同值中随机选取符合要求的数量返回。
 
-**返回数据类型**：DOUBLE。
+**返回数据类型**：同应用的字段。
 
 **适用数据类型**：数值类型。
 
 **适用于**：表和超级表。
 
-**说明**：
-- p 值范围是 [0,100]，当为 0 时等同 于 MIN，为 100 时等同于 MAX。
-- algo_type 取值为 "default" 或 "t-digest"。输入为 "default" 时函数使用基于直方图算法进行计算。输入为 "t-digest" 时使用 t-digest 算法计算分位数的近似结果。如果不指定 algo_type 则使用 "default" 算法。
-- t-digest 算法的近似结果对于输入数据顺序敏感，对超级表查询时不同的输入排序结果可能会有微小的误差。
+**使用说明**：
 
-### AVG
+- *k* 值取值范围 1≤*k*≤100。
+- 系统同时返回该记录关联的时间戳列。
+- 限制：BOTTOM 函数不支持 FILL 子句。
+
+#### FIRST
+
+```sql
+FIRST(expr)
+```
+
+**功能说明**：统计表/超级表中某列的值最先写入的非 NULL 值。
+
+**返回数据类型**：同应用的字段。
+
+**适用数据类型**：所有字段。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- 如果要返回各个列的首个（时间戳最小）非 NULL 值，可以使用 FIRST(\*) 查询超级表，且 multiResultFunctionStarReturnTags 设置为 0 (默认值) 时，FIRST(\*) 只返回超级表的普通列；设置为 1 时，返回超级表的普通列和标签列。
+- 如果结果集中的某列全部为 NULL 值，则该列的返回结果也是 NULL；
+- 如果结果集中所有列全部为 NULL 值，则不返回结果。
+- 对于存在复合主键的表的查询，若最小时间戳的数据有多条，则只有对应的复合主键最小的数据被返回。
+
+#### LAST
+
+```sql
+LAST(expr)
+```
+
+**功能说明**：统计表/超级表中某列的值最后写入的非 NULL 值。
+
+**返回数据类型**：同应用的字段。
+
+**适用数据类型**：所有字段。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- 如果要返回各个列的最后（时间戳最大）一个非 NULL 值，可以使用 LAST(\*) 查询超级表，且 multiResultFunctionStarReturnTags 设置为 0 (默认值) 时，LAST(\*) 只返回超级表的普通列；设置为 1 时，返回超级表的普通列和标签列。
+- 如果结果集中的某列全部为 NULL 值，则该列的返回结果也是 NULL；如果结果集中所有列全部为 NULL 值，则不返回结果。
+- 在用于超级表时，时间戳完全一样且同为最大的数据行可能有多个，那么会从中随机返回一条，而并不保证多次运行所挑选的数据行必然一致。
+- 对于存在复合主键的表的查询，若最大时间戳的数据有多条，则只有对应的复合主键最大的数据被返回。
+
+#### LAST_ROW
+
+```sql
+LAST_ROW(expr)
+```
+
+**功能说明**：返回表/超级表的最后一条记录。
+
+**返回数据类型**：同应用的字段。
+
+**适用数据类型**：所有字段。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- 如果要返回各个列的最后一条记录（时间戳最大），可以使用 LAST_ROW(\*) 查询超级表，且 multiResultFunctionStarReturnTags 设置为 0 (默认值) 时，LAST_ROW(\*) 只返回超级表的普通列；设置为 1 时，返回超级表的普通列和标签列。
+- 在用于超级表时，时间戳完全一样且同为最大的数据行可能有多个，那么会从中随机返回一条，而并不保证多次运行所挑选的数据行必然一致。
+- 不能与 INTERVAL 一起使用。
+- 与 LAST 函数一样，对于存在复合主键的表的查询，若最大时间戳的数据有多条，则只有对应的复合主键最大的数据被返回。
+
+#### MAX
+
+```sql
+MAX(expr)
+```
+
+**功能说明**：统计表/超级表中某列的值最大值。
+
+**返回数据类型**：同应用的字段。
+
+**适用数据类型**：数值类型、VARCHAR、NCHAR。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- max 函数可以接受字符串作为输入参数，当输入参数为字符串类型时，返回最大的字符串值，从 v3.3.3.0 开始支持，之前的版本不支持字符串参数。
+
+#### MIN
+
+```sql
+MIN(expr)
+```
+
+**功能说明**：统计表/超级表中某列的值最小值。
+
+**返回数据类型**：同应用的字段。
+
+**适用数据类型**：数值类型、VARCHAR、NCHAR。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- min 函数可以接受字符串作为输入参数，当输入参数为字符串类型时，返回最大的字符串值，从 v3.3.3.0 开始支持，之前的版本不支持字符串参数。
+
+#### TAIL
+
+```sql
+TAIL(expr, k [, offset_rows])
+```
+
+**功能说明**：返回跳过最后 offset_val 个，然后取连续 k 个记录，不忽略 NULL 值。offset_val 可以不输入。此时返回最后的 k 个记录。当有 offset_val 输入的情况下，该函数功能等效于 `order by ts desc LIMIT k OFFSET offset_val`。
+
+**参数范围**：k: [1,100] offset_val: [0,100]。
+
+**返回数据类型**：同应用的字段。
+
+**适用数据类型**：适合于除时间主键列外的任何类型。
+
+**适用于**：表、超级表。
+
+#### TOP
+
+```sql
+TOP(expr, k)
+```
+
+**功能说明**：统计表/超级表中某列的值最大 **k** 个非 NULL 值。如果多条数据取值一样，全部取用又会超出 k 条限制时，系统会从相同值中随机选取符合要求的数量返回。
+
+**返回数据类型**：同应用的字段。
+
+**适用数据类型**：数值类型。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- *k* 值取值范围 1≤*k*≤100。
+- 系统同时返回该记录关联的时间戳列。
+- 限制：TOP 函数不支持 FILL 子句。
+
+### 特殊选择
+
+#### COLS
+
+```sql
+COLS(func(expr), output_expr1, [, output_expr2] ... )
+```
+
+**功能说明**：在选择函数 func(expr) 执行结果所在数据行上，执行表达式 output_expr1, [, output_expr2]，返回其结果，func(expr) 结果不输出。
+
+**返回数据类型**：返回多列数据，每列数据类型为对应表达式返回结果的类型。
+
+**适用数据类型**：全部类型字段。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- func 函数类型：必须是单行选择函数（输出结果为一行的选择函数，例如 last 是单行选择函数，但 top 是多行选择函数）。
+- 主要用于一个 sql 中获取多个选择函数结果关联列的场景，例如 `select cols(max(c0), ts), cols(max(c1), ts) from ...` 可用于获取 c0、c1 列最大值的不同 ts 值。
+- 注意，函数 func 的结果并没有返回，如需输出 func 结果，可额外增加输出列，如 `select fist(ts), cols(first(ts), c1) from ...`
+- 输出只有一列时，可以对 cols 函数设置别名。例如 `select cols(first(ts), c1) as c11 from ...`
+- 输出一列或者多列时，可以对 cols 函数的每个输出列设置命名。例如 `select cols(first(ts), c1 as c11, c2 as c22)`
+
+#### MODE
+
+```sql
+MODE(expr)
+```
+
+**功能说明**：返回出现频率最高的值，若存在多个频率相同的最高值，则随机输出其中某个值。
+
+**返回数据类型**：与输入数据类型一致。
+
+**适用数据类型**：全部类型字段。
+
+**适用于**：表和超级表。
+
+#### UNIQUE
+
+```sql
+UNIQUE(expr)
+```
+
+**功能说明**：返回该列数据去重后的值。该函数功能与 distinct 相似。对于相同的数据，返回时间戳最小的一条，对于存在复合主键的表的查询，若最小时间戳的数据有多条，则只有对应的复合主键最小的数据被返回。
+
+**返回数据类型**：同应用的字段。
+
+**适用数据类型**：全部类型字段。
+
+**适用于**：表和超级表。
+
+## 聚合函数
+
+聚合函数为查询结果集的每一个分组返回单个结果行。可以由 GROUP BY 或窗口切分子句指定分组，如果没有，则整个查询结果集视为一个分组。
+
+### 基础聚合
+
+#### AVG
 
 ```sql
 AVG(expr)
@@ -1823,7 +2016,7 @@ AVG(expr)
 
 **说明**: 当输入类型为 DECIMAL 类型时，输出类型也为 DECIMAL 类型，输出的 precision 和 scale 大小符合数据类型章节中的描述规则，通过计算 SUM 类型和 UINT64 的除法得到结果类型，若 SUM 的结果导致 DECIMAL 类型溢出，则报 DECIMAL OVERFLOW 错误。
 
-### COUNT
+#### COUNT
 
 ```sql
 COUNT({* | expr})
@@ -1842,78 +2035,7 @@ COUNT({* | expr})
 - 可以使用星号 (\*) 来替代具体的字段，使用星号 (\*) 返回全部记录数量。
 - 如果统计字段是具体的列，则返回该列中非 NULL 值的记录数量。
 
-### ELAPSED
-
-```sql
-ELAPSED(ts_primary_key [, time_unit])
-```
-
-**功能说明**：`elapsed` 函数表达了统计周期内连续的时间长度，和 twa 函数配合使用可以计算统计曲线下的面积。在通过 INTERVAL 子句指定窗口的情况下，统计在给定时间范围内的每个窗口内有数据覆盖的时间范围；如果没有 INTERVAL 子句，则返回整个给定时间范围内的有数据覆盖的时间范围。注意，ELAPSED 返回的并不是时间范围的绝对值，而是绝对值除以 time_unit 所得到的单位个数。
-
-**返回结果类型**：DOUBLE。
-
-**适用数据类型**：TIMESTAMP。
-
-**适用于**：表、超级表、嵌套查询的外层查询。
-
-**说明**：
-- `ts_primary_key` 参数只能是表的第一列，即 TIMESTAMP 类型的主键列。
-- 返回值的时间单位由 `time_unit` 参数指定，最小是数据库的时间分辨率。`time_unit` 参数未指定时，以数据库的时间分辨率为时间单位。支持的时间单位 `time_unit` 如下：1b(纳秒)、1u(微秒)、1a(毫秒)、1s(秒)、1m(分)、1h(小时)、1d(天)、1w(周)。
-- 可以和 interval 组合使用，返回每个时间窗口的时间戳差值。需要特别注意的是，除第一个时间窗口和最后一个时间窗口外，中间窗口的时间戳差值均为窗口长度。
-- order by asc/desc 不影响差值的计算结果。
-- 对于超级表，需要和 group by tbname 子句组合使用，不可以直接使用。
-- 对于普通表，不支持和 group by 子句组合使用。
-- 对于嵌套查询，仅当内层查询会输出隐式时间戳列时有效。例如 `select elapsed(ts) from (select diff(value) from sub1)` 语句，diff 函数会让内层查询输出隐式时间戳列，此为主键列，可以用于 elapsed 函数的第一个参数。相反，例如 `select elapsed(ts) from (select * from sub1)` 语句，ts 列输出到外层时已经没有了主键列的含义，无法使用 elapsed 函数。此外，elapsed 函数作为一个与时间线强依赖的函数，形如 `select elapsed(ts) from (select diff(value) from st group by tbname)` 尽管会返回一条计算结果，但并无实际意义，这种用法后续也将被限制。
-- 不支持与 leastsquares、diff、derivative、top、bottom、last_row、interp 等函数混合使用。
-
-### HISTOGRAM
-
-```sql
-HISTOGRAM(expr，bin_type, bin_description, normalized)
-```
-
-**功能说明**：统计数据按照用户指定区间的分布。
-
-**返回结果类型**：如归一化参数 normalized 设置为 1，返回结果为 DOUBLE 类型，否则为 BIGINT 类型。
-
-**适用数据类型**：数值型字段。
-
-**适用于**：表和超级表。
-
-**详细说明**：
-
-- bin_type 用户指定的分桶类型，有效输入类型为 "user_input"、"linear_bin"、"log_bin"。
-- bin_description 描述如何生成分桶区间，针对三种桶类型，分别为以下描述格式 (均为 JSON 格式字符串)：
-  - "user_input": "[1, 3, 5, 7]"
-       用户指定 bin 的具体数值。
-
-  - "linear_bin": "\{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
-       "start" 表示数据起始点，"width" 表示每次 bin 偏移量，"count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点和终点，
-       生成区间为[-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf]。
-
-  - "log_bin": "\{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
-       "start" 表示数据起始点，"factor" 表示按指数递增的因子，"count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点和终点，
-       生成区间为[-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf]。
-- normalized 是否将返回结果归一化到 0~1 之间。有效输入为 0 和 1。
-
-### HYPERLOGLOG
-
-```sql
-HYPERLOGLOG(expr)
-```
-
-**功能说明**：
-
-- 采用 hyperloglog 算法，返回某列的基数。该算法在数据量很大的情况下，可以明显降低内存的占用，求出来的基数是个估算值，标准误差（标准误差是多次实验，每次的平均数的标准差，不是与真实结果的误差）为 0.81%。
-- 在数据量较少的时候该算法不是很准确，可以使用 `select count(data) from (select unique(col) as data from table)` 的方法。
-
-**返回结果类型**：INTEGER。
-
-**适用数据类型**：任何类型。
-
-**适用于**：表和超级表。
-
-### LEASTSQUARES
+#### LEASTSQUARES
 
 ```sql
 LEASTSQUARES(expr, start_val, step_val)
@@ -1927,44 +2049,26 @@ LEASTSQUARES(expr, start_val, step_val)
 
 **适用于**：表。
 
-### PERCENTILE
+#### SUM
 
 ```sql
-PERCENTILE(expr, p [, p1] ... )
+SUM(expr)
 ```
 
-**功能说明**：统计表中某列的值百分比分位数。
+**功能说明**：统计表/超级表中某列的和。
 
-**返回数据类型**：该函数最小参数个数为 2 个，最大参数个数为 11 个。可以最多同时返回 10 个百分比分位数。当参数个数为 2 时，返回一个分位数，类型为 DOUBLE，当参数个数大于 2 时，返回类型为 VARCHAR，格式为包含多个返回值的 JSON 数组。
+**返回数据类型**：DOUBLE、BIGINT、DECIMAL。
 
-**应用字段**：数值类型。
-
-**适用于**：表。
-
-**使用说明**：
-
-- *P* 值取值范围 0≤*P*≤100，为 0 的时候等同于 MIN，为 100 的时候等同于 MAX;
-- 同时计算针对同一列的多个分位数时，建议使用一个 PERCENTILE 函数和多个参数的方式，能很大程度上降低查询的响应时间。
-  比如，使用查询 `SELECT percentile(col, 90, 95, 99) FROM table`，性能会优于 `SELECT percentile(col, 90), percentile(col, 95), percentile(col, 99) from table`。
-
-### SPREAD
-
-```sql
-SPREAD(expr)
-```
-
-**功能说明**：统计表中某列的最大值和最小值之差。
-
-**返回数据类型**：DOUBLE。
-
-**适用数据类型**：INTEGER、TIMESTAMP。
+**适用数据类型**：数值类型。
 
 **适用于**：表和超级表。
 
-### STDDEV/STDDEV_POP
+**说明**: 输入类型为 DECIMAL 类型时，输出类型为 DECIMAL(38, scale) ，precision 为当前支持的最大值，scale 为输入类型的 scale，若 SUM 的结果溢出时，报 DECIMAL OVERFLOW 错误。
+
+#### STDDEV
 
 ```sql
-STDDEV/STDDEV_POP(expr)
+STDDEV
 ```
 
 **功能说明**：统计表中某列的总体标准差。
@@ -1976,6 +2080,7 @@ STDDEV/STDDEV_POP(expr)
 **适用于**：表和超级表。
 
 **说明**：
+
 - `STDDEV_POP` 函数等价于 `STDDEV` 函数，从 v3.3.3.0 开始支持。
 
 **举例**：
@@ -1996,23 +2101,11 @@ taos> select stddev_pop(id) from test_stddev;
          1.414213562373095 |
 ```
 
-### SUM
+#### STDDEV_POP
 
-```sql
-SUM(expr)
-```
+与 [STDDEV](#stddev)  函数的行为相同
 
-**功能说明**：统计表/超级表中某列的和。
-
-**返回数据类型**：DOUBLE、BIGINT、DECIMAL。
-
-**适用数据类型**：数值类型。
-
-**适用于**：表和超级表。
-
-**说明**: 输入类型为 DECIMAL 类型时，输出类型为 DECIMAL(38, scale) ，precision 为当前支持的最大值，scale 为输入类型的 scale，若 SUM 的结果溢出时，报 DECIMAL OVERFLOW 错误。
-
-### VAR_POP
+#### VAR_POP
 
 ```sql
 VAR_POP(expr)
@@ -2046,236 +2139,148 @@ taos> select var_pop(id) from test_var;
          2.000000000000000 |
 ```
 
-## 选择函数
-
-选择函数根据语义在查询结果集中选择一行或多行结果返回。用户可以同时指定输出 ts 列或其他列（包括 tbname 和标签列），这样就可以方便地知道被选出的值是源于哪个数据行的。
-
-### BOTTOM
+#### SPREAD
 
 ```sql
-BOTTOM(expr, k)
+SPREAD(expr)
 ```
 
-**功能说明**：统计表/超级表中某列的值最小 _k_ 个非 NULL 值。如果多条数据取值一样，全部取用又会超出 k 条限制时，系统会从相同值中随机选取符合要求的数量返回。
+**功能说明**：统计表中某列的最大值和最小值之差。
 
-**返回数据类型**：同应用的字段。
+**返回数据类型**：DOUBLE。
+
+**适用数据类型**：INTEGER、TIMESTAMP。
+
+**适用于**：表和超级表。
+
+### 分位数与近似统计
+
+#### APERCENTILE
+
+```sql
+APERCENTILE(expr, p [, algo_type])
+
+algo_type: {
+    "default"
+  | "t-digest"
+}
+```
+
+**功能说明**：统计表/超级表中指定列的值的近似百分比分位数，与 PERCENTILE 函数相似，但是返回近似结果。
+
+**返回数据类型**：DOUBLE。
 
 **适用数据类型**：数值类型。
 
 **适用于**：表和超级表。
 
-**使用说明**：
+**说明**：
 
-- *k* 值取值范围 1≤*k*≤100。
-- 系统同时返回该记录关联的时间戳列。
-- 限制：BOTTOM 函数不支持 FILL 子句。
+- p 值范围是 [0,100]，当为 0 时等同 于 MIN，为 100 时等同于 MAX。
+- algo_type 取值为 "default" 或 "t-digest"。输入为 "default" 时函数使用基于直方图算法进行计算。输入为 "t-digest" 时使用 t-digest 算法计算分位数的近似结果。如果不指定 algo_type 则使用 "default" 算法。
+- t-digest 算法的近似结果对于输入数据顺序敏感，对超级表查询时不同的输入排序结果可能会有微小的误差。
 
-### FIRST
-
-```sql
-FIRST(expr)
-```
-
-**功能说明**：统计表/超级表中某列的值最先写入的非 NULL 值。
-
-**返回数据类型**：同应用的字段。
-
-**适用数据类型**：所有字段。
-
-**适用于**：表和超级表。
-
-**使用说明**：
-
-- 如果要返回各个列的首个（时间戳最小）非 NULL 值，可以使用 FIRST(\*) 查询超级表，且 multiResultFunctionStarReturnTags 设置为 0 (默认值) 时，FIRST(\*) 只返回超级表的普通列；设置为 1 时，返回超级表的普通列和标签列。
-- 如果结果集中的某列全部为 NULL 值，则该列的返回结果也是 NULL；
-- 如果结果集中所有列全部为 NULL 值，则不返回结果。
-- 对于存在复合主键的表的查询，若最小时间戳的数据有多条，则只有对应的复合主键最小的数据被返回。
-
-### LAST
+#### PERCENTILE
 
 ```sql
-LAST(expr)
+PERCENTILE(expr, p [, p1] ... )
 ```
 
-**功能说明**：统计表/超级表中某列的值最后写入的非 NULL 值。
+**功能说明**：统计表中某列的值百分比分位数。
 
-**返回数据类型**：同应用的字段。
+**返回数据类型**：该函数最小参数个数为 2 个，最大参数个数为 11 个。可以最多同时返回 10 个百分比分位数。当参数个数为 2 时，返回一个分位数，类型为 DOUBLE，当参数个数大于 2 时，返回类型为 VARCHAR，格式为包含多个返回值的 JSON 数组。
 
-**适用数据类型**：所有字段。
+**应用字段**：数值类型。
 
-**适用于**：表和超级表。
+**适用于**：表。
 
 **使用说明**：
 
-- 如果要返回各个列的最后（时间戳最大）一个非 NULL 值，可以使用 LAST(\*) 查询超级表，且 multiResultFunctionStarReturnTags 设置为 0 (默认值) 时，LAST(\*) 只返回超级表的普通列；设置为 1 时，返回超级表的普通列和标签列。
-- 如果结果集中的某列全部为 NULL 值，则该列的返回结果也是 NULL；如果结果集中所有列全部为 NULL 值，则不返回结果。
-- 在用于超级表时，时间戳完全一样且同为最大的数据行可能有多个，那么会从中随机返回一条，而并不保证多次运行所挑选的数据行必然一致。
-- 对于存在复合主键的表的查询，若最大时间戳的数据有多条，则只有对应的复合主键最大的数据被返回。
+- *P* 值取值范围 0≤*P*≤100，为 0 的时候等同于 MIN，为 100 的时候等同于 MAX;
+- 同时计算针对同一列的多个分位数时，建议使用一个 PERCENTILE 函数和多个参数的方式，能很大程度上降低查询的响应时间。
+  比如，使用查询 `SELECT percentile(col, 90, 95, 99) FROM table`，性能会优于 `SELECT percentile(col, 90), percentile(col, 95), percentile(col, 99) from table`。
 
-### LAST_ROW
+### 特殊聚合
+
+#### ELAPSED
 
 ```sql
-LAST_ROW(expr)
+ELAPSED(ts_primary_key [, time_unit])
 ```
 
-**功能说明**：返回表/超级表的最后一条记录。
+**功能说明**：`elapsed` 函数表达了统计周期内连续的时间长度，和 twa 函数配合使用可以计算统计曲线下的面积。在通过 INTERVAL 子句指定窗口的情况下，统计在给定时间范围内的每个窗口内有数据覆盖的时间范围；如果没有 INTERVAL 子句，则返回整个给定时间范围内的有数据覆盖的时间范围。注意，ELAPSED 返回的并不是时间范围的绝对值，而是绝对值除以 time_unit 所得到的单位个数。
 
-**返回数据类型**：同应用的字段。
+**返回结果类型**：DOUBLE。
 
-**适用数据类型**：所有字段。
+**适用数据类型**：TIMESTAMP。
+
+**适用于**：表、超级表、嵌套查询的外层查询。
+
+**说明**：
+
+- `ts_primary_key` 参数只能是表的第一列，即 TIMESTAMP 类型的主键列。
+- 返回值的时间单位由 `time_unit` 参数指定，最小是数据库的时间分辨率。`time_unit` 参数未指定时，以数据库的时间分辨率为时间单位。支持的时间单位 `time_unit` 如下：1b(纳秒)、1u(微秒)、1a(毫秒)、1s(秒)、1m(分)、1h(小时)、1d(天)、1w(周)。
+- 可以和 interval 组合使用，返回每个时间窗口的时间戳差值。需要特别注意的是，除第一个时间窗口和最后一个时间窗口外，中间窗口的时间戳差值均为窗口长度。
+- order by asc/desc 不影响差值的计算结果。
+- 对于超级表，需要和 group by tbname 子句组合使用，不可以直接使用。
+- 对于普通表，不支持和 group by 子句组合使用。
+- 对于嵌套查询，仅当内层查询会输出隐式时间戳列时有效。例如 `select elapsed(ts) from (select diff(value) from sub1)` 语句，diff 函数会让内层查询输出隐式时间戳列，此为主键列，可以用于 elapsed 函数的第一个参数。相反，例如 `select elapsed(ts) from (select * from sub1)` 语句，ts 列输出到外层时已经没有了主键列的含义，无法使用 elapsed 函数。此外，elapsed 函数作为一个与时间线强依赖的函数，形如 `select elapsed(ts) from (select diff(value) from st group by tbname)` 尽管会返回一条计算结果，但并无实际意义，这种用法后续也将被限制。
+- 不支持与 leastsquares、diff、derivative、top、bottom、last_row、interp 等函数混合使用。
+
+#### HISTOGRAM
+
+```sql
+HISTOGRAM(expr，bin_type, bin_description, normalized)
+```
+
+**功能说明**：统计数据按照用户指定区间的分布。
+
+**返回结果类型**：如归一化参数 normalized 设置为 1，返回结果为 DOUBLE 类型，否则为 BIGINT 类型。
+
+**适用数据类型**：数值型字段。
 
 **适用于**：表和超级表。
 
-**使用说明**：
+**详细说明**：
 
-- 如果要返回各个列的最后一条记录（时间戳最大），可以使用 LAST_ROW(\*) 查询超级表，且 multiResultFunctionStarReturnTags 设置为 0 (默认值) 时，LAST_ROW(\*) 只返回超级表的普通列；设置为 1 时，返回超级表的普通列和标签列。
-- 在用于超级表时，时间戳完全一样且同为最大的数据行可能有多个，那么会从中随机返回一条，而并不保证多次运行所挑选的数据行必然一致。
-- 不能与 INTERVAL 一起使用。
-- 与 LAST 函数一样，对于存在复合主键的表的查询，若最大时间戳的数据有多条，则只有对应的复合主键最大的数据被返回。
+- bin_type 用户指定的分桶类型，有效输入类型为 "user_input"、"linear_bin"、"log_bin"。
+- bin_description 描述如何生成分桶区间，针对三种桶类型，分别为以下描述格式 (均为 JSON 格式字符串)：
+  - "user_input": "[1, 3, 5, 7]"
+       用户指定 bin 的具体数值。
 
-### MAX
+  - "linear_bin": "\{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
+       "start" 表示数据起始点，"width" 表示每次 bin 偏移量，"count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点和终点，
+       生成区间为[-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf]。
+
+  - "log_bin": "\{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
+       "start" 表示数据起始点，"factor" 表示按指数递增的因子，"count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点和终点，
+       生成区间为[-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf]。
+- normalized 是否将返回结果归一化到 0~1 之间。有效输入为 0 和 1。
+
+#### HYPERLOGLOG
 
 ```sql
-MAX(expr)
+HYPERLOGLOG(expr)
 ```
 
-**功能说明**：统计表/超级表中某列的值最大值。
+**功能说明**：
 
-**返回数据类型**：同应用的字段。
+- 采用 hyperloglog 算法，返回某列的基数。该算法在数据量很大的情况下，可以明显降低内存的占用，求出来的基数是个估算值，标准误差（标准误差是多次实验，每次的平均数的标准差，不是与真实结果的误差）为 0.81%。
+- 在数据量较少的时候该算法不是很准确，可以使用 `select count(data) from (select unique(col) as data from table)` 的方法。
 
-**适用数据类型**：数值类型、VARCHAR、NCHAR。
+**返回结果类型**：INTEGER。
+
+**适用数据类型**：任何类型。
 
 **适用于**：表和超级表。
 
-**使用说明**：
-
-- max 函数可以接受字符串作为输入参数，当输入参数为字符串类型时，返回最大的字符串值，从 v3.3.3.0 开始支持，之前的版本不支持字符串参数。
-
-### MIN
-
-```sql
-MIN(expr)
-```
-
-**功能说明**：统计表/超级表中某列的值最小值。
-
-**返回数据类型**：同应用的字段。
-
-**适用数据类型**：数值类型、VARCHAR、NCHAR。
-
-**适用于**：表和超级表。
-
-**使用说明**：
-
-- min 函数可以接受字符串作为输入参数，当输入参数为字符串类型时，返回最大的字符串值，从 v3.3.3.0 开始支持，之前的版本不支持字符串参数。
-
-### MODE
-
-```sql
-MODE(expr)
-```
-
-**功能说明**：返回出现频率最高的值，若存在多个频率相同的最高值，则随机输出其中某个值。
-
-**返回数据类型**：与输入数据类型一致。
-
-**适用数据类型**：全部类型字段。
-
-**适用于**：表和超级表。
-
-### SAMPLE
-
-```sql
-SAMPLE(expr, k)
-```
-
-**功能说明**：获取数据的 k 个采样值。参数 k 的合法输入范围是 1≤ k ≤ 1000。
-
-**返回结果类型**：同原始数据类型。
-
-**适用数据类型**：全部类型字段。
-
-**嵌套子查询支持**：适用于内层查询和外层查询。
-
-**适用于**：表和超级表。
-
-### TAIL
-
-```sql
-TAIL(expr, k [, offset_rows])
-```
-
-**功能说明**：返回跳过最后 offset_val 个，然后取连续 k 个记录，不忽略 NULL 值。offset_val 可以不输入。此时返回最后的 k 个记录。当有 offset_val 输入的情况下，该函数功能等效于 `order by ts desc LIMIT k OFFSET offset_val`。
-
-**参数范围**：k: [1,100] offset_val: [0,100]。
-
-**返回数据类型**：同应用的字段。
-
-**适用数据类型**：适合于除时间主键列外的任何类型。
-
-**适用于**：表、超级表。
-
-### TOP
-
-```sql
-TOP(expr, k)
-```
-
-**功能说明**：统计表/超级表中某列的值最大 _k_ 个非 NULL 值。如果多条数据取值一样，全部取用又会超出 k 条限制时，系统会从相同值中随机选取符合要求的数量返回。
-
-**返回数据类型**：同应用的字段。
-
-**适用数据类型**：数值类型。
-
-**适用于**：表和超级表。
-
-**使用说明**：
-
-- *k* 值取值范围 1≤*k*≤100。
-- 系统同时返回该记录关联的时间戳列。
-- 限制：TOP 函数不支持 FILL 子句。
-
-### UNIQUE
-
-```sql
-UNIQUE(expr)
-```
-
-**功能说明**：返回该列数据去重后的值。该函数功能与 distinct 相似。对于相同的数据，返回时间戳最小的一条，对于存在复合主键的表的查询，若最小时间戳的数据有多条，则只有对应的复合主键最小的数据被返回。
-
-**返回数据类型**：同应用的字段。
-
-**适用数据类型**：全部类型字段。
-
-**适用于**：表和超级表。
-
-### COLS
-
-```sql
-COLS(func(expr), output_expr1, [, output_expr2] ... )
-```
-
-**功能说明**：在选择函数 func(expr) 执行结果所在数据行上，执行表达式 output_expr1, [, output_expr2]，返回其结果，func(expr) 结果不输出。
-
-**返回数据类型**：返回多列数据，每列数据类型为对应表达式返回结果的类型。
-
-**适用数据类型**：全部类型字段。
-
-**适用于**：表和超级表。
-
-**使用说明**：
-
-- func 函数类型：必须是单行选择函数（输出结果为一行的选择函数，例如 last 是单行选择函数，但 top 是多行选择函数）。
-- 主要用于一个 sql 中获取多个选择函数结果关联列的场景，例如 `select cols(max(c0), ts), cols(max(c1), ts) from ...` 可用于获取 c0、c1 列最大值的不同 ts 值。
-- 注意，函数 func 的结果并没有返回，如需输出 func 结果，可额外增加输出列，如 `select fist(ts), cols(first(ts), c1) from ...`
-- 输出只有一列时，可以对 cols 函数设置别名。例如 `select cols(first(ts), c1) as c11 from ...`
-- 输出一列或者多列时，可以对 cols 函数的每个输出列设置命名。例如 `select cols(first(ts), c1 as c11, c2 as c22)`
-
-## 时序数据特有函数
+## 时序函数
 
 时序数据特有函数是 TDengine TSDB 为了满足时序数据的查询场景而量身定做出来的。在通用数据库中，实现类似功能通常需要复杂的查询语法，且效率很低。TDengine TSDB 以函数的方式内置了这些功能，最大程度的减轻了用户的使用成本。
 
-### CSUM
+### 窗口计算
+
+#### CSUM
 
 ```sql
 CSUM(expr)
@@ -2296,7 +2301,7 @@ CSUM(expr)
 - 不支持 +、-、*、/ 运算，如 csum(col1) + csum(col2)。
 - 只能与聚合（Aggregation）函数一起使用。该函数可以应用在普通表和超级表上。
 
-### DERIVATIVE
+#### DERIVATIVE
 
 ```sql
 DERIVATIVE(expr, time_interval, ignore_negative)
@@ -2319,7 +2324,7 @@ ignore_negative: {
 
 - 可以与选择相关联的列一起使用。例如 `select \_rowts, DERIVATIVE(col1, 1s, 1) from tb1`。
 
-### DIFF
+#### DIFF
 
 ```sql
 DIFF(expr [, ignore_option])
@@ -2332,7 +2337,8 @@ ignore_option: {
 }
 ```
 
-**功能说明**：统计表中特定列与之前行的当前列有效值之差。ignore_option 取值为 0|1|2|3，可以不填，默认值为 0。 
+**功能说明**：统计表中特定列与之前行的当前列有效值之差。ignore_option 取值为 0-3，可以不填，默认值为 0。
+
 - `0` 表示 diff 结果不忽略负值不忽略 null 值
 - `1` 表示 diff 结果的负值作为 null 值
 - `2` 表示 diff 结果不忽略负值但忽略 null 值
@@ -2357,36 +2363,7 @@ ignore_option: {
 - 当没有复合主键时，如果不同的子表有相同时间戳的数据，会提示 "Duplicate timestamps not allowed"。
 - 当使用复合主键时，不同子表的时间戳和主键组合可能相同，使用哪一行取决于先找到哪一行，这意味着在这种情况下多次运行 diff() 的结果可能会不同。
 
-### INTERP
-
-```sql
-INTERP(expr [, ignore_null_values])
-
-ignore_null_values: {
-    0
-  | 1
-}
-```
-
-**功能说明**：返回指定时间截面指定列的记录值或插值。ignore_null_values 参数的值可以是 0 或 1，为 1 时表示忽略 NULL 值，缺省值为 0。
-
-**返回数据类型**：同字段类型。
-
-**适用数据类型**：数值类型。
-
-**适用于**：表和超级表。
-
-**使用说明**
-- INTERP 用于在指定时间断面获取指定列的记录值，使用时有专用语法 (interp_clause)，语法介绍[参考链接](../select/#interp) 。
-- 当指定时间断面不存在符合条件的行数据时，INTERP 函数会根据 [FILL](../distinguished/#fill-子句) 参数的设定进行插值。
-- INTERP 作用于超级表时，会将该超级表下的所有子表数据按照主键列排序后进行插值计算，也可以搭配 PARTITION BY tbname 使用，将结果强制规约到单个时间线。
-- INTERP 在 FILL PREV/NEXT/NEAR时, 行为与窗口查询有所区别，当截面存在数据时，不会进行 FILL, 即便当前值为 NULL.
-- INTERP 可以与伪列 `_irowts` 一起使用，返回插值点所对应的时间戳 (v3.0.2.0 以后支持)。
-- INTERP 可以与伪列 `_isfilled` 一起使用，显示返回结果是否为原始记录或插值算法产生的数据 (v3.0.3.0 以后支持)。
-- 只有在使用 FILL PREV/NEXT/NEAR 模式时才可以使用伪列 `_irowts_origin`, 用于返回 `interp` 函数所使用的原始数据的时间戳列。若范围内无值，则返回 NULL。`_irowts_origin` 在 v3.3.4.9 以后支持。
-- 对于带复合主键的表的查询，若存在相同时间戳的数据，则只有对应的复合主键最小的数据参与运算。
-
-### IRATE
+#### IRATE
 
 ```sql
 IRATE(expr)
@@ -2400,7 +2377,7 @@ IRATE(expr)
 
 **适用于**：表和超级表。
 
-### MAVG
+#### MAVG
 
 ```sql
 MAVG(expr, k)
@@ -2421,7 +2398,7 @@ MAVG(expr, k)
 - 不支持 +、-、*、/ 运算，如 mavg(col1, k1) + mavg(col2, k1);
 - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用；
 
-### STATECOUNT
+#### STATECOUNT
 
 ```sql
 STATECOUNT(expr, oper, val)
@@ -2446,7 +2423,7 @@ STATECOUNT(expr, oper, val)
 
 - 不能和窗口操作一起使用，例如 `interval/state_window/session_window`。
 
-### STATEDURATION
+#### STATEDURATION
 
 ```sql
 STATEDURATION(expr, oper, val, unit)
@@ -2472,7 +2449,9 @@ STATEDURATION(expr, oper, val, unit)
 
 - 不能和窗口操作一起使用，例如 interval、state_window、session_window。
 
-### TWA
+### 时间加权统计
+
+#### TWA
 
 ```sql
 TWA(expr)
@@ -2486,9 +2465,59 @@ TWA(expr)
 
 **适用于**：表和超级表。
 
-## 系统信息函数
+### 插值与采样
 
-### CLIENT_VERSION
+#### INTERP
+
+```sql
+INTERP(expr [, ignore_null_values])
+
+ignore_null_values: {
+    0
+  | 1
+}
+```
+
+**功能说明**：返回指定时间截面指定列的记录值或插值。ignore_null_values 参数的值可以是 0 或 1，为 1 时表示忽略 NULL 值，缺省值为 0。
+
+**返回数据类型**：同字段类型。
+
+**适用数据类型**：数值类型。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- INTERP 用于在指定时间断面获取指定列的记录值，使用时有专用语法 (interp_clause)，语法介绍 [参考链接](../select/#interp) 。
+- 当指定时间断面不存在符合条件的行数据时，INTERP 函数会根据 [FILL](../distinguished/#fill-子句) 参数的设定进行插值。
+- INTERP 作用于超级表时，会将该超级表下的所有子表数据按照主键列排序后进行插值计算，也可以搭配 PARTITION BY tbname 使用，将结果强制规约到单个时间线。
+- INTERP 在 FILL PREV/NEXT/NEAR时, 行为与窗口查询有所区别，当截面存在数据时，不会进行 FILL, 即便当前值为 NULL.
+- INTERP 可以与伪列 `_irowts` 一起使用，返回插值点所对应的时间戳 (v3.0.2.0 以后支持)。
+- INTERP 可以与伪列 `_isfilled` 一起使用，显示返回结果是否为原始记录或插值算法产生的数据 (v3.0.3.0 以后支持)。
+- 只有在使用 FILL PREV/NEXT/NEAR 模式时才可以使用伪列 `_irowts_origin`, 用于返回 `interp` 函数所使用的原始数据的时间戳列。若范围内无值，则返回 NULL。`_irowts_origin` 在 v3.3.4.9 以后支持。
+- 对于带复合主键的表的查询，若存在相同时间戳的数据，则只有对应的复合主键最小的数据参与运算。
+
+#### SAMPLE
+
+```sql
+SAMPLE(expr, k)
+```
+
+**功能说明**：获取数据的 k 个采样值。参数 k 的合法输入范围是 1≤ k ≤ 1000。
+
+**返回结果类型**：同原始数据类型。
+
+**适用数据类型**：全部类型字段。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+## 系统与元信息函数​​
+
+### 数据库环境信息
+
+#### CLIENT_VERSION
 
 ```sql
 SELECT CLIENT_VERSION();
@@ -2496,7 +2525,7 @@ SELECT CLIENT_VERSION();
 
 **说明**：返回客户端版本。
 
-### CURRENT_USER
+#### CURRENT_USER
 
 ```sql
 SELECT CURRENT_USER();
@@ -2504,7 +2533,7 @@ SELECT CURRENT_USER();
 
 **说明**：获取当前用户。
 
-### DATABASE
+#### DATABASE
 
 ```sql
 SELECT DATABASE();
@@ -2512,15 +2541,7 @@ SELECT DATABASE();
 
 **说明**：返回当前登录的数据库。如果登录的时候没有指定默认数据库，且没有使用 USE 命令切换数据库，则返回 NULL。
 
-### SERVER_STATUS
-
-```sql
-SELECT SERVER_STATUS();
-```
-
-**说明**：检测服务端是否所有 dnode 都在线，如果是则返回成功，否则返回无法建立连接的错误。如果想要查询集群的状态，推荐使用 `SHOW CLUSTER ALIVE` 与 `SELECT SERVER_STATUS()` 不同，当集群中的部分节点不可用时，它不会返回错误，而是返回不同的状态码，详见：[SHOW CLUSTER ALIVE](https://docs.taosdata.com/reference/taos-sql/show/#show-cluster-alive)
-
-### SERVER_VERSION
+#### SERVER_VERSION
 
 ```sql
 SELECT SERVER_VERSION();
@@ -2528,9 +2549,19 @@ SELECT SERVER_VERSION();
 
 **说明**：返回服务端版本。
 
-## Geometry 函数
+### 系统状态
 
-### Geometry 输入函数
+#### SERVER_STATUS
+
+```sql
+SELECT SERVER_STATUS();
+```
+
+**说明**：检测服务端是否所有 dnode 都在线，如果是则返回成功，否则返回无法建立连接的错误。如果想要查询集群的状态，推荐使用 `SHOW CLUSTER ALIVE` 与 `SELECT SERVER_STATUS()` 不同，当集群中的部分节点不可用时，它不会返回错误，而是返回不同的状态码，详见：[SHOW CLUSTER ALIVE](https://docs.taosdata.com/reference/taos-sql/show/#show-cluster-alive)
+
+## 地理信息函数​​
+
+### 空间对象构造
 
 #### ST_GeomFromText
 
@@ -2548,7 +2579,7 @@ ST_GeomFromText(VARCHAR WKT expr)
 
 **使用说明**：输入可以是 WKT 字符串之一，例如点（POINT）、线串（LINESTRING）、多边形（POLYGON）、多点集（MULTIPOINT）、多线串（MULTILINESTRING）、多多边形（MULTIPOLYGON）、几何集合（GEOMETRYCOLLECTION）。输出是以二进制字符串形式定义的 GEOMETRY 数据类型。
 
-### Geometry 输出函数
+### 空间数据输出
 
 #### ST_AsText
 
@@ -2566,7 +2597,7 @@ ST_AsText(GEOMETRY geom)
 
 **使用说明**：输出可以是 WKT 字符串之一，例如点（POINT）、线串（LINESTRING）、多边形（POLYGON）、多点集（MULTIPOINT）、多线串（MULTILINESTRING）、多多边形（MULTIPOLYGON）、几何集合（GEOMETRYCOLLECTION）。
 
-### Geometry 关系函数
+### 空间关系判断
 
 #### ST_Contains
 
@@ -2638,7 +2669,7 @@ ST_Equals(GEOMETRY geomA, GEOMETRY geomB)
 ST_Intersects(GEOMETRY geomA, GEOMETRY geomB)
 ```
 
-##功能说明**：比较两个几何对象，并在它们相交时返回 true。
+**功能说明**：比较两个几何对象，并在它们相交时返回 true。
 
 **返回值类型**：BOOL。
 
