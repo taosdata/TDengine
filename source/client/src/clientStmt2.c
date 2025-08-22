@@ -788,7 +788,7 @@ static int32_t stmtResetStmt(STscStmt2* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t stmtAsyncOutput(STscStmt2* pStmt, void* param) {
+static void stmtAsyncOutput(STscStmt2* pStmt, void* param) {
   SStmtQNode* pParam = (SStmtQNode*)param;
 
   if (pParam->restoreTbCols) {
@@ -796,7 +796,7 @@ static int32_t stmtAsyncOutput(STscStmt2* pStmt, void* param) {
       SArray** p = (SArray**)TARRAY_GET_ELEM(pStmt->sql.siInfo.pTableCols, i);
       *p = taosArrayInit(20, POINTER_BYTES);
       if (*p == NULL) {
-        STMT_ERR_RET(terrno);
+        pStmt->errCode = terrno;
       }
     }
     atomic_store_8((int8_t*)&pStmt->sql.siInfo.tableColsReady, true);
@@ -808,10 +808,9 @@ static int32_t stmtAsyncOutput(STscStmt2* pStmt, void* param) {
     (void)atomic_sub_fetch_64(&pStmt->sql.siInfo.tbRemainNum, 1);
     if (code != TSDB_CODE_SUCCESS) {
       STMT2_ELOG("async append stmt output failed, tbname:%s, err:%s", pParam->tblData.tbName, tstrerror(code));
-      STMT_ERR_RET(code);
+      pStmt->errCode = code;
     }
   }
-  return TSDB_CODE_SUCCESS;
 }
 
 static void* stmtBindThreadFunc(void* param) {
@@ -831,10 +830,7 @@ static void* stmtBindThreadFunc(void* param) {
       continue;
     }
 
-    int ret = stmtAsyncOutput(pStmt, asyncParam);
-    if (ret != 0) {
-      STMT2_ELOG("stmtAsyncOutput failed, reason:%s", tstrerror(ret));
-    }
+    stmtAsyncOutput(pStmt, asyncParam);
   }
 
   STMT2_ILOG_E("stmt2 bind thread stopped");
@@ -2245,6 +2241,10 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
       // wait for stmt bind thread to finish
       while (atomic_load_64(&pStmt->sql.siInfo.tbRemainNum)) {
         taosUsleep(1);
+      }
+
+      if (pStmt->errCode != TSDB_CODE_SUCCESS) {
+        return pStmt->errCode;
       }
 
       pStmt->stat.execWaitUs += taosGetTimestampUs() - startTs;
