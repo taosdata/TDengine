@@ -5973,6 +5973,9 @@ static int32_t stRealtimeGroupCloseWindow(SSTriggerRealtimeGroup *pGroup, char *
     // check TRUE FOR condition
     needCalc = needNotify = false;
   }
+  if(pTask->ignoreNoDataTrigger && pCurWindow->wrownum == 0) {
+    needCalc = needNotify = false;
+  }
 
   switch (pTask->triggerType) {
     case STREAM_TRIGGER_PERIOD: {
