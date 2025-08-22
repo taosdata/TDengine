@@ -5973,7 +5973,8 @@ static int32_t stRealtimeGroupCloseWindow(SSTriggerRealtimeGroup *pGroup, char *
     // check TRUE FOR condition
     needCalc = needNotify = false;
   }
-  if(pTask->ignoreNoDataTrigger && pCurWindow->wrownum == 0) {
+  // todo(kjq): should delete (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM)
+  if (pTask->ignoreNoDataTrigger && param.wrownum == 0 && (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM)) {
     needCalc = needNotify = false;
   }
 
@@ -6034,7 +6035,6 @@ static int32_t stRealtimeGroupCloseWindow(SSTriggerRealtimeGroup *pGroup, char *
     pHead->range.ekey = TMAX(pHead->range.ekey, pCurWindow->range.ekey);
     pHead->wrownum = pCurWindow->wrownum - bias;
   }
-
   if (saveWindow) {
     // skip add window for session trigger, since it will be merged after processing all tables
     void *px = taosArrayPush(pContext->pSavedWindows, pCurWindow);
