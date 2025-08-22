@@ -10,13 +10,21 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 
-class TestVtableQueryCrossDbStb:
+from frame import etool
+from frame.etool import *
+from frame.log import *
+from frame.cases import *
+from frame.sql import *
+from frame.caseBase import *
+from frame.common import *
+import time
+
+class TDTestCase(TBase):
     updatecfgDict = {
         "supportVnodes":"1000",
     }
-    def setup_class(cls):
+    def prepare_org_tables(self):
         tdLog.info(f"prepare org tables.")
         for i in range(4):
             tdSql.execute(f"drop database if exists test_vtable_select_stb_{i};")
@@ -209,7 +217,7 @@ class TestVtableQueryCrossDbStb:
                       f"nchar_32_col from test_vtable_select_stb_2.vtb_org_child_2.nchar_32_col)"
                       f"USING `vtb_virtual_stb` TAGS (3, false, 3, 3, 'child3', 'child3')")
 
-    def run_normal_query(self, testCase):
+    def test_normal_query(self, testCase):
         # read sql from .sql file and execute
         tdLog.info(f"test case : {testCase}.")
         self.sqlFile = etool.curFile(__file__, f"in/{testCase}.in")
@@ -218,23 +226,21 @@ class TestVtableQueryCrossDbStb:
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 
     def test_select_virtual_super_table(self):
-        """test select virtual super table.
+        self.test_normal_query("test_vstable_select_test_interval")
+        self.test_normal_query("test_vstable_select_test_state")
+        self.test_normal_query("test_vstable_select_test_session")
+        self.test_normal_query("test_vstable_select_test_event")
+        self.test_normal_query("test_vstable_select_test_count")
 
-        1 test vstable select super table cross db projection
-        2 test vstable select super table cross db projection filter
+    def run(self):
+        tdLog.debug(f"start to excute {__file__}")
 
-        Since: v3.3.6.0
+        self.prepare_org_tables()
+        self.test_select_virtual_super_table()
 
-        Labels: virtual
 
-        Jira: None
+        tdLog.success(f"{__file__} successfully executed")
 
-        History:
-            - 2025-3-15 Jing Sima Created
-            - 2025-5-6 Huo Hong Migrated to new test framework
 
-        """
-        self.run_normal_query("test_vstable_select_test_projection")
-        self.run_normal_query("test_vstable_select_test_projection_filter")
-        #self.test_normal_query("test_vstable_select_test_function")
-
+tdCases.addLinux(__file__, TDTestCase())
+tdCases.addWindows(__file__, TDTestCase())

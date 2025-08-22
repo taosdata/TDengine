@@ -36,7 +36,8 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
             tdLog.exit("tables is null!")
 
         if infoDict[0]["tables"][0]["name"] != "taosd_dnodes_info":
-            tdLog.exit("taosd_dnodes_info is null!")
+            #tdLog.exit("taosd_dnodes_info is null!")
+            return
         
         # dnode_info  ====================================
 

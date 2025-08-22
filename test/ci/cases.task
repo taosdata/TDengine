@@ -366,6 +366,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/99-Others/test_select_across_vnodes.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/99-Others/test_select_from_cache_disk.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/99-Others/test_select_mixed_block.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/99-Others/test_select_during_leader_election.py -N 3
 
 # 08-TagIndices
 ,,y,.,./ci/pytest.sh pytest cases/08-TagIndices/test_index_create_drop.py 

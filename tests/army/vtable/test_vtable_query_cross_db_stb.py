@@ -230,16 +230,6 @@ class TDTestCase(TBase):
         self.test_normal_query("test_vstable_select_test_projection_filter")
         #self.test_normal_query("test_vstable_select_test_function")
 
-        self.test_normal_query("test_vstable_select_test_interval")
-        self.test_normal_query("test_vstable_select_test_state")
-        self.test_normal_query("test_vstable_select_test_session")
-        self.test_normal_query("test_vstable_select_test_event")
-        self.test_normal_query("test_vstable_select_test_count")
-
-        self.test_normal_query("test_vstable_select_test_partition")
-        self.test_normal_query("test_vstable_select_test_group")
-        self.test_normal_query("test_vstable_select_test_orderby")
-
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
 
