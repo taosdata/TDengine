@@ -69,7 +69,7 @@ CREATE DATABASE db_name PRECISION 'ns';
 
 当 `precision` 值不大于 18 时，内部使用 8 字节存储 (DECIMAL64)，当 `precision` 范围为 `(18, 38]` 时，使用 16 字节存储 (DECIMAL)。SQL 中写入 DECIMAL 类型数据时，可直接使用数值写入，当写入值大于类型可表示的最大值时会报 DECIMAL_OVERFLOW 错误，当未大于类型表示的最大值，但小数位数超过 SCALE 时，会自动四舍五入处理。如定义类型 DECIMAL(10, 2)，写入 10.987，则实际存储值为 10.99。
 
-DECIMAL 类型仅支持普通列，暂不支持 tag 列。DECIMAL 类型只支持 SQL 写入，暂不支持 stmt 写入和 schemeless 写入。
+DECIMAL 类型仅支持普通列，暂不支持 tag 列。DECIMAL 类型支持 SQL 和 stmt2 写入，暂不支持 schemeless 写入。
 
 整数类型和 DECIMAL 类型操作时，会将整数类型转换为 DECIMAL 类型再进行计算。DECIMAL 类型与 DOUBLE/FLOAT/VARCHAR/NCHAR 等类型计算时，转换为 DOUBLE 类型进行计算。
 
