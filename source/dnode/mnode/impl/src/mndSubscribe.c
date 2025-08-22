@@ -997,9 +997,13 @@ static void clearRebOutput(SMqRebOutputObj *rebOutput) {
     return;
   }
   taosArrayDestroy(rebOutput->newConsumers);
+  rebOutput->newConsumers = NULL;
   taosArrayDestroy(rebOutput->modifyConsumers);
+  rebOutput->modifyConsumers = NULL;
   taosArrayDestroy(rebOutput->removedConsumers);
+  rebOutput->removedConsumers = NULL;
   taosArrayDestroy(rebOutput->rebVgs);
+  rebOutput->rebVgs = NULL;
   tDeleteSubscribeObj(rebOutput->pSub);
   taosMemoryFree(rebOutput->pSub);
   rebOutput->pSub = NULL;
