@@ -601,7 +601,6 @@ This document details the server error codes that may be encountered when using 
 | 0x80006206 | Virtual table not support in Topic                      | Use virtual table in topic                                                                                                                                           | do not use virtual table in topic                                             |
 | 0x80006207 | Virtual super table query not support origin table from different databases                      | Virtual super table's child table's origin table from different databases                                                                               | make sure virtual super table's child table's origin table from same database |
 
-
 ## stream
 
 | Error Code | Description    | Possible Error Scenarios or Reasons   | Recommended Actions for Users     |
