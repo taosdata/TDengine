@@ -1,26 +1,26 @@
 ---
-title: tsgen Reference
-sidebar_label: tsgen
-slug: /tdengine-reference/tools/tsgen
+title: taosgen Reference
+sidebar_label: taosgen
+slug: /tdengine-reference/tools/taosgen
 toc_max_heading_level: 4
 ---
 
-The tsgen is a performance benchmarking tool for products in the time-series data domain, supporting functions such as data generation and write performance testing. tsgen is based on "jobs" as the basic unit. A job is a set of operations defined by the user to complete a specific task. Each job contains one or more steps and can be connected with other jobs through dependencies to form a directed acyclic graph (DAG) - style execution flow, enabling flexible and efficient task scheduling.
+The taosgen is a performance benchmarking tool for products in the time-series data domain, supporting functions such as data generation and write performance testing. taosgen is based on "jobs" as the basic unit. A job is a set of operations defined by the user to complete a specific task. Each job contains one or more steps and can be connected with other jobs through dependencies to form a directed acyclic graph (DAG) - style execution flow, enabling flexible and efficient task scheduling.
 
-tsgen currently only supports the Linux system.
+taosgen currently only supports the Linux system.
 
 ## Get
 
-Download the [tsgen](https://github.com/taosdata/tsgen/releases) tool as needed.
+Download the [taosgen](https://github.com/taosdata/taosgen/releases) tool as needed.
 
-Compile and install tsgen separately, for details please refer to the [tsgen](https://github.com/taosdata/tsgen/blob/main/README-CN.md)  repository.
+Compile and install taosgen separately, for details please refer to the [taosgen](https://github.com/taosdata/taosgen/blob/main/README-CN.md)  repository.
 
 ## Running
 
-The tsgen supports specifying parameter configurations via the command line and configuration files. For identical parameter configurations, the command line takes higher priority than the configuration file.
+The taosgen supports specifying parameter configurations via the command line and configuration files. For identical parameter configurations, the command line takes higher priority than the configuration file.
 
 :::tip
-Before running tsgen, ensure that all target TDengine TSDB clusters to be written to are operating normally.
+Before running taosgen, ensure that all target TDengine TSDB clusters to be written to are operating normally.
 :::
 
 ## Command-line options

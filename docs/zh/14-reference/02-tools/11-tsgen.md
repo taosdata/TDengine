@@ -1,29 +1,29 @@
 ---
-title: tsgen 参考手册
-sidebar_label: tsgen
+title: taosgen 参考手册
+sidebar_label: taosgen
 toc_max_heading_level: 4
 ---
 
-tsgen 是时序数据领域产品的性能基准测试工具，支持数据生成、写入性能测试等功能。tsgen 以“作业”为基础单元，作业是由用户定义，用于完成特定任务的一组操作集合。每个作业包含一个或多个步骤，并可通过依赖关系与其他作业连接，形成有向无环图（DAG）式的执行流程，实现灵活高效的任务编排。
+taosgen 是时序数据领域产品的性能基准测试工具，支持数据生成、写入性能测试等功能。taosgen 以“作业”为基础单元，作业是由用户定义，用于完成特定任务的一组操作集合。每个作业包含一个或多个步骤，并可通过依赖关系与其他作业连接，形成有向无环图（DAG）式的执行流程，实现灵活高效的任务编排。
 
-tsgen 目前仅支持 Linux 系统。
+taosgen 目前仅支持 Linux 系统。
 
 ## 工具获取
 
-根据需要选择下载 [tsgen](https://github.com/taosdata/tsgen/releases) 工具。
+根据需要选择下载 [taosgen](https://github.com/taosdata/taosgen/releases) 工具。
 
 ## 运行
 
-tsgen 支持通过命令行、配置文件指定参数配置，相同的参数配置，命令行优先级要高于配置文件。
+taosgen 支持通过命令行、配置文件指定参数配置，相同的参数配置，命令行优先级要高于配置文件。
 
 :::tip
-在运行 tsgen 之前，要确保所有待写入的目标 TDengine TSDB 集群已经在正常运行。
+在运行 taosgen 之前，要确保所有待写入的目标 TDengine TSDB 集群已经在正常运行。
 :::
 
 启动示例：
 
 ```shell
-tsgen -h 127.0.0.1 -c config.yaml
+taosgen -h 127.0.0.1 -c config.yaml
 ```
 
 ## 命令行参数
