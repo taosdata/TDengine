@@ -894,7 +894,7 @@ if(NOT ${TD_WINDOWS})       # {
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND
             # COMMAND ./Configure --prefix=$ENV{HOME}/.cos-local.2 no-shared
-            COMMAND ./configure --prefix=${_ins} --with-ssl=${ext_ssl_install}
+            COMMAND CFLAGS+=-fPIC CXXFLAGS+="-fPIC" ./configure --prefix=${_ins} --with-ssl=${ext_ssl_install}
                     --enable-websockets --enable-shared=no --disable-ldap
                     --disable-ldaps --without-brotli --without-zstd
                     --without-libidn2 --without-nghttp2 --without-libpsl
@@ -1089,6 +1089,7 @@ if(${BUILD_PCRE2})          # {
     add_dependencies(build_externals ext_pcre2)     # this is for github workflow in cache-miss step.
 endif()                     # }
 
+include(GNUInstallDirs)
 if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})         # {
     if(${TD_LINUX})
         set(ext_rocksdb_static librocksdb.a)
@@ -1099,7 +1100,7 @@ if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})         # {
     endif()
     INIT_EXT(ext_rocksdb
         INC_DIR          include
-        LIB              lib/${ext_rocksdb_static}
+        LIB              ${CMAKE_INSTALL_LIBDIR}/${ext_rocksdb_static}
     )
     # URL https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz
     # URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
