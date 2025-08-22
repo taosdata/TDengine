@@ -1,6 +1,7 @@
 import time
 import socket
 import os
+import platform
 import threading
 
 from datetime import timezone, datetime
@@ -1381,20 +1382,26 @@ class TestNestedqueryinterval:
         tdSql.checkData(0, 0, 1)
         
         #test csv
-        sql1 = "select tbname,ts,q_int,q_binary from nested.stable_1 >>'%s/stable_1.csv';" %self.testcasePath
-        sql2 = "select tbname,ts,q_int,q_binary from nested.stable_null_data >>%s/stable_null_data.csv;" %self.testcasePath
-        sql3 = "select tbname,ts,q_int,q_binary from nested.stable_null_childtable >>%s/stable_null_childtable.csv;" %self.testcasePath
-        
-        os.system("taos -s '%s'" %sql1)       
-        os.system("taos -s '%s'" %sql2)
-        os.system("taos -s '%s'" %sql3)
+        csv_path_stable_1 = os.path.join(self.testcasePath, 'stable_1.csv')
+        csv_path_stable_null_data = os.path.join(self.testcasePath, 'stable_null_data.csv')
+        csv_path_stable_null_childtable = os.path.join(self.testcasePath, 'stable_null_childtable.csv')
+        sql1 = "select tbname,ts,q_int,q_binary from nested.stable_1 >> %s;" %csv_path_stable_1
+        sql2 = "select tbname,ts,q_int,q_binary from nested.stable_null_data >> %s;" %csv_path_stable_null_data
+        sql3 = "select tbname,ts,q_int,q_binary from nested.stable_null_childtable >> %s;" %csv_path_stable_null_childtable
+        os.system('taos -s "%s"' %sql1)       
+        os.system('taos -s "%s"' %sql2)
+        os.system('taos -s "%s"' %sql3)
         
         tdSql.query(f"delete from nested.stable_1;")
         tdSql.query(f"delete from nested.stable_null_data;")
         tdSql.query(f"delete from nested.stable_null_childtable;")
-        tdSql.query(f"insert into nested.stable_1(tbname,ts,q_int,q_binary) file '{self.testcasePath}/stable_1.csv'\
-                      nested.stable_null_data(tbname,ts,q_int,q_binary) file '{self.testcasePath}/stable_null_data.csv'\
-                      nested.stable_null_childtable(tbname,ts,q_int,q_binary) file '{self.testcasePath}/stable_null_childtable.csv';")
+        if platform.system() == 'Windows':
+            csv_path_stable_1 = csv_path_stable_1.replace('\\', '\\\\')
+            csv_path_stable_null_data = csv_path_stable_null_data.replace('\\', '\\\\')
+            csv_path_stable_null_childtable = csv_path_stable_null_childtable.replace('\\', '\\\\')
+        tdSql.query(f'insert into nested.stable_1(tbname,ts,q_int,q_binary) file "{csv_path_stable_1}"\
+                      nested.stable_null_data(tbname,ts,q_int,q_binary) file "{csv_path_stable_null_data}"\
+                      nested.stable_null_childtable(tbname,ts,q_int,q_binary) file "{csv_path_stable_null_childtable}";')
         
         tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname order by tbname;")
         tdSql.checkRows(7)
@@ -1427,9 +1434,9 @@ class TestNestedqueryinterval:
         tdSql.query(f"delete from nested.stable_1;")
         tdSql.query(f"delete from nested.stable_null_data;")
         tdSql.query(f"delete from nested.stable_null_childtable;")
-        tdSql.query(f"insert into nested.stable_1(tbname,ts,q_int,q_binary) file '{self.testcasePath}/stable_1.csv';")
-        tdSql.query(f"insert into nested.stable_null_data(tbname,ts,q_int,q_binary) file '{self.testcasePath}/stable_null_data.csv';")
-        tdSql.query(f"insert into nested.stable_null_childtable(tbname,ts,q_int,q_binary) file '{self.testcasePath}/stable_null_childtable.csv';")
+        tdSql.query(f"insert into nested.stable_1(tbname,ts,q_int,q_binary) file '{csv_path_stable_1}';")
+        tdSql.query(f"insert into nested.stable_null_data(tbname,ts,q_int,q_binary) file '{csv_path_stable_null_data}';")
+        tdSql.query(f"insert into nested.stable_null_childtable(tbname,ts,q_int,q_binary) file '{csv_path_stable_null_childtable}';")
         
         tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname order by tbname;")
         tdSql.checkRows(7)
