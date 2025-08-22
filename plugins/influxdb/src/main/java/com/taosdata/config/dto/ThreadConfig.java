@@ -23,7 +23,7 @@ public class ThreadConfig {
     /**
      * PushPrepareThread线程
      */
-    private long readBucketDataBatch = 1000;
+    private long readBucketDataBatch = 200000;
     private long pushPrepareInterval = 10;
 
     /**

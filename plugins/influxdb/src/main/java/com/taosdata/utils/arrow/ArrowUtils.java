@@ -26,10 +26,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.channels.Channels;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * arrow工具类
@@ -252,8 +249,7 @@ public class ArrowUtils {
         try (
                 RootAllocator rootAllocator = new RootAllocator(1_000_000_000);
                 VectorSchemaRoot vectorSchemaRoot = VectorSchemaRoot.create(this.schema, rootAllocator);
-                ByteArrayOutputStream outputStream = new ByteArrayOutputStream(); // 虽然是Java IO，但一起管理更清晰
-                // Writer 也需要关闭，以释放它可能持有的资源
+                ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
                 ArrowStreamWriter writer = new ArrowStreamWriter(vectorSchemaRoot, new DictionaryProvider.MapDictionaryProvider(), outputStream)
         ) {
             writer.start();
@@ -302,6 +298,80 @@ public class ArrowUtils {
             // 为了连续发送，此处不写结束信号
             // writer.end();
             // 2023.04.21 使用ArrowRecordBatch解决了后续数据无法传输的问题！！！
+            // 创建新的输出流
+            try (ArrowRecordBatch arrowRecordBatch = new VectorUnloader(vectorSchemaRoot).getRecordBatch()) {
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                // 可能会抛异常，导致内存 leak, 所以使用 try () {}
+                MessageSerializer.serialize(new WriteChannel(Channels.newChannel(out)), arrowRecordBatch, IpcOption.DEFAULT);
+                // 返回字节流
+                return out.toByteArray();
+            }
+        } catch (Exception e) {
+            logger.error("Failed to transform data to Arrow format", e);
+            throw e;
+        }
+    }
+
+    /**
+     * 将 data 转换为apache-arrow的字节流, 使用更密集的传输方式
+     *
+     * @param influxdbBucketDataEntityList
+     * @return
+     * @throws IOException
+     */
+    public byte[] transformDataByTime(List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList) throws IOException {
+        // 分配1G内存; 创建arrow数据结构体; 输出字节流，完整结构体的字节流
+        try (
+                RootAllocator rootAllocator = new RootAllocator(1_000_000_000);
+                VectorSchemaRoot vectorSchemaRoot = VectorSchemaRoot.create(this.schema, rootAllocator);
+                ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+                ArrowStreamWriter writer = new ArrowStreamWriter(vectorSchemaRoot, new DictionaryProvider.MapDictionaryProvider(), outputStream)
+        ) {
+            writer.start();
+            // 获取各值域
+            UInt1Vector typeVector = (UInt1Vector) vectorSchemaRoot.getVector("__type__");
+            ListVector tableVector = (ListVector) vectorSchemaRoot.getVector("__tables__");
+            StructVector attrVector = (StructVector) vectorSchemaRoot.getVector("__attrs__");
+            ListVector recordVector = (ListVector) vectorSchemaRoot.getVector("__records__");
+            // 提交type=3与attrVector&recordVector数据
+            typeVector.reset();
+            tableVector.reset();
+            attrVector.reset();
+            recordVector.reset();
+            // __type__ 类型为3表示插入
+            typeVector.setSafe(0, 3);
+            recordVector.startNewValue(0);
+            // 按时间分组
+            Map<Instant, List<InfluxdbBucketDataEntity>> entityByTime = new HashMap<>();
+            for (int i = 0; i < influxdbBucketDataEntityList.size(); i++) {
+                InfluxdbBucketDataEntity entity = influxdbBucketDataEntityList.get(i);
+                Instant time = entity.getTime();
+                if (!entityByTime.containsKey(time)) {
+                    entityByTime.put(time, new ArrayList<>());
+                }
+                entityByTime.get(time).add(entity);
+            }
+            // 遍历数据
+            Object[] keyList = entityByTime.keySet().toArray();
+            for (int i = 0; i < keyList.length; i++) {
+                Instant time = (Instant) keyList[i];
+                List<InfluxdbBucketDataEntity> entities = entityByTime.get(time);
+                StructVector recordDataVector = (StructVector) recordVector.getChildrenFromFields().get(0);
+                recordDataVector.setIndexDefined(i); // 标记i行有数据
+                setData(recordDataVector, "time", time, "timestamp", i);
+                for (int j = 0; j < entities.size(); j++) {
+                    InfluxdbBucketDataEntity entity = entities.get(j);
+                    setData(recordDataVector, "__table_name__", entity.getTable().replaceAll("\\.", "_"), "string", i);
+                    setData(recordDataVector, entity.getField(), entity.getValue(), entity.getInfluxdbMeasurementEntity().getFieldMap().get(entity.getField()), i);
+                }
+            }
+            // 设置recordVector写数据结束
+            recordVector.endValue(0, entityByTime.size());
+            // 这里固定传1
+            vectorSchemaRoot.setRowCount(1);
+            writer.writeBatch();
+            // 计数
+            StatisticCache.totalRecordBatch.incrementAndGet();
             // 创建新的输出流
             try (ArrowRecordBatch arrowRecordBatch = new VectorUnloader(vectorSchemaRoot).getRecordBatch()) {
                 ByteArrayOutputStream out = new ByteArrayOutputStream();

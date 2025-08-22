@@ -35,8 +35,8 @@ task:
 performance:
   delay: 10000
   limitConnect: 500
-  limitBatch: 500
-  limitSpeed: 100000
+  limitBatch: 5000
+  limitSpeed: -1
   retryTimes: 3
   # millisecond
   retryInterval: 200
@@ -49,7 +49,7 @@ performance:
     processMessageInterval: 1
     processMessageEmptyInterval: 10
     # PushPrepareThread线程
-    readBucketDataBatch: 10000
+    readBucketDataBatch: 200000
     pushPrepareInterval: 10
     # PushThread线程
     pushInterval: 0

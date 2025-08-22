@@ -67,7 +67,6 @@ pub async fn get_v2_precision(taos: &taos::Taos) -> Result<taos::Precision, Taos
 pub async fn get_current_precision(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
-    _req_id: u64,
     max_retries: u32,
     cancel: &CancellationToken,
 ) -> Result<taos::Precision, TaosError> {
@@ -141,7 +140,7 @@ async fn test_precision_with_taos() {
     .unwrap();
     let mut taos = Some(taos);
 
-    let t = get_current_precision(&pool, &mut taos, 0, 0, &CancellationToken::new())
+    let t = get_current_precision(&pool, &mut taos, 0, &CancellationToken::new())
         .await
         .unwrap();
     assert!(t == taos::Precision::Nanosecond);
@@ -188,13 +187,15 @@ pub async fn get_database(
     }
 }
 
+type TimestampRangeResult = Result<(Precision, Option<DateTime<Utc>>, DateTime<Utc>), TaosError>;
+
 #[tracing::instrument(skip_all)]
 pub async fn get_timestamp_range(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
     max_retries: u32,
     cancel: &CancellationToken,
-) -> Result<(Precision, DateTime<Utc>, DateTime<Utc>), TaosError> {
+) -> TimestampRangeResult {
     let min = get_minimum_timestamp(pool, taos, max_retries, cancel).await?;
     let max = chrono::Utc::now() + Duration::from_secs(365 * 24 * 3600);
     Ok((min.0, min.1, max))
@@ -206,7 +207,8 @@ pub async fn get_minimum_timestamp(
     taos: &mut Option<TaosConnection>,
     max_retries: u32,
     cancel: &CancellationToken,
-) -> Result<(Precision, DateTime<Utc>), TaosError> {
+) -> Result<(Precision, Option<DateTime<Utc>>), TaosError> {
+    let retries = max_retries;
     const SQL_KEEP: &str =
         "select `precision`, `keep` from information_schema.ins_databases where name = database()";
     if taos.is_none() {
@@ -236,7 +238,7 @@ pub async fn get_minimum_timestamp(
                     .and_then(|(precision, keep)| {
                         utils::parse_duration(&keep).ok().map(|d| (precision, d))
                     })
-                    .map(|(_precision, d)| (_precision, chrono::Utc::now() - d))
+                    .map(|(_precision, d)| (_precision, Some(chrono::Utc::now() - d)))
                     .ok_or_else(|| taos::Error::from_string("Empty precision/keep result"));
             }
             Err(err) => {
@@ -262,6 +264,11 @@ pub async fn get_minimum_timestamp(
                         );
                         reconnected = true;
                         continue;
+                    }
+                    0x2602 => {
+                        // 兼容云服务，表中没有 keep 字段
+                        let precision = get_current_precision(pool, taos, retries, cancel).await?;
+                        return Ok((precision, None));
                     }
                     _ => return Err(err.context("Can't get minimum timestamp")),
                 }
@@ -292,7 +299,7 @@ async fn test_min_timestamp_with_taos() {
         .await
         .unwrap();
     assert_eq!(precision, Precision::Millisecond);
-    assert!(t <= min);
+    assert!(t <= Some(min));
     taos.unwrap()
         .exec_many(["drop database if exists test_min_timestamp"])
         .await
