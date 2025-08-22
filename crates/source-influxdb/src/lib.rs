@@ -143,12 +143,17 @@ pub async fn influxdb_to_taos(
             coverage_report_file
         )
     };
-    let args = if enable_coverage {
-        vec!["-jar", &arg_coverage]
+    let mut args = if enable_coverage {
+        vec!["-jar".to_string(), arg_coverage]
     } else {
-        vec!["-jar"]
+        vec!["-jar".to_string()]
     };
-
+    if let Ok(v) = std::env::var("TAOSX_JAVA_OPTS") {
+        let opts = v.split(' ').collect::<Vec<_>>();
+        for opt in opts.iter().rev() {
+            args.insert(0, opt.to_string());
+        }
+    }
     let connector_path = influxdb_jar_path()?;
     let child = if jdk_version.contains("build 1.") {
         command

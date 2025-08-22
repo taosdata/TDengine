@@ -1134,7 +1134,7 @@ async fn consume_lush_record(
                                 }
                             }
                         }
-                        info!("written [{count}] records");
+                        debug!("written [{count}] records");
                     }
                 } else {
                     error!("lush message insert sqls should not be none");
@@ -1143,7 +1143,7 @@ async fn consume_lush_record(
         }
         LushMessage::Control(_) => todo!(),
     }
-    info!("consume lush record done");
+    debug!("consume lush record done");
     Ok(())
 }
 
@@ -2050,7 +2050,8 @@ async fn consume_flat_record(
                                 ),
                                 batch,
                                 archive_tx.clone(),
-                            )?;
+                            )
+                            .await?;
                             tokio::time::sleep(Duration::from_millis(sleep)).await;
                             continue;
                         }
@@ -2073,7 +2074,8 @@ async fn consume_flat_record(
                             ),
                             batch,
                             archive_tx.clone(),
-                        )?;
+                        )
+                        .await?;
                     }
                     tokio::time::sleep(Duration::from_millis(sleep)).await;
                 }
@@ -2165,12 +2167,14 @@ async fn consume_flat_record(
                         )
                         .in_current_span()
                         .await?;
-                        tracing::debug!("Minimus timestamp: {}", min.to_rfc3339());
+                        tracing::debug!("Minimus timestamp: {:?}", min.map(|v| v.to_rfc3339()));
                         let rows: usize = message.iter().map(|m| m.records.num_rows()).sum();
-                        message = message
-                            .into_iter()
-                            .flat_map(|item| item.filter_by_primary_timestamp(&min))
-                            .collect();
+                        if let Some(min) = min {
+                            message = message
+                                .into_iter()
+                                .flat_map(|item| item.filter_by_primary_timestamp(&min))
+                                .collect();
+                        }
 
                         let rows_after: usize = message.iter().map(|m| m.records.num_rows()).sum();
 
@@ -2231,7 +2235,7 @@ async fn consume_flat_record(
     Ok(())
 }
 
-fn handle_flat_abnormal<'a>(
+async fn handle_flat_abnormal<'a>(
     abnormal_stragy: ProcessOnAbnormalEnum<'a>,
     batch: &RecordBatch,
     archive_tx: Sender<ArchiveType>,
@@ -2243,7 +2247,7 @@ fn handle_flat_abnormal<'a>(
             {
                 Ok((HandlingResult::Skip, _)) => Ok(()),
                 Ok((HandlingResult::Archive, err)) => {
-                    if let Err(e) = process_archive(&err, batch, archive_tx.clone()) {
+                    if let Err(e) = process_archive(&err, batch, archive_tx.clone()).await {
                         tracing::error!("archive error: {e:#}");
                     }
                     Ok(())
@@ -2262,7 +2266,7 @@ fn handle_flat_abnormal<'a>(
         ProcessOnAbnormalEnum::DatabaseNotExist(handling_strategy) => {
             match handling_strategy.handle("Database not exist".to_string()) {
                 Ok((HandlingResult::Archive, err)) => {
-                    if let Err(e) = process_archive(&err, batch, archive_tx.clone()) {
+                    if let Err(e) = process_archive(&err, batch, archive_tx.clone()).await {
                         tracing::error!("archive error: {e:#}");
                     }
                     Ok(())
@@ -2287,7 +2291,7 @@ fn process_cache(batch: &RecordBatch, archive_tx: Sender<ArchiveType>) -> anyhow
     Ok(())
 }
 
-fn process_archive(
+async fn process_archive(
     err: &str,
     batch: &RecordBatch,
     archive_tx: Sender<ArchiveType>,
@@ -2301,6 +2305,7 @@ fn process_archive(
         err_timestamp_vec.clone(),
         archive_tx.clone(),
     )
+    .await
 }
 
 #[instrument(skip_all)]
@@ -2338,13 +2343,13 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     // debug_assert!(qid.task_id() > 0);
     // debug_assert!(qid.batch_id() > 0);
     // let mut taos = Some(taos);
+    info!("Going to write lush record");
     while let Some(record) = stream.try_next().await.context("next item error")? {
         let raw_rows = record.nrows();
         metrics.add_received_batches(1);
         metrics.add_received_messages(raw_rows as u64);
         let taos = pool.get().await?;
         let mut taos = Some(taos);
-        info!("Writing batch");
         let record = *Box::<dyn Any>::downcast::<LushMessage>(unsafe {
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
@@ -2394,7 +2399,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                 bail!("write batch error: {err:#}");
             }
         } else {
-            tracing::info!("ack");
+            tracing::debug!("ack");
             let _ = ipc_ack_writer
                 .ack(LushAck {
                     code: 0,
@@ -4207,7 +4212,8 @@ mod tests {
             ),
             &batch,
             archive_tx.clone(),
-        )?;
+        )
+        .await?;
         let rs = rx.recv();
         dbg!(&rs);
         assert!(rs.is_ok());
@@ -4226,7 +4232,8 @@ mod tests {
             ),
             &batch,
             archive_tx.clone(),
-        );
+        )
+        .await;
         assert!(rs.is_err());
         Ok(())
     }
@@ -4255,7 +4262,8 @@ mod tests {
             ),
             &batch,
             cache_tx.clone(),
-        )?;
+        )
+        .await?;
         let rs = rx.recv();
         dbg!(&rs);
         assert!(rs.is_ok());
@@ -4277,7 +4285,8 @@ mod tests {
             ),
             &batch,
             cache_tx.clone(),
-        );
+        )
+        .await;
         dbg!(&rs);
         assert!(rs.is_err());
         Ok(())

@@ -492,7 +492,10 @@ impl Args {
         }
         args.global.jobs = Some(executor_worker_threads(args.global.jobs.unwrap_or(0)));
 
-        if let Some(Commands::Serve(cli)) = &mut args.commands {
+        if let Commands::Serve(cli) = args
+            .commands
+            .get_or_insert(Commands::Serve(Default::default()))
+        {
             let mut serve = configurable_opts.serve.unwrap_or_default();
 
             if let Some(matches) = matches.subcommand_matches("serve") {
@@ -512,14 +515,6 @@ impl Args {
             }
 
             cli.merge_from(serve);
-            if let Some(ref addrs) = cli.listen {
-                check_address_format(addrs)
-                    .map_err(|e| ArgsError::AddressParseError(e.to_string()))?;
-            }
-            if let Some(ref addrs) = cli.grpc {
-                check_address_format(addrs)
-                    .map_err(|e| ArgsError::AddressParseError(e.to_string()))?;
-            }
             cli.rest_api_threads = Some(executor_worker_threads(cli.rest_api_threads.unwrap_or(0)));
             cli.grpc_threads = Some(executor_worker_threads(cli.grpc_threads.unwrap_or(0)));
             cli.scheduler_threads =

@@ -210,7 +210,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -231,7 +235,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         assert_eq!(
             output[0]
                 .fields
@@ -265,7 +273,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -285,7 +297,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         assert_eq!(
             output[0]
                 .fields
@@ -333,7 +349,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output_over_written = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output_over_written = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         assert_eq!(
             output_over_written[0]
                 .fields
@@ -374,7 +394,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
     }
@@ -392,7 +416,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -413,7 +441,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         assert_eq!(
             output[0]
                 .fields
@@ -462,7 +494,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output_over_written = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output_over_written = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         assert_eq!(
             output_over_written[0]
                 .fields
@@ -503,7 +539,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
     }
@@ -521,7 +561,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -535,7 +579,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -555,7 +603,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
     }
@@ -572,7 +624,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -586,7 +642,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -606,7 +666,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
     }
@@ -625,7 +689,11 @@ mod pipeline_tests {
         dbg!(&pipeline);
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
 
         assert_eq!(
             output[0]
@@ -654,7 +722,11 @@ mod pipeline_tests {
         dbg!(&pipeline);
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
 
         assert_eq!(
             output[0]
@@ -688,7 +760,11 @@ mod pipeline_tests {
         dbg!(&pipeline);
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
 
         assert_eq!(
             output[0]
@@ -714,7 +790,11 @@ mod pipeline_tests {
         dbg!(&pipeline);
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
 
         assert_eq!(
             output[0]
@@ -745,7 +825,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -759,7 +843,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -779,7 +867,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
     }
@@ -798,7 +890,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -821,7 +917,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
 
         assert_eq!(
@@ -869,7 +969,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
 
         assert_eq!(
             output[0]
@@ -1309,7 +1413,7 @@ impl Parser {
                                 err_vec.push(err.clone());
                                 err_timestamp_vec.push(Utc::now().timestamp_nanos_opt().unwrap());
                             }
-                            archive_records(
+                            archive_records_blocking(
                                 &transformed_batch,
                                 err_vec,
                                 err_timestamp_vec,
@@ -1461,7 +1565,7 @@ impl Parser {
                     .map(|row| transformed_batch.slice(*row, 1))
                     .collect_vec();
                 let archive_batch = concat_batches(&transformed_batch.schema(), &archive_batches)?;
-                archive_records(
+                archive_records_blocking(
                     &archive_batch,
                     err_vec,
                     err_timestamp_vec,
@@ -1839,39 +1943,69 @@ fn generate_table_name(
 /// - batch: the record batch
 /// - err_vec: the error message vector
 /// - err_timestamp_vec: the error timestamp vector
-pub fn archive_records(
+pub async fn archive_records(
     batch: &RecordBatch,
     err_vec: Vec<String>,
     err_timestamp_vec: Vec<i64>,
     archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
-    if batch.num_rows() > 0 {
-        // get fields and columns
-        let mut fields_vec = batch.schema().fields().to_vec();
-        let mut columns_vec = batch.columns().to_vec();
-
-        // add new fields and columns to record
-        let new_field_1 = Field::new("_taosx_error_", DataType::Utf8, false);
-        let new_field_2 = Field::new(
-            "_taosx_error_timestamp_",
-            DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None),
-            false,
-        );
-        let new_column_1 = Arc::new(StringArray::from(err_vec));
-        let new_column_2 = Arc::new(TimestampNanosecondArray::from(err_timestamp_vec));
-
-        fields_vec.push(Arc::new(new_field_1));
-        fields_vec.push(Arc::new(new_field_2));
-        columns_vec.push(new_column_1);
-        columns_vec.push(new_column_2);
-
-        // create a new RecordBatch with the additional column
-        let new_schema = Arc::new(Schema::new(fields_vec));
-        let new_batch = RecordBatch::try_new(new_schema, columns_vec)?;
-
-        archive_tx.send(ArchiveType::Archive(new_batch))?;
+    if let Some(batch) = build_archive_batch(batch, err_vec, err_timestamp_vec)? {
+        archive_tx.send_async(ArchiveType::Archive(batch)).await?;
     }
     Ok(())
+}
+
+/// write record batch to parquet file
+///
+/// - task_id: the id of task
+/// - location: the location of parquet file
+/// - batch: the record batch
+/// - err_vec: the error message vector
+/// - err_timestamp_vec: the error timestamp vector
+pub fn archive_records_blocking(
+    batch: &RecordBatch,
+    err_vec: Vec<String>,
+    err_timestamp_vec: Vec<i64>,
+    archive_tx: Sender<ArchiveType>,
+) -> anyhow::Result<()> {
+    if let Some(batch) = build_archive_batch(batch, err_vec, err_timestamp_vec)? {
+        archive_tx.send(ArchiveType::Archive(batch))?;
+    }
+    Ok(())
+}
+
+fn build_archive_batch(
+    batch: &RecordBatch,
+    err_vec: Vec<String>,
+    err_timestamp_vec: Vec<i64>,
+) -> anyhow::Result<Option<RecordBatch>> {
+    if batch.num_rows() == 0 {
+        return Ok(None);
+    }
+
+    // get fields and columns
+    let mut fields_vec = batch.schema().fields().to_vec();
+    let mut columns_vec = batch.columns().to_vec();
+
+    // add new fields and columns to record
+    let new_field_1 = Field::new("_taosx_error_", DataType::Utf8, false);
+    let new_field_2 = Field::new(
+        "_taosx_error_timestamp_",
+        DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None),
+        false,
+    );
+    let new_column_1 = Arc::new(StringArray::from(err_vec));
+    let new_column_2 = Arc::new(TimestampNanosecondArray::from(err_timestamp_vec));
+
+    fields_vec.push(Arc::new(new_field_1));
+    fields_vec.push(Arc::new(new_field_2));
+    columns_vec.push(new_column_1);
+    columns_vec.push(new_column_2);
+
+    // create a new RecordBatch with the additional column
+    let new_schema = Arc::new(Schema::new(fields_vec));
+    let new_batch = RecordBatch::try_new(new_schema, columns_vec)?;
+    Ok(Some(new_batch))
 }
 
 fn pivot(
