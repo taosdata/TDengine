@@ -56,28 +56,14 @@ cases/uncatalog/system-test/2-query/test_decimal3.py -Q 3
 cases/uncatalog/system-test/2-query/test_decimal3.py -Q 2
 cases/uncatalog/system-test/2-query/test_decimal3.py -Q 1
 cases/uncatalog/system-test/2-query/test_large_data.py
-cases/uncatalog/system-test/2-query/test_nestedQueryInterval.py
-cases/uncatalog/system-test/2-query/test_nestedQueryInterval.py -Q 2
-cases/uncatalog/system-test/2-query/test_nestedQueryInterval.py -Q 3
 cases/uncatalog/system-test/2-query/test_nestedQueryInterval.py -Q 4
 cases/uncatalog/system-test/0-others/test_mounts.py
 cases/uncatalog/system-test/0-others/test_taos_shell.py
 cases/uncatalog/system-test/0-others/test_taos_shell_error.py
 cases/uncatalog/system-test/0-others/test_taos_shell_net_chk.py
 cases/uncatalog/system-test/0-others/test_taosdlog.py
-cases/uncatalog/system-test/0-others/test_udf_test.py
-cases/uncatalog/system-test/0-others/test_udf_create.py
-cases/uncatalog/system-test/0-others/test_udf_restart_taosd.py
-cases/uncatalog/system-test/0-others/test_udf_cfg1.py
-cases/uncatalog/system-test/0-others/test_udf_cfg2.py
-cases/uncatalog/system-test/0-others/test_udfpy_main.py
 cases/uncatalog/system-test/0-others/test_kill_balance_leader.py -N 3
 cases/uncatalog/system-test/7-tmq/test_subscribeDb1.py
-cases/uncatalog/system-test/7-tmq/test_tmqUdf.py
-cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot0.py
-cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot1.py
-cases/uncatalog/system-test/7-tmq/test_tmq_replay.py
-cases/uncatalog/system-test/7-tmq/test_raw_block_interface_test.py
 
 
 # Stream not supported in Windows CI
@@ -164,3 +150,13 @@ cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_concat.py
 cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_continuewindowclose.py
 cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_state.py
 cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
+# udf not supported in Windows CI
+cases/uncatalog/system-test/0-others/test_udf_test.py
+cases/uncatalog/system-test/0-others/test_udf_create.py
+cases/uncatalog/system-test/0-others/test_udf_restart_taosd.py
+cases/uncatalog/system-test/0-others/test_udf_cfg1.py
+cases/uncatalog/system-test/0-others/test_udf_cfg2.py
+cases/uncatalog/system-test/0-others/test_udfpy_main.py
+cases/uncatalog/system-test/7-tmq/test_tmqUdf.py
+cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot0.py
+cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot1.py
