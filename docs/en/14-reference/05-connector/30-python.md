@@ -184,7 +184,7 @@ Feel free to [ask questions or report issues](https://github.com/taosdata/taos-c
 
 ### WebSocket Connection
 
-#### DSN
+#### URL Specification
 
 ```text
 [+<protocol>]://[<username>:<password>@][<host1>:<port1>[,...<hostN>:<portN>]][/<database>][?<key1>=<value1>[&...<keyN>=<valueN>]]
