@@ -1792,6 +1792,7 @@ DATE(expr)
 
 **Usage**:
 
+- The return value is of `yyyy-mm-dd` format.
 - If `expr` is NULL, returns NULL.
 - If `expr` is of type VARCHAR or NCHAR but does not conform to the ISO8601/RFC3339 standard, returns NULL.
 - The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, the precision is milliseconds.
@@ -1806,10 +1807,10 @@ taos> select date(946656000000);
 =================================
  2000-01-01                     |
 
-taos> select date('2000-01-01');
-       date('2000-01-01')       |
-=================================
- 2000-01-01                     |
+taos> select date('2000-01-01 12:00:00.000');
+ date('2000-01-01 12:00:00.000') |
+==================================
+ 2000-01-01                      |
 ```
 
 ## Aggregate Functions
