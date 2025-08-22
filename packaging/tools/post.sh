@@ -216,7 +216,7 @@ function install_lib() {
     ${csudo}ln -s ${lib_dir}/libtaosnative.* ${lib_link_dir}/libtaosnative.${lib_file_ext_1} 2>>${install_log_path} || return 1
     ${csudo}ln -s ${lib_link_dir}/libtaosnative.${lib_file_ext_1} ${lib_link_dir}/libtaosnative.${lib_file_ext} 2>>${install_log_path} || return 1
 
-    if ls "${lib_dir}/libtaosws.*" > /dev/null 2>&1; then 
+    if ls ${lib_dir}/libtaosws.* > /dev/null 2>&1; then 
       ${csudo}ln -sf ${lib_dir}/libtaosws.* ${lib_link_dir}/libtaosws.${lib_file_ext} ||:
     fi
 
@@ -226,7 +226,7 @@ function install_lib() {
       ${csudo}ln -s ${lib_dir}/libtaosnative.* ${lib64_link_dir}/libtaosnative.${lib_file_ext_1} 2>>${install_log_path} || return 1
       ${csudo}ln -s ${lib64_link_dir}/libtaosnative.${lib_file_ext_1} ${lib64_link_dir}/libtaosnative.${lib_file_ext}  2>>${install_log_path} || return 1
 
-      if ls "${lib_dir}/libtaosws.*" > /dev/null 2>&1; then 
+      if ls ${lib_dir}/libtaosws.* > /dev/null 2>&1; then 
         ${csudo}ln -sf ${lib_dir}/libtaosws.* ${lib64_link_dir}/libtaosws.${lib_file_ext} 2>>${install_log_path}
       fi
     fi
