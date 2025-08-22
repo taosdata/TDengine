@@ -250,7 +250,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_basic_sum.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_stat_apercentile.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_stat_percentile.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_special_elapsed.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_special_elapsed.py
 ## 03-Selection
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_bottom.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_first_last.py
