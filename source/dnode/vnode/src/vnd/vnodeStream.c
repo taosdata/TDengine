@@ -1370,7 +1370,7 @@ static int32_t prepareIndex(SWalReader* pWalReader, void* pTableList, SStreamTri
   int32_t      lino = 0;
   STREAM_CHECK_CONDITION_GOTO(walReaderSeekVer(pWalReader, *nextVer) != 0, TSDB_CODE_STREAM_NO_DATA);
   while (1) {
-    STREAM_CHECK_CONDITION_GOTO(walNextValidMsg(pWalReader, false) < 0, TSDB_CODE_STREAM_NO_DATA);
+    STREAM_CHECK_CONDITION_GOTO(walNextValidMsg(pWalReader, false) < 0, TDB_CODE_SUCCESS);
     *nextVer = pWalReader->curVersion;
     SWalCont* wCont = &pWalReader->pHead->head;
     void*   pBody = POINTER_SHIFT(wCont->body, sizeof(SSubmitReq2Msg));
@@ -1422,17 +1422,16 @@ static int32_t processWalVerDataNew(SVnode* pVnode, void* pTableList, SStreamTri
   STREAM_CHECK_NULL_GOTO(pWalReader, terrno);
 
   while(1) {
-    int64_t nextVer = lastVer;
+    *retVer = lastVer;
     resetIndexHash(sStreamInfo->indexHash);
-    STREAM_CHECK_RET_GOTO(prepareIndex(pWalReader, pTableList, sStreamInfo, &nextVer, totalRows));
-    buildIndexHash(sStreamInfo->indexHash);
+    STREAM_CHECK_RET_GOTO(prepareIndex(pWalReader, pTableList, sStreamInfo, retVer, totalRows));
+    STREAM_CHECK_CONDITION_GOTO(*totalRows == 0, TSDB_CODE_STREAM_NO_DATA);
 
+    buildIndexHash(sStreamInfo->indexHash);
     blockDataEmpty(sStreamInfo->resultBlock);
     STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(sStreamInfo->resultBlock, *totalRows));
 
-    *retVer = nextVer;
-
-    while(lastVer < nextVer) {
+    while(lastVer < *retVer) {
       STREAM_CHECK_RET_GOTO(walFetchHead(pWalReader, lastVer));
       if(pWalReader->pHead->head.msgType != TDMT_VND_SUBMIT) continue;
       STREAM_CHECK_RET_GOTO(walFetchBody(pWalReader));
@@ -1444,7 +1443,7 @@ static int32_t processWalVerDataNew(SVnode* pVnode, void* pTableList, SStreamTri
       lastVer++;
     }
     sStreamInfo->resultBlock->info.rows = *totalRows;
-    sStreamInfo->resultBlock->info.version = nextVer;
+    sStreamInfo->resultBlock->info.version = *retVer;
 
     STREAM_CHECK_RET_GOTO(qStreamFilter(sStreamInfo->resultBlock, sStreamInfo->pFilterInfo));
     if (sStreamInfo->resultBlock->info.rows > 0) {
@@ -1468,16 +1467,18 @@ static int32_t processWalVerDataNew2(SVnode* pVnode, void* pTableList, SStreamTr
   SWalReader* pWalReader = walOpenReader(pVnode->pWal, 0);
   STREAM_CHECK_NULL_GOTO(pWalReader, terrno);
   
+  if (taosArrayGetSize(versions) > 0) {
+    *retVer = *(int64_t*)taosArrayGetLast(versions);
+  }
+  
   resetIndexHash(sStreamInfo->indexHash);
   STREAM_CHECK_RET_GOTO(prepareIndex2(pWalReader, pTableList, sStreamInfo, versions, ranges, totalRows));
+  STREAM_CHECK_CONDITION_GOTO(*totalRows == 0, TSDB_CODE_STREAM_NO_DATA);
+
   buildIndexHash(sStreamInfo->indexHash);
 
   blockDataEmpty(sStreamInfo->resultBlock);
   STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(sStreamInfo->resultBlock, *totalRows));
-
-  if (taosArrayGetSize(versions) > 0) {
-    *retVer = *(int64_t*)taosArrayGetLast(versions);
-  }
 
   for(int32_t i = 0; i < taosArrayGetSize(versions); i++) {
     int64_t *ver = taosArrayGet(versions, i);
