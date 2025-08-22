@@ -1609,19 +1609,6 @@
         
       
       
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    08-TagIndices
-    
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -1633,62 +1620,6 @@
   
 
       </a>
-      
-        
-
-
-
-
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#08-TagIndices.test_index_create_drop.TestIndexCreateDrop.test_index_create_drop" class="md-nav__link">
-        增删索引 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#08-TagIndices.test_index_overflow.TestIndexOverflow.test_index_overflow" class="md-nav__link">
-        索引边界 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#08-TagIndices.test_index_perf.TestIndexPerf.test_index_perf" class="md-nav__link">
-        索引性能 
-      </a>
-      
-    </li>
-  
-
-      
-    </ul>
-  
-</nav>
       
     </li>
   
@@ -2758,47 +2689,6 @@
     
   
   
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#08-TagIndices.test_index_create_drop.TestIndexCreateDrop.test_index_create_drop" class="md-nav__link">
-        增删索引 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#08-TagIndices.test_index_overflow.TestIndexOverflow.test_index_overflow" class="md-nav__link">
-        索引边界 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#08-TagIndices.test_index_perf.TestIndexPerf.test_index_perf" class="md-nav__link">
-        索引性能 
-      </a>
-      
-    </li>
-  
-
-      
-    </ul>
-  
 </nav>
                   </div>
                 </div>
@@ -2814,105 +2704,6 @@
 
 
 <h1 id="08-tagindices">08-TagIndices<a class="headerlink" href="#08-tagindices" title="Permanent link">&para;</a></h1>
-
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-<h2 id="08-TagIndices.test_index_create_drop.TestIndexCreateDrop.test_index_create_drop" class="doc doc-heading">
-
-<a href="#08-TagIndices.test_index_create_drop.TestIndexCreateDrop.test_index_create_drop" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> 增删索引
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <strong>Description:</strong>
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. 创建超级表</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. 在某个标签上索引</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. 使用带有索引的标签查询</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. 删除已经创建的索引</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. 使用刚被删除索引的标签查询</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    <strong>Path:</strong>
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/08-TagIndices/test_index_create_drop.py" target="_blank">
-                      cases/08-TagIndices/test_index_create_drop.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-<h2 id="08-TagIndices.test_index_overflow.TestIndexOverflow.test_index_overflow" class="doc doc-heading">
-
-<a href="#08-TagIndices.test_index_overflow.TestIndexOverflow.test_index_overflow" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> 索引边界
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <strong>Description:</strong>
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. 创建超级表</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. 让某个标签的取值范围较大</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. 在该标签上创建索引</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. 使用带有索引的标签查询</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    <strong>Path:</strong>
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/08-TagIndices/test_index_overflow.py" target="_blank">
-                      cases/08-TagIndices/test_index_overflow.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-<h2 id="08-TagIndices.test_index_perf.TestIndexPerf.test_index_perf" class="doc doc-heading">
-
-<a href="#08-TagIndices.test_index_perf.TestIndexPerf.test_index_perf" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> 索引性能
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <strong>Description:</strong>
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. 创建超级表</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. 创建大量子表（本例使用 10 个，但应使用 100000 个，待预先准备数据的功能完成后调整此数目）</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. 每个子表写入一条记录</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. 创建索引</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. 使用标签过滤方式查询每个子表</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    <strong>Path:</strong>
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/08-TagIndices/test_index_perf.py" target="_blank">
-                      cases/08-TagIndices/test_index_perf.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
 
 
 
