@@ -117,9 +117,7 @@ cases/uncatalog/army/tools/benchmark/basic/test_stmt_sample_csv_json.py
 cases/uncatalog/army/tools/benchmark/basic/test_telnet_tcp.py -R
 cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_unsigned_int.py
 cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_nano_support.py
-cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_big_int.py
 cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_loose_mode.py
-cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_inspect.py
 cases/uncatalog/army/tools/taosdump/native/test_taosdump_commandline.py -B
 cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_unsigned_int.py -B
 cases/uncatalog/army/user/test_passwd.py
