@@ -1017,9 +1017,9 @@ static int32_t createTagScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
   SScanLogicNode* pScan = NULL;
   int32_t         code = TSDB_CODE_SUCCESS;
 
-  PAR_ERR_RET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN, (SNode**)&pScan));
+  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN, (SNode**)&pScan));
 
-  PAR_ERR_RET(cloneVgroups(&pScan->pVgroupList, pVirtualScan->pVgroupList));
+  PLAN_ERR_JRET(cloneVgroups(&pScan->pVgroupList, pVirtualScan->pVgroupList));
   pScan->tableId = pVirtualScan->tableId;
   pScan->stableId = pVirtualScan->stableId;
   pScan->tableType = pVirtualScan->tableType;
@@ -1035,15 +1035,18 @@ static int32_t createTagScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
   pScan->node.groupAction = GROUP_ACTION_NONE;
   pScan->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
 
-  PAR_ERR_RET(nodesCloneList(pVirtualScan->pScanPseudoCols, &pScan->pScanPseudoCols));
+  PLAN_ERR_JRET(nodesCloneList(pVirtualScan->pScanPseudoCols, &pScan->pScanPseudoCols));
 
   pScan->scanType = SCAN_TYPE_TAG;
 
-  PAR_ERR_RET(createColumnByRewriteExprs(pScan->pScanPseudoCols, &pScan->node.pTargets));
+  PLAN_ERR_JRET(createColumnByRewriteExprs(pScan->pScanPseudoCols, &pScan->node.pTargets));
 
   pScan->onlyMetaCtbIdx = false;
   pCxt->hasScan = true;
   *pLogicNode = (SLogicNode*)pScan;
+  return code;
+_return:
+  nodesDestroyNode((SNode*)pScan);
   return code;
 }
 
@@ -1987,7 +1990,8 @@ static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStm
       !pCxt->pPlanCxt->streamCalcQuery || !pCxt->pPlanCxt->withExtWindow ||
       nodeType(pSelect->pFromTable) == QUERY_NODE_TEMP_TABLE ||
       nodeType(pSelect->pFromTable) == QUERY_NODE_JOIN_TABLE ||
-      pSelect->isSubquery || NULL != pSelect->pSlimit || NULL != pSelect->pLimit) {
+      pSelect->isSubquery || NULL != pSelect->pSlimit || NULL != pSelect->pLimit ||
+      pSelect->hasUniqueFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc) {
     return TSDB_CODE_SUCCESS;
   }
   int32_t code = nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, &pSelect->pWindow);

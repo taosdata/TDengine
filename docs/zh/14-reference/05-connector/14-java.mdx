@@ -33,6 +33,7 @@ TDengine TSDB 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一
 
 | taos-jdbcdriver 版本 |                                                                        主要变化                                                                        |   TDengine TSDB 版本    |
 | ------------------| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+|        3.7.3        | 优化了 WebSocket 和 Native 查询实现。     |   -  |
 |        3.7.2        | 解决了 supportsBatchUpdates 问题，提升 Spring JdbcTemplate 参数绑定写入性能。     |   -  |
 |        3.7.1        | 1. 使用 Netty 替换 Java-WebSocket 库，提升小查询性能<br/>  2. 兼容 IPv6 网络协议<br/>  3. 支持 BLOB 二进制数据类型<br/>  4. 实现 TDengine 版本兼容性检查<br/>  5. 支持 `varcharAsString` 配置属性<br/>  6. 优化 WebSocket 查询内存使用效率<br/>  7. 修复 WebSocket 连接的时区问题<br/>     |   -  |
 |        3.6.3        | 解决了订阅数据库和超级表时的数据类型转换 bug   |   -  |
@@ -236,14 +237,13 @@ JDBC URL 中支持设置 Properties 中所有属性，具体请参考下文 **Pr
 
 **注意**：使用 JDBC 原生连接，taos-jdbcdriver 需要依赖客户端驱动（Linux 下是 libtaos.so；Windows 下是 taos.dll；macOS 下是 libtaos.dylib）。
 
-对于原生连接 url 中支持的配置参数如下：
+对于原生连接 url 中支持的常见配置参数如下（所有参数请参考 Properties 一节）：
 - user：登录 TDengine TSDB 用户名，默认值 'root'。
 - password：用户登录密码，默认值 'taosdata'。
 - cfgdir：客户端配置文件目录路径，Linux OS 上默认值 `/etc/taos`，Windows OS 上默认值 `C:/TDengine/cfg`。
 - charset：客户端使用的字符集，默认值为系统字符集。
 - locale：客户端语言环境，默认值系统当前 locale。
 - timezone：客户端使用的时区，默认值为系统当前时区。
-- batchfetch：true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：true。开启批量拉取同时获取一批数据在查询数据量较大时批量拉取可以有效的提升查询性能。
 - batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败将继续执行下面的 SQL。false：不再执行失败 SQL 后的任何语句。默认值为：false。
 
 JDBC 原生连接的使用请参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1955.html)。  
@@ -264,7 +264,7 @@ TDengine TSDB 中，只要保证 firstEp 和 secondEp 中一个节点有效，�
 2. jdbcUrl 以“jdbc:TAOS-WS://”开头；
 3. 使用 6041 作为连接端口。
 
-对于 WebSocket 连接，url 中的配置参数如下：
+对于 WebSocket 连接，url 中的常见配置参数如下（所有参数请参考 Properties 一节）：
 - user：登录 TDengine TSDB 用户名，默认值 'root'。
 - password：用户登录密码，默认值 'taosdata'。
 - batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
@@ -273,6 +273,7 @@ TDengine TSDB 中，只要保证 firstEp 和 secondEp 中一个节点有效，�
 - useSSL：连接中是否使用 SSL。
 - timezone：客户端使用的时区，连接上生效，默认值为系统时区。推荐不设置，使用系统时区性能更好。
 - varcharAsString：将 VARCHAR/BINARY 类型映射为 String，仅在使用 WebSocket 连接时生效。默认值为 false。
+- connmode：BI模式，仅在 WebSocket 连接时生效，默认 0，可设置为 1。为 1 代表开启 BI 模式，元数据信息不统计子表，主要用在 BI 工具对接场景。
 
 **注意**：部分配置项（比如：locale、charset）在 WebSocket 连接中不生效。WebSocket 连接仅支持 UTF-8 字符集。
 
@@ -288,7 +289,7 @@ TDengine TSDB 中，只要保证 firstEp 和 secondEp 中一个节点有效，�
 2. jdbcUrl 以“jdbc:TAOS-RS://”开头；
 3. 使用 6041 作为连接端口。
 
-对于 REST 连接，url 中的配置参数如下：
+对于 REST 连接，url 中的常见配置参数如下（所有参数请参考 Properties 一节）：
 - user：登录 TDengine TSDB 用户名，默认值 'root'。
 - password：用户登录密码，默认值 'taosdata'。
 - batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
@@ -337,6 +338,7 @@ properties 中的配置参数如下：
 - TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT [`reconnectRetryCount`]：自动重连重试次数，默认值 3，仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
 - TSDBDriver.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION [`disableSSLCertValidation`]：关闭 SSL 证书验证。仅在使用 WebSocket 连接时生效。true：启用，false：不启用。默认为 false。
 
+- TSDBDriver.PROPERTY_KEY_CONNECT_MODE [`conmode`]：BI模式，仅在 WebSocket 连接时生效，默认 0，可设置为 1。为 1 代表开启 BI 模式，元数据信息不统计子表，主要用在 BI 工具对接场景。
 - TSDBDriver.PROPERTY_KEY_VARCHAR_AS_STRING [`varcharAsString`]：将 VARCHAR/BINARY 类型映射为 String，仅在使用 WebSocket 连接时生效。默认值为 false。
 - TSDBDriver.PROPERTY_KEY_APP_NAME [`app_name`]：App 名称，可用于 `show connections` 查询结果显示。仅在使用 WebSocket 连接时生效。默认值为 java。
 - TSDBDriver.PROPERTY_KEY_APP_IP [`app_ip`]：App IP，可用于 `show connections` 查询结果显示。仅在使用 WebSocket 连接时生效。默认值为空。  
