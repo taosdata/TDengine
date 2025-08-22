@@ -3738,7 +3738,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       if (pRsp->contLen > 0) {
         pWalDataBlocks = taosArrayInit(0, POINTER_BYTES);
         QUERY_CHECK_NULL(pWalDataBlocks, code, lino, _end, terrno);
-        code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, pWalDataBlocks);
+        code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, pWalDataBlocks, NULL, NULL);
         QUERY_CHECK_CODE(code, lino, _end);
         if (pContext->walMode == STRIGGER_WAL_DATA_ONLY && TARRAY_SIZE(pWalDataBlocks) > 0) {
           SSDataBlock *pLastBlock = *(SSDataBlock **)taosArrayGetLast(pWalDataBlocks);

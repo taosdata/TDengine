@@ -1008,7 +1008,7 @@ int32_t tSerializeSStreamTsResponse(void* buf, int32_t bufLen, const SStreamTsRe
 int32_t tDeserializeSStreamTsResponse(void* buf, int32_t bufLen, void *pBlock);
 
 typedef struct SStreamWalDataSlice {
-  int64_t gId;
+  uint64_t gId;
   int32_t startRowIdx;  // start row index of current slice in DataBlock
   int32_t numRows;      // number of rows in current slice
 } SStreamWalDataSlice;
@@ -1018,7 +1018,7 @@ typedef struct SStreamWalDataResponse {
   SSHashObj* pSlices;  // SSHash<uid, SStreamWalDataSlice>
 } SStreamWalDataResponse;
 
-int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SList* used);
+int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, void* pBlock, SSHashObj* indexHash);
 int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, void* pDataBlock, SSHashObj* pSlices,
                                            SArray* pUids);
 

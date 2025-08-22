@@ -46,8 +46,8 @@ typedef struct SStreamTriggerReaderInfo {
   void*        tableList;
   SFilterInfo* pFilterInfo;
   SHashObj*    pTableMetaCache;
-  SList*       pBlockListUsed;
-  SList*       pBlockListFree;
+  SSHashObj*    indexHash;  // index hash for wal data
+  SSDataBlock* resultBlock;
 } SStreamTriggerReaderInfo;
 
 typedef struct SStreamTriggerReaderCalcInfo {

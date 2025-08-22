@@ -19,6 +19,7 @@
 #include "tmsg.h"
 #include "os.h"
 #include "tcommon.h"
+#include "tsimplehash.h"
 
 typedef struct STaskId {
   int64_t streamId;
@@ -4301,7 +4302,7 @@ _exit:
   return code;
 }
 
-int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SList* used) {
+int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, void* pBlock, SSHashObj* indexHash) {
   SEncoder encoder = {0};
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -4310,27 +4311,36 @@ int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SList* used)
   tEncoderInit(&encoder, buf, bufLen);
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
 
-  int32_t nBlocks = TD_DLIST_NELES(used);
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, nBlocks));
-
-  SListNode* pNode = tdListGetHead(used);
-  while (pNode) {
-    SSDataBlock* pBlock = *(SSDataBlock**)(pNode->data);
-    int32_t len = 0;
-    if (buf == NULL){
-      len = blockGetEncodeSize(pBlock);
-    } else {
-      len = blockEncode(pBlock, (char*)(encoder.data + encoder.pos), encoder.size - encoder.pos, blockDataGetNumOfCols(pBlock));
-      if (len < 0) {
-        TAOS_CHECK_EXIT(terrno);
-      }
+  int32_t len = 0;
+  if (buf == NULL){
+    len = blockGetEncodeSize(pBlock);
+  } else {
+    len = blockEncode(pBlock, (char*)(encoder.data + encoder.pos), encoder.size - encoder.pos, blockDataGetNumOfCols(pBlock));
+    if (len < 0) {
+      TAOS_CHECK_EXIT(terrno);
     }
-    encoder.pos += len;
-    TAOS_CHECK_EXIT(tEncodeI64(&encoder, pBlock->info.version));
-    TAOS_CHECK_EXIT(tEncodeU64(&encoder, pBlock->info.id.uid));
-
-    pNode = pNode->dl_next_;
   }
+  encoder.pos += len;
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, ((SSDataBlock*)pBlock)->info.version));
+  
+  int32_t tables = tSimpleHashGetSize(indexHash);
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, tables));
+
+  void*   pe = NULL;
+  int32_t iter = 0;
+  while ((pe = tSimpleHashIterate(indexHash, pe, &iter)) != NULL) {
+    SStreamWalDataSlice* pInfo = (SStreamWalDataSlice*)pe;
+    pInfo->startRowIdx = 0;
+    pInfo->numRows = 0;
+    pInfo->gId = 0;
+
+    int64_t uid = *(int64_t*)(tSimpleHashGetKey(pe, NULL));
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, uid));
+    TAOS_CHECK_EXIT(tEncodeU64(&encoder, pInfo->gId));
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pInfo->startRowIdx));
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pInfo->numRows));
+  }
+
   tEndEncode(&encoder);
 
 _exit:
@@ -4371,7 +4381,7 @@ int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, void* pDat
   int32_t numRows = 0;
   for (int32_t i = 0; i < nSlices; i++) {
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &uid));
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &gid));
+    TAOS_CHECK_EXIT(tDecodeU64(&decoder, &gid));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &startRowIdx));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &numRows));
     int64_t value[2] = {(int64_t)pDataBlock, (int64_t)startRowIdx << 32 | numRows};

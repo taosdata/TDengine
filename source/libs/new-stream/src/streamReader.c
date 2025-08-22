@@ -4,6 +4,7 @@
 #include "executor.h"
 #include "tdatablock.h"
 #include "tdef.h"
+#include "tsimplehash.h"
 
 void destroyOptions(SStreamTriggerReaderTaskInnerOptions* options) {
   if (options == NULL) return;
@@ -230,8 +231,11 @@ static void releaseStreamReaderInfo(void* p) {
   taosHashCleanup(pInfo->uidHash);
   qStreamDestroyTableList(pInfo->tableList);
   filterFreeInfo(pInfo->pFilterInfo);
-  tdListFreeP(pInfo->pBlockListUsed, destroyBlock);
-  tdListFreeP(pInfo->pBlockListFree, destroyBlock);
+  pInfo->pFilterInfo = NULL;
+  blockDataDestroy(pInfo->resultBlock);
+  pInfo->resultBlock = NULL;
+  tSimpleHashCleanup(pInfo->indexHash);
+  pInfo->indexHash = NULL;
 
   taosMemoryFree(pInfo);
 }
@@ -391,16 +395,14 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->streamTaskMap, terrno);
   taosHashSetFreeFp(sStreamReaderInfo->streamTaskMap, releaseStreamTask);
 
-  sStreamReaderInfo->pBlockListFree = tdListNew(POINTER_BYTES);
-  STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->pBlockListFree, terrno);
-  sStreamReaderInfo->pBlockListUsed = tdListNew(POINTER_BYTES);
-  STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->pBlockListUsed, terrno);
+  sStreamReaderInfo->pTableMetaCache = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+  STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->pTableMetaCache, terrno);
+  taosHashSetFreeFp(sStreamReaderInfo->pTableMetaCache, freeTagCache);
 
-  if (sStreamReaderInfo->pTableMetaCache == NULL) {
-    sStreamReaderInfo->pTableMetaCache = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
-    STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->pTableMetaCache, TSDB_CODE_INVALID_PARA);
-    taosHashSetFreeFp(sStreamReaderInfo->pTableMetaCache, freeTagCache);
-  }
+  STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->triggerResBlockNew, false, &sStreamReaderInfo->resultBlock));
+  sStreamReaderInfo->indexHash = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->indexHash, terrno);
+
 end:
   STREAM_PRINT_LOG_END(code, lino);
 
