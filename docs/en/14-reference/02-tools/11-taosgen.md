@@ -12,8 +12,12 @@ taosgen currently only supports the Linux system.
 ## Get
 
 Download the [taosgen](https://github.com/taosdata/taosgen/releases) tool as needed.
-
-Compile and install taosgen separately, for details please refer to the [taosgen](https://github.com/taosdata/taosgen/blob/main/README-CN.md)  repository.
+Download the binary release package to your local machine and extract it. For convenient access, you can create a symbolic link and place it into the system's executable directory. For example, on Linux, run the following commands:
+```shell
+tar zxvf tsgen-v0.3.0-linux-amd64.tar.gz
+cd tsgen
+ln -sf `pwd`/taosgen /usr/bin/taosgen
+```
 
 ## Running
 

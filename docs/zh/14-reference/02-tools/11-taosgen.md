@@ -11,6 +11,12 @@ taosgen 目前仅支持 Linux 系统。
 ## 工具获取
 
 根据需要选择下载 [taosgen](https://github.com/taosdata/taosgen/releases) 工具。
+下载二进制发布包到本地，解压缩，为了便捷访问，可以创建符号链接存放到系统执行目录中，如 Linux 系统下执行命令：
+```shell
+tar zxvf tsgen-v0.3.0-linux-amd64.tar.gz
+cd tsgen
+ln -sf `pwd`/taosgen /usr/bin/taosgen
+```
 
 ## 运行
 
