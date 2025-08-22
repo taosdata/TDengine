@@ -5,7 +5,7 @@ slug: /tdengine-reference/tools/tsgen
 toc_max_heading_level: 4
 ---
 
-The tsgen is a performance benchmarking tool for products in the time - series data domain, supporting functions such as data generation and write performance testing. tsgen is based on "jobs" as the basic unit. A job is a set of operations defined by the user to complete a specific task. Each job contains one or more steps and can be connected with other jobs through dependencies to form a directed acyclic graph (DAG) - style execution flow, enabling flexible and efficient task scheduling.
+The tsgen is a performance benchmarking tool for products in the time-series data domain, supporting functions such as data generation and write performance testing. tsgen is based on "jobs" as the basic unit. A job is a set of operations defined by the user to complete a specific task. Each job contains one or more steps and can be connected with other jobs through dependencies to form a directed acyclic graph (DAG) - style execution flow, enabling flexible and efficient task scheduling.
 
 tsgen currently only supports the Linux system.
 
