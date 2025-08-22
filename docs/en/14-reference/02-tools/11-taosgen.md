@@ -62,7 +62,7 @@ A step is the fundamental unit of work within a job and represents the execution
 Example configuration:
 
 ```yaml
-{{#include docs/doxgen/tsgen_config.md:configuration_instructions}}
+{{#include docs/doxgen/taosgen_config.md:configuration_instructions}}
 ```
 
 Key points:
@@ -434,13 +434,13 @@ Controls the distribution of time intervals during writing.
 ### Generator-based data generation, STMT v2 write to TDengine example
 
 ```yaml
-{{#include docs/doxgen/tsgen_config.md:stmt_v2_write_config}}
+{{#include docs/doxgen/taosgen_config.md:stmt_v2_write_config}}
 ```
 
 ### CSV-based data generation, STMT v2 write to TDengine example
 
 ```yaml
-{{#include docs/doxgen/tsgen_config.md:csv_stmt_v2_write_config}}
+{{#include docs/doxgen/taosgen_config.md:csv_stmt_v2_write_config}}
 ```
 
 csv file format:
@@ -468,5 +468,5 @@ d1,21,205,1002
 ### Generator-based data generation and write to MQTT example
 
 ```yaml
-{{#include docs/doxgen/tsgen_config.md:write_mqtt_config}}
+{{#include docs/doxgen/taosgen_config.md:write_mqtt_config}}
 ```

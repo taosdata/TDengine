@@ -65,7 +65,7 @@ taosgen -h 127.0.0.1 -c config.yaml
 示例配置如下：
 
 ```yaml
-{{#include docs/doxgen/tsgen_config.md:configuration_instructions}}
+{{#include docs/doxgen/taosgen_config.md:configuration_instructions}}
 ```
 
 要点说明：
@@ -458,13 +458,13 @@ Action 是封装好的可复用操作单元，用于完成特定功能。每个 
 ### 生成器方式生成数据 stmt v2 写入 TDengine 示例
 
 ```yaml
-{{#include docs/doxgen/tsgen_config.md:stmt_v2_write_config}}
+{{#include docs/doxgen/taosgen_config.md:stmt_v2_write_config}}
 ```
 
 ### CSV文件方式生成数据 stmt v2 写入 TDengine 实例
 
 ```yaml
-{{#include docs/doxgen/tsgen_config.md:csv_stmt_v2_write_config}}
+{{#include docs/doxgen/taosgen_config.md:csv_stmt_v2_write_config}}
 ```
 
 csv file format:
@@ -492,7 +492,7 @@ d1,21,205,1002
 ### 生成器方式生成数据并写入 MQTT 示例
 
 ```yaml
-{{#include docs/doxgen/tsgen_config.md:write_mqtt_config}}
+{{#include docs/doxgen/taosgen_config.md:write_mqtt_config}}
 ```
 
 
