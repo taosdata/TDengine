@@ -2058,7 +2058,7 @@ static bool filterHasPlaceHolderRangeStart(SOperatorNode *pOperator) {
     if (pCol->colType != COLUMN_TYPE_COLUMN || pCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
       return false;
     }
-    SConditionCheckContext cxt = {.hasNotBasicOp = true,
+    SConditionCheckContext cxt = {.hasNotBasicOp = false,
                                   .hasTwstart = false,
                                   .hasTwend = false,
                                   .hasNegativeConst = false,
@@ -2097,21 +2097,17 @@ static bool filterHasPlaceHolderRangeEnd(SOperatorNode *pOperator) {
 }
 
 static bool timeRangeSatisfyExternalWindow(STimeRangeNode* pTimeRange) {
-  if (!pTimeRange || !pTimeRange->pStart || !pTimeRange->pEnd) {
+  if (!pTimeRange || !pTimeRange->pStart || !pTimeRange->pEnd ||
+      nodeType(pTimeRange->pStart) != QUERY_NODE_OPERATOR ||
+      nodeType(pTimeRange->pEnd) != QUERY_NODE_OPERATOR) {
     return false;
   }
 
-  SLogicConditionNode *pStart = (SLogicConditionNode *)(pTimeRange->pStart);
-  SLogicConditionNode *pEnd = (SLogicConditionNode *)(pTimeRange->pEnd);
+  SOperatorNode *pStart = (SOperatorNode *)(pTimeRange->pStart);
+  SOperatorNode *pEnd = (SOperatorNode *)(pTimeRange->pEnd);
 
-  if (LIST_LENGTH(pStart->pParameterList) != 1 || LIST_LENGTH(pEnd->pParameterList) != 1) {
-    return false;
-  }
-
-  SNode *pStartCond = nodesListGetNode(pStart->pParameterList, 0);
-  SNode *pEndCond = nodesListGetNode(pEnd->pParameterList, 0);
-  if (!filterHasPlaceHolderRangeStart((SOperatorNode *)pStartCond) ||
-      !filterHasPlaceHolderRangeEnd((SOperatorNode *)pEndCond)) {
+  if (!filterHasPlaceHolderRangeStart(pStart) ||
+      !filterHasPlaceHolderRangeEnd(pEnd)) {
     return false;
   }
 
