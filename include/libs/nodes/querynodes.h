@@ -536,6 +536,11 @@ typedef struct STimeRangeNode {
   bool      needCalc;
 } STimeRangeNode;
 
+typedef struct SExtWinTimeWindow {
+  STimeWindow tw;
+  int32_t     winOutIdx;
+} SExtWinTimeWindow;
+
 typedef struct SSelectStmt {
   ENodeType       type;  // QUERY_NODE_SELECT_STMT
   bool            isDistinct;

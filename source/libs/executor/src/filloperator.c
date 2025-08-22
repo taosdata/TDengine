@@ -423,9 +423,14 @@ static int32_t doFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   if (pInfo->pTimeRange != NULL) {
     STimeWindow pWinRange = {0};
     bool        isWinRangeValid = false;
-    calcTimeRange((STimeRangeNode*)pInfo->pTimeRange, &pTaskInfo->pStreamRuntimeInfo->funcInfo, &pWinRange,
+    code = streamCalcCurrWinTimeRange((STimeRangeNode*)pInfo->pTimeRange, &pTaskInfo->pStreamRuntimeInfo->funcInfo, &pWinRange,
                   &isWinRangeValid, 3);
-
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      pTaskInfo->code = code;
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
+    
     if (isWinRangeValid) {
       pInfo->win.skey = pWinRange.skey;
       pInfo->win.ekey = pWinRange.ekey;

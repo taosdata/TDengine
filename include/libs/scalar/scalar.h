@@ -164,7 +164,8 @@ int32_t modeScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
 // stream pseudo functions
 int32_t streamPseudoScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
- void calcTimeRange(STimeRangeNode* node, void* pStRtFuncInfo, STimeWindow* pWinRange, bool* winRangeValid, int32_t type);
+int32_t streamCalcCurrWinTimeRange(STimeRangeNode* node, void* pStRtFuncInfo, STimeWindow* pWinRange, bool* winRangeValid, int32_t type);
+int32_t scalarCalculateExtWinsTimeRange(STimeRangeNode *pNode, const void *pExtraParam, SExtWinTimeWindow *pWins);
 
 #ifdef __cplusplus
 }

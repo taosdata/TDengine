@@ -451,7 +451,7 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       break;
     }
     case QUERY_NODE_COLUMN: {
-      if (ctx->streamTsRange != NULL) {
+      if (ctx->stream.streamTsRange != NULL || ctx->stream.pWins != NULL) {
         break;
       }
       if (NULL == ctx->pBlockList) {
@@ -530,6 +530,64 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
+
+
+int32_t sclSetStreamExtWinParam(int32_t funcId, SNodeList* pParamNodes, SScalarParam* res, SScalarCtx *pCtx) {
+  int32_t code = 0;
+
+  int32_t t = fmGetFuncTypeFromId(funcId);
+  const SStreamRuntimeFuncInfo* pInfo = pCtx->stream.pStreamRuntimeFuncInfo;
+
+  SNode* pFirstParam = nodesListGetNode(pParamNodes, 0);
+  if (nodeType(pFirstParam) != QUERY_NODE_VALUE) {
+    uError("invalid param node type: %d for func: %d", nodeType(pFirstParam), funcId);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  SCL_ERR_RET(sclCreateColumnInfoData(&((SValueNode*)pFirstParam)->node.resType, pInfo->pStreamPesudoFuncVals->size, res));
+
+  if (LIST_LENGTH(pParamNodes) != 1) {
+    uError("invalid placeholder paran num:%d, function type: %d in ext win range expr", LIST_LENGTH(pParamNodes), t);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+  
+  for (int32_t i = 0; i < pInfo->pStreamPesudoFuncVals->size; ++i) {
+    SSTriggerCalcParam *pParams = taosArrayGet(pInfo->pStreamPesudoFuncVals, i);
+    switch (t) {
+      case FUNCTION_TYPE_TPREV_TS:
+        ((int64_t*)res->columnData->pData)[i] = pParams->prevTs;
+        break;
+      case FUNCTION_TYPE_TCURRENT_TS:
+        ((int64_t*)res->columnData->pData)[i] = pParams->currentTs;
+        break;
+      case FUNCTION_TYPE_TNEXT_TS:
+        ((int64_t*)res->columnData->pData)[i] = pParams->nextTs;
+        break;
+      case FUNCTION_TYPE_TWSTART:
+        ((int64_t*)res->columnData->pData)[i] = pParams->wstart;
+        break;
+      case FUNCTION_TYPE_TWEND:
+        ((int64_t*)res->columnData->pData)[i] = pParams->wend;
+        break;
+      case FUNCTION_TYPE_TPREV_LOCALTIME:
+        ((int64_t*)res->columnData->pData)[i] = pParams->prevLocalTime;
+        break;
+      case FUNCTION_TYPE_TLOCALTIME:
+        ((int64_t*)res->columnData->pData)[i] = pParams->triggerTime;
+        break;
+      case FUNCTION_TYPE_TNEXT_LOCALTIME:
+        ((int64_t*)res->columnData->pData)[i] = pParams->nextLocalTime;
+        break;
+      default:
+        uError("invalid placeholder function type: %d in ext win range expr", t);
+        return TSDB_CODE_INTERNAL_ERROR;
+    }
+  }
+  
+  return code;
+}
+
+
 static int32_t sclInitStreamPseudoFuncParamList(int32_t funcId, SScalarParam **ppParams, SNodeList *pParamNodes,
                                                 SScalarCtx *pCtx, int32_t *pParamNum, int32_t *pRowNum) {
   int32_t code = 0;
@@ -540,12 +598,6 @@ static int32_t sclInitStreamPseudoFuncParamList(int32_t funcId, SScalarParam **p
     return TSDB_CODE_INTERNAL_ERROR;
   }
 
-  code = fmSetStreamPseudoFuncParamVal(funcId, pParamNodes, pCtx->pStreamRuntimeFuncInfo);
-  if (code != 0) {
-    sclError("failed to set stream pseudo func param vals: %s", tstrerror(code));
-    return code;
-  }
-
   SScalarParam* pParamsList = taosMemoryCalloc(*pParamNum, sizeof(SScalarParam));
   if (!pParamsList) {
     sclError("calloc %d failed", (int32_t)(*pParamNum * sizeof(SScalarParam)));
@@ -553,15 +605,28 @@ static int32_t sclInitStreamPseudoFuncParamList(int32_t funcId, SScalarParam **p
   }
 
   int32_t i = 0;
-  FOREACH(pNode, pParamNodes) {
-    SCL_ERR_JRET(sclInitParam(pNode, &pParamsList[i], pCtx, pRowNum));
-    ++i;
+  if (pCtx->stream.pWins) {
+    SCL_ERR_JRET(sclSetStreamExtWinParam(funcId, pParamNodes, pParamsList, pCtx));
+    memcpy(pParamsList, (1 == pCtx->stream.extWinType) ? &pCtx->stream.twstart : &pCtx->stream.twend, sizeof(*pParamsList));
+  } else if (pCtx->stream.pStreamRuntimeFuncInfo) {
+    code = fmSetStreamPseudoFuncParamVal(funcId, pParamNodes, pCtx->stream.pStreamRuntimeFuncInfo);
+    if (code != 0) {
+      sclError("failed to set stream pseudo func param vals: %s", tstrerror(code));
+      SCL_ERR_JRET(code);
+    }
+
+    FOREACH(pNode, pParamNodes) {
+      SCL_ERR_JRET(sclInitParam(pNode, &pParamsList[i], pCtx, pRowNum));
+      ++i;
+    }
   }
+
 
   *ppParams = pParamsList;
   return code;
 
 _return:
+
   sclFreeParamList(pParamsList, *pParamNum);
   return code;
 }
@@ -570,6 +635,7 @@ int32_t sclInitParamList(SScalarParam **pParams, SNodeList *pParamList, SScalarC
                          int32_t *rowNum, int32_t funcId) {
   if (fmIsPlaceHolderFunc(funcId))
     return sclInitStreamPseudoFuncParamList(funcId, pParams, pParamList, ctx, paramNum, rowNum);
+    
   int32_t code = 0;
   if (NULL == pParamList) {
     if (ctx->pBlockList) {
@@ -993,7 +1059,7 @@ _return:
   SCL_RET(code);
 }
 
-static int32_t getTs(SScalarParam* param, int64_t* ts){
+static int32_t sclGetFirstTsFromParam(SScalarParam* param, int64_t* ts){
   int32_t code = 0, lino = 0;
   int64_t skey = 0;
   char* buf = NULL;
@@ -1022,7 +1088,7 @@ _exit:
   return code;
 }
 
-static bool isTimeStampCol(SNode *pNode) {
+static bool sclIsPrimTimeStampCol(SNode *pNode) {
   if (pNode == NULL) {
     return false;
   }
@@ -1035,19 +1101,19 @@ static bool isTimeStampCol(SNode *pNode) {
   return false;
 }
 
-static bool isReqRangeTS(SOperatorNode *node) {
+static bool sclIsStreamRangeReq(SOperatorNode *node) {
   if (node->opType != OP_TYPE_LOWER_EQUAL && node->opType != OP_TYPE_LOWER_THAN &&
       node->opType != OP_TYPE_GREATER_EQUAL && node->opType != OP_TYPE_GREATER_THAN) {
     return false;
   }
-  if (isTimeStampCol(node->pLeft) || isTimeStampCol(node->pRight)) {
+  if (sclIsPrimTimeStampCol(node->pLeft) || sclIsPrimTimeStampCol(node->pRight)) {
     return true;
   }
 
   return false;
 }
 
-static int32_t getExprTSValue(SScalarCtx *ctx, SNode *pNode, int64_t *tsValue) {
+static int32_t sclGetExprTSValue(SScalarCtx *ctx, SNode *pNode, int64_t *tsValue) {
   int32_t code = TSDB_CODE_SUCCESS, lino = 0;
   if (nodeType(pNode) == QUERY_NODE_OPERATOR || nodeType(pNode) == QUERY_NODE_FUNCTION) {
     SScalarParam *res = (SScalarParam *)taosHashGet(ctx->pRes, (void *)&pNode, POINTER_BYTES);
@@ -1060,7 +1126,7 @@ static int32_t getExprTSValue(SScalarCtx *ctx, SNode *pNode, int64_t *tsValue) {
       return TSDB_CODE_QRY_INVALID_INPUT;
     }
     if (res->columnData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-      TAOS_CHECK_EXIT(getTs(res, tsValue));
+      TAOS_CHECK_EXIT(sclGetFirstTsFromParam(res, tsValue));
     } else {
       sclError("invalid type for ts range expr, type:%d, node:%p", res->columnData->info.type, pNode);
       return TSDB_CODE_QRY_INVALID_INPUT;
@@ -1087,19 +1153,20 @@ _exit:
   return code;
 }
 
-static int32_t calcStreamTimeRangeForPseudoCols(SScalarCtx *ctx, SStreamTSRangeParas *streamTsRange,
+static int32_t sclCalcStreamCurrWinTimeRange(SScalarCtx *ctx, SStreamTSRangeParas *streamTsRange,
                                                 SOperatorNode *node, SScalarParam *params) {
   int32_t code = 0;
   int64_t timeValue = 0;
 
-  if (isTimeStampCol(node->pRight)) {
-    code = getExprTSValue(ctx, node->pLeft, &timeValue);
-  } else if (isTimeStampCol(node->pLeft)) {
-    code = getExprTSValue(ctx, node->pRight, &timeValue);
+  if (sclIsPrimTimeStampCol(node->pRight)) {
+    code = sclGetExprTSValue(ctx, node->pLeft, &timeValue);
+  } else if (sclIsPrimTimeStampCol(node->pLeft)) {
+    code = sclGetExprTSValue(ctx, node->pRight, &timeValue);
 
   } else {
     sclError("invalid stream timerange start expr, opType:%d, nodeType left:%d, nodeType right:%d", node->opType,
              nodeType(node->pLeft), nodeType(node->pRight));
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;         
   }
 
   streamTsRange->opType = node->opType;
@@ -1113,6 +1180,86 @@ static int32_t calcStreamTimeRangeForPseudoCols(SScalarCtx *ctx, SStreamTSRangeP
   }
   return TSDB_CODE_SUCCESS;
 }
+
+
+static int32_t sclCalcStreamExtWinsTimeRange(SScalarCtx *ctx,          SOperatorNode *node) {
+  int32_t code = 0;
+  int64_t timeValue = 0;
+  SNode* pNode = NULL;
+  if (sclIsPrimTimeStampCol(node->pRight)) {
+    pNode = node->pLeft;
+  } else if (sclIsPrimTimeStampCol(node->pLeft)) {
+    pNode = node->pRight;
+  } else {
+    sclError("invalid stream timerange start expr, opType:%d, nodeType left:%d, nodeType right:%d", node->opType,
+             nodeType(node->pLeft), nodeType(node->pRight));
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;         
+  }
+
+  SScalarParam *res = (SScalarParam *)taosHashGet(ctx->pRes, (void *)&pNode, POINTER_BYTES);
+  if (res == NULL || res->columnData == NULL) {
+    sclError("no result for node, type:%d, node:%p", nodeType(pNode), pNode);
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+  if (res->columnData->pData == NULL) {
+    sclError("invalid column data for ts range expr, type:%d, node:%p", res->columnData->info.type, pNode);
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+  if (res->columnData->info.type != TSDB_DATA_TYPE_TIMESTAMP) {
+    sclError("invalid type for ts range expr, type:%d, node:%p", res->columnData->info.type, pNode);
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  if (1 == ctx->stream.extWinType) {
+    if (node->opType == OP_TYPE_GREATER_THAN) {
+      for (int32_t i = 0; i < res->numOfRows; ++i) {
+        ctx->stream.pWins[i].tw.skey = ((int64_t*)res->columnData->pData)[i] + 1;
+        ctx->stream.pWins[i].winOutIdx = -1;
+      }
+    } else if (node->opType == OP_TYPE_GREATER_EQUAL) {
+      for (int32_t i = 0; i < res->numOfRows; ++i) {
+        ctx->stream.pWins[i].tw.skey = ((int64_t*)res->columnData->pData)[i];
+        ctx->stream.pWins[i].winOutIdx = -1;
+      }
+    } else {
+      qError("invalid op type:%d in ext win range start expr", node->opType);
+      return TSDB_CODE_STREAM_INTERNAL_ERROR;
+    }
+  }
+  
+  if (2 == ctx->stream.extWinType) {
+    if (ctx->stream.pStreamRuntimeFuncInfo->triggerType != STREAM_TRIGGER_SLIDING) {
+      if (node->opType == OP_TYPE_LOWER_THAN) {
+        for (int32_t i = 0; i < res->numOfRows; ++i) {
+          ctx->stream.pWins[i].tw.ekey = ((int64_t*)res->columnData->pData)[i];
+        }
+      } else if (node->opType == OP_TYPE_LOWER_EQUAL) {
+        for (int32_t i = 0; i < res->numOfRows; ++i) {
+          ctx->stream.pWins[i].tw.ekey = ((int64_t*)res->columnData->pData)[i] + 1;
+        }
+      } else {
+        qError("invalid op type:%d in ext win range end expr", node->opType);
+        return TSDB_CODE_STREAM_INTERNAL_ERROR;
+      }
+    } else {
+      if (node->opType == OP_TYPE_LOWER_THAN) {
+        for (int32_t i = 0; i < res->numOfRows; ++i) {
+          ctx->stream.pWins[i].tw.ekey = ((int64_t*)res->columnData->pData)[i] - 1;
+        }
+      } else if (node->opType == OP_TYPE_LOWER_EQUAL) {
+        for (int32_t i = 0; i < res->numOfRows; ++i) {
+          ctx->stream.pWins[i].tw.ekey = ((int64_t*)res->columnData->pData)[i];
+        }
+      } else {
+        qError("invalid op type:%d in ext win range end expr", node->opType);
+        return TSDB_CODE_STREAM_INTERNAL_ERROR;
+      }
+    }
+  }
+  
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *output) {
   SScalarParam *params = NULL;
@@ -1130,16 +1277,24 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
   }
 
   SCL_ERR_JRET(sclInitOperatorParams(&params, node, ctx, &rowNum));
+  
+  if (ctx->stream.streamTsRange != NULL && sclIsStreamRangeReq(node)) {
+    code = sclCalcStreamCurrWinTimeRange(ctx, ctx->stream.streamTsRange, node, params);
+    goto _return;
+  }
+
+  if (ctx->stream.pWins) {
+    code = sclCalcStreamExtWinsTimeRange(ctx, node);
+    goto _return;
+  }
+
   if (output->columnData == NULL) {
     code = sclCreateColumnInfoData(&node->node.resType, rowNum, output);
     if (code != TSDB_CODE_SUCCESS) {
       SCL_ERR_JRET(code);
     }
   }
-  if (ctx->streamTsRange != NULL && isReqRangeTS(node)) {
-    code = calcStreamTimeRangeForPseudoCols(ctx, ctx->streamTsRange, node, params);
-    goto _return;
-  }
+  
   _bin_scalar_fn_t OperatorFn = getBinScalarOperatorFn(node->opType);
 
   SScalarParam *pLeft = &params[0];
@@ -2128,8 +2283,9 @@ int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *p
   }
 
   int32_t    code = 0;
-  SScalarCtx ctx = {.code = 0, .pBlockList = pBlockList, .param = pDst ? pDst->param : NULL, 
-    .pStreamRuntimeFuncInfo = pExtraParam, .streamTsRange = pTsRange};
+  SScalarCtx ctx = {.code = 0, .pBlockList = pBlockList, .param = pDst ? pDst->param : NULL};
+  ctx.stream.pStreamRuntimeFuncInfo = pExtraParam;
+  ctx.stream.streamTsRange = pTsRange;
 
   // TODO: OPT performance
   ctx.pRes = taosHashInit(SCL_DEFAULT_OP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
@@ -2166,6 +2322,37 @@ int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *p
   }
 
 _return:
+  sclFreeRes(ctx.pRes);
+  return code;
+}
+
+int32_t scalarCalculateExtWinsTimeRange(STimeRangeNode *pNode, const void *pExtraParam, SExtWinTimeWindow *pWins) {
+  int32_t    code = 0;
+  SScalarCtx ctx = {0};
+  ctx.stream.pStreamRuntimeFuncInfo = pExtraParam;
+  ctx.stream.pWins = pWins;
+
+  // TODO: OPT performance
+  ctx.pRes = taosHashInit(SCL_DEFAULT_OP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  if (NULL == ctx.pRes) {
+    sclError("taosHashInit failed, num:%d", SCL_DEFAULT_OP_NUM);
+    SCL_ERR_RET(terrno);
+  }
+
+  ctx.stream.extWinType = 1;
+  nodesWalkExprPostOrder(pNode->pStart, sclCalcWalker, (void *)&ctx);
+  SCL_ERR_JRET(ctx.code);
+
+  ctx.stream.extWinType = 2;
+  nodesWalkExprPostOrder(pNode->pEnd, sclCalcWalker, (void *)&ctx);
+  SCL_ERR_JRET(ctx.code);
+
+_return:
+
+  if (code) {
+    qError("%s failed since %s", __func__, tstrerror(code));
+  }
+
   sclFreeRes(ctx.pRes);
   return code;
 }

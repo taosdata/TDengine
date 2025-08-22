@@ -4900,36 +4900,51 @@ int32_t streamPseudoScalarFunction(SScalarParam *pInput, int32_t inputNum, SScal
   return 0;
 }
 
-void calcTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, STimeWindow *pWinRange, bool *winRangeValid, int32_t type) {
+int32_t streamCalcCurrWinTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, STimeWindow *pWinRange, bool *winRangeValid, int32_t type) {
   SStreamTSRangeParas timeStartParas = {.eType = SCL_VALUE_TYPE_START, .timeValue = INT64_MIN};
   SStreamTSRangeParas timeEndParas = {.eType = SCL_VALUE_TYPE_END, .timeValue = INT64_MAX};
-  if ((type & 0x1) && scalarCalculate(node->pStart, NULL, NULL, pStRtFuncInfo, &timeStartParas) == 0) {
-    if (timeStartParas.opType == OP_TYPE_GREATER_THAN || timeStartParas.opType == OP_TYPE_LOWER_THAN) {
+  int32_t code = 0, lino = 0;
+  if ((type & 0x1) && node->pStart) {
+    TAOS_CHECK_EXIT(scalarCalculate(node->pStart, NULL, NULL, pStRtFuncInfo, &timeStartParas));
+    
+    if (timeStartParas.opType == OP_TYPE_GREATER_THAN) {
       // For greater than or lower than, used different param, rigth or left. 
       pWinRange->skey = timeStartParas.timeValue + 1;
-    } else if (timeStartParas.opType == OP_TYPE_GREATER_EQUAL || OP_TYPE_LOWER_EQUAL) {
+    } else if (timeStartParas.opType == OP_TYPE_GREATER_EQUAL) {
       pWinRange->skey = timeStartParas.timeValue;
     } else {
       qError("start time range error, opType:%d", timeStartParas.opType);
-      return;
+      TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
     }
   } else {
     pWinRange->skey = INT64_MIN;
   }
   
-  if ((type & 0x2) && scalarCalculate(node->pEnd, NULL, NULL, pStRtFuncInfo, &timeEndParas) == 0) {
-    if (timeEndParas.opType == OP_TYPE_LOWER_THAN || timeEndParas.opType == OP_TYPE_GREATER_THAN) {
+  if ((type & 0x2) && node->pEnd) {
+    TAOS_CHECK_EXIT(scalarCalculate(node->pEnd, NULL, NULL, pStRtFuncInfo, &timeEndParas));
+    
+    if (timeEndParas.opType == OP_TYPE_LOWER_THAN) {
       pWinRange->ekey = timeEndParas.timeValue - 1;
-    } else if (timeEndParas.opType == OP_TYPE_LOWER_EQUAL || timeEndParas.opType == OP_TYPE_GREATER_EQUAL) {
+    } else if (timeEndParas.opType == OP_TYPE_LOWER_EQUAL) {
       pWinRange->ekey = timeEndParas.timeValue;
     } else {
       qError("end time range error, opType:%d", timeEndParas.opType);
-      return;
+      TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
     }
   } else {
     pWinRange->ekey = INT64_MAX;
   }
   
-  qDebug("%s, skey:%" PRId64 ", ekey:%" PRId64, __func__, pWinRange->skey, pWinRange->ekey);
+  qDebug("%s, stream curr win calc range, skey:%" PRId64 ", ekey:%" PRId64, __func__, pWinRange->skey, pWinRange->ekey);
   *winRangeValid = true;
+
+_exit:
+
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  return code;
 }
+
+

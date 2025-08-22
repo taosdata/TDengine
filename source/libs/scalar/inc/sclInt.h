@@ -31,6 +31,15 @@ typedef struct SOperatorValueType {
   STypeMod selfTypeMod;
 } SOperatorValueType;
 
+typedef struct SScalarStreamCtx {
+  const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo; // used for stream pesudo funcs, it contains the output values for pesudo-funcs
+  void*              streamTsRange;
+  int32_t            extWinType;     // 1: twstart, 2:twend
+  SExtWinTimeWindow *pWins;
+  SScalarParam       twstart;
+  SScalarParam       twend;
+} SScalarStreamCtx;
+
 typedef struct SScalarCtx {
   int32_t            code;
   bool               dual;       /* whether select stmt has from stmt */
@@ -38,8 +47,7 @@ typedef struct SScalarCtx {
   SHashObj*          pRes;       /* element is SScalarParam */
   void*              param;      // additional parameter (meta actually) for acquire value such as tbname/tags values
   SOperatorValueType type;
-  const void*        pStreamRuntimeFuncInfo; // used for stream pesudo funcs, it contains the output values for pesudo-funcs
-  void*              streamTsRange;
+  SScalarStreamCtx   stream;
 } SScalarCtx;
 
 #define SCL_DATA_TYPE_DUMMY_HASH 9000

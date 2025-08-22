@@ -26,10 +26,6 @@ typedef struct SBlockList {
   int32_t            blockRowNumThreshold;
 } SBlockList;
 
-typedef struct SExtWinTimeWindow {
-  STimeWindow tw;
-  int32_t     winOutIdx;
-} SExtWinTimeWindow;
 
 typedef int32_t (*extWinGetWinFp)(SOperatorInfo*, int64_t*, int32_t*, SDataBlockInfo*, SExtWinTimeWindow**, int32_t*);
 
@@ -40,10 +36,9 @@ typedef struct SExternalWindowOperator {
   EExtWinMode        mode;
   bool               multiTableMode;
   SArray*            pWins;           // SArray<SExtWinTimeWindow>
-  // SArray*            pOffsetList;  // for each window
   SArray*            pPseudoColInfo;  
-  // SLimitInfo         limitInfo;  // limit info for each window
-
+  STimeRangeNode*    timeRangeExpr;
+  
   extWinGetWinFp     getWinFp;
 
   bool               blkWinStartSet;
@@ -523,12 +518,12 @@ static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
   resetBasicOperatorState(&pExtW->binfo);
   pExtW->outputWinId = 0;
   pExtW->lastWinId = -1;
-  taosArrayDestroyEx(pExtW->pOutputBlocks, extWinDestroyBlockList);
+  //taosArrayDestroyEx(pExtW->pOutputBlocks, extWinDestroyBlockList);
   // taosArrayDestroy(pExtW->pOffsetList);
   taosArrayDestroy(pExtW->pWins);
   pExtW->pWins = NULL;
   pExtW->pOutputBlockListNode = NULL;
-  pExtW->pOutputBlocks = NULL;
+  //pExtW->pOutputBlocks = NULL;
   // pExtW->pOffsetList = NULL;
   int32_t code = blockDataEnsureCapacity(pExtW->binfo.pRes, pOperator->resultInfo.capacity);
   if (code == 0) {
@@ -1065,6 +1060,7 @@ static int32_t extWinGetWinResBlock(SOperatorInfo* pOperator, int32_t rows, SExt
     pList = tdListNew(sizeof(SSDataBlock*));
     TSDB_CHECK_NULL(pList, code, lino, _exit, terrno);
     SList** ppList = taosArrayGet(pExtW->pOutputBlocks, pWin->winOutIdx);
+    extWinDestroyBlockList(ppList);
     *ppList = pList;
   }
   
@@ -1444,32 +1440,35 @@ _exit:
 }
 static int32_t extWinInitWindowList(SExternalWindowOperator* pExtW, SExecTaskInfo*        pTaskInfo) {
   int32_t code = 0, lino = 0;
-  size_t size = taosArrayGetSize(pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPesudoFuncVals);
-  for (int32_t i = 0; i < size; ++i) {
-    SSTriggerCalcParam* pParam = taosArrayGet(pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPesudoFuncVals, i);
-    SExtWinTimeWindow* pWin = taosArrayReserve(pExtW->pWins, 1);
-    TSDB_CHECK_NULL(pWin, code, lino, _exit, terrno);
-    
-    pWin->tw.skey = pParam->wstart;
-    pWin->tw.ekey = pParam->wend;
-    if (pTaskInfo->pStreamRuntimeInfo->funcInfo.triggerType != STREAM_TRIGGER_SLIDING) {
-      pWin->tw.ekey++;
-    }
-    pWin->winOutIdx = -1;
+  SStreamRuntimeFuncInfo* pInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
+  size_t size = taosArrayGetSize(pInfo->pStreamPesudoFuncVals);
+  SExtWinTimeWindow* pWin = taosArrayReserve(pExtW->pWins, size);
+  TSDB_CHECK_NULL(pWin, code, lino, _exit, terrno);
 
-    if (/*pExtW->multiTableMode &&*/ (EEXT_MODE_SCALAR == pExtW->mode || EEXT_MODE_INDEFR_FUNC == pExtW->mode)) {
-      SList** ppList = taosArrayGet(pExtW->pOutputBlocks, i);
-      extWinDestroyBlockList(ppList);
-      *ppList = NULL;
+  if (pExtW->timeRangeExpr && pExtW->timeRangeExpr->needCalc) {
+    TAOS_CHECK_EXIT(scalarCalculateExtWinsTimeRange(pExtW->timeRangeExpr, pInfo, pWin));
+    if (qDebugFlag & DEBUG_DEBUG) {
+      for (int32_t i = 0; i < size; ++i) {
+        qDebug("%s the %d/%d ext window calced initialized, TR[%" PRId64 ", %" PRId64 ")", 
+            pTaskInfo->id.str, i, (int32_t)size, pWin[i].tw.skey, pWin[i].tw.ekey);
+      }
     }
+  } else {
+    for (int32_t i = 0; i < size; ++i) {
+      SSTriggerCalcParam* pParam = taosArrayGet(pInfo->pStreamPesudoFuncVals, i);
 
-    qDebug("%s the %d/%d ext window initialized, TR[%" PRId64 ", %" PRId64 ")", 
-        pTaskInfo->id.str, i, (int32_t)size, pWin->tw.skey, pWin->tw.ekey);
+      pWin[i].tw.skey = pParam->wstart;
+      pWin[i].tw.ekey = pParam->wend + ((pInfo->triggerType != STREAM_TRIGGER_SLIDING) ? 1 : 0);
+      pWin[i].winOutIdx = -1;
+
+      qDebug("%s the %d/%d ext window initialized, TR[%" PRId64 ", %" PRId64 ")", 
+          pTaskInfo->id.str, i, (int32_t)size, pWin[i].tw.skey, pWin[i].tw.ekey);
+    }
   }
   
-  pExtW->outputWinId = pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx;
+  pExtW->outputWinId = pInfo->curIdx;
   pExtW->lastWinId = -1;
-  pExtW->blkWinStartIdx = pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx;
+  pExtW->blkWinStartIdx = pInfo->curIdx;
 
 _exit:
 
@@ -1742,7 +1741,17 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
   
   initResultRowInfo(&pExtW->binfo.resultRowInfo);
 
-  pExtW->getWinFp = extWinGetNoOvlpWin;
+  pExtW->timeRangeExpr = (STimeRangeNode*)pPhynode->pTimeRange;
+  if (pExtW->timeRangeExpr) {
+    QUERY_CHECK_NULL(pExtW->timeRangeExpr->pStart, code, lino, _error, TSDB_CODE_STREAM_INTERNAL_ERROR);
+    QUERY_CHECK_NULL(pExtW->timeRangeExpr->pEnd, code, lino, _error, TSDB_CODE_STREAM_INTERNAL_ERROR);
+  }
+
+  if (pPhynode->isSingleTable) {
+    pExtW->getWinFp = pExtW->timeRangeExpr ? extWinGetOvlpWin : extWinGetNoOvlpWin;
+  } else {
+    pExtW->getWinFp = pExtW->timeRangeExpr ? extWinGetMultiTbOvlpWin : extWinGetMultiTbNoOvlpWin;
+  }
 
   pOperator->fpSet = createOperatorFpSet(extWinOpen, extWinNext, NULL, destroyExternalWindowOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
