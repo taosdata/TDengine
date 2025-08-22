@@ -54,7 +54,7 @@ bool qIsInsertValuesSql(const char* pStr, size_t length) {
 
 bool qIsUpdateSetSql(const char* pStr, size_t length, SName* pTableName, int32_t acctId, const char* dbName,
                      char* msgBuf, int32_t msgBufLen, int* pCode) {
-  if (NULL == pStr) {
+                        if (NULL == pStr) {
     return false;
   }
 
@@ -62,7 +62,7 @@ bool qIsUpdateSetSql(const char* pStr, size_t length, SName* pTableName, int32_t
 
   int32_t index = 0;
   SToken  t = tStrGetToken((char*)pStr, &index, false, NULL);
-  if (TK_UPDATE != t.type) {
+    if (TK_UPDATE != t.type) {
     return false;
   }
   SMsgBuf pMsgBuf = {.len = msgBufLen, .buf = msgBuf};
@@ -80,18 +80,45 @@ bool qIsUpdateSetSql(const char* pStr, size_t length, SName* pTableName, int32_t
       return false;
     }
   }
-
-  do {
+    do {
     pStr += index;
     index = 0;
     t = tStrGetToken((char*)pStr, &index, false, NULL);
-    if (TK_SET == t.type) {
+        if (TK_SET == t.type) {
       return true;
     }
     if (0 == t.type || 0 == t.n) {
       break;
     }
   } while (pStr - pSql < length);
+  return false;
+}
+
+bool qIsSelectFromSql(const char* pStr, size_t length) {
+  if (NULL == pStr) {
+    return false;
+  }
+
+  const char* pSql = pStr;
+
+  int32_t index = 0;
+  SToken  t = tStrGetToken((char*)pStr, &index, false, NULL);
+  if (TK_SELECT != t.type) {
+    return false;
+  }
+
+  do {
+    pStr += index;
+    index = 0;
+    t = tStrGetToken((char*)pStr, &index, false, NULL);
+    if (TK_FROM == t.type) {
+      return true;
+    }
+    if (0 == t.type || 0 == t.n) {
+      break;
+    }
+  } while (pStr - pSql < length);
+
   return false;
 }
 

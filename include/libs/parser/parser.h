@@ -144,6 +144,7 @@ bool    qIsUpdateSetSql(const char* pStr, size_t length, SName* pTableName, int3
                         char* msgBuf, int32_t msgBufLen, int* pCode);
 int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTableMeta, SSHashObj* predicateCols,
                               char* msgBuf, int32_t msgBufLen);
+bool    qIsSelectFromSql(const char* pStr, size_t length);
 bool    qParseDbName(const char* pStr, size_t length, char** pDbName);
 
 // for async mode
