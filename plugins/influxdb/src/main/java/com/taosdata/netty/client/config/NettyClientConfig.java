@@ -20,7 +20,7 @@ public class NettyClientConfig {
     private int port;
     private boolean soKeepalive = true;
     private boolean tcpNoDelay = true;
-    private int idleReader = 10;
+    private int idleReader = 30;
     private int idleWriter = 0;
     private int idleAll = 0;
     private int unPongRetryTimes = 3;

@@ -1134,7 +1134,7 @@ async fn consume_lush_record(
                                 }
                             }
                         }
-                        info!("written [{count}] records");
+                        debug!("written [{count}] records");
                     }
                 } else {
                     error!("lush message insert sqls should not be none");
@@ -1143,7 +1143,7 @@ async fn consume_lush_record(
         }
         LushMessage::Control(_) => todo!(),
     }
-    info!("consume lush record done");
+    debug!("consume lush record done");
     Ok(())
 }
 
@@ -2343,13 +2343,13 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     // debug_assert!(qid.task_id() > 0);
     // debug_assert!(qid.batch_id() > 0);
     // let mut taos = Some(taos);
+    info!("Going to write lush record");
     while let Some(record) = stream.try_next().await.context("next item error")? {
         let raw_rows = record.nrows();
         metrics.add_received_batches(1);
         metrics.add_received_messages(raw_rows as u64);
         let taos = pool.get().await?;
         let mut taos = Some(taos);
-        info!("Writing batch");
         let record = *Box::<dyn Any>::downcast::<LushMessage>(unsafe {
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
@@ -2399,7 +2399,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                 bail!("write batch error: {err:#}");
             }
         } else {
-            tracing::info!("ack");
+            tracing::debug!("ack");
             let _ = ipc_ack_writer
                 .ack(LushAck {
                     code: 0,
