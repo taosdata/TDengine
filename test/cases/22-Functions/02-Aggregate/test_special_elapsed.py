@@ -47,7 +47,7 @@ class TestFuncElapsed:
             tdLog.debug("Insert data into table %s" % t)
 
     def test_normal_query(self):
-        """test elapsed function
+        """Agg-special: Elapsed
 
         test elapsed function
 

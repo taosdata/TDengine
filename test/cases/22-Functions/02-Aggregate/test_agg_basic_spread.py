@@ -7,7 +7,7 @@ class TestFuncSpread:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_func_spread(self):
-        """Sum 函数
+        """Agg-basic: Spread
 
         1. 创建包含一个 Int 普通数据列的超级表
         2. 创建子表并写入数据

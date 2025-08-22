@@ -7,7 +7,7 @@ class TestFuncApercentile:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_func_apercentile(self):
-        """Apercentile
+        """Agg-stat: Apercentile
 
         1. -
 
