@@ -8,27 +8,16 @@ tsgen 是时序数据领域产品的性能基准测试工具，支持数据生�
 
 tsgen 目前仅支持 Linux 系统。
 
-## 构建安装
+## 工具获取
 
-```shell
-git clone git@github.com:taosdata/tsgen.git
-mkdir build && cd build
-conan install .. --build=missing --output-folder=./conan --settings=build_type=Release
-cmake .. -DCMAKE_BUILD_TYPE=Release
-cmake --build .
-
-sudo cp src/tsgen /usr/local/taos/bin/
-sudo ln -s /usr/local/taos/bin/tsgen /usr/bin/tsgen
-```
-
-详情请参考 [tsgen](https://github.com/taosdata/tsgen/blob/main/README-CN.md) 仓库。
+根据需要选择下载 [tsgen](https://github.com/taosdata/tsgen/releases) 工具。
 
 ## 运行
 
 tsgen 支持通过命令行、配置文件指定参数配置，相同的参数配置，命令行优先级要高于配置文件。
 
 :::tip
-在运行 tsgen 之前要确保 TDengine TSDB 集群已经在正常运行。
+在运行 tsgen 之前，要确保所有待写入的目标 TDengine TSDB 集群已经在正常运行。
 :::
 
 启动示例：
@@ -47,6 +36,7 @@ tsgen -h 127.0.0.1 -c config.yaml
 | -p/--password         | 指定用于连接服务器的密码，默认值为 taosdata |
 | -c/--yaml-config-file | 指定 yaml 格式配置文件的路径 |
 | -?/--help             | 显示帮助信息并退出|
+| -V/--version          | 显示版本信息并退出。不能与其它参数混用|
 
 ## 配置文件参数
 
@@ -75,60 +65,7 @@ tsgen -h 127.0.0.1 -c config.yaml
 示例配置如下：
 
 ```yaml
-global:
-  connection_info:
-    host: 127.0.0.1
-    port: 6030
-    user: root
-    password: taosdata
-
-concurrency: 3
-
-jobs:
-  # 创建数据库作业
-  create-database:
-    name: Create Database
-    needs: []
-    steps:
-      - name: Create Database
-        uses: actions/create-database
-        with:
-          ......
-
-  # 创建超级表作业
-  create-super-table:
-    name: Create Super Table
-    needs: [create-database]
-    steps:
-      ......
-
-  # 创建秒级子表作业
-  create-second-child-table:
-    name: Create Second Child Table
-    needs: [create-super-table]
-    steps:
-      ......
-
-  # 创建分钟级子表作业
-  create-minute-child-table:
-    name: Create Minute Child Table
-    needs: [create-super-table]
-    steps:
-      ......
-
-  # 写入秒级数据作业
-  insert-second-data:
-    name: Insert Second-Level Data
-    needs: [create-second-child-table]
-    steps:
-      ......
-
-  # 写入分钟级数据作业
-  insert-minute-data:
-    name: Insert Minute-Level Data
-    needs: [create-minute-child-table]
-    steps:
-      ......
+{{#include docs/doxgen/tsgen_config.md:configuration_instructions}}
 ```
 
 要点说明：
@@ -252,54 +189,71 @@ Action 是封装好的可复用操作单元，用于完成特定功能。每个 
 `actions/create-database` 用于在指定的 TDengine 数据库服务器上创建一个新的数据库。通过传递必要的连接信息和数据库配置参数，用户可以轻松地定义新数据库的各种属性，如数据库名称、是否在存在时删除旧数据库、时间精度等。
 
 #### connection_info (可选)
-同《全局配置参数》章节中同名参数的描述，如果未指定，则默认使用全局配置中的参数信息。
+
+同[全局配置参数](#全局配置参数)章节中同名参数的描述，如果未指定，则默认使用全局配置中的参数信息。
 
 #### data_format (可选)
-同《全局配置参数》章节中同名参数的描述，如果未指定，则默认使用全局配置中的参数信息。
+
+同[全局配置参数](#全局配置参数)中同名参数的描述，如果未指定，则默认使用全局配置中的参数信息。
 
 #### data_channel (可选)
-同《全局配置参数》章节中同名参数的描述，如果未指定，则默认使用全局配置中的参数信息。
+
+同[全局配置参数](#全局配置参数)章节中同名参数的描述，如果未指定，则默认使用全局配置中的参数信息。
 
 #### database_info (可选)
-同《全局配置参数》章节中同名参数的描述，包含数据库创建所需的所有细节。如果未指定，则默认使用全局配置中的参数信息。
+
+同[全局配置参数](#全局配置参数)章节中同名参数的描述，包含数据库创建所需的所有细节。如果未指定，则默认使用全局配置中的参数信息。
 
 ### 创建超级表的 Action 配置
+
 `actions/create-super-table` 用于在指定数据库中创建一个新的超级表（Super Table）。通过传递必要的连接信息和超级表配置参数，用户能够定义超级表的各种属性，如表名、普通列和标签列等。
 
 #### connection_info (可选)
-同《全局配置参数》章节中同名参数的描述，如果未指定，则默认使用全局配置中的参数信息。
+
+同[全局配置参数](#全局配置参数)章节中同名参数的描述，如果未指定，则默认使用全局配置中的参数信息。
 
 #### data_format (可选)
-同《全局配置参数》章节中同名参数的描述，如果未指定，则默认使用全局配置中的参数信息。
+
+同[全局配置参数](#全局配置参数)章节中同名参数的描述，如果未指定，则默认使用全局配置中的参数信息。
 
 #### data_channel (可选)
-同《全局配置参数》章节中同名参数的描述，如果未指定，则默认使用全局配置中的参数信息。
+
+同[全局配置参数](#全局配置参数)章节中同名参数的描述，如果未指定，则默认使用全局配置中的参数信息。
 
 #### database_info (可选)
-同《全局配置参数》章节中同名参数的描述，指定要在哪个数据库中创建超级表。如果未指定，则默认使用全局配置中的参数信息。
+
+同[全局配置参数](#全局配置参数)章节中同名参数的描述，指定要在哪个数据库中创建超级表。如果未指定，则默认使用全局配置中的参数信息。
 
 #### super_table_info (可选)
-同《全局配置参数》章节中同名参数的描述，包含超级表创建所需的所有细节。如果未指定，则默认使用全局配置中的参数信息。
+
+同[全局配置参数](#全局配置参数)章节中同名参数的描述，包含超级表创建所需的所有细节。如果未指定，则默认使用全局配置中的参数信息。
 
 ### 创建子表的 Action 配置
+
 `actions/create-child-table` 用于基于指定的超级表，在目标数据库中批量创建多个子表（Child Tables）。每个子表可以拥有不同的名称和标签列数据，从而实现对时间序列数据的有效分类与管理。该 Action 支持从生成器（Generator）或 CSV 文件两种来源定义子表名称及标签列信息，具备高度灵活性和可配置性。
 
 #### connection_info (可选)
-同《全局配置参数》章节中同名参数的描述，如果未指定，则默认使用全局配置中的参数信息。
+
+同[全局配置参数](#全局配置参数)章节中同名参数的描述，如果未指定，则默认使用全局配置中的参数信息。
 
 #### data_format (可选)
-同《全局配置参数》章节中同名参数的描述，如果未指定，则默认使用全局配置中的参数信息。
+
+同[全局配置参数](#全局配置参数)章节中同名参数的描述，如果未指定，则默认使用全局配置中的参数信息。
 
 #### data_channel (可选)
-同《全局配置参数》章节中同名参数的描述，如果未指定，则默认使用全局配置中的参数信息。
+
+同[全局配置参数](#全局配置参数)章节中同名参数的描述，如果未指定，则默认使用全局配置中的参数信息。
 
 #### database_info (可选)
-同《全局配置参数》章节中同名参数的描述，指定要在哪个数据库中创建子表。如果未指定，则默认使用全局配置中的参数信息。
+
+同[全局配置参数](#全局配置参数)章节中同名参数的描述，指定要在哪个数据库中创建子表。如果未指定，则默认使用全局配置中的参数信息。
 
 #### super_table_info (可选)
-同《全局配置参数》章节中同名参数的描述，指定基于哪个超级表创建子表。如果未指定，则默认使用全局配置中的参数信息。
+
+同[全局配置参数](#全局配置参数)章节中同名参数的描述，指定基于哪个超级表创建子表。如果未指定，则默认使用全局配置中的参数信息。
 
 #### child_table_info (必需)
+
 包含创建子表所需的核心信息，包括子表名称和标签列数据的来源及具体配置。
 
 **table_name（子表名称）**
@@ -342,6 +296,7 @@ Action 是封装好的可复用操作单元，用于完成特定功能。每个 
     若文件中同时包含子表名称列和标签列，或者仅想使用部分标签列时，此参数用于指定剔除的子表名称列/无用标签列等的索引（从 0 开始），列索引之间使用英文逗号,分隔，默认值为空，表示不剔除。
 
 #### batch (可选)
+
 控制批量创建子表时的行为：
 - size (整数)：
   每批创建的子表数量，默认值为 1000。
@@ -349,14 +304,16 @@ Action 是封装好的可复用操作单元，用于完成特定功能。每个 
   并发执行的批次数量，提升创建效率，默认值为 10。
 
 ### 插入数据的 Action 配置
+
 `actions/insert-data` Action 用于将数据插入到指定的子表中。它支持从生成器或 CSV 文件两种来源获取子表名称、普通列数据，并允许用户通过多种时间戳策略控制数据的时间属性。此外，还提供了丰富的写入控制策略以优化数据插入过程，具备高度灵活性和可配置性。
 
 #### source (必需)
+
 包含了需要插入的数据的所有相关信息：
 
 **table_name（子表名称）**
 
-描述同：《创建子表的 Action 的配置》中的同名配置项的描述。
+描述同：[创建子表的 Action 配置](#创建子表的-action-配置) 中的同名配置项的描述。
 
 **columns（普通列）**
 
@@ -407,6 +364,7 @@ Action 是封装好的可复用操作单元，用于完成特定功能。每个 
       - timestamp_step (整数，可选)：表示子表中插入数据的时间戳步长，单位与时间精度一致，默认值是 1。
 
 #### target (必需)
+
 描述数据写入的目标数据库或其他存储介质信息：
 
 **timestamp_precision （时间戳精度，可选）**
@@ -417,7 +375,7 @@ Action 是封装好的可复用操作单元，用于完成特定功能。每个 
 
 字符串类型，目标数据类型支持以下几种方式：
 - tdengine：TDengine 数据库。
-- mqtt：轻量级的物联网通信协议。
+- mqtt：是 MQTT 协议中转发消息的核心服务器。
 
 **tdengine**
 
@@ -449,15 +407,16 @@ Action 是封装好的可复用操作单元，用于完成特定功能。每个 
 - retain （布尔，可选）：MQTT Broker 是否保留最后一条消息，默认值为 false。
 
 #### control (必需)
+
 定义数据写入过程中的行为策略，包括数据格式化（data_format）、数据通道（data_channel）、数据生成策略（data_generation）、写入控制策略（insert_control）、时间间隔策略（time_interval）等部分。
 
 **data_format（数据格式化，可选）**
 
-同《全局配置参数》章节中同名参数的描述，如果未指定，则默认使用全局配置中的参数信息。
+同[全局配置参数](#全局配置参数)章节中同名参数的描述，如果未指定，则默认使用全局配置中的参数信息。
 
 **data_channel （数据通道，可选）**
 
-同《全局配置参数》章节中同名参数的描述，如果未指定，则默认使用全局配置中的参数信息。
+同[全局配置参数](#全局配置参数)章节中同名参数的描述，如果未指定，则默认使用全局配置中的参数信息。
 
 **data_generation（数据生成策略，可选）**
 
@@ -499,337 +458,17 @@ Action 是封装好的可复用操作单元，用于完成特定功能。每个 
 ### 生成器方式生成数据 stmt v2 写入 TDengine 示例
 
 ```yaml
-global:
-  confirm_prompt: false
-  log_dir: log/
-  cfg_dir: /etc/taos/
-
-  # Common structure definition
-  connection_info: &db_conn
-    host: 127.0.0.1
-    port: 6030
-    user: root
-    password: taosdata
-    pool:
-      enabled: true
-      max_size: 10
-      min_size: 2
-      connection_timeout: 1000
-
-  data_format: &data_format
-    format_type: sql
-
-  data_channel: &data_channel
-    channel_type: native
-
-  database_info: &db_info
-    name: benchdebug
-    drop_if_exists: true
-    properties: precision 'ms' vgroups 4
-
-  super_table_info: &stb_info
-    name: meters
-    columns: &columns_info
-      - name: current
-        type: float
-        min: 0
-        max: 100
-      - name: voltage
-        type: int
-        min: 200
-        max: 240
-      - name: phase
-        type: float
-        min: 0
-        max: 360
-    tags: &tags_info
-      - name: groupid
-        type: int
-        min: 1
-        max: 10
-      - name: location
-        type: binary(24)
-
-  tbname_generator: &tbname_generator
-    prefix: d
-    count: 100000
-    from: 0
-
-concurrency: 4
-
-jobs:
-  # Create database job
-  create-database:
-    name: Create Database
-    needs: []
-    steps:
-      - name: Create Database
-        uses: actions/create-database
-        with:
-          connection_info: *db_conn
-          database_info: *db_info
-
-  # Create super table job
-  create-super-table:
-    name: Create Super Table
-    needs: [create-database]
-    steps:
-      - name: Create Super Table
-        uses: actions/create-super-table
-        with:
-          connection_info: *db_conn
-          database_info: *db_info
-          super_table_info: *stb_info
-
-  # Create child table job
-  create-second-child-table:
-    name: Create Second Child Table
-    needs: [create-super-table]
-    steps:
-      - name: Create Second Child Table
-        uses: actions/create-child-table
-        with:
-          connection_info: *db_conn
-          database_info: *db_info
-          super_table_info: *stb_info
-          child_table_info:
-            table_name:
-              source_type: generator
-              generator: *tbname_generator
-            tags:
-              source_type: generator
-              generator:
-                schema: *tags_info
-          batch:
-            size: 1000
-            concurrency: 10
-
-  # Insert data job
-  insert-second-data:
-    name: Insert Second-Level Data
-    needs: [create-second-child-table]
-    steps:
-      - name: Insert Second-Level Data
-        uses: actions/insert-data
-        with:
-          # source
-          source:
-            table_name:
-              source_type: generator
-              generator: *tbname_generator
-            columns:
-              source_type: generator
-              generator:
-                schema: *columns_info
-
-                timestamp_strategy:
-                  generator:
-                    start_timestamp: 1700000000000
-                    timestamp_precision : ms
-                    timestamp_step: 1
-
-          # target
-          target:
-            target_type: tdengine
-            tdengine:
-              connection_info: *db_conn
-              database_info: *db_info
-              super_table_info: *stb_info
-
-          # control
-          control:
-            data_format:
-              format_type: stmt
-              stmt:
-                version: v2
-            data_channel:
-              channel_type: native
-            data_generation:
-              interlace_mode:
-                enabled: true
-                rows: 1
-              generate_threads: 1
-              per_table_rows: 100
-              queue_capacity: 100
-              queue_warmup_ratio: 0.5
-            insert_control:
-              per_request_rows: 10000
-              auto_create_table: false
-              insert_threads: 1
+{{#include docs/doxgen/tsgen_config.md:stmt_v2_write_config}}
 ```
 
 ### CSV文件方式生成数据 stmt v2 写入 TDengine 实例
 
 ```yaml
-global:
-  confirm_prompt: false
-  log_dir: log/
-  cfg_dir: /etc/taos/
-
-  # Common structure definition
-  connection_info: &db_conn
-    host: 127.0.0.1
-    port: 6030
-    user: root
-    password: taosdata
-    pool:
-      enabled: true
-      max_size: 10
-      min_size: 2
-      connection_timeout: 1000
-
-  data_format: &data_format
-    format_type: sql
-
-  data_channel: &data_channel
-    channel_type: native
-
-  database_info: &db_info
-    name: benchdebug
-    drop_if_exists: true
-    properties: precision 'ms' vgroups 4
-
-  super_table_info: &stb_info
-    name: meters
-    columns: &columns_info
-      - name: current
-        type: float
-        min: 0
-        max: 100
-      - name: voltage
-        type: int
-        min: 200
-        max: 240
-      - name: phase
-        type: float
-        min: 0
-        max: 360
-    tags: &tags_info
-      - name: groupid
-        type: int
-        min: 1
-        max: 10
-      - name: location
-        type: binary(24)
-
-  tbname_generator: &tbname_generator
-    prefix: d
-    count: 100000
-    from: 0
-
-concurrency: 4
-
-jobs:
-  # Create database job
-  create-database:
-    name: Create Database
-    needs: []
-    steps:
-      - name: Create Database
-        uses: actions/create-database
-        with:
-          connection_info: *db_conn
-          database_info: *db_info
-
-  # Create super table job
-  create-super-table:
-    name: Create Super Table
-    needs: [create-database]
-    steps:
-      - name: Create Super Table
-        uses: actions/create-super-table
-        with:
-          connection_info: *db_conn
-          database_info: *db_info
-          super_table_info: *stb_info
-
-  # Create child table job
-  create-second-child-table:
-    name: Create Second Child Table
-    needs: [create-super-table]
-    steps:
-      - name: Create Second Child Table
-        uses: actions/create-child-table
-        with:
-          connection_info: *db_conn
-          database_info: *db_info
-          super_table_info: *stb_info
-          child_table_info:
-            table_name:
-              source_type: csv
-              csv:
-                file_path: ../src/parameter/conf/ctb-tags.csv
-                tbname_index: 2
-            tags:
-              source_type: csv
-              csv:
-                schema: *tags_info
-                file_path: ../src/parameter/conf/ctb-tags.csv
-                exclude_indices: 2
-          batch:
-            size: 1000
-            concurrency: 10
-
-  # Insert data job
-  insert-second-data:
-    name: Insert Second-Level Data
-    needs: [create-second-child-table]
-    steps:
-      - name: Insert Second-Level Data
-        uses: actions/insert-data
-        with:
-          # source
-          source:
-            table_name:
-              source_type: csv
-              csv:
-                file_path: ../src/parameter/conf/ctb-tags.csv
-                tbname_index: 2
-            columns:
-              source_type: csv
-              csv:
-                schema: *columns_info
-                file_path: ../src/parameter/conf/ctb-data.csv
-                tbname_index : 0
-
-                timestamp_strategy:
-                  strategy_type: generator
-                  generator:
-                    start_timestamp: 1700000000000
-                    timestamp_precision : ms
-                    timestamp_step: 1
-
-          # target
-          target:
-            target_type: tdengine
-            tdengine:
-              connection_info: *db_conn
-              database_info: *db_info
-              super_table_info: *stb_info
-
-          # control
-          control:
-            data_format:
-              format_type: stmt
-              stmt:
-                version: v2
-            data_channel:
-              channel_type: native
-            data_generation:
-              interlace_mode:
-                enabled: true
-                rows: 1
-              generate_threads: 1
-              per_table_rows: 100
-              queue_capacity: 100
-              queue_warmup_ratio: 0.0
-            insert_control:
-              per_request_rows: 10000
-              insert_threads: 1
+{{#include docs/doxgen/tsgen_config.md:csv_stmt_v2_write_config}}
 ```
 
-其中：
-- `ctb-tags.csv` 文件内容为：
+csv file format:
+- `ctb-tags.csv` file contents are:
 
 ```csv
 groupid,location,tbname
@@ -838,7 +477,7 @@ groupid,location,tbname
 3,loc3,d3
 ```
 
-- `ctb-data.csv` 文件内容为：
+- `ctb-data.csv` file contents are:
 
 ```csv
 tbname,current,voltage,phase
@@ -853,96 +492,7 @@ d1,21,205,1002
 ### 生成器方式生成数据并写入 MQTT 示例
 
 ```yaml
-global:
-  confirm_prompt: false
-
-  super_table_info: &stb_info
-    name: meters
-    columns: &columns_info
-      - name: current
-        type: float
-        min: 0
-        max: 100
-      - name: voltage
-        type: int
-        min: 200
-        max: 240
-      - name: phase
-        type: float
-        min: 0
-        max: 360
-      - name: state
-        type: varchar(20)
-        values:
-          - "normal"
-          - "warning"
-          - "critical"
-
-  tbname_generator: &tbname_generator
-    prefix: d
-    count: 10000
-    from: 0
-
-concurrency: 1
-
-jobs:
-  # Insert data job
-  insert-into-mqtt:
-    name: Insert Data Into MQTT
-    needs: []
-    steps:
-      - name: Insert Data Into MQTT
-        uses: actions/insert-data
-        with:
-          # source
-          source:
-            table_name:
-              source_type: generator
-              generator: *tbname_generator
-            columns:
-              source_type: generator
-              generator:
-                schema: *columns_info
-
-                timestamp_strategy:
-                  generator:
-                    start_timestamp: 1700000000000
-                    timestamp_precision : ms
-                    timestamp_step: 1
-
-          # target
-          target:
-            target_type: mqtt
-            mqtt:
-              host: localhost
-              port: 1883
-              user: testuser
-              password: testpassword
-              client_id: mqtt_client
-              keep_alive: 60
-              clean_session: true
-              qos: 1
-              topic: factory/{table}/{state}/data
-
-          # control
-          control:
-            data_format:
-              format_type: stmt
-              stmt:
-                version: v2
-            data_channel:
-              channel_type: native
-            data_generation:
-              interlace_mode:
-                enabled: true
-                rows: 1
-              generate_threads: 1
-              per_table_rows: 1000
-              queue_capacity: 10
-              queue_warmup_ratio: 0.00
-            insert_control:
-              per_request_rows: 10
-              insert_threads: 8
+{{#include docs/doxgen/tsgen_config.md:write_mqtt_config}}
 ```
 
 

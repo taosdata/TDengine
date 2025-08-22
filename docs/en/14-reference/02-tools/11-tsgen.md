@@ -9,18 +9,9 @@ The tsgen is a performance benchmarking tool for products in the time - series d
 
 tsgen currently only supports the Linux system.
 
-## Building & Installation
+## Get
 
-```shell
-git clone git@github.com:taosdata/tsgen.git
-mkdir build && cd build
-conan install .. --build=missing --output-folder=./conan --settings=build_type=Release
-cmake .. -DCMAKE_BUILD_TYPE=Release
-cmake --build .
-
-sudo cp src/tsgen /usr/local/taos/bin/
-sudo ln -s /usr/local/taos/bin/tsgen /usr/bin/tsgen
-```
+Download the [tsgen](https://github.com/taosdata/tsgen/releases) tool as needed.
 
 Compile and install tsgen separately, for details please refer to the [tsgen](https://github.com/taosdata/tsgen/blob/main/README-CN.md)  repository.
 
@@ -29,7 +20,7 @@ Compile and install tsgen separately, for details please refer to the [tsgen](ht
 The tsgen supports specifying parameter configurations via the command line and configuration files. For identical parameter configurations, the command line takes higher priority than the configuration file.
 
 :::tip
-Ensure that the TDengine cluster is running correctly before running tsgen.
+Before running tsgen, ensure that all target TDengine TSDB clusters to be written to are operating normally.
 :::
 
 ## Command-line options
@@ -42,6 +33,7 @@ Ensure that the TDengine cluster is running correctly before running tsgen.
 | -p/--password         | Password. Default: taosdata                                          |
 | -c/--yaml-config-file | Path to the YAML configuration file                                  |
 | -?/--help             | Show help and exit                                                   |
+| -V/--version          | Displays version information and exits. Cannot be used with other parameters.|
 
 ## Configuration file parameters
 
@@ -70,60 +62,7 @@ A step is the fundamental unit of work within a job and represents the execution
 Example configuration:
 
 ```yaml
-global:
-  connection_info:
-    host: 127.0.0.1
-    port: 6030
-    user: root
-    password: taosdata
-
-concurrency: 3
-
-jobs:
-  # 创建数据库作业
-  create-database:
-    name: Create Database
-    needs: []
-    steps:
-      - name: Create Database
-        uses: actions/create-database
-        with:
-          ......
-
-  # 创建超级表作业
-  create-super-table:
-    name: Create Super Table
-    needs: [create-database]
-    steps:
-      ......
-
-  # 创建秒级子表作业
-  create-second-child-table:
-    name: Create Second Child Table
-    needs: [create-super-table]
-    steps:
-      ......
-
-  # 创建分钟级子表作业
-  create-minute-child-table:
-    name: Create Minute Child Table
-    needs: [create-super-table]
-    steps:
-      ......
-
-  # 写入秒级数据作业
-  insert-second-data:
-    name: Insert Second-Level Data
-    needs: [create-second-child-table]
-    steps:
-      ......
-
-  # 写入分钟级数据作业
-  insert-minute-data:
-    name: Insert Minute-Level Data
-    needs: [create-minute-child-table]
-    steps:
-      ......
+{{#include docs/doxgen/tsgen_config.md:configuration_instructions}}
 ```
 
 Key points:
@@ -248,52 +187,52 @@ Each action accepts parameters via the with field when invoked. The specific par
 The `actions/create-database` creates a new database on the specified TDengine server. By passing the required connection info and database parameters, you can define properties such as database name, whether to drop an existing database, time precision, etc.
 
 #### connection_info (optional)
-Same as the parameter with the same name in “Global configuration parameters”. If omitted, the global settings are used.
+Same as the parameter with the same name in [Global configuration parameters](#global-configuration-parameters). If omitted, the global settings are used.
 
 #### data_format (optional)
-Same as the parameter with the same name in “Global configuration parameters”. If omitted, the global settings are used.
+Same as the parameter with the same name in [Global configuration parameters](#global-configuration-parameters). If omitted, the global settings are used.
 
 #### data_channel (optional)
-Same as the parameter with the same name in “Global configuration parameters”. If omitted, the global settings are used.
+Same as the parameter with the same name in [Global configuration parameters](#global-configuration-parameters). If omitted, the global settings are used.
 
 #### database_info (optional)
-Same as the parameter with the same name in “Global configuration parameters”, containing all details required to create the database. If omitted, the global settings are used.
+Same as the parameter with the same name in [Global configuration parameters](#global-configuration-parameters), containing all details required to create the database. If omitted, the global settings are used.
 
 ### Create Super Table action configuration
 The `actions/create-super-table` creates a new Super Table in the specified database. By passing the required connection info and super table parameters, you can define properties such as table name, regular columns, and tag columns.
 
 #### connection_info (optional)
-Same as the parameter with the same name in “Global configuration parameters”. If omitted, the global settings are used.
+Same as the parameter with the same name in [Global configuration parameters](#global-configuration-parameters). If omitted, the global settings are used.
 
 #### data_format (optional)
-Same as the parameter with the same name in “Global configuration parameters”. If omitted, the global settings are used.
+Same as the parameter with the same name in [Global configuration parameters](#global-configuration-parameters). If omitted, the global settings are used.
 
 #### data_channel (optional)
-Same as the parameter with the same name in “Global configuration parameters”. If omitted, the global settings are used.
+Same as the parameter with the same name in [Global configuration parameters](#global-configuration-parameters). If omitted, the global settings are used.
 
 #### database_info (optional)
-Same as the parameter with the same name in “Global configuration parameters”, specifying which database to create the Super Table in. If omitted, the global settings are used.
+Same as the parameter with the same name in [Global configuration parameters](#global-configuration-parameters), specifying which database to create the Super Table in. If omitted, the global settings are used.
 
 #### super_table_info (optional)
-Same as the parameter with the same name in “Global configuration parameters”, containing all details required to create the Super Table. If omitted, the global settings are used.
+Same as the parameter with the same name in [Global configuration parameters](#global-configuration-parameters), containing all details required to create the Super Table. If omitted, the global settings are used.
 
 ### Create Child Table action configuration
 The `actions/create-child-table` creates multiple child tables in bulk based on a specified Super Table in the target database. Each child table can have different names and tag values, enabling effective categorization and management of time-series data. This action supports defining child table names and tag columns from either a Generator or a CSV file for high flexibility and configurability.
 
 #### connection_info (optional)
-Same as the parameter with the same name in “Global configuration parameters”. If omitted, the global settings are used.
+Same as the parameter with the same name in [Global configuration parameters](#global-configuration-parameters). If omitted, the global settings are used.
 
 #### data_format (optional)
-Same as the parameter with the same name in “Global configuration parameters”. If omitted, the global settings are used.
+Same as the parameter with the same name in [Global configuration parameters](#global-configuration-parameters). If omitted, the global settings are used.
 
 #### data_channel (optional)
-Same as the parameter with the same name in “Global configuration parameters”. If omitted, the global settings are used.
+Same as the parameter with the same name in [Global configuration parameters](#global-configuration-parameters). If omitted, the global settings are used.
 
 #### database_info (optional)
-Same as the parameter with the same name in “Global configuration parameters”, specifying which database to create the child tables in. If omitted, the global settings are used.
+Same as the parameter with the same name in [Global configuration parameters](#global-configuration-parameters), specifying which database to create the child tables in. If omitted, the global settings are used.
 
 #### super_table_info (optional)
-Same as the parameter with the same name in “Global configuration parameters”, specifying which Super Table the child tables are based on. If omitted, the global settings are used.
+Same as the parameter with the same name in [Global configuration parameters](#global-configuration-parameters), specifying which Super Table the child tables are based on. If omitted, the global settings are used.
 
 #### child_table_info (required)
 Contains the core information needed to create child tables, including the source and detailed configuration of child table names and tag column values.
@@ -352,7 +291,7 @@ Contains all information related to the data to be inserted:
 
 **table_name (child table name)**
 
-Same as the table_name setting in “Create Child Table action configuration”.
+Same as the table_name setting in [Create Child Table action configuration](#create-child-table-action-configuration).
 
 **columns (regular columns)**
 
@@ -413,7 +352,7 @@ String: Timestamp precision. Valid values: "ms", "us", "ns". When target is tden
 
 String. Supported targets:
 - tdengine: TDengine database.
-- mqtt: A lightweight IoT messaging protocol.
+- mqtt: The core server for message forwarding in the MQTT protocol.
 
 **tdengine**
 
@@ -449,11 +388,11 @@ Defines behavior during data writing, including data_format, data_channel, data_
 
 **data_format (optional)**
 
-Same as the parameter with the same name in “Global configuration parameters”. If omitted, the global settings are used.
+Same as the parameter with the same name in [Global configuration parameters](#global-configuration-parameters). If omitted, the global settings are used.
 
 **data_channel (optional)**
 
-Same as the parameter with the same name in “Global configuration parameters”. If omitted, the global settings are used.
+Same as the parameter with the same name in [Global configuration parameters](#global-configuration-parameters). If omitted, the global settings are used.
 
 **data_generation (optional)**
 
@@ -495,336 +434,16 @@ Controls the distribution of time intervals during writing.
 ### Generator-based data generation, STMT v2 write to TDengine example
 
 ```yaml
-global:
-  confirm_prompt: false
-  log_dir: log/
-  cfg_dir: /etc/taos/
-
-  # Common structure definition
-  connection_info: &db_conn
-    host: 127.0.0.1
-    port: 6030
-    user: root
-    password: taosdata
-    pool:
-      enabled: true
-      max_size: 10
-      min_size: 2
-      connection_timeout: 1000
-
-  data_format: &data_format
-    format_type: sql
-
-  data_channel: &data_channel
-    channel_type: native
-
-  database_info: &db_info
-    name: benchdebug
-    drop_if_exists: true
-    properties: precision 'ms' vgroups 4
-
-  super_table_info: &stb_info
-    name: meters
-    columns: &columns_info
-      - name: current
-        type: float
-        min: 0
-        max: 100
-      - name: voltage
-        type: int
-        min: 200
-        max: 240
-      - name: phase
-        type: float
-        min: 0
-        max: 360
-    tags: &tags_info
-      - name: groupid
-        type: int
-        min: 1
-        max: 10
-      - name: location
-        type: binary(24)
-
-  tbname_generator: &tbname_generator
-    prefix: d
-    count: 100000
-    from: 0
-
-concurrency: 4
-
-jobs:
-  # Create database job
-  create-database:
-    name: Create Database
-    needs: []
-    steps:
-      - name: Create Database
-        uses: actions/create-database
-        with:
-          connection_info: *db_conn
-          database_info: *db_info
-
-  # Create super table job
-  create-super-table:
-    name: Create Super Table
-    needs: [create-database]
-    steps:
-      - name: Create Super Table
-        uses: actions/create-super-table
-        with:
-          connection_info: *db_conn
-          database_info: *db_info
-          super_table_info: *stb_info
-
-  # Create child table job
-  create-second-child-table:
-    name: Create Second Child Table
-    needs: [create-super-table]
-    steps:
-      - name: Create Second Child Table
-        uses: actions/create-child-table
-        with:
-          connection_info: *db_conn
-          database_info: *db_info
-          super_table_info: *stb_info
-          child_table_info:
-            table_name:
-              source_type: generator
-              generator: *tbname_generator
-            tags:
-              source_type: generator
-              generator:
-                schema: *tags_info
-          batch:
-            size: 1000
-            concurrency: 10
-
-  # Insert data job
-  insert-second-data:
-    name: Insert Second-Level Data
-    needs: [create-second-child-table]
-    steps:
-      - name: Insert Second-Level Data
-        uses: actions/insert-data
-        with:
-          # source
-          source:
-            table_name:
-              source_type: generator
-              generator: *tbname_generator
-            columns:
-              source_type: generator
-              generator:
-                schema: *columns_info
-
-                timestamp_strategy:
-                  generator:
-                    start_timestamp: 1700000000000
-                    timestamp_precision : ms
-                    timestamp_step: 1
-
-          # target
-          target:
-            target_type: tdengine
-            tdengine:
-              connection_info: *db_conn
-              database_info: *db_info
-              super_table_info: *stb_info
-
-          # control
-          control:
-            data_format:
-              format_type: stmt
-              stmt:
-                version: v2
-            data_channel:
-              channel_type: native
-            data_generation:
-              interlace_mode:
-                enabled: true
-                rows: 1
-              generate_threads: 1
-              per_table_rows: 100
-              queue_capacity: 100
-              queue_warmup_ratio: 0.5
-            insert_control:
-              per_request_rows: 10000
-              auto_create_table: false
-              insert_threads: 1
+{{#include docs/doxgen/tsgen_config.md:stmt_v2_write_config}}
 ```
 
 ### CSV-based data generation, STMT v2 write to TDengine example
 
 ```yaml
-global:
-  confirm_prompt: false
-  log_dir: log/
-  cfg_dir: /etc/taos/
-
-  # Common structure definition
-  connection_info: &db_conn
-    host: 127.0.0.1
-    port: 6030
-    user: root
-    password: taosdata
-    pool:
-      enabled: true
-      max_size: 10
-      min_size: 2
-      connection_timeout: 1000
-
-  data_format: &data_format
-    format_type: sql
-
-  data_channel: &data_channel
-    channel_type: native
-
-  database_info: &db_info
-    name: benchdebug
-    drop_if_exists: true
-    properties: precision 'ms' vgroups 4
-
-  super_table_info: &stb_info
-    name: meters
-    columns: &columns_info
-      - name: current
-        type: float
-        min: 0
-        max: 100
-      - name: voltage
-        type: int
-        min: 200
-        max: 240
-      - name: phase
-        type: float
-        min: 0
-        max: 360
-    tags: &tags_info
-      - name: groupid
-        type: int
-        min: 1
-        max: 10
-      - name: location
-        type: binary(24)
-
-  tbname_generator: &tbname_generator
-    prefix: d
-    count: 100000
-    from: 0
-
-concurrency: 4
-
-jobs:
-  # Create database job
-  create-database:
-    name: Create Database
-    needs: []
-    steps:
-      - name: Create Database
-        uses: actions/create-database
-        with:
-          connection_info: *db_conn
-          database_info: *db_info
-
-  # Create super table job
-  create-super-table:
-    name: Create Super Table
-    needs: [create-database]
-    steps:
-      - name: Create Super Table
-        uses: actions/create-super-table
-        with:
-          connection_info: *db_conn
-          database_info: *db_info
-          super_table_info: *stb_info
-
-  # Create child table job
-  create-second-child-table:
-    name: Create Second Child Table
-    needs: [create-super-table]
-    steps:
-      - name: Create Second Child Table
-        uses: actions/create-child-table
-        with:
-          connection_info: *db_conn
-          database_info: *db_info
-          super_table_info: *stb_info
-          child_table_info:
-            table_name:
-              source_type: csv
-              csv:
-                file_path: ../src/parameter/conf/ctb-tags.csv
-                tbname_index: 2
-            tags:
-              source_type: csv
-              csv:
-                schema: *tags_info
-                file_path: ../src/parameter/conf/ctb-tags.csv
-                exclude_indices: 2
-          batch:
-            size: 1000
-            concurrency: 10
-
-  # Insert data job
-  insert-second-data:
-    name: Insert Second-Level Data
-    needs: [create-second-child-table]
-    steps:
-      - name: Insert Second-Level Data
-        uses: actions/insert-data
-        with:
-          # source
-          source:
-            table_name:
-              source_type: csv
-              csv:
-                file_path: ../src/parameter/conf/ctb-tags.csv
-                tbname_index: 2
-            columns:
-              source_type: csv
-              csv:
-                schema: *columns_info
-                file_path: ../src/parameter/conf/ctb-data.csv
-                tbname_index : 0
-
-                timestamp_strategy:
-                  strategy_type: generator
-                  generator:
-                    start_timestamp: 1700000000000
-                    timestamp_precision : ms
-                    timestamp_step: 1
-
-          # target
-          target:
-            target_type: tdengine
-            tdengine:
-              connection_info: *db_conn
-              database_info: *db_info
-              super_table_info: *stb_info
-
-          # control
-          control:
-            data_format:
-              format_type: stmt
-              stmt:
-                version: v2
-            data_channel:
-              channel_type: native
-            data_generation:
-              interlace_mode:
-                enabled: true
-                rows: 1
-              generate_threads: 1
-              per_table_rows: 100
-              queue_capacity: 100
-              queue_warmup_ratio: 0.0
-            insert_control:
-              per_request_rows: 10000
-              insert_threads: 1
+{{#include docs/doxgen/tsgen_config.md:csv_stmt_v2_write_config}}
 ```
 
-其中：
+csv file format:
 - `ctb-tags.csv` file contents are:
 
 ```csv
@@ -849,94 +468,5 @@ d1,21,205,1002
 ### Generator-based data generation and write to MQTT example
 
 ```yaml
-global:
-  confirm_prompt: false
-
-  super_table_info: &stb_info
-    name: meters
-    columns: &columns_info
-      - name: current
-        type: float
-        min: 0
-        max: 100
-      - name: voltage
-        type: int
-        min: 200
-        max: 240
-      - name: phase
-        type: float
-        min: 0
-        max: 360
-      - name: state
-        type: varchar(20)
-        values:
-          - "normal"
-          - "warning"
-          - "critical"
-
-  tbname_generator: &tbname_generator
-    prefix: d
-    count: 10000
-    from: 0
-
-concurrency: 1
-
-jobs:
-  # Insert data job
-  insert-into-mqtt:
-    name: Insert Data Into MQTT
-    needs: []
-    steps:
-      - name: Insert Data Into MQTT
-        uses: actions/insert-data
-        with:
-          # source
-          source:
-            table_name:
-              source_type: generator
-              generator: *tbname_generator
-            columns:
-              source_type: generator
-              generator:
-                schema: *columns_info
-
-                timestamp_strategy:
-                  generator:
-                    start_timestamp: 1700000000000
-                    timestamp_precision : ms
-                    timestamp_step: 1
-
-          # target
-          target:
-            target_type: mqtt
-            mqtt:
-              host: localhost
-              port: 1883
-              user: testuser
-              password: testpassword
-              client_id: mqtt_client
-              keep_alive: 60
-              clean_session: true
-              qos: 1
-              topic: factory/{table}/{state}/data
-
-          # control
-          control:
-            data_format:
-              format_type: stmt
-              stmt:
-                version: v2
-            data_channel:
-              channel_type: native
-            data_generation:
-              interlace_mode:
-                enabled: true
-                rows: 1
-              generate_threads: 1
-              per_table_rows: 1000
-              queue_capacity: 10
-              queue_warmup_ratio: 0.00
-            insert_control:
-              per_request_rows: 10
-              insert_threads: 8
+{{#include docs/doxgen/tsgen_config.md:write_mqtt_config}}
 ```
