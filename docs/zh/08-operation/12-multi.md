@@ -105,6 +105,8 @@ dataDir /mnt/data6 2 0
 | chunkSize       | 以 MB 为单位的数据片大小，默认值是 64，超过此大小的文件，将使用 multipart 方式上传。|
 | maxChunks       | 单个数据文件的最大分片数量，默认值为 10000。|
 | maxRetry        | 访问对象存储时出现可重试错误时的最大重试次数，默认值是 3，负值表示一直重试直到成功为止。|
+| verifyPeer      | 是否校验对方（服务器）的证书，仅在 `protocol` 是 `https` 时有效，默认值是 false。|
+
 例如：
 
 ```
