@@ -1672,7 +1672,7 @@ static int32_t tRowRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlo
 
   SRowIter **aIter = taosMemoryCalloc(nRow, sizeof(SRowIter *));
   if (aIter == NULL) {
-    TAOS_CHECK_RETURN(code = terrno);
+    TAOS_CHECK_GOTO(terrno, &lino, _error);
   }
 
   for (int32_t i = 0; i < nRow; i++) {
@@ -1680,6 +1680,7 @@ static int32_t tRowRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlo
     code = tRowIterOpen(pRowT, pTSchema, &aIter[i]);
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
+
   for (int32_t i = 0; i < nRow; i++) {
     SColVal *pColVal = tRowIterNext(aIter[i]);
     do {
