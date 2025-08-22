@@ -1,15 +1,21 @@
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
 
 
-class TestFuncCharScalar:
+class TestString:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_func_char_scalar(self):
-        """Cast 函数
+    def test_string(self):
+        """Scalar: string
 
-        1. -
+        Char_length
+        lower
+        upper
+        ltrim
+        rtrim
+        concat
+        concat_ws
 
         Catalog:
             - Function:SingleRow
@@ -21,23 +27,23 @@ class TestFuncCharScalar:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated from tsim/query/charScalarFunction.sim
+             - 2025-4-28 Simon Guan Migrated function CharScalar from tsim/query/charScalarFunction.sim
+             - 2024-8-8 Youhao Li Create function Concat
 
         """
 
+        self.CharScalar()
+        tdStream.dropAllStreamsAndDbs()
+        self.Concat()
+        tdStream.dropAllStreamsAndDbs()
+
+    def CharScalar(self):
         vgroups = 4
         dbNamme = "db"
 
         tdLog.info(f"=============== create database {dbNamme} vgroups {vgroups}")
         tdSql.execute(f"create database {dbNamme} vgroups {vgroups}")
         tdSql.query(f"select * from information_schema.ins_databases")
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)} {tdSql.getData(0,7)} {tdSql.getData(0,8)} {tdSql.getData(0,9)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(1,0)} {tdSql.getData(1,1)} {tdSql.getData(1,2)} {tdSql.getData(1,3)} {tdSql.getData(1,4)} {tdSql.getData(1,5)} {tdSql.getData(1,6)} {tdSql.getData(1,7)} {tdSql.getData(1,8)} {tdSql.getData(1,9)}"
-        )
-        # print $tdSql.getData(2,0) $tdSql.getData(2,1) $tdSql.getData(2,2) $tdSql.getData(2,3) $tdSql.getData(2,4) $tdSql.getData(2,5) $tdSql.getData(2,6) $tdSql.getData(2,7) $tdSql.getData(2,8) $tdSql.getData(2,9)
 
         tdSql.execute(f"use {dbNamme}")
 
@@ -201,13 +207,9 @@ class TestFuncCharScalar:
         tdLog.info(f"====> rows: {tdSql.getRows()})")
 
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 1, 11)
-
         tdSql.checkData(0, 3, 44)
-
         tdSql.checkData(1, 1, 12)
-
         tdSql.checkData(1, 3, 48)
 
         tdLog.info(f"====> select c1, length(c1), c2, length(c2) from ntb0")
@@ -215,13 +217,9 @@ class TestFuncCharScalar:
         tdLog.info(f"====> rows: {tdSql.getRows()})")
 
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 1, 11)
-
         tdSql.checkData(0, 3, 44)
-
         tdSql.checkData(1, 1, 12)
-
         tdSql.checkData(1, 3, 48)
 
         tdLog.info(
@@ -231,60 +229,28 @@ class TestFuncCharScalar:
         tdLog.info(f"====> rows: {tdSql.getRows()})")
 
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, 8)
-
         tdSql.checkData(0, 1, 12)
 
         tdLog.info(f"====> select c2 ,length(c2), char_length(c2) from ctb6")
         tdSql.query(f"select c2 ,length(c2), char_length(c2) from ctb6")
-        tdLog.info(f"====> rows: {tdSql.getRows()})")
-        tdLog.info(
-            f"====> {tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)}"
-        )
-        tdLog.info(
-            f"====> {tdSql.getData(1,0)} {tdSql.getData(1,1)} {tdSql.getData(1,2)}"
-        )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 1, 20)
-
         tdSql.checkData(0, 2, 5)
-
         tdSql.checkData(1, 1, None)
 
         tdLog.info(f"====> select c2 ,length(c2),char_length(c2) from ntb6")
         tdSql.query(f"select c2 ,length(c2),char_length(c2) from ntb6")
-        tdLog.info(f"====> rows: {tdSql.getRows()})")
-        tdLog.info(
-            f"====> {tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)}"
-        )
-        tdLog.info(
-            f"====> {tdSql.getData(1,0)} {tdSql.getData(1,1)} {tdSql.getData(1,2)}"
-        )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 1, 24)
-
         tdSql.checkData(0, 2, 6)
-
         tdSql.checkData(1, 1, None)
 
         tdLog.info(f"====> select c2 ,lower(c2), upper(c2) from ctb6")
         tdSql.query(f"select c2 ,lower(c2), upper(c2) from ctb6")
-        tdLog.info(f"====> rows: {tdSql.getRows()})")
-        tdLog.info(
-            f"====> {tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)}"
-        )
-        tdLog.info(
-            f"====> {tdSql.getData(1,0)} {tdSql.getData(1,1)} {tdSql.getData(1,2)}"
-        )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 1, "中文测试1")
-
         tdSql.checkData(0, 2, "中文测试1")
-
         tdSql.checkData(1, 1, None)
 
         tdLog.info(f"====> select c2 ,lower(c2), upper(c2) from ntb6")
@@ -292,11 +258,8 @@ class TestFuncCharScalar:
         tdLog.info(f"====> rows: {tdSql.getRows()})")
 
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 1, "中文测试01")
-
         tdSql.checkData(0, 2, "中文测试01")
-
         tdSql.checkData(1, 1, None)
 
         tdLog.info(f"====> select c2, ltrim(c2), ltrim(c2) from ctb6")
@@ -304,28 +267,15 @@ class TestFuncCharScalar:
         tdLog.info(f"====> rows: {tdSql.getRows()})")
 
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 1, "中文测试1")
-
         tdSql.checkData(0, 2, "中文测试1")
-
         tdSql.checkData(1, 1, None)
 
         tdLog.info(f"====> select c2, ltrim(c2), ltrim(c2) from ntb6")
         tdSql.query(f"select c2, ltrim(c2), ltrim(c2) from ntb6")
-        tdLog.info(f"====> rows: {tdSql.getRows()})")
-        tdLog.info(
-            f"====> {tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)}"
-        )
-        tdLog.info(
-            f"====> {tdSql.getData(1,0)} {tdSql.getData(1,1)} {tdSql.getData(1,2)}"
-        )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 1, "中文测试01")
-
         tdSql.checkData(0, 2, "中文测试01")
-
         tdSql.checkData(1, 1, None)
 
         tdLog.info(f"====> select c2, c3 , concat(c2,c3) from ctb6")
@@ -333,9 +283,7 @@ class TestFuncCharScalar:
         tdLog.info(f"====> rows: {tdSql.getRows()})")
 
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 2, "中文测试1中文测试2")
-
         tdSql.checkData(1, 2, None)
 
         tdLog.info(f"====> select c2, c3 , concat(c2,c3) from ntb6")
@@ -343,16 +291,13 @@ class TestFuncCharScalar:
         tdLog.info(f"====> rows: {tdSql.getRows()})")
 
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 2, "中文测试01中文测试01")
-
         tdSql.checkData(1, 2, None)
 
         tdSql.query(f"select c2, c3 , concat_ws('_', c2, c3) from ctb6")
         tdLog.info(f"====> rows: {tdSql.getRows()})")
 
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 2, "中文测试1_中文测试2")
 
         # if $tdSql.getData(1,2) != NULL then
@@ -363,7 +308,6 @@ class TestFuncCharScalar:
         tdLog.info(f"====> rows: {tdSql.getRows()})")
 
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 2, "中文测试01_中文测试01")
 
         # if $tdSql.getData(1,2) != NULL then
@@ -372,13 +316,8 @@ class TestFuncCharScalar:
 
         tdLog.info(f"====> select  c2, substr(c2,1, 4) from ctb6")
         tdSql.query(f"select  c2, substr(c2,1, 4) from ctb6")
-        tdLog.info(f"====> rows: {tdSql.getRows()})")
-        tdLog.info(f"====> {tdSql.getData(0,0)} {tdSql.getData(0,1)}")
-        tdLog.info(f"====> {tdSql.getData(1,0)} {tdSql.getData(1,1)}")
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, "中文测试1")
-
         tdSql.checkData(0, 1, "中文测试")
 
         # if $tdSql.getData(1,1) != NULL then
@@ -387,15 +326,9 @@ class TestFuncCharScalar:
 
         tdLog.info(f"====> select  c2, substr(c2,1, 4) from ntb6")
         tdSql.query(f"select  c2, substr(c2,1, 4) from ntb6")
-        tdLog.info(f"====> rows: {tdSql.getRows()})")
-        tdLog.info(f"====> {tdSql.getData(0,0)} {tdSql.getData(0,1)}")
-        tdLog.info(f"====> {tdSql.getData(1,0)} {tdSql.getData(1,1)}")
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, "中文测试01")
-
         tdSql.checkData(0, 1, "中文测试")
-
         tdSql.checkData(1, 1, None)
 
         # sql_error select c1, length(t1), c2, length(t2) from ctb0
@@ -406,13 +339,9 @@ class TestFuncCharScalar:
         tdLog.info(f"====> rows: {tdSql.getRows()})")
 
         tdSql.checkRows(4)
-
         tdSql.checkData(2, 1, 12)
-
         tdSql.checkData(2, 3, 12)
-
         tdSql.checkData(3, 1, 14)
-
         tdSql.checkData(3, 3, 14)
 
         tdLog.info(f"====> select c1, char_length(c1), c2, char_length(c2) from ntb0")
@@ -420,13 +349,9 @@ class TestFuncCharScalar:
         tdLog.info(f"====> rows: {tdSql.getRows()})")
 
         tdSql.checkRows(4)
-
         tdSql.checkData(2, 1, 12)
-
         tdSql.checkData(2, 3, 12)
-
         tdSql.checkData(3, 1, 14)
-
         tdSql.checkData(3, 3, 14)
 
         # sql_error select c1, char_length(t1), c2, char_length(t2) from ctb0
@@ -444,17 +369,11 @@ class TestFuncCharScalar:
         tdLog.info(f"====> rows: {tdSql.getRows()})")
 
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 1, "abcd1234")
-
         tdSql.checkData(0, 3, "abcd1234")
-
         tdSql.checkData(0, 4, "abcdefgh=-*&%")
-
         tdSql.checkData(1, 1, "aabbccdd1234")
-
         tdSql.checkData(1, 3, "aabbccdd1234")
-
         tdSql.checkData(1, 4, "abcdefgh=-*&%")
 
         # sql_error select c1, lower(t1), c2, lower(t2) from ctb1
@@ -472,17 +391,11 @@ class TestFuncCharScalar:
         tdLog.info(f"====> rows: {tdSql.getRows()})")
 
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 1, "ABCD1234")
-
         tdSql.checkData(0, 3, "ABCD1234")
-
         tdSql.checkData(0, 4, "ABCDEFGH=-*&%")
-
         tdSql.checkData(1, 1, "AABBCCDD1234")
-
         tdSql.checkData(1, 3, "AABBCCDD1234")
-
         tdSql.checkData(1, 4, "ABCDEFGH=-*&%")
 
         # sql_error select c1, upper(t1), c2, upper(t2) from ctb2
@@ -500,11 +413,8 @@ class TestFuncCharScalar:
         tdLog.info(f"====> rows: {tdSql.getRows()})")
 
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 1, "abcd  1234  ")
-
         tdSql.checkData(0, 3, "abcd  1234  ")
-
         tdSql.checkData(0, 4, "abcdEFGH  =-*&%  ")
 
         # sql_error select c1, ltrim(t1), c2, ltrim(t2) from ctb3
@@ -522,11 +432,8 @@ class TestFuncCharScalar:
         tdLog.info(f"====> rows: {tdSql.getRows()})")
 
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 1, "  abcd  1234")
-
         tdSql.checkData(0, 3, "  abcd  1234")
-
         tdSql.checkData(0, 4, "  abcdEFGH  =-*&%")
 
         # sql_error select c1, rtrim(t1), c2, rtrim(t2) from ctb3
@@ -544,13 +451,9 @@ class TestFuncCharScalar:
         tdLog.info(f"====> rows: {tdSql.getRows()})")
 
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 2, " ab 12  cd 34 ")
-
         tdSql.checkData(0, 5, " ab 12  cd 34 ")
-
         tdSql.checkData(0, 6, "binary+ ab 12  cd 34 ")
-
         tdSql.checkData(0, 7, "nchar+ ab 12  cd 34 ")
 
         tdSql.query(
@@ -565,9 +468,7 @@ class TestFuncCharScalar:
         tdLog.info(f"====> rows: {tdSql.getRows()})")
 
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 2, "bin- ab 12 -a1-a2- cd 34 -a3-a4-END")
-
         tdSql.checkData(0, 5, "nchar- ab 12 -a1-a2- cd 34 -a3-a4-END")
 
         # sql_error select c1, c2, concat(c1, c2), c3, c4, concat(c3, c4) from ctb4
@@ -587,13 +488,9 @@ class TestFuncCharScalar:
         tdLog.info(f"====> rows: {tdSql.getRows()})")
 
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 2, " ab 12 * cd 34 ")
-
         tdSql.checkData(0, 5, " ab 12 * cd 34 ")
-
         tdSql.checkData(0, 6, "binary+* ab 12 * cd 34 ")
-
         tdSql.checkData(0, 7, "nchar+* ab 12 * cd 34 ")
 
         tdLog.info(
@@ -605,9 +502,7 @@ class TestFuncCharScalar:
         tdLog.info(f"====> rows: {tdSql.getRows()})")
 
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 2, "b0* ab 12 *b1* cd 34 *b2*E0*E1*E2")
-
         tdSql.checkData(0, 5, "n0* ab 12 * cd 34 *n1* ab 12 * cd 34 *n2*END")
 
         # sql_error select c1, c2, concat_ws("*", c1, c2), c3, c4, concat_ws("*", c3, c4) from ctb4
@@ -616,97 +511,19 @@ class TestFuncCharScalar:
 
         tdLog.info(f"====> substr")
 
-
-# sql select c1, substr(c1, 3, 3), substr(c1, -5, 3), c2, substr(c2, 3, 3), substr(c2, -5, 3), substr("abcdefg", 3, 3), substr("abcdefg", -3, 3) from ntb5
-# print ====> select c1, substr(c1, 3, 3), substr(c1, -5, 3), c2, substr(c2, 3, 3), substr(c2, -5, 3), substr("abcdefg", 3, 3), substr("abcdefg", -3, 3) from ctb5
-# sql select c1, substr(c1, 3, 3), substr(c1, -5, 3), c2, substr(c2, 3, 3), substr(c2, -5, 3), substr("abcdefg", 3, 3), substr("abcdefg", -3, 3) from ctb5
-# print ====> rows: $rows
-# print ====> $tdSql.getData(0,0) $tdSql.getData(0,1) $tdSql.getData(0,2) $tdSql.getData(0,3) $tdSql.getData(0,4) $tdSql.getData(0,5) $tdSql.getData(0,6)
-# print ====> $tdSql.getData(1,0) $tdSql.getData(1,1) $tdSql.getData(1,2) $tdSql.getData(1,3) $tdSql.getData(1,4) $tdSql.getData(1,5) $tdSql.getData(1,6)
-# if $rows != 1 then
-#  return -1
-# endi
-# if $tdSql.getData(0,1) != 345 then
-#  return -1
-# endi
-# if $tdSql.getData(0,2) != 456 then
-#  return -1
-# endi
-# if $tdSql.getData(0,4) != 345 then
-#  return -1
-# endi
-# if $tdSql.getData(0,5) != 456 then
-#  return -1
-# endi
-# if $tdSql.getData(0,6) != def then
-#  return -1
-# endi
-# if $tdSql.getData(0,7) != efg then
-#  return -1
-# endi
-# if $tdSql.getData(1,1) != NULL then
-#  return -1
-# endi
-# if $tdSql.getData(1,2) != NULL then
-#  return -1
-# endi
-# if $tdSql.getData(1,4) != NULL then
-#  return -1
-# endi
-# if $tdSql.getData(1,5) != NULL then
-#  return -1
-# endi
-# if $tdSql.getData(1,6) != def then
-#  return -1
-# endi
-# if $tdSql.getData(1,7) != efg then
-#  return -1
-# endi
-#
-# sql select c1, substr(c1, 3), substr(c1, -5), c2, substr(c2, 3), substr(c2, -5), substr("abcdefg", 3), substr("abcdefg", -3) from ntb5
-# print ====> select c1, substr(c1, 3), substr(c1, -5), c2, substr(c2, 3), substr(c2, -5), substr("abcdefg", 3), substr("abcdefg", -3) from ctb5
-# sql select c1, substr(c1, 3), substr(c1, -5), c2, substr(c2, 3), substr(c2, -5), substr("abcdefg", 3), substr("abcdefg", -3) from ctb5
-# print ====> rows: $rows
-# print ====> $tdSql.getData(0,0) $tdSql.getData(0,1) $tdSql.getData(0,2) $tdSql.getData(0,3) $tdSql.getData(0,4) $tdSql.getData(0,5) $tdSql.getData(0,6)
-# print ====> $tdSql.getData(1,0) $tdSql.getData(1,1) $tdSql.getData(1,2) $tdSql.getData(1,3) $tdSql.getData(1,4) $tdSql.getData(1,5) $tdSql.getData(1,6)
-# if $rows != 1 then
-#  return -1
-# endi
-# if $tdSql.getData(0,1) != 3456789 then
-#  return -1
-# endi
-# if $tdSql.getData(0,2) != 456789 then
-#  return -1
-# endi
-# if $tdSql.getData(0,4) != 3456789 then
-#  return -1
-# endi
-# if $tdSql.getData(0,5) != 456789 then
-#  return -1
-# endi
-# if $tdSql.getData(0,6) != defg then
-#  return -1
-# endi
-# if $tdSql.getData(0,7) != efg then
-#  return -1
-# endi
-# if $tdSql.getData(1,1) != NULL then
-#  return -1
-# endi
-# if $tdSql.getData(1,2) != NULL then
-#  return -1
-# endi
-# if $tdSql.getData(1,4) != NULL then
-#  return -1
-# endi
-# if $tdSql.getData(1,5) != NULL then
-#  return -1
-# endi
-# if $tdSql.getData(1,6) != defg then
-#  return -1
-# endi
-# if $tdSql.getData(1,7) != efg then
-#  return -1
-# endi
-
-# sql_error select t1, substr(t1, 3, 2), substr(t1, -3, 2), t2, substr(t2, 3, 2), substr(t2, -3, 2) from ctb5
+    def Concat(self):
+        self.dbname = "db"
+        self.tbname = f"{self.dbname}.tbconcat"
+        tdSql.execute(f"drop database if exists {self.dbname}")
+        tdSql.execute(f"create database {self.dbname}")
+        tdSql.execute(f"use {self.dbname}")
+        tdSql.execute(
+            f"create table if not exists {self.tbname}(ts timestamp, name varchar(20), name2 nchar(20))"
+        )
+        tdSql.execute(f'insert into {self.tbname} values(now(),"abcdefg","你好")')
+        tdSql.execute(f'insert into {self.tbname} values(now(),"abcdefgh","我好")')
+        tdSql.execute(f'insert into {self.tbname} values(now(),"abcdefg", "")')
+        tdSql.execute(f'select concat("你好",name2) from {self.tbname}')
+        tdSql.execute(f'select concat(name2,"你好") from {self.tbname}')
+        tdSql.execute(f'select concat(name2,"") from {self.tbname}')
+        tdSql.execute(f'select concat("", name2) from {self.tbname}')

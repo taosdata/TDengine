@@ -7,12 +7,14 @@ class TestFuncScalarNull:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_func_scalar_null(self):
-        """Single Row
+        """Null
 
-        1.
+        1. Usage of NULL in the IN operator
+        2. Comparison of NULL values
+        3. Operations involving NULL values
 
         Catalog:
-            - Function:SingleRow
+            - Operator
 
         Since: v3.0.0.0
 

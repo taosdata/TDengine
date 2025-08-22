@@ -77,76 +77,56 @@ class TestSingleRowInTb:
             f"select first(ts, c1) from {stb} where ts >= {ts0} and ts < now group by t1"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, "2018-09-17 09:00:00")
-
         tdSql.checkData(0, 1, 1)
 
         tdSql.query(
             f"select last(ts, c1) from {stb} where ts >= {ts0} and ts < now group by t1"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, "2018-09-17 09:00:00")
-
         tdSql.checkData(0, 1, 1)
 
         tdSql.query(
             f"select first(ts, c1), last(c1) from {stb} where ts >= {ts0} and ts < now group by t1"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, "2018-09-17 09:00:00")
-
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkData(0, 2, 1)
 
         tdSql.query(
             f"select first(ts, c1), last(c2) from {stb} where ts >= {ts0} and ts < now group by t1"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, "2018-09-17 09:00:00")
-
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkData(0, 2, 2)
 
         tdSql.query(f"select first(ts, c1) from {tb1} where ts >= {ts0} and ts < now")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, "2018-09-17 09:00:00")
-
         tdSql.checkData(0, 1, 1)
 
         tdSql.query(f"select last(ts, c1) from {tb1} where ts >= {ts0} and ts < now")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, "2018-09-17 09:00:00")
-
         tdSql.checkData(0, 1, 1)
 
         tdSql.query(
             f"select first(ts, c1), last(c1) from {tb1} where ts >= {ts0} and ts < now"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, "2018-09-17 09:00:00")
-
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkData(0, 2, 1)
 
         tdSql.query(
             f"select first(ts, c1), last(c2) from {tb1} where ts >= {ts0} and ts < now"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, "2018-09-17 09:00:00")
-
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkData(0, 2, 2)
 
         #### query a STable and using where clause
@@ -154,60 +134,40 @@ class TestSingleRowInTb:
             f"select first(ts,c1), last(ts,c1), spread(c1), t1 from {stb} where ts >= {ts0} and ts < '2018-09-20 00:00:00.000' group by t1"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, "2018-09-17 09:00:00")
-
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkData(0, 2, "2018-09-17 09:00:00")
-
         tdSql.checkData(0, 3, 1)
-
         tdSql.checkData(0, 4, 0.000000000)
-
         tdSql.checkData(0, 5, 1)
 
         tdSql.query(
             f"select _wstart, first(c1), last(c1) from sr_stb where ts >= 1537146000000 and ts < '2018-09-20 00:00:00.000' partition by t1 interval(1d)"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, "2018-09-17 00:00:00")
-
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkData(0, 2, 1)
 
         tdSql.query(
             f"select max(c1), min(c1), sum(c1), avg(c1), count(c1), t1 from {stb} where c1 > 0 group by t1"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkData(0, 2, 1)
-
         tdSql.checkData(0, 3, 1.000000000)
-
         tdSql.checkData(0, 4, 1)
-
         tdSql.checkData(0, 5, 1)
 
         tdSql.query(
             f"select _wstart, first(ts,c1), last(ts,c1) from {tb1} where ts >= {ts0} and ts < '2018-09-20 00:00:00.000' interval(1d)"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, "2018-09-17 00:00:00")
-
         tdSql.checkData(0, 1, "2018-09-17 09:00:00")
-
         tdSql.checkData(0, 2, 1)
-
         tdSql.checkData(0, 3, "2018-09-17 09:00:00")
-
         tdSql.checkData(0, 4, 1)
 
         tdLog.info(f"===============>safty check TD-4927")

@@ -230,19 +230,17 @@
 ,,y,.,./ci/pytest.sh pytest cases/21-Operator/05-Comparison/test_in.py
 ,,y,.,./ci/pytest.sh pytest cases/21-Operator/05-Comparison/test_like.py
 ,,y,.,./ci/pytest.sh pytest cases/21-Operator/05-Comparison/test_match.py
+,,y,.,./ci/pytest.sh pytest cases/21-Operator/05-Comparison/test_null.py
 ## 06-Logical
 ,,y,.,./ci/pytest.sh pytest cases/21-Operator/06-Logical/test_and_or.py
 ,,y,.,./ci/pytest.sh pytest cases/21-Operator/06-Logical/test_case_when.py
 
 # 22-Functions
 ## 01-Scalar
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_single_row_in_tb.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_func_cast.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_func_char_scalar.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_func_scalar_null.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_func_scalar.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_func_truncate.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_func_cast.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_cast.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_math.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_string.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_time.py
 ## 02-Aggregate
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_func_apercentile.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_func_avg.py
@@ -276,6 +274,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_topbot.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_paramnum.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_selection_function_with_json.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_selection.py
 ## 04-Timeseries
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_func_diff.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_func_diff2.py

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
 import datetime
 
 
@@ -49,7 +49,11 @@ class TestCast:
         tdSql.checkData(0, 0, True)
 
         tdSql.query(f"select cast({int_num2} as timestamp) as re;")
-        tdSql.checkData(0, 0, self._datetime_epoch + datetime.timedelta(seconds=int(int_num2) / 1000))
+        tdSql.checkData(
+            0,
+            0,
+            self._datetime_epoch + datetime.timedelta(seconds=int(int_num2) / 1000),
+        )
 
         tdSql.query(f"select cast({int_num1} as varchar(5)) as re;")
         tdSql.checkData(0, 0, "21474")
@@ -153,7 +157,11 @@ class TestCast:
         tdSql.checkData(0, 0, True)
 
         tdSql.query(f"select cast({smallint_num} as timestamp) as re;")
-        tdSql.checkData(0, 0, self._datetime_epoch + datetime.timedelta(seconds=int(smallint_num) / 1000))
+        tdSql.checkData(
+            0,
+            0,
+            self._datetime_epoch + datetime.timedelta(seconds=int(smallint_num) / 1000),
+        )
 
         tdSql.query(f"select cast({smallint_num} as varchar(3)) as re;")
         tdSql.checkData(0, 0, "327")
@@ -204,7 +212,11 @@ class TestCast:
         tdSql.checkData(0, 0, True)
 
         tdSql.query(f"select cast({tinyint_num} as timestamp) as re;")
-        tdSql.checkData(0, 0, self._datetime_epoch + datetime.timedelta(seconds=int(tinyint_num) / 1000))
+        tdSql.checkData(
+            0,
+            0,
+            self._datetime_epoch + datetime.timedelta(seconds=int(tinyint_num) / 1000),
+        )
 
         tdSql.query(f"select cast({tinyint_num} as varchar(2)) as re;")
         tdSql.checkData(0, 0, "12")
@@ -253,7 +265,11 @@ class TestCast:
         tdSql.checkData(0, 0, True)
 
         tdSql.query(f"select cast({float_1001} as timestamp) as re;")
-        tdSql.checkData(0, 0, self._datetime_epoch + datetime.timedelta(seconds=int(float_1001) / 1000))
+        tdSql.checkData(
+            0,
+            0,
+            self._datetime_epoch + datetime.timedelta(seconds=int(float_1001) / 1000),
+        )
 
         sql = f"select cast({float_1001} as varchar(5)) as re;"
         tdSql.query(sql)
@@ -335,11 +351,15 @@ class TestCast:
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, 1)
 
-        tdSql.query(f"select cast({false_val} as int unsigned) re, cast({true_val} as int unsigned) re;")
+        tdSql.query(
+            f"select cast({false_val} as int unsigned) re, cast({true_val} as int unsigned) re;"
+        )
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, 1)
 
-        tdSql.query(f"select cast({false_val} as bigint) re, cast({true_val} as bigint) re;")
+        tdSql.query(
+            f"select cast({false_val} as bigint) re, cast({true_val} as bigint) re;"
+        )
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, 1)
 
@@ -349,7 +369,9 @@ class TestCast:
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, 1)
 
-        tdSql.query(f"select cast({false_val} as smallint) re, cast({true_val} as smallint) re;")
+        tdSql.query(
+            f"select cast({false_val} as smallint) re, cast({true_val} as smallint) re;"
+        )
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, 1)
 
@@ -359,7 +381,9 @@ class TestCast:
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, 1)
 
-        tdSql.query(f"select cast({false_val} as tinyint) re, cast({true_val} as tinyint) re;")
+        tdSql.query(
+            f"select cast({false_val} as tinyint) re, cast({true_val} as tinyint) re;"
+        )
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, 1)
 
@@ -369,35 +393,51 @@ class TestCast:
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, 1)
 
-        tdSql.query(f"select cast({false_val} as smallint) re, cast({true_val} as smallint) re;")
+        tdSql.query(
+            f"select cast({false_val} as smallint) re, cast({true_val} as smallint) re;"
+        )
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, 1)
 
-        tdSql.query(f"select cast({false_val} as float) re, cast({true_val} as float) re;")
+        tdSql.query(
+            f"select cast({false_val} as float) re, cast({true_val} as float) re;"
+        )
         tdSql.checkData(0, 0, 0.0000000)
         tdSql.checkData(0, 1, 1.0000000)
 
-        tdSql.query(f"select cast({false_val} as double) re, cast({true_val} as double) re;")
+        tdSql.query(
+            f"select cast({false_val} as double) re, cast({true_val} as double) re;"
+        )
         tdSql.checkData(0, 0, 0.000000000000000)
         tdSql.checkData(0, 1, 1.000000000000000)
 
-        tdSql.query(f"select cast({false_val} as bool) re, cast({true_val} as bool) re;")
+        tdSql.query(
+            f"select cast({false_val} as bool) re, cast({true_val} as bool) re;"
+        )
         tdSql.checkData(0, 0, false_val)
         tdSql.checkData(0, 1, true_val)
 
-        tdSql.query(f"select cast({false_val} as timestamp) re, cast({true_val} as timestamp) re;")
+        tdSql.query(
+            f"select cast({false_val} as timestamp) re, cast({true_val} as timestamp) re;"
+        )
         tdSql.checkData(0, 0, "1970-01-01 08:00:00.000")
         tdSql.checkData(0, 1, "1970-01-01 08:00:00.001")
 
-        tdSql.query(f"select cast({false_val} as varchar(3)) re, cast({true_val} as varchar(3)) re;")
+        tdSql.query(
+            f"select cast({false_val} as varchar(3)) re, cast({true_val} as varchar(3)) re;"
+        )
         tdSql.checkData(0, 0, "fal")
         tdSql.checkData(0, 1, "tru")
 
-        tdSql.query(f"select cast({false_val} as binary(3)) re, cast({true_val} as binary(3)) re;")
+        tdSql.query(
+            f"select cast({false_val} as binary(3)) re, cast({true_val} as binary(3)) re;"
+        )
         tdSql.checkData(0, 0, "fal")
         tdSql.checkData(0, 1, "tru")
 
-        tdSql.query(f"select cast({false_val} as nchar(3)) re, cast({true_val} as nchar(3)) re;")
+        tdSql.query(
+            f"select cast({false_val} as nchar(3)) re, cast({true_val} as nchar(3)) re;"
+        )
         tdSql.checkData(0, 0, "fal")
         tdSql.checkData(0, 1, "tru")
 
@@ -492,7 +532,9 @@ class TestCast:
         tdSql.checkData(0, 0, True)
 
         tdSql.query(f"select cast({add1}+{add2} as timestamp) as re;")
-        tdSql.checkData(0, 0, self._datetime_epoch + datetime.timedelta(seconds=int(re) / 1000))
+        tdSql.checkData(
+            0, 0, self._datetime_epoch + datetime.timedelta(seconds=int(re) / 1000)
+        )
 
         tdSql.query(f"select cast({add1}+{add2} as varchar(2)) as re;")
         tdSql.checkData(0, 0, "57")
@@ -526,7 +568,9 @@ class TestCast:
         tdSql.checkData(0, 0, True)
 
         tdSql.query(f"select cast({add1}+{test_str} as timestamp) re;")
-        tdSql.checkData(0, 0, self._datetime_epoch + datetime.timedelta(seconds=int(add1) / 1000))
+        tdSql.checkData(
+            0, 0, self._datetime_epoch + datetime.timedelta(seconds=int(add1) / 1000)
+        )
 
         tdSql.query(f"select cast({add1}+{test_str} as varchar(2)) re;")
         tdSql.checkData(0, 0, "12")
@@ -536,46 +580,142 @@ class TestCast:
 
         tdSql.query(f"select cast({add1}+{test_str} as nchar(2)) re;")
         tdSql.checkData(0, 0, "12")
-        
-    def test_ts5972(self):
-        """test cast function ts5972
 
-        test cast function convert a floating-point number to a binary and then performing a comparison
+    def cast_const(self):
+        tdLog.info(f"======== step1")
+        tdSql.prepare("db1", drop=True, vgroups=3)
+        tdSql.execute(f"use db1;")
+        tdSql.execute(
+            f"create stable st1 (fts timestamp, fbool bool, ftiny tinyint, fsmall smallint, fint int, fbig bigint, futiny tinyint unsigned, fusmall smallint unsigned, fuint int unsigned, fubig bigint unsigned, ffloat float, fdouble double, fbin binary(10), fnchar nchar(10)) tags(tts timestamp, tbool bool, ttiny tinyint, tsmall smallint, tint int, tbig bigint, tutiny tinyint unsigned, tusmall smallint unsigned, tuint int unsigned, tubig bigint unsigned, tfloat float, tdouble double, tbin binary(10), tnchar nchar(10));"
+        )
+        tdSql.execute(
+            f"create table tb1 using st1 tags('2022-07-10 16:31:00', true, 1, 1, 1, 1, 1, 1, 1, 1, 1.0, 1.0, 'a', 'a');"
+        )
+        tdSql.execute(
+            f"create table tb2 using st1 tags('2022-07-10 16:32:00', false, 2, 2, 2, 2, 2, 2, 2, 2, 2.0, 2.0, 'b', 'b');"
+        )
+        tdSql.execute(
+            f"create table tb3 using st1 tags('2022-07-10 16:33:00', true, 3, 3, 3, 3, 3, 3, 3, 3, 3.0, 3.0, 'c', 'c');"
+        )
 
-        Since: v3.3.0.0
+        tdSql.execute(
+            f"insert into tb1 values ('2022-07-10 16:31:01', false, 1, 1, 1, 1, 1, 1, 1, 1, 1.0, 1.0, 'a', 'a');"
+        )
+        tdSql.execute(
+            f"insert into tb1 values ('2022-07-10 16:31:02', true, 2, 2, 2, 2, 2, 2, 2, 2, 2.0, 2.0, 'b', 'b');"
+        )
+        tdSql.execute(
+            f"insert into tb1 values ('2022-07-10 16:31:03', false, 3, 3, 3, 3, 3, 3, 3, 3, 3.0, 3.0, 'c', 'c');"
+        )
+        tdSql.execute(
+            f"insert into tb1 values ('2022-07-10 16:31:04', true, 4, 4, 4, 4, 4, 4, 4, 4, 4.0, 4.0, 'd', 'd');"
+        )
+        tdSql.execute(
+            f"insert into tb1 values ('2022-07-10 16:31:05', false, 5, 5, 5, 5, 5, 5, 5, 5, 5.0, 5.0, 'e', 'e');"
+        )
 
-        Labels: cast
+        tdSql.execute(
+            f"insert into tb2 values ('2022-07-10 16:32:01', false, 1, 1, 1, 1, 1, 1, 1, 1, 1.0, 1.0, 'a', 'a');"
+        )
+        tdSql.execute(
+            f"insert into tb2 values ('2022-07-10 16:32:02', true, 2, 2, 2, 2, 2, 2, 2, 2, 2.0, 2.0, 'b', 'b');"
+        )
+        tdSql.execute(
+            f"insert into tb2 values ('2022-07-10 16:32:03', false, 3, 3, 3, 3, 3, 3, 3, 3, 3.0, 3.0, 'c', 'c');"
+        )
+        tdSql.execute(
+            f"insert into tb2 values ('2022-07-10 16:32:04', true, 4, 4, 4, 4, 4, 4, 4, 4, 4.0, 4.0, 'd', 'd');"
+        )
+        tdSql.execute(
+            f"insert into tb2 values ('2022-07-10 16:32:05', false, 5, 5, 5, 5, 5, 5, 5, 5, 5.0, 5.0, 'e', 'e');"
+        )
 
-        Jira: TS-5972
+        tdSql.execute(
+            f"insert into tb3 values ('2022-07-10 16:33:01', false, 1, 1, 1, 1, 1, 1, 1, 1, 1.0, 1.0, 'a', 'a');"
+        )
+        tdSql.execute(
+            f"insert into tb3 values ('2022-07-10 16:33:02', true, 2, 2, 2, 2, 2, 2, 2, 2, 2.0, 2.0, 'b', 'b');"
+        )
+        tdSql.execute(
+            f"insert into tb3 values ('2022-07-10 16:33:03', false, 3, 3, 3, 3, 3, 3, 3, 3, 3.0, 3.0, 'c', 'c');"
+        )
+        tdSql.execute(
+            f"insert into tb3 values ('2022-07-10 16:33:04', true, 4, 4, 4, 4, 4, 4, 4, 4, 4.0, 4.0, 'd', 'd');"
+        )
+        tdSql.execute(
+            f"insert into tb3 values ('2022-07-10 16:33:05', false, 5, 5, 5, 5, 5, 5, 5, 5, 5.0, 5.0, 'e', 'e');"
+        )
 
-        History:
-            - 2024-7-14 Zhi Yong Created
-            - 2025-5-08 Huo Hong Migrated to new test framework
+        tdSql.query(f"select 1+1n;")
+        tdSql.checkRows(1)
 
-        """
+        tdSql.checkData(0, 0, 2.000000000)
+
+        tdSql.query(f"select cast(1 as timestamp)+1n;")
+        tdSql.checkRows(1)
+        tdLog.info(f"==== {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, "1970-02-01 08:00:00.001000")
+
+        tdSql.query(
+            f"select cast('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' as double);"
+        )
+        tdSql.query(f"select 1-1n;")
+        tdSql.checkRows(1)
+
+        # there is an *bug* in print timestamp that smaller than 0, so let's try value that is greater than 0.
+        tdSql.query(f"select cast(1 as timestamp)+1y;")
+        tdSql.checkRows(1)
+        tdLog.info(f"==== {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, "1971-01-01 08:00:00.001000")
+
+        tdSql.query(f"select 1n-now();")
+        tdSql.query(f"select 1n+now();")
+
+    def cast_ts5972(self):
         tdSql.execute("CREATE DATABASE IF NOT EXISTS ts5972;")
         tdSql.execute("DROP TABLE IF EXISTS ts5972.t1;")
         tdSql.execute("DROP TABLE IF EXISTS ts5972.t1;")
         tdSql.execute("CREATE TABLE ts5972.t1(time TIMESTAMP, c0 DOUBLE);")
-        tdSql.execute("INSERT INTO ts5972.t1(time, c0) VALUES (1641024000000, 0.018518518518519), (1641024005000, 0.015151515151515), (1641024010000, 0.1234567891012345);")
-        tdSql.query("SELECT c0, CAST(c0 AS BINARY(50)) FROM ts5972.t1 WHERE CAST(c0 AS BINARY(50)) != c0;")
+        tdSql.execute(
+            "INSERT INTO ts5972.t1(time, c0) VALUES (1641024000000, 0.018518518518519), (1641024005000, 0.015151515151515), (1641024010000, 0.1234567891012345);"
+        )
+        tdSql.query(
+            "SELECT c0, CAST(c0 AS BINARY(50)) FROM ts5972.t1 WHERE CAST(c0 AS BINARY(50)) != c0;"
+        )
         tdSql.checkRows(0)
-        tdSql.query("SELECT c0, CAST(c0 AS BINARY(50)) FROM ts5972.t1 WHERE CAST(c0 AS BINARY(50)) == c0;")
+        tdSql.query(
+            "SELECT c0, CAST(c0 AS BINARY(50)) FROM ts5972.t1 WHERE CAST(c0 AS BINARY(50)) == c0;"
+        )
         tdSql.checkRows(3)
 
-
     def test_cast_without_from(self):
-        """test cast function
+        """Scalar: cast
 
-        test cast from int to other, from bigint to other,from smallint to other,from tinyint to other,from float to other,from str to other,from bool to other,from timestamp to other, from compute to other
+        1. from int to other,
+        2. from bigint to other
+        3. from smallint to other
+        4. from tinyint to other
+        5. from float to other
+        6. from str to other
+        7. from bool to other
+        8. from timestamp to other
+        9. from compute to other
+        10. withou from clause
+        11. convert a floating-point number to a binary and then performing a comparison
+
+
+        Catalog:
+            - Function:Sclar
 
         Since: v3.3.0.0
 
-        Labels: cast
+        Labels: common,ci
 
         History:
             - 2024-9-14 Feng Chao Created
-            - 2025-5-08 Huo Hong Migrated to new test framework
+            - 2025-5-8  Huo Hong Migrated to new test framework
+            - 2025-8-23 Simon Guan Migrated function cast_const from tsim/scalar/scalar.sim
+            - 2024-7-14 Zhi Yong Create function cast_ts5972
 
         """
         self.cast_from_int_to_other()
@@ -589,4 +729,8 @@ class TestCast:
         self.cast_from_compute_to_other()
         # self.cast_from_null_to_other()
 
-
+        tdStream.dropAllStreamsAndDbs()
+        self.cast_const()
+        tdStream.dropAllStreamsAndDbs()
+        self.cast_ts5972()
+        tdStream.dropAllStreamsAndDbs()

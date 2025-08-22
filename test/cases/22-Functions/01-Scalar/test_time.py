@@ -1,12 +1,12 @@
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
 
 
-class TestFuncTruncate:
+class TestTime:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_func_truncate(self):
+    def test_time(self):
         """Truncate 函数
 
         1. 创建超级表、子表并写入数据
