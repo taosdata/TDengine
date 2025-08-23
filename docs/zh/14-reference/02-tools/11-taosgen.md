@@ -604,9 +604,9 @@ d1,4.98,220.9,147.9
     - clean_session: 设置为 true，清理会话状态。
     - qos: 服务质量等级设置为 1（至少交付一次）。
 
-  - 主题配置 (topic): 使用动态主题 factory/{table}/{state}/data，其中：
-    - {table} 占位符将被实际生成的子表名称替换。
-    - {state} 占位符将被生成的 state 列值替换，实现按设备状态发布到不同主题。
+  - 主题配置 (topic): 使用动态主题 factory/`{table}`/`{state}`/data，其中：
+    - `{table}` 占位符将被实际生成的子表名称替换。
+    - `{state}` 占位符将被生成的 state 列值替换，实现按设备状态发布到不同主题。
 
 - 控制策略 (control)
   - 数据格式 (data_format): 使用 stmt (参数化写入) 格式及其 v2 版本格式化和组织数据。

@@ -577,9 +577,9 @@ Configuration details:
     - clean_session: Set to true to clear session state.
     - qos: Quality of Service level set to 1 (at least once delivery).
 
-  - Topic configuration (topic): Uses dynamic topic factory/{table}/{state}/data, where:
-    - {table} placeholder will be replaced with the actual generated subtable name.
-    - {state} placeholder will be replaced with the generated state column value, enabling publishing to different topics by device state.
+  - Topic configuration (topic): Uses dynamic topic factory/`{table}`/`{state}`/data, where:
+    - `{table}` placeholder will be replaced with the actual generated subtable name.
+    - `{state}` placeholder will be replaced with the generated state column value, enabling publishing to different topics by device state.
 
 - Control strategy (control)
   - Data format (data_format): Uses stmt (parameterized write) format and its v2 version to format and organize data.
