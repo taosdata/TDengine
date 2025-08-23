@@ -437,11 +437,23 @@ Controls the distribution of time intervals during writing.
 
 ### Generator-based data generation, STMT v2 write to TDengine example
 
+This example demonstrates how to use the taosgen tool to dynamically generate data and write it into the TDengine database using generators. The configuration defines database connections, table schemas, and data generation rules, utilizing the STMT v2 interface for efficient batch insertion, encompassing a complete automated workflow from database creation to data insertion.
+
+Scenario Description:
+
+Suitable for performance benchmarking and large-scale data simulation scenarios, such as generating massive time-series data from numerous devices to test TDengine's write throughput and cluster performance. By dynamically generating data, the data volume and concurrency can be flexibly adjusted to evaluate system behavior under high load.
+
 ```yaml
 {{#include docs/doxgen/taosgen_config.md:stmt_v2_write_config}}
 ```
 
 ### CSV-based data generation, STMT v2 write to TDengine example
+
+This example demonstrates how to use the taosgen tool to read data from CSV files and write it into a TDengine database. The configuration defines reading device tag information and meter readings from two separate CSV files, utilizing the STMT v2 interface for efficient batch insertion, and includes a complete workflow for database and supertable creation.
+
+Scenario Description:
+
+Suitable for device data migration or bulk initialization scenarios, such as importing existing historical meter data from CSV files into a TDengine database. By separating the tag and data files, this approach enables efficient structured storage of large volumes of device data, providing a foundation for subsequent time-series data analysis.
 
 ```yaml
 {{#include docs/doxgen/taosgen_config.md:csv_stmt_v2_write_config}}
@@ -470,6 +482,12 @@ d1,21,205,1002
 ```
 
 ### Generator-based data generation and write to MQTT example
+
+This example demonstrates how to use the taosgen tool to generate simulated device data and publish it via the MQTT protocol. The configuration defines data formats, generation rules, and MQTT connection parameters, making it suitable for IoT scenarios involving device data simulation and real-time streaming, with support for dynamic topics and flexible generation of various data types.
+
+Scenario Description:
+
+Suitable for IoT device monitoring scenarios, such as meter data collection in factories. By generating simulated data and publishing it to MQTT topics, this setup enables testing of real-time data reception, device status monitoring, and backend system processing capabilities.
 
 ```yaml
 {{#include docs/doxgen/taosgen_config.md:write_mqtt_config}}
