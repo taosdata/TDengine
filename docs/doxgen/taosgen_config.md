@@ -206,14 +206,14 @@ jobs:
               interlace_mode:
                 enabled: true
                 rows: 1
-              generate_threads: 1
+              generate_threads: 2
               per_table_rows: 100
               queue_capacity: 100
               queue_warmup_ratio: 0.5
             insert_control:
               per_request_rows: 10000
               auto_create_table: false
-              insert_threads: 1
+              insert_threads: 8
 //ANCHOR_END: stmt_v2_write_config
 
 //ANCHOR: csv_stmt_v2_write_config
@@ -479,4 +479,3 @@ jobs:
               insert_threads: 8
 
 //ANCHOR_END: write_mqtt_config
-
