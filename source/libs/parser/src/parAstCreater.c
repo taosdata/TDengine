@@ -5039,6 +5039,20 @@ _err:
   return NULL;
 }
 
+SNode* createShowRsmasStmt(SAstCreateContext* pCxt, SNode* dbName) {
+  CHECK_PARSER_STATUS(pCxt);
+
+  SShowStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_RSMAS_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  pStmt->pDbName = dbName;
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(dbName);
+  return NULL;
+}
+
 SNode* createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* tsmaName, SNode* pOptions,
                             SNode* pRealTable, SNode* pInterval) {
   SCreateTSMAStmt* pStmt = NULL;

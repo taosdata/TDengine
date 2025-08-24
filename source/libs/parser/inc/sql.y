@@ -736,8 +736,10 @@ cmd ::= CREATE RSMA not_exists_opt(B) rsma_name(C)
 cmd ::= DROP RSMA exists_opt(B) full_rsma_name(C).                                { pCxt->pRootNode = createDropRsmaStmt(pCxt, B, C); }
 cmd ::= START RSMA exists_opt(B) full_rsma_name(C).                               { pCxt->pRootNode = createStartRsmaStmt(pCxt, B, C); }
 cmd ::= STOP RSMA exists_opt(B) full_rsma_name(C).                                { pCxt->pRootNode = createStopRsmaStmt(pCxt, B, C); }
+*/
 cmd ::= SHOW db_name_cond_opt(B) RSMAS.                                           { pCxt->pRootNode = createShowRsmasStmt(pCxt, B); }
 cmd ::= SHOW db_name_cond_opt(B) RSMA_TASKS.                                      { pCxt->pRootNode = createShowRsmaTasksStmt(pCxt, B); }
+/*
 cmd ::= KILL RSMA_TASKS IN NK_LP integer_list(B) NK_RP.                           { pCxt->pRootNode = createKillRsmaTasksStmt(pCxt, B); }
 cmd ::= RECALC RSMA exists_opt(B) rsma_name(C) recalc_extension(D) where_clause_opt. { pCxt->pRootNode = createRecalcRsmaStmt(pCxt, B, &C, D); }
 

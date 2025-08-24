@@ -246,6 +246,8 @@ static SKeyword keywordTable[] = {
     {"REVOKE",               TK_REVOKE},
     {"RIGHT",                TK_RIGHT},
     {"ROLLUP",               TK_ROLLUP},
+    {"RSMA",                 TK_RSMA},
+    {"RSMAS",                TK_RSMAS},
     {"SCHEMALESS",           TK_SCHEMALESS},
     {"SCORES",               TK_SCORES},
     {"SELECT",               TK_SELECT},
