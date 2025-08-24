@@ -801,6 +801,25 @@ typedef struct SDropTSMAStmt {
   char      tsmaName[TSDB_TABLE_NAME_LEN];
 } SDropTSMAStmt;
 
+typedef struct SRsmaOptions {
+  ENodeType  type;
+  SNodeList* pFuncs;
+  SNodeList* pCols;
+  SNodeList* pIntervals;
+  uint8_t    tsPrecision;
+} SRsmaOptions;
+
+typedef struct SCreateRsmaStmt {
+  ENodeType     type;
+  bool          ignoreExists;
+  char          rsmaName[TSDB_TABLE_NAME_LEN];
+  char          dbName[TSDB_DB_NAME_LEN];
+  char          tableName[TSDB_TABLE_NAME_LEN];  // base tb name or base rsma name
+  char          originalTbName[TSDB_TABLE_NAME_LEN];
+  SRsmaOptions* pOptions;
+  uint8_t       precision;
+} SCreateRsmaStmt;
+
 #ifdef __cplusplus
 }
 #endif

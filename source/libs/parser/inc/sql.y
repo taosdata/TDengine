@@ -728,7 +728,33 @@ db_kind_opt(A) ::= .                                                            
 db_kind_opt(A) ::= USER.                                                          { A = SHOW_KIND_DATABASES_USER; }
 db_kind_opt(A) ::= SYSTEM.                                                        { A = SHOW_KIND_DATABASES_SYSTEM; }
 
+/************************************************ rsma ********************************************************/
+cmd ::= CREATE RSMA not_exists_opt(B) rsma_name(C)
+  ON full_table_name(E) rsma_func_list(D)
+  INTERVAL NK_LP duration_literal(F) NK_RP.                                       { pCxt->pRootNode = createCreateRsmaStmt(pCxt, B, &C, D, E, releaseRawExprNode(pCxt, F)); }
+/*
+cmd ::= DROP RSMA exists_opt(B) full_rsma_name(C).                                { pCxt->pRootNode = createDropRsmaStmt(pCxt, B, C); }
+cmd ::= START RSMA exists_opt(B) full_rsma_name(C).                               { pCxt->pRootNode = createStartRsmaStmt(pCxt, B, C); }
+cmd ::= STOP RSMA exists_opt(B) full_rsma_name(C).                                { pCxt->pRootNode = createStopRsmaStmt(pCxt, B, C); }
+cmd ::= SHOW db_name_cond_opt(B) RSMAS.                                           { pCxt->pRootNode = createShowRsmasStmt(pCxt, B); }
+cmd ::= SHOW db_name_cond_opt(B) RSMA_TASKS.                                      { pCxt->pRootNode = createShowRsmaTasksStmt(pCxt, B); }
+cmd ::= KILL RSMA_TASKS IN NK_LP integer_list(B) NK_RP.                           { pCxt->pRootNode = createKillRsmaTasksStmt(pCxt, B); }
+cmd ::= RECALC RSMA exists_opt(B) rsma_name(C) recalc_extension(D) where_clause_opt. { pCxt->pRootNode = createRecalcRsmaStmt(pCxt, B, &C, D); }
 
+full_rsma_name(A) ::= rsma_name(B).                                               { A = createRealTableNode(pCxt, NULL, &B, NULL); }
+full_rsma_name(A) ::= db_name(B) NK_DOT rsma_name(C).                             { A = createRealTableNode(pCxt, &B, &C, NULL); }
+*/
+
+%type rsma_func_list                                                              { SNode* }
+%destructor rsma_func_list                                                        { nodesDestroyNode($$); }
+rsma_func_list(A) ::= .                                                           { A = NULL; }
+rsma_func_list(A) ::= FUNCTION NK_LP func_list(B) NK_RP.                          { A = createRsmaOptions(pCxt, B); }
+/*
+%type recalc_extension                                                            { SRsmaRecalcOption }
+%destructor recalc_extension                                                      { }
+recalc_extension(A) ::= .                                                         { A = NULL; }
+recalc_extension(A) ::= VGROUPS IN NK_LP integer_list(B) NK_RP.                   { A = B; }
+*/
 /************************************************ tsma ********************************************************/
 cmd ::= CREATE TSMA not_exists_opt(B) tsma_name(C)
   ON full_table_name(E) tsma_func_list(D)
@@ -1381,6 +1407,10 @@ index_name(A) ::= NK_ID(B).                                                     
 %type tsma_name                                                                   { SToken }
 %destructor tsma_name                                                             { }
 tsma_name(A) ::= NK_ID(B).                                                        { A = B; }
+
+%type rsma_name                                                                   { SToken }
+%destructor rsma_name                                                             { }
+rsma_name(A) ::= NK_ID(B).                                                        { A = B; }
 
 /************************************************ expression **********************************************************/
 expr_or_subquery(A) ::= expression(B).                                            { A = B; }

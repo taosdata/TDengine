@@ -5021,6 +5021,24 @@ _err:
   return NULL;
 }
 
+SNode* createCreateRsmaStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* rsmaName, SNode* pOptions,
+                            SNode* pRealTable, SNode* pInterval) {
+  SCreateRsmaStmt* pStmt = NULL;
+  return NULL;
+}
+
+SNode* createRsmaOptions(SAstCreateContext* pCxt, SNodeList* pFuncs) {
+  CHECK_PARSER_STATUS(pCxt);
+  SRsmaOptions* pOptions = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_RSMA_OPTIONS, (SNode**)&pOptions);
+  CHECK_MAKE_NODE(pOptions);
+  pOptions->pFuncs = pFuncs;
+  return (SNode*)pOptions;
+_err:
+  nodesDestroyList(pFuncs);
+  return NULL;
+}
+
 SNode* createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* tsmaName, SNode* pOptions,
                             SNode* pRealTable, SNode* pInterval) {
   SCreateTSMAStmt* pStmt = NULL;
