@@ -65,7 +65,7 @@ global:
   # Common structure definition
   connection_info: &db_conn
     host: 127.0.0.1
-    port: 6030
+    port: 6041
     user: root
     password: taosdata
     pool:
@@ -78,10 +78,10 @@ global:
     format_type: sql
 
   data_channel: &data_channel
-    channel_type: native
+    channel_type: websocket
 
   database_info: &db_info
-    name: benchdebug
+    name: taosgen_test
     drop_if_exists: true
     properties: precision 'ms' vgroups 4
 
@@ -94,8 +94,8 @@ global:
         max: 100
       - name: voltage
         type: int
-        min: 200
-        max: 240
+        gen_type: expression
+        formula: 220 * math.sqrt(2) * math.sin(_i)
       - name: phase
         type: float
         min: 0
@@ -110,7 +110,7 @@ global:
 
   tbname_generator: &tbname_generator
     prefix: d
-    count: 100000
+    count: 10000
     from: 0
 
 concurrency: 4
@@ -184,7 +184,7 @@ jobs:
                   generator:
                     start_timestamp: 1700000000000
                     timestamp_precision : ms
-                    timestamp_step: 1
+                    timestamp_step: 3000000
 
           # target
           target:
@@ -201,13 +201,13 @@ jobs:
               stmt:
                 version: v2
             data_channel:
-              channel_type: native
+              channel_type: websocket
             data_generation:
               interlace_mode:
                 enabled: true
                 rows: 1
               generate_threads: 2
-              per_table_rows: 100
+              per_table_rows: 10000
               queue_capacity: 100
               queue_warmup_ratio: 0.5
             insert_control:
@@ -226,7 +226,7 @@ global:
   # Common structure definition
   connection_info: &db_conn
     host: 127.0.0.1
-    port: 6030
+    port: 4130
     user: root
     password: taosdata
     pool:
@@ -239,10 +239,10 @@ global:
     format_type: sql
 
   data_channel: &data_channel
-    channel_type: native
+    channel_type: websocket
 
   database_info: &db_info
-    name: benchdebug
+    name: taosgen_test
     drop_if_exists: true
     properties: precision 'ms' vgroups 4
 
@@ -251,28 +251,15 @@ global:
     columns: &columns_info
       - name: current
         type: float
-        min: 0
-        max: 100
       - name: voltage
         type: int
-        min: 200
-        max: 240
       - name: phase
         type: float
-        min: 0
-        max: 360
     tags: &tags_info
       - name: groupid
         type: int
-        min: 1
-        max: 10
       - name: location
         type: binary(24)
-
-  tbname_generator: &tbname_generator
-    prefix: d
-    count: 100000
-    from: 0
 
 concurrency: 4
 
@@ -315,13 +302,13 @@ jobs:
             table_name:
               source_type: csv
               csv:
-                file_path: ../src/parameter/conf/ctb-tags.csv
+                file_path: ./conf/ctb-tags.csv
                 tbname_index: 2
             tags:
               source_type: csv
               csv:
                 schema: *tags_info
-                file_path: ../src/parameter/conf/ctb-tags.csv
+                file_path: ./conf/ctb-tags.csv
                 exclude_indices: 2
           batch:
             size: 1000
@@ -340,13 +327,13 @@ jobs:
             table_name:
               source_type: csv
               csv:
-                file_path: ../src/parameter/conf/ctb-tags.csv
+                file_path: ./conf/ctb-tags.csv
                 tbname_index: 2
             columns:
               source_type: csv
               csv:
                 schema: *columns_info
-                file_path: ../src/parameter/conf/ctb-data.csv
+                file_path: ./conf/ctb-data.csv
                 tbname_index : 0
 
                 timestamp_strategy:
@@ -354,7 +341,7 @@ jobs:
                   generator:
                     start_timestamp: 1700000000000
                     timestamp_precision : ms
-                    timestamp_step: 1
+                    timestamp_step: 3000000
 
           # target
           target:
@@ -371,13 +358,13 @@ jobs:
               stmt:
                 version: v2
             data_channel:
-              channel_type: native
+              channel_type: websocket
             data_generation:
               interlace_mode:
                 enabled: true
                 rows: 1
               generate_threads: 1
-              per_table_rows: 100
+              per_table_rows: 10000
               queue_capacity: 100
               queue_warmup_ratio: 0.0
             insert_control:
@@ -399,8 +386,8 @@ global:
         max: 100
       - name: voltage
         type: int
-        min: 200
-        max: 240
+        gen_type: expression
+        formula: 220 * math.sqrt(2) * math.sin(_i)
       - name: phase
         type: float
         min: 0
@@ -442,7 +429,7 @@ jobs:
                   generator:
                     start_timestamp: 1700000000000
                     timestamp_precision : ms
-                    timestamp_step: 1
+                    timestamp_step: 3000000
 
           # target
           target:
@@ -464,14 +451,12 @@ jobs:
               format_type: stmt
               stmt:
                 version: v2
-            data_channel:
-              channel_type: native
             data_generation:
               interlace_mode:
                 enabled: true
                 rows: 1
               generate_threads: 1
-              per_table_rows: 1000
+              per_table_rows: 10000
               queue_capacity: 10
               queue_warmup_ratio: 0.00
             insert_control:

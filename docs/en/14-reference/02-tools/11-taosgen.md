@@ -444,7 +444,7 @@ Configuration details:
   - Connection info (connection_info): Defines database connection parameters, including connection pool settings (max 10 connections, min 2 connections, connection timeout 1000ms)
   - Data format info (data_format): Sets the data format to SQL
   - Data channel info (data_channel): Uses the native interface for communication
-  - Database info (database_info): Defines the target database benchdebug, sets time precision to milliseconds, and 4 vgroups
+  - Database info (database_info): Defines the target database taosgen_test, sets time precision to milliseconds, and 4 vgroups
   - Super table info (super_table_info): Defines the super table structure, including 3 normal columns (current, voltage, phase) and 2 tag columns (group ID, location)
   - Subtable name generator (tbname_generator): Defines the rule for generating 10,000 subtable names, formatted as d0 to d9999.
 
@@ -452,7 +452,7 @@ Configuration details:
   - Job concurrency (concurrency): 4: Sets the global concurrency to 4, allowing up to 4 jobs to execute simultaneously
 
 - Job dependencies
-  - Database creation → Super table creation → Subtable creation → Data insertion, forming a directed acyclic graph (DAG) via the needs parameter
+  - By using the needs parameter to specify dependencies, the build execution flow is: create database → create super table → create sub table → insert data, forming a directed acyclic graph (DAG).
 
 - Data generation configuration
   - Subtable names: Dynamically creates 100,000 subtable names using a generator, formatted as d0 to d99999.
@@ -485,17 +485,17 @@ This example demonstrates how to use the taosgen tool to read data from CSV file
 Configuration details:
 - Global configuration (global)
   - Connection info (connection_info): Defines database connection parameters, including connection pool settings (max 10 connections, min 2 connections, connection timeout 1000ms)
-  - Data format info (data_format): Sets the data format to SQL
-  - Data channel info (data_channel): Uses the native interface for communication
-  - Database info (database_info): Defines the target database benchdebug, sets time precision to milliseconds, and 4 vgroups
-  - Super table info (super_table_info): Defines the super table structure, including 3 normal columns (current, voltage, phase) and 2 tag columns (group ID, location)
+  - Data format info (data_format): Sets the data format to SQL.
+  - Data channel info (data_channel): Uses the native interface for communication.
+  - Database info (database_info): Defines the target database taosgen_test, sets time precision to milliseconds, and 4 vgroups.
+  - Super table info (super_table_info): Defines the super table structure, including 3 normal columns (current, voltage, phase) and 2 tag columns (group ID, location).
   - Subtable name generator (tbname_generator): Defines the rule for generating 10,000 subtable names, formatted as d0 to d9999.
 
 - Concurrency control
-  - Job concurrency (concurrency): 4: Sets the global concurrency to 4, allowing up to 4 jobs to execute simultaneously
+  - Job concurrency (concurrency): 4: Sets the global concurrency to 4, allowing up to 4 jobs to execute simultaneously.
 
 - Job dependencies
-  - Database creation → Super table creation → Subtable creation → Data insertion, forming a directed acyclic graph (DAG) via the needs parameter
+  - By using the needs parameter to specify dependencies, the build execution flow is: create database → create super table → create sub table → insert data, forming a directed acyclic graph (DAG).
 
 - Data generation configuration: Unlike the generator method, this configuration obtains data from CSV files
   - Subtable creation (create-child-table Action):
