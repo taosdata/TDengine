@@ -72,7 +72,7 @@ kill_service_of() {
 }
 
 kill_model_service() {
-  for script in stop-tdtsfm.sh stop-timer-moe.sh; do
+  for script in stop-tdtsfm.sh stop-time-moe.sh; do
     script_path="${installDir}/bin/${script}"
     [ -f "${script_path}" ] && sudo bash "${script_path}" || :
   done
@@ -149,8 +149,8 @@ remove_model_service() {
   declare -A links=(
     ["start-tdtsfm"]="start-tdtsfm.sh"
     ["stop-tdtsfm"]="stop-tdtsfm.sh"
-    ["start-timer-moe"]="start-timer-moe.sh"
-    ["stop-timer-moe"]="stop-timer-moe.sh"
+    ["start-time-moe"]="start-time-moe.sh"
+    ["stop-time-moe"]="stop-time-moe.sh"
   )
 
   # Iterate over the array and create/remove links as needed
