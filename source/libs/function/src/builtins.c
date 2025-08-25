@@ -2854,7 +2854,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = lastFunctionMerge,
-    .processFunc = lastFunction,
     .finalizeFunc = firstLastFinalize,
   },
   {

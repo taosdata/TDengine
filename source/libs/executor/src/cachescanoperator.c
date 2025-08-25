@@ -29,7 +29,6 @@
 #include "ttypes.h"
 
 #include "storageapi.h"
-#include "tsdbReadUtil.h"
 
 typedef struct SCacheRowsScanInfo {
   SSDataBlock*    pRes;
@@ -56,7 +55,6 @@ static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
 static void    destroyCacheScanOperator(void* param);
 static int32_t extractCacheScanSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTaskInfo, int32_t** pSlotIds,
                                       int32_t** pDstSlotIds);
-static int32_t removeRedundantTsCol(SLastRowScanPhysiNode* pScanNode, SColMatchInfo* pColMatchInfo);
 
 #define SCAN_ROW_TYPE(_t) ((_t) ? CACHESCAN_RETRIEVE_LAST : CACHESCAN_RETRIEVE_LAST_ROW)
 
@@ -171,9 +169,6 @@ int32_t createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandl
     }
   }
   pInfo->pCidList = pCidList;
-
-  code = removeRedundantTsCol(pScanNode, &pInfo->matchInfo);
-  QUERY_CHECK_CODE(code, lino, _error);
 
   code = extractCacheScanSlotId(pInfo->matchInfo.pList, pTaskInfo, &pInfo->pSlotIds, &pInfo->pDstSlotIds);
   QUERY_CHECK_CODE(code, lino, _error);
@@ -507,46 +502,4 @@ int32_t extractCacheScanSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTask
   }
 
   return TSDB_CODE_SUCCESS;
-}
-
-int32_t removeRedundantTsCol(SLastRowScanPhysiNode* pScanNode, SColMatchInfo* pColMatchInfo) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-  if (!pScanNode->ignoreNull) {  // retrieve cached last value
-    return TSDB_CODE_SUCCESS;
-  }
-
-  size_t  size = taosArrayGetSize(pColMatchInfo->pList);
-  SArray* pMatchInfo = taosArrayInit(size, sizeof(SColMatchItem));
-  QUERY_CHECK_NULL(pMatchInfo, code, lino, _end, terrno);
-
-  for (int32_t i = 0; i < size; ++i) {
-    SColMatchItem* pColInfo = taosArrayGet(pColMatchInfo->pList, i);
-    if (!pColInfo) {
-      return terrno;
-    }
-
-    int32_t    slotId = pColInfo->dstSlotId;
-    SNodeList* pList = pScanNode->scan.node.pOutputDataBlockDesc->pSlots;
-
-    SSlotDescNode* pDesc = (SSlotDescNode*)nodesListGetNode(pList, slotId);
-    QUERY_CHECK_NULL(pDesc, code, lino, _end, terrno);
-
-    if (pDesc->dataType.type != TSDB_DATA_TYPE_TIMESTAMP) {
-      void* tmp = taosArrayPush(pMatchInfo, pColInfo);
-      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
-    } else if (FUNCTION_TYPE_CACHE_LAST_ROW == pColInfo->funcType) {
-      void* tmp = taosArrayPush(pMatchInfo, pColInfo);
-      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
-    }
-  }
-
-  taosArrayDestroy(pColMatchInfo->pList);
-  pColMatchInfo->pList = pMatchInfo;
-
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
 }

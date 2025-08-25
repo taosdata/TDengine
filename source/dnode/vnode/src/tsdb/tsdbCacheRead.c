@@ -142,11 +142,6 @@ static int32_t saveMultiRow(SArray* pRow, SSDataBlock* pResBlock,
       // find smaller timestamp, which means one new row appears
       minTs = colTs;
       numOfRows += 1;
-    } else if (colTs > minTs) {
-      // todo(tianyi): remove this debug check
-      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-      qError("%s failed at line %d since %s, colTs=%ld, minTs=%ld", __func__, lino, tstrerror(code), colTs, minTs);
-      TSDB_CHECK_CODE(code, lino, _end);
     }
     int32_t rowIndex = numOfRows - 1; // row index of new row
     for (int32_t j = 0; j < blockSize; ++j) {
