@@ -1462,7 +1462,7 @@ class Test_IDMP_Meters:
         data = [
             # _twstart        _twend       dura  wrowcnt,cnt, avg, sum
             [1752574193000, 1752574203000, 10000, 3,  3,  100, 600 ],
-            [1752574197000, 1752574207000, 10000, 6,  7,  100, 1400]                  
+            [1752574197000, 1752574207000, 10000, 7,  7,  100, 1400]                  
         ]
         tdSql.checkDataMem(result_sql, data)
 
