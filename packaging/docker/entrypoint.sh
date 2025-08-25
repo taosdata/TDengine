@@ -39,7 +39,9 @@ execute_startup() {
     if [ -f "$startup_script" ]; then
         echo "Running startup script: $startup_script"
         cd /usr/local/taos/taosanode/lib/taosanalytics/tsfmservice
-        if python3 moirai-server.py "$subdir" "$model_name" True; then
+        python3 moirai-server.py "$subdir" "$model_name" True &
+        TIMER_MOE_PID=$!
+        if ps -p $TIMER_MOE_PID > /dev/null; then
             echo "Startup script executed successfully for $subdir"
         else
             echo "Error: Startup script failed for $subdir"
