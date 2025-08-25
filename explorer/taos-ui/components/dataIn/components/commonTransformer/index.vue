@@ -1018,7 +1018,7 @@ function getTopParserData() {
 
     topParser = {
       parser: {
-        parse: {
+        parse: sourceForm.type == 'csv' ? {} : {
           [sourceForm.type == 'mqtt' ? 'payload' : 'value']: {
             ...expressionObj,
             ...depthObj,
