@@ -1,96 +1,134 @@
 #!/bin/bash
 
-export PATH="/usr/local/taos/taosanode/venv/bin:$PATH"
+# docker run -d --name tdgpt -p 6090:6090 -p 5000:5000 -p 5001:5001 tdengine/tdengine-tdgpt-full:3.3.6.0
+
+export PATH="/var/lib/taos/taosanode/venv/bin:$PATH"
 export LANG=en_US.UTF-8
 export LC_CTYPE=en_US.UTF-8
 export LC_ALL=en_US.UTF-8
 
-# Define directories and their associated files/scripts
-declare -A DIR_CHECKS=(
-    ["/usr/local/taos/taosanode/cfg"]="taosanode.ini"
-    ["/usr/local/taos/taosanode/data"]="data_initialized.flag"
-    ["/usr/local/taos/taosanode/models"]="model_initialized.flag"
-    ["/usr/local/taos/taosanode/scripts"]="download_and_setup.sh"
-    ["/usr/local/taos/taosanode/logs"]="logs_initialized.flag"
+# Define the base path for models
+MODEL_BASE_PATH="/var/lib/taos/taosanode/model"
+MODEL_DIR_NAMES="${TAOS_MODELS:-moirai}"
+
+# Define the five subdirectories under model path
+declare -A MODEL_SUBDIRS=(
+    ["moirai"]="model.safetensors"
 )
+declare -A MODEL_NAMES=(
+    ["moirai"]="Salesforce/moirai-moe-1.0-R-small"
+)
+# Function to activate virtual environment
+activate_venv() {
+    echo "Activating virtual environment..."
+    source /var/lib/taos/taosanode/venv/bin/activate
+}
 
-# Check each directory and handle missing files
-for dir in "${!DIR_CHECKS[@]}"; do
-    file="${DIR_CHECKS[$dir]}"
-
-    # Check if directory is mounted
-    if mount | grep -q "$dir"; then
-        echo "Directory $dir is mounted"
-
-        # Check if required file exists
-        if [ ! -f "$dir/$file" ]; then
-            echo "File $file not found in $dir, attempting to download..."
-
-            # Activate virtual environment
-            source /usr/local/taos/taosanode/venv/bin/activate
-
-            # Run download script (adjust script name/path as needed)
-            if [ -f "/usr/local/taos/taosanode/scripts/download_${file%.*}.sh" ]; then
-                "/usr/local/taos/taosanode/scripts/download_${file%.*}.sh" "$dir"
-            else
-                echo "Warning: Download script for $file not found"
-            fi
-
-            # Verify file was downloaded
-            if [ ! -f "$dir/$file" ]; then
-                echo "Error: Failed to download required file $file in $dir"
-                exit 1
-            fi
-
-            # Start associated service if available
-            if [ -f "/usr/local/taos/taosanode/scripts/start-${file%.*}.sh" ]; then
-                echo "Starting service for $file..."
-                "/usr/local/taos/taosanode/scripts/start-${file%.*}.sh" "$dir" &
-            fi
+# Function to execute startup script
+execute_startup() {
+    local subdir="$1"
+    local model_name="$2"
+    
+    echo "Executing startup script for $subdir..."
+    
+    # Activate virtual environment
+    activate_venv
+    
+    # Execute startup script if exists
+    local startup_script="/usr/local/taos/taosanode/lib/taosanalytics/tsfmservice/moirai-server.py"
+    if [ -f "$startup_script" ]; then
+        echo "Running startup script: $startup_script"
+        cd /usr/local/taos/taosanode/lib/taosanalytics/tsfmservice
+        if python3 moirai-server.py "$subdir" "$model_name" True; then
+            echo "Startup script executed successfully for $subdir"
         else
-            echo "File $file already exists in $dir"
+            echo "Error: Startup script failed for $subdir"
+            exit 1
         fi
     else
-        echo "Directory $dir not mounted, skipping..."
+        echo "Startup script not found: $startup_script"
     fi
-done
+}
 
-export PATH="/usr/local/taos/taosanode/venv/bin:$PATH"
-export LANG=en_US.UTF-8
-export LC_CTYPE=en_US.UTF-8
-export LC_ALL=en_US.UTF-8
+# Function to download and setup
+download_and_setup() {
+    local subdir="$1"
+    local model_name="$2"
+    local flag_file="$3"
+    
+    echo "Downloading and setting up $subdir..."
+    
+    # Execute download script if exists
+    local download_script="/usr/local/taos/taosanode/lib/taosanalytics/misc/model_downloader.py"
+    if [ -f "$download_script" ]; then
+        echo "Running download script: $download_script"
+        cd /usr/local/taos/taosanode/lib/taosanalytics/misc
+        python3 model_downloader.py "$subdir" "$model_name" True
+    else
+        echo "Download script not found: $download_script"
+    fi
+    
+    # Verify file was downloaded/created
+    if [ -f "$subdir/$flag_file" ]; then
+        echo "Successfully downloaded/ $model_name"
+    else
+        echo "Error: download Failed for $subdir "
+        exit 1
+    fi
+}
+
+# Check each directory and handle missing files
+if mount | grep -q "$MODEL_BASE_PATH"; then
+    echo "Model base path $MODEL_BASE_PATH is mounted."
+    # 检查 MODEL_DIR_NAMES 是否为空
+    if [ -z "$MODEL_DIR_NAMES" ]; then
+        echo "WARNING: MODEL_DIR_NAMES is empty, skipping model processing"
+    else
+        echo "Processing models: $MODEL_DIR_NAMES"
+        IFS=',' read -ra MODEL_ARRAY <<< "$MODEL_DIR_NAMES"
+        for model in "${MODEL_ARRAY[@]}"; do
+            # 检查模型是否存在
+            if [[ ! ${MODEL_SUBDIRS[$model]+_} ]]; then
+                echo "Error: Unknown model '$model'"
+                echo "Available models: ${MODEL_SUBDIRS[@]}"
+                continue
+            fi
+
+            flag_file="${MODEL_SUBDIRS[$model]}"
+            subdir_path="$MODEL_BASE_PATH/$model"
+            model_name="${MODEL_NAMES[$model]}"
+            
+            echo "Processing model: $model"
+
+            # Check if subdirectory exists
+            if [ ! -d "$subdir_path" ]; then
+                echo "Warning: Subdirectory $subdir_path does not exist, creating..."
+                mkdir -p "$subdir_path"
+            fi
+            # Check if flag file exists
+            if [ -f "$subdir_path/$flag_file" ]; then
+                echo "Flag file $flag_file exists in $subdir_path, skipping download..."
+                # Execute startup script directly
+                execute_startup "$subdir_path" "$model_name"
+            else
+                echo "Flag file $flag_file not found in $subdir_path, downloading..."
+                # Download and setup first
+                download_and_setup "$subdir_path" "$model_name" "$flag_file"
+                # Then execute startup script
+                execute_startup "$subdir_path" "$model_name"
+            fi
+        done
+    fi
+fi
 
 CONFIG_FILE="/usr/local/taos/taosanode/cfg/taosanode.ini"
-TS_SERVER_FILE="/root/taos_ts_server.py"
-TIME_MOE_FILE="/root/time-moe/time-moe_server.py"
+
 
 if [ ! -f "$CONFIG_FILE" ]; then
   echo "Error: Configuration file $CONFIG_FILE not found!"
   exit 1
 fi
 
-
-if [ -f $TS_SERVER_FILE ];then
-  echo "Starting tdtsfm server..."
-  python3 $TS_SERVER_FILE --action server &
-  TAOS_TS_PID=$!
-
-  if ! ps -p $TAOS_TS_PID > /dev/null; then
-    echo "Error: tdtsfm server failed to start!"
-    exit 1
-  fi
-fi
-if [ -f $TIME_MOE_FILE ];then
-  echo "Starting time-moe server..."
-  cd $(dirname "$TIME_MOE_FILE")
-  python3 $TIME_MOE_FILE --action server &
-  TIME_MOE_PID=$!
-
-  if ! ps -p $TIME_MOE_PID > /dev/null; then
-    echo "Error: time-moe server failed to start!"
-    exit 1
-  fi
-fi
 
 echo "Starting uWSGI with config: $CONFIG_FILE"
 exec /usr/local/taos/taosanode/venv/bin/uwsgi --ini "$CONFIG_FILE"

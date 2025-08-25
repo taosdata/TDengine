@@ -22,8 +22,9 @@ FROM tdgpt_lite AS tdgpt
 
 ADD ${modelDlUrl}/taos.pth \
     ${modelDlUrl}/taos_ts_server.py \
-    /root/
+    /usr/local/taos/taosanode/model/moirai/
 
 FROM tdgpt AS tdgpt_full
-ADD ${modelDlUrl}/time-moe/models /root/time-moe
-ADD ${modelDlUrl}/time-moe/time-moe_server.py /root/time-moe
+ADD ${modelDlUrl}/time-moe/models \
+    ${modelDlUrl}/time-moe/time-moe_server.py \
+    /usr/local/taos/taosanode/model/time-moe/
