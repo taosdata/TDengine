@@ -171,7 +171,7 @@ int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STabl
   return 0;
 }
 
-int32_t metaUpdateVtbMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, SColRefWrapper *pRef,
+int32_t metaUpdateVtbMetaRsp(SMetaEntry *pEntry, char *tbName, SSchemaWrapper *pSchema, SColRefWrapper *pRef,
                              STableMetaRsp *pMetaRsp, int8_t tableType) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (!pRef) {
@@ -201,7 +201,13 @@ int32_t metaUpdateVtbMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema
   }
   memcpy(pMetaRsp->pColRefs, pRef->pColRef, pRef->nCols * sizeof(SColRef));
   tstrncpy(pMetaRsp->tbName, tbName, TSDB_TABLE_NAME_LEN);
-  pMetaRsp->tuid = uid;
+  if (tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
+    pMetaRsp->tuid = pEntry->uid;
+  } else if (tableType == TSDB_VIRTUAL_CHILD_TABLE) {
+    pMetaRsp->tuid = pEntry->uid;
+    pMetaRsp->suid = pEntry->ctbEntry.suid;
+  }
+
   pMetaRsp->tableType = tableType;
   pMetaRsp->virtualStb = false; // super table will never be processed here
   pMetaRsp->numOfColRefs = pRef->nCols;

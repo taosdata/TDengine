@@ -72,7 +72,7 @@ class TestVtableAuthAlterDrop:
                     if (priv_orgtb != "none"):
                         tdSql.execute(f"grant {priv_orgtb} on test_vtable_auth_alter.test_vtable_auth_org_table_2 to test_vtable_user_alter;")
 
-                    sleep(2)
+                    tdSql.execute(f"reset query cache")
 
                     tdLog.info(f"priv_db: {priv_db}, priv_tb1: {priv_vtb}, priv_tb2: {priv_orgtb}")
                     testSql.execute("use test_vtable_auth_alter;")

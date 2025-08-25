@@ -1802,7 +1802,7 @@ static EDealRes translateColumnWithoutPrefix(STranslateContext* pCxt, SColumnNod
       }
       found = true;
     }
-    if (isInternalPk) {
+    if (isInternalPk) {  // this value should be updated
       break;
     }
   }
