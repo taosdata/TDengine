@@ -485,6 +485,13 @@ time_t taosTimeGm(struct tm *tmp) {
 #endif
 }
 
+#ifdef WINDOWS
+static int calcDayOfYear(int y, int m, int d) {
+  static const int days[] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
+  return days[m - 1] + d + ((m > 2 && ((y % 4 == 0 && y % 100 != 0) || (y % 400 == 0))) ? 1 : 0);
+}
+#endif
+
 struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int32_t bufSize, timezone_t tz) {
   struct tm *res = NULL;
   if (timep == NULL || result == NULL) {
@@ -531,7 +538,7 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     result->tm_mon = s.wMonth - 1;
     result->tm_year = s.wYear - 1900;
     result->tm_wday = s.wDayOfWeek;
-    result->tm_yday = 0;
+    result->tm_yday = calcDayOfYear(s.wYear, s.wMonth, s.wDay);
     result->tm_isdst = 0;
   } else {
     if (localtime_s(result, timep) != 0) {
