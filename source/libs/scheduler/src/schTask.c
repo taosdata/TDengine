@@ -727,8 +727,8 @@ int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bo
   }
 
   *needRetry = true;
-  SCH_TASK_DLOG("task need the %d/%d retry, errCode:%x - %s", pTask->execId + 1, pTask->maxExecTimes, errCode, tstrerror(errCode));
 
+  SCH_TASK_DLOG("task need the %d/%d retry, errCode:%x - %s", pTask->execId + 1, pTask->maxExecTimes, errCode, tstrerror(errCode));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -770,7 +770,7 @@ int32_t schHandleTaskRetry(SSchJob *pJob, SSchTask *pTask) {
     if (pTask->delayExecMs == 0) {
       pTask->delayExecMs = 1000;  // 1sec by default
     } else {
-      pTask->delayExecMs = TMIN(pTask->delayExecMs * tsRedirectFactor, tsMaxRetryWaitTime);
+      pTask->delayExecMs = TMIN(pTask->delayExecMs * tsRedirectFactor * 1.5, tsMaxRetryWaitTime);
     }
 
     SCH_TASK_DLOG("vgId:%d switch to next ep in %s to start task delay:%.2fs", pAddr->nodeId, buf,
@@ -1344,7 +1344,8 @@ int32_t schDelayLaunchTask(SSchJob *pJob, SSchTask *pTask) {
         SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
       }
 
-      SCH_TASK_DLOG("task delayTimer:%" PRIuPTR " is started", (uintptr_t)pTask->delayTimer);
+      SCH_TASK_DLOG("task delayTimer:%" PRIuPTR " is started to launch task after:%.2fs", (uintptr_t)pTask->delayTimer,
+                    pTask->delayExecMs/1000.0);
       return TSDB_CODE_SUCCESS;
     }
 
