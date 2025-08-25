@@ -2362,6 +2362,7 @@ class TestDecimal:
 
         self.check_decimal_in_op(self.norm_table_name, self.norm_tb_columns)
         self.check_decimal_in_op(self.stable_name, self.stb_columns)
+        tdLog.info("7 start to test decimal operators")
 
     def check_decimal_where_with_binary_expr_with_const_col_results(
         self,

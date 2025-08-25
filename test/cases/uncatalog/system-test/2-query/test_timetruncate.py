@@ -53,6 +53,7 @@ class TestTimetruncate:
         elif unit.lower() == '1w':
             for i in range(len(self.ts_str)):
                 ts_result = self.get_time.get_ms_timestamp(str(tdSql.queryResult[i][0]))
+                tdLog.info(f"queryResult: {tdSql.queryResult[i][0]}, ts_result: {ts_result}, date_time[i]: {date_time[i]}")
                 if ignore_tz == 0:
                     tdSql.checkEqual(ts_result,int(date_time[i]/1000/60/60/24/7)*7*24*60*60*1000)
                 else:
