@@ -446,6 +446,9 @@ static int32_t streamPrepareNotification(SStreamRunnerTask* pTask, SStreamRunner
   int32_t code = 0;
   int32_t lino = 0;
   if (!pBlock || pBlock->info.rows <= 0) return code;
+  if (pTask->notification.pNotifyAddrUrls == NULL || pTask->notification.pNotifyAddrUrls->size == 0) {
+    return code;
+  }
   char* pContent = NULL;
   code = streamBuildBlockResultNotifyContent(pBlock, &pContent, pTask->output.outCols, startRow, endRow);
   if (code == 0) {
@@ -476,6 +479,9 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
                                     int32_t endWinIdx, const char* tbname) {
   int32_t code = 0;
   int32_t lino = 0;
+  if (pTask->notification.pNotifyAddrUrls == NULL || pTask->notification.pNotifyAddrUrls->size == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
 
   int32_t              nParam = endWinIdx - startWinIdx + 1;
   SSTriggerCalcParam** params = taosMemCalloc(nParam, sizeof(SSTriggerCalcParam*));
@@ -544,7 +550,7 @@ static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunner
 static int32_t stRunnerHandleSingleWinResultBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec,
                                                   SSDataBlock* pBlock, bool* pCreateTb) {
   int32_t code = stRunnerMergeOutputBlock(pTask, pExec, pBlock, pCreateTb);
-  if (code == 0) {
+  if (code == 0 && pTask->notification.pNotifyAddrUrls && pTask->notification.pNotifyAddrUrls->size > 0) {
     code = streamDoNotification1For1(pTask, pExec, pBlock, pExec->tbname);
     if (code != TSDB_CODE_SUCCESS) {
       ST_TASK_ELOG("failed to send notification for block, code:%s", tstrerror(code));
