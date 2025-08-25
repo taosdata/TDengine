@@ -1440,8 +1440,7 @@ class Test_IDMP_Meters:
             [1752574196000, 1752574206000, 10000, 6,  6,  100, 1200],
             [1752574200000, 1752574210000, 10000, 10, 10, 100, 2000]                       
         ]
-        # ***** bug8 *****
-        #tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMem(result_sql, data)
 
         # sub
         self.verify_stream11_sub1()
