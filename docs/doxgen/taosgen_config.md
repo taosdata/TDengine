@@ -226,7 +226,7 @@ global:
   # Common structure definition
   connection_info: &db_conn
     host: 127.0.0.1
-    port: 4130
+    port: 6041
     user: root
     password: taosdata
     pool:
