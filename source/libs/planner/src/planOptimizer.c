@@ -593,6 +593,7 @@ static int32_t filterDnodeConds(SOptimizeContext* pCxt, SScanLogicNode* pScan, S
 
 static int32_t pushDownDnodeConds(SScanLogicNode* pScan, SNodeList* pDnodeConds) {
   int32_t code = TSDB_CODE_SUCCESS;
+  SVgroupsInfo* pNewVgroupList =  NULL;
   if (!pDnodeConds || pDnodeConds->length == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -658,10 +659,10 @@ static int32_t pushDownDnodeConds(SScanLogicNode* pScan, SNodeList* pDnodeConds)
   if(resultCount == 0) {
     taosMemoryFree(pScan->pVgroupList);
     pScan->pVgroupList = NULL;
-    goto _exit;
+    return TSDB_CODE_MND_DNODE_NOT_EXIST;
   }
 
-  SVgroupsInfo* pNewVgroupList = (SVgroupsInfo*)taosMemoryMalloc(sizeof(SVgroupsInfo) + sizeof(SVgroupInfo) * resultCount);
+  pNewVgroupList = (SVgroupsInfo*)taosMemoryMalloc(sizeof(SVgroupsInfo) + sizeof(SVgroupInfo) * resultCount);
   if (NULL == pNewVgroupList) {
     code = terrno;
     goto _exit;
