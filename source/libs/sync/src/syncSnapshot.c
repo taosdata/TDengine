@@ -1047,7 +1047,7 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
 
   if (pSyncNode->raftCfg.cfg.nodeInfo[pSyncNode->raftCfg.cfg.myIndex].nodeRole != TAOS_SYNC_ROLE_LEARNER) {
     if (pMsg->term > raftStoreGetTerm(pSyncNode)) {
-      syncNodeStepDown(pSyncNode, pMsg->term, pMsg->srcId);
+      syncNodeStepDown(pSyncNode, pMsg->term, pMsg->srcId, "snapshot");
     }
   } else {
     syncNodeUpdateTermWithoutStepDown(pSyncNode, pMsg->term);
