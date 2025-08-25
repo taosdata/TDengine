@@ -52,7 +52,9 @@ The value is the parameter's value and needs to be in character format. For exam
 ```sql
 ALTER DNODE 1 'debugFlag' '143';
 ```
-### Additional Notes:
+
+### Additional Notes
+
 Configuration parameters in a dnode are divided into global configuration parameters and local configuration parameters. You can check the category field in SHOW VARIABLES or SHOW DNODE dnode_id VARIABLE to determine whether a configuration parameter is a global configuration parameter or a local configuration parameter:
 
 Local configuration parameters: You can use ALTER DNODE or ALTER ALL DNODES to update the local configuration parameters of a specific dnode or all dnodes.
@@ -112,6 +114,30 @@ DROP QNODE ON DNODE dnode_id;
 
 Delete the QNODE on the DNODE with ID dnode_id, but this does not affect the status of that dnode.
 
+## Create Subscription Node
+
+```sql
+CREATE BNODE ON DNODE dnode_id PROTOCOL protocol;
+```
+
+By default, there are no BNODEs when the system starts. Users can create BNODEs to start subscription services. Only one BNODE can be created on a DNODE. The `PROTOCOL` is optional, and the default is “mqtt”, if not provided; Other protocols will be added later. After bnode is created successfully, dnode will start the subprocess `taosmqtt` to provide subscription services.
+
+## View Subscription Nodes
+
+```sql
+SHOW BNODES;
+```
+
+List all subscription nodes in the cluster, including their ID and the DNODE they are on.
+
+## Delete Subscription Node
+
+```sql
+DROP BNODE ON DNODE dnode_id;
+```
+
+Delete the BNODE on the DNODE with ID dnode_id,  and the `taosmqtt` subprocess on this dnode will exit to stop the subscription service.
+
 ## Query Cluster Status
 
 ```sql
@@ -131,7 +157,6 @@ ALTER LOCAL local_option
 You can use the above syntax to modify the client's configuration parameters, and there is no need to restart the client. The changes take effect immediately.
 
 To check whether a configuration parameter supports dynamic modification, please refer to the following page:[taosc Reference](/tdengine-reference/components/taosc/)
-
 
 ## View Client Configuration
 

@@ -21,7 +21,9 @@ This section describes how to create data migration tasks through the Explorer i
 
 ## Overview
 
-MySQL is one of the most popular relational databases. Many systems have used or are using MySQL databases to store data reported by IoT and industrial internet devices. However, as the number of devices in the access systems grows and the demand for real-time data feedback from users increases, MySQL can no longer meet business needs. Starting from TDengine Enterprise Edition 3.3.0.0, TDengine can efficiently read data from MySQL and write it into TDengine, achieving historical data migration or real-time data synchronization, and solving the technical pain points faced by businesses.
+MySQL is one of the most popular relational databases. Many systems have used or are using MySQL databases to store data reported by IoT and industrial internet devices. However, as the number of devices in the access systems grows and the demand for real-time data feedback from users increases, MySQL can no longer meet business needs. Starting from TDengine Enterprise Edition 3.3.0.0 [^1], TDengine can efficiently read data from MySQL and write it into TDengine, achieving historical data migration or real-time data synchronization, and solving the technical pain points faced by businesses.
+
+[^1]: TDengine Enterprise Edition was renamed to TDengine TSDB-Enterprise starting from version 3.3.7.0
 
 ## Creating a Task
 

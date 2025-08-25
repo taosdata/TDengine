@@ -706,6 +706,9 @@ class TestTsma:
         paraDict['ctbNum'] = ctb_num
         paraDict['rowsPerTbl'] = rows_per_ctb
 
+        tdLog.info("create snode")
+        tdSql.execute("create snode on dnode 1")
+
         tdLog.info("create database")
         self.create_database(tsql=tdSql, dbName=paraDict["dbName"], dropFlag=paraDict["dropFlag"],
                              vgroups=paraDict["vgroups"], replica=self.replicaVar, duration=self.duraion)

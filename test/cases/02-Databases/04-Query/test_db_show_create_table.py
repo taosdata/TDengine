@@ -8,12 +8,17 @@ class TestDatabaseShowCreateTable:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_show_create_table(self):
-        """show create table
+        """Show create table
 
-        1. -
+        1. Create a normal table
+        2. Create a super table
+        3. Create child tables
+        4. Execute SHOW CREATE TABLE and verify the output
+        5. Change the showFullCreateTableColumn parameter
+        6. Execute SHOW CREATE TABLE again and verify the new output
 
         Catalog:
-            - Database:Create
+            - Database:Query
 
         Since: v3.0.0.0
 
@@ -71,4 +76,24 @@ class TestDatabaseShowCreateTable:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "meters")
 
+        tdSql.execute('alter local \'showFullCreateTableColumn\' \'1\'')
+
+        tdSql.query(f"show create table db.meters")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "meters")
+        tdSql.checkData(0, 1, "CREATE STABLE `meters` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `f` VARCHAR(8) ENCODE 'disabled' COMPRESS 'zstd' LEVEL 'medium') TAGS (`loc` INT, `zone` VARCHAR(8))")
+
+        tdSql.query(f"show create table db.normalTbl")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "CREATE TABLE `normaltbl` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `zone` VARCHAR(8) ENCODE 'disabled' COMPRESS 'zstd' LEVEL 'medium')")
+
+
+        tdSql.execute('alter local \'showFullCreateTableColumn\' \'0\'')
+        tdSql.query(f"show create table db.meters")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "CREATE STABLE `meters` (`ts` TIMESTAMP, `f` VARCHAR(8)) TAGS (`loc` INT, `zone` VARCHAR(8))")
+
+        tdSql.query(f"show create table db.normalTbl")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "CREATE TABLE `normaltbl` (`ts` TIMESTAMP, `zone` VARCHAR(8))")
         tdSql.execute(f"drop database db")

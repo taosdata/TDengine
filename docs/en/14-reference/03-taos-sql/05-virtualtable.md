@@ -41,7 +41,7 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
      const_value
 ```
 
-**Usage Notes**
+Usage Notes:
 
 1. Naming rules for virtual tables/columns follow [Name Rules](./19-limit.md#naming-rules).
 2. Maximum table name length: 192 characters.
@@ -66,7 +66,7 @@ Virtual tables use the same query syntax as regular tables, but their dataset ma
 3. Virtual table timestamps are the union of all involved columns' origin tables' timestamps. Therefore, the number of rows in the result set may vary when different queries select different columns.
 4. Users can combine any columns from multiple tables; unselected columns are excluded.
 
-**Example**
+Example:
 
 Given tables t1, t2, t3 with data:
 
@@ -366,12 +366,14 @@ Virtual table permissions are categorized into READ and WRITE. Query operations 
 ### Syntax
 
 #### Grant
+
 ```sql
 GRANT privileges ON [db_name.]vtable_name TO user_name
 privileges: { ALL | READ | WRITE }
 ```
 
 #### Revoke
+
 ```sql
 REVOKE privileges ON [db_name.]vtable_name FROM user_name
     privileges: { ALL | READ | WRITE }

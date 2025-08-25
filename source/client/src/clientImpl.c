@@ -24,6 +24,8 @@
 #include "tdataformat.h"
 #include "tdef.h"
 #include "tglobal.h"
+#include "tmisce.h"
+#include "tmsg.h"
 #include "tmsgtype.h"
 #include "tpagedbuf.h"
 #include "tref.h"
@@ -64,6 +66,63 @@ static char* getClusterKey(const char* user, const char* auth, const char* ip, i
   char key[512] = {0};
   (void)snprintf(key, sizeof(key), "%s:%s:%s:%d", user, auth, ip, port);
   return taosStrdup(key);
+}
+
+static int32_t escapeToPrinted(char* dst, size_t maxDstLength, const char* src, size_t srcLength) {
+  if (dst == NULL || src == NULL || srcLength == 0) {
+    return 0;
+  }
+  
+  size_t escapeLength = 0;
+  for(size_t i = 0; i < srcLength; ++i) {
+    if( src[i] == '\"' || src[i] == '\\' || src[i] == '\b' || src[i] == '\f' || src[i] == '\n' ||
+        src[i] == '\r' || src[i] == '\t') {
+      escapeLength += 1; 
+    }    
+  }
+
+  size_t dstLength = srcLength;
+  if(escapeLength == 0) {
+     (void)memcpy(dst, src, srcLength);
+  } else {
+    dstLength = 0;
+    for(size_t i = 0; i < srcLength && dstLength <= maxDstLength; i++) {
+      switch(src[i]) {
+        case '\"':
+          dst[dstLength++] = '\\';
+          dst[dstLength++] = '\"';
+          break;
+        case '\\':
+          dst[dstLength++] = '\\';
+          dst[dstLength++] = '\\';
+          break;
+        case '\b':
+          dst[dstLength++] = '\\';
+          dst[dstLength++] = 'b';
+          break;
+        case '\f':
+          dst[dstLength++] = '\\';
+          dst[dstLength++] = 'f';
+          break;
+        case '\n':
+          dst[dstLength++] = '\\';
+          dst[dstLength++] = 'n';
+          break;
+        case '\r':
+          dst[dstLength++] = '\\';
+          dst[dstLength++] = 'r';
+          break;
+        case '\t':
+          dst[dstLength++] = '\\';
+          dst[dstLength++] = 't';
+          break;
+        default:
+           dst[dstLength++] = src[i];
+      }
+    }
+  }
+
+  return dstLength;
 }
 
 bool chkRequestKilled(void* param) {
@@ -249,7 +308,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   (*pRequest)->sqlstr[sqlLen] = 0;
   (*pRequest)->sqlLen = sqlLen;
   (*pRequest)->validateOnly = validateSql;
-  (*pRequest)->isStmtBind = false;
+  (*pRequest)->stmtBindVersion = 0;
 
   ((SSyncQueryParam*)(*pRequest)->body.interParam)->userParam = param;
 
@@ -312,7 +371,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
       .enableSysInfo = pTscObj->sysInfo,
       .svrVer = pTscObj->sVer,
       .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
-      .isStmtBind = pRequest->isStmtBind,
+      .stmtBindVersion = pRequest->stmtBindVersion,
       .setQueryFp = setQueryRequest,
       .timezone = pTscObj->optionInfo.timezone,
       .charsetCxt = pTscObj->optionInfo.charsetCxt,
@@ -328,7 +387,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
   if (TSDB_CODE_SUCCESS == code) {
     if ((*pQuery)->haveResultSet) {
       code = setResSchemaInfo(&pRequest->body.resInfo, (*pQuery)->pResSchema, (*pQuery)->numOfResCols,
-                              (*pQuery)->pResExtSchema, pRequest->isStmtBind);
+                              (*pQuery)->pResExtSchema, pRequest->stmtBindVersion > 0);
       setResPrecision(&pRequest->body.resInfo, (*pQuery)->precision);
     }
   }
@@ -351,8 +410,8 @@ int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp, biMode,
                               pRequest->pTscObj->optionInfo.charsetCxt);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
-    code =
-        setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4, pRequest->isStmtBind);
+    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4,
+                                 pRequest->stmtBindVersion > 0);
   }
 
   return code;
@@ -390,8 +449,8 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp,
                               atomic_load_8(&pRequest->pTscObj->biMode), pRequest->pTscObj->optionInfo.charsetCxt);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
-    code =
-        setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4, pRequest->isStmtBind);
+    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4,
+                                 pRequest->stmtBindVersion > 0);
   }
 
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
@@ -1229,7 +1288,8 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   tscDebug("req:0x%" PRIx64 ", enter scheduler exec cb, code:%s, QID:0x%" PRIx64, pRequest->self, tstrerror(code),
            pRequest->requestId);
 
-  if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code) && pRequest->sqlstr != NULL) {
+  if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code) && pRequest->sqlstr != NULL &&
+      pRequest->stmtBindVersion == 0) {
     tscDebug("req:0x%" PRIx64 ", client retry to handle the error, code:%s, tryCount:%d, QID:0x%" PRIx64,
              pRequest->self, tstrerror(code), pRequest->retry, pRequest->requestId);
     if (TSDB_CODE_SUCCESS != removeMeta(pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type))) {
@@ -1384,7 +1444,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                         .pUser = pRequest->pTscObj->user,
                         .sysInfo = pRequest->pTscObj->sysInfo,
                         .timezone = pRequest->pTscObj->optionInfo.timezone,
-                        .allocatorId = pRequest->allocatorRefId};
+                        .allocatorId = pRequest->stmtBindVersion > 0 ? 0 : pRequest->allocatorRefId};
     if (TSDB_CODE_SUCCESS == code) {
       code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
     }
@@ -1658,7 +1718,8 @@ int32_t taosConnectImpl(const char* user, const char* auth, const char* db, __ta
   }
 
   // int64_t transporterId = 0;
-  code = asyncSendMsgToServer((*pTscObj)->pAppInfo->pTransporter, &(*pTscObj)->pAppInfo->mgmtEp.epSet, NULL, body);
+  SEpSet epset = getEpSet_s(&(*pTscObj)->pAppInfo->mgmtEp);
+  code = asyncSendMsgToServer((*pTscObj)->pAppInfo->pTransporter, &epset, NULL, body);
   if (TSDB_CODE_SUCCESS != code) {
     destroyTscObj(*pTscObj);
     tscError("failed to send connect msg to server, code:%s", tstrerror(code));
@@ -1757,7 +1818,8 @@ void updateTargetEpSet(SMsgSendInfo* pSendInfo, STscObj* pTscObj, SRpcMsg* pMsg,
         return;
       }
 
-      SEpSet* pOrig = &pTscObj->pAppInfo->mgmtEp.epSet;
+      SEpSet  originEpset = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+      SEpSet* pOrig = &originEpset;
       SEp*    pOrigEp = &pOrig->eps[pOrig->inUse];
       SEp*    pNewEp = &pEpSet->eps[pEpSet->inUse];
       tscDebug("mnode epset updated from %d/%d=>%s:%d to %d/%d=>%s:%d in client", pOrig->inUse, pOrig->numOfEps,
@@ -1978,14 +2040,19 @@ void doSetOneRowPtr(SReqResultInfo* pResultInfo) {
       if (!IS_VAR_NULL_TYPE(type, schemaBytes) && pCol->offset[pResultInfo->current] != -1) {
         char* pStart = pResultInfo->pCol[i].offset[pResultInfo->current] + pResultInfo->pCol[i].pData;
 
-        pResultInfo->length[i] = varDataLen(pStart);
-        pResultInfo->row[i] = varDataVal(pStart);
+        if (IS_STR_DATA_BLOB(type)) {
+          pResultInfo->length[i] = blobDataLen(pStart);
+          pResultInfo->row[i] = blobDataVal(pStart);
+        } else {
+          pResultInfo->length[i] = varDataLen(pStart);
+          pResultInfo->row[i] = varDataVal(pStart);
+        }
       } else {
         pResultInfo->row[i] = NULL;
         pResultInfo->length[i] = 0;
       }
     } else {
-      if (!colDataIsNull_f(pCol->nullbitmap, pResultInfo->current)) {
+      if (!colDataIsNull_f(pCol, pResultInfo->current)) {
         pResultInfo->row[i] = pResultInfo->pCol[i].pData + schemaBytes * pResultInfo->current;
         pResultInfo->length[i] = schemaBytes;
       } else {
@@ -2019,7 +2086,7 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) 
     }
 
     pRequest->code = setQueryResultFromRsp(&pRequest->body.resInfo, (const SRetrieveTableRsp*)pResInfo->pData,
-                                           convertUcs4, pRequest->isStmtBind);
+                                           convertUcs4, pRequest->stmtBindVersion > 0);
     if (pRequest->code != TSDB_CODE_SUCCESS) {
       pResultInfo->numOfRows = 0;
       return NULL;
@@ -2246,6 +2313,8 @@ static int32_t estimateJsonLen(SReqResultInfo* pResultInfo) {
           estimateColLen += (VARSTR_HEADER_SIZE + 32);
         } else if (jsonInnerType == TSDB_DATA_TYPE_BOOL) {
           estimateColLen += (VARSTR_HEADER_SIZE + 5);
+        } else if (IS_STR_DATA_BLOB(jsonInnerType)) {
+          estimateColLen += (BLOBSTR_HEADER_SIZE + 32);
         } else {
           tscError("estimateJsonLen error: invalid type:%d", jsonInnerType);
           return -1;
@@ -2364,15 +2433,18 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
           taosMemoryFree(jsonString);
         } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {  // value -> "value"
           *(char*)varDataVal(dst) = '\"';
+          char    tmp[TSDB_MAX_JSON_TAG_LEN] = {0};
           int32_t length = taosUcs4ToMbs((TdUcs4*)varDataVal(jsonInnerData), varDataLen(jsonInnerData),
-                                         varDataVal(dst) + CHAR_BYTES, pResultInfo->charsetCxt);
+                                         varDataVal(tmp), pResultInfo->charsetCxt);
           if (length <= 0) {
             tscError("charset:%s to %s. convert failed.", DEFAULT_UNICODE_ENCODEC,
                      pResultInfo->charsetCxt != NULL ? ((SConvInfo*)(pResultInfo->charsetCxt))->charset : tsCharset);
             length = 0;
           }
-          varDataSetLen(dst, length + CHAR_BYTES * 2);
-          *(char*)POINTER_SHIFT(varDataVal(dst), length + CHAR_BYTES) = '\"';
+          int32_t escapeLength = escapeToPrinted(varDataVal(dst) + CHAR_BYTES, TSDB_MAX_JSON_TAG_LEN - CHAR_BYTES * 2,varDataVal(tmp), length);
+          varDataSetLen(dst, escapeLength + CHAR_BYTES * 2);
+          *(char*)POINTER_SHIFT(varDataVal(dst), escapeLength + CHAR_BYTES) = '\"';
+          tscError("value:%s.", varDataVal(dst));
         } else if (jsonInnerType == TSDB_DATA_TYPE_DOUBLE) {
           double jsonVd = *(double*)(jsonInnerData);
           (void)snprintf(varDataVal(dst), TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE, "%.9lf", jsonVd);
@@ -3125,7 +3197,7 @@ static void fetchCallback(void* pResult, void* param, int32_t code) {
   }
 
   pRequest->code = setQueryResultFromRsp(pResultInfo, (const SRetrieveTableRsp*)pResultInfo->pData,
-                                         pResultInfo->convertUcs4, pRequest->isStmtBind);
+                                         pResultInfo->convertUcs4, pRequest->stmtBindVersion > 0);
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     pResultInfo->numOfRows = 0;
     tscError("req:0x%" PRIx64 ", fetch results failed, code:%s, QID:0x%" PRIx64, pRequest->self,

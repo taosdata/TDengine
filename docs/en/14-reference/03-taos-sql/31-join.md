@@ -228,7 +228,7 @@ Supports Left/Right ASOF Join between supertables, basic tables, and subtables.
 
   For Right ASOF, the meanings of the operators are the opposite.
 
-- If the ON clause is absent or does not specify a primary key column match rule, the default primary key match rule operator is “>=”, i.e., rows in the right table where the primary key timestamp is less than or equal to the left table's primary key timestamp. Multiple primary join conditions are not supported.
+- If the ON clause is absent or does not specify a primary key column match rule, the default primary key match rule operator is `>=`, i.e., rows in the right table where the primary key timestamp is less than or equal to the left table's primary key timestamp. Multiple primary join conditions are not supported.
 - The ON clause can also specify equality conditions between tags or normal columns (scalar functions and operations not supported) for grouped calculations, other types of conditions are not supported.
 - All conditions in the ON clause only support the `AND` operation.
 - `JLIMIT` specifies the maximum number of rows for a single row match, optional, default value is 1, i.e., each row from the left/right table can obtain up to one matching row from the right/left table. `JLIMIT` range is [0, 1024]. The `jlimit_num` matching rows do not need to have the same timestamp, and if there are fewer than `jlimit_num` rows in the right/left table that meet the conditions, the number of result rows may be less than `jlimit_num`; if there are more than `jlimit_num` rows that meet the conditions, if the timestamps are the same, `jlimit_num` rows will be returned randomly.
@@ -276,13 +276,13 @@ Supports Left/Right Window Join between supertables, basic tables, and subtables
 Voltage values from table d1001 greater than 220V within a 1-second interval before and after from table d1002:
 
 ```sql
-SELECT a.ts, a.voltage, b.voltage FROM d1001 a LEFT WINDOW JOIN d1002 b WINDOW_OFFSET（-1s, 1s) where a.voltage > 220
+SELECT a.ts, a.voltage, b.voltage FROM d1001 a LEFT WINDOW JOIN d1002 b WINDOW_OFFSET (-1s, 1s) where a.voltage > 220
 ```
 
 Timestamps and voltage values from table d1001 greater than 220V and the average voltage value from table d1002 also greater than 220V within a 1-second interval before and after:
 
 ```sql
-SELECT a.ts, a.voltage, avg(b.voltage) FROM d1001 a LEFT WINDOW JOIN d1002 b WINDOW_OFFSET（-1s, 1s) where a.voltage > 220 HAVING(avg(b.voltage) > 220)
+SELECT a.ts, a.voltage, avg(b.voltage) FROM d1001 a LEFT WINDOW JOIN d1002 b WINDOW_OFFSET (-1s, 1s) where a.voltage > 220 HAVING(avg(b.voltage) > 220)
 ```
 
 ### Full Outer Join

@@ -59,21 +59,21 @@ Data in [] is optional.
 - influxdb: Enable influxdb connector to get data from InfluxDB
 - csv: Parse data from CSV files
 
-2. +protocol includes the following options:
+1. +protocol includes the following options:
 
 - +ws: Used when the driver is taos or tmq, indicating that data is obtained using rest. If +ws is not used, it indicates that data is obtained using a native connection, in which case taosx must be installed on the server.
 - +ua: Used when the driver is opc, indicating that the data's opc-server is opc-ua
 - +da: Used when the driver is opc, indicating that the data's opc-server is opc-da
 
-3. host:port represents the address and port of the data source.
-4. object represents the specific data source, which can be a TDengine database, supertable, table, or a local backup file path, or a database in the corresponding data source server.
-5. username and password represent the username and password of that data source.
-6. params represent the parameters of the dsn.
+1. host:port represents the address and port of the data source.
+1. object represents the specific data source, which can be a TDengine database, supertable, table, or a local backup file path, or a database in the corresponding data source server.
+1. username and password represent the username and password of that data source.
+1. params represent the parameters of the dsn.
 
 ### Other Parameters
 
 1. --jobs `<number>` specifies the number of concurrent tasks, only supports tmq tasks
-2. -v is used to specify the log level of taosx, -v enables info level logs, -vv corresponds to debug, -vvv corresponds to trace
+1. -v is used to specify the log level of taosx, -v enables info level logs, -vv corresponds to debug, -vvv corresponds to trace
 
 ### Usage Examples
 
@@ -137,13 +137,13 @@ taosx run \
   -t 'taos:///db2' -v
 ```
 
-2. Synchronize data for a specified time interval (using RFC3339 time format, note the timezone):
+1. Synchronize data for a specified time interval (using RFC3339 time format, note the timezone):
 
 ```shell
 taosx run -f 'taos:///db1?start=2022-10-10T00:00:00Z' -t 'taos:///db2' -v
 ```
 
-3. Continuous synchronization, `restro` specifies syncing data from the last 5 minutes and syncing new data, in the example it checks every 1s, `excursion` allows for 500ms of delay or out-of-order data
+1. Continuous synchronization, `restro` specifies syncing data from the last 5 minutes and syncing new data, in the example it checks every 1s, `excursion` allows for 500ms of delay or out-of-order data
 
 ```shell
 taosx run \
@@ -151,13 +151,13 @@ taosx run \
   -t 'taos:///db2' -v
 ```
 
-4. Synchronize historical data + real-time data:
+1. Synchronize historical data + real-time data:
 
 ```shell
 taosx run -f 'taos:///db1?mode=all' -t 'taos:///db2' -v
 ```
 
-5. Configure data synchronization through --transform or -T (only supports synchronization between 2.6 to 3.0 and within 3.0) for operations on table names and table fields during the process. It cannot be set through Explorer yet. Configuration instructions are as follows:
+1. Configure data synchronization through --transform or -T (only supports synchronization between 2.6 to 3.0 and within 3.0) for operations on table names and table fields during the process. It cannot be set through Explorer yet. Configuration instructions are as follows:
 
   ```shell
   1.AddTag, add tag to a table. Setting example: -T add-tag:<tag1>=<value1>.
@@ -183,7 +183,7 @@ taosx run -f 'taos:///db1?mode=all' -t 'taos:///db2' -v
 Example explanation: `^prefix1(?<old>)` is a regular expression that matches table names starting with `prefix1` and records the suffix as `old`. `prefix2$old` will then replace it using `prefix2` and `old`. Note: The two parts are separated by the key character `::`, so ensure that the regular expression does not contain this character.
 For more complex replacement needs, please refer to: [https://docs.rs/regex/latest/regex/#example-replacement-with-named-capture-groups](https://docs.rs/regex/latest/regex/#example-replacement-with-named-capture-groups) or consult taosx developers.
 
-3. Using a CSV mapping file to rename tables: The following example uses the `map.csv` file to rename tables
+1. Using a CSV mapping file to rename tables: The following example uses the `map.csv` file to rename tables
 
 `-T rename-child-table:map:@./map.csv`
 
@@ -411,7 +411,7 @@ The default log level of `taosX` is `info`. To specify a different level, please
 
 To specify command line parameters when `taosX` is running as a service, please refer to the configuration.
 
-2. View `taosX` logs
+1. View `taosX` logs
 
 You can view the log files or use the `journalctl` command to view the logs of `taosX`.
 

@@ -516,13 +516,15 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
 
   SDB_GET_BINARY(pRaw, dataPos, pTrans->opername, TSDB_TRANS_OPER_LEN, _OVER);
 
-  pTrans->arbGroupIds = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
-
   SDB_GET_INT32(pRaw, dataPos, &arbgroupIdNum, _OVER)
-  for (int32_t i = 0; i < arbgroupIdNum; ++i) {
-    int32_t arbGroupId = 0;
-    SDB_GET_INT32(pRaw, dataPos, &arbGroupId, _OVER)
-    if ((terrno = taosHashPut(pTrans->arbGroupIds, &arbGroupId, sizeof(int32_t), NULL, 0)) != 0) goto _OVER;
+  if (arbgroupIdNum > 0) {
+    pTrans->arbGroupIds = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
+    if (pTrans->arbGroupIds == NULL) goto _OVER;
+    for (int32_t i = 0; i < arbgroupIdNum; ++i) {
+      int32_t arbGroupId = 0;
+      SDB_GET_INT32(pRaw, dataPos, &arbGroupId, _OVER)
+      if ((terrno = taosHashPut(pTrans->arbGroupIds, &arbGroupId, sizeof(int32_t), NULL, 0)) != 0) goto _OVER;
+    }
   }
 
   int8_t ableKill = 0;
@@ -1143,12 +1145,15 @@ static bool mndCheckStbConflict(const char *conflict, STrans *pTrans) {
 
 static void mndTransLogConflict(STrans *pNew, STrans *pTrans, bool conflict, bool *globalConflict) {
   if (conflict) {
-    mError("trans:%d, db:%s stb:%s type:%d, can't execute since conflict with trans:%d db:%s stb:%s type:%d", pNew->id,
-           pNew->dbname, pNew->stbname, pNew->conflict, pTrans->id, pTrans->dbname, pTrans->stbname, pTrans->conflict);
+    mError("trans:%d, opername:%s db:%s stb:%s type:%d, can't execute since conflict with trans:%d, opername:%s db:%s "
+      "stb:%s type:%d", 
+      pNew->id, pNew->opername, pNew->dbname, pNew->stbname, pNew->conflict, pTrans->id, pTrans->opername, 
+      pTrans->dbname, pTrans->stbname, pTrans->conflict);
     *globalConflict = true;
   } else {
-    mInfo("trans:%d, db:%s stb:%s type:%d, not conflict with trans:%d db:%s stb:%s type:%d", pNew->id, pNew->dbname,
-          pNew->stbname, pNew->conflict, pTrans->id, pTrans->dbname, pTrans->stbname, pTrans->conflict);
+    mInfo("trans:%d, opername:%s db:%s stb:%s type:%d, not conflict with trans:%d, opername:%s db:%s stb:%s type:%d", 
+      pNew->id, pNew->opername, pNew->dbname, pNew->stbname, pNew->conflict, pTrans->id, pTrans->opername, 
+      pTrans->dbname, pTrans->stbname, pTrans->conflict);
   }
 }
 

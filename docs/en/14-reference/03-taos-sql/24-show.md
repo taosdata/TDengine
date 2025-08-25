@@ -37,7 +37,7 @@ SHOW CLUSTER MACHINES; // Supported starting from TDengine version 3.2.3.0
 
 Displays information about the cluster's machine codes.
 
-Note: Exclusive to the enterprise edition.
+Note: Exclusive to the TDengine TSDB-Enterprise.
 
 ## SHOW CONNECTIONS
 
@@ -111,9 +111,9 @@ SHOW GRANTS;
 SHOW GRANTS FULL; // Supported starting from TDengine version 3.2.3.0
 ```
 
-Displays information about enterprise edition license authorizations.
+Displays information about TDengine TSDB-Enterprise license authorizations.
 
-Note: Exclusive to the enterprise edition.
+Note: Exclusive to the TSDB-Enterprise.
 
 ## SHOW INDEXES
 
@@ -165,7 +165,7 @@ SHOW SCORES;
 
 Displays information about the capacity authorized by the license.
 
-Note: Exclusive to the enterprise edition.
+Note: Exclusive to the TSDB-Enterprise.
 
 ## SHOW STABLES
 
@@ -276,7 +276,6 @@ _block_dist: 3881 ||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 
 Query OK, 24 row(s) in set (0.002444s)
 ```
-
 
 </details>
 

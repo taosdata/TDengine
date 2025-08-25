@@ -7,25 +7,26 @@ toc_max_heading_level: 4
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-在物联网应用中，为了实现自动化管理、业务分析和设备监控等多种功能，通常需要采集大量的数据项。然而，由于应用逻辑的版本升级和设备自身的硬件调整等原因，数据采集项可能会频繁发生变化。为了应对这种挑战，TDengine 提供了无模式（schemaless）写入方式，旨在简化数据记录过程。
+在物联网应用中，为了实现自动化管理、业务分析和设备监控等多种功能，通常需要采集大量的数据项。然而，由于应用逻辑的版本升级和设备自身的硬件调整等原因，数据采集项可能会频繁发生变化。为了应对这种挑战，TDengine TSDB 提供了无模式（schemaless）写入方式，旨在简化数据记录过程。
 
-采用无模式写入方式，用户无须预先创建超级表或子表，因为 TDengine 会根据实际写入的数据自动创建相应的存储结构。此外，在必要时，无模式写入方式还能自动添加必要的数据列或标签列，确保用户写入的数据能够被正确存储。
+采用无模式写入方式，用户无须预先创建超级表或子表，因为 TDengine TSDB 会根据实际写入的数据自动创建相应的存储结构。此外，在必要时，无模式写入方式还能自动添加必要的数据列或标签列，确保用户写入的数据能够被正确存储。
 
 值得注意的是，通过无模式写入方式创建的超级表及其对应的子表与通过 SQL 直接创建的超级表和子表在功能上没有区别，用户仍然可以使用 SQL 直接向其中写入数据。然而，由于无模式写入方式生成的表名是基于标签值按照固定的映射规则生成的，因此这些表名可能缺乏可读性，不易于理解。
 
 **采用无模式写入方式时会自动创建表，无须手动创建表。手动建表的话可能会出现未知的错误。**
 
-## 无模式写入行协议 
+## 无模式写入行协议
 
-TDengine 的无模式写入行协议兼容 InfluxDB 的行协议、OpenTSDB 的 TELNET 行协议和 OpenTSDB 的 JSON 格式协议。InfluxDB、OpenTSDB 的标准写入协议请参考各自的官方文档。
+TDengine TSDB 的无模式写入行协议兼容 InfluxDB 的行协议、OpenTSDB 的 TELNET 行协议和 OpenTSDB 的 JSON 格式协议。InfluxDB、OpenTSDB 的标准写入协议请参考各自的官方文档。
 
-下面首先以 InfluxDB 的行协议为基础，介绍 TDengine 扩展的协议内容。该协议允许用户采用更加精细的方式控制（超级表）模式。采用一个字符串来表达一个数据行，可以向写入 API 中一次传入多行字符串来实现多个数据行的批量写入，其格式约定如下。
+下面首先以 InfluxDB 的行协议为基础，介绍 TDengine TSDB 扩展的协议内容。该协议允许用户采用更加精细的方式控制（超级表）模式。采用一个字符串来表达一个数据行，可以向写入 API 中一次传入多行字符串来实现多个数据行的批量写入，其格式约定如下。
 
 ```text
 measurement,tag_set field_set timestamp
 ```
 
 各参数说明如下。
+
 - measurement 为数据表名，与 tag_set 之间使用一个英文逗号来分隔。
 - tag_set 格式形如 `<tag_key>=<tag_value>, <tag_key>=<tag_value>`，表示标签列数据，使用英文逗号分隔，与 field_set 之间使用一个半角空格分隔。
 - field_set 格式形如 `<field_key>=<field_value>, <field_key>=<field_value>`，表示普通列，同样使用英文逗号来分隔，与 timestamp 之间使用一个半角空格分隔。
@@ -34,6 +35,7 @@ measurement,tag_set field_set timestamp
 
 tag_set 中的所有的数据自动转化为 nchar 数据类型，并不需要使用双引号。
 在无模式写入数据行协议中，field_set 中的每个数据项都需要对自身的数据类型进行描述，具体要求如下。
+
 - 如果两边有英文双引号，表示 varchar 类型，例如 "abc"。
 - 如果两边有英文双引号而且带有 L 或 l 前缀，表示 nchar 类型，例如 L" 报错信息 "。
 - 如果两边有英文双引号而且带有 G 或 g 前缀，表示 geometry 类型，例如 G"Point(4.343 89.342)"。
@@ -81,7 +83,7 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4f64 1626006833639000000
 
 需要注意的是，如果描述数据类型后缀时出现大小写错误，或者为数据指定的数据类型有误，均可能引发报错提示而导致数据写入失败。
 
-TDengine 提供数据写入的幂等性保证，即您可以反复调用 API 进行出错数据的写入操作。但是不提供多行数据写入的原子性保证。即在多行数据一批次写入过程中，会出现部分数据写入成功，部分数据写入失败的情况。
+TDengine TSDB 提供数据写入的幂等性保证，即您可以反复调用 API 进行出错数据的写入操作。但是不提供多行数据写入的原子性保证。即在多行数据一批次写入过程中，会出现部分数据写入成功，部分数据写入失败的情况。
 
 ## 无模式写入处理规则
 
@@ -110,7 +112,7 @@ TDengine 提供数据写入的幂等性保证，即您可以反复调用 API 进
 9. 由于 sql 建表表名不支持点号（.），所以 schemaless 也对点号（.）做了处理，如果 schemaless 自动建表的表名如果有点号（.），会自动替换为下划线（\_）。如果手动指定子表名的话，子表名里有点号（.），同样转化为下划线（\_）。
 10. taos.cfg 增加 smlTsDefaultName 配置（字符串类型），只在 client 端起作用，配置后，schemaless 自动建表的时间列名字可以通过该配置设置。不配置的话，默认为 _ts。
 11. 无模式写入的数据超级表或子表名区分大小写。
-12. 无模式写入仍然遵循 TDengine 对数据结构的底层限制，例如每行数据的总长度不能超过 48KB（从 3.0.5.0 版本开始为 64KB），标签值的总长度不超过 16KB。
+12. 无模式写入仍然遵循 TDengine TSDB 对数据结构的底层限制，例如每行数据的总长度不能超过 48KB（从 3.0.5.0 版本开始为 64KB），标签值的总长度不超过 16KB。
 
 ## 时间分辨率识别
 
@@ -180,11 +182,13 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c6="passit"   1626006833640000000
 第二行数据相对于第一行来说增加了一个列 c6，类型为 binary(6)。那么此时会自动增加一个列 c6，类型为 binary(6)。
 
 ## 无模式写入示例
+
 下面以智能电表为例，介绍各语言连接器使用无模式写入接口写入数据的代码样例，包含了三种协议：InfluxDB 的行协议、OpenTSDB 的 TELNET 行协议和 OpenTSDB 的 JSON 格式协议。  
 
 :::note
-- 因为无模式写入自动建表规则与之前执行 SQL 样例中不同，因此运行代码样例前请确保 `meters`、`metric_telnet` 和 `metric_json` 表不存在。 
-- OpenTSDB 的 TELNET 行协议和 OpenTSDB 的 JSON 格式协议只支持一个数据列，因此我们采用了其他示例。   
+
+- 因为无模式写入自动建表规则与之前执行 SQL 样例中不同，因此运行代码样例前请确保 `meters`、`metric_telnet` 和 `metric_json` 表不存在。
+- OpenTSDB 的 TELNET 行协议和 OpenTSDB 的 JSON 格式协议只支持一个数据列，因此我们采用了其他示例。
 
 :::
 
@@ -196,7 +200,6 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c6="passit"   1626006833640000000
 ```java
 {{#include docs/examples/java/src/main/java/com/taos/example/SchemalessWsTest.java:schemaless}}
 ```
-
 
 执行带有 reqId 的无模式写入，最后一个参数 reqId 可用于请求链路追踪。
 
@@ -210,6 +213,7 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 ```python
 {{#include docs/examples/python/schemaless_ws.py}}
 ```
+
 </TabItem>
 <TabItem label="Go" value="go">
 ```go
@@ -236,15 +240,17 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 <TabItem label="C" value="c">
 
 ```c
-{{#include docs/examples/c-ws/sml_insert_demo.c:schemaless}}
+{{#include docs/examples/c-ws-new/sml_insert_demo.c:schemaless}}
 ```
+
 </TabItem>
 <TabItem label="REST API" value="rest">
 不支持
-</TabItem>   
+</TabItem>
 </Tabs>
 
 ### 原生连接
+
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
 ```java
@@ -263,6 +269,7 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 ```python
 {{#include docs/examples/python/schemaless_native.py}}
 ```
+
 </TabItem>
 <TabItem label="Go" value="go">
 ```go
@@ -291,12 +298,12 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 </TabItem>
 <TabItem label="REST API" value="rest">
 不支持
-</TabItem>   
+</TabItem>
 </Tabs>
 
 ## 查询写入的数据
 
-运行上节的样例代码，会在 power 数据库中自动建表，我们可以通过 TDengine CLI 或者应用程序来查询数据。下面给出用 TDengine CLI 查询超级表和 meters 表数据的样例。
+运行上节的样例代码，会在 power 数据库中自动建表，我们可以通过 TDengine TSDB CLI 或者应用程序来查询数据。下面给出用 TDengine TSDB CLI 查询超级表和 meters 表数据的样例。
 
 ```shell
 taos> show power.stables;

@@ -7,6 +7,7 @@ slug: /tdengine-reference/tools/tdengine-cli
 The TDengine command line program (hereinafter referred to as TDengine CLI) is the simplest and most commonly used tool for users to operate and interact with TDengine instances. It requires the installation of either the TDengine Server package or the TDengine Client package before use.
 
 ## Get
+
 TDengine CLI is the default installation component in the TDengine server and client installation package. It can be used after installation, refer to [TDengine Installation](../../../get-started/)
 
 ## Startup
@@ -46,6 +47,7 @@ You can change the behavior of the TDengine CLI by configuring command line para
 - -s COMMAND: SQL command executed in non-interactive mode.  
     Use the `-s` parameter to execute SQL non interactively, and exit after execution. This mode is suitable for use in automated scripts.
     For example, connect to the server h1.taos.com with the following command, and execute the SQL specified by `-s`:
+
     ```bash
     taos -h my-server -s "use db; show tables;"
     ```
@@ -78,17 +80,17 @@ You can change the behavior of the TDengine CLI by configuring command line para
 - -w DISPLAYWIDTH: Client column display width.
 - -z TIMEZONE: Specifies the timezone, default is the local timezone.
 - -V: Print the current version number.
+- -Z：The connection method, with 0 indicating the use of native connection method, 1 indicating the use of WebSocket connection method, and default to native connection method.
 
 ## Data Export/Import
 
 ### Data Export To a File
 
-- You can use the symbol “>>” to export query results to a file, the syntax is: sql query statement >> 'output file name'; If no path is written for the output file, it will be output to the current directory. For example, `select * from d0 >> '/root/d0.csv';` will output the query results to /root/d0.csv.
+- You can use the symbol `>>` to export query results to a file, the syntax is: sql query statement >> 'output file name'; If no path is written for the output file, it will be output to the current directory. For example, `select * from d0 >> '/root/d0.csv';` will output the query results to /root/d0.csv.
 
 ### Data Import From a File
 
 - You can use insert into table_name file 'input file name', to import the data file exported in the previous step back into the specified table. For example, `insert into d0 file '/root/d0.csv';` means to import all the data exported above back into the d0 table.
-
 
 ## Execute SQL Scripts
 
@@ -107,7 +109,6 @@ taos> source <filename>;
 - If a string precedes the TAB key, it will search for all command words that match the prefix of this string and display the first one, pressing TAB again will switch to the next one.
 - Entering a backslash `\` + TAB key, will automatically complete to the column display mode command word `\G;`.
 
-
 ### Modification of Display Character Width
 
 You can adjust the display character width in the TDengine CLI using the following command:
@@ -124,9 +125,8 @@ If the displayed content ends with ..., it indicates that the content has been t
 - In TDengine CLI, use the `alter user` command to change user passwords, the default password is `taosdata`.
 - Ctrl+C to stop a query that is in progress.
 - Execute `RESET QUERY CACHE` to clear the cache of the local table Schema.
-- Batch execute SQL statements.   
+- Batch execute SQL statements.
     You can store a series of TDengine CLI commands (ending with a semicolon `;`, each SQL statement on a new line) in a file, and execute the command `source <file-name>` in TDengine CLI to automatically execute all SQL statements in that file.
-
 
 ## Error Code Table
 

@@ -16,7 +16,7 @@ Power BI is a business analytics tool provided by Microsoft. By configuring the 
 
 **Step 1**, Search and open the [ODBC Data Source (64 bit)] management tool in the Start menu of the Windows operating system and configure it, refer to [Install ODBC Driver](../../../tdengine-reference/client-libraries/odbc/#installation).
 
-**Step 2**, Open Power BI and log in, click [Home] -> [Get Data] -> [Other] -> [ODBC] -> [Connect], add data source. 
+**Step 2**, Open Power BI and log in, click [Home] -> [Get Data] -> [Other] -> [ODBC] -> [Connect], add data source.
 
 **Step 3**, Select the data source name just created, such as [MyTDengine], if you need to enter SQL, you can click the [Advanced options] tab, in the expanded dialog box enter the SQL statement. Click the [OK] button to connect to the configured data source.  
 

@@ -151,14 +151,14 @@ static void doScan(SMeta *pMeta) {
 int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t rollback) {
   SMeta  *pMeta = NULL;
   int32_t code = 0;
-  int32_t lino;
+  int32_t lino = 0;
   int32_t offset;
   int32_t pathLen = 0;
   char    path[TSDB_FILENAME_LEN] = {0};
   char    indexFullPath[128] = {0};
 
   // create handle
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, path, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, path, TSDB_FILENAME_LEN);
   offset = strlen(path);
   snprintf(path + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, metaDir);
 
@@ -256,7 +256,8 @@ int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t
 
 _exit:
   if (code) {
-    metaError("vgId:%d %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+    metaError("vgId:%d %s failed at %s:%d since %s, path:%s", TD_VID(pVnode), __func__, __FILE__, lino, tstrerror(code),
+              path);
     metaCleanup(&pMeta);
     *ppMeta = NULL;
   } else {
@@ -267,12 +268,22 @@ _exit:
 }
 
 void vnodeGetMetaPath(SVnode *pVnode, const char *metaDir, char *fname) {
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, fname, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, fname, TSDB_FILENAME_LEN);
   int32_t offset = strlen(fname);
   snprintf(fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, metaDir);
 }
 
 bool generateNewMeta = false;
+
+static void metaResetStatisInfo(SMeta *pMeta) {
+  pMeta->pVnode->config.vndStats.numOfSTables = 0;
+  pMeta->pVnode->config.vndStats.numOfCTables = 0;
+  pMeta->pVnode->config.vndStats.numOfNTables = 0;
+  pMeta->pVnode->config.vndStats.numOfVTables = 0;
+  pMeta->pVnode->config.vndStats.numOfVCTables = 0;
+  pMeta->pVnode->config.vndStats.numOfNTimeSeries = 0;
+  pMeta->pVnode->config.vndStats.numOfTimeSeries = 0;
+}
 
 static int32_t metaGenerateNewMeta(SMeta **ppMeta) {
   SMeta  *pNewMeta = NULL;
@@ -280,6 +291,9 @@ static int32_t metaGenerateNewMeta(SMeta **ppMeta) {
   SVnode *pVnode = pMeta->pVnode;
 
   metaInfo("vgId:%d start to generate new meta", TD_VID(pMeta->pVnode));
+
+  // Reset statistics info
+  metaResetStatisInfo(pMeta);
 
   // Open a new meta for organization
   int32_t code = metaOpenImpl(pMeta->pVnode, &pNewMeta, VNODE_META_TMP_DIR, false);

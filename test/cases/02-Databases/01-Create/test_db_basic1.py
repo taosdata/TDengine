@@ -8,11 +8,11 @@ class TestDatabaseBasic1:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_basic1(self):
-        """create database 1
+        """Database: basic 1
 
-        1. creat database use vgroup option
-        2. show vgroups
-        3. show vnodes
+        1. Create database with vgroup option
+        2. Show vgroups
+        3. Show vnodes
 
         Catalog:
             - Databases:Create

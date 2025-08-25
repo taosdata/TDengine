@@ -168,7 +168,7 @@ int32_t ctgRefreshTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx*
 
   if (CTG_IS_META_NULL(output->metaType)) {
     ctgError("tb:%s, no tbmeta got", tNameGetTableName(ctx->pName));
-    CTG_ERR_JRET(ctgRemoveTbMetaFromCache(pCtg, ctx->pName, false));
+    CTG_ERR_JRET(ctgRemoveTbMetaFromCache(pCtg, ctx->pName, false, false));
     CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
   }
 
@@ -704,7 +704,7 @@ _return:
 }
 
 
-int32_t ctgRemoveTbMeta(SCatalog* pCtg, SName* pTableName) {
+int32_t ctgRemoveTbMeta(SCatalog* pCtg, SName* pTableName, bool related) {
   int32_t code = 0;
 
   if (NULL == pCtg || NULL == pTableName) {
@@ -715,7 +715,7 @@ int32_t ctgRemoveTbMeta(SCatalog* pCtg, SName* pTableName) {
     return TSDB_CODE_SUCCESS;
   }
 
-  CTG_ERR_JRET(ctgRemoveTbMetaFromCache(pCtg, pTableName, true));
+  CTG_ERR_JRET(ctgRemoveTbMetaFromCache(pCtg, pTableName, true, related));
 
 _return:
 
@@ -1251,8 +1251,15 @@ _return:
 int32_t catalogRemoveTableMeta(SCatalog* pCtg, SName* pTableName) {
   CTG_API_ENTER();
 
-  CTG_API_LEAVE(ctgRemoveTbMeta(pCtg, pTableName));
+  CTG_API_LEAVE(ctgRemoveTbMeta(pCtg, pTableName, false));
 }
+
+int32_t catalogRemoveTableRelatedMeta(SCatalog* pCtg, SName* pTableName) {
+  CTG_API_ENTER();
+
+  CTG_API_LEAVE(ctgRemoveTbMeta(pCtg, pTableName, true));
+}
+
 
 int32_t catalogRemoveStbMeta(SCatalog* pCtg, const char* dbFName, uint64_t dbId, const char* stbName, uint64_t suid) {
   CTG_API_ENTER();
@@ -1392,17 +1399,17 @@ int32_t catalogChkTbMetaVersion(SCatalog* pCtg, SRequestConnInfo* pConn, SArray*
         case TSDB_CHILD_TABLE: {
           SName stb = name;
           tstrncpy(stb.tname, stbName, sizeof(stb.tname));
-          CTG_ERR_JRET(ctgRemoveTbMeta(pCtg, &stb));
+          CTG_ERR_JRET(ctgRemoveTbMeta(pCtg, &stb, false));
           break;
         }
         case TSDB_VIRTUAL_CHILD_TABLE: {
-          CTG_ERR_JRET(ctgRemoveTbMeta(pCtg, &name));
+          CTG_ERR_JRET(ctgRemoveTbMeta(pCtg, &name, false));
           break;
         }
         case TSDB_SUPER_TABLE:
         case TSDB_NORMAL_TABLE:
         case TSDB_VIRTUAL_NORMAL_TABLE: {
-          CTG_ERR_JRET(ctgRemoveTbMeta(pCtg, &name));
+          CTG_ERR_JRET(ctgRemoveTbMeta(pCtg, &name, false));
           break;
         }
         default:
@@ -1777,7 +1784,7 @@ int32_t catalogRefreshGetTableCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const
   }
 
   int32_t code = 0;
-  CTG_ERR_JRET(ctgRemoveTbMeta(pCtg, (SName*)pTableName));
+  CTG_ERR_JRET(ctgRemoveTbMeta(pCtg, (SName*)pTableName, false));
 
   CTG_ERR_JRET(ctgGetTbCfg(pCtg, pConn, (SName*)pTableName, pCfg));
 

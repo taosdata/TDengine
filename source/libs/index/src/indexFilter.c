@@ -21,7 +21,9 @@
 #include "nodes.h"
 #include "querynodes.h"
 #include "scalar.h"
+#include "taos.h"
 #include "tdatablock.h"
+#include "ttypes.h"
 
 // clang-format off
 #define SIF_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
@@ -179,6 +181,9 @@ static FORCE_INLINE int32_t sifGetValueFromNode(SNode *node, char **value) {
 
   if (IS_VAR_DATA_TYPE(type)) {
     int32_t dataLen = varDataTLen(pData);
+    if (IS_STR_DATA_BLOB(type)) {
+      dataLen = blobDataTLen(pData);
+    }
     if (type == TSDB_DATA_TYPE_JSON) {
       if (*pData == TSDB_DATA_TYPE_NULL) {
         dataLen = 0;
@@ -536,7 +541,8 @@ static int32_t sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typ
   //   return TSDB_CODE_INVALID_PARA;
   // }
   if (IS_VAR_DATA_TYPE(ltype)) {
-    if (ltype == TSDB_DATA_TYPE_VARCHAR || ltype == TSDB_DATA_TYPE_BINARY || ltype == TSDB_DATA_TYPE_VARBINARY) {
+    if (ltype == TSDB_DATA_TYPE_VARCHAR || ltype == TSDB_DATA_TYPE_BINARY || ltype == TSDB_DATA_TYPE_VARBINARY ||
+        ltype == TSDB_DATA_TYPE_NCHAR) {
       return 0;
     } else {
       return TSDB_CODE_INVALID_PARA;
@@ -652,7 +658,15 @@ static int8_t sifShouldUseIndexBasedOnType(SIFParam *left, SIFParam *right) {
   if (IS_VAR_DATA_TYPE(left->colValType)) {
     if (!IS_VAR_DATA_TYPE(right->colValType)) return 0;
   } else if (IS_NUMERIC_TYPE(left->colValType)) {
-    if (left->colValType != right->colValType) return 0;
+    if (IS_SIGNED_NUMERIC_TYPE(left->colValType) && IS_SIGNED_NUMERIC_TYPE(right->colValType)) {
+      if (left->colValType >= right->colValType) {
+        return 1;  // use index
+      } else {
+        return 0;  // not use index
+      }
+    } else {
+      return 0;
+    }
   }
   return 1;
 }

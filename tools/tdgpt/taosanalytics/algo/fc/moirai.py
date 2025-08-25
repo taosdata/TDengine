@@ -11,4 +11,4 @@ class _MoiraiService(TsfmBaseService):
         super().__init__()
 
         if  self.service_host is None:
-            self.service_host = 'http://127.0.0.1:5004/ds_predict'
+            self.service_host = 'http://127.0.0.1:6074/ds_predict'
