@@ -63,6 +63,7 @@ int32_t tssInit() {
 
 
 int32_t tssUninit() {
+    memset(g_registry, 0, sizeof(g_registry));
     return TSDB_CODE_SUCCESS;
 }
 
