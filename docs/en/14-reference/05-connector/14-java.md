@@ -33,6 +33,8 @@ The JDBC driver implementation for TDengine strives to be consistent with relati
 
 | taos-jdbcdriver Version | Major Changes                                                                                                                                                                                                                                                                                                                                                                                               | TDengine Version   |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| 3.7.3                   | Optimized WebSocket/Native query implementations.    |-|                                                                                                                                                                                                                                                                                                                                  | -                  |
+| 3.7.2                   | Fixed the supportsBatchUpdates issue that caused poor performance in Spring JdbcTemplate parameter binding.    |-|                                                                                                                                                                                                                                                                                                                                  | -                  |
 | 3.7.1                   | 1. Replace Java-WebSocket library with Netty to enhance small query performance. <br/>  2. Add IPv6 protocol compatibility. <br/>  3. Implement BLOB (Binary Large Object) data type support. <br/>  4. Enable TDengine version compatibility checks. <br/>  5. Support `varcharAsString` in connection property. <br/>  6. Optimize memory utilization in WebSocket query operations. <br/>  7. Fix timezone handling in WebSocket connections. <br/> |-|                                                                                                                                                                                                                                                                                                                                  | -                  |
 | 3.6.3                   | Fixed data type conversion bug in database or super table subscription.                                                                                                                                                                                                                                                                                                                                     | -                  |
 | 3.6.2                   | 1. Supports data subscription for databases and super tables (subscription meta not supported). <br/> 1. Resolved the bug in cloud service subscription. <br/> 1. Improved the implement of setQueryTimeout with param 0.                                                                                                                                                                                   | -                  |
@@ -238,7 +240,7 @@ All properties in **Properties** are supported in the JDBC URL. For details, ple
 
 **Note**: For native JDBC connections, taos-jdbcdriver depends on the client driver (libtaos.so on Linux; taos.dll on Windows; libtaos.dylib on macOS).
 
-The supported configuration parameters for native connection URLs are as follows:
+The supported common configuration parameters for native connection URLs are as follows:
 
 - user: TDengine username, default 'root'.
 - password: User login password, default 'taosdata'.
@@ -246,7 +248,6 @@ The supported configuration parameters for native connection URLs are as follows
 - charset: Character set used by the client, default is the system character set.
 - locale: Client language environment, default is the system current locale.
 - timezone: Client timezone, default is the system current timezone.
-- batchfetch: true: Fetch result sets in batches during query execution; false: Fetch result sets row by row. Default is true. Enabling batch fetching can effectively improve query performance when querying large data volumes.
 - batchErrorIgnore: true: Continue executing subsequent SQL statements if one fails during the execution of Statement's executeBatch. False: Do not execute any statements after a failed SQL. Default is false.
 
 Using TDengine Client Driver Configuration File to Establish Connection:
@@ -262,10 +263,10 @@ In TDengine, as long as one of the nodes in firstEp and secondEp is valid, a con
 Using JDBC WebSocket connection does not depend on the client driver. Here's an example: `jdbc:TAOS-WS://taosdemo.com:6030/power?user=root&password=taosdata&varcharAsString=true`. Compared to native JDBC connections, you only need to:
 
 1. Specify driverClass as "com.taosdata.jdbc.ws.WebSocketDriver";
-1. Start jdbcUrl with "jdbc:TAOS-WS://";
-1. Use 6041 as the connection port.
+2. Start jdbcUrl with "jdbc:TAOS-WS://";
+3. Use 6041 as the connection port.
 
-For WebSocket connections, the configuration parameters in the URL are as follows:
+For WebSocket connections, the common configuration parameters in the URL are as follows:
 
 - user: Login username for TDengine, default value 'root'.
 - password: User login password, default value 'taosdata'.
@@ -275,6 +276,7 @@ For WebSocket connections, the configuration parameters in the URL are as follow
 - useSSL: Whether SSL is used in the connection.
 - timezone: Client timezone, default is the system current timezone. Recommended not to set, using the system time zone provides better performance.
 - varcharAsString: Maps VARCHAR/BINARY types to String. Effective only when using WebSocket connections. Default value is false.
+- conmode: BI mode takes effect only when the WebSocket connection is established. The default value is 0, and it can be set to 1. Setting it to 1 means enabling BI mode, where metadata information does not count sub-tables. This is mainly used in scenarios when integration with BI tools.
 
 **Note**: Some configuration items (such as: locale, charset) do not take effect in WebSocket connections. WebSocket connections only support the UTF-8 character set.
 
@@ -290,7 +292,7 @@ Using JDBC REST connection does not depend on the client driver. Compared to nat
 2. Start jdbcUrl with "jdbc:TAOS-RS://";
 3. Use 6041 as the connection port.
 
-For REST connections, the configuration parameters in the URL are as follows:
+For REST connections, the common configuration parameters in the URL are as follows:
 
 - user: Login username for TDengine, default value 'root'.
 - password: User login password, default value 'taosdata'.
@@ -340,6 +342,8 @@ The configuration parameters in properties are as follows:
 - TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS [`reconnectIntervalMs`]: Auto-reconnect retry interval, in milliseconds, default value 2000. Effective only when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
 - TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT [`reconnectRetryCount`]: Auto-reconnect retry count, default value 3, effective only when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
 - TSDBDriver.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION [`disableSSLCertValidation`]: Disable SSL certificate validation. Effective only when using WebSocket connections. true: enabled, false: not enabled. Default is false.
+
+- TSDBDriver.PROPERTY_KEY_CONNECT_MODE [`conmode`]: BI mode takes effect only when the WebSocket connection is established. The default value is 0, and it can be set to 1. Setting it to 1 means enabling BI mode, where metadata information does not count sub-tables. This is mainly used in scenarios when integration with BI tools.
 - TSDBDriver.PROPERTY_KEY_VARCHAR_AS_STRING [`varcharAsString`]: Maps VARCHAR/BINARY types to String. Effective only when using WebSocket connections. Default value is false.
 - TSDBDriver.PROPERTY_KEY_APP_NAME [`app_name`]: App name, can be used for display in the `show connections` query result. Effective only when using WebSocket connections. Default value is java.
 - TSDBDriver.PROPERTY_KEY_APP_IP [`app_ip`]: App IP, can be used for display in the `show connections` query result. Effective only when using WebSocket connections. Default value is empty.

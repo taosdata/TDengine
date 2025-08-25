@@ -220,7 +220,7 @@ class TestVtableQueryCrossDB:
 
 
     def test_select_virtual_normal_table(self):
-        """Query: virtual normal table cross db
+        """Query: v-ntable crossdb query
 
         1. test vstable select normal table cross db projection
         2. test vstable select normal table cross db projection filter
@@ -262,7 +262,7 @@ class TestVtableQueryCrossDB:
         self.run_normal_query("test_vtable_select_test_orderby")
 
     def test_select_virtual_child_table(self):
-        """Query: virtual child table cross db
+        """Query: v-ctable crossdb query
 
         1. test vstable select child table cross db projection
         2. test vstable select child table cross db projection filter

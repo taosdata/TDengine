@@ -85,7 +85,7 @@ md5sum /usr/lib/libtaosnative.so.1
 md5sum /home/TDinternal/debug/build/lib/libtaosnative.so
 
 #get python connector and update: taospy and  taos-ws-py to latest
-pip3 install taospy==2.8.3
+pip3 install taospy==2.8.4
 pip3 install taos-ws-py==0.5.3
 $TIMEOUT_CMD $cmd
 RET=$?

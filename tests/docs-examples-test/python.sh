@@ -137,13 +137,20 @@ python3 conn_websocket_pandas.py
 python3 connect_websocket_examples.py
 
 # 23
-python3 create_db_ws.py
+pip3 install DBUtils==3.1.1
+python3 dbutils_demo.py
 
 # 24
-python3 create_db_native.py
+python3 create_db_ws.py
 
 # 25
+python3 create_db_native.py
+
+# 26
 python3 create_db_rest.py
+
+pip3 install SQLAlchemy==2.0.43
+python3 sqlalchemy_demo.py
 
 python3 insert_native.py
 

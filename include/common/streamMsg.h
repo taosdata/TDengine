@@ -710,7 +710,7 @@ typedef enum ESTriggerPullType {
   STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT,
   STRIGGER_PULL_TSDB_CALC_DATA,
   STRIGGER_PULL_TSDB_CALC_DATA_NEXT,
-  STRIGGER_PULL_TSDB_DATA,
+  STRIGGER_PULL_TSDB_DATA, //10
   STRIGGER_PULL_TSDB_DATA_NEXT,
   STRIGGER_PULL_WAL_META,
   STRIGGER_PULL_WAL_TS_DATA,
@@ -946,7 +946,7 @@ typedef struct SStreamRuntimeFuncInfo {
 
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo);
 int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo);
-int32_t tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo);
+void    tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo);
 typedef struct STsInfo {
   int64_t gId;
   int64_t  ts;

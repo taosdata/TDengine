@@ -10,12 +10,12 @@ import StatsD from "./_statsd.mdx"
 import Icinga2 from "./_icinga2.mdx"
 import TCollector from "./_tcollector.mdx"
 
-taosAdapter 是一个 TDengine 的配套工具，是 TDengine 集群和应用程序之间的桥梁和适配器。它提供了一种易于使用和高效的方式来直接从数据收集代理软件（如 Telegraf、StatsD、collectd 等）摄取数据。它还提供了 InfluxDB/OpenTSDB 兼容的数据摄取接口，允许 InfluxDB/OpenTSDB 应用程序无缝移植到 TDengine。
-TDengine 的各语言连接器通过 WebSocket 接口与 TDengine 进行通信，因此必须安装 taosAdapter。
+taosAdapter 是一个 TDengine TSDB 的配套工具，是 TDengine TSDB 集群和应用程序之间的桥梁和适配器。它提供了一种易于使用和高效的方式来直接从数据收集代理软件（如 Telegraf、StatsD、collectd 等）摄取数据。它还提供了 InfluxDB/OpenTSDB 兼容的数据摄取接口，允许 InfluxDB/OpenTSDB 应用程序无缝移植到 TDengine TSDB。
+TDengine TSDB 的各语言连接器通过 WebSocket 接口与 TDengine TSDB 进行通信，因此必须安装 taosAdapter。
 
 架构图如下：
 
-![TDengine Database taosAdapter Architecture](taosAdapter-architecture.webp)
+![TDengine TSDB Database taosAdapter Architecture](taosAdapter-architecture.webp)
 
 ## 功能列表
 
@@ -51,14 +51,14 @@ taosAdapter 提供了以下功能：
 
 ### InfluxDB v1 数据写入
 
-您可以使用任何支持 HTTP 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/influxdb/v1/write` 来写入 InfluxDB 兼容格式的数据到 TDengine。
+您可以使用任何支持 HTTP 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/influxdb/v1/write` 来写入 InfluxDB 兼容格式的数据到 TDengine TSDB。
 
 支持 InfluxDB 参数如下：
 
-- `db` 指定 TDengine 使用的数据库名
-- `precision` TDengine 使用的时间精度
-- `u` TDengine 用户名
-- `p` TDengine 密码
+- `db` 指定 TDengine TSDB 使用的数据库名
+- `precision` TDengine TSDB 使用的时间精度
+- `u` TDengine TSDB 用户名
+- `p` TDengine TSDB 密码
 - `ttl` 自动创建的子表生命周期，以子表的第一条数据的 TTL 参数为准，不可更新。更多信息请参考 [创建表文档](../../taos-sql/table/#创建表)的 TTL 参数。
 - `table_name_key` 自定义子表名使用的标签名，如果设置了该参数，则子表名将使用该标签对应的值。
 
@@ -71,7 +71,7 @@ curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root
 
 ### OpenTSDB JSON 和 telnet 格式写入
 
-您可以使用任何支持 HTTP 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/<APIEndPoint>` 来写入 OpenTSDB 兼容格式的数据到 TDengine。EndPoint 如下：
+您可以使用任何支持 HTTP 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/<APIEndPoint>` 来写入 OpenTSDB 兼容格式的数据到 TDengine TSDB。EndPoint 如下：
 
 ```text
 /opentsdb/v1/put/json/<db>
@@ -122,11 +122,11 @@ Prometheus 使用的由 \*NIX 内核暴露的硬件和操作系统指标的输�
 
 ### RESTful 接口
 
-您可以使用任何支持 HTTP 协议的客户端通过访问 RESTful 接口地址 `http://<fqdn>:6041/rest/sql` 来写入数据到 TDengine 或从 TDengine 中查询数据。细节请参考 [REST API 文档](../../connector/rest-api/)。
+您可以使用任何支持 HTTP 协议的客户端通过访问 RESTful 接口地址 `http://<fqdn>:6041/rest/sql` 来写入数据到 TDengine TSDB 或从 TDengine TSDB 中查询数据。细节请参考 [REST API 文档](../../connector/rest-api/)。
 
 ## 安装
 
-taosAdapter 是 TDengine 服务端软件 的一部分，如果您使用 TDengine server 您不需要任何额外的步骤来安装 taosAdapter。您可以从 [涛思数据官方网站](https://docs.taosdata.com/releases/tdengine/) 下载 TDengine server 安装包。如果需要将 taosAdapter 分离部署在 TDengine server 之外的服务器上，则应该在该服务器上安装完整的 TDengine 来安装 taosAdapter。如果您需要使用源代码编译生成 taosAdapter，您可以参考 [构建 taosAdapter](https://github.com/taosdata/taosadapter/blob/3.0/BUILD-CN.md) 文档。
+taosAdapter 是 TDengine TSDB 服务端软件 的一部分，如果您使用 TDengine TSDB server 您不需要任何额外的步骤来安装 taosAdapter。您可以从 [涛思数据官方网站](https://docs.taosdata.com/releases/tdengine/) 下载 TDengine TSDB server 安装包。如果需要将 taosAdapter 分离部署在 TDengine TSDB server 之外的服务器上，则应该在该服务器上安装完整的 TDengine TSDB 来安装 taosAdapter。如果您需要使用源代码编译生成 taosAdapter，您可以参考 [构建 taosAdapter](https://github.com/taosdata/taosadapter/blob/3.0/BUILD-CN.md) 文档。
 
 安装完成后使用命令 `systemctl start taosadapter` 可以启动 taosAdapter 服务。
 
@@ -147,7 +147,7 @@ taosAdapter 的基础配置参数如下：
   - **设置为 `false` 时**：关闭调试模式，不允许访问调试信息。
 - **`instanceId`**：taosAdapter 实例 id，用于区分不同 taosAdapter 的日志，默认值：32。
 - **`port`**：taosAdapter 对外提供 HTTP/WebSocket 服务的端口，默认值：6041。
-- **`taosConfigDir`**：TDengine 的配置文件目录，默认值：`/etc/taos`。该目录下的 `taos.cfg` 文件将被加载。
+- **`taosConfigDir`**：TDengine TSDB 的配置文件目录，默认值：`/etc/taos`。该目录下的 `taos.cfg` 文件将被加载。
 
 从 **3.3.4.0 版本** 开始，taosAdapter 支持设置调用 C 方法并发调用数：
 
@@ -183,7 +183,7 @@ taosAdapter 的基础配置参数如下：
 
 ### 连接池配置
 
-taosAdapter 使用连接池管理与 TDengine 的连接，以提高并发性能和资源利用率。连接池配置对以下接口生效，且以下接口共享一个连接池：
+taosAdapter 使用连接池管理与 TDengine TSDB 的连接，以提高并发性能和资源利用率。连接池配置对以下接口生效，且以下接口共享一个连接池：
 
 - RESTful 接口请求
 - InfluxDB v1 写接口
@@ -249,6 +249,7 @@ taosAdapter 将监测自身运行过程中内存使用率并通过两个阈值�
 **状态检查接口：**
 
 可以通过以下接口检查 taosAdapter 的内存状态：
+
 - **正常状态**：`http://<fqdn>:6041/-/ping` 返回 `code 200`。
 - **内存超过阈值**：
   - 如果内存超过 `pauseAllMemoryThreshold`，返回 `code 503`。
@@ -537,11 +538,11 @@ curl --location --request PUT 'http://127.0.0.1:6041/config' \
 
 - **`open_metrics.user`**
 
-  配置连接 TDengine 的用户名（默认值：`"root"`）。
+  配置连接 TDengine TSDB 的用户名（默认值：`"root"`）。
 
 - **`open_metrics.password`**
 
-  设置连接 TDengine 的密码（默认值：`"taosdata"`）。
+  设置连接 TDengine TSDB 的密码（默认值：`"taosdata"`）。
 
 - **`open_metrics.urls`**
 
@@ -818,12 +819,12 @@ taosAdapter 将指标上报到 taosKeeper 进行统一管理，参数如下：
 
 ### 升级 taosAdapter
 
-taosAdapter 和 TDengine server 需要使用相同版本。请通过升级 TDengine server 来升级 taosAdapter。
-与 taosd 分离部署的 taosAdapter 必须通过升级其所在服务器的 TDengine server 才能得到升级。
+taosAdapter 和 TDengine TSDB server 需要使用相同版本。请通过升级 TDengine TSDB server 来升级 taosAdapter。
+与 taosd 分离部署的 taosAdapter 必须通过升级其所在服务器的 TDengine TSDB server 才能得到升级。
 
 ### 移除 taosAdapter
 
-使用命令 rmtaos 可以移除包括 taosAdapter 在内的 TDengine server 软件。
+使用命令 rmtaos 可以移除包括 taosAdapter 在内的 TDengine TSDB server 软件。
 
 ## IPv6 支持
 
@@ -1347,7 +1348,7 @@ taosAdapter 将监控指标上报给 taosKeeper，这些监控指标会被 taosK
 
 ## httpd 升级为 taosAdapter 的变化
 
-在 TDengine server 2.2.x.x 或更早期版本中，taosd 进程包含一个内嵌的 http 服务（httpd）。如前面所述，taosAdapter 是一个使用 systemd 管理的独立软件，拥有自己的进程。并且两者有一些配置参数和行为是不同的，请见下表：
+在 TDengine TSDB server 2.2.x.x 或更早期版本中，taosd 进程包含一个内嵌的 http 服务（httpd）。如前面所述，taosAdapter 是一个使用 systemd 管理的独立软件，拥有自己的进程。并且两者有一些配置参数和行为是不同的，请见下表：
 
 | **#** | **embedded httpd**  | **taosAdapter**               | **comment**                                                                                    |
 |-------|---------------------|-------------------------------|------------------------------------------------------------------------------------------------|

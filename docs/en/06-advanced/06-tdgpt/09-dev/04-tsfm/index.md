@@ -173,4 +173,5 @@ You can add more open-source or proprietary TSFMs to TDgpt by following the proc
 
 ### References
 
-- Time-MoE: Billion-Scale Time Series Foundation Models with Mixture of Experts. [[paper](https://arxiv.org/abs/2409.16040)] [[GitHub Repo](https://github.com/Time-MoE/Time-MoE)]
+1. Time-MoE: Billion-Scale Time Series Foundation Models with Mixture of Experts  
+   [Paper](https://arxiv.org/abs/2409.16040) | [GitHub Repo](https://github.com/Time-MoE/Time-MoE)

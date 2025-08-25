@@ -3,13 +3,13 @@ title: "PostgreSql"
 sidebar_label: "PostgreSql"
 ---
 
-本节讲述如何通过 Explorer 界面创建数据迁移任务，从 PostgreSql 迁移数据到当前 TDengine 集群。
+本节讲述如何通过 Explorer 界面创建数据迁移任务，从 PostgreSql 迁移数据到当前 TDengine TSDB 集群。
 
 ## 功能概述
 
 PostgreSQL 是一个功能非常强大的、源代码开放的客户/服务器关系型数据库管理系统，有很多在大型商业 RDBMS 中所具有的特性，包括事务、子选择、触发器、视图、外键引用完整性和复杂锁定功能。
 
-TDengine 可以高效地从 PostgreSQL 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据同步。
+TDengine TSDB 可以高效地从 PostgreSQL 读取数据并将其写入 TDengine TSDB，以实现历史数据迁移或实时数据同步。
 
 ## 创建任务
 
@@ -89,9 +89,9 @@ TDengine 可以高效地从 PostgreSQL 读取数据并将其写入 TDengine，�
 
 在 **从列中提取或拆分** 中填写从消息体中提取或拆分的字段，例如：将 vValue 字段拆分成 `vValue_0` 和 `vValue_1` 这 2 个字段，选择 split 提取器，separator 填写分割符 `,`, number 填写 2。
 
-在 **过滤** 中，填写过滤条件，例如：填写`Value > 0`，则只有 Value 大于 0 的数据才会被写入 TDengine。
+在 **过滤** 中，填写过滤条件，例如：填写`Value > 0`，则只有 Value 大于 0 的数据才会被写入 TDengine TSDB。
 
-在 **映射** 中，选择要映射到 TDengine 的超级表，以及映射到超级表的列。
+在 **映射** 中，选择要映射到 TDengine TSDB 的超级表，以及映射到超级表的列。
 
 点击 **预览**，可以查看映射的结果。
 
@@ -111,4 +111,4 @@ import Contributing from './_03-exception-handling-strategy.mdx'
 
 ### 10. 创建完成
 
-点击 **提交** 按钮，完成创建 PostgreSQL 到 TDengine 的数据同步任务，回到**数据源列表**页面可查看任务执行情况。
+点击 **提交** 按钮，完成创建 PostgreSQL 到 TDengine TSDB 的数据同步任务，回到**数据源列表**页面可查看任务执行情况。

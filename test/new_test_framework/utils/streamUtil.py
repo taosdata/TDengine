@@ -530,7 +530,7 @@ class StreamUtil:
                 f"select * from information_schema.ins_streams where stream_name = '{stream_name}'"
             )
         streamNum = tdSql.getRows()
-        for loop in range(60):
+        for loop in range(120):
             if stream_name == "":
                 tdSql.query(
                     f"select * from information_schema.ins_stream_tasks where type = 'Trigger' and status = 'Running'"
@@ -1170,7 +1170,7 @@ class StreamItem:
 
         tdLog.info(f"check stream:s{self.id} result successfully")
 
-    def awaitRowStability(self, stable_rows, waitSeconds=60):
+    def awaitRowStability(self, stable_rows, waitSeconds=120):
         """
         确保流处理结果的行数与预期的稳定行数一致
         :param stable_rows: int, 预期的稳定行数

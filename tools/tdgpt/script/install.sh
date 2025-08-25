@@ -296,13 +296,13 @@ function install_anode_venv() {
   ${csudo}${venvDir}/bin/pip3 install flask
   ${csudo}${venvDir}/bin/pip3 install matplotlib
   ${csudo}${venvDir}/bin/pip3 install uwsgi
-  ${csudo}${venvDir}/bin/pip3 install torch --index-url https://download.pytorch.org/whl/cpu
-  ${csudo}${venvDir}/bin/pip3 install --upgrade keras
+  ${csudo}${venvDir}/bin/pip3 install torch==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
+  ${csudo}${venvDir}/bin/pip3 install keras==3.10.0
   ${csudo}${venvDir}/bin/pip3 install requests
   ${csudo}${venvDir}/bin/pip3 install taospy
   ${csudo}${venvDir}/bin/pip3 install transformers==4.40.0
   ${csudo}${venvDir}/bin/pip3 install accelerate
-  ${csudo}${venvDir}/bin/pip3 install tensorflow
+  ${csudo}${venvDir}/bin/pip3 install tensorflow-cpu==2.15.0
 
   echo -e "Install python library for venv completed!"
 }

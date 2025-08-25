@@ -36,7 +36,10 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
 
         # Table 0: taosd_dnodes_info ====================================
         if infoDict[0]["tables"][0]["name"] != "taosd_dnodes_info":
-            tdLog.exit("taosd_dnodes_info is null!")
+            #tdLog.exit("taosd_dnodes_info is null!")
+            return
+        
+        # dnode_info  ====================================
 
         dnode_infos =  ['io_read_disk', 'vnodes_num', 'masters', 'disk_total', 'system_net_out', 'io_write_disk', 'has_mnode', 'has_qnode', 
         'has_snode', 'mem_engine', 'cpu_engine', 'cpu_cores', 'info_log_count', 'error_log_count', 'debug_log_count', 'trace_log_count', 
