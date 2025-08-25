@@ -768,7 +768,7 @@ int32_t schHandleTaskRetry(SSchJob *pJob, SSchTask *pTask) {
     // Wait for a while since the vnode leader/follower switch may cost from several seconds 
     // to serveral minitues to complete.
     if (pTask->delayExecMs == 0) {
-      pTask->delayExecMs = 1000;  // 1sec by default
+      pTask->delayExecMs = 500;  // 1sec by default
     } else {
       pTask->delayExecMs = TMIN(pTask->delayExecMs * tsRedirectFactor * 1.5, tsMaxRetryWaitTime);
     }
