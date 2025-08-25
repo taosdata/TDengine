@@ -89,7 +89,7 @@ TDengine TSDB 提供了丰富的应用程序开发接口，为了便于用户快
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.7.2</version>
+  <version>3.7.3</version>
 </dependency>
 ```
 
@@ -452,6 +452,12 @@ WebSocket 连接需要先调用 `taos_options(TSDB_OPTION_DRIVER, "websocket")` 
     <TabItem label="Python" value="python">
 ```python
 {{#include docs/examples/python/connect_websocket_examples.py:connect}}
+```
+
+SQLAlchemy 支持通过 `hosts` 参数配置多个服务器地址，实现负载均衡和故障转移功能。多个地址使用英文逗号分隔，格式为：`hosts=<host1>:<port1>,<host2>:<port2>,...`
+
+```python
+{{#include docs/examples/python/connect_websocket_examples.py:connect_sqlalchemy}}
 ```
     </TabItem>
     <TabItem label="Go" value="go">

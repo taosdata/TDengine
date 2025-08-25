@@ -19,6 +19,15 @@ def create_connection():
     return conn
  # ANCHOR_END: connect
 
+# ANCHOR: connect_sqlalchemy
+def create_connection_with_sqlalchemy():
+    from sqlalchemy import create_engine
+
+    engine = create_engine("taosws://root:taosdata@?hosts=localhost:6041,127.0.0.1:6041")
+    conn = engine.connect()
+    return conn
+# ANCHOR_END: connect_sqlalchemy
+
 def create_db_table(conn):
 # ANCHOR: create_db
     try:
@@ -67,6 +76,10 @@ if __name__ == "__main__":
     conn = create_connection()
     create_db_table(conn)
     insert(conn)
+    if conn:
+        conn.close()
+
+    conn = create_connection_with_sqlalchemy()
     query(conn)
     if conn:
         conn.close()
