@@ -3011,6 +3011,9 @@ int32_t firstLastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   // handle selectivity
   code = setSelectivityValue(pCtx, pBlock, &pRes->pos, pBlock->info.rows);
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed at %d, msg:%s", __func__, __LINE__, tstrerror(code));
+  }
 
   return code;
 }
@@ -3138,8 +3141,9 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
   }
   TSKEY startKey = getRowPTs(pInput->pPTS, 0);
   TSKEY endKey = getRowPTs(pInput->pPTS, pInput->totalRows - 1);
+  int32_t blockDataOrder = (startKey <= endKey) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
 
-  if (pCtx->order == TSDB_ORDER_ASC && !pCtx->hasPrimaryKey) {
+  if (blockDataOrder == TSDB_ORDER_ASC && !pCtx->hasPrimaryKey) {
     for (int32_t i = pInput->numOfRows + pInput->startRowIndex - 1; i >= pInput->startRowIndex; --i) {
       bool  isNull = colDataIsNull(pInputCol, pInput->numOfRows, i, NULL);
       char* data = isNull ? NULL : colDataGetData(pInputCol, i);
@@ -3153,7 +3157,7 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
 
       break;
     }
-  } else if (!pCtx->hasPrimaryKey && pCtx->order == TSDB_ORDER_DESC) {
+  } else if (blockDataOrder == TSDB_ORDER_DESC && !pCtx->hasPrimaryKey) {
     // the optimized version only valid if all tuples in one block are monotonious increasing or descreasing.
     // this assumption is NOT always works if project operator exists in downstream.
     for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
@@ -7236,48 +7240,5 @@ int32_t groupKeyCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
 _group_key_over:
 
   SET_VAL(pDResInfo, 1, 1);
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t cachedLastRowFunction(SqlFunctionCtx* pCtx) {
-  int32_t numOfElems = 0;
-
-  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  SFirstLastRes*       pInfo = GET_ROWCELL_INTERBUF(pResInfo);
-
-  SInputColumnInfoData* pInput = &pCtx->input;
-  SColumnInfoData*      pInputCol = pInput->pData[0];
-
-  int32_t bytes = pInputCol->info.bytes;
-  pInfo->bytes = bytes;
-
-  SColumnInfoData* pkCol = pInput->pPrimaryKey;
-  pInfo->pkType = -1;
-  __compar_fn_t pkCompareFn = NULL;
-  if (pCtx->hasPrimaryKey) {
-    pInfo->pkType = pkCol->info.type;
-    pInfo->pkBytes = pkCol->info.bytes;
-    pkCompareFn = getKeyComparFunc(pInfo->pkType, TSDB_ORDER_DESC);
-  }
-
-  // TODO it traverse the different way.
-  // last_row function does not ignore the null value
-  for (int32_t i = pInput->numOfRows + pInput->startRowIndex - 1; i >= pInput->startRowIndex; --i) {
-    numOfElems++;
-
-    bool  isNull = colDataIsNull(pInputCol, pInput->numOfRows, i, NULL);
-    char* data = isNull ? NULL : colDataGetData(pInputCol, i);
-
-    TSKEY cts = getRowPTs(pInput->pPTS, i);
-    if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
-      int32_t code = doSaveLastrow(pCtx, data, i, cts, pInfo);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
-      pResInfo->numOfRes = 1;
-    }
-  }
-
-  SET_VAL(pResInfo, numOfElems, 1);
   return TSDB_CODE_SUCCESS;
 }
