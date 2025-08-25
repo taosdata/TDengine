@@ -35,7 +35,6 @@ cases/uncatalog/system-test/0-others/test_mounts.py
 cases/uncatalog/system-test/0-others/test_taos_shell.py
 cases/uncatalog/system-test/0-others/test_taos_shell_error.py
 cases/uncatalog/system-test/0-others/test_taos_shell_net_chk.py
-cases/uncatalog/system-test/0-others/test_taosdlog.py
 cases/uncatalog/system-test/0-others/test_kill_balance_leader.py -N 3
 
 # udf not supported in Windows CI
