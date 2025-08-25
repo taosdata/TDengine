@@ -81,12 +81,18 @@ typedef struct SStreamInserterParam {
   void*     pSinkHandle;
 } SStreamInserterParam;
 
+typedef struct SStreamVtableDeployInfo {
+  SRWLatch lock;
+  SArray*  addVgIds;
+} SStreamVtableDeployInfo;
+
 typedef struct {
   SStreamRuntimeFuncInfo funcInfo;
-  int32_t                execId;
-  bool                   resetFlag;
-  const SArray*          pForceOutputCols;
-  SStreamInserterParam   inserterParams;
+  int32_t                 execId;
+  bool                    resetFlag;
+  const SArray*           pForceOutputCols;
+  SStreamInserterParam    inserterParams;
+  SStreamVtableDeployInfo vtableDeployInfo;
 } SStreamRuntimeInfo;
 
 #define GET_STM_RTINFO(_t) (((_t)->pStreamRuntimeInfo) ? (&(_t)->pStreamRuntimeInfo->funcInfo) : NULL)
