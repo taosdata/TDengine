@@ -64,29 +64,18 @@ void tFreeStreamObj(SStreamObj *pStream) {
   taosMemoryFreeClear(pStream->pCreate);
 }
 
-SMqVgEp *tCloneSMqVgEp(const SMqVgEp *pVgEp) {
-  SMqVgEp *pVgEpNew = taosMemoryMalloc(sizeof(SMqVgEp));
-  if (pVgEpNew == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
-  pVgEpNew->vgId = pVgEp->vgId;
-  //  pVgEpNew->qmsg = taosStrdup(pVgEp->qmsg);
-  pVgEpNew->epSet = pVgEp->epSet;
-  return pVgEpNew;
-}
-
-void tDeleteSMqVgEp(SMqVgEp *pVgEp) {
-  if (pVgEp) {
-    //    taosMemoryFreeClear(pVgEp->qmsg);
-    taosMemoryFree(pVgEp);
-  }
+void freeSMqConsumerEp(void* data) {
+  if (data == NULL) return;
+  SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)data;
+  taosArrayDestroy(pConsumerEp->vgs);
+  pConsumerEp->vgs = NULL;
+  taosArrayDestroy(pConsumerEp->offsetRows);
+  pConsumerEp->offsetRows = NULL;
 }
 
 int32_t tEncodeSMqVgEp(void **buf, const SMqVgEp *pVgEp) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI32(buf, pVgEp->vgId);
-  //  tlen += taosEncodeString(buf, pVgEp->qmsg);
   tlen += taosEncodeSEpSet(buf, &pVgEp->epSet);
   return tlen;
 }
@@ -374,7 +363,12 @@ int32_t tEncodeOffRows(void **buf, SArray *offsetRows) {
 int32_t tEncodeSMqConsumerEp(void **buf, const SMqConsumerEp *pConsumerEp) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI64(buf, pConsumerEp->consumerId);
-  tlen += taosEncodeArray(buf, pConsumerEp->vgs, (FEncode)tEncodeSMqVgEp);
+  int32_t sz = taosArrayGetSize(pConsumerEp->vgs);
+  tlen += taosEncodeFixedI32(buf, sz);
+  for (int32_t i = 0; i < sz; i++) {
+    void* data = taosArrayGet(pConsumerEp->vgs, i);
+    tlen += tEncodeSMqVgEp(buf, data);
+  }
 
   return tlen + tEncodeOffRows(buf, pConsumerEp->offsetRows);
 }
@@ -408,7 +402,17 @@ void *tDecodeOffRows(const void *buf, SArray **offsetRows, int8_t sver) {
 
 void *tDecodeSMqConsumerEp(const void *buf, SMqConsumerEp *pConsumerEp, int8_t sver) {
   buf = taosDecodeFixedI64(buf, &pConsumerEp->consumerId);
-  buf = taosDecodeArray(buf, &pConsumerEp->vgs, (FDecode)tDecodeSMqVgEp, sizeof(SMqVgEp), sver);
+  int32_t sz = 0;
+  buf = taosDecodeFixedI32(buf, &sz);
+  pConsumerEp->vgs = taosArrayInit(sz, sizeof(SMqVgEp));
+  if (pConsumerEp->vgs == NULL) {
+    return NULL;
+  }
+  for (int32_t i = 0; i < sz; i++) {
+    SMqVgEp* vgEp = taosArrayReserve(pConsumerEp->vgs, 1);
+    if (vgEp != NULL)
+      buf = tDecodeSMqVgEp(buf, vgEp, sver);
+  }
   if (sver > 1) {
     buf = tDecodeOffRows(buf, &pConsumerEp->offsetRows, sver);
   }
@@ -420,21 +424,19 @@ int32_t tNewSubscribeObj(const char *key, SMqSubscribeObj **ppSub) {
   int32_t          code = 0;
   SMqSubscribeObj *pSubObj = taosMemoryCalloc(1, sizeof(SMqSubscribeObj));
   MND_TMQ_NULL_CHECK(pSubObj);
-
+  *ppSub = pSubObj;
+  
   (void)memcpy(pSubObj->key, key, TSDB_SUBSCRIBE_KEY_LEN);
   taosInitRWLatch(&pSubObj->lock);
   pSubObj->vgNum = 0;
   pSubObj->consumerHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
   MND_TMQ_NULL_CHECK(pSubObj->consumerHash);
-  pSubObj->unassignedVgs = taosArrayInit(0, POINTER_BYTES);
+  taosHashSetFreeFp(pSubObj->consumerHash, freeSMqConsumerEp);
+
+  pSubObj->unassignedVgs = taosArrayInit(0, sizeof(SMqVgEp));
   MND_TMQ_NULL_CHECK(pSubObj->unassignedVgs);
-  if (ppSub) {
-    *ppSub = pSubObj;
-  }
-  return code;
 
 END:
-  taosMemoryFree(pSubObj);
   return code;
 }
 
@@ -445,6 +447,8 @@ int32_t tCloneSubscribeObj(const SMqSubscribeObj *pSub, SMqSubscribeObj **ppSub)
     code = terrno;
     goto END;
   }
+  *ppSub = pSubNew;
+
   (void)memcpy(pSubNew->key, pSub->key, TSDB_SUBSCRIBE_KEY_LEN);
   taosInitRWLatch(&pSubNew->lock);
 
@@ -455,6 +459,11 @@ int32_t tCloneSubscribeObj(const SMqSubscribeObj *pSub, SMqSubscribeObj **ppSub)
 
   pSubNew->vgNum = pSub->vgNum;
   pSubNew->consumerHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+  if (pSubNew->consumerHash == NULL) {
+    code = terrno;
+    goto END;
+  }
+  taosHashSetFreeFp(pSubNew->consumerHash, freeSMqConsumerEp);
 
   void          *pIter = NULL;
   SMqConsumerEp *pConsumerEp = NULL;
@@ -464,38 +473,38 @@ int32_t tCloneSubscribeObj(const SMqSubscribeObj *pSub, SMqSubscribeObj **ppSub)
     pConsumerEp = (SMqConsumerEp *)pIter;
     SMqConsumerEp newEp = {
         .consumerId = pConsumerEp->consumerId,
-        .vgs = taosArrayDup(pConsumerEp->vgs, (__array_item_dup_fn_t)tCloneSMqVgEp),
+        .vgs = taosArrayDup(pConsumerEp->vgs, NULL),
     };
     if ((code = taosHashPut(pSubNew->consumerHash, &newEp.consumerId, sizeof(int64_t), &newEp,
                             sizeof(SMqConsumerEp))) != 0)
       goto END;
   }
-  pSubNew->unassignedVgs = taosArrayDup(pSub->unassignedVgs, (__array_item_dup_fn_t)tCloneSMqVgEp);
+  pSubNew->unassignedVgs = taosArrayDup(pSub->unassignedVgs, NULL);
+  if (pSubNew->unassignedVgs == NULL) {
+    code = terrno;
+    goto END;
+  }
   pSubNew->offsetRows = taosArrayDup(pSub->offsetRows, NULL);
+  if (pSubNew->offsetRows == NULL) {
+    code = terrno;
+    goto END;
+  }
   (void)memcpy(pSubNew->dbName, pSub->dbName, TSDB_DB_FNAME_LEN);
   pSubNew->qmsg = taosStrdup(pSub->qmsg);
-  if (ppSub) {
-    *ppSub = pSubNew;
+  if (pSubNew->qmsg == NULL) {
+    code = terrno;
+    goto END;
   }
+
 END:
   return code;
 }
 
 void tDeleteSubscribeObj(SMqSubscribeObj *pSub) {
   if (pSub == NULL) return;
-  void *pIter = NULL;
-  while (1) {
-    pIter = taosHashIterate(pSub->consumerHash, pIter);
-    if (pIter == NULL) break;
-    SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)pIter;
-    taosArrayDestroyP(pConsumerEp->vgs, (FDelete)tDeleteSMqVgEp);
-    pConsumerEp->vgs = NULL;
-    taosArrayDestroy(pConsumerEp->offsetRows);
-    pConsumerEp->offsetRows = NULL;
-  }
   taosHashCleanup(pSub->consumerHash);
   pSub->consumerHash = NULL;
-  taosArrayDestroyP(pSub->unassignedVgs, (FDelete)tDeleteSMqVgEp);
+  taosArrayDestroy(pSub->unassignedVgs);
   pSub->unassignedVgs = NULL;
   taosMemoryFreeClear(pSub->qmsg);
   taosArrayDestroy(pSub->offsetRows);
@@ -524,7 +533,12 @@ int32_t tEncodeSubscribeObj(void **buf, const SMqSubscribeObj *pSub) {
     cnt++;
   }
   if (cnt != sz) return -1;
-  tlen += taosEncodeArray(buf, pSub->unassignedVgs, (FEncode)tEncodeSMqVgEp);
+  int32_t len = taosArrayGetSize(pSub->unassignedVgs);
+  tlen += taosEncodeFixedI32(buf, len);
+  for (int32_t i = 0; i < len; i++) {
+    void* data = taosArrayGet(pSub->unassignedVgs, i);
+    tlen += tEncodeSMqVgEp(buf, data);
+  }
   tlen += taosEncodeString(buf, pSub->dbName);
 
   tlen += tEncodeOffRows(buf, pSub->offsetRows);
@@ -545,6 +559,11 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
   buf = taosDecodeFixedI32(buf, &sz);
 
   pSub->consumerHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+  if (pSub->consumerHash == NULL) {
+    return NULL;
+  }
+  taosHashSetFreeFp(pSub->consumerHash, freeSMqConsumerEp);
+
   for (int32_t i = 0; i < sz; i++) {
     SMqConsumerEp consumerEp = {0};
     buf = tDecodeSMqConsumerEp(buf, &consumerEp, sver);
@@ -553,7 +572,18 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
       return NULL;
   }
 
-  buf = taosDecodeArray(buf, &pSub->unassignedVgs, (FDecode)tDecodeSMqVgEp, sizeof(SMqVgEp), sver);
+  int32_t len = 0;
+  buf = taosDecodeFixedI32(buf, &len);
+  pSub->unassignedVgs = taosArrayInit(len, sizeof(SMqVgEp));
+  if (pSub->unassignedVgs == NULL) {
+    return NULL;
+  }
+  for (int32_t i = 0; i < sz; i++) {
+    SMqVgEp* vgEp = taosArrayReserve(pSub->unassignedVgs, 1);
+    if (vgEp != NULL)
+      buf = tDecodeSMqVgEp(buf, vgEp, sver);
+  }
+
   buf = taosDecodeStringTo(buf, pSub->dbName);
 
   if (sver > 1) {
