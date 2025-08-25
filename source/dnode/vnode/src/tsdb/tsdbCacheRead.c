@@ -89,6 +89,129 @@ _end:
   return code;
 }
 
+typedef struct SLastColWithDstSlotId {
+  SLastCol *col;
+  int32_t  dstSlotId;
+} SLastColWithDstSlotId;
+
+int32_t tCompareLastColWithDstSlotId(const void* a, const void* b) {
+  const SLastColWithDstSlotId* colA = (const SLastColWithDstSlotId*)a;
+  const SLastColWithDstSlotId* colB = (const SLastColWithDstSlotId*)b;
+  return -1 * tRowKeyCompare(&colA->col->rowKey, &colB->col->rowKey);
+}
+
+static int32_t saveMultiRow(SArray* pRow, SSDataBlock* pResBlock, 
+  const int32_t* dstSlotIds, const char* idStr) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  TSDB_CHECK_NULL(pResBlock, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  if (pRow->size > 0) {
+    TSDB_CHECK_NULL(dstSlotIds, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  }
+  int32_t numOfRows = pResBlock->info.rows;
+
+  SArray* pRowWithDstSlotId = taosArrayInit(pRow->size, sizeof(SLastColWithDstSlotId));
+  TSDB_CHECK_NULL(pRowWithDstSlotId, code, lino, _end, terrno);
+
+  // sort pRow by ts and pk in descending order
+  for (int32_t i = 0; i < pRow->size; ++i) {
+    SLastColWithDstSlotId colWithDstSlotId = {0};
+    colWithDstSlotId.col = taosArrayGet(pRow, i);
+    colWithDstSlotId.dstSlotId = dstSlotIds[i];
+    TAOS_UNUSED(taosArrayPush(pRowWithDstSlotId, &colWithDstSlotId));
+  }
+  taosArraySort(pRowWithDstSlotId, tCompareLastColWithDstSlotId);
+
+  int32_t blockSize = taosArrayGetSize(pResBlock->pDataBlock);
+  // row index of new row
+  int32_t* nextRowIndex = taosMemCalloc(blockSize, sizeof(int32_t));
+  for (int32_t i = 0; i < blockSize; ++i) {
+    nextRowIndex[i] = numOfRows;
+  }
+
+  // assign sorted result to res datablock
+  int64_t minTs = TSKEY_MAX;
+  for (int32_t i = 0; i < pRowWithDstSlotId->size; ++i) {
+    SLastColWithDstSlotId* pColWithDstSlotId = (SLastColWithDstSlotId*)taosArrayGet(pRowWithDstSlotId, i);
+    SLastCol* pCol = pColWithDstSlotId->col;
+    int32_t   dstSlotId = pColWithDstSlotId->dstSlotId;
+    int64_t   colTs = pCol->rowKey.ts;
+    // update row index(row number) and minimal ts
+    if (colTs < minTs) {
+      // find smaller timestamp, which means one new row appears
+      minTs = colTs;
+      numOfRows += 1;
+    } else if (colTs > minTs) {
+      // todo(tianyi): remove this debug check
+      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      qError("%s failed at line %d since %s, colTs=%ld, minTs=%ld", __func__, lino, tstrerror(code), colTs, minTs);
+      TSDB_CHECK_CODE(code, lino, _end);
+    }
+    int32_t rowIndex = numOfRows - 1; // row index of new row
+    for (int32_t j = 0; j < blockSize; ++j) {
+      SColumnInfoData* pDstCol = (SColumnInfoData*)taosArrayGet(pResBlock->pDataBlock, j);
+      TSDB_CHECK_NULL(pDstCol, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+      if (pDstCol->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID && 
+        pDstCol->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
+        // update timestamp column
+        code = colDataSetVal(pDstCol, rowIndex, (const char*)&colTs, false);
+        TSDB_CHECK_CODE(code, lino, _end);
+        nextRowIndex[j] = rowIndex + 1;
+      } else if (j == dstSlotId) {
+        // update destinate column
+        // 1. set previous rows to null
+        for (int32_t prevRowIndex = nextRowIndex[j]; prevRowIndex < rowIndex; ++prevRowIndex) {
+          colDataSetNULL(pDstCol, prevRowIndex);
+          pDstCol->hasNull = true;
+        }
+        // 2. set current row to this value
+        SColVal* pColVal = &pCol->colVal;
+        if (IS_VAR_DATA_TYPE(pColVal->value.type)) {
+          if (COL_VAL_IS_NULL(pColVal)) {
+            colDataSetNULL(pDstCol, rowIndex);
+          } else {
+            char* tmp = taosMemCalloc(1, VARSTR_HEADER_SIZE + pColVal->value.nData);
+            TSDB_CHECK_NULL(tmp, code, lino, _end, terrno);
+            varDataSetLen(tmp, pColVal->value.nData);
+            TAOS_UNUSED(memcpy(varDataVal(tmp), pColVal->value.pData, pColVal->value.nData));
+            code = colDataSetVal(pDstCol, rowIndex, (const char*)tmp, false);
+            TSDB_CHECK_CODE(code, lino, _end);
+          }
+        } else {
+          code = colDataSetVal(pDstCol, rowIndex,
+            VALUE_GET_DATUM(&pColVal->value, pColVal->value.type), COL_VAL_IS_NULL(pColVal));
+          TSDB_CHECK_CODE(code, lino, _end);
+        }
+        // 3. update nextRowIndex
+        nextRowIndex[j] = rowIndex + 1;
+      } else {
+        // do nothing for other columns
+      }
+    }
+  }
+
+  // filling res datablock with NULL
+  for (int32_t j = 0; j < blockSize; ++j) {
+    SColumnInfoData* pDstCol = (SColumnInfoData*)taosArrayGet(pResBlock->pDataBlock, j);
+    for (int32_t prevRowIndex = nextRowIndex[j]; prevRowIndex < numOfRows; ++prevRowIndex) {
+      colDataSetNULL(pDstCol, prevRowIndex);
+      pDstCol->hasNull = true;
+    }
+  }
+  pResBlock->info.rows = numOfRows;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbError("%s failed at line %d since %s, %s", __func__, lino, tstrerror(code), idStr);
+  }
+  if (NULL != pRowWithDstSlotId) {
+    taosArrayDestroy(pRowWithDstSlotId);
+  }
+  return code;
+}
+
 static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* pReader, const int32_t* slotIds,
                           const int32_t* dstSlotIds, void** pRes, const char* idStr) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -682,7 +805,8 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
         continue;
       }
 
-      code = saveOneRow(pRow, pResBlock, pr, slotIds, dstSlotIds, pRes, pr->idstr);
+      // code = saveOneRow(pRow, pResBlock, pr, slotIds, dstSlotIds, pRes, pr->idstr);
+      code = saveMultiRow(pRow, pResBlock, dstSlotIds, pr->idstr);
       TSDB_CHECK_CODE(code, lino, _end);
 
       taosArrayClearEx(pRow, tsdbCacheFreeSLastColItem);

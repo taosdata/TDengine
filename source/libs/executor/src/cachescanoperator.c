@@ -29,6 +29,7 @@
 #include "ttypes.h"
 
 #include "storageapi.h"
+#include "tsdbReadUtil.h"
 
 typedef struct SCacheRowsScanInfo {
   SSDataBlock*    pRes;
@@ -302,14 +303,14 @@ static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       QUERY_CHECK_CODE(code, lino, _end);
 
       // check for tag values
-      int32_t resultRows = pBufRes->info.rows;
+      // int32_t resultRows = pBufRes->info.rows;
 
       // the results may be null, if last values are all null
-      if (resultRows != 0 && resultRows != taosArrayGetSize(pInfo->pUidList)) {
-        pTaskInfo->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(pTaskInfo->code));
-        T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
-      }
+      // if (resultRows != 0 && resultRows != taosArrayGetSize(pInfo->pUidList)) {
+      //   pTaskInfo->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      //   qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(pTaskInfo->code));
+      //   T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+      // }
       pInfo->indexOfBufferedRes = 0;
     }
 
@@ -326,13 +327,16 @@ static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, slotId);
         QUERY_CHECK_NULL(pDst, code, lino, _end, terrno);
 
-        if (colDataIsNull_s(pSrc, pInfo->indexOfBufferedRes)) {
-          colDataSetNULL(pDst, 0);
-        } else {
-          if (pSrc->pData) {
-            char* p = colDataGetData(pSrc, pInfo->indexOfBufferedRes);
-            code = colDataSetVal(pDst, 0, p, false);
-            QUERY_CHECK_CODE(code, lino, _end);
+        if (pSrc->pData) {
+          for (int32_t rowIndex = 0; rowIndex < pBufRes->info.rows; ++rowIndex) {
+            if (colDataIsNull_s(pSrc, rowIndex)) {
+              colDataSetNULL(pDst, rowIndex);
+              pDst->hasNull = true;
+            } else {
+              char* p = colDataGetData(pSrc, rowIndex);
+              code = colDataSetVal(pDst, rowIndex, p, false);
+              QUERY_CHECK_CODE(code, lino, _end);
+            }
           }
         }
       }
@@ -341,7 +345,7 @@ static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       QUERY_CHECK_NULL(pUid, code, lino, _end, terrno);
 
       pRes->info.id.uid = *(tb_uid_t*)pUid;
-      pRes->info.rows = 1;
+      pRes->info.rows = pBufRes->info.rows;
       pRes->info.scanFlag = MAIN_SCAN;
 
       SExprSupp* pSup = &pInfo->pseudoExprSup;
@@ -350,7 +354,7 @@ static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       QUERY_CHECK_CODE(code, lino, _end);
 
       pRes->info.id.groupId = tableListGetTableGroupId(pTableList, pRes->info.id.uid);
-      pInfo->indexOfBufferedRes += 1;
+      pInfo->indexOfBufferedRes += pBufRes->info.rows;
       (*ppRes) = pRes;
       return code;
     } else {

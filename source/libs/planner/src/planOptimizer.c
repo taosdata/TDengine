@@ -4786,7 +4786,7 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
     int32_t        funcType = pFunc->funcType;
     SNode*         pParamNode = NULL;
     if (FUNCTION_TYPE_LAST == funcType) {
-      (void)nodesListErase(pFunc->pParameterList, nodesListGetCell(pFunc->pParameterList, 1));
+      // (void)nodesListErase(pFunc->pParameterList, nodesListGetCell(pFunc->pParameterList, 1));
       nodesWalkExpr(nodesListGetNode(pFunc->pParameterList, 0), lastRowScanOptGetLastCols, &cxt);
       if (TSDB_CODE_SUCCESS != cxt.code) break;
     }
