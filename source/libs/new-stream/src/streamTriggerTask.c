@@ -2408,6 +2408,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
         if (allTableProcessed || needFetchData) {
           break;
         }
+        if(startIdx >= endIdx) continue;
         if (!pTask->isVirtualTable) {
           code = putStreamDataCache(pContext->pCalcDataCache, pGroup->gid, pContext->pParamToFetch->wstart,
                                     pContext->pParamToFetch->wend, pDataBlock, startIdx, endIdx - 1);
@@ -6464,7 +6465,7 @@ static int32_t stRealtimeGroupDoSlidingCheck(SSTriggerRealtimeGroup *pGroup) {
             QUERY_CHECK_CODE(code, lino, _end);
             r++;
           } else {
-            code = stRealtimeGroupOpenWindow(pGroup, ts, NULL, true, r > 0 && pTsData[r - 1] == nextStart);
+            code = stRealtimeGroupOpenWindow(pGroup, ts, NULL, true, r > 0 && pTsData[r - 1] >= nextStart);
             QUERY_CHECK_CODE(code, lino, _end);
           }
         }
