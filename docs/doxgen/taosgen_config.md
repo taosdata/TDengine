@@ -184,7 +184,7 @@ jobs:
                   generator:
                     start_timestamp: 1700000000000
                     timestamp_precision : ms
-                    timestamp_step: 3000000
+                    timestamp_step: 300000
 
           # target
           target:
@@ -341,7 +341,7 @@ jobs:
                   generator:
                     start_timestamp: 1700000000000
                     timestamp_precision : ms
-                    timestamp_step: 3000000
+                    timestamp_step: 300000
 
           # target
           target:
@@ -429,7 +429,7 @@ jobs:
                   generator:
                     start_timestamp: 1700000000000
                     timestamp_precision : ms
-                    timestamp_step: 3000000
+                    timestamp_step: 300000
 
           # target
           target:

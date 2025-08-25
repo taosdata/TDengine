@@ -463,14 +463,14 @@ Action 是封装好的可复用操作单元，用于完成特定功能。每个 
 
 ### 生成器方式生成数据 stmt v2 写入 TDengine 示例
 
-该示例展示了如何使用 taosgen 工具模拟一万台智能电表，每台智能电表采集电流、电压、相位三个物理量，他们每隔 5 分钟产生一条记录，电流的数据用随机数，电压用正弦波模拟，产生的这些数据采用 WebSocket 的方式写入 TDengine TSDB 的数据库 taosgen_test 的超级表 meters。
+该示例展示了如何使用 taosgen 工具模拟一万台智能电表，每台智能电表采集电流、电压、相位三个物理量，它们每隔 5 分钟产生一条记录，电流的数据用随机数，电压用正弦波模拟，产生的这些数据采用 WebSocket 的方式写入 TDengine TSDB 的 taosgen_test 数据库的超级表 meters。
 
 配置详解：
 - 全局配置 (global)
   - 连接信息 (connection_info): 定义数据库连接参数，包含连接池配置（最大10连接，最小2连接，连接超时1000ms）
   - 数据格式信息 (data_format): 设置数据格式为 SQL。
   - 数据通道信息 (data_channel): 使用 WebSocket 接口通信。
-  - 数据库信息 (database_info): 定义目标数据库 taosgen_test，设置时间精度为毫秒，4个 vgroup。
+  - 数据库信息 (database_info): 定义目标 taosgen_test 数据库，设置时间精度为毫秒，4个 vgroup。
   - 超级表信息 (super_table_info): 定义超级表结构，包含3个普通列（电流、电压、相位）和2个标签列（组ID、位置）。
   - 子表名生成器 (tbname_generator)：定义生成一万张子表名称的规则，格式为 d0 到 d9999。
 
@@ -506,14 +506,14 @@ Action 是封装好的可复用操作单元，用于完成特定功能。每个 
 
 ### CSV文件方式生成数据 stmt v2 写入 TDengine 实例
 
-该示例展示了如何使用 taosgen 工具模拟一万台智能电表，每台智能电表采集电流、电压、相位三个物理量， 他们每隔 5 分钟产生一条记录，测点数据读取自 CSV 文件，采用 WebSocket 的方式写入 TDengine TSDB 的数据库 taosgen_test 的超级表 meters。
+该示例展示了如何使用 taosgen 工具模拟一万台智能电表，每台智能电表采集电流、电压、相位三个物理量， 它们每隔 5 分钟产生一条记录，测点数据读取自 CSV 文件，采用 WebSocket 的方式写入 TDengine TSDB 的 taosgen_test 数据库的超级表 meters。
 
 配置详解：
 - 全局配置 (global)
   - 连接信息 (connection_info): 定义数据库连接参数，包含连接池配置（最大10连接，最小2连接，连接超时1000ms）。
   - 数据格式信息 (data_format): 设置数据格式为 SQL。
   - 数据通道信息 (data_channel): 使用原生接口通信。
-  - 数据库信息 (database_info): 定义目标数据库 taosgen_test，设置时间精度为毫秒，4个 vgroup。
+  - 数据库信息 (database_info): 定义目标 taosgen_test 数据库，设置时间精度为毫秒，4个 vgroup。
   - 超级表信息 (super_table_info): 定义超级表结构，包含3个普通列（电流、电压、相位）和2个标签列（组ID、位置）。
 
 - 并发控制
@@ -575,7 +575,7 @@ d1,4.98,220.9,147.9
 
 ### 生成器方式生成数据并写入 MQTT 示例
 
-该示例展示了如何使用 taosgen 工具模拟一万台智能电表，每台智能电表采集电流、电压、相位、状态四个物理量，他们每隔 5 分钟产生一条记录，电流的数据用随机数，电压用正弦波模拟，产生的这些数据通过 MQTT 协议进行发布。
+该示例展示了如何使用 taosgen 工具模拟一万台智能电表，每台智能电表采集电流、电压、相位、状态四个物理量，它们每隔 5 分钟产生一条记录，电流的数据用随机数，电压用正弦波模拟，产生的这些数据通过 MQTT 协议进行发布。
 
 配置详解：
 - 全局配置 (global)
