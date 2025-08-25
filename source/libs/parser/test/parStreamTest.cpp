@@ -1019,13 +1019,13 @@ TEST_F(ParserStreamTest, TestTriggerType) {
   setCreateStreamSql(&expect, "create stream stream_streamdb.s1 sliding(100s, 1s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
   run("create stream stream_streamdb.s1 sliding(100s, 1s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
 
-  setCreateStreamTriggerSliding(&expect, 'h', 's', 0, 's', 0, 3600000, 0, 100000, 1000);
-  setCreateStreamSql(&expect, "create stream stream_streamdb.s1 interval(1h) sliding(100s, 1s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
-  run("create stream stream_streamdb.s1 interval(1h) sliding(100s, 1s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
+  setCreateStreamTriggerSliding(&expect, 'h', 's', 0, 0, 0, 3600000, 0, 100000, 0);
+  setCreateStreamSql(&expect, "create stream stream_streamdb.s1 interval(1h) sliding(100s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 interval(1h) sliding(100s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
 
-  setCreateStreamTriggerSliding(&expect, 'h', 's', 'm', 's', 0, 3600000, 60000, 100000, 1000);
-  setCreateStreamSql(&expect, "create stream stream_streamdb.s1 interval(1h, 1m) sliding(100s, 1s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
-  run("create stream stream_streamdb.s1 interval(1h, 1m) sliding(100s, 1s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
+  setCreateStreamTriggerSliding(&expect, 'h', 's', 'm', 0, 0, 3600000, 60000, 100000, 0);
+  setCreateStreamSql(&expect, "create stream stream_streamdb.s1 interval(1h, 1m) sliding(100s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 interval(1h, 1m) sliding(100s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
 
   // event window
   setCreateStreamTriggerType(&expect, WINDOW_TYPE_EVENT);
@@ -1610,10 +1610,13 @@ TEST_F(ParserStreamTest, TestErrorTriggerWindow) {
   run("create stream stream_streamdb.s1 interval(0) sliding(3s, 2s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL);
 
   // invalid interval offset unit
-  run("create stream stream_streamdb.s1 interval(20n, 1y) sliding(3s, 2s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INTER_OFFSET_UNIT);
+  run("create stream stream_streamdb.s1 interval(20n, 1y) sliding(3s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INTER_OFFSET_UNIT);
 
   // interval offset bigger than interval
-  run("create stream stream_streamdb.s1 interval(1s, 2s) sliding(3s, 2s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG);
+  run("create stream stream_streamdb.s1 interval(1s, 2s) sliding(3s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG);
+
+  // sliding offset with interval
+  run("create stream stream_streamdb.s1 interval(3s, 2s) sliding(3s, 2s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INVALID_SLIDING_OFFSET);
 
   // invalid event window
 

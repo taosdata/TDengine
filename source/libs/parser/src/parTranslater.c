@@ -7313,7 +7313,7 @@ static int32_t checkStreamIntervalWindow(STranslateContext* pCxt, SIntervalWindo
 
   if (pOffset) {
     if(!pInter) {
-      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PLAN_INTERNAL_ERROR, "Offset without interval"));
+      PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERVAL_OFFSET, "Interval offset without interval"));
     }
 
     if (pOffset->datum.i < 0) {
@@ -7335,13 +7335,17 @@ static int32_t checkStreamIntervalWindow(STranslateContext* pCxt, SIntervalWindo
       PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_UNIT));
     }
   } else {
-    PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+    PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                      "Sliding window is required for stream query"));
   }
 
   if (pSOffset) {
     if (!pSliding) {
-      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PLAN_INTERNAL_ERROR, "Sliding offset without sliding"));
+      PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_SLIDING_OFFSET, "Sliding offset without sliding"));
+    }
+
+    if (pInter) {
+      PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_SLIDING_OFFSET, "Sliding offset cannot be used with interval"));
     }
 
     if (pSOffset->datum.i < 0) {

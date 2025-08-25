@@ -637,6 +637,7 @@ class TestStreamOldCaseBasic2:
                 lambda: tdSql.getRows() == 2
                 and tdSql.getData(0, 1) == 9
                 and tdSql.getData(1, 1) == 9,
+                retry=240
             )
 
     class WindowClose1(StreamCheckItem):
