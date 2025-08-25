@@ -1532,18 +1532,8 @@ int32_t processOrgTbVg(SVtbScanDynCtrlInfo* pVtbScan, SExecTaskInfo* pTaskInfo) 
 
   if (pVtbScan->curOrgTbVg != NULL) {
     // which means rversion has changed
-    void* pLastIter = NULL;
+    taosWLockLatch(&pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.lock);
     void* pCurIter = NULL;
-    while ((pLastIter = taosHashIterate(pVtbScan->lastOrgTbVg, pLastIter))) {
-      int32_t* vgId = (int32_t*)taosHashGetKey(pLastIter, NULL);
-      if (taosHashGet(pVtbScan->curOrgTbVg, vgId, sizeof(int32_t)) == NULL) {
-        if (pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.delVgIds == NULL) {
-          pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.delVgIds = taosArrayInit(1, sizeof(int32_t));
-          QUERY_CHECK_NULL(pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.delVgIds, code, line, _return, terrno)
-        }
-        QUERY_CHECK_NULL(taosArrayPush(pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.delVgIds, vgId), code, line, _return, terrno)
-      }
-    }
     while ((pCurIter = taosHashIterate(pVtbScan->curOrgTbVg, pCurIter))) {
       int32_t* vgId = (int32_t*)taosHashGetKey(pCurIter, NULL);
       if (taosHashGet(pVtbScan->lastOrgTbVg, vgId, sizeof(int32_t)) == NULL) {
@@ -1554,6 +1544,7 @@ int32_t processOrgTbVg(SVtbScanDynCtrlInfo* pVtbScan, SExecTaskInfo* pTaskInfo) 
         QUERY_CHECK_NULL(taosArrayPush(pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.addVgIds, vgId), code, line, _return, terrno)
       }
     }
+    taosWUnLockLatch(&pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.lock);
     taosHashCleanup(pVtbScan->lastOrgTbVg);
     pVtbScan->lastOrgTbVg = pVtbScan->curOrgTbVg;
     pVtbScan->curOrgTbVg = NULL;
