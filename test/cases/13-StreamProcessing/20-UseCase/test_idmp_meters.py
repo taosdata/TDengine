@@ -1531,7 +1531,7 @@ class Test_IDMP_Meters:
     def verify_stream10_sub7(self):
         # check
         tdSql.checkResultsByFunc(
-            sql  = f"select * from tdasset.`result_stream10_sub7` where tag_tbname='vm_em-11' ", 
+            sql  = f"select * from tdasset.`result_stream10_sub7` where tag_tbname='vt_em-11' ", 
             func = lambda: tdSql.getRows() == 1
         )
 
