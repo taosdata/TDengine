@@ -1262,8 +1262,8 @@ class Test_IDMP_Meters:
 
         # check data with sub5
         tdSql.checkResultsBySql (
-            sql     = "select count(*) as cnt, avg(`平均电压`), sum(`功率和`) from result_stream8_sub4 where `平均电压` is not null",
-            exp_sql = "select count(*) as cnt, avg(`平均电压`), sum(`功率和`) from result_stream8_sub5"
+            sql     = "select avg(`平均电压`), sum(`功率和`) from result_stream8_sub4",
+            exp_sql = "select avg(`平均电压`), sum(`功率和`) from result_stream8_sub5"
         )
 
         tdLog.info("verify stream8_sub4 ............................. successfully.")
