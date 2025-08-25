@@ -1616,7 +1616,7 @@ TEST_F(ParserStreamTest, TestErrorTriggerWindow) {
   run("create stream stream_streamdb.s1 interval(1s, 2s) sliding(3s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG);
 
   // sliding offset with interval
-  run("create stream stream_streamdb.s1 interval(3s, 2s) sliding(3s, 2s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PLAN_INTERNAL_ERROR);
+  run("create stream stream_streamdb.s1 interval(3s, 2s) sliding(3s, 2s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INVALID_SLIDING_OFFSET);
 
   // invalid event window
 
