@@ -4655,35 +4655,47 @@ static int32_t jsonToPlan(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkPlanNumOfSubplans, &numOfSubplan);
   }
-  SNodeListNode *pTopSubplan = NULL;
   if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkPlanSubplans, (SNode**)&pTopSubplan);
+    code = jsonToNodeList(pJson, jkPlanSubplans, &pNode->pSubplans);
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodesMakeList(&pNode->pSubplans);
-  }
-  if (TSDB_CODE_SUCCESS == code && pTopSubplan) {
-    SNode* pGroupItem = NULL;
-    FOREACH(pGroupItem, pTopSubplan->pNodeList) {
-      if (nodeType(pGroupItem) == QUERY_NODE_PHYSICAL_SUBPLAN) {
-        code = buildSubplan((SSubplan*)pGroupItem, pNode);
-        if (TSDB_CODE_SUCCESS != code) {
-          break;
+  if (TSDB_CODE_SUCCESS == code && pNode->pSubplans) {
+    // this branch means json from old version, which used nodeListToJson to serialize pSubplans
+    pNode->numOfSubplans = numOfSubplan;
+    return code;
+  } else {
+    nodesDestroyList(pNode->pSubplans);
+    // this branch means json from new version, which used nodeToJson to serialize pSubplans's first item
+    SNodeListNode *pTopSubplan = NULL;
+    code = TSDB_CODE_SUCCESS;
+    if (TSDB_CODE_SUCCESS == code) {
+      code = jsonToNodeObject(pJson, jkPlanSubplans, (SNode**)&pTopSubplan);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesMakeList(&pNode->pSubplans);
+    }
+    if (TSDB_CODE_SUCCESS == code && pTopSubplan) {
+      SNode* pGroupItem = NULL;
+      FOREACH(pGroupItem, pTopSubplan->pNodeList) {
+        if (nodeType(pGroupItem) == QUERY_NODE_PHYSICAL_SUBPLAN) {
+          code = buildSubplan((SSubplan*)pGroupItem, pNode);
+          if (TSDB_CODE_SUCCESS != code) {
+            break;
+          }
         }
       }
     }
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    nodesClearList(pTopSubplan->pNodeList);
-    pTopSubplan->pNodeList = NULL;
-    nodesDestroyNode((SNode *)pTopSubplan);
-    if (numOfSubplan != pNode->numOfSubplans) {
-      code = TSDB_CODE_PLAN_INTERNAL_ERROR;
-      nodesError("%s toNode error numOfSubplan %d != %d", nodesNodeName(pNode->type), numOfSubplan, pNode->numOfSubplans);
+    if (TSDB_CODE_SUCCESS == code) {
+      nodesClearList(pTopSubplan->pNodeList);
+      pTopSubplan->pNodeList = NULL;
+      nodesDestroyNode((SNode *)pTopSubplan);
+      if (numOfSubplan != pNode->numOfSubplans) {
+        code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+        nodesError("%s toNode error numOfSubplan %d != %d", nodesNodeName(pNode->type), numOfSubplan, pNode->numOfSubplans);
+      }
     }
-  }
 
-  return code;
+    return code;
+  }
 }
 
 static const char* jkAggLogicPlanGroupKeys = "GroupKeys";
