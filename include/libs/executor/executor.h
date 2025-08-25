@@ -82,8 +82,8 @@ typedef struct SStreamInserterParam {
 } SStreamInserterParam;
 
 typedef struct SStreamVtableDeployInfo {
-  SArray* delVgIds;
-  SArray* addVgIds;
+  SRWLatch lock;
+  SArray*  addVgIds;
 } SStreamVtableDeployInfo;
 
 typedef struct {
