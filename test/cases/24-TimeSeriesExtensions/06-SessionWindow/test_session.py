@@ -9,7 +9,8 @@ class TestSession:
     def test_session(self):
         """Session Window
 
-        1. -
+        1. Test the basic usage of session window
+        2. Test some illegal statements
 
         Catalog:
             - Timeseries:EventWindow
@@ -31,13 +32,6 @@ class TestSession:
         tdLog.info(f"====> create database {dbNamme} vgroups {vgroups}")
         tdSql.execute(f"create database {dbNamme} vgroups {vgroups}")
         tdSql.query(f"select * from information_schema.ins_databases")
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)} {tdSql.getData(0,7)} {tdSql.getData(0,8)} {tdSql.getData(0,9)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(1,0)} {tdSql.getData(1,1)} {tdSql.getData(1,2)} {tdSql.getData(1,3)} {tdSql.getData(1,4)} {tdSql.getData(1,5)} {tdSql.getData(1,6)} {tdSql.getData(1,7)} {tdSql.getData(1,8)} {tdSql.getData(1,9)}"
-        )
-        # print $tdSql.getData(2,0) $tdSql.getData(2,1) $tdSql.getData(2,2) $tdSql.getData(2,3) $tdSql.getData(2,4) $tdSql.getData(2,5) $tdSql.getData(2,6) $tdSql.getData(2,7) $tdSql.getData(2,8) $tdSql.getData(2,9)
 
         tdSql.execute(f"use {dbNamme}")
 
@@ -98,7 +92,7 @@ class TestSession:
         self.query()
 
     def query(self):
-        
+
         dbNamme = "d0"
         tdSql.execute(f"use {dbNamme}")
 
@@ -106,177 +100,38 @@ class TestSession:
         tdLog.info(f"====> select count(*) from dev_001 session(ts,5a)")
         tdSql.query(f"select _wstart, count(*) from dev_001 session(ts,5a)")
         tdLog.info(f"====> rows: {tdSql.getRows()})")
-        
+
         tdSql.checkRows(15)
-
         tdSql.checkData(0, 1, 2)
-
-        #
-        # print ====> select count(*) from (select * from dev_001) session(ts,5a)
-        # sql select _wstart, count(*) from (select * from dev_001) session(ts,5a)
-        # if $rows != 15 then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,1) != 2 then
-        #  return -1
-        # endi
 
         tdLog.info(f"====> select count(*) from dev_001 session(ts,1s)")
         tdSql.query(f"select _wstart, count(*) from dev_001 session(ts,1s)")
         tdSql.checkRows(12)
-
         tdSql.checkData(0, 1, 5)
-
-        # print ====> select count(*) from (select * from dev_001) session(ts,1s)
-        # sql select _wstart, count(*) from (select * from dev_001) session(ts,1s)
-        # if $rows != 12 then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,1) != 5 then
-        #  return -1
-        # endi
 
         tdLog.info(f"====> select count(*) from dev_001 session(ts,1000a)")
         tdSql.query(f"select _wstart, count(*) from dev_001 session(ts,1000a)")
         tdSql.checkRows(12)
-
         tdSql.checkData(0, 1, 5)
-
-        # print ====> select count(*) from  (select * from dev_001) session(ts,1000a)
-        # sql select _wstart, count(*) from  (select * from dev_001) session(ts,1000a)
-        # if $rows != 12 then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,1) != 5 then
-        #  return -1
-        # endi
 
         tdLog.info(f"====> select count(*) from dev_001 session(ts,1m)")
         tdSql.query(f"select _wstart, count(*) from dev_001 session(ts,1m)")
         tdSql.checkRows(9)
-
         tdSql.checkData(0, 1, 8)
-
-        # print ====> select count(*) from (select * from dev_001) session(ts,1m)
-        # sql select _wstart, count(*) from (select * from dev_001) session(ts,1m)
-        # if $rows != 9 then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,1) != 8 then
-        #  return -1
-        # endi
-
         tdLog.info(f"====> select count(*) from dev_001 session(ts,1h)")
         tdSql.query(f"select _wstart, count(*) from dev_001 session(ts,1h)")
         tdSql.checkRows(6)
-
         tdSql.checkData(0, 1, 11)
-
-        # print ====> select count(*) from (select * from dev_001) session(ts,1h)
-        # sql select _wstart, count(*) from (select * from dev_001) session(ts,1h)
-        # if $rows != 6 then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,1) != 11 then
-        #  return -1
-        # endi
 
         tdLog.info(f"====> select count(*) from dev_001 session(ts,1d)")
         tdSql.query(f"select _wstart, count(*) from dev_001 session(ts,1d)")
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 1, 13)
-
-        # print ====> select count(*) from (select * from dev_001) session(ts,1d)
-        # sql select _wstart, count(*) from (select * from dev_001) session(ts,1d)
-        # if $rows != 4 then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,1) != 13 then
-        #  return -1
-        # endi
 
         tdLog.info(f"====> select count(*) from dev_001 session(ts,1w)")
         tdSql.query(f"select _wstart, count(*) from dev_001 session(ts,1w)")
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 1, 15)
-
-        # print ====> select count(*) from (select * from dev_001) session(ts,1w)
-        # sql select _wstart, count(*) from (select * from dev_001) session(ts,1w)
-        # if $rows != 2 then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,1) != 15 then
-        #  return -1
-        # endi
-
-        # print ====> leastsquares not supported yet.
-        # print ====> select count(*),first(tagtype),last(tagtype),avg(tagtype),sum(tagtype),min(tagtype),max(tagtype),leastsquares(tagtype, 1, 1),spread(tagtype),stddev(tagtype),percentile(tagtype,0)  from dev_001 where ts <'2020-05-20 0:0:0' session(ts,1d)
-        # sql select count(*),first(tagtype),last(tagtype),avg(tagtype),sum(tagtype),min(tagtype),max(tagtype),leastsquares(tagtype, 1, 1),spread(tagtype),stddev(tagtype),percentile(tagtype,0)  from dev_001 where ts <'2020-05-20 0:0:0' session(ts,1d)
-        # if $rows != 2 then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,1) != 13 then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,2) != 1 then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,3) != 13 then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,4) != 7 then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,5) != 91 then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,6) != 1 then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,7) != 13 then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,8) != @{slop:1.000000, intercept:0.000000}@ then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,9) != 12 then
-        #  return -1
-        # endi
-        # $data0-10 != 3.741657387
-        # $data0-11 !=  1
-        # $data1-11 !=  14
-
-        # print ====> select count(*),first(tagtype),last(tagtype),avg(tagtype),sum(tagtype),min(tagtype),max(tagtype),leastsquares(tagtype, 1, 1) from (select * from dev_001 where ts <'2020-05-20 0:0:0') session(ts,1d)
-        # sql select count(*),first(tagtype),last(tagtype),avg(tagtype),sum(tagtype),min(tagtype),max(tagtype),leastsquares(tagtype, 1, 1) from (select * from dev_001 where ts <'2020-05-20 0:0:0') session(ts,1d)
-        # if $rows != 2 then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,1) != 13 then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,2) != 1 then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,3) != 13 then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,4) != 7 then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,5) != 91 then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,6) != 1 then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,7) != 13 then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,8) != @{slop:1.000000, intercept:0.000000}@ then
-        #  return -1
-        # endi
 
         tdLog.info(
             f"================> syntax error check not active ================> reactive"
