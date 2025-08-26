@@ -67,9 +67,6 @@ if __name__ == "__main__":
     conn = create_connection()
     create_db_table(conn)
     insert(conn)
-    if conn:
-        conn.close()
-
     query(conn)
     if conn:
         conn.close()
