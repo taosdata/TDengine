@@ -112,7 +112,6 @@ int32_t vnodeListSsMigrateFileSets(SVnode *pVnode, SRpcMsg *pMsg) {
   code = tsdbListSsMigrateFileSets(pVnode->pTsdb, fidArr);
   if (code != TSDB_CODE_SUCCESS) {
     vError("vgId:%d, %s failed since %s", TD_VID(pVnode), __func__, tstrerror(code));
-    taosArrayDestroy(fidArr);
     goto _exit;
   }
 
