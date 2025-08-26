@@ -984,13 +984,10 @@ function finished_install_info(){
     fi
     entries+=("To start ${clientName}Explorer:|${csudo}systemctl start ${clientName}-explorer")
     entries+=("To start all the components:|${csudo}start-all.sh")
-    # 在 config 与 start 之间插入空行分隔
     entries+=("|")
-
     
     entries+=("To access ${productName} CLI:|${clientName} -h $serverFqdn")
     entries+=("To access ${productName} GUI:|http://$serverFqdn:6060")
-
     entries+=("|")
 
     if [ "$verMode" == "cluster" ]; then
