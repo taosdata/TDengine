@@ -157,14 +157,14 @@ TEST(shellCountPrefixOnes, checkUtf8) {
 
 TEST(shellUtil, trimStr) {
     struct Case { const char* in; const char* expect; } cases[] = {
-        {"3.0.8.0 trial ", "3.0.8.0"},    // 去除 "trial" 和空格
-        {"3.0.8.0 trial",  "3.0.8.0"},     // 去除 "trial"
-        {"3.0.8.0   ",      "3.0.8.0"},    // 去除空格
-        {"3.0.8.0",         "3.0.8.0"},    // 无需处理
-        {"trial",          ""},            // 完全匹配，去除后为空
-        {"trial ",         ""},            // "trial" 加空格
-        {" trial",         ""},            // 空格加"trial"
-        {"3.0.8.0,trial",  "3.0.8.0,"},     // 去除逗号和"trial"
+      {"3.0.8.0 trial ", "3.0.8.0"},    // remove "trial" and trailing spaces
+      {"3.0.8.0 trial",  "3.0.8.0"},    // remove "trial"
+      {"3.0.8.0   ",     "3.0.8.0"},   // remove trailing spaces
+      {"3.0.8.0",        "3.0.8.0"},   // no change
+      {"trial",          ""},           // exact match "trial" -> empty
+      {"trial ",         ""},           // "trial" followed by a space
+      {" trial",         ""},           // leading space + "trial"
+      {"3.0.8.0,trial",  "3.0.8.0,"},   // remove ",trial"
     };
 
     for (const auto& c : cases) {
