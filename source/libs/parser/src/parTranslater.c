@@ -4003,17 +4003,26 @@ static int32_t getGroupByErrorCode(STranslateContext* pCxt) {
 
 static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, SNode** pNode) {
   SFunctionNode* pFunc = NULL;
+  SExprNode*     p = (SExprNode*)*pNode;
   int32_t        code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
   if (TSDB_CODE_SUCCESS != code) {
     pCxt->errCode = code;
     return DEAL_RES_ERROR;
   }
-  tstrncpy(pFunc->functionName, "_select_value", TSDB_FUNC_NAME_LEN);
-  tstrncpy(pFunc->node.aliasName, ((SExprNode*)*pNode)->aliasName, TSDB_COL_NAME_LEN);
-  tstrncpy(pFunc->node.userAlias, ((SExprNode*)*pNode)->userAlias, TSDB_COL_NAME_LEN);
 
-  pFunc->node.relatedTo = ((SExprNode*)*pNode)->relatedTo;
-  pFunc->node.bindExprID = ((SExprNode*)*pNode)->bindExprID;
+  tstrncpy(pFunc->functionName, "_select_value", TSDB_FUNC_NAME_LEN);
+  tstrncpy(pFunc->node.aliasName, p->aliasName, TSDB_COL_NAME_LEN);
+  tstrncpy(pFunc->node.userAlias, p->userAlias, TSDB_COL_NAME_LEN);
+
+  // "_select_value" is an parameter of function, not in the projectionList, and user does not assign an alias name
+  // let's rewrite the aliasName, to avoid the column name duplicate problem
+  if ((strncmp(p->aliasName, p->userAlias, tListLen(p->aliasName)) == 0) && p->asParam && p->projIdx == 0) {
+    uint64_t hashVal = MurmurHash3_64(p->aliasName, strlen(p->aliasName));
+    snprintf(pFunc->node.aliasName, TSDB_COL_NAME_LEN, "%" PRIu64, hashVal);
+  }
+  
+  pFunc->node.relatedTo = p->relatedTo;
+  pFunc->node.bindExprID = p->bindExprID;
   pCxt->errCode = nodesListMakeAppend(&pFunc->pParameterList, *pNode);
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     pCxt->errCode = getFuncInfo(pCxt, pFunc);
@@ -5954,16 +5963,17 @@ _return:
 static int32_t translateTempTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
   SSelectStmt*    pCurrSmt = (SSelectStmt*)(pCxt->pCurrStmt);
   STempTableNode* pTempTable = (STempTableNode*)*pTable;
+  SSelectStmt*    pSubStmt = (SSelectStmt*)pTempTable->pSubquery;
   int32_t         code = TSDB_CODE_SUCCESS;
 
   PAR_ERR_JRET(translateSubquery(pCxt, pTempTable->pSubquery));
-  if (QUERY_NODE_SELECT_STMT == nodeType(pTempTable->pSubquery) &&
-      ((SSelectStmt*)pTempTable->pSubquery)->isEmptyResult && isSelectStmt(pCxt->pCurrStmt)) {
-    ((SSelectStmt*)pCxt->pCurrStmt)->isEmptyResult = true;
-  }
+
   if (QUERY_NODE_SELECT_STMT == nodeType(pTempTable->pSubquery) && isSelectStmt(pCxt->pCurrStmt)) {
-    pCurrSmt->joinContains = ((SSelectStmt*)pTempTable->pSubquery)->joinContains;
-    SSelectStmt* pSubStmt = (SSelectStmt*)pTempTable->pSubquery;
+    if(pSubStmt->isEmptyResult) {
+      pCurrSmt->isEmptyResult = true;
+    }
+
+    pCurrSmt->joinContains = pSubStmt->joinContains;
     pCurrSmt->timeLineResMode = pSubStmt->timeLineResMode;
     pCurrSmt->timeLineCurMode = pSubStmt->timeLineResMode;
   }
