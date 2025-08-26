@@ -254,8 +254,8 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
   int32_t taskDone = atomic_add_fetch_32(&pTask->level->taskExecDoneNum, 1);
 
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_PART_SUCC);
-  SCH_ERR_RET(schRecordTaskSucceedNode(pJob, pTask));
 
+  SCH_ERR_RET(schRecordTaskSucceedNode(pJob, pTask));
   SCH_ERR_RET(schLaunchTasksInFlowCtrlList(pJob, pTask));
 
   int32_t parentNum = pTask->parents ? (int32_t)taosArrayGetSize(pTask->parents) : 0;
@@ -288,13 +288,13 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
   }
 
   for (int32_t i = 0; i < parentNum; ++i) {
-    SSchTask *parent = *(SSchTask **)taosArrayGet(pTask->parents, i);
-    if (NULL == parent) {
-      SCH_TASK_ELOG("fail to get task %d parent, parentNum:%d", i, parentNum);
+    SSchTask *pParent = *(SSchTask **)taosArrayGet(pTask->parents, i);
+    if (NULL == pParent) {
+      SCH_TASK_ELOG("fail to get task %d pParent, parentNum:%d", i, parentNum);
       SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
     }
 
-    SCH_LOCK(SCH_WRITE, &parent->planLock);
+    SCH_LOCK(SCH_WRITE, &pParent->planLock);
     SDownstreamSourceNode source = {
         .type = QUERY_NODE_DOWNSTREAM_SOURCE,
         .clientId = pTask->clientId,
@@ -306,25 +306,31 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
         .localExec = SCH_IS_LOCAL_EXEC_TASK(pJob, pTask),
     };
 
-    code = qSetSubplanExecutionNode(parent->plan, pTask->plan->id.groupId, &source);
+    code = qSetSubplanExecutionNode(pParent->plan, pTask->plan->id.groupId, &source);
     if (TSDB_CODE_SUCCESS != code) {
       SCH_TASK_ELOG("qSetSubplanExecutionNode failed, groupId: %d", pTask->plan->id.groupId);
     }
 
-    SCH_UNLOCK(SCH_WRITE, &parent->planLock);
+    SCH_UNLOCK(SCH_WRITE, &pParent->planLock);
     SCH_ERR_RET(code);
 
-    int32_t readyNum = atomic_add_fetch_32(&parent->childReady, 1);
+    int32_t readyNum = atomic_add_fetch_32(&pParent->childReady, 1);
 
-    if (SCH_TASK_READY_FOR_LAUNCH(readyNum, parent)) {
-      SCH_TASK_DLOG("all %d children task done, start to launch parent task, TID:0x%" PRIx64, readyNum, parent->taskId);
+    if (SCH_TASK_READY_FOR_LAUNCH(readyNum, pParent)) {
+      // this is a redirect process for parent task, since the original pParent task has already failed before.
+      if (pParent->redirectCtx.inRedirect) {
+        schSwitchTaskCandidateAddr(pJob, pParent);
+      }
 
-      parent->seriesId = pJob->seriesId;
-      TSWAP(pTask, parent);
+      SCH_TASK_DLOG("total candidate addrs:%d", (int32_t) taosArrayGetSize(pTask->candidateAddrs));
+      SCH_TASK_DLOG("all %d children task done, start to launch pParent task, TID:0x%" PRIx64, readyNum, pParent->taskId);
+
+      pParent->seriesId = pJob->seriesId;
+      TSWAP(pTask, pParent);
       SCH_TASK_TLOG("task seriesId set to 0x%" PRIx64, pTask->seriesId);
-      TSWAP(pTask, parent);
+      TSWAP(pTask, pParent);
 
-      SCH_ERR_RET(schDelayLaunchTask(pJob, parent));
+      SCH_ERR_RET(schDelayLaunchTask(pJob, pParent));
     }
   }
 
@@ -374,7 +380,8 @@ int32_t schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSet, 
         pCtx->roundTotal = SCH_DEFAULT_RETRY_TOTAL_ROUND;
       }
     } else {
-      pCtx->roundTotal = 1;
+      // for not data bind task, we still needs to retry for at least SCH_DEFAULT_RETRY_TOTAL_ROUND times.
+      pCtx->roundTotal = SCH_DEFAULT_RETRY_TOTAL_ROUND;
     }
 
     goto _return;
@@ -388,7 +395,6 @@ int32_t schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSet, 
   }
 
   SCH_TASK_DLOG("job ctx roundTotal:%d, roundTimes:%d, totalTimes:%d", pCtx->roundTotal, pCtx->roundTimes, pCtx->totalTimes);
-
   if (pCtx->roundTimes >= pCtx->roundTotal) {
     int64_t nowTs = taosGetTimestampMs();
     int64_t lastTime = nowTs - pCtx->startTs;
@@ -730,7 +736,7 @@ int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bo
 }
 
 int32_t schHandleTaskRetry(SSchJob *pJob, SSchTask *pTask) {
-  char    buf[256] = {0};
+  char buf[256] = {0};
 
   (void)atomic_sub_fetch_32(&pTask->level->taskLaunchedNum, 1);
 

@@ -481,9 +481,9 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, uint64_t seriesId, 
 _return:
 
   taosMemoryFreeClear(pMsg->pData);
-
   SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
 } 
+
 int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
   int32_t                code = 0;
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
