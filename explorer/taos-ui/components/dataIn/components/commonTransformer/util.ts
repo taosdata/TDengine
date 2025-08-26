@@ -86,7 +86,7 @@ export function getExampleList(demo_data: string, parsed?: boolean | undefined) 
       }
       try {
         if (parsed) {
-          const item_parsed = JSON.parse(obj_list[i].replace(/\n/g, '\\n'));
+          const item_parsed = JSON.parse(obj_list[i].replace(/\n/g, ''));
           demo_string_arr.push(item_parsed);
         } else {
           demo_string_arr.push(obj_list[i].replace(/\n/g, ''));
