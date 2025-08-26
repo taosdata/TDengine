@@ -2224,6 +2224,11 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       SSTriggerWalMetaNewRequest *pReq = &pProgress->pullReq.walMetaNewReq;
       pReq->lastVer = pProgress->lastScanVer;
+      if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
+        pReq->ctime = pContext->periodWindow.ekey;
+      } else {
+        pReq->ctime = INT64_MAX;
+      }
       break;
     }
 
