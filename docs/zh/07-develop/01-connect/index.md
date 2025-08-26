@@ -457,7 +457,7 @@ WebSocket 连接需要先调用 `taos_options(TSDB_OPTION_DRIVER, "websocket")` 
 SQLAlchemy 支持通过 `hosts` 参数配置多个服务器地址，实现负载均衡和故障转移功能。多个地址使用英文逗号分隔，格式为：`hosts=<host1>:<port1>,<host2>:<port2>,...`
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect_sqlalchemy}}
+{{#include docs/examples/python/connect_websocket_sqlalchemy_examples.py:connect_sqlalchemy}}
 ```
     </TabItem>
     <TabItem label="Go" value="go">

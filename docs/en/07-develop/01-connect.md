@@ -520,7 +520,7 @@ Below are code examples for establishing WebSocket connections in various langua
 SQLAlchemy supports configuring multiple server addresses through the `hosts` parameter to achieve load balancing and failover. Multiple addresses are separated by English commas, in the format: `hosts=<host1>:<port1>,<host2>:<port2>,...`
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect_sqlalchemy}}
+{{#include docs/examples/python/connect_websocket_sqlalchemy_examples.py:connect_sqlalchemy}}
 ```
 </TabItem>
 
