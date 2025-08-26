@@ -47,7 +47,7 @@ void schFreeTask(SSchJob *pJob, SSchTask *pTask) {
 
 void schInitTaskRetryTimes(SSchJob *pJob, SSchTask *pTask, SSchLevel *pLevel) {
   if (SCH_IS_DATA_BIND_TASK(pTask) || (!SCH_IS_QUERY_JOB(pJob)) || (SCH_ALL != schMgmt.cfg.schPolicy)) {
-    pTask->maxRetryTimes = SCH_DEFAULT_MAX_RETRY_NUM;
+    pTask->maxRetryTimes = SCH_DEFAULT_MAX_RETRY_NUM * 2;
   } else {
     int32_t nodeNum = taosArrayGetSize(pJob->nodeList);
     pTask->maxRetryTimes = TMAX(nodeNum, SCH_DEFAULT_MAX_RETRY_NUM);
@@ -728,7 +728,7 @@ int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bo
 
   *needRetry = true;
 
-  SCH_TASK_DLOG("task need the %d/%d retry, errCode:%x - %s", pTask->execId + 1, pTask->maxExecTimes, errCode, tstrerror(errCode));
+  SCH_TASK_DLOG("task need the %d/%d retry, errCode:%x - %s", pTask->execId + 1, pTask->maxRetryTimes, errCode, tstrerror(errCode));
   return TSDB_CODE_SUCCESS;
 }
 
