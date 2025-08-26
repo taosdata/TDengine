@@ -1,6 +1,6 @@
 <template>
   <div class="page-wrapper">
-    <PageHeader :title="$t('route.admin')"></PageHeader>
+    <!-- <PageHeader :title="$t('route.admin')"></PageHeader> -->
     <div class="content">
       <el-tabs v-model="activeName">
         <el-tab-pane name="user" :label="$t('taosuser.users')">

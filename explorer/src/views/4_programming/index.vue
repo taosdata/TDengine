@@ -1,6 +1,6 @@
 <template>
   <div class="page-wrapper">
-    <PageHeader :title="routeTitle"></PageHeader>
+    <!-- <PageHeader :title="routeTitle"></PageHeader> -->
     <div class="content">
       <router-view />
     </div>

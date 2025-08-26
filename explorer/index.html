@@ -1,178 +1,182 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <% if(VITE_APP_CUS_NAME && VITE_APP_CUS_NAME!== "TDengine"){ %>
-    <title><% VITE_APP_CUS_NAME %></title>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <% if(VITE_APP_CUS_NAME && VITE_APP_CUS_NAME!=="TDengine" ){ %>
+    <title>
+      <% VITE_APP_CUS_NAME %>
+    </title>
     <link rel="icon" type="image/x-icon" />
     <% } else { %>
-    <title>TDengine TSDB</title>
-    <link rel="icon" href="<%= BASE_URL %>/public/favicon.ico" type="image/x-icon" />
-    <% } %>
-  </head>
-  <body>
-    <noscript>
-      <strong
-        >We're sorry but TDengine doesn't work properly without JavaScript enabled. Please enable it to continue.
-      </strong>
-    </noscript>
-    <div id="app">
-      <style>
-        @-webkit-keyframes gradient {
-          50% {
-            background-position: 100% 0;
-          }
+      <title>TDengine TSDB</title>
+      <link rel="icon" href="/packaging/favicon.ico" type="image/x-icon" />
+      <% } %>
+</head>
+
+<body>
+  <noscript>
+    <strong>We're sorry but TDengine doesn't work properly without JavaScript enabled. Please enable it to continue.
+    </strong>
+  </noscript>
+  <div id="app">
+    <style>
+      @-webkit-keyframes gradient {
+        50% {
+          background-position: 100% 0;
+        }
+      }
+
+      @keyframes gradient {
+        50% {
+          background-position: 100% 0;
+        }
+      }
+
+      @-webkit-keyframes img {
+        0% {
+          -webkit-transform: rotate(0deg);
         }
 
-        @keyframes gradient {
-          50% {
-            background-position: 100% 0;
-          }
+        100% {
+          -webkit-transform: rotate(-360deg);
+        }
+      }
+
+      @keyframes img {
+        0% {
+          -webkit-transform: rotate(0deg);
+          transform: rotate(0deg);
         }
 
-        @-webkit-keyframes img {
-          0% {
-            -webkit-transform: rotate(0deg);
-          }
+        100% {
+          -webkit-transform: rotate(-360deg);
+          transform: rotate(-360deg);
+        }
+      }
 
-          100% {
-            -webkit-transform: rotate(-360deg);
-          }
+      @-webkit-keyframes spin {
+        0% {
+          -webkit-transform: rotate(0deg);
         }
 
-        @keyframes img {
-          0% {
-            -webkit-transform: rotate(0deg);
-            transform: rotate(0deg);
-          }
+        100% {
+          -webkit-transform: rotate(360deg);
+        }
+      }
 
-          100% {
-            -webkit-transform: rotate(-360deg);
-            transform: rotate(-360deg);
-          }
+      @keyframes spin {
+        0% {
+          -webkit-transform: rotate(0deg);
+          transform: rotate(0deg);
         }
 
-        @-webkit-keyframes spin {
-          0% {
-            -webkit-transform: rotate(0deg);
-          }
+        100% {
+          -webkit-transform: rotate(360deg);
+          transform: rotate(360deg);
+        }
+      }
 
-          100% {
-            -webkit-transform: rotate(360deg);
-          }
+      @-webkit-keyframes spin-reverse {
+        0% {
+          -webkit-transform: rotate(0deg);
         }
 
-        @keyframes spin {
-          0% {
-            -webkit-transform: rotate(0deg);
-            transform: rotate(0deg);
-          }
+        100% {
+          -webkit-transform: rotate(-360deg);
+        }
+      }
 
-          100% {
-            -webkit-transform: rotate(360deg);
-            transform: rotate(360deg);
-          }
+      @keyframes spin-reverse {
+        0% {
+          -webkit-transform: rotate(0deg);
+          transform: rotate(0deg);
         }
 
-        @-webkit-keyframes spin-reverse {
-          0% {
-            -webkit-transform: rotate(0deg);
-          }
-
-          100% {
-            -webkit-transform: rotate(-360deg);
-          }
+        100% {
+          -webkit-transform: rotate(-360deg);
+          transform: rotate(-360deg);
         }
+      }
 
-        @keyframes spin-reverse {
-          0% {
-            -webkit-transform: rotate(0deg);
-            transform: rotate(0deg);
-          }
+      #loader-wrapper {
+        /* background-image: linear-gradient(45deg, rgb(19, 189, 206) 33%, rgb(19, 189, 206) 66%, rgb(0, 148, 217) 100%); */
+        background-size: 400%;
+        background-position: 0% 100%;
+        -webkit-animation: gradient 7.5s ease-in-out infinite;
+        animation: gradient 7.5s ease-in-out infinite;
+      }
 
-          100% {
-            -webkit-transform: rotate(-360deg);
-            transform: rotate(-360deg);
-          }
-        }
+      #loader-wrapper {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 10;
+        overflow: hidden;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
 
-        #loader-wrapper {
-          /* background-image: linear-gradient(45deg, rgb(19, 189, 206) 33%, rgb(19, 189, 206) 66%, rgb(0, 148, 217) 100%); */
-          background-size: 400%;
-          background-position: 0% 100%;
-          -webkit-animation: gradient 7.5s ease-in-out infinite;
-          animation: gradient 7.5s ease-in-out infinite;
-        }
+      #loader {
+        display: flex;
+        padding: 20px;
+        width: 160px;
+        height: 160px;
+        border-radius: 50%;
+        border: 3px solid transparent;
+        border-top-color: rgb(19, 189, 206);
+        animation: spin 1.7s linear infinite;
+        z-index: 11;
+      }
 
-        #loader-wrapper {
-          position: fixed;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          z-index: 10;
-          overflow: hidden;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-        }
+      #loader:before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        border-radius: 50%;
+        border: 3px solid transparent;
+        border-top-color: rgb(19, 189, 206);
+        animation: spin-reverse 0.6s linear infinite;
+      }
 
-        #loader {
-          display: flex;
-          padding: 20px;
-          width: 160px;
-          height: 160px;
-          border-radius: 50%;
-          border: 3px solid transparent;
-          border-top-color: rgb(19, 189, 206);
-          animation: spin 1.7s linear infinite;
-          z-index: 11;
-        }
+      #loader:after {
+        content: '';
+        position: absolute;
+        top: 15px;
+        left: 15px;
+        right: 15px;
+        bottom: 15px;
+        border-radius: 50%;
+        border: 3px solid transparent;
+        border-top-color: rgb(19, 189, 206);
+        animation: spin 1s linear infinite;
+      }
 
-        #loader:before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          border-radius: 50%;
-          border: 3px solid transparent;
-          border-top-color: rgb(19, 189, 206);
-          animation: spin-reverse 0.6s linear infinite;
-        }
-
-        #loader:after {
-          content: '';
-          position: absolute;
-          top: 15px;
-          left: 15px;
-          right: 15px;
-          bottom: 15px;
-          border-radius: 50%;
-          border: 3px solid transparent;
-          border-top-color: rgb(19, 189, 206);
-          animation: spin 1s linear infinite;
-        }
-
-        #loader img {
-          margin: auto;
-          align-items: center;
-          display: table-cell;
-          vertical-align: middle;
-          text-align: center;
-          animation: img 1.7s linear infinite;
-        }
-      </style>
-      <div id="loader-wrapper">
-        <% if(VITE_APP_CUS_NAME && VITE_APP_CUS_NAME !== "TDengine"){ %>
+      #loader img {
+        margin: auto;
+        align-items: center;
+        display: table-cell;
+        vertical-align: middle;
+        text-align: center;
+        animation: img 1.7s linear infinite;
+      }
+    </style>
+    <div id="loader-wrapper">
+      <% if(VITE_APP_CUS_NAME && VITE_APP_CUS_NAME !=="TDengine" ){ %>
         <div id="loader"></div>
         <% } else { %>
-        <div id="loader"><img src="/public/logo.svg" /></div>
-        <% } %>
-      </div>
+          <div id="loader"><img src="/public/logo.svg" /></div>
+          <% } %>
     </div>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+
 </html>

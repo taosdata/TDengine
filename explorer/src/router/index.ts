@@ -104,6 +104,10 @@ const layoutCommonChildren = [
         component: () => import('@/views/8_administrator/views/slowSql.vue')
       }
     ]
+  },
+  {
+    path: 'idmp',
+    component: () => import('@/views/9_idmp/index.vue')
   }
 ];
 const adminRoute = [

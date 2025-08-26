@@ -1,6 +1,6 @@
 <template>
   <div class="page-wrapper">
-    <PageHeader :title="$t('stream.pageTitle')"></PageHeader>
+    <!-- <PageHeader :title="$t('stream.pageTitle')"></PageHeader> -->
     <section class="content">
       <div>
         <div class="flex-end">
@@ -143,7 +143,7 @@ async function getStreamsData() {
   [streamList.value, total.value] = await getStreams({ currentPage: currentPage.value, pageSize: pageSize.value });
   requestIng.value = false;
 }
-function del(data) {
+function del(data: any) {
   if (requestIng.value) return;
   ElMessageBox.confirm(t('stream.delStream') + '：' + data.stream_name + '?', t('tips'), {
     confirmButtonText: t('confirm'),

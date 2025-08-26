@@ -29,5 +29,6 @@ export default {
     backup: "Backup",
     admin: "Management",
     cluster: "Cluster",
+    idmp: "IDMP"
   },
 }
