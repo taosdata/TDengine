@@ -250,7 +250,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_basic_sum.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_stat_apercentile.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_stat_percentile.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_special_elapsed.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_special_elapsed.py
 ## 03-Selection
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_bottom.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_func_first_last.py
@@ -978,6 +978,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_slimit.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_slimit.py -Q 4
 ,,n,.,pytest cases/uncatalog/system-test/2-query/test_ts_5761.py
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_ts_7058.py
 ,,n,.,pytest cases/uncatalog/system-test/2-query/test_ts_5761_scalemode.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_5712.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_4233.py

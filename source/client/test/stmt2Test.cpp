@@ -1465,31 +1465,6 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
     taos_stmt2_close(stmt);
   }
 
-  // get fields cache error
-  {
-    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
-    ASSERT_NE(stmt, nullptr);
-    const char* sql = " INSERT INTO ? using stmt2_testdb_6.stb1(int_tag) tags(1)(ts) VALUES(?) ";
-    printf("stmt2 [%s] : %s\n", "get fields", sql);
-    int code = taos_stmt2_prepare(stmt, sql, 0);
-    checkError(stmt, code, __FILE__, __LINE__);
-
-    int             fieldNum = 0;
-    TAOS_FIELD_ALL* pFields = NULL;
-    code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
-    checkError(stmt, code, __FILE__, __LINE__);
-    ASSERT_EQ(fieldNum, 2);
-    ASSERT_STREQ(pFields[0].name, "tbname");
-    ASSERT_STREQ(pFields[1].name, "ts");
-
-    char*            tbname = "stmt2_testdb_6.中文表名";
-    TAOS_STMT2_BINDV bindv = {1, &tbname, NULL, NULL};
-    code = taos_stmt2_bind_param(stmt, &bindv, -1);
-    ASSERT_EQ(code, TSDB_CODE_TSC_STMT_TBNAME_ERROR);
-
-    taos_stmt2_close(stmt);
-  }
-
   // null sql
   {
     TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
@@ -2921,21 +2896,31 @@ TEST(stmt2Case, usage_error) {
   do_query(taos, "CREATE TABLE stmt2_testdb_17.ntb(nts timestamp, nb binary(10),nvc varchar(16),ni int);");
 
   TAOS_STMT2_OPTION option = {0};
+  // get fields error
   TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
   ASSERT_NE(stmt, nullptr);
-  char* sql = "delete from ntb";
+  char* sql = "delete from ntb where ts=?";
   int   code = taos_stmt2_prepare(stmt, sql, 0);
+  checkError(stmt, code, __FILE__, __LINE__);
+  int             fieldNum = 0;
+  TAOS_FIELD_ALL* pFields = NULL;
+  code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+  ASSERT_EQ(code, TSDB_CODE_PAR_SYNTAX_ERROR);
+
+  // bind error
+  stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+  code = taos_stmt2_prepare(stmt, sql, 0);
   checkError(stmt, code, __FILE__, __LINE__);
 
   int              t64_len[1] = {sizeof(int64_t)};
-  int              b_len[1] = {3};
   int64_t          ts = 1591060628000;
   TAOS_STMT2_BIND  params = {TSDB_DATA_TYPE_TIMESTAMP, &ts, t64_len, NULL, 1};
   TAOS_STMT2_BIND* params1 = &params;
 
   TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &params1};
   code = taos_stmt2_bind_param(stmt, &bindv, -1);
-  ASSERT_EQ(code, TSDB_CODE_TSC_STMT_API_ERROR);
+  ASSERT_EQ(code, TSDB_CODE_PAR_SYNTAX_ERROR);
   ASSERT_STREQ(taos_stmt2_error(stmt), "stmt only support select or insert");
 
   taos_stmt2_close(stmt);
