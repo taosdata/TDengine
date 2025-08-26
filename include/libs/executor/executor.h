@@ -83,7 +83,9 @@ typedef struct SStreamInserterParam {
 
 typedef struct SStreamVtableDeployInfo {
   SRWLatch lock;
+  int64_t  uid;
   SArray*  addVgIds;
+  SArray*  addedVgInfo;  // deploy response,SArray<SStreamTaskAddr>
 } SStreamVtableDeployInfo;
 
 typedef struct {
@@ -93,6 +95,7 @@ typedef struct {
   const SArray*           pForceOutputCols;
   SStreamInserterParam    inserterParams;
   SStreamVtableDeployInfo vtableDeployInfo;
+  int8_t*                 vtableDeployGot;
 } SStreamRuntimeInfo;
 
 #define GET_STM_RTINFO(_t) (((_t)->pStreamRuntimeInfo) ? (&(_t)->pStreamRuntimeInfo->funcInfo) : NULL)
