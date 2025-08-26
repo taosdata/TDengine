@@ -41,6 +41,8 @@ static int32_t  mndProcessDropRsmaReq(SRpcMsg *pReq);
 
 static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelRetrieveRsma(SMnode *pMnode, void *pIter);
+static int32_t mndRetrieveRsmaTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static void    mndCancelRetrieveRsmaTask(SMnode *pMnode, void *pIter);
 
 int32_t mndInitRsma(SMnode *pMnode) {
   SSdbTable table = {
@@ -57,6 +59,8 @@ int32_t mndInitRsma(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_RSMA, mndProcessDropRsmaReq);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_RSMAS, mndRetrieveRsma);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_RSMAS, mndCancelRetrieveRsma);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_RSMA_TASKS, mndRetrieveRsmaTask);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_RSMA_TASKS, mndCancelRetrieveRsmaTask);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -566,6 +570,17 @@ static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   mndReleaseDb(pMnode, pDb);
   pShow->numOfRows += numOfRows;
 #endif
+  return numOfRows;
+}
+
+static int32_t mndRetrieveRsmaTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  SMnode  *pMnode = pReq->info.node;
+  SSdb    *pSdb = pMnode->pSdb;
+  int32_t  numOfRows = 0;
+  SSmaObj *pSma = NULL;
+  int32_t  cols = 0;
+  int32_t  code = 0;
+  pShow->numOfRows += numOfRows;
   return numOfRows;
 }
 
@@ -1153,6 +1168,16 @@ static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
 }
 #endif
 static void mndCancelRetrieveRsma(SMnode *pMnode, void *pIter) {
+#if 0
+  SSmaAndTagIter *p = pIter;
+  if (p != NULL) {
+    SSdb *pSdb = pMnode->pSdb;
+    sdbCancelFetchByType(pSdb, p->pSmaIter, SDB_SMA);
+  }
+  taosMemoryFree(p);
+#endif
+}
+static void mndCancelRetrieveRsmaTask(SMnode *pMnode, void *pIter) {
 #if 0
   SSmaAndTagIter *p = pIter;
   if (p != NULL) {

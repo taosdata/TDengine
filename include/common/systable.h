@@ -69,6 +69,7 @@ extern "C" {
 #define TSDB_INS_TABLE_TRANSACTION_DETAILS   "ins_transaction_details"
 #define TSDB_INS_TABLE_MOUNTS            "ins_mounts"
 #define TSDB_INS_TABLE_RSMAS             "ins_rsmas"
+#define TSDB_INS_TABLE_RSMA_TASKS        "ins_rsma_tasks"
 
 #define TSDB_PERFORMANCE_SCHEMA_DB   "performance_schema"
 #define TSDB_PERFS_TABLE_SMAS        "perf_smas"
