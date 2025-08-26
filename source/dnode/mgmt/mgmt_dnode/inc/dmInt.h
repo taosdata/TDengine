@@ -45,6 +45,7 @@ typedef struct SDnodeMgmt {
   GetVnodeLoadsFp              getVnodeLoadsFp;
   GetVnodeLoadsFp              getVnodeLoadsLiteFp;
   GetMnodeLoadsFp              getMnodeLoadsFp;
+  SetMnodeSyncTimeoutFp        setMnodeSyncTimeoutFp;
   GetQnodeLoadsFp              getQnodeLoadsFp;
   int32_t                      statusSeq;
 } SDnodeMgmt;

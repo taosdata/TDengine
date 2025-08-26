@@ -27,6 +27,12 @@ void mmGetMnodeLoads(SMnodeMgmt *pMgmt, SMonMloadInfo *pInfo) {
   (void)mndGetLoad(pMgmt->pMnode, &pInfo->load);
 }
 
+void mmSetMnodeSyncTimeout(SMnodeMgmt *pMgmt) {
+  int32_t code = 0;
+  code = mndResetTimer(pMgmt->pMnode);
+  if (code != 0) dError("failed to dmSetMnodeSyncTimeout since %s", tstrerror(code));
+}
+
 int32_t mmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   int32_t          code = 0;
   const STraceId  *trace = &pMsg->info.traceId;

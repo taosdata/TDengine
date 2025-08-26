@@ -390,7 +390,11 @@ static int32_t mndSendArbHeartBeatReq(SDnodeObj *pDnode, char *arbToken, int64_t
   if (code != 0) {
     mError("arbgroup:0, dnodeId:%d, failed to send arb-hb request to dnode since 0x%x", pDnode->id, code);
   } else {
-    mTrace("arbgroup:0, dnodeId:%d, send arb-hb request to dnode", pDnode->id);
+    if (tsSyncLogHeartbeat) {
+      mInfo("arbgroup:0, dnodeId:%d, send arb-hb request to dnode", pDnode->id);
+    } else {
+      mTrace("arbgroup:0, dnodeId:%d, send arb-hb request to dnode", pDnode->id);
+    }
   }
   return code;
 }
@@ -540,7 +544,7 @@ static int32_t mndSendArbCheckSyncReq(SMnode *pMnode, int32_t vgId, char *arbTok
 
 static bool mndCheckArbMemberHbTimeout(SArbGroup *pArbGroup, int32_t index, int64_t nowMs) {
   SArbGroupMember *pArbMember = &pArbGroup->members[index];
-  return pArbMember->state.lastHbMs < (nowMs - tsArbSetAssignedTimeoutSec * 1000);
+  return pArbMember->state.lastHbMs < (nowMs - tsArbSetAssignedTimeout);
 }
 
 static void *mndBuildArbSetAssignedLeaderReq(int32_t *pContLen, int32_t vgId, char *arbToken, int64_t arbTerm,

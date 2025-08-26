@@ -80,7 +80,8 @@ int64_t syncOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
   pSyncNode->hbBaseLine = pSyncInfo->heartbeatMs;
   pSyncNode->heartbeatTimerMS = pSyncInfo->heartbeatMs;
   pSyncNode->msgcb = pSyncInfo->msgcb;
-  sInfo("vgId:%d, sync opened", pSyncInfo->vgId);
+  sInfo("vgId:%d, sync opened, electBaseLine:%d, hbBaseLine:%d", pSyncInfo->vgId, pSyncNode->electBaseLine,
+        pSyncNode->hbBaseLine);
   return pSyncNode->rid;
 }
 
@@ -650,6 +651,24 @@ int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader) {
   return ret;
 }
 
+int32_t syncResetTimer(int64_t rid) {
+  int32_t code = 0;
+  sInfo("syncResetTimer, rid:%" PRId64, rid);
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode == NULL) {
+    code = TSDB_CODE_SYN_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    sError("failed to acquire rid:%" PRId64 " of tsNodeReftId for pSyncNode", rid);
+    TAOS_RETURN(code);
+  }
+  pSyncNode->electBaseLine = tsElectInterval;
+  syncNodeResetElectTimer(pSyncNode);
+
+  sInfo("vgId:%d, syncResetTimer, rid:%" PRId64, pSyncNode->vgId, rid);
+  TAOS_CHECK_RETURN(syncNodeRestartHeartbeatTimer(pSyncNode));
+  return code;
+}
+
 SSyncState syncGetState(int64_t rid) {
   SSyncState state = {.state = TAOS_SYNC_STATE_ERROR};
 
@@ -1025,8 +1044,11 @@ static int32_t syncHbTimerInit(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer, SRa
   pSyncTimer->destId = destId;
   pSyncTimer->timeStamp = taosGetTimestampMs();
   atomic_store_64(&pSyncTimer->logicClock, 0);
+  sInfo("vgId:%d, HbTimer init, timerMs:%d for addr:0x%" PRIx64, pSyncNode->vgId, pSyncTimer->timerMS, destId.addr);
   return 0;
 }
+
+static void syncHBSetTimerMS(SSyncTimer* pSyncTimer, int32_t ms) { pSyncTimer->timerMS = ms; }
 
 static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
   int32_t code = 0;
@@ -1046,8 +1068,8 @@ static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
     pData->logicClock = pSyncTimer->logicClock;
     pData->execTime = tsNow + pSyncTimer->timerMS;
 
-    sTrace("vgId:%d, start hb timer, rid:%" PRId64 " addr:0x%" PRIx64 " at %d", pSyncNode->vgId, pData->rid,
-           pData->destId.addr, pSyncTimer->timerMS);
+    sInfo("vgId:%d, start hb timer, rid:%" PRId64 " addr:0x%" PRIx64 " at %d", pSyncNode->vgId, pData->rid,
+          pData->destId.addr, pSyncTimer->timerMS);
 
     bool stopped = taosTmrResetPriority(pSyncTimer->timerCb, pSyncTimer->timerMS, (void*)(pData->rid),
                                         syncEnv()->pTimerManager, &pSyncTimer->pTimer, 2);
@@ -1813,6 +1835,19 @@ int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode) {
   return ret;
 }
 
+int32_t syncNodeSetHeartbeatTimerMs(SSyncNode* pSyncNode, int32_t ms) {
+  int32_t code = 0;
+
+  for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
+    SSyncTimer* pSyncTimer = syncNodeGetHbTimer(pSyncNode, &(pSyncNode->peersId[i]));
+    if (pSyncTimer != NULL) {
+      syncHBSetTimerMS(pSyncTimer, ms);
+    }
+  }
+
+  return code;
+}
+
 int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode) {
   int32_t code = 0;
 
@@ -1833,15 +1868,17 @@ int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode) {
   return code;
 }
 
-#ifdef BUILD_NO_CALL
 int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode) {
-  // TODO check return value
   int32_t code = 0;
-  TAOS_CHECK_RETURN(syncNodeStopHeartbeatTimer(pSyncNode));
-  TAOS_CHECK_RETURN(syncNodeStartHeartbeatTimer(pSyncNode));
+  sInfo("vgId:%d, syncNodeRestartHeartbeatTimer, state=%d", pSyncNode->vgId, pSyncNode->state);
+  TAOS_CHECK_RETURN(syncNodeSetHeartbeatTimerMs(pSyncNode, tsHeartbeatInterval));
+  if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+    TAOS_CHECK_RETURN(syncNodeStopHeartbeatTimer(pSyncNode));
+    TAOS_CHECK_RETURN(syncNodeStartHeartbeatTimer(pSyncNode));
+  }
+
   return 0;
 }
-#endif
 
 int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pNode, SRpcMsg* pMsg) {
   SEpSet* epSet = NULL;

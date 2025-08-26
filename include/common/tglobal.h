@@ -130,11 +130,15 @@ extern int64_t tsLogBufferMemoryAllowed;  // maximum allowed log buffer size in 
 extern int64_t tsSyncApplyQueueSize;
 extern int32_t tsRoutineReportInterval;
 extern bool    tsSyncLogHeartbeat;
+extern int32_t tsSyncTimeout;
 
 // arbitrator
 extern int32_t tsArbHeartBeatIntervalSec;
 extern int32_t tsArbCheckSyncIntervalSec;
 extern int32_t tsArbSetAssignedTimeoutSec;
+extern int32_t tsArbHeartBeatInterval;
+extern int32_t tsArbCheckSyncInterval;
+extern int32_t tsArbSetAssignedTimeout;
 
 // vnode
 extern int64_t tsVndCommitMaxIntervalMs;

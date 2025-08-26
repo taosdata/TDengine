@@ -770,7 +770,7 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path, int32_t vnodeVersion) {
       .syncEqMsg = vnodeSyncEqMsg,
       .syncEqCtrlMsg = vnodeSyncEqCtrlMsg,
       .pingMs = 5000,
-      .electMs = 4000,
+      .electMs = tsElectInterval,
       .heartbeatMs = 700,
   };
 

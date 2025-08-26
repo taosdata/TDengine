@@ -492,7 +492,7 @@ int32_t mndInitSync(SMnode *pMnode) {
       .syncEqMsg = mndSyncEqMsg,
       .syncEqCtrlMsg = mndSyncEqCtrlMsg,
       .pingMs = 5000,
-      .electMs = 3000,
+      .electMs = tsElectInterval,
       .heartbeatMs = 500,
   };
 

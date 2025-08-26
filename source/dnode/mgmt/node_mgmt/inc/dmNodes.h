@@ -38,6 +38,7 @@ void vmGetVnodeLoads(void *pMgmt, SMonVloadInfo *pInfo, bool isReset);
 void vmGetVnodeLoadsLite(void *pMgmt, SMonVloadInfo *pInfo);
 void mmGetMnodeLoads(void *pMgmt, SMonMloadInfo *pInfo);
 void qmGetQnodeLoads(void *pMgmt, SQnodeLoad *pInfo);
+void mmSetMnodeSyncTimeout(void *pMgmt);
 
 void vmCleanExpriedSamples(void *pMgmt);
 

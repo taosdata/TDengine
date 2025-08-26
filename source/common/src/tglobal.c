@@ -113,7 +113,7 @@ int32_t tsNumOfCompactThreads = 2;
 int32_t tsNumOfRetentionThreads = 1;
 
 // sync raft
-int32_t tsElectInterval = 25 * 1000;
+int32_t tsElectInterval = 4000;
 int32_t tsHeartbeatInterval = 1000;
 int32_t tsHeartbeatTimeout = 20 * 1000;
 int32_t tsSnapReplMaxWaitN = 128;
@@ -121,6 +121,7 @@ int64_t tsLogBufferMemoryAllowed = 0;  // bytes
 int64_t tsSyncApplyQueueSize = 512;
 int32_t tsRoutineReportInterval = 300;
 bool    tsSyncLogHeartbeat = false;
+int32_t tsSyncTimeout = 0;
 
 // mnode
 int64_t tsMndSdbWriteDelta = 200;
@@ -133,6 +134,9 @@ bool    tsForceKillTrans = false;
 int32_t tsArbHeartBeatIntervalSec = 2;
 int32_t tsArbCheckSyncIntervalSec = 3;
 int32_t tsArbSetAssignedTimeoutSec = 14;
+int32_t tsArbHeartBeatInterval = 2000;
+int32_t tsArbCheckSyncInterval = 3000;
+int32_t tsArbSetAssignedTimeout = 14000;
 
 // dnode
 int64_t tsDndStart = 0;
@@ -931,9 +935,14 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncRoutineReportInterval", tsRoutineReportInterval, 5, 600, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "syncLogHeartbeat", tsSyncLogHeartbeat, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL));
 
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncTimeout", tsSyncTimeout, 0, 60 * 24 * 2 * 1000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL));
+
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "arbHeartBeatIntervalSec", tsArbHeartBeatIntervalSec, 1, 60 * 24 * 2, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "arbCheckSyncIntervalSec", tsArbCheckSyncIntervalSec, 1, 60 * 24 * 2, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "arbSetAssignedTimeoutSec", tsArbSetAssignedTimeoutSec, 1, 60 * 24 * 2, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "arbHeartBeatInterval", tsArbHeartBeatInterval, 100, 60 * 24 * 2 * 1000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "arbCheckSyncInterval", tsArbCheckSyncInterval, 100, 60 * 24 * 2 * 1000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "arbSetAssignedTimeout", tsArbSetAssignedTimeout, 100, 60 * 24 * 2 * 1000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "mndSdbWriteDelta", tsMndSdbWriteDelta, 20, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "mndLogRetention", tsMndLogRetention, 500, 10000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
@@ -1868,14 +1877,26 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "syncLogHeartbeat");
   tsSyncLogHeartbeat = pItem->bval;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "syncTimeout");
+  tsSyncTimeout = pItem->bval;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "arbHeartBeatIntervalSec");
-  tsArbHeartBeatIntervalSec = pItem->i32;
+  tsArbHeartBeatInterval = pItem->i32 * 1000;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "arbCheckSyncIntervalSec");
-  tsArbCheckSyncIntervalSec = pItem->i32;
+  tsArbCheckSyncInterval = pItem->i32 * 1000;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "arbSetAssignedTimeoutSec");
-  tsArbSetAssignedTimeoutSec = pItem->i32;
+  tsArbSetAssignedTimeout = pItem->i32 * 1000;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "arbHeartBeatInterval");
+  tsArbHeartBeatInterval = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "arbCheckSyncInterval");
+  tsArbCheckSyncInterval = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "arbSetAssignedTimeout");
+  tsArbSetAssignedTimeout = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "mndSdbWriteDelta");
   tsMndSdbWriteDelta = pItem->i64;
@@ -2736,10 +2757,12 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"syncLogBufferMemoryAllowed", &tsLogBufferMemoryAllowed},
                                          {"syncApplyQueueSize", &tsSyncApplyQueueSize},
                                          {"syncHeartbeatInterval", &tsHeartbeatInterval},
+                                         {"syncElectInterval", &tsElectInterval},
                                          {"syncHeartbeatTimeout", &tsHeartbeatTimeout},
                                          {"syncSnapReplMaxWaitN", &tsSnapReplMaxWaitN},
                                          {"syncRoutineReportInterval", &tsRoutineReportInterval},
                                          {"syncLogHeartbeat", &tsSyncLogHeartbeat},
+                                         {"syncTimeout", &tsSyncTimeout},
                                          {"walFsyncDataSizeLimit", &tsWalFsyncDataSizeLimit},
 
                                          {"numOfCores", &tsNumOfCores},
@@ -2788,9 +2811,12 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"arbHeartBeatIntervalSec", &tsArbHeartBeatIntervalSec},
                                          {"arbCheckSyncIntervalSec", &tsArbCheckSyncIntervalSec},
                                          {"arbSetAssignedTimeoutSec", &tsArbSetAssignedTimeoutSec},
+                                         {"arbHeartBeatInterval", &tsArbHeartBeatInterval},
+                                         {"arbCheckSyncInterval", &tsArbCheckSyncInterval},
+                                         {"arbSetAssignedTimeout", &tsArbSetAssignedTimeout},
                                          {"queryNoFetchTimeoutSec", &tsQueryNoFetchTimeoutSec},
                                          {"enableStrongPassword", &tsEnableStrongPassword},
-                                        {"forceKillTrans", &tsForceKillTrans}};
+                                         {"forceKillTrans", &tsForceKillTrans}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);
