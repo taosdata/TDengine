@@ -120,7 +120,7 @@ TDengine TSDB 提供了丰富的应用程序开发接口，为了便于用户快
     - 指定某个特定版本安装
 
             ```
-            pip3 install taospy==2.8.4
+            pip3 install taospy==2.8.5
             ```
 
     - 从 GitHub 安装
