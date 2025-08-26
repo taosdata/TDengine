@@ -9,9 +9,7 @@ class TestFuncLeastsquares:
     def test_func_leastsquares(self):
         """Agg-basic: Leastsquares
 
-        1. 创建包含一个 Int 普通数据列的超级表
-        2. 创建子表并写入数据
-        3. 对子表执行 Leastsquares 查询，包括时间窗口、时间戳列筛选
+        Test the LeastSquares function, including time windows, filtering on ordinary data columns, filtering on tag columns.
 
         Catalog:
             - Function:Aggregate

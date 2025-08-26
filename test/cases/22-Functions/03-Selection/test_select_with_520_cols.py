@@ -12,10 +12,10 @@
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool
 
-class TestFuncParamnum:
+class TestSelect520Paras:
 
-    def test_func_paramnum(self):
-        """test function parameters numbers
+    def test_select_520_cols(self):
+        """Select: with 520 columns
 
         test last_row, first, last function support 520 parameters
 

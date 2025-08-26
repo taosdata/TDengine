@@ -1,15 +1,16 @@
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+import time
+from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
 
 
-class TestFuncTopBottom:
+class TestSelectTopBottom:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_func_top_bottom(self):
-        """Top Bottom
+    def test_select_top_bottom(self):
+        """Select: Top Bottom
 
-        1. -
+        Test the Top and Bottom function, including time windows, filtering on ordinary data columns, filtering on tag columns, GROUP BY, and PARTITION BY.
 
         Catalog:
             - Function:Selection
@@ -21,10 +22,20 @@ class TestFuncTopBottom:
         Jira: None
 
         History:
-            - 2025-5-8 Simon Guan Migrated from tsim/parser/topbot.sim
+            - 2025-8-26 Simon Guan Migrated from tsim/parser/topbot.sim
+            - 2025-8-26 Simon Guan Migrated from tsim/compute/bottom.sim
+            - 2025-8-26 Simon Guan Migrated from tsim/compute/top.sim
 
         """
 
+        self.TopBot()
+        tdStream.dropAllStreamsAndDbs()
+        self.Bottom()
+        tdStream.dropAllStreamsAndDbs()
+        self.Top()
+        tdStream.dropAllStreamsAndDbs()
+
+    def TopBot(self):
         dbPrefix = "tb_db"
         tbPrefix = "tb_tb"
         stbPrefix = "tb_stb"
@@ -87,29 +98,20 @@ class TestFuncTopBottom:
 
         tdSql.query(f"select _wstart, bottom(c3, 5) from tb_tb1 interval(1y);")
         tdSql.checkRows(5)
-
         tdSql.checkData(0, 1, 0.00000)
-
         tdSql.checkData(1, 1, 0.00000)
-
         tdSql.checkData(2, 1, 0.00000)
-
         tdSql.checkData(3, 1, 0.00000)
 
         tdSql.query(f"select _wstart, top(c4, 5) from tb_tb1 interval(1y);")
         tdSql.checkRows(5)
-
         tdSql.checkData(0, 1, 9.000000000)
-
         tdSql.checkData(1, 1, 9.000000000)
-
         tdSql.checkData(2, 1, 9.000000000)
-
         tdSql.checkData(3, 1, 9.000000000)
 
         tdSql.query(f"select _wstart, top(c3, 5) from tb_tb1 interval(40h)")
         tdSql.checkRows(25)
-
         tdSql.checkData(0, 1, 9.00000)
 
         tdSql.query(f"select last(*) from tb_tb9")
@@ -157,11 +159,8 @@ class TestFuncTopBottom:
         )
         tdSql.query(f"select ts, bottom(col5, 10) from test order by col5;")
         tdSql.checkRows(10)
-
         tdSql.checkData(0, 1, 0.10000)
-
         tdSql.checkData(1, 1, 1.10000)
-
         tdSql.checkData(2, 1, 2.10000)
 
         tdLog.info(f"=====================td-1302 case")
@@ -238,9 +237,7 @@ class TestFuncTopBottom:
         tdLog.info(f"======================>td-1454")
         tdSql.query(f"select count(*)/10, count(*)+99 from t")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 509.600000000)
-
         tdSql.checkData(0, 1, 5195.000000000)
 
         tdLog.info(f"=======================>td-1596")
@@ -257,21 +254,13 @@ class TestFuncTopBottom:
             f"select _wstart, count(*), first(ts), last(ts) from t2 interval(1d);"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, "2020-01-02 00:00:00.000")
-
         tdSql.checkData(1, 0, "2020-02-02 00:00:00.000")
-
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkData(1, 1, 1)
-
         tdSql.checkData(0, 2, "2020-01-02 01:01:01.000")
-
         tdSql.checkData(1, 2, "2020-02-02 01:01:01.000")
-
         tdSql.checkData(0, 3, "2020-01-02 01:01:01.000")
-
         tdSql.checkData(1, 3, "2020-02-02 01:01:01.000")
 
         tdLog.info(f"===============================>td-3361")
@@ -288,22 +277,18 @@ class TestFuncTopBottom:
         tdSql.execute(f"insert into ttm2 values('2021-1-1 1:1:3', false)")
         tdSql.query(f"select * from ttm2 where k is not null")
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, "2021-01-01 01:01:01.000")
 
         tdSql.query(f"select * from ttm2 where k is null")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, "2021-01-01 01:01:02.000")
 
         tdSql.query(f"select * from ttm2 where k=true")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, "2021-01-01 01:01:01.000")
 
         tdSql.query(f"select * from ttm2 where k=false")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, "2021-01-01 01:01:03.000")
 
         tdSql.query(f"select * from ttm2 where k<>false")
@@ -313,3 +298,146 @@ class TestFuncTopBottom:
         tdSql.query(f"select * from ttm2 where k<>null")
         tdSql.error(f"select * from ttm2 where k like null")
         tdSql.query(f"select * from ttm2 where k<null")
+
+    def Bottom(self):
+        dbPrefix = "m_bo_db"
+        tbPrefix = "m_bo_tb"
+        mtPrefix = "m_bo_mt"
+        tbNum = 10
+        rowNum = 20
+        totalNum = 200
+
+        tdLog.info(f"=============== step1")
+        i = 0
+        db = dbPrefix + str(i)
+        mt = mtPrefix + str(i)
+
+        tdSql.prepare(db, drop=True)
+        tdSql.execute(f"use {db}")
+        tdSql.execute(f"create table {mt} (ts timestamp, tbcol int) TAGS(tgcol int)")
+
+        i = 0
+        while i < tbNum:
+            tb = tbPrefix + str(i)
+            tdSql.execute(f"create table {tb} using {mt} tags( {i} )")
+
+            x = 0
+            while x < rowNum:
+                cc = x * 60000
+                ms = 1601481600000 + cc
+                tdSql.execute(f"insert into {tb} values ({ms} , {x} )")
+                x = x + 1
+            i = i + 1
+
+        tdLog.info(f"=============== step2")
+        i = 1
+        tb = tbPrefix + str(i)
+
+        tdSql.query(f"select bottom(tbcol, 1) from {tb}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 0)
+
+        tdLog.info(f"=============== step3")
+        cc = 4 * 60000
+        ms = 1601481600000 + cc
+        tdSql.query(f"select bottom(tbcol, 1) from {tb} where ts > {ms}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 5)
+
+        tdLog.info(f"=============== step4")
+        tdSql.query(f"select bottom(tbcol, 1) as b from {tb}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 0)
+
+        tdLog.info(f"=============== step5")
+        tdSql.query(f"select bottom(tbcol, 2) as b from {tb}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}  {tdSql.getData(1,0)}")
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(1, 0, 0)
+
+        tdLog.info(f"=============== step6")
+        cc = 4 * 60000
+        ms = 1601481600000 + cc
+        tdSql.query(f"select bottom(tbcol, 2) as b from {tb} where ts > {ms}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}  {tdSql.getData(1,0)}")
+        tdSql.checkData(0, 0, 6)
+        tdSql.checkData(1, 0, 5)
+
+        tdSql.error(f"select bottom(tbcol, 122) as b from {tb}")
+
+        tdLog.info(f"=============== clear")
+        tdSql.execute(f"drop database {db}")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(2)
+
+    def Top(self):
+        dbPrefix = "m_to_db"
+        tbPrefix = "m_to_tb"
+        mtPrefix = "m_to_mt"
+        tbNum = 10
+        rowNum = 20
+        totalNum = 200
+
+        tdLog.info(f"=============== step1")
+        i = 0
+        db = dbPrefix + str(i)
+        mt = mtPrefix + str(i)
+
+        tdSql.prepare(db, drop=True)
+        tdSql.execute(f"use {db}")
+        tdSql.execute(f"create table {mt} (ts timestamp, tbcol int) TAGS(tgcol int)")
+
+        i = 0
+        while i < tbNum:
+            tb = tbPrefix + str(i)
+            tdSql.execute(f"create table {tb} using {mt} tags( {i} )")
+            x = 0
+            while x < rowNum:
+                cc = x * 60000
+                ms = 1601481600000 + cc
+                tdSql.execute(f"insert into {tb} values ({ms} , {x} )")
+                x = x + 1
+            i = i + 1
+
+        tdLog.info(f"=============== step2")
+        i = 1
+        tb = tbPrefix + str(i)
+
+        tdSql.query(f"select top(tbcol, 1) from {tb}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 19)
+
+        tdLog.info(f"=============== step3")
+        cc = 4 * 60000
+        ms = 1601481600000 + cc
+
+        tdSql.query(f"select top(tbcol, 1) from {tb} where ts <= {ms}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 4)
+
+        tdLog.info(f"=============== step4")
+        tdSql.query(f"select top(tbcol, 1) as b from {tb}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 19)
+
+        tdLog.info(f"=============== step5")
+        tdSql.query(f"select top(tbcol, 2) as b from {tb}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}  {tdSql.getData(1,0)}")
+        tdSql.checkData(0, 0, 18)
+        tdSql.checkData(1, 0, 19)
+
+        tdLog.info(f"=============== step6")
+        cc = 4 * 60000
+        ms = 1601481600000 + cc
+
+        tdSql.query(f"select top(tbcol, 2) as b from {tb} where ts <= {ms}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}  {tdSql.getData(1,0)}")
+        tdSql.checkData(0, 0, 3)
+        tdSql.checkData(1, 0, 4)
+
+        tdSql.error(f"select top(tbcol, 122) as b from {tb}")
+
+        tdLog.info(f"=============== clear")
+        tdSql.execute(f"drop database {db}")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(2)

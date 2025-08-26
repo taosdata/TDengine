@@ -7,6 +7,12 @@ on:
       - "3.0"
     paths:
       - "tools/keeper/**"
+  push:
+    branches:
+      - "main"
+      - "3.0"
+    paths:
+      - "tools/keeper/**"
 
 jobs:
   build:

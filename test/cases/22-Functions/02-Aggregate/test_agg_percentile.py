@@ -265,7 +265,10 @@ class TestPercentile:
     def test_percentile(self):
         """Agg-stat: Percentile
 
-        test percentile function with SPREAD(),LEASTSQUARES(),COUNT(),HYPERLOGLOG(),AVG(), HYPERLOGLOG(),AVG(),SPREAD(),STDDEV(),SUM(),COUNT(),APERCENTILE(),LEASTSQUARES(), STDDEV(), COUNT(),HYPERLOGLOG(),HYPERLOGLOG(),SPREAD()
+        test Percentile function
+
+        Catalog:
+            - Function:Aggregate
 
         Since: v3.3.0.0
 
