@@ -5,7 +5,7 @@ import threading
 
 # Create a SQLAlchemy engine with WebSocket connection
 # If using native connection, use `taos` instead of `taosws`
-engine = create_engine(url="taosws://root:taosdata@localhost:6041?timezone=Asia/Shanghai", pool_size=10, max_overflow=20)
+engine = create_engine(url="taosws://root:taosdata@?hosts=localhost:6041,127.0.0.1:6041&timezone=Asia/Shanghai", pool_size=10, max_overflow=20)
 
 def init_db():
     try:

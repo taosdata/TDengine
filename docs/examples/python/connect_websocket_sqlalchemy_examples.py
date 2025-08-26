@@ -16,7 +16,7 @@ from sqlalchemy import text
 def create_connection_with_sqlalchemy():
     
 
-    engine = create_engine(url="taosws://root:taosdata@?hosts=localhost:6041")
+    engine = create_engine(url="taosws://root:taosdata@?hosts=localhost:6041,127.0.0.1:6041&timezone=Asia/Shanghai")
     conn = engine.connect()
     return conn
 # ANCHOR_END: connect_sqlalchemy
