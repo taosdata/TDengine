@@ -1545,6 +1545,8 @@ int32_t processOrgTbVg(SVtbScanDynCtrlInfo* pVtbScan, SExecTaskInfo* pTaskInfo) 
       }
     }
     taosWUnLockLatch(&pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.lock);
+
+    atomic_store_8(pTaskInfo->pStreamRuntimeInfo->vtableDeployGot, 1);
     taosHashCleanup(pVtbScan->lastOrgTbVg);
     pVtbScan->lastOrgTbVg = pVtbScan->curOrgTbVg;
     pVtbScan->curOrgTbVg = NULL;
