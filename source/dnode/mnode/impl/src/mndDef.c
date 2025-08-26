@@ -485,7 +485,7 @@ int32_t tCloneSubscribeObj(const SMqSubscribeObj *pSub, SMqSubscribeObj **ppSub)
     goto END;
   }
   pSubNew->offsetRows = taosArrayDup(pSub->offsetRows, NULL);
-  if (pSubNew->offsetRows == NULL) {
+  if (pSub->offsetRows != NULL && pSubNew->offsetRows == NULL) {
     code = terrno;
     goto END;
   }
@@ -578,7 +578,7 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
   if (pSub->unassignedVgs == NULL) {
     return NULL;
   }
-  for (int32_t i = 0; i < sz; i++) {
+  for (int32_t i = 0; i < len; i++) {
     SMqVgEp* vgEp = taosArrayReserve(pSub->unassignedVgs, 1);
     if (vgEp != NULL)
       buf = tDecodeSMqVgEp(buf, vgEp, sver);
