@@ -156,6 +156,16 @@ export function validateTask(data: Record<string, any>) {
     url: '/ds/in/validate',
     method: 'post',
     data
+  }).then(data => {
+    if (data.code === 0) {
+      return data;
+    }
+    return {
+      valid: false,
+      support: false,
+      data_source: 'unknown',
+      message: data.desc
+    }
   });
 }
 

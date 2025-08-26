@@ -43,6 +43,7 @@ import {
 } from '../model/util';
 import { getDataInProps } from '../model/useDataIn';
 import { isEn } from 'config';
+import axios from 'axios';
 const dataInProps = getDataInProps();
 
 const sourceParent = inject<ComponentInternalInstance>('sourceParent') as any;
@@ -135,13 +136,15 @@ async function getValidateResult(data: Recordable, agent: number | string) {
 
     const result = await dataInProps.dataSource.api.connectivityCheckApi(parameter);
     checkResult.value = result;
-    // opc 需要获取 namespace
 
     connectivityCheckResult.value = result;
     checkLoading.value = false; // 检测的 loading 效果
   } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const message = error.message;
+      checkResult.value.message = message;
+    }
     checkLoading.value = false;
-    console.log('err');
   }
 }
 
