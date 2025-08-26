@@ -18,6 +18,7 @@
 #include "osMemPool.h"
 #include "streamInt.h"
 #include "tdatablock.h"
+#include "tcurl.h"
 #include "tstrbuild.h"
 #include "decimal.h"
 
@@ -737,55 +738,6 @@ _end:
 }
 
 #ifndef WINDOWS
-static int32_t streamNotifyConnect(const char* url, CURL** pConn) {
-  int32_t  code = TSDB_CODE_SUCCESS;
-  int32_t  lino = 0;
-  CURL*    conn = NULL;
-  CURLcode res = CURLE_OK;
-
-  conn = curl_easy_init();
-  TSDB_CHECK_NULL(conn, code, lino, _end, TSDB_CODE_FAILED);
-  res = curl_easy_setopt(conn, CURLOPT_URL, url);
-  TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
-  res = curl_easy_setopt(conn, CURLOPT_SSL_VERIFYPEER, 0L);
-  TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
-  res = curl_easy_setopt(conn, CURLOPT_SSL_VERIFYHOST, 0L);
-  TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
-  res = curl_easy_setopt(conn, CURLOPT_TIMEOUT, 3L);
-  TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
-  res = curl_easy_setopt(conn, CURLOPT_CONNECT_ONLY, 2L);
-  TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
-  res = curl_easy_perform(conn);
-  TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
-
-  *pConn = conn;
-  conn = NULL;
-
-_end:
-  if (conn != NULL) {
-    curl_easy_cleanup(conn);
-  }
-  if (code != TSDB_CODE_SUCCESS) {
-    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
-static void streamNotifyClose(CURL** pConn, const char* url) {
-  if (pConn == NULL || *pConn == NULL) {
-    return;
-  }
-
-  // status code 1000 means normal closure
-  size_t   len = 0;
-  uint16_t status = htons(1000);
-  CURLcode res = curl_ws_send(*pConn, &status, sizeof(status), &len, 0, CURLWS_CLOSE);
-  if (res != CURLE_OK) {
-    stWarn("failed to send ws-close msg to %s for %d", url ? url : "", res);
-  }
-  curl_easy_cleanup(*pConn);
-  *pConn = NULL;
-}
 
 #define STREAM_EVENT_NOTIFY_RETRY_MS 50  // 50 ms
 
@@ -797,7 +749,7 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
   SStringBuilder sb = {0};
   const char*    msgTail = "]}]}";
   char*          msg = NULL;
-  CURL*          conn = NULL;
+  SCURL*         conn = NULL;
   bool           shouldNotify = false;
 
   // Remove prefix 1. 
@@ -845,7 +797,7 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
 
     // todo(kjq): check if task should stop
 
-    code = streamNotifyConnect(*pUrl, &conn);
+    code = tcurlGetConnection(*pUrl, &conn);
     if (code != TSDB_CODE_SUCCESS) {
       ST_TASK_ELOG("failed to get stream notify handle of %s", *pUrl);
       if (errorHandle > 0) {
@@ -866,9 +818,9 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
     while (sentLen < totalLen) {
       size_t nbytes = 0;
       if (sentLen == 0) {
-        res = curl_ws_send(conn, msg, totalLen, &nbytes, totalLen, CURLWS_TEXT | CURLWS_OFFSET);
+        res = tcurlSend(conn, msg, totalLen, &nbytes, totalLen, CURLWS_TEXT | CURLWS_OFFSET);
       } else {
-        res = curl_ws_send(conn, msg + sentLen, totalLen - sentLen, &nbytes, 0, CURLWS_TEXT | CURLWS_OFFSET);
+        res = tcurlSend(conn, msg + sentLen, totalLen - sentLen, &nbytes, 0, CURLWS_TEXT | CURLWS_OFFSET);
       }
       if (res != CURLE_OK) {
         break;
@@ -886,13 +838,10 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
         code = TSDB_CODE_SUCCESS;
       }
     }
-    streamNotifyClose(&conn, *pUrl);
   }
 
 _end:
-  if (conn != NULL) {
-    streamNotifyClose(&conn, NULL);
-  }
+
   taosStringBuilderDestroy(&sb);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
