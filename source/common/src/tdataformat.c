@@ -1672,7 +1672,7 @@ static int32_t tRowRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlo
 
   SRowIter **aIter = taosMemoryCalloc(nRow, sizeof(SRowIter *));
   if (aIter == NULL) {
-    TAOS_CHECK_RETURN(code = terrno);
+    TAOS_CHECK_GOTO(terrno, &lino, _error);
   }
 
   for (int32_t i = 0; i < nRow; i++) {
@@ -1680,6 +1680,7 @@ static int32_t tRowRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlo
     code = tRowIterOpen(pRowT, pTSchema, &aIter[i]);
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
+
   for (int32_t i = 0; i < nRow; i++) {
     SColVal *pColVal = tRowIterNext(aIter[i]);
     do {
@@ -1701,6 +1702,7 @@ static int32_t tRowRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlo
   for (int32_t i = 0; i < taosArrayGetSize(aColVal); i++) {
     uint64_t seq = 0;
     SColVal *pVal = taosArrayGet(aColVal, i);
+
     code = tBlobSetTransferTo(pBlob, pTempBlob, pVal);
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
@@ -1727,8 +1729,8 @@ _error:
 
 static int32_t tRowMergeAndRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlob) {
   int32_t code = 0;
+  int32_t lino = 0;
 
-  int32_t   lino = 0;
   SBlobSet *pTempBlobSet = NULL;
   int32_t   size = taosArrayGetSize(aRowP);
   if (size <= 1) {
@@ -1743,6 +1745,8 @@ static int32_t tRowMergeAndRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobS
   }
 
   code = tBlobSetCreate(pBlob->cap, pBlob->type, &pTempBlobSet);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
   int32_t iStart = 0;
   while (iStart < aRowP->size) {
     SRowKey key1;
@@ -1775,8 +1779,12 @@ static int32_t tRowMergeAndRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobS
     // the array is also changing, so the iStart just ++ instead of iEnd
     iStart++;
   }
+
 _error:
-  tBlobSetSwap(pBlob, pTempBlobSet);
+  if (pBlob && pTempBlobSet) {
+    tBlobSetSwap(pBlob, pTempBlobSet);
+  }
+
   tBlobSetDestroy(pTempBlobSet);
   return code;
 }
