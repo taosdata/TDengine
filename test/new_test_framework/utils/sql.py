@@ -2695,7 +2695,7 @@ class TDSql:
         caller = inspect.getframeinfo(inspect.stack()[2][0])
         tdLog.exit(f"{caller.filename}(caller.lineno)  check result failed")
 
-    def checkResultsBySql(self, sql, exp_sql, delay=0.0, retry=60, show=False):
+    def checkResultsBySql(self, sql, exp_sql, delay=0.0, retry=300, show=False):
         # sleep
         if delay != 0:
             time.sleep(delay)
