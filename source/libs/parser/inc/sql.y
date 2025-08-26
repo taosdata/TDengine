@@ -732,8 +732,9 @@ db_kind_opt(A) ::= SYSTEM.                                                      
 cmd ::= CREATE RSMA not_exists_opt(B) rsma_name(C)
   ON full_table_name(E) rsma_func_list(D)
   INTERVAL NK_LP signed_duration_list(F) NK_RP.                                   { pCxt->pRootNode = createCreateRsmaStmt(pCxt, B, &C, D, E, F); }
-/*
 cmd ::= DROP RSMA exists_opt(B) full_rsma_name(C).                                { pCxt->pRootNode = createDropRsmaStmt(pCxt, B, C); }
+cmd ::= SHOW CREATE RSMA full_table_name(A).                                      { pCxt->pRootNode = createShowCreateRsmaStmt(pCxt, QUERY_NODE_SHOW_CREATE_RSMA_STMT, A); }
+/*
 cmd ::= START RSMA exists_opt(B) full_rsma_name(C).                               { pCxt->pRootNode = createStartRsmaStmt(pCxt, B, C); }
 cmd ::= STOP RSMA exists_opt(B) full_rsma_name(C).                                { pCxt->pRootNode = createStopRsmaStmt(pCxt, B, C); }
 */
@@ -742,10 +743,10 @@ cmd ::= SHOW db_name_cond_opt(B) RSMA_TASKS.                                    
 /*
 cmd ::= KILL RSMA_TASKS IN NK_LP integer_list(B) NK_RP.                           { pCxt->pRootNode = createKillRsmaTasksStmt(pCxt, B); }
 cmd ::= RECALC RSMA exists_opt(B) rsma_name(C) recalc_extension(D) where_clause_opt. { pCxt->pRootNode = createRecalcRsmaStmt(pCxt, B, &C, D); }
-
+*/
 full_rsma_name(A) ::= rsma_name(B).                                               { A = createRealTableNode(pCxt, NULL, &B, NULL); }
 full_rsma_name(A) ::= db_name(B) NK_DOT rsma_name(C).                             { A = createRealTableNode(pCxt, &B, &C, NULL); }
-*/
+
 
 %type rsma_func_list                                                              { SNodeList* }
 %destructor rsma_func_list                                                        { }

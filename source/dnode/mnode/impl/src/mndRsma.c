@@ -44,7 +44,7 @@ static void    mndCancelRetrieveRsma(SMnode *pMnode, void *pIter);
 
 int32_t mndInitRsma(SMnode *pMnode) {
   SSdbTable table = {
-      .sdbType = SDB_SMA,
+      .sdbType = SDB_RSMA,
       .keyType = SDB_KEY_BINARY,
       .encodeFp = (SdbEncodeFp)mndRsmaActionEncode,
       .decodeFp = (SdbDecodeFp)mndRsmaActionDecode,

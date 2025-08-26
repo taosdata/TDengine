@@ -428,6 +428,7 @@ typedef enum ENodeType {
   QUERY_NODE_DROP_BNODE_STMT,
   QUERY_NODE_CREATE_RSMA_STMT,
   QUERY_NODE_DROP_RSMA_STMT,
+  QUERY_NODE_SHOW_CREATE_RSMA_STMT,
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'

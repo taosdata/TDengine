@@ -799,6 +799,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
       code = makeNode(type, sizeof(SShowCreateViewStmt), &pNode);
       break;
+    case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
+      code = makeNode(type, sizeof(SShowCreateRsmaStmt), &pNode);
+      break;
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       code = makeNode(type, sizeof(SShowTableDistributedStmt), &pNode);
       break;
