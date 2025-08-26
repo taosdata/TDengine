@@ -15,7 +15,10 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
+#include <cstring> 
+#include <cctype>
 #include "shellAuto.h"
+#include "shellInt.h"
 
 TEST(fieldOptionsArea, autoTabTest) {
   printf("hello world  SHELL tab test\n");
@@ -151,6 +154,27 @@ TEST(shellCountPrefixOnes, checkUtf8) {
   assert(shellCountPrefixOnes(0xF8) == 5);   // 11111000 → 5 leading 1s → Return 5
   assert(shellCountPrefixOnes(0xFF) == 8);   // 11111111 → 8个 leading 1s → Return 8
 }
+
+TEST(shellUtil, trimStr) {
+    struct Case { const char* in; const char* expect; } cases[] = {
+        {"3.0.8.0 trial ", "3.0.8.0"},    // 去除 "trial" 和空格
+        {"3.0.8.0 trial",  "3.0.8.0"},     // 去除 "trial"
+        {"3.0.8.0   ",      "3.0.8.0"},    // 去除空格
+        {"3.0.8.0",         "3.0.8.0"},    // 无需处理
+        {"trial",          ""},            // 完全匹配，去除后为空
+        {"trial ",         ""},            // "trial" 加空格
+        {" trial",         ""},            // 空格加"trial"
+        {"3.0.8.0,trial",  "3.0.8.0,"},     // 去除逗号和"trial"
+    };
+
+    for (const auto& c : cases) {
+        char buf[64] = {0};
+        strncpy(buf, c.in, sizeof(buf) - 1);
+        trimStr(buf, "trial");
+        EXPECT_STREQ(c.expect, buf) << "input: '" << c.in << "'";
+    }
+}
+
 
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
