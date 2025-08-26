@@ -978,6 +978,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_slimit.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_slimit.py -Q 4
 ,,n,.,pytest cases/uncatalog/system-test/2-query/test_ts_5761.py
+,,n,.,pytest cases/uncatalog/system-test/2-query/test_ts_7058.py
 ,,n,.,pytest cases/uncatalog/system-test/2-query/test_ts_5761_scalemode.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_5712.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_4233.py
