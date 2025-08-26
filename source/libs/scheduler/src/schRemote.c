@@ -476,7 +476,6 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, uint64_t seriesId, 
 #endif
 
   pTask->redirectCtx.inRedirect = false;
-
   SCH_RET(schProcessResponseMsg(pJob, pTask, pMsg, rspCode));
 
 _return:

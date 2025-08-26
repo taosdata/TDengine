@@ -358,6 +358,7 @@ int32_t schRescheduleTask(SSchJob *pJob, SSchTask *pTask) {
 
 int32_t schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSet, int32_t rspCode) {
   SSchRedirectCtx *pCtx = &pTask->redirectCtx;
+
   if (!pCtx->inRedirect) {
     pCtx->inRedirect = true;
     pCtx->periodMs = tsRedirectPeriod;
@@ -385,6 +386,8 @@ int32_t schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSet, 
   if (SCH_IS_DATA_BIND_TASK(pTask) && pEpSet) {
     pCtx->roundTotal = pEpSet->numOfEps;
   }
+
+  SCH_TASK_DLOG("job ctx roundTotal:%d, roundTimes:%d, totalTimes:%d", pCtx->roundTotal, pCtx->roundTimes, pCtx->totalTimes);
 
   if (pCtx->roundTimes >= pCtx->roundTotal) {
     int64_t nowTs = taosGetTimestampMs();
@@ -432,6 +435,7 @@ void schResetTaskForRetry(SSchJob *pJob, SSchTask *pTask) {
   (void)schRemoveTaskFromExecList(pJob, pTask);  // ignore error
   schDeregisterTaskHb(pJob, pTask);
   taosMemoryFreeClear(pTask->msg);
+
   pTask->msgLen = 0;
   pTask->lastMsgType = 0;
   pTask->childReady = 0;
