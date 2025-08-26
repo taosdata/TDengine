@@ -237,13 +237,13 @@
 
 # 22-Functions
 ## 01-Scalar
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_scalar_cast.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_scalar_all.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_scalar_cast.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_scalar_math.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_scalar_string.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_scalar_time.py
 ## 02-Aggregate
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_apercentile.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_all.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_apercentile.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_avg.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_count.py
@@ -254,7 +254,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_stddev.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_sum.py
 ## 03-Selection
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_first_last.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_all.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_first_last.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_last_row.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_max_min.py
