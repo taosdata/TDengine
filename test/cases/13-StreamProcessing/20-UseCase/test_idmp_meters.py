@@ -53,7 +53,7 @@ class Test_IDMP_Meters:
         self.writeTriggerData()
 
         # check errors
-        #self.checkErrors()
+        self.checkErrors()
 
         # verify results
         self.verifyResults()
@@ -170,6 +170,7 @@ class Test_IDMP_Meters:
             # stream6 count
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream6`      COUNT_WINDOW(5) FROM `tdasset`.`vt_em-6` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream6` AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压` FROM tdasset.`vt_em-6` WHERE ts >= _twstart AND ts <=_twend",
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream6_sub1` COUNT_WINDOW(5) FROM `tdasset`.`vt_em-6`                                 NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream6_sub1` AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压` FROM tdasset.`vt_em-6` WHERE ts >= _twstart AND ts <=_twend",
+            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream6_sub2` COUNT_WINDOW(5,5,`电流`) FROM `tdasset`.`vt_em-6`                         NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream6_sub2` AS SELECT _twstart AS ts, COUNT(*) AS cnt, _twrownum as wrownum, COUNT(`电流`) as trigcnt, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压`, SUM(`功率`) AS `功率和` FROM %%trows",
 
             # stream7 state
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream7`      STATE_WINDOW(`电压`) TRUE_FOR(60s) FROM `tdasset`.`vt_em-7` STREAM_OPTIONS(IGNORE_DISORDER)                                    NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream7`      AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-7` WHERE ts >= _twstart AND ts <=_twend",
@@ -219,11 +220,13 @@ class Test_IDMP_Meters:
 
         sqls = [
             # stream11 sliding window
+            "CREATE STREAM IF NOT EXISTS `tdasset`.`err_stream6_sub1` COUNT_WINDOW(5, 5,`电流`, `地址`) FROM `tdasset`.`vt_em-6` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream6` AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压` FROM tdasset.`vt_em-6` WHERE ts >= _twstart AND ts <=_twend",
+            "CREATE STREAM IF NOT EXISTS `tdasset`.`err_stream6_sub2` COUNT_WINDOW(5,5,`电流`, tbname)  FROM `tdasset`.`vt_em-6` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream6` AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压` FROM tdasset.`vt_em-6` WHERE ts >= _twstart AND ts <=_twend",
             # ***** bug TD-37529 *****
             # "CREATE STREAM IF NOT EXISTS `tdasset`.`err_stream11_sub2` INTERVAL(10s, 1s) SLIDING(4s, 1s) FROM `tdasset`.`vt_em-11`  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream11_sub2` AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
         ]
 
-        tdSql.error(sqls)
+        tdSql.errors(sqls)
         tdLog.info(f"check {len(sqls)} errors sql successfully.")
 
 
@@ -577,7 +580,33 @@ class Test_IDMP_Meters:
         orderVals = [400]
         ts = tdSql.insertOrderVal(table, ts, step, count, cols, orderVals)
 
-        # write window5 1 rows to tigger 
+        # write current
+        cols = "ts,current,voltage"
+
+        # blank 10
+        ts += 10 * step
+
+        # write 
+        count = 2
+        fixedVals = "10, 10"
+        ts = tdSql.insertFixedVal(table, ts, step, count, cols, fixedVals)
+
+        count = 2
+        fixedVals = "null, 11"
+        ts = tdSql.insertFixedVal(table, ts, step, count, cols, fixedVals)
+
+        count = 2
+        fixedVals = "20, 20"
+        ts = tdSql.insertFixedVal(table, ts, step, count, cols, fixedVals)
+
+        count = 2
+        fixedVals = "null, 21"
+        ts = tdSql.insertFixedVal(table, ts, step, count, cols, fixedVals)
+
+        count = 12
+        fixedVals = "30, 30"
+        ts = tdSql.insertFixedVal(table, ts, step, count, cols, fixedVals)
+
 
     #
     #  again stream6 trigger
