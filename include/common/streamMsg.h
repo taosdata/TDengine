@@ -308,6 +308,7 @@ typedef enum SStreamMsgType {
   STREAM_MSG_ORIGTBL_READER_INFO,
   STREAM_MSG_UPDATE_RUNNER,
   STREAM_MSG_USER_RECALC,
+  STREAM_MSG_RUNNER_ORIGTBL_READER,
 } SStreamMsgType;
 
 typedef struct SStreamMsg {
@@ -333,6 +334,7 @@ typedef struct SStreamUndeployTaskMsg {
 int32_t tEncodeSStreamUndeployTaskMsg(SEncoder* pEncoder, const SStreamUndeployTaskMsg* pMsg);
 int32_t tDecodeSStreamUndeployTaskMsg(SDecoder* pDecoder, SStreamUndeployTaskMsg* pMsg);
 
+void tFreeSStreamMgmtRsp(void* param);
 
 typedef enum {
   STREAM_STATUS_UNDEPLOYED = 0,
@@ -357,6 +359,7 @@ static const char* gStreamTaskTypeStr[] = {"Reader", "Trigger", "Runner"};
 
 typedef enum SStreamMgmtReqType {
   STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER = 0,
+  STREAM_MGMT_REQ_RUNNER_ORIGTBL_READER
 } SStreamMgmtReqType;
 
 typedef struct SStreamDbTableName {
@@ -364,8 +367,21 @@ typedef struct SStreamDbTableName {
   char tbName[TSDB_TABLE_NAME_LEN];
 } SStreamDbTableName;
 
+typedef struct SStreamOReaderDeployReq {
+  int32_t execId;
+  int64_t uid;
+  SArray* vgIds;
+} SStreamOReaderDeployReq;
+
+typedef struct SStreamOReaderDeployRsp {
+  int32_t execId;
+  SArray* vgList;   // SArray<SStreamTaskAddr>
+} SStreamOReaderDeployRsp;
+
+
 typedef struct SStreamMgmtReqCont {
-  SArray*            fullTableNames;  // SArray<SStreamDbTableName>, full table names of the original tables
+  SArray*            pReqs;  // for trigger SArray<SStreamDbTableName>, full table names of the original tables
+                             // for runner  SArray<SStreamOReaderDeployReq>, original tables groups
 } SStreamMgmtReqCont;
 
 typedef struct SStreamMgmtReq {
@@ -376,6 +392,7 @@ typedef struct SStreamMgmtReq {
 
 void tFreeSStreamMgmtReq(SStreamMgmtReq* pReq);
 int32_t tCloneSStreamMgmtReq(SStreamMgmtReq* pSrc, SStreamMgmtReq** ppDst);
+void tFreeRunnerOReaderDeployReq(void* param);
 
 typedef void (*taskUndeplyCallback)(void*);
 
@@ -420,6 +437,9 @@ typedef struct SStreamMgmtRspCont {
 
   // FOR STREAM_MSG_USER_RECALC
   SArray*    recalcList;  // SArray<SStreamRecalcReq>
+
+  // FOR STREAM_MSG_RUNNER_ORIGTBL_READER
+  SArray*    execRspList;  // SArray<SStreamOReaderDeployRsp>
 } SStreamMgmtRspCont;
 
 typedef struct SStreamMgmtRsp {

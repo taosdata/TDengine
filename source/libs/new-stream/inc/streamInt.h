@@ -47,7 +47,7 @@ typedef struct SStreamInfo {
   SList*              readerList;        // SStreamReaderTask
   int64_t             triggerTaskId;
   SList*              triggerList;       // SStreamTriggerTask
-  SList*              runnerList;        // SArray<SStreamRunnerTask>
+  SList*              runnerList;        // SStreamRunnerTask
 
   SRWLatch            undeployLock;
 
@@ -116,7 +116,6 @@ void smHandleRemovedTask(SStreamInfo* pStream, int64_t streamId, int32_t gid, ES
 void smUndeployVgTasks(int32_t vgId, bool cleanup);
 int32_t smDeployStreams(SStreamDeployActions* actions);
 void stmDestroySStreamInfo(void* param);
-void stmDestroySStreamMgmtReq(SStreamMgmtReq* pReq);
 int32_t streamBuildStateNotifyContent(ESTriggerEventType eventType, SColumnInfo* colInfo, const char* pFromState,
                                       const char* pToState, char** ppContent);
 int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNodeList* pCondCols, int32_t rowIdx,
