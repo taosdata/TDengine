@@ -731,7 +731,7 @@ db_kind_opt(A) ::= SYSTEM.                                                      
 /************************************************ rsma ********************************************************/
 cmd ::= CREATE RSMA not_exists_opt(B) rsma_name(C)
   ON full_table_name(E) rsma_func_list(D)
-  INTERVAL NK_LP duration_literal(F) NK_RP.                                       { pCxt->pRootNode = createCreateRsmaStmt(pCxt, B, &C, D, E, releaseRawExprNode(pCxt, F)); }
+  INTERVAL NK_LP signed_duration_list(F) NK_RP.                                   { pCxt->pRootNode = createCreateRsmaStmt(pCxt, B, &C, D, E, F); }
 /*
 cmd ::= DROP RSMA exists_opt(B) full_rsma_name(C).                                { pCxt->pRootNode = createDropRsmaStmt(pCxt, B, C); }
 cmd ::= START RSMA exists_opt(B) full_rsma_name(C).                               { pCxt->pRootNode = createStartRsmaStmt(pCxt, B, C); }
@@ -747,10 +747,11 @@ full_rsma_name(A) ::= rsma_name(B).                                             
 full_rsma_name(A) ::= db_name(B) NK_DOT rsma_name(C).                             { A = createRealTableNode(pCxt, &B, &C, NULL); }
 */
 
-%type rsma_func_list                                                              { SNode* }
-%destructor rsma_func_list                                                        { nodesDestroyNode($$); }
+%type rsma_func_list                                                              { SNodeList* }
+%destructor rsma_func_list                                                        { }
 rsma_func_list(A) ::= .                                                           { A = NULL; }
-rsma_func_list(A) ::= FUNCTION NK_LP func_list(B) NK_RP.                          { A = createRsmaOptions(pCxt, B); }
+rsma_func_list(A) ::= FUNCTION NK_LP NK_RP.                                       { A = NULL; }
+rsma_func_list(A) ::= FUNCTION NK_LP func_list(B) NK_RP.                          { A = B; }
 /*
 %type recalc_extension                                                            { SRsmaRecalcOption }
 %destructor recalc_extension                                                      { }

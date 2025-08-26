@@ -331,6 +331,18 @@ static bool checkComment(SAstCreateContext* pCxt, const SToken* pCommentToken, b
   return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
 
+static bool checkRsmaName(SAstCreateContext* pCxt, SToken* pRsmaToken) {
+  trimEscape(pCxt, pRsmaToken);
+  if (NULL == pRsmaToken) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+  } else if (pRsmaToken->n >= TSDB_TABLE_NAME_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_TSMA_NAME_TOO_LONG);
+  } else if (pRsmaToken->n == 0) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pRsmaToken->z);
+  }
+  return pCxt->errCode == TSDB_CODE_SUCCESS;
+}
+
 static bool checkTsmaName(SAstCreateContext* pCxt, SToken* pTsmaToken) {
   trimEscape(pCxt, pTsmaToken);
   if (NULL == pTsmaToken) {
@@ -5021,21 +5033,31 @@ _err:
   return NULL;
 }
 
-SNode* createCreateRsmaStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* rsmaName, SNode* pOptions,
-                            SNode* pRealTable, SNode* pInterval) {
+SNode* createCreateRsmaStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* rsmaName, SNodeList* pFuncs,
+                            SNode* pRealTable, SNodeList* pIntervals) {
   SCreateRsmaStmt* pStmt = NULL;
-  return NULL;
-}
 
-SNode* createRsmaOptions(SAstCreateContext* pCxt, SNodeList* pFuncs) {
   CHECK_PARSER_STATUS(pCxt);
-  SRsmaOptions* pOptions = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_RSMA_OPTIONS, (SNode**)&pOptions);
-  CHECK_MAKE_NODE(pOptions);
-  pOptions->pFuncs = pFuncs;
-  return (SNode*)pOptions;
+  CHECK_NAME(checkRsmaName(pCxt, rsmaName));
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_RSMA_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  pStmt->ignoreExists = ignoreExists;
+  pStmt->pFuncs = pFuncs;
+  pStmt->pIntervals = pIntervals;
+  COPY_STRING_FORM_ID_TOKEN(pStmt->rsmaName, rsmaName);
+
+  SRealTableNode* pTable = (SRealTableNode*)pRealTable;
+  memcpy(pStmt->dbName, pTable->table.dbName, TSDB_DB_NAME_LEN);
+  memcpy(pStmt->tableName, pTable->table.tableName, TSDB_TABLE_NAME_LEN);
+  nodesDestroyNode(pRealTable);
+
+  return (SNode*)pStmt;
 _err:
+  nodesDestroyNode((SNode*)pStmt);
   nodesDestroyList(pFuncs);
+  nodesDestroyNode(pRealTable);
+  nodesDestroyList(pIntervals);
   return NULL;
 }
 
