@@ -952,7 +952,7 @@ static int32_t processWalVerMetaNew(SVnode* pVnode, SSTriggerWalNewRsp* rsp, SSt
   *retVer = walGetAppliedVer(pWalReader->pWal);
   STREAM_CHECK_CONDITION_GOTO(walReaderSeekVer(pWalReader, lastVer + 1) != 0, TSDB_CODE_SUCCESS);
 
-  STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(rsp->dataBlock, STREAM_RETURN_ROWS_NUM));
+  STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(rsp->metaBlock, STREAM_RETURN_ROWS_NUM));
   while (1) {
     *retVer = walGetAppliedVer(pWalReader->pWal);
     STREAM_CHECK_CONDITION_GOTO(walNextValidMsg(pWalReader, true) < 0, TSDB_CODE_SUCCESS);
@@ -968,8 +968,8 @@ static int32_t processWalVerMetaNew(SVnode* pVnode, SSTriggerWalNewRsp* rsp, SSt
     if (wCont->msgType == TDMT_VND_SUBMIT) {
       data = POINTER_SHIFT(wCont->body, sizeof(SSubmitReq2Msg));
       len = wCont->bodyLen - sizeof(SSubmitReq2Msg);
-      STREAM_CHECK_RET_GOTO(scanSubmitDataForMeta(sStreamInfo, rsp->dataBlock, data, len, ver));
-      *totalRows += ((SSDataBlock*)rsp->dataBlock)->info.rows;
+      STREAM_CHECK_RET_GOTO(scanSubmitDataForMeta(sStreamInfo, rsp->metaBlock, data, len, ver));
+      *totalRows += ((SSDataBlock*)rsp->metaBlock)->info.rows;
     } else {
       STREAM_CHECK_RET_GOTO(processMeta(wCont->msgType, sStreamInfo, data, len, rsp, ver));
       if (rsp->deleteBlock != NULL && ((SSDataBlock*)rsp->deleteBlock)->info.rows > 0){
@@ -1107,10 +1107,10 @@ static int32_t processTag(SVnode* pVnode, SStreamTriggerReaderInfo* info, SStora
         if (data == NULL) {
           STREAM_CHECK_NULL_GOTO(taosArrayPush(tagCache, &data), terrno);
         } else {
-          int32_t len = pColInfoData->info.bytes;
-          if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-            len = calcStrBytesByType(pColInfoData->info.type, (char*)data);
-          }
+        int32_t len = pColInfoData->info.bytes;
+        if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+          len = calcStrBytesByType(pColInfoData->info.type, (char*)data);
+        }
           char* pData = taosMemoryCalloc(1, len);
           STREAM_CHECK_NULL_GOTO(pData, terrno);
           (void)memcpy(pData, data, len);
@@ -2100,10 +2100,10 @@ static int32_t processCalaTimeRange(SStreamTriggerReaderCalcInfo* sStreamReaderC
     STREAM_CHECK_NULL_GOTO(pLast, terrno);
 
     if (!node->needCalc) {
-      handle->winRange.skey = pFirst->wstart;
-      handle->winRange.ekey = pLast->wend;
-      handle->winRangeValid = true;
-    } else {
+    handle->winRange.skey = pFirst->wstart;
+    handle->winRange.ekey = pLast->wend;
+    handle->winRangeValid = true;
+  } else {
       SSTriggerCalcParam* pTmp = taosArrayGet(sStreamReaderCalcInfo->tmpRtFuncInfo.pStreamPesudoFuncVals, 0);
       memcpy(pTmp, pFirst, sizeof(*pTmp));
 
@@ -2127,7 +2127,7 @@ static int32_t processCalaTimeRange(SStreamTriggerReaderCalcInfo* sStreamReaderC
       handle->winRangeValid = true;
     } else {
       STREAM_CHECK_RET_GOTO(streamCalcCurrWinTimeRange(node, req->pStRtFuncInfo, &handle->winRange, &handle->winRangeValid, 3));
-    }
+  }
   }
 
   if (req->pStRtFuncInfo->triggerType == STREAM_TRIGGER_SLIDING) {
@@ -2920,7 +2920,6 @@ static int32_t vnodeProcessStreamWalMetaNewReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   int32_t      lino = 0;
   void*        buf = NULL;
   size_t       size = 0;
-  SSDataBlock* pBlock = NULL;
   int64_t      lastVer = 0;
   int32_t      totalRows = 0;  
   SSTriggerWalNewRsp resultRsp = {0};
@@ -2938,12 +2937,12 @@ static int32_t vnodeProcessStreamWalMetaNewReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   STREAM_CHECK_RET_GOTO(processWalVerMetaNew(pVnode, &resultRsp, sStreamReaderInfo,
                                 req->walMetaNewReq.lastVer, req->walMetaNewReq.ctime, &lastVer, &totalRows));
 
-  ST_TASK_DLOG("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock->info.rows);
+  ST_TASK_DLOG("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, sStreamReaderInfo->metaBlock->info.rows);
   STREAM_CHECK_CONDITION_GOTO(totalRows == 0, TDB_CODE_SUCCESS);
   size = tSerializeSStreamWalDataResponse(NULL, 0, &resultRsp, NULL);
   buf = rpcMallocCont(size);
   tSerializeSStreamWalDataResponse(buf, size, &resultRsp, NULL);
-  printDataBlock(pBlock, __func__, "");
+  printDataBlock(sStreamReaderInfo->metaBlock, __func__, "");
 
 end:
   if (totalRows == 0) {
