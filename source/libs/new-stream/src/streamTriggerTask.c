@@ -3347,7 +3347,6 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
   SStreamMsgVTableInfo      vtableInfo = {0};
   SSTriggerOrigTableInfoRsp otableInfo = {0};
   SArray                   *pOrigTableNames = NULL;
-  SArray                   *pWalDataBlocks = NULL;
 
   QUERY_CHECK_CONDITION(pRsp->code == TSDB_CODE_SUCCESS || pRsp->code == TSDB_CODE_STREAM_NO_DATA, code, lino, _end,
                         TSDB_CODE_INVALID_PARA);
@@ -3789,61 +3788,28 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
       if (pRsp->contLen > 0) {
-        pWalDataBlocks = taosArrayInit(0, POINTER_BYTES);
-        QUERY_CHECK_NULL(pWalDataBlocks, code, lino, _end, terrno);
-        code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, pWalDataBlocks, NULL, NULL);
+        pDataBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+        QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
+        SSHashObj *pSlices = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+        QUERY_CHECK_NULL(pSlices, code, lino, _end, terrno);
+        SArray *pUids = taosArrayInit(0, sizeof(int64_t) * 2);
+        QUERY_CHECK_NULL(pUids, code, lino, _end, terrno);
+        code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, pDataBlock, pSlices, pUids);
         QUERY_CHECK_CODE(code, lino, _end);
-        if (pContext->walMode == STRIGGER_WAL_DATA_ONLY && TARRAY_SIZE(pWalDataBlocks) > 0) {
-          SSDataBlock *pLastBlock = *(SSDataBlock **)taosArrayGetLast(pWalDataBlocks);
-          pProgress->lastScanVer = pLastBlock->info.version;
+        if (pContext->walMode == STRIGGER_WAL_DATA_ONLY) {
+          pProgress->lastScanVer = pDataBlock->info.version;
         }
-        for (int32_t i = 0; i < TARRAY_SIZE(pWalDataBlocks); i++) {
-          SSDataBlock     *pDataBlock = *(SSDataBlock **)TARRAY_GET_ELEM(pWalDataBlocks, i);
-          SColumnInfoData *pGidCol = taosArrayGetLast(pDataBlock->pDataBlock);
-          QUERY_CHECK_NULL(pGidCol, code, lino, _end, terrno);
-          int64_t         *pGids = (int64_t *)pGidCol->pData;
-          SColumnInfoData *pUidCol = pGidCol - 1;
-          int64_t         *pUids = (int64_t *)pUidCol->pData;
-          SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, pTask->trigTsIndex);
-          QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
-          int64_t *pTsData = (int64_t *)pTsCol->pData;
-          int32_t  nrows = blockDataGetNumOfRows(pDataBlock);
-          for (int32_t j = 0; j < nrows;) {
-            int64_t                 uid = pUids[j];
-            int64_t                 gid = pGids[j];
-            void                   *px2 = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
-            SSTriggerRealtimeGroup *pGroup = NULL;
-            if (px2 == NULL) {
-              pGroup = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeGroup));
-              QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
-              code = tSimpleHashPut(pContext->pGroups, &gid, sizeof(int64_t), &pGroup, POINTER_BYTES);
-              if (code != TSDB_CODE_SUCCESS) {
-                taosMemoryFreeClear(pGroup);
-                QUERY_CHECK_CODE(code, lino, _end);
-              }
-              code = stRealtimeGroupInit(pGroup, pContext, gid);
-              QUERY_CHECK_CODE(code, lino, _end);
-            } else {
-              pGroup = *(SSTriggerRealtimeGroup **)px2;
-            }
-            int32_t end = j + 1;
-            while (end < nrows && pUids[end] == pUids[j]) {
-              end++;
-            }
-            SSTriggerMetaData meta = {
-                .skey = pTsData[j], .ekey = pTsData[end - 1], .nrows = end - j, .ver = pDataBlock->info.version};
-            code = stRealtimeGroupAddSingleMeta(pGroup, pProgress->pTaskAddr->nodeId, uid, &meta);
-            QUERY_CHECK_CODE(code, lino, _end);
-            if (TD_DLIST_NODE_NEXT(pGroup) == NULL && TD_DLIST_TAIL(&pContext->groupsToCheck) != pGroup) {
-              TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
-            }
-            int64_t key[3] = {pDataBlock->info.version, uid, gid};
-            int64_t value[3] = {(int64_t)pDataBlock, j, end};
-            code = tSimpleHashPut(pContext->pDataBlocks, key, sizeof(key), value, sizeof(value));
-            QUERY_CHECK_CODE(code, lino, _end);
-            j = end;
-          }
-          *(SSDataBlock **)TARRAY_GET_ELEM(pWalDataBlocks, i) = NULL;
+        printDataBlock(pDataBlock, __func__, "stream_trigger_data");
+        for (int32_t i = 0; i < TARRAY_SIZE(pUids); i++) {
+          int64_t *px = TARRAY_GET_ELEM(pUids, i);
+          int64_t  gid = px[0];
+          int64_t  uid = px[1];
+          int64_t *px2 = tSimpleHashGet(pSlices, &uid, sizeof(int64_t));
+          QUERY_CHECK_NULL(px2, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+          int32_t startIdx = px2[1] >> 32;
+          int32_t nrows = (int32_t)px2[1];
+          ST_TASK_DLOG("trigger data of table [%" PRId64 ":%" PRId64 "] : startIdx %d, nrows %d", gid, uid, startIdx,
+                       nrows);
         }
       }
 
@@ -3852,13 +3818,6 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         goto _end;
       }
 
-      for (SSTriggerRealtimeGroup *pGroup = TD_DLIST_HEAD(&pContext->groupsToCheck); pGroup != NULL;
-           pGroup = TD_DLIST_NODE_NEXT(pGroup)) {
-        code = stRealtimeGroupAddMetaFinish(pGroup);
-        QUERY_CHECK_CODE(code, lino, _end);
-      }
-
-      pContext->getWalMetaThisRound = TD_DLIST_NELES(&pContext->groupsToCheck) > 0;
       code = stRealtimeContextCheck(pContext);
       QUERY_CHECK_CODE(code, lino, _end);
 
@@ -4171,9 +4130,6 @@ _end:
   tDestroySTriggerOrigTableInfoRsp(&otableInfo);
   if (pOrigTableNames != NULL) {
     taosArrayDestroy(pOrigTableNames);
-  }
-  if (pWalDataBlocks != NULL) {
-    taosArrayDestroyP(pWalDataBlocks, (FDelete)blockDataDestroy);
   }
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s, type: %d", __func__, lino, tstrerror(code), pReq->type);
