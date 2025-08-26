@@ -318,12 +318,13 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
 
     if (SCH_TASK_READY_FOR_LAUNCH(readyNum, pParent)) {
       // this is a redirect process for parent task, since the original pParent task has already failed before.
+      // TODO refactor optimize: update the candidate address
+      // set the address from the pTask->succeedAddr, the vnode that successfully executed subquery already
       if (pParent->redirectCtx.inRedirect) {
         schSwitchTaskCandidateAddr(pJob, pParent);
       }
 
-      SCH_TASK_DLOG("total candidate addrs:%d", (int32_t) taosArrayGetSize(pTask->candidateAddrs));
-      SCH_TASK_DLOG("all %d children task done, start to launch pParent task, TID:0x%" PRIx64, readyNum, pParent->taskId);
+      SCH_TASK_DLOG("all %d children task done, start to launch parent task, TID:0x%" PRIx64, readyNum, pParent->taskId);
 
       pParent->seriesId = pJob->seriesId;
       TSWAP(pTask, pParent);
@@ -765,13 +766,13 @@ int32_t schHandleTaskRetry(SSchJob *pJob, SSchTask *pTask) {
     SCH_SWITCH_EPSET(pAddr);
     int32_t ret = epsetToStr(&pAddr->epSet, buf, tListLen(buf));
     if (ret != 0) {  // print error and continue
-        SCH_TASK_ELOG("failed to print vgId:%d epset, code:%s", pAddr->nodeId, tstrerror(ret));
+      SCH_TASK_ELOG("failed to print vgId:%d epset, code:%s", pAddr->nodeId, tstrerror(ret));
     }
 
     // Wait for a while since the vnode leader/follower switch may cost from several seconds 
     // to serveral minitues to complete.
     if (pTask->delayExecMs == 0) {
-      pTask->delayExecMs = 500;  // 1sec by default
+      pTask->delayExecMs = 500;  // 0.5s by default
     } else {
       pTask->delayExecMs = TMIN(pTask->delayExecMs * tsRedirectFactor * 1.5, tsMaxRetryWaitTime);
     }
@@ -919,7 +920,7 @@ int32_t schSwitchTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask) {
   }
 
 _return:
-  SCH_TASK_DLOG("switch task candiateIdx to %d/%d", pTask->candidateIdx, candidateNum);
+  SCH_TASK_DLOG("switch task exec on candiateIdx:%d/%d", pTask->candidateIdx, candidateNum);
   return TSDB_CODE_SUCCESS;
 }
 
