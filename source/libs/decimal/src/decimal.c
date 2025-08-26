@@ -326,10 +326,10 @@ static void    decimal64Mod(DecimalType* pLeft, const DecimalType* pRight, uint8
 static bool    decimal64Lt(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
 static bool    decimal64Gt(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
 static bool    decimal64Eq(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
-static int32_t decimal64ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32_t bufLen);
 static void    decimal64ScaleDown(Decimal64* pDec, uint8_t scaleDown, bool round);
 static void    decimal64ScaleUp(Decimal64* pDec, uint8_t scaleUp);
 static void    decimal64ScaleTo(Decimal64* pDec, uint8_t oldScale, uint8_t newScale);
+int32_t        decimal64ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32_t bufLen);
 
 static void decimal64RoundWithPositiveScale(Decimal64* pDec, uint8_t prec, int8_t scale, uint8_t toPrec,
                                             uint8_t toScale, DecimalRoundType roundType, bool* overflow);
@@ -345,13 +345,13 @@ static void    decimal128Mod(DecimalType* pLeft, const DecimalType* pRight, uint
 static bool    decimal128Lt(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
 static bool    decimal128Gt(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
 static bool    decimal128Eq(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
-static int32_t decimal128ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32_t bufLen);
 static void    decimal128ScaleTo(Decimal128* pDec, uint8_t oldScale, uint8_t newScale);
 static void    decimal128ScaleDown(Decimal128* pDec, uint8_t scaleDown, bool round);
 static void    decimal128ScaleUp(Decimal128* pDec, uint8_t scaleUp);
 static int32_t decimal128CountLeadingBinaryZeros(const Decimal128* pDec);
 static int32_t decimal128FromInt64(DecimalType* pDec, uint8_t prec, uint8_t scale, int64_t val);
 static int32_t decimal128FromUint64(DecimalType* pDec, uint8_t prec, uint8_t scale, uint64_t val);
+int32_t        decimal128ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32_t bufLen);
 //
 // rounding functions
 static void    decimal128RoundWithPositiveScale(Decimal128* pDec, uint8_t prec, uint8_t scale, uint8_t toPrec,
@@ -702,7 +702,7 @@ static void extractDecimal128Digits(const Decimal128* pDec, uint64_t* digits, in
   }
 }
 
-static int32_t decimal128ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32_t bufLen) {
+int32_t decimal128ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32_t bufLen) {
   if (!pBuf) return TSDB_CODE_INVALID_PARA;
   const Decimal128* pDec = (const Decimal128*)pInt;
   bool              negative = DECIMAL128_SIGN(pDec) == -1;

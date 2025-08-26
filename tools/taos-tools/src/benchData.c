@@ -277,7 +277,7 @@ char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char
         } else {
             // websocket
             bool ntb = stbInfo->tags == NULL || stbInfo->tags->size == 0; // normal table
-            colNames = genColNames(stbInfo->cols, !ntb);
+            colNames = genColNames(stbInfo->cols, !ntb, stbInfo->primaryKeyName);
             n = snprintf(prepare + len, TSDB_MAX_ALLOWED_SQL_LEN - len,
                 "INSERT INTO `%s`.`%s`(%s) VALUES(%s,%s)", db, stbInfo->stbName, colNames,
                 ntb ? "?" : "?,?", colQ);
@@ -502,6 +502,9 @@ uint32_t accumulateRowLen(BArray *fields, int iface) {
             case TSDB_DATA_TYPE_JSON:
                 len += field->length * fields->size;
                 return len;
+            case TSDB_DATA_TYPE_BLOB:
+                len += field->length;
+                break;
         }
         len += 1;
         if (iface == SML_REST_IFACE || iface == SML_IFACE) {
@@ -1081,6 +1084,17 @@ static int generateRandDataSQL(SSuperTable *stbInfo, char *sampleDataBuf,
                     tmfree(tmp);
                     break;
                 }
+                case TSDB_DATA_TYPE_BLOB: {
+                    // field->length = 1024;
+                    char *tmp = benchCalloc(1, field->length + 1, false);
+                    if (0 != tmpStr(tmp, stbInfo->iface, field, index)) {
+                        free(tmp);
+                        return -1;
+                    }
+                    n = snprintf(sampleDataBuf + pos, bufLen - pos, "'%s',", tmp);
+                    tmfree(tmp);
+                    break;
+                }
                 case TSDB_DATA_TYPE_GEOMETRY: {
                     int   bufferSize = field->length + 1;
                     char *tmp = benchCalloc(1, bufferSize, false);
@@ -1296,6 +1310,22 @@ static int fillStmt(
                     }
                     n = snprintf(sampleDataBuf + pos, bufLen - pos,
                                         "'%s',", tmp);
+                    tmfree(tmp);
+                    break;
+                }
+                case TSDB_DATA_TYPE_BLOB: {
+                    // field->length = 1024;
+                    char *tmp = benchCalloc(1, field->length + 1, false);
+                    if (0 != tmpStr(tmp, stbInfo->iface, field, k)) {
+                        free(tmp);
+                        return -1;
+                    }
+                    if (childCol) {
+                        snprintf((char *)childCol->stmtData.data + k * field->length, field->length, "%s", tmp);
+                    } else {
+                        snprintf((char *)field->stmtData.data + k * field->length, field->length, "%s", tmp);
+                    }
+                    n = snprintf(sampleDataBuf + pos, bufLen - pos, "'%s',", tmp);
                     tmfree(tmp);
                     break;
                 }
@@ -2037,6 +2067,10 @@ static BArray *initChildCols(int colsSize) {
 int prepareSampleData(SDataBase* database, SSuperTable* stbInfo) {
     stbInfo->lenOfCols = accumulateRowLen(stbInfo->cols, stbInfo->iface);
     stbInfo->lenOfTags = accumulateRowLen(stbInfo->tags, stbInfo->iface);
+    if (stbInfo->useTagTableName) {
+        // add tag table name length
+        stbInfo->lenOfTags += TSDB_TABLE_NAME_LEN + 1; // +1 for comma
+    }
     if (stbInfo->partialColNum != 0
             && ((stbInfo->iface == TAOSC_IFACE
                 || stbInfo->iface == REST_IFACE))) {
@@ -2056,8 +2090,8 @@ int prepareSampleData(SDataBase* database, SSuperTable* stbInfo) {
             int pos = 0;
             int n;
             n = snprintf(stbInfo->partialColNameBuf + pos,
-                            TSDB_MAX_ALLOWED_SQL_LEN - pos,
-                            TS_COL_NAME);
+                            TSDB_MAX_ALLOWED_SQL_LEN - pos, "%s",
+                            stbInfo->primaryKeyName);
             if (n < 0 || n > TSDB_MAX_ALLOWED_SQL_LEN - pos) {
                 errorPrint("%s() LN%d snprintf overflow\n",
                            __func__, __LINE__);

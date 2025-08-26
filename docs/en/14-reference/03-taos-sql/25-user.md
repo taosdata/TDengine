@@ -3,7 +3,7 @@ title: Users
 slug: /tdengine-reference/sql-manual/manage-users
 ---
 
-User and permission management is a feature of TDengine Enterprise Edition. This section only discusses the basic user management part. To learn about and obtain comprehensive permission management features, please contact the TDengine sales team.
+User and permission management is a feature of TDengine TSDB-Enterprise. This section only discusses the basic user management part. To learn about and obtain comprehensive permission management features, please contact the TDengine sales team.
 
 ## Create User
 
@@ -93,4 +93,4 @@ Query OK, 0 of 0 rows affected (0.001160s)
 
 ## Authorization Management
 
-Authorization management is only available in the TDengine Enterprise Edition, please contact the TDengine sales team.
+Authorization management is only available in the TDengine TSDB-Enterprise, please contact the TDengine sales team.

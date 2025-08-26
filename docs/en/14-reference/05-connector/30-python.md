@@ -42,6 +42,14 @@ This makes it easy to integrate `taospy` with many third-party tools, such as [S
 The method of establishing a connection directly with the server using the native interface provided by the client driver is referred to as "Native Connection" in the following text;
 The method of establishing a connection with the server using the REST interface or WebSocket interface provided by the taosAdapter is referred to as a "REST Connection" or "WebSocket connection" in the following text.
 
+:::note
+
+- If you need to use SQLAlchemy with taos-ws-py, you must install taospy version 2.8.5 or higher.
+- For performance-critical applications, it is recommended to adopt the WebSocket connection method for the following reasons:
+  - Due to the limitations of Python's Global Interpreter Lock (GIL), multithreading cannot leverage multi-core advantages and essentially executes serially. With native connections, Python-based data conversion and parsing operations are constrained by the GIL, reducing efficiency. In contrast, WebSocket connections release the GIL during I/O operations (e.g., network requests, file I/O), allowing other threads to acquire the lock and execute. This significantly improves throughput in I/O-intensive scenarios.
+  - Native connections require extensive data type conversions between C and Python. The WebSocket approach only requires interface-level data conversion, while data processing and parsing are handled by the WebSocket connector (Rust) and taosAdapter (Go). This effectively bypasses Python's performance bottlenecks.
+:::
+
 ## Python Version Compatibility
 
 Supports Python 3.0 and above.
@@ -57,6 +65,9 @@ Python Connector historical versions (it is recommended to use the latest versio
 
 |Python Connector Version | Major Changes                                                                           | TDengine Version|
 | --------- | ----------------------------------------------------------------------------------------------------- | ----------------- |
+|2.8.5 | Support the SQLAlchemy feature of taos-ws-py                                                                | - |
+|2.8.4 | Support DBUtils connection pool.                                                                            | - |
+|2.8.3 | Support BLOB data type.                                                                                     | - |
 |2.8.2 | The connection parameter settings support cross-platform compatibility.                                     | - |
 |2.8.1 | Add two functions to set the connect property                                                               | - |
 |2.8.0 | Remove Apache Superset Driver                                                                               | - |
@@ -77,6 +88,7 @@ WebSocket Connector Historical Versions:
 
 |WebSocket Connector Version | Major Changes                                                                                    | TDengine Version|
 | ----------------------- | -------------------------------------------------------------------------------------------------- | ----------------- |
+|0.6.1 | 1. Support BLOB data type <br/> 2. Support timezone | - |
 |0.5.3 | Support IPv6 address format | - |
 |0.5.2 | Upgrade Rust connector to fix dsn token param issue                                                                     | - |
 |0.5.1 | Support WebSocket STMT2 writing and querying                                                                            | - |
@@ -141,7 +153,7 @@ TDengine currently supports timestamp, numeric, character, boolean types, and th
 | GEOMETRY          | bytearray       |
 | VARBINARY         | bytearray       |
 | DECIMAL           | Decimal         |
-
+| BLOB              | bytearray       |
 ## Example Programs Summary
 
 | Example Program Link                                         | Example Program Content                        |
@@ -174,29 +186,39 @@ Feel free to [ask questions or report issues](https://github.com/taosdata/taos-c
 #### URL Specification
 
 ```text
-[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
-|------------|---|-----------|-----------|------|------|------------|-----------------------|
-|   protocol |   | username  | password  | host | port |  database  |  params               |
+[+<protocol>]://[<username>:<password>@][<host1>:<port1>[,...<hostN>:<portN>]][/<database>][?<key1>=<value1>[&...<keyN>=<valueN>]]
+|-----------|---|----------|-----------|-------------------------------------|------------|--------------------------------------|
+|  protocol |   | username | password  |  addresses                          |   database |   params                             |
 ```
 
-- **protocol**: Establish a connection using the websocket protocol. For example, `ws://localhost:6041`
+- **protocol**: Specifies the protocol to use. For example, `ws://localhost:6041` establishes a connection using the WebSocket protocol.
+  - **ws**: Establishes a connection using the WebSocket protocol.
+  - **wss**: Establishes a connection using the WebSocket protocol with SSL/TLS encryption enabled.
 - **username/password**: Username and password for the database.
-- **host/port**: The host_name parameter supports valid domain names or IP addresses. The `taos-ws-py` supports both IPv4 and IPv6 formats. For IPv6 addresses, square brackets must be used (e.g., `[::1]` or `[2001:db8:1234:5678::1]`) to avoid port number parsing conflicts.
+- **addresses**: Specifies the server addresses to create a connection. Multiple addresses are separated by commas. For IPv6 addresses, square brackets must be used (e.g., `[::1]` or `[2001:db8:1234:5678::1]`) to avoid port number parsing conflicts.
+  - Example: `ws://host1:6041,host2:6041` or `ws://` (equivalent to `ws://localhost:6041`).
 - **database**: Database name.
-- **params**: Other parameters. For example, token.
+- **params**:
+  - `token`: Authentication for the TDengine TSDB cloud service.
+  - `timezone`: Time zone setting, in the format of an IANA time zone name (e.g., `Asia/Shanghai`). The default is the local time zone.
+  - `compression`: Whether to enable data compression. The default is `false`.
+  - `conn_retries`: Maximum number of retries upon connection failure. The default is 5.
+  - `retry_backoff_ms`: Initial wait time (in milliseconds) upon connection failure. The default is 200. This value increases exponentially with consecutive failures until the maximum wait time is reached.
+  - `retry_backoff_max_ms`: Maximum wait time (in milliseconds) upon connection failure. The default is 2000.
 
 #### Establishing Connection
 
 - `fn connect(dsn: Option<&str>, args: Option<&PyDict>) -> PyResult<Connection>`
   - **Interface Description**: Establish a taosAdapter connection.
   - **Parameter Description**:
-    - `dsn`: Type `Option<&str>` optional, Data Source Name (DSN), used to specify the location and authentication information of the database to connect to.
+    - `dsn`: Type `Option<&str>` optional, Data Source Name (DSN), used to specify the database connection information, including protocol, username, password, host, port, database name and parameters, etc.
     - `args`: Type `Option<&PyDict>` optional, provided in the form of a Python dictionary, can be used to set
       - `user`: Username for the database
-      - `password`: Password for the database.
+      - `password`: Password for the database
       - `host`: Host address
       - `port`: Port number
       - `database`: Database name
+      - `timezone`: Time zone
   - **Return Value**: Connection object.
   - **Exception**: Throws `ConnectionError` exception on operation failure.
 - `fn cursor(&self) -> PyResult<Cursor>`

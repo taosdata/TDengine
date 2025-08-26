@@ -8,9 +8,14 @@ class TestDatabasePrecisionNs:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_precision_ns(self):
-        """database precision ns
+        """Precision: ns
 
-        1. -
+        1. Create a nanosecond-precision database.
+        2. Insert data using numeric timestamps.
+        3. Verify the row count.
+        4. Insert data using now().
+        5. Filter data by timestamp.
+        6. Validate INTERVAL … SLIDING queries.
 
         Catalog:
             - Database:Precision

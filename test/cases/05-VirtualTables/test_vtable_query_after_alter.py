@@ -211,9 +211,12 @@ class TestVtableQueryAfterAlter:
         tdSql.checkCols(cols)
 
     def test_virtual_stable_and_child_table(self):
-        """test virtual table select after alter.
+        """Query: after alter super and child table
 
-        test virtual table select after alter stable.
+        test virtual table select after alter stable
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 
@@ -274,9 +277,12 @@ class TestVtableQueryAfterAlter:
         self.check_row_and_col("vtb_virtual_stb", 23333 * 3, 23)
 
     def test_virtual_normal_table(self):
-        """test virtual table select after alter normal table.
+        """Query: after alter normal table
 
-        test virtual table select after alter normal table.
+        test virtual table select after alter normal table
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 

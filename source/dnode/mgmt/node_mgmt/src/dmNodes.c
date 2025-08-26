@@ -141,6 +141,9 @@ static void dmCloseNodes(SDnode *pDnode) {
 int32_t dmRunDnode(SDnode *pDnode) {
   int32_t code = 0;
   int32_t count = 0;
+
+  tsDndStartOsUptime = taosGetOsUptime();
+
   if ((code = dmOpenNodes(pDnode)) != 0) {
     dError("failed to open nodes since %s", tstrerror(code));
     dmCloseNodes(pDnode);
@@ -154,9 +157,8 @@ int32_t dmRunDnode(SDnode *pDnode) {
     dmCloseNodes(pDnode);
     return code;
   }
-  tsDndStart = taosGetTimestampMs();
+  tsDndStart = taosGetTimestampMs();  // also used to wait for dnode to start
   if (tsDndStart == 0) ++tsDndStart;  // avoid 0
-  tsDndStartOsUptime = taosGetOsUptime();
 
   while (1) {
     if (pDnode->stop) {

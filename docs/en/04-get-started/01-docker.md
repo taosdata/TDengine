@@ -29,7 +29,7 @@ To install TDengine on your local machine instead of in a container, see [Get St
    docker pull tdengine/tdengine:3.3.0.0
    ```
 
-   For enterprise edition, please replace the image name with `tdengine/tdengine-ee`.
+   For TDengine TSDB-Enterprise, please replace the image name with `tdengine/tdengine-ee`.
 
    :::
 

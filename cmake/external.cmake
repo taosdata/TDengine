@@ -39,7 +39,7 @@ macro(INIT_EXT name)               # {
     set(${name}_inc_dir  "")
     set(${name}_libs     "")
     set(${name}_have_dev          FALSE)
-    set(${name}_build_contrib     FALsE)
+    set(${name}_build_contrib     FALSE)
 
     set(options)
     set(oneValueArgs INC_DIR)
@@ -1605,8 +1605,8 @@ IF(TD_WEBSOCKET)
     get_from_local_repo_if_exists("https://github.com/taosdata/taos-connector-rust.git")
     ExternalProject_Add(ext_taosws
         GIT_REPOSITORY ${_git_url}
-        GIT_TAG main
-        GIT_SHALLOW FALSE
+        GIT_TAG ${TAOSWS_GIT_TAG_NAME}
+        GIT_SHALLOW ${TAOSWS_GIT_TAG_SHALLOW}
         BUILD_IN_SOURCE TRUE
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}

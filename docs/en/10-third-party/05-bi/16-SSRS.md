@@ -19,7 +19,7 @@ Prepare the environment as follows:
 ### TDengine Server
 
 - There is no restriction on the OS.
-- TDengine 3.3.3.0 or above server version is installed (both Enterprise and Community Edition are available).
+- TDengine 3.3.3.0 or above server version is installed (both TSDB-Enterprise and TSDB-OSS Edition are available).
 - taosAdapter is running normally, refer to [taosAdapter](../../../tdengine-reference/components/taosadapter/).
 - Server IP: 192.168.2.124 .
 - Providing WebSocket service: port 6041 (default).

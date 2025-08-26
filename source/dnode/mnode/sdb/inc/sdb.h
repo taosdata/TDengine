@@ -144,6 +144,7 @@ typedef enum {
   SDB_MNODE = 2,
   SDB_QNODE = 3,
   SDB_SNODE = 4,
+  SDB_BNODE = 5,
   SDB_DNODE = 6,
   SDB_USER = 7,
   SDB_AUTH = 8,
@@ -168,7 +169,10 @@ typedef enum {
   SDB_ARBGROUP = 27,
   SDB_ANODE = 28,
   SDB_CFG = 29,
-  SDB_MAX = 30
+  SDB_MOUNT = 30,
+  SDB_MOUNT_LOG = 31,
+  SDB_SSMIGRATE = 32,
+  SDB_MAX = 33
 } ESdbType;
 
 typedef struct SSdbRaw {
@@ -458,6 +462,7 @@ const char *sdbTableName(ESdbType type);
 const char *sdbStatusName(ESdbStatus status);
 void        sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper);
 int32_t     sdbGetIdFromRaw(SSdb *pSdb, SSdbRaw *pRaw);
+bool        sdbCheckExists(SSdb *pSdb, ESdbType type, const void *pKey);
 
 void sdbWriteLock(SSdb *pSdb, int32_t type);
 void sdbReadLock(SSdb *pSdb, int32_t type);

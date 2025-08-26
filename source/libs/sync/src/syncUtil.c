@@ -477,7 +477,7 @@ void syncLogRecvAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntries
 }
 
 void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool printX, int64_t timerElapsed,
-                          int64_t execTime) {
+                          int64_t execTime, const STraceId* trace) {
   if (timerElapsed > SYNC_HEARTBEAT_SLOW_MS) {
     char pBuf[TD_TIME_STR_LEN] = {0};
     if (pMsg->timeStamp > 0) {
@@ -488,13 +488,15 @@ void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool 
     if (printX) {
       sHError(pSyncNode,
               "send sync-heartbeat to dnode:%d {term:%" PRId64 ", commit-index:%" PRId64 ", min-match:%" PRId64
-              ", ts:%s}, x",
-              DID(&pMsg->destId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf);
+              ", ts:%s}, x, QID:0x%" PRIx64 ":0x%" PRIx64,
+              DID(&pMsg->destId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf, trace ? trace->rootId : 0, 
+              trace ? trace->msgId : 0);
     } else {
       sHError(pSyncNode,
               "send sync-heartbeat to dnode:%d {term:%" PRId64 ", commit-index:%" PRId64 ", min-match:%" PRId64
-              ", ts:%s}, slow timer-elapsed:%" PRId64 ", next-exec:%" PRId64,
-              DID(&pMsg->destId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf, timerElapsed, execTime);
+              ", ts:%s}, slow timer-elapsed:%" PRId64 ", next-exec:%" PRId64 ", QID:0x%" PRIx64 ":0x%" PRIx64,
+              DID(&pMsg->destId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf, timerElapsed, execTime, 
+              trace ? trace->rootId : 0, trace ? trace->msgId : 0);
     }
   } else {
     if (printX) {
@@ -506,8 +508,9 @@ void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool 
       }
       sHTrace(pSyncNode,
               "send sync-heartbeat to dnode:%d {term:%" PRId64 ", commit-index:%" PRId64 ", min-match:%" PRId64
-              ", ts:%s}, x",
-              DID(&pMsg->destId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf);
+              ", ts:%s}, x, QID:0x%" PRIx64 ":0x%" PRIx64,
+              DID(&pMsg->destId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf, trace ? trace->rootId : 0, 
+              trace ? trace->msgId : 0);
     } else {
       if (tsSyncLogHeartbeat) {
         char pBuf[TD_TIME_STR_LEN] = {0};
@@ -518,8 +521,9 @@ void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool 
         }
         sHInfo(pSyncNode,
                "send sync-heartbeat to dnode:%d {term:%" PRId64 ", commit-index:%" PRId64 ", min-match:%" PRId64
-               ", ts:%s}, timer-elapsed:%" PRId64 ", next-exec:%" PRId64,
-               DID(&pMsg->destId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf, timerElapsed, execTime);
+               ", ts:%s}, timer-elapsed:%" PRId64 ", next-exec:%" PRId64 ", QID:0x%" PRIx64 ":0x%" PRIx64,
+               DID(&pMsg->destId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf, timerElapsed, execTime, 
+               trace ? trace->rootId : 0, trace ? trace->msgId : 0);
       } else {
         if (sDebugFlag & DEBUG_TRACE) {
           char pBuf[TD_TIME_STR_LEN] = {0};
@@ -530,8 +534,9 @@ void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool 
           }
           sHTrace(pSyncNode,
                   "send sync-heartbeat to dnode:%d {term:%" PRId64 ", commit-index:%" PRId64 ", min-match:%" PRId64
-                  ", ts:%s}, timer-elapsed:%" PRId64 ", next-exec:%" PRId64,
-                  DID(&pMsg->destId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf, timerElapsed, execTime);
+                  ", ts:%s}, timer-elapsed:%" PRId64 ", next-exec:%" PRId64 ", QID:0x%" PRIx64 ":0x%" PRIx64,
+                  DID(&pMsg->destId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf, timerElapsed, execTime, 
+                  trace ? trace->rootId : 0, trace ? trace->msgId : 0);
         }
       }
     }
@@ -539,7 +544,7 @@ void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool 
 }
 
 void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, int64_t netElapsed, const STraceId* trace,
-                          int64_t timeDiff) {
+                          int64_t timeDiff, const SRpcMsg* pRpcMsg) {
   if (timeDiff > SYNC_HEARTBEAT_SLOW_MS) {
     pSyncNode->hbSlowNum++;
 
@@ -566,9 +571,9 @@ void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, int64
       }
       sHInfo(pSyncNode,
              "recv sync-heartbeat from dnode:%d {term:%" PRId64 ", commit-index:%" PRId64 ", min-match:%" PRId64
-             ", ts:%s}, net elapsed:%" PRId64 "ms, timeDiff:%" PRId64 "ms, QID:0x%" PRIx64 ":0x%" PRIx64,
+             ", ts:%s}, net elapsed:%" PRId64 "ms, timeDiff:%" PRId64 "ms, QID:0x%" PRIx64 ":0x%" PRIx64 ", rpc msg:%p",
              DID(&pMsg->srcId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf, netElapsed, timeDiff,
-             trace->rootId, trace->msgId);
+             trace->rootId, trace->msgId, pRpcMsg);
     } else {
       if (sDebugFlag & DEBUG_TRACE) {
         char pBuf[TD_TIME_STR_LEN] = {0};

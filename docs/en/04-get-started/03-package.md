@@ -32,7 +32,7 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
    2. Run the following command to install TDengine:
 
       ```bash
-      sudo dpkg -i TDengine-server-<version>-Linux-x64.deb
+      sudo dpkg -i tdengine-tsdb-oss-<version>-linux-x64.deb
       ```
 
       Replace `<version>` with the version of the package that you downloaded.
@@ -46,7 +46,7 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
    2. Run the following command to install TDengine:
 
       ```bash
-      sudo rpm -ivh TDengine-server-<version>-Linux-x64.rpm
+      sudo rpm -ivh tdengine-tsdb-oss-<version>-linux-x64.rpm
       ```
 
       Replace `<version>` with the version of the package that you downloaded.
@@ -60,7 +60,7 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
    2. Run the following command to decompress the package:
 
       ```bash
-      tar -zxvf TDengine-server-<version>-Linux-x64.tar.gz
+      tar -zxvf tdengine-tsdb-oss-<version>-linux-x64.tar.gz
       ```
 
       Replace `<version>` with the version of the package that you downloaded.
@@ -91,8 +91,8 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
 
       ```bash
       sudo apt-get update
-      apt-cache policy tdengine
-      sudo apt-get install tdengine
+      apt-cache policy tdengine-tsdb
+      sudo apt-get install tdengine-tsdb
       ```
 
    </TabItem>

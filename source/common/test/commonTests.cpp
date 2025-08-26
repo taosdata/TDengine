@@ -329,10 +329,10 @@ TEST(testCase, Datablock_test) {
   SColumnInfoData* p1 = (SColumnInfoData*)taosArrayGet(b->pDataBlock, 1);
   for (int32_t i = 0; i < 40; ++i) {
     if (i & 0x01) {
-      ASSERT_EQ(colDataIsNull_f(p0->nullbitmap, i), false);
+      ASSERT_EQ(colDataIsNull_f(p0, i), false);
       ASSERT_EQ(colDataIsNull(p1, b->info.rows, i, nullptr), false);
     } else {
-      ASSERT_EQ(colDataIsNull_f(p0->nullbitmap, i), true);
+      ASSERT_EQ(colDataIsNull_f(p0, i), true);
 
       ASSERT_EQ(colDataIsNull(p0, b->info.rows, i, nullptr), true);
       ASSERT_EQ(colDataIsNull(p1, b->info.rows, i, nullptr), true);

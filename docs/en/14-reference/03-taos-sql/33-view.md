@@ -3,12 +3,14 @@ title: Views
 slug: /tdengine-reference/sql-manual/manage-views
 ---
 
-Starting from TDengine 3.2.1.0, TDengine Enterprise Edition provides the functionality of views, which simplifies operations and enhances sharing capabilities among users.
+Starting from TDengine 3.2.1.0, TDengine Enterprise Edition [^1] provides the functionality of views, which simplifies operations and enhances sharing capabilities among users.
 
 A view (View) is essentially a query statement stored in the database. Views (non-materialized views) do not contain data themselves; the specified query statement is dynamically executed only when data is read from the view. When creating a view, we specify a name for it, and then it can be queried and operated on like a regular table. The use of views must follow these rules:
 
 - Views can be nested in definitions and usage, and are bound to the database specified at creation time or the current database.
 - Within the same database, view names must not be duplicated, and it is recommended that view names do not duplicate table names (not enforced). When a view and a table have the same name, operations such as writing, querying, granting, and revoking permissions prioritize the table with the same name.
+
+[^1]: TDengine Enterprise Edition was renamed to TDengine TSDB-Enterprise starting from version 3.3.7.0
 
 ## Syntax
 

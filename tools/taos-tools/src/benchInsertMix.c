@@ -163,7 +163,7 @@ void randomFillCols(uint16_t* cols, uint16_t max, uint16_t cnt) {
 char* genBatColsNames(threadInfo* info, SSuperTable* stb) {
   int32_t size = info->nBatCols * (TSDB_COL_NAME_LEN + 2);
   char* buf = calloc(1, size);
-  strcpy(buf, TS_COL_NAME);
+  strcpy(buf, stb->primaryKeyName);
 
   for (uint16_t i = 0; i < info->nBatCols; i++) {
     uint16_t idx = info->batCols[i];

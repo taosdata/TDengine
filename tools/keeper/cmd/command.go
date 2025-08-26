@@ -341,14 +341,14 @@ func (cmd *Command) TransferTaosdClusterBasicInfo() error {
 		// transfer data to new table, only this table need use insert statement
 		var buf bytes.Buffer
 
-		// 使用 map 将二维数组切分为多个二维数组
+		// Use a map to split the 2D array into multiple 2D arrays
 		result := make(map[string][][]interface{})
 		for _, row := range data.Data {
 			key := row[0].(string) // 使用第一列的值作为 key
 			result[key] = append(result[key], row)
 		}
 
-		// 按照不同 tag 来迁移数据
+		// Migrate data according to different tags
 		for _, dataByCluster := range result {
 			buf.Reset()
 

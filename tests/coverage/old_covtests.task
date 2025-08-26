@@ -23,7 +23,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f db-encrypt/basic.py -N 3 -M 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/arbitrator.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/arbitrator_restart.py -N 3
-,,n,army,python3 ./test.py -f storage/s3/s3Basic.py -N 3
+,,n,army,python3 ./test.py -f storage/ss/ssBasic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/snapshot.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_create.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_alter.py
@@ -33,8 +33,11 @@
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_auth_select.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_auth_alter_drop.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query.py
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_vstable.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db_stb.py
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db_stb_window.py
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db_stb_group.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_after_alter.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_after_drop_origin_table.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_schema_is_old.py
@@ -161,8 +164,6 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json-subtable.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt2_insert.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stream-test.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stream_function_test.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stt.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_auto_create_table_json.py

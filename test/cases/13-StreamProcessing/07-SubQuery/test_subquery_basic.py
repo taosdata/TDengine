@@ -1,5 +1,6 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
+import math
+from new_test_framework.utils import tdLog, tdSql, tdStream
 
 
 class TestStreamSubqueryBasic:
@@ -8,169 +9,298 @@ class TestStreamSubqueryBasic:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_subquery_basic(self):
-        """As SubQuery basic test
+        """SubQuery basic test
 
-        1. -
+        Verification testing during the development process.
 
         Catalog:
             - Streams:SubQuery
 
-        Since: v3.0.0.0
+        Since: v3.3.3.7
 
         Labels: common,ci
 
         Jira: None
 
         History:
-            - 2025-5-13 Simon Guan Create Case
+            - 2025-5-26 Simon Guan Created
 
         """
 
-        self.init_variables()
-        self.create_snode()
-        self.create_db()
-        self.create_stb()
-        self.create_stream()
-        self.write_data()
-        self.wait_stream_run_finish()
-        self.check_result()
+        tdSql.error("show streams")
+        tdSql.error("show xx.streams")
+        tdStream.dropAllStreamsAndDbs()
 
-    def init_variables(self):
-        tdLog.info("init variables")
+        tdLog.info(f"=============== create database")
+        tdSql.prepare(dbname="qdb", vgroups=1)
 
-        self.child_tb_num = 10
-        self.batch_per_tb = 3
-        self.rows_per_batch = 40
-        self.rows_per_tb = self.batch_per_tb * self.rows_per_batch
-        self.total_rows = self.rows_per_tb * self.child_tb_num
-        self.ts_start = 1704038400000  # 2024-01-01 00:00:00
-        self.ts_interval = 30 * 1000
-
-    def create_snode(self):
-        tdLog.info("create snode")
-        tdStream.createSnode(1)
-
-    def create_db(self):
-        tdLog.info(f"create database")
-
-        tdSql.prepare("qdb", vgroups=1)
-        tdSql.prepare("rdb", vgroups=1)
-        # tdSql.prepare("qdb2", vgroups=1)
-        clusterComCheck.checkDbReady("qdb")
-        clusterComCheck.checkDbReady("rdb")
-        # clusterComCheck.checkDbReady("qdb2")
-
-    def create_stb(self):
-        tdLog.info(f"create super table")
-
+        tdLog.info(f"=============== create super table")
         tdSql.execute(
-            f"create stable qdb.meters (ts timestamp, current float, voltage int, phase float) TAGS (location varchar(64), group_id int)"
+            f"create stable meters (cts timestamp, cint int, cuint int unsigned) tags(tint int);"
         )
+        tdSql.query(f"show stables")
+        tdSql.checkRows(1)
 
-        for table in range(self.child_tb_num):
-            if table % 2 == 1:
-                group_id = 1
-                location = "California.SanFrancisco"
-            else:
-                group_id = 2
-                location = "California.LosAngeles"
+        tdLog.info(f"=============== write query data")
+        sqls = [
+            "insert into t1 using meters tags(1) values ('2025-01-01 00:00:00'    , 0, 0);",
+            "insert into t2 using meters tags(2) values ('2025-01-01 00:00:00.102', 1, 0);",
+            "insert into t1 using meters tags(1) values ('2025-01-01 00:00:01'    , 1, 1);",
+            "insert into t2 using meters tags(2) values ('2025-01-01 00:00:01.400', 2, 1);",
+            "insert into t1 using meters tags(1) values ('2025-01-01 00:00:02'    , 2, 2);",
+            "insert into t2 using meters tags(2) values ('2025-01-01 00:00:02.600', 3, 2);",
+        ]
+        tdSql.executes(sqls)
+        tdSql.query("select _wstart, avg(cint) from meters interval(1s)")
+        tdSql.printResult()
 
-            tdSql.execute(
-                f"create table qdb.d{table} using qdb.meters tags('{location}', {group_id})"
-            )
+        tdLog.info(f"=============== create trigger table")
+        tdSql.execute("create table stream_trigger (ts timestamp, c1 int, c2 int);")
+        tdSql.query(f"show tables")
+        tdSql.checkKeyExist("stream_trigger")
 
-        tdSql.query("show qdb.tables")
-        tdSql.checkRows(self.child_tb_num)
+        tdLog.info(f"=============== create stream")
+        sql0 = "create stream s0 interval(1s) sliding(1s) from stream_trigger partition by tbname into st0 tags (gid bigint as _tgrpid)    as select _twstart ts, count(*) c1, avg(cint) c2 from meters where cts >= _twstart and cts < _twend;"
+        sql1 = "create stream s1 interval(1s) sliding(1s) from stream_trigger partition by tbname into st1 tags (gid bigint as _tgrpid)    as select _twstart ts, count(*) c1, avg(cint) c2 from meters where cts >= _twstart and cts < _twend;"
+        sql2 = "create stream s2 interval(1s) sliding(1s) from stream_trigger partition by tbname into st2                                 as select _twstart ts, count(*) c1, avg(cint)    from meters where cts >= _twstart and cts < _twend;"
+        sql3 = "create stream s3 state_window (c1)        from stream_trigger partition by tbname into st3                                 as select _twstart ts, count(*) c1, avg(cint) c2 from meters;"
+        sql4 = "create stream s4 state_window (c1)        from stream_trigger                     into st4                                 as select _twstart ts, count(*) c1, avg(cint) c2 from meters;"
+        sql5 = "create stream s5 state_window (c1)        from stream_trigger                     into st5                                 as select _twstart ts, count(*) c1, avg(c1) c2, first(c1) c3, last(c1) c4 from %%trows;"
+        sql6 = "create stream s6 sliding (1s)             from stream_trigger                     into st6                                 as select _tcurrent_ts, now, count(cint) from meters;"
+        sql7 = "create stream s7 state_window (c1)        from stream_trigger partition by tbname stream_options(fill_history_first(1)) into st7  as select _twstart, avg(cint), count(cint) from meters;"
+        sql8 = "create stream s8 state_window (c1)        from stream_trigger partition by tbname into st8                                 as select _twstart ts, count(*) c1, avg(cint) c2, _twstart + 1 as ts2 from meters;"
+        sql9 = "create stream s9 PERIOD(10s, 10a)                                                 into st9                                 as select cast(_tlocaltime/1000000 as timestamp) as tl, _tprev_localtime/1000000 tp, _tnext_localtime/1000000 tn, now, max(cint) from meters;"
 
-    def write_data(self):
-        tdLog.info(
-            f"write total:{self.total_rows} rows, {self.child_tb_num} tables, {self.rows_per_tb} rows per table"
-        )
+        tdStream.createSnode()
 
-        for batch in range(self.batch_per_tb):
-            for table in range(self.child_tb_num):
-                insert_sql = f"insert into qdb.d{table} values"
-                for row in range(self.rows_per_batch):
-                    rows = row + batch * self.rows_per_batch
-                    ts = self.ts_start + self.ts_interval * rows
-                    insert_sql += f"({ts}, {batch}, {row}, {rows})"
-                tdSql.execute(insert_sql)
-
-        tdSql.query(f"select count(*) from qdb.meters")
-        tdSql.checkData(0, 0, self.total_rows)
-
-    def create_stream(self):
-        self.streams = [
-            self.TestStreamSubqueryBaiscItem(
-                id=0,
-                trigger="interval(5m)",
-                sub_query="select _twstart ts, count(current) cnt from qdb.meters where ts >= _twstart and ts < _twend;",
-                res_query="select ts, cnt from rdb.s0",
-                exp_query="select _wstart ts, count(current) cnt from qdb.meters interval(5m)",
-                exp_rows=[],
-            ),
-            self.TestStreamSubqueryBaiscItem(
-                id=1,
-                trigger="interval(5m)",
-                sub_query="select _wstart ts, count(current) cnt from qdb.meters",
-                res_query="select count(current) cnt from qdb.meters interval(5m)",  # select cnt from rdb.s1
-                exp_query="select count(current) cnt from qdb.meters where ts >= 1704038400000 and ts < 1704038700000",
-                exp_rows=(0 for _ in range(12)),
-            ),
+        streams = [
+            self.StreamItem(sql0, self.checks0),
+            self.StreamItem(sql1, self.checks1),
+            self.StreamItem(sql2, self.checks2),
+            self.StreamItem(sql3, self.checks3),
+            self.StreamItem(sql4, self.checks4),
+            self.StreamItem(sql5, self.checks5),
+            self.StreamItem(sql6, self.checks6),
+            self.StreamItem(sql7, self.checks7),
+            self.StreamItem(sql8, self.checks8),
+            self.StreamItem(sql9, self.checks9),
         ]
 
-        self.test_list = [0]
+        for stream in streams:
+            tdSql.execute(stream.sql)
+        tdStream.checkStreamStatus()
 
-        tdLog.info(f"create total:{len(self.streams)} streams")
-        for stream in self.streams:
-            if stream.id in self.test_list:
-                stream.create_stream()
+        tdLog.info(f"=============== write trigger data")
+        sql = "insert into stream_trigger values ('2025-01-01 00:00:00', 0, 0), ('2025-01-01 00:00:01', 1, 1), ('2025-01-01 00:00:02', 2, 2);"
+        tdSql.execute(sql)
 
-    def wait_stream_run_finish(self):
-        tdLog.info(f"wait total:{len(self.streams)} streams run finish")
-        for stream in self.streams:
-            if stream.id in self.test_list:
-                stream.wait_stream_run_finish()
+        tdLog.info(f"=============== check stream result")
+        for stream in streams:
+            stream.check()
 
-    def check_result(self):
-        tdLog.info(f"check total:{len(self.streams)} streams result")
-        for stream in self.streams:
-            if stream.id in self.test_list:
-                stream.check_result(print=True)
+        tdLog.info(f"=============== check stream systables")
+        tdSql.query("show qdb.streams;")
+        tdSql.checkRows(10)
 
-    class TestStreamSubqueryBaiscItem:
-        def __init__(self, id, trigger, sub_query, res_query, exp_query, exp_rows=[]):
-            self.trigger = trigger
-            self.id = id
-            self.name = f"s{id}"
-            self.sub_query = sub_query
-            self.res_query = res_query
-            self.exp_query = exp_query
-            self.exp_rows = exp_rows
-            self.exp_result = []
+        tdSql.query("select * from information_schema.ins_streams;")
+        tdSql.checkRows(10)
 
-        def create_stream(self):
-            sql = f"create stream s{self.id} {self.trigger} from qdb.meters into rdb.rs{self.id} as {self.sub_query}"
-            tdLog.info(f"create stream:{self.name}, sql:{sql}")
+        tdSql.query(
+            "select * from information_schema.ins_streams where db_name='qdb' and stream_name='s0';"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkKeyData("s0", 1, "qdb")
 
-        def wait_stream_run_finish(self):
-            tdStream.checkStreamStatus()
-            tdLog.info(f"wait stream:{self.name} run finish")
+        tdStream.dropAllStreamsAndDbs()
+        tdSql.query("select * from information_schema.ins_streams;")
+        tdSql.checkRows(0)
+        tdSql.query("show databases")
+        tdSql.checkRows(2)
 
-        def check_result(self, print=False):
-            tdLog.info(f"check stream:{self.name} result")
+    def checks0(self):
+        tdSql.checkTableType(
+            dbname="qdb",
+            stbname="st0",
+            columns=3,
+            tags=1,
+        )
+        tdSql.checkTableSchema(
+            dbname="qdb",
+            tbname="st0",
+            schema=[
+                ["ts", "TIMESTAMP", 8, ""],
+                ["c1", "BIGINT", 8, ""],
+                ["c2", "DOUBLE", 8, ""],
+                ["gid", "BIGINT", 8, "TAG"],
+            ],
+        )
 
-            tmp_result = tdSql.getResult(self.exp_query)
-            if self.exp_rows == []:
-                self.exp_rows = range(len(tmp_result))
-            for r in self.exp_rows:
-                self.exp_result.append(tmp_result[r])
-            if print:
-                tdSql.printResult(
-                    f"{self.name} expect",
-                    input_result=self.exp_result,
-                    input_sql=self.exp_query,
-                )
+        result_sql = "select ts, c1, c2 from qdb.st0"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, 2)
+            and tdSql.compareData(0, 2, 0.5)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:01.000")
+            and tdSql.compareData(1, 1, 2)
+            and tdSql.compareData(1, 2, 1.5),
+        )
 
-            tdSql.checkResultsByArray(self.res_query, tmp_result)
-            tdLog.info(f"check stream:{self.name} result successfully")
+        tdSql.checkResultsByFunc(
+            result_sql,
+            lambda: tdSql.getRows() >= 2
+            and tdSql.getData(0, 2) == 0.5
+            and tdSql.getData(1, 2) == 1.5,
+            retry=0,
+        )
+
+        exp_sql = (
+            "select _wstart, count(*), avg(cint) from qdb.meters interval(1s) limit 2"
+        )
+        exp_result = tdSql.getResult(exp_sql)
+        tdSql.checkResultsByArray(sql=result_sql, exp_result=exp_result)
+
+        tdSql.checkResultsBySql(
+            sql=result_sql,
+            exp_sql=exp_sql,
+        )
+
+    def checks1(self):
+        result_sql = "select ts, c1, c2 from qdb.st1"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, 2)
+            and tdSql.compareData(0, 2, 0.5)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:01.000")
+            and tdSql.compareData(1, 1, 2)
+            and tdSql.compareData(1, 2, 1.5),
+        )
+
+        tdSql.query("desc qdb.st1")
+        tdSql.printResult()
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, "ts")
+        tdSql.checkData(1, 0, "c1")
+        tdSql.checkData(2, 0, "c2")
+        tdSql.checkData(3, 0, "gid")
+        tdSql.checkData(0, 1, "TIMESTAMP")
+        tdSql.checkData(1, 1, "BIGINT")
+        tdSql.checkData(2, 1, "DOUBLE")
+        tdSql.checkData(3, 1, "BIGINT")
+        tdSql.checkData(0, 2, "8")
+        tdSql.checkData(1, 2, "8")
+        tdSql.checkData(2, 2, "8")
+        tdSql.checkData(3, 2, "8")
+        tdSql.checkData(3, 3, "TAG")
+
+    def checks2(self):
+        result_sql = "select ts, c1, `avg(cint)` from qdb.st2"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, 2)
+            and tdSql.compareData(0, 2, 0.5)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:01.000")
+            and tdSql.compareData(1, 1, 2)
+            and tdSql.compareData(1, 2, 1.5),
+        )
+
+    def checks3(self):
+        result_sql = "select ts, c1, c2 from qdb.st3"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, 6)
+            and tdSql.compareData(0, 2, 1.5)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:01.000")
+            and tdSql.compareData(1, 1, 6)
+            and tdSql.compareData(1, 2, 1.5),
+        )
+
+    def checks4(self):
+        result_sql = "select ts, c1, c2 from qdb.st4"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, 6)
+            and tdSql.compareData(0, 2, 1.5)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:01.000")
+            and tdSql.compareData(1, 1, 6)
+            and tdSql.compareData(1, 2, 1.5),
+        )
+
+    def checks5(self):
+        result_sql = "select ts, c1, c2, c3, c4 from qdb.st5"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, 1)
+            and tdSql.compareData(0, 2, 0)
+            and tdSql.compareData(0, 3, 0)
+            and tdSql.compareData(0, 4, 0)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:01.000")
+            and tdSql.compareData(1, 1, 1)
+            and tdSql.compareData(1, 2, 1)
+            and tdSql.compareData(1, 3, 1)
+            and tdSql.compareData(1, 4, 1),
+        )
+
+    def checks6(self):
+        result_sql = "select * from qdb.st6"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 3
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+            and tdSql.compareData(0, 2, 6)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:01")
+            and tdSql.compareData(1, 2, 6)
+            and tdSql.compareData(2, 0, "2025-01-01 00:00:02")
+            and tdSql.compareData(2, 2, 6),
+        )
+
+    def checks7(self):
+        result_sql = "select * from qdb.st7"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+            and tdSql.compareData(0, 2, 6)
+            and tdSql.compareData(0, 3, "stream_trigger")
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:01")
+            and tdSql.compareData(1, 2, 6)
+            and tdSql.compareData(1, 3, "stream_trigger"),
+        )
+
+    def checks8(self):
+        result_sql = "select ts, c1, c2, ts2 from qdb.st8"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, 6)
+            and tdSql.compareData(0, 3, "2025-01-01 00:00:00.001")
+            and tdSql.compareData(0, 2, 1.5)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:01.000")
+            and tdSql.compareData(1, 1, 6)
+            and tdSql.compareData(1, 2, 1.5)
+            and tdSql.compareData(1, 3, "2025-01-01 00:00:01.001"),
+        )
+
+    def checks9(self):
+        result_sql = "select * from qdb.st9"
+        tdSql.checkResultsByFunc(sql=result_sql, func=lambda: tdSql.getRows() > 0)
+
+    class StreamItem:
+        def __init__(self, sql, checkfunc):
+            self.sql = sql
+            self.checkfunc = checkfunc
+
+        def check(self):
+            self.checkfunc()

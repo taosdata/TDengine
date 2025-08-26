@@ -1499,7 +1499,7 @@ NOW()
 TIMEDIFF(expr1, expr2 [, time_unit])
 ```
 
-**Function Description**: Returns the result of the timestamp `expr1` - `expr2`, which may be negative, and approximated to the precision specified by the `time_unit`.
+**Function Description**: Returns the result of the timestamp `expr1` - `expr2`, which may be negative, and approximated to the time unit specified by the `time_unit`.
 
 **Return Result Type**: BIGINT.
 
@@ -1508,7 +1508,7 @@ TIMEDIFF(expr1, expr2 [, time_unit])
 - `expr1`: BIGINT, TIMESTAMP types representing timestamps, or VARCHAR, NCHAR types in ISO8601/RFC3339 standard date-time format.
 - `expr2`: BIGINT, TIMESTAMP types representing timestamps, or VARCHAR, NCHAR types in ISO8601/RFC3339 standard date-time format.
 - `time_unit`: See usage instructions.
-- `timediff` return the absolute value of the difference between timestamp `expr1` and `expr2` before ver-3.3.3.0.
+- `timediff` returns the absolute value of the difference between timestamp `expr1` and `expr2` before ver-3.3.3.0.
 
 **Nested Subquery Support**: Applicable to both inner and outer queries.
 
@@ -1516,12 +1516,11 @@ TIMEDIFF(expr1, expr2 [, time_unit])
 
 **Usage Instructions**:
 
-- Supported time units `time_unit` include: 1b(nanoseconds), 1u(microseconds), 1a(milliseconds), 1s(seconds), 1m(minutes), 1h(hours), 1d(days), 1w(weeks).
-- If the time unit `time_unit` is not specified, the precision of the returned time difference is consistent with the time precision set in the current DATABASE.
-- Returns NULL if the input contains strings that do not conform to the date-time format.
 - Returns NULL if `expr1` or `expr2` is NULL.
-- If `time_unit` is NULL, it is equivalent to the time unit not being specified.
+- Returns NULL if the input contains strings that do not conform to any date-time format.
 - The precision of the input timestamp is determined by the precision of the table being queried; if no table is specified, the precision is milliseconds.
+- The time unit of the returned value is specified by the `time_unit` parameter, with the minimum being the time resolution of the database. If the `time_unit` parameter is not specified, the time resolution of the database is used as the time unit. Supported time units `time_unit` include: 1b (nanosecond), 1u (microsecond), 1a (millisecond), 1s (second), 1m (minute), 1h (hour), 1d (day), 1w (week).
+- If `time_unit` is NULL, it is equivalent to the time unit not being specified.
 
 **Example**:
 
@@ -1855,14 +1854,13 @@ ELAPSED(ts_primary_key [, time_unit])
 
 **Notes**:
 
-- The ts_primary_key parameter can only be the first column of the table, i.e., the TIMESTAMP type primary key column.
-- Returns according to the time unit specified by the time_unit parameter, with the minimum being the time resolution of the database. If the time_unit parameter is not specified, the time resolution of the database is used as the time unit. Supported time units time_unit include:
-          1b (nanosecond), 1u (microsecond), 1a (millisecond), 1s (second), 1m (minute), 1h (hour), 1d (day), 1w (week).
+- The `ts_primary_key` parameter can only be the first column of the table, i.e., the TIMESTAMP type primary key column.
+- The time unit of the returned value is specified by the `time_unit` parameter, with the minimum being the time resolution of the database. If the `time_unit` parameter is not specified, the time resolution of the database is used as the time unit. Supported time units `time_unit` include: 1b (nanosecond), 1u (microsecond), 1a (millisecond), 1s (second), 1m (minute), 1h (hour), 1d (day), 1w (week).
 - Can be used in combination with interval, returning the timestamp difference for each time window. It is important to note that, except for the first and last time windows, the timestamp differences for the middle windows are all the length of the window.
 - order by asc/desc does not affect the calculation of the difference.
 - For supertables, it needs to be used in combination with the group by tbname clause, and cannot be used directly.
 - For regular tables, it is not supported in combination with the group by clause.
-- For nested queries, it is only valid when the inner query outputs an implicit timestamp column. For example, the statement select elapsed(ts) from (select diff(value) from sub1), the diff function causes the inner query to output an implicit timestamp column, which is the primary key column and can be used as the first parameter of the elapsed function. Conversely, for example, the statement select elapsed(ts) from (select * from sub1), the ts column output to the outer layer no longer has the meaning of the primary key column and cannot use the elapsed function. Additionally, as a function strongly dependent on the timeline, forms like select elapsed(ts) from (select diff(value) from st group by tbname) although will return a calculation result, it has no practical significance, and such usage will also be restricted in the future.
+- For nested queries, it is only valid when the inner query outputs an implicit timestamp column. For example, the statement `select elapsed(ts) from (select diff(value) from sub1)`, the diff function causes the inner query to output an implicit timestamp column, which is the primary key column and can be used as the first parameter of the elapsed function. Conversely, for example, the statement `select elapsed(ts) from (select * from sub1)`, the ts column output to the outer layer no longer has the meaning of the primary key column and cannot use the elapsed function. Additionally, as a function strongly dependent on the timeline, although `select elapsed(ts) from (select diff(value) from st group by tbname)` will return a calculation result, it doesn't make sense, and such usage will also be restricted in the future.
 - Not supported in combination with leastsquares, diff, derivative, top, bottom, last_row, interp, and other functions.
 
 ### LEASTSQUARES

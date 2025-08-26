@@ -174,6 +174,7 @@ static int32_t hbGenerateVgInfoFromRsp(SDBVgInfo **pInfo, SUseDbRsp *rsp) {
 
   vgInfo->vgVersion = rsp->vgVersion;
   vgInfo->stateTs = rsp->stateTs;
+  vgInfo->flags = rsp->flags;
   vgInfo->hashMethod = rsp->hashMethod;
   vgInfo->hashPrefix = rsp->hashPrefix;
   vgInfo->hashSuffix = rsp->hashSuffix;

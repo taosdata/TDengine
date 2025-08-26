@@ -58,7 +58,7 @@ window_clause: {
   | STATE_WINDOW(col) [TRUE_FOR(true_for_duration)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_duration)]
-  | COUNT_WINDOW(count_val[, sliding_val])
+  | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
 
 interp_clause:
       RANGE(ts_val [, ts_val] [, surrounding_time_val]) EVERY(every_val) FILL(fill_mod_and_val)
@@ -100,7 +100,7 @@ order_expr:
    - INTERVAL: Time window, interval_val specifies the window size, sliding_val specifies the window sliding time, sliding_val time is limited to the interval_val range, interval_val and sliding_val time ranges are positive values, and precision can be selected from 1n, 1u, 1a, 1s, 1m, 1h, 1d, and 1w, such as interval_val (2d) and SLIDING (1d).
    - FILL: types can be selected as NONE, VALUE, PREV, NEXT, NEAR.
    - EVENT_WINDOW: The event window uses start_trigger_dedition and end_trigger_dedition to specify start and end conditions, supports any expression, and can specify different columns. Such as ```start with voltage>220 end with voltage<=220```.
-   - COUNT_WINDOW: Count window, specifying the division of the window by the number of rows, count_val window contains the maximum number of rows, with a range of [2,2147483647]. The sliding quantity of the window is [1, count_val].
+   - COUNT_WINDOW: Count window, specifying the division of the window by the number of rows, count_val window contains the maximum number of rows, with a range of [2,2147483647]. The sliding quantity of the window is [1, count_val].The col_name parameter starts to be supported after version 3.3.7.0. col_name specifies one or more columns. When counting in the count_window, for each row of data in the window, at least one of the specified columns must be non-null; otherwise, that row of data is not included in the counting window. If col_name is not specified, it means there is no non-null restriction.
 
 - group_by_expr: Specify data grouping and aggregation rules. Supports expressions, functions, positions, columns, and aliases. When using positional syntax, it must appear in the selection column, such as ```select ts, current from meters order by ts desc, 2 ```, where 2 corresponds to the current column.
 - partition_by_expr: Specify the data slicing conditions, and calculate the data independently within the slice. Supports expressions, functions, positions, columns, and aliases. When using positional syntax, it must appear in the selection column, such as ```select current from meters partition by 1 ```, where 1 corresponds to the current column.

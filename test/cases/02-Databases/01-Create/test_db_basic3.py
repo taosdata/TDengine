@@ -8,11 +8,11 @@ class TestDatabaseBasic3:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_basic3(self):
-        """create database 3
+        """Database: basic 3
 
-        1. create database
-        2. create normal table with db. as the prefix
-        3. show tables use db. as the prefix
+        1. Create database
+        2. Create normal table with the 'db.' prefix
+        3. Show tables using the 'db.' prefix
 
         Catalog:
             - Database:Create
