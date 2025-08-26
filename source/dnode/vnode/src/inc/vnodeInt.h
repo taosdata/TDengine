@@ -151,7 +151,7 @@ void  initStorageAPI(SStorageAPI* pAPI);
 
 // meta
 typedef struct SMStbCursor SMStbCursor;
-typedef struct STbUidStore STbUidStore;
+// typedef struct STbUidStore STbUidStore;
 
 #define META_BEGIN_HEAP_BUFFERPOOL 0
 #define META_BEGIN_HEAP_OS         1
@@ -298,6 +298,7 @@ int32_t smaRetention(SSma* pSma, int64_t now);
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
 
+#if 0
 int32_t tdProcessRSmaCreate(SSma* pSma, SVCreateStbReq* pReq);
 int32_t tdProcessRSmaSubmit(SSma* pSma, int64_t version, void* pReq, void* pMsg, int32_t len);
 int32_t tdProcessRSmaDelete(SSma* pSma, int64_t version, void* pReq, void* pMsg, int32_t len);
@@ -305,6 +306,7 @@ int32_t tdProcessRSmaDrop(SSma* pSma, SVDropStbReq* pReq);
 int32_t tdFetchTbUidList(SSma* pSma, STbUidStore** ppStore, tb_uid_t suid, tb_uid_t uid);
 int32_t tdUpdateTbUidList(SSma* pSma, STbUidStore* pUidStore, bool isAdd);
 void*   tdUidStoreFree(STbUidStore* pStore);
+#endif
 
 // SMetaSnapReader ========================================
 int32_t metaSnapReaderOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapReader** ppReader);
@@ -538,12 +540,12 @@ struct SVnode {
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)
 
 #define VND_TSDB(vnd)       ((vnd)->pTsdb)
-#define VND_RSMA0(vnd)      ((vnd)->pTsdb)
-#define VND_RSMA1(vnd)      ((vnd)->pSma->pRSmaTsdb[TSDB_RETENTION_L0])
-#define VND_RSMA2(vnd)      ((vnd)->pSma->pRSmaTsdb[TSDB_RETENTION_L1])
-#define VND_RETENTIONS(vnd) (&(vnd)->config.tsdbCfg.retentions)
-#define VND_IS_RSMA(v)      ((v)->config.isRsma == 1)
-#define VND_IS_TSMA(v)      ((v)->config.isTsma == 1)
+// #define VND_RSMA0(vnd)      ((vnd)->pTsdb)
+// #define VND_RSMA1(vnd)      ((vnd)->pSma->pRSmaTsdb[TSDB_RETENTION_L0])
+// #define VND_RSMA2(vnd)      ((vnd)->pSma->pRSmaTsdb[TSDB_RETENTION_L1])
+// #define VND_RETENTIONS(vnd) (&(vnd)->config.tsdbCfg.retentions)
+// #define VND_IS_RSMA(v)      ((v)->config.isRsma == 1)
+// #define VND_IS_TSMA(v)      ((v)->config.isTsma == 1)
 
 #define TSDB_CACHE_NO(c)       ((c).cacheLast == 0)
 #define TSDB_CACHE_LAST_ROW(c) (((c).cacheLast & 1) > 0)
@@ -553,6 +555,7 @@ struct SVnode {
 #define TSDB_TFS(v)            ((v)->pMountTfs ? (v)->pMountTfs : (v)->pTfs)
 #define TSDB_VID(v)            ((v)->mounted ? (v)->config.mountVgId : (v)->config.vgId)
 
+#if 0
 struct STbUidStore {
   tb_uid_t  suid;
   SArray*   tbUids;
@@ -567,7 +570,7 @@ struct SSma {
   void*         pTSmaEnv;
   void*         pRSmaEnv;
 };
-
+#endif
 #define SMA_CFG(s)                       (&(s)->pVnode->config)
 #define SMA_TSDB_CFG(s)                  (&(s)->pVnode->config.tsdbCfg)
 #define SMA_RETENTION(s)                 ((SRetention*)&(s)->pVnode->config.tsdbCfg.retentions)
@@ -580,10 +583,7 @@ struct SSma {
 #define SMA_RSMA_TSDB0(s)                ((s)->pVnode->pTsdb)
 #define SMA_RSMA_TSDB1(s)                ((s)->pRSmaTsdb[TSDB_RETENTION_L0])
 #define SMA_RSMA_TSDB2(s)                ((s)->pRSmaTsdb[TSDB_RETENTION_L1])
-#define SMA_RSMA_GET_TSDB(pVnode, level) ((level == 0) ? pVnode->pTsdb : pVnode->pSma->pRSmaTsdb[level - 1])
-
-// sma
-void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
+#define SMA_RSMA_GET_TSDB(pVnode, level) ((level == 0) ? pVnode->pTsdb : NULL)
 
 enum {
   SNAP_DATA_CFG = 0,

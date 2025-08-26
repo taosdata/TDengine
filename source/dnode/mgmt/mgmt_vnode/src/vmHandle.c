@@ -311,15 +311,6 @@ static void vmGenerateWrapperCfg(SVnodeMgmt *pMgmt, SCreateVnodeReq *pCreate, SW
   snprintf(pCfg->path, sizeof(pCfg->path), "%s%svnode%d", pMgmt->path, TD_DIRSEP, pCreate->vgId);
 }
 
-static int32_t vmTsmaAdjustDays(SVnodeCfg *pCfg, SCreateVnodeReq *pReq) {
-  if (pReq->isTsma) {
-    SMsgHead *smaMsg = pReq->pTsma;
-    uint32_t  contLen = (uint32_t)(htonl(smaMsg->contLen) - sizeof(SMsgHead));
-    return smaGetTSmaDays(pCfg, POINTER_SHIFT(smaMsg, sizeof(SMsgHead)), contLen, &pCfg->tsdbCfg.days);
-  }
-  return 0;
-}
-
 int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SCreateVnodeReq req = {0};
   SVnodeCfg       vnodeCfg = {0};
@@ -387,11 +378,6 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   vmGenerateVnodeCfg(&req, &vnodeCfg);
-
-  if ((code = vmTsmaAdjustDays(&vnodeCfg, &req)) < 0) {
-    dError("vgId:%d, failed to adjust tsma days since %s", req.vgId, tstrerror(code));
-    goto _OVER;
-  }
 
   vmGenerateWrapperCfg(pMgmt, &req, &wrapperCfg);
 

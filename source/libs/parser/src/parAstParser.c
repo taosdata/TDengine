@@ -1322,7 +1322,7 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_TSMAS_STMT:
       return collectMetaKeyFromShowTSMASStmt(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_RSMAS_STMT:
-      return collectMetaKeyFromShowRsmaSStmt(pCxt, (SShowStmt*)pStmt);
+      return collectMetaKeyFromShowRsmasStmt(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
     case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
       return collectMetaKeyFromShowAlive(pCxt, (SShowAliveStmt*)pStmt);

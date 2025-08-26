@@ -414,6 +414,7 @@ SNode* createCreateRsmaStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* 
                             SNode* pRealTable, SNode* pInterval);
 SNode* createRsmaOptions(SAstCreateContext* pCxt, SNodeList* pFuncs);
 SNode* createShowRsmasStmt(SAstCreateContext* pCxt, SNode* dbName);
+SNode* createShowRsmaTasksStmt(SAstCreateContext* pCxt, SNode* dbName);
 
 SNode*     createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* tsmaName, SNode* pOptions,
                                 SNode* pRealTable, SNode* pInterval);

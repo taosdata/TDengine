@@ -1105,13 +1105,6 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   }
 }
 
-void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
-  int32_t code = tdProcessTSmaInsert(((SVnode *)pVnode)->pSma, smaId, (const char *)data);
-  if (code) {
-    vError("failed to process sma result since %s", tstrerror(code));
-  }
-}
-
 void vnodeUpdateMetaRsp(SVnode *pVnode, STableMetaRsp *pMetaRsp) {
   if (NULL == pMetaRsp) {
     return;
@@ -1354,11 +1347,6 @@ static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq,
     goto _err;
   }
 
-  if ((code = tdProcessRSmaCreate(pVnode->pSma, &req)) < 0) {
-    pRsp->code = code;
-    goto _err;
-  }
-
   tDecoderClear(&coder);
   return 0;
 
@@ -1377,7 +1365,6 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
   SVCreateTbBatchRsp rsp = {0};
   SVCreateTbRsp      cRsp = {0};
   char               tbName[TSDB_TABLE_FNAME_LEN];
-  STbUidStore       *pStore = NULL;
   SArray            *tbUids = NULL;
   SArray            *tbNames = NULL;
   pRsp->msgType = TDMT_VND_CREATE_TABLE_RSP;
@@ -1444,9 +1431,6 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
       }
     } else {
       cRsp.code = TSDB_CODE_SUCCESS;
-      if (tdFetchTbUidList(pVnode->pSma, &pStore, pCreateReq->ctb.suid, pCreateReq->uid) < 0) {
-        vError("vgId:%d, failed to fetch tbUid list", TD_VID(pVnode));
-      }
       if (taosArrayPush(tbUids, &pCreateReq->uid) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         rcode = -1;
@@ -1466,10 +1450,6 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
   if (tqUpdateTbUidList(pVnode->pTq, tbUids, true) < 0) {
     vError("vgId:%d, failed to update tbUid list since %s", TD_VID(pVnode), tstrerror(terrno));
   }
-  if (tdUpdateTbUidList(pVnode->pSma, pStore, true) < 0) {
-    goto _exit;
-  }
-  pStore = tdUidStoreFree(pStore);
 
   // prepare rsp
   int32_t ret = 0;
@@ -1584,11 +1564,6 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     goto _exit;
   }
 
-  if (tdProcessRSmaDrop(pVnode->pSma, &req) < 0) {
-    rcode = terrno;
-    goto _exit;
-  }
-
   // return rsp
 _exit:
   if (tbUidList) taosArrayDestroy(tbUidList);
@@ -1688,7 +1663,6 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
   SEncoder         encoder = {0};
   int32_t          ret;
   SArray          *tbUids = NULL;
-  STbUidStore     *pStore = NULL;
   SArray          *tbNames = NULL;
 
   pRsp->msgType = TDMT_VND_DROP_TABLE_RSP;
@@ -1726,11 +1700,6 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
       }
     } else {
       dropTbRsp.code = TSDB_CODE_SUCCESS;
-      if (tbUid > 0) {
-        if (tdFetchTbUidList(pVnode->pSma, &pStore, pDropTbReq->suid, tbUid) < 0) {
-          vError("vgId:%d, failed to fetch tbUid list", TD_VID(pVnode));
-        }
-      }
     }
 
     if (taosArrayPush(rsp.pArray, &dropTbRsp) == NULL) {
@@ -1756,10 +1725,6 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
 
   if (tqUpdateTbUidList(pVnode->pTq, tbUids, false) < 0) {
     vError("vgId:%d, failed to update tbUid list since %s", TD_VID(pVnode), tstrerror(terrno));
-  }
-
-  if (tdUpdateTbUidList(pVnode->pSma, pStore, false) < 0) {
-    goto _exit;
   }
 
   if (tsEnableAuditCreateTable) {
@@ -1792,7 +1757,6 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
 
 _exit:
   taosArrayDestroy(tbUids);
-  pStore = tdUidStoreFree(pStore);
   tDecoderClear(&decoder);
   tEncodeSize(tEncodeSVDropTbBatchRsp, &rsp, pRsp->contLen, ret);
   pRsp->pCont = rpcMallocCont(pRsp->contLen);
@@ -2638,7 +2602,6 @@ _exit:
 
   if (code == 0) {
     (void)atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, 1);
-    code = tdProcessRSmaSubmit(pVnode->pSma, ver, pSubmitReq, pReq, len);
   }
 
   // clear
@@ -2771,30 +2734,22 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
 
   if (pVnode->config.tsdbCfg.keep0 != req.daysToKeep0) {
     pVnode->config.tsdbCfg.keep0 = req.daysToKeep0;
-    if (!VND_IS_RSMA(pVnode)) {
-      tsdbChanged = true;
-    }
+    tsdbChanged = true;
   }
 
   if (pVnode->config.tsdbCfg.keep1 != req.daysToKeep1) {
     pVnode->config.tsdbCfg.keep1 = req.daysToKeep1;
-    if (!VND_IS_RSMA(pVnode)) {
-      tsdbChanged = true;
-    }
+    tsdbChanged = true;
   }
 
   if (pVnode->config.tsdbCfg.keep2 != req.daysToKeep2) {
     pVnode->config.tsdbCfg.keep2 = req.daysToKeep2;
-    if (!VND_IS_RSMA(pVnode)) {
-      tsdbChanged = true;
-    }
+    tsdbChanged = true;
   }
 
   if (pVnode->config.tsdbCfg.keepTimeOffset != req.keepTimeOffset) {
     pVnode->config.tsdbCfg.keepTimeOffset = req.keepTimeOffset;
-    if (!VND_IS_RSMA(pVnode)) {
-      tsdbChanged = true;
-    }
+    tsdbChanged = true;
   }
 
   if (req.sttTrigger != -1 && req.sttTrigger != pVnode->config.sttTrigger) {
@@ -2850,9 +2805,9 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pRe
   metaReaderDoInit(&mr, pVnode->pMeta, META_READER_NOLOCK);
   STsdb *pTsdb = pVnode->pTsdb;
 
-  if (deleteReq.level) {
-    pTsdb = deleteReq.level == 1 ? VND_RSMA1(pVnode) : VND_RSMA2(pVnode);
-  }
+  // if (deleteReq.level) {
+  //   pTsdb = deleteReq.level == 1 ? VND_RSMA1(pVnode) : VND_RSMA2(pVnode);
+  // }
 
   int32_t sz = taosArrayGetSize(deleteReq.deleteReqs);
   for (int32_t i = 0; i < sz; i++) {
@@ -2918,8 +2873,6 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, in
       if (code) goto _err;
     }
   }
-
-  code = tdProcessRSmaDelete(pVnode->pSma, ver, pRes, pReq, len);
 
   tDecoderClear(pCoder);
   taosArrayDestroy(pRes->uidList);
