@@ -5080,6 +5080,42 @@ _err:
   return NULL;
 }
 
+SNode* createStartRsmaStmt(SAstCreateContext* pCxt, ENodeType type, bool ignoreNotExists, SNode* pRsma,
+                           SNodeList* pVgroups) {
+  CHECK_PARSER_STATUS(pCxt);
+  SStartRsmaStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->ignoreNotExists = ignoreNotExists;
+  SRealTableNode* pTableNode = (SRealTableNode*)pRsma;
+
+  memcpy(pStmt->rsmaName, pTableNode->table.tableName, TSDB_TABLE_NAME_LEN);
+  memcpy(pStmt->dbName, pTableNode->table.dbName, TSDB_DB_NAME_LEN);
+  nodesDestroyNode(pRsma);
+
+  pStmt->pVgroups = pVgroups;
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createStopRsmaStmt(SAstCreateContext* pCxt, ENodeType type, bool ignoreNotExists, SNode* pRsma,
+                          SNodeList* pVgroups) {
+  return createStartRsmaStmt(pCxt, type, ignoreNotExists, pRsma, pVgroups);
+}
+
+SNode* createKillRsmaTasksStmt(SAstCreateContext* pCxt, SNodeList* pTaskIds) {
+  CHECK_PARSER_STATUS(pCxt);
+  SKillRsmaTasksStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_KILL_RSMA_TASKS_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  pStmt->pTaskIds = pTaskIds;
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createShowCreateRsmaStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable) {
   CHECK_PARSER_STATUS(pCxt);
   SShowCreateRsmaStmt* pStmt = NULL;
@@ -5119,6 +5155,27 @@ SNode* createShowRsmaTasksStmt(SAstCreateContext* pCxt, SNode* dbName) {
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode(dbName);
+  return NULL;
+}
+
+SNode* createRecalcRsmaStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* rsmaName, SNodeList* pScope,
+                            SNode* pWhere) {
+  SRecalcRsmaStmt* pStmt = NULL;
+
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkRsmaName(pCxt, rsmaName));
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_RECALC_RSMA_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  pStmt->ignoreExists = ignoreExists;
+  pStmt->pScope = pScope;
+  pStmt->pWhere = pWhere;
+  COPY_STRING_FORM_ID_TOKEN(pStmt->rsmaName, rsmaName);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  nodesDestroyList(pScope);
+  nodesDestroyNode(pWhere);
   return NULL;
 }
 

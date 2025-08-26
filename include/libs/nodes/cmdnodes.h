@@ -827,6 +827,31 @@ typedef struct SDropRsmaStmt {
   char      rsmaName[TSDB_TABLE_NAME_LEN];
 } SDropRsmaStmt;
 
+typedef struct SStartRsmaStmt {
+  ENodeType  type;
+  char       dbName[TSDB_DB_NAME_LEN];
+  char       rsmaName[TSDB_TABLE_NAME_LEN];
+  bool       ignoreNotExists;
+  SNodeList* pVgroups;
+} SStartRsmaStmt;
+
+typedef SStartRsmaStmt SStopRsmaStmt;
+
+typedef struct SKillRsmaTasksStmt {
+  ENodeType  type;
+  SNodeList* pTaskIds;
+} SKillRsmaTasksStmt;
+
+typedef struct SRecalcRsmaStmt {
+  ENodeType  type;
+  bool       ignoreExists;
+  uint8_t    precision;
+  char       rsmaName[TSDB_TABLE_NAME_LEN];
+  char       dbName[TSDB_DB_NAME_LEN];
+  SNodeList* pScope;
+  SNode*     pWhere;
+} SRecalcRsmaStmt;
+
 #ifdef __cplusplus
 }
 #endif
