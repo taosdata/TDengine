@@ -1240,15 +1240,17 @@ int32_t shellGetGrantInfo(char *buf) {
     tstrncpy(serverVersion, row[0], 64);
     memcpy(expiretime, row[1], fields[1].bytes);
     memcpy(expired, row[2], fields[2].bytes);
-
+    
+    trimStr(serverVersion);
+    
     if (strcmp(serverVersion, "community") == 0) {
       verType = TSDB_VERSION_OSS;
     } else if (strcmp(expiretime, "unlimited") == 0) {
       verType = TSDB_VERSION_ENTERPRISE;
-      sprintf(buf, "Server is %s, %s and will never expire.\r\n", serverVersion, sinfo);
+      sprintf(buf, "Server is %s, %s. License will never expire.\r\n", serverVersion, sinfo);
     } else {
       verType = TSDB_VERSION_ENTERPRISE;
-      sprintf(buf, "Server is %s, %s and will expire at %s.\r\n", serverVersion, sinfo, expiretime);
+      sprintf(buf, "Server is %s, %s. License will expire at %s.\r\n", serverVersion, sinfo, expiretime);
     }
 
     taos_free_result(tres);
@@ -1257,7 +1259,7 @@ int32_t shellGetGrantInfo(char *buf) {
   fprintf(stdout, "\r\n");
 #else
   verType = TSDB_VERSION_ENTERPRISE;
-  sprintf(buf, "Server is %s, %s and will never expire.\r\n", TD_PRODUCT_NAME, sinfo);
+  sprintf(buf, "Server is %s, %s. License will never expire.\r\n", TD_PRODUCT_NAME, sinfo);
 #endif
   return verType;
 }
