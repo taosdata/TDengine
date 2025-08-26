@@ -589,6 +589,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_DROP_MOUNT_STMT:
       code = makeNode(type, sizeof(SDropMountStmt), &pNode);
       break;
+    case QUERY_NODE_CREATE_RSMA_STMT:
+      code = makeNode(type, sizeof(SCreateRsmaStmt), &pNode);
+      break;
+    case QUERY_NODE_DROP_RSMA_STMT:
+      code = makeNode(type, sizeof(SDropRsmaStmt), &pNode);
+      break;
     case QUERY_NODE_CREATE_USER_STMT:
       code = makeNode(type, sizeof(SCreateUserStmt), &pNode);
       break;
@@ -1575,6 +1581,13 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_DROP_MOUNT_STMT:  // no pointer field
       break;
+    case QUERY_NODE_CREATE_RSMA_STMT: {
+      SCreateRsmaStmt* pStmt = (SCreateRsmaStmt*)pNode;
+      nodesDestroyList(pStmt->pCols);
+      nodesDestroyList(pStmt->pFuncs);
+      nodesDestroyList(pStmt->pIntervals);
+      break;
+    }
     case QUERY_NODE_CREATE_USER_STMT: {
       SCreateUserStmt* pStmt = (SCreateUserStmt*)pNode;
       taosMemoryFree(pStmt->pIpRanges);
