@@ -12,7 +12,7 @@
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool
 
-class TestSelectionFunctionWithJson:
+class TestSelectWithJson:
     updatecfgDict = {
         "keepColumnName": "1",
         "ttlChangeOnWrite": "1",
@@ -21,8 +21,8 @@ class TestSelectionFunctionWithJson:
         "queryBufferSize": 10240
     }
 
-    def test_selection_function_with_json(self):
-        """test select function with json params
+    def test_select_with_json(self):
+        """Select: with json params
 
         test select function with json params
 
