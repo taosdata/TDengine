@@ -4469,6 +4469,28 @@ int32_t tSerializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
 int32_t tDeserializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
 
 typedef struct {
+  char       rsmaName[TSDB_TABLE_FNAME_LEN];
+  char       dbFName[TSDB_DB_FNAME_LEN];
+  char       tbName[TSDB_TABLE_FNAME_LEN];
+  int8_t     tbType;  // ETableType: 1 stable, 3 normal table
+  int8_t     igExists;
+  int8_t     intervalUnit;
+  int8_t     timezone;     // int8_t is not enough, timezone is unit of second
+  int32_t    nFuncs;       // number of functions specified by user
+  func_id_t* funcIds;      // function ids specified by user
+  col_id_t*  funcColIds;   // column ids specified by user
+  int64_t    interval[2];  // 0 unspecified, > 0 valid interval
+  int64_t    uid;          // rsmaUid
+  int64_t    tbUid;
+  int32_t    sqlLen;  // strlen + 1
+  char*      sql;
+} SMCreateRsmaReq;
+
+int32_t tSerializeSMCreateRsmaReq(void* buf, int32_t bufLen, SMCreateRsmaReq* pReq);
+int32_t tDeserializeSMCreateRsmaReq(void* buf, int32_t bufLen, SMCreateRsmaReq* pReq);
+void    tFreeSMCreateRsmaReq(SMCreateRsmaReq* pReq);
+
+typedef struct {
   char   dbFName[TSDB_DB_FNAME_LEN];
   char   stbName[TSDB_TABLE_NAME_LEN];
   char   colName[TSDB_COL_NAME_LEN];

@@ -16088,6 +16088,21 @@ _return:
   return code;
 }
 
+static int32_t translateCreateRsma(STranslateContext* pCxt, SCreateRsmaStmt* pStmt) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  pCxt->pCurrStmt = (SNode*)pStmt;
+
+  SName          useTbName = {0};
+  SMCreateSmaReq pReq = {0};
+
+  PAR_ERR_JRET(buildCreateTSMAReq(pCxt, pStmt, &pReq, &useTbName));
+  PAR_ERR_JRET(collectUseTable(&useTbName, pCxt->pTargetTables));
+  PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_CREATE_RSMA, (FSerializeFunc)tSerializeSMCreateSmaReq, &pReq));
+  return code;
+_return:
+  return code;
+}
+
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
@@ -16316,6 +16331,24 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_DROP_TSMA_STMT:
       code = translateDropTSMA(pCxt, (SDropTSMAStmt*)pNode);
+      break;
+    case QUERY_NODE_CREATE_RSMA_STMT:
+      code = translateCreateRsma(pCxt, (SCreateRsmaStmt*)pNode);
+      break;
+    case QUERY_NODE_DROP_RSMA_STMT:
+      code = translateDropRsma(pCxt, (SDropRsmaStmt*)pNode);
+      break;
+    case QUERY_NODE_START_RSMA_STMT:
+      code = TSDB_CODE_OPS_NOT_SUPPORT;
+      break;
+    case QUERY_NODE_STOP_RSMA_STMT:
+      code = TSDB_CODE_OPS_NOT_SUPPORT;
+      break;
+    case QUERY_NODE_KILL_RSMA_TASKS_STMT:
+      code = TSDB_CODE_OPS_NOT_SUPPORT;
+      break;
+    case QUERY_NODE_RECALC_RSMA_STMT:
+      code = TSDB_CODE_OPS_NOT_SUPPORT;
       break;
     default:
       break;
