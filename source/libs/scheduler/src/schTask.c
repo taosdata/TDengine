@@ -320,7 +320,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
       // this is a redirect process for parent task, since the original pParent task has already failed before.
       // TODO refactor optimize: update the candidate address
       // set the address from the pTask->succeedAddr, the vnode that successfully executed subquery already
-      if (pParent->redirectCtx.inRedirect) {
+      if (pParent->redirectCtx.inRedirect && (!SCH_IS_DATA_BIND_TASK(pParent))) {
         schSwitchTaskCandidateAddr(pJob, pParent);
       }
 
