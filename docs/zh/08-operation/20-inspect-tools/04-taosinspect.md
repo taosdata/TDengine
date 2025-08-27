@@ -39,8 +39,8 @@ optional arguments:
 - `result`：巡检运行结束后结果文件和相关日志文件的存储目录，默认是用户在 taos.cfg 中配置的 logDir 对应目录。
 - `backend`：后台运行安装工具，默认前台运行。
 - `check-nginx`：是否检测负载均衡 nginx 的配置文件，默认值为不检查。
-- `log-level`: 输出日志级别，目前支持 debug 和 info，模式为 info。
-- `version`：打印安装工具版本信息。
+- `log-level`: 输出日志级别，目前支持 debug 和 info，默认模式为 info。
+- `version`：打印工具版本信息。
 
 ### 配置文件使用说明
 
