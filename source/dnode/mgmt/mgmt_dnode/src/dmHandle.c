@@ -532,13 +532,13 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       TAOS_CHECK_RETURN(
           cfgGetAndSetItem(pCfg, &pItem, "arbCheckSyncIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
 
-      sprintf(tmp, "%d", (tsSyncTimeout - 1000)/2);
+      sprintf(tmp, "%d", (tsSyncTimeout - tsSyncTimeout/4)/2);
       TAOS_CHECK_RETURN(
           cfgGetAndSetItem(pCfg, &pItem, "syncVnodeElectIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
       TAOS_CHECK_RETURN(
           cfgGetAndSetItem(pCfg, &pItem, "syncMnodeElectIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
 
-      sprintf(tmp, "%d", (tsSyncTimeout - 1000)/8);
+      sprintf(tmp, "%d", (tsSyncTimeout - tsSyncTimeout/4)/8);
       TAOS_CHECK_RETURN(
           cfgGetAndSetItem(pCfg, &pItem, "syncVnodeHeartbeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
       TAOS_CHECK_RETURN(
