@@ -134,7 +134,9 @@ def main():
 
         """load the model from local folder"""
         pretrained_model = AutoModelForCausalLM.from_pretrained(
-            model_folder
+            model_folder,
+            device_map=device,
+            trust_remote_code=True,
         )
     else:
         print("invalid parameters")
