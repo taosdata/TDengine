@@ -7,9 +7,9 @@ class TestPartitonBy:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_partitionby(self):
-        """Partition By
+        """PartitionBy: basic test
 
-        1. -
+        Test the use of PARTITION BY in projection queries, including combinations with SLIMIT, different filtering conditions, and usage as subqueries.
 
         Catalog:
             - Timeseries:PartitionBy
@@ -69,37 +69,21 @@ class TestPartitonBy:
             f"select _wstart as ts, count(*) from {mt1} partition by tag1 interval(1s) order by _wstart;"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, "2022-04-26 15:15:01.000")
-
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkData(1, 0, "2022-04-26 15:15:02.000")
-
         tdSql.checkData(1, 1, 1)
-
         tdSql.checkData(2, 0, "2022-04-26 15:15:03.000")
-
         tdSql.checkData(2, 1, 1)
-
         tdSql.checkData(3, 0, "2022-04-26 15:15:04.000")
-
         tdSql.checkData(3, 1, 1)
-
         tdSql.checkData(4, 0, "2022-04-26 15:15:05.000")
-
         tdSql.checkData(4, 1, 1)
-
         tdSql.checkData(5, 0, "2022-04-26 15:15:06.000")
-
         tdSql.checkData(5, 1, 1)
-
         tdSql.checkData(6, 0, "2022-04-26 15:15:07.000")
-
         tdSql.checkData(6, 1, 1)
-
         tdSql.checkData(7, 0, "2022-04-26 15:15:08.000")
-
         tdSql.checkData(7, 1, 1)
 
         tdSql.query(
@@ -136,12 +120,10 @@ class TestPartitonBy:
             f"select count(*) from (select ts from {mt1} where ts is not null partition by tbname slimit 2);"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 4)
 
         tdSql.query(
             f"select count(*) from (select ts from {mt1} where ts is not null partition by tbname limit 2);"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 16)

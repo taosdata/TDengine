@@ -2,16 +2,15 @@ import taos
 import socket
 from new_test_framework.utils import tdLog, tdSql, TDSql, tdDnodes
 
+
 class TestTs5400:
-    """Add test case to cover TS-5400
-    """
-    updatecfgDict = {
-        "timezone": "UTC"
-    }
+    updatecfgDict = {"timezone": "UTC"}
 
     def setup_class(cls):
         host = socket.gethostname()
-        con = taos.connect(host=f"{host}", config=tdDnodes.getSimCfgPath(), timezone='UTC')
+        con = taos.connect(
+            host=f"{host}", config=tdDnodes.getSimCfgPath(), timezone="UTC"
+        )
         tdLog.debug("start to execute %s" % __file__)
         cls.testSql = TDSql()
         cls.testSql.init(con.cursor())
@@ -26,13 +25,16 @@ class TestTs5400:
         self.testSql.execute("insert into t1 values ('1970-01-29 05:04:53.000','22:: ');")
 
     def test_ts5400(self):
-        """test interval query when ts = 0 error fix
+        """Interval: Bug TS-5400
 
         test interval query when ts = 0 error fix
 
+        Catalog:
+            - Timeseries:TimeWindow
+
         Since: v3.3.0.0
 
-        Labels: interval
+        Labels: common,ci
 
         Jira: TS-5400
 
@@ -43,9 +45,7 @@ class TestTs5400:
         """
         self.prepare_data()
         self.testSql.execute("use db_ts5400;")
-        self.testSql.query("select _wstart, count(*) from st interval(1y);")
+        self.testSql.query("select to_char(_wstart, 'YYYY-MM-DD HH24:MI:SS.MS'), count(*) from st interval(1y);")
         self.testSql.checkRows(1)
-        self.testSql.checkData(0, 0, '1970-01-01 00:00:00.000')
+        self.testSql.checkData(0, 0, "1970-01-01 00:00:00.000")
         self.testSql.checkData(0, 1, 1)
-
-

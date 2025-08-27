@@ -7,9 +7,10 @@ class TestEvent:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_event(self):
-        """Event
+        """Event: basic test
 
-        1. -
+        1. Test the usage of event window, including various start/end conditions, combination with PARTITION BY and GROUP BY, usage as subqueries, etc.
+        2. Test some illegal statements
 
         Catalog:
             - Timeseries:EventWindow
@@ -82,7 +83,6 @@ class TestEvent:
             f"select count(*) from tba1 event_window start with f1 = 0 end with f3 = false;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 1)
 
         # child table: multi rows window
@@ -90,7 +90,6 @@ class TestEvent:
             f"select count(*) from tba1 event_window start with f1 = 0 end with f2 = 'b';"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 4)
 
         # child table: multi windows
@@ -101,9 +100,7 @@ class TestEvent:
             f"select count(*) from tba1 event_window start with f1 >= 0 end with f3 = true;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(1, 0, 4)
 
         # super table: no window
@@ -120,7 +117,6 @@ class TestEvent:
             f"select count(*) from sta event_window start with f1 = 0 end with f3 = false;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, 1)
 
         # super table: multi rows window
@@ -128,7 +124,6 @@ class TestEvent:
             f"select count(*) from sta event_window start with f1 = 0 end with f2 = 'b';"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 7)
 
         # super table: multi windows
@@ -139,13 +134,9 @@ class TestEvent:
             f"select count(*) from sta event_window start with f1 >= 0 end with f3 = true;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, 3)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(2, 0, 7)
-
         tdSql.checkData(3, 0, 1)
 
         # multi-child table: no window
@@ -162,7 +153,6 @@ class TestEvent:
             f"select tbname, count(*) from sta partition by tbname event_window start with f1 = 0 end with f3 = false;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 1, 1)
 
         # multi-child table: multi rows window
@@ -170,9 +160,7 @@ class TestEvent:
             f"select tbname, count(*) from sta partition by tbname event_window start with f1 = 0 end with f2 = 'b';"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 1, 4)
-
         tdSql.checkData(1, 1, 4)
 
         # multi-child table: multi windows
@@ -183,9 +171,7 @@ class TestEvent:
             f"select tbname, count(*) from sta partition by tbname event_window start with f1 >= 0 end with f3 = true;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 1, 2)
-
         tdSql.checkData(1, 1, 4)
 
         # where + partition by
@@ -196,9 +182,7 @@ class TestEvent:
             f"select tbname, count(*) from sta where f3 = false partition by tbname event_window start with f1 >0 end with f2 > 0;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkData(1, 1, 2)
 
         # where + order by
@@ -209,9 +193,7 @@ class TestEvent:
             f"select count(*) cnt from tba1 where f3 = false event_window start with f1 >0 end with f2 > 0 order by cnt desc;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(1, 0, 1)
 
         # where + partition by + order by
@@ -222,9 +204,7 @@ class TestEvent:
             f"select tbname, count(*) cnt from sta where f3 = false partition by tbname event_window start with f1 >0 end with f2 > 0 order by cnt;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkData(1, 1, 1)
 
         # where + partition by + order by + limit
@@ -235,9 +215,7 @@ class TestEvent:
             f"select tbname, count(*) cnt from sta where f3 = false partition by tbname event_window start with f1 >0 end with f2 > 0 order by cnt limit 2 offset 2;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 1, 2)
-
         tdSql.checkData(1, 1, 2)
 
         # subquery(where + partition by + order by + limit)
@@ -248,9 +226,7 @@ class TestEvent:
             f"select * from (select tbname tname, count(*) cnt from sta where f3 = false partition by tbname event_window start with f1 >0 end with f2 > 0 order by cnt limit 2 offset 2);"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 1, 2)
-
         tdSql.checkData(1, 1, 2)
 
         # subquery + where + partition by + order by + limit
@@ -261,9 +237,7 @@ class TestEvent:
             f"select tname, count(*) cnt from (select tbname tname, * from sta) where f3 = false partition by tname event_window start with f1 >0 end with f2 > 0 order by cnt limit 2 offset 2;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 1, 2)
-
         tdSql.checkData(1, 1, 2)
 
         tdSql.error(
