@@ -62,7 +62,8 @@ static ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode);
 
 int64_t syncOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
   sInfo("vgId:%d, start to open sync", pSyncInfo->vgId);
-  SSyncNode* pSyncNode = syncNodeOpen(pSyncInfo, vnodeVersion);
+
+  SSyncNode* pSyncNode = syncNodeOpen(pSyncInfo, vnodeVersion, pSyncInfo->electMs, pSyncInfo->heartbeatMs);
   if (pSyncNode == NULL) {
     sError("vgId:%d, failed to open sync node", pSyncInfo->vgId);
     return -1;
@@ -651,9 +652,9 @@ int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader) {
   return ret;
 }
 
-int32_t syncResetTimer(int64_t rid) {
+int32_t syncResetTimer(int64_t rid, int32_t electInterval, int32_t heartbeatInterval) {
   int32_t code = 0;
-  sInfo("syncResetTimer, rid:%" PRId64, rid);
+  sInfo("sync Reset Timer, rid:%" PRId64, rid);
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
     code = TSDB_CODE_SYN_RETURN_VALUE_NULL;
@@ -661,11 +662,11 @@ int32_t syncResetTimer(int64_t rid) {
     sError("failed to acquire rid:%" PRId64 " of tsNodeReftId for pSyncNode", rid);
     TAOS_RETURN(code);
   }
-  pSyncNode->electBaseLine = tsElectInterval;
+  pSyncNode->electBaseLine = electInterval;
   syncNodeResetElectTimer(pSyncNode);
 
-  sInfo("vgId:%d, syncResetTimer, rid:%" PRId64, pSyncNode->vgId, rid);
-  TAOS_CHECK_RETURN(syncNodeRestartHeartbeatTimer(pSyncNode));
+  sInfo("vgId:%d, sync Reset Timer, rid:%" PRId64, pSyncNode->vgId, rid);
+  TAOS_CHECK_RETURN(syncNodeRestartHeartbeatTimer(pSyncNode, heartbeatInterval));
   return code;
 }
 
@@ -1128,7 +1129,7 @@ int32_t syncNodeLogStoreRestoreOnNeed(SSyncNode* pNode) {
 }
 
 // open/close --------------
-SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
+SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion, int32_t electInterval, int32_t heartbeatInterval) {
   int32_t    code = 0;
   SSyncNode* pSyncNode = taosMemoryCalloc(1, sizeof(SSyncNode));
   if (pSyncNode == NULL) {
@@ -1368,8 +1369,8 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
 
   // timer ms init
   pSyncNode->pingBaseLine = PING_TIMER_MS;
-  pSyncNode->electBaseLine = tsElectInterval;
-  pSyncNode->hbBaseLine = tsHeartbeatInterval;
+  pSyncNode->electBaseLine = electInterval;
+  pSyncNode->hbBaseLine = heartbeatInterval;
 
   // init ping timer
   pSyncNode->pPingTimer = NULL;
@@ -1480,8 +1481,8 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
   pSyncNode->hbrSlowNum = 0;
   pSyncNode->tmrRoutineNum = 0;
 
-  sNInfo(pSyncNode, "sync node opened, node:%p electInterval:%d heartbeatInterval:%d heartbeatTimeout:%d", pSyncNode,
-         tsElectInterval, tsHeartbeatInterval, tsHeartbeatTimeout);
+  sNInfo(pSyncNode, "sync node opened, node:%p electBaseLine:%d hbBaseLine:%d heartbeatTimeout:%d", pSyncNode,
+         pSyncNode->electBaseLine, pSyncNode->hbBaseLine, tsHeartbeatTimeout);
   return pSyncNode;
 
 _error:
@@ -1868,10 +1869,10 @@ int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode) {
   return code;
 }
 
-int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode) {
+int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode, int32_t heartbeatInterval) {
   int32_t code = 0;
-  sInfo("vgId:%d, syncNodeRestartHeartbeatTimer, state=%d", pSyncNode->vgId, pSyncNode->state);
-  TAOS_CHECK_RETURN(syncNodeSetHeartbeatTimerMs(pSyncNode, tsHeartbeatInterval));
+  sInfo("vgId:%d, sync Node Restart HeartbeatTimer, state=%d", pSyncNode->vgId, pSyncNode->state);
+  TAOS_CHECK_RETURN(syncNodeSetHeartbeatTimerMs(pSyncNode, heartbeatInterval));
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
     TAOS_CHECK_RETURN(syncNodeStopHeartbeatTimer(pSyncNode));
     TAOS_CHECK_RETURN(syncNodeStartHeartbeatTimer(pSyncNode));
@@ -2459,20 +2460,6 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
 }
 
 bool syncNodeIsMnode(SSyncNode* pSyncNode) { return (pSyncNode->vgId == 1); }
-
-int32_t syncSetElectBaseline(int64_t rid, int32_t ms) {
-  int32_t    code = 0;
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    code = TSDB_CODE_SYN_RETURN_VALUE_NULL;
-    if (terrno != 0) code = terrno;
-    sError("failed to acquire rid:%" PRId64 " of tsNodeReftId for pSyncNode", rid);
-    TAOS_RETURN(code);
-  }
-  pSyncNode->electBaseLine = ms;
-  syncNodeResetElectTimer(pSyncNode);
-  return code;
-}
 
 int32_t syncNodePeerStateInit(SSyncNode* pSyncNode) {
   for (int32_t i = 0; i < TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA; ++i) {

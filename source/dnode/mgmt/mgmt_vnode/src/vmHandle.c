@@ -59,7 +59,7 @@ void vmSetVnodeSyncTimeout(SVnodeMgmt *pMgmt) {
 
     SVnodeObj *pVnode = *ppVnode;
 
-    if (vnodeSetSyncTimeout(pVnode->pImpl, tsElectInterval) != 0) {
+    if (vnodeSetSyncTimeout(pVnode->pImpl, tsVnodeElectIntervalMs) != 0) {
       dError("vgId:%d, failed to vnodeSetSyncTimeout", pVnode->vgId);
     }
     pIter = taosHashIterate(pMgmt->runngingHash, pIter);

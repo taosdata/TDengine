@@ -1239,7 +1239,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
 }
 
 int32_t mndResetTimer(SMnode *pMnode){
-  return syncResetTimer(pMnode->syncMgmt.sync);
+  return syncResetTimer(pMnode->syncMgmt.sync, tsMnodeElectIntervalMs, tsMnodeHeartbeatIntervalMs);
 }
 
 int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad) {
