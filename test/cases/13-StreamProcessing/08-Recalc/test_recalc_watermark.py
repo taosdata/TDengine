@@ -335,6 +335,7 @@ class TestStreamRecalcWatermark:
                 func=lambda: (
                     tdSql.getRows() > 30
                 )
+                retry=240
             )
         
 

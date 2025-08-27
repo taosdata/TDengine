@@ -7313,7 +7313,7 @@ static int32_t checkStreamIntervalWindow(STranslateContext* pCxt, SIntervalWindo
 
   if (pOffset) {
     if(!pInter) {
-      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PLAN_INTERNAL_ERROR, "Offset without interval"));
+      PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERVAL_OFFSET, "Interval offset without interval"));
     }
 
     if (pOffset->datum.i < 0) {
@@ -7335,13 +7335,17 @@ static int32_t checkStreamIntervalWindow(STranslateContext* pCxt, SIntervalWindo
       PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_UNIT));
     }
   } else {
-    PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+    PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                      "Sliding window is required for stream query"));
   }
 
   if (pSOffset) {
     if (!pSliding) {
-      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PLAN_INTERNAL_ERROR, "Sliding offset without sliding"));
+      PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_SLIDING_OFFSET, "Sliding offset without sliding"));
+    }
+
+    if (pInter) {
+      PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_SLIDING_OFFSET, "Sliding offset cannot be used with interval"));
     }
 
     if (pSOffset->datum.i < 0) {
@@ -14285,16 +14289,21 @@ static int32_t createSimpleSelectStmtImpl(const char* pDb, const char* pTable, S
 static int32_t createSimpleSelectStmtFromCols(const char* pDb, const char* pTable, int32_t numOfProjs, const char* const pProjCol[], SSelectStmt** pStmt);
 
 static int32_t createStreamReqBuildTriggerSelect(STranslateContext* pCxt, SRealTableNode* pTriggerTable, SSelectStmt** pTriggerSelect, SCreateStreamStmt* pStmt) {
-  int32_t              code = TSDB_CODE_SUCCESS;
-  SFunctionNode*       pFunc = NULL;
-
+  int32_t                code = TSDB_CODE_SUCCESS;
+  SFunctionNode*         pFunc = NULL;
+  SStreamTriggerNode*    pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
+  SStreamTriggerOptions* pOptions = (SStreamTriggerOptions*)pTrigger->pOptions;
+  SNode*                 pPreFilter = NULL;
+  if (pOptions) {
+    pPreFilter = pOptions->pPreFilter;
+  }
   PAR_ERR_JRET(createSimpleSelectStmtImpl(pTriggerTable->table.dbName, pTriggerTable->table.tableName, NULL, pTriggerSelect));
-  PAR_ERR_JRET(nodesCollectColumnsFromNode(pStmt->pTrigger, NULL, COLLECT_COL_TYPE_ALL, &((SSelectStmt*)*pTriggerSelect)->pProjectionList));
+  PAR_ERR_JRET(nodesCollectColumnsFromNode(pStmt->pTrigger, NULL, COLLECT_COL_TYPE_COL, &((SSelectStmt*)*pTriggerSelect)->pProjectionList));
+  if (pPreFilter) {
+    PAR_ERR_JRET(nodesCollectColumnsFromNode(pPreFilter, NULL, COLLECT_COL_TYPE_TAG, &((SSelectStmt*)*pTriggerSelect)->pProjectionList));
+  }
   PAR_ERR_JRET(createTbnameFunction(&pFunc));
   PAR_ERR_JRET(nodesListMakeStrictAppend(&((SSelectStmt*)*pTriggerSelect)->pProjectionList, (SNode*)pFunc));
-//  PAR_ERR_JRET(createSimpleSelectStmtFromCols(pTriggerTable->table.dbName, pTriggerTable->table.tableName, 0, NULL, pTriggerSelect));
-//  PAR_ERR_JRET(createTbnameFunction(&pFunc));
-//  PAR_ERR_JRET(nodesListMakeStrictAppend(&((SSelectStmt*)*pTriggerSelect)->pProjectionList, (SNode*)pFunc));
 
   return code;
 _return:

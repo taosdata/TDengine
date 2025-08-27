@@ -1745,7 +1745,7 @@ int32_t tsCompressFloat2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32
 int32_t tsDecompressFloat2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
                            int32_t nBuf) {
   DEFINE_VAR(cmprAlg)
-  if (lvl != 0 && HEAD_ALGO(((uint8_t *)pIn)[0]) == ALGO_SZ_LOSSY) {
+  if (lvl != 0 && HEAD_ALGO(((uint8_t *)pIn)[0]) == ALGO_SZ_LOSSY && l1 != L1_BSS) {
     return tsDecompressFloatLossyImp(pIn, nIn, nEle, pOut);
   }
   FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_FLOAT, 0);
@@ -1765,7 +1765,7 @@ int32_t tsCompressDouble2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int3
 int32_t tsDecompressDouble2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
                             void *pBuf, int32_t nBuf) {
   DEFINE_VAR(cmprAlg)
-  if (lvl != 0 && HEAD_ALGO(((uint8_t *)pIn)[0]) == ALGO_SZ_LOSSY) {
+  if (lvl != 0 && HEAD_ALGO(((uint8_t *)pIn)[0]) == ALGO_SZ_LOSSY && l1 != L1_BSS) {
     // decompress lossy
     return tsDecompressDoubleLossyImp(pIn, nIn, nEle, pOut);
   }
