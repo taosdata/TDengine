@@ -8355,9 +8355,9 @@ static void loadFileMark(FILE *fp, char *mark, char *fcharset) {
 
     do {
 #ifdef WINDOWS
-        line = calloc(1, markLen);
+        line = calloc(1, MAX_LINE_LENGTH);
         TOOLS_ASSERT(line);
-        if (NULL == fgets(line, markLen, fp)) {
+        if (NULL == fgets(line, MAX_LINE_LENGTH, fp)) {
             goto _exit_no_charset;
         }
         size = strlen(line?line:"");
