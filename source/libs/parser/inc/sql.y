@@ -736,6 +736,8 @@ cmd ::= DROP RSMA exists_opt(B) full_rsma_name(C).                              
 cmd ::= SHOW CREATE RSMA full_table_name(A).                                      { pCxt->pRootNode = createShowCreateRsmaStmt(pCxt, QUERY_NODE_SHOW_CREATE_RSMA_STMT, A); }
 cmd ::= START RSMA exists_opt(B) full_rsma_name(C) action_scope(D).               { pCxt->pRootNode = createStartRsmaStmt(pCxt, QUERY_NODE_START_RSMA_STMT, B, C, D); }
 cmd ::= STOP RSMA exists_opt(B) full_rsma_name(C) action_scope(D).                { pCxt->pRootNode = createStopRsmaStmt(pCxt, QUERY_NODE_STOP_RSMA_STMT, B, C, D); }
+cmd ::= ALTER RSMA exists_opt(B) full_rsma_name(C) MODIFY FUNCTION func_list(D).  { pCxt->pRootNode = createAlterRsmaStmt(pCxt, B, C, D, true); }
+cmd ::= ALTER RSMA exists_opt(B) full_rsma_name(C) DROP FUNCTION func_list(D).    { pCxt->pRootNode = createAlterRsmaStmt(pCxt, B, C, D, false); }
 cmd ::= SHOW db_name_cond_opt(B) RSMAS.                                           { pCxt->pRootNode = createShowRsmasStmt(pCxt, B); }
 cmd ::= SHOW db_name_cond_opt(B) RSMA_TASKS.                                      { pCxt->pRootNode = createShowRsmaTasksStmt(pCxt, B); }
 cmd ::= KILL RSMA_TASKS IN NK_LP integer_list(B) NK_RP.                           { pCxt->pRootNode = createKillRsmaTasksStmt(pCxt, B); }

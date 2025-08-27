@@ -420,6 +420,7 @@ SNode* createStartRsmaStmt(SAstCreateContext* pCxt, ENodeType type, bool ignoreN
                            SNodeList* pVgroups);
 SNode* createStopRsmaStmt(SAstCreateContext* pCxt, ENodeType type, bool ignoreNotExists, SNode* pRsma,
                           SNodeList* pVgroups);
+SNode* createAlterRsmaStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRsma, SNodeList* pFuncs, bool add);
 SNode* createKillRsmaTasksStmt(SAstCreateContext* pCxt, SNodeList* pTaskIds);
 SNode* createRecalcRsmaStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* rsmaName, SNodeList* pScope,
                             SNode* pWhere);

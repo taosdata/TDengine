@@ -837,6 +837,15 @@ typedef struct SStartRsmaStmt {
 
 typedef SStartRsmaStmt SStopRsmaStmt;
 
+typedef struct SAlterRsmaStmt {
+  ENodeType  type;
+  char       dbName[TSDB_DB_NAME_LEN];
+  char       rsmaName[TSDB_TABLE_NAME_LEN];
+  bool       ignoreNotExists;
+  int8_t     alterType;
+  SNodeList* pFuncs;
+} SAlterRsmaStmt;
+
 typedef struct SKillRsmaTasksStmt {
   ENodeType  type;
   SNodeList* pTaskIds;

@@ -623,9 +623,9 @@ static int32_t fmCreateStateFunc(const SFunctionNode* pFunc, SFunctionNode** pSt
   return TSDB_CODE_SUCCESS;
 }
 
-bool fmIsTSMASupportedFunc(func_id_t funcId) {
-  return isSpecificClassifyFunc(funcId, FUNC_MGT_TSMA_FUNC);
-}
+bool fmIsTSMASupportedFunc(func_id_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_TSMA_FUNC); }
+
+bool fmIsRsmaSupportedFunc(func_id_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_RSMA_FUNC); }
 
 int32_t fmCreateStateFuncs(SNodeList* pFuncs) {
   int32_t code;

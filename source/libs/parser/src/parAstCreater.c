@@ -5104,6 +5104,25 @@ SNode* createStopRsmaStmt(SAstCreateContext* pCxt, ENodeType type, bool ignoreNo
   return createStartRsmaStmt(pCxt, type, ignoreNotExists, pRsma, pVgroups);
 }
 
+SNode* createAlterRsmaStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRsma, SNodeList* pFuncs, bool add) {
+  CHECK_PARSER_STATUS(pCxt);
+  SAlterRsmaStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_RSMA_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->ignoreNotExists = ignoreNotExists;
+  SRealTableNode* pTableNode = (SRealTableNode*)pRsma;
+
+  memcpy(pStmt->rsmaName, pTableNode->table.tableName, TSDB_TABLE_NAME_LEN);
+  memcpy(pStmt->dbName, pTableNode->table.dbName, TSDB_DB_NAME_LEN);
+  nodesDestroyNode(pRsma);
+
+  pStmt->pFuncs = pFuncs;
+  pStmt->alterType = add ? 1 : 2;  // 1:add, 2:drop
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createKillRsmaTasksStmt(SAstCreateContext* pCxt, SNodeList* pTaskIds) {
   CHECK_PARSER_STATUS(pCxt);
   SKillRsmaTasksStmt* pStmt = NULL;

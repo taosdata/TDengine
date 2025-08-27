@@ -354,6 +354,7 @@ bool    fmIsInvertible(int32_t funcId);
 char* fmGetFuncName(int32_t funcId);
 
 bool    fmIsTSMASupportedFunc(func_id_t funcId);
+bool    fmIsRsmaSupportedFunc(func_id_t funcId);
 int32_t fmCreateStateFuncs(SNodeList* pFuncs);
 int32_t fmCreateStateMergeFuncs(SNodeList* pFuncs);
 int32_t fmGetFuncId(const char* name);
