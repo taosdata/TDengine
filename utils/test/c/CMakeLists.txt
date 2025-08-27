@@ -23,6 +23,7 @@ add_executable(varbinary_test varbinary_test.c)
 add_executable(blob_test blob_test.c)
 add_executable(replay_test replay_test.c)
 add_executable(timezone_test timezone_test.c)
+add_executable(tmq_blob tmq_blob.c)
 
 if(${TD_LINUX})
     add_executable(tsz_test tsz_test.c)
@@ -213,6 +214,14 @@ target_link_libraries(
 )
 target_link_libraries(
     timezone_test
+    PUBLIC taos
+    PUBLIC util
+    PUBLIC common
+    PUBLIC os
+)
+
+target_link_libraries(
+    tmq_blob 
     PUBLIC taos
     PUBLIC util
     PUBLIC common

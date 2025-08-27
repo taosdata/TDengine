@@ -1189,40 +1189,47 @@ int32_t checkSchema(SSchema* pColSchema, SSchemaExt* pColExtSchema, int8_t* fiel
   return 0;
 }
 
-#define PRCESS_DATA(i, j)                                                                                 \
-  ret = checkSchema(pColSchema, pColExtSchema, fields, errstr, errstrLen);                                \
-  if (ret != 0) {                                                                                         \
-    goto end;                                                                                             \
-  }                                                                                                       \
-                                                                                                          \
-  if (pColSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {                                                 \
-    hasTs = true;                                                                                         \
-  }                                                                                                       \
-                                                                                                          \
-  int8_t* offset = pStart;                                                                                \
-  if (IS_VAR_DATA_TYPE(pColSchema->type)) {                                                               \
-    pStart += numOfRows * sizeof(int32_t);                                                                \
-  } else {                                                                                                \
-    pStart += BitmapLen(numOfRows);                                                                       \
-  }                                                                                                       \
-  char* pData = pStart;                                                                                   \
-                                                                                                          \
-  SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, j);                                               \
-  ret = tColDataAddValueByDataBlock(pCol, pColSchema->type, pColSchema->bytes, numOfRows, offset, pData); \
-  if (ret != 0) {                                                                                         \
-    goto end;                                                                                             \
-  }                                                                                                       \
-  fields += sizeof(int8_t) + sizeof(int32_t);                                                             \
-  if (needChangeLength && version == BLOCK_VERSION_1) {                                                   \
-    pStart += htonl(colLength[i]);                                                                        \
-  } else {                                                                                                \
-    pStart += colLength[i];                                                                               \
-  }                                                                                                       \
+#define PRCESS_DATA(i, j)                                                                                          \
+  ret = checkSchema(pColSchema, pColExtSchema, fields, errstr, errstrLen);                                         \
+  if (ret != 0) {                                                                                                  \
+    goto end;                                                                                                      \
+  }                                                                                                                \
+                                                                                                                   \
+  if (pColSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {                                                          \
+    hasTs = true;                                                                                                  \
+  }                                                                                                                \
+                                                                                                                   \
+  int8_t* offset = pStart;                                                                                         \
+  if (IS_VAR_DATA_TYPE(pColSchema->type)) {                                                                        \
+    pStart += numOfRows * sizeof(int32_t);                                                                         \
+  } else {                                                                                                         \
+    pStart += BitmapLen(numOfRows);                                                                                \
+  }                                                                                                                \
+  char* pData = pStart;                                                                                            \
+                                                                                                                   \
+  SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, j);                                                        \
+  if (hasBlob) {                                                                                                   \
+    ret = tColDataAddValueByDataBlockWithBlob(pCol, pColSchema->type, pColSchema->bytes, numOfRows, offset, pData, \
+                                              pBlobSet);                                                           \
+  } else {                                                                                                         \
+    ret = tColDataAddValueByDataBlock(pCol, pColSchema->type, pColSchema->bytes, numOfRows, offset, pData);        \
+  }                                                                                                                \
+  if (ret != 0) {                                                                                                  \
+    goto end;                                                                                                      \
+  }                                                                                                                \
+  fields += sizeof(int8_t) + sizeof(int32_t);                                                                      \
+  if (needChangeLength && version == BLOCK_VERSION_1) {                                                            \
+    pStart += htonl(colLength[i]);                                                                                 \
+  } else {                                                                                                         \
+    pStart += colLength[i];                                                                                        \
+  }                                                                                                                \
   boundInfo->pColIndex[j] = -1;
 
 int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq* pCreateTb, void* tFields,
                      int numFields, bool needChangeLength, char* errstr, int32_t errstrLen, bool raw) {
   int ret = 0;
+  int8_t    hasBlob = 0;
+  SBlobSet* pBlobSet = NULL;
   if (data == NULL) {
     uError("rawBlockBindData, data is NULL");
     return TSDB_CODE_APP_ERROR;
@@ -1246,10 +1253,20 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
     taosMemoryFree(pCreateReqTmp);
   }
 
+  hasBlob = pTableCxt->hasBlob;
+  if (hasBlob && pTableCxt->pData->pBlobSet == NULL) {
+    ret = tBlobSetCreate(512, 0, &pTableCxt->pData->pBlobSet);
+    if (pTableCxt->pData->pBlobSet == NULL) {
+      uError("create blob set failed");
+      ret = terrno;
+    }
+  }
+
   if (ret != TSDB_CODE_SUCCESS) {
     uError("insGetTableDataCxt error");
     goto end;
   }
+  pBlobSet = pTableCxt->pData->pBlobSet;
 
   pTableCxt->pData->flags |= TD_REQ_FROM_TAOX;
   if (tmp == NULL) {

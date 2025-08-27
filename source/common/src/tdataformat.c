@@ -4642,6 +4642,107 @@ int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t byt
 _exit:
   return code;
 }
+int32_t tColDataAddValueByDataBlockWithBlob(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows,
+                                            char *lengthOrbitmap, char *data, void *pBlobSet) {
+  int32_t code = 0;
+  if (data == NULL) {
+    if (pColData->cflag & COL_IS_KEY) {
+      code = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
+    } else {
+      for (int32_t i = 0; i < nRows; ++i) {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+      }
+    }
+    goto _exit;
+  }
+
+  if (IS_VAR_DATA_TYPE(type)) {  // var-length data type
+    if (!IS_STR_DATA_BLOB(type)) {
+      for (int32_t i = 0; i < nRows; ++i) {
+        int32_t offset = *((int32_t *)lengthOrbitmap + i);
+        if (offset == -1) {
+          if (pColData->cflag & COL_IS_KEY) {
+            code = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
+            goto _exit;
+          }
+          if ((code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0))) {
+            goto _exit;
+          }
+        } else {
+          if (varDataTLen(data + offset) > bytes) {
+            uError("var data length invalid, varDataTLen(data + offset):%d > bytes:%d", (int)varDataTLen(data + offset),
+                   bytes);
+            code = TSDB_CODE_PAR_VALUE_TOO_LONG;
+            goto _exit;
+          }
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, (uint8_t *)varDataVal(data + offset),
+                                                                        varDataLen(data + offset));
+        }
+      }
+    } else {
+      for (int32_t i = 0; i < nRows; ++i) {
+        int32_t offset = *((int32_t *)lengthOrbitmap + i);
+        if (offset == -1) {
+          if (pColData->cflag & COL_IS_KEY) {
+            code = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
+            goto _exit;
+          }
+          if ((code = tColDataAppendValueBlobImpl[pColData->flag][CV_FLAG_NULL](pBlobSet, pColData, NULL, 0))) {
+            goto _exit;
+          }
+        } else {
+          if (blobDataTLen(data + offset) > TSDB_MAX_BLOB_LEN) {
+            uError("var data length invalid, varDataTLen(data + offset):%d > bytes:%d",
+                   (int)blobDataTLen(data + offset), bytes);
+            code = TSDB_CODE_PAR_VALUE_TOO_LONG;
+            goto _exit;
+          }
+          code = tColDataAppendValueBlobImpl[pColData->flag][CV_FLAG_VALUE](
+              pBlobSet, pColData, (uint8_t *)blobDataVal(data + offset), blobDataLen(data + offset));
+        }
+      }
+    }
+  } else {  // fixed-length data type
+    bool allValue = true;
+    bool allNull = true;
+    for (int32_t i = 0; i < nRows; ++i) {
+      if (!BMIsNull(lengthOrbitmap, i)) {
+        allNull = false;
+      } else {
+        allValue = false;
+      }
+    }
+    if ((pColData->cflag & COL_IS_KEY) && !allValue) {
+      code = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
+      goto _exit;
+    }
+
+    if (allValue) {
+      // optimize (todo)
+      for (int32_t i = 0; i < nRows; ++i) {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, (uint8_t *)data + bytes * i, bytes);
+      }
+    } else if (allNull) {
+      // optimize (todo)
+      for (int32_t i = 0; i < nRows; ++i) {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+        if (code) goto _exit;
+      }
+    } else {
+      for (int32_t i = 0; i < nRows; ++i) {
+        if (BMIsNull(lengthOrbitmap, i)) {
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+          if (code) goto _exit;
+        } else {
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, (uint8_t *)data + bytes * i, bytes);
+        }
+      }
+    }
+  }
+
+_exit:
+  return code;
+}
 
 int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen, initGeosFn igeos,
                                checkWKBGeometryFn cgeos) {
