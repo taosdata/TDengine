@@ -116,7 +116,7 @@
 <script setup lang="ts">
 import AddForm from './components/addStream.vue';
 import { getStreams, delStream } from '@/api/stream.ts';
-import { parsinginZone } from '@/utils';
+import { compareVersion, parsinginZone } from '@/utils';
 const { $IS_OEM, $error } = inject('globalCustomProperties') as GlobalCustomProperties;
 const { t } = useI18n();
 const name = 'Stream';
@@ -129,6 +129,8 @@ const requestIng = ref<boolean>(false);
 const currentPage = ref(1);
 const pageSize = ref(10);
 const total = ref(0);
+
+const TDVersion = localStorage.getItem('td_version') || '';
 
 const learnMoreTip = computed(() => {
   return t('stream.learnMoreTip').replace(/docsUrl/, `${t('urlPart')}/develop/stream/`);
@@ -151,7 +153,11 @@ function del(data: any) {
     type: 'warning'
   }).then(async () => {
     requestIng.value = true;
-    await delStream(`\`${data.stream_name}\``)
+    let streamName = `\`${data.stream_name}\``;
+    if (compareVersion(TDVersion, '>=3.3.7.0')) {
+      streamName = `\`${data.db_name}\`.\`${data.stream_name}\``;
+    }
+    await delStream(streamName)
       .then(() => {
         ElMessage.success(t('delSucc'));
       })
