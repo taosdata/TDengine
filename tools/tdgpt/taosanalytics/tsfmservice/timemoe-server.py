@@ -81,9 +81,12 @@ def time_moe():
 
 def usage():
     return (
-        "Python timemoe-server.py                    #use implicit download of small model"
-        "Python timemoe-server.py model-index        #user can specify the model index"
-        "Python timemoe-server.py model_path model_name enable_ep  #user specify the model name, local directory, and the proxy"
+        """
+        Usage:\n
+        Python timemoe-server.py                    #use implicit download of small model\n
+        Python timemoe-server.py model_index        #specify the model that would load when starting\n
+        Python timemoe-server.py model_path model_name enable_ep  #specify the model name, local directory, and the proxy
+        """
     )
 
 def main():

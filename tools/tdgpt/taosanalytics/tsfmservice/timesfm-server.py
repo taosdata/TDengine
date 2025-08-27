@@ -79,9 +79,12 @@ def timesfm():
 
 def usage():
     return (
-        "Python timesfm-server.py                    #use implicit download of small model"
-        "Python timesfm-server.py model-index        #user can specify the model index"
-        "Python timesfm-server.py model_path model_name enable_ep  #user specify the model name, local directory, and the proxy"
+        """
+        Usage:\n
+        Python timesfm-server.py                    #use implicit download of small model\n
+        Python timesfm-server.py model_index        #specify the model that would load when starting\n
+        Python timesfm-server.py model_path model_name enable_ep  #specify the model name, local directory, and the proxy
+        """
     )
 
 def main():

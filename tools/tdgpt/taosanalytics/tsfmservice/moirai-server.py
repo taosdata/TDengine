@@ -246,9 +246,12 @@ def download_model(model_name, root_dir, enable_ep = False):
 
 def usage():
     return (
-        "Python moirai-server.py                    #use implicit download of small model"
-        "Python moirai-server.py model-index        #user can specify the model index"
-        "Python moirai-server.py model_path model_name enable_ep  #user specify the model name, local directory, and the proxy"
+        """
+        Usage:\n
+        Python moirai-server.py                    #use implicit download of small model\n
+        Python moirai-server.py model_index        #specify the model that would load when starting\n
+        Python moirai-server.py model_path model_name enable_ep  #specify the model name, local directory, and the proxy
+        """
     )
 
 def main():
@@ -304,7 +307,7 @@ def main():
             model_folder
         ).to(device)
     else:
-        print("invalid parameters")
+        print("invalid parameters\n")
         print(usage())
         exit(-1)
 
