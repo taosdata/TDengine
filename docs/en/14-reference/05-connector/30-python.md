@@ -44,13 +44,11 @@ The method of establishing a connection with the server using the REST interface
 
 :::note
 
-For performance-critical applications, it is recommended to adopt the WebSocket connection method for the following reasons:
-
-- Due to the limitations of Python's Global Interpreter Lock (GIL), multithreading cannot leverage multi-core advantages and essentially executes serially. With native connections, Python-based data conversion and parsing operations are constrained by the GIL, reducing efficiency. In contrast, WebSocket connections release the GIL during I/O operations (e.g., network requests, file I/O), allowing other threads to acquire the lock and execute. This significantly improves throughput in I/O-intensive scenarios.
-
-- Native connections require extensive data type conversions between C and Python. The WebSocket approach only requires interface-level data conversion, while data processing and parsing are handled by the WebSocket connector (Rust) and taosAdapter (Go). This effectively bypasses Python's performance bottlenecks.
+- If you need to use SQLAlchemy with taos-ws-py, you must install taospy version 2.8.5 or higher.
+- For performance-critical applications, it is recommended to adopt the WebSocket connection method for the following reasons:
+  - Due to the limitations of Python's Global Interpreter Lock (GIL), multithreading cannot leverage multi-core advantages and essentially executes serially. With native connections, Python-based data conversion and parsing operations are constrained by the GIL, reducing efficiency. In contrast, WebSocket connections release the GIL during I/O operations (e.g., network requests, file I/O), allowing other threads to acquire the lock and execute. This significantly improves throughput in I/O-intensive scenarios.
+  - Native connections require extensive data type conversions between C and Python. The WebSocket approach only requires interface-level data conversion, while data processing and parsing are handled by the WebSocket connector (Rust) and taosAdapter (Go). This effectively bypasses Python's performance bottlenecks.
 :::
-
 
 ## Python Version Compatibility
 
@@ -67,6 +65,7 @@ Python Connector historical versions (it is recommended to use the latest versio
 
 |Python Connector Version | Major Changes                                                                           | TDengine Version|
 | --------- | ----------------------------------------------------------------------------------------------------- | ----------------- |
+|2.8.5 | Support the SQLAlchemy feature of taos-ws-py                                                                | - |
 |2.8.4 | Support DBUtils connection pool.                                                                            | - |
 |2.8.3 | Support BLOB data type.                                                                                     | - |
 |2.8.2 | The connection parameter settings support cross-platform compatibility.                                     | - |
