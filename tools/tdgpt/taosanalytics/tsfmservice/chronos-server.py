@@ -5,7 +5,6 @@ from flask import Flask, request, jsonify
 from chronos import BaseChronosPipeline
 from huggingface_hub import snapshot_download
 from tqdm import tqdm
-from transformers.trainer_utils import number_of_arguments
 
 app = Flask(__name__)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -100,7 +99,7 @@ def main():
             model_list[0],
             device_map=device,
             torch_dtype=torch.bfloat16,
-        ).to(device)
+        )
     elif num_of_arg == 2:
         index = int(sys.argv[1])
         if index < 0 or index >= len(model_list):
@@ -112,7 +111,7 @@ def main():
             model_list[index],
             device_map=device,
             torch_dtype=torch.bfloat16,
-        ).to(device)
+        )
     elif num_of_arg == 4:
         # let's load the model file from the user specified directory
         model_folder = sys.argv[1].strip('\'"')
@@ -133,7 +132,7 @@ def main():
             model_folder,
             device_map=device,
             torch_dtype=torch.bfloat16,
-        ).to(device)
+        )
     else:
         print("invalid parameters")
         print(usage())
