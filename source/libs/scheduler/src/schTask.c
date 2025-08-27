@@ -927,7 +927,9 @@ _return:
 int32_t schRemoveTaskFromExecList(SSchJob *pJob, SSchTask *pTask) {
   int32_t code = taosHashRemove(pJob->execTasks, &pTask->taskId, sizeof(pTask->taskId));
   if (code) {
-    SCH_TASK_WLOG("task already not in execTask list, code:%x", code);
+    SCH_TASK_WLOG("task already not in execTask list, code:0x%x， size:%d", code, taosHashGetSize(pJob->execTasks));
+  } else {
+    SCH_TASK_DLOG("remove task from execTask list, remain:%d", taosHashGetSize(pJob->execTasks));
   }
 
   return TSDB_CODE_SUCCESS;

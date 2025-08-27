@@ -519,7 +519,8 @@ int32_t schHandleDropCallback(void *param, SDataBuf *pMsg, int32_t code) {
   (void)rpcReleaseHandle(pMsg->handle, TAOS_CONN_CLIENT, 0); // ignore error
 
   if (pMsg->handle == NULL) {
-    qError("sch handle is NULL, may be already released and mem lea");
+    qError("QID:0x%"PRIx64" TID:0x%"PRIx64" sch handle is NULL, may be already released and mem leak",
+    pParam->queryId, pParam->taskId);
   }
   if (pMsg) {
     taosMemoryFree(pMsg->pData);

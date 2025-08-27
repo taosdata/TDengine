@@ -18,6 +18,7 @@
 #include "query.h"
 #include "schInt.h"
 #include "tglobal.h"
+#include "thash.h"
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
@@ -135,11 +136,12 @@ int32_t schRemoveHbConnection(SSchJob *pJob, SSchTask *pTask, SQueryNodeEpId *ep
     if (code) {
       SCH_TASK_WLOG("taosHashRemove hb connection failed, error:%s", tstrerror(code));
     } else {
-      SCH_TASK_ILOG("hb mark removed from hbConnections, epId:%d", epId->nodeId);
+      SCH_TASK_ILOG("hb mark removed from hbConnections, epId(vgId):%d, remain:%d", epId->nodeId,
+                    taosHashGetSize(schMgmt.hbConnections));
     }
   }
-  SCH_UNLOCK(SCH_WRITE, &schMgmt.hbLock);
 
+  SCH_UNLOCK(SCH_WRITE, &schMgmt.hbLock);
   return TSDB_CODE_SUCCESS;
 }
 
