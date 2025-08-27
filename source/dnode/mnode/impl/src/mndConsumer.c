@@ -680,7 +680,9 @@ END:
   tDeleteSMqConsumerObj(pConsumerNew);
   taosArrayDestroyP(subscribe.topicNames, NULL);
   code = (code == TSDB_CODE_TMQ_NO_NEED_REBALANCE || code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) ? 0 : code;
-  PRINT_LOG_END(code);
+  if (code != TSDB_CODE_ACTION_IN_PROGRESS){
+    PRINT_LOG_END(code);
+  }
   return code;
 }
 

@@ -1242,21 +1242,22 @@ static int32_t mndCheckConsumerByGroup(SMnode *pMnode, STrans *pTrans, char *cgr
       continue;
     }
 
-    if (deleteConsumer) {
-      MND_TMQ_RETURN_CHECK(tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup, -1, NULL, NULL, &pConsumerNew));
-      MND_TMQ_RETURN_CHECK(mndSetConsumerDropLogs(pTrans, pConsumerNew));
-      tDeleteSMqConsumerObj(pConsumerNew);
-      pConsumerNew = NULL;
-    } else {
-      bool found = checkTopic(pConsumer->assignedTopics, topic);
-      if (found){
+    bool found1 = checkTopic(pConsumer->assignedTopics, topic);
+    bool found2 = checkTopic(pConsumer->rebRemovedTopics, topic);
+    bool found3 = checkTopic(pConsumer->rebNewTopics, topic);
+    if (found1 || found2 || found3) {
+      if (deleteConsumer) {
+        MND_TMQ_RETURN_CHECK(tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup, -1, NULL, NULL, &pConsumerNew));
+        MND_TMQ_RETURN_CHECK(mndSetConsumerDropLogs(pTrans, pConsumerNew));
+        tDeleteSMqConsumerObj(pConsumerNew);
+        pConsumerNew = NULL;
+      } else {
         mError("topic:%s, failed to drop since subscribed by consumer:0x%" PRIx64 ", in consumer group %s",
-               topic, pConsumer->consumerId, pConsumer->cgroup);
+              topic, pConsumer->consumerId, pConsumer->cgroup);
         code = TSDB_CODE_MND_CGROUP_USED;
         goto END;
       }
     }
-
 
     sdbRelease(pMnode->pSdb, pConsumer);
   }
