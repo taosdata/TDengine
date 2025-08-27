@@ -3475,7 +3475,6 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
       if (pRsp->code == TSDB_CODE_STREAM_NO_DATA) {
         QUERY_CHECK_CONDITION(pRsp->contLen == sizeof(int64_t), code, lino, _end, TSDB_CODE_INVALID_PARA);
-        blockDataEmpty(pDataBlock);
         pDataBlock->info.id.groupId = *(int64_t *)pRsp->pCont;
       } else {
         QUERY_CHECK_CONDITION(pRsp->contLen > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
@@ -3671,7 +3670,6 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       int64_t lastScanVer = 0;
       if (pRsp->code == TSDB_CODE_STREAM_NO_DATA) {
         QUERY_CHECK_CONDITION(pRsp->contLen == sizeof(int64_t), code, lino, _end, TSDB_CODE_INVALID_PARA);
-        blockDataEmpty(pDataBlock);
         lastScanVer = *(int64_t *)pRsp->pCont;
       } else {
         QUERY_CHECK_CONDITION(pRsp->contLen > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
@@ -3788,14 +3786,13 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
       int64_t lastScanVer = 0;
+      pDataBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+      QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
       if (pRsp->code == TSDB_CODE_STREAM_NO_DATA) {
         QUERY_CHECK_CONDITION(pRsp->contLen == sizeof(int64_t), code, lino, _end, TSDB_CODE_INVALID_PARA);
-        blockDataEmpty(pDataBlock);
         lastScanVer = *(int64_t *)pRsp->pCont;
       } else {
         QUERY_CHECK_CONDITION(pRsp->contLen > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
-        pDataBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-        QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
         SSHashObj *pSlices = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
         QUERY_CHECK_NULL(pSlices, code, lino, _end, terrno);
         SArray *pUids = taosArrayInit(0, sizeof(int64_t) * 2);

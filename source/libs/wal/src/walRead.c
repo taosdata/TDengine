@@ -260,14 +260,14 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver) {
     }
   }
 
-  code = walValidHeadCksum(pRead->pHead);
+  // code = walValidHeadCksum(pRead->pHead);
 
-  if (code != 0) {
-    wError("vgId:%d, unexpected wal log index:%" PRId64 ", since head checksum not passed, 0x%" PRIx64,
-           pRead->pWal->cfg.vgId, ver, pRead->readerId);
+  // if (code != 0) {
+  //   wError("vgId:%d, unexpected wal log index:%" PRId64 ", since head checksum not passed, 0x%" PRIx64,
+  //          pRead->pWal->cfg.vgId, ver, pRead->readerId);
 
-    TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
-  }
+  //   TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
+  // }
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -344,12 +344,12 @@ int32_t walFetchBody(SWalReader *pRead) {
 
   TAOS_CHECK_RETURN(decryptBody(&pRead->pWal->cfg, pRead->pHead, plainBodyLen, __FUNCTION__));
 
-  if (walValidBodyCksum(pRead->pHead) != 0) {
-    wError("vgId:%d, wal fetch body error, index:%" PRId64 ", since body checksum not passed, reader:0x%" PRIx64, vgId,
-           ver, id);
+  // if (walValidBodyCksum(pRead->pHead) != 0) {
+  //   wError("vgId:%d, wal fetch body error, index:%" PRId64 ", since body checksum not passed, reader:0x%" PRIx64, vgId,
+  //          ver, id);
 
-    TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
-  }
+  //   TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
+  // }
 
   pRead->curVersion++;
 

@@ -4331,14 +4331,11 @@ int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, void* pBlock
   int32_t iter = 0;
   while ((pe = tSimpleHashIterate(indexHash, pe, &iter)) != NULL) {
     SStreamWalDataSlice* pInfo = (SStreamWalDataSlice*)pe;
-    pInfo->startRowIdx = 0;
-    pInfo->numRows = 0;
-    pInfo->gId = 0;
 
     int64_t uid = *(int64_t*)(tSimpleHashGetKey(pe, NULL));
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, uid));
     TAOS_CHECK_EXIT(tEncodeU64(&encoder, pInfo->gId));
-    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pInfo->startRowIdx));
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pInfo->startRowIdx - pInfo->numRows));
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pInfo->numRows));
   }
 

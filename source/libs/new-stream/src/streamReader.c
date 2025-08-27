@@ -358,10 +358,10 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
 
     sStreamReaderInfo->triggerResBlockNew = createDataBlockFromDescNode(pDescNode);
     STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->triggerResBlockNew, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
-    SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, LONG_BYTES, -1); // uid
-    STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(sStreamReaderInfo->triggerResBlockNew, &idata));
-    idata = createColumnInfoData(TSDB_DATA_TYPE_UBIGINT, LONG_BYTES, -1); // gid
-    STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(sStreamReaderInfo->triggerResBlockNew, &idata));
+    // SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, LONG_BYTES, -1); // uid
+    // STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(sStreamReaderInfo->triggerResBlockNew, &idata));
+    // idata = createColumnInfoData(TSDB_DATA_TYPE_UBIGINT, LONG_BYTES, -1); // gid
+    // STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(sStreamReaderInfo->triggerResBlockNew, &idata));
 
     // STREAM_CHECK_RET_GOTO(buildSTSchemaForScanData(&sStreamReaderInfo->triggerSchema, sStreamReaderInfo->triggerCols));
     sStreamReaderInfo->triggerPseudoCols = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scan.pScanPseudoCols;
