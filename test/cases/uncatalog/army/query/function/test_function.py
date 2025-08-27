@@ -12,6 +12,8 @@
 # -*- coding: utf-8 -*-
 
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
+import os
+import platform
 
 
 class TestFunction:
@@ -44,8 +46,13 @@ class TestFunction:
     def run_normal_query_new(self, testCase):
         # read sql from .sql file and execute
         tdLog.info("test normal query.")
-        self.sqlFile = etool.curFile(__file__, f"in/{testCase}.in")
-        self.ansFile = etool.curFile(__file__, f"ans/{testCase}.csv")
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", f"{testCase}.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", f"{testCase}.csv")
+        if platform.system() == "Windows" and os.path.exists(os.path.join(os.path.dirname(__file__), "in", f"{testCase}_win.in")):
+            self.sqlFile = os.path.join(os.path.dirname(__file__), "in", f"{testCase}_win.in")
+        if platform.system() == "Windows" and os.path.exists(os.path.join(os.path.dirname(__file__), "ans", f"{testCase}_win.csv")):
+            self.ansFile = os.path.join(os.path.dirname(__file__), "ans", f"{testCase}_win.csv")
+            
 
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 
