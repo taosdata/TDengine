@@ -471,9 +471,8 @@ static int32_t streamPrepareNotification(SStreamRunnerTask* pTask, SStreamRunner
   return code;
 }
 
-static void clearNotifyContent(SStreamRunnerTaskExecution* pExec) {
-  int32_t nParam = TARRAY_SIZE(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals);
-  for (int i = 0; i < nParam; ++i) {
+static void clearNotifyContent(SStreamRunnerTaskExecution* pExec, int32_t startWinIdx, int32_t endWinIdx) {
+  for (int i = startWinIdx; i <= endWinIdx; ++i) {
     SSTriggerCalcParam* pTriggerCalcParams = taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, i);
     if (pTriggerCalcParams != NULL && pTriggerCalcParams->resultNotifyContent != NULL) {
       taosMemoryFreeClear(pTriggerCalcParams->resultNotifyContent);
@@ -516,7 +515,7 @@ _exit:
   } else {
     ST_TASK_DLOG("send notification for task:%" PRIx64 ", win count:%d", pTask->task.streamId, nParam);
   }
-  clearNotifyContent(pExec);
+  clearNotifyContent(pExec, startWinIdx, endWinIdx);
   taosMemoryFreeClear(params);
   return code;
 }
