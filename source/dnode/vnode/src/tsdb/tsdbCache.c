@@ -556,13 +556,18 @@ int            tsdbRowCacheFlushDirty(const void *key, size_t klen, void *value,
 
 // Row-based cache serialization functions
 static int32_t tsdbRowCacheSerialize(SLastRow *pLastRow, char **value, size_t *size) {
-  if (!pLastRow || !pLastRow->pRow) {
+  if (!pLastRow) {
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
   // Calculate total size needed
-  *size = sizeof(STsdbRowKey) + sizeof(int8_t) + sizeof(uint8_t);  // rowKey + dirty + cacheStatus
-  *size += TD_ROW_LEN(pLastRow->pRow);                             // Row data size
+  *size = sizeof(STsdbRowKey) + sizeof(int8_t) + sizeof(uint8_t) +
+          sizeof(int32_t);  // rowKey + dirty + cacheStatus + rowLen
+  int32_t rowLen = 0;
+  if (pLastRow->pRow) {
+    rowLen = TD_ROW_LEN(pLastRow->pRow);
+    *size += rowLen;  // Row data size
+  }
 
   *value = taosMemoryMalloc(*size);
   if (NULL == *value) {
@@ -583,9 +588,14 @@ static int32_t tsdbRowCacheSerialize(SLastRow *pLastRow, char **value, size_t *s
   *((uint8_t *)(*value + offset)) = pLastRow->cacheStatus;
   offset += sizeof(uint8_t);
 
-  // Serialize row data
-  int32_t rowLen = TD_ROW_LEN(pLastRow->pRow);
-  memcpy(*value + offset, pLastRow->pRow, rowLen);
+  // Serialize row length
+  *((int32_t *)(*value + offset)) = rowLen;
+  offset += sizeof(int32_t);
+
+  // Serialize row data (only if pRow is not NULL)
+  if (pLastRow->pRow && rowLen > 0) {
+    memcpy(*value + offset, pLastRow->pRow, rowLen);
+  }
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -626,19 +636,31 @@ static int32_t tsdbRowCacheDeserialize(char const *value, size_t size, SLastRow 
   pLastRow->cacheStatus = *((uint8_t *)(value + offset));
   offset += sizeof(uint8_t);
 
-  // Deserialize row data
-  int32_t remainingSize = size - offset;
-  if (remainingSize <= 0) {
+  // Deserialize row length
+  if (offset + sizeof(int32_t) > size) {
     taosMemoryFreeClear(pLastRow);
     TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
   }
+  int32_t rowLen = *((int32_t *)(value + offset));
+  offset += sizeof(int32_t);
 
-  pLastRow->pRow = taosMemoryMalloc(remainingSize);
-  if (!pLastRow->pRow) {
-    taosMemoryFreeClear(pLastRow);
-    TAOS_RETURN(terrno);
+  // Deserialize row data (only if rowLen > 0)
+  if (rowLen > 0) {
+    if (offset + rowLen > size) {
+      taosMemoryFreeClear(pLastRow);
+      TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
+    }
+
+    pLastRow->pRow = taosMemoryMalloc(rowLen);
+    if (!pLastRow->pRow) {
+      taosMemoryFreeClear(pLastRow);
+      TAOS_RETURN(terrno);
+    }
+    memcpy(pLastRow->pRow, value + offset, rowLen);
+  } else {
+    // pRow is NULL when rowLen is 0
+    pLastRow->pRow = NULL;
   }
-  memcpy(pLastRow->pRow, value + offset, remainingSize);
 
   *ppLastRow = pLastRow;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
