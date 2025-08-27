@@ -843,9 +843,9 @@ static void copyHumanTimeToArg(char *timeStr, bool isStartTime) {
 
 static void copyTimestampToArg(char *timeStr, bool isStartTime) {
     if (isStartTime) {
-        g_args.start_time = atol((const char *)timeStr);
+        g_args.start_time = strtoll((const char *)timeStr, NULL, 10);
     } else {
-        g_args.end_time = atol((const char *)timeStr);
+        g_args.end_time = strtoll((const char *)timeStr, NULL, 10);
     }
 }
 
@@ -7653,16 +7653,17 @@ static int writeTagsToAvro(
                     avro_value_set_null(&branch);
                 } else {
                     avro_value_set_branch(&value, 1, &branch);
-                    u64Temp = *((uint64_t *)value);
+                    u32Temp = (uint32_t)strtoul((const char *)
+                            tbDes->cols[tbDes->columns + tag].value, NULL, 10);
 
-                    int64_t n64tmp = (int64_t)(u64Temp - LONG_MAX);
+                    int32_t n32tmp = (int32_t)(u32Temp - INT_MAX);
                     avro_value_append(&branch, &firsthalf, NULL);
-                    avro_value_set_long(&firsthalf, n64tmp);
-                    debugPrint("%s() LN%d, first half is: %"PRId64", ",
-                            __func__, __LINE__, n64tmp);
+                    avro_value_set_int(&firsthalf, n32tmp);
+                    debugPrint("%s() LN%d, first half is: %d, ",
+                            __func__, __LINE__, n32tmp);
                     avro_value_append(&branch, &secondhalf, NULL);
-                    avro_value_set_long(&secondhalf, LONG_MAX);
-                    debugPrint("second half is: %"PRId64"\n", (int64_t) LONG_MAX);
+                    avro_value_set_int(&secondhalf, (int32_t)INT_MAX);
+                    debugPrint("second half is: %d\n", INT_MAX);
                 }
 
                 break;
