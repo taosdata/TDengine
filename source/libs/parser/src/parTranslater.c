@@ -16088,16 +16088,145 @@ _return:
   return code;
 }
 
+static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStmt, SMCreateRsmaReq* pReq,
+                                  SName* useTbName) {
+  SName      name = {0};
+  SDbCfgInfo pDbInfo = {0};
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SNode*     pNode = NULL;
+
+  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->rsmaName, &name);
+  PAR_ERR_JRET(tNameExtractFullName(&name, pReq->name));
+#if 0
+  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, useTbName);
+  PAR_ERR_JRET(tNameExtractFullName(useTbName, pReq->tbName));
+  pReq->tbType = TSDB_SUPER_TABLE;
+
+  pReq->igExists = pStmt->ignoreExists;
+  PAR_ERR_JRET(getDBCfg(pCxt, pStmt->dbName, &pDbInfo));
+
+  pStmt->precision = pDbInfo.precision;
+    FOREACH(pNode, pStmt->pIntervals{
+    SFunctionNode* pFuncNode = (SFunctionNode*)pNode;
+    if (!fmIsTSMASupportedFunc(pFuncNode->funcId)) continue;
+    SNode* pNew = NULL;
+    PAR_ERR_JRET(nodesCloneNode(pNode, &pNew));
+    PAR_ERR_JRET(nodesListMakeStrictAppend(&pStmt->pOptions->pFuncs, pNew));
+    }
+
+  PAR_ERR_JRET(taosGetSystemUUIDU64(&pReq->uid));
+
+  pReq->interval = ((SValueNode*)pStmt->pOptions->pInterval)->datum.i;
+  pReq->intervalUnit = ((SValueNode*)pStmt->pOptions->pInterval)->unit;
+
+  if (!IS_CALENDAR_TIME_DURATION(pReq->intervalUnit)) {
+    int64_t factor = TSDB_TICK_PER_SECOND(pDbInfo.precision) / TSDB_TICK_PER_SECOND(TSDB_TIME_PRECISION_MILLI);
+    if (pReq->interval > TSMA_MAX_INTERVAL_MS * factor || pReq->interval < TSMA_MIN_INTERVAL_MS * factor) {
+      return TSDB_CODE_TSMA_INVALID_INTERVAL;
+    }
+  } else {
+    if (pReq->intervalUnit == TIME_UNIT_MONTH && (pReq->interval < 1 || pReq->interval > 12))
+      return TSDB_CODE_TSMA_INVALID_INTERVAL;
+    if (pReq->intervalUnit == TIME_UNIT_YEAR && (pReq->interval != 1)) return TSDB_CODE_TSMA_INVALID_INTERVAL;
+  }
+
+  STableMeta*     pTableMeta = NULL;
+  STableTSMAInfo* pRecursiveTsma = NULL;
+  int32_t         numOfCols = 0, numOfTags = 0;
+  SSchema *       pCols = NULL, *pTags = NULL;
+
+  if (pStmt->pOptions->recursiveTsma) {
+    // useTbName is base tsma name
+    PAR_ERR_JRET(getTsma(pCxt, useTbName, &pRecursiveTsma));
+    pReq->recursiveTsma = true;
+    PAR_ERR_JRET(tNameExtractFullName(useTbName, pReq->baseTsmaName));
+    SValueNode* pInterval = (SValueNode*)pStmt->pOptions->pInterval;
+    if (checkRecursiveTsmaInterval(pRecursiveTsma->interval, pRecursiveTsma->unit, pInterval->datum.i,
+                                   pInterval->unit, pDbInfo.precision, true)) {
+    } else {
+      PAR_ERR_JRET(TSDB_CODE_TSMA_INVALID_RECURSIVE_INTERVAL);
+    }
+
+    SNode* pNode;
+    PAR_ERR_JRET(nodesStringToNode(pRecursiveTsma->ast, &pNode));
+    SSelectStmt* pSelect = (SSelectStmt*)pNode;
+    FOREACH(pNode, pSelect->pProjectionList) {
+      SFunctionNode* pFuncNode = (SFunctionNode*)pNode;
+      if (!fmIsTSMASupportedFunc(pFuncNode->funcId)) continue;
+      SNode* pNew = NULL;
+      PAR_ERR_JRET(nodesCloneNode(pNode, &pNew));
+      PAR_ERR_JRET(nodesListMakeStrictAppend(&pStmt->pOptions->pFuncs, pNew));
+    }
+    nodesDestroyNode((SNode*)pSelect);
+    memset(useTbName, 0, sizeof(SName));
+    memcpy(pStmt->originalTbName, pRecursiveTsma->tb, TSDB_TABLE_NAME_LEN);
+    toName(pCxt->pParseCxt->acctId, pStmt->dbName, pRecursiveTsma->tb, useTbName);
+    PAR_ERR_JRET(tNameExtractFullName(useTbName, pReq->stb));
+
+    numOfCols = pRecursiveTsma->pUsedCols->size;
+    numOfTags = pRecursiveTsma->pTags ? pRecursiveTsma->pTags->size : 0;
+    pCols = pRecursiveTsma->pUsedCols->pData;
+    pTags = pRecursiveTsma->pTags ? pRecursiveTsma->pTags->pData : NULL;
+    PAR_ERR_JRET(getTableMeta(pCxt, pStmt->dbName, pRecursiveTsma->targetTb, &pTableMeta));
+  } else {
+    PAR_ERR_JRET(getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pTableMeta));
+    numOfCols = pTableMeta->tableInfo.numOfColumns;
+    numOfTags = pTableMeta->tableInfo.numOfTags;
+    pCols = pTableMeta->schema;
+    pTags = pTableMeta->schema + numOfCols;
+    if (pTableMeta->tableType == TSDB_NORMAL_TABLE) {
+      pReq->normSourceTbUid = pTableMeta->uid;
+    } else if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
+      PAR_ERR_JRET(TSDB_CODE_TSMA_INVALID_TB);
+    }
+  }
+
+  pReq->deleteMark = convertTimePrecision(tsmaDataDeleteMark, TSDB_TIME_PRECISION_MILLI, pTableMeta->tableInfo.precision);
+  PAR_ERR_JRET(getSmaIndexSql(pCxt, &pReq->sql, &pReq->sqlLen));
+
+  PAR_ERR_JRET(rewriteTSMAFuncs(pCxt, pStmt, numOfCols, pCols));
+
+  if (!pStmt->pOptions->recursiveTsma) {
+    if (LIST_LENGTH(pStmt->pOptions->pFuncs) + numOfTags + TSMA_RES_STB_EXTRA_COLUMN_NUM > TSDB_MAX_COLUMNS) {
+      PAR_ERR_JRET(TSDB_CODE_PAR_TOO_MANY_COLUMNS);
+    }
+  }
+
+  PAR_ERR_JRET(createTsmaReqBuildCreateStreamReq(pCxt, pStmt, pReq, pStmt->pOptions->recursiveTsma ? pRecursiveTsma->targetTb : pStmt->tableName,
+                            numOfTags, pTags));
+
+  taosMemoryFreeClear(pTableMeta);
+#endif
+return code;
+_return : 
+return code;
+}
+
 static int32_t translateCreateRsma(STranslateContext* pCxt, SCreateRsmaStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
   pCxt->pCurrStmt = (SNode*)pStmt;
 
   SName          useTbName = {0};
-  SMCreateSmaReq pReq = {0};
+  SMCreateRsmaReq pReq = {0};
 
-  PAR_ERR_JRET(buildCreateTSMAReq(pCxt, pStmt, &pReq, &useTbName));
+  PAR_ERR_JRET(buildCreateRsmaReq(pCxt, pStmt, &pReq, &useTbName));
   PAR_ERR_JRET(collectUseTable(&useTbName, pCxt->pTargetTables));
-  PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_CREATE_RSMA, (FSerializeFunc)tSerializeSMCreateSmaReq, &pReq));
+  PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_CREATE_RSMA, (FSerializeFunc)tSerializeSMCreateRsmaReq, &pReq));
+  return code;
+_return:
+  return code;
+}
+
+static int32_t translateDropRsma(STranslateContext* pCxt, SDropRsmaStmt* pStmt) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  SMDropSmaReq dropReq = {0};
+  SName        name = {0};
+
+  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->rsmaName, &name);
+  PAR_ERR_JRET(tNameExtractFullName(&name, dropReq.name));
+  dropReq.igNotExists = pStmt->ignoreNotExists;
+
+  PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_DROP_RSMA, (FSerializeFunc)tSerializeSMDropRsmaReq, &dropReq));
   return code;
 _return:
   return code;
