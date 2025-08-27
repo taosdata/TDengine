@@ -17,14 +17,10 @@
 #include "filter.h"
 #include "operator.h"
 #include "querytask.h"
-#include "streamexecutorInt.h"
 #include "tdatablock.h"
 #include "ttime.h"
 #include "virtualtablescan.h"
 #include "tsort.h"
-
-#define STREAM_VTABLE_MERGE_OP_NAME "StreamVtableMergeOperator"
-#define STREAM_VTABLE_MERGE_OP_CHECKPOINT_NAME "StreamVtableMergeOperator_Checkpoint"
 
 typedef struct SVirtualTableScanInfo {
   STableScanBase base;
@@ -34,7 +30,7 @@ typedef struct SVirtualTableScanInfo {
   uint32_t       sortBufSize;  // max buffer size for in-memory sort
   SSDataBlock*   pIntermediateBlock;   // to hold the intermediate result
   SSDataBlock*   pInputBlock;
-  SHashObj*      dataSlotMap;
+  SSHashObj*     dataSlotMap;
   int32_t        tsSlotId;
   int32_t        tagBlockId;
   int32_t        tagDownStreamId;
@@ -123,7 +119,7 @@ int32_t virtualScanloadNextDataBlockFromParam(void* param, SSDataBlock** ppBlock
   if ((pRes)) {
     qDebug("%s load from downstream, blockId:%d", __func__, pCtx->blockId);
     (pRes)->info.id.blockId = pCtx->blockId;
-    getTimeWindowOfBlock(pRes, pCtx->tsSlotId, &pCtx->window.skey, &pCtx->window.ekey);
+    VTS_ERR_JRET(getTimeWindowOfBlock(pRes, pCtx->tsSlotId, &pCtx->window.skey, &pCtx->window.ekey));
     VTS_ERR_JRET(createOneDataBlock(pRes, true, &pCtx->pIntermediateBlock));
     *ppBlock = pCtx->pIntermediateBlock;
   } else {
@@ -365,6 +361,9 @@ static int32_t doGetVtableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo, 
   int64_t lastTs = 0;
   int64_t rowNums = -1;
   blockDataEmpty(p);
+  for (int32_t j = 0; j < taosArrayGetSize(p->pDataBlock); j++) {
+    colDataSetNItemsNull(taosArrayGet(p->pDataBlock, j), 0, capacity);
+  }
   while (1) {
     STupleHandle* pTupleHandle = NULL;
     if (!pInfo->pSavedTuple) {
@@ -377,58 +376,33 @@ static int32_t doGetVtableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo, 
       pInfo->pSavedTuple = NULL;
     }
 
-    SDataBlockInfo info = {0};
-    tsortGetBlockInfo(pTupleHandle, &info);
-    int32_t blockId = (int32_t)info.id.blockId;
-
-    for (int32_t i = 0; i < (pInfo->virtualScanInfo.scanAllCols ? 1 : tsortGetColNum(pTupleHandle)); i++) {
-      bool isNull = tsortIsNullVal(pTupleHandle, i);
-      if (isNull) {
+    int32_t blockId = (int32_t)tsortGetBlockId(pTupleHandle);
+    int32_t colNum = pInfo->virtualScanInfo.scanAllCols ? 1 : tsortGetColNum(pTupleHandle);
+    for (int32_t i = 0; i < colNum; i++) {
+      char* pData = NULL;
+      tsortGetValue(pTupleHandle, i, (void**)&pData);
+      if (pData != NULL) {
+        if (i == 0) {
+          if (lastTs != *(int64_t*)pData) {
+            if (rowNums >= capacity - 1) {
+              pInfo->pSavedTuple = pTupleHandle;
+              goto _return;
+            }
+            rowNums++;
+            if (pInfo->virtualScanInfo.tsSlotId != -1) {
+              VTS_ERR_RET(colDataSetVal(taosArrayGet(p->pDataBlock, pInfo->virtualScanInfo.tsSlotId), rowNums, pData, false));
+            }
+            lastTs = *(int64_t*)pData;
+          }
+          continue;
+        }
         int32_t slotKey = blockId << 16 | i;
-        void*   slotId = taosHashGet(pInfo->virtualScanInfo.dataSlotMap, &slotKey, sizeof(slotKey));
+        void*   slotId = tSimpleHashGet(pInfo->virtualScanInfo.dataSlotMap, &slotKey, sizeof(slotKey));
         if (slotId == NULL) {
-          if (i == 0) {
-            colDataSetNULL(taosArrayGet(p->pDataBlock, pInfo->virtualScanInfo.tsSlotId), rowNums);
-          } else {
-            qError("failed to get slotId from dataSlotMap, blockId:%d, slotId:%d", blockId, i);
-            VTS_ERR_RET(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR);
-          }
-        } else {
-          colDataSetNULL(taosArrayGet(p->pDataBlock, *(int32_t *)slotId), rowNums);
+          qError("failed to get slotId from dataSlotMap, blockId:%d, slotId:%d", blockId, i);
+          VTS_ERR_RET(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR);
         }
-      } else {
-        char* pData = NULL;
-        tsortGetValue(pTupleHandle, i, (void**)&pData);
-
-        if (pData != NULL) {
-          if (i == 0) {
-            if (lastTs != *(int64_t*)pData) {
-              if (rowNums >= capacity - 1) {
-                pInfo->pSavedTuple = pTupleHandle;
-                goto _return;
-              }
-              rowNums++;
-              for (int32_t j = 0; j < taosArrayGetSize(p->pDataBlock); j++) {
-                colDataSetNULL(taosArrayGet(p->pDataBlock, j), rowNums);
-              }
-              if (pInfo->virtualScanInfo.tsSlotId != -1) {
-                VTS_ERR_RET(colDataSetVal(taosArrayGet(p->pDataBlock, pInfo->virtualScanInfo.tsSlotId), rowNums, pData, false));
-              }
-              lastTs = *(int64_t*)pData;
-            }
-          }
-          int32_t slotKey = blockId << 16 | i;
-          void*   slotId = taosHashGet(pInfo->virtualScanInfo.dataSlotMap, &slotKey, sizeof(slotKey));
-          if (slotId == NULL) {
-            if (i == 0) {
-              continue;
-            } else {
-              qError("failed to get slotId from dataSlotMap, blockId:%d, slotId:%d", blockId, i);
-              VTS_ERR_RET(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR);
-            }
-          }
-          VTS_ERR_RET(colDataSetVal(taosArrayGet(p->pDataBlock, *(int32_t *)slotId), rowNums, pData, false));
-        }
+        VTS_ERR_RET(colDataSetVal(taosArrayGet(p->pDataBlock, *(int32_t *)slotId), rowNums, pData, false));
       }
     }
   }
@@ -655,9 +629,9 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     SOperatorInfo *pTagScanOp = pOperator->pDownstream[pVirtualScanInfo->tagDownStreamId];
     if (pOperator->pOperatorGetParam) {
       SOperatorParam* pTagOp = ((SVTableScanOperatorParam*)pOperator->pOperatorGetParam->value)->pTagScanOp;
-      pTagScanOp->fpSet.getNextExtFn(pTagScanOp, pTagOp, &pTagBlock);
+      VTS_ERR_JRET(pTagScanOp->fpSet.getNextExtFn(pTagScanOp, pTagOp, &pTagBlock));
     } else {
-      pTagScanOp->fpSet.getNextFn(pTagScanOp, &pTagBlock);
+      VTS_ERR_JRET(pTagScanOp->fpSet.getNextFn(pTagScanOp, &pTagBlock));
     }
 
     if (pTagBlock == NULL || pTagBlock->info.rows != 1) {
@@ -734,7 +708,7 @@ void destroyVirtualTableScanOperatorInfo(void* param) {
   pInfo->pInputBlock = NULL;
   destroyTableScanBase(&pInfo->base, &pInfo->base.readerAPI);
 
-  taosHashCleanup(pInfo->dataSlotMap);
+  tSimpleHashCleanup(pInfo->dataSlotMap);
 
   if (pInfo->pSortCtxList) {
     for (int32_t i = 0; i < taosArrayGetSize(pInfo->pSortCtxList); i++) {
@@ -748,7 +722,7 @@ void destroyVirtualTableScanOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-int32_t extractColMap(SNodeList* pNodeList, SHashObj** pSlotMap, int32_t *tsSlotId, int32_t *tagBlockId) {
+int32_t extractColMap(SNodeList* pNodeList, SSHashObj** pSlotMap, int32_t *tsSlotId, int32_t *tagBlockId) {
   size_t  numOfCols = LIST_LENGTH(pNodeList);
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -759,7 +733,7 @@ int32_t extractColMap(SNodeList* pNodeList, SHashObj** pSlotMap, int32_t *tsSlot
 
   *tsSlotId = -1;
   *tagBlockId = -1;
-  *pSlotMap = taosHashInit(numOfCols, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  *pSlotMap = tSimpleHashInit(numOfCols, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
   TSDB_CHECK_NULL(*pSlotMap, code, lino, _return, terrno);
 
   for (int32_t i = 0; i < numOfCols; ++i) {
@@ -770,7 +744,7 @@ int32_t extractColMap(SNodeList* pNodeList, SHashObj** pSlotMap, int32_t *tsSlot
       *tsSlotId = i;
     } else if (pColNode->hasRef) {
       int32_t slotKey = pColNode->dataBlockId << 16 | pColNode->slotId;
-      VTS_ERR_JRET(taosHashPut(*pSlotMap, &slotKey, sizeof(slotKey), &i, sizeof(i)));
+      VTS_ERR_JRET(tSimpleHashPut(*pSlotMap, &slotKey, sizeof(slotKey), &i, sizeof(i)));
     } else if (pColNode->colType == COLUMN_TYPE_TAG || '\0' == pColNode->tableAlias[0]) {
       // tag column or pseudo column's function
       *tagBlockId = pColNode->dataBlockId;
@@ -779,7 +753,7 @@ int32_t extractColMap(SNodeList* pNodeList, SHashObj** pSlotMap, int32_t *tsSlot
 
   return code;
 _return:
-  taosHashCleanup(*pSlotMap);
+  tSimpleHashCleanup(*pSlotMap);
   *pSlotMap = NULL;
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
