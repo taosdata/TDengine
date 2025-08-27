@@ -265,7 +265,7 @@ int32_t init_env() {
   // create and insert another stable
   pRes = taos_query(pConn,
                     "create stable if not exists db_query.st11 (ts timestamp, c1 int, c2 float, c3 binary(16), c4 "
-                    "decimal(9,3)) tags(t1 int, t3 "
+                    "decimal(9,3), b blob) tags(t1 int, t3 "
                     "nchar(8), t4 bool)");
   if (taos_errno(pRes) != 0) {
     printf("failed to create super table st1, reason:%s\n", taos_errstr(pRes));
@@ -275,7 +275,7 @@ int32_t init_env() {
 
   pRes = taos_query(pConn,
                     "insert into db_query.ct10 using db_query.st11 tags(1000, \"ttt\", true) values(1626006833400, 1, "
-                    "2, 'a', 3.122)");
+                    "2, 'a', 3.122, '1111111111111')");
   if (taos_errno(pRes) != 0) {
     printf("failed to insert into ct0, reason:%s\n", taos_errstr(pRes));
     return -1;
