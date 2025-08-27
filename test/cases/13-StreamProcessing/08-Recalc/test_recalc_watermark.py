@@ -334,7 +334,7 @@ class TestStreamRecalcWatermark:
                 sql=f"select ts, cnt, avg_val from rdb.r_interval_watermark",
                 func=lambda: (
                     tdSql.getRows() > 30
-                )
+                ),
                 retry=240
             )
         
