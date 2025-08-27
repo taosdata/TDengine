@@ -11,7 +11,7 @@
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
-
+import os
 import hashlib
 
 initial_hash_resinfoInt = "eae723d1ecdd18993a11d43d1b00316d"
@@ -23,14 +23,25 @@ class TestResinfo:
         hasher = hashlib.md5()
         with open(file_path, 'rb') as f:
             buf = f.read()
-            hasher.update(buf)
+            text_content = buf.decode('utf-8')
+            # 将所有Windows换行符转换为Unix换行符
+            unified_content = text_content.replace('\r\n', '\n')
+            # 将统一后的内容编码回字节进行哈希计算
+            unified_bytes = unified_content.encode('utf-8')
+            hasher.update(unified_bytes)
         return hasher.hexdigest()
 
     def run_file_changed(self):
         tdLog.info(f"insert data.")
         # taosBenchmark run
-        resinfoIntFile = etool.curFile(__file__, "../../../../../../source/libs/function/inc/functionResInfoInt.h")
-        resinfoFile = etool.curFile(__file__, "../../../../../../include/libs/function/functionResInfo.h")
+        currentFilePath = os.path.dirname(os.path.realpath(__file__))
+        tdLog.info(f"current file path: {currentFilePath}")
+        if "community" in currentFilePath:
+            testFilePath = currentFilePath[:currentFilePath.find("community")+ len("community")]
+        else:
+            testFilePath = currentFilePath[:currentFilePath.find("TDengine") + len("TDengine")]
+        resinfoIntFile = os.path.join(testFilePath, "source", "libs", "function", "inc", "functionResInfoInt.h")
+        resinfoFile =os.path.join(testFilePath, "include", "libs", "function", "functionResInfo.h")
         current_hash = self.get_file_hash(resinfoIntFile)
         tdLog.info(current_hash)
         if current_hash != initial_hash_resinfoInt:
