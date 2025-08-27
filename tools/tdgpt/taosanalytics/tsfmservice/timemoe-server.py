@@ -113,10 +113,19 @@ def main():
             print(f"invalid model index parameter, valid index:\n 0. {model_list[0]}\n 1. {model_list[1]}")
             exit(-1)
 
+        pretrained_model = AutoModelForCausalLM.from_pretrained(
+            model_list[model_index],
+            device_map=device,
+            trust_remote_code=True,
+        )
     elif num_of_arg == 4:
         model_folder = sys.argv[1].strip('\'"')
         model_name = sys.argv[2].strip('\'"')
         enable_ep = bool(sys.argv[3])
+
+        if model_name not in model_list:
+            print(f"invalid model_name, valid model name as follows: {model_list}")
+            exit(-1)
 
         if not os.path.exists(model_folder):
             print(f"the specified folder: {model_folder} not exists, start to create it")
@@ -126,7 +135,7 @@ def main():
         """load the model from local folder"""
         pretrained_model = AutoModelForCausalLM.from_pretrained(
             model_folder
-        ).to(device)
+        )
     else:
         print("invalid parameters")
         print(usage())

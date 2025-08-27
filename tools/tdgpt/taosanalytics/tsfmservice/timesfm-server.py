@@ -141,6 +141,20 @@ def main():
             print(f"the specified folder: {model_folder} not exists, start to create it")
 
         download_model(model_name, model_folder, enable_ep=enable_ep)
+
+        """load the model from local folder"""
+        pretrained_model = timesfm.TimesFm(
+            hparams=timesfm.TimesFmHparams(
+                backend="cpu",
+                per_core_batch_size=32,
+                horizon_len=128,
+                num_layers=50,
+                use_positional_embedding=False,
+                context_len=2048,
+            ),
+            checkpoint=timesfm.TimesFmCheckpoint(
+                huggingface_repo_id=model_folder),
+        )
     else:
         print("invalid parameters")
         print(usage())
