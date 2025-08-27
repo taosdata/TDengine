@@ -1154,6 +1154,19 @@ static int32_t collectMetaKeyFromShowTSMASStmt(SCollectMetaKeyCxt* pCxt, SShowSt
                                  pCxt->pMetaCache);
 }
 
+static int32_t collectMetaKeyFromCreateRsmaStmt(SCollectMetaKeyCxt* pCxt, SCreateRsmaStmt* pStmt) {
+  int32_t code;
+  code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
+  }
+  return code;
+}
+
+static int32_t collectMetaKeyFromDropRsmaStmt(SCollectMetaKeyCxt* pCxt, SDropRsmaStmt* pStmt) {
+  return reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
+}
+
 static int32_t collectMetaKeyFromShowRsmasStmt(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_RSMAS,
                                  pCxt->pMetaCache);
@@ -1347,6 +1360,11 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       break;
     case QUERY_NODE_SHOW_TSMAS_STMT:
       return collectMetaKeyFromShowTSMASStmt(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_CREATE_RSMA_STMT:
+      return collectMetaKeyFromCreateRsmaStmt(pCxt, (SCreateRsmaStmt*)pStmt);
+    case QUERY_NODE_DROP_RSMA_STMT:
+      return collectMetaKeyFromDropRsmaStmt(pCxt, (SDropRsmaStmt*)pStmt);
+      break;
     case QUERY_NODE_SHOW_RSMAS_STMT:
       return collectMetaKeyFromShowRsmasStmt(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_RSMA_TASKS_STMT:

@@ -16098,7 +16098,9 @@ static int32_t compareRsmaFuncWithColId(SNode* pNode1, SNode* pNode2) {
 
 static int32_t rewriteRsmaFuncs(STranslateContext* pCxt, SCreateRsmaStmt* pStmt, int32_t columnNum,
                                 const SSchema* pCols) {
-  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t nFuncs = LIST_LENGTH(pStmt->pFuncs);
+
   SNode*         pNode;
   SFunctionNode* pFunc = NULL;
   FOREACH(pNode, pStmt->pFuncs) {
@@ -16125,16 +16127,18 @@ static int32_t rewriteRsmaFuncs(STranslateContext* pCxt, SCreateRsmaStmt* pStmt,
     snprintf(pFunc->node.userAlias, TSDB_COL_NAME_LEN, "%s(%s)", pFunc->functionName, pCol->colName);
   }
 
-  nodesSortList(&pStmt->pFuncs, compareRsmaFuncWithColId);
-  col_id_t lastColId = -1;
-  FOREACH(pNode, pStmt->pFuncs) {
-    SFunctionNode* pFuncNode = (SFunctionNode*)pNode;
-    SColumnNode*   pColNode = (SColumnNode*)pFuncNode->pParameterList->pHead->pNode;
-    if (pColNode->colId == lastColId) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN,
-                                     "Duplicated column not allowed for rsma: %s", pColNode->colName);
+  if (nFuncs > 1) {
+    nodesSortList(&pStmt->pFuncs, compareRsmaFuncWithColId);
+    col_id_t lastColId = -1;
+    FOREACH(pNode, pStmt->pFuncs) {
+      SFunctionNode* pFuncNode = (SFunctionNode*)pNode;
+      SColumnNode*   pColNode = (SColumnNode*)pFuncNode->pParameterList->pHead->pNode;
+      if (pColNode->colId == lastColId) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN,
+                                       "Duplicated column not allowed for rsma: %s", pColNode->colName);
+      }
+      lastColId = pColNode->colId;
     }
-    lastColId = pColNode->colId;
   }
 _return:
   return code;
@@ -16184,18 +16188,19 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
   pReq->intervalUnit = pDbInfo.precision;
   FOREACH(pNode, pStmt->pIntervals) {
     SValueNode* pVal = (SValueNode*)pNode;
-    int8_t      intervalUnit = pVal->unit;
-    int64_t     interval = pVal->datum.i;
-    if (intervalUnit == TIME_UNIT_WEEK || intervalUnit == TIME_UNIT_MONTH || intervalUnit == TIME_UNIT_YEAR) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT, "Invalid interval unit for rsma: %c",
-                                     intervalUnit);
+    if (DEAL_RES_ERROR == translateValue(pCxt, pVal)) {
+      return pCxt->errCode;
     }
-    PAR_ERR_JRET(getDuration(pVal->datum.i, intervalUnit, &pReq->interval[idx], pDbInfo.precision));
+    if (pVal->unit == TIME_UNIT_WEEK || pVal->unit == TIME_UNIT_MONTH || pVal->unit == TIME_UNIT_YEAR) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT, "Invalid interval unit for rsma: %c",
+                                     pVal->unit);
+    }
+    pReq->interval[idx] = pVal->datum.i;
     // checkTableRangeOption(pCxt, pName, interval, minVal, maxVal);
     // TODO check relationship of interval/keep, min/max check
     if (pReq->interval[idx] < 1 || pReq->interval[idx] > durationInPrecision) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OUT_OF_RANGE, "Invalid interval value for rsma: %lld",
-                                     pVal->datum.i);
+                                     pReq->interval[idx]);
     }
     if (durationInPrecision % pReq->interval[idx]) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
