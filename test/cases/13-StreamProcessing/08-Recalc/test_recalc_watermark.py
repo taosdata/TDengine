@@ -329,11 +329,11 @@ class TestStreamRecalcWatermark:
                 )
             )
         
-        tdSql.execute("insert into tdb.wm1 values ('2026-01-01 02:01:02', 10, 100, 1.5, 'normal');")
+        tdSql.execute("insert into tdb.wm1 values ('2025-01-01 06:01:02', 10, 100, 1.5, 'normal');")
         tdSql.checkResultsByFunc(
                 sql=f"select ts, cnt, avg_val from rdb.r_interval_watermark",
                 func=lambda: (
-                    tdSql.getRows() > 10000
+                    tdSql.getRows() > 30
                 ),
                 retry=240
             )
