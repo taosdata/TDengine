@@ -74,14 +74,14 @@ def chronos():
         }), 500
 
 def usage():
-    return (
-        """
-        Usage:\n
-        Python chronos-server.py                    #use implicit download of small model\n
-        Python chronos-server.py model_index        #specify the model that would load when starting\n
-        Python chronos-server.py model_path model_name enable_ep  #specify the model name, local directory, and the proxy
-        """
-    )
+    name = os.path.basename(__file__)
+    s = [
+    "Usage:",
+    f"Python {name}                    #use implicit download of small model",
+    f"Python {name} model_index        #specify the model that would load when starting",
+    f"Python {name} model_path model_name enable_ep  #specify the model name, local directory, and the proxy"
+    ]
+    return '\n'.join(s)
 
 def main():
     global pretrained_model
@@ -104,11 +104,8 @@ def main():
     elif num_of_arg == 2:
         index = int(sys.argv[1])
         if index < 0 or index >= len(model_list):
-            print(f"""invalid model index parameter, valid index:
-            0. {model_list[0]}
-            1. {model_list[1]}
-            2. {model_list[2]}
-            3. {model_list[3]}""")
+            print(f"invalid model index parameter, valid index:\n 0. {model_list[0]}\n 1. {model_list[1]}\n "
+                  f"2. {model_list[2]}\n 3. {model_list[3]}")
             exit(-1)
 
         pretrained_model = BaseChronosPipeline.from_pretrained(

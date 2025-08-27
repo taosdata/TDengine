@@ -245,14 +245,14 @@ def download_model(model_name, root_dir, enable_ep = False):
 
 
 def usage():
-    return (
-        """
-        Usage:\n
-        Python moirai-server.py                    #use implicit download of small model\n
-        Python moirai-server.py model_index        #specify the model that would load when starting\n
-        Python moirai-server.py model_path model_name enable_ep  #specify the model name, local directory, and the proxy
-        """
-    )
+    name = os.path.basename(__file__)
+    s = [
+    "Usage:",
+    f"Python {name}                    #use implicit download of small model",
+    f"Python {name} model_index        #specify the model that would load when starting",
+    f"Python {name} model_path model_name enable_ep  #specify the model name, local directory, and the proxy"
+    ]
+    return '\n'.join(s)
 
 def main():
     """
@@ -275,13 +275,9 @@ def main():
         ).to(device)
     elif num_of_arg == 2:
         # python moirai-server.py model_index
-
         model_index = int(sys.argv[1])
         if model_index < 0 or model_index >= len(model_list):
-            print(f"""invalid model index parameter, valid index:\n
-                0. {model_list[0]}
-                1. {model_list[1]}"""
-                  )
+            print(f"invalid model index parameter, valid index:\n 0. {model_list[0]}\n 1. {model_list[1]}")
             exit(-1)
 
         pretrained_model = MoiraiMoEModule.from_pretrained(
@@ -307,7 +303,7 @@ def main():
             model_folder
         ).to(device)
     else:
-        print("invalid parameters\n")
+        print("invalid parameters")
         print(usage())
         exit(-1)
 

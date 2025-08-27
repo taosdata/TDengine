@@ -78,14 +78,14 @@ def timesfm():
         }), 500
 
 def usage():
-    return (
-        """
-        Usage:\n
-        Python timesfm-server.py                    #use implicit download of small model\n
-        Python timesfm-server.py model_index        #specify the model that would load when starting\n
-        Python timesfm-server.py model_path model_name enable_ep  #specify the model name, local directory, and the proxy
-        """
-    )
+    name = os.path.basename(__file__)
+    s = [
+    "Usage:",
+    f"Python {name}                    #use implicit download of small model",
+    f"Python {name} model_index        #specify the model that would load when starting",
+    f"Python {name} model_path model_name enable_ep  #specify the model name, local directory, and the proxy"
+    ]
+    return '\n'.join(s)
 
 def main():
     global pretrained_model
@@ -112,11 +112,7 @@ def main():
         model_index = int(sys.argv[1])
 
         if model_index < 0 or model_index >= len(model_list):
-            print(
-                f"""invalid model index parameter, valid index:
-                  0. {model_list[0]}
-                  1. {model_list[1]}"""
-            )
+            print(f"invalid model index parameter, valid index:\n 0. {model_list[0]}\n 1. {model_list[1]}")
             exit(-1)
 
         pretrained_model = timesfm.TimesFm(
