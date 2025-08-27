@@ -2460,6 +2460,20 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
 
 bool syncNodeIsMnode(SSyncNode* pSyncNode) { return (pSyncNode->vgId == 1); }
 
+int32_t syncSetElectBaseline(int64_t rid, int32_t ms) {
+  int32_t    code = 0;
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode == NULL) {
+    code = TSDB_CODE_SYN_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    sError("failed to acquire rid:%" PRId64 " of tsNodeReftId for pSyncNode", rid);
+    TAOS_RETURN(code);
+  }
+  pSyncNode->electBaseLine = ms;
+  syncNodeResetElectTimer(pSyncNode);
+  return code;
+}
+
 int32_t syncNodePeerStateInit(SSyncNode* pSyncNode) {
   for (int32_t i = 0; i < TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA; ++i) {
     pSyncNode->peerStates[i].lastSendIndex = SYNC_INDEX_INVALID;

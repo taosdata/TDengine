@@ -565,6 +565,7 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
           tsArbHeartBeatInterval);
 
     (*pMgmt->setMnodeSyncTimeoutFp)();
+    (*pMgmt->setVnodeSyncTimeoutFp)();
   }
 
   if (cfgReq.version > 0) {

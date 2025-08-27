@@ -30,7 +30,7 @@ void mmGetMnodeLoads(SMnodeMgmt *pMgmt, SMonMloadInfo *pInfo) {
 void mmSetMnodeSyncTimeout(SMnodeMgmt *pMgmt) {
   int32_t code = 0;
   code = mndResetTimer(pMgmt->pMnode);
-  if (code != 0) dError("failed to dmSetMnodeSyncTimeout since %s", tstrerror(code));
+  if (code != 0) dError("failed to mmSetMnodeSyncTimeout since %s", tstrerror(code));
 }
 
 int32_t mmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {

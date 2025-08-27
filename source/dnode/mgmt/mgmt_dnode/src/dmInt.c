@@ -83,6 +83,7 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->getMnodeLoadsFp = pInput->getMnodeLoadsFp;
   pMgmt->getQnodeLoadsFp = pInput->getQnodeLoadsFp;
   pMgmt->setMnodeSyncTimeoutFp = pInput->setMnodeSyncTimeoutFp;
+  pMgmt->setVnodeSyncTimeoutFp = pInput->setVnodeSyncTimeoutFp;
 
   if ((code = dmStartWorker(pMgmt)) != 0) {
     return code;

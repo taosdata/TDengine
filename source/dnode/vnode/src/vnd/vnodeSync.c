@@ -804,6 +804,15 @@ int32_t vnodeSyncStart(SVnode *pVnode) {
   return 0;
 }
 
+int32_t vnodeSetSyncTimeout(SVnode *pVnode, int32_t ms) {
+  int32_t code = syncResetTimer(pVnode->sync);
+  if (code) {
+    vError("vgId:%d, failed to syncResetTimer since %s", pVnode->config.vgId, tstrerror(code));
+    return code;
+  }
+  return 0;
+}
+
 void vnodeSyncPreClose(SVnode *pVnode) {
   vInfo("vgId:%d, sync pre close", pVnode->config.vgId);
   int32_t code = syncLeaderTransfer(pVnode->sync);
