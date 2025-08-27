@@ -77,6 +77,12 @@ def timesfm():
             'error': f'Prediction failed: {str(e)}'
         }), 500
 
+def usage():
+    return (
+        "Python timesfm-server.py                    #use implicit download of small model"
+        "Python timesfm-server.py model-index        #user can specify the model index"
+        "Python timesfm-server.py model_path model_name enable_ep  #user specify the model name, local directory, and the proxy"
+    )
 
 def main():
     global pretrained_model
@@ -85,7 +91,8 @@ def main():
         'google/timesfm-2.0-500m-pytorch',  # 499M parameters
     ]
 
-    if len(sys.argv) < 4:
+    num_of_arg = len(sys.argv)
+    if num_of_arg == 1:
         pretrained_model = timesfm.TimesFm(
             hparams=timesfm.TimesFmHparams(
                 backend="cpu",
@@ -98,16 +105,47 @@ def main():
             checkpoint=timesfm.TimesFmCheckpoint(
                 huggingface_repo_id=model_list[0]),
         )
-    else:
+    elif num_of_arg == 2:
+        model_index = int(sys.argv[1])
+
+        if model_index < 0 or model_index >= len(model_list):
+            print(
+                f"""invalid model index parameter, valid index:
+                  0. {model_list[0]}
+                  1. {model_list[1]}"""
+            )
+            exit(-1)
+
+        pretrained_model = timesfm.TimesFm(
+            hparams=timesfm.TimesFmHparams(
+                backend="cpu",
+                per_core_batch_size=32,
+                horizon_len=128,
+                num_layers=50,
+                use_positional_embedding=False,
+                context_len=2048,
+            ),
+            checkpoint=timesfm.TimesFmCheckpoint(
+                huggingface_repo_id=model_list[model_index]),
+        )
+    elif num_of_arg == 4:
         # let's load the model file from the user specified directory
         model_folder = sys.argv[1].strip('\'"')
         model_name = sys.argv[2].strip('\'"')
         enable_ep = bool(sys.argv[3])
 
+        if model_name not in model_list:
+            print(f"invalid model_name, valid model name as follows: {model_list}")
+            exit(-1)
+
         if not os.path.exists(model_folder):
             print(f"the specified folder: {model_folder} not exists, start to create it")
 
         download_model(model_name, model_folder, enable_ep=enable_ep)
+    else:
+        print("invalid parameters")
+        print(usage())
+        exit(-1)
 
     app.run(
         host='0.0.0.0',

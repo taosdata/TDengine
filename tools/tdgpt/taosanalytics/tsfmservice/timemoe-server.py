@@ -86,14 +86,26 @@ def main():
         'Maple728/TimeMoE-200M',  # time-moe model with 200M parameters
     ]
 
-    if len(sys.argv) < 4:
+    num_of_arg = len(sys.argv)
+
+    if num_of_arg == 1:
         #user not specify the model local input directory
         pretrained_model = AutoModelForCausalLM.from_pretrained(
             model_list[0],
             device_map=device,
             trust_remote_code=True,
         )
-    else:
+    elif num_of_arg == 2:
+        model_index = int(sys.argv[1])
+
+        if model_index < 0 or model_index >= len(model_list):
+            print(f"""invalid model index parameter, valid index:\n
+            0. {model_list[0]}
+            1. {model_list[1]}
+            """)
+            exit(-1)
+
+    elif num_of_arg == 4:
         model_folder = sys.argv[1].strip('\'"')
         model_name = sys.argv[2].strip('\'"')
         enable_ep = bool(sys.argv[3])
@@ -107,6 +119,8 @@ def main():
         pretrained_model = AutoModelForCausalLM.from_pretrained(
             model_folder
         ).to(device)
+    else:
+
 
     app.run(
             host='0.0.0.0',

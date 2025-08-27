@@ -5,6 +5,7 @@ from flask import Flask, request, jsonify
 from chronos import BaseChronosPipeline
 from huggingface_hub import snapshot_download
 from tqdm import tqdm
+from transformers.trainer_utils import number_of_arguments
 
 app = Flask(__name__)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -72,6 +73,12 @@ def chronos():
             'error': f'Prediction failed: {str(e)}'
         }), 500
 
+def usage():
+    return (
+        "Python chronos-server.py                    #use implicit download of small model"
+        "Python chronos-server.py model-index        #user can specify the model index"
+        "Python chronos-server.py model_path model_name enable_ep  #user specify the model name, local directory, and the proxy"
+    )
 
 def main():
     global pretrained_model
@@ -83,17 +90,38 @@ def main():
         'amazon/chronos-bolt-base',  # 205M parameters, based on t5-efficient-base
     ]
 
-    if len(sys.argv) < 4:
+    num_of_arg = len(sys.argv)
+
+    if num_of_arg == 1:
         pretrained_model = BaseChronosPipeline.from_pretrained(
             model_list[0],
             device_map=device,
             torch_dtype=torch.bfloat16,
         ).to(device)
-    else:
+    elif num_of_arg == 2:
+        index = int(sys.argv[1])
+        if index < 0 or index >= len(model_list):
+            print(f"""invalid model index parameter, valid index:
+            0. {model_list[0]}
+            1. {model_list[1]}
+            2. {model_list[2]}
+            3. {model_list[3]}""")
+            exit(-1)
+
+        pretrained_model = BaseChronosPipeline.from_pretrained(
+            model_list[index],
+            device_map=device,
+            torch_dtype=torch.bfloat16,
+        ).to(device)
+    elif num_of_arg == 4:
         # let's load the model file from the user specified directory
         model_folder = sys.argv[1].strip('\'"')
         model_name = sys.argv[2].strip('\'"')
         enable_ep = bool(sys.argv[3])
+
+        if model_name not in model_list:
+            print(f"invalid model_name, valid model name as follows: {model_list}")
+            exit(-1)
 
         if not os.path.exists(model_folder):
             print(f"the specified folder: {model_folder} not exists, start to create it")
@@ -106,6 +134,10 @@ def main():
             device_map=device,
             torch_dtype=torch.bfloat16,
         ).to(device)
+    else:
+        print("invalid parameters")
+        print(usage())
+        exit(-1)
 
     app.run(
             host='0.0.0.0',

@@ -226,8 +226,7 @@ def download_model(model_name, root_dir, enable_ep = False):
     ep = 'https://hf-mirror.com' if enable_ep else None
     model_list = [model_name]
 
-    # root_dir = '/var/lib/taos/taosanode/model/'
-    # model_dir = '/moirai/'
+    # root_dir = '/var/lib/taos/taosanode/model/moirai/'
     if not os.path.exists(root_dir):
         os.mkdir(root_dir)
 
@@ -244,7 +243,19 @@ def download_model(model_name, root_dir, enable_ep = False):
             endpoint=ep
         )
 
+
+def usage():
+    return (
+        "Python moirai-server.py                    #use implicit download of small model"
+        "Python moirai-server.py model-index        #user can specify the model index"
+        "Python moirai-server.py model_path model_name enable_ep  #user specify the model name, local directory, and the proxy"
+    )
+
 def main():
+    """
+    main function
+    """
+
     global pretrained_model
 
     model_list = [
@@ -252,16 +263,36 @@ def main():
         'Salesforce/moirai-moe-1.0-R-base',  # base model with 205M parameters
     ]
 
-    if len(sys.argv) < 4:
+    num_of_arg = len(sys.argv)
+
+    if num_of_arg == 1:
         # use the implicit download capability
         pretrained_model = MoiraiMoEModule.from_pretrained(
             model_list[0]
         ).to(device)
-    else:
+    elif num_of_arg == 2:
+        # python moirai-server.py model_index
+
+        model_index = int(sys.argv[1])
+        if model_index < 0 or model_index >= len(model_list):
+            print(f"""invalid model index parameter, valid index:\n
+                0. {model_list[0]}
+                1. {model_list[1]}"""
+                  )
+            exit(-1)
+
+        pretrained_model = MoiraiMoEModule.from_pretrained(
+            model_list[model_index]
+        ).to(device)
+    elif num_of_arg == 4:
         # let's load the model file from the user specified directory
         model_folder = sys.argv[1].strip('\'"')
         model_name = sys.argv[2].strip('\'"')
         enable_ep = bool(sys.argv[3])
+
+        if model_name not in model_list:
+            print(f"invalid model_name, valid model name as follows: {model_list}")
+            exit(-1)
 
         if not os.path.exists(model_folder):
             print(f"the specified folder: {model_folder} not exists, start to create it")
@@ -272,6 +303,10 @@ def main():
         pretrained_model = MoiraiMoEModule.from_pretrained(
             model_folder
         ).to(device)
+    else:
+        print("invalid parameters")
+        print(usage())
+        exit(-1)
 
     app.run(
         host='0.0.0.0',
