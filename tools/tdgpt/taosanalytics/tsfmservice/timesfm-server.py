@@ -34,7 +34,7 @@ def download_model(model_name, root_dir, enable_ep = False):
         )
 
 @app.route('/ds_predict', methods=['POST'])
-def timesfm():
+def do_predict():
     try:
         data = request.get_json()
         if not data or 'input' not in data:

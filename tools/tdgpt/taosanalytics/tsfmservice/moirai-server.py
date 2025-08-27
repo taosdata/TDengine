@@ -22,7 +22,7 @@ _max_input_length = 2880
 pretrained_model = None
 
 @app.route('/ds_predict', methods=['POST'])
-def uni2ts():
+def do_predict():
     try:
         data = request.get_json()
         if not data or 'input' not in data:
