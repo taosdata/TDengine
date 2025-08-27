@@ -10,13 +10,13 @@ class TestTmqForceDropTopic:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_force_drop_topic(self):
-        """Tmq Force Drop Topic Test
+        """Tmq: force drop topic
 
-        1.Create db
-        2.Create supper table and sub table
-        3.Insert data into sub table
-        3.Create topic and consume data from sub table
-        4.Force drop topic, check the consumer status in another topic, it will be still active
+        1. Create db
+        2. Create supper table and sub table
+        3. Insert data into sub table
+        3. Create topic and consume data from sub table
+        4. Force drop topic, check the consumer status in another topic, it will be still active
 
         Catalog:
             - Tmq

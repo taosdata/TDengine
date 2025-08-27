@@ -17,13 +17,16 @@ class TestTmqParams:
         cls.snapshot_value_list = ["false"]
 
     def test_tmq_params(self):
-        """consumer parameters
+        """Consumer parameters
 
         test consumer create parameters
 
+        Catalog:
+            - Subscribe
+
         Since: v3.3.0.0
 
-        Labels: tmq
+        Labels: common,ci
 
         History:
             - 2023-6-21 jiajingbin Created

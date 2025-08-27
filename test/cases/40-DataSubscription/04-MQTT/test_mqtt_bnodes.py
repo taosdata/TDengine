@@ -21,7 +21,7 @@ class TestMqttBnodes:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_mqtt_bnodes(self):
-        """ Mqtt bnodes testing
+        """MQTT: bnodes test
 
         Bnodes testing.
         -N 2~11

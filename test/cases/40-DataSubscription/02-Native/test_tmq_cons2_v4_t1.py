@@ -9,9 +9,20 @@ class TestTmpCons3:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_tmq_Cons3(self):
-        """Tmq Test
+        """2 consumers: vgroups=4 topics=1
 
-        1. -
+        test scenario, please refer to https://jira.taosdata.com:18090/pages/viewpage.action?pageId=135120406, firstly insert data, then start consume
+        1. basic1Of2Cons.sim: vgroups=1, one topic for 2 consumers
+        2. basic2Of2Cons.sim: vgroups=1, multi topics for 2 consumers
+        3. basic3Of2Cons.sim: vgroups=4, one topic for 2 consumers
+        4. basic4Of2Cons.sim: vgroups=4, multi topics for 2 consumers
+        5. basic2Of2ConsOverlap.sim: vgroups=1, multi topics for 2 consumers, the topics consumed by consumers overlap with each other
+        6. snapshot.sim: vgroups=1, multi topics for 2 consumers, consume from snapshot
+
+        notes1: Scalar function: ABS/ACOS/ASIN/ATAN/CEIL/COS/FLOOR/LOG/POW/ROUND/SIN/SQRT/TAN
+        The above use cases are combined with where filter conditions, such as: where ts > "2017-08-12 18:25:58.128Z" and sin(a) > 0.5;
+        
+        notes2: not support aggregate functions(such as sum/count/min/max) and time-windows(interval).
 
         Catalog:
             - Subscribe
@@ -146,10 +157,10 @@ class TestTmpCons3:
 
             tdLog.info(f"start consumer to pull msgs from stb")
             tdLog.info(
-                f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
+                f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
             )
             os.system(
-                f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
+                f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
             )
 
             tdLog.info(f"== check consume result")
@@ -231,10 +242,10 @@ class TestTmpCons3:
 
             tdLog.info(f"== start consumer to pull msgs from ctb")
             tdLog.info(
-                f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -s start"
+                f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -s start"
             )
             os.system(
-                f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
+                f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
             )
 
             tdLog.info(f"== check consume result")
@@ -305,10 +316,10 @@ class TestTmpCons3:
 
             tdLog.info(f"== start consumer to pull msgs from ntb")
             tdLog.info(
-                f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -s start"
+                f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -s start"
             )
             os.system(
-                f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
+                f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
             )
 
             tdLog.info(f"== check consume result from ntb")
@@ -329,7 +340,7 @@ class TestTmpCons3:
                 time.sleep(1)
             loop_cnt = loop_cnt + 1
 
-        os.system(f"cases/12-DataSubscription/sh/consume.sh -s stop -x SIGINT")
+        os.system(f"cases/40-DataSubscription/sh/consume.sh -s stop -x SIGINT")
 
     def prepareBasicEnv_4vgrp(self):
 

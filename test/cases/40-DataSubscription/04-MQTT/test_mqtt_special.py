@@ -24,7 +24,7 @@ class TestMqttCases:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_mqtt_special(self):
-        """ Mqtt special testing
+        """MQTT: special testing
 
         Special testing.
 
