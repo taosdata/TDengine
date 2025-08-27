@@ -6938,10 +6938,6 @@ static int32_t filterExtractTsCond(SNode** pCond, SNode** pTimeRangeExpr, bool l
     rightSame = tsRangeSameToWindowRange(pRange->pEnd, false, rightEq);
   }
   if (leftSame && rightSame) {
-    nodesDestroyNode(pRange->pStart);
-    nodesDestroyNode(pRange->pEnd);
-    pRange->pStart = NULL;
-    pRange->pEnd = NULL;
     pRange->needCalc = false;
   } else {
     pRange->needCalc = true;
