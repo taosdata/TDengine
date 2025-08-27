@@ -13,8 +13,6 @@ cases/uncatalog/army/tools/benchmark/basic/test_telnet_tcp.py -R
 cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_loose_mode.py
 cases/uncatalog/army/tools/taosdump/native/test_taosdump_commandline.py -B
 cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_unsigned_int.py -B
-cases/uncatalog/army/user/test_passwd.py
-cases/uncatalog/army/whole/test_check_error_code.py
 cases/uncatalog/system-test/2-query/test_decimal.py
 cases/uncatalog/system-test/2-query/test_decimal.py -Q 4
 cases/uncatalog/system-test/2-query/test_decimal.py -Q 3
@@ -32,9 +30,6 @@ cases/uncatalog/system-test/2-query/test_decimal3.py -Q 2
 cases/uncatalog/system-test/2-query/test_decimal3.py -Q 1
 cases/uncatalog/system-test/2-query/test_large_data.py
 cases/uncatalog/system-test/0-others/test_mounts.py
-cases/uncatalog/system-test/0-others/test_taos_shell.py
-cases/uncatalog/system-test/0-others/test_taos_shell_error.py
-cases/uncatalog/system-test/0-others/test_taos_shell_net_chk.py
 cases/uncatalog/system-test/0-others/test_kill_balance_leader.py -N 3
 
 # udf not supported in Windows CI
