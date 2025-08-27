@@ -846,11 +846,11 @@ int32_t msortComparFn(const void* pLeft, const void* pRight, void* param) {
   SSortSource* pRightSource = pParam->pSources[pRightIdx];
 
   // this input is exhausted, set the special value to denote this
-  if (pLeftSource->src.rowIndex == -1) {
+  if (UNLIKELY(pLeftSource->src.rowIndex == -1)) {
     return 1;
   }
 
-  if (pRightSource->src.rowIndex == -1) {
+  if (UNLIKELY(pRightSource->src.rowIndex == -1)) {
     return -1;
   }
 
@@ -875,6 +875,21 @@ int32_t msortComparFn(const void* pLeft, const void* pRight, void* param) {
                                  (SBlockOrderInfo*)pParam->pPkOrder);
     }
     return ret;
+  } else if (pParam->sortType == SORT_MULTISOURCE_TS_MERGE) {
+    SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pInfo, 0);
+    SColumnInfoData* pLeftTsCol = TARRAY_GET_ELEM(pLeftBlock->pDataBlock, pOrder->slotId);
+    SColumnInfoData* pRightTsCol = TARRAY_GET_ELEM(pRightBlock->pDataBlock, pOrder->slotId);
+    int64_t*         leftTs = (int64_t*)(pLeftTsCol->pData) + pLeftSource->src.rowIndex;
+    int64_t*         rightTs = (int64_t*)(pRightTsCol->pData) + pRightSource->src.rowIndex;
+
+
+    __compar_fn_t fn = pOrder->compFn;
+    if (!fn) {
+      fn = getKeyComparFunc(pLeftTsCol->info.type, pOrder->order);
+      pOrder->compFn = fn;
+    }
+
+    return fn(leftTs, rightTs);
   } else {
     bool isVarType;
     for (int32_t i = 0; i < pInfo->size; ++i) {
@@ -2638,7 +2653,7 @@ static int32_t tsortBufMergeSortNextTuple(SSortHandle* pHandle, STupleHandle** p
   index = tMergeTreeGetChosenIndex(pHandle->pMergeTree);
   pSource = pHandle->cmpParam.pSources[index];
 
-  if (pSource->src.pBlock == NULL) {
+  if (UNLIKELY(pSource->src.pBlock == NULL)) {
     qError("sort failed at: %s:%d", __func__, __LINE__);
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
@@ -2950,6 +2965,7 @@ void tsortGetColumnInfo(STupleHandle* pVHandle, int32_t colIndex, SColumnInfoDat
 
 size_t   tsortGetColNum(STupleHandle* pVHandle) { return blockDataGetNumOfCols(pVHandle->pBlock); }
 uint64_t tsortGetGroupId(STupleHandle* pVHandle) { return pVHandle->pBlock->info.id.groupId; }
+uint64_t tsortGetBlockId(STupleHandle* pVHandle) { return pVHandle->pBlock->info.id.blockId; }
 void     tsortGetBlockInfo(STupleHandle* pVHandle, SDataBlockInfo* pBlockInfo) { *pBlockInfo = pVHandle->pBlock->info; }
 
 SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle) {
