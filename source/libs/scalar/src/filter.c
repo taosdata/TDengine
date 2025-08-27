@@ -2230,6 +2230,14 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
     int8_t        precision = FILTER_UNIT_DATA_PRECISION(unit);
     SFilterField *fi = right;
 
+    if (fi->desc == NULL) {
+      if (!fi->data) {
+        fltError("filterInitValFieldData get invalid field data : NULL");
+        return TSDB_CODE_APP_ERROR;
+      }
+      continue;
+    }
+
     if (unit->compare.optr == OP_TYPE_IN) {
       // QUERY_NODE_NODE_LIST
       FLT_ERR_RET(scalarGenerateSetFromList((void **)&fi->data, fi->desc, type, 0, 0));
@@ -2248,12 +2256,9 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       return TSDB_CODE_APP_ERROR;
     }
     SValueNode *var = (SValueNode *)fi->desc;
-    if (var == NULL || var->isNull) {
-      if (!fi->data) {
-        fltError("filterInitValFieldData get invalid field data : NULL");
-        return TSDB_CODE_APP_ERROR;
-      }
-      continue;
+    if (var->isNull) {
+      fltError("filterInitValFieldData get value data is null");
+      return TSDB_CODE_APP_ERROR;
     }
 
     SDataType *dType = &var->node.resType;
