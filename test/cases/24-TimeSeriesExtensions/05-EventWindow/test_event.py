@@ -7,7 +7,7 @@ class TestEvent:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_event(self):
-        """Event Window
+        """Event: basic test
 
         1. Test the usage of event window, including various start/end conditions, combination with PARTITION BY and GROUP BY, usage as subqueries, etc.
         2. Test some illegal statements

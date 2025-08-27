@@ -7,13 +7,13 @@ class TestSession:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_session(self):
-        """Session Window
+        """Session: basic test
 
         1. Test the basic usage of session window
         2. Test some illegal statements
 
         Catalog:
-            - Timeseries:EventWindow
+            - Timeseries:SessionWindow
 
         Since: v3.0.0.0
 

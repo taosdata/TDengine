@@ -7,7 +7,7 @@ class TestPartitonBy:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_partitionby(self):
-        """Partition By
+        """PartitionBy: basic test
 
         Test the use of PARTITION BY in projection queries, including combinations with SLIMIT, different filtering conditions, and usage as subqueries.
 

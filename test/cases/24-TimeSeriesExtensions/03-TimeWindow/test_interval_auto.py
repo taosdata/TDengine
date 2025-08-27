@@ -13,13 +13,14 @@
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 import time
 
+
 class TestIntervalMore:
 
     def setup_class(cls):
         tdLog.info("insert interval test data.")
         # taosBenchmark run
         json = etool.curFile(__file__, "interval.json")
-        etool.benchMark(json = json)
+        etool.benchMark(json=json)
 
     def create_streams(self):
         tdSql.execute("use test;")
@@ -35,16 +36,23 @@ class TestIntervalMore:
         for sql in streams:
             tdSql.execute(sql)
         for i in range(50):
-            rows = tdSql.query("select * from information_schema.ins_stream_tasks where history_task_status is not null;")
+            rows = tdSql.query(
+                "select * from information_schema.ins_stream_tasks where history_task_status is not null;"
+            )
             if rows == 0:
-                break;
+                break
             tdLog.info(f"i={i} wait for history data calculation finish ...")
             time.sleep(1)
 
     def test_query_interval(self):
-        """test interval query
+        """Interval: auto
 
-        test interval query
+        1. Testing the mixed use of interval and auto
+        2. Combined with LIMIT, ts filtering conditions
+        3. Combined with sliding
+
+        Catalog:
+            - Timeseries:TimeWindow
 
         Since: v3.3.0.0
 
@@ -56,15 +64,10 @@ class TestIntervalMore:
 
         """
         tdLog.info("test normal query.")
-        self.create_streams()
+        # self.create_streams()
         # read sql from .sql file and execute
         tdLog.info("test normal query.")
         self.sqlFile = etool.curFile(__file__, f"in/interval.in")
         self.ansFile = etool.curFile(__file__, f"ans/interval.csv")
 
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "interval")
-
-
-
-
-

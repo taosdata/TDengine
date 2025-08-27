@@ -7,7 +7,7 @@ class TestCount:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_count(self):
-        """Count Window
+        """Count: basic test
 
         1. Count + sliding window queries
         2. Specified column queries
@@ -15,7 +15,7 @@ class TestCount:
         4. Some illegal value checks
 
         Catalog:
-            - Timeseries:EventWindow
+            - Timeseries:CountWindow
 
         Since: v3.0.0.0
 
