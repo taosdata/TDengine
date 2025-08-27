@@ -76,29 +76,16 @@ int buildDatabase(TAOS* pConn, TAOS_RES* pRes) {
     printf("failed to insert into ct3, reason:%s\n", taos_errstr(pRes));
     return -1;
   }
-  // pRes = taos_query(
-  //     pConn,
-  //     "insert into ct3 using st1(t1) tags(3000) values(1626006833600, 5, 6, 'c', 'aaaaaaa') ct1 using "
-  //     "st1(t1) tags(2000) values(1626006833601, 2, 3, 'sds', 'eeeeeee') (1626006833602, 4, 5, "
-  //     "'ddd', 'bbbbbbb') ct0 using st1 tags(1000, \"ttt\", true) values(1626006833603, 4, 3, 'hwj', 'cccccccc') ct1
-  //     " "using st1(t1) tags(2000) values(now+5s, 23, 32, 's21ds', 'dddddddd')");
-  // if (taos_errno(pRes) != 0) {
-  //   printf("failed to insert into ct3, reason:%s\n", taos_errstr(pRes));
-  //   return -1;
-  // }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "insert into ct3  values(1626006839602, 5, 6, 'c')");
+  pRes = taos_query(pConn, "insert into ct3  values(1626006839602, 5, 6, 'c', 'bbbbbbbbb')");
   if (taos_errno(pRes) != 0) {
     printf("failed to insert into ct3, reason:%s\n", taos_errstr(pRes));
     return -1;
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn,
-                    "insert into ct3 using st1(t1) tags(3000) values(1626006833602, 5, 6, 'c') ct1 "
-                    "values(1626006833611, 2, 3, 'sds') (1626006833612, 4, 5, "
-                    "'ddd') ct10 using st1 tags(1000, \"ttt\", true) values(1626006833603, 4, 3, 'hwj')");
+  pRes = taos_query(pConn, "insert into ct3 using st1(t1) tags(3000) values(1626006833602, 5, 6, 'c', 'ccccccccc')");
   if (taos_errno(pRes) != 0) {
     printf("failed to insert into ct3, reason:%s\n", taos_errstr(pRes));
     return -1;
