@@ -157,7 +157,7 @@ export function validateTask(data: Record<string, any>) {
     method: 'post',
     data
   }).then(data => {
-    if (data.code === 0) {
+    if (!data.code) {
       return data;
     }
     return {
