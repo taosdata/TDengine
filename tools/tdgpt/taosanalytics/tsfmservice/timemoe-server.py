@@ -78,6 +78,14 @@ def time_moe():
             'error': f'Prediction failed: {str(e)}'
         }), 500
 
+
+def usage():
+    return (
+        "Python timemoe-server.py                    #use implicit download of small model"
+        "Python timemoe-server.py model-index        #user can specify the model index"
+        "Python timemoe-server.py model_path model_name enable_ep  #user specify the model name, local directory, and the proxy"
+    )
+
 def main():
     global pretrained_model
 
@@ -120,7 +128,9 @@ def main():
             model_folder
         ).to(device)
     else:
-
+        print("invalid parameters")
+        print(usage())
+        exit(-1)
 
     app.run(
             host='0.0.0.0',

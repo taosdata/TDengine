@@ -205,7 +205,7 @@ class TestTaosCli:
         args = [
             ['-uroot -w 40 -ptaosdata -c /root/taos/ -s"show databases"', queryOK],
             ['-o "./current/log/files/" -h localhost -uroot -ptaosdata  -s"show databases;"', queryOK],
-            ['-s "quit;"', "Welcome to the TDengine Command Line Interface"],
+            ['-s "quit;"', "Welcome to the TDengine TSDB Command Line Interface"],
             ['-h "" -s "show dnodes;"', "Invalid host"],
             ['-u "" -s "show dnodes;"', "Invalid user"],
             ['-P "" -s "show dnodes;"', "Invalid port"],

@@ -57,6 +57,7 @@ typedef struct STranslateContext {
   bool             extRightEq; // used for external window, true means include right border
   SNode*           createStreamTriggerTbl;
   SNodeList*       createStreamTriggerPartitionList;
+  SHashObj*        createStreamCalcDbs;
 } STranslateContext;
 
 int32_t biRewriteToTbnameFunc(STranslateContext* pCxt, SNode** ppNode, bool* pRet);

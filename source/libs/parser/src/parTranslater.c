@@ -1802,7 +1802,7 @@ static EDealRes translateColumnWithoutPrefix(STranslateContext* pCxt, SColumnNod
       }
       found = true;
     }
-    if (isInternalPk) {
+    if (isInternalPk) {  // this value should be updated
       break;
     }
   }
@@ -4003,17 +4003,26 @@ static int32_t getGroupByErrorCode(STranslateContext* pCxt) {
 
 static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, SNode** pNode) {
   SFunctionNode* pFunc = NULL;
+  SExprNode*     p = (SExprNode*)*pNode;
   int32_t        code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
   if (TSDB_CODE_SUCCESS != code) {
     pCxt->errCode = code;
     return DEAL_RES_ERROR;
   }
-  tstrncpy(pFunc->functionName, "_select_value", TSDB_FUNC_NAME_LEN);
-  tstrncpy(pFunc->node.aliasName, ((SExprNode*)*pNode)->aliasName, TSDB_COL_NAME_LEN);
-  tstrncpy(pFunc->node.userAlias, ((SExprNode*)*pNode)->userAlias, TSDB_COL_NAME_LEN);
 
-  pFunc->node.relatedTo = ((SExprNode*)*pNode)->relatedTo;
-  pFunc->node.bindExprID = ((SExprNode*)*pNode)->bindExprID;
+  tstrncpy(pFunc->functionName, "_select_value", TSDB_FUNC_NAME_LEN);
+  tstrncpy(pFunc->node.aliasName, p->aliasName, TSDB_COL_NAME_LEN);
+  tstrncpy(pFunc->node.userAlias, p->userAlias, TSDB_COL_NAME_LEN);
+
+  // "_select_value" is an parameter of function, not in the projectionList, and user does not assign an alias name
+  // let's rewrite the aliasName, to avoid the column name duplicate problem
+  if ((strncmp(p->aliasName, p->userAlias, tListLen(p->aliasName)) == 0) && p->asParam && p->projIdx == 0) {
+    uint64_t hashVal = MurmurHash3_64(p->aliasName, strlen(p->aliasName));
+    snprintf(pFunc->node.aliasName, TSDB_COL_NAME_LEN, "%" PRIu64, hashVal);
+  }
+  
+  pFunc->node.relatedTo = p->relatedTo;
+  pFunc->node.bindExprID = p->bindExprID;
   pCxt->errCode = nodesListMakeAppend(&pFunc->pParameterList, *pNode);
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     pCxt->errCode = getFuncInfo(pCxt, pFunc);
@@ -5904,6 +5913,11 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
     if (pCxt->refTable) {
       PAR_ERR_JRET(collectUseTable(&name, pCxt->pTargetTables));
     }
+    if (pCxt->createStreamCalc && !pCxt->refTable) {
+      char fullDbName[TSDB_DB_FNAME_LEN] = {0};
+      PAR_ERR_JRET(tNameGetFullDbName(&name, fullDbName));
+      PAR_ERR_JRET(taosHashPut(pCxt->createStreamCalcDbs, fullDbName, TSDB_DB_FNAME_LEN, NULL, 0));
+    }
     PAR_ERR_JRET(getTargetMeta(pCxt, &name, &(pRealTable->pMeta), true));
 
 #ifdef TD_ENTERPRISE
@@ -5949,16 +5963,17 @@ _return:
 static int32_t translateTempTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
   SSelectStmt*    pCurrSmt = (SSelectStmt*)(pCxt->pCurrStmt);
   STempTableNode* pTempTable = (STempTableNode*)*pTable;
+  SSelectStmt*    pSubStmt = (SSelectStmt*)pTempTable->pSubquery;
   int32_t         code = TSDB_CODE_SUCCESS;
 
   PAR_ERR_JRET(translateSubquery(pCxt, pTempTable->pSubquery));
-  if (QUERY_NODE_SELECT_STMT == nodeType(pTempTable->pSubquery) &&
-      ((SSelectStmt*)pTempTable->pSubquery)->isEmptyResult && isSelectStmt(pCxt->pCurrStmt)) {
-    ((SSelectStmt*)pCxt->pCurrStmt)->isEmptyResult = true;
-  }
+
   if (QUERY_NODE_SELECT_STMT == nodeType(pTempTable->pSubquery) && isSelectStmt(pCxt->pCurrStmt)) {
-    pCurrSmt->joinContains = ((SSelectStmt*)pTempTable->pSubquery)->joinContains;
-    SSelectStmt* pSubStmt = (SSelectStmt*)pTempTable->pSubquery;
+    if(pSubStmt->isEmptyResult) {
+      pCurrSmt->isEmptyResult = true;
+    }
+
+    pCurrSmt->joinContains = pSubStmt->joinContains;
     pCurrSmt->timeLineResMode = pSubStmt->timeLineResMode;
     pCurrSmt->timeLineCurMode = pSubStmt->timeLineResMode;
   }
@@ -14822,17 +14837,19 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
     return code;
   }
 
+  pVgArray = taosArrayInit(1, sizeof(SStreamCalcScan));
+  pDbs = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (NULL == pDbs || NULL == pVgArray) {
+    PAR_ERR_JRET(terrno);
+  }
+
+  pCxt->createStreamCalcDbs = pDbs;
   PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerPartition, pTriggerSelect ? pTriggerSelect->pFromTable : NULL, pStmt->pQuery, pNotifyCond, pTriggerWindow, &withExtWindow));
 
   pReq->placeHolderBitmap = pCxt->placeHolderBitmap;
 
   PAR_ERR_JRET(createStreamReqCheckPlaceHolder(pCxt, pReq, pReq->placeHolderBitmap, pTriggerPartition));
 
-  pVgArray = taosArrayInit(1, sizeof(SStreamCalcScan));
-  pDbs = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  if (NULL == pDbs || NULL == pVgArray) {
-    PAR_ERR_JRET(terrno);
-  }
 
   pProjectionList = nodeType(pStmt->pQuery) == QUERY_NODE_SELECT_STMT ?
                     ((SSelectStmt*)pStmt->pQuery)->pProjectionList :
@@ -14850,7 +14867,6 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
                           .pAstRoot = pStmt->pQuery,
                           .streamCalcQuery = true,
                           .pStreamCalcVgArray = pVgArray,
-                          .pStreamCalcDbs = pDbs,
                           .withExtWindow = withExtWindow};
 
   PAR_ERR_JRET(qCreateQueryPlan(&calcCxt, &calcPlan, NULL));
