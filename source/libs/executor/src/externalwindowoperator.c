@@ -49,6 +49,7 @@ typedef struct SExternalWindowOperator {
   int32_t            outWinIdx;
 
   // for project&indefRows
+  SList*             pFreeBlocks;    // SList<SSDatablock*+SAarray*>
   SArray*            pOutputBlocks;  // SArray<SList*>, for each window, we have a list of blocks
   SListNode*         pOutputBlockListNode;  // block index in block array used for output
   SSDataBlock*       pTmpBlock;
@@ -1082,6 +1083,8 @@ static int32_t extWinProjectDo(SOperatorInfo* pOperator, SSDataBlock* pInputBloc
   
   TAOS_CHECK_EXIT(extWinGetWinResBlock(pOperator, rows, pWin, &pResBlock));
 
+  qDebug("%s %s got res block, capacity:%d", pOperator->pTaskInfo->id.str, __func__, pResBlock->info.capacity);
+  
   if (!pExtW->pTmpBlock) {
     TAOS_CHECK_EXIT(createOneDataBlock(pInputBlock, false, &pExtW->pTmpBlock));
   } else {
@@ -1090,7 +1093,10 @@ static int32_t extWinProjectDo(SOperatorInfo* pOperator, SSDataBlock* pInputBloc
   
   TAOS_CHECK_EXIT(blockDataEnsureCapacity(pExtW->pTmpBlock, TMAX(1, rows)));
 
+  qDebug("%s %s start to copy %d rows to tmp blk", pOperator->pTaskInfo->id.str, __func__, rows);
   TAOS_CHECK_EXIT(blockDataMergeNRows(pExtW->pTmpBlock, pInputBlock, startPos, rows));
+
+  qDebug("%s %s start to apply project to tmp blk", pOperator->pTaskInfo->id.str, __func__);
   TAOS_CHECK_EXIT(projectApplyFunctionsWithSelect(pExprSup->pExprInfo, pResBlock, pExtW->pTmpBlock, pExprSup->pCtx, pExprSup->numOfExprs,
         NULL, GET_STM_RTINFO(pOperator->pTaskInfo), true));
 
@@ -1098,6 +1104,8 @@ _exit:
 
   if (code) {
     qError("%s %s failed at line %d since %s", pOperator->pTaskInfo->id.str, __func__, lino, tstrerror(code));
+  } else {
+    qDebug("%s %s project succeed", pOperator->pTaskInfo->id.str, __func__);
   }
   
   return code;
@@ -1646,6 +1654,8 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     pExtW->pOutputBlocks = taosArrayInit_s(POINTER_BYTES, STREAM_CALC_REQ_MAX_WIN_NUM);
     if (!pExtW->pOutputBlocks) QUERY_CHECK_CODE(terrno, lino, _error);
   //}
+    pExtW->pFreeBlocks = tdListNew(POINTER_BYTES * 2);
+    QUERY_CHECK_NULL(pExtW->pFreeBlocks, code, lino, _error, terrno);
   } else if (pExtW->mode == EEXT_MODE_AGG) {
     if (pPhynode->window.pExprs != NULL) {
       int32_t    num = 0;
