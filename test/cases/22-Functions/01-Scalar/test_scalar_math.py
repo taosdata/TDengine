@@ -7,12 +7,12 @@ class TestMath:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_math(self):
-        """Scalar: math
+        """Scalar: Math
 
-        1.
+        Test mathematical functions, including abs, log, pow, sqrt, sin, cos, tan, asin, acos, atan, ceil, floor, round.
 
         Catalog:
-            - Function:SingleRow
+            - Function:Sclar
 
         Since: v3.0.0.0
 

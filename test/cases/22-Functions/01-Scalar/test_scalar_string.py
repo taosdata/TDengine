@@ -7,18 +7,12 @@ class TestString:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_string(self):
-        """Scalar: string
+        """Scalar: String
 
-        Char_length
-        lower
-        upper
-        ltrim
-        rtrim
-        concat
-        concat_ws
+        Test string functions, including Char_length, lower, upper, ltrim, rtrim, concat, and concat_ws.
 
         Catalog:
-            - Function:SingleRow
+            - Function:Sclar
 
         Since: v3.0.0.0
 
