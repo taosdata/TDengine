@@ -523,19 +523,26 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     if (tsSyncTimeout > 0) {
       char tmp[10] = {0};
 
+      sprintf(tmp, "%d", tsSyncTimeout);
+      TAOS_CHECK_RETURN(
+          cfgGetAndSetItem(pCfg, &pItem, "arbSetAssignedTimeoutMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
       sprintf(tmp, "%d", tsSyncTimeout / 4);
       TAOS_CHECK_RETURN(
           cfgGetAndSetItem(pCfg, &pItem, "arbHeartBeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
       TAOS_CHECK_RETURN(
           cfgGetAndSetItem(pCfg, &pItem, "arbCheckSyncIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
-      TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItem, "syncVnodeHeartbeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
-      TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItem, "syncMnodeHeartbeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
 
-      sprintf(tmp, "%d", tsSyncTimeout);
+      sprintf(tmp, "%d", (tsSyncTimeout - 1000)/2);
       TAOS_CHECK_RETURN(
-          cfgGetAndSetItem(pCfg, &pItem, "arbSetAssignedTimeoutMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
-      TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItem, "syncVnodeElectIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
-      TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItem, "syncMnodeElectIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+          cfgGetAndSetItem(pCfg, &pItem, "syncVnodeElectIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      TAOS_CHECK_RETURN(
+          cfgGetAndSetItem(pCfg, &pItem, "syncMnodeElectIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+
+      sprintf(tmp, "%d", (tsSyncTimeout - 1000)/8);
+      TAOS_CHECK_RETURN(
+          cfgGetAndSetItem(pCfg, &pItem, "syncVnodeHeartbeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      TAOS_CHECK_RETURN(
+          cfgGetAndSetItem(pCfg, &pItem, "syncMnodeHeartbeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
 
       dInfo("change syncTimeout, option:%s, value:%s, tsSyncTimeout:%d", cfgReq.config, cfgReq.value, tsSyncTimeout);
     }
