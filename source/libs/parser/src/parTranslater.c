@@ -16088,12 +16088,65 @@ _return:
   return code;
 }
 
+static int32_t compareRsmaFuncWithColId(SNode* pNode1, SNode* pNode2) {
+  SFunctionNode* pFunc1 = (SFunctionNode*)pNode1;
+  SFunctionNode* pFunc2 = (SFunctionNode*)pNode2;
+  SNode*         pCol1 = pFunc1->pParameterList->pHead->pNode;
+  SNode*         pCol2 = pFunc2->pParameterList->pHead->pNode;
+  return compareTsmaColWithColId(pCol1, pCol2);
+}
+
+static int32_t rewriteRsmaFuncs(STranslateContext* pCxt, SCreateRsmaStmt* pStmt, int32_t columnNum,
+                                const SSchema* pCols) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SNode*         pNode;
+  SFunctionNode* pFunc = NULL;
+  FOREACH(pNode, pStmt->pFuncs) {
+    pFunc = (SFunctionNode*)pNode;
+    if (!pFunc->pParameterList || LIST_LENGTH(pFunc->pParameterList) != 1 ||
+        nodeType(pFunc->pParameterList->pHead->pNode) != QUERY_NODE_COLUMN) {
+      PAR_ERR_JRET(TSDB_CODE_RSMA_INVALID_FUNC_PARAM);
+    }
+    SColumnNode* pCol = (SColumnNode*)pFunc->pParameterList->pHead->pNode;
+    int32_t      i = 0;
+    for (; i < columnNum; ++i) {
+      if (strcmp(pCols[i].name, pCol->colName) == 0) {
+        pCol->colId = pCols[i].colId;
+        pCol->node.resType.type = pCols[i].type;
+        pCol->node.resType.bytes = pCols[i].bytes;
+        break;
+      }
+    }
+    if (i == columnNum) {
+      PAR_ERR_JRET(TSDB_CODE_RSMA_INVALID_FUNC_PARAM);
+    }
+    PAR_ERR_JRET(fmGetFuncInfo(pFunc, NULL, 0));
+    pCol = (SColumnNode*)pFunc->pParameterList->pHead->pNode;
+    snprintf(pFunc->node.userAlias, TSDB_COL_NAME_LEN, "%s(%s)", pFunc->functionName, pCol->colName);
+  }
+
+  nodesSortList(&pStmt->pFuncs, compareRsmaFuncWithColId);
+  col_id_t lastColId = -1;
+  FOREACH(pNode, pStmt->pFuncs) {
+    SFunctionNode* pFuncNode = (SFunctionNode*)pNode;
+    SColumnNode*   pColNode = (SColumnNode*)pFuncNode->pParameterList->pHead->pNode;
+    if (pColNode->colId == lastColId) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN,
+                                     "Duplicated column not allowed for rsma: %s", pColNode->colName);
+    }
+    lastColId = pColNode->colId;
+  }
+_return:
+  return code;
+}
+
 static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStmt, SMCreateRsmaReq* pReq,
                                   SName* useTbName) {
-  SName      name = {0};
-  SDbCfgInfo pDbInfo = {0};
-  int32_t    code = 0, lino = 0;
-  SNode*     pNode = NULL;
+  SName       name = {0};
+  SDbCfgInfo  pDbInfo = {0};
+  int32_t     code = 0, lino = 0;
+  SNode*      pNode = NULL;
+  STableMeta* pTableMeta = NULL;
 
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->rsmaName, &name);
   PAR_ERR_JRET(tNameExtractFullName(&name, pReq->name));
@@ -16109,14 +16162,12 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
   FOREACH(pNode, pStmt->pFuncs) {
     SFunctionNode* pFuncNode = (SFunctionNode*)pNode;
     if (!fmIsRsmaSupportedFunc(pFuncNode->funcId)) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT, "Invalid func for rsma: %s",
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_RSMA_UNSUPPORTED_FUNC, "Invalid func for rsma: %s",
                                      pFuncNode->functionName);
     }
     SNode* pNew = NULL;
     PAR_ERR_JRET(nodesCloneNode(pNode, &pNew));
     PAR_ERR_JRET(nodesListMakeStrictAppend(&pStmt->pFuncs, pNew));
-    // TODO: duplication check
-    // column type and function type check
   }
 
   PAR_ERR_JRET(taosGetSystemUUIDU64(&pReq->uid));
@@ -16146,33 +16197,26 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OUT_OF_RANGE, "Invalid interval value for rsma: %lld",
                                      pVal->datum.i);
     }
-
     if (durationInPrecision % pReq->interval[idx]) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                     "Interval value for rsma should be divisor of DB duration parameter: %lld",
+                                     "Interval value for rsma should be a divisor of DB duration: %lld",
                                      durationInPrecision);
     }
-
     ++idx;
   }
 
-  STableMeta*     pTableMeta = NULL;
-  STableTSMAInfo* pRecursiveTsma = NULL;
-  int32_t         numOfCols = 0, numOfTags = 0;
-  SSchema *       pCols = NULL, *pTags = NULL;
+  int32_t  numOfCols = 0, numOfTags = 0;
+  SSchema *pCols = NULL, *pTags = NULL;
 
   PAR_ERR_JRET(getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pTableMeta));
   numOfCols = pTableMeta->tableInfo.numOfColumns;
   numOfTags = pTableMeta->tableInfo.numOfTags;
   pCols = pTableMeta->schema;
-  pTags = pTableMeta->schema + numOfCols;
-  PAR_ERR_JRET(rewriteTSMAFuncs(pCxt, pStmt, numOfCols, pCols));
+  PAR_ERR_JRET(rewriteRsmaFuncs(pCxt, pStmt, numOfCols, pCols));
 
-  taosMemoryFreeClear(pTableMeta);
-
-  return code;
 _return:
-  return code;
+  taosMemoryFreeClear(pTableMeta);
+  TAOS_RETURN(code);
 }
 
 static int32_t translateCreateRsma(STranslateContext* pCxt, SCreateRsmaStmt* pStmt) {

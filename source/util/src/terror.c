@@ -897,6 +897,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_STREAM_STATE_COMMIT,       "Rsma stream state c
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_FS_SYNC,                   "Rsma fs sync error")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_RESULT,                    "Rsma result error")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_INTERVAL,          "Invalid rsma interval unit: w, n, y not allowed")
+TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_FUNC_PARAM,        "Invalid rsma func param, only one non-tag column allowed")
+TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_UNSUPPORTED_FUNC,          "Rsma func not supported")
 
 //index
 TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_REBUILDING,               "Index is rebuilding")
