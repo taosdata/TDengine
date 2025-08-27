@@ -6877,21 +6877,28 @@ _return:
 }
 
 static bool tsRangeSameToWindowRange(SNode* pCond, bool start, bool equal) {
-  if (nodeType(pCond) != QUERY_NODE_LOGIC_CONDITION) {
+  if (nodeType(pCond) != QUERY_NODE_LOGIC_CONDITION && nodeType(pCond) != QUERY_NODE_OPERATOR) {
     return false;
   }
 
-  SLogicConditionNode *pLogicCond = (SLogicConditionNode*)pCond;
-  if (pLogicCond->condType != LOGIC_COND_TYPE_AND || LIST_LENGTH(pLogicCond->pParameterList) != 1) {
-    return false;
+  SOperatorNode *pOperator = NULL;
+
+  if (nodeType(pCond) == QUERY_NODE_LOGIC_CONDITION) {
+    SLogicConditionNode *pLogicCond = (SLogicConditionNode*)pCond;
+    if (pLogicCond->condType != LOGIC_COND_TYPE_AND || LIST_LENGTH(pLogicCond->pParameterList) != 1) {
+      return false;
+    }
+
+    SNode *pOp = nodesListGetNode(pLogicCond->pParameterList, 0);
+    if (!pOp || nodeType(pOp) != QUERY_NODE_OPERATOR) {
+      return false;
+    }
+
+    pOperator = (SOperatorNode*)pOp;
+  } else {
+    pOperator = (SOperatorNode*)pCond;
   }
 
-  SNode *pOp = nodesListGetNode(pLogicCond->pParameterList, 0);
-  if (!pOp || nodeType(pOp) != QUERY_NODE_OPERATOR) {
-    return false;
-  }
-
-  SOperatorNode *pOperator = (SOperatorNode*)pOp;
 
   if(!pOperator->pRight || nodeType(pOperator->pRight) != QUERY_NODE_FUNCTION) {
     return false;
@@ -6933,6 +6940,8 @@ static int32_t filterExtractTsCond(SNode** pCond, SNode** pTimeRangeExpr, bool l
   if (leftSame && rightSame) {
     nodesDestroyNode(pRange->pStart);
     nodesDestroyNode(pRange->pEnd);
+    pRange->pStart = NULL;
+    pRange->pEnd = NULL;
     pRange->needCalc = false;
   } else {
     pRange->needCalc = true;
