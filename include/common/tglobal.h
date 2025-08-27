@@ -140,9 +140,9 @@ extern int32_t tsSyncTimeout;
 extern int32_t tsArbHeartBeatIntervalSec;
 extern int32_t tsArbCheckSyncIntervalSec;
 extern int32_t tsArbSetAssignedTimeoutSec;
-extern int32_t tsArbHeartBeatInterval;
-extern int32_t tsArbCheckSyncInterval;
-extern int32_t tsArbSetAssignedTimeout;
+extern int32_t tsArbHeartBeatIntervalMs;
+extern int32_t tsArbCheckSyncIntervalMs;
+extern int32_t tsArbSetAssignedTimeoutMs;
 
 // vnode
 extern int64_t tsVndCommitMaxIntervalMs;

@@ -524,13 +524,16 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       char tmp[10] = {0};
 
       sprintf(tmp, "%d", tsSyncTimeout / 4);
-      TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItem, "ArbHeartBeatInterval", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
-      TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItem, "ArbCheckSyncInterval", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      TAOS_CHECK_RETURN(
+          cfgGetAndSetItem(pCfg, &pItem, "arbHeartBeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      TAOS_CHECK_RETURN(
+          cfgGetAndSetItem(pCfg, &pItem, "arbCheckSyncIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
       TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItem, "syncVnodeHeartbeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
       TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItem, "syncMnodeHeartbeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
 
       sprintf(tmp, "%d", tsSyncTimeout);
-      TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItem, "ArbSetAssignedTimeout", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      TAOS_CHECK_RETURN(
+          cfgGetAndSetItem(pCfg, &pItem, "arbSetAssignedTimeoutMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
       TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItem, "syncVnodeElectIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
       TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItem, "syncMnodeElectIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
 
@@ -542,10 +545,10 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, cfgReq.config, true));
 
     if (strcmp(cfgReq.config, "syncTimeout") == 0) {
-      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "ArbHeartBeatInterval", true));
-      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "ArbCheckSyncInterval", true));
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "arbHeartBeatIntervalMs", true));
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "arbCheckSyncIntervalMs", true));
       TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "syncHeartbeatInterval", true));
-      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "ArbSetAssignedTimeout", true));
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "arbSetAssignedTimeoutMs", true));
       TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "syncElectInterval", true));
     }
   }
@@ -563,8 +566,8 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   if (strcmp(cfgReq.config, "syncTimeout") == 0) {
-    dInfo("finished change syncTimeout, option:%s, value:%s, tsArbHeartBeatInterval:%d", cfgReq.config, cfgReq.value,
-          tsArbHeartBeatInterval);
+    dInfo("finished change syncTimeout, option:%s, value:%s, tsArbHeartBeatIntervalMs:%d", cfgReq.config, cfgReq.value,
+          tsArbHeartBeatIntervalMs);
 
     (*pMgmt->setMnodeSyncTimeoutFp)();
     (*pMgmt->setVnodeSyncTimeoutFp)();

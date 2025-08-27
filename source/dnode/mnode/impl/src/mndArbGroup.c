@@ -544,7 +544,7 @@ static int32_t mndSendArbCheckSyncReq(SMnode *pMnode, int32_t vgId, char *arbTok
 
 static bool mndCheckArbMemberHbTimeout(SArbGroup *pArbGroup, int32_t index, int64_t nowMs) {
   SArbGroupMember *pArbMember = &pArbGroup->members[index];
-  return pArbMember->state.lastHbMs < (nowMs - tsArbSetAssignedTimeout);
+  return pArbMember->state.lastHbMs < (nowMs - tsArbSetAssignedTimeoutMs);
 }
 
 static void *mndBuildArbSetAssignedLeaderReq(int32_t *pContLen, int32_t vgId, char *arbToken, int64_t arbTerm,

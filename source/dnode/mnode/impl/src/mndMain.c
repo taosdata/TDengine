@@ -443,13 +443,13 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
 void mndDoArbTimerPullupTask(SMnode *pMnode, int64_t ms) {
   int32_t code = 0;
 #ifndef TD_ASTRA
-  if (ms % (tsArbHeartBeatInterval) == 0) {
+  if (ms % (tsArbHeartBeatIntervalMs) == 0) {
     if ((code = mndPullupArbHeartbeat(pMnode)) != 0) {
       mError("failed to pullup arb heartbeat, since:%s", tstrerror(code));
     }
   }
 
-  if (ms % (tsArbCheckSyncInterval) == 0) {
+  if (ms % (tsArbCheckSyncIntervalMs) == 0) {
     if ((code = mndPullupArbCheckSync(pMnode)) != 0) {
       mError("failed to pullup arb check sync, since:%s", tstrerror(code));
     }
