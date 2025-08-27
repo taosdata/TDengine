@@ -13,6 +13,7 @@ add_executable(tmq_td33798 tmq_td33798.c)
 add_executable(tmq_td37265 tmq_td37265.c)
 add_executable(tmq_poll_test tmq_poll_test.c)
 add_executable(tmq_write_raw_test tmq_write_raw_test.c)
+add_executable(tmq_write_raw_with_blob_test tmq_write_raw_with_blob_test.c)
 add_executable(write_raw_block_test write_raw_block_test.c)
 add_executable(sml_test sml_test.c)
 add_executable(get_db_name_test get_db_name_test.c)
@@ -174,6 +175,14 @@ target_link_libraries(
 
 target_link_libraries(
     tmq_write_raw_test
+    PUBLIC ${TAOS_NATIVE_LIB}
+    PUBLIC util
+    PUBLIC common
+    PUBLIC os
+)
+
+target_link_libraries(
+    tmq_write_raw_with_blob_test 
     PUBLIC ${TAOS_NATIVE_LIB}
     PUBLIC util
     PUBLIC common
