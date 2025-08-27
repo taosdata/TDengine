@@ -483,6 +483,7 @@ void    tCleanupStreamHbMsg(SStreamHbMsg* pMsg, bool deepClean);
 typedef struct {
   char*   triggerTblName;
   int64_t triggerTblUid;  // suid or uid
+  int64_t triggerTblSuid;
   int8_t  triggerTblType;
   int8_t  deleteReCalc;
   int8_t  deleteOutTbl;
@@ -827,11 +828,12 @@ typedef struct SSTriggerWalMetaNewRequest {
   int64_t              ctime;
 } SSTriggerWalMetaNewRequest;
 
-typedef struct SSTriggerWalDataRange {
-  int64_t gid;
-  int64_t skey;
-  int64_t ekey;
-} SSTriggerWalDataRange;
+typedef struct SSTriggerWalNewRsp {
+  void*                dataBlock;
+  void*                metaBlock;
+  void*                deleteBlock;
+  void*                dropBlock;
+} SSTriggerWalNewRsp;
 
 typedef struct SSTriggerWalDataNewRequest {
   SSTriggerPullRequest base;
@@ -843,6 +845,14 @@ typedef struct SSTriggerWalMetaDataNewRequest {
   SSTriggerPullRequest base;
   int64_t              lastVer;
 } SSTriggerWalMetaDataNewRequest;
+
+// typedef struct SSTriggerWalCalcDataNewRequest {
+//   SSTriggerPullRequest base;
+//   SArray*              versions;  // SArray<int64_t>
+//   uint64_t             gid;
+//   int64_t              skey;
+//   int64_t              ekey;
+// } SSTriggerWalCalcDataNewRequest;
 
 typedef struct SSTriggerGroupColValueRequest {
   SSTriggerPullRequest base;
@@ -898,6 +908,7 @@ typedef union SSTriggerPullRequestUnion {
   SSTriggerWalMetaNewRequest          walMetaNewReq;
   SSTriggerWalDataNewRequest          walDataNewReq;
   SSTriggerWalMetaDataNewRequest      walMetaDataNewReq;
+  // SSTriggerWalCalcDataNewRequest      walCalcDataNewReq;
   SSTriggerGroupColValueRequest       groupColValueReq;
   SSTriggerVirTableInfoRequest        virTableInfoReq;
   SSTriggerVirTablePseudoColRequest   virTablePseudoColReq;
@@ -1030,9 +1041,8 @@ typedef struct SStreamWalDataResponse {
   SSHashObj* pSlices;  // SSHash<uid, SStreamWalDataSlice>
 } SStreamWalDataResponse;
 
-int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, void* pBlock, SSHashObj* indexHash);
-int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, void* pDataBlock, SSHashObj* pSlices,
-                                           SArray* pUids);
+int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalNewRsp* metaBlock, SSHashObj* indexHash);
+int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalNewRsp* pRsp, SArray* pSlices);
 
 typedef struct SStreamGroupValue {
   SValue        data;

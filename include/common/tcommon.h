@@ -41,6 +41,7 @@ typedef bool (*state_key_cmpr_fn)(void* pKey1, void* pKey2);
 typedef struct STableKeyInfo {
   uint64_t uid;
   uint64_t groupId;
+  bool     disable;
 } STableKeyInfo;
 
 typedef struct SWinKey {

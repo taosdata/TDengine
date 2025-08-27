@@ -839,6 +839,7 @@ int32_t tEncodeSStreamReaderDeployFromTrigger(SEncoder* pEncoder, const SStreamR
 
   TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pMsg->triggerTblName, pMsg->triggerTblName == NULL ? 0 : (int32_t)strlen(pMsg->triggerTblName) + 1));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->triggerTblUid));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->triggerTblSuid));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->triggerTblType));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->deleteReCalc));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->deleteOutTbl));
@@ -1363,6 +1364,7 @@ int32_t tDecodeSStreamReaderDeployFromTrigger(SDecoder* pDecoder, SStreamReaderD
 
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->triggerTblName, NULL));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->triggerTblUid));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->triggerTblSuid));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->triggerTblType));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->deleteReCalc));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->deleteOutTbl));
@@ -3487,7 +3489,8 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ctime));
       break;
     }
-    case STRIGGER_PULL_WAL_DATA_NEW: {
+    case STRIGGER_PULL_WAL_DATA_NEW:
+    case STRIGGER_PULL_WAL_CALC_DATA_NEW: {
       SSTriggerWalDataNewRequest* pRequest = (SSTriggerWalDataNewRequest*)pReq;
       int32_t                     nVersion = taosArrayGetSize(pRequest->versions);
       TAOS_CHECK_EXIT(tEncodeI32(&encoder, nVersion));
@@ -3515,6 +3518,19 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->lastVer));
       break;
     }
+    // case STRIGGER_PULL_WAL_CALC_DATA_NEW: {
+    //   SSTriggerWalCalcDataNewRequest* pRequest = (SSTriggerWalCalcDataNewRequest*)pReq;
+    //   int32_t                         nVersion = taosArrayGetSize(pRequest->versions);
+    //   TAOS_CHECK_EXIT(tEncodeI32(&encoder, nVersion));
+    //   for (int32_t i = 0; i < nVersion; i++) {
+    //     int64_t ver = *(int64_t*)TARRAY_GET_ELEM(pRequest->versions, i);
+    //     TAOS_CHECK_EXIT(tEncodeI64(&encoder, ver));
+    //   }
+    //   TAOS_CHECK_EXIT(tEncodeU64(&encoder, pRequest->gid));
+    //   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->skey));
+    //   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ekey));
+    //   break;
+    // }
     case STRIGGER_PULL_GROUP_COL_VALUE: {
       SSTriggerGroupColValueRequest* pRequest = (SSTriggerGroupColValueRequest*)pReq;
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->gid));
@@ -3697,7 +3713,8 @@ int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPull
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ctime));
       break;
     }
-    case STRIGGER_PULL_WAL_DATA_NEW: {
+    case STRIGGER_PULL_WAL_DATA_NEW:
+    case STRIGGER_PULL_WAL_CALC_DATA_NEW: {
       SSTriggerWalDataNewRequest* pRequest = &(pReq->walDataNewReq);
       int32_t                     nVersion = 0;
       TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nVersion));
@@ -3727,6 +3744,20 @@ int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPull
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->lastVer));
       break;
     }
+    // case STRIGGER_PULL_WAL_CALC_DATA_NEW: {
+    //   SSTriggerWalCalcDataNewRequest* pRequest = &(pReq->walCalcDataNewReq);
+    //   int32_t                     nVersion = 0;
+    //   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nVersion));
+    //   pRequest->versions = taosArrayInit_s(sizeof(int64_t), nVersion);
+    //   for (int32_t i = 0; i < nVersion; i++) {
+    //     int64_t* pVer = TARRAY_GET_ELEM(pRequest->versions, i);
+    //     TAOS_CHECK_EXIT(tDecodeI64(&decoder, pVer));
+    //   }
+    //   TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pRequest->gid));
+    //   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->skey));
+    //   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ekey));
+    //   break;
+    // }
     case STRIGGER_PULL_GROUP_COL_VALUE: {
       SSTriggerGroupColValueRequest* pRequest = &(pReq->groupColValueReq);
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->gid));
@@ -4305,7 +4336,57 @@ _exit:
   return code;
 }
 
-int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, void* pBlock, SSHashObj* indexHash) {
+static int32_t encodeData(SEncoder* encoder, void* pBlock, SSHashObj* indexHash, void* metaBlock) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t len = 0;
+  if (encoder->data == NULL){
+    len = blockGetEncodeSize(pBlock);
+  } else {
+    len = blockEncode(pBlock, (char*)(encoder->data + encoder->pos), encoder->size - encoder->pos, blockDataGetNumOfCols(pBlock));
+    if (len < 0) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+  }
+  encoder->pos += len;
+  if (indexHash == NULL) {
+    goto _exit;
+  } 
+  TAOS_CHECK_EXIT(tEncodeI64(encoder, ((SSDataBlock*)pBlock)->info.version));
+  
+  int32_t tables = tSimpleHashGetSize(indexHash);
+  TAOS_CHECK_EXIT(tEncodeI32(encoder, tables));
+
+  void*   pe = NULL;
+  int32_t iter = 0;
+  while ((pe = tSimpleHashIterate(indexHash, pe, &iter)) != NULL) {
+    SStreamWalDataSlice* pInfo = (SStreamWalDataSlice*)pe;
+
+    int64_t uid = *(int64_t*)(tSimpleHashGetKey(pe, NULL));
+    TAOS_CHECK_EXIT(tEncodeI64(encoder, uid));
+    TAOS_CHECK_EXIT(tEncodeU64(encoder, pInfo->gId));
+    TAOS_CHECK_EXIT(tEncodeI32(encoder, pInfo->startRowIdx - pInfo->numRows));
+    TAOS_CHECK_EXIT(tEncodeI32(encoder, pInfo->numRows));
+  }
+
+  if (metaBlock == NULL) {
+    goto _exit;
+  }
+  if (encoder->data == NULL){
+    len = blockGetEncodeSize(metaBlock);
+  } else {
+    len = blockEncode(metaBlock, (char*)(encoder->data + encoder->pos), encoder->size - encoder->pos, blockDataGetNumOfCols(metaBlock));
+    if (len < 0) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+  }
+  encoder->pos += len;
+
+_exit:
+  return code;
+}
+ 
+int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalNewRsp* rsp, SSHashObj* indexHash) {
   SEncoder encoder = {0};
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -4314,34 +4395,32 @@ int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, void* pBlock
   tEncoderInit(&encoder, buf, bufLen);
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
 
-  int32_t len = 0;
-  if (buf == NULL){
-    len = blockGetEncodeSize(pBlock);
+  if (rsp->dataBlock != NULL && ((SSDataBlock*)rsp->dataBlock)->info.rows > 0) {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 1)); // has real data
+    TAOS_CHECK_EXIT(encodeData(&encoder, rsp->dataBlock, indexHash));
   } else {
-    len = blockEncode(pBlock, (char*)(encoder.data + encoder.pos), encoder.size - encoder.pos, blockDataGetNumOfCols(pBlock));
-    if (len < 0) {
-      TAOS_CHECK_EXIT(terrno);
-    }
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 0)); // no real data
   }
-  encoder.pos += len;
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, ((SSDataBlock*)pBlock)->info.version));
-  
-  int32_t tables = tSimpleHashGetSize(indexHash);
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, tables));
 
-  void*   pe = NULL;
-  int32_t iter = 0;
-  while ((pe = tSimpleHashIterate(indexHash, pe, &iter)) != NULL) {
-    SStreamWalDataSlice* pInfo = (SStreamWalDataSlice*)pe;
-    pInfo->startRowIdx = 0;
-    pInfo->numRows = 0;
-    pInfo->gId = 0;
+  if (rsp->metaBlock != NULL && ((SSDataBlock*)rsp->metaBlock)->info.rows > 0) {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 1)); // has metada
+    TAOS_CHECK_EXIT(encodeData(&encoder, rsp->metaBlock, NULL));
+  } else {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 0)); // no delete data
+  }
 
-    int64_t uid = *(int64_t*)(tSimpleHashGetKey(pe, NULL));
-    TAOS_CHECK_EXIT(tEncodeI64(&encoder, uid));
-    TAOS_CHECK_EXIT(tEncodeU64(&encoder, pInfo->gId));
-    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pInfo->startRowIdx));
-    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pInfo->numRows));
+  if (rsp->deleteBlock != NULL && ((SSDataBlock*)rsp->deleteBlock)->info.rows > 0) {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 1)); // has deletedata
+    TAOS_CHECK_EXIT(encodeData(&encoder, rsp->deleteBlock, NULL));
+  } else {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 0)); // no drop table data
+  }
+
+  if (rsp->dropBlock != NULL && ((SSDataBlock*)rsp->dropBlock)->info.rows > 0) {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 1)); // has drop table data
+    TAOS_CHECK_EXIT(encodeData(&encoder, rsp->dropBlock, NULL));
+  } else {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 0));  // no drop table data
   }
 
   tEndEncode(&encoder);
@@ -4356,8 +4435,7 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, void* pDataBlock, SSHashObj* pSlices,
-                                           SArray* pUids) {
+int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalNewRsp* pRsp, SArray* pSlices){
   SDecoder     decoder = {0};
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;

@@ -3476,7 +3476,6 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
       if (pRsp->code == TSDB_CODE_STREAM_NO_DATA) {
         QUERY_CHECK_CONDITION(pRsp->contLen == sizeof(int64_t), code, lino, _end, TSDB_CODE_INVALID_PARA);
-        blockDataEmpty(pDataBlock);
         pDataBlock->info.id.groupId = *(int64_t *)pRsp->pCont;
       } else {
         QUERY_CHECK_CONDITION(pRsp->contLen > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
@@ -3672,12 +3671,11 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       int64_t lastScanVer = 0;
       if (pRsp->code == TSDB_CODE_STREAM_NO_DATA) {
         QUERY_CHECK_CONDITION(pRsp->contLen == sizeof(int64_t), code, lino, _end, TSDB_CODE_INVALID_PARA);
-        blockDataEmpty(pDataBlock);
         lastScanVer = *(int64_t *)pRsp->pCont;
       } else {
         QUERY_CHECK_CONDITION(pRsp->contLen > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
-        const char *pCont = pRsp->pCont;
-        code = blockDecode(pDataBlock, pCont, &pCont);
+        SSTriggerWalNewRsp rsp = {.metaBlock = pContext->pMetaBlock};
+        code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, &rsp, NULL);
         QUERY_CHECK_CODE(code, lino, _end);
         QUERY_CHECK_CONDITION(pCont == (char *)pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       }
@@ -3788,10 +3786,19 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       }
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
-      if (pRsp->contLen > 0) {
-        pWalDataBlocks = taosArrayInit(0, POINTER_BYTES);
-        QUERY_CHECK_NULL(pWalDataBlocks, code, lino, _end, terrno);
-        code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, pWalDataBlocks, NULL, NULL);
+      int64_t lastScanVer = 0;
+      pDataBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+      QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
+      if (pRsp->code == TSDB_CODE_STREAM_NO_DATA) {
+        QUERY_CHECK_CONDITION(pRsp->contLen == sizeof(int64_t), code, lino, _end, TSDB_CODE_INVALID_PARA);
+        lastScanVer = *(int64_t *)pRsp->pCont;
+      } else {
+        QUERY_CHECK_CONDITION(pRsp->contLen > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
+        SSTriggerWalNewRsp rsp = {.dataBlock = pProgress->pDataBlock};
+        if (pContext->walMode == STRIGGER_WAL_META_WITH_DATA) {
+          rsp.metaBlock = pContext->pMetaBlock;
+        }
+        code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, &rsp, pContext->pTempSlices);
         QUERY_CHECK_CODE(code, lino, _end);
         if (pContext->walMode == STRIGGER_WAL_DATA_ONLY && TARRAY_SIZE(pWalDataBlocks) > 0) {
           SSDataBlock *pLastBlock = *(SSDataBlock **)taosArrayGetLast(pWalDataBlocks);

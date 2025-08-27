@@ -1763,6 +1763,7 @@ int32_t qStreamGetGroupIndex(void* pTableListInfo, int64_t gid) {
 void qStreamDestroyTableList(void* pTableListInfo) { tableListDestroy(pTableListInfo); }
 
 uint64_t qStreamGetGroupId(void* pTableListInfo, int64_t uid) { return tableListGetTableGroupId(pTableListInfo, uid); }
+int32_t  qStreamRevmoeUidFromTableList(void* pTableListInfo, int64_t uid) { return tableListRemoveTable(pTableListInfo, uid); }
 
 int32_t qStreamGetTableListGroupNum(const void* pTableList) { return ((STableListInfo*)pTableList)->numOfOuputGroups; }
 SArray* qStreamGetTableArrayList(const void* pTableList) { return ((STableListInfo*)pTableList)->pTableList; }
