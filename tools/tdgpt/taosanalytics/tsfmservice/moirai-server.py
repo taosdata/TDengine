@@ -245,7 +245,6 @@ def download_model(model_name, root_dir, enable_ep = False):
         )
 
 def main():
-    # load the safetensor from local directory
     global pretrained_model
 
     model_list = [
@@ -256,7 +255,7 @@ def main():
     if len(sys.argv) < 4:
         # use the implicit download capability
         pretrained_model = MoiraiMoEModule.from_pretrained(
-            model_list[1]
+            model_list[0]
         ).to(device)
     else:
         # let's load the model file from the user specified directory
@@ -276,7 +275,7 @@ def main():
 
     app.run(
         host='0.0.0.0',
-        port=6074,
+        port=6039,
         threaded=True,
         debug=False
     )

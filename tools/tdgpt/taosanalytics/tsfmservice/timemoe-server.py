@@ -1,20 +1,38 @@
+import os
+import sys
+
 import torch
 from flask import Flask, request, jsonify
+from huggingface_hub import snapshot_download
+from tqdm import tqdm
 from transformers import AutoModelForCausalLM
 
 app = Flask(__name__)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+pretrained_model = None
 
-_model_list = [
-    'Maple728/TimeMoE-50M',  # time-moe model with 50M  parameters
-    'Maple728/TimeMoE-200M',  # time-moe model with 200M parameters
-]
+def download_model(model_name, root_dir, enable_ep = False):
+    # model_list = ['Maple728/TimeMoE-50M']
+    ep = 'https://hf-mirror.com' if enable_ep else None
+    model_list = [model_name]
 
-model = AutoModelForCausalLM.from_pretrained(
-    _model_list[0],
-    device_map=device,
-    trust_remote_code=True,
-)
+    # root_dir = '/var/lib/taos/taosanode/model/timemoe'
+    if not os.path.exists(root_dir):
+        os.mkdir(root_dir)
+
+    dst_folder = root_dir + '/'
+    if not os.path.exists(dst_folder):
+        os.mkdir(dst_folder)
+
+    for item in tqdm(model_list):
+        snapshot_download(
+            repo_id=item,
+            local_dir=dst_folder,  # storage directory
+            local_dir_use_symlinks=False,   # disable the link
+            resume_download=True,
+            endpoint=ep
+        )
+
 
 @app.route('/ds_predict', methods=['POST'])
 def time_moe():
@@ -39,7 +57,7 @@ def time_moe():
             normed_seqs = (seqs - mean) / std
             seqs = normed_seqs
 
-            pred_y = model.generate(seqs, max_new_tokens=prediction_length)
+            pred_y = pretrained_model.generate(seqs, max_new_tokens=prediction_length)
 
             normed_predictions = pred_y[:, -prediction_length:]
 
@@ -61,9 +79,38 @@ def time_moe():
         }), 500
 
 def main():
+    global pretrained_model
+
+    model_list = [
+        'Maple728/TimeMoE-50M',  # time-moe model with 50M  parameters
+        'Maple728/TimeMoE-200M',  # time-moe model with 200M parameters
+    ]
+
+    if len(sys.argv) < 4:
+        #user not specify the model local input directory
+        pretrained_model = AutoModelForCausalLM.from_pretrained(
+            model_list[0],
+            device_map=device,
+            trust_remote_code=True,
+        )
+    else:
+        model_folder = sys.argv[1].strip('\'"')
+        model_name = sys.argv[2].strip('\'"')
+        enable_ep = bool(sys.argv[3])
+
+        if not os.path.exists(model_folder):
+            print(f"the specified folder: {model_folder} not exists, start to create it")
+
+        download_model(model_name, model_folder, enable_ep=enable_ep)
+
+        """load the model from local folder"""
+        pretrained_model = AutoModelForCausalLM.from_pretrained(
+            model_folder
+        ).to(device)
+
     app.run(
             host='0.0.0.0',
-            port=6072,
+            port=6037,
             threaded=True,  
             debug=False     
         )

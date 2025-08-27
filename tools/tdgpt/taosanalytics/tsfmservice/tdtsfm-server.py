@@ -736,7 +736,7 @@ def main():
 
     app.run(
         host='0.0.0.0',
-        port=6071,
+        port=6036,
         threaded=True,
         debug=False
     )

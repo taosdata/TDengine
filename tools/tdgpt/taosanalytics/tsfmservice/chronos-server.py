@@ -1,22 +1,37 @@
+import os
+import sys
 import torch
 from flask import Flask, request, jsonify
 from chronos import BaseChronosPipeline
+from huggingface_hub import snapshot_download
+from tqdm import tqdm
 
 app = Flask(__name__)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+pretrained_model = None
 
-_model_list = [
-    'amazon/chronos-bolt-tiny',  # 9M parameters, based on t5-efficient-tiny
-    'amazon/chronos-bolt-mini',  # 21M parameters, based on	t5-efficient-mini
-    'amazon/chronos-bolt-small',  # 48M parameters, based on t5-efficient-small
-    'amazon/chronos-bolt-base',  # 205M parameters, based on t5-efficient-base
-]
 
-model = BaseChronosPipeline.from_pretrained(
-    _model_list[0],
-    device_map=device,
-    torch_dtype=torch.bfloat16,
-)
+def download_model(model_name, root_dir, enable_ep = False):
+    # model_list = ['Salesforce/moirai-1.0-R-small']
+    ep = 'https://hf-mirror.com' if enable_ep else None
+    model_list = [model_name]
+
+    # root_dir = '/var/lib/taos/taosanode/model/chronos/'
+    if not os.path.exists(root_dir):
+        os.mkdir(root_dir)
+
+    dst_folder = root_dir + '/'
+    if not os.path.exists(dst_folder):
+        os.mkdir(dst_folder)
+
+    for item in tqdm(model_list):
+        snapshot_download(
+            repo_id=item,
+            local_dir=dst_folder,  # storage directory
+            local_dir_use_symlinks=False,   # disable the link
+            resume_download=True,
+            endpoint=ep
+        )
 
 @app.route('/ds_predict', methods=['POST'])
 def chronos():
@@ -33,7 +48,7 @@ def chronos():
 
         seqs = torch.tensor(input_data).unsqueeze(0).float().to(device)
 
-        quantiles, mean = model.predict_quantiles(
+        quantiles, mean = pretrained_model.predict_quantiles(
             context=seqs, #torch.tensor(df["#Passengers"]),
             prediction_length=prediction_length,
             quantile_levels=[0.1, 0.5, 0.9],
@@ -58,11 +73,43 @@ def chronos():
         }), 500
 
 
-
 def main():
+    global pretrained_model
+
+    model_list = [
+        'amazon/chronos-bolt-tiny',  # 9M parameters, based on t5-efficient-tiny
+        'amazon/chronos-bolt-mini',  # 21M parameters, based on	t5-efficient-mini
+        'amazon/chronos-bolt-small',  # 48M parameters, based on t5-efficient-small
+        'amazon/chronos-bolt-base',  # 205M parameters, based on t5-efficient-base
+    ]
+
+    if len(sys.argv) < 4:
+        pretrained_model = BaseChronosPipeline.from_pretrained(
+            model_list[0],
+            device_map=device,
+            torch_dtype=torch.bfloat16,
+        ).to(device)
+    else:
+        # let's load the model file from the user specified directory
+        model_folder = sys.argv[1].strip('\'"')
+        model_name = sys.argv[2].strip('\'"')
+        enable_ep = bool(sys.argv[3])
+
+        if not os.path.exists(model_folder):
+            print(f"the specified folder: {model_folder} not exists, start to create it")
+
+        download_model(model_name, model_folder, enable_ep=enable_ep)
+
+        """load the model from local folder"""
+        pretrained_model = BaseChronosPipeline.from_pretrained(
+            model_folder,
+            device_map=device,
+            torch_dtype=torch.bfloat16,
+        ).to(device)
+
     app.run(
             host='0.0.0.0',
-            port=6073,
+            port=6038,
             threaded=True,
             debug=False
         )
