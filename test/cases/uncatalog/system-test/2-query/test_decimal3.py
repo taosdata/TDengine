@@ -10,6 +10,9 @@ import subprocess
 import re
 from typing import List
 from datetime import datetime, timedelta
+import platform
+if platform.system().lower() == 'windows':
+    import wexpect
 
 from new_test_framework.utils import tdLog, tdSql, TDSql
 from decimal import *
@@ -242,10 +245,25 @@ class TaosShell:
             f.truncate(0)
         self.queryResult = []
         try:
-            command = f'taos -s "{sql} >> {self.get_file_path()}"'
-            result = subprocess.run(
-                command, shell=True, check=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE
-            )
+            if platform.system().lower() == "windows":
+                tdLog.info(f"use wexpect to exec taos command: {sql}")
+                child = wexpect.spawn("taos", timeout=60)
+                try:
+                    child.expect("> ")
+                    child.sendline(f"{sql} >> {self.get_file_path()};")
+                    child.expect("> ")
+                    child.sendline("quit")
+                    child.expect("> ")
+                    child.expect(wexpect.EOF)
+                except Exception as e:
+                    tdLog.error(f"wexpect failed, child.before:\n{child.before}")
+                    raise
+            else:
+                command = f'taos -s "{sql} >> {self.get_file_path()}"'
+                tdLog.debug(f"exec command: {command}")
+                result = subprocess.run(
+                    command, shell=True, check=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE
+                )
             self.read_result()
         except Exception as e:
             tdLog.exit(f"Command '{sql}' failed with error: {e.stderr.decode('utf-8')}")
@@ -912,7 +930,7 @@ class TableInserter:
         columns: List[Column],
         tags_cols: List[Column] = [],
     ):
-        self.conn: TDSql = conn
+        self.conn = conn
         self.dbName = dbName
         self.tbName = tbName
         self.tag_cols = tags_cols
