@@ -3787,7 +3787,13 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       }
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
-      if (pRsp->contLen > 0) {
+      int64_t lastScanVer = 0;
+      if (pRsp->code == TSDB_CODE_STREAM_NO_DATA) {
+        QUERY_CHECK_CONDITION(pRsp->contLen == sizeof(int64_t), code, lino, _end, TSDB_CODE_INVALID_PARA);
+        blockDataEmpty(pDataBlock);
+        lastScanVer = *(int64_t *)pRsp->pCont;
+      } else {
+        QUERY_CHECK_CONDITION(pRsp->contLen > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
         pDataBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
         QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
         SSHashObj *pSlices = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
@@ -3796,9 +3802,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         QUERY_CHECK_NULL(pUids, code, lino, _end, terrno);
         code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, pDataBlock, pSlices, pUids);
         QUERY_CHECK_CODE(code, lino, _end);
-        if (pContext->walMode == STRIGGER_WAL_DATA_ONLY) {
-          pProgress->lastScanVer = pDataBlock->info.version;
-        }
+        lastScanVer = pDataBlock->info.version;
         printDataBlock(pDataBlock, __func__, "stream_trigger_data");
         for (int32_t i = 0; i < TARRAY_SIZE(pUids); i++) {
           int64_t *px = TARRAY_GET_ELEM(pUids, i);
@@ -3812,6 +3816,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
                        nrows);
         }
       }
+      pProgress->lastScanVer = lastScanVer;
 
       if (--pContext->curReaderIdx > 0) {
         ST_TASK_DLOG("wait for response from other %d readers", pContext->curReaderIdx);
