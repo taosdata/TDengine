@@ -24,9 +24,11 @@ description: 使用 TDengine 连接永洪 BI
 1. 在打开的 Yonghong Desktop BI 工具中点击“添加数据源”，选择 SQL 数据源中的“GENERIC”类型。
 2. 点击“选择自定义驱动”，在“驱动管理”对话框中，点击“驱动列表”旁边的“+”，输入名称“MyTDengine”。然后点击“上传文件”按钮上传刚刚下载的 TDengine JDBC 连接器文件"taos-jdbcdriver-3.2.7-dist.jar"，并选择“com.taosdata.jdbc.rs.RestfulDriver”驱动，最后点击“确定”按钮完成驱动添加。
 3. 然后请复制下面的内容到“URL”字段：
+
 ```
 jdbc:TAOS-RS://localhost:6041?user=root&password=taosdata
 ```
+
 4. 接着在“认证方式”选择“无身份认证”。
 5. 在数据源的高级设置中，修改“Quote 符号”的值为反引号“`”。
 6. 点击“测试连接”，弹出“测试成功”的对话框。点击“保存”按钮，输入“MyTDengine”来保存 TDengine 数据源。
@@ -49,7 +51,7 @@ select _wstart ws, count(*) cnt from supertable where tbname=?{metric} and ts >=
 
 - `_wstart`：表示时间窗口起始时间。
 - `count(*)`：表示时间窗口内的聚合值。
--  `?{interval}`：表示在 SQL 语句中引入名称为 interval 的参数，当 BI 工具查询数据时，会给 interval 参数赋值，如果取值为 1m，则表示按照 1 分钟的时间窗口降采样数据。
+- `?{interval}`：表示在 SQL 语句中引入名称为 interval 的参数，当 BI 工具查询数据时，会给 interval 参数赋值，如果取值为 1m，则表示按照 1 分钟的时间窗口降采样数据。
 - `?{metric}`：该参数用来指定查询的数据表名称，当在 BI 工具中把某个“下拉参数组件”的 ID 也设置为 metric 时，该“下拉参数组件”的被选择项将会和该参数绑定在一起，实现动态选择的效果。
 - `?{from}` 和 `?{to}`：这两个参数用来表示查询数据集的时间范围，可以与“文本参数组件”绑定。
 

@@ -71,7 +71,7 @@ def timesfm():
 def main():
     app.run(
         host='0.0.0.0',
-        port=5003,
+        port=6075,
         threaded=True,
         debug=False
     )

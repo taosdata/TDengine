@@ -130,20 +130,30 @@ pip3 install kafka-python==2.1.2
 python3 kafka_example_consumer.py
 
 # 21
-pip3 install taos-ws-py==0.5.3
+pip3 install taos-ws-py==0.6.1
 python3 conn_websocket_pandas.py
 
 # 22
 python3 connect_websocket_examples.py
 
 # 23
-python3 create_db_ws.py
+python3 connect_websocket_sqlalchemy_examples.py
 
 # 24
-python3 create_db_native.py
+pip3 install DBUtils==3.1.1
+python3 dbutils_demo.py
 
 # 25
+python3 create_db_ws.py
+
+# 26
+python3 create_db_native.py
+
+# 27
 python3 create_db_rest.py
+
+pip3 install SQLAlchemy==2.0.43
+python3 sqlalchemy_demo.py
 
 python3 insert_native.py
 

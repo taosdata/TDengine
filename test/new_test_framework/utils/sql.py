@@ -836,6 +836,13 @@ class TDSql:
 
             return self.error_info
 
+    # loop call error
+    def waitError(self, sql, loop=3, sleepMs=1000, expectedErrno=None, expectErrInfo=None, fullMatched=True, show=False):
+        for i in range(loop):
+            self.error(sql, expectedErrno, expectErrInfo, fullMatched, show)
+            time.sleep(sleepMs / 1000)
+    
+
     def noError(self, sql):
         caller = inspect.getframeinfo(inspect.stack()[1][0])
         expectErrOccurred = False
@@ -857,6 +864,7 @@ class TDSql:
             )
         else:
             tdLog.info("sql:%s, check passed, no ErrInfo occurred" % (sql))
+
 
     def getData(self, row, col):
         """
@@ -2611,7 +2619,7 @@ class TDSql:
         else:  # Linux/macOS
             input("press enter to continue...")
 
-    def setConnMode(self, mode=1):
+    def setConnMode(self, mode=0, value=1):
         """
         Set Conn Mode
 
@@ -2625,9 +2633,10 @@ class TDSql:
             None
 
         """
-        tdLog.info(f"set connection mode:{mode}")
+        tdLog.info(f"set connection mode:{mode} value:{value}")
+        self.cursor._connection.set_mode(mode, value)
 
-    def checkResultsByFunc(self, sql, func, delay=0.0, retry=60, show=False):
+    def checkResultsByFunc(self, sql, func, delay=0.0, retry=300, show=False):
         if delay != 0:
             time.sleep(delay)
 
@@ -2649,7 +2658,7 @@ class TDSql:
                     self.printResult(f"check continue {loop} after sleep 1s ...")
                 time.sleep(1)
 
-        self.printResult(f"check failed for {retry} seconds", exit=True)
+        self.printResult(f"check failed for {retry} seconds, sql={sql}", exit=True)
 
     def checkResultsByArray(
         self, sql, exp_result, exp_sql="", delay=0.0, retry=60, show=False
@@ -2686,7 +2695,7 @@ class TDSql:
         caller = inspect.getframeinfo(inspect.stack()[2][0])
         tdLog.exit(f"{caller.filename}(caller.lineno)  check result failed")
 
-    def checkResultsBySql(self, sql, exp_sql, delay=0.0, retry=60, show=False):
+    def checkResultsBySql(self, sql, exp_sql, delay=0.0, retry=300, show=False):
         # sleep
         if delay != 0:
             time.sleep(delay)

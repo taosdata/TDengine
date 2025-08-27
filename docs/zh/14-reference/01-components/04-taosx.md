@@ -3,7 +3,7 @@ title: taosX 参考手册
 sidebar_label: taosX
 ---
 
-taosX 是 TDengine Enterprise 中的一个核心组件，提供零代码数据接入的能力，taosX 支持两种运行模式：服务模式和命令行模式。本节讲述如何以这两种方式使用 taosX。要想使用 taosX 需要先安装 TDengine Enterprise 安装包。
+taosX 是 TDengine TSDB Enterprise 中的一个核心组件，提供零代码数据接入的能力，taosX 支持两种运行模式：服务模式和命令行模式。本节讲述如何以这两种方式使用 taosX。要想使用 taosX 需要先安装 TDengine TSDB Enterprise 安装包。
 
 ## 命令行模式
 
@@ -41,8 +41,8 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 
 1. 不同的驱动 (driver) 拥有不同的参数。driver 包含如下选项：
 
-- taos：使用查询接口从 TDengine 获取数据
-- tmq：启用数据订阅从 TDengine 获取数据
+- taos：使用查询接口从 TDengine TSDB 获取数据
+- tmq：启用数据订阅从 TDengine TSDB 获取数据
 - local：数据备份或恢复
 - pi：启用 pi-connector 从 pi 数据库中获取数据
 - opc：启用 opc-connector 从 opc-server 中获取数据
@@ -58,7 +58,7 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 - +da：当 driver 取值为 opc 时使用，表示采集的数据的 opc-server 为 opc-da
 
 3. host:port 表示数据源的地址和端口。
-4. object 表示具体的数据源，可以是 TDengine 的数据库、超级表、表，也可以是本地备份文件的路径，也可以是对应数据源服务器中的数据库。
+4. object 表示具体的数据源，可以是 TDengine TSDB 的数据库、超级表、表，也可以是本地备份文件的路径，也可以是对应数据源服务器中的数据库。
 5. username 和 password 表示该数据源的用户名和密码。
 6. params 代表了 dsn 的参数。
 
@@ -536,18 +536,18 @@ taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | 字段                 | 描述                                                            |
 | -------------------- | --------------------------------------------------------------- |
 | total_execute_time   | 任务累计运行时间，单位毫秒                                      |
-| total_written_rowsls | 成功写入 TDengine 的总行数（包括重复记录）                      |
+| total_written_rowsls | 成功写入 TDengine TSDB 的总行数（包括重复记录）                      |
 | total_written_points | 累计写入成功点数 (等于数据块包含的行数乘以数据块包含的列数)     |
 | start_time           | 任务启动时间 (每次重启任务会被重置)                             |
-| written_rows         | 本次运行此任务成功写入 TDengine 的总行数（包括重复记录）        |
+| written_rows         | 本次运行此任务成功写入 TDengine TSDB 的总行数（包括重复记录）        |
 | written_points       | 本次运行写入成功点数 (等于数据块包含的行数乘以数据块包含的列数) |
 | execute_time         | 任务本次运行时间，单位秒                                        |
 
-### taosX TDengine V2 任务
+### taosX TDengine TSDB V2 任务
 
 | 字段                  | 描述                                                                 |
 | --------------------- | -------------------------------------------------------------------- |
-| read_concurrency      | 并发读取数据源的数据 worker 数，也等于并发写入 TDengine 的 worker 数 |
+| read_concurrency      | 并发读取数据源的数据 worker 数，也等于并发写入 TDengine TSDB 的 worker 数 |
 | total_stables         | 需要迁移的超级表数据数量                                             |
 | total_updated_tags    | 累计更新 tag 数                                                      |
 | total_created_tables  | 累计创建子表数                                                       |
@@ -559,7 +559,7 @@ taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | created_tables        | 本次运行创建子表数                                                   |
 | updated_tags          | 本次运行更新 tag 数                                                  |
 
-### taosX TDengine V3 任务
+### taosX TDengine TSDB V3 任务
 
 | 字段                   | 描述                                                    |
 | ---------------------- | ------------------------------------------------------- |

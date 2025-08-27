@@ -275,11 +275,10 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
   if (rows < 0 && code == 0) {
     code = TSDB_CODE_ANA_ANODE_RETURN_ERROR;
 
-    char pMsg[1024] = {0};
-    code = tjsonGetStringValue(pJson, "msg", pMsg);
-    if (code != 0) {
-      qError("%s failed to get msg from rsp, unknown error", pId);
-    } else {
+    char    pMsg[1024] = {0};
+    int32_t ret = tjsonGetStringValue(pJson, "msg", pMsg);
+    
+    if (ret == 0) {
       qError("%s failed to exec forecast, msg:%s", pId, pMsg);
       void* p = strstr(pMsg, "white noise");
       if (p != NULL) {
@@ -290,6 +289,8 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
           code = TSDB_CODE_ANA_ALGO_NOT_LOAD;
         }
       }
+    } else {
+      qError("%s failed to extract msg from server, unknown error", pId);
     }
 
     tjsonDelete(pJson);
@@ -768,6 +769,12 @@ static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id) {
     goto _end;
   }
 
+  if (pSupp->forecastRows <= 0) {
+    qError("%s output rows should be greater than 0, input:%" PRId64, id, pSupp->forecastRows);
+    code = TSDB_CODE_INVALID_PARA;
+    goto _end;
+  }
+
   // extract the confidence interval value
   char* pConf = taosHashGet(pHashMap, ALGO_OPT_CONF_NAME, strlen(ALGO_OPT_CONF_NAME));
   if (pConf != NULL) {
@@ -804,6 +811,12 @@ static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id) {
     pSupp->every = v;
     pSupp->setEvery = 1;
     qDebug("%s forecast set every ts:%"PRId64, id, pSupp->every);
+  }
+
+  if (pSupp->setEvery && pSupp->every <= 0) {
+    qError("%s period should be greater than 0, user specified:%"PRId64, id, pSupp->every);
+    code = TSDB_CODE_INVALID_PARA;
+    goto _end;
   }
 
   // extract the dynamic real feature for covariate forecasting

@@ -42,6 +42,7 @@ class TestStreamStateTrigger:
         streams.append(self.Basic6()) # OK
         # streams.append(self.Basic7()) # fail
         # streams.append(self.Basic8()) # fail
+        streams.append(self.Basic9()) # OK
         
         tdStream.checkAll(streams)
 
@@ -1733,4 +1734,78 @@ class TestStreamStateTrigger:
                 and tdSql.compareData(3, 3, 3)
                 and tdSql.compareData(3, 4, 3),
             )
+    class Basic9(StreamCheckItem):
+        def __init__(self):
+            self.db  = "sdb9"
+            self.stbName = "stb"
 
+        def create(self):
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"use {self.db}")
+            tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")
+            tdSql.query(f"show stables")
+            tdSql.checkRows(1)
+
+            tdSql.execute(f"create table ct1 using stb tags(1)")
+            tdSql.execute(f"create table ct2 using stb tags(2)")
+            tdSql.execute(f"create table ct3 using stb tags(2)")
+            tdSql.execute(f"create table ct4 using stb tags(2)")
+
+            tdSql.query(f"show tables")
+            tdSql.checkRows(4)
+            
+            tdLog.info(f"start insert into history data")
+            sqls = [
+                "insert into ct3 values ('2024-01-01 00:00:00', 0);",
+                "insert into ct3 values ('2024-01-01 00:00:01', 0);",
+                "insert into ct3 values ('2024-01-01 00:00:02', 1);",
+                "insert into ct3 values ('2024-01-01 00:00:03', 1);",
+                "insert into ct3 values ('2024-01-01 00:00:04', 1);",
+                "insert into ct3 values ('2024-01-01 00:00:05', 2);",
+                "insert into ct3 values ('2024-01-01 00:00:06', 2);",
+                "insert into ct3 values ('2024-01-01 00:00:07', 2);",
+                "insert into ct3 values ('2024-01-01 00:00:08', 2);",
+                "insert into ct3 values ('2024-01-01 00:00:09', 3);",
+            ]
+            tdSql.executes(sqls)  
+
+            tdSql.execute(
+                f"create stream s5_g state_window(cint) from {self.stbName} partition by tbname, tint stream_options(fill_history) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+            )
+
+        def insert1(self):
+            sqls = [
+                "insert into ct3 values ('2024-12-31 00:00:00', 3);",                
+                "insert into ct3 values ('2025-01-01 00:00:00', 0);",
+                "insert into ct3 values ('2025-01-01 00:00:01', 0);",
+                "insert into ct3 values ('2025-01-01 00:00:02', 1);",
+                "insert into ct3 values ('2025-01-01 00:00:03', 1);",
+                "insert into ct3 values ('2025-01-01 00:00:04', 1);",
+                "insert into ct3 values ('2025-01-01 00:00:05', 2);",
+                "insert into ct3 values ('2025-01-01 00:00:06', 2);",
+                "insert into ct3 values ('2025-01-01 00:00:07', 2);",
+                "insert into ct3 values ('2025-01-01 00:00:08', 2);",
+                "insert into ct3 values ('2025-01-01 00:00:09', 3);",                 
+            ]
+            tdSql.executes(sqls)
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_ct3",
+                func=lambda: tdSql.getRows() == 7
+                and tdSql.compareData(0, 0, "2024-01-01 00:00:00")
+                and tdSql.compareData(0, 1, "2024-01-01 00:00:01")
+                and tdSql.compareData(0, 2, 2)
+                and tdSql.compareData(0, 3, 0)
+                and tdSql.compareData(0, 4, 0)                
+                and tdSql.compareData(4, 0, "2025-01-01 00:00:00")
+                and tdSql.compareData(4, 1, "2025-01-01 00:00:01")
+                and tdSql.compareData(4, 2, 2)
+                and tdSql.compareData(4, 3, 0)
+                and tdSql.compareData(4, 4, 0)
+                and tdSql.compareData(6, 0, "2025-01-01 00:00:05")
+                and tdSql.compareData(6, 1, "2025-01-01 00:00:08")
+                and tdSql.compareData(6, 2, 4)
+                and tdSql.compareData(6, 3, 8)
+                and tdSql.compareData(6, 4, 2),
+            )
