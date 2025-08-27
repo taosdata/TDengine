@@ -1469,8 +1469,30 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
   SExchangeInfo*     pExchangeInfo = pOperator->info;
   SExchangeSrcIndex* pIdx = tSimpleHashGet(pExchangeInfo->pHashSources, &pBasicParam->vgId, sizeof(pBasicParam->vgId));
   if (NULL == pIdx) {
-    qError("No exchange source for vgId: %d", pBasicParam->vgId);
-    return TSDB_CODE_INVALID_PARA;
+    if (pBasicParam->isNewDeployed) {
+      SDownstreamSourceNode *pNode = NULL;
+      int32_t code = nodesCloneNode((SNode*)&pBasicParam->newDeployedSrc, (SNode**)&pNode);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+        return code;
+      }
+
+      void* tmp = taosArrayPush(pExchangeInfo->pSources, pNode);
+      if (!tmp) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+        return terrno;
+      }
+      SExchangeSrcIndex idx = {.srcIdx = taosArrayGetSize(pExchangeInfo->pSources) - 1, .inUseIdx = -1};
+      code =
+          tSimpleHashPut(pExchangeInfo->pHashSources, &pNode->addr.nodeId, sizeof(pNode->addr.nodeId), &idx, sizeof(idx));
+      if (pExchangeInfo->pHashSources && code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+        return code;
+      }
+    } else {
+      qError("No exchange source for vgId: %d", pBasicParam->vgId);
+      return TSDB_CODE_INVALID_PARA;
+    }
   }
 
   qDebug("start to add single exchange source");
