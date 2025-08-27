@@ -112,7 +112,7 @@ def main():
         model_index = int(sys.argv[1])
 
         if model_index < 0 or model_index >= len(model_list):
-            print(f"invalid model index parameter, valid index:\n 0. {model_list[0]}\n 1. {model_list[1]}")
+            print(f"invalid model index parameter, valid index:\n 0. {model_list[0]}")
             exit(-1)
 
         pretrained_model = timesfm.TimesFm(
