@@ -2231,7 +2231,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
     SFilterField *fi = right;
 
     SValueNode *var = (SValueNode *)fi->desc;
-    if (var == NULL) {
+    if (var == NULL || var->isNull) {
       if (!fi->data) {
         fltError("filterInitValFieldData get invalid field data : NULL");
         return TSDB_CODE_APP_ERROR;
