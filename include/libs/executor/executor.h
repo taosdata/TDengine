@@ -82,7 +82,6 @@ typedef struct SStreamInserterParam {
 } SStreamInserterParam;
 
 typedef struct SStreamVtableDeployInfo {
-  SRWLatch lock;
   int64_t  uid;
   SArray*  addVgIds;
   SArray*  addedVgInfo;  // deploy response,SArray<SStreamTaskAddr>
