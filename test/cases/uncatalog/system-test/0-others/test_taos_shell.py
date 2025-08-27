@@ -1,5 +1,5 @@
 
-from new_test_framework.utils import tdLog, tdSql, tdCom, tdDnodes
+from new_test_framework.utils import tdLog, tdSql, tdCom, tdDnodes, etool
 import taos
 import sys
 import time
@@ -166,7 +166,11 @@ class TestTaosShell:
             tdLog.exit("taosd not found!")
         else:
             tdLog.info("taosd found in %s" % buildPath)
-        cfgPath = os.path.join(os.path.dirname(buildPath), "sim", "psim","cfg")
+        if platform.system().lower() == 'windows':
+            cfgPath = buildPath + "\..\sim\psim\cfg"
+            cfgPath = cfgPath.replace('\\','\\\\')
+        else:
+            cfgPath = buildPath + "/../sim/psim/cfg"
         tdLog.info("cfgPath: %s" % cfgPath)
 
         checkNetworkStatus = ['0: unavailable', '1: network ok', '2: service ok', '3: service degraded', '4: exiting']
