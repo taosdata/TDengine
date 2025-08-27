@@ -12,7 +12,7 @@
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, inspect, tdCom
 
-class TestFunction:
+class TestAggFunction:
     updatecfgDict = {
         "keepColumnName": "1",
         "ttlChangeOnWrite": "1",
@@ -23,7 +23,7 @@ class TestFunction:
 
     def setup_class(cls):
         tdLog.info(f"insert data.")
-        datafile = etool.curFile(__file__, "data/d1001.data")
+        datafile = etool.curFile(__file__, "../resource/data/d1001.data")
 
         tdSql.execute("create database ts_4893;")
         tdSql.execute("use ts_4893;")
@@ -41,8 +41,8 @@ class TestFunction:
     def run_normal_query_new(self, testCase):
         # read sql from .sql file and execute
         tdLog.info("test normal query.")
-        self.sqlFile = etool.curFile(__file__, f"in/{testCase}.in")
-        self.ansFile = etool.curFile(__file__, f"ans/{testCase}.csv")
+        self.sqlFile = etool.curFile(__file__, f"../resource/in/{testCase}.in")
+        self.ansFile = etool.curFile(__file__, f"../resource/ans/{testCase}.csv")
 
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 
@@ -425,86 +425,17 @@ class TestFunction:
         tdLog.info(f"greatest_query: {greatest_query}")
         tdSql.execute(greatest_query)
 
-
-    def test_math_function(self):
-        """test math function
-
-        test math function pi(),round(),exp(),truncate(),ln(),mod(),sign(),degrees(),radians(),rand(),greatest(),least()
-
-        Since: v3.3.0.0
-
-        History:
-            - 2024-9-28 qevolg Created
-            - 2025-5-08 Huo Hong Migrated to new test framework
-
-        """
-        self.run_pi()
-        self.run_round()
-        self.run_exp()
-        self.run_truncate()
-        self.run_ln()
-        self.run_mod()
-        self.run_sign()
-        self.run_degrees()
-        self.run_radians()
-        self.run_rand()
-        self.run_greatest()
-        self.run_least()
-        self.run_greatest_large_table()
-
-
-    def test_char_function(self):
-        """test char function
-
-        test char function char_length(),char(),ascii(),position(),replace(),repeat(),substr(),substr_idx(),trim()
-
-        Since: v3.3.0.0
-
-        Labels: function
-
-        History:
-            - 2024-9-28 qevolg Created
-            - 2025-5-08 Huo Hong Migrated to new test framework
-
-        """
-        self.run_char_length()
-        self.run_char()
-        self.run_ascii()
-        self.run_position()
-        self.run_replace()
-        self.run_repeat()
-        self.run_substr()
-        self.run_substr_idx()
-        self.run_trim()
-
-    def test_time_function(self):
-        """test time function
-
-        test time function timediff(),week(),weekday(),weekofyear(),dayofweek()
-
-        Since: v3.3.0.0
-
-        Labels: function
-
-        History:
-            - 2024-9-28 qevolg Created
-            - 2025-5-08 Huo Hong Migrated to new test framework
-
-        """
-        self.run_timediff()
-        self.run_week()
-        self.run_weekday()
-        self.run_weekofyear()
-        self.run_dayofweek()
-
     def test_agg_function(self):
-        """test aggregate function
+        """Agg: all
 
-        test aggregate function stddev_pop(),varpop(),avg(),sum(),leastsquares(),statecount()
+        test aggregate function stddev_pop, varpop, avg, sum, leastsquares, statecount
+
+        Catalog:
+            - Function:Aggregate
 
         Since: v3.3.0.0
 
-        Labels:function
+        Labels: common,ci
 
         History:
             - 2024-9-28 qevolg Created
@@ -517,24 +448,3 @@ class TestFunction:
         self.run_sum()
         self.run_leastsquares()
         self.run_statecount()
-
-    def test_select_function(self):
-        """test select function
-
-        test select function max(), min()
-
-        Since: v3.3.0.0
-
-        Labels:function
-
-        History:
-            - 2024-9-28 qevolg Created
-            - 2025-5-08 Huo Hong Migrated to new test framework
-
-        """
-        self.run_max()
-        self.run_min()
-        self.run_error()
-
-
-

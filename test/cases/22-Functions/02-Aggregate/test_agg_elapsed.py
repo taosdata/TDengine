@@ -2,8 +2,6 @@ from new_test_framework.utils import tdLog, tdSql
 
 
 class TestFuncElapsed:
-    """Verify the elapsed function
-    """
     def setup_class(cls):
         cls.dbname = 'db'
         cls.table_dic = {
@@ -49,8 +47,11 @@ class TestFuncElapsed:
     def test_normal_query(self):
         """Agg-special: Elapsed
 
-        test elapsed function
+        test Elapsed function
 
+        Catalog:
+            - Function:Aggregate
+            
         Since: v3.3.0.0
 
         Labels: elapsed

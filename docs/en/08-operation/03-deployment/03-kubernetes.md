@@ -466,7 +466,7 @@ Follow the instructions to check the status of the TDengine cluster:
 
 ```shell
 root@u1-58:/data1/projects/helm# kubectl --namespace default exec $POD_NAME -- taos -s "show dnodes; show mnodes"
-Welcome to the TDengine Command Line Interface, Client Version:3.3.5.8
+Welcome to the TDengine TSDB Command Line Interface, Client Version:3.3.5.8
 Copyright (c) 2023 by TDengine, all rights reserved.
 
 taos> show dnodes; show mnodes
@@ -715,7 +715,7 @@ Follow the instructions to check the status of the TDengine cluster:
 
 ```shell
 root@u1-58:/data1/projects/helm# kubectl --namespace default exec $POD_NAME -- taos -s "show dnodes; show mnodes"
-Welcome to the TDengine Command Line Interface, Client Version:3.3.5.1
+Welcome to the TDengine TSDB Command Line Interface, Client Version:3.3.5.1
 Copyright (c) 2023 by TDengine, all rights reserved.
 
 taos> show dnodes; show mnodes

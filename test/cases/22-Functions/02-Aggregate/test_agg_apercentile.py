@@ -9,7 +9,7 @@ class TestFuncApercentile:
     def test_func_apercentile(self):
         """Agg-stat: Apercentile
 
-        1. -
+        test Apercentile function
 
         Catalog:
             - Function:Aggregate
