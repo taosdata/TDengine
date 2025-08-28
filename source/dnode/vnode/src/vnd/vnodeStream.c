@@ -692,24 +692,20 @@ end:
 static int32_t shrinkScheams(SArray* cols, SArray* schemas) {
   int32_t code = 0;
   int32_t lino = 0;
-  for (size_t i = 0; i < taosArrayGetSize(schemas); i++) {
-    SSchema* s = taosArrayGet(schemas, i);
-    STREAM_CHECK_NULL_GOTO(s, terrno);
-
-    size_t j = 0;
-    for (; j < taosArrayGetSize(cols); j++) {
-      col_id_t* id = taosArrayGet(cols, j);
-      STREAM_CHECK_NULL_GOTO(id, terrno);
+  size_t  schemaLen = taosArrayGetSize(schemas);
+  for (size_t i = 0; i < taosArrayGetSize(cols); i++) {
+    col_id_t* id = taosArrayGet(cols, i);
+    STREAM_CHECK_NULL_GOTO(id, terrno);
+    for (size_t i = 0; i < schemaLen; i++) {
+      SSchema* s = taosArrayGet(schemas, i);
+      STREAM_CHECK_NULL_GOTO(s, terrno);
       if (*id == s->colId) {
+        STREAM_CHECK_NULL_GOTO(taosArrayPush(schemas, s), terrno);
         break;
       }
     }
-    if (j == taosArrayGetSize(cols)) {
-      // not found, remove it
-      taosArrayRemove(schemas, i);
-      i--;
-    }
   }
+  taosArrayPopFrontBatch(schemas, schemaLen);
 
 end:
   return code;
