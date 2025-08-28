@@ -6,7 +6,6 @@ cases/uncatalog/army/cmdline/test_taos_cli.py -B
 cases/uncatalog/army/query/function/test_function.py
 cases/uncatalog/army/query/function/test_interval_diff_tz.py
 cases/uncatalog/army/storage/test_compress_basic.py -N 3
-cases/uncatalog/army/tools/benchmark/basic/test_commandline_supplement_insert.py
 cases/uncatalog/army/tools/benchmark/basic/test_stmt_insert_alltypes_same_min_max.py
 cases/uncatalog/army/tools/benchmark/basic/test_stmt_sample_csv_json_subtable.py
 cases/uncatalog/army/tools/benchmark/basic/test_stmt_sample_csv_json.py
