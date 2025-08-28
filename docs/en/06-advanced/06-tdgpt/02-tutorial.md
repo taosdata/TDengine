@@ -45,7 +45,7 @@ docker run -d \
 
 :::note
 
-从 3.3.7.5 版本开始，TDgpt 的端口号由 6090 变更为 6035.
+From 3.3.7.5, the port number for TDgpt has changed from 6090 to 6035.
 
 :::
 
