@@ -20,7 +20,7 @@ class TestStreamOldCaseDistribute:
         Catalog:
             - Streams:OldTsimCases
 
-        Since: v3.0.0.0
+        Since: v3.3.7.0
 
         Labels: common, ci
 
@@ -41,7 +41,7 @@ class TestStreamOldCaseDistribute:
         # streams.append(self.Interval1()) pass
         # streams.append(self.Interval2()) pass
         # streams.append(self.Retrive0()) pass
-        streams.append(self.Retrive1())
+        # streams.append(self.Retrive1()) pass
         # streams.append(self.Multi0())
         # streams.append(self.Session0())
         # streams.append(self.Session1())

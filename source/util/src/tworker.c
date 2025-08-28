@@ -515,6 +515,7 @@ int32_t tSingleWorkerInit(SSingleWorker *pWorker, const SSingleWorkerCfg *pCfg) 
       pPool->name = pCfg->name;
       pPool->min = pCfg->min;
       pPool->max = pCfg->max;
+      pPool->stopNoWaitQueue = pCfg->stopNoWaitQueue;
       pWorker->pool = pPool;
 
       code = tQueryAutoQWorkerInit(pPool);
@@ -873,7 +874,9 @@ int32_t tQueryAutoQWorkerInit(SQueryAutoQWorkerPool *pool) {
 
 void tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool) {
   (void)taosThreadMutexLock(&pPool->poolLock);
-  pPool->exit = true;
+  if (pPool->stopNoWaitQueue) {
+    pPool->exit = true;
+  }
   int32_t size = 0;
   if (pPool->workers) {
     size = listNEles(pPool->workers);
@@ -910,7 +913,7 @@ void tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool) {
     }
     SListNode *pNode = tdListPopHead(pPool->workers);
     uDebug("0free worker node:%p, prev:%p, next:%p", pNode, TD_DLIST_NODE_PREV(pNode), TD_DLIST_NODE_NEXT(pNode));
-    worker = (SQueryAutoQWorker *)pNode->data;
+    worker = pNode ? (SQueryAutoQWorker *)pNode->data : NULL;
     (void)taosThreadMutexUnlock(&pPool->poolLock);
     if (worker && taosCheckPthreadValid(worker->thread)) {
       (void)taosThreadJoin(worker->thread, NULL);
@@ -929,7 +932,7 @@ void tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool) {
     }
     uDebug("backupworker head:%p, prev:%p, next:%p", TD_DLIST_HEAD(pPool->backupWorkers), TD_DLIST_NODE_PREV(TD_DLIST_HEAD(pPool->backupWorkers)), TD_DLIST_NODE_NEXT(TD_DLIST_HEAD(pPool->backupWorkers)));
     SListNode *pNode = tdListPopHead(pPool->backupWorkers);
-    worker = (SQueryAutoQWorker *)pNode->data;
+    worker = pNode ? (SQueryAutoQWorker *)pNode->data : NULL;
     (void)taosThreadMutexUnlock(&pPool->poolLock);
 
     if (worker && taosCheckPthreadValid(worker->thread)) {
@@ -947,7 +950,7 @@ void tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool) {
     }
 
     SListNode *pNode = tdListPopHead(pPool->exitedWorkers);
-    worker = (SQueryAutoQWorker *)pNode->data;
+    worker = pNode ? (SQueryAutoQWorker *)pNode->data : NULL;
     (void)taosThreadMutexUnlock(&pPool->poolLock);
 
     if (worker && taosCheckPthreadValid(worker->thread)) {
@@ -1189,7 +1192,7 @@ int32_t tDispatchWorkerAllocQueue(SDispatchWorkerPool *pPool, void *ahandle, FIt
     uInfo("worker:%s:%d is launched, threadId:%" PRId64 ", total:%d", pPool->name, pWorker->id, taosGetPthreadId(pWorker->thread), pPool->num);
   }
 
-  taosThreadMutexUnlock(&pPool->poolLock);
+  (void)taosThreadMutexUnlock(&pPool->poolLock);
   if (code == 0) uInfo("worker:%s, queue:%p is allocated, ahandle:%p", pPool->name, pWorker->queue, ahandle);
   return code;
 }

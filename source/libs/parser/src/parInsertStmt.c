@@ -471,6 +471,74 @@ _return:
   return code;
 }
 
+int32_t qBindUpdateStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen,
+                                 void* charsetCxt, SSHashObj* parsedCols) {
+  STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
+  SSchema*         pSchema = getTableColumnSchema(pDataBlock->pMeta);
+  SBoundColInfo*   boundInfo = &pDataBlock->boundColsInfo;
+  SMsgBuf          pBuf = {.buf = msgBuf, .len = msgBufLen};
+  int32_t          rowNum = bind->num;
+  TAOS_MULTI_BIND  ncharBind = {0};
+  TAOS_MULTI_BIND* pBind = NULL;
+  int32_t          code = 0;
+  int32_t          actualIndex = 0;
+  int32_t          numOfBound = boundInfo->numOfBound + tSimpleHashGetSize(parsedCols);
+
+  for (int c = 0; c < numOfBound; ++c) {
+    if (tSimpleHashGet(parsedCols, &c, sizeof(c))) {
+      continue;
+    }
+    SSchema*  pColSchema = &pSchema[boundInfo->pColIndex[actualIndex]];
+    SColData* pCol = taosArrayGet(pCols, actualIndex);
+
+    if (bind[c].num != rowNum) {
+      code = buildInvalidOperationMsg(&pBuf, "row number in each bind param should be the same");
+      goto _return;
+    }
+
+    if ((!(rowNum == 1 && bind[c].is_null && *bind[c].is_null)) &&
+        bind[c].buffer_type != pColSchema->type) {  // for rowNum ==1 , connector may not set buffer_type
+      code = buildInvalidOperationMsg(&pBuf, "column type mis-match with buffer type");
+      goto _return;
+    }
+
+    if (TSDB_DATA_TYPE_NCHAR == pColSchema->type) {
+      code = convertStmtNcharCol(&pBuf, pColSchema, bind + c, &ncharBind, charsetCxt);
+      if (code) {
+        goto _return;
+      }
+      pBind = &ncharBind;
+    } else {
+      pBind = bind + c;
+    }
+
+    int32_t bytes = 0;
+    if (IS_VAR_DATA_TYPE(pColSchema->type)) {
+      if (IS_STR_DATA_BLOB(pColSchema->type)) {
+        bytes = pColSchema->bytes - BLOBSTR_HEADER_SIZE;
+      } else {
+        bytes = pColSchema->bytes - VARSTR_HEADER_SIZE;
+      }
+    } else {
+      bytes = -1;
+    }
+    code = tColDataAddValueByBind(pCol, pBind, bytes, initCtxAsText, checkWKB);
+    if (code) {
+      goto _return;
+    }
+    actualIndex++;
+  }
+
+  parserDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
+
+_return:
+
+  taosMemoryFree(ncharBind.buffer);
+  taosMemoryFree(ncharBind.length);
+
+  return code;
+}
+
 int32_t qBindStmtSingleColValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen,
                                 int32_t colIdx, int32_t rowNum, void* charsetCxt) {
   STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
@@ -1402,6 +1470,50 @@ int32_t qBuildStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_E** fiel
 
   CHECK_CODE(buildBoundFields(pDataBlock->boundColsInfo.numOfBound, pDataBlock->boundColsInfo.pColIndex, pSchema,
                               fieldNum, fields, pDataBlock->pMeta->tableInfo.precision));
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t qBuildUpdateStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_E** fields, SSHashObj* parsedCols) {
+  STableDataCxt* pDataBlock = (STableDataCxt*)pBlock;
+  SSchema*       pSchema = getTableColumnSchema(pDataBlock->pMeta);
+  int32_t        numOfBound = pDataBlock->boundColsInfo.numOfBound + tSimpleHashGetSize(parsedCols);
+  if (numOfBound <= 0) {
+    *fieldNum = 0;
+    if (fields != NULL) {
+      *fields = NULL;
+    }
+
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (fields != NULL) {
+    *fields = taosMemoryCalloc(numOfBound, sizeof(TAOS_FIELD_E));
+    if (NULL == *fields) {
+      return terrno;
+    }
+
+    SSchema* schema = &pSchema[pDataBlock->boundColsInfo.pColIndex[0]];
+    if (TSDB_DATA_TYPE_TIMESTAMP == schema->type) {
+      (*fields)[0].precision = pDataBlock->pMeta->tableInfo.precision;
+    }
+
+    int32_t actualIdx = 0;
+    for (int32_t i = 0; i < numOfBound; ++i) {
+      SSchema* schema;
+      int32_t* idx = (int32_t*)tSimpleHashGet(parsedCols, &i, sizeof(int32_t));
+      if (idx) {
+        schema = &pSchema[*idx];
+      } else {
+        schema = &pSchema[pDataBlock->boundColsInfo.pColIndex[actualIdx++]];
+      }
+      tstrncpy((*fields)[i].name, schema->name, 65);
+      (*fields)[i].type = schema->type;
+      (*fields)[i].bytes = calcTypeBytesFromSchemaBytes(schema->type, schema->bytes, true);
+    }
+  }
+
+  *fieldNum = numOfBound;
 
   return TSDB_CODE_SUCCESS;
 }

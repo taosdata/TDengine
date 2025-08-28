@@ -19,11 +19,17 @@
 static int32_t vnodeBufPoolCreate(SVnode *pVnode, int32_t id, int64_t size, SVBufPool **ppPool) {
   SVBufPool *pPool;
 
-  pPool = taosMemoryMalloc(sizeof(SVBufPool) + size);
+  pPool = taosMemoryCalloc(1, sizeof(SVBufPool));
   if (pPool == NULL) {
+    vError("vgId:%d, failed to allocate buffer pool", TD_VID(pVnode));
     return terrno;
   }
-  memset(pPool, 0, sizeof(SVBufPool));
+  pPool->node.data = taosMemoryMalloc(size);
+  if (NULL == pPool->node.data) {
+    vError("vgId:%d, failed to allocate buffer pool data, size:%" PRId64, TD_VID(pVnode), size);
+    taosMemoryFree(pPool);
+    return terrno;
+  }
 
   // query handle list
   (void)taosThreadMutexInit(&pPool->mutex, NULL);
@@ -42,11 +48,13 @@ static int32_t vnodeBufPoolCreate(SVnode *pVnode, int32_t id, int64_t size, SVBu
   if (VND_IS_RSMA(pVnode)) {
     pPool->lock = taosMemoryMalloc(sizeof(TdThreadSpinlock));
     if (!pPool->lock) {
+      taosMemoryFree(pPool->node.data);
       taosMemoryFree(pPool);
       return terrno;
     }
     if (taosThreadSpinInit(pPool->lock, 0) != 0) {
       taosMemoryFree((void *)pPool->lock);
+      taosMemoryFree(pPool->node.data);
       taosMemoryFree(pPool);
       return terrno = TAOS_SYSTEM_ERROR(ERRNO);
     }
@@ -65,6 +73,7 @@ static void vnodeBufPoolDestroy(SVBufPool *pPool) {
     taosMemoryFree((void *)pPool->lock);
   }
   (void)taosThreadMutexDestroy(&pPool->mutex);
+  taosMemoryFree(pPool->node.data);
   taosMemoryFree(pPool);
 }
 
@@ -148,6 +157,7 @@ void *vnodeBufPoolMallocAligned(SVBufPool *pPool, int size) {
       }
       return NULL;
     }
+    pNode->data = (uint8_t *)&pNode[1];
 
     p = pNode->data;
     pNode->size = size;
@@ -184,6 +194,7 @@ void *vnodeBufPoolMalloc(SVBufPool *pPool, int size) {
       if (pPool->lock) (void)taosThreadSpinUnlock(pPool->lock);
       return NULL;
     }
+    pNode->data = (uint8_t *)&pNode[1];
 
     p = pNode->data;
     pNode->size = size;
@@ -219,23 +230,33 @@ void vnodeBufPoolRef(SVBufPool *pPool) {
   }
 }
 
+static void vnodeBufPoolResize(SVBufPool *pPool, int64_t size) {
+  if (pPool == NULL) return;
+
+  uint8_t *pDataNew = taosMemoryMalloc(size);
+  if (pDataNew == NULL) {
+    vError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pPool->pVnode), __func__, __FILE__, __LINE__,
+           tstrerror(terrno));
+    return;
+  }
+
+  // Apply change
+  int64_t oldSize = pPool->node.size;
+  taosMemoryFree(pPool->node.data);
+  pPool->node.data = pDataNew;
+  pPool->node.size = size;
+
+  vInfo("vgId:%d, buffer pool %d resized from %" PRId64 " to %" PRId64, TD_VID(pPool->pVnode), pPool->id, oldSize,
+        size);
+  return;
+}
+
 void vnodeBufPoolAddToFreeList(SVBufPool *pPool) {
   SVnode *pVnode = pPool->pVnode;
 
   int64_t size = pVnode->config.szBuf / VNODE_BUFPOOL_SEGMENTS;
   if (pPool->node.size != size) {
-    SVBufPool *pNewPool = NULL;
-    if (vnodeBufPoolCreate(pVnode, pPool->id, size, &pNewPool) < 0) {
-      vWarn("vgId:%d, failed to change buffer pool of id %d size from %" PRId64 " to %" PRId64 " since %s",
-            TD_VID(pVnode), pPool->id, pPool->node.size, size, tstrerror(ERRNO));
-    } else {
-      vInfo("vgId:%d, buffer pool of id %d size changed from %" PRId64 " to %" PRId64, TD_VID(pVnode), pPool->id,
-            pPool->node.size, size);
-
-      vnodeBufPoolDestroy(pPool);
-      pPool = pNewPool;
-      pVnode->aBufPool[pPool->id] = pPool;
-    }
+    vnodeBufPoolResize(pPool, size);
   }
 
   // add to free list

@@ -54,7 +54,7 @@ bool qIsInsertValuesSql(const char* pStr, size_t length) {
 
 bool qIsUpdateSetSql(const char* pStr, size_t length, SName* pTableName, int32_t acctId, const char* dbName,
                      char* msgBuf, int32_t msgBufLen, int* pCode) {
-  if (NULL == pStr) {
+                        if (NULL == pStr) {
     return false;
   }
 
@@ -62,7 +62,7 @@ bool qIsUpdateSetSql(const char* pStr, size_t length, SName* pTableName, int32_t
 
   int32_t index = 0;
   SToken  t = tStrGetToken((char*)pStr, &index, false, NULL);
-  if (TK_UPDATE != t.type) {
+    if (TK_UPDATE != t.type) {
     return false;
   }
   SMsgBuf pMsgBuf = {.len = msgBufLen, .buf = msgBuf};
@@ -80,12 +80,11 @@ bool qIsUpdateSetSql(const char* pStr, size_t length, SName* pTableName, int32_t
       return false;
     }
   }
-
-  do {
+    do {
     pStr += index;
     index = 0;
     t = tStrGetToken((char*)pStr, &index, false, NULL);
-    if (TK_SET == t.type) {
+        if (TK_SET == t.type) {
       return true;
     }
     if (0 == t.type || 0 == t.n) {
@@ -95,23 +94,56 @@ bool qIsUpdateSetSql(const char* pStr, size_t length, SName* pTableName, int32_t
   return false;
 }
 
-static bool isColumnPrimaryKey(const STableMeta* pTableMeta, const char* colName, int32_t colNameLen) {
+bool qIsSelectFromSql(const char* pStr, size_t length) {
+  if (NULL == pStr) {
+    return false;
+  }
+
+  const char* pSql = pStr;
+
+  int32_t index = 0;
+  SToken  t = tStrGetToken((char*)pStr, &index, false, NULL);
+  if (TK_SELECT != t.type) {
+    return false;
+  }
+
+  do {
+    pStr += index;
+    index = 0;
+    t = tStrGetToken((char*)pStr, &index, false, NULL);
+    if (TK_FROM == t.type) {
+      return true;
+    }
+    if (0 == t.type || 0 == t.n) {
+      break;
+    }
+  } while (pStr - pSql < length);
+
+  return false;
+}
+
+static bool isColumnPrimaryKey(const STableMeta* pTableMeta, const char* colName, int32_t colNameLen, int32_t* colId) {
   if (pTableMeta == NULL || colName == NULL) {
     return false;
   }
 
   for (int32_t i = 0; i < pTableMeta->tableInfo.numOfColumns; i++) {
     const SSchema* pSchema = &pTableMeta->schema[i];
-    if ((pSchema->flags & COL_IS_KEY || pSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID) &&
-        strncmp(pSchema->name, colName, colNameLen) == 0 && strlen(pSchema->name) == colNameLen) {
-      return true;
+    if (strncmp(pSchema->name, colName, colNameLen) == 0 && strlen(pSchema->name) == colNameLen) {
+      if (colId) {
+        *colId = i;
+      }
+      if ((pSchema->flags & COL_IS_KEY || pSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID)) {
+        return true;
+      }
+      return false;
     }
   }
   return false;
 }
 
-int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTableMeta, char* msgBuf,
-                              int32_t msgBufLen) {
+int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTableMeta, SSHashObj* predicateCols,
+                              char* msgBuf, int32_t msgBufLen) {
   if (NULL == pSql || NULL == pNewSql) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -165,6 +197,7 @@ int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTab
   bool    firstColumn = true;
   int32_t columnCount = 0;
   bool inSetClause = true;
+  int32_t numOfCols = 0;
 
   // col name
   while (inSetClause && pSql < pEnd) {
@@ -175,7 +208,7 @@ int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTab
     }
 
     // pk can't set
-    if (pTableMeta != NULL && isColumnPrimaryKey(pTableMeta, t.z, t.n)) {
+    if (pTableMeta != NULL && isColumnPrimaryKey(pTableMeta, t.z, t.n, NULL)) {
       taosMemoryFree(newSql);
       code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Cannot update primary key column '%.*s'",
                                      t.n, t.z);
@@ -185,6 +218,7 @@ int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTab
     if (!firstColumn) {
       *p++ = ',';
     }
+    numOfCols++;
     memcpy(p, t.z, t.n);
     p += t.n;
     firstColumn = false;
@@ -224,11 +258,33 @@ int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTab
   // where clause
   if (pSql < pEnd) {
     bool inWhereClause = true;
+    int32_t bracketLevel = 0;
+
     while (inWhereClause && pSql < pEnd) {
       index = 0;
       t = tStrGetToken((char*)pSql, &index, false, NULL);
       if (t.n == 0 || t.z == NULL) {
         break;
+      }
+
+      if (t.type == TK_NK_LP) {
+        bracketLevel++;
+        pSql += index;
+        continue;
+      } else if (t.type == TK_NK_RP) {
+        bracketLevel--;
+        pSql += index;
+        continue;
+      } else if (t.type == TK_IN || t.type == TK_EXISTS) {
+        while (pSql < pEnd) {
+          pSql += index;
+          index = 0;
+          t = tStrGetToken((char*)pSql, &index, false, NULL);
+          if (t.type == TK_AND || t.type == TK_OR || t.n == 0 || t.z == NULL) {
+            break;
+          }
+        }
+        continue;
       }
 
       const char* colName = t.z;
@@ -249,16 +305,25 @@ int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTab
       }
 
       // where cols muset be pk, ignore others
-      if (t.type == TK_NK_QUESTION && pTableMeta != NULL && isColumnPrimaryKey(pTableMeta, colName, colNameLen)) {
-        if (!firstColumn) {
-          *p++ = ',';
+      int32_t colId = -1;
+      if (t.type == TK_NK_QUESTION) {
+        if (pTableMeta != NULL && isColumnPrimaryKey(pTableMeta, colName, colNameLen, &colId)) {
+          if (!firstColumn) {
+            *p++ = ',';
+          }
+          memcpy(p, colName, colNameLen);
+          p += colNameLen;
+          firstColumn = false;
+          columnCount++;
+        } else {
+          if (tSimpleHashPut(predicateCols, &numOfCols, sizeof(int32_t), &colId, sizeof(int32_t))) {
+            taosMemoryFree(newSql);
+            code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Expected '?' placeholder");
+            return code;
+          }
         }
-        memcpy(p, colName, colNameLen);
-        p += colNameLen;
-        firstColumn = false;
-        columnCount++;
+        numOfCols++;
       }
-
       pSql += index;
 
       index = 0;
@@ -266,7 +331,10 @@ int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTab
       if (t.type == TK_AND || t.type == TK_OR) {
         pSql += index;
       } else {
-        break;
+        if (bracketLevel == 0) {
+          break;
+        }
+        pSql += index;
       }
     }
   }

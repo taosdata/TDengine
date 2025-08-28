@@ -1788,73 +1788,69 @@ typedef struct {
 int32_t tSerializeSSsMigrateDbRsp(void* buf, int32_t bufLen, SSsMigrateDbRsp* pRsp);
 int32_t tDeserializeSSsMigrateDbRsp(void* buf, int32_t bufLen, SSsMigrateDbRsp* pRsp);
 
+
+// Request and response for TDMT_VND_LIST_SSMIGRATE_FILESETS
 typedef struct {
   int32_t ssMigrateId;
-  int32_t nodeId; // node id of the leader vnode
-  int64_t timestamp;
-} SSsMigrateVgroupReq;
+} SListSsMigrateFileSetsReq;
 
-int32_t tSerializeSSsMigrateVgroupReq(void* buf, int32_t bufLen, SSsMigrateVgroupReq* pReq);
-int32_t tDeserializeSSsMigrateVgroupReq(void* buf, int32_t bufLen, SSsMigrateVgroupReq* pReq);
+int32_t tSerializeSListSsMigrateFileSetsReq(void* buf, int32_t bufLen, SListSsMigrateFileSetsReq* pReq);
+int32_t tDeserializeSListSsMigrateFileSetsReq(void* buf, int32_t bufLen, SListSsMigrateFileSetsReq* pReq);
 
 typedef struct {
   int32_t ssMigrateId;
   int32_t vgId;   // vgroup id
-  int32_t nodeId; // node id of the leader vnode
-} SSsMigrateVgroupRsp;
+  SArray* pFileSets; // SArray<int32_t>
+} SListSsMigrateFileSetsRsp;
 
-int32_t tSerializeSSsMigrateVgroupRsp(void* buf, int32_t bufLen, SSsMigrateVgroupRsp* pRsp);
-int32_t tDeserializeSSsMigrateVgroupRsp(void* buf, int32_t bufLen, SSsMigrateVgroupRsp* pRsp);
+int32_t tSerializeSListSsMigrateFileSetsRsp(void* buf, int32_t bufLen, SListSsMigrateFileSetsRsp* pRsp);
+int32_t tDeserializeSListSsMigrateFileSetsRsp(void* buf, int32_t bufLen, SListSsMigrateFileSetsRsp* pRsp);
+void tFreeSListSsMigrateFileSetsRsp(SListSsMigrateFileSetsRsp* pRsp);
+
+
+// Request and response for TDMT_VND_SSMIGRATE_FILESET
+typedef struct {
+  int32_t ssMigrateId;
+  int32_t nodeId; // node id of the leader vnode, filled by vnode
+  int32_t fid;
+  int64_t startTimeSec;
+} SSsMigrateFileSetReq;
+
+int32_t tSerializeSSsMigrateFileSetReq(void* buf, int32_t bufLen, SSsMigrateFileSetReq* pReq);
+int32_t tDeserializeSSsMigrateFileSetReq(void* buf, int32_t bufLen, SSsMigrateFileSetReq* pReq);
 
 typedef struct {
   int32_t ssMigrateId;
+  int32_t nodeId; // node id of the leader vnode
   int32_t vgId;
-} SQuerySsMigrateProgressReq;
+  int32_t fid;
+} SSsMigrateFileSetRsp;
 
-int32_t tSerializeSQuerySsMigrateProgressReq(void* buf, int32_t bufLen, SQuerySsMigrateProgressReq* pReq);
-int32_t tDeserializeSQuerySsMigrateProgressReq(void* buf, int32_t bufLen, SQuerySsMigrateProgressReq* pReq);
+int32_t tSerializeSSsMigrateFileSetRsp(void* buf, int32_t bufLen, SSsMigrateFileSetRsp* pRsp);
+int32_t tDeserializeSSsMigrateFileSetRsp(void* buf, int32_t bufLen, SSsMigrateFileSetRsp* pRsp);
 
-#define FILE_SET_MIGRATE_STATE_IN_PROGRESS  0
-#define FILE_SET_MIGRATE_STATE_SUCCEEDED    1
-#define FILE_SET_MIGRATE_STATE_SKIPPED      2
-#define FILE_SET_MIGRATE_STATE_FAILED       3
 
+#define SSMIGRATE_FILESET_STATE_IN_PROGRESS  0
+#define SSMIGRATE_FILESET_STATE_SUCCEEDED    1
+#define SSMIGRATE_FILESET_STATE_COMPACT      2
+#define SSMIGRATE_FILESET_STATE_SKIPPED      3
+#define SSMIGRATE_FILESET_STATE_FAILED       4
+
+// Request and response for TDMT_VND_QUERY_SSMIGRATE_PROGRESS and TDMT_VND_FOLLOWER_SSMIGRATE
+// Note this struct is reused as both request and response in TDMT_VND_QUERY_SSMIGRATE_PROGRESS,
+// while as a request, the 'state' field is not used.
+// This struct is also used in TDMT_VND_FOLLOWER_SSMIGRATE as request, which don't need a response.
 typedef struct {
-  int32_t fid;  // file set id
-  int32_t state;
-} SFileSetSsMigrateState;
+  int32_t ssMigrateId; // ss migrate id
+  int32_t nodeId;      // node id of the leader vnode
+  int32_t vgId;        // vgroup id
+  int32_t fid;         // file set id
+  int32_t state;       // SSMIGRATE_FILESET_STATE_*
+} SSsMigrateProgress;
 
-typedef struct {
-  // if all taosd were restarted during the migration, then vnode migrate id will be 0,
-  // that's mnode will repeatedly request the migration progress. to avoid this, we need
-  // to save mnode migrate id in the response, so that mnode can drop it.
-  int32_t mnodeMigrateId; // migrate id requested by mnode
-  int32_t vnodeMigrateId; // migrate id reponsed by vnode
-  int32_t dnodeId;
-  int32_t vgId;
-  int64_t startTimeSec;
-  SArray* pFileSetStates;
-} SVnodeSsMigrateState;
+int tSerializeSSsMigrateProgress(void* buf, int32_t bufLen, SSsMigrateProgress* pProgress);
+int tDeserializeSSsMigrateProgress(void* buf, int32_t bufLen, SSsMigrateProgress* pProgress);
 
-int32_t tSerializeSVnodeSsMigrateState(void* buf, int32_t bufLen, SVnodeSsMigrateState* pState);
-int32_t tDeserializeSVnodeSsMigrateState(void* buf, int32_t bufLen, SVnodeSsMigrateState* pState);
-void tFreeSVnodeSsMigrateState(SVnodeSsMigrateState* pState);
-
-typedef SVnodeSsMigrateState SQuerySsMigrateProgressRsp;
-#define tSerializeSQuerySsMigrateProgressRsp(buf, bufLen, pRsp) \
-  tSerializeSVnodeSsMigrateState(buf, bufLen, pRsp)
-#define tDeserializeSQuerySsMigrateProgressRsp(buf, bufLen, pRsp) \
-  tDeserializeSVnodeSsMigrateState(buf, bufLen, pRsp)
-#define tFreeSQuerySsMigrateProgressRsp(pRsp) \
-  tFreeSVnodeSsMigrateState(pRsp)
-
-typedef SVnodeSsMigrateState SFollowerSsMigrateReq;
-#define tSerializeSFollowerSsMigrateReq(buf, bufLen, pReq) \
-  tSerializeSVnodeSsMigrateState(buf, bufLen, pReq)
-#define tDeserializeSFollowerSsMigrateReq(buf, bufLen, pReq) \
-  tDeserializeSVnodeSsMigrateState(buf, bufLen, pReq)
-#define tFreeSFollowerSsMigrateReq(pReq) \
-  tFreeSVnodeSsMigrateState(pReq)
 
 typedef struct {
   int32_t timestampSec;
@@ -2197,6 +2193,7 @@ typedef struct {
   int64_t     rawDataSize;
   int64_t     ssSize;
   const char* dbname;
+  int8_t      estimateRawData;
 } SDbSizeStatisInfo;
 
 typedef struct {
@@ -3726,6 +3723,7 @@ typedef struct SVCreateTbReq {
 int  tEncodeSVCreateTbReq(SEncoder* pCoder, const SVCreateTbReq* pReq);
 int  tDecodeSVCreateTbReq(SDecoder* pCoder, SVCreateTbReq* pReq);
 void tDestroySVCreateTbReq(SVCreateTbReq* pReq, int32_t flags);
+void tDestroySVSubmitCreateTbReq(SVCreateTbReq *pReq, int32_t flags);
 
 static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
   if (NULL == req) {

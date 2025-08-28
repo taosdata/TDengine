@@ -775,6 +775,7 @@ class TestNestedqueryinterval:
 
         """
 
+        time.sleep(2)
         tdSql.prepare()
         self.create_tables()
         self.insert_data()

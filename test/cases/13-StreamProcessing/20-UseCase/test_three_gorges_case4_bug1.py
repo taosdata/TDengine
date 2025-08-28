@@ -58,9 +58,10 @@ class Test_ThreeGorges:
         self.createSnodeTest()
         self.createStream()
         self.checkStreamRunning()
-        tdSql.query(f"select * from {self.dbname}.str_cjdl_point_data_szls_jk_test")
-        if tdSql.getRows() == 0:
-            raise Exception("ERROR:no result!")
+        tdSql.checkResultsByFunc(
+            f"select * from {self.dbname}.str_cjdl_point_data_szls_jk_test",
+            lambda: tdSql.getRows() > 0
+        )
         
         # insert expired time data (expired_time:3d)
         today = datetime.date.today()

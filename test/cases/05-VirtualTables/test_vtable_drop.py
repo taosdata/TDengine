@@ -134,9 +134,12 @@ class TestVtableDrop:
         tdSql.checkRows(vntable_num)
 
     def test_drop_virtual_child_table(self):
-        """test drop virtual child tables.
+        """Drop: virtual child table
 
-        test drop virtual child tables.
+        test drop virtual child tables
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 
@@ -161,9 +164,12 @@ class TestVtableDrop:
         self.check_virtual_table_num(29, 30)
 
     def test_drop_virtual_normal_table(self):
-        """test drop virtual normal tables.
+        """Drop: virtual normal table
 
-        test drop virtual normal tables.
+        test drop virtual normal tables
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 
@@ -188,9 +194,12 @@ class TestVtableDrop:
         self.check_virtual_table_num(29, 29)
 
     def test_drop_virtual_super_table(self):
-        """test drop virtual super table.
+        """Drop: virtual super table
 
-        test drop virtual super table.
+        test drop virtual super table
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 
@@ -215,9 +224,12 @@ class TestVtableDrop:
         self.check_virtual_table_num(0, 29)
 
     def test_drop_virtual_not_exists(self):
-        """test drop virtual not exists.
+        """Drop: virtual table errors
 
-        test drop virtual not exists.
+        test drop virtual not exists
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 

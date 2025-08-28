@@ -8,13 +8,13 @@ class TestDatatypeBlob:
         tdSql.prepare(dbname="db", drop=True)
 
     def test_datatype_blob(self):
-        """blob datatype
+        """DataTypes: blob
 
-        1. create table
-        2. insert data
-        3. auto create table
-        4. alter tag value
-        5. illegal input
+        1. Create table
+        2. Insert data
+        3. Auto-create table
+        4. Alter tag value
+        5. Handle illegal input
 
         Catalog:
             - DataTypes
@@ -37,6 +37,7 @@ class TestDatatypeBlob:
         self.alter_tag_value()
         self.illegal_input()
         self.clearup_data()
+        self.checkUnderedData()
 
     def check_limit(self):  
         tdLog.info(f"create super table")
@@ -410,3 +411,23 @@ class TestDatatypeBlob:
         )
     def clearup_data(self):
         tdSql.execute(f"drop database if exists db ")
+
+    def checkUnderedData(self):
+        tdSql.execute(f"create database blob_ordered")
+        tdSql.execute(f"use blob_ordered")
+
+        tdSql.execute(f"create table blob_ordered_t (ts timestamp, desc1 blob)")
+
+        tdSql.execute(f"insert into blob_ordered_t values(now, NULL) (now - 1s, NULL) (now - 2s, NULL) (now - 3s, NULL) (now - 4s, NULL) (now - 5s, NULL) (now - 6s, NULL) (now - 7s, NULL) (now - 8s, NULL) (now - 9s, NULL)")       
+        tdSql.query(f"select * from blob_ordered_t order by ts")  
+
+        tdSql.checkRows(10)
+        for i in range(10):
+            tdSql.checkData(i, 1, None)
+        tdSql.execute(f"drop database blob_ordered")
+
+
+         
+        
+         
+    

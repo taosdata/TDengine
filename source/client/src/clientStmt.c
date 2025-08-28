@@ -536,6 +536,7 @@ int32_t stmtCleanSQLInfo(STscStmt* pStmt) {
   taosHashCleanup(pStmt->sql.siInfo.pVgroupHash);
   tSimpleHashCleanup(pStmt->sql.siInfo.pTableHash);
   tSimpleHashCleanup(pStmt->sql.siInfo.pTableRowDataHash);
+  tSimpleHashCleanup(pStmt->sql.predicateCols);
   taosArrayDestroyEx(pStmt->sql.siInfo.tbBuf.pBufList, stmtFreeTbBuf);
   taosMemoryFree(pStmt->sql.siInfo.pTSchema);
   qDestroyStmtDataBlock(pStmt->sql.siInfo.pDataCtx);
@@ -994,8 +995,14 @@ int stmtPrepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
     char* newSql = NULL;
 
     // conver update sql to insert sql
-    code =
-        convertUpdateToInsert(sql, &newSql, pTableMeta, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen);
+    pStmt->sql.predicateCols = tSimpleHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+    if (NULL == pStmt->sql.predicateCols) {
+      STMT_ELOG("fail to allocate memory for predicateCols:%s", tstrerror(terrno));
+      return terrno;
+    }
+
+    code = convertUpdateToInsert(sql, &newSql, pTableMeta, pStmt->sql.predicateCols, pStmt->exec.pRequest->msgBuf,
+                                 pStmt->exec.pRequest->msgBufLen);
     taosMemoryFree(pTableMeta);
 
     if (TSDB_CODE_SUCCESS != code) {
@@ -1203,8 +1210,11 @@ int stmtFetchColFields(STscStmt* pStmt, int32_t* fieldNum, TAOS_FIELD_E** fields
       STMT_ERR_RET(TSDB_CODE_APP_ERROR);
     }
   }
-
-  STMT_ERR_RET(qBuildStmtColFields(*pDataBlock, fieldNum, fields));
+  if (pStmt->sql.predicateCols) {
+    STMT_ERR_RET(qBuildUpdateStmtColFields(*pDataBlock, fieldNum, fields, pStmt->sql.predicateCols));
+  } else {
+    STMT_ERR_RET(qBuildStmtColFields(*pDataBlock, fieldNum, fields));
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1398,6 +1408,13 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
   pStmt->stat.bindDataUs2 += startUs3 - startUs2;
 
   SArray* pCols = pStmt->sql.stbInterlaceMode ? param->tblData.aCol : (*pDataBlock)->pData->aCol;
+
+  if (pStmt->sql.predicateCols) {
+    STMT_ERR_RET(qBindUpdateStmtColsValue(*pDataBlock, pCols, bind, pStmt->exec.pRequest->msgBuf,
+                                          pStmt->exec.pRequest->msgBufLen, pStmt->taos->optionInfo.charsetCxt,
+                                          pStmt->sql.predicateCols));
+    return TSDB_CODE_SUCCESS;
+  }
 
   if (colIdx < 0) {
     if (pStmt->sql.stbInterlaceMode) {

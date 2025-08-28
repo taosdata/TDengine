@@ -253,6 +253,7 @@ This document details the server error codes that may be encountered when using 
 | 0x8000040F | Snode already deployed | Already deployed                    | Confirm if correct  |
 | 0x80000410 | Snode not found        | Internal error                      | Report issue        |
 | 0x80000411 | Snode not deployed     | Already deployed                    | Confirm if correct  |
+| 0x8000042D | Request is not matched with local dnode | FQDN or port in taos.cfg is changed. | Change it back  |
 
 ## vnode
 
@@ -599,3 +600,12 @@ This document details the server error codes that may be encountered when using 
 | 0x80006205 | Virtual table not support in STMT query and STMT insert | Use virtual table in stmt query and stmt insert                                                                                                                      | do not use virtual table in stmt query and insert                             |
 | 0x80006206 | Virtual table not support in Topic                      | Use virtual table in topic                                                                                                                                           | do not use virtual table in topic                                             |
 | 0x80006207 | Virtual super table query not support origin table from different databases                      | Virtual super table's child table's origin table from different databases                                                                               | make sure virtual super table's child table's origin table from same database |
+
+## stream
+
+| Error Code | Description    | Possible Error Scenarios or Reasons   | Recommended Actions for Users     |
+|------------|---------------------------------------------------------|----------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|
+| 0x80007007 | Snode still in use with streams                     | SNode is in use and cannot be deleted       | Check the stream usage of SNode and confirm whether to proceed with deletion     |
+| 0x8000700E | Db used by stream                                   | SNode is in use and cannot be deleted       | Check the stream's usage of the database    |
+| 0x80007014 | Stream output table name too long                   | Output table name exceeds length limit       | Check if the output table name rules in the stream creation statement are correct and if the result is too long         |
+| 0x80007016 | Stream output table name calc failed                | Output table name calculation failed      | Check if the output table name rules in the stream creation statement are correct and if NULL values exist   |

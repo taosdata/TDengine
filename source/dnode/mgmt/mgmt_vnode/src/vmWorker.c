@@ -523,12 +523,14 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
   pStreamReaderPool->max = tsNumOfVnodeStreamReaderThreads;
   if ((code = tWWorkerInit(pStreamReaderPool)) != 0) return code;
 
+/*
   SSingleWorkerCfg runnerWorkerCfg = {.min = tsNumOfStreamRunnerThreads,
                                       .max = tsNumOfStreamRunnerThreads,
                                       .name = "vnode-st-runner",
                                       .fp = (FItem)NULL,
                                       .param = pMgmt};
   if ((code = tSingleWorkerInit(&pMgmt->streamRunnerWorker, &runnerWorkerCfg)) != 0) return code;
+*/
 
   dDebug("vnode workers are initialized");
   return 0;
@@ -538,6 +540,6 @@ void vmStopWorker(SVnodeMgmt *pMgmt) {
   tQueryAutoQWorkerCleanup(&pMgmt->queryPool);
   tWWorkerCleanup(&pMgmt->fetchPool);
   tWWorkerCleanup(&pMgmt->streamReaderPool);
-  tSingleWorkerCleanup(&pMgmt->streamRunnerWorker);
+//  tSingleWorkerCleanup(&pMgmt->streamRunnerWorker);
   dDebug("vnode workers are closed");
 }

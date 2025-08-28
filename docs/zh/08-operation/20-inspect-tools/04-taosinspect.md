@@ -6,7 +6,7 @@ toc_max_heading_level: 4
 
 ## 背景
 
-TDengine 在运行一段时间后需要针对运行环境和 TDengine 本身的运行状态进行定期巡检，本文档旨在说明如何使用巡检工具对 TDengine 的运行环境进行自动化检查。
+TDengine TSDB 在运行一段时间后需要针对运行环境和 TDengine TSDB 本身的运行状态进行定期巡检，本文档旨在说明如何使用巡检工具对 TDengine TSDB 的运行环境进行自动化检查。
 
 ## 巡检工具使用方法
 
@@ -51,11 +51,11 @@ optional arguments:
 #                                                      #
 ########################################################
 
-# 安装部署TDengine的环境信息，支持免密登录和SSH登录两种方式，当环境配置了免密登录后不用配置password信息。
-# 除此外还支持从TDengine自动获取集群信息，该模式下不需配置集群节点的ip和FQDN，仅需要配置连接各节点的用户信息（免密时不用配置password信息）
+# 安装部署TDengine TSDB的环境信息，支持免密登录和SSH登录两种方式，当环境配置了免密登录后不用配置password信息。
+# 除此外还支持从TDengine TSDB自动获取集群信息，该模式下不需配置集群节点的ip和FQDN，仅需要配置连接各节点的用户信息（免密时不用配置password信息）
 # 配置方式1、2和3不可同时配置
 [test_env]
-# 配置方式1: 通过TDengine获取集群信息
+# 配置方式1: 通过TDengine TSDB获取集群信息
 username=root
 password=123456
 port=22
@@ -126,7 +126,7 @@ chrony
 tree
 wget
 
-# 巡检覆盖的TDengine服务范围
+# 巡检覆盖的TDengine TSDB服务范围
 [td_services]
 taosd
 taos
@@ -135,7 +135,7 @@ taoskeeper
 taosx
 taos-explorer
 
-# 可忽略的TDengine错误日志
+# 可忽略的TDengine TSDB错误日志
 [skip_error_strs]
 failed to get monitor info
 Table does not exist

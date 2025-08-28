@@ -909,6 +909,26 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   mndTransSetDbName(pTrans, dbObj.name, NULL);
   TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
 
+  void   *pIter = NULL;
+  STrans *exitTrans = NULL;
+
+  if (!pUser->superUser) {
+    while (1) {
+      pIter = sdbFetch(pMnode->pSdb, SDB_TRANS, pIter, (void **)&exitTrans);
+      if (pIter == NULL) break;
+
+      if (exitTrans->conflict == TRN_CONFLICT_DB &&
+          strncmp(exitTrans->opername, "create-db", TSDB_TRANS_OPER_LEN) == 0) {
+        code = TSDB_CODE_MND_TRANS_CONFLICT;
+        sdbRelease(pMnode->pSdb, exitTrans);
+        sdbCancelFetch(pMnode->pSdb, pIter);
+        goto _OVER;
+      }
+
+      sdbRelease(pMnode->pSdb, exitTrans);
+    }
+  }
+
   mndTransSetOper(pTrans, MND_OPER_CREATE_DB);
   TAOS_CHECK_GOTO(mndSetCreateDbPrepareAction(pMnode, pTrans, &dbObj), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateDbRedoActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
@@ -2248,62 +2268,6 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t mndSetSsMigrateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t ssMigrateTs) {
-  int32_t code = 0;
-  SDbObj  dbObj = {0};
-  memcpy(&dbObj, pDb, sizeof(SDbObj));
-  dbObj.ssMigrateStartTime = ssMigrateTs;
-
-  SSdbRaw *pCommitRaw = mndDbActionEncode(&dbObj);
-  if (pCommitRaw == NULL) {
-    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-    if (terrno != 0) code = terrno;
-    TAOS_RETURN(code);
-  }
-  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
-    sdbFreeRaw(pCommitRaw);
-    TAOS_RETURN(code);
-  }
-
-  TAOS_CHECK_RETURN(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
-  TAOS_RETURN(code);
-}
-
-static int32_t mndSetSsMigrateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t ssMigrateTs, SSsMigrateDbRsp *pSsMigrateRsp) {
-  int32_t code = 0;
-  SSdb   *pSdb = pMnode->pSdb;
-  void   *pIter = NULL;
-
-  // startTime is in seconds, so convert milliseconds to seconds
-  SSsMigrateObj ssMigrate = { .startTime = ssMigrateTs/1000 };
-  if ((code = mndAddSsMigrateToTran(pMnode, pTrans, &ssMigrate, pDb)) != 0) {
-    TAOS_RETURN(code);
-  }
-  pSsMigrateRsp->ssMigrateId = ssMigrate.id;
-
-  int32_t j = 0;
-  while (1) {
-    SVgObj *pVgroup = NULL;
-    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
-    if (pIter == NULL) break;
-
-    if (pVgroup->mountVgId || pVgroup->dbUid != pDb->uid) {
-      sdbRelease(pSdb, pVgroup);
-      continue;
-    }
-
-    if ((code = mndBuildSsMigrateVgroupAction(pMnode, pTrans, pDb, pVgroup, &ssMigrate)) != 0) {
-      sdbCancelFetch(pSdb, pIter);
-      sdbRelease(pSdb, pVgroup);
-      TAOS_RETURN(code);
-    }
-
-    sdbRelease(pSdb, pVgroup);
-  }
-
-  TAOS_RETURN(code);
-}
-
 static int32_t mndBuildSsMigrateDbRsp(SSsMigrateDbRsp *pSsMigrateRsp, int32_t *pRspLen, void **ppRsp, bool useRpcMalloc) {
   int32_t code = 0;
   int32_t rspLen = tSerializeSSsMigrateDbRsp(NULL, 0, pSsMigrateRsp);
@@ -2358,7 +2322,6 @@ int32_t mndSsMigrateDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
     return TSDB_CODE_MND_SSMIGRATE_ALREADY_EXIST;
   }
 
-  int64_t ssMigrateTs = taosGetTimestampMs();
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "ssmigrate-db");
   if (pTrans == NULL) {
     mError("failed to create ssmigrate-db trans since %s", terrstr());
@@ -2369,12 +2332,13 @@ int32_t mndSsMigrateDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   mndTransSetDbName(pTrans, pDb->name, NULL);
   TAOS_CHECK_GOTO(mndTrancCheckConflict(pMnode, pTrans), NULL, _OVER);
 
-  TAOS_CHECK_GOTO(mndSetSsMigrateDbCommitLogs(pMnode, pTrans, pDb, ssMigrateTs), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetSsMigrateDbRedoActions(pMnode, pTrans, pDb, ssMigrateTs, &ssMigrateRsp), NULL, _OVER);
+  SSsMigrateObj ssMigrate = { .startTime = taosGetTimestampSec() };
+  TAOS_CHECK_GOTO(mndAddSsMigrateToTran(pMnode, pTrans, &ssMigrate, pDb), NULL, _OVER);
 
   if (pReq) {
     int32_t rspLen = 0;
     void   *pRsp = NULL;
+    ssMigrateRsp.ssMigrateId = ssMigrate.id;
     ssMigrateRsp.bAccepted = true;
     TAOS_CHECK_GOTO(mndBuildSsMigrateDbRsp(&ssMigrateRsp, &rspLen, &pRsp, false), NULL, _OVER);
     mndTransSetRpcRsp(pTrans, pRsp, rspLen);

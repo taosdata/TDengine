@@ -122,6 +122,9 @@ fi
 MOUNT_DIR="$TMP_DIR/thread_volume/$thread_no/$exec_dir:$CONTAINER_TESTDIR/tests/$exec_dir"
 echo "$thread_no -> ${exec_dir}:$cmd"
 coredump_dir=`cat /proc/sys/kernel/core_pattern | xargs dirname`
+if [ -z "$coredump_dir" ] || [ "$coredump_dir" = "." ]; then
+    coredump_dir="/home/coredump"
+fi
 
 docker run --privileged=true \
     -v $REP_MOUNT_PARAM \

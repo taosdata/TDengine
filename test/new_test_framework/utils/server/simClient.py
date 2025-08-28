@@ -49,7 +49,7 @@ class TDSimClient:
             "telemetryReporting": "0",
             "tqDebugflag": "135",
             "wDebugflag":"135",
-            "maxRetryWaitTime": "10000",
+            "maxRetryWaitTime": 10000,
         }
 
     def getLogDir(self):
