@@ -12,8 +12,9 @@
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 
+
 class TestIntervalDiffTz:
-    clientCfgDict = { "timezone": "UTC" }
+    clientCfgDict = {"timezone": "UTC"}
     updatecfgDict = {
         "timezone": "UTC-8",
         "clientCfg": clientCfgDict,
@@ -27,9 +28,12 @@ class TestIntervalDiffTz:
         etool.benchMark(json=json)
 
     def test_interval_diff_tz(self):
-        """test interval using diff tz
+        """Interval: timezone
 
         test interval with client and server using different timezone
+
+        Catalog:
+            - Timeseries:TimeWindow
 
         Since: v3.3.0.0
 
@@ -46,5 +50,3 @@ class TestIntervalDiffTz:
         self.ansFile = etool.curFile(__file__, f"ans/interval_diff_tz.csv")
 
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "interval_diff_tz")
-
-

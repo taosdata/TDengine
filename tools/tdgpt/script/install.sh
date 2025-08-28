@@ -26,7 +26,7 @@ venvDir="/var/lib/${PREFIX}/${PRODUCTPREFIX}/venv"
 global_conf_dir="/etc/${PREFIX}"
 installDir="/usr/local/${PREFIX}/${PRODUCTPREFIX}"
 tar_td_model_name="tdtsfm.tar.gz"
-tar_xhs_model_name="timer-moe.tar.gz"
+tar_xhs_model_name="time-moe.tar.gz"
 
 python_minor_ver=0  #check the python version
 bin_link_dir="/usr/bin"
@@ -158,7 +158,7 @@ function kill_process() {
 }
 
 function kill_model_service() {
-  for script in stop-tdtsfm.sh stop-timer-moe.sh; do
+  for script in stop-tdtsfm.sh stop-time-moe.sh; do
     script_path="${installDir}/bin/${script}"
     [ -f "${script_path}" ] && ${csudo}bash "${script_path}" || :
   done
@@ -189,8 +189,8 @@ function install_bin_and_lib() {
   declare -A links=(
     ["start-tdtsfm"]="${install_main_dir}/bin/start-tdtsfm.sh"
     ["stop-tdtsfm"]="${install_main_dir}/bin/stop-tdtsfm.sh"
-    ["start-timer-moe"]="${install_main_dir}/bin/start-timer-moe.sh"
-    ["stop-timer-moe"]="${install_main_dir}/bin/stop-timer-moe.sh"
+    ["start-time-moe"]="${install_main_dir}/bin/start-time-moe.sh"
+    ["stop-time-moe"]="${install_main_dir}/bin/stop-time-moe.sh"
   )
 
   # Iterate over the array and create/remove links as needed
