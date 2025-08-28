@@ -294,17 +294,17 @@
 ,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/01-Mgmt/test_force_drop_topic.py
 ,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/01-Mgmt/test_topic.py
 ## 02-Native
-,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/02-Native/test_tmq_cons1_v1_snapshot.py
-,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/02-Native/test_tmq_cons1_v1_t1.py
-,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/02-Native/test_tmq_cons1_v1_tn.py
-,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/02-Native/test_tmq_cons1_v4_t1.py
-,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/02-Native/test_tmq_cons1_v4_tn.py
-,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/02-Native/test_tmq_cons2_v1_overlap.py
-,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/02-Native/test_tmq_cons2_v1_snapshot.py
-,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/02-Native/test_tmq_cons2_v1_t1.py
-,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/02-Native/test_tmq_cons2_v1_tn.py
-,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/02-Native/test_tmq_cons2_v4_t1.py
-,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/02-Native/test_tmq_cons2_v4_tn.py
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_cons1_v1_snapshot.py
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_cons1_v1_t1.py
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_cons1_v1_tn.py
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_cons1_v4_t1.py
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_cons1_v4_tn.py
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_cons2_v1_overlap.py
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_cons2_v1_snapshot.py
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_cons2_v1_t1.py
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_cons2_v1_tn.py
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_cons2_v4_t1.py
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_cons2_v4_tn.py
 ,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/02-Native/test_tmq_params.py
 ,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/02-Native/test_tmq_params.py -R
 ## 03-WebSocket

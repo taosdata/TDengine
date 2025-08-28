@@ -11,11 +11,22 @@
 
 # -*- coding: utf-8 -*-
 import math
+from asyncore import loop
+from collections import defaultdict
 import subprocess
 import threading
 import time
+import platform
+import os
+# import socketfrom
+
 from new_test_framework.utils import tdLog, tdSql, tdCom
 
+# class actionType(Enum):
+#     CREATE_DATABASE = 0
+#     CREATE_STABLE   = 1
+#     CREATE_CTABLE   = 2
+#     INSERT_DATA     = 3
 
 class TMQCom:
     def __init__(self):
@@ -564,10 +575,10 @@ class TMQCom:
             psCmd = ("wmic process where name=\"%s.exe\" | findstr \"%s.exe\"" % (processerName, processerName))
         else:
             killCmd = (
-                "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1"
+                "ps -efww|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1"
                 % processerName
             )
-            psCmd = ("ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % processerName)
+            psCmd = ("ps -efww|grep -w %s| grep -v grep | awk '{print $2}'" % processerName)
 
         processID = ""
         
