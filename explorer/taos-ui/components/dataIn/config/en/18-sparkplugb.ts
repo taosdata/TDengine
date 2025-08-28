@@ -52,7 +52,7 @@ export default {
                     description: 'MQTT Client ID',
                     field: 'client_id',
                     required: true,
-                    placeholder: '示例：client_id',
+                    placeholder: 'for example: client_id',
                     pattern: null,
                     grid_two: false,
                     type: 'input'
