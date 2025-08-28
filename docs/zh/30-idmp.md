@@ -1,7 +1,8 @@
 ---
-title: TDengine IDMP 简介
 sidebar_label: TDengine IDMP
-slug: /
+title: TDengine IDMP 简介
+description: TDengine IDMP 简介
+toc_max_heading_level: 4
 ---
 
 TDengine IDMP 是一款 AI 原生的工业数据管理平台，可以基于采集的数据，自动感知应用场景，无需提问，就自动生成面板、报表，自动进行实时数据分析，自动监测异常，让您拥有一个工业智能体，实现零依赖的实时决策革命。
