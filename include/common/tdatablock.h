@@ -86,6 +86,10 @@ typedef struct SBlockOrderInfo {
   { .type = (col).type, .precision = (col).precision, .bytes = (col).bytes, .scale = (col).scale }
 
 static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData, uint32_t row) {
+  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_NULL) {
+    return true;
+  }
+
   if (!pColumnInfoData->hasNull) {
     return false;
   }
@@ -102,6 +106,9 @@ static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData,
 }
 
 static FORCE_INLINE bool colDataIsNull_t(const SColumnInfoData* pColumnInfoData, uint32_t row, bool isVarType) {
+  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_NULL) {
+    return true;
+  }
   if (!pColumnInfoData->hasNull) return false;
   if (isVarType) {
     return colDataIsNull_var(pColumnInfoData, row);
@@ -112,6 +119,9 @@ static FORCE_INLINE bool colDataIsNull_t(const SColumnInfoData* pColumnInfoData,
 
 static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, uint32_t totalRows, uint32_t row,
                                        SColumnDataAgg* pColAgg) {
+  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_NULL) {
+    return true;
+  }
   if (!pColumnInfoData->hasNull) {
     return false;
   }
