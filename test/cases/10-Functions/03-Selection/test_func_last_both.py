@@ -1,5 +1,5 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdCom, etool
 
 
 class TestFuncLastBoth:
@@ -156,14 +156,13 @@ class TestFuncLastBoth:
         tdSql.execute(f"alter table st2 add column c1 int;")
         tdSql.execute(f"alter table st2 drop column c1;")
 
-        self.last_both_query()
-
         tdSql.execute(f"flush database {db}")
         sc.dnodeStop(1)
         sc.dnodeStart(1)
         clusterComCheck.checkDnodes(1)
 
         self.last_both_query()
+        self.last_with_cols("last_with_cols")
 
         sc.dnodeStop(1)
         sc.dnodeStart(1)
@@ -299,6 +298,7 @@ class TestFuncLastBoth:
 
         self.last_both_no_ts()
         self.last_both_query()
+        self.last_with_cols("last_with_cols")
 
     def last_both_query(self):
         db = "testdb"
@@ -375,8 +375,25 @@ class TestFuncLastBoth:
 
         tdSql.checkData(0, 4, None)
 
+        tdSql.query(f"select last(f1) from tbd")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select cols(last(f2), ts) from tbd")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select last(ts) from tbd")
+        tdSql.checkRows(1)
+
+        tdSql.query(f"select last(*) from tbd")
+        tdSql.checkRows(1)
+
+        tdSql.checkData(0, 0, "2021-05-11 10:12:29")
+
         tdLog.info(f'"test tbe"')
         tdSql.query(f"select last(*) from tbe")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select last_row(*) from tbe")
         tdSql.checkRows(0)
 
         tdLog.info(f'"test stable"')
@@ -522,21 +539,10 @@ class TestFuncLastBoth:
 
         tdSql.checkData(4, 0, "2021-05-11 10:12:29")
 
-        # if $tdSql.getData(4,1, "NULL then
-        #  return -1
-        # endi
-        # if $tdSql.getData(4,2, "NULL then
-        #  print $tdSql.getData(0,2)
-        #  return -1
-        # endi
         tdSql.checkData(4, 3, None)
 
-        # if $tdSql.getData(4,4, "NULL then
-        #  return -1
-        # endi
         tdSql.checkData(4, 5, 5)
 
-        tdLog.info(f'"test tbn"')
         tdSql.execute(
             f"create table if not exists tbn (ts timestamp, f1 int, f2 double, f3 binary(10), f4 timestamp)"
         )
@@ -621,3 +627,9 @@ class TestFuncLastBoth:
         tdSql.checkData(0, 3, 27)
 
         tdSql.checkData(0, 4, "1970-01-01 07:59:57")
+
+    def last_with_cols(self, testCase):
+        self.sqlFile = etool.curFile(__file__, f"in/{testCase}.in")
+        self.ansFile = etool.curFile(__file__, f"ans/{testCase}.csv")
+
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
