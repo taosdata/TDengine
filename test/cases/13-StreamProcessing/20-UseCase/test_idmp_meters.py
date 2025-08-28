@@ -227,7 +227,8 @@ class Test_IDMP_Meters:
             "CREATE STREAM `tdasset`.`ana_stream11_sub2` INTERVAL(10s, 4s) SLIDING(4s) FROM `tdasset`.`vt_em-11`                          STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) INTO `tdasset`.`result_stream11_sub2`                                        AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
             "CREATE STREAM `tdasset`.`ana_stream11_sub3` INTERVAL(5s,  1s) SLIDING(5s) FROM `tdasset`.`vt_em-11`                          STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) INTO `tdasset`.`result_stream11_sub3`                                        AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
             "CREATE STREAM `tdasset`.`ana_stream11_sub4` INTERVAL(5m)      SLIDING(5m) FROM `tdasset`.`vst_智能电表_1` PARTITION BY tbname STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) INTO `tdasset`.`result_stream11_sub4`                                        AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
-            "CREATE STREAM `tdasset`.`ana_stream11_sub5` INTERVAL(5m)      SLIDING(5s) FROM `tdasset`.`vst_智能电表_1` PARTITION BY tbname STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) INTO     `out`.`result_stream11_sub5` OUTPUT_SUBTABLE(CONCAT(tbname,'_out')) AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和`                            FROM %%trows",
+            "CREATE STREAM `tdasset`.`ana_stream11_sub5` INTERVAL(5m)      SLIDING(5m) FROM `tdasset`.`vst_智能电表_1` PARTITION BY tbname STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) INTO     `out`.`result_stream11_sub5` OUTPUT_SUBTABLE(CONCAT(tbname,'_out')) AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和`                                      FROM %%trows",
+            "CREATE STREAM `tdasset`.`ana_stream11_sub6` INTERVAL(5m)      SLIDING(5m) FROM `tdasset`.`vst_智能电表_1` PARTITION BY tbname STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) INTO     `out`.`result_stream11_sub6` (col1,col2,col3,col4,col5,col6,col7)   AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
         ]
 
         tdSql.executes(sqls)
@@ -1892,6 +1893,7 @@ class Test_IDMP_Meters:
         self.verify_stream11_sub3()
         self.verify_stream11_sub4()
         self.verify_stream11_sub5()
+        self.verify_stream11_sub6()
 
     def verify_stream11_sub1(self):
         # check
@@ -1968,6 +1970,12 @@ class Test_IDMP_Meters:
         )
         print("verify stream11_sub5 ........................... successfully.")
 
+    def verify_stream11_sub6(self):
+        # check
+        sql1 = "select * from out.`result_stream11_sub5` "
+        sql2 = "select * from out.`result_stream11_sub6` "
+        tdSql.checkResultsBySql(sql1, sql2)
+        print("verify stream11_sub6 ........................... successfully.")
 
 
     #
