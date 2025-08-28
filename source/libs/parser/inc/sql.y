@@ -730,7 +730,7 @@ db_kind_opt(A) ::= SYSTEM.                                                      
 
 /************************************************ rsma ********************************************************/
 cmd ::= CREATE RSMA not_exists_opt(B) rsma_name(C)
-  ON full_table_name(E) rsma_func_list(D)
+  ON full_table_name(D) rsma_func_list(E)
   INTERVAL NK_LP signed_duration_list(F) NK_RP.                                   { pCxt->pRootNode = createCreateRsmaStmt(pCxt, B, &C, D, E, F); }
 cmd ::= DROP RSMA exists_opt(B) full_rsma_name(C).                                { pCxt->pRootNode = createDropRsmaStmt(pCxt, B, C); }
 cmd ::= SHOW CREATE RSMA full_table_name(A).                                      { pCxt->pRootNode = createShowCreateRsmaStmt(pCxt, QUERY_NODE_SHOW_CREATE_RSMA_STMT, A); }

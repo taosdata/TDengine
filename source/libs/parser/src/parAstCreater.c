@@ -5033,8 +5033,8 @@ _err:
   return NULL;
 }
 
-SNode* createCreateRsmaStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* rsmaName, SNodeList* pFuncs,
-                            SNode* pRealTable, SNodeList* pIntervals) {
+SNode* createCreateRsmaStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* rsmaName, SNode* pRealTable,
+                            SNodeList* pFuncs, SNodeList* pIntervals) {
   SCreateRsmaStmt* pStmt = NULL;
 
   CHECK_PARSER_STATUS(pCxt);

@@ -16107,8 +16107,16 @@ static int32_t rewriteRsmaFuncs(STranslateContext* pCxt, SCreateRsmaStmt* pStmt,
     pFunc = (SFunctionNode*)pNode;
     if (!pFunc->pParameterList || LIST_LENGTH(pFunc->pParameterList) != 1 ||
         nodeType(pFunc->pParameterList->pHead->pNode) != QUERY_NODE_COLUMN) {
-      PAR_ERR_JRET(TSDB_CODE_RSMA_INVALID_FUNC_PARAM);
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_RSMA_INVALID_FUNC_PARAM,
+                                     "Invalid func param for rsma, only one non-timestamp column allowed: %s",
+                                     pFunc->functionName);
     }
+    PAR_ERR_JRET(fmGetFuncInfo(pFunc, NULL, 0));
+    if (!fmIsRsmaSupportedFunc(pFunc->funcId)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_RSMA_UNSUPPORTED_FUNC, "Invalid func for rsma: %s",
+                                     pFunc->functionName);
+    }
+
     SColumnNode* pCol = (SColumnNode*)pFunc->pParameterList->pHead->pNode;
     int32_t      i = 0;
     for (; i < columnNum; ++i) {
@@ -16120,10 +16128,10 @@ static int32_t rewriteRsmaFuncs(STranslateContext* pCxt, SCreateRsmaStmt* pStmt,
       }
     }
     if (i == columnNum) {
-      PAR_ERR_JRET(TSDB_CODE_RSMA_INVALID_FUNC_PARAM);
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_RSMA_INVALID_FUNC_PARAM,
+                                     "Invalid func param for rsma, only one non-timestamp column allowed: %s(%s)",
+                                     pFunc->functionName, pCol->colName);
     }
-    PAR_ERR_JRET(fmGetFuncInfo(pFunc, NULL, 0));
-    pCol = (SColumnNode*)pFunc->pParameterList->pHead->pNode;
     snprintf(pFunc->node.userAlias, TSDB_COL_NAME_LEN, "%s(%s)", pFunc->functionName, pCol->colName);
   }
 
@@ -16163,16 +16171,6 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
   PAR_ERR_JRET(getDBCfg(pCxt, pStmt->dbName, &pDbInfo));
 
   pStmt->precision = pDbInfo.precision;
-  FOREACH(pNode, pStmt->pFuncs) {
-    SFunctionNode* pFuncNode = (SFunctionNode*)pNode;
-    if (!fmIsRsmaSupportedFunc(pFuncNode->funcId)) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_RSMA_UNSUPPORTED_FUNC, "Invalid func for rsma: %s",
-                                     pFuncNode->functionName);
-    }
-    SNode* pNew = NULL;
-    PAR_ERR_JRET(nodesCloneNode(pNode, &pNew));
-    PAR_ERR_JRET(nodesListMakeStrictAppend(&pStmt->pFuncs, pNew));
-  }
 
   PAR_ERR_JRET(taosGetSystemUUIDU64(&pReq->uid));
 

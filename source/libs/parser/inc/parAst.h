@@ -410,8 +410,8 @@ SNode* createShowCompactDetailsStmt(SAstCreateContext* pCxt, SNode* pCompactIdNo
 SNode* createShowCompactsStmt(SAstCreateContext* pCxt, ENodeType type);
 SNode* createShowTransactionDetailsStmt(SAstCreateContext* pCxt, SNode* pTransactionIdNode);
 
-SNode* createCreateRsmaStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* rsmaName, SNodeList* pFuncs,
-                            SNode* pRealTable, SNodeList* pIntervals);
+SNode* createCreateRsmaStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* rsmaName, SNode* pRealTable,
+                            SNodeList* pFuncs, SNodeList* pIntervals);
 SNode* createShowRsmasStmt(SAstCreateContext* pCxt, SNode* dbName);
 SNode* createShowRsmaTasksStmt(SAstCreateContext* pCxt, SNode* dbName);
 SNode* createDropRsmaStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRealTable);
