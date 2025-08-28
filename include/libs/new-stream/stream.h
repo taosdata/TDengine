@@ -86,8 +86,9 @@ typedef struct SStreamRunnerTaskOutput {
 typedef struct SStreamRunnerTaskNotification {
   int8_t calcNotifyOnly;
   // notify options
-  SArray* pNotifyAddrUrls;
+  SArray *pNotifyAddrUrls;
   int32_t notifyErrorHandle;
+  SArray *pNotifyConds;
 } SStreamRunnerTaskNotification;
 
 typedef struct SStreamRunnerTaskExecMgr {
