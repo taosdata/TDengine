@@ -21,7 +21,7 @@ RUN pip3 install --upgrade pip && \
                     taospy \
                     uwsgi \
                     accelerate \
-                    tensorflow-cpu==2.15.0 \
+                    tensorflow \
                     uni2ts \
                     -i https://pypi.tuna.tsinghua.edu.cn/simple && \
     pip install --upgrade keras -i https://pypi.tuna.tsinghua.edu.cn/simple && \

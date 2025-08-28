@@ -8,12 +8,12 @@ ARG modelDlUrl
 COPY ${modelDlUrl}/tdtsfm/taos.pth /usr/local/taos/taosanode/model/tdtsfm/
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
-
+ADD ${pkgFile} /root/
 RUN cd ${dirName}/ && \
     /bin/bash install.sh -e no && \
     cd .. && \
     rm -rf ${dirName}
-EXPOSE 6090 8387 5000
+EXPOSE 6035 8387 6036
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 
