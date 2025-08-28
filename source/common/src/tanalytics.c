@@ -872,7 +872,7 @@ int8_t taosAnalysisParseWncheck(SHashObj* pHashMap, const char* id) {
 
 int32_t taosAnalyticsInit() { return 0; }
 void    taosAnalyticsCleanup() {}
-SJson  *taosAnalySendReqRetJson(const char *url, EAnalyHttpType type, SAnalyticBuf *pBuf, int64_t timeout) {
+SJson  *taosAnalySendReqRetJson(const char *url, EAnalyHttpType type, SAnalyticBuf *pBuf, int64_t timeout, const char*id) {
   return NULL;
 }
 
@@ -881,7 +881,7 @@ bool    taosAnalyGetOptStr(const char *option, const char *optName, char *optVal
 int64_t taosAnalyGetVersion() { return 0; }
 void    taosAnalyUpdate(int64_t newVer, SHashObj *pHash) {}
 
-int32_t tsosAnalyBufOpen(SAnalyticBuf *pBuf, int32_t numOfCols) { return 0; }
+int32_t tsosAnalyBufOpen(SAnalyticBuf *pBuf, int32_t numOfCols, const char* id) { return 0; }
 int32_t taosAnalyBufWriteOptStr(SAnalyticBuf *pBuf, const char *optName, const char *optVal) { return 0; }
 int32_t taosAnalyBufWriteOptInt(SAnalyticBuf *pBuf, const char *optName, int64_t optVal) { return 0; }
 int32_t taosAnalyBufWriteOptFloat(SAnalyticBuf *pBuf, const char *optName, float optVal) { return 0; }
