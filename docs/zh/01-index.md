@@ -26,7 +26,7 @@ TDengine IDMP 是一款 AI 原生的工业数据管理平台，可以基于采�
 - [TDengine IDMP 文档](https://idmpdocs.taosdata.com/)：从 IDMP 产品概念到基本·高级功能、运维部署指南，并提供多场景最佳实践。
 - [TDengine IDMP 应用场景](https://www.taosdata.com/idmp-application-scenarios)：从数据采集侧的配置，到写入数据到 TDengine TSDB，再到 TDengine IDMP 的树状结构、可视化与实时分析，博客一步一步的演示怎么快速的搭建整个系统。
 
-：：：
+:::
 
 最后，作为一个开源软件，欢迎大家的参与。如果发现文档有任何错误、描述不清晰的地方，请在每个页面的最下方，点击“编辑本文档”直接进行修改。
 
