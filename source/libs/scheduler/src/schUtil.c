@@ -163,10 +163,10 @@ int32_t schAddHbConnection(SSchJob *pJob, SSchTask *pTask, SQueryNodeEpId *epId,
       return TSDB_CODE_SUCCESS;
     }
 
-    qError("taosHashPut hb trans %p failed, nodeId:%d, fqdn:%s, port:%d", hb.trans.pTrans, epId->nodeId, epId->ep.fqdn, epId->ep.port);
+    qError("taosHashPut hb pTrans:%p failed, nodeId:%d, fqdn:%s:%d", hb.trans.pTrans, epId->nodeId, epId->ep.fqdn, epId->ep.port);
     SCH_ERR_RET(code);
   } else {
-    qInfo("pTrans %p add to hbConnections for epId:%d", hb.trans.pTrans, epId->nodeId);
+    qInfo("pTrans:%p add to hbConnections for epId(vgId):%d, fqdn:%s:%d", hb.trans.pTrans, epId->nodeId, epId->ep.fqdn, epId->ep.port);
   }
 
   SCH_UNLOCK(SCH_WRITE, &schMgmt.hbLock);
@@ -225,7 +225,7 @@ void schDeregisterTaskHb(SSchJob *pJob, SSchTask *pTask) {
   SSchHbTrans *hb = taosHashGet(schMgmt.hbConnections, &epId, sizeof(SQueryNodeEpId));
   if (NULL == hb) {
     SCH_UNLOCK(SCH_READ, &schMgmt.hbLock);
-    SCH_TASK_WLOG("nodeId %d fqdn %s port %d not in hb connections", epId.nodeId, epId.ep.fqdn, epId.ep.port);
+    SCH_TASK_WLOG("nodeId:%d fqdn:%s:%d not in hb connections", epId.nodeId, epId.ep.fqdn, epId.ep.port);
     return;
   }
 

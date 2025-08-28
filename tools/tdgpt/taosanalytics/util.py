@@ -1,5 +1,6 @@
 # encoding:utf-8
 """utility methods to helper query processing"""
+
 import numpy as np
 from statsmodels.stats.diagnostic import acorr_ljungbox
 from statsmodels.tsa.stattools import adfuller
