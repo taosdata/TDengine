@@ -302,5 +302,5 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
 }
 
 void buildTaskId(uint64_t taskId, uint64_t queryId, char* dst) {
-  sprintf(dst, "TID:%" PRIx64 " QID:%" PRIx64, taskId, queryId);
+  sprintf(dst, "TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, queryId);
 }
