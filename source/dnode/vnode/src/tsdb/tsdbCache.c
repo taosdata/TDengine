@@ -3336,11 +3336,13 @@ static int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *p
     for (int i = 0; i < numKeys; ++i) {
       int16_t   cid = ((int16_t *)TARRAY_DATA(pCidList))[i];
       STColumn *pCol = NULL;
+      int       colIndex = -1;
 
       // Find column in schema
       for (int j = 0; j < pTSchema->numOfCols; ++j) {
         if (pTSchema->columns[j].colId == cid) {
           pCol = &pTSchema->columns[j];
+          colIndex = j;
           break;
         }
       }
@@ -3352,7 +3354,7 @@ static int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *p
       if (pCol) {
         // Extract column value from row
         SColVal colVal;
-        code = tRowGet(pLastRow->pRow, pTSchema, cid, &colVal);
+        code = tRowGet(pLastRow->pRow, pTSchema, colIndex, &colVal);
         if (code == 0) {
           lastCol.colVal = colVal;
 
