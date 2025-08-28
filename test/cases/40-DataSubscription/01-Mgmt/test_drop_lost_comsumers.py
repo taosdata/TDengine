@@ -18,8 +18,8 @@ class TaosConsumer:
     def log_info(self, message):
         if self.sub_log:
             tdLog.info(message)
-    
-    #TODO merge sub_consumer and sub_consumer_once 
+
+    # TODO merge sub_consumer and sub_consumer_once
     def sub_consumer(self, consumer, group_id, topic_name):
         group_id = int(group_id)
         if group_id < 100:
@@ -96,7 +96,7 @@ class TaosConsumer:
             # self.log_info(
             #     f"time:{start},consumer:{group_id}, start to consume,consumer_nrows:{consumer_nrows}"
             # )
-            message = None 
+            message = None
             if consumer_nrows < self.once_consumer_rows:
                 message = consumer.poll(timeout=1.0)
             elif consumer_nrows >= self.once_consumer_rows:
@@ -126,7 +126,7 @@ class TaosConsumer:
             self.log_info(
                 f"consumer:{group_id},consumer_nrows:{nrows},counter.counter:{self.safe_counter.counter},counter.get():{self.safe_counter.get()}"
             )
-            
+
             # consumer.commit()
             consumer_nrows = nrows
 
@@ -165,11 +165,11 @@ class ThreadSafeCounter:
             return self.counter
 
 
-class TestDropLostComsumers:
-       
+class TestDropLostConsumers:
+
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-         # db parameter
+        # db parameter
         cls.table_number = 1000
         cls.rows_per_table = 1000
         # consumer parameter
@@ -178,19 +178,8 @@ class TestDropLostComsumers:
         cls.max_poll_interval_ms = 180000
         # case consumer parameter
         cls.consumer_rows_per_thread = cls.table_number * cls.rows_per_table
-        cls.consumer_all_rows = (
-            cls.consumer_rows_per_thread * cls.consumer_groups_num
-        )
+        cls.consumer_all_rows = cls.consumer_rows_per_thread * cls.consumer_groups_num
         cls.topic_name = "select_d1"
-
-    def caseDescription(self):
-        """
-        drop_lost_consmuers<hrchen>:
-        1. verifying that the boundary and valid values of session_timeout_ms are in effect
-        2. verifying that the boundary and valid values of max_poll_interval_ms are in effect
-        3. verifying that consumer will be closed when the session_timeout_ms and max_poll_interval_ms is expired
-        """
-        return
 
     def check_consumer(self, count, rows, stop_event=None):
         time.sleep(count)
@@ -217,7 +206,9 @@ class TestDropLostComsumers:
     def drop_session_timeout_consmuers(self):
         tdSql.execute(f"drop topic if exists {self.topic_name};")
         tdSql.execute("use db_sub")
-        tdSql.execute(f"create topic {self.topic_name} as  select * from db_sub.meters;")
+        tdSql.execute(
+            f"create topic {self.topic_name} as  select * from db_sub.meters;"
+        )
 
         # start consumer and config some parameters
         os.system(
@@ -237,7 +228,9 @@ class TestDropLostComsumers:
     def drop_max_poll_timeout_consmuers(self):
         tdSql.execute(f"drop topic if exists {self.topic_name};")
         tdSql.execute("use db_sub")
-        tdSql.execute(f"create topic {self.topic_name} as  select * from db_sub.meters;")
+        tdSql.execute(
+            f"create topic {self.topic_name} as  select * from db_sub.meters;"
+        )
 
         threads = []
         self.safe_counter = ThreadSafeCounter()
@@ -270,18 +263,16 @@ class TestDropLostComsumers:
                 )
             elif self.safe_counter.counter == self.consumer_all_rows:
                 # adding 5s is for heartbeat check
-                self.check_consumer(int(self.max_poll_interval_ms / 1000 ) + 5, 0, stop_event)
+                self.check_consumer(
+                    int(self.max_poll_interval_ms / 1000) + 5, 0, stop_event
+                )
                 stop_event.set()
                 break
-        
+
         time.sleep(1)
         tdSql.execute(f"drop topic if exists {self.topic_name};")
 
     def case_session_timeout(self):
-        """
-        TEST CASE: verifying that the boundary and valid values of session_timeout_ms are in effect
-        """
-
         tdLog.info("start to test session_timeout_ms=12s")
         # test session_timeout_ms=12s
         self.session_timeout_ms = 12000
@@ -291,9 +282,6 @@ class TestDropLostComsumers:
         tdLog.info("stop to test session_timeout_ms=12s and done ")
 
     def case_max_poll_timeout(self):
-        """
-        TEST CASE: verifying that the boundary and valid values of max_poll_interval_ms are in effect
-        """
         tdLog.info("start to test max_poll_interval_ms=20s")
         # test max_poll_interval_ms=20s
         self.session_timeout_ms = 300000
@@ -302,25 +290,24 @@ class TestDropLostComsumers:
         tdLog.info("stop to test max_poll_interval_ms=20s and done ")
 
     def test_drop_lost_comsumers(self):
-        """summary: xxx
+        """TMQ: drop lost consumers
 
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
+        1. verifying that the boundary and valid values of session_timeout_ms are in effect
+        2. verifying that the boundary and valid values of max_poll_interval_ms are in effect
+        3. verifying that consumer will be closed when the session_timeout_ms and max_poll_interval_ms is expired
 
         Catalog:
-            - xxx:xxx
+            - Subscribe
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-        """
-        """
-        Run the test cases for session timeout and max poll timeout.
+            - 2024-10-23 chenhaoran Created
+            - 2025-5-13 Huo Hong Migrated to new test framework
         """
 
         self.consumer_instance = TaosConsumer()
@@ -334,5 +321,3 @@ class TestDropLostComsumers:
         self.case_max_poll_timeout()
 
         tdLog.success(f"{__file__} successfully executed")
-
-

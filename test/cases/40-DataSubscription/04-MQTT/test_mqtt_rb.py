@@ -24,7 +24,7 @@ class TestMqttCases:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_mqtt_rawblock(self):
-        """ Mqtt rawblock testing
+        """MQTT: rawblock test
 
         mqtt rawblock testing
 

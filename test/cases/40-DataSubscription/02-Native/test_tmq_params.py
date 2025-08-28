@@ -1,7 +1,6 @@
 import time
 from taos.tmq import Consumer
-from new_test_framework.utils import tdLog, tdSql, tdCom
-from tmqCommon import *
+from new_test_framework.utils import tdLog, tdSql, tdCom, tmqCom
 
 class TestTmqParams:
     clientCfgDict = {'debugFlag': 135}
@@ -17,13 +16,16 @@ class TestTmqParams:
         cls.snapshot_value_list = ["false"]
 
     def test_tmq_params(self):
-        """consumer parameters
+        """Consumer parameters
 
         test consumer create parameters
 
+        Catalog:
+            - Subscribe
+
         Since: v3.3.0.0
 
-        Labels: tmq
+        Labels: common,ci
 
         History:
             - 2023-6-21 jiajingbin Created
@@ -105,7 +107,8 @@ class TestTmqParams:
                             while True:
                                 res = consumer.poll(3)
                                 tdSql.query('show consumers;')
-                                consumer_info = tdSql.queryResult[0][-1]
+                                consumer_info = tdSql.queryResult[0][10]
+                                tdSql.printResult()
                                 if offset_value == "latest":
                                     if not res and stop_flag == 1:
                                         break

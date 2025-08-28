@@ -3,15 +3,26 @@ import time
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestTmpSnapshot1:
+class TestTmpCons4:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_tmq_snapshot1(self):
-        """Tmq Test
+    def test_tmq_Cons4(self):
+        """2 consumers: vgroups=4 topics=N
 
-        1. -
+        test scenario, please refer to https://jira.taosdata.com:18090/pages/viewpage.action?pageId=135120406, firstly insert data, then start consume
+        1. basic1Of2Cons.sim: vgroups=1, one topic for 2 consumers
+        2. basic2Of2Cons.sim: vgroups=1, multi topics for 2 consumers
+        3. basic3Of2Cons.sim: vgroups=4, one topic for 2 consumers
+        4. basic4Of2Cons.sim: vgroups=4, multi topics for 2 consumers
+        5. basic2Of2ConsOverlap.sim: vgroups=1, multi topics for 2 consumers, the topics consumed by consumers overlap with each other
+        6. snapshot.sim: vgroups=1, multi topics for 2 consumers, consume from snapshot
+
+        notes1: Scalar function: ABS/ACOS/ASIN/ATAN/CEIL/COS/FLOOR/LOG/POW/ROUND/SIN/SQRT/TAN
+        The above use cases are combined with where filter conditions, such as: where ts > "2017-08-12 18:25:58.128Z" and sin(a) > 0.5;
+        
+        notes2: not support aggregate functions(such as sum/count/min/max) and time-windows(interval).
 
         Catalog:
             - Subscribe
@@ -23,13 +34,12 @@ class TestTmpSnapshot1:
         Jira: None
 
         History:
-            - 2025-5-9 Simon Guan migrated from tsim/tmq/snapshot1.sim
+            - 2025-5-9 Simon Guan migrated from tsim/tmq/basic4Of2Cons.sim
 
         """
-
         #### test scenario, please refer to https://jira.taosdata.com:18090/pages/viewpage.action?pageId=135120406
         # basic1Of2Cons.sim: vgroups=1, one topic for 2 consumers, firstly insert data, then start consume. Include six topics
-        # basic2Of2ConsOverlap.sim: vgroups=1, multi topics for 2 consumers, firstly insert data, then start consume. Include six topics
+        # basic2Of2Cons.sim: vgroups=1, multi topics for 2 consumers, firstly insert data, then start consume. Include six topics
         # basic3Of2Cons.sim: vgroups=4, one topic for 2 consumers, firstly insert data, then start consume. Include six topics
         # basic4Of2Cons.sim: vgroups=4, multi topics for 2 consumers, firstly insert data, then start consume. Include six topics
 
@@ -39,11 +49,11 @@ class TestTmpSnapshot1:
         # notes2: not support aggregate functions(such as sum/count/min/max) and time-windows(interval).
         #
 
-        self.prepareBasicEnv_1vgrp()
+        self.prepareBasicEnv_4vgrp()
 
         # ---- global parameters start ----#
         dbName = "db"
-        vgroups = 1
+        vgroups = 4
         stbPrefix = "stb"
         ctbPrefix = "ctb"
         ntbPrefix = "ntb"
@@ -54,13 +64,16 @@ class TestTmpSnapshot1:
         tstart = 1640966400000  # 2022-01-01 00:00:"00+000"
         # ---- global parameters end ----#
 
-        pullDelay = 2
+        pullDelay = 5
         ifcheckdata = 1
         ifmanualcommit = 1
         showMsg = 1
         showRow = 0
 
+        tdSql.connect("root")
         tdSql.execute(f"use {dbName}")
+
+        tdLog.info(f"== alter database")
 
         tdLog.info(f"== create topics from super table")
         tdSql.execute(f"create topic topic_stb_column as select ts, c3 from stb")
@@ -90,7 +103,7 @@ class TestTmpSnapshot1:
         keyList = "'group.id:cgrp1,enable.auto.commit:false,auto.commit.interval.ms:6000,auto.offset.reset:earliest'"
         tdLog.info(f"key list:  {keyList}")
 
-        topicNum = 2
+        topicNum = 3
 
         # =============================== start consume =============================#
         cdbName = "cdb0"
@@ -110,18 +123,17 @@ class TestTmpSnapshot1:
 
         tdLog.info(f"================ test consume from stb")
         tdLog.info(
-            f"== overlap toipcs: topic_stb_column + topic_stb_all, topic_stb_function + topic_stb_all"
+            f"== multi toipcs: topic_stb_column + topic_stb_all + topic_stb_function"
         )
-        topicList = "'topic_stb_column,topic_stb_all'"
+        topicList = "'topic_stb_column,topic_stb_all,topic_stb_function'"
 
         consumerId = 0
-        totalMsgOfOneTopic = ctbNum * rowsPerCtb
-        totalMsgOfStb = totalMsgOfOneTopic * topicNum
-        expectmsgcnt = 1000000
+        totalMsgOfStb = ctbNum * rowsPerCtb
+        totalMsgOfStb = totalMsgOfStb * topicNum
+        expectmsgcnt = 9
         tdSql.execute(
             f"insert into consumeinfo values (now , {consumerId} , {topicList} , {keyList} , {totalMsgOfStb} , {ifcheckdata} , {ifmanualcommit} )"
         )
-        topicList = "'topic_stb_all,topic_stb_function'"
         consumerId = 1
         tdSql.execute(
             f"insert into consumeinfo values (now+1s , {consumerId} , {topicList} , {keyList} , {totalMsgOfStb} , {ifcheckdata} , {ifmanualcommit} )"
@@ -129,11 +141,10 @@ class TestTmpSnapshot1:
 
         tdLog.info(f"== start consumer to pull msgs from stb")
         tdLog.info(
-            f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start -e 1"
+            f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
         )
-
         os.system(
-            f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start -e 1"
+            f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
         )
 
         tdLog.info(f"== check consume result")
@@ -143,14 +154,21 @@ class TestTmpSnapshot1:
 
             if tdSql.getRows() == 2:
                 tdSql.checkAssert(tdSql.getData(0, 1) + tdSql.getData(1, 1) == 1)
-                tdSql.checkAssert(tdSql.getData(0, 3) >= totalMsgOfOneTopic)
-                tdSql.checkAssert(tdSql.getData(0, 3) <= totalMsgOfStb)
-                tdSql.checkAssert(tdSql.getData(1, 3) >= totalMsgOfOneTopic)
-                tdSql.checkAssert(tdSql.getData(1, 3) <= totalMsgOfStb)
 
-                totalMsgCons = totalMsgOfOneTopic + totalMsgOfStb
-                sumOfRows = tdSql.getData(0, 3) + tdSql.getData(1, 3)
-                tdSql.checkAssert(totalMsgCons == sumOfRows)
+                # tdSql.checkAssert(tdSql.getData(0, 2) > 0)
+                # tdSql.checkAssert(tdSql.getData(0, 2) < expectmsgcnt)
+                # tdSql.checkAssert(tdSql.getData(1, 2) > 0)
+                # tdSql.checkAssert(tdSql.getData(1, 2) < expectmsgcnt)
+                # sumOfConsMsg = tdSql.getData(0, 2) + tdSql.getData(1, 2)
+                # tdSql.checkAssert(sumOfConsMsg == expectmsgcnt)
+
+                tdSql.checkAssert(tdSql.getData(0, 3) > 0)
+                tdSql.checkAssert(tdSql.getData(0, 3) < totalMsgOfStb)
+                tdSql.checkAssert(tdSql.getData(1, 3) > 0)
+                tdSql.checkAssert(tdSql.getData(1, 3) < totalMsgOfStb)
+                sumOfConsRow = tdSql.getData(0, 3) + tdSql.getData(1, 3)
+                tdSql.checkAssert(sumOfConsRow == totalMsgOfStb)
+
                 tdSql.execute(f"drop database {cdbName}")
                 break
             time.sleep(1)
@@ -163,7 +181,9 @@ class TestTmpSnapshot1:
         tdSql.execute(f"create database {cdbName} vgroups 1")
         tdSql.execute(f"use {cdbName}")
 
-        tdLog.info(f"== create consume info table and consume result table for ctb")
+        tdLog.info(f"== alter database")
+
+        tdLog.info(f"== create consume info table and consume result table")
         tdSql.execute(
             f"create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)"
         )
@@ -178,18 +198,16 @@ class TestTmpSnapshot1:
 
         tdLog.info(f"================ test consume from ctb")
         tdLog.info(
-            f"== overlap toipcs: topic_ctb_column + topic_ctb_all, topic_ctb_function + topic_ctb_all"
+            f"== multi toipcs: topic_ctb_column + topic_ctb_all + topic_ctb_function"
         )
-        topicList = "'topic_ctb_column,topic_ctb_all'"
-        consumerId = 0
+        topicList = "'topic_ctb_column,topic_ctb_all,topic_ctb_function'"
 
-        totalMsgOfOneTopic = rowsPerCtb
-        totalMsgOfCtb = totalMsgOfOneTopic * topicNum
-        expectmsgcnt = 1000000
+        consumerId = 0
+        totalMsgOfCtb = rowsPerCtb * topicNum
+        expectmsgcnt = topicNum
         tdSql.execute(
             f"insert into consumeinfo values (now , {consumerId} , {topicList} , {keyList} , {totalMsgOfCtb} , {ifcheckdata} , {ifmanualcommit} )"
         )
-        topicList = "'topic_ctb_function,topic_ctb_all'"
         consumerId = 1
         tdSql.execute(
             f"insert into consumeinfo values (now+1s , {consumerId} , {topicList} , {keyList} , {totalMsgOfCtb} , {ifcheckdata} , {ifmanualcommit} )"
@@ -197,11 +215,11 @@ class TestTmpSnapshot1:
 
         tdLog.info(f"== start consumer to pull msgs from ctb")
         tdLog.info(
-            f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start -e 1"
+            f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
         )
 
         os.system(
-            f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start -e 1"
+            f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
         )
 
         tdLog.info(f"== check consume result")
@@ -211,9 +229,11 @@ class TestTmpSnapshot1:
 
             if tdSql.getRows() == 2:
                 tdSql.checkAssert(tdSql.getData(0, 1) + tdSql.getData(1, 1) == 1)
+                # tdSql.checkAssert(
+                #     tdSql.getData(0, 2) + tdSql.getData(1, 2) == expectmsgcnt
+                # )
                 tdSql.checkAssert(
-                    tdSql.getData(0, 3) + tdSql.getData(1, 3)
-                    == totalMsgOfOneTopic + totalMsgOfCtb
+                    tdSql.getData(0, 3) + tdSql.getData(1, 3) == totalMsgOfCtb
                 )
                 tdSql.execute(f"drop database {cdbName}")
                 break
@@ -227,7 +247,7 @@ class TestTmpSnapshot1:
         tdSql.execute(f"create database {cdbName} vgroups 1")
         tdSql.execute(f"use {cdbName}")
 
-        tdLog.info(f"== create consume info table and consume result table for ntb")
+        tdLog.info(f"== create consume info table and consume result table")
         tdSql.execute(
             f"create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)"
         )
@@ -242,19 +262,16 @@ class TestTmpSnapshot1:
 
         tdLog.info(f"================ test consume from ntb")
         tdLog.info(
-            f"== overlap toipcs: topic_ntb_column + topic_ntb_all, topic_ntb_function + topic_ntb_all"
+            f"== multi toipcs: topic_ntb_column + topic_ntb_all + topic_ntb_function"
         )
-        topicList = "'topic_ntb_column,topic_ntb_all'"
+        topicList = "'topic_ntb_column,topic_ntb_all,topic_ntb_function'"
 
         consumerId = 0
-        totalMsgOfOneTopic = rowsPerCtb
-        totalMsgOfNtb = totalMsgOfOneTopic * topicNum
-        expectmsgcnt = 1000000
+        totalMsgOfNtb = rowsPerCtb * topicNum
+        expectmsgcnt = topicNum
         tdSql.execute(
             f"insert into consumeinfo values (now , {consumerId} , {topicList} , {keyList} , {totalMsgOfNtb} , {ifcheckdata} , {ifmanualcommit} )"
         )
-
-        topicList = "'topic_ntb_function,topic_ntb_all'"
         consumerId = 1
         tdSql.execute(
             f"insert into consumeinfo values (now+1s , {consumerId} , {topicList} , {keyList} , {totalMsgOfNtb} , {ifcheckdata} , {ifmanualcommit} )"
@@ -262,11 +279,10 @@ class TestTmpSnapshot1:
 
         tdLog.info(f"== start consumer to pull msgs from ntb")
         tdLog.info(
-            f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start -e 1"
+            f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
         )
-
         os.system(
-            f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start -e 1"
+            f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
         )
 
         tdLog.info(f"== check consume result from ntb")
@@ -276,24 +292,23 @@ class TestTmpSnapshot1:
 
             if tdSql.getRows() == 2:
                 tdSql.checkAssert(tdSql.getData(0, 1) + tdSql.getData(1, 1) == 1)
+                # tdSql.checkAssert(
+                #     tdSql.getData(0, 2) + tdSql.getData(1, 2) == expectmsgcnt
+                # )
                 tdSql.checkAssert(
-                    tdSql.getData(0, 3) + tdSql.getData(1, 3)
-                    == totalMsgOfOneTopic + totalMsgOfNtb
+                    tdSql.getData(0, 3) + tdSql.getData(1, 3) == totalMsgOfNtb
                 )
                 tdSql.execute(f"drop database {cdbName}")
                 break
             time.sleep(1)
 
-        tdSql.query(f"select * from performance_schema.perf_consumers")
-        tdSql.checkRows(0)
+        os.system(f"cases/40-DataSubscription/sh/consume.sh -s stop -x SIGINT")
 
-        os.system(f"cases/12-DataSubscription/sh/consume.sh -s stop -x SIGINT")
-
-    def prepareBasicEnv_1vgrp(self):
+    def prepareBasicEnv_4vgrp(self):
 
         # ---- global parameters start ----#
         dbName = "db"
-        vgroups = 1
+        vgroups = 4
         stbPrefix = "stb"
         ctbPrefix = "ctb"
         ntbPrefix = "ntb"
@@ -304,14 +319,12 @@ class TestTmpSnapshot1:
         tstart = 1640966400000  # 2022-01-01 00:00:"00+000"
         # ---- global parameters end ----#
 
-        tdLog.info(f"create database {dbName} vgroups {vgroups}")
+        tdLog.info(f"== create database {dbName} vgroups {vgroups}")
         tdSql.execute(f"create database {dbName} vgroups {vgroups}")
-
-        # wait database ready
         clusterComCheck.checkDbReady(dbName)
         tdSql.execute(f"use {dbName}")
 
-        tdLog.info(f"create consume info table and consume result table")
+        tdLog.info(f"== create consume info table and consume result table")
         tdSql.execute(
             f"create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)"
         )
@@ -322,20 +335,18 @@ class TestTmpSnapshot1:
         tdSql.query(f"show tables")
         tdSql.checkRows(2)
 
-        tdLog.info(f"create super table")
+        tdLog.info(f"== create super table")
         tdSql.execute(
             f"create table {stbPrefix} (ts timestamp, c1 int, c2 float, c3 binary(16)) tags (t1 int)"
         )
         tdSql.query(f"show stables")
         tdSql.checkRows(1)
 
-        tdLog.info(f"create child table, normal table and insert data")
+        tdLog.info(f"== create child table, normal table and insert data")
         i = 0
-
         while i < ctbNum:
             ctb = ctbPrefix + str(i)
             ntb = ntbPrefix + str(i)
-
             tdSql.execute(f"create table {ctb} using {stbPrefix} tags( {i} )")
             tdSql.execute(
                 f"create table {ntb} (ts timestamp, c1 int, c2 float, c3 binary(16))"
@@ -344,6 +355,7 @@ class TestTmpSnapshot1:
             x = 0
             while x < rowsPerCtb:
                 binary = "'binary-" + str(i) + "'"
+
                 tdSql.execute(
                     f"insert into {ctb} values ({tstart} , {i} , {x} , {binary} )"
                 )

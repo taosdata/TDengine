@@ -24,7 +24,7 @@ class TestMqttCases:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_mqtt_qos(self):
-        """ Mqtt qos testing
+        """MQTT: QOS test
 
         mqtt qos {0, 1, 2} testing
 

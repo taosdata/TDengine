@@ -9,14 +9,15 @@ class TestTmpTopic:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_tmq_topic(self):
-        """Tmq Test
+        """Tmq: topic mgmt
 
-        1. -
+        1. Create, delete, show topics
+        2. Create topics of database type, super table type, and batch query type
 
         Catalog:
             - Subscribe
 
-        Since: v3.0.0.0
+        Since: v3.3.0.0
 
         Labels: common,ci
 
