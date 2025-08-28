@@ -251,7 +251,7 @@ TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可�
 > **注意**：这里的配置文件指的是调用 JDBC Connector 的应用程序所在机器上的配置文件，Linux OS 上默认值 /etc/taos/taos.cfg，Windows OS 上默认值 C://TDengine/cfg/taos.cfg。
 
 **WebSocket 连接**  
-使用 JDBC WebSocket 连接，不需要依赖客户端驱动。这是一个示例： `jdbc:TAOS-WS://taosdemo.com:6030/power?user=root&password=taosdata&varcharAsString=true`。与 JDBC 原生连接相比，仅需要：
+使用 JDBC WebSocket 连接，不需要依赖客户端驱动。这是一个示例： `jdbc:TAOS-WS://taosdemo.com:6041/power?user=root&password=taosdata&varcharAsString=true`。与 JDBC 原生连接相比，仅需要：
 
 1. driverClass 指定为“com.taosdata.jdbc.ws.WebSocketDriver”；
 2. jdbcUrl 以“jdbc:TAOS-WS://”开头；
