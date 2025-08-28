@@ -1,5 +1,5 @@
 ---
-title: TDengine IDMP 介绍
+title: TDengine IDMP 简介
 sidebar_label: TDengine IDMP
 slug: /
 ---
