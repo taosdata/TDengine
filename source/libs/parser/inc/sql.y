@@ -252,6 +252,9 @@ cmd ::= SSMIGRATE DATABASE db_name(A).                                          
 cmd ::= COMPACT DATABASE db_name(A) start_opt(B) end_opt(C) meta_only(D).                      { pCxt->pRootNode = createCompactStmt(pCxt, &A, B, C, D); }
 cmd ::= COMPACT db_name_cond_opt(A) VGROUPS IN NK_LP integer_list(B) NK_RP start_opt(C) end_opt(D) meta_only(E).   { pCxt->pRootNode = createCompactVgroupsStmt(pCxt, A, B, C, D, E); }
 
+cmd ::= SCAN DATABASE db_name(A) start_opt(B) end_opt(C).                                          { pCxt->pRootNode = createScanStmt(pCxt, &A, B, C); }
+cmd ::= SCAN db_name_cond_opt(A) VGROUPS IN NK_LP integer_list(B) NK_RP start_opt(C) end_opt(D).   { pCxt->pRootNode = createScanVgroupsStmt(pCxt, A, B, C, D); }
+
 %type meta_only                                                                  { bool }
 %destructor meta_only                                                            { }
 meta_only(A) ::= .                                                                { A = false; }
@@ -1038,6 +1041,7 @@ cmd ::= KILL CONNECTION NK_INTEGER(A).                                          
 cmd ::= KILL QUERY NK_STRING(A).                                                  { pCxt->pRootNode = createKillQueryStmt(pCxt, &A); }
 cmd ::= KILL TRANSACTION NK_INTEGER(A).                                           { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_TRANSACTION_STMT, &A); }
 cmd ::= KILL COMPACT NK_INTEGER(A).                                               { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_COMPACT_STMT, &A); }
+cmd ::= KILL SCAN NK_INTEGER(A).                                                  { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_SCAN_STMT, &A); }
 
 /************************************************ merge/redistribute/ vgroup ******************************************/
 cmd ::= BALANCE VGROUP.                                                           { pCxt->pRootNode = createBalanceVgroupStmt(pCxt); }

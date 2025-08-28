@@ -386,6 +386,8 @@ typedef enum ENodeType {
   QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT,
   QUERY_NODE_CREATE_MOUNT_STMT,
   QUERY_NODE_DROP_MOUNT_STMT,
+  QUERY_NODE_SCAN_DATABASE_STMT,
+  QUERY_NODE_SCAN_VGROUPS_STMT,
 
   // placeholder for [154, 180]
   QUERY_NODE_SHOW_CREATE_VIEW_STMT = 181,
@@ -5337,6 +5339,36 @@ int32_t tFreeSMountVnodeReq(SMountVnodeReq* pReq);
 #endif  // USE_MOUNT
 
 #pragma pack(pop)
+
+typedef struct {
+  char        db[TSDB_DB_FNAME_LEN];
+  STimeWindow timeRange;
+  int32_t     sqlLen;
+  char*       sql;
+  SArray*     vgroupIds;
+} SScanDbReq;
+
+int32_t tSerializeSScanDbReq(void* buf, int32_t bufLen, SScanDbReq* pReq);
+int32_t tDeserializeSScanDbReq(void* buf, int32_t bufLen, SScanDbReq* pReq);
+void    tFreeSScanDbReq(SScanDbReq* pReq);
+
+typedef struct {
+  int32_t scanId;
+  int8_t  bAccepted;
+} SScanDbRsp;
+
+int32_t tSerializeSScanDbRsp(void* buf, int32_t bufLen, SScanDbRsp* pRsp);
+int32_t tDeserializeSScanDbRsp(void* buf, int32_t bufLen, SScanDbRsp* pRsp);
+
+typedef struct {
+  int32_t scanId;
+  int32_t sqlLen;
+  char*   sql;
+} SKillScanReq;
+
+int32_t tSerializeSKillScanReq(void* buf, int32_t bufLen, SKillScanReq* pReq);
+int32_t tDeserializeSKillScanReq(void* buf, int32_t bufLen, SKillScanReq* pReq);
+void    tFreeSKillScanReq(SKillScanReq* pReq);
 
 #ifdef __cplusplus
 }

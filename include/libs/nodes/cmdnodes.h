@@ -184,6 +184,13 @@ typedef struct SCompactDatabaseStmt {
   bool      metaOnly;
 } SCompactDatabaseStmt;
 
+typedef struct SScanDatabaseStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  SNode*    pStart;
+  SNode*    pEnd;
+} SScanDatabaseStmt;
+
 typedef struct SCreateMountStmt {
   ENodeType type;
   int32_t   dnodeId;
@@ -206,6 +213,14 @@ typedef struct SCompactVgroupsStmt {
   SNode*     pEnd;
   bool       metaOnly;
 } SCompactVgroupsStmt;
+
+typedef struct SScanVgroupsStmt {
+  ENodeType  type;
+  SNode*     pDbName;
+  SNodeList* vgidList;
+  SNode*     pStart;
+  SNode*     pEnd;
+} SScanVgroupsStmt;
 
 typedef struct STableOptions {
   ENodeType  type;

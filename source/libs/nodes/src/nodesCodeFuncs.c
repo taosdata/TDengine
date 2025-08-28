@@ -8563,6 +8563,26 @@ static int32_t jsonToCompactVgroupsStmt(const SJson* pJson, void* pObj) {
   return 0;
 }
 
+static int32_t scanDatabaseStmtToJson(const void* pObj, SJson* pJson) {
+  const SScanDatabaseStmt* pNode = (const SScanDatabaseStmt*)pObj;
+  return tjsonAddStringToObject(pJson, jkCompactDatabaseStmtDbName, pNode->dbName);
+}
+
+static int32_t jsonToScanDatabaseStmt(const SJson* pJson, void* pObj) {
+  SScanDatabaseStmt* pNode = (SScanDatabaseStmt*)pObj;
+  return tjsonGetStringValue(pJson, jkCompactDatabaseStmtDbName, pNode->dbName);
+}
+
+static int32_t scanVgroupsStmtToJson(const void* pObj, SJson* pJson) {
+  const SScanVgroupsStmt* pNode = (const SScanVgroupsStmt*)pObj;
+  return 0;
+}
+
+static int32_t jsonToScanVgroupsStmt(const SJson* pJson, void* pObj) {
+  SScanVgroupsStmt* pNode = (SScanVgroupsStmt*)pObj;
+  return 0;
+}
+
 static const char* jkCreateStreamStmtStreamDbName = "StreamDbName";
 static const char* jkCreateStreamStmtStreamName = "StreamName";
 static const char* jkCreateStreamStmtTargetDbName = "TargetDbName";
@@ -9511,8 +9531,12 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return describeStmtToJson(pObj, pJson);
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       return compactDatabaseStmtToJson(pObj, pJson);
+    case QUERY_NODE_SCAN_DATABASE_STMT:
+      return scanDatabaseStmtToJson(pObj, pJson);
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       return compactVgroupsStmtToJson(pObj, pJson);
+    case QUERY_NODE_SCAN_VGROUPS_STMT:
+      return scanVgroupsStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_STREAM_STMT:
       return createStreamStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_STREAM_STMT:
@@ -9910,8 +9934,12 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToDescribeStmt(pJson, pObj);
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       return jsonToCompactDatabaseStmt(pJson, pObj);
+    case QUERY_NODE_SCAN_DATABASE_STMT:
+      return jsonToScanDatabaseStmt(pJson, pObj);
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       return jsonToCompactVgroupsStmt(pJson, pObj);
+    case QUERY_NODE_SCAN_VGROUPS_STMT:
+      return jsonToScanVgroupsStmt(pJson, pObj);
     case QUERY_NODE_CREATE_STREAM_STMT:
       return jsonToCreateStreamStmt(pJson, pObj);
     case QUERY_NODE_DROP_STREAM_STMT:

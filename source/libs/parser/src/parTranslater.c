@@ -13083,6 +13083,54 @@ static int32_t translateCompactVgroups(STranslateContext* pCxt, SCompactVgroupsS
   return code;
 }
 
+static int32_t translateScanDb(STranslateContext* pCxt, SScanDatabaseStmt* pStmt) {
+  SName   name;
+  int32_t code = TSDB_CODE_SUCCESS;
+  // SScanDbReq scanReq = {
+  //     .metaOnly = pStmt->metaOnly,
+  // };
+  // code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
+  // if (TSDB_CODE_SUCCESS != code) return code;
+
+  // (void)tNameGetFullDbName(&name, compactReq.db);
+  // code = translateTimeRange(pCxt, pStmt->dbName, pStmt->pStart, pStmt->pEnd, &compactReq.timeRange);
+  // if (TSDB_CODE_SUCCESS == code) {
+  //   code = buildCmdMsg(pCxt, TDMT_MND_COMPACT_DB, (FSerializeFunc)tSerializeSCompactDbReq, &compactReq);
+  // }
+  // tFreeSCompactDbReq(&compactReq);
+  return code;
+}
+
+static int32_t translateScanVgroups(STranslateContext* pCxt, SScanVgroupsStmt* pStmt) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SName   name;
+  // SCompactDbReq req = {
+  //     .metaOnly = pStmt->metaOnly,
+  // };
+
+  // code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal,
+  //                       strlen(((SValueNode*)pStmt->pDbName)->literal));
+  // if (TSDB_CODE_SUCCESS == code) {
+  //   (void)tNameGetFullDbName(&name, req.db);
+  // }
+
+  // if (TSDB_CODE_SUCCESS == code) {
+  //   code = translateTimeRange(pCxt, ((SValueNode*)pStmt->pDbName)->literal, pStmt->pStart, pStmt->pEnd,
+  //   &req.timeRange);
+  // }
+
+  // if (TSDB_CODE_SUCCESS == code) {
+  //   code = translateVgroupList(pCxt, pStmt->vgidList, &req.vgroupIds);
+  // }
+
+  // if (TSDB_CODE_SUCCESS == code) {
+  //   code = buildCmdMsg(pCxt, TDMT_MND_COMPACT_DB, (FSerializeFunc)tSerializeSCompactDbReq, &req);
+  // }
+
+  // tFreeSCompactDbReq(&req);
+  return code;
+}
+
 static int32_t translateKillConnection(STranslateContext* pCxt, SKillStmt* pStmt) {
   SKillConnReq killReq = {0};
   killReq.connId = pStmt->targetId;
@@ -16216,6 +16264,12 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       code = translateCompactVgroups(pCxt, (SCompactVgroupsStmt*)pNode);
+      break;
+    case QUERY_NODE_SCAN_DATABASE_STMT:
+      code = translateScanDb(pCxt, (SScanDatabaseStmt*)pNode);
+      break;
+    case QUERY_NODE_SCAN_VGROUPS_STMT:
+      code = translateScanVgroups(pCxt, (SScanVgroupsStmt*)pNode);
       break;
     case QUERY_NODE_ALTER_CLUSTER_STMT:
       code = translateAlterCluster(pCxt, (SAlterClusterStmt*)pNode);
