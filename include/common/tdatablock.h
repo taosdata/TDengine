@@ -137,7 +137,9 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
 
 static FORCE_INLINE void colDataSetNULL(SColumnInfoData* pColumnInfoData, uint32_t rowIndex) {
   // There is a placehold for each NULL value of binary or nchar type.
-  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_NULL) {
+    // do nothing
+  } else if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     colDataSetNull_var(pColumnInfoData, rowIndex);  // it is a null value of VAR type.
   } else {
     colDataSetNull_f_s(pColumnInfoData, rowIndex);

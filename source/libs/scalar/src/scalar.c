@@ -50,11 +50,13 @@ int32_t sclCreateColumnInfoData(SDataType *pType, int32_t numOfRows, SScalarPara
   pColumnData->info.scale = pType->scale;
   pColumnData->info.precision = pType->precision;
 
-  int32_t code = colInfoDataEnsureCapacity(pColumnData, numOfRows, true);
-  if (code != TSDB_CODE_SUCCESS) {
-    colDataDestroy(pColumnData);
-    taosMemoryFree(pColumnData);
-    return terrno;
+  if (pColumnData->info.type != TSDB_DATA_TYPE_NULL) {
+    int32_t code = colInfoDataEnsureCapacity(pColumnData, numOfRows, true);
+    if (code != TSDB_CODE_SUCCESS) {
+      colDataDestroy(pColumnData);
+      taosMemoryFree(pColumnData);
+      return code;
+    }
   }
 
   pParam->columnData = pColumnData;

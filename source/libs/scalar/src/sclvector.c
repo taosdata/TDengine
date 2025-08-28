@@ -34,6 +34,7 @@
 #define RIGHT_COL ((pRightCol->info.type == TSDB_DATA_TYPE_JSON ? (void *)pRightCol : pRightCol->pData))
 
 #define IS_NULL                                                                              \
+  (pLeft->columnData->info.type == TSDB_DATA_TYPE_NULL || pRight->columnData->info.type == TSDB_DATA_TYPE_NULL) || \
   colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, i) ||         \
       IS_JSON_NULL(pLeft->columnData->info.type, colDataGetVarData(pLeft->columnData, i)) || \
       IS_JSON_NULL(pRight->columnData->info.type, colDataGetVarData(pRight->columnData, i))
