@@ -12,8 +12,8 @@ import PkgListV3 from "/components/PkgListV3";
 
 | 镜像名称                          | 包含模型               |
 |-----------------------------------|-----------------------|
-| `tdengine/tdengine-tdgpt`         | 涛思时序数据基础模型（TDtsfm v1.0）       |
-| `tdengine/tdengine-tdgpt-full`    | 涛思时序数据基础模型（TDtsfm v1.0）+ Time-MoE 时序数据基础模型   |
+| `tdengine/tdgpt`         | 涛思时序数据基础模型（TDtsfm v1.0）       |
+| `tdengine/tdgpt-full`    | 涛思时序数据基础模型（TDtsfm v1.0）+ Time-MoE 时序数据基础模型   |
 
 ### 快速启动指南
 
@@ -24,19 +24,22 @@ import PkgListV3 from "/components/PkgListV3";
 拉取最新的 TDgpt 标准版容器镜像：
 
 ```shell
-docker pull tdengine/tdengine-tdgpt:latest
+docker pull tdengine/tdgpt:latest
 ```
 
 或者特定版本的容器镜像：
 
 ```shell
-docker pull tdengine/tdengine-tdgpt:3.3.6.0
+docker pull tdengine/tdgpt:3.3.7.0
 ```
 
 执行下面的命令启动容器：
 
 ```shell
-docker run -d -p 6090:6090 -p 5000:5000 tdengine/tdengine-tdgpt:3.3.6.0
+docker run -d \
+  -p 6035:6035 \
+  -p 6036:6036 \
+  tdengine/tdgpt:3.3.7.0
 ```
 
 #### 完整版镜像
@@ -44,22 +47,27 @@ docker run -d -p 6090:6090 -p 5000:5000 tdengine/tdengine-tdgpt:3.3.6.0
 拉取最新的 TDgpt 容器镜像：
 
 ```shell
-docker pull tdengine/tdengine-tdgpt-full:latest
+docker pull tdengine/tdgpt-full:latest
 ```
 
 或者指定版本的容器镜像：
 
 ```shell
-docker pull tdengine/tdengine-tdgpt-full:3.3.6.0
+docker pull tdengine/tdgpt-full:3.3.7.0
 ```
 
 执行下面的命令启动容器：
 
 ```shell
-docker run -d --name tdgpt -p 6090:6090 -p 5000:5000 -p 5001:5001 tdengine/tdengine-tdgpt-full:3.3.6.0
+docker run -d \
+  --name tdgpt \
+  -p 6035:6035 \
+  -p 6036:6036 \
+  -p 6037:6037 \
+  tdengine/tdgpt-full:3.3.7.0
 ```
 
-**注意**：TDgpt 服务端使用 6090 TCP 端口。5000 和 5001 端口分别是时序基础模型 TDtsfm 的服务端口和 Time-MoE 的服务端口；
+**注意**：TDgpt 服务端使用 6035 TCP 端口。6036 和 6037 端口分别是时序基础模型 TDtsfm 的服务端口和 Time-MoE 的服务端口；
 
 确定该容器已经启动并且在正常运行。
 
