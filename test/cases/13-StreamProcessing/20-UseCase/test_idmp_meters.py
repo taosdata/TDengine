@@ -227,8 +227,7 @@ class Test_IDMP_Meters:
             "CREATE STREAM `tdasset`.`ana_stream11_sub2` INTERVAL(10s, 4s) SLIDING(4s) FROM `tdasset`.`vt_em-11`                          STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) INTO `tdasset`.`result_stream11_sub2`                                        AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
             "CREATE STREAM `tdasset`.`ana_stream11_sub3` INTERVAL(5s,  1s) SLIDING(5s) FROM `tdasset`.`vt_em-11`                          STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) INTO `tdasset`.`result_stream11_sub3`                                        AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
             "CREATE STREAM `tdasset`.`ana_stream11_sub4` INTERVAL(5m)      SLIDING(5m) FROM `tdasset`.`vst_智能电表_1` PARTITION BY tbname STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) INTO `tdasset`.`result_stream11_sub4`                                        AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
-            "CREATE STREAM `tdasset`.`ana_stream11_sub5` INTERVAL(5m)      SLIDING(5s) FROM `tdasset`.`vst_智能电表_1` PARTITION BY tbname STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) INTO `tdasset`.`result_stream11_sub5` OUTPUT_SUBTABLE(CONCAT(tbname,'_out')) AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和`                            FROM %%trows",
-            "CREATE STREAM `tdasset`.`ana_stream11_sub6` INTERVAL(5m)      SLIDING(5s) FROM `tdasset`.`vst_智能电表_1` PARTITION BY tbname STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) INTO     `out`.`result_stream11_sub6` OUTPUT_SUBTABLE(tbname)                AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和`, %%tbname as c1, %%1 as c2 FROM %%trows",
+            "CREATE STREAM `tdasset`.`ana_stream11_sub5` INTERVAL(5m)      SLIDING(5s) FROM `tdasset`.`vst_智能电表_1` PARTITION BY tbname STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) INTO     `out`.`result_stream11_sub5` OUTPUT_SUBTABLE(CONCAT(tbname,'_out')) AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和`                            FROM %%trows",
         ]
 
         tdSql.executes(sqls)
@@ -851,6 +850,7 @@ class Test_IDMP_Meters:
         # drop em-11
         sql = "drop table asset01.`em-11`;"
         tdSql.execute(sql)
+        print(sql)
 
     #
     #  stream11 trigger 
@@ -914,7 +914,7 @@ class Test_IDMP_Meters:
             exp_sql = result_sql_sub2
         )
 
-        print("verify stream1 .................................. successfully.")
+        print("verify stream1 ................................. successfully.")
 
     #
     # verify stream2
@@ -931,7 +931,7 @@ class Test_IDMP_Meters:
             and tdSql.compareData(1, 1, 16)
         )
 
-        print("verify stream2 .................................. successfully.")
+        print("verify stream2 ................................. successfully.")
 
     #
     # verify stream3
@@ -995,7 +995,7 @@ class Test_IDMP_Meters:
             [1752574800000, 16,   30,    80,    100,   500,   1600]
         ]
         tdSql.checkDataMem(result_sql, data)
-        print("verify stream3_sub1 .............................. successfully.")
+        print("verify stream3_sub1 ............................ successfully.")
 
     def verify_stream3_sub2(self):
         # check
@@ -1012,7 +1012,7 @@ class Test_IDMP_Meters:
             [1752575160000, 10,   70,    80,    100,   500,   1000]
         ]
         tdSql.checkDataMem(result_sql, data)
-        print("verify stream3_sub2 .............................. successfully.")
+        print("verify stream3_sub2 ............................ successfully.")
 
     def verify_stream3_sub3(self):
         # check
@@ -1028,7 +1028,7 @@ class Test_IDMP_Meters:
             [1752574200000, 10,   40,    60,    200,   350,   1000]
         ]
         tdSql.checkDataMem(result_sql, data)
-        print("verify stream3_sub3 .............................. successfully.")
+        print("verify stream3_sub3 ............................ successfully.")
 
     def verify_stream3_sub4(self):
         # check
@@ -1045,7 +1045,7 @@ class Test_IDMP_Meters:
             [1752575160000, 10,   70,    80,    100,   500,   1000]
         ]
         tdSql.checkDataMem(result_sql, data)
-        print("verify stream3_sub4 .............................. successfully.")
+        print("verify stream3_sub4 ............................ successfully.")
 
     def verify_stream3_sub5(self):
         # same with sub1
@@ -1110,7 +1110,7 @@ class Test_IDMP_Meters:
                 tdSql.checkData(j, 2, 400)
                 tdSql.checkData(j, 3, 2000)
                 ts += 10 * 60 * 1000 # 10 minutes   
-        print("verify stream4_sub2 ~ 6 ....................... successfully.")
+        print("verify stream4_sub2 ~ 6 ........................ successfully.")
 
         # verify stream4_sub7
         self.verify_stream4_sub7()
@@ -1165,7 +1165,7 @@ class Test_IDMP_Meters:
             tdSql.checkData(i, 2, 400)
             tdSql.checkData(i, 3, (i + 1) * 200)
 
-        print("verify stream4_sub8 ............................. successfully.")
+        print("verify stream4_sub8 ............................ successfully.")
 
     #
     # verify stream4 again
@@ -1199,7 +1199,7 @@ class Test_IDMP_Meters:
 
                 ts += 10 * 60 * 1000 # 10 minutes
 
-        print("verify stream4 again ............................ successfully.")
+        print("verify stream4 again ........................... successfully.")
 
     
     #
@@ -1355,7 +1355,7 @@ class Test_IDMP_Meters:
         ]
         tdSql.checkDataMem(result_sql, data)
 
-        print("verify stream6_sub2 .............................. successfully.")
+        print("verify stream6_sub2 ............................ successfully.")
 
     def verify_stream6_sub3(self, sql = None):
         # check
@@ -1381,7 +1381,7 @@ class Test_IDMP_Meters:
         ]
         tdSql.checkDataMem(result_sql, data)
 
-        print("verify stream6_sub3 .............................. successfully.")
+        print("verify stream6_sub3 ............................ successfully.")
 
     def verify_stream6_sub4(self):
         # check super table
@@ -1405,7 +1405,7 @@ class Test_IDMP_Meters:
         ]
         tdSql.checkDataMem(result_sql, data)
 
-        print("verify stream6_sub5 .............................. successfully.")
+        print("verify stream6_sub5 ............................ successfully.")
 
     #
     # verify stream6 again
@@ -1461,7 +1461,7 @@ class Test_IDMP_Meters:
         ]
         tdSql.checkDataMem(result_sql, data)
 
-        print("verify stream7_sub1 .............................. successfully.")
+        print("verify stream7_sub1 ............................ successfully.")
 
     def verify_stream7_sub2(self):
         # check
@@ -1479,7 +1479,7 @@ class Test_IDMP_Meters:
         ]
         tdSql.checkDataMem(result_sql, data)
 
-        print("verify stream7_sub2 .............................. successfully.")
+        print("verify stream7_sub2 ............................ successfully.")
 
     def verify_stream7_sub3(self):
         # check
@@ -1496,7 +1496,7 @@ class Test_IDMP_Meters:
         ]
         tdSql.checkDataMem(result_sql, data)
 
-        print("verify stream7_sub3 .............................. successfully.")
+        print("verify stream7_sub3 ............................ successfully.")
 
 
     #
@@ -1549,7 +1549,7 @@ class Test_IDMP_Meters:
             and tdSql.compareData(0, 3, 1004)
         )
 
-        print("verify stream7_again ............................. successfully.")
+        print("verify stream7_again ........................... successfully.")
 
 
     #
@@ -1608,7 +1608,7 @@ class Test_IDMP_Meters:
         )
         '''
 
-        print("verify stream8_sub1 ............................. successfully.")
+        print("verify stream8_sub1 ............................ successfully.")
 
     # verify stream8_sub2
     def verify_stream8_sub2(self):
@@ -1628,7 +1628,7 @@ class Test_IDMP_Meters:
         for i in range(tdSql.getRows()):
             tdSql.checkData(i, 0, 1000)
 
-        print("verify stream8_sub2 ............................. successfully.")
+        print("verify stream8_sub2 ............................ successfully.")
 
     # verify stream8_sub3
     def verify_stream8_sub3(self):
@@ -1638,7 +1638,7 @@ class Test_IDMP_Meters:
             and tdSql.compareData(0, 0, 20)
         )
 
-        print("verify stream8_sub3 ............................. successfully.")
+        print("verify stream8_sub3 ............................ successfully.")
 
     # verify stream8_sub4
     def verify_stream8_sub4(self):
@@ -1654,7 +1654,7 @@ class Test_IDMP_Meters:
             exp_sql = "select avg(`平均电压`), sum(`功率和`) from result_stream8_sub5"
         )
 
-        print("verify stream8_sub4-5 ........................... successfully.")
+        print("verify stream8_sub4-5 .......................... successfully.")
 
     def verify_stream8_sub6(self):
         # have log
@@ -1664,7 +1664,7 @@ class Test_IDMP_Meters:
         # result table expect not create
         tdSql.error(f"select * from result_{key}")
 
-        print("verify stream8_sub6 ............................. successfully.")
+        print("verify stream8_sub6 ............................ successfully.")
 
     #
     # verify stream9
@@ -1675,7 +1675,7 @@ class Test_IDMP_Meters:
             sql     = f"select * from tdasset.`result_stream9` ", 
             exp_sql = f"select ts,1,voltage,power from asset01.`em-9` where ts >= 1752574200000;"
         )
-        print("verify stream9 .................................. successfully.")
+        print("verify stream9 ................................. successfully.")
 
 
     #
@@ -1711,7 +1711,7 @@ class Test_IDMP_Meters:
         for i in range(tdSql.getRows()):
             tdSql.checkData(i, 0, 10000)
 
-        print("verify stream10 ................................. successfully.")
+        print("verify stream10 ................................ successfully.")
 
         # sub
         self.verify_stream10_sub1()
@@ -1739,7 +1739,7 @@ class Test_IDMP_Meters:
             and tdSql.compareData(1, 3, 10)
             and tdSql.compareData(2, 3, 10)
         )
-        print("verify stream10_sub1 ............................ successfully.")
+        print("verify stream10_sub1 ........................... successfully.")
 
     def verify_stream10_sub2(self):
         # check
@@ -1754,7 +1754,7 @@ class Test_IDMP_Meters:
             and tdSql.compareData(2, 1, 10)
         )
 
-        print("verify stream10_sub2 ............................ successfully.")
+        print("verify stream10_sub2 ........................... successfully.")
 
     def verify_stream10_sub3(self):
         # check
@@ -1767,7 +1767,7 @@ class Test_IDMP_Meters:
             and tdSql.compareData(0, 1, 1)
             and tdSql.compareData(1, 1, 10)
         )
-        print("verify stream10_sub2 ............................ successfully.")
+        print("verify stream10_sub2 ........................... successfully.")
 
     def verify_stream10_sub4(self):
         # check
@@ -1780,7 +1780,7 @@ class Test_IDMP_Meters:
             and tdSql.compareData(0, 2, 100)           # avg
             and tdSql.compareData(0, 3, 2000)          # sum
         )
-        print("verify stream10_sub4 ............................ successfully.")
+        print("verify stream10_sub4 ........................... successfully.")
 
     def verify_stream10_sub5(self):
         # check
@@ -1803,7 +1803,7 @@ class Test_IDMP_Meters:
             and tdSql.compareData(2, 2, 200)           # avg
             and tdSql.compareData(2, 3, 1800)          # sum
         )
-        print("verify stream10_sub5 ............................ successfully.")     
+        print("verify stream10_sub5 ........................... successfully.")     
 
     def verify_stream10_sub6(self):
         # check
@@ -1821,7 +1821,7 @@ class Test_IDMP_Meters:
             [1752574221000, 1]
         ]
         tdSql.checkDataMem(result_sql, data)
-        print("verify stream10_sub6 ............................ successfully.")
+        print("verify stream10_sub6 ........................... successfully.")
 
     def verify_stream10_sub7(self):
         # check
@@ -1830,7 +1830,7 @@ class Test_IDMP_Meters:
             func = lambda: tdSql.getRows() == 2
         )
 
-        print("verify stream10_sub7 ............................ successfully.")
+        print("verify stream10_sub7 ........................... successfully.")
 
     def verify_stream10_sub8(self):
         # check
@@ -1848,7 +1848,7 @@ class Test_IDMP_Meters:
             sql2, 
         )
 
-        print("verify stream10_sub8 ............................ successfully.")
+        print("verify stream10_sub8 ........................... successfully.")
 
     #
     # verify stream10 again
@@ -1884,15 +1884,14 @@ class Test_IDMP_Meters:
             [1752574208000, 1752574218000, 10000, 3,  3,  100, 600]
         ]
         tdSql.checkDataMem(result_sql, data)
-        print("verify stream11 ................................. successfully.")
+        print("verify stream11 ................................ successfully.")
 
         # sub
         self.verify_stream11_sub1()
         self.verify_stream11_sub2()
         self.verify_stream11_sub3()
-        # ***** bug13 *****
         self.verify_stream11_sub4()
-        
+        self.verify_stream11_sub5()
 
     def verify_stream11_sub1(self):
         # check
@@ -1913,7 +1912,7 @@ class Test_IDMP_Meters:
         ]
         tdSql.checkDataMem(result_sql, data)
 
-        print("verify stream11_sub1 ............................ successfully.")
+        print("verify stream11_sub1 ........................... successfully.")
 
     def verify_stream11_sub2(self):
         # check
@@ -1922,7 +1921,7 @@ class Test_IDMP_Meters:
             exp_sql = "select * from tdasset.`result_stream11` ", 
         )
 
-        print("verify stream11_sub2 ............................ successfully.")
+        print("verify stream11_sub2 ........................... successfully.")
 
     def verify_stream11_sub3(self):
         # check
@@ -1941,7 +1940,7 @@ class Test_IDMP_Meters:
         ]
         tdSql.checkDataMem(result_sql, data)
 
-        print("verify stream11_sub3 ............................ successfully.")
+        print("verify stream11_sub3 ........................... successfully.")
 
     def verify_stream11_sub4(self):
         # check
@@ -1958,7 +1957,16 @@ class Test_IDMP_Meters:
         ]
         tdSql.checkDataMem(result_sql, data)
 
-        print("verify stream11_sub4 ............................ successfully.")
+        print("verify stream11_sub4 ........................... successfully.")
+
+    def verify_stream11_sub5(self):
+        # check
+        result_sql = "show out.tables like 'vt_em-%_out' "
+        tdSql.checkResultsByFunc(
+            sql  = result_sql, 
+            func = lambda: tdSql.getRows() == 11
+        )
+        print("verify stream11_sub5 ........................... successfully.")
 
 
 
