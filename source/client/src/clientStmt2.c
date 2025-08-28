@@ -2198,8 +2198,10 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
   __taos_async_fn_t fp = pStmt->options.asyncExecFn;
   pStmt->asyncExecCb = true;
 
-  pStmt->exec.affectedRows = taos_affected_rows(pStmt->exec.pRequest);
-  pStmt->affectedRows += pStmt->exec.affectedRows;
+  if (code == TSDB_CODE_SUCCESS) {
+    pStmt->exec.affectedRows = taos_affected_rows(res);
+    pStmt->affectedRows += pStmt->exec.affectedRows;
+  }
 
   fp(pStmt->options.userdata, res, code);
 
