@@ -263,7 +263,7 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
   SColumnInfoData* pResHighCol =
       (pSupp->resHighSlot != -1 ? taosArrayGet(pBlock->pDataBlock, pSupp->resHighSlot) : NULL);
 
-  SJson* pJson = taosAnalySendReqRetJson(pSupp->algoUrl, ANALYTICS_HTTP_TYPE_POST, pBuf, pSupp->timeout);
+  SJson* pJson = taosAnalySendReqRetJson(pSupp->algoUrl, ANALYTICS_HTTP_TYPE_POST, pBuf, pSupp->timeout, pId);
   if (pJson == NULL) {
     return terrno;
   }
@@ -949,17 +949,17 @@ _end:
   return code;
 }
 
-static int32_t forecastCreateBuf(SForecastSupp* pSupp) {
+static int32_t forecastCreateBuf(SForecastSupp* pSupp, const char* pId) {
   SAnalyticBuf* pBuf = &pSupp->analyBuf;
-  int64_t       ts = 0;  // taosGetTimestampMs();
+  int64_t       ts = taosGetTimestampNs();
   int32_t       index = 0;
 
   pBuf->bufType = ANALYTICS_BUF_TYPE_JSON_COL;
-  snprintf(pBuf->fileName, sizeof(pBuf->fileName), "%s/tdengine-forecast-%" PRId64, tsTempDir, ts);
+  snprintf(pBuf->fileName, sizeof(pBuf->fileName), "%s/tdengine-forecast-%p-%" PRId64, tsTempDir, pSupp, ts);
 
   int32_t numOfCols = taosArrayGetSize(pSupp->pCovariateSlotList) + 2;
 
-  int32_t code = tsosAnalyBufOpen(pBuf, numOfCols);
+  int32_t code = tsosAnalyBufOpen(pBuf, numOfCols, pId);
   if (code != 0) goto _OVER;
 
   code = taosAnalyBufWriteColMeta(pBuf, index++, TSDB_DATA_TYPE_TIMESTAMP, "ts");
@@ -1022,6 +1022,61 @@ _OVER:
   return code;
 }
 
+// static int32_t resetForecastOperState(SOperatorInfo* pOper) {
+//   int32_t code = 0, lino = 0;
+//   SForecastOperatorInfo* pInfo = pOper->info;
+//   const char*            pId = pOper->pTaskInfo->id.str;
+//   SForecastFuncPhysiNode* pForecastPhyNode = (SForecastFuncPhysiNode*)pOper->pPhyNode;
+//   SExecTaskInfo* pTaskInfo = pOper->pTaskInfo;
+
+//   pOper->status = OP_NOT_OPENED;
+
+//   blockDataCleanup(pInfo->pRes);
+
+//   taosArrayDestroy(pInfo->forecastSupp.pCovariateSlotList);
+//   pInfo->forecastSupp.pCovariateSlotList = NULL;
+
+//   taosAnalyBufDestroy(&pInfo->forecastSupp.analyBuf);
+
+//   cleanupExprSupp(&pOper->exprSupp);
+//   cleanupExprSupp(&pInfo->scalarSup);
+
+//   int32_t                 numOfExprs = 0;
+//   SExprInfo*              pExprInfo = NULL;
+
+//   TAOS_CHECK_EXIT(createExprInfo(pForecastPhyNode->pFuncs, NULL, &pExprInfo, &numOfExprs));
+
+//   TAOS_CHECK_EXIT(initExprSupp(&pOper->exprSupp, pExprInfo, numOfExprs, &pTaskInfo->storageAPI.functionStore));
+
+//   TAOS_CHECK_EXIT(filterInitFromNode((SNode*)pForecastPhyNode->node.pConditions, &pOper->exprSupp.pFilterInfo, 0,
+//                             pTaskInfo->pStreamRuntimeInfo));
+
+//   TAOS_CHECK_EXIT(forecastParseInput(&pInfo->forecastSupp, pForecastPhyNode->pFuncs, pId));
+
+//   TAOS_CHECK_EXIT(forecastParseOutput(&pInfo->forecastSupp, &pOper->exprSupp));
+
+//   TAOS_CHECK_EXIT(forecastParseOpt(&pInfo->forecastSupp, pId));
+//   TAOS_CHECK_EXIT(forecastCreateBuf(&pInfo->forecastSupp, pId));
+
+//   if (pForecastPhyNode->pExprs != NULL) {
+//     int32_t    num = 0;
+//     SExprInfo* pScalarExprInfo = NULL;
+//     TAOS_CHECK_EXIT(createExprInfo(pForecastPhyNode->pExprs, NULL, &pScalarExprInfo, &num));
+//     TAOS_CHECK_EXIT(initExprSupp(&pInfo->scalarSup, pScalarExprInfo, num, &pTaskInfo->storageAPI.functionStore));
+//   }
+
+//   initResultSizeInfo(&pOper->resultInfo, 4096);
+
+// _exit:
+
+//   if (code) {
+//     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+//   }
+
+//   return code;  
+// }
+
+
 int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
                                    SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
@@ -1070,7 +1125,7 @@ int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNo
   code = forecastParseOpt(pSupp, pId);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  code = forecastCreateBuf(pSupp);
+  code = forecastCreateBuf(pSupp, pId);
   QUERY_CHECK_CODE(code, lino, _error);
 
   initResultSizeInfo(&pOperator->resultInfo, 4096);
