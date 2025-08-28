@@ -49,6 +49,7 @@ self_path =  os.path.dirname(os.path.realpath(__file__))
 index_community = self_path.find("community")
 if index_community != -1:
     TD_project_path = self_path[:index_community]
+    community_path = os.path.join(TD_project_path, "community")
     index_TDinternal = TD_project_path.find("TDinternal")
     # Check if index_TDinternal is valid and set work_path accordingly
     if index_TDinternal != -1:
@@ -61,6 +62,8 @@ else:
         index_TDengine = TD_project_path.find("TDengine")
         if index_TDengine != -1:
             work_path = TD_project_path[:index_TDengine]
+            community_path = TD_project_path
+
 
 
 # log file path
@@ -72,10 +75,8 @@ os.makedirs(log_file_path, exist_ok=True)
 scan_log_file = f"{log_file_path}/scan_log.txt"
 logger.add(scan_log_file, rotation="10MB", retention="7 days", level="DEBUG")
 
-
 # scan result base path
 scan_result_base_path = f"{log_file_path}/clang_scan_result/"
-
 
 # the compile commands json file path
 compile_commands_path = f"{TD_project_path}/debug/compile_commands.json"
@@ -88,6 +89,20 @@ scan_dir_list = ["source", "include", "docs/examples", "src/plugins"]
 #
 # all the c files path will be checked
 all_file_path = []
+file_res_path = ""
+
+SCAN_DIRS = ["source", "include", "docs/examples", "src/plugins"]
+SCAN_SKIP_FILE_LIST = [
+    "tools/taosws-rs/target/release/build/openssl-sys-7811e597b848e397/out/openssl-build/install/include/openssl",
+    "/test/",
+    "contrib",
+    "debug",
+    "deps",
+    "source/libs/parser/src/sql.c",
+    "source/client/jni/windows/win32/bridge/AccessBridgeCalls.c",
+    "source/libs/decimal/",
+    "source/libs/azure",
+]
 
 class CommandExecutor:
     def __init__(self):
@@ -109,51 +124,73 @@ class CommandExecutor:
             raise Exception("Command execution failed: %s" % e)
 
 def scan_files_path(source_file_path):
-    # scan_dir_list = ["source", "include", "docs/examples", "tests/script/api", "src/plugins"]
-    scan_dir_list = ["source", "include", "docs/examples", "src/plugins"]
-    scan_skip_file_list = [
-        "tools/taosws-rs/target/release/build/openssl-sys-7811e597b848e397/out/openssl-build/install/include/openssl",
-        "/test/", "contrib",  "debug", "deps",
-        "source/libs/parser/src/sql.c",
-        "source/client/jni/windows/win32/bridge/AccessBridgeCalls.c",
-    ]
+    """Walk directory and append candidate files under SCAN_DIRS."""
     for root, dirs, files in os.walk(source_file_path):
-        if not any(item in root for item in scan_dir_list):
+        if not any(item in root for item in SCAN_DIRS):
             continue
         for file in files:
             file_path = os.path.join(root, file)
-            if (file_path.endswith(".c") or file_path.endswith(".h") or file_path.endswith(".cpp")) and all(item not in file_path for item in scan_skip_file_list):
+            if (file_path.endswith(".c") or file_path.endswith(".h") or file_path.endswith(".cpp")) \
+               and all(skip not in file_path for skip in SCAN_SKIP_FILE_LIST):
                 all_file_path.append(file_path)
     logger.info("Found %s files" % len(all_file_path))
 
+def add_candidate_file(file_name):
+    """Normalize a single file token from change list and append if valid.
+       - If absolute path provided: append it directly (if exists and not skipped).
+       - Otherwise, build path relative to TD_project_path/community or TD_project_path.
+    """
+    # skip empty
+    if not file_name:
+        return
+
+    # If absolute path given, use it directly (but validate extension/skip rules)
+    if os.path.isabs(file_name):
+        if not os.path.exists(file_name):
+            logger.warning(f"Changed file not found (abs): {file_name}")
+            return
+        if not (file_name.endswith(".c") or file_name.endswith(".h") or file_name.endswith(".cpp")):
+            return
+        if any(skip in file_name for skip in SCAN_SKIP_FILE_LIST):
+            return
+        all_file_path.append(file_name)
+        return
+
+    # only care tokens that contain interesting dirs
+    if not any(dir_name in file_name for dir_name in SCAN_DIRS):
+        return
+
+    # skip by pattern
+    if not (file_name.endswith(".c") or file_name.endswith(".h") or file_name.endswith(".cpp")):
+        return
+    if any(skip in file_name for skip in SCAN_SKIP_FILE_LIST):
+        return
+
+    # build path relative to repo layout
+    if index_community != -1:
+        if "enterprise" in file_name:
+            candidate = os.path.join(TD_project_path, file_name)
+        else:
+            candidate = os.path.join(community_path, file_name)
+    else:
+        candidate = os.path.join(community_path, file_name)
+
+    if not os.path.exists(candidate):
+        logger.warning(f"Changed file not found: {candidate}")
+        return
+
+    all_file_path.append(candidate)
+    
 def input_files(change_files):
-    # scan_dir_list = ["source", "include", "docs/examples", "tests/script/api", "src/plugins"]
-    scan_dir_list = ["source", "include", "docs/examples", "src/plugins"]
-    scan_skip_file_list = [
-        "tools/taosws-rs/target/release/build/openssl-sys-7811e597b848e397/out/openssl-build/install/include/openssl",
-        "/test/",
-        "contrib",
-        "debug",
-        "deps",
-        "source/libs/parser/src/sql.c",
-        "source/libs/azure",
-        "source/client/jni/windows/win32/bridge/AccessBridgeCalls.c",
-        "source/libs/decimal/",
-    ]
+    """Read change list and process each token by add_candidate_file"""
     with open(change_files, 'r') as file:
         for line in file:
             for file_name in line.strip().split():
-                if any(dir_name in file_name for dir_name in scan_dir_list):
-                    if (file_name.endswith(".c")  or file_name.endswith(".h")  or file_name.endswith(".cpp")) and all(dir_name not in file_name for dir_name in scan_skip_file_list):
-                        if "enterprise" in file_name:
-                            file_name = os.path.join(TD_project_path, file_name)
-                        else: 
-                            tdc_file_path = os.path.join(TD_project_path, "community/")
-                            file_name = os.path.join(tdc_file_path, file_name)                    
-                        all_file_path.append(file_name)
+                add_candidate_file(file_name)
     logger.info(f"all_file_path:{all_file_path}")
     logger.info("Found %s files" % len(all_file_path))
-file_res_path = ""
+
+
 
 def save_scan_res(res_base_path, file_path, out, err):
     rel_path = file_path.replace(f"{work_path}", "")
