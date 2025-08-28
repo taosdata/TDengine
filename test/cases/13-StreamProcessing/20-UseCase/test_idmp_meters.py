@@ -87,6 +87,9 @@ class Test_IDMP_Meters:
     # prepare data
     #
     def prepare(self):
+        # create database out
+        tdSql.execute("create database out")
+
         # name
         self.db = "assert01"
         self.vdb = "tdasset"
@@ -113,22 +116,22 @@ class Test_IDMP_Meters:
             "use tdasset;",
             "CREATE STABLE `vst_智能电表_1` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `电流` FLOAT ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `电压` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', `功率` FLOAT ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `相位` FLOAT ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium') TAGS (`_ignore_path` VARCHAR(20), `地址` VARCHAR(50), `单元` TINYINT, `楼层` TINYINT, `设备ID` VARCHAR(20), `path1` VARCHAR(512)) SMA(`ts`,`电流`) VIRTUAL 1;",
             "CREATE STABLE `vst_智能水表_1` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `流量` FLOAT ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `水压` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium') TAGS (`_ignore_path` VARCHAR(20), `地址` VARCHAR(50), `path1` VARCHAR(512)) SMA(`ts`,`流量`) VIRTUAL 1;",
-            "CREATE VTABLE `vt_em-1` (`电流` FROM `asset01`.`em-1`.`current`, `电压` FROM `asset01`.`em-1`.`voltage`, `功率` FROM `asset01`.`em-1`.`power`, `相位` FROM `asset01`.`em-1`.`phase`) USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.海淀.西三旗街道', 1, 2, 'em202502200010001', '公共事业.北京.海淀.西三旗街道');",
-            "CREATE VTABLE `vt_em-2` (`电流` FROM `asset01`.`em-2`.`current`, `电压` FROM `asset01`.`em-2`.`voltage`, `功率` FROM `asset01`.`em-2`.`power`, `相位` FROM `asset01`.`em-2`.`phase`) USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.海淀.西三旗街道', 1, 2, 'em202502200010002', '公共事业.北京.海淀.西三旗街道');",
-            "CREATE VTABLE `vt_em-3` (`电流` FROM `asset01`.`em-3`.`current`, `电压` FROM `asset01`.`em-3`.`voltage`, `功率` FROM `asset01`.`em-3`.`power`, `相位` FROM `asset01`.`em-3`.`phase`) USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.海淀.西三旗街道', 1, 2, 'em202502200010003', '公共事业.北京.海淀.西三旗街道');",
-            "CREATE VTABLE `vt_em-4` (`电流` FROM `asset01`.`em-4`.`current`, `电压` FROM `asset01`.`em-4`.`voltage`, `功率` FROM `asset01`.`em-4`.`power`, `相位` FROM `asset01`.`em-4`.`phase`) USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.海淀.西三旗街道', 2, 2, 'em202502200010004', '公共事业.北京.海淀.西三旗街道');",
-            "CREATE VTABLE `vt_em-5` (`电流` FROM `asset01`.`em-5`.`current`, `电压` FROM `asset01`.`em-5`.`voltage`, `功率` FROM `asset01`.`em-5`.`power`, `相位` FROM `asset01`.`em-5`.`phase`) USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.海淀.西三旗街道', 2, 2, 'em202502200010005', '公共事业.北京.海淀.西三旗街道');",
-            "CREATE VTABLE `vt_em-6` (`电流` FROM `asset01`.`em-6`.`current`, `电压` FROM `asset01`.`em-6`.`voltage`, `功率` FROM `asset01`.`em-6`.`power`, `相位` FROM `asset01`.`em-6`.`phase`) USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.朝阳.国贸街道', 1, 2, 'em20250220001006', '公共事业.北京.朝阳.国贸街道');",
-            "CREATE VTABLE `vt_em-7` (`电流` FROM `asset01`.`em-7`.`current`, `电压` FROM `asset01`.`em-7`.`voltage`, `功率` FROM `asset01`.`em-7`.`power`, `相位` FROM `asset01`.`em-7`.`phase`) USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.朝阳.国贸街道', 1, 2, 'em20250220001007', '公共事业.北京.朝阳.国贸街道');",
-            "CREATE VTABLE `vt_em-8` (`电流` FROM `asset01`.`em-8`.`current`, `电压` FROM `asset01`.`em-8`.`voltage`, `功率` FROM `asset01`.`em-8`.`power`, `相位` FROM `asset01`.`em-8`.`phase`) USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.朝阳.国贸街道', 1, 2, 'em20250220001008', '公共事业.北京.朝阳.国贸街道');",
-            "CREATE VTABLE `vt_em-9` (`电流` FROM `asset01`.`em-9`.`current`, `电压` FROM `asset01`.`em-9`.`voltage`, `功率` FROM `asset01`.`em-9`.`power`, `相位` FROM `asset01`.`em-9`.`phase`) USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.朝阳.国贸街道', 1, 2, 'em20250220001009', '公共事业.北京.朝阳.国贸街道');",
-            "CREATE VTABLE `vt_em-10` (`电流` FROM `asset01`.`em-10`.`current`, `电压` FROM `asset01`.`em-10`.`voltage`, `功率` FROM `asset01`.`em-10`.`power`, `相位` FROM `asset01`.`em-10`.`phase`) USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.朝阳.三元桥街道', 1, 2, 'em202502200010010', '公共事业.北京.朝阳.三元桥街道');",
-            "CREATE VTABLE `vt_em-11` (`电流` FROM `asset01`.`em-11`.`current`, `电压` FROM `asset01`.`em-11`.`voltage`, `功率` FROM `asset01`.`em-11`.`power`, `相位` FROM `asset01`.`em-11`.`phase`) USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.朝阳.望京街道', 11, 11, 'em202502200010011', '公共事业.北京.朝阳.望京街道');",
-            "CREATE VTABLE `vt_em-12` (`电流` FROM `asset01`.`em-12`.`current`, `电压` FROM `asset01`.`em-12`.`voltage`, `功率` FROM `asset01`.`em-12`.`power`, `相位` FROM `asset01`.`em-12`.`phase`) USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.朝阳.望京街道', 11, 12, 'em202502200010012', '公共事业.北京.朝阳.望京街道');",
-            "CREATE VTABLE `vt_em-13` (`电流` FROM `asset01`.`em-13`.`current`, `电压` FROM `asset01`.`em-13`.`voltage`, `功率` FROM `asset01`.`em-13`.`power`, `相位` FROM `asset01`.`em-13`.`phase`) USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.朝阳.望京街道', 11, 13, 'em202502200010013', '公共事业.北京.朝阳.望京街道');",
-            "CREATE VTABLE `vt_em-14` (`电流` FROM `asset01`.`em-14`.`current`, `电压` FROM `asset01`.`em-14`.`voltage`, `功率` FROM `asset01`.`em-14`.`power`, `相位` FROM `asset01`.`em-14`.`phase`) USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.朝阳.望京街道', 11, 14, 'em202502200010014', '公共事业.北京.朝阳.望京街道');",
-            "CREATE VTABLE `vt_em-15` (`电流` FROM `asset01`.`em-15`.`current`, `电压` FROM `asset01`.`em-15`.`voltage`, `功率` FROM `asset01`.`em-15`.`power`, `相位` FROM `asset01`.`em-15`.`phase`) USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.朝阳.望京街道', 1, 15, 'em202502200010015', '公共事业.北京.朝阳.望京街道');",
-            "CREATE VTABLE `vt_wm-1` (`流量` FROM `asset01`.`wm-1`.`rate`, `水压` FROM `asset01`.`wm-1`.`pressure`) USING `vst_智能水表_1` (`_ignore_path`, `地址`, `path1`) TAGS (NULL, '北京.朝阳.三元桥街道', '公共事业.北京.朝阳.三元桥街道');"
+            "CREATE VTABLE `vt_em-1`  (`电流` FROM `asset01`.`em-1`.`current`,  `电压` FROM `asset01`.`em-1`.`voltage`,  `功率` FROM `asset01`.`em-1`.`power`,  `相位` FROM `asset01`.`em-1`.`phase`)  USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.海淀.西三旗街道', 1, 2,   'em202502200010001', '公共事业.北京.海淀.西三旗街道');",
+            "CREATE VTABLE `vt_em-2`  (`电流` FROM `asset01`.`em-2`.`current`,  `电压` FROM `asset01`.`em-2`.`voltage`,  `功率` FROM `asset01`.`em-2`.`power`,  `相位` FROM `asset01`.`em-2`.`phase`)  USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.海淀.西三旗街道', 1, 2,   'em202502200010002', '公共事业.北京.海淀.西三旗街道');",
+            "CREATE VTABLE `vt_em-3`  (`电流` FROM `asset01`.`em-3`.`current`,  `电压` FROM `asset01`.`em-3`.`voltage`,  `功率` FROM `asset01`.`em-3`.`power`,  `相位` FROM `asset01`.`em-3`.`phase`)  USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.海淀.西三旗街道', 1, 2,   'em202502200010003', '公共事业.北京.海淀.西三旗街道');",
+            "CREATE VTABLE `vt_em-4`  (`电流` FROM `asset01`.`em-4`.`current`,  `电压` FROM `asset01`.`em-4`.`voltage`,  `功率` FROM `asset01`.`em-4`.`power`,  `相位` FROM `asset01`.`em-4`.`phase`)  USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.海淀.西三旗街道', 2, 2,   'em202502200010004', '公共事业.北京.海淀.西三旗街道');",
+            "CREATE VTABLE `vt_em-5`  (`电流` FROM `asset01`.`em-5`.`current`,  `电压` FROM `asset01`.`em-5`.`voltage`,  `功率` FROM `asset01`.`em-5`.`power`,  `相位` FROM `asset01`.`em-5`.`phase`)  USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.海淀.西三旗街道', 2, 2,   'em202502200010005', '公共事业.北京.海淀.西三旗街道');",
+            "CREATE VTABLE `vt_em-6`  (`电流` FROM `asset01`.`em-6`.`current`,  `电压` FROM `asset01`.`em-6`.`voltage`,  `功率` FROM `asset01`.`em-6`.`power`,  `相位` FROM `asset01`.`em-6`.`phase`)  USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.朝阳.国贸街道',   1, 2,   'em20250220001006',  '公共事业.北京.朝阳.国贸街道');",
+            "CREATE VTABLE `vt_em-7`  (`电流` FROM `asset01`.`em-7`.`current`,  `电压` FROM `asset01`.`em-7`.`voltage`,  `功率` FROM `asset01`.`em-7`.`power`,  `相位` FROM `asset01`.`em-7`.`phase`)  USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.朝阳.国贸街道',   1, 2,   'em20250220001007',  '公共事业.北京.朝阳.国贸街道');",
+            "CREATE VTABLE `vt_em-8`  (`电流` FROM `asset01`.`em-8`.`current`,  `电压` FROM `asset01`.`em-8`.`voltage`,  `功率` FROM `asset01`.`em-8`.`power`,  `相位` FROM `asset01`.`em-8`.`phase`)  USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.朝阳.国贸街道',   1, 2,   'em20250220001008',  '公共事业.北京.朝阳.国贸街道');",
+            "CREATE VTABLE `vt_em-9`  (`电流` FROM `asset01`.`em-9`.`current`,  `电压` FROM `asset01`.`em-9`.`voltage`,  `功率` FROM `asset01`.`em-9`.`power`,  `相位` FROM `asset01`.`em-9`.`phase`)  USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.朝阳.国贸街道',   1, 2,   'em20250220001009',  '公共事业.北京.朝阳.国贸街道');",
+            "CREATE VTABLE `vt_em-10` (`电流` FROM `asset01`.`em-10`.`current`, `电压` FROM `asset01`.`em-10`.`voltage`, `功率` FROM `asset01`.`em-10`.`power`, `相位` FROM `asset01`.`em-10`.`phase`) USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.朝阳.三元桥街道', 1, 2,   'em202502200010010', '公共事业.北京.朝阳.三元桥街道');",
+            "CREATE VTABLE `vt_em-11` (`电流` FROM `asset01`.`em-11`.`current`, `电压` FROM `asset01`.`em-11`.`voltage`, `功率` FROM `asset01`.`em-11`.`power`, `相位` FROM `asset01`.`em-11`.`phase`) USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.朝阳.望京街道',   11, 11, 'em202502200010011', '公共事业.北京.朝阳.望京街道');",
+            "CREATE VTABLE `vt_em-12` (`电流` FROM `asset01`.`em-12`.`current`, `电压` FROM `asset01`.`em-12`.`voltage`, `功率` FROM `asset01`.`em-12`.`power`, `相位` FROM `asset01`.`em-12`.`phase`) USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.朝阳.望京街道',   11, 12, 'em202502200010012', '公共事业.北京.朝阳.望京街道');",
+            "CREATE VTABLE `vt_em-13` (`电流` FROM `asset01`.`em-13`.`current`, `电压` FROM `asset01`.`em-13`.`voltage`, `功率` FROM `asset01`.`em-13`.`power`, `相位` FROM `asset01`.`em-13`.`phase`) USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.朝阳.望京街道',   11, 13, 'em202502200010013', '公共事业.北京.朝阳.望京街道');",
+            "CREATE VTABLE `vt_em-14` (`电流` FROM `asset01`.`em-14`.`current`, `电压` FROM `asset01`.`em-14`.`voltage`, `功率` FROM `asset01`.`em-14`.`power`, `相位` FROM `asset01`.`em-14`.`phase`) USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.朝阳.望京街道',   11, 14, 'em202502200010014', '公共事业.北京.朝阳.望京街道');",
+            "CREATE VTABLE `vt_em-15` (`电流` FROM `asset01`.`em-15`.`current`, `电压` FROM `asset01`.`em-15`.`voltage`, `功率` FROM `asset01`.`em-15`.`power`, `相位` FROM `asset01`.`em-15`.`phase`) USING `vst_智能电表_1` (`_ignore_path`, `地址`, `单元`, `楼层`, `设备ID`, `path1`) TAGS (NULL, '北京.朝阳.望京街道',   1, 15,  'em202502200010015', '公共事业.北京.朝阳.望京街道');",
+            "CREATE VTABLE `vt_wm-1`  (`流量` FROM `asset01`.`wm-1`.`rate`, `水压` FROM `asset01`.`wm-1`.`pressure`) USING `vst_智能水表_1` (`_ignore_path`, `地址`, `path1`) TAGS (NULL, '北京.朝阳.三元桥街道', '公共事业.北京.朝阳.三元桥街道');"
         ]
 
         tdSql.executes(sqls)
@@ -176,8 +179,8 @@ class Test_IDMP_Meters:
             "CREATE STREAM `tdasset`.`ana_stream5_sub1` SESSION(ts, 10m) FROM `tdasset`.`vt_em-5`                                       NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_sub1` AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, LAST(`电流`) AS `最后电流` FROM tdasset.`vt_em-5` WHERE ts >= _twstart AND ts <=_twend",
             "CREATE STREAM `tdasset`.`ana_stream5_sub2` SESSION(ts, 10m) FROM `tdasset`.`vt_em-5` STREAM_OPTIONS(PRE_FILTER(`电压`>300)) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_sub2` AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, LAST(`电流`) AS `最后电流` FROM tdasset.`vt_em-5` WHERE ts >= _twstart AND ts <=_twend",
             "CREATE STREAM `tdasset`.`ana_stream5_sub3` SESSION(ts, 10m) FROM `tdasset`.`vt_em-5` STREAM_OPTIONS(PRE_FILTER(`电压`>300)) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_sub3` AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, LAST(`电流`) AS `最后电流` FROM %%trows",
-            "CREATE STREAM `tdasset`.`ana_stream5_sub4` SESSION(ts, 10m) FROM `tdasset`.`vst_智能电表_1` PARTITION BY tbname,`地址`       NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_sub4` AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, LAST(`电流`) AS `最后电流` FROM %%trows",
-            "CREATE STREAM `tdasset`.`ana_stream5_sub5` SESSION(ts, 10m) FROM `tdasset`.`vst_智能电表_1`                                 NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_sub5` AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, _twrownum as wrownum, _twend as twend, FIRST(`电压`) AS `开始电压`, LAST(`电压`) AS `最后电压`, SUM(`功率`) AS `功率和` FROM %%trows",
+            "CREATE STREAM `tdasset`.`ana_stream5_sub4` SESSION(ts, 10m) FROM `tdasset`.`vst_智能电表_1` PARTITION BY tbname,`地址`        NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_sub4` AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, LAST(`电流`) AS `最后电流` FROM %%trows",
+            "CREATE STREAM `tdasset`.`ana_stream5_sub5` SESSION(ts, 10m) FROM `tdasset`.`vst_智能电表_1`                                  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_sub5` AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, _twrownum as wrownum, _twend as twend, FIRST(`电压`) AS `开始电压`, LAST(`电压`) AS `最后电压`, SUM(`功率`) AS `功率和` FROM %%trows",
 
             # stream6 count
             "CREATE STREAM `tdasset`.`ana_stream6`      COUNT_WINDOW(5)               FROM `tdasset`.`vt_em-6` STREAM_OPTIONS(PRE_FILTER(`电压`>=200)|IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream6`      AS SELECT _twstart AS ts, COUNT(*) AS cnt, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压` FROM tdasset.`vt_em-6` WHERE ts >= _twstart AND ts <=_twend",
@@ -215,14 +218,17 @@ class Test_IDMP_Meters:
             "CREATE STREAM `tdasset`.`ana_stream10_sub4` INTERVAL(10s) SLIDING(10s) FROM `tdasset`.`vt_em-10`                                     STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|PRE_FILTER(`电压`=100)) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream10_sub4` AS SELECT _twstart AS ts,                                                 COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
             "CREATE STREAM `tdasset`.`ana_stream10_sub5` INTERVAL(10s) SLIDING(10s) FROM `tdasset`.`vt_em-10`                                     STREAM_OPTIONS(IGNORE_NODATA_TRIGGER)                       NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream10_sub5` AS SELECT _twstart AS ts,                                                 COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
             "CREATE STREAM `tdasset`.`ana_stream10_sub6` SLIDING(10s, 1s) FROM `tdasset`.`vt_em-10`                                               STREAM_OPTIONS(IGNORE_NODATA_TRIGGER)                       NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream10_sub6` AS SELECT _tcurrent_ts AS ts, _tprev_ts AS prev_ts, _tnext_ts AS next_ts, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
-            "CREATE STREAM `tdasset`.`ana_stream10_sub7` INTERVAL(10s) SLIDING(10s) FROM `tdasset`.`vst_智能电表_1` PARTITION BY tbname,`地址`      STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|DELETE_RECALC)         NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream10_sub7` AS SELECT _tcurrent_ts AS ts,                                             COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
+            "CREATE STREAM `tdasset`.`ana_stream10_sub7` INTERVAL(10s) SLIDING(10s) FROM `tdasset`.`vst_智能电表_1`  PARTITION BY tbname,`地址`      STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|DELETE_RECALC)         NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream10_sub7` AS SELECT _tcurrent_ts AS ts,                                             COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
             "CREATE STREAM `tdasset`.`ana_stream10_sub8` INTERVAL(10s) SLIDING(10s) FROM asset01.electricity_meters PARTITION BY tbname,location  STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|DELETE_RECALC)         NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream10_sub8` AS SELECT _tcurrent_ts AS ts,                                             COUNT(*) AS cnt, AVG(`voltage`) AS `平均电压`, SUM(`power`) AS `功率和` FROM %%trows",
 
             # stream11 sliding window
-            "CREATE STREAM `tdasset`.`ana_stream11`      INTERVAL(10s)     SLIDING(4s) FROM `tdasset`.`vt_em-11`  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream11`      AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
-            "CREATE STREAM `tdasset`.`ana_stream11_sub1` INTERVAL(10s, 1s) SLIDING(4s) FROM `tdasset`.`vt_em-11`  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream11_sub1` AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
-            "CREATE STREAM `tdasset`.`ana_stream11_sub2` INTERVAL(10s, 4s) SLIDING(4s) FROM `tdasset`.`vt_em-11`  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream11_sub2` AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
-            "CREATE STREAM `tdasset`.`ana_stream11_sub3` INTERVAL(5s,  1s) SLIDING(5s) FROM `tdasset`.`vt_em-11`  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream11_sub3` AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
+            "CREATE STREAM `tdasset`.`ana_stream11`      INTERVAL(10s)     SLIDING(4s) FROM `tdasset`.`vt_em-11`                          STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) INTO `tdasset`.`result_stream11`                                             AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
+            "CREATE STREAM `tdasset`.`ana_stream11_sub1` INTERVAL(10s, 1s) SLIDING(4s) FROM `tdasset`.`vt_em-11`                          STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) INTO `tdasset`.`result_stream11_sub1`                                        AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
+            "CREATE STREAM `tdasset`.`ana_stream11_sub2` INTERVAL(10s, 4s) SLIDING(4s) FROM `tdasset`.`vt_em-11`                          STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) INTO `tdasset`.`result_stream11_sub2`                                        AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
+            "CREATE STREAM `tdasset`.`ana_stream11_sub3` INTERVAL(5s,  1s) SLIDING(5s) FROM `tdasset`.`vt_em-11`                          STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) INTO `tdasset`.`result_stream11_sub3`                                        AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
+            "CREATE STREAM `tdasset`.`ana_stream11_sub4` INTERVAL(5m)      SLIDING(5m) FROM `tdasset`.`vst_智能电表_1` PARTITION BY tbname STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) INTO `tdasset`.`result_stream11_sub4`                                        AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
+            "CREATE STREAM `tdasset`.`ana_stream11_sub5` INTERVAL(5m)      SLIDING(5s) FROM `tdasset`.`vst_智能电表_1` PARTITION BY tbname STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) INTO `tdasset`.`result_stream11_sub5` OUTPUT_SUBTABLE(CONCAT(tbname,'_out')) AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和`                            FROM %%trows",
+            "CREATE STREAM `tdasset`.`ana_stream11_sub6` INTERVAL(5m)      SLIDING(5s) FROM `tdasset`.`vst_智能电表_1` PARTITION BY tbname STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) INTO     `out`.`result_stream11_sub6` OUTPUT_SUBTABLE(tbname)                AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和`, %%tbname as c1, %%1 as c2 FROM %%trows",
         ]
 
         tdSql.executes(sqls)
@@ -860,6 +866,14 @@ class Test_IDMP_Meters:
         count = 11
         ts = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
+        # blank
+        count = 10 * 60
+        ts +=  count * step
+
+        # write end
+        count = 1
+        vals = "200,400"
+        ts = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
     #
     # ---------------------   verify    ----------------------
@@ -900,7 +914,7 @@ class Test_IDMP_Meters:
             exp_sql = result_sql_sub2
         )
 
-        tdLog.info("verify stream1 .................................. successfully.")
+        print("verify stream1 .................................. successfully.")
 
     #
     # verify stream2
@@ -917,7 +931,7 @@ class Test_IDMP_Meters:
             and tdSql.compareData(1, 1, 16)
         )
 
-        tdLog.info("verify stream2 .................................. successfully.")
+        print("verify stream2 .................................. successfully.")
 
     #
     # verify stream3
@@ -941,6 +955,7 @@ class Test_IDMP_Meters:
             [1752574800000, 16,   30,    80,    100,   500,   1600]
         ]
         tdSql.checkDataMem(result_sql, data)
+        print("verify stream3 ................................. successfully.")
 
         # other sub
         self.verify_stream3_sub1()
@@ -963,7 +978,7 @@ class Test_IDMP_Meters:
             # result table expect not create
             tdSql.error(f"select * from result_{key}")
 
-        tdLog.info(f"verify stream3 ................................. successfully.")
+        
 
     def verify_stream3_sub1(self, tbname = "result_stream3_sub1"):
         # check
@@ -980,7 +995,7 @@ class Test_IDMP_Meters:
             [1752574800000, 16,   30,    80,    100,   500,   1600]
         ]
         tdSql.checkDataMem(result_sql, data)
-        tdLog.info(f"verify stream3_sub1 .............................. successfully.")
+        print("verify stream3_sub1 .............................. successfully.")
 
     def verify_stream3_sub2(self):
         # check
@@ -997,7 +1012,7 @@ class Test_IDMP_Meters:
             [1752575160000, 10,   70,    80,    100,   500,   1000]
         ]
         tdSql.checkDataMem(result_sql, data)
-        tdLog.info(f"verify stream3_sub2 .............................. successfully.")
+        print("verify stream3_sub2 .............................. successfully.")
 
     def verify_stream3_sub3(self):
         # check
@@ -1013,7 +1028,7 @@ class Test_IDMP_Meters:
             [1752574200000, 10,   40,    60,    200,   350,   1000]
         ]
         tdSql.checkDataMem(result_sql, data)
-        tdLog.info(f"verify stream3_sub3 .............................. successfully.")
+        print("verify stream3_sub3 .............................. successfully.")
 
     def verify_stream3_sub4(self):
         # check
@@ -1030,7 +1045,7 @@ class Test_IDMP_Meters:
             [1752575160000, 10,   70,    80,    100,   500,   1000]
         ]
         tdSql.checkDataMem(result_sql, data)
-        tdLog.info(f"verify stream3_sub4 .............................. successfully.")
+        print("verify stream3_sub4 .............................. successfully.")
 
     def verify_stream3_sub5(self):
         # same with sub1
@@ -1069,8 +1084,8 @@ class Test_IDMP_Meters:
                 ts += 10 * 60 * 1000 # 10 minutes
 
 
-        tdLog.info(f"verify stream4 ................................. successfully.")
-        tdLog.info(f"verify stream4 sub1 ............................ successfully.")
+        print("verify stream4 ................................. successfully.")
+        print("verify stream4 sub1 ............................ successfully.")
 
         # verify stream4_sub2 ~ 6
         offsets = [
@@ -1095,7 +1110,7 @@ class Test_IDMP_Meters:
                 tdSql.checkData(j, 2, 400)
                 tdSql.checkData(j, 3, 2000)
                 ts += 10 * 60 * 1000 # 10 minutes   
-        tdLog.info(f"verify stream4_sub2 ~ 6 ....................... successfully.")
+        print("verify stream4_sub2 ~ 6 ....................... successfully.")
 
         # verify stream4_sub7
         self.verify_stream4_sub7()
@@ -1150,7 +1165,7 @@ class Test_IDMP_Meters:
             tdSql.checkData(i, 2, 400)
             tdSql.checkData(i, 3, (i + 1) * 200)
 
-        tdLog.info("verify stream4_sub8 ............................. successfully.")
+        print("verify stream4_sub8 ............................. successfully.")
 
     #
     # verify stream4 again
@@ -1184,7 +1199,7 @@ class Test_IDMP_Meters:
 
                 ts += 10 * 60 * 1000 # 10 minutes
 
-        tdLog.info(f"verify stream4 again ............................ successfully.")
+        print("verify stream4 again ............................ successfully.")
 
     
     #
@@ -1200,6 +1215,7 @@ class Test_IDMP_Meters:
             and tdSql.compareData(0, 1, 3 + 1 + 2)   # cnt
             and tdSql.compareData(0, 2, 32)          # last current
         )
+        print("verify stream5 ................................. successfully.")
 
         # sub
         self.verify_stream5_sub1()
@@ -1208,7 +1224,7 @@ class Test_IDMP_Meters:
         #self.verify_stream5_sub3()
         self.verify_stream5_sub4()
 
-        tdLog.info(f"verify stream5 ................................. successfully.")
+        
 
 
     def verify_stream5_sub1(self):    
@@ -1227,7 +1243,7 @@ class Test_IDMP_Meters:
             and tdSql.compareData(1, 2, 39)            # last current
         )
 
-        tdLog.info(f"verify stream5 sub1 ............................ successfully.")
+        print("verify stream5 sub1 ............................ successfully.")
 
     def verify_stream5_sub2(self):
         # check
@@ -1245,7 +1261,7 @@ class Test_IDMP_Meters:
             and tdSql.compareData(1, 2, 37)            # last current
         )
 
-        tdLog.info(f"verify stream5 sub2 ............................ successfully.")
+        print("verify stream5 sub2 ............................ successfully.")
 
     def verify_stream5_sub3(self):
         # check
@@ -1263,7 +1279,7 @@ class Test_IDMP_Meters:
             and tdSql.compareData(1, 2, 37)            # last current
         )
 
-        tdLog.info(f"verify stream5 sub3 ............................ successfully.")
+        print("verify stream5 sub3 ............................ successfully.")
 
     def verify_stream5_sub4(self):
         # check same with sub1
@@ -1281,7 +1297,7 @@ class Test_IDMP_Meters:
             and tdSql.compareData(1, 2, 39)            # last current
         )
 
-        tdLog.info(f"verify stream5 sub3 ............................ successfully.")
+        print("verify stream5 sub3 ............................ successfully.")
 
     #
     # verify stream6
@@ -1307,10 +1323,12 @@ class Test_IDMP_Meters:
             and tdSql.compareData(1, 2, 205)     # min(voltage)
             and tdSql.compareData(1, 3, 209)     # max(voltage)
         )
+        print("verify stream6 ................................. successfully.")
 
         # sub1
         exp_sql = f"select * from tdasset.`result_stream6_sub1` "
         tdSql.checkResultsBySql(result_sql, exp_sql)
+        print("verify stream6_sub1 ............................ successfully.")
 
         # other sub
         self.verify_stream6_sub2()
@@ -1318,7 +1336,7 @@ class Test_IDMP_Meters:
         self.verify_stream6_sub4()
         self.verify_stream6_sub5()
 
-        tdLog.info(f"verify stream6 ................................. successfully.")
+        
 
     def verify_stream6_sub2(self):
         # check
@@ -1337,7 +1355,7 @@ class Test_IDMP_Meters:
         ]
         tdSql.checkDataMem(result_sql, data)
 
-        tdLog.info(f"verify stream6_sub2 .............................. successfully.")
+        print("verify stream6_sub2 .............................. successfully.")
 
     def verify_stream6_sub3(self, sql = None):
         # check
@@ -1363,7 +1381,7 @@ class Test_IDMP_Meters:
         ]
         tdSql.checkDataMem(result_sql, data)
 
-        tdLog.info(f"verify stream6_sub3 .............................. successfully.")
+        print("verify stream6_sub3 .............................. successfully.")
 
     def verify_stream6_sub4(self):
         # check super table
@@ -1387,7 +1405,7 @@ class Test_IDMP_Meters:
         ]
         tdSql.checkDataMem(result_sql, data)
 
-        tdLog.info(f"verify stream6_sub5 .............................. successfully.")
+        print("verify stream6_sub5 .............................. successfully.")
 
     #
     # verify stream6 again
@@ -1422,7 +1440,7 @@ class Test_IDMP_Meters:
             self.verify_stream7_sub2()
             self.verify_stream7_sub3()
 
-        tdLog.info(f"verify stream7 ................................. successfully.")
+        print("verify stream7 ................................. successfully.")
 
     def verify_stream7_sub1(self):
         # check
@@ -1443,7 +1461,7 @@ class Test_IDMP_Meters:
         ]
         tdSql.checkDataMem(result_sql, data)
 
-        tdLog.info(f"verify stream7_sub1 .............................. successfully.")
+        print("verify stream7_sub1 .............................. successfully.")
 
     def verify_stream7_sub2(self):
         # check
@@ -1461,7 +1479,7 @@ class Test_IDMP_Meters:
         ]
         tdSql.checkDataMem(result_sql, data)
 
-        tdLog.info(f"verify stream7_sub2 .............................. successfully.")
+        print("verify stream7_sub2 .............................. successfully.")
 
     def verify_stream7_sub3(self):
         # check
@@ -1478,7 +1496,7 @@ class Test_IDMP_Meters:
         ]
         tdSql.checkDataMem(result_sql, data)
 
-        tdLog.info(f"verify stream7_sub3 .............................. successfully.")
+        print("verify stream7_sub3 .............................. successfully.")
 
 
     #
@@ -1531,7 +1549,7 @@ class Test_IDMP_Meters:
             and tdSql.compareData(0, 3, 1004)
         )
 
-        tdLog.info(f"verify stream7_again ............................. successfully.")
+        print("verify stream7_again ............................. successfully.")
 
 
     #
@@ -1567,7 +1585,7 @@ class Test_IDMP_Meters:
         if sum != 30:
             tdLog.exit(f"stream8 not found expected data. expected sum(cnt) == 30, actual: {sum}")
 
-        tdLog.info(f"verify stream8 ................................. successfully.")
+        print("verify stream8 ................................. successfully.")
 
         # sub
         self.verify_stream8_sub1()
@@ -1590,7 +1608,7 @@ class Test_IDMP_Meters:
         )
         '''
 
-        tdLog.info("verify stream8_sub1 ............................. successfully.")
+        print("verify stream8_sub1 ............................. successfully.")
 
     # verify stream8_sub2
     def verify_stream8_sub2(self):
@@ -1610,7 +1628,7 @@ class Test_IDMP_Meters:
         for i in range(tdSql.getRows()):
             tdSql.checkData(i, 0, 1000)
 
-        tdLog.info("verify stream8_sub2 ............................. successfully.")
+        print("verify stream8_sub2 ............................. successfully.")
 
     # verify stream8_sub3
     def verify_stream8_sub3(self):
@@ -1620,7 +1638,7 @@ class Test_IDMP_Meters:
             and tdSql.compareData(0, 0, 20)
         )
 
-        tdLog.info("verify stream8_sub3 ............................. successfully.")
+        print("verify stream8_sub3 ............................. successfully.")
 
     # verify stream8_sub4
     def verify_stream8_sub4(self):
@@ -1636,7 +1654,7 @@ class Test_IDMP_Meters:
             exp_sql = "select avg(`平均电压`), sum(`功率和`) from result_stream8_sub5"
         )
 
-        tdLog.info("verify stream8_sub4 ............................. successfully.")
+        print("verify stream8_sub4-5 ........................... successfully.")
 
     def verify_stream8_sub6(self):
         # have log
@@ -1645,6 +1663,8 @@ class Test_IDMP_Meters:
         self.checkTaosdLog(string)
         # result table expect not create
         tdSql.error(f"select * from result_{key}")
+
+        print("verify stream8_sub6 ............................. successfully.")
 
     #
     # verify stream9
@@ -1655,7 +1675,7 @@ class Test_IDMP_Meters:
             sql     = f"select * from tdasset.`result_stream9` ", 
             exp_sql = f"select ts,1,voltage,power from asset01.`em-9` where ts >= 1752574200000;"
         )
-        tdLog.info("verify stream9 .................................. successfully.")
+        print("verify stream9 .................................. successfully.")
 
 
     #
@@ -1691,7 +1711,7 @@ class Test_IDMP_Meters:
         for i in range(tdSql.getRows()):
             tdSql.checkData(i, 0, 10000)
 
-        tdLog.info("verify stream10 ................................. successfully.")
+        print("verify stream10 ................................. successfully.")
 
         # sub
         self.verify_stream10_sub1()
@@ -1719,7 +1739,7 @@ class Test_IDMP_Meters:
             and tdSql.compareData(1, 3, 10)
             and tdSql.compareData(2, 3, 10)
         )
-        tdLog.info("verify stream10_sub1 ............................ successfully.")
+        print("verify stream10_sub1 ............................ successfully.")
 
     def verify_stream10_sub2(self):
         # check
@@ -1734,7 +1754,7 @@ class Test_IDMP_Meters:
             and tdSql.compareData(2, 1, 10)
         )
 
-        tdLog.info("verify stream10_sub2 ............................ successfully.")
+        print("verify stream10_sub2 ............................ successfully.")
 
     def verify_stream10_sub3(self):
         # check
@@ -1747,7 +1767,7 @@ class Test_IDMP_Meters:
             and tdSql.compareData(0, 1, 1)
             and tdSql.compareData(1, 1, 10)
         )
-        tdLog.info("verify stream10_sub2 ............................ successfully.")
+        print("verify stream10_sub2 ............................ successfully.")
 
     def verify_stream10_sub4(self):
         # check
@@ -1760,7 +1780,7 @@ class Test_IDMP_Meters:
             and tdSql.compareData(0, 2, 100)           # avg
             and tdSql.compareData(0, 3, 2000)          # sum
         )
-        tdLog.info("verify stream10_sub4 ............................ successfully.")
+        print("verify stream10_sub4 ............................ successfully.")
 
     def verify_stream10_sub5(self):
         # check
@@ -1783,7 +1803,7 @@ class Test_IDMP_Meters:
             and tdSql.compareData(2, 2, 200)           # avg
             and tdSql.compareData(2, 3, 1800)          # sum
         )
-        tdLog.info("verify stream10_sub5 ............................ successfully.")     
+        print("verify stream10_sub5 ............................ successfully.")     
 
     def verify_stream10_sub6(self):
         # check
@@ -1801,22 +1821,22 @@ class Test_IDMP_Meters:
             [1752574221000, 1]
         ]
         tdSql.checkDataMem(result_sql, data)
-        tdLog.info("verify stream10_sub6 ............................ successfully.")
+        print("verify stream10_sub6 ............................ successfully.")
 
     def verify_stream10_sub7(self):
         # check
         tdSql.checkResultsByFunc(
             sql  = f"select * from tdasset.`result_stream10_sub7` where tag_tbname='vt_em-11' ", 
-            func = lambda: tdSql.getRows() == 1
+            func = lambda: tdSql.getRows() == 2
         )
 
-        tdLog.info("verify stream10_sub7 ............................ successfully.")
+        print("verify stream10_sub7 ............................ successfully.")
 
     def verify_stream10_sub8(self):
         # check
         tdSql.checkResultsByFunc(
             sql  = f"select * from tdasset.`result_stream10_sub8` where tag_tbname='em-11' ", 
-            func = lambda: tdSql.getRows() == 1
+            func = lambda: tdSql.getRows() == 2
         )
 
         #  sub7 == sub8
@@ -1828,7 +1848,7 @@ class Test_IDMP_Meters:
             sql2, 
         )
 
-        tdLog.info("verify stream10_sub8 ............................ successfully.")
+        print("verify stream10_sub8 ............................ successfully.")
 
     #
     # verify stream10 again
@@ -1852,41 +1872,48 @@ class Test_IDMP_Meters:
         result_sql = "select * from tdasset.`result_stream11` "
         tdSql.checkResultsByFunc(
             sql  = result_sql,
-            func = lambda: tdSql.getRows() == 3
+            func = lambda: tdSql.getRows() == 5
         )
         # check data
         data = [
             # _twstart        _twend       dura  wrowcnt,cnt, avg, sum
             [1752574192000, 1752574202000, 10000, 2,  2,  100, 400 ],
             [1752574196000, 1752574206000, 10000, 6,  6,  100, 1200],
-            [1752574200000, 1752574210000, 10000, 10, 10, 100, 2000]                       
+            [1752574200000, 1752574210000, 10000, 10, 10, 100, 2000],
+            [1752574204000, 1752574214000, 10000, 7,  7,  100, 1400],
+            [1752574208000, 1752574218000, 10000, 3,  3,  100, 600]
         ]
         tdSql.checkDataMem(result_sql, data)
+        print("verify stream11 ................................. successfully.")
 
         # sub
         self.verify_stream11_sub1()
         self.verify_stream11_sub2()
         self.verify_stream11_sub3()
-
-        tdLog.info("verify stream11 ................................. successfully.")
+        # ***** bug13 *****
+        self.verify_stream11_sub4()
+        
 
     def verify_stream11_sub1(self):
         # check
         result_sql = "select * from tdasset.`result_stream11_sub1` "
         tdSql.checkResultsByFunc(
             sql  = result_sql, 
-            func = lambda: tdSql.getRows() == 2
+            func = lambda: tdSql.getRows() == 5
         )
 
         # check data
         data = [
             # _twstart        _twend       dura  wrowcnt,cnt, avg, sum
             [1752574193000, 1752574203000, 10000, 3,  3,  100, 600 ],
-            [1752574197000, 1752574207000, 10000, 7,  7,  100, 1400]                  
+            [1752574197000, 1752574207000, 10000, 7,  7,  100, 1400], 
+            [1752574201000, 1752574211000, 10000, 10,10,  100, 2000 ],
+            [1752574205000, 1752574215000, 10000, 6,  6,  100, 1200],
+            [1752574209000, 1752574219000, 10000, 2,  2,  100, 400 ]                 
         ]
         tdSql.checkDataMem(result_sql, data)
 
-        tdLog.info("verify stream11_sub1 ............................ successfully.")
+        print("verify stream11_sub1 ............................ successfully.")
 
     def verify_stream11_sub2(self):
         # check
@@ -1895,25 +1922,44 @@ class Test_IDMP_Meters:
             exp_sql = "select * from tdasset.`result_stream11` ", 
         )
 
-        tdLog.info("verify stream11_sub2 ............................ successfully.")
+        print("verify stream11_sub2 ............................ successfully.")
 
     def verify_stream11_sub3(self):
         # check
         result_sql = "select * from tdasset.`result_stream11_sub3` "
         tdSql.checkResultsByFunc(
             sql  = result_sql, 
-            func = lambda: tdSql.getRows() == 2
+            func = lambda: tdSql.getRows() == 3
         )
 
         # check data
         data = [
             # _twstart        _twend     dura wrowcnt,cnt, avg, sum
             [1752574196000, 1752574201000, 5000, 1,  1,  100, 200 ],
-            [1752574201000, 1752574206000, 5000, 5,  5,  100, 1000]                  
+            [1752574201000, 1752574206000, 5000, 5,  5,  100, 1000],
+            [1752574206000, 1752574211000, 5000, 5,  5,  100, 1000]
         ]
         tdSql.checkDataMem(result_sql, data)
 
-        tdLog.info("verify stream11_sub3 ............................ successfully.")
+        print("verify stream11_sub3 ............................ successfully.")
+
+    def verify_stream11_sub4(self):
+        # check
+        result_sql = "select * from tdasset.`result_stream11_sub4` where tag_tbname='vt_em-11' "
+        tdSql.checkResultsByFunc(
+            sql  = result_sql, 
+            func = lambda: tdSql.getRows() == 1
+        )
+
+        # check data
+        data = [
+            # _twstart        _twend        dura wrowcnt,cnt, avg, sum,  tag_tbname
+            [1752574200000, 1752574500000, 300000, 11,    11, 100, 2200, "vt_em-11"]
+        ]
+        tdSql.checkDataMem(result_sql, data)
+
+        print("verify stream11_sub4 ............................ successfully.")
+
 
 
     #
