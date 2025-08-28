@@ -251,7 +251,7 @@ In TDengine, as long as one of the nodes in firstEp and secondEp is valid, a con
 > **Note**: The configuration file here refers to the configuration file on the machine where the application calling the JDBC Connector is located, with the default value on Linux OS being /etc/taos/taos.cfg, and on Windows OS being C://TDengine/cfg/taos.cfg.
 
 **WebSocket Connection**  
-Using JDBC WebSocket connection does not depend on the client driver. Here's an example: `jdbc:TAOS-WS://taosdemo.com:6030/power?user=root&password=taosdata&varcharAsString=true`. Compared to native JDBC connections, you only need to:
+Using JDBC WebSocket connection does not depend on the client driver. Here's an example: `jdbc:TAOS-WS://taosdemo.com:6041/power?user=root&password=taosdata&varcharAsString=true`. Compared to native JDBC connections, you only need to:
 
 1. Specify driverClass as "com.taosdata.jdbc.ws.WebSocketDriver";
 1. Start jdbcUrl with "jdbc:TAOS-WS://";
