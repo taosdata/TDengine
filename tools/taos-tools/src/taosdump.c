@@ -7118,8 +7118,8 @@ static int createMTableAvroHeadImp(
                     avro_value_set_null(&branch);
                 } else {
                     avro_value_set_branch(&value, 1, &branch);
-                    u32Temp = (int32_t)atoi((const char *)
-                            subTableDes->cols[subTableDes->columns + tag].value);
+                    u32Temp = (uint32_t)strtoul((const char *)
+                            subTableDes->cols[subTableDes->columns + tag].value, NULL, 10);
 
                     int32_t n32tmp = (int32_t)(u32Temp - INT_MAX);
                     avro_value_append(&branch, &firsthalf, NULL);
