@@ -9,19 +9,38 @@ export LC_ALL=en_US.UTF-8
 
 # Define the base path for models
 MODEL_BASE_PATH="/var/lib/taos/taosanode/model"
-MODEL_DIR_NAMES="${TAOS_MODELS:-moirai}"
+MODEL_DIR_NAMES="${TAOS_MODELS:-tdtsfm}"
 
 # Define the five subdirectories under model path
 declare -A MODEL_SUBDIRS=(
+    ["chronos"]="/var/lib/taos/taosanode/venv1"
     ["moirai"]="model.safetensors"
+    ["tdtsfm"]="taos.pth"
+    ["timemoe"]="/var/lib/taos/taosanode/venv1"
+    ["timesfm"]="/var/lib/taos/taosanode/venv1"
 )
 declare -A MODEL_NAMES=(
+    ["chronos"]="amazon/chronos-bolt-tiny"
     ["moirai"]="Salesforce/moirai-moe-1.0-R-small"
+    ["tdtsfm"]="tdtsfm"
+    ["timemoe"]="Maple728/TimeMoE-50M"
+    ["timesfm"]="google/timesfm-2.0-500m-pytorch"
 )
+
+declare -A MODEL_VENV_MAP=(
+    ["chronos"]="/var/lib/taos/taosanode/venv2"
+    ["moirai"]="/var/lib/taos/taosanode/venv"
+    ["tdtsfm"]="/var/lib/taos/taosanode/venv"
+    ["timemoe"]="/var/lib/taos/taosanode/venv"
+    ["timesfm"]="/var/lib/taos/taosanode/venv3"
+)
+
 # Function to activate virtual environment
 activate_venv() {
+    local model="$1"
     echo "Activating virtual environment..."
-    source /var/lib/taos/taosanode/venv/bin/activate
+    local venv_path="${MODEL_VENV_MAP[$model]}"
+    source $venv_path/bin/activate
 }
 
 # Function to execute startup script
@@ -33,7 +52,7 @@ execute_startup() {
     echo "Executing startup script for $subdir..."
 
     # Activate virtual environment
-    activate_venv
+    activate_venv ${model}
 
     # Execute startup script if exists
     local startup_script="/usr/local/taos/taosanode/lib/taosanalytics/tsfmservice/${model}-server.py"
