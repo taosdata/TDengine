@@ -441,7 +441,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
   STableKeyInfo* pTableList = pr->pTableList;
 
-  // retrieve the only one last row of all tables in the uid list.
+  // retrieve combined last/last_row data of all tables in the uid list.
   if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_SINGLE)) {
     SArray* pLastCols = taosArrayInit(pr->numOfCols, sizeof(SLastCol));
     TSDB_CHECK_NULL(pLastCols, code, lino, _end, terrno);
@@ -487,7 +487,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
       }
       TSDB_CHECK_CODE(code, lino, _end);
 
-      if (TARRAY_SIZE(pRow) <= 0 || COL_VAL_IS_NONE(&((SLastCol*)TARRAY_DATA(pRow))[0].colVal)) {
+      if (TARRAY_SIZE(pRow) <= 0) {
         taosArrayClearEx(pRow, tsdbCacheFreeSLastColItem);
         continue;
       }
@@ -584,6 +584,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
     taosArrayDestroyEx(pLastCols, tsdbCacheFreeSLastColItem);
   } else if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_ALL)) {
+    // retrieve data for each table
     int32_t i = pr->tableIndex;
     for (; i < pr->numOfTables; ++i) {
       tb_uid_t uid = pTableList[i].uid;
@@ -595,7 +596,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
         TSDB_CHECK_CODE(code, lino, _end);
       }
 
-      if (TARRAY_SIZE(pRow) <= 0 || COL_VAL_IS_NONE(&((SLastCol*)TARRAY_DATA(pRow))[0].colVal)) {
+      if (TARRAY_SIZE(pRow) <= 0) {
         taosArrayClearEx(pRow, tsdbCacheFreeSLastColItem);
         continue;
       }
