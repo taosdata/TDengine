@@ -110,7 +110,7 @@ class TestFuncLastBoth:
             f"insert into tb3 values (\"2021-05-09 10:12:17\", 7, 8.0, '9' , -1002)"
         )
         tdSql.execute(
-            f'insert into tb3 values ("2021-05-09 10:12:17",10,11.0, NULL, -2002)'
+            f'insert into tb3 values ("2021-05-09 10:12:16",10,11.0, NULL, -2002)'
         )
         tdSql.execute(
             f'insert into tb3 values ("2021-05-09 10:12:18",12,NULL, NULL, -3002)'
@@ -248,7 +248,7 @@ class TestFuncLastBoth:
             f"insert into tb3 values (\"2021-05-09 10:12:17\", 7, 8.0, '9' , -1002)"
         )
         tdSql.execute(
-            f'insert into tb3 values ("2021-05-09 10:12:17",10,11.0, NULL, -2002)'
+            f'insert into tb3 values ("2021-05-09 10:12:16",10,11.0, NULL, -2002)'
         )
         tdSql.execute(
             f'insert into tb3 values ("2021-05-09 10:12:18",12,NULL, NULL, -3002)'
@@ -466,7 +466,7 @@ class TestFuncLastBoth:
 
         tdSql.checkData(2, 1, 24)
 
-        tdSql.checkData(2, 2, 11.000000000)
+        tdSql.checkData(2, 2, 8.000000000)
 
         tdSql.checkData(2, 3, 25)
 

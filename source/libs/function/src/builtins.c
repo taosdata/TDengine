@@ -2784,7 +2784,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateOutFirstIn,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
-    .processFunc  = lastRowFunction,
+    .processFunc  = cachedLastRowFunction,
     .finalizeFunc = firstLastFinalize,
   },
   {
