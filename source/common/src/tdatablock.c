@@ -98,6 +98,9 @@ static int32_t getDataLen(int32_t type, const char* pData) {
 }
 
 static int32_t colDataSetValHelp(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull) {
+  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_NULL) {
+    return 0;
+  }
   if (isNull || pData == NULL) {
     // There is a placehold for each NULL value of binary or nchar type.
     if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
@@ -217,7 +220,9 @@ int32_t varColSetVarData(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, co
 int32_t colDataReassignVal(SColumnInfoData* pColumnInfoData, uint32_t dstRowIdx, uint32_t srcRowIdx,
                            const char* pData) {
   int32_t type = pColumnInfoData->info.type;
-  if (IS_VAR_DATA_TYPE(type)) {
+  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_NULL) {
+    // do nothing
+  } else if (IS_VAR_DATA_TYPE(type)) {
     pColumnInfoData->varmeta.offset[dstRowIdx] = pColumnInfoData->varmeta.offset[srcRowIdx];
     pColumnInfoData->reassigned = true;
   } else {
@@ -299,7 +304,9 @@ static int32_t doCopyNItems(struct SColumnInfoData* pColumnInfoData, int32_t cur
 int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, uint32_t numOfRows,
                          bool trimValue) {
   int32_t len = pColumnInfoData->info.bytes;
-  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_NULL) {
+    // do nothing
+  } else if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     if (pColumnInfoData->info.type == TSDB_DATA_TYPE_JSON) {
       len = getJsonValueLen(pData);
     } else {
@@ -319,7 +326,9 @@ int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, 
 void colDataSetNItemsNull(SColumnInfoData* pColumnInfoData, uint32_t currentRow, uint32_t numOfRows) {
   pColumnInfoData->hasNull = true;
 
-  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_NULL) {
+    // do nothing
+  } else if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     memset(&pColumnInfoData->varmeta.offset[currentRow], -1, sizeof(int32_t) * numOfRows);
   } else {
     if (numOfRows < 16) {
@@ -372,7 +381,9 @@ int32_t colDataCopyNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow,
     return 0;
   }
 
-  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_NULL) {
+    // do nothing
+  } else if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     return colDataCopyAndReassign(pColumnInfoData, currentRow, pData, numOfRows);
   } else {
     int32_t  colBytes = pColumnInfoData->info.bytes;
@@ -453,7 +464,9 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int
   }
 
   uint32_t finalNumOfRows = numOfRow1 + numOfRow2;
-  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_NULL) {
+    // do nothing
+  } else if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     // Handle the bitmap
     if (finalNumOfRows > (*capacity)) {
       char* p = taosMemoryRealloc(pColumnInfoData->varmeta.offset, sizeof(int32_t) * (numOfRow1 + numOfRow2));
@@ -532,8 +545,9 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
   if (numOfRows <= 0) {
     return numOfRows;
   }
-
-  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_NULL) {
+    // do nothing
+  } else if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     int32_t newLen = pSource->varmeta.length;
     memcpy(pColumnInfoData->varmeta.offset, pSource->varmeta.offset, sizeof(int32_t) * numOfRows);
     if (pColumnInfoData->varmeta.allocLen < newLen) {
@@ -571,8 +585,9 @@ int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnI
   if (numOfRows <= 0) {
     return numOfRows;
   }
-
-  if (IS_VAR_DATA_TYPE(pDst->info.type)) {
+  if (pDst->info.type == TSDB_DATA_TYPE_NULL) {
+    // do nothing
+  } else if (IS_VAR_DATA_TYPE(pDst->info.type)) {
     int32_t allLen = 0;
     void*   srcAddr = NULL;
     if (pSrc->hasNull) {
@@ -1610,7 +1625,9 @@ int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockI
 
   int32_t existedRows = pBlockInfo ? pBlockInfo->rows : 0;
 
-  if (IS_VAR_DATA_TYPE(pColumn->info.type)) {
+  if (pColumn->info.type == TSDB_DATA_TYPE_NULL) {
+    // do nothing
+  } else if (IS_VAR_DATA_TYPE(pColumn->info.type)) {
     char* tmp = taosMemoryRealloc(pColumn->varmeta.offset, sizeof(int32_t) * numOfRows);
     if (tmp == NULL) {
       return terrno;

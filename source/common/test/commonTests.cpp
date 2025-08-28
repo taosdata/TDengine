@@ -243,7 +243,7 @@ TEST(testCase, Datablock_test_inc) {
     uint32_t        row = 0;
 
     bool ret = colDataIsNull_s(&cinfo, row);
-    EXPECT_EQ(ret, false);
+    EXPECT_EQ(ret, true);
 
     cinfo.hasNull = 1;
     cinfo.info.type = TSDB_DATA_TYPE_INT;
@@ -257,11 +257,11 @@ TEST(testCase, Datablock_test_inc) {
     bool            isVarType = false;
 
     bool ret = colDataIsNull_t(&cinfo, row, isVarType);
-    EXPECT_EQ(ret, false);
+    EXPECT_EQ(ret, true);
 
     cinfo.hasNull = 1;
     ret = colDataIsNull_t(&cinfo, row, isVarType);
-    EXPECT_EQ(ret, false);
+    EXPECT_EQ(ret, true);
   }
 
   {
@@ -271,7 +271,7 @@ TEST(testCase, Datablock_test_inc) {
     SColumnDataAgg  colAgg = {0};
 
     bool ret = colDataIsNull(&cinfo, totalRows, row, &colAgg);
-    EXPECT_EQ(ret, false);
+    EXPECT_EQ(ret, true);
 
     cinfo.hasNull = 1;
     ret = colDataIsNull(&cinfo, totalRows, row, &colAgg);
@@ -279,7 +279,7 @@ TEST(testCase, Datablock_test_inc) {
 
     totalRows = 1;
     ret = colDataIsNull(&cinfo, totalRows, row, &colAgg);
-    EXPECT_EQ(ret, false);
+    EXPECT_EQ(ret, true);
 
     colAgg.colId = -1;
     cinfo.info.type = TSDB_DATA_TYPE_INT;

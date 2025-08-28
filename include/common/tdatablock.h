@@ -159,7 +159,9 @@ static FORCE_INLINE void colDataSetNULL(SColumnInfoData* pColumnInfoData, uint32
 }
 
 static FORCE_INLINE void colDataSetNNULL(SColumnInfoData* pColumnInfoData, uint32_t start, size_t nRows) {
-  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_NULL) {
+    // do nothing
+  } else if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     for (int32_t i = start; i < start + nRows; ++i) {
       colDataSetNull_var(pColumnInfoData, i);  // it is a null value of VAR type.
     }
