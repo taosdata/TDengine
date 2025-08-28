@@ -18,6 +18,17 @@ TDengine TSDB 采用 SQL 作为查询语言，大大降低学习成本、降低�
 
 如果你对数据库内核设计感兴趣，或是开源爱好者，建议仔细阅读 [技术内幕](./tdinternal) 一章。该章从分布式架构到存储引擎、查询引擎、数据订阅，再到流计算引擎都做了详细阐述。建议对照文档，查看 TDengine TSDB 在 GitHub 的源代码，对 TDengine TSDB 的设计和编码做深入了解，更欢迎加入开源社区，贡献代码。
 
+TDengine IDMP 是一款 AI 原生的工业数据管理平台，可以基于采集的数据，自动感知应用场景，无需提问，就自动生成面板、报表，自动进行实时数据分析，自动监测异常，让您拥有一个工业智能体，实现零依赖的实时决策革命。
+
+:::tip
+
+  - [为什么选择 TDengine IDMP](https://www.taosdata.com/idmp) ：既可通过无问智推让 LLM 自动生成可视化面板、实时分析等，也支持智能问数，通过自然语言或语音提问，为企业提供工业数据全栈解决方案。
+  - [TDengine IDMP 文档](https://idmpdocs.taosdata.com/) ：从 IDMP 产品概念到基本·高级功能、运维部署指南，并提供多场景最佳实践。
+  - [TDengine IDMP 应用场景](https://www.taosdata.com/idmp-application-scenarios) ：从数据采集侧的配置，到写入数据到 TDengine TSDB，再到 TDengine IDMP 的树状结构、可视化与实时分析，博客一步一步的演示怎么快速的搭建整个系统。
+
+：：：
+
+
 最后，作为一个开源软件，欢迎大家的参与。如果发现文档有任何错误、描述不清晰的地方，请在每个页面的最下方，点击“编辑本文档”直接进行修改。
 
 Together, we make a difference!
