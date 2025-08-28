@@ -12,25 +12,7 @@ cases/uncatalog/army/tools/benchmark/basic/test_stmt_sample_csv_json.py
 cases/uncatalog/army/tools/benchmark/basic/test_telnet_tcp.py -R
 cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_loose_mode.py
 cases/uncatalog/army/tools/taosdump/native/test_taosdump_commandline.py -B
-cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_unsigned_int.py -B
-cases/uncatalog/system-test/2-query/test_decimal.py
-cases/uncatalog/system-test/2-query/test_decimal.py -Q 4
-cases/uncatalog/system-test/2-query/test_decimal.py -Q 3
-cases/uncatalog/system-test/2-query/test_decimal.py -Q 2
-cases/uncatalog/system-test/2-query/test_decimal.py -Q 1
-cases/uncatalog/system-test/2-query/test_decimal2.py
-cases/uncatalog/system-test/2-query/test_decimal2.py -Q 4
-cases/uncatalog/system-test/2-query/test_decimal2.py -Q 3
-cases/uncatalog/system-test/2-query/test_decimal2.py -Q 2
-cases/uncatalog/system-test/2-query/test_decimal2.py -Q 1
-cases/uncatalog/system-test/2-query/test_decimal3.py
-cases/uncatalog/system-test/2-query/test_decimal3.py -Q 4
-cases/uncatalog/system-test/2-query/test_decimal3.py -Q 3
-cases/uncatalog/system-test/2-query/test_decimal3.py -Q 2
-cases/uncatalog/system-test/2-query/test_decimal3.py -Q 1
-cases/uncatalog/system-test/2-query/test_large_data.py
 cases/uncatalog/system-test/0-others/test_mounts.py
-cases/uncatalog/system-test/0-others/test_kill_balance_leader.py -N 3
 
 # udf not supported in Windows CI
 cases/uncatalog/system-test/0-others/test_udf_test.py
@@ -126,13 +108,29 @@ cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_concat.py
 cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_continuewindowclose.py
 cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_state.py
 cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
-# udf not supported in Windows CI
-cases/uncatalog/system-test/0-others/test_udf_test.py
-cases/uncatalog/system-test/0-others/test_udf_create.py
-cases/uncatalog/system-test/0-others/test_udf_restart_taosd.py
-cases/uncatalog/system-test/0-others/test_udf_cfg1.py
-cases/uncatalog/system-test/0-others/test_udf_cfg2.py
-cases/uncatalog/system-test/0-others/test_udfpy_main.py
-cases/uncatalog/system-test/7-tmq/test_tmqUdf.py
-cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot0.py
-cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot1.py
+# MQTT bnode not supported in Windows CI
+cases/12-DataSubscription/04-MQTT/test_mqtt_smoking.py
+cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 2
+cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 6
+cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 11
+cases/12-DataSubscription/04-MQTT/test_mqtt_qos.py
+cases/12-DataSubscription/04-MQTT/test_mqtt_special.py
+cases/12-DataSubscription/04-MQTT/test_mqtt_rb.py
+#taosd -o options not supported in Windows CI
+cases/uncatalog/system-test/0-others/test_taosdlog.py
+# run too long in Windows CI
+cases/uncatalog/system-test/2-query/test_decimal.py
+cases/uncatalog/system-test/2-query/test_decimal.py -Q 4
+cases/uncatalog/system-test/2-query/test_decimal.py -Q 3
+cases/uncatalog/system-test/2-query/test_decimal.py -Q 2
+cases/uncatalog/system-test/2-query/test_decimal.py -Q 1
+cases/uncatalog/system-test/2-query/test_decimal2.py
+cases/uncatalog/system-test/2-query/test_decimal2.py -Q 4
+cases/uncatalog/system-test/2-query/test_decimal2.py -Q 3
+cases/uncatalog/system-test/2-query/test_decimal2.py -Q 2
+cases/uncatalog/system-test/2-query/test_decimal2.py -Q 1
+cases/uncatalog/system-test/2-query/test_decimal3.py
+cases/uncatalog/system-test/2-query/test_decimal3.py -Q 4
+cases/uncatalog/system-test/2-query/test_decimal3.py -Q 3
+cases/uncatalog/system-test/2-query/test_decimal3.py -Q 2
+cases/uncatalog/system-test/2-query/test_decimal3.py -Q 1
