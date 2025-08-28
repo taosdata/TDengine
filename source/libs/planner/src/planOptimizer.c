@@ -4601,7 +4601,10 @@ static bool lastRowScanOptCheckFuncList(SLogicNode* pNode, int8_t cacheLastModel
         canOptimize = false;
         break;
       }
-      if (!lastRowScanOptCheckColNum(lastColNum, lastColId, selectNonPKColNum, selectNonPKColId)) return false;
+      if (!lastRowScanOptCheckColNum(lastColNum, lastColId, selectNonPKColNum, selectNonPKColId)) {
+        canOptimize = false;
+        break;
+      }
     } else if (FUNCTION_TYPE_GROUP_KEY == pAggFunc->funcType) {
       if (!lastRowScanOptLastParaIsTag(nodesListGetNode(pAggFunc->pParameterList, 0))) {
         canOptimize = false;
