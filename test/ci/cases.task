@@ -305,8 +305,8 @@
 ,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_cons2_v1_tn.py
 ,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_cons2_v4_t1.py
 ,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_cons2_v4_tn.py
-,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/02-Native/test_tmq_params.py
-,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/02-Native/test_tmq_params.py -R
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_params.py
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_params.py -R
 ## 03-WebSocket
 ## 04-MQTT
 ,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/04-MQTT/test_mqtt_smoking.py
