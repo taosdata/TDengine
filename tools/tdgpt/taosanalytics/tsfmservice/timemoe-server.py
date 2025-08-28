@@ -63,7 +63,7 @@ def time_moe():
 def main():
     app.run(
             host='0.0.0.0',
-            port=5001,
+            port=6072,
             threaded=True,  
             debug=False     
         )

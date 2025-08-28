@@ -43,7 +43,7 @@ After modifying configuration file parameters, you need to restart the *taosd* s
 | resolveFQDNRetryTime   | Cancelled after 3.x     | Not supported                                                | Number of retries when FQDN resolution fails                 |
 | timeToGetAvailableConn | Cancelled after 3.3.4.x | Maximum waiting time to get an available connection, range 10-50000000, in milliseconds, default value 500000 |                                                              |
 | maxShellConns          | Cancelled after 3.x     | Supported, effective after restart                           | Maximum number of connections allowed                        |
-| maxRetryWaitTime       |                         | Supported, effective after restart                           | Maximum timeout for reconnection,calculated from the time of retry,range is 3000-86400000,in milliseconds, default value 10000 |
+| maxRetryWaitTime       |                         | Supported, effective after restart                           | Maximum timeout for reconnection,calculated from the time of retry,range is 3000-86400000,in milliseconds, default value 20000 |
 | shareConnLimit         | Added in 3.3.4.0        | Supported, effective after restart                           | Number of requests a connection can share, range 1-512, default value 10 |
 | readTimeout            | Added in 3.3.4.0        | Supported, effective after restart                           | Minimum timeout for a single request, range 64-604800, in seconds, default value 900 |
 ### Monitoring Related
@@ -207,9 +207,10 @@ The effective value of charset is UTF-8.
 | auditCreateTable           |                   | Supported, effective immediately   | Whether to enable audit feature for creating subtables; Enterprise parameter |
 | encryptAlgorithm           |                   | Not supported                      | Data encryption algorithm; Enterprise parameter              |
 | encryptScope               |                   | Not supported                      | Encryption scope; Enterprise parameter                       |
-| encryptPassAlgorithm       |v3.3.7.0           |Supported, effective immediately    |Switch for saving user password as encrypted string           |
+| encryptPassAlgorithm       |v3.3.7.0           |Supported, effective immediately    | Switch for saving user password as encrypted string          |
 | enableWhiteList            |                   | Supported, effective immediately   | Switch for whitelist feature; Enterprise parameter           |
 | syncLogBufferMemoryAllowed |                   | Supported, effective immediately   | Maximum memory allowed for sync log cache messages for a dnode, in bytes, range 104857600-INT64_MAX, default value is 1/10 of server memory, effective from versions 3.1.3.2/3.3.2.13 |
+| syncApplyQueueSize         |                   | supported, effective immediately   | Size of apply queue for sync log, range 32-2048, default is 512  |
 | syncElectInterval          |                   | Not supported                      | Internal parameter, for debugging synchronization module     |
 | syncHeartbeatInterval      |                   | Not supported                      | Internal parameter, for debugging synchronization module     |
 | syncHeartbeatTimeout       |                   | Not supported                      | Internal parameter, for debugging synchronization module     |

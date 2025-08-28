@@ -8,12 +8,12 @@ class TestDatabaseCommit:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_commit(self):
-        """database datafile commit
+        """Database: commit
 
-        1. write data,
-        2. restart taosd
-        3. write data to the previous data file
-        4. check the rows of data
+        1. Write data
+        2. Restart taosd
+        3. Append data to the same file
+        4. Verify row count
 
         Catalog:
             - Database:Create

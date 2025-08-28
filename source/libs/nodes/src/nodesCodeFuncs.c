@@ -5858,7 +5858,7 @@ static int32_t jsonToStreamNode(const SJson* pJson, void* pObj) {
 
 static const char* jkStreamTagDefTagName = "TagName";
 static const char* jkStreamTagDefDataType = "DataType";
-static const char* jkStreamTagDefTagExpr = "DataType";
+static const char* jkStreamTagDefTagExpr = "TagExpr";
 static const char* jkStreamTagDefComment = "Comment";
 
 static int32_t streamTagDefNodeToJson(const void* pObj, SJson* pJson) {
@@ -7407,7 +7407,7 @@ static int32_t createMountStmtToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddIntegerToObject(pJson, jkMountStmtDnode, pNode->dnodeId);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    tjsonAddStringToObject(pJson, jkMountStmtMountPath, pNode->mountPath);
+    code = tjsonAddStringToObject(pJson, jkMountStmtMountPath, pNode->mountPath);
   }
 
   return code;

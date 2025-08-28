@@ -18,7 +18,7 @@ class TestStreamOldCaseFillInterval:
         Catalog:
             - Streams:OldTsimCases
 
-        Since: v3.0.0.0
+        Since: v3.3.7.0
 
         Labels: common, ci
 

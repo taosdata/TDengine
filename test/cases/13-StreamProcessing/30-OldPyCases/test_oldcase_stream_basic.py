@@ -113,13 +113,12 @@ class TestStreamBasicCase:
 
 
     def case1(self):
-
         tdSql.execute(f'create database if not exists d1 vgroups 1')
         tdSql.execute(f'use d1')
         tdSql.execute(f'create table st(ts timestamp, i int) tags(t int)')
-        tdSql.execute(f'insert into t1 using st tags(1) values(now, 1) (now+1s, 2)')
-        tdSql.execute(f'insert into t2 using st tags(2) values(now, 1) (now+1s, 2)')
-        tdSql.execute(f'insert into t3 using st tags(3) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into t1 using st tags(1) values("2025-08-01 00:00:00", 1) ("2025-08-01 00:00:01", 2)')
+        tdSql.execute(f'insert into t2 using st tags(2) values("2025-08-01 00:00:00", 1) ("2025-08-01 00:00:01", 2)')
+        tdSql.execute(f'insert into t3 using st tags(3) values("2025-08-01 00:00:00", 1) ("2025-08-01 00:00:01", 2)')
 
         tdSql.execute("""create stream d1.stream1 interval(1m) sliding(1m) from d1.st partition by tbname
                     stream_options(fill_history)

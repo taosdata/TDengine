@@ -13,14 +13,14 @@ class TestStreamOldCaseState:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_state(self):
-        """Stream state
+        """Stream state window
 
         Test the correctness of state windows
 
         Catalog:
             - Streams:OldTsimCases
 
-        Since: v3.0.0.0
+        Since: v3.3.7.0
 
         Labels: common, ci
 

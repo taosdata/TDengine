@@ -1,0 +1,22 @@
+{
+	"filetype": "query",
+	"cfgdir": "/etc/taos",
+	"host": "127.0.0.1",
+	"port": 6030,
+	"user": "root",
+	"password": "taosdata",
+	"confirm_parameter_prompt": "no",
+    "continue_if_fail": "yes",
+	"databases": "dbrate",
+	"query_times": 5,
+	"query_mode": "taosc",
+	"specified_table_query": {
+		"query_interval": 0,
+		"threads": 10,
+		"sqls": [
+			{
+				"sql": "select * from meters"
+			}
+		]
+	}
+}

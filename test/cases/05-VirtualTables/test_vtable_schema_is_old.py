@@ -103,23 +103,24 @@ class TestVTableSchemaIsOld:
         tdSql.checkRows(4)
 
     def test_vtable_schema_is_old(self):
-        """summary: xxx
+        """Query: old schema (bugfix)
 
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
+        schema is old when origin table's column has same prefix during virtual supertable query
 
         Catalog:
-            - xxx:xxx
-        
-        History: 
-            - xxx
-            - xxx
+            - VirtualTable
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: TS-6448
+
+        History:
+            - 2025-5-12 Jing Sima Created
+
         """
+
         tdLog.debug(f"start to excute {__file__}")
 
         self.run_unorderd_vtable_column_and_origin_table_column()

@@ -1,13 +1,10 @@
 ---
 sidebar_label: 错误码
-title: TDengine 错误码
-description: TDengine 服务端的错误码列表和详细说明
+title: TDengine TSDB 错误码
+description: TDengine TSDB 服务端的错误码列表和详细说明
 ---
 
-本文中详细列举了在使用 TDengine 客户端可能得到的服务端错误码以及所要采取的相应动作。所有语言的连接器在使用原生连接方式时也会将这些错误码返回给连接器的调用者。
-
-
-
+本文中详细列举了在使用 TDengine TSDB 客户端可能得到的服务端错误码以及所要采取的相应动作。所有语言的连接器在使用原生连接方式时也会将这些错误码返回给连接器的调用者。
 
 ## rpc
 
@@ -24,14 +21,13 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000022 | rpc open too many session                    | 1.并发太高导致占用链接已经到达上限 2.服务端的 BUG，导致连接一直不释放 | 1.调整配置参数 numOfRpcSessions 2.调整配置参数 timeToGetAvailableConn 3.分析服务端不释放的连接的原因 |
 | 0x80000023 | rpc network error                            | 1.网络问题，可能是闪断，2.服务端 crash | 1.检查网络 2.检查服务端是否重启|
 | 0x80000024 |rpc network bus                               | 1.集群间互相拉数据的时候，没有拿到可用链接，或者链接数目已经到上限  | 1.是否并发太高 2.检查集群各个节点是否有异常，是否出现了死锁等情况|
-| 0x80000025 |  http-report already quit                    | 1.http 上报出现的问题 | 内部问题，可以忽略 | 
+| 0x80000025 |  http-report already quit                    | 1.http 上报出现的问题 | 内部问题，可以忽略 |
 | 0x80000026 |  rpc module already quit                     | 1.客户端实例已经退出，依然用该实例做查询 | 检查业务代码，是否用错|
 | 0x80000027 | rpc async module already quit                | 1.引擎错误，可以忽略，该错误码不会返回到用户侧 | 如果返回到用户侧，需要引擎侧追查问题|
 | 0x80000028 | rpc async in process                         | 1.引擎错误，可以忽略，该错误码不会返回到用户侧 | 如果返回到用户侧，需要引擎侧追查问题|
 | 0x80000029 |  rpc no state                                | 1.引擎错误，可以忽略，该错误码不会返回到用户侧 | 如果返回到用户侧，需要引擎侧追查问题 |
 | 0x8000002A | rpc state already dropped                    | 1.引擎错误，可以忽略，该错误码不会返回到用户侧 | 如果返回到用户侧，需要引擎侧追查问题|
 | 0x8000002B | rpc msg exceed limit                         | 1.单个 rpc 消息超过上限，该错误码不会返回到用户侧 | 如果返回到用户侧，需要引擎侧追查问题|
-
 
 ## common  
 
@@ -81,8 +77,6 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x8000013D | Decimal value overflow            | Decimal 计算溢出                         | 检查计算表达式和参数值是否计算结果导致类型溢出 |
 | 0x8000013E | Division by zero error            | Division by zero                        | 检查除法操作是否除以 0 |
 
-
-
 ## tsc
 
 | 错误码     | 错误描述                          | 可能的出错场景或者可能的原因 | 建议用户采取的措施                                                               |
@@ -107,8 +101,6 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x8000022F | Table is not a super table        | 当前语句中的表名不是超级表   | 检查当前语句中所用表名是否是超级表                                               |
 | 0x80000230 | Stmt cache error                  | STMT/STMT2 内部缓存出错      | 保留现场和日志，github 上报 issue                                                |
 | 0x80000231 | Tsc internal error                | TSC 内部错误                 | 保留现场和日志，github 上报 issue                                                |
-
-
 
 ## mnode
 
@@ -235,7 +227,6 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000483 | index already exists                                                                         | 已存在                                        | 确认操作是否正确                                                                                |
 | 0x80000484 | index not exist                                                                              | 不存在                                        | 确认操作是否正确                                                                                |
 
-
 ## Bnode
 
 | 错误码     | 错误描述                   | 可能的出错场景或者可能的原因 | 建议用户采取的措施     |
@@ -247,7 +238,6 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000454 | Bnode not found            | 内部错误                     | 上报 issue             |
 | 0x80000455 | Bnode exec launch failed   | 内部错误                     | 上报 issue             |
 | 0x8000261C | Invalid Bnode option       | Bnode 选项值非法             | 检查并修正数据库选项值 |
-
 
 ## dnode
 
@@ -263,10 +253,9 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x8000040F | Snode already deployed | 已部署                       | 确认操作是否正确   |
 | 0x80000410 | Snode not found        | 内部错误                     | 上报 issue          |
 | 0x80000411 | Snode not deployed     | 已部署                       | 确认操作是否正确   |
-
+| 0x8000042D | Request is not matched with local dnode | taos.cfg 中的 FQDN 或者 port 被错误修改 | 取消修改 |
 
 ## vnode
-
 
 | 错误码     | 错误描述                                           | 可能的出错场景或者可能的原因   | 建议用户采取的措施 |
 | ---------- | -------------------------------------------------- | ------------------------------ | ------------------ |
@@ -283,7 +272,6 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000530 | Duplicate write request                            | 重复写入请求，内部错误         | 上报问题           |
 | 0x80000531 | Vnode query is busy                                | 查询忙碌                       | 上报问题           |
 | 0x80000540 | Vnode already exist but Dbid not match             | 内部错误                       | 上报问题           |
-
 
 ## tsdb
 
@@ -356,15 +344,12 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000918 | Sync negotiation win is full | 场景 1：客户端请求并发数特别大，超过了服务端处理能力，或者因为网络和 CPU 资源严重不足，或者网络连接问题等。    | 检查集群状态，系统资源使用率（例如磁盘 IO、CPU、网络通信等），以及节点之间网络连接状况。    |
 | 0x800009FF | Sync internal error          | 其它内部错误                                                                                                | 检查集群状态，例如：show vgroups                                                           |
 
-
-
 ## tq
 
 | 错误码     | 错误描述                  | 可能的出错场景或者可能的原因                                    | 建议用户采取的措施                     |
 | ---------- | ------------------------- | --------------------------------------------------------------- | -------------------------------------- |
 | 0x80000A0C | TQ table schema not found | 消费数据时表不存在                                              | 内部错误，不透传给用户                 |
 | 0x80000A0D | TQ no committed offset    | 消费时设置 offset reset = none，并且 server 端没有之前消费的 offset | 设置 offset reset 为 earliest 或者 latest |
-
 
 ## wal
 
@@ -387,8 +372,6 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80002205 | TFS no disk mount on tire        | 多级存储配置错误                    | 检查配置是否正确                         |
 | 0x80002208 | No disk available on a tier.     | TFS 内部错误，多发生在硬盘满的场景下 | 增加硬盘，扩充容量                       |
 
-
-
 ## catalog
 
 | 错误码     | 错误描述                         | 可能的出错场景或者可能的原因 | 建议用户采取的措施               |
@@ -405,115 +388,115 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80002504 | Task timeout                     | 子任务超时                   | 保留现场和日志，github 上报 issue  |
 | 0x80002505 | Job is dropping                  | 任务正在或已经被取消         | 检查是否有手动或应用中断当前任务 |
 
-
-
 ## parser
 
-| 错误码        | 错误描述                                                                                               | 可能的出错场景或者可能的原因                              | 建议用户采取的措施                    |
-|------------| ------------------------------------------------------------------------------------------------------ |---------------------------------------------| ------------------------------------- |
-| 0x80002600 | syntax error near                                                                                      | SQL 语法错误                                    | 检查并修正 SQL 语句                     |
-| 0x80002601 | Incomplete SQL statement                                                                               | 不完整的 SQL 语句                                 | 检查并修正 SQL 语句                     |
-| 0x80002602 | Invalid column name                                                                                    | 不合法或不存在的列名                                  | 检查并修正 SQL 语句                     |
-| 0x80002603 | Table does not exist                                                                                   | 表不存在                                        | 检查并确认 SQL 语句中的表是否存在       |
-| 0x80002604 | Column ambiguously defined                                                                             | 列名（别名）重复定义                                  | 检查并修正 SQL 语句                     |
-| 0x80002605 | Invalid value type                                                                                     | 常量值非法                                       | 检查并修正 SQL 语句                     |
-| 0x80002608 | There mustn't be aggregation                                                                           | 聚合函数出现在非法子句中                                | 检查并修正 SQL 语句                     |
-| 0x80002609 | ORDER BY item must be the number of a SELECT-list expression                                           | Order by 指定的位置不合法                           | 检查并修正 SQL 语句                     |
-| 0x8000260A | Not a GROUP BY expression                                                                              | 非法 group by 语句                              | 检查并修正 SQL 语句                     |
-| 0x8000260B | Not SELECTed expression                                                                                | 非法表达式                                       | 检查并修正 SQL 语句                     |
-| 0x8000260C | Not a single-group group function                                                                      | 非法使用列与函数                                    | 检查并修正 SQL 语句                     |
-| 0x8000260D | Tags number not matched                                                                                | tag 列个数不匹配                                  | 检查并修正 SQL 语句                     |
-| 0x8000260E | Invalid tag name                                                                                       | 无效或不存在的 tag 名                               | 检查并修正 SQL 语句                     |
-| 0x80002610 | Value is too long                                                                                      | 值长度超出限制                                     | 检查并修正 SQL 语句或 API 参数            |
-| 0x80002611 | Password too short or empty                                                                            | 密码为空或少于 8 个字符                               | 使用合法的密码                        |
-| 0x80002612 | Port should be an integer that is less than 65535 and greater than 0                                   | 端口号非法                                       | 检查并修正端口号                      |
-| 0x80002613 | Endpoint should be in the format of 'fqdn:port'                                                        | 地址格式错误                                      | 检查并修正地址信息                    |
-| 0x80002614 | This statement is no longer supported                                                                  | 功能已经废弃                                      | 参考功能文档说明                      |
-| 0x80002615 | Interval too small                                                                                     | interval 值超过允许的最小值                          | 更改 INTERVAL 值                        |
-| 0x80002616 | Database not specified                                                                                 | 未指定数据库                                      | 指定当前操作的数据库                  |
+| 错误码        | 错误描述                                                                                                   | 可能的出错场景或者可能的原因                              | 建议用户采取的措施                   |
+|------------|--------------------------------------------------------------------------------------------------------|---------------------------------------------| ------------------------------------ |
+| 0x80002600 | syntax error near                                                                                      | SQL 语法错误                                    | 检查并修正 SQL 语句                    |
+| 0x80002601 | Incomplete SQL statement                                                                               | 不完整的 SQL 语句                                 | 检查并修正 SQL 语句                    |
+| 0x80002602 | Invalid column name                                                                                    | 不合法或不存在的列名                                  | 检查并修正 SQL 语句                    |
+| 0x80002603 | Table does not exist                                                                                   | 表不存在                                        | 检查并确认 SQL 语句中的表是否存在      |
+| 0x80002604 | Column ambiguously defined                                                                             | 列名（别名）重复定义                                  | 检查并修正 SQL 语句                    |
+| 0x80002605 | Invalid value type                                                                                     | 常量值非法                                       | 检查并修正 SQL 语句                    |
+| 0x80002608 | There mustn't be aggregation                                                                           | 聚合函数出现在非法子句中                                | 检查并修正 SQL 语句                    |
+| 0x80002609 | ORDER BY item must be the number of a SELECT-list expression                                           | Order by 指定的位置不合法                           | 检查并修正 SQL 语句                    |
+| 0x8000260A | Not a GROUP BY expression                                                                              | 非法 group by 语句                              | 检查并修正 SQL 语句                    |
+| 0x8000260B | Not SELECTed expression                                                                                | 非法表达式                                       | 检查并修正 SQL 语句                    |
+| 0x8000260C | Not a single-group group function                                                                      | 非法使用列与函数                                    | 检查并修正 SQL 语句                    |
+| 0x8000260D | Tags number not matched                                                                                | tag 列个数不匹配                                  | 检查并修正 SQL 语句                    |
+| 0x8000260E | Invalid tag name                                                                                       | 无效或不存在的 tag 名                               | 检查并修正 SQL 语句                    |
+| 0x80002610 | Value is too long                                                                                      | 值长度超出限制                                     | 检查并修正 SQL 语句或 API 参数           |
+| 0x80002611 | Password too short or empty                                                                            | 密码为空或少于 8 个字符                               | 使用合法的密码                       |
+| 0x80002612 | Port should be an integer that is less than 65535 and greater than 0                                   | 端口号非法                                       | 检查并修正端口号                     |
+| 0x80002613 | Endpoint should be in the format of 'fqdn:port'                                                        | 地址格式错误                                      | 检查并修正地址信息                   |
+| 0x80002614 | This statement is no longer supported                                                                  | 功能已经废弃                                      | 参考功能文档说明                     |
+| 0x80002615 | Interval too small                                                                                     | interval 值超过允许的最小值                          | 更改 INTERVAL 值                       |
+| 0x80002616 | Database not specified                                                                                 | 未指定数据库                                      | 指定当前操作的数据库                 |
 | 0x80002617 | Invalid identifier name                                                                                | ID 非法或长度不合法                                 | 检查语句中相关的库、表、列、TAG 等名称 |
-| 0x80002618 | Corresponding super table not in this db                                                               | 超级表不存在                                      | 检查库中是否存在对应的超级表          |
-| 0x80002619 | Invalid database option                                                                                | 数据库选项值非法                                    | 检查并修正数据库选项值                |
-| 0x8000261A | Invalid table option                                                                                   | 表选项值非法                                      | 检查并修正数据表选项值                |
-| 0x80002624 | GROUP BY and WINDOW-clause can't be used together                                                      | Group by 和窗口不能同时使用                          | 检查并修正 SQL 语句                     |
-| 0x80002627 | Aggregate functions do not support nesting                                                             | 函数不支持嵌套使用                                   | 检查并修正 SQL 语句                     |
-| 0x80002628 | Only support STATE_WINDOW on integer/bool/varchar column                                               | 不支持的 STATE_WINDOW 数据类型                      | 检查并修正 SQL 语句                     |
-| 0x80002629 | Not support STATE_WINDOW on tag column                                                                 | 不支持 TAG 列的 STATE_WINDOW                     | 检查并修正 SQL 语句                     |
-| 0x8000262A | STATE_WINDOW not support for super table query                                                         | 不支持超级表的 STATE_WINDOW                        | 检查并修正 SQL 语句                     |
-| 0x8000262B | SESSION gap should be fixed time window, and greater than 0                                            | SESSION 窗口值非法                               | 检查并修正 SQL 语句                     |
-| 0x8000262C | Only support SESSION on primary timestamp column                                                       | SESSION 窗口列非法                               | 检查并修正 SQL 语句                     |
-| 0x8000262D | Interval offset cannot be negative                                                                     | INTERVAL offset 值非法                          | 检查并修正 SQL 语句                     |
-| 0x8000262E | Cannot use 'year' as offset when interval is 'month'                                                   | INTERVAL offset 单位非法                         | 检查并修正 SQL 语句                     |
-| 0x8000262F | Interval offset should be shorter than interval                                                        | INTERVAL offset 值非法                          | 检查并修正 SQL 语句                     |
-| 0x80002630 | Does not support sliding when interval is natural month/year                                           | sliding 单位非法                                | 检查并修正 SQL 语句                     |
-| 0x80002631 | sliding value no larger than the interval value                                                        | sliding 值非法                                 | 检查并修正 SQL 语句                     |
-| 0x80002632 | sliding value can not less than 1%% of interval value                                                  | sliding 值非法                                 | 检查并修正 SQL 语句                     |
-| 0x80002633 | Only one tag if there is a json tag                                                                    | 只支持单个 JSON TAG 列                            | 检查并修正 SQL 语句                     |
-| 0x80002634 | Query block has incorrect number of result columns                                                     | 列个数不匹配                                      | 检查并修正 SQL 语句                     |
-| 0x80002635 | Incorrect TIMESTAMP value                                                                              | 主键时间戳列值非法                                   | 检查并修正 SQL 语句                     |
-| 0x80002637 | soffset/offset can not be less than 0                                                                  | soffset/offset 值非法                          | 检查并修正 SQL 语句                     |
-| 0x80002638 | slimit/soffset only available for PARTITION/GROUP BY query                                             | slimit/soffset 只支持 PARTITION BY/GROUP BY 语句 | 检查并修正 SQL 语句                     |
+| 0x80002618 | Corresponding super table not in this db                                                               | 超级表不存在                                      | 检查库中是否存在对应的超级表         |
+| 0x80002619 | Invalid database option                                                                                | 数据库选项值非法                                    | 检查并修正数据库选项值               |
+| 0x8000261A | Invalid table option                                                                                   | 表选项值非法                                      | 检查并修正数据表选项值               |
+| 0x80002624 | GROUP BY and WINDOW-clause can't be used together                                                      | Group by 和窗口不能同时使用                          | 检查并修正 SQL 语句                    |
+| 0x80002627 | Aggregate functions do not support nesting                                                             | 函数不支持嵌套使用                                   | 检查并修正 SQL 语句                    |
+| 0x80002628 | Only support STATE_WINDOW on integer/bool/varchar column                                               | 不支持的 STATE_WINDOW 数据类型                      | 检查并修正 SQL 语句                    |
+| 0x80002629 | Not support STATE_WINDOW on tag column                                                                 | 不支持 TAG 列的 STATE_WINDOW                     | 检查并修正 SQL 语句                    |
+| 0x8000262A | STATE_WINDOW not support for super table query                                                         | 不支持超级表的 STATE_WINDOW                        | 检查并修正 SQL 语句                    |
+| 0x8000262B | SESSION gap should be fixed time window, and greater than 0                                            | SESSION 窗口值非法                               | 检查并修正 SQL 语句                    |
+| 0x8000262C | Only support SESSION on primary timestamp column                                                       | SESSION 窗口列非法                               | 检查并修正 SQL 语句                    |
+| 0x8000262D | Interval offset cannot be negative                                                                     | INTERVAL offset 值非法                         | 检查并修正 SQL 语句                    |
+| 0x8000262E | Cannot use 'year' as offset when interval is 'month'                                                   | INTERVAL offset 单位非法                        | 检查并修正 SQL 语句                    |
+| 0x8000262F | Interval offset should be shorter than interval                                                        | INTERVAL offset 值非法                         | 检查并修正 SQL 语句                    |
+| 0x80002630 | Does not support sliding when interval is natural month/year                                           | sliding 单位非法                                | 检查并修正 SQL 语句                    |
+| 0x80002631 | sliding value no larger than the interval value                                                        | sliding 值非法                                 | 检查并修正 SQL 语句                    |
+| 0x80002632 | sliding value can not less than 1%% of interval value                                                  | sliding 值非法                                 | 检查并修正 SQL 语句                    |
+| 0x80002633 | Only one tag if there is a json tag                                                                    | 只支持单个 JSON TAG 列                            | 检查并修正 SQL 语句                    |
+| 0x80002634 | Query block has incorrect number of result columns                                                     | 列个数不匹配                                      | 检查并修正 SQL 语句                    |
+| 0x80002635 | Incorrect TIMESTAMP value                                                                              | 主键时间戳列值非法                                   | 检查并修正 SQL 语句                    |
+| 0x80002637 | soffset/offset can not be less than 0                                                                  | soffset/offset 值非法                          | 检查并修正 SQL 语句                    |
+| 0x80002638 | slimit/soffset only available for PARTITION/GROUP BY query                                             | slimit/soffset 只支持 PARTITION BY/GROUP BY 语句 | 检查并修正 SQL 语句                    |
 | 0x80002639 | Invalid topic query                                                                                    | 不支持的 TOPIC 查询语法                             |
-| 0x8000263A | Cannot drop super table in batch                                                                       | 不支持批量删除超级表                                  | 检查并修正 SQL 语句                     |
-| 0x8000263B | Start(end) time of query range required or time range too large                                        | 窗口个数超出限制                                    | 检查并修正 SQL 语句                     |
-| 0x8000263C | Duplicated column names                                                                                | 列名称重复                                       | 检查并修正 SQL 语句                     |
-| 0x8000263D | Tags length exceeds max length                                                                         | TAG 值长度超出最大支持范围                             | 检查并修正 SQL 语句                     |
-| 0x8000263E | Row length exceeds max length                                                                          | 行长度检查并修正 SQL 语句                             | 检查并修正 SQL 语句                     |
-| 0x8000263F | Illegal number of columns                                                                              | 列个数错误                                       | 检查并修正 SQL 语句                     |
-| 0x80002640 | Too many columns                                                                                       | 列个数超出上限                                     | 检查并修正 SQL 语句                     |
-| 0x80002641 | First column must be timestamp                                                                         | 第一列必须是主键时间戳列                                | 检查并修正 SQL 语句                     |
-| 0x80002642 | Invalid binary/nchar column/tag length                                                                 | binary/nchar 长度错误                           | 检查并修正 SQL 语句                     |
-| 0x80002643 | Invalid number of tag columns                                                                          | TAG 列个数错误                                   | 检查并修正 SQL 语句                     |
-| 0x80002644 | Permission denied                                                                                      | 权限错误                                        | 检查确认用户是否有相应操作权限        |
-| 0x80002645 | Invalid stream query                                                                                   | 非法流语句                                       | 检查并修正 SQL 语句                     |
-| 0x80002646 | Invalid _c0 or _rowts expression                                                                       | _c0 或 _rowts 非法使用                           | 检查并修正 SQL 语句                     |
-| 0x80002647 | Invalid timeline function                                                                              | 函数依赖的主键时间戳不存在                    | 检查并修正 SQL 语句                     |
-| 0x80002648 | Invalid password                                                                                       | 密码不符合规范                                | 检查并修改密码                        |
-| 0x80002649 | Invalid alter table statement                                                                          | 修改表语句不合法                              | 检查并修正 SQL 语句                     |
-| 0x8000264A | Primary timestamp column cannot be dropped                                                             | 主键时间戳列不允许删除                        | 检查并修正 SQL 语句                     |
-| 0x8000264B | Only binary/nchar column length could be modified, and the length can only be increased, not decreased | 非法列修改                                    | 检查并修正 SQL 语句                     |
-| 0x8000264C | Invalid tbname pseudo column                                                                           | 非法使用 tbname 列                              | 检查并修正 SQL 语句                     |
-| 0x8000264D | Invalid function name                                                                                  | 非法函数名                                    | 检查并修正函数名                      |
-| 0x8000264E | Comment too long                                                                                       | 注释长度超限                                  | 检查并修正 SQL 语句                     |
-| 0x8000264F | Function(s) only allowed in SELECT list, cannot mixed with non scalar functions or columns             | 非法的函数混用                                | 检查并修正 SQL 语句                     |
-| 0x80002650 | Window query not supported, since no valid timestamp column included in the result of subquery         | 窗口查询依赖的主键时间戳列不存在              | 检查并修正 SQL 语句                     |
-| 0x80002651 | No columns can be dropped                                                                              | 必须的列不能被删除                            | 检查并修正 SQL 语句                     |
-| 0x80002652 | Only tag can be json type                                                                              | 普通列不支持 JSON 类型                          | 检查并修正 SQL 语句                     |
-| 0x80002655 | The DELETE statement must have a definite time window range                                            | DELETE 语句中存在非法 WHERE 条件                 | 检查并修正 SQL 语句                     |
-| 0x80002656 | The REDISTRIBUTE VGROUP statement only support 1 to 3 dnodes                                           | REDISTRIBUTE VGROUP 指定的 DNODE 个数非法        | 检查并修正 SQL 语句                     |
-| 0x80002657 | Fill now allowed                                                                                       | 函数不允许 FILL 功能                            | 检查并修正 SQL 语句                     |
-| 0x80002658 | Invalid windows pc                                                                                     | 非法使用窗口伪列                              | 检查并修正 SQL 语句                     |
-| 0x80002659 | Window not allowed                                                                                     | 函数不能在窗口中使用                          | 检查并修正 SQL 语句                     |
-| 0x8000265A | Stream not allowed                                                                                     | 函数不能在流计算中使用                        | 检查并修正 SQL 语句                     |
-| 0x8000265B | Group by not allowed                                                                                    | 函数不能在分组中使用                          | 检查并修正 SQL 语句                     |
-| 0x8000265D | Invalid interp clause                                                                                  | 非法 INTERP 或相关语句                          | 检查并修正 SQL 语句                     |
-| 0x8000265E | Not valid function ion window                                                                          | 非法窗口语句                                  | 检查并修正 SQL 语句                     |
-| 0x8000265F | Only support single table                                                                              | 函数只支持在单表查询中使用                    | 检查并修正 SQL 语句                     |
-| 0x80002660 | Invalid sma index                                                                                      | 非法创建 SMA 语句                               | 检查并修正 SQL 语句                     |
-| 0x80002661 | Invalid SELECTed expression                                                                            | 无效查询语句                                  | 检查并修正 SQL 语句                     |
-| 0x80002662 | Fail to get table info                                                                                 | 获取表元数据信息失败                          | 保留现场和日志，github 上报 issue       |
-| 0x80002663 | Not unique table/alias                                                                                 | 表名（别名）冲突                              | 检查并修正 SQL 语句                     |
-| 0x80002664 | Join requires valid time series input                                                                  | 不支持子查询不含主键时间戳列输出的 JOIN 查询    | 检查并修正 SQL 语句                     |
-| 0x80002665 | The _TAGS pseudo column can only be used for subtable and supertable queries                           | 非法 TAG 列查询                                 | 检查并修正 SQL 语句                     |
-| 0x80002666 | 子查询不含主键时间戳列输出                                                                                | 检查并修正 SQL 语句                             |
-| 0x80002667 | Invalid usage of expr: %s                                                                              | 非法表达式                                    | 检查并修正 SQL 语句                     |
-| 0x80002687 | True_for duration cannot be negative                                                                   | true_for 的值不能是负数                        | 检查并修正 SQL 语句                     |
-| 0x80002688 | Cannot use 'year' or 'month' as true_for duration                                                      | 不能使用 n(月), y(年) 作为 true_for 的时间单位   | 检查并修正 SQL 语句                     |
-| 0x80002689 | Invalid using cols function                                                                            | cols 函数使用错误                             | 检查并修正 SQL 语句                        |
-| 0x8000268A | Cols function's first param must be a select function that output a single row         | cols 函数第一个参数应该为选择函数                | 检查并修正 SQL 语句                     |
-| 0x8000268B | Invalid using alias for cols function                                                                  | cols 函数输出列重命名错误                      | 检查并修正 SQL 语句                     |
-| 0x8000268C | Join primary key col must be timestamp type                                                            | 关联查询主键列等值条件类型错误                 | 检查并修正 SQL 语句                     |
-| 0x8000268D | Invalid virtual table's ref column                                                                     | 创建/更新虚拟表时数据源列不正确                         | 检查并修正 SQL 语句           |
-| 0x8000268E | Invalid table type                                                                                     | 表类型不正确                                   | 检查并修正 SQL 语句           |
-| 0x8000268F | Invalid ref column type                                                                                | 虚拟表列的数据类型与数据源的数据类型不同                     | 检查并修正 SQL 语句           |
-| 0x80002690 | Create child table using virtual super table                                                           | 创建非虚拟子表 USING 了虚拟超级表                     | 检查并修正 SQL 语句           |
-| 0x800026FF | Parser internal error                                                                                  | 解析器内部错误                                | 保留现场和日志，github 上报 issue       |
-| 0x80002700 | Planner internal error                                                                                 | 计划期内部错误                                | 保留现场和日志，github 上报 issue       |
-| 0x80002701 | Expect ts equal                                                                                        | JOIN 条件校验失败                              | 保留现场和日志，github 上报 issue       |
-| 0x80002702 | Cross join not support                                                                                 | 不支持 CROSS JOIN                              | 检查并修正 SQL 语句                     |
-| 0x80002704 | Planner slot key not found                                                                             | 生成物理计划时查找不到 slotId                          | 保留现场和日志，github 上报 issue                  |
-| 0x80002705 | Planner invalid table type                                                                             | 计划器生成计划时得到了错误的表类型                           | 保留现场和日志，github 上报 issue                     |
-| 0x80002706 | Planner invalid query control plan type                                                                | 计划器生成 dynamic query control 计划时得到的类型不正确     | 保留现场和日志，github 上报 issue                    |
+| 0x8000263A | Cannot drop super table in batch                                                                       | 不支持批量删除超级表                                  | 检查并修正 SQL 语句                    |
+| 0x8000263B | Start(end) time of query range required or time range too large                                        | 窗口个数超出限制                                    | 检查并修正 SQL 语句                    |
+| 0x8000263C | Duplicated column names                                                                                | 列名称重复                                       | 检查并修正 SQL 语句                    |
+| 0x8000263D | Tags length exceeds max length                                                                         | TAG 值长度超出最大支持范围                             | 检查并修正 SQL 语句                    |
+| 0x8000263E | Row length exceeds max length                                                                          | 行长度检查并修正 SQL 语句                             | 检查并修正 SQL 语句                    |
+| 0x8000263F | Illegal number of columns                                                                              | 列个数错误                                       | 检查并修正 SQL 语句                    |
+| 0x80002640 | Too many columns                                                                                       | 列个数超出上限                                     | 检查并修正 SQL 语句                    |
+| 0x80002641 | First column must be timestamp                                                                         | 第一列必须是主键时间戳列                                | 检查并修正 SQL 语句                    |
+| 0x80002642 | Invalid binary/nchar column/tag length                                                                 | binary/nchar 长度错误                           | 检查并修正 SQL 语句                    |
+| 0x80002643 | Invalid number of tag columns                                                                          | TAG 列个数错误                                   | 检查并修正 SQL 语句                    |
+| 0x80002644 | Permission denied                                                                                      | 权限错误                                        | 检查确认用户是否有相应操作权限       |
+| 0x80002645 | Invalid stream query                                                                                   | 非法流语句                                       | 检查并修正 SQL 语句                    |
+| 0x80002646 | Invalid _c0 or_rowts expression                                                                        | _c0 或_rowts 非法使用                            | 检查并修正 SQL 语句                    |
+| 0x80002647 | Invalid timeline function                                                                              | 函数依赖的主键时间戳不存在                               | 检查并修正 SQL 语句                    |
+| 0x80002648 | Invalid password                                                                                       | 密码不符合规范                                     | 检查并修改密码                       |
+| 0x80002649 | Invalid alter table statement                                                                          | 修改表语句不合法                                    | 检查并修正 SQL 语句                    |
+| 0x8000264A | Primary timestamp column cannot be dropped                                                             | 主键时间戳列不允许删除                                 | 检查并修正 SQL 语句                    |
+| 0x8000264B | Only binary/nchar column length could be modified, and the length can only be increased, not decreased | 非法列修改                                       | 检查并修正 SQL 语句                    |
+| 0x8000264C | Invalid tbname pseudo column                                                                           | 非法使用 tbname 列                               | 检查并修正 SQL 语句                    |
+| 0x8000264D | Invalid function name                                                                                  | 非法函数名                                       | 检查并修正函数名                     |
+| 0x8000264E | Comment too long                                                                                       | 注释长度超限                                      | 检查并修正 SQL 语句                    |
+| 0x8000264F | Function(s) only allowed in SELECT list, cannot mixed with non scalar functions or columns             | 非法的函数混用                                     | 检查并修正 SQL 语句                    |
+| 0x80002650 | Window query not supported, since no valid timestamp column included in the result of subquery         | 窗口查询依赖的主键时间戳列不存在                            | 检查并修正 SQL 语句                    |
+| 0x80002651 | No columns can be dropped                                                                              | 必须的列不能被删除                                   | 检查并修正 SQL 语句                    |
+| 0x80002652 | Only tag can be json type                                                                              | 普通列不支持 JSON 类型                              | 检查并修正 SQL 语句                    |
+| 0x80002655 | The DELETE statement must have a definite time window range                                            | DELETE 语句中存在非法 WHERE 条件                     | 检查并修正 SQL 语句                    |
+| 0x80002656 | The REDISTRIBUTE VGROUP statement only support 1 to 3 dnodes                                           | REDISTRIBUTE VGROUP 指定的 DNODE 个数非法          | 检查并修正 SQL 语句                    |
+| 0x80002657 | Fill now allowed                                                                                       | 函数不允许 FILL 功能                               | 检查并修正 SQL 语句                    |
+| 0x80002658 | Invalid windows pc                                                                                     | 非法使用窗口伪列                                    | 检查并修正 SQL 语句                    |
+| 0x80002659 | Window not allowed                                                                                     | 函数不能在窗口中使用                                  | 检查并修正 SQL 语句                    |
+| 0x8000265A | Stream not allowed                                                                                     | 函数不能在流计算中使用                                 | 检查并修正 SQL 语句                    |
+| 0x8000265B | Group by not allowed                                                                                   | 函数不能在分组中使用                                  | 检查并修正 SQL 语句                    |
+| 0x8000265D | Invalid interp clause                                                                                  | 非法 INTERP 或相关语句                             | 检查并修正 SQL 语句                    |
+| 0x8000265E | Not valid function ion window                                                                          | 非法窗口语句                                      | 检查并修正 SQL 语句                    |
+| 0x8000265F | Only support single table                                                                              | 函数只支持在单表查询中使用                               | 检查并修正 SQL 语句                    |
+| 0x80002660 | Invalid sma index                                                                                      | 非法创建 SMA 语句                                 | 检查并修正 SQL 语句                    |
+| 0x80002661 | Invalid SELECTed expression                                                                            | 无效查询语句                                      | 检查并修正 SQL 语句                    |
+| 0x80002662 | Fail to get table info                                                                                 | 获取表元数据信息失败                                  | 保留现场和日志，github 上报 issue      |
+| 0x80002663 | Not unique table/alias                                                                                 | 表名（别名）冲突                                    | 检查并修正 SQL 语句                    |
+| 0x80002664 | Join requires valid time series input                                                                  | 不支持子查询不含主键时间戳列输出的 JOIN 查询                   | 检查并修正 SQL 语句                    |
+| 0x80002665 | The _TAGS pseudo column can only be used for subtable and supertable queries                           | 非法 TAG 列查询                                  | 检查并修正 SQL 语句                    |
+| 0x80002666 | 子查询不含主键时间戳列输出                                                                                          | 检查并修正 SQL 语句                                |
+| 0x80002667 | Invalid usage of expr: %s                                                                              | 非法表达式                                       | 检查并修正 SQL 语句                    |
+| 0x80002687 | True_for duration cannot be negative                                                                   | true_for 的值不能是负数                            | 检查并修正 SQL 语句                    |
+| 0x80002688 | Cannot use 'year' or 'month' as true_for duration                                                      | 不能使用 n(月), y(年) 作为 true_for 的时间单位           | 检查并修正 SQL 语句                    |
+| 0x80002689 | Invalid using cols function                                                                            | cols 函数使用错误                                 | 检查并修正 SQL 语句                       |
+| 0x8000268A | Cols function's first param must be a select function that output a single row                         | cols 函数第一个参数应该为选择函数                         | 检查并修正 SQL 语句                    |
+| 0x8000268B | Invalid using alias for cols function                                                                  | cols 函数输出列重命名错误                             | 检查并修正 SQL 语句                    |
+| 0x8000268C | Join primary key col must be timestamp type                                                            | 关联查询主键列等值条件类型错误                             | 检查并修正 SQL 语句                    |
+| 0x8000268D | Invalid virtual table's ref column                                                                     | 创建/更新虚拟表时数据源列不正确                            | 检查并修正 SQL 语句          |
+| 0x8000268E | Invalid table type                                                                                     | 表类型不正确                                      | 检查并修正 SQL 语句          |
+| 0x8000268F | Invalid ref column type                                                                                | 虚拟表列的数据类型与数据源的数据类型不同                        | 检查并修正 SQL 语句          |
+| 0x80002690 | Create child table using virtual super table                                                           | 创建非虚拟子表 USING 了虚拟超级表                        | 检查并修正 SQL 语句          |
+| 0x80002696 | Invalid sliding offset                                                                                 | sliding 窗口偏移量非法                             | 检查并修正 SQL 语句                    |
+| 0x80002697 | Invalid interval offset                                                                                | interval 窗口偏移量非法                            | 检查并修正 SQL 语句     |
+| 0x800026FF | Parser internal error                                                                                  | 解析器内部错误                                     | 保留现场和日志，github 上报 issue      |
+| 0x80002700 | Planner internal error                                                                                 | 计划期内部错误                                     | 保留现场和日志，github 上报 issue      |
+| 0x80002701 | Expect ts equal                                                                                        | JOIN 条件校验失败                                 | 保留现场和日志，github 上报 issue      |
+| 0x80002702 | Cross join not support                                                                                 | 不支持 CROSS JOIN                              | 检查并修正 SQL 语句                    |
+| 0x80002704 | Planner slot key not found                                                                             | 生成物理计划时查找不到 slotId                          | 保留现场和日志，github 上报 issue                 |
+| 0x80002705 | Planner invalid table type                                                                             | 计划器生成计划时得到了错误的表类型                           | 保留现场和日志，github 上报 issue                    |
+| 0x80002706 | Planner invalid query control plan type                                                                | 计划器生成 dynamic query control 计划时得到的类型不正确     | 保留现场和日志，github 上报 issue                   |
 
 ## function
 
@@ -526,8 +509,8 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80002804 | Not builtin function                         | 函数非内置函数。内置函数不在的哈希表中会报错，用户应该很少遇见这个问题，否则是内部内置函数哈希初始化的时候出错或者写坏。                                                                                                                                                              | 客户应该不会遇到，如果遇到，说明程序有 bug，咨询开发人员。                                                  |
 | 0x80002805 | Duplicate timestamps not allowed in function | 函数输入主键列有重复时间戳。对某些依赖时间线顺序函数做超级表查询时，所有子表数据会按照时间戳进行排序后合并为一条时间线进行计算，因此子表合并后的时间戳可能会出现重复，导致某些计算没有意义而报错。涉及到的函数有：CSUM、DERIVATIVE、DIFF、IRATE、MAVG、STATECOUNT、STATEDURATION、TWA | 如果需要对超级表查询并且使用这些依赖时间线顺序函数时，确保子表中不存在重复时间戳数据。                     |
 
-
 ## udf
+
 | 错误码     | 错误描述                           | 可能的出错场景或者可能的原因                                                          | 建议用户采取的措施                            |
 | ---------- | ---------------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------- |
 | 0x80002901 | udf is stopping                    | dnode 退出时，收到 udf 调用                                                              | 停止执行 udf 查询                               |
@@ -541,8 +524,8 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80002909 | udf program language not supported | udf 编程语言不支持                                                                     | 使用支持的语言，当前支持 c、python              |
 | 0x8000290A | udf function execution failure     | udf 函数执行错误，如返回错误的行数                                                     | 具体查看错误日志                              |
 
-
 ## sml
+
 | 错误码     | 错误描述                         | 可能的出错场景或者可能的原因                    | 建议用户采取的措施                                              |
 | ---------- | -------------------------------- | ----------------------------------------------- | --------------------------------------------------------------- |
 | 0x80003000 | Invalid line protocol type       | schemaless 接口传入的协议非法                    | 检查传入的协议是否为 taos.h 中定位的三种 TSDB_SML_PROTOCOL_TYPE  |
@@ -550,7 +533,6 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80003002 | Invalid data format              | schemaless 接口传入的数据格式非法                | 具体查看 client 端的错误日志提示                                  |
 | 0x80003004 | Not the same type as before      | schemaless 数据一批的多行数据里相同列类型不一致 | 检测数据里每行相同列的数据类型是否一致                          |
 | 0x80003005 | Internal error                   | schemaless 内部逻辑错误，一般不会出现           | 具体查看 client 端的错误日志提示                                  |
-
 
 ## sma
 
@@ -573,13 +555,12 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80003157 | Rsma fs sync error            | 算子文件同步失败                                           | 检查错误日志，联系开发处理 |
 | 0x80003158 | Rsma fs update error          | 算子文件更新失败                                           | 检查错误日志，联系开发处理 |
 
-
 ## index
+
 | 错误码     | 错误描述         | 可能的出错场景或者可能的原因                                          | 建议用户采取的措施         |
 | ---------- | ---------------- | --------------------------------------------------------------------- | -------------------------- |
 | 0x80003200 | INDEX 正在重建中 | 1.写入过快，导致 index 的合并线程处理不过来 2.索引文件损坏，正在重建 | 检查错误日志，联系开发处理 |
 | 0x80003201 | 索引文件损坏     | 文件损坏                                                              | 检查错误日志，联系开发处理 |
-
 
 ## tmq
 
@@ -593,7 +574,6 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80004017 | Invalid status, please subscribe topic first | 数据订阅状态不对                                                                 | 没有调用 subscribe，直接 poll 数据     |
 | 0x80004100 | Stream task not exist | 流计算任务不存在                                                                 | 具体查看 server 端的错误日志     |
 
-
 ## virtual table
 
 | 错误码        | 错误描述                                                    | 可能的出错场景或者可能的原因                                 | 建议用户采取的措施               |
@@ -606,7 +586,6 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80006205 | Virtual table not support in STMT query and STMT insert | 不支持在 stmt 写入和查询中使用虚拟表                          | 不在 stmt 写入和查询中使用虚拟表     |
 | 0x80006206 | Virtual table not support in Topic                      | 不支持在订阅中使用虚拟表                                   | 不在订阅中使用虚拟表              |
 | 0x80006207 | Virtual super table query not support origin table from different databases                      | 虚拟超级表不支持子表的数据源来自不同的数据库                         | 确保虚拟超级表的子表的数据源都来自同一个数据库 |
-
 
 ## TDgpt
 
@@ -623,3 +602,13 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000448 | Analysis internal error, not processed              | anode 出现内部错误   | 具体查看 server 端的日志 (taosanode.app.log) |
 | 0x80000449 | Analysis failed since not enough rows               | 预测分析输入数据行数太少   | 增加输入数据规模（预测至少 10 行记录）                |
 | 0x8000044A | Not support co-variate/multi-variate forecast       | 不支持协变量/多变量预测   | 更换使用的预测模型                            |
+
+
+## STREAM
+
+| 错误码        | 错误描述                                                | 可能的出错场景或者可能的原因 | 建议用户采取的措施                        |
+|------------|-----------------------------------------------------|----------------|--------------------------------------|
+| 0x80007007 | Snode still in use with streams                     | SNode 正在使用，无法删除       | 检查 SNode 的流使用情况，确认是否继续删除      |
+| 0x8000700E | Db used by stream                                   | DB 正被某个流使用，不能删除        | 检查流对 DB 的使用情况    |
+| 0x80007014 | Stream output table name too long                   | 输出表名超长        | 检查建流语句中输出表名规则是否正确，是否结果超长            |
+| 0x80007016 | Stream output table name calc failed                | 输出表名计算失败       | 检查建流语句中输出表名规则是否正确，是否有 NULL 值存在   |

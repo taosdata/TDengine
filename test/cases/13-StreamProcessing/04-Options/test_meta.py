@@ -817,10 +817,10 @@ class TestStreamMetaTrigger:
             tdSql.checkResultsByFunc(
                 sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_f_ct4",
                 func=lambda: tdSql.getRows() == 1
-                and tdSql.compareData(0, 0, "2025-01-01 00:01:05")
+                and tdSql.compareData(0, 0, "2025-01-01 00:01:00")
                 and tdSql.compareData(0, 1, "2025-01-01 00:01:10")
-                and tdSql.compareData(0, 2, 2)
-                and tdSql.compareData(0, 3, 6)
+                and tdSql.compareData(0, 2, 3)
+                and tdSql.compareData(0, 3, 9)
                 and tdSql.compareData(0, 4, 3)
             )
 

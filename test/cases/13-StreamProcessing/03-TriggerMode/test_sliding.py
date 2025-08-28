@@ -117,13 +117,13 @@ class TestStreamSlidingTrigger:
         "0-0-0-0-27": [40, None, True, [], ""], #success
 
         "0-0-0-1-0": [3, None, True, [], ""], #success
-        "0-0-0-1-1": [6, None, True, [], ""], #success
+        "0-0-0-1-1": [6, None, True, [], "order by tag_tbname"], #success
         "0-0-0-1-2": [120, None, True, [], ""], #success
         "0-0-0-1-4": [120, None, True, [], "order by cts, tag_tbname"],  #success
         "0-0-0-1-6": [3513, None, True, [], ""], #success
 
         
-        "0-0-0-1-7": [9, None, True, [], ""], #success
+        "0-0-0-1-7": [9, None, True, [], "order by tag_tbname,cint"], #success
         "0-0-0-1-8": [120, None, True, [], ""], #success
         "0-0-0-1-10": [120, None, True, [], "order by cts, tag_tbname limit 150"],#success
         "0-0-0-1-12": [3513, None, True, [], ""], #success
@@ -153,7 +153,7 @@ class TestStreamSlidingTrigger:
 
         
         "0-0-0-2-12": [3513, None, True, [], ""],#success
-        "0-0-0-2-13": [120, None, True, [], ""],#success
+        "0-0-0-2-13": [120, None, True, [], "order by tag_tbname,cts"],#success
         "0-0-0-2-14": [120, None, True, [], ""],#success
         "0-0-0-2-15": [120, None, True, [], ""],#success
         "0-0-0-2-16": [120, None, True, [], ""],#success
@@ -172,7 +172,7 @@ class TestStreamSlidingTrigger:
         "0-0-0-3-4": [120, None, True, [], ""], #success
         "0-0-0-3-5": [40, None, True, [], ""], #success
         "0-0-0-3-6": [3513, None, True, [], ""],    #success     
-        "0-0-0-3-7": [9, None, True, [], ""],   #success   
+        "0-0-0-3-7": [9, None, True, [], "order by tag_tbname,cts"],   #success   
 
         "0-0-0-4-2": [40, None, True, [], ""],  #success    
         "0-0-0-4-41": [40, None, True, [], ""],  #success  
@@ -198,7 +198,7 @@ class TestStreamSlidingTrigger:
         
         
         "0-0-0-10-2": [120, None, True, [], "limit 10"],#success
-        "0-0-0-10-39": [3, None, True, [], ""],#success
+        "0-0-0-10-39": [3, None, True, [], "order by tag_tbname"],#success
         "0-0-0-10-45": [3513, None, True, [], ""],#success
         #"0-0-0-10-42": [111, None, True, [], ""],#failed fillhistory还是加载不符合范围数据
         #"0-0-0-11-40": [40, None, True, [], ""],#failed，fillhistory还是加载不符合范围数据
