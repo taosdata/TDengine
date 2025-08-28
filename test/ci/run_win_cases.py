@@ -6,12 +6,25 @@ from pathlib import Path
 import logging
 import psutil
 import sys
+import zipfile
+from datetime import datetime
 
 logging.basicConfig(level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 
+def get_git_commit_id():
+    try:
+        commit_id = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=os.path.dirname(os.path.realpath(__file__)),
+            stderr=subprocess.STDOUT
+        ).decode("utf-8").strip()
+        return commit_id
+    except Exception as e:
+        return "unknown"
+    
 def load_exclusion_list(exclusion_file):
     """加载排除用例列表"""
     exclusion_list = []
@@ -44,8 +57,16 @@ def clean_taos_process():
             killCmd = f"taskkill /PID {pid} /T /F"
             os.system(killCmd)
 
+def zip_dir(dir_path, zip_path):
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for root, dirs, files in os.walk(dir_path):
+            for file in files:
+                abs_path = os.path.join(root, file)
+                rel_path = os.path.relpath(abs_path, dir_path)
+                zipf.write(abs_path, rel_path)
 
-def process_pytest_file(input_file, exclusion_file="win_ignore_cases"):
+
+def process_pytest_file(input_file, log_path= "C:\CI_logs", exclusion_file="win_ignore_cases"):
     # 初始化统计变量
     total_cases = 0
     success_cases = 0
@@ -56,9 +77,13 @@ def process_pytest_file(input_file, exclusion_file="win_ignore_cases"):
 
     exclusion_list = load_exclusion_list(exclusion_file)
     work_dir = get_work_dir()
+    commit_id = get_git_commit_id()
+    start_time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_prefix = f"log_{commit_id}_{start_time_str}"
+    result_file = f"result_{commit_id}_{start_time_str}.txt"
     
     # 创建日志目录
-    log_dir = "pytest_logs"
+    log_dir = log_prefix
     if os.path.exists(log_dir):
         shutil.rmtree(log_dir)
     os.makedirs(log_dir, exist_ok=True)
@@ -122,12 +147,14 @@ def process_pytest_file(input_file, exclusion_file="win_ignore_cases"):
                 
                 if return_code == 0:
                     success_cases += 1
-                    # os.remove(log_file)
+                    os.remove(log_file)
                     logger.info(f"Case {pytest_cmd}: Success. Time cost: {execution_time:.2f}s")
+                    result_str = f"SUCCESS\t{pytest_cmd}\t\t\t{execution_time:.2f}s\n"
                 else:
                     failed_cases += 1
                     failed_case_list.append(pytest_cmd)
                     logger.info(f"Case {pytest_cmd} Failed. Time cost: {execution_time:.2f}s")
+                    result_str = f"FAILED\t{pytest_cmd}\t\t\t{execution_time:.2f}s\n"
                     
             except Exception as e:
                 case_end = time.time()
@@ -135,23 +162,39 @@ def process_pytest_file(input_file, exclusion_file="win_ignore_cases"):
                 failed_cases += 1
                 failed_case_list.append(pytest_cmd)
                 logger.info(f"Case {total_cases} Exception: {str(e)}. Time cost: {execution_time:.2f}s")
+                result_str = f"ERROR\t{pytest_cmd}\t\t\t{execution_time:.2f}s\t{str(e)}\n"
+            # 每条用例执行完都写入结果文件
+            with open(result_file, "a", encoding="utf-8") as rf:
+                rf.write(result_str)
                 
     # 计算总执行时间
     end_time = time.time()
     total_execution_time = end_time - start_time
     
     # 输出统计信息
-    logger.info("\nAll cases run finished:")
+    logger.info("All cases run finished:")
     logger.info(f"Total cost time: {total_execution_time:.2f}s")
     logger.info(f"Total cases: {total_cases}")
     logger.info(f"Success cases: {success_cases}")
     logger.info(f"Failed cases: {failed_cases}")
     logger.info(f"Windows skip cases: {skipped_cases}")
-    
     if failed_cases > 0:
         logger.info("\nFailed cases list:")
         for cmd in failed_case_list:
             logger.info(cmd)
+    
+    with open(result_file, "a", encoding="utf-8") as rf:
+        rf.write(f"\nAll cases run finished:\nTotal cost time: {total_execution_time:.2f}s\nTotal cases: {total_cases}\nSuccess cases: {success_cases}\nFailed cases: {failed_cases}\nWindows skip cases: {skipped_cases}\n")
+        if failed_cases > 0:
+            rf.write("\nFailed cases list:\n")
+            for cmd in failed_case_list:
+                rf.write(f"{cmd}\n")
+
+    if not os.path.exists(log_path):
+        os.makedirs(log_path, exist_ok=True)
+    zip_dir(log_dir, f"{log_prefix}.zip")
+    shutil.move(f"{log_prefix}.zip", os.path.join(log_path, f"{log_prefix}.zip"))
+    shutil.move(result_file, os.path.join(log_path, result_file))
             
     # 如果没有失败用例，删除日志目录
     #if failed_cases == 0 and os.path.exists(log_dir):
@@ -159,9 +202,13 @@ def process_pytest_file(input_file, exclusion_file="win_ignore_cases"):
 
 if __name__ == "__main__":
     import sys
-    if len(sys.argv) != 2:
-        logger.info("用法: python pytest_runner.py <输入文件>")
+    if len(sys.argv) < 2:
+        logger.info("用法: python pytest_runner.py <输入文件> <日志路径>")
         sys.exit(1)
         
     input_file = sys.argv[1]
-    process_pytest_file(input_file)
+    if len(sys.argv) >= 3:
+        log_path = sys.argv[2]
+        process_pytest_file(input_file, log_path)
+    else:
+        process_pytest_file(input_file)
