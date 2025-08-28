@@ -569,6 +569,12 @@ int32_t sclSetStreamExtWinParam(int32_t funcId, SNodeList* pParamNodes, SScalarP
       case FUNCTION_TYPE_TWEND:
         ((int64_t*)res->columnData->pData)[i] = pParams->wend;
         break;
+      case FUNCTION_TYPE_TWDURATION:
+        ((int64_t*)res->columnData->pData)[i] = pParams->wduration;
+        break;
+      case FUNCTION_TYPE_TWROWNUM:
+        ((int64_t*)res->columnData->pData)[i] = pParams->wrownum;
+        break;        
       case FUNCTION_TYPE_TPREV_LOCALTIME:
         ((int64_t*)res->columnData->pData)[i] = pParams->prevLocalTime;
         break;
@@ -577,6 +583,9 @@ int32_t sclSetStreamExtWinParam(int32_t funcId, SNodeList* pParamNodes, SScalarP
         break;
       case FUNCTION_TYPE_TNEXT_LOCALTIME:
         ((int64_t*)res->columnData->pData)[i] = pParams->nextLocalTime;
+        break;
+      case FUNCTION_TYPE_TGRPID:
+        ((int64_t*)res->columnData->pData)[i] = pInfo->groupId;
         break;
       default:
         uError("invalid placeholder function type: %d in ext win range expr", t);
@@ -587,6 +596,52 @@ int32_t sclSetStreamExtWinParam(int32_t funcId, SNodeList* pParamNodes, SScalarP
   return code;
 }
 
+int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset, int64_t rows, int16_t funcId, const void* pExtraParams) {
+  int32_t t = fmGetFuncTypeFromId(funcId);
+  SStreamRuntimeFuncInfo* pInfo = (SStreamRuntimeFuncInfo*)pExtraParams;
+  SSTriggerCalcParam *pParams = taosArrayGet(pInfo->pStreamPesudoFuncVals, pInfo->curIdx);
+  int64_t* pData = NULL;
+  switch (t) {
+    case FUNCTION_TYPE_TPREV_TS:
+      pData = &pParams->prevTs;
+      break;
+    case FUNCTION_TYPE_TCURRENT_TS:
+      pData = &pParams->currentTs;
+      break;
+    case FUNCTION_TYPE_TNEXT_TS:
+      pData = &pParams->nextTs;
+      break;
+    case FUNCTION_TYPE_TWSTART:
+      pData = &pParams->wstart;
+      break;
+    case FUNCTION_TYPE_TWEND:
+      pData = &pParams->wend;
+      break;
+    case FUNCTION_TYPE_TWDURATION:
+      pData = &pParams->wduration;
+      break;
+    case FUNCTION_TYPE_TWROWNUM:
+      pData = &pParams->wrownum;
+      break;        
+    case FUNCTION_TYPE_TPREV_LOCALTIME:
+      pData = &pParams->prevLocalTime;
+      break;
+    case FUNCTION_TYPE_TLOCALTIME:
+      pData = &pParams->triggerTime;
+      break;
+    case FUNCTION_TYPE_TNEXT_LOCALTIME:
+      pData = &pParams->nextLocalTime;
+      break;
+    case FUNCTION_TYPE_TGRPID:
+      pData = &pInfo->groupId;
+      break;
+    default:
+      uError("invalid placeholder function type: %d in ext win range expr", t);
+      return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  return doCopyNItems(pResColData, offset, (const char*)pData, sizeof(int64_t), rows, false);
+}
 
 static int32_t sclInitStreamPseudoFuncParamList(int32_t funcId, SScalarParam **ppParams, SNodeList *pParamNodes,
                                                 SScalarCtx *pCtx, int32_t *pParamNum, int32_t *pRowNum) {

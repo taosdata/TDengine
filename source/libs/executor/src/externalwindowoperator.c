@@ -82,6 +82,7 @@ static int32_t extWinBlockListAddBlock(SExternalWindowOperator* pExtW, SList* pL
     SListNode* pNode = tdListPopHead(pExtW->pFreeBlocks);
     *ppBlock = *(SSDataBlock**)pNode->data;
     *ppIdx = *(SArray**)((SArray**)pNode->data + 1);
+    tdListAppendNode(pList, pNode);
     pExtW->stat.resBlockReused++;
   } else {
     TAOS_CHECK_EXIT(createOneDataBlock(pExtW->binfo.pRes, false, &pRes));
@@ -147,6 +148,8 @@ static void extWinDestroyBlockList(void* p) {
     while (pNode) {
       SSDataBlock* pBlock = *(SSDataBlock**)pNode->data;
       blockDataDestroy(pBlock);
+      SArray* pIdx = *(SArray**)((SArray**)pNode->data + 1);
+      taosArrayDestroy(pIdx);
       pTmp = pNode;
       pNode = pNode->dl_next_;
       taosMemoryFree(pTmp);
@@ -155,7 +158,48 @@ static void extWinDestroyBlockList(void* p) {
   taosMemoryFree(*ppList);
 }
 
-static void extWinDestroyBlkNode(SListNode* pNode) {
+
+static void extWinRecycleBlkNode(SExternalWindowOperator* pExtW, SListNode** ppNode) {
+  if (NULL == ppNode || NULL == *ppNode) {
+    return;
+  }
+
+  SSDataBlock* pBlock = *(SSDataBlock**)(*ppNode)->data;
+  SArray* pIdx = *(SArray**)((SArray**)(*ppNode)->data + 1);
+  
+  if (listNEles(pExtW->pFreeBlocks) >= 10) {
+    blockDataDestroy(pBlock);
+    taosArrayDestroy(pIdx);
+    taosMemoryFreeClear(*ppNode);
+    pExtW->stat.resBlockDestroyed++;
+    return;
+  }
+  
+  blockDataCleanup(pBlock);
+  taosArrayClear(pIdx);
+  tdListPrependNode(pExtW->pFreeBlocks, *ppNode);
+  *ppNode = NULL;
+  pExtW->stat.resBlockRecycled++;
+}
+
+static void extWinRecycleBlockList(SExternalWindowOperator* pExtW, void* p) {
+  if (NULL == p) {
+    return;
+  }
+
+  SListNode* pTmp = NULL;
+  SList** ppList = (SList**)p;
+  if ((*ppList) && TD_DLIST_NELES(*ppList) > 0) {
+    SListNode* pNode = TD_DLIST_HEAD(*ppList);
+    while (pNode) {
+      pTmp = pNode;
+      pNode = pNode->dl_next_;
+      extWinRecycleBlkNode(pExtW, &pTmp);
+    }
+  }
+  taosMemoryFree(*ppList);
+}
+static void extWinDestroyBlkNode(SExternalWindowOperator* pInfo, SListNode* pNode) {
   if (NULL == pNode) {
     return;
   }
@@ -167,6 +211,8 @@ static void extWinDestroyBlkNode(SListNode* pNode) {
   taosArrayDestroy(pIdx);
 
   taosMemoryFree(pNode);
+
+  pInfo->stat.resBlockDestroyed++;
 }
 
 
@@ -185,14 +231,14 @@ void destroyExternalWindowOperatorInfo(void* param) {
   blockDataDestroy(pInfo->pTmpBlock);
   blockDataDestroy(pInfo->pEmptyInputBlock);
 
-  extWinDestroyBlkNode(pInfo->pLastBlkNode);
+  extWinDestroyBlkNode(pInfo, pInfo->pLastBlkNode);
   if (pInfo->pFreeBlocks) {
     SListNode *node;
     while ((node = TD_DLIST_HEAD(pInfo->pFreeBlocks)) != NULL) {
       TD_DLIST_POP(pInfo->pFreeBlocks, node);
-      extWinDestroyBlkNode(node);
-      taosMemoryFree(node);
+      extWinDestroyBlkNode(pInfo, node);
     }
+    taosMemoryFree(pInfo->pFreeBlocks);
   }
   
   cleanupAggSup(&pInfo->aggSup);
@@ -200,6 +246,10 @@ void destroyExternalWindowOperatorInfo(void* param) {
   taosMemoryFreeClear(pInfo->pResultRow);
 
   pInfo->binfo.resultRowInfo.openWindow = tdListFree(pInfo->binfo.resultRowInfo.openWindow);
+
+  qDebug("ext window stat at destroy, created:%" PRId64 ", destroyed:%" PRId64 ", recycled:%" PRId64 ", reused:%" PRId64 ", append:%" PRId64, 
+      pInfo->stat.resBlockCreated, pInfo->stat.resBlockDestroyed, pInfo->stat.resBlockRecycled, 
+      pInfo->stat.resBlockReused, pInfo->stat.resBlockAppend);
 
   taosMemoryFreeClear(pInfo);
 }
@@ -558,28 +608,6 @@ _error:
   return code;
 }
 
-static void extWinRecycleBlkNode(SExternalWindowOperator* pExtW) {
-  if (NULL == pExtW->pLastBlkNode) {
-    return;
-  }
-
-  SSDataBlock* pBlock = *(SSDataBlock**)pExtW->pLastBlkNode->data;
-  SArray* pIdx = *(SArray**)((SArray**)pExtW->pLastBlkNode->data + 1);
-  
-  if (listNEles(pExtW->pFreeBlocks) >= 10) {
-    blockDataDestroy(pBlock);
-    taosArrayDestroy(pIdx);
-    taosMemoryFreeClear(pExtW->pLastBlkNode);
-    pExtW->stat.resBlockDestroyed++;
-    return;
-  }
-  
-  blockDataCleanup(pBlock);
-  taosArrayClear(pIdx);
-  tdListPrependNode(pExtW->pFreeBlocks, pExtW->pLastBlkNode);
-  pExtW->pLastBlkNode = NULL;
-  pExtW->stat.resBlockRecycled++;
-}
 
 static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
   SExternalWindowOperator* pExtW = pOperator->info;
@@ -591,7 +619,7 @@ static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
   pExtW->outputWinId = 0;
   pExtW->lastWinId = -1;
   taosArrayClear(pExtW->pWins);
-  extWinRecycleBlkNode(pExtW);
+  extWinRecycleBlkNode(pExtW, &pExtW->pLastBlkNode);
 
   int32_t code = blockDataEnsureCapacity(pExtW->binfo.pRes, pOperator->resultInfo.capacity);
   if (code == 0) {
@@ -613,7 +641,7 @@ static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
   pExtW->outWinIdx = 0;
   pExtW->lastSKey = INT64_MIN;
 
-  qDebug("%s ext window stat, created:%" PRId64 ", destroyed:%" PRId64 ", recycled:%" PRId64 ", reused:%" PRId64 ", append:%" PRId64, 
+  qDebug("%s ext window stat at reset, created:%" PRId64 ", destroyed:%" PRId64 ", recycled:%" PRId64 ", reused:%" PRId64 ", append:%" PRId64, 
       pTaskInfo->id.str, pExtW->stat.resBlockCreated, pExtW->stat.resBlockDestroyed, pExtW->stat.resBlockRecycled, 
       pExtW->stat.resBlockReused, pExtW->stat.resBlockAppend);
   
@@ -1160,7 +1188,7 @@ static int32_t extWinGetWinResBlock(SOperatorInfo* pOperator, int32_t rows, SExt
       pList = tdListNew(POINTER_BYTES * 2);
       TSDB_CHECK_NULL(pList, code, lino, _exit, terrno);
       SList** ppList = taosArrayGet(pExtW->pOutputBlocks, pWin->winOutIdx);
-      extWinDestroyBlockList(ppList);
+      extWinRecycleBlockList(pExtW, ppList);
       *ppList = pList;
     }
   }
@@ -1227,7 +1255,7 @@ static int32_t extWinProjectDo(SOperatorInfo* pOperator, SSDataBlock* pInputBloc
 
   qDebug("%s %s start to apply project to tmp blk", pOperator->pTaskInfo->id.str, __func__);
   TAOS_CHECK_EXIT(projectApplyFunctionsWithSelect(pExprSup->pExprInfo, pResBlock, pExtW->pTmpBlock, pExprSup->pCtx, pExprSup->numOfExprs,
-        NULL, GET_STM_RTINFO(pOperator->pTaskInfo), true));
+        NULL, GET_STM_RTINFO(pOperator->pTaskInfo), true, pExprSup->hasIndefRowsFunc));
 
   TAOS_CHECK_EXIT(extWinAppendWinIdx(pOperator->pTaskInfo, pIdx, pResBlock, extWinGetCurWinIdx(pOperator->pTaskInfo), rows));
 
@@ -1732,7 +1760,7 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     return code;
   }
 
-  extWinRecycleBlkNode(pExtW);
+  extWinRecycleBlkNode(pExtW, &pExtW->pLastBlkNode);
 
   TAOS_CHECK_EXIT(pOperator->fpSet._openFn(pOperator));
 
@@ -1835,6 +1863,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
       if (code != TSDB_CODE_SUCCESS) {
         goto _error;
       }
+      checkIndefRowsFuncs(&pExtW->scalarSupp);
     }
     
     size_t keyBufSize = sizeof(int64_t) * 2 + POINTER_BYTES;

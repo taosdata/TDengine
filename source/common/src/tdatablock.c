@@ -272,7 +272,7 @@ static int32_t colDataReserve(SColumnInfoData* pColumnInfoData, size_t newSize) 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t doCopyNItems(struct SColumnInfoData* pColumnInfoData, int32_t currentRow, const char* pData,
+int32_t doCopyNItems(struct SColumnInfoData* pColumnInfoData, int32_t currentRow, const char* pData,
                             int32_t itemLen, int32_t numOfRows, bool trimValue) {
   if (pColumnInfoData->info.bytes < itemLen) {
     uWarn("column/tag actual data len %d is bigger than schema len %d, trim it:%d", itemLen,
@@ -470,7 +470,7 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int
   }
 
   if (numOfRow2 == 0) {
-    return numOfRow1;
+    return TSDB_CODE_SUCCESS;
   }
 
   if (pSource->hasNull) {
@@ -545,7 +545,7 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int
     }
   }
 
-  return numOfRow1 + numOfRow2;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* pSource, int32_t numOfRows,
