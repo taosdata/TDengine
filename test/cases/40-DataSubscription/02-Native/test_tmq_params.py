@@ -107,7 +107,8 @@ class TestTmqParams:
                             while True:
                                 res = consumer.poll(3)
                                 tdSql.query('show consumers;')
-                                consumer_info = tdSql.queryResult[0][-1]
+                                consumer_info = tdSql.queryResult[0][10]
+                                tdSql.printResult()
                                 if offset_value == "latest":
                                     if not res and stop_flag == 1:
                                         break
