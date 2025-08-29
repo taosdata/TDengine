@@ -216,7 +216,7 @@ class TestTaosCli:
 
         # support Both
         args = [
-            ['-s "quit;"', "Welcome to the TDengine Command Line Interface"],
+            ['-s "quit;"', "Welcome to the TDengine TSDB Command Line Interface"],
             ['-h "" -s "show dnodes;"', "Invalid host"],
             ['-u "" -s "show dnodes;"', "Invalid user"],
             ['-P "" -s "show dnodes;"', "Invalid port"],
