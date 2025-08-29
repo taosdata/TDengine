@@ -1245,9 +1245,15 @@ int32_t apercentileCreateMergeParam(SNodeList* pRawParameters, SNode* pPartialRe
 }
 
 static int32_t gconcatCreateMergeParam(SNodeList* pRawParameters, SNode* pPartialRes, SNodeList** pParameters) {
-  int32_t code = 0;
-  SNode*  pNew = NULL;
-
+  int32_t code = nodesListMakeAppend(pParameters, pPartialRes);
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode* pNew = NULL;
+    code = nodesCloneNode(nodesListGetNode(pRawParameters, pRawParameters->length - 1), &pNew);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListStrictAppend(*pParameters, pNew);
+    }
+  }
+  /*
   code = nodesCloneNode(nodesListGetNode(pRawParameters, 0), &pNew);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListMakeAppend(pParameters, pNew);
@@ -1256,7 +1262,7 @@ static int32_t gconcatCreateMergeParam(SNodeList* pRawParameters, SNode* pPartia
       code = nodesListStrictAppend(*pParameters, pPartialRes);
     }
   }
-
+  */
   return code;
 }
 
@@ -6398,19 +6404,12 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "group_concat",
     .type = FUNCTION_TYPE_GROUP_CONCAT,
     .classification = FUNC_MGT_AGG_FUNC, // | FUNC_MGT_TSMA_FUNC,
-    .parameters = {.minParamNum = 2,
-                   .maxParamNum = 9,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = -1,
                    .paramInfoPattern = 1,
-                   .inputParaInfo[0][0] = {.isLastParam = false,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
                                            .startParam = 1,
-                                           .endParam = 1,
-                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
-                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
-                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
-                   .inputParaInfo[0][1] = {.isLastParam = true,
-                                           .startParam = 2,
-                                           .endParam = 9,
+                                           .endParam = -1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
@@ -6428,8 +6427,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     /*
     .combineFunc  = gconcatCombine, // stream
     .pStateFunc = "group_concat",   // tsma
-    .pMiddleFunc  = "group_concat",
 
+    .pMiddleFunc  = "group_concat",
     .pPartialFunc = "_gconcat_partial",
     .pMergeFunc   = "_gconcat_merge",
     */

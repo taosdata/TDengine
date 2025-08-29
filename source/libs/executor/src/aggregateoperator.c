@@ -349,13 +349,14 @@ int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx) {
       if (pCtx[k].fpSet.process == NULL) {
         continue;
       }
-
+      /*
       int32_t firstData = 0;
       if (pCtx[k].numOfParams > 1) {
         firstData = 1;
       }
-      // if ((&pCtx[k])->input.pData[0] == NULL) {
-      if ((&pCtx[k])->input.pData[firstData] == NULL) {
+      */
+      if ((&pCtx[k])->input.pData[0] == NULL) {
+        // if ((&pCtx[k])->input.pData[firstData] == NULL) {
         code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         qError("%s aggregate function error happens, input data is NULL.", GET_TASKID(pOperator->pTaskInfo));
       } else {

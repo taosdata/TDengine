@@ -1712,8 +1712,10 @@ int32_t gconcatFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultI
   (void)memset(pRes, 0, sizeof(SStdRes));
 
   // pRes->separator = varDataVal(pCtx->param[0].param.pz);
-  pRes->separator = pCtx->param[0].param.pz;
-  pRes->type = pCtx->param[0].param.nType;
+
+  int32_t sepParamIdx = pCtx->numOfParams - 1;
+  pRes->separator = pCtx->param[sepParamIdx].param.pz;
+  pRes->type = pCtx->param[sepParamIdx].param.nType;
 
   /*
   SInputColumnInfoData* pInput = &pCtx->input;
@@ -1770,7 +1772,7 @@ int32_t gconcatFunction(SqlFunctionCtx* pCtx) {
 
     varDataSetLen(pRes->result, 0);
 
-    for (int c = 1; c < numOfCols; ++c) {
+    for (int c = 0; c < numOfCols - 1; ++c) {
       SColumnInfoData* pCol = pInput->pData[c];
       int32_t          type = pCol->info.type;
 
@@ -1791,7 +1793,11 @@ int32_t gconcatFunction(SqlFunctionCtx* pCtx) {
   }
 
   // computing based on the true data block
-  char* buf = pRes->result;
+  char*            buf = pRes->result;
+  SColumnInfoData* pCol = pInput->pData[numOfCols - 1];
+
+  sep = colDataGetData(pCol, 0);
+  pRes->type = pCol->info.type;
   for (int r = rowStart; r < rowStart + numOfRows; ++r) {
     if (prefixSep) {
       // concat the separator
@@ -1803,7 +1809,7 @@ int32_t gconcatFunction(SqlFunctionCtx* pCtx) {
       }
     }
 
-    for (int c = 1; c < numOfCols; ++c) {
+    for (int c = 0; c < numOfCols - 1; ++c) {
       SColumnInfoData* pCol = pInput->pData[c];
       int32_t          type = pCol->info.type;
 
