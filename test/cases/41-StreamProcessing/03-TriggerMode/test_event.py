@@ -9,7 +9,22 @@ class TestStreamEventTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_event_trigger(self):
-        """
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+        
+        History:
+            - xxx
+            - xxx
         """
 
         tdStream.dropAllStreamsAndDbs()

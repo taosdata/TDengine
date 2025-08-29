@@ -9,15 +9,30 @@ class TestStreamStateTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_state_trigger(self):
-        """Stream basic test 1
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+        
+        History:
+            - xxx
+            - xxx
         """
 
         tdStream.createSnode()
 
         streams = []
-        # streams.append(self.Basic0())
+        streams.append(self.Basic0())
         # streams.append(self.Basic1())
-        streams.append(self.Basic2())
+        # streams.append(self.Basic2())
         # streams.append(self.Basic3())
         # streams.append(self.Basic4())
         # streams.append(self.Basic5())
