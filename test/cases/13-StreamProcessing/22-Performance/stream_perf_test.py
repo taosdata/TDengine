@@ -139,10 +139,10 @@ Usage Examples/使用示例:
     python3 stream_perf_test.py --stream-perf-test-dir /home/stream_perf_test_dir --create-data --table-count 5000 --histroy-rows 1000
     
     # 恢复数据并测试特定流计算
-    python3 stream_perf_test.py --stream-perf-test-dir /home/stream_perf_test_dir -m 3 --sql-type sliding_stb_partition_by_tbname --time 60
+    python3 stream_perf_test.py --stream-perf-test-dir /home/stream_perf_test_dir -m 3 --sql-type intervalsliding_stb_partition_by_tbname --time 60
     
     # 多流并发测试
-    python3 stream_perf_test.py --stream-perf-test-dir /home/stream_perf_test_dir -m 1 --sql-type sliding_stb --stream-num 100 --time 30
+    python3 stream_perf_test.py --stream-perf-test-dir /home/stream_perf_test_dir -m 1 --sql-type intervalsliding_stb --stream-num 100 --time 30
     
     # 延迟监控测试
     python3 stream_perf_test.py --stream-perf-test-dir /home/stream_perf_test_dir -m 1 --check-stream-delay --delay-check-interval 5 --time 60
@@ -896,19 +896,78 @@ class StreamSQLTemplates:
         else:  
             return ", ".join(self.default_select_columns)
     
-    def _build_from_clause(self, tbname_or_trows='tbname'):
+    def _build_from_clause(self, tbname_or_trows_or_sourcetable='sourcetable', is_period=False, is_sliding=False):
         """构建 FROM 子句
         
         Args:
-            tbname_or_trows: 'tbname' 或 'trows'
+            tbname_or_trows_or_sourcetable: FROM 子句类型
+                - 'tbname': %%tbname where ts >= _twstart and ts <= _twend  
+                - 'trows': %%trows
+                - 'sourcetable': 明确指定源表名 where ts >= _twstart and ts <= _twend
+            is_period: 是否为 period 类型的流计算
+            is_sliding: 是否为 sliding 类型的流计算
             
         Returns:
             str: FROM 子句字符串
         """
-        if tbname_or_trows == 'trows':
+        if tbname_or_trows_or_sourcetable == 'trows':
             return "%%trows "
+        elif tbname_or_trows_or_sourcetable == 'sourcetable':
+            # 返回占位符，在具体模板中会被替换为实际的表名
+            if is_sliding:
+                return "SOURCE_TABLE_PLACEHOLDER where ts >= _tprev_ts and ts <= _tnext_ts"
+            elif is_period:
+                return "SOURCE_TABLE_PLACEHOLDER where ts >= cast(_tprev_localtime/1000000 as timestamp) and ts <= cast(_tnext_localtime/1000000 as timestamp)"
+            else:
+                return "SOURCE_TABLE_PLACEHOLDER where ts >= _twstart and ts <= _twend"
+        else:  # 'tbname' and 纳秒
+            if is_sliding:
+                return "%%tbname where ts >= _tprev_ts and ts <= _tnext_ts"
+            elif is_period:
+                return "%%tbname where ts >= cast(_tprev_localtime/1000000 as timestamp) and ts <= cast(_tnext_localtime/1000000 as timestamp)"
+            else:
+                return "%%tbname where ts >= _twstart and ts <= _twend"
+
+    
+    def _build_from_source_and_clause(self, source_type='stb', stream_index=None, tbname_or_trows_or_sourcetable='sourcetable', is_period=False, is_sliding=False):
+        """构建数据源和FROM子句的组合
+        
+        Args:
+            source_type: 数据源类型 ('stb', 'tb')
+            stream_index: 流的索引编号
+            tbname_or_trows_or_sourcetable: FROM子句类型
+            is_period: 是否为 period 类型的流计算
+            is_sliding: 是否为 sliding 类型的流计算
+                
+        Returns:
+            tuple: (from_source, from_clause)
+        """
+        from_source = self._build_from_source(source_type, stream_index)
+        
+        if tbname_or_trows_or_sourcetable == 'sourcetable':
+            # 对于sourcetable模式，FROM子句直接使用具体的表名
+            if source_type == 'tb':
+                # 子表情况：使用具体的子表名
+                if stream_index is not None:
+                    table_name = f"stream_from.ctb0_{stream_index}"
+                else:
+                    table_name = "stream_from.ctb0_0"
+            else:  # 'stb'
+                # 超级表情况：使用超级表名
+                table_name = "stream_from.stb"
+                
+            # period 类型使用不同的时间变量
+            if is_sliding:
+                from_clause = f"{table_name} where ts >= _tprev_ts and ts <= _tnext_ts"
+            elif is_period:
+                from_clause = f"{table_name} where ts >= cast(_tprev_localtime/1000000 as timestamp) and ts <= cast(_tnext_localtime/1000000 as timestamp)"
+            else:
+                from_clause = f"{table_name} where ts >= _twstart and ts <= _twend"
         else:
-            return "%%tbname where ts >= _twstart and ts <= _twend"
+            # 其他模式使用原有逻辑
+            from_clause = self._build_from_clause(tbname_or_trows_or_sourcetable, is_period, is_sliding)
+            
+        return from_source, from_clause        
     
     def _build_partition_clause(self, partition_type='none'):
         """构建分区子句
@@ -954,13 +1013,16 @@ class StreamSQLTemplates:
         else:  # 'stb'
             return "stream_from.stb"
     
-    def _generate_stream_name(self, base_type, source_type, partition_type):
+    def _generate_stream_name(self, base_type, source_type, partition_type, agg_or_select='agg', tbname_or_trows_or_sourcetable='sourcetable', stream_index=None):
         """生成流名称
         
         Args:
-            base_type: 基础类型 (如 's2_7', 'sliding')
+            base_type: 基础类型 (如 's2_7', 'intervalsliding')
             source_type: 数据源类型 ('stb', 'tb') 
             partition_type: 分区类型 ('none', 'tbname', 'tag')
+            agg_or_select: 查询类型 ('agg', 'select')
+            tbname_or_trows_or_sourcetable: FROM子句类型 ('tbname', 'trows', 'sourcetable')
+            stream_index: 流索引编号（可选）
             
         Returns:
             str: 生成的流名称
@@ -971,48 +1033,96 @@ class StreamSQLTemplates:
         if partition_type == 'none':
             partition_part = ""
         elif partition_type == 'tbname':
-            partition_part = "_tbname" 
+            partition_part = "_partition_by_tbname" 
         elif partition_type == 'tag':
-            partition_part = "_tag"
+            partition_part = "_partition_by_tag"
         else:
             partition_part = ""
             
-        return f"stream_from.{base_type}_{source_part}{partition_part}"
+        # 查询类型部分
+        query_part = f"_{agg_or_select}"
+        
+        # FROM子句类型部分
+        if tbname_or_trows_or_sourcetable == 'sourcetable':
+            if source_type == 'stb':
+                # 超级表情况：加上 stb 后缀
+                from_part = "_sourcetable_stb"
+            else:  # 'tb'
+                # 子表情况：加上具体的子表名
+                if stream_index is not None:
+                    from_part = f"_sourcetable_ctb0_{stream_index}"
+                else:
+                    from_part = "_sourcetable_ctb0_0"
+        else:
+            from_part = f"_{tbname_or_trows_or_sourcetable}"
+        
+        # 基础名称组合
+        stream_name = f"stream_from.{base_type}_{source_part}{partition_part}{query_part}{from_part}"
+        
+        # 如果有流索引，添加到末尾
+        if stream_index is not None and not (tbname_or_trows_or_sourcetable == 'sourcetable' and source_type == 'tb'):
+            stream_name += f"_{stream_index}"
+            
+        return stream_name
     
-    def _generate_target_table(self, base_type, source_type, partition_type):
+    def _generate_target_table(self, base_type, source_type, partition_type, agg_or_select='agg', tbname_or_trows_or_sourcetable='sourcetable', stream_index=None):
         """生成目标表名称"""
         source_part = "stb" if source_type == "stb" else "tb"
         
         if partition_type == 'none':
             partition_part = ""
         elif partition_type == 'tbname':
-            partition_part = "_tbname"
+            partition_part = "_partition_by_tbname"
         elif partition_type == 'tag':
-            partition_part = "_tag"
+            partition_part = "_partition_by_tag"
         else:
             partition_part = ""
+        
+        # 查询类型部分
+        query_part = f"_{agg_or_select}"
+        
+        # FROM子句类型部分
+        if tbname_or_trows_or_sourcetable == 'sourcetable':
+            if source_type == 'stb':
+                # 超级表情况：加上 stb 后缀
+                from_part = "_sourcetable_stb"
+            else:  # 'tb'
+                # 子表情况：加上具体的子表名
+                if stream_index is not None:
+                    from_part = f"_sourcetable_ctb0_{stream_index}"
+                else:
+                    from_part = "_sourcetable_ctb0_0"
+        else:
+            from_part = f"_{tbname_or_trows_or_sourcetable}"
+        
+        # 基础名称组合
+        target_table = f"stream_to.{base_type}_{source_part}{partition_part}{query_part}{from_part}"
+        
+        # 如果有流索引，添加到末尾
+        if stream_index is not None and not (tbname_or_trows_or_sourcetable == 'sourcetable' and source_type == 'tb'):
+            target_table += f"_{stream_index}"
             
-        return f"stream_to.{base_type}_{source_part}{partition_part}"
+        return target_table
     
         
     # ========== 通用模板生成方法 ==========
-    def get_sliding_template(self, source_type='stb', partition_type='tbname', 
-                           agg_or_select='agg', tbname_or_trows='tbname', custom_columns=None, stream_index=None):
+    def get_intervalsliding_template(self, source_type='stb', partition_type='tbname', 
+                           agg_or_select='agg', tbname_or_trows_or_sourcetable='sourcetable', custom_columns=None, stream_index=None):
         """生成滑动窗口模板
         
         Args:
             source_type: 'stb'(超级表) 或 'tb'(子表)
             partition_type: 'none'(不分组), 'tbname'(按子表名), 'tag'(按tag)
             agg_or_select: 'agg' 或 'select'
-            tbname_or_trows: 'tbname' 或 'trows'
+            tbname_or_trows_or_sourcetable: 'tbname' 或 'trows' 或 'sourcetable'
             custom_columns: 自定义列
         """
         columns = self._build_columns(agg_or_select, custom_columns)
-        from_clause = self._build_from_clause(tbname_or_trows)
+        from_source, from_clause = self._build_from_source_and_clause(source_type, stream_index, tbname_or_trows_or_sourcetable, is_period=False)
         partition_clause = self._build_partition_clause(partition_type)
-        from_source = self._build_from_source(source_type, stream_index) 
-        stream_name = self._generate_stream_name('sliding', source_type, partition_type)
-        target_table = self._generate_target_table('sliding', source_type, partition_type)
+        
+        stream_name = self._generate_stream_name('intervalsliding', source_type, partition_type, agg_or_select, tbname_or_trows_or_sourcetable, stream_index)
+        target_table = self._generate_target_table('intervalsliding', source_type, partition_type, agg_or_select, tbname_or_trows_or_sourcetable, stream_index)
         
         # 如果有流索引，在流名称和目标表中添加索引
         if stream_index is not None:
@@ -1031,14 +1141,14 @@ class StreamSQLTemplates:
     """
     
     def get_session_template(self, source_type='stb', partition_type='tbname',
-                           agg_or_select='agg', tbname_or_trows='tbname', custom_columns=None, stream_index=None):
+                           agg_or_select='agg', tbname_or_trows_or_sourcetable='sourcetable', custom_columns=None, stream_index=None):
         """生成会话窗口模板"""
         columns = self._build_columns(agg_or_select, custom_columns)
-        from_clause = self._build_from_clause(tbname_or_trows)
+        from_source, from_clause = self._build_from_source_and_clause(source_type, stream_index, tbname_or_trows_or_sourcetable, is_period=False)
         partition_clause = self._build_partition_clause(partition_type)
-        from_source = self._build_from_source(source_type, stream_index) 
-        stream_name = self._generate_stream_name('session', source_type, partition_type)
-        target_table = self._generate_target_table('session', source_type, partition_type)
+         
+        stream_name = self._generate_stream_name('session', source_type, partition_type, agg_or_select, tbname_or_trows_or_sourcetable, stream_index)
+        target_table = self._generate_target_table('session', source_type, partition_type, agg_or_select, tbname_or_trows_or_sourcetable, stream_index)
         
         # 如果有流索引，在流名称和目标表中添加索引
         if stream_index is not None:
@@ -1056,14 +1166,14 @@ class StreamSQLTemplates:
     """
     
     def get_count_template(self, source_type='stb', partition_type='tbname',
-                         agg_or_select='agg', tbname_or_trows='tbname', custom_columns=None, stream_index=None):
+                         agg_or_select='agg', tbname_or_trows_or_sourcetable='sourcetable', custom_columns=None, stream_index=None):
         """生成计数窗口模板"""
         columns = self._build_columns(agg_or_select, custom_columns)
-        from_clause = self._build_from_clause(tbname_or_trows)
+        from_source, from_clause = self._build_from_source_and_clause(source_type, stream_index, tbname_or_trows_or_sourcetable, is_period=False)
         partition_clause = self._build_partition_clause(partition_type)
-        from_source = self._build_from_source(source_type, stream_index) 
-        stream_name = self._generate_stream_name('count', source_type, partition_type)
-        target_table = self._generate_target_table('count', source_type, partition_type)
+        
+        stream_name = self._generate_stream_name('count', source_type, partition_type, agg_or_select, tbname_or_trows_or_sourcetable, stream_index)
+        target_table = self._generate_target_table('count', source_type, partition_type, agg_or_select, tbname_or_trows_or_sourcetable, stream_index)
         
         # 如果有流索引，在流名称和目标表中添加索引
         if stream_index is not None:
@@ -1081,14 +1191,14 @@ class StreamSQLTemplates:
     """
     
     def get_event_template(self, source_type='stb', partition_type='tbname',
-                         agg_or_select='agg', tbname_or_trows='tbname', custom_columns=None, stream_index=None):
+                         agg_or_select='agg', tbname_or_trows_or_sourcetable='sourcetable', custom_columns=None, stream_index=None):
         """生成事件窗口模板"""
         columns = self._build_columns(agg_or_select, custom_columns)
-        from_clause = self._build_from_clause(tbname_or_trows)
+        from_source, from_clause = self._build_from_source_and_clause(source_type, stream_index, tbname_or_trows_or_sourcetable, is_period=False)
         partition_clause = self._build_partition_clause(partition_type)
-        from_source = self._build_from_source(source_type, stream_index) 
-        stream_name = self._generate_stream_name('event', source_type, partition_type)
-        target_table = self._generate_target_table('event', source_type, partition_type)
+        
+        stream_name = self._generate_stream_name('event', source_type, partition_type, agg_or_select, tbname_or_trows_or_sourcetable, stream_index)
+        target_table = self._generate_target_table('event', source_type, partition_type, agg_or_select, tbname_or_trows_or_sourcetable, stream_index)
         
         # 如果有流索引，在流名称和目标表中添加索引
         if stream_index is not None:
@@ -1106,14 +1216,14 @@ class StreamSQLTemplates:
     """
     
     def get_state_template(self, source_type='stb', partition_type='tbname',
-                         agg_or_select='agg', tbname_or_trows='tbname', custom_columns=None, stream_index=None):
+                         agg_or_select='agg', tbname_or_trows_or_sourcetable='sourcetable', custom_columns=None, stream_index=None):
         """生成状态窗口模板"""
         columns = self._build_columns(agg_or_select, custom_columns)
-        from_clause = self._build_from_clause(tbname_or_trows)
+        from_source, from_clause = self._build_from_source_and_clause(source_type, stream_index, tbname_or_trows_or_sourcetable, is_period=False)
         partition_clause = self._build_partition_clause(partition_type)
-        from_source = self._build_from_source(source_type, stream_index) 
-        stream_name = self._generate_stream_name('state', source_type, partition_type)
-        target_table = self._generate_target_table('state', source_type, partition_type)
+         
+        stream_name = self._generate_stream_name('state', source_type, partition_type, agg_or_select, tbname_or_trows_or_sourcetable, stream_index)
+        target_table = self._generate_target_table('state', source_type, partition_type, agg_or_select, tbname_or_trows_or_sourcetable, stream_index)
         
         # 如果有流索引，在流名称和目标表中添加索引
         if stream_index is not None:
@@ -1131,14 +1241,35 @@ class StreamSQLTemplates:
     """
     
     def get_period_template(self, source_type='stb', partition_type='tbname',
-                          agg_or_select='agg', tbname_or_trows='tbname', custom_columns=None, stream_index=None):
-        """生成定时触发模板 (period不支持tbname_or_trows)"""
+                          agg_or_select='agg', tbname_or_trows_or_sourcetable='sourcetable', custom_columns=None, stream_index=None):
+        """生成定时触发模板 """
         columns = self._build_columns(agg_or_select, custom_columns)
-        from_clause = self._build_from_clause(tbname_or_trows)
+        # from_source, from_clause = self._build_from_source_and_clause(source_type, stream_index, tbname_or_trows_or_sourcetable)
         partition_clause = self._build_partition_clause(partition_type)
-        from_source = self._build_from_source(source_type, stream_index) 
-        stream_name = self._generate_stream_name('period', source_type, partition_type)
-        target_table = self._generate_target_table('period', source_type, partition_type)
+        
+        # period 类型特殊处理：使用专门的时间变量
+        from_source = self._build_from_source(source_type, stream_index)
+        
+        # period 类型的 FROM 子句处理
+        if tbname_or_trows_or_sourcetable == 'trows':
+            # period + trows 的组合：直接使用 %%trows（不支持时间条件）
+            from_clause = "%%trows"
+        elif tbname_or_trows_or_sourcetable == 'sourcetable':
+            # period + sourcetable：使用具体表名 + period 专用时间变量
+            if source_type == 'tb':
+                if stream_index is not None:
+                    table_name = f"stream_from.ctb0_{stream_index}"
+                else:
+                    table_name = "stream_from.ctb0_0"
+            else:  # 'stb'
+                table_name = "stream_from.stb"
+            from_clause = f"{table_name} where ts >= cast(_tprev_localtime/1000000 as timestamp) and ts <= cast(_tnext_localtime/1000000 as timestamp)"
+        else:  # 'tbname'
+            # period + tbname：使用 %%tbname + period 专用时间变量
+            from_clause = "%%tbname where ts >= cast(_tprev_localtime/1000000 as timestamp) and ts <= cast(_tnext_localtime/1000000 as timestamp)"
+         
+        stream_name = self._generate_stream_name('period', source_type, partition_type, agg_or_select, tbname_or_trows_or_sourcetable, stream_index)
+        target_table = self._generate_target_table('period', source_type, partition_type, agg_or_select, tbname_or_trows_or_sourcetable, stream_index)
         
         # 如果有流索引，在流名称和目标表中添加索引
         if stream_index is not None:
@@ -1154,17 +1285,67 @@ class StreamSQLTemplates:
             as select cast(_tlocaltime/1000000 as timestamp) ts, {columns}
             from {from_clause};
     """
-    
+
+
+    def get_sliding_template(self, source_type='stb', partition_type='tbname',
+                           agg_or_select='agg', tbname_or_trows_or_sourcetable='sourcetable', custom_columns=None, stream_index=None):
+        """生成 sliding 窗口模板 - 新增窗口类型"""
+        columns = self._build_columns(agg_or_select, custom_columns)
+        partition_clause = self._build_partition_clause(partition_type)
+        
+        # sliding 类型特殊处理：使用专门的时间变量
+        from_source = self._build_from_source(source_type, stream_index)
+        
+        # sliding 类型的 FROM 子句处理
+        if tbname_or_trows_or_sourcetable == 'trows':
+            # sliding + trows 的组合：直接使用 %%trows（不支持时间条件）
+            from_clause = "%%trows"
+        elif tbname_or_trows_or_sourcetable == 'sourcetable':
+            # sliding + sourcetable：使用具体表名 + sliding 专用时间变量
+            if source_type == 'tb':
+                if stream_index is not None:
+                    table_name = f"stream_from.ctb0_{stream_index}"
+                else:
+                    table_name = "stream_from.ctb0_0"
+            else:  # 'stb'
+                table_name = "stream_from.stb"
+            from_clause = f"{table_name} where ts >= _tprev_ts and ts <= _tnext_ts"
+        else:  # 'tbname'
+            # sliding + tbname：使用 %%tbname + sliding 专用时间变量
+            from_clause = "%%tbname where ts >= _tprev_ts and ts <= _tnext_ts"
+         
+        stream_name = self._generate_stream_name('sliding', source_type, partition_type, agg_or_select, tbname_or_trows_or_sourcetable, stream_index)
+        target_table = self._generate_target_table('sliding', source_type, partition_type, agg_or_select, tbname_or_trows_or_sourcetable, stream_index)
+        
+        partition_line = f"\n            {partition_clause}" if partition_clause else ""
+        
+        return f"""
+    create stream {stream_name} sliding(15s)
+            from {from_source}{partition_line}
+            into {target_table}
+            as select _tcurrent_ts ts, {columns}
+            from {from_clause};
+    """
+       
     # ========== 组合生成方法 ==========
-    def get_sliding_group_detailed(self, **kwargs):
+    def get_intervalsliding_group_detailed(self, **kwargs):
         """获取详细的滑动窗口组合 (4种组合)"""
+        return {
+            'intervalsliding_stb': self.get_intervalsliding_template(source_type='stb', partition_type='none', **kwargs),
+            'intervalsliding_stb_partition_by_tbname': self.get_intervalsliding_template(source_type='stb', partition_type='tbname', **kwargs),
+            'intervalsliding_stb_partition_by_tag': self.get_intervalsliding_template(source_type='stb', partition_type='tag', **kwargs),
+            'intervalsliding_tb': self.get_intervalsliding_template(source_type='tb', partition_type='none', **kwargs)
+        }
+
+    def get_sliding_group_detailed(self, **kwargs):
+        """获取详细的 sliding 窗口组合"""
         return {
             'sliding_stb': self.get_sliding_template(source_type='stb', partition_type='none', **kwargs),
             'sliding_stb_partition_by_tbname': self.get_sliding_template(source_type='stb', partition_type='tbname', **kwargs),
             'sliding_stb_partition_by_tag': self.get_sliding_template(source_type='stb', partition_type='tag', **kwargs),
             'sliding_tb': self.get_sliding_template(source_type='tb', partition_type='none', **kwargs)
         }
-    
+            
     def get_session_group_detailed(self, **kwargs):
         """获取详细的会话窗口组合"""
         return {
@@ -1203,8 +1384,8 @@ class StreamSQLTemplates:
     
     def get_period_group_detailed(self, **kwargs):
         """获取详细的定时触发组合"""
-        # period 不支持 tbname_or_trows 参数
-        filtered_kwargs = {k: v for k, v in kwargs.items() if k != 'tbname_or_trows'}
+        # period 不支持 tbname_or_trows_or_sourcetable 参数
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k != 'tbname_or_trows_or_sourcetable'}
         return {
             'period_stb': self.get_period_template(source_type='stb', partition_type='none', **filtered_kwargs),
             'period_stb_partition_by_tbname': self.get_period_template(source_type='stb', partition_type='tbname', **filtered_kwargs),
@@ -1215,23 +1396,29 @@ class StreamSQLTemplates:
     def get_tbname_agg_group(self, **kwargs):
         """获取 tbname + agg 组合的所有窗口类型
         
-        固定参数: tbname_or_trows='tbname', agg_or_select='agg'
+        固定参数: tbname_or_trows_or_sourcetable='tbname', agg_or_select='agg'
         忽略命令行传入的这两个参数
         """
         # 固定参数，忽略传入的参数
-        fixed_kwargs = {k: v for k, v in kwargs.items() if k not in ['tbname_or_trows', 'agg_or_select']}
+        fixed_kwargs = {k: v for k, v in kwargs.items() if k not in ['tbname_or_trows_or_sourcetable', 'agg_or_select']}
         fixed_kwargs.update({
-            'tbname_or_trows': 'tbname',
+            'tbname_or_trows_or_sourcetable': 'tbname',
             'agg_or_select': 'agg'
         })
         
         return {
-            # 滑动窗口 - 所有组合
+            # intervalsliding 窗口 - 所有组合
+            'intervalsliding_stb_tbname_agg': self.get_intervalsliding_template(source_type='stb', partition_type='none', **fixed_kwargs),
+            'intervalsliding_stb_partition_by_tbname_agg': self.get_intervalsliding_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
+            'intervalsliding_stb_partition_by_tag_agg': self.get_intervalsliding_template(source_type='stb', partition_type='tag', **fixed_kwargs),
+            'intervalsliding_tb_agg': self.get_intervalsliding_template(source_type='tb', partition_type='none', **fixed_kwargs),
+            
+            # sliding 窗口 - 所有组合
             'sliding_stb_tbname_agg': self.get_sliding_template(source_type='stb', partition_type='none', **fixed_kwargs),
             'sliding_stb_partition_by_tbname_agg': self.get_sliding_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
             'sliding_stb_partition_by_tag_agg': self.get_sliding_template(source_type='stb', partition_type='tag', **fixed_kwargs),
             'sliding_tb_agg': self.get_sliding_template(source_type='tb', partition_type='none', **fixed_kwargs),
-            
+                        
             # 会话窗口 - 所有组合
             'session_stb_tbname_agg': self.get_session_template(source_type='stb', partition_type='none', **fixed_kwargs),
             'session_stb_partition_by_tbname_agg': self.get_session_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
@@ -1266,23 +1453,29 @@ class StreamSQLTemplates:
     def get_tbname_select_group(self, **kwargs):
         """获取 tbname + select 组合的所有窗口类型
         
-        固定参数: tbname_or_trows='tbname', agg_or_select='select'
+        固定参数: tbname_or_trows_or_sourcetable='tbname', agg_or_select='select'
         忽略命令行传入的这两个参数
         """
         # 固定参数，忽略传入的参数
-        fixed_kwargs = {k: v for k, v in kwargs.items() if k not in ['tbname_or_trows', 'agg_or_select']}
+        fixed_kwargs = {k: v for k, v in kwargs.items() if k not in ['tbname_or_trows_or_sourcetable', 'agg_or_select']}
         fixed_kwargs.update({
-            'tbname_or_trows': 'tbname',
+            'tbname_or_trows_or_sourcetable': 'tbname',
             'agg_or_select': 'select'
         })
         
         return {
-            # 滑动窗口 - 所有组合
+            # intervalsliding窗口 - 所有组合
+            'intervalsliding_stb_tbname_select': self.get_intervalsliding_template(source_type='stb', partition_type='none', **fixed_kwargs),
+            'intervalsliding_stb_partition_by_tbname_select': self.get_intervalsliding_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
+            'intervalsliding_stb_partition_by_tag_select': self.get_intervalsliding_template(source_type='stb', partition_type='tag', **fixed_kwargs),
+            'intervalsliding_tb_select': self.get_intervalsliding_template(source_type='tb', partition_type='none', **fixed_kwargs),
+            
+            # sliding 窗口 - 所有组合
             'sliding_stb_tbname_select': self.get_sliding_template(source_type='stb', partition_type='none', **fixed_kwargs),
             'sliding_stb_partition_by_tbname_select': self.get_sliding_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
             'sliding_stb_partition_by_tag_select': self.get_sliding_template(source_type='stb', partition_type='tag', **fixed_kwargs),
             'sliding_tb_select': self.get_sliding_template(source_type='tb', partition_type='none', **fixed_kwargs),
-            
+                        
             # 会话窗口 - 所有组合
             'session_stb_tbname_select': self.get_session_template(source_type='stb', partition_type='none', **fixed_kwargs),
             'session_stb_partition_by_tbname_select': self.get_session_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
@@ -1317,23 +1510,29 @@ class StreamSQLTemplates:
     def get_trows_agg_group(self, **kwargs):
         """获取 trows + agg 组合的所有窗口类型
         
-        固定参数: tbname_or_trows='trows', agg_or_select='agg'
+        固定参数: tbname_or_trows_or_sourcetable='trows', agg_or_select='agg'
         忽略命令行传入的这两个参数
         """
         # 固定参数，忽略传入的参数
-        fixed_kwargs = {k: v for k, v in kwargs.items() if k not in ['tbname_or_trows', 'agg_or_select']}
+        fixed_kwargs = {k: v for k, v in kwargs.items() if k not in ['tbname_or_trows_or_sourcetable', 'agg_or_select']}
         fixed_kwargs.update({
-            'tbname_or_trows': 'trows',
+            'tbname_or_trows_or_sourcetable': 'trows',
             'agg_or_select': 'agg'
         })
         
         return {
-            # 滑动窗口 - 所有组合
+            # intervalsliding 窗口 - 所有组合
+            'intervalsliding_stb_trows_agg': self.get_intervalsliding_template(source_type='stb', partition_type='none', **fixed_kwargs),
+            'intervalsliding_stb_partition_by_tbname_trows_agg': self.get_intervalsliding_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
+            'intervalsliding_stb_partition_by_tag_trows_agg': self.get_intervalsliding_template(source_type='stb', partition_type='tag', **fixed_kwargs),
+            'intervalsliding_tb_trows_agg': self.get_intervalsliding_template(source_type='tb', partition_type='none', **fixed_kwargs),
+            
+            # sliding 窗口 - 所有组合
             'sliding_stb_trows_agg': self.get_sliding_template(source_type='stb', partition_type='none', **fixed_kwargs),
             'sliding_stb_partition_by_tbname_trows_agg': self.get_sliding_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
             'sliding_stb_partition_by_tag_trows_agg': self.get_sliding_template(source_type='stb', partition_type='tag', **fixed_kwargs),
             'sliding_tb_trows_agg': self.get_sliding_template(source_type='tb', partition_type='none', **fixed_kwargs),
-            
+                     
             # 会话窗口 - 所有组合
             'session_stb_trows_agg': self.get_session_template(source_type='stb', partition_type='none', **fixed_kwargs),
             'session_stb_partition_by_tbname_trows_agg': self.get_session_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
@@ -1359,32 +1558,38 @@ class StreamSQLTemplates:
             'state_tb_trows_agg': self.get_state_template(source_type='tb', partition_type='none', **fixed_kwargs),
             
             # 定时触发 - 所有组合 (注意: period不支持trows，所以这里实际上仍然使用tbname)
-            'period_stb_trows_agg': self.get_period_template(source_type='stb', partition_type='none', **{k: v for k, v in fixed_kwargs.items() if k != 'tbname_or_trows'}),
-            'period_stb_partition_by_tbname_trows_agg': self.get_period_template(source_type='stb', partition_type='tbname', **{k: v for k, v in fixed_kwargs.items() if k != 'tbname_or_trows'}),
-            'period_stb_partition_by_tag_trows_agg': self.get_period_template(source_type='stb', partition_type='tag', **{k: v for k, v in fixed_kwargs.items() if k != 'tbname_or_trows'}),
-            'period_tb_trows_agg': self.get_period_template(source_type='tb', partition_type='none', **{k: v for k, v in fixed_kwargs.items() if k != 'tbname_or_trows'}),
+            'period_stb_trows_agg': self.get_period_template(source_type='stb', partition_type='none', **{k: v for k, v in fixed_kwargs.items() if k != 'tbname_or_trows_or_sourcetable'}),
+            'period_stb_partition_by_tbname_trows_agg': self.get_period_template(source_type='stb', partition_type='tbname', **{k: v for k, v in fixed_kwargs.items() if k != 'tbname_or_trows_or_sourcetable'}),
+            'period_stb_partition_by_tag_trows_agg': self.get_period_template(source_type='stb', partition_type='tag', **{k: v for k, v in fixed_kwargs.items() if k != 'tbname_or_trows_or_sourcetable'}),
+            'period_tb_trows_agg': self.get_period_template(source_type='tb', partition_type='none', **{k: v for k, v in fixed_kwargs.items() if k != 'tbname_or_trows_or_sourcetable'}),
         }
 
     def get_trows_select_group(self, **kwargs):
         """获取 trows + select 组合的所有窗口类型
         
-        固定参数: tbname_or_trows='trows', agg_or_select='select'
+        固定参数: tbname_or_trows_or_sourcetable='trows', agg_or_select='select'
         忽略命令行传入的这两个参数
         """
         # 固定参数，忽略传入的参数
-        fixed_kwargs = {k: v for k, v in kwargs.items() if k not in ['tbname_or_trows', 'agg_or_select']}
+        fixed_kwargs = {k: v for k, v in kwargs.items() if k not in ['tbname_or_trows_or_sourcetable', 'agg_or_select']}
         fixed_kwargs.update({
-            'tbname_or_trows': 'trows',
+            'tbname_or_trows_or_sourcetable': 'trows',
             'agg_or_select': 'select'
         })
         
         return {
-            # 滑动窗口 - 所有组合
+            # intervalsliding 窗口 - 所有组合
+            'intervalsliding_stb_trows_select': self.get_intervalsliding_template(source_type='stb', partition_type='none', **fixed_kwargs),
+            'intervalsliding_stb_partition_by_tbname_trows_select': self.get_intervalsliding_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
+            'intervalsliding_stb_partition_by_tag_trows_select': self.get_intervalsliding_template(source_type='stb', partition_type='tag', **fixed_kwargs),
+            'intervalsliding_tb_trows_select': self.get_intervalsliding_template(source_type='tb', partition_type='none', **fixed_kwargs),
+             
+            # sliding 窗口 - 所有组合
             'sliding_stb_trows_select': self.get_sliding_template(source_type='stb', partition_type='none', **fixed_kwargs),
             'sliding_stb_partition_by_tbname_trows_select': self.get_sliding_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
             'sliding_stb_partition_by_tag_trows_select': self.get_sliding_template(source_type='stb', partition_type='tag', **fixed_kwargs),
             'sliding_tb_trows_select': self.get_sliding_template(source_type='tb', partition_type='none', **fixed_kwargs),
-            
+                       
             # 会话窗口 - 所有组合
             'session_stb_trows_select': self.get_session_template(source_type='stb', partition_type='none', **fixed_kwargs),
             'session_stb_partition_by_tbname_trows_select': self.get_session_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
@@ -1410,11 +1615,127 @@ class StreamSQLTemplates:
             'state_tb_trows_select': self.get_state_template(source_type='tb', partition_type='none', **fixed_kwargs),
             
             # 定时触发 - 所有组合 (注意: period不支持trows，所以这里实际上仍然使用tbname)
-            'period_stb_trows_select': self.get_period_template(source_type='stb', partition_type='none', **{k: v for k, v in fixed_kwargs.items() if k != 'tbname_or_trows'}),
-            'period_stb_partition_by_tbname_trows_select': self.get_period_template(source_type='stb', partition_type='tbname', **{k: v for k, v in fixed_kwargs.items() if k != 'tbname_or_trows'}),
-            'period_stb_partition_by_tag_trows_select': self.get_period_template(source_type='stb', partition_type='tag', **{k: v for k, v in fixed_kwargs.items() if k != 'tbname_or_trows'}),
-            'period_tb_trows_select': self.get_period_template(source_type='tb', partition_type='none', **{k: v for k, v in fixed_kwargs.items() if k != 'tbname_or_trows'}),
+            'period_stb_trows_select': self.get_period_template(source_type='stb', partition_type='none', **{k: v for k, v in fixed_kwargs.items() if k != 'tbname_or_trows_or_sourcetable'}),
+            'period_stb_partition_by_tbname_trows_select': self.get_period_template(source_type='stb', partition_type='tbname', **{k: v for k, v in fixed_kwargs.items() if k != 'tbname_or_trows_or_sourcetable'}),
+            'period_stb_partition_by_tag_trows_select': self.get_period_template(source_type='stb', partition_type='tag', **{k: v for k, v in fixed_kwargs.items() if k != 'tbname_or_trows_or_sourcetable'}),
+            'period_tb_trows_select': self.get_period_template(source_type='tb', partition_type='none', **{k: v for k, v in fixed_kwargs.items() if k != 'tbname_or_trows_or_sourcetable'}),
         }
+        
+    def get_sourcetable_agg_group(self, **kwargs):
+        """获取 sourcetable + agg 组合的所有窗口类型
+        
+        固定参数: tbname_or_trows_or_sourcetable='sourcetable', agg_or_select='agg'
+        忽略命令行传入的这两个参数
+        """
+        # 固定参数，忽略传入的参数
+        fixed_kwargs = {k: v for k, v in kwargs.items() if k not in ['tbname_or_trows_or_sourcetable', 'agg_or_select']}
+        fixed_kwargs.update({
+            'tbname_or_trows_or_sourcetable': 'sourcetable',
+            'agg_or_select': 'agg'
+        })
+        
+        return {
+            # intervalsliding 窗口 - 所有组合
+            'intervalsliding_stb_sourcetable_agg': self.get_intervalsliding_template(source_type='stb', partition_type='none', **fixed_kwargs),
+            'intervalsliding_stb_partition_by_tbname_sourcetable_agg': self.get_intervalsliding_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
+            'intervalsliding_stb_partition_by_tag_sourcetable_agg': self.get_intervalsliding_template(source_type='stb', partition_type='tag', **fixed_kwargs),
+            'intervalsliding_tb_sourcetable_agg': self.get_intervalsliding_template(source_type='tb', partition_type='none', **fixed_kwargs),
+            
+            # sliding 窗口 - 所有组合
+            'sliding_stb_sourcetable_agg': self.get_sliding_template(source_type='stb', partition_type='none', **fixed_kwargs),
+            'sliding_stb_partition_by_tbname_sourcetable_agg': self.get_sliding_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
+            'sliding_stb_partition_by_tag_sourcetable_agg': self.get_sliding_template(source_type='stb', partition_type='tag', **fixed_kwargs),
+            'sliding_tb_sourcetable_agg': self.get_sliding_template(source_type='tb', partition_type='none', **fixed_kwargs),
+                        
+            # 会话窗口 - 所有组合
+            'session_stb_sourcetable_agg': self.get_session_template(source_type='stb', partition_type='none', **fixed_kwargs),
+            'session_stb_partition_by_tbname_sourcetable_agg': self.get_session_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
+            'session_stb_partition_by_tag_sourcetable_agg': self.get_session_template(source_type='stb', partition_type='tag', **fixed_kwargs),
+            'session_tb_sourcetable_agg': self.get_session_template(source_type='tb', partition_type='none', **fixed_kwargs),
+            
+            # 计数窗口 - 所有组合
+            'count_stb_sourcetable_agg': self.get_count_template(source_type='stb', partition_type='none', **fixed_kwargs),
+            'count_stb_partition_by_tbname_sourcetable_agg': self.get_count_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
+            'count_stb_partition_by_tag_sourcetable_agg': self.get_count_template(source_type='stb', partition_type='tag', **fixed_kwargs),
+            'count_tb_sourcetable_agg': self.get_count_template(source_type='tb', partition_type='none', **fixed_kwargs),
+            
+            # 事件窗口 - 所有组合
+            'event_stb_sourcetable_agg': self.get_event_template(source_type='stb', partition_type='none', **fixed_kwargs),
+            'event_stb_partition_by_tbname_sourcetable_agg': self.get_event_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
+            'event_stb_partition_by_tag_sourcetable_agg': self.get_event_template(source_type='stb', partition_type='tag', **fixed_kwargs),
+            'event_tb_sourcetable_agg': self.get_event_template(source_type='tb', partition_type='none', **fixed_kwargs),
+            
+            # 状态窗口 - 所有组合
+            'state_stb_sourcetable_agg': self.get_state_template(source_type='stb', partition_type='none', **fixed_kwargs),
+            'state_stb_partition_by_tbname_sourcetable_agg': self.get_state_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
+            'state_stb_partition_by_tag_sourcetable_agg': self.get_state_template(source_type='stb', partition_type='tag', **fixed_kwargs),
+            'state_tb_sourcetable_agg': self.get_state_template(source_type='tb', partition_type='none', **fixed_kwargs),
+            
+            # 定时触发 - 所有组合 (注意: period支持sourcetable)
+            'period_stb_sourcetable_agg': self.get_period_template(source_type='stb', partition_type='none', **fixed_kwargs),
+            'period_stb_partition_by_tbname_sourcetable_agg': self.get_period_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
+            'period_stb_partition_by_tag_sourcetable_agg': self.get_period_template(source_type='stb', partition_type='tag', **fixed_kwargs),
+            'period_tb_sourcetable_agg': self.get_period_template(source_type='tb', partition_type='none', **fixed_kwargs),
+        }
+
+
+    def get_sourcetable_select_group(self, **kwargs):
+        """获取 sourcetable + select 组合的所有窗口类型
+        
+        固定参数: tbname_or_trows_or_sourcetable='sourcetable', agg_or_select='select'
+        忽略命令行传入的这两个参数
+        """
+        # 固定参数，忽略传入的参数
+        fixed_kwargs = {k: v for k, v in kwargs.items() if k not in ['tbname_or_trows_or_sourcetable', 'agg_or_select']}
+        fixed_kwargs.update({
+            'tbname_or_trows_or_sourcetable': 'sourcetable',
+            'agg_or_select': 'select'
+        })
+        
+        return {
+            # intervalsliding 窗口 - 所有组合
+            'intervalsliding_stb_sourcetable_select': self.get_intervalsliding_template(source_type='stb', partition_type='none', **fixed_kwargs),
+            'intervalsliding_stb_partition_by_tbname_sourcetable_select': self.get_intervalsliding_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
+            'intervalsliding_stb_partition_by_tag_sourcetable_select': self.get_intervalsliding_template(source_type='stb', partition_type='tag', **fixed_kwargs),
+            'intervalsliding_tb_sourcetable_select': self.get_intervalsliding_template(source_type='tb', partition_type='none', **fixed_kwargs),
+            
+            # sliding 窗口 - 所有组合
+            'sliding_stb_sourcetable_select': self.get_sliding_template(source_type='stb', partition_type='none', **fixed_kwargs),
+            'sliding_stb_partition_by_tbname_sourcetable_select': self.get_sliding_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
+            'sliding_stb_partition_by_tag_sourcetable_select': self.get_sliding_template(source_type='stb', partition_type='tag', **fixed_kwargs),
+            'sliding_tb_sourcetable_select': self.get_sliding_template(source_type='tb', partition_type='none', **fixed_kwargs),
+                        
+            # 会话窗口 - 所有组合
+            'session_stb_sourcetable_select': self.get_session_template(source_type='stb', partition_type='none', **fixed_kwargs),
+            'session_stb_partition_by_tbname_sourcetable_select': self.get_session_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
+            'session_stb_partition_by_tag_sourcetable_select': self.get_session_template(source_type='stb', partition_type='tag', **fixed_kwargs),
+            'session_tb_sourcetable_select': self.get_session_template(source_type='tb', partition_type='none', **fixed_kwargs),
+            
+            # 计数窗口 - 所有组合
+            'count_stb_sourcetable_select': self.get_count_template(source_type='stb', partition_type='none', **fixed_kwargs),
+            'count_stb_partition_by_tbname_sourcetable_select': self.get_count_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
+            'count_stb_partition_by_tag_sourcetable_select': self.get_count_template(source_type='stb', partition_type='tag', **fixed_kwargs),
+            'count_tb_sourcetable_select': self.get_count_template(source_type='tb', partition_type='none', **fixed_kwargs),
+            
+            # 事件窗口 - 所有组合
+            'event_stb_sourcetable_select': self.get_event_template(source_type='stb', partition_type='none', **fixed_kwargs),
+            'event_stb_partition_by_tbname_sourcetable_select': self.get_event_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
+            'event_stb_partition_by_tag_sourcetable_select': self.get_event_template(source_type='stb', partition_type='tag', **fixed_kwargs),
+            'event_tb_sourcetable_select': self.get_event_template(source_type='tb', partition_type='none', **fixed_kwargs),
+            
+            # 状态窗口 - 所有组合
+            'state_stb_sourcetable_select': self.get_state_template(source_type='stb', partition_type='none', **fixed_kwargs),
+            'state_stb_partition_by_tbname_sourcetable_select': self.get_state_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
+            'state_stb_partition_by_tag_sourcetable_select': self.get_state_template(source_type='stb', partition_type='tag', **fixed_kwargs),
+            'state_tb_sourcetable_select': self.get_state_template(source_type='tb', partition_type='none', **fixed_kwargs),
+            
+            # 定时触发 - 所有组合 (注意: period支持sourcetable)
+            'period_stb_sourcetable_select': self.get_period_template(source_type='stb', partition_type='none', **fixed_kwargs),
+            'period_stb_partition_by_tbname_sourcetable_select': self.get_period_template(source_type='stb', partition_type='tbname', **fixed_kwargs),
+            'period_stb_partition_by_tag_sourcetable_select': self.get_period_template(source_type='stb', partition_type='tag', **fixed_kwargs),
+            'period_tb_sourcetable_select': self.get_period_template(source_type='tb', partition_type='none', **fixed_kwargs),
+        }
+
         
     def generate_multiple_streams(self, base_sql, stream_num=1):
         """根据基础SQL模板生成多个编号的流
@@ -1534,10 +1855,10 @@ class StreamSQLTemplates:
     """
     
     # ========== new流模板，仍然支持，作为第一轮的摸底测试，但不推荐使用了，使用上面的建流模版进行第二轮测试  (s2_7 到 s2_15) ==========
-    def get_s2_7(self, agg_or_select='agg', tbname_or_trows='tbname', custom_columns=None):
+    def get_s2_7(self, agg_or_select='agg', tbname_or_trows_or_sourcetable='tbname', custom_columns=None):
         """INTERVAL(15s) 窗口"""
         columns = self._build_columns(agg_or_select, custom_columns)
-        from_clause = self._build_from_clause(tbname_or_trows)
+        from_clause = self._build_from_clause(tbname_or_trows_or_sourcetable)
         return f"""
     create stream stream_from.s2_7 INTERVAL(15s) SLIDING(15s)
             from stream_from.stb 
@@ -1547,10 +1868,10 @@ class StreamSQLTemplates:
             from {from_clause};
     """
     
-    def get_s2_8(self, agg_or_select='agg', tbname_or_trows='trows', custom_columns=None):
+    def get_s2_8(self, agg_or_select='agg', tbname_or_trows_or_sourcetable='trows', custom_columns=None):
         """INTERVAL with %%trows"""
         columns = self._build_columns(agg_or_select, custom_columns)
-        from_clause = self._build_from_clause(tbname_or_trows)
+        from_clause = self._build_from_clause(tbname_or_trows_or_sourcetable)
         return f"""
     create stream stream_from.s2_8 INTERVAL(15s) SLIDING(15s)
             from stream_from.stb 
@@ -1560,10 +1881,10 @@ class StreamSQLTemplates:
             from {from_clause};
     """
     
-    def get_s2_9(self, agg_or_select='agg', tbname_or_trows='tbname', custom_columns=None):
+    def get_s2_9(self, agg_or_select='agg', tbname_or_trows_or_sourcetable='tbname', custom_columns=None):
         """INTERVAL with MAX_DELAY"""
         columns = self._build_columns(agg_or_select, custom_columns)
-        from_clause = self._build_from_clause(tbname_or_trows)
+        from_clause = self._build_from_clause(tbname_or_trows_or_sourcetable)
         return f"""
     create stream stream_from.s2_9 INTERVAL(15s) SLIDING(15s)
             from stream_from.stb partition by tbname 
@@ -1573,10 +1894,10 @@ class StreamSQLTemplates:
             from {from_clause};
     """
     
-    def get_s2_10(self, agg_or_select='agg', tbname_or_trows='trows', custom_columns=None):
+    def get_s2_10(self, agg_or_select='agg', tbname_or_trows_or_sourcetable='trows', custom_columns=None):
         """INTERVAL with MAX_DELAY and %%trows"""
         columns = self._build_columns(agg_or_select, custom_columns)
-        from_clause = self._build_from_clause(tbname_or_trows)
+        from_clause = self._build_from_clause(tbname_or_trows_or_sourcetable)
         return f"""
     create stream stream_from.s2_10 INTERVAL(15s) SLIDING(15s) 
             from stream_from.stb 
@@ -1597,10 +1918,10 @@ class StreamSQLTemplates:
             from %%tbname;
     """
     
-    def get_s2_12(self, agg_or_select='agg', tbname_or_trows='tbname', custom_columns=None):
+    def get_s2_12(self, agg_or_select='agg', tbname_or_trows_or_sourcetable='tbname', custom_columns=None):
         """SESSION(ts,10a) 会话窗口"""
         columns = self._build_columns(agg_or_select, custom_columns)
-        from_clause = self._build_from_clause(tbname_or_trows)
+        from_clause = self._build_from_clause(tbname_or_trows_or_sourcetable)
         return f"""
     create stream stream_from.s2_12 session(ts,10a)
             from stream_from.stb partition by tbname 
@@ -1609,10 +1930,10 @@ class StreamSQLTemplates:
             from {from_clause};
     """
     
-    def get_s2_13(self, agg_or_select='agg', tbname_or_trows='tbname', custom_columns=None):
+    def get_s2_13(self, agg_or_select='agg', tbname_or_trows_or_sourcetable='tbname', custom_columns=None):
         """COUNT_WINDOW(1000) 计数窗口"""
         columns = self._build_columns(agg_or_select, custom_columns)
-        from_clause = self._build_from_clause(tbname_or_trows)
+        from_clause = self._build_from_clause(tbname_or_trows_or_sourcetable)
         return f"""
     create stream stream_from.s2_13 COUNT_WINDOW(1000)
             from stream_from.stb partition by tbname 
@@ -1621,10 +1942,10 @@ class StreamSQLTemplates:
             from {from_clause};
     """
     
-    def get_s2_14(self, agg_or_select='agg', tbname_or_trows='tbname', custom_columns=None):
+    def get_s2_14(self, agg_or_select='agg', tbname_or_trows_or_sourcetable='tbname', custom_columns=None):
         """EVENT_WINDOW 事件窗口"""
         columns = self._build_columns(agg_or_select, custom_columns)
-        from_clause = self._build_from_clause(tbname_or_trows)
+        from_clause = self._build_from_clause(tbname_or_trows_or_sourcetable)
         return f"""
     create stream stream_from.s2_14 EVENT_WINDOW(START WITH c0 > -10000000 END WITH c0 < 10000000) 
             from stream_from.stb partition by tbname 
@@ -1633,10 +1954,10 @@ class StreamSQLTemplates:
             from {from_clause};
     """
     
-    def get_s2_15(self, agg_or_select='agg', tbname_or_trows='tbname', custom_columns=None):
+    def get_s2_15(self, agg_or_select='agg', tbname_or_trows_or_sourcetable='tbname', custom_columns=None):
         """STATE_WINDOW 状态窗口"""
         columns = self._build_columns(agg_or_select, custom_columns)
-        from_clause = self._build_from_clause(tbname_or_trows)
+        from_clause = self._build_from_clause(tbname_or_trows_or_sourcetable)
         return f"""
     create stream stream_from.s2_15 STATE_WINDOW(c0) 
             from stream_from.stb partition by tbname 
@@ -1646,7 +1967,7 @@ class StreamSQLTemplates:
     """
     
     # ========== 分组和批量获取方法 ==========
-    def get_sliding_group(self, **kwargs):
+    def get_intervalsliding_group(self, **kwargs):
         """获取滑动窗口组 (s2_7, s2_8, s2_9, s2_10)"""
         return {
             's2_7': self.get_s2_7(**kwargs),
@@ -1669,8 +1990,8 @@ class StreamSQLTemplates:
     
     def get_period_group(self, **kwargs):
         """获取定时触发组 (s2_11)"""
-        # period 类型不支持 tbname_or_trows 参数
-        filtered_kwargs = {k: v for k, v in kwargs.items() if k != 'tbname_or_trows'}
+        # period 类型不支持 tbname_or_trows_or_sourcetable 参数
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k != 'tbname_or_trows_or_sourcetable'}
         return {
             's2_11': self.get_s2_11(**filtered_kwargs)
         }
@@ -1689,8 +2010,8 @@ class StreamSQLTemplates:
     
     def get_basic_group(self, **kwargs):
         """获取基础触发组 (s2_2 到 s2_6)"""
-        # 基础组不支持 tbname_or_trows 参数
-        filtered_kwargs = {k: v for k, v in kwargs.items() if k != 'tbname_or_trows'}
+        # 基础组不支持 tbname_or_trows_or_sourcetable 参数
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k != 'tbname_or_trows_or_sourcetable'}
         return {
             's2_2': self.get_s2_2(**filtered_kwargs),
             's2_3': self.get_s2_3(**filtered_kwargs),
@@ -1702,7 +2023,7 @@ class StreamSQLTemplates:
     def get_all_advanced(self, **kwargs):
         """获取所有高级流 (s2_7 到 s2_15)"""
         result = {}
-        result.update(self.get_sliding_group(**kwargs))
+        result.update(self.get_intervalsliding_group(**kwargs))
         result.update(self.get_period_group(**kwargs))
         result.update(self.get_session_group(**kwargs))
         result.update(self.get_count_group(**kwargs))
@@ -1726,7 +2047,7 @@ class StreamSQLTemplates:
     #         sql_type: SQL 类型标识符或分组名
     #         **kwargs: 可选参数
     #             - agg_or_select: 'agg'(默认) 或 'select'，控制聚合还是投影查询
-    #             - tbname_or_trows: 'tbname'(默认) 或 'trows'，控制FROM子句
+    #             - tbname_or_trows_or_sourcetable: 'tbname'(默认) 或 'trows'，控制FROM子句
     #             - custom_columns: 自定义列，如果提供则使用自定义列
                 
     #     Returns:
@@ -1740,13 +2061,13 @@ class StreamSQLTemplates:
     #         sql = StreamSQLTemplates.get_sql('s2_7', agg_or_select='select')
             
     #         # 使用trows
-    #         sql = StreamSQLTemplates.get_sql('s2_8', tbname_or_trows='trows')
+    #         sql = StreamSQLTemplates.get_sql('s2_8', tbname_or_trows_or_sourcetable='trows')
             
     #         # 自定义列
     #         sql = StreamSQLTemplates.get_sql('s2_7', custom_columns=['sum(c0)', 'count(*)'])
             
     #         # 获取分组
-    #         sqls = StreamSQLTemplates.get_sql('sliding')  # 滑动窗口组
+    #         sqls = StreamSQLTemplates.get_sql('intervalsliding')  # 滑动窗口组
     #         sqls = StreamSQLTemplates.get_sql('all')      # 所有模板
     #     """
     #     instance = cls()
@@ -1772,7 +2093,7 @@ class StreamSQLTemplates:
     #     # 分组模板映射
     #     group_templates = {
     #         'basic': instance.get_basic_group,
-    #         'sliding': instance.get_sliding_group,
+    #         'intervalsliding': instance.get_intervalsliding_group,
     #         'count': instance.get_count_group,
     #         'session': instance.get_session_group,
     #         'period': instance.get_period_group,
@@ -1787,8 +2108,8 @@ class StreamSQLTemplates:
     #         method = single_templates[sql_type]
     #         # 为不同类型的模板过滤参数
     #         if sql_type in ['s2_2', 's2_3', 's2_4', 's2_5', 's2_6', 's2_11']:
-    #             # 基础模板和period模板不支持 tbname_or_trows
-    #             filtered_kwargs = {k: v for k, v in kwargs.items() if k != 'tbname_or_trows'}
+    #             # 基础模板和period模板不支持 tbname_or_trows_or_sourcetable
+    #             filtered_kwargs = {k: v for k, v in kwargs.items() if k != 'tbname_or_trows_or_sourcetable'}
     #             return method(**filtered_kwargs)
     #         else:
     #             return method(**kwargs)
@@ -1810,8 +2131,8 @@ class StreamSQLTemplates:
         
         Args:
             sql_type: SQL 类型标识符或分组名
-                单个模板: 'sliding_stb', 'sliding_stb_partition_by_tbname' 等
-                组合模板: 'sliding_detailed', 'session_detailed' 等
+                单个模板: 'intervalsliding_stb', 'intervalsliding_stb_partition_by_tbname' 等
+                组合模板: 'intervalsliding_detailed', 'session_detailed' 等
             stream_num: 流数量（仅对单个流类型有效）
             **kwargs: 可选参数
                 
@@ -1820,10 +2141,10 @@ class StreamSQLTemplates:
             
         Usage Examples:
             # 获取单个详细模板
-            sql = StreamSQLTemplates.get_sql('sliding_stb_partition_by_tbname')
+            sql = StreamSQLTemplates.get_sql('intervalsliding_stb_partition_by_tbname')
             
             # 获取详细组合
-            sqls = StreamSQLTemplates.get_sql('sliding_detailed')
+            sqls = StreamSQLTemplates.get_sql('intervalsliding_detailed')
             
             # 获取所有窗口类型的详细组合
             sqls = StreamSQLTemplates.get_sql('all_detailed')
@@ -1850,14 +2171,27 @@ class StreamSQLTemplates:
             if stream_num > 1:
                 print("警告: 固定参数组合模板不支持 --stream-num 参数，将忽略该参数")
             return instance.get_trows_select_group(**kwargs)
+        elif sql_type == 'sourcetable_agg':
+            if stream_num > 1:
+                print("警告: 固定参数组合模板不支持 --stream-num 参数，将忽略该参数")
+            return instance.get_sourcetable_agg_group(**kwargs)
+        elif sql_type == 'sourcetable_select':
+            if stream_num > 1:
+                print("警告: 固定参数组合模板不支持 --stream-num 参数，将忽略该参数")
+            return instance.get_sourcetable_select_group(**kwargs)
         
         # 单个详细模板映射
         detailed_templates = {
+            'intervalsliding_stb': lambda stream_index=None, **kw: instance.get_intervalsliding_template(source_type='stb', partition_type='none', stream_index=stream_index, **kw),
+            'intervalsliding_stb_partition_by_tbname': lambda stream_index=None, **kw: instance.get_intervalsliding_template(source_type='stb', partition_type='tbname', stream_index=stream_index, **kw),
+            'intervalsliding_stb_partition_by_tag': lambda stream_index=None, **kw: instance.get_intervalsliding_template(source_type='stb', partition_type='tag', stream_index=stream_index, **kw),
+            'intervalsliding_tb': lambda stream_index=None, **kw: instance.get_intervalsliding_template(source_type='tb', partition_type='none', stream_index=stream_index, **kw),
+            
             'sliding_stb': lambda stream_index=None, **kw: instance.get_sliding_template(source_type='stb', partition_type='none', stream_index=stream_index, **kw),
             'sliding_stb_partition_by_tbname': lambda stream_index=None, **kw: instance.get_sliding_template(source_type='stb', partition_type='tbname', stream_index=stream_index, **kw),
             'sliding_stb_partition_by_tag': lambda stream_index=None, **kw: instance.get_sliding_template(source_type='stb', partition_type='tag', stream_index=stream_index, **kw),
             'sliding_tb': lambda stream_index=None, **kw: instance.get_sliding_template(source_type='tb', partition_type='none', stream_index=stream_index, **kw),
-            
+                       
             'session_stb': lambda stream_index=None, **kw: instance.get_session_template(source_type='stb', partition_type='none', stream_index=stream_index, **kw),
             'session_stb_partition_by_tbname': lambda stream_index=None, **kw: instance.get_session_template(source_type='stb', partition_type='tbname', stream_index=stream_index, **kw),
             'session_stb_partition_by_tag': lambda stream_index=None, **kw: instance.get_session_template(source_type='stb', partition_type='tag', stream_index=stream_index, **kw),
@@ -1886,7 +2220,8 @@ class StreamSQLTemplates:
         
         # 组合模板映射
         group_templates = {
-            'sliding_detailed': instance.get_sliding_group_detailed,
+            'intervalsliding_detailed': instance.get_intervalsliding_group_detailed,
+            'sliding_detailed': instance.get_sliding_group_detailed, 
             'session_detailed': instance.get_session_group_detailed,
             'count_detailed': instance.get_count_group_detailed,
             'event_detailed': instance.get_event_group_detailed,
@@ -1940,7 +2275,7 @@ class StreamSQLTemplates:
         #     if stream_num > 1:
         #         print("警告: all_detailed 模板不支持 --stream-num 参数，将忽略该参数")
         #     result = {}
-        #     for group_type in ['sliding_detailed', 'session_detailed', 'count_detailed', 
+        #     for group_type in ['intervalsliding_detailed', 'session_detailed', 'count_detailed', 
         #                     'event_detailed', 'state_detailed', 'period_detailed']:
         #         result.update(group_templates[group_type](**kwargs))
         #     return result
@@ -1960,7 +2295,7 @@ class StreamSQLTemplates:
                     
                     # 重命名键值以避免冲突
                     for stream_key, stream_sql in multiple_streams.items():
-                        # 例如: sliding_stb_1, sliding_stb_2, sliding_stb_partition_by_tbname_1, etc.
+                        # 例如: intervalsliding_stb_1, intervalsliding_stb_2, intervalsliding_stb_partition_by_tbname_1, etc.
                         new_key = f"{base_name}_{stream_key.split('_')[-1]}"  # 提取编号
                         result[new_key] = stream_sql
                 
@@ -1971,7 +2306,7 @@ class StreamSQLTemplates:
         # 处理特殊组合
         if sql_type == 'all_detailed':
             result = {}
-            for group_type in ['sliding_detailed', 'session_detailed', 'count_detailed', 
+            for group_type in ['intervalsliding_detailed', 'sliding_detailed', 'session_detailed', 'count_detailed', 
                             'event_detailed', 'state_detailed', 'period_detailed']:
                 group_sqls = group_templates[group_type](**kwargs)
                 
@@ -2040,7 +2375,7 @@ class StreamStarter:
                 stream_sql=None, sql_type='select_stream', stream_num=1, stream_perf_test_dir=None, monitor_interval=1,
                 create_data=False, restore_data=False, deployment_mode='single',
                 debug_flag=131, num_of_log_lines=500000, 
-                agg_or_select='agg', tbname_or_trows='tbname', custom_columns=None,
+                agg_or_select='agg', tbname_or_trows_or_sourcetable='sourcetable', custom_columns=None,
                 check_stream_delay=False, max_delay_threshold=30000, delay_check_interval=10,
                 real_time_batch_sleep=0) -> None:
         
@@ -2063,9 +2398,9 @@ class StreamStarter:
         self.sql_type = sql_type
         self.stream_num = stream_num
         self.agg_or_select = agg_or_select
-        self.tbname_or_trows = tbname_or_trows
+        self.tbname_or_trows_or_sourcetable = tbname_or_trows_or_sourcetable
         self.custom_columns = custom_columns
-        print(f"调试信息: tbname_or_trows = {tbname_or_trows}")
+        print(f"调试信息: tbname_or_trows_or_sourcetable = {tbname_or_trows_or_sourcetable}")
         print(f"调试信息: sql_type = {sql_type}")
         print(f"调试信息: agg_or_select = {agg_or_select}")
         print(f"调试信息:数据写入间隔: {real_time_batch_sleep}秒")
@@ -2073,7 +2408,7 @@ class StreamStarter:
             sql_type, 
             stream_num=stream_num, 
             agg_or_select=agg_or_select,
-            tbname_or_trows=tbname_or_trows,
+            tbname_or_trows_or_sourcetable=tbname_or_trows_or_sourcetable,
             custom_columns=custom_columns
         )
         #print(f"生成的SQL:\n{self.stream_sql}")
@@ -2695,17 +3030,69 @@ class StreamStarter:
             # 判断是否为批量执行
             if isinstance(sql_templates, dict):
                 print("\n=== 开始批量创建流 ===")
-                for sql_name, sql_template in sql_templates.items():
+                total_streams = len(sql_templates)
+                success_count = 0
+                failed_count = 0
+                
+                for index, (sql_name, sql_template) in enumerate(sql_templates.items(), 1):
                     try:
-                        print(f"\n创建流 {sql_name}:")
-                        print(sql_template)
+                        print(f"\n[{index}/{total_streams}] 创建流: {sql_name}")
+                        
+                        # 提取实际的流名称（从SQL中解析）
+                        import re
+                        # 匹配 create stream 后面的流名称
+                        match = re.search(r'create\s+stream\s+([^\s]+)', sql_template, re.IGNORECASE)
+                        actual_stream_name = match.group(1) if match else sql_name
+                        
+                        print(f"  SQL流名称: {actual_stream_name}")
+                        # 显示完整的流SQL语句
+                        print(f"  流SQL语句:")
+                        # 格式化SQL显示，去掉多余的空行和缩进
+                        formatted_sql = '\n'.join([
+                            '    ' + line.strip() 
+                            for line in sql_template.strip().split('\n') 
+                            if line.strip()
+                        ])
+                        print(formatted_sql)
+                        
+                        print(f"  执行创建...")
                         cursor.execute(sql_template)
-                        print(f"流 {sql_name} 创建成功")
+                        success_count += 1
+                        print(f"  ✓ 创建成功")
+                        
                     except Exception as e:
-                        print(f"创建流 {sql_name} 失败: {str(e)}")
+                        failed_count += 1
+                        print(f"  ✗ 创建失败: {str(e)}")
+                        # 显示失败的SQL（用于调试）
+                        print(f"  失败SQL预览:")
+                        preview_lines = sql_template.strip().split('\n')[:10]  # 只显示前10行
+                        for line in preview_lines:
+                            if line.strip():
+                                print(f"    {line.strip()}")
+                        print(f"    ...")
+                
+                # 显示批量创建结果摘要
+                print(f"\n=== 批量创建结果摘要 ===")
+                print(f"总流数: {total_streams}")
+                print(f"成功: {success_count}")
+                print(f"失败: {failed_count}")
+                print(f"成功率: {(success_count/total_streams*100):.1f}%")
+                
+                if failed_count > 0:
+                    print(f"⚠️  {failed_count} 个流创建失败，请检查错误信息")
+                else:
+                    print("所有流创建成功！")
+                    
             else:
                 # 单个流的创建
                 print("\n=== 开始创建流 ===")
+                
+                # 提取实际的流名称
+                import re
+                match = re.search(r'create\s+stream\s+([^\s]+)', sql_templates, re.IGNORECASE)
+                actual_stream_name = match.group(1) if match else "未知流名称"
+                
+                print(f"流名称: {actual_stream_name}")
                 print("执行流计算SQL:")
                 print("-" * 60)
                 print(sql_templates)
@@ -2715,7 +3102,7 @@ class StreamStarter:
                 cursor.execute(sql_templates)
                 create_time = time.time() - start_time
                 
-                print(f"流创建完成! 耗时: {create_time:.2f}秒")
+                print(f"✓ 流 {actual_stream_name} 创建完成! 耗时: {create_time:.2f}秒")
             
             # 启动系统监控
             print("\n开始监控系统资源使用情况...")
@@ -3337,9 +3724,22 @@ EOF
             
             try:
                 # 根据 SQL 类型决定时间戳更新方式
-                if self.sql_type == 's2_5' or self.sql_type == 's2_11':
+                # 检查是否为 period 类型的流计算
+                is_period_type = (
+                    self.sql_type.startswith('period_') or 
+                    'period_' in self.sql_type or
+                    self.sql_type == 's2_5' or 
+                    self.sql_type == 's2_11' or
+                    (isinstance(self.stream_sql, dict) and 
+                    any('period_' in key for key in self.stream_sql.keys())) or
+                    (isinstance(self.stream_sql, str) and 
+                    'period(' in self.stream_sql.lower())
+                )
+                
+                if is_period_type:
                     next_start_time = time.strftime("%Y-%m-%d %H:%M:%S")
-                    print(f"流类型为{self.sql_type}，使用当前时间作为起始时间: {next_start_time}")
+                    print(f"检测到 PERIOD 类型流计算，使用当前时间作为起始时间: {next_start_time}")
+                    print(f"PERIOD 类型说明: 使用 cast(_tprev_localtime/1000000 as timestamp) 和 cast(_tnext_localtime/1000000 as timestamp) 作为时间范围变量")
                 
                 else:
                     # 查询最新时间戳
@@ -3470,7 +3870,7 @@ EOF
             str: 目标表名，如果解析失败则返回None
             
         Example SQL:
-            create stream qdb.s18  interval(58s) sliding(11m, 4m)  
+            create stream qdb.s18  interval(58s) intervalsliding(11m, 4m)  
                     from qdb.v1   stream_options(watermark(43m)) 
                     into qdb.st18 
                     as select _twstart ts, c2 as c2_val, c1 as c1_val 
@@ -4150,27 +4550,78 @@ EOF
             # cursor.execute(self.stream_sql)
             
             # 获取 SQL 模板
-            #sql_templates = StreamSQLTemplates.get_sql(self.sql_type)
             sql_templates = self.stream_sql 
             
             # 判断是否为批量执行
             if isinstance(sql_templates, dict):
                 print("\n=== 开始批量创建流 ===")
-                for sql_name, sql_template in sql_templates.items():
+                total_streams = len(sql_templates)
+                success_count = 0
+                failed_count = 0
+                
+                for index, (sql_name, sql_template) in enumerate(sql_templates.items(), 1):
                     try:
-                        print(f"\n创建流 {sql_name}:")
-                        print(sql_template)
+                        print(f"\n[{index}/{total_streams}] 创建流: {sql_name}")
+                        
+                        # 提取实际的流名称（从SQL中解析）
+                        import re
+                        match = re.search(r'create\s+stream\s+([^\s]+)', sql_template, re.IGNORECASE)
+                        actual_stream_name = match.group(1) if match else sql_name
+                        
+                        print(f"  SQL流名称: {actual_stream_name}")
+                        # 显示完整的流SQL语句
+                        print(f"  流SQL语句:")
+                        # 格式化SQL显示，去掉多余的空行和缩进
+                        formatted_sql = '\n'.join([
+                            '    ' + line.strip() 
+                            for line in sql_template.strip().split('\n') 
+                            if line.strip()
+                        ])
+                        print(formatted_sql)
+                        
+                        print(f"  执行创建...")
                         cursor.execute(sql_template)
-                        print(f"流 {sql_name} 创建成功")
+                        success_count += 1
+                        print(f"  ✓ 创建成功")
+                        
                     except Exception as e:
-                        print(f"创建流 {sql_name} 失败: {str(e)}")
+                        failed_count += 1
+                        print(f"  ✗ 创建失败: {str(e)}")
+                        # 显示失败的SQL（用于调试）
+                        print(f"  失败SQL预览:")
+                        preview_lines = sql_template.strip().split('\n')[:10]  # 只显示前10行
+                        for line in preview_lines:
+                            if line.strip():
+                                print(f"    {line.strip()}")
+                        print(f"    ...")
+                
+                # 显示批量创建结果摘要
+                print(f"\n=== 批量创建结果摘要 ===")
+                print(f"总流数: {total_streams}")
+                print(f"成功: {success_count}")
+                print(f"失败: {failed_count}")
+                print(f"成功率: {(success_count/total_streams*100):.1f}%")
+                
             else:
                 # 单个流的创建
                 print("\n=== 开始创建流 ===")
-                print("执行流式查询SQL:")
+                
+                # 提取实际的流名称
+                import re
+                match = re.search(r'create\s+stream\s+([^\s]+)', sql_templates, re.IGNORECASE)
+                actual_stream_name = match.group(1) if match else "未知流名称"
+                
+                print(f"流名称: {actual_stream_name}")
+                print("流SQL语句:")
+                print("-" * 80)
                 print(sql_templates)
+                print("-" * 80)
+                
+                start_time = time.time()
                 cursor.execute(sql_templates)
-                print("流创建成功")
+                create_time = time.time() - start_time
+                
+                print(f"✓ 流 {actual_stream_name} 创建完成! 耗时: {create_time:.2f}秒")
             
             print("流式查询已创建,开始监控系统负载")
             cursor.close()
@@ -5053,7 +5504,7 @@ def main():
                             help='数据乱序率, 默认0无乱序, 乱序过多影响流计算速度')
     data_group.add_argument('--vgroups', type=int, default=10,
                             help='''vgroups数量, 默认10\n
-示例用法:%(prog)s --table-count 10000 --histroy-rows 1000 \n --real-time-batch-rows 500 --real-time-batch-sleep 5 --disorder-ratio 1 --vgroups 20 --sql-type sliding_stb --time 60\n\n''')
+示例用法:%(prog)s --table-count 10000 --histroy-rows 1000 \n --real-time-batch-rows 500 --real-time-batch-sleep 5 --disorder-ratio 1 --vgroups 20 --sql-type intervalsliding_stb --time 60\n\n''')
     
     # SQL相关参数
     sql_group = parser.add_argument_group('流计算SQL配置')
@@ -5085,13 +5536,15 @@ def main():
         valid_choices = [
             'select_stream', 'all_detailed',
             'tbname_agg', 'tbname_select', 'trows_agg', 'trows_select',
-            'sliding_stb', 'sliding_stb_partition_by_tbname', 'sliding_stb_partition_by_tag', 'sliding_tb',
+            'sourcetable_agg', 'sourcetable_select',
+            'intervalsliding_stb', 'intervalsliding_stb_partition_by_tbname', 'intervalsliding_stb_partition_by_tag', 'intervalsliding_tb',
+            'sliding_stb', 'sliding_stb_partition_by_tbname', 'sliding_stb_partition_by_tag', 'sliding_tb', 
             'session_stb', 'session_stb_partition_by_tbname', 'session_stb_partition_by_tag', 'session_tb',
             'count_stb', 'count_stb_partition_by_tbname', 'count_stb_partition_by_tag', 'count_tb',
             'event_stb', 'event_stb_partition_by_tbname', 'event_stb_partition_by_tag', 'event_tb',
             'state_stb', 'state_stb_partition_by_tbname', 'state_stb_partition_by_tag', 'state_tb',
             'period_stb', 'period_stb_partition_by_tbname', 'period_stb_partition_by_tag', 'period_tb',
-            'sliding_detailed', 'session_detailed', 'count_detailed',
+            'intervalsliding_detailed', 'sliding_detailed', 'session_detailed', 'count_detailed',
             'event_detailed', 'state_detailed', 'period_detailed'
         ]
         
@@ -5100,14 +5553,15 @@ def main():
             error_msg = f"invalid choice: '{value}'\n\n有效选择项:\n"
             error_msg += "说明: stb(超级表), tb(子表), by_tbname(tbname分组), by_tag(tag分组,第一列tag)\n"
             error_msg += "查询类型: select_stream 查询所有流信息\n"
-            error_msg += "固定参数组合: tbname_agg, tbname_select, trows_agg, trows_select\n"
+            error_msg += "固定参数组合: tbname_agg, tbname_select, trows_agg, trows_select, sourcetable_agg, sourcetable_select,\n"
+            error_msg += "时间窗口: intervalsliding_stb, intervalsliding_stb_partition_by_tbname, intervalsliding_stb_partition_by_tag, intervalsliding_tb\n"
             error_msg += "滑动窗口: sliding_stb, sliding_stb_partition_by_tbname, sliding_stb_partition_by_tag, sliding_tb\n"
             error_msg += "会话窗口: session_stb, session_stb_partition_by_tbname, session_stb_partition_by_tag, session_tb\n"
             error_msg += "计数窗口: count_stb, count_stb_partition_by_tbname, count_stb_partition_by_tag, count_tb\n"
             error_msg += "事件窗口: event_stb, event_stb_partition_by_tbname, event_stb_partition_by_tag, event_tb\n"
             error_msg += "状态窗口: state_stb, state_stb_partition_by_tbname, state_stb_partition_by_tag, state_tb\n"
             error_msg += "定时触发: period_stb, period_stb_partition_by_tbname, period_stb_partition_by_tag, period_tb\n"
-            error_msg += "组合模板: sliding_detailed, session_detailed, count_detailed, event_detailed, state_detailed, period_detailed, all_detailed"
+            error_msg += "组合模板: intervalsliding_detailed, session_detailed, count_detailed, event_detailed, state_detailed, period_detailed, all_detailed"
             
             raise argparse.ArgumentTypeError(error_msg)
         return value
@@ -5119,12 +5573,16 @@ def main():
         stb(超级表), tb(子表), by_tbname(tbname分组), by_tag(tag分组,第一列tag)
     查询类型:
         select_stream: 查询所有流信息 (默认查询information_schema.ins_streams的数据)
-    固定参数组合模板(忽略 --tbname-or-trows 和 --agg-or-select 参数):
+    固定参数组合模板(忽略 --tbname-or-trows-or-sourcetable 和 --agg-or-select 参数):
         tbname_agg:    所有窗口类型 + tbname + 聚合查询
         tbname_select: 所有窗口类型 + tbname + 投影查询  
         trows_agg:     所有窗口类型 + trows +  聚合查询
         trows_select:  所有窗口类型 + trows +  投影查询
-    滑动窗口模板(INTERVAL(15s) SLIDING(15s)):
+        sourcetable_agg:   所有窗口类型 + sourcetable + 聚合查询
+        sourcetable_select: 所有窗口类型 + sourcetable + 投影查询
+    时间窗口模板(INTERVAL(15s) SLIDING(15s)):
+        intervalsliding_stb, intervalsliding_stb_partition_by_tbname, intervalsliding_stb_partition_by_tag, intervalsliding_tb
+    滑动窗口模板(SLIDING(15s)):
         sliding_stb, sliding_stb_partition_by_tbname, sliding_stb_partition_by_tag, sliding_tb
     会话窗口模板(SESSION(ts,10a)):
         session_stb, session_stb_partition_by_tbname, session_stb_partition_by_tag, session_tb
@@ -5137,7 +5595,7 @@ def main():
     定时触发模板(PERIOD(15s)):
         period_stb, period_stb_partition_by_tbname, period_stb_partition_by_tag, period_tb
     组合模板(每组包含上述4个组合,all包含上述所有组合):
-        sliding_detailed, session_detailed, count_detailed, event_detailed, 
+        intervalsliding_detailed, sliding_detailed, session_detailed, count_detailed, event_detailed, 
         state_detailed, period_detailed, all_detailed''')
     
     sql_group.add_argument('--stream-num', type=int, default=1,
@@ -5145,7 +5603,7 @@ def main():
                                 '    并发流数量, 默认1个流\n'
                                 '    设置为N时，会创建N个编号为1到N的相同流，如果是从子表获取数据则从第一个子表到第N个子表\n'
                                 '    需要和 --sql-type 搭配使用，适合测试多个流的压力\n'
-                                '    示例: --sql-type sliding_stb --stream-num 100')
+                                '    示例: --sql-type intervalsliding_stb --stream-num 100')
     
     sql_group.add_argument('--stream-sql', type=str,
                         help='自定义流计算SQL (优先级最高)\n'
@@ -5162,9 +5620,11 @@ def main():
                                 '    示例: "sum(c0),count(*),avg(c1)"\n'
                                 '          "c0,c1,c2" (投影查询)\n'
                                 '    注意: 会覆盖 --agg-or-select 设置')
-    sql_group.add_argument('--tbname-or-trows', type=str, default='tbname',
-                        choices=['tbname', 'trows'],
-                        help='FROM子句类型，默认%%tbname:\n'
+    sql_group.add_argument('--tbname-or-trows-or-sourcetable', type=str, default='sourcetable',
+                        choices=['tbname', 'trows', 'sourcetable'],
+                        help='FROM子句类型，默认sourcetable:\n'
+                            '    sourcetable - 超级表: from stream_from.stb where ts >= _twstart and ts <= _twend\n'
+                            '    sourcetable - 子表: from stream_from.ctb0_N where ts >= _twstart and ts <= _twend\n'
                             '    tbname: from %%tbname where ts >= _twstart and ts <= _twend\n'
                             '    trows:  from %%trows ')
     
@@ -5172,12 +5632,12 @@ def main():
     sql_group.add_argument('--sql-file', type=str,
                         help='从文件读取流式查询SQL，todo\n'
                             '''    示例: --sql-file ./my_stream.sql\n
-示例用法1:%(prog)s --table-count 10000 \n --real-time-batch-rows 500 --real-time-batch-sleep 5 --sql-type sliding_stb --time 60\n
-示例用法2:%(prog)s --table-count 10000 \n --real-time-batch-rows 500 --real-time-batch-sleep 5 --sql-type sliding_detailed --time 60\n
+示例用法1:%(prog)s --table-count 10000 \n --real-time-batch-rows 500 --real-time-batch-sleep 5 --sql-type intervalsliding_stb --time 60\n
+示例用法2:%(prog)s --table-count 10000 \n --real-time-batch-rows 500 --real-time-batch-sleep 5 --sql-type intervalsliding_detailed --time 60\n
 示例用法3:%(prog)s --table-count 10000 \n --real-time-batch-rows 500 --real-time-batch-sleep 5 --sql-type tbname_agg --time 60\n
-示例用法4:%(prog)s --table-count 10000 \n --real-time-batch-rows 500 --real-time-batch-sleep 5 --sql-type sliding_detailed --tbname-or-trows trows\n
-示例用法5:%(prog)s --table-count 10000 \n --real-time-batch-rows 500 --real-time-batch-sleep 5 --sql-type sliding_detailed --agg-or-select select\n
-示例用法6:%(prog)s --table-count 10000 \n --real-time-batch-rows 500 --real-time-batch-sleep 5 --sql-type sliding_stb--stream-num 100\n\n''')
+示例用法4:%(prog)s --table-count 10000 \n --real-time-batch-rows 500 --real-time-batch-sleep 5 --sql-type intervalsliding_detailed --tbname-or-trows-or-sourcetable trows\n
+示例用法5:%(prog)s --table-count 10000 \n --real-time-batch-rows 500 --real-time-batch-sleep 5 --sql-type intervalsliding_detailed --agg-or-select select\n
+示例用法6:%(prog)s --table-count 10000 \n --real-time-batch-rows 500 --real-time-batch-sleep 5 --sql-type intervalsliding_stb --stream-num 100\n\n''')
     
     # 流性能监控参数
     stream_monitor_group = parser.add_argument_group('流性能监控和流计算延迟检测')
@@ -5196,7 +5656,7 @@ def main():
                                         '超过此阈值认为流计算跟不上数据写入速度，可以针对具体的流和间隔调整')
     stream_monitor_group.add_argument('--delay-check-interval', type=int, default=10,
                                     help='''延迟检查间隔(秒), 默认10秒, 目前是粗粒度的检查生成目标表超级表的last(ts), 而非每个生成子表的last(ts)\n
-示例用法:%(prog)s --check-stream-delay \n--max-delay-threshold 60000 --delay-check-interval 5 --sql-type sliding_stb \n\n''')
+示例用法:%(prog)s --check-stream-delay \n--max-delay-threshold 60000 --delay-check-interval 5 --sql-type intervalsliding_stb \n\n''')
     
     # 系统配置参数
     system_group = parser.add_argument_group('系统配置，配置TDengine部署架构和系统参数')
@@ -5310,7 +5770,7 @@ def main():
             debug_flag=args.debug_flag, 
             num_of_log_lines=args.num_of_log_lines,            
             agg_or_select=args.agg_or_select,
-            tbname_or_trows=args.tbname_or_trows,
+            tbname_or_trows_or_sourcetable=args.tbname_or_trows_or_sourcetable,
             custom_columns=custom_columns,
             check_stream_delay=args.check_stream_delay,
             max_delay_threshold=args.max_delay_threshold,
