@@ -301,6 +301,8 @@ class TestStreamSlidingTrigger:
     def test_stream_session_trigger(self):
         """Stream session trigger
 
+        xx
+
         Catalog:
             - Streams:TriggerMode
 
