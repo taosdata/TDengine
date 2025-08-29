@@ -770,15 +770,16 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path, int32_t vnodeVersion) {
       .syncEqMsg = vnodeSyncEqMsg,
       .syncEqCtrlMsg = vnodeSyncEqCtrlMsg,
       .pingMs = 5000,
-      .electMs = 4000,
-      .heartbeatMs = 700,
+      .electMs = tsVnodeElectIntervalMs,
+      .heartbeatMs = tsVnodeHeartbeatIntervalMs,
   };
 
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s%ssync", path, TD_DIRSEP);
   syncInfo.pFsm = vnodeSyncMakeFsm(pVnode);
 
   SSyncCfg *pCfg = &syncInfo.syncCfg;
-  vInfo("vgId:%d, start to open sync, replica:%d selfIndex:%d", pVnode->config.vgId, pCfg->replicaNum, pCfg->myIndex);
+  vInfo("vgId:%d, start to open sync, replica:%d selfIndex:%d, electMs:%d, heartbeatMs:%d", pVnode->config.vgId,
+        pCfg->replicaNum, pCfg->myIndex, syncInfo.electMs, syncInfo.heartbeatMs);
   for (int32_t i = 0; i < pCfg->totalReplicaNum; ++i) {
     SNodeInfo *pNode = &pCfg->nodeInfo[i];
     vInfo("vgId:%d, index:%d ep:%s:%u dnode:%d cluster:%" PRId64, pVnode->config.vgId, i, pNode->nodeFqdn,
@@ -799,6 +800,15 @@ int32_t vnodeSyncStart(SVnode *pVnode) {
   int32_t code = syncStart(pVnode->sync);
   if (code) {
     vError("vgId:%d, failed to start sync subsystem since %s", pVnode->config.vgId, tstrerror(code));
+    return code;
+  }
+  return 0;
+}
+
+int32_t vnodeSetSyncTimeout(SVnode *pVnode, int32_t ms) {
+  int32_t code = syncResetTimer(pVnode->sync, tsVnodeElectIntervalMs, tsVnodeHeartbeatIntervalMs);
+  if (code) {
+    vError("vgId:%d, failed to vnode Set SyncTimeout since %s", pVnode->config.vgId, tstrerror(code));
     return code;
   }
   return 0;
