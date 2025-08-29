@@ -108,6 +108,7 @@ cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_concat.py
 cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_continuewindowclose.py
 cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_state.py
 cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
+cases/13-StreamProcessing/30-OldPyCases/test_compatibility_rolling_upgrade.py
 # MQTT bnode not supported in Windows CI
 cases/12-DataSubscription/04-MQTT/test_mqtt_smoking.py
 cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 2
