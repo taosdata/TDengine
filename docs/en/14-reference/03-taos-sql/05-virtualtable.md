@@ -118,7 +118,7 @@ Given tables t1, t2, t3 with data:
         <td align="center">4</td>
         <td align="center">0:00:04</td>
         <td align="center">40</td>
-        <td align="center">0:00:03</td>
+        <td align="center"></td>
         <td align="center"></td>
         <td align="center"></td>
     </tr>
