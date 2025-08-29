@@ -8,12 +8,12 @@ class TestDatatypeJson:
         tdSql.prepare(dbname="db", drop=True)
 
     def test_datatype_json(self):
-        """json datatype
+        """DataTypes: json
 
-        1. create table
-        2. auto create table
-        3. alter tag value
-        4. illegal input
+        1. Create table
+        2. Insert data
+        3. Alter tag value
+        4. Handle illegal input
 
         Catalog:
             - DataTypes

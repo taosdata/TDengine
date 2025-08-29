@@ -25,7 +25,6 @@ FROM foo anomaly_window(val, 'algo=sample_ad_model,model=sample-ad-autoencoder')
 
  Note that this model works well only when it is pretrained. Using it with datasets on which it has not been trained will likely produce poor results.
 
-
 The following algorithms are in development:
 
 - Isolation Forest
@@ -34,4 +33,4 @@ The following algorithms are in development:
 
 ### References
 
-1. https://en.wikipedia.org/wiki/Autoencoder
+1. [Autoencoder](https://en.wikipedia.org/wiki/Autoencoder)

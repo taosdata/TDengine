@@ -171,7 +171,7 @@ int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STabl
   return 0;
 }
 
-int32_t metaUpdateVtbMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, SColRefWrapper *pRef,
+int32_t metaUpdateVtbMetaRsp(SMetaEntry *pEntry, char *tbName, SSchemaWrapper *pSchema, SColRefWrapper *pRef,
                              STableMetaRsp *pMetaRsp, int8_t tableType) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (!pRef) {
@@ -201,7 +201,13 @@ int32_t metaUpdateVtbMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema
   }
   memcpy(pMetaRsp->pColRefs, pRef->pColRef, pRef->nCols * sizeof(SColRef));
   tstrncpy(pMetaRsp->tbName, tbName, TSDB_TABLE_NAME_LEN);
-  pMetaRsp->tuid = uid;
+  if (tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
+    pMetaRsp->tuid = pEntry->uid;
+  } else if (tableType == TSDB_VIRTUAL_CHILD_TABLE) {
+    pMetaRsp->tuid = pEntry->uid;
+    pMetaRsp->suid = pEntry->ctbEntry.suid;
+  }
+
   pMetaRsp->tableType = tableType;
   pMetaRsp->virtualStb = false; // super table will never be processed here
   pMetaRsp->numOfColRefs = pRef->nCols;
@@ -482,6 +488,7 @@ static int32_t metaFilterTableByHash(SMeta *pMeta, SArray *uidList) {
       char tbFName[TSDB_TABLE_FNAME_LEN + 1];
       snprintf(tbFName, sizeof(tbFName), "%s.%s", pMeta->pVnode->config.dbname, me.name);
       tbFName[TSDB_TABLE_FNAME_LEN] = '\0';
+      if (pMeta->pVnode->mounted) tTrimMountPrefix(tbFName);
       ret = vnodeValidateTableHash(pMeta->pVnode, tbFName);
       if (ret < 0 && terrno == TSDB_CODE_VND_HASH_MISMATCH) {
         if (taosArrayPush(uidList, &me.uid) == NULL) {
@@ -921,7 +928,7 @@ int32_t metaGetColCmpr(SMeta *pMeta, tb_uid_t uid, SHashObj **ppColCmprObj) {
   metaRLock(pMeta);
   rc = tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData);
   if (rc < 0) {
-    taosHashClear(pColCmprObj);
+    taosHashCleanup(pColCmprObj);
     metaULock(pMeta);
     return TSDB_CODE_FAILED;
   }
@@ -929,7 +936,7 @@ int32_t metaGetColCmpr(SMeta *pMeta, tb_uid_t uid, SHashObj **ppColCmprObj) {
   rc = tdbTbGet(pMeta->pTbDb, &(STbDbKey){.version = version, .uid = uid}, sizeof(STbDbKey), &pData, &nData);
   if (rc < 0) {
     metaULock(pMeta);
-    taosHashClear(pColCmprObj);
+    taosHashCleanup(pColCmprObj);
     metaError("failed to get table entry");
     return rc;
   }
@@ -940,7 +947,7 @@ int32_t metaGetColCmpr(SMeta *pMeta, tb_uid_t uid, SHashObj **ppColCmprObj) {
     tDecoderClear(&dc);
     tdbFree(pData);
     metaULock(pMeta);
-    taosHashClear(pColCmprObj);
+    taosHashCleanup(pColCmprObj);
     return rc;
   }
   if (withExtSchema(e.type)) {
@@ -952,7 +959,7 @@ int32_t metaGetColCmpr(SMeta *pMeta, tb_uid_t uid, SHashObj **ppColCmprObj) {
         tDecoderClear(&dc);
         tdbFree(pData);
         metaULock(pMeta);
-        taosHashClear(pColCmprObj);
+        taosHashCleanup(pColCmprObj);
         return rc;
       }
     }
@@ -960,7 +967,7 @@ int32_t metaGetColCmpr(SMeta *pMeta, tb_uid_t uid, SHashObj **ppColCmprObj) {
     tDecoderClear(&dc);
     tdbFree(pData);
     metaULock(pMeta);
-    taosHashClear(pColCmprObj);
+    taosHashCleanup(pColCmprObj);
     return 0;
   }
   tDecoderClear(&dc);

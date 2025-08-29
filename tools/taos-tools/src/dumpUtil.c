@@ -504,6 +504,7 @@ DBChange *createDbChange(const char *dbPath) {
     //TOTO
     DBChange * pDbChange = (DBChange *)calloc(1, sizeof(DBChange));
     pDbChange->dbPath    = dbPath;
+    hashMapInit(&pDbChange->stbMap);
 
     return pDbChange;
 }

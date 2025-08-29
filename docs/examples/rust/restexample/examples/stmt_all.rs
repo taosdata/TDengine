@@ -45,14 +45,6 @@ async fn main() -> anyhow::Result<()> {
             Value::Bool(true),
             Value::VarChar("binary_value".into()),
             Value::NChar("nchar_value".into()),
-            // Value::VarBinary(vec![0x98, 0xf4, 0x6e].into()),
-            // Value::Geometry(
-            //     vec![
-            //         0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40,
-            //         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40,
-            //     ]
-            //     .into(),
-            // ),
         ];
 
         // set table name and tags for the prepared statement.

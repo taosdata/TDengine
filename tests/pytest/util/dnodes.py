@@ -48,6 +48,7 @@ class TDSimClient:
             "telemetryReporting": "0",
             "tqDebugflag": "135",
             "stDebugflag":"135",
+            "maxRetryWaitTime": 10000,
             "safetyCheckLevel":"2",
             "minReservedMemorySize":"1024"
         }
@@ -147,6 +148,7 @@ class TDDnode:
             "uDebugFlag": "131",
             "sDebugFlag": "131",
             "wDebugFlag": "131",
+            "maxRetryWaitTime": 10000,
             "numOfLogLines": "100000000",
             "statusInterval": "1",
             "enableQueryHb": "1",
@@ -275,7 +277,17 @@ class TDDnode:
                         isFirstDir = 0
                     else:
                         self.cfg(value, key)
+                elif key == 'dataDir':
+                    # print(f"value is dataDir:{value}")
+                    if isinstance(value, list):
+                        self.cfgDict.pop('dataDir', None)
+                        for v in value:
+                            self.cfg('dataDir', v)
+                    else:
+                        self.cfgDict.pop('dataDir', None)
+                        self.cfg('dataDir', value)
                 else:
+                    # print(f"key:{key}, value:{value}")
                     self.addExtraCfg(key, value)
         if (self.remoteIP == ""):
             for key, value in self.cfgDict.items():

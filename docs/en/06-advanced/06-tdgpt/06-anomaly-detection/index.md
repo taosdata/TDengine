@@ -18,7 +18,7 @@ ANOMALY_WINDOW(col_val, "algo=iqr");
 
 As shown in the following figure, the anode returns the anomaly window `[10:51:30, 10:53:40]`.
 
-<figure> 
+<figure>
 <Image img={anomDetect} alt="Anomaly detection" />
 </figure>
 
@@ -47,7 +47,6 @@ algo=expr1
 | ------- | ------------------------------------------ | ------ |
 |algo|Specify the anomaly detection algorithm.|iqr|
 |wncheck|Enter 1 to perform the white noise data check or 0 to disable the white noise data check.|1|
-
 
 ### Example
 
@@ -101,7 +100,7 @@ grubbs={}
 lof={"algorithm":"auto", "n_neighbor": 3}
 ```
 
-After the comparison program finishes running, it automatically generates a file named ·ad_result.xlsx·. The first sheet contains the algorithm execution results (as shown in the table below), including five metrics: algorithm name, execution parameters, recall, precision, and execution time.
+After the comparison program finishes running, it automatically generates a file named `ad_result.xlsx`. The first sheet contains the algorithm execution results (as shown in the table below), including five metrics: algorithm name, execution parameters, recall, precision, and execution time.
 
 | algorithm | params                                 | precision(%) | recall(%) | elapsed_time(ms.) |
 | --------- | -------------------------------------- | ------------ | --------- | ----------------- |
@@ -110,9 +109,8 @@ After the comparison program finishes running, it automatically generates a file
 | grubbs    | `{}`                                   | 100          | 100       | 2.811             |
 | lof       | `{"algorithm":"auto", "n_neighbor":3}` | 0            | 0         | 4.660             |
 
-
 If `gen_figure` is set to true, the tool automatically generates a visual representation of the analysis results for each algorithm being compared. The k-sigma algorithm is shown here as an example.
 
-<figure> 
+<figure>
 <Image img={adResult} alt="Anomaly detection results"/>
 </figure>

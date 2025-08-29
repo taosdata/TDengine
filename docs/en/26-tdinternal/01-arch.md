@@ -24,15 +24,18 @@ The logical structure diagram of the TDengine distributed architecture is as fol
 
 A complete TDengine system runs on one to several physical nodes. Logically, it includes data nodes (dnode), TDengine application drivers (taosc), and applications (app). There are one or more data nodes in the system, which form a cluster (cluster). Applications interact with the TDengine cluster through the API of taosc. Below is a brief introduction to each logical unit.
 
-**Physical Node (pnode):**
+#### Physical Node (pnode)
+
 A pnode is an independent computer with its own computing, storage, and networking capabilities, which can be a physical machine, virtual machine, or Docker container with an OS installed. Physical nodes are identified by their configured FQDN (Fully Qualified Domain Name). TDengine relies entirely on the FQDN for network communication.
 
-**Data Node (dnode):**
+#### Data Node (dnode)
+
 A dnode is a running instance of the TDengine server-side execution code taosd on a physical node. At least one dnode is required to ensure the normal operation of a TDengine system. Each dnode contains zero to several logical virtual nodes (vnode), but management nodes, elastic computing nodes, and stream computing nodes each have 0 or 1 logical instance.
 
 The unique identifier of a dnode in the TDengine cluster is determined by its instance's endpoint (EP). The endpoint is a combination of the FQDN and the configured network port of the physical node where the dnode is located. By configuring different ports, a pnode (whether it is a physical machine, virtual machine, or Docker container) can run multiple instances, i.e., have multiple dnodes.
 
-**Virtual Node (vnode):**
+#### Virtual Node (vnode)
+
 To better support data sharding, load balancing, and prevent data overheating or skew, TDengine introduces the concept of vnode (virtual node). Virtual nodes are virtualized into multiple independent vnode instances (as shown in the architecture diagram above, such as V2, V3, V4, etc.), each vnode is a relatively independent working unit responsible for storing and managing a portion of time-series data.
 
 Each vnode has its own running thread, memory space, and persistent storage path, ensuring data isolation and efficient access. A vnode can contain multiple tables (i.e., data collection points), which are physically distributed across different vnodes to achieve even data distribution and load balancing.
@@ -43,7 +46,8 @@ In addition to storing time-series data, each vnode also stores the schema infor
 
 Internally within the cluster, a vnode is uniquely identified by the endpoint of its belonging dnode and its vgroup ID. Management nodes are responsible for creating and managing these vnodes, ensuring they operate normally and work collaboratively.
 
-**Management Node (mnode):**
+#### Management Node (mnode)
+
 The mnode (management node) is the core logical unit in the TDengine cluster, responsible for monitoring and maintaining the operational status of all dnodes and implementing load balancing between nodes (as shown in Figure 15-1, M1, M2, M3). As the storage and management center for metadata (including users, databases, supertables, etc.), mnode is also known as MetaNode.
 
 To enhance the cluster's high availability and reliability, the TDengine cluster allows for multiple (up to 3) mnodes. These mnodes automatically form a virtual mnode group, sharing management responsibilities. Mnodes support multiple replicas and use the Raft consistency protocol to ensure data consistency and operation reliability. In the mnode cluster, any data update operation must be performed on the leader node.
@@ -52,7 +56,8 @@ The first node of the mnode cluster is automatically created during cluster depl
 
 To achieve information sharing and communication within the cluster, each dnode automatically obtains the endpoint of the dnode where all mnodes in the entire cluster are located through an internal message exchange mechanism.
 
-**Compute Node (qnode):**
+#### Compute Node (qnode)
+
 qnode (compute node) is a virtual logical unit in the TDengine cluster responsible for executing query computation tasks and also handles show commands based on system tables. To improve query performance and parallel processing capabilities, multiple qnodes can be configured in the cluster, which are shared across the entire cluster (as shown in Q1, Q2, Q3 in Figure 15-1).
 
 Unlike dnode, qnode is not bound to a specific database, meaning a qnode can handle query tasks from multiple databases simultaneously. Each dnode can have at most one qnode, uniquely identified by the endpoint of the dnode to which it belongs.
@@ -61,7 +66,8 @@ When a client initiates a query request, it first interacts with mnode to obtain
 
 By introducing independent qnodes, TDengine achieves separation of storage and computation.
 
-**Stream Compute Node (snode):**
+#### Stream Compute Node (snode)
+
 snode (stream compute node) is a virtual logical unit in the TDengine cluster specifically responsible for handling stream computing tasks (as shown in the architecture diagram S1, S2, S3). To meet the needs of real-time data processing, multiple snodes can be configured in the cluster, which are shared across the entire cluster.
 
 Similar to dnode, snode is not bound to a specific stream, meaning an snode can handle computation tasks from multiple streams simultaneously. Each dnode can have at most one snode, uniquely identified by the endpoint of the dnode to which it belongs.
@@ -70,7 +76,7 @@ When a stream computing task needs to be executed, mnode schedules available sno
 
 By centralizing stream computing tasks in snodes, TDengine achieves separation of stream computing and batch computing, thereby enhancing the system's capability to handle real-time data.
 
-**Virtual Node Group (VGroup):**
+#### Virtual Node Group (VGroup)
 
 vgroup (virtual node group) is a logical unit composed of vnodes from different dnodes. These vnodes use the Raft consistency protocol to ensure high availability and reliability of the cluster. In vgroup, write operations can only be performed on the leader vnode, while data is asynchronously replicated to other follower vnodes, thus retaining data replicas across multiple physical nodes.
 
@@ -80,7 +86,7 @@ vgroup is created and managed by mnode, and is assigned a unique cluster ID, the
 
 Through this design, TDengine ensures data security while achieving flexible replica management and dynamic expansion capabilities.
 
-**Taosc**
+#### taosc
 
 taosc (application driver) is a driver provided by TDengine for application programs, responsible for handling the interface interaction between applications and the cluster. taosc provides native interfaces for C/C++ languages and is embedded in connection libraries for various programming languages such as JDBC, C#, Python, Go, Node.js, thus supporting these programming languages in interacting with the database.
 
@@ -90,23 +96,23 @@ Additionally, taosc can interact with taosAdapter to support a fully distributed
 
 ### Communication Between Nodes
 
-**Communication Methods:**
+#### Communication Methods
 
 Within a TDengine cluster, communication between various dnodes as well as between application drivers and dnodes is implemented through TCP. This method ensures the stability and reliability of data transmission.
 
 To optimize network transmission performance and ensure data security, TDengine automatically compresses and decompresses data according to the configuration to reduce network bandwidth usage. Additionally, TDengine supports digital signatures and authentication mechanisms to ensure the integrity and confidentiality of data during transmission.
 
-**FQDN Configuration:**
+#### FQDN Configuration
 
 In the TDengine cluster, each dnode can have one or more FQDNs. To specify the FQDN of a dnode, you can configure the fqdn parameter in the taos.cfg configuration file. If not explicitly specified, the dnode will automatically obtain the hostname of its computer as the default FQDN.
 
 Although it is theoretically possible to set the FQDN parameter in taos.cfg to an IP address, this practice is not recommended by the official documentation. Because IP addresses may change with network environment changes, this could cause the cluster to malfunction. When using FQDNs, it is necessary to ensure that the DNS service is functioning properly, or that the hosts file is correctly configured on the nodes and application nodes to resolve the FQDN to the corresponding IP address. Additionally, to maintain good compatibility and portability, the length of the fqdn parameter value should be kept within 96 characters.
 
-**Port Configuration:**
+#### Port Configuration
 
 In the TDengine cluster, the port used by each dnode to provide external services is determined by the serverPort configuration parameter. By default, this parameter is set to 6030. By adjusting the serverPort parameter, you can flexibly configure the external service port of the dnode to meet different deployment environments and security policies.
 
-**External Cluster Connections:**
+#### External Cluster Connections
 
 The TDengine cluster can accommodate single, multiple, or even thousands of data nodes. Applications only need to connect to any data node in the cluster. This design simplifies the interaction process between applications and the cluster, enhancing the system's scalability and usability.
 
@@ -117,7 +123,7 @@ When using the TDengine CLI to start taos, you can specify the connection inform
 
 In this way, applications can flexibly connect to any dnode in the cluster without having to worry about the specific topology of the cluster.
 
-**Internal Cluster Communication:**
+#### Internal Cluster Communication
 
 In the TDengine cluster, communication between various dnodes is carried out through TCP. When a dnode starts, it first obtains the endpoint information of the mnode located dnode. Subsequently, the newly started dnode establishes a connection with the mnode in the cluster and exchanges information.
 
@@ -131,20 +137,20 @@ Steps to obtain the mnode endpoint information are as follows:
 
 After obtaining the mnode endpoint list, the dnode initiates a connection; if successful, it joins the working cluster; if not, it tries the next one in the mnode endpoint list. If all attempts fail, it sleeps for a few seconds before trying again.
 
-**Selection of Mnode:**
+#### Selection of Mnode
 
 In the TDengine cluster, mnode is a logical concept and does not correspond to an entity that executes code independently. In fact, the functionality of the mnode is managed by the server-side taosd process.
 
 During the cluster deployment phase, the first dnode automatically assumes the role of mnode. Subsequently, users can create or delete additional mnodes in the cluster through SQL to meet the needs of cluster management. This design makes the number and configuration of mnodes highly flexible, allowing adjustments based on actual application scenarios.
 
-**Joining of New Data Nodes:**
+#### Joining of New Data Nodes
 
 Once a dnode in the TDengine cluster is started and running, the cluster has basic operational capabilities. To expand the scale of the cluster, new nodes can be added by following these two steps:
 
 - Step 1, first use the TDengine CLI to connect to an existing dnode. Next, execute the create dnode command to add a new dnode. This process will guide the user through the configuration and registration process of the new dnode.
 - Step 2, set the firstEp and secondEp parameters in the configuration file taos.cfg of the newly added dnode. These two parameters should point to the endpoints of any two active dnodes in the existing cluster. This ensures that the new dnode can correctly join the cluster and communicate with the existing nodes.
 
-**Redirection:**
+#### Redirection
 
 In the TDengine cluster, whether it is a newly started dnode or taosc, they first need to establish a connection with the mnode in the cluster. However, users usually do not know which dnode is running the mnode. To solve this problem, TDengine uses a clever mechanism to ensure the correct connection between them.
 
@@ -332,15 +338,15 @@ By default, TDengine saves all data in /var/lib/taos directory, and the data fil
 
 dataDir format is as follows:
 
-```
+```text
 dataDir data_path [tier_level] [primary] [disable_create_new_file]
 ```
 
-Where `data_path` is the folder path of mount point, and `tier_level` is the media storage-tier. The higher the media storage-tier, means the older the data file. Multiple hard disks can be mounted at the same storage-tier, and data files on the same storage-tier are distributed on all hard disks within the tier. TDengine supports up to 3 tiers of storage, so tier_level values are 0, 1, and 2. When configuring dataDir, there must be only one mount path without specifying tier_level, which is called special mount disk (path). The mount path defaults to level 0 storage media and contains special file links, which cannot be removed, otherwise it will have a devastating impact on the written data. And `primary` means whether the data dir is the primary mount point. Enter 0 for false or 1 for true. The default value is 1. A TDengine cluster can have only one `primary` mount point, which must be on tier 0. And `disable_create_new_file` means whether to prohibit the creation of new file sets on the specified mount point. Enter 0 for false and 1 for true. The default value is 0. Tier 0 storage must have at least one mount point with disable_create_new_file set to 0. Tier 1 and tier 2 storage do not have this restriction. 
+Where `data_path` is the folder path of mount point, and `tier_level` is the media storage-tier. The higher the media storage-tier, means the older the data file. Multiple hard disks can be mounted at the same storage-tier, and data files on the same storage-tier are distributed on all hard disks within the tier. TDengine supports up to 3 tiers of storage, so tier_level values are 0, 1, and 2. When configuring dataDir, there must be only one mount path without specifying tier_level, which is called special mount disk (path). The mount path defaults to level 0 storage media and contains special file links, which cannot be removed, otherwise it will have a devastating impact on the written data. And `primary` means whether the data dir is the primary mount point. Enter 0 for false or 1 for true. The default value is 1. A TDengine cluster can have only one `primary` mount point, which must be on tier 0. And `disable_create_new_file` means whether to prohibit the creation of new file sets on the specified mount point. Enter 0 for false and 1 for true. The default value is 0. Tier 0 storage must have at least one mount point with disable_create_new_file set to 0. Tier 1 and tier 2 storage do not have this restriction.
 
 Suppose there is a physical node with six mountable hard disks/mnt/disk1,/mnt/disk2, ..., /mnt/disk6, where disk1 and disk2 need to be designated as level 0 storage media, disk3 and disk4 are level 1 storage media, and disk5 and disk6 are level 2 storage media. Disk1 is a special mount disk, you can configure it in/etc/taos/taos.cfg as follows:
 
-```
+```text
 dataDir /mnt/disk1/taos 0 1 0
 dataDir /mnt/disk2/taos 0 0 0
 dataDir /mnt/disk3/taos 1 0 0
@@ -353,10 +359,8 @@ Mounted disks can also be a non-local network disk, as long as the system can ac
 
 You can use the following command to dynamically modify dataDir to control whether disable_create_new_file is enabled for the current directory.
 
-```
+```sql
 alter dnode 1 "/mnt/disk2/taos 1";
 ```
 
-Note: Tiered Storage is only supported in Enterprise Edition
-
-
+Note: Tiered Storage is only supported in TSDB-Enterprise

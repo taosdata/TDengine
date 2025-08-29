@@ -52,6 +52,16 @@ extern "C" {
 #define TD_PATH_MAX _POSIX_PATH_MAX
 #endif
 
+#ifdef WINDOWS
+typedef struct TaosIOVec {
+  void  *iov_base;
+  size_t iov_len;
+} TaosIOVec;
+#else
+#include <sys/uio.h>
+typedef struct iovec TaosIOVec;
+#endif
+
 typedef struct TdFile *TdFilePtr;
 
 #define TD_FILE_CREATE        0x0001
@@ -122,6 +132,7 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName);
 int32_t taosSetFileHandlesLimit();
 
 int32_t taosLinkFile(char *src, char *dst);
+int32_t taosSymLink(const char *target, const char *linkpath);
 
 FILE  *taosOpenCFile(const char *filename, const char *mode);
 int    taosSeekCFile(FILE *file, int64_t offset, int whence);
@@ -132,6 +143,8 @@ int    taosSetAutoDelFile(char *path);
 
 FILE   *taosOpenFileForStream(const char *path, int32_t tdFileOptions);
 bool    lastErrorIsFileNotExist();
+
+int64_t taosWritevFile(TdFilePtr pFile, const TaosIOVec *iov, int iovcnt);
 
 #ifdef BUILD_WITH_RAND_ERR
 #define STUB_RAND_NETWORK_ERR(ret)                                        \

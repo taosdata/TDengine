@@ -175,3 +175,9 @@ Each configuration also has corresponding command line options and environment v
 #### Limitations
 
 Monitoring-related configurations only take effect when taosX is running in server mode.
+
+## Cluster Dashboard
+
+After logging into the explorer, switch to the "Dashboard" page, and you can view the cluster status. As shown in the following figure, it includes the number of taosd/taos-adapter/taosX/taos-keeper in the cluster, as well as the information of dnode hosts and the status of various service components.
+
+![cluster monitor](./pic/cluster-monitor.jpg)

@@ -38,7 +38,7 @@ table_option: {
 
 ```
 
-**Usage Notes**
+Usage Notes:
 
 1. For table (column) naming conventions, see [Naming Rules](../names/).
 2. The maximum length for table names is 192 characters.
@@ -48,7 +48,7 @@ table_option: {
 6. When using data types VARCHAR/NCHAR/GEOMETRY, specify the maximum number of bytes, e.g., VARCHAR(20) indicates 20 bytes.
 7. For the use of `ENCODE` and `COMPRESS`, please refer to [Column Compression](../manage-data-compression/)
 
-**Parameter Description**
+Parameter Description:
 
 1. COMMENT: Table comment. Can be used for supertables, subtables, and basic tables. The maximum length is 1024 bytes.
 2. SMA: Small Materialized Aggregates, provides custom pre-computation based on data blocks. Pre-computation types include MAX, MIN, and SUM. Available for supertables/basic tables.
@@ -84,7 +84,7 @@ The batch table creation method requires that the tables must use a supertable a
 CREATE TABLE [IF NOT EXISTS] USING [db_name.]stb_name (field1_name [, field2_name] ....) FILE csv_file_path;
 ```
 
-**Parameter Description**
+Parameter Description:
 
 1. FILE syntax indicates that the data comes from a CSV file (separated by English commas, each value enclosed in English single quotes), and the CSV file does not need a header. The CSV file should only contain the table name and tag values. If you need to insert data, please refer to the 'Data Writing' section.
 2. Create subtables for the specified stb_name, which must already exist.
@@ -113,7 +113,8 @@ alter_table_option: {
 
 ```
 
-**Usage Instructions**
+Usage Instructions:
+
 The following modifications can be made to basic tables:
 
 1. ADD COLUMN: Add a column.
@@ -122,7 +123,7 @@ The following modifications can be made to basic tables:
 4. RENAME COLUMN: Change the column name.
 5. The primary key columns of basic tables cannot be modified, nor can they be added or removed through ADD/DROP COLUMN.
 
-**Parameter Description**
+Parameter Description:
 
 1. COMMENT: Table comment. Can be used for supertables, subtables, and basic tables. The maximum length is 1024 bytes.
 2. TTL: Time to Live, a parameter used by users to specify the lifespan of a table. If this parameter is specified when creating a table, TDengine automatically deletes the table after its existence exceeds the specified TTL time. This TTL time is approximate, and the system does not guarantee that it will definitely delete the table at that time, but only ensures that there is such a mechanism and it will eventually be deleted. The TTL unit is days, with a range of [0, 2147483647], defaulting to 0, meaning no limit, and the expiration time is the table creation time plus the TTL time. TTL is not related to the database KEEP parameter. If KEEP is smaller than TTL, data may already be deleted before the table is deleted.
@@ -182,11 +183,11 @@ alter_table_option: {
 }
 ```
 
-**Usage Notes**
+Usage Notes:
 
 1. Modifications to columns and tags of subtables, except for changing tag values, must be done through the supertable.
 
-**Parameter Description**
+Parameter Description:
 
 1. COMMENT: Table comment. Can be used for supertables, subtables, and regular tables. The maximum length is 1024 bytes.
 2. TTL: Time to Live, a parameter used by users to specify the lifespan of a table. If this parameter is specified when creating a table, TDengine automatically deletes the table after its existence exceeds the time specified by TTL. This TTL time is approximate; the system does not guarantee that it will delete the table exactly at that time, but it ensures that there is such a mechanism and it will eventually delete the table. TTL is measured in days, with a range of [0, 2147483647], default is 0, meaning no limit, and the expiration time is the table creation time plus TTL time. TTL is not related to the database KEEP parameter; if KEEP is smaller than TTL, data might be deleted before the table is.

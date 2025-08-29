@@ -111,8 +111,10 @@ int32_t cfgUpdateFromArray(SConfig *pCfg, SArray *pArgs) {
 
     SConfigItem *pItemOld = cfgGetItem(pCfg, pItemNew->name);
     if (pItemOld == NULL) {
+      uInfo("cfg:%s, type:%s src:%s, not found, skip to update", pItemNew->name, cfgDtypeStr(pItemNew->dtype),
+            cfgStypeStr(pItemNew->stype));
       (void)taosThreadMutexUnlock(&pCfg->lock);
-      TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
+      continue;
     }
     switch (pItemNew->dtype) {
       case CFG_DTYPE_BOOL:
@@ -996,91 +998,6 @@ int32_t cfgDumpItemCategory(SConfigItem *pItem, char *buf, int32_t bufSize, int3
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-void cfgDumpCfgArrayS3(SArray *array, bool tsc, bool dump) {
-  char    src[CFG_SRC_PRINT_LEN + 1] = {0};
-  char    name[CFG_NAME_PRINT_LEN + 1] = {0};
-  int32_t size = taosArrayGetSize(array);
-  for (int32_t i = 0; i < size; ++i) {
-    SConfigItem *pItem = taosArrayGet(array, i);
-    if (tsc && pItem->scope == CFG_SCOPE_SERVER) continue;
-    if (dump && strcmp(pItem->name, "scriptDir") == 0) continue;
-    if (dump && strncmp(pItem->name, "s3", 2) != 0) continue;
-    tstrncpy(src, cfgStypeStr(pItem->stype), CFG_SRC_PRINT_LEN);
-    for (int32_t j = 0; j < CFG_SRC_PRINT_LEN; ++j) {
-      if (src[j] == 0) src[j] = ' ';
-    }
-
-    tstrncpy(name, pItem->name, CFG_NAME_PRINT_LEN);
-    for (int32_t j = 0; j < CFG_NAME_PRINT_LEN; ++j) {
-      if (name[j] == 0) name[j] = ' ';
-    }
-
-    switch (pItem->dtype) {
-      case CFG_DTYPE_BOOL:
-        if (dump) {
-          (void)printf("%s %s %u\n", src, name, pItem->bval);
-        } else {
-          uInfo("%s %s %u", src, name, pItem->bval);
-        }
-
-        break;
-      case CFG_DTYPE_INT32:
-        if (dump) {
-          (void)printf("%s %s %d\n", src, name, pItem->i32);
-        } else {
-          uInfo("%s %s %d", src, name, pItem->i32);
-        }
-        break;
-      case CFG_DTYPE_INT64:
-        if (dump) {
-          (void)printf("%s %s %" PRId64 "\n", src, name, pItem->i64);
-        } else {
-          uInfo("%s %s %" PRId64, src, name, pItem->i64);
-        }
-        break;
-      case CFG_DTYPE_DOUBLE:
-      case CFG_DTYPE_FLOAT:
-        if (dump) {
-          (void)printf("%s %s %.2f\n", src, name, pItem->fval);
-        } else {
-          uInfo("%s %s %.2f", src, name, pItem->fval);
-        }
-        break;
-      case CFG_DTYPE_STRING:
-      case CFG_DTYPE_DIR:
-      case CFG_DTYPE_LOCALE:
-      case CFG_DTYPE_CHARSET:
-      case CFG_DTYPE_TIMEZONE:
-      case CFG_DTYPE_NONE:
-        if (dump) {
-          (void)printf("%s %s %s\n", src, name, pItem->str);
-        } else {
-          uInfo("%s %s %s", src, name, pItem->str);
-        }
-        break;
-    }
-  }
-}
-
-void cfgDumpCfgS3(SConfig *pCfg, bool tsc, bool dump) {
-  if (dump) {
-    (void)printf("                     s3 config");
-    (void)printf("\n");
-    (void)printf("=================================================================");
-    (void)printf("\n");
-  } else {
-    uInfo("                     s3 config");
-    uInfo("=================================================================");
-  }
-  cfgDumpCfgArrayS3(pCfg->localArray, tsc, dump);
-  cfgDumpCfgArrayS3(pCfg->globalArray, tsc, dump);
-  if (dump) {
-    (void)printf("=================================================================\n");
-  } else {
-    uInfo("=================================================================");
-  }
-}
-
 void cfgDumpCfgImpl(SArray *array, bool tsc, bool dump) {
   char src[CFG_SRC_PRINT_LEN + 1] = {0};
   char name[CFG_NAME_PRINT_LEN + 1] = {0};
@@ -1090,6 +1007,8 @@ void cfgDumpCfgImpl(SArray *array, bool tsc, bool dump) {
     SConfigItem *pItem = taosArrayGet(array, i);
     if (tsc && pItem->scope == CFG_SCOPE_SERVER) continue;
     if (dump && strcmp(pItem->name, "scriptDir") == 0) continue;
+    if (strcmp(pItem->name, "ssAccessString") == 0) continue; // contains sensitive information
+
     tstrncpy(src, cfgStypeStr(pItem->stype), CFG_SRC_PRINT_LEN);
     for (int32_t j = 0; j < CFG_SRC_PRINT_LEN; ++j) {
       if (src[j] == 0) src[j] = ' ';

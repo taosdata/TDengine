@@ -17,6 +17,7 @@
 #include "ttokendef.h"
 #include "tvariant.h"
 #include "tanalytics.h"
+#include "tglobal.h"
 
 namespace {
 //
@@ -328,10 +329,10 @@ TEST(testCase, Datablock_test) {
   SColumnInfoData* p1 = (SColumnInfoData*)taosArrayGet(b->pDataBlock, 1);
   for (int32_t i = 0; i < 40; ++i) {
     if (i & 0x01) {
-      ASSERT_EQ(colDataIsNull_f(p0->nullbitmap, i), false);
+      ASSERT_EQ(colDataIsNull_f(p0, i), false);
       ASSERT_EQ(colDataIsNull(p1, b->info.rows, i, nullptr), false);
     } else {
-      ASSERT_EQ(colDataIsNull_f(p0->nullbitmap, i), true);
+      ASSERT_EQ(colDataIsNull_f(p0, i), true);
 
       ASSERT_EQ(colDataIsNull(p0, b->info.rows, i, nullptr), true);
       ASSERT_EQ(colDataIsNull(p1, b->info.rows, i, nullptr), true);
@@ -793,7 +794,7 @@ TEST(AlreadyAddGroupIdTest, GroupIdAddedWithDifferentLength) {
 #define SLOW_LOG_TYPE_OTHERS 0x4
 #define SLOW_LOG_TYPE_ALL    0x7
 
-static int32_t taosSetSlowLogScope(char* pScopeStr, int32_t* pScope) {
+static int32_t taosSetSlowLogScope2(char* pScopeStr, int32_t* pScope) {
   if (NULL == pScopeStr || 0 == strlen(pScopeStr)) {
     *pScope = SLOW_LOG_TYPE_QUERY;
     TAOS_RETURN(TSDB_CODE_SUCCESS);
@@ -845,7 +846,7 @@ static int32_t taosSetSlowLogScope(char* pScopeStr, int32_t* pScope) {
 TEST(TaosSetSlowLogScopeTest, NullPointerInput) {
   char*   pScopeStr = NULL;
   int32_t scope = 0;
-  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  int32_t result = taosSetSlowLogScope2(pScopeStr, &scope);
   EXPECT_EQ(result, TSDB_CODE_SUCCESS);
   EXPECT_EQ(scope, SLOW_LOG_TYPE_QUERY);
 }
@@ -853,7 +854,7 @@ TEST(TaosSetSlowLogScopeTest, NullPointerInput) {
 TEST(TaosSetSlowLogScopeTest, EmptyStringInput) {
   char    pScopeStr[1] = "";
   int32_t scope = 0;
-  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  int32_t result = taosSetSlowLogScope2(pScopeStr, &scope);
   EXPECT_EQ(result, TSDB_CODE_SUCCESS);
   EXPECT_EQ(scope, SLOW_LOG_TYPE_QUERY);
 }
@@ -861,7 +862,7 @@ TEST(TaosSetSlowLogScopeTest, EmptyStringInput) {
 TEST(TaosSetSlowLogScopeTest, AllScopeInput) {
   char    pScopeStr[] = "all";
   int32_t scope = 0;
-  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  int32_t result = taosSetSlowLogScope2(pScopeStr, &scope);
   EXPECT_EQ(result, TSDB_CODE_SUCCESS);
 
   EXPECT_EQ(scope, SLOW_LOG_TYPE_ALL);
@@ -870,7 +871,7 @@ TEST(TaosSetSlowLogScopeTest, AllScopeInput) {
 TEST(TaosSetSlowLogScopeTest, QueryScopeInput) {
   char    pScopeStr[] = " query";
   int32_t scope = 0;
-  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  int32_t result = taosSetSlowLogScope2(pScopeStr, &scope);
   EXPECT_EQ(result, TSDB_CODE_SUCCESS);
   EXPECT_EQ(scope, SLOW_LOG_TYPE_QUERY);
 }
@@ -878,7 +879,7 @@ TEST(TaosSetSlowLogScopeTest, QueryScopeInput) {
 TEST(TaosSetSlowLogScopeTest, InsertScopeInput) {
   char    pScopeStr[] = "insert";
   int32_t scope = 0;
-  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  int32_t result = taosSetSlowLogScope2(pScopeStr, &scope);
   EXPECT_EQ(result, TSDB_CODE_SUCCESS);
   EXPECT_EQ(scope, SLOW_LOG_TYPE_INSERT);
 }
@@ -886,7 +887,7 @@ TEST(TaosSetSlowLogScopeTest, InsertScopeInput) {
 TEST(TaosSetSlowLogScopeTest, OthersScopeInput) {
   char    pScopeStr[] = "others";
   int32_t scope = 0;
-  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  int32_t result = taosSetSlowLogScope2(pScopeStr, &scope);
   EXPECT_EQ(result, TSDB_CODE_SUCCESS);
   EXPECT_EQ(scope, SLOW_LOG_TYPE_OTHERS);
 }
@@ -894,7 +895,7 @@ TEST(TaosSetSlowLogScopeTest, OthersScopeInput) {
 TEST(TaosSetSlowLogScopeTest, NoneScopeInput) {
   char    pScopeStr[] = "none";
   int32_t scope = 0;
-  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  int32_t result = taosSetSlowLogScope2(pScopeStr, &scope);
   EXPECT_EQ(result, TSDB_CODE_SUCCESS);
   EXPECT_EQ(scope, SLOW_LOG_TYPE_NULL);
 }
@@ -902,7 +903,7 @@ TEST(TaosSetSlowLogScopeTest, NoneScopeInput) {
 TEST(TaosSetSlowLogScopeTest, InvalidScopeInput) {
   char    pScopeStr[] = "invalid";
   int32_t scope = 0;
-  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  int32_t result = taosSetSlowLogScope2(pScopeStr, &scope);
   // EXPECT_EQ(result, TSDB_CODE_SUCCESS);
   // EXPECT_EQ(scope, -1);
 }
@@ -910,7 +911,7 @@ TEST(TaosSetSlowLogScopeTest, InvalidScopeInput) {
 TEST(TaosSetSlowLogScopeTest, MixedScopesInput) {
   char    pScopeStr[] = "query|insert|others|none";
   int32_t scope = 0;
-  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  int32_t result = taosSetSlowLogScope2(pScopeStr, &scope);
   EXPECT_EQ(result, TSDB_CODE_SUCCESS);
   EXPECT_EQ(scope, (SLOW_LOG_TYPE_QUERY | SLOW_LOG_TYPE_INSERT | SLOW_LOG_TYPE_OTHERS));
 }
@@ -918,7 +919,7 @@ TEST(TaosSetSlowLogScopeTest, MixedScopesInput) {
 TEST(TaosSetSlowLogScopeTest, MixedScopesInputWithSpaces) {
   char    pScopeStr[] = "query | insert | others ";
   int32_t scope = 0;
-  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  int32_t result = taosSetSlowLogScope2(pScopeStr, &scope);
   EXPECT_EQ(result, TSDB_CODE_SUCCESS);
   EXPECT_EQ(scope, (SLOW_LOG_TYPE_QUERY | SLOW_LOG_TYPE_INSERT | SLOW_LOG_TYPE_OTHERS));
 }
@@ -1020,6 +1021,72 @@ TEST(testCase, function_param_check) {
   p = NULL;
 
   taosMemoryFree(param);
+}
+
+TEST(testCase, function_fqdn) {
+  tsEnableIpv6 = 1;
+  {
+    SEp ep = {0};
+    char *para = "127.0.0.1";
+   taosGetFqdnPortFromEp(para, &ep);
+    ASSERT_EQ(strcmp(ep.fqdn, "127.0.0.1"), 0);
+    ASSERT_EQ(ep.port, 6030);
+  }
+
+  {
+    SEp ep = {0};
+    char *para = "::1";
+   taosGetFqdnPortFromEp (para, &ep);
+    ASSERT_EQ(strcmp(ep.fqdn, "::1"), 0);
+    ASSERT_EQ(ep.port, tsServerPort);
+  }
+   
+  {
+    SEp ep = {0};
+    char *para = "::1:6030";
+   taosGetFqdnPortFromEp(para, &ep);
+    ASSERT_EQ(strcmp(ep.fqdn, "::1"), 0);
+    ASSERT_EQ(ep.port, 6030);
+  }
+  {
+    SEp ep = {0};
+    char *para = "::1:7030";
+   taosGetFqdnPortFromEp(para, &ep);
+    ASSERT_EQ(strcmp(ep.fqdn, "::1"), 0);
+    ASSERT_EQ(ep.port, 7030);
+  }
+
+  {
+    SEp ep = {0};
+    char *para = "test:7030";
+   taosGetFqdnPortFromEp(para, &ep);
+    ASSERT_EQ(strcmp(ep.fqdn, "test"), 0);
+    ASSERT_EQ(ep.port, 7030);
+  }
+
+  {
+    SEp ep = {0};
+    char *para = "test";
+   taosGetFqdnPortFromEp(para, &ep);
+    ASSERT_EQ(strcmp(ep.fqdn, "test"), 0);
+    ASSERT_EQ(ep.port, 6030);
+  }
+
+  {
+    SEp ep = {0};
+    char *para = "[test]";
+   taosGetFqdnPortFromEp(para, &ep);
+    ASSERT_EQ(strcmp(ep.fqdn, "test"), 0);
+    ASSERT_EQ(ep.port, 6030);
+  }
+  {
+    SEp ep = {0};
+    char *para = "[test]:6030";
+   taosGetFqdnPortFromEp(para, &ep);
+    ASSERT_EQ(strcmp(ep.fqdn, "test"), 0);
+    ASSERT_EQ(ep.port, 6030);
+  }
+
 }
 
 #pragma GCC diagnostic pop

@@ -187,17 +187,17 @@ struct SFileSetReader;
 typedef struct TsdReader {
   int32_t      (*tsdReaderOpen)(void* pVnode, SQueryTableDataCond* pCond, void* pTableList, int32_t numOfTables,
                            SSDataBlock* pResBlock, void** ppReader, const char* idstr, SHashObj** pIgnoreTables);
-  void         (*tsdReaderClose)();
-  int32_t      (*tsdSetReaderTaskId)(void *pReader, const char *pId);
-  int32_t      (*tsdSetQueryTableList)();
-  int32_t      (*tsdNextDataBlock)();
+  void         (*tsdReaderClose)(void* pReader);
+  int32_t      (*tsdSetReaderTaskId)(void* pReader, const char* pId);
+  int32_t      (*tsdSetQueryTableList)(void* p, const void* pTableList, int32_t num);
+  int32_t      (*tsdNextDataBlock)(void* pReader, bool* hasNext);
 
   int32_t      (*tsdReaderRetrieveBlockSMAInfo)();
-  int32_t      (*tsdReaderRetrieveDataBlock)();
+  int32_t      (*tsdReaderRetrieveDataBlock)(void* p, SSDataBlock** pBlock, SArray* pIdList);
 
-  void         (*tsdReaderReleaseDataBlock)();
+  void         (*tsdReaderReleaseDataBlock)(void* pReader);
 
-  int32_t      (*tsdReaderResetStatus)();
+  int32_t      (*tsdReaderResetStatus)(void* p, SQueryTableDataCond* pCond);
   int32_t      (*tsdReaderGetDataBlockDistInfo)();
   int64_t      (*tsdReaderGetNumOfInMemRows)();
   void         (*tsdReaderNotifyClosing)();
@@ -234,12 +234,10 @@ typedef struct SStoreTqReader {
   void (*tqReaderClose)();
 
   int32_t (*tqReaderSeek)();
-  int32_t (*tqRetrieveBlock)();
   bool (*tqReaderNextBlockInWal)();
   bool (*tqNextBlockImpl)();  // todo remove it
   SSDataBlock* (*tqGetResultBlock)();
   int64_t (*tqGetResultBlockTime)();
-  int32_t (*tqGetStreamExecProgress)();
 
   int32_t (*tqReaderSetColIdList)();
   int32_t (*tqReaderSetQueryTableList)();
@@ -304,7 +302,7 @@ typedef struct SStoreMeta {
   // support filter and non-filter cases. [vnodeGetCtbIdList & vnodeGetCtbIdListByFilter]
   int32_t (*getChildTableList)(void* pVnode, int64_t suid, SArray* list);
   int32_t (*storeGetTableList)(void* pVnode, int8_t type, SArray* pList);
-  int32_t (*getTableSchema)(void* pVnode, int64_t uid, STSchema** pSchema, int64_t* suid);
+  int32_t (*getTableSchema)(void* pVnode, int64_t uid, STSchema** pSchema, int64_t* suid, SSchemaWrapper** pTagSchema);
   int32_t (*getNumOfChildTables)(void* pVnode, int64_t uid, int64_t* numOfTables, int32_t* numOfCols, int8_t* flags);
   void (*getBasicInfo)(void* pVnode, const char** dbname, int32_t* vgId, int64_t* numOfTables,
                        int64_t* numOfNormalTables);
@@ -322,6 +320,7 @@ typedef struct SStoreMetaReader {
   void (*clearReader)(SMetaReader* pReader);
   void (*readerReleaseLock)(SMetaReader* pReader);
   int32_t (*getTableEntryByUid)(SMetaReader* pReader, tb_uid_t uid);
+  int     (*getTableEntryByVersionUid)(SMetaReader *pReader, int64_t version, tb_uid_t uid);
   int32_t (*getTableEntryByName)(SMetaReader* pReader, const char* name);
   int32_t (*getEntryGetUidCache)(SMetaReader* pReader, tb_uid_t uid);
 } SStoreMetaReader;

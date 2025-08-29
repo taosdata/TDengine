@@ -77,18 +77,21 @@ typedef struct SStbJoinDynCtrlInfo {
 typedef struct SVtbScanDynCtrlInfo {
   bool             scanAllCols;
   char*            dbName;
+  char*            stbName;
   tsem_t           ready;
   SEpSet           epSet;
   SUseDbRsp*       pRsp;
   uint64_t         suid;
+  uint64_t         dynTbUid;
   int32_t          acctId;
   int32_t          curTableIdx;
   int32_t          lastTableIdx;
   SArray*          readColList;
   SArray*          childTableList;
+  SHashObj*        childTableMap;
   SHashObj*        dbVgInfoMap;
   SHashObj*        orgTbVgColMap;
-  SReadHandle      readHandle;
+  SMsgCb*          pMsgCb;
   SOperatorParam*  vtbScanParam;
 } SVtbScanDynCtrlInfo;
 

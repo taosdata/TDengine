@@ -144,7 +144,7 @@ typedef struct SSchedulerCfg {
 typedef struct SSchedulerMgmt {
   uint64_t      clientId;  // unique clientId
   uint64_t      taskId;    // sequential taksId
-  uint64_t      seriousId; // sequential seriousId
+  uint64_t      seriesId; // sequential seriesId
   SSchedulerCfg cfg;
   bool          exit;
   int32_t       jobRef;
@@ -163,7 +163,7 @@ typedef struct SSchCallbackParamHeader {
 typedef struct SSchTaskCallbackParam {
   SSchCallbackParamHeader head;
   uint64_t                queryId;
-  uint64_t                seriousId;
+  uint64_t                seriesId;
   int64_t                 refId;
   uint64_t                clientId;
   uint64_t                taskId;
@@ -228,8 +228,8 @@ typedef struct SSchTimerParam {
 typedef struct SSchTask {
   uint64_t        clientId;        // current client id
   uint64_t        taskId;          // task id
-  uint64_t        seriousId;
-  uint64_t        failedSeriousId;
+  uint64_t        seriesId;
+  uint64_t        failedSeriesId;
   SRWLatch        lock;            // task reentrant lock
   int32_t         maxExecTimes;    // task max exec times
   int32_t         maxRetryTimes;   // task max retry times
@@ -279,7 +279,7 @@ typedef struct {
 typedef struct SSchJob {
   int64_t          refId;
   uint64_t         queryId;
-  uint64_t         seriousId;
+  uint64_t         seriesId;
   SSchJobAttr      attr;
   int32_t          levelNum;
   int32_t          taskNum;
@@ -423,9 +423,13 @@ extern SSchedulerMgmt schMgmt;
   (SCH_REDIRECT_MSGTYPE(_msgType) &&                                                               \
    (NEED_SCHEDULER_REDIRECT_ERROR(_code) || SCH_LOW_LEVEL_NETWORK_ERR((_job), (_task), (_code)) || \
     SCH_TASK_RETRY_NETWORK_ERR((_task), (_code))))
-#define SCH_TASK_NEED_RETRY(_msgType, _code) \
-  ((SCH_REDIRECT_MSGTYPE(_msgType) && SCH_NETWORK_ERR(_code)) || (_code) == TSDB_CODE_SCH_TIMEOUT_ERROR)
 
+#define SCH_TASK_NEED_RETRY(_msgType, _code) \
+  ((SCH_REDIRECT_MSGTYPE(_msgType) && (SCH_NETWORK_ERR(_code) || NEED_SCHEDULER_REDIRECT_ERROR(_code))) || (_code) == TSDB_CODE_SCH_TIMEOUT_ERROR)
+
+#define SCH_DATA_BIND_TASK_NEED_RETRY(_job, _task, _msgType, _code) \
+  ((SCH_REDIRECT_MSGTYPE(_msgType) && SCH_IS_DATA_BIND_TASK(_task) && (SCH_NETWORK_ERR(_code) || NEED_SCHEDULER_REDIRECT_ERROR(_code))) || (_code) == TSDB_CODE_SCH_TIMEOUT_ERROR)
+   
 #define SCH_IS_LEVEL_UNFINISHED(_level) ((_level)->taskLaunchedNum < (_level)->taskNum)
 #define SCH_GET_CUR_EP(_addr)           (&(_addr)->epSet.eps[(_addr)->epSet.inUse])
 #define SCH_SWITCH_EPSET(_addr)         ((_addr)->epSet.inUse = ((_addr)->epSet.inUse + 1) % (_addr)->epSet.numOfEps)
@@ -462,27 +466,27 @@ extern SSchedulerMgmt schMgmt;
     (_task)->profile.endTs = us;                                                 \
   } while (0)
 
-#define SCH_JOB_ELOG(param, ...) qError("QID:0x%" PRIx64 ", SID:%" PRId64 ", " param, pJob->queryId, pJob->seriousId, __VA_ARGS__)
-#define SCH_JOB_DLOG(param, ...) qDebug("QID:0x%" PRIx64 ", SID:%" PRId64 ", " param, pJob->queryId, pJob->seriousId, __VA_ARGS__)
-#define SCH_JOB_TLOG(param, ...) qTrace("QID:0x%" PRIx64 ", SID:%" PRId64 ", " param, pJob->queryId, pJob->seriousId, __VA_ARGS__)
+#define SCH_JOB_ELOG(param, ...) qError("QID:0x%" PRIx64 ", SID:%" PRId64 ", " param, pJob->queryId, pJob->seriesId, __VA_ARGS__)
+#define SCH_JOB_DLOG(param, ...) qDebug("QID:0x%" PRIx64 ", SID:%" PRId64 ", " param, pJob->queryId, pJob->seriesId, __VA_ARGS__)
+#define SCH_JOB_TLOG(param, ...) qTrace("QID:0x%" PRIx64 ", SID:%" PRId64 ", " param, pJob->queryId, pJob->seriesId, __VA_ARGS__)
 
 #define SCH_TASK_ELOG(param, ...)                                                                                    \
-  qError("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriousId, SCH_CLIENT_ID(pTask), \
+  qError("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
          SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
 #define SCH_TASK_DLOG(param, ...)                                                                                    \
-  qDebug("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriousId, SCH_CLIENT_ID(pTask), \
+  qDebug("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
          SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
 #define SCH_TASK_TLOG(param, ...)                                                                                    \
-  qTrace("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriousId, SCH_CLIENT_ID(pTask), \
+  qTrace("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
          SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
 #define SCH_TASK_DLOGL(param, ...)                                                                                    \
-  qDebugL("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriousId, SCH_CLIENT_ID(pTask), \
+  qDebugL("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
           SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
 #define SCH_TASK_WLOG(param, ...)                                                                                   \
-  qWarn("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriousId, SCH_CLIENT_ID(pTask), \
+  qWarn("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
         SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
 #define SCH_TASK_ILOG(param, ...)                                                                                   \
-  qInfo("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriousId, SCH_CLIENT_ID(pTask), \
+  qInfo("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
           SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
 
 #define SCH_SET_ERRNO(_err)                     \
@@ -633,7 +637,7 @@ void     schCloseJobRef(void);
 int32_t  schAsyncExecJob(SSchedulerReq *pReq, int64_t *pJob);
 int32_t  schJobFetchRows(SSchJob *pJob);
 int32_t  schJobFetchRowsA(SSchJob *pJob);
-int32_t  schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, void *handle, uint64_t seriousId, int32_t execId);
+int32_t  schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, void *handle, uint64_t seriesId, int32_t execId);
 int32_t  schProcessOnTaskStatusRsp(SQueryNodeEpId *pEpId, SArray *pStatusList);
 int32_t  schDumpEpSet(SEpSet *pEpSet, char **ppRes);
 char    *schGetOpStr(SCH_OP_TYPE type);

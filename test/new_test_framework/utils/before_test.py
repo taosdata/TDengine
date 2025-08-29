@@ -1,6 +1,7 @@
 import subprocess
 import sys
 import os
+import copy
 from new_test_framework import taostest
 
 import taos
@@ -18,8 +19,10 @@ from .taosadapter import tAdapter
 from .common import tdCom
 from .taoskeeper import taoskeeper
 
-
-
+def load_yaml_config(filename):
+    config_path = os.path.join(os.path.dirname(__file__), filename)
+    with open(config_path, "r") as f:
+        return yaml.safe_load(f)
 
 class BeforeTest:
     def __init__(self, request):
@@ -77,7 +80,7 @@ class BeforeTest:
         setup_params = {
             "test_root": self.root_dir,
             "setup": yaml_file,
-            "mnode_count": mnodes_num,
+            #"mnode_count": mnodes_num,
             "log_level": self.log_level
         }
         if clean:
@@ -87,9 +90,9 @@ class BeforeTest:
             #subprocess.run([sys.executable, f"taostest --setup {yaml_file} --mnode-count {mnodes_num}"], check=True, text=True, shell=True, env=env_vars)
             result = taostest.main(setup_params)
             if result != 0:
-                tdLog.error(f"Error run taostest --setup {yaml_file} --mnode-count {mnodes_num}: {result}")
+                tdLog.error(f"Error run taostest --setup {yaml_file}: {result}")
         except Exception as e:
-            tdLog.error(f"Exception run taostest --setup {yaml_file} --mnode-count {mnodes_num}: {e}")
+            tdLog.error(f"Exception run taostest --setup {yaml_file}: {e}")
 
     def configure_test(self, yaml_file):
 
@@ -145,7 +148,7 @@ class BeforeTest:
         if request.session.restful:
             return taosrest.connect(url=f"http://{request.session.host}:6041", timezone="utc")
         else:
-            return taos.connect(host=request.session.host, port=request.session.port)
+            return taos.connect(host=request.session.host, config=tdDnodes.sim.cfgPath)
 
     def get_tdsql(self, conn):
         tdSql.init(conn.cursor())
@@ -194,7 +197,13 @@ class BeforeTest:
                 }
             }]
         }
+        dnode_config_template = load_yaml_config(os.path.join(self.root_dir, 'env', 'taos_config.yaml'))
+        adapter_config_template = load_yaml_config(os.path.join(self.root_dir, 'env', 'taosadapter_config.yaml'))
+        taoskeeper_config_template = load_yaml_config(os.path.join(self.root_dir, 'env', 'taoskeeper_config.yaml'))
         servers = []
+        port_base = dnode_config_template["port"] if "port" in dnode_config_template else 6030
+        yaml_data["settings"][0]["spec"]["config"]["firstEP"] = f"localhost:{port_base}"
+        mqttport_base = dnode_config_template["mqttPort"] if "mqttPort" in dnode_config_template else 6083
         for i in range(request.session.denodes_num):
             dnode_cfg_path = os.path.join(work_dir, f"dnode{i+1}", "cfg")
             log_path = os.path.join(work_dir, f"dnode{i+1}", "log")
@@ -208,43 +217,21 @@ class BeforeTest:
                         if primary == 1:
                             primary = 0
             else:
-                data_path = os.path.join(work_dir, f"dnode{i+1}", "data")
+                data_path = [os.path.join(work_dir, f"dnode{i+1}", "data")]
+            dnode_config = copy.deepcopy(dnode_config_template)
+            dnode_config.pop("port", None)
+            dnode_config["mqttPort"] = mqttport_base + i * 100
+            dnode_config["dataDir"] = data_path
+            dnode_config["logDir"] = log_path
             dnode = {
-                "endpoint": f"localhost:{6030 + i * 100}",
+                "endpoint": f"localhost:{port_base + i * 100}",
                 "config_dir": dnode_cfg_path,
                 "taosdPath": os.path.join(request.session.taos_bin_path, "taosd"),
-                "config": {
-                    "dataDir": data_path,
-                    "logDir": log_path,
-                    "monitor": 0,
-                    "maxShellConns": 30000,
-                    "locale": "en_US.UTF-8",
-                    "charset": "UTF-8",
-                    "asyncLog": 0,
-                    "mDebugFlag": 135,
-                    "dDebugFlag": 131,
-                    "vDebugFlag": 131,
-                    "tqDebugFlag": 135,
-                    "cDebugFlag": 135,
-                    "stDebugFlag": 135,
-                    "smaDebugFlag": 135,
-                    "jniDebugFlag": 131,
-                    "qDebugFlag": 131,
-                    "rpcDebugFlag": 135,
-                    "tmrDebugFlag": 131,
-                    "uDebugFlag": 131,
-                    "sDebugFlag": 131,
-                    "wDebugFlag": 131,
-                    "numOfLogLines": 100000000,
-                    "statusInterval": 1,
-                    "enableQueryHb": 1,
-                    "supportVnodes": "1024",
-                    "telemetryReporting": 0
-                }
+                "system": sys.platform,
+                "config": dnode_config,
+                "mqttPort": dnode_config["mqttPort"],
             }
             tdLog.debug(f"[BeforeTest.ci_init_config] dnode: {dnode}")
-            if request.session.query_policy > 1:
-                dnode["config"]["queryPolicy"] = request.session.query_policy
             if request.session.independentMnode and i < request.session.mnodes_num:
                 dnode["config"]["supportVnodes"] = 0
             if request.session.asan:
@@ -259,31 +246,32 @@ class BeforeTest:
                 "endpoint": dnode["endpoint"],
                 "log_dir": log_path,
                 "data_dir": data_path,
-                "config": dnode["config"]
+                "config": dnode["config"],
+                "mqttPort": dnode["mqttPort"],
             }
             servers.append(server)
         request.session.servers = servers
-        if request.session.restful:
+        tdLog.info(f"request.session.start_taosadapter: {request.session.start_taosadapter}")
+        if request.session.start_taosadapter:
             # TODO: 增加taosAdapter的配置
             adapter_config_dir = os.path.join(work_dir, "dnode1", "cfg")
             adapter_config_file = os.path.join(adapter_config_dir, "taosadapter.toml")
             taos_config_file = os.path.join(work_dir, "dnode1", "cfg", "taos.cfg")
             adapter_log_dir = os.path.join(work_dir, "dnode1", "log")
             taos_log_dir = os.path.join(work_dir, "dnode1", "log")
+            
+            adapter_config = copy.deepcopy(adapter_config_template)
+            adapter_config["taosConfigDir"] = taos_config_file
+            adapter_config["log"]["path"] = adapter_log_dir
             restful_dict = {
                 "name": "taosAdapter",
                 "fqdn": ["localhost"],
                 "spec": {
                     "version": "2.4.0.0",
                     "config_file": adapter_config_file,
-                    "adapter_config": {
-                        "logLevel": "debug",
-                        "port": 6041,
-                        "taosConfigDir": taos_config_file,
-                        "log": {"path": adapter_log_dir}
-                    },
+                    "adapter_config": adapter_config,
                     "taos_config": {
-                        "firstEP": "localhost:6030",
+                        "firstEP": f"localhost:{port_base}",
                         "logDir": taos_log_dir
                     },
                     "taosadapterPath": os.path.join(request.session.taos_bin_path, "taosadapter")
@@ -299,7 +287,7 @@ class BeforeTest:
             adapter["port"] = 6041
             adapter["logLevel"] = "info"
             adapter["log_path"] = adapter_log_dir
-            adapter["taos_firstEP"] = "localhost:6030"
+            adapter["taos_firstEP"] = f"localhost:{port_base}"
             adapter["taos_logDir"] = taos_log_dir
             request.session.adapter = adapter
         if request.session.set_taoskeeper:
@@ -309,47 +297,18 @@ class BeforeTest:
             taos_config_file = os.path.join(work_dir, "dnode1", "cfg", "taos.cfg")
             taoskeeper_log_dir = os.path.join(work_dir, "dnode1", "log")
             taos_log_dir = os.path.join(work_dir, "dnode1", "log")
+            
+            taoskeeper_config = copy.deepcopy(taoskeeper_config_template)
+            taoskeeper_config["log"]["path"] = taoskeeper_log_dir
             taoskeeper_dict = {
                 "name": "taoskeeper",
                 "fqdn": ["localhost"],
                 "spec": {
                     "version": "2.4.0.0",
                     "config_file": taoskeeper_config_file,
-                    "taoskeeper_config": {
-                        "tdengine":{
-                            "host": "localhost",
-                            "port": 6041,
-                            "username": "root",
-                            "password": "taosdata",
-                        },
-                        "port": 6043,
-                        "taosConfigDir": "/etc/taos",
-                        "log":{"path": f"{taoskeeper_log_dir}",
-                               "level": "info",
-                               "RotationInterval": "15s",
-                               "keepDays": 30,
-                               "rotationSize": "1GB",
-                               "rotationCount": 30
-                               },
-                        "metrics":{
-                            "prefix": "taos",
-                        },
-                        "metrics.database":{
-                            "name": "log",
-                        },
-                        "metrics.database.options":{
-                            "vgroups": 1,
-                            "buffer": 64,
-                            "keep": 90,
-                            "cachemodel": "both",
-                        },
-                        "enviornment":{
-                            "incgroup": "false",
-                        }
-                        
-                },
+                    "taoskeeper_config": taoskeeper_config,
                     "taos_config": {
-                        "firstEP": "localhost:6030",
+                        "firstEP": f"localhost:{port_base}",
                         "logDir": taos_log_dir
                     },
                     "taoskeeperPath": os.path.join(request.session.taos_bin_path, "taoskeeper")
@@ -397,7 +356,7 @@ class BeforeTest:
 
         # 解析settings中name=taosd的配置
         servers = []
-        request.session.restful = False
+        request.session.start_taosadapter = False
         request.session.set_taoskeeper = False
         for setting in yaml_data.get("settings", []):
             if setting.get("name") == "taosd":
@@ -417,7 +376,7 @@ class BeforeTest:
                     servers.append(server)
             if setting.get("name") == "taosAdapter":
                 # TODO: 解析taosAdapter的配置
-                request.session.restful = True
+                request.session.start_taosadapter = True
                 adapter = {}
                 adapter["host"] = setting["fqdn"][0]
                 adapter["cfg_dir"] = os.path.dirname(setting["spec"]["config_file"])
@@ -476,11 +435,11 @@ class BeforeTest:
             master_ip = request.session.host
         #logger.info(f"tdDnodes_pytest in init_dnode_cluster: {tdDnodes_pytest}")
         if dnode_nums > 1:
-            dnodes_list = cluster.configure_cluster(dnodeNums=dnode_nums, mnodeNums=mnode_nums, independentMnode=independentMnode)
-            #clusterDnodes.init(dnodes_list, request.session.work_dir, os.path.join(request.session.taos_bin_path, "taosd"), master_ip)
-            #clusterDnodes.setTestCluster(False)
-            #clusterDnodes.setValgrind(0)
-            #clusterDnodes.setAsan(request.session.asan)
+            dnodes_list = cluster.configure_cluster(dnodeNums=dnode_nums, mnodeNums=mnode_nums, independentMnode=independentMnode, hostname=request.session.host, level=level, disk=disk)
+            clusterDnodes.init(dnodes_list, request.session.work_dir, os.path.join(request.session.taos_bin_path, "taosd"), master_ip)
+            clusterDnodes.setTestCluster(False)
+            clusterDnodes.setValgrind(0)
+            clusterDnodes.setAsan(request.session.asan)
             tdDnodes.dnodes = dnodes_list #clusterDnodes.dnodes
             tdDnodes.init(request.session.work_dir, os.path.join(request.session.taos_bin_path, "taosd"), master_ip)
         else:
@@ -509,7 +468,7 @@ class BeforeTest:
             tdDnodes.dnodes[i].deployed = 1
             tdDnodes.dnodes[i].running = 1
         
-        if request.session.restful:
+        if request.session.start_taosadapter:
             tAdapter.init(request.session.work_dir, master_ip)
             tAdapter.log_dir = request.session.adapter["log_path"]
             tAdapter.cfg_dir = request.session.adapter["cfg_dir"]
@@ -560,11 +519,10 @@ class BeforeTest:
             if sys.platform == "win32":
                 return f"C:\\TDengine\\bin\\{binary}.exe"
             elif sys.platform == "darwin":
-                if os.path.exists("/usr/local/bin/{binary}"):
+                if os.path.exists(f"/usr/local/bin/{binary}"):
                     return f"/usr/local/bin/{binary}"
                 else:
                     tdLog.error(f"taosd binary not found in /usr/local/bin/{binary}")
-                    #raise Exception(f"taosd binary not found in debug/build/bin or /usr/local/bin/{binary}")
                     return None
             else:
                 tdLog.debug(f"taos_bin_path: {os.path.exists('/usr/bin/{binary}')}")
@@ -573,7 +531,6 @@ class BeforeTest:
                 else:
                     tdLog.error(f"taosd binary not found in /usr/bin/{binary}")
                     return None
-                        #raise Exception(f"taosd binary not found in debug/build/bin or /usr/bin/{binary}")
         return paths[0]
 
     def get_taos_bin_path(self, taos_bin_path):

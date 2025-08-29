@@ -13,7 +13,7 @@ This section follows the conventions below for SQL syntax:
 - Lowercase letters indicate content that needs to be entered by the user
 - \[ \] indicates optional content, but you cannot enter [] itself
 - | indicates a choice among multiple options, choose one, but you cannot enter | itself
-- … indicates that the previous item can be repeated multiple times
+- ... indicates that the previous item can be repeated multiple times
 
 To better illustrate the rules and characteristics of SQL syntax, this document assumes the existence of a dataset. Taking smart meters as an example, assume each smart meter collects three quantities: current, voltage, and phase. Its modeling is as follows:
 

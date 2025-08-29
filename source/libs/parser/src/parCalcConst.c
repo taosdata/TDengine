@@ -440,12 +440,6 @@ static int32_t calcConstSelectFrom(SCalcConstContext* pCxt, SSelectStmt* pSelect
     code = calcConstList(pSelect->pPartitionByList);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = calcConstList(pSelect->pTags);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = calcConstNode(&pSelect->pSubtable);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
     code = calcConstNode(&pSelect->pWindow);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -456,6 +450,12 @@ static int32_t calcConstSelectFrom(SCalcConstContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = calcConstList(pSelect->pOrderByList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstNode(&pSelect->pFill);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstNode(&pSelect->pTimeRange);
   }
   return code;
 }

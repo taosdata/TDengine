@@ -23,13 +23,14 @@
 extern "C" {
 #endif
 
-#define COL_DATA_SET_VAL_GOTO(pData, isNull, pObj, LABEL)                      \
-  do {                                                                         \
-    if ((code = colDataSetVal(pColInfo, numOfRows, (pData), (isNull))) != 0) { \
-      if (pObj) sdbRelease(pSdb, (pObj));                                      \
-      lino = __LINE__;                                                         \
-      goto LABEL;                                                              \
-    }                                                                          \
+#define COL_DATA_SET_VAL_GOTO(pData, isNull, pObj, pIter, LABEL)                           \
+  do {                                                                                     \
+    if (pColInfo && (code = colDataSetVal(pColInfo, numOfRows, (pData), (isNull))) != 0) { \
+      if (pObj) sdbRelease(pSdb, (pObj));                                                  \
+      if (pIter) sdbCancelFetch(pSdb, (pIter));                                            \
+      lino = __LINE__;                                                                     \
+      goto LABEL;                                                                          \
+    }                                                                                      \
   } while (0)
 
 #define RETRIEVE_CHECK_GOTO(CMD, pObj, LINO, LABEL) \

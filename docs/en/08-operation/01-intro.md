@@ -60,7 +60,7 @@ To simplify the use and management of the database for users, TDengine Enterpris
 
 Through taosExplorer, users can execute SQL queries, monitor system status in real-time, manage user permissions, and perform data backup and recovery operations. Additionally, it supports data synchronization with other clusters, data export, and management of topics and stream computing, among other features.
 
-It is worth mentioning that the community edition and enterprise edition of taosExplorer differ in functionality. The enterprise edition offers more features and higher levels of technical support to meet the needs of enterprise users. For specific differences and detailed information, users can refer to the official TDengine documentation.
+It is worth mentioning that the TSDB-OSS edition and TSDB-Enterprise edition of taosExplorer differ in functionality. The TSDB-Enterprise offers more features and higher levels of technical support to meet the needs of enterprise users. For specific differences and detailed information, users can refer to the official TDengine documentation.
 
 ## taosX
 
@@ -86,10 +86,10 @@ These applications are responsible for writing business data to the business clu
 - Applications based on RESTful connections: Applications that access the business cluster using RESTful interfaces, need to connect through taosAdapter, default port is 6041.
 - Applications based on WebSocket connections: Applications using WebSocket connections, also need to connect through taosAdapter, default port is 6041.
 
-2. Visualization/BI Tools
+1. Visualization/BI Tools
 
 TDengine supports seamless integration with numerous visualization and BI tools, such as Grafana, Power BI, and domestically produced visualization and BI tools. Additionally, tools like Grafana can be used to monitor the operational status of the TDengine cluster.
 
-3. Data Sources
+1. Data Sources
 
 TDengine has strong data access capabilities and can connect to various data sources, such as MQTT, OPC-UA/DA, Kafka, AVEVA PI System, AVEVA Historian, etc. This enables TDengine to easily integrate data from different sources, providing users with a comprehensive and unified data view.

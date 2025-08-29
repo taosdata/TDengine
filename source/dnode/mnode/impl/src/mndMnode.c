@@ -367,6 +367,7 @@ static int32_t mndBuildCreateMnodeRedoAction(STrans *pTrans, SDCreateMnodeReq *p
       .contLen = contLen,
       .msgType = TDMT_DND_CREATE_MNODE,
       .acceptableCode = TSDB_CODE_MNODE_ALREADY_DEPLOYED,
+      .groupId = -1,
   };
 
   if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
@@ -398,6 +399,7 @@ static int32_t mndBuildAlterMnodeTypeRedoAction(STrans *pTrans, SDAlterMnodeType
       .msgType = TDMT_DND_ALTER_MNODE_TYPE,
       .retryCode = TSDB_CODE_MNODE_NOT_CATCH_UP,
       .acceptableCode = TSDB_CODE_MNODE_ALREADY_IS_VOTER,
+      .groupId = -1,
   };
 
   if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
@@ -456,6 +458,7 @@ static int32_t mndBuildDropMnodeRedoAction(STrans *pTrans, SDDropMnodeReq *pDrop
       .contLen = contLen,
       .msgType = TDMT_DND_DROP_MNODE,
       .acceptableCode = TSDB_CODE_MNODE_NOT_DEPLOYED,
+      .groupId = -1,
   };
 
   if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
@@ -758,7 +761,7 @@ static int32_t mndSetDropMnodeRedoLogs(SMnode *pMnode, STrans *pTrans, SMnodeObj
     if (terrno != 0) code = terrno;
     TAOS_RETURN(code);
   }
-  TAOS_CHECK_RETURN(mndTransAppendRedolog(pTrans, pRedoRaw));
+  TAOS_CHECK_RETURN(mndTransAppendGroupRedolog(pTrans, pRedoRaw, -1));
   TAOS_CHECK_RETURN(sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING));
   TAOS_RETURN(code);
 }

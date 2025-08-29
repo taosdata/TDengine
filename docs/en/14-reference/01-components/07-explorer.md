@@ -224,4 +224,4 @@ Once installed, open your browser and by default access `http://ip:6060` to visi
 
 When logging in, please use the database username and password. For first-time use, the default username is `root` and the password is `taosdata`. After a successful login, you will enter the `Data Browser` page, where you can use management functions such as viewing databases, creating databases, and creating supertables/subtables.
 
-Other feature pages, such as `Data Writing - Data Source` and others, are exclusive to the enterprise edition. You can click to view and have a simple experience, but they cannot be actually used.
+Other feature pages, such as `Data Writing - Data Source` and others, are exclusive to the TSDB-Enterprise. You can click to view and have a simple experience, but they cannot be actually used.

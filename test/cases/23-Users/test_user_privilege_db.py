@@ -23,6 +23,7 @@ class TestUserPrivilegeDb:
 
         History:
             - 2025-4-30 Simon Guan Migrated from tsim/user/privilege_db.sim
+            - 2025-7-19 Kaili Xu   Check that privileges of db/stb/view/topic are cleaned after drop db
 
         """
 
@@ -30,7 +31,12 @@ class TestUserPrivilegeDb:
         tdSql.execute(f"create database d1 vgroups 1 wal_retention_period 3600;")
         tdSql.execute(f"use d1")
         tdSql.execute(f"create table d1_stb (ts timestamp, i int) tags (j int)")
+        tdSql.execute(f"create table d1_stb1 (ts timestamp, i int) tags (j int)")
+        tdSql.execute(f"create table d1_stb2 (ts timestamp, i int) tags (j int)")
         tdSql.execute(f"create topic d1_topic_1 as select ts, i from d1_stb")
+        tdSql.execute(f"create view d1_view1 as select * from d1_stb")
+        tdSql.execute(f"create view d1_view2 as select * from d1_stb")
+        tdSql.execute(f"create view d1_view3 as select * from d1_stb")
 
         tdSql.execute(f"create database d2 vgroups 1 wal_retention_period 3600;")
         tdSql.execute(f"create database d3 vgroups 1 wal_retention_period 3600;")
@@ -98,6 +104,22 @@ class TestUserPrivilegeDb:
 
         tdSql.execute(f"GRANT read ON d1.* to u1;")
         tdSql.execute(f"GRANT write ON d2.* to u1;")
+        tdSql.execute(f"GRANT read ON d1.d1_stb to u1")
+        tdSql.execute(f"GRANT write ON d1.d1_stb to u1")
+        tdSql.execute(f"GRANT write ON d1.d1_stb1 to u1")
+        tdSql.execute(f"GRANT alter ON d1.d1_stb to u1")
+        tdSql.execute(f"GRANT alter ON d1.d1_stb1 to u1")
+        tdSql.execute(f"GRANT alter ON d1.d1_stb2 to u1")
+        tdSql.execute(f"GRANT subscribe ON d1_topic_1 to u1")
+        tdSql.execute(f"GRANT read ON d1.d1_view1 to u1")
+        tdSql.execute(f"GRANT read ON d1.d1_view2 to u1")
+        tdSql.execute(f"GRANT read ON d1.d1_view3 to u1")
+        tdSql.execute(f"GRANT write ON d1.d1_view1 to u1")
+        tdSql.execute(f"GRANT write ON d1.d1_view2 to u1")
+        tdSql.execute(f"GRANT alter ON d1.d1_view3 to u1")
+        tdSql.execute(f"GRANT all ON d1.d1_view3 to u1")
+        tdSql.query(f"select * from information_schema.ins_user_privileges where user_name = 'u1'")
+        tdSql.checkRows(16)
 
         tdLog.info(f"=============== re connect")
         tdLog.info(f"user u1 login")
@@ -119,3 +141,10 @@ class TestUserPrivilegeDb:
         tdSql.execute(f"create topic d1_topic_2 as select ts, i from d1_stb")
 
         tdSql.execute(f"drop topic d1_topic_2")
+
+        tdLog.info(f"=============== drop db and check privileges")
+        tdSql.connect("root")
+        tdSql.execute(f"drop topic d1_topic_1")
+        tdSql.execute(f"drop database d1")
+        tdSql.query(f"select * from information_schema.ins_user_privileges where user_name = 'u1'")
+        tdSql.checkRows(1)

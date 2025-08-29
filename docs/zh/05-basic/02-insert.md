@@ -1,14 +1,14 @@
 ---
 sidebar_label: 数据写入
-title: TDengine 数据写入、更新与删除
+title: TDengine TSDB 数据写入、更新与删除
 toc_max_heading_level: 4
 ---
 
-本章以智能电表的数据模型为例介绍如何在 TDengine 中使用 SQL 来写入、更新、删除时序数据。
+本章以智能电表的数据模型为例介绍如何在 TDengine TSDB 中使用 SQL 来写入、更新、删除时序数据。
 
 ## 写入
 
-在 TDengine 中，用户可以使用 SQL 的 insert 语句写入时序数据。
+在 TDengine TSDB 中，用户可以使用 SQL 的 insert 语句写入时序数据。
 
 ### 一次写入一条
 
@@ -19,9 +19,11 @@ toc_max_heading_level: 4
 ```sql
 insert into d1001 (ts, current, voltage, phase) values ( "2018-10-03 14:38:05", 10.3, 219, 0.31)
 ```
+
 上面的 SQL 向子表 `d1001` 的 `ts`, `current`, `voltage`, `phase` 这 4 列分别写入 `2018-10-03 14:38:05`, `10.3`, `219`, `0.31`。
 
 2. 当 `INSERT` 语句中的 `VALUES` 部分包含了表的所有列时，可以省略 `VALUES` 前的字段列表，如下面的 SQL 语句所示，其与前面指定列的 INSERT 语句，效果完全一样。
+
 ```sql
 insert into d1001 values("2018-10-03 14:38:05", 10.3, 219, 0.31)
 ```
@@ -49,7 +51,7 @@ insert into d1001 values
 
 ### 一次写入多表
 
-假设设备 ID 为 d1001、d1002、d1003 的 3 台智能电表，都是每 30 秒需要写入 3 条数据。对于这种情况，TDengine 支持一次向多个表写入多条数据。
+假设设备 ID 为 d1001、d1002、d1003 的 3 台智能电表，都是每 30 秒需要写入 3 条数据。对于这种情况，TDengine TSDB 支持一次向多个表写入多条数据。
 
 ```sql
 INSERT INTO d1001 VALUES 
@@ -87,6 +89,7 @@ using meters (location)
 tags ( "beijing.chaoyang")
 values ( "2018-10-04 14:38:07", 10.15, 217, 0.33)
 ```
+
 自动建表的 insert 语句也支持在一条语句中向多张表写入数据。如下 SQL 使用自动建表的 insert 语句共写入 9 条数据。
 
 ```sql
@@ -107,19 +110,20 @@ d1003 USING meters TAGS ("California.LosAngeles", 2) VALUES
 
 ### 通过超级表写入
 
-TDengine 还支持直接向超级表写入数据。需要注意的是，超级表是一个模板，本身不存储数据，写入的数据是存储在对应的子表中。如下 SQL 通过指定 tbname 列向子表 d1001 写入一条数据。
+TDengine TSDB 还支持直接向超级表写入数据。需要注意的是，超级表是一个模板，本身不存储数据，写入的数据是存储在对应的子表中。如下 SQL 通过指定 tbname 列向子表 d1001 写入一条数据。
 
 ```sql
 insert into meters (tbname, ts, current, voltage, phase, location, group_id)
 values("d1001", "2018-10-03 14:38:05", 10.2, 220, 0.23, "California.SanFrancisco", 2)
 ```
+
 ### 通过虚拟表写入
 
-TDengine 不支持向虚拟表或虚拟超级表写入，因为虚拟表或虚拟超级表是动态生成的，本身不存储数据。
+TDengine TSDB 不支持向虚拟表或虚拟超级表写入，因为虚拟表或虚拟超级表是动态生成的，本身不存储数据。
 
 ### 零代码写入
 
-为了方便用户轻松写入数据，TDengine 已与众多知名第三方工具实现无缝集成，包括 Telegraf、Prometheus、EMQX、StatsD、collectd 和 HiveMQ 等。用户只须对这些工具进行简单的配置，便可轻松将数据导入 TDengine。此外，TDengine Enterprise 还提供了丰富的连接器，如 MQTT、OPC、AVEVA PI System、Wonderware、Kafka、MySQL、Oracle 等。通过在 TDengine 端配置相应的连接信息，用户无须编写任何代码，即可高效地将来自不同数据源的数据写入 TDengine。
+为了方便用户轻松写入数据，TDengine TSDB 已与众多知名第三方工具实现无缝集成，包括 Telegraf、Prometheus、EMQX、StatsD、collectd 和 HiveMQ 等。用户只须对这些工具进行简单的配置，便可轻松将数据导入 TDengine。此外，TDengine TSDB Enterprise 还提供了丰富的连接器，如 MQTT、OPC、AVEVA PI System、Wonderware、Kafka、MySQL、Oracle 等。通过在 TDengine TSDB 端配置相应的连接信息，用户无须编写任何代码，即可高效地将来自不同数据源的数据写入 TDengine。
 
 ## 更新
 
@@ -131,7 +135,7 @@ INSERT INTO d1001 (ts, current) VALUES ("2018-10-03 14:38:05", 22);
 
 ## 删除
 
-为方便用户清理由于设备故障等原因产生的异常数据，TDengine 支持根据时间戳删除时序数据。下面的 SQL，将超级表 `meters` 中所有时间戳早于 `2021-10-01 10:40:00.100` 的数据删除。数据删除后不可恢复，请慎重使用。为了确保删除的数据确实是自己要删除的，建议可以先使用 select 语句加 where 后的删除条件查看要删除的数据内容，确认无误后再执行 delete。
+为方便用户清理由于设备故障等原因产生的异常数据，TDengine TSDB 支持根据时间戳删除时序数据。下面的 SQL，将超级表 `meters` 中所有时间戳早于 `2021-10-01 10:40:00.100` 的数据删除。数据删除后不可恢复，请慎重使用。为了确保删除的数据确实是自己要删除的，建议可以先使用 select 语句加 where 后的删除条件查看要删除的数据内容，确认无误后再执行 delete。
 
 ```sql
 delete from meters where ts < '2021-10-01 10:40:00.100' ;

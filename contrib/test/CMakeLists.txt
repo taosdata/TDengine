@@ -4,9 +4,9 @@ if(${BUILD_WITH_ROCKSDB})
 endif(${BUILD_WITH_ROCKSDB})
 
 # cos
-if(${BUILD_WITH_COS})
-    add_subdirectory(cos)
-endif(${BUILD_WITH_COS})
+#if(${BUILD_WITH_COS})
+#    add_subdirectory(cos)
+#endif(${BUILD_WITH_COS})
 
 if(${BUILD_WITH_LUCENE})
     add_subdirectory(lucene)
@@ -20,7 +20,7 @@ if(${BUILD_WITH_SQLITE})
     add_subdirectory(sqlite)
 endif(${BUILD_WITH_SQLITE})
 
-# if(${BUILD_S3})
+# if(${BUILD_SHARED_STORAGE})
 #   add_subdirectory(azure)
 # endif()
 

@@ -58,16 +58,15 @@ Fill in the *`connection information for the source OpenTSDB database`* in the *
 </figure>
 
 Below the **Connection Configuration** area, there is a **Connectivity Check** button. Users can click this button to check whether the information filled in above can normally access the data from the source OpenTSDB database. The check results are shown below:  
-  **Failed**  
-  
+
   <figure>
   <Image img={imgStep04} alt=""/>
+  <figcaption>Failed</figcaption>
   </figure>
-  
-  **Successful**
 
   <figure>
   <Image img={imgStep05} alt=""/>
+  <figcaption>Successful</figcaption>
   </figure>
 
 ### 4. Configure Task Information
