@@ -1352,7 +1352,7 @@ async function echoParser(parse: TransformerfullparamsType | TransformerSpbfullp
         : isCSV.value
           ? csvechoTransData?.msgBody || ''
           : parseData?.input.map(item => item.value).join(' ') || '';
-    // 回填解析 topic 的值
+    // 回填解析 mqtt/kafka 的扩展参数值
     if (supportTransform.supportTopicBody) {
       parseData?.input.map(item => {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -1899,7 +1899,7 @@ function generateInput() {
     return inputobj;
   });
 
-  // mqtt 有主题解析时需要加上字段
+  // mqtt 有主题解析/kafka key需要加上字段
   inputList = inputList?.map((item, index) => {
     const newItem = msgForm.topicbody[index];
     return { ...item, ...newItem };

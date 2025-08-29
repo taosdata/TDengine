@@ -178,7 +178,7 @@ export function configureSupportFlags(data: string) {
     data == 'mqtt' ||
     data == 'mongodb' ||
     data == 'sparkplugb';
-  supportTransform.supportTopicBody = data == 'mqtt' || data == 'sparkplugb';
+  supportTransform.supportTopicBody = data == 'mqtt' || data == 'sparkplugb' || data == 'kafka';
   supportTransform.is_sparkplugb = data == 'sparkplugb'
 }
 
@@ -219,12 +219,12 @@ export const resetTransformerState = () => {
 
 export const defaultColsMap: Record<string, string[]> = {
   mqtt: ['topic', 'qos'],
-  kafka: ['topic', 'partition', 'offset', 'key'],
+  kafka: ['topic', 'partition', 'offset'],
   mongodb: ['value']
 };
 
 export const hiddenColsMap: Record<string, string[]> = {
   mqtt: ['ts', 'qos', 'topic'],
-  kafka: ['ts', 'topic', 'partition', 'offset', 'key'],
+  kafka: ['ts', 'topic', 'partition', 'offset'],
   mongodb: ['ts']
 };

@@ -1,11 +1,9 @@
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use anyhow::Context;
-use chrono::Utc;
-use linked_hash_map::LinkedHashMap;
 use rdkafka::{
     Message, Offset,
-    consumer::{BaseConsumer, Consumer},
+    consumer::{Consumer, StreamConsumer},
 };
 use serde_json::json;
 use taos::Dsn;
@@ -17,17 +15,10 @@ use crate::config::{
 };
 
 pub async fn get_sample(dsn: &Dsn, limit: usize, timeout: Duration) -> anyhow::Result<DsSampleIn> {
-    let sample_list: Vec<String> = get_sample_impl(dsn, limit, timeout).await?;
-
-    let mut sample_vec: Vec<LinkedHashMap<String, serde_json::Value>> = Vec::new();
-    for payload in sample_list {
-        let mut p = LinkedHashMap::new();
-        p.insert("payload".to_string(), json!(payload));
-        sample_vec.push(p);
-    }
+    let sample_list = get_sample_impl(dsn, limit, timeout).await?;
 
     let sample_json = json!({
-        "input": sample_vec,
+        "input": sample_list,
         "parser": {}
     });
 
@@ -46,13 +37,13 @@ async fn get_sample_impl(
     dsn: &Dsn,
     limit: usize,
     timeout: Duration,
-) -> anyhow::Result<Vec<String>> {
+) -> anyhow::Result<Vec<HashMap<&'static str, String>>> {
     let connect_config = KafkaConnectConfig::from_dsn(dsn)?;
     let fallback_offset = KafkaTaskConfig::parse_fallback_offset(dsn)?;
 
     // create consumer
     let mut client_config = build_client_config(connect_config)?;
-    let consumer: BaseConsumer = client_config
+    let consumer: StreamConsumer = client_config
         .set("group.id", "test")
         .set("auto.offset.reset", &fallback_offset)
         .set("enable.auto.commit", "false")
@@ -94,29 +85,38 @@ async fn get_sample_impl(
     let processor = KafkaTaskConfig::parse_codec_processor(dsn)?;
 
     // polling message from kafka
-    let start = Utc::now().timestamp();
+    let deadline = tokio::time::Instant::now() + timeout;
     let mut count = 0;
-    let mut payload_list: Vec<String> = Vec::new();
+    let mut payload_list = Vec::with_capacity(limit);
     loop {
-        let message = consumer.poll(Duration::from_secs(1));
-        if let Some(msg) = message {
-            match msg {
-                Ok(m) => {
-                    if let Some(p) = m.payload() {
-                        let payload = processor.process(p.to_vec())?;
-                        payload_list
-                            .push(String::from_utf8(payload).context("payload not valid string")?);
-                    }
+        let message = tokio::time::timeout_at(deadline, consumer.recv()).await;
+        let Ok(message) = message else { break };
+        match message {
+            Ok(m) => {
+                let mut res = HashMap::new();
+                if let Some(p) = m.payload() {
+                    let payload: String = processor
+                        .process(p.to_vec())?
+                        .try_into()
+                        .context("payload not valid utf8 string")?;
+                    res.insert("payload", payload);
                 }
-                Err(err) => {
-                    tracing::error!("Kafka polling error: {:#}", err);
-                    anyhow::bail!("Kafka polling error: {:#}", err);
+                if let Some(key) = m.key() {
+                    let key: String = key
+                        .to_vec()
+                        .try_into()
+                        .context("kafka key not valid utf8 string")?;
+                    res.insert("key", key);
                 }
+                payload_list.push(res);
             }
-            count += 1;
+            Err(err) => {
+                tracing::error!("Kafka polling error: {:#}", err);
+                anyhow::bail!("Kafka polling error: {:#}", err);
+            }
         }
-        let now = Utc::now().timestamp();
-        if now - start > timeout.as_secs() as i64 || count >= limit {
+        count += 1;
+        if !deadline.elapsed().is_zero() || count >= limit {
             break;
         }
     }
@@ -124,7 +124,7 @@ async fn get_sample_impl(
     Ok(payload_list)
 }
 
-fn tracing_all_topics(topics: &[&str], consumer: &BaseConsumer) -> anyhow::Result<()> {
+fn tracing_all_topics(topics: &[&str], consumer: &StreamConsumer) -> anyhow::Result<()> {
     for topic in topics {
         let metadata = consumer
             .fetch_metadata(Some(topic), Duration::from_secs(1))
