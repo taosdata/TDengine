@@ -31,7 +31,7 @@ impl ColumnMeta {
             OracleType::Float(_) => Ok(IpcDataType::NChar(50)),
             // 日期时间
             OracleType::Date => Ok(IpcDataType::NChar(50)),
-            OracleType::Timestamp(_) => Ok(IpcDataType::NChar(50)),
+            OracleType::Timestamp(_) => Ok(IpcDataType::Timestamp(TimeUnit::Nanosecond)),
             OracleType::TimestampTZ(_) => Ok(IpcDataType::Timestamp(TimeUnit::Nanosecond)),
             OracleType::TimestampLTZ(_) => Ok(IpcDataType::Timestamp(TimeUnit::Nanosecond)),
             OracleType::IntervalDS(_, _) => Ok(IpcDataType::NChar(50)),
@@ -48,8 +48,8 @@ impl ColumnMeta {
             OracleType::Json => Ok(IpcDataType::NChar(50)),
             OracleType::Xml => Ok(IpcDataType::NChar(50)),
             // 字节数组
-            OracleType::Raw(_) => Ok(IpcDataType::VarBinary(50)),
-            OracleType::LongRaw => Ok(IpcDataType::VarBinary(50)),
+            OracleType::Raw(_) => Ok(IpcDataType::VarBinary(128)),
+            OracleType::LongRaw => Ok(IpcDataType::VarBinary(512)),
             // 整型数，meta 信息不准确，它可能是 Number 类型变化而来
             OracleType::Int64 => Ok(IpcDataType::NChar(50)),
             OracleType::UInt64 => Ok(IpcDataType::NChar(50)),

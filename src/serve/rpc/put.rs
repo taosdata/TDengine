@@ -133,7 +133,7 @@ async fn ipc_stream_writer(
         license,
         None,
         lush_table_cache,
-        breakpoint_db,
+        breakpoint_db.clone(),
         span,
         Some(task_id),
     )
@@ -388,7 +388,7 @@ async fn spawn_stream_writer(
     };
 
     let (lush_table_cache, breakpoint_db) = match from_dsn.driver.as_str() {
-        "pi" | "pibackfill" => {
+        "pi" | "pibackfill" | "influxdb" | "opentsdb" => {
             let task_lush_table_cache_lock = controller.scheduler.lush_table_cache.clone();
             let mut task_lush_table_cache = task_lush_table_cache_lock.write().await;
             let lush_table_cache = if let std::collections::hash_map::Entry::Vacant(e) =

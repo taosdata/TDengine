@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Display, str::FromStr};
+use std::{borrow::Cow, collections::HashMap, fmt::Display, str::FromStr, sync::Arc};
 
 use arrow::{
     datatypes::{DataType, Field, FieldRef, Fields, Schema},
@@ -7,41 +7,56 @@ use arrow::{
 use arrow_schema::ArrowError;
 use itertools::Itertools;
 use regex::Regex;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+use serde_json_path::JsonPath;
+use serde_with::{serde_as, DisplayFromStr};
 use thiserror::Error;
 
 use taosx_ipc::prelude::IpcDataType;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum SelectItemPattern {
+    Name(String),
+    JsonPath(JsonPath),
+}
+
+impl FromStr for SelectItemPattern {
+    type Err = serde_json_path::ParseError;
+
+    fn from_str(name: &str) -> Result<Self, Self::Err> {
+        if name.starts_with("$") {
+            Ok(SelectItemPattern::JsonPath(JsonPath::parse(name)?))
+        } else {
+            Ok(SelectItemPattern::Name(name.to_string()))
+        }
+    }
+}
+
+impl Display for SelectItemPattern {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SelectItemPattern::Name(name) => write!(f, "{name}"),
+            SelectItemPattern::JsonPath(json_path) => write!(f, "{json_path}"),
+        }
+    }
+}
+
+#[serde_as]
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 struct SelectItem {
-    name: String,
+    #[serde_as(as = "DisplayFromStr")]
+    name: SelectItemPattern,
     alias: Option<String>,
     cast: Option<IpcDataType>,
 }
 
-impl SelectItem {
-    pub fn new(name: impl Display) -> Self {
-        SelectItem {
-            name: name.to_string(),
-            alias: None,
-            cast: None,
-        }
-    }
-}
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct Exclude {
     exclude: Vec<String>,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-enum IncludeInner {
-    Str(String),
-    Select(SelectItem),
-}
-
 #[derive(Debug, Error)]
-enum SelectItemError {
+pub enum SelectItemError {
     #[error("Invalid cast type: {0}")]
     InvalidCastType(String),
 }
@@ -50,29 +65,40 @@ impl FromStr for SelectItem {
     type Err = SelectItemError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let get_name = |name: &str| {
+            if name.starts_with("$") {
+                match JsonPath::parse(name) {
+                    Ok(path) => SelectItemPattern::JsonPath(path),
+                    Err(_) => SelectItemPattern::Name(name.to_string()),
+                }
+            } else {
+                SelectItemPattern::Name(name.to_string())
+            }
+        };
         if let Some((name, alias)) = s.split_once('=') {
+            let name = get_name(name);
             if let Some((alias, cast)) = alias.split_once("::") {
                 Ok(SelectItem {
-                    name: name.to_string(),
+                    name,
                     alias: Some(alias.to_string()),
                     cast: Some(cast.parse().map_err(SelectItemError::InvalidCastType)?),
                 })
             } else {
                 Ok(SelectItem {
-                    name: name.to_string(),
+                    name,
                     alias: Some(alias.to_string()),
                     cast: None,
                 })
             }
         } else if let Some((name, cast)) = s.split_once("::") {
             Ok(SelectItem {
-                name: name.to_string(),
+                name: get_name(name),
                 alias: None,
                 cast: Some(cast.parse().map_err(SelectItemError::InvalidCastType)?),
             })
         } else {
             Ok(SelectItem {
-                name: s.to_string(),
+                name: get_name(s),
                 alias: None,
                 cast: None,
             })
@@ -85,22 +111,22 @@ impl FromStr for SelectItem {
 pub struct IncludeItem(SelectItem);
 
 impl IncludeItem {
-    pub fn new(name: impl Display) -> Self {
-        Self(SelectItem::new(name))
-    }
-    #[cfg(test)]
-    fn with_alias(mut self, alias: impl Display) -> Self {
-        self.0.alias.replace(alias.to_string());
-        self
-    }
-    #[cfg(test)]
-    fn with_cast(mut self, cast: IpcDataType) -> Self {
-        self.0.cast.replace(cast);
-        self
+    pub fn name(&self) -> Cow<str> {
+        match &self.0.name {
+            SelectItemPattern::Name(name) => Cow::Borrowed(name),
+            SelectItemPattern::JsonPath(json_path) => Cow::Owned(json_path.to_string()),
+        }
     }
 
-    pub fn name(&self) -> &str {
-        &self.0.name
+    fn readable_name(&self) -> Cow<str> {
+        match &self.0.name {
+            SelectItemPattern::Name(name) => Cow::Borrowed(name),
+            SelectItemPattern::JsonPath(json_path) => {
+                let path = json_path.to_string();
+                let name = get_json_path_last_field(&path);
+                Cow::Owned(name.map(|v| v.to_string()).unwrap_or(path))
+            }
+        }
     }
 
     pub fn alias(&self) -> Option<&str> {
@@ -111,9 +137,34 @@ impl IncludeItem {
         self.0.cast.as_ref()
     }
 
-    #[allow(dead_code)]
-    pub fn has_cast(&self) -> bool {
-        self.0.cast.is_some()
+    #[cfg(test)]
+    fn new(name: &str) -> Self {
+        Self(SelectItem {
+            name: SelectItemPattern::Name(name.to_string()),
+            alias: None,
+            cast: None,
+        })
+    }
+
+    #[cfg(test)]
+    fn new_json_path_item(name: &str) -> Self {
+        Self(SelectItem {
+            name: SelectItemPattern::JsonPath(JsonPath::parse(name).unwrap()),
+            alias: None,
+            cast: None,
+        })
+    }
+
+    #[cfg(test)]
+    fn with_alias(mut self, alias: &str) -> Self {
+        self.0.alias = Some(alias.to_string());
+        self
+    }
+
+    #[cfg(test)]
+    fn with_cast(mut self, cast: IpcDataType) -> Self {
+        self.0.cast = Some(cast);
+        self
     }
 }
 
@@ -134,6 +185,12 @@ impl<'de> Deserialize<'de> for IncludeItem {
     where
         D: serde::Deserializer<'de>,
     {
+        #[derive(Debug, Deserialize, Clone)]
+        #[serde(untagged)]
+        enum IncludeInner {
+            Str(String),
+            Select(SelectItem),
+        }
         let select_item = IncludeInner::deserialize(deserializer)?;
         match select_item {
             IncludeInner::Str(s) => Ok(Self(
@@ -144,30 +201,84 @@ impl<'de> Deserialize<'de> for IncludeItem {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(untagged)]
+#[derive(Debug, Clone)]
 pub enum Select {
-    #[serde(with = "serde_regex")]
+    All,
     Pattern(Regex),
     Include(Include),
     Exclude(Exclude),
 }
 
-impl FromStr for Select {
-    type Err = serde_json::Error;
+impl Select {
+    pub fn from_includes(includes: Vec<String>) -> Result<Self, SelectItemError> {
+        let items = includes
+            .into_iter()
+            .map(|s| SelectItem::from_str(&s))
+            .map(|v| v.map(IncludeItem))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self::Include(Include(items)))
+    }
+}
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        serde_json::from_str(s)
+impl<'de> Deserialize<'de> for Select {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        if let Some(s) = value.as_str() {
+            if s.trim().is_empty() {
+                return Ok(Select::All);
+            } else {
+                use serde::de::Error;
+                return Ok(Select::Pattern(Regex::new(s).map_err(D::Error::custom)?));
+            }
+        }
+        if let Ok(v) = serde_json::from_value(value.clone()) {
+            return Ok(Select::Include(v));
+        }
+        if let Ok(v) = serde_json::from_value(value) {
+            return Ok(Select::Exclude(v));
+        }
+        Err(serde::de::Error::custom("unsupported type for json select"))
+    }
+}
+
+impl Serialize for Select {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Select::All => serializer.serialize_str(""),
+            Select::Pattern(re) => serde_regex::serialize(re, serializer),
+            Select::Include(include) => include.serialize(serializer),
+            Select::Exclude(exclude) => exclude.serialize(serializer),
+        }
     }
 }
 
 impl PartialEq for Select {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
+            (Self::All, Self::All) => true,
             (Self::Pattern(l0), Self::Pattern(r0)) => l0.as_str() == r0.as_str(),
             (Self::Include(l0), Self::Include(r0)) => l0 == r0,
             (Self::Exclude(l0), Self::Exclude(r0)) => l0 == r0,
             _ => false,
+        }
+    }
+}
+
+impl Display for Select {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Select::All => write!(f, ""),
+            _ => write!(
+                f,
+                "{}",
+                serde_json::to_string(&self).map_err(|_| std::fmt::Error)?
+            ),
         }
     }
 }
@@ -215,29 +326,21 @@ pub fn query(fields: &Fields, path: &str) -> Option<(usize, FieldRef)> {
     fields.find(path).map(|(i, f)| (i, f.clone()))
 }
 impl Select {
-    #[allow(dead_code)]
-    pub fn pattern(pattern: Regex) -> Self {
-        Self::Pattern(pattern)
+    #[cfg(test)]
+    fn pattern(pattern: Regex) -> Self {
+        Select::Pattern(pattern)
     }
 
-    #[allow(dead_code)]
-    pub fn include(names: &[impl Display]) -> Self {
-        Self::Include(Include(names.iter().map(IncludeItem::new).collect()))
-    }
-
-    #[allow(dead_code)]
-    pub fn exclude(names: &[impl Display]) -> Self {
-        Self::Exclude(Exclude {
-            exclude: names.iter().map(ToString::to_string).collect_vec(),
+    #[cfg(test)]
+    fn exclude(excludes: &[&str]) -> Self {
+        Select::Exclude(Exclude {
+            exclude: excludes.iter().map(|v| v.to_string()).collect(),
         })
     }
 
-    // pub fn field(&self, field: &IpcField) -> Option<IpcField> {
-    //     None
-    // }
-
     pub fn schema(&self, schema: &Schema) -> Schema {
         match self {
+            Select::All => schema.clone(),
             Select::Pattern(regex) => {
                 let indices = schema
                     .fields()
@@ -255,7 +358,7 @@ impl Select {
                 let fields = include
                     .iter()
                     .map(|item| {
-                        query(fields, item.name())
+                        query(fields, &item.name())
                             .map(|(i, f)| match (item.alias(), item.cast()) {
                                 (None, None) => {
                                     let mut m = HashMap::new();
@@ -329,7 +432,7 @@ impl Select {
                                 m.insert("query".to_string(), item.name().to_string());
                                 m.insert(
                                     "name".to_string(),
-                                    item.alias().unwrap_or(item.name()).to_string(),
+                                    item.alias().unwrap_or(&item.name()).to_string(),
                                 );
                                 let dt = item
                                     .cast()
@@ -353,7 +456,7 @@ impl Select {
                                         cast.arrow_data_type()
                                     })
                                     .unwrap_or(DataType::Null);
-                                Field::new(item.alias().unwrap_or(item.name()), dt, true)
+                                Field::new(item.alias().unwrap_or(&item.name()), dt, true)
                                     .with_metadata(m)
                             })
                     })
@@ -398,30 +501,146 @@ impl Select {
 
         RecordBatch::try_new(schema_ref, columns)
     }
+
+    pub fn parse_json(
+        &self,
+        field: &str,
+        mut value: serde_json::Value,
+    ) -> Option<serde_json::Value> {
+        match &self {
+            Select::All => Some(value),
+            Select::Pattern(re) => {
+                let mut map = serde_json::Map::with_capacity(re.capture_names().len());
+                for caps in re.captures_iter(&value.to_string()) {
+                    for (i, group) in caps.iter().enumerate().skip(1) {
+                        dbg!(i, &group);
+                        let Some(group) = group else {
+                            continue;
+                        };
+                        let key = re
+                            .capture_names()
+                            .nth(i)
+                            .and_then(|name| name.map(|s| s.to_string()))
+                            .unwrap_or_else(|| format!("{field}_{i}"));
+                        map.insert(key, serde_json::Value::String(group.as_str().to_string()));
+                    }
+                }
+                if map.is_empty() {
+                    None
+                } else {
+                    Some(serde_json::Value::Object(map))
+                }
+            }
+            Select::Include(paths) => {
+                let mut map = serde_json::Map::with_capacity(paths.len());
+                for item in &paths.0 {
+                    let alias = item.alias().map(|v| v.to_string());
+                    match &item.0.name {
+                        SelectItemPattern::Name(name) => {
+                            if let Some(value) = value.get(name) {
+                                map.insert(alias.unwrap_or(name.clone()), value.clone());
+                            } else {
+                                map.insert(alias.unwrap_or(name.clone()), serde_json::Value::Null);
+                            }
+                        }
+                        SelectItemPattern::JsonPath(path) => {
+                            let name = item.readable_name().into();
+                            if let Some(value) = path.query(&value).first().cloned() {
+                                map.insert(alias.unwrap_or(name), value.clone());
+                            } else {
+                                map.insert(alias.unwrap_or(name), serde_json::Value::Null);
+                            }
+                        }
+                    }
+                }
+                if map.is_empty() {
+                    None
+                } else {
+                    Some(serde_json::Value::Object(map))
+                }
+            }
+            Select::Exclude(exclude) => {
+                let Some(value) = value.as_object_mut() else {
+                    return Some(value);
+                };
+                for name in &exclude.exclude {
+                    value.remove(name);
+                }
+                if value.is_empty() {
+                    None
+                } else {
+                    Some(serde_json::Value::Object(std::mem::take(value)))
+                }
+            }
+        }
+    }
+
+    pub fn rebuild_fields_type(&self, fields: &Fields) -> Fields {
+        let Select::Include(Include(items)) = self else {
+            return fields.clone();
+        };
+        let mut new_fields = Vec::with_capacity(fields.len());
+        for item in items {
+            let name = item.readable_name();
+            let name = item.alias().unwrap_or(&name);
+            let Some((_, field)) = fields.find(name) else {
+                continue;
+            };
+            let Some(dt) = item.cast().map(|t| t.arrow_data_type()) else {
+                new_fields.push(field.clone());
+                continue;
+            };
+            new_fields.push(Arc::new(Field::new(name, dt, field.is_nullable())));
+        }
+        Fields::from(new_fields)
+    }
 }
 
-// impl TransformExt for Select {
-//     fn transform_message(
-//         &self,
-//         item: super::Message,
-//     ) -> Result<Option<super::Message>, super::Error> {
-//         match item {
-//             super::Message::Records(records) => Ok(Some(super::Message::Records(
-//                 records
-//                     .into_iter()
-//                     .map(|batch| {
-//                         self.record_batch(&batch.records)
-//                             .map(|records| MessageArrowRecords {
-//                                 table: batch.table.clone(),
-//                                 records,
-//                             })
-//                     })
-//                     .try_collect()?,
-//             ))),
-//             item => Ok(Some(item)),
-//         }
-//     }
-// }
+fn get_json_path_last_field(json_path: &str) -> Option<&str> {
+    let path = json_path.strip_prefix('$').unwrap_or(json_path);
+    if path.is_empty() {
+        return None;
+    }
+
+    let last_dot = path.rfind('.');
+    let last_bracket = path.rfind(']');
+
+    match (last_dot, last_bracket) {
+        (Some(dot_pos), Some(bracket_pos)) if dot_pos > bracket_pos => {
+            let result = &path[dot_pos + 1..];
+            if result.is_empty() {
+                None
+            } else {
+                Some(result)
+            }
+        }
+        (Some(dot_pos), None) => {
+            let result = &path[dot_pos + 1..];
+            if result.is_empty() {
+                None
+            } else {
+                Some(result)
+            }
+        }
+        (_, Some(bracket_pos)) => extract_bracket(&path[..bracket_pos + 1]),
+        (None, None) => None,
+    }
+}
+
+fn extract_bracket(bracket_section: &str) -> Option<&str> {
+    let start_bracket = bracket_section.rfind('[')?;
+    let content = &bracket_section[start_bracket + 1..bracket_section.len() - 1];
+
+    if content.len() >= 2 {
+        if content.starts_with('\'') && content.ends_with('\'') {
+            return Some(&content[1..content.len() - 1]);
+        }
+        if content.starts_with('"') && content.ends_with('"') {
+            return Some(&content[1..content.len() - 1]);
+        }
+    }
+    None
+}
 
 #[cfg(test)]
 mod tests {
@@ -497,6 +716,22 @@ mod tests {
             ]))
         );
 
+        let json = r#""""#;
+        let select: Select = serde_json::from_str(json).unwrap();
+        assert_eq!(select, Select::All);
+
+        let json = r#"["$['a']=a::double", "$.a.b=c"]"#;
+        let select: Select = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            select,
+            Select::Include(Include(vec![
+                IncludeItem::new_json_path_item("$['a']")
+                    .with_alias("a")
+                    .with_cast(IpcDataType::Float64),
+                IncludeItem::new_json_path_item("$.a.b").with_alias("c")
+            ]))
+        );
+
         let json = r#""a|b""#;
         let select: Select = serde_json::from_str(json).unwrap();
         assert_eq!(select, Select::pattern("a|b".parse().unwrap()));
@@ -518,14 +753,32 @@ mod tests {
 
         let records = RecordBatch::try_from_iter(vec![("a", b.clone()), ("b", b)]).unwrap();
 
-        // let item = Message::records(vec![MessageArrowRecords {
-        //     table: MessageTableMeta::new(Arc::new("tb1".to_string()), None, None),
-        //     records,
-        // }]);
-
-        // let records = select.transform_message(item).unwrap();
         let _ = select;
 
         dbg!(&records);
+    }
+
+    #[test]
+    fn json_path_parse() {
+        let test_cases = vec![
+            ("$.a.b.c", Some("c")),
+            ("$['a']['b']", Some("b")),
+            (r#"$["a"]["b"]"#, Some("b")),
+            ("$['a'].b", Some("b")),
+            (r#"$["a"].b"#, Some("b")),
+            ("$.a['b']", Some("b")),
+            (r#"$.a["b"]"#, Some("b")),
+            ("$.users[0].name", Some("name")),
+            ("$['users'][0]['name']", Some("name")),
+            (r#"$['users'][0]["name"]"#, Some("name")),
+            ("", None),
+            ("$", None),
+            ("abc", None),
+            ("$[12]", None),
+        ];
+
+        for (input, expected) in test_cases {
+            assert_eq!(get_json_path_last_field(input), expected);
+        }
     }
 }

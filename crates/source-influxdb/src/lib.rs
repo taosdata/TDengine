@@ -148,10 +148,12 @@ pub async fn influxdb_to_taos(
     } else {
         vec!["-jar".to_string()]
     };
-    if let Ok(v) = std::env::var("TAOSX_JAVA_OPTS") {
-        let opts = v.split(' ').collect::<Vec<_>>();
-        for opt in opts.iter().rev() {
-            args.insert(0, opt.to_string());
+    if let Some(ref perf) = config.performance {
+        if let Some(ref v) = perf.java_opts {
+            let opts = v.split(' ').filter(|s| !s.is_empty()).collect::<Vec<_>>();
+            for opt in opts.iter().rev() {
+                args.insert(0, opt.to_string());
+            }
         }
     }
     let connector_path = influxdb_jar_path()?;

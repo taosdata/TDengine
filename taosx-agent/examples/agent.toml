@@ -30,6 +30,9 @@
 #
 #in_memory_cache_capacity = 64
 
+# Keep the agent alive when the taosX service exits or disconnects
+keep_online = true
+
 [client_port_range]
 # Minimum boundary of listening port of agent, can not less than 49152
 #

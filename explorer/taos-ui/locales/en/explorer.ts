@@ -27,6 +27,7 @@ export default {
     'In SQL statement, table name must be prefixed with database name.\nFor example, select * from testdb.table1;',
   execute: 'Execute',
   network: 'Network',
+  idmptip: 'Use IDMP to visualize your data',
   cellCopyTip: 'Double-click the cell to copy the content',
   exportError: 'Only result of select statement can be exported',
   exportConfirm: 'Are you sure to export all query result?',

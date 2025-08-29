@@ -1526,7 +1526,7 @@ version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fde0e0ec90c9dfb3b4b1a0891a7dcd0e2bffde2f7efed5fe7c9bb00e5bfb915e"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -1775,25 +1775,22 @@ dependencies = [
 
 [[package]]
 name = "criterion"
-version = "0.5.1"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2b12d017a929603d80db1831cd3a24082f8137ce19c69e6447f54f5fc8d692f"
+checksum = "e1c047a62b0cc3e145fa84415a3191f628e980b194c2755aa12300a4e6cbd928"
 dependencies = [
  "anes",
  "cast",
  "ciborium",
  "clap",
  "criterion-plot",
- "is-terminal",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "num-traits",
- "once_cell",
  "oorandom",
  "plotters",
  "rayon",
  "regex",
  "serde",
- "serde_derive",
  "serde_json",
  "tinytemplate 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "walkdir",
@@ -1801,12 +1798,12 @@ dependencies = [
 
 [[package]]
 name = "criterion-plot"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b50826342786a51a89e2da3a28f1c32b06e387201bc2d19791f622c673706b1"
+checksum = "9b1bcc0dc7dfae599d84ad0b1a55f80cde8af3725da8313b528da95ef783e338"
 dependencies = [
  "cast",
- "itertools 0.10.5",
+ "itertools 0.13.0",
 ]
 
 [[package]]
@@ -3885,15 +3882,6 @@ checksum = "7943c866cc5cd64cbc25b2e01621d07fa8eb2a1a23160ee81ce38704e97b8ecf"
 
 [[package]]
 name = "itertools"
-version = "0.10.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
@@ -4518,7 +4506,7 @@ checksum = "ae960838283323069879657ca3de837e9f7bbb4c7bf6ea7f1b290d5e9476d2e0"
 [[package]]
 name = "mdsn"
 version = "0.2.25"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=5d3e99c#5d3e99ce66c959695825e96e6b17efe1e12ec482"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=35233d07#35233d0775e493c65c8947350cc32bf2c3f70788"
 dependencies = [
  "itertools 0.13.0",
  "lazy_static",
@@ -8618,7 +8606,7 @@ checksum = "f764005d11ee5f36500a149ace24e00e3da98b0158b3e2d53a7495660d3f4d60"
 [[package]]
 name = "taos"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=5d3e99c#5d3e99ce66c959695825e96e6b17efe1e12ec482"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=35233d07#35233d0775e493c65c8947350cc32bf2c3f70788"
 dependencies = [
  "async-trait",
  "bytes",
@@ -8634,7 +8622,7 @@ dependencies = [
 [[package]]
 name = "taos-error"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=5d3e99c#5d3e99ce66c959695825e96e6b17efe1e12ec482"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=35233d07#35233d0775e493c65c8947350cc32bf2c3f70788"
 dependencies = [
  "anyhow",
  "derive_more 1.0.0",
@@ -8703,7 +8691,7 @@ dependencies = [
 [[package]]
 name = "taos-macros"
 version = "0.2.16"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=5d3e99c#5d3e99ce66c959695825e96e6b17efe1e12ec482"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=35233d07#35233d0775e493c65c8947350cc32bf2c3f70788"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -8713,7 +8701,7 @@ dependencies = [
 [[package]]
 name = "taos-optin"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=5d3e99c#5d3e99ce66c959695825e96e6b17efe1e12ec482"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=35233d07#35233d0775e493c65c8947350cc32bf2c3f70788"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8739,7 +8727,7 @@ dependencies = [
 [[package]]
 name = "taos-query"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=5d3e99c#5d3e99ce66c959695825e96e6b17efe1e12ec482"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=35233d07#35233d0775e493c65c8947350cc32bf2c3f70788"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8783,7 +8771,7 @@ dependencies = [
 [[package]]
 name = "taos-ws"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=5d3e99c#5d3e99ce66c959695825e96e6b17efe1e12ec482"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=35233d07#35233d0775e493c65c8947350cc32bf2c3f70788"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8809,6 +8797,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tokio-tungstenite",
+ "tokio-util",
  "tracing",
 ]
 
@@ -9008,6 +8997,7 @@ dependencies = [
  "clap",
  "config",
  "convert_case 0.8.0",
+ "criterion",
  "crossbeam",
  "csv",
  "csv-async",
@@ -9724,9 +9714,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.7.15"
+version = "0.7.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66a539a9ad6d5d281510d5bd368c973d636c02dbf8a67300bfb6b950696ad7df"
+checksum = "14307c986784f72ef81c89db7d9e28d6ac26d16213b109ea501696195e6e3ce5"
 dependencies = [
  "bytes",
  "futures-core",
@@ -10572,7 +10562,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

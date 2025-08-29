@@ -1213,28 +1213,22 @@ impl Parser {
     }
 
     pub fn get_ipcdatatype_from_parser(&self, column_name: &str) -> Option<&IpcDataType> {
-        let payload = self.parse.as_ref()?.get("payload");
-        payload?;
-        let payload = payload.unwrap();
+        let payload = self.parse.as_ref()?.get("payload")?;
         match payload {
             FieldParser::Json(json) => {
-                if json.json.is_none() {
-                    None
-                } else {
-                    let select = json.json.as_ref().unwrap();
-                    match select {
-                        Select::Include(incl) => {
-                            for item in incl.iter() {
-                                if (item.alias().is_some() && item.alias().unwrap() == column_name)
-                                    || item.name() == column_name
-                                {
-                                    return item.cast();
-                                }
+                let select = &json.json;
+                match select {
+                    Select::Include(incl) => {
+                        for item in incl.iter() {
+                            if (item.alias().is_some() && item.alias().unwrap() == column_name)
+                                || item.name() == column_name
+                            {
+                                return item.cast();
                             }
-                            None
                         }
-                        _ => None,
+                        None
                     }
+                    _ => None,
                 }
             }
             _ => None,

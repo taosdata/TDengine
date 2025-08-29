@@ -158,7 +158,7 @@ export function getStableTags(dbName: string, stableList: Recordable[]) {
 export function getTagHierachy(dbName: string, stableName: string, tagName: string, tagType: string) {
   const TagValueSQL = `select tag_value, count(*) as total from information_schema.ins_tags where db_name="${dbName}" and stable_name="${stableName}" and tag_name="${tagName}" group by tag_value`;
   return getAllData(TagValueSQL).then(data => {
-    return handleTagHierachyData(data[0], dbName, stableName, tagType);
+    return handleTagHierachyData(data[0], dbName, stableName, tagType, tagName);
   });
 }
 
@@ -166,7 +166,8 @@ export function handleTagHierachyData(
   data: Recordable[],
   dbName: string,
   stableName: string,
-  tagType: string
+  tagType: string,
+  tagName: string
 ): treeDataResult {
   let tagTree;
   tagType = tagType.replace(/\(\d+\)/, '');
@@ -189,7 +190,7 @@ export function handleTagHierachyData(
             name: subItem,
             typeName: 'dimension',
             parent: parentName,
-            'node-key': `${parentNodeKey}:${subItem}`,
+            'node-key': `${parentNodeKey}:${subItem}:${tagName}`,
             total: item.total ? item.total : 0,
             children: {}
           };
@@ -210,7 +211,7 @@ export function handleTagHierachyData(
         name: item.tag_value,
         typeName: 'dimension',
         parent: stableName,
-        'node-key': `${dbName}:${stableName}:${item.tag_value}`,
+        'node-key': `${dbName}:${stableName}:${item.tag_value}:${tagName}`,
         total: item.total ? item.total : 0
       };
     });
@@ -289,7 +290,7 @@ export async function getNormalTableStructReq(dbName: string, stableName: string
 export async function createVirtualNormalTableReq(formData: CreateVirtualNormalTableForm, dbName: string) {
   const { name, columns } = formData;
   console.log("Create virtual normal table with:", formData);
-  const columnDefinitions = columns.map((item, index) => {
+  const columnDefinitions = columns.map((item: any, index) => {
     if (index === 0) {
       // The first column is the primary key, so we add PRIMARY KEY constraint
       return `${escapeName(item.field)} ${composeType(item)}`;
@@ -615,7 +616,7 @@ export function handleColumnData(data: Recordable[]) {
     result.dataType = composeType({
       type: item.type,
       length: item.length
-    });
+    } as any);
     result['node-key'] = result.name + result.dataType;
     result.leaf = true;
     return result;
@@ -628,16 +629,17 @@ interface getTbWithTags {
   stbName: string;
   dbName: string;
   tag_value?: string;
+  tagName?: string;
   conditions?: string;
   filter?: string;
 }
 
 export async function getTableWithTags(params: getTbWithTags) {
-  const { currentPage, pageSize, stbName, dbName, tag_value, conditions = '', filter = '' } = params;
+  const { currentPage, pageSize, stbName, dbName, tag_value, tagName, conditions = '', filter = '' } = params;
   const parent = `${dbName}.${stbName}`;
   let where = `where db_name='${dbName}' and stable_name='${stbName}'`;
-  if (tag_value) {
-    where += ` and tag_value='${escapeSpecialChar(tag_value)}'`;
+  if (tag_value && tagName) {
+    where += ` and tag_value='${escapeSpecialChar(tag_value)}' and tag_name='${tagName}'`;
   } else if (conditions) {
     where += ` and ${conditions}`;
   }

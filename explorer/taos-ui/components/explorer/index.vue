@@ -1,6 +1,6 @@
 <template>
   <div class="page-wrapper">
-    <PageHeader :title="props.pageTitle"></PageHeader>
+    <!-- <PageHeader :title="props.pageTitle"></PageHeader> -->
     <div class="content">
       <Left id="left"></Left>
       <div id="drag-bar"></div>

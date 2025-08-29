@@ -190,6 +190,7 @@ pin-project-lite = "0.2"
 orc-rust = "0.6"
 duckdb = "1.3"
 num = "0.4"
+criterion = { version = "0.7", features = ["html_reports"] }
 
 taosx-core = { path = "./taosx-core", default-features = false }
 taosx-ipc.path = "./taosx-ipc"
@@ -207,7 +208,7 @@ archive = { path = "./crates/archive" }
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
-rev = "5d3e99c"
+rev = "35233d07"
 git = "https://github.com/taosdata/taos-connector-rust.git"
 default-features = false
 features = ["ws", "optin", "deadpool"]

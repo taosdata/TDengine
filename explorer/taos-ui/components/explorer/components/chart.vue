@@ -31,6 +31,11 @@
       <Echart width="100%" height="100%" :option="chartOption" @finished="drawing = false"></Echart>
     </div>
     <!-- 列表 -->
+     <div class="idmptip">
+      <router-link to="/idmp">
+        <span class="title">{{ t('explorer.idmptip') }}</span>
+      </router-link>
+     </div>
   </div>
 </template>
 <script lang="ts" setup>
@@ -131,6 +136,22 @@ function handleSeriesChange() {
 
   .chart-right {
     height: 380px;
+  }
+}
+.idmptip {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: inline-block;
+
+  .title {
+    margin-right: 5px;
+    font-size: 16px;
+    color: #4d6992;
+  }
+
+  .title:hover {
+    color: #1976d2; /* 悬浮时变为蓝色 */
   }
 }
 </style>

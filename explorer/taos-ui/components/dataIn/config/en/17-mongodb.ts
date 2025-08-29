@@ -222,7 +222,7 @@ export default {
               description: 'Start time of data migration.\n',
               field: 'start',
               required: true,
-              placeholder: '如：2023-01-01 00:00:00',
+              placeholder: 'for example: 2023-01-01 00:00:00',
               pattern: null,
               grid_two: false,
               type: 'time',
@@ -234,7 +234,7 @@ export default {
               description:
                 'The end time of data migration can be left blank. If this parameter is set, the migration task is automatically stopped when the end time expires. If left blank, real-time data is continuously synchronized and the task does not automatically stop.\n',
               field: 'end',
-              placeholder: '如：2024-01-01 00:00:00',
+              placeholder: 'for example: 2024-01-01 00:00:00',
               pattern: null,
               grid_two: false,
               type: 'time',

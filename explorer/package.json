@@ -147,5 +147,10 @@
       "stylelint --fix",
       "prettier --write"
     ]
+  },
+  "pnpm": {
+    "overrides": {
+      "sha.js": "2.4.12"
+    }
   }
 }

@@ -28,6 +28,7 @@ export default {
   sqlCodeTip: '在SQL语句中，表名必须以数据库名作为前缀。\n例如，select * from testdb.table1;',
   execute: '执行',
   network: '网络',
+  idmptip: '使用IDMP来可视化你的数据',
   cellCopyTip: '双击单元格进行复制',
   exportError: '只能导出查询语句的返回结果',
   exportConfirm: '确定导出全部查询结果吗？',

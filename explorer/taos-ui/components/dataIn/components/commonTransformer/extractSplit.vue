@@ -419,7 +419,7 @@ function getInputList(resultMsgbody: string[], isall?: boolean): Recordable[] {
   });
 
 
-  if (props.datasourceType == 'mqtt') {
+  if (props.datasourceType == 'mqtt' || props.datasourceType == 'kafka') {
     inputList = inputList.map((msg: any, index: string | number) => {
       let inputobj = { ...msg };
       inputobj[props.itemData.columnname] =

@@ -21,5 +21,6 @@ export default {
     stream: "流计算",
     topic: "数据订阅",
     replication: "数据复制",
+    idmp: "IDMP"
   },
 }

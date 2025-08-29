@@ -1,6 +1,6 @@
 <template>
   <div class="page-wrapper">
-    <PageHeader :title="$t('topic.pageTitle')"></PageHeader>
+    <!-- <PageHeader :title="$t('topic.pageTitle')"></PageHeader> -->
     <section class="content">
       <el-tabs model-value="topic">
         <LinkTab :tabs="$IS_OEM ? oemTabs : tabs" class="topic-heads" />
