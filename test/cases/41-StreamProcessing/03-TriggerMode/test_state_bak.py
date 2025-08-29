@@ -154,6 +154,8 @@ class TestStreamStateTrigger:
     def test_stream_state_trigger(self):
         """Stream state trigger
 
+        xx
+        
         Catalog:
             - Streams:TriggerMode
 

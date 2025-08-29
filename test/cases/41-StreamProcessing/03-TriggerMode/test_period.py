@@ -110,6 +110,8 @@ class TestStreamperiodTrigger:
     def test_stream_period_trigger(self):
         """Stream period trigger
 
+        xx
+        
         Catalog:
             - Streams:TriggerMode
 
