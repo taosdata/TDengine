@@ -3762,6 +3762,10 @@ static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, 
     SListNode *pNode = TD_DLIST_TAIL(&pContext->retryCalcReqs);
     code = stRealtimeContextRetryCalcRequest(pContext, pNode, pReq);
     QUERY_CHECK_CODE(code, lino, _end);
+  } else if (pRsp->code == TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY) {
+    code = tdListAppend(&pContext->retryCalcReqs, &pReq);
+    QUERY_CHECK_CODE(code, lino, _end);
+    pTask->task.status = STREAM_STATUS_INIT;
   }
 
 _end:

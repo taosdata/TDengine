@@ -1489,6 +1489,11 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
         return code;
       }
+      pIdx = tSimpleHashGet(pExchangeInfo->pHashSources, &pBasicParam->vgId, sizeof(pBasicParam->vgId));
+      if (pIdx == NULL) {
+        qError("No exchange source for vgId: %d", pBasicParam->vgId);
+        return TSDB_CODE_INVALID_PARA;
+      }
     } else {
       qError("No exchange source for vgId: %d", pBasicParam->vgId);
       return TSDB_CODE_INVALID_PARA;

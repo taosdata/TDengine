@@ -1342,7 +1342,7 @@ int32_t mstGetScanUidFromPlan(int64_t streamId, void* scanPlan, int64_t* uid) {
   
   TAOS_CHECK_EXIT(nodesStringToNode(scanPlan, (SNode**)&pSubplan));
 
-  if (pSubplan->pNode) {
+  if (pSubplan->pNode && nodeType(pSubplan->pNode) == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     SScanPhysiNode* pScanNode = (SScanPhysiNode*)pSubplan->pNode;
     *uid = pScanNode->uid;
   }
