@@ -1747,7 +1747,7 @@ _end:
 static int32_t resetStatewindowOperState(SOperatorInfo* pOper) {
   SStateWindowOperatorInfo* pInfo = pOper->info;
   SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
-  SStateWinodwPhysiNode* pPhynode = (SStateWinodwPhysiNode*)pOper->pPhyNode;
+  SStateWindowPhysiNode* pPhynode = (SStateWindowPhysiNode*)pOper->pPhyNode;
   pOper->status = OP_NOT_OPENED;
 
   resetBasicOperatorState(&pInfo->binfo);
@@ -1775,7 +1775,7 @@ static int32_t resetStatewindowOperState(SOperatorInfo* pOper) {
 }
 
 // todo make this as an non-blocking operator
-int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWinodwPhysiNode* pStateNode,
+int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWindowPhysiNode* pStateNode,
                                       SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
 
