@@ -766,11 +766,11 @@ typedef struct SSessionWinodwPhysiNode {
   int64_t          gap;
 } SSessionWinodwPhysiNode;
 
-typedef struct SStateWinodwPhysiNode {
+typedef struct SStateWindowPhysiNode {
   SWindowPhysiNode window;
   SNode*           pStateKey;
   int64_t          trueForLimit;
-} SStateWinodwPhysiNode;
+} SStateWindowPhysiNode;
 
 typedef struct SEventWinodwPhysiNode {
   SWindowPhysiNode window;

@@ -3470,7 +3470,7 @@ static const char* jkStateWindowPhysiPlanStateKey = "StateKey";
 static const char* jkStateWindowPhysiPlanTrueForLimit = "TrueForLimit";
 
 static int32_t physiStateWindowNodeToJson(const void* pObj, SJson* pJson) {
-  const SStateWinodwPhysiNode* pNode = (const SStateWinodwPhysiNode*)pObj;
+  const SStateWindowPhysiNode* pNode = (const SStateWindowPhysiNode*)pObj;
 
   int32_t code = physiWindowNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
@@ -3484,7 +3484,7 @@ static int32_t physiStateWindowNodeToJson(const void* pObj, SJson* pJson) {
 }
 
 static int32_t jsonToPhysiStateWindowNode(const SJson* pJson, void* pObj) {
-  SStateWinodwPhysiNode* pNode = (SStateWinodwPhysiNode*)pObj;
+  SStateWindowPhysiNode* pNode = (SStateWindowPhysiNode*)pObj;
 
   int32_t code = jsonToPhysiWindowNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
