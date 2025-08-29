@@ -453,7 +453,8 @@ static bool dmIsEpChanged(SDnodeData *pData, int32_t dnodeId, const char *ep) {
   return changed;
 }
 
-void dmGetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
+void dmGetMnodeEpSet(void* data, SEpSet *pEpSet) {
+  SDnodeData *pData = (SDnodeData*)data;
   (void)taosThreadRwlockRdlock(&pData->lock);
   *pEpSet = pData->mnodeEps;
   (void)taosThreadRwlockUnlock(&pData->lock);

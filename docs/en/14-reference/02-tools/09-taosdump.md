@@ -15,14 +15,17 @@ taosdump is the default installation component in the TDengine server and client
 ## Startup
 
 taosdump needs to be run in the command line terminal. It must be run with parameters to indicate backup or restore operations, such as:
+
 ``` bash
 taosdump -h my-server -D test -o /root/test/
 ```
+
 The above command means to backup the `test` database on the `my server` machine to the `/root/test/` directory.
 
 ``` bash
 taosdump -h my-server -i /root/test/
 ```
+
 The above command means to restore the previously backed up data files in the `/root/test/` directory to the host named `my server`.
 
 ## Command Line Parameters
@@ -55,7 +58,7 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -N, --without-property     Dump database without its properties.
   -s, --schemaonly           Only dump tables' schema.
   -d, --avro-codec=snappy    Choose an avro codec among null, deflate, snappy,
-                             and lzma.
+                             and lzma(Windows is not currently supported).
   -S, --start-time=START_TIME   Start time to dump. Either epoch or
                              ISO8601/RFC3339 format is acceptable. ISO8601
                              format example: 2017-10-01T00:00:00.000+0800 or
@@ -94,6 +97,10 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -?, --help                 Give this help list.
       --usage                Give a short usage message.
   -V, --version              Print program version.
+  -Z, --connect-mode         The connection method, with 0 indicating the use of 
+                             native connection method, 1 indicating the use of 
+                             WebSocket connection method, and default to native 
+                             connection method. 
 
 Mandatory or optional arguments to long options are also mandatory or optional
 for any corresponding short options.

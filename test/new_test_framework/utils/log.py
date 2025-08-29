@@ -39,8 +39,18 @@ class ColorFormatter(logging.Formatter):
         logging.CRITICAL: bold_red + FORMAT + reset
     }
 
+    COLOR_MAP = {
+        'grey': grey, 'yellow': yellow, 'red': red, 'bold_red': bold_red,
+        'green': green, 'blue': blue, 'cyan': cyan, 'reset': reset
+    }
+    
     def format(self, record):
-        log_fmt = self.FORMATS.get(record.levelno)
+        if hasattr(record, 'color') and record.color in self.COLOR_MAP:
+            color = self.COLOR_MAP[record.color]
+            log_fmt = color + self.FORMAT + self.reset
+        else:
+            log_fmt = self.FORMATS.get(record.levelno)
+            
         formatter = logging.Formatter(log_fmt, datefmt='%Y-%m-%d %H:%M:%S')
         return formatter.format(record)
 
@@ -51,14 +61,14 @@ class TDLog:
         # 创建logger，禁用传播以避免重复日志
         self.logger = logging.getLogger(__name__)
         self.logger.propagate = False  # 禁止传播到根logger
-        self.logger.setLevel(logging.INFO)
+        #self.logger.setLevel(logging.INFO)
 
         # 创建控制台handler并设置自定义格式
         ch = logging.StreamHandler()
         ch.setFormatter(ColorFormatter())
         self.logger.addHandler(ch)
 
-    def _log(self, level, msg, *args, **kwargs):
+    def _log(self, level, msg, color=None, *args, **kwargs):
         # 首先检查日志级别是否应该被记录
         if not self.logger.isEnabledFor(level):
             return
@@ -88,9 +98,7 @@ class TDLog:
             'lineno': lineno
         }
         
-        # 调用实际日志方法
-        self.logger.handle(
-            self.logger.makeRecord(
+        record = self.logger.makeRecord(
                 self.logger.name,
                 level,
                 filename,
@@ -101,17 +109,20 @@ class TDLog:
                 None,
                 **kwargs
             )
-        )
+        if color:
+            record.color = color
+            
+        self.logger.handle(record)
 
-    def info(self, info, *args, **kwargs):
-        self._log(logging.INFO, info, *args, **kwargs)
+    def info(self, info, *args, color=None, **kwargs):
+        self._log(logging.INFO, info, color, *args, **kwargs)
 
     def sleep(self, sec):
         self._log(logging.INFO, f"sleep {sec} seconds")
         time.sleep(sec)
 
-    def debug(self, err, *args, **kwargs):
-        self._log(logging.DEBUG, err, *args, **kwargs)
+    def debug(self, err, *args, color=None, **kwargs):
+        self._log(logging.DEBUG, err, color, *args, **kwargs)
 
     def success(self, info, *args, **kwargs):
         self._log(logging.INFO, info, *args, **kwargs)
@@ -123,8 +134,8 @@ class TDLog:
         self._log(logging.ERROR, err, *args, **kwargs)
         sys.exit(1)
 
-    def error(self, err, *args, **kwargs):
-        self._log(logging.ERROR, err, *args, **kwargs)
+    def error(self, err, *args, color=None, **kwargs):
+        self._log(logging.ERROR, err, color, *args, **kwargs)
 
     def printNoPrefix(self, info, *args, **kwargs):
         self._log(logging.INFO, info, *args, **kwargs)

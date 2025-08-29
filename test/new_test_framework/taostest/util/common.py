@@ -61,7 +61,7 @@ class TDCom:
     # docker image name variable
     docker_image_name_variable = "DOCKER_IMAGE_NAME"
     # default docker image name
-    docker_image_name_default = "taos_test:v1.0"
+    docker_image_name_default = "tdengine-ci:0.1"
     # container test root
     container_test_root = "/home/test_root"
     # entry point file name
@@ -215,16 +215,16 @@ class TDCom:
 
     def trans_time_to_s(self, runtime):
         if "d" in str(runtime).lower():
-            d_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            d_num = re.findall(r"\d+\.?\d*", runtime.replace(" ", ""))[0]
             s_num = float(d_num) * 24 * 60 * 60
         elif "h" in str(runtime).lower():
-            h_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            h_num = re.findall(r"\d+\.?\d*", runtime.replace(" ", ""))[0]
             s_num = float(h_num) * 60 * 60
         elif "m" in str(runtime).lower():
-            m_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            m_num = re.findall(r"\d+\.?\d*", runtime.replace(" ", ""))[0]
             s_num = float(m_num) * 60
         elif "s" in str(runtime).lower():
-            s_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            s_num = re.findall(r"\d+\.?\d*", runtime.replace(" ", ""))[0]
         else:
             s_num = 60
         return int(s_num)

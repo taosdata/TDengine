@@ -8,9 +8,15 @@ class TestDatabaseDeleteReuse1:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_delete_reuse1(self):
-        """db reuse 1
+        """Repeatedly drop 2
 
-        1. -
+        1. Create database
+        2. Drop database
+        3. Attempt to write data to its tables (expected to fail)
+        4. Create normal table
+        5. Insert data
+        6. Query data
+        7. Repeat the entire sequence 20 times using the same database and table names
 
         Catalog:
             - Database:Drop

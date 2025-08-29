@@ -7,9 +7,11 @@ class TestDatabaseAlterOption:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_alter_option(self):
-        """alter database option
+        """Alter all options
 
-        1. -
+        1. Create database and inspect all option values.
+        2. Attempt to alter database with invalid options (expect failure).
+        3. Alter database with valid options and verify the changes.
 
         Catalog:
             - Database:Alter
@@ -38,7 +40,7 @@ class TestDatabaseAlterOption:
         #  | WAL_LEVEL value          [1 | 2]
 
         tdSql.execute(
-            f"create database db CACHEMODEL 'both' COMP 0 DURATION 240 WAL_FSYNC_PERIOD 1000 MAXROWS 8000 MINROWS 10 KEEP 1000 S3_KEEPLOCAL 720 PRECISION 'ns' REPLICA 3 WAL_LEVEL 2 VGROUPS 6 SINGLE_STABLE 1"
+            f"create database db CACHEMODEL 'both' COMP 0 DURATION 240 WAL_FSYNC_PERIOD 1000 MAXROWS 8000 MINROWS 10 KEEP 1000 SS_KEEPLOCAL 720 PRECISION 'ns' REPLICA 3 WAL_LEVEL 2 VGROUPS 6 SINGLE_STABLE 1"
         )
         tdSql.query(f"select * from information_schema.ins_databases")
         tdLog.info(f"rows: {tdSql.getRows()})")

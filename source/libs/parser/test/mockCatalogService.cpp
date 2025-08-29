@@ -196,7 +196,7 @@ class MockCatalogServiceImpl {
   }
 
   int32_t catalogGetDnodeList(SArray** pDnodes) const {
-    *pDnodes = taosArrayInit(dnode_.size(), sizeof(SEpSet));
+    *pDnodes = taosArrayInit(dnode_.size(), sizeof(SDNodeAddr));
     if (!pDnodes) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -241,6 +241,9 @@ class MockCatalogServiceImpl {
     }
     if (TSDB_CODE_SUCCESS == code) {
       code = getAllViewMeta(pCatalogReq->pView, &pMetaData->pView);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = getAllVstbRefDbs(pCatalogReq->pVStbRefDbs, &pMetaData->pVStbRefDbs);
     }
     return code;
   }
@@ -358,9 +361,11 @@ class MockCatalogServiceImpl {
   }
 
   void createDnode(int32_t dnodeId, const string& host, int16_t port) {
-    SEpSet epSet = {0};
-    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == addEpIntoEpSet(&epSet, host.c_str(), port));
-    dnode_.insert(std::make_pair(dnodeId, epSet));
+    SDNodeAddr dnode = {0};
+    dnode.nodeId = dnodeId;
+    dnode.epSet = {0};
+    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == addEpIntoEpSet(&dnode.epSet, host.c_str(), port));
+    dnode_.insert(std::make_pair(dnodeId, dnode));
   }
 
   void createDatabase(const string& db, bool rollup, int8_t cacheLast, int8_t precision) {
@@ -378,7 +383,7 @@ class MockCatalogServiceImpl {
   typedef std::map<string, TableMetaCache>                 DbMetaCache;
   typedef std::map<string, std::shared_ptr<SFuncInfo>>     UdfMetaCache;
   typedef std::map<string, std::vector<STableIndexInfo>>   IndexMetaCache;
-  typedef std::map<int32_t, SEpSet>                        DnodeCache;
+  typedef std::map<int32_t, SDNodeAddr>                    DnodeCache;
   typedef std::map<string, SDbCfgInfo>                     DbCfgCache;
 
   uint64_t getNextId() { return id_++; }
@@ -781,6 +786,27 @@ class MockCatalogServiceImpl {
         if (nullptr == taosArrayPush(*pViewMetaData, &res)) {
           taosArrayDestroyEx(*pViewMetaData, MockCatalogService::destoryMetaRes);
           *pViewMetaData = nullptr;
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+      }
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t getAllVstbRefDbs(SArray* pVstbRefDbsReq, SArray** pVstbRefDbsMetaData) const {
+    if (NULL != pVstbRefDbsReq) {
+      int32_t nRefs = taosArrayGetSize(pVstbRefDbsReq);
+      *pVstbRefDbsMetaData = taosArrayInit(nRefs, sizeof(SMetaRes));
+      if (!*pVstbRefDbsMetaData) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      for (int32_t i = 0; i < nRefs; ++i) {
+        SMetaRes res = {0};
+        res.pRes = nullptr;
+        res.code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+        if (nullptr == taosArrayPush(*pVstbRefDbsMetaData, &res)) {
+          taosArrayDestroyEx(*pVstbRefDbsMetaData, MockCatalogService::destoryMetaRes);
+          *pVstbRefDbsMetaData = nullptr;
           return TSDB_CODE_OUT_OF_MEMORY;
         }
       }

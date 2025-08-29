@@ -18,11 +18,11 @@ if [ -z "$edition" ] || [ -z "$version" ]; then
     exit 1
 fi
 if [ "$edition" == "enterprise" ]; then
-    productName="TDengine-enterprise-TDgpt"
+    productName="tdengine-tdgpt-enterprise"
 fi
 
 if [ "$edition" == "community" ]; then
-    productName="TDengine-TDgpt"
+    productName="tdengine-tdgpt-oss"
 fi
 
 echo start to build release package, edition: ${edition}, version: ${version}
@@ -88,7 +88,7 @@ if [ -d "${model_dir}" ]; then
   echo "copy ${td_model_name} model files"
   cp -r ${model_dir}/${td_model_name}.tar.gz ${model_install_dir} || :
   echo "copy ${td_model_name} model files done"
-  xhs_model_name="timer-moe"
+  xhs_model_name="time-moe"
   echo "copy ${xhs_model_name} model files "
   cp -r ${model_dir}/${xhs_model_name}.tar.gz ${model_install_dir}|| :
   echo "copy ${xhs_model_name} model files done"
@@ -117,7 +117,7 @@ chmod a+x ${install_dir}/install.sh
 # exit 1
 cd ${release_dir}
 
-platform=`uname`
+platform=$(uname | tr '[:upper:]' '[:lower:]')
 if uname -m | grep -q "x86_64"; then
     arch=x64
 elif uname -m | grep -q "arm64\|aarch64"; then

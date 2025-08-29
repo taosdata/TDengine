@@ -39,7 +39,7 @@ For example, if the maximum number of concurrent write threads for a user is 100
 100 × 3 + (10000000 / 4096) + 100 ≈ 2841 (MB)
 That is, configuring 3GB of memory is the minimum requirement.
 
-2. RESTful/WebSocket Connection Methods
+1. RESTful/WebSocket Connection Methods
 
 When using WebSocket connection methods for data writing, it is usually not a concern if memory usage is not significant. However, when performing query operations, the WebSocket connection method consumes a certain amount of memory. Next, we will discuss the memory usage in query scenarios in detail.
 
@@ -53,10 +53,12 @@ Compared to the WebSocket connection method, the RESTful connection method consu
 
 Since the RESTful connection method does not support fetching query data in batches, this can lead to particularly large memory usage when retrieving very large result sets, potentially causing memory overflow. Therefore, in large projects, it is recommended to use the WebSocket connection method to implement streaming result sets and avoid the risk of memory overflow.
 
-**Note**
+:::note
 
 - It is recommended to use RESTful/WebSocket connection methods to access the TDengine cluster, rather than using the native taosc connection method.
 - In most cases, RESTful/WebSocket connection methods meet the requirements for business writing and querying, and these methods do not depend on taosc, completely decoupling cluster server upgrades from client connection methods, making server maintenance and upgrades easier.
+
+:::
 
 ## CPU Requirements
 
@@ -83,12 +85,11 @@ However, relying solely on the keep parameter to optimize storage costs is still
 
 Additionally, to accelerate the data processing process, TDengine specifically supports configuring multiple hard drives to achieve concurrent data writing and reading. This parallel processing mechanism maximizes the use of multi-core CPU processing power and hard disk I/O bandwidth, significantly increasing data transfer speed, perfectly addressing the challenges of high concurrency and large data volume application scenarios.
 
-**Tip** How to Estimate TDengine Compression Ratio
+## How to Estimate TDengine Compression Ratio
 
-```text
 Users can use the performance testing tool taosBenchmark to assess the data compression effect of TDengine. By using the -f option to specify the write configuration file, taosBenchmark can write a specified number of CSV sample data into the specified database parameters and table structure.
+
 After completing the data writing, users can execute the flush database command in the TDengine CLI to force all data to be written to the disk. Then, use the du command of the Linux operating system to get the size of the data folder of the specified vnode. Finally, divide the original data size by the actual storage data size to calculate the real compression ratio.
-```
 
 The following command can be used to obtain the storage space occupied by TDengine.
 
@@ -129,14 +130,16 @@ Example: 10 million smart meters, each meter collects data every 15min, each dat
 
 Considering the situation where smart meters report data in clusters, bandwidth requirements must be increased according to the actual project situation when calculating bandwidth requirements. Considering that RESTful requests are transmitted in plaintext, the actual bandwidth requirements should be multiplied by a factor to get the estimated value.
 
-**Tip**
+:::note
 
-```text
 Network bandwidth and communication latency are crucial for the performance and stability of distributed systems, especially in terms of network connections between server nodes.
 We strongly recommend allocating a dedicated VLAN for the network between server nodes to avoid interference from external communications. In terms of bandwidth selection, it is advisable to use a 10-gigabit network, or at least a gigabit network, and ensure that the packet loss rate is below one ten-thousandth.
+
 If a distributed storage solution is adopted, the storage network and the intra-cluster communication network must be planned separately. A common practice is to use dual 10-gigabit networks, i.e., two sets of independent 10-gigabit networks. This ensures that storage data and intra-cluster communication do not interfere with each other, improving overall performance.
+
 For inbound networks, in addition to ensuring sufficient access bandwidth, the packet loss rate must also be kept below one ten-thousandth. This will help reduce errors and retransmissions during data transmission, thereby improving the reliability and efficiency of the system.
-```
+
+:::
 
 ## Number of Servers
 

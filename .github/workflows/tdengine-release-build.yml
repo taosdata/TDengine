@@ -12,7 +12,8 @@ on:
       - 'packaging/**'
       - 'tests/**'
       - '**/*.md'
-
+      - '.github/workflows/tdengine-docs-ci.yml'
+      
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true

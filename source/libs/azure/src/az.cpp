@@ -40,7 +40,7 @@ extern char tsS3AccessKeyId[][TSDB_FQDN_LEN];
 extern char tsS3AccessKeySecret[][TSDB_FQDN_LEN];
 extern char tsS3BucketName[TSDB_FQDN_LEN];
 
-extern int8_t tsS3Enabled;
+extern int8_t tsSsEnabled;
 extern int8_t tsS3EpNum;
 
 static void checkPrint(const char *fmt, ...) {

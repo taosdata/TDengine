@@ -16,8 +16,8 @@
 #include "transComm.h"
 
 #ifndef TD_ASTRA_RPC
-void* (*taosInitHandle[])(uint32_t ip, uint32_t port, char* label, int32_t numOfThreads, void* fp, void* pInit) = {
-    transInitServer, transInitClient};
+void* (*taosInitHandle[])(SIpAddr* addr, char* label, int32_t numOfThreads, void* fp, void* pInit) = {transInitServer,
+                                                                                                      transInitClient};
 
 void (*taosCloseHandle[])(void* arg) = {transCloseServer, transCloseClient};
 
@@ -26,8 +26,8 @@ void (*taosUnRefHandle[])(void* handle) = {transUnrefSrvHandle, NULL};
 
 int (*transReleaseHandle[])(void* handle, int32_t status) = {transReleaseSrvHandle, transReleaseCliHandle};
 
-static int32_t transValidLocalFqdn(const char* localFqdn, uint32_t* ip) {
-  int32_t code = taosGetIpv4FromFqdn(localFqdn, ip);
+static int32_t transValidLocalFqdn(const char* localFqdn, SIpAddr* addr) {
+  int32_t code = taosGetIpFromFqdn(tsEnableIpv6, localFqdn, addr);
   if (code != 0) {
     return TSDB_CODE_RPC_FQDN_ERROR;
   }
@@ -95,13 +95,14 @@ void* rpcOpen(const SRpcInit* pInit) {
     pRpc->numOfThreads = 1;
   }
 
-  uint32_t ip = 0;
+  SIpAddr addr = {0};
   if (pInit->connType == TAOS_CONN_SERVER) {
-    if ((code = transValidLocalFqdn(pInit->localFqdn, &ip)) != 0) {
+    if ((code = transValidLocalFqdn(pInit->localFqdn, &addr)) != 0) {
       tError("invalid fqdn:%s, errmsg:%s", pInit->localFqdn, tstrerror(code));
       TAOS_CHECK_GOTO(code, NULL, _end);
     }
   }
+  addr.port = pInit->localPort;
 
   pRpc->connType = pInit->connType;
   pRpc->idleTime = pInit->idleTime;
@@ -114,9 +115,9 @@ void* rpcOpen(const SRpcInit* pInit) {
     pRpc->timeToGetConn = 10 * 1000;
   }
   pRpc->notWaitAvaliableConn = pInit->notWaitAvaliableConn;
+  pRpc->ipv6 = pInit->ipv6;
 
-  pRpc->tcphandle =
-      (*taosInitHandle[pRpc->connType])(ip, pInit->localPort, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
+  pRpc->tcphandle = (*taosInitHandle[pRpc->connType])(&addr, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
 
   if (pRpc->tcphandle == NULL) {
     tError("failed to init rpc handle");
@@ -232,7 +233,7 @@ int32_t rpcSetIpWhite(void* thandle, void* arg) { return transSetIpWhiteList(tha
 int32_t rpcAllocHandle(int64_t* refId) { return transAllocHandle(refId); }
 
 int32_t rpcUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) { return transUtilSIpRangeToStr(pRange, buf); }
-int32_t rpcUtilSWhiteListToStr(SIpWhiteList* pWhiteList, char** ppBuf) {
+int32_t rpcUtilSWhiteListToStr(SIpWhiteListDual* pWhiteList, char** ppBuf) {
   return transUtilSWhiteListToStr(pWhiteList, ppBuf);
 }
 
@@ -264,7 +265,7 @@ void (*taosCloseHandle[])(void* arg) = {transCloseServer, transCloseClient};
 int (*transReleaseHandle[])(void* handle) = {transReleaseSrvHandle, transReleaseCliHandle};
 #endif
 
-static int32_t transValidLocalFqdn(const char* localFqdn, uint32_t* ip) { return 0; }
+static int32_t transValidLocalFqdn(const char* localFqdn, SIpAddr* ip) { return 0; }
 typedef struct {
   char*    lablset;
   RPC_TYPE type;
@@ -329,8 +330,8 @@ void* rpcOpen(const SRpcInit* pInit) {
     pRpc->numOfThreads = 1;
   }
 
-  uint32_t ip = 0;
   if (pInit->connType == TAOS_CONN_SERVER) {
+    SIpAddr addr = {0};
     if ((code = transValidLocalFqdn(pInit->localFqdn, &ip)) != 0) {
       tError("invalid fqdn:%s, errmsg:%s", pInit->localFqdn, tstrerror(code));
       TAOS_CHECK_GOTO(code, NULL, _end);

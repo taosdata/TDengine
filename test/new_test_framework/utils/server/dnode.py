@@ -151,7 +151,8 @@ class TDDnode:
         primary = 1
         if self.level == 1 and self.disk == 1:
             eDir = os.path.join(simPath, "data")
-            self.dataDir.append(eDir)
+            if eDir not in self.dataDir:
+                self.dataDir.append(eDir)
         else:
             for i in range(self.level):
                 for j in range(self.disk):
@@ -166,6 +167,7 @@ class TDDnode:
 
         for eDir in self.dataDir:
             cmd = "rm -rf " + eDir
+            tdLog.info(cmd)
             if os.system(cmd) != 0:
                 tdLog.exit(cmd)
 
@@ -560,7 +562,7 @@ class TDDnode:
 
         if self.running != 0:
             psCmd = (
-                "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs"
+                "ps -efww |grep -w %s| grep -v grep | awk '{print $2}' | xargs"
                 % toBeKilled
             )
             processID = (
@@ -680,7 +682,7 @@ class TDDnode:
                 )
             else:
                 psCmd = (
-                    "ps -ef | grep -w %s | grep dnode%d | grep -v grep | awk '{print $2}' | xargs"
+                    "ps -efww | grep -w %s | grep dnode%d | grep -v grep | awk '{print $2}' | xargs"
                     % (toBeKilled, self.index)
                 )
             processID = (

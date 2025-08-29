@@ -21,7 +21,7 @@ slug: /tdengine-reference/sql-manual/names
 
 `[a-zA-Z0-9!?$%^&*()_–+={[}]:;@~#|<,>.?/]`
 
-Removed `` ‘“`\ `` (single and double quotes, apostrophe, backslash, space)
+Removed ``' " ` `` (single and double quotes, apostrophe, backslash, space)
 
 ## General Restrictions
 

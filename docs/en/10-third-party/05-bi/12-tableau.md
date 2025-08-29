@@ -42,4 +42,3 @@ It should be noted that when configuring the ODBC data source for Tableau, the [
 **Step 3**, Click on the "Worksheet" at the bottom of the window to pop up the data analysis window, which displays all the fields of the analysis table. Drag the fields to the rows and columns to display the chart.
 
 ![tableau-workbook](./tableau/tableau-analysis.webp)
-

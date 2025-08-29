@@ -22,8 +22,8 @@
 #include "version.h"
 #include "tconv.h"
 #include "dmUtil.h"
-#include "tcs.h"
 #include "qworker.h"
+#include "tss.h"
 
 #ifdef TD_JEMALLOC_ENABLED
 #define ALLOW_FORBID_FUNC
@@ -56,7 +56,11 @@ static struct {
   bool         deleteTrans;
   bool         generateGrant;
   bool         memDbg;
-  bool         checkS3;
+
+#ifdef USE_SHARED_STORAGE
+  bool         checkSs;
+#endif
+
   bool         printAuth;
   bool         printVersion;
   bool         printHelp;
@@ -276,7 +280,7 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       }
     } else if (strcmp(argv[i], "-C") == 0) {
       global.dumpConfig = true;
-    } else if (strcmp(argv[i], "-V") == 0) {
+    } else if (strcmp(argv[i], "-V") == 0 || strcmp(argv[i], "--version") == 0) {
       global.printVersion = true;
 #ifdef WINDOWS
     } else if (strcmp(argv[i], "--win_service") == 0) {
@@ -287,12 +291,17 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       cmdEnvIndex++;
     } else if (strcmp(argv[i], "-dm") == 0) {
       global.memDbg = true;
-    } else if (strcmp(argv[i], "--checks3") == 0) {
-      global.checkS3 = true;
+#ifdef USE_SHARED_STORAGE
+    } else if (strcmp(argv[i], "--checkss") == 0) {
+      global.checkSs = true;
+#endif
     } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "--usage") == 0 ||
                strcmp(argv[i], "-?") == 0) {
       global.printHelp = true;
     } else {
+      printf("taosd: invalid option: %s\n", argv[i]);
+      printf("Try `taosd --help' or `taosd --usage' for more information.\n");
+      return TSDB_CODE_INVALID_CFG;
     }
   }
 
@@ -351,16 +360,49 @@ static void dmDumpCfg() {
   cfgDumpCfg(pCfg, 0, true);
 }
 
-static int32_t dmCheckS3() {
-  int32_t  code = 0;
-  SConfig *pCfg = taosGetCfg();
-  cfgDumpCfgS3(pCfg, 0, true);
 
-#if defined(USE_S3)
-  code = tcsCheckCfg();
-#endif
+#ifdef USE_SHARED_STORAGE
+static int32_t dmCheckSs() {
+  int32_t  code = 0;
+  (void)printf("\n");
+  
+  if (!tsSsEnabled) {
+    printf("shared storage is disabled (ssEnabled is 0), please enable it and try again.\n");
+    return TSDB_CODE_OPS_NOT_SUPPORT;
+  }
+
+  code = tssInit();
+  if (code != 0) {
+    printf("failed to initialize shared storage, error code=%d.\n", code);
+    return code;
+  }
+
+  code = tssCreateDefaultInstance();
+  if (code != 0) {
+    printf("failed to create default shared storage instance, error code=%d.\n", code);
+    tssUninit();
+    return code;
+  }
+
+  (void)printf("shared storage configuration\n");
+  (void)printf("=================================================================\n");
+  tssPrintDefaultConfig();
+  (void)printf("=================================================================\n");
+  code = tssCheckDefaultInstance(0);
+  (void)printf("=================================================================\n");
+
+  if (code == TSDB_CODE_SUCCESS){
+    printf("shared storage configuration check finished successfully.\n");
+  } else {
+    printf("shared storage configuration check finished with error.\n");
+  }
+
+  tssCloseDefaultInstance();
+  tssUninit();
+
   return code;
 }
+#endif
 
 static int32_t dmInitLog() {
   const char *logName = CUS_PROMPT "dlog";
@@ -489,14 +531,17 @@ int mainWindows(int argc, char **argv) {
     return code;
   }
 #endif
-  if (global.checkS3) {
-    code = dmCheckS3();
+
+#ifdef USE_SHARED_STORAGE
+  if (global.checkSs) {
+    code = dmCheckSs();
     taosCleanupCfg();
     taosCloseLog();
     taosCleanupArgs();
     taosConvDestroy();
     return code;
   }
+#endif
 
   if (global.dumpConfig) {
     dmDumpCfg();

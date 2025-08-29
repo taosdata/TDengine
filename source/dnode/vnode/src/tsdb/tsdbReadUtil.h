@@ -20,9 +20,9 @@
 extern "C" {
 #endif
 
+#include "storageapi.h"
 #include "tsdbDataFileRW.h"
 #include "tsdbUtil2.h"
-#include "storageapi.h"
 
 #define ASCENDING_TRAVERSE(o) (o == TSDB_ORDER_ASC)
 
@@ -38,17 +38,17 @@ extern "C" {
     (_k)->ekey.ts = INT64_MIN; \
   } while (0)
 
-#define tRowGetKeyEx(_pRow, _pKey)                                         \
-  {                                                                        \
-    if ((_pRow)->type == TSDBROW_ROW_FMT) {                                \
-      (_pKey)->ts = (_pRow)->pTSRow->ts;                                   \
-      if ((_pRow)->pTSRow->numOfPKs > 0) {                                 \
-        tRowGetPrimaryKey((_pRow)->pTSRow, (_pKey));                       \
-      }                                                                    \
-    } else {                                                               \
-      (_pKey)->ts = (_pRow)->pBlockData->aTSKEY[(_pRow)->iRow];            \
-      tColRowGetPrimaryKey((_pRow)->pBlockData, (_pRow)->iRow, (_pKey));   \
-    }                                                                      \
+#define tRowGetKeyEx(_pRow, _pKey)                                       \
+  {                                                                      \
+    if ((_pRow)->type == TSDBROW_ROW_FMT) {                              \
+      (_pKey)->ts = (_pRow)->pTSRow->ts;                                 \
+      if ((_pRow)->pTSRow->numOfPKs > 0) {                               \
+        tRowGetPrimaryKey((_pRow)->pTSRow, (_pKey));                     \
+      }                                                                  \
+    } else {                                                             \
+      (_pKey)->ts = (_pRow)->pBlockData->aTSKEY[(_pRow)->iRow];          \
+      tColRowGetPrimaryKey((_pRow)->pBlockData, (_pRow)->iRow, (_pKey)); \
+    }                                                                    \
   }
 
 typedef enum {
@@ -94,7 +94,7 @@ typedef enum ESttKeyStatus {
 } ESttKeyStatus;
 
 typedef struct SSttKeyInfo {
-  ESttKeyStatus status;           // this value should be updated when switch to the next fileset
+  ESttKeyStatus status;  // this value should be updated when switch to the next fileset
   SRowKey       nextProcKey;
 } SSttKeyInfo;
 
@@ -137,19 +137,19 @@ typedef struct SResultBlockInfo {
 } SResultBlockInfo;
 
 typedef struct SReadCostSummary {
-  int64_t numOfBlocks;
-  double  blockLoadTime;
-  double  buildmemBlock;
-  int64_t headFileLoad;
-  double  headFileLoadTime;
-  int64_t smaDataLoad;
-  double  smaLoadTime;
+  int64_t               numOfBlocks;
+  double                blockLoadTime;
+  double                buildmemBlock;
+  int64_t               headFileLoad;
+  double                headFileLoadTime;
+  int64_t               smaDataLoad;
+  double                smaLoadTime;
   SSttBlockLoadCostInfo sttCost;
-  int64_t composedBlocks;
-  double  buildComposedBlockTime;
-  double  createScanInfoList;
-  double  createSkylineIterTime;
-  double  initSttBlockReader;
+  int64_t               composedBlocks;
+  double                buildComposedBlockTime;
+  double                createScanInfoList;
+  double                createSkylineIterTime;
+  double                initSttBlockReader;
 } SReadCostSummary;
 
 typedef struct STableUidList {
@@ -187,25 +187,28 @@ typedef struct SBlockLoadSuppInfo {
   int32_t             pkSrcSlot;
   int32_t             pkDstSlot;
   bool                smaValid;  // the sma on all queried columns are activated
+
+  void* args;
 } SBlockLoadSuppInfo;
 
-// each blocks in stt file not overlaps with in-memory/data-file/tomb-files, and not overlap with any other blocks in stt-file
+// each blocks in stt file not overlaps with in-memory/data-file/tomb-files, and not overlap with any other blocks in
+// stt-file
 typedef struct SSttBlockReader {
-  STimeWindow        window;
-  SVersionRange      verRange;
-  int32_t            order;
-  uint64_t           uid;
-  SMergeTree         mergeTree;
-  SRowKey            currentKey;
-  int32_t            numOfPks;
+  STimeWindow   window;
+  SVersionRange verRange;
+  int32_t       order;
+  uint64_t      uid;
+  SMergeTree    mergeTree;
+  SRowKey       currentKey;
+  int32_t       numOfPks;
 } SSttBlockReader;
 
 typedef struct SFilesetIter {
-  int32_t           numOfFiles;    // number of total files
-  int32_t           index;         // current accessed index in the list
-  TFileSetArray*    pFilesetList;  // data file set list
-  int32_t           order;
-  SSttBlockReader*  pSttBlockReader;  // last file block reader
+  int32_t          numOfFiles;    // number of total files
+  int32_t          index;         // current accessed index in the list
+  TFileSetArray*   pFilesetList;  // data file set list
+  int32_t          order;
+  SSttBlockReader* pSttBlockReader;  // last file block reader
 } SFilesetIter;
 
 typedef struct SFileDataBlockInfo {
@@ -236,10 +239,10 @@ typedef struct SFileDataBlockInfo {
 } SFileDataBlockInfo;
 
 typedef struct SDataBlockIter {
-  int32_t    numOfBlocks;
-  int32_t    index;
-  SArray*    blockList;  // SArray<SFileDataBlockInfo>
-  int32_t    order;
+  int32_t numOfBlocks;
+  int32_t index;
+  SArray* blockList;  // SArray<SFileDataBlockInfo>
+  int32_t order;
 } SDataBlockIter;
 
 typedef struct SFileBlockDumpInfo {
@@ -277,28 +280,28 @@ typedef struct SReaderStatus {
 } SReaderStatus;
 
 struct STsdbReader {
-  STsdb*             pTsdb;
-  STsdbReaderInfo    info;
-  TdThreadMutex      readerMutex;
-  EReaderStatus      flag;
-  int32_t            code;
-  SResultBlockInfo   resBlockInfo;
-  SReaderStatus      status;
-  char*              idStr;  // query info handle, for debug purpose
-  int32_t            type;   // query type: 1. retrieve all data blocks, 2. retrieve direct prev|next rows
-  SBlockLoadSuppInfo suppInfo;
-  STsdbReadSnap*     pReadSnap;
-  tsem_t             resumeAfterSuspend;
-  SReadCostSummary   cost;
-  SHashObj**         pIgnoreTables;
-  SSHashObj*         pSchemaMap;   // keep the retrieved schema info, to avoid the overhead by repeatly load schema
-  SDataFileReader*   pFileReader;  // the file reader
-  SBlockInfoBuf      blockInfoBuf;
-  EContentData       step;
-  STsdbReader*       innerReader[2];
-  bool                 bFilesetDelimited;   // duration by duration output
-  TsdReaderNotifyCbFn  notifyFn;
-  void*                notifyParam;
+  STsdb*              pTsdb;
+  STsdbReaderInfo     info;
+  TdThreadMutex       readerMutex;
+  EReaderStatus       flag;
+  int32_t             code;
+  SResultBlockInfo    resBlockInfo;
+  SReaderStatus       status;
+  char*               idStr;  // query info handle, for debug purpose
+  int32_t             type;   // query type: 1. retrieve all data blocks, 2. retrieve direct prev|next rows
+  SBlockLoadSuppInfo  suppInfo;
+  STsdbReadSnap*      pReadSnap;
+  tsem_t              resumeAfterSuspend;
+  SReadCostSummary    cost;
+  SHashObj**          pIgnoreTables;
+  SSHashObj*          pSchemaMap;   // keep the retrieved schema info, to avoid the overhead by repeatly load schema
+  SDataFileReader*    pFileReader;  // the file reader
+  SBlockInfoBuf       blockInfoBuf;
+  EContentData        step;
+  STsdbReader*        innerReader[2];
+  bool                bFilesetDelimited;  // duration by duration output
+  TsdReaderNotifyCbFn notifyFn;
+  void*               notifyParam;
 };
 
 typedef struct SBrinRecordIter {
@@ -348,8 +351,8 @@ void    destroyLDataIter(SLDataIter* pIter);
 int32_t adjustSttDataIters(SArray* pSttFileBlockIterArray, STFileSet* pFileSet);
 int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArray, STsdb* pTsdb, SMergeTreeConf* pConf,
                               const char* pstr);
-bool    isCleanSttBlock(SArray* pTimewindowList, STimeWindow* pQueryWindow, STableBlockScanInfo* pScanInfo, int32_t order);
-bool    overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SBrinRecord* pRecord, int32_t order);
+bool isCleanSttBlock(SArray* pTimewindowList, STimeWindow* pQueryWindow, STableBlockScanInfo* pScanInfo, int32_t order);
+bool overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SBrinRecord* pRecord, int32_t order);
 int32_t pkCompEx(SRowKey* p1, SRowKey* p2);
 int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, int32_t len, bool asc);
 void    clearRowKey(SRowKey* pKey);

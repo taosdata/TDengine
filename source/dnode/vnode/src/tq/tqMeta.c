@@ -154,8 +154,9 @@ int32_t tqMetaSaveOffset(STQ* pTq, STqOffset* pOffset) {
     goto END;
   }
 
-  TQ_ERR_GO_TO_END(tqMetaSaveInfo(pTq, pTq->pOffsetStore, pOffset->subKey, strlen(pOffset->subKey), buf, vlen));
-
+  taosWLockLatch(&pTq->lock);
+  code = tqMetaSaveInfo(pTq, pTq->pOffsetStore, pOffset->subKey, strlen(pOffset->subKey), buf, vlen);
+  taosWUnLockLatch(&pTq->lock);
 END:
   tEncoderClear(&encoder);
   taosMemoryFree(buf);
@@ -209,10 +210,13 @@ int32_t tqMetaGetOffset(STQ* pTq, const char* subkey, STqOffset** pOffset) {
   void* data = taosHashGet(pTq->pOffset, subkey, strlen(subkey));
   if (data == NULL) {
     int vLen = 0;
+    taosRLockLatch(&pTq->lock);
     if (tdbTbGet(pTq->pOffsetStore, subkey, strlen(subkey), &data, &vLen) < 0) {
+      taosRUnLockLatch(&pTq->lock);
       tdbFree(data);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
+    taosRUnLockLatch(&pTq->lock);
 
     STqOffset offset = {0};
     if (tqMetaDecodeOffsetInfo(&offset, data, vLen >= 0 ? vLen : 0) != TDB_CODE_SUCCESS) {
@@ -299,12 +303,12 @@ static int tqMetaInitHandle(STQ* pTq, STqHandle* handle) {
                                                        &handle->execHandle.numOfCols, handle->consumerId);
     TQ_NULL_GO_TO_END(handle->execHandle.task);
     void* scanner = NULL;
-    qExtractStreamScanner(handle->execHandle.task, &scanner);
+    qExtractTmqScanner(handle->execHandle.task, &scanner);
     TQ_NULL_GO_TO_END(scanner);
-    handle->execHandle.pTqReader = qExtractReaderFromStreamScanner(scanner);
+    handle->execHandle.pTqReader = qExtractReaderFromTmqScanner(scanner);
     TQ_NULL_GO_TO_END(handle->execHandle.pTqReader);
   } else if (handle->execHandle.subType == TOPIC_SUB_TYPE__DB) {
-    handle->pWalReader = walOpenReader(pVnode->pWal, NULL, 0);
+    handle->pWalReader = walOpenReader(pVnode->pWal, 0);
     TQ_NULL_GO_TO_END(handle->pWalReader);
     handle->execHandle.pTqReader = tqReaderOpen(pVnode);
     TQ_NULL_GO_TO_END(handle->execHandle.pTqReader);
@@ -313,7 +317,7 @@ static int tqMetaInitHandle(STQ* pTq, STqHandle* handle) {
     handle->execHandle.task = qCreateQueueExecTaskInfo(NULL, &reader, vgId, NULL, handle->consumerId);
     TQ_NULL_GO_TO_END(handle->execHandle.task);
   } else if (handle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
-    handle->pWalReader = walOpenReader(pVnode->pWal, NULL, 0);
+    handle->pWalReader = walOpenReader(pVnode->pWal, 0);
     TQ_NULL_GO_TO_END(handle->pWalReader);
     if (handle->execHandle.execTb.qmsg != NULL && strcmp(handle->execHandle.execTb.qmsg, "") != 0) {
       if (nodesStringToNode(handle->execHandle.execTb.qmsg, &handle->execHandle.execTb.node) != 0) {

@@ -31,7 +31,7 @@
   do {                                                                    \
     T* plist = (T*)pCol->pData;                                           \
     for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) { \
-      if (colDataIsNull_f(pCol->nullbitmap, i)) {                         \
+      if (colDataIsNull_f(pCol, i)) {                         \
         continue;                                                         \
       }                                                                   \
                                                                           \
@@ -156,7 +156,7 @@ static int32_t doAddNumericVector(SColumnInfoData* pCol, int32_t type, SInputCol
     case TSDB_DATA_TYPE_TINYINT: {
       int8_t* plist = (int8_t*)pCol->pData;
       for (int32_t i = start; i < numOfRows + start; ++i) {
-        if (colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -171,7 +171,7 @@ static int32_t doAddNumericVector(SColumnInfoData* pCol, int32_t type, SInputCol
     case TSDB_DATA_TYPE_SMALLINT: {
       int16_t* plist = (int16_t*)pCol->pData;
       for (int32_t i = start; i < numOfRows + start; ++i) {
-        if (colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -185,7 +185,7 @@ static int32_t doAddNumericVector(SColumnInfoData* pCol, int32_t type, SInputCol
     case TSDB_DATA_TYPE_INT: {
       int32_t* plist = (int32_t*)pCol->pData;
       for (int32_t i = start; i < numOfRows + start; ++i) {
-        if (colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -200,7 +200,7 @@ static int32_t doAddNumericVector(SColumnInfoData* pCol, int32_t type, SInputCol
     case TSDB_DATA_TYPE_BIGINT: {
       int64_t* plist = (int64_t*)pCol->pData;
       for (int32_t i = start; i < numOfRows + start; ++i) {
-        if (colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -214,7 +214,7 @@ static int32_t doAddNumericVector(SColumnInfoData* pCol, int32_t type, SInputCol
     case TSDB_DATA_TYPE_UTINYINT: {
       uint8_t* plist = (uint8_t*)pCol->pData;
       for (int32_t i = start; i < numOfRows + start; ++i) {
-        if (colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -229,7 +229,7 @@ static int32_t doAddNumericVector(SColumnInfoData* pCol, int32_t type, SInputCol
     case TSDB_DATA_TYPE_USMALLINT: {
       uint16_t* plist = (uint16_t*)pCol->pData;
       for (int32_t i = start; i < numOfRows + start; ++i) {
-        if (colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -243,7 +243,7 @@ static int32_t doAddNumericVector(SColumnInfoData* pCol, int32_t type, SInputCol
     case TSDB_DATA_TYPE_UINT: {
       uint32_t* plist = (uint32_t*)pCol->pData;
       for (int32_t i = start; i < numOfRows + start; ++i) {
-        if (colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -258,7 +258,7 @@ static int32_t doAddNumericVector(SColumnInfoData* pCol, int32_t type, SInputCol
     case TSDB_DATA_TYPE_UBIGINT: {
       uint64_t* plist = (uint64_t*)pCol->pData;
       for (int32_t i = start; i < numOfRows + start; ++i) {
-        if (colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -273,7 +273,7 @@ static int32_t doAddNumericVector(SColumnInfoData* pCol, int32_t type, SInputCol
     case TSDB_DATA_TYPE_FLOAT: {
       float* plist = (float*)pCol->pData;
       for (int32_t i = start; i < numOfRows + start; ++i) {
-        if (colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -287,7 +287,7 @@ static int32_t doAddNumericVector(SColumnInfoData* pCol, int32_t type, SInputCol
     case TSDB_DATA_TYPE_DOUBLE: {
       double* plist = (double*)pCol->pData;
       for (int32_t i = start; i < numOfRows + start; ++i) {
-        if (colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (colDataIsNull_f(pCol, i)) {
           continue;
         }
 
@@ -301,7 +301,7 @@ static int32_t doAddNumericVector(SColumnInfoData* pCol, int32_t type, SInputCol
     case TSDB_DATA_TYPE_DECIMAL: {
       const char* pDec = pCol->pData;
       for (int32_t i = start; i < numOfRows + start; ++i) {
-        if (colDataIsNull_f(pCol->nullbitmap, i)) {
+        if (colDataIsNull_f(pCol, i)) {
           continue;
         }
 

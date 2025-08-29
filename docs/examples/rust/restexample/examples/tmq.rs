@@ -8,12 +8,8 @@ use tokio::runtime::Runtime;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    pretty_env_logger::formatted_timed_builder()
-        .filter_level(log::LevelFilter::Info)
-        .init();
-    use taos_query::prelude::*;
     // ANCHOR: create_consumer_dsn
-    let dsn = "ws://localhost:6041".to_string();
+    let dsn = "ws://localhost:6041";
     println!("dsn: {}", dsn);
     let mut dsn = Dsn::from_str(&dsn)?;
     // ANCHOR_END: create_consumer_dsn

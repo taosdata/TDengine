@@ -120,6 +120,18 @@ class srvCtl:
 
         return tdDnodes.stopAll()
 
+    def dnodeRestartAll(self) :
+        """
+        Restarts all dnodes.
+
+        Returns:
+            bool: True if all dnodes were restarted successfully, False otherwise.
+        """
+
+        self.dnodeStopAll()
+        self.dnodeStartAll()
+
+
     #
     #  about path
     #

@@ -219,7 +219,7 @@ Provides information about users created in the system. Users with SYSINFO attri
 
 ## INS_GRANTS
 
-Provides information about enterprise edition licenses. Users with SYSINFO attribute as 0 cannot view this table.
+Provides information about TSDB-Enterprise licenses. Users with SYSINFO attribute as 0 cannot view this table.
 
 | #    | **Column Name** | **Data Type** | **Description**                                              |
 | ---- | :-------------: | ------------- | ------------------------------------------------------------ |
@@ -325,7 +325,6 @@ Note: Users with SYSINFO property set to 0 cannot view this table.
 | 4    |   table_name    | VARCHAR(193)   | Table name                           |
 | 5    |    condition    | VARCHAR(49152) | Subtable permission filter condition |
 
-
 ## INS_DISK_USAGE
 
 | # | **Column Name** | **Data type** | **Description**|
@@ -335,19 +334,19 @@ Note: Users with SYSINFO property set to 0 cannot view this table.
 | 3   | wal        | BIGINT      | WAL file size, in KB                       |
 | 4   | data1      | BIGINT      | Data file size on primary storage, in KB   |
 | 5   | data2      | BIGINT      | Data file size on secondary storage, in KB |
-| 6   | data3      | BIGINT      | Data file size on tertiary storage, in KB  | 
+| 6   | data3      | BIGINT      | Data file size on tertiary storage, in KB  |
 | 7   | cache_rdb  | BIGINT      | Size of last/last_row files, in KB         |
-| 8   | table_meta | BIGINT      | Size of meta files, in KB                  | 
-| 9   | s3         | BIGINT      | Size occupied on S3, in KB                 |
+| 8   | table_meta | BIGINT      | Size of meta files, in KB                  |
+| 9   | ss         | BIGINT      | Size occupied on shared storage, in KB                 |
 | 10  | raw_data   | BIGINT      | Estimated size of raw data, in KB          |
 
-note: 
+note:
 
 ## INS_FILESETS
 
-Provides information about file sets. 
+Provides information about file sets.
 
-| #   |   **Column**   | **Data Type** | **Description**                                      | ** |
+| #   |   **Column**   | **Data Type** | **Description**                                      |
 | --- | :------------: | ------------- | ---------------------------------------------------- |
 | 1   |    db_name     | VARCHAR(65)   | Database name                                        |
 | 2   |   vgroup_id    | INT           | Vgroup ID                                            |
@@ -357,3 +356,21 @@ Provides information about file sets.
 | 6   |   total_size   | BIGINT        | Total size of the file set                           |
 | 7   |  last_compact  | TIMESTAMP     | Time of the last compaction                          |
 | 8   | should_compact | bool          | Whether the file set should be compacted             |
+
+## INS_VNODES
+
+Provides information about vnodes in the system. Users with SYSINFO property set to 0 cannot view this table.
+
+| #   |   **Column Name**   | **Data Type** | **Description**                   |
+| --- | :-----------------: | ------------- | --------------------------------- |
+| 1   |      dnode_id       | INT           | Dnode id                          |
+| 2   |      vgroup_id      | INT           | Vgroup id                         |
+| 3   |       db_name       | VARCHAR(66)   | Database name                     |
+| 4   |       status        | VARCHAR(11)   | Status of this vnode              |
+| 5   |      role_time      | TIMESTAMP     | Election time                     |
+| 6   |     start_time      | TIMESTAMP     | Vnode start time                  |
+| 7   |      restored       | BOOL          | Restored or not                   |
+| 8   |  apply_finish_time  | VARCHAR(20)   | Restore finish time               |
+| 9   |      unapplied      | INT           | Number of unapplied request items |
+| 10  | buffer_segment_used | BIGINT        | Buffer segment used size in bytes |
+| 11  | buffer_segment_size | BIGINT        | Buffer segment size in bytes      |

@@ -8,9 +8,15 @@ class TestDatabaseCatalog:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_catalog(self):
-        """drop db and check catalog
+        """Check catalog
 
-        1. -
+        1. Create database
+        2. Create normal table
+        3. Insert data
+        4. Alter data column
+        5. Insert data
+        6. Drop database
+        7. Repeat three times
 
         Catalog:
             - Database:Drop

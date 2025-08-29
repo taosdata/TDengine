@@ -104,7 +104,7 @@ int32_t tcsInitEnv(int8_t isBlob) {
 
   tstrncpy(tsTempDir, "/tmp/", PATH_MAX);
 
-  tsS3Enabled = true;
+  tsSsEnabled = 1;
 
   return code;
 }
@@ -122,7 +122,7 @@ TEST(TcsTest, InterfaceTest) {
   }
 
   GTEST_ASSERT_EQ(code, 0);
-  GTEST_ASSERT_EQ(tsS3Enabled, 1);
+  GTEST_ASSERT_EQ(tsSsEnabled, 1);
   GTEST_ASSERT_EQ(tsS3Ablob, 1);
 
   code = tcsInit();
@@ -235,7 +235,7 @@ TEST(TcsTest, InterfaceTest) {
 // TEST(TcsTest, DISABLED_InterfaceNonBlobTest) {
 TEST(TcsTest, InterfaceNonBlobTest) {
 #ifndef TD_ENTERPRISE
-  // NOTE: this test case will coredump for community edition of taos
+  // NOTE: this test case will coredump for TSDB-OSS edition of taos
   //       thus we bypass this test case for the moment
   // code = tcsGetObjectBlock(object_name, 0, size, check, &pBlock);
   // tcsGetObjectBlock succeeded but pBlock is nullptr
@@ -247,7 +247,7 @@ TEST(TcsTest, InterfaceNonBlobTest) {
 
   code = tcsInitEnv(false);
   GTEST_ASSERT_EQ(code, 0);
-  GTEST_ASSERT_EQ(tsS3Enabled, 1);
+  GTEST_ASSERT_EQ(tsSsEnabled, 1);
   GTEST_ASSERT_EQ(tsS3Ablob, 0);
 
   code = tcsInit();
@@ -353,7 +353,6 @@ TEST(TcsTest, InterfaceNonBlobTest) {
   const char *object_name_arr[] = {object_name};
   code = tcsDeleteObjects(object_name_arr, 1);
   GTEST_ASSERT_EQ(code, 0);
-
   tcsUninit();
 #endif
 }

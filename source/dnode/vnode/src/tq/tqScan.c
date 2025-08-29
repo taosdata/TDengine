@@ -436,8 +436,8 @@ static void preProcessSubmitMsg(STqHandle* pHandle, const SMqPollReq* pRequest, 
       }
     }
     if (pHandle->fetchMeta == WITH_DATA || pSubmitTbData->ctimeMs > createTime){
-      tDestroySVCreateTbReq(pSubmitTbData->pCreateTbReq, TSDB_MSG_FLG_DECODE);
-      pSubmitTbData->pCreateTbReq = NULL;
+      tDestroySVSubmitCreateTbReq(pSubmitTbData->pCreateTbReq, TSDB_MSG_FLG_DECODE);
+      taosMemoryFreeClear(pSubmitTbData->pCreateTbReq);
     } else{
       taosArrayDestroy(*rawList);
       *rawList = NULL;

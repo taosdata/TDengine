@@ -1249,6 +1249,7 @@
 ,,y,script,./test.sh -f tsim/query/tag_scan.sim
 ,,y,script,./test.sh -f tsim/query/nullColSma.sim
 ,,y,script,./test.sh -f tsim/query/bug3398.sim
+,,y,script,./test.sh -f tsim/query/ts-7058.sim
 ,,y,script,./test.sh -f tsim/query/explain_tsorder.sim
 ,,y,script,./test.sh -f tsim/query/apercentile.sim
 ,,y,script,./test.sh -f tsim/query/query_count0.sim
@@ -1534,6 +1535,7 @@
 ,,y,script,./test.sh -f tsim/tagindex/indexOverflow.sim
 ,,y,script,./test.sh -f tsim/query/cache_last.sim
 ,,y,script,./test.sh -f tsim/query/const.sim
+,,y,script,./test.sh -f tsim/insert/insert_blob.sim
 
 
 

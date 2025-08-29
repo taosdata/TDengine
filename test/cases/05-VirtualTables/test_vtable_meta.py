@@ -126,9 +126,12 @@ class TestVtableMeta:
                           "geo_32_col geometry(32) from vtb_org_child_18.geo_32_col)")
 
     def test_normal_query_new(self):
-        """test virtual table normal query.
+        """Query: meta
 
-        test virtual table normal query.
+        test virtual table normal query
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 

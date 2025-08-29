@@ -1,0 +1,9 @@
+
+taos> select val,tablename,point,index_code,country_equipment_code,ps_code,point_name from test1.stb_sxny_cn_sbgjpt_index_blq_yjbj order by _c0;
+     val     |           tablename            |             point              |           index_code           |     country_equipment_code     |            ps_code             |           point_name           |
+====================================================================================================================================================================================================================
+         100 | a0                             | a0                             | index_a0                       | a0_ch1                         | pscode_a0                      | name_a0                        |
+        1000 | a0                             | a0                             | index_a0                       | a0_ch1                         | pscode_a0                      | name_a0                        |
+         101 | a0                             | a0                             | index_a0                       | a0_ch1                         | pscode_a0                      | name_a0                        |
+        -102 | a0                             | a0                             | index_a0                       | a0_ch1                         | pscode_a0                      | name_a0                        |
+

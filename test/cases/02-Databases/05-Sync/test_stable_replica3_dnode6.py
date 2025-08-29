@@ -2,15 +2,18 @@ import time
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
 
 
-class TestStableReplica3Dnode6:
+class TestStableReplica3Vnode3:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_stable_replica3_dnode6(self):
-        """stable replica3 dnode6
+    def test_stable_replica3_vnode3(self):
+        """Query: repica-3
 
-        1. -
+        1. Start a 6-node cluster
+        2. Create a 3-replica database with 3 vgroups
+        3. Create one super table and 10 child tables; insert 20 rows into each
+        4. Run COUNT and INTERVAL queries; verify the results
 
         Catalog:
             - DataBase:Sync
@@ -22,7 +25,8 @@ class TestStableReplica3Dnode6:
         Jira: None
 
         History:
-            - 2025-5-5 Simon Guan Migrated from tsim/vnode/stable_replica3_dnode6.sim
+            - 2025-5-5 Simon Guan Migrated from tsim/vnode/stable_replica3_vnode3.sim
+            - 2025-5-5 Simon Guan Migrated from tsim/vnode/stable_replica3_vnode3.sim
 
         """
 

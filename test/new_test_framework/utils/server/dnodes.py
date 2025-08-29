@@ -56,9 +56,8 @@ class TDDnodes:
         # tdLog.debug("binPath %s" % (binPath))
         # binPath = os.path.realpath(binPath)
         # tdLog.debug("binPath real path %s" % (binPath))
-
         if path == "":
-            self.path = os.path.abspath(self.binPath + "../../")
+            self.path = os.path.abspath(self.binPath + "/../../../../sim")
         else:
             self.path = os.path.realpath(path)
 

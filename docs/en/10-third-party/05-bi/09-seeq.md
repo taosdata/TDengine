@@ -68,7 +68,7 @@ taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from 
 
 The source code is hosted on [GitHub Repository](https://github.com/sangshuduo/td-forecasting).
 
-**第 3 步**，Log in using a Seeq administrator role account and create a new data source.
+**Step 3**, Log in using a Seeq administrator role account and create a new data source.
 
 - Power
 

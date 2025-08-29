@@ -74,7 +74,7 @@ repeater 部分添加 { host:'<TDengine server/cluster host>', port: <port for S
 
 #### 导入 collectd 仪表盘
 
-从 https://github.com/taosdata/grafanaplugin/blob/master/examples/collectd/grafana/dashboards/collect-metrics-with-tdengine-v0.1.0.json 下载 dashboard json 文件，点击左侧加号图标并选择 `Import`，按照界面提示选择 JSON 文件导入。之后可以看到如下界面的仪表盘：
+从 <https://github.com/taosdata/grafanaplugin/blob/master/examples/collectd/grafana/dashboards/collect-metrics-with-tdengine-v0.1.0.json> 下载 dashboard json 文件，点击左侧加号图标并选择 `Import`，按照界面提示选择 JSON 文件导入。之后可以看到如下界面的仪表盘：
 
 ![TDengine Database IT-DevOps-Solutions-collectd-dashboard](./IT-DevOps-Solutions-collectd-dashboard.webp)
 

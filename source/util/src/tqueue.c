@@ -247,7 +247,11 @@ int32_t taosWriteQitem(STaosQueue *queue, void *pItem) {
   if (queue->qset) {
     if (tsem_post(&queue->qset->sem) != 0) {
       uError("failed to post semaphore for queue set:%p", queue->qset);
+    } else {
+      uDebug("sem_post Qset %p, sem:%p", queue->qset, &queue->qset->sem);
     }
+  } else {
+    uDebug("empty qset");
   }
   return code;
 }
@@ -462,9 +466,11 @@ int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, SQueueInfo *qinfo)
   STaosQnode *pNode = NULL;
   int32_t     code = 0;
 
+  uDebug("start to waitfromQset %p, sem:%p, idx:%d", qset, &qset->sem, qinfo->workerId);
   if (tsem_wait(&qset->sem) != 0) {
     uError("failed to wait semaphore for qset:%p", qset);
   }
+  uDebug("end waitfromQset %p, sem:%p, idx:%d", qset, &qset->sem, qinfo->workerId);
 
   (void)taosThreadMutexLock(&qset->mutex);
 
@@ -543,10 +549,15 @@ int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, SQueueInfo *
       uTrace("read %d items from queue:%p, items:0 mem:%" PRId64, code, queue, queue->memOfItems);
 
       (void)atomic_sub_fetch_32(&qset->numOfItems, qall->numOfItems);
-      for (int32_t j = 1; j < qall->numOfItems; ++j) {
+
+      STaosQnode *pNode = qall->start->next;
+      // skip the first node, tsem_wait has been called once at the beginning of this function
+      // queue->numOfItems is not entirely reliable and may be larger than the actual value due to concurrency issues.
+      while (pNode) {
         if (tsem_wait(&qset->sem) != 0) {
           uError("failed to wait semaphore for qset:%p", qset);
         }
+        pNode = pNode->next;
       }
     }
 

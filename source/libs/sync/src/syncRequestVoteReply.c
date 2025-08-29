@@ -46,7 +46,7 @@ int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
     syncLogRecvRequestVoteReply(ths, pMsg, "not in my config", &pRpcMsg->info.traceId);
 
-    TAOS_RETURN(TSDB_CODE_SYN_MISMATCHED_SIGNATURE);
+    TAOS_RETURN(TSDB_CODE_SYN_NOT_IN_RAFT_GROUP);
   }
   SyncTerm currentTerm = raftStoreGetTerm(ths);
   // drop stale response

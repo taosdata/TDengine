@@ -20,12 +20,12 @@
 #include "tmisce.h"
 #include "tcompare.h"
 
-int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
+int32_t taosGetIpv4FromEp(const char* ep, SEp* pEp) {
   pEp->port = 0;
   memset(pEp->fqdn, 0, TSDB_FQDN_LEN);
   tstrncpy(pEp->fqdn, ep, TSDB_FQDN_LEN);
 
-  char* temp = strchr(pEp->fqdn, ':');
+  char* temp = strrchr(pEp->fqdn, ':');
   if (temp) {
     *temp = 0;
     pEp->port = taosStr2UInt16(temp + 1, NULL, 10);
@@ -41,8 +41,88 @@ int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
   if (pEp->port <= 0) {
     return TSDB_CODE_INVALID_PARA;
   }
+  return 0;
+}
+
+static int8_t isValidPort(const char* str) {
+  if (!str || !*str) return 0;
+  for (const char* p = str; *p; ++p) {
+    if (*p < '0' || *p > '9') {
+      return 0;
+    }
+  }
+  return 1;
+}
+
+static int32_t taosGetDualIpFromEp(const char* ep, SEp* pEp) {
+  memset(pEp->fqdn, 0, TSDB_FQDN_LEN);
+  pEp->port = 0;
+  char buf[TSDB_FQDN_LEN] = {0};
+
+  if (ep[0] == '[') {
+    // [IPv6]:port format
+    const char* end = strchr(ep, ']');
+    if (!end) return TSDB_CODE_INVALID_PARA;
+
+    int ipLen = end - ep - 1;
+    if (ipLen >= TSDB_FQDN_LEN) ipLen = TSDB_FQDN_LEN - 1;
+
+    strncpy(pEp->fqdn, ep + 1, ipLen);
+    pEp->fqdn[ipLen] = '\0';
+
+    if (*(end + 1) == ':' && *(end + 2)) {
+      pEp->port = taosStr2UInt16(end + 2, NULL, 10);
+    }
+  } else {
+    // Compatible with ::1:6030, ::1, IPv4:port, hostname:port, etc.
+    strncpy(buf, ep, TSDB_FQDN_LEN - 1);
+    buf[TSDB_FQDN_LEN - 1] = 0;
+
+    char* lastColon = strrchr(buf, ':');
+    char* firstColon = strchr(buf, ':');
+
+    if (lastColon && firstColon != lastColon) {
+      // Multiple colons, possibly IPv6:port or pure IPv6
+      char* portStr = lastColon + 1;
+      if (isValidPort(portStr) && lastColon != buf && (*(lastColon - 1) != ':')) {
+        *lastColon = 0;
+        tstrncpy(pEp->fqdn, buf, TSDB_FQDN_LEN);
+        pEp->port = taosStr2UInt16(portStr, NULL, 10);
+      } else {
+        tstrncpy(pEp->fqdn, ep, TSDB_FQDN_LEN);
+      }
+    } else if (lastColon) {
+      // Only one colon, IPv4:port or hostname:port
+      char* portStr = lastColon + 1;
+      if (isValidPort(portStr) && lastColon != buf) {
+        *lastColon = 0;
+        tstrncpy(pEp->fqdn, buf, TSDB_FQDN_LEN);
+        pEp->port = taosStr2UInt16(portStr, NULL, 10);
+      } else {
+        tstrncpy(pEp->fqdn, ep, TSDB_FQDN_LEN);
+      }
+    } else {
+      // No colon, pure hostname or IPv6 without port
+      tstrncpy(pEp->fqdn, ep, TSDB_FQDN_LEN);
+    }
+  }
+
+  if (pEp->port == 0) {
+    pEp->port = tsServerPort;
+  }
+
+  if (pEp->port <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   return 0;
+}
+int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
+  if (tsEnableIpv6) {
+    return taosGetDualIpFromEp(ep, pEp);
+  } else {
+    return taosGetIpv4FromEp(ep, pEp);
+  }
 }
 
 int32_t addEpIntoEpSet(SEpSet* pEpSet, const char* fqdn, uint16_t port) {

@@ -3,13 +3,13 @@ title: "AVEVA Historian"
 sidebar_label: "AVEVA Historian"
 ---
 
-本节讲述如何通过 Explorer 界面创建数据迁移/数据同步任务，从 AVEVA Historian 迁移/同步数据到当前 TDengine 集群。
+本节讲述如何通过 Explorer 界面创建数据迁移/数据同步任务，从 AVEVA Historian 迁移/同步数据到当前 TDengine TSDB 集群。
 
 ## 功能概述
 
 AVEVA Historian 是一款工业大数据分析软件，前身为 Wonderware。可以捕获并存储高保真工业大数据，释放受制约的潜力，从而改善运营。
 
-TDengine 可以高效地从 AVEVA Historian 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据同步。
+TDengine TSDB 可以高效地从 AVEVA Historian 读取数据并将其写入 TDengine TSDB，以实现历史数据迁移或实时数据同步。
 
 ## 创建任务
 
@@ -65,7 +65,7 @@ TDengine 可以高效地从 AVEVA Historian 读取数据并将其写入 TDengine
 
 #### 4.2. 同步 History 表的数据
 
-如果要同步 **Runtime.dbo.History** 表中的数据到 TDengine，需要配置以下参数：
+如果要同步 **Runtime.dbo.History** 表中的数据到 TDengine TSDB，需要配置以下参数：
 
 在 **采集模式** 下拉列表中选择 **synchronize**。
 
@@ -87,7 +87,7 @@ TDengine 可以高效地从 AVEVA Historian 读取数据并将其写入 TDengine
 
 #### 4.3. 同步 Live 表的数据
 
-如果要同步 **Runtime.dbo.Live** 表中的数据到 TDengine，需要配置以下参数：
+如果要同步 **Runtime.dbo.Live** 表中的数据到 TDengine TSDB，需要配置以下参数：
 
 在 **采集模式** 下拉列表中选择 **synchronize**。
 
@@ -108,9 +108,9 @@ TDengine 可以高效地从 AVEVA Historian 读取数据并将其写入 TDengine
 在 **从列中提取或拆分** 中填写从消息体中提取或拆分的字段，例如：将 vValue 字段拆分成 `vValue_0` 和 `vValue_1` 这 2 个字段，选择
 split 提取器，separator 填写分割符 `,`, number 填写 2。
 
-在 **过滤** 中，填写过滤条件，例如：填写`Value > 0`，则只有 Value 大于 0 的数据才会被写入 TDengine。
+在 **过滤** 中，填写过滤条件，例如：填写`Value > 0`，则只有 Value 大于 0 的数据才会被写入 TDengine TSDB。
 
-在 **映射** 中，选择要映射到 TDengine 的超级表，以及映射到超级表的列。
+在 **映射** 中，选择要映射到 TDengine TSDB 的超级表，以及映射到超级表的列。
 
 点击 **预览**，可以查看映射的结果。
 

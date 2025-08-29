@@ -5,7 +5,6 @@ sidebar_label: Installation
 
 import PkgListV3 from "/components/PkgListV3";
 
-
 This section describes how to use TDgpt in Docker
 
 ## Get Started with Docker
@@ -14,9 +13,8 @@ This section describes how to use TDgpt in Docker
 
 | Image                          | Models               |
 |-----------------------------------|-----------------------|
-| `tdengine/tdengine-tdgpt`         | TDtsfm v1.0       |
-| `tdengine/tdengine-tdgpt-full`    | TDtsfm v1.0 and Time-MoE   |
-
+| `tdengine/tdgpt`         | TDtsfm v1.0       |
+| `tdengine/tdgpt-full`    | TDtsfm v1.0 and Time-MoE   |
 
 ### Quick Start Guide
 
@@ -27,42 +25,51 @@ Install Docker on your local machine. Then pull the image and startthe container
 Pull the latest TDgpt image:
 
 ```shell
-docker pull tdengine/tdengine-tdgpt:latest
+docker pull tdengine/tdgpt:latest
 ```
 
 You can specify a version if desired:
 
 ```shell
-docker pull tdengine/tdengine-tdgpt:3.3.6.0
+docker pull tdengine/tdgpt:3.3.7.0
 ```
 
 Start the container:
 
 ```shell
-docker run -d -p 6090:6090 -p 5000:5000 tdengine/tdengine-tdgpt:3.3.6.0
+docker run -d \
+  -p 6035:6035 \
+  -p 6036:6036 \
+  tdengine/tdgpt:3.3.7.0
 ```
+
+:::note
+
+From 3.3.7.5, the port number for TDgpt has changed from 6090 to 6035.
+
+:::
 
 #### Full Image
 
 Pull the latest TDgpt image:
 
 ```shell
-docker pull tdengine/tdengine-tdgpt-full:latest
+docker pull tdengine/tdgpt-full:latest
 ```
 
 You can specify a version if desired:
 
 ```shell
-docker pull tdengine/tdengine-tdgpt-full:3.3.6.0
+docker pull tdengine/tdgpt-full:3.3.7.0
 ```
 
 Start the container:
 
 ```shell
-docker run -d -p 6090:6090 -p 5000:5000 -p 5001:5001 tdengine/tdengine-tdgpt-full:3.3.6.0
+docker run -d -p 6035:6035 -p 6036:6036 -p 6037:6037 tdengine/tdgpt-full:3.3.7.0
 ```
 
-Note: TDgpt runs on TCP port 6090. The standard image also uses port 5000, and the full image uses port 5001.
+Note: TDgpt runs on TCP port 6035. The standard image also uses port 6036, and the full image uses port 6037.
 TDgpt is a stateless analytics agent and does not persist data. It only saves log files to local disk.
 
 Confirm that your Docker container is running:
@@ -78,7 +85,6 @@ docker exec -it <container name> bash
 ```
 
 You can now run Linux commands and access TDengine.
-
 
 ## Use TDgpt in TDengine Cloud
 
@@ -120,16 +126,18 @@ Add `~/.local/bin` to the `PATH` environment variable in `~/.bashrc` or `~/.bash
 ```shell
 export PATH=$PATH:~/.local/bin
 ```
+
 The Python environment has been installed. You can now install TDgpt.
 
 #### Install a C Compiler
 
-```shell 
+```shell
 sudo apt update
 sudo apt install build-essential
 ```
 
 ### Obtain the Package
+
 1. Download the tar.gz package from the list:
 
    <PkgListV3 type={9}/>
@@ -137,7 +145,7 @@ sudo apt install build-essential
    This package contains the TDtsfm and Time-MoE foundation models for time series. Ensure that you have 16 GB of disk space available to store the models.
   
 2. Open the directory containing the downloaded package and decompress it.
-   
+
 Note: Replace `<version>` with the version that you downloaded.
 
 ```bash
@@ -163,6 +171,6 @@ The virtual Python environment for TDgpt is located in the `/var/lib/taos/taosan
 This environment is not removed y the `rmtaosanode` command. You can remove it manually if desired.
 Any algorithms or models that you create for TDgpt must be installed into this virtual environment using Pip.
 
-
 ### Uninstalling TDgpt
-You can run the `rmtaosanode` command to uninstall TDgpt. 
+
+You can run the `rmtaosanode` command to uninstall TDgpt.

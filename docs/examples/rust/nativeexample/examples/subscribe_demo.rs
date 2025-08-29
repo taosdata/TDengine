@@ -64,7 +64,7 @@ async fn main() -> anyhow::Result<()> {
     let mut consumer = tmq.build().await?;
     consumer.subscribe(["tmq_meters"]).await?;
 
-    // ANCHOR: consumer_commit_manually   
+    // ANCHOR: consumer_commit_manually
     consumer
         .stream()
         .try_for_each(|(offset, message)| async {
@@ -86,7 +86,6 @@ async fn main() -> anyhow::Result<()> {
         .await?;
     // ANCHOR_END: consumer_commit_manually
 
- 
     // ANCHOR: assignments
     let assignments = consumer.assignments().await.unwrap();
     log::info!("assignments: {:?}", assignments);
@@ -126,7 +125,7 @@ async fn main() -> anyhow::Result<()> {
     // after seek offset
     let assignments = consumer.assignments().await.unwrap();
     log::info!("after seek offset assignments: {:?}", assignments);
-   
+
     consumer.unsubscribe().await;
 
     task.await??;

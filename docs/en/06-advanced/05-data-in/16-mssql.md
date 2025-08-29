@@ -22,7 +22,9 @@ This section describes how to create data migration tasks through the Explorer i
 
 ## Feature Overview
 
-Microsoft SQL Server is one of the most popular relational databases. Many systems have used or are using Microsoft SQL Server to store data reported by IoT and industrial internet devices. However, as the number of devices in the access systems grows and the demand for real-time data feedback from users increases, Microsoft SQL Server can no longer meet business needs. Starting from TDengine Enterprise Edition 3.3.2.0, TDengine can efficiently read data from Microsoft SQL Server and write it into TDengine, achieving historical data migration or real-time data synchronization, and solving technical pain points faced by businesses.
+Microsoft SQL Server is one of the most popular relational databases. Many systems have used or are using Microsoft SQL Server to store data reported by IoT and industrial internet devices. However, as the number of devices in the access systems grows and the demand for real-time data feedback from users increases, Microsoft SQL Server can no longer meet business needs. Starting from TDengine Enterprise Edition 3.3.2.0 [^1], TDengine can efficiently read data from Microsoft SQL Server and write it into TDengine, achieving historical data migration or real-time data synchronization, and solving technical pain points faced by businesses.
+
+[^1]: TDengine Enterprise Edition was renamed to TDengine TSDB-Enterprise starting from version 3.3.7.0
 
 ## Creating a Task
 

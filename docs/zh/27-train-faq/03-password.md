@@ -1,12 +1,12 @@
 ---
 title: 密码中特殊字符的使用
-description: TDengine 用户密码中特殊字符的使用
+description: TDengine TSDB 用户密码中特殊字符的使用
 ---
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-TDengine 用户密码需满足以下规则：
+TDengine TSDB 用户密码需满足以下规则：
 
 1. 用户名最长不超过 23 个字节。
 2. 密码长度必须为 8 到 255 位。
@@ -28,7 +28,7 @@ CREATE USER user1 PASS 'Ab1!@#$%^&*()-_+=[]{}';
 <Tabs defaultValue="shell" groupId="component">
 <TabItem label="CLI" value="shell">
 
-在 [TDengine 命令行客户端（CLI）](../../reference/tools/taos-cli/) 中使用需要注意以下几点：
+在 [TDengine TSDB 命令行客户端（CLI）](../../reference/tools/taos-cli/) 中使用需要注意以下几点：
 
 - 使用参数 `-p` 后不带密码，会提示输入密码，可输入任意可接收字符。
 - 使用参数 `-p` 后带密码，如果密码中包含特殊字符，需使用单引号。
@@ -74,7 +74,7 @@ taosBenchmark -u user1 -p'Ab1!@#$%^&*()-_+=[]{}' -d test -y
 </TabItem>
 <TabItem label="taosX" value="taosx">
 
-[taosX](../../reference/components/taosx/) 使用 DSN 表示 TDengine 连接，使用如下格式：`(taos|tmq)[+ws]://<user>:<pass>@<ip>:<port>`，其中 `<pass>` 可以包含特殊字符，如：`taos+ws://user1:Ab1!@#$%^&*()-_+=[]{}@192.168.10.10:6041`。
+[taosX](../../reference/components/taosx/) 使用 DSN 表示 TDengine TSDB 连接，使用如下格式：`(taos|tmq)[+ws]://<user>:<pass>@<ip>:<port>`，其中 `<pass>` 可以包含特殊字符，如：`taos+ws://user1:Ab1!@#$%^&*()-_+=[]{}@192.168.10.10:6041`。
 
 使用用户 `user1` 导出数据示例如下：
 
@@ -106,33 +106,33 @@ import java.nio.charset.StandardCharsets;
 import com.taosdata.jdbc.TSDBDriver;
 
 public class JdbcPassDemo {
-	public static void main(String[] args) throws Exception {
-		String password = "Ab1!@#$%^&*()-_+=[]{}";
-		String encodedPassword = URLEncoder.encode(password, StandardCharsets.UTF_8.toString());
-		String jdbcUrl = "jdbc:TAOS-WS://localhost:6041";
-		Properties connProps = new Properties();
-		connProps.setProperty(TSDBDriver.PROPERTY_KEY_USER, "user1");
-		connProps.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, encodedPassword);
-		connProps.setProperty(TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT, "true");
-		connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-		connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+ public static void main(String[] args) throws Exception {
+  String password = "Ab1!@#$%^&*()-_+=[]{}";
+  String encodedPassword = URLEncoder.encode(password, StandardCharsets.UTF_8.toString());
+  String jdbcUrl = "jdbc:TAOS-WS://localhost:6041";
+  Properties connProps = new Properties();
+  connProps.setProperty(TSDBDriver.PROPERTY_KEY_USER, "user1");
+  connProps.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, encodedPassword);
+  connProps.setProperty(TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT, "true");
+  connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+  connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
 
-		try (Connection conn = DriverManager.getConnection(jdbcUrl, connProps)) {
-			System.out.println("Connected to " + jdbcUrl + " successfully.");
+  try (Connection conn = DriverManager.getConnection(jdbcUrl, connProps)) {
+   System.out.println("Connected to " + jdbcUrl + " successfully.");
 
-			// you can use the connection for execute SQL here
+   // you can use the connection for execute SQL here
 
-		} catch (Exception ex) {
-			// please refer to the JDBC specifications for detailed exceptions info
-			System.out.printf("Failed to connect to %s, %sErrMessage: %s%n",
-					jdbcUrl,
-					ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
-					ex.getMessage());
-			// Print stack trace for context in examples. Use logging in production.
-			ex.printStackTrace();
-			throw ex;
-		}
-	}
+  } catch (Exception ex) {
+   // please refer to the JDBC specifications for detailed exceptions info
+   System.out.printf("Failed to connect to %s, %sErrMessage: %s%n",
+     jdbcUrl,
+     ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
+     ex.getMessage());
+   // Print stack trace for context in examples. Use logging in production.
+   ex.printStackTrace();
+   throw ex;
+  }
+ }
 }
 ```
 
@@ -194,32 +194,33 @@ if __name__ == "__main__":
 package main
 
 import (
-	"database/sql"
-	"fmt"
-	"log"
-	"net/url"
+ "database/sql"
+ "fmt"
+ "log"
+ "net/url"
 
-	_ "github.com/taosdata/driver-go/v3/taosWS"
+ _ "github.com/taosdata/driver-go/v3/taosWS"
 )
 
 func main() {
-	var user = "user1"
-	var password = "Ab1!@#$%^&*()-_+=[]{}"
-	var encodedPassword = url.QueryEscape(password)
-	var taosDSN = user + ":" + encodedPassword + "@ws(localhost:6041)/"
-	taos, err := sql.Open("taosWS", taosDSN)
-	if err != nil {
-		log.Fatalln("Failed to connect to " + taosDSN + "; ErrMessage: " + err.Error())
-	}
-	fmt.Println("Connected to " + taosDSN + " successfully.")
-	defer taos.Close()
+ var user = "user1"
+ var password = "Ab1!@#$%^&*()-_+=[]{}"
+ var encodedPassword = url.QueryEscape(password)
+ var taosDSN = user + ":" + encodedPassword + "@ws(localhost:6041)/"
+ taos, err := sql.Open("taosWS", taosDSN)
+ if err != nil {
+  log.Fatalln("Failed to connect to " + taosDSN + "; ErrMessage: " + err.Error())
+ }
+ fmt.Println("Connected to " + taosDSN + " successfully.")
+ defer taos.Close()
 }
 ```
+
 </TabItem>
 
 <TabItem label="Rust" value="rust">
 
-Rust 中使用 DSN 表示 TDengine 连接，使用如下格式：`(taos|tmq)[+ws]://<user>:<pass>@<ip>:<port>`，其中 `<pass>` 可以包含特殊字符，如：`taos+ws://user1:Ab1!@#$%^&*()-_+=[]{}@192.168.10.10:6041`。
+Rust 中使用 DSN 表示 TDengine TSDB 连接，使用如下格式：`(taos|tmq)[+ws]://<user>:<pass>@<ip>:<port>`，其中 `<pass>` 可以包含特殊字符，如：`taos+ws://user1:Ab1!@#$%^&*()-_+=[]{}@192.168.10.10:6041`。
 
 ```rust
 let dsn = "taos+ws://user1:Ab1!@#$%^&*()-_+=[]{}@localhost:6041";
@@ -291,6 +292,74 @@ curl -u'user1:Ab1!@#$%^&*()-_+=[]{}' \
   -d 'show databases' http://localhost:6041/rest/sql
 curl -H 'Authorization: Basic dXNlcjE6QWIxIUAjJCVeJiooKS1fKz1bXXt9' \
   -d 'show databases' http://localhost:6041/rest/sql
+```
+
+</TabItem>
+<TabItem label="ODBC" value="odbc">
+
+ODBC 连接器支持密码中包含特殊字符，无需特殊处理。示例如下：
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <sql.h>
+#include <sqlext.h>
+
+int test_user_connect(const char *dsn, const char *uid, const char *pwd) {
+  SQLHENV   env   = SQL_NULL_HENV;
+  SQLHDBC   dbc   = SQL_NULL_HDBC;
+  SQLHSTMT  stmt  = SQL_NULL_HSTMT;
+  SQLRETURN sr    = SQL_SUCCESS;
+
+  sr = SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &env);
+  if (sr != SQL_SUCCESS && sr != SQL_SUCCESS_WITH_INFO)
+    goto end;
+
+  sr = SQLSetEnvAttr(env, SQL_ATTR_ODBC_VERSION, (void *)SQL_OV_ODBC3, 0);
+  if (sr != SQL_SUCCESS && sr != SQL_SUCCESS_WITH_INFO)
+    goto end;
+
+  sr = SQLAllocHandle(SQL_HANDLE_DBC, env, &dbc);
+  if (sr != SQL_SUCCESS && sr != SQL_SUCCESS_WITH_INFO)
+    goto end;
+
+  sr = SQLConnect(dbc, (SQLCHAR *)dsn, SQL_NTS, (SQLCHAR *)uid, SQL_NTS, (SQLCHAR *)pwd, SQL_NTS);
+  if (sr != SQL_SUCCESS && sr != SQL_SUCCESS_WITH_INFO)
+    goto end;
+
+  sr = SQLAllocHandle(SQL_HANDLE_STMT, dbc, &stmt);
+  if (sr != SQL_SUCCESS && sr != SQL_SUCCESS_WITH_INFO)
+    goto end;
+
+  sr = SQLExecDirect(stmt, (SQLCHAR *)"show databases", SQL_NTS);
+  if (sr != SQL_SUCCESS && sr != SQL_SUCCESS_WITH_INFO)
+    goto end;
+
+end:
+  if (stmt != SQL_NULL_HSTMT) {
+    SQLFreeHandle(SQL_HANDLE_STMT, stmt);
+    stmt = SQL_NULL_HSTMT;
+  }
+
+  if (dbc != SQL_NULL_HDBC) {
+    SQLDisconnect(dbc);
+    SQLFreeHandle(SQL_HANDLE_DBC, dbc);
+    dbc = SQL_NULL_HDBC;
+  }
+
+  if (env != SQL_NULL_HENV) {
+    SQLFreeHandle(SQL_HANDLE_ENV, env);
+    env = SQL_NULL_HENV;
+  }
+
+  return (sr == SQL_SUCCESS || sr == SQL_SUCCESS_WITH_INFO) ? 0 : -1;
+}
+
+int main() {
+  int result = test_user_connect("TAOS_ODBC_WS_DSN", "user1", "Ab1!@#$%^&*()-_+=[]{}");
+  printf("test case test_user_connect %s\n", !result ? "pass" : "failed");
+  return 0;
+}
 ```
 
 </TabItem>
