@@ -670,8 +670,14 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       code = makeNode(type, sizeof(SCompactDatabaseStmt), &pNode);
       break;
+    case QUERY_NODE_SCAN_DATABASE_STMT:
+      code = makeNode(type, sizeof(SScanDatabaseStmt), &pNode);
+      break;
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       code = makeNode(type, sizeof(SCompactVgroupsStmt), &pNode);
+      break;
+    case QUERY_NODE_SCAN_VGROUPS_STMT:
+      code = makeNode(type, sizeof(SScanVgroupsStmt), &pNode);
       break;
     case QUERY_NODE_CREATE_FUNCTION_STMT:
       code = makeNode(type, sizeof(SCreateFunctionStmt), &pNode);
@@ -797,6 +803,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_SHOW_COMPACTS_STMT:
       code = makeNode(type, sizeof(SShowCompactsStmt), &pNode);
+      break;
+    case QUERY_NODE_SHOW_SCANS_STMT:
+      code = makeNode(type, sizeof(SShowScansStmt), &pNode);
       break;
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
       code = makeNode(type, sizeof(SShowCompactDetailsStmt), &pNode);
