@@ -26,7 +26,7 @@ TDengine TSDB 完整的软件包包括服务端（taosd）、应用驱动（taos
 2. gcc 版本：9.3.1 或以上
 
 ## 安装
-详细安装参考[快速体验](./get-started/package)。
+详细安装参考[快速体验](../../get-started/package)。
 
 ## 目录结构
 
