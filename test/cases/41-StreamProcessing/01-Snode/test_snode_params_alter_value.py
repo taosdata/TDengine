@@ -29,9 +29,9 @@ class TestStreamParametersAlter:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_snode_mgmt(self):
-        """Stream TestStreamParametersAlter test
+        """Parameter: alter value
 
-        1. check stream parameters alter value
+        Modify the parameters streamBufferSize and numOfMnodeStreamMgmtThreads.
 
         Catalog:
             - Streams:Snode

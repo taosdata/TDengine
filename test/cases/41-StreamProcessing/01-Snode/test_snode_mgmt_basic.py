@@ -20,10 +20,10 @@ class TestSnodeMgmt:
     def test_snode_mgmt(self):
         """Snode: create and drop
 
-        1. Create an 8-node dnode and create snodes on each dnode
-        2. Check the results of each field in information_schema.ins_snodes
-        3. Delete the snodes and check again
-        4. Randomly create and delete snodes, and check the results
+        1. Create an 8-node dnode and create snodes on each dnode.
+        2. Check the results of each field in information_schema.ins_snodes.
+        3. Delete the snodes and check again.
+        4. Randomly create and delete snodes, and check the results.
 
         Catalog:
             - Streams:Snode

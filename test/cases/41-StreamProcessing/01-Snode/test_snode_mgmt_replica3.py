@@ -9,7 +9,7 @@ from new_test_framework.utils import (
     StreamTableType,
     StreamTable,
     cluster,
-    clusterComCheck
+    clusterComCheck,
 )
 from random import randint
 import os
@@ -37,13 +37,13 @@ class TestSnodeMgmt:
     def test_snode_mgmt(self):
         """Snode: repeatedly drop with stream
 
-        1. Create a 6-node dnode and a 3-replica database
-        2. Create snodes on each node
-        3. Then delete these snodes
-        4. Repeat creating snodes
-        5. Create a stream and check its status
-        6. Continue deleting snodes
-        7. Check the operational status of the stream
+        1. Create a 6-node dnode and a 3-replica database.
+        2. Create snodes on each node.
+        3. Then delete these snodes.
+        4. Repeat creating snodes.
+        5. Create a stream and check its status.
+        6. Continue deleting snodes.
+        7. Check the operational status of the stream.
 
         Catalog:
             - Streams:Snode
@@ -93,7 +93,7 @@ class TestSnodeMgmt:
 
         # wait all dnode ready
         clusterComCheck.checkDnodes(6)
-        
+
         tdStream.dropAllStreamsAndDbs()
         tdStream.init_database(self.dbname)
 

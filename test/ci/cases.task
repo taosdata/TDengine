@@ -321,16 +321,15 @@
 ## 01-Snode
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/01-Snode/test_snode_mgmt_basic.py -N 8
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/01-Snode/test_snode_mgmt_replica3.py -N 6 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/01-Snode/test_snode_params_alter_normaluser.py
-,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/01-Snode/test_snode_params_alter.py
+,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/01-Snode/test_snode_mgmt_replicas.py -N 8
+,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/01-Snode/test_snode_params_alter_value.py
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/01-Snode/test_snode_params_check_default.py
-,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/01-Snode/test_snode_params_check_maxValue.py
-,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/01-Snode/test_snode_params_check.py
-,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/01-Snode/test_snode_privileges_monitor_table.py
+,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/01-Snode/test_snode_params_check_maxvalue.py
+,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/01-Snode/test_snode_params_check_minvalue.py
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/01-Snode/test_snode_privileges_recalc.py
+,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/01-Snode/test_snode_privileges_stream.py
+,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/01-Snode/test_snode_privileges_systable.py
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/01-Snode/test_snode_privileges_twodb.py
-,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/01-Snode/test_snode_privileges.py
-,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/01-Snode/test_snode_replicas.py -N 8
 
 ## 02-Stream
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/02-Stream/stream_nosnode.py
