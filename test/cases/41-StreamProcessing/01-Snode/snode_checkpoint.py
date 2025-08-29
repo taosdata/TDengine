@@ -10,7 +10,7 @@ class TestStreamCheckpoint:
 
 
     def test_stream_dev_basic(self):
-        """Checkpoint: basic test
+        """Checkpoint
 
         Verification testing during the development process.
 
