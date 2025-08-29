@@ -9,16 +9,18 @@ class TestStreamSubqueryLimit:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_subquery_limit(self):
-        """验证各占位符的使用限制
+        """Subquery: usage restrictions
 
-        1. 非窗口触发不能使用 _twstart、_twend、_twduration、_twrownum
-        2. 非滑动触发不能使用 _tcurrent_ts、_tprev_ts、_tnext_ts
-        3. 仅定时触发可以使用 _tprev_localtime、_tnext_localtime
-        4. %%trows 只能用于 FROM 子句
-        5. 其他占位符只能用于 SELECT 和 WHERE 子句
-        6. %%n 中 n 的取值范围
-        7. 拼写错误的占位符
-        8. 不允许 insert 或其他不返回结果集的语句
+        Verify the usage restrictions of each placeholder:
+
+        1. Non-window triggers cannot use _twstart, _twend, _twduration, _twrownum.
+        2. Non-sliding triggers cannot use _tcurrent_ts, _tprev_ts, _tnext_ts.
+        3. Only timed triggers can use _tprev_localtime, _tnext_localtime.
+        4. %%trows can only be used in the FROM clause.
+        5. Other placeholders can only be used in the SELECT and WHERE clauses.
+        6. The range of values for n in %%n.
+        7. Misspelled placeholders.
+        8. INSERT or other statements that do not return a result set are not allowed.
 
         Catalog:
             - Streams:SubQuery
