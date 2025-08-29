@@ -1300,6 +1300,347 @@ _return:
   return code;
 }
 
+
+int32_t findInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          numOfRows = 0;
+  SColumnInfoData *pInputData[2];
+  SColumnInfoData *pOutputData = pOutput[0].columnData;
+
+  pInputData[0] = pInput[0].columnData;
+  pInputData[1] = pInput[1].columnData;
+
+  numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
+  int32_t wantType = GET_PARAM_TYPE(&pInput[1]);
+
+  if ((IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) || IS_NULL_TYPE(wantType)) ||
+      (pInput[0].numOfRows == 1 && colDataIsNull_s(pInputData[0], 0)) ||
+      (pInput[1].numOfRows == 1 && colDataIsNull_s(pInputData[1], 0))) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return code;
+  }
+
+  char  *sepstr = ",";
+  int32_t sepLen = 1;
+  bool needFreeSep = false;
+  // treat null seperator and empty seperator as default seperator
+  if (inputNum == 2 || IS_NULL_TYPE(&pInput[2]) || varDataLen(colDataGetData(pInput[2].columnData, 0)) == 0) {
+    if (wantType == TSDB_DATA_TYPE_NCHAR) {
+      SCL_ERR_RET(convVarcharToNchar(sepstr, &sepstr, 1, &sepLen, pInput->charsetCxt));
+      needFreeSep = true;
+    }
+  } else {
+    sepLen = varDataLen(colDataGetData(pInput[2].columnData, 0));
+    sepstr = varDataVal(colDataGetData(pInput[2].columnData, 0));
+    if (GET_PARAM_TYPE(&pInput[2]) != wantType) {
+      SCL_ERR_RET(convBetweenNcharAndVarchar(sepstr, &sepstr, sepLen, &sepLen, wantType, pInput->charsetCxt));
+      needFreeSep = true;
+    }
+  }
+
+  bool utf8 = strcasecmp(tsCharset, "UTF-8") == 0;
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    int32_t colIdx1 = (pInput[0].numOfRows == 1) ? 0 : i;
+    int32_t colIdx2 = (pInput[1].numOfRows == 1) ? 0 : i;
+    if (colDataIsNull_s(pInputData[0], colIdx1) || colDataIsNull_s(pInputData[1], colIdx2)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+    
+    int32_t subLen = varDataLen(colDataGetData(pInputData[0], colIdx1));
+    if (varDataLen(colDataGetData(pInputData[0], colIdx1)) == 0) {
+      int64_t offset = 1;
+      colDataSetInt64(pOutputData, i, &offset);
+      continue;
+    }
+
+    char   *substr = varDataVal(colDataGetData(pInputData[0], colIdx1));
+    char   *orgstr = varDataVal(colDataGetData(pInputData[1], colIdx2));
+    int32_t orgLen = varDataLen(colDataGetData(pInputData[1], colIdx2));
+    bool    needFreeSub = false;
+    if (GET_PARAM_TYPE(&pInput[0]) != wantType) {
+      SCL_ERR_JRET(convBetweenNcharAndVarchar(substr, &substr, subLen, &subLen, wantType, pInput->charsetCxt)); 
+      needFreeSub = true;
+    }
+
+    int64_t offset = 0;
+    char *start = orgstr;
+    for (int32_t j = 0; start < orgstr + orgLen; j++) {
+      char* end = start;
+
+      while (true) {
+        // set [end] to the end of [orgstr] if not enough characters for a seperator
+        if (end + sepLen > orgstr + orgLen) {
+          end = orgstr + orgLen;
+          break;
+        }
+        // a seperator is found
+        if (memcmp(end, sepstr, sepLen) == 0) {
+          break;
+        }
+        // not a seperator, advance one character
+        if (wantType == TSDB_DATA_TYPE_NCHAR) {
+          end += TSDB_NCHAR_SIZE;
+        } else if (utf8) {
+          for (end++; end - orgstr < orgLen && ((*end & 0xC0) == 0x80); end++);
+        } else {
+          end++;
+        }
+      }
+
+      if ((end - start == subLen) && memcmp(start, substr, subLen) == 0) {
+        offset = j + 1;
+        break;
+      }
+
+      start = end + sepLen;
+    }
+
+    if (needFreeSub) {
+      taosMemoryFree(substr);
+    }
+    colDataSetInt64(pOutput->columnData, i, &offset);
+  }
+
+  pOutput->numOfRows = numOfRows;
+
+_return:
+  if (needFreeSep) {
+    taosMemoryFree(sepstr);
+  }
+  return code;
+}
+
+int32_t likeInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  #if 0
+  int32_t          numOfRows = 0;
+  SColumnInfoData *pInputData[2];
+  SColumnInfoData *pOutputData = pOutput[0].columnData;
+
+  pInputData[0] = pInput[0].columnData;
+  pInputData[1] = pInput[1].columnData;
+
+  numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
+  int32_t wantType = GET_PARAM_TYPE(&pInput[1]);
+
+  if ((IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) || IS_NULL_TYPE(wantType)) ||
+      (pInput[0].numOfRows == 1 && colDataIsNull_s(pInputData[0], 0)) ||
+      (pInput[1].numOfRows == 1 && colDataIsNull_s(pInputData[1], 0))) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return code;
+  }
+
+  char  *sepstr = ",";
+  int32_t sepLen = 1;
+  bool needFreeSep = false;
+  // treat null seperator and empty seperator as default seperator
+  if (inputNum == 2 || IS_NULL_TYPE(&pInput[2]) || varDataLen(colDataGetData(pInput[2].columnData, 0)) == 0) {
+    if (wantType == TSDB_DATA_TYPE_NCHAR) {
+      SCL_ERR_RET(convVarcharToNchar(sepstr, &sepstr, 1, &sepLen, pInput->charsetCxt));
+      needFreeSep = true;
+    }
+  } else {
+    sepLen = varDataLen(colDataGetData(pInput[2].columnData, 0));
+    sepstr = varDataVal(colDataGetData(pInput[2].columnData, 0));
+    if (GET_PARAM_TYPE(&pInput[2]) != wantType) {
+      SCL_ERR_RET(convBetweenNcharAndVarchar(sepstr, &sepstr, sepLen, &sepLen, wantType, pInput->charsetCxt));
+      needFreeSep = true;
+    }
+  }
+
+  bool utf8 = strcasecmp(tsCharset, "UTF-8") == 0;
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    int32_t colIdx1 = (pInput[0].numOfRows == 1) ? 0 : i;
+    int32_t colIdx2 = (pInput[1].numOfRows == 1) ? 0 : i;
+    if (colDataIsNull_s(pInputData[0], colIdx1) || colDataIsNull_s(pInputData[1], colIdx2)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+    
+    int32_t subLen = varDataLen(colDataGetData(pInputData[0], colIdx1));
+    if (varDataLen(colDataGetData(pInputData[0], colIdx1)) == 0) {
+      int64_t offset = 1;
+      colDataSetInt64(pOutputData, i, &offset);
+      continue;
+    }
+
+    char   *substr = varDataVal(colDataGetData(pInputData[0], colIdx1));
+    char   *orgstr = varDataVal(colDataGetData(pInputData[1], colIdx2));
+    int32_t orgLen = varDataLen(colDataGetData(pInputData[1], colIdx2));
+    bool    needFreeSub = false;
+    if (GET_PARAM_TYPE(&pInput[0]) != wantType) {
+      SCL_ERR_JRET(convBetweenNcharAndVarchar(substr, &substr, subLen, &subLen, wantType, pInput->charsetCxt)); 
+      needFreeSub = true;
+    }
+
+    int64_t offset = 0;
+    char *start = orgstr;
+    for (int32_t j = 0; start < orgstr + orgLen; j++) {
+      char* end = start;
+
+      while (true) {
+        // set [end] to the end of [orgstr] if not enough characters for a seperator
+        if (end + sepLen > orgstr + orgLen) {
+          end = orgstr + orgLen;
+          break;
+        }
+        // a seperator is found
+        if (memcmp(end, sepstr, sepLen) == 0) {
+          break;
+        }
+        // not a seperator, advance one character
+        if (wantType == TSDB_DATA_TYPE_NCHAR) {
+          end += TSDB_NCHAR_SIZE;
+        } else if (utf8) {
+          for (end++; end - orgstr < orgLen && ((*end & 0xC0) == 0x80); end++);
+        } else {
+          end++;
+        }
+      }
+
+      if ((end - start == subLen) && memcmp(start, substr, subLen) == 0) {
+        offset = j + 1;
+        break;
+      }
+
+      start = end + sepLen;
+    }
+
+    if (needFreeSub) {
+      taosMemoryFree(substr);
+    }
+    colDataSetInt64(pOutput->columnData, i, &offset);
+  }
+
+  pOutput->numOfRows = numOfRows;
+
+_return:
+  if (needFreeSep) {
+    taosMemoryFree(sepstr);
+  }
+    #endif
+  return code;
+}
+
+int32_t regexpInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  #if 0
+  int32_t          numOfRows = 0;
+  SColumnInfoData *pInputData[2];
+  SColumnInfoData *pOutputData = pOutput[0].columnData;
+
+  pInputData[0] = pInput[0].columnData;
+  pInputData[1] = pInput[1].columnData;
+
+  numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
+  int32_t wantType = GET_PARAM_TYPE(&pInput[1]);
+
+  if ((IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) || IS_NULL_TYPE(wantType)) ||
+      (pInput[0].numOfRows == 1 && colDataIsNull_s(pInputData[0], 0)) ||
+      (pInput[1].numOfRows == 1 && colDataIsNull_s(pInputData[1], 0))) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return code;
+  }
+
+  char  *sepstr = ",";
+  int32_t sepLen = 1;
+  bool needFreeSep = false;
+  // treat null seperator and empty seperator as default seperator
+  if (inputNum == 2 || IS_NULL_TYPE(&pInput[2]) || varDataLen(colDataGetData(pInput[2].columnData, 0)) == 0) {
+    if (wantType == TSDB_DATA_TYPE_NCHAR) {
+      SCL_ERR_RET(convVarcharToNchar(sepstr, &sepstr, 1, &sepLen, pInput->charsetCxt));
+      needFreeSep = true;
+    }
+  } else {
+    sepLen = varDataLen(colDataGetData(pInput[2].columnData, 0));
+    sepstr = varDataVal(colDataGetData(pInput[2].columnData, 0));
+    if (GET_PARAM_TYPE(&pInput[2]) != wantType) {
+      SCL_ERR_RET(convBetweenNcharAndVarchar(sepstr, &sepstr, sepLen, &sepLen, wantType, pInput->charsetCxt));
+      needFreeSep = true;
+    }
+  }
+
+  bool utf8 = strcasecmp(tsCharset, "UTF-8") == 0;
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    int32_t colIdx1 = (pInput[0].numOfRows == 1) ? 0 : i;
+    int32_t colIdx2 = (pInput[1].numOfRows == 1) ? 0 : i;
+    if (colDataIsNull_s(pInputData[0], colIdx1) || colDataIsNull_s(pInputData[1], colIdx2)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+    
+    int32_t subLen = varDataLen(colDataGetData(pInputData[0], colIdx1));
+    if (varDataLen(colDataGetData(pInputData[0], colIdx1)) == 0) {
+      int64_t offset = 1;
+      colDataSetInt64(pOutputData, i, &offset);
+      continue;
+    }
+
+    char   *substr = varDataVal(colDataGetData(pInputData[0], colIdx1));
+    char   *orgstr = varDataVal(colDataGetData(pInputData[1], colIdx2));
+    int32_t orgLen = varDataLen(colDataGetData(pInputData[1], colIdx2));
+    bool    needFreeSub = false;
+    if (GET_PARAM_TYPE(&pInput[0]) != wantType) {
+      SCL_ERR_JRET(convBetweenNcharAndVarchar(substr, &substr, subLen, &subLen, wantType, pInput->charsetCxt)); 
+      needFreeSub = true;
+    }
+
+    int64_t offset = 0;
+    char *start = orgstr;
+    for (int32_t j = 0; start < orgstr + orgLen; j++) {
+      char* end = start;
+
+      while (true) {
+        // set [end] to the end of [orgstr] if not enough characters for a seperator
+        if (end + sepLen > orgstr + orgLen) {
+          end = orgstr + orgLen;
+          break;
+        }
+        // a seperator is found
+        if (memcmp(end, sepstr, sepLen) == 0) {
+          break;
+        }
+        // not a seperator, advance one character
+        if (wantType == TSDB_DATA_TYPE_NCHAR) {
+          end += TSDB_NCHAR_SIZE;
+        } else if (utf8) {
+          for (end++; end - orgstr < orgLen && ((*end & 0xC0) == 0x80); end++);
+        } else {
+          end++;
+        }
+      }
+
+      if ((end - start == subLen) && memcmp(start, substr, subLen) == 0) {
+        offset = j + 1;
+        break;
+      }
+
+      start = end + sepLen;
+    }
+
+    if (needFreeSub) {
+      taosMemoryFree(substr);
+    }
+    colDataSetInt64(pOutput->columnData, i, &offset);
+  }
+
+  pOutput->numOfRows = numOfRows;
+
+_return:
+  if (needFreeSep) {
+    taosMemoryFree(sepstr);
+  }
+    #endif
+  return code;
+}
+
 int32_t md5Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
