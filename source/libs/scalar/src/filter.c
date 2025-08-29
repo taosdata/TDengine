@@ -2230,8 +2230,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
     int8_t        precision = FILTER_UNIT_DATA_PRECISION(unit);
     SFilterField *fi = right;
 
-    SValueNode *var = (SValueNode *)fi->desc;
-    if (var == NULL) {
+    if (fi->desc == NULL) {
       if (!fi->data) {
         fltError("filterInitValFieldData get invalid field data : NULL");
         return TSDB_CODE_APP_ERROR;
@@ -2240,6 +2239,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
     }
 
     if (unit->compare.optr == OP_TYPE_IN) {
+      // QUERY_NODE_NODE_LIST
       FLT_ERR_RET(scalarGenerateSetFromList((void **)&fi->data, fi->desc, type, 0, 0));
       if (fi->data == NULL) {
         fltError("failed to convert in param");
@@ -2249,6 +2249,16 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       FILTER_SET_FLAG(fi->flag, FLD_DATA_IS_HASH);
 
       continue;
+    }
+
+    if ((nodeType(fi->desc) != QUERY_NODE_VALUE)) {
+      fltError("filterInitValFieldData get invalid field desc node type : %d", nodeType(fi->desc));
+      return TSDB_CODE_APP_ERROR;
+    }
+    SValueNode *var = (SValueNode *)fi->desc;
+    if (var->isNull) {
+      fltError("filterInitValFieldData get value data is null");
+      return TSDB_CODE_APP_ERROR;
     }
 
     SDataType *dType = &var->node.resType;

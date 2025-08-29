@@ -54,7 +54,7 @@ int32_t sclCreateColumnInfoData(SDataType *pType, int32_t numOfRows, SScalarPara
   if (code != TSDB_CODE_SUCCESS) {
     colDataDestroy(pColumnData);
     taosMemoryFree(pColumnData);
-    return terrno;
+    return code;
   }
 
   pParam->columnData = pColumnData;
@@ -1091,6 +1091,7 @@ EDealRes sclRewriteNullInOptr(SNode **pNode, SScalarCtx *ctx, EOperatorType opTy
     }
 
     res->node.resType.type = TSDB_DATA_TYPE_NULL;
+    res->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
 
     nodesDestroyNode(*pNode);
     *pNode = (SNode *)res;
