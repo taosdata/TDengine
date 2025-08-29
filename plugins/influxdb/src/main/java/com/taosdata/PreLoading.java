@@ -254,6 +254,9 @@ public class PreLoading implements CommandLineRunner {
             this.nettyClientConfig.setPort((int) tomlParseResult.getLong("taosx.port", () -> 0L));
             this.taskConfig.setMode(tomlParseResult.getString("task.mode", String::new));
             this.taskConfig.setBuckets(Arrays.asList(tomlParseResult.getString("task.bucket", String::new)));
+            if (tomlParseResult.getLong("task.assignmentType") != null) {
+                this.taskConfig.setAssignmentType(tomlParseResult.getLong("task.assignmentType").intValue());
+            }
             Set<String> measurements = new HashSet<>();
             TomlArray tomlArray = tomlParseResult.getArrayOrEmpty("task.measurements");
             for (int i = 0; i < tomlArray.size(); i++) {
@@ -297,17 +300,17 @@ public class PreLoading implements CommandLineRunner {
             if (tomlParseResult.getLong("performance.queueSizeT") != null) {
                 this.performanceConfig.setQueueSizeT(tomlParseResult.getLong("performance.queueSizeT").longValue());
             }
-            if (tomlParseResult.getLong("performance.limitBatch") != null) {
-                // 注释掉才可通过环境变量设置. 目前先注释掉，后续需要页面传递再打开
-//                this.performanceConfig.setLimitBatch(tomlParseResult.getLong("performance.limitBatch").intValue());
+            if (tomlParseResult.getLong("performance.rowsPerRead") != null) {
+                this.performanceConfig.getThread().setReadBucketBatch(tomlParseResult.getLong("performance.rowsPerRead").longValue());
             }
             if (tomlParseResult.getLong("performance.queueSizeD") != null) {
-                // 注释掉才可通过环境变量设置. 目前先注释掉，后续需要页面传递再打开
-//                this.performanceConfig.setQueueSizeD(tomlParseResult.getLong("performance.queueSizeD").longValue());
+                this.performanceConfig.setQueueSizeD(tomlParseResult.getLong("performance.queueSizeD").longValue());
+            }
+            if (tomlParseResult.getLong("performance.limitBatch") != null) {
+                this.performanceConfig.setLimitBatch(tomlParseResult.getLong("performance.limitBatch").intValue());
             }
             if (tomlParseResult.getLong("performance.limitSpeed") != null) {
-                // 注释掉才可通过环境变量设置. 目前先注释掉，后续需要页面传递再打开
-//                this.performanceConfig.setLimitSpeed(tomlParseResult.getLong("performance.limitSpeed").intValue());
+                this.performanceConfig.setLimitSpeed(tomlParseResult.getLong("performance.limitSpeed").intValue());
             }
         } catch (Exception e) {
             logger.error("An exception occurred during the loading of the Toml file, causing startup failure.", e);

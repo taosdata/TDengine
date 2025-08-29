@@ -337,6 +337,32 @@ export default {
           ]
         },
         {
+          label: '数据源并发读取方式',
+          field: 'read_concurrency_type',
+          description: 'measurement 的并行读取方式。queue: 多线程同时读取一个 measurement，完成后读取下一个。average: 平均方式，多个 measurement 同时被不同线程读取。sequence: 每个 measurement 同时只有一个线程读取。\n',
+          defaultValue: 'sequence',
+          required: false,
+          hint: {
+            type: 'str',
+            choices: ['queue', 'average', 'sequence']
+          },
+          type: 'select',
+          options: [
+            {
+              label: 'queue',
+              value: 'queue'
+            },
+            {
+              label: 'average',
+              value: 'average'
+            },
+            {
+              label: 'sequence',
+              value: 'sequence'
+            }
+          ]
+        },
+        {
           label: '最大读取并发数',
           field: 'read_concurrency',
           description: '数据源连接数或读取线程数限制，当默认参数不满足需要或需要调整资源使用量时修改此参数。\n',
@@ -352,34 +378,61 @@ export default {
           max: 100
         },
         {
-          label: '最大写入并发数',
-          field: 'write_concurrency',
-          description: '写入 taosX 的最大并发数限制，当默认参数性能不足时，可增大此参数。\n',
-          defaultValue: '50',
+          label: '每次读取行数',
+          field: 'rows_per_read',
+          description: '每次从 InfluxDB 读取数据时的行数。\n',
+          defaultValue: 1000,
           required: false,
           hint: {
             type: 'integer',
             min: 1,
-            max: 500
+            max: 100000
           },
           type: 'number',
           min: 1,
-          max: 500
+          max: 100000
+        },
+        {
+          label: '缓存队列大小',
+          field: 'cache_queue_size',
+          description: '从 InfluxDB 读取数据后放入的缓存列队的大小。\n',
+          defaultValue: 200000,
+          required: false,
+          hint: {
+            type: 'integer',
+            min: 200000,
+            max: 10000000
+          },
+          type: 'number',
+          min: 200000,
+          max: 10000000
         },
         {
           label: '批次大小',
           field: 'batch_size',
           description: '单次发送的最大消息数或行数。\n',
-          defaultValue: '5000',
+          defaultValue: 5000,
           required: false,
           hint: {
             type: 'integer',
             min: 1,
-            max: 10000
+            max: 1000000
           },
           type: 'number',
           min: 1,
-          max: 10000
+          max: 1000000
+        },
+        {
+          label: 'JVM 参数',
+          description:
+            '控制 JVM 内存参数, GC类型等参数，比如：-Xms4g -Xmx4g -XX:+UseG1GC -XX:ParallelGCThreads=4 -XX:ConcGCThreads=2',
+          field: 'jvm_opts',
+          placeholder: '-Xms4g -Xmx4g -XX:+UseG1GC -XX:ParallelGCThreads=4 -XX:ConcGCThreads=2',
+          pattern: null,
+          defaultValue: '',
+          required: false,
+          display_order: 1,
+          type: 'input'
         },
         {
           label: '批次延时',
@@ -396,6 +449,21 @@ export default {
           type: 'number',
           min: 1,
           max: 10000
+        },
+        {
+          label: '最大写入并发数',
+          field: 'write_concurrency',
+          description: '写入 taosX 的最大并发数限制，当默认参数性能不足时，可增大此参数。\n',
+          defaultValue: '50',
+          required: false,
+          hint: {
+            type: 'integer',
+            min: 1,
+            max: 500
+          },
+          type: 'number',
+          min: 1,
+          max: 500
         },
         {
           label: '健康监测时段',

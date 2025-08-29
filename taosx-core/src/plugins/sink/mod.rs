@@ -9,6 +9,7 @@ use arrow_schema::ArrowError;
 use async_backtrace::framed;
 use bytes::Bytes;
 use chrono::{TimeDelta, Utc};
+use dashmap::DashMap;
 use deadpool::managed::{PoolError, TimeoutType};
 use faststr::FastStr;
 use flume::Sender;
@@ -20,6 +21,8 @@ use serde_json::json;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::ops::Mul;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicU64;
+use std::sync::LazyLock;
 use std::{
     any::Any,
     cell::Cell,
@@ -56,7 +59,7 @@ use crate::utils::breakpoints::BreakpointDb;
 use crate::utils::sql::get_minimum_timestamp;
 use crate::utils::trace::{BatchCounter, Qid};
 use crate::AGENT_COMPRESSION;
-use crate::{utils::breakpoints::breakpoints_set, ConnectorLicense, Parser, Transferred};
+use crate::{ConnectorLicense, Parser, Transferred};
 
 use self::point::handle_transform;
 use self::point::point_records_to_sql;
@@ -789,6 +792,9 @@ struct LushMessageTagModify {
     tags: Vec<(FastStr, Value)>,
 }
 
+// 这里特意不删除 task_id, 降低代码复杂度。即使任务量达到1000000，实测这里内存占用60M左右，可以忽略不计
+static LUSH_BREAKPOINTS_LAST_TIME: LazyLock<DashMap<Option<i64>, AtomicU64>> =
+    LazyLock::new(DashMap::new);
 // #[instrument(skip(taos, record, names, marks))]
 #[instrument(skip_all)]
 async fn consume_lush_record(
@@ -799,6 +805,7 @@ async fn consume_lush_record(
     count: &mut usize,
     task: Option<i64>,
     metrics: &IpcMetrics,
+    breakpoint_db: Option<BreakpointDb>,
 ) -> anyhow::Result<()> {
     if unsafe { crate::global::DRY_RUN } {
         tracing::trace!("consume lush record in dry-run mode");
@@ -995,34 +1002,60 @@ async fn consume_lush_record(
                 // RawBlock
                 // taos.write_raw_block()
                 let sqls = record.generate_insert_sql_from_tablename(&data, columns);
-                if let Some((task, stable, sqls)) = task
-                    .and_then(|task| record.stable_name().map(|stable| (task, stable)))
-                    .and_then(|(task, stable)| sqls.as_ref().map(|(sqls, _)| (task, stable, sqls)))
+                let now_sec =
+                    match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+                        Ok(duration) => duration.as_secs(),
+                        Err(_) => 0,
+                    };
+                if !LUSH_BREAKPOINTS_LAST_TIME.contains_key(&task) {
+                    LUSH_BREAKPOINTS_LAST_TIME.insert(task, AtomicU64::new(0));
+                }
+                if now_sec
+                    - LUSH_BREAKPOINTS_LAST_TIME
+                        .get(&task)
+                        .unwrap()
+                        .load(Ordering::Relaxed)
+                    > 5
                 {
-                    for sql in sqls {
-                        if let Some(ts) = get_ts_from_sql(sql) {
-                            let task_clone = task.to_string();
-                            let stable_clone = stable.to_string();
-                            let ts_clone = ts.clone();
+                    LUSH_BREAKPOINTS_LAST_TIME
+                        .get(&task)
+                        .unwrap()
+                        .store(now_sec, Ordering::Relaxed);
 
-                            std::thread::spawn(move || {
-                                tracing::debug!(
-                                    "breakpoints set start, task: {} stable: {} ts: {}",
-                                    &task_clone,
-                                    &stable_clone,
-                                    &ts_clone
-                                );
-                                let res = breakpoints_set(&task_clone, &stable_clone, &ts_clone);
-                                if res.is_err() {
-                                    tracing::debug!(
-                                        "breakpoints set error, task: {} stable: {} \n{:#?}",
-                                        &task_clone,
-                                        &stable_clone,
-                                        res
-                                    );
-                                }
-                            });
-                            break;
+                    if let Some((task, stable, sqls)) = task
+                        .and_then(|task| record.stable_name().map(|stable| (task, stable)))
+                        .and_then(|(task, stable)| {
+                            sqls.as_ref().map(|(sqls, _)| (task, stable, sqls))
+                        })
+                    {
+                        for sql in sqls {
+                            if let Some(ts) = get_ts_from_sql(sql) {
+                                let task_clone = task.to_string();
+                                let stable_clone = stable.to_string();
+                                let ts_clone = ts.clone();
+
+                                let breakpoint_db = breakpoint_db.clone();
+                                tokio::spawn(async move {
+                                    if let Some(ref db) = breakpoint_db {
+                                        tracing::debug!(
+                                            "breakpoints set start, task: {} stable: {} ts: {}",
+                                            &task_clone,
+                                            &stable_clone,
+                                            &ts_clone
+                                        );
+                                        let res = db.set(&stable_clone, &ts_clone).await;
+                                        if res.is_err() {
+                                            tracing::error!(
+                                                "breakpoints set error, task: {} stable: {} \n{:#?}",
+                                                &task_clone,
+                                                &stable_clone,
+                                                res
+                                            );
+                                        }
+                                    }
+                                });
+                                break;
+                            }
                         }
                     }
                 }
@@ -1155,7 +1188,7 @@ async fn consume_lush_record_with_transform(
     metrics_arc: &Arc<CoreMetrics>,
     lush_model_config: Arc<LushModelConfig>,
     table_cache: Arc<TableTagCache>,
-    breakpoint_db: BreakpointDb,
+    breakpoint_db: Option<BreakpointDb>,
     archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
     if unsafe { crate::global::DRY_RUN } {
@@ -1460,7 +1493,7 @@ async fn consume_lush_record_with_transform(
 }
 
 fn get_ts_from_sql(sql: &str) -> Option<String> {
-    let re = regex::Regex::new(r"VALUES \((\d+),[^,]*\)").unwrap();
+    let re = regex::Regex::new(r"(?U)VALUES \((\d+),").unwrap();
 
     if let Some(caps) = re.captures(sql) {
         if let Some(value) = caps.get(1) {
@@ -2336,8 +2369,18 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
 
     // TODO: 使用 scheduler 中的 lush_table_cache
     let lush_table_cache = Arc::new(TableTagCache::new());
-    // 暂不支持无 agent 运行 pi 和 pibackfill
-    let breakpoint_db: Option<BreakpointDb> = None;
+    // pibackfill, influxdb, opentsdb 都支持 breakpoints; 命令行方式不支持,因为命令行无 task_id
+    let breakpoint_db: Option<BreakpointDb> = if task_id.is_none() {
+        None
+    } else {
+        match BreakpointDb::new_with_task(&task_id.unwrap_or(-1).to_string()).await {
+            Ok(db) => Some(db),
+            Err(e) => {
+                tracing::warn!("task {task_id:?} get breakpoint db error: {e:#}");
+                None
+            }
+        }
+    };
 
     // let qid = taoslog::utils::Span.get_qid().unwrap_or_else(Qid::init);
     // debug_assert!(qid.task_id() > 0);
@@ -2363,13 +2406,20 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                 metrics_arc,
                 lush_model_config,
                 lush_table_cache.clone(),
-                breakpoint_db.as_ref().unwrap().clone(),
+                breakpoint_db.clone(),
                 archive_tx.clone(),
             )
             .await
         } else {
             consume_lush_record(
-                pool, &mut taos, record, &columns, &mut count, task_id, metrics,
+                pool,
+                &mut taos,
+                record,
+                &columns,
+                &mut count,
+                task_id,
+                metrics,
+                breakpoint_db.clone(),
             )
             .await
         };
@@ -3320,7 +3370,7 @@ impl IpcStreamWorker {
                         metrics_arc,
                         lush_model_config.clone(),
                         table_tag_cache,
-                        self.breakpoint_db.as_ref().unwrap().clone(),
+                        self.breakpoint_db.clone(),
                         archive_tx.clone(),
                     )
                     .await;
@@ -3331,7 +3381,14 @@ impl IpcStreamWorker {
                 } else {
                     // let mut taos = Some(self.pool.get().await?);
                     consume_lush_record(
-                        &self.pool, taos, record, &columns, &mut count, task, metrics,
+                        &self.pool,
+                        taos,
+                        record,
+                        &columns,
+                        &mut count,
+                        task,
+                        metrics,
+                        self.breakpoint_db.clone(),
                     )
                     .await?;
                 }
@@ -4289,6 +4346,17 @@ mod tests {
         .await;
         dbg!(&rs);
         assert!(rs.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_sget_ts_from_sql() -> anyhow::Result<()> {
+        let sql = "INSERT INTO abc(a, b, c, d) VALUES (1754239316051894553, 1, \"2\", 3)";
+        let ts = get_ts_from_sql(sql);
+        assert_eq!(ts, Some("1754239316051894553".to_string()));
+        let sql = "INSERT INTO abc(a, b) VALUES (1754239316051894554, 1)";
+        let ts = get_ts_from_sql(sql);
+        assert_eq!(ts, Some("1754239316051894554".to_string()));
         Ok(())
     }
 }

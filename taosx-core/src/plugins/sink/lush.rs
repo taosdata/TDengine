@@ -428,7 +428,7 @@ pub async fn write(
     metrics: &IpcMetrics,
     skip_null: bool,
     table_id_column: &str,
-    breakpoints: BreakpointDb,
+    breakpoints_db: Option<BreakpointDb>,
     parser: &Parser,
     archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<(usize, Duration, Duration)> {
@@ -696,7 +696,9 @@ pub async fn write(
         }
     }
     let write_time = timer.elapsed();
-    breakpoints.batch_set(table_break_points).await?;
+    if let Some(db) = breakpoints_db {
+        db.batch_set(table_break_points).await?;
+    }
     Ok((written_rows, gen_sql_time, write_time))
 }
 

@@ -345,6 +345,32 @@ export default {
           ]
         },
         {
+          label: 'Concurrent Reading Methods',
+          field: 'read_concurrency_type',
+          description: 'Concurrent reading methods for measurement. Queue: Multiple threads read one measurement at the same time, and then move on to the next one. Average: In an average manner, multiple measurements are read simultaneously by different threads. Sequence: Each measurement is read by only one thread at a time. \n',
+          defaultValue: 'sequence',
+          required: false,
+          hint: {
+            type: 'str',
+            choices: ['queue', 'average', 'sequence']
+          },
+          type: 'select',
+          options: [
+            {
+              label: 'queue',
+              value: 'queue'
+            },
+            {
+              label: 'average',
+              value: 'average'
+            },
+            {
+              label: 'sequence',
+              value: 'sequence'
+            }
+          ]
+        },
+        {
           label: 'Read Concurrency',
           field: 'read_concurrency',
           description:
@@ -361,20 +387,34 @@ export default {
           max: 100
         },
         {
-          label: 'Write Concurrency',
-          field: 'write_concurrency',
-          description:
-            'The number of concurrent write requests. The default value is automatically set by collector. If the data source is slow to respond, you can increase this value appropriately.\n',
-          defaultValue: '50',
+          label: 'Rows Per Read',
+          field: 'rows_per_read',
+          description: 'The number of rows read per query from InfluxDB. \n',
+          defaultValue: 1000,
           required: false,
           hint: {
             type: 'integer',
             min: 1,
-            max: 500
+            max: 100000
           },
           type: 'number',
           min: 1,
-          max: 500
+          max: 100000
+        },
+        {
+          label: 'Cache Queue Size',
+          field: 'cache_queue_size',
+          description: 'The size of the cache queue after data is read from InfluxDB. \n',
+          defaultValue: 200000,
+          required: false,
+          hint: {
+            type: 'integer',
+            min: 200000,
+            max: 10000000
+          },
+          type: 'number',
+          min: 200000,
+          max: 10000000
         },
         {
           label: 'Batch Size',
@@ -393,6 +433,18 @@ export default {
           max: 10000
         },
         {
+          label: 'JVM Options',
+          description:
+            'Control JVM memory parameters, GC types, etc. For example: -Xms4g -Xmx4g -XX:+UseG1GC -XX:ParallelGCThreads=4 -XX:ConcGCThreads=2',
+          field: 'jvm_opts',
+          placeholder: '-Xms4g -Xmx4g -XX:+UseG1GC -XX:ParallelGCThreads=4 -XX:ConcGCThreads=2',
+          pattern: null,
+          defaultValue: '',
+          required: false,
+          display_order: 1,
+          type: 'input'
+        },
+        {
           label: 'Batch Timeout',
           field: 'batch_timeout',
           description:
@@ -407,6 +459,22 @@ export default {
           type: 'number',
           min: 1,
           max: 10000
+        },
+        {
+          label: 'Write Concurrency',
+          field: 'write_concurrency',
+          description:
+            'The number of concurrent write requests. The default value is automatically set by collector. If the data source is slow to respond, you can increase this value appropriately.\n',
+          defaultValue: '50',
+          required: false,
+          hint: {
+            type: 'integer',
+            min: 1,
+            max: 500
+          },
+          type: 'number',
+          min: 1,
+          max: 500
         },
         {
           label: 'Health Check Duration',
