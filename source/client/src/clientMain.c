@@ -2464,6 +2464,9 @@ DLL_EXPORT int taos_stmt2_bind_param_test(TAOS_STMT2 *stmt, TAOS_STMT2_BIND2 *bi
   int32_t offset_tag2 = 0;
   int32_t offset_col1 = 0;
   int32_t offset_col2 = 0;
+  int32_t offset_col3 = 0;
+  int32_t offset_col4 = 0;
+  int32_t offset_col5 = 0;
 
   int32_t code = TSDB_CODE_SUCCESS;
   for (int i = 0; i < row_num; ++i) {
@@ -2504,11 +2507,16 @@ DLL_EXPORT int taos_stmt2_bind_param_test(TAOS_STMT2 *stmt, TAOS_STMT2_BIND2 *bi
     }
 
     // if (bindv->bind_cols && bindv->bind_cols[i]) {
-    TAOS_STMT2_BIND *bind = taosMemoryMalloc(2 * sizeof(TAOS_STMT2_BIND));
+    TAOS_STMT2_BIND *bind = taosMemoryMalloc(4 * sizeof(TAOS_STMT2_BIND));
     bind[0] = (TAOS_STMT2_BIND){bindv[3].buffer_type, bindv[3].buffer + offset_col1, &bindv[3].length[i], NULL, 1};
     bind[1] = (TAOS_STMT2_BIND){bindv[4].buffer_type, bindv[4].buffer + offset_col2, &bindv[4].length[i], NULL, 1};
+    bind[2] = (TAOS_STMT2_BIND){bindv[5].buffer_type, bindv[5].buffer + offset_col3, &bindv[5].length[i], NULL, 1};
+    bind[3] = (TAOS_STMT2_BIND){bindv[6].buffer_type, bindv[6].buffer + offset_col4, &bindv[6].length[i], NULL, 1};
+
     offset_col1 += bindv[3].length[i];
     offset_col2 += bindv[4].length[i];
+    offset_col3 += bindv[5].length[i];
+    offset_col4 += bindv[6].length[i];
     // TAOS_STMT2_BIND *bind = bindv->bind_cols[i];
 
     if (bind->num <= 0 || bind->num > INT16_MAX) {
@@ -2517,8 +2525,7 @@ DLL_EXPORT int taos_stmt2_bind_param_test(TAOS_STMT2 *stmt, TAOS_STMT2_BIND2 *bi
       goto out;
     }
 
-    int32_t insert = 0;
-    (void)stmtIsInsert2(stmt, &insert);
+    int32_t insert = stmt2IsInsert(stmt);
     if (0 == insert && bind->num > 1) {
       STMT2_ELOG_E("only one row data allowed for query");
       code = terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;

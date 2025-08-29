@@ -15,31 +15,35 @@ void do_query(TAOS* taos, const char* sql) {
 }
 
 void do_stmt(TAOS* taos) {
-  do_query(taos, "drop database if exists db");
-  do_query(taos, "create database db");
-  do_query(taos, "create table db.stb (ts timestamp, b binary(10)) tags(t1 int, t2 binary(10))");
+  do_query(taos, "drop database if exists power");
+  do_query(taos, "create database power");
+  do_query(taos,
+           "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS "
+           "(groupId INT, location BINARY(24))");
+
+  const char* sql = "insert into power.meters(tbname,groupId,location,ts,current,voltage,phase) values(?,?,?,?,?,?,?)";
 
   //  TAOS_STMT2_OPTION option = {0};
   // TAOS_STMT2_OPTION option = {0, true, true, stmtAsyncQueryCb, NULL};
   TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
-  TAOS_STMT2_BIND2* bindv = malloc(sizeof(TAOS_STMT2_BIND2) * 5);
+  TAOS_STMT2_BIND2* bindv = malloc(sizeof(TAOS_STMT2_BIND2) * 7);
   void*             tbname = malloc(6);
   memcpy(tbname, "tb1", 3);
-  memcpy(tbname + 3, "tb2", 3);
+  memcpy(tbname + 3, "tb1", 3);
   int32_t tb_len[2] = {3, 3};
   bindv[0] = (TAOS_STMT2_BIND2){TSDB_DATA_TYPE_BINARY, tbname, &tb_len[0], NULL};
 
-  void* t1 = malloc(8);
-  *(int*)t1 = 1;
-  *(int*)(t1 + 4) = 2;
-  int32_t t1_len[2] = {sizeof(int32_t), sizeof(int32_t)};
-  bindv[1] = (TAOS_STMT2_BIND2){TSDB_DATA_TYPE_TIMESTAMP, t1, &t1_len[0], NULL};
+  void* groupId = malloc(sizeof(int) * 2);
+  *(int*)groupId = 1;
+  *(int*)(groupId + sizeof(int)) = 2;
+  int32_t groupId_len[2] = {sizeof(int), sizeof(int)};
+  bindv[1] = (TAOS_STMT2_BIND2){TSDB_DATA_TYPE_INT, groupId, &groupId_len[0], NULL};
 
-  void* b = malloc(10);
-  memcpy(b, "binary1", 7);
-  memcpy(b + 7, "bi2", 3);
-  int32_t b_len[2] = {7, 3};
-  bindv[2] = (TAOS_STMT2_BIND2){TSDB_DATA_TYPE_BINARY, b, &b_len[0], NULL};
+  void* location = malloc(sizeof(char) * 24);
+  memcpy(location, "location1", 9);
+  memcpy(location + 9, "location2", 15);
+  int32_t location_len[2] = {9, 15};
+  bindv[2] = (TAOS_STMT2_BIND2){TSDB_DATA_TYPE_BINARY, location, &location_len[0], NULL};
 
   void* ts = malloc(sizeof(int64_t) * 2);
   *(int64_t*)ts = 1672531200000;                      // 2023-01-01 00:00:00
@@ -47,17 +51,34 @@ void do_stmt(TAOS* taos) {
   int32_t ts_len[2] = {sizeof(int64_t), sizeof(int64_t)};
   bindv[3] = (TAOS_STMT2_BIND2){TSDB_DATA_TYPE_TIMESTAMP, ts, &ts_len[0], NULL};
 
-  void* t2 = malloc(10);
-  memcpy(t2, "binary2", 7);
-  memcpy(t2 + 7, "bi3", 3);
-  int32_t t2_len[2] = {7, 3};
-  bindv[4] = (TAOS_STMT2_BIND2){TSDB_DATA_TYPE_BINARY, t2, &t2_len[0], NULL};
+  void* current = malloc(sizeof(float) * 2);
+  *(float*)current = 1.0;
+  *(float*)(current + sizeof(float)) = 2.0;
+  int32_t current_len[2] = {sizeof(float), sizeof(float)};
+  bindv[4] = (TAOS_STMT2_BIND2){TSDB_DATA_TYPE_FLOAT, current, &current_len[0], NULL};
+
+  void* voltage = malloc(sizeof(int) * 2);
+  *(int*)voltage = 1;
+  *(int*)(voltage + sizeof(int)) = 2;
+  int32_t voltage_len[2] = {sizeof(int), sizeof(int)};
+  bindv[5] = (TAOS_STMT2_BIND2){TSDB_DATA_TYPE_INT, voltage, &voltage_len[0], NULL};
+
+  void* phase = malloc(sizeof(float) * 2);
+  *(float*)phase = 1.0;
+  *(float*)(phase + sizeof(float)) = 2.0;
+  int32_t phase_len[2] = {sizeof(float), sizeof(float)};
+  bindv[6] = (TAOS_STMT2_BIND2){TSDB_DATA_TYPE_FLOAT, phase, &phase_len[0], NULL};
+
+  // void* b = malloc(10);
+  // memcpy(b, "binary1", 7);
+  // memcpy(b + 7, "bi2", 3);
+  // int32_t b_len[2] = {7, 3};
+  // bindv[2] = (TAOS_STMT2_BIND2){TSDB_DATA_TYPE_BINARY, b, &b_len[0], NULL};
 
   TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
 
   // Equivalent to :
   // const char* sql = "insert into db.? using db.stb tags(?, ?) values(?,?)";
-  const char* sql = "insert into db.stb(tbname,ts,b,t1,t2) values(?,?,?,?,?)";
 
   int code = taos_stmt2_prepare(stmt, sql, 0);
   if (code != 0) {
