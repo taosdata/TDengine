@@ -53,7 +53,7 @@ typedef struct SAggOperatorInfo {
   bool             cleanGroupResInfo;
 } SAggOperatorInfo;
 
-static void destroyAggOperatorInfo(void* param);
+static void    destroyAggOperatorInfo(void* param);
 static int32_t setExecutionContext(SOperatorInfo* pOperator, int32_t numOfOutput, uint64_t groupId);
 
 static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBlock** ppBlock);
@@ -100,12 +100,11 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
 
-
   code = createExprInfo(pAggNode->pAggFuncs, pAggNode->pGroupKeys, &pExprInfo, &num);
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str,
-                               pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
+                    pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
   TSDB_CHECK_CODE(code, lino, _error);
 
   if (pAggNode->pExprs != NULL) {
@@ -192,7 +191,7 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
   SExecTaskInfo*    pTaskInfo = pOperator->pTaskInfo;
   SAggOperatorInfo* pAggInfo = pOperator->info;
 
-  if(!pAggInfo) {
+  if (!pAggInfo) {
     qError("function:%s, pAggInfo is NULL", __func__);
     return false;
   }
@@ -239,7 +238,8 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
     // there is an scalar expression that needs to be calculated before apply the group aggregation.
     if (pAggInfo->scalarExprSup.pExprInfo != NULL && !blockAllocated) {
       SExprSupp* pSup1 = &pAggInfo->scalarExprSup;
-      code = projectApplyFunctions(pSup1->pExprInfo, pBlock, pBlock, pSup1->pCtx, pSup1->numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
+      code = projectApplyFunctions(pSup1->pExprInfo, pBlock, pBlock, pSup1->pCtx, pSup1->numOfExprs, NULL,
+                                   GET_STM_RTINFO(pOperator->pTaskInfo));
       if (code != TSDB_CODE_SUCCESS) {
         destroyDataBlockForEmptyInput(blockAllocated, &pBlock);
         T_LONG_JMP(pTaskInfo->env, code);
@@ -350,7 +350,12 @@ int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx) {
         continue;
       }
 
-      if ((&pCtx[k])->input.pData[0] == NULL) {
+      int32_t firstData = 0;
+      if (pCtx[k].numOfParams > 1) {
+        firstData = 1;
+      }
+      // if ((&pCtx[k])->input.pData[0] == NULL) {
+      if ((&pCtx[k])->input.pData[firstData] == NULL) {
         code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         qError("%s aggregate function error happens, input data is NULL.", GET_TASKID(pOperator->pTaskInfo));
       } else {
@@ -371,8 +376,8 @@ int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx) {
 }
 
 static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBlock** ppBlock) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
   SSDataBlock* pBlock = NULL;
   if (!tsCountAlwaysReturnValue) {
     return TSDB_CODE_SUCCESS;
@@ -583,7 +588,7 @@ int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t n
   }
 
   uint32_t defaultPgsz = 0;
-  int64_t defaultBufsz = 0;
+  int64_t  defaultBufsz = 0;
   code = getBufferPgSize(pAggSup->resultRowSize, &defaultPgsz, &defaultBufsz);
   if (code) {
     qError("failed to get buff page size, rowSize:%d", pAggSup->resultRowSize);
@@ -620,7 +625,7 @@ void cleanupResultInfoInStream(SExecTaskInfo* pTaskInfo, void* pState, SExprSupp
   if (!needCleanup) {
     return;
   }
-  
+
   for (int32_t i = pGroupResInfo->index; i < numOfRows; i += 1) {
     SResultWindowInfo* pWinInfo = taosArrayGet(pGroupResInfo->pRows, i);
     SRowBuffPos*       pPos = pWinInfo->pStatePos;
@@ -642,7 +647,7 @@ void cleanupResultInfoInStream(SExecTaskInfo* pTaskInfo, void* pState, SExprSupp
 }
 
 void cleanupResultInfoInGroupResInfo(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDiskbasedBuf* pBuf,
-                                  SGroupResInfo* pGroupResInfo) {
+                                     SGroupResInfo* pGroupResInfo) {
   int32_t         numOfExprs = pSup->numOfExprs;
   int32_t*        rowEntryOffset = pSup->rowEntryInfoOffset;
   SqlFunctionCtx* pCtx = pSup->pCtx;
@@ -657,15 +662,14 @@ void cleanupResultInfoInGroupResInfo(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, 
   }
 
   for (int32_t i = pGroupResInfo->index; i < numOfRows; i += 1) {
-    SResultRow*        pRow = NULL;
-    SResKeyPos*        pPos = taosArrayGetP(pGroupResInfo->pRows, i);
-    SFilePage*         page = getBufPage(pBuf, pPos->pos.pageId);
+    SResultRow* pRow = NULL;
+    SResKeyPos* pPos = taosArrayGetP(pGroupResInfo->pRows, i);
+    SFilePage*  page = getBufPage(pBuf, pPos->pos.pageId);
     if (page == NULL) {
       qError("failed to get buffer, code:%s, %s", tstrerror(terrno), GET_TASKID(pTaskInfo));
       continue;
     }
     pRow = (SResultRow*)((char*)page + pPos->pos.offset);
-
 
     for (int32_t j = 0; j < numOfExprs; ++j) {
       pCtx[j].resultInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
@@ -678,7 +682,7 @@ void cleanupResultInfoInGroupResInfo(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, 
 }
 
 void cleanupResultInfoInHashMap(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDiskbasedBuf* pBuf,
-                       SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap) {
+                                SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap) {
   int32_t         numOfExprs = pSup->numOfExprs;
   int32_t*        rowEntryOffset = pSup->rowEntryInfoOffset;
   SqlFunctionCtx* pCtx = pSup->pCtx;
@@ -715,8 +719,8 @@ void cleanupResultInfoInHashMap(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDisk
   }
 }
 
-void cleanupResultInfo(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SGroupResInfo* pGroupResInfo,
-                       SAggSupporter *pAggSup, bool cleanGroupResInfo) {
+void cleanupResultInfo(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SGroupResInfo* pGroupResInfo, SAggSupporter* pAggSup,
+                       bool cleanGroupResInfo) {
   if (cleanGroupResInfo) {
     cleanupResultInfoInGroupResInfo(pTaskInfo, pSup, pAggSup->pResultBuf, pGroupResInfo);
   } else {
@@ -775,21 +779,22 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
 
     if (fmIsPlaceHolderFunc(pCtx[k].functionId)) {
       SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(&pCtx[k]);
-      char* p = GET_ROWCELL_INTERBUF(pEntryInfo);
+      char*                p = GET_ROWCELL_INTERBUF(pEntryInfo);
 
-      TAOS_CHECK_EXIT(fmSetStreamPseudoFuncParamVal(pCtx[k].functionId, pCtx[k].pExpr->base.pParamList, &taskInfo->pStreamRuntimeInfo->funcInfo));
+      TAOS_CHECK_EXIT(fmSetStreamPseudoFuncParamVal(pCtx[k].functionId, pCtx[k].pExpr->base.pParamList,
+                                                    &taskInfo->pStreamRuntimeInfo->funcInfo));
 
-      SValueNode *valueNode = (SValueNode *)nodesListGetNode(pCtx[k].pExpr->base.pParamList, 0);
+      SValueNode* valueNode = (SValueNode*)nodesListGetNode(pCtx[k].pExpr->base.pParamList, 0);
       pEntryInfo->isNullRes = 0;
       if (TSDB_DATA_TYPE_NULL == valueNode->node.resType.type || valueNode->isNull) {
         pEntryInfo->isNullRes = 1;
-      } else if (IS_VAR_DATA_TYPE(pCtx[k].pExpr->base.resSchema.type)){
+      } else if (IS_VAR_DATA_TYPE(pCtx[k].pExpr->base.resSchema.type)) {
         void* v = nodesGetValueFromNode(valueNode);
         memcpy(p, v, varDataTLen(v));
       } else {
         memcpy(p, nodesGetValueFromNode(valueNode), pCtx[k].pExpr->base.resSchema.bytes);
       }
-      
+
       pEntryInfo->numOfRes = 1;
     } else if (pCtx[k].isPseudoFunc) {
       SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(&pCtx[k]);
@@ -852,22 +857,21 @@ void functionCtxRestore(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus) {
 
 static int32_t resetAggregateOperatorState(SOperatorInfo* pOper) {
   SAggOperatorInfo* pAgg = pOper->info;
-  SAggPhysiNode*   pAggNode = (SAggPhysiNode*)pOper->pPhyNode;
-  
+  SAggPhysiNode*    pAggNode = (SAggPhysiNode*)pOper->pPhyNode;
+
   pOper->status = OP_NOT_OPENED;
-  size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
-  SExecTaskInfo*  pTaskInfo = pOper->pTaskInfo;
-  cleanupResultInfo(pTaskInfo, &pOper->exprSupp, &pAgg->groupResInfo, &pAgg->aggSup,
-                      pAgg->cleanGroupResInfo);
+  size_t         keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
+  SExecTaskInfo* pTaskInfo = pOper->pTaskInfo;
+  cleanupResultInfo(pTaskInfo, &pOper->exprSupp, &pAgg->groupResInfo, &pAgg->aggSup, pAgg->cleanGroupResInfo);
   cleanupGroupResInfo(&pAgg->groupResInfo);
   resetBasicOperatorState(&pAgg->binfo);
-  
-  int32_t code = resetAggSup(&pOper->exprSupp, &pAgg->aggSup, pTaskInfo, pAggNode->pAggFuncs, pAggNode->pGroupKeys,
-    keyBufSize, pTaskInfo->id.str, pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
+
+  int32_t code =
+      resetAggSup(&pOper->exprSupp, &pAgg->aggSup, pTaskInfo, pAggNode->pAggFuncs, pAggNode->pGroupKeys, keyBufSize,
+                  pTaskInfo->id.str, pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
 
   if (code == 0) {
-    code = resetExprSupp(&pAgg->scalarExprSup, pTaskInfo, pAggNode->pExprs, NULL,
-                          &pTaskInfo->storageAPI.functionStore);
+    code = resetExprSupp(&pAgg->scalarExprSup, pTaskInfo, pAggNode->pExprs, NULL, &pTaskInfo->storageAPI.functionStore);
   }
 
   pAgg->groupId = UINT64_MAX;

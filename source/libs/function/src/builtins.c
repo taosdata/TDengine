@@ -1244,6 +1244,22 @@ int32_t apercentileCreateMergeParam(SNodeList* pRawParameters, SNode* pPartialRe
   return code;
 }
 
+static int32_t gconcatCreateMergeParam(SNodeList* pRawParameters, SNode* pPartialRes, SNodeList** pParameters) {
+  int32_t code = 0;
+  SNode*  pNew = NULL;
+
+  code = nodesCloneNode(nodesListGetNode(pRawParameters, 0), &pNew);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListMakeAppend(pParameters, pNew);
+
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListStrictAppend(*pParameters, pPartialRes);
+    }
+  }
+
+  return code;
+}
+
 static int32_t translateElapsedPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) { return 0; }
 
 static int32_t translateElapsedMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) { return 0; }
@@ -1445,6 +1461,26 @@ static int32_t translateConcat(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 
 static int32_t translateConcatWs(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return translateConcatImpl(pFunc, pErrBuf, len, 3, 9, true);
+}
+
+static int32_t translateGroupConcat(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  int32_t resultBytes = TSDB_MAX_FIELD_LEN - VARSTR_HEADER_SIZE;
+  uint8_t resultType = TSDB_DATA_TYPE_BINARY;
+
+  /* if params have NCHAR type, promote the final result to NCHAR */
+  for (int32_t i = 0; i < numOfParams; ++i) {
+    SNode*  pPara = nodesListGetNode(pFunc->pParameterList, i);
+    uint8_t paraType = getSDataTypeFromNode(pPara)->type;
+    if (TSDB_DATA_TYPE_NCHAR == paraType) {
+      resultType = paraType;
+    }
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = resultBytes, .type = resultType};
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateChar(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -6361,8 +6397,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "group_concat",
     .type = FUNCTION_TYPE_GROUP_CONCAT,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
-    .parameters = {.minParamNum = 3,
+    .classification = FUNC_MGT_AGG_FUNC, // | FUNC_MGT_TSMA_FUNC,
+    .parameters = {.minParamNum = 2,
                    .maxParamNum = 9,
                    .paramInfoPattern = 1,
                    .inputParaInfo[0][0] = {.isLastParam = false,
@@ -6380,22 +6416,26 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE}},
-    .translateFunc = translateConcatWs,
-    .sprocessFunc = concatWsFunction,
-    /*
-    .getEnvFunc   = getGroupConcatFuncEnv,
-    .initFunc     = functionSetup,
-    .processFunc  = groupConcatFunction,
-    .sprocessFunc = groupConcatScalarFunction,
-    .finalizeFunc = groupConcatFinalize,
+    .translateFunc = translateGroupConcat,
+    .sprocessFunc = NULL,
+    .getEnvFunc   = gconcatGetFuncEnv,
+    .initFunc     = gconcatFunctionSetup,
+    .processFunc  = gconcatFunction,
+    .finalizeFunc = gconcatFinalize,
 #ifdef BUILD_NO_CALL
-    .invertFunc   = groupConcatInvertFunction,
+    .invertFunc   = gconcatInvertFunction,
 #endif
-    .combineFunc  = groupConcatCombine,
-    .pPartialFunc = "groupConcat",
-    .pStateFunc = "groupConcat",
-    .pMergeFunc   = "groupConcat"
+    /*
+    .combineFunc  = gconcatCombine, // stream
+    .pStateFunc = "group_concat",   // tsma
+    .pMiddleFunc  = "group_concat",
+
+    .pPartialFunc = "_gconcat_partial",
+    .pMergeFunc   = "_gconcat_merge",
     */
+    .pPartialFunc = "group_concat",
+    .pMergeFunc   = "group_concat",
+    .createMergeParaFuc = gconcatCreateMergeParam
   },
 };
 // clang-format on

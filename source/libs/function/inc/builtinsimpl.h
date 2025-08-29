@@ -97,6 +97,11 @@ int32_t stdInvertFunction(SqlFunctionCtx* pCtx);
 int32_t stdCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t getStdInfoSize();
 
+bool    gconcatGetFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t gconcatFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t gconcatFunction(SqlFunctionCtx* pCtx);
+int32_t gconcatFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
 bool    getLeastSQRFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t leastSQRFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t leastSQRFunction(SqlFunctionCtx* pCtx);
