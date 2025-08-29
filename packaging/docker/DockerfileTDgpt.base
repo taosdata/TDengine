@@ -65,6 +65,7 @@ RUN apt-get update -y && \
     rm -rf /var/lib/apt/lists/*
 COPY --from=base-builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
 COPY --from=base-builder /usr/local/bin /usr/local/bin
-COPY --from=venv1-builder /var/lib/taos/taosanode/venv /var/lib/taos/taosanode/venv
+RUN python -m venv --system-site-packages /var/lib/taos/taosanode/venv
+COPY --from=venv1-builder /var/lib/taos/taosanode/venv1 /var/lib/taos/taosanode/venv1
 COPY --from=venv2-builder /var/lib/taos/taosanode/venv2 /var/lib/taos/taosanode/venv2
 COPY --from=venv3-builder /var/lib/taos/taosanode/venv3 /var/lib/taos/taosanode/venv3
