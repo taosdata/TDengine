@@ -1607,6 +1607,7 @@ int32_t streamClearStatesForOperators(qTaskInfo_t tInfo) {
   int32_t        code = 0;
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tInfo;
   SOperatorInfo* pOper = pTaskInfo->pRoot;
+  pTaskInfo->code = TSDB_CODE_SUCCESS;
   code = clearStatesForOperator(pOper);
   return code;
 }
