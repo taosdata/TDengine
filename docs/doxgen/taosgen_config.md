@@ -81,7 +81,7 @@ global:
     channel_type: websocket
 
   database_info: &db_info
-    name: taosgen_test
+    name: tsbench
     drop_if_exists: true
     properties: precision 'ms' vgroups 4
 
@@ -107,6 +107,16 @@ global:
         max: 10
       - name: location
         type: binary(24)
+        values:
+          - BJ.CY.SYQ
+          - BJ.CY.GM
+          - BJ.CY.WJ
+          - BJ.HD.WSL
+          - BJ.HD.XSQ
+          - BJ.HD.ZGC
+          - BJ.DC.DHM
+          - BJ.DC.SCH
+          - BJ.SY.WQJ
 
   tbname_generator: &tbname_generator
     prefix: d
@@ -242,7 +252,7 @@ global:
     channel_type: websocket
 
   database_info: &db_info
-    name: taosgen_test
+    name: tsbench
     drop_if_exists: true
     properties: precision 'ms' vgroups 4
 
