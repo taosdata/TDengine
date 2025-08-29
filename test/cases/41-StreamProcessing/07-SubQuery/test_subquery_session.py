@@ -8,7 +8,7 @@ class TestStreamSubquerySession:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_subquery_session(self):
-        """Subquery in Session
+        """Subquery: session
 
         1. Use session trigger mode
 

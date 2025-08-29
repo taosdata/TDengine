@@ -6,7 +6,7 @@ from random import randint
 import os
 import subprocess
 
-class TestStreamPrivilegesMonitorTable:
+class TestStreamPrivileges:
     currentDir = os.path.dirname(os.path.abspath(__file__))
     dbname = "test1"
     dbname2 = "test2"
@@ -20,14 +20,18 @@ class TestStreamPrivilegesMonitorTable:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_snode_mgmt(self):
-        """Stream TestStreamPrivilegesMonitorTable test
+        """Stream privileges test
         
-        1. normal user query ins_streams
-        2. normal user query ins_stream_tasks
-        3. normal user query ins_stream_recalculates
+        1. normal user create snode
+        2. normal user show snode
+        3. normal user select ins_snodes
+        4. normal user drop snode
+        5. normal user create stream
+        6. normal user drop stream
+        
 
         Catalog:
-            - Streams:privileges
+            - Streams:Snode
 
         Since: v3.3.3.7
 
@@ -44,117 +48,56 @@ class TestStreamPrivilegesMonitorTable:
         
         self.prepareData()
         self.createUser()
+        #check normal user create snode
+        tdSql.connect(f"{self.username1}")
         self.createSnodeTest()
-        self.createOneStream()
-        self.checkStreamRunning()
+        tdSql.query("show snodes;")
+        numOfStreams = tdSql.getRows()
+        if numOfStreams > 0:
+            raise Exception(f"Error: normal user {self.username1} can not create snode, but found {numOfStreams} snodes!")
         
-        #check normal user no sysinfo\createdb to query  ins_streams
+        #check normal user no sysinfo\createdb to create stream
         self.noSysInfo()
         self.noCreateDB()
-        tdSql.connect(f"{self.username1}")
-        tdLog.info(f"connect user {self.username1} ")
-        # self.queryInsStreams()
-        # self.queryInsStreamTasks()
-        # self.queryInsStreamRecalculates()
+        self.createSnodeTest()
         
         self.SysInfo()
-        tdSql.connect(f"{self.username1}")
-        tdLog.info(f"connect user {self.username1} ")
-        self.queryInsStreamsAfterGrant()
-        self.queryInsStreamTasksAfterGrant()
-        self.queryInsStreamRecalculatesAfterGrant()
+        self.CreateDB()
         
+        #check no read\write normal user create stream
+        self.userCreateStream()
+        self.grantRead()
+        #check no write normal user create stream
+        self.userCreateStream()
+        #check have read\write normal user create stream
+        self.grantWrite()
+        self.userCreateStream()
+        self.checkStreamRunning()
+        
+        #check normal user can not stop/start stream
+        self.revokeRead()
+        self.revokeWrite()
+        self.userStopStream()
+        self.userStartStream()
+        
+        self.grantRead()
+        self.grantWrite()
+        #check normal user can stop/start stream
+        self.userStopStream()
+        self.userStartStream()
+        
+        #check normal user no write privileges to drop stream
+        self.revokeWrite()
+        
+        tdSql.connect(f"{self.username1}")
+        self.dropOneStream()
+        
+        #check normal user drop snode
+        tdSql.connect(f"{self.username1}")
+        self.dropOneSnodeTest()
         
 
-    def queryInsStreams(self):
-        tdLog.info(f"query ins_streams")
-        try:
-            tdSql.query(f"select * from information_schema.ins_streams;")
-            numOfStreams = tdSql.getRows()
-            if numOfStreams > 0:
-                raise Exception(f"Error: normal user {self.username1} can not query ins_stream_tasks, but found {numOfStreams} streams!")
-            else:
-                tdLog.info(f"normal user {self.username1} can query ins_streams, found {numOfStreams} streams!")
-        except Exception as e:
-            if "Insufficient privilege" in str(e):
-                tdLog.info(f"Insufficient privilege to query ins_streams")
-            else:
-                raise  Exception(f"query ins_streams failed with error: {e}") 
         
-    def queryInsStreamsAfterGrant(self):
-        tdLog.info(f"query ins_streams")
-        try:
-            tdSql.query(f"select * from information_schema.ins_streams;")
-            numOfStreams = tdSql.getRows()
-            if numOfStreams < 0:
-                raise Exception(f"Error: normal user {self.username1} can  query ins_stream_tasks,  found {numOfStreams} streams!")
-            else:
-                tdLog.info(f"normal user {self.username1} can query ins_streams, found {numOfStreams} streams!")
-        except Exception as e:
-            if "Insufficient privilege" in str(e):
-                tdLog.info(f"Insufficient privilege to query ins_streams")
-            else:
-                raise  Exception(f"query ins_streams failed with error: {e}") 
-        
-        
-    def queryInsStreamTasks(self):
-        tdLog.info(f"query ins_stream_tasks")
-        try:
-            tdSql.query(f"select * from information_schema.ins_stream_tasks;")
-            numOfStreams = tdSql.getRows()
-            if numOfStreams >0 :
-                raise Exception(f"Error: normal user {self.username1} can not query ins_stream_tasks, but found {numOfStreams} streams tasks!")
-        except Exception as e:
-            if "Insufficient privilege" in str(e):
-                tdLog.info(f"Insufficient privilege to query ins_streams")
-            else:
-                raise  Exception(f"query ins_streams failed with error: {e}") 
-    
-    def queryInsStreamTasksAfterGrant(self):
-        tdLog.info(f"query ins_stream_tasks")
-        try:
-            tdSql.query(f"select * from information_schema.ins_stream_tasks;")
-            numOfStreams = tdSql.getRows()
-            if numOfStreams >0 :
-                tdLog.info(f"normal user {self.username1} can not query ins_stream_tasks,  found {numOfStreams} streams tasks!")
-        except Exception as e:
-            if "Insufficient privilege" in str(e):
-                tdLog.info(f"Insufficient privilege to query ins_streams")
-            else:
-                raise  Exception(f"query ins_streams failed with error: {e}") 
-        # tdSql.query(f"select * from information_schema.ins_stream_tasks;")
-        # numOfStreams = tdSql.getRows()
-        # if numOfStreams <0 :
-        #     raise Exception(f"Error: normal user {self.username1} can  query ins_stream_tasks,  found {numOfStreams} streams tasks!")
-        # else:
-        #         tdLog.info(f"normal user {self.username1} can query ins_streams, found {numOfStreams} streams!")
-        
-        
-    def queryInsStreamRecalculates(self):
-        tdLog.info(f"query ins_stream_recalculates")
-        try:
-            tdSql.query(f"select count(*) from information_schema.ins_stream_recalculates;")
-            numOfRecal = tdSql.getData(0,0)
-            if numOfRecal == 0:
-                raise Exception(f"Error: normal user {self.username1} can not query ins_stream_recalculates, but found {numOfRecal} recalculates!")
-        except Exception as e:
-            if "Insufficient privilege" in str(e):
-                tdLog.info(f"Insufficient privilege to query ins_stream_recalculates")
-            else:
-                raise  Exception(f"query ins_stream_recalculates failed with error: {e}") 
-            
-    def queryInsStreamRecalculatesAfterGrant(self):
-        tdLog.info(f"query ins_stream_recalculates")
-        try:
-            tdSql.query(f"select count(*) from information_schema.ins_stream_recalculates;")
-            numOfRecal = tdSql.getData(0,0)
-            if numOfRecal == 0:
-                tdLog.info(f"normal user {self.username1} can  query ins_stream_recalculates,  found {numOfRecal} recalculates!")
-        except Exception as e:
-            if "Insufficient privilege" in str(e):
-                tdLog.info(f"Insufficient privilege to query ins_stream_recalculates")
-            else:
-                raise  Exception(f"query ins_stream_recalculates failed with error: {e}") 
         
     def createUser(self):
         tdLog.info(f"create user")
@@ -169,7 +112,7 @@ class TestStreamPrivilegesMonitorTable:
         tdSql.execute(f"alter user {self.username2} sysinfo 0")
         
     def SysInfo(self):
-        tdLog.info(f"grant sysinfo privilege to user")
+        tdLog.info(f"grant sysinfo privilege from user")
         tdSql.connect("root")
         tdSql.execute(f"alter user {self.username1} sysinfo 1")
         tdSql.execute(f"alter user {self.username2} sysinfo 1")
@@ -181,7 +124,7 @@ class TestStreamPrivilegesMonitorTable:
         tdSql.execute(f"alter user {self.username2} createdb 0")
         
     def CreateDB(self):
-        tdLog.info(f"grant sysinfo privilege to user")
+        tdLog.info(f"grant sysinfo privilege from user")
         tdSql.connect("root")
         tdSql.execute(f"alter user {self.username1} createdb 1")
         tdSql.execute(f"alter user {self.username2} createdb 1")
@@ -232,8 +175,71 @@ class TestStreamPrivilegesMonitorTable:
         if tdSql.getRows() != 0:
             raise Exception("revoke write privileges user failed")
         
-    
+    def userCreateStream(self):
+        tdLog.info(f"connect with normal user {self.username2}")
+        tdSql.connect("lvze2")
+        sql = (
+        "create stream test1.`s100` sliding(1s) from test1.st1  partition by tbname "
+        "stream_options(fill_history('2025-01-01 00:00:00')) "
+        "into test1.`s100out` as "
+        "select cts, cint, %%tbname from test1.st1 "
+        "where cint > 5 and tint > 0 and %%tbname like '%%2' "
+        "order by cts;"
+        )
+        try:
+            tdSql.execute(sql)
+        except Exception as e:
+            if "Insufficient privilege" in str(e):
+                tdLog.info(f"Insufficient privilege, ignore SQL：{sql}")
+            else:
+                raise  Exception(f"create stream failed with error: {e}") 
+        # tdSql.execute(f"select current_user();")
+        # username=tdSql.getData(0, 0)
+        # print(f"username: {username}")
+        
+    def userStopStream(self):
+        tdLog.info(f"connect with normal user {self.username2} to stop stream")
+        tdSql.connect("lvze2")
+        tdSql.query(f"show {self.dbname}.streams;")
+        numOfStreams = tdSql.getRows()
+        if numOfStreams > 0:
+            try:
+                tdSql.execute(f"stop stream test1.`s100`")
+            except Exception as e:
+                if "Insufficient privilege" in str(e):
+                    tdLog.info(f"Insufficient privilege to stop stream")
+                else:
+                    raise  Exception(f"stop stream failed with error: {e}")
+            tdSql.query(f"show {self.dbname}.streams;")
+            stateStream = tdSql.getData(0,1)
+            tdSql.query(f"select * from information_schema.ins_user_privileges where user_name='lvze2' and privilege ='write'")
+            writeUser = tdSql.getRows()
+            if stateStream != 'Stopped' and writeUser == 0:
+                tdLog.info(f"normal user(no write privilege) can not stop stream")
+            else:
+                tdLog.info(f"stop stream test1.`s100` success")
                 
+    def userStartStream(self):
+        tdLog.info(f"connect with normal user {self.username2} to start stream")
+        tdSql.connect("lvze2")
+        tdSql.query(f"show {self.dbname}.streams;")
+        numOfStreams = tdSql.getRows()
+        if numOfStreams > 0:
+            try:
+                tdSql.execute(f"start stream test1.`s100`")
+            except Exception as e:
+                if "Insufficient privilege" in str(e):
+                    tdLog.info(f"Insufficient privilege to start stream")
+                else:
+                    raise  Exception(f"start stream failed with error: {e}")
+                
+        self.checkStreamRunning()
+        tdSql.query(f"show {self.dbname}.streams;")
+        stateStream = tdSql.getData(0,1)
+        if stateStream != 'Running':
+            raise Exception(f"normal user can not start stream,  found state: {stateStream}")
+        else:
+            tdLog.info(f"start stream test1.`s100` success")
             
 
     def prepareData(self):

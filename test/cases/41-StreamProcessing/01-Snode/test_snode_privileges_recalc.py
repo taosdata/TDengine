@@ -6,7 +6,7 @@ from random import randint
 import os
 import subprocess
 
-class TestStreamPrivileges:
+class TestStreamRecalc:
     currentDir = os.path.dirname(os.path.abspath(__file__))
     dbname = "test1"
     dbname2 = "test2"
@@ -20,13 +20,13 @@ class TestStreamPrivileges:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_snode_mgmt(self):
-        """Stream privileges test
+        """Stream TestStreamRecalc test
         
-        1. normal user create stream on two db
+        1. normal user  recalc stream
         
 
         Catalog:
-            - Streams:privileges
+            - Streams:Snode
 
         Since: v3.3.3.7
 
@@ -47,24 +47,44 @@ class TestStreamPrivileges:
         self.createSnodeTest()
         self.SysInfo()
         self.CreateDB()        
+        self.createOneStream()
+    
+    
+        #check normal user no write privilege to recalc stream 
+        tdSql.connect(self.username1)
+        tdLog.info(f"connect user {self.username1} ")
         
-        #check normal user create stream in two db
+        #check normal user no query/write privilege to recalc stream 
+        self.recalcStream()
+        
+        #check normal user no write privilege to recalc stream 
         self.grantRead()
+        tdSql.connect(self.username1)
+        tdLog.info(f"connect user {self.username1} ")
+        self.recalcStream()
+        
+        #check normal user have write privilege to recalc stream 
         self.grantWrite()
+        tdSql.connect(self.username1)
+        tdLog.info(f"connect user {self.username1} ")
+        self.recalcStream()
         
-        #check normal no source db read privilege to create stream
-        self.userCreateStream()
-        
-        #check grant read privilege on source db to user
-        tdLog.info(f"grant read privilege on source db to user {self.username2}")
-        tdSql.connect("root")
-        tdSql.execute(f'grant read on {self.dbname} to {self.username2}')
-        self.userCreateStream()
         self.checkStreamRunning()
-        tdLog.info(f"create stream on {self.dbname2} success")
         
-        
-        
+    def recalcStream(self):
+        tdLog.info(f"recalc one stream: ")
+        tdSql.query("select * from information_schema.ins_streams order by stream_name;")
+        numOfStreams = tdSql.getRows()
+        tdLog.info(f"Total streams:{numOfStreams}")
+        streamname = tdSql.getData(0,0)
+        try:
+            tdSql.execute(f"recalculate stream {self.dbname}.{streamname} from 0")
+            tdLog.info(f"recalculate stream {self.dbname}.{streamname} success")
+        except Exception as e:
+            if "Insufficient privilege" in str(e):
+                tdLog.info(f"Insufficient privilege to recalc stream")
+            else:
+                raise  Exception(f"recalc stream failed with error: {e}")        
 
         
         
@@ -314,10 +334,10 @@ class TestStreamPrivileges:
             
     def createOneStream(self):
         sql = (
-        "create stream `s99` sliding(1s) from st1  partition by tbname "
+        f"create stream {self.dbname}.`s99` sliding(1s) from {self.dbname}.st1  partition by tbname "
         "stream_options(fill_history('2025-01-01 00:00:00')) "
-        "into `s99out` as "
-        "select cts, cint, %%tbname from st1 "
+        f"into {self.dbname}.`s99out` as "
+        f"select cts, cint, %%tbname from {self.dbname}.st1 "
         "where cint > 5 and tint > 0 and %%tbname like '%%2' "
         "order by cts;"
         )

@@ -6,7 +6,7 @@ from random import randint
 import os
 import subprocess
 
-class TestStreamRecalc:
+class TestStreamPrivilegesMonitorTable:
     currentDir = os.path.dirname(os.path.abspath(__file__))
     dbname = "test1"
     dbname2 = "test2"
@@ -20,13 +20,14 @@ class TestStreamRecalc:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_snode_mgmt(self):
-        """Stream TestStreamRecalc test
+        """Stream TestStreamPrivilegesMonitorTable test
         
-        1. normal user  recalc stream
-        
+        1. normal user query ins_streams
+        2. normal user query ins_stream_tasks
+        3. normal user query ins_stream_recalculates
 
         Catalog:
-            - Streams:privileges
+            - Streams:Snode
 
         Since: v3.3.3.7
 
@@ -41,52 +42,119 @@ class TestStreamRecalc:
 
         tdStream.dropAllStreamsAndDbs()
         
-        self.prepareData(self.dbname)
-        self.prepareData(self.dbname2)
+        self.prepareData()
         self.createUser()
         self.createSnodeTest()
-        self.SysInfo()
-        self.CreateDB()        
         self.createOneStream()
-    
-    
-        #check normal user no write privilege to recalc stream 
-        tdSql.connect(self.username1)
-        tdLog.info(f"connect user {self.username1} ")
-        
-        #check normal user no query/write privilege to recalc stream 
-        self.recalcStream()
-        
-        #check normal user no write privilege to recalc stream 
-        self.grantRead()
-        tdSql.connect(self.username1)
-        tdLog.info(f"connect user {self.username1} ")
-        self.recalcStream()
-        
-        #check normal user have write privilege to recalc stream 
-        self.grantWrite()
-        tdSql.connect(self.username1)
-        tdLog.info(f"connect user {self.username1} ")
-        self.recalcStream()
-        
         self.checkStreamRunning()
         
-    def recalcStream(self):
-        tdLog.info(f"recalc one stream: ")
-        tdSql.query("select * from information_schema.ins_streams order by stream_name;")
-        numOfStreams = tdSql.getRows()
-        tdLog.info(f"Total streams:{numOfStreams}")
-        streamname = tdSql.getData(0,0)
+        #check normal user no sysinfo\createdb to query  ins_streams
+        self.noSysInfo()
+        self.noCreateDB()
+        tdSql.connect(f"{self.username1}")
+        tdLog.info(f"connect user {self.username1} ")
+        # self.queryInsStreams()
+        # self.queryInsStreamTasks()
+        # self.queryInsStreamRecalculates()
+        
+        self.SysInfo()
+        tdSql.connect(f"{self.username1}")
+        tdLog.info(f"connect user {self.username1} ")
+        self.queryInsStreamsAfterGrant()
+        self.queryInsStreamTasksAfterGrant()
+        self.queryInsStreamRecalculatesAfterGrant()
+        
+        
+
+    def queryInsStreams(self):
+        tdLog.info(f"query ins_streams")
         try:
-            tdSql.execute(f"recalculate stream {self.dbname}.{streamname} from 0")
-            tdLog.info(f"recalculate stream {self.dbname}.{streamname} success")
+            tdSql.query(f"select * from information_schema.ins_streams;")
+            numOfStreams = tdSql.getRows()
+            if numOfStreams > 0:
+                raise Exception(f"Error: normal user {self.username1} can not query ins_stream_tasks, but found {numOfStreams} streams!")
+            else:
+                tdLog.info(f"normal user {self.username1} can query ins_streams, found {numOfStreams} streams!")
         except Exception as e:
             if "Insufficient privilege" in str(e):
-                tdLog.info(f"Insufficient privilege to recalc stream")
+                tdLog.info(f"Insufficient privilege to query ins_streams")
             else:
-                raise  Exception(f"recalc stream failed with error: {e}")        
-
+                raise  Exception(f"query ins_streams failed with error: {e}") 
         
+    def queryInsStreamsAfterGrant(self):
+        tdLog.info(f"query ins_streams")
+        try:
+            tdSql.query(f"select * from information_schema.ins_streams;")
+            numOfStreams = tdSql.getRows()
+            if numOfStreams < 0:
+                raise Exception(f"Error: normal user {self.username1} can  query ins_stream_tasks,  found {numOfStreams} streams!")
+            else:
+                tdLog.info(f"normal user {self.username1} can query ins_streams, found {numOfStreams} streams!")
+        except Exception as e:
+            if "Insufficient privilege" in str(e):
+                tdLog.info(f"Insufficient privilege to query ins_streams")
+            else:
+                raise  Exception(f"query ins_streams failed with error: {e}") 
+        
+        
+    def queryInsStreamTasks(self):
+        tdLog.info(f"query ins_stream_tasks")
+        try:
+            tdSql.query(f"select * from information_schema.ins_stream_tasks;")
+            numOfStreams = tdSql.getRows()
+            if numOfStreams >0 :
+                raise Exception(f"Error: normal user {self.username1} can not query ins_stream_tasks, but found {numOfStreams} streams tasks!")
+        except Exception as e:
+            if "Insufficient privilege" in str(e):
+                tdLog.info(f"Insufficient privilege to query ins_streams")
+            else:
+                raise  Exception(f"query ins_streams failed with error: {e}") 
+    
+    def queryInsStreamTasksAfterGrant(self):
+        tdLog.info(f"query ins_stream_tasks")
+        try:
+            tdSql.query(f"select * from information_schema.ins_stream_tasks;")
+            numOfStreams = tdSql.getRows()
+            if numOfStreams >0 :
+                tdLog.info(f"normal user {self.username1} can not query ins_stream_tasks,  found {numOfStreams} streams tasks!")
+        except Exception as e:
+            if "Insufficient privilege" in str(e):
+                tdLog.info(f"Insufficient privilege to query ins_streams")
+            else:
+                raise  Exception(f"query ins_streams failed with error: {e}") 
+        # tdSql.query(f"select * from information_schema.ins_stream_tasks;")
+        # numOfStreams = tdSql.getRows()
+        # if numOfStreams <0 :
+        #     raise Exception(f"Error: normal user {self.username1} can  query ins_stream_tasks,  found {numOfStreams} streams tasks!")
+        # else:
+        #         tdLog.info(f"normal user {self.username1} can query ins_streams, found {numOfStreams} streams!")
+        
+        
+    def queryInsStreamRecalculates(self):
+        tdLog.info(f"query ins_stream_recalculates")
+        try:
+            tdSql.query(f"select count(*) from information_schema.ins_stream_recalculates;")
+            numOfRecal = tdSql.getData(0,0)
+            if numOfRecal == 0:
+                raise Exception(f"Error: normal user {self.username1} can not query ins_stream_recalculates, but found {numOfRecal} recalculates!")
+        except Exception as e:
+            if "Insufficient privilege" in str(e):
+                tdLog.info(f"Insufficient privilege to query ins_stream_recalculates")
+            else:
+                raise  Exception(f"query ins_stream_recalculates failed with error: {e}") 
+            
+    def queryInsStreamRecalculatesAfterGrant(self):
+        tdLog.info(f"query ins_stream_recalculates")
+        try:
+            tdSql.query(f"select count(*) from information_schema.ins_stream_recalculates;")
+            numOfRecal = tdSql.getData(0,0)
+            if numOfRecal == 0:
+                tdLog.info(f"normal user {self.username1} can  query ins_stream_recalculates,  found {numOfRecal} recalculates!")
+        except Exception as e:
+            if "Insufficient privilege" in str(e):
+                tdLog.info(f"Insufficient privilege to query ins_stream_recalculates")
+            else:
+                raise  Exception(f"query ins_stream_recalculates failed with error: {e}") 
         
     def createUser(self):
         tdLog.info(f"create user")
@@ -101,7 +169,7 @@ class TestStreamRecalc:
         tdSql.execute(f"alter user {self.username2} sysinfo 0")
         
     def SysInfo(self):
-        tdLog.info(f"grant sysinfo privilege from user")
+        tdLog.info(f"grant sysinfo privilege to user")
         tdSql.connect("root")
         tdSql.execute(f"alter user {self.username1} sysinfo 1")
         tdSql.execute(f"alter user {self.username2} sysinfo 1")
@@ -113,7 +181,7 @@ class TestStreamRecalc:
         tdSql.execute(f"alter user {self.username2} createdb 0")
         
     def CreateDB(self):
-        tdLog.info(f"grant sysinfo privilege from user")
+        tdLog.info(f"grant sysinfo privilege to user")
         tdSql.connect("root")
         tdSql.execute(f"alter user {self.username1} createdb 1")
         tdSql.execute(f"alter user {self.username2} createdb 1")
@@ -122,7 +190,7 @@ class TestStreamRecalc:
         tdLog.info(f"grant read privilege to user")
         tdSql.connect("root")
         tdSql.execute(f'grant read on {self.dbname} to {self.username1}')
-        tdSql.execute(f'grant read on {self.dbname2} to {self.username2}')
+        tdSql.execute(f'grant read on {self.dbname} to {self.username2}')
 
     
         tdSql.query(
@@ -134,7 +202,7 @@ class TestStreamRecalc:
         tdLog.info(f"grant write privilege to user")
         tdSql.connect("root")
         tdSql.execute(f'grant write on {self.dbname} to {self.username1}')
-        tdSql.execute(f'grant write on {self.dbname2} to {self.username2}')
+        tdSql.execute(f'grant write on {self.dbname} to {self.username2}')
     
         tdSql.query(
             f"select * from information_schema.ins_user_privileges where user_name !='root' and privilege ='write';")
@@ -145,7 +213,7 @@ class TestStreamRecalc:
         tdLog.info(f"revoke read privilege from user")
         tdSql.connect("root")
         tdSql.execute(f'revoke read on {self.dbname} from {self.username1}')
-        tdSql.execute(f'revoke read on {self.dbname2} from {self.username2}')
+        tdSql.execute(f'revoke read on {self.dbname} from {self.username2}')
 
     
         tdSql.query(
@@ -157,84 +225,26 @@ class TestStreamRecalc:
         tdLog.info(f"revoke write privilege from user")
         tdSql.connect("root")
         tdSql.execute(f'revoke write on {self.dbname} from {self.username1}')
-        tdSql.execute(f'revoke write on {self.dbname2} from {self.username2}')
+        tdSql.execute(f'revoke write on {self.dbname} from {self.username2}')
     
         tdSql.query(
             f"select * from information_schema.ins_user_privileges where user_name !='root' and privilege ='write';")
         if tdSql.getRows() != 0:
             raise Exception("revoke write privileges user failed")
         
-    def userCreateStream(self):
-        tdLog.info(f"connect with normal user {self.username2}")
-        tdSql.connect("lvze2")
-        sql = (
-        f"create stream {self.dbname2}.`s100` sliding(1s) from {self.dbname}.st1  partition by tbname "
-        "stream_options(fill_history('2025-01-01 00:00:00')) "
-        f"into {self.dbname2}.`s100out` as "
-        f"select cts, cint, %%tbname from {self.dbname}.st1 "
-        "where cint > 5 and tint > 0 and %%tbname like '%%2' "
-        "order by cts;"
-        )
-        try:
-            tdSql.execute(sql)
-        except Exception as e:
-            if "Insufficient privilege" in str(e):
-                tdLog.info(f"Insufficient privilege, ignore SQL：{sql}")
-            else:
-                raise  Exception(f"create stream failed with error: {e}") 
     
-    def userStopStream(self):
-        tdLog.info(f"connect with normal user {self.username2}")
-        tdSql.connect("lvze2")
-        tdSql.query(f"show {self.dbname}.streams;")
-        numOfStreams = tdSql.getRows()
-        if numOfStreams > 0:
-            try:
-                tdSql.execute(f"stop stream test1.`s100`")
-            except Exception as e:
-                if "Insufficient privilege" in str(e):
-                    tdLog.info(f"Insufficient privilege to stop stream")
-                else:
-                    raise  Exception(f"stop stream failed with error: {e}")
-            tdSql.query(f"show {self.dbname}.streams;")
-            stateStream = tdSql.getData(0,1)
-            if stateStream != 'Stopped':
-                raise Exception(f"normal user can not stop stream,  found state: {stateStream}")
-            else:
-                tdLog.info(f"stop stream test1.`s100` success")
                 
-    def userStartStream(self):
-        tdLog.info(f"connect with normal user {self.username2}")
-        tdSql.connect("lvze2")
-        tdSql.query(f"show {self.dbname}.streams;")
-        numOfStreams = tdSql.getRows()
-        if numOfStreams > 0:
-            try:
-                tdSql.execute(f"start stream test1.`s100`")
-            except Exception as e:
-                if "Insufficient privilege" in str(e):
-                    tdLog.info(f"Insufficient privilege to start stream")
-                else:
-                    raise  Exception(f"start stream failed with error: {e}")
-                
-        self.checkStreamRunning()
-        tdSql.query(f"show {self.dbname}.streams;")
-        stateStream = tdSql.getData(0,1)
-        if stateStream != 'Running':
-            raise Exception(f"normal user can not start stream,  found state: {stateStream}")
-        else:
-            tdLog.info(f"start stream test1.`s100` success")
             
 
-    def prepareData(self,db_name):
+    def prepareData(self):
         tdLog.info(f"prepare data")
 
-        # tdStream.dropAllStreamsAndDbs()
+        tdStream.dropAllStreamsAndDbs()
         #wait all dnode ready
         time.sleep(5)
-        tdStream.init_database(db_name)
+        tdStream.init_database(self.dbname)
         
-        st1 = StreamTable(db_name, "st1", StreamTableType.TYPE_SUP_TABLE)
+        st1 = StreamTable(self.dbname, "st1", StreamTableType.TYPE_SUP_TABLE)
         st1.createTable(3)
         st1.append_data(0, self.tblRowNum)
         
@@ -242,11 +252,12 @@ class TestStreamRecalc:
         for i in range(0, self.subTblNum + 1):
             self.tableList.append(f"st1_{i}")
         
-        ntb = StreamTable(db_name, "ntb1", StreamTableType.TYPE_NORMAL_TABLE)
+        ntb = StreamTable(self.dbname, "ntb1", StreamTableType.TYPE_NORMAL_TABLE)
         ntb.createTable()
         ntb.append_data(0, self.tblRowNum)
         self.tableList.append(f"ntb1")
         
+        tdSql.execute(f"create database {self.dbname2}")
 
     def checkResultRows(self, expectedRows):
         tdSql.checkResultsByFunc(
@@ -331,13 +342,16 @@ class TestStreamRecalc:
         for i in range(1,numOfNodes+1):
             tdSql.execute(f"create stream `s{i}` sliding(1s) from st1 stream_options(fill_history('2025-01-01 00:00:00')) into `s{i}out` as select cts, cint from st1 where _tcurrent_ts % 2 = 0 order by cts;")
             tdLog.info(f"create stream s{i} success!")
-            
+        # tdSql.execute("create stream `s2` sliding(1s) from st1 partition by tint, tbname stream_options(fill_history('2025-01-01 00:00:00')) into `s2out` as select cts, cint from st1 order by cts limit 3;")
+        # tdSql.execute("create stream `s3` sliding(1s) from st1 partition by tbname stream_options(pre_filter(cint>2)|fill_history('2025-01-01 00:00:00')) into `s3out` as select cts, cint,   %%tbname from %%trows where cint >15 and tint >0 and  %%tbname like '%2' order by cts;")
+        # tdSql.execute("create stream `s4` sliding(1s) from st1 stream_options(fill_history('2025-01-01 00:00:00')) into `s4out` as select _tcurrent_ts, cint from st1 order by cts limit 4;")
+    
     def createOneStream(self):
         sql = (
-        f"create stream {self.dbname}.`s99` sliding(1s) from {self.dbname}.st1  partition by tbname "
+        "create stream `s99` sliding(1s) from st1  partition by tbname "
         "stream_options(fill_history('2025-01-01 00:00:00')) "
-        f"into {self.dbname}.`s99out` as "
-        f"select cts, cint, %%tbname from {self.dbname}.st1 "
+        "into `s99out` as "
+        "select cts, cint, %%tbname from st1 "
         "where cint > 5 and tint > 0 and %%tbname like '%%2' "
         "order by cts;"
         )

@@ -8,7 +8,7 @@ class TestStreamSubqueryState:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_subquery_state(self):
-        """Subquery in State
+        """Subquery: state
 
         1. Use state trigger mode
 

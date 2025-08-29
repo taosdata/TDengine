@@ -10,12 +10,12 @@ class TestStreamCheckpoint:
 
 
     def test_stream_dev_basic(self):
-        """basic test
+        """Checkpoint: basic test
 
         Verification testing during the development process.
 
         Catalog:
-            - Streams: 01-snode
+            - Streams:Snode
 
         Since: v3.3.3.7
 
@@ -33,17 +33,6 @@ class TestStreamCheckpoint:
 
 
     def case_2(self):
-        """add new snode
-        Verification testing during the development process.
-        Catalog:
-            - Streams: 01-snode
-        Since: v3.3.3.7
-        Labels: common,ci
-        Jira: None
-        History:
-            - 2025-07-07
-        """
-
         self.num_snode = 1
         self.num_vgroups = 4
         self.streams = []

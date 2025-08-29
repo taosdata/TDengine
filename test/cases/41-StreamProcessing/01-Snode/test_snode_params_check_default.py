@@ -25,7 +25,7 @@ class TestStreamParametersCheckDefault:
         1. check stream parameters default value
 
         Catalog:
-            - Streams:TestStreamParametersCheckDefault
+            - Streams:Snode
 
         Since: v3.3.3.7
 

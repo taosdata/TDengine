@@ -8,7 +8,7 @@ class TestStreamSubqueryEvent:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_subquery_event(self):
-        """Subquery in Event
+        """Subquery: event
 
         1. Use event trigger mode
 

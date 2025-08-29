@@ -6,7 +6,7 @@ from random import randint
 import os
 import subprocess
 
-class TestStreamPrivileges:
+class TestStreamParametersCheck:
     currentDir = os.path.dirname(os.path.abspath(__file__))
     dbname = "test1"
     dbname2 = "test2"
@@ -20,18 +20,12 @@ class TestStreamPrivileges:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_snode_mgmt(self):
-        """Stream privileges test
+        """Stream TestStreamParametersCheck test
         
-        1. normal user create snode
-        2. normal user show snode
-        3. normal user select ins_snodes
-        4. normal user drop snode
-        5. normal user create stream
-        6. normal user drop stream
-        
+        1. check stream parameters min value
 
         Catalog:
-            - Streams:privileges
+            - Streams:Snode
 
         Since: v3.3.3.7
 
@@ -48,56 +42,92 @@ class TestStreamPrivileges:
         
         self.prepareData()
         self.createUser()
-        #check normal user create snode
-        tdSql.connect(f"{self.username1}")
         self.createSnodeTest()
-        tdSql.query("show snodes;")
-        numOfStreams = tdSql.getRows()
-        if numOfStreams > 0:
-            raise Exception(f"Error: normal user {self.username1} can not create snode, but found {numOfStreams} snodes!")
-        
-        #check normal user no sysinfo\createdb to create stream
-        self.noSysInfo()
-        self.noCreateDB()
-        self.createSnodeTest()
-        
-        self.SysInfo()
-        self.CreateDB()
-        
-        #check no read\write normal user create stream
-        self.userCreateStream()
-        self.grantRead()
-        #check no write normal user create stream
-        self.userCreateStream()
-        #check have read\write normal user create stream
-        self.grantWrite()
-        self.userCreateStream()
+        self.createOneStream()
         self.checkStreamRunning()
+        self.getCpu()
+        #check min value 
+        self.checknumOfMnodeStreamMgmtThreads()
+        self.checknumOfStreamMgmtThreads()
+        self.checknumOfVnodeStreamReaderThreads()
+        self.checknumOfStreamTriggerThreads()
+        self.checknumOfStreamRunnerThreads()
+        self.checkstreamBufferSize()
+        self.checkstreamNotifyMessageSize()
+        self.checkstreamNotifyFrameSize()
         
-        #check normal user can not stop/start stream
-        self.revokeRead()
-        self.revokeWrite()
-        self.userStopStream()
-        self.userStartStream()
         
-        self.grantRead()
-        self.grantWrite()
-        #check normal user can stop/start stream
-        self.userStopStream()
-        self.userStartStream()
+    
+    def checknumOfMnodeStreamMgmtThreads(self):
+        tdLog.info(f"check num of mnode stream mgmt threads")
+        tdSql.query(f"show dnode 1 variables like 'numOfMnodeStreamMgmtThreads';")
+        result = tdSql.getData(0, 2)
+        if int(result) < 2:
+            raise Exception(f"Error: numOfMnodeStreamMgmtThreads is {result}, expected at least 2 threads!")
+        tdLog.info(f"numOfMnodeStreamMgmtThreads is {result}, test passed!")
+            
+    def checknumOfStreamMgmtThreads(self):
+        tdLog.info(f"check num of  stream mgmt threads")
+        tdSql.query(f"show dnode 1 variables like 'numOfStreamMgmtThreads';")
+        result = tdSql.getData(0, 2)
+        if int(result) < 2:
+            raise Exception(f"Error: numOfStreamMgmtThreads is {result}, expected at least 2 threads!")
+        tdLog.info(f"numOfStreamMgmtThreads is {result}, test passed!")    
+    
+    def checknumOfVnodeStreamReaderThreads(self):
+        tdLog.info(f"check num of vnode stream reader threads")
+        tdSql.query(f"show dnode 1 variables like 'numOfVnodeStreamReaderThreads';")
+        result = tdSql.getData(0, 2)
+        if int(result) < 4:
+            raise Exception(f"Error: numOfVnodeStreamReaderThreads is {result}, expected at least 4 threads!")
+        tdLog.info(f"numOfVnodeStreamReaderThreads is {result}, test passed!")   
         
-        #check normal user no write privileges to drop stream
-        self.revokeWrite()
-        
-        tdSql.connect(f"{self.username1}")
-        self.dropOneStream()
-        
-        #check normal user drop snode
-        tdSql.connect(f"{self.username1}")
-        self.dropOneSnodeTest()
+    def checknumOfStreamTriggerThreads(self):
+        tdLog.info(f"check num of  stream trigger threads")
+        tdSql.query(f"show dnode 1 variables like 'numOfStreamTriggerThreads';")
+        result = tdSql.getData(0, 2)
+        if int(result) < 4:
+            raise Exception(f"Error: numOfStreamTriggerThreads is {result}, expected at least 4 threads!")
+        tdLog.info(f"numOfStreamTriggerThreads is {result}, test passed!")       
+    
+    def checknumOfStreamRunnerThreads(self):
+        tdLog.info(f"check num of  stream Runner threads")
+        tdSql.query(f"show dnode 1 variables like 'numOfStreamRunnerThreads';")
+        result = tdSql.getData(0, 2)
+        if int(result) < 4:
+            raise Exception(f"Error: numOfStreamRunnerThreads is {result}, expected at least 4 threads!")
+        tdLog.info(f"numOfStreamRunnerThreads is {result}, test passed!")  
+                
+    def checkstreamBufferSize(self):
+        tdLog.info(f"check streamBufferSize")
+        tdSql.query(f"show dnode 1 variables like 'streamBufferSize';")
+        result = tdSql.getData(0, 2)
+        if int(result) < 128:
+            raise Exception(f"Error: streamBufferSize is {result}, expected at least 128 MB!")
+        tdLog.info(f"streamBufferSize is {result}, test passed!")              
+
+    def checkstreamNotifyMessageSize(self):
+        tdLog.info(f"check streamNotifyMessageSize")
+        tdSql.query(f"show dnode 1 variables like 'streamNotifyMessageSize';")
+        result = tdSql.getData(0, 2)
+        if int(result) < 8192:
+            raise Exception(f"Error: streamNotifyMessageSize is {result}, expected at least 8192 KB!")
+        tdLog.info(f"streamNotifyMessageSize is {result}, test passed!")    
+            
+    def checkstreamNotifyFrameSize(self):
+        tdLog.info(f"check streamNotifyFrameSize")
+        tdSql.query(f"show dnode 1 variables like 'streamNotifyFrameSize';")
+        result = tdSql.getData(0, 2)
+        if int(result) < 256:
+            raise Exception(f"Error: streamNotifyFrameSize is {result}, expected at least 256 KB!")
+        tdLog.info(f"streamNotifyFrameSize is {result}, test passed!")  
         
 
-        
+    def getCpu(self):
+        cmd = "lscpu | grep -v -i numa | grep 'CPU(s):' | awk -F ':' '{print $2}' | head -n 1"
+        output = subprocess.check_output(cmd, shell=True).decode().strip()
+        tdLog.info(f"cpu num is {output}")
+
         
     def createUser(self):
         tdLog.info(f"create user")
@@ -112,7 +142,7 @@ class TestStreamPrivileges:
         tdSql.execute(f"alter user {self.username2} sysinfo 0")
         
     def SysInfo(self):
-        tdLog.info(f"grant sysinfo privilege from user")
+        tdLog.info(f"grant sysinfo privilege to user")
         tdSql.connect("root")
         tdSql.execute(f"alter user {self.username1} sysinfo 1")
         tdSql.execute(f"alter user {self.username2} sysinfo 1")
@@ -124,7 +154,7 @@ class TestStreamPrivileges:
         tdSql.execute(f"alter user {self.username2} createdb 0")
         
     def CreateDB(self):
-        tdLog.info(f"grant sysinfo privilege from user")
+        tdLog.info(f"grant sysinfo privilege to user")
         tdSql.connect("root")
         tdSql.execute(f"alter user {self.username1} createdb 1")
         tdSql.execute(f"alter user {self.username2} createdb 1")
@@ -175,71 +205,8 @@ class TestStreamPrivileges:
         if tdSql.getRows() != 0:
             raise Exception("revoke write privileges user failed")
         
-    def userCreateStream(self):
-        tdLog.info(f"connect with normal user {self.username2}")
-        tdSql.connect("lvze2")
-        sql = (
-        "create stream test1.`s100` sliding(1s) from test1.st1  partition by tbname "
-        "stream_options(fill_history('2025-01-01 00:00:00')) "
-        "into test1.`s100out` as "
-        "select cts, cint, %%tbname from test1.st1 "
-        "where cint > 5 and tint > 0 and %%tbname like '%%2' "
-        "order by cts;"
-        )
-        try:
-            tdSql.execute(sql)
-        except Exception as e:
-            if "Insufficient privilege" in str(e):
-                tdLog.info(f"Insufficient privilege, ignore SQL：{sql}")
-            else:
-                raise  Exception(f"create stream failed with error: {e}") 
-        # tdSql.execute(f"select current_user();")
-        # username=tdSql.getData(0, 0)
-        # print(f"username: {username}")
-        
-    def userStopStream(self):
-        tdLog.info(f"connect with normal user {self.username2} to stop stream")
-        tdSql.connect("lvze2")
-        tdSql.query(f"show {self.dbname}.streams;")
-        numOfStreams = tdSql.getRows()
-        if numOfStreams > 0:
-            try:
-                tdSql.execute(f"stop stream test1.`s100`")
-            except Exception as e:
-                if "Insufficient privilege" in str(e):
-                    tdLog.info(f"Insufficient privilege to stop stream")
-                else:
-                    raise  Exception(f"stop stream failed with error: {e}")
-            tdSql.query(f"show {self.dbname}.streams;")
-            stateStream = tdSql.getData(0,1)
-            tdSql.query(f"select * from information_schema.ins_user_privileges where user_name='lvze2' and privilege ='write'")
-            writeUser = tdSql.getRows()
-            if stateStream != 'Stopped' and writeUser == 0:
-                tdLog.info(f"normal user(no write privilege) can not stop stream")
-            else:
-                tdLog.info(f"stop stream test1.`s100` success")
+    
                 
-    def userStartStream(self):
-        tdLog.info(f"connect with normal user {self.username2} to start stream")
-        tdSql.connect("lvze2")
-        tdSql.query(f"show {self.dbname}.streams;")
-        numOfStreams = tdSql.getRows()
-        if numOfStreams > 0:
-            try:
-                tdSql.execute(f"start stream test1.`s100`")
-            except Exception as e:
-                if "Insufficient privilege" in str(e):
-                    tdLog.info(f"Insufficient privilege to start stream")
-                else:
-                    raise  Exception(f"start stream failed with error: {e}")
-                
-        self.checkStreamRunning()
-        tdSql.query(f"show {self.dbname}.streams;")
-        stateStream = tdSql.getData(0,1)
-        if stateStream != 'Running':
-            raise Exception(f"normal user can not start stream,  found state: {stateStream}")
-        else:
-            tdLog.info(f"start stream test1.`s100` success")
             
 
     def prepareData(self):
@@ -291,55 +258,8 @@ class TestStreamPrivileges:
             tdLog.info(f"create snode on dnode {i} success")
 
 
-    def dropAllSnodeTest(self):
-        tdLog.info(f"drop all snode test")
-        tdSql.query("select * from information_schema.ins_snodes order by id;")
-        numOfSnodes = tdSql.getRows()
-        tdLog.info(f"numOfSnodes: {numOfSnodes}")
-        
-        for i in range(1, numOfSnodes ):
-            tdSql.execute(f"drop snode on dnode {i}")
-            tdLog.info(f"drop snode {i} success")
-            
-        self.checkResultRows(1)
-        
-        tdSql.checkResultsByFunc(
-            f"show snodes;", 
-            lambda: tdSql.getRows() == 1,
-            delay=0.5, retry=2
-        )
-        
-        numOfRows=tdSql.execute(f"drop snode on dnode {numOfSnodes}")
-        if numOfRows != 0:
-            raise Exception(f" drop all snodes failed! ")
-        tdSql.query("select * from information_schema.ins_snodes order by id;")
-        numOfSnodes = tdSql.getRows()
-        tdLog.info(f"After drop all snodes numOfSnodes: {numOfSnodes}")
+    
 
-    def dropOneSnodeTest(self):
-        # tdSql.query("select * from information_schema.ins_snodes  order by id;")
-        # numOfSnodes=tdSql.getRows()
-        # #只有一个 snode 的时候不再执行删除
-        # if numOfSnodes >1:
-            tdLog.info(f"drop one snode test")
-            tdSql.query("select * from information_schema.ins_snodes order by id;")
-            snodeid = tdSql.getData(0,0)
-            try:
-                tdSql.execute(f"drop snode on dnode {snodeid}")
-            except Exception as e:
-                if "Insufficient privilege" in str(e):
-                    tdLog.info(f"Insufficient privilege to drop snode")
-                else:
-                    raise  Exception(f"drop snode failed with error: {e}")
-            
-            tdSql.query("show snodes;")
-            numOfStreams = tdSql.getRows()
-            if numOfStreams < 1:
-                raise Exception(f"Error: normal user {self.username1} can not create snode, but found {numOfStreams} snodes!")
-            # tdLog.info(f"drop snode {snodeid} success")
-            #drop snode后流状态有延迟，需要等待才能看到 failed 状态出现
-            # time.sleep(15)
-            
         
     def createStream(self):
         tdLog.info(f"create stream ")
@@ -365,29 +285,7 @@ class TestStreamPrivileges:
         tdSql.execute(sql)
         tdLog.info(f"create stream s99 success!")
         
-    def  dropOneStream(self):
-        tdLog.info(f"drop one stream: ")
-        tdSql.query("select * from information_schema.ins_streams order by stream_name;")
-        numOfStreams = tdSql.getRows()
-        tdLog.info(f"Total streams:{numOfStreams}")
-        streamid = tdSql.getData(0,0)
-        try:
-            tdSql.execute(f"drop stream {self.dbname}.{streamid}")
-        except Exception as e:
-            if "Insufficient privilege" in str(e):
-                tdLog.info(f"Insufficient privilege to drop stream")
-            else:
-                raise  Exception(f"drop stream failed with error: {e}")
-            
-        tdSql.query(f"show {self.dbname}.streams;")
-        numOfStreams = tdSql.getRows()
-        if numOfStreams < 1:
-            raise Exception(f"Error: normal user {self.username1} can not create stream, but found {numOfStreams} streams!")
-        tdLog.info(f"drop stream {self.dbname}.{streamid} success")
-        
-        tdSql.query("select * from information_schema.ins_streams order by stream_name;")
-        numOfStreams = tdSql.getRows()
-        tdLog.info(f"Total streams:{numOfStreams}")
+    
     
     
     def checkStreamRunning(self):

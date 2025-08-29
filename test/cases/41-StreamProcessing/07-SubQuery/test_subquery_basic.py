@@ -9,7 +9,7 @@ class TestStreamSubqueryBasic:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_subquery_basic(self):
-        """SubQuery basic test
+        """SubQuery: basic test
 
         Verification testing during the development process.
 

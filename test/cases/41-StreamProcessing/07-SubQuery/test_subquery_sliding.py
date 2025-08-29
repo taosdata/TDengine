@@ -8,7 +8,7 @@ class TestStreamSubquerySliding:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_subquery_sliding(self):
-        """Subquery in Sliding
+        """Subquery: sliding
 
         1. Use sliding trigger mode
 

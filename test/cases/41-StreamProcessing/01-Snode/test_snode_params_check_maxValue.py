@@ -25,7 +25,7 @@ class TestStreamParametersCheckMaxValue:
         1. check stream parameters max value
 
         Catalog:
-            - Streams:TestStreamParametersCheckMaxValue
+            - Streams:Snode
 
         Since: v3.3.3.7
 

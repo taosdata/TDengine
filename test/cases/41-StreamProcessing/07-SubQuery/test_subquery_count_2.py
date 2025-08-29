@@ -8,7 +8,7 @@ class TestStreamSubqueryCount:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_subquery_count_2(self):
-        """Subquery in Count Window 2
+        """Subquery: count(2)
 
         1. Use count trigger mode
 
