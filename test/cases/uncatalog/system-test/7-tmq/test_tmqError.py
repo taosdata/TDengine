@@ -6,11 +6,10 @@ import threading
 from enum import Enum
 import platform
 
-from new_test_framework.utils import tdLog, tdSql, tdDnodes
+from new_test_framework.utils import tdLog, tdSql, tdDnodes, tmqCom
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from tmqCommon import tmqCom
 
 class actionType(Enum):
     CREATE_DATABASE = 0

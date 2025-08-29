@@ -54,10 +54,10 @@ typedef struct SScalarCtx {
 #define SCL_IS_VAR_VALUE_NODE(_node) ((QUERY_NODE_VALUE == (_node)->type) && IS_STR_DATA_TYPE(((SValueNode*)(_node))->node.resType.type))
 
 #define SCL_IS_CONST_CALC(_ctx) (NULL == (_ctx)->pBlockList)
-//#define SCL_IS_NULL_VALUE_NODE(_node) ((QUERY_NODE_VALUE == nodeType(_node)) && (TSDB_DATA_TYPE_NULL == ((SValueNode
-//*)_node)->node.resType.type) && (((SValueNode *)_node)->placeholderNo <= 0))
-#define SCL_IS_NULL_VALUE_NODE(_node) \
-  ((QUERY_NODE_VALUE == nodeType(_node)) && (TSDB_DATA_TYPE_NULL == ((SValueNode*)_node)->node.resType.type))
+
+#define SCL_IS_NULL_VALUE_NODE(_node)       \
+  ((QUERY_NODE_VALUE == nodeType(_node)) && \
+   ((TSDB_DATA_TYPE_NULL == ((SValueNode*)_node)->node.resType.type) || (((SValueNode*)_node)->isNull)))
 #define SCL_IS_COMPARISON_OPERATOR(_opType) ((_opType) >= OP_TYPE_GREATER_THAN && (_opType) < OP_TYPE_IS_NOT_UNKNOWN)
 #define SCL_DOWNGRADE_DATETYPE(_type) \
   ((_type) == TSDB_DATA_TYPE_BIGINT || TSDB_DATA_TYPE_DOUBLE == (_type) || (_type) == TSDB_DATA_TYPE_UBIGINT)
