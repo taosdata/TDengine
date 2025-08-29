@@ -15,7 +15,7 @@ import os
 import subprocess
 
 
-class TestStreamPrivilegesMonitorTable:
+class TestStreamPrivilegesSysTable:
     currentDir = os.path.dirname(os.path.abspath(__file__))
     dbname = "test1"
     dbname2 = "test2"
@@ -28,7 +28,7 @@ class TestStreamPrivilegesMonitorTable:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_snode_mgmt(self):
+    def test_params_privilage_systable(self):
         """Privilege: show and systables
 
         1. Check normal user query ins_streams.

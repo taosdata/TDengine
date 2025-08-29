@@ -2,19 +2,19 @@ import time
 from new_test_framework.utils import (tdLog,tdSql,tdStream,StreamCheckItem,)
 
 
-class TestStreamOptionsTrigger:
+class TestStreamOptionsNs:
     precision = 'ns'
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_stream_options_trigger(self):
-        """stream options
+    def test_stream_options_ns(self):
+        """Options: precision ns
 
         test options item of stream to precision ns
 
         Catalog:
-            - Streams:UseCases
+            - Streams:Options
 
         Since: v3.3.3.7
 

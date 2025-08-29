@@ -12,12 +12,12 @@ from new_test_framework.utils import (
 from random import randint
 
 
-class TestSnodeMgmt:
+class TestSnodeMgmtBasic:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_snode_mgmt(self):
+    def test_snode_mgmt_basic(self):
         """Snode: create and drop
 
         1. Create an 8-node dnode and create snodes on each dnode.

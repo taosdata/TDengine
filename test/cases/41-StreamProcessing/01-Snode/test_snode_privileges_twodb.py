@@ -15,7 +15,7 @@ import os
 import subprocess
 
 
-class TestStreamPrivileges:
+class TestStreamPrivilegesTwoDb:
     currentDir = os.path.dirname(os.path.abspath(__file__))
     dbname = "test1"
     dbname2 = "test2"
@@ -28,13 +28,12 @@ class TestStreamPrivileges:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_snode_mgmt(self):
+    def test_params_privilage_two_db(self):
         """Privilege: on multi database
 
         1. Check normal user create stream in two db.
         2. Check normal no source db read privilege to create stream.
         3. Check grant read privilege on source db to user.
-
 
         Catalog:
             - Streams:Snode

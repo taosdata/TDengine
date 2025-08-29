@@ -28,7 +28,7 @@ class TestStreamParametersCheckDefault:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_snode_mgmt(self):
+    def test_params_check_default(self):
         """Parameter: check default value
 
         Check the default values of the following parameters:
