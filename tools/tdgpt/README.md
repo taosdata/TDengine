@@ -108,7 +108,7 @@ taosanode provides the RESTFul service powered by `uWSGI`. You can config the op
 
 ```ini
 # taosanode service ip:port
-http = 127.0.0.1:6090
+http = 127.0.0.1:6035
 ```
 
 # 7. Running
