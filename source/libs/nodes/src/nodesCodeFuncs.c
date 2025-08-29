@@ -217,6 +217,8 @@ const char* nodesNodeName(ENodeType type) {
       return "DescribeStmt";
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       return "CompactDatabaseStmt";
+    case QUERY_NODE_SCAN_DATABASE_STMT:
+      return "ScanDatabaseStmt";
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       return "CompactVgroupsStmt";
     case QUERY_NODE_CREATE_STREAM_STMT:
@@ -8542,6 +8544,7 @@ static int32_t jsonToDescribeStmt(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkCompactDatabaseStmtDbName = "DbName";
+static const char* jkScanDatabaseStmtDbName = "DbName";
 
 static int32_t compactDatabaseStmtToJson(const void* pObj, SJson* pJson) {
   const SCompactDatabaseStmt* pNode = (const SCompactDatabaseStmt*)pObj;
@@ -8551,6 +8554,16 @@ static int32_t compactDatabaseStmtToJson(const void* pObj, SJson* pJson) {
 static int32_t jsonToCompactDatabaseStmt(const SJson* pJson, void* pObj) {
   SCompactDatabaseStmt* pNode = (SCompactDatabaseStmt*)pObj;
   return tjsonGetStringValue(pJson, jkCompactDatabaseStmtDbName, pNode->dbName);
+}
+
+static int32_t scanDatabaseStmtToJson(const void* pObj, SJson* pJson) {
+  const SScanDatabaseStmt* pNode = (const SScanDatabaseStmt*)pObj;
+  return tjsonAddStringToObject(pJson, jkScanDatabaseStmtDbName, pNode->dbName);
+}
+
+static int32_t jsonToScanDatabaseStmt(const SJson* pJson, void* pObj) {
+  SScanDatabaseStmt* pNode = (SScanDatabaseStmt*)pObj;
+  return tjsonGetStringValue(pJson, jkScanDatabaseStmtDbName, pNode->dbName);
 }
 
 static int32_t compactVgroupsStmtToJson(const void* pObj, SJson* pJson) {
@@ -9511,6 +9524,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return describeStmtToJson(pObj, pJson);
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       return compactDatabaseStmtToJson(pObj, pJson);
+    case QUERY_NODE_SCAN_DATABASE_STMT:
+      return scanDatabaseStmtToJson(pObj, pJson);
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       return compactVgroupsStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_STREAM_STMT:
@@ -9910,6 +9925,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToDescribeStmt(pJson, pObj);
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       return jsonToCompactDatabaseStmt(pJson, pObj);
+    case QUERY_NODE_SCAN_DATABASE_STMT:
+      return jsonToScanDatabaseStmt(pJson, pObj);
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       return jsonToCompactVgroupsStmt(pJson, pObj);
     case QUERY_NODE_CREATE_STREAM_STMT:

@@ -13002,6 +13002,24 @@ static int32_t translateCompactDb(STranslateContext* pCxt, SCompactDatabaseStmt*
   return code;
 }
 
+static int32_t translateScanDb(STranslateContext* pCxt, SScanDatabaseStmt* pStmt) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SName   name;
+
+  SScanDbReq scanReq = {0};
+  code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  (void)tNameGetFullDbName(&name, scanReq.db);
+  code = translateTimeRange(pCxt, pStmt->dbName, pStmt->pStart, pStmt->pEnd, &scanReq.timeRange);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCmdMsg(pCxt, TDMT_MND_SCAN_DB, (FSerializeFunc)tSerializeSScanDbReq, &scanReq);
+  }
+  tFreeSScanDbReq(&scanReq);
+
+  return code;
+}
+
 static int32_t translateVgroupList(STranslateContext* pCxt, SNodeList* vgroupList, SArray** ppVgroups) {
   int32_t   code = TSDB_CODE_SUCCESS;
   SHashObj* pHash = NULL;
@@ -16214,6 +16232,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       code = translateCompactDb(pCxt, (SCompactDatabaseStmt*)pNode);
       break;
+    case QUERY_NODE_SCAN_DATABASE_STMT:
+      code = translateScanDb(pCxt, (SScanDatabaseStmt*)pNode);
+      break;
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       code = translateCompactVgroups(pCxt, (SCompactVgroupsStmt*)pNode);
       break;
@@ -16593,6 +16614,7 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
       return extractShowVariablesResultSchema(numOfCols, pSchema);
     case QUERY_NODE_COMPACT_DATABASE_STMT:
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
+    case QUERY_NODE_SCAN_DATABASE_STMT:
       return extractCompactDbResultSchema(numOfCols, pSchema);
     default:
       break;
@@ -20721,6 +20743,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_SHOW_VARIABLES_STMT:
     case QUERY_NODE_COMPACT_DATABASE_STMT:
+    case QUERY_NODE_SCAN_DATABASE_STMT:
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       pQuery->haveResultSet = true;
       pQuery->execMode = QUERY_EXEC_MODE_RPC;

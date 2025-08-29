@@ -5341,6 +5341,18 @@ int32_t tFreeSMountVnodeReq(SMountVnodeReq* pReq);
 
 #endif  // USE_MOUNT
 
+typedef struct {
+  char        db[TSDB_DB_FNAME_LEN];
+  STimeWindow timeRange;
+  int32_t     sqlLen;
+  char*       sql;
+  SArray*     vgroupIds;
+} SScanDbReq;
+
+int32_t tSerializeSScanDbReq(void* buf, int32_t bufLen, SScanDbReq* pReq);
+int32_t tDeserializeSScanDbReq(void* buf, int32_t bufLen, SScanDbReq* pReq);
+void    tFreeSScanDbReq(SScanDbReq* pReq);
+
 #pragma pack(pop)
 
 #ifdef __cplusplus

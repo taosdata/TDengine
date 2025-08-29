@@ -1655,6 +1655,12 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pEnd);
       break;
     }
+    case QUERY_NODE_SCAN_DATABASE_STMT: {
+      SScanDatabaseStmt* pStmt = (SScanDatabaseStmt*)pNode;
+      nodesDestroyNode(pStmt->pStart);
+      nodesDestroyNode(pStmt->pEnd);
+      break;
+    }
     case QUERY_NODE_COMPACT_VGROUPS_STMT: {
       SCompactVgroupsStmt* pStmt = (SCompactVgroupsStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
