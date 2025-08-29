@@ -2486,7 +2486,7 @@ SNode* qptCreateStreamFinalSessionPhysiNode(int32_t nodeType) {
 SNode* qptCreateStateWindowPhysiNode(int32_t nodeType) {
   SPhysiNode* pPhysiNode = qptCreatePhysiNode(nodeType);
 
-  SStateWinodwPhysiNode* pState = (SStateWinodwPhysiNode*)pPhysiNode;
+  SStateWindowPhysiNode* pState = (SStateWindowPhysiNode*)pPhysiNode;
 
   qptCreateWindowPhysiNode(&pState->window);
 
@@ -3071,7 +3071,7 @@ void qptExecPlan(SReadHandle* pReadHandle, SNode* pNode, SExecTaskInfo* pTaskInf
       qptCtx.result.code = createSessionAggOperatorInfo(NULL, (SSessionWinodwPhysiNode*)pNode, pTaskInfo, ppOperaotr);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
-      qptCtx.result.code = createStatewindowOperatorInfo(NULL, (SStateWinodwPhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      qptCtx.result.code = createStatewindowOperatorInfo(NULL, (SStateWindowPhysiNode*)pNode, pTaskInfo, ppOperaotr);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       qptCtx.result.code = createPartitionOperatorInfo(NULL, (SPartitionPhysiNode*)pNode, pTaskInfo, ppOperaotr);
