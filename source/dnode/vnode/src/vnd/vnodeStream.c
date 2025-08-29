@@ -693,6 +693,7 @@ static int32_t shrinkScheams(SArray* cols, SArray* schemas) {
   int32_t code = 0;
   int32_t lino = 0;
   size_t  schemaLen = taosArrayGetSize(schemas);
+  STREAM_CHECK_RET_GOTO(taosArrayEnsureCap(schemas, schemaLen + taosArrayGetSize(cols)));
   for (size_t i = 0; i < taosArrayGetSize(cols); i++) {
     col_id_t* id = taosArrayGet(cols, i);
     STREAM_CHECK_NULL_GOTO(id, terrno);
