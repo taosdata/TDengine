@@ -1771,6 +1771,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(((SShowDnodeVariablesStmt*)pNode)->pLikePattern);
       break;
     case QUERY_NODE_SHOW_COMPACTS_STMT:
+    case QUERY_NODE_SHOW_SCANS_STMT:
       break;
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT: {
       SShowCompactDetailsStmt* pStmt = (SShowCompactDetailsStmt*)pNode;

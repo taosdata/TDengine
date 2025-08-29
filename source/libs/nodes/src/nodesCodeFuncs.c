@@ -335,6 +335,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowTableTagsStmt";
     case QUERY_NODE_SHOW_COMPACTS_STMT:
       return "ShowCompactsStmt";
+    case QUERY_NODE_SHOW_SCANS_STMT:
+      return "ShowScansStmt";
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
       return "ShowCompactDetailsStmt";
     case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT:
