@@ -2854,7 +2854,10 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
 
       numOfElems++;
       char* pkData = NULL;
-      if (pCtx->hasPrimaryKey) {
+      if (pCtx->hasPrimaryKey && !colDataIsNull_s(pkCol, i)) {
+        // pkCol[i] might be null when using cachemodel
+        // however, if using cachemodel, we don't need pk to determine the order
+        // because ts is enough
         pkData = colDataGetData(pkCol, i);
       }
       if (pResInfo->numOfRes == 0 || pInfo->ts < pts[i] ||

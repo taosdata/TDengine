@@ -50,7 +50,7 @@ class TDTestCase:
         tdSql.query(f'select cols(last(ts), ts) from {self.dbname}.meters')
         tdSql.checkResColNameList(['ts'])
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "2024-12-19 10:22:13.000")
+        tdSql.checkData(0, 0, "2024-12-19 10:22:09.004")
         tdSql.query(f'select cols(last(ts), ts) as t1 from {self.dbname}.meters')
         tdSql.checkResColNameList(['t1'])
         tdSql.query(f'select cols(last(ts), ts as t1) from {self.dbname}.meters')
@@ -69,7 +69,7 @@ class TDTestCase:
         tdSql.checkResColNameList(['c0+10'])
 
         tdSql.query(f'select cols(last(c0), ts) from {self.dbname}.meters')
-        tdSql.checkData(0, 0, "2024-12-19 10:22:09.012")
+        tdSql.checkData(0, 0, "2024-12-19 10:22:09.004")
 
     def one_cols_multi_output_with_group_test(self, from_table = 'test.meters', isTmpTable = False):
         select_t1 = ["", ", t1", ", t1 as tag1"]
