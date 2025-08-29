@@ -1371,7 +1371,7 @@ static FORCE_INLINE int32_t vnodeGetDBPrimaryInfo(SVnode *pVnode, SDbSizeStatisI
     (void)snprintf(path + offset, TSDB_FILENAME_LEN - offset, "%s%s", TD_DIRSEP, dirName[i]);
     code = taosGetDirSize(path, &size);
     if (code != 0) {
-      return code;
+      uWarn("vnode %d get dir %s %s size failed since %s", TD_VID(pVnode), path, dirName[i], tstrerror(code));
     }
     path[offset] = 0;
     dirSize[i] = size;
