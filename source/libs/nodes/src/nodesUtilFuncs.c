@@ -2296,6 +2296,7 @@ int32_t nodesListPushFront(SNodeList* pList, SNode* pNode) {
   return TSDB_CODE_SUCCESS;
 }
 
+// remove current node from the list and return next node
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell) {
   if (NULL == pCell->pPrev) {
     pList->pHead = pCell->pNext;
