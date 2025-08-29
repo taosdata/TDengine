@@ -57,7 +57,7 @@ The configuration options are described as follows:
 [uwsgi]
 
 # Anode RESTful service ip:port
-http = 127.0.0.1:6090
+http = 127.0.0.1:6035
 
 # base directory for Anode python files, do NOT modified this
 chdir = /usr/local/taos/taosanode/lib
@@ -124,7 +124,7 @@ SHOW ANODES;
 taos> show anodes;
      id      |              url               |    status    |       create_time       |       update_time       |
 ==================================================================================================================
-           1 | 192.168.0.1:6090               | ready        | 2024-11-28 18:44:27.089 | 2024-11-28 18:44:27.089 |
+           1 | 192.168.0.1:6035               | ready        | 2024-11-28 18:44:27.089 | 2024-11-28 18:44:27.089 |
 Query OK, 1 row(s) in set (0.037205s)
 
 ```
