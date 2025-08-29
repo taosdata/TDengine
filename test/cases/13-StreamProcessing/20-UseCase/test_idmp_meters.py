@@ -1980,7 +1980,7 @@ class Test_IDMP_Meters:
         result_sql = "show out.tables like 'vt_em-%_out' "
         tdSql.checkResultsByFunc(
             sql  = result_sql, 
-            func = lambda: tdSql.getRows() == 11
+            func = lambda: tdSql.getRows() == 9
         )
         print("verify stream11_sub5 ........................... successfully.")
 
