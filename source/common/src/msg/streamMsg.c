@@ -472,7 +472,7 @@ void tFreeRunnerOReaderDeployReq(void* param) {
     return;
   }
 
-  SStreamOReaderDeployReq* pReq = *(SStreamOReaderDeployReq**)param;
+  SStreamOReaderDeployReq* pReq = (SStreamOReaderDeployReq*)param;
   taosArrayDestroy(pReq->vgIds);
 }
 
@@ -557,7 +557,7 @@ int32_t tDecodeSStreamMgmtReq(SDecoder* pDecoder, SStreamMgmtReq* pReq) {
         pReq->cont.pReqs = taosArrayInit(num, sizeof(SStreamDbTableName));
         TSDB_CHECK_NULL(pReq->cont.pReqs, code, lino, _exit, terrno);
         for (int32_t i = 0; i < num; ++i) {
-          SStreamDbTableName* p = taosArrayReserve(pReq->cont.pReqs, 1);
+          SStreamDbTableName* p = taosArrayGet(pReq->cont.pReqs, i);
           TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->dbFName));
           TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->tbName));
         }
@@ -571,7 +571,7 @@ int32_t tDecodeSStreamMgmtReq(SDecoder* pDecoder, SStreamMgmtReq* pReq) {
         pReq->cont.pReqs = taosArrayInit_s(sizeof(SStreamOReaderDeployReq), num);
         TSDB_CHECK_NULL(pReq->cont.pReqs, code, lino, _exit, terrno);
         for (int32_t i = 0; i < num; ++i) {
-          SStreamOReaderDeployReq* p = taosArrayReserve(pReq->cont.pReqs, 1);
+          SStreamOReaderDeployReq* p = taosArrayGet(pReq->cont.pReqs, i);
           TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &p->execId));
           TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &p->uid));
           TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &vgIdNum));

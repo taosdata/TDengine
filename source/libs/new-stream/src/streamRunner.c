@@ -958,7 +958,10 @@ end:
   if (pForceOutBlock != NULL) blockDataDestroy(pForceOutBlock);
   if (code) {
     ST_TASK_ELOG("[runner calc]faild gid:%" PRId64 ", lino:%d code:%s", pReq->gid, lino, tstrerror(code));
-    pTask->task.status = STREAM_STATUS_FAILED;
+    if (code == TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY) {
+      return TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY;
+    }
+    //pTask->task.status = STREAM_STATUS_FAILED;
   } else {
     ST_TASK_DLOG("[runner calc]success, gid:%" PRId64 ",, status:%d", pReq->gid, pTask->task.status);
   }
@@ -993,7 +996,7 @@ _exit:
 int32_t stReaderAppendMgmtReq(SStreamRunnerTask* pTask, SArray** ppRes, int32_t execId, int64_t uid, SArray* pReq) {
   int32_t code = TSDB_CODE_SUCCESS, lino = 0;
   if (NULL == *ppRes) {
-    *ppRes = taosArrayInit(4, POINTER_BYTES);
+    *ppRes = taosArrayInit(4, sizeof(SStreamOReaderDeployReq));
     TSDB_CHECK_NULL(*ppRes, code, lino, _exit, terrno);
   }
 
