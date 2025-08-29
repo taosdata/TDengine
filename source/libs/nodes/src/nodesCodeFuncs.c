@@ -221,6 +221,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ScanDatabaseStmt";
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       return "CompactVgroupsStmt";
+    case QUERY_NODE_SCAN_VGROUPS_STMT:
+      return "ScanVgroupsStmt";
     case QUERY_NODE_CREATE_STREAM_STMT:
       return "CreateStreamStmt";
     case QUERY_NODE_DROP_STREAM_STMT:
@@ -8576,6 +8578,16 @@ static int32_t jsonToCompactVgroupsStmt(const SJson* pJson, void* pObj) {
   return 0;
 }
 
+static int32_t scanVgroupsStmtToJson(const void* pObj, SJson* pJson) {
+  const SScanVgroupsStmt* pNode = (const SScanVgroupsStmt*)pObj;
+  return 0;
+}
+
+static int32_t jsonToScanVgroupsStmt(const SJson* pJson, void* pObj) {
+  SScanVgroupsStmt* pNode = (SScanVgroupsStmt*)pObj;
+  return 0;
+}
+
 static const char* jkCreateStreamStmtStreamDbName = "StreamDbName";
 static const char* jkCreateStreamStmtStreamName = "StreamName";
 static const char* jkCreateStreamStmtTargetDbName = "TargetDbName";
@@ -9528,6 +9540,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return scanDatabaseStmtToJson(pObj, pJson);
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       return compactVgroupsStmtToJson(pObj, pJson);
+    case QUERY_NODE_SCAN_VGROUPS_STMT:
+      return scanVgroupsStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_STREAM_STMT:
       return createStreamStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_STREAM_STMT:
@@ -9929,6 +9943,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToScanDatabaseStmt(pJson, pObj);
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       return jsonToCompactVgroupsStmt(pJson, pObj);
+    case QUERY_NODE_SCAN_VGROUPS_STMT:
+      return jsonToScanVgroupsStmt(pJson, pObj);
     case QUERY_NODE_CREATE_STREAM_STMT:
       return jsonToCreateStreamStmt(pJson, pObj);
     case QUERY_NODE_DROP_STREAM_STMT:

@@ -1669,6 +1669,14 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pEnd);
       break;
     }
+    case QUERY_NODE_SCAN_VGROUPS_STMT: {
+      SScanVgroupsStmt* pStmt = (SScanVgroupsStmt*)pNode;
+      nodesDestroyNode(pStmt->pDbName);
+      nodesDestroyList(pStmt->vgidList);
+      nodesDestroyNode(pStmt->pStart);
+      nodesDestroyNode(pStmt->pEnd);
+      break;
+    }
     case QUERY_NODE_CREATE_FUNCTION_STMT:  // no pointer field
     case QUERY_NODE_DROP_FUNCTION_STMT:    // no pointer field
       break;

@@ -1046,6 +1046,10 @@ static int32_t collectMetaKeyFromCompactVgroups(SCollectMetaKeyCxt* pCxt, SCompa
   return reserveDbCfgInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal, pCxt->pMetaCache);
 }
 
+static int32_t collectMetaKeyFromScanVgroups(SCollectMetaKeyCxt* pCxt, SScanVgroupsStmt* pStmt) {
+  return reserveDbCfgInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal, pCxt->pMetaCache);
+}
+
 static int32_t collectMetaKeyFromGrant(SCollectMetaKeyCxt* pCxt, SGrantStmt* pStmt) {
   if ('\0' == pStmt->tabName[0]) {
     return TSDB_CODE_SUCCESS;
@@ -1198,6 +1202,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromScanDatabase(pCxt, (SScanDatabaseStmt*)pStmt);
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       return collectMetaKeyFromCompactVgroups(pCxt, (SCompactVgroupsStmt*)pStmt);
+    case QUERY_NODE_SCAN_VGROUPS_STMT:
+      return collectMetaKeyFromScanVgroups(pCxt, (SScanVgroupsStmt*)pStmt);
     case QUERY_NODE_CREATE_STREAM_STMT:
       return collectMetaKeyFromCreateStream(pCxt, (SCreateStreamStmt*)pStmt);
     case QUERY_NODE_RECALCULATE_STREAM_STMT:
