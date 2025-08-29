@@ -115,10 +115,18 @@ while true; do
 done
 
 function prepare_cases() {
-    cat "$t_file" >>"$task_file"
+    # $1: total thread count
+    local total_threads=$1
     local i=0
-    while [ $i -lt "$1" ]; do
-        echo "%%FINISHED%%" >>"$task_file"
+    while [ $i -lt $total_threads ]; do
+        local src_file="balanced_task_${i}.txt"
+        local dst_file="$log_dir/task_${i}.txt"
+        if [ -f "$src_file" ]; then
+            cp "$src_file" "$dst_file"
+            echo "%%FINISHED%%" >>"$dst_file"
+        else
+            echo "%%FINISHED%%" >"$dst_file"
+        fi
         i=$((i + 1))
     done
 }
@@ -166,6 +174,18 @@ function clean_tmp() {
     $cmd
 }
 
+function sum_threads_before() {
+    local idx=$1
+    local sum=0
+    local i=0
+    while [ $i -lt $idx ]; do
+        sum=$((sum + threads[i]))
+        i=$((i + 1))
+    done
+    echo $sum
+}
+
+
 function run_thread() {
     local index=$1
     local thread_no=$2
@@ -181,9 +201,10 @@ function run_thread() {
     local cmd="${runcase_script} ${script}"
 
     # script="echo"
+    local thread_task_file="$log_dir/task_$((thread_no + $(sum_threads_before $index))).txt"
     while true; do
         local line
-        line=$(flock -x "$lock_file" -c "head -n1 $task_file;sed -i \"1d\" $task_file")
+        line=$(flock -x "$lock_file" -c "head -n1 $task_file;sed -i \"1d\" $thread_task_file")
         if [ "x$line" = "x%%FINISHED%%" ]; then
             break
         fi
@@ -472,6 +493,15 @@ while [ $i -lt ${#hosts[*]} ]; do
     j=$((j + threads[i]))
     i=$((i + 1))
 done
+
+# 计算总线程数
+total_threads=0
+for t in "${threads[@]}"; do
+    total_threads=$((total_threads + t))
+done
+
+python3 gen_balanced_tasks.py test-result-3.0.txt  "$total_threads"
+
 prepare_cases $j
 
 i=0
