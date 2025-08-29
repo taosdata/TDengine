@@ -38,7 +38,7 @@ optional arguments:
 - `config`：安装工具加载的配置文件，其具体配置方式详见 **配置文件使用说明** 章节。不配置 config 参数时配置文件默认值为/etc/taos/inspect.cfg。
 - `result`：巡检运行结束后结果文件和相关日志文件的存储目录，默认是用户在 taos.cfg 中配置的 logDir 对应目录。
 - `backend`：后台运行安装工具，默认前台运行。
-- `check-nginx`：是否检测负载均衡 nginx 的配置文件，默认值为不检查。
+- `check-nginx`：是否检测负载均衡 nginx 的配置文件，默认不检查。
 - `log-level`: 输出日志级别，目前支持 debug 和 info，默认模式为 info。
 - `version`：打印工具版本信息。
 
@@ -51,16 +51,16 @@ optional arguments:
 #                                                      #
 ########################################################
 
-# 安装部署TDengine TSDB的环境信息，支持免密登录和SSH登录两种方式，当环境配置了免密登录后不用配置password信息。
-# 除此外还支持从TDengine TSDB自动获取集群信息，该模式下不需配置集群节点的ip和FQDN，仅需要配置连接各节点的用户信息（免密时不用配置password信息）
+# 安装部署 TDengine TSDB 的环境信息，支持免密登录和SSH登录两种方式，当环境配置了免密登录后不用配置 password 信息。
+# 除此外还支持从 TDengine TSDB 自动获取集群信息，该模式下不需配置集群节点的 ip 和 FQDN，仅需要配置连接各节点的用户信息（免密时不用配置 password 信息）
 # 配置方式1、2和3不可同时配置
 [test_env]
-# 配置方式1: 通过TDengine TSDB获取集群信息
+# 配置方式1: 通过 TDengine TSDB 获取集群信息
 username=root
 password=123456
 port=22
 
-# 配置方式2: 节点间通过SSH协议访问
+# 配置方式2: 节点间通过 SSH 协议访问
 # firstep=192.168.0.1||fqdn=tdengine1||username=root||password=123456||port=22
 # secondep=192.168.0.2||fqdn=tdengine2||username=root||password=123456||port=22
 # dnode3=192.168.0.3||fqdn=tdengine3||username=root||username=123456||port=22
@@ -70,31 +70,31 @@ port=22
 # secondep=192.168.0.2||fqdn=tdengine2||username=root||port=22
 # dnode3=192.168.0.3||fqdn=tdengine3||username=root||port=22
 
-# TDegine的Restful连接信息
+# TDegine 的 Restful 连接信息
 [database]
 username=root
 password=taosdata
 port=6030
 rest_port=6041
 
-# Nginx服务所在服务器的连接信息
+# Nginx 服务所在服务器的连接信息
 [nginx]
 ip=192.168.0.100
 username=root
 password=123456
 port=22
 
-# oem版本的版本名称，默认不使用
+# oem 版本的版本名称，默认不使用
 # [oem]
 # version=prodb
 
-# /etc/sysctl.conf中系统参数，工具会按照下面配置修改系统参数值
+# /etc/sysctl.con f中系统参数，工具会按照下面配置修改系统参数值
 [sys_vars:/etc/sysctl.conf]
 fs.nr_open=2147483584
 fs.file-max=2147483584
 net.ipv4.ip_local_port_range=10000 65534
 
-# /etc/security/limits.conf中系统参数，工具会按照下面配置修改系统参数值
+# /etc/security/limits.conf 中系统参数，工具会按照下面配置修改系统参数值
 [sys_vars:/etc/security/limits.conf]
 * soft nproc=65536
 * soft nofile=1048576
@@ -126,7 +126,7 @@ chrony
 tree
 wget
 
-# 巡检覆盖的TDengine TSDB服务范围
+# 巡检覆盖的 TDengine TSDB 服务范围
 [td_services]
 taosd
 taos
@@ -135,7 +135,7 @@ taoskeeper
 taosx
 taos-explorer
 
-# 可忽略的TDengine TSDB错误日志
+# 可忽略的 TDengine TSDB 错误日志
 [skip_error_strs]
 failed to get monitor info
 Table does not exist
@@ -148,7 +148,6 @@ Fail to get table info
 ### 磁盘巡检范围
 
 | **No** | **巡检项目** | **详细说明** | **告警规则** |
-
 |:-------|:------------|:-----------|:-----------|
 | 1 | **磁盘基本信息**   | 磁盘类型和磁盘空间 | 磁盘已用空间低于 15% |
 | 2 | **磁盘挂载信息** | 通过 lsblk 查询的磁盘挂载信息 | 无 |
@@ -219,7 +218,7 @@ Fail to get table info
 在工具所在节点执行巡检任务
 
 ```config
-./taosinspect -m local
+./taosinspect -m local 或 ./taosinspect
 ```
 
 在集群所有节点执行巡检任务
