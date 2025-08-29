@@ -123,7 +123,7 @@ static struct argp_option options[] = {
     {"without-property", 'N', 0, 0,
         "Dump database without its properties.", 2},
     {"avro-codec", 'd', "snappy", 0,
-        "Choose an avro codec among null, deflate, snappy, and lzma.", 4},
+        "Choose an avro codec among null, deflate, snappy, and lzma(Windows is not currently supported).", 4},
     {"start-time",    'S', "START_TIME",  0,
         "Start time to dump. Either epoch or ISO8601/RFC3339 format is "
             "acceptable. ISO8601 format example: 2017-10-01T00:00:00.000+0800 "
