@@ -1366,16 +1366,15 @@ int stmtSetTbName2(TAOS_STMT2* stmt, const char* tbName) {
       pStmt->bInfo.tbName[sizeof(pStmt->bInfo.tbName) - 1] = 0;
 
       STMT_ERR_RET(stmtParseSql(pStmt));
-    }
+      if (!pStmt->sql.autoCreateTbl) {
+        uint64_t uid, suid;
+        int32_t  vgId;
+        int8_t   tableType;
 
-    if (!pStmt->sql.autoCreateTbl) {
-      uint64_t uid, suid;
-      int32_t  vgId;
-      int8_t   tableType;
-
-      int32_t code = stmtGetTableMetaAndValidate(pStmt, &uid, &suid, &vgId, &tableType);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
+        int32_t code = stmtGetTableMetaAndValidate(pStmt, &uid, &suid, &vgId, &tableType);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
       }
     }
 
