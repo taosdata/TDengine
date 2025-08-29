@@ -218,13 +218,13 @@ class TestVtableQueryCrossDbStbWindow:
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 
     def test_select_virtual_super_table(self):
-        """test select virtual super table window.
+        """Query: v-stable crossdb window query
 
-        1 test vstable select super table cross db interval
-        2 test vstable select super table cross db state
-        3 test vstable select super table cross db session
-        4 test vstable select super table cross db event
-        5 test vstable select super table cross db count
+        1. test vstable select super table cross db interval
+        2. test vstable select super table cross db state
+        3. test vstable select super table cross db session
+        4. test vstable select super table cross db event
+        5. test vstable select super table cross db count
 
         Since: v3.3.6.0
 

@@ -218,7 +218,7 @@
 (void)tSerializeSUseDbRsp
 (void)tSerializeSVDropTtlTableReq
 (void)tSerializeSVKillCompactReq
-(void)tSerializeSVS3MigrateDbReq
+(void)tSerializeSVSsMigrateDbReq
 (void)tSerializeSVTrimDbReq
 (void)tSimpleHashIterateRemove
 (void)tSimpleHashPut

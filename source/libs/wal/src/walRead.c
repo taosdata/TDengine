@@ -18,7 +18,7 @@
 #include "wal.h"
 #include "walInt.h"
 
-SWalReader *walOpenReader(SWal *pWal, SWalFilterCond *cond, int64_t id) {
+SWalReader *walOpenReader(SWal *pWal, int64_t id) {
   SWalReader *pReader = taosMemoryCalloc(1, sizeof(SWalReader));
   if (pReader == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -32,14 +32,6 @@ SWalReader *walOpenReader(SWal *pWal, SWalFilterCond *cond, int64_t id) {
   pReader->curVersion = -1;
   pReader->curFileFirstVer = -1;
   pReader->capacity = 0;
-  if (cond) {
-    pReader->cond = *cond;
-  } else {
-    //    pReader->cond.scanUncommited = 0;
-    pReader->cond.scanNotApplied = 0;
-    pReader->cond.scanMeta = 0;
-    pReader->cond.enableRef = 0;
-  }
 
   terrno = taosThreadMutexInit(&pReader->mutex, NULL);
   if (terrno) {
@@ -70,7 +62,7 @@ void walCloseReader(SWalReader *pReader) {
   taosMemoryFree(pReader);
 }
 
-int32_t walNextValidMsg(SWalReader *pReader) {
+int32_t walNextValidMsg(SWalReader *pReader, bool scanMeta) {
   int64_t fetchVer = pReader->curVersion;
   int64_t lastVer = walGetLastVer(pReader->pWal);
   int64_t committedVer = walGetCommittedVer(pReader->pWal);
@@ -87,10 +79,7 @@ int32_t walNextValidMsg(SWalReader *pReader) {
     TAOS_CHECK_RETURN(walFetchHead(pReader, fetchVer));
 
     int32_t type = pReader->pHead->head.msgType;
-    if (type == TDMT_VND_SUBMIT || ((type == TDMT_VND_DELETE) && (pReader->cond.deleteMsg == 1)) ||
-        (IS_META_MSG(type) && pReader->cond.scanMeta)) {
-      TAOS_RETURN(walFetchBody(pReader));
-    } else if (type == TDMT_VND_DROP_TABLE && pReader->cond.scanDropCtb) {
+    if (type == TDMT_VND_SUBMIT || scanMeta) {
       TAOS_RETURN(walFetchBody(pReader));
     } else {
       TAOS_CHECK_RETURN(walSkipFetchBody(pReader));
@@ -115,9 +104,7 @@ int64_t walReaderGetSkipToVersion(SWalReader *pReader) {
 
 void walReaderValidVersionRange(SWalReader *pReader, int64_t *sver, int64_t *ever) {
   *sver = walGetFirstVer(pReader->pWal);
-  int64_t lastVer = walGetLastVer(pReader->pWal);
-  int64_t committedVer = walGetCommittedVer(pReader->pWal);
-  *ever = pReader->cond.scanUncommited ? lastVer : committedVer;
+  *ever = walGetCommittedVer(pReader->pWal);
 }
 
 void walReaderVerifyOffset(SWalReader *pWalReader, STqOffsetVal *pOffset) {
@@ -236,7 +223,7 @@ int32_t walReaderSeekVer(SWalReader *pReader, int64_t ver) {
   }
 
   if (ver > pWal->vers.lastVer || ver < pWal->vers.firstVer) {
-    wInfo("vgId:%d, invalid index:%" PRId64 ", first index:%" PRId64 ", last index:%" PRId64, pReader->pWal->cfg.vgId,
+    wDebug("vgId:%d, invalid index:%" PRId64 ", first index:%" PRId64 ", last index:%" PRId64, pReader->pWal->cfg.vgId,
           ver, pWal->vers.firstVer, pWal->vers.lastVer);
 
     TAOS_RETURN(TSDB_CODE_WAL_LOG_NOT_EXIST);

@@ -75,7 +75,7 @@ class TestShowDiskInfo:
         tdSql.query(f"select sum(data3) from information_schema.ins_disk_usage")
         tdSql.query(f"select sum(cache_rdb) from information_schema.ins_disk_usage")
         tdSql.query(f"select sum(table_meta) from information_schema.ins_disk_usage")
-        tdSql.query(f"select sum(s3) from information_schema.ins_disk_usage")
+        tdSql.query(f"select sum(ss) from information_schema.ins_disk_usage")
         tdSql.query(f"select sum(raw_data) from information_schema.ins_disk_usage")
 
         tdLog.info(f"{tdSql.getData(0,0)}")

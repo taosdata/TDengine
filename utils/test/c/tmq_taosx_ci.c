@@ -484,15 +484,6 @@ int buildStable(TAOS* pConn, TAOS_RES* pRes) {
 
 #ifdef WINDOWS
   pRes = taos_query(pConn,
-                    "CREATE STABLE `meters_summary` (`_wstart` TIMESTAMP, `current` FLOAT, `groupid` INT, `location` "
-                    "VARCHAR(16)) TAGS (`group_id` BIGINT UNSIGNED)");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create super table meters_summary, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn,
                     "  CREATE TABLE `t_d2a450ee819dcf7576f0282d9ac22dbc` USING `meters_summary` (`group_id`) TAGS "
                     "(13135550082773579308)");
   if (taos_errno(pRes) != 0) {
@@ -504,17 +495,6 @@ int buildStable(TAOS* pConn, TAOS_RES* pRes) {
   pRes = taos_query(pConn, "insert into t_d2a450ee819dcf7576f0282d9ac22dbc values (now, 120, 1, 'San Francisco')");
   if (taos_errno(pRes) != 0) {
     printf("failed to insert into table d0, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-#else
-  pRes = taos_query(
-      pConn,
-      "create stream meters_summary_s trigger at_once IGNORE EXPIRED 0 fill_history 1 into meters_summary as select "
-      "_wstart, max(current) as current, "
-      "groupid, location from meters partition by groupid, location interval(10m)");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create super table meters_summary, reason:%s\n", taos_errstr(pRes));
     return -1;
   }
   taos_free_result(pRes);
@@ -600,18 +580,22 @@ int32_t init_env() {
 
 int32_t create_topic() {
   printf("create topic\n");
-  TAOS_RES* pRes;
+  int32_t code = 0;
+  TAOS_RES* pRes = NULL;
   TAOS*     pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   if (pConn == NULL) {
-    return -1;
+    code = -1;
+    goto end;
   }
 
   pRes = taos_query(pConn, "use abc1");
   if (taos_errno(pRes) != 0) {
     printf("error in use db, reason:%s\n", taos_errstr(pRes));
-    return -1;
+    code = -1;
+    goto end;
   }
   taos_free_result(pRes);
+  pRes = NULL;
 
   if (g_conf.subTable) {
     char topic[128] = {0};
@@ -620,22 +604,24 @@ int32_t create_topic() {
     pRes = taos_query(pConn, topic);
     if (taos_errno(pRes) != 0) {
       printf("failed to create topic meters_summary_t1, reason:%s\n", taos_errstr(pRes));
-      return -1;
+      code = -1;
+      goto end;
     }
-    taos_free_result(pRes);
   } else {
     char topic[128] = {0};
     sprintf(topic, "create topic topic_db %s as database abc1", g_conf.meta == 0 ? "with meta" : "only meta");
     pRes = taos_query(pConn, topic);
     if (taos_errno(pRes) != 0) {
       printf("failed to create topic topic_db, reason:%s\n", taos_errstr(pRes));
-      return -1;
+      code = -1;
+      goto end;
     }
-    taos_free_result(pRes);
   }
 
+end:
+  taos_free_result(pRes);
   taos_close(pConn);
-  return 0;
+  return code;
 }
 
 void tmq_commit_cb_print(tmq_t* tmq, int32_t code, void* param) {
@@ -1156,6 +1142,7 @@ void testConsumeExcluded(int topic_type) {
     if (taos_errno(pRes) != 0) {
       printf("failed to create topic topic_excluded1, reason:%s\n", taos_errstr(pRes));
       taos_close(pConn);
+      taos_free_result(pRes);
       return;
     }
     taos_free_result(pRes);
@@ -1165,6 +1152,7 @@ void testConsumeExcluded(int topic_type) {
     if (taos_errno(pRes) != 0) {
       printf("failed to create topic topic_excluded2, reason:%s\n", taos_errstr(pRes));
       taos_close(pConn);
+      taos_free_result(pRes);
       return;
     }
     taos_free_result(pRes);

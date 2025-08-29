@@ -10,12 +10,12 @@ import StatsD from "./_statsd.mdx"
 import Icinga2 from "./_icinga2.mdx"
 import TCollector from "./_tcollector.mdx"
 
-taosAdapter 是一个 TDengine 的配套工具，是 TDengine 集群和应用程序之间的桥梁和适配器。它提供了一种易于使用和高效的方式来直接从数据收集代理软件（如 Telegraf、StatsD、collectd 等）摄取数据。它还提供了 InfluxDB/OpenTSDB 兼容的数据摄取接口，允许 InfluxDB/OpenTSDB 应用程序无缝移植到 TDengine。
-TDengine 的各语言连接器通过 WebSocket 接口与 TDengine 进行通信，因此必须安装 taosAdapter。
+taosAdapter 是一个 TDengine TSDB 的配套工具，是 TDengine TSDB 集群和应用程序之间的桥梁和适配器。它提供了一种易于使用和高效的方式来直接从数据收集代理软件（如 Telegraf、StatsD、collectd 等）摄取数据。它还提供了 InfluxDB/OpenTSDB 兼容的数据摄取接口，允许 InfluxDB/OpenTSDB 应用程序无缝移植到 TDengine TSDB。
+TDengine TSDB 的各语言连接器通过 WebSocket 接口与 TDengine TSDB 进行通信，因此必须安装 taosAdapter。
 
 架构图如下：
 
-![TDengine Database taosAdapter Architecture](taosAdapter-architecture.webp)
+![TDengine TSDB Database taosAdapter Architecture](taosAdapter-architecture.webp)
 
 ## 功能列表
 
@@ -36,10 +36,12 @@ taosAdapter 提供了以下功能：
   icinga2 是一个收集检查结果指标和性能数据的软件。请访问 [https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer](https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer) 了解更多信息。
 - TCollector 数据写入：
   TCollector 是一个客户端进程，从本地收集器收集数据，并将数据推送到 OpenTSDB。请访问 [http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html) 了解更多信息。
-- node_exporter 采集写入：
-  node_export 是一个机器指标的导出器。请访问 [https://github.com/prometheus/node_exporter](https://github.com/prometheus/node_exporter) 了解更多信息。
+- OpenMetrics 采集写入：
+  OpenMetrics 是云原生监控领域的新兴标准，扩展并规范了 Prometheus 的指标格式，已成为现代监控工具的事实标准。请访问 [https://github.com/prometheus/OpenMetrics/blob/main/specification/OpenMetrics.md](https://github.com/prometheus/OpenMetrics/blob/main/specification/OpenMetrics.md) 了解更多信息。
 - Prometheus remote_read 和 remote_write：
   remote_read 和 remote_write 是 Prometheus 数据读写分离的集群方案。请访问 [https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis](https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis) 了解更多信息。
+- node_exporter 采集写入：
+  node_export 是一个机器指标的导出器。请访问 [https://github.com/prometheus/node_exporter](https://github.com/prometheus/node_exporter) 了解更多信息。
 - RESTful 接口：
   [RESTful API](../../connector/rest-api)
 
@@ -49,15 +51,16 @@ taosAdapter 提供了以下功能：
 
 ### InfluxDB v1 数据写入
 
-您可以使用任何支持 HTTP 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/influxdb/v1/write` 来写入 InfluxDB 兼容格式的数据到 TDengine。
+您可以使用任何支持 HTTP 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/influxdb/v1/write` 来写入 InfluxDB 兼容格式的数据到 TDengine TSDB。
 
 支持 InfluxDB 参数如下：
 
-- `db` 指定 TDengine 使用的数据库名
-- `precision` TDengine 使用的时间精度
-- `u` TDengine 用户名
-- `p` TDengine 密码
+- `db` 指定 TDengine TSDB 使用的数据库名
+- `precision` TDengine TSDB 使用的时间精度
+- `u` TDengine TSDB 用户名
+- `p` TDengine TSDB 密码
 - `ttl` 自动创建的子表生命周期，以子表的第一条数据的 TTL 参数为准，不可更新。更多信息请参考 [创建表文档](../../taos-sql/table/#创建表)的 TTL 参数。
+- `table_name_key` 自定义子表名使用的标签名，如果设置了该参数，则子表名将使用该标签对应的值。
 
 注意：目前不支持 InfluxDB 的 token 验证方式，仅支持 Basic 验证和查询参数验证。
 示例：
@@ -68,7 +71,7 @@ curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root
 
 ### OpenTSDB JSON 和 telnet 格式写入
 
-您可以使用任何支持 HTTP 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/<APIEndPoint>` 来写入 OpenTSDB 兼容格式的数据到 TDengine。EndPoint 如下：
+您可以使用任何支持 HTTP 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/<APIEndPoint>` 来写入 OpenTSDB 兼容格式的数据到 TDengine TSDB。EndPoint 如下：
 
 ```text
 /opentsdb/v1/put/json/<db>
@@ -91,25 +94,39 @@ curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root
 
 <TCollector />
 
-### node_exporter 采集写入
+### OpenMetrics 采集写入
 
-Prometheus 使用的由 \*NIX 内核暴露的硬件和操作系统指标的输出器
+OpenMetrics 是一种由 CNCF（云原生计算基金会）支持的开放标准，专注于规范指标数据的采集和传输，是云原生生态中监控和可观测性系统的核心规范之一。
 
-- 启用 taosAdapter 的配置 node_exporter.enable
-- 设置 node_exporter 的相关配置
+从 **3.3.7.0** 版本开始，taosAdapter 支持 OpenMetrics v1.0.0 数据采集与写入，同时兼容 Prometheus 0.0.4 协议，确保与 Prometheus 生态的无缝集成。
+
+启用 OpenMetrics 数据采集写入需要以下步骤：
+
+- 启用 taosAdapter 的配置 `open_metrics.enable`
+- 设置 OpenMetrics 的相关配置
 - 重新启动 taosAdapter
 
 ### Prometheus remote_read 和 remote_write
 
 <Prometheus />
 
+### node_exporter 采集写入
+
+从 **3.3.7.0** 版本开始，可以使用 OpenMetrics 插件替代 node_exporter 进行数据采集和写入。
+
+Prometheus 使用的由 \*NIX 内核暴露的硬件和操作系统指标的输出器。
+
+- 启用 taosAdapter 的配置 node_exporter.enable
+- 设置 node_exporter 的相关配置
+- 重新启动 taosAdapter
+
 ### RESTful 接口
 
-您可以使用任何支持 HTTP 协议的客户端通过访问 RESTful 接口地址 `http://<fqdn>:6041/rest/sql` 来写入数据到 TDengine 或从 TDengine 中查询数据。细节请参考 [REST API 文档](../../connector/rest-api/)。
+您可以使用任何支持 HTTP 协议的客户端通过访问 RESTful 接口地址 `http://<fqdn>:6041/rest/sql` 来写入数据到 TDengine TSDB 或从 TDengine TSDB 中查询数据。细节请参考 [REST API 文档](../../connector/rest-api/)。
 
 ## 安装
 
-taosAdapter 是 TDengine 服务端软件 的一部分，如果您使用 TDengine server 您不需要任何额外的步骤来安装 taosAdapter。您可以从 [涛思数据官方网站](https://docs.taosdata.com/releases/tdengine/) 下载 TDengine server 安装包。如果需要将 taosAdapter 分离部署在 TDengine server 之外的服务器上，则应该在该服务器上安装完整的 TDengine 来安装 taosAdapter。如果您需要使用源代码编译生成 taosAdapter，您可以参考 [构建 taosAdapter](https://github.com/taosdata/taosadapter/blob/3.0/BUILD-CN.md) 文档。
+taosAdapter 是 TDengine TSDB 服务端软件 的一部分，如果您使用 TDengine TSDB server 您不需要任何额外的步骤来安装 taosAdapter。您可以从 [涛思数据官方网站](https://docs.taosdata.com/releases/tdengine/) 下载 TDengine TSDB server 安装包。如果需要将 taosAdapter 分离部署在 TDengine TSDB server 之外的服务器上，则应该在该服务器上安装完整的 TDengine TSDB 来安装 taosAdapter。如果您需要使用源代码编译生成 taosAdapter，您可以参考 [构建 taosAdapter](https://github.com/taosdata/taosadapter/blob/3.0/BUILD-CN.md) 文档。
 
 安装完成后使用命令 `systemctl start taosadapter` 可以启动 taosAdapter 服务。
 
@@ -130,7 +147,7 @@ taosAdapter 的基础配置参数如下：
   - **设置为 `false` 时**：关闭调试模式，不允许访问调试信息。
 - **`instanceId`**：taosAdapter 实例 id，用于区分不同 taosAdapter 的日志，默认值：32。
 - **`port`**：taosAdapter 对外提供 HTTP/WebSocket 服务的端口，默认值：6041。
-- **`taosConfigDir`**：TDengine 的配置文件目录，默认值：`/etc/taos`。该目录下的 `taos.cfg` 文件将被加载。
+- **`taosConfigDir`**：TDengine TSDB 的配置文件目录，默认值：`/etc/taos`。该目录下的 `taos.cfg` 文件将被加载。
 
 从 **3.3.4.0 版本** 开始，taosAdapter 支持设置调用 C 方法并发调用数：
 
@@ -166,7 +183,7 @@ taosAdapter 的基础配置参数如下：
 
 ### 连接池配置
 
-taosAdapter 使用连接池管理与 TDengine 的连接，以提高并发性能和资源利用率。连接池配置对以下接口生效，且以下接口共享一个连接池：
+taosAdapter 使用连接池管理与 TDengine TSDB 的连接，以提高并发性能和资源利用率。连接池配置对以下接口生效，且以下接口共享一个连接池：
 
 - RESTful 接口请求
 - InfluxDB v1 写接口
@@ -174,7 +191,8 @@ taosAdapter 使用连接池管理与 TDengine 的连接，以提高并发性能�
 - Telegraf 数据写入
 - collectd 数据写入
 - StatsD 数据写入
-- 采集 node_exporter 数据写入
+- node_exporter 数据写入
+- OpenMetrics 数据写入
 - Prometheus remote_read 和 remote_write
 
 连接池的配置参数如下：
@@ -231,6 +249,7 @@ taosAdapter 将监测自身运行过程中内存使用率并通过两个阈值�
 **状态检查接口：**
 
 可以通过以下接口检查 taosAdapter 的内存状态：
+
 - **正常状态**：`http://<fqdn>:6041/-/ping` 返回 `code 200`。
 - **内存超过阈值**：
   - 如果内存超过 `pauseAllMemoryThreshold`，返回 `code 503`。
@@ -257,6 +276,7 @@ taosAdapter 将监测自身运行过程中内存使用率并通过两个阈值�
 - collectd 数据写入
 - StatsD 数据写入
 - node_exporter 数据写入
+- OpenMetrics 数据写入
 
 **参数说明**
 
@@ -392,68 +412,6 @@ curl --location --request PUT 'http://127.0.0.1:6041/config' \
 
   启用或禁用 InfluxDB 协议支持（布尔值，默认值：`true`）。
 
-#### node_exporter 配置参数
-
-- **`node_exporter.enable`**
-
-  是否启用 node_exporter 数据采集（默认值：`false`）。
-
-- **`node_exporter.db`**
-
-  指定 node_exporter 数据写入的数据库名称（默认值：`"node_exporter"`）。
-
-- **`node_exporter.urls`**
-
-  配置 node_exporter 服务地址（默认值：`["http://localhost:9100"]`）。
-
-- **`node_exporter.gatherDuration`**
-
-  设置数据采集间隔时间（默认值：`5s`）。
-
-- **`node_exporter.responseTimeout`**
-
-  配置请求超时时间（默认值：`5s`）。
-
-- **`node_exporter.user`**
-
-  设置数据库连接用户名（默认值：`"root"`）。
-
-- **`node_exporter.password`**
-
-  设置数据库连接密码（默认值：`"taosdata"`）。
-
-- **`node_exporter.ttl`**
-
-  配置采集数据的生存时间（默认值：`0`，表示无超时）。
-
-- **`node_exporter.httpUsername`**
-
-  配置 HTTP 基本认证用户名（可选）。
-
-- **`node_exporter.httpPassword`**
-
-  配置 HTTP 基本认证密码（可选）。
-
-- **`node_exporter.httpBearerTokenString`**
-
-  配置 HTTP Bearer Token 认证（可选）。
-
-- **`node_exporter.insecureSkipVerify`**
-
-  是否跳过 SSL 证书验证（默认值：`true`）。
-
-- **`node_exporter.certFile`**
-
-  指定客户端证书文件路径（可选）。
-
-- **`node_exporter.keyFile`**
-
-  指定客户端证书密钥文件路径（可选）。
-
-- **`node_exporter.caCertFile`**
-
-  指定 CA 证书文件路径（可选）。
-
 #### OpenTSDB 配置参数
 
 - **`opentsdb.enable`**
@@ -572,6 +530,134 @@ curl --location --request PUT 'http://127.0.0.1:6041/config' \
 
   是否启用 Prometheus 协议支持（默认值：`true`）。
 
+#### OpenMetrics 配置参数
+
+- **`open_metrics.enable`**
+
+  启用或禁用 OpenMetrics 数据采集功能（默认值：`false`）。
+
+- **`open_metrics.user`**
+
+  配置连接 TDengine TSDB 的用户名（默认值：`"root"`）。
+
+- **`open_metrics.password`**
+
+  设置连接 TDengine TSDB 的密码（默认值：`"taosdata"`）。
+
+- **`open_metrics.urls`**
+
+  指定 OpenMetrics 数据采集地址列表（默认值：`["http://localhost:9100"]`，未指定路由时会自动追加 `/metrics`）。
+
+- **`open_metrics.dbs`**
+
+  设置数据写入的目标数据库列表（默认值：`["open_metrics"]`，需与采集地址数量相同）。
+
+- **`open_metrics.responseTimeoutSeconds`**
+
+  配置采集超时时间（秒）（默认值：`[5]`，需与采集地址数量相同）。
+
+- **`open_metrics.httpUsernames`**
+
+  设置 Basic 认证用户名列表（若启用需与采集地址数量相同，默认值：空）。
+
+- **`open_metrics.httpPasswords`**
+
+  设置 Basic 认证密码列表（若启用需与采集地址数量相同，默认值：空）。
+
+- **`open_metrics.httpBearerTokenStrings`**
+
+  配置 Bearer Token 认证列表（若启用需与采集地址数量相同，默认值：空）。
+
+- **`open_metrics.caCertFiles`**
+
+  指定根证书文件路径列表（若启用需与采集地址数量相同，默认值：空）。
+
+- **`open_metrics.certFiles`**
+
+  设置客户端证书文件路径列表（若启用需与采集地址数量相同，默认值：空）。
+
+- **`open_metrics.keyFiles`**
+
+  配置客户端证书密钥文件路径列表（若启用需与采集地址数量相同，默认值：空）。
+
+- **`open_metrics.insecureSkipVerify`**
+
+  是否跳过 HTTPS 证书验证（默认值：`true`）。
+
+- **`open_metrics.gatherDurationSeconds`**
+
+  设置采集间隔时间（秒）（默认值：`[5]`，需与采集地址数量相同）。
+
+- **`open_metrics.ttl`**
+
+  定义数据表的生存时间（秒）（`0` 表示无超时，若启用需与采集地址数量相同，默认值：空）。
+
+- **`open_metrics.ignoreTimestamp`**
+
+  是否忽略采集数据中的时间戳（若忽略则使用采集时刻时间戳，默认值：`false`）。
+
+#### node_exporter 配置参数
+
+- **`node_exporter.enable`**
+
+  是否启用 node_exporter 数据采集（默认值：`false`）。
+
+- **`node_exporter.db`**
+
+  指定 node_exporter 数据写入的数据库名称（默认值：`"node_exporter"`）。
+
+- **`node_exporter.urls`**
+
+  配置 node_exporter 服务地址（默认值：`["http://localhost:9100"]`）。
+
+- **`node_exporter.gatherDuration`**
+
+  设置数据采集间隔时间（默认值：`5s`）。
+
+- **`node_exporter.responseTimeout`**
+
+  配置请求超时时间（默认值：`5s`）。
+
+- **`node_exporter.user`**
+
+  设置数据库连接用户名（默认值：`"root"`）。
+
+- **`node_exporter.password`**
+
+  设置数据库连接密码（默认值：`"taosdata"`）。
+
+- **`node_exporter.ttl`**
+
+  配置采集数据的生存时间（默认值：`0`，表示无超时）。
+
+- **`node_exporter.httpUsername`**
+
+  配置 HTTP 基本认证用户名（可选）。
+
+- **`node_exporter.httpPassword`**
+
+  配置 HTTP 基本认证密码（可选）。
+
+- **`node_exporter.httpBearerTokenString`**
+
+  配置 HTTP Bearer Token 认证（可选）。
+
+- **`node_exporter.insecureSkipVerify`**
+
+  是否跳过 SSL 证书验证（默认值：`true`）。
+
+- **`node_exporter.certFile`**
+
+  指定客户端证书文件路径（可选）。
+
+- **`node_exporter.keyFile`**
+
+  指定客户端证书密钥文件路径（可选）。
+
+- **`node_exporter.caCertFile`**
+
+  指定 CA 证书文件路径（可选）。
+
 ### 上报指标配置
 
 taosAdapter 将指标上报到 taosKeeper 进行统一管理，参数如下：
@@ -663,6 +749,22 @@ taosAdapter 将指标上报到 taosKeeper 进行统一管理，参数如下：
 | `node_exporter.ttl`                   | `TAOS_ADAPTER_NODE_EXPORTER_TTL`                      |
 | `node_exporter.urls`                  | `TAOS_ADAPTER_NODE_EXPORTER_URLS`                     |
 | `node_exporter.user`                  | `TAOS_ADAPTER_NODE_EXPORTER_USER`                     |
+| `open_metrics.enable`                 | `TAOS_ADAPTER_OPEN_METRICS_ENABLE`                    |
+| `open_metrics.user`                   | `TAOS_ADAPTER_OPEN_METRICS_USER`                      |
+| `open_metrics.password`               | `TAOS_ADAPTER_OPEN_METRICS_PASSWORD`                  |
+| `open_metrics.urls`                   | `TAOS_ADAPTER_OPEN_METRICS_URLS`                      |
+| `open_metrics.dbs`                    | `TAOS_ADAPTER_OPEN_METRICS_DBS`                       |
+| `open_metrics.responseTimeoutSeconds` | `TAOS_ADAPTER_OPEN_METRICS_RESPONSE_TIMEOUT_SECONDS`  |
+| `open_metrics.httpUsernames`          | `TAOS_ADAPTER_OPEN_METRICS_HTTP_USERNAMES`            |
+| `open_metrics.httpPasswords`          | `TAOS_ADAPTER_OPEN_METRICS_HTTP_PASSWORDS`            |
+| `open_metrics.httpBearerTokenStrings` | `TAOS_ADAPTER_OPEN_METRICS_HTTP_BEARER_TOKEN_STRINGS` |
+| `open_metrics.caCertFiles`            | `TAOS_ADAPTER_OPEN_METRICS_CA_CERT_FILES`             |
+| `open_metrics.certFiles`              | `TAOS_ADAPTER_OPEN_METRICS_CERT_FILES`                |
+| `open_metrics.keyFiles`               | `TAOS_ADAPTER_OPEN_METRICS_KEY_FILES`                 |
+| `open_metrics.insecureSkipVerify`     | `TAOS_ADAPTER_OPEN_METRICS_INSECURE_SKIP_VERIFY`      |
+| `open_metrics.gatherDurationSeconds`  | `TAOS_ADAPTER_OPEN_METRICS_GATHER_DURATION_SECONDS`   |
+| `open_metrics.ignoreTimestamp`        | `TAOS_ADAPTER_OPEN_METRICS_IGNORE_TIMESTAMP`          |
+| `open_metrics.ttl`                    | `TAOS_ADAPTER_OPEN_METRICS_TTL`                       |
 | `opentsdb.enable`                     | `TAOS_ADAPTER_OPENTSDB_ENABLE`                        |
 | `opentsdb_telnet.batchSize`           | `TAOS_ADAPTER_OPENTSDB_TELNET_BATCH_SIZE`             |
 | `opentsdb_telnet.dbs`                 | `TAOS_ADAPTER_OPENTSDB_TELNET_DBS`                    |
@@ -717,12 +819,12 @@ taosAdapter 将指标上报到 taosKeeper 进行统一管理，参数如下：
 
 ### 升级 taosAdapter
 
-taosAdapter 和 TDengine server 需要使用相同版本。请通过升级 TDengine server 来升级 taosAdapter。
-与 taosd 分离部署的 taosAdapter 必须通过升级其所在服务器的 TDengine server 才能得到升级。
+taosAdapter 和 TDengine TSDB server 需要使用相同版本。请通过升级 TDengine TSDB server 来升级 taosAdapter。
+与 taosd 分离部署的 taosAdapter 必须通过升级其所在服务器的 TDengine TSDB server 才能得到升级。
 
 ### 移除 taosAdapter
 
-使用命令 rmtaos 可以移除包括 taosAdapter 在内的 TDengine server 软件。
+使用命令 rmtaos 可以移除包括 taosAdapter 在内的 TDengine TSDB server 软件。
 
 ## IPv6 支持
 
@@ -1246,7 +1348,7 @@ taosAdapter 将监控指标上报给 taosKeeper，这些监控指标会被 taosK
 
 ## httpd 升级为 taosAdapter 的变化
 
-在 TDengine server 2.2.x.x 或更早期版本中，taosd 进程包含一个内嵌的 http 服务（httpd）。如前面所述，taosAdapter 是一个使用 systemd 管理的独立软件，拥有自己的进程。并且两者有一些配置参数和行为是不同的，请见下表：
+在 TDengine TSDB server 2.2.x.x 或更早期版本中，taosd 进程包含一个内嵌的 http 服务（httpd）。如前面所述，taosAdapter 是一个使用 systemd 管理的独立软件，拥有自己的进程。并且两者有一些配置参数和行为是不同的，请见下表：
 
 | **#** | **embedded httpd**  | **taosAdapter**               | **comment**                                                                                    |
 |-------|---------------------|-------------------------------|------------------------------------------------------------------------------------------------|

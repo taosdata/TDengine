@@ -32,7 +32,6 @@
 #include <stdbool.h>
 #include <time.h>
 
-
 #include "bench.h"
 #include "toolsdef.h"
 

@@ -181,6 +181,9 @@ static FORCE_INLINE int32_t sifGetValueFromNode(SNode *node, char **value) {
 
   if (IS_VAR_DATA_TYPE(type)) {
     int32_t dataLen = varDataTLen(pData);
+    if (IS_STR_DATA_BLOB(type)) {
+      dataLen = blobDataTLen(pData);
+    }
     if (type == TSDB_DATA_TYPE_JSON) {
       if (*pData == TSDB_DATA_TYPE_NULL) {
         dataLen = 0;

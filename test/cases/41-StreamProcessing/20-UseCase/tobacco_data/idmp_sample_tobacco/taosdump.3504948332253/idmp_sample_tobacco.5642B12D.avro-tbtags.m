@@ -1,0 +1,1 @@
+{"version":1,"name":"wind_fiber_feed_public_point","cols": [{"name":"ts", "type":9},{"name":"equipment_status", "type":1},{"name":"production_information", "type":8}],"tags": [{"name":"tobacco_asset", "type":10},{"name":"process_stage", "type":10},{"name":"process_step", "type":10},{"name":"equipment_type", "type":10}]}

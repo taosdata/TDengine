@@ -218,11 +218,11 @@ class TestVtableQueryCrossDbStbGroup:
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 
     def test_select_virtual_super_table(self):
-        """test select virtual super table group.
+        """Query: v-stable crossdb group query
 
-        1 test vstable select super table cross db partition
-        2 test vstable select super table cross db group
-        3 test vstable select super table cross db orderby
+        1. test vstable select super table cross db partition
+        2. test vstable select super table cross db group
+        3. test vstable select super table cross db orderby
 
         Since: v3.3.6.0
 

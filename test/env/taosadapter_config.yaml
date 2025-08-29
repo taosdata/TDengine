@@ -1,5 +1,55 @@
 logLevel: debug
 port: 6041
-log:
-  path: /var/log/adapter_log
 taosConfigDir: /etc/taos
+debug: True
+logLevel: debug
+cors:
+  allowAllOrigins: True
+
+pool:
+  maxConnect: 4000
+  maxIdle: 4000
+  idleTimeout: 1h
+
+ssl:
+  enable: False
+log :
+  path: /var/log/adapter_log
+  rotationCount: 30
+  rotationTime: 24h
+  rotationSize: 1GB
+  enableRecordHttpSql: True
+  sqlRotationCount: 2
+  sqlRotationTime: 24h
+  sqlRotationSize: 1GB
+monitor:
+  collectDuration : 3s
+  incgroup: False
+  pauseQueryMemoryThreshold : 70
+  pauseAllMemoryThreshold   : 80
+  identity: 
+  writeToTD: True
+  user: root
+  password: taosdata
+  writeInterval: 30s
+
+opentsdb:
+  enable: True
+
+influxdb:
+  enable: True
+
+statsd:
+  enable: True
+
+collectd:
+  enable: True
+
+opentsdb_telnet:
+  enable: True
+
+node_exporter:
+  enable: True
+
+prometheus:
+  enable: True

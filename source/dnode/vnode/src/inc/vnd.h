@@ -119,6 +119,7 @@ int32_t vnodeBufPoolRecycle(SVBufPool* pPool);
 
 // vnodeOpen.c
 void vnodeGetPrimaryDir(const char* relPath, int32_t diskPrimary, STfs* pTfs, char* buf, size_t bufLen);
+void vnodeGetPrimaryPath(SVnode* pVnode, bool mount, char* buf, size_t bufLen);
 
 // vnodeQuery.c
 int32_t vnodeQueryOpen(SVnode* pVnode);
@@ -129,7 +130,6 @@ int     vnodeGetTableCfg(SVnode* pVnode, SRpcMsg* pMsg, bool direct);
 int32_t vnodeGetBatchMeta(SVnode* pVnode, SRpcMsg* pMsg);
 int32_t vnodeGetVSubtablesMeta(SVnode *pVnode, SRpcMsg *pMsg);
 int32_t vnodeGetVStbRefDbs(SVnode *pVnode, SRpcMsg *pMsg);
-int32_t vnodeGetStreamProgress(SVnode* pVnode, SRpcMsg* pMsg, bool direct);
 
 // vnodeCommit.c
 int32_t vnodeBegin(SVnode* pVnode);

@@ -13,4 +13,4 @@ describe test_vtable_meta.vtb_virtual_ctb0;
 describe test_vtable_meta.vtb_virtual_ntb0;
 select stable_name, db_name, columns, `tags`, isvirtual from information_schema.ins_stables where isvirtual = true order by stable_name;
 select table_name, db_name, columns, stable_name, type from information_schema.ins_tables where type = 'VIRTUAL_NORMAL_TABLE' or type = 'VIRTUAL_CHILD_TABLE' order by table_name;
-select * from information_schema.ins_columns where table_type = 'VIRTUAL_NORMAL_TABLE' or table_type = 'VIRTUAL_CHILD_TABLE' order by table_name, col_name, table_type;
+select table_name, db_name, table_type, col_name, col_type, col_length, col_precision, col_scale, col_nullable, col_source from information_schema.ins_columns where table_type = 'VIRTUAL_NORMAL_TABLE' or table_type = 'VIRTUAL_CHILD_TABLE' order by table_name, col_name, table_type;

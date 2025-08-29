@@ -69,7 +69,7 @@ int32_t doCreateTask(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC
     return terrno;
   }
 
-  buildTaskId(taskId, queryId, p->id.str);
+  buildTaskId(taskId, queryId, p->id.str, 64);
   p->schemaInfos = taosArrayInit(1, sizeof(SSchemaInfo));
   if (p->id.str == NULL || p->schemaInfos == NULL) {
     doDestroyTask(p);
@@ -105,6 +105,8 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
     return code;
   }
 
+  (*pTaskInfo)->pSubplan = pPlan;
+
   if (pHandle) {
     if (pHandle->pStateBackend) {
       (*pTaskInfo)->streamInfo.pState = pHandle->pStateBackend;
@@ -116,15 +118,14 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
     (*pTaskInfo)->sql = taosStrdup(sql);
     if (NULL == (*pTaskInfo)->sql) {
       code = terrno;
-      nodesDestroyNode((SNode*)pPlan);
       doDestroyTask(*pTaskInfo);
       (*pTaskInfo) = NULL;
       return code;
     }
   }
 
-  (*pTaskInfo)->pSubplan = pPlan;
   (*pTaskInfo)->pWorkerCb = pHandle->pWorkerCb;
+  (*pTaskInfo)->pStreamRuntimeInfo = pHandle->streamRtInfo;
   code = createOperator(pPlan->pNode, *pTaskInfo, pHandle, pPlan->pTagCond, pPlan->pTagIndexCond, pPlan->user,
                         pPlan->dbFName, &((*pTaskInfo)->pRoot), model);
 
@@ -300,16 +301,9 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   taosMemoryFreeClear(pTaskInfo);
 }
 
-void buildTaskId(uint64_t taskId, uint64_t queryId, char* dst) {
-  char* p = dst;
-
-  int32_t offset = 6;
-  memcpy(p, "TID:0x", offset);
-  offset += tintToHex(taskId, &p[offset]);
-
-  memcpy(&p[offset], " QID:0x", 7);
-  offset += 7;
-  offset += tintToHex(queryId, &p[offset]);
-
-  p[offset] = 0;
+void buildTaskId(uint64_t taskId, uint64_t queryId, char* dst, int32_t len) {
+  int32_t ret = snprintf(dst, len, "TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, queryId);
+  if (ret < 0) {
+    qError("TID:0x%"PRIx64" QID:0x%"PRIx64" create task id failed,  ignore and continue", taskId, queryId);
+  }
 }

@@ -4,7 +4,7 @@ slug: /operations-and-maintenance/active-active-deployment
 ---
 
 import Image from '@theme/IdealImage';
-import imgDual from '../assets/active-standby-deployment-01.png';
+import imgDual from '../assets/active-active-01.png';
 
 import Enterprise from '../assets/resources/_enterprise.mdx';
 

@@ -9,7 +9,7 @@ import TabItem from '@theme/TabItem';
 
 import Rdemo from "../../07-develop/01-connect/_connect_r.mdx"
 
-通过 R 语言中的 RJDBC 库可以使 R 语言程序支持访问 TDengine 数据。以下是安装过程、配置过程以及 R 语言示例代码。
+通过 R 语言中的 RJDBC 库可以使 R 语言程序支持访问 TDengine TSDB 数据。以下是安装过程、配置过程以及 R 语言示例代码。
 
 ## 安装过程
 
@@ -29,13 +29,13 @@ install.packages("RJDBC", repos='http://cran.us.r-project.org')
 3. 在 Windows 系统上需要设置 JAVA_HOME 环境变量。
 :::
 
-3. 下载 TDengine JDBC 驱动程序：访问 maven.org 网站，下载 TDengine JDBC 驱动程序（taos-jdbcdriver-X.X.X-dist.jar）。
+3. 下载 TDengine TSDB JDBC 驱动程序：访问 maven.org 网站，下载 TDengine TSDB JDBC 驱动程序（taos-jdbcdriver-X.X.X-dist.jar）。
 
-4. 将 TDengine JDBC 驱动程序放置在适当的位置：在您的计算机上选择一个合适的位置，将 TDengine JDBC 驱动程序文件（taos-jdbcdriver-X.X.X-dist.jar）保存在此处。
+4. 将 TDengine TSDB JDBC 驱动程序放置在适当的位置：在您的计算机上选择一个合适的位置，将 TDengine TSDB JDBC 驱动程序文件（taos-jdbcdriver-X.X.X-dist.jar）保存在此处。
 
 ## 配置过程
 
-完成了安装步骤后，您需要进行一些配置，以便 RJDBC 库能够正确连接和访问 TDengine 时序数据库。
+完成了安装步骤后，您需要进行一些配置，以便 RJDBC 库能够正确连接和访问 TDengine TSDB 时序数据库。
 
 1. 在 R 脚本中加载 RJDBC 和其他必要的库：
 
@@ -62,7 +62,7 @@ url <- "jdbc:TAOS://localhost:6030/?user=root&password=taosdata"
 drv <- JDBC("com.taosdata.jdbc.TSDBDriver", driverPath)
 ```
 
-4. 创建 TDengine 数据库连接：
+4. 创建 TDengine TSDB 数据库连接：
 
 ```r
 # 创建数据库连接
@@ -80,10 +80,10 @@ dbDisconnect(conn)
 
 ## 使用 RJDBC 的 R 语言示例代码
 
-以下是一个使用 RJDBC 库连接 TDengine 时序数据库并执行查询操作的示例代码：
+以下是一个使用 RJDBC 库连接 TDengine TSDB 时序数据库并执行查询操作的示例代码：
 
 <Rdemo/>
 
-请根据您的实际情况修改 JDBC 驱动程序、JDBC URL、用户名、密码以及 SQL 查询语句，以适配您的 TDengine 时序数据库环境和要求。
+请根据您的实际情况修改 JDBC 驱动程序、JDBC URL、用户名、密码以及 SQL 查询语句，以适配您的 TDengine TSDB 时序数据库环境和要求。
 
-通过以上步骤和示例代码，您可以在 R 语言环境中使用 RJDBC 库访问 TDengine 时序数据库，进行数据查询和分析等操作。
+通过以上步骤和示例代码，您可以在 R 语言环境中使用 RJDBC 库访问 TDengine TSDB 时序数据库，进行数据查询和分析等操作。
