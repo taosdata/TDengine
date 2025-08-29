@@ -9,9 +9,19 @@ class TestTmpBasic1:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_tmq_basic1(self):
-        """Tmq Test
+        """1 consumer: vgroups=1 topics=1
 
-        1. -
+        test scenario, please refer to https://jira.taosdata.com:18090/pages/viewpage.action?pageId=135120406, firstly insert data, then start consume
+        1. basic1.sim: vgroups=1, one topic for one consumer
+        2. basic2.sim: vgroups=1, multi topics for one consumer
+        3. basic3.sim: vgroups=4, one topic for one consumer
+        4. basic4.sim: vgroups=4, multi topics for one consumer
+        5. snapshot1.sim: vgroups=1, multi topics for one consumer, consume from snapshot
+
+        notes1: Scalar function: ABS/ACOS/ASIN/ATAN/CEIL/COS/FLOOR/LOG/POW/ROUND/SIN/SQRT/TAN
+        The above use cases are combined with where filter conditions, such as: where ts > "2017-08-12 18:25:58.128Z" and sin(a) > 0.5;
+        
+        notes2: not support aggregate functions(such as sum/count/min/max) and time-windows(interval).
 
         Catalog:
             - Subscribe
@@ -26,18 +36,6 @@ class TestTmpBasic1:
             - 2025-5-9 Simon Guan migrated from tsim/tmq/basic1.sim
 
         """
-
-        #### test scenario, please refer to https://jira.taosdata.com:18090/pages/viewpage.action?pageId=135120406
-        # basic1.sim: vgroups=1, one topic for one consumer, firstly insert data, then start consume. Include six topics
-        # basic2.sim: vgroups=1, multi topics for one consumer, firstly insert data, then start consume. Include six topics
-        # basic3.sim: vgroups=4, one topic for one consumer, firstly insert data, then start consume. Include six topics
-        # basic4.sim: vgroups=4, multi topics for one consumer, firstly insert data, then start consume. Include six topics
-
-        # notes1: Scalar function: ABS/ACOS/ASIN/ATAN/CEIL/COS/FLOOR/LOG/POW/ROUND/SIN/SQRT/TAN
-        # The above use cases are combined with where filter conditions, such as: where ts > "2017-08-12 18:25:58.128Z" and sin(a) > 0.5;
-        #
-        # notes2: not support aggregate functions(such as sum/count/min/max) and time-windows(interval).
-        #
 
         self.prepareBasicEnv_1vgrp()
 
@@ -136,11 +134,11 @@ class TestTmpBasic1:
 
             tdLog.info(f"start consumer to pull msgs from stb")
             tdLog.info(
-                f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
+                f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
             )
 
             os.system(
-                f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
+                f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
             )
 
             tdLog.info(f"check consume result")
@@ -205,10 +203,10 @@ class TestTmpBasic1:
 
             tdLog.info(f"start consumer to pull msgs from ctb")
             tdLog.info(
-                f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -s start"
+                f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -s start"
             )
             os.system(
-                f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
+                f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
             )
 
             tdLog.info(f"check consume result")
@@ -272,10 +270,10 @@ class TestTmpBasic1:
 
             tdLog.info(f"start consumer to pull msgs from ntb")
             tdLog.info(
-                f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -s start"
+                f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -s start"
             )
             os.system(
-                f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
+                f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
             )
 
             tdLog.info(f"check consume result from ntb")
@@ -294,7 +292,7 @@ class TestTmpBasic1:
             loop_cnt = loop_cnt + 1
 
         # ------ not need stop consumer, because it exit after pull msg overthan expect msg
-        os.system(f"cases/12-DataSubscription/sh/consume.sh -s stop -x SIGINT")
+        os.system(f"cases/40-DataSubscription/sh/consume.sh -s stop -x SIGINT")
 
     def prepareBasicEnv_1vgrp(self):
 

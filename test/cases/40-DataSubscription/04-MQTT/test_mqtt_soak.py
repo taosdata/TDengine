@@ -24,7 +24,7 @@ class TestMqttCases:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_mqtt_soak(self):
-        """ Mqtt soak testing
+        """MQTT: soak testing
 
         Soak testing for 72 hours to assess taosmqtt's behavior under prolonged stress.
         -N [6]

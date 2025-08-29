@@ -123,7 +123,7 @@ static struct argp_option options[] = {
     {"without-property", 'N', 0, 0,
         "Dump database without its properties.", 2},
     {"avro-codec", 'd', "snappy", 0,
-        "Choose an avro codec among null, deflate, snappy, and lzma.", 4},
+        "Choose an avro codec among null, deflate, snappy, and lzma(Windows is not currently supported).", 4},
     {"start-time",    'S', "START_TIME",  0,
         "Start time to dump. Either epoch or ISO8601/RFC3339 format is "
             "acceptable. ISO8601 format example: 2017-10-01T00:00:00.000+0800 "
@@ -843,9 +843,9 @@ static void copyHumanTimeToArg(char *timeStr, bool isStartTime) {
 
 static void copyTimestampToArg(char *timeStr, bool isStartTime) {
     if (isStartTime) {
-        g_args.start_time = atol((const char *)timeStr);
+        g_args.start_time = strtoll((const char *)timeStr, NULL, 10);
     } else {
-        g_args.end_time = atol((const char *)timeStr);
+        g_args.end_time = strtoll((const char *)timeStr, NULL, 10);
     }
 }
 
@@ -7118,8 +7118,8 @@ static int createMTableAvroHeadImp(
                     avro_value_set_null(&branch);
                 } else {
                     avro_value_set_branch(&value, 1, &branch);
-                    u32Temp = (int32_t)atoi((const char *)
-                            subTableDes->cols[subTableDes->columns + tag].value);
+                    u32Temp = (uint32_t)strtoul((const char *)
+                            subTableDes->cols[subTableDes->columns + tag].value, NULL, 10);
 
                     int32_t n32tmp = (int32_t)(u32Temp - INT_MAX);
                     avro_value_append(&branch, &firsthalf, NULL);
@@ -7653,8 +7653,8 @@ static int writeTagsToAvro(
                     avro_value_set_null(&branch);
                 } else {
                     avro_value_set_branch(&value, 1, &branch);
-                    u32Temp = (int32_t)atoi((const char *)
-                            tbDes->cols[tbDes->columns + tag].value);
+                    u32Temp = (uint32_t)strtoul((const char *)
+                            tbDes->cols[tbDes->columns + tag].value, NULL, 10);
 
                     int32_t n32tmp = (int32_t)(u32Temp - INT_MAX);
                     avro_value_append(&branch, &firsthalf, NULL);
@@ -8355,9 +8355,9 @@ static void loadFileMark(FILE *fp, char *mark, char *fcharset) {
 
     do {
 #ifdef WINDOWS
-        line = calloc(1, markLen);
+        line = calloc(1, MAX_LINE_LENGTH);
         TOOLS_ASSERT(line);
-        if (NULL == fgets(line, markLen, fp)) {
+        if (NULL == fgets(line, MAX_LINE_LENGTH, fp)) {
             goto _exit_no_charset;
         }
         size = strlen(line?line:"");

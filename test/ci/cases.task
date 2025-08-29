@@ -288,38 +288,34 @@
 ,,y,.,./ci/pytest.sh pytest cases/26-TagIndex/test_index_overflow.py 
 ,,y,.,./ci/pytest.sh pytest cases/26-TagIndex/test_index_perf.py 
 
-# 12-DataSubscription
+# 40-DataSubscription
 ## 01-Mgmt
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/01-Mgmt/test_drop_lost_comsumers.py
-
+,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/01-Mgmt/test_drop_lost_comsumers.py
+,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/01-Mgmt/test_force_drop_topic.py
+,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/01-Mgmt/test_topic.py
 ## 02-Native
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_basic1.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_basic2.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_basic3.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_basic4.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_cons_overlap.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_cons1.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_cons2.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_cons3.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_cons4.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_snapshot1.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_snapshot2.py
-,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_topic.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_params.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_params.py -R
-,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_force_drop_topic.py
-
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_cons1_v1_snapshot.py
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_cons1_v1_t1.py
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_cons1_v1_tn.py
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_cons1_v4_t1.py
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_cons1_v4_tn.py
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_cons2_v1_overlap.py
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_cons2_v1_snapshot.py
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_cons2_v1_t1.py
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_cons2_v1_tn.py
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_cons2_v4_t1.py
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_cons2_v4_tn.py
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_params.py
+,,n,.,pytest cases/40-DataSubscription/02-Native/test_tmq_params.py -R
 ## 03-WebSocket
-
 ## 04-MQTT
-,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_smoking.py
-,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 2
-,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 6
-,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 11
-,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_qos.py
-,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_special.py
-,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_rb.py
-## 05-OPC
+,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/04-MQTT/test_mqtt_smoking.py
+,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 2
+,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 6
+,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 11
+,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/04-MQTT/test_mqtt_qos.py
+,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/04-MQTT/test_mqtt_special.py
+,,y,.,./ci/pytest.sh pytest cases/40-DataSubscription/04-MQTT/test_mqtt_rb.py
 
 # 13-StreamProcessing
 ## 01-Snode
@@ -656,7 +652,6 @@
 
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/stream/test_stream_vtable.py
 
-,,n,.,pytest cases/uncatalog/army/tmq/test_drop_lost_comsumers.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tmq/test_tmq_bugs.py -N 3
 
 # army/tools

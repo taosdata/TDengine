@@ -4,7 +4,6 @@ import time
 import socket
 import os
 import threading
-# from tmqCommon import *
 
 class TestStateWindow:
 

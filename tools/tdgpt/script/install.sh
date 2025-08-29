@@ -296,7 +296,7 @@ function install_anode_venv() {
   ${csudo}${venvDir}/bin/pip3 install flask
   ${csudo}${venvDir}/bin/pip3 install matplotlib
   ${csudo}${venvDir}/bin/pip3 install uwsgi
-  ${csudo}${venvDir}/bin/pip3 install torch==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
+  ${csudo}${venvDir}/bin/pip3 install torch --index-url https://download.pytorch.org/whl/cpu
   ${csudo}${venvDir}/bin/pip3 install keras==3.10.0
   ${csudo}${venvDir}/bin/pip3 install requests
   ${csudo}${venvDir}/bin/pip3 install taospy

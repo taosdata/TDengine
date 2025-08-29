@@ -27,7 +27,7 @@ class TestMqttDevBasic:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_mqtt_dev_smoke(self):
-        """ Mqtt basic development testing
+        """MQTT: Development testing
 
         Verification testing during the development process.
 
