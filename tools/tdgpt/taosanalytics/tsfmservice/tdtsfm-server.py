@@ -678,7 +678,7 @@ def init_model():
     )
 
     Taos_model = TaosForPrediction(config)
-    weight_path = "/home/lisa/Downloads/taos.pth"
+    weight_path = "taos.pth"
     state_dict = torch.load(weight_path, map_location=torch.device('cpu'))
 
     # convert model weight
