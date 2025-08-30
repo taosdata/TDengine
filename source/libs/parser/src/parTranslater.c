@@ -16210,12 +16210,32 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
 
   int32_t  numOfCols = 0, numOfTags = 0;
   SSchema *pCols = NULL, *pTags = NULL;
-
+  int32_t  nFuncs = LIST_LENGTH(pStmt->pFuncs);
   PAR_ERR_JRET(getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pTableMeta));
   numOfCols = pTableMeta->tableInfo.numOfColumns;
   numOfTags = pTableMeta->tableInfo.numOfTags;
   pCols = pTableMeta->schema;
-  PAR_ERR_JRET(rewriteRsmaFuncs(pCxt, pStmt, numOfCols, pCols));
+  if (nFuncs < 0 || nFuncs > (numOfCols - 1)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                   "Invalid func count for rsma, should be in range [0, %d]", numOfCols - 1);
+  }
+
+  if (nFuncs > 0) {
+    PAR_ERR_JRET(rewriteRsmaFuncs(pCxt, pStmt, numOfCols, pCols));
+    pReq->funcColIds = taosMemoryCalloc(nFuncs, sizeof(col_id_t));
+    pReq->funcIds = taosMemoryCalloc(nFuncs, sizeof(int32_t));
+    if (!pReq->funcColIds || !pReq->funcIds) {
+      PAR_ERR_JRET(terrno);
+    }
+
+    int32_t        idx = 0;
+    SFunctionNode* pFunc = NULL;
+    FOREACH(pNode, pStmt->pFuncs) {
+      pFunc = (SFunctionNode*)pNode;
+      pReq->funcColIds[idx] = ((SColumnNode*)pFunc->pParameterList->pHead->pNode)->colId;
+      pReq->funcIds[idx] = pFunc->funcId;
+    }
+  }
 
 _return:
   taosMemoryFreeClear(pTableMeta);
@@ -16232,8 +16252,8 @@ static int32_t translateCreateRsma(STranslateContext* pCxt, SCreateRsmaStmt* pSt
   PAR_ERR_JRET(buildCreateRsmaReq(pCxt, pStmt, &pReq, &useTbName));
   PAR_ERR_JRET(collectUseTable(&useTbName, pCxt->pTargetTables));
   PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_CREATE_RSMA, (FSerializeFunc)tSerializeSMCreateRsmaReq, &pReq));
-  return code;
 _return:
+  tFreeSMCreateRsmaReq(&pReq);
   return code;
 }
 

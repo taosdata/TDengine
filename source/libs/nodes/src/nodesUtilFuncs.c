@@ -595,6 +595,15 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_DROP_RSMA_STMT:
       code = makeNode(type, sizeof(SDropRsmaStmt), &pNode);
       break;
+    case QUERY_NODE_START_RSMA_STMT:
+      code = makeNode(type, sizeof(SStartRsmaStmt), &pNode);
+      break;
+    case QUERY_NODE_STOP_RSMA_STMT:
+      code = makeNode(type, sizeof(SStopRsmaStmt), &pNode);
+      break;
+    case QUERY_NODE_KILL_RSMA_TASKS_STMT:
+      code = makeNode(type, sizeof(SKillRsmaTasksStmt), &pNode);
+      break;
     case QUERY_NODE_CREATE_USER_STMT:
       code = makeNode(type, sizeof(SCreateUserStmt), &pNode);
       break;
@@ -1590,6 +1599,28 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pStmt->pCols);
       nodesDestroyList(pStmt->pFuncs);
       nodesDestroyList(pStmt->pIntervals);
+      break;
+    }
+    case QUERY_NODE_KILL_RSMA_TASKS_STMT: {
+      SKillRsmaTasksStmt* pStmt = (SKillRsmaTasksStmt*)pNode;
+      nodesDestroyList(pStmt->pTaskIds);
+      break;
+    }
+    case QUERY_NODE_DROP_RSMA_STMT:  // no pointer field
+      break;
+    case QUERY_NODE_ALTER_RSMA_STMT: {
+      SAlterRsmaStmt* pStmt = (SAlterRsmaStmt*)pNode;
+      nodesDestroyList(pStmt->pFuncs);
+      break;
+    }
+    case QUERY_NODE_START_RSMA_STMT: {
+      SStartRsmaStmt* pStmt = (SStartRsmaStmt*)pNode;
+      nodesDestroyList(pStmt->pVgroups);
+      break;
+    }
+    case QUERY_NODE_STOP_RSMA_STMT: {
+      SStopRsmaStmt* pStmt = (SStopRsmaStmt*)pNode;
+      nodesDestroyList(pStmt->pVgroups);
       break;
     }
     case QUERY_NODE_CREATE_USER_STMT: {
