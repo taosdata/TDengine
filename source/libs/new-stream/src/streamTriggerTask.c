@@ -1625,7 +1625,7 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
 
   SStreamMgmtReq *pMgmtReq = atomic_load_ptr(&pTask->task.pMgmtReq);
   if (pMgmtReq && pMgmtReq == atomic_val_compare_exchange_ptr(&pTask->task.pMgmtReq, pMgmtReq, NULL)) {
-    stmDestroySStreamMgmtReq(pMgmtReq);
+    tFreeSStreamMgmtReq(pMgmtReq);
     taosMemoryFree(pMgmtReq);
   }
 
@@ -1884,7 +1884,8 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
     switch (pRsp->code) {
       case TSDB_CODE_SUCCESS:
       case TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER:
-      case TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND: {
+      case TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND:
+      case TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY: {
         // todo(kjq): retry calc request when trigger could clear data cache manually
         if (pRsp->code != TSDB_CODE_SUCCESS && (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS)) {
           *pErrTaskId = pReq->runnerTaskId;
@@ -2654,6 +2655,16 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
       SListNode            *pNode = TD_DLIST_HEAD(&pContext->retryPullReqs);
       SSTriggerPullRequest *pReq = *(SSTriggerPullRequest **)pNode->data;
       code = stRealtimeContextRetryPullRequest(pContext, pNode, pReq);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+    goto _end;
+  }
+
+  if (listNEles(&pContext->retryCalcReqs) > 0) {
+    while (listNEles(&pContext->retryCalcReqs) > 0) {
+      SListNode           *pNode = TD_DLIST_HEAD(&pContext->retryCalcReqs);
+      SSTriggerCalcRequest *pReq = *(SSTriggerCalcRequest **)pNode->data;
+      code = stRealtimeContextRetryCalcRequest(pContext, pNode, pReq);
       QUERY_CHECK_CODE(code, lino, _end);
     }
     goto _end;
@@ -3589,12 +3600,12 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_NULL(pReq, code, lino, _end, terrno);
       pReq->reqId = atomic_fetch_add_64(&pTask->mgmtReqId, 1);
       pReq->type = STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER;
-      pReq->cont.fullTableNames = pOrigTableNames;
+      pReq->cont.pReqs = pOrigTableNames;
       pOrigTableNames = NULL;
 
       // wait to be exeucted again
       pContext->status = STRIGGER_CONTEXT_IDLE;
-      pTask->task.pMgmtReq = pReq;
+      atomic_store_ptr(&pTask->task.pMgmtReq, pReq);
       pTask->task.status = STREAM_STATUS_INIT;
       break;
     }
@@ -3745,7 +3756,7 @@ static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, 
       code = stRealtimeContextCheck(pContext);
       QUERY_CHECK_CODE(code, lino, _end);
     }
-  } else {
+  } else if (pRsp->code != TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY) {
     code = tdListAppend(&pContext->retryCalcReqs, &pReq);
     QUERY_CHECK_CODE(code, lino, _end);
     SListNode *pNode = TD_DLIST_TAIL(&pContext->retryCalcReqs);
