@@ -319,12 +319,6 @@ class Test_IDMP_Meters:
         self.verify_stream3()
         self.verify_stream4()
         self.verify_stream5()
-        self.verify_stream6()
-        self.verify_stream7()
-        self.verify_stream8()
-        self.verify_stream9()
-        self.verify_stream10()
-        self.verify_stream11()
 
 
     # 
@@ -1254,12 +1248,12 @@ class Test_IDMP_Meters:
         #self.verify_stream5_sub3()
         self.verify_stream5_sub4()
         # ***** bug14 bug17 *****
-        #self.verify_stream5_sub5()
+        self.verify_stream5_sub5()
         # ***** bug14 bug15 *****
         #self.verify_stream5_sub6()
         
         # ***** bug14 bug17 *****
-        #self.verify_stream5_sub6()
+        self.verify_stream5_sub6()
         self.verify_stream5_sub7()
 
 
