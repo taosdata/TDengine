@@ -1256,10 +1256,12 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   if (pAPI->tsdReader.tsdReaderClose) {
     pAPI->tsdReader.tsdReaderClose(pInfo->base.dataReader);
   }
+  pInfo->base.dataReader = NULL;
 
   pAPI->metaReaderFn.initReader(&orgTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
   code = pAPI->metaReaderFn.getTableEntryByName(&orgTable, strstr(pParam->pOrgTbInfo->tbName, ".") + 1);
   pAPI->metaReaderFn.readerReleaseLock(&orgTable);
+  qDebug("dynamic vtable scan for origin table:%s, %s", pParam->pOrgTbInfo->tbName, GET_TASKID(pTaskInfo));
   QUERY_CHECK_CODE(code, lino, _return);
   switch (orgTable.me.type) {
     case TSDB_CHILD_TABLE:
@@ -1326,7 +1328,6 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   }
   pInfo->base.cond.suid = orgTable.me.type == TSDB_CHILD_TABLE ? superTable.me.uid : 0;
   pInfo->currentGroupId = 0;
-  pInfo->base.dataReader = NULL;
   pInfo->ignoreTag = true;
 
   pListInfo->oneTableForEachGroup = true;
