@@ -4476,11 +4476,10 @@ typedef struct {
   int8_t     tbType;  // ETableType: 1 stable, 3 normal table
   int8_t     igExists;
   int8_t     intervalUnit;
-  int32_t    nFuncs;       // number of functions specified by user
+  int16_t    nFuncs;       // number of functions specified by user
   col_id_t*  funcColIds;   // column ids specified by user
   func_id_t* funcIds;      // function ids specified by user
   int64_t    interval[2];  // 0 unspecified, > 0 valid interval
-  int64_t    uid;          // rsmaUid
   int64_t    tbUid;
   int32_t    sqlLen;  // strlen + 1
   char*      sql;

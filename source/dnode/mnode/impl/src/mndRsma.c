@@ -621,117 +621,78 @@ static int32_t mndSetUpdateDbRsmaVersionCommitLogs(SMnode *pMnode, STrans *pTran
 
   TAOS_RETURN(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
 }
-/*
-static int32_t mndCreateTSMATxnPrepare(SCreateTSMACxt *pCxt) {
-  int32_t      code = -1;
-  STransAction createStreamRedoAction = {0};
-  STransAction createStreamUndoAction = {0};
-  STransAction dropStbUndoAction = {0};
-  SMDropStbReq dropStbReq = {0};
-  STrans *pTrans = mndTransCreate(pCxt->pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_TSMA, pCxt->pRpcReq, "create-tsma");
-  if (!pTrans) {
-    code = terrno;
-    goto _OVER;
-  }
-  mndTransSetDbName(pTrans, pCxt->pDb->name, NULL);
-  TAOS_CHECK_GOTO(mndTransCheckConflict(pCxt->pMnode, pTrans), NULL, _OVER);
 
-  mndTransSetSerial(pTrans);
-  mInfo("trans:%d, used to create tsma:%s", pTrans->id, pCxt->pCreateSmaReq->name);
-
-  mndGetMnodeEpSet(pCxt->pMnode, &createStreamRedoAction.epSet);
-  createStreamRedoAction.acceptableCode = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
-  createStreamRedoAction.msgType = TDMT_MND_CREATE_STREAM;
-  createStreamRedoAction.contLen = pCxt->pCreateSmaReq->streamReqLen;
-  createStreamRedoAction.pCont = taosMemoryCalloc(1, createStreamRedoAction.contLen);
-  memcpy(createStreamRedoAction.pCont, pCxt->pCreateSmaReq->createStreamReq, createStreamRedoAction.contLen);
-
-  createStreamUndoAction.epSet = createStreamRedoAction.epSet;
-  createStreamUndoAction.acceptableCode = TSDB_CODE_MND_STREAM_NOT_EXIST;
-  createStreamUndoAction.msgType = TDMT_MND_DROP_STREAM;
-  createStreamUndoAction.contLen = pCxt->pCreateSmaReq->dropStreamReqLen;
-  createStreamUndoAction.pCont = taosMemoryCalloc(1, createStreamUndoAction.contLen);
-  memcpy(createStreamUndoAction.pCont, pCxt->pCreateSmaReq->dropStreamReq, createStreamUndoAction.contLen);
-
-  dropStbReq.igNotExists = true;
-  tstrncpy(dropStbReq.name, pCxt->targetStbFullName, TSDB_TABLE_FNAME_LEN);
-  dropStbUndoAction.epSet = createStreamRedoAction.epSet;
-  dropStbUndoAction.acceptableCode = TSDB_CODE_MND_STB_NOT_EXIST;
-  dropStbUndoAction.retryCode = TSDB_CODE_MND_STREAM_MUST_BE_DELETED;
-  dropStbUndoAction.msgType = TDMT_MND_STB_DROP;
-  dropStbUndoAction.contLen = tSerializeSMDropStbReq(0, 0, &dropStbReq);
-  dropStbUndoAction.pCont = taosMemoryCalloc(1, dropStbUndoAction.contLen);
-  if (!dropStbUndoAction.pCont) {
-    code = terrno;
-    goto _OVER;
-  }
-  if (dropStbUndoAction.contLen !=
-      tSerializeSMDropStbReq(dropStbUndoAction.pCont, dropStbUndoAction.contLen, &dropStbReq)) {
-    mError("sma: %s, failed to create due to drop stb req encode failure", pCxt->pCreateSmaReq->name);
-    code = TSDB_CODE_INVALID_MSG;
-    goto _OVER;
-  }
-
-  SDbObj newDb = {0};
-  memcpy(&newDb, pCxt->pDb, sizeof(SDbObj));
-  newDb.tsmaVersion++;
-  TAOS_CHECK_GOTO(mndSetCreateSmaRedoLogs(pCxt->pMnode, pTrans, pCxt->pSma), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateSmaUndoLogs(pCxt->pMnode, pTrans, pCxt->pSma), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateSmaCommitLogs(pCxt->pMnode, pTrans, pCxt->pSma), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndTransAppendRedoAction(pTrans, &createStreamRedoAction), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndTransAppendUndoAction(pTrans, &createStreamUndoAction), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndTransAppendUndoAction(pTrans, &dropStbUndoAction), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetUpdateDbTsmaVersionPrepareLogs(pCxt->pMnode, pTrans, pCxt->pDb, &newDb), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetUpdateDbTsmaVersionCommitLogs(pCxt->pMnode, pTrans, pCxt->pDb, &newDb), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndTransPrepare(pCxt->pMnode, pTrans), NULL, _OVER);
-
-  code = TSDB_CODE_SUCCESS;
-
-_OVER:
-  mndTransDrop(pTrans);
-  TAOS_RETURN(code);
-}
-*/
-static int32_t mndCreateRsma(SMnode* pMnode, SRpcMsg* pReq, SDbObj *pDb, SMCreateRsmaReq *pCreateReq) {
-  int32_t code = 0;
+static int32_t mndCreateRsma(SMnode* pMnode, SRpcMsg* pReq, SUserObj *pUser, SDbObj *pDb, SMCreateRsmaReq *pCreate) {
+  int32_t    code = 0, lino = 0;
+  SRsmaObj   obj = {0};
+  int32_t    nDbs = 0, nVgs = 0, nStbs = 0;
+  SDnodeObj *pDnode = NULL;
+  SDbObj    *pDbs = NULL;
+  SStbObj   *pStbs = NULL;
+  STrans    *pTrans = NULL;
 #if 0
-  SSmaObj sma = {0};
-
-  pCxt->pSma = &sma;
-  initSMAObj(pCxt);
-
-  SNodeList *pProjects = NULL;
-  code = nodesStringToList(pCxt->pCreateSmaReq->expr, &pProjects);
-  if (TSDB_CODE_SUCCESS != code) {
-    goto _OVER;
+  (void)snprintf(obj.name, TSDB_TABLE_FNAME_LEN, "%s", pCreate->name);
+  (void)snprintf(obj.db, TSDB_DB_FNAME_LEN, "%s", pDb->name);
+  (void)snprintf(obj.tbname, TSDB_TABLE_FNAME_LEN, "%s", pCreate->tbName);
+  (void)snprintf(obj.createUser, TSDB_USER_LEN, "%s", pUser->user);
+  obj.createdTime = taosGetTimestampMs();
+  obj.updateTime = obj.createdTime;
+  obj.uid = mndGenerateUid(obj.name, TSDB_TABLE_FNAME_LEN);
+  obj.tbUid = pCreate->tbUid;
+  obj.dbUid = pDb->uid;
+  obj.interval[0] = pCreate->interval[0];
+  obj.interval[1] = pCreate->interval[1];
+  obj.version = 1;
+  obj.tbType = pCreate->tbType;  // ETableType: 1 stable. Only super table supported currently. 
+  obj.intervalUnit = pCreate->intervalUnit;
+  obj.nFuncs = pCreate->nFuncs;
+  if (obj.nFuncs > 0) {
+    TSDB_CHECK_NULL((obj.funcColIds = taosMemoryCalloc(obj.funcColIds, sizeof(col_id_t))), code, lino, _exit, terrno);
+    TSDB_CHECK_NULL((obj.funcIds = taosMemoryCalloc(obj.funcIds, sizeof(func_id_t))), code, lino, _exit, terrno);
   }
-  pCxt->pProjects = pProjects;
 
-  if (TSDB_CODE_SUCCESS != (code = mndCreateTSMATxnPrepare(pCxt))) {
-    goto _OVER;
-  } else {
-    mInfo("sma:%s, uid:%" PRIi64 " create on stb:%" PRIi64 " dstTb:%s dstVg:%d", pCxt->pCreateSmaReq->name, sma.uid,
-          sma.stbUid, sma.dstTbName, sma.dstVgId);
-    code = 0;
+
+  TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq, "create-mount")), code,
+                  lino, _exit, terrno);
+  // mndTransSetSerial(pTrans);
+  mInfo("trans:%d, used to create mount:%s", pTrans->id, pInfo->mountName);
+
+  mndTransSetDbName(pTrans, mntObj.name, NULL);
+  mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
+  TAOS_CHECK_EXIT(mndTransCheckConflict(pMnode, pTrans));
+
+  mndTransSetOper(pTrans, MND_OPER_CREATE_MOUNT);
+  TAOS_CHECK_EXIT(mndSetCreateMountPrepareActions(pMnode, pTrans, &mntObj));
+  TAOS_CHECK_EXIT(mndSetCreateDbPrepareActions(pMnode, pTrans, pDbs, nDbs));
+  TAOS_CHECK_EXIT(mndSetCreateVgPrepareActions(pMnode, pTrans, pVgs, nVgs));
+  TAOS_CHECK_EXIT(mndSetCreateMountRedoActions(pMnode, pTrans, &mntObj, pVgs, nVgs));
+  // TAOS_CHECK_EXIT(mndSetCreateMountUndoLogs(pMnode, pTrans, &mntObj));
+  TAOS_CHECK_EXIT(mndSetCreateMountCommitLogs(pMnode, pTrans, &mntObj));
+  TAOS_CHECK_EXIT(mndSetCreateDbCommitLogs(pMnode, pTrans, pDbs, nDbs));
+  TAOS_CHECK_EXIT(mndSetCreateVgCommitLogs(pMnode, pTrans, pVgs, nVgs));
+  TAOS_CHECK_EXIT(mndSetCreateStbCommitActions(pMnode, pTrans, pStbs, nStbs));
+  // TAOS_CHECK_EXIT(mndSetCreateDbUndoActions(pMnode, pTrans, &mntObj, pVgroups));
+  TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
+  TAOS_CHECK_EXIT(mndIncMountTimes(pMnode, 0));
+_exit:
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("mount:%s, failed at line %d to create mount, since %s", mntObj.name, lino, tstrerror(code));
   }
-
-_OVER:
-  if (pProjects) nodesDestroyList(pProjects);
-  pCxt->pProjects = NULL;
+  mndReleaseDnode(pMnode, pDnode);
+  mndMountFreeObj(&mntObj);
+  mndUserFreeObj(&newUserObj);
+  mndTransDrop(pTrans);
+  taosMemFreeClear(pDbs);
+  taosMemFreeClear(pVgs);
+  if (pStbs) {
+    for (int32_t i = 0; i < nStbs; ++i) {
+      mndFreeStb(pStbs + i);
+    }
+    taosMemFreeClear(pStbs);
+  }
 #endif
   TAOS_RETURN(code);
 }
-
-// static int32_t mndTSMAGenerateOutputName(const char *tsmaName, char *streamName, char *targetStbName) {
-//   SName   smaName;
-//   int32_t code = tNameFromString(&smaName, tsmaName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-//   if (TSDB_CODE_SUCCESS != code) {
-//     return code;
-//   }
-//   snprintf(streamName, TSDB_TABLE_FNAME_LEN, "%d.%s", smaName.acctId, smaName.tname);
-//   snprintf(targetStbName, TSDB_TABLE_FNAME_LEN, "%s" TSMA_RES_STB_POSTFIX, tsmaName);
-//   return TSDB_CODE_SUCCESS;
-// }
 
 static int32_t mndCheckCreateRsmaReq(SMCreateRsmaReq *pCreate) {
   int32_t code = TSDB_CODE_MND_INVALID_RSMA_OPTION;
@@ -758,6 +719,7 @@ static int32_t mndProcessCreateRsmaReq(SRpcMsg *pReq) {
   SDbObj         *pDb = NULL;
   SStbObj        *pStb = NULL;
   SRsmaObj       *pSma = NULL;
+  SUserObj       *pUser = NULL;
   int64_t         mTraceId = TRACE_GET_ROOTID(&pReq->info.traceId);
   SMCreateRsmaReq createReq = {0};
 
@@ -795,8 +757,10 @@ static int32_t mndProcessCreateRsmaReq(SRpcMsg *pReq) {
   TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pDb));
   TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb));
 
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
 
-  code = mndCreateRsma(pMnode, pReq, pDb, &createReq);
+
+  code = mndCreateRsma(pMnode, pReq, pUser, pDb, &createReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _exit:

@@ -616,7 +616,9 @@ typedef struct {
   char       name[TSDB_TABLE_FNAME_LEN];
   char       tbname[TSDB_TABLE_FNAME_LEN];
   char       db[TSDB_DB_FNAME_LEN];
+  char       createUser[TSDB_USER_LEN];
   int64_t    createdTime;
+  int64_t    updateTime;
   int64_t    uid;
   int64_t    tbUid;
   int64_t    dbUid;
@@ -627,7 +629,6 @@ typedef struct {
   int16_t    nFuncs;
   col_id_t*  funcColIds;
   func_id_t* funcIds;
-  char*      sql;
 } SRsmaObj;
 
 typedef struct {
