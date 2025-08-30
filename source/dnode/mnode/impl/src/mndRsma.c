@@ -240,9 +240,9 @@ static int32_t mndRsmaActionUpdate(SSdb *pSdb, SSmaObj *pOld, SSmaObj *pNew) {
   return 0;
 }
 
-SSmaObj *mndAcquireRsma(SMnode *pMnode, char *name) {
-  SSdb      *pSdb = pMnode->pSdb;
-  SMountObj *pObj = sdbAcquire(pSdb, SDB_RSMA, name);
+SRsmaObj *mndAcquireRsma(SMnode *pMnode, char *name) {
+  SSdb     *pSdb = pMnode->pSdb;
+  SRsmaObj *pObj = sdbAcquire(pSdb, SDB_RSMA, name);
   if (pObj == NULL) {
     if (terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
       terrno = TSDB_CODE_MND_RSMA_NOT_EXIST;
@@ -258,7 +258,7 @@ SSmaObj *mndAcquireRsma(SMnode *pMnode, char *name) {
   return pObj;
 }
 
-void mndReleaseRsma(SMnode *pMnode, SSmaObj *pSma) {
+void mndReleaseRsma(SMnode *pMnode, SRsmaObj *pSma) {
   SSdb *pSdb = pMnode->pSdb;
   sdbRelease(pSdb, pSma);
 }
@@ -301,34 +301,6 @@ static int32_t mndSetCreateRsmaCommitLogs(SMnode *pMnode, STrans *pTrans, SSmaOb
   TAOS_CHECK_RETURN(mndTransAppendCommitlog(pTrans, pCommitRaw));
   TAOS_CHECK_RETURN(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
 
-  TAOS_RETURN(code);
-}
-
-static int32_t mndCheckCreateRsmaReq(SMCreateSmaReq *pCreate) {
-  int32_t code = TSDB_CODE_MND_INVALID_SMA_OPTION;
-  if (pCreate->name[0] == 0) TAOS_RETURN(code);
-  if (pCreate->stb[0] == 0) TAOS_RETURN(code);
-  if (pCreate->igExists < 0 || pCreate->igExists > 1) TAOS_RETURN(code);
-  if (pCreate->intervalUnit < 0) TAOS_RETURN(code);
-  if (pCreate->slidingUnit < 0) TAOS_RETURN(code);
-  if (pCreate->timezone < 0) TAOS_RETURN(code);
-  if (pCreate->interval < 0) TAOS_RETURN(code);
-  if (pCreate->offset < 0) TAOS_RETURN(code);
-  if (pCreate->sliding < 0) TAOS_RETURN(code);
-  if (pCreate->exprLen < 0) TAOS_RETURN(code);
-  if (pCreate->tagsFilterLen < 0) TAOS_RETURN(code);
-  if (pCreate->sqlLen < 0) TAOS_RETURN(code);
-  if (pCreate->astLen < 0) TAOS_RETURN(code);
-  if (pCreate->exprLen != 0 && strlen(pCreate->expr) + 1 != pCreate->exprLen) TAOS_RETURN(code);
-  if (pCreate->tagsFilterLen != 0 && strlen(pCreate->tagsFilter) + 1 != pCreate->tagsFilterLen) TAOS_RETURN(code);
-  if (pCreate->sqlLen != 0 && strlen(pCreate->sql) + 1 != pCreate->sqlLen) TAOS_RETURN(code);
-  if (pCreate->astLen != 0 && strlen(pCreate->ast) + 1 != pCreate->astLen) TAOS_RETURN(code);
-
-  SName smaName = {0};
-  if (tNameFromString(&smaName, pCreate->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE) < 0) return -1;
-  if (*(char *)tNameGetTableName(&smaName) == 0) return -1;
-
-  code = 0;
   TAOS_RETURN(code);
 }
 
@@ -720,7 +692,7 @@ _OVER:
   TAOS_RETURN(code);
 }
 */
-static int32_t mndCreateRsma(SMnode* pMnode, SRpcMsg pReq, SDbObj *pDb, SMCreateRsmaReq *pCreateReq) {
+static int32_t mndCreateRsma(SMnode* pMnode, SRpcMsg* pReq, SDbObj *pDb, SMCreateRsmaReq *pCreateReq) {
   int32_t code = 0;
 #if 0
   SSmaObj sma = {0};
@@ -792,9 +764,9 @@ static int32_t mndProcessCreateRsmaReq(SRpcMsg *pReq) {
   TAOS_CHECK_EXIT(tDeserializeSMCreateRsmaReq(pReq->pCont, pReq->contLen, &createReq));
 
   mInfo("start to create rsma: %s", createReq.name);
-  TAOS_CHECK_EXIT(mndCheckCreateSmaReq(&createReq));
+  TAOS_CHECK_EXIT(mndCheckCreateRsmaReq(&createReq));
 
-  if ((pSma = mndAcquireMount(pMnode, createReq.name))) {
+  if ((pSma = mndAcquireRsma(pMnode, createReq.name))) {
     if (createReq.igExists) {
       mInfo("mount:%s, already exist, ignore exist is set", createReq.name);
       code = 0;
@@ -831,11 +803,8 @@ _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("rsma:%s, failed to create since %s", createReq.name, tstrerror(code));
   }
-
   if (pStb) mndReleaseStb(pMnode, pStb);
-  
-  mndReleaseSma(pMnode, pSma);
-  
+  mndReleaseRsma(pMnode, pSma);
   mndReleaseDb(pMnode, pDb);
   tFreeSMCreateRsmaReq(&createReq);
   TAOS_RETURN(code);
