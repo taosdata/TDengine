@@ -13,11 +13,17 @@
 
 import time
 from datetime import datetime
+from .log import tdLog
+import calendar
 
 class GetTime:
 
     def get_ms_timestamp(self,ts_str):
         _ts_str = ts_str
+        if time.daylight and time.localtime().tm_isdst:
+            offset = time.altzone
+        else:
+            offset = time.timezone
         if "+" in _ts_str:
             timestamp = datetime.fromisoformat(_ts_str)
             return int((timestamp-datetime.fromtimestamp(0,timestamp.tzinfo)).total_seconds())*1000+int(timestamp.microsecond / 1000)
@@ -27,13 +33,13 @@ class GetTime:
                 _ts_str = ts_str[:-3]
         if ':' in _ts_str and '.' in _ts_str:
             timestamp = datetime.strptime(_ts_str, "%Y-%m-%d %H:%M:%S.%f")
-            date_time = int(int(time.mktime(timestamp.timetuple()))*1000 + timestamp.microsecond/1000)
+            date_time = int(int(calendar.timegm(timestamp.timetuple())+offset)*1000 + timestamp.microsecond/1000)
         elif ':' in _ts_str and '.' not in _ts_str:
             timestamp = datetime.strptime(_ts_str, "%Y-%m-%d %H:%M:%S")
-            date_time = int(int(time.mktime(timestamp.timetuple()))*1000 + timestamp.microsecond/1000)
+            date_time = int(int(calendar.timegm(timestamp.timetuple())+offset)*1000 + timestamp.microsecond/1000)
         else:
             timestamp = datetime.strptime(_ts_str, "%Y-%m-%d")
-            date_time = int(int(time.mktime(timestamp.timetuple()))*1000 + timestamp.microsecond/1000)
+            date_time = int(int(calendar.timegm(timestamp.timetuple())+offset)*1000 + timestamp.microsecond/1000)
         return date_time
     def get_us_timestamp(self,ts_str):
         _ts = self.get_ms_timestamp(ts_str) * 1000

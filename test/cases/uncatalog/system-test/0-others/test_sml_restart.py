@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom
+from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom, etool
 from urllib.parse import uses_relative
 import taos
 import taosws
@@ -40,9 +40,14 @@ class TestSmlRestart:
             - xxx
         """
 
-        os.system(f"LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f {os.path.dirname(os.path.realpath(__file__))}/part_insertmode.json -y")
-        os.system("pkill  -9  taosd")   # make sure all the data are saved in disk.
-        os.system("pkill  -9  taos") 
+        if platform.system() == 'Windows':
+            etool.benchMark(json=os.path.join(os.path.dirname(__file__), "part_insertmode.json"))
+            tdDnodes.stop(1)
+            time.sleep(3)
+        else:
+            os.system(f"LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f {os.path.dirname(os.path.realpath(__file__))}/part_insertmode.json -y")
+            os.system("pkill  -9  taosd")   # make sure all the data are saved in disk.
+            os.system("pkill  -9  taos") 
 
         tdDnodes.start(1)
         time.sleep(1)

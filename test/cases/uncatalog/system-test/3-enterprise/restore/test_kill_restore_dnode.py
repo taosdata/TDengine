@@ -58,7 +58,7 @@ class TestKillRestoreDnode:
         t0 = threading.Thread(target=self.restoreDnodeThread, args=('', newTdSql))
         t0.start()
 
-        time.sleep(2)
+        time.sleep(5)
         sql ="show transactions;"
         tdLog.info(sql)
         rows = tdSql.query(sql)

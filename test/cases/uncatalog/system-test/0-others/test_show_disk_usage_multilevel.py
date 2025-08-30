@@ -15,6 +15,7 @@
 from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom
 import os
 import time
+import platform
 
 import subprocess
 from datetime import datetime, timedelta
@@ -39,15 +40,17 @@ class TestShowDiskUsageMultilevel:
         tdLog.debug("start to execute %s" % __file__)
 
         cls.dnode_path = tdCom.getTaosdPath()
-        cls.cfg_path = f'{cls.dnode_path}/cfg'
-        cls.log_path = f'{cls.dnode_path}/log'
+        cls.cfg_path = os.path.join(cls.dnode_path, 'cfg')
+        if platform.system() == 'Windows':
+            cls.cfg_path = cls.cfg_path.replace('\\', '\\\\')
+        cls.log_path = os.path.join(cls.dnode_path, 'log')
         cls.db_name = 'test'
         cls.vgroups = 10
 
     def _prepare_env1(self):
         tdLog.info("============== prepare environment 1 ===============")
 
-        level_0_path = f'{self.dnode_path}/data00'
+        level_0_path = os.path.join(self.dnode_path, 'data00')
         cfg = {
             level_0_path: 'dataDir',
         }
@@ -155,7 +158,7 @@ class TestShowDiskUsageMultilevel:
     ]
 }}
 """
-        json_file = '/tmp/test.json'
+        json_file = os.path.join(os.path.dirname(__file__), "test.json")
         with open(json_file, 'w') as f:
             f.write(json_content)
         # Use subprocess.run() to wait for the command to finish
@@ -163,7 +166,7 @@ class TestShowDiskUsageMultilevel:
 
     def _check_retention(self):
         for vgid in range(2, 2+self.vgroups):
-            tsdb_path = self.dnode_path+f'/data01/vnode/vnode{vgid}/tsdb'
+            tsdb_path = os.path.join(self.dnode_path, "data01", "vnode", f"vnode{vgid}", "tsdb")
             # check the path should not be empty
             if not os.listdir(tsdb_path):
                 tdLog.error(f'{tsdb_path} is empty')
@@ -171,7 +174,7 @@ class TestShowDiskUsageMultilevel:
     def _calculate_disk_usage(self, path):
         size = 0
         for vgid in range(2, 2+self.vgroups): 
-            tsdb_path = self.dnode_path+f'/{path}/vnode/vnode{vgid}/tsdb'
+            tsdb_path = os.path.join(self.dnode_path, path, "vnode", f"vnode{vgid}", "tsdb")
             size += get_disk_usage(tsdb_path) 
         return int(size/1024)
 

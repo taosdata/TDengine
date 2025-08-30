@@ -53,6 +53,7 @@ class TestTimetruncate:
         elif unit.lower() == '1w':
             for i in range(len(self.ts_str)):
                 ts_result = self.get_time.get_ms_timestamp(str(tdSql.queryResult[i][0]))
+                tdLog.info(f"queryResult: {tdSql.queryResult[i][0]}, ts_result: {ts_result}, date_time[i]: {date_time[i]}")
                 if ignore_tz == 0:
                     tdSql.checkEqual(ts_result,int(date_time[i]/1000/60/60/24/7)*7*24*60*60*1000)
                 else:
@@ -148,6 +149,7 @@ class TestTimetruncate:
             tdSql.query(f'select timetruncate(ts,{unit},{ignore_tz}) from {self.stbname}')
 
     def data_check(self,date_time,precision,tb_type):
+        tdLog.info(f"date_time: {date_time}, precision: {precision}, tb_type: {tb_type}")
         tz_options = [0, 1]
         for unit in self.time_unit:
             if (unit.lower() == '1u' and precision.lower() == 'ms') or (unit.lower() == '1b' and precision.lower() == 'us') or (unit.lower() == '1b' and precision.lower() == 'ms'):
@@ -172,6 +174,7 @@ class TestTimetruncate:
                             tdSql.query(f'select timetruncate({uts},{unit},{ignore_tz}) from {self.stbname}')
                         for i in range(len(self.ts_str)):
                             ans_time.append(int(uts))
+                        tdLog.info(f"ans_time: {ans_time}, uts: {uts}, unit:{unit}, ignore_tz:{ignore_tz}")
                         self.check_ms_timestamp(unit, ans_time, ignore_tz)
             elif precision.lower() == 'us':
                 for ignore_tz in tz_options:

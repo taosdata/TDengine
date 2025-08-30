@@ -1,4 +1,6 @@
 import os
+import platform
+import time
 
 
 from new_test_framework.utils import tdLog, tdSql, tdDnodes
@@ -77,9 +79,13 @@ class TestCase:
         consumer.commit()
         consumer.close()
 
-        cmdStr = 'kill -9 `pgrep taosd`'
-        if os.system(cmdStr) != 0:
-            tdLog.exit(cmdStr)
+        if platform.system().lower() == "windows":
+            tdDnodes.stoptaosd(1)
+            time.sleep(3)
+        else:
+            cmdStr = 'kill -9 `pgrep taosd`'
+            if os.system(cmdStr) != 0:
+                tdLog.exit(cmdStr)
 
         tdDnodes.starttaosd(1)
 

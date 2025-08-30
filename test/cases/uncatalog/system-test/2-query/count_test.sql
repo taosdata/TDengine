@@ -12,7 +12,7 @@ create table t2 using can tags('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb','xxxxxxx','xxx
 create table t3 using can tags('cccccccccccccccccccccccccccccccc',NULL,'xxx_xxxxxx');
 
 
-insert into t2 file "CSV_PATH/count_test.csv";
+insert into t2 file "CSV_PATH";
 
 
 flush database d2;

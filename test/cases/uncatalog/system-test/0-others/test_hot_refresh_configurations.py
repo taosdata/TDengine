@@ -3,6 +3,7 @@ import subprocess
 import random
 import time
 import os
+import glob
 import platform
 
 
@@ -235,16 +236,30 @@ class TestHotRefreshConfigurations:
         """
 
         # reset log
-        taosdLogPath = tdCom.getTaosdPath() + "/log/*"
+
+        # taosdLogPath = os.path.join(tdCom.getTaosdPath(), "log", "*")
         tdSql.execute("alter all dnodes 'resetlog';")
         time.sleep(1)
-        cmd = "egrep 'reset log file' {}".format(taosdLogPath)
-        tdLog.debug("run cmd: {}".format(cmd))
-        r = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = r.communicate()
-        tdLog.debug("stdout: {}".format(stdout.decode()))
-        tdLog.debug("stderr: {}".format(stderr.decode()))
-        assert ('reset log file' in stdout.decode())
+        taosdLogPath = glob.glob(os.path.join(tdCom.getTaosdPath(), "log", "*"))
+        reset_log_found = False
+        for log_file in taosdLogPath:
+            with open(log_file, encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    if 'reset log file' in line:
+                        reset_log_found = True
+                        tdLog.debug(f"Found in {log_file}: {line.strip()}")
+                        break
+            if reset_log_found:
+                break
+
+        assert reset_log_found
+        # cmd = "egrep 'reset log file' {}".format(taosdLogPath)
+        # tdLog.debug("run cmd: {}".format(cmd))
+        # r = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # stdout, stderr = r.communicate()
+        # tdLog.debug("stdout: {}".format(stdout.decode("utf-8", errors="ignore")))
+        # tdLog.debug("stderr: {}".format(stderr.decode("utf-8", errors="ignore")))
+        # assert ('reset log file' in stdout.decode())
 
         for key in self.configration_dic:
             if "cli" == key:

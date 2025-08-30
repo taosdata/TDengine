@@ -2,6 +2,7 @@ from new_test_framework.utils import tdLog, tdSql
 from new_test_framework.utils.sqlset import TDSetSql
 
 import os
+import platform
 
 class TestCount:
     def setup_class(cls):
@@ -256,7 +257,10 @@ class TestCount:
         with open(sql_file, 'r', encoding='utf-8') as f:
             sql_content = f.read()
         current_dir = os.path.dirname(__file__)
-        modified_content = sql_content.replace('CSV_PATH', current_dir)
+        csv_file_path = os.path.join(current_dir, "count_test.csv")
+        if platform.system() == 'Windows':
+            csv_file_path = csv_file_path.replace('\\', '\\\\')
+        modified_content = sql_content.replace('CSV_PATH', csv_file_path)
         temp_sql_file = os.path.join(current_dir, "temp_count_test.sql")
         with open(temp_sql_file, 'w', encoding='utf-8') as f:
             f.write(modified_content)

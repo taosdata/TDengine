@@ -14,6 +14,7 @@
 
 from new_test_framework.utils import tdLog, tdSql, TDSetSql, tdDnodes
 import glob
+import time
 
 def scanFiles(pattern):
     res = []
@@ -56,6 +57,7 @@ class TestMultilevelCreatedb:
         tdSql.createDir('/mnt/data4')
 
         tdDnodes.stop(1)
+        time.sleep(3)
         tdDnodes.deploy(1,cfg)
         tdDnodes.start(1)
         
