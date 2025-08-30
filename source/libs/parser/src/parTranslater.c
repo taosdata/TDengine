@@ -16219,6 +16219,8 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                    "Invalid func count for rsma, should be in range [0, %d]", numOfCols - 1);
   }
+  pReq->tbUid = pTableMeta->uid;
+  assert(pTableMeta->uid == pTableMeta->suid);
 
   if (nFuncs > 0) {
     PAR_ERR_JRET(rewriteRsmaFuncs(pCxt, pStmt, numOfCols, pCols));

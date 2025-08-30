@@ -24,8 +24,8 @@ extern "C" {
 
 int32_t  mndInitRsma(SMnode *pMnode);
 void     mndCleanupRsma(SMnode *pMnode);
-SSmaObj *mndAcquireRsma(SMnode *pMnode, char *smaName);
-void     mndReleaseRsma(SMnode *pMnode, SSmaObj *pSma);
+SRsmaObj *mndAcquireRsma(SMnode *pMnode, char *name);
+void     mndReleaseRsma(SMnode *pMnode, SRsmaObj *pSma);
 int32_t  mndValidateRsmaInfo(SMnode *pMnode, STSMAVersion *pTsmaVersions, int32_t numOfTsmas, void **ppRsp,
                              int32_t *pRspLen);
 int32_t  mndDropRsmasByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);

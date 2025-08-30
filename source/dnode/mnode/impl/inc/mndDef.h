@@ -613,22 +613,21 @@ typedef struct {
 } SSmaObj;
 
 typedef struct {
-  char           name[TSDB_TABLE_FNAME_LEN];
-  char           tbname[TSDB_TABLE_FNAME_LEN];
-  char           db[TSDB_DB_FNAME_LEN];
-  int64_t        createdTime;
-  int64_t        uid;
-  int64_t        tbUid;
-  int64_t        dbUid;
-  int8_t         timezone;
-  int64_t        interval[2];
-  int64_t        sliding;
-  int32_t        tagsFilterLen;
-  int32_t        sqlLen;
-  int32_t        version;
-  
-  char*          tagsFilter;
-  char*          sql;
+  char       name[TSDB_TABLE_FNAME_LEN];
+  char       tbname[TSDB_TABLE_FNAME_LEN];
+  char       db[TSDB_DB_FNAME_LEN];
+  int64_t    createdTime;
+  int64_t    uid;
+  int64_t    tbUid;
+  int64_t    dbUid;
+  int64_t    interval[2];
+  int32_t    version;
+  int8_t     tbType;
+  int8_t     intervalUnit;
+  int16_t    nFuncs;
+  col_id_t*  funcColIds;
+  func_id_t* funcIds;
+  char*      sql;
 } SRsmaObj;
 
 typedef struct {

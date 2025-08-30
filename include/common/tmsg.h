@@ -4476,7 +4476,6 @@ typedef struct {
   int8_t     tbType;  // ETableType: 1 stable, 3 normal table
   int8_t     igExists;
   int8_t     intervalUnit;
-  int8_t     timezone;     // int8_t is not enough, timezone is unit of second
   int32_t    nFuncs;       // number of functions specified by user
   col_id_t*  funcColIds;   // column ids specified by user
   func_id_t* funcIds;      // function ids specified by user

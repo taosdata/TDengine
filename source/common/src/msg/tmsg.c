@@ -1377,7 +1377,6 @@ int32_t tSerializeSMCreateRsmaReq(void *buf, int32_t bufLen, SMCreateRsmaReq *pR
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->tbType));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->igExists));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->intervalUnit));
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->timezone));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->nFuncs));
   for (int32_t i = 0; i < pReq->nFuncs; ++i) {
     TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pReq->funcColIds[i]));
@@ -1417,7 +1416,6 @@ int32_t tDeserializeSMCreateRsmaReq(void *buf, int32_t bufLen, SMCreateRsmaReq *
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->tbType));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->igExists));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->intervalUnit));
-  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->timezone));
   TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pReq->nFuncs));
   if (pReq->nFuncs > 0) {
     pReq->funcColIds = taosMemoryMalloc(pReq->nFuncs * sizeof(col_id_t));

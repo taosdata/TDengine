@@ -240,13 +240,22 @@ static int32_t mndRsmaActionUpdate(SSdb *pSdb, SSmaObj *pOld, SSmaObj *pNew) {
   return 0;
 }
 
-SSmaObj *mndAcquireRsma(SMnode *pMnode, char *smaName) {
-  SSdb    *pSdb = pMnode->pSdb;
-  SSmaObj *pSma = sdbAcquire(pSdb, SDB_SMA, smaName);
-  if (pSma == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
-    terrno = TSDB_CODE_MND_SMA_NOT_EXIST;
+SSmaObj *mndAcquireRsma(SMnode *pMnode, char *name) {
+  SSdb      *pSdb = pMnode->pSdb;
+  SMountObj *pObj = sdbAcquire(pSdb, SDB_RSMA, name);
+  if (pObj == NULL) {
+    if (terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
+      terrno = TSDB_CODE_MND_RSMA_NOT_EXIST;
+    } else if (terrno == TSDB_CODE_SDB_OBJ_CREATING) {
+      terrno = TSDB_CODE_MND_MOUNT_IN_CREATING;
+    } else if (terrno == TSDB_CODE_SDB_OBJ_DROPPING) {
+      terrno = TSDB_CODE_MND_MOUNT_IN_DROPPING;
+    } else {
+      terrno = TSDB_CODE_APP_ERROR;
+      mFatal("rsma:%s, failed to acquire rsma since %s", name, terrstr());
+    }
   }
-  return pSma;
+  return pObj;
 }
 
 void mndReleaseRsma(SMnode *pMnode, SSmaObj *pSma) {
@@ -711,7 +720,7 @@ _OVER:
   TAOS_RETURN(code);
 }
 */
-static int32_t mndCreateRsma(void *pCxt) {  // SCreateTSMACxt
+static int32_t mndCreateRsma(SMnode* pMnode, SRpcMsg pReq, SDbObj *pDb, SMCreateRsmaReq *pCreateReq) {
   int32_t code = 0;
 #if 0
   SSmaObj sma = {0};
@@ -752,130 +761,83 @@ _OVER:
 //   return TSDB_CODE_SUCCESS;
 // }
 
+static int32_t mndCheckCreateRsmaReq(SMCreateRsmaReq *pCreate) {
+  int32_t code = TSDB_CODE_MND_INVALID_RSMA_OPTION;
+  if (pCreate->name[0] == 0) goto _exit;
+  if (pCreate->tbName[0] == 0) goto _exit;
+  if (pCreate->igExists < 0 || pCreate->igExists > 1) goto _exit;
+  if (pCreate->intervalUnit < 0) goto _exit;
+  if (pCreate->interval[0] <= 0) goto _exit;
+  if (pCreate->interval[1] < 0) goto _exit;
+  if (pCreate->sqlLen < 0) goto _exit;
+  if (pCreate->sqlLen != 0 && strlen(pCreate->sql) + 1 != pCreate->sqlLen) goto _exit;
+
+  SName rsmaName = {0};
+  if ((code = tNameFromString(&rsmaName, pCreate->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) < 0) goto _exit;
+  if (*(char *)tNameGetTableName(&rsmaName) == 0) goto _exit;
+  code = 0;
+_exit:
+  TAOS_RETURN(code);
+}
+
 static int32_t mndProcessCreateRsmaReq(SRpcMsg *pReq) {
-  SMnode        *pMnode = pReq->info.node;
-  int32_t        code = -1;
-#if 0
-  SDbObj        *pDb = NULL;
-  SStbObj       *pStb = NULL;
-  SSmaObj       *pSma = NULL;
-  SSmaObj       *pBaseTsma = NULL;
-  SStreamObj    *pStream = NULL;
-  int64_t        mTraceId = TRACE_GET_ROOTID(&pReq->info.traceId);
-  SMCreateSmaReq createReq = {0};
+  int32_t         code = 0, lino = 0;
+  SMnode         *pMnode = pReq->info.node;
+  SDbObj         *pDb = NULL;
+  SStbObj        *pStb = NULL;
+  SRsmaObj       *pSma = NULL;
+  int64_t         mTraceId = TRACE_GET_ROOTID(&pReq->info.traceId);
+  SMCreateRsmaReq createReq = {0};
 
-  if (sdbGetSize(pMnode->pSdb, SDB_SMA) >= tsMaxTsmaNum) {
-    code = TSDB_CODE_MND_MAX_TSMA_NUM_EXCEEDED;
-    goto _OVER;
-  }
+  TAOS_CHECK_EXIT(tDeserializeSMCreateRsmaReq(pReq->pCont, pReq->contLen, &createReq));
 
-  if (tDeserializeSMCreateSmaReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto _OVER;
-  }
+  mInfo("start to create rsma: %s", createReq.name);
+  TAOS_CHECK_EXIT(mndCheckCreateSmaReq(&createReq));
 
-  mInfo("start to create tsma: %s", createReq.name);
-  if ((code = mndCheckCreateSmaReq(&createReq)) != 0) goto _OVER;
-
-  if (createReq.normSourceTbUid == 0) {
-    pStb = mndAcquireStb(pMnode, createReq.stb);
-    if (!pStb && !createReq.recursiveTsma) {
-      mError("tsma:%s, failed to create since stb:%s not exist", createReq.name, createReq.stb);
-      code = TSDB_CODE_MND_STB_NOT_EXIST;
-      goto _OVER;
+  if ((pSma = mndAcquireMount(pMnode, createReq.name))) {
+    if (createReq.igExists) {
+      mInfo("mount:%s, already exist, ignore exist is set", createReq.name);
+      code = 0;
+      goto _exit;
+    } else {
+      TAOS_CHECK_EXIT(TSDB_CODE_MND_RSMA_ALREADY_EXIST);
+    }
+  } else {
+    if ((code = terrno) == TSDB_CODE_MND_RSMA_NOT_EXIST) {
+      // continue
+    } else {  // TSDB_CODE_MND_RSMA_IN_CREATING | TSDB_CODE_MND_RSMA_IN_DROPPING | TSDB_CODE_APP_ERROR
+      goto _exit;
     }
   }
 
-  char streamName[TSDB_TABLE_FNAME_LEN] = {0};
-  char streamTargetStbFullName[TSDB_TABLE_FNAME_LEN] = {0};
-  code = mndTSMAGenerateOutputName(createReq.name, streamName, streamTargetStbFullName);
-  if (TSDB_CODE_SUCCESS != code) {
-    mInfo("tsma:%s, faield to generate name", createReq.name);
-    goto _OVER;
-  }
-
-  pSma = sdbAcquire(pMnode->pSdb, SDB_SMA, createReq.name);
-  if (pSma && createReq.igExists) {
-    mInfo("tsma:%s, already exists in sma:%s, ignore exist is set", createReq.name, pSma->name);
-    code = 0;
-    goto _OVER;
-  }
-
-  if (pSma) {
-    code = TSDB_CODE_MND_SMA_ALREADY_EXIST;
-    goto _OVER;
-  }
-
-  SStbObj *pTargetStb = mndAcquireStb(pMnode, streamTargetStbFullName);
-  if (pTargetStb) {
-    code = TSDB_CODE_TDB_STB_ALREADY_EXIST;
-    mError("tsma: %s, failed to create since output stable already exists: %s", createReq.name,
-           streamTargetStbFullName);
-    goto _OVER;
-  }
-
-  code = mndAcquireStream(pMnode, streamName, &pStream);
-  if (pStream != NULL || code != TSDB_CODE_MND_STREAM_NOT_EXIST) {
-    mError("tsma:%s, failed to create since stream:%s already exist", createReq.name, streamName);
-    code = TSDB_CODE_MND_SMA_ALREADY_EXIST;
-    goto _OVER;
-  }
-
   SName name = {0};
-  code = tNameFromString(&name, createReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-  if (TSDB_CODE_SUCCESS != code) {
-    goto _OVER;
-  }
+  TAOS_CHECK_EXIT(tNameFromString(&name, createReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
   char db[TSDB_TABLE_FNAME_LEN] = {0};
   (void)tNameGetFullDbName(&name, db);
 
   pDb = mndAcquireDb(pMnode, db);
   if (pDb == NULL) {
-    code = TSDB_CODE_MND_DB_NOT_SELECTED;
-    goto _OVER;
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_DB_NOT_SELECTED);
   }
 
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb), NULL, _OVER);
+  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pDb));
+  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb));
 
-  if (createReq.recursiveTsma) {
-    pBaseTsma = sdbAcquire(pMnode->pSdb, SDB_SMA, createReq.baseTsmaName);
-    if (!pBaseTsma) {
-      mError("base tsma: %s not found when creating recursive tsma", createReq.baseTsmaName);
-      code = TSDB_CODE_MND_SMA_NOT_EXIST;
-      goto _OVER;
-    }
-    if (!pStb) {
-      createReq.normSourceTbUid = pBaseTsma->stbUid;
-    }
-  }
 
-  SCreateTSMACxt cxt = {
-      .pMnode = pMnode,
-      .pCreateSmaReq = &createReq,
-      .streamName = streamName,
-      .targetStbFullName = streamTargetStbFullName,
-      .pDb = pDb,
-      .pRpcReq = pReq,
-      .pSma = NULL,
-      .pBaseSma = pBaseTsma,
-      .pSrcStb = pStb,
-  };
-
-  code = mndCreateTSMA(&cxt);
+  code = mndCreateRsma(pMnode, pReq, pDb, &createReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-_OVER:
+_exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("tsma:%s, failed to create since %s", createReq.name, tstrerror(code));
+    mError("rsma:%s, failed to create since %s", createReq.name, tstrerror(code));
   }
 
   if (pStb) mndReleaseStb(pMnode, pStb);
-  if (pBaseTsma) mndReleaseSma(pMnode, pBaseTsma);
+  
   mndReleaseSma(pMnode, pSma);
-  mndReleaseStream(pMnode, pStream);
+  
   mndReleaseDb(pMnode, pDb);
-  tFreeSMCreateSmaReq(&createReq);
-#endif
+  tFreeSMCreateRsmaReq(&createReq);
   TAOS_RETURN(code);
 }
 #if 0
