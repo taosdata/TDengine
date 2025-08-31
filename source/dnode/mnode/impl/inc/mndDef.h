@@ -84,6 +84,7 @@ typedef enum {
   MND_OPER_DROP_BNODE,
   MND_OPER_CREATE_MOUNT,
   MND_OPER_DROP_MOUNT,
+  MND_OPER_CREATE_RSMA,
 } EOperType;
 
 typedef enum {
@@ -629,6 +630,7 @@ typedef struct {
   int16_t    nFuncs;
   col_id_t*  funcColIds;
   func_id_t* funcIds;
+  SRWLatch   lock;
 } SRsmaObj;
 
 typedef struct {

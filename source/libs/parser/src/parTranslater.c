@@ -16172,8 +16172,6 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
 
   pStmt->precision = pDbInfo.precision;
 
-  PAR_ERR_JRET(taosGetSystemUUIDU64(&pReq->uid));
-
   if (LIST_LENGTH(pStmt->pIntervals) < 1 || LIST_LENGTH(pStmt->pIntervals) > 2) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                    "Invalid interval count for rsma, should be in range [1, 2]");

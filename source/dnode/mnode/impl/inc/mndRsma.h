@@ -22,14 +22,15 @@
 extern "C" {
 #endif
 
-int32_t  mndInitRsma(SMnode *pMnode);
-void     mndCleanupRsma(SMnode *pMnode);
+int32_t   mndInitRsma(SMnode *pMnode);
+void      mndCleanupRsma(SMnode *pMnode);
 SRsmaObj *mndAcquireRsma(SMnode *pMnode, char *name);
-void     mndReleaseRsma(SMnode *pMnode, SRsmaObj *pSma);
-int32_t  mndValidateRsmaInfo(SMnode *pMnode, STSMAVersion *pTsmaVersions, int32_t numOfTsmas, void **ppRsp,
-                             int32_t *pRspLen);
-int32_t  mndDropRsmasByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
-int32_t  mndGetDbRsmas(SMnode *pMnode, const char *dbFName, uint64_t dbUid, STableTSMAInfoRsp *pRsp, bool *exist);
+void      mndReleaseRsma(SMnode *pMnode, SRsmaObj *pSma);
+void      mndRsmaFreeObj(SRsmaObj *pObj);
+int32_t   mndValidateRsmaInfo(SMnode *pMnode, STSMAVersion *pTsmaVersions, int32_t numOfTsmas, void **ppRsp,
+                              int32_t *pRspLen);
+int32_t   mndDropRsmasByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
+int32_t   mndGetDbRsmas(SMnode *pMnode, const char *dbFName, uint64_t dbUid, STableTSMAInfoRsp *pRsp, bool *exist);
 
 #ifdef __cplusplus
 }

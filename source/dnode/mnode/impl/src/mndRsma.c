@@ -28,14 +28,14 @@
 #include "parser.h"
 #include "tname.h"
 
-#define TSDB_RSMA_VER_NUMBER   1
-#define TSDB_RSMA_RESERVE_SIZE 64
+#define MND_RSMA_VER_NUMBER   1
+#define MND_RSMA_RESERVE_SIZE 64
 
-static SSdbRaw *mndRsmaActionEncode(SSmaObj *pSma);
+static SSdbRaw *mndRsmaActionEncode(SRsmaObj *pSma);
 static SSdbRow *mndRsmaActionDecode(SSdbRaw *pRaw);
-static int32_t  mndRsmaActionInsert(SSdb *pSdb, SSmaObj *pSma);
-static int32_t  mndRsmaActionDelete(SSdb *pSdb, SSmaObj *pSpSmatb);
-static int32_t  mndRsmaActionUpdate(SSdb *pSdb, SSmaObj *pOld, SSmaObj *pNew);
+static int32_t  mndRsmaActionInsert(SSdb *pSdb, SRsmaObj *pSma);
+static int32_t  mndRsmaActionDelete(SSdb *pSdb, SRsmaObj *pSpSmatb);
+static int32_t  mndRsmaActionUpdate(SSdb *pSdb, SRsmaObj *pOld, SRsmaObj *pNew);
 static int32_t  mndProcessCreateRsmaReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropRsmaReq(SRpcMsg *pReq);
 
@@ -67,176 +67,215 @@ int32_t mndInitRsma(SMnode *pMnode) {
 
 void mndCleanupRsma(SMnode *pMnode) {}
 
-static SSdbRaw *mndRsmaActionEncode(SSmaObj *pSma) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  terrno = TSDB_CODE_OUT_OF_MEMORY;
+void mndRsmaFreeObj(SRsmaObj *pObj) {
+  if (pObj) {
+    taosMemoryFreeClear(pObj->funcColIds);
+    taosMemoryFreeClear(pObj->funcIds);
+  }
+}
 
-  int32_t size =
-      sizeof(SSmaObj) + pSma->exprLen + pSma->tagsFilterLen + pSma->sqlLen + pSma->astLen + TSDB_RSMA_RESERVE_SIZE;
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_SMA, TSDB_RSMA_VER_NUMBER, size);
-  if (pRaw == NULL) goto _OVER;
+static int32_t tSerializeSRsmaObj(void *buf, int32_t bufLen, const SRsmaObj *pObj) {
+  int32_t  code = 0, lino = 0;
+  int32_t  tlen = 0;
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->name));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->tbname));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->db));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->createUser));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->createdTime));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->updateTime));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->uid));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->tbUid));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->dbUid));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->interval[0]));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->interval[1]));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pObj->tbType));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pObj->intervalUnit));
+  TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pObj->nFuncs));
+  for (int16_t i = 0; i < pObj->nFuncs; ++i) {
+    TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pObj->funcColIds[i]));
+    TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pObj->funcIds[i]));
+  }
+
+  tEndEncode(&encoder);
+
+  tlen = encoder.pos;
+_exit:
+  tEncoderClear(&encoder);
+  if (code < 0) {
+    mError("rsma, %s failed at line %d since %s", __func__, lino, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  return tlen;
+}
+
+static int32_t tDeserializeSRsmaObj(void *buf, int32_t bufLen, SRsmaObj *pObj) {
+  int32_t  code = 0, lino = 0;
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->name));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->tbname));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->db));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->createUser));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->createdTime));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->updateTime));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->uid));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->tbUid));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->dbUid));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->interval[0]));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->interval[1]));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pObj->tbType));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pObj->intervalUnit));
+  TAOS_CHECK_EXIT(tDecodeI16v(&decoder, &pObj->nFuncs));
+  if (pObj->nFuncs > 0) {
+    if (!(pObj->funcColIds = taosMemoryMalloc(sizeof(col_id_t) * pObj->nFuncs))) {
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    if (!(pObj->funcIds = taosMemoryMalloc(sizeof(int32_t) * pObj->nFuncs))) {
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    for (int16_t i = 0; i < pObj->nFuncs; ++i) {
+      TAOS_CHECK_EXIT(tDecodeI16v(&decoder, &pObj->funcColIds[i]));
+      TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pObj->funcIds[i]));
+    }
+  }
+
+_exit:
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  if (code < 0) {
+    mError("rsma, %s failed at line %d since %s, row:%p", __func__, lino, tstrerror(code), pObj);
+  }
+  TAOS_RETURN(code);
+}
+
+static SSdbRaw *mndRsmaActionEncode(SRsmaObj *pObj) {
+  int32_t  code = 0, lino = 0;
+  void    *buf = NULL;
+  SSdbRaw *pRaw = NULL;
+  int32_t  tlen = tSerializeSRsmaObj(NULL, 0, pObj);
+  if (tlen < 0) {
+    TAOS_CHECK_EXIT(tlen);
+  }
+
+  int32_t size = sizeof(int32_t) + tlen;
+  pRaw = sdbAllocRaw(SDB_RSMA, MND_RSMA_VER_NUMBER, size);
+  if (pRaw == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  buf = taosMemoryMalloc(tlen);
+  if (buf == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  tlen = tSerializeSRsmaObj(buf, tlen, pObj);
+  if (tlen < 0) {
+    TAOS_CHECK_EXIT(tlen);
+  }
 
   int32_t dataPos = 0;
-  SDB_SET_BINARY(pRaw, dataPos, pSma->name, TSDB_TABLE_FNAME_LEN, _OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pSma->stb, TSDB_TABLE_FNAME_LEN, _OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pSma->db, TSDB_DB_FNAME_LEN, _OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pSma->dstTbName, TSDB_TABLE_FNAME_LEN, _OVER)
-  SDB_SET_INT64(pRaw, dataPos, pSma->createdTime, _OVER)
-  SDB_SET_INT64(pRaw, dataPos, pSma->uid, _OVER)
-  SDB_SET_INT64(pRaw, dataPos, pSma->stbUid, _OVER)
-  SDB_SET_INT64(pRaw, dataPos, pSma->dbUid, _OVER)
-  SDB_SET_INT64(pRaw, dataPos, pSma->dstTbUid, _OVER)
-  SDB_SET_INT8(pRaw, dataPos, pSma->intervalUnit, _OVER)
-  SDB_SET_INT8(pRaw, dataPos, pSma->slidingUnit, _OVER)
-  SDB_SET_INT8(pRaw, dataPos, pSma->timezone, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pSma->dstVgId, _OVER)
-  SDB_SET_INT64(pRaw, dataPos, pSma->interval, _OVER)
-  SDB_SET_INT64(pRaw, dataPos, pSma->offset, _OVER)
-  SDB_SET_INT64(pRaw, dataPos, pSma->sliding, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pSma->exprLen, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pSma->tagsFilterLen, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pSma->sqlLen, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pSma->astLen, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pSma->version, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, tlen, _exit);
+  SDB_SET_BINARY(pRaw, dataPos, buf, tlen, _exit);
+  SDB_SET_DATALEN(pRaw, dataPos, _exit);
 
-  if (pSma->exprLen > 0) {
-    SDB_SET_BINARY(pRaw, dataPos, pSma->expr, pSma->exprLen, _OVER)
-  }
-  if (pSma->tagsFilterLen > 0) {
-    SDB_SET_BINARY(pRaw, dataPos, pSma->tagsFilter, pSma->tagsFilterLen, _OVER)
-  }
-  if (pSma->sqlLen > 0) {
-    SDB_SET_BINARY(pRaw, dataPos, pSma->sql, pSma->sqlLen, _OVER)
-  }
-  if (pSma->astLen > 0) {
-    SDB_SET_BINARY(pRaw, dataPos, pSma->ast, pSma->astLen, _OVER)
-  }
-  SDB_SET_BINARY(pRaw, dataPos, pSma->baseSmaName, TSDB_TABLE_FNAME_LEN, _OVER)
-
-  SDB_SET_RESERVE(pRaw, dataPos, TSDB_RSMA_RESERVE_SIZE, _OVER)
-  SDB_SET_DATALEN(pRaw, dataPos, _OVER)
-
-  terrno = 0;
-
-_OVER:
-  if (terrno != 0) {
-    mError("sma:%s, failed to encode to raw:%p since %s", pSma->name, pRaw, terrstr());
+_exit:
+  taosMemoryFreeClear(buf);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    mError("rsma, failed at line %d to encode to raw:%p since %s", lino, pRaw, tstrerror(code));
     sdbFreeRaw(pRaw);
     return NULL;
   }
 
-  mTrace("sma:%s, encode to raw:%p, row:%p", pSma->name, pRaw, pSma);
+  mTrace("rsma, encode to raw:%p, row:%p", pRaw, pObj);
   return pRaw;
 }
 
-static SSdbRow *mndRsmaActionDecode(SSdbRaw *pRaw) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  terrno = TSDB_CODE_OUT_OF_MEMORY;
-  SSdbRow *pRow = NULL;
-  SSmaObj *pSma = NULL;
+SSdbRow *mndRsmaActionDecode(SSdbRaw *pRaw) {
+  int32_t   code = 0, lino = 0;
+  SSdbRow  *pRow = NULL;
+  SRsmaObj *pObj = NULL;
+  void     *buf = NULL;
 
   int8_t sver = 0;
-  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
-
-  if (sver != TSDB_RSMA_VER_NUMBER) {
-    terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
-    goto _OVER;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) {
+    goto _exit;
   }
 
-  pRow = sdbAllocRow(sizeof(SSmaObj));
-  if (pRow == NULL) goto _OVER;
+  if (sver != MND_RSMA_VER_NUMBER) {
+    code = TSDB_CODE_SDB_INVALID_DATA_VER;
+    mError("rsma read invalid ver, data ver: %d, curr ver: %d", sver, MND_RSMA_VER_NUMBER);
+    goto _exit;
+  }
 
-  pSma = sdbGetRowObj(pRow);
-  if (pSma == NULL) goto _OVER;
+  if (!(pRow = sdbAllocRow(sizeof(SRsmaObj)))) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
 
+  if (!(pObj = sdbGetRowObj(pRow))) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  int32_t tlen;
   int32_t dataPos = 0;
+  SDB_GET_INT32(pRaw, dataPos, &tlen, _exit);
+  buf = taosMemoryMalloc(tlen + 1);
+  if (buf == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+  SDB_GET_BINARY(pRaw, dataPos, buf, tlen, _exit);
 
-  SDB_GET_BINARY(pRaw, dataPos, pSma->name, TSDB_TABLE_FNAME_LEN, _OVER)
-  SDB_GET_BINARY(pRaw, dataPos, pSma->stb, TSDB_TABLE_FNAME_LEN, _OVER)
-  SDB_GET_BINARY(pRaw, dataPos, pSma->db, TSDB_DB_FNAME_LEN, _OVER)
-  SDB_GET_BINARY(pRaw, dataPos, pSma->dstTbName, TSDB_TABLE_FNAME_LEN, _OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pSma->createdTime, _OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pSma->uid, _OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pSma->stbUid, _OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pSma->dbUid, _OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pSma->dstTbUid, _OVER)
-  SDB_GET_INT8(pRaw, dataPos, &pSma->intervalUnit, _OVER)
-  SDB_GET_INT8(pRaw, dataPos, &pSma->slidingUnit, _OVER)
-  SDB_GET_INT8(pRaw, dataPos, &pSma->timezone, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pSma->dstVgId, _OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pSma->interval, _OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pSma->offset, _OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pSma->sliding, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pSma->exprLen, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pSma->tagsFilterLen, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pSma->sqlLen, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pSma->astLen, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pSma->version, _OVER)
-
-  if (pSma->exprLen > 0) {
-    pSma->expr = taosMemoryCalloc(pSma->exprLen, 1);
-    if (pSma->expr == NULL) goto _OVER;
-    SDB_GET_BINARY(pRaw, dataPos, pSma->expr, pSma->exprLen, _OVER)
+  if (tDeserializeSRsmaObj(buf, tlen, pObj) < 0) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
   }
 
-  if (pSma->tagsFilterLen > 0) {
-    pSma->tagsFilter = taosMemoryCalloc(pSma->tagsFilterLen, 1);
-    if (pSma->tagsFilter == NULL) goto _OVER;
-    SDB_GET_BINARY(pRaw, dataPos, pSma->tagsFilter, pSma->tagsFilterLen, _OVER)
-  }
+  taosInitRWLatch(&pObj->lock);
 
-  if (pSma->sqlLen > 0) {
-    pSma->sql = taosMemoryCalloc(pSma->sqlLen, 1);
-    if (pSma->sql == NULL) goto _OVER;
-    SDB_GET_BINARY(pRaw, dataPos, pSma->sql, pSma->sqlLen, _OVER)
-  }
-
-  if (pSma->astLen > 0) {
-    pSma->ast = taosMemoryCalloc(pSma->astLen, 1);
-    if (pSma->ast == NULL) goto _OVER;
-    SDB_GET_BINARY(pRaw, dataPos, pSma->ast, pSma->astLen, _OVER)
-  }
-  SDB_GET_BINARY(pRaw, dataPos, pSma->baseSmaName, TSDB_TABLE_FNAME_LEN, _OVER)
-
-  SDB_GET_RESERVE(pRaw, dataPos, TSDB_RSMA_RESERVE_SIZE, _OVER)
-
-  terrno = 0;
-
-_OVER:
-  if (terrno != 0) {
-    if (pSma != NULL) {
-      mError("sma:%s, failed to decode from raw:%p since %s", pSma->name, pRaw, terrstr());
-      taosMemoryFreeClear(pSma->expr);
-      taosMemoryFreeClear(pSma->tagsFilter);
-      taosMemoryFreeClear(pSma->sql);
-      taosMemoryFreeClear(pSma->ast);
-    }
+_exit:
+  taosMemoryFreeClear(buf);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    mError("rsma, failed at line %d to decode from raw:%p since %s", lino, pRaw, tstrerror(code));
+    mndRsmaFreeObj(pObj);
     taosMemoryFreeClear(pRow);
     return NULL;
   }
-
-  mTrace("sma:%s, decode from raw:%p, row:%p", pSma->name, pRaw, pSma);
+  mTrace("rsma, decode from raw:%p, row:%p", pRaw, pObj);
   return pRow;
 }
 
-static int32_t mndRsmaActionInsert(SSdb *pSdb, SSmaObj *pSma) {
-  mTrace("sma:%s, perform insert action, row:%p", pSma->name, pSma);
+static int32_t mndRsmaActionInsert(SSdb *pSdb, SRsmaObj *pObj) {
+  mTrace("rsma:%s, perform insert action, row:%p", pObj->name, pObj);
   return 0;
 }
 
-static int32_t mndRsmaActionDelete(SSdb *pSdb, SSmaObj *pSma) {
-  mTrace("sma:%s, perform delete action, row:%p", pSma->name, pSma);
-  taosMemoryFreeClear(pSma->tagsFilter);
-  taosMemoryFreeClear(pSma->expr);
-  taosMemoryFreeClear(pSma->sql);
-  taosMemoryFreeClear(pSma->ast);
+static int32_t mndRsmaActionDelete(SSdb *pSdb, SRsmaObj *pObj) {
+  mTrace("rsma:%s, perform delete action, row:%p", pObj->name, pObj);
+  mndRsmaFreeObj(pObj);
   return 0;
 }
 
-static int32_t mndRsmaActionUpdate(SSdb *pSdb, SSmaObj *pOld, SSmaObj *pNew) {
-  mTrace("sma:%s, perform update action, old row:%p new row:%p", pOld->name, pOld, pNew);
+static int32_t mndRsmaActionUpdate(SSdb *pSdb, SRsmaObj *pOld, SRsmaObj *pNew) {
+  mTrace("rsma:%s, perform update action, old row:%p new row:%p", pOld->name, pOld, pNew);
+  taosWLockLatch(&pOld->lock);
+  pOld->updateTime = pNew->updateTime;
+  pOld->nFuncs = pNew->nFuncs;
+  TSWAP(pOld->funcColIds, pNew->funcColIds);
+  TSWAP(pOld->funcIds, pNew->funcIds);
+  taosWUnLockLatch(&pOld->lock);
   return 0;
 }
 
@@ -247,9 +286,9 @@ SRsmaObj *mndAcquireRsma(SMnode *pMnode, char *name) {
     if (terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
       terrno = TSDB_CODE_MND_RSMA_NOT_EXIST;
     } else if (terrno == TSDB_CODE_SDB_OBJ_CREATING) {
-      terrno = TSDB_CODE_MND_MOUNT_IN_CREATING;
+      terrno = TSDB_CODE_MND_RSMA_IN_CREATING;
     } else if (terrno == TSDB_CODE_SDB_OBJ_DROPPING) {
-      terrno = TSDB_CODE_MND_MOUNT_IN_DROPPING;
+      terrno = TSDB_CODE_MND_RSMA_IN_DROPPING;
     } else {
       terrno = TSDB_CODE_APP_ERROR;
       mFatal("rsma:%s, failed to acquire rsma since %s", name, terrstr());
@@ -263,7 +302,7 @@ void mndReleaseRsma(SMnode *pMnode, SRsmaObj *pSma) {
   sdbRelease(pSdb, pSma);
 }
 
-static int32_t mndSetCreateRsmaRedoLogs(SMnode *pMnode, STrans *pTrans, SSmaObj *pSma) {
+static int32_t mndSetCreateRsmaRedoLogs(SMnode *pMnode, STrans *pTrans, SRsmaObj *pSma) {
   int32_t  code = 0;
   SSdbRaw *pRedoRaw = mndRsmaActionEncode(pSma);
   if (pRedoRaw == NULL) {
@@ -277,7 +316,7 @@ static int32_t mndSetCreateRsmaRedoLogs(SMnode *pMnode, STrans *pTrans, SSmaObj 
   TAOS_RETURN(code);
 }
 
-static int32_t mndSetCreateRsmaUndoLogs(SMnode *pMnode, STrans *pTrans, SSmaObj *pSma) {
+static int32_t mndSetCreateRsmaUndoLogs(SMnode *pMnode, STrans *pTrans, SRsmaObj *pSma) {
   int32_t  code = 0;
   SSdbRaw *pUndoRaw = mndRsmaActionEncode(pSma);
   if (!pUndoRaw) {
@@ -290,7 +329,7 @@ static int32_t mndSetCreateRsmaUndoLogs(SMnode *pMnode, STrans *pTrans, SSmaObj 
   TAOS_RETURN(code);
 }
 
-static int32_t mndSetCreateRsmaCommitLogs(SMnode *pMnode, STrans *pTrans, SSmaObj *pSma) {
+static int32_t mndSetCreateRsmaCommitLogs(SMnode *pMnode, STrans *pTrans, SRsmaObj *pSma) {
   int32_t  code = 0;
   SSdbRaw *pCommitRaw = mndRsmaActionEncode(pSma);
   if (pCommitRaw == NULL) {
@@ -304,7 +343,7 @@ static int32_t mndSetCreateRsmaCommitLogs(SMnode *pMnode, STrans *pTrans, SSmaOb
   TAOS_RETURN(code);
 }
 
-static int32_t mndSetDropRsmaRedoLogs(SMnode *pMnode, STrans *pTrans, SSmaObj *pSma) {
+static int32_t mndSetDropRsmaRedoLogs(SMnode *pMnode, STrans *pTrans, SRsmaObj *pSma) {
   int32_t  code = 0;
   SSdbRaw *pRedoRaw = mndRsmaActionEncode(pSma);
   if (pRedoRaw == NULL) {
@@ -318,7 +357,7 @@ static int32_t mndSetDropRsmaRedoLogs(SMnode *pMnode, STrans *pTrans, SSmaObj *p
   return 0;
 }
 
-static int32_t mndSetDropRsmaCommitLogs(SMnode *pMnode, STrans *pTrans, SSmaObj *pSma) {
+static int32_t mndSetDropRsmaCommitLogs(SMnode *pMnode, STrans *pTrans, SRsmaObj *pSma) {
   int32_t  code = 0;
   SSdbRaw *pCommitRaw = mndRsmaActionEncode(pSma);
   if (pCommitRaw == NULL) {
@@ -332,8 +371,8 @@ static int32_t mndSetDropRsmaCommitLogs(SMnode *pMnode, STrans *pTrans, SSmaObj 
   return 0;
 }
 
-static int32_t mndDropRsma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *pSma) {
-  int32_t     code = -1;
+static int32_t mndDropRsma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SRsmaObj *pSma) {
+  int32_t code = -1;
 #if 0
   SVgObj     *pVgroup = NULL;
   SStbObj    *pStb = NULL;
@@ -405,11 +444,11 @@ _OVER:
 }
 
 static int32_t mndProcessDropRsmaReq(SRpcMsg *pReq) {
-  SMnode      *pMnode = pReq->info.node;
-  int32_t      code = -1;
+  SMnode *pMnode = pReq->info.node;
+  int32_t code = -1;
 #if 0
   SDbObj      *pDb = NULL;
-  SSmaObj     *pSma = NULL;
+  SRsmaObj     *pSma = NULL;
   SMDropSmaReq dropReq = {0};
 
   TAOS_CHECK_GOTO(tDeserializeSMDropSmaReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
@@ -464,12 +503,12 @@ _OVER:
 }
 
 static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode  *pMnode = pReq->info.node;
-  SSdb    *pSdb = pMnode->pSdb;
-  int32_t  numOfRows = 0;
-  SSmaObj *pSma = NULL;
-  int32_t  cols = 0;
-  int32_t  code = 0;
+  SMnode   *pMnode = pReq->info.node;
+  SSdb     *pSdb = pMnode->pSdb;
+  int32_t   numOfRows = 0;
+  SRsmaObj *pSma = NULL;
+  int32_t   cols = 0;
+  int32_t   code = 0;
 #if 0
   SDbObj *pDb = NULL;
   if (strlen(pShow->db) > 0) {
@@ -555,12 +594,12 @@ static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
 }
 
 static int32_t mndRetrieveRsmaTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode  *pMnode = pReq->info.node;
-  SSdb    *pSdb = pMnode->pSdb;
-  int32_t  numOfRows = 0;
-  SSmaObj *pSma = NULL;
-  int32_t  cols = 0;
-  int32_t  code = 0;
+  SMnode   *pMnode = pReq->info.node;
+  SSdb     *pSdb = pMnode->pSdb;
+  int32_t   numOfRows = 0;
+  SRsmaObj *pSma = NULL;
+  int32_t   cols = 0;
+  int32_t   code = 0;
   pShow->numOfRows += numOfRows;
   return numOfRows;
 }
@@ -622,7 +661,7 @@ static int32_t mndSetUpdateDbRsmaVersionCommitLogs(SMnode *pMnode, STrans *pTran
   TAOS_RETURN(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
 }
 
-static int32_t mndCreateRsma(SMnode* pMnode, SRpcMsg* pReq, SUserObj *pUser, SDbObj *pDb, SMCreateRsmaReq *pCreate) {
+static int32_t mndCreateRsma(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SDbObj *pDb, SMCreateRsmaReq *pCreate) {
   int32_t    code = 0, lino = 0;
   SRsmaObj   obj = {0};
   int32_t    nDbs = 0, nVgs = 0, nStbs = 0;
@@ -630,7 +669,7 @@ static int32_t mndCreateRsma(SMnode* pMnode, SRpcMsg* pReq, SUserObj *pUser, SDb
   SDbObj    *pDbs = NULL;
   SStbObj   *pStbs = NULL;
   STrans    *pTrans = NULL;
-#if 0
+#if 1
   (void)snprintf(obj.name, TSDB_TABLE_FNAME_LEN, "%s", pCreate->name);
   (void)snprintf(obj.db, TSDB_DB_FNAME_LEN, "%s", pDb->name);
   (void)snprintf(obj.tbname, TSDB_TABLE_FNAME_LEN, "%s", pCreate->tbName);
@@ -643,47 +682,41 @@ static int32_t mndCreateRsma(SMnode* pMnode, SRpcMsg* pReq, SUserObj *pUser, SDb
   obj.interval[0] = pCreate->interval[0];
   obj.interval[1] = pCreate->interval[1];
   obj.version = 1;
-  obj.tbType = pCreate->tbType;  // ETableType: 1 stable. Only super table supported currently. 
+  obj.tbType = pCreate->tbType;  // ETableType: 1 stable. Only super table supported currently.
   obj.intervalUnit = pCreate->intervalUnit;
   obj.nFuncs = pCreate->nFuncs;
   if (obj.nFuncs > 0) {
-    TSDB_CHECK_NULL((obj.funcColIds = taosMemoryCalloc(obj.funcColIds, sizeof(col_id_t))), code, lino, _exit, terrno);
-    TSDB_CHECK_NULL((obj.funcIds = taosMemoryCalloc(obj.funcIds, sizeof(func_id_t))), code, lino, _exit, terrno);
+    TSDB_CHECK_NULL((obj.funcColIds = taosMemoryCalloc(obj.nFuncs, sizeof(col_id_t))), code, lino, _exit, terrno);
+    TSDB_CHECK_NULL((obj.funcIds = taosMemoryCalloc(obj.nFuncs, sizeof(func_id_t))), code, lino, _exit, terrno);
   }
 
+  TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "create-rsma")),
+                  code, lino, _exit, terrno);
+  mInfo("trans:%d, used to create rsma %s on tb %s", pTrans->id, obj.name, obj.tbname);
 
-  TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq, "create-mount")), code,
-                  lino, _exit, terrno);
-  // mndTransSetSerial(pTrans);
-  mInfo("trans:%d, used to create mount:%s", pTrans->id, pInfo->mountName);
-
-  mndTransSetDbName(pTrans, mntObj.name, NULL);
+  mndTransSetDbName(pTrans, obj.name, NULL);
   mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
   TAOS_CHECK_EXIT(mndTransCheckConflict(pMnode, pTrans));
 
-  mndTransSetOper(pTrans, MND_OPER_CREATE_MOUNT);
-  TAOS_CHECK_EXIT(mndSetCreateMountPrepareActions(pMnode, pTrans, &mntObj));
-  TAOS_CHECK_EXIT(mndSetCreateDbPrepareActions(pMnode, pTrans, pDbs, nDbs));
-  TAOS_CHECK_EXIT(mndSetCreateVgPrepareActions(pMnode, pTrans, pVgs, nVgs));
-  TAOS_CHECK_EXIT(mndSetCreateMountRedoActions(pMnode, pTrans, &mntObj, pVgs, nVgs));
-  // TAOS_CHECK_EXIT(mndSetCreateMountUndoLogs(pMnode, pTrans, &mntObj));
-  TAOS_CHECK_EXIT(mndSetCreateMountCommitLogs(pMnode, pTrans, &mntObj));
-  TAOS_CHECK_EXIT(mndSetCreateDbCommitLogs(pMnode, pTrans, pDbs, nDbs));
-  TAOS_CHECK_EXIT(mndSetCreateVgCommitLogs(pMnode, pTrans, pVgs, nVgs));
-  TAOS_CHECK_EXIT(mndSetCreateStbCommitActions(pMnode, pTrans, pStbs, nStbs));
+  mndTransSetOper(pTrans, MND_OPER_CREATE_RSMA);
+  // TAOS_CHECK_EXIT(mndSetCreateRsmaPrepareActions(pMnode, pTrans, &mntObj));
+  // TAOS_CHECK_EXIT(mndSetCreateDbPrepareActions(pMnode, pTrans, pDbs, nDbs));
+  // TAOS_CHECK_EXIT(mndSetCreateVgPrepareActions(pMnode, pTrans, pVgs, nVgs));
+  // TAOS_CHECK_EXIT(mndSetCreateRsmaRedoActions(pMnode, pTrans, &mntObj, pVgs, nVgs));
+  // // TAOS_CHECK_EXIT(mndSetCreateRsmaUndoLogs(pMnode, pTrans, &mntObj));
+  // TAOS_CHECK_EXIT(mndSetCreateRsmaCommitLogs(pMnode, pTrans, &mntObj));
+  // TAOS_CHECK_EXIT(mndSetCreateDbCommitLogs(pMnode, pTrans, pDbs, nDbs));
+  // TAOS_CHECK_EXIT(mndSetCreateVgCommitLogs(pMnode, pTrans, pVgs, nVgs));
+  // TAOS_CHECK_EXIT(mndSetCreateStbCommitActions(pMnode, pTrans, pStbs, nStbs));
   // TAOS_CHECK_EXIT(mndSetCreateDbUndoActions(pMnode, pTrans, &mntObj, pVgroups));
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
-  TAOS_CHECK_EXIT(mndIncMountTimes(pMnode, 0));
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("mount:%s, failed at line %d to create mount, since %s", mntObj.name, lino, tstrerror(code));
+    mError("rsma:%s, failed at line %d to create rsma, since %s", obj.name, lino, tstrerror(code));
   }
   mndReleaseDnode(pMnode, pDnode);
-  mndMountFreeObj(&mntObj);
-  mndUserFreeObj(&newUserObj);
+  mndRsmaFreeObj(&obj);
   mndTransDrop(pTrans);
-  taosMemFreeClear(pDbs);
-  taosMemFreeClear(pVgs);
   if (pStbs) {
     for (int32_t i = 0; i < nStbs; ++i) {
       mndFreeStb(pStbs + i);
@@ -702,8 +735,6 @@ static int32_t mndCheckCreateRsmaReq(SMCreateRsmaReq *pCreate) {
   if (pCreate->intervalUnit < 0) goto _exit;
   if (pCreate->interval[0] <= 0) goto _exit;
   if (pCreate->interval[1] < 0) goto _exit;
-  if (pCreate->sqlLen < 0) goto _exit;
-  if (pCreate->sqlLen != 0 && strlen(pCreate->sql) + 1 != pCreate->sqlLen) goto _exit;
 
   SName rsmaName = {0};
   if ((code = tNameFromString(&rsmaName, pCreate->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) < 0) goto _exit;
@@ -711,6 +742,21 @@ static int32_t mndCheckCreateRsmaReq(SMCreateRsmaReq *pCreate) {
   code = 0;
 _exit:
   TAOS_RETURN(code);
+}
+
+static int32_t mndCheckRsmaConflicts(SMnode *pMnode, SDbObj *pDbObj, SMCreateRsmaReq *pCreate) {
+  void     *pIter = NULL;
+  SSdb     *pSdb = pMnode->pSdb;
+  SRsmaObj *pObj = NULL;
+  while ((pIter = sdbFetch(pSdb, SDB_RSMA, pIter, (void **)&pObj))) {
+    if (pObj->tbUid == pCreate->tbUid && pObj->dbUid == pDbObj->uid) {
+      sdbCancelFetch(pSdb, (pIter));
+      mError("rsma:%s, conflict with existing rsma:%s on same table uid:%ld", pCreate->name, pObj->name, pObj->tbUid);
+      return TSDB_CODE_QRY_DUPLICATED_OPERATION;
+    }
+    sdbRelease(pSdb, pObj);
+  }
+  return 0;
 }
 
 static int32_t mndProcessCreateRsmaReq(SRpcMsg *pReq) {
@@ -730,7 +776,7 @@ static int32_t mndProcessCreateRsmaReq(SRpcMsg *pReq) {
 
   if ((pSma = mndAcquireRsma(pMnode, createReq.name))) {
     if (createReq.igExists) {
-      mInfo("mount:%s, already exist, ignore exist is set", createReq.name);
+      mInfo("rsma:%s, already exist, ignore exist is set", createReq.name);
       code = 0;
       goto _exit;
     } else {
@@ -757,12 +803,11 @@ static int32_t mndProcessCreateRsmaReq(SRpcMsg *pReq) {
   TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pDb));
   TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb));
 
+  TAOS_CHECK_EXIT(mndCheckRsmaConflicts(pMnode, pDb, &createReq));
+
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
-
-
-  code = mndCreateRsma(pMnode, pReq, pUser, pDb, &createReq);
+  TAOS_CHECK_EXIT(mndCreateRsma(pMnode, pReq, pUser, pDb, &createReq));
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
-
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("rsma:%s, failed to create since %s", createReq.name, tstrerror(code));
@@ -837,7 +882,7 @@ static int32_t mndProcessDropRsmaReq(SRpcMsg *pReq) {
   int32_t      code = -1;
 
   SMDropSmaReq dropReq = {0};
-  SSmaObj     *pSma = NULL;
+  SRsmaObj     *pSma = NULL;
   SDbObj      *pDb = NULL;
   SMnode      *pMnode = pReq->info.node;
   SStbObj     *pStb = NULL;
@@ -910,7 +955,7 @@ _OVER:
 static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SDbObj          *pDb = NULL;
   int32_t          numOfRows = 0;
-  SSmaObj         *pSma = NULL;
+  SRsmaObj         *pSma = NULL;
   SMnode          *pMnode = pReq->info.node;
   int32_t          code = 0;
   SColumnInfoData *pColInfo;
@@ -1083,8 +1128,8 @@ static void mndCancelRetrieveRsmaTask(SMnode *pMnode, void *pIter) {
 #endif
 }
 
-int32_t dumpRsmaInfoFromSmaObj(const SSmaObj *pSma, const SStbObj *pDestStb, STableTSMAInfo *pInfo,
-                               const SSmaObj *pBaseTsma) {
+int32_t dumpRsmaInfoFromSmaObj(const SRsmaObj *pSma, const SStbObj *pDestStb, STableTSMAInfo *pInfo,
+                               const SRsmaObj *pBaseTsma) {
   int32_t code = 0;
 #if 0
   pInfo->interval = pSma->interval;
@@ -1172,12 +1217,12 @@ int32_t dumpRsmaInfoFromSmaObj(const SSmaObj *pSma, const SStbObj *pDestStb, STa
 }
 
 #if 0
-typedef bool (*tsmaFilter)(const SSmaObj *pSma, void *param);
+typedef bool (*tsmaFilter)(const SRsmaObj *pSma, void *param);
 
 static int32_t mndGetSomeRsmas(SMnode *pMnode, STableTSMAInfoRsp *pRsp, tsmaFilter filtered, void *param, bool *exist) {
   int32_t     code = 0;
-  SSmaObj    *pSma = NULL;
-  SSmaObj    *pBaseTsma = NULL;
+  SRsmaObj    *pSma = NULL;
+  SRsmaObj    *pBaseTsma = NULL;
   SSdb       *pSdb = pMnode->pSdb;
   void       *pIter = NULL;
   SStreamObj *pStream = NULL;
@@ -1274,7 +1319,7 @@ static int32_t mndGetSomeRsmas(SMnode *pMnode, STableTSMAInfoRsp *pRsp, tsmaFilt
   return TSDB_CODE_SUCCESS;
 }
 
-static bool tsmaTbFilter(const SSmaObj *pSma, void *param) {
+static bool tsmaTbFilter(const SRsmaObj *pSma, void *param) {
   const char *tbFName = param;
   return pSma->stb[0] != tbFName[0] || strcmp(pSma->stb, tbFName) != 0;
 }
@@ -1283,7 +1328,7 @@ static int32_t mndGetTableTSMA(SMnode *pMnode, char *tbFName, STableTSMAInfoRsp 
   return mndGetSomeTsmas(pMnode, pRsp, tsmaTbFilter, tbFName, exist);
 }
 
-static bool tsmaDbFilter(const SSmaObj *pSma, void *param) {
+static bool tsmaDbFilter(const SRsmaObj *pSma, void *param) {
   uint64_t *dbUid = param;
   return pSma->dbUid != *dbUid;
 }
@@ -1334,7 +1379,7 @@ int32_t mndValidateTSMAInfo(SMnode *pMnode, STSMAVersion *pTsmaVersions, int32_t
     pTsmaVer->version = ntohl(pTsmaVer->version);
 
     snprintf(tsmaFName, sizeof(tsmaFName), "%s.%s", pTsmaVer->dbFName, pTsmaVer->name);
-    SSmaObj *pSma = mndAcquireSma(pMnode, tsmaFName);
+    SRsmaObj *pSma = mndAcquireSma(pMnode, tsmaFName);
     if (!pSma) {
       code = mkNonExistTSMAInfo(pTsmaVer, &pTsmaInfo);
       if (code) goto _OVER;
@@ -1386,7 +1431,7 @@ int32_t mndValidateTSMAInfo(SMnode *pMnode, STSMAVersion *pTsmaVersions, int32_t
       goto _OVER;
     }
 
-    SSmaObj *pBaseSma = NULL;
+    SRsmaObj *pBaseSma = NULL;
     code = mndGetDeepestBaseForTsma(pMnode, pSma, &pBaseSma);
     if (code == 0) code = dumpTSMAInfoFromSmaObj(pSma, pDestStb, pInfo, pBaseSma);
 
@@ -1437,7 +1482,7 @@ int32_t mndDropRsmasByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   void   *pIter = NULL;
 #if 0
   while (1) {
-    SSmaObj *pSma = NULL;
+    SRsmaObj *pSma = NULL;
     pIter = sdbFetch(pSdb, SDB_SMA, pIter, (void **)&pSma);
     if (pIter == NULL) break;
 
