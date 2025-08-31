@@ -240,9 +240,9 @@ typedef struct SSTriggerVtableMerger {
   SFilterInfo               *pFilter;
   int32_t                    nVirDataCols;  // number of non-pseudo data columns in pDataBlock
 
-  STimeWindow readRange;
-  SArray     *pReaderInfos;  // SArray<SVtableMergerReaderInfo>
-  SArray     *pReaders;      // SArray<SSTriggerTimestampSorter *>
+  STimeWindow  readRange;
+  SArray      *pReaderInfos;  // SArray<SVtableMergerReaderInfo>
+  SArray      *pReaders;      // SArray<SSTriggerTimestampSorter *>
   SSDataBlock *pPseudoCols;   // pseudo columns , could be NULL if no pseudo columns
 
   SMultiwayMergeTreeInfo *pDataMerger;
@@ -338,6 +338,139 @@ int32_t stVtableMergerGetMetaToFetch(SSTriggerVtableMerger *pMerger, SSTriggerMe
  * @return int32_t Status code indicating success or error
  */
 int32_t stVtableMergerBindDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock **ppDataBlock);
+
+typedef struct SSTriggerNewTimestampSorter {
+  struct SStreamTriggerTask *pTask;
+
+  bool         inUse;
+  SSDataBlock *pDataBlock;
+  int32_t      tsSlotId;
+
+  SArray                 *pSliceBuf;    // SArray<SNewTimestampSorterSlice>
+  SArray                 *pSliceLists;  // SArray<SNewTimestampSorterSliceList>
+  SMultiwayMergeTreeInfo *pDataMerger;
+} SSTriggerNewTimestampSorter;
+
+/**
+ * @brief Initializes a timestamp sorter for sorting table data.
+ *
+ * @param pSorter The SSTriggerNewTimestampSorter instance to be initialized
+ * @param pTask The SStreamTriggerTask instance that contains the task information
+ * @return int32_t Status code indicating success or error
+ */
+int32_t stNewTimestampSorterInit(SSTriggerNewTimestampSorter *pSorter, struct SStreamTriggerTask *pTask);
+
+/**
+ * @brief Destroys a timestamp sorter, releasing all allocated resources.
+ *
+ * @param ptr Pointer to the SSTriggerNewTimestampSorter instance to be destroyed
+ */
+void stNewTimestampSorterDestroy(void *ptr);
+
+/**
+ * @brief Resets the timestamp sorter, clearing its state and preparing it for reuse.
+ *
+ * @param pSorter The SSTriggerNewTimestampSorter instance to be reset
+ */
+void stNewTimestampSorterReset(SSTriggerNewTimestampSorter *pSorter);
+
+/**
+ * @brief Set the table data for the timestamp sorter
+ *
+ * @param pSorter The SSTriggerNewTimestampSorter instance to set the data
+ * @param startTime The start time to read data
+ * @param pDataBlock The data block to be sorted
+ * @param tsSlotId The index of the timestamp column in the data block, starting from 0
+ * @param startIdx The start row index in the data block
+ * @param endIdx The end row index in the data block
+ * @param pRecalcRange Optional to get the recalculation time range, can be NULL if not needed
+ * @return int32_t Status code indicating success or error
+ */
+int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_t startTime, SSDataBlock *pDataBlock,
+                                    int32_t tsSlotId, int32_t startIdx, int32_t endIdx, STimeWindow *pRecalcRange);
+
+/**
+ * @brief Get next data block from the sorter.
+ *
+ * @param pSorter The SSTriggerNewTimestampSorter instance responsible for merging
+ * @param ppDataBlock Pointer to store the current data block
+ * @param pStartIdx Pointer to store the start row index in the data block
+ * @param pEndIdx Pointer to store the end row index in the data block
+ * @return int32_t Status code indicating success or error
+ */
+int32_t stNewTimestampSorterNextDataBlock(SSTriggerNewTimestampSorter *pSorter, SSDataBlock **ppDataBlock,
+                                          int32_t *pStartIdx, int32_t *pEndIdx);
+
+typedef struct SSTriggerNewVtableMerger {
+  struct SStreamTriggerTask *pTask;
+  SSDataBlock               *pDataBlock;
+  SFilterInfo               *pFilter;
+  int32_t                    nVirDataCols;
+
+  bool         inUse;
+  SSDataBlock *pPseudoCols;  // pseudo columns , could be NULL if no pseudo columns
+
+  int32_t                 nReaders;
+  SArray                 *pReaderInfos;  // SArray<SNewVtableMergerReaderInfo>
+  SMultiwayMergeTreeInfo *pDataMerger;
+} SSTriggerNewVtableMerger;
+
+/**
+ * @brief Initializes a vtable merger for merging data from original tables.
+ *
+ * @param pMerger The SSTriggerNewVtableMerger instance to be initialized
+ * @param pTask The SStreamTriggerTask instance that contains the task information
+ * @param ppDataBlock Pointer to the data block to store the merged data, each column's colid is incremental
+ * @param pFilter Pointer to the filter for the virtual table, can be NULL if no filter is present
+ * @param nVirDataCols The number of non-pseudo data columns in the data block
+ * @return int32_t Status code indicating success or error
+ */
+int32_t stNewVtableMergerInit(SSTriggerNewVtableMerger *pMerger, struct SStreamTriggerTask *pTask,
+                              SSDataBlock **ppDataBlock, SFilterInfo **ppFilter, int32_t nVirDataCols);
+
+static FORCE_INLINE bool stNewVtableMergerNeedPseudoCols(SSTriggerNewVtableMerger *pMerger) {
+  return pMerger->nVirDataCols < taosArrayGetSize(pMerger->pDataBlock->pDataBlock);
+}
+
+/**
+ * @brief Destroys a vtable merger, releasing all allocated resources.
+ *
+ * @param ptr Pointer to the SSTriggerNewVtableMerger instance to be destroyed
+ */
+void stNewVtableMergerDestroy(void *ptr);
+
+/**
+ * @brief Resets the vtable merger, clearing its state and preparing it for reuse.
+ *
+ * @param pMerger The SSTriggerNewVtableMerger instance to be reset
+ * @return int32_t Status code indicating success or error
+ */
+void stNewVtableMergerReset(SSTriggerNewVtableMerger *pMerger);
+
+/**
+ * @brief Set the data for the vtable merger
+ *
+ * @param pMerger The SSTriggerNewVtableMerger instance responsible for merging
+ * @param startTime The start time to read data
+ * @param pTableColRefs Array of table column references, each containing original and virtual table column mappings
+ * @param pSlices The hash map from original table uid to its data slice
+ * @param pRecalcRange Optional to get the recalculation time range, can be NULL if not needed
+ * @return int32_t
+ */
+int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t startTime, SArray *pTableColRefs,
+                                 SSHashObj *pSlices, STimeWindow *pRecalcRange);
+
+/**
+ * @brief Gets next data block from the vtable merger.
+ *
+ * @param pMerger The SSTriggerNewVtableMerger instance responsible for merging
+ * @param ppDataBlock Pointer to store the current data block
+ * @param pStartIdx Pointer to store the start row index in the data block
+ * @param pEndIdx Pointer to store the end row index in the data block
+ * @return int32_t Status code indicating success or error
+ */
+int32_t stNewVtableMergerNextDataBlock(SSTriggerNewVtableMerger *pMerger, SSDataBlock **ppDataBlock, int32_t *pStartIdx,
+                                       int32_t *pEndIdx);
 
 #ifdef __cplusplus
 }

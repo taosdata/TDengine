@@ -3514,6 +3514,19 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->lastVer));
       break;
     }
+    case STRIGGER_PULL_WAL_CALC_DATA_NEW: {
+      SSTriggerWalCalcDataNewRequest* pRequest = (SSTriggerWalCalcDataNewRequest*)pReq;
+      int32_t                         nVersion = taosArrayGetSize(pRequest->versions);
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, nVersion));
+      for (int32_t i = 0; i < nVersion; i++) {
+        int64_t ver = *(int64_t*)TARRAY_GET_ELEM(pRequest->versions, i);
+        TAOS_CHECK_EXIT(tEncodeI64(&encoder, ver));
+      }
+      TAOS_CHECK_EXIT(tEncodeU64(&encoder, pRequest->gid));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->skey));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ekey));
+      break;
+    }
     case STRIGGER_PULL_GROUP_COL_VALUE: {
       SSTriggerGroupColValueRequest* pRequest = (SSTriggerGroupColValueRequest*)pReq;
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->gid));
@@ -3723,6 +3736,20 @@ int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPull
     case STRIGGER_PULL_WAL_META_DATA_NEW: {
       SSTriggerWalMetaDataNewRequest* pRequest = &(pReq->walMetaDataNewReq);
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->lastVer));
+      break;
+    }
+    case STRIGGER_PULL_WAL_CALC_DATA_NEW: {
+      SSTriggerWalCalcDataNewRequest* pRequest = &(pReq->walCalcDataNewReq);
+      int32_t                     nVersion = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nVersion));
+      pRequest->versions = taosArrayInit_s(sizeof(int64_t), nVersion);
+      for (int32_t i = 0; i < nVersion; i++) {
+        int64_t* pVer = TARRAY_GET_ELEM(pRequest->versions, i);
+        TAOS_CHECK_EXIT(tDecodeI64(&decoder, pVer));
+      }
+      TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pRequest->gid));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->skey));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ekey));
       break;
     }
     case STRIGGER_PULL_GROUP_COL_VALUE: {
@@ -4351,8 +4378,7 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, void* pDataBlock, SSHashObj* pSlices,
-                                           SArray* pUids) {
+int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, void* pDataBlock, SArray* pSlices) {
   SDecoder     decoder = {0};
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
@@ -4369,24 +4395,22 @@ int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, void* pDat
 
   int32_t nSlices = 0;
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nSlices));
-  TAOS_CHECK_EXIT(taosArrayEnsureCap(pUids, nSlices));
-  taosArrayClear(pUids);
+  TAOS_CHECK_EXIT(taosArrayEnsureCap(pSlices, nSlices));
+  taosArrayClear(pSlices);
 
   // decode slices
-  int64_t uid = 0;
-  int64_t gid = 0;
-  int32_t startRowIdx = 0;
-  int32_t numRows = 0;
+  int64_t  uid = 0;
+  uint64_t gid = 0;
+  int32_t  startIdx = 0;
+  int32_t  numRows = 0;
   for (int32_t i = 0; i < nSlices; i++) {
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &uid));
     TAOS_CHECK_EXIT(tDecodeU64(&decoder, &gid));
-    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &startRowIdx));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &startIdx));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &numRows));
-    int64_t value[2] = {(int64_t)pDataBlock, (int64_t)startRowIdx << 32 | numRows};
-    TAOS_CHECK_EXIT(tSimpleHashPut(pSlices, &uid, sizeof(uid), value, sizeof(value)));
-    value[0] = gid;
-    value[1] = uid;
-    void *px = taosArrayPush(pUids, value);
+    int32_t endIdx = startIdx + numRows;
+    int64_t value[3] = {gid, uid, (int64_t)startIdx << 32 | endIdx};
+    void* px = taosArrayPush(pSlices, value);
     if (px == NULL) {
       code = terrno;
       goto _exit;

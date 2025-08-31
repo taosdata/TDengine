@@ -717,13 +717,14 @@ typedef enum ESTriggerPullType {
   STRIGGER_PULL_WAL_TRIGGER_DATA,
   STRIGGER_PULL_WAL_CALC_DATA,
   STRIGGER_PULL_WAL_DATA,
-  STRIGGER_PULL_WAL_META_NEW,
-  STRIGGER_PULL_WAL_DATA_NEW,
-  STRIGGER_PULL_WAL_META_DATA_NEW,
   STRIGGER_PULL_GROUP_COL_VALUE,
   STRIGGER_PULL_VTABLE_INFO,
   STRIGGER_PULL_VTABLE_PSEUDO_COL,
   STRIGGER_PULL_OTABLE_INFO,
+  STRIGGER_PULL_WAL_META_NEW,
+  STRIGGER_PULL_WAL_DATA_NEW,
+  STRIGGER_PULL_WAL_META_DATA_NEW,
+  STRIGGER_PULL_WAL_CALC_DATA_NEW,
   STRIGGER_PULL_TYPE_MAX,
 } ESTriggerPullType;
 
@@ -816,22 +817,24 @@ typedef struct SSTriggerWalMetaNewRequest {
   int64_t              ctime;
 } SSTriggerWalMetaNewRequest;
 
-typedef struct SSTriggerWalDataRange {
-  int64_t gid;
-  int64_t skey;
-  int64_t ekey;
-} SSTriggerWalDataRange;
-
 typedef struct SSTriggerWalDataNewRequest {
   SSTriggerPullRequest base;
   SArray*              versions;  // SArray<int64_t>
-  SSHashObj*           ranges;    // SSHash<SSTriggerWalDataRange>
+  SSHashObj*           ranges;    // SSHash<gid, {skey, ekey}>
 } SSTriggerWalDataNewRequest;
 
 typedef struct SSTriggerWalMetaDataNewRequest {
   SSTriggerPullRequest base;
   int64_t              lastVer;
 } SSTriggerWalMetaDataNewRequest;
+
+typedef struct SSTriggerWalCalcDataNewRequest {
+  SSTriggerPullRequest base;
+  SArray*              versions;  // SArray<int64_t>
+  uint64_t              gid;
+  int64_t              skey;
+  int64_t              ekey;
+} SSTriggerWalCalcDataNewRequest;
 
 typedef struct SSTriggerGroupColValueRequest {
   SSTriggerPullRequest base;
@@ -887,6 +890,7 @@ typedef union SSTriggerPullRequestUnion {
   SSTriggerWalMetaNewRequest          walMetaNewReq;
   SSTriggerWalDataNewRequest          walDataNewReq;
   SSTriggerWalMetaDataNewRequest      walMetaDataNewReq;
+  SSTriggerWalCalcDataNewRequest      walCalcDataNewReq;
   SSTriggerGroupColValueRequest       groupColValueReq;
   SSTriggerVirTableInfoRequest        virTableInfoReq;
   SSTriggerVirTablePseudoColRequest   virTablePseudoColReq;
@@ -1019,8 +1023,7 @@ typedef struct SStreamWalDataResponse {
 } SStreamWalDataResponse;
 
 int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, void* pBlock, SSHashObj* indexHash);
-int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, void* pDataBlock, SSHashObj* pSlices,
-                                           SArray* pUids);
+int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, void* pDataBlock, SArray* pSlices);
 
 typedef struct SStreamGroupValue {
   SValue        data;
