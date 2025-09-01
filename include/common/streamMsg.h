@@ -820,6 +820,7 @@ typedef struct SSTriggerWalMetaNewRequest {
 
 typedef struct SSTriggerWalMetaNewRsp {
   void*                dataBlock;
+  void*                metaBlock;
   void*                deleteBlock;
   void*                dropBlock;
 } SSTriggerWalMetaNewRsp;
@@ -835,13 +836,13 @@ typedef struct SSTriggerWalMetaDataNewRequest {
   int64_t              lastVer;
 } SSTriggerWalMetaDataNewRequest;
 
-typedef struct SSTriggerWalCalcDataNewRequest {
-  SSTriggerPullRequest base;
-  SArray*              versions;  // SArray<int64_t>
-  uint64_t              gid;
-  int64_t              skey;
-  int64_t              ekey;
-} SSTriggerWalCalcDataNewRequest;
+// typedef struct SSTriggerWalCalcDataNewRequest {
+//   SSTriggerPullRequest base;
+//   SArray*              versions;  // SArray<int64_t>
+//   uint64_t             gid;
+//   int64_t              skey;
+//   int64_t              ekey;
+// } SSTriggerWalCalcDataNewRequest;
 
 typedef struct SSTriggerGroupColValueRequest {
   SSTriggerPullRequest base;
@@ -897,7 +898,7 @@ typedef union SSTriggerPullRequestUnion {
   SSTriggerWalMetaNewRequest          walMetaNewReq;
   SSTriggerWalDataNewRequest          walDataNewReq;
   SSTriggerWalMetaDataNewRequest      walMetaDataNewReq;
-  SSTriggerWalCalcDataNewRequest      walCalcDataNewReq;
+  // SSTriggerWalCalcDataNewRequest      walCalcDataNewReq;
   SSTriggerGroupColValueRequest       groupColValueReq;
   SSTriggerVirTableInfoRequest        virTableInfoReq;
   SSTriggerVirTablePseudoColRequest   virTablePseudoColReq;

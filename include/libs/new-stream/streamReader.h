@@ -35,7 +35,6 @@ typedef struct SStreamTriggerReaderInfo {
   SSubplan*    triggerAst;
   SSubplan*    calcAst;
   SSDataBlock* triggerResBlock;
-  SSDataBlock* triggerResBlockNew;
   SSDataBlock* calcResBlock;
   SSDataBlock* tsBlock;
   SExprInfo*   pExprInfo;
@@ -50,6 +49,7 @@ typedef struct SStreamTriggerReaderInfo {
   SHashObj*    pTableMetaCache;
   SSHashObj*   indexHash;  // index hash for wal data
   SSDataBlock* resultBlock;
+  SSDataBlock* metaBlock;
   bool         groupByTbname;
   void*        pVnode;
 } SStreamTriggerReaderInfo;
