@@ -8,7 +8,7 @@ import math
 class TestIdmpTobacco:
 
     def test_idmp_tobacco(self):
-        """IDMP 烟草场景测试
+        """IDMP: tobacco scenario
 
         Refer: https://taosdata.feishu.cn/wiki/Zkb2wNkHDihARVkGHYEcbNhmnxb#share-I9GwdF26PoWk6uxx2zJcxZYrn1d
         1. 测试 AI 推荐生成的分析，创建 Stream,验证流的正确性
@@ -47,10 +47,10 @@ class TestIdmpTobacco:
             "tobacco",
             "idmp_sample_tobacco",
             "idmp",
-            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp_sample_tobacco",
-            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/vstb.sql",
-            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/vtb.sql",
-            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/stream.json",
+            os.path.join(os.path.dirname(__file__), 'tobacco_data', 'idmp_sample_tobacco'),
+            os.path.join(os.path.dirname(__file__), 'tobacco_data', 'idmp', 'vstb.sql'),
+            os.path.join(os.path.dirname(__file__), 'tobacco_data', 'idmp', 'vtb.sql'),
+            os.path.join(os.path.dirname(__file__), 'tobacco_data', 'idmp', 'stream.json'),
         )
         # 这里可以指定需要创建的 stream_ids
         tobac.stream_ids = [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]

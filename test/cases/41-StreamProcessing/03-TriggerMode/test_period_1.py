@@ -164,16 +164,14 @@ class TestStreamCheckpoint:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_dev_basic(self):
-        """basic test
-
-        Verification testing during the development process.
+        """Period:
+        
+        1. Create 10 streams, each stream has 10 source tables
+        2. Write data to source tables
+        3. Check stream resultsVerification testing during the development process.
 
         Catalog:
             - Streams: 03-TriggerMode
-        Description:
-            - create 10 streams, each stream has 10 source tables
-            - write data to source tables
-            - check stream results
 
         Since: v3.3.3.7
 

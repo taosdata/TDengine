@@ -1,6 +1,7 @@
 import time
 import math
 import random
+import os
 from new_test_framework.utils import tdLog, tdSql, tdStream, etool, sc
 from datetime import datetime
 from datetime import date
@@ -12,7 +13,7 @@ class Test_IDMP_Meters:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_usecase_em(self):
-        """Nevados
+        """IDMP: meters scenario
 
         Refer: https://taosdata.feishu.cn/wiki/Zkb2wNkHDihARVkGHYEcbNhmnxb
 
@@ -98,7 +99,7 @@ class Test_IDMP_Meters:
         self.start2 = 1752574200000
 
         # import data
-        etool.taosdump(f"-i cases/13-StreamProcessing/20-UseCase/meters_data/data/")
+        etool.taosdump(f"-i {os.path.join(os.path.dirname(__file__), 'meters_data', 'data')}")
 
         tdLog.info(f"import data to db={self.db} successfully.")
 

@@ -11,13 +11,16 @@ class TestIntervalPartition:
         [(10, "tbname"), (10, "t1"), (10, "t2"), (10, "t1,t2")],
     )
     def test_interval_partition(self, interval, partition_by):
-        """迁移老用例
+        """OldPy: partitionby
 
         老用例 tests/system-test/8-stream/partition_interval.py
         老的建流语句
         CREATE STREAM xxx INTO xxx AS SELECT _wstart,count(val) FROM stb PARTITION BY tbname INTERVAL(10s)
         新的建流语句
         CREATE STREAM xxx INTERVAL(10s) SLIDING(10s) FROM stb PARTITON BY tbname INTO xxx AS SELECT _tcurrent_ts as ts,count(val) FROM %%trows;
+
+        Catalog:
+            - Streams:OldPyCases
 
         Since: v3.3.7.0
 
