@@ -1,6 +1,6 @@
 ---
 title: "TDengine 配置参数作用范围对比"
-sidebar_label: "配置参数作用范围"
+sidebar_label: "config-scope"
 toc_max_heading_level: 4
 ---
 
