@@ -809,7 +809,10 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
       code = makeNode(type, sizeof(SShowCompactDetailsStmt), &pNode);
-      break;      
+      break;
+    case QUERY_NODE_SHOW_SCAN_DETAILS_STMT:
+      code = makeNode(type, sizeof(SShowScanDetailsStmt), &pNode);
+      break;
     case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT:
       code = makeNode(type, sizeof(SShowTransactionDetailsStmt), &pNode); 
       break;
@@ -1776,6 +1779,11 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT: {
       SShowCompactDetailsStmt* pStmt = (SShowCompactDetailsStmt*)pNode;
       nodesDestroyNode(pStmt->pCompactId);
+      break;
+    }
+    case QUERY_NODE_SHOW_SCAN_DETAILS_STMT: {
+      SShowScanDetailsStmt* pStmt = (SShowScanDetailsStmt*)pNode;
+      nodesDestroyNode(pStmt->pScanId);
       break;
     }
     case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT: {

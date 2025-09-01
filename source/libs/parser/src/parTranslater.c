@@ -421,6 +421,12 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
+  { .showType = QUERY_NODE_SHOW_SCAN_DETAILS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_SCAN_DETAILS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
 };
 // clang-format on
 
@@ -20027,10 +20033,15 @@ static int32_t rewriteShowCompacts(STranslateContext* pCxt, SQuery* pQuery) {
 }
 
 static int32_t rewriteShowScans(STranslateContext* pCxt, SQuery* pQuery) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  // TODO
-
+  SShowScansStmt* pShow = (SShowScansStmt*)(pQuery->pRoot);
+  SSelectStmt*    pStmt = NULL;
+  int32_t         code = createSelectStmtForShow(QUERY_NODE_SHOW_SCANS_STMT, &pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    pCxt->showRewrite = true;
+    pQuery->showRewrite = true;
+    nodesDestroyNode(pQuery->pRoot);
+    pQuery->pRoot = (SNode*)pStmt;
+  }
   return code;
 }
 
@@ -20041,6 +20052,24 @@ static int32_t rewriteShowCompactDetailsStmt(STranslateContext* pCxt, SQuery* pQ
   if (TSDB_CODE_SUCCESS == code) {
     if (NULL != pShow->pCompactId) {
       code = createOperatorNode(OP_TYPE_EQUAL, "compact_id", pShow->pCompactId, &pStmt->pWhere);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pCxt->showRewrite = true;
+    pQuery->showRewrite = true;
+    nodesDestroyNode(pQuery->pRoot);
+    pQuery->pRoot = (SNode*)pStmt;
+  }
+  return code;
+}
+
+static int32_t rewriteShowScanDetailsStmt(STranslateContext* pCxt, SQuery* pQuery) {
+  SShowScanDetailsStmt* pShow = (SShowScanDetailsStmt*)(pQuery->pRoot);
+  SSelectStmt*          pStmt = NULL;
+  int32_t               code = createSelectStmtForShow(QUERY_NODE_SHOW_SCAN_DETAILS_STMT, &pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (NULL != pShow->pScanId) {
+      code = createOperatorNode(OP_TYPE_EQUAL, "scan_id", pShow->pScanId, &pStmt->pWhere);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -20666,6 +20695,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
       code = rewriteShowCompactDetailsStmt(pCxt, pQuery);
+      break;
+    case QUERY_NODE_SHOW_SCAN_DETAILS_STMT:
+      code = rewriteShowScanDetailsStmt(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT:
       code = rewriteShowTransactionDetailsStmt(pCxt, pQuery);

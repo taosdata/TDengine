@@ -138,6 +138,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_SCAN;
   } else if (strncasecmp(name, TSDB_INS_TABLE_COMPACT_DETAILS, len) == 0) {
     type = TSDB_MGMT_TABLE_COMPACT_DETAIL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SCAN_DETAILS, len) == 0) {
+    type = TSDB_MGMT_TABLE_SCAN_DETAIL;
   } else if (strncasecmp(name, TSDB_INS_TABLE_TRANSACTION_DETAILS, len) == 0) {
     type = TSDB_MGMT_TABLE_TRANSACTION_DETAIL;
   } else if (strncasecmp(name, TSDB_INS_TABLE_GRANTS_FULL, len) == 0) {

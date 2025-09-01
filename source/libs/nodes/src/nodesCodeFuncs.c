@@ -339,6 +339,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowScansStmt";
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
       return "ShowCompactDetailsStmt";
+    case QUERY_NODE_SHOW_SCAN_DETAILS_STMT:
+      return "ShowScanDetailsStmt";
     case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT:
       return "ShowTransactionDetailsStmt";
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
