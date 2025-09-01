@@ -16186,7 +16186,7 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
   PAR_ERR_JRET(getDuration(pDbInfo.daysPerFile, TIME_UNIT_MINUTE, &durationInPrecision, pDbInfo.precision));
 
   int32_t idx = 0;
-  pReq->intervalUnit = pDbInfo.precision;
+  pReq->intervalUnit = getPrecisionUnit(pDbInfo.precision);
   FOREACH(pNode, pStmt->pIntervals) {
     SValueNode* pVal = (SValueNode*)pNode;
     if (DEAL_RES_ERROR == translateValue(pCxt, pVal)) {

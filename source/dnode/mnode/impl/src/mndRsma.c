@@ -329,6 +329,15 @@ static int32_t mndSetCreateRsmaUndoLogs(SMnode *pMnode, STrans *pTrans, SRsmaObj
   TAOS_RETURN(code);
 }
 
+static int32_t mndSetCreateRsmaPrepareActions(SMnode *pMnode, STrans *pTrans, SRsmaObj *pSma) {
+  SSdbRaw *pDbRaw = mndRsmaActionEncode(pSma);
+  if (pDbRaw == NULL) return -1;
+
+  if (mndTransAppendPrepareLog(pTrans, pDbRaw) != 0) return -1;
+  if (sdbSetRawStatus(pDbRaw, SDB_STATUS_CREATING) != 0) return -1;
+  return 0;
+}
+
 static int32_t mndSetCreateRsmaCommitLogs(SMnode *pMnode, STrans *pTrans, SRsmaObj *pSma) {
   int32_t  code = 0;
   SSdbRaw *pCommitRaw = mndRsmaActionEncode(pSma);
@@ -502,97 +511,6 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode   *pMnode = pReq->info.node;
-  SSdb     *pSdb = pMnode->pSdb;
-  int32_t   numOfRows = 0;
-  SRsmaObj *pSma = NULL;
-  int32_t   cols = 0;
-  int32_t   code = 0;
-#if 0
-  SDbObj *pDb = NULL;
-  if (strlen(pShow->db) > 0) {
-    pDb = mndAcquireDb(pMnode, pShow->db);
-    if (pDb == NULL) return 0;
-  }
-  SSmaAndTagIter *pIter = pShow->pIter;
-  while (numOfRows < rows) {
-    pIter->pSmaIter = sdbFetch(pSdb, SDB_SMA, pIter->pSmaIter, (void **)&pSma);
-    if (pIter->pSmaIter == NULL) break;
-
-    if (NULL != pDb && pSma->dbUid != pDb->uid) {
-      sdbRelease(pSdb, pSma);
-      continue;
-    }
-
-    cols = 0;
-
-    SName smaName = {0};
-    SName stbName = {0};
-    char  n2[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    char  n3[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    code = tNameFromString(&smaName, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-    char n1[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    if (TSDB_CODE_SUCCESS == code) {
-      STR_TO_VARSTR(n1, (char *)tNameGetTableName(&smaName));
-      STR_TO_VARSTR(n2, (char *)mndGetDbStr(pSma->db));
-      code = tNameFromString(&stbName, pSma->stb, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-    }
-    SColumnInfoData *pColInfo = NULL;
-    if (TSDB_CODE_SUCCESS == code) {
-      STR_TO_VARSTR(n3, (char *)tNameGetTableName(&stbName));
-
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)n1, false);
-    }
-    if (TSDB_CODE_SUCCESS == code) {
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)n2, false);
-    }
-    if (TSDB_CODE_SUCCESS == code) {
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)n3, false);
-    }
-    if (TSDB_CODE_SUCCESS == code) {
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)&pSma->dstVgId, false);
-    }
-    if (TSDB_CODE_SUCCESS == code) {
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)&pSma->createdTime, false);
-    }
-
-    char col[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_TO_VARSTR(col, (char *)"");
-
-    if (TSDB_CODE_SUCCESS == code) {
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)col, false);
-    }
-
-    if (TSDB_CODE_SUCCESS == code) {
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-
-      char tag[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      STR_TO_VARSTR(tag, (char *)"sma_index");
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)tag, false);
-    }
-
-    numOfRows++;
-    sdbRelease(pSdb, pSma);
-    if (TSDB_CODE_SUCCESS != code) {
-      sdbCancelFetch(pMnode->pSdb, pIter->pSmaIter);
-      numOfRows = -1;
-      break;
-    }
-  }
-
-  mndReleaseDb(pMnode, pDb);
-  pShow->numOfRows += numOfRows;
-#endif
-  return numOfRows;
-}
-
 static int32_t mndRetrieveRsmaTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode   *pMnode = pReq->info.node;
   SSdb     *pSdb = pMnode->pSdb;
@@ -629,37 +547,37 @@ static int32_t mndRetrieveRsmaTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
 //   pCxt->pSma->ast = pCxt->pCreateSmaReq->ast;
 // }
 
-static int32_t mndSetUpdateDbRsmaVersionPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
-  int32_t  code = 0;
-  SSdbRaw *pRedoRaw = mndDbActionEncode(pOld);
-  if (pRedoRaw == NULL) {
-    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-    if (terrno != 0) code = terrno;
-    TAOS_RETURN(code);
-  }
-  if ((code = mndTransAppendPrepareLog(pTrans, pRedoRaw)) != 0) {
-    sdbFreeRaw(pRedoRaw);
-    TAOS_RETURN(code);
-  }
+// static int32_t mndSetUpdateDbRsmaVersionPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
+//   int32_t  code = 0;
+//   SSdbRaw *pRedoRaw = mndDbActionEncode(pOld);
+//   if (pRedoRaw == NULL) {
+//     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+//     if (terrno != 0) code = terrno;
+//     TAOS_RETURN(code);
+//   }
+//   if ((code = mndTransAppendPrepareLog(pTrans, pRedoRaw)) != 0) {
+//     sdbFreeRaw(pRedoRaw);
+//     TAOS_RETURN(code);
+//   }
 
-  TAOS_RETURN(sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY));
-}
+//   TAOS_RETURN(sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY));
+// }
 
-static int32_t mndSetUpdateDbRsmaVersionCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
-  int32_t  code = 0;
-  SSdbRaw *pCommitRaw = mndDbActionEncode(pNew);
-  if (pCommitRaw == NULL) {
-    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-    if (terrno != 0) code = terrno;
-    TAOS_RETURN(code);
-  }
-  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
-    sdbFreeRaw(pCommitRaw);
-    TAOS_RETURN(code);
-  }
+// static int32_t mndSetUpdateDbRsmaVersionCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
+//   int32_t  code = 0;
+//   SSdbRaw *pCommitRaw = mndDbActionEncode(pNew);
+//   if (pCommitRaw == NULL) {
+//     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+//     if (terrno != 0) code = terrno;
+//     TAOS_RETURN(code);
+//   }
+//   if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
+//     sdbFreeRaw(pCommitRaw);
+//     TAOS_RETURN(code);
+//   }
 
-  TAOS_RETURN(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
-}
+//   TAOS_RETURN(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
+// }
 
 static int32_t mndCreateRsma(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SDbObj *pDb, SMCreateRsmaReq *pCreate) {
   int32_t    code = 0, lino = 0;
@@ -699,16 +617,9 @@ static int32_t mndCreateRsma(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SDb
   TAOS_CHECK_EXIT(mndTransCheckConflict(pMnode, pTrans));
 
   mndTransSetOper(pTrans, MND_OPER_CREATE_RSMA);
-  // TAOS_CHECK_EXIT(mndSetCreateRsmaPrepareActions(pMnode, pTrans, &mntObj));
-  // TAOS_CHECK_EXIT(mndSetCreateDbPrepareActions(pMnode, pTrans, pDbs, nDbs));
-  // TAOS_CHECK_EXIT(mndSetCreateVgPrepareActions(pMnode, pTrans, pVgs, nVgs));
-  // TAOS_CHECK_EXIT(mndSetCreateRsmaRedoActions(pMnode, pTrans, &mntObj, pVgs, nVgs));
-  // // TAOS_CHECK_EXIT(mndSetCreateRsmaUndoLogs(pMnode, pTrans, &mntObj));
-  // TAOS_CHECK_EXIT(mndSetCreateRsmaCommitLogs(pMnode, pTrans, &mntObj));
-  // TAOS_CHECK_EXIT(mndSetCreateDbCommitLogs(pMnode, pTrans, pDbs, nDbs));
-  // TAOS_CHECK_EXIT(mndSetCreateVgCommitLogs(pMnode, pTrans, pVgs, nVgs));
-  // TAOS_CHECK_EXIT(mndSetCreateStbCommitActions(pMnode, pTrans, pStbs, nStbs));
-  // TAOS_CHECK_EXIT(mndSetCreateDbUndoActions(pMnode, pTrans, &mntObj, pVgroups));
+  TAOS_CHECK_EXIT(mndSetCreateRsmaPrepareActions(pMnode, pTrans, &obj));
+  // TAOS_CHECK_EXIT(mndSetCreateRsmaRedoActions(pMnode, pTrans, &obj, pVgs, nVgs));
+  TAOS_CHECK_EXIT(mndSetCreateRsmaCommitLogs(pMnode, pTrans, &obj));
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -958,171 +869,112 @@ _OVER:
   mndReleaseDb(pMnode, pDb);
   TAOS_RETURN(code);
 }
+#endif
 static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SDbObj          *pDb = NULL;
-  int32_t          numOfRows = 0;
-  SRsmaObj         *pSma = NULL;
   SMnode          *pMnode = pReq->info.node;
-  int32_t          code = 0;
-  SColumnInfoData *pColInfo;
-  if (pShow->pIter == NULL) {
-    pShow->pIter = taosMemoryCalloc(1, sizeof(SSmaAndTagIter));
-  }
-  if (!pShow->pIter) {
-    return terrno;
-  }
-  if (pShow->db[0]) {
-    pDb = mndAcquireDb(pMnode, pShow->db);
-  }
-  SSmaAndTagIter *pIter = pShow->pIter;
-  while (numOfRows < rows) {
-    pIter->pSmaIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter->pSmaIter, (void **)&pSma);
-    if (pIter->pSmaIter == NULL) break;
-    SDbObj *pSrcDb = mndAcquireDb(pMnode, pSma->db);
+  int32_t          code = 0, lino = 0;
+  int32_t          numOfRows = 0;
+  int32_t          cols = 0;
+  char             tmp[512];
+  int32_t          tmpLen = 0;
+  int32_t          bufLen = 0;
+  char            *pBuf = NULL;
+  char            *qBuf = NULL;
+  void            *pIter = NULL;
+  SSdb            *pSdb = pMnode->pSdb;
+  SColumnInfoData *pColInfo = NULL;
 
-    if ((pDb && pSma->dbUid != pDb->uid) || !pSrcDb) {
-      sdbRelease(pMnode->pSdb, pSma);
-      if (pSrcDb) mndReleaseDb(pMnode, pSrcDb);
-      continue;
-    }
+  pBuf = tmp;
+  bufLen = sizeof(tmp) - VARSTR_HEADER_SIZE;
+  if (pShow->numOfRows < 1) {
+    SRsmaObj *pObj = NULL;
+    int32_t   index = 0;
+    while ((pIter = sdbFetch(pSdb, SDB_RSMA, pIter, (void **)&pObj))) {
+      cols = 0;
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+      qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+      TAOS_UNUSED(snprintf(qBuf, bufLen, "%s", pObj->name));
+      varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
+      COL_DATA_SET_VAL_GOTO(pBuf, false, pObj, pIter, _exit);
 
-    int32_t cols = 0;
-    SName   n = {0};
-
-    code = tNameFromString(&n, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-    char smaName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    if (TSDB_CODE_SUCCESS == code) {
-      STR_TO_VARSTR(smaName, (char *)tNameGetTableName(&n));
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)smaName, false);
-    }
-
-    char db[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    if (TSDB_CODE_SUCCESS == code) {
-      STR_TO_VARSTR(db, (char *)mndGetDbStr(pSma->db));
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)db, false);
-    }
-
-    if (TSDB_CODE_SUCCESS == code) {
-      code = tNameFromString(&n, pSma->stb, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-    }
-    char srcTb[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    if (TSDB_CODE_SUCCESS == code) {
-      STR_TO_VARSTR(srcTb, (char *)tNameGetTableName(&n));
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)srcTb, false);
-    }
-
-    if (TSDB_CODE_SUCCESS == code) {
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)db, false);
-    }
-
-    if (TSDB_CODE_SUCCESS == code) {
-      code = tNameFromString(&n, pSma->dstTbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-    }
-
-    if (TSDB_CODE_SUCCESS == code) {
-      char targetTb[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      STR_TO_VARSTR(targetTb, (char *)tNameGetTableName(&n));
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)targetTb, false);
-    }
-
-    if (TSDB_CODE_SUCCESS == code) {
-      // stream name
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)smaName, false);
-    }
-
-    if (TSDB_CODE_SUCCESS == code) {
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)(&pSma->createdTime), false);
-    }
-
-    // interval
-    char    interval[64 + VARSTR_HEADER_SIZE] = {0};
-    int32_t len = 0;
-    if (TSDB_CODE_SUCCESS == code) {
-      if (!IS_CALENDAR_TIME_DURATION(pSma->intervalUnit)) {
-        len = tsnprintf(interval + VARSTR_HEADER_SIZE, 64, "%" PRId64 "%c", pSma->interval,
-                        getPrecisionUnit(pSrcDb->cfg.precision));
-      } else {
-        len = tsnprintf(interval + VARSTR_HEADER_SIZE, 64, "%" PRId64 "%c", pSma->interval, pSma->intervalUnit);
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        COL_DATA_SET_VAL_GOTO((const char *)(&pObj->uid), false, pObj, pIter, _exit);
       }
-      varDataSetLen(interval, len);
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      code = colDataSetVal(pColInfo, numOfRows, interval, false);
-    }
 
-    char buf[TSDB_MAX_SAVED_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
-    if (TSDB_CODE_SUCCESS == code) {
-      // create sql
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      len = tsnprintf(buf + VARSTR_HEADER_SIZE, TSDB_MAX_SAVED_SQL_LEN, "%s", pSma->sql);
-      varDataSetLen(buf, TMIN(len, TSDB_MAX_SAVED_SQL_LEN));
-      code = colDataSetVal(pColInfo, numOfRows, buf, false);
-    }
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+        TAOS_UNUSED(snprintf(qBuf, bufLen, "%s", pObj->db));
+        varDataSetLen(pBuf, strlen(qBuf));
+        COL_DATA_SET_VAL_GOTO(pBuf, false, pObj, pIter, _exit);
+      }
 
-    // func list
-    len = 0;
-    SNode *pNode = NULL, *pFunc = NULL;
-    if (TSDB_CODE_SUCCESS == code) {
-      code = nodesStringToNode(pSma->ast, &pNode);
-    }
-    if (TSDB_CODE_SUCCESS == code) {
-      char *start = buf + VARSTR_HEADER_SIZE;
-      FOREACH(pFunc, ((SSelectStmt *)pNode)->pProjectionList) {
-        if (nodeType(pFunc) == QUERY_NODE_FUNCTION) {
-          SFunctionNode *pFuncNode = (SFunctionNode *)pFunc;
-          if (!fmIsTSMASupportedFunc(pFuncNode->funcId)) continue;
-          len += tsnprintf(start, TSDB_MAX_SAVED_SQL_LEN - len, "%s%s", start != buf + VARSTR_HEADER_SIZE ? "," : "",
-                           ((SExprNode *)pFunc)->userAlias);
-          if (len >= TSDB_MAX_SAVED_SQL_LEN) {
-            len = TSDB_MAX_SAVED_SQL_LEN;
-            break;
-          }
-          start = buf + VARSTR_HEADER_SIZE + len;
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+        TAOS_UNUSED(snprintf(qBuf, bufLen, "%s", pObj->tbname));
+        varDataSetLen(pBuf, strlen(qBuf));
+        COL_DATA_SET_VAL_GOTO(pBuf, false, pObj, pIter, _exit);
+      }
+
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+        if (pObj->tbType == TSDB_SUPER_TABLE) {
+          TAOS_UNUSED(snprintf(qBuf, bufLen, "SUPER_TABLE"));
+        } else if (pObj->tbType == TSDB_NORMAL_TABLE) {
+          TAOS_UNUSED(snprintf(qBuf, bufLen, "NORMAL_TABLE"));
+        } else if (pObj->tbType == TSDB_CHILD_TABLE) {
+          TAOS_UNUSED(snprintf(qBuf, bufLen, "CHILD_TABLE"));
+        } else {
+          TAOS_UNUSED(snprintf(qBuf, bufLen, "UNKNOWN"));
         }
+        varDataSetLen(pBuf, strlen(qBuf));
+        COL_DATA_SET_VAL_GOTO(pBuf, false, pObj, pIter, _exit);
       }
-      nodesDestroyNode(pNode);
-    }
 
-    if (TSDB_CODE_SUCCESS == code) {
-      varDataSetLen(buf, len);
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      code = colDataSetVal(pColInfo, numOfRows, buf, false);
-    }
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        TAOS_UNUSED(snprintf(pBuf, bufLen, "%" PRIi64, pObj->createdTime));
+        COL_DATA_SET_VAL_GOTO((const char *)&pObj->createdTime, false, pObj, pIter, _exit);
+      }
 
-    numOfRows++;
-    mndReleaseSma(pMnode, pSma);
-    mndReleaseDb(pMnode, pSrcDb);
-    if (TSDB_CODE_SUCCESS != code) {
-      sdbCancelFetch(pMnode->pSdb, pIter->pSmaIter);
-      numOfRows = code;
-      break;
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+        TAOS_UNUSED(snprintf(qBuf, bufLen, "%" PRIi64 "%c", pObj->interval[0], pObj->intervalUnit));
+        if (pObj->interval[1] > 0) {
+          tmpLen = strlen(qBuf);
+          TAOS_UNUSED(
+              snprintf(qBuf + tmpLen, bufLen - tmpLen, ",%" PRIi64 "%c", pObj->interval[1], pObj->intervalUnit));
+        }
+        varDataSetLen(pBuf, strlen(qBuf));
+        COL_DATA_SET_VAL_GOTO(pBuf, false, pObj, pIter, _exit);
+      }
+
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+        TAOS_UNUSED(snprintf(qBuf, bufLen, "%s", pObj->tbname));
+        varDataSetLen(pBuf, strlen(qBuf));
+        COL_DATA_SET_VAL_GOTO(pBuf, false, pObj, pIter, _exit);
+      }
+
+      sdbRelease(pSdb, pObj);
+      ++numOfRows;
     }
   }
-  mndReleaseDb(pMnode, pDb);
+
   pShow->numOfRows += numOfRows;
-  if (numOfRows < rows) {
-    taosMemoryFree(pShow->pIter);
-    pShow->pIter = NULL;
+
+_exit:
+  if (code < 0) {
+    mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    TAOS_RETURN(code);
   }
   return numOfRows;
 }
-#endif
+
 static void mndCancelRetrieveRsma(SMnode *pMnode, void *pIter) {
-#if 0
-  SSmaAndTagIter *p = pIter;
-  if (p != NULL) {
-    SSdb *pSdb = pMnode->pSdb;
-    sdbCancelFetchByType(pSdb, p->pSmaIter, SDB_SMA);
-  }
-  taosMemoryFree(p);
-#endif
+  SSdb *pSdb = pMnode->pSdb;
+  sdbCancelFetchByType(pSdb, pIter, SDB_RSMA);
 }
+
+
 static void mndCancelRetrieveRsmaTask(SMnode *pMnode, void *pIter) {
 #if 0
   SSmaAndTagIter *p = pIter;
