@@ -2247,7 +2247,7 @@ class TDCom:
             tdLog.info(f"Generating query result file: {self.query_result_file} using input file: {inputfile}")
             if platform.system().lower() == 'windows':
                 # 过滤 taos> 行
-                os.system(f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine Command' > {self.query_result_file}.raw ")
+                os.system(f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' > {self.query_result_file}.raw ")
                 with open(f"{self.query_result_file}.raw", "r", encoding="utf-8") as fin, open(self.query_result_file, "w", encoding="utf-8") as fout:
                     for line in fin:
                         stripped = line.rstrip()
@@ -2261,7 +2261,7 @@ class TDCom:
                             fout.write(line)
                 os.system(f"rm -f {self.query_result_file}.raw")
             else:
-                os.system(f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine Command' > {self.query_result_file}  ")
+                os.system(f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' > {self.query_result_file}  ")
             return self.query_result_file
 
     def compare_result_files(self, file1, file2):
