@@ -1,17 +1,17 @@
 cases/22-Show/test_show_table_distributed_null.py
-cases/30-DataCompression/test_compress_basic.py -N 3
-cases/uncatalog/army/alter/test_alter_config.py -N 3
-cases/uncatalog/army/cluster/test_snapshot.py -N 3 -L 3 -D 2
-cases/uncatalog/army/cmdline/test_taos_cli.py -B
+cases/30-DataCompression/test_compress_basic.py
+cases/uncatalog/army/alter/test_alter_config.py
+cases/uncatalog/army/cluster/test_snapshot.py
+cases/uncatalog/army/cmdline/test_taos_cli.py
 cases/uncatalog/army/query/function/test_function.py
 cases/uncatalog/army/query/function/test_interval_diff_tz.py
-cases/uncatalog/army/storage/test_compress_basic.py -N 3
+cases/uncatalog/army/storage/test_compress_basic.py
 cases/uncatalog/army/tools/benchmark/basic/test_stmt_insert_alltypes_same_min_max.py
 cases/uncatalog/army/tools/benchmark/basic/test_stmt_sample_csv_json_subtable.py
 cases/uncatalog/army/tools/benchmark/basic/test_stmt_sample_csv_json.py
-cases/uncatalog/army/tools/benchmark/basic/test_telnet_tcp.py -R
+cases/uncatalog/army/tools/benchmark/basic/test_telnet_tcp.py
 cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_loose_mode.py
-cases/uncatalog/army/tools/taosdump/native/test_taosdump_commandline.py -B
+cases/uncatalog/army/tools/taosdump/native/test_taosdump_commandline.py
 cases/uncatalog/system-test/0-others/test_mounts.py
 
 # udf not supported in Windows CI
@@ -25,7 +25,7 @@ cases/uncatalog/system-test/7-tmq/test_tmqUdf.py
 cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot0.py
 cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot1.py
 # Stream not supported in Windows CI
-cases/13-StreamProcessing/01-Snode/snode_mgmt_zlv.py -N 6 --replica 3
+cases/13-StreamProcessing/01-Snode/snode_mgmt_zlv.py
 cases/13-StreamProcessing/01-Snode/snode_privileges.py
 cases/13-StreamProcessing/01-Snode/snode_privileges_monitor_table.py
 cases/13-StreamProcessing/01-Snode/snode_privileges_recalc.py
@@ -94,8 +94,8 @@ cases/13-StreamProcessing/30-OldPyCases/test_oldcase_math_func.py
 cases/13-StreamProcessing/30-OldPyCases/test_oldcase_string_func.py
 cases/13-StreamProcessing/30-OldPyCases/test_oldcase_backquote_check.py
 cases/13-StreamProcessing/30-OldPyCases/test_oldcase_taosdShell.py
-cases/13-StreamProcessing/30-OldPyCases/test_oldcase_checkpoint_info.py -N 4
-cases/13-StreamProcessing/30-OldPyCases/test_oldcase_snode_restart_with_checkpoint.py -N 4
+cases/13-StreamProcessing/30-OldPyCases/test_oldcase_checkpoint_info.py
+cases/13-StreamProcessing/30-OldPyCases/test_oldcase_snode_restart_with_checkpoint.py
 cases/13-StreamProcessing/30-OldPyCases/test_oldcase_stream_multi_agg.py
 cases/13-StreamProcessing/30-OldPyCases/test_oldcase_stream_basic.py
 cases/13-StreamProcessing/30-OldPyCases/test_drop.py
@@ -108,11 +108,10 @@ cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_concat.py
 cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_continuewindowclose.py
 cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_state.py
 cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
+cases/13-StreamProcessing/30-OldPyCases/test_compatibility_rolling_upgrade.py
 # MQTT bnode not supported in Windows CI
 cases/12-DataSubscription/04-MQTT/test_mqtt_smoking.py
-cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 2
-cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 6
-cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 11
+cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py
 cases/12-DataSubscription/04-MQTT/test_mqtt_qos.py
 cases/12-DataSubscription/04-MQTT/test_mqtt_special.py
 cases/12-DataSubscription/04-MQTT/test_mqtt_rb.py
@@ -120,17 +119,5 @@ cases/12-DataSubscription/04-MQTT/test_mqtt_rb.py
 cases/uncatalog/system-test/0-others/test_taosdlog.py
 # run too long in Windows CI
 cases/uncatalog/system-test/2-query/test_decimal.py
-cases/uncatalog/system-test/2-query/test_decimal.py -Q 4
-cases/uncatalog/system-test/2-query/test_decimal.py -Q 3
-cases/uncatalog/system-test/2-query/test_decimal.py -Q 2
-cases/uncatalog/system-test/2-query/test_decimal.py -Q 1
 cases/uncatalog/system-test/2-query/test_decimal2.py
-cases/uncatalog/system-test/2-query/test_decimal2.py -Q 4
-cases/uncatalog/system-test/2-query/test_decimal2.py -Q 3
-cases/uncatalog/system-test/2-query/test_decimal2.py -Q 2
-cases/uncatalog/system-test/2-query/test_decimal2.py -Q 1
 cases/uncatalog/system-test/2-query/test_decimal3.py
-cases/uncatalog/system-test/2-query/test_decimal3.py -Q 4
-cases/uncatalog/system-test/2-query/test_decimal3.py -Q 3
-cases/uncatalog/system-test/2-query/test_decimal3.py -Q 2
-cases/uncatalog/system-test/2-query/test_decimal3.py -Q 1
