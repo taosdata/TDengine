@@ -61,7 +61,7 @@ class TestStreamOptionsNs:
             self.stbName = "stb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsNs.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.query(f"show stables")
@@ -245,7 +245,7 @@ class TestStreamOptionsNs:
             self.stbName = "stb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsNs.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.db}.{self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.query(f"show stables")
@@ -445,7 +445,7 @@ class TestStreamOptionsNs:
             self.stbName = "stb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsNs.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.query(f"show stables")
@@ -609,7 +609,7 @@ class TestStreamOptionsNs:
             self.stbName = "stb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsNs.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.query(f"show stables")
@@ -802,7 +802,7 @@ class TestStreamOptionsNs:
             self.vstbName = "vstb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsNs.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.db}.{self.stbName} (cts timestamp, cint int) tags (tint int)")
             # tdSql.query(f"show stables")
@@ -962,7 +962,7 @@ class TestStreamOptionsNs:
             self.stbName = "stb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsNs.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.query(f"show stables")
@@ -1188,7 +1188,7 @@ class TestStreamOptionsNs:
             self.stbName = "stb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsNs.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.query(f"show stables")
@@ -1415,7 +1415,7 @@ class TestStreamOptionsNs:
             self.stbName = "stb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsNs.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.db}.{self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.query(f"show stables")
@@ -1522,7 +1522,7 @@ class TestStreamOptionsNs:
             self.stbName = "stb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsNs.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.query(f"show stables")
@@ -1661,7 +1661,7 @@ class TestStreamOptionsNs:
             self.stbName = "stb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsNs.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.query(f"show stables")
@@ -1825,7 +1825,7 @@ class TestStreamOptionsNs:
             self.stbName = "stb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsNs.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int, ctiny tinyint) tags (tint int)")
             tdSql.query(f"show stables")
@@ -2015,7 +2015,7 @@ class TestStreamOptionsNs:
             self.stbName = "stb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsNs.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int, cuint INT UNSIGNED) tags (tint int)")
             tdSql.query(f"show stables")
@@ -2424,7 +2424,7 @@ class TestStreamOptionsNs:
             self.stbName = "stb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsNs.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.query(f"show stables")
@@ -2573,7 +2573,7 @@ class TestStreamOptionsNs:
             self.stbName = "stb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsNs.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.query(f"show stables")
@@ -2718,7 +2718,7 @@ class TestStreamOptionsNs:
             self.stbName = "stb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsNs.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.query(f"show stables")

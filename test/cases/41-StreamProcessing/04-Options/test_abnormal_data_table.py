@@ -50,7 +50,7 @@ class TestStreamDisorderTable:
             self.stbName = "stb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamDisorderTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamDisorderTable.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists {self.db}.{self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.query(f"show stables")
@@ -302,7 +302,7 @@ class TestStreamDisorderTable:
             self.stbName = "stb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamDisorderTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamDisorderTable.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists {self.db}.{self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.query(f"show stables")
@@ -462,7 +462,7 @@ class TestStreamDisorderTable:
             self.stbName = "stb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamDisorderTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamDisorderTable.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists {self.db}.{self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.query(f"show stables")
@@ -852,7 +852,7 @@ class TestStreamDisorderTable:
             self.stbName = "stb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamDisorderTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamDisorderTable.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists {self.db}.{self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.query(f"show stables")

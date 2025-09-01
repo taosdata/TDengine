@@ -45,7 +45,7 @@ class TestStreamOptionsAbnormal:
             self.ntbName = "ntb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsAbnormal.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName}  (cts timestamp, cint int) tags (tint int)")
             tdSql.execute(f"create table if not exists  {self.stbName2} (cts timestamp, cint int, cdouble double, cvarchar varchar(16)) tags (tint int)")
@@ -159,7 +159,7 @@ class TestStreamOptionsAbnormal:
             self.vntbName = "vntb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsAbnormal.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName}  (cts timestamp, cint int) tags (tint int)")
             tdSql.execute(f"create table if not exists  {self.stbName2} (cts timestamp, cint int, cdouble double, cvarchar varchar(16)) tags (tint int)")

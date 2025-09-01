@@ -45,7 +45,7 @@ class TestStreamDisorderVtable:
             self.vstbName = "vstb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamDisorderTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamDisorderVtable.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists {self.db}.{self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.execute(f"create table if not exists {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
@@ -306,7 +306,7 @@ class TestStreamDisorderVtable:
             self.vstbName = "vstb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamDisorderTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamDisorderVtable.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists {self.db}.{self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.execute(f"create table if not exists {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
@@ -473,7 +473,7 @@ class TestStreamDisorderVtable:
             self.vstbName = "vstb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamDisorderTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamDisorderVtable.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists {self.db}.{self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.execute(f"create table if not exists {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
@@ -870,7 +870,7 @@ class TestStreamDisorderVtable:
             self.vstbName = "vstb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamDisorderTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamDisorderVtable.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists {self.db}.{self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.execute(f"create table if not exists {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")

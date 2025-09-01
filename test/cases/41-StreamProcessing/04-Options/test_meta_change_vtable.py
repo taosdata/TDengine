@@ -59,7 +59,7 @@ class TestStreamMetaChangeVTable:
             self.vntbName = "vntb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaChangeVTable.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.db}.{self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.execute(f"create table if not exists  {self.db}.{self.ntbName} (cts timestamp, cint int)")
@@ -310,7 +310,7 @@ class TestStreamMetaChangeVTable:
             self.vstbName = "vstb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaChangeVTable.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")            
             tdSql.execute(f"create table if not exists  {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
@@ -584,7 +584,7 @@ class TestStreamMetaChangeVTable:
             self.vstbName = "vstb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaChangeVTable.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.db}.{self.stbName}  (cts timestamp, cint int) tags (tint int, tbigint bigint)")            
             tdSql.execute(f"create table if not exists  {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int, tbigint bigint) virtual 1")
@@ -893,7 +893,7 @@ class TestStreamMetaChangeVTable:
             self.vntbName = "vntb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaChangeVTable.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.db}.{self.stbName} (cts timestamp, cint int, cbigint bigint, cfloat float) tags (tint int, tbigint bigint, tfloat float)")
             tdSql.execute(f"create table if not exists  {self.db}.{self.ntbName} (cts timestamp, cint int, cbigint bigint, cfloat float)")
@@ -1138,7 +1138,7 @@ class TestStreamMetaChangeVTable:
             self.vntbName1 = "vntb1"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaChangeVTable.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.db}.{self.stbName}  (cts timestamp, cint int, cbigint bigint, cfloat float) tags (tint int, tbigint bigint, tfloat float)")
             tdSql.execute(f"create table if not exists  {self.db}.{self.stbName1} (cts timestamp, cint int, cbigint bigint, cfloat float) tags (tint int, tbigint bigint, tfloat float)")
@@ -1484,7 +1484,7 @@ class TestStreamMetaChangeVTable:
             self.vntbName2 = "vntb2"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaChangeVTable.precision}'")
             tdSql.execute(f"use {self.db}")
             
             tdSql.execute(f"create table if not exists  {self.db}.{self.ntbName}  (cts timestamp, cint int, cbigint bigint, cfloat float)")
@@ -1674,7 +1674,7 @@ class TestStreamMetaChangeVTable:
             
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaChangeVTable.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.db}.{self.stbName} (cts timestamp, cint int, cbigint bigint, cfloat float) tags (tint int)")
             tdSql.execute(f"create table if not exists  {self.db}.{self.ntbName} (cts timestamp, cint int, cbigint bigint, cfloat float)")
@@ -1994,12 +1994,12 @@ class TestStreamMetaChangeVTable:
             self.vntbName1 = "vntb1"            
 
         def create(self):
-            tdSql.execute(f"create database {self.db}  vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
-            tdSql.execute(f"create database {self.db1} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
-            tdSql.execute(f"create database {self.db2} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
-            tdSql.execute(f"create database {self.db3} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
-            tdSql.execute(f"create database {self.db4} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
-            tdSql.execute(f"create database {self.db5} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
+            tdSql.execute(f"create database {self.db}  vgroups 1 buffer 8 precision '{TestStreamMetaChangeVTable.precision}'")
+            tdSql.execute(f"create database {self.db1} vgroups 1 buffer 8 precision '{TestStreamMetaChangeVTable.precision}'")
+            tdSql.execute(f"create database {self.db2} vgroups 1 buffer 8 precision '{TestStreamMetaChangeVTable.precision}'")
+            tdSql.execute(f"create database {self.db3} vgroups 1 buffer 8 precision '{TestStreamMetaChangeVTable.precision}'")
+            tdSql.execute(f"create database {self.db4} vgroups 1 buffer 8 precision '{TestStreamMetaChangeVTable.precision}'")
+            tdSql.execute(f"create database {self.db5} vgroups 1 buffer 8 precision '{TestStreamMetaChangeVTable.precision}'")
             
             # db1
             tdSql.execute(f"create table if not exists  {self.db1}.{self.stbName}  (cts timestamp, cint int, cbigint bigint, cfloat float) tags (tint int, tbigint bigint, tfloat float)")
