@@ -13,6 +13,7 @@
 from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom
 import os
 import time
+import glob
 import subprocess
 from datetime import datetime, timedelta
 
@@ -32,8 +33,8 @@ class TestRetentionTest2:
         tdLog.info("============== prepare environment 1 ===============")
 
         level0_paths = [
-            f'{self.dnode_path}/data00',
-            f'{self.dnode_path}/data01',
+            os.path.join(self.dnode_path, "data00"),
+            os.path.join(self.dnode_path, "data01"),
             # f'{self.dnode_path}/data02',
         ]
 
@@ -90,11 +91,11 @@ class TestRetentionTest2:
         for dbname in [f'db{i}' for i in range(0, 20)]:
             self._create_db_write_and_flush(dbname)
 
-        cmd = f"find {self.dnode_path}/data00 -name 'v*.data' | wc -l"
-        num_files1 = int(subprocess.check_output(cmd, shell=True).strip())
+        data_dir0 = os.path.join(self.dnode_path, 'data00')
+        num_files1 = len(glob.glob(os.path.join(data_dir0, '**', 'v*.data'), recursive=True))
 
-        cmd = f"find {self.dnode_path}/data01 -name 'v*.data' | wc -l"
-        num_files2 = int(subprocess.check_output(cmd, shell=True).strip())
+        data_dir1 = os.path.join(self.dnode_path, 'data01')
+        num_files2 = len(glob.glob(os.path.join(data_dir1, '**', 'v*.data'), recursive=True))
         tdSql.checkEqual(num_files1, num_files2)
 
         tdDnodes.stop(1)

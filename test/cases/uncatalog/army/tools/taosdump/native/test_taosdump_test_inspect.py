@@ -15,6 +15,7 @@ from new_test_framework.utils import tdLog, tdSql, etool
 import os
 import subprocess
 import inspect
+import glob
 
 class TestTaosdumpTestInspect:
     def caseDescription(self):
@@ -80,20 +81,18 @@ class TestTaosdumpTestInspect:
         os.system("%s --databases db -o %s -T 1" % (binPath, self.tmpdir))
 
         #        sys.exit(1)
-        taosdumpInspectCmd = "%s -I %s/taosdump.*/*.avro* -s" % (
-            binPath,
-            self.tmpdir,
-        )
-        print(taosdumpInspectCmd)
-        os.system(taosdumpInspectCmd)
+        avro_files = glob.glob(os.path.join(self.tmpdir, "taosdump.*", "*.avro*"))
+        for avro_file in avro_files:
+            taosdumpInspectCmd = f"{binPath} -I \"{avro_file}\" -s"
+            print(taosdumpInspectCmd)
+            os.system(taosdumpInspectCmd)
 
-        taosdumpInspectCmd = "%s -I %s/taosdump.*/*.avro* -s | grep 'Schema:'|wc -l" % (
-            binPath,
-            self.tmpdir,
-        )
-        schemaTimes = subprocess.check_output(taosdumpInspectCmd, shell=True).decode(
-            "utf-8"
-        )
+        avro_files = glob.glob(os.path.join(self.tmpdir, "taosdump.*", "*.avro*"))
+        schemaTimes = 0
+        for avro_file in avro_files:
+            taosdumpInspectCmd = f"{binPath} -I \"{avro_file}\" -s"
+            output = subprocess.check_output(taosdumpInspectCmd, shell=True).decode("utf-8")
+            schemaTimes += sum(1 for line in output.splitlines() if "Schema:" in line)
         print("schema found times: %d" % int(schemaTimes))
 
         if int(schemaTimes) != 1:
@@ -103,13 +102,12 @@ class TestTaosdumpTestInspect:
                 % (caller.filename, caller.lineno, int(schemaTimes))
             )
 
-        taosdumpInspectCmd = (
-            "%s -I %s/taosdump*/data*/*.avro* -s | grep 'Schema:'|wc -l"
-            % (binPath, self.tmpdir)
-        )
-        schemaTimes = subprocess.check_output(taosdumpInspectCmd, shell=True).decode(
-            "utf-8"
-        )
+        data_avro_files = glob.glob(os.path.join(self.tmpdir, "taosdump*", "data*", "*.avro*"))
+        schemaTimes = 0
+        for avro_file in data_avro_files:
+            taosdumpInspectCmd = f"{binPath} -I \"{avro_file}\" -s"
+            output = subprocess.check_output(taosdumpInspectCmd, shell=True).decode("utf-8")
+            schemaTimes += sum(1 for line in output.splitlines() if "Schema:" in line)
         print("schema found times: %d" % int(schemaTimes))
 
         if int(schemaTimes) != 2:
@@ -119,13 +117,13 @@ class TestTaosdumpTestInspect:
                 % (caller.filename, caller.lineno, int(schemaTimes))
             )
 
-        taosdumpInspectCmd = (
-            "%s -I %s/taosdump*/*.avro* | grep '=== Records:'|wc -l"
-            % (binPath, self.tmpdir)
-        )
-        recordsTimes = subprocess.check_output(taosdumpInspectCmd, shell=True).decode(
-            "utf-8"
-        )
+        avro_files = glob.glob(os.path.join(self.tmpdir, "taosdump.*", "*.avro*"))
+        recordsTimes = 0
+        for avro_file in avro_files:
+            taosdumpInspectCmd = f"{binPath} -I \"{avro_file}\""
+            print(taosdumpInspectCmd)
+            output = subprocess.check_output(taosdumpInspectCmd, shell=True).decode("utf-8")
+            recordsTimes += sum(1 for line in output.splitlines() if "=== Records:" in line)
         print("records found times: %d" % int(recordsTimes))
 
         if int(recordsTimes) != 1:
@@ -135,13 +133,12 @@ class TestTaosdumpTestInspect:
                 % (caller.filename, caller.lineno, int(recordsTimes))
             )
 
-        taosdumpInspectCmd = (
-            "%s -I %s/taosdump*/data*/*.avro* | grep '=== Records:'|wc -l"
-            % (binPath, self.tmpdir)
-        )
-        recordsTimes = subprocess.check_output(taosdumpInspectCmd, shell=True).decode(
-            "utf-8"
-        )
+        data_avro_files = glob.glob(os.path.join(self.tmpdir, "taosdump*", "data*", "*.avro*"))
+        recordsTimes = 0
+        for avro_file in data_avro_files:
+            taosdumpInspectCmd = f"{binPath} -I \"{avro_file}\""
+            output = subprocess.check_output(taosdumpInspectCmd, shell=True).decode("utf-8")
+            recordsTimes += sum(1 for line in output.splitlines() if "=== Records:" in line)
         print("records found times: %d" % int(recordsTimes))
 
         if int(recordsTimes) != 2:
