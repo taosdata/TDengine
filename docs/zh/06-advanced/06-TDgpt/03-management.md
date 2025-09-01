@@ -24,14 +24,14 @@ systemctl status taosanoded
 # 启动涛思时序数据基础模型
 start-tdtsfm
 # 启动 Time-MoE 基础模型
-start-timer-moe
+start-time-moe
 ```
 
 ```bash
 # 停止涛思时序数据基础模型
 stop-tdtsfm
 # 停止 Time-MoE 基础模型
-stop-timer-moe
+stop-time-moe
 ```
 
 > 上述命令只在安装版本中可用，使用 Docker 镜像和云服务，该命令不可用。
@@ -59,7 +59,7 @@ stop-timer-moe
 [uwsgi]
 
 # Anode RESTful service ip:port
-http = 127.0.0.1:6090
+http = 127.0.0.1:6035
 
 # base directory for Anode python files， do NOT modified this
 chdir = /usr/local/taos/taosanode/lib
@@ -114,7 +114,7 @@ Anode 运行配置主要是以下：
 CREATE ANODE {node_url}
 ```
 
-node_url 是提供服务的 Anode 的 IP 和 PORT 组成的字符串，例如：`create anode '127.0.0.1:6090'`。Anode 启动后需要注册到 TDengine TSDB 集群中才能提供服务。不建议将 Anode 同时注册到两个集群中。
+node_url 是提供服务的 Anode 的 IP 和 PORT 组成的字符串，例如：`create anode '127.0.0.1:6035'`。Anode 启动后需要注册到 TDengine TSDB 集群中才能提供服务。不建议将 Anode 同时注册到两个集群中。
 
 #### 查看 Anode
 
@@ -126,7 +126,7 @@ SHOW ANODES;
 taos> show anodes;
      id      |              url               |    status    |       create_time       |       update_time       |
 ==================================================================================================================
-           1 | 192.168.0.1:6090               | ready        | 2024-11-28 18:44:27.089 | 2024-11-28 18:44:27.089 |
+           1 | 192.168.0.1:6035               | ready        | 2024-11-28 18:44:27.089 | 2024-11-28 18:44:27.089 |
 Query OK, 1 row(s) in set (0.037205s)
 ```
 

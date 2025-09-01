@@ -21,6 +21,6 @@ RUN cd ${dirName}/ && \
     rm -rf ${dirName}
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh /root/taos_ts_server.py
-EXPOSE 6090 8387 5000
+EXPOSE 6035 8387 6036
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 

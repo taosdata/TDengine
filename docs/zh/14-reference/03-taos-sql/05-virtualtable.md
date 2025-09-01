@@ -119,7 +119,7 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
         <td align="center">4</td>
         <td align="center">0:00:04</td>
         <td align="center">40</td>
-        <td align="center">0:00:03</td>
+        <td align="center"></td>
         <td align="center"></td>
         <td align="center"></td>
     </tr>

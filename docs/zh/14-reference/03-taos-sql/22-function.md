@@ -1828,7 +1828,7 @@ taos> select weekofyear('2000-01-01');
 
 选择函数根据语义在查询结果集中选择一行或多行结果返回。用户可以同时指定输出 ts 列或其他列（包括 tbname 和标签列），这样就可以方便地知道被选出的值是源于哪个数据行的。
 
-### BOTTOM
+#### BOTTOM
 
 ```sql
 BOTTOM(expr, k)
@@ -1848,7 +1848,7 @@ BOTTOM(expr, k)
 - 系统同时返回该记录关联的时间戳列。
 - 限制：BOTTOM 函数不支持 FILL 子句。
 
-### FIRST
+#### FIRST
 
 ```sql
 FIRST(expr)
@@ -1869,7 +1869,7 @@ FIRST(expr)
 - 如果结果集中所有列全部为 NULL 值，则不返回结果。
 - 对于存在复合主键的表的查询，若最小时间戳的数据有多条，则只有对应的复合主键最小的数据被返回。
 
-### LAST
+#### LAST
 
 ```sql
 LAST(expr)
@@ -1890,7 +1890,7 @@ LAST(expr)
 - 在用于超级表时，时间戳完全一样且同为最大的数据行可能有多个，那么会从中随机返回一条，而并不保证多次运行所挑选的数据行必然一致。
 - 对于存在复合主键的表的查询，若最大时间戳的数据有多条，则只有对应的复合主键最大的数据被返回。
 
-### LAST_ROW
+#### LAST_ROW
 
 ```sql
 LAST_ROW(expr)
@@ -1911,7 +1911,7 @@ LAST_ROW(expr)
 - 不能与 INTERVAL 一起使用。
 - 与 LAST 函数一样，对于存在复合主键的表的查询，若最大时间戳的数据有多条，则只有对应的复合主键最大的数据被返回。
 
-### MAX
+#### MAX
 
 ```sql
 MAX(expr)
@@ -1929,7 +1929,7 @@ MAX(expr)
 
 - max 函数可以接受字符串作为输入参数，当输入参数为字符串类型时，返回最大的字符串值，从 v3.3.3.0 开始支持，之前的版本不支持字符串参数。
 
-### MIN
+#### MIN
 
 ```sql
 MIN(expr)
@@ -1947,7 +1947,7 @@ MIN(expr)
 
 - min 函数可以接受字符串作为输入参数，当输入参数为字符串类型时，返回最大的字符串值，从 v3.3.3.0 开始支持，之前的版本不支持字符串参数。
 
-### TAIL
+#### TAIL
 
 ```sql
 TAIL(expr, k [, offset_rows])
@@ -1963,7 +1963,7 @@ TAIL(expr, k [, offset_rows])
 
 **适用于**：表、超级表。
 
-### TOP
+#### TOP
 
 ```sql
 TOP(expr, k)
@@ -1985,7 +1985,7 @@ TOP(expr, k)
 
 ### 特殊选择
 
-### COLS
+#### COLS
 
 ```sql
 COLS(func(expr), output_expr1, [, output_expr2] ... )
@@ -2007,7 +2007,7 @@ COLS(func(expr), output_expr1, [, output_expr2] ... )
 - 输出只有一列时，可以对 cols 函数设置别名。例如 `select cols(first(ts), c1) as c11 from ...`
 - 输出一列或者多列时，可以对 cols 函数的每个输出列设置命名。例如 `select cols(first(ts), c1 as c11, c2 as c22)`
 
-### MODE
+#### MODE
 
 ```sql
 MODE(expr)
@@ -2021,7 +2021,7 @@ MODE(expr)
 
 **适用于**：表和超级表。
 
-### UNIQUE
+#### UNIQUE
 
 ```sql
 UNIQUE(expr)
@@ -2041,7 +2041,7 @@ UNIQUE(expr)
 
 ### 基础聚合
 
-### AVG
+#### AVG
 
 ```sql
 AVG(expr)
@@ -2057,7 +2057,7 @@ AVG(expr)
 
 **说明**: 当输入类型为 DECIMAL 类型时，输出类型也为 DECIMAL 类型，输出的 precision 和 scale 大小符合数据类型章节中的描述规则，通过计算 SUM 类型和 UINT64 的除法得到结果类型，若 SUM 的结果导致 DECIMAL 类型溢出，则报 DECIMAL OVERFLOW 错误。
 
-### COUNT
+#### COUNT
 
 ```sql
 COUNT({* | expr})
@@ -2076,7 +2076,7 @@ COUNT({* | expr})
 - 可以使用星号 (\*) 来替代具体的字段，使用星号 (\*) 返回全部记录数量。
 - 如果统计字段是具体的列，则返回该列中非 NULL 值的记录数量。
 
-### LEASTSQUARES
+#### LEASTSQUARES
 
 ```sql
 LEASTSQUARES(expr, start_val, step_val)
@@ -2090,7 +2090,7 @@ LEASTSQUARES(expr, start_val, step_val)
 
 **适用于**：表。
 
-### SUM
+#### SUM
 
 ```sql
 SUM(expr)
@@ -2106,7 +2106,7 @@ SUM(expr)
 
 **说明**: 输入类型为 DECIMAL 类型时，输出类型为 DECIMAL(38, scale) ，precision 为当前支持的最大值，scale 为输入类型的 scale，若 SUM 的结果溢出时，报 DECIMAL OVERFLOW 错误。
 
-### STDDEV
+#### STDDEV
 
 ```sql
 STDDEV
@@ -2142,11 +2142,11 @@ taos> select stddev_pop(id) from test_stddev;
          1.414213562373095 |
 ```
 
-### STDDEV_POP
+#### STDDEV_POP
 
 与 [STDDEV](#stddev)  函数的行为相同
 
-### VAR_POP
+#### VAR_POP
 
 ```sql
 VAR_POP(expr)
@@ -2180,7 +2180,7 @@ taos> select var_pop(id) from test_var;
          2.000000000000000 |
 ```
 
-### SPREAD
+#### SPREAD
 
 ```sql
 SPREAD(expr)
@@ -2196,7 +2196,7 @@ SPREAD(expr)
 
 ### 分位数与近似统计
 
-### APERCENTILE
+#### APERCENTILE
 
 ```sql
 APERCENTILE(expr, p [, algo_type])
@@ -2221,7 +2221,7 @@ algo_type: {
 - algo_type 取值为 "default" 或 "t-digest"。输入为 "default" 时函数使用基于直方图算法进行计算。输入为 "t-digest" 时使用 t-digest 算法计算分位数的近似结果。如果不指定 algo_type 则使用 "default" 算法。
 - t-digest 算法的近似结果对于输入数据顺序敏感，对超级表查询时不同的输入排序结果可能会有微小的误差。
 
-### PERCENTILE
+#### PERCENTILE
 
 ```sql
 PERCENTILE(expr, p [, p1] ... )
@@ -2243,7 +2243,7 @@ PERCENTILE(expr, p [, p1] ... )
 
 ### 特殊聚合
 
-### ELAPSED
+#### ELAPSED
 
 ```sql
 ELAPSED(ts_primary_key [, time_unit])
@@ -2268,7 +2268,7 @@ ELAPSED(ts_primary_key [, time_unit])
 - 对于嵌套查询，仅当内层查询会输出隐式时间戳列时有效。例如 `select elapsed(ts) from (select diff(value) from sub1)` 语句，diff 函数会让内层查询输出隐式时间戳列，此为主键列，可以用于 elapsed 函数的第一个参数。相反，例如 `select elapsed(ts) from (select * from sub1)` 语句，ts 列输出到外层时已经没有了主键列的含义，无法使用 elapsed 函数。此外，elapsed 函数作为一个与时间线强依赖的函数，形如 `select elapsed(ts) from (select diff(value) from st group by tbname)` 尽管会返回一条计算结果，但并无实际意义，这种用法后续也将被限制。
 - 不支持与 leastsquares、diff、derivative、top、bottom、last_row、interp 等函数混合使用。
 
-### HISTOGRAM
+#### HISTOGRAM
 
 ```sql
 HISTOGRAM(expr，bin_type, bin_description, normalized)
@@ -2298,7 +2298,7 @@ HISTOGRAM(expr，bin_type, bin_description, normalized)
        生成区间为[-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf]。
 - normalized 是否将返回结果归一化到 0~1 之间。有效输入为 0 和 1。
 
-### HYPERLOGLOG
+#### HYPERLOGLOG
 
 ```sql
 HYPERLOGLOG(expr)
@@ -2321,7 +2321,7 @@ HYPERLOGLOG(expr)
 
 ### 窗口计算
 
-### CSUM
+#### CSUM
 
 ```sql
 CSUM(expr)
@@ -2342,7 +2342,7 @@ CSUM(expr)
 - 不支持 +、-、*、/ 运算，如 csum(col1) + csum(col2)。
 - 只能与聚合（Aggregation）函数一起使用。该函数可以应用在普通表和超级表上。
 
-### DERIVATIVE
+#### DERIVATIVE
 
 ```sql
 DERIVATIVE(expr, time_interval, ignore_negative)
@@ -2365,7 +2365,7 @@ ignore_negative: {
 
 - 可以与选择相关联的列一起使用。例如 `select \_rowts, DERIVATIVE(col1, 1s, 1) from tb1`。
 
-### DIFF
+#### DIFF
 
 ```sql
 DIFF(expr [, ignore_option])
@@ -2404,7 +2404,7 @@ ignore_option: {
 - 当没有复合主键时，如果不同的子表有相同时间戳的数据，会提示 "Duplicate timestamps not allowed"。
 - 当使用复合主键时，不同子表的时间戳和主键组合可能相同，使用哪一行取决于先找到哪一行，这意味着在这种情况下多次运行 diff() 的结果可能会不同。
 
-### IRATE
+#### IRATE
 
 ```sql
 IRATE(expr)
@@ -2418,7 +2418,7 @@ IRATE(expr)
 
 **适用于**：表和超级表。
 
-### MAVG
+#### MAVG
 
 ```sql
 MAVG(expr, k)
@@ -2439,7 +2439,7 @@ MAVG(expr, k)
 - 不支持 +、-、*、/ 运算，如 mavg(col1, k1) + mavg(col2, k1);
 - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用；
 
-### STATECOUNT
+#### STATECOUNT
 
 ```sql
 STATECOUNT(expr, oper, val)
@@ -2464,7 +2464,7 @@ STATECOUNT(expr, oper, val)
 
 - 不能和窗口操作一起使用，例如 `interval/state_window/session_window`。
 
-### STATEDURATION
+#### STATEDURATION
 
 ```sql
 STATEDURATION(expr, oper, val, unit)
@@ -2492,7 +2492,7 @@ STATEDURATION(expr, oper, val, unit)
 
 ### 时间加权统计
 
-### TWA
+#### TWA
 
 ```sql
 TWA(expr)
@@ -2508,7 +2508,7 @@ TWA(expr)
 
 ### 插值与采样
 
-### INTERP
+#### INTERP
 
 ```sql
 INTERP(expr [, ignore_null_values])
@@ -2538,7 +2538,7 @@ ignore_null_values: {
 - 只有在使用 FILL PREV/NEXT/NEAR 模式时才可以使用伪列 `_irowts_origin`, 用于返回 `interp` 函数所使用的原始数据的时间戳列。若范围内无值，则返回 NULL。`_irowts_origin` 在 v3.3.4.9 以后支持。
 - 对于带复合主键的表的查询，若存在相同时间戳的数据，则只有对应的复合主键最小的数据参与运算。
 
-### SAMPLE
+#### SAMPLE
 
 ```sql
 SAMPLE(expr, k)
@@ -2558,7 +2558,7 @@ SAMPLE(expr, k)
 
 ### 数据库环境信息
 
-### CLIENT_VERSION
+#### CLIENT_VERSION
 
 ```sql
 SELECT CLIENT_VERSION();
@@ -2566,7 +2566,7 @@ SELECT CLIENT_VERSION();
 
 **说明**：返回客户端版本。
 
-### CURRENT_USER
+#### CURRENT_USER
 
 ```sql
 SELECT CURRENT_USER();
@@ -2574,7 +2574,7 @@ SELECT CURRENT_USER();
 
 **说明**：获取当前用户。
 
-### DATABASE
+#### DATABASE
 
 ```sql
 SELECT DATABASE();
@@ -2582,7 +2582,7 @@ SELECT DATABASE();
 
 **说明**：返回当前登录的数据库。如果登录的时候没有指定默认数据库，且没有使用 USE 命令切换数据库，则返回 NULL。
 
-### SERVER_VERSION
+#### SERVER_VERSION
 
 ```sql
 SELECT SERVER_VERSION();
@@ -2592,7 +2592,7 @@ SELECT SERVER_VERSION();
 
 ### 系统状态
 
-### SERVER_STATUS
+#### SERVER_STATUS
 
 ```sql
 SELECT SERVER_STATUS();
