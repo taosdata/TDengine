@@ -8,7 +8,7 @@ class TestStreamResultSavedErrors:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_result_saved_errors(self):
-        """Stream Result Saved Error Cases
+        """ResultSaved: error cases
 
         This test covers error scenarios and boundary conditions for stream result saving:
 

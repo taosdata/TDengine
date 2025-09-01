@@ -13,7 +13,7 @@ class Test_IDMP_Vehicle:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_usecase_em(self):
-        """Nevados
+        """IDMP: vehicle scenario
 
         Refer: https://taosdata.feishu.cn/wiki/Zkb2wNkHDihARVkGHYEcbNhmnxb
 

@@ -13,7 +13,7 @@ class TestStreamOldCaseBasic2:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_basic2(self):
-        """Stream basic test 2
+        """OldTsim: basic 2
 
         Basic test cases for streaming, part 2
 

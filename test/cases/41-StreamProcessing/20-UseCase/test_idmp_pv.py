@@ -3,7 +3,7 @@ import os
 
 class TestIdmpPhotovoltaic:
     def test_pv(self):
-        """IDMP 光伏场景测试
+        """IDMP: photovoltaic scenario
 
         Refer: https://taosdata.feishu.cn/wiki/Zkb2wNkHDihARVkGHYEcbNhmnxb#share-Ygqld907hoMESmx04GBcRlaVnZz
         1. 测试 AI 推荐生成的分析, 创建 Stream, 验证流的正确性

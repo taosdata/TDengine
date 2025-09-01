@@ -8,7 +8,7 @@ class TestStreamResultSavedDatatypePrecision:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_result_saved_datatype_precision(self):
-        """Stream Result Saved Datatype Precision Tests
+        """ResultSaved: datatype precision
 
         This test focuses on precise datatype validation and edge cases:
 

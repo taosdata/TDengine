@@ -13,7 +13,7 @@ class TestStreamOldCaseConcat:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_concat(self):
-        """Stream concat
+        """OldTsim: concat
 
         Test the use of the concat function in output_subtable and tags statements.
 
