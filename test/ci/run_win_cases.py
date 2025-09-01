@@ -33,7 +33,7 @@ def load_exclusion_list(exclusion_file):
             for line in f:
                 line = line.strip()
                 if line and not line.startswith('#'):
-                    exclusion_list.add(line)
+                    exclusion_list.append(line)
     return exclusion_list
 
 def get_work_dir():
@@ -56,6 +56,14 @@ def clean_taos_process():
             pid = proc.info['pid']
             killCmd = f"taskkill /PID {pid} /T /F"
             os.system(killCmd)
+        if ('python' in  proc.info['name']
+            and proc.info['cmdline']  # 确保 cmdline 非空
+            and any('taos' in arg for arg in proc.info['cmdline'])
+        ):
+            logger.debug(proc.info)
+            logger.debug("Found taos process with PID: %s", proc.info['pid'])
+            pid = proc.info['pid']
+            killCmd = f"taskkill /PID {pid} /T /F"
 
 def zip_dir(dir_path, zip_path):
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
@@ -66,7 +74,7 @@ def zip_dir(dir_path, zip_path):
                 zipf.write(abs_path, rel_path)
 
 
-def process_pytest_file(input_file, log_path= "C:\CI_logs", exclusion_file="win_ignore_cases"):
+def process_pytest_file(input_file, log_path= "C:\CI_logs", exclusion_file=os.path.join(os.path.dirname(__file__), "win_ignore_cases")):
     # 初始化统计变量
     total_cases = 0
     success_cases = 0
@@ -88,7 +96,7 @@ def process_pytest_file(input_file, log_path= "C:\CI_logs", exclusion_file="win_
         shutil.rmtree(log_dir)
     os.makedirs(log_dir, exist_ok=True)
     
-    with open(input_file, 'r') as f:
+    with open(input_file, 'r', encoding="utf-8", errors="ignore") as f:
         for line in f:
             line = line.strip()
             # 跳过空行和注释行
@@ -110,6 +118,9 @@ def process_pytest_file(input_file, log_path= "C:\CI_logs", exclusion_file="win_
             if case_base_name and len(exclusion_list) > 0 and case_base_name in exclusion_list:
                 skipped_cases += 1
                 logger.info(f"Case {case_base_name} not support runnning on Windows. Skip test.")
+                result_str = f"Skip\t{pytest_cmd}\t\t\t\n"
+                with open(result_file, "a", encoding="utf-8") as rf:
+                    rf.write(result_str)
                 continue
                 
             case_name = pytest_cmd.split("/")[-1].replace(" ", "_")  # 获取用例名称
