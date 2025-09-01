@@ -228,7 +228,6 @@ This document compares the configuration parameters of taosd (server-side) and t
 | serverPort | taosc | The port that taosAdapter listens on |
 | timezone | taosc | Time zone |
 | logDir | taosc | Log file directory, operational logs will be written to this directory |
-| debugFlag | taosc | Log switch for running logs |
 | logKeepDays | taosc | Maximum retention period for log files in days |
 | rotationCount | taosc | Number of log file rotations before deletion |
 | rotationSize | taosc | Maximum size of a single log file |
