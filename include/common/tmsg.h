@@ -5357,6 +5357,16 @@ void    tFreeSScanDbReq(SScanDbReq* pReq);
 
 #pragma pack(pop)
 
+typedef struct {
+  int32_t scanId;
+  int32_t sqlLen;
+  char*   sql;
+} SKillScanReq;
+
+int32_t tSerializeSKillScanReq(void* buf, int32_t bufLen, SKillScanReq* pReq);
+int32_t tDeserializeSKillScanReq(void* buf, int32_t bufLen, SKillScanReq* pReq);
+void    tFreeSKillScanReq(SKillScanReq* pReq);
+
 #ifdef __cplusplus
 }
 #endif

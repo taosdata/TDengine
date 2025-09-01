@@ -147,6 +147,7 @@
   TD_DEF_MSG_TYPE(TDMT_MND_KILL_SSMIGRATE, "kill-ssmigrate", NULL, NULL) // placeholder for future use
   TD_DEF_MSG_TYPE(TDMT_MND_UPDATE_SSMIGRATE_PROGRESS_TIMER, "update-ssmigrate-progress-tmr", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_SCAN_DB, "scan-db", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_KILL_SCAN, "kill-scan-db", NULL, NULL)
   TD_CLOSE_MSG_SEG(TDMT_DND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_MND_MSG)  // 1<<8

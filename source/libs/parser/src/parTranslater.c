@@ -13153,6 +13153,12 @@ static int32_t translateKillCompact(STranslateContext* pCxt, SKillStmt* pStmt) {
   return buildCmdMsg(pCxt, TDMT_MND_KILL_COMPACT, (FSerializeFunc)tSerializeSKillCompactReq, &killReq);
 }
 
+static int32_t translateKillScan(STranslateContext* pCxt, SKillStmt* pStmt) {
+  SKillScanReq killReq = {0};
+  killReq.scanId = pStmt->targetId;
+  return buildCmdMsg(pCxt, TDMT_MND_KILL_SCAN, (FSerializeFunc)tSerializeSKillScanReq, &killReq);
+}
+
 static int32_t translateKillQuery(STranslateContext* pCxt, SKillQueryStmt* pStmt) {
   SKillQueryReq killReq = {0};
   tstrncpy(killReq.queryStrId, pStmt->queryId, TSDB_QUERY_ID_LEN);
@@ -16289,6 +16295,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_KILL_COMPACT_STMT:
       code = translateKillCompact(pCxt, (SKillStmt*)pNode);
+      break;
+    case QUERY_NODE_KILL_SCAN_STMT:
+      code = translateKillScan(pCxt, (SKillStmt*)pNode);
       break;
     case QUERY_NODE_KILL_QUERY_STMT:
       code = translateKillQuery(pCxt, (SKillQueryStmt*)pNode);

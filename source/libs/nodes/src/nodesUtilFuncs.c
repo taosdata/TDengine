@@ -822,6 +822,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_KILL_TRANSACTION_STMT:
     case QUERY_NODE_KILL_CONNECTION_STMT:
     case QUERY_NODE_KILL_COMPACT_STMT:
+    case QUERY_NODE_KILL_SCAN_STMT:
       code = makeNode(type, sizeof(SKillStmt), &pNode);
       break;
     case QUERY_NODE_DELETE_STMT:
@@ -1806,6 +1807,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_KILL_QUERY_STMT:              // no pointer field
     case QUERY_NODE_KILL_TRANSACTION_STMT:        // no pointer field
     case QUERY_NODE_KILL_COMPACT_STMT:            // no pointer field
+    case QUERY_NODE_KILL_SCAN_STMT:
       break;
     case QUERY_NODE_DELETE_STMT: {
       SDeleteStmt* pStmt = (SDeleteStmt*)pNode;
