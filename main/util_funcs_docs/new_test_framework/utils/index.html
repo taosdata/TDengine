@@ -5104,6 +5104,17 @@
               
   
     
+    <nav class="md-nav" aria-label="getFilePath">
+      <ul class="md-nav__list">
+        
+      </ul>
+    </nav>
+  
+
+            
+              
+  
+    
     <nav class="md-nav" aria-label="runBinFile">
       <ul class="md-nav__list">
         
@@ -9197,6 +9208,17 @@
   
     
     <nav class="md-nav" aria-label="exeBinFile">
+      <ul class="md-nav__list">
+        
+      </ul>
+    </nav>
+  
+
+            
+              
+  
+    
+    <nav class="md-nav" aria-label="getFilePath">
       <ul class="md-nav__list">
         
       </ul>
@@ -26956,6 +26978,73 @@ while <code>exeNoWait</code> runs the command in the background and returns imme
                 <p>The exit status of the command execution. A return value of <code>0</code> indicates success, 
  while a non-zero value indicates failure.
  - If <code>wait</code> is False, the return value is the exit status of the <code>nohup</code> or <code>mintty</code> command.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h3 id="etool.getFilePath" class="doc doc-heading">
+                  getFilePath(base_dir, *parts)
+<a href="#etool.getFilePath" class="headerlink" title="Permanent link">&para;</a></h3>  
+        <div class="doc doc-contents ">
+
+        <p>Get the full path to a file, ensuring compatibility with Windows paths.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>*parts</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The parts of the file path.</p>
+              </div>
+            </td>
+            <td>
+                  <code>()</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>str</code></td>            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The full path to the file.</p>
               </div>
             </td>
           </tr>
