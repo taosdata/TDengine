@@ -16160,6 +16160,11 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
   SNode*      pNode = NULL;
   STableMeta* pTableMeta = NULL;
 
+  if (IS_SYS_DBNAME(pStmt->dbName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                   "Cannot create rsma on system table: `%s`.`%s`", pStmt->dbName, pStmt->tableName);
+  }
+
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->rsmaName, &name);
   PAR_ERR_JRET(tNameExtractFullName(&name, pReq->name));
 
@@ -16217,6 +16222,10 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                    "Invalid func count for rsma, should be in range [0, %d]", numOfCols - 1);
   }
+  if(pTableMeta->tableType != TSDB_SUPER_TABLE) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT, "Rsma must be created on super table");
+  }
+
   pReq->tbUid = pTableMeta->uid;
   assert(pTableMeta->uid == pTableMeta->suid);
 

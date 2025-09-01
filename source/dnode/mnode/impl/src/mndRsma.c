@@ -803,18 +803,24 @@ static int32_t mndProcessCreateRsmaReq(SRpcMsg *pReq) {
   TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pDb));
   TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb));
 
+  pStb = mndAcquireStb(pMnode, createReq.tbName);
+  if (pStb == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_STB_NOT_EXIST);
+  }
+
   TAOS_CHECK_EXIT(mndCheckRsmaConflicts(pMnode, pDb, &createReq));
 
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
   TAOS_CHECK_EXIT(mndCreateRsma(pMnode, pReq, pUser, pDb, &createReq));
+
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("rsma:%s, failed to create since %s", createReq.name, tstrerror(code));
+    mError("rsma:%s, failed at line %d to create since %s", createReq.name, lino, tstrerror(code));
   }
+  if (pSma) mndReleaseRsma(pMnode, pSma);
   if (pStb) mndReleaseStb(pMnode, pStb);
-  mndReleaseRsma(pMnode, pSma);
-  mndReleaseDb(pMnode, pDb);
+  if (pDb) mndReleaseDb(pMnode, pDb);
   tFreeSMCreateRsmaReq(&createReq);
   TAOS_RETURN(code);
 }
