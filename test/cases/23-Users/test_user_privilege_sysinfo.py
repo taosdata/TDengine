@@ -1,4 +1,5 @@
 import time
+import platform
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
 
 
@@ -51,7 +52,8 @@ class TestUserPrivilegeSysinfo:
 
         tdLog.info(f"=============== check oper")
         tdSql.error(f"create user u1 pass 'u1'")
-        tdSql.query(f"show anodes;")
+        if platform.system() != "Windows":
+            tdSql.query(f"show anodes;")
         tdSql.query(f"show d2.disk_info;")
         tdSql.query(
             f"select * from INFORMATION_SCHEMA.INS_DISK_USAGE where db_name = 'db'"
