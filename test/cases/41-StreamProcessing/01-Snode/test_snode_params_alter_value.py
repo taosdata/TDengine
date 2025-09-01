@@ -29,7 +29,7 @@ class TestStreamParametersAlterParam:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_params_alter_value(self):
-        """Parameter: alter param
+        """Parameter: alter config
 
         Modify the parameters streamBufferSize and numOfMnodeStreamMgmtThreads.
 

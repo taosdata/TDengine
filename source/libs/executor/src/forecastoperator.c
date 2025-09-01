@@ -265,7 +265,7 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
   SColumnInfoData* pResHighCol =
       (pSupp->resHighSlot != -1 ? taosArrayGet(pBlock->pDataBlock, pSupp->resHighSlot) : NULL);
 
-  SJson* pJson = taosAnalySendReqRetJson(pSupp->algoUrl, ANALYTICS_HTTP_TYPE_POST, pBuf, pSupp->timeout);
+  SJson* pJson = taosAnalySendReqRetJson(pSupp->algoUrl, ANALYTICS_HTTP_TYPE_POST, pBuf, pSupp->timeout, pId);
   if (pJson == NULL) {
     return terrno;
   }
@@ -996,17 +996,17 @@ _end:
   return code;
 }
 
-static int32_t forecastCreateBuf(SForecastSupp* pSupp) {
+static int32_t forecastCreateBuf(SForecastSupp* pSupp, const char* pId) {
   SAnalyticBuf* pBuf = &pSupp->analyBuf;
-  int64_t       ts = 0;  // taosGetTimestampMs();
+  int64_t       ts = taosGetTimestampNs();
   int32_t       index = 0;
 
   pBuf->bufType = ANALYTICS_BUF_TYPE_JSON_COL;
-  snprintf(pBuf->fileName, sizeof(pBuf->fileName), "%s/tdengine-forecast-%" PRId64, tsTempDir, ts);
+  snprintf(pBuf->fileName, sizeof(pBuf->fileName), "%s/tdengine-forecast-%p-%" PRId64, tsTempDir, pSupp, ts);
 
   int32_t numOfCols = taosArrayGetSize(pSupp->pCovariateSlotList) + 2;
 
-  int32_t code = tsosAnalyBufOpen(pBuf, numOfCols);
+  int32_t code = tsosAnalyBufOpen(pBuf, numOfCols, pId);
   if (code != 0) goto _OVER;
 
   code = taosAnalyBufWriteColMeta(pBuf, index++, TSDB_DATA_TYPE_TIMESTAMP, "ts");
@@ -1103,8 +1103,7 @@ static int32_t resetForecastOperState(SOperatorInfo* pOper) {
   TAOS_CHECK_EXIT(forecastParseOutput(&pInfo->forecastSupp, &pOper->exprSupp));
 
   TAOS_CHECK_EXIT(forecastParseOpt(&pInfo->forecastSupp, pId));
-
-  TAOS_CHECK_EXIT(forecastCreateBuf(&pInfo->forecastSupp));
+  TAOS_CHECK_EXIT(forecastCreateBuf(&pInfo->forecastSupp, pId));
 
   if (pForecastPhyNode->pExprs != NULL) {
     int32_t    num = 0;
@@ -1178,7 +1177,7 @@ int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNo
   code = forecastParseOpt(pSupp, pId);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  code = forecastCreateBuf(pSupp);
+  code = forecastCreateBuf(pSupp, pId);
   QUERY_CHECK_CODE(code, lino, _error);
 
   initResultSizeInfo(&pOperator->resultInfo, 4096);
