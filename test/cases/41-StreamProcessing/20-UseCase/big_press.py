@@ -76,11 +76,11 @@ class Test_BigPress:
             tdSql.execute(f"create snode on dnode {i + 1}", show = True)
 
         # create meters db
-        etool.benchmark(f"-f cases/13-StreamProcessing/20-UseCase/json/idmp_meters.json")
+        etool.benchmark(f"-f cases/41-StreamProcessing/20-UseCase/json/idmp_meters.json")
         tdLog.info(f"import data to db: asset01 successfully.")
 
         # create vehicle db
-        etool.benchmark(f"-f cases/13-StreamProcessing/20-UseCase/json/idmp_vehicle.json")
+        etool.benchmark(f"-f cases/41-StreamProcessing/20-UseCase/json/idmp_vehicle.json")
         tdLog.info(f"import data to db: vehicle successfully.")
 
     # 
@@ -214,8 +214,8 @@ class Test_BigPress:
         # meters
         nThreads = 1
         jsons = [
-            "cases/13-StreamProcessing/20-UseCase/json/exist_idmp_meters.json",
-            "cases/13-StreamProcessing/20-UseCase/json/exist_idmp_vehicle.json"
+            "cases/41-StreamProcessing/20-UseCase/json/exist_idmp_meters.json",
+            "cases/41-StreamProcessing/20-UseCase/json/exist_idmp_vehicle.json"
         ]
         for json in jsons:
             for i in range(nThreads):

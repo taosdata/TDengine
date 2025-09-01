@@ -26,10 +26,10 @@ class TestIdmpTobaccoBug3:
             "tobacco",
             "idmp_sample_tobacco",
             "idmp",
-            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp_sample_tobacco",
-            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/vstb.sql",
-            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/vtb.sql",
-            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/stream.json",
+            "cases/41-StreamProcessing/20-UseCase/tobacco_data/idmp_sample_tobacco",
+            "cases/41-StreamProcessing/20-UseCase/tobacco_data/idmp/vstb.sql",
+            "cases/41-StreamProcessing/20-UseCase/tobacco_data/idmp/vtb.sql",
+            "cases/41-StreamProcessing/20-UseCase/tobacco_data/idmp/stream.json",
         )
         tobac.stream_ids = [3]
         tobac.assert_retry = 60

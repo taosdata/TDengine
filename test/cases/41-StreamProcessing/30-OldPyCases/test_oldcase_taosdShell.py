@@ -1,4 +1,4 @@
-# pytest --clean --skip_stop cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_lihui_taosdShell_new.py -N 5
+# pytest --clean --skip_stop cases/41-StreamProcessing/31-OldTsimCases/test_oldcase_lihui_taosdShell_new.py -N 5
 
 import time
 from datetime import datetime
