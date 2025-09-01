@@ -238,9 +238,9 @@ class TestTaosCli:
             
         ]
         if platform.system() != "Windows":
-            args.append(['-o "./current/log/files/" -h localhost -uroot -ptaosdata  -s"show databases;"', queryOK],       
-                ['-uroot -w 40 -ptaosdata -c /root/taos/ -s"show databases"', queryOK],
-                [f'-uroot -p < {os.path.dirname(__file__)}/data/pwd.txt -s "show dnodes;"', queryOK])
+            args.append(['-o "./current/log/files/" -h localhost -uroot -ptaosdata  -s"show databases;"', queryOK])
+            args.append(['-uroot -w 40 -ptaosdata -c /root/taos/ -s"show databases"', queryOK])
+            args.append([f'-uroot -p < {os.path.dirname(__file__)}/data/pwd.txt -s "show dnodes;"', queryOK])
 
         modes = ["-Z 0","-Z 1"]
         for mode in modes:

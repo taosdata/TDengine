@@ -93,7 +93,7 @@ class Test_IDMP_Vehicle:
 
 
         # import data
-        etool.taosdump(f"-i cases/13-StreamProcessing/20-UseCase/vehicle_data/")
+        etool.taosdump(f"-i {os.path.join(os.path.dirname(__file__), 'vehicle_data')}")
 
         tdLog.info(f"import data to db={self.db}. successfully.")
 

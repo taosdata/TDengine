@@ -36,10 +36,10 @@ class TestIdmpPhotovoltaic:
             "photovoltaic",
             "idmp_sample_pv",
             "idmp",
-            "cases/13-StreamProcessing/20-UseCase/pv_data/idmp_sample_pv",
-            "cases/13-StreamProcessing/20-UseCase/pv_data/idmp/vstb.sql",
-            "cases/13-StreamProcessing/20-UseCase/pv_data/idmp/vtb.sql",
-            "cases/13-StreamProcessing/20-UseCase/pv_data/idmp/stream.json",
+            os.path.join(os.path.dirname(__file__), 'pv_data', 'idmp_sample_pv'),
+            os.path.join(os.path.dirname(__file__), 'pv_data', 'idmp', 'vstb.sql'),
+            os.path.join(os.path.dirname(__file__), 'pv_data', 'idmp', 'vtb.sql'),
+            os.path.join(os.path.dirname(__file__), 'pv_data', 'idmp', 'stream.json'),
         )
         # pv.stream_ids = [1, 2, 3, 4, 5, 6, 7]
         pv.run()
