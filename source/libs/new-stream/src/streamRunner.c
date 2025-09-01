@@ -781,6 +781,7 @@ static int32_t stRunnerTopTaskHandleOutputBlockProj(SStreamRunnerTask* pTask, SS
     return TSDB_CODE_SUCCESS;
   }
 
+#if 0
   int64_t idx = *(int64_t*)taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamBlkWinIdx, 0);
   int32_t winOutIdx = idx >> 32;
   int32_t lastStartIdx = idx & 0xFFFFFFFF;
@@ -811,6 +812,7 @@ static int32_t stRunnerTopTaskHandleOutputBlockProj(SStreamRunnerTask* pTask, SS
   TAOS_CHECK_GOTO(streamPrepareNotification(pTask, pExec, pBlock, pExec->runtimeInfo.funcInfo.curOutIdx, lastStartIdx,
                                             pBlock->info.rows - 1),
                   &lino, _exit);
+#endif
 
   if ((*ppForceOutBlock) && (*ppForceOutBlock)->info.rows > 0) {
     TAOS_CHECK_GOTO(stRunnerMergeOutputBlock(pTask, pExec, *ppForceOutBlock, createTable), &lino, _exit);
