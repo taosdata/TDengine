@@ -24,7 +24,7 @@ def get_git_commit_id():
         return commit_id
     except Exception as e:
         return "unknown"
-    
+
 def load_exclusion_list(exclusion_file):
     """加载排除用例列表"""
     exclusion_list = []
@@ -89,7 +89,7 @@ def process_pytest_file(input_file, log_path= "C:\CI_logs", exclusion_file=os.pa
     start_time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_prefix = f"log_{commit_id}_{start_time_str}"
     result_file = f"result_{commit_id}_{start_time_str}.txt"
-    
+
     # 创建日志目录
     log_dir = log_prefix
     if os.path.exists(log_dir):
@@ -166,7 +166,7 @@ def process_pytest_file(input_file, log_path= "C:\CI_logs", exclusion_file=os.pa
                     failed_case_list.append(pytest_cmd)
                     logger.info(f"Case {pytest_cmd} Failed. Time cost: {execution_time:.2f}s")
                     result_str = f"FAILED\t{pytest_cmd}\t\t\t{execution_time:.2f}s\n"
-                    
+
             except Exception as e:
                 case_end = time.time()
                 execution_time = case_end - case_start
@@ -177,7 +177,7 @@ def process_pytest_file(input_file, log_path= "C:\CI_logs", exclusion_file=os.pa
             # 每条用例执行完都写入结果文件
             with open(result_file, "a", encoding="utf-8") as rf:
                 rf.write(result_str)
-                
+
     # 计算总执行时间
     end_time = time.time()
     total_execution_time = end_time - start_time
@@ -193,7 +193,7 @@ def process_pytest_file(input_file, log_path= "C:\CI_logs", exclusion_file=os.pa
         logger.info("\nFailed cases list:")
         for cmd in failed_case_list:
             logger.info(cmd)
-    
+
     with open(result_file, "a", encoding="utf-8") as rf:
         rf.write(f"\nAll cases run finished:\nTotal cost time: {total_execution_time:.2f}s\nTotal cases: {total_cases}\nSuccess cases: {success_cases}\nFailed cases: {failed_cases}\nWindows skip cases: {skipped_cases}\n")
         if failed_cases > 0:
@@ -206,7 +206,7 @@ def process_pytest_file(input_file, log_path= "C:\CI_logs", exclusion_file=os.pa
     zip_dir(log_dir, f"{log_prefix}.zip")
     shutil.move(f"{log_prefix}.zip", os.path.join(log_path, f"{log_prefix}.zip"))
     shutil.move(result_file, os.path.join(log_path, result_file))
-            
+
     # 如果没有失败用例，删除日志目录
     #if failed_cases == 0 and os.path.exists(log_dir):
     #    shutil.rmtree(log_dir)

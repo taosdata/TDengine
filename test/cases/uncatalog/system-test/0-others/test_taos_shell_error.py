@@ -1,5 +1,5 @@
 
-from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom
+from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom, tdDnodes, tdCom
 import taos
 import sys
 import time

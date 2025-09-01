@@ -5,7 +5,6 @@ import time
 import threading
 import secrets
 from new_test_framework.utils import tdLog, tdSql, tdCom
-# from tmqCommon import *
 
 class TestNestedquery2:
     updatecfgDict = {'asynclog': 0, 'ttlUnit': 1, 'ttlPushInterval': 5, 'ratioOfVnodeStreamThrea': 4}
