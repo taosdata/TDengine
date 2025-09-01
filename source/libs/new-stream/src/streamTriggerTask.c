@@ -5008,7 +5008,9 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
       void   *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
       while (px != NULL) {
         SSTriggerHistoryGroup *pGroup = *(SSTriggerHistoryGroup **)px;
-        TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+        if (pContext->gid == pGroup->gid || pContext->gid == 0) {
+          TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+        }
         px = tSimpleHashIterate(pContext->pGroups, px, &iter);
       }
     }
