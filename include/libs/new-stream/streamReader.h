@@ -43,12 +43,15 @@ typedef struct SStreamTriggerReaderInfo {
   SArray*      uidList;       // for virtual table stream, uid list
   SArray*      uidListIndex;
   SHashObj*    uidHash;
+  bool         isVtableStream;  // whether is virtual table stream
   void*        tableList;
+  void*        historyTableList;
   SFilterInfo* pFilterInfo;
   SHashObj*    pTableMetaCache;
   SSHashObj*   indexHash;  // index hash for wal data
   SSDataBlock* resultBlock;
   bool         groupByTbname;
+  void*        pVnode;
 } SStreamTriggerReaderInfo;
 
 typedef struct SStreamTriggerReaderCalcInfo {

@@ -143,7 +143,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
   STREAM_CHECK_NULL_GOTO(pTask, terrno);
   pTask->api = *api;
   pTask->options = *options;
-  pTask->pTableList = options->sStreamReaderInfo->tableList;
+  pTask->pTableList = options->sStreamReaderInfo->historyTableList;
   pTask->pFilterInfo = options->sStreamReaderInfo->pFilterInfo;
   options->schemas = NULL;
   if (pResBlock != NULL) {
@@ -330,6 +330,7 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
   if (pMsg->msg.trigger.triggerTblType == TD_SUPER_TABLE) {
     sStreamReaderInfo->suid = pMsg->msg.trigger.triggerTblUid;
   } else {
+    sStreamReaderInfo->suid = pMsg->msg.trigger.triggerTblSuid;
     sStreamReaderInfo->uid = pMsg->msg.trigger.triggerTblUid;
   }
 

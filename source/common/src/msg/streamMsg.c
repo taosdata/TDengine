@@ -839,6 +839,7 @@ int32_t tEncodeSStreamReaderDeployFromTrigger(SEncoder* pEncoder, const SStreamR
 
   TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pMsg->triggerTblName, pMsg->triggerTblName == NULL ? 0 : (int32_t)strlen(pMsg->triggerTblName) + 1));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->triggerTblUid));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->triggerTblSuid));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->triggerTblType));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->deleteReCalc));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->deleteOutTbl));
@@ -1363,6 +1364,7 @@ int32_t tDecodeSStreamReaderDeployFromTrigger(SDecoder* pDecoder, SStreamReaderD
 
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->triggerTblName, NULL));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->triggerTblUid));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->triggerTblSuid));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->triggerTblType));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->deleteReCalc));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->deleteOutTbl));
@@ -4330,7 +4332,44 @@ _exit:
   return code;
 }
 
-int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, void* pBlock, SSHashObj* indexHash) {
+static int32_t encodeData(SEncoder* encoder, void* pBlock, SSHashObj* indexHash) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t len = 0;
+  if (encoder->data == NULL){
+    len = blockGetEncodeSize(pBlock);
+  } else {
+    len = blockEncode(pBlock, (char*)(encoder->data + encoder->pos), encoder->size - encoder->pos, blockDataGetNumOfCols(pBlock));
+    if (len < 0) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+  }
+  encoder->pos += len;
+  if (indexHash == NULL) {
+    goto _exit;
+  } 
+  TAOS_CHECK_EXIT(tEncodeI64(encoder, ((SSDataBlock*)pBlock)->info.version));
+  
+  int32_t tables = tSimpleHashGetSize(indexHash);
+  TAOS_CHECK_EXIT(tEncodeI32(encoder, tables));
+
+  void*   pe = NULL;
+  int32_t iter = 0;
+  while ((pe = tSimpleHashIterate(indexHash, pe, &iter)) != NULL) {
+    SStreamWalDataSlice* pInfo = (SStreamWalDataSlice*)pe;
+
+    int64_t uid = *(int64_t*)(tSimpleHashGetKey(pe, NULL));
+    TAOS_CHECK_EXIT(tEncodeI64(encoder, uid));
+    TAOS_CHECK_EXIT(tEncodeU64(encoder, pInfo->gId));
+    TAOS_CHECK_EXIT(tEncodeI32(encoder, pInfo->startRowIdx - pInfo->numRows));
+    TAOS_CHECK_EXIT(tEncodeI32(encoder, pInfo->numRows));
+  }
+
+_exit:
+  return code;
+}
+ 
+int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalMetaNewRsp* metaBlock, SSHashObj* indexHash) {
   SEncoder encoder = {0};
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -4339,33 +4378,27 @@ int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, void* pBlock
   tEncoderInit(&encoder, buf, bufLen);
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
 
-  int32_t len = 0;
-  if (buf == NULL){
-    len = blockGetEncodeSize(pBlock);
+  if (((SSDataBlock*)metaBlock->dataBlock)->info.rows > 0) {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 1)); // has real data
+    TAOS_CHECK_EXIT(encodeData(&encoder, metaBlock->dataBlock, indexHash));
   } else {
-    len = blockEncode(pBlock, (char*)(encoder.data + encoder.pos), encoder.size - encoder.pos, blockDataGetNumOfCols(pBlock));
-    if (len < 0) {
-      TAOS_CHECK_EXIT(terrno);
-    }
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 0)); // no real data
   }
-  encoder.pos += len;
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, ((SSDataBlock*)pBlock)->info.version));
+
+  if (((SSDataBlock*)metaBlock->deleteBlock)->info.rows > 0) {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 1)); // has deletedata
+    TAOS_CHECK_EXIT(encodeData(&encoder, metaBlock->deleteBlock, NULL));
+  } else {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 0)); // no delete data
+  }
+
+  if (((SSDataBlock*)metaBlock->dropBlock)->info.rows > 0) {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 1)); // has drop table data
+    TAOS_CHECK_EXIT(encodeData(&encoder, metaBlock->dropBlock, NULL));
+  } else {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 0)); // no drop table data
+  }
   
-  int32_t tables = tSimpleHashGetSize(indexHash);
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, tables));
-
-  void*   pe = NULL;
-  int32_t iter = 0;
-  while ((pe = tSimpleHashIterate(indexHash, pe, &iter)) != NULL) {
-    SStreamWalDataSlice* pInfo = (SStreamWalDataSlice*)pe;
-
-    int64_t uid = *(int64_t*)(tSimpleHashGetKey(pe, NULL));
-    TAOS_CHECK_EXIT(tEncodeI64(&encoder, uid));
-    TAOS_CHECK_EXIT(tEncodeU64(&encoder, pInfo->gId));
-    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pInfo->startRowIdx - pInfo->numRows));
-    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pInfo->numRows));
-  }
-
   tEndEncode(&encoder);
 
 _exit:

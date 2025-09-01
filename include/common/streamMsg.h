@@ -473,6 +473,7 @@ void    tCleanupStreamHbMsg(SStreamHbMsg* pMsg, bool deepClean);
 typedef struct {
   char*   triggerTblName;
   int64_t triggerTblUid;  // suid or uid
+  int64_t triggerTblSuid;
   int8_t  triggerTblType;
   int8_t  deleteReCalc;
   int8_t  deleteOutTbl;
@@ -817,6 +818,12 @@ typedef struct SSTriggerWalMetaNewRequest {
   int64_t              ctime;
 } SSTriggerWalMetaNewRequest;
 
+typedef struct SSTriggerWalMetaNewRsp {
+  void*                dataBlock;
+  void*                deleteBlock;
+  void*                dropBlock;
+} SSTriggerWalMetaNewRsp;
+
 typedef struct SSTriggerWalDataNewRequest {
   SSTriggerPullRequest base;
   SArray*              versions;  // SArray<int64_t>
@@ -1022,7 +1029,7 @@ typedef struct SStreamWalDataResponse {
   SSHashObj* pSlices;  // SSHash<uid, SStreamWalDataSlice>
 } SStreamWalDataResponse;
 
-int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, void* pBlock, SSHashObj* indexHash);
+int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalMetaNewRsp* metaBlock, SSHashObj* indexHash);
 int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, void* pDataBlock, SArray* pSlices);
 
 typedef struct SStreamGroupValue {

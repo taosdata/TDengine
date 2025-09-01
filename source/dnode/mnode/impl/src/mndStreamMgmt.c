@@ -750,6 +750,7 @@ int32_t msmBuildReaderDeployInfo(SStmTaskDeploy* pDeploy, void* calcScanPlan, SS
     SStreamReaderDeployFromTrigger* pTrigger = &pMsg->msg.trigger;
     pTrigger->triggerTblName = pInfo->pCreate->triggerTblName;
     pTrigger->triggerTblUid = pInfo->pCreate->triggerTblUid;
+    pTrigger->triggerTblSuid = pInfo->pCreate->triggerTblSuid;
     pTrigger->triggerTblType = pInfo->pCreate->triggerTblType;
     pTrigger->deleteReCalc = pInfo->pCreate->deleteReCalc;
     pTrigger->deleteOutTbl = pInfo->pCreate->deleteOutTbl;
