@@ -102,7 +102,7 @@ class Test_IDMP_Meters:
         self.notifyFailed = "failed to get stream notify handle of ws://idmp:6042/recv/?key="
 
         # import data
-        etool.taosdump(f"-i cases/13-StreamProcessing/20-UseCase/meters_data/data/")
+        etool.taosdump(f"-i cases/41-StreamProcessing/20-UseCase/meters_data/data/")
 
         tdLog.info(f"import data to db={self.db} successfully.")
 
