@@ -46,6 +46,8 @@ SSL_CTX* initSSLCtx(const char* cert_path, const char* key_path, const char* ca_
     tError("failed to create ssl ctx");
     TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
   }
+  SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION);
+  SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
 
   if (cliMode) {
     char buf[512] = {0};
@@ -537,7 +539,7 @@ _error:
   uvbuf->base = (char*)buf->buf + buf->len;
   uvbuf->len = buf->cap - buf->len;
 
-  uDebug("alloc recv buffer, base:%p, len:%d", uvbuf->base, uvbuf->len);
+  uDebug("alloc recv buffer, base:%p, len:%d", uvbuf->base, (int)(uvbuf->len));
   return 0;
 }
 

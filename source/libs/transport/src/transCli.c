@@ -1853,7 +1853,7 @@ void cliConnCb(uv_connect_t* req, int status) {
   pConn->connnected = 1;
   code = cliConnSetSockInfo(pConn);
   if (code != 0) {
-    tDebug("%:%p, failed to get sock info since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
+    tDebug("%p:%p, failed to get sock info since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
