@@ -2796,7 +2796,8 @@ bool cliMayRetry(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
     tTrace("code str %s, contlen:%d 0", tstrerror(code), pResp->contLen);
     noDelay = cliResetEpset(pCtx, pResp, true);
     transFreeMsg(pResp->pCont);
-  } else if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY || code == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE) {
+  } else if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY || code == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE ||
+             code == TSDB_CODE_SYN_WRITE_STALL) {
     noDelay = 0;
     tTrace("do retry on next node since %s", tstrerror(code));
     transFreeMsg(pResp->pCont);
@@ -3417,7 +3418,7 @@ int32_t transSendRecvWithTimeout(void* pInstRef, SEpSet* pEpSet, STransMsg* pReq
     pSyncMsg->pRsp->pCont = NULL;
     if (pSyncMsg->hasEpSet == 1) {
       epsetAssign(pEpSet, &pSyncMsg->epSet);
-      *epUpdated = 1;
+      if(epUpdated) *epUpdated = 1;
     }
   }
 _RETURN:

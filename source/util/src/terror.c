@@ -172,6 +172,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR,     "Invalid compress leve
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_FAIL_GENERATE_JSON,       "failed to generate JSON")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR,   "bind number out of range or not match")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COLUMN_REF,       "Invalid column reference")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SLIDING_OFFSET,   "Invalid sliding offset")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_INTERVAL_OFFSET,  "Invalid interval offset")
 TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS,    "Operation not supported in windows")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INTERNAL_ERROR,           "Internal error")
@@ -459,6 +461,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_EN_WHITELIST,   "enableWhiteList not m
 TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_STOPPED,                "Mnode stopped")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_COMPACT_TASKS,  "Invalid max compact tasks")
 TAOS_DEFINE_ERROR(TSDB_CODE_SNODE_NO_AVAILABLE_NODE,      "No Snode is available")
+TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_NOT_MATCH_WITH_LOCAL,   "Request is not matched with local dnode")
 
 // vnode
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VGROUP_ID,        "Vnode is closed or removed")
@@ -833,7 +836,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_DUP_TIMESTAMP,            "Duplicate timestamps
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_FORMAT_ERR, "Func to_timestamp failed for format mismatch")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_TS_ERR, "Func to_timestamp failed for wrong timestamp")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_NOT_SUPPORTED, "Func to_timestamp failed for unsupported timestamp format")
-TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TO_CHAR_NOT_SUPPORTED,    "Func to_char failed for unsupported format")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TIME_UNIT_INVALID,        "Invalid function time unit")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TIME_UNIT_TOO_SMALL,      "Function time unit cannot be smaller than db precision")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_INVALID_VALUE_RANGE,      "Function got invalid value range")
@@ -1004,6 +1006,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_DROPPING,            "Stream is dropping"
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_NOT_STOPPED,         "Stream was not stopped")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TBNAME_TOO_LONG,     "Stream output table name too long")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE,    "Stream output table not created")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TBNAME_CALC_FAILED,  "Stream output table name calc failed")
 
 #ifdef TAOS_ERROR_C
 };

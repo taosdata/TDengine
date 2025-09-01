@@ -440,7 +440,7 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
 #ifdef CUS_NAME
   strcpy(shell.info.cusName, CUS_NAME);
 #else
-  strcpy(shell.info.cusName, "TDengine");
+  strcpy(shell.info.cusName, "TDengine TSDB");
 #endif
   char promptContinueFormat[32] = {0};
 #ifdef CUS_PROMPT

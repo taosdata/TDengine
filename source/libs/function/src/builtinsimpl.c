@@ -94,16 +94,16 @@ typedef enum {
     }                                                                    \
   } while (0)
 
-#define LIST_ADD_N(_res, _col, _start, _rows, _t, numOfElem)             \
-  do {                                                                   \
-    _t* d = (_t*)(_col->pData);                                          \
-    for (int32_t i = (_start); i < (_rows) + (_start); ++i) {            \
-      if (((_col)->hasNull) && colDataIsNull_f(_col, i)) { \
-        continue;                                                        \
-      };                                                                 \
-      (_res) += (d)[i];                                                  \
-      (numOfElem)++;                                                     \
-    }                                                                    \
+#define LIST_ADD_N(_res, _col, _start, _rows, _t, numOfElem)  \
+  do {                                                        \
+    _t* d = (_t*)(_col->pData);                               \
+    for (int32_t i = (_start); i < (_rows) + (_start); ++i) { \
+      if (((_col)->hasNull) && colDataIsNull_f(_col, i)) {    \
+        continue;                                             \
+      };                                                      \
+      (_res) += (d)[i];                                       \
+      (numOfElem)++;                                          \
+    }                                                         \
   } while (0)
 
 #define LIST_ADD_DECIMAL_N(_res, _col, _start, _rows, _t, numOfElem)                                  \
@@ -111,7 +111,7 @@ typedef enum {
     _t*                d = (_t*)(_col->pData);                                                        \
     const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);                                  \
     for (int32_t i = (_start); i < (_rows) + (_start); ++i) {                                         \
-      if (((_col)->hasNull) && colDataIsNull_f(_col, i)) {                              \
+      if (((_col)->hasNull) && colDataIsNull_f(_col, i)) {                                            \
         continue;                                                                                     \
       };                                                                                              \
       overflow = overflow || decimal128AddCheckOverflow((Decimal*)_res, d + i, DECIMAL_WORD_NUM(_t)); \
@@ -121,16 +121,16 @@ typedef enum {
     }                                                                                                 \
   } while (0)
 
-#define LIST_SUB_N(_res, _col, _start, _rows, _t, numOfElem)             \
-  do {                                                                   \
-    _t* d = (_t*)(_col->pData);                                          \
-    for (int32_t i = (_start); i < (_rows) + (_start); ++i) {            \
-      if (((_col)->hasNull) && colDataIsNull_f(_col, i)) { \
-        continue;                                                        \
-      };                                                                 \
-      (_res) -= (d)[i];                                                  \
-      (numOfElem)++;                                                     \
-    }                                                                    \
+#define LIST_SUB_N(_res, _col, _start, _rows, _t, numOfElem)  \
+  do {                                                        \
+    _t* d = (_t*)(_col->pData);                               \
+    for (int32_t i = (_start); i < (_rows) + (_start); ++i) { \
+      if (((_col)->hasNull) && colDataIsNull_f(_col, i)) {    \
+        continue;                                             \
+      };                                                      \
+      (_res) -= (d)[i];                                       \
+      (numOfElem)++;                                          \
+    }                                                         \
   } while (0)
 
 //#define LIST_AVG_N(sumT, T)                                               \
@@ -151,7 +151,7 @@ typedef enum {
   do {                                                             \
     T* plist = (T*)pCol->pData;                                    \
     for (int32_t i = start; i < numOfRows + start; ++i) {          \
-      if (pCol->hasNull && colDataIsNull_f(pCol, i)) { \
+      if (pCol->hasNull && colDataIsNull_f(pCol, i)) {             \
         continue;                                                  \
       }                                                            \
       numOfElem += 1;                                              \
@@ -1213,8 +1213,15 @@ int32_t stdFunction(SqlFunctionCtx* pCtx) {
 
         numOfElem += 1;
         pStdRes->count += 1;
-        pStdRes->isum += plist[i];
-        pStdRes->quadraticISum += plist[i] * plist[i];
+        double nr = (double)plist[i];
+        if (pStdRes->count == 1) {
+          pStdRes->dsum = nr;
+        } else {
+          double          s_kminusone = pStdRes->dsum;
+          volatile double diff = nr - s_kminusone;
+          pStdRes->dsum = s_kminusone + diff / (double)pStdRes->count;
+          pStdRes->quadraticDSum += diff * (nr - pStdRes->dsum);
+        }
       }
 
       break;
@@ -1229,8 +1236,15 @@ int32_t stdFunction(SqlFunctionCtx* pCtx) {
 
         numOfElem += 1;
         pStdRes->count += 1;
-        pStdRes->isum += plist[i];
-        pStdRes->quadraticISum += plist[i] * plist[i];
+        double nr = (double)plist[i];
+        if (pStdRes->count == 1) {
+          pStdRes->dsum = nr;
+        } else {
+          double          s_kminusone = pStdRes->dsum;
+          volatile double diff = nr - s_kminusone;
+          pStdRes->dsum = s_kminusone + diff / (double)pStdRes->count;
+          pStdRes->quadraticDSum += diff * (nr - pStdRes->dsum);
+        }
       }
       break;
     }
@@ -1244,8 +1258,15 @@ int32_t stdFunction(SqlFunctionCtx* pCtx) {
 
         numOfElem += 1;
         pStdRes->count += 1;
-        pStdRes->isum += plist[i];
-        pStdRes->quadraticISum += plist[i] * plist[i];
+        double nr = (double)plist[i];
+        if (pStdRes->count == 1) {
+          pStdRes->dsum = nr;
+        } else {
+          double          s_kminusone = pStdRes->dsum;
+          volatile double diff = nr - s_kminusone;
+          pStdRes->dsum = s_kminusone + diff / (double)pStdRes->count;
+          pStdRes->quadraticDSum += diff * (nr - pStdRes->dsum);
+        }
       }
 
       break;
@@ -1260,8 +1281,15 @@ int32_t stdFunction(SqlFunctionCtx* pCtx) {
 
         numOfElem += 1;
         pStdRes->count += 1;
-        pStdRes->isum += plist[i];
-        pStdRes->quadraticISum += plist[i] * plist[i];
+        double nr = (double)plist[i];
+        if (pStdRes->count == 1) {
+          pStdRes->dsum = nr;
+        } else {
+          double          s_kminusone = pStdRes->dsum;
+          volatile double diff = nr - s_kminusone;
+          pStdRes->dsum = s_kminusone + diff / (double)pStdRes->count;
+          pStdRes->quadraticDSum += diff * (nr - pStdRes->dsum);
+        }
       }
       break;
     }
@@ -1275,8 +1303,15 @@ int32_t stdFunction(SqlFunctionCtx* pCtx) {
 
         numOfElem += 1;
         pStdRes->count += 1;
-        pStdRes->usum += plist[i];
-        pStdRes->quadraticUSum += plist[i] * plist[i];
+        double nr = (double)plist[i];
+        if (pStdRes->count == 1) {
+          pStdRes->dsum = nr;
+        } else {
+          double          s_kminusone = pStdRes->dsum;
+          volatile double diff = nr - s_kminusone;
+          pStdRes->dsum = s_kminusone + diff / (double)pStdRes->count;
+          pStdRes->quadraticDSum += diff * (nr - pStdRes->dsum);
+        }
       }
 
       break;
@@ -1291,8 +1326,15 @@ int32_t stdFunction(SqlFunctionCtx* pCtx) {
 
         numOfElem += 1;
         pStdRes->count += 1;
-        pStdRes->usum += plist[i];
-        pStdRes->quadraticUSum += plist[i] * plist[i];
+        double nr = (double)plist[i];
+        if (pStdRes->count == 1) {
+          pStdRes->dsum = nr;
+        } else {
+          double          s_kminusone = pStdRes->dsum;
+          volatile double diff = nr - s_kminusone;
+          pStdRes->dsum = s_kminusone + diff / (double)pStdRes->count;
+          pStdRes->quadraticDSum += diff * (nr - pStdRes->dsum);
+        }
       }
       break;
     }
@@ -1306,8 +1348,15 @@ int32_t stdFunction(SqlFunctionCtx* pCtx) {
 
         numOfElem += 1;
         pStdRes->count += 1;
-        pStdRes->usum += plist[i];
-        pStdRes->quadraticUSum += plist[i] * plist[i];
+        double nr = (double)plist[i];
+        if (pStdRes->count == 1) {
+          pStdRes->dsum = nr;
+        } else {
+          double          s_kminusone = pStdRes->dsum;
+          volatile double diff = nr - s_kminusone;
+          pStdRes->dsum = s_kminusone + diff / (double)pStdRes->count;
+          pStdRes->quadraticDSum += diff * (nr - pStdRes->dsum);
+        }
       }
 
       break;
@@ -1322,8 +1371,15 @@ int32_t stdFunction(SqlFunctionCtx* pCtx) {
 
         numOfElem += 1;
         pStdRes->count += 1;
-        pStdRes->usum += plist[i];
-        pStdRes->quadraticUSum += plist[i] * plist[i];
+        double nr = (double)plist[i];
+        if (pStdRes->count == 1) {
+          pStdRes->dsum = nr;
+        } else {
+          double          s_kminusone = pStdRes->dsum;
+          volatile double diff = nr - s_kminusone;
+          pStdRes->dsum = s_kminusone + diff / (double)pStdRes->count;
+          pStdRes->quadraticDSum += diff * (nr - pStdRes->dsum);
+        }
       }
       break;
     }
@@ -1337,8 +1393,15 @@ int32_t stdFunction(SqlFunctionCtx* pCtx) {
 
         numOfElem += 1;
         pStdRes->count += 1;
-        pStdRes->dsum += plist[i];
-        pStdRes->quadraticDSum += plist[i] * plist[i];
+        double nr = (double)plist[i];
+        if (pStdRes->count == 1) {
+          pStdRes->dsum = nr;
+        } else {
+          double          s_kminusone = pStdRes->dsum;
+          volatile double diff = nr - s_kminusone;
+          pStdRes->dsum = s_kminusone + diff / (double)pStdRes->count;
+          pStdRes->quadraticDSum += diff * (nr - pStdRes->dsum);
+        }
       }
       break;
     }
@@ -1352,8 +1415,15 @@ int32_t stdFunction(SqlFunctionCtx* pCtx) {
 
         numOfElem += 1;
         pStdRes->count += 1;
-        pStdRes->dsum += plist[i];
-        pStdRes->quadraticDSum += plist[i] * plist[i];
+        double nr = (double)plist[i];
+        if (pStdRes->count == 1) {
+          pStdRes->dsum = nr;
+        } else {
+          double          s_kminusone = pStdRes->dsum;
+          volatile double diff = nr - s_kminusone;
+          pStdRes->dsum = s_kminusone + diff / (double)pStdRes->count;
+          pStdRes->quadraticDSum += diff * (nr - pStdRes->dsum);
+        }
       }
       break;
     }
@@ -1373,18 +1443,25 @@ static void stdTransferInfo(SStdRes* pInput, SStdRes* pOutput) {
     return;
   }
   pOutput->type = pInput->type;
-  if (IS_SIGNED_NUMERIC_TYPE(pOutput->type)) {
-    pOutput->quadraticISum += pInput->quadraticISum;
-    pOutput->isum += pInput->isum;
-  } else if (IS_UNSIGNED_NUMERIC_TYPE(pOutput->type)) {
-    pOutput->quadraticUSum += pInput->quadraticUSum;
-    pOutput->usum += pInput->usum;
-  } else {
+  if (pOutput->count == 0) {
     pOutput->quadraticDSum += pInput->quadraticDSum;
     pOutput->dsum += pInput->dsum;
-  }
+    pOutput->count = pInput->count;
+  } else if (pInput->count > 0) {
+    double totalCount = pOutput->count + pInput->count;
+    double totalSum = pInput->count * pInput->dsum + pOutput->count * pOutput->dsum;
+    double mean = totalSum / totalCount;
 
-  pOutput->count += pInput->count;
+    /*
+    pOutput->quadraticDSum += pInput->quadraticDSum + pInput->count * pInput->dsum * pInput->dsum +
+                              pOutput->count * pOutput->dsum * pOutput->dsum - totalSum * mean;
+    */
+
+    double diff = pInput->dsum - pOutput->dsum;
+    pOutput->quadraticDSum += pInput->quadraticDSum + pInput->count * pOutput->count * (diff * diff) / totalCount;
+    pOutput->dsum = mean;
+    pOutput->count += pInput->count;
+  }
 }
 
 int32_t stdFunctionMerge(SqlFunctionCtx* pCtx) {
@@ -1491,15 +1568,10 @@ int32_t stddevFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     return functionFinalize(pCtx, pBlock);
   }
 
-  if (IS_SIGNED_NUMERIC_TYPE(type)) {
-    avg = pStddevRes->isum / ((double)pStddevRes->count);
-    pStddevRes->result = sqrt(fabs(pStddevRes->quadraticISum / ((double)pStddevRes->count) - avg * avg));
-  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-    avg = pStddevRes->usum / ((double)pStddevRes->count);
-    pStddevRes->result = sqrt(fabs(pStddevRes->quadraticUSum / ((double)pStddevRes->count) - avg * avg));
+  if (pStddevRes->count == 1) {
+    pStddevRes->result = 0.0;
   } else {
-    avg = pStddevRes->dsum / ((double)pStddevRes->count);
-    pStddevRes->result = sqrt(fabs(pStddevRes->quadraticDSum / ((double)pStddevRes->count) - avg * avg));
+    pStddevRes->result = sqrt(pStddevRes->quadraticDSum / pStddevRes->count);
   }
 
   // check for overflow
@@ -1521,15 +1593,10 @@ int32_t stdvarFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     return functionFinalize(pCtx, pBlock);
   }
 
-  if (IS_SIGNED_NUMERIC_TYPE(type)) {
-    avg = pStdvarRes->isum / ((double)pStdvarRes->count);
-    pStdvarRes->result = fabs(pStdvarRes->quadraticISum / ((double)pStdvarRes->count) - avg * avg);
-  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-    avg = pStdvarRes->usum / ((double)pStdvarRes->count);
-    pStdvarRes->result = fabs(pStdvarRes->quadraticUSum / ((double)pStdvarRes->count) - avg * avg);
+  if (pStdvarRes->count == 1) {
+    pStdvarRes->result = 0.0;
   } else {
-    avg = pStdvarRes->dsum / ((double)pStdvarRes->count);
-    pStdvarRes->result = fabs(pStdvarRes->quadraticDSum / ((double)pStdvarRes->count) - avg * avg);
+    pStdvarRes->result = pStdvarRes->quadraticDSum / pStdvarRes->count;
   }
 
   // check for overflow

@@ -1469,7 +1469,7 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     qDestroyQuery(pRequest->pQuery);
     pRequest->pQuery = NULL;
 
-    if (NEED_CLIENT_HANDLE_ERROR(code)) {
+    if (NEED_CLIENT_HANDLE_ERROR(code) && pRequest->stmtBindVersion == 0) {
       tscDebug("req:0x%" PRIx64 ", client retry to handle the error, code:%d - %s, tryCount:%d, QID:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
       restartAsyncQuery(pRequest, code);
@@ -1689,7 +1689,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     qDestroyQuery(pRequest->pQuery);
     pRequest->pQuery = NULL;
 
-    if (NEED_CLIENT_HANDLE_ERROR(code)) {
+    if (NEED_CLIENT_HANDLE_ERROR(code) && pRequest->stmtBindVersion == 0) {
       tscDebug("req:0x%" PRIx64 ", client retry to handle the error, code:%d - %s, tryCount:%d, QID:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
       code = refreshMeta(pRequest->pTscObj, pRequest);
@@ -2419,9 +2419,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
         return terrno;
       }
 
-      int32_t insert = 0;
-      (void)stmtIsInsert2(stmt, &insert);
-      if (0 == insert && bind->num > 1) {
+      if (!stmt2IsInsert(stmt) && bind->num > 1) {
         STMT2_ELOG_E("only one row data allowed for query");
         code = terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
         return terrno;
@@ -2504,8 +2502,8 @@ int taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
-
-  return stmtIsInsert2(stmt, insert);
+  *insert = stmt2IsInsert(stmt);
+  return TSDB_CODE_SUCCESS;
 }
 
 int taos_stmt2_get_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields) {
@@ -2516,19 +2514,16 @@ int taos_stmt2_get_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields)
   }
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
-  if (pStmt->sql.type == 0) {
-    int isInsert = 0;
-    (void)stmtIsInsert2(stmt, &isInsert);
-    if (!isInsert) {
-      pStmt->sql.type = STMT_TYPE_QUERY;
-    }
+  if (STMT_TYPE_INSERT == pStmt->sql.type || STMT_TYPE_MULTI_INSERT == pStmt->sql.type ||
+      (pStmt->sql.type == 0 && stmt2IsInsert(stmt))) {
+    return stmtGetStbColFields2(stmt, count, fields);
   }
-
-  if (pStmt->sql.type == STMT_TYPE_QUERY) {
+  if (STMT_TYPE_QUERY == pStmt->sql.type || (pStmt->sql.type == 0 && stmt2IsSelect(stmt))) {
     return stmtGetParamNum2(stmt, count);
   }
 
-  return stmtGetStbColFields2(stmt, count, fields);
+  tscError("Invalid sql for stmt %s", pStmt->sql.sqlStr);
+  return TSDB_CODE_PAR_SYNTAX_ERROR;
 }
 
 DLL_EXPORT void taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_ALL *fields) {

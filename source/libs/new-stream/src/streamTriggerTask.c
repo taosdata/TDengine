@@ -20,6 +20,7 @@
 #include "plannodes.h"
 #include "streamInt.h"
 #include "streamReader.h"
+#include "tarray.h"
 #include "tcompare.h"
 #include "tdatablock.h"
 #include "thash.h"
@@ -524,6 +525,48 @@ static int32_t stTriggerTaskGenVirColRefs(SStreamTriggerTask *pTask, VTableInfo 
   int32_t lino = 0;
   int32_t nCols = taosArrayGetSize(pSlots);
 
+  if (pTask->nVirDataCols == 1) {
+    // merge all original tables since it scans only timestamp column
+    for (int32_t i = 0; i < pInfo->cols.nCols; i++) {
+      SColRef *pColRef = &pInfo->cols.pColRef[i];
+      if (!pColRef->hasRef) {
+        continue;
+      }
+      if (*ppColRefs == NULL) {
+        *ppColRefs = taosArrayInit(0, sizeof(SSTriggerTableColRef));
+        QUERY_CHECK_NULL(*ppColRefs, code, lino, _end, terrno);
+      }
+
+      size_t dbNameLen = strlen(pColRef->refDbName) + 1;
+      size_t tbNameLen = strlen(pColRef->refTableName) + 1;
+      size_t colNameLen = strlen(pColRef->refColName) + 1;
+      void  *px = tSimpleHashGet(pTask->pOrigTableCols, pColRef->refDbName, dbNameLen);
+      QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      SSHashObj              *pDbInfo = *(SSHashObj **)px;
+      SSTriggerOrigTableInfo *pTbInfo = tSimpleHashGet(pDbInfo, pColRef->refTableName, tbNameLen);
+      QUERY_CHECK_NULL(pTbInfo, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+
+      SSTriggerTableColRef *pRef = NULL;
+      for (int32_t j = 0; j < TARRAY_SIZE(*ppColRefs); j++) {
+        SSTriggerTableColRef *pTmpRef = TARRAY_GET_ELEM(*ppColRefs, j);
+        if (pTmpRef->otbSuid == pTbInfo->suid && pTmpRef->otbUid == pTbInfo->uid) {
+          pRef = pTmpRef;
+          break;
+        }
+      }
+      if (pRef == NULL) {
+        pRef = taosArrayReserve(*ppColRefs, 1);
+        QUERY_CHECK_NULL(pRef, code, lino, _end, terrno);
+        pRef->otbSuid = pTbInfo->suid;
+        pRef->otbUid = pTbInfo->uid;
+        pRef->otbVgId = pTbInfo->vgId;
+        pRef->pColMatches = taosArrayInit(0, sizeof(SSTriggerColMatch));
+        QUERY_CHECK_NULL(pRef->pColMatches, code, lino, _end, terrno);
+      }
+    }
+    goto _end;
+  }
+
   for (int32_t i = 0; i < nCols; i++) {
     int32_t slotId = *(int32_t *)TARRAY_GET_ELEM(pSlots, i);
     if (slotId >= pTask->nVirDataCols) {
@@ -840,7 +883,7 @@ int32_t stTriggerTaskFetchRecalcRequest(SStreamTriggerTask *pTask, SSTriggerReca
 
 _end:
   if (needUnlock) {
-    taosWUnLockLatch(&pTask->recalcRequestLock);
+    taosRUnLockLatch(&pTask->recalcRequestLock);
   }
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -1022,7 +1065,8 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
   }
   int32_t nPseudoCols = TARRAY_SIZE(pVirColIds) - nDataCols;
   if (nPseudoCols > 0) {
-    taosSort((char *)TARRAY_DATA(pVirColIds) + nDataCols, nPseudoCols, sizeof(col_id_t), compareUint16Val);
+    taosSort((char *)TARRAY_DATA(pVirColIds) + nDataCols * sizeof(col_id_t), nPseudoCols, sizeof(col_id_t),
+             compareUint16Val);
     col_id_t *pColIds = pVirColIds->pData;
     int32_t   j = nDataCols;
     for (int32_t i = nDataCols + 1; i < TARRAY_SIZE(pVirColIds); i++) {
@@ -1133,6 +1177,10 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
   nodesWalkExpr(pTask->triggerFilter, nodeRewriteSlotid, &cxt);
   code = cxt.errCode;
   QUERY_CHECK_CODE(code, lino, _end);
+
+  pTask->trigTsIndex = 0;
+  pTask->calcTsIndex = 0;
+
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
     void *px = taosArrayGet(pTrigSlotids, pTask->stateSlotId);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
@@ -4390,6 +4438,9 @@ static void stHistoryContextDestroy(void *ptr) {
     pContext->pCalcDataCacheIters = NULL;
   }
 
+  tdListEmpty(&pContext->retryPullReqs);
+  tdListEmpty(&pContext->retryCalcReqs);
+
   taosMemFreeClear(*ppContext);
 }
 
@@ -6016,10 +6067,15 @@ static void stRealtimeGroupClearMetadatas(SSTriggerRealtimeGroup *pGroup, int64_
       } else {
         endTime = TMAX(endTime, pGroup->newThreshold);
       }
-      int32_t idx = taosArraySearchIdx(pTableMeta->pMetas, &endTime, stRealtimeGroupMetaDataSearch, TD_GT);
-      taosArrayPopFrontBatch(pTableMeta->pMetas, (idx == -1) ? TARRAY_SIZE(pTableMeta->pMetas) : idx);
-      idx = taosArraySearchIdx(pTableMeta->pMetas, &pGroup->newThreshold, stRealtimeGroupMetaDataSearch, TD_GT);
-      pTableMeta->metaIdx = (idx == -1) ? TARRAY_SIZE(pTableMeta->pMetas) : idx;
+      if (endTime == INT64_MAX) {
+        taosArrayClear(pTableMeta->pMetas);
+        pTableMeta->metaIdx = 0;
+      } else {
+        int32_t idx = taosArraySearchIdx(pTableMeta->pMetas, &endTime, stRealtimeGroupMetaDataSearch, TD_GT);
+        taosArrayPopFrontBatch(pTableMeta->pMetas, (idx == -1) ? TARRAY_SIZE(pTableMeta->pMetas) : idx);
+        idx = taosArraySearchIdx(pTableMeta->pMetas, &pGroup->newThreshold, stRealtimeGroupMetaDataSearch, TD_GT);
+        pTableMeta->metaIdx = (idx == -1) ? TARRAY_SIZE(pTableMeta->pMetas) : idx;
+      }
     }
     pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, pTableMeta, &iter);
   }
@@ -6429,6 +6485,10 @@ static int32_t stRealtimeGroupCloseWindow(SSTriggerRealtimeGroup *pGroup, char *
     // check TRUE FOR condition
     needCalc = needNotify = false;
   }
+  // todo(kjq): should delete (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM)
+  if (pTask->ignoreNoDataTrigger && param.wrownum == 0 && (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM)) {
+    needCalc = needNotify = false;
+  }
 
   switch (pTask->triggerType) {
     case STREAM_TRIGGER_PERIOD: {
@@ -6487,7 +6547,6 @@ static int32_t stRealtimeGroupCloseWindow(SSTriggerRealtimeGroup *pGroup, char *
     pHead->range.ekey = TMAX(pHead->range.ekey, pCurWindow->range.ekey);
     pHead->wrownum = pCurWindow->wrownum - bias;
   }
-
   if (saveWindow) {
     // skip add window for session trigger, since it will be merged after processing all tables
     void *px = taosArrayPush(pContext->pSavedWindows, pCurWindow);
@@ -6949,7 +7008,7 @@ static int32_t stRealtimeGroupDoSlidingCheck(SSTriggerRealtimeGroup *pGroup) {
             QUERY_CHECK_CODE(code, lino, _end);
             r++;
           } else {
-            code = stRealtimeGroupOpenWindow(pGroup, ts, NULL, true, r > 0 && pTsData[r - 1] == nextStart);
+            code = stRealtimeGroupOpenWindow(pGroup, ts, NULL, true, r > 0 && pTsData[r - 1] >= nextStart);
             QUERY_CHECK_CODE(code, lino, _end);
           }
         }

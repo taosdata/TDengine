@@ -4,18 +4,18 @@ sidebar_label: taosBenchmark
 toc_max_heading_level: 4
 ---
 
-taosBenchmark 是 TDengine 产品性能基准测试工具，提供对 TDengine 产品写入、查询及订阅性能测试，输出性能指标。
+taosBenchmark 是 TDengine TSDB 产品性能基准测试工具，提供对 TDengine TSDB 产品写入、查询及订阅性能测试，输出性能指标。
 
 ## 工具获取
 
-taosBenchmark 是 TDengine 服务器及客户端安装包中默认安装组件，安装后即可使用，参考 [TDengine 安装](../../../get-started/)
+taosBenchmark 是 TDengine TSDB 服务器及客户端安装包中默认安装组件，安装后即可使用，参考 [TDengine TSDB 安装](../../../get-started/)
 
 ## 运行
 
-taosBenchmark 支持无参数、命令行、配置文件三种运行模式，`命令行` 为 `配置文件` 功能子集，两者同时使用时，以命令行方式优先。 
+taosBenchmark 支持无参数、命令行、配置文件三种运行模式，`命令行` 为 `配置文件` 功能子集，两者同时使用时，以命令行方式优先。
 
 :::tip
-在运行 taosBenchmark 之前要确保 TDengine 集群已经在正确运行。
+在运行 taosBenchmark 之前要确保 TDengine TSDB 集群已经在正确运行。
 :::
 
 ### 无参数模式
@@ -24,13 +24,14 @@ taosBenchmark 支持无参数、命令行、配置文件三种运行模式，`�
 taosBenchmark
 ```
 
-在无参数运行时，taosBenchmark 默认连接 `/etc/taos/taos.cfg` 中指定的 TDengine 集群。 
-连接成功后，会默认创建智能电表示例数据库 test，创建超级表 meters，创建子表 1 万，每子写入数据 1 万条，若 test 库已存在，默认会先删再建。 
+在无参数运行时，taosBenchmark 默认连接 `/etc/taos/taos.cfg` 中指定的 TDengine TSDB 集群。
+连接成功后，会默认创建智能电表示例数据库 test，创建超级表 meters，创建子表 1 万，每子写入数据 1 万条，若 test 库已存在，默认会先删再建。
 
 ### 命令行模式
 
-命令行支持的参数为写入功能中使用较为频繁的参数，查询与订阅功能不支持命令行方式。 
+命令行支持的参数为写入功能中使用较为频繁的参数，查询与订阅功能不支持命令行方式。
 示例：
+
 ```bash
 taosBenchmark -d db -t 100 -n 1000 -T 4 -I stmt -y
 ```
@@ -46,22 +47,23 @@ taosBenchmark -f <json file>
 ```
 
 ## 命令行参数
+
 | 命令行参数                     | 功能说明                                         |
 | ---------------------------- | ----------------------------------------------- |
 | -f/--file \<json file>       | 要使用的 JSON 配置文件，由该文件指定所有参数，本参数与命令行其他参数不能同时使用。没有默认值 |
-| -c/--config-dir \<dir>       | TDengine 集群配置文件所在的目录，默认路径是 /etc/taos |
-| -h/--host \<host>            | 指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost  |
-| -P/--port \<port>            | 要连接的 TDengine 服务器的端口号，默认值为 6030 | 
+| -c/--config-dir \<dir>       | TDengine TSDB 集群配置文件所在的目录，默认路径是 /etc/taos |
+| -h/--host \<host>            | 指定要连接的 TDengine TSDB 服务端的 FQDN，默认值为 localhost  |
+| -P/--port \<port>            | 要连接的 TDengine TSDB 服务器的端口号，默认值为 6030 |
 | -I/--interface \<insertMode> | 插入模式，可选项有 taosc、rest、stmt、sml、sml-rest，分别对应普通写入、restful 接口写入、参数绑定接口写入、schemaless 接口写入、restful schemaless 接口写入 (由 taosAdapter 提供)。默认值为 taosc |
-| -u/--user \<user>            | 用于连接 TDengine 服务端的用户名，默认为 root  |
+| -u/--user \<user>            | 用于连接 TDengine TSDB 服务端的用户名，默认为 root  |
 | -U/--supplement-insert       | 写入数据而不提前建数据库和表，默认关闭 |
-| -p/--password \<passwd>      | 用于连接 TDengine 服务端的密码，默认值为 taosdata |
+| -p/--password \<passwd>      | 用于连接 TDengine TSDB 服务端的密码，默认值为 taosdata |
 | -o/--output \<file>          | 结果输出文件的路径，默认值为 ./output.txt |
 | -j/--output-json-file \<file>| 结果输出的 JSON 文件的路径 |
 | -T/--thread \<threadNum>     | 插入数据的线程数量，默认为 8  |
 | -B/--interlace-rows \<rowNum>        |启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0，即向一张子表完成数据插入后才会向下一张子表进行数据插入 |
 | -i/--insert-interval \<timeInterval> | 指定交错插入模式的插入间隔，单位为 ms，默认值为 0。只有当 `-B/--interlace-rows` 大于 0 时才起作用 |意味着数据插入线程在为每个子表插入隔行扫描记录后，会等待该值指定的时间间隔后再进行下一轮写入 |
-| -r/--rec-per-req \<rowNum>           | 每次向 TDengine 请求写入的数据行数，默认值为 30000  |
+| -r/--rec-per-req \<rowNum>           | 每次向 TDengine TSDB 请求写入的数据行数，默认值为 30000  |
 | -t/--tables \<tableNum>              | 指定子表的数量，默认为 10000  |
 | -s/--start-timestamp \<NUMBER>      | 每个子表数据开始时间，默认值为 1500000000000 |
 | -S/--timestampstep \<stepLength>     | 每个子表中插入数据的时间戳步长，单位是 ms，默认值是 1 |
@@ -85,7 +87,7 @@ taosBenchmark -f <json file>
 | -a/--replica \<replicaNum>       | 创建数据库时指定其副本数，默认值为 1 |
 | -k/--keep-trying \<NUMBER>      | 失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本|
 | -z/--trying-interval \<NUMBER>  | 失败重试间隔时间，单位为毫秒，仅在 -k 指定重试后有效。需使用 v3.0.9 以上版本 |
-| -v/--vgroups \<NUMBER>           | 创建数据库时指定 vgroups 数，仅对 TDengine v3.0+ 有效|
+| -v/--vgroups \<NUMBER>           | 创建数据库时指定 vgroups 数，仅对 TDengine TSDB v3.0+ 有效|
 | -V/--version                     | 显示版本信息并退出。不能与其它参数混用|
 | -?/--help                        | 显示帮助信息并退出。不能与其它参数混用|
 | -Z/--connect-mode \<NUMBER>      | 指定连接方式，0 表示采用原生连接方式，1 表示采用 WebSocket 连接方式，默认采用原生连接方式。|
@@ -98,17 +100,17 @@ taosBenchmark -f <json file>
 
 - **filetype**：功能分类，可选值为 `insert`、`query`、`subscribe` 和 `csvfile`。分别对应插入、查询、订阅和生成 csv 文件功能。每个配置文件中只能指定其中之一。
 
-- **cfgdir**：TDengine 客户端配置文件所在的目录，默认路径是 /etc/taos。
+- **cfgdir**：TDengine TSDB 客户端配置文件所在的目录，默认路径是 /etc/taos。
 
 - **output_dir**：指定输出文件的目录，当功能分类是 `csvfile` 时，指生成的 csv 文件的保存目录，默认值为 ./output/ 。
 
-- **host**：指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost。
+- **host**：指定要连接的 TDengine TSDB 服务端的 FQDN，默认值为 localhost。
 
-- **port**：要连接的 TDengine 服务器的端口号，默认值为 6030。
+- **port**：要连接的 TDengine TSDB 服务器的端口号，默认值为 6030。
 
-- **user**：用于连接 TDengine 服务端的用户名，默认值为 root。
+- **user**：用于连接 TDengine TSDB 服务端的用户名，默认值为 root。
 
-- **password**：用于连接 TDengine 服务端的密码，默认值为 taosdata。
+- **password**：用于连接 TDengine TSDB 服务端的密码，默认值为 taosdata。
 
 - **result_json_file**：指定结果输出的 JSON 文件路径，若未配置则不输出该文件。
 
@@ -121,7 +123,7 @@ taosBenchmark -f <json file>
 - **trying_interval**：失败重试间隔时间，单位为毫秒，仅在 keep_trying 指定重试后有效。需使用 v3.0.9 以上版本。
 
 - **childtable_from 和 childtable_to**：指定写入子表范围，开闭区间为 [childtable_from, childtable_to] 。
- 
+
 - **escape_character**：超级表和子表名称中是否包含转义字符，默认值为 "no"，可选值为 "yes" 或 "no" 。
 
 - **continue_if_fail**：允许用户定义失败后行为。
@@ -132,7 +134,7 @@ taosBenchmark -f <json file>
 
 #### 数据库相关
 
-创建数据库时的相关参数在 json 配置文件中的 `dbinfo` 中配置，个别具体参数如下。其余参数均与 TDengine 中 `create database` 时所指定的数据库参数相对应，详见 [../../taos-sql/database]
+创建数据库时的相关参数在 json 配置文件中的 `dbinfo` 中配置，个别具体参数如下。其余参数均与 TDengine TSDB 中 `create database` 时所指定的数据库参数相对应，详见 [../../taos-sql/database]
 
 - **name**：数据库名。
 
@@ -156,7 +158,7 @@ taosBenchmark -f <json file>
 
 - **data_source**：数据的来源，默认为 taosBenchmark 随机产生，可以配置为 "rand" 和 "sample"。为 "sample" 时使用 sample_file 参数指定的文件内的数据。
 
-- **insert_mode**：插入模式，可选项有 taosc、rest、stmt、sml、sml-rest，分别对应普通写入、restful 接口写入、参数绑定接口写入、schemaless 接口写入、restful schemaless 接口写入 (由 taosAdapter 提供)。默认值为 taosc。
+- **insert_mode**：插入模式，可选项有 taosc、rest、stmt、stmt2、sml、sml-rest，分别对应普通写入、restful 接口写入、参数绑定接口写入、schemaless 接口写入、restful schemaless 接口写入 (由 taosAdapter 提供)。默认值为 taosc。
 
 - **non_stop_mode**：指定是否持续写入，若为 "yes" 则 insert_rows 失效，直到 Ctrl + C 停止程序，写入才会停止。默认值为 "no"，即写入指定数量的记录后停止。注：即使在持续写入模式下 insert_rows 失效，但其也必须被配置为一个非零正整数。
 
@@ -230,7 +232,7 @@ taosBenchmark -f <json file>
 
 指定超级表标签列与数据列的配置参数分别在 `super_tables` 中的 `columns` 和 `tag` 中。
 
-- **type**：指定列类型，可选值请参考 TDengine 支持的数据类型。
+- **type**：指定列类型，可选值请参考 TDengine TSDB 支持的数据类型。
   注：JSON 数据类型比较特殊，只能用于标签，当使用 JSON 类型作为 tag 时有且只能有这一个标签，此时 count 和 len 代表的意义分别是 JSON tag 内的 key-value pair 的个数和每个 KV pair 的 value 的值的长度，value 默认为 string。
 
 - **len**：指定该数据类型的长度，对 NCHAR，BINARY 和 JSON 数据类型有效。如果对其他数据类型配置了该参数，若为 0，则代表该列始终都是以 null 值写入；如果不为 0 则被忽略。
@@ -287,7 +289,7 @@ taosBenchmark -f <json file>
   在 `super_tables` 中也可以配置该参数，若配置则以 `super_tables` 中的配置为高优先级，覆盖全局设置。
 
 - **num_of_records_per_req**：
-  每次向 TDengine 请求写入的数据行数，默认值为 30000。当其设置过大时，TDengine 客户端驱动会返回相应的错误信息，此时需要调低这个参数的设置以满足写入要求。
+  每次向 TDengine TSDB 请求写入的数据行数，默认值为 30000。当其设置过大时，TDengine TSDB 客户端驱动会返回相应的错误信息，此时需要调低这个参数的设置以满足写入要求。
 
 - **prepare_rand**：生成的随机数据中唯一值的数量。若为 1 则表示所有数据都相同。默认值为 10000。
 
@@ -298,11 +300,11 @@ taosBenchmark -f <json file>
 查询场景下 `filetype` 必须设置为 `query`。
 
 `query_mode`  查询连接方式，取值为：  
- - “taosc”: 通过 Native  连接方式查询。  
- - “rest” : 通过 restful 连接方式查询。  
+
+- “taosc”: 通过 Native  连接方式查询。  
+- “rest” : 通过 restful 连接方式查询。  
 
 `query_times` 指定运行查询的次数，数值类型。
-
 
 其它通用参数详见 [通用配置参数](#通用配置参数)。
 
@@ -313,25 +315,25 @@ taosBenchmark -f <json file>
 查询指定表（可以指定超级表、子表或普通表）的配置参数在 `specified_table_query` 中设置。
 
 - **mixed_query**：混合查询开关。  
-  “yes”: 开启“混合查询”。   
+  “yes”: 开启“混合查询”。
   “no” : 关闭“混合查询” ，即“普通查询”。  
 
   - 普通查询：
 
-  `sqls` 中每个 sql 启动 `threads` 个线程查询此 sql, 执行完 `query_times` 次查询后退出，执行此 sql 的所有线程都完成后进入下一个 sql   
-  `查询总次数` = `sqls` 个数 * `query_times` * `threads`   
+  `sqls` 中每个 sql 启动 `threads` 个线程查询此 sql, 执行完 `query_times` 次查询后退出，执行此 sql 的所有线程都完成后进入下一个 sql
+  `查询总次数` = `sqls` 个数 *`query_times`* `threads`
   
   - 混合查询：
 
   `sqls` 中所有 sql 分成 `threads` 个组，每个线程执行一组，每个 sql 都需执行 `query_times` 次查询  
-  `查询总次数` = `sqls` 个数 * `query_times` 
+  `查询总次数` = `sqls` 个数 * `query_times`
 
 - **batch_query**：批查询功开关。  
   取值范围“yes”表示开启，"no" 不开启，其它值报错。  
   批查询是指 `sqls` 中所有 sql 分成 `threads` 个组，每个线程执行一组，每个 sql 只执行一次查询后退出，主线程等待所有线程都执行完，再判断是否设置有 `query_interval` 参数，如果有需要 sleep 指定时间，再启动各线程组重复前面的过程，直到查询次数耗尽为止。  
   功能限制条件：  
-   - 只支持 `mixed_query` 为 "yes" 的场景。  
-   - 不支持 restful 查询，即 `query_mode` 不能为 "rest"。  
+  - 只支持 `mixed_query` 为 "yes" 的场景。  
+  - 不支持 restful 查询，即 `query_mode` 不能为 "rest"。  
 
 - **query_interval**：查询时间间隔，单位：millisecond，默认值为 0。
   "batch_query" 开关打开时，表示是每批查询完间隔时间；关闭时，表示每个 sql 查询完间隔时间
@@ -346,7 +348,7 @@ taosBenchmark -f <json file>
 #### 查询超级表
 
 查询超级表的配置参数在 `super_table_query` 中设置。  
-超级表查询的线程模式与上面介绍的指定查询语句查询的 `正常查询` 模式相同，不同之处是本 `sqls` 使用所有子表填充。 
+超级表查询的线程模式与上面介绍的指定查询语句查询的 `正常查询` 模式相同，不同之处是本 `sqls` 使用所有子表填充。
 
 - **stblname**：指定要查询的超级表的名称，必填。
 
@@ -375,17 +377,18 @@ taosBenchmark -f <json file>
 - **topic_list**：指定消费的 topic 列表，数组类型。topic 列表格式示例：`{"name": "topic1", "sql": "select * from test.meters;"}`，name：指定 topic 名，sql：指定创建 topic 的 sql 语句，需保证 sql 正确，框架会自动创建出 topic。
 
 以下参数透传订阅属性，参见 [订阅创建参数](../../../develop/tmq/#创建参数) 说明：
+
 - **client.id**
-- **auto.offset.reset** 
-- **enable.manual.commit** 
+- **auto.offset.reset**
+- **enable.manual.commit**
 - **enable.auto.commit**
 - **msg.with.table.name**
 - **auto.commit.interval.ms**
 - **group.id**：若此值不指定，将由 `group_mode` 指定规则生成 groupId，若指定此值，`group_mode` 参数不再有效。
- 
+
 ### 数据类型对照表
 
-| #   |   **TDengine**     | **taosBenchmark** 
+| #   |   **TDengine TSDB**     | **taosBenchmark**
 | --- | :----------------: | :---------------:
 | 1   |  TIMESTAMP         |    timestamp
 | 2   |  INT               |    int
@@ -444,7 +447,7 @@ taosBenchmark -f <json file>
 
 </details>
 
-### 订阅 JSON 示例 
+### 订阅 JSON 示例
 
 <details>
 <summary>tmq.json</summary>
@@ -473,33 +476,38 @@ taosBenchmark -f <json file>
 #### 写入指标
 
 写入结束后会在最后两行输出总体性能指标，格式如下：
+
 ``` bash
 SUCC: Spent 8.527298 (real 8.117379) seconds to insert rows: 10000000 with 8 thread(s) into test 1172704.41 (real 1231924.74) records/second
 SUCC: insert delay, min: 19.6780ms, avg: 64.9390ms, p90: 94.6900ms, p95: 105.1870ms, p99: 130.6660ms, max: 157.0830ms
 ```
+
 第一行写入速度统计：
- - Spent：写入总耗时，单位秒，从开始写入第一个数据开始计时到最后一条数据结束，这里表示共花了 8.527298 秒。
- - real：写入总耗时（调用引擎），此耗时已抛去测试框架准备数据时间，纯统计在引擎调用上花费的时间，示例为 8.117379 秒，8.527298 - 8.117379 = 0.409919 秒则为测试框架准备数据消耗时间
- - rows：写入总行数，为 1000 万条数据。
- - threads：写入线程数，这里是 8 个线程同时写入。
- - records/second 写入速度 = `写入总耗时`/ `写入总行数`，括号中 `real` 同前，表示纯引擎写入速度。
+
+- Spent：写入总耗时，单位秒，从开始写入第一个数据开始计时到最后一条数据结束，这里表示共花了 8.527298 秒。
+- real：写入总耗时（调用引擎），此耗时已抛去测试框架准备数据时间，纯统计在引擎调用上花费的时间，示例为 8.117379 秒，8.527298 - 8.117379 = 0.409919 秒则为测试框架准备数据消耗时间
+- rows：写入总行数，为 1000 万条数据。
+- threads：写入线程数，这里是 8 个线程同时写入。
+- records/second 写入速度 = `写入总耗时`/ `写入总行数`，括号中 `real` 同前，表示纯引擎写入速度。
 第二行单个写入延时统计：
- - min：写入最小延时。
- - avg：写入平时延时。
- - p90：写入延时 p90 百分位上的延时数。
- - p95：写入延时 p95 百分位上的延时数。
- - p99：写入延时 p99 百分位上的延时数。
- - max：写入最大延时。
+- min：写入最小延时。
+- avg：写入平时延时。
+- p90：写入延时 p90 百分位上的延时数。
+- p95：写入延时 p95 百分位上的延时数。
+- p99：写入延时 p99 百分位上的延时数。
+- max：写入最大延时。
 通过此系列指标，可观察到写入请求延时分布情况。
 
-#### 查询指标 
+#### 查询指标
 
 查询性能测试主要输出查询请求速度 QPS 指标，输出格式如下：
+
 ``` bash
-complete query with 3 threads and 10000 query delay avg: 	0.002686s min: 	0.001182s max: 	0.012189s p90: 	0.002977s p95: 	0.003493s p99: 	0.004645s SQL command: select ...
+complete query with 3 threads and 10000 query delay avg:  0.002686s min:  0.001182s max:  0.012189s p90:  0.002977s p95:  0.003493s p99:  0.004645s SQL command: select ...
 INFO: Spend 26.9530 second completed total queries: 30000, the QPS of all threads:   1113.049
 ```
-- 第一行表示 3 个线程每个线程执行 10000 次查询及查询请求延时百分位分布情况，`SQL command` 为测试的查询语句。 
+
+- 第一行表示 3 个线程每个线程执行 10000 次查询及查询请求延时百分位分布情况，`SQL command` 为测试的查询语句。
 - 第二行表示查询总耗时为 26.9653 秒，每秒查询率 (QPS) 为：1113.049 次/秒。
 - 如果在查询中设置了 `continue_if_fail` 选项为 `yes`，在最后一行中会输出失败请求个数及错误率，格式 error + 失败请求个数 (错误率)。
 - QPS   = 成功请求数量 / 花费时间 (单位秒)
@@ -508,6 +516,7 @@ INFO: Spend 26.9530 second completed total queries: 30000, the QPS of all thread
 #### 订阅指标
 
 订阅性能测试主要输出消费者消费速度指标，输出格式如下：
+
 ``` bash
 INFO: consumer id 0 has poll total msgs: 376, period rate: 37.592 msgs/s, total rows: 3760000, period rate: 375924.815 rows/s
 INFO: consumer id 1 has poll total msgs: 362, period rate: 36.131 msgs/s, total rows: 3620000, period rate: 361313.504 rows/s
@@ -517,6 +526,7 @@ INFO: consumerId: 1, consume msgs: 1000, consume rows: 10000000
 INFO: consumerId: 2, consume msgs: 1000, consume rows: 10000000
 INFO: Consumed total msgs: 3000, total rows: 30000000
 ```
-- 1 ~ 3 行实时输出每个消费者当前的消费速度，`msgs/s` 表示消费消息个数，每个消息中包含多行数据，`rows/s` 表示按行数统计的消费速度。 
-- 4 ~ 6 行是测试完成后每个消费者总体统计，统计共消费了多少条消息，共计多少行。 
+
+- 1 ~ 3 行实时输出每个消费者当前的消费速度，`msgs/s` 表示消费消息个数，每个消息中包含多行数据，`rows/s` 表示按行数统计的消费速度。
+- 4 ~ 6 行是测试完成后每个消费者总体统计，统计共消费了多少条消息，共计多少行。
 - 第 7 行所有消费者总体统计，`msgs` 表示共消费了多少条消息，`rows` 表示共消费了多少行数据。

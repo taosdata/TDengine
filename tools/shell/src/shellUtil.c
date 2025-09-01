@@ -133,3 +133,27 @@ void shellExit() {
   shell.exit = true;
   taos_cleanup();
 }
+
+void trimStr(char *srcInfo, char *removeStr) {
+    if (srcInfo == NULL || removeStr == NULL) return;
+
+    int len = strlen(srcInfo);
+    int new_len = len;
+    
+    int remove_len = strlen(removeStr);
+
+    while (new_len > 0) {
+        if (isspace(srcInfo[new_len - 1])) {
+            srcInfo[--new_len] = '\0';
+            continue;
+        }
+        
+        if (new_len >= remove_len && strncmp(srcInfo + new_len - remove_len, removeStr, remove_len) == 0) {
+            new_len -= remove_len;
+            srcInfo[new_len] = '\0';
+            continue;
+        }
+        
+        break;
+    }
+}

@@ -145,7 +145,7 @@ If you are using Maven to manage your project, simply add the following dependen
     - Install a specific version
 
     ```shell
-    pip3 install taospy==2.8.3
+    pip3 install taospy==2.8.5
     ```
 
     - Install from GitHub
@@ -517,6 +517,11 @@ Below are code examples for establishing WebSocket connections in various langua
 {{#include docs/examples/python/connect_websocket_examples.py:connect}}
 ```
 
+SQLAlchemy supports configuring multiple server addresses through the `hosts` parameter to achieve load balancing and failover. Multiple addresses are separated by English commas, in the format: `hosts=<host1>:<port1>,<host2>:<port2>,...`
+
+```python
+{{#include docs/examples/python/connect_websocket_sqlalchemy_examples.py:connect_sqlalchemy}}
+```
 </TabItem>
 
 <TabItem label="Go" value="go">
@@ -726,7 +731,23 @@ Example usage is as follows:
 
 <TabItem label="Python" value="python">
 
-<ConnPythonNative />
+<details>
+<summary>SQLAlchemy connection pool example (recommended)</summary>
+
+```python
+{{#include docs/examples/python/sqlalchemy_demo.py}}
+```
+
+</details>
+
+<details>
+<summary>DBUtils Connection Pool Example</summary>
+
+```python
+{{#include docs/examples/python/dbutils_demo.py}}
+```
+
+</details>
 
 </TabItem>
 

@@ -236,6 +236,10 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Cannot use 'year' or 'month' as true_for duration";
     case TSDB_CODE_PAR_INVALID_COLUMN_REF:
       return "Invalid column reference";
+    case TSDB_CODE_PAR_INVALID_SLIDING_OFFSET:
+      return "Invalid sliding offset";
+    case TSDB_CODE_PAR_INVALID_INTERVAL_OFFSET:
+      return "Invalid interval offset";
     case TSDB_CODE_PAR_INVALID_REF_COLUMN:
       return "Invalid virtual table's ref column";
     case TSDB_CODE_PAR_INVALID_TABLE_TYPE:

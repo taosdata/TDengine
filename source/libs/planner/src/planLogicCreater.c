@@ -380,13 +380,9 @@ static int32_t addVtbPrimaryTsCol(SVirtualTableNode* pTable, SNodeList** pCols) 
 }
 
 static int32_t addInsColumnScanCol(SRealTableNode* pTable, SNodeList** pCols) {
-  nodesListMakeStrictAppend(pCols, createInsColsScanCol(pTable, &pTable->pMeta->schema[1]));
-  nodesListMakeStrictAppend(pCols, createInsColsScanCol(pTable, &pTable->pMeta->schema[2]));
-  nodesListMakeStrictAppend(pCols, createInsColsScanCol(pTable, &pTable->pMeta->schema[3]));
-  nodesListMakeStrictAppend(pCols, createInsColsScanCol(pTable, &pTable->pMeta->schema[4]));
-  nodesListMakeStrictAppend(pCols, createInsColsScanCol(pTable, &pTable->pMeta->schema[5]));
-  nodesListMakeStrictAppend(pCols, createInsColsScanCol(pTable, &pTable->pMeta->schema[6]));
-  nodesListMakeStrictAppend(pCols, createInsColsScanCol(pTable, &pTable->pMeta->schema[7]));
+  for (int32_t i = 1; i < 8; ++i) {
+    PLAN_ERR_RET(nodesListMakeStrictAppend(pCols, createInsColsScanCol(pTable, &pTable->pMeta->schema[i])));
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -531,6 +527,10 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     code = nodesCloneNode(pSelect->pTimeRange, (SNode**)&pScan->pTimeRange);
   }
 
+  if (pRealTable->placeholderType == SP_PARTITION_ROWS) {
+    code = nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pRealTable->table.tableAlias, COLLECT_COL_TYPE_ALL,
+                               &pCxt->pPlanCxt->streamTriggerScanList);
+  }
   // set columns to scan
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pRealTable->table.tableAlias, COLLECT_COL_TYPE_COL,
@@ -1017,9 +1017,9 @@ static int32_t createTagScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
   SScanLogicNode* pScan = NULL;
   int32_t         code = TSDB_CODE_SUCCESS;
 
-  PAR_ERR_RET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN, (SNode**)&pScan));
+  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN, (SNode**)&pScan));
 
-  cloneVgroups(&pScan->pVgroupList, pVirtualScan->pVgroupList);
+  PLAN_ERR_JRET(cloneVgroups(&pScan->pVgroupList, pVirtualScan->pVgroupList));
   pScan->tableId = pVirtualScan->tableId;
   pScan->stableId = pVirtualScan->stableId;
   pScan->tableType = pVirtualScan->tableType;
@@ -1035,15 +1035,18 @@ static int32_t createTagScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
   pScan->node.groupAction = GROUP_ACTION_NONE;
   pScan->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
 
-  nodesCloneList(pVirtualScan->pScanPseudoCols, &pScan->pScanPseudoCols);
+  PLAN_ERR_JRET(nodesCloneList(pVirtualScan->pScanPseudoCols, &pScan->pScanPseudoCols));
 
   pScan->scanType = SCAN_TYPE_TAG;
 
-  createColumnByRewriteExprs(pScan->pScanPseudoCols, &pScan->node.pTargets);
+  PLAN_ERR_JRET(createColumnByRewriteExprs(pScan->pScanPseudoCols, &pScan->node.pTargets));
 
   pScan->onlyMetaCtbIdx = false;
   pCxt->hasScan = true;
   *pLogicNode = (SLogicNode*)pScan;
+  return code;
+_return:
+  nodesDestroyNode((SNode*)pScan);
   return code;
 }
 
@@ -1088,7 +1091,7 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   }
 
   if (pVtableScan->pScanPseudoCols) {
-    createTagScanLogicNode(pCxt, pSelect, pVtableScan, (SLogicNode**)&pTagScan);
+    PLAN_ERR_JRET(createTagScanLogicNode(pCxt, pSelect, pVtableScan, (SLogicNode**)&pTagScan));
   }
 
   ((SScanLogicNode *)pRealTableScan)->node.dynamicOp = true;
@@ -1180,7 +1183,7 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
   }
 
   if (pVtableScan->pScanPseudoCols) {
-    createTagScanLogicNode(pCxt, pSelect, pVtableScan, (SLogicNode**)&pTagScan);
+    PLAN_ERR_JRET(createTagScanLogicNode(pCxt, pSelect, pVtableScan, (SLogicNode**)&pTagScan));
   }
 
   if (scanAllCols) {
@@ -1852,10 +1855,9 @@ static int32_t createWindowLogicNodeByEvent(SLogicPlanContext* pCxt, SEventWindo
 static int32_t createWindowLogicNodeByCount(SLogicPlanContext* pCxt, SCountWindowNode* pCount, SSelectStmt* pSelect,
                                             SLogicNode** pLogicNode) {
   SWindowLogicNode* pWindow = NULL;
-  int32_t           code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, (SNode**)&pWindow);
-  if (NULL == pWindow) {
-    return code;
-  }
+  int32_t           code = TSDB_CODE_SUCCESS;
+
+  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, (SNode**)&pWindow));
 
   pWindow->winType = WINDOW_TYPE_COUNT;
   pWindow->node.groupAction = getGroupAction(pCxt, pSelect);
@@ -1864,20 +1866,18 @@ static int32_t createWindowLogicNodeByCount(SLogicPlanContext* pCxt, SCountWindo
   pWindow->windowCount = pCount->windowCount;
   pWindow->windowSliding = pCount->windowSliding;
   pWindow->pTspk = NULL;
-  code = nodesCloneNode(pCount->pCol, &pWindow->pTspk);
-  if (NULL == pWindow->pTspk) {
-    nodesDestroyNode((SNode*)pWindow);
-    return code;
-  }
+  PLAN_ERR_JRET(nodesCloneNode(pCount->pCol, &pWindow->pTspk));
   if (pCount->pColList != NULL) {
-    nodesCloneList(pCount->pColList, &pWindow->pColList);
-    if (NULL == pWindow->pColList) {
-      nodesDestroyNode((SNode*)pWindow);
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
+    PLAN_ERR_JRET(nodesCloneList(pCount->pColList, &pWindow->pColList));
   }
 
-  return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
+  PLAN_ERR_JRET(createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode));
+  return code;
+
+_return:
+  planError("%s failed, code %d", __func__ , code);
+  nodesDestroyNode((SNode*)pWindow);
+  return code;
 }
 
 static int32_t createWindowLogicNodeByAnomaly(SLogicPlanContext* pCxt, SAnomalyWindowNode* pAnomaly,
@@ -1990,7 +1990,8 @@ static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStm
       !pCxt->pPlanCxt->streamCalcQuery || !pCxt->pPlanCxt->withExtWindow ||
       nodeType(pSelect->pFromTable) == QUERY_NODE_TEMP_TABLE ||
       nodeType(pSelect->pFromTable) == QUERY_NODE_JOIN_TABLE ||
-      pSelect->isSubquery || NULL != pSelect->pSlimit || NULL != pSelect->pLimit) {
+      pSelect->isSubquery || NULL != pSelect->pSlimit || NULL != pSelect->pLimit ||
+      pSelect->hasUniqueFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc) {
     return TSDB_CODE_SUCCESS;
   }
   int32_t code = nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, &pSelect->pWindow);

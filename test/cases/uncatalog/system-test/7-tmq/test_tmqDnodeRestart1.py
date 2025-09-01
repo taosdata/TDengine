@@ -1,11 +1,10 @@
 import threading
 from enum import Enum
 
-from new_test_framework.utils import tdLog, tdSql, tdCom, tdDnodes
+from new_test_framework.utils import tdLog, tdSql, tdCom, tdDnodes, tmqCom
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from tmqCommon import tmqCom
 
 class TestCase:
     def setup_class(cls):
