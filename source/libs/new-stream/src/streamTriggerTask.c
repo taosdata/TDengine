@@ -3793,11 +3793,9 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         lastScanVer = *(int64_t *)pRsp->pCont;
       } else {
         QUERY_CHECK_CONDITION(pRsp->contLen > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
-        SSHashObj *pSlices = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
-        QUERY_CHECK_NULL(pSlices, code, lino, _end, terrno);
-        SArray *pUids = taosArrayInit(0, sizeof(int64_t) * 2);
+        SArray *pUids = taosArrayInit(0, sizeof(int64_t) * 3);
         QUERY_CHECK_NULL(pUids, code, lino, _end, terrno);
-        code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, pDataBlock, pSlices, pUids);
+        code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, pDataBlock, pUids);
         QUERY_CHECK_CODE(code, lino, _end);
         lastScanVer = pDataBlock->info.version;
         printDataBlock(pDataBlock, __func__, "stream_trigger_data");
@@ -3805,10 +3803,8 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           int64_t *px = TARRAY_GET_ELEM(pUids, i);
           int64_t  gid = px[0];
           int64_t  uid = px[1];
-          int64_t *px2 = tSimpleHashGet(pSlices, &uid, sizeof(int64_t));
-          QUERY_CHECK_NULL(px2, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-          int32_t startIdx = px2[1] >> 32;
-          int32_t nrows = (int32_t)px2[1];
+          int32_t startIdx = px[2] >> 32;
+          int32_t nrows = (int32_t)px[2];
           ST_TASK_DLOG("trigger data of table [%" PRId64 ":%" PRId64 "] : startIdx %d, nrows %d", gid, uid, startIdx,
                        nrows);
         }
