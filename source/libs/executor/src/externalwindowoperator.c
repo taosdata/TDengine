@@ -325,9 +325,8 @@ static void extWinSetCurWinIdx(SOperatorInfo* pOperator, int32_t idx) {
 }
 
 
-static void extWinIncCurWinOutIdx(SOperatorInfo* pOperator) {
-  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  pTaskInfo->pStreamRuntimeInfo->funcInfo.curOutIdx++;
+static void extWinIncCurWinOutIdx(SStreamRuntimeInfo* pStreamRuntimeInfo) {
+  pStreamRuntimeInfo->funcInfo.curOutIdx++;
 }
 
 
@@ -1466,7 +1465,7 @@ static int32_t extWinNonAggOutputRes(SOperatorInfo* pOperator, SSDataBlock** ppR
   int32_t                  lino = 0;
   SSDataBlock*             pRes = NULL;
 
-  for (; pExtW->outputWinId < numOfWin; pExtW->outputWinId++, extWinIncCurWinOutIdx(pOperator)) {
+  for (; pExtW->outputWinId < numOfWin; pExtW->outputWinId++, extWinIncCurWinOutIdx(pOperator->pTaskInfo->pStreamRuntimeInfo)) {
     SList* pList = taosArrayGetP(pExtW->pOutputBlocks, pExtW->outputWinId);
     if (listNEles(pList) <= 0) {
       continue;
@@ -1474,12 +1473,12 @@ static int32_t extWinNonAggOutputRes(SOperatorInfo* pOperator, SSDataBlock** ppR
 
     SListNode* pNode = tdListPopHead(pList);
     pRes = *(SSDataBlock**)pNode->data;
-    pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamBlkWinIdx = *(SArray**)((void*)pNode->data + 1);
+    pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamBlkWinIdx = *(SArray**)((SArray**)pNode->data + 1);
     pExtW->pLastBlkNode = pNode;
 
     if (listNEles(pList) <= 0) {
       pExtW->outputWinId++;
-      extWinIncCurWinOutIdx(pOperator);
+      extWinIncCurWinOutIdx(pOperator->pTaskInfo->pStreamRuntimeInfo);
     }
 
     break;
