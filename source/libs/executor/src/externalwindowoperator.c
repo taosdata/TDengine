@@ -1940,6 +1940,8 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     pExtW->pOutputBlocks = taosArrayInit_s(POINTER_BYTES, STREAM_CALC_REQ_MAX_WIN_NUM);
     if (!pExtW->pOutputBlocks) QUERY_CHECK_CODE(terrno, lino, _error);
   //}
+    pExtW->pFreeBlocks = tdListNew(POINTER_BYTES * 2);
+    QUERY_CHECK_NULL(pExtW->pFreeBlocks, code, lino, _error, terrno);  
   }
 
   pExtW->pWins = taosArrayInit(STREAM_CALC_REQ_MAX_WIN_NUM, sizeof(SExtWinTimeWindow));
