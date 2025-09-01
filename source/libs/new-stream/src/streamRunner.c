@@ -744,8 +744,8 @@ static int32_t stRunnerTopTaskHandleOutputBlockAgg(SStreamRunnerTask* pTask, SSt
     }
   }
   if (code == 0 && taosArrayGetSize(pTask->notification.pNotifyAddrUrls) > 0) {
-    endWinIdx = *pNextOutIdx - 1;
-    if (endWinIdx >= startWinIdx) {
+    endWinIdx = *pNextOutIdx;
+    if (endWinIdx > startWinIdx) {
       code = streamDoNotification(pTask, pExec, startWinIdx, endWinIdx, pExec->tbname);
       if (code != TSDB_CODE_SUCCESS) {
         ST_TASK_ELOG("failed to send notification for block, code:%s", tstrerror(code));
@@ -878,7 +878,7 @@ static int32_t stRunnerTopTaskHandleOutputBlockProj(SStreamRunnerTask* pTask, SS
     TAOS_CHECK_GOTO(stRunnerMergeOutputBlock(pTask, pExec, pBlock, finished, createTable), &lino, _exit);
   }
   endWinIdx = *pNextOutIdx;
-  if (endWinIdx >= startWinIdx) {
+  if (endWinIdx > startWinIdx) {
     TAOS_CHECK_GOTO(streamDoNotification(pTask, pExec, startWinIdx, endWinIdx, pExec->tbname), &lino, _exit);
   }
 _exit:
