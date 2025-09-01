@@ -792,7 +792,7 @@ class Test_IDMP_Meters:
         print(result_sql)
         tdSql.checkResultsByFunc (
             sql  = result_sql, 
-            func = lambda: tdSql.getRows() > 0
+            func = lambda: tdSql.getRows() > 100
         )
 
         print("verify stream5_sub6 ............................ successfully.")
