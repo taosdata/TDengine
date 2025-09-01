@@ -25,12 +25,12 @@ class TestOthersOldCaseTaosdshell:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_others_oldcase_taosdShell(self):
-        """taosd shell
+        """OldPy: shell create stream
 
         test taosd shell command
 
         Catalog:
-            - Streams:UseCases
+            - Streams:OldPyCases
 
         Since: v3.3.3.7
 

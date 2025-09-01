@@ -25,7 +25,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null_tag.py
 
 # ​​​Special gap before priority support
-,,n,.,pytest cases/41-StreamProcessing/30-OldPyCases/test_compatibility_rolling_upgrade.py -N 3
+,,n,.,pytest cases/41-StreamProcessing/23-Compatibility/test_compatibility_rolling_upgrade.py -N 3
 
 # 02-Databases
 ## 01-Create
@@ -371,27 +371,25 @@
 ,,n,.,pytest cases/41-StreamProcessing/07-SubQuery/test_subquery_state.py
 ,,y,.,./ci/pytest.sh pytest  cases/41-StreamProcessing/07-SubQuery/test_subquery_usage_restrict.py
 ## 08-Recalc
+,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/08-Recalc/test_recalc_combined_options.py
+,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/08-Recalc/test_recalc_delete_recalc.py
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/08-Recalc/test_recalc_expired_time.py
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/08-Recalc/test_recalc_ignore_disorder.py
-,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/08-Recalc/test_recalc_delete_recalc.py
-,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/08-Recalc/test_recalc_watermark.py
-,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/08-Recalc/test_recalc_combined_options.py
-#,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/08-Recalc/test_recalc_manual.py
+#,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/08-Recalc/test_recalc_manual_basic.py
 #,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/08-Recalc/test_recalc_manual_with_options.py
-
+,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/08-Recalc/test_recalc_watermark.py
 ## 20-UseCase
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/20-UseCase/test_idmp_meters.py
-,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/20-UseCase/test_idmp_vehicle.py
-,,n,.,pytest cases/41-StreamProcessing/20-UseCase/test_idmp_meters_td36808.py
-,,n,.,pytest cases/41-StreamProcessing/20-UseCase/test_idmp_tobacco.py
+,,n,.,pytest cases/41-StreamProcessing/20-UseCase/test_idmp_public.py
 ,,n,.,pytest cases/41-StreamProcessing/20-UseCase/test_idmp_pv.py
+,,n,.,pytest cases/41-StreamProcessing/20-UseCase/test_idmp_tobacco.py
+,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/20-UseCase/test_idmp_vehicle.py
 ,,n,.,pytest cases/41-StreamProcessing/20-UseCase/test_nevados.py 
-,,n,.,pytest cases/41-StreamProcessing/20-UseCase/test_three_gorges_phase1.py 
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/20-UseCase/test_three_gorges_case4.py
-,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/20-UseCase/test_three_gorges_case4_bug1.py
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/20-UseCase/test_three_gorges_case5.py
-,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/20-UseCase/test_three_gorges_second_case1_bug1.py
-,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/20-UseCase/test_three_gorges_second_case1_twostream.py
+,,n,.,pytest cases/41-StreamProcessing/20-UseCase/test_three_gorges_phase1.py 
+,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/20-UseCase/test_three_gorges_second_case1.py
+,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/20-UseCase/test_three_gorges_second_case2.py
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/20-UseCase/test_three_gorges_second_case3.py
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/20-UseCase/test_three_gorges_second_case4.py
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/20-UseCase/test_three_gorges_second_case6.py
@@ -400,29 +398,24 @@
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/20-UseCase/test_three_gorges_second_case19.py
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/20-UseCase/test_three_gorges_second_case19_bug1.py
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/20-UseCase/test_three_gorges_second_case22.py
-
 ## 21-Stability 
-
 ## 22-Performance
-
 ## 23-Compatibility 
-,,n,.,pytest cases/41-StreamProcessing/23-Compatibility/stream_compatibility.py
-
+,,n,.,pytest cases/41-StreamProcessing/23-Compatibility/test_compatibility_cross_version.py
 ## 30-OldPyCases
-,,n,.,pytest cases/41-StreamProcessing/30-OldPyCases/test_oldcase_state_window.py
-,,n,.,pytest cases/41-StreamProcessing/30-OldPyCases/test_oldcase_window_true_for.py
-,,n,.,pytest cases/41-StreamProcessing/30-OldPyCases/test_oldcase_math_func.py
-,,n,.,pytest cases/41-StreamProcessing/30-OldPyCases/test_oldcase_string_func.py
-,,n,.,pytest cases/41-StreamProcessing/30-OldPyCases/test_oldcase_backquote_check.py
-,,n,.,pytest cases/41-StreamProcessing/30-OldPyCases/test_oldcase_taosdShell.py
-,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/30-OldPyCases/test_oldcase_checkpoint_info.py -N 4
-,,n,.,pytest cases/41-StreamProcessing/30-OldPyCases/test_oldcase_snode_restart_with_checkpoint.py -N 4
-,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/30-OldPyCases/test_oldcase_stream_multi_agg.py
-,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/30-OldPyCases/test_oldcase_stream_basic.py
-,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/30-OldPyCases/test_drop.py
-,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/30-OldPyCases/test_empty_identifier.py
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/30-OldPyCases/test_oldcase_at_once.py
-
+,,n,.,pytest cases/41-StreamProcessing/30-OldPyCases/test_oldcase_backquote_check.py
+,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/30-OldPyCases/test_oldcase_checkpoint_info.py -N 4
+,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/30-OldPyCases/test_oldcase_drop.py
+,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/30-OldPyCases/test_oldcase_empty_identifier.py
+,,n,.,pytest cases/41-StreamProcessing/30-OldPyCases/test_oldcase_math_func.py
+,,n,.,pytest cases/41-StreamProcessing/30-OldPyCases/test_oldcase_snode_restart_with_checkpoint.py -N 4
+,,n,.,pytest cases/41-StreamProcessing/30-OldPyCases/test_oldcase_state_window.py
+,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/30-OldPyCases/test_oldcase_stream_basic.py
+,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/30-OldPyCases/test_oldcase_stream_multi_agg.py
+,,n,.,pytest cases/41-StreamProcessing/30-OldPyCases/test_oldcase_string_func.py
+,,n,.,pytest cases/41-StreamProcessing/30-OldPyCases/test_oldcase_taosdShell.py
+,,n,.,pytest cases/41-StreamProcessing/30-OldPyCases/test_oldcase_window_true_for.py
 ## 31-OldCases
 ,,n,.,pytest cases/41-StreamProcessing/31-OldTsimCases/test_oldcase_basic1.py 
 ,,n,.,pytest cases/41-StreamProcessing/31-OldTsimCases/test_oldcase_basic2.py 
@@ -796,7 +789,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stbJoin.py -Q 4
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hint.py
 # ​​​Special gap before priority support
-,,n,.,pytest cases/41-StreamProcessing/30-OldPyCases/test_compatibility_rolling_upgrade_all.py -N 3
+,,n,.,pytest cases/41-StreamProcessing/23-Compatibility/test_compatibility_rolling_upgrade_all.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hint.py -Q 2
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hint.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hint.py -Q 4
@@ -1336,7 +1329,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_projectionDesc.py -Q 2
 
 # ​​​Special gap before priority support
-,,n,.,pytest cases/41-StreamProcessing/30-OldPyCases/test_compatibility.py
+,,n,.,pytest cases/41-StreamProcessing/23-Compatibility/test_compatibility_backward_forward.py
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_between.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distinct.py -Q 3

@@ -8,7 +8,7 @@ import math
 class TestIdmpTobacco:
 
     def test_idmp_tobacco(self):
-        """IDMP 烟草场景测试
+        """IDMP: tobacco scenario
 
         Refer: https://taosdata.feishu.cn/wiki/Zkb2wNkHDihARVkGHYEcbNhmnxb#share-I9GwdF26PoWk6uxx2zJcxZYrn1d
         1. 测试 AI 推荐生成的分析，创建 Stream,验证流的正确性

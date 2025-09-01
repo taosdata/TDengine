@@ -76,7 +76,7 @@ class TestEmptyIdentifier:
             8.4 Validate connection stability after errors
 
         Catalog:
-            - SQL:SyntaxValidation:EmptyIdentifier
+            - Streams:OldPyCases
 
         Since: v3.3.7.0
 

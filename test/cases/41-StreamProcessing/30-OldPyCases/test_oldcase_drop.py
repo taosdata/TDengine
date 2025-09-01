@@ -64,7 +64,7 @@ class TestStreamDrop:
                 4.2.4 Validate connection stability after errors
 
         Catalog:
-            - Streams:Operations:Drop
+            - Streams:OldPyCases
 
         Since: v3.3.7.0
 

@@ -17,7 +17,7 @@ class TestStreamCompatibility:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_compatibility(self):
-        """Stream Processing Backward and Forward Compatibility Test
+        """Comp: Stream Backward and Forward
 
         Test compatibility across 5 baseline versions with stream processing validation:
 

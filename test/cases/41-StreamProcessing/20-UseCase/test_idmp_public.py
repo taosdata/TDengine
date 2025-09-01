@@ -9,7 +9,7 @@ from datetime import date
 class Test_IDMP_Meters_TD36808:
 
     def test_td36808(self):
-        """公共事业场景测试
+        """IDMP: public utility scenario
 
         尝试复现 IDMP 会产生 core 的场景，建 2 个流, STOP STREAM, START STREAM, DROP STREAM
 
