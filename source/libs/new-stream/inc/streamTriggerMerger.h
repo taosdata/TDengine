@@ -383,11 +383,10 @@ void stNewTimestampSorterReset(SSTriggerNewTimestampSorter *pSorter);
  * @param tsSlotId The index of the timestamp column in the data block, starting from 0
  * @param startIdx The start row index in the data block
  * @param endIdx The end row index in the data block
- * @param pRecalcRange Optional to get the recalculation time range, can be NULL if not needed
  * @return int32_t Status code indicating success or error
  */
 int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_t startTime, SSDataBlock *pDataBlock,
-                                    int32_t tsSlotId, int32_t startIdx, int32_t endIdx, STimeWindow *pRecalcRange);
+                                    int32_t tsSlotId, int32_t startIdx, int32_t endIdx);
 
 /**
  * @brief Get next data block from the sorter.
@@ -428,9 +427,7 @@ typedef struct SSTriggerNewVtableMerger {
 int32_t stNewVtableMergerInit(SSTriggerNewVtableMerger *pMerger, struct SStreamTriggerTask *pTask,
                               SSDataBlock **ppDataBlock, SFilterInfo **ppFilter, int32_t nVirDataCols);
 
-static FORCE_INLINE bool stNewVtableMergerNeedPseudoCols(SSTriggerNewVtableMerger *pMerger) {
-  return pMerger->nVirDataCols < taosArrayGetSize(pMerger->pDataBlock->pDataBlock);
-}
+bool stNewVtableMergerNeedPseudoCols(SSTriggerNewVtableMerger *pMerger);
 
 /**
  * @brief Destroys a vtable merger, releasing all allocated resources.
@@ -454,11 +451,10 @@ void stNewVtableMergerReset(SSTriggerNewVtableMerger *pMerger);
  * @param startTime The start time to read data
  * @param pTableColRefs Array of table column references, each containing original and virtual table column mappings
  * @param pSlices The hash map from original table uid to its data slice
- * @param pRecalcRange Optional to get the recalculation time range, can be NULL if not needed
  * @return int32_t
  */
 int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t startTime, SArray *pTableColRefs,
-                                 SSHashObj *pSlices, STimeWindow *pRecalcRange);
+                                 SSHashObj *pSlices);
 
 /**
  * @brief Gets next data block from the vtable merger.

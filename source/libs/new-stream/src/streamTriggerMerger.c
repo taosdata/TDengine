@@ -1463,7 +1463,7 @@ void stNewTimestampSorterReset(SSTriggerNewTimestampSorter *pSorter) {
 }
 
 int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_t startTime, SSDataBlock *pDataBlock,
-                                    int32_t tsSlotId, int32_t startIdx, int32_t endIdx, STimeWindow *pRecalcRange) {
+                                    int32_t tsSlotId, int32_t startIdx, int32_t endIdx) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pSorter->pTask;
@@ -1495,10 +1495,6 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
     i = slice.endIdx;
     // skip disordered data if out of watermark
     while (i < endIdx && pTsData[slice.endIdx - 1] - pTask->watermark >= pTsData[i]) {
-      if (pRecalcRange) {
-        pRecalcRange->skey = TMIN(pRecalcRange->skey, pTsData[i]);
-        pRecalcRange->ekey = TMAX(pRecalcRange->ekey, pTsData[i]);
-      }
       i++;
     }
   }
@@ -1700,7 +1696,7 @@ int32_t stNewVtableMergerInit(SSTriggerNewVtableMerger *pMerger, struct SStreamT
   code = blockDataEnsureCapacity(pMerger->pDataBlock, VTABLE_MERGER_NROWS_PER_BLOCK);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  if (stNewVtableMergerNeedPseudoCols(pMerger)) {
+  if (pMerger->nVirDataCols < blockDataGetNumOfCols(pMerger->pDataBlock)) {
     code = createDataBlock(&pMerger->pPseudoCols);
     QUERY_CHECK_CODE(code, lino, _end);
   }
@@ -1720,6 +1716,11 @@ _end:
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
+}
+
+bool stNewVtableMergerNeedPseudoCols(SSTriggerNewVtableMerger *pMerger) {
+  return (pMerger->nVirDataCols < blockDataGetNumOfCols(pMerger->pDataBlock)) &&
+         (blockDataGetNumOfRows(pMerger->pPseudoCols) == 0);
 }
 
 void stNewVtableMergerDestroy(void *ptr) {
@@ -1778,7 +1779,7 @@ void stNewVtableMergerReset(SSTriggerNewVtableMerger *pMerger) {
 }
 
 int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t startTime, SArray *pTableColRefs,
-                                 SSHashObj *pSlices, STimeWindow *pRecalcRange) {
+                                 SSHashObj *pSlices) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pMerger->pTask;
@@ -1813,7 +1814,7 @@ int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t star
       QUERY_CHECK_CODE(code, lino, _end);
     }
     code = stNewTimestampSorterSetData(pReaderInfo->pReader, startTime, pSlice->pDataBlock, 0, pSlice->startIdx,
-                                       pSlice->endIdx, pRecalcRange);
+                                       pSlice->endIdx);
     QUERY_CHECK_CODE(code, lino, _end);
     pReaderInfo->pColRef = pColRef;
     code = stNewTimestampSorterNextDataBlock(pReaderInfo->pReader, NULL, &pReaderInfo->startIdx, &pReaderInfo->endIdx);

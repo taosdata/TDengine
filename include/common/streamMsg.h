@@ -836,14 +836,6 @@ typedef struct SSTriggerWalMetaDataNewRequest {
   int64_t              lastVer;
 } SSTriggerWalMetaDataNewRequest;
 
-// typedef struct SSTriggerWalCalcDataNewRequest {
-//   SSTriggerPullRequest base;
-//   SArray*              versions;  // SArray<int64_t>
-//   uint64_t             gid;
-//   int64_t              skey;
-//   int64_t              ekey;
-// } SSTriggerWalCalcDataNewRequest;
-
 typedef struct SSTriggerGroupColValueRequest {
   SSTriggerPullRequest base;
   int64_t              gid;
@@ -898,7 +890,6 @@ typedef union SSTriggerPullRequestUnion {
   SSTriggerWalMetaNewRequest          walMetaNewReq;
   SSTriggerWalDataNewRequest          walDataNewReq;
   SSTriggerWalMetaDataNewRequest      walMetaDataNewReq;
-  // SSTriggerWalCalcDataNewRequest      walCalcDataNewReq;
   SSTriggerGroupColValueRequest       groupColValueReq;
   SSTriggerVirTableInfoRequest        virTableInfoReq;
   SSTriggerVirTablePseudoColRequest   virTablePseudoColReq;
@@ -1031,7 +1022,7 @@ typedef struct SStreamWalDataResponse {
 } SStreamWalDataResponse;
 
 int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalMetaNewRsp* metaBlock, SSHashObj* indexHash);
-int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, void* pDataBlock, SArray* pSlices);
+int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalMetaNewRsp* pRsp, SArray* pSlices);
 
 typedef struct SStreamGroupValue {
   SValue        data;
