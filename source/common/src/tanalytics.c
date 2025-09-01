@@ -872,7 +872,7 @@ int8_t taosAnalysisParseWncheck(SHashObj* pHashMap, const char* id) {
 
 int32_t taosAnalyticsInit() { return 0; }
 void    taosAnalyticsCleanup() {}
-SJson  *taosAnalySendReqRetJson(const char *url, EAnalyHttpType type, SAnalyticBuf *pBuf, int64_t timeout, const char*id) {
+SJson  *taosAnalySendReqRetJson(const char *url, EAnalyHttpType type, SAnalyticBuf *pBuf, int64_t timeout, const char* id) {
   return NULL;
 }
 
