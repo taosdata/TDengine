@@ -3134,7 +3134,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         blockDataEmpty(pContext->pMetaBlock);
       } else {
         QUERY_CHECK_CONDITION(pRsp->contLen > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
-        SSTriggerWalMetaNewRsp rsp = {.metaBlock = pContext->pMetaBlock};
+        SSTriggerWalNewRsp rsp = {.metaBlock = pContext->pMetaBlock};
         code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, &rsp, NULL);
         QUERY_CHECK_CODE(code, lino, _end);
       }
@@ -3233,7 +3233,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         taosArrayClear(pContext->pTempSlices);
       } else {
         QUERY_CHECK_CONDITION(pRsp->contLen > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
-        SSTriggerWalMetaNewRsp rsp = {.dataBlock = pProgress->pDataBlock};
+        SSTriggerWalNewRsp rsp = {.dataBlock = pProgress->pDataBlock};
         if (pContext->walMode == STRIGGER_WAL_META_WITH_DATA) {
           rsp.metaBlock = pContext->pMetaBlock;
         }

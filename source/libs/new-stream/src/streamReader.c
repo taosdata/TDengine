@@ -329,7 +329,7 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
   sStreamReaderInfo->pTask = pTask;
   sStreamReaderInfo->tableType = pMsg->msg.trigger.triggerTblType;
   if (pMsg->msg.trigger.triggerTblType == TD_SUPER_TABLE) {
-    sStreamReaderInfo->suid = pMsg->msg.trigger.triggerTblUid;
+    sStreamReaderInfo->suid = pMsg->msg.trigger.triggerTblSuid;
   } else {
     sStreamReaderInfo->suid = pMsg->msg.trigger.triggerTblSuid;
     sStreamReaderInfo->uid = pMsg->msg.trigger.triggerTblUid;

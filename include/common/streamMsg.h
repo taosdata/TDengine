@@ -818,12 +818,12 @@ typedef struct SSTriggerWalMetaNewRequest {
   int64_t              ctime;
 } SSTriggerWalMetaNewRequest;
 
-typedef struct SSTriggerWalMetaNewRsp {
+typedef struct SSTriggerWalNewRsp {
   void*                dataBlock;
   void*                metaBlock;
   void*                deleteBlock;
   void*                dropBlock;
-} SSTriggerWalMetaNewRsp;
+} SSTriggerWalNewRsp;
 
 typedef struct SSTriggerWalDataNewRequest {
   SSTriggerPullRequest base;
@@ -1021,8 +1021,8 @@ typedef struct SStreamWalDataResponse {
   SSHashObj* pSlices;  // SSHash<uid, SStreamWalDataSlice>
 } SStreamWalDataResponse;
 
-int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalMetaNewRsp* metaBlock, SSHashObj* indexHash);
-int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalMetaNewRsp* pRsp, SArray* pSlices);
+int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalNewRsp* metaBlock, SSHashObj* indexHash);
+int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalNewRsp* pRsp, SArray* pSlices);
 
 typedef struct SStreamGroupValue {
   SValue        data;
