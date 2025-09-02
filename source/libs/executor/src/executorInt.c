@@ -876,7 +876,7 @@ void doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp
       continue;
     }
     // skip the window which is less than the windowMinSize
-    if (abs(pRow->win.ekey - pRow->win.skey) < minWindowSize) {
+    if (llabs(pRow->win.ekey - pRow->win.skey) < minWindowSize) {
       qDebug("skip small window, groupId: %" PRId64 ", windowSize: %" PRId64 ", minWindowSize: %" PRId64, pPos->groupId,
              pRow->win.ekey - pRow->win.skey, minWindowSize);
       pGroupResInfo->index += 1;
