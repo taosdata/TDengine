@@ -26,6 +26,7 @@
 import { t } from 'locales';
 import { transformerState, supportTransform } from './util';
 import { getDataInProps } from 'components/dataIn/model/useDataIn';
+import { ElMessage } from 'element-plus';
 const dataInProps = getDataInProps();
 
 const props = defineProps<{
@@ -186,7 +187,7 @@ function deleteFilter() {
   emit('delete-filter', props.itemData.key);
 }
 
-const generateInput = inject('generateInput');
+const generateInput:any = inject('generateInput');
 //提交
 function submitFilter() {
   let parser;

@@ -920,7 +920,7 @@ const confirmSkipToLatest = (item: Recordable) => {
 const skipToLatest = async () => {
   try {
     await dataInProps.task.api.skip2Latest(taskToSeek.value.id, isRecoverHistoryData.value);
-  } catch (error) {
+  } catch (error: any) {
     console.log(error);
     ElMessage.error(error);
   } finally {

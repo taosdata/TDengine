@@ -72,6 +72,7 @@ const props: Props = {
   timeZone: getLocalTimezone(),
   downloadFileUrl: import.meta.env.VITE_APP_X_API + `/download?file_path=`,
   uploadFileUrl: import.meta.env.VITE_APP_X_API + `/upload`,
+  hover: false,
   task: {
     webSoketUrl: getUrl(`/activities/tasks/${clusterId}`),
     api: {

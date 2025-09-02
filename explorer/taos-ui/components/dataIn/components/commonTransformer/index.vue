@@ -246,6 +246,7 @@
           @select-column="changeColumnStatus"
           @set-extract-name="setExtractName"
           @change-extract-expr="changeExtractExpr"
+          @update-extract-columns="changeExtractColumns"
         ></ExtractSplit>
       </template>
       <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!dataInProps.isCommunity">
@@ -580,7 +581,7 @@ import {
   filterEmpty
 } from './util.js';
 import { currentPageType, sourceForm, getDataRange, getWriteConfigData } from '../../model/util.js';
-import { ElMessage, FormInstance } from 'element-plus';
+import { ElMessage, ElMessageBox, FormInstance } from 'element-plus';
 import { executeSqlFn } from 'components/api';
 import { isEn } from 'config';
 import { isEmpty } from 'lodash-es';
@@ -1421,7 +1422,7 @@ function echoExtractData(mutate: Recordable[]) {
       const obj: Recordable = {
         columnname: item[0],
         expression: item[1].convert ? convertData : Object.values(item[1]).flat(1).join(';'),
-        type: item[1].convert ? 'convert' : Object.keys(item[1]).toString(),
+        type: item[1].convert ? 'convert' : item[1].json ? 'json' : Object.keys(item[1]).toString(),
         columns: columnsArr.value,
         key: Math.random()
       };
@@ -1445,18 +1446,15 @@ function echoExtractData(mutate: Recordable[]) {
           convert: JSON.stringify(item[1].convert),
           new_field_name: item[1].new_field_name
         };
-        // obj['convertParams'] = Object.keys(['convert'])
-        //   .map(k => {
-        //     return {
-        //       [k]: String(item[1]['convert'][k])
-        //     };
-        //   })
-        //   .reduce((a, b) => {
-        //     a[Object.keys(b).toString()] = String(b[Object.keys(b).toString()]);
-        //     return a;
-        //   }, {});
       }
-
+      if (item[1].json) {
+        obj['jsonParams'] = {
+          depth: item[1].depth,
+          keep: item[1].keep,
+          expression: typeof item[1].json === 'string' ? item[1].json : item[1].json.join(",")
+        };
+      }
+      
       if (columnsArr.value.length > 0) {
         extractArr.value.push(obj);
       }
@@ -1799,6 +1797,14 @@ function changeExtractExpr(colname: string, value: string) {
   const index = extractArr.value.findIndex((item: any) => item.columnname == colname);
   extractArr.value[index]['expression'] = value;
 }
+function changeExtractColumns(index: number, colList: Recordable[]) {
+  const currentColNames = new Set(extractArr.value[index].columns.map((item: any) => item.name));
+  colList.forEach(item => {
+    if (!currentColNames.has(item.name)) {
+      extractArr.value[index].columns.push(item);
+    }
+  });
+}
 //获取transformer的所有参数
 async function getTransformerParams() {
   await caculateMappingResult();
@@ -1881,15 +1887,11 @@ function generateInput() {
           inputobj = inputobj ? inputobj : {};
           if (item.name == 'payload') {
             inputobj['payload'] = msg;
-          } else {
-            inputobj[item.name] = item.type == 'timestamp' ? '' : item.name;
           }
         } else if (sourceForm.type == 'kafka' || sourceForm.type == 'mongodb') {
           inputobj = inputobj ? inputobj : {};
           if (item.name == 'value') {
             inputobj['value'] = msg;
-          } else {
-            inputobj[item.name] = item.type == 'timestamp' ? '' : item.name;
           }
         } else if (sourceForm.type == 'sparkplugb') {
           inputobj = JSON.parse(msg)['samples'];
@@ -1963,7 +1965,7 @@ function createStable(command: string) {
 async function getSTbaleList(isEcho: boolean, isTemplateCreate?: boolean, transformEchoMapData?: Recordable) {
   const col_models = transformEchoMapData?.tableData;
   const tags = {} as Recordable;
-  transformEchoMapData?.model.tags.forEach(key => {
+  transformEchoMapData?.model.tags.forEach((key: any) => {
     tags[key] = true;
   });
   try {
@@ -1982,7 +1984,7 @@ async function getSTbaleList(isEcho: boolean, isTemplateCreate?: boolean, transf
       } catch (error) {
         console.log(error);
         res.data = col_models
-          ? col_models.map(val => {
+          ? col_models.map((val: any) => {
               if (tags[val.columnname]) {
                 return [val.columnname, val.datatype, 0, 'TAG', 'disabled', 'disabled', 'disabled'];
               } else {
@@ -2049,7 +2051,7 @@ async function getSTbaleList(isEcho: boolean, isTemplateCreate?: boolean, transf
 //新增extract
 function addNewExtract() {
   extractArr.value.push({
-    columns: columnsArr.value,
+    columns: mergeArrs(),
     columnname: '',
     expression: '',
     type: '',
@@ -2062,8 +2064,29 @@ function addNewExtract() {
     convertParams: {
       convert: '',
       new_field_name: ''
+    },
+    jsonParams: {
+      depth: undefined,
+      keep: undefined,
+      expression: ''
     }
   });
+}
+function mergeArrs() {
+  const newArr: Recordable[] = [];
+  extractArr.value.forEach(item => {
+    newArr.push(...item.columns)
+  });
+  columnsArr.value.forEach(item => {
+    newArr.push(item)
+  });
+  const seen = new Set();
+  const uniqueArr = newArr.filter(item => {
+    if (seen.has(item.name)) return false;
+    seen.add(item.name);
+    return true;
+  })
+  return uniqueArr;
 }
 //新增filter
 function addNewFilter() {
