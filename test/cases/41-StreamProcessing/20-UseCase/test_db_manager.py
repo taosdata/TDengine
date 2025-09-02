@@ -43,6 +43,9 @@ class Test_IDMP_Meters:
         # fill history
         self.fillHistory()
 
+        # create vtables
+        self.createVtables()        
+
         # create streams
         self.createStreams()
 
@@ -103,6 +106,23 @@ class Test_IDMP_Meters:
         print("start fill history data ...")
 
 
+    # 
+    #  create vtables
+    #
+    def createVtables(self):
+        print("start create vtables ...")
+        sqls = [
+            "use test",
+            "CREATE STABLE vst_1 (ts TIMESTAMP , `电流` FLOAT, `电压` INT, `功率` BIGINT , `相位` SMALLINT ) TAGS (`地址` VARCHAR(50), `单元` TINYINT, `楼层` TINYINT, `设备ID` VARCHAR(20)) SMA(ts,`电流`) VIRTUAL 1;",
+            "CREATE VTABLE vt_1  (`电流` FROM test.t1.fc,  `电压` FROM test.t1.ic,  `功率` FROM test.t1.bi,  `相位` FROM test.t1.si)  USING vst_1 ( `地址`, `单元`, `楼层`, `设备ID`) TAGS ('北京.海淀.上地街道', 1, 1, '10001');",
+            #CREATE VTABLE vt_2 by dynamic 
+
+
+        ]
+
+        tdSql.executes(sqls)
+        tdLog.info(f"create {len(sqls)} vtable successfully.")
+
 
 
     # 
@@ -112,8 +132,10 @@ class Test_IDMP_Meters:
         print("start create streams ...")
 
         sqls = [
-              "CREATE STREAM test.stream1      INTERVAL(5s) SLIDING(5s) FROM test.st PARTITION BY tbname STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) INTO test.result_stream1      AS SELECT _twstart AS ts, _twrownum as wrownum, sum(ti) as sum_ti FROM %%trows",
-              "CREATE STREAM test.stream1_sub1 INTERVAL(5s) SLIDING(5s) FROM test.st PARTITION BY gid    STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) INTO test.result_stream1_sub1 AS SELECT _twstart AS ts, _twrownum as wrownum, sum(ti) as sum_ti FROM %%trows",
+              # stream1
+              "CREATE STREAM test.stream1      INTERVAL(5s) SLIDING(5s) FROM test.st    PARTITION BY tbname STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) INTO test.result_stream1      AS SELECT _twstart AS ts, _twrownum as wrownum, sum(bi)    as sum_power FROM %%trows",
+              "CREATE STREAM test.stream1_sub1 INTERVAL(5s) SLIDING(5s) FROM test.st    PARTITION BY gid    STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) INTO test.result_stream1_sub1 AS SELECT _twstart AS ts, _twrownum as wrownum, sum(bi)    as sum_power FROM %%trows",
+              "CREATE STREAM test.stream1_sub3 INTERVAL(5s) SLIDING(5s) FROM test.vst_1 PARTITION BY tbname STREAM_OPTIONS(IGNORE_NODATA_TRIGGER) INTO test.result_stream1_sub2 AS SELECT _twstart AS ts, _twrownum as wrownum, sum(`功率`) as `总功率`   FROM %%trows",
         ]
 
         tdSql.executes(sqls)
@@ -126,7 +148,7 @@ class Test_IDMP_Meters:
 
         sqls = [
             # stream5
-            "CREATE STREAM `tdasset`.`err_stream5_sub1` SESSION(ts, 10m) FROM `tdasset`.`vst_智能电表_1` NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_err` (ts, col2 PRIMARY KEY, col3, col4, col5) TAGS ( mytbname varchar(100) as tbname) AS SELECT ts,tbname,`电压`,`电流`,`地址` FROM `tdasset`.`vst_智能电表_1` WHERE ts >=_twstart AND ts <_twend",
+            "CREATE STREAM tdasset.err_stream5_sub1 SESSION(ts, 10m) FROM tdasset.vst_1 NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO tdasset.result_stream5_err (ts, col2 PRIMARY KEY, col3, col4, col5) TAGS ( mytbname varchar(100) as tbname) AS SELECT ts,tbname,`电压`,`电流`,地址 FROM tdasset.vst_1 WHERE ts >=_twstart AND ts <_twend",
         ]
 
         tdSql.errors(sqls)
@@ -216,17 +238,6 @@ class Test_IDMP_Meters:
     #
     # ---------------------   find other bugs   ----------------------
     #
-    
-    # virtual table ts is null
-    def check_vt_ts(self):
-        # vt_em-4
-        tdSql.checkResultsByFunc (
-            sql  = "SELECT *  FROM tdasset.`vt_em-4` WHERE `电流` is null;",
-            func = lambda: tdSql.getRows() == 120 
-            and tdSql.compareData(0, 0, 1752574200000) 
-            and tdSql.compareData(0, 2, 400)
-            and tdSql.compareData(0, 3, 200)
-        )
 
     def getSlidingWindow(self, start, step, cnt):
         wins = []
@@ -253,11 +264,11 @@ class Test_IDMP_Meters:
         ts = self.start2
         table = "test.t1"
         step  =  1000 # 1s
-        cols = "ts,ti,si,bin"
+        cols = "ts,fc,ic,bi,si,bin"
 
         # 
         count = 6
-        vals = "10,10,'abcde'"
+        vals = "10,10,10,10,'abcde'"
         ts = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
 
@@ -268,15 +279,19 @@ class Test_IDMP_Meters:
         ts = self.start2
         table = "test.t2"
         step  =  1000 # 1s
-        cols = "ts,ti,si,bin"
+        cols = "ts,fc,ic,bi,si,bin"
 
         # create table
         sql = f"create table {table} using test.st(gid) tags(1)"
         tdSql.execute(sql)
 
+        # create vtable
+        sql = "CREATE VTABLE vt_2  (`电流` FROM test.t2.fc,  `电压` FROM test.t2.ic,  `功率` FROM test.t2.bi,  `相位` FROM test.t2.si)  USING vst_1 ( `地址`, `单元`, `楼层`, `设备ID`) TAGS ('北京.海淀.上地街道', 1, 2, '10002')"
+        tdSql.execute(sql)
+
         # insert
         count = 6
-        vals = "20,20,'abcde'"
+        vals = "20,20,20,20,'abcde'"
         ts = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
 
@@ -298,7 +313,7 @@ class Test_IDMP_Meters:
 
         # check data
         data = [
-            # ts           cnt   sum_ti
+            # ts           cnt  power
             [1752574200000, 5,   50, "t1"],
             [1752574200000, 5,  100, "t2"]
         ]
@@ -318,8 +333,24 @@ class Test_IDMP_Meters:
 
         # check data
         data = [
-            # ts           cnt  sum_ti gid
+            # ts           cnt  power  gid
             [1752574200000, 10,  150,   1]
         ]
         tdSql.checkDataMem(result_sql, data)
         print("verify stream1 sub1 ............................ successfully.")
+
+    def verify_stream1_sub2(self):
+        # check
+        result_sql = f"select * from test.result_stream1_sub2 "
+        tdSql.checkResultsByFunc (
+            sql  = result_sql, 
+            func = lambda: tdSql.getRows() == 1
+        )
+
+        # check data
+        data = [
+            # ts           cnt  power tbname
+            [1752574200000, 5,   50,  "vt_1"]
+        ]
+        tdSql.checkDataMem(result_sql, data)
+        print("verify stream1 sub2 ............................ successfully.")
