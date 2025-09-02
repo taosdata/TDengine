@@ -177,7 +177,7 @@ static const SSysDbTableSchema userStbsSchema[] = {
     {.name = "keep",.bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
 };
 
-static const SSysDbTableSchema streamSchema[] = {
+static const SSysDbTableSchema userStreamSchema[] = {
     {.name = "stream_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
@@ -189,7 +189,7 @@ static const SSysDbTableSchema streamSchema[] = {
     {.name = "message", .bytes = TSDB_RESERVE_VALUE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
 };
 
-static const SSysDbTableSchema streamTaskSchema[] = {
+static const SSysDbTableSchema userStreamTaskSchema[] = {
     {.name = "stream_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "stream_id", .bytes = 19 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "task_id", .bytes = 19 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
@@ -553,8 +553,8 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_DNODE_VARIABLES, variablesSchema, tListLen(variablesSchema), true},
     {TSDB_INS_TABLE_TOPICS, topicSchema, tListLen(topicSchema), false},
     {TSDB_INS_TABLE_SUBSCRIPTIONS, subscriptionSchema, tListLen(subscriptionSchema), false},
-    {TSDB_INS_TABLE_STREAMS, streamSchema, tListLen(streamSchema), false},
-    {TSDB_INS_TABLE_STREAM_TASKS, streamTaskSchema, tListLen(streamTaskSchema), false},
+    {TSDB_INS_TABLE_STREAMS, userStreamSchema, tListLen(userStreamSchema), false},
+    {TSDB_INS_TABLE_STREAM_TASKS, userStreamTaskSchema, tListLen(userStreamTaskSchema), false},
     {TSDB_INS_TABLE_STREAM_RECALCULATES, streamRecalculateSchema, tListLen(streamRecalculateSchema), false},
     {TSDB_INS_TABLE_VNODES, vnodesSchema, tListLen(vnodesSchema), true},
     {TSDB_INS_TABLE_USER_PRIVILEGES, userUserPrivilegesSchema, tListLen(userUserPrivilegesSchema), true},
@@ -650,6 +650,18 @@ static const SSysDbTableSchema appSchema[] = {
     {.name = "last_access", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
 };
 
+static const SSysDbTableSchema streamMetricSchema[] = {
+    {.name = "module", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "stream_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "stream_id", .bytes = 19 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "id", .bytes = 19 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "id_type", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "value", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "value_type", .bytes = 32 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "value_subtype", .bytes = 32 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "metric_type", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+};
+
 static const SSysTableMeta perfsMeta[] = {
     {TSDB_PERFS_TABLE_CONNECTIONS, connectionsSchema, tListLen(connectionsSchema), false},
     {TSDB_PERFS_TABLE_QUERIES, querySchema, tListLen(querySchema), false},
@@ -657,7 +669,9 @@ static const SSysTableMeta perfsMeta[] = {
     // {TSDB_PERFS_TABLE_OFFSETS, offsetSchema, tListLen(offsetSchema)},
     {TSDB_PERFS_TABLE_TRANS, transSchema, tListLen(transSchema), false},
     // {TSDB_PERFS_TABLE_SMAS, smaSchema, tListLen(smaSchema), false},
-    {TSDB_PERFS_TABLE_APPS, appSchema, tListLen(appSchema), false}};
+    {TSDB_PERFS_TABLE_APPS, appSchema, tListLen(appSchema), false},
+    {TSDB_PERFS_TABLE_STREAM_METRICS, streamMetricSchema, tListLen(streamMetricSchema), false},
+};
 // clang-format on
 
 void getInfosDbMeta(const SSysTableMeta** pInfosTableMeta, size_t* size) {
