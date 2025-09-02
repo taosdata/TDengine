@@ -902,10 +902,18 @@ trigger_table_opt(A) ::= FROM full_table_name(B).                          { A =
 
 /***** stream_partition_by_opt *****/
 
-%type stream_partition_by_opt                                                     { SNodeList* }
-%destructor stream_partition_by_opt                                               { nodesDestroyList($$); }
-stream_partition_by_opt(A) ::= .                                                  { A = NULL; }
-stream_partition_by_opt(A) ::= PARTITION BY column_name_list(B).                  { A = B; }
+%type stream_partition_by_opt                                                                 { SNodeList* }
+%destructor stream_partition_by_opt                                                           { nodesDestroyList($$); }
+stream_partition_by_opt(A) ::= .                                                              { A = NULL; }
+stream_partition_by_opt(A) ::= PARTITION BY stream_partition_list(B).                         { A = B; }
+
+%type stream_partition_list                                                                   { SNodeList* }
+%destructor stream_partition_list                                                             { nodesDestroyList($$); }
+stream_partition_list(A) ::= stream_partition_item(B).                                        { A = createNodeList(pCxt, B); }
+stream_partition_list(A) ::= stream_partition_list(B) NK_COMMA stream_partition_item(C).      { A = addNodeToList(pCxt, B, C); }
+
+stream_partition_item(A) ::= expr_or_subquery(B).                                             { A = releaseRawExprNode(pCxt, B); }
+stream_partition_item(A) ::= expr_or_subquery(B) column_alias(C).                             { A = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, B), &C); }
 
 /***** trigger_options_opt *****/
 
@@ -980,7 +988,7 @@ trigger_col_name(A) ::= TBNAME(B).                                              
 %type event_type_list                                                             { int64_t }
 %destructor event_type_list                                                       { }
 event_type_list(A) ::= event_types(B).                                            { A = B;}
-event_type_list(A) ::= event_type_list(B) NK_BITOR event_types(C).               { A = B | C; }
+event_type_list(A) ::= event_type_list(B) NK_BITOR event_types(C).                { A = B | C; }
 
 %type event_types                                                                 { int64_t }
 %destructor event_types                                                           { }
