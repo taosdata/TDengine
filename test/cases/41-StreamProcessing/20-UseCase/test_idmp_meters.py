@@ -1,12 +1,8 @@
 import time
 import math
 import random
-<<<<<<< HEAD
-from new_test_framework.utils import tdLog, tdSql, tdStream, etool, sc, eutil
-=======
 import os
-from new_test_framework.utils import tdLog, tdSql, tdStream, etool, sc
->>>>>>> main
+from new_test_framework.utils import tdLog, tdSql, tdStream, etool, sc, eutil
 from datetime import datetime
 from datetime import date
 
