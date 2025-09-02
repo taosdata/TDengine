@@ -2005,12 +2005,14 @@ static int32_t appendInsertData(SStreamInserterParam* pInsertParam, const SSData
       stDebug("no valid data to insert, skip this block");
       code = TSDB_CODE_STREAM_NO_DATA;
     }
+    stDebug("appendInsertData, isLastBlock:%d, needSortMerge:%d, totalRows:%" PRId64, dataInsertInfo->isLastBlock, dataInsertInfo->needSortMerge, taosArrayGetSize(tbData->aRowP));
     if (dataInsertInfo->needSortMerge) {
       if ((tRowSort(tbData->aRowP) != TSDB_CODE_SUCCESS) ||
           (code = tRowMerge(tbData->aRowP, (STSchema*)pTSchema, KEEP_CONSISTENCY)) != 0) {
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
+    stDebug("appendInsertData, after merge,,  totalRows:%" PRId64, taosArrayGetSize(tbData->aRowP));
   }
 
 _end:
