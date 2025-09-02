@@ -13571,6 +13571,7 @@ static int32_t createStreamReqBuildNotifyOptions(STranslateContext* pCxt, SStrea
   pReq->notifyEventTypes = (int32_t)pNotifyOptions->eventType;
   pReq->notifyErrorHandle = BIT_FLAG_TEST_MASK(pNotifyOptions->notifyType, NOTIFY_ON_FAILURE_PAUSE);
   pReq->notifyHistory = BIT_FLAG_TEST_MASK(pNotifyOptions->notifyType, NOTIFY_HISTORY);
+  pReq->notifyHasCond = (int8_t)(pNotifyOptions->pWhere != NULL);
   PAR_ERR_JRET(nodesCloneNode(pNotifyOptions->pWhere, pNotifyCond));
 
   return code;
@@ -14051,12 +14052,8 @@ static int32_t createStreamReqSetDefaultOutCols(STranslateContext* pCxt, SCreate
   int32_t bound = LIST_LENGTH(pCalcProjection);
 
   parserDebug("translate create stream req start set default output table's cols");
-  if (pStmt->pTrigger) {
-    SStreamTriggerNode*   pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
-    SStreamNotifyOptions* pNotify = (SStreamNotifyOptions*)pTrigger->pNotify;
-    if (pNotify && pNotify->pWhere) {
-      bound--;  // ignore notify where condition in calculation projection
-    }
+  if (pReq->notifyHasCond) {
+    bound--;  // ignore notify where condition in calculation projection
   }
 
   if (pStmt->pCols) {
