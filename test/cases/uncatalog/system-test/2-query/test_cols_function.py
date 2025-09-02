@@ -1177,7 +1177,7 @@ class TestColsFunction:
         self.orderby_test("(select *, tbname from test.long_col_test)", "longcolumntestlongcolumntestlongcolumntestlongcolumntest88888888", True)
         tdLog.info("long_column_name_test subquery_test: one_cols_multi_output_with_group_test from meters")
                 
-    def test_in_interval(self, cachemodel):
+    def check_in_interval(self, cachemodel):
         dbname = "db1"
         tdSql.execute(f"drop database if exists {dbname} ")
         tdSql.execute(f"create database {dbname} cachemodel '{cachemodel}' vgroups 6")
@@ -1334,7 +1334,7 @@ class TestColsFunction:
         tdSql.error(f'select tbname, cols(last(ts), *) from test.meters group by tbname having cols(last(ts), *) = 1734574929000')
 
         
-    def test_null2(self, cachemodel):
+    def check_null2(self, cachemodel):
         dbname = "test_null2"
         tdSql.execute(f"drop database if exists {dbname}")
         tdSql.execute(f"create database test_null2 cachemodel '{cachemodel}' vgroups 5")
@@ -1401,19 +1401,37 @@ class TestColsFunction:
         self.subquery_test()
         self.window_test()
         self.join_test()
-        self.test_in_interval(cachemodel)
+        self.check_in_interval(cachemodel)
         self.include_null_test()
         self.long_column_name_test()
 
         self.having_test("test.meters", False)
         self.having_test("(select tbname, * from test.meters)", True)
         self.star_test()
-        self.test_null2(cachemodel)
+        self.check_null2(cachemodel)
         self.window_test2()
         self.stream_cols_test()
         self.stream_cols_test2(cachemodel)
 
-    def run(self):
+    def test_run(self):
+        """summary: xxx
+        
+        xx
+        
+        Since: xxx
+        
+        Labels: xxx
+        
+        Jira: xxx
+        
+        Catalog:
+            - xxx:xxx
+            
+        History:
+            - xxx
+            - xxx
+        """
+        
         self.run_basic('none')
         self.run_basic('last_value')
         self.run_basic('last_row')
