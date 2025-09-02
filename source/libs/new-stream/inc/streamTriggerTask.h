@@ -28,7 +28,7 @@ extern "C" {
 
 #define TRIGGER_USE_HISTORY_META 0  // todo(kjq): remove the flag
 
-#define SKIP_SEND_CALC_REQUEST
+// #define SKIP_SEND_CALC_REQUEST
 
 typedef struct SSTriggerVirTableInfo {
   int64_t tbGid;
@@ -142,6 +142,8 @@ typedef struct SSTriggerRealtimeContext {
 
   // these fields are shared by all groups and do not need to be destroyed
   bool                  needPseudoCols;
+  bool                  needSaveWindow;
+  bool                  needCheckAgain;
   STimeWindow           periodWindow;  // for period trigger
   SSTriggerCalcRequest *pCalcReq;
   // these fields are shared by all groups and need to be destroyed

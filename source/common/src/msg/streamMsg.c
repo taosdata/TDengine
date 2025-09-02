@@ -3818,20 +3818,12 @@ static int32_t tSerializeSTriggerCalcParam(SEncoder* pEncoder, SArray* pParams, 
     if (param == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }
+    int64_t plainFieldSize = offsetof(SSTriggerCalcParam, notifyType);
+    if (pEncoder->data) {
+      TAOS_MEMCPY(pEncoder->data + pEncoder->pos, param, plainFieldSize);
+    }
+    pEncoder->pos += plainFieldSize;
 
-    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->prevTs));
-    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->currentTs));
-    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->nextTs));
-
-    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->wstart));
-    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->wend));
-    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->wduration));
-    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->wrownum));
-
-    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->prevLocalTime));
-    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->nextLocalTime));
-
-    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->triggerTime));
     if (!ignoreNotificationInfo) {
       TAOS_CHECK_EXIT(tEncodeI32(pEncoder, param->notifyType));
       uint64_t len = (param->extraNotifyContent != NULL) ? strlen(param->extraNotifyContent) + 1 : 0;
@@ -3872,19 +3864,10 @@ static int32_t tDeserializeSTriggerCalcParam(SDecoder* pDecoder, SArray**ppParam
     if (param == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }
-    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->prevTs));
-    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->currentTs));
-    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->nextTs));
+    int64_t plainFieldSize = offsetof(SSTriggerCalcParam, notifyType);
+    TAOS_MEMCPY(param, pDecoder->data + pDecoder->pos, plainFieldSize);
+    pDecoder->pos += plainFieldSize;
 
-    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->wstart));
-    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->wend));
-    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->wduration));
-    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->wrownum));
-
-    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->prevLocalTime));
-    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->nextLocalTime));
-
-    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->triggerTime));
     if (!ignoreNotificationInfo) {
       TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &param->notifyType));
       uint64_t len = 0;

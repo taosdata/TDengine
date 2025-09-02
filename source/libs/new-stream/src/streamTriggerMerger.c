@@ -1462,7 +1462,7 @@ void stNewTimestampSorterReset(SSTriggerNewTimestampSorter *pSorter) {
   }
 }
 
-int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_t startTime, SSDataBlock *pDataBlock,
+int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, SArray *pMetas, SSDataBlock *pDataBlock,
                                     int32_t tsSlotId, int32_t startIdx, int32_t endIdx) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
@@ -1477,14 +1477,23 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
   // collect all data slices; data in each slice is in ascending order
   SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, tsSlotId);
   QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
-  int64_t *pTsData = (int64_t *)pTsCol->pData;
-  int32_t  i = startIdx;
-  while (i < endIdx) {
-    while (i < endIdx && pTsData[i] <= startTime) {
+  int64_t         *pTsData = (int64_t *)pTsCol->pData;
+  SColumnInfoData *pVerCol = taosArrayGetLast(pDataBlock->pDataBlock);
+  QUERY_CHECK_NULL(pVerCol, code, lino, _end, terrno);
+  int64_t           *pVerData = (int64_t *)pVerCol->pData;
+  int32_t            i = startIdx;
+  SSTriggerMetaData *pMeta = TARRAY_DATA(pMetas);
+  SSTriggerMetaData *pMetaEnd = pMeta + TARRAY_SIZE(pMetas);
+  while (i < endIdx && pMeta < pMetaEnd) {
+    if (pVerData[i] < pMeta->ver) {
       i++;
-    }
-    if (i >= endIdx) {
-      break;
+    } else if (pVerData[i] > pMeta->ver) {
+      pMeta++;
+    } else if (pTsData[i] < pMeta->skey) {
+      i++;
+    } else if (pTsData[i] > pMeta->ekey) {
+      i++;
+      pMeta++;
     }
     SNewTimestampSorterSlice slice = {.startIdx = i, .endIdx = i + 1};
     while (slice.endIdx < endIdx && pTsData[slice.endIdx - 1] < pTsData[slice.endIdx]) {
@@ -1778,7 +1787,7 @@ void stNewVtableMergerReset(SSTriggerNewVtableMerger *pMerger) {
   }
 }
 
-int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t startTime, SArray *pTableColRefs,
+int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, SSHashObj *pMetas, SArray *pTableColRefs,
                                  SSHashObj *pSlices) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
@@ -1813,7 +1822,11 @@ int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t star
       code = stNewTimestampSorterInit(pReaderInfo->pReader, pTask);
       QUERY_CHECK_CODE(code, lino, _end);
     }
-    code = stNewTimestampSorterSetData(pReaderInfo->pReader, startTime, pSlice->pDataBlock, 0, pSlice->startIdx,
+    void *px = tSimpleHashGet(pMetas, &pColRef->otbVgId, sizeof(int32_t));
+    QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    SArray *pMeta = *(SArray **)px;
+    QUERY_CHECK_NULL(pMeta, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    code = stNewTimestampSorterSetData(pReaderInfo->pReader, pMeta, pSlice->pDataBlock, 0, pSlice->startIdx,
                                        pSlice->endIdx);
     QUERY_CHECK_CODE(code, lino, _end);
     pReaderInfo->pColRef = pColRef;

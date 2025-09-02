@@ -1827,8 +1827,8 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
         }
         pProgress->pVersions = taosArrayInit(0, sizeof(int64_t));
         QUERY_CHECK_NULL(pProgress->pVersions, code, lino, _end, terrno);
-        code = createDataBlock(&pProgress->pDataBlock);
-        QUERY_CHECK_CODE(code, lino, _end);
+        pProgress->pDataBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+        QUERY_CHECK_NULL(pProgress->pDataBlock, code, lino, _end, terrno);
       }
       break;
     }
@@ -2033,15 +2033,20 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
   pContext->pTask = pTask;
   pContext->sessionId = STREAM_TRIGGER_REALTIME_SESSIONID;
 
-  if (pTask->watermark > 0) {
-    pContext->walMode = STRIGGER_WAL_META_THEN_DATA;
-  } else if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
-    pContext->walMode = STRIGGER_WAL_META_ONLY;
-    if (pTask->triggerFilter != NULL || pTask->hasTriggerFilter || pTask->ignoreNoDataTrigger) {
-      pContext->walMode = STRIGGER_WAL_META_WITH_DATA;
+  bool needTrigData = true;
+  if ((pTask->triggerType == STREAM_TRIGGER_PERIOD) || (pTask->triggerType == STREAM_TRIGGER_SLIDING)) {
+    needTrigData = false;
+    if (pTask->triggerFilter != NULL || pTask->hasTriggerFilter || (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM) ||
+        pTask->ignoreNoDataTrigger) {
+      needTrigData = true;
     }
-  } else {
+  }
+  if (!needTrigData) {
+    pContext->walMode = STRIGGER_WAL_META_ONLY;
+  } else if (pTask->watermark == 0) {
     pContext->walMode = STRIGGER_WAL_META_WITH_DATA;
+  } else {
+    pContext->walMode = STRIGGER_WAL_META_THEN_DATA;
   }
 
   pContext->pReaderWalProgress = tSimpleHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
@@ -2070,8 +2075,8 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
     }
     pProgress->pVersions = taosArrayInit(0, sizeof(int64_t));
     QUERY_CHECK_NULL(pProgress->pVersions, code, lino, _end, terrno);
-    code = createDataBlock(&pProgress->pDataBlock);
-    QUERY_CHECK_CODE(code, lino, _end);
+    pProgress->pDataBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+    QUERY_CHECK_NULL(pProgress->pDataBlock, code, lino, _end, terrno);
   }
 
   pContext->pMetaBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
@@ -5464,7 +5469,7 @@ static int32_t stRealtimeGroupAddSingleMeta(SSTriggerRealtimeGroup *pGroup, int3
   }
   pMeta->skey = TMAX(pMeta->skey, pGroup->oldThreshold + 1);
   if (pTask->ignoreDisorder) {
-    pMeta->skey = TMAX(pMeta->skey, pGroup->newThreshold + 1);
+    pMeta->skey = TMAX(pMeta->skey, pGroup->newThreshold - pTask->watermark + 1);
   }
   if (pMeta->skey <= pMeta->ekey) {
     void *px = taosArrayPush(pMetas, pMeta);
@@ -6377,6 +6382,9 @@ static int32_t stRealtimeGroupCheck(SSTriggerRealtimeGroup *pGroup) {
 
   if (pGroup->oldThreshold == pGroup->newThreshold) {
     return TSDB_CODE_SUCCESS;
+  }
+
+  if (!pContext->needCheckAgain) {
   }
 
   switch (pTask->triggerType) {

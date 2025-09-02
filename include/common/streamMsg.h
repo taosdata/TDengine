@@ -901,21 +901,26 @@ int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPull
 void    tDestroySTriggerPullRequest(SSTriggerPullRequestUnion* pReq);
 
 typedef struct SSTriggerCalcParam {
-  // These fields only have values when used in the statement, otherwise they are 0
-  // Placeholder for Sliding Trigger
-  int64_t prevTs;
-  int64_t currentTs;
-  int64_t nextTs;
-
-  // Placeholder for Window Trigger
-  int64_t wstart;
-  int64_t wend;
-  int64_t wduration;
-  int64_t wrownum;
-
-  // Placeholder for Period Trigger
-  int64_t prevLocalTime;
-  int64_t nextLocalTime;
+  union {
+    struct {
+      // Placeholder for Sliding Trigger
+      int64_t prevTs;
+      int64_t currentTs;
+      int64_t nextTs;
+    };
+    struct {
+      // Placeholder for Window Trigger
+      int64_t wstart;
+      int64_t wend;
+      int64_t wduration;
+      int64_t wrownum;
+    };
+    struct {
+      // Placeholder for Period Trigger
+      int64_t prevLocalTime;
+      int64_t nextLocalTime;
+    };
+  };
 
   // General Placeholder
   int64_t triggerTime;  // _tlocaltime

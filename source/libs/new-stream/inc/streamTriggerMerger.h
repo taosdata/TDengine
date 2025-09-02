@@ -378,14 +378,14 @@ void stNewTimestampSorterReset(SSTriggerNewTimestampSorter *pSorter);
  * @brief Set the table data for the timestamp sorter
  *
  * @param pSorter The SSTriggerNewTimestampSorter instance to set the data
- * @param startTime The start time to read data
+ * @param pMetas The metadatas of current table
  * @param pDataBlock The data block to be sorted
  * @param tsSlotId The index of the timestamp column in the data block, starting from 0
  * @param startIdx The start row index in the data block
  * @param endIdx The end row index in the data block
  * @return int32_t Status code indicating success or error
  */
-int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_t startTime, SSDataBlock *pDataBlock,
+int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, SArray *pMetas, SSDataBlock *pDataBlock,
                                     int32_t tsSlotId, int32_t startIdx, int32_t endIdx);
 
 /**
@@ -448,12 +448,12 @@ void stNewVtableMergerReset(SSTriggerNewVtableMerger *pMerger);
  * @brief Set the data for the vtable merger
  *
  * @param pMerger The SSTriggerNewVtableMerger instance responsible for merging
- * @param startTime The start time to read data
+ * @param pMetas The metadatas of all original tables
  * @param pTableColRefs Array of table column references, each containing original and virtual table column mappings
  * @param pSlices The hash map from original table uid to its data slice
  * @return int32_t
  */
-int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t startTime, SArray *pTableColRefs,
+int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, SSHashObj *pMetas, SArray *pTableColRefs,
                                  SSHashObj *pSlices);
 
 /**

@@ -2887,7 +2887,6 @@ static int32_t vnodeProcessStreamWalMetaNewReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   int32_t      lino = 0;
   void*        buf = NULL;
   size_t       size = 0;
-  SSDataBlock* pBlock = NULL;
   int64_t      lastVer = 0;
   int32_t      totalRows = 0;  
   SSTriggerWalNewRsp resultRsp = {0};
@@ -2905,12 +2904,12 @@ static int32_t vnodeProcessStreamWalMetaNewReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   STREAM_CHECK_RET_GOTO(processWalVerMetaNew(pVnode, &resultRsp, sStreamReaderInfo,
                                 req->walMetaNewReq.lastVer, req->walMetaNewReq.ctime, &lastVer, &totalRows));
 
-  ST_TASK_DLOG("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock->info.rows);
+  ST_TASK_DLOG("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, sStreamReaderInfo->metaBlock->info.rows);
   STREAM_CHECK_CONDITION_GOTO(totalRows == 0, TDB_CODE_SUCCESS);
   size = tSerializeSStreamWalDataResponse(NULL, 0, &resultRsp, NULL);
   buf = rpcMallocCont(size);
   tSerializeSStreamWalDataResponse(buf, size, &resultRsp, NULL);
-  printDataBlock(pBlock, __func__, "");
+  printDataBlock(sStreamReaderInfo->metaBlock, __func__, "");
 
 end:
   if (totalRows == 0) {
