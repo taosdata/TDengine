@@ -2352,6 +2352,7 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
     TAOS_CHECK_EXIT(tEncodeU8(pEncoder, pCoutCol->type.scale));
     TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pCoutCol->type.bytes));
   }
+  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->notifyHasCond));
 
 _exit:
 
@@ -2630,6 +2631,9 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
         TAOS_CHECK_EXIT(terrno);
       }
     }
+  }
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->notifyHasCond));
   }
 
 _exit:

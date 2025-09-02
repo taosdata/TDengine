@@ -253,6 +253,7 @@ typedef struct {
   int32_t notifyEventTypes;
   int32_t notifyErrorHandle;
   int8_t  notifyHistory;
+  int8_t  notifyHasCond;
 
   void*          triggerFilterCols;     // nodelist of SColumnNode
   void*          triggerCols;           // nodelist of SColumnNode
