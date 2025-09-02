@@ -331,10 +331,10 @@ gcc -g -O0 -fPIC -shared extract_vag.c -o libextract_avg.so
 ```
 
 <details>
-<summary>max_vol.c</summary>
+<summary>extract_avg.c</summary>
 
 ```c
-{{#include test/cases/23-UDFs/sh/max_vol.c}}
+{{#include test/cases/23-UDFs/sh/extract_avg.c}}
 ```
 
 </details>
