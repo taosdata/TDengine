@@ -117,7 +117,8 @@ static int32_t saveMultiRows(SArray* pRow, SSDataBlock* pResBlock,
     if (colTs < minTs) {
       // find smaller timestamp, which means a new row appears
       minTs = colTs;
-      blockDataEnsureCapacity(pResBlock, pResBlock->info.rows+1);
+      code = blockDataEnsureCapacity(pResBlock, pResBlock->info.rows+1);
+      TSDB_CHECK_CODE(code, lino, _end);
       pResBlock->info.rows += 1;
     }
     int32_t rowIndex = pResBlock->info.rows - 1; // row index of this new row

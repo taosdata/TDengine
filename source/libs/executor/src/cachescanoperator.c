@@ -300,7 +300,8 @@ static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     SSDataBlock* pRes = pInfo->pRes;
 
     if (pBufRes->info.rows > 0) {
-      copyDataBlock(pRes, pBufRes);
+      code = copyDataBlock(pRes, pBufRes);
+      QUERY_CHECK_CODE(code, lino, _end);
 
       void* pUid = taosArrayGet(pInfo->pUidList, 0);
       QUERY_CHECK_NULL(pUid, code, lino, _end, terrno);
