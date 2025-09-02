@@ -3541,6 +3541,18 @@ static int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *p
         // Not in RocksDB either, need to load from raw TSDB data
         // For row-based cache, we would need to implement row-based raw data loading
         // For now, keep the NONE values that were already set
+        SArray *remainCols = taosArrayInit(numKeys, sizeof(SIdxKey));
+        for (int i = 0; i < numKeys; ++i) {
+          int16_t  cid = ((int16_t *)TARRAY_DATA(pCidList))[i];
+          SLastKey key = {.lflag = ltype, .uid = uid, .cid = cid};
+          SIdxKey  idxKey = {.idx = i, .key = key};
+          taosArrayPush(remainCols, &idxKey);
+        }
+        code = tsdbCacheLoadFromRaw(pTsdb, uid, pLastArray, remainCols, pr, ltype);
+        if (code) {
+          TAOS_CHECK_GOTO(code, &lino, _exit);
+        }
+        taosArrayDestroy(remainCols);
       }
 
       // Clean up RocksDB values
