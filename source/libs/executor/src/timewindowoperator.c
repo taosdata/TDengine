@@ -1850,6 +1850,7 @@ int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWindowPhy
   pInfo->tsSlotId = tsSlotId;
   pInfo->pOperator = pOperator;
   pInfo->cleanGroupResInfo = false;
+  pInfo->extendOption = pStateNode->extendOption;
   pInfo->trueForLimit = pStateNode->trueForLimit;
   setOperatorInfo(pOperator, "StateWindowOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE, true, OP_NOT_OPENED, pInfo,
                   pTaskInfo);

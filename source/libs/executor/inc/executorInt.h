@@ -710,6 +710,7 @@ typedef struct SStateWindowOperatorInfo {
   struct SOperatorInfo* pOperator;
   bool                  cleanGroupResInfo;
   int64_t               trueForLimit;
+  EStateWinExtendOption extendOption;
 } SStateWindowOperatorInfo;
 
 
