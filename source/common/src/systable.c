@@ -597,7 +597,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_TRANSACTION_DETAILS, userTransactionDetailSchema, tListLen(userTransactionDetailSchema), false},
     {TSDB_INS_TABLE_MOUNTS, mountSchema, tListLen(mountSchema), true},
     {TSDB_INS_TABLE_RSMAS, rsmaSchema, tListLen(rsmaSchema), false},
-    {TSDB_INS_TABLE_RSMA_TASKS, rsmaSchema, tListLen(rsmaSchema), false},
+    {TSDB_INS_TABLE_RSMA_TASKS, rsmaTaskSchema, tListLen(rsmaTaskSchema), false},
 };
 
 static const SSysDbTableSchema connectionsSchema[] = {

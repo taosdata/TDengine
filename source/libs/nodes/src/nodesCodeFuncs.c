@@ -351,6 +351,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowMountsStmt";
     case QUERY_NODE_SHOW_RSMAS_STMT:
       return "ShowRsmasStmt";
+    case QUERY_NODE_SHOW_RSMA_TASKS_STMT:
+      return "ShowRsmaTasksStmt";
     case QUERY_NODE_DELETE_STMT:
       return "DeleteStmt";
     case QUERY_NODE_INSERT_STMT:
@@ -9628,6 +9630,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return showMountsStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_RSMAS_STMT:
       return showRsmasStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_RSMA_TASKS_STMT:
+      return showRsmasStmtToJson(pObj, pJson);
     case QUERY_NODE_DELETE_STMT:
       return deleteStmtToJson(pObj, pJson);
     case QUERY_NODE_INSERT_STMT:
@@ -10024,6 +10028,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_SHOW_MOUNTS_STMT:
       return jsonToShowMountsStmt(pJson, pObj);
     case QUERY_NODE_SHOW_RSMAS_STMT:
+      return jsonToShowRsmasStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_RSMA_TASKS_STMT:
       return jsonToShowRsmasStmt(pJson, pObj);
     case QUERY_NODE_DELETE_STMT:
       return jsonToDeleteStmt(pJson, pObj);
