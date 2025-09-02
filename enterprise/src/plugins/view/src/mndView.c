@@ -983,13 +983,13 @@ int32_t mndValidateViewInfo(SMnode *pMnode, SViewVersion *pViewVersions, int32_t
       metaRsp->numOfCols = -1;
       metaRsp->viewId = pViewVersion->viewId;
       metaRsp->dbId = pViewVersion->dbId;
-      metaRsp->user = taosMemoryCalloc(0, 0);
+      metaRsp->user = taosMemoryCalloc(1, 1);
       if (NULL == metaRsp->user) {
         code = terrno;
         tFreeSViewMetaRsp(metaRsp);
         goto _OVER;
       }
-      metaRsp->querySql = taosMemoryCalloc(0, 0);
+      metaRsp->querySql = taosMemoryCalloc(1, 1);
       if (NULL == metaRsp->querySql) {
         code = terrno;
         tFreeSViewMetaRsp(metaRsp);
@@ -1017,14 +1017,14 @@ int32_t mndValidateViewInfo(SMnode *pMnode, SViewVersion *pViewVersions, int32_t
       metaRsp->numOfCols = -1;
       metaRsp->viewId = pViewVersion->viewId;
       metaRsp->dbId = pViewVersion->dbId;
-      metaRsp->user = taosMemoryCalloc(0, 0);
+      metaRsp->user = taosMemoryCalloc(1, 1);
       if (NULL == metaRsp->user) {
         code = terrno;
         tFreeSViewMetaRsp(metaRsp);
         mndReleaseView(pMnode, pView);      
         goto _OVER;
       }
-      metaRsp->querySql = taosMemoryCalloc(0, 0);
+      metaRsp->querySql = taosMemoryCalloc(1, 1);
       if (NULL == metaRsp->querySql) {
         code = terrno;
         tFreeSViewMetaRsp(metaRsp);
