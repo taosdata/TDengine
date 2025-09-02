@@ -25,7 +25,7 @@ class TestStreamNotifyTrigger:
         Jira: None
 
         History:
-            - 2025-5-26 Guoxy Created
+            - 2025-5-26 HaojunLiao Created
 
         """
 
@@ -35,12 +35,12 @@ class TestStreamNotifyTrigger:
         streams = []
 
         # streams.append(self.Basic1())    # OK
-        # streams.append(self.Basic2())    # OK
+        streams.append(self.Basic2())    # OK
         # streams.append(self.Basic3())    # failed
-        # streams.append(self.Basic4())    # OK
-        # streams.append(self.Basic5())    # OK
+        streams.append(self.Basic4())    # OK
+        streams.append(self.Basic5())    # OK
         # streams.append(self.Basic6())    # failed
-        # streams.append(self.Basic7())      # OK
+        streams.append(self.Basic7())      # OK
         # streams.append(self.Basic8())      # OK
         # streams.append(self.Basic9())      # OK
         # streams.append(self.Basic10())      # failed

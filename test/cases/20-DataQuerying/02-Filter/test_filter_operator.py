@@ -2661,7 +2661,7 @@ class TestFilterOperator:
             f"select c1 from stb1 where c1 >= 5 or c1 != 4 or c1 <> 3 or c1 = 2"
         )
         tdLog.info(
-            f"====> sql : sselect c1 from stb1 where c1 >= 5 or c1 != 4 or c1 <> 3 or c1 = 2"
+            f"====> sql : select c1 from stb1 where c1 >= 5 or c1 != 4 or c1 <> 3 or c1 = 2"
         )
         tdSql.checkRows(32)
 
@@ -2897,7 +2897,7 @@ class TestFilterOperator:
             f"select c1 from stb1 where c1 >= 5 or c1 != 4 or c1 <> 3 or c1 = 2"
         )
         tdLog.info(
-            f"====> sql : sselect c1 from stb1 where c1 >= 5 or c1 != 4 or c1 <> 3 or c1 = 2"
+            f"====> sql : select c1 from stb1 where c1 >= 5 or c1 != 4 or c1 <> 3 or c1 = 2"
         )
         tdSql.checkRows(32)
 

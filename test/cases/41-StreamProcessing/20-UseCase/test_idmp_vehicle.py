@@ -1,6 +1,7 @@
 import time
 import math
 import random
+import os
 from new_test_framework.utils import tdLog, tdSql, tdStream, etool, sc
 from datetime import datetime
 from datetime import date
@@ -12,7 +13,7 @@ class Test_IDMP_Vehicle:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_usecase_em(self):
-        """Nevados
+        """IDMP: vehicle scenario
 
         Refer: https://taosdata.feishu.cn/wiki/Zkb2wNkHDihARVkGHYEcbNhmnxb
 
@@ -93,8 +94,7 @@ class Test_IDMP_Vehicle:
 
 
         # import data
-        etool.taosdump(f"-i cases/41-StreamProcessing/20-UseCase/vehicle_data/")
-
+        etool.taosdump(f"-i {os.path.join(os.path.dirname(__file__), 'vehicle_data')}")
         tdLog.info(f"import data to db={self.db}. successfully.")
 
 

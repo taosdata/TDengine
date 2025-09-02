@@ -1,7 +1,12 @@
 import time
 import math
 import random
+<<<<<<< HEAD
 from new_test_framework.utils import tdLog, tdSql, tdStream, etool, sc, eutil
+=======
+import os
+from new_test_framework.utils import tdLog, tdSql, tdStream, etool, sc
+>>>>>>> main
 from datetime import datetime
 from datetime import date
 
@@ -12,7 +17,7 @@ class Test_IDMP_Meters:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_usecase_em(self):
-        """Nevados
+        """IDMP: meters scenario
 
         Refer: https://taosdata.feishu.cn/wiki/Zkb2wNkHDihARVkGHYEcbNhmnxb
 
@@ -102,8 +107,7 @@ class Test_IDMP_Meters:
         self.notifyFailed = "failed to get stream notify handle of ws://idmp:6042/recv/?key="
 
         # import data
-        etool.taosdump(f"-i cases/41-StreamProcessing/20-UseCase/meters_data/data/")
-
+        etool.taosdump(f"-i {os.path.join(os.path.dirname(__file__), 'meters_data', 'data')}")
         tdLog.info(f"import data to db={self.db} successfully.")
 
 
