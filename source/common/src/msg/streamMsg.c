@@ -4375,40 +4375,40 @@ _exit:
 int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalMetaNewRsp* metaBlock, SSHashObj* indexHash) {
   SEncoder encoder = {0};
   int32_t  code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-  int32_t tlen = 0;
+  int32_t  lino = 0;
+  int32_t  tlen = 0;
 
   tEncoderInit(&encoder, buf, bufLen);
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
 
-  if (((SSDataBlock*)metaBlock->dataBlock)->info.rows > 0) {
-    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 1)); // has real data
+  if (metaBlock->dataBlock != NULL && ((SSDataBlock*)metaBlock->dataBlock)->info.rows > 0) {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 1));  // has real data
     TAOS_CHECK_EXIT(encodeData(&encoder, metaBlock->dataBlock, indexHash));
   } else {
-    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 0)); // no real data
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 0));  // no real data
   }
 
   if (metaBlock->metaBlock != NULL && ((SSDataBlock*)metaBlock->metaBlock)->info.rows > 0) {
-    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 1)); // has metada
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 1));  // has metada
     TAOS_CHECK_EXIT(encodeData(&encoder, metaBlock->metaBlock, NULL));
   } else {
-    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 0)); // no meta data
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 0));  // no meta data
   }
 
-  if (((SSDataBlock*)metaBlock->deleteBlock)->info.rows > 0) {
-    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 1)); // has deletedata
+  if (metaBlock->deleteBlock != NULL && ((SSDataBlock*)metaBlock->deleteBlock)->info.rows > 0) {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 1));  // has deletedata
     TAOS_CHECK_EXIT(encodeData(&encoder, metaBlock->deleteBlock, NULL));
   } else {
-    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 0)); // no delete data
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 0));  // no delete data
   }
 
-  if (((SSDataBlock*)metaBlock->dropBlock)->info.rows > 0) {
-    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 1)); // has drop table data
+  if (metaBlock->dropBlock != NULL && ((SSDataBlock*)metaBlock->dropBlock)->info.rows > 0) {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 1));  // has drop table data
     TAOS_CHECK_EXIT(encodeData(&encoder, metaBlock->dropBlock, NULL));
   } else {
-    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 0)); // no drop table data
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 0));  // no drop table data
   }
-  
+
   tEndEncode(&encoder);
 
 _exit:

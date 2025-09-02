@@ -2074,12 +2074,12 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  code = createDataBlock(&pContext->pMetaBlock);
-  QUERY_CHECK_CODE(code, lino, _end);
-  code = createDataBlock(&pContext->pDeleteBlock);
-  QUERY_CHECK_CODE(code, lino, _end);
-  code = createDataBlock(&pContext->pDropBlock);
-  QUERY_CHECK_CODE(code, lino, _end);
+  pContext->pMetaBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  QUERY_CHECK_NULL(pContext->pMetaBlock, code, lino, _end, terrno);
+  pContext->pDeleteBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  QUERY_CHECK_NULL(pContext->pDeleteBlock, code, lino, _end, terrno);
+  pContext->pDropBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  QUERY_CHECK_NULL(pContext->pDropBlock, code, lino, _end, terrno);
   pContext->pTempSlices = taosArrayInit(0, sizeof(int64_t) * 3);
   QUERY_CHECK_NULL(pContext->pTempSlices, code, lino, _end, terrno);
   pContext->pSlices = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
@@ -5302,6 +5302,16 @@ _end:
   return code;
 }
 
+static void stRealtimeGroupDestroyWalMeta(void *ptr) {
+  SArray **ppMetas = ptr;
+  if (ppMetas == NULL || *ppMetas == NULL) {
+    return;
+  }
+
+  taosArrayDestroy(*ppMetas);
+  *ppMetas = NULL;
+}
+
 static int32_t stRealtimeGroupWindowCompare(const void *pLeft, const void *pRight) {
   const SSTriggerWindow *pLeftWin = (const SSTriggerWindow *)pLeft;
   const SSTriggerWindow *pRightWin = (const SSTriggerWindow *)pRight;
@@ -5328,7 +5338,7 @@ static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerReal
 
   pGroup->pWalMetas = tSimpleHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
   QUERY_CHECK_NULL(pGroup->pWalMetas, code, lino, _end, terrno);
-  tSimpleHashSetFreeFp(pGroup->pWalMetas, (FDelete)taosArrayDestroy);
+  tSimpleHashSetFreeFp(pGroup->pWalMetas, stRealtimeGroupDestroyWalMeta);
 
   pGroup->pTableUids = taosArrayInit(0, sizeof(int64_t));
   QUERY_CHECK_NULL(pGroup->pTableUids, code, lino, _end, terrno);
@@ -5413,7 +5423,7 @@ static void stRealtimeGroupClearMetadatas(SSTriggerRealtimeGroup *pGroup, int64_
     int32_t iter = 0;
     void   *px = tSimpleHashIterate(pGroup->pWalMetas, NULL, &iter);
     while (px != NULL) {
-      SArray *pMetas = px;
+      SArray *pMetas = *(SArray **)px;
       taosArrayClear(pMetas);
       px = tSimpleHashIterate(pGroup->pWalMetas, px, &iter);
     }
@@ -5431,12 +5441,15 @@ static int32_t stRealtimeGroupAddSingleMeta(SSTriggerRealtimeGroup *pGroup, int3
   SArray                   *pMetas = NULL;
 
   pGroup->vgId = vgId;
-  pMetas = tSimpleHashGet(pGroup->pWalMetas, &vgId, sizeof(int32_t));
-  if (pMetas == NULL) {
+  void *px = tSimpleHashGet(pGroup->pWalMetas, &vgId, sizeof(int32_t));
+  if (px == NULL) {
     pMetas = taosArrayInit(0, sizeof(SSTriggerMetaData));
     QUERY_CHECK_NULL(pMetas, code, lino, _end, terrno);
     code = tSimpleHashPut(pGroup->pWalMetas, &vgId, sizeof(int32_t), &pMetas, POINTER_BYTES);
     QUERY_CHECK_CODE(code, lino, _end);
+  } else {
+    pMetas = *(SArray **)px;
+    QUERY_CHECK_NULL(pMetas, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   }
   if (pMeta->skey <= pGroup->oldThreshold && !pTask->ignoreDisorder) {
     STimeWindow range = {.skey = pMeta->skey, .ekey = pMeta->ekey};
@@ -6017,13 +6030,14 @@ static int32_t stRealtimeGroupDoSlidingCheck(SSTriggerRealtimeGroup *pGroup) {
     if (IS_TRIGGER_GROUP_NONE_WINDOW(pGroup)) {
       int64_t ts = INT64_MAX;
       int32_t iter = 0;
-      SArray *pMetas = tSimpleHashIterate(pGroup->pWalMetas, NULL, &iter);
-      while (pMetas != NULL) {
+      void   *px = tSimpleHashIterate(pGroup->pWalMetas, NULL, &iter);
+      while (px != NULL) {
+        SArray *pMetas = *(SArray **)px;
         for (int32_t i = 0; i < TARRAY_SIZE(pMetas); i++) {
           SSTriggerMetaData *pMeta = TARRAY_GET_ELEM(pMetas, i);
           ts = TMIN(ts, pMeta->skey);
         }
-        pMetas = tSimpleHashIterate(pGroup->pWalMetas, pMetas, &iter);
+        px = tSimpleHashIterate(pGroup->pWalMetas, px, &iter);
       }
       QUERY_CHECK_CONDITION(ts != INT64_MAX, code, lino, _end, TSDB_CODE_INVALID_PARA);
       if (ts > pGroup->newThreshold) {

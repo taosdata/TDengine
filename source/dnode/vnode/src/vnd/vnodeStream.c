@@ -937,7 +937,7 @@ static int32_t scanWalNew(SVnode* pVnode, SSTriggerWalMetaNewRsp* rsp, SStreamTr
   *retVer = walGetAppliedVer(pWalReader->pWal);
   STREAM_CHECK_CONDITION_GOTO(walReaderSeekVer(pWalReader, lastVer + 1) != 0, TSDB_CODE_SUCCESS);
 
-  STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(rsp->dataBlock, STREAM_RETURN_ROWS_NUM));
+  STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(rsp->metaBlock, STREAM_RETURN_ROWS_NUM));
   while (1) {
     *retVer = walGetAppliedVer(pWalReader->pWal);
     STREAM_CHECK_CONDITION_GOTO(walNextValidMsg(pWalReader, true) < 0, TSDB_CODE_SUCCESS);
@@ -953,8 +953,8 @@ static int32_t scanWalNew(SVnode* pVnode, SSTriggerWalMetaNewRsp* rsp, SStreamTr
     if (wCont->msgType == TDMT_VND_SUBMIT) {
       data = POINTER_SHIFT(wCont->body, sizeof(SSubmitReq2Msg));
       len = wCont->bodyLen - sizeof(SSubmitReq2Msg);
-      STREAM_CHECK_RET_GOTO(scanSubmitDataForMeta(sStreamInfo, rsp->dataBlock, data, len, ver));
-      *totalRows += ((SSDataBlock*)rsp->dataBlock)->info.rows;
+      STREAM_CHECK_RET_GOTO(scanSubmitDataForMeta(sStreamInfo, rsp->metaBlock, data, len, ver));
+      *totalRows += ((SSDataBlock*)rsp->metaBlock)->info.rows;
     } else {
       STREAM_CHECK_RET_GOTO(processMeta(wCont->msgType, sStreamInfo, data, len, rsp, ver));
       if (rsp->deleteBlock != NULL && ((SSDataBlock*)rsp->deleteBlock)->info.rows > 0){
@@ -2882,7 +2882,7 @@ static int32_t vnodeProcessStreamWalMetaNewReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   ST_TASK_DLOG("vgId:%d %s start, request paras lastVer:%" PRId64, TD_VID(pVnode), __func__, req->walMetaNewReq.lastVer);
 
   STREAM_CHECK_RET_GOTO(createBlockForWalMetaNew(&pBlock, sStreamReaderInfo->isVtableStream));
-  resultRsp.dataBlock = pBlock;
+  resultRsp.metaBlock = pBlock;
   STREAM_CHECK_RET_GOTO(scanWalNew(pVnode, &resultRsp, sStreamReaderInfo,
                                 req->walMetaNewReq.lastVer, req->walMetaNewReq.ctime, &lastVer, &totalRows));
 
@@ -2931,7 +2931,7 @@ static int32_t vnodeProcessStreamWalMetaDataNewReq(SVnode* pVnode, SRpcMsg* pMsg
   if (sStreamReaderInfo->metaBlock == NULL) {
     STREAM_CHECK_RET_GOTO(createBlockForWalMetaNew((SSDataBlock**)&sStreamReaderInfo->metaBlock, sStreamReaderInfo->isVtableStream));
   }
-  resultRsp.dataBlock = sStreamReaderInfo->metaBlock;
+  resultRsp.metaBlock = sStreamReaderInfo->metaBlock;
   STREAM_CHECK_RET_GOTO(processWalVerMetaDataNew(pVnode, sStreamReaderInfo, req->walMetaDataNewReq.lastVer, &resultRsp, &lastVer, &totalRows));
 
   STREAM_CHECK_CONDITION_GOTO(totalRows == 0, TDB_CODE_SUCCESS);
