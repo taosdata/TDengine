@@ -843,13 +843,13 @@ static int32_t processTag(SVnode* pVnode, SStreamTriggerReaderInfo* info, SStora
           data = (char*)p;
         }
 
-        int32_t len = pColInfoData->info.bytes;
-        if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-          len = calcStrBytesByType(pColInfoData->info.type, (char*)data);
-        }
         if (data == NULL) {
           STREAM_CHECK_NULL_GOTO(taosArrayPush(tagCache, &data), terrno);
         } else {
+          int32_t len = pColInfoData->info.bytes;
+          if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+            len = calcStrBytesByType(pColInfoData->info.type, (char*)data);
+          }
           char* pData = taosMemoryCalloc(1, len);
           STREAM_CHECK_NULL_GOTO(pData, terrno);
           (void)memcpy(pData, data, len);

@@ -792,7 +792,7 @@ static void printOutputProjBlock(SStreamRunnerTask* pTask, const SSDataBlock* pB
         tsLen += 4;
       } else {
         int64_t* pTsData = (int64_t*)colDataGetNumData(pTsCol, i);
-        TAOS_UNUSED(snprintf(tempBuffer, sizeof(tempBuffer), "%ld", *pTsData));
+        TAOS_UNUSED(snprintf(tempBuffer, sizeof(tempBuffer), "%"PRId64, *pTsData));
         TAOS_UNUSED(snprintf(tsString + tsLen, tsBufferMax - tsLen, "%s", tempBuffer));
         tsLen += strlen(tempBuffer);
 
@@ -811,7 +811,7 @@ static void printOutputProjBlock(SStreamRunnerTask* pTask, const SSDataBlock* pB
     if (pWinIdxArr && pWinIdxArr->size > 0) {
       for (int i = 0; i < pWinIdxArr->size; ++i) {
         int64_t idx = *(int64_t*)taosArrayGet(pWinIdxArr, i);
-        snprintf(tempBuffer, sizeof(tempBuffer), "%ld", idx);
+        snprintf(tempBuffer, sizeof(tempBuffer), "%"PRId64, idx);
         strncat(tsString, tempBuffer, tsBufferMax - tsLen - 1);
         tsLen += strlen(tempBuffer);
         if (tsLen >= tsBufferMax - 12) {
