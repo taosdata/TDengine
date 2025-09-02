@@ -3477,7 +3477,10 @@ static int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *p
       size_t     *values_list_sizes = NULL;
 
       code = tsdbCacheGetValuesFromRocks(pTsdb, 1, keys_list, keys_list_sizes, &values_list, &values_list_sizes);
-      if (code == 0 && values_list && values_list[0]) {
+      if (code) {
+        TAOS_RETURN(code);
+      }
+      if (values_list && values_list[0]) {
         // Found in RocksDB, deserialize and extract columns
         SLastRow *pRocksRow = NULL;
         code = tsdbRowCacheDeserialize(values_list[0], values_list_sizes[0], &pRocksRow);

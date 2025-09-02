@@ -581,7 +581,8 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
       }
       TSDB_CHECK_CODE(code, lino, _end);
 
-      if (TARRAY_SIZE(pRow) <= 0 || COL_VAL_IS_NONE(&((SLastCol*)TARRAY_DATA(pRow))[0].colVal)) {
+      if (TARRAY_SIZE(pRow) <= 0 || COL_VAL_IS_NONE(&((SLastCol*)TARRAY_DATA(pRow))[0].colVal) ||
+          COL_VAL_IS_NULL(&((SLastCol*)TARRAY_DATA(pRow))[0].colVal)) {
         taosArrayClearEx(pRow, tsdbCacheFreeSLastColItem);
         continue;
       }
@@ -693,7 +694,8 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
         TSDB_CHECK_CODE(code, lino, _end);
       }
 
-      if (TARRAY_SIZE(pRow) <= 0 || COL_VAL_IS_NONE(&((SLastCol*)TARRAY_DATA(pRow))[0].colVal)) {
+      if (TARRAY_SIZE(pRow) <= 0 || COL_VAL_IS_NONE(&((SLastCol*)TARRAY_DATA(pRow))[0].colVal) ||
+          COL_VAL_IS_NULL(&((SLastCol*)TARRAY_DATA(pRow))[0].colVal)) {
         taosArrayClearEx(pRow, tsdbCacheFreeSLastColItem);
         continue;
       }
