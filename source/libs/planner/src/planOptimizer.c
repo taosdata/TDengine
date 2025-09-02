@@ -558,6 +558,7 @@ static void rewriteDnodeConds(SNode** pCond, SNodeList* pDnodeConds) {
           nodesDestroyNode(*pCond);
           *pCond = NULL;
         }
+        nodesDestroyList(pCondNode->pParameterList);
       } else if (pCondNode->pParameterList->length == 0) {
         nodesDestroyNode(*pCond);
         *pCond = NULL;
