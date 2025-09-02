@@ -591,12 +591,13 @@ static int32_t filterDnodeConds(SOptimizeContext* pCxt, SScanLogicNode* pScan, S
 
 static int32_t pushDownDnodeConds(SScanLogicNode* pScan, SNodeList* pDnodeConds) {
   int32_t code = TSDB_CODE_SUCCESS;
+  SVgroupsInfo* pNewVgroupList =  NULL;
   if (!pDnodeConds || pDnodeConds->length == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
   int32_t dnodeCount = pScan->pVgroupList->numOfVgroups;
-  bool*   dnodeDelState = taosMemoryCalloc(dnodeCount + 1, sizeof(bool));
+  bool*   dnodeDelState = taosMemoryCalloc(dnodeCount, sizeof(bool));
   if (NULL == dnodeDelState) {
     return terrno;
   }
@@ -633,20 +634,23 @@ static int32_t pushDownDnodeConds(SScanLogicNode* pScan, SNodeList* pDnodeConds)
       goto _exit;
     }
     if (operType == OP_TYPE_EQUAL) {
-      for (int i = 1; i <= dnodeCount; i++) {
-        if (i != nodeId) {
+      for (int i = 0; i <= dnodeCount; i++) {
+        if(pScan->pVgroupList->vgroups[i].vgId != nodeId) {
           dnodeDelState[i] = true;
         }
       }
     } else {
-      if (nodeId > 0 && nodeId <= dnodeCount) {
-        dnodeDelState[nodeId] = true;
+      for (int i = 0; i <= dnodeCount; i++) {
+        if (pScan->pVgroupList->vgroups[i].vgId == nodeId) {
+          dnodeDelState[i] = true;
+          break;
+        }
       }
     }
   }
 
   int32_t resultCount = 0;
-  for (int i = 1; i <= dnodeCount; i++) {
+  for (int i = 0; i <= dnodeCount; i++) {
     if (!dnodeDelState[i]) {
       resultCount++;
     }
@@ -656,10 +660,10 @@ static int32_t pushDownDnodeConds(SScanLogicNode* pScan, SNodeList* pDnodeConds)
   if(resultCount == 0) {
     taosMemoryFree(pScan->pVgroupList);
     pScan->pVgroupList = NULL;
-    goto _exit;
+    return TSDB_CODE_MND_DNODE_NOT_EXIST;
   }
 
-  SVgroupsInfo* pNewVgroupList = (SVgroupsInfo*)taosMemoryMalloc(sizeof(SVgroupsInfo) + sizeof(SVgroupInfo) * resultCount);
+  pNewVgroupList = (SVgroupsInfo*)taosMemoryMalloc(sizeof(SVgroupsInfo) + sizeof(SVgroupInfo) * resultCount);
   if (NULL == pNewVgroupList) {
     code = terrno;
     goto _exit;
@@ -667,7 +671,7 @@ static int32_t pushDownDnodeConds(SScanLogicNode* pScan, SNodeList* pDnodeConds)
   pNewVgroupList->numOfVgroups = 0;
   for (int num = 0; num < dnodeCount; num++) {
     SVgroupInfo* pVgInfo = &pScan->pVgroupList->vgroups[num];
-    if (!dnodeDelState[pVgInfo->vgId]) {
+    if (!dnodeDelState[num]) {
       pNewVgroupList->vgroups[pNewVgroupList->numOfVgroups] = *pVgInfo;
       pNewVgroupList->numOfVgroups++;
     }
