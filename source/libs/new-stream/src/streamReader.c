@@ -153,6 +153,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
   }
   if (options->initReader) {
     int32_t        pNum = 0;
+    STableKeyInfo  pListTmp = {0};
     STableKeyInfo* pList = NULL;
     if (options->uidList != NULL) {
       for (int32_t i = 0; i < taosArrayGetSize(options->uidList); ++i) {
@@ -164,10 +165,11 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
       STREAM_CHECK_RET_GOTO(qStreamGetTableList(pTask->pTableList, -1, &pList, &pNum))
     } else {
       if (options->uid != 0) {
-        pList->groupId = qStreamGetGroupId(pTask->pTableList, options->uid);
-        STREAM_CHECK_CONDITION_GOTO(pList->groupId == -1, TSDB_CODE_INVALID_PARA);
-        pList->uid = options->uid;
+        pListTmp.groupId = qStreamGetGroupId(pTask->pTableList, options->uid);
+        STREAM_CHECK_CONDITION_GOTO(pListTmp.groupId == -1, TSDB_CODE_INVALID_PARA);
+        pListTmp.uid = options->uid;
         pNum = 1;
+        pList = &pListTmp;
       } else if (options->scanMode == STREAM_SCAN_GROUP_ONE_BY_ONE) {
         if (options->gid != 0) {
           int32_t index = qStreamGetGroupIndex(pTask->pTableList, options->gid);
