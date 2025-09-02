@@ -4342,8 +4342,6 @@ int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, void* pBlock
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pInfo->numRows));
   }
 
-    pNode = pNode->dl_next_;
-  }
   tEndEncode(&encoder);
 
 _exit:
