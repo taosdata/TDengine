@@ -1882,7 +1882,7 @@ static int32_t appendInsertData(SStreamInserterParam* pInsertParam, const SSData
   for (int32_t j = 0; j < rows; ++j) {  // iterate by row
     taosArrayClear(pVals);
 
-    bool tsIsNull = false;
+    bool tsOrPrimaryKeyIsNull = false;
     for (int32_t k = 0; k < numOfCols; ++k) {  // iterate by column
       int16_t colIdx = k + 1;
 
@@ -1903,6 +1903,11 @@ static int32_t appendInsertData(SStreamInserterParam* pInsertParam, const SSData
       }
       void* var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
 
+      if (colDataIsNull_s(pColInfoData, j) && (pCol->flags & COL_IS_KEY)) {
+        tsOrPrimaryKeyIsNull = true;
+        qInfo("Primary key column should not be null, skip this row");
+        break;
+      }
       switch (pColInfoData->info.type) {
         case TSDB_DATA_TYPE_NCHAR:
         case TSDB_DATA_TYPE_VARBINARY:
@@ -1947,7 +1952,7 @@ static int32_t appendInsertData(SStreamInserterParam* pInsertParam, const SSData
           if (pColInfoData->info.type < TSDB_DATA_TYPE_MAX && pColInfoData->info.type > TSDB_DATA_TYPE_NULL) {
             if (colDataIsNull_s(pColInfoData, j)) {
               if (PRIMARYKEY_TIMESTAMP_COL_ID == colIdx) {
-                tsIsNull = true;
+                tsOrPrimaryKeyIsNull = true;
                 qInfo("Primary timestamp column should not be null, skip this row");
                 break;
               }
@@ -1981,9 +1986,9 @@ static int32_t appendInsertData(SStreamInserterParam* pInsertParam, const SSData
           }
           break;
       }
-      if (tsIsNull) break;  // skip remaining columns because the primary key is null
+      if (tsOrPrimaryKeyIsNull) break;  // skip remaining columns because the primary key is null
     }
-    if (tsIsNull) continue;  // skip this row if primary key is null
+    if (tsOrPrimaryKeyIsNull) continue;  // skip this row if primary key is null
     SRow*             pRow = NULL;
     SRowBuildScanInfo sinfo = {0};
     if ((code = tRowBuild(pVals, pTSchema, &pRow, &sinfo)) != TSDB_CODE_SUCCESS) {
