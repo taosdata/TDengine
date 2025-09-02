@@ -8,8 +8,9 @@ class TestTDgptBasic:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_not_exists_anode(self):
-        """
-        Create anode not existed
+        """anode 节点测试
+        
+        1. 创建不存在的anode
 
         Catalog:
             - TDgpt
@@ -33,8 +34,9 @@ class TestTDgptBasic:
         tdSql.error("drop anode 1")
 
     def test_analysis(self):
-        """
-        Do analysis process
+        """进行分析过程
+
+        1. insert data and query, use tdgpt to analyze data
 
         Catalog:
             - TDgpt
