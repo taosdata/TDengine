@@ -444,19 +444,19 @@ _return:
 
 
 // Note: no more task error processing, handled in function internal
-int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, uint64_t seriousId, int32_t execId, SDataBuf *pMsg, int32_t rspCode) {
+int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, uint64_t seriesId, int32_t execId, SDataBuf *pMsg, int32_t rspCode) {
   int32_t code = 0;
   int32_t msgType = pMsg->msgType;
 
   bool dropExecNode = (msgType == TDMT_SCH_LINK_BROKEN || SCH_NETWORK_ERR(rspCode));
   if (SCH_IS_QUERY_JOB(pJob)) {
-    SCH_ERR_JRET(schUpdateTaskHandle(pJob, pTask, dropExecNode, pMsg->handle, seriousId, execId));
+    SCH_ERR_JRET(schUpdateTaskHandle(pJob, pTask, dropExecNode, pMsg->handle, seriesId, execId));
   }
   
   SCH_ERR_JRET(schValidateRspMsgType(pJob, pTask, msgType));
 
-  if (pTask->seriousId < atomic_load_64(&pJob->seriousId)) {
-    SCH_TASK_DLOG("task sId %" PRId64 " is smaller than current job sId %" PRId64, pTask->seriousId, pJob->seriousId);
+  if (pTask->seriesId < atomic_load_64(&pJob->seriesId)) {
+    SCH_TASK_DLOG("task sId %" PRId64 " is smaller than current job sId %" PRId64, pTask->seriesId, pJob->seriesId);
     SCH_ERR_JRET(TSDB_CODE_SCH_IGNORE_ERROR);
   }
 
@@ -476,15 +476,14 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, uint64_t seriousId,
 #endif
 
   pTask->redirectCtx.inRedirect = false;
-
   SCH_RET(schProcessResponseMsg(pJob, pTask, pMsg, rspCode));
 
 _return:
 
   taosMemoryFreeClear(pMsg->pData);
-
   SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
 } 
+
 int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
   int32_t                code = 0;
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
@@ -496,7 +495,7 @@ int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
          tstrerror(rspCode));
 
   SCH_ERR_JRET(schProcessOnCbBegin(&pJob, &pTask, pParam->queryId, pParam->refId, pParam->taskId));
-  code = schHandleResponseMsg(pJob, pTask, pParam->seriousId, pParam->execId, pMsg, rspCode);
+  code = schHandleResponseMsg(pJob, pTask, pParam->seriesId, pParam->execId, pMsg, rspCode);
   pMsg->pData = NULL;
 
   schProcessOnCbEnd(pJob, pTask, code);
@@ -515,7 +514,7 @@ _return:
 int32_t schHandleDropCallback(void *param, SDataBuf *pMsg, int32_t code) {
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
   qDebug("QID:0x%" PRIx64 ", SID:0x%" PRIx64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 " drop task rsp received, code:0x%x", 
-         pParam->queryId, pParam->seriousId, pParam->clientId, pParam->taskId, code);
+         pParam->queryId, pParam->seriesId, pParam->clientId, pParam->taskId, code);
   // called if drop task rsp received code
   (void)rpcReleaseHandle(pMsg->handle, TAOS_CONN_CLIENT, 0); // ignore error
 
@@ -532,7 +531,7 @@ int32_t schHandleDropCallback(void *param, SDataBuf *pMsg, int32_t code) {
 int32_t schHandleNotifyCallback(void *param, SDataBuf *pMsg, int32_t code) {
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
   qDebug("QID:0x%" PRIx64 ", SID:0x%" PRIx64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 " task notify rsp received, code:0x%x", 
-         pParam->queryId, pParam->seriousId, pParam->clientId, pParam->taskId, code);
+         pParam->queryId, pParam->seriesId, pParam->clientId, pParam->taskId, code);
   if (pMsg) {
     taosMemoryFreeClear(pMsg->pData);
     taosMemoryFreeClear(pMsg->pEpSet);
@@ -608,7 +607,7 @@ int32_t schMakeCallbackParam(SSchJob *pJob, SSchTask *pTask, int32_t msgType, bo
     }
 
     param->queryId = pJob->queryId;
-    param->seriousId = pTask->seriousId;
+    param->seriesId = pTask->seriesId;
     param->refId = pJob->refId;
     param->clientId = SCH_CLIENT_ID(pTask);
     param->taskId = SCH_TASK_ID(pTask);
@@ -1156,7 +1155,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     case TDMT_VND_DELETE: {
       SVDeleteReq req = {0};
       req.header.vgId = addr->nodeId;
-      req.sId = pTask->seriousId;
+      req.sId = pTask->seriesId;
       req.queryId = pJob->queryId;
       req.clientId = pTask->clientId;
       req.taskId = pTask->taskId;
@@ -1190,7 +1189,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       SSubQueryMsg qMsg;
       qMsg.header.vgId = addr->nodeId;
       qMsg.header.contLen = 0;
-      qMsg.sId = pTask->seriousId;
+      qMsg.sId = pTask->seriesId;
       qMsg.queryId = pJob->queryId;
       qMsg.clientId = pTask->clientId;
       qMsg.taskId = pTask->taskId;
@@ -1246,7 +1245,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     case TDMT_SCH_MERGE_FETCH: {
       SResFetchReq req = {0};
       req.header.vgId = addr->nodeId;
-      req.sId = pTask->seriousId;
+      req.sId = pTask->seriesId;
       req.queryId = pJob->queryId;
       req.clientId = pTask->clientId;
       req.taskId = pTask->taskId;
@@ -1274,7 +1273,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       STaskDropReq qMsg;
       qMsg.header.vgId = addr->nodeId;
       qMsg.header.contLen = 0;
-      qMsg.sId = pTask->seriousId;
+      qMsg.sId = pTask->seriesId;
       qMsg.queryId = pJob->queryId;
       qMsg.clientId = pTask->clientId;
       qMsg.taskId = pTask->taskId;
@@ -1334,7 +1333,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       STaskNotifyReq qMsg;
       qMsg.header.vgId = addr->nodeId;
       qMsg.header.contLen = 0;
-      qMsg.sId = pTask->seriousId;
+      qMsg.sId = pTask->seriesId;
       qMsg.queryId = pJob->queryId;
       qMsg.clientId = pTask->clientId;
       qMsg.taskId = pTask->taskId;

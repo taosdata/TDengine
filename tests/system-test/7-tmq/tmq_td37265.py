@@ -12,7 +12,8 @@ from util.dnodes import *
 from util.common import *
 from taos.tmq import *
 sys.path.append("./7-tmq")
-from tmqCommon import *
+
+from new_test_framework.utils import tdLog, TDDnodes, tmqCom
 
 class TDTestCase:
     updatecfgDict = {'debugFlag': 135, 'asynclog': 0}
