@@ -3411,7 +3411,11 @@ static int32_t tsdbCacheLoadFromRocksDB(STsdb *pTsdb, tb_uid_t uid, SArray *pLas
       int16_t  cid = ((int16_t *)TARRAY_DATA(pCidList))[i];
       SLastKey key = {.lflag = ltype, .uid = uid, .cid = cid};
       SIdxKey  idxKey = {.idx = i, .key = key};
-      taosArrayPush(remainCols, &idxKey);
+      if (!taosArrayPush(remainCols, &idxKey)) {
+        taosArrayDestroy(remainCols);
+        code = terrno;
+        goto _exit;
+      }
     }
     code = tsdbCacheLoadFromRaw(pTsdb, uid, pLastArray, remainCols, pr, ltype);
     if (code) {
