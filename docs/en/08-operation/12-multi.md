@@ -101,11 +101,12 @@ secretAccessKey | your secret access key.
 chunkSize       | chunk size in MB, files larger than this size will use multipart upload, default is 64.
 maxChunks       | max number of allowed chunks in a multipart upload, default is 10000.
 maxRetry        | max retry times when encounter retryable errors, default is 3, negative value means unlimited retry.
+verifyPeer      | whether to verify the peer(server) certificate, only valid when `protocol` is `https`, default is false.
 
 For example:
 
 ```
-ssAccessString s3:endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protocol=https;accessKeyId=AKMYACCESSKEY;secretAccessKey=MYSECRETACCESSKEY;region=us-east-2;chunkSize=64;maxChunks=10000;maxRetry=3
+ssAccessString s3:endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protocol=https;accessKeyId=AKMYACCESSKEY;secretAccessKey=MYSECRETACCESSKEY;region=us-east-2;chunkSize=64;maxChunks=10000;maxRetry=3;verifyPeer=false
 ```
 
 #### Locally Mounted Storage Devices

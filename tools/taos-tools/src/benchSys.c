@@ -108,7 +108,8 @@ int32_t benchParseArgsNoArgp(int argc, char* argv[]) {
             || key[1] == 'N' || key[1] == 'M'
             || key[1] == 'x' || key[1] == 'y'
             || key[1] == 'g' || key[1] == 'G'
-            || key[1] == 'V' || key[1] == 'Q') {
+            || key[1] == 'V' || key[1] == 'Q'
+            || key[1] == 'U') {
             benchParseSingleOpt(key[1], NULL);
         } else {
             // check input value
@@ -394,7 +395,7 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
                 errorPrintReqArg2(CUS_PROMPT"Benchmark", "s");
             }
 
-            g_arguments->startTimestamp = atol(arg);
+            g_arguments->startTimestamp = strtoll(arg, NULL, 10);
             break;
 
         case 'U':

@@ -28,7 +28,7 @@
 #endif
 
 #ifndef CUS_NAME
-#define CUS_NAME "TDengine"
+#define CUS_NAME "TDengine TSDB"
 #endif
 
 #ifndef CUS_PROMPT

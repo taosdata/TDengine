@@ -20,6 +20,7 @@
 #include "plannodes.h"
 #include "streamInt.h"
 #include "streamReader.h"
+#include "tarray.h"
 #include "tcompare.h"
 #include "tdatablock.h"
 #include "thash.h"
@@ -879,7 +880,7 @@ int32_t stTriggerTaskFetchRecalcRequest(SStreamTriggerTask *pTask, SSTriggerReca
 
 _end:
   if (needUnlock) {
-    taosWUnLockLatch(&pTask->recalcRequestLock);
+    taosRUnLockLatch(&pTask->recalcRequestLock);
   }
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -1174,17 +1175,8 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
   code = cxt.errCode;
   QUERY_CHECK_CODE(code, lino, _end);
 
-  if (pTask->trigTsIndex < taosArrayGetSize(pTrigSlotids)) {
-    void *px = taosArrayGet(pTrigSlotids, pTask->trigTsIndex);
-    QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-    pTask->trigTsIndex = *(int32_t *)px;
-  }
-
-  if (pTask->calcTsIndex < taosArrayGetSize(pCalcSlotids)) {
-    void *px = taosArrayGet(pCalcSlotids, pTask->calcTsIndex);
-    QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-    pTask->calcTsIndex = *(int32_t *)px;
-  }
+  pTask->trigTsIndex = 0;
+  pTask->calcTsIndex = 0;
 
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
     void *px = taosArrayGet(pTrigSlotids, pTask->stateSlotId);
@@ -5665,10 +5657,15 @@ static void stRealtimeGroupClearMetadatas(SSTriggerRealtimeGroup *pGroup, int64_
       } else {
         endTime = TMAX(endTime, pGroup->newThreshold);
       }
-      int32_t idx = taosArraySearchIdx(pTableMeta->pMetas, &endTime, stRealtimeGroupMetaDataSearch, TD_GT);
-      taosArrayPopFrontBatch(pTableMeta->pMetas, (idx == -1) ? TARRAY_SIZE(pTableMeta->pMetas) : idx);
-      idx = taosArraySearchIdx(pTableMeta->pMetas, &pGroup->newThreshold, stRealtimeGroupMetaDataSearch, TD_GT);
-      pTableMeta->metaIdx = (idx == -1) ? TARRAY_SIZE(pTableMeta->pMetas) : idx;
+      if (endTime == INT64_MAX) {
+        taosArrayClear(pTableMeta->pMetas);
+        pTableMeta->metaIdx = 0;
+      } else {
+        int32_t idx = taosArraySearchIdx(pTableMeta->pMetas, &endTime, stRealtimeGroupMetaDataSearch, TD_GT);
+        taosArrayPopFrontBatch(pTableMeta->pMetas, (idx == -1) ? TARRAY_SIZE(pTableMeta->pMetas) : idx);
+        idx = taosArraySearchIdx(pTableMeta->pMetas, &pGroup->newThreshold, stRealtimeGroupMetaDataSearch, TD_GT);
+        pTableMeta->metaIdx = (idx == -1) ? TARRAY_SIZE(pTableMeta->pMetas) : idx;
+      }
     }
     pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, pTableMeta, &iter);
   }
@@ -6029,6 +6026,10 @@ static int32_t stRealtimeGroupCloseWindow(SSTriggerRealtimeGroup *pGroup, char *
     // check TRUE FOR condition
     needCalc = needNotify = false;
   }
+  // todo(kjq): should delete (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM)
+  if (pTask->ignoreNoDataTrigger && param.wrownum == 0 && (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM)) {
+    needCalc = needNotify = false;
+  }
 
   switch (pTask->triggerType) {
     case STREAM_TRIGGER_PERIOD: {
@@ -6087,7 +6088,6 @@ static int32_t stRealtimeGroupCloseWindow(SSTriggerRealtimeGroup *pGroup, char *
     pHead->range.ekey = TMAX(pHead->range.ekey, pCurWindow->range.ekey);
     pHead->wrownum = pCurWindow->wrownum - bias;
   }
-
   if (saveWindow) {
     // skip add window for session trigger, since it will be merged after processing all tables
     void *px = taosArrayPush(pContext->pSavedWindows, pCurWindow);

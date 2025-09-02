@@ -34,7 +34,7 @@ description: 可配置的数据压缩算法
 | int/uint                             | disabled/simple8b         | simple8b       | lz4/zlib/zstd/xz     | lz4            | medium         |
 | tinyint/untinyint/smallint/usmallint | disabled/simple8b         | simple8b       | lz4/zlib/zstd/xz     | zlib           | medium         |
 | bigint/ubigint/timestamp             | disabled/simple8b/delta-i | delta-i        | lz4/zlib/zstd/xz     | lz4            | medium         |
-| float/double                         | disabled/delta-d/bss      | delta-d        | lz4/zlib/zstd/xz/tsz | lz4            | medium         |
+| float/double                         | disabled/delta-d/bss      | bss            | lz4/zlib/zstd/xz/tsz | lz4            | medium         |
 | binary/nchar                         | disabled                  | disabled       | lz4/zlib/zstd/xz     | zstd           | medium         |
 | bool                                 | disabled/bit-packing      | bit-packing    | lz4/zlib/zstd/xz     | zstd           | medium         |
 | decimal                              | disabled                  | disabled       | lz4/zlib/zstd/xz     | zstd           | medium         |
