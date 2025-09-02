@@ -1905,7 +1905,7 @@ static int32_t appendInsertData(SStreamInserterParam* pInsertParam, const SSData
 
       if (colDataIsNull_s(pColInfoData, j) && (pCol->flags & COL_IS_KEY)) {
         tsOrPrimaryKeyIsNull = true;
-        qInfo("Primary key column should not be null, skip this row");
+        qDebug("Primary key column should not be null, skip this row");
         break;
       }
       switch (pColInfoData->info.type) {
@@ -1953,7 +1953,7 @@ static int32_t appendInsertData(SStreamInserterParam* pInsertParam, const SSData
             if (colDataIsNull_s(pColInfoData, j)) {
               if (PRIMARYKEY_TIMESTAMP_COL_ID == colIdx) {
                 tsOrPrimaryKeyIsNull = true;
-                qInfo("Primary timestamp column should not be null, skip this row");
+                qDebug("Primary timestamp column should not be null, skip this row");
                 break;
               }
 
