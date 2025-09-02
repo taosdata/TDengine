@@ -520,7 +520,15 @@ _end:
   return code;
 }
 
-int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** ppContent, const SArray* pFields,
+static bool meetsNotificationCondition(SStreamRunnerTask* pTask, const SSDataBlock* pBlock, int32_t rowIdx) {
+  bool    meets = false;
+  SArray* pConds = pTask->notification.pNotifyConds;
+  for (int32_t i = 0; i < taosArrayGetSize(pConds); ++i) {
+  }
+  return true;
+}
+
+int32_t streamBuildBlockResultNotifyContent(SStreamRunnerTask* pTask, const SSDataBlock* pBlock, char** ppContent, const SArray* pFields,
                                             const int32_t startRow, const int32_t endRow) {
   int32_t code = 0, lino = 0;
   cJSON*  pContent = NULL;
@@ -554,6 +562,12 @@ int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** pp
   for (int32_t rowIdx = startRow; rowIdx <= endRow && rowIdx < pBlock->info.rows; ++rowIdx) {
     pRow = cJSON_CreateObject();
     QUERY_CHECK_NULL(pRow, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+
+    if (pTask->notification.pNotifyConds && taosArrayGetSize(pTask->notification.pNotifyConds) > 0) {
+      if (!meetsNotificationCondition(pTask, pBlock, rowIdx)) {
+        continue;
+      }
+    }
 
     for (int32_t colIdx = 0; colIdx < taosArrayGetSize(pBlock->pDataBlock); ++colIdx) {
       const SColumnInfoData*   pCol = taosArrayGet(pBlock->pDataBlock, colIdx);

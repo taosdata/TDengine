@@ -1147,6 +1147,7 @@ static int32_t scanSubmitDataForMetaData(SVnode* pVnode, SStreamTriggerReaderInf
   int32_t  lino = 0;
   STSchema* schemas = NULL;
   SDecoder decoder = {0};
+  SSDataBlock* pBlock = NULL;
 
   tDecoderInit(&decoder, data, len);
   if (tStartDecode(&decoder) < 0) {
@@ -1717,18 +1718,51 @@ static int32_t processCalaTimeRange(SStreamTriggerReaderCalcInfo* sStreamReaderC
                                              (SFilterInfo**)&sStreamReaderCalcInfo->pFilterInfo,
                                              FLT_OPTION_NO_REWRITE | FLT_OPTION_SCALAR_MODE, NULL));
 */                                             
+    sStreamReaderCalcInfo->tmpRtFuncInfo.curIdx = 0;
+    sStreamReaderCalcInfo->tmpRtFuncInfo.triggerType = req->pStRtFuncInfo->triggerType;
+    
     SSTriggerCalcParam* pFirst = taosArrayGet(req->pStRtFuncInfo->pStreamPesudoFuncVals, 0);
     SSTriggerCalcParam* pLast = taosArrayGetLast(req->pStRtFuncInfo->pStreamPesudoFuncVals);
     STREAM_CHECK_NULL_GOTO(pFirst, terrno);
     STREAM_CHECK_NULL_GOTO(pLast, terrno);
 
-    handle->winRange.skey = pFirst->wstart;
-    handle->winRange.ekey = pLast->wend;
-    handle->winRangeValid = true;
-    stDebug("%s withExternalWindow is true, skey:%" PRId64 ", ekey:%" PRId64, __func__, pFirst->wstart, pLast->wend);
+    if (!node->needCalc) {
+      handle->winRange.skey = pFirst->wstart;
+      handle->winRange.ekey = pLast->wend;
+      handle->winRangeValid = true;
+    } else {
+      SSTriggerCalcParam* pTmp = taosArrayGet(sStreamReaderCalcInfo->tmpRtFuncInfo.pStreamPesudoFuncVals, 0);
+      memcpy(pTmp, pFirst, sizeof(*pTmp));
+
+      STREAM_CHECK_RET_GOTO(streamCalcCurrWinTimeRange(node, &sStreamReaderCalcInfo->tmpRtFuncInfo, &handle->winRange, &handle->winRangeValid, 1));
+      if (handle->winRangeValid) {
+        int64_t skey = handle->winRange.skey;
+
+        memcpy(pTmp, pLast, sizeof(*pTmp));
+        STREAM_CHECK_RET_GOTO(streamCalcCurrWinTimeRange(node, &sStreamReaderCalcInfo->tmpRtFuncInfo, &handle->winRange, &handle->winRangeValid, 2));
+
+        if (handle->winRangeValid) {
+          handle->winRange.skey = skey;
+        }
+      }
+    }
   } else {
-    calcTimeRange(node, req->pStRtFuncInfo, &handle->winRange, &handle->winRangeValid);
+    if (!node->needCalc) {
+      SSTriggerCalcParam* pCurr = taosArrayGet(req->pStRtFuncInfo->pStreamPesudoFuncVals, req->pStRtFuncInfo->curIdx);
+      handle->winRange.skey = pCurr->wstart;
+      handle->winRange.ekey = pCurr->wend;
+      handle->winRangeValid = true;
+    } else {
+      STREAM_CHECK_RET_GOTO(streamCalcCurrWinTimeRange(node, req->pStRtFuncInfo, &handle->winRange, &handle->winRangeValid, 3));
+    }
   }
+
+  if (req->pStRtFuncInfo->triggerType == STREAM_TRIGGER_SLIDING) {
+    handle->winRange.ekey--;
+  }
+
+  stDebug("%s withExternalWindow is %d, skey:%" PRId64 ", ekey:%" PRId64 ", validRange:%d", 
+      __func__, req->pStRtFuncInfo->withExternalWindow, handle->winRange.skey, handle->winRange.ekey, handle->winRangeValid);
 
 end:
   taosArrayDestroy(funcVals);
@@ -3044,6 +3078,8 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
       STimeRangeNode* node = (STimeRangeNode*)((STableScanPhysiNode*)(sStreamReaderCalcInfo->calcAst->pNode))->pTimeRange;
       if (node != NULL) {
         STREAM_CHECK_RET_GOTO(processCalaTimeRange(sStreamReaderCalcInfo, &req, node, &handle));
+      } else {
+        ST_TASK_DLOG("vgId:%d %s no time range node", TD_VID(pVnode), __func__);
       }
     }
 

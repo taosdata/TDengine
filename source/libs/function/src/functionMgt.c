@@ -105,6 +105,13 @@ EFunctionType fmGetFuncType(const char* pFunc) {
   return FUNCTION_TYPE_UDF;
 }
 
+EFunctionType fmGetFuncTypeFromId(int32_t funcId) {
+  if (funcId < funcMgtBuiltinsNum) {
+    return funcMgtBuiltins[funcId].type;
+  }
+  return FUNCTION_TYPE_UDF;
+}
+
 EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
   if (fmIsUserDefinedFunc(pFunc->funcId) || pFunc->funcId < 0 || pFunc->funcId >= funcMgtBuiltinsNum) {
     return FUNC_DATA_REQUIRED_DATA_LOAD;
@@ -795,13 +802,14 @@ int32_t fmGetStreamPesudoFuncEnv(int32_t funcId, SNodeList* pParamNodes, SFuncEx
   return TSDB_CODE_SUCCESS;
 }
 
+
 int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, const SStreamRuntimeFuncInfo* pStreamRuntimeInfo) {
   if (!pStreamRuntimeInfo) {
     uError("internal error, should have pVals for stream pseudo funcs");
     return TSDB_CODE_INTERNAL_ERROR;
   }
   int32_t code = 0;
-  SArray *pVals1 = NULL, *pVals2 = NULL;
+  SArray *pVals1 = NULL;
   SNode* pFirstParam = nodesListGetNode(pParamNodes, 0);
   if (nodeType(pFirstParam) != QUERY_NODE_VALUE) {
     uError("invalid param node type: %d for func: %d", nodeType(pFirstParam), funcId);
@@ -881,14 +889,12 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
       return code;
     }
   } else {
-    SNode* pSecondParam = nodesListGetNode(pParamNodes, 1);
-    if (nodeType(pSecondParam) != QUERY_NODE_VALUE) {
-      uError("invalid param node type: %d for func: %d", nodeType(pSecondParam), funcId);
-      return TSDB_CODE_INTERNAL_ERROR;
-    }
-    int32_t idx = ((SValueNode*)pSecondParam)->datum.i;
-    const SValue* pVal = taosArrayGet(pVals2, idx);
-    code = nodesSetValueNodeValue((SValueNode*)pFirstParam, VALUE_GET_DATUM(pVal, pFirstParam->type));
+    uError("invalid placeholder function type: %d", t);
+    return TSDB_CODE_INTERNAL_ERROR;
   }
+  
   return code;
 }
+
+
+

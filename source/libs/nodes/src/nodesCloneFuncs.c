@@ -503,6 +503,7 @@ static int32_t timeRangeNodeCopy(const STimeRangeNode* pSrc, STimeRangeNode* pDs
   COPY_SCALAR_FIELD(type);
   CLONE_NODE_FIELD(pStart);
   CLONE_NODE_FIELD(pEnd);
+  COPY_SCALAR_FIELD(needCalc);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -700,6 +701,7 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   COPY_SCALAR_FIELD(intervalUnit);
   COPY_SCALAR_FIELD(slidingUnit);
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
+  CLONE_NODE_FIELD(pTimeRange);
   COPY_SCALAR_FIELD(sessionGap);
   CLONE_NODE_FIELD(pTspk);
   CLONE_NODE_FIELD(pTsEnd);
@@ -720,6 +722,7 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   COPY_CHAR_ARRAY_FIELD(anomalyOpt);
   COPY_SCALAR_FIELD(recalculateInterval);
   CLONE_NODE_LIST_FIELD(pProjs);
+  COPY_SCALAR_FIELD(isSingleTable);
   return TSDB_CODE_SUCCESS;
 }
 

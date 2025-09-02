@@ -52,7 +52,6 @@ typedef struct STranslateContext {
   bool             createStreamCalc;
   bool             createStreamTrigger;
   bool             createStreamOutTable;
-  bool             createStreamCalcWithExtWindow;
   bool             extLeftEq; // used for external window, true means include left border
   bool             extRightEq; // used for external window, true means include right border
   SNode*           createStreamTriggerTbl;

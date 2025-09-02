@@ -76,7 +76,7 @@ static int32_t tcurlConnect(CURL** ppConn, const char* url) {
 _end:
 
   if (code != TSDB_CODE_SUCCESS) {
-    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    uError("[curl]%s failed at line %d since %s", __func__, lino, tstrerror(code));
     if (pConn != NULL) {
       curl_easy_cleanup(pConn);
       pConn = NULL;
@@ -98,7 +98,7 @@ static void tcurlClose(void* pConn) {
     uint16_t status = htons(1000);
     CURLcode res = curl_ws_send(pCurl->pConn, &status, sizeof(status), &len, 0, CURLWS_CLOSE);
     if (res != CURLE_OK) {
-      uWarn("failed to send ws-close msg, pConn:%p, code:%d", pCurl, res);
+      uWarn("[curl]failed to send ws-close msg, pConn:%p, code:%d", pCurl, res);
     }
     curl_easy_cleanup(pCurl->pConn);
     pCurl->pConn = NULL;

@@ -1934,8 +1934,25 @@ static int32_t createWindowLogicNodeByExternal(SLogicPlanContext* pCxt, SExterna
   pWindow->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
   pWindow->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
   pWindow->isPartTb = 0;
-  pWindow->timeRange = pExternal->timeRange;
   pWindow->pTspk = NULL;
+  if (nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE) {
+    SRealTableNode* pTable = (SRealTableNode*)pSelect->pFromTable;
+    if (pTable->pMeta->tableType == TSDB_NORMAL_TABLE || pTable->pMeta->tableType == TSDB_CHILD_TABLE) {
+      pWindow->isSingleTable = true;
+    } else {
+      pWindow->isSingleTable = false;
+    }
+  } else if (nodeType(pSelect->pFromTable) == QUERY_NODE_VIRTUAL_TABLE) {
+    SVirtualTableNode* pTable = (SVirtualTableNode*)pSelect->pFromTable;
+    if (pTable->pMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE || pTable->pMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE) {
+      pWindow->isSingleTable = true;
+    } else {
+      pWindow->isSingleTable = false;
+    }
+  } else {
+    pWindow->isSingleTable = false;
+  }
+  PLAN_ERR_RET(nodesCloneNode(pSelect->pTimeRange, &pWindow->pTimeRange));
 
   SNode* pNode = NULL;
   FOREACH(pNode, pCxt->pCurrRoot->pTargets) {
@@ -1985,18 +2002,134 @@ static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
   return TSDB_CODE_FAILED;
 }
 
+
+typedef struct SConditionCheckContext {
+  bool hasNotBasicOp;
+  bool hasTwstart;
+  bool hasTwend;
+  bool hasNegativeConst;
+  bool hasOtherFunc;
+  bool placeholderAtRight;
+} SConditionCheckContext;
+
+static EDealRes conditionOnlyPhAndConstImpl(SNode* pNode, void* pContext) {
+  SConditionCheckContext* pCxt = (SConditionCheckContext*)pContext;
+  if (nodeType(pNode) == QUERY_NODE_VALUE) {
+    SValueNode *pVal = (SValueNode*)pNode;
+    if (pVal->datum.i < 0) {
+      pCxt->hasNegativeConst = true;
+    }
+  } else if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
+    SFunctionNode *pFunc = (SFunctionNode*)pNode;
+    if (pFunc->funcType == FUNCTION_TYPE_TWSTART) {
+      pCxt->hasTwstart = true;
+    } else if (pFunc->funcType == FUNCTION_TYPE_TWEND){
+      pCxt->hasTwend = true;
+    } else if (pFunc->funcType != FUNCTION_TYPE_NOW && pFunc->funcType != FUNCTION_TYPE_TODAY) {
+      pCxt->hasOtherFunc = true;
+    }
+  } else if (nodeType(pNode) == QUERY_NODE_OPERATOR) {
+    SOperatorNode *pOp = (SOperatorNode*)pNode;
+    if (!nodesIsBasicArithmeticOp(pOp)) {
+      pCxt->hasNotBasicOp = true;
+    }
+    if (pOp->opType == OP_TYPE_SUB || pOp->opType == OP_TYPE_DIV) {
+      if (pOp->pRight && nodeType(pOp->pRight) == QUERY_NODE_FUNCTION) {
+        SFunctionNode *pFunc = (SFunctionNode*)pOp->pRight;
+        if (pFunc->funcType == FUNCTION_TYPE_TWSTART || pFunc->funcType == FUNCTION_TYPE_TWEND) {
+          pCxt->placeholderAtRight = true;
+        }
+      }
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool filterHasPlaceHolderRangeStart(SOperatorNode *pOperator) {
+  SNode* pLeft = pOperator->pLeft;
+  SNode* pRight = pOperator->pRight;
+
+  if (pLeft == NULL || pRight == NULL) {
+    return false;
+  }
+
+  if (nodeType(pLeft) == QUERY_NODE_COLUMN) {
+    SColumnNode* pCol = (SColumnNode*)pLeft;
+    if (pCol->colType != COLUMN_TYPE_COLUMN || pCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
+      return false;
+    }
+    SConditionCheckContext cxt = {.hasNotBasicOp = false,
+                                  .hasTwstart = false,
+                                  .hasTwend = false,
+                                  .hasNegativeConst = false,
+                                  .hasOtherFunc = false,
+                                  .placeholderAtRight = false};
+    nodesWalkExpr(pRight, conditionOnlyPhAndConstImpl, &cxt);
+    if (!cxt.hasTwstart || cxt.hasNotBasicOp || cxt.hasNegativeConst || cxt.hasTwend || cxt.hasOtherFunc || cxt.placeholderAtRight) {
+      return false;
+    }
+    return true;
+  }
+  return false;
+}
+
+static bool filterHasPlaceHolderRangeEnd(SOperatorNode *pOperator) {
+  SNode* pLeft = pOperator->pLeft;
+  SNode* pRight = pOperator->pRight;
+
+  if (pLeft == NULL || pRight == NULL) {
+    return false;
+  }
+
+  if (nodeType(pLeft) == QUERY_NODE_COLUMN) {
+    SColumnNode* pCol = (SColumnNode*)pLeft;
+    if (pCol->colType != COLUMN_TYPE_COLUMN || pCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
+      return false;
+    }
+    SConditionCheckContext cxt = {.hasNotBasicOp = false, .hasTwstart = false, .hasTwend = false, .hasNegativeConst = false, .hasOtherFunc = false};
+    nodesWalkExpr(pRight, conditionOnlyPhAndConstImpl, &cxt);
+    if (cxt.hasTwstart || cxt.hasNotBasicOp || cxt.hasNegativeConst || !cxt.hasTwend || cxt.hasOtherFunc || cxt.placeholderAtRight) {
+      return false;
+    }
+    return true;
+  }
+  return false;
+}
+
+static bool timeRangeSatisfyExternalWindow(STimeRangeNode* pTimeRange) {
+  if (!pTimeRange || !pTimeRange->pStart || !pTimeRange->pEnd ||
+      nodeType(pTimeRange->pStart) != QUERY_NODE_OPERATOR ||
+      nodeType(pTimeRange->pEnd) != QUERY_NODE_OPERATOR) {
+    return false;
+  }
+
+  SOperatorNode *pStart = (SOperatorNode *)(pTimeRange->pStart);
+  SOperatorNode *pEnd = (SOperatorNode *)(pTimeRange->pEnd);
+
+  if (!filterHasPlaceHolderRangeStart(pStart) ||
+      !filterHasPlaceHolderRangeEnd(pEnd)) {
+    return false;
+  }
+
+  return true;
+}
+
 static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (NULL != pSelect->pWindow || NULL != pSelect->pPartitionByList || NULL != pSelect->pGroupByList ||
-      !pCxt->pPlanCxt->streamCalcQuery || !pCxt->pPlanCxt->withExtWindow ||
+      !pCxt->pPlanCxt->streamCalcQuery ||
       nodeType(pSelect->pFromTable) == QUERY_NODE_TEMP_TABLE ||
       nodeType(pSelect->pFromTable) == QUERY_NODE_JOIN_TABLE ||
       pSelect->isSubquery || NULL != pSelect->pSlimit || NULL != pSelect->pLimit ||
-      pSelect->hasUniqueFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc) {
+      pSelect->hasUniqueFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc ||
+      !timeRangeSatisfyExternalWindow((STimeRangeNode*)pSelect->pTimeRange)) {
+    pCxt->pPlanCxt->withExtWindow = false;
     return TSDB_CODE_SUCCESS;
   }
-  int32_t code = nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, &pSelect->pWindow);
 
-  return createWindowLogicNodeByExternal(pCxt, (SExternalWindowNode*)pSelect->pWindow, pSelect, pLogicNode);
+  int32_t code = TSDB_CODE_SUCCESS;
+  PLAN_ERR_RET(nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, &pSelect->pWindow));
+  pCxt->pPlanCxt->withExtWindow = true;
+  PLAN_RET(createWindowLogicNodeByExternal(pCxt, (SExternalWindowNode*)pSelect->pWindow, pSelect, pLogicNode));
 }
 
 typedef struct SCollectFillExprsCtx {

@@ -22,6 +22,16 @@
 extern "C" {
 #endif
 
+
+typedef enum EStreamTriggerType {
+  STREAM_TRIGGER_PERIOD = 0,
+  STREAM_TRIGGER_SLIDING,  // sliding is 1 , can not change, because used in doOpenExternalWindow
+  STREAM_TRIGGER_SESSION,
+  STREAM_TRIGGER_COUNT,
+  STREAM_TRIGGER_STATE,
+  STREAM_TRIGGER_EVENT,
+} EStreamTriggerType;
+
 typedef struct SStreamRetrieveReq SStreamRetrieveReq;
 typedef struct SStreamDispatchReq SStreamDispatchReq;
 typedef struct STokenBucket       STokenBucket;
@@ -964,13 +974,14 @@ int32_t tDeserializeSTriggerCtrlRequest(void* buf, int32_t bufLen, SSTriggerCtrl
 typedef struct SStreamRuntimeFuncInfo {
   SArray* pStreamPesudoFuncVals;
   SArray* pStreamPartColVals;
+  SArray* pStreamBlkWinIdx;  // no serialize, SArray<int64_t->winOutIdx+rowStartIdx>
   STimeWindow curWindow;
 //  STimeWindow wholeWindow;
   int64_t groupId;
   int32_t curIdx; // for pesudo func calculation
   int64_t sessionId;
   bool    withExternalWindow;
-  int32_t curOutIdx; // to indicate the window index for current block
+  int32_t curOutIdx; // to indicate the window index for current block, valid value start from 1
   bool    extWinProjMode; // true if proj mode for external window, else agg mode
   int32_t triggerType;
 } SStreamRuntimeFuncInfo;

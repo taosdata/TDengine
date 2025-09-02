@@ -1886,15 +1886,17 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes, int32_t winIdx)
       dst.columnData = pInfo;
       dst.numOfRows = rowIdx;
       dst.colAlloced = false;
-      code = streamCalcOneScalarExprInRange(pNode, &dst, rowIdx,  rowIdx, &pTaskInfo->pStreamRuntimeInfo->funcInfo);
+      code = streamCalcOneScalarExprInRange(pNode, &dst, rowIdx, rowIdx, &pTaskInfo->pStreamRuntimeInfo->funcInfo);
     }
     ++idx;
     // TODO sclFreeParam(&dst);
     nodesDestroyNode(pNode);
     if (code != 0) break;
   }
+  if (code == TSDB_CODE_SUCCESS) {
+    (*pRes)->info.rows++;
+  }
   pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx = tmpWinIdx;
-  (*pRes)->info.rows++;
   return code;
 }
 
