@@ -15,6 +15,17 @@ class Test_IDMP_Meters:
     def test_stream_usecase_em(self):
         """IDMP: meters scenario
 
+        1. IDMP trigger table is super vtable
+        2. IDMP trigger table is vtable
+        3. IDMP trigger mode: period, sliding, event, session, interval, count, state
+        4. IDMP trigger group: partition by tbname, tag column, tbname and columns
+        5. IDMP trigger condition: on window open, on window close, on event
+        6. IDMP trigger action: notify, calc, calc and notify
+        7. IDMP notify on: window open, window close, both open and close
+        8. IDMP output table: super table , normal table
+        9. IDMP stream Options: IGNORE_DISORDER, CALC_NOTIF_ONLY, LOW_LATENCY_CALC,PRE_FILTER, FORCE_OUTPUT, IGNORE_NODATA_TRIGGER
+
+
         Refer: https://taosdata.feishu.cn/wiki/Zkb2wNkHDihARVkGHYEcbNhmnxb
 
         Catalog:
@@ -24,7 +35,7 @@ class Test_IDMP_Meters:
 
         Labels: common,ci
 
-        Jira: https://jira.taosdata.com:18080/browse/TD-36363
+        Jira: None
 
         History:
             - 2025-7-10 Alex Duan Created

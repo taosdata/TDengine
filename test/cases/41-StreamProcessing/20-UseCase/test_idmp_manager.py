@@ -12,7 +12,18 @@ class Test_IDMP_Meters:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_usecase_em(self):
-        """Nevados
+        """IDMP: database manager scenario
+
+        1. The stream running on databbase add/alter/delete
+        2. The stream running on drop/alter trigger table 
+        3. The stream running on drop/alter output table 
+        4. The stream running on instability event (dnode restart or network interruption)
+        5. The stream running on backup/restore data env
+        6. The stream running on compact operator
+        7. The stream running on splite/migrate vgroups
+        8. Show/start/stop/drop stream 
+        9. Show/drop snodes
+        10. Stream options: FILL_HISTORY_FIRST|FILL_HISTORY
 
         Refer: https://taosdata.feishu.cn/wiki/Zkb2wNkHDihARVkGHYEcbNhmnxb
 

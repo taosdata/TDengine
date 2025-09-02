@@ -15,6 +15,15 @@ class Test_IDMP_Vehicle:
     def test_stream_usecase_em(self):
         """IDMP: vehicle scenario
 
+        1. IDMP stream option with EVENT_TYPE
+        2. IDMP stream option with MAX_DELAY
+        3. IDMP stream option with WATERMARK
+        4. IDMP stream option with EXPIRED_TIME
+        5. IDMP stream option with IGNORE_DISORDER
+        6. IDMP write data with ordered and disordered data
+        7. IDMP write NULL data
+        8. IDMP calc with trows and select sql
+
         Refer: https://taosdata.feishu.cn/wiki/Zkb2wNkHDihARVkGHYEcbNhmnxb
 
         Catalog:
@@ -24,7 +33,7 @@ class Test_IDMP_Vehicle:
 
         Labels: common,ci
 
-        Jira: https://jira.taosdata.com:18080/browse/TD-36781
+        Jira: None
 
         History:
             - 2025-7-18 Alex Duan Created
