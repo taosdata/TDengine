@@ -97,6 +97,7 @@
     "lint-staged": "^15.2.7",
     "mozjpeg": "^8.0.0",
     "msw": "^2.3.1",
+    "playwright": "^1.54.2",
     "pngquant-bin": "^9.0.0",
     "postcss": "^8.4.39",
     "postcss-html": "^1.7.0",
@@ -146,5 +147,10 @@
       "stylelint --fix",
       "prettier --write"
     ]
+  },
+  "pnpm": {
+    "overrides": {
+      "sha.js": "2.4.12"
+    }
   }
 }

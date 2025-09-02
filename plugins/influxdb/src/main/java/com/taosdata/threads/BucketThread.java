@@ -160,6 +160,7 @@ public class BucketThread implements Runnable {
                         long timestamp = taskConfig.getBreakpoint().get(v.getMeasurement());
                         // 如果断点晚于endTime则直接忽略任务
                         if (timestamp > OffsetDateTime.parse(timeRangeArr[1]).getLong(ChronoField.INSTANT_SECONDS) * 1_000_000_000) {
+                            logger.info("Break point timestamp {} after {}", timestamp, timeRangeArr[1]);
                             return;
                         }
                     }
@@ -232,7 +233,7 @@ public class BucketThread implements Runnable {
      */
     private void exit() {
         // 线程结束
-        logger.info(this.name + "#Thread completed and exited#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
+        logger.info(this.name + "#BucketThread completed and exited#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
         // 清除线程信息
         StatusCache.forgetThread(this.name);
     }

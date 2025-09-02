@@ -1,5 +1,6 @@
 package com.taosdata.caches;
 
+import com.taosdata.config.PerformanceConfig;
 import com.taosdata.model.entity.InfluxdbBucketDataEntity;
 import io.netty.channel.Channel;
 
@@ -32,6 +33,12 @@ public class BucketDataCache {
      * Bucket/Measurement/Table-Socket连接
      */
     public static ConcurrentHashMap<String, Channel> socketMap = new ConcurrentHashMap<>();
+
+    /**
+     * 读取倍率，经验值
+     */
+    public static final long readDataRatio1 = 2;
+    public static final long readDataRatio2 = 70;
 
     /**
      * 添加数据并获取队列大小
@@ -84,13 +91,15 @@ public class BucketDataCache {
     public static List<InfluxdbBucketDataEntity> getBucketData(long batch) {
         List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = new ArrayList<>();
         // 遍历获取
-        for (int i = 0; i < batch; i++) {
+        for (long i = 0; influxdbBucketDataEntityList.size() < batch; i++) {
             InfluxdbBucketDataEntity influxdbBucketDataEntity = bucketDataQueue.poll();
             // 非空则放入列表，空则中断
             if (influxdbBucketDataEntity != null) {
                 influxdbBucketDataEntityList.add(influxdbBucketDataEntity);
             } else {
-                break;
+                if (i >= batch * readDataRatio1) {
+                    break;
+                }
             }
         }
         return influxdbBucketDataEntityList;
@@ -106,13 +115,15 @@ public class BucketDataCache {
     public static List<InfluxdbBucketDataEntity> getBucketData(String key, long batch) {
         List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = new ArrayList<>();
         // 遍历获取
-        for (int i = 0; i < batch; i++) {
+        for (long i = 0; influxdbBucketDataEntityList.size() < batch; i++) {
             InfluxdbBucketDataEntity influxdbBucketDataEntity = bucketDataQueueMap.getOrDefault(key, new ConcurrentLinkedQueue<>()).poll();
             // 非空则放入列表，空则中断
             if (influxdbBucketDataEntity != null) {
                 influxdbBucketDataEntityList.add(influxdbBucketDataEntity);
             } else {
-                break;
+                if (i >= batch * readDataRatio2) {
+                    break;
+                }
             }
         }
         return influxdbBucketDataEntityList;

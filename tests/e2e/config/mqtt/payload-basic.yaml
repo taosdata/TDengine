@@ -3,7 +3,7 @@ parser:
     "parse": {
       "payload": {
         "json": [
-          {"name": "ts", "alias": "id", "cast": "TIMESTAMP"},
+          {"name": "ts", "alias": "ts", "cast": "TIMESTAMP"},
           {"name": "id", "alias": "id", "cast": "INT"},
           {"name": "current", "alias": "current", "cast": "FLOAT"},
           {"name": "phase", "alias": "phase", "cast": "DOUBLE"},

@@ -32,7 +32,7 @@ use tracing::instrument;
 pub mod cast;
 mod convert;
 mod join;
-mod json;
+pub mod json;
 pub mod plugin;
 mod regex;
 mod split;
@@ -110,7 +110,6 @@ pub enum FieldParser {
     Join(Join),
     Plugin(plugin::ParserPlugin),
     Convert(Convert),
-    // Json must be the last one, because it has default value. If not, other parsers will be ignored.
     Json(Json),
 }
 

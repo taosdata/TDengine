@@ -1,4 +1,4 @@
-import {$IS_COMMUNITY, GRAFANA_GDS} from '@/utils/init';
+import { $IS_COMMUNITY, GRAFANA_GDS } from '@/utils/init';
 
 export default {
   docs: {
@@ -980,7 +980,7 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
         step312pre2: 'SQL:',
 
         step32: 'Business Processing',
-        
+
         step321: 'Data Collection',
         step321pre1: 'This example uses randomly generated numbers to simulate real device data. The tdengine-operator node is configured with TDengine data source connection information, writes data to TDengine, and uses the debug node to monitor the number of successfully written records displayed on the interface.',
         step321pre2: 'Steps',
@@ -1035,7 +1035,7 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
         step323item3: 'Drag debug node to canvas and configure it: name: "debug3", node status: checked, select "message count" from the drop-down list.',
         step323item4: 'Connect nodes sequentially → Click "Deploy".',
         step323pre3: 'After the process is successfully started, you can see that the td consumer node status changes to "green" to indicate that the process is working properly, and the debug node number represents the number of consumption times.',
-        step323pre4: 'If the overload device warning message pushed to downstream nodes fails, an exception will be thrown:',        
+        step323pre4: 'If the overload device warning message pushed to downstream nodes fails, an exception will be thrown:',
 
         step33: 'Error Handling',
         step33pre1: 'Errors in data collection, querying, and subscription workflows are routed to catch nodes for handling in Node-RED. To implement error monitoring:',
@@ -1048,8 +1048,8 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
         step33secitem1: 'Debug node shows error count.',
         step33secitem2: 'View details in Node-RED logs. ',
 
-        step4:  'Summary',
-        step4pre1:  'This article demonstrates, through an industrial monitoring scenario:',
+        step4: 'Summary',
+        step4pre1: 'This article demonstrates, through an industrial monitoring scenario:',
         step4item1: 'Three integration patterns between Node-RED and TDengine:',
         step4item1opt1: 'Data collection (tdengine-operator writes).',
         step4item1opt2: 'Real-time queries (tdengine-operator queries).',

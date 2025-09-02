@@ -1,0 +1,20 @@
+[package]
+name = "source-orc"
+edition = "2024"
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+arrow.workspace = true
+tokio-util.workspace = true
+anyhow.workspace = true
+taos.workspace = true
+tracing.workspace = true
+futures.workspace = true
+orc-rust.workspace = true
+
+taosx-core.workspace = true
+opendal.workspace = true
+
+[lints]
+workspace = true

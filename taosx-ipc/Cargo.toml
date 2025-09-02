@@ -15,7 +15,7 @@ serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 zstd.workspace = true
-
+num = { workspace = true }
 anyhow.workspace = true
 arrow = { workspace = true }
 faststr = { workspace = true }

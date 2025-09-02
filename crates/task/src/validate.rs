@@ -22,7 +22,7 @@ pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
                 dsn.driver = "tmq".to_string();
                 taosx_core::tmq::is_tmq_valid(&dsn).await
             }
-            "csv" => taosx_core::csv::is_csv_valid(&dsn).await,
+            "csv" => source_csv::is_csv_valid(&dsn).await,
             "local" => local_to_taos::is_local_valid(&dsn).await,
             source_mysql::MYSQL_ID => source_mysql::is_valid(&dsn).await,
             source_postgres::POSTGRES_ID => source_postgres::is_valid(&dsn).await,

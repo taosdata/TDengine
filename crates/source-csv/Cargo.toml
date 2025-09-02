@@ -1,5 +1,5 @@
 [package]
-name = "sink-csv"
+name = "source-csv"
 edition = "2024"
 version.workspace = true
 rust-version.workspace = true

@@ -83,6 +83,8 @@ kafka_total_partitions: Total number of partitions of Kafka topic
 kafka_consuming_partitions: Number of partitions being consumed
 kafka_consumed_messages: Number of messages has been consumed
 total_kafka_consumed_messages: Total consumed messages since task started
+kafka_sent_batches: Total batches sent since task started
+kafka_received_acks: Total received acks since task started
 mqtt_fetched_messages: Total number of messages fetched in this task run
 mqtt_received_bytes: Number of bytes received in this task run
 mqtt_dumped_messages: Number of messages dumped in this task run

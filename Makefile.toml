@@ -366,19 +366,18 @@ script = """
 set -e
 echo TDengine version in cloud image is "${VER_NUMBER}"
 mkdir -p ./docker/serve/release/plugins/
-rsync -u root@192.168.1.213:/nas/TDengine/v${VER_NUMBER}/enterprise/TDengine-enterprise-client-${VER_NUMBER}-Linux-x64.tar.gz .
-rsync -u root@192.168.1.213:/nas/TDengine/v${VER_NUMBER}/enterprise/TDengine-enterprise-${VER_NUMBER}-Linux-x64.tar.gz .
-tar vxf TDengine-enterprise-client-${VER_NUMBER}-Linux-x64.tar.gz
-cp -r ./TDengine-enterprise-client-${VER_NUMBER} ./docker/serve/release/TDengine-enterprise-client
-tar vxf TDengine-enterprise-${VER_NUMBER}-Linux-x64.tar.gz
-cp ./TDengine-enterprise-${VER_NUMBER}/taosx/bin/taosx ./docker/serve/release/taosx
-cp ./TDengine-enterprise-${VER_NUMBER}/taosx/plugins/influxdb/taosx-influxdb.jar ./docker/serve/release/plugins/taosx-influxdb.jar
-cp ./TDengine-enterprise-${VER_NUMBER}/taosx/plugins/opentsdb/taosx-opentsdb.jar ./docker/serve/release/plugins/taosx-opentsdb.jar
-cp ./TDengine-enterprise-${VER_NUMBER}/taosx/plugins/opc/taosx-opc ./docker/serve/release/plugins/taosx-opc
-docker build -t image.cloud.taosdata.com/taosx/serve:${VER_NUMBER} ./docker/serve/
+rsync -u root@192.168.1.213:/nas/TDengine/3.3/v${VER_NUMBER}/enterprise/tdengine-tsdb-enterprise-client-${VER_NUMBER}-linux-x64.tar.gz .
+rsync -u root@192.168.1.213:/nas/TDengine/3.3/v${VER_NUMBER}/enterprise/tdengine-tsdb-enterprise-${VER_NUMBER}-linux-x64.tar.gz .
+tar vxf tdengine-tsdb-enterprise-client-${VER_NUMBER}-linux-x64.tar.gz
+cp -r ./tdengine-tsdb-enterprise-client-${VER_NUMBER} ./docker/serve/release/tdengine-tsdb-enterprise-client
+tar vxf tdengine-tsdb-enterprise-${VER_NUMBER}-linux-x64.tar.gz
+cp ./tdengine-tsdb-enterprise-${VER_NUMBER}/taosx/plugins/influxdb/taosx-influxdb.jar ./docker/serve/release/plugins/taosx-influxdb.jar
+cp ./tdengine-tsdb-enterprise-${VER_NUMBER}/taosx/plugins/opentsdb/taosx-opentsdb.jar ./docker/serve/release/plugins/taosx-opentsdb.jar
+cp ./tdengine-tsdb-enterprise-${VER_NUMBER}/taosx/plugins/opc/taosx-opc ./docker/serve/release/plugins/taosx-opc
+docker buildx build --platform linux/amd64 -t image.cloud.taosdata.com/taosx/serve:${VER_NUMBER} ./docker/serve/
 rm -rf ./docker/serve/release
-rm -rf ./TDengine-enterprise-client-${VER_NUMBER}
-rm -rf ./TDengine-enterprise-${VER_NUMBER}
+rm -rf ./tdengine-tsdb-enterprise-client-${VER_NUMBER}
+rm -rf ./tdengine-tsdb-enterprise-${VER_NUMBER}
 """
 
 [tasks.build-docker-agent-source]
@@ -541,8 +540,9 @@ case "${PLATFORM}" in
       -v $HOME/.cargo/registry:/root/.cargo/registry \
       -v $HOME/.cargo/git:/root/.cargo/git \
       -v $TARGET_DIR:/app/target \
+      -e DATABASE_URL=sqlite:/app/target/taosx.dev.db \
       taosx/dev \
-      cargo build --release $EXTRAS
+      cargo build --profile ${BUILD_PROFILE} $EXTRAS
     ;;
   "")
     export TARGET_DIR=$PWD/target/centos7
@@ -553,7 +553,7 @@ case "${PLATFORM}" in
       -v $HOME/.cargo/git:/root/.cargo/git \
       -v $TARGET_DIR:/app/target \
       taosx/dev \
-      cargo build --release $@
+      cargo build --profile ${BUILD_PROFILE} $@
     ;;
   *)
     echo Unsupported platform $PLATFORM
@@ -665,9 +665,12 @@ upx_run ${1} ${2}
 [tasks.clean-taosx]
 script_runner = "@duckscript"
 script.pre = """
-echo "Before deploy taosx with ${BUILD_PROFILE}"
-echo rm target/${BUILD_PROFILE}/taosx
-rm target/${BUILD_PROFILE}/taosx
+echo "Clean taosx with profile ${BUILD_PROFILE}"
+if eq ${BUILD_PROFILE} "dev"
+  rm target/debug/taosx
+else
+  rm target/${BUILD_PROFILE}/taosx
+end
 """
 
 [tasks.deploy-taosx]
@@ -676,12 +679,12 @@ script_runner = "@duckscript"
 script.main = """
 !include_files .github/helpers.duck
 
-cus_prompt = get_env CUS_PROMPT
-profile = get_env "BUILD_PROFILE"
-if eq ${profile} "dev"
-  cp target/debug/taosx target/deploy/${cus_prompt}x
+if eq ${BUILD_PROFILE} "dev"
+  cp target/${BUILD_PROFILE}/taosx target/deploy/${CUS_PROMPT}x
+  cp target/debug/${CUS_PROMPT}x.service target/deploy/${CUS_PROMPT}x.service
 else
-  upx_run target/${profile}/taosx target/deploy/${cus_prompt}x
+  upx_run target/${BUILD_PROFILE}/taosx target/deploy/${CUS_PROMPT}x
+  cp target/${BUILD_PROFILE}/${CUS_PROMPT}x.service target/deploy/${CUS_PROMPT}x.service
 end
 """
 
@@ -694,11 +697,16 @@ cus_prompt = get_env CUS_PROMPT
 profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
   cp target/debug/taosx.exe target/deploy/${cus_prompt}x.exe
+  cp target/debug/${CUS_PROMPT}x-srv.xml target/deploy/${CUS_PROMPT}x-srv.xml
 else
   upx_run target/${profile}/taosx.exe target/deploy/${cus_prompt}x.exe
+  cp target/${BUILD_PROFILE}/${CUS_PROMPT}x-srv.xml target/deploy/${CUS_PROMPT}x-srv.xml
 end
+cp bin/taosx-srv.exe target/deploy/${CUS_PROMPT}x-srv.exe
 """
 
+[tasks.deploy-agent]
+alias = "deploy-taosx-agent"
 [tasks.deploy-taosx-agent]
 dependencies = ["taosx-agent"]
 script_runner = "@duckscript"
@@ -709,8 +717,10 @@ cus_prompt = get_env CUS_PROMPT
 profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
   cp target/debug/taosx-agent target/deploy/${cus_prompt}x-agent
+  cp target/debug/${CUS_PROMPT}x-agent.service target/deploy/${CUS_PROMPT}x-agent.service
 else
   upx_run target/${profile}/taosx-agent target/deploy/${cus_prompt}x-agent
+  cp target/${BUILD_PROFILE}/${CUS_PROMPT}x-agent.service target/deploy/${CUS_PROMPT}x-agent.service
 end
 """
 
@@ -724,9 +734,13 @@ cus_prompt = get_env CUS_PROMPT
 profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
   cp target/debug/taosx-agent.exe target/deploy/${cus_prompt}x-agent.exe
+  cp target/debug/${CUS_PROMPT}x-agent-srv.xml target/deploy/${CUS_PROMPT}x-agent-srv.xml
 else
   upx_run target/${profile}/taosx-agent.exe target/deploy/${cus_prompt}x-agent.exe
+  cp target/${BUILD_PROFILE}/${CUS_PROMPT}x-agent-srv.xml target/deploy/${CUS_PROMPT}x-agent-srv.xml
 end
+
+cp taosx-agent/bin/taosx-agent-srv.exe target/deploy/${CUS_PROMPT}x-agent-srv.exe
 """
 
 [tasks.zigbuild-aarch64-image]
@@ -838,6 +852,7 @@ condition.files_modified = { input = [
 ], output = [
   "explorer/dist/",
 ] }
+condition.env_not_set = ["NO_BUILD_UI"]
 cwd = "explorer"
 script_runner = "@duckscript"
 script = """
@@ -881,8 +896,10 @@ cus_prompt = get_env CUS_PROMPT
 profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
   cp target/debug/taos-explorer target/deploy/${cus_prompt}-explorer
+  cp target/debug/${cus_prompt}-explorer.service target/deploy/${cus_prompt}-explorer.service
 else
   upx_run target/${profile}/taos-explorer target/deploy/${cus_prompt}-explorer
+  cp target/${profile}/${cus_prompt}-explorer.service target/deploy/${cus_prompt}-explorer.service
 end
 
 cp explorer/server/examples/explorer.toml target/deploy/explorer.toml
@@ -896,12 +913,13 @@ cus_prompt = get_env CUS_PROMPT
 profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
   cp target/debug/taos-explorer.exe target/deploy/${cus_prompt}-explorer.exe
+  cp target/debug/${cus_prompt}-explorer-srv.xml target/deploy/${cus_prompt}-explorer-srv.xml
 else
   cp target/${profile}/taos-explorer.exe target/deploy/${cus_prompt}-explorer.exe
+  cp target/${profile}/${cus_prompt}-explorer-srv.xml target/deploy/${cus_prompt}-explorer-srv.xml
 end
 
 cp explorer/bin/taos-explorer-srv.exe target/deploy/${cus_prompt}-explorer-srv.exe
-cp explorer/bin/taos-explorer-srv.xml target/deploy/${cus_prompt}-explorer-srv.xml
 cp explorer/server/examples/explorer.toml target/deploy/explorer.toml
 """
 

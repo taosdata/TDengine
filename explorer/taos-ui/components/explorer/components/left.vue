@@ -182,8 +182,11 @@ async function loadNode(node: Node, resolve: LoadedCallback) {
         );
       }
     case 'dimension':
-      if (data.total > 0 && data.children) return resolve(data.children);
       // eslint-disable-next-line no-case-declarations
+      const parts = data['node-key'].split(":");
+      // eslint-disable-next-line no-case-declarations
+      const tagName = parts[3];
+      if (data.total > 0 && data.children) return resolve(data.children);
       // eslint-disable-next-line no-case-declarations
       let parentStb = node.parent;
       // eslint-disable-next-line no-case-declarations
@@ -199,6 +202,7 @@ async function loadNode(node: Node, resolve: LoadedCallback) {
           currentPage: node.currentPage,
           dbName: parentStb.data.parent,
           tag_value: tagValue,
+          tagName: tagName,
           filter: filterTextMap[data.parent]
         }))
       );

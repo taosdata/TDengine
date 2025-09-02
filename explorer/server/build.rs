@@ -76,6 +76,25 @@ fn main() -> shadow_rs::SdResult<()> {
     } else {
         cus_name
     };
+
+    // OEM for srv.xml
+    let srv_template = manifest_dir
+        .parent()
+        .expect("explorer/ path should exist")
+        .join("bin")
+        .join("taos-explorer-srv.xml");
+    let srv = std::fs::read_to_string(&srv_template)
+        .unwrap_or_else(|_| panic!("{}", srv_template.display()))
+        .replace(DEFAULT_CUS_PROMPT, cus_prompt)
+        .replace(DEFAULT_CUS_NAME, canonical_cus_name);
+    if !target_dir.exists() {
+        std::fs::create_dir_all(target_dir).unwrap();
+    }
+    std::fs::write(
+        target_dir.join(format!("{cus_prompt}-explorer-srv.xml")),
+        srv,
+    )
+    .unwrap();
     println!("cargo:rustc-env=CUS_NAME={cus_name}");
     println!("cargo:rustc-env=CUS_PROMPT={cus_prompt}");
     println!("cargo:rustc-env=CANONICAL_CUS_NAME={canonical_cus_name}");

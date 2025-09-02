@@ -105,7 +105,7 @@ chardetng = "0.1.17"
 encoding_rs.workspace = true
 bigdecimal.workspace = true
 rumqttc.workspace = true
-opendal = { workspace = true }
+opendal = { workspace = true, features = ["services-s3"] }
 taoslog.workspace = true
 bitfield.workspace = true
 file-guard = "0.2.0"
@@ -114,7 +114,6 @@ snafu.workspace = true
 parking_lot.workspace = true
 lz4.workspace = true
 snap.workspace = true
-datafusion = { workspace = true }
 zstd.workspace = true
 hex.workspace = true
 persist-queue = { path = "../crates/persist-queue" }
@@ -152,6 +151,11 @@ pretty_env_logger = "0.5.0"
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 urlencoding = { workspace = true }
 shadow-rs = { workspace = true }
+criterion.workspace = true
 
 [lints]
 workspace = true
+
+[[bench]]
+name = "json_parse"
+harness = false

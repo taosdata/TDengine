@@ -55,7 +55,7 @@ public class InfluxdbV1PoolAutoConfig {
         poolConfig.setTestOnBorrow(true);
         poolConfig.setTestOnReturn(true);
         poolConfig.setTestWhileIdle(true);
-        poolConfig.setTimeBetweenEvictionRunsMillis(1000 * 60 * 30);
+        poolConfig.setTimeBetweenEvictionRunsMillis(1000 * 60 * 5);
         //一定要关闭jmx，不然springboot启动会报已经注册了某个jmx的错误
         poolConfig.setJmxEnabled(false);
         // 新建一个对象池，传入对象工厂和配置

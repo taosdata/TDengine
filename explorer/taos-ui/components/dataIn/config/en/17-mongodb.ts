@@ -198,7 +198,7 @@ export default {
             {
               label: 'Query Template',
               description:
-                'A query statement used to query data, in JSON format, must contain a time range condition, and the start time and end time must appear in pairs(at least one closed interval).\nUse different placeholders to indicate different time format requirements, specifically the following placeholder formats:\n1. `${start_datetime}`、`${end_datetime}`:Filters corresponding to back-end datetime fields, for example:{"ddate":{"$gte":${start_datetime},"$lt":${end_datetime}}} will be converted to {"ddate":{"$gte":{"$date":"2024-06-01T00:00:00+00:00"},"$lt":{"$date":"2024-07-01T00:00:00+00:00"}}}\n2. `${start_timestamp}`、`${end_timestamp}`: indicates the filtering of back-end timestamp fields, for example:{"ttime":{"$gte":${start_timestamp},"$lt":${end_timestamp}}} will be converted to {"ttime":{"$gte":{"$timestamp":{"t":123,"i":456}},"$lt":{"$timestamp":{"t":123,"i":456}}}}\n\nIf you use subtable fields, you need to concatenate field placeholders in the statement.\n\nExample:`{"ddate":{"$gte":${start_datetime},"$lt":${end_datetime}},${col_name1},${col_name2}}`',
+                'A query statement used to query data, in JSON format, must contain a time range condition, and the start time and end time must appear in pairs(at least one closed interval).\nUse different placeholders to indicate different time format requirements, specifically the following placeholder formats:\n1. `${start_datetime}`、`${end_datetime}`:Filters corresponding to back-end datetime fields, for example:`{"ddate":{"$gte":${start_datetime},"$lt":${end_datetime}}}` will be converted to `{"ddate":{"$gte":{"$date":"2024-06-01T00:00:00+00:00"},"$lt":{"$date":"2024-07-01T00:00:00+00:00"}}}`\n2. `${start_timestamp}`、`${end_timestamp}`: indicates the filtering of back-end timestamp fields, for example:`{"ttime":{"$gte":${start_timestamp},"$lt":${end_timestamp}}}` will be converted to `{"ttime":{"$gte":{"$timestamp":{"t":123,"i":456}},"$lt":{"$timestamp":{"t":123,"i":456}}}}`\n\nIf you use subtable fields, you need to concatenate field placeholders in the statement.\n\nExample:`{"ddate":{"$gte":${start_datetime},"$lt":${end_datetime}},${col_name1},${col_name2}}`',
               field: 'sql',
               required: true,
               placeholder: '{"ddate":{"$gte":${start_datetime},"$lt":${end_datetime}},${col_name1},${col_name2}}',
@@ -222,7 +222,7 @@ export default {
               description: 'Start time of data migration.\n',
               field: 'start',
               required: true,
-              placeholder: '如：2023-01-01 00:00:00',
+              placeholder: 'for example: 2023-01-01 00:00:00',
               pattern: null,
               grid_two: false,
               type: 'time',
@@ -234,7 +234,7 @@ export default {
               description:
                 'The end time of data migration can be left blank. If this parameter is set, the migration task is automatically stopped when the end time expires. If left blank, real-time data is continuously synchronized and the task does not automatically stop.\n',
               field: 'end',
-              placeholder: '如：2024-01-01 00:00:00',
+              placeholder: 'for example: 2024-01-01 00:00:00',
               pattern: null,
               grid_two: false,
               type: 'time',

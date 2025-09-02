@@ -12,7 +12,8 @@ export const $IS_OEM = !$IS_TSDBLITE && import.meta.env.VITE_APP_CUS_NAME && !is
 export const OEM_NAME =
   import.meta.env.VITE_APP_CUS_NAME && !is_tdengine
     ? import.meta.env.VITE_APP_CUS_NAME
-    : "TDengine TSDB";
+    : $IS_COMMUNITY ? "TDengine TSDB-OSS" : $IS_TSDBLITE ? "TDengine TSDB-Lite" : "TDengine TSDB-Enterprise";
+
 export const GRAFANA_GDS =
   import.meta.env.VITE_APP_CUS_NAME && !is_tdengine
     ? ""
@@ -48,10 +49,7 @@ export function getBrowserLang(): string {
  * 根据打包版本修改网页标题
  */
 export function setTitle(): void {
-  const lang = getBrowserLang()
-  const title = lang === 'en'
-    ? $IS_COMMUNITY ? 'TDengine OSS' : $INDUSTRY ? 'TDengine Power Edition' : 'TDengine Enterprise'
-    : $IS_COMMUNITY ? 'TDengine OSS' : $INDUSTRY ? 'TDengine 电力版' : 'TDengine 企业版'
+  const title = $IS_COMMUNITY ? "TDengine TSDB-OSS" : import.meta.env.VITE_APP_CUS_NAME || "TDengine TSDB-Enterprise"
   document.title = title
 }
 

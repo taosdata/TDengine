@@ -1,6 +1,6 @@
 <template>
   <div class="page-wrapper">
-    <PageHeader :title="$t('dashboard.overview')"></PageHeader>
+    <!-- <PageHeader :title="$t('dashboard.overview')"></PageHeader> -->
     <div class="content">
       <!-- <docs v-if="!grafanaDashboard" :category="'dashboard'" :lang="'Dashboard'"></docs> -->
 
@@ -26,7 +26,7 @@
 // import Docs from '@/components/document/docs.vue';
 import dnodes from './dnodes.vue'
 
-const grafanaDashboard = ref(null);
+const grafanaDashboard = ref<any>(null);
 const grafana_dashboards = localStorage.getItem("local_grafana");
 if (grafana_dashboards) {
   grafanaDashboard.value = JSON.parse(grafana_dashboards);

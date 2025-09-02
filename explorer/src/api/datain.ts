@@ -93,7 +93,7 @@ export async function refreshTask(id: string | number) {
   return taskDetail;
 }
 
-export function skip2Latest(id: string | number, recovery: boolean) {
+export function skip2Latest(id: string | number, _recovery: boolean) {
   return request({
     baseURL: import.meta.env.VITE_APP_X_API,
     url: `/kafka/${id}/seek_to_end`,
@@ -156,6 +156,16 @@ export function validateTask(data: Record<string, any>) {
     url: '/ds/in/validate',
     method: 'post',
     data
+  }).then(data => {
+    if (!data.code) {
+      return data;
+    }
+    return {
+      valid: false,
+      support: false,
+      data_source: 'unknown',
+      message: data.desc
+    }
   });
 }
 

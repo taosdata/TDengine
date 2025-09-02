@@ -2,12 +2,14 @@ package com.taosdata.config.dto;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.springframework.stereotype.Component;
 
 /**
  * 线程配置
  *
  * @author ZYP
  */
+@Component
 @Getter
 @Setter
 public class ThreadConfig {
@@ -21,7 +23,7 @@ public class ThreadConfig {
     /**
      * PushPrepareThread线程
      */
-    private long readBucketDataBatch = 1000;
+    private long readBucketDataBatch = 200000;
     private long pushPrepareInterval = 10;
 
     /**
@@ -41,7 +43,7 @@ public class ThreadConfig {
      */
     private long readBucketBatch = 1000;
     private long readBucketInterval = 1;
-    private long readBucketFullInterval = 200;
+    private long readBucketFullInterval = 10;
 
     /**
      * ScheduleThread线程

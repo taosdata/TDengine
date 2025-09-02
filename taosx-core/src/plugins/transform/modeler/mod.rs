@@ -148,11 +148,11 @@ impl ModeledRecordBatch {
         &self.records
     }
 
-    pub fn to_modeled_json(&self) -> ModeledJsonOutput {
-        self.inner().into()
+    pub fn to_modeled_json(&self) -> anyhow::Result<ModeledJsonOutput> {
+        Ok(self.inner().into())
     }
 
-    pub fn to_modeled_json_with_tz(&self, tz: &str) -> ModeledJsonOutput {
+    pub fn to_modeled_json_with_tz(&self, tz: &str) -> anyhow::Result<ModeledJsonOutput> {
         let schema = self.records.schema();
         let (fields, columns): (Vec<_>, Vec<_>) = (0..self.records.num_columns())
             .map(|i| {
@@ -182,9 +182,10 @@ impl ModeledRecordBatch {
             })
             .unzip();
 
-        let records = RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).unwrap();
+        let records = RecordBatch::try_new(Arc::new(Schema::new(fields)), columns)
+            .context("build modeled batch error")?;
 
-        (&records).into()
+        Ok((&records).into())
     }
 }
 
@@ -470,17 +471,7 @@ impl Table {
             .columns
             .as_ref()
             .and_then(|cols| cols.first())
-            .and_then(|col| batch.schema_ref().field_with_name(col).ok())
             .context("ts field not found")?;
-
-        let normal_cols = batch
-            .schema_ref()
-            .fields()
-            .iter()
-            .map(|f| f.name())
-            .filter(|col| !pivot_fields.iter().any(|(a, b)| a == col || b == col))
-            .map(|s| s.as_str())
-            .collect::<Vec<_>>();
 
         // record 行 按照 子表名称分类
         let tables = (0..batch.num_rows())
@@ -508,7 +499,7 @@ impl Table {
             let pivot_batch = arrow::compute::concat_batches(batch.schema_ref(), batches.iter())
                 .context("pivot concat batch error")?;
 
-            let batches = pivot(pivot_batch, ts_field, &pivot_fields, &normal_cols)?;
+            let batches = pivot(&pivot_batch, ts_field, &pivot_fields, None)?;
             for batch in batches {
                 res.push(ModeledRecordBatch::new(batch))
             }
@@ -612,7 +603,7 @@ mod tests {
         .unwrap();
 
         let modeled = ModeledRecordBatch::new(records);
-        let output = modeled.to_modeled_json_with_tz("UTC");
+        let output = modeled.to_modeled_json_with_tz("UTC").unwrap();
         assert_eq!(
             output.columns,
             vec![
@@ -626,7 +617,7 @@ mod tests {
                 ]
             ]
         );
-        let output = modeled.to_modeled_json_with_tz("Asia/Shanghai");
+        let output = modeled.to_modeled_json_with_tz("Asia/Shanghai").unwrap();
         assert_eq!(
             output.columns,
             vec![

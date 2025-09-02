@@ -2,7 +2,7 @@ import { request } from '@/utils/request.ts';
 import JSONbig from 'json-bigint';
 import { compHeadAndData, getLocalTimezone } from '@/utils';
 import { stringify } from 'qs';
-export function sendSQLReq(sqlStr: string, composeData = false) {
+export function sendSQLReq(sqlStr: string, composeData = false, alert = true) {
   return request({
     baseURL: import.meta.env.VITE_APP_BASE_URL,
     url: `/api/-/rest/sql?tz=${getLocalTimezone()}`,
@@ -25,7 +25,9 @@ export function sendSQLReq(sqlStr: string, composeData = false) {
   })
     .then(cData => {
       if (cData.code == 0) return composeData ? compHeadAndData(cData.column_meta, cData.data) : cData;
-      ElMessage.error(cData.desc);
+      if (alert) {
+        ElMessage.error(cData.desc);
+      }
       return Promise.reject(cData?.desc || 'Service Unavailable, please try again later!');
     })
     .catch(err => {

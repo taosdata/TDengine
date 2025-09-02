@@ -9,7 +9,7 @@ use actix_web::{
 };
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use taos::{Code, IntoDsn};
+use taos::{Code, Dsn, IntoDsn};
 use taosx_task::validate::validate_dsn;
 use tokio::time::timeout;
 use tracing::{Instrument, Span, instrument};
@@ -577,7 +577,7 @@ async fn validate_2dsn_and_license(
 
 /// get sample data from data source
 #[utoipa::path(
-    get,
+    post,
     path = "/ds/in/sample",
     responses(
         (status = 200, description = "sample data from data source", body = DsSampleIn),
@@ -626,6 +626,47 @@ pub(super) async fn get_sample(
             Err(Failed::new(
                 Code::FAILED,
                 "get sample from data source timeout".to_string(),
+                (),
+            ))
+        }
+    }
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct SampleByDsnReq {
+    dsn: String,
+    via: Option<String>,
+}
+
+// 兼容云服务
+#[get("/ds/in/sample")]
+pub(crate) async fn get_sample_by_dsn(
+    controller: Data<TaskControllerRef>,
+    query: Query<SampleByDsnReq>,
+) -> impl Responder {
+    let dsn: Dsn = query
+        .dsn
+        .parse()
+        .map_err(|e| Failed::new(Code::FAILED, format!("parse sample dsn error: {e}"), ()))?;
+
+    let sample_res = match &query.via {
+        Some(agent) if !agent.is_empty() => {
+            let agent = agent
+                .parse()
+                .map_err(|_| Failed::new(Code::FAILED, format!("invalid agent id: {agent}"), ()))?;
+            controller
+                .get_sample_via_agent(agent, dsn.to_string())
+                .await
+        }
+        _ => taosx_task::sample::get_sample(&dsn).await,
+    };
+    match sample_res {
+        Ok(sample) => Ok(HttpResponse::Ok().json(sample)),
+        Err(err) => {
+            tracing::error!("failed to get sample from data source, cause: {err:#}");
+            Err(Failed::new(
+                Code::FAILED,
+                format!("failed to get sample from data source, cause: {err:#}"),
                 (),
             ))
         }

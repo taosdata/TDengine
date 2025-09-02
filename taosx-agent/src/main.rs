@@ -189,7 +189,7 @@ pub struct ConfigArgs {
     #[clap(flatten)]
     client_port_range: Option<ClientPortRange>,
 
-    #[clap(long, action = clap::ArgAction::SetTrue)]
+    #[clap(long, default_value = "true", action = clap::ArgAction::SetTrue)]
     keep_online: Option<bool>,
 }
 
@@ -515,7 +515,7 @@ impl Args {
             log,
             in_memory_cache_capacity,
             ports,
-            keep_online: keep_online.unwrap_or_default(),
+            keep_online: keep_online.unwrap_or(true),
         })
     }
 

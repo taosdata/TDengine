@@ -24,6 +24,7 @@ import com.taosdata.utils.exception.ArtificialException;
 import com.taosdata.utils.influxdb.InfluxdbPoolAutoConfig;
 import com.taosdata.utils.influxdbV1.InfluxdbV1PoolAutoConfig;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.influxdb.InfluxDB;
 import org.influxdb.InfluxDBFactory;
 import org.influxdb.dto.Query;
@@ -46,6 +47,12 @@ import java.util.stream.Collectors;
 public class InfluxdbServiceImpl implements InfluxdbService {
 
     protected Logger logger = LoggerFactory.getLogger(getClass());
+
+    public static final String SEP = "\001";
+    public static final String COMMA = ",";
+    public static final String ESCAPE_COMMA = "\\,";
+    public static final String EQUAL = "=";
+    public static final String ESCAPE_EQUAL = "\\=";
 
     @Resource
     InfluxdbPoolAutoConfig influxdbPool;
@@ -378,11 +385,6 @@ public class InfluxdbServiceImpl implements InfluxdbService {
      */
     @Override
     public List<InfluxdbBucketDataEntity> selectBucketData(String orgId, String bucket, String measurement, String field, String startTime, String stopTime, long batch, long offset) throws ArtificialException {
-        switch (influxdbConfig.getVersion()) {
-            case "1.7":
-            case "1.8":
-                return selectBucketDataV1(bucket, measurement, startTime, stopTime, batch, offset);
-        }
         // influxdb客户端
         InfluxDBClient influxDBClient = null;
         try {
@@ -465,6 +467,14 @@ public class InfluxdbServiceImpl implements InfluxdbService {
         } finally {
             closeInfluxDBClient(influxDBClient);
         }
+    }
+
+    /**
+     * @return 具体的 influxdb 的版本
+     */
+    @Override
+    public String getInfluxdbVersion() {
+        return this.influxdbConfig.getVersion();
     }
 
     /**
@@ -637,10 +647,31 @@ public class InfluxdbServiceImpl implements InfluxdbService {
     }
 
     /**
+     * 获取 tag set
+     * @param bucket
+     * @param measurement
+     * @return
+     * @throws ArtificialException
+     */
+    public List<List<Pair<String, String>>> getTagSet(String bucket, String measurement) throws ArtificialException {
+        InfluxDB influxDB = null;
+        try {
+            influxDB = influxdbV1Pool.getPool().borrowObject();
+            return getTagSetV1(influxDB, bucket, measurement);
+        } catch (Exception e) {
+            handlerException(e);
+            throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
+        } finally {
+            closeInfluxDB(influxDB);
+        }
+    }
+
+    /**
      * 获取influxdb中指定bucket、measurement与时间段的数据，适用于v1.7/1.8
      *
      * @param bucket
      * @param measurement
+     * @param tagCondition
      * @param startTime
      * @param stopTime
      * @param batch
@@ -648,7 +679,22 @@ public class InfluxdbServiceImpl implements InfluxdbService {
      * @return
      * @throws ArtificialException
      */
-    private List<InfluxdbBucketDataEntity> selectBucketDataV1(String bucket, String measurement, String startTime, String stopTime, long batch, long offset) throws ArtificialException {
+    public List<InfluxdbBucketDataEntity> selectBucketDataV1(String bucket, String measurement, String tagCondition, String startTime, String stopTime, long batch, long offset) throws ArtificialException {
+//        String sql = "select * from \"" + measurement + "\" where time >= '" + startTime + "' and time <= '" + stopTime + "' limit " + batch + " offset " + offset;
+        String sql = "select * from \"" + measurement + "\" where time >= '" + startTime + "' and time <= '" + stopTime + "' and " + tagCondition + " limit " + batch + " offset " + offset;
+        return selectBucketDataV1(bucket, measurement, sql);
+    }
+
+    /**
+     * 获取influxdb中指定bucket、measurement与时间段的数据，适用于v1.7/1.8
+     *
+     * @param bucket
+     * @param measurement
+     * @param sql
+     * @return
+     * @throws ArtificialException
+     */
+    private List<InfluxdbBucketDataEntity> selectBucketDataV1(String bucket, String measurement, String sql) throws ArtificialException {
         // influxdb客户端
         InfluxDB influxDB = null;
         try {
@@ -658,8 +704,9 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = new ArrayList<>();
             // 根据bucket与measurement获取内存中的表结构
             InfluxdbMeasurementEntity influxdbMeasurementEntity = BucketCache.measurementMap.get(BucketCache.generateBucketDataThreadKey(bucket, measurement));
-            // 查询语句
-            String sql = "select * from \"" + measurement + "\" where time >= '" + startTime + "' and time <= '" + stopTime + "' limit " + batch + " offset " + offset;
+
+            logger.info("influxdb 1.x send query sql: {}", sql);
+            long sTime = System.currentTimeMillis();
             // 执行查询
             QueryResult queryResult = influxDB.query(new Query(sql, bucket));
             // 结果空则返回空列表
@@ -728,6 +775,10 @@ public class InfluxdbServiceImpl implements InfluxdbService {
                     }
                 }
             }
+            // 获取 limit
+            BucketCache.updateQueryLimit(BucketCache.generateBucketDataThreadKey(bucket, measurement), 1, performanceConfig.getThread().getReadBucketBatch(), Long.MAX_VALUE);
+            double costTime = (System.currentTimeMillis() - sTime) / 1000.0;
+            logger.info("influxdb 1.x exec sql: {}, result point size: {}, time cost {} s", sql, influxdbBucketDataEntityList.size(), costTime);
             return influxdbBucketDataEntityList;
         } catch (Exception e) {
             handlerException(e);
@@ -1005,6 +1056,73 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             }
         }
         return tagSet;
+    }
+
+    /**
+     * 查询tag列表值，适用于v1.7/1.8
+     *
+     * @param influxDB
+     * @param bucket
+     * @param measurement
+     * @return
+     */
+    private List<List<Pair<String, String>>> getTagSetV1(InfluxDB influxDB, String bucket, String measurement) {
+        // 返回结果
+        List<List<Pair<String, String>>> tagValues = new ArrayList<>();
+        // 查询所有tag
+        QueryResult queryResult = influxDB.query(new Query("show series from \"" + measurement + "\"", bucket));
+        // 结果空则返回空set
+        if (queryResult == null || queryResult.getResults() == null) {
+            return tagValues;
+        }
+        for (QueryResult.Result result : queryResult.getResults()) {
+            // 空则跳过并继续
+            if (result == null || result.getSeries() == null) {
+                continue;
+            }
+            for (QueryResult.Series series : result.getSeries()) {
+                // 空则跳过并继续
+                if (series == null || series.getValues() == null) {
+                    continue;
+                }
+                for (List<Object> record : series.getValues()) {
+                    // 空则跳过并继续
+                    if (record == null || record.size() == 0) {
+                        continue;
+                    }
+                    List<Pair<String, String>> tags = new ArrayList<>();
+                    for (int i = 0; i < record.size(); i++) {
+                        String line = record.get(i).toString();
+                        if (line.contains(ESCAPE_COMMA)) {
+                            line = line.replace(ESCAPE_COMMA, SEP);
+                        }
+                        String[] kvs = line.split(COMMA);
+                        // 第一个元素是 measurement
+                        for (int j = 1; j < kvs.length; j++) {
+                            String kv = kvs[j];
+                            kv = kv.replace(SEP, ESCAPE_COMMA);
+                            kv = kv.replace(ESCAPE_EQUAL, SEP);
+                            String[] pair = kv.split(EQUAL);
+                            if (pair.length != 2) {
+                                kv = kv.replace(SEP, ESCAPE_EQUAL);
+                                logger.error("show series get abnormal pair: {}", kv);
+                                continue;
+                            }
+                            String tag = pair[0].replace(SEP, ESCAPE_EQUAL);
+                            String val = pair[1].replace(SEP, ESCAPE_EQUAL);
+                            // 在后面 sql 中，需去掉转移符号 \
+                            val = val.replace(ESCAPE_EQUAL, EQUAL);
+                            val = val.replace(ESCAPE_COMMA, COMMA);
+                            tags.add(Pair.of(tag, val));
+                        }
+                    }
+                    if (!tags.isEmpty()) {
+                        tagValues.add(tags);
+                    }
+                }
+            }
+        }
+        return tagValues;
     }
 
     /**

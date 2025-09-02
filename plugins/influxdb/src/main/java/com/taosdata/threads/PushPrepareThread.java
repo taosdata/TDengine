@@ -115,6 +115,13 @@ public class PushPrepareThread implements Runnable {
                 exception(start, StatusEnums.EXCEPTION, e);
                 break;
             } catch (Exception e) {
+                BucketDataCache.socketMap.values().forEach(channel -> channel.close());
+                BucketDataCache.socketMap.clear();
+                // 获取所有子队列
+                Set<String> keySet = BucketDataCache.getBucketDataKeySet();
+                // 遍历写回主队列
+                keySet.stream().forEach(key -> BucketDataCache.addBucketData(BucketDataCache.getBucketData(key, BucketDataCache.getBucketDataQueueSize(key))));
+
                 exception(start, StatusEnums.EXCEPTION, e);
                 try {
                     Thread.sleep(1000L);

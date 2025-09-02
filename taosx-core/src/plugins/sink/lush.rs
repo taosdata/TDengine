@@ -428,7 +428,7 @@ pub async fn write(
     metrics: &IpcMetrics,
     skip_null: bool,
     table_id_column: &str,
-    breakpoints: BreakpointDb,
+    breakpoints_db: Option<BreakpointDb>,
     parser: &Parser,
     archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<(usize, Duration, Duration)> {
@@ -454,13 +454,13 @@ pub async fn write(
                             return Ok((0, Duration::from_secs(0), Duration::from_secs(0)));
                         }
                         Ok((HandlingResult::Archive, err)) => {
-                            messages.iter().for_each(|m| {
+                            for m in messages {
                                 if let Err(e) =
-                                    process_archive(&err, &m.records, archive_tx.clone())
+                                    process_archive(&err, &m.records, archive_tx.clone()).await
                                 {
                                     tracing::error!("archive error: {e:#}");
                                 }
-                            });
+                            }
                             return Ok((0, Duration::from_secs(0), Duration::from_secs(0)));
                         }
                         Ok((HandlingResult::Modify(_), _)) => unreachable!(),
@@ -540,12 +540,14 @@ pub async fn write(
                                 break;
                             }
                             Ok((HandlingResult::Archive, err)) => {
-                                records.batches.iter().for_each(|batch| {
-                                    if let Err(e) = process_archive(&err, batch, archive_tx.clone())
+                                for batch in &records.batches {
+                                    if let Err(e) =
+                                        process_archive(&err, batch, archive_tx.clone()).await
                                     {
                                         tracing::error!("archive error: {e:#}");
                                     }
-                                });
+                                }
+
                                 break;
                             }
                             Ok((HandlingResult::Modify(_), _)) => unreachable!(),
@@ -668,11 +670,12 @@ pub async fn write(
                         break;
                     }
                     Ok((HandlingResult::Archive, err)) => {
-                        records.batches.iter().for_each(|batch| {
-                            if let Err(e) = process_archive(&err, batch, archive_tx.clone()) {
+                        for batch in &records.batches {
+                            if let Err(e) = process_archive(&err, batch, archive_tx.clone()).await {
                                 tracing::error!("archive error: {e:#}");
                             }
-                        });
+                        }
+
                         break;
                     }
                     Ok((HandlingResult::Modify(_), _)) => unreachable!(),
@@ -693,7 +696,9 @@ pub async fn write(
         }
     }
     let write_time = timer.elapsed();
-    breakpoints.batch_set(table_break_points).await?;
+    if let Some(db) = breakpoints_db {
+        db.batch_set(table_break_points).await?;
+    }
     Ok((written_rows, gen_sql_time, write_time))
 }
 
@@ -749,7 +754,7 @@ async fn handle_field_length_overflow_and_rewrite(
                 // do nothing
             }
             Ok((HandlingResult::Archive, err)) => {
-                let res = process_archive(&err, batch, archive_tx.clone());
+                let res = process_archive(&err, batch, archive_tx.clone()).await;
                 if let Err(e) = res {
                     tracing::error!("archive error: {e:#}");
                 }
@@ -792,7 +797,7 @@ async fn handle_field_length_overflow_and_rewrite(
                     tracing::error!("rewrite error: {e:#}");
                 }
                 // archive
-                if let Err(e) = process_archive(&err, batch, archive_tx.clone()) {
+                if let Err(e) = process_archive(&err, batch, archive_tx.clone()).await {
                     tracing::error!("archive error: {e:#}");
                 }
             }
@@ -1553,8 +1558,8 @@ mod tests {
 
     use crate::sink::flat::tests::STableMessagesBuilder;
 
-    #[test]
-    fn test_process_archive() {
+    #[tokio::test]
+    async fn test_process_archive() {
         let builder = STableMessagesBuilder::new()
             .stable("meters")
             .table_num(2)
@@ -1566,7 +1571,7 @@ mod tests {
         let messages = builder.build();
         let (tx, _rx) = flume::bounded(10);
 
-        if let Err(e) = process_archive("error", &messages[0].records, tx) {
+        if let Err(e) = process_archive("error", &messages[0].records, tx).await {
             dbg!(e);
         }
     }

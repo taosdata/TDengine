@@ -488,7 +488,7 @@ pub async fn init_task_metrics(
         (
             "opc" | "opcua" | "opcda" | "pi" | "pibackfill" | "mqtt" | "sparkplugb" | "influxdb"
             | "opentsdb" | "kafka" | "avevaHistorian" | "csv" | "mysql" | "postgres" | "oracle"
-            | "mssql" | "mongodb" | "local",
+            | "mssql" | "mongodb" | "local" | "orc",
             "taos" | "tmq",
         )
         | ("tmq", "mqtt") => {

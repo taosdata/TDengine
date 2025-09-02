@@ -75,6 +75,7 @@
     <div>
       <el-table
         ref="dataSourceTableRef"
+        class="tasks-table with-operations"
         style="margin-top: 20px"
         :data="taskList"
         size="default"
@@ -82,6 +83,8 @@
         row-key="id"
         @selection-change="handleSelectionChange"
         @cell-click="clickAgent"
+        @cell-mouse-enter="onTaskTableMouseEnter"
+        @cell-mouse-leave="onTaskTableMouseLeave"
       >
         <el-table-column type="selection" :reserve-selection="true" width="50"> </el-table-column>
         <el-table-column type="expand">
@@ -89,7 +92,7 @@
             <Activities :data="rowData.row.activities" />
           </template>
         </el-table-column>
-        <el-table-column :label="t('dataIn.taskid')" prop="taskid" width="80">
+        <el-table-column v-if="false" :label="t('dataIn.taskid')" prop="taskid" width="80">
           <template #default="scope">
             <span>
               <i class="el-circle" :class="getStatusClass(scope.row.healthStatus)"></i>
@@ -99,6 +102,9 @@
         </el-table-column>
         <el-table-column :label="t('dataIn.name2')" sortable prop="localname" min-width="100">
           <template #default="scope">
+            <span>
+              <i class="el-circle mr-5px" :class="getStatusClass(scope.row.healthStatus)"></i>
+            </span>
             <el-tooltip :content="scope.row.localname" placement="top-start">
               <span class="nowrap">{{ scope.row.localname }}</span>
             </el-tooltip>
@@ -172,45 +178,6 @@
                 <span style="display: inline-block; width: 80px">{{ getStatusText(scope.row.status) }}</span>
               </el-tooltip>
               <span v-else style="display: inline-block; width: 80px">{{ getStatusText(scope.row.status) }}</span>
-              <template v-if="permitStartStatus.includes(scope.row.status.toLowerCase())">
-                <el-tooltip
-                  placement="bottom"
-                  effect="light"
-                  :content="t('dataIn.excutestart').replace('{name}', scope.row.name)"
-                >
-                  <el-button
-                    plain
-                    size="small"
-                    icon="VideoPlay"
-                    :disabled="dataInProps.isCommunity"
-                    @click="start(scope.row)"
-                  ></el-button>
-                </el-tooltip>
-              </template>
-              <template v-if="permitStopStatus.includes(scope.row.status.toLowerCase())">
-                <el-tooltip
-                  placement="bottom"
-                  effect="light"
-                  :content="t('dataIn.excutestop').replace('{name}', scope.row.name)"
-                >
-                  <el-button
-                    plain
-                    size="small"
-                    icon="VideoPause"
-                    :disabled="dataInProps.isCommunity"
-                    @click="stop(scope.row)"
-                  ></el-button
-                ></el-tooltip>
-              </template>
-              <el-tooltip placement="bottom" effect="light" :content="t('common.refresh')">
-                <el-button
-                  plain
-                  size="small"
-                  icon="Refresh"
-                  :disabled="dataInProps.isCommunity"
-                  @click="refreshCurrentTask(scope.row)"
-                ></el-button
-              ></el-tooltip>
             </div>
           </template>
         </el-table-column>
@@ -244,52 +211,60 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column :label="t('dataIn.operation')" width="200" class="action" fixed="right">
+        <el-table-column class="with-operations" width="50">
           <template #default="scope">
-            <el-tooltip placement="bottom" effect="light" :content="t('dataIn.editconfig')">
-              <el-button
-                size="small"
-                :disabled="
-                  scope.row.disableEdit ||
-                  (dataInProps.isCommunity ? dataInProps.isCommunity : scope.row.from === undefined) ||
-                  !getEditStatus(scope.row.labels)
-                "
-                icon="Edit"
-                @click="edit(scope.row, scope.row.status.toLowerCase())"
-              ></el-button>
-            </el-tooltip>
-            <el-tooltip placement="bottom" effect="light" :content="t('common.copy')">
-              <el-button
-                plain
-                size="small"
-                icon="DocumentCopy"
-                :disabled="dataInProps.isCommunity"
-                @click="copyTask(scope.row, scope.row.status.toLowerCase())"
-              ></el-button>
-            </el-tooltip>
-            <el-tooltip placement="bottom" effect="light" :content="t('common.delete')">
-              <el-button
-                plain
-                size="small"
-                icon="Delete"
-                :disabled="dataInProps.isCommunity"
-                @click="del(scope.row)"
-              ></el-button>
-            </el-tooltip>
-            <el-tooltip
-              v-if="scope.row.from.type === 'kafka'"
-              placement="bottom"
-              effect="light"
-              :content="t('dataIn.tipForSkip')"
-            >
-              <el-button
-                plain
-                size="small"
-                icon="DArrowRight"
-                :disabled="dataInProps.isCommunity"
-                @click="confirmSkipToLatest(scope.row)"
-              ></el-button>
-            </el-tooltip>
+            <el-dropdown class="operations" :class="{ show: scope.row.hover }">
+              <el-button icon="MoreFilled" size="small" class="rotate-90!" text></el-button>
+              <template #dropdown>
+                <el-dropdown-menu @mouseenter="onMenuMouseEnter" @mouseleave="onMenuMouseLeave">
+                  <template v-if="permitStartStatus.includes(scope.row.status.toLowerCase())">
+                    <el-dropdown-item @click="start(scope.row)">
+                      <el-icon><VideoPlay /></el-icon>
+                      {{ t('dataIn.excutestart').replace('{name}', scope.row.name) }}
+                    </el-dropdown-item>
+                  </template>
+                  <template v-if="permitStopStatus.includes(scope.row.status.toLowerCase())">
+                    <el-dropdown-item @click="stop(scope.row)">
+                      <el-icon><VideoPause /></el-icon>
+                      {{ t('dataIn.excutestop').replace('{name}', scope.row.name) }}
+                    </el-dropdown-item>
+                  </template>
+                  <el-dropdown-item @click="refreshCurrentTask(scope.row)">
+                    <el-icon><Refresh /></el-icon>
+                    {{ t('common.refresh') }}
+                  </el-dropdown-item>
+                  <el-dropdown-item @click="exportCurrentTask(scope.row)">
+                    <el-icon><Sell /></el-icon>
+                    {{ t('common.export') }}
+                  </el-dropdown-item>
+                  <el-dropdown-item
+                    :disabled="
+                      scope.row.disableEdit ||
+                      (dataInProps.isCommunity ? dataInProps.isCommunity : scope.row.from === undefined) ||
+                      !getEditStatus(scope.row.labels)
+                    "
+                    @click="edit(scope.row, scope.row.status.toLowerCase())"
+                  >
+                    <el-icon><Edit /></el-icon>
+                    {{ t('dataIn.editconfig') }}
+                  </el-dropdown-item>
+                  <el-dropdown-item @click="copyTask(scope.row, scope.row.status.toLowerCase())">
+                    <el-icon><DocumentCopy /></el-icon>
+                    {{ t('common.copy') }}
+                  </el-dropdown-item>
+                  <el-dropdown-item @click="del(scope.row)">
+                    <el-icon><Delete /></el-icon>
+                    {{ t('common.delete') }}
+                  </el-dropdown-item>
+                  <template v-if="scope.row.from.type === 'kafka'">
+                    <el-dropdown-item @click="confirmSkipToLatest(scope.row)">
+                      <el-icon><DArrowRight /></el-icon>
+                      {{ t('dataIn.tipForSkip') }}
+                    </el-dropdown-item>
+                  </template>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </template>
         </el-table-column>
       </el-table>
@@ -353,7 +328,7 @@ import Metrics from './metrics.vue';
 import Activities from '../../components/activities.vue';
 import PageTitle from '../../components/pageTitle.vue';
 import TaskImport from '../../components/task-import.vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { getDataInProps } from '../../model/useDataIn';
 import { useActivitySubscription, ActivitieProps } from '../../model/useWebSoket';
 import { useRouter } from 'hooks/useCurrentRouter';
@@ -576,6 +551,23 @@ async function refreshCurrentTask(data: Recordable) {
   }
 }
 
+async function exportCurrentTask(data: Recordable) {
+  try {
+    requestIng.value = true;
+    const res = await dataInProps.task.api.batchExportTask([data.id]);
+
+    if (res && res.code) {
+      return ElMessage.error(res.message);
+    }
+    downloadByData(res as BlobPart, `datain-tasks-${data.id}.json`);
+    setTimeout(() => {
+      requestIng.value = false;
+    }, 1000);
+  } catch (err) {
+    return Promise.reject(err);
+  }
+}
+
 function handlerConfirm(
   content: string,
   excuteFn: RequestApiFn<Recordable[]> | null,
@@ -793,6 +785,49 @@ function clickAgent(row: Recordable, column: Recordable) {
 function handleSelectionChange(val: []) {
   multipleSelection.value = val;
 }
+const hoverTimeout: Record<string, ReturnType<typeof setTimeout>> = {};
+let hoverTimeoutCache: any[] = [];
+
+function onTaskTableMouseEnter(d1: any) {
+  if (hoverTimeout[d1.id]) {
+    clearTimeout(hoverTimeout[d1.id]);
+    delete hoverTimeout[d1.id];
+  }
+  hoverTimeout[d1.id] = setTimeout(() => {
+    d1.hover = true;
+  }, 100); // 100ms delay
+}
+
+function onTaskTableMouseLeave(d1: any) {
+  if (hoverTimeout[d1.id]) {
+    clearTimeout(hoverTimeout[d1.id]);
+    delete hoverTimeout[d1.id];
+  }
+  hoverTimeout[d1.id] = setTimeout(() => {
+    d1.hover = false;
+  }, 100); // 100ms delay
+}
+
+function onMenuMouseEnter() {
+  // 清除 hoverTimeout，防止鼠标移入菜单时触发 hover 状态
+  Object.keys(hoverTimeout).forEach(key => {
+    clearTimeout(hoverTimeout[key]);
+    hoverTimeoutCache.push(key);
+    delete hoverTimeout[key];
+  });
+}
+
+function onMenuMouseLeave() {
+  const cache = hoverTimeoutCache;
+  hoverTimeoutCache = [];
+  cache.forEach(v => {
+    taskList.value.forEach(item => {
+      if (item.id == v) {
+        item.hover = false;
+      }
+    });
+  });
+}
 function filterBatchIds(permitStatus: string[]): string[] {
   const result: string[] = [];
   multipleSelection.value.filter((item: any) => {
@@ -885,7 +920,7 @@ const confirmSkipToLatest = (item: Recordable) => {
 const skipToLatest = async () => {
   try {
     await dataInProps.task.api.skip2Latest(taskToSeek.value.id, isRecoverHistoryData.value);
-  } catch (error) {
+  } catch (error: any) {
     console.log(error);
     ElMessage.error(error);
   } finally {
@@ -1000,6 +1035,24 @@ const skipToLatest = async () => {
 
   100% {
     opacity: 0;
+  }
+}
+
+td {
+  .operations.show {
+    display: block;
+  }
+
+  .operations {
+    position: absolute;
+    top: 20%;
+    right: 30px;
+    z-index: 1;
+    display: none;
+    width: max-content;
+    height: 100%;
+    vertical-align: middle;
+    cursor: default;
   }
 }
 </style>

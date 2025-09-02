@@ -5,6 +5,7 @@ import com.taosdata.model.entity.InfluxdbBucketDataEntity;
 import com.taosdata.model.entity.InfluxdbBucketEntity;
 import com.taosdata.model.entity.InfluxdbMeasurementEntity;
 import com.taosdata.utils.exception.ArtificialException;
+import org.apache.commons.lang3.tuple.Pair;
 
 import java.time.Instant;
 import java.util.List;
@@ -93,4 +94,32 @@ public interface InfluxdbService {
      * @throws ArtificialException
      */
     List<InfluxdbBucketDataEntity> selectBucketData(String orgId, String bucket, String measurement, String field, String startTime, String stopTime, long batch, long offset) throws ArtificialException;
+
+    /**
+     * @return 具体的 influxdb 的版本
+     */
+    String getInfluxdbVersion();
+
+    /**
+     * 获取 tag set
+     * @param bucket
+     * @param measurement
+     * @return
+     * @throws ArtificialException
+     */
+    List<List<Pair<String, String>>> getTagSet(String bucket, String measurement) throws ArtificialException;
+
+    /**
+     * 获取influxdb中指定bucket、measurement与时间段的数据，适用于v1.7/1.8
+     *
+     * @param bucket
+     * @param measurement
+     * @param startTime
+     * @param stopTime
+     * @param batch
+     * @param offset
+     * @return
+     * @throws ArtificialException
+     */
+    List<InfluxdbBucketDataEntity> selectBucketDataV1(String bucket, String measurement, String tagCondition, String startTime, String stopTime, long batch, long offset) throws ArtificialException;
 }

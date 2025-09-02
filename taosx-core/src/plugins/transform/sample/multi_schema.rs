@@ -73,7 +73,7 @@ impl MultiSchemaSamples {
                     Some(tz) => batch.to_modeled_json_with_tz(tz),
                     None => batch.to_modeled_json(),
                 })
-                .collect::<Vec<_>>();
+                .collect::<anyhow::Result<Vec<_>>>()?;
             ret.extend(modeled);
         }
         Ok(ret)

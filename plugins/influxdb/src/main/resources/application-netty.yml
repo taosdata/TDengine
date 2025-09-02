@@ -4,7 +4,7 @@ taosx:
   port: 6051
   soKeepalive: true
   tcpNoDelay: true
-  idleReader: 10
+  idleReader: 30
   idleWriter: 0
   idleAll: 0
   unPongRetryTimes: 3

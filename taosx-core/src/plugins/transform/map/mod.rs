@@ -111,7 +111,7 @@ trait ValueBuilder {
         let array = self.build_from(record)?;
 
         let build_ipc_type = |ty: IpcDataType| -> Result<(FieldRef, ArrayRef), ValueBuilderError> {
-            let mut m = HashMap::new();
+            let mut m: HashMap<String, String> = HashMap::new();
             m.insert(META_FIELD_TYPE.to_string(), ty.to_string());
             m.insert("cast_from".to_string(), array.data_type().to_string());
             match &ty {
@@ -123,6 +123,11 @@ trait ValueBuilder {
                 }
                 IpcDataType::Json => {
                     m.insert("cast_to".to_string(), ty.ty().name().to_string());
+                }
+                IpcDataType::Decimal(precision, scale) => {
+                    m.insert("cast_to".to_string(), ty.ty().name().to_string());
+                    m.insert("precision".to_string(), precision.to_string());
+                    m.insert("scale".to_string(), scale.to_string());
                 }
                 _ => (),
             }

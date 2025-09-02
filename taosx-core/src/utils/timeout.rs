@@ -18,7 +18,8 @@ pub struct Timeout {
 }
 
 lazy_static! {
-    static ref DEFAULT_TIMEOUT: RwLock<u64> = RwLock::new(30);
+    /// 各个数据源默认是 30s，这里全局超时设置要大于 30s
+    static ref DEFAULT_TIMEOUT: RwLock<u64> = RwLock::new(35);
 }
 
 impl Timeout {
@@ -83,7 +84,7 @@ mod tests {
     #[test]
     fn test_timeout() {
         let timeout = Timeout::get(TimeoutType::Default);
-        assert_eq!(timeout, 30);
+        assert_eq!(timeout, 35);
 
         let timeout = Timeout::get(TimeoutType::GetSample(
             "avevaHistorian://".into_dsn().unwrap(),
@@ -105,6 +106,6 @@ mod tests {
         let timeout = Timeout::get(TimeoutType::ValidateDataSource(
             "avevaHistorian://".into_dsn().unwrap(),
         ));
-        assert_eq!(timeout, 30);
+        assert_eq!(timeout, 35);
     }
 }

@@ -88,7 +88,7 @@ const state = reactive({
   totalCount: 10,
   currentPage: 1,
   mqttDefaultCols: ['topic', 'qos'],
-  kafkaDefaultCols: ['topic', 'partition', 'offset', 'key'],
+  kafkaDefaultCols: ['topic', 'partition', 'offset'],
   MongoDBDefaultCols: ['value'],
   mappingCol: ['SubTableName', 'SuperTableName'],
   defaultHeight: 510,

@@ -1,7 +1,10 @@
+use std::str::FromStr;
+
 use itertools::Itertools;
+use serde::Serialize;
 use taos::Dsn;
 
-use taosx_core::runners::config::PerformanceConfig;
+use taosx_core::{runners::config::PerformanceConfig, utils::dsn::parse_simple_params};
 
 pub const INFLUXDB_V1: [&str; 2] = ["1.7", "1.8"];
 pub const INFLUXDB_V2: [&str; 8] = ["2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7"];
@@ -157,6 +160,43 @@ struct TaosxConfig {
     pub taosx_port: u16,
 }
 
+#[derive(Default, Debug)]
+enum ReadConcurrencyType {
+    Queue,
+    Average,
+    #[default]
+    Sequence,
+}
+
+impl FromStr for ReadConcurrencyType {
+    type Err = std::io::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "queue" => Ok(ReadConcurrencyType::Queue),
+            "average" => Ok(ReadConcurrencyType::Average),
+            "sequence" => Ok(ReadConcurrencyType::Sequence),
+            _ => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("invalid read_concurrency_type: {}", s),
+            )),
+        }
+    }
+}
+
+impl Serialize for ReadConcurrencyType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Queue => serializer.serialize_u8(1),
+            Self::Average => serializer.serialize_u8(2),
+            Self::Sequence => serializer.serialize_u8(3),
+        }
+    }
+}
+
 #[derive(Debug, serde::Serialize)]
 struct TaskConfig {
     mode: String,
@@ -169,38 +209,30 @@ struct TaskConfig {
     breakpoints: Option<String>,
     #[serde(rename = "logLevel")]
     log_level: Option<String>,
+    #[serde(rename = "assignmentType")]
+    read_concurrency_type: ReadConcurrencyType,
 }
 
 impl TaskConfig {
     pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
         Ok(TaskConfig {
-            mode: dsn
-                .params
-                .get("mode")
-                .unwrap_or(&"normal".to_string())
-                .to_string(),
-            bucket: dsn
-                .params
-                .get("bucket")
-                .ok_or(anyhow::anyhow!("bucket is required"))?
-                .to_string(),
-            measurements: dsn
-                .params
-                .get("measurements")
-                .unwrap_or(&"".to_string())
+            mode: parse_simple_params(dsn, "mode")?.unwrap_or("normal".to_string()),
+            bucket: parse_simple_params(dsn, "bucket")?
+                .ok_or(anyhow::anyhow!("bucket is required"))?,
+            measurements: parse_simple_params::<String>(dsn, "measurements")?
+                .unwrap_or("".to_string())
                 .split(',')
                 .map(|s| s.trim())
                 .filter(|s| !s.is_empty())
                 .map(|s| s.to_string())
                 .collect_vec(),
-            begin_time: dsn
-                .params
-                .get("beginTime")
-                .ok_or(anyhow::anyhow!("beginTime is required"))?
-                .to_string(),
-            end_time: dsn.params.get("endTime").map(|s| s.to_string()),
-            breakpoints: dsn.params.get("breakpoints").map(|s| s.to_string()),
-            log_level: dsn.get("log_level").map(|s| s.to_string()),
+            begin_time: parse_simple_params(dsn, "beginTime")?
+                .ok_or(anyhow::anyhow!("beginTime is required"))?,
+            end_time: parse_simple_params(dsn, "endTime")?,
+            breakpoints: parse_simple_params(dsn, "breakpoints")?,
+            log_level: parse_simple_params(dsn, "log_level")?,
+            read_concurrency_type: parse_simple_params(dsn, "read_concurrency_type")?
+                .unwrap_or(ReadConcurrencyType::Sequence),
         })
     }
 }

@@ -36,20 +36,20 @@ performance:
   delay: 10000
   limitConnect: 500
   limitBatch: 5000
-  limitSpeed: 100000
+  limitSpeed: -1
   retryTimes: 3
   # millisecond
   retryInterval: 200
   readWindow: 1
   maxThread: 50
   queueSizeT: 1000
-  queueSizeD: 500000
+  queueSizeD: 200000
   thread:
     # MessageThread线程
     processMessageInterval: 1
     processMessageEmptyInterval: 10
     # PushPrepareThread线程
-    readBucketDataBatch: 10000
+    readBucketDataBatch: 200000
     pushPrepareInterval: 10
     # PushThread线程
     pushInterval: 0

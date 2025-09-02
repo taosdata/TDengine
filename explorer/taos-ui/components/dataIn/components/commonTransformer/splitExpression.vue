@@ -72,7 +72,6 @@ watch(
   () => transformerState.splitExpresList,
   val => {
     const middleObj = cloneDeep(val) as SplitExpresListType;
-    console.log('output:', 'middleObj', middleObj, transformerState.splitExpresList);
     if (middleObj.names && Array.isArray(middleObj.names)) {
       middleObj.names = middleObj.names.toString();
     }

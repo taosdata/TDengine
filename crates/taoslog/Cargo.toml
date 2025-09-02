@@ -28,7 +28,7 @@ rand.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true, features = ["log"] }
 tracing-log = "0.2.0"
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion.workspace = true
 
 [features]
 ansi = ["dep:nu-ansi-term"]

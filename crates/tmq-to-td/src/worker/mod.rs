@@ -547,7 +547,10 @@ pub(super) async fn write_with_raw_block(
                             .map(|v| {
                                 v.map(|ts| {
                                     let ts = ts.to_datetime_with_tz();
-                                    ts > min && ts < max
+                                    match min {
+                                        Some(min) => ts > min && ts < max,
+                                        None => ts < max,
+                                    }
                                 })
                                 .unwrap_or(false)
                             })
@@ -1553,7 +1556,10 @@ impl Worker {
                             .map(|v| {
                                 v.map(|ts| {
                                     let ts = ts.to_datetime_with_tz();
-                                    ts > min && ts < max
+                                    match min {
+                                        Some(min) => ts > min && ts < max,
+                                        None => ts < max,
+                                    }
                                 })
                                 .unwrap_or(false)
                             })

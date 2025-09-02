@@ -6,6 +6,8 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.Resource;
+
 /**
  * 性能配置
  *
@@ -19,13 +21,14 @@ public class PerformanceConfig {
 
     private int delay = 10000;
     private int limitConnect = 1;
-    private int limitBatch = 500;
-    private int limitSpeed = 50000;
+    private int limitBatch = 5000;
+    private int limitSpeed = -1;
     private int retryTimes = 3;
     private long retryInterval = 200;
     private int readWindow = 1;
     private int maxThread = 50;
     private long queueSizeT = 1000;
     private long queueSizeD = 200000;
+    @Resource
     private ThreadConfig thread;
 }

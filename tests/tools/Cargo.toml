@@ -21,7 +21,7 @@ faststr.workspace = true
 lz4.workspace = true
 rand.workspace = true
 rayon.workspace = true
-rdkafka = { version = "0.36.2", features = ["cmake-build"] }
+rdkafka = { version = "0.38.0", features = ["cmake-build"] }
 serde = { workspace = true, features = ["derive"] }
 rumqttc.workspace = true
 serde_json = { version = "1.0.132", features = ["raw_value"] }
@@ -34,19 +34,23 @@ tokio-stream = { workspace = true, features = ["full"] }
 tokio-util.workspace = true
 toml.workspace = true
 zstd.workspace = true
-
 arrow = { workspace = true }
 arrow-schema = { workspace = true }
 parquet = { workspace = true }
 bytes = { workspace = true }
 signal-hook = "0.3.17"
 socket2.workspace = true
-
 num-traits = "0.2"
 num-integer = "0.1"
 num-bigint = "0.4"
 prost.workspace = true
 paste.workspace = true
+shadow-rs.workspace = true
+orc-rust.workspace = true
+duckdb = { workspace = true, features = ["appender-arrow", "bundled"] }
+
+[build-dependencies]
+shadow-rs.workspace = true
 
 [lints]
 workspace = true

@@ -20,7 +20,7 @@
       <div v-if="registered" class="login-content">
         <div class="login-title">
           <span v-if="$INDUSTRY" class="dynamic-title">{{ $t('header.power') }}</span>
-          <span v-else class="dynamic-title">{{ $t('login.systemTitle') }}</span>
+          <span v-else class="dynamic-title">{{ displaySystemTitle }}</span>
         </div>
         <el-form
           ref="dynamicValidateFormRef"
@@ -109,7 +109,7 @@
             <p class="label-form">
               <span>{{ isLocaleLanguageEn ? $t('register.email') : $t('register.phone') }}</span>
             </p>
-            <el-form-item prop="phoneEmailRef" label>
+            <el-form-item prop="phoneEmailRef">
               <el-input
                 ref="phone_email"
                 v-model="registerValidateForm.phone_email"
@@ -121,7 +121,7 @@
             <p class="label-form">
               <span>{{ $t('register.verificationCode') }}</span>
             </p>
-            <el-form-item label prop="verification_code">
+            <el-form-item prop="verification_code">
               <el-input
                 v-model="registerValidateForm.verification_code"
                 @keyup.enter="submitRegisterForm(registerValidateFormRef)"
@@ -201,7 +201,6 @@ import { FormInstance } from 'element-plus';
 import dataJson from './data.json';
 import {
   getUrls,
-  fetchApiByCluster,
   fetchIsbinding,
   fetchVerificationCode,
   getVerificationResult,
@@ -219,7 +218,7 @@ const { t } = useI18n();
 const store = useStore();
 const router = useRouter();
 const { getGrantsFull } = useLicense();
-const { $IS_COMMUNITY, $IS_TSDBLITE, $IS_OEM, $INDUSTRY, $error } = inject(
+const { $IS_COMMUNITY, $IS_TSDBLITE, $IS_OEM, $INDUSTRY, $error, OEM_NAME } = inject(
   'globalCustomProperties'
 ) as GlobalCustomProperties;
 const usernameRef = ref<HTMLElement | null>();
@@ -229,14 +228,14 @@ const dynamicValidateFormRef = ref<FormInstance>();
 const captchaFormRef = ref<FormInstance>();
 const registerValidateFormRef = ref<FormInstance>();
 
-const validatePass = (rule: any, value: string, callback: (arg0?: Error | undefined) => void) => {
+const validatePass = (_rule: any, value: string, callback: (arg0?: Error | undefined) => void) => {
   if (value === '') {
     callback(new Error(t('login.passwordTips')));
   } else {
     callback();
   }
 };
-const validatePhoneEmail = (rule: any, value: string, callback: (arg0?: Error | undefined) => void) => {
+const validatePhoneEmail = (_rule: any, value: string, callback: (arg0?: Error | undefined) => void) => {
   if (value === '') {
     if (isLocaleLanguageEn.value) {
       callback(new Error(t('register.emailTips')));
@@ -267,6 +266,12 @@ const dynamicValidateForm = reactive({
   cluster: '',
   password: '',
   username: ''
+});
+const trimmedUsername = computed(() => {
+  return dynamicValidateForm.username.trim();
+});
+const trimmedPassword = computed(() => {
+  return dynamicValidateForm.password.trim();
 });
 const pageLoading = ref(false);
 const formRules = reactive({
@@ -373,11 +378,14 @@ const locallanguage = computed(() => {
   }
 });
 
+const displaySystemTitle = computed(() => {
+  return OEM_NAME + ' ' + t('login.systemTitle');
+});
+
 async function init() {
   await getClusterAndDashboardUrl();
   localStorage.setItem('supportWebsite', dataJson.supportWebsite);
   localStorage.setItem('documentWebsite', dataJson.documentWebsite);
-  console.log('IS_TSDBLITE', $IS_TSDBLITE);
   if ($IS_COMMUNITY && !$IS_TSDBLITE) {
     await getIsbinding();
   }
@@ -386,10 +394,10 @@ init();
 onMounted(() => {
   usernameRef.value?.focus();
   nextTick(() => {
-    if (import.meta.env.VITE_APP_CUS_NAME && import.meta.env.VITE_APP_CUS_NAME !== 'TDengine') {
-      const dynamic: HTMLElement = document.querySelector('.dynamic-title') as HTMLElement;
-      dynamic.innerText = import.meta.env.VITE_APP_CUS_NAME + ' Management System';
-    }
+    // if (import.meta.env.VITE_APP_CUS_NAME && import.meta.env.VITE_APP_CUS_NAME !== 'TDengine') {
+    //   const dynamic: HTMLElement = document.querySelector('.dynamic-title') as HTMLElement;
+    //   dynamic.innerText = import.meta.env.VITE_APP_CUS_NAME + ' Management System';
+    // }
   });
 });
 
@@ -398,12 +406,12 @@ function submitForm(formEl: FormInstance | undefined) {
   formEl.validate(valid => {
     if (valid) {
       loading.value = true;
-      encryptedPwd.value = encrypt(dynamicValidateForm.password);
+      encryptedPwd.value = encrypt(trimmedPassword.value);
       setTimeout(() => {
         login();
       }, 1000);
     } else {
-      return false;
+      return;
     }
   });
 }
@@ -434,14 +442,14 @@ async function getTaosdInfo() {
   }
 }
 async function login() {
-  const token = 'Basic ' + DbBase64.encode(dynamicValidateForm.username + ':' + dynamicValidateForm.password);
+  const token = 'Basic ' + DbBase64.encode(trimmedUsername.value + ':' + trimmedPassword.value);
   store.commit('app/SET_TOKEN', token);
-  localStorage.setItem('username', dynamicValidateForm.username);
+  localStorage.setItem('username', trimmedUsername.value);
   localStorage.setItem('pwd', encryptedPwd.value);
 
   store.commit('app/SAVE_LOGIN_INFO', {
-    username: dynamicValidateForm.username,
-    pwd: dynamicValidateForm.password
+    username: trimmedUsername.value,
+    pwd: trimmedPassword.value
   });
   try {
     const sql = 'select server_version()';
@@ -544,9 +552,9 @@ async function getUserAuthority() {
       return;
     }
     if (res && res.data) {
-      const result = res.data.map(data => {
+      const result = res.data.map((data: [any]) => {
         return Object.fromEntries(
-          res.column_meta.map((item, index) => {
+          res.column_meta.map((item: [any], index: number) => {
             return [item[0], data[index]];
           })
         );
@@ -603,10 +611,10 @@ async function getIsbinding() {
     console.log('error', error);
   }
 }
-function checkPhone(val) {
+function checkPhone(val: string) {
   return /^1[3456789]\d{9}$/.test(val);
 }
-function checkEmail(val) {
+function checkEmail(val: string) {
   return /^[.a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$/.test(val);
 }
 
@@ -629,7 +637,7 @@ async function handlerCaptcha() {
   captchaForm.captchaCode = '';
   visible.value = true;
   ts.value = new Date().getTime();
-  const result = await fetchCaptcha(registerValidateForm.phone_email, ts);
+  const result = await fetchCaptcha(registerValidateForm.phone_email, ts.value);
 
   // 有正确的结果才弹框
   if (result) {
@@ -726,16 +734,18 @@ function submitRegisterForm(formEl: FormInstance | undefined) {
         }
       }
     } else {
-      return false;
+      return;
     }
   });
 }
 function switchLanguage() {
   if (getLocalLang() == 'zh') {
+    /* @ts-expect-error: 属性“value”在类型“string | WritableComputedRef<string, string>”上不存在。 */
     i18n.global.locale.value = 'en';
     localStorage.setItem('local_language', 'en');
     setLocale('en');
   } else {
+    /* @ts-expect-error: 属性“value”在类型“string | WritableComputedRef<string, string>”上不存在。 */
     i18n.global.locale.value = 'zh';
     localStorage.setItem('local_language', 'zh');
     setLocale('zh');
@@ -745,6 +755,8 @@ function switchLanguage() {
   dynamicValidateFormRef.value?.resetFields();
   registerValidateFormRef.value?.resetFields();
   formRules.username[0].message = t('login.usernameTips');
+
+  displaySystemTitle.value = import.meta.env.VITE_APP_CUS_NAME + t('login.systemTitle');
 }
 </script>
 <style lang="scss" scoped>

@@ -10,42 +10,39 @@
 
 use std::{
     borrow::{Borrow, Cow},
-    collections::BTreeMap,
+    cell::OnceCell,
+    collections::{BTreeMap, HashMap, HashSet},
     ops::Range,
     str::FromStr,
-    sync::{Arc, LazyLock},
+    sync::Arc,
 };
 
 use anyhow::Context;
 use archive::ArchiveType;
 use arrow::{
     array::{
-        Array, ArrayRef, AsArray, BinaryArray, BooleanArray, Decimal128Array, Float16Array,
+        Array, ArrayRef, AsArray, BinaryArray, BinaryViewArray, BooleanArray, Decimal128Array,
         Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array,
-        LargeBinaryArray, LargeStringArray, NullArray, StringArray, TimestampMicrosecondArray,
-        TimestampMillisecondArray, TimestampNanosecondArray, TimestampSecondArray, UInt16Array,
-        UInt32Array, UInt64Array, UInt8Array,
+        LargeBinaryArray, LargeStringArray, StringArray, StringViewArray,
+        TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
+        TimestampSecondArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
     },
     compute::concat_batches,
     datatypes::{DataType, Field, Schema},
     error::ArrowError,
     record_batch::RecordBatch,
+    util::display::{ArrayFormatter, FormatOptions},
 };
 use arrow_compute_ext::RecordBatchExt;
 use arrow_schema::{FieldRef, TimeUnit};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use datafusion::{
-    functions_window::row_number::row_number,
-    prelude::{col, ExprFunctionExt, SessionContext},
-};
 use either::Either;
 use faststr::FastStr;
 use flume::Sender;
 use handling_strategy::{HandlingResult, ProcessOnAbnormal};
 use itertools::Itertools;
 use modeler::stable::STableModel;
-use scc::HashMap;
 use serde::{Deserialize, Serialize};
 use taos::{
     taos_query::{
@@ -62,7 +59,7 @@ use taosx_ipc::prelude::IpcDataType;
 use tracing::instrument;
 
 use super::expr;
-use crate::plugins::transform::parse::ArrayForTaos;
+use crate::plugins::transform::{modeler::stable::FastStrExpr, parse::ArrayForTaos};
 use crate::{core_metrics::CoreMetrics, plugins::transform::modeler::Table};
 use crate::{
     get_data_dir,
@@ -213,7 +210,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -234,7 +235,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         assert_eq!(
             output[0]
                 .fields
@@ -268,7 +273,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -288,7 +297,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         assert_eq!(
             output[0]
                 .fields
@@ -336,7 +349,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output_over_written = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output_over_written = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         assert_eq!(
             output_over_written[0]
                 .fields
@@ -377,7 +394,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
     }
@@ -395,7 +416,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -416,7 +441,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         assert_eq!(
             output[0]
                 .fields
@@ -465,7 +494,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output_over_written = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output_over_written = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         assert_eq!(
             output_over_written[0]
                 .fields
@@ -506,7 +539,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
     }
@@ -524,7 +561,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -538,7 +579,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -558,7 +603,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
     }
@@ -575,7 +624,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -589,7 +642,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -609,7 +666,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
     }
@@ -628,7 +689,11 @@ mod pipeline_tests {
         dbg!(&pipeline);
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
 
         assert_eq!(
             output[0]
@@ -657,7 +722,11 @@ mod pipeline_tests {
         dbg!(&pipeline);
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
 
         assert_eq!(
             output[0]
@@ -691,7 +760,11 @@ mod pipeline_tests {
         dbg!(&pipeline);
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
 
         assert_eq!(
             output[0]
@@ -717,7 +790,11 @@ mod pipeline_tests {
         dbg!(&pipeline);
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
 
         assert_eq!(
             output[0]
@@ -748,7 +825,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -762,7 +843,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -782,7 +867,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
     }
@@ -801,7 +890,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -824,7 +917,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
         let json = serde_json::to_string_pretty(&output).unwrap();
 
         assert_eq!(
@@ -872,7 +969,11 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
+        let output = res
+            .iter()
+            .map(|m| m.to_modeled_json())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
 
         assert_eq!(
             output[0]
@@ -1112,28 +1213,22 @@ impl Parser {
     }
 
     pub fn get_ipcdatatype_from_parser(&self, column_name: &str) -> Option<&IpcDataType> {
-        let payload = self.parse.as_ref()?.get("payload");
-        payload?;
-        let payload = payload.unwrap();
+        let payload = self.parse.as_ref()?.get("payload")?;
         match payload {
             FieldParser::Json(json) => {
-                if json.json.is_none() {
-                    None
-                } else {
-                    let select = json.json.as_ref().unwrap();
-                    match select {
-                        Select::Include(incl) => {
-                            for item in incl.iter() {
-                                if (item.alias().is_some() && item.alias().unwrap() == column_name)
-                                    || item.name() == column_name
-                                {
-                                    return item.cast();
-                                }
+                let select = &json.json;
+                match select {
+                    Select::Include(incl) => {
+                        for item in incl.iter() {
+                            if (item.alias().is_some() && item.alias().unwrap() == column_name)
+                                || item.name() == column_name
+                            {
+                                return item.cast();
                             }
-                            None
                         }
-                        _ => None,
+                        None
                     }
+                    _ => None,
                 }
             }
             _ => None,
@@ -1195,8 +1290,6 @@ impl Parser {
         // (ts, value, point_name, ${point_name}, site_controller_id)
         let transformed_batch = self.transform_records(records)?;
         let schema = transformed_batch.schema();
-        let transformed_batches = vec![transformed_batch];
-        let transformed_batch = &transformed_batches[0];
         // tracing::info!("Parse message {:?}", batch);
 
         let pivot_fields = schema
@@ -1210,26 +1303,20 @@ impl Parser {
             })
             .collect_vec();
 
-        let json_batches = to_json_valid_batches(&transformed_batches);
-
-        let json: Vec<_> = json_batches
-            .iter()
-            .map(|batch| batch.to_json_rows::<serde_json::Value>())
-            .flatten_ok()
-            .try_collect()?;
-
         let stables = self
             .s_model
             .as_ref()
-            .map(|s| s.apply(transformed_batch, self.global()))
+            .map(|s| s.apply(&transformed_batch, self.global()))
             .transpose()?;
 
         let mut data = vec![];
 
+        let json_batch = OnceCell::new();
+
         'table: for table in &self.model {
-            let archive_indices = HashMap::new();
-            let skip_indices = HashMap::new();
-            let use_current_time_indices = HashMap::new();
+            let mut archive_indices = HashMap::new();
+            let mut skip_indices = HashMap::new();
+            let mut use_current_time_indices = HashMap::new();
 
             // get the columns and tags
             let mut columns_indices = Vec::from_iter(0..transformed_batch.num_columns());
@@ -1320,8 +1407,8 @@ impl Parser {
                                 err_vec.push(err.clone());
                                 err_timestamp_vec.push(Utc::now().timestamp_nanos_opt().unwrap());
                             }
-                            archive_records(
-                                transformed_batch,
+                            archive_records_blocking(
+                                &transformed_batch,
                                 err_vec,
                                 err_timestamp_vec,
                                 archive_tx.clone(),
@@ -1355,18 +1442,18 @@ impl Parser {
                             .handle("the primary timestamp should not be null".to_string())
                         {
                             Ok((HandlingResult::Skip, err)) => {
-                                let _ = skip_indices.upsert(row, err);
+                                let _ = skip_indices.insert(row, err);
                             }
                             Ok((HandlingResult::Archive, err)) => {
-                                let _ = skip_indices.upsert(row, err.clone());
-                                let _ = archive_indices.upsert(row, err);
+                                let _ = skip_indices.insert(row, err.clone());
+                                let _ = archive_indices.insert(row, err);
                             }
                             Ok((HandlingResult::Modify(_), err)) => {
-                                let _ = use_current_time_indices.upsert(row, err);
+                                let _ = use_current_time_indices.insert(row, err);
                             }
                             Ok((HandlingResult::ModifyAndArchive(_), err)) => {
-                                let _ = use_current_time_indices.upsert(row, err.clone());
-                                let _ = archive_indices.upsert(row, err);
+                                let _ = use_current_time_indices.insert(row, err.clone());
+                                let _ = archive_indices.insert(row, err);
                             }
                             Ok((HandlingResult::Retry, _)) => unreachable!(),
                             Err(_) => {
@@ -1397,11 +1484,11 @@ impl Parser {
                             .handle(format!("the primary timestamp {ts} overflow"))
                         {
                             Ok((HandlingResult::Skip, err)) => {
-                                let _ = skip_indices.upsert(row, err);
+                                let _ = skip_indices.insert(row, err);
                             }
                             Ok((HandlingResult::Archive, err)) => {
-                                let _ = skip_indices.upsert(row, err.clone());
-                                let _ = archive_indices.upsert(row, err);
+                                let _ = skip_indices.insert(row, err.clone());
+                                let _ = archive_indices.insert(row, err);
                             }
                             Ok((HandlingResult::Modify(_), _)) => unreachable!(),
                             Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
@@ -1422,37 +1509,35 @@ impl Parser {
                 template.add_template("using", using).unwrap();
             }
 
+            let skipped: HashSet<usize> = HashSet::from_iter(skip_indices.keys().cloned());
             let tables = (0..transformed_batch.num_rows())
-                .filter(|row| !skip_indices.contains(row))
+                .filter(|row| !skipped.contains(row))
                 .map(|row| {
                     match generate_table_name(
                         self.global.process_on_abnormal.clone(),
                         table,
                         row,
-                        transformed_batch,
+                        &transformed_batch,
                         &table.name,
-                        &json,
-                    ) {
-                        Ok((HandlingResult::Skip, err)) => {
-                            let _ = skip_indices.upsert(row, err);
+                        &json_batch,
+                    )? {
+                        (HandlingResult::Skip, err) => {
+                            let _ = skip_indices.insert(row, err);
+                            anyhow::Ok((String::default(), row))
+                        }
+                        (HandlingResult::Archive, err) => {
+                            let _ = skip_indices.insert(row, err.clone());
+                            let _ = archive_indices.insert(row, err);
                             Ok((String::default(), row))
                         }
-                        Ok((HandlingResult::Archive, err)) => {
-                            let _ = skip_indices.upsert(row, err.clone());
-                            let _ = archive_indices.upsert(row, err);
-                            Ok((String::default(), row))
-                        }
-                        Ok((HandlingResult::Modify(mut name), _)) => {
+                        (HandlingResult::Modify(mut name), _) => {
                             Ok((name.pop().unwrap_or_default(), row))
                         }
-                        Ok((HandlingResult::ModifyAndArchive(mut name), err)) => {
-                            let _ = archive_indices.upsert(row, err);
+                        (HandlingResult::ModifyAndArchive(mut name), err) => {
+                            let _ = archive_indices.insert(row, err);
                             Ok((name.pop().unwrap_or_default(), row))
                         }
-                        Ok((HandlingResult::Retry, _)) => unreachable!(),
-                        Err(e) => {
-                            anyhow::bail!("{:#}", e);
-                        }
+                        (HandlingResult::Retry, _) => unreachable!(),
                     }
                 })
                 .try_collect::<_, Vec<_>, _>()?
@@ -1464,7 +1549,7 @@ impl Parser {
                 let mut archive_indices_vec = Vec::new();
                 let mut err_vec = Vec::new();
                 let mut err_timestamp_vec = Vec::new();
-                archive_indices.scan(|row, err| {
+                archive_indices.iter().for_each(|(row, err)| {
                     archive_indices_vec.push(*row);
                     err_vec.push(err.clone());
                     err_timestamp_vec.push(Utc::now().timestamp_nanos_opt().unwrap());
@@ -1474,7 +1559,7 @@ impl Parser {
                     .map(|row| transformed_batch.slice(*row, 1))
                     .collect_vec();
                 let archive_batch = concat_batches(&transformed_batch.schema(), &archive_batches)?;
-                archive_records(
+                archive_records_blocking(
                     &archive_batch,
                     err_vec,
                     err_timestamp_vec,
@@ -1487,25 +1572,16 @@ impl Parser {
                 .as_ref()
                 .and_then(|v| v.first())
                 .context("ts field not found")?;
-            let ts_field = schema
-                .field_with_name(ts_field_name)
-                .context("ts field not found")?;
-            let normal_cols = table
-                .columns
-                .as_ref()
-                .map(|cols| {
-                    cols.iter()
-                        .filter(|col| !pivot_fields.iter().any(|(a, b)| a == col || b == col))
-                        .map(|s| s.as_str())
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
 
             if let Some(metrics) = self.metrics.as_ref() {
                 let metrics = metrics.ipc();
                 // check_skipped_rows: 写入前检查过滤掉的 rows
                 metrics.add_check_skipped_rows(skip_indices.len() as u64);
             }
+            let using_expr = table
+                .using
+                .as_ref()
+                .map(|name| FastStrExpr::new(name.clone().into()));
             // name: sub_table_name, indices: group row index
             for (name, indices) in tables {
                 // 2. skip records
@@ -1514,7 +1590,7 @@ impl Parser {
                 } else {
                     indices
                         .into_iter()
-                        .filter(|row| !skip_indices.contains(row))
+                        .filter(|row| !skip_indices.contains_key(row))
                         .collect_vec()
                 };
 
@@ -1529,7 +1605,7 @@ impl Parser {
                 } else {
                     let time_array: Vec<_> = (0..columns.num_rows())
                         .map(|row| {
-                            if use_current_time_indices.contains(&row) {
+                            if use_current_time_indices.contains_key(&row) {
                                 Utc::now().timestamp_nanos_opt()
                             } else {
                                 match get_primary_timestamp_ns(
@@ -1563,10 +1639,10 @@ impl Parser {
                 let ranges = indices_to_ranges(&indices);
                 let name_row = indices[0];
 
-                let using = table
-                    .using
+                let using = using_expr
                     .as_ref()
-                    .and_then(|_| template.render_value("using", &json[name_row]).ok())
+                    .map(|expr| expr.eval(&transformed_batch, name_row))
+                    .transpose()?
                     .map(|using| self.global().canonical_table_name(&using).to_string());
 
                 let tags = tags
@@ -1615,7 +1691,19 @@ impl Parser {
                         batches.iter(),
                     )?;
 
-                    let pivot_batches = pivot(pivot_batch, ts_field, &pivot_fields, &normal_cols)?;
+                    let common_cols = table.columns.as_ref().map(|cols| {
+                        cols.iter()
+                            .filter(|col| !pivot_fields.iter().any(|(a, b)| a == col || b == col))
+                            .map(|s| s.as_str())
+                            .collect::<Vec<_>>()
+                    });
+                    // let common_cols = table.columns.as_ref()
+                    let pivot_batches = pivot(
+                        &pivot_batch,
+                        ts_field_name,
+                        &pivot_fields,
+                        common_cols.as_deref(),
+                    )?;
                     for batch in pivot_batches {
                         if let Some(metrics) = self.metrics.as_ref() {
                             let metrics = metrics.ipc();
@@ -1794,7 +1882,7 @@ fn generate_table_name(
     row: usize,
     records: &RecordBatch,
     table_name_org: &str,
-    data: &[serde_json::Value],
+    json_batch: &OnceCell<Vec<serde_json::Value>>,
 ) -> anyhow::Result<(HandlingResult, String)> {
     // render table name
     match table.eval_table_name_row(records, row) {
@@ -1817,12 +1905,25 @@ fn generate_table_name(
             Ok((HandlingResult::Modify(vec![name]), String::new()))
         }
         Err(e) => {
+            let data = match json_batch.get() {
+                Some(data) => data[row].clone(),
+                None => {
+                    let json_batches = to_json_valid_batches(&[records.clone()]);
+                    let data: Vec<_> = json_batches
+                        .iter()
+                        .map(|batch| batch.to_json_rows::<serde_json::Value>())
+                        .flatten_ok()
+                        .try_collect()?;
+                    let data = json_batch.get_or_init(|| data);
+                    data[row].clone()
+                }
+            };
             // render table name failed
             process_on_abnormal
                 .variable_not_exist_in_table_name_template
                 .handle(
                     table_name_org,
-                    &data[row],
+                    &data,
                     format!("render table name '{table_name_org}' failed, e: {:?}", e),
                 )
         }
@@ -1836,293 +1937,223 @@ fn generate_table_name(
 /// - batch: the record batch
 /// - err_vec: the error message vector
 /// - err_timestamp_vec: the error timestamp vector
-pub fn archive_records(
+pub async fn archive_records(
     batch: &RecordBatch,
     err_vec: Vec<String>,
     err_timestamp_vec: Vec<i64>,
     archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
-    if batch.num_rows() > 0 {
-        // get fields and columns
-        let mut fields_vec = batch.schema().fields().to_vec();
-        let mut columns_vec = batch.columns().to_vec();
-
-        // add new fields and columns to record
-        let new_field_1 = Field::new("_taosx_error_", DataType::Utf8, false);
-        let new_field_2 = Field::new(
-            "_taosx_error_timestamp_",
-            DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None),
-            false,
-        );
-        let new_column_1 = Arc::new(StringArray::from(err_vec));
-        let new_column_2 = Arc::new(TimestampNanosecondArray::from(err_timestamp_vec));
-
-        fields_vec.push(Arc::new(new_field_1));
-        fields_vec.push(Arc::new(new_field_2));
-        columns_vec.push(new_column_1);
-        columns_vec.push(new_column_2);
-
-        // create a new RecordBatch with the additional column
-        let new_schema = Arc::new(Schema::new(fields_vec));
-        let new_batch = RecordBatch::try_new(new_schema, columns_vec)?;
-
-        archive_tx.send(ArchiveType::Archive(new_batch))?;
+    if let Some(batch) = build_archive_batch(batch, err_vec, err_timestamp_vec)? {
+        archive_tx.send_async(ArchiveType::Archive(batch)).await?;
     }
     Ok(())
 }
 
-// impl TransformExt for Parser {
-//     // fn transform_message(&self, item: Message) -> Result<Option<Message>, Error> {
-//     //     match item {
-//     //         // todo: transformers should works on all kinds of message.
-//     //         Message::Raw(raw) => Ok(Some(Message::Raw(raw))),
-//     //         Message::Tables(tables) => Ok(Some(Message::Tables(tables))),
-//     //         Message::ChildTables(tables) => Ok(Some(Message::ChildTables(tables))),
-//     //         Message::Records(records) => {
-//     //             let mut new = vec![];
-//     //             for records in records {
-//     //                 let batch = self.transform_record_batch(&records.records)?;
-//     //                 if batch.num_rows() == 0 {
-//     //                     continue;
-//     //                 }
-//     //                 let item = MessageArrowRecords {
-//     //                     table: records.table.clone(),
-//     //                     records: batch,
-//     //                 };
-//     //                 new.push(item);
-//     //             }
-//     //             Ok(Some(Message::Records(new)))
-//     //         }
-//     //     }
-//     // }
+/// write record batch to parquet file
+///
+/// - task_id: the id of task
+/// - location: the location of parquet file
+/// - batch: the record batch
+/// - err_vec: the error message vector
+/// - err_timestamp_vec: the error timestamp vector
+pub fn archive_records_blocking(
+    batch: &RecordBatch,
+    err_vec: Vec<String>,
+    err_timestamp_vec: Vec<i64>,
+    archive_tx: Sender<ArchiveType>,
+) -> anyhow::Result<()> {
+    if let Some(batch) = build_archive_batch(batch, err_vec, err_timestamp_vec)? {
+        archive_tx.send(ArchiveType::Archive(batch))?;
+    }
+    Ok(())
+}
 
-//     fn transform_schema(
-//         &self,
-//         schema: std::sync::Arc<arrow::datatypes::Schema>,
-//     ) -> Result<std::sync::Arc<arrow::datatypes::Schema>, Error> {
-//         Ok(schema)
-//     }
+fn build_archive_batch(
+    batch: &RecordBatch,
+    err_vec: Vec<String>,
+    err_timestamp_vec: Vec<i64>,
+) -> anyhow::Result<Option<RecordBatch>> {
+    if batch.num_rows() == 0 {
+        return Ok(None);
+    }
 
-//     fn transform_record_batch(&self, records: &RecordBatch) -> Result<RecordBatch, Error> {
-//         self.parse(records)
-//     }
-// }
+    // get fields and columns
+    let mut fields_vec = batch.schema().fields().to_vec();
+    let mut columns_vec = batch.columns().to_vec();
 
-pub fn pivot(
-    batch: RecordBatch,
-    ts_field: &Field,
+    // add new fields and columns to record
+    let new_field_1 = Field::new("_taosx_error_", DataType::Utf8, false);
+    let new_field_2 = Field::new(
+        "_taosx_error_timestamp_",
+        DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None),
+        false,
+    );
+    let new_column_1 = Arc::new(StringArray::from(err_vec));
+    let new_column_2 = Arc::new(TimestampNanosecondArray::from(err_timestamp_vec));
+
+    fields_vec.push(Arc::new(new_field_1));
+    fields_vec.push(Arc::new(new_field_2));
+    columns_vec.push(new_column_1);
+    columns_vec.push(new_column_2);
+
+    // create a new RecordBatch with the additional column
+    let new_schema = Arc::new(Schema::new(fields_vec));
+    let new_batch = RecordBatch::try_new(new_schema, columns_vec)?;
+    Ok(Some(new_batch))
+}
+
+fn pivot(
+    batch: &RecordBatch,
+    ts_field: &str,
     pivot_fields: &[(&str, &str)],
-    common_fields: &[&str],
+    common_fields: Option<&[&str]>,
 ) -> anyhow::Result<Vec<RecordBatch>> {
-    let ts_field_name = ts_field.name();
-    static SESSION_CONTEXT: LazyLock<SessionContext> = LazyLock::new(SessionContext::new);
-    let df = SESSION_CONTEXT
-        .read_batch(batch)
-        .context("build datafusion context error")?;
-    let window = row_number()
-        .partition_by(vec![col(ts_field_name)])
-        .order_by(vec![col(ts_field_name).sort(true, true)])
-        .build()
-        .context("build datafusion window error")?
-        .alias("row_number");
+    let mut partitions: HashMap<String, Vec<usize>> = HashMap::with_capacity(batch.num_rows());
+    let schema = batch.schema();
 
-    let window_func = df.window(vec![window]).context("add window func error")?;
-    let batches =
-        futures::executor::block_on(window_func.collect()).context("exec partition error")?;
-    let Some(batch) = batches
-        .first()
-        .map(|batch| arrow::compute::concat_batches(batch.schema_ref(), &batches))
-        .transpose()?
-    else {
-        return Ok(vec![]);
-    };
-    let row_numbers = batch
-        .column_by_name("row_number")
-        .context("row_number column not found")?;
-    let row_numbers = row_numbers
-        .as_any()
-        .downcast_ref::<UInt64Array>()
-        .context("row_number column not uint64")?;
-    let partitions = partition_by_row_number(row_numbers);
+    let ts_array = batch
+        .column_by_name(ts_field)
+        .context("ts column not found")?;
+    let formatter = ArrayFormatter::try_new(ts_array, &FormatOptions::new())
+        .context("build ts formatter error")?;
+    for row in 0..batch.num_rows() {
+        let ts = formatter.value(row).to_string();
+        let rows: &mut Vec<usize> = partitions.entry(ts).or_default();
+        rows.push(row);
+    }
 
-    let mut records = Vec::with_capacity(partitions.len());
-    // 一个分区，生成一行数据，这行数据，是一个 recordbatch
-    for partition in partitions {
-        let mut fields = common_fields
+    let mut res: HashMap<Arc<Schema>, Vec<RecordBatch>> = HashMap::with_capacity(batch.num_rows());
+
+    let common_fields = match common_fields {
+        Some(common_fields) => common_fields
             .iter()
-            .filter_map(|f| {
-                batch
-                    .schema_ref()
-                    .field_with_name(f)
+            .filter_map(|name| {
+                schema
+                    .field_with_name(name)
                     .ok()
-                    .map(|r| Arc::new(r.clone()))
+                    .map(|f| Arc::new(f.clone()))
             })
-            .collect::<Vec<_>>();
-
-        let mut arrays = common_fields
+            .collect::<Vec<_>>(),
+        None => schema
+            .fields()
             .iter()
-            .filter_map(|f| batch.column_by_name(f).map(|s| s.slice(partition.start, 1)))
-            .collect::<Vec<_>>();
+            .filter(|f| {
+                !pivot_fields
+                    .iter()
+                    .any(|(a, b)| f.name() == a || f.name() == b)
+            })
+            .cloned()
+            .collect::<Vec<_>>(),
+    };
+    let common_arrays = common_fields
+        .iter()
+        .filter_map(|f| batch.column_by_name(f.name()))
+        .cloned()
+        .collect::<Vec<_>>();
 
-        // 对 pivot name 和 pivot value 进行逐行处理
+    // 一个分区的数据，转换成一行，一个 recordbatch
+    for rows in partitions.values() {
+        let mut fields = common_fields.clone();
+        let mut arrays = Vec::from_iter(common_arrays.iter().map(|s| s.slice(rows[0], 1)).clone());
         for (pivot_name, pivot_value) in pivot_fields {
-            let batch = batch.slice(partition.start, partition.len());
-            if let (Some(name_column), Some(value_column)) = (
+            let (Some(name_col), Some(value_col)) = (
                 batch.column_by_name(pivot_name),
                 batch.column_by_name(pivot_value),
-            ) {
-                let name_column = name_column.as_string::<i32>();
+            ) else {
+                anyhow::bail!("pivot column `{pivot_name}` or `{pivot_value}` not found");
+            };
 
+            let name_col = name_col.as_string::<i32>();
+            let mut pivot_fields: BTreeMap<&str, (FieldRef, ArrayRef)> = BTreeMap::new();
+            for &row in rows {
+                let name = name_col.value(row);
                 macro_rules! value_array {
-                    ($name: ident, $array_type: ty, $row: ident) => {{
-                        let value_column =
-                            value_column.as_any().downcast_ref::<$array_type>().unwrap();
-                        if value_column.is_null($row) {
+                    ($array_type: ty) => {{
+                        let value_column = value_col
+                            .as_any()
+                            .downcast_ref::<$array_type>()
+                            .with_context(|| {
+                                format!("value column cast to {} failed", value_col.data_type())
+                            })?;
+                        if value_column.is_null(row) {
                             (
-                                Arc::new(Field::new($name, value_column.data_type().clone(), true)),
+                                Arc::new(Field::new(name, value_column.data_type().clone(), true)),
                                 Arc::new(<$array_type>::new_null(1)),
                             )
                         } else {
                             (
-                                Arc::new(Field::new($name, value_column.data_type().clone(), true)),
-                                Arc::new(<$array_type>::from(vec![value_column.value($row)])),
+                                Arc::new(Field::new(name, value_column.data_type().clone(), true)),
+                                Arc::new(<$array_type>::from(vec![value_column.value(row)])),
                             )
                         }
                     }};
                 }
 
-                // 每一行的 name 和 value 转换为一列
-                let mut pivot_fields = BTreeMap::new();
-                for row in 0..batch.num_rows() {
-                    let name = name_column.value(row);
-                    let value_array: (FieldRef, ArrayRef) = match value_column.data_type() {
-                        DataType::Null => (
-                            Arc::new(Field::new(name, DataType::Null, true)),
-                            Arc::new(NullArray::new(1)),
-                        ),
-                        DataType::Boolean => {
-                            value_array!(name, BooleanArray, row)
+                let (field, array): (FieldRef, ArrayRef) = match value_col.data_type() {
+                    DataType::Boolean => value_array!(BooleanArray),
+                    DataType::Int8 => value_array!(Int8Array),
+                    DataType::Int16 => value_array!(Int16Array),
+                    DataType::Int32 => value_array!(Int32Array),
+                    DataType::Int64 => value_array!(Int64Array),
+                    DataType::UInt8 => value_array!(UInt8Array),
+                    DataType::UInt16 => value_array!(UInt16Array),
+                    DataType::UInt32 => value_array!(UInt32Array),
+                    DataType::UInt64 => value_array!(UInt64Array),
+                    DataType::Float32 => value_array!(Float32Array),
+                    DataType::Float64 => value_array!(Float64Array),
+                    DataType::Timestamp(time_unit, _) => match time_unit {
+                        TimeUnit::Second => value_array!(TimestampSecondArray),
+                        TimeUnit::Millisecond => value_array!(TimestampMillisecondArray),
+                        TimeUnit::Microsecond => value_array!(TimestampMicrosecondArray),
+                        TimeUnit::Nanosecond => value_array!(TimestampNanosecondArray),
+                    },
+                    DataType::Binary => value_array!(BinaryArray),
+                    DataType::LargeBinary => value_array!(LargeBinaryArray),
+                    DataType::BinaryView => value_array!(BinaryViewArray),
+                    DataType::Utf8 => value_array!(StringArray),
+                    DataType::LargeUtf8 => value_array!(LargeStringArray),
+                    DataType::Utf8View => value_array!(StringViewArray),
+                    DataType::Decimal128(precision, scale) => {
+                        let value_column = value_col
+                            .as_any()
+                            .downcast_ref::<Decimal128Array>()
+                            .context("value column cast to Decimal128 failed")?;
+                        if value_column.is_null(row) {
+                            (
+                                Arc::new(Field::new(name, value_column.data_type().clone(), true)),
+                                Arc::new(Decimal128Array::new_null(1)),
+                            )
+                        } else {
+                            (
+                                Arc::new(Field::new(name, value_column.data_type().clone(), true)),
+                                Arc::new(
+                                    Decimal128Array::from(vec![value_column.value(row)])
+                                        .with_precision_and_scale(*precision, *scale)
+                                        .context("pivot build Decimal128 array error")?,
+                                ),
+                            )
                         }
-                        DataType::Int8 => {
-                            value_array!(name, Int8Array, row)
-                        }
-                        DataType::Int16 => {
-                            value_array!(name, Int16Array, row)
-                        }
-                        DataType::Int32 => {
-                            value_array!(name, Int32Array, row)
-                        }
-                        DataType::Int64 => {
-                            value_array!(name, Int64Array, row)
-                        }
-                        DataType::UInt8 => {
-                            value_array!(name, UInt8Array, row)
-                        }
-                        DataType::UInt16 => {
-                            value_array!(name, UInt16Array, row)
-                        }
-                        DataType::UInt32 => {
-                            value_array!(name, UInt32Array, row)
-                        }
-                        DataType::Decimal128(precision, scale) => {
-                            let value_column = value_column
-                                .as_any()
-                                .downcast_ref::<Decimal128Array>()
-                                .unwrap();
-                            if value_column.is_null(row) {
-                                (
-                                    Arc::new(Field::new(
-                                        name,
-                                        value_column.data_type().clone(),
-                                        true,
-                                    )),
-                                    Arc::new(<Decimal128Array>::new_null(1)),
-                                )
-                            } else {
-                                (
-                                    Arc::new(Field::new(
-                                        name,
-                                        value_column.data_type().clone(),
-                                        true,
-                                    )),
-                                    Arc::new(
-                                        <Decimal128Array>::from(vec![value_column.value(row)])
-                                            .with_precision_and_scale(*precision, *scale)
-                                            .context("pivot build decimal array error")?,
-                                    ),
-                                )
-                            }
-                        }
-                        DataType::UInt64 => {
-                            value_array!(name, UInt64Array, row)
-                        }
-                        DataType::Float16 => {
-                            value_array!(name, Float16Array, row)
-                        }
-                        DataType::Float32 => {
-                            value_array!(name, Float32Array, row)
-                        }
-                        DataType::Float64 => {
-                            value_array!(name, Float64Array, row)
-                        }
-                        DataType::Timestamp(TimeUnit::Second, _) => {
-                            value_array!(name, TimestampSecondArray, row)
-                        }
-                        DataType::Timestamp(TimeUnit::Millisecond, _) => {
-                            value_array!(name, TimestampMillisecondArray, row)
-                        }
-                        DataType::Timestamp(TimeUnit::Microsecond, _) => {
-                            value_array!(name, TimestampMicrosecondArray, row)
-                        }
-                        DataType::Timestamp(TimeUnit::Nanosecond, _) => {
-                            value_array!(name, TimestampNanosecondArray, row)
-                        }
-                        DataType::Binary => value_array!(name, BinaryArray, row),
-                        DataType::LargeBinary => {
-                            value_array!(name, LargeBinaryArray, row)
-                        }
-                        DataType::Utf8 => value_array!(name, StringArray, row),
-                        DataType::LargeUtf8 => {
-                            value_array!(name, LargeStringArray, row)
-                        }
-                        t => return Err(anyhow::anyhow!("unsupported pivot value tyep: {t}")),
-                    };
-
-                    pivot_fields.insert(name, value_array);
-                }
-                for (field, array) in pivot_fields.into_values() {
-                    fields.push(field);
-                    arrays.push(array);
-                }
+                    }
+                    dt => unimplemented!("pivot unsupport datatype: {dt}"),
+                };
+                pivot_fields.insert(name, (field, array));
+            }
+            for (field, array) in pivot_fields.into_values() {
+                fields.push(field);
+                arrays.push(array);
             }
         }
-        let batch = RecordBatch::try_new(Arc::new(Schema::new(fields)), arrays)
-            .context("build pivot recordbatch error")?;
+        let schema = Arc::new(Schema::new(fields));
+        let records = res.entry(schema.clone()).or_default();
+        let batch =
+            RecordBatch::try_new(schema, arrays).context("build pivot recordbatch error")?;
         records.push(batch);
     }
 
-    Ok(records)
-}
-
-fn partition_by_row_number(row_numbers: &UInt64Array) -> Vec<Range<usize>> {
-    let mut partitions = Vec::new();
-    let mut start = None;
-    for (idx, value) in row_numbers
-        .iter()
-        .enumerate()
-        .filter_map(|(idx, v)| v.map(|v| (idx, v)))
-    {
-        if value == 1 {
-            if let Some(s) = start {
-                partitions.push(s..idx);
-            }
-            start = Some(idx);
-        }
-    }
-    if let Some(s) = start {
-        partitions.push(s..row_numbers.len());
-    }
-    partitions
+    res.into_iter()
+        .map(|(schema, batches)| concat_batches(&schema, batches.iter()))
+        .collect::<Result<Vec<_>, _>>()
+        .context("concat batch error")
 }
 
 #[derive(Debug)]
@@ -3091,8 +3122,8 @@ mod parser_tests {
     use chrono::Utc;
     use regex::Regex;
     use serde_json as json;
-    use std::sync::atomic::Ordering::SeqCst;
     use std::sync::Arc;
+    use std::{cmp::Ordering, sync::atomic::Ordering::SeqCst};
     use tinytemplate::TinyTemplate;
 
     use super::*;
@@ -3371,7 +3402,17 @@ mod parser_tests {
             anyhow::bail!("not records")
         };
 
-        records.sort_by(|a, b| a.table_name().cmp(b.table_name()));
+        records.sort_by(|a, b| match a.table_name().cmp(b.table_name()) {
+            o @ (Ordering::Less | Ordering::Greater) => o,
+            Ordering::Equal => pretty::pretty_format_batches(&[a.records.clone()])
+                .unwrap()
+                .to_string()
+                .cmp(
+                    &pretty::pretty_format_batches(&[b.records.clone()])
+                        .unwrap()
+                        .to_string(),
+                ),
+        });
 
         assert_eq!(records.len(), 1);
 
@@ -3535,7 +3576,17 @@ mod parser_tests {
         let Message::Records(mut records) = message else {
             anyhow::bail!("not records")
         };
-        records.sort_by(|a, b| a.table_name().cmp(b.table_name()));
+        records.sort_by(|a, b| match a.table_name().cmp(b.table_name()) {
+            o @ (Ordering::Less | Ordering::Greater) => o,
+            Ordering::Equal => pretty::pretty_format_batches(&[a.records.clone()])
+                .unwrap()
+                .to_string()
+                .cmp(
+                    &pretty::pretty_format_batches(&[b.records.clone()])
+                        .unwrap()
+                        .to_string(),
+                ),
+        });
 
         assert_eq!(records.len(), 4);
 
@@ -3788,7 +3839,17 @@ mod parser_tests {
         let Message::Records(mut records) = message else {
             anyhow::bail!("not records")
         };
-        records.sort_by(|a, b| a.table_name().cmp(b.table_name()));
+        records.sort_by(|a, b| match a.table_name().cmp(b.table_name()) {
+            o @ (Ordering::Less | Ordering::Greater) => o,
+            Ordering::Equal => pretty::pretty_format_batches(&[a.records.clone()])
+                .unwrap()
+                .to_string()
+                .cmp(
+                    &pretty::pretty_format_batches(&[b.records.clone()])
+                        .unwrap()
+                        .to_string(),
+                ),
+        });
 
         assert_eq!(records.len(), 4);
 
@@ -3911,17 +3972,68 @@ mod parser_tests {
     }
 
     #[test]
-    fn partition_by_row_number_test() -> anyhow::Result<()> {
-        let row_numbers = UInt64Array::from(vec![1, 2, 3, 1, 2, 1, 2, 3, 4]);
-        assert_eq!(
-            partition_by_row_number(&row_numbers),
-            vec![(0..3), (3..5), (5..9)]
-        );
-        let row_numbers = UInt64Array::from(vec![1, 1, 1]);
-        assert_eq!(
-            partition_by_row_number(&row_numbers),
-            vec![(0..1), (1..2), (2..3)]
-        );
+    fn pivot_test() -> anyhow::Result<()> {
+        const REPEAT: usize = 2;
+        fn repeat<T: Clone>(data: Vec<T>) -> Vec<T> {
+            std::iter::repeat_n(data, REPEAT)
+                .flat_map(|v| v.into_iter())
+                .collect()
+        }
+        let controllers: ArrayRef = Arc::new(StringArray::from(repeat(vec![
+            "controller_2",
+            "controller_2",
+            "controller_2",
+            "controller_2",
+            "controller_1",
+            "controller_1",
+            "controller_1",
+            "controller_1",
+        ])));
+        let points: ArrayRef = Arc::new(StringArray::from(repeat(vec![
+            "point_3", "point_5", "point_4", "point_6", "point_1", "point_7", "point_2", "point_8",
+        ])));
+        let data_types: ArrayRef = Arc::new(StringArray::from(repeat(vec![
+            "string", "string", "string", "string", "string", "string", "string", "string",
+        ])));
+        let timestamps: ArrayRef = Arc::new(TimestampNanosecondArray::from(
+            std::iter::repeat_n(vec![100, 101, 100, 101, 100, 101, 100, 101], REPEAT)
+                .enumerate()
+                .flat_map(|(i, v)| v.into_iter().map(move |a| (a + i) as i64))
+                .collect::<Vec<_>>(),
+        ));
+        let values: ArrayRef = Arc::new(StringArray::from(repeat(vec![
+            "0.1", "0.2", "3", "4", "abc", "def", "true", "false",
+        ])));
+        let batch = RecordBatch::try_from_iter(vec![
+            ("site_controller_id", controllers),
+            ("point_name", points),
+            ("data_type", data_types),
+            ("ts", timestamps),
+            ("value", values),
+        ])?;
+        let batches = pivot(&batch, "ts", &[("point_name", "value")], None).unwrap();
+        let res = ["\
++--------------------+-----------+-------------------------------+---------+---------+---------+---------+
+| site_controller_id | data_type | ts                            | point_1 | point_2 | point_3 | point_4 |
++--------------------+-----------+-------------------------------+---------+---------+---------+---------+
+| controller_2       | string    | 1970-01-01T00:00:00.000000100 | abc     | true    | 0.1     | 3       |
++--------------------+-----------+-------------------------------+---------+---------+---------+---------+","\
++--------------------+-----------+-------------------------------+---------+---------+---------+---------+
+| site_controller_id | data_type | ts                            | point_5 | point_6 | point_7 | point_8 |
++--------------------+-----------+-------------------------------+---------+---------+---------+---------+
+| controller_2       | string    | 1970-01-01T00:00:00.000000102 | 0.2     | 4       | def     | false   |
++--------------------+-----------+-------------------------------+---------+---------+---------+---------+","\
++--------------------+-----------+-------------------------------+---------+---------+---------+---------+---------+---------+---------+---------+
+| site_controller_id | data_type | ts                            | point_1 | point_2 | point_3 | point_4 | point_5 | point_6 | point_7 | point_8 |
++--------------------+-----------+-------------------------------+---------+---------+---------+---------+---------+---------+---------+---------+
+| controller_2       | string    | 1970-01-01T00:00:00.000000101 | abc     | true    | 0.1     | 3       | 0.2     | 4       | def     | false   |
++--------------------+-----------+-------------------------------+---------+---------+---------+---------+---------+---------+---------+---------+"];
+        for batch in batches {
+            let f = arrow::util::pretty::pretty_format_batches(&[batch]);
+            // println!("{}", f.unwrap());
+            assert!(res.contains(&f.unwrap().to_string().as_str()));
+        }
+
         Ok(())
     }
 

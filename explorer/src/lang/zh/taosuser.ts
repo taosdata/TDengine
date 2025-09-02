@@ -38,7 +38,6 @@ export default {
     backupFileCount: '备份数量',
     confirmRestoreRange: '将节点范围在：',
     restoreToDatabase: '恢复到数据库：',
-    conformDeleteRestoreTask: '是否删除恢复任务 ',
     datareplication: '数据同步',
     restoreRange: '恢复节点范围',
     tipSelectPlan: '请选择备份计划',

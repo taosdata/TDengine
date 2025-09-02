@@ -75,17 +75,16 @@ impl DsSampleIn {
 
         if let Some(tz) = tz {
             let _ = arrow::array::timezone::Tz::from_str(tz).context("Invalid timezone")?;
-            return Ok(output
+            return output
                 .iter()
                 .map(|batch| batch.to_modeled_json_with_tz(tz))
-                .collect_vec());
+                .collect::<anyhow::Result<Vec<_>>>();
         }
 
-        let output = output
+        output
             .iter()
             .map(|batch| batch.to_modeled_json())
-            .collect_vec();
-        Ok(output)
+            .collect::<anyhow::Result<Vec<_>>>()
     }
 
     pub fn stable_preview(&self) -> anyhow::Result<impl Serialize> {

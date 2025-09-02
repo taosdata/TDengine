@@ -296,7 +296,7 @@ export default {
             {
               label: 'Fallback Offset',
               description:
-                'Possible values when querying a topic’s offset.\n* `Earliest`: Receive the earliest available offset. \n* `Latest`: Receive the latest offset. \n* default is Earliest.',
+                "Possible values when querying a topic's offset.\n* `Earliest`: Receive the earliest available offset. \n* `Latest`: Receive the latest offset. \n* default is Earliest.",
               field: 'fallback_offset',
               placeholder: 'Earliest',
               defaultValue: 'Earliest',

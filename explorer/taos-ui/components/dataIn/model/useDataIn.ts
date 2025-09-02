@@ -4,6 +4,7 @@ export interface DataInProps {
   isOem?: boolean;
   isCloud?: boolean;
   isIndusty: boolean;
+  hover: boolean;
   task: TaskProps;
   timeZone: string;
   taoxAddress: string;

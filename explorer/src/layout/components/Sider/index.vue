@@ -101,6 +101,15 @@ const permission_routes = ref([
     meta: {
       show: localStorage.getItem('username') == 'root' ? true : false
     }
+  },
+  {
+    path: '/idmp',
+    title: 'route.idmp',
+    icon: 'idmp',
+    role: ['1'],
+    meta: {
+      show: true
+    }
   }
 ]);
 

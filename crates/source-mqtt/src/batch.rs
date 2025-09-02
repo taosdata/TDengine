@@ -1,7 +1,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Context;
-use arrow::array::{ArrayRef, RecordBatch, StringBuilder, TimestampNanosecondBuilder};
+use arrow::array::{
+    ArrayBuilder, ArrayRef, RecordBatch, StringBuilder, TimestampNanosecondBuilder,
+};
 use arrow_schema::{DataType, Field, Schema, TimeUnit};
 
 use taosx_core::utils::codec;
@@ -72,6 +74,7 @@ where
     where
         I: IntoIterator<Item = Message>,
     {
+        let mut error = None;
         for message in messages {
             let payload = match self.codec_processor.process(message.payload.to_vec()) {
                 Ok(payload) => {
@@ -82,6 +85,7 @@ where
                     tracing::error!("codec process message error: {e:#}");
                     self.codec_err_count += 1;
                     if self.codec_err_count < 3 {
+                        error = Some(e);
                         continue;
                     }
                     return Err(e);
@@ -104,6 +108,11 @@ where
             }
 
             self.ts.append_value(message.ts);
+        }
+        if self.payload.is_empty() {
+            if let Some(e) = error.take() {
+                return Err(e);
+            }
         }
 
         let mut columns: Vec<ArrayRef> = vec![

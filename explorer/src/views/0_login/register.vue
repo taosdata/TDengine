@@ -31,10 +31,10 @@
           size="large"
         >
           <div style="margin-bottom: 20px">
-            <p class="label-form">
-              <span>{{ $t('register.name') }}</span>
-            </p>
             <el-form-item v-if="!isLocaleLanguageEn" prop="username">
+              <p class="label-form">
+                <span>{{ $t('register.name') }}</span>
+              </p>
               <el-input
                 ref="name"
                 v-model="registerValidateForm.name"
@@ -43,6 +43,9 @@
             </el-form-item>
             <div v-else style="display: flex; justify-content: space-between">
               <el-form-item prop="firstname" style="width: 49%">
+                <p class="label-form">
+                  <span>{{ $t('register.firstName') }}</span>
+                </p>
                 <el-input
                   ref="firstname"
                   v-model="registerValidateForm.firstname"
@@ -50,6 +53,9 @@
                 ></el-input>
               </el-form-item>
               <el-form-item prop="lastname" style="width: 49%">
+                <p class="label-form">
+                  <span>{{ $t('register.lastName') }}</span>
+                </p>
                 <el-input
                   ref="lastname"
                   v-model="registerValidateForm.lastname"
@@ -147,22 +153,11 @@
   </div>
 </template>
 <script setup lang="ts">
-import { DbBase64 } from '../../utils/dbBase64';
-import { deleteCookieItem, getLocalLang } from '@/utils/index';
-import { sendSQLReq } from '@/api/explorer';
+import { getLocalLang } from '@/utils/index';
 import { FormInstance } from 'element-plus';
 import dataJson from './data.json';
-import {
-  getUrls,
-  fetchApiByCluster,
-  fetchIsbinding,
-  fetchVerificationCode,
-  getVerificationResult,
-  fetchCaptcha,
-  reportTaosdInfo
-} from '@/api/login';
-import { encrypt } from '@/utils/index';
-import useLicense from '@/hooks/useLicense';
+import { getUrls, fetchIsbinding, fetchVerificationCode, getVerificationResult, fetchCaptcha } from '@/api/login';
+
 import { useRouter } from 'vue-router';
 import { useStore } from 'vuex';
 import i18n from '@/lang';
@@ -170,7 +165,6 @@ import { setLocale } from 'taos-ui/config';
 const { t } = useI18n();
 const store = useStore();
 const router = useRouter();
-const { getGrantsFull } = useLicense();
 const { $IS_COMMUNITY, $IS_TSDBLITE, $IS_OEM, $error } = inject('globalCustomProperties') as GlobalCustomProperties;
 const usernameRef = ref<HTMLElement | null>();
 const phoneEmailRef = ref<HTMLElement | null>();
@@ -179,14 +173,14 @@ const dynamicValidateFormRef = ref<FormInstance>();
 const captchaFormRef = ref<FormInstance>();
 const registerValidateFormRef = ref<FormInstance>();
 
-const validatePass = (rule: any, value: string, callback: (arg0?: Error | undefined) => void) => {
+const validatePass = (_rule: any, value: string, callback: (arg0?: Error | undefined) => void) => {
   if (value === '') {
     callback(new Error(t('login.passwordTips')));
   } else {
     callback();
   }
 };
-const validatePhoneEmail = (rule: any, value: string, callback: (arg0?: Error | undefined) => void) => {
+const validatePhoneEmail = (_rule: any, value: string, callback: (arg0?: Error | undefined) => void) => {
   if (value === '') {
     if (isLocaleLanguageEn.value) {
       callback(new Error(t('register.emailTips')));
@@ -211,7 +205,7 @@ const validatePhoneEmail = (rule: any, value: string, callback: (arg0?: Error | 
 
 const taosxStatus = ref<boolean>(false);
 const loading = ref<boolean>(false);
-const ts = ref();
+const ts = ref<number>();
 const timer = ref();
 const dynamicValidateForm = reactive({
   cluster: '',
@@ -243,7 +237,6 @@ const formRules = reactive({
   ]
 });
 // dataJson,
-const encryptedPwd = ref('');
 const buttonTextOfGetVerificationCode = ref(t('register.getVerificationCode'));
 const registerValidateForm = reactive({
   ts: '',
@@ -342,88 +335,6 @@ onMounted(() => {
   });
 });
 
-async function getTaosdInfo() {
-  try {
-    const res = await sendSQLReq(
-      `select id, CONCAT(server_version(), ' ', version) as version from information_schema.ins_cluster`
-    );
-    if (res?.code === 0) {
-      const id = res.data[0][0].toString();
-      localStorage.setItem('local_clusterID', id);
-      return [id, res.data[0][1]];
-    } else {
-      console.error('Failed to get taosd info:', res?.desc || 'Unknown error');
-      return ['', ''];
-    }
-  } catch (error: any) {
-    if (error.includes && error.includes('Permission denied')) {
-      console.log('User login without sysinfo', error);
-      console.log(`app: ${store.state.app.sysinfo}`);
-      store.state.app.sysinfo = false;
-      console.log(`app: ${store.state.app.sysinfo}`);
-      return ['', ''];
-    }
-    localStorage.removeItem('TDengine-Token');
-    console.log(error);
-    return Promise.reject(error);
-  }
-}
-async function login() {
-  const token = 'Basic ' + DbBase64.encode(dynamicValidateForm.username + ':' + dynamicValidateForm.password);
-  store.commit('app/SET_TOKEN', token);
-  localStorage.setItem('username', dynamicValidateForm.username);
-  localStorage.setItem('pwd', encryptedPwd.value);
-
-  store.commit('app/SAVE_LOGIN_INFO', {
-    username: dynamicValidateForm.username,
-    pwd: dynamicValidateForm.password
-  });
-  try {
-    const sql = 'select server_version()';
-    const res = await fetchApiByCluster(token, sql);
-
-    if (res && res.code == 0 && !res.desc) {
-      localStorage.setItem('TDengine-Token', token);
-      const server_version = res.data[0][0];
-      await getGrantsFull();
-      await getUserAuthority();
-
-      let [cluster_id, taosd_version] = await getTaosdInfo();
-      if (!cluster_id) {
-        cluster_id = 'unknown';
-        localStorage.setItem('local_clusterID', cluster_id);
-      }
-      if (!taosd_version) {
-        taosd_version = server_version;
-        localStorage.setItem('td_version', taosd_version);
-      }
-      const phone_email = sessionStorage.getItem('registerKey');
-      const lang = localStorage.getItem('local_language') || '';
-      if (phone_email) {
-        reportTaosdInfo({
-          phone_email,
-          lang,
-          cluster_id,
-          taosd_version
-        }).finally(() => {
-          sessionStorage.removeItem('registerKey');
-        });
-      }
-    } else {
-      loading.value = false;
-      if (res && res.code == 11) {
-        $error(t('login.servTaosdTip'));
-      } else {
-        $error(res.desc || t('login.errorTip'));
-      }
-    }
-  } catch (error) {
-    console.log('error', error);
-    $error(t('login.servExceptionTip'));
-    loading.value = false;
-    deleteCookieItem();
-  }
-}
 async function getClusterAndDashboardUrl() {
   try {
     const res: ProfileResult = await getUrls();
@@ -464,61 +375,6 @@ async function getClusterAndDashboardUrl() {
     $error(error);
   }
 }
-//获取登录用户权限
-async function getUserAuthority() {
-  try {
-    const res = await sendSQLReq(
-      `select server_version(), version, (expire_time < now) as valid from information_schema.ins_cluster;`
-    );
-    if (res?.desc) {
-      $error(res.desc);
-      return;
-    }
-    if (res && res.data) {
-      const result = res.data.map(data => {
-        return Object.fromEntries(
-          res.column_meta.map((item, index) => {
-            return [item[0], data[index]];
-          })
-        );
-      });
-      store.state.app.sysinfo = true;
-      if (result.length > 0) {
-        if (result[0].version === 'official') {
-          await router.push({
-            path: '/explorer'
-          });
-        } else {
-          const phone_email = sessionStorage.getItem('registerKey');
-          if (!phone_email) {
-            await router.push({
-              path: '/'
-            });
-          }
-        }
-      }
-      if (result.length > 0 && ['official', 'trial', 'community'].includes(result[0].version)) {
-        await router.push({
-          path: '/explorer'
-        });
-      } else {
-        $error(t('login.versiontip'));
-      }
-    }
-  } catch (err: any) {
-    loading.value = false;
-
-    if (err && err.includes('Permission denied')) {
-      console.log('User login without sysinfo');
-      store.state.app.sysinfo = false;
-      await router.push({
-        path: '/explorer'
-      });
-      return;
-    }
-    $error(err?.desc);
-  }
-}
 async function getIsbinding() {
   try {
     const result = await fetchIsbinding();
@@ -534,10 +390,10 @@ async function getIsbinding() {
     console.log('error', error);
   }
 }
-function checkPhone(val) {
+function checkPhone(val: string) {
   return /^1[3456789]\d{9}$/.test(val);
 }
-function checkEmail(val) {
+function checkEmail(val: string) {
   return /^[.a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$/.test(val);
 }
 
@@ -560,7 +416,7 @@ async function handlerCaptcha() {
   captchaForm.captchaCode = '';
   visible.value = true;
   ts.value = new Date().getTime();
-  const result = await fetchCaptcha(registerValidateForm.phone_email, ts);
+  const result = await fetchCaptcha(registerValidateForm.phone_email, ts.value);
 
   // 有正确的结果才弹框
   if (result) {
@@ -614,7 +470,7 @@ async function handlerVerificationCode(formEl: FormInstance | undefined) {
 }
 function submitRegisterForm(formEl: FormInstance | undefined) {
   if (!formEl) return;
-  formEl.validate(async (valid: bool) => {
+  formEl.validate(async (valid: boolean) => {
     if (valid) {
       pageLoading.value = true;
 
@@ -657,16 +513,18 @@ function submitRegisterForm(formEl: FormInstance | undefined) {
         }
       }
     } else {
-      return false;
+      return;
     }
   });
 }
 function switchLanguage() {
   if (getLocalLang() == 'zh') {
+    /* @ts-expect-error: 属性“value”在类型“string | WritableComputedRef<string, string>”上不存在。 */
     i18n.global.locale.value = 'en';
     localStorage.setItem('local_language', 'en');
     setLocale('en');
   } else {
+    /* @ts-expect-error: 属性“value”在类型“string | WritableComputedRef<string, string>”上不存在。 */
     i18n.global.locale.value = 'zh';
     localStorage.setItem('local_language', 'zh');
     setLocale('zh');

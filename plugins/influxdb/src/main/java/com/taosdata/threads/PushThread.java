@@ -95,7 +95,7 @@ public class PushThread implements Runnable {
                 if (influxdbBucketDataEntityList == null || influxdbBucketDataEntityList.size() == 0) {
                     // 判断空跑次数
                     if (this.emptyTimes++ >= 30000 && this.arrowUtils != null) {
-                        this.channel.writeAndFlush(this.arrowUtils.closeArrow());
+                        this.channel.writeAndFlush(this.arrowUtils.closeArrow()).sync();
                     }
                     // 睡眠后继续
                     sleep(this.performanceConfig.getThread().getPushEmptyInterval(), start, StatusEnums.NORMAL);
@@ -193,7 +193,7 @@ public class PushThread implements Runnable {
                     // 数据写回
                     BucketDataCache.addBucketData(influxdbBucketDataEntityList);
                     // 断开连接
-                    this.channel.writeAndFlush(this.arrowUtils.closeArrow());
+                    this.channel.writeAndFlush(this.arrowUtils.closeArrow()).sync();
                     // 中止操作
                     return;
                 }
@@ -214,15 +214,15 @@ public class PushThread implements Runnable {
             });
             // 转化并发送数据
             if (!subtableMap.isEmpty()) {
-                this.channel.writeAndFlush(this.arrowUtils.transformSubtable(subtableMap, this.first));
+                this.channel.writeAndFlush(this.arrowUtils.transformSubtable(subtableMap, this.first)).sync();
             }
-            this.channel.writeAndFlush(this.arrowUtils.transformData(influxdbBucketDataEntityList));
+            this.channel.writeAndFlush(this.arrowUtils.transformDataByTime(influxdbBucketDataEntityList)).sync();
             // 修改当前线程/schema的首条标记
             this.first = false;
             // 记录统计信息
             StatisticCache.totalPush.addAndGet(influxdbBucketDataEntityList.size());
         } catch (Exception e) {
-            this.logger.error("Push data failed, write back to queue.", e);
+            this.logger.error("Push data failed, write back to queue. exception: ", e);
             // 写回
             BucketDataCache.addBucketData(influxdbBucketDataEntityList);
         }

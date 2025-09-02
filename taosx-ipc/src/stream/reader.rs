@@ -1858,6 +1858,76 @@ pub fn record_batch_to_column_view(
                     }
                     ColumnView::from_bytes::<Vec<u8>, _, _, _>(views)
                 }
+                DataType::Decimal128(precision, scale) => {
+                    // 如果 cast_to 是 DECIMAL，则使用 metadata 中的 precision 和 scale 进行转换
+                    if cast_to.is_some_and(|s| s == "DECIMAL") {
+                        let cast_to_precision = field
+                            .metadata()
+                            .get("precision")
+                            .and_then(|s| s.parse::<u8>().ok())
+                            .unwrap_or(*precision);
+
+                        // 当 precision 范围为 (18, 38] 时，使用 16 字节存储 (DECIMAL)
+                        if cast_to_precision > 18 {
+                            let a = column.as_any().downcast_ref::<Decimal128Array>().unwrap();
+                            if a.null_count() == 0 {
+                                ColumnView::from_decimal(
+                                    a.values().to_vec(),
+                                    *precision,
+                                    *scale as u8,
+                                )
+                            } else {
+                                ColumnView::from_decimal(
+                                    (0..a.len())
+                                        .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                        .collect_vec(),
+                                    *precision,
+                                    *scale as u8,
+                                )
+                            }
+                        } else {
+                            // 当 precision 值不大于 18 时，内部使用 8 字节存储 (DECIMAL64)
+                            let a = column.as_any().downcast_ref::<Decimal128Array>().unwrap();
+                            if a.null_count() == 0 {
+                                ColumnView::from_decimal64(
+                                    a.values()
+                                        .iter()
+                                        .map(num::ToPrimitive::to_i64)
+                                        .collect_vec(),
+                                    *precision,
+                                    *scale as u8,
+                                )
+                            } else {
+                                ColumnView::from_decimal64(
+                                    (0..a.len())
+                                        .map(|i| {
+                                            if a.is_null(i) {
+                                                None
+                                            } else {
+                                                num::ToPrimitive::to_i64(&a.value(i))
+                                            }
+                                        })
+                                        .collect_vec(),
+                                    *precision,
+                                    *scale as u8,
+                                )
+                            }
+                        }
+                    } else {
+                        let a = column.as_any().downcast_ref::<Decimal128Array>().unwrap();
+                        if a.null_count() == 0 {
+                            ColumnView::from_decimal(a.values().to_vec(), *precision, *scale as u8)
+                        } else {
+                            ColumnView::from_decimal(
+                                (0..a.len())
+                                    .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                    .collect_vec(),
+                                *precision,
+                                *scale as u8,
+                            )
+                        }
+                    }
+                }
                 _ => todo!(),
             }
         })
@@ -1903,12 +1973,6 @@ impl<R: Read> Iterator for IpcReader<R> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let res = self.reader.next()?;
-        // let res = loop {
-        //     debug!("Getting next");
-        //     if let Some(res) = self.reader.next() {
-        //         break res;
-        //     }
-        // };
         match res {
             Ok(record) => Some(self.parse(record)),
             Err(err) => {
@@ -1925,44 +1989,123 @@ impl<R: Read> Iterator for IpcReader<R> {
     }
 }
 
-#[test]
-fn file_reader() -> anyhow::Result<()> {
-    use std::io::prelude::*;
+#[cfg(test)]
+mod tests {
 
-    let mut file = std::fs::File::open("./examples/dotnet/dotnet.arrow.zstd")?;
-    let mut bytes = vec![];
-    file.read_to_end(&mut bytes)?;
-    let zin = zstd::decode_all(bytes.as_slice())?;
+    use arrow::{compute::CastOptions, datatypes::Field};
 
-    let reader = IpcReader::new(zin.as_slice()).unwrap();
+    use super::*;
 
-    dbg!(reader.metadata());
-    dbg!(&reader.schema);
+    #[test]
+    fn test_record_batch_to_column_view() {
+        // cast StringArray to Decimal128
+        let array = StringArray::from(vec!["2052.43", "Null", "-2052.43"]);
+        let to_type = DataType::Decimal128(18, 4);
+        let cast_options = CastOptions::default();
+        let array = arrow::compute::cast_with_options(&array, &to_type, &cast_options).unwrap();
+        let array_ref: ArrayRef = std::sync::Arc::new(array);
+        // build record batch
+        let field = Field::new("n_orig_cost", DataType::Decimal128(18, 4), true);
+        let schema = std::sync::Arc::new(Schema::new(vec![field]));
+        let batch = RecordBatch::try_new(schema.clone(), vec![array_ref]).unwrap();
+        // record batch to ColumnView
+        let views = record_batch_to_column_view(&batch, Precision::Millisecond);
+        // assert
+        assert_eq!(views.len(), 1);
+        let col = &views[0];
+        assert_eq!(col.len(), 3);
+        assert_eq!(col.get(0).unwrap().to_sql_value(), "2052.4300");
+        assert!(col.get(1).unwrap().is_null());
+        assert_eq!(col.get(2).unwrap().to_sql_value(), "-2052.4300");
 
-    for records in reader {
-        let res = records.unwrap();
-        let record = res.as_any().downcast_ref::<LushMessage>().unwrap();
-        match record {
-            LushMessage::Insert(records) => {
-                for record in records {
-                    let map_data = record.to_column_views();
-                    dbg!(&map_data);
+        // Decimal128 to ColumnView::Decimal64
+        let array = Decimal128Array::from(vec![
+            Some(543210123456789i128),
+            Some(-543210123456789i128),
+            None,
+        ]);
+        let array_ref: ArrayRef = std::sync::Arc::new(array);
+        let mut field_metadata = std::collections::HashMap::new();
+        field_metadata.insert("cast_to".to_string(), "DECIMAL".to_string());
+        field_metadata.insert("precision".to_string(), "15".to_string());
+        field_metadata.insert("scale".to_string(), "2".to_string());
+        let field =
+            Field::new("amount", DataType::Decimal128(38, 10), true).with_metadata(field_metadata);
+        let schema = std::sync::Arc::new(Schema::new(vec![field]));
+        let batch = RecordBatch::try_new(schema.clone(), vec![array_ref]).unwrap();
+        let views = record_batch_to_column_view(&batch, Precision::Millisecond);
+        assert_eq!(views.len(), 1);
+        let col = &views[0];
+        assert_eq!(col.len(), 3);
+        assert!(matches!(col, ColumnView::Decimal64 { .. }));
+        assert_eq!(col.get(0).unwrap().to_sql_value(), "54321.0123456789");
+        assert_eq!(col.get(1).unwrap().to_sql_value(), "-54321.0123456789");
+        assert!(col.get(2).unwrap().is_null());
 
-                    let columns = vec!["ts".to_string(), "c1".to_string()];
-                    let sqls = record.generate_insert_sql_from_tablename(&map_data, &columns);
-                    dbg!(&sqls);
-                }
-            }
-            LushMessage::Tables(tables, _) => {
-                for record in tables {
-                    let map_data = record.to_sql(None);
-                    dbg!(&map_data);
-                }
-            }
-            _ => (),
-        }
+        // Decimal128 to ColumnView::Decimal
+        let array = Decimal128Array::from(vec![
+            Some(1234567890123456789i128),
+            Some(-9876543210123456789i128),
+            None,
+        ]);
+        let array_ref: ArrayRef = std::sync::Arc::new(array);
+        let mut field_metadata = std::collections::HashMap::new();
+        field_metadata.insert("cast_to".to_string(), "DECIMAL".to_string());
+        field_metadata.insert("precision".to_string(), "22".to_string());
+        field_metadata.insert("scale".to_string(), "10".to_string());
+        let field =
+            Field::new("amount", DataType::Decimal128(38, 10), true).with_metadata(field_metadata);
+        let schema = std::sync::Arc::new(Schema::new(vec![field]));
+        let batch = RecordBatch::try_new(schema.clone(), vec![array_ref]).unwrap();
+        let views = record_batch_to_column_view(&batch, Precision::Millisecond);
+        assert_eq!(views.len(), 1);
+        let col = &views[0];
+        assert_eq!(col.len(), 3);
+        assert!(matches!(col, ColumnView::Decimal { .. }));
+        assert_eq!(col.get(0).unwrap().to_sql_value(), "123456789.0123456789");
+        assert_eq!(col.get(1).unwrap().to_sql_value(), "-987654321.0123456789");
+        assert!(col.get(2).unwrap().is_null());
     }
 
-    // (&stream).write_all(zin.as_slice()).unwrap();
-    Ok(())
+    #[test]
+    fn file_reader() -> anyhow::Result<()> {
+        use std::io::prelude::*;
+
+        let mut file = std::fs::File::open("./examples/dotnet/dotnet.arrow.zstd")?;
+        let mut bytes = vec![];
+        file.read_to_end(&mut bytes)?;
+        let zin = zstd::decode_all(bytes.as_slice())?;
+
+        let reader = IpcReader::new(zin.as_slice()).unwrap();
+
+        dbg!(reader.metadata());
+        dbg!(&reader.schema);
+
+        for records in reader {
+            let res = records.unwrap();
+            let record = res.as_any().downcast_ref::<LushMessage>().unwrap();
+            match record {
+                LushMessage::Insert(records) => {
+                    for record in records {
+                        let map_data = record.to_column_views();
+                        dbg!(&map_data);
+
+                        let columns = vec!["ts".to_string(), "c1".to_string()];
+                        let sqls = record.generate_insert_sql_from_tablename(&map_data, &columns);
+                        dbg!(&sqls);
+                    }
+                }
+                LushMessage::Tables(tables, _) => {
+                    for record in tables {
+                        let map_data = record.to_sql(None);
+                        dbg!(&map_data);
+                    }
+                }
+                _ => (),
+            }
+        }
+
+        // (&stream).write_all(zin.as_slice()).unwrap();
+        Ok(())
+    }
 }
