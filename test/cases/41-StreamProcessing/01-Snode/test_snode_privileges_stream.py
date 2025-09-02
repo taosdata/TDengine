@@ -15,7 +15,7 @@ import os
 import subprocess
 
 
-class TestStreamPrivileges:
+class TestStreamPrivilegesSnodeStream:
     currentDir = os.path.dirname(os.path.abspath(__file__))
     dbname = "test1"
     dbname2 = "test2"
@@ -28,7 +28,7 @@ class TestStreamPrivileges:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_snode_mgmt(self):
+    def test_params_snode_stream(self):
         """Privilege: snode and stream
 
         1. Check normal user create snode.

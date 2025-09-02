@@ -9,22 +9,26 @@ class TestStreamEventTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_event_trigger(self):
-        """summary: xxx
+        """Event:
 
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
+        Verification testing during the development process.
 
         Catalog:
-            - xxx:xxx
-        
+            - Streams: 03-TriggerMode
+        Description:
+            - create 14 streams, each stream has 1 source tables
+            - write data to source tables
+            - check stream results
+
+        Since: v3.3.3.7
+
+        Labels: common,ci
+
+        Jira: None
+
         History:
-            - xxx
-            - xxx
+            - 2025-07-22
+
         """
 
         tdStream.dropAllStreamsAndDbs()

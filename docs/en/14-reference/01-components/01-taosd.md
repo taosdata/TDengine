@@ -322,12 +322,14 @@ The effective value of charset is UTF-8.
 | curRange       |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
 | compressor     |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
 
-Additional Notes:
+**Additional Notes**
 
-1. Effective in versions 3.2.0.0 ~ 3.3.0.0 (not inclusive), enabling this parameter will prevent rollback to the version before the upgrade
-1. TSZ compression algorithm is completed through data prediction technology, thus it is more suitable for data with regular changes
-1. TSZ compression time will be longer, if your server CPU is mostly idle and storage space is small, it is suitable to choose this
-1. Example: Enable lossy compression for both float and double types
+1. All configuration parameters will be persisted to local storage. After restarting the database service, the persisted configuration parameter list will be used by default. For local configuration parameters, if you want to continue using the local configuration parameters in the config file, you need to set forceReadConfig to 1.
+2. Only local configuration parameters are controlled by forceReadConfig, while global configuration parameters must be modified through alter all dnodes and are not controlled by forceReadConfig. 
+3. Effective in versions 3.2.0.0 ~ 3.3.0.0 (not inclusive), enabling this parameter will prevent rollback to the version before the upgrade
+4. TSZ compression algorithm is completed through data prediction technology, thus it is more suitable for data with regular changes
+5. TSZ compression time will be longer, if your server CPU is mostly idle and storage space is small, it is suitable to choose this
+6. Example: Enable lossy compression for both float and double types
 
 ```shell
 lossyColumns     float|double

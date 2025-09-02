@@ -9,7 +9,7 @@ class TestStreamRecalcWatermark:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_recalc_watermark(self):
-        """Stream Recalculation WATERMARK Option Test
+        """Recalc: WATERMARK
 
         Test WATERMARK option behavior with six different window types and out-of-order data handling:
 
