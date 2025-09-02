@@ -140,7 +140,7 @@ class Test_IDMP_Meters:
         sqls = [
               "create database out",
               # stream3
-              "CREATE STREAM test.stream3      INTERVAL(5s) SLIDING(5s) FROM test.st    PARTITION BY tbname STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|DELETE_RECALC)  INTO out.result_stream3       AS SELECT _twstart AS ts, _twrownum as wrownum, sum(bi)    as sum_power FROM %%trows",
+              "CREATE STREAM test.stream3  INTERVAL(5s) SLIDING(5s) FROM test.t3  PARTITION BY tbname STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|DELETE_RECALC)  INTO out.result_stream3       AS SELECT _twstart AS ts, _twrownum as wrownum, sum(bi)  as sum_power FROM %%trows",
         ]
 
         tdSql.executes(sqls)
@@ -290,6 +290,9 @@ class Test_IDMP_Meters:
         step  =  1000 # 1s
         cols = "ts,fc,ic,bi,si,bin"
 
+        # blank 10
+        ts += 10 * step
+
         # insert
         count = 6
         vals = "10,10,10,10,'abcde'"
@@ -327,13 +330,14 @@ class Test_IDMP_Meters:
         result_sql = f"select * from out.result_stream3 order by tag_tbname"
         tdSql.checkResultsByFunc (
             sql  = result_sql, 
-            func = lambda: tdSql.getRows() == 1
+            func = lambda: tdSql.getRows() == 2
         )
 
         # check data
         data = [
             # ts           cnt  power
-            [1752574200000, 5,   50, "t3"]
+            [1752574205000, 1,   5, "t3"],
+            [1752574210000, 5,  50, "t3"]
         ]
         tdSql.checkDataMem(result_sql, data)
         print("verify stream3 again ........................... successfully.")
