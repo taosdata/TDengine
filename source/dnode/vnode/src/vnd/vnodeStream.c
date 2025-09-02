@@ -1223,7 +1223,7 @@ static int32_t setColData(int64_t rows, int32_t rowStart, int32_t rowEnd, SColDa
 }
 
 static int32_t processSubmitTbDataForMetaData(SVnode* pVnode, SDecoder *pCoder, SStreamTriggerReaderInfo* info, 
-  STSchema** schemas, SSHashObj* ranges, SSHashObj* gidHash, SSDataBlock* pBlock) {
+  STSchema** schemas, SSHashObj* ranges, SSHashObj* gidHash, SSDataBlock* pBlock, int64_t ver) {
   int32_t code = 0;
   int32_t lino = 0;
   uint64_t gid = 0;
@@ -1417,6 +1417,9 @@ static int32_t processSubmitTbDataForMetaData(SVnode* pVnode, SDecoder *pCoder, 
     SStorageAPI  api = {0};
     initStorageAPI(&api);
     STREAM_CHECK_RET_GOTO(processTag(pVnode, info, &api, submitTbData.uid, pBlock, blockStart, numOfRows, 1));
+    SColumnInfoData* pColData = taosArrayGetLast(pBlock->pDataBlock);
+    STREAM_CHECK_NULL_GOTO(pColData, terrno);
+    STREAM_CHECK_RET_GOTO(colDataSetNItems(pColData, blockStart, (const char*)&ver, numOfRows, 1, false));
   }
 
   pSlice->startRowIdx += numOfRows;
@@ -1465,7 +1468,7 @@ static int32_t scanSubmitDataForMetaData(SVnode* pVnode, SStreamTriggerReaderInf
   }
 
   for (int32_t i = 0; i < nSubmitTbData; i++) {
-    STREAM_CHECK_RET_GOTO(processSubmitTbDataForMetaData(pVnode, &decoder, info, &schemas, ranges, gidHash, rsp->dataBlock));
+    STREAM_CHECK_RET_GOTO(processSubmitTbDataForMetaData(pVnode, &decoder, info, &schemas, ranges, gidHash, rsp->dataBlock, ver));
   }
 
   tEndDecode(&decoder);
@@ -3031,7 +3034,7 @@ static int32_t vnodeProcessStreamWalCalcDataNewReq(SVnode* pVnode, SRpcMsg* pMsg
   void* pTask = sStreamReaderInfo->pTask;
   ST_TASK_DLOG("vgId:%d %s start, request paras size:%zu", TD_VID(pVnode), __func__, taosArrayGetSize(req->walDataNewReq.versions));
 
-  resultRsp.dataBlock = sStreamReaderInfo->calcResBlock;
+  resultRsp.dataBlock = sStreamReaderInfo->calcBlock;
   STREAM_CHECK_RET_GOTO(processWalVerDataNew(pVnode, sStreamReaderInfo, req->walDataNewReq.versions, req->walDataNewReq.ranges, &resultRsp, &lastVer, &totalRows));
   STREAM_CHECK_CONDITION_GOTO(totalRows == 0, TDB_CODE_SUCCESS);
 

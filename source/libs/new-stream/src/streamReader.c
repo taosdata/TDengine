@@ -233,6 +233,8 @@ static void releaseStreamReaderInfo(void* p) {
   pInfo->pFilterInfo = NULL;
   blockDataDestroy(pInfo->resultBlock);
   pInfo->resultBlock = NULL;
+  blockDataDestroy(pInfo->calcBlock);
+  pInfo->calcBlock = NULL;
   blockDataDestroy(pInfo->metaBlock);
   pInfo->metaBlock = NULL;
   tSimpleHashCleanup(pInfo->indexHash);
@@ -392,6 +394,9 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
     SNodeList* pScanCols = ((STableScanPhysiNode*)(sStreamReaderInfo->calcAst->pNode))->scan.pScanCols;
     STREAM_CHECK_RET_GOTO(setColIdForCalcResBlock(pseudoCols, sStreamReaderInfo->calcResBlock->pDataBlock));
     STREAM_CHECK_RET_GOTO(setColIdForCalcResBlock(pScanCols, sStreamReaderInfo->calcResBlock->pDataBlock));
+    STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->calcResBlock, false, &sStreamReaderInfo->calcBlock));
+    SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, LONG_BYTES, -1); // ver
+    STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(sStreamReaderInfo->calcBlock, &idata));
   }
 
   STREAM_CHECK_RET_GOTO(createDataBlockForTs(&sStreamReaderInfo->tsBlock));
@@ -410,6 +415,8 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
   taosHashSetFreeFp(sStreamReaderInfo->pTableMetaCache, freeTagCache);
 
   STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->triggerResBlock, false, &sStreamReaderInfo->resultBlock));
+  SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, LONG_BYTES, -1); // ver
+  STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(sStreamReaderInfo->resultBlock, &idata));
   sStreamReaderInfo->indexHash = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->indexHash, terrno);
 
