@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, tdStream
 import time
 
 
@@ -1063,76 +1063,6 @@ class TestColsFunction:
         tdSql.checkData(0, 1, 1734574929000)
         tdSql.checkData(0, 2, 1)
     
-    def stream_cols_test(self):
-        tdSql.execute(f'CREATE STREAM last_col_s1 INTO {self.dbname}.last_col1 AS SELECT cols(last(ts), ts, c0) FROM {self.dbname}.meters PARTITION BY tbname INTERVAL(1s) SLIDING(1s);')
-        tdSql.execute(f'CREATE STREAM last_col_s2 INTO {self.dbname}.last_col2 AS SELECT last(ts), c0 FROM {self.dbname}.meters PARTITION BY tbname INTERVAL(1s) SLIDING(1s);')
-        
-        tdSql.waitedQuery(f'show streams', 2, 10)
-        time.sleep(5)
-        
-        tdSql.execute(f'insert into {self.dbname}.d0 values(1734574930000, 0, 1, NULL, NULL)')
-        tdSql.execute(f'insert into {self.dbname}.d0 values(1734574931000, 1, 1, NULL, NULL)')
-        tdSql.execute(f'insert into {self.dbname}.d0 values(1734574932000, 2, 2, NULL, NULL)')
-        tdSql.execute(f'insert into {self.dbname}.d0 values(1734574933000, 3, 3, NULL, NULL)')
-        
-        tdSql.waitedQuery(f'select * from {self.dbname}.last_col2', 3, 10)
-        tdSql.waitedQuery(f'select * from {self.dbname}.last_col1', 3, 10)
-        tdSql.query(f'select * from {self.dbname}.last_col1')
-        tdSql.checkRows(3)
-        tdSql.checkData(0, 0, 1734574930000)
-        tdSql.checkData(0, 1, 1734574930000)
-        tdSql.checkData(0, 2, 0)
-        tdSql.checkData(1, 0, 1734574931000)
-        tdSql.checkData(1, 1, 1734574931000)
-        tdSql.checkData(1, 2, 1)
-        tdSql.checkData(2, 0, 1734574932000)
-        tdSql.checkData(2, 1, 1734574932000)
-        tdSql.checkData(2, 2, 2)
-    
-    def stream_cols_test2(self, cachemodel):
-        db2 = "test2" 
-        tdSql.execute(f'drop database if exists {db2}')
-        tdSql.execute(f'create database {db2} cachemodel "{cachemodel}"')
-        tdSql.execute(f'create table {db2}.st (ts timestamp, c0 int) tags (t1 int)')
-        tdSql.execute(f'create table {db2}.st_1 using {db2}.st tags(1)')
-        tdSql.execute(f'create table {db2}.st_2 using {db2}.st tags(2)')
-        
-        tdSql.execute(f'CREATE STREAM col1 INTO {db2}.colt1 AS SELECT cols(min(c0), ts min_ts, c0 min_c0), cols(max(c0), ts max_ts, c0 max_c0) FROM {db2}.st PARTITION BY tbname INTERVAL(1s) SLIDING(1s);')
-        tdSql.execute(f'CREATE STREAM col2 INTO {db2}.colt2 AS SELECT min(c0), max(c0) FROM {db2}.st PARTITION BY tbname INTERVAL(1s) SLIDING(1s);')
-        
-        tdSql.waitedQuery(f'show streams', 4, 10)
-        time.sleep(5)
-        tdSql.execute(f'insert into {db2}.st_1 values(1734574930000, 0), (1734574930100, 1), (1734574930200, 2), (1734574930300, 3)')
-        tdSql.execute(f'insert into {db2}.st_1 values(1734574931000, 1), (1734574931100, 2), (1734574931200, 3), (1734574931300, 4)')
-        tdSql.execute(f'insert into {db2}.st_1 values(1734574932000, 2), (1734574932100, 3), (1734574932200, 4), (1734574932300, 5)')
-        tdSql.execute(f'insert into {db2}.st_1 values(1734574933000, 3), (1734574933100, 4), (1734574933200, 5), (1734574933300, 6)')
-        
-        tdSql.waitedQuery(f'select * from {db2}.colt2', 3, 10)
-        
-        tdSql.query(f'select * from {db2}.colt2')
-        tdSql.checkRows(3)
-        tdSql.checkData(0, 1, 0)
-        tdSql.checkData(0, 2, 3)
-        tdSql.checkData(1, 1, 1)
-        tdSql.checkData(1, 2, 4)
-        tdSql.checkData(2, 1, 2)
-        tdSql.checkData(2, 2, 5)
-        
-        tdSql.query(f"select * from {db2}.colt1")
-        tdSql.checkRows(3)
-        tdSql.checkData(0, 1, 1734574930000)
-        tdSql.checkData(0, 2, 0)
-        tdSql.checkData(0, 3, 1734574930300)
-        tdSql.checkData(0, 4, 3)
-        tdSql.checkData(1, 1, 1734574931000)
-        tdSql.checkData(1, 2, 1)
-        tdSql.checkData(1, 3, 1734574931300)
-        tdSql.checkData(1, 4, 4)
-        tdSql.checkData(2, 1, 1734574932000)
-        tdSql.checkData(2, 2, 2)
-        tdSql.checkData(2, 3, 1734574932300)
-        tdSql.checkData(2, 4, 5)    
-
     def include_null_test(self):
         tdSql.execute(f'insert into {self.dbname}.d0 values(1734574929010, 0, NULL, NULL, NULL)')
         tdSql.execute(f'insert into {self.dbname}.d0 values(1734574929011, NULL, 1, NULL, NULL)')
@@ -1390,7 +1320,42 @@ class TestColsFunction:
         
         tdSql.error(f'select tbname, cols(last(ts), c0), cols(last(c2), c0) from {dbname}.stb_null1')
         tdSql.error(f'select t1, cols(last(ts), c0), cols(last(c2), c0) from {dbname}.stb_null1')
+
+    def stream_cols_test(self):
+        tdSql.execute(f'use {self.dbname}')
+        tdSql.execute(f'CREATE STREAM {self.dbname}.last_col_s1 INTERVAL(1s) SLIDING(1s) \
+                      FROM {self.dbname}.meters PARTITION BY tbname STREAM_OPTIONS(FILL_HISTORY) INTO {self.dbname}.last_col1 \
+                      AS SELECT cols(last(ts), ts, c0), _twstart, _twend from %%tbname where _c0 >= _twstart and _c0 < _twend;')
+        tdSql.execute(f'CREATE STREAM {self.dbname}.last_col_s2 INTERVAL(1s) SLIDING(1s) \
+                      FROM {self.dbname}.meters PARTITION BY tbname STREAM_OPTIONS(FILL_HISTORY) INTO {self.dbname}.last_col2 \
+                      AS SELECT last_row(ts), cols(last(c0), ts as ts0), cols(last(c1), ts as ts1) from %%tbname where _c0 >= _twstart and _c0 < _twend;')
+
+        tdSql.waitedQuery(f'show streams', 2, 10)
+        tdStream.checkStreamStatus()
         
+        tdSql.execute(f'insert into {self.dbname}.d0 values(1734574930000, 0, 1, NULL, NULL)')
+        tdSql.execute(f'insert into {self.dbname}.d0 values(1734574931000, 1, 1, NULL, NULL)')
+        tdSql.execute(f'insert into {self.dbname}.d0 values(1734574932000, 2, 2, NULL, NULL)')
+        tdSql.execute(f'insert into {self.dbname}.d0 values(1734574933000, 3, 3, NULL, NULL)')
+        
+        time.sleep(5)
+        tdSql.query(f'select * from {self.dbname}.last_col1 where tag_tbname = \'d0\'')
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 1734574929014)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(1, 0, 1734574930000)
+        tdSql.checkData(1, 1, 0)
+        tdSql.checkData(2, 0, 1734574931000)
+        tdSql.checkData(2, 1, 1)
+        tdSql.checkData(3, 0, 1734574932000)
+        tdSql.checkData(3, 1, 2)
+
+        tdSql.query(f'select * from {self.dbname}.last_col2 where tag_tbname = \'d0\'')
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 1734574929014)
+        tdSql.checkData(0, 1, 1734574929010)
+        tdSql.checkData(0, 2, 1734574929011)
+    
     def run_basic(self, cachemodel):
         self.funcNestTest(cachemodel)
         self.funcSupperTableTest(cachemodel)
@@ -1411,7 +1376,6 @@ class TestColsFunction:
         self.check_null2(cachemodel)
         self.window_test2()
         self.stream_cols_test()
-        self.stream_cols_test2(cachemodel)
 
     def test_run(self):
         """summary: xxx
@@ -1432,6 +1396,7 @@ class TestColsFunction:
             - xxx
         """
         
+        tdStream.createSnode()
         self.run_basic('none')
         self.run_basic('last_value')
         self.run_basic('last_row')
