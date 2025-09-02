@@ -368,6 +368,7 @@ typedef struct SWindowLogicNode {
   int64_t          recalculateInterval;
   SNodeList*       pColList;  // use for count window
   SNodeList*       pProjs;  // for external window
+  EStateWinExtendOption extendOption;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -778,6 +779,7 @@ typedef struct SStateWindowPhysiNode {
   SWindowPhysiNode window;
   SNode*           pStateKey;
   int64_t          trueForLimit;
+  EStateWinExtendOption extendOption;
 } SStateWindowPhysiNode;
 
 typedef struct SEventWinodwPhysiNode {

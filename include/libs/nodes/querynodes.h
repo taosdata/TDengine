@@ -358,11 +358,18 @@ typedef struct SLimitNode {
   SValueNode* offset;
 } SLimitNode;
 
+typedef enum EExtendOption {
+  STATE_WIN_EXTEND_OPTION_DEFAULT  = 0,
+  STATE_WIN_EXTEND_OPTION_BACKWORD = 1,
+  STATE_WIN_EXTEND_OPTION_FORWORD  = 2,
+} EStateWinExtendOption;
+
 typedef struct SStateWindowNode {
   ENodeType type;  // QUERY_NODE_STATE_WINDOW
   SNode*    pCol;  // timestamp primary key
   SNode*    pExpr;
   SNode*    pTrueForLimit;
+  SNode*    pExtend;
 } SStateWindowNode;
 
 typedef struct SSessionWindowNode {

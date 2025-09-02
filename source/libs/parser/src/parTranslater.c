@@ -7646,6 +7646,20 @@ static int32_t checkStateExpr(STranslateContext* pCxt, SNode* pNode) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t checkStateExtend(STranslateContext *pCxt, SNode *pNode) {
+  SValueNode *pExtend = (SValueNode *)pNode;
+  if (pExtend == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t option = pExtend->datum.i;
+  if (option != STATE_WIN_EXTEND_OPTION_DEFAULT &&
+      option != STATE_WIN_EXTEND_OPTION_FORWORD &&
+      option != STATE_WIN_EXTEND_OPTION_BACKWORD) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STATE_WIN_EXTEND);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t checkTrueForLimit(STranslateContext *pCxt, SNode *pNode) {
   SValueNode *pTrueForLimit = (SValueNode *)pNode;
   if (pTrueForLimit == NULL) {
@@ -7662,6 +7676,7 @@ static int32_t checkTrueForLimit(STranslateContext *pCxt, SNode *pNode) {
 
 static int32_t checkStateWindow(STranslateContext* pCxt, SStateWindowNode* pState) {
   PAR_ERR_RET(checkStateExpr(pCxt, pState->pExpr));
+  PAR_ERR_RET(checkStateExtend(pCxt, pState->pExtend));
   PAR_ERR_RET(checkTrueForLimit(pCxt, pState->pTrueForLimit));
   return TSDB_CODE_SUCCESS;
 }

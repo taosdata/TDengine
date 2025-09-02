@@ -2748,6 +2748,7 @@ static int32_t createStateWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
     // }
   }
 
+  pState->extendOption = pWindowLogicNode->extendOption;
   pState->trueForLimit = pWindowLogicNode->trueForLimit;
 
   if (TSDB_CODE_SUCCESS == code) {
