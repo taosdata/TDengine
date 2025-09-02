@@ -3740,7 +3740,7 @@ static int32_t msgToPhysiExternalWindowNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { PHY_STATE_CODE_WINDOW = 1, PHY_STATE_CODE_KEY, PHY_STATE_CODE_TRUE_FOR_LIMIT };
+enum { PHY_STATE_CODE_WINDOW = 1, PHY_STATE_CODE_KEY, PHY_STATE_CODE_TRUE_FOR_LIMIT, PHY_STATE_CODE_EXTEND_OPTION };
 
 static int32_t physiStateWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SStateWindowPhysiNode* pNode = (const SStateWindowPhysiNode*)pObj;
@@ -3751,6 +3751,9 @@ static int32_t physiStateWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI64(pEncoder, PHY_STATE_CODE_TRUE_FOR_LIMIT, pNode->trueForLimit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_STATE_CODE_EXTEND_OPTION, pNode->extendOption);
   }
 
   return code;
@@ -3772,6 +3775,8 @@ static int32_t msgToPhysiStateWindowNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_STATE_CODE_TRUE_FOR_LIMIT:
         code = tlvDecodeI64(pTlv, &pNode->trueForLimit);
         break;
+      case PHY_STATE_CODE_EXTEND_OPTION:
+        code = tlvDecodeI32(pTlv, (int32_t*)&pNode->extendOption);
       default:
         break;
     }

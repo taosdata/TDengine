@@ -86,6 +86,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Not support STATE_WINDOW on tag column";
     case TSDB_CODE_PAR_INVALID_STATE_WIN_TABLE:
       return "STATE_WINDOW not support for super table query";
+    case TSDB_CODE_PAR_INVALID_STATE_WIN_EXTEND:
+      return "Invalid state window extend option";
     case TSDB_CODE_PAR_INTER_SESSION_GAP:
       return "SESSION gap should be fixed time window, and greater than 0";
     case TSDB_CODE_PAR_INTER_SESSION_COL:
