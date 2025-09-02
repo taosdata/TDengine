@@ -30,7 +30,7 @@ static int32_t sslWriteToBIO(STransTLS* pTls, int32_t nread);
 
 static void destroySSLCtx(SSL_CTX* ctx);
 
-SSL_CTX* initSSLCtx(const char* cert_path, const char* key_path, const char* ca_path, int8_t cliMode) {
+SSL_CTX* initSSLCtx(const char* certPath, const char* keyPath, const char* caPath, int8_t cliMode) {
   int32_t lino = 0;
   int32_t code = 0;
   int     ret = 1;
@@ -50,31 +50,21 @@ SSL_CTX* initSSLCtx(const char* cert_path, const char* key_path, const char* ca_
   SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
 
   if (cliMode) {
-    char buf[512] = {0};
-    sprintf(buf, "%s%s%s", DEFALUT_SSL_DIR, "/", "certs/ca.crt");
-
-    ret = SSL_CTX_load_verify_locations(ctx, buf, NULL);
+    ret = SSL_CTX_load_verify_locations(ctx, caPath, NULL);
     if (ret == 1) {
-      sprintf(buf, "%s%s%s", DEFALUT_SSL_DIR, "/", "certs/client.crt");
-      ret = SSL_CTX_use_certificate_chain_file(ctx, buf);
+      ret = SSL_CTX_use_certificate_chain_file(ctx, certPath);
     }
     if (ret == 1) {
-      sprintf(buf, "%s%s%s", DEFALUT_SSL_DIR, "/", "certs/client.key");
-      ret = SSL_CTX_use_PrivateKey_file(ctx, buf, SSL_FILETYPE_PEM);
+      ret = SSL_CTX_use_PrivateKey_file(ctx, keyPath, SSL_FILETYPE_PEM);
     }
 
   } else {
-    char buf[512] = {0};
-    sprintf(buf, "%s%s%s", DEFALUT_SSL_DIR, "/", "certs/ca.crt");
-
-    ret = SSL_CTX_load_verify_locations(ctx, buf, NULL);
+    ret = SSL_CTX_load_verify_locations(ctx, caPath, NULL);
     if (ret == 1) {
-      sprintf(buf, "%s%s%s", DEFALUT_SSL_DIR, "/", "certs/server.crt");
-      ret = SSL_CTX_use_certificate_chain_file(ctx, buf);
+      ret = SSL_CTX_use_certificate_chain_file(ctx, certPath);
     }
     if (ret == 1) {
-      sprintf(buf, "%s%s%s", DEFALUT_SSL_DIR, "/", "certs/server.key");
-      ret = SSL_CTX_use_PrivateKey_file(ctx, buf, SSL_FILETYPE_PEM);
+      ret = SSL_CTX_use_PrivateKey_file(ctx, keyPath, SSL_FILETYPE_PEM);
     }
   }
 
@@ -135,17 +125,17 @@ int32_t transTlsCtxCreate(const char* certPath, const char* keyPath, const char*
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pCtx->certfile = taosStrdupi("test");
-  pCtx->keyfile = taosStrdupi("test");
-  pCtx->cafile = taosStrdupi("tes");
+  pCtx->certfile = taosStrdupi(caPath);
+  pCtx->keyfile = taosStrdupi(keyPath);
+  pCtx->cafile = taosStrdupi(caPath);
   if (pCtx->certfile == NULL || pCtx->keyfile == NULL || pCtx->cafile == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     tError("Failed to duplicate TLS context file paths since %s", tstrerror(code));
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
-  pCtx->ssl_ctx = initSSLCtx(certPath, keyPath, caPath, cliMode);
-  if (pCtx->ssl_ctx == NULL) {
+  pCtx->sslCtx = initSSLCtx(pCtx->certfile, pCtx->keyfile, pCtx->cafile, cliMode);
+  if (pCtx->sslCtx == NULL) {
     tError("Failed to initialize SSL context");
     TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
   }
@@ -161,8 +151,8 @@ _error:
 
 void transTlsCtxDestroy(SSslCtx* pCtx) {
   if (pCtx) {
-    destroySSLCtx(pCtx->ssl_ctx);
-    pCtx->ssl_ctx = NULL;
+    destroySSLCtx(pCtx->sslCtx);
+    pCtx->sslCtx = NULL;
 
     taosMemoryFree(pCtx->certfile);
     taosMemoryFree(pCtx->keyfile);
@@ -185,7 +175,7 @@ int32_t sslInit(SSslCtx* pCtx, STransTLS** ppTLs) {
     TAOS_CHECK_GOTO(terrno, &lino, _error);
   }
 
-  pTls->ssl = SSL_new(pCtx->ssl_ctx);
+  pTls->ssl = SSL_new(pCtx->sslCtx);
   if (pTls->ssl == NULL) {
     tError("Failed to create new SSL_new");
     TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);

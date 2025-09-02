@@ -74,6 +74,12 @@ extern int8_t tsEnableStrongPassword;
 extern char          tsEncryptPassAlgorithm[];
 extern EEncryptAlgor tsiEncryptPassAlgorithm;
 
+extern char tsTLSCaPath[];
+extern char tsTLSSvrCertPath[];
+extern char tsTLSSvrKeyPath[];
+extern char tsTLSCliCertPath[];
+extern char tsTLSCliKeyPath[];
+
 // common
 extern int32_t tsMaxShellConns;
 extern int32_t tsShellActivityTimer;

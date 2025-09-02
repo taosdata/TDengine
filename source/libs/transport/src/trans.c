@@ -39,18 +39,31 @@ void* rpcOpen(const SRpcInit* pInit) {
   if (code != 0) {
     TAOS_CHECK_GOTO(code, NULL, _end);
   }
+  int8_t cliMode = pInit->connType == TAOS_CONN_CLIENT ? 1 : 0;
 
   SRpcInfo* pRpc = taosMemoryCalloc(1, sizeof(SRpcInfo));
   if (pRpc == NULL) {
     TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
 
-  pRpc->startReadTimer = pInit->startReadTimer;
   if (pInit->label) {
     int len = strlen(pInit->label) > sizeof(pRpc->label) ? sizeof(pRpc->label) : strlen(pInit->label);
     memcpy(pRpc->label, pInit->label, len);
   }
 
+  if (cliMode) {
+    if (!rpcCheckTlsEnv(pInit->caPath, pInit->cliCertPath, pInit->cliKeyPath, pInit->label)) {
+      code = TSDB_CODE_INVALID_CFG;
+      TAOS_CHECK_GOTO(code, NULL, _end);
+    }
+  } else {
+    if (!rpcCheckTlsEnv(pInit->caPath, pInit->certPath, pInit->keyPath, pInit->label)) {
+      code = TSDB_CODE_INVALID_CFG;
+      TAOS_CHECK_GOTO(code, NULL, _end);
+    }
+  }
+
+  pRpc->startReadTimer = pInit->startReadTimer;
   pRpc->compressSize = pInit->compressSize;
   if (pRpc->compressSize < 0) {
     pRpc->compressSize = -1;
@@ -127,8 +140,12 @@ void* rpcOpen(const SRpcInit* pInit) {
 
   pRpc->enableSSL = pInit->enableSSL;
   if (pRpc->enableSSL) {
-    int8_t cliMode = pRpc->connType == TAOS_CONN_CLIENT ? 1 : 0;
-    code = transTlsCtxCreate(NULL, NULL, NULL, cliMode, (SSslCtx**)&pRpc->pSSLContext);
+    if (cliMode) {
+      code = transTlsCtxCreate(pInit->cliCertPath, pInit->cliKeyPath, pInit->caPath, cliMode,
+                               (SSslCtx**)&pRpc->pSSLContext);
+    } else {
+      code = transTlsCtxCreate(pInit->certPath, pInit->keyPath, pInit->caPath, cliMode, (SSslCtx**)&pRpc->pSSLContext);
+    }
     TAOS_CHECK_GOTO(code, NULL, _end);
   }
 
@@ -254,6 +271,51 @@ int32_t rpcCvtErrCode(int32_t code) {
   return code;
 }
 
+static int8_t rpcCheckFile(const char* path, int8_t* exist, const char* instName) {
+  if (path == NULL || path[0] == 0) {
+    return 1;
+  }
+  if (taosCheckAccessFile(path, TD_FILE_ACCESS_EXIST_OK | TD_FILE_ACCESS_READ_OK)) {
+    *exist = 1;
+    uInfo("rpc inst %s, file is set, path %s", instName, path);
+    return 1;
+  } else {
+    uInfo("rpc inst %s, file %s is not accessible", instName, path);
+    *exist = 0;
+  }
+  return 0;
+}
+int8_t rpcCheckTlsEnv(const char* caPath, const char* certPath, const char* keyPath, const char* instName) {
+  int8_t fileCount = 0;
+  int8_t flag[3] = {0};
+
+  if (!rpcCheckFile(caPath, &flag[0], instName)) {
+    return 0;
+  }
+
+  if (!rpcCheckFile(certPath, &flag[1], instName)) {
+    return 0;
+  }
+
+  if (!rpcCheckFile(keyPath, &flag[2], instName)) {
+    return 0;
+  }
+
+  for (int8_t i = 0; i < 3; ++i) {
+    fileCount += flag[i];
+  }
+
+  if (fileCount == 0) {
+    uInfo("rpc inst %s, no tls file is set, rpc open without tls", instName);
+    return 1;
+  } else if (fileCount == sizeof(flag) / sizeof(flag[0])) {
+    uInfo("rpc inst %s, all tls files are set, rpc open with tls", instName);
+    return 1;
+  } else {
+    uInfo("rpc inst %s, incomplete tls file is set", instName);
+  }
+  return 0;
+}
 int32_t rpcInit() { return transInit(); }
 
 void rpcCleanup(void) {
@@ -559,6 +621,8 @@ int32_t rpcCvtErrCode(int32_t code) {
 }
 
 int32_t rpcInit() { return transInit(); }
+
+int8_t rpcCheckTlsEnv(const char* caPath, const char* certPath, const char* keyPath, const char* instName);
 
 void rpcCleanup(void) {
   transCleanup();

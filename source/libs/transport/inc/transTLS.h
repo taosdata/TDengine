@@ -31,8 +31,7 @@ typedef struct {
   char*    keyfile;   // private key file path
   char*    cafile;    // CA file path
   char*    capath;    // CA directory path
-  char*    psk_hint;  // PSK hint for TLS-PSK
-  SSL_CTX* ssl_ctx;   // SSL context
+  SSL_CTX* sslCtx;    // SSL context
 } SSslCtx;
 
 int32_t transTlsCtxCreate(const char* certPath, const char* keyPath, const char* caPath, int8_t cliMode,
