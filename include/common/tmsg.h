@@ -5343,6 +5343,8 @@ int32_t tFreeSMountVnodeReq(SMountVnodeReq* pReq);
 
 #endif  // USE_MOUNT
 
+#pragma pack(pop)
+
 typedef struct {
   char        db[TSDB_DB_FNAME_LEN];
   STimeWindow timeRange;
@@ -5355,7 +5357,13 @@ int32_t tSerializeSScanDbReq(void* buf, int32_t bufLen, SScanDbReq* pReq);
 int32_t tDeserializeSScanDbReq(void* buf, int32_t bufLen, SScanDbReq* pReq);
 void    tFreeSScanDbReq(SScanDbReq* pReq);
 
-#pragma pack(pop)
+typedef struct {
+  int32_t scanId;
+  int8_t  bAccepted;
+} SScanDbRsp;
+
+int32_t tSerializeSScanDbRsp(void* buf, int32_t bufLen, SScanDbRsp* pRsp);
+int32_t tDeserializeSScanDbRsp(void* buf, int32_t bufLen, SScanDbRsp* pRsp);
 
 typedef struct {
   int32_t scanId;
@@ -5367,6 +5375,36 @@ int32_t tSerializeSKillScanReq(void* buf, int32_t bufLen, SKillScanReq* pReq);
 int32_t tDeserializeSKillScanReq(void* buf, int32_t bufLen, SKillScanReq* pReq);
 void    tFreeSKillScanReq(SKillScanReq* pReq);
 
+typedef struct {
+  int32_t scanId;
+  int32_t vgId;
+  int32_t dnodeId;
+} SVKillScanReq;
+
+int32_t tSerializeSVKillScanReq(void* buf, int32_t bufLen, SVKillScanReq* pReq);
+int32_t tDeserializeSVKillScanReq(void* buf, int32_t bufLen, SVKillScanReq* pReq);
+
+typedef struct {
+  int32_t scanId;
+  int32_t vgId;
+  int32_t dnodeId;
+  int32_t numberFileset;
+  int32_t finished;
+  int32_t progress;
+  int64_t remainingTime;
+} SQueryScanProgressRsp;
+
+int32_t tSerializeSQueryScanProgressRsp(void* buf, int32_t bufLen, SQueryScanProgressRsp* pReq);
+int32_t tDeserializeSQueryScanProgressRsp(void* buf, int32_t bufLen, SQueryScanProgressRsp* pReq);
+
+typedef struct {
+  int32_t scanId;
+  int32_t vgId;
+  int32_t dnodeId;
+} SQueryScanProgressReq;
+
+int32_t tSerializeSQueryScanProgressReq(void* buf, int32_t bufLen, SQueryScanProgressReq* pReq);
+int32_t tDeserializeSQueryScanProgressReq(void* buf, int32_t bufLen, SQueryScanProgressReq* pReq);
 #ifdef __cplusplus
 }
 #endif

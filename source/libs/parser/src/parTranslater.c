@@ -10403,6 +10403,10 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCompactDbReq, pReq);
       break;
     }
+    case TDMT_MND_SCAN_DB: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SScanDbReq, pReq);
+      break;
+    }
 #ifdef USE_MOUNT
     case TDMT_MND_CREATE_MOUNT: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateMountReq, pReq);

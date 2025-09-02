@@ -55,6 +55,10 @@ extern "C" {
 #define COMPACT_DB_RESULT_FIELD1_LEN 32
 #define COMPACT_DB_RESULT_FIELD3_LEN 128
 
+#define SCAN_DB_RESULT_COLS       3
+#define SCAN_DB_RESULT_FIELD1_LEN 32
+#define SCAN_DB_RESULT_FIELD3_LEN 128
+
 #define SHOW_ALIVE_RESULT_COLS 1
 
 #define BIT_FLAG_MASK(n)               (1 << n)
