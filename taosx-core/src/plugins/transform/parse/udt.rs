@@ -205,6 +205,8 @@ impl std::cmp::PartialEq for UdtAST {
 #[derive(Debug, Deserialize, Serialize, Clone, Default, PartialEq)]
 pub struct Udt {
     pub(crate) udt: UdtAST,
+    #[serde(default, skip_serializing)]
+    pub(crate) early_break: bool,
 }
 
 impl<'de> Deserialize<'de> for UdtAST {
@@ -366,6 +368,9 @@ impl Parse for Udt {
                 Ok(res) => res,
                 Err(e) => {
                     tracing::error!("udt parse data error: {e:?}");
+                    if self.early_break {
+                        return Err(e);
+                    }
                     continue;
                 }
             };
