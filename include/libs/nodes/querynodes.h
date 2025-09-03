@@ -358,7 +358,7 @@ typedef struct SLimitNode {
   SValueNode* offset;
 } SLimitNode;
 
-typedef enum EExtendOption {
+typedef enum EStateWinExtendOption {
   STATE_WIN_EXTEND_OPTION_DEFAULT  = 0,
   STATE_WIN_EXTEND_OPTION_BACKWORD = 1,
   STATE_WIN_EXTEND_OPTION_FORWORD  = 2,
