@@ -350,7 +350,6 @@ class TestLastCacheScan:
         tdSql.checkData(0, 0, '999')
         p = subprocess.run(["taos", '-s', "alter table test.meters drop column c1; alter table test.meters add column c12 int"])
         p.check_returncode()
-        tdLog.exit("error")
         tdSql.query_success_failed("select ts, last(c1), c1, ts, c1 from meters", queryTimes=10, expectErrInfo="Invalid column name: c1")
         tdSql.query('select last(c12), c12, ts from meters', queryTimes=1)
         tdSql.checkRows(0)
