@@ -355,6 +355,7 @@ char    tsUdfdLdLibPath[512] = "";
 bool    tsDisableStream = false;
 int32_t tsStreamBufferSize = 0;       // MB
 int64_t tsStreamBufferSizeBytes = 0;  // bytes
+int32_t tsStreamMetricKeepNum = 1;
 bool    tsFilterScalarMode = false;
 
 bool tsUpdateCacheBatch = true;
@@ -895,6 +896,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "disableStream", tsDisableStream, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamBufferSize", tsStreamBufferSize, 128, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamMetricKeepNum", tsStreamMetricKeepNum, 1, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "cacheLazyLoadThreshold", tsCacheLazyLoadThreshold, 0, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
 
@@ -1788,6 +1790,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamBufferSize");
   tsStreamBufferSize = pItem->i32;
   tsStreamBufferSizeBytes = tsStreamBufferSize * 1048576L;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamMetricKeepNum");
+  tsStreamMetricKeepNum = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "numOfMnodeStreamMgmtThreads");
   tsNumOfMnodeStreamMgmtThreads = pItem->i32;
