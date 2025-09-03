@@ -275,6 +275,7 @@ int32_t tsdbTFileObjUnref(STFileObj *fobj) {
     if (fobj->state == TSDB_FSTATE_DEAD) {
       tsdbRemoveFile(fobj->fname);
     }
+    (void)taosThreadMutexDestroy(&fobj->mutex);
     taosMemoryFree(fobj);
   }
 
@@ -346,6 +347,7 @@ int32_t tsdbTFileObjRemove(STFileObj *fobj) {
   tsdbTrace("remove unref file %s, fobj:%p ref:%d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
     tsdbTFileObjRemoveLC(fobj, true);
+    (void)taosThreadMutexDestroy(&fobj->mutex);
     taosMemoryFree(fobj);
   }
   return 0;
@@ -366,6 +368,7 @@ int32_t tsdbTFileObjRemoveUpdateLC(STFileObj *fobj) {
   tsdbTrace("remove unref file %s, fobj:%p ref:%d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
     tsdbTFileObjRemoveLC(fobj, false);
+    (void)taosThreadMutexDestroy(&fobj->mutex);
     taosMemoryFree(fobj);
   }
   return 0;
