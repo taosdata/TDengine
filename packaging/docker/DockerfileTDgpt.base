@@ -1,3 +1,4 @@
+# docker build -f DockerfileTDgpt.base -t tdgpt_env:1.1 .
 FROM python:3.10-slim AS base-builder
 
 RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false update -y && \
@@ -11,17 +12,17 @@ RUN pip3 install --upgrade pip && \
     pip3 install --no-cache-dir \
                     numpy==1.26.4 \
                     pandas==1.5.0 \
-                    scikit-learn \
-                    outlier_utils \
-                    statsmodels \
-                    pyculiarity \
-                    pmdarima \
-                    flask \
-                    matplotlib \
+                    scikit-learn==1.7.0 \
+                    outlier_utils==0.0.5 \
+                    statsmodels==0.14.4 \
+                    pyculiarity==0.0.7 \
+                    pmdarima==2.0.4 \
+                    flask==3.1.1 \
+                    matplotlib==3.10.3 \
                     taospy \
-                    uwsgi \
-                    accelerate \
-                    tensorflow \
+                    uwsgi==2.0.30 \
+                    accelerate==1.8.1 \
+                    tensorflow==2.15.0 \
                     uni2ts \
                     -i https://pypi.tuna.tsinghua.edu.cn/simple && \
     pip install --upgrade keras -i https://pypi.tuna.tsinghua.edu.cn/simple && \
@@ -34,7 +35,8 @@ COPY --from=base-builder /usr/local/bin /usr/local/bin
 ENV VIRTUAL_ENV=/var/lib/taos/taosanode/venv1
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN python3.10 -m venv --system-site-packages /var/lib/taos/taosanode/venv1 && \
-    pip install --no-cache-dir transformers==4.40 && \
+    pip install --no-cache-dir transformers==4.40 \
+        -i https://pypi.tuna.tsinghua.edu.cn/simple && \
     find $VIRTUAL_ENV -type d -name '__pycache__' -exec rm -rf {} + && \
     find $VIRTUAL_ENV -type d -name 'tests' -exec rm -rf {} +
 
@@ -44,7 +46,9 @@ COPY --from=base-builder /usr/local/bin /usr/local/bin
 ENV VIRTUAL_ENV=/var/lib/taos/taosanode/venv2
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN python -m venv --system-site-packages /var/lib/taos/taosanode/venv2 && \
-    pip install --no-cache-dir transformers==4.55 && \
+    pip install --no-cache-dir transformers==4.55 \
+        chronos-forecasting \
+        -i https://pypi.tuna.tsinghua.edu.cn/simple && \
     find $VIRTUAL_ENV -type d -name '__pycache__' -exec rm -rf {} + && \
     find $VIRTUAL_ENV -type d -name 'tests' -exec rm -rf {} +
 
@@ -54,7 +58,8 @@ COPY --from=base-builder /usr/local/bin /usr/local/bin
 ENV VIRTUAL_ENV=/var/lib/taos/taosanode/venv3
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN python -m venv --system-site-packages /var/lib/taos/taosanode/venv3 && \
-    pip install --no-cache-dir transformers==4.33 && \
+    pip install --no-cache-dir transformers==4.33 \
+        -i https://pypi.tuna.tsinghua.edu.cn/simple && \
     find $VIRTUAL_ENV -type d -name '__pycache__' -exec rm -rf {} + && \
     find $VIRTUAL_ENV -type d -name 'tests' -exec rm -rf {} +
 
