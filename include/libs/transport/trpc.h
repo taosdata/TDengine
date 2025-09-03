@@ -136,11 +136,11 @@ typedef struct SRpcInit {
   int8_t  ipv6;
   int8_t  enableSSL;
 
-  char caPath[512];
-  char certPath[512];
-  char keyPath[512];
-  char cliCertPath[512];
-  char cliKeyPath[512];
+  char caPath[PATH_MAX];
+  char certPath[PATH_MAX];
+  char keyPath[PATH_MAX];
+  char cliCertPath[PATH_MAX];
+  char cliKeyPath[PATH_MAX];
 
   void *parent;
 } SRpcInit;

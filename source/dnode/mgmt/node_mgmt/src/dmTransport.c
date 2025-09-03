@@ -577,6 +577,12 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   rpcInit.readTimeout = tsReadTimeout;
   rpcInit.ipv6 = tsEnableIpv6;
   rpcInit.enableSSL = 1;
+
+  memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
+  memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
+  memcpy(rpcInit.keyPath, tsTLSSvrKeyPath, strlen(tsTLSSvrKeyPath));
+  memcpy(rpcInit.cliCertPath, tsTLSCliCertPath, strlen(tsTLSCliCertPath));
+  memcpy(rpcInit.cliKeyPath, tsTLSCliKeyPath, strlen(tsTLSCliKeyPath));
   if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
     dError("failed to convert version string:%s to int", td_version);
   }

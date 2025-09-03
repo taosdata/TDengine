@@ -308,14 +308,14 @@ int8_t rpcCheckTlsEnv(const char* caPath, const char* certPath, const char* keyP
   }
 
   if (fileCount == 0) {
-    uInfo("rpc inst %s, no tls file is set, rpc open without tls", instName);
+    uInfo("rpc inst %s not set TLS file, rpc opened without TLS", instName);
     *enableTls = 0;
     return 1;
   } else if (fileCount == sizeof(flag) / sizeof(flag[0])) {
-    uInfo("rpc inst %s, all tls files are set, rpc open with tls", instName);
+    uInfo("rpc inst %s set TLS files, rpc open with TLS", instName);
     return 1;
   } else {
-    uInfo("rpc inst %s, incomplete tls file is set", instName);
+    uInfo("rpc inst %s set incomplete TLS files, rpc failed to open", instName);
   }
   return 0;
 }

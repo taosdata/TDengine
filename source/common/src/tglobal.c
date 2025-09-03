@@ -59,12 +59,12 @@ int8_t        tsEnableStrongPassword = 1;
 char          tsEncryptPassAlgorithm[16] = {0};
 EEncryptAlgor tsiEncryptPassAlgorithm = 0;
 
-char tsTLSCaPath[512] = {0};
-char tsTLSSvrCertPath[512] = {0};
-char tsTLSSvrKeyPath[512] = {0};
+char tsTLSCaPath[PATH_MAX] = {0};
+char tsTLSSvrCertPath[PATH_MAX] = {0};
+char tsTLSSvrKeyPath[PATH_MAX] = {0};
 
-char tsTLSCliCertPath[512] = {0};
-char tsTLSCliKeyPath[512] = {0};
+char tsTLSCliCertPath[PATH_MAX] = {0};
+char tsTLSCliKeyPath[PATH_MAX] = {0};
 
 // common
 int32_t tsMaxShellConns = 50000;
@@ -1440,6 +1440,18 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "showFullCreateTableColumn");
   tsShowFullCreateTableColumn = pItem->bval;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "tlsCliKeyPath");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, PATH_MAX));
+  tstrncpy(tsTLSCliKeyPath, pItem->str, PATH_MAX);
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "tlsCliCertPath");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, PATH_MAX));
+  tstrncpy(tsTLSCliCertPath, pItem->str, PATH_MAX);
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "tlsCaPath");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, PATH_MAX));
+  tstrncpy(tsTLSCaPath, pItem->str, PATH_MAX);
+
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1860,6 +1872,26 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamNotifyFrameSize");
   tsStreamNotifyFrameSize = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "tlsCliKeyPath");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, PATH_MAX));
+  tstrncpy(tsTLSCliKeyPath, pItem->str, PATH_MAX);
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "tlsCliCertPath");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, PATH_MAX));
+  tstrncpy(tsTLSCliCertPath, pItem->str, PATH_MAX);
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "tlsCaPath");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, PATH_MAX));
+  tstrncpy(tsTLSCaPath, pItem->str, PATH_MAX);
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "tlsSvrKeyPath");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, PATH_MAX));
+  tstrncpy(tsTLSSvrKeyPath, pItem->str, PATH_MAX);
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "tlsSvrCertPath");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, PATH_MAX));
+  tstrncpy(tsTLSSvrCertPath, pItem->str, PATH_MAX);
 
   // GRANT_CFG_GET;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
