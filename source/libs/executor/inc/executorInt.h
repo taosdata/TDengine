@@ -733,6 +733,7 @@ typedef struct SWindowRowsSup {
   int32_t     startRowIndex;
   int32_t     numOfRows;
   uint64_t    groupId;
+  int32_t     numOfNullRows;  // used by state window, to count continuous null rows
 } SWindowRowsSup;
 
 typedef int32_t (*AggImplFn)(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
