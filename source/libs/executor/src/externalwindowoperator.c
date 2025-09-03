@@ -1717,12 +1717,11 @@ static bool extWinNonAggGotResBlock(SExternalWindowOperator* pExtW) {
   }
   
   SList* pList = taosArrayGetP(pExtW->pOutputBlocks, pExtW->outputWinId);
+  if (!pList || listNEles(pList) <= 0) {
+    return false;
+  }
   if (listNEles(pList) > 1) {
     return true;
-  }
-
-  if (listNEles(pList) <= 0) {
-    return false;
   }
 
   SListNode* pNode = listHead(pList);

@@ -261,9 +261,8 @@ typedef struct {
   // notify options
   SArray* pNotifyAddrUrls;
   int32_t notifyEventTypes;
-  int32_t notifyErrorHandle;
+  int32_t addOptions;
   int8_t  notifyHistory;
-  int8_t  notifyHasCond;
 
   void*          triggerFilterCols;     // nodelist of SColumnNode
   void*          triggerCols;           // nodelist of SColumnNode
@@ -544,7 +543,7 @@ typedef struct {
   // notify options
   SArray* pNotifyAddrUrls;
   int32_t notifyEventTypes;
-  int32_t notifyErrorHandle;
+  int32_t addOptions;
   int8_t  notifyHistory;
 
   int64_t        maxDelay;              // precision is ms
@@ -581,7 +580,7 @@ typedef struct SStreamRunnerDeployMsg {
 
   // notify options
   SArray* pNotifyAddrUrls;
-  int32_t notifyErrorHandle;
+  int32_t addOptions;
 
   SArray*  outCols;  // array of SFieldWithOptions
   SArray*  outTags;  // array of SFieldWithOptions

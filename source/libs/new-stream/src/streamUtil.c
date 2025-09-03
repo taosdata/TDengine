@@ -21,6 +21,7 @@
 #include "tcurl.h"
 #include "tstrbuild.h"
 #include "decimal.h"
+#include "cmdnodes.h"
 
 #ifndef WINDOWS
 #include "curl/curl.h"
@@ -520,15 +521,7 @@ _end:
   return code;
 }
 
-static bool meetsNotificationCondition(SStreamRunnerTask* pTask, const SSDataBlock* pBlock, int32_t rowIdx) {
-  bool    meets = false;
-  SArray* pConds = pTask->notification.pNotifyConds;
-  for (int32_t i = 0; i < taosArrayGetSize(pConds); ++i) {
-  }
-  return true;
-}
-
-int32_t streamBuildBlockResultNotifyContent(SStreamRunnerTask* pTask, const SSDataBlock* pBlock, char** ppContent, const SArray* pFields,
+int32_t streamBuildBlockResultNotifyContent(const SStreamRunnerTask* pTask, const SSDataBlock* pBlock, char** ppContent, const SArray* pFields,
                                             const int32_t startRow, const int32_t endRow) {
   int32_t code = 0, lino = 0;
   cJSON*  pContent = NULL;
@@ -559,17 +552,29 @@ int32_t streamBuildBlockResultNotifyContent(SStreamRunnerTask* pTask, const SSDa
     goto _end;
   }
 
+  int32_t          realCols = taosArrayGetSize(pBlock->pDataBlock);
+  SColumnInfoData* pFilterCol = NULL;
+  if (pTask->notification.addOptions & NOTIFY_HAS_FILTER) {
+    realCols -= 1;
+    pFilterCol = taosArrayGet(pBlock->pDataBlock, realCols);
+    if (pFilterCol->info.type != TSDB_DATA_TYPE_BOOL) {
+      stError("invalid filter column type: %d", pFilterCol->info.type);
+      code = TSDB_CODE_INVALID_PARA;
+      goto _end;
+    }
+  }
+  bool hasData = false;
   for (int32_t rowIdx = startRow; rowIdx <= endRow && rowIdx < pBlock->info.rows; ++rowIdx) {
-    pRow = cJSON_CreateObject();
-    QUERY_CHECK_NULL(pRow, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-
-    if (pTask->notification.pNotifyConds && taosArrayGetSize(pTask->notification.pNotifyConds) > 0) {
-      if (!meetsNotificationCondition(pTask, pBlock, rowIdx)) {
+    if (pFilterCol && !colDataIsNull_s(pFilterCol, rowIdx)) {
+      bool filter = *(bool*)colDataGetData(pFilterCol, rowIdx);
+      if (!filter) {
         continue;
       }
     }
+    pRow = cJSON_CreateObject();
+    QUERY_CHECK_NULL(pRow, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
-    for (int32_t colIdx = 0; colIdx < taosArrayGetSize(pBlock->pDataBlock); ++colIdx) {
+    for (int32_t colIdx = 0; colIdx < realCols; ++colIdx) {
       const SColumnInfoData*   pCol = taosArrayGet(pBlock->pDataBlock, colIdx);
       const SFieldWithOptions* pField = taosArrayGet(pFields, colIdx);
       const char*              colName = "unknown";
@@ -585,14 +590,17 @@ int32_t streamBuildBlockResultNotifyContent(SStreamRunnerTask* pTask, const SSDa
     }
 
     TSDB_CHECK_CONDITION(cJSON_AddItemToArray(pArr, pRow), code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    hasData = true;
     pRow = NULL;
   }
-  pContent = cJSON_CreateObject();
-  QUERY_CHECK_NULL(pContent, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-  JSON_CHECK_ADD_ITEM(pContent, "result", pResult);
-  pResult = NULL;
-  *ppContent = cJSON_PrintUnformatted(pContent);
-  QUERY_CHECK_NULL(*ppContent, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  if (hasData) {
+    pContent = cJSON_CreateObject();
+    QUERY_CHECK_NULL(pContent, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    JSON_CHECK_ADD_ITEM(pContent, "result", pResult);
+    pResult = NULL;
+    *ppContent = cJSON_PrintUnformatted(pContent);
+    QUERY_CHECK_NULL(*ppContent, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  }
 
 _end:
   if (pRow) cJSON_Delete(pRow);
@@ -756,7 +764,7 @@ _end:
 #define STREAM_EVENT_NOTIFY_RETRY_MS 50  // 50 ms
 
 int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName, int32_t triggerType,
-                                int64_t groupId, const SArray* pNotifyAddrUrls, int32_t errorHandle,
+                                int64_t groupId, const SArray* pNotifyAddrUrls, int32_t addOptions,
                                 const SSTriggerCalcParam* pParams, int32_t nParam) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
@@ -814,7 +822,7 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
     code = tcurlGetConnection(*pUrl, &conn);
     if (code != TSDB_CODE_SUCCESS) {
       ST_TASK_ELOG("failed to get stream notify handle of %s", *pUrl);
-      if (errorHandle > 0) {
+      if (addOptions & NOTIFY_ON_FAILURE_PAUSE) {
         // retry for event message sending in PAUSE error handling mode
         taosMsleep(STREAM_EVENT_NOTIFY_RETRY_MS);
         --i;
@@ -843,7 +851,7 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
     }
     if (res != CURLE_OK) {
       ST_TASK_ELOG("failed to send stream notify msg to %s for %d", *pUrl, res);
-      if (errorHandle > 0) {
+      if (addOptions & NOTIFY_ON_FAILURE_PAUSE) {
         // retry for event message sending in PAUSE error handling mode
         taosMsleep(STREAM_EVENT_NOTIFY_RETRY_MS);
         --i;

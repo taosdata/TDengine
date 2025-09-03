@@ -288,7 +288,7 @@ typedef struct SStreamTriggerTask {
   ESTriggerEventType calcEventType;
   ESTriggerEventType notifyEventType;
   SArray            *pNotifyAddrUrls;
-  int32_t            notifyErrorHandle;
+  int32_t            addOptions;
   bool               notifyHistory;
 
   // task info

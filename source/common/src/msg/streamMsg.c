@@ -929,7 +929,7 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
     TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, url, NULL == url ? 0 : (int32_t)strlen(url) + 1));
   }
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pMsg->notifyEventTypes));
-  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pMsg->notifyErrorHandle));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pMsg->addOptions));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->notifyHistory));
 
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->maxDelay));
@@ -1064,7 +1064,7 @@ int32_t tEncodeSStreamRunnerDeployMsg(SEncoder* pEncoder, const SStreamRunnerDep
     const char *url = taosArrayGetP(pMsg->pNotifyAddrUrls, i);
     TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, url, NULL == url ? 0 : (int32_t)strlen(url) + 1));
   }
-  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pMsg->notifyErrorHandle));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pMsg->addOptions));
 
   int32_t outColNum = (int32_t)taosArrayGetSize(pMsg->outCols);
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, outColNum));
@@ -1459,7 +1459,7 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
     TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)url, NULL));
   }
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pMsg->notifyEventTypes));
-  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pMsg->notifyErrorHandle));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pMsg->addOptions));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->notifyHistory));
 
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->maxDelay));
@@ -1603,7 +1603,7 @@ int32_t tDecodeSStreamRunnerDeployMsg(SDecoder* pDecoder, SStreamRunnerDeployMsg
     const char **url = taosArrayGet(pMsg->pNotifyAddrUrls, i);
     TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)url, NULL));
   }
-  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pMsg->notifyErrorHandle));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pMsg->addOptions));
 
   int32_t outColNum = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &outColNum));
@@ -2200,7 +2200,7 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
     TAOS_CHECK_EXIT((tEncodeCStr(pEncoder, url)));
   }
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->notifyEventTypes));
-  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->notifyErrorHandle));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->addOptions));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->notifyHistory));
 
   // out table part
@@ -2354,7 +2354,6 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
     TAOS_CHECK_EXIT(tEncodeU8(pEncoder, pCoutCol->type.scale));
     TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pCoutCol->type.bytes));
   }
-  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->notifyHasCond));
 
 _exit:
 
@@ -2455,7 +2454,7 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
     }
   }
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->notifyEventTypes));
-  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->notifyErrorHandle));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->addOptions));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->notifyHistory));
 
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->triggerFilterCols, NULL));
@@ -2633,9 +2632,6 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
         TAOS_CHECK_EXIT(terrno);
       }
     }
-  }
-  if (!tDecodeIsEnd(pDecoder)) {
-    TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->notifyHasCond));
   }
 
 _exit:

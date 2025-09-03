@@ -10,6 +10,7 @@
 #include "tarray.h"
 #include "tcommon.h"
 #include "tdatablock.h"
+#include "cmdnodes.h"
 
 static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pTaskExec);
 
@@ -150,7 +151,7 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMs
   pTask->output.outStbVersion = pMsg->outStbSversion;
   pTask->topTask = pMsg->topPlan;
   pTask->notification.calcNotifyOnly = pMsg->calcNotifyOnly;
-  pTask->notification.notifyErrorHandle = pMsg->notifyErrorHandle;
+  pTask->notification.addOptions = pMsg->addOptions;
   pTask->streamName = taosStrdup(pMsg->streamName);
 
   code = stRunnerInitTaskExecMgr(pTask, pMsg);
@@ -479,7 +480,7 @@ _exit:
   if (code != 0) {
     ST_TASK_ELOG("failed to prepare notification for task:%" PRIx64 ", code:%s", pTask->task.streamId, tstrerror(code));
     if (pContent) taosMemoryFreeClear(pContent);
-    if (pTask->notification.notifyErrorHandle == 0) {
+    if ((pTask->notification.addOptions & NOTIFY_ON_FAILURE_PAUSE) ==  0) {
       code = TSDB_CODE_SUCCESS;
     }
   }
@@ -487,7 +488,7 @@ _exit:
 }
 
 static void clearNotifyContent(SStreamRunnerTaskExecution* pExec, int32_t startWinIdx, int32_t endWinIdx) {
-  for (int i = startWinIdx; i <= endWinIdx; ++i) {
+  for (int i = startWinIdx; i < endWinIdx; ++i) {
     SSTriggerCalcParam* pTriggerCalcParams = taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, i);
     if (pTriggerCalcParams != NULL && pTriggerCalcParams->resultNotifyContent != NULL) {
       taosMemoryFreeClear(pTriggerCalcParams->resultNotifyContent);
@@ -510,6 +511,7 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
     TAOS_CHECK_EXIT(terrno);
   }
 
+  nParam  = 0;
   for (int i = startWinIdx; i < endWinIdx; ++i) {
     SSTriggerCalcParam* pTriggerCalcParams = taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, i);
     if (pTriggerCalcParams == NULL) {
@@ -517,18 +519,26 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
                    (int32_t)pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals->size);
       TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
     }
-    params[i - startWinIdx] = pTriggerCalcParams;
+    if (pTriggerCalcParams->resultNotifyContent == NULL) {
+      ST_TASK_DLOG("%s no notify content for index:%d", __FUNCTION__, i);
+      continue;
+    }
+    params[nParam] = pTriggerCalcParams;
+    ++nParam;
   }
 
   code = streamSendNotifyContent(&pTask->task, pTask->streamName, tbname, pExec->runtimeInfo.funcInfo.triggerType,
                                  pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
-                                 pTask->notification.notifyErrorHandle, *params, nParam);
+                                 pTask->notification.addOptions, *params, nParam);
 
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("failed to send notification for task:%" PRIx64 ", code:%s", pTask->task.streamId, tstrerror(code));
   } else {
     ST_TASK_DLOG("send notification for task:%" PRIx64 ", win count:%d", pTask->task.streamId, nParam);
+  }
+  if ((pTask->notification.addOptions & NOTIFY_ON_FAILURE_PAUSE) == 0) {
+    code = TSDB_CODE_SUCCESS;  // if notify error handle is 0, then ignore the error
   }
   clearNotifyContent(pExec, startWinIdx, endWinIdx);
   taosMemoryFreeClear(params);
@@ -545,7 +555,7 @@ static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunner
   code = streamBuildBlockResultNotifyContent(pTask, pBlock, &pContent, pTask->output.outCols, 0, pBlock->info.rows - 1);
   if (code == 0) {
     ST_TASK_DLOG("start to send notify:%s", pContent);
-    int32_t index = pExec->runtimeInfo.funcInfo.curOutIdx - 1;
+    int32_t index = pExec->runtimeInfo.funcInfo.curOutIdx;
     SSTriggerCalcParam* pTriggerCalcParams =
         taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, index);
     if (pTriggerCalcParams == NULL) {
@@ -558,7 +568,7 @@ static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunner
 
     code = streamSendNotifyContent(&pTask->task, pTask->streamName, tbname, pExec->runtimeInfo.funcInfo.triggerType,
                                    pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
-                                   pTask->notification.notifyErrorHandle, pTriggerCalcParams, 1);
+                                   pTask->notification.addOptions, pTriggerCalcParams, 1);
     taosMemoryFreeClear(pTriggerCalcParams->resultNotifyContent);
   }
   return code;
@@ -567,10 +577,14 @@ static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunner
 static int32_t stRunnerHandleSingleWinResultBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec,
                                                   SSDataBlock* pBlock, bool* pCreateTb) {
   int32_t code = stRunnerMergeOutputBlock(pTask, pExec, pBlock, false, pCreateTb);
-  if (code == 0 && pTask->notification.pNotifyAddrUrls && pTask->notification.pNotifyAddrUrls->size > 0) {
+  if (code == TSDB_CODE_SUCCESS && pTask->notification.pNotifyAddrUrls &&
+      pTask->notification.pNotifyAddrUrls->size > 0) {
     code = streamDoNotification1For1(pTask, pExec, pBlock, pExec->tbname);
     if (code != TSDB_CODE_SUCCESS) {
       ST_TASK_ELOG("failed to send notification for block, code:%s", tstrerror(code));
+    }
+    if ((pTask->notification.addOptions & NOTIFY_ON_FAILURE_PAUSE) == 0) {
+      code = TSDB_CODE_SUCCESS;  // ignore the notify error
     }
   }
   return code;
@@ -839,7 +853,7 @@ static int32_t stRunnerTopTaskHandleOutputBlockProj(SStreamRunnerTask* pTask, SS
   int32_t endWinIdx = 0;
   if (*ppForceOutBlock) blockDataCleanup(*ppForceOutBlock);
 
-  if ((pTask->notification.pNotifyAddrUrls != NULL && pTask->notification.pNotifyAddrUrls->size == 0) ||
+  if ((pTask->notification.pNotifyAddrUrls != NULL && pTask->notification.pNotifyAddrUrls->size > 0) ||
       (taosArrayGetSize(pExec->runtimeInfo.pForceOutputCols) > 0)) {
     if (pBlock == NULL || pBlock->info.rows == 0) {
       // no data in current block, force output all windows between last output window and current window

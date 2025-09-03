@@ -13569,9 +13569,10 @@ static int32_t createStreamReqBuildNotifyOptions(STranslateContext* pCxt, SStrea
   }
 
   pReq->notifyEventTypes = (int32_t)pNotifyOptions->eventType;
-  pReq->notifyErrorHandle = BIT_FLAG_TEST_MASK(pNotifyOptions->notifyType, NOTIFY_ON_FAILURE_PAUSE);
-  pReq->notifyHistory = BIT_FLAG_TEST_MASK(pNotifyOptions->notifyType, NOTIFY_HISTORY);
-  pReq->notifyHasCond = (int8_t)(pNotifyOptions->pWhere != NULL);
+  // Due to historical reasons, bit positions were not initially used in notifyHistory, and for compatibility, they continue to be retained. 
+  pReq->notifyHistory = BIT_FLAG_TEST_MASK(pNotifyOptions->notifyType, NOTIFY_HISTORY); 
+  pReq->addOptions = BIT_FLAG_TEST_MASK(pNotifyOptions->notifyType, NOTIFY_ON_FAILURE_PAUSE);
+  pReq->addOptions |= (pNotifyOptions->pWhere != NULL) ? NOTIFY_HAS_FILTER : 0;
   PAR_ERR_JRET(nodesCloneNode(pNotifyOptions->pWhere, pNotifyCond));
 
   return code;
@@ -14052,7 +14053,7 @@ static int32_t createStreamReqSetDefaultOutCols(STranslateContext* pCxt, SCreate
   int32_t bound = LIST_LENGTH(pCalcProjection);
 
   parserDebug("translate create stream req start set default output table's cols");
-  if (pReq->notifyHasCond) {
+  if (pReq->addOptions & NOTIFY_HAS_FILTER) {
     bound--;  // ignore notify where condition in calculation projection
   }
 
