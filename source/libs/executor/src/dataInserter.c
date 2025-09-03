@@ -2001,18 +2001,21 @@ static int32_t appendInsertData(SStreamInserterParam* pInsertParam, const SSData
     }
   }
   if (dataInsertInfo->isLastBlock) {
+    int32_t nRows = taosArrayGetSize(tbData->aRowP);
     if (taosArrayGetSize(tbData->aRowP) == 0) {
       stDebug("no valid data to insert, skip this block");
       code = TSDB_CODE_STREAM_NO_DATA;
     }
-    stDebug("appendInsertData, isLastBlock:%d, needSortMerge:%d, totalRows:%" PRId64, dataInsertInfo->isLastBlock, dataInsertInfo->needSortMerge, taosArrayGetSize(tbData->aRowP));
+    stDebug("appendInsertData, isLastBlock:%d, needSortMerge:%d, totalRows:%d", dataInsertInfo->isLastBlock,
+            dataInsertInfo->needSortMerge, nRows);
     if (dataInsertInfo->needSortMerge) {
       if ((tRowSort(tbData->aRowP) != TSDB_CODE_SUCCESS) ||
           (code = tRowMerge(tbData->aRowP, (STSchema*)pTSchema, KEEP_CONSISTENCY)) != 0) {
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
-    stDebug("appendInsertData, after merge,,  totalRows:%" PRId64, taosArrayGetSize(tbData->aRowP));
+    nRows = taosArrayGetSize(tbData->aRowP);
+    stDebug("appendInsertData, after merge, totalRows:%d", nRows);
   }
 
 _end:
