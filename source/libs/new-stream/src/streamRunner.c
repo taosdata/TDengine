@@ -364,7 +364,10 @@ static int32_t stRunnerCalcSubTbTagVal(SStreamRunnerTask* pTask, SStreamRunnerTa
 static int32_t stRunnerInitTbTagVal(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec, SArray** ppTagVals) {
   int32_t code = 0;
   if (pTask->output.outTblType == TSDB_SUPER_TABLE) {
+    int32_t nextIdx = pExec->runtimeInfo.funcInfo.curIdx;
+    pExec->runtimeInfo.funcInfo.curIdx = 0;  // always use the first window to calc tag vals
     code = stRunnerCalcSubTbTagVal(pTask, pExec, ppTagVals);
+    pExec->runtimeInfo.funcInfo.curIdx = nextIdx;
   }
   return code;
 }
