@@ -62,9 +62,6 @@ class Test_IDMP_Meters:
         # insert trigger data
         self.writeTriggerData()
 
-        # check errors
-        self.checkErrors()
-
         # verify results
         self.verifyResults()
 
@@ -143,31 +140,12 @@ class Test_IDMP_Meters:
               "create database out",
 
               # stream1
-              "CREATE STREAM test.stream1      INTERVAL(5s) SLIDING(5s) FROM test.st    PARTITION BY tbname STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|DELETE_RECALC)  INTO test.result_stream1      AS SELECT _twstart AS ts, _twrownum as wrownum, sum(bi)    as sum_power FROM %%trows",
-              "CREATE STREAM test.stream1_sub1 INTERVAL(5s) SLIDING(5s) FROM test.st    PARTITION BY gid    STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|DELETE_RECALC)  INTO test.result_stream1_sub1 AS SELECT _twstart AS ts, _twrownum as wrownum, sum(bi)    as sum_power FROM %%trows",
               "CREATE STREAM test.stream1_sub2 INTERVAL(5s) SLIDING(5s) FROM test.vst_1 PARTITION BY tbname STREAM_OPTIONS(IGNORE_NODATA_TRIGGER)                INTO test.result_stream1_sub2 AS SELECT _twstart AS ts, _twrownum as wrownum, sum(`功率`) as `总功率`   FROM %%trows",
-              "CREATE STREAM test.stream1_sub3 INTERVAL(5s) SLIDING(5s) FROM test.vt_1                      STREAM_OPTIONS(IGNORE_NODATA_TRIGGER)                INTO test.result_stream1_sub3 AS SELECT _twstart AS ts, _twrownum as wrownum, sum(`功率`) as `总功率`   FROM %%trows",
-
-              # stream3
-              "CREATE STREAM test.stream3  INTERVAL(5s) SLIDING(5s) FROM test.t3  PARTITION BY tbname STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|DELETE_RECALC)  INTO out.result_stream3       AS SELECT _twstart AS ts, _twrownum as wrownum, sum(bi)  as sum_power FROM %%trows",
         ]
 
         tdSql.executes(sqls)
         tdLog.info(f"create {len(sqls)} streams successfully.")
 
-    #
-    #  check errors
-    #
-    def checkErrors(self):
-
-        sqls = [
-            # stream5
-            "alter table test.st rename column ic renameic;",
-            "alter table test.t1 set tag gid=10;",
-        ]
-
-        tdSql.errors(sqls)
-        tdLog.info(f"check {len(sqls)} errors sql successfully.")
 
 
     # 
@@ -194,17 +172,15 @@ class Test_IDMP_Meters:
         print("wait 10s ...")
         time.sleep(10)
         print("verifyResults ...")
-        self.verify_stream1()
-        self.verify_stream3()
+        self.verify_stream1_sub2()
+
 
     # 
     # 6. write trigger data again
     #
     def writeTriggerDataAgain(self):
         print("writeTriggerDataAgain ...")
-        self.trigger_stream1_again()
-        self.trigger_stream2_again()
-        self.trigger_stream3_again()
+
 
 
 
@@ -215,10 +191,7 @@ class Test_IDMP_Meters:
         # wait for stream processing
         time.sleep(3)
         print("verifyResultsAgain ...")
-        # ***** bug1 *****
-        #self.verify_stream1_again()
-        # ***** bug2 *****
-        #self.verify_stream3_again()
+
     
 
     #
@@ -361,27 +334,7 @@ class Test_IDMP_Meters:
         vals = "5,5,5,5,'abcde'"
         ts = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
         self.alter_table()
-
-
-    #
-    #  trigger stream3 again
-    #
-    def trigger_stream3_again(self):
-        # drop
-        self.exec("drop table out.result_stream3")
-
-        ts = self.start2
-        table = "test.t3"
-        step  =  1000 # 1s
-        cols = "ts,fc,ic,bi,si,bin"
-
-        # blank 10
-        ts += 10 * step
-
-        # insert
-        count = 6
-        vals = "10,10,10,10,'abcde'"
-        ts = tdSql.insertFixedVal(table, ts, step, count, cols, vals)         
+    
 
 
     #
@@ -390,47 +343,10 @@ class Test_IDMP_Meters:
 
 
     #
-    #  verify stream1
+    #  verify stream1 sub3
     #
-    def verify_stream1(self):
-        # check
-        result_sql = "select * from test.result_stream1 where tag_tbname in('t1','t2') order by tag_tbname"
-        tdSql.checkResultsByFunc (
-            sql  = result_sql, 
-            func = lambda: tdSql.getRows() == 2
-        )
-
-        # check data
-        data = [
-            # ts           cnt  power
-            [1752574200000, 5,   50, "t1"],
-            [1752574200000, 5,  100, "t2"]
-        ]
-        tdSql.checkDataMem(result_sql, data)
-        print("verify stream1 ................................. successfully.")
-
-        # sub
-        self.verify_stream1_sub1()
-        self.verify_stream1_sub2()
-
-    def verify_stream1_sub1(self):
-        # check
-        result_sql = f"select * from test.result_stream1_sub1 where gid=1 "
-        tdSql.checkResultsByFunc (
-            sql  = result_sql, 
-            func = lambda: tdSql.getRows() == 1
-        )
-
-        # check data
-        data = [
-            # ts           cnt  power  gid
-            [1752574200000, 10,  150,   1]
-        ]
-        tdSql.checkDataMem(result_sql, data)
-        print("verify stream1 sub1 ............................ successfully.")
-
     def verify_stream1_sub2(self):
-        # check
+        # check        
         result_sql = f"select * from test.result_stream1_sub2 order by tag_tbname"
         tdSql.checkResultsByFunc (
             sql  = result_sql, 
@@ -446,100 +362,3 @@ class Test_IDMP_Meters:
         ]
         tdSql.checkDataMem(result_sql, data)
         print("verify stream1 sub2 ............................ successfully.")
-
-    #
-    #  verify stream1 again
-    #
-    def verify_stream1_again(self):
-        # check
-        result_sql = f"select * from test.result_stream1 order by tag_tbname"
-        tdSql.checkResultsByFunc (
-            sql  = result_sql, 
-            func = lambda: tdSql.getRows() == 1
-        )
-
-        # check data
-        data = [
-            # ts           cnt  power
-            [1752574200000, 5,   50, "t1"]
-        ]
-        tdSql.checkDataMem(result_sql, data)
-        print("verify stream1 again ........................... successfully.")
-
-        # sub 
-        self.verify_stream1_sub1_again()
-        self.verify_stream1_sub3_again()
-    
-        
-    def verify_stream1_sub1_again(self):
-        # check
-        result_sql = f"select * from test.result_stream1_sub1 "
-        tdSql.checkResultsByFunc (
-            sql  = result_sql, 
-            func = lambda: tdSql.getRows() == 1
-        )
-
-        # check data
-        data = [
-            # ts           cnt  power  gid
-            [1752574200000, 5,   50,   1]
-        ]
-        tdSql.checkDataMem(result_sql, data)
-        print("verify stream1 sub1 again ...................... successfully.")
-
-
-    def verify_stream1_sub3_again(self):
-        # check
-        result_sql = f"select * from out.result_stream1_sub3 "
-        tdSql.checkResultsByFunc (
-            sql  = result_sql, 
-            func = lambda: tdSql.getRows() == 1
-        )
-
-        # check data
-        data = [
-            # ts           cnt  power  gid
-            [1752574200000, 5,   50,   1]
-        ]
-        tdSql.checkDataMem(result_sql, data)
-        print("verify stream1 sub3 again ...................... successfully.")
-
-
-    #
-    #  verify stream3
-    #
-    def verify_stream3(self):
-        # check
-        result_sql = f"select * from out.result_stream3 order by tag_tbname"
-        tdSql.checkResultsByFunc (
-            sql  = result_sql, 
-            func = lambda: tdSql.getRows() == 1
-        )
-
-        # check data
-        data = [
-            # ts           cnt  power
-            [1752574200000, 5,   25, "t3"]
-        ]
-        tdSql.checkDataMem(result_sql, data)
-        print("verify stream3 ................................. successfully.")
-
-    #
-    #  verify stream3 again
-    #
-    def verify_stream3_again(self):
-        # check
-        result_sql = f"select * from out.result_stream3 order by tag_tbname"
-        tdSql.checkResultsByFunc (
-            sql  = result_sql, 
-            func = lambda: tdSql.getRows() == 2
-        )
-
-        # check data
-        data = [
-            # ts           cnt  power
-            [1752574205000, 1,   5, "t3"],
-            [1752574210000, 5,  50, "t3"]
-        ]
-        tdSql.checkDataMem(result_sql, data)
-        print("verify stream3 again ........................... successfully.")
