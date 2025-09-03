@@ -251,11 +251,7 @@ static int32_t sifCreateHashFromNodeList(SNode *node, SHashObj **pFilter) {
 
     // Calculate value length
     if (IS_VAR_DATA_TYPE(pType->type)) {
-      if (IS_STR_DATA_BLOB(pType->type)) {
-        valLen = blobDataTLen(pData);
-      } else {
-        valLen = varDataTLen(pData);
-      }
+      valLen = varDataTLen(pData);
     } else {
       valLen = pType->bytes;
     }
