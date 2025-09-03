@@ -192,7 +192,12 @@ int32_t        getOperatorExplainExecInfo(struct SOperatorInfo* operatorInfo, SA
 void *         getOperatorParam(int32_t opType, SOperatorParam* param, int32_t idx);
 
 void doKeepTuple(SWindowRowsSup* pRowSup, int64_t ts, uint64_t groupId);
-void doKeepNewWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, int32_t rowIndex, uint64_t groupId);
+void doKeepNewWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList,
+  int32_t rowIndex, uint64_t groupId);
+void doKeepNewStateWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList,
+  int32_t rowIndex, uint64_t groupId, const EStateWinExtendOption* extendOption, bool hasPrevWin);
+void doKeepCurStateWindowEndInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, 
+  int32_t rowIndex, const EStateWinExtendOption* extendOption);
 
 void resetOperatorState(SOperatorInfo* pOper);
 

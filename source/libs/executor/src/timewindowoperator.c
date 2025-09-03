@@ -968,6 +968,29 @@ _end:
   return code;
 }
 
+// start a new state window and record the start info
+void doKeepNewStateWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList,
+  int32_t rowIndex, uint64_t groupId, const EStateWinExtendOption* extendOption, bool hasPrevWin) {
+  pRowSup->startRowIndex = rowIndex;
+  pRowSup->numOfRows = 0;
+  pRowSup->groupId = groupId;
+  if (hasPrevWin && *extendOption == STATE_WIN_EXTEND_OPTION_FORWORD) {
+    pRowSup->win.skey = pRowSup->win.ekey + 1;
+  } else {
+    pRowSup->win.skey = tsList[rowIndex];
+  }
+}
+
+// record the end info of the current state window
+// @param rowIndex the index of the first row of next window
+void doKeepCurStateWindowEndInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, 
+  int32_t rowIndex, const EStateWinExtendOption* extendOption) {
+  int64_t curTs = tsList[rowIndex];
+  if (*extendOption == STATE_WIN_EXTEND_OPTION_BACKWORD) {
+      pRowSup->win.ekey = curTs - 1;
+  }
+}
+
 static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorInfo* pInfo, SSDataBlock* pBlock) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SExprSupp*     pSup = &pOperator->exprSupp;
@@ -996,6 +1019,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   pRowSup->startRowIndex = 0;
 
   struct SColumnDataAgg* pAgg = NULL;
+  EStateWinExtendOption extendOption = pInfo->extendOption;
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
     pAgg = (pBlock->pBlockAgg != NULL) ? &pBlock->pBlockAgg[pInfo->stateCol.slotId] : NULL;
     if (colDataIsNull(pStateColInfoData, pBlock->info.rows, j, pAgg)) {
@@ -1024,17 +1048,17 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
 
       pInfo->hasKey = true;
 
-      doKeepNewWindowStartInfo(pRowSup, tsList, j, gid);
+      doKeepNewStateWindowStartInfo(pRowSup, tsList, j, gid, &extendOption, false);
       doKeepTuple(pRowSup, tsList[j], gid);
     } else if (compareVal(val, &pInfo->stateKey)) {
       doKeepTuple(pRowSup, tsList[j], gid);
     } else {  // a new state window started
       SResultRow* pResult = NULL;
+      doKeepCurStateWindowEndInfo(pRowSup, tsList, j, &extendOption);
 
       // keep the time window for the closed time window.
       STimeWindow window = pRowSup->win;
 
-      pRowSup->win.ekey = pRowSup->win.skey;
       int32_t ret = setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &window, masterScan, &pResult, gid, pSup->pCtx,
                                            numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
       if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
@@ -1048,8 +1072,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
         T_LONG_JMP(pTaskInfo->env, ret);
       }
 
-      // here we start a new session window
-      doKeepNewWindowStartInfo(pRowSup, tsList, j, gid);
+      doKeepNewStateWindowStartInfo(pRowSup, tsList, j, gid, &extendOption, true);
       doKeepTuple(pRowSup, tsList[j], gid);
 
       // todo extract method
@@ -1069,6 +1092,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
     return;
   }
   SResultRow* pResult = NULL;
+  // if window hasn't been closed, set end key to ts of last element
   pRowSup->win.ekey = tsList[pBlock->info.rows - 1];
   int32_t ret = setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &pRowSup->win, masterScan, &pResult, gid,
                                        pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
