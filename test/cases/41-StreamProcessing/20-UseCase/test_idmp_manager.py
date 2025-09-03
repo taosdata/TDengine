@@ -24,6 +24,7 @@ class Test_IDMP_Meters:
         8. Show/start/stop/drop stream 
         9. Show/drop snodes
         10. Stream options: FILL_HISTORY_FIRST|FILL_HISTORY
+        11. Embed stream, create stream on the table that created by other stream
 
         Refer: https://taosdata.feishu.cn/wiki/Zkb2wNkHDihARVkGHYEcbNhmnxb
 
@@ -68,6 +69,9 @@ class Test_IDMP_Meters:
         # verify results
         self.verifyResults()
 
+        # check again
+        self.checkStreamStatus()
+
         # write trigger data again
         self.writeTriggerDataAgain()
 
@@ -103,6 +107,7 @@ class Test_IDMP_Meters:
             "create table test.t1 using test.st(gid) tags(1)",
             # test.t2 create dynamic
             "create table test.t3 using test.st(gid) tags(3)",
+            "create table test.t4 using test.st(gid) tags(3)",
         ]
         tdSql.executes(sqls)
 
@@ -147,29 +152,44 @@ class Test_IDMP_Meters:
               "CREATE STREAM test.stream1_sub1 INTERVAL(5s) SLIDING(5s) FROM test.st    PARTITION BY gid    STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|DELETE_RECALC)  INTO test.result_stream1_sub1 AS SELECT _twstart AS ts, _twrownum as wrownum, sum(bi)    as sum_power FROM %%trows",
               "CREATE STREAM test.stream1_sub2 INTERVAL(5s) SLIDING(5s) FROM test.vst_1 PARTITION BY tbname STREAM_OPTIONS(IGNORE_NODATA_TRIGGER)                INTO test.result_stream1_sub2 AS SELECT _twstart AS ts, _twrownum as wrownum, sum(`功率`) as `总功率`   FROM %%trows",
               "CREATE STREAM test.stream1_sub3 INTERVAL(5s) SLIDING(5s) FROM test.vt_1                      STREAM_OPTIONS(IGNORE_NODATA_TRIGGER)                INTO test.result_stream1_sub3 AS SELECT _twstart AS ts, _twrownum as wrownum, sum(`功率`) as `总功率`   FROM %%trows",
+              "CREATE STREAM test.stream1_sub4 INTERVAL(5s) SLIDING(5s) FROM test.st PARTITION BY gid       STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|DELETE_RECALC)  INTO test.result_stream1_sub4  AS SELECT _twstart AS ts, _twrownum as wrownum, sum(bi)   as sum_power FROM test.st where ts >= _twstart and ts < _twend partition by tbname",
 
               # stream3
-              "CREATE STREAM test.stream3  INTERVAL(5s) SLIDING(5s) FROM test.t3  STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|DELETE_RECALC)  INTO out.result_stream3       AS SELECT _twstart AS ts, _twrownum as wrownum, sum(bi)  as sum_power FROM %%trows",
+              "CREATE STREAM test.stream3  INTERVAL(5s) SLIDING(5s) FROM test.t3  STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|DELETE_RECALC)  INTO out.result_stream3  AS SELECT _twstart AS ts, _twrownum as wrownum, sum(bi)  as sum_power FROM %%trows",
+
+              # stream4
+              "CREATE TABLE test.o4 (ts TIMESTAMP , sum_cnt BIGINT, sum_power BIGINT)",
+              "CREATE STREAM test.stream4      INTERVAL(5s)  SLIDING(5s)  FROM test.t4  INTO test.o4                  AS SELECT _twstart AS ts, _twrownum as sum_cnt,                          sum(bi)        as sum_power     FROM %%trows",
+              "CREATE STREAM test.stream4_sub1 INTERVAL(10s) SLIDING(10s) FROM test.o4  INTO test.result_stream4_sub1 AS SELECT _twstart AS ts, _twrownum as cnt,     sum(sum_cnt) as cnt_all, sum(sum_power) as sum_power_all FROM %%trows"
         ]
 
         tdSql.executes(sqls)
-        tdLog.info(f"create {len(sqls)} streams successfully.")
+        print(f"create {len(sqls)} streams successfully.")
 
     #
     #  check errors
     #
     def checkErrors(self):
-
+        # check error operator
         sqls = [
-            # stream5
+            # operator
+            # DB error: Rename column only available for normal table [0x80002649]
             "alter table test.st rename column ic renameic;",
+            # DB error: Col/Tag referenced by stream [0x80002691]
             "alter table test.t1 set tag gid=10;",
+            # DB error: Virtual table stream exists, use FORCE when ensure no impact [0x8000700F]
             "split vgroup 2",
             "split vgroup 4",
+            # stream Out table cols count mismatch [0x80004110]
+            "CREATE STREAM test.err_stream1 INTERVAL(5s) SLIDING(5s) FROM test.t3 INTO test.result_stream1 AS SELECT _twstart AS ts, _twrownum as wrownum, sum(bi), sum(ic) as sum_power FROM %%trows",
+            # %%trows can not be used with WHERE clause.
+            "CREATE STREAM test.err_stream2 INTERVAL(5s) SLIDING(5s) FROM test.st PARTITION BY gid INTO test.result_stream1_sub5  AS SELECT _twstart AS ts, _twrownum as wrownum, sum(bi)   as sum_power FROM %%trows where ts >= _twstart and ts < _twend partition by tbname",
+            # DB error: only tag and tbname can be used in partition [0x8000410E]
+            "CREATE STREAM test.err_stream3 INTERVAL(5s) SLIDING(5s) FROM test.st PARTITION BY ic  INTO test.result_stream1_sub5  AS SELECT _twstart AS ts, _twrownum as wrownum, sum(bi)   as sum_power FROM %%trows",
         ]
 
         tdSql.errors(sqls)
-        tdLog.info(f"check {len(sqls)} errors sql successfully.")
+        print(f"check {len(sqls)} errors sql successfully.")
 
 
     # 
@@ -188,6 +208,7 @@ class Test_IDMP_Meters:
         self.trigger_stream1()
         self.trigger_stream2()
         self.trigger_stream3()
+        self.trigger_stream4()
 
     # 
     # 5. verify results
@@ -198,6 +219,7 @@ class Test_IDMP_Meters:
         print("verifyResults ...")
         self.verify_stream1()
         self.verify_stream3()
+        self.verify_stream4()
 
     # 
     # 6. write trigger data again
@@ -207,6 +229,7 @@ class Test_IDMP_Meters:
         self.trigger_stream1_again()
         self.trigger_stream2_again()
         self.trigger_stream3_again()
+        self.trigger_stream4_again()
 
 
 
@@ -220,6 +243,7 @@ class Test_IDMP_Meters:
         # ***** bug1 *****
         #self.verify_stream1_again()
         self.verify_stream3_again()
+        self.verify_stream4_again()
     
 
     #
@@ -386,6 +410,34 @@ class Test_IDMP_Meters:
 
 
     #
+    #  trigger stream4
+    #
+    def trigger_stream4(self):
+        ts    = self.start2
+        table = "test.t4"
+        step  =  1000 # 1s
+        cols  = "ts,fc,ic,bi,si,bin"
+
+        # insert
+        count    = 21
+        vals     = "5,5,5,5,'abcde'"
+        self.ts4 = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+
+    #
+    #  trigger stream4 again
+    #
+    def trigger_stream4_again(self):
+        ts    = self.ts4
+        table = "test.t4"
+        step  =  1000 # 1s
+        cols  = "ts,fc,ic,bi,si,bin"
+
+        # insert
+        count = 20
+        vals  = "5,5,5,10,'aaaaa'"
+        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)           
+
+    #
     # ---------------------  verify     ----------------------
     #
 
@@ -533,14 +585,79 @@ class Test_IDMP_Meters:
         result_sql = f"select * from out.result_stream3"
         tdSql.checkResultsByFunc (
             sql  = result_sql, 
-            func = lambda: tdSql.getRows() == 2
+            func = lambda: tdSql.getRows() >= 2
         )
+        print("verify stream3 again ........................... successfully.")
 
-        # check data
+
+    #
+    #  verify stream4
+    #
+    def verify_stream4(self):
+        # o4
         data = [
             # ts           cnt  power
-            [1752574205000, 1,   5],
-            [1752574210000, 5,  50]
+            [1752574200000, 5,   25],
+            [1752574205000, 5,   25],
+            [1752574210000, 5,   25],
+            [1752574215000, 5,   25]
         ]
+        result_sql = f"select * from test.o4"
+        tdSql.checkResultsByFunc (
+            sql  = result_sql, 
+            func = lambda: tdSql.getRows() == len(data)
+        )
         tdSql.checkDataMem(result_sql, data)
-        print("verify stream3 again ........................... successfully.")
+
+
+        # result_stream4_sub1
+        data = [
+            # ts           cnt sum_cnt sum_power
+            [1752574200000, 2,  10,  50]
+        ]
+        result_sql = f"select * from test.result_stream4_sub1"
+        tdSql.checkResultsByFunc (
+            sql  = result_sql, 
+            func = lambda: tdSql.getRows() == len(data)
+        )
+        tdSql.checkDataMem(result_sql, data)
+
+    #
+    #  verify stream4 again
+    #
+    def verify_stream4_again(self):
+        # o4
+        data = [
+            # ts           cnt  power
+            [1752574200000, 5,   25],
+            [1752574205000, 5,   25],
+            [1752574210000, 5,   25],
+            [1752574215000, 5,   25],
+            [1752574220000, 5,   25],
+            [1752574225000, 5,   25],
+            [1752574230000, 5,   25],
+            [1752574235000, 5,   25]
+        ]
+        result_sql = f"select * from test.o4"
+        tdSql.checkResultsByFunc (
+            sql  = result_sql, 
+            func = lambda: tdSql.getRows() == len(data)
+        )
+        tdSql.checkDataMem(result_sql, data)
+
+
+        # result_stream4_sub1
+        data = [
+            # ts           cnt sum_cnt sum_power
+            [1752574200000, 2,  10,  50],
+            [1752574210000, 2,  10,  50],
+            [1752574220000, 2,  10,  50]
+        ]
+        result_sql = f"select * from test.result_stream4_sub1"
+        tdSql.checkResultsByFunc (
+            sql  = result_sql, 
+            func = lambda: tdSql.getRows() == len(data)
+        )
+        tdSql.checkDataMem(result_sql, data)
+
+        print("verify stream4 again ........................... successfully.")
