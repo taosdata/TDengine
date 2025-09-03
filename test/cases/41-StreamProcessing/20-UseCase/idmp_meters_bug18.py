@@ -1,7 +1,6 @@
 import time
 import math
 import random
-import os
 from new_test_framework.utils import tdLog, tdSql, tdStream, etool, sc, eutil
 from datetime import datetime
 from datetime import date
@@ -13,18 +12,7 @@ class Test_IDMP_Meters:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_usecase_em(self):
-        """IDMP: meters scenario
-
-        1. IDMP trigger table is super vtable
-        2. IDMP trigger table is vtable
-        3. IDMP trigger mode: period, sliding, event, session, interval, count, state
-        4. IDMP trigger group: partition by tbname, tag column, tbname and columns
-        5. IDMP trigger condition: on window open, on window close, on event
-        6. IDMP trigger action: notify, calc, calc and notify
-        7. IDMP notify on: window open, window close, both open and close
-        8. IDMP output table: super table , normal table
-        9. IDMP stream Options: IGNORE_DISORDER, CALC_NOTIF_ONLY, LOW_LATENCY_CALC,PRE_FILTER, FORCE_OUTPUT, IGNORE_NODATA_TRIGGER
-
+        """Nevados
 
         Refer: https://taosdata.feishu.cn/wiki/Zkb2wNkHDihARVkGHYEcbNhmnxb
 
@@ -35,7 +23,7 @@ class Test_IDMP_Meters:
 
         Labels: common,ci
 
-        Jira: None
+        Jira: https://jira.taosdata.com:18080/browse/TD-36363
 
         History:
             - 2025-7-10 Alex Duan Created
@@ -45,8 +33,6 @@ class Test_IDMP_Meters:
         #
         #  main test
         #
-
-        tdSql.execute(f"alter all dnodes 'debugflag 143';")
 
         # env
         tdStream.createSnode()
@@ -116,7 +102,8 @@ class Test_IDMP_Meters:
         self.notifyFailed = "failed to get stream notify handle of ws://idmp:6042/recv/?key="
 
         # import data
-        etool.taosdump(f"-i {os.path.join(os.path.dirname(__file__), 'meters_data', 'data')}")
+        etool.taosdump(f"-i cases/41-StreamProcessing/20-UseCase/meters_data/data/")
+
         tdLog.info(f"import data to db={self.db} successfully.")
 
 
