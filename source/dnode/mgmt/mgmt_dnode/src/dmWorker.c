@@ -24,7 +24,7 @@ static void *dmStatusThreadFp(void *param) {
   setThreadName("dnode-status");
 
   while (1) {
-    taosMsleep(200);
+    taosMsleep(50);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
 
     int64_t curTime = taosGetTimestampMs();
@@ -44,7 +44,7 @@ static void *dmConfigThreadFp(void *param) {
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-config");
   while (1) {
-    taosMsleep(200);
+    taosMsleep(50);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped || tsConfigInited) break;
 
     int64_t curTime = taosGetTimestampMs();
@@ -67,7 +67,7 @@ static void *dmStatusInfoThreadFp(void *param) {
   int64_t upTime = 0;
 
   while (1) {
-    taosMsleep(200);
+    taosMsleep(50);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
 
     int64_t curTime = taosGetTimestampMs();

@@ -172,13 +172,13 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.timestamp = taosGetTimestampMs();
   pMgmt->statusSeq++;
 
-  dDebug("send status req to mnode, statusSeq:%d, begin to mgnt statusInfolock", pMgmt->statusSeq);
+  dTrace("send status req to mnode, begin to mgnt statusInfolock, statusSeq:%d", pMgmt->statusSeq);
   if (taosThreadMutexLock(&pMgmt->pData->statusInfolock) != 0) {
     dError("failed to lock status info lock");
     return;
   }
 
-  dDebug("send status req to mnode, statusSeq:%d, begin to get dnode info", pMgmt->statusSeq);
+  dTrace("send status req to mnode, begin to get dnode info, statusSeq:%d", pMgmt->statusSeq);
   req.sver = tsVersion;
   req.dnodeVer = tsDnodeData.dnodeVer;
   req.dnodeId = tsDnodeData.dnodeId;
@@ -215,12 +215,12 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   memcpy(req.clusterCfg.locale, tsLocale, TD_LOCALE_LEN);
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
 
-  dDebug("send status req to mnode, statusSeq:%d, begin to get vnode loads", pMgmt->statusSeq);
+  dTrace("send status req to mnode, begin to get vnode loads, statusSeq:%d", pMgmt->statusSeq);
 
   req.pVloads = tsVinfo.pVloads;
   tsVinfo.pVloads = NULL;
 
-  dDebug("send status req to mnode, statusSeq:%d, begin to get mnode loads", pMgmt->statusSeq);
+  dTrace("send status req to mnode, begin to get mnode loads, statusSeq:%d", pMgmt->statusSeq);
   req.mload = tsMLoad;
 
   if (taosThreadMutexUnlock(&pMgmt->pData->statusInfolock) != 0) {
@@ -228,7 +228,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
     return;
   }
 
-  dDebug("send status req to mnode, statusSeq:%d, begin to get qnode loads", pMgmt->statusSeq);
+  dTrace("send status req to mnode, begin to get qnode loads, statusSeq:%d", pMgmt->statusSeq);
   (*pMgmt->getQnodeLoadsFp)(&req.qload);
 
   req.statusSeq = pMgmt->statusSeq;
@@ -260,13 +260,13 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
                     .info.handle = 0};
   SRpcMsg rpcRsp = {0};
 
-  dTrace("send status req to mnode, dnodeVer:%" PRId64 " statusSeq:%d", req.dnodeVer, req.statusSeq);
+  dDebug("send status req to mnode, dnodeVer:%" PRId64 " statusSeq:%d", req.dnodeVer, req.statusSeq);
 
   SEpSet epSet = {0};
   int8_t epUpdated = 0;
   (void)dmGetMnodeEpSet(pMgmt->pData, &epSet);
 
-  dDebug("send status req to mnode, statusSeq:%d, begin to send rpc msg", pMgmt->statusSeq);
+  dTrace("send status req to mnode, begin to send rpc msg, statusSeq:%d", pMgmt->statusSeq);
   code = rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusSRTimeoutMs);
   if (code != 0) {
     dError("failed to SendRecv status req with timeout %d since %s", tsStatusSRTimeoutMs, tstrerror(code));
@@ -519,35 +519,68 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     sscanf(cfgReq.value, "%d", &tsSyncTimeout);
 
     if (tsSyncTimeout > 0) {
+      SConfigItem *pItemTmp = NULL;
       char tmp[10] = {0};
 
       sprintf(tmp, "%d", tsSyncTimeout);
       TAOS_CHECK_RETURN(
-          cfgGetAndSetItem(pCfg, &pItem, "arbSetAssignedTimeoutMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+          cfgGetAndSetItem(pCfg, &pItemTmp, "arbSetAssignedTimeoutMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
+
       sprintf(tmp, "%d", tsSyncTimeout / 4);
       TAOS_CHECK_RETURN(
-          cfgGetAndSetItem(pCfg, &pItem, "arbHeartBeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+          cfgGetAndSetItem(pCfg, &pItemTmp, "arbHeartBeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
       TAOS_CHECK_RETURN(
-          cfgGetAndSetItem(pCfg, &pItem, "arbCheckSyncIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+          cfgGetAndSetItem(pCfg, &pItemTmp, "arbCheckSyncIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
 
       sprintf(tmp, "%d", (tsSyncTimeout - tsSyncTimeout/4)/2);
       TAOS_CHECK_RETURN(
-          cfgGetAndSetItem(pCfg, &pItem, "syncVnodeElectIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+          cfgGetAndSetItem(pCfg, &pItemTmp, "syncVnodeElectIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
       TAOS_CHECK_RETURN(
-          cfgGetAndSetItem(pCfg, &pItem, "syncMnodeElectIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
-      TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItem, "statusTimeoutMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+          cfgGetAndSetItem(pCfg, &pItemTmp, "syncMnodeElectIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
+      TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItemTmp, "statusTimeoutMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
 
       sprintf(tmp, "%d", (tsSyncTimeout - tsSyncTimeout / 4) / 4);
-      TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItem, "statusSRTimeoutMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItemTmp, "statusSRTimeoutMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
 
       sprintf(tmp, "%d", (tsSyncTimeout - tsSyncTimeout/4)/8);
       TAOS_CHECK_RETURN(
-          cfgGetAndSetItem(pCfg, &pItem, "syncVnodeHeartbeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+          cfgGetAndSetItem(pCfg, &pItemTmp, "syncVnodeHeartbeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
       TAOS_CHECK_RETURN(
-          cfgGetAndSetItem(pCfg, &pItem, "syncMnodeHeartbeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
-      TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItem, "statusIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+          cfgGetAndSetItem(pCfg, &pItemTmp, "syncMnodeHeartbeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
+      TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItemTmp, "statusIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
 
-      dInfo("change syncTimeout, option:%s, value:%s, tsSyncTimeout:%d", cfgReq.config, cfgReq.value, tsSyncTimeout);
+      dInfo("change syncTimeout, GetAndSetItem, option:%s, value:%s, tsSyncTimeout:%d", cfgReq.config, cfgReq.value,
+            tsSyncTimeout);
     }
   }
 
@@ -555,16 +588,21 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, cfgReq.config, true));
 
     if (taosStrncasecmp(cfgReq.config, "syncTimeout", 128) == 0) {
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "arbSetAssignedTimeoutMs", true));
       TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "arbHeartBeatIntervalMs", true));
       TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "arbCheckSyncIntervalMs", true));
-      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "syncVnodeHeartbeatIntervalMs", true));
-      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "syncMnodeHeartbeatIntervalMs", true));
-      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "arbSetAssignedTimeoutMs", true));
+
       TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "syncVnodeElectIntervalMs", true));
       TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "syncMnodeElectIntervalMs", true));
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "syncVnodeHeartbeatIntervalMs", true));
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "syncMnodeHeartbeatIntervalMs", true));
+      
       TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "statusTimeoutMs", true));
       TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "statusSRTimeoutMs", true));
       TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "statusIntervalMs", true));
+
+      dInfo("change syncTimeout, DynamicOptions, option:%s, value:%s, tsSyncTimeout:%d", cfgReq.config, cfgReq.value,
+            tsSyncTimeout);
     }
   }
 
@@ -581,8 +619,8 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   if (taosStrncasecmp(cfgReq.config, "syncTimeout", 128) == 0) {
-    dInfo("finished change syncTimeout, option:%s, value:%s, tsArbHeartBeatIntervalMs:%d", cfgReq.config, cfgReq.value,
-          tsArbHeartBeatIntervalMs);
+    dInfo(
+        "finished change syncTimeout, option:%s, value:%s", cfgReq.config, cfgReq.value);
 
     (*pMgmt->setMnodeSyncTimeoutFp)();
     (*pMgmt->setVnodeSyncTimeoutFp)();
