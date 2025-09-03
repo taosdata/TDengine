@@ -1496,86 +1496,104 @@ int32_t likeInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
   return matchInSetFunction(pInput, inputNum, pOutput, likeInSetCompare);
 }
 
-/*
-static bool regexpInSetCompare(const char* a, int32_t aLen, const char* b, int32_t bLen) {
-  char  *pattern = taosMemoryMalloc(aLen + 1);
-  if (NULL == pattern) {
-    return 1;  // terrno has been set
-  }
+// to improve performance, the implementation of regexp_in_set is a little different from
+// find_in_set & like_in_set.
+int32_t threadGetRegComp(regex_t **regex, const char *pPattern);
 
+static bool regexpInSetCompare(const char* a, int32_t aLen, const char* b, int32_t bLen) {
+  char patBuf[256], strBuf[256], msgbuf[256];
+
+  char  *pattern = patBuf, *str = strBuf;
+  if (aLen >= sizeof(patBuf)) {
+    pattern = taosMemoryMalloc(aLen + 1);
+    if (NULL == pattern) {
+      return false;  // terrno has been set
+    }
+  }
   (void)memcpy(pattern, a, aLen);
   pattern[aLen] = 0;
 
-  char *str = taosMemoryMalloc(bLen + 1);
-  if (NULL == str) {
-    taosMemoryFree(pattern);
-    return 1;  // terrno has been set
+  if (bLen >= sizeof(strBuf)) {
+    str = taosMemoryMalloc(bLen + 1);
+    if (NULL == str) {
+      if (pattern != patBuf) {
+        taosMemoryFree(pattern);
+      }
+      return false;  // terrno has been set
+    }
   }
-
   (void)memcpy(str, b, bLen);
   str[bLen] = 0;
 
-  int32_t ret = doExecRegexMatch(str, pattern);
+  regex_t *regex = NULL;
+  int32_t ret = threadGetRegComp(&regex, pattern);
+  if (ret != 0) {
+    goto _return;
+  }
 
-  taosMemoryFree(str);
-  taosMemoryFree(pattern);
+  regmatch_t pmatch[1];
+  ret = regexec(regex, str, 1, pmatch, 0);
+  if (ret != 0 && ret != REG_NOMATCH) {
+    terrno = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
+    (void)regerror(ret, regex, msgbuf, sizeof(msgbuf));
+    qDebug("Failed to match %s with pattern %s, reason %s", str, pattern, msgbuf);
+  }
+
+_return:
+  if (str != strBuf) {
+    taosMemoryFree(str);
+  }
+  if( pattern != patBuf) {
+    taosMemoryFree(pattern);
+  }
 
   return ret == 0;
 }
 
-static bool wcsRegexpInSetCompare(const char* a, int32_t aLen, const char* b, int32_t bLen) {
-  return false;
-}
-  */
-
 int32_t regexpInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t          code = TSDB_CODE_SUCCESS;
-#if 0
-  SColumnInfoData *subs = pInput[0].columnData, *sets = pInput[1].columnData, *seps = NULL;
-  char  *substr = NULL, *setstr = NULL, *sepstr = ","; // "," is the default seperator
-  int32_t subLen = 0, setLen = 0, sepLen = 1;
-  int32_t subNum = pInput[0].numOfRows, setNum = pInput[1].numOfRows, sepNum = 0;
-  bool needFreeSub = false, needFreeSep = false;
+
+  SColumnInfoData *pats = pInput[0].columnData, *sets = pInput[1].columnData, *seps = NULL;
+  char  *patstr = NULL, *setstr = NULL, *sepstr = ","; // "," is the default seperator
+  int32_t patLen = 0, setLen = 0, sepLen = 1;
+  int32_t patNum = pInput[0].numOfRows, setNum = pInput[1].numOfRows, sepNum = 0;
+  bool needFreePat = false, needFreeSet = false, needFreeSep = false;
 
   if (inputNum == 3) {
     sepNum = pInput[2].numOfRows;
     seps = pInput[2].columnData;
   }
-  int32_t numOfRows = TMAX(TMAX(subNum, setNum), sepNum);
-
-  int32_t orgType = GET_PARAM_TYPE(&pInput[1]);
+  int32_t numOfRows = TMAX(TMAX(patNum, setNum), sepNum);
 
   if ((IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0]))
-    || IS_NULL_TYPE(orgType))
-    || (subNum == 1 && colDataIsNull_s(subs, 0))
-    || (setNum == 1 && colDataIsNull_s(sets, 0))) {
+    || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1]))
+    || (patNum == 1 && colDataIsNull_s(pats, 0))
+    || (setNum == 1 && colDataIsNull_s(sets, 0)))) {
     colDataSetNNULL(pOutput->columnData, 0, numOfRows);
     pOutput->numOfRows = numOfRows;
     return code;
   }
 
-  // if there's only one sub/org/sep, get it now to improve performance
-  if (subNum == 1) {
-    subLen = varDataLen(colDataGetData(subs, 0));
-    substr = varDataVal(colDataGetData(subs, 0));
-    if (GET_PARAM_TYPE(&pInput[0]) != orgType) {
-      SCL_ERR_JRET(convBetweenNcharAndVarchar(substr, &substr, subLen, &subLen, orgType, pInput[0].charsetCxt)); 
-      needFreeSub = true;
+  // if there's only one pat/set/sep, get it now to improve performance
+  if (patNum == 1) {
+    patLen = varDataLen(colDataGetData(pats, 0));
+    patstr = varDataVal(colDataGetData(pats, 0));
+    if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR) {
+      SCL_ERR_RET(convNcharToVarchar(patstr, &patstr, patLen, &patLen, pInput[0].charsetCxt));
+      needFreePat = true;
     }
   }
 
   if (setNum == 1) {
     setLen = varDataLen(colDataGetData(sets, 0));
     setstr = varDataVal(colDataGetData(sets, 0));
+    if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR) {
+      SCL_ERR_RET(convNcharToVarchar(patstr, &patstr, patLen, &patLen, pInput[0].charsetCxt));
+      needFreeSet = true;
+    }
   }
 
-  if (sepNum == 0) {
-    // use default seperator if was not provided, but we may need to convert it to nchar.
-    if (orgType == TSDB_DATA_TYPE_NCHAR) {
-        SCL_ERR_RET(convVarcharToNchar(sepstr, &sepstr, 1, &sepLen, NULL));
-        needFreeSep = true;
-    }
-  } else if (sepNum > 1) {
+  if (sepNum != 1) {
     // do nothing in this case
   } else if (colDataIsNull_s(seps, 0)) {
     // treat null seperator as empty
@@ -1584,41 +1602,48 @@ int32_t regexpInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
   } else {
     sepLen = varDataLen(colDataGetData(seps, 0));
     sepstr = varDataVal(colDataGetData(seps, 0));
-    if (sepLen > 0 && GET_PARAM_TYPE(&pInput[2]) != orgType) {
-      SCL_ERR_JRET(convBetweenNcharAndVarchar(sepstr, &sepstr, sepLen, &sepLen, orgType, pInput[2].charsetCxt));
+    if (sepLen > 0 && GET_PARAM_TYPE(&pInput[2]) == TSDB_DATA_TYPE_NCHAR) {
+      SCL_ERR_RET(convNcharToVarchar(sepstr, &sepstr, sepLen, &sepLen, pInput[2].charsetCxt));
       needFreeSep = true;
     }
   }
 
-  bool utf8 = strcasecmp(pInput[1].charsetCxt ? pInput[1].charsetCxt : tsCharset, "UTF-8") == 0;
+  bool utf8 = strcasecmp(tsCharset, "UTF-8") == 0;
 
   for (int32_t i = 0; i < numOfRows; ++i) {
     int64_t offset = 0;
 
-    // get origin first is better for performance because some alloc/free of sub & sep can be avoided.
+    if (patNum > 1) {
+      if (colDataIsNull_s(pats, i)) {
+        colDataSetNULL(pOutput->columnData, i);
+        continue;
+      }
+      if (needFreePat) {
+        taosMemoryFree(patstr);
+        needFreePat = false;
+      }
+      patstr = varDataVal(colDataGetData(pats, i));
+      patLen = varDataLen(colDataGetData(pats, i));
+      if (patLen > 0 && GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR) {
+        SCL_ERR_RET(convNcharToVarchar(patstr, &patstr, patLen, &patLen, pInput[0].charsetCxt));
+        needFreePat = true;
+      }
+    }
+
     if (setNum > 1) {
       if (colDataIsNull_s(sets, i)) {
         colDataSetNULL(pOutput->columnData, i);
         continue;
       }
+      if (needFreeSet) {
+        taosMemoryFree(setstr);
+        needFreeSet = true;
+      }
       setstr = varDataVal(colDataGetData(sets, i));
       setLen = varDataLen(colDataGetData(sets, i));
-    }
-
-    if (subNum > 1) {
-      if (colDataIsNull_s(subs, i)) {
-        colDataSetNULL(pOutput->columnData, i);
-        continue;
-      }
-      if (needFreeSub) {
-        taosMemoryFree(substr);
-        needFreeSub = false;
-      }
-      substr = varDataVal(colDataGetData(subs, i));
-      subLen = varDataLen(colDataGetData(subs, i));
-      if (subLen > 0 && GET_PARAM_TYPE(&pInput[0]) != orgType) {
-        SCL_ERR_JRET(convBetweenNcharAndVarchar(substr, &substr, subLen, &subLen, orgType, pInput[0].charsetCxt)); 
-        needFreeSub = true;
+      if (setLen > 0 && GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR) {
+        SCL_ERR_RET(convNcharToVarchar(setstr, &setstr, setLen, &setLen, pInput[1].charsetCxt));
+        needFreeSet = true;
       }
     }
 
@@ -1633,16 +1658,16 @@ int32_t regexpInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
       } else {
         sepLen = varDataLen(colDataGetData(seps, i));
         sepstr = varDataVal(colDataGetData(seps, i));
-        if (sepLen > 0 && GET_PARAM_TYPE(&pInput[2]) != orgType) {
-          SCL_ERR_JRET(convBetweenNcharAndVarchar(sepstr, &sepstr, sepLen, &sepLen, orgType, pInput[2].charsetCxt));
+        if (sepLen > 0 && GET_PARAM_TYPE(&pInput[2]) != TSDB_DATA_TYPE_NCHAR) {
+          SCL_ERR_RET(convNcharToVarchar(sepstr, &sepstr, sepLen, &sepLen, pInput[2].charsetCxt));
           needFreeSep = true;
         }
       }
     }
 
-    // compare sub & org directly when seperator is empty
+    // match pat & set directly when seperator is empty
     if (sepLen == 0) {
-      if (compare(substr, subLen, setstr, setLen)) {
+      if (regexpInSetCompare(patstr, patLen, setstr, setLen)) {
         offset = 1;
       }
       colDataSetInt64(pOutput->columnData, i, &offset);
@@ -1664,16 +1689,14 @@ int32_t regexpInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
           break;
         }
         // not a seperator, advance one character
-        if (orgType == TSDB_DATA_TYPE_NCHAR) {
-          end += TSDB_NCHAR_SIZE;
-        } else if (utf8) {
+        if (utf8) {
           for (end++; end - setstr < setLen && ((*end & 0xC0) == 0x80); end++);
         } else {
           end++;
         }
       }
 
-      if (compare(substr, subLen, start, end - start)) {
+      if (regexpInSetCompare(patstr, patLen, start, end - start)) {
         offset = j + 1;
         break;
       }
@@ -1687,13 +1710,16 @@ int32_t regexpInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
   pOutput->numOfRows = numOfRows;
 
 _return:
-  if (needFreeSub) {
-    taosMemoryFree(substr);
+  if (needFreePat) {
+    taosMemoryFree(patstr);
+  }
+  if (needFreeSet) {
+    taosMemoryFree(setstr);
   }
   if (needFreeSep) {
     taosMemoryFree(sepstr);
   }
-#endif
+
   return code;
 }
 
