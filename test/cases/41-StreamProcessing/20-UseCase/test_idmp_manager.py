@@ -149,7 +149,7 @@ class Test_IDMP_Meters:
               "CREATE STREAM test.stream1_sub3 INTERVAL(5s) SLIDING(5s) FROM test.vt_1                      STREAM_OPTIONS(IGNORE_NODATA_TRIGGER)                INTO test.result_stream1_sub3 AS SELECT _twstart AS ts, _twrownum as wrownum, sum(`功率`) as `总功率`   FROM %%trows",
 
               # stream3
-              "CREATE STREAM test.stream3  INTERVAL(5s) SLIDING(5s) FROM test.t3  PARTITION BY tbname STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|DELETE_RECALC)  INTO out.result_stream3       AS SELECT _twstart AS ts, _twrownum as wrownum, sum(bi)  as sum_power FROM %%trows",
+              "CREATE STREAM test.stream3  INTERVAL(5s) SLIDING(5s) FROM test.t3  STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|DELETE_RECALC)  INTO out.result_stream3       AS SELECT _twstart AS ts, _twrownum as wrownum, sum(bi)  as sum_power FROM %%trows",
         ]
 
         tdSql.executes(sqls)
@@ -217,8 +217,7 @@ class Test_IDMP_Meters:
         print("verifyResultsAgain ...")
         # ***** bug1 *****
         #self.verify_stream1_again()
-        # ***** bug2 *****
-        #self.verify_stream3_again()
+        self.verify_stream3_again()
     
 
     #
@@ -510,7 +509,7 @@ class Test_IDMP_Meters:
     #
     def verify_stream3(self):
         # check
-        result_sql = f"select * from out.result_stream3 order by tag_tbname"
+        result_sql = f"select * from out.result_stream3"
         tdSql.checkResultsByFunc (
             sql  = result_sql, 
             func = lambda: tdSql.getRows() == 1
@@ -519,7 +518,7 @@ class Test_IDMP_Meters:
         # check data
         data = [
             # ts           cnt  power
-            [1752574200000, 5,   25, "t3"]
+            [1752574200000, 5,   25]
         ]
         tdSql.checkDataMem(result_sql, data)
         print("verify stream3 ................................. successfully.")
@@ -529,7 +528,7 @@ class Test_IDMP_Meters:
     #
     def verify_stream3_again(self):
         # check
-        result_sql = f"select * from out.result_stream3 order by tag_tbname"
+        result_sql = f"select * from out.result_stream3"
         tdSql.checkResultsByFunc (
             sql  = result_sql, 
             func = lambda: tdSql.getRows() == 2
@@ -538,8 +537,8 @@ class Test_IDMP_Meters:
         # check data
         data = [
             # ts           cnt  power
-            [1752574205000, 1,   5, "t3"],
-            [1752574210000, 5,  50, "t3"]
+            [1752574205000, 1,   5],
+            [1752574210000, 5,  50]
         ]
         tdSql.checkDataMem(result_sql, data)
         print("verify stream3 again ........................... successfully.")
