@@ -62,6 +62,7 @@ EEncryptAlgor tsiEncryptPassAlgorithm = 0;
 char tsTLSCaPath[512] = {0};
 char tsTLSSvrCertPath[512] = {0};
 char tsTLSSvrKeyPath[512] = {0};
+
 char tsTLSCliCertPath[512] = {0};
 char tsTLSCliKeyPath[512] = {0};
 
@@ -732,9 +733,13 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "tlsCaPath", tsTLSCaPath, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(
-      cfgAddString(pCfg, "tlsCertPath", tsTLSSvrCertPath, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL));
+      cfgAddString(pCfg, "tlsSvrCertPath", tsTLSSvrCertPath, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(
-      cfgAddString(pCfg, "tlsKeyPath", tsTLSCliKeyPath, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL));
+      cfgAddString(pCfg, "tlsSvrKeyPath", tsTLSSvrKeyPath, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(
+      cfgAddString(pCfg, "tlsCliCertPath", tsTLSCliCertPath, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(
+      cfgAddString(pCfg, "tlsCliKeyPath", tsTLSCliKeyPath, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL));
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
