@@ -140,6 +140,7 @@ void    shellCheckServerStatus();
 bool    shellRegexMatch(const char* s, const char* reg, int32_t cflags);
 int32_t getDsnEnv();
 void    shellExit();
+void trimStr(char *srcInfo, char *removeStr);
 
 // shellNettest.c
 void shellTestNetWork();

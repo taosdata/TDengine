@@ -607,7 +607,7 @@ void *schtSendRsp(void *param) {
     msg.msgType = TDMT_VND_SUBMIT_RSP;
     msg.pData = rmsg;
 
-    (void)schHandleResponseMsg(pJob, task, task->seriousId, task->execId, &msg, 0);
+    (void)schHandleResponseMsg(pJob, task, task->seriesId, task->execId, &msg, 0);
 
     pIter = taosHashIterate(pJob->execTasks, pIter);
   }
@@ -637,7 +637,7 @@ void *schtCreateFetchRspThread(void *param) {
   msg.msgType = TDMT_SCH_MERGE_FETCH_RSP;
   msg.pData = rmsg;
 
-  code = schHandleResponseMsg(pJob, pJob->fetchTask, pJob->fetchTask->seriousId, pJob->fetchTask->execId, &msg, 0);
+  code = schHandleResponseMsg(pJob, pJob->fetchTask, pJob->fetchTask->seriesId, pJob->fetchTask->execId, &msg, 0);
 
   (void)schReleaseJob(job);
 
@@ -941,7 +941,7 @@ TEST(queryTest, normalCase) {
     msg.msgType = TDMT_SCH_QUERY_RSP;
     msg.pData = rmsg;
 
-    code = schHandleResponseMsg(pJob, task, task->seriousId, task->execId, &msg, 0);
+    code = schHandleResponseMsg(pJob, task, task->seriesId, task->execId, &msg, 0);
 
     ASSERT_EQ(code, 0);
     pIter = taosHashIterate(pJob->execTasks, pIter);
@@ -957,7 +957,7 @@ TEST(queryTest, normalCase) {
       msg.msgType = TDMT_SCH_QUERY_RSP;
       msg.pData = rmsg;
 
-      code = schHandleResponseMsg(pJob, task, task->seriousId, task->execId, &msg, 0);
+      code = schHandleResponseMsg(pJob, task, task->seriesId, task->execId, &msg, 0);
 
       ASSERT_EQ(code, 0);
     }
@@ -1076,7 +1076,7 @@ TEST(queryTest, rescheduleCase) {
     msg.msgType = TDMT_SCH_QUERY_RSP;
     msg.pData = rmsg;
 
-    code = schHandleResponseMsg(pJob, task, task->seriousId, task->execId, &msg, 0);
+    code = schHandleResponseMsg(pJob, task, task->seriesId, task->execId, &msg, 0);
 
     ASSERT_EQ(code, 0);
     pIter = taosHashIterate(pJob->execTasks, pIter);
@@ -1105,7 +1105,7 @@ TEST(queryTest, rescheduleCase) {
       msg.msgType = TDMT_SCH_QUERY_RSP;
       msg.pData = rmsg;
 
-      code = schHandleResponseMsg(pJob, task, task->seriousId, task->execId, &msg, 0);
+      code = schHandleResponseMsg(pJob, task, task->seriesId, task->execId, &msg, 0);
 
       ASSERT_EQ(code, 0);
     }
@@ -1207,7 +1207,7 @@ TEST(queryTest, readyFirstCase) {
     msg.msgType = TDMT_SCH_QUERY_RSP;
     msg.pData = rmsg;
 
-    code = schHandleResponseMsg(pJob, task, task->seriousId, task->execId, &msg, 0);
+    code = schHandleResponseMsg(pJob, task, task->seriesId, task->execId, &msg, 0);
 
     ASSERT_EQ(code, 0);
     pIter = taosHashIterate(pJob->execTasks, pIter);
@@ -1224,7 +1224,7 @@ TEST(queryTest, readyFirstCase) {
       msg.msgType = TDMT_SCH_QUERY_RSP;
       msg.pData = rmsg;
 
-      code = schHandleResponseMsg(pJob, task, task->seriousId, task->execId, &msg, 0);
+      code = schHandleResponseMsg(pJob, task, task->seriesId, task->execId, &msg, 0);
 
       ASSERT_EQ(code, 0);
     }
@@ -1331,7 +1331,7 @@ TEST(queryTest, flowCtrlCase) {
         msg.msgType = TDMT_SCH_QUERY_RSP;
         msg.pData = rmsg;
 
-        code = schHandleResponseMsg(pJob, task, task->seriousId, task->execId, &msg, 0);
+        code = schHandleResponseMsg(pJob, task, task->seriesId, task->execId, &msg, 0);
 
         ASSERT_EQ(code, 0);
       }

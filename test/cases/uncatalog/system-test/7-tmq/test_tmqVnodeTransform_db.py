@@ -1,11 +1,10 @@
 import threading
 import time
 
-from new_test_framework.utils import tdLog, tdSql, tdCom, clusterComCheck, cluster
+from new_test_framework.utils import tdLog, tdSql, tdCom, clusterComCheck, cluster, tmqCom
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from tmqCommon import tmqCom
 
 
 class TestCase:
