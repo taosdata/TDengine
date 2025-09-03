@@ -1212,6 +1212,7 @@ static int32_t tsdbCachePutToLRU(STsdb *pTsdb, SLastKey *pLastKey, SLastCol *pLa
 
 #if TSDB_CACHE_ROW_BASED
 static int32_t tsdbRowCachePutToLRU(STsdb *pTsdb, SLastRowKey *pLastRowKey, SLastRow *pLastRow, int8_t dirty);
+static int32_t tsdbRowCachePutToRocksdb(STsdb *pTsdb, SLastRowKey *pLastRowKey, SLastRow *pLastRow);
 #endif
 
 static int32_t tsdbCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8_t col_type, int8_t lflag) {
@@ -1357,6 +1358,283 @@ static int32_t tsdbCacheGetValuesFromRocks(STsdb *pTsdb, size_t numKeys, const c
 static int32_t tsdbCacheDropTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, bool hasPrimaryKey) {
   int32_t code = 0;
 
+#if TSDB_CACHE_ROW_BASED
+  // For row-based cache, handle LFLAG_LAST_ROW and LFLAG_LAST row cache entries
+  SLastRowKey rowKeys[2] = {{.lflag = LFLAG_LAST_ROW, .uid = uid}, {.lflag = LFLAG_LAST, .uid = uid}};
+
+  for (int i = 0; i < 2; i++) {
+    // 1. Handle RocksDB row cache
+#ifdef USE_ROCKSDB
+    char   *rowKey = (char *)&rowKeys[i];
+    size_t  rowKeySize = ROCKS_ROW_KEY_LEN;
+    char  **values_list = NULL;
+    size_t *values_list_sizes = NULL;
+
+    // Get row from RocksDB
+    rocksMayWrite(pTsdb, true);
+    code = tsdbCacheGetValuesFromRocks(pTsdb, 1, (const char *const *)&rowKey, &rowKeySize, &values_list,
+                                       &values_list_sizes);
+    if (code != TSDB_CODE_SUCCESS) {
+      continue;  // Skip to next row key
+    }
+
+    if (values_list && values_list[0] != NULL) {
+      SLastRow *pLastRow = NULL;
+      code = tsdbRowCacheDeserialize(values_list[0], values_list_sizes[0], &pLastRow);
+      if (code == TSDB_CODE_SUCCESS && pLastRow && pLastRow->pRow) {
+        // Check if the row contains the column to be dropped
+        STSchema *pTSchema = NULL;
+        code = metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, 0, uid, -1, &pTSchema);
+        if (code == TSDB_CODE_SUCCESS && pTSchema) {
+          // Check if column exists in the row
+          bool columnExists = false;
+          for (int j = 0; j < pTSchema->numOfCols; j++) {
+            if (pTSchema->columns[j].colId == cid) {
+              columnExists = true;
+              break;
+            }
+          }
+
+          if (columnExists) {
+            // Build new row without the dropped column
+            SArray *colVals = taosArrayInit(pTSchema->numOfCols - 1, sizeof(SColVal));
+            if (colVals) {
+              // Extract all columns except the one to be dropped
+              for (int j = 0; j < pTSchema->numOfCols; j++) {
+                if (pTSchema->columns[j].colId != cid) {
+                  SColVal colVal = {0};
+                  code = tRowGet(pLastRow->pRow, pTSchema, j, &colVal);
+                  if (code == TSDB_CODE_SUCCESS) {
+                    taosArrayPush(colVals, &colVal);
+                  }
+                }
+              }
+
+              // Build new schema without dropped column
+              STSchema *pNewTSchema =
+                  taosMemoryCalloc(1, sizeof(STSchema) + (pTSchema->numOfCols - 1) * sizeof(STColumn));
+              if (pNewTSchema) {
+                pNewTSchema->version = pTSchema->version;
+                pNewTSchema->numOfCols = pTSchema->numOfCols - 1;
+                pNewTSchema->flen = pTSchema->flen;
+
+                pNewTSchema->tlen = pTSchema->tlen;
+
+                int newColIdx = 0;
+                for (int j = 0; j < pTSchema->numOfCols; j++) {
+                  if (pTSchema->columns[j].colId != cid) {
+                    pNewTSchema->columns[newColIdx] = pTSchema->columns[j];
+                    newColIdx++;
+                  }
+                }
+
+                // Build new row
+                SRow             *pNewRow = NULL;
+                SRowBuildScanInfo scanInfo = {0};
+                code = tRowBuild(colVals, pNewTSchema, &pNewRow, &scanInfo);
+                if (code == TSDB_CODE_SUCCESS && pNewRow) {
+                  // Update the cached row
+                  SLastRow newLastRow = {
+                      .rowKey = pLastRow->rowKey, .pRow = pNewRow, .dirty = 1, .numCols = 0, .colStatus = NULL};
+
+                  // Initialize column status for the new row
+                  code = tsdbLastRowInitColStatus(&newLastRow, pNewTSchema);
+                  if (code == TSDB_CODE_SUCCESS) {
+                    // Update column status to remove the dropped column
+                    for (int k = 0; k < newLastRow.numCols; k++) {
+                      if (newLastRow.colStatus[k].cid == cid) {
+                        // Remove this column status entry
+                        memmove(&newLastRow.colStatus[k], &newLastRow.colStatus[k + 1],
+                                (newLastRow.numCols - k - 1) * sizeof(SColCacheStatus));
+                        newLastRow.numCols--;
+                        break;
+                      }
+                    }
+
+                    // Serialize and write back to RocksDB
+                    code = tsdbRowCachePutToRocksdb(pTsdb, &rowKeys[i], &newLastRow);
+                  }
+
+                  // Clean up new row structure
+                  if (newLastRow.colStatus) {
+                    taosMemoryFree(newLastRow.colStatus);
+                  }
+                  if (pNewRow) {
+                    taosMemoryFree(pNewRow);
+                  }
+                }
+
+                taosMemoryFree(pNewTSchema);
+              }
+
+              taosArrayDestroy(colVals);
+            }
+          } else {
+            // Column doesn't exist in row, just delete the column status if present
+            bool statusUpdated = false;
+            for (int k = 0; k < pLastRow->numCols; k++) {
+              if (pLastRow->colStatus && pLastRow->colStatus[k].cid == cid) {
+                // Remove this column status entry
+                memmove(&pLastRow->colStatus[k], &pLastRow->colStatus[k + 1],
+                        (pLastRow->numCols - k - 1) * sizeof(SColCacheStatus));
+                pLastRow->numCols--;
+                statusUpdated = true;
+                break;
+              }
+            }
+
+            if (statusUpdated) {
+              pLastRow->dirty = 1;
+              code = tsdbRowCachePutToRocksdb(pTsdb, &rowKeys[i], pLastRow);
+            }
+          }
+
+          taosMemoryFree(pTSchema);
+        }
+      }
+
+      // Clean up
+      if (pLastRow) {
+        if (pLastRow->pRow) {
+          taosMemoryFree(pLastRow->pRow);
+        }
+        if (pLastRow->colStatus) {
+          taosMemoryFree(pLastRow->colStatus);
+        }
+        taosMemoryFree(pLastRow);
+      }
+
+      rocksdb_free(values_list[0]);
+    }
+
+    if (values_list) {
+      taosMemoryFree(values_list);
+    }
+    if (values_list_sizes) {
+      taosMemoryFree(values_list_sizes);
+    }
+#endif
+
+    // 2. Handle LRU row cache
+    LRUHandle *h = taosLRUCacheLookup(pTsdb->lruCache, &rowKeys[i], ROCKS_ROW_KEY_LEN);
+    if (h) {
+      SLastRow *pLastRow = (SLastRow *)taosLRUCacheValue(pTsdb->lruCache, h);
+      if (pLastRow && pLastRow->pRow) {
+        // Check if the row contains the column to be dropped
+        STSchema *pTSchema = NULL;
+        code = metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, 0, uid, -1, &pTSchema);
+        if (code == TSDB_CODE_SUCCESS && pTSchema) {
+          // Check if column exists in the row
+          bool columnExists = false;
+          for (int j = 0; j < pTSchema->numOfCols; j++) {
+            if (pTSchema->columns[j].colId == cid) {
+              columnExists = true;
+              break;
+            }
+          }
+
+          if (columnExists) {
+            // Build new row without the dropped column
+            SArray *colVals = taosArrayInit(pTSchema->numOfCols - 1, sizeof(SColVal));
+            if (colVals) {
+              // Extract all columns except the one to be dropped
+              for (int j = 0; j < pTSchema->numOfCols; j++) {
+                if (pTSchema->columns[j].colId != cid) {
+                  SColVal colVal = {0};
+                  code = tRowGet(pLastRow->pRow, pTSchema, j, &colVal);
+                  if (code == TSDB_CODE_SUCCESS) {
+                    taosArrayPush(colVals, &colVal);
+                  }
+                }
+              }
+
+              // Build new schema without dropped column
+              STSchema *pNewTSchema =
+                  taosMemoryCalloc(1, sizeof(STSchema) + (pTSchema->numOfCols - 1) * sizeof(STColumn));
+              if (pNewTSchema) {
+                pNewTSchema->version = pTSchema->version;
+                pNewTSchema->numOfCols = pTSchema->numOfCols - 1;
+                pNewTSchema->flen = pTSchema->flen;
+
+                pNewTSchema->tlen = pTSchema->tlen;
+
+                int newColIdx = 0;
+                for (int j = 0; j < pTSchema->numOfCols; j++) {
+                  if (pTSchema->columns[j].colId != cid) {
+                    pNewTSchema->columns[newColIdx] = pTSchema->columns[j];
+                    newColIdx++;
+                  }
+                }
+
+                // Build new row
+                SRow             *pNewRow = NULL;
+                SRowBuildScanInfo scanInfo = {0};
+                code = tRowBuild(colVals, pNewTSchema, &pNewRow, &scanInfo);
+                if (code == TSDB_CODE_SUCCESS && pNewRow) {
+                  // Update the cached row
+                  SLastRow newLastRow = {
+                      .rowKey = pLastRow->rowKey, .pRow = pNewRow, .dirty = 1, .numCols = 0, .colStatus = NULL};
+
+                  // Initialize column status for the new row
+                  code = tsdbLastRowInitColStatus(&newLastRow, pNewTSchema);
+                  if (code == TSDB_CODE_SUCCESS) {
+                    // Update column status to remove the dropped column
+                    for (int k = 0; k < newLastRow.numCols; k++) {
+                      if (newLastRow.colStatus[k].cid == cid) {
+                        // Remove this column status entry
+                        memmove(&newLastRow.colStatus[k], &newLastRow.colStatus[k + 1],
+                                (newLastRow.numCols - k - 1) * sizeof(SColCacheStatus));
+                        newLastRow.numCols--;
+                        break;
+                      }
+                    }
+
+                    // Update LRU cache
+                    code = tsdbRowCachePutToLRU(pTsdb, &rowKeys[i], &newLastRow, 1);
+                  }
+
+                  // Clean up new row structure
+                  if (newLastRow.colStatus) {
+                    taosMemoryFree(newLastRow.colStatus);
+                  }
+                  // Note: don't free pNewRow here as it's now owned by the cache
+                }
+
+                taosMemoryFree(pNewTSchema);
+              }
+
+              taosArrayDestroy(colVals);
+            }
+          } else {
+            // Column doesn't exist in row, just delete the column status if present
+            bool statusUpdated = false;
+            for (int k = 0; k < pLastRow->numCols; k++) {
+              if (pLastRow->colStatus && pLastRow->colStatus[k].cid == cid) {
+                // Remove this column status entry
+                memmove(&pLastRow->colStatus[k], &pLastRow->colStatus[k + 1],
+                        (pLastRow->numCols - k - 1) * sizeof(SColCacheStatus));
+                pLastRow->numCols--;
+                statusUpdated = true;
+                break;
+              }
+            }
+
+            if (statusUpdated) {
+              pLastRow->dirty = 1;
+              // The row is already in LRU, just mark it as dirty
+            }
+          }
+
+          taosMemoryFree(pTSchema);
+        }
+      }
+
+      tsdbLRUCacheRelease(pTsdb->lruCache, h, false);
+    }
+  }
+
+#else
+  // Original column-based cache implementation
   // build keys & multi get from rocks
   char **keys_list = taosMemoryCalloc(2, sizeof(char *));
   if (!keys_list) {
@@ -1445,6 +1723,7 @@ _exit:
   taosMemoryFree(keys_list_sizes);
   taosMemoryFree(values_list);
   taosMemoryFree(values_list_sizes);
+#endif
 
   TAOS_RETURN(code);
 }
