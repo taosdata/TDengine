@@ -993,8 +993,8 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrRespMsg* smsg) {
     int32_t ret = uv_write(req, (uv_stream_t*)pConn->pTcp, pBuf, bufNum, uvOnSendCb);
     if (ret != 0) {
       tError("conn:%p, failed to write data since %s", pConn, uv_err_name(ret));
+      code = TSDB_CODE_THIRDPARTY_ERROR;
     }
-    code = TSDB_CODE_THIRDPARTY_ERROR;
   } else {
     code = sslWrite(pConn->pTls, (uv_stream_t*)pConn->pTcp, req, pBuf, bufNum, uvOnSendCb);
   }
@@ -1318,9 +1318,8 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     if (pConn->enableSSL) {
       pAllocCb = uvAllocRecvBufferCbSSL;
       pRecvCb = uvOnRecvCbSSL;
+      sslSetMode(pConn->pTls, 0);
     }
-
-    sslSetMode(pConn->pTls, 0);
 
     code = uv_read_start((uv_stream_t*)(pConn->pTcp), pAllocCb, pRecvCb);
     if (code != 0) {
@@ -1640,7 +1639,7 @@ static void uvDestroyConn(uv_handle_t* handle) {
   transRemoveExHandle(uvGetConnRefOfThrd(thrd), conn->refId);
 
   STrans* pInst = thrd->pInst;
-  tDebug("%s conn:%p, destroy", transLabel(pInst), conn);
+  tDebug("%s conn:%p try to destroy", transLabel(pInst), conn);
 
   transQueueDestroy(&conn->resps);
 
@@ -1656,6 +1655,7 @@ static void uvDestroyConn(uv_handle_t* handle) {
   sslDestroy(conn->pTls);
 
   taosMemoryFree(conn->buf);
+  tDebug("%s conn:%p destroy successful", transLabel(pInst), conn);
   taosMemoryFree(conn);
 
   if (thrd->quit && QUEUE_IS_EMPTY(&thrd->conn)) {

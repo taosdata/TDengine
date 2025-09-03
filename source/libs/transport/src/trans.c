@@ -40,6 +40,7 @@ void* rpcOpen(const SRpcInit* pInit) {
     TAOS_CHECK_GOTO(code, NULL, _end);
   }
   int8_t cliMode = pInit->connType == TAOS_CONN_CLIENT ? 1 : 0;
+  int8_t enableSSL = 0;
 
   SRpcInfo* pRpc = taosMemoryCalloc(1, sizeof(SRpcInfo));
   if (pRpc == NULL) {
@@ -52,12 +53,12 @@ void* rpcOpen(const SRpcInit* pInit) {
   }
 
   if (cliMode) {
-    if (!rpcCheckTlsEnv(pInit->caPath, pInit->cliCertPath, pInit->cliKeyPath, pInit->label)) {
+    if (!rpcCheckTlsEnv(pInit->caPath, pInit->cliCertPath, pInit->cliKeyPath, pInit->label, &enableSSL)) {
       code = TSDB_CODE_INVALID_CFG;
       TAOS_CHECK_GOTO(code, NULL, _end);
     }
   } else {
-    if (!rpcCheckTlsEnv(pInit->caPath, pInit->certPath, pInit->keyPath, pInit->label)) {
+    if (!rpcCheckTlsEnv(pInit->caPath, pInit->certPath, pInit->keyPath, pInit->label, &enableSSL)) {
       code = TSDB_CODE_INVALID_CFG;
       TAOS_CHECK_GOTO(code, NULL, _end);
     }
@@ -138,7 +139,7 @@ void* rpcOpen(const SRpcInit* pInit) {
     TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
 
-  pRpc->enableSSL = pInit->enableSSL;
+  pRpc->enableSSL = enableSSL;
   if (pRpc->enableSSL) {
     if (cliMode) {
       code = transTlsCtxCreate(pInit->cliCertPath, pInit->cliKeyPath, pInit->caPath, cliMode,
@@ -285,7 +286,8 @@ static int8_t rpcCheckFile(const char* path, int8_t* exist, const char* instName
   }
   return 0;
 }
-int8_t rpcCheckTlsEnv(const char* caPath, const char* certPath, const char* keyPath, const char* instName) {
+int8_t rpcCheckTlsEnv(const char* caPath, const char* certPath, const char* keyPath, const char* instName,
+                      int8_t* enableTls) {
   int8_t fileCount = 0;
   int8_t flag[3] = {0};
 
@@ -307,6 +309,7 @@ int8_t rpcCheckTlsEnv(const char* caPath, const char* certPath, const char* keyP
 
   if (fileCount == 0) {
     uInfo("rpc inst %s, no tls file is set, rpc open without tls", instName);
+    *enableTls = 0;
     return 1;
   } else if (fileCount == sizeof(flag) / sizeof(flag[0])) {
     uInfo("rpc inst %s, all tls files are set, rpc open with tls", instName);
@@ -622,7 +625,8 @@ int32_t rpcCvtErrCode(int32_t code) {
 
 int32_t rpcInit() { return transInit(); }
 
-int8_t rpcCheckTlsEnv(const char* caPath, const char* certPath, const char* keyPath, const char* instName);
+int8_t rpcCheckTlsEnv(const char* caPath, const char* certPath, const char* keyPath, const char* instName,
+                      int8_t* enableTls);
 
 void rpcCleanup(void) {
   transCleanup();

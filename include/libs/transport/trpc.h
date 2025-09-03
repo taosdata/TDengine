@@ -198,7 +198,8 @@ int32_t rpcUtilSIpRangeToStr(SIpV4Range *pRange, char *buf);
 int32_t rpcUtilSWhiteListToStr(SIpWhiteListDual *pWhiteList, char **ppBuf);
 int32_t rpcCvtErrCode(int32_t code);
 
-int8_t rpcCheckTlsEnv(const char *caPath, const char *certPath, const char *keyPath, const char *instName);
+int8_t rpcCheckTlsEnv(const char *caPath, const char *certPath, const char *keyPath, const char *instName,
+                      int8_t *enableSSL);
 
 #else
 #include <stdbool.h>
