@@ -89,7 +89,7 @@ class Test_IDMP_Meters:
         self.start2 = 1752574200000
 
         # create database and table
-        sql = "create database test"
+        sql = "create database test vgroups 2"
         tdSql.execute(sql)
         print(sql)
 
@@ -164,6 +164,8 @@ class Test_IDMP_Meters:
             # stream5
             "alter table test.st rename column ic renameic;",
             "alter table test.t1 set tag gid=10;",
+            "split vgroup 2",
+            "split vgroup 4",
         ]
 
         tdSql.errors(sqls)
