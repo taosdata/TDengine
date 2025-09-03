@@ -2773,6 +2773,9 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
 #endif
 
 static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
+  if (tsSyncLogHeartbeat) {
+    sInfo("heartbeat timer start");
+  }
   int32_t code = 0;
   int64_t hbDataRid = (int64_t)param;
   int64_t tsNow = taosGetTimestampMs();
@@ -2806,8 +2809,13 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
     return;
   }
 
-  sTrace("vgId:%d, peer hb timer execution, rid:%" PRId64 " addr:0x%" PRIx64, pSyncNode->vgId, hbDataRid,
-         pData->destId.addr);
+  if (tsSyncLogHeartbeat) {
+    sInfo("vgId:%d, peer hb timer execution, rid:%" PRId64 " addr:0x%" PRIx64, pSyncNode->vgId, hbDataRid,
+          pData->destId.addr);
+  } else {
+    sTrace("vgId:%d, peer hb timer execution, rid:%" PRId64 " addr:0x%" PRIx64, pSyncNode->vgId, hbDataRid,
+           pData->destId.addr);
+  }
 
   if (pSyncNode->totalReplicaNum > 1) {
     int64_t timerLogicClock = atomic_load_64(&pSyncTimer->logicClock);
@@ -2851,7 +2859,11 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
       }
 
       if (syncIsInit()) {
-        sTrace("vgId:%d, reset peer hb timer at %d", pSyncNode->vgId, pSyncTimer->timerMS);
+        if (tsSyncLogHeartbeat) {
+          sInfo("vgId:%d, reset peer hb timer at %d", pSyncNode->vgId, pSyncTimer->timerMS);
+        } else {
+          sTrace("vgId:%d, reset peer hb timer at %d", pSyncNode->vgId, pSyncTimer->timerMS);
+        }
         bool stopped = taosTmrResetPriority(syncNodeEqPeerHeartbeatTimer, pSyncTimer->timerMS, (void*)hbDataRid,
                                             syncEnv()->pTimerManager, &pSyncTimer->pTimer, 2);
         if (stopped) sError("vgId:%d, reset peer hb timer error, %s", pSyncNode->vgId, tstrerror(code));
@@ -2864,10 +2876,17 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
       sTrace("vgId:%d, do not send hb, timerLogicClock:%" PRId64 ", msgLogicClock:%" PRId64, pSyncNode->vgId,
              timerLogicClock, msgLogicClock);
     }
+
+    if (tsSyncLogHeartbeat) {
+      sInfo("vgId:%d, finish send sync-heartbeat", pSyncNode->vgId);
+    }
   }
 
   syncHbTimerDataRelease(pData);
   syncNodeRelease(pSyncNode);
+  if (tsSyncLogHeartbeat) {
+    sInfo("heartbeat timer stop");
+  }
 }
 
 #ifdef BUILD_NO_CALL
