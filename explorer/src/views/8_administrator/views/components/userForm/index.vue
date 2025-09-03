@@ -2,14 +2,14 @@
   <div v-loading="loading">
     <el-form ref="ruleFormRef" :model="ruleForm" :rules="rules" label-width="auto" class="demo-ruleForm">
       <el-form-item :label="$t('taosuser.username')" prop="user" required>
-        <el-input v-model.trim="ruleForm.user" :disabled="isEdit"></el-input>
+        <el-input v-model.trim="ruleForm.user" :disabled="isEdit" autocomplete="username"></el-input>
       </el-form-item>
       <el-form-item :label="$t('taosuser.password')" prop="pwd">
         <el-popover trigger="click" placement="right-end">
           <ol v-dompurify-html="$t(enableStrongPassword ? 'login.passwordTip' : 'login.passwordNotStrictTip')"
               style="padding-left: 10px; list-style: unset"></ol>
           <template #reference>
-            <el-input v-model.trim="ruleForm.pwd" clear maxlength="255" :show-password="true" minlength="8"></el-input>
+            <el-input v-model.trim="ruleForm.pwd" clear maxlength="255" :show-password="true" minlength="8" autocomplete="new-password" :placeholder="pwdtip"></el-input>
           </template>
         </el-popover>
       </el-form-item>
@@ -128,6 +128,9 @@ const checkPassword = async (_: any, value: string, callback: (arg0: Error | und
 
 const enableStrongPassword = ref(false);
 const validatePasswordLocal = (value: string) => {
+  if (value.trim().length === 0) {
+    return true
+  }
   if (enableStrongPassword.value) {
     return validPassword(value);
   } else {
@@ -137,6 +140,9 @@ const validatePasswordLocal = (value: string) => {
 
 const ruleFormRef = ref<FormInstance>();
 const isEdit = computed(() => props.user !== '');
+const pwdtip = computed(() => {
+  return isEdit.value ? t('taosuser.passwordEditTip') : '';
+});
 
 interface RuleForm {
   user: string;
@@ -147,11 +153,11 @@ interface RuleForm {
 }
 
 const ruleForm = reactive<RuleForm>({
-  user: props.user,
+  user: '',
   pwd: '',
   sysinfo: 1,
   createdb: 0,
-  allowed_host: ['127.0.0.1'],
+  allowed_host: [],
 });
 
 const rules = reactive<FormRules<typeof ruleForm>>({
@@ -169,12 +175,12 @@ const rules = reactive<FormRules<typeof ruleForm>>({
     {validator: checkPassword, trigger: 'blur'}
   ]
 });
-let databaseList = reactive([]);
-let topicList = reactive([]);
+const databaseList = reactive<string[]>([]);
+const topicList = reactive<string[]>([]);
 const prevDatabasePrivileges: Record<string, any> = reactive({});
 let prevTopicPrivileges: Record<string, any> = reactive({});
-let selectedDatabasePrivileges: Record<string, any> = reactive({});
-let selectedTopicPrivileges: Record<string, any> = reactive({});
+const selectedDatabasePrivileges: Record<string, any> = reactive({});
+const selectedTopicPrivileges: Record<string, any> = reactive({});
 const loading: Ref<boolean> = ref(true);
 const confirmStatus: Ref<boolean> = ref(false);
 const ruleFormOld = ref<RuleForm>({
@@ -193,8 +199,20 @@ watch(
       ruleForm.user = props.user;
       await getDatabaseList();
       await getTopicList();
-      await getUserPrivileges();
-      await getUserTopics();
+      if (isEdit.value) {
+        await getUserPrivileges();
+        await getUserTopics();
+      } else {
+        ruleFormOld.value.sysinfo = 1;
+        ruleForm.sysinfo = 1;
+        ruleFormOld.value.createdb = 0;
+        ruleForm.createdb = 0;
+        ruleFormOld.value.allowed_host = [];
+        ruleForm.allowed_host = [];
+        loading.value = false;
+      }
+    } else {
+      cancel()
     }
   },
   {
@@ -213,9 +231,10 @@ async function getDatabaseList() {
         })
       );
     });
+    databaseList.splice(0, databaseList.length);
     databaseArr.forEach((item: { name: string }) => {
       if (['performance_schema', 'information_schema'].indexOf(item.name) < 0) {
-        databaseList.push(item.name as never);
+        databaseList.push(item.name);
         if (isEdit.value) {
           selectedDatabasePrivileges[item.name] = [];
         } else {
@@ -224,7 +243,6 @@ async function getDatabaseList() {
         }
       }
     });
-    console.log('1getDatabaseList()');
   } catch (error) {
     console.log(error);
   }
@@ -240,11 +258,11 @@ async function getTopicList() {
         })
       );
     });
+    topicList.splice(0, topicList.length);
     topicArr.forEach((item: { topic_name: string }) => {
-      topicList.push(item.topic_name as never);
+      topicList.push(item.topic_name);
       selectedTopicPrivileges[item.topic_name] = [];
     });
-    console.log('2getTopicList()');
   } catch (error) {
     console.log(error);
   }
@@ -257,7 +275,6 @@ async function getUserPrivileges() {
        from information_schema.ins_users
        where name = '${ruleForm.user}';`
     );
-    console.log(user);
     if (user.data && user.data.length > 0) {
       const userRow = user.data[0];
       const meta = user.column_meta;
@@ -299,7 +316,6 @@ async function getUserPrivileges() {
         prevDatabasePrivileges[data[2]] = selectedDatabasePrivileges[name];
       }
     });
-    console.log('3getUserPrivileges()');
   } catch (error) {
     console.log(error);
   }
@@ -318,7 +334,6 @@ async function getUserTopics() {
       selectedTopicPrivileges[data[2]] = ['Subscribe'];
       prevTopicPrivileges = selectedTopicPrivileges;
     });
-    console.log('4getUserTopics()');
   } catch (error) {
     console.log(error);
   }
@@ -326,10 +341,20 @@ async function getUserTopics() {
 
 function cancel() {
   emit('close');
-  databaseList = [];
-  selectedDatabasePrivileges = {};
-  selectedTopicPrivileges = {};
-  topicList = [];
+  databaseList.splice(0, databaseList.length);
+  Object.keys(selectedDatabasePrivileges).forEach(key => {
+    delete selectedDatabasePrivileges[key]
+  });
+  Object.keys(selectedTopicPrivileges).forEach(key => {
+    delete selectedTopicPrivileges[key]
+  });
+  Object.keys(prevDatabasePrivileges).forEach(key => {
+    delete prevDatabasePrivileges[key]
+  });
+  Object.keys(prevTopicPrivileges).forEach(key => {
+    delete prevTopicPrivileges[key]
+  });
+  topicList.splice(0, topicList.length);
 }
 
 async function grantPrivilege(privileges: string, dbName: string, userName: string) {
@@ -387,7 +412,7 @@ function createUser(formEl: FormInstance | undefined) {
   formEl.validate(valid => {
     if (valid) {
       try {
-        const allowedHosts = ruleForm.allowed_host && ruleForm.allowed_host.length > 0 ? ruleForm.allowed_host.map(h => `'${h.trim()}'`).filter(Boolean) : [];
+        const allowedHosts = ruleForm.allowed_host && ruleForm.allowed_host.length > 0 ? Array.from(new Set(ruleForm.allowed_host.map(h => `'${h.trim()}'`).filter(Boolean))) : [];
         const hostStr = allowedHosts.length > 0 ? `HOST ${allowedHosts.join(',')}` : '';
         return sendSQLReq(
           `CREATE USER \`${ruleForm.user}\` PASS '${ruleForm.pwd}' SYSINFO ${ruleForm.sysinfo} CREATEDB ${ruleForm.createdb} ${hostStr};`
@@ -493,15 +518,12 @@ function editUser(formEl: FormInstance | undefined) {
 
         for (const key in selectedTopicPrivileges) {
           if (selectedTopicPrivileges[key].length > 0) {
-            const privileges = selectedTopicPrivileges[key];
-            for (const item of privileges) {
-              await grantTopic(key, ruleForm.user);
-            }
+            await grantTopic(key, ruleForm.user);
           }
         }
         ElMessage.success(t('operateSucc'));
         cancel();
-      } catch (error) {
+      } catch (error: any) {
         console.log(error);
         if (error && error.desc) {
           $error(error.desc);

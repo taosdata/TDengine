@@ -124,7 +124,7 @@ const loading: Ref<boolean> = ref(true);
 
 let usersList: any[] = reactive([]);
 const editUser = ref('');
-let currentUser = reactive({});
+let currentUser = reactive<any>({});
 
 function getCurrentUser() {
   store.dispatch('app/getUserInfo').then(res => {

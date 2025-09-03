@@ -70,7 +70,7 @@ export default {
     createdb: 'CREATEDB',
     createdbTip: '表示该用户是否能够创建数据库。1 表示可以创建，0 表示无权创建。',
     allowed_host: 'ALLOWED_HOST',
-    allowed_hostTip: '表示该用户可以从哪些 IP 地址访问 TDengine 服务。多个 IP 地址用逗号分隔。',
+    allowed_hostTip: '表示该用户可以从哪些 IP 地址访问 TDengine 服务。多个 IP 地址用逗号分隔。数据库默认会添加 127.0.0.1/32。',
     subscription: '主题',
     subscribe: '订阅',
     createbackup: '创建新备份',
@@ -113,6 +113,7 @@ export default {
     fail2: '导入失败:',
     fail3: '请检查失败原因',
     formatError: '格式错误。示例: http://localhost:6041、http://127.0.0.1:6041',
-    createNewUserSucTip: '创建用户成功'
+    createNewUserSucTip: '创建用户成功',
+    passwordEditTip: "不更新密码时请置空"
   }
 };
