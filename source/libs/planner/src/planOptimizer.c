@@ -634,13 +634,13 @@ static int32_t pushDownDnodeConds(SScanLogicNode* pScan, SNodeList* pDnodeConds)
       goto _exit;
     }
     if (operType == OP_TYPE_EQUAL) {
-      for (int i = 0; i <= dnodeCount; i++) {
+      for (int i = 0; i < dnodeCount; i++) {
         if(pScan->pVgroupList->vgroups[i].vgId != nodeId) {
           dnodeDelState[i] = true;
         }
       }
     } else {
-      for (int i = 0; i <= dnodeCount; i++) {
+      for (int i = 0; i < dnodeCount; i++) {
         if (pScan->pVgroupList->vgroups[i].vgId == nodeId) {
           dnodeDelState[i] = true;
           break;
@@ -650,7 +650,7 @@ static int32_t pushDownDnodeConds(SScanLogicNode* pScan, SNodeList* pDnodeConds)
   }
 
   int32_t resultCount = 0;
-  for (int i = 0; i <= dnodeCount; i++) {
+  for (int i = 0; i < dnodeCount; i++) {
     if (!dnodeDelState[i]) {
       resultCount++;
     }
