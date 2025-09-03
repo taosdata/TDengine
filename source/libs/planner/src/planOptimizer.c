@@ -657,10 +657,11 @@ static int32_t pushDownDnodeConds(SScanLogicNode* pScan, SNodeList* pDnodeConds)
   }
 
   if(resultCount == dnodeCount) goto _exit;
-  if(resultCount == 0) {
+  if (resultCount == 0) {
     taosMemoryFree(pScan->pVgroupList);
     pScan->pVgroupList = NULL;
-    return TSDB_CODE_MND_DNODE_NOT_EXIST;
+    code = TSDB_CODE_MND_DNODE_NOT_EXIST;
+    goto _exit;
   }
 
   pNewVgroupList = (SVgroupsInfo*)taosMemoryMalloc(sizeof(SVgroupsInfo) + sizeof(SVgroupInfo) * resultCount);
