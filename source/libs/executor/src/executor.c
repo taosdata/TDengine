@@ -1900,11 +1900,13 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes, int32_t winIdx)
   return code;
 }
 
-int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, const SStreamRuntimeFuncInfo* pStreamRuntimeInfo) {
+int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, SStreamRuntimeFuncInfo* pStreamRuntimeInfo) {
   int32_t      code = 0;
   const char*  pVal = NULL;
   SScalarParam dst = {0};
   int32_t      len = 0;
+  int32_t      nextIdx = pStreamRuntimeInfo->curIdx;
+  pStreamRuntimeInfo->curIdx = 0;  // always use the first window to calc tbname
   // execute the expr
   switch (pExpr->type) {
     case QUERY_NODE_VALUE: {
@@ -1987,6 +1989,7 @@ int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, const SStreamRuntimeF
   }
   // TODO free dst
   sclFreeParam(&dst);
+  pStreamRuntimeInfo->curIdx = nextIdx; // restore
   return code;
 }
 
