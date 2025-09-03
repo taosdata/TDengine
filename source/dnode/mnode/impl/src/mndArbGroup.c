@@ -751,7 +751,7 @@ static int32_t mndArbProcessTimer(SRpcMsg *pReq) {
 
   int64_t roleTimeMs = mndGetRoleTimeMs(pMnode);
   int64_t nowMs = taosGetTimestampMs();
-  if (nowMs - roleTimeMs < tsArbHeartBeatIntervalSec * 1000 * 2) {
+  if (nowMs - roleTimeMs < tsArbHeartBeatIntervalMs * 2) {
     mInfo("arbgroup:0, arb skip to check sync since mnd had just switch over, roleTime:%" PRId64 " now:%" PRId64,
           roleTimeMs, nowMs);
     return 0;
@@ -905,7 +905,7 @@ static int32_t mndArbPutBatchUpdateIntoWQ(SMnode *pMnode, SArray *newGroupArray)
     mndInitArbUpdateGroup(pNewGroup, &newGroup);
 
     if (taosArrayPush(pArray, &newGroup) == NULL) goto _OVER;
-    mInfo("arbgroup:%d, put into arb update hash", pNewGroup->vgId);
+    mInfo("arbgroup:%d, put into arb update hash in array", pNewGroup->vgId);
     if ((ret = taosHashPut(arbUpdateHash, &pNewGroup->vgId, sizeof(pNewGroup->vgId), NULL, 0)) != 0) {
       mError("arbgroup:%d, failed to put into arb update hash since %s", pNewGroup->vgId, tstrerror(ret));
       goto _OVER;

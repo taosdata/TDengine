@@ -46,6 +46,9 @@ int32_t       tsForceReadConfig = 0;
 int32_t       tsdmConfigVersion = -1;
 int32_t       tsConfigInited = 0;
 int32_t       tsStatusInterval = 1;  // second
+int32_t       tsStatusIntervalMs = 1000;
+int32_t       tsStatusSRTimeoutMs = 5000;
+int32_t       tsStatusTimeoutMs = 5000;
 int32_t       tsNumOfSupportVnodes = 256;
 char          tsEncryptAlgorithm[16] = {0};
 char          tsEncryptScope[100] = {0};
@@ -906,6 +909,9 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusInterval", tsStatusInterval, 1, 30, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "maxShellConns", tsMaxShellConns, 10, 50000000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusIntervalMs", tsStatusIntervalMs, 10, 30000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusSRTimeoutMs", tsStatusSRTimeoutMs, 10, 30000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusTimeoutMs", tsStatusTimeoutMs, 10, 30000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryBufferSize", tsQueryBufferSize, -1, 500000000000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryRspPolicy", tsQueryRspPolicy, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
@@ -1631,6 +1637,16 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "statusInterval");
   tsStatusInterval = pItem->i32;
+  tsStatusIntervalMs = pItem->i32 * 1000;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "statusIntervalMs");
+  tsStatusIntervalMs = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "statusSRTimeoutMs");
+  tsStatusSRTimeoutMs = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "statusTimeoutMs");
+  tsStatusTimeoutMs = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minSlidingTime");
   tsMinSlidingTime = pItem->i32;
@@ -2756,6 +2772,9 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"disableStream", &tsDisableStream},
                                          {"enableWhiteList", &tsEnableWhiteList},
                                          {"statusInterval", &tsStatusInterval},
+                                         {"statusIntervalMs", &tsStatusIntervalMs},
+                                         {"statusSRTimeoutMs", &tsStatusSRTimeoutMs},
+                                         {"statusTimeoutMs", &tsStatusTimeoutMs},
                                          {"telemetryReporting", &tsEnableTelem},
                                          {"monitor", &tsEnableMonitor},
                                          {"monitorInterval", &tsMonitorInterval},

@@ -290,7 +290,8 @@ static void mndSetVgroupOffline(SMnode *pMnode, int32_t dnodeId, int64_t curMs) 
       if (pGid->dnodeId == dnodeId) {
         if (pGid->syncState != TAOS_SYNC_STATE_OFFLINE) {
           mInfo(
-              "vgId:%d, state changed by offline check, old state:%s restored:%d canRead:%d new state:error restored:0 "
+              "vgId:%d, state changed by offline check, old state:%s restored:%d canRead:%d new state:offline "
+              "restored:0 "
               "canRead:0",
               pVgroup->vgId, syncStr(pGid->syncState), pGid->syncRestore, pGid->syncCanRead);
           pGid->syncState = TAOS_SYNC_STATE_OFFLINE;
@@ -457,16 +458,19 @@ void mndDoArbTimerPullupTask(SMnode *pMnode, int64_t ms) {
 #endif
 }
 
-void mndDoTimerCheckTask(SMnode *pMnode, int64_t sec) {
-  if (sec % (tsStatusInterval * 5) == 0) {
+void mndDoTimerCheckStatus(SMnode *pMnode, int64_t ms) {
+  if (ms % (tsStatusTimeoutMs) == 0) {
     mndCheckDnodeOffline(pMnode);
   }
+}
+
+void mndDoTimerCheckSync(SMnode *pMnode, int64_t sec) {
   if (sec % (MNODE_TIMEOUT_SEC / 2) == 0) {
     mndSyncCheckTimeout(pMnode);
   }
 }
 
-static void *mndThreadFp(void *param) {
+static void *mndThreadSecFp(void *param) {
   SMnode *pMnode = param;
   int64_t lastTime = 0;
   setThreadName("mnode-timer");
@@ -484,7 +488,7 @@ static void *mndThreadFp(void *param) {
     }
 
     int64_t sec = lastTime / 10;
-    mndDoTimerCheckTask(pMnode, sec);
+    mndDoTimerCheckSync(pMnode, sec);
 
     mndDoTimerPullupTask(pMnode, sec);
   }
@@ -492,7 +496,7 @@ static void *mndThreadFp(void *param) {
   return NULL;
 }
 
-static void *mndArbThreadFp(void *param) {
+static void *mndThreadMsFp(void *param) {
   SMnode *pMnode = param;
   int64_t lastTime = 0;
   setThreadName("mnode-arb-timer");
@@ -509,6 +513,8 @@ static void *mndArbThreadFp(void *param) {
       continue;
     }
 
+    mndDoTimerCheckStatus(pMnode, lastTime);
+
     mndDoArbTimerPullupTask(pMnode, lastTime);
   }
 
@@ -523,7 +529,7 @@ static int32_t mndInitTimer(SMnode *pMnode) {
 #ifdef TD_COMPACT_OS
   (void)taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL);
 #endif
-  if ((code = taosThreadCreate(&pMnode->thread, &thAttr, mndThreadFp, pMnode)) != 0) {
+  if ((code = taosThreadCreate(&pMnode->thread, &thAttr, mndThreadSecFp, pMnode)) != 0) {
     mError("failed to create timer thread since %s", tstrerror(code));
     TAOS_RETURN(code);
   }
@@ -537,7 +543,7 @@ static int32_t mndInitTimer(SMnode *pMnode) {
 #ifdef TD_COMPACT_OS
   (void)taosThreadAttrSetStackSize(&arbAttr, STACK_SIZE_SMALL);
 #endif
-  if ((code = taosThreadCreate(&pMnode->arbThread, &arbAttr, mndArbThreadFp, pMnode)) != 0) {
+  if ((code = taosThreadCreate(&pMnode->arbThread, &arbAttr, mndThreadMsFp, pMnode)) != 0) {
     mError("failed to create arb timer thread since %s", tstrerror(code));
     TAOS_RETURN(code);
   }
