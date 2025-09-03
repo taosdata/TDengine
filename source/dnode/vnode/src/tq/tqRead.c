@@ -418,14 +418,17 @@ bool tqNextBlockInWal(STqReader* pReader, const char* id, int sourceExcluded) {
     void*   pBody = POINTER_SHIFT(pWalReader->pHead->head.body, sizeof(SSubmitReq2Msg));
     int32_t bodyLen = pWalReader->pHead->head.bodyLen - sizeof(SSubmitReq2Msg);
     int64_t ver = pWalReader->pHead->head.version;
-    if (tqReaderSetSubmitMsg(pReader, pBody, bodyLen, ver, NULL) != 0) {
+    SDecoder decoder = {0};
+    if (tqReaderSetSubmitMsg(pReader, pBody, bodyLen, ver, NULL, &decoder) != 0) {
+      tDecoderClear(&decoder);
       return false;
     }
+    tDecoderClear(&decoder);
     pReader->nextBlk = 0;
   }
 }
 
-int32_t tqReaderSetSubmitMsg(STqReader* pReader, void* msgStr, int32_t msgLen, int64_t ver, SArray* rawList) {
+int32_t tqReaderSetSubmitMsg(STqReader* pReader, void* msgStr, int32_t msgLen, int64_t ver, SArray* rawList, SDecoder* decoder) {
   if (pReader == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -434,11 +437,9 @@ int32_t tqReaderSetSubmitMsg(STqReader* pReader, void* msgStr, int32_t msgLen, i
   pReader->msg.ver = ver;
 
   tqTrace("tq reader set msg pointer:%p, msg len:%d", msgStr, msgLen);
-  SDecoder decoder = {0};
 
-  tDecoderInit(&decoder, pReader->msg.msgStr, pReader->msg.msgLen);
-  int32_t code = tDecodeSubmitReq(&decoder, &pReader->submit, rawList);
-  tDecoderClear(&decoder);
+  tDecoderInit(decoder, pReader->msg.msgStr, pReader->msg.msgLen);
+  int32_t code = tDecodeSubmitReq(decoder, &pReader->submit, rawList);
 
   if (code != 0) {
     tqError("DecodeSSubmitReq2 error, msgLen:%d, ver:%" PRId64, msgLen, ver);
