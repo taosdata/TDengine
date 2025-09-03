@@ -5,18 +5,19 @@ ARG pkgFile
 ARG dirName
 ARG modelDlUrl
 
-COPY ${modelDlUrl}/tdtsfm/taos.pth /usr/local/taos/taosanode/model/tdtsfm/
+COPY ${modelDlUrl}/tdtsfm/taos.pth /var/lib/taos/taosanode/model/tdtsfm/
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 ADD ${pkgFile} /root/
+ENV INSTALL_VENV=False
 RUN cd ${dirName}/ && \
     /bin/bash install.sh -e no && \
     cd .. && \
     rm -rf ${dirName}
-EXPOSE 6035 8387 6036
+EXPOSE 6035 8387 6036 6037 6038 6039 6061
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 
 FROM tdgpt AS tdgpt_full
-ADD ${modelDlUrl}/time-moe/models \
-    /usr/local/taos/taosanode/model/time-moe/
+COPY ${modelDlUrl}/timemoe/* \
+    /var/lib/taos/taosanode/model/timemoe/

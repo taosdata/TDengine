@@ -10,20 +10,27 @@ export LC_ALL=en_US.UTF-8
 # Define the base path for models
 MODEL_BASE_PATH="/var/lib/taos/taosanode/model"
 MODEL_DIR_NAMES="${TAOS_MODELS:-tdtsfm}"
+if [ -z "$EP_ENABLE" ]; then
+    ENDPOINT_ENABLE="False"
+elif [ "$EP_ENABLE" == "True" ]; then
+    ENDPOINT_ENABLE="True"
+else
+    ENDPOINT_ENABLE="False"
+fi
 
 # Define the five subdirectories under model path
 declare -A MODEL_SUBDIRS=(
-    ["chronos"]="/var/lib/taos/taosanode/venv1"
+    ["chronos"]="model.safetensors"
     ["moirai"]="model.safetensors"
     ["tdtsfm"]="taos.pth"
-    ["timemoe"]="/var/lib/taos/taosanode/venv1"
-    ["timesfm"]="/var/lib/taos/taosanode/venv1"
+    ["timemoe"]="model.safetensors"
+    ["timesfm"]="model.safetensors"
 )
 declare -A MODEL_NAMES=(
     ["chronos"]="amazon/chronos-bolt-tiny"
     ["moirai"]="Salesforce/moirai-moe-1.0-R-small"
     ["tdtsfm"]="tdtsfm"
-    ["timemoe"]="Maple728/TimeMoE-50M"
+    ["timemoe"]="Maple728/TimeMoE-200M"
     ["timesfm"]="google/timesfm-2.0-500m-pytorch"
 )
 
@@ -40,7 +47,9 @@ activate_venv() {
     local model="$1"
     echo "Activating virtual environment..."
     local venv_path="${MODEL_VENV_MAP[$model]}"
+    echo "venv path: ${venv_path}"
     source $venv_path/bin/activate
+    pip3 list
 }
 
 # Function to execute startup script
@@ -55,13 +64,21 @@ execute_startup() {
     activate_venv ${model}
 
     # Execute startup script if exists
-    local startup_script="/usr/local/taos/taosanode/lib/taosanalytics/tsfmservice/${model}-server.py"
+    local script_path="/usr/local/taos/taosanode/lib/taosanalytics/tsfmservice"
+    local startup_script="${script_path}/${model}-server.py"
     if [ -f "$startup_script" ]; then
         echo "Running startup script: $startup_script"
-        cd /usr/local/taos/taosanode/lib/taosanalytics/tsfmservice
-        python3 "${model}-server.py" "$subdir" "$model_name" True &
-        TIMER_MOE_PID=$!
-        if ps -p $TIMER_MOE_PID > /dev/null; then
+        cd ${script_path}
+        echo "Current directory: $(pwd)"
+        if [ ${model} == "tdtsfm" ]; then
+            echo "Running command: nohup python3 /usr/local/taos/taosanode/lib/taosanalytics/tsfmservice/${model}-server.py &"
+            nohup python3 "${model}-server.py" --action server &
+        else
+            echo "Running command: nohup python3 ${model}-server.py $subdir $model_name ${ENDPOINT_ENABLE} &"
+            nohup python3 "${model}-server.py" "$subdir" "$model_name" ${ENDPOINT_ENABLE} &
+        fi
+        SERVER_PID=$!
+        if ps -p $SERVER_PID > /dev/null; then
             echo "Startup script executed successfully for $subdir"
         else
             echo "Error: Startup script failed for $subdir"
@@ -85,7 +102,9 @@ download_and_setup() {
     if [ -f "$download_script" ]; then
         echo "Running download script: $download_script"
         cd /usr/local/taos/taosanode/lib/taosanalytics/misc
-        python3 model_downloader.py "$subdir" "$model_name" True
+        echo "Current directory: $(pwd)"
+        echo "Running command: python3 model_downloader.py $subdir $model_name ${ENDPOINT_ENABLE}"
+        python3 model_downloader.py "$subdir" "$model_name" ${ENDPOINT_ENABLE}
     else
         echo "Download script not found: $download_script"
     fi
@@ -121,6 +140,8 @@ if mount | grep -q "$MODEL_BASE_PATH"; then
             model_name="${MODEL_NAMES[$model]}"
 
             echo "Processing model: $model"
+            echo "model Directory: $subdir_path"
+            echo "model Name: $model_name"
 
             # Check if subdirectory exists
             if [ ! -d "$subdir_path" ]; then
@@ -131,7 +152,7 @@ if mount | grep -q "$MODEL_BASE_PATH"; then
             if [ -f "$subdir_path/$flag_file" ]; then
                 echo "Flag file $flag_file exists in $subdir_path, skipping download..."
                 # Execute startup script directly
-                execute_startup "$subdir_path" "$model_name"
+                execute_startup "$subdir_path" "$model" "$model_name"
             else
                 echo "Flag file $flag_file not found in $subdir_path, downloading..."
                 # Download and setup first
@@ -140,6 +161,17 @@ if mount | grep -q "$MODEL_BASE_PATH"; then
                 execute_startup "$subdir_path" "$model" "$model_name"
             fi
         done
+    fi
+else
+    TS_FLAG_FILE="${MODEL_BASE_PATH}/tdtsfm/${MODEL_SUBDIRS['tdtsfm']}"
+    TIMEMOE_FLAG_FILE="${MODEL_BASE_PATH}/timemoe/${MODEL_SUBDIRS['timemoe']}"
+    if [ -f ${TS_FLAG_FILE} ];then
+        echo "Starting tdtsfm server..."
+        execute_startup "${MODEL_BASE_PATH}/tdtsfm" "tdtsfm" "${MODEL_NAMES['tdtsfm']}"
+    fi
+    if [ -f ${TIMEMOE_FLAG_FILE} ];then
+        echo "Starting timer-moe server..."
+        execute_startup "${MODEL_BASE_PATH}/time-moe" "timemoe" "${MODEL_NAMES['timemoe']}"
     fi
 fi
 
@@ -153,7 +185,7 @@ fi
 
 
 echo "Starting uWSGI with config: $CONFIG_FILE"
-exec /usr/local/taos/taosanode/venv/bin/uwsgi --ini "$CONFIG_FILE"
+exec /usr/local/bin/uwsgi --ini "$CONFIG_FILE"
 
 if [ $? -ne 0 ]; then
   echo "uWSGI failed to start. Exiting..."
