@@ -238,6 +238,10 @@ static int32_t stmtUpdateBindInfo(TAOS_STMT2* stmt, STableMeta* pTableMeta, void
     return code;
   }
 
+  if ((tags != NULL && ((SBoundColInfo*)tags)->numOfCols == 0) || !autoCreateTbl) {
+    pStmt->sql.autoCreateTbl = false;
+  }
+
   (void)memcpy(&pStmt->bInfo.sname, tbName, sizeof(*tbName));
   tstrncpy(pStmt->bInfo.tbFName, tbFName, sizeof(pStmt->bInfo.tbFName));
   pStmt->bInfo.tbFName[sizeof(pStmt->bInfo.tbFName) - 1] = 0;
@@ -609,6 +613,41 @@ static int32_t stmtTryAddTableVgroupInfo(STscStmt2* pStmt, int32_t* vgId) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t stmtGetTableMetaAndValidate(STscStmt2* pStmt, uint64_t* uid, uint64_t* suid, int32_t* vgId, int8_t* tableType) {
+  STableMeta*      pTableMeta = NULL;
+  SRequestConnInfo conn = {.pTrans = pStmt->taos->pAppInfo->pTransporter,
+                           .requestId = pStmt->exec.pRequest->requestId,
+                           .requestObjRefId = pStmt->exec.pRequest->self,
+                           .mgmtEps = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp)};
+  int32_t          code = catalogGetTableMeta(pStmt->pCatalog, &conn, &pStmt->bInfo.sname, &pTableMeta);
+
+  pStmt->stat.ctgGetTbMetaNum++;
+
+  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
+    STMT2_ELOG("tb %s not exist", pStmt->bInfo.tbFName);
+    (void)stmtCleanBindInfo(pStmt);
+
+    if (!pStmt->sql.autoCreateTbl) {
+      STMT2_ELOG("table %s does not exist and autoCreateTbl is disabled", pStmt->bInfo.tbFName);
+      STMT_ERR_RET(TSDB_CODE_PAR_TABLE_NOT_EXIST);
+    }
+
+    STMT_ERR_RET(code);
+  }
+
+  STMT_ERR_RET(code);
+
+  *uid = pTableMeta->uid;
+  *suid = pTableMeta->suid;
+  *tableType = pTableMeta->tableType;
+  pStmt->bInfo.tbVgId = pTableMeta->vgId;
+  *vgId = pTableMeta->vgId;
+
+  taosMemoryFree(pTableMeta);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t stmtRebuildDataBlock(STscStmt2* pStmt, STableDataCxt* pDataBlock, STableDataCxt** newBlock, uint64_t uid,
                                     uint64_t suid, int32_t vgId) {
   STMT_ERR_RET(stmtTryAddTableVgroupInfo(pStmt, &vgId));
@@ -655,6 +694,7 @@ static int32_t stmtGetFromCache(STscStmt2* pStmt) {
     }
 
     STMT2_DLOG("no stmt block cache for tb %s", pStmt->bInfo.tbFName);
+
     return TSDB_CODE_SUCCESS;
   }
 
@@ -686,31 +726,7 @@ static int32_t stmtGetFromCache(STscStmt2* pStmt) {
   int32_t  vgId;
   int8_t   tableType;
 
-  STableMeta*      pTableMeta = NULL;
-  SRequestConnInfo conn = {.pTrans = pStmt->taos->pAppInfo->pTransporter,
-                           .requestId = pStmt->exec.pRequest->requestId,
-                           .requestObjRefId = pStmt->exec.pRequest->self,
-                           .mgmtEps = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp)};
-  int32_t          code = catalogGetTableMeta(pStmt->pCatalog, &conn, &pStmt->bInfo.sname, &pTableMeta);
-
-  pStmt->stat.ctgGetTbMetaNum++;
-
-  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
-    STMT2_DLOG("tb %s not exist", pStmt->bInfo.tbFName);
-    STMT_ERR_RET(stmtCleanBindInfo(pStmt));
-
-    STMT_ERR_RET(code);
-  }
-
-  STMT_ERR_RET(code);
-
-  uid = pTableMeta->uid;
-  suid = pTableMeta->suid;
-  tableType = pTableMeta->tableType;
-  pStmt->bInfo.tbVgId = pTableMeta->vgId;
-  vgId = pTableMeta->vgId;
-
-  taosMemoryFree(pTableMeta);
+  STMT_ERR_RET(stmtGetTableMetaAndValidate(pStmt, &uid, &suid, &vgId, &tableType));
 
   uint64_t cacheUid = (TSDB_CHILD_TABLE == tableType) ? suid : uid;
 
@@ -788,7 +804,7 @@ static int32_t stmtResetStmt(STscStmt2* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t stmtAsyncOutput(STscStmt2* pStmt, void* param) {
+static void stmtAsyncOutput(STscStmt2* pStmt, void* param) {
   SStmtQNode* pParam = (SStmtQNode*)param;
 
   if (pParam->restoreTbCols) {
@@ -796,7 +812,7 @@ static int32_t stmtAsyncOutput(STscStmt2* pStmt, void* param) {
       SArray** p = (SArray**)TARRAY_GET_ELEM(pStmt->sql.siInfo.pTableCols, i);
       *p = taosArrayInit(20, POINTER_BYTES);
       if (*p == NULL) {
-        STMT_ERR_RET(terrno);
+        pStmt->errCode = terrno;
       }
     }
     atomic_store_8((int8_t*)&pStmt->sql.siInfo.tableColsReady, true);
@@ -805,13 +821,12 @@ static int32_t stmtAsyncOutput(STscStmt2* pStmt, void* param) {
     int code = qAppendStmt2TableOutput(pStmt->sql.pQuery, pStmt->sql.pVgHash, &pParam->tblData, pStmt->exec.pCurrBlock,
                                        &pStmt->sql.siInfo, pParam->pCreateTbReq);
     // taosMemoryFree(pParam->pTbData);
-    (void)atomic_sub_fetch_64(&pStmt->sql.siInfo.tbRemainNum, 1);
     if (code != TSDB_CODE_SUCCESS) {
       STMT2_ELOG("async append stmt output failed, tbname:%s, err:%s", pParam->tblData.tbName, tstrerror(code));
-      STMT_ERR_RET(code);
+      pStmt->errCode = code;
     }
+    (void)atomic_sub_fetch_64(&pStmt->sql.siInfo.tbRemainNum, 1);
   }
-  return TSDB_CODE_SUCCESS;
 }
 
 static void* stmtBindThreadFunc(void* param) {
@@ -831,10 +846,7 @@ static void* stmtBindThreadFunc(void* param) {
       continue;
     }
 
-    int ret = stmtAsyncOutput(pStmt, asyncParam);
-    if (ret != 0) {
-      STMT2_ELOG("stmtAsyncOutput failed, reason:%s", tstrerror(ret));
-    }
+    stmtAsyncOutput(pStmt, asyncParam);
   }
 
   STMT2_ILOG_E("stmt2 bind thread stopped");
@@ -1354,7 +1366,18 @@ int stmtSetTbName2(TAOS_STMT2* stmt, const char* tbName) {
       pStmt->bInfo.tbName[sizeof(pStmt->bInfo.tbName) - 1] = 0;
 
       STMT_ERR_RET(stmtParseSql(pStmt));
+      if (!pStmt->sql.autoCreateTbl) {
+        uint64_t uid, suid;
+        int32_t  vgId;
+        int8_t   tableType;
+
+        int32_t code = stmtGetTableMetaAndValidate(pStmt, &uid, &suid, &vgId, &tableType);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
+      }
     }
+
   } else {
     tstrncpy(pStmt->bInfo.tbName, tbName, sizeof(pStmt->bInfo.tbName));
     pStmt->bInfo.tbName[sizeof(pStmt->bInfo.tbName) - 1] = 0;
@@ -2202,8 +2225,10 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
   __taos_async_fn_t fp = pStmt->options.asyncExecFn;
   pStmt->asyncExecCb = true;
 
-  pStmt->exec.affectedRows = taos_affected_rows(pStmt->exec.pRequest);
-  pStmt->affectedRows += pStmt->exec.affectedRows;
+  if (code == TSDB_CODE_SUCCESS) {
+    pStmt->exec.affectedRows = taos_affected_rows(res);
+    pStmt->affectedRows += pStmt->exec.affectedRows;
+  }
 
   fp(pStmt->options.userdata, res, code);
 
@@ -2248,6 +2273,10 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
       // wait for stmt bind thread to finish
       while (atomic_load_64(&pStmt->sql.siInfo.tbRemainNum)) {
         taosUsleep(1);
+      }
+
+      if (pStmt->errCode != TSDB_CODE_SUCCESS) {
+        return pStmt->errCode;
       }
 
       pStmt->stat.execWaitUs += taosGetTimestampUs() - startTs;

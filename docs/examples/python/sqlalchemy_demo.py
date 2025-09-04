@@ -5,7 +5,7 @@ import threading
 
 # Create a SQLAlchemy engine with WebSocket connection
 # If using native connection, use `taos` instead of `taosws`
-engine = create_engine(url="taosws://root:taosdata@localhost:6041?timezone=Asia/Shanghai", pool_size=10, max_overflow=20)
+engine = create_engine(url="taosws://root:taosdata@?hosts=localhost:6041,127.0.0.1:6041&timezone=Asia/Shanghai", pool_size=10, max_overflow=20)
 
 def init_db():
     try:
@@ -37,7 +37,7 @@ def ws_insert_sql(i: int):
                     VALUES (NOW + {i+1}a, 10.30000, 218, 0.25000)
                 """)
             affectedRows = conn.execute(sql)
-            print(f"Successfully inserted {affectedRows} rows to power.meters.")
+            print(f"Successfully inserted {affectedRows.cursor.row_count} rows to power.meters.")
 
     except Exception as err:
         print(f"Failed to insert data to power.meters; ErrMessage:{err}")

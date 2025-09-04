@@ -37,10 +37,10 @@ pip3 install taos-ws-py
 使用客户端驱动提供的原生接口直接与服务端建立的连接的方式下文中称为“原生连接”；使用 `taosAdapter` 提供的 REST 接口或 WebSocket 接口与服务端建立的连接的方式下文中称为“REST 连接”或“WebSocket 连接”。
 
 :::note 
-
-如果有性能方面的要求建议采用 WebSocket 连接方式, 原因是：
-- 由于 GIL (全局解释器锁) 的限制，多线程无法利用多核优势，实际仍是串行执行。在原生连接方式下，Python 的数据转换及解析操作会受到 GIL 制约从而影响效率；而采用 WebSocket 方式时，涉及 IO 操作时 (如网络请求、文件读写) 会释放 GIL，使其他线程能获取锁并执行，在 IO 密集场景下可显著提升效率。
-- 接口调用方面，原生连接方式需要进行大量 C 与 Python 之间的数据类型转换；而 WebSocket 方式仅需完成相应的接口数据转换，数据的处理和解析工作均由 WebSocket 连接器 (Rust) 和 taosAdapter (Go) 执行，能有效突破 Python 的性能瓶颈。
+- 如果需要在 taos-ws-py 中使用 SQLAlchemy 需要安装 taospy 2.8.5 以上版本。
+- 如果有性能方面的要求建议采用 WebSocket 连接方式, 原因是：
+    - 由于 GIL (全局解释器锁) 的限制，多线程无法利用多核优势，实际仍是串行执行。在原生连接方式下，Python 的数据转换及解析操作会受到 GIL 制约从而影响效率；而采用 WebSocket 方式时，涉及 IO 操作时 (如网络请求、文件读写) 会释放 GIL，使其他线程能获取锁并执行，在 IO 密集场景下可显著提升效率。
+    - 接口调用方面，原生连接方式需要进行大量 C 与 Python 之间的数据类型转换；而 WebSocket 方式仅需完成相应的接口数据转换，数据的处理和解析工作均由 WebSocket 连接器 (Rust) 和 taosAdapter (Go) 执行，能有效突破 Python 的性能瓶颈。
 :::
 
 ## Python 版本兼容性
@@ -58,6 +58,7 @@ Python Connector 历史版本（建议使用最新版本的 `taospy`）：
 
 | Python Connector 版本 | 主要变化                                                                                                                                                         |   TDengine TSDB 版本    |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+|         2.8.5         | 支持 taos-ws-py 的 sqlalchemy 功能                                                                                                                                  | - |
 |         2.8.4         | 支持 DBUtils 连接池                                                                                                                                   | - |
 |         2.8.3         | 支持 BLOB 数据类型                                                                                                                                    | - |
 |         2.8.2         | 连接参数设置支持跨平台                                                                                                                                    | - |
@@ -188,19 +189,27 @@ TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 Pytho
 |  protocol |   | username | password  |  addresses                          |   database |   params                             |
 ```
 
-- **protocol**：使用 WebSocket 协议建立连接。例如 `ws://localhost:6041`。
+- **protocol**：指定使用的协议，例如 `ws://localhost:6041` 表示通过 WebSocket 协议建立连接。
+  - **ws**：通过 WebSocket 协议建立连接。
+  - **wss**：通过 WebSocket 协议并启用 SSL/TLS 加密建立连接。
 - **username/password**：数据库的用户名和密码。
 - **addresses**：指定创建连接的服务器地址，多个地址间用英文逗号分隔。对于 IPv6 地址，必须使用中括号括起来（如 `[::1]` 或 `[2001:db8:1234:5678::1]`），以避免端口号解析冲突。
   - 示例：`ws://host1:6041,host2:6041` 或 `ws://`（等同于 `ws://localhost:6041`）。
 - **database**：数据库名称。
-- **params**：其他参数。例如 token。
+- **params**：
+  - `token`：用于 TDengine TSDB 云服务的身份验证。
+  - `timezone`：时区设置，格式为 IANA 时区名称（如 `Asia/Shanghai`），默认为本地时区。
+  - `compression`：是否启用数据压缩，默认为 `false`。
+  - `conn_retries`：连接失败时的最大重试次数，默认为 5 次。
+  - `retry_backoff_ms`：连接失败时的初始等待时间（毫秒），默认为 200。此值会随着连续失败而指数增长，直到达到最大等待时间。
+  - `retry_backoff_max_ms`：连接失败时的最大等待时间（毫秒），默认为 2000。
 
 #### 建立连接
 
 - `fn connect(dsn: Option<&str>, args: Option<&PyDict>) -> PyResult<Connection>`
     - **接口说明**：建立 taosAdapter 连接。
     - **参数说明**：
-        - `dsn`：类型 `Option<&str>` 可选，数据源名称（DSN），用于指定要连接的数据库的位置和认证信息。 
+        - `dsn`：类型 `Option<&str>` 可选，数据源名称（DSN），用于指定数据库的连接信息，包括协议、用户名、密码、主机、端口、数据库名及参数等。
         - `args`：类型 `Option<&PyDict>` 可选，以 Python 字典的形式提供，可用于设置
             - `user`：数据库的用户名
             - `password`：数据库的密码

@@ -463,43 +463,169 @@ Action 是封装好的可复用操作单元，用于完成特定功能。每个 
 
 ### 生成器方式生成数据 stmt v2 写入 TDengine 示例
 
+该示例展示了如何使用 taosgen 工具模拟一万台智能电表，每台智能电表采集电流、电压、相位三个物理量，它们每隔 5 分钟产生一条记录，电流的数据用随机数，电压用正弦波模拟，产生的这些数据采用 WebSocket 的方式写入 TDengine TSDB 的 taosgen_test 数据库的超级表 meters。
+
+配置详解：
+- 全局配置 (global)
+  - 连接信息 (connection_info): 定义数据库连接参数，包含连接池配置（最大10连接，最小2连接，连接超时1000ms）
+  - 数据格式信息 (data_format): 设置数据格式为 SQL。
+  - 数据通道信息 (data_channel): 使用 WebSocket 接口通信。
+  - 数据库信息 (database_info): 定义目标 taosgen_test 数据库，设置时间精度为毫秒，4个 vgroup。
+  - 超级表信息 (super_table_info): 定义超级表结构，包含3个普通列（电流、电压、相位）和2个标签列（组ID、位置）。
+  - 子表名生成器 (tbname_generator)：定义生成一万张子表名称的规则，格式为 d0 到 d9999。
+
+- 并发控制
+  - 作业并发度 (concurrency): 4: 设置全局并发度为4，允许最多4个作业同时执行。
+
+- 作业依赖关系
+  - 通过 needs 参数指示依赖关系，构建的执行流程是：创建数据库 → 创建超级表 → 创建子表 → 插入数据，形成有向无环图。
+
+- 数据生成配置
+  - 子表名称: 使用子表名称生成器动态创建一万张子表，名称格式为 d0 到 d9999。
+  - 标签数据: 使用生成器方式，根据 Schema 为每个子表生成随机的 groupid 和 location 标签值。
+  - 时序数据: 普通列数据（current, voltage, phase）由生成器根据定义的规则（如随机数范围）动态生成。
+  - 时间戳策略: 配置了时间戳生成策略，从指定时间戳 1700000000000 (2023-11-14 22:13:20 UTC) 开始，以 5 分钟的步长递增。
+
+- 高效写入
+  - 接口: 在 insert-data Action 中显式指定使用 stmt (参数化写入) 格式及其 v2 版本，极大提升了批量数据插入的性能。
+  - 交错模式 (interlace_mode): 已启用，配置为每次为每个子表生成 1 行数据后就切换，模拟真实的数据生成方式。
+  - 批量大小 (per_request_rows): 设置为 10000，表示每次写入请求最多包含 10000 行数据。
+  - 队列配置: 数据生成队列容量 (queue_capacity) 为 100，预热比率 (queue_warmup_ratio) 为 0.5，这有助于在插入开始前预先生成部分数据，平衡内存使用和生成效率。
+  - 插入线程: 使用8线程插入(insert_threads: 8)。
+
+场景说明：
+
+此配置专为 TDengine 数据库的性能基准测试 而设计。它适用于模拟大规模物联网设备（如电表、传感器）持续产生高频数据的场景，用于：
+- 测试和评估 TDengine 集群在海量时间序列数据写入压力下的吞吐量、延迟和稳定性。
+- 验证数据库 schema 设计、资源规划以及不同硬件配置下的性能表现。
+- 为工业物联网等领域的系统容量规划提供数据支撑。
+
 ```yaml
 {{#include docs/doxgen/taosgen_config.md:stmt_v2_write_config}}
 ```
 
 ### CSV文件方式生成数据 stmt v2 写入 TDengine 实例
 
+该示例展示了如何使用 taosgen 工具模拟一万台智能电表，每台智能电表采集电流、电压、相位三个物理量， 它们每隔 5 分钟产生一条记录，测点数据读取自 CSV 文件，采用 WebSocket 的方式写入 TDengine TSDB 的 taosgen_test 数据库的超级表 meters。
+
+配置详解：
+- 全局配置 (global)
+  - 连接信息 (connection_info): 定义数据库连接参数，包含连接池配置（最大10连接，最小2连接，连接超时1000ms）。
+  - 数据格式信息 (data_format): 设置数据格式为 SQL。
+  - 数据通道信息 (data_channel): 使用原生接口通信。
+  - 数据库信息 (database_info): 定义目标 taosgen_test 数据库，设置时间精度为毫秒，4个 vgroup。
+  - 超级表信息 (super_table_info): 定义超级表结构，包含3个普通列（电流、电压、相位）和2个标签列（组ID、位置）。
+
+- 并发控制
+  - 作业并发度 (concurrency): 4: 设置全局并发度为4，允许最多4个作业同时执行。
+
+- 作业依赖关系
+  - 通过 needs 参数指示依赖关系，构建的执行流程是：创建数据库 → 创建超级表 → 创建子表 → 插入数据，形成有向无环图。
+
+- 数据生成配置，与生成器方式不同，此配置从CSV文件获取数据
+  - 子表创建 (create-child-table Action):
+    - 子表名称来源: 从CSV文件ctb-tags.csv的第2列（索引从0开始，故tbname_index: 2）读取子表名称。
+    - 标签数据来源: 从同一个CSV文件ctb-tags.csv中读取标签数据，并指定排除第2列（因为第2列是子表名，不是标签），使用预定义的标签Schema进行类型转换。
+    - 批量创建: 每批创建1000张子表，并发10个批次。
+  - 数据插入 (insert-data Action):
+    - 子表名称来源: 与创建时一致，从ctb-tags.csv的第2列读取，确保插入数据的表已创建。
+    - 测点数据来源: 从CSV文件ctb-data.csv读取普通列数据（current, voltage, phase）。该文件第0列（tbname_index: 0）为子表名，用于关联数据与子表。
+    - 时间戳策略: 由于CSV源数据中的时间戳列可能不存在或格式不匹配，此处采用生成器策略，从指定时间戳 1700000000000 (2023-11-14 22:13:20 UTC) 开始，以 5 分钟的步长递增。
+
+- 高效写入
+  - 接口: 在 insert-data Action 中显式指定使用 stmt (参数化写入) 格式及其 v2 版本，极大提升了批量数据插入的性能。
+  - 交错模式 (interlace_mode): 已启用，配置为每次为每个子表生成 1 行数据后就切换，模拟真实的数据生成方式。
+  - 批量大小 (per_request_rows): 设置为 10000，表示每次写入请求最多包含 10000 行数据。
+  - 队列配置: 数据生成队列容量 (queue_capacity) 为 100，预热比率 (queue_warmup_ratio) 为 0.0，即不预热，立即开始插入。
+  - 插入线程: 使用单线程插入(insert_threads: 1)，适用于数据量不大或需要顺序处理的场景。
+
+场景说明：
+
+此配置专为从现有CSV文件导入设备元数据和历史数据到TDengine数据库而设计。它适用于以下场景：
+- 数据迁移: 将已收集存储于CSV文件中的设备元数据（标签）和历史监测数据迁移至TDengine数据库。
+- 系统初始化: 为新的监控系统初始化一批设备及其历史数据，用于系统测试、演示或回溯分析。
+- 数据回放: 通过重新注入历史数据，模拟实时数据流，用于测试系统处理能力或重现特定历史场景。
+
+
 ```yaml
 {{#include docs/doxgen/taosgen_config.md:csv_stmt_v2_write_config}}
 ```
 
 csv file format:
-- `ctb-tags.csv` file contents are:
+- `ctb-tags.csv` 文件内容格式是:
 
 ```csv
 groupid,location,tbname
-1,loc1,d1
-2,loc2,d2
-3,loc3,d3
+1,California.Campbell,d1
+2,Texas.Austin,d2
+3,NewYork.NewYorkCity,d3
 ```
 
-- `ctb-data.csv` file contents are:
+- `ctb-data.csv` 文件内容格式是:
 
 ```csv
 tbname,current,voltage,phase
-d1,11,200,1001
-d3,13,201,3001
-d2,12,202,2001
-d3,23,203,3002
-d2,22,204,2002
-d1,21,205,1002
+d1,5.23,221.5,146.2
+d3,8.76,219.8,148.7
+d2,12.45,223.1,147.3
+d3,9.12,220.3,149.1
+d2,11.87,222.7,145.8
+d1,4.98,220.9,147.9
 ```
 
 ### 生成器方式生成数据并写入 MQTT 示例
 
+该示例展示了如何使用 taosgen 工具模拟一万台智能电表，每台智能电表采集电流、电压、相位、状态四个物理量，它们每隔 5 分钟产生一条记录，电流的数据用随机数，电压用正弦波模拟，产生的这些数据通过 MQTT 协议进行发布。
+
+配置详解：
+- 全局配置 (global)
+  - 超级表信息 (super_table_info): 定义了数据模型结构，虽然不直接创建数据库表，但作为数据生成的 Schema 模板。包含4个普通列（电流、电压、相位、设备状态）。
+  - 子表名称生成器 (tbname_generator): 定义生成一万张子表名称的规则，格式为 d0 到 d9999。
+
+- 并发控制
+  - 作业并发度 (concurrency): 1: 设置全局作业并发度为 1，此场景下只需要执行一个数据插入/发布作业。
+
+- 作业依赖关系
+  - 此配置只包含一个作业 insert-into-mqtt，且没有依赖 (needs: [])，直接开始执行数据生成和发布。
+
+- 数据生成 (source)
+  - 子表名称: 使用子表名称生成器动态创建一万张子表名称。
+  - 测点数据: 普通列数据（current, voltage, phase, state）由生成器根据定义的规则动态生成。其中 state 列从预定义的三个枚举值中随机选择。
+  - 时间戳策略: 从指定时间戳 1700000000000 (2023-11-14 22:13:20 UTC) 开始，以 5 分钟的步长递增。
+
+- MQTT 目标配置 (target)
+  - 目标类型 (target_type): 设置为 mqtt，指定输出目标为 MQTT 消息代理。
+  - 连接配置:
+    - host 和 port: MQTT 代理地址和端口（localhost:1883）。
+    - user 和 password: 连接认证信息（testuser/testpassword）。
+    - client_id: 客户端标识符（mqtt_client）。
+    - keep_alive: 心跳间隔（60 秒）。
+    - clean_session: 设置为 true，清理会话状态。
+    - qos: 服务质量等级设置为 1（至少交付一次）。
+
+  - 主题配置 (topic): 使用动态主题 factory/`{table}`/`{state}`/data，其中：
+    - `{table}` 占位符将被实际生成的子表名称替换。
+    - `{state}` 占位符将被生成的 state 列值替换，实现按设备状态发布到不同主题。
+
+- 控制策略 (control)
+  - 数据格式 (data_format): 使用 stmt (参数化写入) 格式及其 v2 版本格式化和组织数据。
+  - 数据生成策略 (data_generation):
+    - 交错模式 (interlace_mode): 已启用，配置为每次为每个子表生成 1 行数据后就切换。
+    - 生成线程 (generate_threads): 单线程生成数据。
+    - 每表行数 (per_table_rows): 每个子表生成 100 行数据。
+    - 队列配置: 队列容量设置为 10，且不预热（queue_warmup_ratio: 0.0）。
+  - 插入控制 (insert_control):
+    - 每请求行数 (per_request_rows): 设置为 10，表示每次 MQTT 发布请求包含 10 行数据。
+    - 插入线程 (insert_threads): 使用 8 个并发线程进行 MQTT 发布，提高吞吐量。
+
+场景说明：
+
+此配置专为向 MQTT 消息代理发布模拟设备数据而设计。它适用于以下场景：
+- MQTT 消费者测试: 模拟大量设备向 MQTT 代理发布数据，用于测试 MQTT 消费者端的处理能力、负载均衡和稳定性。
+- 物联网平台演示: 快速构建一个模拟的物联网环境，展示设备数据如何通过 MQTT 协议接入平台。
+- 规则引擎测试: 结合 MQTT 主题的动态特性（如按设备状态路由），测试基于 MQTT 的主题订阅和消息路由规则。
+- 实时数据流模拟: 模拟实时产生的设备数据流，用于测试流处理框架的数据消费和处理能力。
+
 ```yaml
 {{#include docs/doxgen/taosgen_config.md:write_mqtt_config}}
 ```
-
-
-

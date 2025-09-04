@@ -6,10 +6,8 @@ import time
 import socket
 import os
 import platform
-if platform.system().lower() == 'windows':
-    import wexpect as taosExpect
-else:
-    import pexpect as taosExpect
+import subprocess
+
 
 
 def taos_command (buildPath, key, value, expectString, sqlString=''):
@@ -17,37 +15,32 @@ def taos_command (buildPath, key, value, expectString, sqlString=''):
         tdLog.exit("taos test key is null!")
 
     if platform.system().lower() == 'windows':
-        taosCmd = buildPath + '\\build\\bin\\taos.exe '
-        taosCmd = taosCmd.replace('\\','\\\\')
+        taosCmd = os.path.join(buildPath, 'build', 'bin', 'taos.exe')
     else:
-        taosCmd = buildPath + '/build/bin/taos '
+        taosCmd = os.path.join(buildPath, 'build', 'bin', 'taos')
 
     cfgPath = os.path.join(tdDnodes.sim.path,"psim","cfg")
     taosCmd = taosCmd + ' -c ' + cfgPath + ' -' + key
     if len(value) != 0:
         taosCmd = taosCmd + ' ' + value
 
-    tdLog.info ("taos cmd: %s" % taosCmd)
+    tdLog.info("taos cmd: %s" % taosCmd)
+    tdLog.info(f"expectString: {expectString}")
 
-    child = taosExpect.spawn(taosCmd, timeout=20)
-    #output = child.readline()
-    #print (output.decode())
-    if len(expectString) != 0:
-        i = child.expect([expectString, taosExpect.TIMEOUT, taosExpect.EOF], timeout=20)
-    else:
-        i = child.expect([taosExpect.TIMEOUT, taosExpect.EOF], timeout=20)
 
-    if platform.system().lower() == 'windows':
-        retResult = child.before
-    else:
-        retResult = child.before.decode()
-    print(retResult)
-    #print(child.after.decode())
-    if i == 0:
-        print ('taos login success! Here can run sql, taos> ')
-        return  "TAOS_OK"
-    else:
+    retResult = subprocess.run(taosCmd, shell=True, capture_output=True, text=True)
+    tdLog.info(f"{taosCmd} run result: {retResult.stdout}")
+    if retResult.returncode != 0:
+        tdLog.error(f"Command failed: {retResult.stderr}")
         return "TAOS_FAIL"
+    if len(expectString) != 0:
+        tdLog.info(f"Command output: {retResult.stdout}")
+        if expectString in retResult.stdout:
+            tdLog.info(f"Expected string '{expectString}' found in output.")
+            return "TAOS_OK"
+        else:
+            tdLog.error(f"Expected string '{expectString}' not found in output.")
+            return "TAOS_FAIL"
 
 class TestColumnlenupdated:
     #updatecfgDict = {'clientCfg': {'serverPort': 7080, 'firstEp': 'trd02:7080', 'secondEp':'trd02:7080'},\
@@ -98,6 +91,7 @@ class TestColumnlenupdated:
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root) - len("/build/bin")]
                     break
+        tdLog.info("buildPath: %s" % buildPath)
         return buildPath
 
     def test_columnLenUpdated(self):
