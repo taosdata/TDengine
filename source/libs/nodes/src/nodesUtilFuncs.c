@@ -2228,6 +2228,7 @@ void nodesDestroyNode(SNode* pNode) {
       SDynQueryCtrlPhysiNode* pPhyNode = (SDynQueryCtrlPhysiNode*)pNode;
       if (pPhyNode->qType == DYN_QTYPE_VTB_SCAN) {
         nodesDestroyList(pPhyNode->vtbScan.pScanCols);
+        nodesDestroyList(pPhyNode->vtbScan.pOrgVgIds);
       }
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       break;

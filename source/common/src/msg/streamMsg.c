@@ -557,7 +557,7 @@ int32_t tDecodeSStreamMgmtReq(SDecoder* pDecoder, SStreamMgmtReq* pReq) {
         pReq->cont.pReqs = taosArrayInit(num, sizeof(SStreamDbTableName));
         TSDB_CHECK_NULL(pReq->cont.pReqs, code, lino, _exit, terrno);
         for (int32_t i = 0; i < num; ++i) {
-          SStreamDbTableName* p = taosArrayGet(pReq->cont.pReqs, i);
+          SStreamDbTableName* p = taosArrayReserve(pReq->cont.pReqs, 1);
           TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->dbFName));
           TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->tbName));
         }
