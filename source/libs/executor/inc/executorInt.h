@@ -678,7 +678,18 @@ typedef struct SWindowRowsSup {
   int32_t     startRowIndex;
   int32_t     numOfRows;
   uint64_t    groupId;
+  int32_t     startNullRowIndex;  // start index of previous continuous rows with null state col
 } SWindowRowsSup;
+
+// return true if there are continuous rows with null state col
+static inline bool hasContinuousNullRows(SWindowRowsSup* pRowSup) {
+  return pRowSup->startNullRowIndex != -1;
+}
+
+// reset on initialization or found of a row with non-null state col
+static inline void resetStartNullRowIndex(SWindowRowsSup* pRowSup) {
+  pRowSup->startNullRowIndex = -1;
+}
 
 typedef int32_t (*AggImplFn)(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
 
