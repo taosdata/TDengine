@@ -71,6 +71,10 @@ _exit:
 
   streamReleaseTask(taskAddr);
 
+  if(code == TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE) {
+    code = 0; // not real error, just notify trigger the table is not created
+  }
+
   if (code) {
     sndError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
