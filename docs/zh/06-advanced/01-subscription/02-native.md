@@ -4,7 +4,7 @@ title: Native 数据订阅
 toc_max_heading_level: 4
 ---
 
-TDengine TSDB 提供了类似于消息队列产品的数据订阅和消费接口。在许多场景中，采用 TDengine TSDB 的时序大数据平台，无须再集成消息队列产品，从而简化应用程序设计并降低运维成本。本章介绍各语言连接器数据订阅的相关 API 以及使用方法。数据订阅的主题管理等基础知识参考 [简介](../topic/) ，详细 API 可参考 [开发指南](../develop/tmq/)。
+TDengine TSDB 提供了类似于消息队列产品的数据订阅和消费接口。在许多场景中，采用 TDengine TSDB 的时序大数据平台，无须再集成消息队列产品，从而简化应用程序设计并降低运维成本。数据订阅的主题管理等基础知识参考 [简介](../topic/) ，详细 API 可参考 [开发指南](../../develop/tmq/)。
 
 ## 创建主题
 
@@ -16,23 +16,23 @@ TDengine TSDB 提供了类似于消息队列产品的数据订阅和消费接口
 
 ## 创建消费者
 
-TDengine TSDB 消费者的概念跟 Kafka 类似，消费者通过订阅主题来接收数据流。消费者可以配置多种参数，如连接方式、服务器地址、自动提交 Offset 等以适应不同的数据处理需求。有的语言连接器的消费者还支持自动重连和数据传输压缩等高级功能，以确保数据的高效和稳定接收。创建消费者的参数较多，支持各种连接类型、Offset 提交方式、压缩、重连、反序列化等特性。包括：
+TDengine TSDB 消费者的概念跟 Kafka 类似，消费者通过订阅主题来接收数据流。消费者可以配置多种参数，如连接方式、服务器地址、自动提交 Offset、自动重连、数据传输压缩等以适应不同的数据处理需求。创建消费者的参数包括：
 
-- td.connect.ip：服务端的 FQDN
-- td.connect.user：用户名
-- td.connect.pass：密码
-- td.connect.port：服务端的端口号
-- group.id：消费组 ID，同一消费组共享消费进度
-- client.id：客户端 ID
-- auto.offset.reset：消费组订阅的初始位置
-- enable.auto.commit：是否启用消费位点自动提交
-- auto.commit.interval.ms：消费记录自动提交消费位点时间间隔
-- msg.with.table.name：是否允许从消息中解析表名
-- enable.replay：是否开启数据回放功能
-- session.timeout.ms：消费者心跳丢失后超时时间
-- max.poll.interval.ms：消费者拉取数据间隔的最长时间
-- fetch.max.wait.ms：服务端单次返回数据的最大耗时
-- min.poll.rows：服务端单次返回数据的最小条数
+- td.connect.ip：服务端的 FQDN。
+- td.connect.user：用户名。
+- td.connect.pass：密码。
+- td.connect.port：服务端的端口号。
+- group.id：消费组 ID，同一消费组共享消费进度。
+- client.id：客户端 ID。
+- auto.offset.reset：消费组订阅的初始位置。
+- enable.auto.commit：是否启用消费位点自动提交。
+- auto.commit.interval.ms：消费记录自动提交消费位点时间间隔。
+- msg.with.table.name：是否允许从消息中解析表名。
+- enable.replay：是否开启数据回放功能。
+- session.timeout.ms：消费者心跳丢失后超时时间。
+- max.poll.interval.ms：消费者拉取数据间隔的最长时间。
+- fetch.max.wait.ms：服务端单次返回数据的最大耗时。
+- min.poll.rows：服务端单次返回数据的最小条数。
 
 ## 订阅消费数据
 
