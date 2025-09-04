@@ -8,9 +8,9 @@ class TestUserPrivilegeTable:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_user_privilege_table(self):
-        """user privilege table
+        """Privilege:  table
 
-        1. -
+        Verify user privileges related to table operations, including grant, revoke, and query privileges.
 
         Catalog:
             - User
