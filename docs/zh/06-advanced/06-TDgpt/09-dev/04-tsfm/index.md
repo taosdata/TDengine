@@ -8,18 +8,25 @@ sidebar_label: "部署时序基础模型"
 
 TDgpt 在 3.3.6.4 版本原生支持五种类型的时序基础模型：涛思时序基础模型 (TDtsfm v1.0) , time-moe，chronos, moirai, timesfm。
 在官方的安装包中，内置了 TDtsfm 和 time-moe 两个时序模型，如果使用其他的模型，需要您在本地部署服务。部署其他时序基础模型服务的文件，位于
-`< tdgpt 根目录>/lib/taosanalytics/tsfmservice/` 下，该目录下包含四个文件，分别用于本地部署启动对应的时序基础模型。
+`< tdgpt 根目录>/lib/taosanalytics/tsfmservice/` 下，该目录下包含四个文件，分别用于本地部署启动对应的时序基础模型。TDgpt 适配了以下的时序模型的功能，对于不支持的功能，可能模型本身无法支持也可能是 TDgpt 没有适配该时序基础模型的功能。
 
-| 文件名               | 说明                 |
-|-------------------|--------------------|
-| timemoe-server.py | 部署启动 time-moe 时序基础模型 |
-| chronos-server.py | 部署启动 chronos 时序基础模型 |
-| timesfm-server.py | 部署启动 timesfm 时序基础模型 |
-| moirai-server.py  | 部署启动 moirai 时序基础模型 |
+<table>
+<tr><th rowspan="2">模型</th> <th rowspan="2">文件</th> <th colspan="3">模型说明</th><th colspan="4">功能说明</th></tr>
+<tr><th>名称</th><th>参数</th><th>大小</th><th>单变量预测</th><th>协变量预测</th><th>多变量预测</th><th>异常检测</th></tr>
+<tr><th rowspan="2">timemoe</th><th rowspan="2">timemoe-server.py</th><th>Maple728/TimeMoE-50M</th><th>5000万</th><th>227MiB</th><th rowspan="2">✔</th><th rowspan="2">✘</th><th rowspan="2">✘</th><th rowspan="2">✘</th></tr>
+<tr><th>Maple728/TimeMoE-200M</th><th>4.5亿</th><th>906MiB</th></tr>
+<tr><th rowspan="2">moirai</th><th rowspan="2">moirai-server.py</th><th>Salesforce/moirai-moe-1.0-R-small</th><th>1.17亿</th><th>469MiB</th><th rowspan="2">✔</th><th rowspan="2">✔</th><th rowspan="2">✘</th><th rowspan="2">✘</th></tr>
+<tr><th>Salesforce/moirai-moe-1.0-R-base</th><th>9.35亿</th><th>3.74GiB</th></tr>
+<tr><th rowspan="4">chronos</th><th rowspan="4">chronos-server.py</th><th>amazon/chronos-bolt-tiny</th><th>865万</th><th>34.6 MiB</th><th rowspan="4">✔</th><th rowspan="4">✘</th><th rowspan="4">✘</th><th rowspan="4">✘</th></tr>
+<tr><th>amazon/chronos-bolt-mini</th><th>2120万</th><th>85 MiB</th></tr>
+<tr><th>amazon/chronos-bolt-small</th><th>4770万</th><th>191 MiB</th></tr>
+<tr><th>amazon/chronos-bolt-base</th><th>2.05亿</th><th>821 MiB</th></tr>
+<tr><th>timesfm</th><th>timesfm-server.py</th><th>google/timesfm-2.0-500m-pytorch</th><th>4.99亿</th><th>2 GiB</th><th>✔</th><th>✘</th><th>✘</th><th>✘</th></tr>
+</table>
 
-本章将以支持 time-moe 模型为例，说明如何将一个独立部署的 MaaS 服务整合到 TDgpt 中，并通过 SQL 语句调用其时序数据分析能力。
+本章以支持运行 time-moe 模型为例，说明如何将一个独立部署的 MaaS 服务整合到 TDgpt 中，并通过 SQL 语句调用其时序数据分析能力。
 
-本章介绍如何本地部署 [Time-MoE](https://github.com/Time-MoE/Time-MoE) 时序基础模型并与 TDgpt 适配后，提供时序数据预测服务。
+本章介绍如何本地部署 [time-moe](https://github.com/Time-MoE/Time-MoE) 时序基础模型并与 TDgpt 适配后，提供时序数据预测服务。
 
 ## 准备环境
 
