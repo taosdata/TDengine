@@ -16,7 +16,7 @@ import os
 import subprocess
 
 
-class TestSnodeMgmt:
+class TestSnodeMgmtReplica3:
     caseName = "test_stream_sliding_trigger"
     currentDir = os.path.dirname(os.path.abspath(__file__))
     runAll = False
@@ -34,7 +34,7 @@ class TestSnodeMgmt:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_snode_mgmt(self):
+    def test_snode_mgmt_relica3(self):
         """Snode: repeatedly drop with stream
 
         1. Create a 6-node dnode and a 3-replica database.

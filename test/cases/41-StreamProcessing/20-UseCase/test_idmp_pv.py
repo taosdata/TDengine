@@ -1,9 +1,9 @@
 from test_idmp_tobacco import IdmpScene
-
+import os
 
 class TestIdmpPhotovoltaic:
     def test_pv(self):
-        """IDMP 光伏场景测试
+        """IDMP: photovoltaic scenario
 
         Refer: https://taosdata.feishu.cn/wiki/Zkb2wNkHDihARVkGHYEcbNhmnxb#share-Ygqld907hoMESmx04GBcRlaVnZz
         1. 测试 AI 推荐生成的分析, 创建 Stream, 验证流的正确性
@@ -36,10 +36,10 @@ class TestIdmpPhotovoltaic:
             "photovoltaic",
             "idmp_sample_pv",
             "idmp",
-            "cases/13-StreamProcessing/20-UseCase/pv_data/idmp_sample_pv",
-            "cases/13-StreamProcessing/20-UseCase/pv_data/idmp/vstb.sql",
-            "cases/13-StreamProcessing/20-UseCase/pv_data/idmp/vtb.sql",
-            "cases/13-StreamProcessing/20-UseCase/pv_data/idmp/stream.json",
+            os.path.join(os.path.dirname(__file__), 'pv_data', 'idmp_sample_pv'),
+            os.path.join(os.path.dirname(__file__), 'pv_data', 'idmp', 'vstb.sql'),
+            os.path.join(os.path.dirname(__file__), 'pv_data', 'idmp', 'vtb.sql'),
+            os.path.join(os.path.dirname(__file__), 'pv_data', 'idmp', 'stream.json'),
         )
         # pv.stream_ids = [1, 2, 3, 4, 5, 6, 7]
         pv.run()
