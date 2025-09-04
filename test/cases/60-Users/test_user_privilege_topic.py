@@ -8,9 +8,9 @@ class TestUserPrivilegeTopic:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_user_privilege_topic(self):
-        """user privilege topic
+        """Privilege: topic
 
-        1. -
+        Verify user privileges related to topic operations, including grant, revoke, and query privileges.
 
         Catalog:
             - User

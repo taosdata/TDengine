@@ -8,9 +8,12 @@ class TestDropDnodeForce:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_drop_dnode_force(self):
-        """drop dnode force
+        """Dnode: drop force unsafe
 
-        1. -
+        1. Create 5 dnodes, establish a three-replica database on them, and write data
+        2. Create three mnodes
+        3. Stop one dnode and verify that it cannot be deleted
+        4. Use drop dnode force unsafe to forcibly delete this dnode
 
         Catalog:
             - Database:Sync

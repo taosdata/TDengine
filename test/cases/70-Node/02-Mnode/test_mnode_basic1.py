@@ -8,9 +8,11 @@ class TestMnodeBasic1:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_mnode_basic1(self):
-        """mnode basic 1
+        """replica 2: create on same dnode
 
-        1. -
+        1. Create an mnode on the dnode2
+        2. Delete mnode2
+        3. Repeat the above operations
 
         Catalog:
             - ManageNodes:Mnode
