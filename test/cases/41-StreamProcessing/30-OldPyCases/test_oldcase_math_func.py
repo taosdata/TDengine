@@ -26,7 +26,7 @@ class TestMathFunctionInStream:
         ],
     )
     def test_math_function(self, math_func):
-        """迁移旧的测试用例
+        """OldPy: math function
 
         旧用例 tests/system-test/8-stream/scalar_function.py
         测试在流计算中使用数学函数
@@ -35,6 +35,9 @@ class TestMathFunctionInStream:
         新的建流语句：
         CREATE STREAM XXX SLIDING(10s) FROM tb INTO XXX AS SELECT ts, log(val, 2) as val FROM %%trows;
 
+        Catalog:
+            - Streams:OldPyCases
+            
         Since: v3.3.7.0
 
         Labels: common,ci
@@ -59,6 +62,7 @@ class TestMathFunctionInStream:
                 f"CREATE DATABASE IF NOT EXISTS `{self.db}`;",
                 f"USE `{self.db}`;",
                 "CREATE TABLE tb(ts TIMESTAMP, val FLOAT);",
+                "RESET QUERY CACHE;",
             ],
             queryTimes=1,
         )

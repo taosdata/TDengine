@@ -8,12 +8,12 @@ class TestOthersOldCaseAtonce:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_others_oldcase_atonce(self):
-        """at once
+        """OldPy: at once
 
         test replace the at once in old cases with the count(1) window function
 
         Catalog:
-            - Streams:UseCases
+            - Streams:OldPyCases
 
         Since: v3.3.3.7
 

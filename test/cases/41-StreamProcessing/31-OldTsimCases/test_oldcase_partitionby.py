@@ -12,7 +12,7 @@ class TestStreamOldCasePartitionBy:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_partitionby(self):
-        """Stream partition by
+        """OldTsim: partition by
 
         Validate the calculation results under PARTITION BY clauses
 
