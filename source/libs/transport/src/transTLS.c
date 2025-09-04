@@ -22,12 +22,13 @@
 
 #define DEFALUT_SSL_DIR "/etc/ssl/ssls"
 
+static int8_t transCheckFile(const char* path, int8_t* exist, const char* instName);
+static int8_t transCheckTlsEnv(const char* caPath, const char* certPath, const char* keyPath, const char* instName,
+                               int8_t* enableSSL);
+
 static int32_t sslDoConn(STransTLS* pTls);
-
 static int32_t sslHandleError(STransTLS* pTls, int ret);
-
 static int32_t sslWriteToBIO(STransTLS* pTls, int32_t nread);
-
 static void destroySSLCtx(SSL_CTX* ctx);
 
 SSL_CTX* initSSLCtx(const char* certPath, const char* keyPath, const char* caPath, int8_t cliMode) {
@@ -114,10 +115,24 @@ int32_t sslHandleError(STransTLS* pTls, int ret) {
   return code;
 }
 
-int32_t transTlsCtxCreate(const char* certPath, const char* keyPath, const char* caPath, int8_t cliMode,
-                          SSslCtx** ppCtx) {
+int32_t transTlsCtxCreate(const SRpcInit* pInit, SSslCtx** ppCtx) {
   int32_t code = 0;
   int32_t lino = 0;
+  int8_t  cliMode = (pInit->connType == TAOS_CONN_CLIENT) ? 1 : 0;
+  int8_t  enableSSL = 0;
+
+  const char* caPath = pInit->caPath;
+  const char* certPath = cliMode ? pInit->cliCertPath : pInit->certPath;
+  const char* keyPath = cliMode ? pInit->cliKeyPath : pInit->keyPath;
+
+  if (!transCheckTlsEnv(caPath, certPath, keyPath, pInit->label, &enableSSL)) {
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  if (enableSSL == 0) {
+    tWarn("TLS is not enabled for %s, please check cert/key/ca path", pInit->label);
+    return 0;
+  }
 
   SSslCtx* pCtx = (SSslCtx*)taosMemCalloc(1, sizeof(SSslCtx));
   if (pCtx == NULL) {
@@ -125,7 +140,7 @@ int32_t transTlsCtxCreate(const char* certPath, const char* keyPath, const char*
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pCtx->certfile = taosStrdupi(caPath);
+  pCtx->certfile = taosStrdupi(certPath);
   pCtx->keyfile = taosStrdupi(keyPath);
   pCtx->cafile = taosStrdupi(caPath);
   if (pCtx->certfile == NULL || pCtx->keyfile == NULL || pCtx->cafile == NULL) {
@@ -546,4 +561,53 @@ void sslBufferUnref(SSslBuffer* buf) {
   if (buf->ref == 0) {
     sslBufferClear(buf);
   }
+}
+
+static int8_t transCheckFile(const char* path, int8_t* exist, const char* instName) {
+  if (path == NULL || path[0] == 0) {
+    return 1;
+  }
+  if (taosCheckAccessFile(path, TD_FILE_ACCESS_EXIST_OK | TD_FILE_ACCESS_READ_OK)) {
+    *exist = 1;
+    uInfo("rpc inst %s, file is set, path %s", instName, path);
+    return 1;
+  } else {
+    uInfo("rpc inst %s, file %s is not accessible", instName, path);
+    *exist = 0;
+  }
+  return 0;
+}
+int8_t transCheckTlsEnv(const char* caPath, const char* certPath, const char* keyPath, const char* instName,
+                        int8_t* enableTls) {
+  int8_t fileCount = 0;
+  int8_t flag[3] = {0};
+
+  if (!transCheckFile(caPath, &flag[0], instName)) {
+    return 0;
+  }
+
+  if (!transCheckFile(certPath, &flag[1], instName)) {
+    return 0;
+  }
+
+  if (!transCheckFile(keyPath, &flag[2], instName)) {
+    return 0;
+  }
+
+  for (int8_t i = 0; i < 3; ++i) {
+    fileCount += flag[i];
+  }
+
+  if (fileCount == 0) {
+    uInfo("rpc inst %s not set TLS file, rpc opened without TLS", instName);
+    *enableTls = 0;
+    return 1;
+  } else if (fileCount == sizeof(flag) / sizeof(flag[0])) {
+    uInfo("rpc inst %s set TLS files, rpc open with TLS", instName);
+    *enableTls = 1;
+    return 1;
+  } else {
+    uInfo("rpc inst %s set incomplete TLS files, rpc failed to open", instName);
+  }
+  return 0;
 }
