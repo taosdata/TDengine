@@ -12,16 +12,16 @@ TDgpt 在 3.3.6.4 版本原生支持五种类型的时序基础模型：涛思�
 
 <table>
 <tr><th rowspan="2">模型</th> <th rowspan="2">文件</th> <th colspan="3">模型说明</th><th colspan="4">功能说明</th></tr>
-<tr><th>名称</th><th>参数(百万)</th><th>大小(MiB)</th><th>单变量预测</th><th>协变量预测</th><th>多变量预测</th><th>异常检测</th></tr>
-<tr><th rowspan="2">timemoe</th><th rowspan="2">timemoe-server.py</th><th>Maple728/TimeMoE-50M</th><th>50</th><th align="right">227</th><th rowspan="2">✔</th><th rowspan="2">✘</th><th rowspan="2">✘</th><th rowspan="2">✘</th></tr>
-<tr><th>Maple728/TimeMoE-200M</th><th>450</th><th align="right">906</th></tr>
-<tr><th rowspan="2">moirai</th><th rowspan="2">moirai-server.py</th><th>Salesforce/moirai-moe-1.0-R-small</th><th>117</th><th align="right">469</th><th rowspan="2">✔</th><th rowspan="2">✔</th><th rowspan="2">✘</th><th rowspan="2">✘</th></tr>
-<tr><th>Salesforce/moirai-moe-1.0-R-base</th><th>935</th><th align="right">3,740</th></tr>
-<tr><th rowspan="4">chronos</th><th rowspan="4">chronos-server.py</th><th>amazon/chronos-bolt-tiny</th><th>8.65</th><th align="right">35</th><th rowspan="4">✔</th><th rowspan="4">✘</th><th rowspan="4">✘</th><th rowspan="4">✘</th></tr>
-<tr><th>amazon/chronos-bolt-mini</th><th>21.20</th><th align="right">85</th></tr>
-<tr><th>amazon/chronos-bolt-small</th><th>47.70</th><th align="right">191</th></tr>
-<tr><th>amazon/chronos-bolt-base</th><th>205</th><th align="right">821</th></tr>
-<tr><th>timesfm</th><th>timesfm-server.py</th><th>google/timesfm-2.0-500m-pytorch</th><th>499</th><th align="right">2,000</th><th>✔</th><th>✘</th><th>✘</th><th>✘</th></tr>
+<tr><th>名称</th><th>参数(亿)</th><th>大小(MiB)</th><th>单变量预测</th><th>协变量预测</th><th>多变量预测</th><th>异常检测</th></tr>
+<tr><th rowspan="2">timemoe</th><th rowspan="2">timemoe-server.py</th><th>Maple728/TimeMoE-50M</th><th>0.50</th><th align="right">227</th><th rowspan="2">✔</th><th rowspan="2">✘</th><th rowspan="2">✘</th><th rowspan="2">✘</th></tr>
+<tr><th>Maple728/TimeMoE-200M</th><th>4.53</th><th align="right">906</th></tr>
+<tr><th rowspan="2">moirai</th><th rowspan="2">moirai-server.py</th><th>Salesforce/moirai-moe-1.0-R-small</th><th>1.17</th><th align="right">469</th><th rowspan="2">✔</th><th rowspan="2">✔</th><th rowspan="2">✘</th><th rowspan="2">✘</th></tr>
+<tr><th>Salesforce/moirai-moe-1.0-R-base</th><th>9.35</th><th align="right">3,740</th></tr>
+<tr><th rowspan="4">chronos</th><th rowspan="4">chronos-server.py</th><th>amazon/chronos-bolt-tiny</th><th>0.09</th><th align="right">35</th><th rowspan="4">✔</th><th rowspan="4">✘</th><th rowspan="4">✘</th><th rowspan="4">✘</th></tr>
+<tr><th>amazon/chronos-bolt-mini</th><th>0.21</th><th align="right">85</th></tr>
+<tr><th>amazon/chronos-bolt-small</th><th>0.48</th><th align="right">191</th></tr>
+<tr><th>amazon/chronos-bolt-base</th><th>2.05</th><th align="right">821</th></tr>
+<tr><th>timesfm</th><th>timesfm-server.py</th><th>google/timesfm-2.0-500m-pytorch</th><th>4.99</th><th align="right">2,000</th><th>✔</th><th>✘</th><th>✘</th><th>✘</th></tr>
 </table>
 
 本章以支持运行 time-moe 模型为例，说明如何将一个独立部署的 MaaS 服务整合到 TDgpt 中，并通过 SQL 语句调用其时序数据分析能力。

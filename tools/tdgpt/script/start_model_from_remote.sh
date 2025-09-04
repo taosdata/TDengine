@@ -19,7 +19,11 @@ if [ -z "$env" ] || [ -z "$model_name" ] || [ -z "$model_dir" ] || [ -z "$servic
     exit 1
 fi
 
-echo start to load model from remote site, venv path:${env} model_name: ${model_name}, model diretory: ${model_dir}
+echo "start to load model from remote site"
+echo "venv path:  ${env} "
+echo "model_name: ${model_name}"
+echo "model directory: ${model_dir}"
+echo "service_name: ${service}"
 
 curr_dir=$(pwd)
 echo -e ${curr_dir}
