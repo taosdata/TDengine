@@ -1,6 +1,7 @@
 ---
 title: taosX 参考手册
 sidebar_label: taosX
+toc_max_heading_level: 4
 ---
 
 taosX 是 TDengine TSDB Enterprise 中的一个核心组件，提供零代码数据接入的能力，taosX 支持两种运行模式：服务模式和命令行模式。本节讲述如何以这两种方式使用 taosX。要想使用 taosX 需要先安装 TDengine TSDB Enterprise 安装包。
