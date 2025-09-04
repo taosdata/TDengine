@@ -66,6 +66,9 @@ class Test_IDMP_Meters:
         # check errors
         self.checkErrors()
 
+        # execute operation
+        self.executeOperation()
+
         # verify results
         self.verifyResults()
 
@@ -180,12 +183,16 @@ class Test_IDMP_Meters:
             # DB error: Virtual table stream exists, use FORCE when ensure no impact [0x8000700F]
             "split vgroup 2",
             "split vgroup 4",
-            # stream Out table cols count mismatch [0x80004110]
+            # DB error: stream Out table cols count mismatch [0x80004110]
             "CREATE STREAM test.err_stream1 INTERVAL(5s) SLIDING(5s) FROM test.t3 INTO test.result_stream1 AS SELECT _twstart AS ts, _twrownum as wrownum, sum(bi), sum(ic) as sum_power FROM %%trows",
             # %%trows can not be used with WHERE clause.
             "CREATE STREAM test.err_stream2 INTERVAL(5s) SLIDING(5s) FROM test.st PARTITION BY gid INTO test.result_stream1_sub5  AS SELECT _twstart AS ts, _twrownum as wrownum, sum(bi)   as sum_power FROM %%trows where ts >= _twstart and ts < _twend partition by tbname",
             # DB error: only tag and tbname can be used in partition [0x8000410E]
             "CREATE STREAM test.err_stream3 INTERVAL(5s) SLIDING(5s) FROM test.st PARTITION BY ic  INTO test.result_stream1_sub5  AS SELECT _twstart AS ts, _twrownum as wrownum, sum(bi)   as sum_power FROM %%trows",
+            # DB error: Snode still in use with streams [0x80007007]
+            "drop snode on dnode 1;",
+            # DB error: Only one snode can be created in each dnode [0x800003A4]
+            "create snode on dnode 1;",
         ]
 
         tdSql.errors(sqls)
@@ -221,7 +228,14 @@ class Test_IDMP_Meters:
         self.verify_stream3()
         self.verify_stream4()
 
-    # 
+    #
+    # execute operation
+    #
+    def executeOperation(self):
+        print("execute Operation ...")
+        self.execManager()
+
+    #
     # 6. write trigger data again
     #
     def writeTriggerDataAgain(self):
@@ -290,6 +304,19 @@ class Test_IDMP_Meters:
     def exec(self, sql):
         print(sql)
         tdSql.execute(sql)
+
+
+    def execManager(self):
+        # snodes
+
+        
+        # sqls
+        sqls = [
+            "show test.streams",
+            "show snodes"
+        ]
+        for sql in sqls:
+            self.exec(sql)  
 
 
     def getSlidingWindow(self, start, step, cnt):
