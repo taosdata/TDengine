@@ -14,8 +14,10 @@ class TestShowBasic:
     def test_show_basic(self):
         """Show Basic
 
-        1. build cluster with 2 dnodes
-        2. execute show commands
+        1. Creating a 2-dnode cluster with databases/tables for testing
+        2. Executing all major show commands and information_schema queries
+        3. Verifying system metadata consistency after dnode restarts
+        4. Checking error handling for invalid operations
 
         Catalog:
             - Show

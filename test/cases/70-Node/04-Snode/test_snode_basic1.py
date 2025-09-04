@@ -10,7 +10,9 @@ class TestSnodeBasic1:
     def test_snode_basic1(self):
         """snode basic 1
 
-        1. -
+        1. Repeated create and drop snodes
+        2. Check the results of ins_snodes
+        3. Restart the dnode and check the results of the snode
 
         Catalog:
             - ManageNodes:Snode

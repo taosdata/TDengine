@@ -7,12 +7,11 @@ class TestShowDiskInfo:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_show_disk_info(self):
-        """Show DiskInfo语句
+        """Show DiskInfo
 
-        1. 创建包含一个 Int 普通数据列的超级表
-        2. 创建子表并写入数据
-        3. 对数据库执行 Flush 操作
-        4. 执行 show disk_info 语句
+        1. Create super tables and child tables, then write data
+        2. Perform a FLUSH operation on the database
+        3. Execute the show disk_info statement
 
         Catalog:
             - Show

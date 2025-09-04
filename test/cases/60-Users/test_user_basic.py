@@ -8,9 +8,13 @@ class TestUserBasic:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_user_basic(self):
-        """user basic
+        """User: basic test
 
-        1. -
+        1. Verifies root user default privileges and restrictions on privilege modification attempts
+        2. Tests creation of users with different SYSINFO privilege levels (0/1)
+        3. Validates privilege alteration for enable/createdb/SYSINFO flags
+        4. Checks system persistence after dnode restart
+        5. Ensures proper error handling for invalid privilege values
 
         Catalog:
             - User

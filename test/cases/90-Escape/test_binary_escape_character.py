@@ -7,9 +7,11 @@ class TestBinaryEscapeCharacter:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_binary_escape_character(self):
-        """binary escape character
+        """Escape character
 
-        1.
+        1. Validates escape characters in binary data types
+        2. Test the insertion and retrieval of strings containing various escape sequences like single quotes ('), double quotes ("), and backslashes () within binary columns.
+        3. Ensures that these special characters are correctly stored, processed, and returned in query results without causing parsing errors or data corruption.
 
         Catalog:
             - EscapeCharacters

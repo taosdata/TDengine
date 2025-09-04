@@ -14,8 +14,7 @@ class TestShowAlive:
     def test_show_alive(self):
         """Show Alive
 
-        1. build cluster with 4 dnodes
-        2. execute show commands
+        Continuously start and stop multiple dnodes to verify the returned results of show alive.
 
         Catalog:
             - Show

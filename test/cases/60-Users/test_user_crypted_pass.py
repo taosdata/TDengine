@@ -9,9 +9,9 @@ class TestUserPassword:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_user_password(self):
-        """user crypted password
+        """Password: crypted password
 
-        1. - create encrypt_key and test to create user and login with crypted password
+        Create encrypt_key and test to create user and login with crypted password
 
         Catalog:
             - User

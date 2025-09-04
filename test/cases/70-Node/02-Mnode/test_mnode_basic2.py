@@ -8,9 +8,12 @@ class TestMnodeBasic2:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_mnode_basic2(self):
-        """mnode basic 2
+        """replica 2: stop all then start
 
-        1. -
+        1. Create an mnode on the dnode2
+        2. Create a user (update mnode)
+        3. Restart dnode1 and dnode2
+        4. Check if the user exists
 
         Catalog:
             - ManageNodes:Mnode
