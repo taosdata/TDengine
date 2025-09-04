@@ -58,7 +58,7 @@ def clean_taos_process():
             os.system(killCmd)
         if ('python' in  proc.info['name']
             and proc.info['cmdline']  # 确保 cmdline 非空
-            and any('taos' in arg for arg in proc.info['cmdline'])
+            and any('test' in arg for arg in proc.info['cmdline'])
         ):
             logger.debug(proc.info)
             logger.debug("Found taos process with PID: %s", proc.info['pid'])
