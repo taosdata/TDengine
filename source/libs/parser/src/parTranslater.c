@@ -1550,7 +1550,7 @@ static int32_t createColumnsByTable(STranslateContext* pCxt, const STableNode* p
     const STableMeta* pMeta = ((SRealTableNode*)pTable)->pMeta;
     int32_t           nums = pMeta->tableInfo.numOfColumns +
                    (igTags ? 0
-                           : ((TSDB_SUPER_TABLE == pMeta->tableType || ((SRealTableNode*)pTable)->stbRewrite)
+                           : ((TSDB_SUPER_TABLE == pMeta->tableType || inStreamTriggerClause(pCxt) ||((SRealTableNode*)pTable)->stbRewrite)
                                   ? pMeta->tableInfo.numOfTags
                                   : 0));
     for (int32_t i = 0; i < nums; ++i) {

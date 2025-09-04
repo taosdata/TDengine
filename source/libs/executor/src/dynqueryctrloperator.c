@@ -1587,7 +1587,7 @@ _return:
   return code;
 }
 
-int32_t processOrgTbVg(SVtbScanDynCtrlInfo* pVtbScan, SExecTaskInfo* pTaskInfo) {
+int32_t processOrgTbVg(SVtbScanDynCtrlInfo* pVtbScan, SExecTaskInfo* pTaskInfo, int32_t rversion) {
   int32_t                    code = TSDB_CODE_SUCCESS;
   int32_t                    line = 0;
 
@@ -1619,7 +1619,9 @@ int32_t processOrgTbVg(SVtbScanDynCtrlInfo* pVtbScan, SExecTaskInfo* pTaskInfo) 
       return TSDB_CODE_SUCCESS;
     }
     if (tmpArray != NULL && pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.addVgIds == NULL) {
-      atomic_val_compare_exchange_ptr(&pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.addVgIds, NULL, tmpArray);
+      if (atomic_val_compare_exchange_ptr(&pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.addVgIds, NULL, tmpArray) == false) {
+        taosArrayDestroy(tmpArray);
+      }
     }
     atomic_store_64(&pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.uid, (int64_t)(pVtbScan->isSuperTable ? pVtbScan->suid : pVtbScan->uid));
     atomic_store_8(pTaskInfo->pStreamRuntimeInfo->vtableDeployGot, 1);
@@ -1627,6 +1629,7 @@ int32_t processOrgTbVg(SVtbScanDynCtrlInfo* pVtbScan, SExecTaskInfo* pTaskInfo) 
     pVtbScan->lastOrgTbVg = pVtbScan->curOrgTbVg;
     pVtbScan->curOrgTbVg = NULL;
     pVtbScan->needRedeploy = true;
+    pVtbScan->rversion = rversion;
     return TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY;
   }
   return code;
@@ -1730,7 +1733,7 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
     }
   }
 
-  code = processOrgTbVg(pVtbScan, pTaskInfo);
+  code = processOrgTbVg(pVtbScan, pTaskInfo, 1);
   QUERY_CHECK_CODE(code, line, _return);
 
 _return:
@@ -1819,8 +1822,7 @@ int32_t buildVirtualNormalChildTableScanChildTableMap(SOperatorInfo* pOperator) 
       }
     }
   }
-  pVtbScan->rversion = rversion;
-  code = processOrgTbVg(pVtbScan, pTaskInfo);
+  code = processOrgTbVg(pVtbScan, pTaskInfo, rversion);
   QUERY_CHECK_CODE(code, line, _return);
 
 _return:
@@ -1859,11 +1861,10 @@ int32_t virtualNormalChildTableScan(SOperatorInfo* pOperator, SSDataBlock** pRes
 
   if (pVtbScan->needRedeploy) {
     taosArrayDestroy(pVtbScan->addedVgInfo);
+    pVtbScan->addedVgInfo = NULL;
     pVtbScan->addedVgInfo = atomic_load_ptr(&pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.addedVgInfo);
     if (pVtbScan->addedVgInfo && pVtbScan->addedVgInfo == atomic_val_compare_exchange_ptr(&pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.addedVgInfo, pVtbScan->addedVgInfo, NULL)) {
       pVtbScan->needRedeploy = false;
-    } else {
-      QUERY_CHECK_CODE(TSDB_CODE_FAILED, line, _return);
     }
   }
 
@@ -2225,6 +2226,7 @@ static int32_t initVtbScanInfo(SOperatorInfo* pOperator, SDynQueryCtrlOperatorIn
   pInfo->vtbScan.suid = pPhyciNode->vtbScan.suid;
   pInfo->vtbScan.epSet = pPhyciNode->vtbScan.mgmtEpSet;
   pInfo->vtbScan.acctId = pPhyciNode->vtbScan.accountId;
+  pInfo->vtbScan.needRedeploy = false;
   pInfo->vtbScan.pMsgCb = pMsgCb;
   pInfo->vtbScan.curTableIdx = 0;
   pInfo->vtbScan.lastTableIdx = -1;
@@ -2238,7 +2240,8 @@ static int32_t initVtbScanInfo(SOperatorInfo* pOperator, SDynQueryCtrlOperatorIn
   for (int32_t i = 0; i < LIST_LENGTH(pPhyciNode->vtbScan.pOrgVgIds); ++i) {
     SValueNode* valueNode = (SValueNode*)nodesListGetNode(pPhyciNode->vtbScan.pOrgVgIds, i);
     int32_t vgId = valueNode->datum.i;
-    taosHashPut(pInfo->vtbScan.lastOrgTbVg, &vgId, sizeof(vgId), NULL, 0);
+    code = taosHashPut(pInfo->vtbScan.lastOrgTbVg, &vgId, sizeof(vgId), NULL, 0);
+    QUERY_CHECK_CODE(code, line, _return);
   }
 
   if (pPhyciNode->dynTbname) {

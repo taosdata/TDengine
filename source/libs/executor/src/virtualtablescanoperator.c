@@ -119,7 +119,7 @@ int32_t virtualScanloadNextDataBlockFromParam(void* param, SSDataBlock** ppBlock
   if ((pRes)) {
     qDebug("%s load from downstream, blockId:%d", __func__, pCtx->blockId);
     (pRes)->info.id.blockId = pCtx->blockId;
-    getTimeWindowOfBlock(pRes, pCtx->tsSlotId, &pCtx->window.skey, &pCtx->window.ekey);
+    VTS_ERR_JRET(getTimeWindowOfBlock(pRes, pCtx->tsSlotId, &pCtx->window.skey, &pCtx->window.ekey));
     VTS_ERR_JRET(createOneDataBlock(pRes, true, &pCtx->pIntermediateBlock));
     *ppBlock = pCtx->pIntermediateBlock;
   } else {
@@ -649,9 +649,9 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     SOperatorInfo *pTagScanOp = pOperator->pDownstream[pVirtualScanInfo->tagDownStreamId];
     if (pOperator->pOperatorGetParam) {
       SOperatorParam* pTagOp = ((SVTableScanOperatorParam*)pOperator->pOperatorGetParam->value)->pTagScanOp;
-      pTagScanOp->fpSet.getNextExtFn(pTagScanOp, pTagOp, &pTagBlock);
+      VTS_ERR_JRET(pTagScanOp->fpSet.getNextExtFn(pTagScanOp, pTagOp, &pTagBlock));
     } else {
-      pTagScanOp->fpSet.getNextFn(pTagScanOp, &pTagBlock);
+      VTS_ERR_JRET(pTagScanOp->fpSet.getNextFn(pTagScanOp, &pTagBlock));
     }
 
     if (pTagBlock == NULL || pTagBlock->info.rows != 1) {

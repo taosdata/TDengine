@@ -1133,8 +1133,8 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   for (int32_t i = 0; i < ((SScanLogicNode*)pRealTableScan)->pVgroupList->numOfVgroups; i++) {
     int32_t    vgId = ((SScanLogicNode*)pRealTableScan)->pVgroupList->vgroups[i].vgId;
     SValueNode *pVal = NULL;
-    nodesMakeValueNodeFromInt32(vgId, (SNode**)&pVal);
-    nodesListMakeStrictAppend(&pDynCtrl->vtbScan.pOrgVgIds, (SNode*)pVal);
+    PLAN_ERR_JRET(nodesMakeValueNodeFromInt32(vgId, (SNode**)&pVal));
+    PLAN_ERR_JRET(nodesListMakeStrictAppend(&pDynCtrl->vtbScan.pOrgVgIds, (SNode*)pVal));
   }
 
   pDynCtrl->dynTbname = ((SScanLogicNode*)pRealTableScan)->phTbnameScan;
