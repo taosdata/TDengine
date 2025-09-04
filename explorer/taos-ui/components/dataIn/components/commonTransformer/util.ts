@@ -207,7 +207,9 @@ const initialState: TransformerState = {
   resultTbTitle: '',
   activeColumns: [] as string[], // 转换拆分出来的新字段
   resultCurrentPage: 1,
-  stbDefaultColumns: [] // transfrom 创建超级表时默认的列
+  stbDefaultColumns: [], // transfrom 创建超级表时默认的列
+  convertExpresList: null,
+  jsonExtractListType: null,
 };
 
 // 用一个大的对象包裹起来 方便数据管理和赋值

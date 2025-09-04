@@ -71,7 +71,7 @@ export default {
     createdb: 'CREATEDB',
     createdbTip: 'Indicates whether the user can create a database. 1 means they can create, 0 means they have no permission to create.',
     allowed_host: 'ALLOWED_HOST',
-    allowed_hostTip: 'ALLOWED_HOST indicates the host whitelist for the user. Multiple IP addresses are separated by commas.',
+    allowed_hostTip: 'ALLOWED_HOST indicates the host whitelist for the user. Multiple IP addresses are separated by commas. The database will add 127.0.0.1/32 by default.',
     subscription: 'Topic',
     subscribe: 'Subscribe',
     createbackup: 'Create New Backup',
@@ -114,6 +114,7 @@ export default {
     fail2: 'import failure:',
     fail3: 'Check the cause of the failure',
     formatError: 'The format is incorrect. For example: http://localhost:6041、http://127.0.0.1:6041',
-    createNewUserSucTip: 'Succeeded in creating a user'
+    createNewUserSucTip: 'Succeeded in creating a user',
+    passwordEditTip: 'Please leave it blank if you are not updating the password.'
   }
 };

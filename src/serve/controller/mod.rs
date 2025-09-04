@@ -691,7 +691,7 @@ impl TaskController {
         scheduler: TaskScheduler,
         max_activities_per_entity: usize,
     ) -> anyhow::Result<Self> {
-        let sqlite = if !sqlite.contains(":memory:") {
+        let (is_file, sqlite) = if !sqlite.contains(":memory:") {
             let file = sqlite.trim_start_matches("sqlite:");
             tracing::debug!("check sqlite file: {}", file);
             let path = std::path::Path::new(&file);
@@ -701,16 +701,19 @@ impl TaskController {
                 }
             }
             if path.is_absolute() {
-                path.to_string_lossy().to_string()
+                (true, path.display().to_string())
             } else {
-                std::env::current_dir()
-                    .context("Cannot get current directory")?
-                    .join(file)
-                    .to_string_lossy()
-                    .to_string()
+                (
+                    true,
+                    std::env::current_dir()
+                        .context("Cannot get current directory")?
+                        .join(file)
+                        .display()
+                        .to_string(),
+                )
             }
         } else {
-            sqlite.to_string()
+            (false, sqlite.to_string())
         };
         let connect_options = sqlx::sqlite::SqliteConnectOptions::from_str(&sqlite)
             .with_context(|| format!("invalid sqlite file path: {sqlite}"))?
@@ -743,6 +746,17 @@ impl TaskController {
             .with_context(|| format!("invalid sqlite data file: {sqlite}"))?;
         tracing::debug!("sqlite pool created, start migration");
         MIGRATOR.run(&pool).await?;
+
+        if is_file && std::fs::exists(&sqlite).unwrap_or(false) {
+            let optimizer = sqlite_optimizer::SqliteOptimizer {
+                path: sqlite,
+                pool: pool.clone(),
+            };
+            match optimizer.optimize().await {
+                Ok(report) => tracing::info!("sqlite optimizer success: {report}"),
+                Err(err) => tracing::error!("sqlite optimizer error: {err:?}"),
+            }
+        }
 
         let notify_channel = scheduler.notify_channel();
         let pool_cloned = pool.clone();

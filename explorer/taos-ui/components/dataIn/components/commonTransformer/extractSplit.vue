@@ -20,7 +20,11 @@
           </el-select>
         </el-form-item>
         <el-form-item prop="filter_expres">
-          <template v-if="ruleForm.filter_name == 'split'">
+          <template v-if="ruleForm.filter_name == 'json'">
+            <JsonExtractExpression ref="jsonExtractExpressionRef" :rule-form="itemData.jsonParams" :is-viewable="isViewable">
+            </JsonExtractExpression>
+          </template>
+          <template v-else-if="ruleForm.filter_name == 'split'">
             <SplitExpression ref="splitExpressionRef" :rule-form="itemData.splitParams" :is-viewable="isViewable">
             </SplitExpression>
           </template>
@@ -57,11 +61,13 @@
 import { getTimeParser } from 'components/dataIn/model/util';
 import SplitExpression from './splitExpression.vue';
 import ConvertExpression from './convertExpression.vue';
+import JsonExtractExpression from './jsonExtractExpression.vue';
 import { cloneDeep } from 'lodash-es';
 import { transformerState, supportTransform, defaultColsMap, hiddenColsMap, checkParseData, filterEmpty } from './util';
 import { t } from 'locales';
 import { TransformExtractParseDataType, TopParseType, SpbTopParseType } from './type';
 import { getDataInProps } from 'components/dataIn/model/useDataIn';
+import { ElMessage } from 'element-plus';
 const dataInProps = getDataInProps();
 
 const props = defineProps<{
@@ -82,7 +88,7 @@ let extractParseData = reactive<TransformExtractParseDataType>({
 });
 const tableColumns = ref<Recordable[]>([]);
 const maptypes = ['value', 'generator', 'join', 'format', 'sum', 'expr'];
-const extractTypes = ['split', 'regex', 'join', 'convert'];
+const extractTypes = ['json','split', 'regex', 'join', 'convert'];
 const ruleForm = reactive({
   col_name: '',
   filter_name: '',
@@ -115,6 +121,7 @@ const rules = reactive({
 const tableData = ref<Recordable[]>([]);
 const splitExpressionRef = ref();
 const convertExpressionRef = ref();
+const jsonExtractExpressionRef = ref();
 const extractFormRef = ref();
 
 const emit = defineEmits([
@@ -122,7 +129,8 @@ const emit = defineEmits([
   'select-column',
   'delete-extract',
   'validate-msgbody',
-  'update-extract-arr'
+  'update-extract-arr',
+  'update-extract-columns'
 ]);
 
 watch(
@@ -312,6 +320,7 @@ async function getParserData(data: any, isall: boolean | undefined) {
       obj.value = finalVal.join('') ? finalVal.join(' ; ') : '';
       return obj;
     });
+    emit("update-extract-columns", props.indexKey, colLists);
 
     tableData.value = tbdata;
     transformerState.activeColumns = Object.keys(tbdata[0]);
@@ -387,7 +396,9 @@ function getInputList(resultMsgbody: string[], isall?: boolean): Recordable[] {
                 })
                 : msg;
           } else {
-            inputobj[item.name] = item.type == 'timestamp' ? getTimeParser(new Date()) : item.name;
+            if (item.type == 'timestamp') {
+              inputobj[item.name] = getTimeParser(new Date())
+            }
           }
         } else if (props.datasourceType == 'kafka') {
           if (item.name == 'value') {
@@ -399,7 +410,9 @@ function getInputList(resultMsgbody: string[], isall?: boolean): Recordable[] {
                 })
                 : msg;
           } else {
-            inputobj[item.name] = item.type == 'timestamp' ? getTimeParser(new Date()) : item.name;
+            if (item.type == 'timestamp') {
+              inputobj[item.name] = getTimeParser(new Date())
+            }
           }
         } else if (props.datasourceType == 'mongodb') {
           if (item.name == 'value') {
@@ -443,7 +456,6 @@ function getExtractData(): Recordable {
   cloneDeep(props.extractArr)
     .map(item => {
       let value;
-
       if (item.type === 'regex' || item.type === 'join') {
         value = item.expression;
       } else if (item.type === 'split') {
@@ -462,12 +474,23 @@ function getExtractData(): Recordable {
           convert: typeof convertobj.convert == "string" ? JSON.parse(convertobj.convert) : convertobj.convert,
           new_field_name: convertobj.new_field_name
         };
+      } else if (item.type === 'json') {
+        const jsonParamsValue = {} as any
+        if (item.jsonParams.depth !== undefined && item.jsonParams.depth !== null) {
+          jsonParamsValue.depth = item.jsonParams.depth;
+        }
+        jsonParamsValue.keep = item.jsonParams.keep;
+        jsonParamsValue.json = item.jsonParams.expression;
+        if (jsonParamsValue.json !== '') {
+          jsonParamsValue.json = item.jsonParams.expression.split(',').map((s: any) => s.trim());
+        }
+        value = jsonParamsValue;
       } else {
         // 处理其他类型
         value = item.expression ? item.expression.split(';').map((str: string) => str.trim()) : item.expression;
       }
 
-      if (item.type === 'convert') {
+      if (item.type === 'convert' || item.type === 'json') {
         return {
           [`${item.columnname}`]: value
         };

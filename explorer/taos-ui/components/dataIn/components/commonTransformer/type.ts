@@ -20,6 +20,7 @@ export interface TransformerState {
   csvTransformerlocalCols: string[]; //csv无头部时候的自定义列
   splitExpresList: SplitExpresListType | null; //transformer的split;
   convertExpresList: ConvertExpresListType | null;
+  jsonExtractListType: JsonParseExtractType | null;
   mappingjoin: ''; //mapping时候映射值是join时候的
   definitions: [];
   topParse: TopParseType | SpbTopParseType | null;
@@ -102,6 +103,13 @@ export interface ConvertExpresListType {
   rule: string,
   name: string,
   [key: string]: any;
+}
+
+export interface JsonParseExtractType {
+  depth: number,
+  keep: boolean,
+  expression: any,
+  [key: string]: any
 }
 
 interface TransformerFilterParseDataType {

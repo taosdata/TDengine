@@ -1,0 +1,18 @@
+[package]
+name = "sqlite-optimizer"
+edition = "2021"
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+sqlx = { workspace = true, features = ["sqlite"] }
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tracing-subscriber.workspace = true
+tokio = { workspace = true, features = ["macros"] }
+
+[lints]
+workspace = true

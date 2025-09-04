@@ -93,7 +93,7 @@ export async function refreshTask(id: string | number) {
   return taskDetail;
 }
 
-export function skip2Latest(id: string | number, recovery: boolean) {
+export function skip2Latest(id: string | number, _recovery: boolean) {
   return request({
     baseURL: import.meta.env.VITE_APP_X_API,
     url: `/kafka/${id}/seek_to_end`,
