@@ -394,7 +394,7 @@ static int32_t sslWriteToBIO(STransTLS* pTls, int32_t nread) {
   SSslBuffer* sslBuf = &pTls->readBuf;
 
   sslBuf->len += nread;
-  tDebug("conn %p write %d bytes to bio,ssl buf len %d", pTls->pConn, nread, sslBuf->len);
+  tDebug("conn %p write %d bytes to bio buf, total size %d", pTls->pConn, nread, sslBuf->len);
   int32_t nwrite = BIO_write(pTls->readBio, sslBuf->buf, sslBuf->len);
 
   tDebug("conn %p read %d bytes from socket", pTls->pConn, nread);
