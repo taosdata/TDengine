@@ -235,6 +235,7 @@ The effective value of charset is UTF-8.
 | udfdLdLibPath              |                   | Supported, effective after restart | Internal parameter, indicates the library path for loading UDF |
 | enableStrongPassword       | After 3.3.6.0     | Supported, effective after restart | The password include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters, special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? \| ~ , .`; 0: disable, 1: enable; default value 1 |
 |enableIpv6                  | 3.3.7.0           |not Supported                       |force nodes to communicate directly via IPv6 only, default value is 0, notes: 1. `firstep`, `sencodep`, and `FQDN` must all resolve to IPv6 addresses. 2. Mixed IPv4/IPv6 deployment is not supported|
+|statusInterval              | 3.3.0.0           |Supported, effective after restart                     | Controls the interval time for dnode to send status reports to mnode |
 
 ### Stream Computing Parameters
 
@@ -322,12 +323,14 @@ The effective value of charset is UTF-8.
 | curRange       |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
 | compressor     |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
 
-Additional Notes:
+**Additional Notes**
 
-1. Effective in versions 3.2.0.0 ~ 3.3.0.0 (not inclusive), enabling this parameter will prevent rollback to the version before the upgrade
-1. TSZ compression algorithm is completed through data prediction technology, thus it is more suitable for data with regular changes
-1. TSZ compression time will be longer, if your server CPU is mostly idle and storage space is small, it is suitable to choose this
-1. Example: Enable lossy compression for both float and double types
+1. All configuration parameters will be persisted to local storage. After restarting the database service, the persisted configuration parameter list will be used by default. For local configuration parameters, if you want to continue using the local configuration parameters in the config file, you need to set forceReadConfig to 1.
+2. Only local configuration parameters are controlled by forceReadConfig, while global configuration parameters must be modified through alter all dnodes and are not controlled by forceReadConfig. 
+3. Effective in versions 3.2.0.0 ~ 3.3.0.0 (not inclusive), enabling this parameter will prevent rollback to the version before the upgrade
+4. TSZ compression algorithm is completed through data prediction technology, thus it is more suitable for data with regular changes
+5. TSZ compression time will be longer, if your server CPU is mostly idle and storage space is small, it is suitable to choose this
+6. Example: Enable lossy compression for both float and double types
 
 ```shell
 lossyColumns     float|double

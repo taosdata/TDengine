@@ -7,10 +7,13 @@ class TestStateWindow:
 
     @pytest.mark.ci
     def test_state_window(self):
-        """测试流计算的状态窗口STATE_WINDOW
+        """OldPy: state window
 
         迁移自老用例: tests/system-test/8-stream/state_window_case.py
 
+        Catalog:
+            - Streams:OldPyCases
+            
         Since: v3.3.6.0
 
         Labels: common,ci

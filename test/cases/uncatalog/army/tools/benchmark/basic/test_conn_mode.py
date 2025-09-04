@@ -13,6 +13,7 @@
 # import os, signal
 from new_test_framework.utils import tdLog, tdSql, etool
 import os
+import platform
 
 class TestConnMode:
     def caseDescription(self):
@@ -107,15 +108,17 @@ class TestConnMode:
         # ommand
         # 
         self.benchmarkCmd("-h 127.0.0.1", 5, 100, 10, ["insert rows: 500"])
-        self.benchmarkCmd("-h 127.0.0.1 -uroot -ptaosdata", 5, 100, 10, ["insert rows: 500"])
-        self.benchmarkCmd("-Z 0 -h 127.0.0.1 -P 6030 -uroot -ptaosdata", 5, 100, 10, ["insert rows: 500"])
+        user_opt = "-u root -p taosdata" if platform.system().lower() == "windows" else "-uroot -ptaosdata"
+
+        self.benchmarkCmd(f"-h 127.0.0.1 {user_opt}", 5, 100, 10, ["insert rows: 500"])
+        self.benchmarkCmd(f"-Z 0 -h 127.0.0.1 -P 6030 {user_opt}", 5, 100, 10, ["insert rows: 500"])
 
         #
         # command & json
         #
 
         # 6041 is default
-        options = "-Z 1 -h 127.0.0.1 -P 6041 -uroot -ptaosdata"
+        options = f"-Z 1 -h 127.0.0.1 -P 6041 {user_opt}"
         json = f"{os.path.dirname(__file__)}/json/connModePriorityErrHost.json"
         self.insertBenchJson(json, options, True)
 

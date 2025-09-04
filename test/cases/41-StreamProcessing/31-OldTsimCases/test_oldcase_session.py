@@ -13,7 +13,7 @@ class TestStreamOldCaseSession:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_session(self):
-        """Stream session window
+        """OldTsim: session window
 
         Test the correctness of session windows
 

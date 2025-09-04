@@ -25,12 +25,12 @@ class Test_snode_restart_with_checkpoint:
 
 
     def test_case1(self):
-        """Stream basic test 1
+        """OldPy: snode
 
         1. -
 
         Catalog:
-            - Streams:OldStreamCases
+            - Streams:OldPyCases
 
         Since: v3.0.0.0
 

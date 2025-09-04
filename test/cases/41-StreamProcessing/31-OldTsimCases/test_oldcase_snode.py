@@ -13,7 +13,7 @@ class TestStreamOldCaseSnode:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_snode(self):
-        """Stream snode
+        """OldTsim: snode
 
         Test basic operations of snode
 

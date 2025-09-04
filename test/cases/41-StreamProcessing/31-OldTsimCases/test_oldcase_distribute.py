@@ -13,7 +13,7 @@ class TestStreamOldCaseDistribute:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_distribute(self):
-        """Stream distribute
+        """OldTsim: distribute
 
         Perform multiple write triggers to verify the correctness of the calculation results
 

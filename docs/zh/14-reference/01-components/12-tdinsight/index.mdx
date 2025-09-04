@@ -163,20 +163,20 @@ TDinsight 仪表盘旨在提供 TDengine TSDB 相关资源的使用情况和状�
 
 | 规则名称 | 规则阈值 | 无监控数据时的行为 | 数据扫描间隔 |持续时间 | 执行 SQL              |
 | ------ | --------- | ---------------- | ----------- |------- |----------------------|
-|dnode 节点的 CPU 负载 | 均值 > 80%|触发告警|5 分钟|5 分钟 |`select now(),  dnode_id, last(cpu_system) as cup_use from log.taosd_dnodes_info where _ts >= (now- 5m) and _ts < now partition by dnode_id having first(_ts) > 0 `|
-|dnode 节点的的内存 |均值 > 60%|触发告警|5 分钟|5 分钟|`select now(), dnode_id, last(mem_engine) / last(mem_total)  * 100 as taosd from log.taosd_dnodes_info where _ts >= (now- 5m) and _ts <now partition by dnode_id`|
-|dnode 节点的磁盘容量占用 | > 80%|触发告警|5 分钟|5 分钟|`select now(), dnode_id, data_dir_level, data_dir_name, last(used)  / last(total)  * 100 as used from log.taosd_dnodes_data_dirs where _ts >= (now - 5m) and _ts < now partition by dnode_id, data_dir_level, data_dir_name`|
+|dnode 节点的 CPU 负载 | 均值 > 80%|触发告警|5 分钟|5 分钟 |`select now(), dnode_ep, last(cpu_system) as cpu_use from log.taosd_dnodes_info where _ts >= (now- 5m) and _ts < now partition by dnode_ep `|
+|dnode 节点的的内存 |均值 > 60%|触发告警|5 分钟|5 分钟|`select now(), dnode_ep, last(mem_engine) / last(mem_total)  * 100 as taosd from log.taosd_dnodes_info where _ts >= (now- 5m) and _ts <now partition by dnode_ep`|
+|dnode 节点的磁盘容量占用 | > 80%|触发告警|5 分钟|5 分钟|`select now(), dnode_ep, data_dir_level, data_dir_name, last(used) / last(total)  * 100 as used from log.taosd_dnodes_data_dirs where _ts >= (now - 5m) and _ts < now partition by dnode_ep, data_dir_level, data_dir_name`|
 |集群授权到期 |< 60 天 | 触发告警|1 天|0 秒|`select now(), cluster_id, last(grants_expire_time) / 86400 as expire_time from log.taosd_cluster_info where  _ts >= (now - 24h)  and _ts < now  partition by cluster_id having first(_ts) > 0 `|
 |测点数达到授权测点数|>= 90%|触发告警|1 天|0 秒|`select  now(), cluster_id,  CASE  WHEN max(grants_timeseries_total)  > 0.0 THEN max(grants_timeseries_used)  /max(grants_timeseries_total) * 100.0   ELSE 0.0    END AS result from log.taosd_cluster_info where _ts >= (now - 30s) and _ts < now partition by cluster_id  having timetruncate(first(_ts), 1m) > 0`|
 |查询并发请求数 | > 100|不触发报警|1 分钟|0 秒|`select now() as ts, count(*) as slow_count from performance_schema.perf_queries`|
 |慢查询执行最长时间（无时间窗口） |> 300 秒 | 不触发报警|1 分钟|0 秒|`select now() as ts, count(*) as slow_count from performance_schema.perf_queries where exec_usec>300000000`|
 |dnode 下线 |total != alive|触发告警|30 秒|0 秒|`select now(),  cluster_id, last(dnodes_total)  - last(dnodes_alive) as dnode_offline  from log.taosd_cluster_info where _ts >= (now -30s) and _ts < now partition by cluster_id having first(_ts) > 0`|
 |vnode 下线 |total != alive|触发告警|30 秒|0 秒|`select now(),  cluster_id, last(vnodes_total)  - last(vnodes_alive) as vnode_offline  from log.taosd_cluster_info where _ts >= (now - 30s) and _ts < now partition by cluster_id having first(_ts) > 0 `|
-|数据删除请求数 |> 0|不触发报警|30 秒|0 秒|``select  now(), count(`count`)  as `delete_count`  from log.taos_sql_req  where sql_type = 'delete' and _ts >= (now -30s) and _ts < now``|
-|Adapter RESTful 请求失败 |> 5|不触发报警|30 秒|0 秒|``select now(), sum(`fail`) as `Failed` from log.adapter_requests where req_type=0 and ts >= (now -30s) and ts < now``|
-|Adapter WebSocket 请求失败 |> 5|不触发报警|30 秒|0 秒|``select now(), sum(`fail`) as `Failed` from log.adapter_requests where req_type=1 and ts >= (now -30s) and ts < now``|
+|数据删除请求数 |> 0|不触发报警|30 秒|0 秒|`select  now(), sum(`count`)  as `delete_count`  from log.taos_sql_req  where sql_type = 'delete' and _ts >= (now -30s) and _ts < now`|
+|Adapter RESTful 请求失败 |> 5|不触发报警|30 秒|0 秒|`select now(), sum(`fail`) as `Failed` from log.adapter_requests where req_type=0 and ts >= (now -30s) and ts < now`|
+|Adapter WebSocket 请求失败 |> 5|不触发报警|30 秒|0 秒|`select now(), sum(`fail`) as `Failed` from log.adapter_requests where req_type=1 and ts >= (now -30s) and ts < now`|
 |dnode 数据上报缺少 |< 3|触发告警|180 秒|0 秒|`select now(),  cluster_id, count(*) as dnode_report  from log.taosd_cluster_info where _ts >= (now -180s) and _ts < now  partition by cluster_id  having timetruncate(first(_ts), 1h) > 0`|
-|dnode 重启 |max(update_time) > last(update_time)|触发告警|90 秒|0 秒|`select now(),  dnode_id, max(uptime) - last(uptime) as dnode_restart  from log.taosd_dnodes_info where _ts >= (now - 90s) and _ts < now  partition by dnode_id`|
+|dnode 重启 |max(update_time) > last(update_time)|触发告警|90 秒|0 秒|`select now(), dnode_ep, max(uptime) - last(uptime) as dnode_report  from log.taosd_dnodes_info where _ts >= (now - 90s) and _ts < now partition by dnode_ep`|
 
 用户可参考上述告警规则，根据自己业务需求进行修改与完善。  
 Grafana7.5 及以下版本，Dashboards 与 Alert rules 功能合在一起，而之后的新版本两个功能是分开的。为兼容 Grafana7.5 及以下版本，TDinsight 面板中增加了 Alert Used Only 面板，仅 Grafana7.5 及以下版本需要使用。

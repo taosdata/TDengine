@@ -15,9 +15,12 @@ on:
       - 'source/dnode/mnode/impl/src/mndAnode.c'
       - 'include/common/tanalytics.h'
       - 'source/common/src/tanalytics.c'
-      - 'tests/parallel/tdgpt_cases.task'
-      - 'tests/script/tsim/analytics/**'
       - '**/*.md'
+      - '.github/workflows/**'
+      - '!.github/workflows/new-framework-test.yml'
+      - 'test/ci/tdgpt_cases.task'
+      - 'test/cases/41-TDgpt/**'
+
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-TDengineNewFramework

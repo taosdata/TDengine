@@ -13,7 +13,7 @@ class TestStreamOldCaseInterpUpdate:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_interp_update(self):
-        """Stream interp update
+        """OldTsim: interp update
 
         Validate the calculation results of the interp function during data updates
 

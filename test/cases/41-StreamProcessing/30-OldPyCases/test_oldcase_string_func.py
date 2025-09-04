@@ -23,7 +23,7 @@ class TestStringFunctionInStream:
         ],
     )
     def test_string_function(self, string_func):
-        """迁移旧的测试用例
+        """OldPy: string function
 
         旧用例 tests/system-test/8-stream/scalar_function.py
         测试在流计算中使用字符串函数
@@ -32,6 +32,9 @@ class TestStringFunctionInStream:
         新的建流语句：
         CREATE STREAM XXX SLIDING(10s) FROM tb INTO XXX AS SELECT ts, char_length(val) as val FROM %%trows;
 
+        Catalog:
+            - Streams:OldPyCases
+            
         Since: v3.3.7.0
 
         Labels: common,ci

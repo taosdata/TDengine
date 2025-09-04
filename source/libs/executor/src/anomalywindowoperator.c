@@ -448,13 +448,13 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   SAnalyticBuf                analyBuf = {.bufType = ANALYTICS_BUF_TYPE_JSON};
   char                        dataBuf[64] = {0};
   int32_t                     code = 0;
-  int64_t                     ts = taosGetTimestampMs();
+  int64_t                     ts = taosGetTimestampNs();
   int32_t                     lino = 0;
   const char*                 pId = GET_TASKID(pOperator->pTaskInfo);
 
-  snprintf(analyBuf.fileName, sizeof(analyBuf.fileName), "%s/tdengine-anomaly-%" PRId64 "-%" PRId64, tsTempDir, ts,
-           pSupp->groupId);
-  code = tsosAnalyBufOpen(&analyBuf, 2);
+  snprintf(analyBuf.fileName, sizeof(analyBuf.fileName), "%s/tdengine-anomaly-%" PRId64 "-%p-%" PRId64, tsTempDir, ts,
+           pSupp, pSupp->groupId);
+  code = tsosAnalyBufOpen(&analyBuf, 2, pId);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
   const char* prec = TSDB_TIME_PRECISION_MILLI_STR;
@@ -526,7 +526,7 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   code = taosAnalyBufClose(&analyBuf);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
-  pJson = taosAnalySendReqRetJson(pInfo->algoUrl, ANALYTICS_HTTP_TYPE_POST, &analyBuf, pInfo->timeout);
+  pJson = taosAnalySendReqRetJson(pInfo->algoUrl, ANALYTICS_HTTP_TYPE_POST, &analyBuf, pInfo->timeout, pId);
   if (pJson == NULL) {
     code = terrno;
     goto _OVER;

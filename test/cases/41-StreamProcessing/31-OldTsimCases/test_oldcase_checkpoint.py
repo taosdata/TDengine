@@ -15,7 +15,7 @@ class TestStreamOldCaseCheckPoint:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_checkpoint(self):
-        """Stream checkpoint
+        """OldTsim: checkpoint
 
         Test if the stream continues to run after a restart.
 

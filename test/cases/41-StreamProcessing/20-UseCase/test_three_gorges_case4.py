@@ -6,9 +6,12 @@ from random import randint
 import os
 import subprocess
 import json
+import random
+import time
+import datetime
 
 class Test_ThreeGorges:
-    caseName = "test_three_gorges_case4"
+    caseName = "test_three_gorges_case4_bug1"
     currentDir = os.path.dirname(os.path.abspath(__file__))
     runAll = False
     dbname = "test1"
@@ -27,7 +30,7 @@ class Test_ThreeGorges:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_three_gorges_case4(self):
+    def test_three_gorges_case4_bug1(self):
         """test_three_gorges_case
         
         1. create snode
@@ -55,11 +58,38 @@ class Test_ThreeGorges:
         self.createSnodeTest()
         self.createStream()
         self.checkStreamRunning()
-        # tdSql.query(f"select * from {self.dbname}.str_cjdl_point_data_szls_jk_test")
-        # if tdSql.getRows() == 0:
-        #     raise Exception("ERROR:no result!")
-        tdSql.checkRowsLoop(5,f"select val,senid,senid_name from {self.dbname}.{self.outTbname} order by _c0;",100,1)
+        tdSql.checkResultsByFunc(
+            f"select * from {self.dbname}.str_cjdl_point_data_szls_jk_test",
+            lambda: tdSql.getRows() > 0
+        )
+        
+        # insert expired time data (expired_time:3d)
+        today = datetime.date.today()
+        yesterday = today - datetime.timedelta(days=5)
+        base_ts = int(time.mktime(datetime.datetime.combine(yesterday, datetime.time.min).timetuple())) * 1000
+        tdLog.info(f"write a data from 5 days ago")
+        tdSql.execute(f"insert into {self.dbname}.a1 values({base_ts},998,998) ;") #先写入一条当前时间5天前数据 (比如 7.14 号)
+        tdLog.info(f"Write the time data for the next 2 days")
+        tdSql.execute(f"insert into {self.dbname}.a1 values({base_ts+86400000*7},999,999) ;") #写入未来2天时间数据(7.21号)
+        
+        time.sleep(3)
+        tdLog.info(f"Write the time data for the next 1 days")
+        tdSql.execute(f"insert into {self.dbname}.a1 values({base_ts+86400000*6},997,997) ;")#写入未来1天时间数据（7.20 号）
+        # time.sleep(5)
+        # #检查过去 5 天数据是否写入
+        # tdSql.query(f"select * from {self.dbname}.str_cjdl_point_data_szls_jk_test where _c0 <= today()-5d")
+        # tdLog.info(f"select * from {self.dbname}.str_cjdl_point_data_szls_jk_test where _c0 <= today()-5d")
+        # if tdSql.getRows() != 1:
+        #     raise Exception("ERROR: result is now right!")
+        
+        # #检查未来 1 天数据是否写入
+        # tdSql.query(f"select * from {self.dbname}.str_cjdl_point_data_szls_jk_test where _c0 >today()")
+        # tdLog.info(f"select * from {self.dbname}.str_cjdl_point_data_szls_jk_test where _c0 >today()")
+        # if tdSql.getRows() != 1:
+        #     raise Exception("ERROR: result is now right!")
+        tdSql.checkRowsLoop(6,f"select val,senid,senid_name from {self.dbname}.{self.outTbname} order by _c0;",200,1)
         self.checkResultWithResultFile()
+        
 
     def createStream(self):
         tdLog.info(f"create stream :")
@@ -81,9 +111,7 @@ class Test_ThreeGorges:
         tdLog.info(f"create stream success!")
     
     def sxny_data1(self):
-        import random
-        import time
-        import datetime
+        
 
         random.seed(42)
         tdSql.execute("create database test1 vgroups 6;")
@@ -114,94 +142,13 @@ class Test_ThreeGorges:
                 sql = "INSERT INTO test1.%s VALUES (%d,%d,%d)" % (tb, ts, c1,c2)
                 tdSql.execute(sql)
 
-                
     def checkResultWithResultFile(self):
         chkSql = f"select val,senid,senid_name from {self.dbname}.{self.outTbname} order by _c0;"
         tdLog.info(f"check result with sql: {chkSql}")
         if tdSql.getRows() >0:
             tdCom.generate_query_result_file(self.caseName, self.resultIdx, chkSql)
             tdCom.compare_query_with_result_file(self.resultIdx, chkSql, f"{self.currentDir}/ans/{self.caseName}.{self.resultIdx}.csv", self.caseName)
-            tdLog.info("check result with result file succeed")  
-        
-    def dataIn(self):
-        tdLog.info(f"insert more data:")
-        config = {
-            "filetype": "insert",
-            "cfgdir": "/etc/taos",
-            "host": "localhost",
-            "port": 6030,
-            "user": "root",
-            "password": "taosdata",
-            "thread_count": 16,
-            "thread_count_create_tbl": 8,
-            "result_file": "./insert.txt",
-            "confirm_parameter_prompt": "no",
-            "insert_interval": 0,
-            "num_of_records_per_req": 1000,
-            "max_sql_len": 1048576,
-            "databases": [{
-                    "dbinfo": {
-                        "name": "test1",
-                        "drop": "no",
-                        "replica": 3,
-                        "days": 10,
-                        "precision": "ms",
-                        "keep": 36500,
-                        "minRows": 100,
-                        "maxRows": 4096
-                    },
-                    "super_tables": [{
-                            "name": "stba",
-                            "child_table_exists": "no",
-                            "childtable_count": 3,
-                            "childtable_prefix": "a",
-                            "auto_create_table": "no",
-                            "batch_create_tbl_num": 10,
-                            "data_source": "rand",
-                            "insert_mode": "taosc",
-                            "insert_rows": 5000,
-                            "childtable_limit": 100000000,
-                            "childtable_offset": 0,
-                            "interlace_rows": 0,
-                            "insert_interval": 0,
-                            "max_sql_len": 1048576,
-                            "disorder_ratio": 0,
-                            "disorder_range": 1000,
-                            "timestamp_step": 30000,
-                            "start_timestamp": "2025-01-01 00:00:00.000",
-                            "sample_format": "",
-                            "sample_file": "",
-                            "tags_file": "",
-                            "columns": [
-                                {"type": "timestamp","name":"cts","count": 1,"start":"2025-02-01 00:00:00.000"},
-                                {"type": "int","name":"cint","max":100,"min":-1},
-                                {"type": "int","name":"i1","max":100,"min":-1}
-                            ],
-                            "tags": [
-                                {"type": "int","name":"tint","max":100,"min":-1},
-                                {"type": "double","name":"tdouble","max":100,"min":0},
-                                {"type": "varchar","name":"tvar","len":100,"count": 1},
-                                {"type": "nchar","name":"tnchar","len":100,"count": 1},
-                                {"type": "timestamp","name":"tts"},
-                                {"type": "bool","name":"tbool"}
-                            ]
-                        }
-
-                    ]
-                }
-            ]
-        }
-        
-        with open('insert_config.json','w') as f:
-            json.dump(config,f,indent=4)
-        tdLog.info('config file ready')
-        cmd = f"taosBenchmark -f insert_config.json "
-        # output = subprocess.check_output(cmd, shell=True).decode().strip()
-        ret = os.system(cmd)
-        if ret != 0:
-            raise Exception("taosBenchmark run failed")
-        time.sleep(5)
-        tdLog.info(f"Insert data:taosBenchmark -f insert_config.json")
+            tdLog.info("check result with result file succeed")        
         
 
     def checkResultRows(self, expectedRows):

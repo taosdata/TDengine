@@ -29,6 +29,7 @@ import random
 import datetime
 import time
 import taos
+import platform
 from tzlocal import get_localzone
 from typing import Optional, Literal
 
@@ -1369,12 +1370,23 @@ class TDSql:
                             if str(real) == data:
                                 if show:
                                     tdLog.info("check successfully")
-                        elif real.astimezone(datetime.timezone.utc) == _parse_datetime(
-                            data
-                        ).astimezone(datetime.timezone.utc):
-                            # tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
-                            if show:
-                                tdLog.info("check successfully")
+                        elif isinstance(real, datetime.datetime):
+                            if platform.system().lower() == "windows":
+                                dt_expected = _parse_datetime(data)
+                                # 补齐 tzinfo，避免 Windows astimezone 报错
+                                if real.tzinfo is None:
+                                    real = real.replace(tzinfo=datetime.timezone.utc)
+                                if dt_expected.tzinfo is None:
+                                    dt_expected = dt_expected.replace(tzinfo=datetime.timezone.utc)
+                                if real.astimezone(datetime.timezone.utc) == dt_expected.astimezone(datetime.timezone.utc):
+                                    if show:
+                                        tdLog.info("check successfully")
+                            else:
+                                if real.astimezone(datetime.timezone.utc) == _parse_datetime(
+                                    data
+                                ).astimezone(datetime.timezone.utc):
+                                    if show:
+                                        tdLog.info("check successfully")
                         else:
                             if exit:
                                 caller = inspect.getframeinfo(inspect.stack()[1][0])

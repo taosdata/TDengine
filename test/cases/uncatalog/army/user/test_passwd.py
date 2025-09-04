@@ -44,6 +44,11 @@ class TestPasswd:
             out, err = p.communicate()
             if 0 != p.returncode:
                 tdLog.exit("Test script passwdTest.c make failed")
+        else:
+            p = subprocess.Popen(f"cd {apiPath} && jom -f makefile_win64.mak", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            out, err = p.communicate()
+            if 0 != p.returncode:
+                tdLog.exit("Test script passwdTest.c make failed")
         
         p = subprocess.Popen(f"ls {apiPath}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = p.communicate()

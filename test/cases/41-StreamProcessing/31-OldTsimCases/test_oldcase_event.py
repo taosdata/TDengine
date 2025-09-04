@@ -13,7 +13,7 @@ class TestStreamOldCaseEvent:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_event(self):
-        """Stream event window
+        """OldTsim: event window
 
         Test event window deletion and update
 

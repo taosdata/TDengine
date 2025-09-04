@@ -13,7 +13,7 @@ class TestStreamOldCaseTwa:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_twa(self):
-        """Stream twa
+        """OldTsim: twa
 
         Verify the behavior of the legacy TWA function in the new streaming computation system
 

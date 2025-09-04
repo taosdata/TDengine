@@ -13,7 +13,7 @@ class TestStreamOldCaseInterpPrimary:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_interp_primary(self):
-        """Stream composite key
+        """OldTsim: composite key
 
         Validate the calculation results with composite keys
 

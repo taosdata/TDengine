@@ -75,7 +75,12 @@ class Remote:
                 with open(error_output, "a") as f:
                     result = await asyncio.to_thread(subprocess.run, cmd_line, shell=True, stdout=f, stderr=f)
             if result.returncode != 0:
-                tdLog.error(result.stderr.decode())
+                try:
+                    err_msg = result.stderr.decode("utf-8")
+                except UnicodeDecodeError:
+                    err_msg = result.stderr.decode("gbk", errors="ignore")
+                tdLog.error(f"running command: {cmd_line}")
+                tdLog.error(err_msg)
                 return None
             return result.stdout.decode().strip()
         # 执行远程shell命令
@@ -160,33 +165,34 @@ class Remote:
             cmd_line = " && ".join(cmd_list)
         else:
             cmd_line = cmd_list
-        self._logger.info("cmd on %s: %s", host, cmd_line)
+        self._logger.debug("cmd on %s: %s", host, cmd_line)
         # 执行本地shell命令
-        if host == self._local_host:
-            return os.popen(cmd_line).read().strip()
+        if host == self._local_host or host == "localhost":
+            return os.system(cmd_line)
         # 执行远程shell命令
-        '''
-        hard code for windows user and password
-        '''
-        try:
-            win_con= winrm.Session(f'http://{host}:5985/wsman',auth=('administrator', 'tbase125!'))
-            print("start execute in windows")
-            result = win_con.run_cmd(f'{cmd_line}')
-            code = result.status_code
-            content = result.std_out if code == 0 else result.std_err
-            if code != 0 :
-                self._logger.error(content)
-                return (f"cmd failed code:%d"%code)
-            else:
-                try:
-                    result_dec = content.decode("utf8")
-                except:
-                    result_dec = content.decode("GBK")
-                return result_dec.strip()
-            # return result.std_out.strip()                    
-        except Exception as e:
-            self._logger.exception(f"Exception occur---{e}")
-            return None
+        else:
+            '''
+            hard code for windows user and password
+            '''
+            try:
+                win_con= winrm.Session(f'http://{host}:5985/wsman',auth=('administrator', 'tbase125!'))
+                print("start execute in windows")
+                result = win_con.run_cmd(f'{cmd_line}')
+                code = result.status_code
+                content = result.std_out if code == 0 else result.std_err
+                if code != 0 :
+                    self._logger.error(content)
+                    return (f"cmd failed code:%d"%code)
+                else:
+                    try:
+                        result_dec = content.decode("utf8")
+                    except:
+                        result_dec = content.decode("GBK")
+                    return result_dec.strip()
+                # return result.std_out.strip()                    
+            except Exception as e:
+                self._logger.exception(f"Exception occur---{e}")
+                return None
 
 
     def cmd2(self, host, cmd_list, password="") -> Result:
@@ -213,8 +219,13 @@ class Remote:
     def put(self, host, file, path, password="") -> bool:
         self._logger.debug("put %s to %s:%s", file, host, path)
         if host == platform.node() or host == "localhost":
-            os.system("mkdir -p {0}".format(path))
+            if not os.path.exists(path):
+                self.mkdir(host, path)
             os.system("cp -rf {0} {1}".format(file, path))
+            if platform.system().lower() == "windows":
+                os.system(f'xcopy /E /Y "{file}" "{path}\\"')
+            else:
+                os.system(f'cp -rf "{file}" "{path}"')
             return True
         try:
             with Connection(host, user="root", connect_kwargs={"password": password}) as c:
@@ -246,7 +257,12 @@ class Remote:
         self.cmd(host, [deleteCmd], password)
 
     def mkdir(self, host, path, password=""):
-        self.cmd(host, [f"mkdir -p {path}"], password)
+        if platform.system().lower() == "windows":
+            path = path.replace("/", "\\")
+            cmd = f"mkdir {path}"
+            self.cmd_windows(host, [cmd], password)
+        else:
+            self.cmd(host, [f"mkdir -p {path}"], password)
 
     def command_exists(self, host, prog_name):
         """

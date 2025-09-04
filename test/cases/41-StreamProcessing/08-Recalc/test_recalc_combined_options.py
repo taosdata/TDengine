@@ -9,7 +9,7 @@ class TestStreamRecalcCombinedOptions:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_recalc_combined_options(self):
-        """Stream Recalculation Combined Options Test
+        """Recalc: mixed options
 
         Test complex interactions between multiple stream recalculation options:
 

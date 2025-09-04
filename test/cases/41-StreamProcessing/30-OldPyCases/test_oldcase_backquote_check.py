@@ -1,4 +1,4 @@
-# pytest --clean --skip_stop cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_backquote_check.py
+# pytest --clean --skip_stop cases/41-StreamProcessing/31-OldTsimCases/test_oldcase_backquote_check.py
 
 import time
 from datetime import datetime
@@ -25,12 +25,12 @@ class TestOthersOldCaseBackquoteCheck:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_others_oldcase_backquote_check(self):   
-        """back quote
+        """OldPy: back quote
 
         test back quote check
 
         Catalog:
-            - Streams:UseCases
+            - Streams:OldPyCases
 
         Since: v3.3.3.7
 

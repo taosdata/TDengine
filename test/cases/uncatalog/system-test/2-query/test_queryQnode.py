@@ -73,7 +73,7 @@ class TestQueryqnode:
 
     # --------------- case  -------------------
 
-    def newcur(self,host,cfg):
+    def newcur(self, host, cfg):
         user = "root"
         password = "taosdata"
         port =6030
@@ -85,7 +85,7 @@ class TestQueryqnode:
     # create tables
     def create_tables(self,host,dbname,stbname,count):
         buildPath = self.getBuildPath()
-        config = buildPath+ "../sim/dnode1/cfg/"
+        config = os.path.join(os.path.dirname(buildPath),"sim", "dnode1", "cfg")
 
         tsql=self.newcur(host,config)
         tsql.execute("use %s" %dbname)
@@ -117,7 +117,7 @@ class TestQueryqnode:
 
     def mutiThread_create_tables(self,host,dbname,stbname,vgroups,threadNumbers,childcount):
         buildPath = self.getBuildPath()
-        config = buildPath+ "../sim/dnode1/cfg/"
+        config = os.path.join(os.path.dirname(buildPath),"sim", "dnode1", "cfg")
 
         tsql=self.newcur(host,config)
         tdLog.debug("create database %s"%dbname)
@@ -147,7 +147,7 @@ class TestQueryqnode:
     # insert data
     def insert_data(self, host, dbname, stbname, chilCount, ts_start, rowCount):
         buildPath = self.getBuildPath()
-        config = buildPath+ "../sim/dnode1/cfg/"
+        config = os.path.join(os.path.dirname(buildPath),"sim", "dnode1", "cfg")
         tsql=self.newcur(host,config)
         tdLog.debug("ready to inser data")
         tsql.execute("use %s" %dbname)
@@ -227,7 +227,7 @@ class TestQueryqnode:
 
         # count=50000
         buildPath = self.getBuildPath()
-        config = buildPath+ "../sim/dnode1/cfg/"
+        config = os.path.join(os.path.dirname(buildPath),"sim", "dnode1", "cfg")
         tsql=self.newcur(host,config)
 
         # insert: create one  or mutiple tables per sql and insert multiple rows per sql

@@ -13,7 +13,7 @@ class TestStreamOldCaseFillHistory:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_fillhistory(self):
-        """Stream fill history
+        """OldTsim: fill history
 
         Verify the correctness of historical data calculation results, as well as the calculation results at the boundary between historical and real-time computation.
 

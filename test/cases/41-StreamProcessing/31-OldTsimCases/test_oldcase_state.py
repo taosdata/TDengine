@@ -13,7 +13,7 @@ class TestStreamOldCaseState:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_state(self):
-        """Stream state window
+        """OldTsim: state window
 
         Test the correctness of state windows
 

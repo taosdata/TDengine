@@ -45,12 +45,12 @@ class TestStreamBasicCase:
         
     # run
     def test_stream_basic(self):
-        """Stream basic test 1
+        """OldPy: basic test 1
 
         1. test stream basic
 
         Catalog:
-            - Streams:OldStreamCases
+            - Streams:OldPyCases
 
         Since: v3.0.0.0
 

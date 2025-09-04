@@ -1,6 +1,7 @@
 import time
 import socket
 import os
+import platform
 import threading
 
 from datetime import timezone, datetime
@@ -17,21 +18,6 @@ class TestNestedqueryinterval:
         cls.testcasePath = os.path.split(__file__)[0]
         cls.testcaseFilename = os.path.split(__file__)[-1]
 
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files or "taosd.exe" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
-                    break
-        return buildPath
 
     def create_tables(self):
         tdSql.execute(f"drop database if exists nested")
@@ -810,27 +796,27 @@ class TestNestedqueryinterval:
         tdSql.checkRows(2)
 
         for i in range (2):
-          tdSql.checkData(i, 0, wstart_res[i]);
-          tdSql.checkData(i, 1, wend_res[i]);
-          tdSql.checkData(i, 2, twa_res[i]);
+          tdSql.checkData(i, 0, wstart_res[i])
+          tdSql.checkData(i, 1, wend_res[i])
+          tdSql.checkData(i, 2, twa_res[i])
 
         tdSql.query(f"select _wstart,_wend,twa(q_int) from (select * from nested.stable_2_1) interval(1n);")
         tdSql.checkCols(3)
         tdSql.checkRows(2)
 
         for i in range (2):
-          tdSql.checkData(i, 0, wstart_res[i]);
-          tdSql.checkData(i, 1, wend_res[i]);
-          tdSql.checkData(i, 2, twa_res[i]);
+          tdSql.checkData(i, 0, wstart_res[i])
+          tdSql.checkData(i, 1, wend_res[i])
+          tdSql.checkData(i, 2, twa_res[i])
 
         tdSql.query(f"select _wstart,_wend,twa(q_int) from (select * from nested.stable_2_1 order by ts) interval(1n);")
         tdSql.checkCols(3)
         tdSql.checkRows(2)
 
         for i in range (2):
-          tdSql.checkData(i, 0, wstart_res[i]);
-          tdSql.checkData(i, 1, wend_res[i]);
-          tdSql.checkData(i, 2, twa_res[i]);
+          tdSql.checkData(i, 0, wstart_res[i])
+          tdSql.checkData(i, 1, wend_res[i])
+          tdSql.checkData(i, 2, twa_res[i])
 
         ## check irate
         tdSql.query(f"select _wstart,_wend,irate(q_int) from nested.stable_2_1 interval(1n);")
@@ -838,27 +824,27 @@ class TestNestedqueryinterval:
         tdSql.checkRows(2)
 
         for i in range (2):
-          tdSql.checkData(i, 0, wstart_res[i]);
-          tdSql.checkData(i, 1, wend_res[i]);
-          tdSql.checkData(i, 2, irate_res[i]);
+          tdSql.checkData(i, 0, wstart_res[i])
+          tdSql.checkData(i, 1, wend_res[i])
+          tdSql.checkData(i, 2, irate_res[i])
 
         tdSql.query(f"select _wstart,_wend,irate(q_int) from (select * from nested.stable_2_1) interval(1n);")
         tdSql.checkCols(3)
         tdSql.checkRows(2)
 
         for i in range (2):
-          tdSql.checkData(i, 0, wstart_res[i]);
-          tdSql.checkData(i, 1, wend_res[i]);
-          tdSql.checkData(i, 2, irate_res[i]);
+          tdSql.checkData(i, 0, wstart_res[i])
+          tdSql.checkData(i, 1, wend_res[i])
+          tdSql.checkData(i, 2, irate_res[i])
 
         tdSql.query(f"select _wstart,_wend,irate(q_int) from (select * from nested.stable_2_1 order by ts) interval(1n);")
         tdSql.checkCols(3)
         tdSql.checkRows(2)
 
         for i in range (2):
-          tdSql.checkData(i, 0, wstart_res[i]);
-          tdSql.checkData(i, 1, wend_res[i]);
-          tdSql.checkData(i, 2, irate_res[i]);
+          tdSql.checkData(i, 0, wstart_res[i])
+          tdSql.checkData(i, 1, wend_res[i])
+          tdSql.checkData(i, 2, irate_res[i])
           
         self.fun_to_char()
         self.fun_to_timestamp()
@@ -896,125 +882,125 @@ class TestNestedqueryinterval:
         tdSql.query(f"select * from (%s)"%sql)
         tdSql.checkData(0, 1, '2021-AUG-6 01:46:40.000a.m.+08 FRI');
         
-        sql = "select ts,to_char(ts, 'yyyy-MON-DD hh24:mi:ss.msa.m.TZH DY') from nested.stable_1 limit 2"
+        sql = 'select ts,to_char(ts, "yyyy-MON-DD hh24:mi:ss.msa.m.TZH DY") from nested.stable_1 limit 2'
         tdSql.query(sql)
-        tdSql.checkData(0, 1, '2021-AUG-27 01:46:40.000a.m.+08 FRI');
+        tdSql.checkData(0, 1, '2021-AUG-27 01:46:40.000a.m.+08 FRI')
         tdSql.query(f"select * from (%s)"%sql)
-        tdSql.checkData(0, 1, '2021-AUG-27 01:46:40.000a.m.+08 FRI');
+        tdSql.checkData(0, 1, '2021-AUG-27 01:46:40.000a.m.+08 FRI')
         
-        sql = "select ts,to_char(ts, 'yyyy-MON-DDD hh24:mi:ss.msa.m.TZH DY') from nested.stable_1 limit 2"
+        sql = 'select ts,to_char(ts, "yyyy-MON-DDD hh24:mi:ss.msa.m.TZH DY") from nested.stable_1 limit 2'
         tdSql.query(sql)
-        tdSql.checkData(0, 1, '2021-AUG-239 01:46:40.000a.m.+08 FRI');
-        tdSql.query(f"select * from (%s)"%sql)
-        tdSql.checkData(0, 1, '2021-AUG-239 01:46:40.000a.m.+08 FRI');
-        
-        sql = "select ts,to_char(ts, 'yyyy-MON-DDD HH24:mi:ss.msa.m.TZH DY') from nested.stable_1 limit 2"
-        tdSql.query(sql)
-        tdSql.checkData(0, 1, '2021-AUG-239 01:46:40.000a.m.+08 FRI');
-        tdSql.query(f"select * from (%s)"%sql)
+        tdSql.checkData(0, 1, '2021-AUG-239 01:46:40.000a.m.+08 FRI')
+        tdSql.query(f'select * from (%s)'%sql)
         tdSql.checkData(0, 1, '2021-AUG-239 01:46:40.000a.m.+08 FRI');
         
-        sql = "select ts,to_char(ts, 'yyyy') from nested.stable_1 limit 2"
+        sql = 'select ts,to_char(ts, "yyyy-MON-DDD HH24:mi:ss.msa.m.TZH DY") from nested.stable_1 limit 2'
         tdSql.query(sql)
-        tdSql.checkData(0, 1, '2021');
-        tdSql.query(f"select * from (%s)"%sql)
-        tdSql.checkData(0, 1, '2021');
+        tdSql.checkData(0, 1, '2021-AUG-239 01:46:40.000a.m.+08 FRI')
+        tdSql.query(f'select * from (%s)'%sql)
+        tdSql.checkData(0, 1, '2021-AUG-239 01:46:40.000a.m.+08 FRI')
         
-        tdSql.query(f"select ts,to_char(ts, 'YYYY') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021');
-        tdSql.query(f"select ts,to_char(ts, 'YYY') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '021');
-        tdSql.query(f"select ts,to_char(ts, 'yyy') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '021');
-        tdSql.query(f"select ts,to_char(ts, 'YY') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '21');
-        tdSql.query(f"select ts,to_char(ts, 'yy') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '21');
-        tdSql.query(f"select ts,to_char(ts, 'Y') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '1');
-        tdSql.query(f"select ts,to_char(ts, 'y') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '1');
-        tdSql.query(f"select * from (select ts,to_char(ts, 'y') from nested.stable_1 limit 2);")
-        tdSql.checkData(0, 1, '1');
+        sql = 'select ts,to_char(ts, "yyyy") from nested.stable_1 limit 2'
+        tdSql.query(sql)
+        tdSql.checkData(0, 1, '2021')
+        tdSql.query(f'select * from (%s)'%sql)
+        tdSql.checkData(0, 1, '2021')
+        
+        tdSql.query(f'select ts,to_char(ts, "YYYY") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '2021')
+        tdSql.query(f'select ts,to_char(ts, "YYY") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '021')
+        tdSql.query(f'select ts,to_char(ts, "yyy") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '021')
+        tdSql.query(f'select ts,to_char(ts, "YY") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '21')
+        tdSql.query(f'select ts,to_char(ts, "yy") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '21')
+        tdSql.query(f'select ts,to_char(ts, "Y") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '1')
+        tdSql.query(f'select ts,to_char(ts, "y") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '1')
+        tdSql.query(f'select * from (select ts,to_char(ts, "y") from nested.stable_1 limit 2);')
+        tdSql.checkData(0, 1, '1')
 
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-MON') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-AUG');
-        tdSql.query(f"select * from (select ts,to_char(ts, 'yyyy-MON') from nested.stable_1 limit 2);")
-        tdSql.checkData(0, 1, '2021-AUG');
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-Mon') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-Aug');
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-mon') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-aug');
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-MONTH') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-AUGUST   ');
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-Month') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-August   ');
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-month') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-august   ');
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-mm') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-08');
-        tdSql.query(f"select * from (select ts,to_char(ts, 'yyyy-mm') from nested.stable_1 limit 2);")
-        tdSql.checkData(0, 1, '2021-08');
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-MM') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-08');
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-DAY-mm') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-FRIDAY   -08');
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-Day-mm') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-Friday   -08');
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-day-mm') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-friday   -08');
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-DY-MM') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-FRI-08');
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-Dy-MM') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-Fri-08');
-        tdSql.query(f"select * from (select ts,to_char(ts, 'yyyy-Dy-MM') from nested.stable_1 limit 2);")
-        tdSql.checkData(0, 1, '2021-Fri-08');
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-dy-MM') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-fri-08');
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-DD-DDD') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-27-239');
-        tdSql.query(f"select ts,to_char(ts, 'D-DD-DDD DY') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '6-27-239 FRI');
-        tdSql.query(f"select ts,to_char(ts, 'D-DD-DDD dy') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '6-27-239 fri');
-        tdSql.query(f"select ts,to_char(ts, 'D-DD-DDD DYdyDY') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '6-27-239 FRIfriFRI');
-        tdSql.query(f"select * from (select ts,to_char(ts, 'D-DD-DDD DYdyDY') from nested.stable_1 limit 2);")
-        tdSql.checkData(0, 1, '6-27-239 FRIfriFRI');
-        tdSql.query(f"select ts,to_char(ts, '') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '');
-        tdSql.query(f"select * from (select ts,to_char(ts, '') from nested.stable_1 limit 2);")
-        tdSql.checkData(0, 1, '');
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-MON-D-DD-DDD hh24:mi:ss.msa.m') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-AUG-6-27-239 01:46:40.000a.m');
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-MON-D-DD-DDD HH24:mi:ss.msa.m') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-AUG-6-27-239 01:46:40.000a.m');
-        tdSql.query(f"select * from (select ts,to_char(ts, 'yyyy-MON-D-DD-DDD HH24:mi:ss.msa.m') from nested.stable_1 limit 2);")
-        tdSql.checkData(0, 1, '2021-AUG-6-27-239 01:46:40.000a.m');
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-MON-D-DD-DDD hh12:mi:ss.msa.m') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-AUG-6-27-239 01:46:40.000a.m');
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-MON-D-DD-DDD HH12:mi:ss.msa.m') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-AUG-6-27-239 01:46:40.000a.m');
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-MON-D-DD-DDD hh:mi:ss.msa.m') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-AUG-6-27-239 01:46:40.000a.m');
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-MON-D-DD-DDD HH:mi:ss.msa.m') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-AUG-6-27-239 01:46:40.000a.m');
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-MON-D-DD-DDD hh24:mi:ss.msp.m') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-AUG-6-27-239 01:46:40.000p.m');
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-MON-D-DD-DDD hh24:mi:ss.msa.mp.m') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-AUG-6-27-239 01:46:40.000a.mp.m');
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-MON-D-DD-DDD hh24:mi:ss.ms') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-AUG-6-27-239 01:46:40.000');
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-MON-D-DD-DDD hh24:mi:ss.us') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-AUG-6-27-239 01:46:40.000000');
-        tdSql.query(f"select ts,to_char(ts, 'yyyy-MON-D-DD-DDD hh24:mi:ss.ns') from nested.stable_1 limit 2;")
-        tdSql.checkData(0, 1, '2021-AUG-6-27-239 01:46:40.000000000');
-        tdSql.query(f"select * from (select ts,to_char(ts, 'yyyy-MON-D-DD-DDD hh24:mi:ss.ms') from nested.stable_1 limit 2);")
-        tdSql.checkData(0, 1, '2021-AUG-6-27-239 01:46:40.000');
-        tdSql.query(f"select * from (select ts,to_char(ts, 'yyyy-MON-D-DD-DDD hh24:mi:ss.us') from nested.stable_1 limit 2);")
-        tdSql.checkData(0, 1, '2021-AUG-6-27-239 01:46:40.000000');
-        tdSql.query(f"select * from (select ts,to_char(ts, 'yyyy-MON-D-DD-DDD hh24:mi:ss.ns') from nested.stable_1 limit 2);")
-        tdSql.checkData(0, 1, '2021-AUG-6-27-239 01:46:40.000000000');
+        tdSql.query(f'select ts,to_char(ts, "yyyy-MON") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '2021-AUG')
+        tdSql.query(f'select * from (select ts,to_char(ts, "yyyy-MON") from nested.stable_1 limit 2);')
+        tdSql.checkData(0, 1, '2021-AUG')
+        tdSql.query('select ts,to_char(ts, "yyyy-Mon") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '2021-Aug')
+        tdSql.query(f'select ts,to_char(ts, "yyyy-mon") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '2021-aug')
+        tdSql.query(f'select ts,to_char(ts, "yyyy-MONTH") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '2021-AUGUST   ')
+        tdSql.query(f'select ts,to_char(ts, "yyyy-Month") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '2021-August   ')
+        tdSql.query(f'select ts,to_char(ts, "yyyy-month") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '2021-august   ')
+        tdSql.query(f'select ts,to_char(ts, "yyyy-mm") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '2021-08')
+        tdSql.query(f'select * from (select ts,to_char(ts, "yyyy-mm") from nested.stable_1 limit 2);')
+        tdSql.checkData(0, 1, '2021-08')
+        tdSql.query(f'select ts,to_char(ts, "yyyy-MM") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '2021-08')
+        tdSql.query(f'select ts,to_char(ts, "yyyy-DAY-mm") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '2021-FRIDAY   -08')
+        tdSql.query(f'select ts,to_char(ts, "yyyy-Day-mm") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '2021-Friday   -08')
+        tdSql.query(f'select ts,to_char(ts, "yyyy-day-mm") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '2021-friday   -08')
+        tdSql.query(f'select ts,to_char(ts, "yyyy-DY-MM") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '2021-FRI-08')
+        tdSql.query(f'select ts,to_char(ts, "yyyy-Dy-MM") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '2021-Fri-08')
+        tdSql.query(f'select * from (select ts,to_char(ts, "yyyy-Dy-MM") from nested.stable_1 limit 2);')
+        tdSql.checkData(0, 1, '2021-Fri-08')
+        tdSql.query(f'select ts,to_char(ts, "yyyy-dy-MM") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '2021-fri-08')
+        tdSql.query(f'select ts,to_char(ts, "yyyy-DD-DDD") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '2021-27-239')
+        tdSql.query(f'select ts,to_char(ts, "D-DD-DDD DY") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '6-27-239 FRI')
+        tdSql.query(f'select ts,to_char(ts, "D-DD-DDD dy") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '6-27-239 fri')
+        tdSql.query(f'select ts,to_char(ts, "D-DD-DDD DYdyDY") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '6-27-239 FRIfriFRI')
+        tdSql.query(f'select * from (select ts,to_char(ts, "D-DD-DDD DYdyDY") from nested.stable_1 limit 2);')
+        tdSql.checkData(0, 1, '6-27-239 FRIfriFRI')
+        tdSql.query(f'select ts,to_char(ts, "") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, '')
+        tdSql.query(f'select * from (select ts,to_char(ts, "") from nested.stable_1 limit 2);')
+        tdSql.checkData(0, 1, '')
+        tdSql.query(f'select ts,to_char(ts, "yyyy-MON-D-DD-DDD hh24:mi:ss.msa.m") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, "2021-AUG-6-27-239 01:46:40.000a.m")
+        tdSql.query(f'select ts,to_char(ts, "yyyy-MON-D-DD-DDD HH24:mi:ss.msa.m") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, "2021-AUG-6-27-239 01:46:40.000a.m")
+        tdSql.query(f'select * from (select ts,to_char(ts, "yyyy-MON-D-DD-DDD HH24:mi:ss.msa.m") from nested.stable_1 limit 2);')
+        tdSql.checkData(0, 1, "2021-AUG-6-27-239 01:46:40.000a.m")
+        tdSql.query(f'select ts,to_char(ts, "yyyy-MON-D-DD-DDD hh12:mi:ss.msa.m") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, "2021-AUG-6-27-239 01:46:40.000a.m")
+        tdSql.query(f'select ts,to_char(ts, "yyyy-MON-D-DD-DDD HH12:mi:ss.msa.m") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, "2021-AUG-6-27-239 01:46:40.000a.m")
+        tdSql.query(f'select ts,to_char(ts, "yyyy-MON-D-DD-DDD hh:mi:ss.msa.m") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, "2021-AUG-6-27-239 01:46:40.000a.m")
+        tdSql.query(f'select ts,to_char(ts, "yyyy-MON-D-DD-DDD HH:mi:ss.msa.m") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, "2021-AUG-6-27-239 01:46:40.000a.m")
+        tdSql.query(f'select ts,to_char(ts, "yyyy-MON-D-DD-DDD hh24:mi:ss.msp.m") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, "2021-AUG-6-27-239 01:46:40.000p.m")
+        tdSql.query(f'select ts,to_char(ts, "yyyy-MON-D-DD-DDD hh24:mi:ss.msa.mp.m") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, "2021-AUG-6-27-239 01:46:40.000a.mp.m")
+        tdSql.query(f'select ts,to_char(ts, "yyyy-MON-D-DD-DDD hh24:mi:ss.ms") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, "2021-AUG-6-27-239 01:46:40.000")
+        tdSql.query(f'select ts,to_char(ts, "yyyy-MON-D-DD-DDD hh24:mi:ss.us") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, "2021-AUG-6-27-239 01:46:40.000000")
+        tdSql.query(f'select ts,to_char(ts, "yyyy-MON-D-DD-DDD hh24:mi:ss.ns") from nested.stable_1 limit 2;')
+        tdSql.checkData(0, 1, "2021-AUG-6-27-239 01:46:40.000000000")
+        tdSql.query(f'select * from (select ts,to_char(ts, "yyyy-MON-D-DD-DDD hh24:mi:ss.ms") from nested.stable_1 limit 2);')
+        tdSql.checkData(0, 1, '2021-AUG-6-27-239 01:46:40.000')
+        tdSql.query(f'select * from (select ts,to_char(ts, "yyyy-MON-D-DD-DDD hh24:mi:ss.us") from nested.stable_1 limit 2);')
+        tdSql.checkData(0, 1, '2021-AUG-6-27-239 01:46:40.000000')
+        tdSql.query(f'select * from (select ts,to_char(ts, "yyyy-MON-D-DD-DDD hh24:mi:ss.ns") from nested.stable_1 limit 2);')
+        tdSql.checkData(0, 1, '2021-AUG-6-27-239 01:46:40.000000000')
 
     def sql_data_check(self,sql):   
         tdLog.info("\n=============sql:(%s)====================\n" %(sql)) 
@@ -1032,94 +1018,94 @@ class TestNestedqueryinterval:
     def fun_to_timestamp(self):
         tdLog.debug("test to_timestamp ............ [OK]")
         
-        sql = "select ts,to_timestamp(to_char(ts, 'yyyy-YYYY-MON-D-DD-DDD hh24:mi:ss.msa.m.TZH DY'),'yyyy-YYYY-MON-D-DD-DDD hh24:mi:ss.msa.m.TZH DY') from nested.stable_1 limit 2"
+        sql = 'select ts,to_timestamp(to_char(ts, "yyyy-YYYY-MON-D-DD-DDD hh24:mi:ss.msa.m.TZH DY"),"yyyy-YYYY-MON-D-DD-DDD hh24:mi:ss.msa.m.TZH DY") from nested.stable_1 limit 2'
         self.sql_data_check(sql)    
         sql = "select * from (%s)"%sql
         self.sql_data_check(sql)            
         
-        sql = "select ts,to_timestamp(to_char(ts, 'yyyy-MON-D-DD-DDD hh24:mi:ss.msa.m.TZH DY'), 'yyyy-MON-D-DD-DDD hh24:mi:ss.msa.m.TZH DY') from nested.stable_1 limit 2"
+        sql = 'select ts,to_timestamp(to_char(ts, "yyyy-MON-D-DD-DDD hh24:mi:ss.msa.m.TZH DY"), "yyyy-MON-D-DD-DDD hh24:mi:ss.msa.m.TZH DY") from nested.stable_1 limit 2'
         self.sql_data_check(sql)  
         sql = "select * from (%s)"%sql
         self.sql_data_check(sql)
                
-        sql = "select ts,to_timestamp(to_char(ts, 'yyyy-MON-D-DD-DDD hh24:mi:ss.msa.m.tzh DY'), 'yyyy-MON-D-DD-DDD hh24:mi:ss.msa.m.tzh DY') from nested.stable_1 limit 2"
+        sql = 'select ts,to_timestamp(to_char(ts, "yyyy-MON-D-DD-DDD hh24:mi:ss.msa.m.tzh DY"), "yyyy-MON-D-DD-DDD hh24:mi:ss.msa.m.tzh DY") from nested.stable_1 limit 2'
         self.sql_data_check(sql)  
         sql = "select * from (%s)"%sql
         self.sql_data_check(sql)
         
-        sql = "select ts,to_timestamp(to_char(ts, 'yyyy-MON-DD hh24:mi:ss.msa.m.TZH DY'), 'yyyy-MON-DD hh24:mi:ss.msa.m.TZH DY') from nested.stable_1 limit 2"
+        sql = 'select ts,to_timestamp(to_char(ts, "yyyy-MON-DD hh24:mi:ss.msa.m.TZH DY"), "yyyy-MON-DD hh24:mi:ss.msa.m.TZH DY") from nested.stable_1 limit 2'
         self.sql_data_check(sql)  
         sql = "select * from (%s)"%sql
         self.sql_data_check(sql)
         
-        sql = "select ts,to_timestamp(to_char(ts, 'yyyy-MON-DD hh24:mi:ss.msa.m.TZH DY') , 'yyyy-MON-DD hh24:mi:ss.msa.m.TZH DY')from nested.stable_1 limit 2"
+        sql = 'select ts,to_timestamp(to_char(ts, "yyyy-MON-DD hh24:mi:ss.msa.m.TZH DY") , "yyyy-MON-DD hh24:mi:ss.msa.m.TZH DY")from nested.stable_1 limit 2'
         self.sql_data_check(sql)  
         sql = "select * from (%s)"%sql
         self.sql_data_check(sql)
         
-        sql = "select ts,to_timestamp(to_char(ts, 'yyyy-MON-DDD hh24:mi:ss.msa.m.TZH DY'), 'yyyy-MON-DDD hh24:mi:ss.msa.m.TZH DY') from nested.stable_1 limit 2"
+        sql = 'select ts,to_timestamp(to_char(ts, "yyyy-MON-DDD hh24:mi:ss.msa.m.TZH DY"), "yyyy-MON-DDD hh24:mi:ss.msa.m.TZH DY") from nested.stable_1 limit 2'
         tdSql.error(sql)  
         sql = "select * from (%s)"%sql
         tdSql.error(sql)
         
-        sql = "select ts,to_timestamp(to_char(ts, 'yyyy-MON-DDD HH24:mi:ss.msa.m.TZH DY'), 'yyyy-MON-DDD HH24:mi:ss.msa.m.TZH DY') from nested.stable_1 limit 2"
+        sql = 'select ts,to_timestamp(to_char(ts, "yyyy-MON-DDD HH24:mi:ss.msa.m.TZH DY"), "yyyy-MON-DDD HH24:mi:ss.msa.m.TZH DY") from nested.stable_1 limit 2'
         tdSql.error(sql)  
         sql = "select * from (%s)"%sql
         tdSql.error(sql)
         
-        sql = "select to_timestamp(to_char(ts, 'YYYY') , 'yyyy'),to_timestamp(to_char(ts, 'yyyy') , 'yyyy')from nested.stable_1 limit 2"
+        sql = 'select to_timestamp(to_char(ts, "YYYY") , "yyyy"),to_timestamp(to_char(ts, "yyyy") , "yyyy")from nested.stable_1 limit 2'
         self.sql_data_check(sql)  
         sql = "select * from (%s)"%sql
         self.sql_data_check(sql)
         
-        sql = "select to_timestamp(to_char(ts, 'YYY') , 'yyy'),to_timestamp(to_char(ts, 'yyy') , 'yyy')from nested.stable_1 limit 2"
+        sql = 'select to_timestamp(to_char(ts, "YYY") , "yyy"),to_timestamp(to_char(ts, "yyy") , "yyy")from nested.stable_1 limit 2'
         self.sql_data_check(sql)  
         sql = "select * from (%s)"%sql
         self.sql_data_check(sql)
-        sql = "select to_timestamp(to_char(ts, 'YY') , 'yy'),to_timestamp(to_char(ts, 'yy') , 'yy')from nested.stable_1 limit 2"
+        sql = 'select to_timestamp(to_char(ts, "YY") , "yy"),to_timestamp(to_char(ts, "yy") , "yy")from nested.stable_1 limit 2'
         self.sql_data_check(sql)  
         sql = "select * from (%s)"%sql
         self.sql_data_check(sql)
-        sql = "select to_timestamp(to_char(ts, 'Y') , 'y'),to_timestamp(to_char(ts, 'y') , 'y')from nested.stable_1 limit 2"
+        sql = 'select to_timestamp(to_char(ts, "Y") , "y"),to_timestamp(to_char(ts, "y") , "y")from nested.stable_1 limit 2'
         self.sql_data_check(sql)  
         sql = "select * from (%s)"%sql
         self.sql_data_check(sql)
         
-        sql = "select to_timestamp(to_char(ts, 'yyyy-MONTH'), 'yyyy-Month'),to_timestamp(to_char(ts, 'yyyy-month'), 'yyyy-month') from nested.stable_1 limit 2;"
+        sql = 'select to_timestamp(to_char(ts, "yyyy-MONTH"), "yyyy-Month"),to_timestamp(to_char(ts, "yyyy-month"), "yyyy-month") from nested.stable_1 limit 2;'
         self.sql_data_check(sql)
-        sql = "select to_timestamp(to_char(ts, 'yyyy-MON'), 'yyyy-Mon'),to_timestamp(to_char(ts, 'yyyy-mon'), 'yyyy-MON') from nested.stable_1 limit 2;"
-        self.sql_data_check(sql)
-        
-        sql = "select to_timestamp(to_char(ts, 'yyyy-MM'), 'yyyy-MM'),to_timestamp(to_char(ts, 'yyyy-mm'), 'yyyy-mm') from nested.stable_1 limit 2;"      
+        sql = 'select to_timestamp(to_char(ts, "yyyy-MON"), "yyyy-Mon"),to_timestamp(to_char(ts, "yyyy-mon"), "yyyy-MON") from nested.stable_1 limit 2;'
         self.sql_data_check(sql)
         
-        sql = "select to_timestamp(to_char(ts, 'yyyy-day-mm'), 'yyyy-DAY-mm'),to_timestamp(to_char(ts, 'yyyy-DAY-mm'), 'yyyy-Day-mm') from nested.stable_1 limit 2;"      
+        sql = 'select to_timestamp(to_char(ts, "yyyy-MM"), "yyyy-MM"),to_timestamp(to_char(ts, "yyyy-mm"), "yyyy-mm") from nested.stable_1 limit 2;'      
         self.sql_data_check(sql)
         
-        sql = "select to_timestamp(to_char(ts, 'yyyy-DY-MM'), 'yyyy-Dy-MM'),to_timestamp(to_char(ts, 'yyyy-DY-MM'), 'yyyy-Dy-mm') from nested.stable_1 limit 2;"      
+        sql = 'select to_timestamp(to_char(ts, "yyyy-day-mm"), "yyyy-DAY-mm"),to_timestamp(to_char(ts, "yyyy-DAY-mm"), "yyyy-Day-mm") from nested.stable_1 limit 2;'      
         self.sql_data_check(sql)
         
-        sql = "select * from (select to_timestamp(to_char(ts, 'D-DD-DDD DY'),'D-DD-DDD DY'),to_timestamp(to_char(ts, 'D-DD-DDD dy'),'D-DD-DDD dy') from nested.stable_1 limit 2);"
+        sql = 'select to_timestamp(to_char(ts, "yyyy-DY-MM"), "yyyy-Dy-MM"),to_timestamp(to_char(ts, "yyyy-DY-MM"), "yyyy-Dy-mm") from nested.stable_1 limit 2;'      
+        self.sql_data_check(sql)
+        
+        sql = 'select * from (select to_timestamp(to_char(ts, "D-DD-DDD DY"),"D-DD-DDD DY"),to_timestamp(to_char(ts, "D-DD-DDD dy"),"D-DD-DDD dy") from nested.stable_1 limit 2);'
         self.sql_data_check(sql)        
-        sql = "select * from (select to_timestamp(to_char(ts, 'D-DD-DDD DY'),'D-DD-DDD DY'),to_timestamp(to_char(ts, 'D-DD-DDD'),'D-DD-DDD') from nested.stable_1 limit 2);"
+        sql = 'select * from (select to_timestamp(to_char(ts, "D-DD-DDD DY"),"D-DD-DDD DY"),to_timestamp(to_char(ts, "D-DD-DDD"),"D-DD-DDD") from nested.stable_1 limit 2);'
         self.sql_data_check(sql)        
-        sql = "select * from (select to_timestamp(to_char(ts, 'D-DD-DDD DY'),'D-DD-DDD DY'),to_timestamp(to_char(ts, 'D-DD-DDD DYdyDY'),'D-DD-DDD DYdyDY') from nested.stable_1 limit 2);"
+        sql = 'select * from (select to_timestamp(to_char(ts, "D-DD-DDD DY"),"D-DD-DDD DY"),to_timestamp(to_char(ts, "D-DD-DDD DYdyDY"),"D-DD-DDD DYdyDY") from nested.stable_1 limit 2);'
         self.sql_data_check(sql)
-        sql = "select * from (select to_timestamp(to_char(ts, ''),''),to_timestamp(to_char(ts, ''),'') from nested.stable_1 limit 2);"
-        self.sql_data_check(sql)
-        
-        sql = "select to_timestamp(to_char(ts, 'yyyy-MON-D-DD-DDD hh24:mi:ss.msa.m'), 'yyyy-MON-D-DD-DDD HH24:mi:ss.msa.m') ,\
-          to_timestamp(to_char(ts, 'yyyy-MON-D-DD-DDD hh12:mi:ss.msa.m'), 'yyyy-MON-D-DD-DDD HH12:mi:ss.msa.m') from nested.stable_1 limit 2;"
-        self.sql_data_check(sql)
-        sql = "select to_timestamp(to_char(ts, 'yyyy-MON-D-DD-DDD hh:mi:ss.msa.m'), 'yyyy-MON-D-DD-DDD HH:mi:ss.msa.m') ,\
-          to_timestamp(to_char(ts, 'yyyy-MON-D-DD-DDD hh24:mi:ss.msp.m'), 'yyyy-MON-D-DD-DDD hh24:mi:ss.msa.mp.m') from nested.stable_1 limit 2;"
+        sql = 'select * from (select to_timestamp(to_char(ts, ""),""),to_timestamp(to_char(ts, ""),"") from nested.stable_1 limit 2);'
         self.sql_data_check(sql)
         
-        sql = "select * from (select to_timestamp(to_char(ts, 'yyyy-MON-D-DD-DDD hh24:mi:ss.ms'), 'yyyy-MON-D-DD-DDD hh24:mi:ss.ms'),\
-          to_timestamp(to_char(ts, 'yyyy-MON-D-DD-DDD hh24:mi:ss.us'), 'yyyy-MON-D-DD-DDD hh24:mi:ss.us') from nested.stable_1 limit 2);"
+        sql = 'select to_timestamp(to_char(ts, "yyyy-MON-D-DD-DDD hh24:mi:ss.msa.m"), "yyyy-MON-D-DD-DDD HH24:mi:ss.msa.m") ,\
+          to_timestamp(to_char(ts, "yyyy-MON-D-DD-DDD hh12:mi:ss.msa.m"), "yyyy-MON-D-DD-DDD HH12:mi:ss.msa.m") from nested.stable_1 limit 2;'
         self.sql_data_check(sql)
-        sql = "select * from (select to_timestamp(to_char(ts, 'yyyy-MON-D-DD-DDD hh24:mi:ss.ms'), 'yyyy-MON-D-DD-DDD hh24:mi:ss.ms'),\
-          to_timestamp(to_char(ts, 'yyyy-MON-D-DD-DDD hh24:mi:ss.ns'), 'yyyy-MON-D-DD-DDD hh24:mi:ss.ns') from nested.stable_1 limit 2);"
+        sql = 'select to_timestamp(to_char(ts, "yyyy-MON-D-DD-DDD hh:mi:ss.msa.m"), "yyyy-MON-D-DD-DDD HH:mi:ss.msa.m") ,\
+          to_timestamp(to_char(ts, "yyyy-MON-D-DD-DDD hh24:mi:ss.msp.m"), "yyyy-MON-D-DD-DDD hh24:mi:ss.msa.mp.m") from nested.stable_1 limit 2;'
+        self.sql_data_check(sql)
+        
+        sql = 'select * from (select to_timestamp(to_char(ts, "yyyy-MON-D-DD-DDD hh24:mi:ss.ms"), "yyyy-MON-D-DD-DDD hh24:mi:ss.ms"),\
+          to_timestamp(to_char(ts, "yyyy-MON-D-DD-DDD hh24:mi:ss.us"), "yyyy-MON-D-DD-DDD hh24:mi:ss.us") from nested.stable_1 limit 2);'
+        self.sql_data_check(sql)
+        sql ='select * from (select to_timestamp(to_char(ts, "yyyy-MON-D-DD-DDD hh24:mi:ss.ms"), "yyyy-MON-D-DD-DDD hh24:mi:ss.ms"),\
+          to_timestamp(to_char(ts, "yyyy-MON-D-DD-DDD hh24:mi:ss.ns"), "yyyy-MON-D-DD-DDD hh24:mi:ss.ns") from nested.stable_1 limit 2);'
         self.sql_data_check(sql)
           
     def TS_3932(self):
@@ -1243,14 +1229,14 @@ class TestNestedqueryinterval:
         ts = ts + 20
         tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname order by tbname;")
         tdSql.checkRows(6)
-        tdSql.checkData(0, 1, 152);
-        tdSql.checkData(1, 1, 200);
+        tdSql.checkData(0, 1, 152)
+        tdSql.checkData(1, 1, 200)
                        
         tdSql.query(f"insert into nested.stable_null_data (ts,tbname) values({ts},'stable_null_data_1');")
         ts = ts + 1
         tdSql.query(f"select tbname,count(*) from nested.stable_null_data_1 group by tbname order by tbname;")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 22);
+        tdSql.checkData(0, 1, 22)
 
         for i in range(10):
             coulmn_name =  qlist[i]
@@ -1281,7 +1267,7 @@ class TestNestedqueryinterval:
         ts = ts + 20
         tdSql.query(f"select tbname,count(*) from nested.stable_null_data group by tbname order by tbname;")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 52);
+        tdSql.checkData(0, 1, 52)
         
         
         
@@ -1305,7 +1291,7 @@ class TestNestedqueryinterval:
         ts = ts + 20
         tdSql.query(f"select tbname,count(*) from nested.stable_null_childtable group by tbname order by tbname;")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 42);
+        tdSql.checkData(0, 1, 42)
          
         tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_int) values({ts},'stable_null_childtable_1',1) \
                       nested.stable_null_childtable (ts,tbname,q_bigint) values({ts+1},'stable_null_childtable_1',1)\
@@ -1396,20 +1382,26 @@ class TestNestedqueryinterval:
         tdSql.checkData(0, 0, 1)
         
         #test csv
-        sql1 = "select tbname,ts,q_int,q_binary from nested.stable_1 >>'%s/stable_1.csv';" %self.testcasePath
-        sql2 = "select tbname,ts,q_int,q_binary from nested.stable_null_data >>%s/stable_null_data.csv;" %self.testcasePath
-        sql3 = "select tbname,ts,q_int,q_binary from nested.stable_null_childtable >>%s/stable_null_childtable.csv;" %self.testcasePath
-        
-        os.system("taos -s '%s'" %sql1)       
-        os.system("taos -s '%s'" %sql2)
-        os.system("taos -s '%s'" %sql3)
+        csv_path_stable_1 = os.path.join(self.testcasePath, 'stable_1.csv')
+        csv_path_stable_null_data = os.path.join(self.testcasePath, 'stable_null_data.csv')
+        csv_path_stable_null_childtable = os.path.join(self.testcasePath, 'stable_null_childtable.csv')
+        sql1 = "select tbname,ts,q_int,q_binary from nested.stable_1 >> %s;" %csv_path_stable_1
+        sql2 = "select tbname,ts,q_int,q_binary from nested.stable_null_data >> %s;" %csv_path_stable_null_data
+        sql3 = "select tbname,ts,q_int,q_binary from nested.stable_null_childtable >> %s;" %csv_path_stable_null_childtable
+        os.system('taos -s "%s"' %sql1)       
+        os.system('taos -s "%s"' %sql2)
+        os.system('taos -s "%s"' %sql3)
         
         tdSql.query(f"delete from nested.stable_1;")
         tdSql.query(f"delete from nested.stable_null_data;")
         tdSql.query(f"delete from nested.stable_null_childtable;")
-        tdSql.query(f"insert into nested.stable_1(tbname,ts,q_int,q_binary) file '{self.testcasePath}/stable_1.csv'\
-                      nested.stable_null_data(tbname,ts,q_int,q_binary) file '{self.testcasePath}/stable_null_data.csv'\
-                      nested.stable_null_childtable(tbname,ts,q_int,q_binary) file '{self.testcasePath}/stable_null_childtable.csv';")
+        if platform.system() == 'Windows':
+            csv_path_stable_1 = csv_path_stable_1.replace('\\', '\\\\')
+            csv_path_stable_null_data = csv_path_stable_null_data.replace('\\', '\\\\')
+            csv_path_stable_null_childtable = csv_path_stable_null_childtable.replace('\\', '\\\\')
+        tdSql.query(f'insert into nested.stable_1(tbname,ts,q_int,q_binary) file "{csv_path_stable_1}"\
+                      nested.stable_null_data(tbname,ts,q_int,q_binary) file "{csv_path_stable_null_data}"\
+                      nested.stable_null_childtable(tbname,ts,q_int,q_binary) file "{csv_path_stable_null_childtable}";')
         
         tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname order by tbname;")
         tdSql.checkRows(7)
@@ -1442,9 +1434,9 @@ class TestNestedqueryinterval:
         tdSql.query(f"delete from nested.stable_1;")
         tdSql.query(f"delete from nested.stable_null_data;")
         tdSql.query(f"delete from nested.stable_null_childtable;")
-        tdSql.query(f"insert into nested.stable_1(tbname,ts,q_int,q_binary) file '{self.testcasePath}/stable_1.csv';")
-        tdSql.query(f"insert into nested.stable_null_data(tbname,ts,q_int,q_binary) file '{self.testcasePath}/stable_null_data.csv';")
-        tdSql.query(f"insert into nested.stable_null_childtable(tbname,ts,q_int,q_binary) file '{self.testcasePath}/stable_null_childtable.csv';")
+        tdSql.query(f"insert into nested.stable_1(tbname,ts,q_int,q_binary) file '{csv_path_stable_1}';")
+        tdSql.query(f"insert into nested.stable_null_data(tbname,ts,q_int,q_binary) file '{csv_path_stable_null_data}';")
+        tdSql.query(f"insert into nested.stable_null_childtable(tbname,ts,q_int,q_binary) file '{csv_path_stable_null_childtable}';")
         
         tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname order by tbname;")
         tdSql.checkRows(7)

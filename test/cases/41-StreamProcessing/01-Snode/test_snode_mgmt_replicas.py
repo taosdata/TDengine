@@ -16,7 +16,7 @@ class TestSnodeReplicas:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_snode_mgmt(self):
+    def test_snode_mgmt_replicas(self):
         """Snode: replica test
 
         Test the failover of 2-replica snodes.

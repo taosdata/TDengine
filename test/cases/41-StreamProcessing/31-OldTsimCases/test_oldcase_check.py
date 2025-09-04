@@ -13,7 +13,7 @@ class TestStreamOldCaseCheck:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_check(self):
-        """Stream check stable
+        """OldTsim: check stable
 
         Verify the computation results of streams when triggered by different windows.
 

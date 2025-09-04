@@ -13,7 +13,7 @@ class TestStreamOldCaseOptions:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_options(self):
-        """Stream options
+        """OldTsim: options
 
         Validate the calculation results when ignore update and ignore delete are applied
 

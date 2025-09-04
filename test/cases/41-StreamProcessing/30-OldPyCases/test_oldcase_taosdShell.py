@@ -1,4 +1,4 @@
-# pytest --clean --skip_stop cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_lihui_taosdShell_new.py -N 5
+# pytest --clean --skip_stop cases/41-StreamProcessing/31-OldTsimCases/test_oldcase_lihui_taosdShell_new.py -N 5
 
 import time
 from datetime import datetime
@@ -25,12 +25,12 @@ class TestOthersOldCaseTaosdshell:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_others_oldcase_taosdShell(self):
-        """taosd shell
+        """OldPy: shell create stream
 
         test taosd shell command
 
         Catalog:
-            - Streams:UseCases
+            - Streams:OldPyCases
 
         Since: v3.3.3.7
 

@@ -15,7 +15,7 @@ import os
 import subprocess
 
 
-class TestStreamParametersAlter:
+class TestStreamParametersAlterParam:
     currentDir = os.path.dirname(os.path.abspath(__file__))
     dbname = "test1"
     dbname2 = "test2"
@@ -28,8 +28,8 @@ class TestStreamParametersAlter:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_snode_mgmt(self):
-        """Parameter: alter value
+    def test_params_alter_value(self):
+        """Parameter: alter config
 
         Modify the parameters streamBufferSize and numOfMnodeStreamMgmtThreads.
 

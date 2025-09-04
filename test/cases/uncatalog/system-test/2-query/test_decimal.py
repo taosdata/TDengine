@@ -6,6 +6,7 @@ import threading
 import secrets
 import numpy
 import subprocess
+import os
 import re
 from typing import List
 from datetime import datetime, timedelta
@@ -189,7 +190,7 @@ class TaosShell:
     def __init__(self):
         self.counter_ = atomic_counter.fetch_add()
         self.queryResult = []
-        self.tmp_file_path = "/tmp/taos_shell_result"
+        self.tmp_file_path = os.path.join(os.path.dirname(__file__), "taos_shell_result")
     
     def get_file_path(self):
         return f"{self.tmp_file_path}_{self.counter_}"
@@ -2361,6 +2362,7 @@ class TestDecimal:
 
         self.check_decimal_in_op(self.norm_table_name, self.norm_tb_columns)
         self.check_decimal_in_op(self.stable_name, self.stb_columns)
+        tdLog.info("7 start to test decimal operators")
 
     def check_decimal_where_with_binary_expr_with_const_col_results(
         self,

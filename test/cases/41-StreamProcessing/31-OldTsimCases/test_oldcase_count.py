@@ -13,7 +13,7 @@ class TestStreamOldCaseCount:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_count(self):
-        """Stream count window
+        """OldTsim: count window
 
         Basic use cases of count window, include expired-data, out-of-order data, and data-deletion
 

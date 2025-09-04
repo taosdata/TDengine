@@ -8,6 +8,12 @@ TDengine TSDB 客户端驱动提供了应用编程所需要的全部 API，并�
 
 ## 配置参数
 
+:::note
+配置文件参数修改后，通常需要重启客户端应用才能生效。
+配置参数的动态修改方法请您参考 [节点管理](https://docs.taosdata.com/reference/taos-sql/node/)。
+taosc 和 taosd 存在许多同名参数，虽然名称相同但作用范围可能不同，详细请参考[TDengine 配置参数作用范围对比](https://docs.taosdata.com/reference/components/config-scope)。
+:::
+
 ### 连接相关
 
 #### firstEp

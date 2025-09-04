@@ -141,7 +141,7 @@ class TestCheckErrorCode:
         codes = []
         start = False
         # read
-        with open(docFile) as file:
+        with open(docFile, encoding="utf-8", errors="ignore") as file:
             for line in file:
                 code = self.parseDocLine(line)
                 # invalid

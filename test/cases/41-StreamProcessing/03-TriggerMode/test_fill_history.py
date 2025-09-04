@@ -9,7 +9,7 @@ class TestStreamStateFillHistory:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_fill_history(self):
-        """basic qdb 2
+        """Fill History
 
         Verification testing during the development process.
 

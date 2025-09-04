@@ -39,12 +39,12 @@ class TestStreamMultiAggCase:
         tdLog.info(f"start to excute {__file__}")
     
     def test_steram_multi_agg(self):
-        """Stream basic test 1
+        """OldPy: aggregation func
 
         1. test_Stream_Multi_Agg
 
         Catalog:
-            - Streams:OldStreamCases
+            - Streams:OldPyCases
 
         Since: v3.0.0.0
 

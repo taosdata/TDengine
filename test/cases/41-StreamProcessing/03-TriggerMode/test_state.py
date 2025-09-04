@@ -9,7 +9,7 @@ class TestStreamStateTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_state_trigger(self):
-        """basic qdb 2
+        """State:
 
         Verification testing during the development process.
 
