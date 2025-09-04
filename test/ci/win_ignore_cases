@@ -13,6 +13,11 @@ cases/uncatalog/army/storage/test_compress_basic.py
 cases/uncatalog/army/tools/benchmark/basic/test_stmt_insert_alltypes_same_min_max.py
 cases/uncatalog/army/tools/benchmark/basic/test_stmt_sample_csv_json_subtable.py
 cases/uncatalog/army/tools/benchmark/basic/test_stmt_sample_csv_json.py
+# TD-37683
+cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_sml.py
+cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_sql.py
+cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_stmt.py
+cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_stmt2.py
 cases/uncatalog/army/tools/benchmark/basic/test_telnet_tcp.py
 cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_loose_mode.py
 cases/uncatalog/army/tools/taosdump/native/test_taosdump_commandline.py
@@ -81,6 +86,7 @@ cases/41-StreamProcessing/08-Recalc/test_recalc_ignore_disorder.py
 cases/41-StreamProcessing/08-Recalc/test_recalc_manual_basic.py
 cases/41-StreamProcessing/08-Recalc/test_recalc_manual_with_options.py
 cases/41-StreamProcessing/08-Recalc/test_recalc_watermark.py
+cases/41-StreamProcessing/20-UseCase/test_idmp_manager.py
 cases/41-StreamProcessing/20-UseCase/test_idmp_meters.py
 cases/41-StreamProcessing/20-UseCase/test_idmp_public.py
 cases/41-StreamProcessing/20-UseCase/test_idmp_pv.py
