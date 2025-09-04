@@ -1,9 +1,13 @@
 use arrow::{
-    array::{Array, ArrayRef, BinaryArray, BooleanArray, Float64Array, Int64Array, StringArray},
+    array::{
+        Array, ArrayRef, BinaryArray, BooleanArray, Float64Array, Int64Array, NullArray,
+        StringArray,
+    },
     datatypes::{DataType, Field, Schema},
     record_batch::RecordBatch,
 };
 use arrow_schema::Fields;
+use faststr::FastStr;
 use lazy_static::lazy_static;
 use rhai::{Dynamic, EvalAltResult, LexError, ParseError, ParseErrorType, Scope, AST};
 use rhai_dylib::module_resolvers::libloading::DylibModuleResolver;
@@ -30,9 +34,11 @@ fn init_engine() -> Engine {
     engine
 }
 
-fn check_same_type(field_type: &str, value_type: &str) -> bool {
+fn check_same_type(field_name: &str, field_type: &str, value_type: &str) -> bool {
     if field_type != value_type {
-        warn!("type mismatch, field type: {field_type}, but value type: {value_type}",);
+        warn!(
+            "type mismatch, field `{field_name}` type: {field_type}, but value type: {value_type}",
+        );
         return false;
     }
     true
@@ -45,6 +51,7 @@ enum ArrowDataField {
     Bool(Field, Vec<Option<bool>>),
     String(Field, Vec<Option<String>>),
     Blob(Field, Vec<Option<Vec<u8>>>),
+    Unit(FastStr, usize),
 }
 
 impl ArrowDataField {
@@ -83,12 +90,22 @@ impl ArrowDataField {
     }
 
     fn add_value(&mut self, value: Dynamic) -> bool {
+        // null 值也算有效值
+        macro_rules! add_unit_value {
+            ($array: expr) => {
+                if value.is_unit() {
+                    $array.push(None);
+                    return true;
+                }
+            };
+        }
         match self {
             ArrowDataField::I64(field, array) => {
+                add_unit_value!(array);
                 if field
                     .metadata()
                     .get("from_cast")
-                    .is_none_or(|name| check_same_type(name, value.type_name()))
+                    .is_none_or(|name| check_same_type(field.name(), name, value.type_name()))
                 {
                     array.push(Some(value.as_int().unwrap()));
                 } else {
@@ -96,10 +113,11 @@ impl ArrowDataField {
                 }
             }
             ArrowDataField::F64(field, array) => {
+                add_unit_value!(array);
                 if field
                     .metadata()
                     .get("from_cast")
-                    .is_none_or(|name| check_same_type(name, value.type_name()))
+                    .is_none_or(|name| check_same_type(field.name(), name, value.type_name()))
                 {
                     array.push(Some(value.as_float().unwrap()));
                 } else {
@@ -107,10 +125,11 @@ impl ArrowDataField {
                 }
             }
             ArrowDataField::Bool(field, array) => {
+                add_unit_value!(array);
                 if field
                     .metadata()
                     .get("from_cast")
-                    .is_none_or(|name| check_same_type(name, value.type_name()))
+                    .is_none_or(|name| check_same_type(field.name(), name, value.type_name()))
                 {
                     array.push(Some(value.as_bool().unwrap()));
                 } else {
@@ -118,10 +137,11 @@ impl ArrowDataField {
                 }
             }
             ArrowDataField::String(field, array) => {
+                add_unit_value!(array);
                 if field
                     .metadata()
                     .get("from_cast")
-                    .is_none_or(|name| check_same_type(name, value.type_name()))
+                    .is_none_or(|name| check_same_type(field.name(), name, value.type_name()))
                 {
                     array.push(Some(value.into_string().unwrap().to_string()));
                 } else {
@@ -129,15 +149,20 @@ impl ArrowDataField {
                 }
             }
             ArrowDataField::Blob(field, array) => {
+                add_unit_value!(array);
                 if field
                     .metadata()
                     .get("from_cast")
-                    .is_none_or(|name| check_same_type(name, value.type_name()))
+                    .is_none_or(|name| check_same_type(field.name(), name, value.type_name()))
                 {
                     array.push(Some(value.into_blob().unwrap()));
                 } else {
                     return false;
                 }
+            }
+            ArrowDataField::Unit(_, _) => {
+                // 类型为 unit 的列，不会调用这个方法，此处直接返回 false
+                return false;
             }
         };
         true
@@ -170,6 +195,7 @@ impl ArrowDataField {
                     array.push(None);
                 }
             }
+            ArrowDataField::Unit(_, null_size) => *null_size = size,
         }
     }
 
@@ -181,6 +207,7 @@ impl ArrowDataField {
             ArrowDataField::Bool(_, array) => array.len(),
             ArrowDataField::String(_, array) => array.len(),
             ArrowDataField::Blob(_, array) => array.len(),
+            ArrowDataField::Unit(_, size) => *size,
         }
     }
 }
@@ -344,7 +371,6 @@ impl Parse for Udt {
         field: &arrow::datatypes::Field,
         array: &ArrayRef,
     ) -> Result<(RecordBatch, Option<Vec<usize>>), super::ParseError> {
-        let _ = field;
         if array.is_empty() {
             // Return empty record batch.
             return Ok((RecordBatch::new_empty(Arc::new(Schema::empty())), None));
@@ -360,11 +386,13 @@ impl Parse for Udt {
 
         // 使用 UDT 解析数据
         for i in 0..num_rows {
-            if string_array_raw_data.is_null(i) {
-                continue;
-            }
+            let data_to_parse = if string_array_raw_data.is_null(i) {
+                "null"
+            } else {
+                string_array_raw_data.value(i)
+            };
 
-            let rslt = match self.parse_data(string_array_raw_data.value(i)) {
+            let rslt = match self.parse_data(data_to_parse) {
                 Ok(res) => res,
                 Err(e) => {
                     tracing::error!("udt parse data error: {e:?}");
@@ -376,59 +404,63 @@ impl Parse for Udt {
             };
 
             for row_value in rslt {
-                // 将 row_value 转换为 其表达类型的值
-                if row_value.is_unit() {
-                    continue;
-                }
                 let mut data_available = false;
+
+                let mut add_value = |key: &str, v: Dynamic| match key_index_map.get(key) {
+                    Some(index) => {
+                        let data_field: &mut ArrowDataField = &mut arrow_fields[*index];
+                        // 如果当前列为 Unit 类型，说明在此前遇到的都是 null 值
+                        if let ArrowDataField::Unit(field, size) = data_field {
+                            if !v.is_unit() {
+                                // 当前值不为 null，直接修改当前列的类型
+                                if let Some(new_data_field) =
+                                    ArrowDataField::from_dynamic(field, v, *size)
+                                {
+                                    *data_field = new_data_field;
+                                }
+                            } else {
+                                *size += 1;
+                            }
+                            data_available = true;
+                            return;
+                        }
+                        if data_field.add_value(v) {
+                            data_available = true;
+                        }
+                    }
+                    None => {
+                        if v.is_unit() {
+                            key_index_map.insert(key.to_string(), arrow_fields.len());
+                            arrow_fields.push(ArrowDataField::Unit(key.to_string().into(), 1));
+                            data_available = true;
+                            return;
+                        }
+                        let now_data_size = indices.len();
+                        if let Some(data_field) =
+                            ArrowDataField::from_dynamic(key, v, now_data_size)
+                        {
+                            key_index_map.insert(key.to_string(), arrow_fields.len());
+                            arrow_fields.push(data_field);
+                            data_available = true;
+                        }
+                    }
+                };
                 if row_value.is_map() {
                     for (k, v) in row_value
                         .try_cast::<rhai::Map>()
                         .expect("Expected a map")
                         .into_iter()
                     {
-                        let key = k.to_string();
-
-                        // 如果已经有了，就只需要添加数据就可以
-                        match key_index_map.get(&key) {
-                            Some(index) => {
-                                let data_field: &mut ArrowDataField = &mut arrow_fields[*index];
-                                if data_field.add_value(v) {
-                                    data_available = true;
-                                }
-                            }
-                            None => {
-                                let now_data_size = indices.len();
-                                if let Some(data_field) =
-                                    ArrowDataField::from_dynamic(&key, v, now_data_size)
-                                {
-                                    key_index_map.insert(key, arrow_fields.len());
-                                    arrow_fields.push(data_field);
-                                    data_available = true;
-                                }
-                            }
-                        }
+                        add_value(k.as_str(), v);
                     }
-                } else if row_value.is_blob() | row_value.is_int()
+                } else if row_value.is_blob()
+                    || row_value.is_int()
                     || row_value.is_float()
                     || row_value.is_bool()
                     || row_value.is_string()
+                    || row_value.is_unit()
                 {
-                    if let Some(index) = key_index_map.get(field.name()) {
-                        let data_field: &mut ArrowDataField = &mut arrow_fields[*index];
-                        if data_field.add_value(row_value.clone()) {
-                            data_available = true;
-                        }
-                    } else {
-                        let now_data_size = indices.len();
-                        if let Some(data_field) =
-                            ArrowDataField::from_dynamic(field.name(), row_value, now_data_size)
-                        {
-                            key_index_map.insert(field.name().to_string(), arrow_fields.len());
-                            arrow_fields.push(data_field);
-                            data_available = true;
-                        }
-                    }
+                    add_value(field.name(), row_value);
                 } else {
                     warn!(
                         "udt parse data error: expected a map, but got {:?}",
@@ -473,6 +505,10 @@ impl Parse for Udt {
                 ArrowDataField::Blob(field, array) => {
                     r_fields.push(field);
                     r_arrays.push(Arc::new(BinaryArray::from_iter(array)));
+                }
+                ArrowDataField::Unit(field, size) => {
+                    r_fields.push(init_data_field(&field, DataType::Null, "unit"));
+                    r_arrays.push(Arc::new(NullArray::new(size)));
                 }
             }
         }
@@ -550,10 +586,11 @@ mod tests {
         let (records, _) = udt.parse_array(&field, &array).unwrap();
         assert_eq!(records.num_columns(), 0);
         assert_eq!(records.num_rows(), 0);
+        // null 列也算有效列
         let array: ArrayRef = Arc::new(StringArray::new_null(3));
         let (records, _) = udt.parse_array(&field, &array).unwrap();
-        assert_eq!(records.num_columns(), 0);
-        assert_eq!(records.num_rows(), 0);
+        assert_eq!(records.num_columns(), 1);
+        assert_eq!(records.num_rows(), 3);
 
         // 1. string value
         let input = r#"{"udt": "\"string\""}"#;
@@ -638,12 +675,63 @@ mod tests {
         ]));
         let (records, indics) = udt.parse_array(&field, &array).unwrap();
         assert_eq!(records.num_columns(), 1);
-        assert_eq!(records.num_rows(), 2);
-        assert_eq!(indics.unwrap(), vec![0, 2]);
+        assert_eq!(records.num_rows(), 3);
+        assert_eq!(indics.unwrap(), vec![0, 1, 2]);
         let col = records
             .column_by_name("a")
             .expect("Column 'a' should be the name");
         assert_eq!(col.data_type(), &DataType::Boolean);
+        let array = records.column(0);
+        let array = array.as_any().downcast_ref::<BooleanArray>().unwrap();
+        assert!(array.is_null(1));
+
+        // mix with null value
+        let input = r#"{"udt": "data"}"#;
+        let udt: Udt = serde_json::from_str(input).unwrap();
+        let field = Field::new("a", DataType::Utf8, false);
+        let array: ArrayRef = Arc::new(StringArray::from(vec![
+            r#"{"cur": 1, "sta": null}"#,
+            r#"{"cur": 1.3, "sta": null}"#,
+            r#"{"cur": 2, "sta": 1}"#,
+            r#"{"cur": 2.3, "sta": null}"#,
+            r#"{"cur": 3, "sta": null}"#,
+        ]));
+        let (batch, indices) = udt.parse_array(&field, &array).unwrap();
+        assert_eq!(
+            arrow::util::pretty::pretty_format_batches(&[batch])
+                .unwrap()
+                .to_string(),
+            "\
++-----+-----+
+| cur | sta |
++-----+-----+
+| 1   |     |
+|     |     |
+| 2   | 1   |
+|     |     |
+| 3   |     |
++-----+-----+"
+        );
+        assert_eq!(indices, Some(vec![0, 1, 2, 3, 4]));
+
+        let input = r#"{"udt": "data"}"#;
+        let udt: Udt = serde_json::from_str(input).unwrap();
+        let field = Field::new("a", DataType::Utf8, false);
+        let array: ArrayRef = Arc::new(StringArray::from(vec![None, Some("1.3"), Some("1")]));
+        let (batch, indices) = udt.parse_array(&field, &array).unwrap();
+        assert_eq!(
+            arrow::util::pretty::pretty_format_batches(&[batch])
+                .unwrap()
+                .to_string(),
+            "\
++-----+
+| a   |
++-----+
+|     |
+| 1.3 |
++-----+"
+        );
+        assert_eq!(indices, Some(vec![0, 1]));
     }
 
     #[test]
@@ -738,8 +826,8 @@ mod tests {
         let v = init_data_array(Dynamic::from(1i64), 2);
         assert_eq!(v.len(), 3);
 
-        assert!(!check_same_type("i32", "i64"));
-        assert!(check_same_type("i64", "i64"));
+        assert!(!check_same_type("k1", "i32", "i64"));
+        assert!(check_same_type("k2", "i64", "i64"));
 
         assert!(ArrowDataField::from_dynamic("a", Dynamic::from(|| -> i64 { 42 }), 1).is_none());
 
