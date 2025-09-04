@@ -11,7 +11,7 @@ TDengine TSDB v3.3.7.0 版本开始提供 MQTT 订阅功能，通过 MQTT 客户
 1. 协议支持：MQTT 5.0
 2. 身份验证：使用 TDengine TSDB 原生验证
 3. 主题管理：与标准 MQTT 协议不同，主题必须预先创建（因不支持消息发布，无法通过发布消息动态创建）
-4. 共享主题：形如 $shared/group_id/topic_name 的主题被视为共享订阅，适用于需要负载均衡和高可用场景
+4. 共享主题：形如 `$shared/group_id/topic_name` 的主题被视为共享订阅，适用于需要负载均衡和高可用场景
 5. 订阅位置：支持 latest，earliest (WAL 最早位置)
 6. 服务质量：支持 QoS 0，QoS 1
 
@@ -25,7 +25,7 @@ TDengine TSDB v3.3.7.0 版本开始提供 MQTT 订阅功能，通过 MQTT 客户
 CREATE BNODE ON DNODE {dnode_id}
 ```
 
-一个 dnode 上只能创建一个 bnode。bnode 创建成功后，会自动启动 bnode 子进程 `taosmqtt`，默认在 6083 端口对外提供 MQTT 订阅服务，端口可在文件 taos.cfg 中通过参数 `mqttPort` 配置。例如：`create bnode on dnode 1`。
+一个 Dnode 上只能创建一个 Bnode。Bnode 创建成功后，会自动启动 Bnode 子进程 `taosmqtt`，默认在 6083 端口对外提供 MQTT 订阅服务，端口可在文件 taos.cfg 中通过参数 `mqttPort` 配置。例如：`create bnode on dnode 1`。
 
 ### 查看 Bnode
 
@@ -35,9 +35,9 @@ CREATE BNODE ON DNODE {dnode_id}
 SHOW BNODES;
 
 taos> show bnodes;
-     id    |   endpoint       |    protocol    |       create_time    | 
-======================================================================
-     1     | 192.168.0.1:6083 | mqtt        | 2024-11-28 18:44:27.089 | 
+     id    |   endpoint       | protocol |          create_time    | 
+====================================================================
+     1     | 192.168.0.1:6083 | mqtt     | 2024-11-28 18:44:27.089 | 
 Query OK, 1 row(s) in set (0.037205s)
 ```
 
@@ -47,7 +47,7 @@ Query OK, 1 row(s) in set (0.037205s)
 DROP BNODE ON DNODE {dnode_id}
 ```
 
-删除 bnode 将把 bnode 从 TDengine TSDB 集群中移除，同时停止 taosmqtt 服务。
+删除 Bnode 将把 Bnode 从 TDengine TSDB 集群中移除，同时停止 taosmqtt 服务。
 
 ## 订阅数据示例
 
@@ -61,7 +61,7 @@ insert into db.tb using db.meters tags(1) values(now, 1);
 create bnode on dnode 1;
 ```
 
-在命令行工具 taos 中执行上面的 SQL 语句，创建数据库，超级表，主题 `topic_meters` ，bnode 节点，写入一条数据供下一步订阅使用。
+在命令行工具 taos 中执行上面的 SQL 语句，创建数据库，超级表，主题 `topic_meters` ，Bnode 节点，写入一条数据供下一步订阅使用。
 
 ### 客户端订阅
 
