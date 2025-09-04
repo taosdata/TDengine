@@ -3,13 +3,32 @@
   {% set title = config.mdx_configs.toc.title %}
 {% endif %}
 
+<style>
+  .md-nav--secondary {
+    max-width: none !important;
+    width: auto !important;
+    margin-right: 0 !important;
+    padding-right: 0 !important;
+  }
+  
+  .md-nav--secondary .md-nav__list {
+    max-width: none !important;
+    width: auto !important;
+  }
+  
+  .md-nav--secondary .md-nav__item {
+    white-space: nowrap;
+    overflow: visible;
+  }
+</style>
+
 {# 定义递归处理TOC项的宏 #}
 {% macro render_toc_item(item, level=1) %}
   {% if level == 2 %}
     {# 对于第二级目录，跳过渲染 #}
     <nav class="md-nav" aria-label="{{ item.title | e }}">
       <ul class="md-nav__list">
-        {% for child in item.children %}
+        {% for child in item.children | sort(attribute='title') %}
           {{ render_toc_item(child, level + 1) }}
         {% endfor %}
       </ul>
@@ -44,7 +63,7 @@
       {{ title }}
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      {% for toc_item in toc %}
+      {% for toc_item in toc | sort(attribute='title') %}
         {{ render_toc_item(toc_item) }}
       {% endfor %}
     </ul>
