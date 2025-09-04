@@ -1013,6 +1013,25 @@
         
 
 
+<style>
+  .md-nav--secondary {
+    max-width: none !important;
+    width: auto !important;
+    margin-right: 0 !important;
+    padding-right: 0 !important;
+  }
+  
+  .md-nav--secondary .md-nav__list {
+    max-width: none !important;
+    width: auto !important;
+  }
+  
+  .md-nav--secondary .md-nav__item {
+    white-space: nowrap;
+    overflow: visible;
+  }
+</style>
+
 
 
 
@@ -1032,8 +1051,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_alter.TestVtableAlter.test_alter_virtual_normal_table" class="md-nav__link">
-        Alter: virtual normal table 
+      <a href="#05-VirtualTables.test_vtable_alter.TestVtableAlter.test_alter_virtual_child_table" class="md-nav__link">
+        Alter: virtual child table 
       </a>
       
     </li>
@@ -1043,8 +1062,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_alter.TestVtableAlter.test_alter_virtual_child_table" class="md-nav__link">
-        Alter: virtual child table 
+      <a href="#05-VirtualTables.test_vtable_alter.TestVtableAlter.test_alter_virtual_normal_table" class="md-nav__link">
+        Alter: virtual normal table 
       </a>
       
     </li>
@@ -1087,17 +1106,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_auth_alter_normaltable.TestVtableAuthAlterDrop.test_alter_drop_virtual_normal_table" class="md-nav__link">
-        Auth: alter virtual normal table 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_auth_alter_subtable.TestVtableAuthAlterDropChild.test_alter_drop_virtual_child_table" class="md-nav__link">
         Auth: alter virtual child table 
       </a>
@@ -1109,8 +1117,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_auth_create.TestVtableAuthCreate.test_create_virtual_normal_table" class="md-nav__link">
-        Auth: create virtual normal table 
+      <a href="#05-VirtualTables.test_vtable_auth_alter_normaltable.TestVtableAuthAlterDrop.test_alter_drop_virtual_normal_table" class="md-nav__link">
+        Auth: alter virtual normal table 
       </a>
       
     </li>
@@ -1131,8 +1139,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_auth_select.TestVtableAuthSelect.test_select_virtual_normal_table" class="md-nav__link">
-        Auth: select virtual normal table 
+      <a href="#05-VirtualTables.test_vtable_auth_create.TestVtableAuthCreate.test_create_virtual_normal_table" class="md-nav__link">
+        Auth: create virtual normal table 
       </a>
       
     </li>
@@ -1153,8 +1161,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_create.TestVtableCreate.test_create_virtual_super_table" class="md-nav__link">
-        Create: virtual super table 
+      <a href="#05-VirtualTables.test_vtable_auth_select.TestVtableAuthSelect.test_select_virtual_normal_table" class="md-nav__link">
+        Auth: select virtual normal table 
       </a>
       
     </li>
@@ -1177,6 +1185,17 @@
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_create.TestVtableCreate.test_create_virtual_normal_table" class="md-nav__link">
         Create: virtual normal table 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_create.TestVtableCreate.test_create_virtual_super_table" class="md-nav__link">
+        Create: virtual super table 
       </a>
       
     </li>
@@ -1252,6 +1271,39 @@
         
   
     <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_query_after_alter.TestVtableQueryAfterAlter.test_virtual_normal_table" class="md-nav__link">
+        Query: after alter normal table 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_query_after_alter.TestVtableQueryAfterAlter.test_virtual_stable_and_child_table" class="md-nav__link">
+        Query: after alter super and child table 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_query_after_drop_origin_table.TestVtableQueryAfterDropOriginTable.test_query_after_drop" class="md-nav__link">
+        Query: after drop 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_join.TestVtableJoin.test_vtable_join" class="md-nav__link">
         Query: join 
       </a>
@@ -1274,8 +1326,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query.TestVTableQuery.test_select_virtual_normal_table" class="md-nav__link">
-        Query: virtual normal table 
+      <a href="#05-VirtualTables.test_vtable_schema_is_old.TestVTableSchemaIsOld.test_vtable_schema_is_old" class="md-nav__link">
+        Query: old schema (bugfix) 
       </a>
       
     </li>
@@ -1285,63 +1337,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query.TestVTableQuery.test_select_virtual_child_table" class="md-nav__link">
-        Query: virtual child table 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query.TestVTableQuery.test_select_virtual_super_table" class="md-nav__link">
-        Query: virtual super table 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_after_alter.TestVtableQueryAfterAlter.test_virtual_stable_and_child_table" class="md-nav__link">
-        Query: after alter super and child table 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_after_alter.TestVtableQueryAfterAlter.test_virtual_normal_table" class="md-nav__link">
-        Query: after alter normal table 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_after_drop_origin_table.TestVtableQueryAfterDropOriginTable.test_query_after_drop" class="md-nav__link">
-        Query: after drop 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_cross_db.TestVtableQueryCrossDB.test_select_virtual_normal_table" class="md-nav__link">
-        Query: v-ntable crossdb query 
+      <a href="#05-VirtualTables.test_vtable_show_tag.TestVtableShowTag.test_vtable_show_tag" class="md-nav__link">
+        Query: show tag (bugfix) 
       </a>
       
     </li>
@@ -1353,6 +1350,17 @@
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_query_cross_db.TestVtableQueryCrossDB.test_select_virtual_child_table" class="md-nav__link">
         Query: v-ctable crossdb query 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_query_cross_db.TestVtableQueryCrossDB.test_select_virtual_normal_table" class="md-nav__link">
+        Query: v-ntable crossdb query 
       </a>
       
     </li>
@@ -1395,8 +1403,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_schema_is_old.TestVTableSchemaIsOld.test_vtable_schema_is_old" class="md-nav__link">
-        Query: old schema (bugfix) 
+      <a href="#05-VirtualTables.test_vtable_query.TestVTableQuery.test_select_virtual_child_table" class="md-nav__link">
+        Query: virtual child table 
       </a>
       
     </li>
@@ -1406,8 +1414,19 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_show_tag.TestVtableShowTag.test_vtable_show_tag" class="md-nav__link">
-        Query: show tag (bugfix) 
+      <a href="#05-VirtualTables.test_vtable_query.TestVTableQuery.test_select_virtual_normal_table" class="md-nav__link">
+        Query: virtual normal table 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_query.TestVTableQuery.test_select_virtual_super_table" class="md-nav__link">
+        Query: virtual super table 
       </a>
       
     </li>
@@ -3100,6 +3119,25 @@
                     
 
 
+<style>
+  .md-nav--secondary {
+    max-width: none !important;
+    width: auto !important;
+    margin-right: 0 !important;
+    padding-right: 0 !important;
+  }
+  
+  .md-nav--secondary .md-nav__list {
+    max-width: none !important;
+    width: auto !important;
+  }
+  
+  .md-nav--secondary .md-nav__item {
+    white-space: nowrap;
+    overflow: visible;
+  }
+</style>
+
 
 
 
@@ -3119,8 +3157,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_alter.TestVtableAlter.test_alter_virtual_normal_table" class="md-nav__link">
-        Alter: virtual normal table 
+      <a href="#05-VirtualTables.test_vtable_alter.TestVtableAlter.test_alter_virtual_child_table" class="md-nav__link">
+        Alter: virtual child table 
       </a>
       
     </li>
@@ -3130,8 +3168,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_alter.TestVtableAlter.test_alter_virtual_child_table" class="md-nav__link">
-        Alter: virtual child table 
+      <a href="#05-VirtualTables.test_vtable_alter.TestVtableAlter.test_alter_virtual_normal_table" class="md-nav__link">
+        Alter: virtual normal table 
       </a>
       
     </li>
@@ -3174,17 +3212,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_auth_alter_normaltable.TestVtableAuthAlterDrop.test_alter_drop_virtual_normal_table" class="md-nav__link">
-        Auth: alter virtual normal table 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_auth_alter_subtable.TestVtableAuthAlterDropChild.test_alter_drop_virtual_child_table" class="md-nav__link">
         Auth: alter virtual child table 
       </a>
@@ -3196,8 +3223,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_auth_create.TestVtableAuthCreate.test_create_virtual_normal_table" class="md-nav__link">
-        Auth: create virtual normal table 
+      <a href="#05-VirtualTables.test_vtable_auth_alter_normaltable.TestVtableAuthAlterDrop.test_alter_drop_virtual_normal_table" class="md-nav__link">
+        Auth: alter virtual normal table 
       </a>
       
     </li>
@@ -3218,8 +3245,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_auth_select.TestVtableAuthSelect.test_select_virtual_normal_table" class="md-nav__link">
-        Auth: select virtual normal table 
+      <a href="#05-VirtualTables.test_vtable_auth_create.TestVtableAuthCreate.test_create_virtual_normal_table" class="md-nav__link">
+        Auth: create virtual normal table 
       </a>
       
     </li>
@@ -3240,8 +3267,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_create.TestVtableCreate.test_create_virtual_super_table" class="md-nav__link">
-        Create: virtual super table 
+      <a href="#05-VirtualTables.test_vtable_auth_select.TestVtableAuthSelect.test_select_virtual_normal_table" class="md-nav__link">
+        Auth: select virtual normal table 
       </a>
       
     </li>
@@ -3264,6 +3291,17 @@
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_create.TestVtableCreate.test_create_virtual_normal_table" class="md-nav__link">
         Create: virtual normal table 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_create.TestVtableCreate.test_create_virtual_super_table" class="md-nav__link">
+        Create: virtual super table 
       </a>
       
     </li>
@@ -3339,6 +3377,39 @@
         
   
     <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_query_after_alter.TestVtableQueryAfterAlter.test_virtual_normal_table" class="md-nav__link">
+        Query: after alter normal table 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_query_after_alter.TestVtableQueryAfterAlter.test_virtual_stable_and_child_table" class="md-nav__link">
+        Query: after alter super and child table 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_query_after_drop_origin_table.TestVtableQueryAfterDropOriginTable.test_query_after_drop" class="md-nav__link">
+        Query: after drop 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_join.TestVtableJoin.test_vtable_join" class="md-nav__link">
         Query: join 
       </a>
@@ -3361,8 +3432,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query.TestVTableQuery.test_select_virtual_normal_table" class="md-nav__link">
-        Query: virtual normal table 
+      <a href="#05-VirtualTables.test_vtable_schema_is_old.TestVTableSchemaIsOld.test_vtable_schema_is_old" class="md-nav__link">
+        Query: old schema (bugfix) 
       </a>
       
     </li>
@@ -3372,63 +3443,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query.TestVTableQuery.test_select_virtual_child_table" class="md-nav__link">
-        Query: virtual child table 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query.TestVTableQuery.test_select_virtual_super_table" class="md-nav__link">
-        Query: virtual super table 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_after_alter.TestVtableQueryAfterAlter.test_virtual_stable_and_child_table" class="md-nav__link">
-        Query: after alter super and child table 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_after_alter.TestVtableQueryAfterAlter.test_virtual_normal_table" class="md-nav__link">
-        Query: after alter normal table 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_after_drop_origin_table.TestVtableQueryAfterDropOriginTable.test_query_after_drop" class="md-nav__link">
-        Query: after drop 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_cross_db.TestVtableQueryCrossDB.test_select_virtual_normal_table" class="md-nav__link">
-        Query: v-ntable crossdb query 
+      <a href="#05-VirtualTables.test_vtable_show_tag.TestVtableShowTag.test_vtable_show_tag" class="md-nav__link">
+        Query: show tag (bugfix) 
       </a>
       
     </li>
@@ -3440,6 +3456,17 @@
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_query_cross_db.TestVtableQueryCrossDB.test_select_virtual_child_table" class="md-nav__link">
         Query: v-ctable crossdb query 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_query_cross_db.TestVtableQueryCrossDB.test_select_virtual_normal_table" class="md-nav__link">
+        Query: v-ntable crossdb query 
       </a>
       
     </li>
@@ -3482,8 +3509,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_schema_is_old.TestVTableSchemaIsOld.test_vtable_schema_is_old" class="md-nav__link">
-        Query: old schema (bugfix) 
+      <a href="#05-VirtualTables.test_vtable_query.TestVTableQuery.test_select_virtual_child_table" class="md-nav__link">
+        Query: virtual child table 
       </a>
       
     </li>
@@ -3493,8 +3520,19 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_show_tag.TestVtableShowTag.test_vtable_show_tag" class="md-nav__link">
-        Query: show tag (bugfix) 
+      <a href="#05-VirtualTables.test_vtable_query.TestVTableQuery.test_select_virtual_normal_table" class="md-nav__link">
+        Query: virtual normal table 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_query.TestVTableQuery.test_select_virtual_super_table" class="md-nav__link">
+        Query: virtual super table 
       </a>
       
     </li>
@@ -3521,6 +3559,7 @@
 
   
 <div class="doc doc-object doc-function">
+  
   
   
   
@@ -3557,6 +3596,7 @@
   
   
   
+  
 <h2 id="05-VirtualTables.test_vtable_alter.TestVtableAlter.test_alter_virtual_child_table" class="doc doc-heading">
 
 <a href="#05-VirtualTables.test_vtable_alter.TestVtableAlter.test_alter_virtual_child_table" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -3584,6 +3624,7 @@
   </div>
   
 <div class="doc doc-object doc-function">
+  
   
   
   
@@ -3622,6 +3663,7 @@
   
   
   
+  
 <h2 id="05-VirtualTables.test_vtable_alter.TestVtableAlter.test_alter_virtual_super_table_and_create_child" class="doc doc-heading">
 
 <a href="#05-VirtualTables.test_vtable_alter.TestVtableAlter.test_alter_virtual_super_table_and_create_child" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -3649,6 +3691,7 @@
   </div>
   
 <div class="doc doc-object doc-function">
+  
   
   
   
@@ -3683,6 +3726,7 @@
   
   
   
+  
 <h2 id="05-VirtualTables.test_vtable_auth_alter_normaltable.TestVtableAuthAlterDrop.test_alter_drop_virtual_normal_table" class="doc doc-heading">
 
 <a href="#05-VirtualTables.test_vtable_auth_alter_normaltable.TestVtableAuthAlterDrop.test_alter_drop_virtual_normal_table" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -3709,6 +3753,7 @@
   </div>
   
 <div class="doc doc-object doc-function">
+  
   
   
   
@@ -3741,6 +3786,7 @@
   
   
   
+  
 <h2 id="05-VirtualTables.test_vtable_auth_create.TestVtableAuthCreate.test_create_virtual_normal_table" class="doc doc-heading">
 
 <a href="#05-VirtualTables.test_vtable_auth_create.TestVtableAuthCreate.test_create_virtual_normal_table" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -3767,6 +3813,7 @@
   </div>
   
 <div class="doc doc-object doc-function">
+  
   
   
   
@@ -3799,6 +3846,7 @@
   
   
   
+  
 <h2 id="05-VirtualTables.test_vtable_auth_select.TestVtableAuthSelect.test_select_virtual_normal_table" class="doc doc-heading">
 
 <a href="#05-VirtualTables.test_vtable_auth_select.TestVtableAuthSelect.test_select_virtual_normal_table" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -3825,6 +3873,7 @@
   </div>
   
 <div class="doc doc-object doc-function">
+  
   
   
   
@@ -3857,6 +3906,7 @@
   
   
   
+  
 <h2 id="05-VirtualTables.test_vtable_create.TestVtableCreate.test_create_virtual_super_table" class="doc doc-heading">
 
 <a href="#05-VirtualTables.test_vtable_create.TestVtableCreate.test_create_virtual_super_table" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -3883,6 +3933,7 @@
   </div>
   
 <div class="doc doc-object doc-function">
+  
   
   
   
@@ -3916,6 +3967,7 @@
   
   
   
+  
 <h2 id="05-VirtualTables.test_vtable_create.TestVtableCreate.test_create_virtual_normal_table" class="doc doc-heading">
 
 <a href="#05-VirtualTables.test_vtable_create.TestVtableCreate.test_create_virtual_normal_table" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -3942,6 +3994,7 @@
   </div>
   
 <div class="doc doc-object doc-function">
+  
   
   
   
@@ -3984,6 +4037,7 @@
   
   
   
+  
 <h2 id="05-VirtualTables.test_vtable_drop.TestVtableDrop.test_drop_virtual_child_table" class="doc doc-heading">
 
 <a href="#05-VirtualTables.test_vtable_drop.TestVtableDrop.test_drop_virtual_child_table" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -4010,6 +4064,7 @@
   </div>
   
 <div class="doc doc-object doc-function">
+  
   
   
   
@@ -4042,6 +4097,7 @@
   
   
   
+  
 <h2 id="05-VirtualTables.test_vtable_drop.TestVtableDrop.test_drop_virtual_super_table" class="doc doc-heading">
 
 <a href="#05-VirtualTables.test_vtable_drop.TestVtableDrop.test_drop_virtual_super_table" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -4071,6 +4127,7 @@
   
   
   
+  
 <h2 id="05-VirtualTables.test_vtable_drop.TestVtableDrop.test_drop_virtual_not_exists" class="doc doc-heading">
 
 <a href="#05-VirtualTables.test_vtable_drop.TestVtableDrop.test_drop_virtual_not_exists" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -4097,6 +4154,7 @@
   </div>
   
 <div class="doc doc-object doc-function">
+  
   
   
   
@@ -4133,6 +4191,7 @@
   
   
   
+  
 <h2 id="05-VirtualTables.test_vtable_join.TestVtableJoin.test_vtable_join" class="doc doc-heading">
 
 <a href="#05-VirtualTables.test_vtable_join.TestVtableJoin.test_vtable_join" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -4162,6 +4221,7 @@
   
   
   
+  
 <h2 id="05-VirtualTables.test_vtable_meta.TestVtableMeta.test_normal_query_new" class="doc doc-heading">
 
 <a href="#05-VirtualTables.test_vtable_meta.TestVtableMeta.test_normal_query_new" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -4188,6 +4248,7 @@
   </div>
   
 <div class="doc doc-object doc-function">
+  
   
   
   
@@ -4229,6 +4290,7 @@
   
   
   
+  
 <h2 id="05-VirtualTables.test_vtable_query.TestVTableQuery.test_select_virtual_child_table" class="doc doc-heading">
 
 <a href="#05-VirtualTables.test_vtable_query.TestVTableQuery.test_select_virtual_child_table" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -4264,6 +4326,7 @@
   </div>
   
 <div class="doc doc-object doc-function">
+  
   
   
   
@@ -4305,6 +4368,7 @@
   
   
   
+  
 <h2 id="05-VirtualTables.test_vtable_query_after_alter.TestVtableQueryAfterAlter.test_virtual_stable_and_child_table" class="doc doc-heading">
 
 <a href="#05-VirtualTables.test_vtable_query_after_alter.TestVtableQueryAfterAlter.test_virtual_stable_and_child_table" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -4331,6 +4395,7 @@
   </div>
   
 <div class="doc doc-object doc-function">
+  
   
   
   
@@ -4363,6 +4428,7 @@
   
   
   
+  
 <h2 id="05-VirtualTables.test_vtable_query_after_drop_origin_table.TestVtableQueryAfterDropOriginTable.test_query_after_drop" class="doc doc-heading">
 
 <a href="#05-VirtualTables.test_vtable_query_after_drop_origin_table.TestVtableQueryAfterDropOriginTable.test_query_after_drop" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -4389,6 +4455,7 @@
   </div>
   
 <div class="doc doc-object doc-function">
+  
   
   
   
@@ -4430,6 +4497,7 @@
   
   
   
+  
 <h2 id="05-VirtualTables.test_vtable_query_cross_db.TestVtableQueryCrossDB.test_select_virtual_child_table" class="doc doc-heading">
 
 <a href="#05-VirtualTables.test_vtable_query_cross_db.TestVtableQueryCrossDB.test_select_virtual_child_table" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -4468,6 +4536,7 @@
   
   
   
+  
 <h2 id="05-VirtualTables.test_vtable_query_cross_db_stb_group.TestVtableQueryCrossDbStbGroup.test_select_virtual_super_table" class="doc doc-heading">
 
 <a href="#05-VirtualTables.test_vtable_query_cross_db_stb_group.TestVtableQueryCrossDbStbGroup.test_select_virtual_super_table" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -4499,6 +4568,7 @@
   
   
   
+  
 <h2 id="05-VirtualTables.test_vtable_query_cross_db_stb_project.TestVtableQueryCrossDbStb.test_select_virtual_super_table" class="doc doc-heading">
 
 <a href="#05-VirtualTables.test_vtable_query_cross_db_stb_project.TestVtableQueryCrossDbStb.test_select_virtual_super_table" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -4526,6 +4596,7 @@
   </div>
   
 <div class="doc doc-object doc-function">
+  
   
   
   
@@ -4562,6 +4633,7 @@
   
   
   
+  
 <h2 id="05-VirtualTables.test_vtable_schema_is_old.TestVTableSchemaIsOld.test_vtable_schema_is_old" class="doc doc-heading">
 
 <a href="#05-VirtualTables.test_vtable_schema_is_old.TestVTableSchemaIsOld.test_vtable_schema_is_old" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -4588,6 +4660,7 @@
   </div>
   
 <div class="doc doc-object doc-function">
+  
   
   
   
