@@ -4,6 +4,7 @@ members = [
   "taosx-core",
   "taosx-agent",
   "taosx-metrics",
+  "crates/sqlite-optimizer",
   "crates/arrow-compute-ext",
   "crates/arrow-cast-guess-precision",
   "crates/futures-ext",
@@ -243,6 +244,7 @@ scc = { workspace = true, features = ["serde"] }
 semver.workspace = true
 shadow-rs = { workspace = true }
 strum = { workspace = true, features = ["derive"] }
+sqlite-optimizer = { path = "crates/sqlite-optimizer" }
 
 twelf = { version = "0.15.0", default-features = false, features = [
   "toml",

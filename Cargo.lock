@@ -8188,6 +8188,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "sqlite-optimizer"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "sqlx",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "sqlx"
 version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8862,6 +8873,7 @@ dependencies = [
  "source-csv",
  "source-kafka",
  "source-opc",
+ "sqlite-optimizer",
  "sqlx",
  "strum",
  "sysinfo 0.36.0",
