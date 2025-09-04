@@ -905,6 +905,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_RESULT,                    "Rsma result error")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_INTERVAL,          "Invalid rsma interval unit: w, n, y not allowed")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_FUNC_PARAM,        "Invalid rsma func param, only one non-tag column allowed")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_UNSUPPORTED_FUNC,          "Rsma func not supported")
+TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_ALREADY_EXISTS,            "Rsma already exists")
 
 //index
 TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_REBUILDING,               "Index is rebuilding")

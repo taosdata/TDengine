@@ -4481,6 +4481,7 @@ typedef struct {
   func_id_t* funcIds;      // function ids specified by user
   int64_t    interval[2];  // 0 unspecified, > 0 valid interval
   int64_t    tbUid;
+  int64_t    uid;     // rsma uid
   int32_t    sqlLen;  // strlen + 1
   char*      sql;
 } SMCreateRsmaReq;
@@ -4488,6 +4489,12 @@ typedef struct {
 int32_t tSerializeSMCreateRsmaReq(void* buf, int32_t bufLen, SMCreateRsmaReq* pReq);
 int32_t tDeserializeSMCreateRsmaReq(void* buf, int32_t bufLen, SMCreateRsmaReq* pReq);
 void    tFreeSMCreateRsmaReq(SMCreateRsmaReq* pReq);
+
+typedef SMCreateRsmaReq SVCreateRsmaReq;
+
+int32_t tSerializeSVCreateRsmaReq(void* buf, int32_t bufLen, SVCreateRsmaReq* pReq);
+int32_t tDeserializeSVCreateRsmaReq(void* buf, int32_t bufLen, SVCreateRsmaReq* pReq);
+void    tFreeSVCreateRsmaReq(SVCreateRsmaReq* pReq);
 
 typedef struct {
   char   name[TSDB_TABLE_FNAME_LEN];

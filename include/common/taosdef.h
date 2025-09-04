@@ -41,7 +41,8 @@ typedef enum {
   TSDB_VIEW_TABLE = 7,
   TSDB_VIRTUAL_NORMAL_TABLE = 8,
   TSDB_VIRTUAL_CHILD_TABLE = 9,
-  TSDB_TABLE_MAX = 10
+  TSDB_RSMA_TABLE = 10,  // rollup sma
+  TSDB_TABLE_MAX = 11
 } ETableType;
 
 typedef enum {

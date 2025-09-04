@@ -1373,6 +1373,7 @@ int32_t tSerializeSMCreateRsmaReq(void *buf, int32_t bufLen, SMCreateRsmaReq *pR
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->dbFName));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->tbName));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->tbUid));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->uid));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->tbType));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->igExists));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->intervalUnit));
@@ -1411,6 +1412,7 @@ int32_t tDeserializeSMCreateRsmaReq(void *buf, int32_t bufLen, SMCreateRsmaReq *
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->dbFName));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->tbName));
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->tbUid));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->uid));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->tbType));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->igExists));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->intervalUnit));
@@ -1450,6 +1452,16 @@ void tFreeSMCreateRsmaReq(SMCreateRsmaReq *pReq) {
   taosMemoryFreeClear(pReq->funcColIds);
   taosMemoryFreeClear(pReq->sql);
 }
+
+int32_t tSerializeSVCreateRsmaReq(void *buf, int32_t bufLen, SVCreateRsmaReq *pReq) {
+  return tSerializeSMCreateRsmaReq(buf, bufLen, (SMCreateRsmaReq *)pReq);
+}
+
+int32_t tDeserializeSVCreateRsmaReq(void *buf, int32_t bufLen, SVCreateRsmaReq *pReq) {
+  return tDeserializeSMCreateRsmaReq(buf, bufLen, (SMCreateRsmaReq *)pReq);
+}
+
+void tFreeSVCreateRsmaReq(SVCreateRsmaReq *pReq) { tFreeSMCreateRsmaReq((SMCreateRsmaReq *)pReq); }
 
 int32_t tSerializeSMDropRsmaReq(void *buf, int32_t bufLen, SMDropRsmaReq *pReq) {
   SEncoder encoder = {0};

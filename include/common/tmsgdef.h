@@ -312,9 +312,9 @@
   TD_DEF_MSG_TYPE(TDMT_VND_UNUSED16, "vnode-unused16", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_UNUSED17, "vnode-unused17", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_UNUSED18, "vnode-unused18", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_VND_SUBMIT_RSMA, "vnode-submit-rsma", SSubmitReq, SSubmitRsp)
-  TD_DEF_MSG_TYPE(TDMT_VND_FETCH_RSMA, "vnode-fetch-rsma", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_VND_EXEC_RSMA, "vnode-exec-rsma", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_CREATE_RSMA, "vnode-create-rsma", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_DROP_RSMA, "vnode-drop-rsma", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_RECALC_RSMA, "vnode-recalc-rsma", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_DELETE, "delete-data", SVDeleteReq, SVDeleteRsp)
   TD_DEF_MSG_TYPE(TDMT_VND_BATCH_DEL, "batch-delete", SBatchDeleteReq, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_ALTER_CONFIG, "alter-config", NULL, NULL)
@@ -340,6 +340,9 @@
   TD_DEF_MSG_TYPE(TDMT_VND_QUERY_SSMIGRATE_PROGRESS, "vnode-query-ssmigrate-progress", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_FOLLOWER_SSMIGRATE, "vnode-follower-ssmigrate", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_KILL_SSMIGRATE, "vnode-kill-ssmigrate", NULL, NULL) // placeholder for future use
+  TD_DEF_MSG_TYPE(TDMT_VND_START_RSMA, "vnode-start-rsma", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_STOP_RSMA, "vnode-stop-rsma", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_KILL_RSMA_TASK, "vnode-kill-rsma-task", NULL, NULL)
   TD_CLOSE_MSG_SEG(TDMT_VND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_SCH_MSG)  // 3<<8
