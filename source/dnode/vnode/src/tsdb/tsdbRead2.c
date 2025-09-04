@@ -669,8 +669,6 @@ static int32_t initResBlockInfo(SResultBlockInfo* pResBlockInfo, int64_t capacit
 
   if (pResBlockInfo->pResBlock == NULL) {
     pResBlockInfo->freeBlock = true;
-    pResBlockInfo->pResBlock = NULL;
-
     code = createResBlock(pCond, pResBlockInfo->capacity, &pResBlockInfo->pResBlock);
     TSDB_CHECK_CODE(code, lino, _end);
   } else {

@@ -61,7 +61,6 @@ class Test_IDMP_Meters_TD36808:
         self.stb = "electricity_meters"
         # import data
         etool.taosdump(f"-i {os.path.join(os.path.dirname(__file__), 'meters_data', 'data')}")
-
         tdLog.info(f"import data to db={self.db} successfully.")
 
     # 1. create vtables
