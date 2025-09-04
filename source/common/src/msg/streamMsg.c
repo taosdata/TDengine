@@ -3401,6 +3401,7 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
     }
     case STRIGGER_PULL_FIRST_TS: {
       SSTriggerFirstTsRequest* pRequest = (SSTriggerFirstTsRequest*)pReq;
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->gid));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->startTime));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
       break;
@@ -3610,6 +3611,7 @@ int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPull
     }
     case STRIGGER_PULL_FIRST_TS: {
       SSTriggerFirstTsRequest* pRequest = &(pReq->firstTsReq);
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->gid));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->startTime));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
       break;

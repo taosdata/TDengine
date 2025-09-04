@@ -756,6 +756,7 @@ typedef struct SSTriggerLastTsRequest {
 
 typedef struct SSTriggerFirstTsRequest {
   SSTriggerPullRequest base;
+  int64_t              gid;  // optional, 0 by default
   int64_t              startTime;
   int64_t              ver;
 } SSTriggerFirstTsRequest;

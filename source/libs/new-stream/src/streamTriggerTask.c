@@ -4471,6 +4471,7 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
       pProgress = tSimpleHashGet(pContext->pReaderTsdbProgress, &pReader->nodeId, sizeof(int32_t));
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       SSTriggerFirstTsRequest *pReq = &pProgress->pullReq.firstTsReq;
+      pReq->gid = pContext->gid;
       pReq->startTime = pContext->scanRange.skey;
       pReq->ver = pProgress->version;
       break;
