@@ -74,7 +74,8 @@ struct STFile {
 };
 
 struct STFileObj {
-  TdThreadMutex mutex;
+  // TdThreadMutex mutex;
+  SRWLatch      mutex;
   STFile        f[1];
   int32_t       state;
   int32_t       ref;
