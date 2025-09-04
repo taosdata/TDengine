@@ -14540,13 +14540,6 @@ static int32_t createStreamReqBulidTriggerExtractCondFromWindow(STranslateContex
       }
       break;
     }
-    case QUERY_NODE_STATE_WINDOW: {
-      PAR_ERR_JRET(extractCondFromStateWindow(pCxt, (SStateWindowNode*)pTriggerWindow, &pLogicCond));
-      if (pLogicCond) {
-        PAR_ERR_JRET(nodesMergeNode(pTriggerFilter, &pLogicCond));
-      }
-      break;
-    }
     default:
       break;
   }

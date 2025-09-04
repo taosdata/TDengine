@@ -1342,6 +1342,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
       pTask->triggerType = STREAM_TRIGGER_STATE;
       const SStateWinTrigger *pState = &pMsg->trigger.stateWin;
       pTask->stateSlotId = pState->slotId;
+      pTask->stateExtend = pState->extend;
       pTask->stateTrueFor = pState->trueForDuration;
       break;
     }
@@ -2456,7 +2457,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
         if (allTableProcessed || needFetchData) {
           break;
         }
-        if(startIdx >= endIdx) continue;
+        if (startIdx >= endIdx) continue;
         if (!pTask->isVirtualTable) {
           code = putStreamDataCache(pContext->pCalcDataCache, pGroup->gid, pContext->pParamToFetch->wstart,
                                     pContext->pParamToFetch->wend, pDataBlock, startIdx, endIdx - 1);
@@ -6852,42 +6853,57 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
         QUERY_CHECK_CONDITION(pStateVal->pData, code, lino, _end, terrno);
         pStateData = pStateVal->pData;
       }
-
-      // open the first window
-      char   *newVal = colDataGetData(pStateCol, startIdx);
-      int32_t bytes = isVarType ? varDataTLen(newVal) : pStateCol->info.bytes;
-      if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
-        code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, NULL, newVal,
-                                             &pExtraNotifyContent);
-        QUERY_CHECK_CODE(code, lino, _end);
-      }
-      code = stRealtimeGroupOpenWindow(pGroup, pTsData[startIdx], &pExtraNotifyContent, false, true);
-      QUERY_CHECK_CODE(code, lino, _end);
-      memcpy(pStateData, newVal, bytes);
-      startIdx++;
     }
-    for (int32_t r = startIdx; r < endIdx; r++) {
-      char   *newVal = colDataGetData(pStateCol, r);
-      int32_t bytes = isVarType ? varDataTLen(newVal) : pStateCol->info.bytes;
-      if (memcmp(pStateData, newVal, bytes) == 0) {
-        TRINGBUF_HEAD(&pGroup->winBuf)->wrownum++;
-        TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
+    for (int32_t i = startIdx; i < endIdx; i++) {
+      bool isNull = colDataIsNull_s(pStateCol, i);
+      if (isNull) {
+        if (pGroup->numPendingNull == 0) {
+          pGroup->pendingNullStart = pTsData[i];
+        }
+        pGroup->numPendingNull++;
       } else {
-        if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
-          code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, &pStateCol->info, pStateData, newVal,
-                                               &pExtraNotifyContent);
-          QUERY_CHECK_CODE(code, lino, _end);
+        char   *oldVal = IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) ? pStateData : NULL;
+        char   *newVal = colDataGetData(pStateCol, i);
+        int32_t bytes = isVarType ? varDataTLen(newVal) : pStateCol->info.bytes;
+        int64_t startTs = pGroup->pendingNullStart;
+        if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
+          if (memcmp(pStateData, newVal, bytes) == 0) {
+            TRINGBUF_HEAD(&pGroup->winBuf)->wrownum++;
+            TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[i];
+            TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->numPendingNull;
+          } else {
+            if (pTask->stateExtend == 1) {
+              TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->numPendingNull;
+              TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[i] - 1;
+            } else if (pTask->stateExtend == 2) {
+              startTs = TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey + 1;
+            }
+            if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
+              code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, &pStateCol->info, oldVal, newVal,
+                                                   &pExtraNotifyContent);
+              QUERY_CHECK_CODE(code, lino, _end);
+            }
+            code = stRealtimeGroupCloseWindow(pGroup, &pExtraNotifyContent, false);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
         }
-        code = stRealtimeGroupCloseWindow(pGroup, &pExtraNotifyContent, false);
-        QUERY_CHECK_CODE(code, lino, _end);
-        if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
-          code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, pStateData, newVal,
-                                               &pExtraNotifyContent);
-          QUERY_CHECK_CODE(code, lino, _end);
+        if (!IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
+          if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
+            code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, oldVal, newVal,
+                                                 &pExtraNotifyContent);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+          if (pTask->stateExtend == 2) {
+            code = stRealtimeGroupOpenWindow(pGroup, startTs, &pExtraNotifyContent, false, true);
+            QUERY_CHECK_CODE(code, lino, _end);
+            TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->numPendingNull;
+          } else {
+            code = stRealtimeGroupOpenWindow(pGroup, pTsData[i], &pExtraNotifyContent, false, true);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+          memcpy(pStateData, newVal, bytes);
         }
-        code = stRealtimeGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true);
-        QUERY_CHECK_CODE(code, lino, _end);
-        memcpy(pStateData, newVal, bytes);
+        pGroup->numPendingNull = 0;
       }
     }
   }

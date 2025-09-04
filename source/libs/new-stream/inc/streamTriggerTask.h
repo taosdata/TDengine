@@ -56,8 +56,10 @@ typedef struct SSTriggerRealtimeGroup {
   int64_t newThreshold;
 
   TriggerWindowBuf winBuf;
-  STimeWindow      nextWindow;  // for period trigger and sliding window trigger
-  SValue           stateVal;    // for state window trigger
+  STimeWindow      nextWindow;      // for period trigger and sliding window trigger
+  SValue           stateVal;        // for state window trigger
+  int64_t          pendingNullStart;
+  int32_t          numPendingNull;  // for state window trigger
 
   bool    recalcNextWindow;
   int64_t prevCalcTime;        // only used in batch window mode (lowLatencyCalc is false)
@@ -245,6 +247,7 @@ typedef struct SStreamTriggerTask {
     };
     struct {  // for state window
       int64_t stateSlotId;
+      int64_t stateExtend;
       int64_t stateTrueFor;
     };
     struct {  // for event window
