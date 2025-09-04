@@ -62,6 +62,7 @@ class TestMathFunctionInStream:
                 f"CREATE DATABASE IF NOT EXISTS `{self.db}`;",
                 f"USE `{self.db}`;",
                 "CREATE TABLE tb(ts TIMESTAMP, val FLOAT);",
+                "RESET QUERY CACHE;",
             ],
             queryTimes=1,
         )
