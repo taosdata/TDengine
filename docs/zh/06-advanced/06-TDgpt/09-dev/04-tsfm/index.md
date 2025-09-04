@@ -38,6 +38,7 @@ pip install flask==3.0.3
 pip install transformers==4.40.0
 pip install accelerate
 ```
+
 ****
 > 脚本中安装了 CPU 驱动版本的 PyTorch，如果您服务是部署在具有 GPU 的服务器上，可以在虚拟环境中安装支持 GPU 加速的 PyTorch。例如：
 

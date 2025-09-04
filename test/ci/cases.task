@@ -296,6 +296,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/25-JoinQueries/test_join_multivnode.py
 ,,y,.,./ci/pytest.sh pytest cases/25-JoinQueries/test_join_pk.py
 ,,y,.,./ci/pytest.sh pytest cases/25-JoinQueries/test_join_order.py
+,,y,.,./ci/pytest.sh pytest cases/25-JoinQueries/test_join_tbname.py
 ,,y,.,./ci/pytest.sh pytest cases/25-JoinQueries/test_join.py
 ,,y,.,./ci/pytest.sh pytest cases/25-JoinQueries/test_join2.py
 ,,y,.,./ci/pytest.sh pytest cases/25-JoinQueries/test_join_ns_db.py
