@@ -680,7 +680,7 @@ static int32_t initResBlockInfo(SResultBlockInfo* pResBlockInfo, int64_t capacit
     p->info.pks[0].type = pSup->pk.type;
     p->info.pks[1].type = pSup->pk.type;
 
-    if (IS_VAR_DATA_TYPE(pSup->pk.type)) {
+    if (IS_VAR_DATA_TYPE(pSup->pk.type) && (p->info.pks[0].pData == NULL)) {
       p->info.pks[0].pData = taosMemoryCalloc(1, pSup->pk.bytes);
       TSDB_CHECK_NULL(p->info.pks[0].pData, code, lino, _end, terrno);
 
@@ -1112,7 +1112,7 @@ static int32_t doGetValueFromBseBySeq(void* arg, uint8_t* pKey, int32_t keyLen, 
     *len = 0; 
     return code;
   } else {
-    tGetU64(pKey, &seq);
+    int32_t unusedRet = tGetU64(pKey, &seq);
   }
  
   if (seq == 0) {
