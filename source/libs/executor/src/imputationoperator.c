@@ -64,7 +64,7 @@ static int32_t doCacheBlock(SImputationSupp* pSupp, SSDataBlock* pBlock, const c
 static int32_t doParseInput(SImputationOperatorInfo* pInfo, SImputationSupp* pSupp, SNodeList* pFuncs, const char* id);
 static int32_t doSetResSlot(SImputationOperatorInfo* pInfo, SImputationSupp* pSupp, SExprSupp* pExprSup);
 static int32_t doParseOption(SImputationOperatorInfo* pInfo, SImputationSupp* pSupp, const char* id);
-static int32_t doCreateBuf(SImputationSupp* pSupp);
+static int32_t doCreateBuf(SImputationSupp* pSupp, const char* pId);
 
 int32_t createImputationOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode, SExecTaskInfo* pTaskInfo,
                                      SOperatorInfo** pOptrInfo) {
@@ -108,7 +108,7 @@ int32_t createImputationOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phys
     QUERY_CHECK_CODE(code, lino, _error);
   }
 
-  code = filterInitFromNode((SNode*)pImputatNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  code = filterInitFromNode((SNode*)pImputatNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0, pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _error);
 
   code = doParseInput(pInfo, pSupp, pImputatNode->pFuncs, id);
@@ -120,7 +120,7 @@ int32_t createImputationOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phys
   code = doParseOption(pInfo, pSupp, id);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  code = doCreateBuf(pSupp);
+  code = doCreateBuf(pSupp, id);
   QUERY_CHECK_CODE(code, lino, _error);
 
   initResultSizeInfo(&pOperator->resultInfo, 4096);
@@ -408,7 +408,7 @@ static int32_t doImputationImpl(SImputationOperatorInfo* pInfo, SImputationSupp*
   }
 
   SColumnInfoData* pResTsCol = ((pInfo->resTsSlot != -1) ? taosArrayGet(pBlock->pDataBlock, pInfo->resTsSlot) : NULL);
-  SJson* pJson = taosAnalySendReqRetJson(pInfo->algoUrl, ANALYTICS_HTTP_TYPE_POST, pBuf, pSupp->timeout);
+  SJson* pJson = taosAnalySendReqRetJson(pInfo->algoUrl, ANALYTICS_HTTP_TYPE_POST, pBuf, pSupp->timeout, pId);
   if (pJson == NULL) {
     return terrno;
   }
@@ -701,7 +701,7 @@ _end:
   return code;
 }
 
-static int32_t doCreateBuf(SImputationSupp* pSupp) {
+static int32_t doCreateBuf(SImputationSupp* pSupp, const char* pId) {
   SAnalyticBuf* pBuf = &pSupp->analyBuf;
   int64_t       ts = 0;  // taosGetTimestampMs();
   int32_t       index = 0;
@@ -709,7 +709,7 @@ static int32_t doCreateBuf(SImputationSupp* pSupp) {
   pBuf->bufType = ANALYTICS_BUF_TYPE_JSON_COL;
   snprintf(pBuf->fileName, sizeof(pBuf->fileName), "%s/tdengine-imput-%" PRId64, tsTempDir, ts);
 
-  int32_t code = tsosAnalyBufOpen(pBuf, pSupp->numOfCols);
+  int32_t code = tsosAnalyBufOpen(pBuf, pSupp->numOfCols, pId);
   if (code != 0) goto _OVER;
 
   code = taosAnalyBufWriteColMeta(pBuf, index++, TSDB_DATA_TYPE_TIMESTAMP, "ts");
