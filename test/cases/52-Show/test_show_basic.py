@@ -32,6 +32,9 @@ class TestShowBasic:
             - 2025-4-28 Simon Guan Migrated from tsim/show/basic.sim
 
         """
+        
+        tdSql.query("select `precision`, `keep` from information_schema.ins_databases where name = database();")
+        tdSql.checkRows(0)
 
         tdLog.info(f"=============== add dnode2 into cluster")
         clusterComCheck.checkDnodes(2)
@@ -46,6 +49,10 @@ class TestShowBasic:
         tdLog.info(f"=============== run show xxxx")
         tdSql.query(f"select * from information_schema.ins_dnodes")
         tdSql.checkRows(2)
+
+        tdSql.error("show dnode 123 variables;")
+        tdSql.query("show dnode 1 variables;")
+        tdSql.query("show dnode 2 variables;")
 
         tdSql.query(f"select * from information_schema.ins_mnodes")
         tdSql.checkRows(1)
