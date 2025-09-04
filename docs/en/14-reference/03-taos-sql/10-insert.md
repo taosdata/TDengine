@@ -69,7 +69,7 @@ Standard Syntax Explanation:
 
 1. The USING clause is for automatic table creation syntax. If a user is unsure whether a table exists when writing data, they can use the automatic table creation syntax to create a non-existent table during data writing; if the table already exists, a new table will not be created. Automatic table creation requires using a supertable as a template and specifying the TAGS values for the data table. It is possible to specify only some TAGS column values, with unspecified TAGS columns set to NULL.
 
-2. You can use the `INSERT ... subquery` statement to insert data from TDengine into a specified table. The subquery can be any query statement. 
+2. You can use the `INSERT ... subquery` statement to insert data from TDengine into a specified table. The subquery can be any query statement.
 
 Supertable Syntax Explanation:
 
