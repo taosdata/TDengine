@@ -564,9 +564,6 @@ int32_t rpcCvtErrCode(int32_t code) {
 
 int32_t rpcInit() { return transInit(); }
 
-int8_t transCheckTlsEnv(const char* caPath, const char* certPath, const char* keyPath, const char* instName,
-                        int8_t* enableTls);
-
 void rpcCleanup(void) {
   transCleanup();
   // transHttpEnvDestroy();
