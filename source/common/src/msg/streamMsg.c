@@ -557,7 +557,7 @@ int32_t tDecodeSStreamMgmtReq(SDecoder* pDecoder, SStreamMgmtReq* pReq) {
         pReq->cont.pReqs = taosArrayInit(num, sizeof(SStreamDbTableName));
         TSDB_CHECK_NULL(pReq->cont.pReqs, code, lino, _exit, terrno);
         for (int32_t i = 0; i < num; ++i) {
-          SStreamDbTableName* p = taosArrayGet(pReq->cont.pReqs, i);
+          SStreamDbTableName* p = taosArrayReserve(pReq->cont.pReqs, 1);
           TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->dbFName));
           TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->tbName));
         }
@@ -2727,7 +2727,9 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
       }
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &calcScan.readFromCache));
       TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&calcScan.scanPlan, NULL));
-      taosArrayPush(pReq->calcScanPlanList, &calcScan);
+      if (taosArrayPush(pReq->calcScanPlanList, &calcScan) == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
     }
   }
 

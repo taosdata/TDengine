@@ -83,6 +83,7 @@ typedef struct SStreamInserterParam {
 
 typedef struct SStreamVtableDeployInfo {
   int64_t  uid;
+  int32_t  rversion;
   SArray*  addVgIds;
   SArray*  addedVgInfo;  // deploy response,SArray<SStreamTaskAddr>
 } SStreamVtableDeployInfo;

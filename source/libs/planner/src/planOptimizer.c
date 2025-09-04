@@ -596,10 +596,7 @@ static int32_t filterDnodeConds(SOptimizeContext* pCxt, SScanLogicNode* pScan, S
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
-  code = rewriteDnodeConds(&pScan->node.pConditions, *pDnodeConds);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
-  }
+  rewriteDnodeConds(&pScan->node.pConditions, *pDnodeConds);
   return TSDB_CODE_SUCCESS;
 }
 

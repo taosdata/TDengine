@@ -961,7 +961,7 @@ end:
     if (code == TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY) {
       return TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY;
     }
-    //pTask->task.status = STREAM_STATUS_FAILED;
+    pTask->task.status = STREAM_STATUS_FAILED;
   } else {
     ST_TASK_DLOG("[runner calc]success, gid:%" PRId64 ",, status:%d", pReq->gid, pTask->task.status);
   }

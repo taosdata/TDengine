@@ -79,6 +79,7 @@ cases/41-StreamProcessing/07-SubQuery/test_subquery_sliding.py
 cases/41-StreamProcessing/07-SubQuery/test_subquery_session.py
 cases/41-StreamProcessing/07-SubQuery/test_subquery_state.py
 cases/41-StreamProcessing/07-SubQuery/test_subquery_usage_restrict.py
+cases/41-StreamProcessing/07-SubQuery/test_subquery_vtable_change.py
 cases/41-StreamProcessing/08-Recalc/test_recalc_combined_options.py
 cases/41-StreamProcessing/08-Recalc/test_recalc_delete_recalc.py
 cases/41-StreamProcessing/08-Recalc/test_recalc_expired_time.py

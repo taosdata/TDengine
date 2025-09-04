@@ -102,11 +102,11 @@ typedef struct SVtbScanDynCtrlInfo {
   SArray*          readColList;
   SArray*          childTableList; // Array of <Array<SColRefInfo>> used for virtual super table
   SArray*          colRefInfo; // Array of <SColRefInfo> used for single virtual normal/child table
-  SArray*          addedVgInfo;
+  SHashObj*        newAddedVgInfo;
   SHashObj*        childTableMap;
   SHashObj*        dbVgInfoMap;
   SHashObj*        orgTbVgColMap; // key: orgTbFName, value: SOrgTbInfo
-  SHashObj*        lastOrgTbVg; // key: vgId, value: NULL
+  SHashObj*        existOrgTbVg; // key: vgId, value: NULL
   SHashObj*        curOrgTbVg; // key: vgId, value: NULL
   SMsgCb*          pMsgCb;
   SOperatorParam*  vtbScanParam;
