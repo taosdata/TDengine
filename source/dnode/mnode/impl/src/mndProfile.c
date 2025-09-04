@@ -14,12 +14,13 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "mndProfile.h"
 #include "audit.h"
+#include "crypt.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
-#include "mndProfile.h"
 #include "mndQnode.h"
 #include "mndShow.h"
 #include "mndSma.h"
@@ -36,8 +37,6 @@ typedef struct {
   char     app[TSDB_APP_NAME_LEN];  // app name that invokes taosc
   int64_t  appStartTimeMs;          // app start time
   int32_t  pid;                     // pid of app that invokes taosc
-  uint32_t ip;
-  uint16_t port;
   int8_t   killed;
   int64_t  loginTimeMs;
   int64_t  lastAccessTimeMs;
@@ -47,11 +46,12 @@ typedef struct {
   SArray  *pQueries;  // SArray<SQueryDesc>
   char     userApp[TSDB_APP_NAME_LEN];
   uint32_t userIp;
+  SIpAddr  addr;
 } SConnObj;
 
 typedef struct {
   int64_t            appId;
-  uint32_t           ip;
+  SIpAddr            cliAddr;
   int32_t            pid;
   char               name[TSDB_APP_NAME_LEN];
   int64_t            startTime;
@@ -69,8 +69,8 @@ typedef struct {
 
 #define CACHE_OBJ_KEEP_TIME 3  // s
 
-static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType, uint32_t ip, uint16_t port,
-                               int32_t pid, const char *app, int64_t startTime);
+static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType, SIpAddr *ip, int32_t pid,
+                               const char *app, int64_t startTime);
 static void      mndFreeConn(SConnObj *pConn);
 static SConnObj *mndAcquireConn(SMnode *pMnode, uint32_t connId);
 static void      mndReleaseConn(SMnode *pMnode, SConnObj *pConn, bool extendLifespan);
@@ -137,6 +137,21 @@ void mndCleanupProfile(SMnode *pMnode) {
   }
 }
 
+static void getUserIpFromConnObj(SConnObj *pConn, char *dst) {
+  static char *none = "0.0.0.0";
+  if (pConn->userIp != 0 && pConn->userIp != INADDR_NONE) {
+    taosInetNtoa(varDataVal(dst), pConn->userIp);
+    varDataLen(dst) = strlen(varDataVal(dst));
+  }
+
+  if (pConn->addr.ipv4[0] != 0 && strncmp(pConn->addr.ipv4, none, strlen(none)) != 0) {
+    char   *ipstr = IP_ADDR_STR(&pConn->addr);
+    int32_t len = strlen(ipstr);
+    memcpy(varDataVal(dst), ipstr, len);
+    varDataLen(dst) = len;
+  }
+  return;
+}
 static void setUserInfo2Conn(SConnObj *connObj, char *userApp, uint32_t userIp) {
   if (connObj == NULL) {
     return;
@@ -144,11 +159,25 @@ static void setUserInfo2Conn(SConnObj *connObj, char *userApp, uint32_t userIp) 
   tstrncpy(connObj->userApp, userApp, sizeof(connObj->userApp));
   connObj->userIp = userIp;
 }
-static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType, uint32_t ip, uint16_t port,
-                               int32_t pid, const char *app, int64_t startTime) {
+static void setUserInfoIpToConn(SConnObj *connObj, SIpRange *pRange) {
+  int32_t code = 0;
+  if (connObj == NULL) {
+    return;
+  }
+  code = tIpUintToStr(pRange, &connObj->addr);
+  if (code != 0) {
+    mError("conn:%u, failed to set user ip to conn since %s", connObj->id, tstrerror(code));
+    return;
+  }
+}
+static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType, SIpAddr *pAddr, int32_t pid,
+                               const char *app, int64_t startTime) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   char     connStr[255] = {0};
+  char    *ip = IP_ADDR_STR(pAddr);
+  uint16_t port = pAddr->port;
+
   int32_t  len = tsnprintf(connStr, sizeof(connStr), "%s%d%d%d%s", user, ip, port, pid, app);
   uint32_t connId = mndGenerateUid(connStr, len);
   if (startTime == 0) startTime = taosGetTimestampMs();
@@ -158,8 +187,7 @@ static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType
       .connType = connType,
       .appStartTimeMs = startTime,
       .pid = pid,
-      .ip = ip,
-      .port = port,
+      .addr = *pAddr,
       .killed = 0,
       .loginTimeMs = taosGetTimestampMs(),
       .lastAccessTimeMs = 0,
@@ -241,8 +269,10 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   SConnObj       *pConn = NULL;
   int32_t         code = 0;
   SConnectReq     connReq = {0};
-  char            ip[TD_IP_LEN] = {0};
   const STraceId *trace = &pReq->info.traceId;
+
+  char    *ip = IP_ADDR_STR(&pReq->info.conn.cliAddr);
+  uint16_t port = pReq->info.conn.cliAddr.port;
 
   if ((code = tDeserializeSConnectReq(pReq->pCont, pReq->contLen, &connReq)) != 0) {
     goto _OVER;
@@ -253,9 +283,9 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  taosInetNtoa(ip, pReq->info.conn.clientIp);
   if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONNECT)) != 0) {
-    mGError("user:%s, failed to login from %s since %s", pReq->info.conn.user, ip, tstrerror(code));
+    mGError("user:%s, failed to login from %s since %s", pReq->info.conn.user, IP_ADDR_STR(&pReq->info.conn.cliAddr),
+            tstrerror(code));
     goto _OVER;
   }
 
@@ -265,8 +295,20 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (strncmp(connReq.passwd, pUser->pass, TSDB_PASSWORD_LEN - 1) != 0 && !tsMndSkipGrant) {
-    mGError("user:%s, failed to login from %s since invalid pass, input:%s", pReq->info.conn.user, ip, connReq.passwd);
+  char tmpPass[TSDB_PASSWORD_LEN] = {0};
+  tstrncpy(tmpPass, connReq.passwd, TSDB_PASSWORD_LEN);
+
+  if (pUser->passEncryptAlgorithm != 0) {
+    if (pUser->passEncryptAlgorithm != tsiEncryptPassAlgorithm) {
+      code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+      goto _OVER;
+    }
+    TAOS_CHECK_GOTO(mndEncryptPass(tmpPass, NULL), NULL, _OVER);
+  }
+
+  if (strncmp(tmpPass, pUser->pass, TSDB_PASSWORD_LEN - 1) != 0 && !tsMndSkipGrant) {
+    mGError("user:%s, failed to login from %s since pass not match, input:%s", pReq->info.conn.user, ip,
+            connReq.passwd);
     code = TSDB_CODE_MND_AUTH_FAILURE;
     goto _OVER;
   }
@@ -288,8 +330,8 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_OR_WRITE_DB, pDb), NULL, _OVER);
   }
 
-  pConn = mndCreateConn(pMnode, pReq->info.conn.user, connReq.connType, pReq->info.conn.clientIp,
-                        pReq->info.conn.clientPort, connReq.pid, connReq.app, connReq.startTime);
+  pConn = mndCreateConn(pMnode, pReq->info.conn.user, connReq.connType, &pReq->info.conn.cliAddr, connReq.pid,
+                        connReq.app, connReq.startTime);
   if (pConn == NULL) {
     code = terrno;
     mGError("user:%s, failed to login from %s while create connection since %s", pReq->info.conn.user, ip,
@@ -340,7 +382,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   pReq->info.rspLen = contLen;
   pReq->info.rsp = pRsp;
 
-  mGDebug("user:%s, login from %s:%d, conn:%u, app:%s", pReq->info.conn.user, ip, pConn->port, pConn->id, connReq.app);
+  mGDebug("user:%s, login from %s:%d, conn:%u, app:%s", pReq->info.conn.user, ip, port, pConn->id, connReq.app);
 
   code = 0;
 
@@ -377,12 +419,12 @@ static int32_t mndSaveQueryList(SConnObj *pConn, SQueryHbReqBasic *pBasic) {
   return TSDB_CODE_SUCCESS;
 }
 
-static SAppObj *mndCreateApp(SMnode *pMnode, uint32_t clientIp, SAppHbReq *pReq) {
+static SAppObj *mndCreateApp(SMnode *pMnode, SIpAddr *pAddr, SAppHbReq *pReq) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   SAppObj app;
   app.appId = pReq->appId;
-  app.ip = clientIp;
+  app.cliAddr = *pAddr;
   app.pid = pReq->pid;
   tstrncpy(app.name, pReq->name, sizeof(app.name));
   app.startTime = pReq->startTime;
@@ -456,7 +498,7 @@ static int32_t mndUpdateAppInfo(SMnode *pMnode, SClientHbReq *pHbReq, SRpcConnIn
   SAppHbReq *pReq = &pHbReq->app;
   SAppObj   *pApp = mndAcquireApp(pMnode, pReq->appId);
   if (pApp == NULL) {
-    pApp = mndCreateApp(pMnode, connInfo->clientIp, pReq);
+    pApp = mndCreateApp(pMnode, &connInfo->cliAddr, pReq);
     if (pApp == NULL) {
       mError("failed to create new app %" PRIx64 " since %s", pReq->appId, terrstr());
       code = TSDB_CODE_MND_RETURN_VALUE_NULL;
@@ -513,8 +555,8 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
 
     SConnObj *pConn = mndAcquireConn(pMnode, pBasic->connId);
     if (pConn == NULL) {
-      pConn = mndCreateConn(pMnode, connInfo.user, CONN_TYPE__QUERY, connInfo.clientIp, connInfo.clientPort,
-                            pHbReq->app.pid, pHbReq->app.name, 0);
+      pConn = mndCreateConn(pMnode, connInfo.user, CONN_TYPE__QUERY, &connInfo.cliAddr, pHbReq->app.pid,
+                            pHbReq->app.name, 0);
       if (pConn == NULL) {
         mError("user:%s, conn:%u is freed and failed to create new since %s", connInfo.user, pBasic->connId, terrstr());
         code = TSDB_CODE_MND_RETURN_VALUE_NULL;
@@ -526,6 +568,8 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
     }
 
     setUserInfo2Conn(pConn, pHbReq->userApp, pHbReq->userIp);
+    setUserInfoIpToConn(pConn, &pHbReq->userDualIp);
+
     SQueryHbRspBasic *rspBasic = taosMemoryCalloc(1, sizeof(SQueryHbRspBasic));
     if (rspBasic == NULL) {
       mndReleaseConn(pMnode, pConn, true);
@@ -704,7 +748,7 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
 
   SConnPreparedObj obj = {0};
   obj.totalDnodes = mndGetDnodeSize(pMnode);
-  obj.ipWhiteListVer = batchReq.ipWhiteList;
+  obj.ipWhiteListVer = batchReq.ipWhiteListVer;
   TAOS_CHECK_RETURN(mndGetOnlineDnodeNum(pMnode, &obj.onlineDnodes));
   mndGetMnodeEpSet(pMnode, &obj.epSet);
   TAOS_CHECK_RETURN(mndCreateQnodeList(pMnode, &obj.pQnodeList, -1));
@@ -910,11 +954,11 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       return code;
     }
 
+    char addr[IP_RESERVE_CAP] = {0};
     char endpoint[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    taosInetNtoa(varDataVal(endpoint), pConn->ip);
-    (void)tsnprintf(varDataVal(endpoint) + strlen(varDataVal(endpoint)),
-              sizeof(endpoint) - VARSTR_HEADER_SIZE - strlen(varDataVal(endpoint)), ":%d", pConn->port);
-    varDataLen(endpoint) = strlen(varDataVal(endpoint));
+    tsnprintf(addr, sizeof(addr), "%s:%d", IP_ADDR_STR(&pConn->addr), pConn->addr.port);
+    STR_TO_VARSTR(endpoint, addr);
+
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)endpoint, false);
     if (code != 0) {
@@ -946,10 +990,8 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     }
 
     char userIp[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    if (pConn->userIp != 0 && pConn->userIp != INADDR_NONE) {
-      taosInetNtoa(varDataVal(userIp), pConn->userIp);
-      varDataLen(userIp) = strlen(varDataVal(userIp));
-    }
+    getUserIpFromConnObj(pConn, userIp);
+
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)userIp, false);
     if (code != 0) {
@@ -1045,10 +1087,9 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     }
 
     char endpoint[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    taosInetNtoa(varDataVal(endpoint), pConn->ip);
-    (void)tsnprintf(varDataVal(endpoint) + strlen(varDataVal(endpoint)),
-              sizeof(endpoint) - VARSTR_HEADER_SIZE - strlen(varDataVal(endpoint)), ":%d", pConn->port);
-    varDataLen(endpoint) = strlen(&endpoint[VARSTR_HEADER_SIZE]);
+    char buf[IP_RESERVE_CAP] = {0};
+    (void)tsnprintf(buf, sizeof(buf), "%s:%d", IP_ADDR_STR(&pConn->addr), pConn->addr.port);
+    STR_TO_VARSTR(endpoint, buf);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, curRowIndex, (const char *)endpoint, false);
     if (code != 0) {
@@ -1143,10 +1184,8 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     }
 
     char userIp[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    if (pConn->userIp != 0 && pConn->userIp != INADDR_NONE) {
-      taosInetNtoa(varDataVal(userIp), pConn->userIp);
-      varDataLen(userIp) = strlen(varDataVal(userIp));
-    }
+    getUserIpFromConnObj(pConn, userIp);
+
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, curRowIndex, (const char *)userIp, false);
     if (code != 0) {
@@ -1230,8 +1269,10 @@ static int32_t mndRetrieveApps(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     }
 
     char ip[TD_IP_LEN + VARSTR_HEADER_SIZE] = {0};
-    taosInetNtoa(varDataVal(ip), pApp->ip);
-    varDataLen(ip) = strlen(varDataVal(ip));
+    char buf[IP_RESERVE_CAP] = {0};
+    snprintf(buf, sizeof(buf), "%s", IP_ADDR_STR(&pApp->cliAddr));
+    STR_TO_VARSTR(ip, buf);
+
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)ip, false);
     if (code != 0) {

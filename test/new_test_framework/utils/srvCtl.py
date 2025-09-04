@@ -120,6 +120,18 @@ class srvCtl:
 
         return tdDnodes.stopAll()
 
+    def dnodeRestartAll(self) :
+        """
+        Restarts all dnodes.
+
+        Returns:
+            bool: True if all dnodes were restarted successfully, False otherwise.
+        """
+
+        self.dnodeStopAll()
+        self.dnodeStartAll()
+
+
     #
     #  about path
     #
@@ -186,5 +198,21 @@ class srvCtl:
             return clusterDnodes.getDnodeCfgPath(idx)
         return tdDnodes.getDnodeCfgPath(idx)
 
+    #
+    # get dnodes log path
+    # 
+    def dnodeLogPath(self, idx):
+        """
+        Gets the log path for a specific dnode.
+
+        Args:
+            idx (int): The index of the dnode.
+
+        Returns:
+            str: The log path for the dnode.
+        """
+        if clusterDnodes.getModel() == "cluster":
+            return clusterDnodes.getDnodeLogPath(idx)
+        return tdDnodes.getDnodeLogPath(idx)
 
 sc = srvCtl()

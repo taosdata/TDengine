@@ -69,7 +69,6 @@ typedef struct {
   int8_t                recoverScanFinished;
   SQueryTableDataCond   tableCond;
   SVersionRange         fillHistoryVer;
-  STimeWindow           fillHistoryWindow;
   SStreamState*         pState;
   SStreamState*         pOtherState;
   int32_t               eventTypes;          // event types to notify
@@ -105,9 +104,10 @@ struct SExecTaskInfo {
   SOperatorParam*       pOpParam;
   bool                  paramSet;
   SQueryAutoQWorkerPoolCB* pWorkerCb;
+  SStreamRuntimeInfo*      pStreamRuntimeInfo;
 };
 
-void    buildTaskId(uint64_t taskId, uint64_t queryId, char* dst);
+void    buildTaskId(uint64_t taskId, uint64_t queryId, char* dst, int32_t len);
 int32_t doCreateTask(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC_MODEL model, SStorageAPI* pAPI,
                      SExecTaskInfo** pTaskInfo);
 void    doDestroyTask(SExecTaskInfo* pTaskInfo);

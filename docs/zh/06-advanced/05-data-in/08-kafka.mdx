@@ -3,12 +3,12 @@ title: "Kafka"
 sidebar_label: "Kafka"
 ---
 
-本节讲述如何通过 Explorer 界面创建数据迁移任务，从 Kafka 迁移数据到当前 TDengine 集群。
+本节讲述如何通过 Explorer 界面创建数据迁移任务，从 Kafka 迁移数据到当前 TDengine TSDB 集群。
 
 ## 功能概述
 Apache Kafka 是一个用于流处理、实时数据管道和大规模数据集成的开源分布式流系统。
 
-TDengine 可以高效地从 Kafka 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据流入库。
+TDengine TSDB 可以高效地从 Kafka 读取数据并将其写入 TDengine TSDB，以实现历史数据迁移或实时数据流入库。
 
 ## 创建任务
 
@@ -170,7 +170,7 @@ json 数据支持 JSONObject 或者 JSONArray，使用 json 解析器可以解�
 
 #### 7.3 数据过滤
 
-在 **过滤** 中，填写过滤条件，例如：填写 `id != 1`，则只有 id 不为 1 的数据才会被写入 TDengine。
+在 **过滤** 中，填写过滤条件，例如：填写 `id != 1`，则只有 id 不为 1 的数据才会被写入 TDengine TSDB。
 
 点击 **新增**，可以添加更多过滤规则。
 
@@ -208,4 +208,4 @@ import Contributing from './_03-exception-handling-strategy.mdx'
 
 ### 10. 创建完成
 
-点击 **提交** 按钮，完成创建 Kafka 到 TDengine 的数据同步任务，回到**数据源列表**页面可查看任务执行情况。
+点击 **提交** 按钮，完成创建 Kafka 到 TDengine TSDB 的数据同步任务，回到**数据源列表**页面可查看任务执行情况。

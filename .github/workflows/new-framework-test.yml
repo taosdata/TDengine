@@ -3,9 +3,24 @@ name: New Framework Test
 on:
   pull_request:
     branches:
+      - '3.0'
       - 'main'
-    paths:
-      - 'test/cases/**'
+      - '3.3.6'
+    paths-ignore:
+      - 'packaging/**'
+      - 'docs/**'
+      - 'tools/tdgpt/**'
+      - 'source/libs/executor/src/forecastoperator.c'
+      - 'source/libs/executor/src/anomalywindowoperator.c'
+      - 'source/dnode/mnode/impl/src/mndAnode.c'
+      - 'include/common/tanalytics.h'
+      - 'source/common/src/tanalytics.c'
+      - '**/*.md'
+      - '.github/workflows/**'
+      - '!.github/workflows/new-framework-test.yml'
+      - 'test/ci/tdgpt_cases.task'
+      - 'test/cases/41-TDgpt/**'
+
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-TDengineNewFramework

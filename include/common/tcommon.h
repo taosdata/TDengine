@@ -364,16 +364,6 @@ typedef struct SResSchame {
   char    name[TSDB_COL_NAME_LEN];
 } SResSchema;
 
-typedef struct SExprBasicInfo {
-  SResSchema   resSchema;
-  int16_t      numOfParams;  // argument value of each function
-  SFunctParam* pParam;
-} SExprBasicInfo;
-
-typedef struct SExprInfo {
-  struct SExprBasicInfo base;
-  struct tExprNode*     pExpr;
-} SExprInfo;
 
 typedef struct {
   const char* key;
@@ -447,7 +437,7 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol, char* likePat
 #define TSMA_RES_STB_EXTRA_COLUMN_NUM 4  // 3 columns: _wstart, _wend, _wduration, 1 tag: tbname
 
 static inline bool isTsmaResSTb(const char* stbName) {
-  static bool showTsmaTables = false;
+  static bool showTsmaTables = true;
   if (showTsmaTables) return false;
   const char* pos = strstr(stbName, TSMA_RES_STB_POSTFIX);
   if (pos && strlen(stbName) == (pos - stbName) + strlen(TSMA_RES_STB_POSTFIX)) {

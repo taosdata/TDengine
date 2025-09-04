@@ -50,15 +50,17 @@ void dumpFunc(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
   void   *pIter = NULL;
-  SJson *items = tjsonAddArrayToObject(json, "funcs");
+  SJson  *items = tjsonAddArrayToObject(json, "funcs");
 
   while (1) {
     SFuncObj *pObj = NULL;
-    pIter = sdbFetch(pSdb, SDB_FUNC, pIter, (void **)&pObj);
+    ESdbStatus status;
+    pIter = sdbFetchAll(pSdb, SDB_FUNC, pIter, (void **)&pObj, &status, false);
     if (pIter == NULL) break;
 
     SJson *item = tjsonCreateObject();
     RETRIEVE_CHECK_GOTO(tjsonAddItemToArray(items, item), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "status", i642str(status)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "name", pObj->name), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "funcType", i642str(pObj->funcType)), pObj, &lino, _OVER);
@@ -80,17 +82,19 @@ void dumpDb(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
   void  *pIter = NULL;
+  ESdbStatus status;
   SJson *items = tjsonCreateObject();
   TAOS_CHECK_GOTO(tjsonAddItemToObject(json, "dbs", items), &lino, _OVER);
 
   while (1) {
     SDbObj *pObj = NULL;
-    pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pObj);
+    pIter = sdbFetchAll(pSdb, SDB_DB, pIter, (void **)&pObj, &status, false);
     if (pIter == NULL) break;
 
     SJson *item = tjsonCreateObject();
     RETRIEVE_CHECK_GOTO(tjsonAddItemToObject(items, "db", item), pObj, &lino, _OVER);
 
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "status", i642str(status)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "name", mndGetDbStr(pObj->name)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "acct", pObj->acct), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "createUser", pObj->createUser), pObj, &lino, _OVER);
@@ -170,15 +174,18 @@ void dumpStb(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
   void  *pIter = NULL;
+  ESdbStatus status;
   SJson *items = tjsonAddArrayToObject(json, "stbs");
 
   while (1) {
     SStbObj *pObj = NULL;
-    pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pObj);
+    pIter = sdbFetchAll(pSdb, SDB_STB, pIter, (void **)&pObj, &status, false);
     if (pIter == NULL) break;
 
     SJson *item = tjsonCreateObject();
     RETRIEVE_CHECK_GOTO(tjsonAddItemToArray(items, item), pObj, &lino, _OVER);
+
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "status", i642str(status)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "name", mndGetStbStr(pObj->name)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "db", mndGetDbStr(pObj->db)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime)), pObj, &lino, _OVER);
@@ -241,15 +248,18 @@ void dumpSma(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
   void  *pIter = NULL;
+  ESdbStatus status;
   SJson *items = tjsonAddArrayToObject(json, "smas");
 
   while (1) {
     SSmaObj *pObj = NULL;
-    pIter = sdbFetch(pSdb, SDB_SMA, pIter, (void **)&pObj);
+    pIter = sdbFetchAll(pSdb, SDB_SMA, pIter, (void **)&pObj, &status, false);
     if (pIter == NULL) break;
 
     SJson *item = tjsonCreateObject();
     RETRIEVE_CHECK_GOTO(tjsonAddItemToArray(items, item), pObj, &lino, _OVER);
+
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "status", i642str(status)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "name", mndGetStbStr(pObj->name)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "stb", mndGetStbStr(pObj->stb)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "db", mndGetDbStr(pObj->db)), pObj, &lino, _OVER);
@@ -281,15 +291,18 @@ void dumpVgroup(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
   void  *pIter = NULL;
+  ESdbStatus status;
   SJson *items = tjsonAddArrayToObject(json, "vgroups");
 
   while (1) {
     SVgObj *pObj = NULL;
-    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pObj);
+    pIter = sdbFetchAll(pSdb, SDB_VGROUP, pIter, (void **)&pObj, &status, false);
     if (pIter == NULL) break;
 
     SJson *item = tjsonCreateObject();
     RETRIEVE_CHECK_GOTO(tjsonAddItemToArray(items, item), pObj, &lino, _OVER);
+
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "status", i642str(status)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "vgId", i642str(pObj->vgId)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime)), pObj, &lino, _OVER);
@@ -317,15 +330,18 @@ void dumpTopic(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
   void  *pIter = NULL;
+  ESdbStatus status;
   SJson *items = tjsonAddArrayToObject(json, "topics");
 
   while (1) {
     SMqTopicObj *pObj = NULL;
-    pIter = sdbFetch(pSdb, SDB_TOPIC, pIter, (void **)&pObj);
+    pIter = sdbFetchAll(pSdb, SDB_TOPIC, pIter, (void **)&pObj, &status, false);
     if (pIter == NULL) break;
 
     SJson *item = tjsonCreateObject();
     RETRIEVE_CHECK_GOTO(tjsonAddItemToArray(items, item), pObj, &lino, _OVER);
+
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "status", i642str(status)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "name", mndGetDbStr(pObj->name)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "name", mndGetDbStr(pObj->db)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "createTime", i642str(pObj->createTime)), pObj, &lino, _OVER);
@@ -352,15 +368,18 @@ void dumpConsumer(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
   void  *pIter = NULL;
+  ESdbStatus status;
   SJson *items = tjsonAddArrayToObject(json, "consumers");
 
   while (1) {
     SMqConsumerObj *pObj = NULL;
-    pIter = sdbFetch(pSdb, SDB_CONSUMER, pIter, (void **)&pObj);
+    pIter = sdbFetchAll(pSdb, SDB_CONSUMER, pIter, (void **)&pObj, &status, false);
     if (pIter == NULL) break;
 
     SJson *item = tjsonCreateObject();
     RETRIEVE_CHECK_GOTO(tjsonAddItemToArray(items, item), pObj, &lino, _OVER);
+
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "status", i642str(status)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "consumerId", i642str(pObj->consumerId)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "cgroup", pObj->cgroup), pObj, &lino, _OVER);
     sdbRelease(pSdb, pObj);
@@ -373,15 +392,18 @@ void dumpSubscribe(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
   void  *pIter = NULL;
+  ESdbStatus status;
   SJson *items = tjsonAddArrayToObject(json, "subscribes");
 
   while (1) {
     SMqSubscribeObj *pObj = NULL;
-    pIter = sdbFetch(pSdb, SDB_SUBSCRIBE, pIter, (void **)&pObj);
+    pIter = sdbFetchAll(pSdb, SDB_SUBSCRIBE, pIter, (void **)&pObj, &status, false);
     if (pIter == NULL) break;
 
     SJson *item = tjsonCreateObject();
     RETRIEVE_CHECK_GOTO(tjsonAddItemToArray(items, item), pObj, &lino, _OVER);
+
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "status", i642str(status)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "key", pObj->key), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "dbUid", i642str(pObj->dbUid)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "stbUid", i642str(pObj->stbUid)), pObj, &lino, _OVER);
@@ -395,39 +417,27 @@ void dumpStream(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
   void   *pIter = NULL;
+  ESdbStatus status;
   SJson *items = tjsonAddArrayToObject(json, "streams");
 
   while (1) {
     SStreamObj *pObj = NULL;
-    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pObj);
+    pIter = sdbFetchAll(pSdb, SDB_STREAM, pIter, (void **)&pObj, &status, false);
     if (pIter == NULL) break;
 
     SJson *item = tjsonCreateObject();
     RETRIEVE_CHECK_GOTO(tjsonAddItemToArray(items, item), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "name", mndGetDbStr(pObj->name)), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "mainSnodeId", i642str(pObj->mainSnodeId)), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "userStopped", i642str(pObj->userStopped)), pObj, &lino, _OVER);
+
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "createTime", i642str(pObj->createTime)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "version", i642str(pObj->version)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "totalLevel", i642str(pObj->totalLevel)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "smaId", i642str(pObj->smaId)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "uid", i642str(pObj->uid)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "status", i642str(pObj->status)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "igExpired", i642str(pObj->conf.igExpired)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "trigger", i642str(pObj->conf.trigger)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "triggerParam", i642str(pObj->conf.triggerParam)), pObj, &lino,
-                        _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "watermark", i642str(pObj->conf.watermark)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "sourceDbUid", i642str(pObj->sourceDbUid)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "targetDbUid", i642str(pObj->targetDbUid)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "sourceDb", mndGetDbStr(pObj->sourceDb)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "targetDb", mndGetDbStr(pObj->targetDb)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "targetSTbName", mndGetStbStr(pObj->targetSTbName)), pObj, &lino,
-                        _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "targetStbUid", i642str(pObj->targetStbUid)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "fixedSinkVgId", i642str(pObj->fixedSinkVgId)), pObj, &lino,
-                        _OVER);
+
+    //STREAMTODO
+
     sdbRelease(pSdb, pObj);
   }
+  
 _OVER:
   if (code != 0) mError("failed to dump stream info at line:%d since %s", lino, tstrerror(code));
 }
@@ -436,15 +446,18 @@ void dumpAcct(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
   void  *pIter = NULL;
+  ESdbStatus status;
   SJson *items = tjsonAddArrayToObject(json, "accts");
 
   while (1) {
     SAcctObj *pObj = NULL;
-    pIter = sdbFetch(pSdb, SDB_ACCT, pIter, (void **)&pObj);
+    pIter = sdbFetchAll(pSdb, SDB_ACCT, pIter, (void **)&pObj, &status, false);
     if (pIter == NULL) break;
 
     SJson *item = tjsonCreateObject();
     RETRIEVE_CHECK_GOTO(tjsonAddItemToArray(items, item), pObj, &lino, _OVER);
+
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "status", i642str(status)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "acct", pObj->acct), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime)), pObj, &lino, _OVER);
@@ -463,15 +476,18 @@ void dumpUser(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
   void  *pIter = NULL;
+  ESdbStatus status;
   SJson *items = tjsonAddArrayToObject(json, "users");
 
   while (1) {
     SUserObj *pObj = NULL;
-    pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pObj);
+    pIter = sdbFetchAll(pSdb, SDB_USER, pIter, (void **)&pObj, &status, false);
     if (pIter == NULL) break;
 
     SJson *item = tjsonCreateObject();
     RETRIEVE_CHECK_GOTO(tjsonAddItemToArray(items, item), pObj, &lino, _OVER);
+
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "status", i642str(status)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "name", pObj->user), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "acct", pObj->acct), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime)), pObj, &lino, _OVER);
@@ -493,15 +509,18 @@ void dumpDnode(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
   void  *pIter = NULL;
+  ESdbStatus status;
   SJson *items = tjsonAddArrayToObject(json, "dnodes");
 
   while (1) {
     SDnodeObj *pObj = NULL;
-    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pObj);
+    pIter = sdbFetchAll(pSdb, SDB_DNODE, pIter, (void **)&pObj, &status, false);
     if (pIter == NULL) break;
 
     SJson *item = tjsonCreateObject();
     RETRIEVE_CHECK_GOTO(tjsonAddItemToArray(items, item), pObj, &lino, _OVER);
+
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "status", i642str(status)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "id", i642str(pObj->id)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime)), pObj, &lino, _OVER);
@@ -517,11 +536,39 @@ void dumpSnode(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
   void  *pIter = NULL;
+  ESdbStatus status;
   SJson *items = tjsonAddArrayToObject(json, "snodes");
 
   while (1) {
     SSnodeObj *pObj = NULL;
-    pIter = sdbFetch(pSdb, SDB_QNODE, pIter, (void **)&pObj);
+    pIter = sdbFetchAll(pSdb, SDB_QNODE, pIter, (void **)&pObj, &status, false);
+    if (pIter == NULL) break;
+
+    SJson *item = tjsonCreateObject();
+    RETRIEVE_CHECK_GOTO(tjsonAddItemToArray(items, item), pObj, &lino, _OVER);
+
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "status", i642str(status)), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "id", i642str(pObj->id)), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "replicaId", i642str(pObj->replicaId)), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "leaderId0", i642str(pObj->leadersId[0])), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "leaderId1", i642str(pObj->leadersId[1])), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime)), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime)), pObj, &lino, _OVER);
+    sdbRelease(pSdb, pObj);
+  }
+_OVER:
+  if (code != 0) mError("failed to dump snode info at line:%d since %s", lino, tstrerror(code));
+}
+
+void dumpBnode(SSdb *pSdb, SJson *json) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  void   *pIter = NULL;
+  SJson  *items = tjsonAddArrayToObject(json, "bnodes");
+
+  while (1) {
+    SBnodeObj *pObj = NULL;
+    pIter = sdbFetch(pSdb, SDB_BNODE, pIter, (void **)&pObj);
     if (pIter == NULL) break;
 
     SJson *item = tjsonCreateObject();
@@ -532,22 +579,25 @@ void dumpSnode(SSdb *pSdb, SJson *json) {
     sdbRelease(pSdb, pObj);
   }
 _OVER:
-  if (code != 0) mError("failed to dump snode info at line:%d since %s", lino, tstrerror(code));
+  if (code != 0) mError("failed to dump bnode info at line:%d since %s", lino, tstrerror(code));
 }
 
 void dumpQnode(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
   void  *pIter = NULL;
+  ESdbStatus status;
   SJson *items = tjsonAddArrayToObject(json, "qnodes");
 
   while (1) {
     SQnodeObj *pObj = NULL;
-    pIter = sdbFetch(pSdb, SDB_QNODE, pIter, (void **)&pObj);
+    pIter = sdbFetchAll(pSdb, SDB_QNODE, pIter, (void **)&pObj, &status, false);
     if (pIter == NULL) break;
 
     SJson *item = tjsonCreateObject();
     RETRIEVE_CHECK_GOTO(tjsonAddItemToArray(items, item), pObj, &lino, _OVER);
+
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "status", i642str(status)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "id", i642str(pObj->id)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime)), pObj, &lino, _OVER);
@@ -561,15 +611,18 @@ void dumpMnode(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
   void  *pIter = NULL;
+  ESdbStatus status;
   SJson *items = tjsonAddArrayToObject(json, "mnodes");
 
   while (1) {
     SMnodeObj *pObj = NULL;
-    pIter = sdbFetch(pSdb, SDB_MNODE, pIter, (void **)&pObj);
+    pIter = sdbFetchAll(pSdb, SDB_MNODE, pIter, (void **)&pObj, &status, false);
     if (pIter == NULL) break;
 
     SJson *item = tjsonCreateObject();
     RETRIEVE_CHECK_GOTO(tjsonAddItemToArray(items, item), pObj, &lino, _OVER);
+
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "status", i642str(status)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "id", i642str(pObj->id)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime)), pObj, &lino, _OVER);
@@ -584,15 +637,18 @@ void dumpCluster(SSdb *pSdb, SJson *json) {
   int32_t lino = 0;
 
   void  *pIter = NULL;
+  ESdbStatus status;
   SJson *items = tjsonAddArrayToObject(json, "clusters");
 
   while (1) {
     SClusterObj *pObj = NULL;
-    pIter = sdbFetch(pSdb, SDB_CLUSTER, pIter, (void **)&pObj);
+    pIter = sdbFetchAll(pSdb, SDB_CLUSTER, pIter, (void **)&pObj, &status, false);
     if (pIter == NULL) break;
 
     SJson *item = tjsonCreateObject();
     RETRIEVE_CHECK_GOTO(tjsonAddItemToArray(items, item), pObj, &lino, _OVER);
+
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "status", i642str(status)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "id", i642str(pObj->id)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime)), pObj, &lino, _OVER);
@@ -608,15 +664,18 @@ void dumpTrans(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
   void  *pIter = NULL;
+  ESdbStatus status;
   SJson *items = tjsonAddArrayToObject(json, "transactions");
 
   while (1) {
     STrans *pObj = NULL;
-    pIter = sdbFetch(pSdb, SDB_TRANS, pIter, (void **)&pObj);
+    pIter = sdbFetchAll(pSdb, SDB_TRANS, pIter, (void **)&pObj, &status, false);
     if (pIter == NULL) break;
 
     SJson *item = tjsonCreateObject();
     RETRIEVE_CHECK_GOTO(tjsonAddItemToArray(items, item), pObj, &lino, _OVER);
+
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "status", i642str(status)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "id", i642str(pObj->id)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "stage", i642str(pObj->stage)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "policy", i642str(pObj->policy)), pObj, &lino, _OVER);
@@ -651,7 +710,7 @@ void dumpHeader(SSdb *pSdb, SJson *json) {
   SJson *maxIdsJson = tjsonCreateObject();
   TAOS_CHECK_GOTO(tjsonAddItemToObject(json, "maxIds", maxIdsJson), &lino, _OVER);
   for (int32_t i = 0; i < SDB_MAX; ++i) {
-    if(i == 5) continue;
+    if (i == 5) continue;
     int64_t maxId = 0;
     if (i < SDB_MAX) {
       maxId = pSdb->maxId[i];
@@ -712,6 +771,7 @@ int32_t mndDumpSdb() {
   dumpUser(pSdb, json);
   dumpDnode(pSdb, json);
   dumpSnode(pSdb, json);
+  dumpBnode(pSdb, json);
   dumpQnode(pSdb, json);
   dumpMnode(pSdb, json);
   dumpCluster(pSdb, json);

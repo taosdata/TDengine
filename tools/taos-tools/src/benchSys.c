@@ -108,7 +108,8 @@ int32_t benchParseArgsNoArgp(int argc, char* argv[]) {
             || key[1] == 'N' || key[1] == 'M'
             || key[1] == 'x' || key[1] == 'y'
             || key[1] == 'g' || key[1] == 'G'
-            || key[1] == 'V' || key[1] == 'Q') {
+            || key[1] == 'V' || key[1] == 'Q'
+            || key[1] == 'U') {
             benchParseSingleOpt(key[1], NULL);
         } else {
             // check input value
@@ -144,6 +145,7 @@ static struct argp_option bench_options[] = {
     {"user", 'u', "USER", 0, BENCH_USER},
     {"password", 'p', "PASSWORD", 0, BENCH_PASS},
     {"output", 'o', "FILE", 0, BENCH_OUTPUT},
+    {"output-json-file", 'j', "FILE", 0, BENCH_OUTPUT_JSON},
     {"threads", 'T', "NUMBER", 0, BENCH_THREAD},
     {"insert-interval", 'i', "NUMBER", 0, BENCH_INTERVAL},
     {"time-step", 'S', "NUMBER", 0, BENCH_STEP},
@@ -296,7 +298,9 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
         case 'o':
             g_arguments->output_file = arg;
             break;
-
+        case 'j':
+            g_arguments->output_json_file = arg;
+            break;
         case 'T':
             if (!toolsIsStringNumber(arg)) {
                 errorPrintReqArg2(CUS_PROMPT"Benchmark", "T");
@@ -391,7 +395,7 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
                 errorPrintReqArg2(CUS_PROMPT"Benchmark", "s");
             }
 
-            g_arguments->startTimestamp = atol(arg);
+            g_arguments->startTimestamp = strtoll(arg, NULL, 10);
             break;
 
         case 'U':

@@ -405,14 +405,14 @@ int32_t transReleaseSrvHandle(void* handle, int32_t status);
 #ifndef TD_ASTRA_RPC
 void    transSockInfo2Str(struct sockaddr* sockname, char* dst);
 int32_t transAllocHandle(int64_t* refId);
-void*   transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
-void*   transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
+void*   transInitServer(SIpAddr* pAddr, char* label, int numOfThreads, void* fp, void* pInit);
+void*   transInitClient(SIpAddr* pAddr, char* label, int numOfThreads, void* fp, void* pInit);
 void    transCloseClient(void* arg);
 void    transCloseServer(void* arg);
 #else
 int32_t transAllocHandle(int64_t* refId);
-void*   transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
-void*   transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
+void*   transInitServer(SIpAddr* pAddr, char* label, int numOfThreads, void* fp, void* pInit);
+void*   transInitClient(SIpAddr* pAddr, char* label, int numOfThreads, void* fp, void* pInit);
 void    transCloseClient(void* arg);
 void    transCloseServer(void* arg);
 #endif
@@ -567,7 +567,9 @@ int32_t subnetCheckIp(SubnetUtils* pUtils, uint32_t ip);
 int32_t subnetDebugInfoToBuf(SubnetUtils* pUtils, char* buf);
 
 int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf);
-int32_t transUtilSWhiteListToStr(SIpWhiteList* pWhiteList, char** ppBuf);
+int32_t transUtilSWhiteListToStr(SIpWhiteListDual* pWhiteList, char** ppBuf);
+
+bool transUtilCheckDualIp(SIpRange* range, SIpRange* ip);
 
 #ifdef TD_ASTRA_RPC
 

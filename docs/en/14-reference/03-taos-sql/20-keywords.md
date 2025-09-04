@@ -384,9 +384,6 @@ The list of keywords is as follows:
 
 |Keyword|Description|
 |----------------------|-|
-| S3_CHUNKPAGES        | |
-| S3_COMPACT           | |
-| S3_KEEPLOCAL         | |
 | SCHEMALESS           | |
 | SCORES               | |
 | SELECT               | |
@@ -407,6 +404,10 @@ The list of keywords is as follows:
 | SNODES               | |
 | SOFFSET              | |
 | SPLIT                | |
+| SS_CHUNKPAGES        | |
+| SS_COMPACT           | |
+| SS_KEEPLOCAL         | |
+| SSMIGRATE            | |
 | STABLE               | |
 | STABLES              | |
 | STAR                 | |

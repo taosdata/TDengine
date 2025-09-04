@@ -8,19 +8,25 @@ sidebar_label: "部署时序基础模型"
 
 TDgpt 在 3.3.6.4 版本原生支持五种类型的时序基础模型：涛思时序基础模型 (TDtsfm v1.0) , time-moe，chronos, moirai, timesfm。
 在官方的安装包中，内置了 TDtsfm 和 time-moe 两个时序模型，如果使用其他的模型，需要您在本地部署服务。部署其他时序基础模型服务的文件，位于
-`< tdgpt 根目录>/lib/taosanalytics/tsfmservice/` 下，该目录下包含四个文件，分别用于本地部署启动对应的时序基础模型。
+`< tdgpt 根目录>/lib/taosanalytics/tsfmservice/` 下，该目录下包含四个文件，分别用于本地部署启动对应的时序基础模型。TDgpt 适配了以下的时序模型的功能，对于不支持的功能，可能模型本身无法支持也可能是 TDgpt 没有适配该时序基础模型的功能。
 
-| 文件名               | 说明                 |
-|-------------------|--------------------|
-| timemoe-server.py | 部署启动 time-moe 时序基础模型 |
-| chronos-server.py | 部署启动 chronos 时序基础模型 |
-| timesfm-server.py | 部署启动 timesfm 时序基础模型 |
-| moirai-server.py  | 部署启动 moirai 时序基础模型 |
+<table>
+<tr><th rowspan="2">模型</th> <th rowspan="2">文件</th> <th colspan="3">模型说明</th><th colspan="4">功能说明</th></tr>
+<tr><th>名称</th><th>参数(百万)</th><th>大小(MiB)</th><th>单变量预测</th><th>协变量预测</th><th>多变量预测</th><th>异常检测</th></tr>
+<tr><th rowspan="2">timemoe</th><th rowspan="2">timemoe-server.py</th><th>Maple728/TimeMoE-50M</th><th>50</th><th align="right">227</th><th rowspan="2">✔</th><th rowspan="2">✘</th><th rowspan="2">✘</th><th rowspan="2">✘</th></tr>
+<tr><th>Maple728/TimeMoE-200M</th><th>450</th><th align="right">906</th></tr>
+<tr><th rowspan="2">moirai</th><th rowspan="2">moirai-server.py</th><th>Salesforce/moirai-moe-1.0-R-small</th><th>117</th><th align="right">469</th><th rowspan="2">✔</th><th rowspan="2">✔</th><th rowspan="2">✘</th><th rowspan="2">✘</th></tr>
+<tr><th>Salesforce/moirai-moe-1.0-R-base</th><th>935</th><th align="right">3,740</th></tr>
+<tr><th rowspan="4">chronos</th><th rowspan="4">chronos-server.py</th><th>amazon/chronos-bolt-tiny</th><th>8.65</th><th align="right">35</th><th rowspan="4">✔</th><th rowspan="4">✘</th><th rowspan="4">✘</th><th rowspan="4">✘</th></tr>
+<tr><th>amazon/chronos-bolt-mini</th><th>21.20</th><th align="right">85</th></tr>
+<tr><th>amazon/chronos-bolt-small</th><th>47.70</th><th align="right">191</th></tr>
+<tr><th>amazon/chronos-bolt-base</th><th>205</th><th align="right">821</th></tr>
+<tr><th>timesfm</th><th>timesfm-server.py</th><th>google/timesfm-2.0-500m-pytorch</th><th>499</th><th align="right">2,000</th><th>✔</th><th>✘</th><th>✘</th><th>✘</th></tr>
+</table>
 
+本章以支持运行 time-moe 模型为例，说明如何将一个独立部署的 MaaS 服务整合到 TDgpt 中，并通过 SQL 语句调用其时序数据分析能力。
 
-本章将以支持 time-moe 模型为例，说明如何将一个独立部署的 MaaS 服务整合到 TDgpt 中，并通过 SQL 语句调用其时序数据分析能力。
-
-本章介绍如何本地部署 [Time-MoE](https://github.com/Time-MoE/Time-MoE) 时序基础模型并与 TDgpt 适配后，提供时序数据预测服务。
+本章介绍如何本地部署 [time-moe](https://github.com/Time-MoE/Time-MoE) 时序基础模型并与 TDgpt 适配后，提供时序数据预测服务。
 
 ## 准备环境
 
@@ -32,6 +38,8 @@ pip install flask==3.0.3
 pip install transformers==4.40.0
 pip install accelerate
 ```
+
+****
 > 脚本中安装了 CPU 驱动版本的 PyTorch，如果您服务是部署在具有 GPU 的服务器上，可以在虚拟环境中安装支持 GPU 加速的 PyTorch。例如：
 
 ```shell
@@ -39,7 +47,6 @@ pip install torch==2.3.1 -f https://download.pytorch.org/whl/torch_stable.html
 ```
 
 您可以使用 TDgpt 的虚拟环境，也可以新创建一个虚拟环境，使用该虚拟环境之前，确保正确安装了上述依赖包。
-
 
 ## 设置时序基础模型服务地址
 
@@ -62,6 +69,7 @@ def time_moe():
             debug=False     
         )
 ```
+
 其中的 port 修改为希望开启的端口，包括使用默认值亦可。完成之后重启服务。
 
 # 启动 Python 脚本
@@ -82,8 +90,8 @@ export HF_ENDPOINT=https://hf-mirror.com
 
 然后再次尝试启动服务。
 
-
 检查 `service_output.out` 文件，有如下输出，则说明加载成功
+
 ```text
 Running on all addresses (0.0.0.0)
 Running on http://127.0.0.1:5001
@@ -152,11 +160,12 @@ TDgpt 已经内置 Time-MoE 模型的支持，能够使用 Time-MoE 的能力进
 timemoe-fc = http://127.0.0.1:5001/ds_predict
 ```
 
-添加服务的地址。此时的 `key` 是模型的名称，此时即为 `timemoe-fc`，`value` 是 Time-MoE 本地服务的地址：http://127.0.0.1:5001/ds_predict。
+添加服务的地址。此时的 `key` 是模型的名称，此时即为 `timemoe-fc`，`value` 是 Time-MoE 本地服务的地址:`http://127.0.0.1:5001/ds_predict`。
 
 然后重启 taosnode 服务，并更新服务端算法缓存列表 `update all anodes`，之后即可通过 SQL 语句调用 Time-MoE 的时间序列数据预测服务。
 
 ## SQL 调用基础模型预测能力
+
 ```sql
 SELECT FORECAST(val, 'algo=timemoe-fc') 
 FROM foo;
@@ -167,7 +176,6 @@ FROM foo;
 模型在本地部署服务以后，在 TDgpt 中注册的逻辑相似。只需要修改类名称和模型服务名称 (Key)、设置正确的服务地址即可。如果您想尝试
 chronos, timesfm, chronos 时序基础服务，适配文件已经默认提供，3.3.6.4 及之后版本的用户只需要在本地启动相应的服务即可。
 部署及及启动方式如下：
-
 
 ### 启动 moirai 服务
 
@@ -199,7 +207,6 @@ nohup python moirai-server.py > service_output.out 2>&1 &
 ```
 
 检查服务状态的方式同上。
-
 
 ### 启动 chronos 服务
 
@@ -240,6 +247,7 @@ model = BaseChronosPipeline.from_pretrained(
 ```
 
 在 shell 中执行命令，启动服务。
+
 ```shell
 nohup python chronos-server.py > service_output.out 2>&1 &
 ```

@@ -2,11 +2,13 @@
 #include <stdlib.h>
 #include <tutil.h>
 #include <random>
+#include "tglobal.h"
 #include "ttime.h"
 
 #include "tarray.h"
 #include "tcompare.h"
 #include "tdatablock.h"
+#include "tworker.h"
 
 namespace {
 }  // namespace
@@ -512,8 +514,22 @@ void dataBlockNullTest(const F& setValFunc) {
   colDataSetNULL(&columnInfoData, 0);
   colDataSetNNULL(&columnInfoData, 3, totalRows - 3);
   checkNull(0, true);
-  checkNull(1, false);
-  checkNull(2, false);
+
+  // Ethan liu changed the expected value of a varchar type from false to true due to the change of colDataIsNull_s
+  // function, which now returns true if the pData is null of the SColumnInfoData.
+
+  // Same to the fix of TS-6908, when columnInfoData created, the pData default value is null.
+  // When offset of varmeta created, the offset default value is 0. Without any data set to the columnInfoData, we should consider it null
+  // so that the colDataIsNull_s function should return true.
+
+  if( IS_VAR_DATA_TYPE(type)) {
+    checkNull(1, true);
+    checkNull(2, true);
+  } else {
+    checkNull(1, false);
+    checkNull(2, false);
+  }
+
   checkNull(totalRows - 2, true);
   checkNull(totalRows - 1, true);
 
@@ -538,4 +554,38 @@ TEST(utilTest, tdatablockTestNull) {
   dataBlockNullTest<TSDB_DATA_TYPE_FLOAT, float>(colDataSetFloat);
   dataBlockNullTest<TSDB_DATA_TYPE_DOUBLE, double>(colDataSetDouble);
   dataBlockNullTest<TSDB_DATA_TYPE_VARCHAR, int64_t>(colDataSetInt64);
+}
+
+void dispatchWorkerFp(SQueueInfo* pQInfo, void* pMsg) {
+  int32_t idx = *(int32_t*)pMsg;
+  SDispatchWorkerPool *pPool = (SDispatchWorkerPool*)pQInfo->ahandle;
+  ASSERT_EQ(pQInfo->workerId, idx % pPool->num);
+  std::cout << "idx: " << idx << " is dispatched to worker: " << pQInfo->workerId << " idx % pPool.num: " << idx % pPool->num << std::endl;
+  taosFreeQitem(pMsg);
+}
+
+int32_t dispatchFp(SDispatchWorkerPool* pPool, void* pParam, int32_t* pWorkerIdx) {
+  *pWorkerIdx = *(int32_t*)pParam % pPool->num;
+  return 0;
+}
+
+TEST(dispatchWorker, a) {
+  tsQueueMemoryAllowed = 102400;
+  SDispatchWorkerPool pool{};
+  pool.max = 4;
+  pool.name = "dispatchWorker-test";
+  ASSERT_EQ(0, tDispatchWorkerInit(&pool));
+
+  ASSERT_EQ(0, tDispatchWorkerAllocQueue(&pool, &pool, dispatchWorkerFp, dispatchFp));
+
+  int32_t idx = 0;
+  EQItype itype = RPC_QITEM;
+  void* qitem = NULL;
+  for (; idx < 100; ++idx) {
+    ASSERT_EQ(0, taosAllocateQitem(sizeof(int32_t), itype, 0, (void **)&qitem));
+    memcpy(qitem, &idx, sizeof(int32_t));
+    ASSERT_EQ(0, tAddTaskIntoDispatchWorkerPool(&pool, qitem));
+  }
+
+  tDispatchWorkerCleanup(&pool);
 }

@@ -12,6 +12,7 @@ on:
       - 'packaging/**'
       - 'tests/**'
       - '**/*.md'
+      - '.github/workflows/tdengine-docs-ci.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -105,9 +106,9 @@ jobs:
 
       - name: Start taosd
         run: |
-          # sudo bash -c 'echo "fqdn localhost" >> /etc/taos/taos.cfg'
+          sudo bash -c 'echo "fqdn localhost" >> /etc/taos/taos.cfg'
           sudo bash -c 'echo "supportVnodes 256" >> /etc/taos/taos.cfg'
-          nohup sudo taosd &
+          nohup sudo taosd -c  /etc/taos &
 
       - name: Start taosadapter
         run: nohup sudo taosadapter &

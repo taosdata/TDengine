@@ -7,7 +7,7 @@ slug: /get-started/deploy-from-package
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import PkgListV3 from "/components/PkgListV3";
+import PkgListV37 from "/components/PkgListV37";
 
 You can install TDengine on a local machine and perform some basic tests to verify its performance. The TDengine OSS server can be installed on Linux and macOS, and the TDengine OSS client can be installed on Linux, macOS, and Windows.
 
@@ -28,11 +28,11 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
    <TabItem label=".deb" value="debinst">
 
    1. Download the .deb installation package:
-      <PkgListV3 type={6}/>
+      <PkgListV37 productName="TDengine TSDB-OSS" version="3.3.7.5" platform="Linux-Ubuntu" arch="x64" pkgType="Server" jsonPath="version-json/product-data.json"/>
    2. Run the following command to install TDengine:
 
       ```bash
-      sudo dpkg -i TDengine-server-<version>-Linux-x64.deb
+      sudo dpkg -i tdengine-tsdb-oss-<version>-linux-x64.deb
       ```
 
       Replace `<version>` with the version of the package that you downloaded.
@@ -42,11 +42,11 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
    <TabItem label=".rpm" value="rpminst">
 
    1. Download the .rpm installation package:
-      <PkgListV3 type={5}/>
+      <PkgListV37 productName="TDengine TSDB-OSS" version="3.3.7.5" platform="Linux-Red Hat" arch="x64" pkgType="Server" jsonPath="version-json/product-data.json"/>
    2. Run the following command to install TDengine:
 
       ```bash
-      sudo rpm -ivh TDengine-server-<version>-Linux-x64.rpm
+      sudo rpm -ivh tdengine-tsdb-oss-<version>-linux-x64.rpm
       ```
 
       Replace `<version>` with the version of the package that you downloaded.
@@ -56,11 +56,12 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
    <TabItem label=".tar.gz" value="tarinst">
 
    1. Download the desired .tar.gz package from the following list:
-      <PkgListV3 type={0}/>
+      <PkgListV37 productName="TDengine TSDB-Enterprise" version="3.3.7.5" platform="Linux-Generic" jsonPath="version-json/product-data.json"/>
+      <PkgListV37 productName="TDengine TSDB-OSS" version="3.3.7.5" platform="Linux-Generic" jsonPath="version-json/product-data.json"/>
    2. Run the following command to decompress the package:
 
       ```bash
-      tar -zxvf TDengine-server-<version>-Linux-x64.tar.gz
+      tar -zxvf tdengine-tsdb-oss-<version>-linux-x64.tar.gz
       ```
 
       Replace `<version>` with the version of the package that you downloaded.
@@ -91,8 +92,8 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
 
       ```bash
       sudo apt-get update
-      apt-cache policy tdengine
-      sudo apt-get install tdengine
+      apt-cache policy tdengine-tsdb
+      sudo apt-get install tdengine-tsdb
       ```
 
    </TabItem>
@@ -106,7 +107,8 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
    :::
 
    1. Download the Windows installation package:
-      <PkgListV3 type={3}/>
+      <PkgListV37 productName="TDengine TSDB-Enterprise" version="3.3.7.5" platform="Windows" jsonPath="version-json/product-data.json"/>
+      <PkgListV37 productName="TDengine TSDB-OSS" version="3.3.7.5" platform="Windows" jsonPath="version-json/product-data.json"/>
    2. Run the installation package to install TDengine.
 
    </TabItem>
@@ -114,7 +116,8 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
    <TabItem label="macOS" value="macos">
 
    1. Download the desired installation package from the following list:
-      <PkgListV3 type={7}/>
+     <PkgListV37 productName="TDengine TSDB-Enterprise" version="3.3.7.5" platform="macOS" jsonPath="version-json/product-data.json"/>
+     <PkgListV37 productName="TDengine TSDB-OSS" version="3.3.7.5" platform="macOS" jsonPath="version-json/product-data.json"/>
    2. Run the installation package to install TDengine.
 
       :::note

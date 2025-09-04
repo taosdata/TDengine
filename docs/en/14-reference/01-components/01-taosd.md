@@ -43,10 +43,9 @@ After modifying configuration file parameters, you need to restart the *taosd* s
 | resolveFQDNRetryTime   | Cancelled after 3.x     | Not supported                                                | Number of retries when FQDN resolution fails                 |
 | timeToGetAvailableConn | Cancelled after 3.3.4.x | Maximum waiting time to get an available connection, range 10-50000000, in milliseconds, default value 500000 |                                                              |
 | maxShellConns          | Cancelled after 3.x     | Supported, effective after restart                           | Maximum number of connections allowed                        |
-| maxRetryWaitTime       |                         | Supported, effective after restart                           | Maximum timeout for reconnection,calculated from the time of retry,range is 3000-86400000,in milliseconds, default value 10000 |
+| maxRetryWaitTime       |                         | Supported, effective after restart                           | Maximum timeout for reconnection,calculated from the time of retry,range is 3000-86400000,in milliseconds, default value 20000 |
 | shareConnLimit         | Added in 3.3.4.0        | Supported, effective after restart                           | Number of requests a connection can share, range 1-512, default value 10 |
 | readTimeout            | Added in 3.3.4.0        | Supported, effective after restart                           | Minimum timeout for a single request, range 64-604800, in seconds, default value 900 |
-
 ### Monitoring Related
 
 | Parameter Name     | Supported Version | Dynamic Modification               | Description                                                  |
@@ -102,7 +101,7 @@ timezone GMT-8
 timezone Asia/Shanghai
 ```
 
-All are valid settings for the GMT+8 time zone. However, note that on Windows, the format `timezone Asia/Shanghai` is not supported, and must be written as `timezone UTC-8`.
+All are valid settings for the GMT+8 time zone. However, note that on Windows, the format `timezone UTC-8` is not supported, and must be written as `timezone Asia/Shanghai`.
 
 The setting of the time zone affects the querying and writing of SQL statements involving non-Unix timestamp content (timestamp strings, interpretation of the keyword now). For example:
 
@@ -166,21 +165,19 @@ The effective value of charset is UTF-8.
 
 ### Storage Related
 
-| Parameter Name         | Supported Version | Dynamic Modification               | Description                                                  |
-| ---------------------- | ----------------- | ---------------------------------- | ------------------------------------------------------------ |
-| dataDir                |                   | Not supported                      | Directory for data files, all data files are written to this directory, default value /var/lib/taos |
-| tempDir                |                   | Not supported                      | Specifies the directory for generating temporary files during system operation, default value /tmp |
-| minimalDataDirGB       |                   | Not supported                      | Minimum space to be reserved in the time-series data storage directory specified by dataDir, in GB, default value 2 |
-| minimalTmpDirGB        |                   | Not supported                      | Minimum space to be reserved in the temporary file directory specified by tempDir, in GB, default value 1 |
-| minDiskFreeSize        | After 3.1.1.0     | Supported, effective immediately   | When the available space on a disk is less than or equal to this threshold, the disk will no longer be selected for generating new data files, unit is bytes, range 52428800-2199023255552, default value 52428800; Enterprise parameter |
-| s3MigrateIntervalSec   | After 3.3.4.3     | Supported, effective immediately   | Trigger cycle for automatic upload of local data files to S3, in seconds. Minimum: 600; Maximum: 100000. Default value 3600; Enterprise parameter |
-| s3MigrateEnabled       | After 3.3.4.3     | Supported, effective immediately   | Whether to automatically perform S3 migration, default value is 0, which means auto S3 migration is off, can be set to 1; Enterprise parameter |
-| s3Accesskey            | After 3.3.4.3     | Supported, effective after restart | Colon-separated user SecretId:SecretKey, for example AKIDsQmwsfKxTo2A6nGVXZN0UlofKn6JRRSJ:lIdoy99ygEacU7iHfogaN2Xq0yumSm1E; Enterprise parameter |
-| s3Endpoint             | After 3.3.4.3     | Supported, effective after restart | COS service domain name in the user's region, supports http and https, the region of the bucket must match the endpoint, otherwise it cannot be accessed; Enterprise parameter |
-| s3BucketName           | After 3.3.4.3     | Supported, effective after restart | Bucket name, followed by a hyphen and the AppId of the user registered COS service, where AppId is unique to COS, not present in AWS and Alibaba Cloud, needs to be part of the bucket name, separated by a hyphen; parameter values are string type, but do not need quotes; for example test0711-1309024725; Enterprise parameter |
-| s3PageCacheSize        | After 3.3.4.3     | Supported, effective after restart | Number of S3 page cache pages, range 4-1048576, unit is pages, default value 4096; Enterprise parameter |
-| s3UploadDelaySec       | After 3.3.4.3     | Supported, effective immediately   | How long a data file remains unchanged before being uploaded to S3, range 1-2592000 (30 days), in seconds, default value 60; Enterprise parameter |
-| cacheLazyLoadThreshold |                   | Supported, effective immediately   | Internal parameter, cache loading strategy                   |
+| Parameter Name           | Supported Version | Dynamic Modification               | Description                                                  |
+| ------------------------ | ----------------- | ---------------------------------- | ------------------------------------------------------------ |
+| dataDir                  |                   | Not supported                      | Directory for data files, all data files are written to this directory, default value /var/lib/taos |
+| tempDir                  |                   | Not supported                      | Specifies the directory for generating temporary files during system operation, default value /tmp |
+| minimalDataDirGB         |                   | Not supported                      | Minimum space to be reserved in the time-series data storage directory specified by dataDir, in GB, default value 2 |
+| minimalTmpDirGB          |                   | Not supported                      | Minimum space to be reserved in the temporary file directory specified by tempDir, in GB, default value 1 |
+| minDiskFreeSize          | After 3.1.1.0     | Supported, effective immediately   | When the available space on a disk is less than or equal to this threshold, the disk will no longer be selected for generating new data files, unit is bytes, range 52428800-2199023255552, default value 52428800; Enterprise parameter |
+| ssAutoMigrateIntervalSec | After 3.3.7.0     | Supported, effective immediately   | Trigger cycle for automatic upload of local data files to shared storage, in seconds. Minimum: 600; Maximum: 100000. Default value 3600; Enterprise parameter |
+| ssEnabled                | After 3.3.7.0     | Supported, effective after restart | Whether to enable shared storage, default value is 0, which means disabled, 1 means only enable manual shared storage migration, 2 means enable auto shared storage migration |
+| ssAccessString           | After 3.3.7.0     | Supported, effective after restart | A string which contains various options for accessing the shared storage, the format is `<device-type>:<option-name>=<option-value>;<option-name>=<option-value>;...`, the possible options vary from shared storage providers, please refer related document for details |
+| ssPageCacheSize          | After 3.3.7.0     | Supported, effective after restart | Number of shared storage page cache pages, range 4-1048576, unit is pages, default value 4096; Enterprise parameter |
+| ssUploadDelaySec         | After 3.3.7.0     | Supported, effective immediately   | How long a data file remains unchanged before being uploaded to S3, range 1-2592000 (30 days), in seconds, default value 60; Enterprise parameter |
+| cacheLazyLoadThreshold   |                   | Supported, effective immediately   | Internal parameter, cache loading strategy                   |
 
 ### Cluster Related
 
@@ -210,8 +207,10 @@ The effective value of charset is UTF-8.
 | auditCreateTable           |                   | Supported, effective immediately   | Whether to enable audit feature for creating subtables; Enterprise parameter |
 | encryptAlgorithm           |                   | Not supported                      | Data encryption algorithm; Enterprise parameter              |
 | encryptScope               |                   | Not supported                      | Encryption scope; Enterprise parameter                       |
+| encryptPassAlgorithm       |v3.3.7.0           |Supported, effective immediately    |Switch for saving user password as encrypted string           |
 | enableWhiteList            |                   | Supported, effective immediately   | Switch for whitelist feature; Enterprise parameter           |
 | syncLogBufferMemoryAllowed |                   | Supported, effective immediately   | Maximum memory allowed for sync log cache messages for a dnode, in bytes, range 104857600-INT64_MAX, default value is 1/10 of server memory, effective from versions 3.1.3.2/3.3.2.13 |
+| syncApplyQueueSize         |                   | supported, effective immediately   | Size of apply queue for sync log, range 32-2048, default is 512  |
 | syncElectInterval          |                   | Not supported                      | Internal parameter, for debugging synchronization module     |
 | syncHeartbeatInterval      |                   | Not supported                      | Internal parameter, for debugging synchronization module     |
 | syncHeartbeatTimeout       |                   | Not supported                      | Internal parameter, for debugging synchronization module     |
@@ -226,6 +225,7 @@ The effective value of charset is UTF-8.
 | ttlFlushThreshold          |                   | Supported, effective immediately   | Internal parameter, frequency of ttl timer                   |
 | compactPullupInterval      |                   | Supported, effective immediately   | Internal parameter, frequency of data reorganization timer   |
 | walFsyncDataSizeLimit      |                   | Supported, effective immediately   | Internal parameter, threshold for WAL to perform FSYNC       |
+| walForceRepair             |                   | Not supported                      | Internal parameter, repair WAL file forcibly, range 0-1; default value 0, 0 means not repair, 1 means repair |
 | transPullupInterval        |                   | Supported, effective immediately   | Internal parameter, retry interval for mnode to execute transactions |
 | mqRebalanceInterval        |                   | Supported, effective immediately   | Internal parameter, interval for consumer rebalancing        |
 | uptimeInterval             |                   | Supported, effective immediately   | Internal parameter, for recording system uptime              |
@@ -234,6 +234,8 @@ The effective value of charset is UTF-8.
 | udfdResFuncs               |                   | Supported, effective after restart | Internal parameter, for setting UDF result sets              |
 | udfdLdLibPath              |                   | Supported, effective after restart | Internal parameter, indicates the library path for loading UDF |
 | enableStrongPassword       | After 3.3.6.0     | Supported, effective after restart | The password include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters, special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? \| ~ , .`; 0: disable, 1: enable; default value 1 |
+|enableIpv6                  | 3.3.7.0           |not Supported                       |force nodes to communicate directly via IPv6 only, default value is 0, notes: 1. `firstep`, `sencodep`, and `FQDN` must all resolve to IPv6 addresses. 2. Mixed IPv4/IPv6 deployment is not supported|
+|statusInterval              | 3.3.0.0           |Supported, effective after restart                     | Controls the interval time for dnode to send status reports to mnode |
 
 ### Stream Computing Parameters
 
@@ -321,12 +323,14 @@ The effective value of charset is UTF-8.
 | curRange       |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
 | compressor     |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
 
-Additional Notes:
+**Additional Notes**
 
-1. Effective in versions 3.2.0.0 ~ 3.3.0.0 (not inclusive), enabling this parameter will prevent rollback to the version before the upgrade
-1. TSZ compression algorithm is completed through data prediction technology, thus it is more suitable for data with regular changes
-1. TSZ compression time will be longer, if your server CPU is mostly idle and storage space is small, it is suitable to choose this
-1. Example: Enable lossy compression for both float and double types
+1. All configuration parameters will be persisted to local storage. After restarting the database service, the persisted configuration parameter list will be used by default. For local configuration parameters, if you want to continue using the local configuration parameters in the config file, you need to set forceReadConfig to 1.
+2. Only local configuration parameters are controlled by forceReadConfig, while global configuration parameters must be modified through alter all dnodes and are not controlled by forceReadConfig. 
+3. Effective in versions 3.2.0.0 ~ 3.3.0.0 (not inclusive), enabling this parameter will prevent rollback to the version before the upgrade
+4. TSZ compression algorithm is completed through data prediction technology, thus it is more suitable for data with regular changes
+5. TSZ compression time will be longer, if your server CPU is mostly idle and storage space is small, it is suitable to choose this
+6. Example: Enable lossy compression for both float and double types
 
 ```shell
 lossyColumns     float|double
@@ -376,7 +380,7 @@ taosd reports monitoring metrics to taosKeeper, which are written into the monit
 | connections\_total       | DOUBLE    |         | total number of connections in the current cluster           |
 | topics\_total            | DOUBLE    |         | total number of topics in the current cluster                |
 | streams\_total           | DOUBLE    |         | total number of streams in the current cluster               |
-| grants_expire\_time      | DOUBLE    |         | authentication expiration time, valid in enterprise edition, maximum DOUBLE value in community edition |
+| grants_expire\_time      | DOUBLE    |         | authentication expiration time, valid in TSDB-Enterprise, maximum DOUBLE value in TSDB-OSS |
 | grants_timeseries\_used  | DOUBLE    |         | number of used timeseries                                    |
 | grants_timeseries\_total | DOUBLE    |         | total number of timeseries, maximum DOUBLE value in open source version |
 | cluster\_id              | VARCHAR   | tag     | cluster id                                                   |

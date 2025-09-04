@@ -18,11 +18,11 @@ if [ -z "$edition" ] || [ -z "$version" ]; then
     exit 1
 fi
 if [ "$edition" == "enterprise" ]; then
-    productName="TDengine-enterprise-TDgpt"
+    productName="tdengine-tdgpt-enterprise"
 fi
 
 if [ "$edition" == "community" ]; then
-    productName="TDengine-TDgpt"
+    productName="tdengine-tdgpt-oss"
 fi
 
 echo start to build release package, edition: ${edition}, version: ${version}
@@ -72,8 +72,6 @@ TARGET_PATTERN="__pycache__"
 find "${top_dir}/taosanalytics/" -type d -name "$TARGET_PATTERN" -exec rm -rf {} +
 
 # script to control start/stop/uninstall process
-
-
 cp -r ${top_dir}/taosanalytics/ ${lib_install_dir}/ && chmod a+x ${lib_install_dir}/ || :
 cp -r ${top_dir}/script/st*.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
 cp -r ${top_dir}/script/uninstall.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
@@ -88,7 +86,7 @@ if [ -d "${model_dir}" ]; then
   echo "copy ${td_model_name} model files"
   cp -r ${model_dir}/${td_model_name}.tar.gz ${model_install_dir} || :
   echo "copy ${td_model_name} model files done"
-  xhs_model_name="timer-moe"
+  xhs_model_name="time-moe"
   echo "copy ${xhs_model_name} model files "
   cp -r ${model_dir}/${xhs_model_name}.tar.gz ${model_install_dir}|| :
   echo "copy ${xhs_model_name} model files done"
@@ -117,7 +115,7 @@ chmod a+x ${install_dir}/install.sh
 # exit 1
 cd ${release_dir}
 
-platform=`uname`
+platform=$(uname | tr '[:upper:]' '[:lower:]')
 if uname -m | grep -q "x86_64"; then
     arch=x64
 elif uname -m | grep -q "arm64\|aarch64"; then

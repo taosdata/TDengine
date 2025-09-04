@@ -25,6 +25,7 @@ Support all platforms that can run Node.js.
 
 | Node.js Connector Version | Major Changes                                                            | TDengine Version            |
 | ------------------------- | ------------------------------------------------------------------------ | --------------------------- |
+| 3.1.9       | Fix timezone handling in WebSocket connections. | - | 
 | 3.1.8                     | Fix when the connection pool returns unavailable connections during network anomalies. | - | 
 | 3.1.7                     | Fix cloud service TMQ connection parameter issue. | - |
 | 3.1.6                     | 1. Check if the connector supports database version.  <br/> 2. The connector supports adding new subscription parameters. | - |  
@@ -104,6 +105,8 @@ The table below shows the mapping between TDengine DataType and Node.js DataType
 - The Node.js connector (`@tdengine/websocket`) supports Node.js version 14 and above. Versions below 14 may have package compatibility issues.
 - Currently, only WebSocket connections are supported, and taosAdapter needs to be started in advance.
 - After using the connector, you need to call taos.connectorDestroy(); to release the connector resources.
+- To set the time zone for time strings in SQL statements, you need to configure the time zone settings of taosc on the machine where taosadapter is located.
+- When parsing result sets, JavaScript does not support the int64 type, so timezone conversion cannot be directly performed. If users have such requirements, third-party libraries can be introduced to provide support.
 
 ## Common Issues
 

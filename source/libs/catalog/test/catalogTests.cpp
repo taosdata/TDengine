@@ -943,16 +943,19 @@ int32_t ctgTestRspDbVgroupsAndMultiSuperMeta(void *shandle, SEpSet *pEpSet, SRpc
 void ctgTestSetRspDbVgroups() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestRspDbVgroups);
+  stub.set(rpcSendRecvWithTimeout, ctgTestRspDbVgroups);
   {
 #ifdef WINDOWS
     AddrAny                       any;
     std::map<std::string, void *> result;
     any.get_func_addr("rpcSendRecv", result);
+    any.get_func_addr("rpcSendRecvWithTimeout", result);
 #endif
 #ifdef LINUX
     AddrAny                       any("libtransport.so");
     std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
+    any.get_global_func_addr_dynsym("^rpcSendRecvWithTimeout$", result);
 #endif
     for (const auto &f : result) {
       stub.set(f.second, ctgTestRspDbVgroups);
@@ -963,16 +966,19 @@ void ctgTestSetRspDbVgroups() {
 void ctgTestSetRspTableMeta() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestRspTableMeta);
+  stub.set(rpcSendRecvWithTimeout, ctgTestRspTableMeta);
   {
 #ifdef WINDOWS
     AddrAny                       any;
     std::map<std::string, void *> result;
     any.get_func_addr("rpcSendRecv", result);
+    any.get_func_addr("rpcSendRecvWithTimeout", result);
 #endif
 #ifdef LINUX
     AddrAny                       any("libtransport.so");
     std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
+    any.get_global_func_addr_dynsym("^rpcSendRecvWithTimeout$", result);
 #endif
     for (const auto &f : result) {
       stub.set(f.second, ctgTestRspTableMeta);
@@ -983,16 +989,19 @@ void ctgTestSetRspTableMeta() {
 void ctgTestSetRspCTableMeta() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestRspCTableMeta);
+  stub.set(rpcSendRecvWithTimeout, ctgTestRspCTableMeta);
   {
 #ifdef WINDOWS
     AddrAny                       any;
     std::map<std::string, void *> result;
     any.get_func_addr("rpcSendRecv", result);
+    any.get_func_addr("rpcSendRecvWithTimeout", result);
 #endif
 #ifdef LINUX
     AddrAny                       any("libtransport.so");
     std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
+    any.get_global_func_addr_dynsym("^rpcSendRecvWithTimeout$", result);
 #endif
     for (const auto &f : result) {
       stub.set(f.second, ctgTestRspCTableMeta);
@@ -1003,16 +1012,19 @@ void ctgTestSetRspCTableMeta() {
 void ctgTestSetRspSTableMeta() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestRspSTableMeta);
+  stub.set(rpcSendRecvWithTimeout, ctgTestRspSTableMeta);
   {
 #ifdef WINDOWS
     AddrAny                       any;
     std::map<std::string, void *> result;
     any.get_func_addr("rpcSendRecv", result);
+    any.get_func_addr("rpcSendRecvWithTimeout", result);
 #endif
 #ifdef LINUX
     AddrAny                       any("libtransport.so");
     std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
+    any.get_global_func_addr_dynsym("^rpcSendRecvWithTimeout$", result);
 #endif
     for (const auto &f : result) {
       stub.set(f.second, ctgTestRspSTableMeta);
@@ -1023,16 +1035,19 @@ void ctgTestSetRspSTableMeta() {
 void ctgTestSetRspMultiSTableMeta() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestRspMultiSTableMeta);
+  stub.set(rpcSendRecvWithTimeout, ctgTestRspMultiSTableMeta);
   {
 #ifdef WINDOWS
     AddrAny                       any;
     std::map<std::string, void *> result;
     any.get_func_addr("rpcSendRecv", result);
+    any.get_func_addr("rpcSendRecvWithTimeout", result);
 #endif
 #ifdef LINUX
     AddrAny                       any("libtransport.so");
     std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
+    any.get_global_func_addr_dynsym("^rpcSendRecvWithTimeout$", result);
 #endif
     for (const auto &f : result) {
       stub.set(f.second, ctgTestRspMultiSTableMeta);
@@ -1043,16 +1058,19 @@ void ctgTestSetRspMultiSTableMeta() {
 void ctgTestSetRspByIdx() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestRspByIdx);
+  stub.set(rpcSendRecvWithTimeout, ctgTestRspByIdx);
   {
 #ifdef WINDOWS
     AddrAny                       any;
     std::map<std::string, void *> result;
     any.get_func_addr("rpcSendRecv", result);
+    any.get_func_addr("rpcSendRecvWithTimeout", result);
 #endif
 #ifdef LINUX
     AddrAny                       any("libtransport.so");
     std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
+    any.get_global_func_addr_dynsym("^rpcSendRecvWithTimeout$", result);
 #endif
     for (const auto &f : result) {
       stub.set(f.second, ctgTestRspByIdx);
@@ -1063,16 +1081,19 @@ void ctgTestSetRspByIdx() {
 void ctgTestSetRspDbVgroupsAndNormalMeta() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestRspDbVgroupsAndNormalMeta);
+  stub.set(rpcSendRecvWithTimeout, ctgTestRspDbVgroupsAndNormalMeta);
   {
 #ifdef WINDOWS
     AddrAny                       any;
     std::map<std::string, void *> result;
     any.get_func_addr("rpcSendRecv", result);
+    any.get_func_addr("rpcSendRecvWithTimeout", result);
 #endif
 #ifdef LINUX
     AddrAny                       any("libtransport.so");
     std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
+    any.get_global_func_addr_dynsym("^rpcSendRecvWithTimeout$", result);
 #endif
     for (const auto &f : result) {
       stub.set(f.second, ctgTestRspDbVgroupsAndNormalMeta);
@@ -1083,16 +1104,19 @@ void ctgTestSetRspDbVgroupsAndNormalMeta() {
 void ctgTestSetRspDbVgroupsAndChildMeta() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestRspDbVgroupsAndChildMeta);
+  stub.set(rpcSendRecvWithTimeout, ctgTestRspDbVgroupsAndChildMeta);
   {
 #ifdef WINDOWS
     AddrAny                       any;
     std::map<std::string, void *> result;
     any.get_func_addr("rpcSendRecv", result);
+    any.get_func_addr("rpcSendRecvWithTimeout", result);
 #endif
 #ifdef LINUX
     AddrAny                       any("libtransport.so");
     std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
+    any.get_global_func_addr_dynsym("^rpcSendRecvWithTimeout$", result);
 #endif
     for (const auto &f : result) {
       stub.set(f.second, ctgTestRspDbVgroupsAndChildMeta);
@@ -1103,16 +1127,19 @@ void ctgTestSetRspDbVgroupsAndChildMeta() {
 void ctgTestSetRspDbVgroupsAndSuperMeta() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestRspDbVgroupsAndSuperMeta);
+  stub.set(rpcSendRecvWithTimeout, ctgTestRspDbVgroupsAndSuperMeta);
   {
 #ifdef WINDOWS
     AddrAny                       any;
     std::map<std::string, void *> result;
     any.get_func_addr("rpcSendRecv", result);
+    any.get_func_addr("rpcSendRecvWithTimeout", result);
 #endif
 #ifdef LINUX
     AddrAny                       any("libtransport.so");
     std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
+    any.get_global_func_addr_dynsym("^rpcSendRecvWithTimeout$", result);
 #endif
     for (const auto &f : result) {
       stub.set(f.second, ctgTestRspDbVgroupsAndSuperMeta);
@@ -1123,16 +1150,19 @@ void ctgTestSetRspDbVgroupsAndSuperMeta() {
 void ctgTestSetRspDbVgroupsAndMultiSuperMeta() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestRspDbVgroupsAndMultiSuperMeta);
+  stub.set(rpcSendRecvWithTimeout, ctgTestRspDbVgroupsAndMultiSuperMeta);
   {
 #ifdef WINDOWS
     AddrAny                       any;
     std::map<std::string, void *> result;
     any.get_func_addr("rpcSendRecv", result);
+    any.get_func_addr("rpcSendRecvWithTimeout", result);
 #endif
 #ifdef LINUX
     AddrAny                       any("libtransport.so");
     std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
+    any.get_global_func_addr_dynsym("^rpcSendRecvWithTimeout$", result);
 #endif
     for (const auto &f : result) {
       stub.set(f.second, ctgTestRspDbVgroupsAndMultiSuperMeta);

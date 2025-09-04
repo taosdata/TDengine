@@ -6,9 +6,9 @@ toc_max_heading_level: 4
 
 ## 背景
 
-TDengine 在运行一段时间后需要针对运行环境和 TDengine 本身的运行状态进行定期巡检，本文档旨在说明如何使用巡检工具对 TDengine 的运行环境进行自动化检查。 
+TDengine TSDB 在运行一段时间后需要针对运行环境和 TDengine TSDB 本身的运行状态进行定期巡检，本文档旨在说明如何使用巡检工具对 TDengine TSDB 的运行环境进行自动化检查。
 
-## 安装工具使用方法
+## 巡检工具使用方法
 
 工具支持通过 help 参数查看支持的语法
 
@@ -38,9 +38,9 @@ optional arguments:
 - `config`：安装工具加载的配置文件，其具体配置方式详见 **配置文件使用说明** 章节。不配置 config 参数时配置文件默认值为/etc/taos/inspect.cfg。
 - `result`：巡检运行结束后结果文件和相关日志文件的存储目录，默认是用户在 taos.cfg 中配置的 logDir 对应目录。
 - `backend`：后台运行安装工具，默认前台运行。
-- `check-nginx`：是否检测负载均衡 nginx 的配置文件，默认值为不检查。
-- `log-level`: 输出日志级别，目前支持 debug 和 info，模式为 info。
-- `version`：打印安装工具版本信息。
+- `check-nginx`：是否检测负载均衡 nginx 的配置文件，默认不检查。
+- `log-level`: 输出日志级别，目前支持 debug 和 info，默认模式为 info。
+- `version`：打印工具版本信息。
 
 ### 配置文件使用说明
 
@@ -51,16 +51,16 @@ optional arguments:
 #                                                      #
 ########################################################
 
-# 安装部署TDengine的环境信息，支持免密登录和SSH登录两种方式，当环境配置了免密登录后不用配置password信息。
-# 除此外还支持从TDengine自动获取集群信息，该模式下不需配置集群节点的ip和FQDN，仅需要配置连接各节点的用户信息（免密时不用配置password信息）
+# 安装部署 TDengine TSDB 的环境信息，支持免密登录和SSH登录两种方式，当环境配置了免密登录后不用配置 password 信息。
+# 除此外还支持从 TDengine TSDB 自动获取集群信息，该模式下不需配置集群节点的 ip 和 FQDN，仅需要配置连接各节点的用户信息（免密时不用配置 password 信息）
 # 配置方式1、2和3不可同时配置
 [test_env]
-# 配置方式1: 通过TDengine获取集群信息
+# 配置方式1: 通过 TDengine TSDB 获取集群信息
 username=root
 password=123456
 port=22
 
-# 配置方式2: 节点间通过SSH协议访问
+# 配置方式2: 节点间通过 SSH 协议访问
 # firstep=192.168.0.1||fqdn=tdengine1||username=root||password=123456||port=22
 # secondep=192.168.0.2||fqdn=tdengine2||username=root||password=123456||port=22
 # dnode3=192.168.0.3||fqdn=tdengine3||username=root||username=123456||port=22
@@ -70,31 +70,31 @@ port=22
 # secondep=192.168.0.2||fqdn=tdengine2||username=root||port=22
 # dnode3=192.168.0.3||fqdn=tdengine3||username=root||port=22
 
-# TDegine的Restful连接信息
+# TDegine 的 Restful 连接信息
 [database]
 username=root
 password=taosdata
 port=6030
 rest_port=6041
 
-# Nginx服务所在服务器的连接信息
+# Nginx 服务所在服务器的连接信息
 [nginx]
 ip=192.168.0.100
 username=root
 password=123456
 port=22
 
-# oem版本的版本名称，默认不使用
+# oem 版本的版本名称，默认不使用
 # [oem]
 # version=prodb
 
-# /etc/sysctl.conf中系统参数，工具会按照下面配置修改系统参数值
+# /etc/sysctl.con f中系统参数，工具会按照下面配置修改系统参数值
 [sys_vars:/etc/sysctl.conf]
 fs.nr_open=2147483584
 fs.file-max=2147483584
 net.ipv4.ip_local_port_range=10000 65534
 
-# /etc/security/limits.conf中系统参数，工具会按照下面配置修改系统参数值
+# /etc/security/limits.conf 中系统参数，工具会按照下面配置修改系统参数值
 [sys_vars:/etc/security/limits.conf]
 * soft nproc=65536
 * soft nofile=1048576
@@ -126,7 +126,7 @@ chrony
 tree
 wget
 
-# 巡检覆盖的TDengine服务范围
+# 巡检覆盖的 TDengine TSDB 服务范围
 [td_services]
 taosd
 taos
@@ -135,23 +135,27 @@ taoskeeper
 taosx
 taos-explorer
 
-# 可忽略的TDengine错误日志
+# 可忽略的 TDengine TSDB 错误日志
 [skip_error_strs]
 failed to get monitor info
 Table does not exist
 failed to send
 Fail to get table info
 ```
+
 ## 巡检范围
+
 ### 磁盘巡检范围
+
 | **No** | **巡检项目** | **详细说明** | **告警规则** |
 |:-------|:------------|:-----------|:-----------|
-| 1 | **磁盘基本信息**   | 磁盘类型和磁盘空间 | 无 | 磁盘已用空间低于 15% |
+| 1 | **磁盘基本信息**   | 磁盘类型和磁盘空间 | 磁盘已用空间低于 15% |
 | 2 | **磁盘挂载信息** | 通过 lsblk 查询的磁盘挂载信息 | 无 |
 | 3 | **数据库数据目录使用情况**   | 数据目录的挂载路径，文件系统，存储类型，已用空间，可用空间和空间使用率 | 磁盘已用空间低于 15% |
 | 4 | **数据库数据目录 Inode 情况**   | 数据目录对应的 idnode 已用空间，可用空间和空间使用率 | 无 |
 
 ### 系统巡检范围
+
 | **No** | **巡检项目** | **详细说明** | **告警规则** |
 |:-------|:------------|:-----------|:-----------|
 | 1 | **系统基本信息**   | 系统名称、系统启动时间、防火墙和 SELinux 服务状态 | 防火墙或 SElinux 服务未关闭 |
@@ -163,6 +167,7 @@ Fail to get table info
 | 7 | **Coredump 配置** | coredump 路径是否配置 | 1. coredump 未配置；2. coredump 挂载目录为系统根目录；3. coredump 文件个数大于 0 |
 
 ### 数据库巡检范围
+
 | **No** | **巡检项目** | **详细说明** | **告警规则** |
 |:-------|:------------|:-----------|:-----------|
 | 1 | **数据库版本**   | taosd、taos、taosKeeper、taosAdapter、taosX 和 taos-explorer 的版本信息 | 服务端和客户端的版本不一致 |
@@ -180,6 +185,7 @@ Fail to get table info
 | 13 | **taosx 数据目录**   | taosx 数据目录 | taosX 数据目录是默认系统根目录 |
 
 ### 库表巡检范围
+
 | **No** | **巡检项目** | **详细说明** | **告警规则** |
 |:-------|:------------|:-----------|:-----------|
 | 1 | **库表占用空间**  | 数据库本地占用磁盘空间 | 无 |
@@ -197,31 +203,38 @@ Fail to get table info
 | 13 | **订阅消费者信息**   | 消费者详情 | 无 |
 | 14 | **订阅信息**   | 订阅详情 | 无 |
 
-
 ### Nginx 配置巡检（可选）
+
 | **No** | **巡检项目** | **详细说明** | **告警规则** |
 |:-------|:------------|:-----------|:-----------|
-| 1 | **Nginx 配置**   | 各节点的 hostname 和 ip 是否正确配置到 Nginx 配置文件 | 配置文件中 FQDN 配置信息缺失或错误 | 
-
+| 1 | **Nginx 配置**   | 各节点的 hostname 和 ip 是否正确配置到 Nginx 配置文件 | 配置文件中 FQDN 配置信息缺失或错误 |
 
 ## 结果文件
-巡检工具运行后会在工具运行用户在 taos.cfg 中配置的 logDir 目录下生成三类文件，包含了巡检报告 inspect_report.md，巡检结构化数据 inspect.json，数据库和超级表初始化文件 stable_schemas.md、各节点 taos、taosd 和 taosKeeper 对应的错误日志文件和各服务对应的配置文件。最后会将出错误日志文件以外的其他所有文件压缩为 results.zip
+
+巡检工具运行后默认会在 taos.cfg 中配置的 logDir 目录下生成三类文件，包含了巡检报告 inspect_report.md，巡检结构化数据 inspect.json，数据库和超级表初始化文件 stable_schemas.md、各节点 taos、taosd 和 taosKeeper 对应的错误日志文件和各服务对应的配置文件。最后会将除错误日志文件以外的其它所有文件压缩为 results.zip
 
 ## 应用示例
 
 在工具所在节点执行巡检任务
+
+```config
+./taosinspect -m local 或 ./taosinspect
 ```
-./taosinspect -m local
-```
+
 在集群所有节点执行巡检任务
-```
+
+```config
 ./taosinspect -m ssh
 ```
+
 指定配置文件并在集群所有节点执行巡检任务
-```
+
+```config
 ./taosinspect -m ssh -f /path_to_file/inspect.cfg
 ```
+
 在集群所有节点执行巡检任务，包括检查 nginx 服务配置文件
-```
+
+```config
 ./taosinspect -m ssh -f /path_to_file/inspect.cfg -cn true
 ```
