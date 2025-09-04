@@ -1747,6 +1747,25 @@
         
 
 
+<style>
+  .md-nav--secondary {
+    max-width: none !important;
+    width: auto !important;
+    margin-right: 0 !important;
+    padding-right: 0 !important;
+  }
+  
+  .md-nav--secondary .md-nav__list {
+    max-width: none !important;
+    width: auto !important;
+  }
+  
+  .md-nav--secondary .md-nav__item {
+    white-space: nowrap;
+    overflow: visible;
+  }
+</style>
+
 
 
 
@@ -1762,28 +1781,6 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#22-Functions.02-Aggregate.test_agg_all.TestAggFunction.test_agg_function" class="md-nav__link">
-        Agg: all 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#22-Functions.02-Aggregate.test_agg_apercentile.TestFuncApercentile.test_func_apercentile" class="md-nav__link">
-        Agg-stat: Apercentile 
-      </a>
-      
-    </li>
-  
-
       
         
   
@@ -1810,96 +1807,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_normal_query" class="md-nav__link">
-        Agg-special: Elapsed 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_query_with_filter" class="md-nav__link">
-        test elapsed function with filter 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_query_with_other_function" class="md-nav__link">
-        test elapsed function with other function 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_query_with_join" class="md-nav__link">
-        test elapsed function with join 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_query_with_union" class="md-nav__link">
-        test elapsed function with union 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_nested_query" class="md-nav__link">
-        test elapsed function with nested query 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_abnormal_query" class="md-nav__link">
-        test unsupported elapsed sql command 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#22-Functions.02-Aggregate.test_agg_leastsquares.TestFuncLeastsquares.test_func_leastsquares" class="md-nav__link">
         Agg-basic: Leastsquares 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#22-Functions.02-Aggregate.test_agg_percentile.TestPercentile.test_percentile" class="md-nav__link">
-        Agg-stat: Percentile 
       </a>
       
     </li>
@@ -1933,6 +1842,116 @@
     <li class="md-nav__item">
       <a href="#22-Functions.02-Aggregate.test_agg_sum.TestFuncSum.test_func_sum" class="md-nav__link">
         Agg-basic: Sum 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_normal_query" class="md-nav__link">
+        Agg-special: Elapsed 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#22-Functions.02-Aggregate.test_agg_apercentile.TestFuncApercentile.test_func_apercentile" class="md-nav__link">
+        Agg-stat: Apercentile 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#22-Functions.02-Aggregate.test_agg_percentile.TestPercentile.test_percentile" class="md-nav__link">
+        Agg-stat: Percentile 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#22-Functions.02-Aggregate.test_agg_all.TestAggFunction.test_agg_function" class="md-nav__link">
+        Agg: all 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_query_with_filter" class="md-nav__link">
+        test elapsed function with filter 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_query_with_join" class="md-nav__link">
+        test elapsed function with join 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_nested_query" class="md-nav__link">
+        test elapsed function with nested query 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_query_with_other_function" class="md-nav__link">
+        test elapsed function with other function 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_query_with_union" class="md-nav__link">
+        test elapsed function with union 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_abnormal_query" class="md-nav__link">
+        test unsupported elapsed sql command 
       </a>
       
     </li>
@@ -2893,6 +2912,25 @@
                     
 
 
+<style>
+  .md-nav--secondary {
+    max-width: none !important;
+    width: auto !important;
+    margin-right: 0 !important;
+    padding-right: 0 !important;
+  }
+  
+  .md-nav--secondary .md-nav__list {
+    max-width: none !important;
+    width: auto !important;
+  }
+  
+  .md-nav--secondary .md-nav__item {
+    white-space: nowrap;
+    overflow: visible;
+  }
+</style>
+
 
 
 
@@ -2908,28 +2946,6 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#22-Functions.02-Aggregate.test_agg_all.TestAggFunction.test_agg_function" class="md-nav__link">
-        Agg: all 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#22-Functions.02-Aggregate.test_agg_apercentile.TestFuncApercentile.test_func_apercentile" class="md-nav__link">
-        Agg-stat: Apercentile 
-      </a>
-      
-    </li>
-  
-
       
         
   
@@ -2956,96 +2972,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_normal_query" class="md-nav__link">
-        Agg-special: Elapsed 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_query_with_filter" class="md-nav__link">
-        test elapsed function with filter 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_query_with_other_function" class="md-nav__link">
-        test elapsed function with other function 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_query_with_join" class="md-nav__link">
-        test elapsed function with join 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_query_with_union" class="md-nav__link">
-        test elapsed function with union 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_nested_query" class="md-nav__link">
-        test elapsed function with nested query 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_abnormal_query" class="md-nav__link">
-        test unsupported elapsed sql command 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#22-Functions.02-Aggregate.test_agg_leastsquares.TestFuncLeastsquares.test_func_leastsquares" class="md-nav__link">
         Agg-basic: Leastsquares 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#22-Functions.02-Aggregate.test_agg_percentile.TestPercentile.test_percentile" class="md-nav__link">
-        Agg-stat: Percentile 
       </a>
       
     </li>
@@ -3085,6 +3013,116 @@
   
 
       
+        
+  
+    <li class="md-nav__item">
+      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_normal_query" class="md-nav__link">
+        Agg-special: Elapsed 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#22-Functions.02-Aggregate.test_agg_apercentile.TestFuncApercentile.test_func_apercentile" class="md-nav__link">
+        Agg-stat: Apercentile 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#22-Functions.02-Aggregate.test_agg_percentile.TestPercentile.test_percentile" class="md-nav__link">
+        Agg-stat: Percentile 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#22-Functions.02-Aggregate.test_agg_all.TestAggFunction.test_agg_function" class="md-nav__link">
+        Agg: all 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_query_with_filter" class="md-nav__link">
+        test elapsed function with filter 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_query_with_join" class="md-nav__link">
+        test elapsed function with join 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_nested_query" class="md-nav__link">
+        test elapsed function with nested query 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_query_with_other_function" class="md-nav__link">
+        test elapsed function with other function 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_query_with_union" class="md-nav__link">
+        test elapsed function with union 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_abnormal_query" class="md-nav__link">
+        test unsupported elapsed sql command 
+      </a>
+      
+    </li>
+  
+
+      
     </ul>
   
 </nav>
@@ -3105,6 +3143,7 @@
 
   
 <div class="doc doc-object doc-function">
+  
   
   
   
@@ -3137,6 +3176,7 @@
   
   
   
+  
 <h2 id="22-Functions.02-Aggregate.test_agg_apercentile.TestFuncApercentile.test_func_apercentile" class="doc doc-heading">
 
 <a href="#22-Functions.02-Aggregate.test_agg_apercentile.TestFuncApercentile.test_func_apercentile" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -3163,6 +3203,7 @@
   </div>
   
 <div class="doc doc-object doc-function">
+  
   
   
   
@@ -3195,6 +3236,7 @@
   
   
   
+  
 <h2 id="22-Functions.02-Aggregate.test_agg_count.TestFuncCount.test_func_count" class="doc doc-heading">
 
 <a href="#22-Functions.02-Aggregate.test_agg_count.TestFuncCount.test_func_count" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -3221,6 +3263,7 @@
   </div>
   
 <div class="doc doc-object doc-function">
+  
   
   
   
@@ -3253,6 +3296,7 @@
   
   
   
+  
 <h2 id="22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_query_with_filter" class="doc doc-heading">
 
 <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_query_with_filter" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -3279,6 +3323,7 @@
   </div>
   
 <div class="doc doc-object doc-function">
+  
   
   
   
@@ -3311,6 +3356,7 @@
   
   
   
+  
 <h2 id="22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_query_with_join" class="doc doc-heading">
 
 <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_query_with_join" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -3337,6 +3383,7 @@
   </div>
   
 <div class="doc doc-object doc-function">
+  
   
   
   
@@ -3369,6 +3416,7 @@
   
   
   
+  
 <h2 id="22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_nested_query" class="doc doc-heading">
 
 <a href="#22-Functions.02-Aggregate.test_agg_elapsed.TestFuncElapsed.test_nested_query" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -3395,6 +3443,7 @@
   </div>
   
 <div class="doc doc-object doc-function">
+  
   
   
   
@@ -3427,6 +3476,7 @@
   
   
   
+  
 <h2 id="22-Functions.02-Aggregate.test_agg_leastsquares.TestFuncLeastsquares.test_func_leastsquares" class="doc doc-heading">
 
 <a href="#22-Functions.02-Aggregate.test_agg_leastsquares.TestFuncLeastsquares.test_func_leastsquares" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -3453,6 +3503,7 @@
   </div>
   
 <div class="doc doc-object doc-function">
+  
   
   
   
@@ -3485,6 +3536,7 @@
   
   
   
+  
 <h2 id="22-Functions.02-Aggregate.test_agg_spread.TestFuncSpread.test_func_spread" class="doc doc-heading">
 
 <a href="#22-Functions.02-Aggregate.test_agg_spread.TestFuncSpread.test_func_spread" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -3514,6 +3566,7 @@
   
   
   
+  
 <h2 id="22-Functions.02-Aggregate.test_agg_stddev.TestFuncStddev.test_func_stddev" class="doc doc-heading">
 
 <a href="#22-Functions.02-Aggregate.test_agg_stddev.TestFuncStddev.test_func_stddev" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -3540,6 +3593,7 @@
   </div>
   
 <div class="doc doc-object doc-function">
+  
   
   
   
