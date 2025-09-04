@@ -2265,8 +2265,19 @@
         
   
     <li class="md-nav__item">
+      <a href="#70-Node.02-Mnode.test_mnode_basic5.TestMnodeBasic5.test_mnode_basic5" class="md-nav__link">
+        basic test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#70-Node.02-Mnode.test_mnode_basic1.TestMnodeBasic1.test_mnode_basic1" class="md-nav__link">
-        mnode basic 1 
+        replica 2: create on same dnode 
       </a>
       
     </li>
@@ -2277,18 +2288,7 @@
   
     <li class="md-nav__item">
       <a href="#70-Node.02-Mnode.test_mnode_basic2.TestMnodeBasic2.test_mnode_basic2" class="md-nav__link">
-        mnode basic 2 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#70-Node.02-Mnode.test_mnode_basic3.TestMnodeBasic3.test_mnode_basic3" class="md-nav__link">
-        mnode basic 3 
+        replica 2: stop all then start 
       </a>
       
     </li>
@@ -2299,7 +2299,7 @@
   
     <li class="md-nav__item">
       <a href="#70-Node.02-Mnode.test_mnode_basic4.TestMnodeBasic4.test_mnode_basic4" class="md-nav__link">
-        mnode basic 4 
+        replica 3: kill -9 then drop 
       </a>
       
     </li>
@@ -2309,8 +2309,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#70-Node.02-Mnode.test_mnode_basic5.TestMnodeBasic5.test_mnode_basic5" class="md-nav__link">
-        mnode basic 5 
+      <a href="#70-Node.02-Mnode.test_mnode_basic3.TestMnodeBasic3.test_mnode_basic3" class="md-nav__link">
+        replica 3: kill -9 then restart 
       </a>
       
     </li>
@@ -2321,7 +2321,7 @@
   
     <li class="md-nav__item">
       <a href="#70-Node.02-Mnode.test_mnode_basic6.TestMnodeBasic6.test_mnode_basic6" class="md-nav__link">
-        mnode basic 6 
+        replica 3: repeatedly restart 
       </a>
       
     </li>
@@ -2840,8 +2840,19 @@
         
   
     <li class="md-nav__item">
+      <a href="#70-Node.02-Mnode.test_mnode_basic5.TestMnodeBasic5.test_mnode_basic5" class="md-nav__link">
+        basic test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#70-Node.02-Mnode.test_mnode_basic1.TestMnodeBasic1.test_mnode_basic1" class="md-nav__link">
-        mnode basic 1 
+        replica 2: create on same dnode 
       </a>
       
     </li>
@@ -2852,18 +2863,7 @@
   
     <li class="md-nav__item">
       <a href="#70-Node.02-Mnode.test_mnode_basic2.TestMnodeBasic2.test_mnode_basic2" class="md-nav__link">
-        mnode basic 2 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#70-Node.02-Mnode.test_mnode_basic3.TestMnodeBasic3.test_mnode_basic3" class="md-nav__link">
-        mnode basic 3 
+        replica 2: stop all then start 
       </a>
       
     </li>
@@ -2874,7 +2874,7 @@
   
     <li class="md-nav__item">
       <a href="#70-Node.02-Mnode.test_mnode_basic4.TestMnodeBasic4.test_mnode_basic4" class="md-nav__link">
-        mnode basic 4 
+        replica 3: kill -9 then drop 
       </a>
       
     </li>
@@ -2884,8 +2884,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#70-Node.02-Mnode.test_mnode_basic5.TestMnodeBasic5.test_mnode_basic5" class="md-nav__link">
-        mnode basic 5 
+      <a href="#70-Node.02-Mnode.test_mnode_basic3.TestMnodeBasic3.test_mnode_basic3" class="md-nav__link">
+        replica 3: kill -9 then restart 
       </a>
       
     </li>
@@ -2896,7 +2896,7 @@
   
     <li class="md-nav__item">
       <a href="#70-Node.02-Mnode.test_mnode_basic6.TestMnodeBasic6.test_mnode_basic6" class="md-nav__link">
-        mnode basic 6 
+        replica 3: repeatedly restart 
       </a>
       
     </li>
@@ -2933,12 +2933,14 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> mnode basic 1
+                    <strong>Summary:</strong> replica 2: create on same dnode
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. -</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create an mnode on the dnode2</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Delete mnode2</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Repeat the above operations</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -2963,12 +2965,15 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> mnode basic 2
+                    <strong>Summary:</strong> replica 2: stop all then start
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. -</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create an mnode on the dnode2</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create a user (update mnode)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Restart dnode1 and dnode2</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Check if the user exists</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -2993,12 +2998,17 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> mnode basic 3
+                    <strong>Summary:</strong> replica 3: kill -9 then restart
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. -</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create mnodes on the second and third dnodes</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create a user (update mnode)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Kill dnode1 with kill -9</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Check if the user exists</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Stop dnode2 and dnode3 sequentially</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Check service availability</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -3023,12 +3033,16 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> mnode basic 4
+                    <strong>Summary:</strong> replica 3: kill -9 then drop
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. -</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create mnodes on the second and third dnodes</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Force stop dnode3</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Start dnode3</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Delete dnode3</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Check service availability</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -3053,12 +3067,15 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> mnode basic 5
+                    <strong>Summary:</strong> basic test
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. -</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create and delete mnodes on an offline dnode - expected to fail</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create mnodes on a dnode that already has an mnode - expected to fail</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Use invalid mnode creation or deletion syntax</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Check the status of the dnode</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -3083,12 +3100,14 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> mnode basic 6
+                    <strong>Summary:</strong> replica 3: repeatedly restart
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. -</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create mnodes on dnode2 and dnode3</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Repeatedly restart dnode1 to dnode3 sequentially</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Check service availability</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>

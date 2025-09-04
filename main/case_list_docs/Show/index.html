@@ -2405,8 +2405,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#52-Show.test_show_diskinfo.TestShowDiskInfo.test_show_disk_info" class="md-nav__link">
-        Show DiskInfo语句 
+      <a href="#52-Show.test_show_tables.TestShowDbTableKind.test_show_db_table_kind" class="md-nav__link">
+        Show Databases and Tables 
       </a>
       
     </li>
@@ -2416,8 +2416,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#52-Show.test_show_table_distributed_null.TestShowTableDistributed.test_show_table_distributed" class="md-nav__link">
-        Show Table Distributed Test 
+      <a href="#52-Show.test_show_diskinfo.TestShowDiskInfo.test_show_disk_info" class="md-nav__link">
+        Show DiskInfo 
       </a>
       
     </li>
@@ -2428,7 +2428,7 @@
   
     <li class="md-nav__item">
       <a href="#52-Show.test_show_table_distributed.TestShowTableDistributed.test_show_table_distributed" class="md-nav__link">
-        Show Table Distributed 语句 
+        Show Table Distributed 
       </a>
       
     </li>
@@ -2849,8 +2849,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#52-Show.test_show_diskinfo.TestShowDiskInfo.test_show_disk_info" class="md-nav__link">
-        Show DiskInfo语句 
+      <a href="#52-Show.test_show_tables.TestShowDbTableKind.test_show_db_table_kind" class="md-nav__link">
+        Show Databases and Tables 
       </a>
       
     </li>
@@ -2860,8 +2860,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#52-Show.test_show_table_distributed_null.TestShowTableDistributed.test_show_table_distributed" class="md-nav__link">
-        Show Table Distributed Test 
+      <a href="#52-Show.test_show_diskinfo.TestShowDiskInfo.test_show_disk_info" class="md-nav__link">
+        Show DiskInfo 
       </a>
       
     </li>
@@ -2872,7 +2872,7 @@
   
     <li class="md-nav__item">
       <a href="#52-Show.test_show_table_distributed.TestShowTableDistributed.test_show_table_distributed" class="md-nav__link">
-        Show Table Distributed 语句 
+        Show Table Distributed 
       </a>
       
     </li>
@@ -2914,8 +2914,7 @@
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. build cluster with 4 dnodes</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. execute show commands</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Continuously start and stop multiple dnodes to verify the returned results of show alive.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -2945,8 +2944,10 @@
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. build cluster with 2 dnodes</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. execute show commands</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Creating a 2-dnode cluster with databases/tables for testing</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Executing all major show commands and information_schema queries</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verifying system metadata consistency after dnode restarts</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Checking error handling for invalid operations</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -2971,15 +2972,14 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> Show DiskInfo语句
+                    <strong>Summary:</strong> Show DiskInfo
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. 创建包含一个 Int 普通数据列的超级表</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. 创建子表并写入数据</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. 对数据库执行 Flush 操作</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. 执行 show disk_info 语句</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create super tables and child tables, then write data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Perform a FLUSH operation on the database</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Execute the show disk_info statement</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -3004,15 +3004,16 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> Show Table Distributed 语句
+                    <strong>Summary:</strong> Show Table Distributed
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. 创建包含一个 Int 普通数据列的超级表</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. 创建子表并写入数据</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. 对数据库执行 Flush 操作</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. 执行 show table distributed 语句</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Tests basic distributed table display for super/normal/temporary tables</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Verifies error handling for system/internal tables</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Includes block distribution validation with data insertion</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Checks metadata consistency after operations</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Covers edge cases from TD-5998/TD-22140/T</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -3031,28 +3032,27 @@
   
   
   
-<h2 id="52-Show.test_show_table_distributed_null.TestShowTableDistributed.test_show_table_distributed" class="doc doc-heading">
+<h2 id="52-Show.test_show_tables.TestShowDbTableKind.test_show_db_table_kind" class="doc doc-heading">
 
-<a href="#52-Show.test_show_table_distributed_null.TestShowTableDistributed.test_show_table_distributed" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#52-Show.test_show_tables.TestShowDbTableKind.test_show_db_table_kind" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> Show Table Distributed Test
+                    <strong>Summary:</strong> Show Databases and Tables
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1.Create db</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2.Create supper table and sub table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4.Insert data into sub table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5.Run show table distributed command</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Testing various show commands for database/table classification</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Verifying filtering capabilities with like clauses</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Checking metadata consistency across different database contexts</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     <strong>Path:</strong>
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/52-Show/test_show_table_distributed_null.py" target="_blank">
-                      cases/52-Show/test_show_table_distributed_null.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/52-Show/test_show_tables.py" target="_blank">
+                      cases/52-Show/test_show_tables.py
                     </a>
                   </div>
         </div>
