@@ -1840,7 +1840,7 @@ end:
 }
 
 static int32_t createOptionsForFirstTs(SStreamTriggerReaderTaskInnerOptions* options,
-                                       SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t start, int64_t ver) {
+                                       SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t start, int64_t ver, uint64_t gid) {
   int32_t code = 0;
   int32_t lino = 0;
   SArray* schemas = NULL;
@@ -1851,7 +1851,7 @@ static int32_t createOptionsForFirstTs(SStreamTriggerReaderTaskInnerOptions* opt
       qStreamBuildSchema(schemas, TSDB_DATA_TYPE_TIMESTAMP, LONG_BYTES, PRIMARYKEY_TIMESTAMP_COL_ID))  // first ts
 
   BUILD_OPTION(op, sStreamReaderInfo, ver, TSDB_ORDER_ASC, start, INT64_MAX, schemas, true,
-               STREAM_SCAN_GROUP_ONE_BY_ONE, 0, sStreamReaderInfo->uidList == NULL, NULL);
+               STREAM_SCAN_GROUP_ONE_BY_ONE, gid, sStreamReaderInfo->uidList == NULL, NULL);
   schemas = NULL;
 
   *options = op;
@@ -1947,7 +1947,7 @@ static int32_t processTsNonVTable(SVnode* pVnode, SStreamTsResponse* tsRsp, SStr
         tsInfo->ts = pTask->pResBlock->info.window.ekey;
       }
       tsInfo->gId = qStreamGetGroupId(pTask->pTableList, pTask->pResBlock->info.id.uid);
-      stDebug("vgId:%d %s get last ts:%" PRId64 ", gId:%" PRIu64 ", ver:%" PRId64, TD_VID(pVnode), __func__, tsInfo->ts,
+      stDebug("vgId:%d %s get ts:%" PRId64 ", gId:%" PRIu64 ", ver:%" PRId64, TD_VID(pVnode), __func__, tsInfo->ts,
               tsInfo->gId, tsRsp->ver);
     }
     pTask->api.tsdReader.tsdReaderReleaseDataBlock(pTask->pReader);
@@ -1959,11 +1959,11 @@ static int32_t processTsNonVTable(SVnode* pVnode, SStreamTsResponse* tsRsp, SStr
       tsInfo->ts = pTask->pResBlock->info.window.ekey;
     }
     tsInfo->gId = sStreamReaderInfo->groupByTbname ? pTask->pResBlock->info.id.uid : qStreamGetGroupId(pTask->pTableList, pTask->pResBlock->info.id.uid);
-    stInfo("vgId:%d %s get last ts:%" PRId64 ", gId:%" PRIu64 ", ver:%" PRId64, TD_VID(pVnode), __func__, tsInfo->ts,
+    stInfo("vgId:%d %s get ts:%" PRId64 ", gId:%" PRIu64 ", ver:%" PRId64, TD_VID(pVnode), __func__, tsInfo->ts,
             tsInfo->gId, tsRsp->ver);
 
     pTask->currentGroupIndex++;
-    if (pTask->currentGroupIndex >= qStreamGetTableListGroupNum(pTask->pTableList)) {
+    if (pTask->currentGroupIndex >= qStreamGetTableListGroupNum(pTask->pTableList) || pTask->options.gid != 0) {
       break;
     }
     STREAM_CHECK_RET_GOTO(resetTsdbReader(pTask));
@@ -2167,7 +2167,7 @@ static int32_t vnodeProcessStreamFirstTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   void* pTask = sStreamReaderInfo->pTask;
   ST_TASK_DLOG("vgId:%d %s start", TD_VID(pVnode), __func__);
   SStreamTriggerReaderTaskInnerOptions options = {0};
-  STREAM_CHECK_RET_GOTO(createOptionsForFirstTs(&options, sStreamReaderInfo, req->firstTsReq.startTime, req->firstTsReq.ver));
+  STREAM_CHECK_RET_GOTO(createOptionsForFirstTs(&options, sStreamReaderInfo, req->firstTsReq.startTime, req->firstTsReq.ver, req->firstTsReq.gid));
   SStorageAPI api = {0};
   initStorageAPI(&api);
   STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTaskInner, NULL, &api));
