@@ -2660,16 +2660,6 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
     goto _end;
   }
 
-  if (listNEles(&pContext->retryCalcReqs) > 0) {
-    while (listNEles(&pContext->retryCalcReqs) > 0) {
-      SListNode           *pNode = TD_DLIST_HEAD(&pContext->retryCalcReqs);
-      SSTriggerCalcRequest *pReq = *(SSTriggerCalcRequest **)pNode->data;
-      code = stRealtimeContextRetryCalcRequest(pContext, pNode, pReq);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
-    goto _end;
-  }
-
   if (pContext->status == STRIGGER_CONTEXT_IDLE && pTask->isVirtualTable && !pTask->virTableInfoReady) {
     pContext->status = STRIGGER_CONTEXT_GATHER_VTABLE_INFO;
     if (taosArrayGetSize(pTask->virtReaderList) > 0 && taosArrayGetSize(pTask->pVirTableInfoRsp) == 0) {
@@ -3756,16 +3746,12 @@ static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, 
       code = stRealtimeContextCheck(pContext);
       QUERY_CHECK_CODE(code, lino, _end);
     }
-  } else if (pRsp->code != TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY) {
+  } else {
     code = tdListAppend(&pContext->retryCalcReqs, &pReq);
     QUERY_CHECK_CODE(code, lino, _end);
     SListNode *pNode = TD_DLIST_TAIL(&pContext->retryCalcReqs);
     code = stRealtimeContextRetryCalcRequest(pContext, pNode, pReq);
     QUERY_CHECK_CODE(code, lino, _end);
-  } else if (pRsp->code == TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY) {
-    code = tdListAppend(&pContext->retryCalcReqs, &pReq);
-    QUERY_CHECK_CODE(code, lino, _end);
-    pTask->task.status = STREAM_STATUS_INIT;
   }
 
 _end:
