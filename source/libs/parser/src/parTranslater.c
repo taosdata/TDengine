@@ -13835,6 +13835,7 @@ static int32_t translateCreateStream(STranslateContext* pCxt, SCreateStreamStmt*
     }
   }
 
+  
   tFreeSCMCreateStreamReq(&createReq);
   return code;
 }
