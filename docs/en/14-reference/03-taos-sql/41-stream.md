@@ -807,7 +807,6 @@ Compared with version 3.3.6.0, stream processing has been completely redesigned.
   - The snode directory under the dataDir configuration path (default: /var/lib/taos/snode).
   - The directory specified by the former checkpointBackupDir configuration option (default: /var/lib/taos/backup/checkpoint/).
 - Delete all result tables.
-  
 
 Note: If the above steps are not performed, taosd will fail to start.
 
