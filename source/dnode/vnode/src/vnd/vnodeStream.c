@@ -785,8 +785,6 @@ static int32_t processSubmitTbDataForMeta(SDecoder *pCoder, SStreamTriggerReader
     }
   }
 
-  tEndDecode(pCoder);
-
   WalMetaResult* data = (WalMetaResult*)tSimpleHashGet(gidHash, &walMeta.gid, LONG_BYTES);
   if (data != NULL) {
     if (walMeta.skey < data->skey) data->skey = walMeta.skey;
@@ -796,6 +794,7 @@ static int32_t processSubmitTbDataForMeta(SDecoder *pCoder, SStreamTriggerReader
   }
 
 end:
+  tEndDecode(pCoder);
   if (code) {
     vError("%s:%d failed to vnodePreProcessSubmitTbData submit request since %s", __func__,
            lino, tstrerror(code));
