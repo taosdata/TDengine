@@ -1089,7 +1089,7 @@ void tsdbStopSsMigrateTask(STsdb* tsdb, int32_t ssMigrateId) {
   STFileSet *fset;
   TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
     if (fset->fid == tsdb->pSsMigrateMonitor->fid) {
-      vnodeACancel(&fset->migrateTask);
+      (void)vnodeACancel(&fset->migrateTask);
       break;
     }
   }
