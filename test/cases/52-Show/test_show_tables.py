@@ -1,15 +1,17 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestTableCount:
+class TestShowDbTableKind:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_table_count(self):
-        """Table Count
+    def test_show_db_table_kind(self):
+        """Show Databases and Tables
 
-        1.
+        1. Testing various show commands for database/table classification
+        2. Verifying filtering capabilities with like clauses
+        3. Checking metadata consistency across different database contexts
 
         Catalog:
             - MetaData
@@ -21,7 +23,7 @@ class TestTableCount:
         Jira: None
 
         History:
-            - 2025-5-9 Simon Guan Migrated from tsim/query/tableCount.sim
+            - 2025-5-9 Simon Guan Migrated from tsim/query/show_db_table_kind.sim
 
         """
 
@@ -67,72 +69,51 @@ class TestTableCount:
         tdSql.execute(f"create table tbb2 using stb tags(5, 5, 5);")
         tdSql.execute(f"create table tbb3 using stb tags(6, 6, 6);")
 
-        tdSql.query(
-            f"select count(table_name) from information_schema.ins_tables group by stable_name;"
-        )
-        tdSql.checkRows(3)
+        tdSql.query(f"show user databases;")
+        tdLog.info(f"{tdSql.getRows()})")
+        tdSql.checkRows(2)
 
-        tdSql.query(
-            f"select count(table_name) from information_schema.ins_tables group by db_name;"
-        )
-        tdSql.checkRows(4)
+        tdSql.query(f"show system databases;")
+        tdLog.info(f"{tdSql.getRows()})")
+        tdSql.checkRows(2)
 
-        tdSql.query(
-            f"select count(table_name) from information_schema.ins_tables group by db_name, stable_name;"
-        )
-        tdSql.checkRows(7)
-
-        tdSql.query(
-            f"select stable_name,count(table_name) from information_schema.ins_tables group by stable_name order by stable_name;"
-        )
-        tdSql.checkRows(3)
-
-        tdSql.checkData(0, 1, 47)
-
-        tdSql.checkData(1, 1, 10)
-
-        tdSql.checkData(2, 1, 11)
-
-        tdSql.query(
-            f"select db_name,count(table_name) from information_schema.ins_tables group by db_name order by db_name;"
-        )
-        tdSql.checkRows(4)
-
-        tdSql.checkData(0, 1, 17)
-
-        tdSql.checkData(1, 1, 5)
-
-        tdSql.checkData(2, 1, 41)
-
-        tdSql.checkData(3, 1, 5)
-
-        tdSql.query(
-            f"select db_name,stable_name,count(table_name) from information_schema.ins_tables group by db_name, stable_name order by db_name, stable_name;"
-        )
-        tdSql.checkRows(7)
-
-        tdSql.checkData(0, 2, 1)
-
-        tdSql.checkData(1, 2, 8)
-
-        tdSql.checkData(2, 2, 8)
-
-        tdSql.checkData(3, 2, 2)
-
-        tdSql.checkData(4, 2, 3)
-
-        tdSql.checkData(5, 2, 41)
-
-        tdSql.checkData(6, 2, 5)
-
-        tdSql.query(
-            f"select count(table_name) from information_schema.ins_tables where db_name='db1' and stable_name='sta' group by stable_name"
-        )
-        tdLog.info(f"{tdSql.getRows()}) , {tdSql.getData(0,0)}")
-        tdSql.checkRows(1)
-
-        tdSql.checkData(0, 0, 8)
-
-        tdSql.query(f"select distinct db_name from information_schema.ins_tables;")
+        tdSql.query(f"show databases;")
         tdLog.info(f"{tdSql.getRows()})")
         tdSql.checkRows(4)
+
+        tdSql.execute(f"use db1")
+
+        tdSql.query(f"show tables")
+        tdLog.info(f"{tdSql.getRows()})")
+        tdSql.checkRows(17)
+
+        tdSql.query(f"show normal tables;")
+        tdLog.info(f"{tdSql.getRows()})")
+        tdSql.checkRows(1)
+
+        tdLog.info(f"{tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, "tbn1")
+
+        tdSql.query(f"show child tables;")
+        tdLog.info(f"{tdSql.getRows()})")
+        tdSql.checkRows(16)
+
+        tdSql.query(f"show db2.tables;")
+        tdLog.info(f"{tdSql.getRows()})")
+        tdSql.checkRows(5)
+
+        tdSql.query(f"show normal db2.tables")
+        tdLog.info(f"{tdSql.getRows()})")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"show child db2.tables")
+        tdLog.info(f"{tdSql.getRows()})")
+        tdSql.checkRows(5)
+
+        tdSql.query(f"show child db2.tables like '%'")
+        tdLog.info(f"{tdSql.getRows()})")
+        tdSql.checkRows(5)
+
+        tdSql.query(f"show normal db2.tables like '%'")
+        tdLog.info(f"{tdSql.getRows()})")
+        tdSql.checkRows(0)

@@ -8,9 +8,9 @@ class TestUseDroppedDnode:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_use_dropped_dnode(self):
-        """use dropped dnode
+        """Drop: reuse dropped dnode
 
-        1. -
+        Check whether it is possible to repeatedly create and delete dnodes with the same FQDN.
 
         Catalog:
             - Database:Sync

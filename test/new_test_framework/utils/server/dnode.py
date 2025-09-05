@@ -473,6 +473,7 @@ class TDDnode:
             else:
                 tdLog.debug("wait 10 seconds for the dnode:%d to start." % (self.index))
                 time.sleep(10)
+                
 
     def startWithoutSleep(self):
         # binPath = self.getPath()

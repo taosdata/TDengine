@@ -12,7 +12,7 @@ class Test_IDMP_Meters_TD36808:
     def test_td36808(self):
         """IDMP: public utility scenario
 
-        尝试复现 IDMP 会产生 core 的场景，建 2 个流, STOP STREAM, START STREAM, DROP STREAM
+        Reproduce the scenario where IDMP generates a core: create 2 streams, STOP STREAM, START STREAM, DROP STREAM
 
         Catalog:
             - Streams:UseCases
@@ -21,12 +21,13 @@ class Test_IDMP_Meters_TD36808:
 
         Labels: common,ci
 
-        Jira: https://jira.taosdata.com:18080/browse/TD-36808
+        Jira: TD-36808
 
         History:
             - 2025-7-19 zyyang90 Created
 
         """
+
         # create snode if not exists
         snodes = tdSql.getResult("SHOW SNODES;")
         if snodes is None or len(snodes) == 0:
@@ -60,8 +61,9 @@ class Test_IDMP_Meters_TD36808:
         self.vdb = "tdasset"
         self.stb = "electricity_meters"
         # import data
-        etool.taosdump(f"-i {os.path.join(os.path.dirname(__file__), 'meters_data', 'data')}")
-
+        etool.taosdump(
+            f"-i {os.path.join(os.path.dirname(__file__), 'meters_data', 'data')}"
+        )
         tdLog.info(f"import data to db={self.db} successfully.")
 
     # 1. create vtables

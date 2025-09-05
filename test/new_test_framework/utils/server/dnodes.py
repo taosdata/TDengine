@@ -318,6 +318,10 @@ class TDDnodes:
         self.check(index)
         return self.dnodes[index - 1].cfgPath
 
+    def getDnodeLogPath(self, index):
+        self.check(index)
+        return self.dnodes[index - 1].logDir
+
     def setLevelDisk(self, level, disk):
         for i in range(len(self.dnodes)):
             self.dnodes[i].level = int(level)
