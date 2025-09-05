@@ -2422,7 +2422,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
   code = tmsgSendReq(&pReader->epset, &msg);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  ST_TASK_ILOG("send pull request of type %d to node:%d task:%" PRIx64, pReq->type, pReader->nodeId, pReader->taskId);
+  ST_TASK_DLOG("send pull request of type %d to node:%d task:%" PRIx64, pReq->type, pReader->nodeId, pReader->taskId);
   ST_TASK_DLOG("trigger pull req 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId, msg.info.traceId.msgId);
 
 _end:
@@ -3039,7 +3039,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
   SSTriggerAHandle     *pAhandle = ahandle->param;
   SSTriggerPullRequest *pReq = pAhandle->param;
 
-  ST_TASK_ILOG("receive pull response of type %d from task:%" PRIx64, pReq->type, pReq->readerTaskId);
+  ST_TASK_DLOG("receive pull response of type %d from task:%" PRIx64, pReq->type, pReq->readerTaskId);
 
   switch (pReq->type) {
     case STRIGGER_PULL_LAST_TS: {
@@ -3137,9 +3137,13 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         QUERY_CHECK_CONDITION(pRsp->contLen == sizeof(int64_t), code, lino, _end, TSDB_CODE_INVALID_PARA);
         lastScanVer = *(int64_t *)pRsp->pCont;
         blockDataEmpty(pContext->pMetaBlock);
+        blockDataEmpty(pContext->pDeleteBlock);
+        blockDataEmpty(pContext->pDropBlock);
       } else {
         QUERY_CHECK_CONDITION(pRsp->contLen > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
-        SSTriggerWalNewRsp rsp = {.metaBlock = pContext->pMetaBlock};
+        SSTriggerWalNewRsp rsp = {.metaBlock = pContext->pMetaBlock,
+                                  .deleteBlock = pContext->pDeleteBlock,
+                                  .dropBlock = pContext->pDropBlock};
         code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, &rsp, NULL);
         QUERY_CHECK_CODE(code, lino, _end);
       }
@@ -3190,6 +3194,8 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         pProgress->lastScanVer = lastScanVer;
       }
 
+      // todo(smj): process dropped tables in pContext->pDropBlock
+
       if (--pContext->curReaderIdx > 0) {
         ST_TASK_DLOG("wait for response from other %d readers", pContext->curReaderIdx);
         goto _end;
@@ -3233,6 +3239,8 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         lastScanVer = *(int64_t *)pRsp->pCont;
         if (pContext->walMode == STRIGGER_WAL_META_WITH_DATA) {
           blockDataEmpty(pContext->pMetaBlock);
+          blockDataEmpty(pContext->pDeleteBlock);
+          blockDataEmpty(pContext->pDropBlock);
         }
         blockDataEmpty(pProgress->pDataBlock);
         taosArrayClear(pContext->pTempSlices);
@@ -3241,6 +3249,8 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         SSTriggerWalNewRsp rsp = {.dataBlock = pProgress->pDataBlock};
         if (pContext->walMode == STRIGGER_WAL_META_WITH_DATA) {
           rsp.metaBlock = pContext->pMetaBlock;
+          rsp.deleteBlock = pContext->pDeleteBlock;
+          rsp.dropBlock = pContext->pDropBlock;
         }
         code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, &rsp, pContext->pTempSlices);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -3290,6 +3300,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           }
         }
         pProgress->lastScanVer = lastScanVer;
+        // todo(smj): process dropped tables in pContext->pDropBlock
       }
 
       int32_t nTables = TARRAY_SIZE(pContext->pTempSlices);
@@ -4508,7 +4519,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
       while (px != NULL) {
         SSTriggerHistoryGroup *pGroup = *(SSTriggerHistoryGroup **)px;
         if (pContext->gid == pGroup->gid || pContext->gid == 0) {
-        TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+          TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
         }
         px = tSimpleHashIterate(pContext->pGroups, px, &iter);
       }
