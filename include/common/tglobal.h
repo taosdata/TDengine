@@ -122,6 +122,7 @@ extern int32_t tsRetentionSpeedLimitMB;
 extern int32_t tsNumOfMnodeStreamMgmtThreads;
 extern int32_t tsNumOfStreamMgmtThreads;
 extern int32_t tsNumOfVnodeStreamReaderThreads;
+extern int32_t tsNumOfMnodeStreamReaderThreads;
 extern int32_t tsNumOfStreamTriggerThreads;
 extern int32_t tsNumOfStreamRunnerThreads;
 

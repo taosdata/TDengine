@@ -88,6 +88,7 @@ static const char* gMndStreamState[] = {"X", "W", "N"};
 #define STREAM_ACT_START      (1 << 2)
 #define STREAM_ACT_UPDATE_TRIGGER (1 << 3)
 #define STREAM_ACT_RECALC     (1 << 4)
+#define STREAM_ACT_CREATE     (1 << 5)
 
 #define MND_STREAM_RESERVE_SIZE      64
 #define MND_STREAM_VER_NUMBER        7
@@ -215,6 +216,7 @@ typedef union {
 
 typedef struct SStmQNode {
   int32_t              type;
+  int32_t              userAction;
   bool                 streamAct;
   SStmQAction          action;
   void*                next;
@@ -281,6 +283,7 @@ typedef struct SStmStatus {
   SArray*           userRecalcList; // SArray<SStreamRecalcReq>
 
   SStmStat          stat;
+  void*             pMetricHandle;  
 } SStmStatus;
 
 #define MST_IS_USER_STOPPED(_s) (2 == (_s) || 3 == (_s))
@@ -457,6 +460,7 @@ typedef struct SStmRuntime {
 
   SStmWatchCtx       watch;
   SStmRuntimeStat    stat;
+  void*              pMetricHandle;
 } SStmRuntime;
 
 extern SStmRuntime         mStreamMgmt;
@@ -501,12 +505,12 @@ int32_t msmHandleGrantExpired(SMnode *pMnode, int32_t errCode);
 bool mndStreamActionDequeue(SStmActionQ* pQueue, SStmQNode **param);
 void msmHandleBecomeLeader(SMnode *pMnode);
 void msmHandleBecomeNotLeader(SMnode *pMnode);
-void msmUndeployStream(SMnode* pMnode, int64_t streamId, char* streamName);
+void msmUndeployStream(SMnode* pMnode, int64_t streamId, char* streamName, bool isStop);
 int32_t msmRecalcStream(SMnode* pMnode, int64_t streamId, STimeWindow* timeRange);
 int32_t mstIsStreamDropped(SMnode *pMnode, int64_t streamId, bool* dropped);
 bool mstWaitLock(SRWLatch* pLock, bool readLock);
 void msmHealthCheck(SMnode *pMnode);
-void mstPostStreamAction(SStmActionQ*       actionQ, int64_t streamId, char* streamName, void* param, bool userAction, int32_t action);
+void mstPostStreamAction(SStmActionQ*       actionQ, int64_t streamId, char* streamName, void* param, bool userAction, int32_t action, int32_t userAction);
 void mstPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pAction, int32_t action);
 int32_t msmAssignRandomSnodeId(SMnode* pMnode, int64_t streamId);
 int32_t msmCheckSnodeReassign(SMnode *pMnode, SSnodeObj* pSnode, SArray** ppRes);

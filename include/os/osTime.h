@@ -61,6 +61,8 @@ int32_t taosGetTimeOfDay(struct timeval *tv);
 
 int32_t taosClockGetTime(int clock_id, struct timespec *pTS);
 
+int32_t taosGetLocalDay(int32_t* day);
+
 //@return timestamp in second
 int32_t taosGetTimestampSec();
 

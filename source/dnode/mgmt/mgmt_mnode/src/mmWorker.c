@@ -510,7 +510,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
 
   SWWorkerPool *pStreamReaderPool = &pMgmt->streamReaderPool;
   pStreamReaderPool->name = "mnode-st-reader";
-  pStreamReaderPool->max = 2;
+  pStreamReaderPool->max = tsNumOfMnodeStreamReaderThreads;
   if ((code = tWWorkerInit(pStreamReaderPool)) != 0) return code;
 
   pMgmt->pStreamReaderQ = tWWorkerAllocQueue(&pMgmt->streamReaderPool, pMgmt, mmProcessStreamReaderQueue);

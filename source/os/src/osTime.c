@@ -587,3 +587,21 @@ int32_t taosClockGetTime(int clock_id, struct timespec *pTS) {
   return (-1 == code) ? (terrno = TAOS_SYSTEM_ERROR(ERRNO)) : 0;
 #endif
 }
+
+int32_t taosGetLocalDay(int32_t* day) {
+  struct tm      Tm, *ptm;
+  struct timeval timeSecs;
+
+  TAOS_UNUSED(taosGetTimeOfDay(&timeSecs));
+  time_t curTime = timeSecs.tv_sec;
+  ptm = taosLocalTime(&curTime, &Tm, NULL, 0, NULL);
+  if (ptm == NULL) {
+    uError("%s failed to get local time, code:%d", __FUNCTION__, ERRNO);
+    return TAOS_SYSTEM_ERROR(ERRNO);
+  }
+  
+  *day = ptm->tm_mday;
+  return 0;
+}
+
+

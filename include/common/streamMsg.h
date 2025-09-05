@@ -408,6 +408,7 @@ typedef struct SStreamTask {
   taskUndeplyCallback    undeployCb;
   
   int8_t          deployed;      // concurrent undeloy
+  void*           pMetricHandle;
 } SStreamTask;
 
 typedef struct SStreamMgmtRspCont {

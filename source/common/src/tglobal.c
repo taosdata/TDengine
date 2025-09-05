@@ -105,13 +105,13 @@ int32_t tsNumOfVnodeFetchThreads = 4;
 int32_t tsNumOfVnodeRsmaThreads = 2;
 int32_t tsNumOfQnodeQueryThreads = 16;
 int32_t tsNumOfQnodeFetchThreads = 1;
-int32_t tsNumOfSnodeStreamThreads = 4;
-int32_t tsNumOfSnodeWriteThreads = 1;
 int32_t tsPQSortMemThreshold = 16;    // M
 int32_t tsRetentionSpeedLimitMB = 0;  // unlimited
+
 int32_t tsNumOfMnodeStreamMgmtThreads = 2;
 int32_t tsNumOfStreamMgmtThreads = 2;
 int32_t tsNumOfVnodeStreamReaderThreads = 16;
+int32_t tsNumOfMnodeStreamReaderThreads = 2;
 int32_t tsNumOfStreamTriggerThreads = 4;
 int32_t tsNumOfStreamRunnerThreads = 4;
 

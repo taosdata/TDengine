@@ -182,6 +182,16 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
         continue;
       }
 
+      code = stmmInitForModule(&pTask->task.pMetricHandle, STMM_READER);
+      if (code) {
+        ST_TASK_ELOG("reader task init metric failed, error:%s", tstrerror(code));
+        smRemoveReaderFromVgMap((SStreamTask*)pTask);
+        TAOS_UNUSED(taosHashRemove(gStreamMgmt.taskMap, &pTask->task.streamId, sizeof(pTask->task.streamId) + sizeof(pTask->task.taskId)));
+        streamReleaseTask(taskAddr);
+        taosMemoryFree(tdListPopTail(pStream->readerList));
+        continue;
+      }
+      
       ST_TASK_DLOG("%sReader task deploy succeed, tidx:%d", STREAM_IS_TRIGGER_READER(pTask->task.flags) ? "trig" : "calc", pTask->task.taskIdx);      
 
       (void)atomic_add_fetch_32(&pStream->taskNum, 1);
@@ -227,6 +237,15 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
       TAOS_CHECK_EXIT(code);
     }
 
+    code = stmmInitForModule(&pTask->task.pMetricHandle, STMM_TRIGGER);
+    if (code) {
+      ST_TASK_ELOG("trigger task init metric failed, error:%s", tstrerror(code));
+      TAOS_UNUSED(taosHashRemove(gStreamMgmt.taskMap, &pSrc->streamId, sizeof(pSrc->streamId) + sizeof(pSrc->taskId)));
+      streamReleaseTask(taskAddr);
+      taosMemoryFree(tdListPopHead(pStream->triggerList));
+      TAOS_CHECK_EXIT(code);
+    }
+    
     ST_TASK_DLOG("trigger task deploy succeed, tidx:%d", pSrc->taskIdx);   
     
     (void)atomic_add_fetch_32(&pStream->taskNum, 1);
@@ -263,6 +282,15 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
       code = stRunnerTaskDeploy(pTask, &pRunner->msg.runner);
       if (code) {
         ST_TASK_ELOG("runner task fail to deploy, error:%s", tstrerror(code));
+        TAOS_UNUSED(taosHashRemove(gStreamMgmt.taskMap, &pTask->task.streamId, sizeof(pTask->task.streamId) + sizeof(pTask->task.taskId)));
+        streamReleaseTask(taskAddr);
+        taosMemoryFree(tdListPopTail(pStream->runnerList));
+        continue;
+      }
+
+      code = stmmInitForModule(&pTask->task.pMetricHandle, STMM_RUNNER);
+      if (code) {
+        ST_TASK_ELOG("runner task init metric failed, error:%s", tstrerror(code));
         TAOS_UNUSED(taosHashRemove(gStreamMgmt.taskMap, &pTask->task.streamId, sizeof(pTask->task.streamId) + sizeof(pTask->task.taskId)));
         streamReleaseTask(taskAddr);
         taosMemoryFree(tdListPopTail(pStream->runnerList));

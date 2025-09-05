@@ -403,7 +403,7 @@ int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
       
       MND_STREAM_SET_LAST_TS(STM_EVENT_DROP_STREAM, pStream->updateTime);
       
-      msmUndeployStream(pMnode, pStream->pCreate->streamId, pStream->pCreate->name);
+      msmUndeployStream(pMnode, pStream->pCreate->streamId, pStream->pCreate->name, false);
       
       // drop stream
       code = mndStreamTransAppend(pStream, pTrans, SDB_STATUS_DROPPED);
@@ -617,7 +617,7 @@ static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
 
   MND_STREAM_SET_LAST_TS(STM_EVENT_STOP_STREAM, pStream->updateTime);
 
-  msmUndeployStream(pMnode, streamId, pStream->name);
+  msmUndeployStream(pMnode, streamId, pStream->name, true);
 
   // stop stream
   code = mndStreamTransAppend(pStream, pTrans, SDB_STATUS_READY);
@@ -646,6 +646,7 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
   int32_t     code = 0;
+  int64_t currTs = taosGetTimestampMs();
 
   if ((code = grantCheckExpire(TSDB_GRANT_STREAMS)) < 0) {
     return code;
@@ -727,11 +728,19 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
     return code;
   }
 
-  mstPostStreamAction(mStreamMgmt.actionQ, streamId, pStream->name, NULL, true, STREAM_ACT_DEPLOY);
+  mstPostStreamAction(mStreamMgmt.actionQ, streamId, pStream->name, NULL, true, STREAM_ACT_DEPLOY, STREAM_ACT_START);
 
   sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);
 
+_exit:
+
+  int64_t usedTime = taosGetTimestampMs() - currTs;
+  int32_t newCode = stmmLogMetric(mStreamMgmt.pMetricHandle, ESTMM_MND_MSG_PROC_TIME, &usedTime, ESTMM_MNODE_START_STREAM);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = newCode;
+  }
+  
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
@@ -740,12 +749,13 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
   int32_t     code = 0;
+  int64_t currTs = taosGetTimestampMs();
 
   SMDropStreamReq dropReq = {0};
   if (tDeserializeSMDropStreamReq(pReq->pCont, pReq->contLen, &dropReq) < 0) {
     mError("invalid drop stream msg recv, discarded");
     code = TSDB_CODE_INVALID_MSG;
-    TAOS_RETURN(code);
+    TAOS_CHECK_EXIT(code);
   }
 
   mDebug("recv drop stream:%s msg", dropReq.name);
@@ -756,11 +766,12 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
       mInfo("stream:%s not exist, ignore not exist is set, drop stream exec done with success", dropReq.name);
       sdbRelease(pMnode->pSdb, pStream);
       tFreeMDropStreamReq(&dropReq);
-      return 0;
+      code = 0;
+      goto _exit;
     } else {
       mError("stream:%s not exist failed to drop it", dropReq.name);
       tFreeMDropStreamReq(&dropReq);
-      TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_EXIST);
+      TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_NOT_EXIST);
     }
   }
 
@@ -771,7 +782,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     mstsError("user %s failed to drop stream %s since %s", pReq->info.conn.user, dropReq.name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     tFreeMDropStreamReq(&dropReq);
-    return code;
+    TAOS_CHECK_EXIT(code);
   }
 
   if (pStream->pCreate->tsmaId != 0) {
@@ -790,7 +801,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
         code = TSDB_CODE_TSMA_MUST_BE_DROPPED;
 
         mstsError("refused to drop tsma-related stream %s since tsma still exists", dropReq.name);
-        TAOS_RETURN(code);
+        TAOS_CHECK_EXIT(code);
       }
 
       if (pSma) {
@@ -809,7 +820,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
   MND_STREAM_SET_LAST_TS(STM_EVENT_DROP_STREAM, pStream->updateTime);
 
-  msmUndeployStream(pMnode, streamId, pStream->pCreate->name);
+  msmUndeployStream(pMnode, streamId, pStream->pCreate->name, false);
 
   STrans *pTrans = NULL;
   code = mndStreamCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_DROP_NAME, &pTrans);
@@ -817,7 +828,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     mstsError("failed to drop stream %s since %s", dropReq.name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     tFreeMDropStreamReq(&dropReq);
-    TAOS_RETURN(code);
+    TAOS_CHECK_EXIT(code);
   }
 
   // drop stream
@@ -827,7 +838,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     tFreeMDropStreamReq(&dropReq);
-    TAOS_RETURN(code);
+    TAOS_CHECK_EXIT(code);
   }
 
   code = mndTransPrepare(pMnode, pTrans);
@@ -836,7 +847,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     tFreeMDropStreamReq(&dropReq);
-    TAOS_RETURN(code);
+    TAOS_CHECK_EXIT(code);
   }
 
   auditRecord(pReq, pMnode->clusterId, "dropStream", "", pStream->pCreate->streamDB, NULL, 0);
@@ -848,6 +859,14 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   tFreeMDropStreamReq(&dropReq);
+
+_exit:
+
+  int64_t usedTime = taosGetTimestampMs() - currTs;
+  int32_t newCode = stmmLogMetric(mStreamMgmt.pMetricHandle, ESTMM_MND_MSG_PROC_TIME, &usedTime, ESTMM_MNODE_DROP_STREAM);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = newCode;
+  }
   
   TAOS_RETURN(code);
 }
@@ -861,6 +880,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   STrans     *pTrans = NULL;
   uint64_t    streamId = 0;
   SCMCreateStreamReq* pCreate = NULL;
+  int64_t currTs = taosGetTimestampMs();
 
   if ((code = grantCheck(TSDB_GRANT_STREAMS)) < 0) {
     goto _OVER;
@@ -940,7 +960,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
   MND_STREAM_SET_LAST_TS(STM_EVENT_CREATE_STREAM, taosGetTimestampMs());
 
-  mstPostStreamAction(mStreamMgmt.actionQ, streamId, pStream->pCreate->name, NULL, true, STREAM_ACT_DEPLOY);
+  mstPostStreamAction(mStreamMgmt.actionQ, streamId, pStream->pCreate->name, NULL, true, STREAM_ACT_DEPLOY, STREAM_ACT_CREATE);
 
 _OVER:
 
@@ -959,6 +979,12 @@ _OVER:
 
   mndTransDrop(pTrans);
   tFreeStreamObj(&streamObj);
+
+  int64_t usedTime = taosGetTimestampMs() - currTs;
+  int32_t newCode = stmmLogMetric(mStreamMgmt.pMetricHandle, ESTMM_MND_MSG_PROC_TIME, &usedTime, ESTMM_MNODE_CREATE_STREAM);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = newCode;
+  }
 
   return code;
 }

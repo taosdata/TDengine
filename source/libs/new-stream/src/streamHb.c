@@ -108,6 +108,7 @@ void streamHbStart(void* param, void* tmrId) {
   bool    skipHb = false;
   SStreamHbMsg reqMsg = {0};
   SEpSet epSet = {0};
+  int64_t currTs = taosGetTimestampMs();
 
   stTrace("stream hb begin");
   
@@ -125,6 +126,9 @@ _exit:
   streamTmrStart(streamHbStart, STREAM_HB_INTERVAL_MS, NULL, gStreamMgmt.timer, &gStreamMgmt.hb.hbTmr, "stream-hb");
 
   tCleanupStreamHbMsg(&reqMsg, true);
+
+  int64_t usedTime = taosGetTimestampMs() - currTs;
+  code = stmmLogMetric(pDnodeStmMetricHandle, ESTMM_DNODE_MSG_PROC_TIME, &usedTime, ESTMM_DNODE_MGMT_HB_REQ);
 
   if (code) {
     stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));

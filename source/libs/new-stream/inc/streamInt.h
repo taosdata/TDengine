@@ -71,6 +71,7 @@ typedef struct SStreamMgmtInfo {
   SNodeEpSet             snodeLeaders[2];
   SNodeEpSet             snodeReplica;
   SMsgCb                 msgCb;
+  int32_t                currDay;
   
 //  SStorageAPI*           api;
   getMnodeEpset_f         getMnode;

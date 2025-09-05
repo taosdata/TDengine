@@ -765,14 +765,15 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
 int32_t dmProcessStreamHbRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SMStreamHbRspMsg rsp = {0};
-  int32_t          code = 0;
+  int32_t          code = TSDB_CODE_SUCCESS, newCode = 0;
   SDecoder         decoder;
   char*            msg = POINTER_SHIFT(pMsg->pCont, sizeof(SStreamMsgGrpHeader));
   int32_t          len = pMsg->contLen - sizeof(SStreamMsgGrpHeader);
   int64_t          currTs = taosGetTimestampMs();
 
   if (pMsg->code) {
-    return streamHbHandleRspErr(pMsg->code, currTs);
+    code = streamHbHandleRspErr(pMsg->code, currTs);
+    goto _exit;
   }
 
   tDecoderInit(&decoder, (uint8_t*)msg, len);
@@ -782,12 +783,24 @@ int32_t dmProcessStreamHbRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     tDeepFreeSMStreamHbRspMsg(&rsp);
     tDecoderClear(&decoder);
     dError("fail to decode stream hb rsp msg, error:%s", tstrerror(code));
-    return streamHbHandleRspErr(code, currTs);
+    code = streamHbHandleRspErr(code, currTs);
+    goto _exit;
   }
 
   tDecoderClear(&decoder);
 
-  return streamHbProcessRspMsg(&rsp);
+  code = streamHbProcessRspMsg(&rsp);
+
+_exit:
+
+  int64_t usedTime = taosGetTimestampMs() - currTs;
+
+  newCode = stmmLogMetric(pDnodeStmMetricHandle, ESTMM_DNODE_MSG_PROC_TIME, &usedTime, ESTMM_DNODE_MGMT_HB_RSP);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = newCode;
+  }
+
+  return code;  
 }
 
 

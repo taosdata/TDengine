@@ -28,7 +28,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   SStreamHbMsg req = {0};
   SMStreamHbRspMsg rsp = {0};
-  int32_t      code = 0;
+  int32_t      code = 0, newCode = 0;
   int32_t      lino = 0;
   SDecoder     decoder = {0};
   char*        msg = POINTER_SHIFT(pReq->pCont, sizeof(SStreamMsgGrpHeader));
@@ -68,6 +68,12 @@ _exit:
   mndStreamHbSendRsp(&pReq->info, &rspMsg);
   tCleanupStreamHbMsg(&req, true);
   tFreeSMStreamHbRspMsg(&rsp);
+
+  int64_t usedTime = taosGetTimestampMs() - currTs;
+  newCode = stmmLogMetric(mStreamMgmt.pMetricHandle, ESTMM_MND_MSG_PROC_TIME, &usedTime, ESTMM_MNODE_HB);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = newCode;
+  }
 
   mstDebug("end to process stream hb req msg, code:%d", code);
 

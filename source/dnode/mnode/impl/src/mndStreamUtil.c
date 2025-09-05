@@ -315,14 +315,16 @@ char* mstGetStreamActionString(int32_t action) {
       return "UPDATE TRIGGER";
     case STREAM_ACT_RECALC:
       return "USER RECALC";
+    case STREAM_ACT_CREATE:
+      return "CREATE";
     default:
       break;
   }
 
-  return "UNKNOWN";
+  return "N/A";
 }
 
-void mstPostStreamAction(SStmActionQ*       actionQ, int64_t streamId, char* streamName, void* param, bool userAction, int32_t action) {
+void mstPostStreamAction(SStmActionQ*       actionQ, int64_t streamId, char* streamName, void* param, bool isUserAction, int32_t action, int32_t userAction) {
   SStmQNode *pNode = taosMemoryMalloc(sizeof(SStmQNode));
   if (NULL == pNode) {
     taosMemoryFreeClear(param);
@@ -331,17 +333,18 @@ void mstPostStreamAction(SStmActionQ*       actionQ, int64_t streamId, char* str
   }
 
   pNode->type = action;
+  pNode->userAction = userAction;
   pNode->streamAct = true;
   pNode->action.stream.streamId = streamId;
   TAOS_STRCPY(pNode->action.stream.streamName, streamName);
-  pNode->action.stream.userAction = userAction;
+  pNode->action.stream.userAction = isUserAction;
   pNode->action.stream.actionParam = param;
   
   pNode->next = NULL;
 
   mndStreamActionEnqueue(actionQ, pNode);
 
-  mstsDebug("stream action %s posted enqueue", mstGetStreamActionString(action));
+  mstsDebug("stream action %s userAction %s posted enqueue", mstGetStreamActionString(action), mstGetStreamActionString(userAction));
 }
 
 void mstPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pAction, int32_t action) {

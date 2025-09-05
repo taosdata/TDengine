@@ -22,6 +22,7 @@
 #include "dataSink.h"
 
 SStreamMgmtInfo gStreamMgmt = {0};
+void* pDnodeStmMetricHandle = NULL;
 
 void streamSetSnodeEnabled(  SMsgCb* msgCb) {
   if (tsDisableStream) {
@@ -84,6 +85,11 @@ int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode
   gStreamMgmt.getMnode = getMnode;
   gStreamMgmt.getDnode = getDnode;
   gStreamMgmt.getSynEpset = getSynEpset;
+  TAOS_CHECK_EXIT(taosGetLocalDay(&gStreamMgmt.currDay));
+
+  TAOS_CHECK_EXIT(stmmInit());
+
+  TAOS_CHECK_EXIT(stmmInitForModule(&pDnodeStmMetricHandle, STMM_DNODE));
 
   gStreamMgmt.vgLeaders = taosArrayInit(20, sizeof(int32_t));
   TSDB_CHECK_NULL(gStreamMgmt.vgLeaders, code, lino, _exit, terrno);

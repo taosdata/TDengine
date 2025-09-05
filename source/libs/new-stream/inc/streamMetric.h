@@ -20,38 +20,48 @@
 extern "C" {
 #endif
 
-#define STMM_DURATION_KEEP_DAYS 3 
+#define STMM_DURATION_KEEP_DAYS 7 
 
 typedef enum ESTMM_READER_MSG {
-  ESTMM_FETCH_FROM_READER = 0,
-  STRIGGER_PULL_SET_TABLE,
-  STRIGGER_PULL_LAST_TS,
-  STRIGGER_PULL_FIRST_TS,
-  STRIGGER_PULL_TSDB_META,
-  STRIGGER_PULL_TSDB_META_NEXT,
-  STRIGGER_PULL_TSDB_TS_DATA,
-  STRIGGER_PULL_TSDB_TRIGGER_DATA,
-  STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT,
-  STRIGGER_PULL_TSDB_CALC_DATA,
-  STRIGGER_PULL_TSDB_CALC_DATA_NEXT,
-  STRIGGER_PULL_TSDB_DATA, //10
-  STRIGGER_PULL_TSDB_DATA_NEXT,
-  STRIGGER_PULL_WAL_META,
-  STRIGGER_PULL_WAL_TS_DATA,
-  STRIGGER_PULL_WAL_TRIGGER_DATA,
-  STRIGGER_PULL_WAL_CALC_DATA,
-  STRIGGER_PULL_WAL_DATA,
-  STRIGGER_PULL_GROUP_COL_VALUE,
-  STRIGGER_PULL_VTABLE_INFO,
-  STRIGGER_PULL_VTABLE_PSEUDO_COL,
-  STRIGGER_PULL_OTABLE_INFO,
-  STRIGGER_PULL_TYPE_MAX,
+  ESTMM_READER_FETCH_FROM_READER = 0,
+  ESTMM_READER_PULL_SET_TABLE,
+  ESTMM_READER_PULL_LAST_TS,
+  ESTMM_READER_PULL_FIRST_TS,
+  ESTMM_READER_PULL_TSDB_META,
+  ESTMM_READER_PULL_TSDB_META_NEXT,
+  ESTMM_READER_PULL_TSDB_TS_DATA,
+  ESTMM_READER_PULL_TSDB_TRIGGER_DATA,
+  ESTMM_READER_PULL_TSDB_TRIGGER_DATA_NEXT,
+  ESTMM_READER_PULL_TSDB_CALC_DATA,
+  ESTMM_READER_PULL_TSDB_CALC_DATA_NEXT,
+  ESTMM_READER_PULL_TSDB_DATA, 
+  ESTMM_READER_PULL_TSDB_DATA_NEXT,
+  ESTMM_READER_PULL_WAL_META,
+  ESTMM_READER_PULL_WAL_TS_DATA,
+  ESTMM_READER_PULL_WAL_TRIGGER_DATA,
+  ESTMM_READER_PULL_WAL_CALC_DATA,
+  ESTMM_READER_PULL_WAL_DATA,
+  ESTMM_READER_PULL_GROUP_COL_VALUE,
+  ESTMM_READER_PULL_VTABLE_INFO,
+  ESTMM_READER_PULL_VTABLE_PSEUDO_COL,
+  ESTMM_READER_PULL_OTABLE_INFO,
+  ESTMM_READER_PULL_TYPE_MAX,
 } ESTMM_READER_MSG;
 
-typedef enum ESTMM_OTHER_MSG {
-  ESTMM_FETCH_FROM_RUNNER = STRIGGER_PULL_TYPE_MAX + 1,
+typedef enum ESTMM_MNODE_MSG {
+  ESTMM_MNODE_HB = 0,
+  ESTMM_MNODE_CREATE_STREAM,
+  ESTMM_MNODE_DROP_STREAM,
+  ESTMM_MNODE_START_STREAM,
+  ESTMM_MNODE_STOP_STREAM,
+  ESTMM_MNODE_RECALC_STREAM,
+} ESTMM_MNODE_MSG;
 
-} ESTMM_OTHER_MSG;
+typedef enum ESTMM_DNODE_MSG {
+  ESTMM_DNODE_MGMT_HB_REQ = 0,
+  ESTMM_DNODE_MGMT_HB_RSP,
+
+} ESTMM_DNODE_MSG;
 
 typedef enum ESTMM_TRIG_VAL_TYPE {
   ESTMM_DATA_PULL_WAIT_TIME = 0,
@@ -60,6 +70,7 @@ typedef enum ESTMM_TRIG_VAL_TYPE {
   ESTMM_DATA_PULL_NUM,
   ESTMM_CALC_PARAM_NUM,
   ESTMM_CALC_REQ_NUM,
+  ESTMM_TRIG_MSG_PROC_TIME
 } ESTMM_TRIG_VAL_TYPE;
 
 typedef enum ESTMM_READER_VAL_TYPE {
@@ -67,6 +78,7 @@ typedef enum ESTMM_READER_VAL_TYPE {
   ESTMM_WAL_BLOCK_NUM,
   ESTMM_WAL_BLOCK_ROW_NUM,
   ESTMM_WAL_READ_NUM,
+  ESTMM_READER_MSG_PROC_TIME
 } ESTMM_READER_VAL_TYPE;
 
 typedef enum ESTMM_RUNNER_VAL_TYPE {
@@ -75,30 +87,36 @@ typedef enum ESTMM_RUNNER_VAL_TYPE {
   ESTMM_NOTIFY_USED_TIME,
   ESTMM_DATA_INSERT_NUM,
   ESTMM_NOTIFY_NUM,
+  ESTMM_RUNNER_MSG_PROC_TIME
 } ESTMM_RUNNER_VAL_TYPE;
+
+typedef enum ESTMM_MGMT_VAL_TYPE {
+  ESTMM_MGMT_MSG_PROC_TIME,
+} ESTMM_MGMT_VAL_TYPE;
 
 typedef enum ESTMM_MND_VAL_TYPE {
   ESTMM_STREAM_DEPLOY_NUM,
   ESTMM_STREAM_ERROR_NUM,
   ESTMM_STREAM_OPERATIONS,
   ESTMM_STREAM_STATUS_TIME,
-  ESTMM_LAST_OPERATIONS,
+  ESTMM_STREAM_LAST_OPES,
+  ESTMM_MND_MSG_PROC_TIME
 } ESTMM_MND_VAL_TYPE;
 
-typedef enum ESTMM_COMMON_VAL_TYPE {
+typedef enum ESTMM_DNODE_VAL_TYPE {
   ESTMM_THREAD_PROC_BEGIN_TS,
   ESTMM_THREAD_PROC_END_TS,
-  ESTMM_MSG_PROCESS_TIME,
+  ESTMM_DNODE_MSG_PROC_TIME,
   ESTMM_MSG_IN_QUEUE_NUM,
   ESTMM_MSG_RECV_NUM
-} ESTMM_COMMON_VAL_TYPE;
+} ESTMM_DNODE_VAL_TYPE;
 
 #define STMM_TRIGGER (1<<0)
 #define STMM_READER  (1<<1)
 #define STMM_RUNNER  (1<<2)
 #define STMM_MGMT    (1<<3)
 #define STMM_MNODE   (1<<4)
-#define STMM_COMMON  (1<<5)
+#define STMM_DNODE   (1<<5)
 
 #define STMM_PERIOD_LAST_TIME        (1<<0)
 #define STMM_PERIOD_LAST_NTIME       (1<<1)
@@ -123,10 +141,23 @@ typedef struct SStmMsgConfig {
   char*   msgName;
 } SStmMsgConfig;
 
+typedef enum ESTMM_OP {
+  ESTMM_OP_CREATE_STM = 0,
+  ESTMM_OP_STOP_STM, 
+  ESTMM_OP_START_STM, 
+  ESTMM_OP_RECALC_STM, 
+} ESTMM_OP;
+
+typedef struct SStmOpeConfig {
+  int32_t opType;
+  char*   opName;
+} SStmOpeConfig;
+
 typedef struct SStmActualValue {
   int32_t  size;
   int32_t  idx;
   int64_t* pVal;
+  bool     loop;
 } SStmActualValue;
 
 typedef struct SStmStatValue {
@@ -139,6 +170,8 @@ typedef struct SStmStatValue {
 typedef struct SStmTimeDuraStat {
   int16_t daysNum;
   int16_t daysIdx;
+  int32_t currDay;
+  bool    loop;
   SStmStatValue* pVal;
 } SStmTimeDuraStat;
 
@@ -161,6 +194,32 @@ typedef struct SStmActualStatMetric {
 typedef struct SStmMetric {
   SStmMetricConfig* pCfg;
 } SStmMetric;
+
+#define STMM_MOV_ACTUAL_IDX(_p) do {      \
+    ++(_p)->idx;                          \
+    if ((_p)->idx >= (_p)->size) {        \
+      (_p)->loop = true;                  \
+      (_p)->idx = 0;                      \
+    }                                     \
+  } while (0)
+
+#define STMM_UPDATE_STAT(_s, _v) do {     \
+    if ((_v) > (_s)->maxVal) {            \
+      (_s)->maxVal = (_v);                \
+    } else if ((_v) < (_s)->minVal) {     \
+      (_s)->minVal = (_v);                \
+    }                                     \
+    (_s)->sumVal += (_v);                 \
+    +(_s)->num;                           \
+  } while (0)
+
+#define STMM_MOV_DURA_IDX(_p) do {        \
+    ++(_p)->daysIdx;                      \
+    if ((_p)->daysIdx >= (_p)->daysNum) { \
+      (_p)->loop = true;                  \
+      (_p)->daysIdx = 1;                  \
+    }                                     \
+  } while (0)
 
 
 #ifdef __cplusplus
