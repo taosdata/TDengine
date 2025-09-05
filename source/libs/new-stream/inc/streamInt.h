@@ -42,6 +42,7 @@ typedef struct SStreamHbInfo {
 typedef struct SStreamInfo {
   SRWLatch            lock;
   int32_t             taskNum;
+  int8_t              destroyed;
   
   SList*              readerList;        // SStreamReaderTask
   int64_t             triggerTaskId;

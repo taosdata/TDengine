@@ -7,9 +7,13 @@ class TestSysTbname:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_func_sys_tbname(self):
-        """Sys Tb name
+        """ins_stables
 
-        1.
+        1. Creating databases with super/child/normal tables for metadata testing
+        2. Executing comprehensive queries on information_schema tables (ins_databases/ins_stables/ins_tables)
+        3. Testing large-scale stable table creation (70+ stables per database)
+        4. Verifying partition and limit operations on system tables
+        5. Checking table counting and distinct value operations
 
         Catalog:
             - MetaData

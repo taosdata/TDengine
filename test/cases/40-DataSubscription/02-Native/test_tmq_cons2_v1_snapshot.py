@@ -1,6 +1,6 @@
 import os
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tmqCom
 
 
 class TestTmpSnapshot2:
@@ -147,12 +147,7 @@ class TestTmpSnapshot2:
             )
 
             tdLog.info(f"== start consumer to pull msgs from stb")
-            tdLog.info(
-                f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start -e 1"
-            )
-            os.system(
-                f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start -e 1"
-            )
+            tmqCom.startTmqSimProcess(pullDelay, dbName, showMsg, showRow, cdbName,valgrind=0,alias=0,snapshot=1)
 
             tdLog.info(f"== check consume result")
             while True:
@@ -212,12 +207,7 @@ class TestTmpSnapshot2:
             )
 
             tdLog.info(f"== start consumer to pull msgs from ctb")
-            tdLog.info(
-                f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -s start -e 1 "
-            )
-            os.system(
-                f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start -e 1"
-            )
+            tmqCom.startTmqSimProcess(pullDelay, dbName, showMsg, showRow, cdbName,valgrind=0,alias=0,snapshot=1)
 
             tdLog.info(f"== check consume result")
             while True:
@@ -279,12 +269,7 @@ class TestTmpSnapshot2:
             )
 
             tdLog.info(f"== start consumer to pull msgs from ntb")
-            tdLog.info(
-                f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -s start -e 1"
-            )
-            os.system(
-                f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start -e 1"
-            )
+            tmqCom.startTmqSimProcess(pullDelay, dbName, showMsg, showRow, cdbName,valgrind=0,alias=0,snapshot=1)
 
             tdLog.info(f"== check consume result from ntb")
             while True:
@@ -300,7 +285,7 @@ class TestTmpSnapshot2:
                 time.sleep(1)
             loop_cnt = loop_cnt + 1
 
-        os.system(f"cases/40-DataSubscription/sh/consume.sh -s stop -x SIGINT")
+        tmqCom.stopTmqSimProcess("tmq_sim")
 
     def prepareBasicEnv_1vgrp(self):
 
