@@ -69,6 +69,14 @@ void doKeepTuple(SWindowRowsSup* pRowSup, int64_t ts, uint64_t groupId) {
   pRowSup->prevTs = ts;
   pRowSup->numOfRows += 1;
   pRowSup->groupId = groupId;
+  if (pRowSup->numOfNullRows > 0) {
+    pRowSup->numOfRows += pRowSup->numOfNullRows;
+    pRowSup->numOfNullRows = 0;
+  }
+}
+
+void doKeepNullTuple(SWindowRowsSup* pRowSup, int64_t ts, uint64_t groupId) {
+  pRowSup->numOfNullRows += 1;
 }
 
 void doKeepNewWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, int32_t rowIndex,
@@ -77,6 +85,7 @@ void doKeepNewWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, in
   pRowSup->numOfRows = 0;
   pRowSup->win.skey = tsList[rowIndex];
   pRowSup->groupId = groupId;
+  pRowSup->numOfNullRows = 0;
 }
 
 FORCE_INLINE int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn_t searchFn, TSKEY ekey, int32_t pos,
@@ -965,7 +974,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
     pTaskInfo->code = terrno;
     T_LONG_JMP(pTaskInfo->env, terrno);
   }
-  int64_t          gid = pBlock->info.id.groupId;
+  int64_t gid = pBlock->info.id.groupId;
 
   bool    hasResult = false;
   bool    masterScan = true;
@@ -987,6 +996,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
     pAgg = (pBlock->pBlockAgg != NULL) ? &pBlock->pBlockAgg[pInfo->stateCol.slotId] : NULL;
     if (colDataIsNull(pStateColInfoData, pBlock->info.rows, j, pAgg)) {
+      doKeepNullTuple(pRowSup, tsList[j], gid);
       continue;
     }
     hasResult = true;
