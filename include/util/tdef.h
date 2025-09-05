@@ -407,10 +407,10 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_TSDB_PAGESIZE          1  // unit KB
 #define TSDB_MAX_TSDB_PAGESIZE          16384
 #define TSDB_DEFAULT_PAGESIZE_PER_VNODE 4
-#define TSDB_MIN_DAYS_PER_FILE          60  // unit minute
+#define TSDB_MIN_DAYS_PER_FILE          1  // unit minute
 #define TSDB_MAX_DAYS_PER_FILE          (3650 * 1440)
 #define TSDB_DEFAULT_DAYS_PER_FILE      (10 * 1440)
-#define TSDB_MIN_DURATION_PER_FILE      60  // unit minute
+#define TSDB_MIN_DURATION_PER_FILE      1  // unit minute
 #define TSDB_MAX_DURATION_PER_FILE      (90 * 1440)
 #define TSDB_DEFAULT_DURATION_PER_FILE  (10 * 1440)
 #define TSDB_MIN_KEEP                   (1 * 1440)          // data in db to be reserved. unit minute

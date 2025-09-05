@@ -454,7 +454,6 @@ int tsem2_destroy(tsem2_t* sem) {
   (void)taosThreadMutexDestroy(&sem->mutex);
   (void)taosThreadCondDestroy(&sem->cond);
   (void)taosThreadCondAttrDestroy(&sem->attr);
-
   return 0;
 }
 

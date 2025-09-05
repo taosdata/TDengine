@@ -2262,13 +2262,13 @@ int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, uint8_t *pData, uin
     //       VALUE                  NONE                     NULL
 };
 #ifndef TD_ASTRA
-int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
-  if (!(pColData->cid == pColVal->cid && pColData->type == pColVal->value.type)) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-  return tColDataAppendValueImpl[pColData->flag][pColVal->flag](
-      pColData, VALUE_GET_DATUM(&pColVal->value, pColData->type), pColVal->value.nData);
-}
+// int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
+//   if (!(pColData->cid == pColVal->cid && pColData->type == pColVal->value.type)) {
+//     return TSDB_CODE_INVALID_PARA;
+//   }
+//   return tColDataAppendValueImpl[pColData->flag][pColVal->flag](
+//       pColData, VALUE_GET_DATUM(&pColVal->value, pColData->type), pColVal->value.nData);
+// }
 #endif
 static FORCE_INLINE int32_t tColDataUpdateValue10(SColData *pColData, uint8_t *pData, uint32_t nData, bool forward) {
   pColData->numOfNone--;
@@ -2674,14 +2674,14 @@ void (*tColDataGetValueImpl[8])(SColData *pColData, int32_t iVal, SColVal *pColV
     tColDataGetValue7   // HAS_VALUE | HAS_NULL | HAS_NONE
 };
 #ifndef TD_ASTRA
-int32_t tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
-  if (iVal < 0 || iVal >= pColData->nVal ||
-      (pColData->flag <= 0 || pColData->flag >= sizeof(tColDataGetValueImpl) / POINTER_BYTES)) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-  tColDataGetValueImpl[pColData->flag](pColData, iVal, pColVal);
-  return TSDB_CODE_SUCCESS;
-}
+// int32_t tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
+//   if (iVal < 0 || iVal >= pColData->nVal ||
+//       (pColData->flag <= 0 || pColData->flag >= sizeof(tColDataGetValueImpl) / POINTER_BYTES)) {
+//     return TSDB_CODE_INVALID_PARA;
+//   }
+//   tColDataGetValueImpl[pColData->flag](pColData, iVal, pColVal);
+//   return TSDB_CODE_SUCCESS;
+// }
 #endif
 
 uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal) {

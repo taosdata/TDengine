@@ -51,7 +51,7 @@ static int32_t tsdbSttLvlInitEx(STsdb *pTsdb, const SSttLvl *lvl1, SSttLvl **lvl
     code = TARRAY2_APPEND(lvl[0]->fobjArr, fobj);
     if (code) {
       tsdbSttLvlClear(lvl);
-      // (void)tThreadMutexDestroy(&fobj->mutex, __func__, __LINE__);
+      // (void)taosThreadMutexDestroy(&fobj->mutex);
       taosMemoryFree(fobj);
       return code;
     }
@@ -508,7 +508,7 @@ int32_t tsdbTFileSetInit(int32_t fid, STFileSet **fset) {
   TARRAY2_INIT(fset[0]->lvlArr);
 
   // block commit variables
-  (void)taosThreadCondInit(&fset[0]->canCommit, NULL);
+  // (void)taosThreadCondInit(&fset[0]->canCommit, NULL);
   (*fset)->numWaitCommit = 0;
   (*fset)->blockCommit = false;
 
@@ -516,7 +516,7 @@ int32_t tsdbTFileSetInit(int32_t fid, STFileSet **fset) {
     struct STFileSetCond *cond = &(*fset)->conds[i];
     cond->running = false;
     cond->numWait = 0;
-    (void)taosThreadCondInit(&cond->cond, NULL);
+    // (void)taosThreadCondInit(&cond->cond, NULL);
   }
 
   return 0;
@@ -683,9 +683,9 @@ void tsdbTFileSetClear(STFileSet **fset) {
 
     TARRAY2_DESTROY((*fset)->lvlArr, tsdbSttLvlClear);
 
-    (void)taosThreadCondDestroy(&(*fset)->canCommit);
+    (void)tThreadCondDestroy(&(*fset)->canCommit);
     for (int32_t i = 0; i < sizeof((*fset)->conds) / sizeof((*fset)->conds[0]); ++i) {
-      (void)taosThreadCondDestroy(&(*fset)->conds[i].cond);
+      (void)tThreadCondDestroy(&(*fset)->conds[i].cond);
     }
     taosMemoryFreeClear(*fset);
   }

@@ -234,7 +234,7 @@ int32_t tsdbTFileObjInit(STsdb *pTsdb, const STFile *f, STFileObj **fobj) {
     return terrno;
   }
 
-  taosInitRWLatch(&fobj[0]->mutex); // (void)tThreadMutexInit(&fobj[0]->mutex, NULL, __func__, __LINE__);
+  taosInitRWLatch(&fobj[0]->mutex);  // (void)taosThreadMutexInit(&fobj[0]->mutex, NULL);
   fobj[0]->f[0] = f[0];
   fobj[0]->state = TSDB_FSTATE_LIVE;
   fobj[0]->ref = 1;
@@ -275,7 +275,7 @@ int32_t tsdbTFileObjUnref(STFileObj *fobj) {
     if (fobj->state == TSDB_FSTATE_DEAD) {
       tsdbRemoveFile(fobj->fname);
     }
-    // (void)tThreadMutexDestroy(&fobj->mutex, __func__, __LINE__);
+    // (void)taosThreadMutexDestroy(&fobj->mutex);
     taosMemoryFree(fobj);
   }
 
@@ -347,7 +347,7 @@ int32_t tsdbTFileObjRemove(STFileObj *fobj) {
   tsdbTrace("remove unref file %s, fobj:%p ref:%d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
     tsdbTFileObjRemoveLC(fobj, true);
-    // (void)tThreadMutexDestroy(&fobj->mutex, __func__, __LINE__);
+    // (void)taosThreadMutexDestroy(&fobj->mutex);
     taosMemoryFree(fobj);
   }
   return 0;
@@ -368,7 +368,7 @@ int32_t tsdbTFileObjRemoveUpdateLC(STFileObj *fobj) {
   tsdbTrace("remove unref file %s, fobj:%p ref:%d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
     tsdbTFileObjRemoveLC(fobj, false);
-    // (void)tThreadMutexDestroy(&fobj->mutex, __func__, __LINE__);
+    // (void)taosThreadMutexDestroy(&fobj->mutex);
     taosMemoryFree(fobj);
   }
   return 0;

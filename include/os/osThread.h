@@ -73,6 +73,12 @@ typedef pthread_rwlockattr_t TdThreadRwlockAttr;
 typedef pthread_cond_t       TdThreadCond;
 typedef pthread_condattr_t   TdThreadCondAttr;
 typedef pthread_key_t        TdThreadKey;
+
+typedef struct {
+  TdThreadCond cond;
+  int8_t       inited;
+} TThreadCond;
+
 #endif
 #ifdef TD_ASTRA
 #define STACK_SIZE_DEFAULT (1572864)
@@ -236,6 +242,12 @@ int32_t taosThreadCondSignal(TdThreadCond *cond);
 int32_t taosThreadCondBroadcast(TdThreadCond *cond);
 int32_t taosThreadCondWait(TdThreadCond *cond, TdThreadMutex *mutex);
 int32_t taosThreadCondTimedWait(TdThreadCond *cond, TdThreadMutex *mutex, const struct timespec *abstime);
+
+int32_t tThreadCondDestroy(TThreadCond *cond);
+int32_t tThreadCondInit(TThreadCond *cond, const TdThreadCondAttr *attr);
+int32_t tThreadCondSignal(TThreadCond *cond);
+int32_t tThreadCondWait(TThreadCond *cond, TdThreadMutex *mutex);
+
 int32_t taosThreadCondAttrDestroy(TdThreadCondAttr *attr);
 int32_t taosThreadCondAttrGetPshared(const TdThreadCondAttr *attr, int32_t *pshared);
 int32_t taosThreadCondAttrInit(TdThreadCondAttr *attr);

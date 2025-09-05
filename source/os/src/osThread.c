@@ -156,11 +156,16 @@ int32_t taosThreadAttrSetInheritSched(TdThreadAttr *attr, int32_t inheritsched) 
 
 int32_t taosThreadAttrSetName(TdThreadAttr *attr, char* name) {
   OS_PARAM_CHECK(attr);
+#ifdef TD_ASTRA
   int32_t code = pthread_attr_setname(attr, name);
   if (code) {
     return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
+#else
+  return 0;
+#endif
+  
 }
 
 int32_t taosThreadAttrSetSchedParam(TdThreadAttr *attr, const struct sched_param *param) {
@@ -300,6 +305,78 @@ int32_t taosThreadCondTimedWait(TdThreadCond *cond, TdThreadMutex *mutex, const 
     return 0;
   }
 #endif
+}
+
+int32_t tThreadCheckInit(TThreadCond *cond) {
+  int32_t code = 0;
+  int8_t  old;
+  int32_t nLoops = 0;
+  while (1) {
+    old = atomic_val_compare_exchange_8(&cond->inited, 0, 2);
+    if (old != 2) break;
+    if (++nLoops > 1000) {
+      TAOS_UNUSED(sched_yield());
+      nLoops = 0;
+    }
+  }
+  if (old == 0) {
+    code = tThreadCondInit(cond, NULL);
+    if (code != 0) {
+      atomic_store_8(&cond->inited, 0);
+      return (terrno = code);
+    }
+    atomic_store_8(&cond->inited, 1);
+  }
+  return (terrno = code);
+}
+
+int32_t tThreadCondDestroy(TThreadCond *cond) {
+  OS_PARAM_CHECK(cond);
+  if (atomic_load_8(&cond->inited) == 0) {
+    return 0;
+  }
+  int32_t code = 0;
+  if (atomic_load_8(&cond->inited) == 1) {
+    code = pthread_cond_destroy(&cond->cond);
+    if (code) {
+      return (terrno = TAOS_SYSTEM_ERROR(code));
+    }
+  } else {
+    code = TSDB_CODE_INTERNAL_ERROR;
+  }
+  return code;
+}
+
+int32_t tThreadCondInit(TThreadCond *cond, const TdThreadCondAttr *attr) {
+  OS_PARAM_CHECK(cond);
+  int32_t code = pthread_cond_init(&cond->cond, attr);
+  if (code) {
+    return (terrno = TAOS_SYSTEM_ERROR(code));
+  }
+  return code;
+}
+
+int32_t tThreadCondSignal(TThreadCond *cond) {
+  OS_PARAM_CHECK(cond);
+  int32_t code = tThreadCheckInit(cond);
+  if (code) return (terrno = code);
+  code = pthread_cond_signal(&cond->cond);
+  if (code) {
+    return (terrno = TAOS_SYSTEM_ERROR(code));
+  }
+  return (terrno = code);
+}
+
+int32_t tThreadCondWait(TThreadCond *cond, TdThreadMutex *mutex) {
+  OS_PARAM_CHECK(cond);
+  OS_PARAM_CHECK(mutex);
+  int32_t code = tThreadCheckInit(cond);
+  if (code) return (terrno = code);
+  code = pthread_cond_wait(&cond->cond, mutex);
+  if (code) {
+    return (terrno = TAOS_SYSTEM_ERROR(code));
+  }
+  return (terrno = code);
 }
 
 int32_t taosThreadCondAttrDestroy(TdThreadCondAttr *attr) {
