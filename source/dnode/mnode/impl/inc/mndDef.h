@@ -85,6 +85,7 @@ typedef enum {
   MND_OPER_CREATE_MOUNT,
   MND_OPER_DROP_MOUNT,
   MND_OPER_CREATE_RSMA,
+  MND_OPER_DROP_RSMA,
 } EOperType;
 
 typedef enum {

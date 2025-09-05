@@ -400,8 +400,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DROP_TSMA,        "Invalid drop base tsm
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MAX_TSMA_NUM_EXCEEDED,    "Max tsma num exceeded")
 
 // mnode-rsma
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_RSMA_ALREADY_EXIST,       "Rsma already exists")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_RSMA_NOT_EXIST,           "Rsma not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_RSMA_OPTION,      "Invalid rsma option")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_RSMA_IN_CREATING,         "Rsma in creating status")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_RSMA_IN_DROPPING,         "Rsma in dropping status")
@@ -906,6 +904,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_INTERVAL,          "Invalid rsma interv
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_FUNC_PARAM,        "Invalid rsma func param, only one non-tag column allowed")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_UNSUPPORTED_FUNC,          "Rsma func not supported")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_ALREADY_EXISTS,            "Rsma already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_NOT_EXIST,                 "Rsma not exist")
 
 //index
 TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_REBUILDING,               "Index is rebuilding")
