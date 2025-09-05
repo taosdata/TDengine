@@ -31,5 +31,3 @@ jobs:
     uses: taosdata/.github/.github/workflows/new-framework-test.yml@enh/add-new-windows-ci-yaml
     with:
       tdinternal: false
-
-      
