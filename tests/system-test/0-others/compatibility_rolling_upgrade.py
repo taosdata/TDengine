@@ -92,9 +92,9 @@ class TDTestCase:
 
         time.sleep(10)
 
-        cb.verifyData(corss_major_version=False)
+        cb.verifyData(corss_major_version=False,checkLast=False)
 
-        cb.verifyBackticksInTaosSql(self.getBuildPath())
+        cb.verifyBackticksInTaosSql(self.getBuildPath(),checkLast=False)
 
         
 

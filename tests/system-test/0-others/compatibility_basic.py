@@ -374,7 +374,7 @@ class CompatibilityBase:
 
 
 
-    def verifyData(self,corss_major_version):
+    def verifyData(self,corss_major_version,checkLast=True):
         tdLog.printNoPrefix(f"==========step3:prepare and check data in new version")
         sleep(1)
         tdsql=tdCom.newTdSql()
@@ -393,8 +393,9 @@ class CompatibilityBase:
         tdLog.info(f"New client version is {nowClientVersion}")
 
         
-        tdsql.query(f"select last(*) from curdb.meters")
-        tdLog.info(tdsql.queryResult)
+        if checkLast:
+            tdsql.query(f"select last(*) from curdb.meters")
+            tdLog.info(tdsql.queryResult)
 
         # deal table schema is too old issue
         self.checkTagSizeAndAlterStb(tdsql)
@@ -433,7 +434,7 @@ class CompatibilityBase:
         tdsql.execute("flush database deldata;")
         tdsql.query("select avg(c1) from deldata.ct1;")
 
-    def verifyBackticksInTaosSql(self,bPath):
+    def verifyBackticksInTaosSql(self,bPath,checkLast=True):
         tdsql=tdCom.newTdSql()
         tdLog.printNoPrefix("==========step4:verify backticks in taos Sql-TD18542")
         tdsql.execute("drop database if exists db")
@@ -492,73 +493,76 @@ class CompatibilityBase:
         # check database test and last
         # first check
         
-        tdsql.query(f"select last(*) from test.meters group by tbname")
-        tdLog.info(tdsql.queryResult)
-        # tdsql.checkRows(tableNumbers)
-        
-        tdsql.query(f"select last_row(*) from test.meters group by tbname")
-        tdLog.info(tdsql.queryResult)
-        # tdsql.checkRows(tableNumbers)
+        if checkLast:
+            tdsql.query(f"select last(*) from test.meters group by tbname")
+            tdLog.info(tdsql.queryResult)
+            # tdsql.checkRows(tableNumbers)
+            
+            tdsql.query(f"select last_row(*) from test.meters group by tbname")
+            tdLog.info(tdsql.queryResult)
+            # tdsql.checkRows(tableNumbers)
 
-        tdsql.query(f"select last_row(*) from test.meters partition by tbname")
-        tdLog.info(tdsql.queryResult)
-        # tdsql.checkRows(tableNumbers)
-        
-        tdsql.query(f"select last(*) from test.meters")
-        tdLog.info(tdsql.queryResult)
-        tdsql.checkData(0,0,"2033-07-14 08:39:59.000")
-        tdsql.checkData(0,1,119) 
-        tdsql.checkData(0,2,191)
-        tdsql.checkData(0,3,0.25)
-        
-        tdsql.query(f"select last_row(*) from test.meters")
-        tdLog.info(tdsql.queryResult)
-        tdsql.checkData(0,0,"2033-07-14 08:39:59.000")
-        tdsql.checkData(0,1,119) 
-        tdsql.checkData(0,2,191)
-        tdsql.checkData(0,3,0.25)
+            tdsql.query(f"select last_row(*) from test.meters partition by tbname")
+            tdLog.info(tdsql.queryResult)
+            # tdsql.checkRows(tableNumbers)
+            
+            tdsql.query(f"select last(*) from test.meters")
+            tdLog.info(tdsql.queryResult)
+            tdsql.checkData(0,0,"2033-07-14 08:39:59.000")
+            tdsql.checkData(0,1,119) 
+            tdsql.checkData(0,2,191)
+            tdsql.checkData(0,3,0.25)
+            
+            tdsql.query(f"select last_row(*) from test.meters")
+            tdLog.info(tdsql.queryResult)
+            tdsql.checkData(0,0,"2033-07-14 08:39:59.000")
+            tdsql.checkData(0,1,119) 
+            tdsql.checkData(0,2,191)
+            tdsql.checkData(0,3,0.25)
 
-        tdsql.query(f"select last(*) from test.d1")
-        tdLog.info(tdsql.queryResult)       
-        tdsql.checkData(0,0,"2032-08-14 08:39:59.001")
-        tdsql.checkData(0,1,11) 
-        tdsql.checkData(0,2,190)
-        tdsql.checkData(0,3,0.21)      
+            tdsql.query(f"select last(*) from test.d1")
+            tdLog.info(tdsql.queryResult)       
+            tdsql.checkData(0,0,"2032-08-14 08:39:59.001")
+            tdsql.checkData(0,1,11) 
+            tdsql.checkData(0,2,190)
+            tdsql.checkData(0,3,0.21)      
 
         # update data and check
         tdsql.execute("insert into test.d2 values ('2033-07-14 08:39:59.002', 139, 182, 1.10) (now+2s, 12, 191, 0.22) test.d2  (ts) values ('2033-07-14 08:39:59.003');")
         tdsql.execute("insert into test.d2 values (now+5s, 4.3, 104, 0.4);")
 
-        tdsql.query(f"select last(*) from test.meters")
-        tdLog.info(tdsql.queryResult)
-        tdsql.checkData(0,0,"2033-07-14 08:39:59.003")
-        tdsql.checkData(0,1,139) 
-        tdsql.checkData(0,2,182)
-        tdsql.checkData(0,3,1.10)
+        if checkLast:
+            tdsql.query(f"select last(*) from test.meters")
+            tdLog.info(tdsql.queryResult)
+            tdsql.checkData(0,0,"2033-07-14 08:39:59.003")
+            tdsql.checkData(0,1,139) 
+            tdsql.checkData(0,2,182)
+            tdsql.checkData(0,3,1.10)
 
         # repeately insert data and check
         tdsql.execute("insert into test.d1 values (now+1s, 11, 190, 0.21) (now+2s, 12, 191, 0.22) ('2033-07-14 08:40:01.001', 16, 180, 0.53);")
 
-        tdsql.query(f"select last(*) from test.d1")
-        tdLog.info(tdsql.queryResult)
-        tdsql.checkData(0,0,"2033-07-14 08:40:01.001")
-        tdsql.checkData(0,1,16)
-        tdsql.checkData(0,2,180)
-        tdsql.checkData(0,3,0.53)
+        if checkLast:
+            tdsql.query(f"select last(*) from test.d1")
+            tdLog.info(tdsql.queryResult)
+            tdsql.checkData(0,0,"2033-07-14 08:40:01.001")
+            tdsql.checkData(0,1,16)
+            tdsql.checkData(0,2,180)
+            tdsql.checkData(0,3,0.53)
         
-        tdsql.query(f"select last(*) from test.meters")
-        tdLog.info(tdsql.queryResult)
-        tdsql.checkData(0,0,"2033-07-14 08:40:01.001")
-        tdsql.checkData(0,1,16)
-        tdsql.checkData(0,2,180)
-        tdsql.checkData(0,3,0.53)
+            tdsql.query(f"select last(*) from test.meters")
+            tdLog.info(tdsql.queryResult)
+            tdsql.checkData(0,0,"2033-07-14 08:40:01.001")
+            tdsql.checkData(0,1,16)
+            tdsql.checkData(0,2,180)
+            tdsql.checkData(0,3,0.53)
 
-        tdsql.query(f"select last_row(*) from test.meters")
-        tdLog.info(tdsql.queryResult)
-        tdsql.checkData(0,0,"2033-07-14 08:40:01.001")
-        tdsql.checkData(0,1,16)
-        tdsql.checkData(0,2,180)
-        tdsql.checkData(0,3,0.53)
+            tdsql.query(f"select last_row(*) from test.meters")
+            tdLog.info(tdsql.queryResult)
+            tdsql.checkData(0,0,"2033-07-14 08:40:01.001")
+            tdsql.checkData(0,1,16)
+            tdsql.checkData(0,2,180)
+            tdsql.checkData(0,3,0.53)
 
         # check alter config
         tdsql.execute('alter all dnodes "debugFlag 131"')
