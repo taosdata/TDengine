@@ -12,7 +12,7 @@ The stream processing engine includes data filtering, scalar function computatio
 
 TDengine stream processing supports the aggregation of supertables that are deployed across multiple vnodes. It can also handle out-of-order writes and includes a watermark mechanism that determines the extent to which out-of-order data is accepted by the system. You can configure whether to drop or reprocess out-of-order data through the **ignore expired** parameter.
 
-For more information, see [Stream Processing](../../tdengine-reference/sql-manual/stream/).
+For more information, see [Stream Processing](../../tdengine-reference/sql-manual/streams/).
 
 ## Create a Stream
 
