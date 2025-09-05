@@ -16641,6 +16641,28 @@ static int32_t extractCompactDbResultSchema(int32_t* numOfCols, SSchema** pSchem
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t extractScanDbResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+  *numOfCols = SCAN_DB_RESULT_COLS;
+  *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
+  if (NULL == (*pSchema)) {
+    return terrno;
+  }
+
+  (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[0].bytes = SCAN_DB_RESULT_FIELD1_LEN;
+  tstrncpy((*pSchema)[0].name, "result", TSDB_COL_NAME_LEN);
+
+  (*pSchema)[1].type = TSDB_DATA_TYPE_INT;
+  (*pSchema)[1].bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
+  tstrncpy((*pSchema)[1].name, "id", TSDB_COL_NAME_LEN);
+
+  (*pSchema)[2].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[2].bytes = SCAN_DB_RESULT_FIELD3_LEN;
+  tstrncpy((*pSchema)[2].name, "reason", TSDB_COL_NAME_LEN);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema, SExtSchema** ppExtSchemas) {
   if (NULL == pRoot) {
     return TSDB_CODE_SUCCESS;
@@ -16670,9 +16692,10 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
       return extractShowVariablesResultSchema(numOfCols, pSchema);
     case QUERY_NODE_COMPACT_DATABASE_STMT:
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
+      return extractCompactDbResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SCAN_DATABASE_STMT:
     case QUERY_NODE_SCAN_VGROUPS_STMT:
-      return extractCompactDbResultSchema(numOfCols, pSchema);
+      return extractScanDbResultSchema(numOfCols, pSchema);
     default:
       break;
   }
