@@ -757,7 +757,7 @@ Apart from the operations explicitly restricted or specially handled in the tabl
 
 ### Configuration Parameters
 
-Stream processing–related configuration parameters are listed below. For full details, see [taosd](../01-components/01-taosd.md).
+Stream processing–related configuration parameters are listed below. For full details, see [taosd](https://docs.tdengine.com/tdengine-reference/components/taosd/).
 
 - numOfMnodeStreamMgmtThreads: Number of stream management threads on mnodes.
 - numOfStreamMgmtThreads: Number of stream management threads on vnodes/snodes.
