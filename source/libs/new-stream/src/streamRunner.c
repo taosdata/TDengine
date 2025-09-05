@@ -968,3 +968,7 @@ _exit:
   
   return code;
 }
+
+int32_t stRunnerTaskDropTable(SStreamRunnerTask* pTask, SSTriggerDropRequest* pReq) {
+  return dropStreamTable(&pTask->msgCb, (void*)&pTask->output, pReq);
+}
