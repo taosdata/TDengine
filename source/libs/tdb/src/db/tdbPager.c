@@ -792,6 +792,9 @@ int tdbPagerFetchFreePage(SPager *pPager, SPgno pgno, SPage **ppPage, TXN *pTxn)
 int tdbPagerInsertFreePage(SPager *pPager, SPage *pPage, TXN *pTxn) {
   int tdbTbPushFreePage(TTB *pTb, SPage *pPage, TXN *pTxn);
 
+  SPgno pgno = TDB_PAGE_PGNO(pPage);
+  assert(pgno <= pPager->dbFileSize);
+
   tdbTrace("tdb/insert-free-page: tbc recycle page: %d.", TDB_PAGE_PGNO(pPage));
   int code = tdbTbPushFreePage(pPager->pEnv->pFreeDb, pPage, pTxn);
   if (code < 0) {
@@ -841,6 +844,7 @@ static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno, TXN *pTxn) {
     return ret;
   }
 
+  assert(*ppgno <= pPager->dbFileSize);
   if (*ppgno != 0) return 0;
 
   // Allocate the page by extending the pager
