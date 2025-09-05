@@ -5482,7 +5482,7 @@ static int32_t stRealtimeGroupAddSingleMeta(SSTriggerRealtimeGroup *pGroup, int3
     }
   }
   pMeta->skey = TMAX(pMeta->skey, pGroup->oldThreshold + 1);
-  if (pTask->ignoreDisorder) {
+  if (pTask->ignoreDisorder && pGroup->newThreshold > pGroup->oldThreshold) {
     pMeta->skey = TMAX(pMeta->skey, pGroup->newThreshold - pTask->watermark + 1);
   }
   if (pMeta->skey <= pMeta->ekey) {
