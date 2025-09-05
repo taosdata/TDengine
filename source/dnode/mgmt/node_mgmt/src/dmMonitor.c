@@ -178,6 +178,30 @@ void dmGetMnodeLoads(SMonMloadInfo *pInfo) {
   }
 }
 
+void dmSetMnodeSyncTimeout() {
+  dInfo("dmSetMnodeSyncTimeout");
+  SDnode       *pDnode = dmInstance();
+  SMgmtWrapper *pWrapper = &pDnode->wrappers[MNODE];
+  if (dmMarkWrapper(pWrapper) == 0) {
+    if (pWrapper->pMgmt != NULL) {
+      mmSetMnodeSyncTimeout(pWrapper->pMgmt);
+    }
+    dmReleaseWrapper(pWrapper);
+  }
+}
+
+void dmSetVnodeSyncTimeout() {
+  dInfo("dmSetVnodeSyncTimeout");
+  SDnode       *pDnode = dmInstance();
+  SMgmtWrapper *pWrapper = &pDnode->wrappers[VNODE];
+  if (dmMarkWrapper(pWrapper) == 0) {
+    if (pWrapper->pMgmt != NULL) {
+      vmSetVnodeSyncTimeout(pWrapper->pMgmt);
+    }
+    dmReleaseWrapper(pWrapper);
+  }
+}
+
 void dmGetQnodeLoads(SQnodeLoad *pInfo) {
   SDnode       *pDnode = dmInstance();
   SMgmtWrapper *pWrapper = &pDnode->wrappers[QNODE];
