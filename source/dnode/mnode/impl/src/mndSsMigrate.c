@@ -432,10 +432,11 @@ int32_t mndRetrieveSsMigrate(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
 
     char tmpBuf[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
 
+    // ssmigrate_id
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    RETRIEVE_CHECK_GOTO(
-        colDataSetVal(pColInfo, numOfRows, (const char *)&pSsMigrate->id, false), pSsMigrate, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pSsMigrate->id, false), pSsMigrate, &lino, _OVER);
 
+    // db_name
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (pDb != NULL || !IS_SYS_DBNAME(pSsMigrate->dbname)) {
       SName name = {0};
@@ -447,9 +448,66 @@ int32_t mndRetrieveSsMigrate(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), pSsMigrate, &lino, _OVER);
 
+    // start_time
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pSsMigrate->startTime, false), pSsMigrate, &lino,
-                        _OVER);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pSsMigrate->startTime, false), pSsMigrate, &lino, _OVER);
+
+    // number_vgroup
+    int32_t numVg = taosArrayGetSize(pSsMigrate->vgroups);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&numVg, false), pSsMigrate, &lino, _OVER);
+
+    // migrated_vgroup
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pSsMigrate->vgIdx, false), pSsMigrate, &lino, _OVER);
+
+    if (pSsMigrate->vgIdx < numVg) {
+      // vgroup_id
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      int32_t vgId = *(int32_t*)taosArrayGet(pSsMigrate->vgroups, pSsMigrate->vgIdx);
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&vgId, false), pSsMigrate, &lino, _OVER);
+      
+      // number_fileset
+      int32_t numFset = taosArrayGetSize(pSsMigrate->fileSets);
+      if (pSsMigrate->vgState < SSMIGRATE_VGSTATE_FSET_LIST_RECEIVED) {
+        numFset = 0;
+      }
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&numFset, false), pSsMigrate, &lino, _OVER);
+
+      // migrated_fileset
+      int32_t fsetIdx = pSsMigrate->fsetIdx;
+      if (pSsMigrate->vgState < SSMIGRATE_VGSTATE_FSET_LIST_RECEIVED) {
+        fsetIdx = 0;
+      }
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&fsetIdx, false), pSsMigrate, &lino, _OVER);
+
+      // fileset_id
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      if (fsetIdx < numFset) {
+        int32_t fid = *(int32_t*)taosArrayGet(pSsMigrate->fileSets, fsetIdx);
+        RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&fid, false), pSsMigrate, &lino, _OVER);
+      } else {
+        RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, NULL, true), pSsMigrate, &lino, _OVER);
+      }
+    } else {
+      // vgroup_id
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, NULL, true), pSsMigrate, &lino, _OVER);
+
+      // number_fileset
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, NULL, true), pSsMigrate, &lino, _OVER);
+
+      // migrated_fileset
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, NULL, true), pSsMigrate, &lino, _OVER);
+
+      // fileset_id
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, NULL, true), pSsMigrate, &lino, _OVER);
+    }
 
     numOfRows++;
     sdbRelease(pSdb, pSsMigrate);
@@ -461,14 +519,6 @@ _OVER:
   mndReleaseDb(pMnode, pDb);
   return numOfRows;
 }
-
-
-
-int32_t mndProcessKillSsMigrateReq(SRpcMsg *pReq) {
-  mError("not implemented yet");
-  return TSDB_CODE_OPS_NOT_SUPPORT;
-}
-
 
 
 int32_t mndSsMigrateDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb);
@@ -557,6 +607,87 @@ _exit:
   } else {
     mError("ssmigrate:%d, failed to update at lino %d since %s", pSsMigrate->id, lino, tstrerror(code));
   }
+}
+
+
+static int32_t mndKillSsMigrate(SMnode *pMnode, SRpcMsg *pReq, SSsMigrateObj *pSsMigrate) {
+  SSdb   *pSdb = pMnode->pSdb;
+  SVgObj *pVgroup = NULL;
+  void   *pIter = NULL;
+
+  int32_t vgId = *(int32_t*)taosArrayGet(pSsMigrate->vgroups, pSsMigrate->vgIdx);
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) {
+      return mndDropSsMigrate(pMnode, pSsMigrate);
+    }
+    if (pVgroup->vgId == vgId) {
+      sdbCancelFetch(pSdb, pIter);
+      break;
+    }
+  }
+
+  SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
+  sdbRelease(pSdb, pVgroup);
+
+  SVnodeKillSsMigrateReq req = {.ssMigrateId = pSsMigrate->id};
+  int32_t   reqLen = tSerializeSVnodeKillSsMigrateReq(NULL, 0, &req);
+  int32_t   contLen = reqLen + sizeof(SMsgHead);
+  SMsgHead *pHead = rpcMallocCont(contLen);
+  if (pHead == NULL) {
+    return mndDropSsMigrate(pMnode, pSsMigrate);
+  }
+
+  pHead->contLen = htonl(contLen);
+  pHead->vgId = htonl(vgId);
+  int32_t ret = 0;
+  if ((ret = tSerializeSVnodeKillSsMigrateReq((char *)pHead + sizeof(SMsgHead), reqLen, &req)) < 0) {
+    return mndDropSsMigrate(pMnode, pSsMigrate);
+  }
+
+  SRpcMsg rpcMsg = {.msgType = TDMT_VND_KILL_SSMIGRATE, .pCont = pHead, .contLen = contLen};
+  int32_t code = tmsgSendReq(&epSet, &rpcMsg);
+  if (code != 0) {
+    mError("ssmigrate:%d, vgId:%d, failed to send kill ssmigrate request to vnode since 0x%x", req.ssMigrateId, vgId, code);
+  } else {
+    mInfo("ssmigrate:%d, vgId:%d, kill ssmigrate request was sent to vnode", req.ssMigrateId, vgId);
+  }
+
+  return mndDropSsMigrate(pMnode, pSsMigrate);
+}
+
+int32_t mndProcessKillSsMigrateReq(SRpcMsg *pReq) {
+  int32_t         code = 0;
+  int32_t         lino = 0;
+  SKillSsMigrateReq killReq = {0};
+
+  if ((code = tDeserializeSKillSsMigrateReq(pReq->pCont, pReq->contLen, &killReq)) != 0) {
+    TAOS_RETURN(code);
+  }
+
+  mInfo("start to kill ssmigrate:%" PRId32, killReq.ssMigrateId);
+
+  SMnode      *pMnode = pReq->info.node;
+  SSsMigrateObj *pSsMigrate = mndAcquireSsMigrate(pMnode, killReq.ssMigrateId);
+  if (pSsMigrate == NULL) {
+    code = TSDB_CODE_MND_INVALID_SSMIGRATE_ID;
+    tFreeSKillSsMigrateReq(&killReq);
+    TAOS_RETURN(code);
+  }
+
+  //TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_SSMIGRATE_DB), &lino, _OVER);
+
+  TAOS_CHECK_GOTO(mndKillSsMigrate(pMnode, pReq, pSsMigrate), &lino, _OVER);
+
+_OVER:
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("failed to kill ssmigrate %" PRId32 " since %s", killReq.ssMigrateId, terrstr());
+  }
+
+  tFreeSKillSsMigrateReq(&killReq);
+  mndReleaseSsMigrate(pMnode, pSsMigrate);
+
+  TAOS_RETURN(code);
 }
 
 

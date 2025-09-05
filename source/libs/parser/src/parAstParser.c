@@ -634,7 +634,7 @@ static int32_t collectMetaKeyFromCreateStream(SCollectMetaKeyCxt* pCxt, SCreateS
 
   if (strcmp(pStmt->targetTabName, "") != 0) {
     PAR_ERR_RET(reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->targetDbName, pStmt->targetTabName, pCxt->pMetaCache));
-    reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pStmt->targetDbName, pStmt->targetTabName, pCxt->pMetaCache);
+    (void)reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pStmt->targetDbName, pStmt->targetTabName, pCxt->pMetaCache);
     PAR_ERR_RET(reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->targetDbName, pCxt->pMetaCache));
   }
   PAR_ERR_RET(reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->streamDbName, pCxt->pMetaCache));
@@ -920,6 +920,12 @@ static int32_t collectMetaKeyFromShowCompacts(SCollectMetaKeyCxt* pCxt, SShowStm
 static int32_t collectMetaKeyFromShowCompactDetails(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB,
                                          TSDB_INS_TABLE_COMPACT_DETAILS, pCxt->pMetaCache);
+  return code;
+}
+
+static int32_t collectMetaKeyFromShowSsMigrates(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_SSMIGRATES,
+                                         pCxt->pMetaCache);
   return code;
 }
 
@@ -1271,6 +1277,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowCompacts(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
       return collectMetaKeyFromShowCompactDetails(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_SSMIGRATES_STMT:
+      return collectMetaKeyFromShowSsMigrates(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT:
       return collectMetaKeyFromShowTransactionDetails(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
