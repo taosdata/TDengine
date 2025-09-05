@@ -153,6 +153,78 @@ function get_remote_scp_command() {
     fi
 }
 
+function collect_coverage_data() {
+    local index=$1
+    local thread_no=$2
+    local case_file=$3
+    local log_dir=$4
+    local status=$5  # success 或 failed
+    
+    # 创建覆盖率数据目录
+    local coverage_dir="${log_dir}/${case_file}.coverage"
+    mkdir -p "$coverage_dir"
+    
+    # 获取远程命令前缀
+    local scpcmd=""
+    if ! is_local_host "${hosts[index]}"; then
+        scpcmd=$(get_remote_scp_command "$index")
+    fi
+    
+    # 收集 GCDA 文件
+    local remote_debug_dir="${workdirs[index]}/${DEBUGPATH}"
+    local cmd=""
+    
+    echo "开始收集覆盖率数据: ${case_file} (${status})"
+    
+    # 方案1: 直接复制所有 GCDA 文件
+    if ! is_local_host "${hosts[index]}"; then
+        # 远程主机 - 先打包再传输（避免文件过多导致命令行过长）
+        local ssh_script=$(get_remote_ssh_command "$index")
+        local remote_tar_file="${workdirs[index]}/tmp/thread_volume/$thread_no/coverage_${case_file##*/}.tar.gz"
+        
+        # 在远程主机打包 GCDA 文件
+        cmd="${ssh_script} \"cd ${remote_debug_dir} && find . -name '*.gcda' -type f | tar -czf ${remote_tar_file} -T - 2>/dev/null || echo 'No gcda files found'\""
+        echo "打包覆盖率文件: $cmd"
+        bash -c "$cmd"
+        
+        # 传输压缩包
+        cmd="$scpcmd:${remote_tar_file} ${coverage_dir}/gcda_files.tar.gz"
+        echo "传输覆盖率文件: $cmd"
+        bash -c "$cmd" 2>/dev/null
+        
+        # 解压到覆盖率目录
+        if [ -f "${coverage_dir}/gcda_files.tar.gz" ]; then
+            cd "$coverage_dir" && tar -xzf gcda_files.tar.gz 2>/dev/null && rm -f gcda_files.tar.gz
+            echo "覆盖率数据已保存到: $coverage_dir"
+        fi
+        
+        # 清理远程临时文件
+        cmd="${ssh_script} \"rm -f ${remote_tar_file}\""
+        bash -c "$cmd" 2>/dev/null
+    else
+        # 本地主机 - 直接复制
+        cmd="cd ${remote_debug_dir} && find . -name '*.gcda' -type f -exec cp --parents {} ${coverage_dir}/ \\; 2>/dev/null || echo 'No gcda files found'"
+        echo "本地复制覆盖率文件: $cmd"
+        bash -c "$cmd"
+    fi
+    
+    # 方案2: 额外创建 sim/cover 目录的符号链接（可选）
+    local sim_coverage_dir="${log_dir}/${case_file}.sim.coverage"
+    if [ -d "${coverage_dir}" ] && [ -n "$(ls -A ${coverage_dir} 2>/dev/null)" ]; then
+        mkdir -p "$sim_coverage_dir"
+        # 创建到 coverage 目录的符号链接，方便查找
+        ln -sf "../${case_file}.coverage" "$sim_coverage_dir/gcda_files"
+        echo "创建覆盖率数据链接: $sim_coverage_dir/gcda_files -> ${case_file}.coverage"
+    fi
+    
+    # 统计收集到的文件数量
+    local gcda_count=$(find "$coverage_dir" -name "*.gcda" -type f 2>/dev/null | wc -l)
+    echo "收集到 ${gcda_count} 个覆盖率文件 (${status}): ${case_file}"
+    
+    # 记录到日志
+    echo "Coverage data collected: ${gcda_count} files" >> "${log_dir}/${case_file}.txt"
+}
+
 function clean_tmp() {
     local index=$1
     local cmd=""
@@ -178,6 +250,17 @@ function run_thread() {
     if [ $ent -ne 0 ]; then
         local script="${workdirs[index]}/TDinternal/community/test/ci/run_container.sh -e"
     fi
+
+    # 为每个线程创建独立的 GCOV 输出目录
+    local gcov_output_dir="${workdirs[index]}/tmp/thread_volume/$thread_no/gcov_data"
+    local cmd=""
+    if ! is_local_host "${hosts[index]}"; then
+        cmd="${runcase_script} \"mkdir -p ${gcov_output_dir}\""
+    else
+        cmd="mkdir -p ${gcov_output_dir}"
+    fi
+    bash -c "$cmd"
+
     local cmd="${runcase_script} ${script}"
 
     # script="echo"
@@ -265,7 +348,10 @@ function run_thread() {
         if [ -n "$case_path" ]; then
             mkdir -p "$log_dir"/"$case_path"
         fi
-        cmd="${runcase_script} ${script} -w ${workdirs[index]} -c \"${case_cmd}\" -t ${thread_no} -d ${exec_dir}  -s ${case_build_san} ${timeout_param}"
+        
+        # 修改执行命令，添加 GCOV 环境变量
+        local gcov_env_vars="GCOV_PREFIX=${gcov_output_dir} GCOV_PREFIX_STRIP=0"
+        cmd="${runcase_script}  env ${gcov_env_vars} ${script} -w ${workdirs[index]} -c \"${case_cmd}\" -t ${thread_no} -d ${exec_dir}  -s ${case_build_san} ${timeout_param}"
         # echo "$thread_no $count $cmd"
         local ret=0
         local redo_count=1
@@ -357,6 +443,8 @@ function run_thread() {
         if [ $ret -eq 0 ]; then
             echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[32m success\e[0m"
             flock -x "$lock_file" -c "echo \"${case_info}|success|${total_time}\" >>${success_case_file}"
+
+            collect_coverage_data "$index" "$thread_no" "$case_file" "$log_dir" "success"
         else
             if [ -n "${web_server}" ]; then
                 flock -x "$lock_file" -c "echo -e \"${hosts[index]} ret:${ret} ${line}\n  ${web_server}/$test_log_dir/${case_file}.txt\" >>${failed_case_file}"
@@ -371,6 +459,9 @@ function run_thread() {
                 cmd="cp -rf ${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
             fi
             bash -c "$cmd" >/dev/null
+
+            collect_coverage_data "$index" "$thread_no" "$case_file" "$log_dir" "failed"
+
             local corefile
             corefile=$(ls "$log_dir/${case_file}.coredump/")
             echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[31m failed\e[0m"
