@@ -40,7 +40,7 @@ insert into db.tb using db.meters tags(1) values(now, 1);
 taosx run -f "tmq+ws://username:password@ip:port/topic?param=value..." -t "mqtt://ip:port?param=value..."
 ```
 
-其中 `-f` 指定 TMQ 订阅的 DSN，`-t` 指定 MQTT broker 的 DSN。关于 taosx 和 DSN 的用法请参考 [taosX 组件文档](../../14-references/04-taosx.md)
+其中 `-f` 指定 TMQ 订阅的 DSN，`-t` 指定 MQTT broker 的 DSN。关于 taosx 和 DSN 的用法请参考 [taosX 组件文档](../../14-references/01-components/04-taosx.md).
 
 TMQ DSN 参数：
 
